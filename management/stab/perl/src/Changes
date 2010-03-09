@@ -1,0 +1,6 @@
+Revision history for Perl extension JazzHands::STAB.
+
+0.01  Tue May 23 02:43:04 2006
+	- original version; created by h2xs 1.1.1.1 with options
+		-AX --skip-exporter --use-new-tests -n JazzHands::STAB
+

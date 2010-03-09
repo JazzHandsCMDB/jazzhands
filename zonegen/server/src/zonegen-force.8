@@ -1,0 +1,236 @@
+.de Sh \" Subsection heading
+.br
+.if t .Sp
+.ne 5
+.PP
+\fB\\$1\fR
+.PP
+..
+.de Sp \" Vertical space (when we can't use .PP)
+.if t .sp .5v
+.if n .sp
+..
+.de Vb \" Begin verbatim text
+.ft CW
+.nf
+.ne \\$1
+..
+.de Ve \" End verbatim text
+.ft R
+.fi
+..
+.\" Set up some character translations and predefined strings.  \*(-- will
+.\" give an unbreakable dash, \*(PI will give pi, \*(L" will give a left
+.\" double quote, and \*(R" will give a right double quote.  | will give a
+.\" real vertical bar.  \*(C+ will give a nicer C++.  Capital omega is used to
+.\" do unbreakable dashes and therefore won't be available.  \*(C` and \*(C'
+.\" expand to `' in nroff, nothing in troff, for use with C<>.
+.tr \(*W-|\(bv\*(Tr
+.ds C+ C\v'-.1v'\h'-1p'\s-2+\h'-1p'+\s0\v'.1v'\h'-1p'
+.ie n \{\
+.    ds -- \(*W-
+.    ds PI pi
+.    if (\n(.H=4u)&(1m=24u) .ds -- \(*W\h'-12u'\(*W\h'-12u'-\" diablo 10 pitch
+.    if (\n(.H=4u)&(1m=20u) .ds -- \(*W\h'-12u'\(*W\h'-8u'-\"  diablo 12 pitch
+.    ds L" ""
+.    ds R" ""
+.    ds C` ""
+.    ds C' ""
+'br\}
+.el\{\
+.    ds -- \|\(em\|
+.    ds PI \(*p
+.    ds L" ``
+.    ds R" ''
+'br\}
+.\"
+.\" If the F register is turned on, we'll generate index entries on stderr for
+.\" titles (.TH), headers (.SH), subsections (.Sh), items (.Ip), and index
+.\" entries marked with X<> in POD.  Of course, you'll have to process the
+.\" output yourself in some meaningful fashion.
+.if \nF \{\
+.    de IX
+.    tm Index:\\$1\t\\n%\t"\\$2"
+..
+.    nr % 0
+.    rr F
+.\}
+.\"
+.\" For nroff, turn off justification.  Always turn off hyphenation; it makes
+.\" way too many mistakes in technical documents.
+.hy 0
+.if n .na
+.\"
+.\" Accent mark definitions (@(#)ms.acc 1.5 88/02/08 SMI; from UCB 4.2).
+.\" Fear.  Run.  Save yourself.  No user-serviceable parts.
+.    \" fudge factors for nroff and troff
+.if n \{\
+.    ds #H 0
+.    ds #V .8m
+.    ds #F .3m
+.    ds #[ \f1
+.    ds #] \fP
+.\}
+.if t \{\
+.    ds #H ((1u-(\\\\n(.fu%2u))*.13m)
+.    ds #V .6m
+.    ds #F 0
+.    ds #[ \&
+.    ds #] \&
+.\}
+.    \" simple accents for nroff and troff
+.if n \{\
+.    ds ' \&
+.    ds ` \&
+.    ds ^ \&
+.    ds , \&
+.    ds ~ ~
+.    ds /
+.\}
+.if t \{\
+.    ds ' \\k:\h'-(\\n(.wu*8/10-\*(#H)'\'\h"|\\n:u"
+.    ds ` \\k:\h'-(\\n(.wu*8/10-\*(#H)'\`\h'|\\n:u'
+.    ds ^ \\k:\h'-(\\n(.wu*10/11-\*(#H)'^\h'|\\n:u'
+.    ds , \\k:\h'-(\\n(.wu*8/10)',\h'|\\n:u'
+.    ds ~ \\k:\h'-(\\n(.wu-\*(#H-.1m)'~\h'|\\n:u'
+.    ds / \\k:\h'-(\\n(.wu*8/10-\*(#H)'\z\(sl\h'|\\n:u'
+.\}
+.    \" troff and (daisy-wheel) nroff accents
+.ds : \\k:\h'-(\\n(.wu*8/10-\*(#H+.1m+\*(#F)'\v'-\*(#V'\z.\h'.2m+\*(#F'.\h'|\\n:u'\v'\*(#V'
+.ds 8 \h'\*(#H'\(*b\h'-\*(#H'
+.ds o \\k:\h'-(\\n(.wu+\w'\(de'u-\*(#H)/2u'\v'-.3n'\*(#[\z\(de\v'.3n'\h'|\\n:u'\*(#]
+.ds d- \h'\*(#H'\(pd\h'-\w'~'u'\v'-.25m'\f2\(hy\fP\v'.25m'\h'-\*(#H'
+.ds D- D\\k:\h'-\w'D'u'\v'-.11m'\z\(hy\v'.11m'\h'|\\n:u'
+.ds th \*(#[\v'.3m'\s+1I\s-1\v'-.3m'\h'-(\w'I'u*2/3)'\s-1o\s+1\*(#]
+.ds Th \*(#[\s+2I\s-2\h'-\w'I'u*3/5'\v'-.3m'o\v'.3m'\*(#]
+.ds ae a\h'-(\w'a'u*4/10)'e
+.ds Ae A\h'-(\w'A'u*4/10)'E
+.    \" corrections for vroff
+.if v .ds ~ \\k:\h'-(\\n(.wu*9/10-\*(#H)'\s-2\u~\d\s+2\h'|\\n:u'
+.if v .ds ^ \\k:\h'-(\\n(.wu*10/11-\*(#H)'\v'-.4m'^\v'.4m'\h'|\\n:u'
+.    \" for low resolution devices (crt and lpr)
+.if \n(.H>23 .if \n(.V>19 \
+\{\
+.    ds : e
+.    ds 8 ss
+.    ds o a
+.    ds d- d\h'-1'\(ga
+.    ds D- D\h'-1'\(hy
+.    ds th \o'bp'
+.    ds Th \o'LP'
+.    ds ae ae
+.    ds Ae AE
+.\}
+.rm #[ #] #H #V #F C
+.\" ========================================================================
+.\"
+.IX Title "FORCE-ZONEGEN  8"
+.TH FORCE-ZONEGEN 8 "$Date$" "$Revision$" "JazzHands Docs"
+.SH "zonegen-force"
+.IX Header "zonegen-force"
+zongen-force \*(-- generate \s-1DNS\s0 zone files from \s-1JazzHands\s0
+.SH "SYNOPSIS"
+.IX Header "SYNOPSIS"
+zonegen-force [ options ] [ zone1 zone2 zone3 ... ]
+.SH "OPTIONS"
+.IX Header "OPTIONS"
+.IP "\fB\-\-genall, \-a\fR generate all zones" 4
+.IX Item "--genall, -a generate all zones"
+.PD 0
+.IP "\fB\-\-force, \-f\fR force generation of zones" 4
+.IX Item "--force, -f force generation of zones"
+.IP "\fB\-\-forcesoa\fR force update of \s-1SOA\s0" 4
+.IX Item "--forcesoa force update of SOA"
+.IP "\fB\-\-nosoa\fR never update the \s-1SOA\s0" 4
+.IX Item "--nosoa never update the SOA"
+.IP "\fB\-\-outdir, \-o\fR change putput" 4
+.IX Item "--outdir, -o change putput"
+.PD
+.SH "DESCRIPTION"
+.IX Header "DESCRIPTION"
+The zongen-force command is used to generate zone files, as well
+as configuration files and zone file hierarchies that can be copied to
+dns servers for inclusion in their \s-1DNS\s0 configuration files.  It is
+esseintially a sudo wrapper around 
+/prod/zonegen/libexec/do-zone-generation, which passes all of its arguments
+onto /prod/zonegen/libexec/zonegen-force.
+.PP
+Generating all zones takes several minutes.  One zone should be completed
+within a minute or so.
+.PP
+Under normal circumstances, the zones are first scanned to determine
+changes have been made, and if so, the \s-1SOA\s0 serial number is incremented
+by one, and zone files generated.  A configuration file and a shell
+script that invokes rndc for each changed zone is also generated with a
+hierarchy of symlinks for distribution to name servers.  These are used
+by a wrapper script to copy to machines.
+.PP
+It is possible to specify zone names on the command line.  In that case,
+only those zones will be operated on rather than all zones that are in
+the database.  Note that you may need to use other options to trigger
+the behavior you want, since this option just restricts the zones that
+the command operates on, rather than forcing generation of zones.
+.PP
+The command has two subdirectories that it creates under the output
+directory, 'zones' and 'perserver'.  The zones directory contains forward
+zones, and a subdirectory 'inaddr' with the inverse zones.
+.PP
+The perserver directory contains a directory per nameserver.  The
+nameservers are those that zongen-force found to be listed as
+authoritative for zones with the should_generate flag set to Y.  Each
+of these directories contains two directories, \*(L"etc\*(R", and \*(L"zones\*(R".  The
+etc directory contains part of a named.conf file that can be included on
+a name server to make it a master server for auto generated zones.  The
+\&\*(L"zones\*(R" file contains symlinks back to the master zones directory in
+the output_root area.  This entire tree can be copied via rsync or rdist
+(by not replicating symlinks) to a nameserver's auto-gen directory under
+it's named root.
+.PP
+zongen-force normally does it's work under the /prod/zonegen/auto\-gen/
+directory.  The \fB\-\-outdir\fR option can be used to change the root of
+this work.
+.PP
+The \fB\-\-genall\fR option is used to tell zongen-force that it should
+generate zones regardless of if it is marked as such in \s-1JazzHands\s0.  Zones
+will never be setup to be pushed to \s-1DNS\s0 servers if they are not
+configured for auto\-generation.  This option exists to see what a zone
+may end up looking like it if it were auto generated.
+.PP
+The \fB\-\-force\fR option skips the check to see if a zone has changed,
+and generates a zone anyway.  Other options can influence if a zone
+generation will happen, as well.  The \s-1SOA\s0 serial number will only be
+incremented if the zone has changed, however, unless the \fB\-\-forcesoa\fR
+option is used.
+.PP
+The \fB\-\-forcesoa\fR option causes the \s-1SOA\s0 serial number to be incremented
+for any generated zones, even if there were no changes to the zone.
+This option cannot be combined with the \-\-nosoa option
+.PP
+The \fB\-\-nosoa\fR prevents the serial number from ever being updated on a
+Zone.  This option cannot be combined with the \-\-forcesoa optoin.
+.PP
+zongen-force uses the rows of the dhcp_range, dns_domain,
+dns_record, netblock, and network_interface tables in \s-1JazzHands\s0 to create
+zones file.
+.SH "ENVIRONMENT"
+.IX Header "ENVIRONMENT"
+The \s-1DBAUTHAL_DIR\s0 environment variable is used by JazzHands::DBI to determine
+what database credentials to use.
+.SH "AUTHORS"
+.IX Header "AUTHORS"
+Todd Kover
+.SH "SEE ALSO"
+.IX Header "SEE ALSO"
+\&\fInamed\fR\|(9)
+.SH "BUGS"
+.IX Header "BUGS"
+If an rsync fails to run, the next run may not notify the far end server
+that a zone has changed and an 'rndc' never executed. rsync should
+probably be replaced with 'rdist' or some other mechanism that causes the
+command to be run when the new file is placed.  An alternative would be to
+just run 'rndc reload', without zones, on the clients, which will cause it
+to reload all zones.  This may have unintended side effects as well.
+.PP
+It may be desirable to push zones to nameservers that are not listed in the
+zone as authoritative.  This does not generate files that make this
+straightforward.

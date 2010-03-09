@@ -1,0 +1,51 @@
+# $Id$
+
+Everything under this directory was taken from the NetBSD sources.  The
+functions here are used to check PINs, which are stored in the same hash
+format as a standard UNIX password.  However, as crypt(3) and friends are
+not thread-friendly, these functions have been modified to allocate storage
+and have a '_r' appended to the function to denote this; it is therefore
+up to the calling function to free it.
+
+It will be necessary to fetch this from NetBSD's distribution as its not
+included in the distribution   The file structure looks like this:
+
+	crypt/arc4random.c
+	crypt/bcrypt.c
+	crypt/blowfish.c
+	crypt/crypt-sha1.c
+	crypt/crypt.c
+	crypt/md5crypt.c
+	crypt/pw_gensalt.c
+	crypt/util.c
+	crypto/cryptodev.h
+	crypto/rmd160.h
+	crypto/sha2.h
+	hash/Makefile.inc
+	hash/hashhl.c
+	hash/hmac.c
+	hash/md2/Makefile.inc
+	hash/md2/md2.3
+	hash/md2/md2.c
+	hash/md2/md2.h
+	hash/md2/md2hl.c
+	hash/md5/Makefile.inc
+	hash/md5/hmac_md5.c
+	hash/md5/md5.h
+	hash/md5/md5c.c
+	hash/rmd160/Makefile.inc
+	hash/rmd160/rmd160.3
+	hash/rmd160/rmd160.c
+	hash/rmd160/rmd160hl.c
+	hash/sha1/Makefile.inc
+	hash/sha1/hmac_sha1.c
+	hash/sha1/sha1.3
+	hash/sha1/sha1.c
+	hash/sha1/sha1.h
+	hash/sha1/sha1hl.c
+	hash/sha2/Makefile.inc
+	hash/sha2/sha2.3
+	hash/sha2/sha2.c
+	hash/sha2/sha256hl.c
+	hash/sha2/sha384hl.c
+	hash/sha2/sha512hl.c

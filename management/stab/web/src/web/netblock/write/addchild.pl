@@ -1,0 +1,96 @@
+#!/usr/local/bin/perl
+# Copyright (c) 2005-2010, Vonage Holdings Corp.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in the
+#       documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#
+# $Id$
+#
+
+use strict;
+use warnings;
+use FileHandle;
+use Net::Netmask;
+use JazzHands::STAB;
+use vars qw($stab);
+use vars qw($cgi);
+use vars qw($dbh);
+
+do_add_child_netblock_prompt();
+
+###########################################################################3
+#
+# does the actual work.
+#
+###########################################################################3
+
+sub do_add_child_netblock_prompt {
+	$stab = new JazzHands::STAB || die "Could not create STAB";
+	$cgi  = $stab->cgi          || die "Could not create cgi";
+	$dbh  = $stab->dbh          || die "Could not create dbh";
+
+	my $netblkid = $cgi->param('id') || undef;
+
+	if ( !defined($netblkid) ) {
+		$stab->error_return("You must specify a valid Netblock!");
+	}
+
+	my $q = qq{
+		select	ip_manip.v4_octet_from_int(ip_address) as ip,
+			netmask_bits,
+			description
+		 from	netblock
+		where	netblock_id = :1
+	};
+	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
+
+	if ( !( $sth->execute($netblkid) ) ) {
+		$stab->return_db_err($sth);
+	}
+
+	my ( $ip, $bits, $desc ) = $sth->fetchrow_array;
+	$sth->finish;
+
+	if ( !defined($ip) ) {
+		$stab->error_return("Unknown Parent Netblock");
+	}
+
+	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $stab->start_html( { -title => 'STAB: Add a child netblock' } ),
+	  "\n";
+	print $cgi->h2( "Add a child to $ip/$bits "
+		  . ( ( defined($desc) ) ? "($desc)" : "" ) );
+
+	print $cgi->start_form( { -action => "doadd.pl" } ), "\n";
+	print "IP/Bits:, "
+	  . $cgi->textfield( { -size => 15, -name => 'ip' } ) . "/"
+	  . $cgi->textfield( { -size => 2,  -name => 'bits' } ) . "\n";
+	print $cgi->br, "\n";
+	print "Description: ", $cgi->textfield('description') . "\n";
+	print $cgi->submit( { -label => 'Submit' } ), "\n";
+	print $cgi->hidden( 'parentnblkid', $netblkid );
+	print $cgi->end_form, "\n";
+	print $cgi->end_html, "\n";
+
+	$dbh->commit;
+	$dbh->disconnect;
+	$dbh = undef;
+}

@@ -1,0 +1,808 @@
+#!/usr/local/bin/perl
+# Copyright (c) 2005-2010, Vonage Holdings Corp.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in the
+#       documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#
+# $Id$
+#
+
+#
+# probably want to tweak to not double-pass all data (orig_{desc,ticket})
+#
+
+use strict;
+use warnings;
+use Net::Netmask;
+use FileHandle;
+use JazzHands::STAB;
+use Data::Dumper;
+use Carp;
+
+do_dump_netblock();
+
+############################################################################3
+#
+# everything else is a subroutine
+#
+############################################################################3
+
+sub get_netblock_id {
+	my ( $stab, $block ) = @_;
+
+	my $dbh = $stab->dbh;
+
+	my $base = $block->base;
+	my $bits = $block->bits;
+
+	my $q = qq{
+		select	netblock_id
+		  from	netblock
+		 where	ip_address = ip_manip.v4_int_from_octet(:1, 1)
+		   and	netmask_bits = :2
+	};
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute( $base, $bits ) || $stab->return_db_err($sth);
+
+	my $x = ( $sth->fetchrow_array )[0];
+	$sth->finish;
+	$x;
+}
+
+sub get_max_level {
+	my ( $stab, $start_id ) = @_;
+
+	my $dbh = $stab->dbh;
+
+	my $q = qq{
+		select  max(level)
+		  from  netblock
+		connect by prior netblock_id = parent_netblock_id
+		start with parent_netblock_id = :1
+	};
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute($start_id) || $stab->return_db_err($sth);
+	my $x = ( $sth->fetchrow_array )[0];
+	$sth->finish;
+	$x;
+}
+
+sub make_url {
+	my ( $stab, $nblkid ) = @_;
+
+	my $cgi = $stab->cgi;
+
+	my $c = new CGI($cgi);
+	$c->delete('block');
+	$c->param( 'nblkid', $nblkid );
+	$c->self_url;
+}
+
+sub dump_toplevel {
+	my ( $stab, $dbh, $cgi ) = @_;
+
+	my $showsite = $cgi->param('showsite') || undef;
+
+	print $stab->start_html(
+		-title      => 'STAB: Top Level Netblocks',
+		-javascript => 'netblock'
+	);
+	print netblock_search_box($stab);
+
+	print "please select a block to drill down into\n";
+
+	my $q = qq{
+		select	ip_manip.v4_octet_from_int(nb.ip_address) as ip,
+				nb.netblock_id,
+				nb.netmask_bits, 
+				nb.netblock_status, 
+				nb.description,
+				snb.site_code
+		  from  netblock nb
+				left join site_netblock snb
+					on snb.netblock_id = nb.netblock_id
+		 where	nb.parent_netblock_id is NULL
+		   and	nb.is_organizational = 'N'
+		 order by nb.ip_address
+	};
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute || $stab->return_db_err($sth);
+
+	print "<ul>\n";
+	while ( my ( $ip, $id, $bits, $stat, $desc, $site ) =
+		$sth->fetchrow_array )
+	{
+		next if ( defined($site) && !defined($showsite) );
+		my $blk = "$ip/$bits";
+		my $url = make_url( $stab, $id );
+		if ( defined($site) ) {
+			$site = "[$site] ";
+		} else {
+			$site = "";
+		}
+
+		print "\t"
+		  . $cgi->li(
+			$cgi->a( { -href => $url }, "$site$blk" )
+			  . " [$id] - "
+			  . ( ($desc) ? $desc : "" ),
+			"\n"
+		  );
+	}
+	print "</ul>\n";
+	$sth->finish;
+
+	print $cgi->end_html, "\n";
+	$dbh->rollback;
+	$dbh->disconnect;
+}
+
+sub dump_nodes {
+	my ( $stab, $p_nblkid, $base, $in_bits, $org ) = @_;
+
+	$org = 'N' if ( !$org );
+
+	my $cgi = $stab->cgi;
+	my $dbh = $stab->dbh;
+
+	my $nb = new Net::Netmask("$base/$in_bits") || return;
+
+	my $q = qq{
+		select	nb.netblock_id, 
+			nb.netmask_bits,
+			ni.device_id,
+			dns.dns_name, 
+			dom.soa_name,
+			ip_manip.v4_octet_from_int(nb.ip_address) as ip,
+			nb.netblock_status,
+			nb.description,
+			nb.approval_type,
+			nb.approval_ref_num
+		  from	netblock nb
+			left join dns_record dns
+				on dns.netblock_id = nb.netblock_id
+			left join dns_domain dom
+				on dns.dns_domain_id = dom.dns_domain_id
+			left join network_interface ni
+				on ni.v4_netblock_id = nb.netblock_id
+		 where	nb.parent_netblock_id = :1
+		order by nb.ip_address
+	};
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute($p_nblkid) || $stab->return_db_err($sth);
+
+	my $hashref = $sth->fetchall_hashref('IP');
+	$sth->finish;
+
+	print $cgi->start_form(
+		-method => 'POST',
+		-action => 'ipalloc/allocate_ip.pl'
+	  ),
+	  "\n";
+
+	print print_netblock_allocation( $stab, $p_nblkid, $nb, $org );
+
+	print $cgi->hidden( -name => 'NETBLOCK_ID', -default => $p_nblkid );
+	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
+	print $cgi->start_table( { -border => 1 } );
+
+	print $cgi->th(
+		[
+			'IP',           'Status',
+			'DNS Hostname', 'DNS Domain',
+			'Description',  'Ticket'
+		]
+	);
+	foreach my $ip ( $nb->enumerate ) {
+		my (
+			$id,     $bits, $devid, $name, $dom,
+			$status, $desc, $atix,  $atixsys
+		);
+
+		$status = "";
+		$name   = "";
+		$dom    = "";
+
+		my $editabledesc = 0;
+
+		my $printip = $ip;
+
+		if ( ( $org eq 'N' && $ip eq $nb->base ) ) {
+			$status = "Allocated";
+			$desc   = "reserved for network address\n";
+		} elsif ( ( $org eq 'N' && $ip eq $nb->broadcast ) ) {
+			$status = "Allocated";
+			$desc   = "reserved for broadcast address\n";
+		} elsif ( defined( $hashref->{$ip} ) ) {
+			$id     = $hashref->{$ip}->{'NETBLOCK_ID'};
+			$bits   = $hashref->{$ip}->{'NETMASK_BITS'} || $in_bits;
+			$devid  = $hashref->{$ip}->{'DEVICE_ID'};
+			$name   = $hashref->{$ip}->{'DNS_NAME'};
+			$dom    = $hashref->{$ip}->{'SOA_NAME'};
+			$status = $hashref->{$ip}->{'NETBLOCK_STATUS'};
+			$desc   = $hashref->{$ip}->{'DESCRIPTION'};
+			$atix   = $hashref->{$ip}->{'APPROVAL_REF_NUM'};
+			$atixsys = $hashref->{$ip}->{'APPROVAL_TYPE'};
+
+			$printip = "$ip/$bits";
+
+			my $fqhn = "";
+			if ( defined($name) ) {
+				$fqhn =
+				  $name . ( defined($dom) ? ".$dom" : "" );
+			}
+
+			if ( $status eq 'Reserved' || $status eq 'Legacy' ) {
+				$editabledesc = 1;
+				if ( !defined($devid) && $fqhn ) {
+					$desc = $fqhn;
+				}
+			}
+
+			if ( defined($devid) ) {
+				$printip = $cgi->a(
+					{
+						-href =>
+"../device/device.pl?devid=$devid"
+					},
+					$printip
+				);
+				$name = $cgi->a(
+					{
+						-href =>
+"../device/device.pl?devid=$devid"
+					},
+					$name
+				);
+				$desc = $fqhn;
+			}
+		} else {
+			$editabledesc = 1;
+		}
+
+		my $maketixlink;
+		if ($editabledesc) {
+			my $h = $cgi->hidden(
+				-name    => "rowblk_$ip",
+				-default => $id
+			);
+			$desc = ( ($id) ? $h : "" )
+			  . $cgi->textfield(
+				-name    => "desc_$ip",
+				-default => ( ($desc) ? $desc : "" ),
+				-size    => 50
+			  );
+
+			if ( !defined($atix) ) {
+				$atix =
+				  $stab->build_ticket_row( $hashref->{$ip}, $ip,
+					'IP' );
+			} else {
+				$maketixlink = 1;
+			}
+		} else {
+			$maketixlink = 1;
+		}
+
+		my $url;
+		if ( $maketixlink && defined($atix) ) {
+			$url =
+			  $stab->build_trouble_ticket_link( $atix, $atixsys );
+			if ($url) {
+				$atix = $cgi->a(
+					{
+						-href => $stab
+						  ->build_trouble_ticket_link(
+							$atix, $atixsys
+						  ),
+						-target => 'top'
+					},
+					"$atixsys:$atix"
+				);
+			} else {
+				$atix = "$atixsys:$atix";
+			}
+		}
+
+		print "\t"
+		  . $cgi->Tr(
+			$cgi->td($printip)
+			  . $cgi->td($status)
+			  . $cgi->td($name)
+			  . $cgi->td( ($dom) ? $dom : "" )
+			  . $cgi->td($desc),
+			$cgi->td($atix),
+		  ) . "\n";
+	}
+
+	print $cgi->end_table;
+	print dump_netblock_routes( $stab, $p_nblkid, $nb );
+	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
+	print $cgi->end_form, "\n";
+}
+
+sub get_netblock_link_header {
+	my ( $stab, $id, $blk, $bits, $nblkid, $descr, $pnbid, $site ) = @_;
+
+	my $cgi = $stab->cgi;
+	my $dbh = $stab->dbh;
+
+	my $showsite = $stab->cgi_parse_param('showsite');
+	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
+
+	my $displaysite = "";
+	if ( defined($showsite) ) {
+		$displaysite = ( "[" . ( defined($site) ? $site : "" ) . "] " );
+	}
+
+	my $pnb = $stab->get_netblock_from_id( $pnbid, 1 );
+	my $parent = "";
+	if ($pnb) {
+		my $purl = make_url( $stab, $pnbid );
+		$parent = " - "
+		  . $cgi->a( { -href => $purl, },
+			"Parent: ", $pnb->{'IP'}, "/", $pnb->{'NETMASK_BITS'} );
+	}
+
+	my $ops = "";
+	if ( num_kids( $stab, $nblkid, 'Y' ) == 0 ) {
+		$ops = " - "
+		  . $cgi->a( { -href => "write/addchild.pl?id=$nblkid" },
+			"[Subnet this block]" )
+		  . $cgi->a( { -href => "write/rmblock.pl?id=$nblkid" },
+			"[Remove this netblock]" );
+	}
+
+	if ( $allowdescedit eq 'yes' ) {
+		my $name = "NETBLOCK_DESCRIPTION_$nblkid";
+		$descr = $cgi->hidden(
+			-name    => "orig_$name",
+			-default => $descr
+		  )
+		  . $cgi->textfield(
+			{
+				-size  => 80,
+				-name  => $name,
+				-value => $descr
+			}
+		  );
+	}
+
+	my $url = make_url( $stab, $id );
+	return $cgi->li(
+		$cgi->a( { -href => $url }, $blk )
+		  . $displaysite
+		  . $ops . " - "
+		  . ( ($descr) ? $descr : "" ),
+		$parent, "\n"
+	);
+}
+
+sub num_kids {
+	my ( $stab, $nblkid, $issingle ) = @_;
+
+	my $dbh = $stab->dbh;
+
+	$issingle = 'N' if ( !defined($issingle) );
+
+	my $q = qq{
+		select	count(*)
+		  from	netblock
+		 where	parent_netblock_id = :1
+		   and	is_single_address = :2
+	};
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute( $nblkid, $issingle ) || $stab->return_db_err($sth);
+	my $x = ( $sth->fetchrow_array )[0];
+	$sth->finish;
+	$x;
+}
+
+sub do_dump_netblock {
+	my $stab = new JazzHands::STAB || die "Could not create STAB";
+
+	my $dbh = $stab->dbh || die "Could not create dbh";
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	#
+	# expand is largely deprecated and can almost certainly go away.
+	#
+
+	my $start_id      = $stab->cgi_parse_param('nblkid');
+	my $block         = $stab->cgi_parse_param('block');
+	my $expand        = $stab->cgi_parse_param('forceexpansion');
+	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
+
+	print $cgi->header( { -type => 'text/html' } ), "\n";
+
+	my $nb;
+	if ( !defined($start_id) ) {
+		if ( defined($block) ) {
+			$nb = new Net::Netmask($block);
+			$start_id = get_netblock_id( $stab, $nb );
+
+			if ( !defined($start_id) ) {
+				$stab->error_return("Netblock not found");
+			} else {
+				my $url = make_url( $stab, $start_id );
+				print $cgi->redirect($url);
+				exit 1;
+			}
+		}
+	} else {
+		if ( $start_id !~ /^\d+$/ ) {
+			$stab->error_return(
+				"Invalid netblock id ($start_id) specified");
+		}
+
+		my $netblock =
+		  $stab->get_netblock_from_id( $start_id, 1, 'N', 'N' );
+		if ( !defined($netblock) ) {
+			$stab->error_return(
+				"Invalid netblock id ($start_id) specified");
+		}
+		my $base = $netblock->{'IP'};
+		my $bits = $netblock->{'NETMASK_BITS'};
+		if ( defined($base) && defined($bits) ) {
+			$nb = new Net::Netmask("$base/$bits");
+		}
+	}
+
+	my ($nblk);
+
+	#
+	# if a bogus block was specified, it will still be undef.
+	#
+	if ( !defined($start_id) ) {
+		dump_toplevel( $stab, $dbh, $cgi );
+		exit;
+	} else {
+		$nblk = $stab->get_netblock_from_id( $start_id, 1, 'N', 'N' );
+		if ( !defined($nblk) ) {
+			$stab->error_return(
+				"Unable to find Netblock ($start_id)",
+				undef, 1 );
+		}
+	}
+
+	if ( !defined($nb) ) {
+		$stab->error_return("You must specify a valid netblock!\n");
+	}
+
+	my $q = qq{
+		select  level, nb.netblock_id,
+			ip_manip.v4_octet_from_int(nb.ip_address) as ip,
+			nb.netmask_bits, nb.netblock_status, 
+			nb.IS_SINGLE_ADDRESS,
+			nb.description, 
+			nb.parent_netblock_id,
+			snb.site_code
+		  from  netblock nb
+			left join site_netblock snb 
+				on snb.netblock_id = nb.netblock_id
+		where	nb.IS_SINGLE_ADDRESS = 'N'
+		connect by prior nb.netblock_id = parent_netblock_id
+		start with nb.parent_netblock_id = :1
+		order siblings by ip_address, netmask_bits
+	};
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute($start_id) || $stab->return_db_err($sth);
+
+	my $ipstr = $nblk->{'IP'} . "/" . $nblk->{'NETMASK_BITS'};
+
+	print $stab->start_html(
+		{
+			-title      => "Netblock $ipstr",
+			-javascript => 'netblock',
+		}
+	);
+	print netblock_search_box($stab);
+
+	print $cgi->p(
+		qq{
+		This application is used to manage net block allocations as well as
+		the assignment (largely reservation) of IP addresses.  Use the
+		"Subnet this block" and "Remove this netblock" links to furthur
+		subdivide the network into smaller networks.  You may only add
+		subnets or remove netblocks that don't have host IP allocations.
+	}
+	);
+	print $cgi->p(
+		qq{
+		For the allocation of individual IP addresses (/32s) to hosts,
+		you do this by changing the description field to be whatever the
+		address is being allocated to.  In that case, the device will be
+		marked as 'Reserved'.  Devices marked as 'Legacy' may or may not
+		be in use (they're allocation was imported from the IP Spreadsheets
+		that used to be authoritative for this data).  Devices marked as
+		'Allocated' have been assigned to devices and can not be changed
+		from within this application.  (They should be changed from within
+		the
+	}, $cgi->a( { -href => "../device/" }, "device manager" ), ")."
+	);
+
+	my $root = $nb->base . "/" . $nb->bits;
+
+	my ( @hier, %kids );
+	my $lastl = 0;
+	push( @hier, $root );
+
+	print $cgi->p;
+
+	print $cgi->start_form(
+		-method => 'POST',
+		-action => 'write/edit_netblock.pl'
+	);
+
+	if ( $allowdescedit eq 'yes' ) {
+		print $cgi->submit("Submit Updates");
+	}
+
+	print get_netblock_link_header(
+		$stab, $start_id, $root, $nblk->{'NETMASK_BITS'},
+		$start_id,
+		$nblk->{'DESCRIPTION'},
+		$nblk->{'PARENT_NETBLOCK_ID'}
+	);
+
+	while (
+		my (
+			$level,  $nblkid, $ip,    $bits, $status,
+			$single, $descr,  $pnbid, $site
+		)
+		= $sth->fetchrow_array
+	  )
+	{
+		if ( $lastl < $level ) {
+			for ( my $i = $lastl ; $i < $level ; $i++ ) {
+				print "<ul>";
+			}
+		}
+		if ( $lastl > $level ) {
+			print "</ul><ul>\n";
+			for ( my $i = $lastl ; $i > $level ; $i-- ) {
+				print "</ul>";
+			}
+		}
+		my $blk = "$ip/$bits";
+
+		print get_netblock_link_header(
+			$stab,   $nblkid, $blk,   $bits,
+			$nblkid, $descr,  $pnbid, $site
+		);
+		$lastl = $level;
+	}
+	$sth->finish;
+	for ( my $i = $lastl ; $i ; $i-- ) {
+		print "</ul>";
+	}
+	print "\n";
+
+	print $cgi->end_form, "\n";
+	if (       ( defined($expand) && $expand eq 'yes' )
+		|| ( !defined($expand) && !num_kids( $stab, $start_id ) ) )
+	{
+		dump_nodes( $stab, $start_id, $nb->base, $nb->bits,
+			$nblk->{'IS_ORGANIZATIONAL'} );
+	}
+
+	print $cgi->end_html, "\n";
+
+	$dbh->rollback;
+	$dbh->disconnect;
+	$dbh = undef;
+	exit 0;
+}
+
+sub netblock_search_box {
+	my ($stab) = @_;
+
+	my $cgi = $stab->cgi;
+
+	$cgi->table(
+		{ -align => 'center' },
+		$cgi->Tr(
+			{ -align => 'center' },
+			$cgi->td(
+				$cgi->start_form(
+					-method => 'POST',
+					-action => 'search.pl'
+				),
+				$cgi->div(
+					$cgi->b("CIDR Search: "),
+					$cgi->textfield( -name => 'bycidr' )
+				),
+				$cgi->div(
+					$cgi->b(
+"Description/Reservation Search: "
+					),
+					$cgi->textfield( -name => 'bydesc' )
+				),
+				$cgi->submit('Search'),
+				$cgi->end_form
+			)
+		)
+	);
+}
+
+sub print_netblock_allocation {
+	my ( $stab, $nblkid, $nb, $org ) = @_;
+
+	my $dbh  = $stab->dbh;
+	my $cgi  = $stab->cgi;
+	my $size = $nb->size;
+
+	my $q = qq{
+		select	netblock_status, count(*) as tally
+		  from	netblock
+		 where	parent_netblock_id = :1 
+		group by netblock_status
+	};
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute($nblkid) || $stab->return_db_err($sth);
+
+	my (%breakdown);
+	my $total = 0;
+	while ( my ( $what, $tally ) = $sth->fetchrow_array ) {
+		$breakdown{$what} = $tally;
+		$total += $tally;
+	}
+
+	#
+	# non-organizational netblocks  end up with their network and
+	# broadcast being consumed. consumed. consumed. consumed.
+	#
+	if ( $org eq 'N' ) {
+		$breakdown{'Allocated'} += 2;
+		$total += 2;
+	}
+
+	$total = 256 if ( $total > 256 );
+
+	my $x = "";
+	foreach my $what ( sort( keys(%breakdown) ) ) {
+		my $tally = $breakdown{$what};
+		my $pct = sprintf( "%2.2f%%", ( $tally / $size ) * 100 );
+		$x .= $cgi->div("$what: $tally ($pct)");
+	}
+
+	{
+		my $free = $size - $total;
+		my $pct = sprintf( "%2.2f%%", ( $free / $size ) * 100 );
+		$x .= $cgi->div("Unallocated: $free ($pct)");
+	}
+
+	{
+		my $pct = sprintf( "%2.2f%%", ( $total / $size ) * 100 );
+		$x .= $cgi->div("Total: $total of $size ($pct)");
+	}
+
+	$cgi->div( { -align => 'center', -style => 'color: orange' }, $x );
+}
+
+sub dump_netblock_routes {
+	my ( $stab, $nblkid, $nb ) = @_;
+	my $cgi = $stab->cgi;
+
+	my $sth = $stab->prepare(
+		qq{
+		select	srt.STATIC_ROUTE_TEMPLATE_ID,
+				srt.description as ROUTE_DESCRIPTION,
+				snb.netblock_Id as source_netblock_id,
+				ip_manip.v4_octet_from_int(snb.ip_address) as SOURCE_BLOCK_IP,
+				snb.netmask_bits as SOURCE_NETMASK_BITS,
+				ni.network_interface_id,
+				ni.name as interface_name,
+				d.device_name,
+				dnb.netblock_Id as dest_netblock_id,
+				ip_manip.v4_octet_from_int(dnb.ip_address) as ROUTE_DESTINATION_IP
+		 from	static_route_template srt
+				inner join netblock snb
+					on srt.netblock_src_id = snb.netblock_id
+				inner join network_interface ni
+					on srt.network_interface_dst_id = ni.network_interface_id 
+				inner join netblock dnb
+					on dnb.netblock_id = ni.v4_netblock_id
+				inner join device d
+					on d.device_id = ni.device_id
+		where	srt.netblock_id = :1
+	}
+	);
+
+	$sth->execute($nblkid) || die $sth->errstr;
+
+	my $tt = $cgi->td(
+		[
+			"Del",         "Source IP",
+			"/",           "Bits",
+			"Dest Device", "Dest IP",
+			"Description"
+		]
+	);
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		$tt .= build_route_Tr( $stab, $hr );
+
+	}
+	$tt .= build_route_Tr($stab);
+
+	# $cgi->div({-align=>'center', -style=>'border: 1px solid;'},
+	$cgi->h3( { -align => 'center' }, 'Static Routes' )
+	  . $cgi->table( { -align => 'center', -border => 1 }, $tt )
+
+	  #)
+	  ;
+}
+
+sub build_route_Tr {
+	my ( $stab, $hr ) = @_;
+	my $cgi = $stab->cgi;
+
+	my $dev = "";
+	my $del = "ADD";
+	if ($hr) {
+		my $id = $hr->{'STATIC_ROUTE_TEMPLATE_ID'};
+		$dev   = $hr->{'DEVICE_NAME'} . ":" . $hr->{'INTERFACE_NAME'},
+		  $del = $cgi->hidden(
+			-name    => "STATIC_ROUTE_TEMPLATE_ID_$id",
+			-default => $id
+		  )
+		  . $stab->build_checkbox( $hr, "",
+			'rm_STATIC_ROUTE_TEMPLATE_ID',
+			'STATIC_ROUTE_TEMPLATE_ID' );
+
+	}
+
+	$cgi->Tr(
+		$cgi->td(
+			[
+				$del,
+				$stab->b_textfield(
+					{ -allow_ip0 => 1 },
+					$hr,
+					'SOURCE_BLOCK_IP',
+					'STATIC_ROUTE_TEMPLATE_ID'
+				),
+				"/",
+				$stab->b_textfield(
+					$hr,
+					'SOURCE_NETMASK_BITS',
+					'STATIC_ROUTE_TEMPLATE_ID'
+				),
+				$dev,
+				$stab->b_textfield(
+					{ -allow_ip0 => 1 },
+					$hr,
+					'ROUTE_DESTINATION_IP',
+					'STATIC_ROUTE_TEMPLATE_ID'
+				),
+				$stab->b_textfield(
+					$hr,
+					'ROUTE_DESCRIPTION',
+					'STATIC_ROUTE_TEMPLATE_ID'
+				),
+			]
+		)
+	);
+}

@@ -1,0 +1,104 @@
+
+# Copyright (c) 2005-2010, Vonage Holdings Corp.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in the
+#       documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+$Id$
+
+One time passwords are processed according to the following procedure:
+
+ * hp_authenticate(char *username, char *otp) is called
+
+ * user information including all tokens assigned are fetched from BDB
+
+ * Loop through all configured tokens.  PIN must match at most one token.
+   If multiple tokens are configured with identical PINs for the same user,
+   behavior is nondeterministic.
+
+ * If PIN does not match any token:
+	* increment user bad login count
+	* if MaxBadLogins > 0 && bad login count = MaxBadLogins, set 
+	  user_locked to be true.  If BadLoginLockoutTime > 0, set unlock_time to 
+	  current time + BadLoginLockoutTime.  Note that if BadLoginLockoutTime is
+	  0, user must be unlocked by an administrator.
+	* Return rejection.
+
+ * If user_locked and unlock_time > current time, return rejection
+
+ * if user_locked
+   * user_locked = 0
+   * unlock_time = 0
+   * bad_logins = 0
+
+ * step through sequence numbers for any OTP matches between the
+   current sequence and sequence + MaxSequenceSkew for sequence-based OTPs,
+   or sequence - MaxTimeSkew and sequence + MaxTimeSkew for time-based OTPs.
+
+ * If no sequence matches:
+	* increment user bad login count
+	* if MaxBadLogins > 0 && bad login count = MaxBadLogins:
+	  * set user_locked true
+	  * If BadLoginLockoutTime > 0, set unlock_time to current time +
+	    BadLoginLockoutTime.  Note that if BadLoginLockoutTime is 0, user
+	    must be unlocked by an administrator.
+	* Return reject.
+
+ * !skew_sequence?:
+	* curr_sequence != skew_sequence + 1?:
+		* skew_sequence = curr_sequence
+		* return next_seq_reject
+	* else:
+		* skew_sequence = 0
+		* sequence = curr_sequence
+		* lastlogin = time
+		* return accept
+
+ * sequence skew < MaxSequenceSkewWithoutVerify?:
+	* set bad_logins to 0
+	* set lastlogin to current time
+	* set token sequence to current sequence
+	* return accept
+
+ * MaxSequenceSkewWithoutVerify < sequence skew < MaxSequenceSkew?:
+	* skew_sequence = curr_sequence
+	* return next_seq_reject
+
+The following configuration parameters are used to process OTPs:
+
+	* MaxBadLogins - the maximum number of bad logins allowed before a 
+		user is locked.  Defaults to 5.  Setting this to 0 disabled the
+		feature.
+	* BadLoginLockoutTime - the amount of time a user is locked when too many
+		bad passwords are entered.  If this parameter is zero, the user must
+		be unlocked manually.  Defaults to 0.
+	* MaxSequenceSkewWithoutVerify - the maximum difference allowed between
+		the last sequence that was used to authenticate a user and the
+		sequence of the OTP that is currently being authenticated without
+		requiring a second sequential authorization.  Defaults to 5.
+	* MaxSequenceSkew - the maximum difference allowed between the last
+		sequence that was used to authenticate the user and the sequence
+		of the OTP that is currently being authenticated.  Defaults to 15.
+	* MaxTimeSkewWithoutVerify - the maximum difference allowed between
+		the current time and the time of the OTP that is currently being
+		authenticated without requiring a second successful authorization.
+		Defaults to 
+	* MaxTimeSkew - the maximum difference allowed between the current
+		time and the time of the OTP that is currently being authenticated.

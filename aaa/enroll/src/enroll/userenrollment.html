@@ -1,0 +1,983 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <title>User Enrollment</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <link href="/common/css/acct.css" media="screen" rel="Stylesheet" type="text/css" />
+  <script src="/common/javascript/prototype.js" type="text/javascript"></script>
+<!--
+  <script src="/common/javascript/effects.js" type="text/javascript"></script>
+  <script src="/common/javascript/controls.js" type="text/javascript"></script>
+-->
+<style type="text/css">
+#footer {
+  /* Netscape 4, IE 4.x-5.0/Win and other lesser browsers will use this */
+  position: absolute; right: 20px; bottom: 10px;
+}
+body > div#footer {
+  /* used by Opera 5+, Netscape6+/Mozilla, Konqueror, Safari, OmniWeb 4.5+, iCab, ICEbrowser */
+  position: fixed;
+}
+</style>
+<!--[if gte IE 5.5]>
+<![if lt IE 7]>
+<style type="text/css">
+div#footer {
+  /* IE5.5+/Win - this is more specific than the IE 5.0 version */
+  right: auto; bottom: auto;
+  left: expression( ( 0 - footer.offsetWidth + ( document.documentElement.clientWidth ? document.documentElement.clientWidth : document.body.clientWidth ) + ( ignoreMe2 = document.documentElement.scrollLeft ? document.documentElement.scrollLeft : document.body.scrollLeft ) ) + 'px' );
+  top: expression( ( 0 - footer.offsetHeight + ( document.documentElement.clientHeight ? document.documentElement.clientHeight : document.body.clientHeight ) + ( ignoreMe = document.documentElement.scrollTop ? document.documentElement.scrollTop : document.body.scrollTop ) ) + 'px' );
+}
+</style>
+<![endif]>
+<![endif]-->
+</head>
+<body>
+
+  <div id="headbox">
+	  User Enrollment
+  </div>
+<div id="content" class="content">
+
+<div id="page1" style="display:none">
+<h1>User Enrollment</h1>
+
+<p>
+This form will allow you to enroll your JazzHands user account,
+including your passwords, your assigned one-time-password token, and your
+self-service password recovery challenge questions and responses.
+</p>
+<p>
+<strong>NOTE:</strong> You <em>must</em> have been issued a one-time
+password (OTP) token to enroll using this process, and you must have the
+token with you to authenticate yourself.
+</p>
+<p>
+To begin, enter your username and select Next to continue.
+</p>
+<p>
+Username: 
+<input 
+	id="login"
+	name="loginfield"
+	type="text"
+	size="30"
+	autocomplete="off"
+	/>
+</p>
+</div>
+
+<div id="page2" style="display:none">
+<h1>Initializing your Token</h1>
+<p>
+To initialize your one-time-password (OTP) token, you will need to enter
+two sequential numbers displayed on its screen after you press the button.
+Entering these numbers proves that you are in possession of the token which
+was assigned to you, and also allows the system to synchronize itself with your
+token.
+</p>
+<p>
+Locate the OTP token that you were issued.  Press the button on the front
+and enter the digits that are shown on its display.  When you have
+finished, select Next to continue.
+</p>
+<p>
+First set of digits: 
+<input 
+	id="otp1"
+	name="otp1field"
+	type="text"
+	size="30"
+	autocomplete="off"
+	/>
+</p>
+</div>
+
+<div id="page3" style="display:none">
+<h1>Initializing your Token</h1>
+<p>
+Wait for the display on your token to go blank.  Press the button one
+more time enter the new digits shown.  When you have entered this second
+set of numbers, select Next to continue.
+<p>
+Second set of digits: 
+<input 
+	id="otp2"
+	name="otp2field"
+	type="text"
+	size="30"
+	autocomplete="off"
+	/>
+</p>
+</div>
+
+<div id="page4" style="display:none">
+<h1>Initializing your Token</h1>
+<p>
+You will now select a Personal Identification Code for your token, also known
+as a PIC or PIN.  This is a password for your token that only you know which
+prevents unauthorized people from using your token.  This password can
+be any set of letters, numbers, or punctuation (except spaces) from 6 to 16
+characters and should not be easy to guess.
+</p>
+<p>
+As with any password, do not write it down.
+</p>
+<div>
+<dl>
+<dt>
+<label for="pic1">Personal Identification Code: </label>
+</dt>
+<dd>
+<input 
+	id="pic1"
+	name="pic1field"
+	type="password"
+	size="30"
+	autocomplete="off"
+	/>
+<dd>
+<dt>
+<label for="pic2">PIC (again):</label>
+</dt>
+<dd>
+<input 
+	id="pic2"
+	name="pic2field"
+	type="password"
+	size="30"
+	autocomplete="off"
+	/>
+</dd>
+</dl>
+</div>
+</div>
+
+<div id="page5" style="display:none">
+<h1>Creating Question and Answer Challenges</h1>
+<p>
+You will now select two questions and provide answers to them.  These
+questions and your answers can be used to reset your password or OTP PIC
+in the event that you forget them.
+
+Please choose two different questions from the following lists and provide
+answers in the fields.
+</p>
+<p>
+Question 1:
+<select id="question1" name="question1field">
+<option value="0">Please select a question</option>
+</select>
+</p>
+<p>
+Your answer:
+<input
+	id="answer1"
+	name="answer1field"
+	type="text"
+	size="30"
+	autocomplete="off"
+	/>
+</p>
+<p>
+Question 2:
+<select id="question2" name="question2field">
+<option value="0">Please select a question</option>
+</select>
+</p>
+<p>
+Your answer:
+<input
+	id="answer2"
+	name="answer2field"
+	type="text"
+	size="30"
+	autocomplete="off"
+	/>
+</p>
+</div>
+
+<div id="page6" style="display:none">
+<h1>Setting Your Initial Password</h1>
+<p id="passwordtext">
+You will now select an initial password.
+</p>
+
+Your password must:
+<ul>
+<li>be between 7 and 20 characters in length
+<li>contain at least three different types of characters (upper case,
+lower case, numbers, and punctuation
+<li>not contain any spaces, your username, or your first or last name
+<li>not be a dictionary word or a <q>l33t-spelled</q> word, such as 
+<q>p4$$w0rd</q>
+</ul>
+</p>
+For more help, see the document on <a onclick="window.open('choosing-good-passwords.html');">Choosing a Good Password</a>
+<p>
+As with any password, do not write it down.
+</p>
+<div>
+<dl>
+<dt>
+<label for="password1">Enter your new password: </label>
+</dt>
+<dd>
+<input 
+	id="password1"
+	name="password1field"
+	type="password"
+	size="30"
+	autocomplete="off"
+	/>
+<dd>
+<dt>
+<label for="password2">Enter your new password again:</label>
+</dt>
+<dd>
+<input 
+	id="password2"
+	name="password2field"
+	type="password"
+	size="30"
+	autocomplete="off"
+	/>
+</dd>
+</dl>
+</div>
+
+</div>
+
+<div id="alreadyenrolled" style="display:none">
+<p>
+This login has already been successfully enrolled.  To reset your passwords
+or token PIC, please use the
+<a href="/passwordreset">Password Reset page</a>.  If you need to 
+enroll your challenge questions and answers, please use the <a
+href="enrollqanda.html">Enroll User Challenge Questions and Answer</a> page.
+</p>
+</div>
+
+<div id="finishsuccess" style="display:none">
+<strong>Your user has been successfully enrolled.</strong>
+<p>
+Your token will be activated on
+all systems that use them within five minutes.  Kerberos and Windows passwords
+will be effective immediately.  Other systems may take up to an hour to propagate
+everywhere.
+</p>
+</div>
+
+<div id="partialsuccess" style="display:none">
+<p>
+Your token and your challenge questions and answers have been successfully
+enrolled, however there was a problem setting some passwords
+(<span id="badpasswordlist"></span>).  The other passwords
+(<span id="goodpasswordlist"></span>) were set successfully.
+</p>
+<p>
+Your token will be activated on all systems that use them within five
+minutes.  Kerberos and Windows passwords, if successfully set, will be
+effective immediately.  Other systems may take up to an hour to propagate everywhere.
+</p>
+<p>
+Please try setting your passwords again at the
+<a href="/changepassword">password changing page</a> or at the
+<a href="/resetpassword">password recovery page</a>.  If you continue
+to to have problems resetting your password, please contact
+<a href="mailto:nobody@example.com">nobody@example.com</a>.
+</p>
+</div>
+
+<div id="failedallpasswords" style="display:none">
+<p>
+Your token and your challenge questions and answers have been successfully
+enrolled, however there was a problem setting your passwords.
+</p>
+<p>
+Your token will be activated on all systems that use them within five
+minutes.  
+</p>
+<p>
+You can try setting your passwords again at the
+<a href="/changepassword">password changing page</a> or at the
+<a href="/resetpassword">password recovery page</a>.  If you continue
+to to have problems setting your password, please contact
+<a href="mailto:nobody@example.com">nobody@example.com</a>.
+</p>
+</div>
+
+<div id="successnopasswords" style="display:none">
+<p>
+Your token has been successfully enrolled.
+</p>
+<p>
+Your token will be activated on all systems that use them within five
+minutes.  
+</p>
+<p>
+If you have problems logging in after this time, please contact
+<a href="mailto:nobody@example.com">nobody@example.com</a>.
+</p>
+</div>
+
+<div id="disallowed" style="display:none">
+This user has been administratively disallowed to enroll.  If you believe
+this to be in error, please contact 
+<a href="mailto:nobody@example.com">nobody@example.com</a> for assistance.
+</div>
+
+<div id="fatalerror" style="display:none">
+There has been some kind of error trying to process your enrollment.  This
+may be a temporary error with the server.  Please try again in a little
+while.  If you continue to experience problems, contact 
+<a href="mailto:nobody@example.com">nobody@example.com</a> for assistance.
+</div>
+
+<div id="backarrow" class="leftimage" style="display:none">
+	<img src="/common/images/back.png" alt="Back" onclick="backPage()">
+</div>
+<div id="finishedbutton" class="rightimage" style = "display:none">
+	<img src="/common/images/finished.png" alt="Finished" onclick="enroll()">
+</div>
+<div id="nextarrow" class="rightimage" style="display:none">
+	<img src="/common/images/next.png" alt="Next" onclick="nextPage()">
+</div>
+
+<div class="statbox" id="statbox" style="display:none"></div>
+
+</div>
+  
+<div id="footer">
+    <p>
+	JazzHands User Management
+    </p>
+</div>
+
+<script>
+//<![CDATA[
+var currentPage = 1;
+var numPages = 0;
+var pages = [];
+var buttons = {};
+var authCookie;
+var authBusy = false;
+var buttonsEnabled = true;
+
+var passwordtext = {
+	'none': "You will now select an initial password.",
+	'partial': "<p>You appear to already have passwords set, however they are out of sync for at least some systems.  You can, <strong>but are not required</strong>, to reset your password here, which will synchronize your password across all systems.  This will reset your Windows, Kerberos, and UNIX logins.  You may enter any of your current passwords (provided that it meets the below requirements) to synchronize all passwords to the one you enter.</p><p><strong>If you do not wish to change your password, do not enter anything into the password fields, and select Finish</strong></p>",
+	'partial-ie6': "You appear to already have passwords set, however they are out of sync for at least some systems.  You can, <strong>but are not required</strong>, to reset your password here, which will synchronize your password across all systems.  This will reset your Windows, Kerberos, and UNIX logins.  You may enter any of your current passwords (provided that it meets the below requirements) to synchronize all passwords to the one you enter.  <strong>If you do not wish to change your password, do not enter anything into the password fields, and select Finish</strong>",
+	'full': "<p>Your password has already been set and appears to be in sync across all systems.  You have the option of resetting your password here by entering a new password in the fields below.  <strong>You may skip this step if you want to leave your password what it currently is</strong>.  Setting your password here will change your password for Windows, Kerberos, and UNIX logins.</p><p><strong>If you do not wish to change your password, do not enter anything into the password fields, and select Finish</strong></p>",
+	'full-ie6': "Your password has already been set and appears to be in sync across all systems.  You have the option of resetting your password here by entering a new password in the fields below.  <strong>You may skip this step if you want to leave your password what it currently is</strong>.  Setting your password here will change your password for Windows, Kerberos, and UNIX logins.  <strong>If you do not wish to change your password, do not enter anything into the password fields, and select Finish</strong>"
+};
+var passwordsSet = "none";
+
+buttons = {
+	"back": $('backarrow'),
+	"next": $('nextarrow'),
+	"finished": $('finishedbutton')
+};
+
+var pagediv;
+while (pagediv = $("page" + (numPages + 1))) {
+	numPages++;
+	pages[numPages] = {
+		div : pagediv
+	};
+	pagediv.style.display = "none";
+}
+
+if (numPages) {
+	pages[1].div.style.display = "";
+}
+
+// Set up actions for specific pages
+
+pages[3].pageAction = authUser;
+buttonDisplay();
+
+function buttonDisplay() {
+	if (!currentPage || !buttonsEnabled) {
+		buttons.back.style.display = "none";
+		buttons.next.style.display = "none";
+		buttons.finished.style.display = "none";
+		return;
+	}
+	if (currentPage == 1 || pages[currentPage].disablePrev) {
+		buttons.back.style.display = "none";
+	} else {
+		buttons.back.style.display = "";
+	}
+	if (pages[currentPage].disableNext) {
+		buttons.finished.style.display = "none";
+		buttons.next.style.display = "none";
+	} else {
+		if (numPages > currentPage) {
+			buttons.finished.style.display = "none";
+			buttons.next.style.display = "";
+		} else {
+			buttons.finished.style.display = "";
+			buttons.next.style.display = "none";
+		}
+	}
+}
+
+function fatalError(text) {
+	setPage(0);
+	$('fatalerror').style.display = '';
+	var statBox = $('statbox');
+	statBox.className = 'errorbox';
+	statBox.innerHTML = 'Fatal error authenticating user: ' +
+		text +
+		'<br>Please contact <a href="nobody@example.com">nobody@example.com</a> or try again later.';
+	statBox.style.display = '';
+	return false;
+}
+
+function backPage() {
+	if (currentPage <= 1 || pages[currentPage].disablePrev) {
+		return false;
+	}
+	var page = currentPage - 1;
+
+	// Find the next non-deactivated page 
+
+	while (page >= 1 && pages[page].pageDeactivated) {
+		if (page[page].disablePrev) {
+			return false;
+		}
+		page -= 1;
+	}
+	if (page < 1) {
+		return false;
+	}
+	setPage(page);
+}
+
+function nextPage() {
+	if (!validatePage(currentPage)) {
+		return false;
+	}
+	if (pages[currentPage].pageAction) {
+		if (!(pages[currentPage].pageAction())) {
+			return false;
+		}
+	}
+	var page = currentPage + 1;
+
+	// Find the next non-deactivated page 
+
+	while (page <= numPages && pages[page].pageDeactivated) {
+		page += 1;
+	}
+	if (page > numPages) {
+		return false;
+	}
+	setPage(page);
+}
+
+function setPage(pagenum) {
+	if (currentPage) {
+		pages[currentPage].div.style.display = "none";
+	}
+	currentPage = pagenum;
+	if (currentPage) {
+		pages[pagenum].div.style.display = "";
+	}
+	buttonDisplay();
+}
+
+function validatePage(pageNum) {
+	var statBox = $("statbox");
+	switch(pageNum) {
+		case 1:
+			var login = $("login");
+			if (!login || !(login.value)) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "You must provide a username";
+				statBox.style.display = "";
+				login.focus();
+				return false;
+			} else {
+				statBox.style.display = "none";
+				return true;
+			}
+			break;
+		case 2:
+		case 3:
+			var otp = $(pageNum == 2 ? "otp1" : "otp2");
+			if (!otp || !(otp.value)) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = 
+					"You must provide a value for the numbers displayed on your token";
+				statBox.style.display = "";
+				otp.focus();
+				return false;
+			} else if (otp.value.search(/\D/) != -1) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = 
+					"The display on your token can only contain numbers";
+				statBox.style.display = "";
+				otp.focus();
+				return false;
+			} else {
+				statBox.style.display = "none";
+				return true;
+			}
+			break;
+		case 4:
+			var pic1 = $("pic1");
+			var pic2 = $("pic2");
+			if (!pic1 || !pic1.value) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "You must provide a PIC";
+				statBox.style.display = "";
+				pic1.focus();
+				return false;
+			}
+			if (!pic2 || !pic2.value) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = 
+					"You must enter a value to confirm your PIC";
+				statBox.style.display = "";
+				pic2.focus();
+				return false;
+			}
+
+			if (pic1.value != pic2.value) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = 
+					"Your two PIC values must match";
+				statBox.style.display = "";
+				pic1.value = "";
+				pic2.value = "";
+				pic1.focus();
+				return false;
+			}
+
+			if (pic1.value.length < 6 || pic1.value.length > 16 || 
+					pic1.value.search(/\s/) != -1) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = 
+					"Your PIC must be between 6 and 16 characters and not contain a space";
+				statBox.style.display = "";
+				pic1.value = "";
+				pic2.value = "";
+				pic1.focus();
+				return false;
+			}
+
+			statBox.style.display = "none";
+			return true;
+			break;
+		case 5:
+			var question1 = $("question1");
+			var question2 = $("question2");
+			var answer1 = $("answer1");
+			var answer2 = $("answer2");
+			if (question1.value == "0")  {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "You must select two questions";
+				statBox.style.display = "";
+				question1.focus();
+				return false;
+			}
+
+			if (!answer1.value)  {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "You must give an answer to both questions";
+				statBox.style.display = "";
+				answer1.focus();
+				return false;
+			}
+
+			if (question2.value == "0")  {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "You must select two questions";
+				statBox.style.display = "";
+				question2.focus();
+				return false;
+			}
+
+			if (!answer2.value)  {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "You must give an answer to both questions";
+				statBox.style.display = "";
+				answer2.focus();
+				return false;
+			}
+
+			if (question1.value == question2.value)  {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "Your two verification questions must be different.";
+				statBox.style.display = "";
+				question1.focus();
+				return false;
+			}
+
+			if (answer1.value == answer2.value)  {
+				statBox.className = "errorbox";
+				statBox.innerHTML = "Your answers must be different.";
+				statBox.style.display = "";
+				question1.focus();
+				return false;
+			}
+
+			statBox.style.display = "none";
+			return true;
+			break;
+		case 6:
+			var password1 = $('password1');
+			var password2 = $('password2');
+			if (passwordsSet == 'none') {
+				if (!password1 || !password1.value) {
+					statBox.className = "errorbox";
+					statBox.innerHTML = "You must provide a password";
+					statBox.style.display = "";
+					password1.focus();
+					return false;
+				}
+				if (!password2 || !password2.value) {
+					statBox.className = "errorbox";
+					statBox.innerHTML = 
+						"You must enter a value to confirm your password";
+					statBox.style.display = "";
+					password2.focus();
+					return false;
+				}
+			}
+			if (password1.value != password2.value) {
+				statBox.className = "errorbox";
+				statBox.innerHTML = 
+					"Your two password values must match";
+				statBox.style.display = "";
+				password1.value = "";
+				password2.value = "";
+				password1.focus();
+				return false;
+			}
+
+		default:
+			return true;
+	}
+}
+
+function authUser () {
+	// If we have a cookie set already, we're already authenticated.
+	// This should never happen since we disable the Back button to get
+	// behind this at the end of the page.
+
+	if (authBusy) {
+		return false;
+	}
+	if (authCookie) {
+		return true;
+	}
+
+	//
+	// If login, otp1, or otp2 are not set, return an error and go back
+	// to the beginning.  This also should not happen, since this should
+	// be checked in the validation above.
+	//
+	var login = $("login").value;
+	var otp1 = $("otp1").value;
+	var otp2 = $("otp2").value;
+	var statBox = $('statbox');
+
+	if (!login || !otp1 || !otp2) {
+		statBox.className = "errorbox";
+		statBox.innerHTML = 
+			"You must supply a username and OTP values";
+		statBox.style.display = "";
+		setPage(1);
+		return false;
+	}
+
+	// Authenticate user.  This will return either a success or failure.
+	// On success it will also received a short-lived authentication
+	// cookie.
+
+	statBox.className = 'statbox';
+	statBox.innerHTML = "Authenticating user...";
+	statBox.style.display = '';
+	authBusy = true;
+	buttonsEnabled = false;
+	buttonDisplay();
+	
+	var ajaxRequest = new Ajax.Request("/websvcs/authuser.pl",
+		{
+//			asynchronous: false,
+			method: 'post',
+			parameters: {
+				'login': login,
+				'authtype': 'enroll',
+				'otp1': otp1,
+				'otp2': otp2
+			},
+			onSuccess: function(resp) {
+				buttonsEnabled = true;
+				var response = resp.responseJSON;
+				var statBox = $('statbox');
+				statBox.style.display = 'none';
+				if (response.errorcode == 'alreadyenrolled') {
+					setPage(0);
+					$('alreadyenrolled').
+						style.display = "";
+					return false;
+				}
+				// If we get an auth token back, then the user
+				// has authenticated successfully, otherwise spew
+				// the errors.
+				if (!response.authtoken) {
+					authBusy = false;
+					statBox.className = "errorbox";
+					if (response.error) {
+						statBox.innerHTML = response.error;
+					} else {
+						statBox.innerHTML = "Unknown error";
+					}
+					statBox.style.display = '';
+					setPage(1);
+					return false;
+				} else {
+					authCookie = response.authtoken;
+					pages[currentPage + 1].disablePrev = true;
+					// If we have the Q+A set for this user, don't ask
+					// again, otherwise load the questions for that page
+					if (response.questionsenrolled) {
+						pages[5].pageDeactivated=true;
+					} else {
+						loadQuestions();
+					}
+
+					// Change the dialog text on the password page based
+					// on whether the user has passwords already
+
+					if (response.passwordsenrolled && 
+							passwordtext[response.passwordsenrolled]) {
+						passwordsSet = response.passwordsenrolled;
+						// work around IE6 idiocy
+						try {
+							$('passwordtext').innerHTML =
+								passwordtext[passwordsSet];
+						} catch (e) {
+							$('passwordtext').innerHTML =
+								passwordtext[passwordsSet + '-ie6'];
+						}
+					} else {
+						passwordsSet = 'none';
+						$('passwordtext').innerHTML =
+							passwordtext['none'];
+					}
+
+					statBox.style.display = 'none';
+					buttonDisplay();
+					setPage(currentPage + 1);
+					// Need to be authenticated before we can fetch
+					// the challenge questions
+					return true;
+				}
+			},
+			onFailure: function(response) {
+				fatalError(response.statusText);
+			}
+		}
+	);
+}
+
+function loadQuestions() {
+	var ajaxRequest = new Ajax.Request("/websvcs/getquestions.pl",
+		{
+			method: 'post',
+			parameters: {
+				'authtoken': authCookie
+			},
+			onSuccess: function(resp) {
+				var response = resp.responseJSON;
+				if (response.errorcode) {
+					// If we get errors retrieving the questions and
+					// answers, then remove the questions and answers
+					// page.
+					pages[5].pageDeactivated = true;
+					return false;
+				} else {
+					var newOption;
+					for (var qid in response.questions) {
+						newOption = document.createElement("OPTION");
+						newOption.value = qid;
+						newOption.text = response.questions[qid];
+						$('question1').options.add(newOption);
+						newOption = document.createElement("OPTION");
+						newOption.value = qid;
+						newOption.text = response.questions[qid];
+						$('question2').options.add(newOption);
+					}
+				}
+			},
+			onFailure: function(response) {
+				pages[5].pageDeactivated = true;
+				return false;
+			}
+		}
+	);
+}
+
+function enroll() {
+	// We're going to assume that the values coming in here have been vetted
+	// by the individual pages.  They'll be checked again on the backend,
+	// anyways.
+
+	var postobj = {
+		authtoken: authCookie
+	};
+	if ($('question1').value != 0) {
+		postobj.question1id = $('question1').value;
+		postobj.question1answer = $('answer1').value;
+	}
+	if ($('question2').value != 0) {
+		postobj.question2id = $('question2').value;
+		postobj.question2answer = $('answer2').value;
+	}
+	if ($('password1').value) {
+		postobj.password = $('password1').value;
+	}
+	if ($('pic1').value) {
+		postobj.tokenpic = $('pic1').value;
+	}
+
+	var statBox = $("statbox");
+
+	statBox.style.display = "";
+	statBox.className = "statbox";
+	statBox.innerHTML = "Sending enrollment information...";
+	buttonsEnabled = false;
+	buttonDisplay();
+	var ajaxRequest = new Ajax.Request("/websvcs/enroll.pl",
+		{
+			method: 'post',
+			parameters: postobj,
+			onSuccess: function(resp) {
+				buttonsEnabled = true;
+				var response;
+				try {
+					response = resp.responseJSON;
+				} catch (e) {
+					response = { errorcode: 'unknown' };
+				}
+				var statBox = $('statbox');
+				statBox.style.display = 'none';
+
+				// If the user was successfully enrolled, see if there were
+				// any nonfatal errors (i.e. if some of the passwords were
+				// not set)
+
+				if (response.errorcode == 'success') {
+					if (response.passwordsNotSet.length > 0) {
+						if (response.passwordsSet) {
+							$('goodpasswordlist').innerHTML = 
+								response.passwordsSet.join(', ');
+							$('badpasswordlist').innerHTML = 
+								response.passwordsNotSet.join(', ');
+							setPage(0);
+							$('partialsuccess').style.display = "";
+						} else {
+							setPage(0);
+							$('failedallpasswords').style.display = "";
+						}
+						return true;
+					} else if (response.passwordsSet.length > 0) {
+						setPage(0);
+						$('finishsuccess').style.display = "";
+						return true;
+					} else {
+						setPage(0);
+						$('successnopasswords').style.display = "";
+						return true;
+					}
+				}
+				if (response.errorcode == 'alreadyenrolled') {
+					setPage(0);
+					$('alreadyenrolled').style.display = "";
+					return false;
+				}
+				if (response.errorcode == 'disallowed') {
+					setPage(0);
+					$('disallowed').style.display = "";
+					return false;
+				}
+				if (response.errorcode == 'passwordstrength') {
+					statBox.className = "errorbox";
+					if (response.usererror) {
+						statBox.innerHTML = "Your password could not be set because it did not meet the minimum password strength standards: " +
+							response.usererror;
+					} else {
+						statBox.innerHTML = "Your password could not be set because it did not meet the minimum password strength standards.";
+					}
+					statBox.style.display = "";
+					setPage(6);
+					$("password1").focus();
+					return false;
+				}
+				if (response.errorcode == 'needpic') {
+					statBox.className = "errorbox";
+					statBox.innerHTML = "You need to specify a token PIC";
+					statBox.style.display = "";
+					setPage(4);
+					$("pic1").focus();
+					return false;
+				}
+				if (response.errorcode == 'needquestions') {
+					statBox.className = "errorbox";
+					statBox.innerHTML = "You need to specify challenge questions and answers";
+					statBox.style.display = "";
+					setPage(5);
+					$("question1").focus();
+					return false;
+				}
+				// If we get here, we don't know what's going on
+				setPage(0);
+				$('fatalerror').style.display = '';
+				var statBox = $('statbox');
+				statBox.className = 'errorbox';
+				statBox.innerHTML = 'Unknown response from server: ' +
+					errorcode;
+				return false;
+			},
+			onFailure: function(response) {
+				setPage(0);
+				$('fatalerror').style.display = '';
+				var statBox = $('statbox');
+				statBox.className = 'errorbox';
+				statBox.innerHTML = 'Error connect to server: ' +
+					response.statusText;
+				return false;
+			}
+		}
+	);
+}
+
+function totallyDone(req) {
+	var obj = eval(req.responseText);
+	var statBox = $("statbox");
+	var passwordForm = $("passwordform");
+	statBox.style.display = "";
+	if (obj.status != "success") {
+		statBox.className = "errorbox";
+		statBox.innerHTML = "Error changing password: " + obj.message;
+		return false;
+	} else {
+		statBox.className = "statbox";
+		passwordForm.style.display = "none";
+		statBox.innerHTML = "Your password was changed.";
+		return true;
+	}
+}
+
+//]]>
+</script>
+
+</body>
+</html>
+
