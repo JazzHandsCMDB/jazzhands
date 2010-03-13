@@ -24,3 +24,6 @@ loadjava -user system@DB -oci8 -resolve NetworkStrings.class
 
 create_oracle_schema.sql can be run from this directory to build out a
 complete oracle schema without and data.
+
+initialize_schema_data.sql will deposit a bunch of example data. Some of
+it you probably want to preserve, some of it -- not so much.

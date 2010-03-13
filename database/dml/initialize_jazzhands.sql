@@ -37,7 +37,7 @@ INSERT INTO VAL_System_User_Status(System_User_Status, Description)
 INSERT INTO VAL_System_User_Status(System_User_Status, Description)
 	VALUES ('forcedisable', 'forcedisable - User Forced to Disabled status');
 INSERT INTO VAL_System_User_Status(System_User_Status, Description)
-	VALUES ('deleted', 'deleted'');
+	VALUES ('deleted', 'deleted');
 INSERT INTO VAL_System_User_Status(System_User_Status, Description)
 	VALUES ('terminated', 'terminated - User has been terminated');
 INSERT INTO VAL_System_User_Status(System_User_Status, Description)
@@ -247,7 +247,7 @@ INSERT INTO Partner (Name)
 INSERT INTO Partner (Name)
 	VALUES ('Cyclades');
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -261,7 +261,7 @@ INSERT INTO VAL_Device_Type (
 	'N'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -275,7 +275,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -289,7 +289,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -303,7 +303,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -317,7 +317,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -331,7 +331,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -345,7 +345,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
@@ -359,7 +359,7 @@ INSERT INTO VAL_Device_Type (
 	'Y'
 );
 
-INSERT INTO VAL_Device_Type (
+INSERT INTO Device_Type (
 	Partner_ID,
 	Model,
 	Has_802_3_Interface,
