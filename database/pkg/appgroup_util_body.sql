@@ -75,11 +75,9 @@ IS
 		-- membership that is already assigned
 		insert into device_collection_member
 		(
-			device_id, device_collection_id,
-			approval_type, approval_ref_num
+			device_id, device_collection_id
 		)
-			select p_device_id, device_collection_id,
-				'rule', 'appgroup_util.add_role'
+			select p_device_id, device_collection_id
 			 from	device_collection
 			 where	device_collection_type = 'appgroup'
 			  and	(

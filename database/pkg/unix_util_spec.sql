@@ -76,7 +76,7 @@ PROCEDURE unix_add
 
 PROCEDURE group_add
 (
-	p_group_id		OUT	UNIX_GROUP.UNIX_GROUP_ID % TYPE,
+	p_group_id		OUT	UNIX_GROUP.UCLASS_ID % TYPE,
 	p_gid			IN	UNIX_GROUP.UNIX_GID % TYPE,
 	p_passwd		IN	UNIX_GROUP.GROUP_PASSWORD % TYPE,
 	p_name			IN	UNIX_GROUP.GROUP_NAME % TYPE
@@ -85,14 +85,14 @@ PROCEDURE group_add
 PROCEDURE member_add
 (
 	p_system_user_id	IN	System_User.SYSTEM_USER_ID % TYPE,
-	p_group_id		IN	Unix_Group.UNIX_GROUP_ID % TYPE
+	p_group_id		IN	Unix_Group.UCLASS_ID % TYPE
 );
 
 PROCEDURE user_add
 (
 	p_system_user_id	IN	USER_UNIX_INFO.SYSTEM_USER_ID % TYPE,
 	p_uid			IN	USER_UNIX_INFO.UNIX_UID % TYPE,
-	p_group_id		IN	USER_UNIX_INFO.UNIX_GROUP_ID % TYPE,
+	p_group_id		IN	USER_UNIX_INFO.UCLASS_ID % TYPE,
 	p_shell			IN	USER_UNIX_INFO.SHELL % TYPE,
 	p_home			IN	USER_UNIX_INFO.DEFAULT_HOME % TYPE
 );

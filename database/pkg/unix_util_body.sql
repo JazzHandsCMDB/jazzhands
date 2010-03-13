@@ -285,16 +285,12 @@ BEGIN
 	INSERT INTO unix_group_uclass
 	(
 		Unix_Group_ID,
-		UClass_ID,
-		Approval_Type,
-		Approval_Ref_Num
+		UClass_ID
 	)
 	VALUES
 	(
 		p_group_id,
-		v_uclass_id,
-		'feed',
-		'member_add'
+		v_uclass_id
 	);
 
 	EXCEPTION

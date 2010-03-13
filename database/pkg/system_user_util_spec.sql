@@ -326,9 +326,7 @@ PROCEDURE dept_add
 	p_system_user_id		IN	DEPT_MEMBER.SYSTEM_USER_ID % TYPE,
 	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE,
 	p_start_date			IN	DEPT_MEMBER.START_DATE % TYPE,
-	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE
 );
 
 PROCEDURE dept_update
@@ -338,25 +336,19 @@ PROCEDURE dept_update
 	p_dept_id			IN	DEPT_MEMBER.DEPT_ID % TYPE,
 	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE,
 	p_start_date			IN	DEPT_MEMBER.START_DATE % TYPE,
-	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE
 );
 
 PROCEDURE dept_delete
 (
 	p_system_user_id		IN	DEPT_MEMBER.SYSTEM_USER_ID % TYPE,
-	p_dept_id			IN	DEPT_MEMBER.DEPT_ID % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_dept_id			IN	DEPT_MEMBER.DEPT_ID % TYPE
 );
 
 PROCEDURE dept_delete_type
 (
 	p_system_user_id		IN	DEPT_MEMBER.SYSTEM_USER_ID % TYPE,
-	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE
 );
 
 PROCEDURE company_insert
@@ -609,43 +601,6 @@ PROCEDURE image_search
 	p_title			IN	SYSTEM_USER.POSITION_TITLE % TYPE,
 	p_company_id		IN	SYSTEM_USER.COMPANY_ID % TYPE,
 	p_dept_code		IN	DEPT.DEPT_CODE % TYPE,
-	p_cursor		OUT	GLOBAL_TYPES.jazzhands_ref_cur
-);
-
-PROCEDURE s2log_search
-(
-	p_log_id		IN	V_PORTAL_ACCESS.LOG_ID % TYPE,
-	p_type_id		IN	V_PORTAL_ACCESS.TYPE_ID % TYPE,
-	p_reason_id		IN	V_PORTAL_ACCESS.REASON_ID % TYPE,
-	p_card_id		IN	V_PORTAL_ACCESS.CARD_ID % TYPE,
-	p_portal_id		IN	V_PORTAL_ACCESS.PORTAL_ID % TYPE,
-	p_timestamp		IN	DATE,
-	p_wantrows		IN	NUMBER,
-	p_wantdays		IN	NUMBER,
-	p_system_user_id	IN	SYSTEM_USER.SYSTEM_USER_ID % TYPE,
-	p_employee_id		IN	SYSTEM_USER.EMPLOYEE_ID % TYPE,
-	p_manager_id		IN	SYSTEM_USER.MANAGER_SYSTEM_USER_ID % TYPE,
-	p_first_name		IN	SYSTEM_USER.FIRST_NAME % TYPE,
-	p_middle_name		IN	SYSTEM_USER.MIDDLE_NAME % TYPE,
-	p_last_name		IN	SYSTEM_USER.LAST_NAME % TYPE,
-	p_legal_only		IN	VARCHAR2,
-	p_login			IN	SYSTEM_USER.LOGIN % TYPE,
-	p_gender		IN	SYSTEM_USER.GENDER % TYPE,
-	p_title			IN	SYSTEM_USER.POSITION_TITLE % TYPE,
-	p_badge			IN	SYSTEM_USER.BADGE_ID % TYPE,
-	p_company_id		IN	SYSTEM_USER.COMPANY_ID % TYPE,
-	p_use_dept_company	IN	VARCHAR2,
-	p_status		IN	SYSTEM_USER.SYSTEM_USER_STATUS % TYPE,
-	p_type			IN	SYSTEM_USER.SYSTEM_USER_TYPE % TYPE,
-	p_dept_code		IN	DEPT.DEPT_CODE % TYPE,
-	p_dept_id		IN	DEPT.DEPT_ID % TYPE,
-	p_phone_number		IN	VARCHAR2,
-	p_phone_number_type	IN	SYSTEM_USER_PHONE.PHONE_NUMBER_TYPE % TYPE,
-	p_cursor		OUT	GLOBAL_TYPES.jazzhands_ref_cur
-);
-
-PROCEDURE info_portal
-(
 	p_cursor		OUT	GLOBAL_TYPES.jazzhands_ref_cur
 );
 

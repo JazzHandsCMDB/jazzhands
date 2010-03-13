@@ -56,11 +56,13 @@ INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
 	VALUES (0, 'none', 'N');
 
 INSERT INTO VAL_Office_Site(Office_Site, Description)
-	VALUES ('New York', 'New York, NY');
+	VALUES ('Virginia', 'Purcellville, VA');
 INSERT INTO VAL_Office_Site(Office_Site, Description)
-	VALUES ('London', 'London, UK');
+	VALUES ('Austin', 'Austin, TX');
 INSERT INTO VAL_Office_Site(Office_Site, Description)
-	VALUES ('Washington', 'Washington, DC');
+	VALUES ('Čerčany', 'Cercany, Czech Republic');
+INSERT INTO VAL_Office_Site(Office_Site, Description)
+	VALUES ('Strančice', 'Strancice, Czech Republic');
 
 INSERT INTO System_User (
 	System_User_ID,

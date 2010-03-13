@@ -391,14 +391,10 @@ BEGIN
 	END;
 	INSERT INTO UClass_User (
 		Uclass_ID,
-		System_User_ID,
-		Approval_Type,
-		Approval_Ref_Num
+		System_User_ID
 	) VALUES (
 		v_uclass_id,
-		p_system_user_id,
-		'rule',
-		'user_add2'
+		p_system_user_id
 	);
 EXCEPTION
 	WHEN OTHERS THEN
@@ -501,9 +497,7 @@ BEGIN
 	-- update department data too?
 	--
 	UPDATE dept_member SET
-		finish_date = current_date,
-		approval_type = 'rule',
-		approval_ref_num = 'user_delete, hris feed'
+		finish_date = current_date
 	WHERE system_user_id = p_system_user_id
 	AND finish_date is null;
 
@@ -1167,24 +1161,12 @@ PROCEDURE dept_add
 	p_system_user_id		IN	DEPT_MEMBER.SYSTEM_USER_ID % TYPE,
 	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE,
 	p_start_date			IN	DEPT_MEMBER.START_DATE % TYPE,
-	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE
 )
 IS
 v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.dept_add';
-v_approval_type		DEPT_MEMBER.APPROVAL_TYPE %TYPE;
-v_approval_ref		DEPT_MEMBER.APPROVAL_REF_NUM %TYPE;
 
 BEGIN
-
-	-- this is horribly disgusting, but it is not as horribly
-	-- disgusting as figuring out the HR import code to make it
-	-- pass correctly.  Jesus.
-	if p_approval_type is null  then
-		v_approval_type := 'feed';
-		v_approval_ref := 'hris-import';
-	end if;
 
 	INSERT INTO dept_member
 	(
@@ -1192,9 +1174,7 @@ BEGIN
 		system_user_id,
 		reporting_type,
 		start_date,
-		finish_date,
-		approval_type,
-		approval_ref_num
+		finish_date
 	)
 	VALUES
 	(
@@ -1202,9 +1182,7 @@ BEGIN
 		p_system_user_id,
 		p_reporting_type,
 		p_start_date,
-		p_finish_date,
-		v_approval_type,
-		v_approval_ref
+		p_finish_date
 	);
 
 EXCEPTION
@@ -1224,15 +1202,11 @@ PROCEDURE dept_update
 	p_dept_id			IN	DEPT_MEMBER.DEPT_ID % TYPE,
 	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE,
 	p_start_date			IN	DEPT_MEMBER.START_DATE % TYPE,
-	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_finish_date			IN	DEPT_MEMBER.FINISH_DATE % TYPE
 )
 IS
 v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.dept_update';
 v_sql			VARCHAR2(2048);
-v_approval_type		DEPT_MEMBER.APPROVAL_TYPE %TYPE;
-v_approval_ref		DEPT_MEMBER.APPROVAL_REF_NUM %TYPE;
 
 BEGIN
 	--
@@ -1242,14 +1216,6 @@ BEGIN
 	THEN
 		raise VALUE_ERROR;
 	END IF;
-
-	-- this is horribly disgusting, but it is not as horribly
-	-- disgusting as figuring out the HR import code to make it
-	-- pass correctly.  Jesus.
-	if p_approval_type is null  then
-		v_approval_type := 'feed';
-		v_approval_ref := 'hris-import';
-	end if;
 
 	--
 	-- put together some sql
@@ -1292,31 +1258,12 @@ END dept_update;
 PROCEDURE dept_delete
 (
 	p_system_user_id		IN	DEPT_MEMBER.SYSTEM_USER_ID % TYPE,
-	p_dept_id			IN	DEPT_MEMBER.DEPT_ID % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_dept_id			IN	DEPT_MEMBER.DEPT_ID % TYPE
 )
 IS
 v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.dept_delete';
-v_approval_type		DEPT_MEMBER.APPROVAL_TYPE %TYPE;
-v_approval_ref		DEPT_MEMBER.APPROVAL_REF_NUM %TYPE;
 
 BEGIN
-
-	-- this is horribly disgusting, but it is not as horribly
-	-- disgusting as figuring out the HR import code to make it
-	-- pass correctly.  Jesus.
-	if p_approval_type is null  then
-		v_approval_type := 'feed';
-		v_approval_ref := 'hris-import';
-	end if;
-
-	-- we do this to keep track of the reason for the deletion
-	UPDATE dept_member
-    SET approval_type = v_approval_type,
-		approval_ref_num = v_approval_ref
-	WHERE system_user_id = p_system_user_id
-	AND dept_id = p_dept_id;
 
 	DELETE FROM dept_member
 	WHERE system_user_id = p_system_user_id
@@ -1335,30 +1282,11 @@ END dept_delete;
 PROCEDURE dept_delete_type
 (
 	p_system_user_id		IN	DEPT_MEMBER.SYSTEM_USER_ID % TYPE,
-	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE,
-	p_approval_type			IN	DEPT_MEMBER.APPROVAL_TYPE %TYPE DEFAULT NULL,
-	p_approval_ref			IN	DEPT_MEMBER.APPROVAL_REF_NUM %TYPE DEFAULT NULL
+	p_reporting_type		IN	DEPT_MEMBER.REPORTING_TYPE % TYPE
 )
 IS
-v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.dept_delete_type';
-v_approval_type		DEPT_MEMBER.APPROVAL_TYPE %TYPE;
-v_approval_ref		DEPT_MEMBER.APPROVAL_REF_NUM %TYPE;
-
+	v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.dept_delete_type';
 BEGIN
-	-- this is horribly disgusting, but it is not as horribly
-	-- disgusting as figuring out the HR import code to make it
-	-- pass correctly.  Jesus.
-	if p_approval_type is null  then
-		v_approval_type := 'feed';
-		v_approval_ref := 'hris-import';
-	end if;
-
-	-- we do this to keep track of the reason for the deletion
-	UPDATE dept_member
-    	SET approval_type = v_approval_type,
-		approval_ref_num = v_approval_ref
-	WHERE system_user_id = p_system_user_id
-	AND reporting_type = p_reporting_type;
 
 	DELETE FROM dept_member
 	WHERE system_user_id = p_system_user_id
@@ -3149,277 +3077,5 @@ EXCEPTION
 		raise;
 
 END department_update;
-
-PROCEDURE s2log_search
-(
-	p_log_id		IN	V_PORTAL_ACCESS.LOG_ID % TYPE,
-	p_type_id		IN	V_PORTAL_ACCESS.TYPE_ID % TYPE,
-	p_reason_id		IN	V_PORTAL_ACCESS.REASON_ID % TYPE,
-	p_card_id		IN	V_PORTAL_ACCESS.CARD_ID % TYPE,
-	p_portal_id		IN	V_PORTAL_ACCESS.PORTAL_ID % TYPE,
-	p_timestamp		IN	DATE,
-	p_wantrows		IN	NUMBER,
-	p_wantdays		IN	NUMBER,
-	p_system_user_id	IN	SYSTEM_USER.SYSTEM_USER_ID % TYPE,
-	p_employee_id		IN	SYSTEM_USER.EMPLOYEE_ID % TYPE,
-	p_manager_id		IN	SYSTEM_USER.MANAGER_SYSTEM_USER_ID % TYPE,
-	p_first_name		IN	SYSTEM_USER.FIRST_NAME % TYPE,
-	p_middle_name		IN	SYSTEM_USER.MIDDLE_NAME % TYPE,
-	p_last_name		IN	SYSTEM_USER.LAST_NAME % TYPE,
-	p_legal_only		IN	VARCHAR2,
-	p_login			IN	SYSTEM_USER.LOGIN % TYPE,
-	p_gender		IN	SYSTEM_USER.GENDER % TYPE,
-	p_title			IN	SYSTEM_USER.POSITION_TITLE % TYPE,
-	p_badge			IN	SYSTEM_USER.BADGE_ID % TYPE,
-	p_company_id		IN	SYSTEM_USER.COMPANY_ID % TYPE,
-	p_use_dept_company	IN	VARCHAR2,
-	p_status		IN	SYSTEM_USER.SYSTEM_USER_STATUS % TYPE,
-	p_type			IN	SYSTEM_USER.SYSTEM_USER_TYPE % TYPE,
-	p_dept_code		IN	DEPT.DEPT_CODE % TYPE,
-	p_dept_id		IN	DEPT.DEPT_ID % TYPE,
-	p_phone_number		IN	VARCHAR2,
-	p_phone_number_type	IN	SYSTEM_USER_PHONE.PHONE_NUMBER_TYPE % TYPE,
-	p_cursor		OUT	GLOBAL_TYPES.jazzhands_ref_cur
-)
-AS
-
-v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.s2log_search';
-v_legal_only		VARCHAR2(1);
-v_use_dept_company	VARCHAR2(1);
-v_time_limit		DATE := TO_DATE('2000-01-01', 'YYYY-MM-DD');
-
-BEGIN
-	--
-	-- 'cause i'm stupid and can't get default in procedure
-	-- declaration to work for me.  neither could i get boolean
-	-- specifications in the query below to work.
-	--
-	IF p_legal_only IS NULL
-	OR p_legal_only = '0'
-	OR lower(p_legal_only) = 'n'
-	OR lower(p_legal_only) = 'false'
-	THEN
-		v_legal_only := 'N';
-	ELSE
-		v_legal_only := 'Y';
-	END IF;
-
-	--
-	-- same as above for dept_company
-	--
-	IF p_use_dept_company IS NULL
-	OR p_use_dept_company = '0'
-	OR lower(p_use_dept_company) = 'n'
-	OR lower(p_use_dept_company) = 'false'
-	THEN
-		v_use_dept_company := 'N';
-	ELSE
-		v_use_dept_company := 'Y';
-	END IF;
-
-	--
-	-- need limitations
-	--
-	IF p_wantdays IS NOT NULL
-	THEN
-		v_time_limit := sysdate - p_wantdays;
-	END IF;
-
-	--
-	-- see the query comments for user_search().  they're applicable here too.
-	-- should be basically the same query except for being driven by v_log.
-	--
-	OPEN p_cursor FOR
-		SELECT *
-		FROM
-		(
-			SELECT
-				log.log_id,
-				log.timestamp,
-				log.reason_id,
-				log.type_id,
-				log.portal_id,
-				log.portal_name,
-				log.card_id,
-				log.card_number,
-				log.format_id,
-				log.badge_id,
-				to_char(u.hire_date, 'YYYY-MM-DD HH24:MI') hire_date,
-				to_char(u.termination_date, 'YYYY-MM-DD HH24:MI') termination_date,
-				c.company_name,
-				c.company_code,
-				c.description company_description,
-				c.is_corporate_family,
-				d.parent_dept_id,
-				d.manager_system_user_id dept_manager_system_user_id,
-				d.company_id dept_company_id,
-				d.dept_code,
-				d.cost_center dept_cost_center,
-				d.dept_ou,
-				d.is_active,
-				m.dept_id,
-				m.start_date dept_start_date,
-				m.finish_date dept_finish_date,
-				x.external_hr_id,
-				x.payroll_id,
-				u.system_user_id,
-				u.first_name,
-				u.middle_name,
-				u.last_name,
-				u.name_suffix,
-				u.system_user_status,
-				u.system_user_type,
-				u.employee_id,
-				u.login,
-				u.company_id,
-				u.gender,
-				u.preferred_first_name,
-				u.preferred_last_name,
-				u.manager_system_user_id,
-				u.description,
-				u.data_ins_user,
-				u.data_ins_date,
-				u.data_upd_user,
-				u.data_upd_date
-			FROM system_user u, company c, dept_member m, dept d, system_user_xref x, v_portal_access log
-
-			--
-			-- ensure that only one record per person is output
-			--
-			WHERE u.company_id = c.company_id
-			AND u.system_user_id = x.system_user_id (+)
-			AND u.system_user_id = m.system_user_id (+)
-			AND m.dept_id = d.dept_id (+)
-			AND (m.reporting_type IS NULL OR m.reporting_type = 'direct')
-			AND log.badge_id = u.badge_id (+)
-
-			--
-			-- try and limit data returns to reasonable chunks
-			--
-			AND (log.timestamp > v_time_limit)
-
-			--
-			-- portal parameters
-			--
-			AND (p_log_id IS NULL OR p_log_id = log.log_id)
-			AND (p_type_id IS NULL OR p_type_id = log.type_id)
-			AND (p_reason_id IS NULL OR p_reason_id = log.reason_id)
-			AND (p_card_id IS NULL OR p_card_id = log.card_id)
-			AND (p_portal_id IS NULL OR p_portal_id = log.portal_id)
-			AND (p_timestamp IS NULL OR p_timestamp = log.timestamp)
-
-			--
-			-- simple parameters
-			--
-			AND (p_system_user_id IS NULL OR p_system_user_id = u.system_user_id)
-			AND (p_employee_id IS NULL OR p_employee_id = u.employee_id)
-			AND (p_login IS NULL OR lower(u.login) LIKE lower(p_login))
-			AND (p_gender IS NULL OR lower(u.gender) LIKE lower(p_gender))
-			AND (p_title IS NULL OR lower(u.position_title) LIKE lower(p_title))
-			AND (p_badge IS NULL OR u.badge_id = p_badge)
-			AND (p_status IS NULL OR lower(u.system_user_status) LIKE lower(p_status))
-			AND (p_type IS NULL OR lower(u.system_user_type) LIKE lower(p_type))
-			AND (p_manager_id IS NULL OR u.manager_system_user_id = p_manager_id)
-			AND (p_middle_name IS NULL OR lower(u.middle_name) LIKE lower(p_middle_name))
-
-			--
-			-- match names based on legal_only OR preferred too
-			--
-			AND (p_first_name IS NULL OR
-				(
-					lower(u.first_name) LIKE lower(p_first_name) OR
-					(v_legal_only = 'N' AND lower(u.preferred_first_name) LIKE lower(p_first_name))
-				))
-			AND (p_last_name IS NULL OR
-				(
-					lower(u.last_name) LIKE lower(p_last_name) OR
-					(v_legal_only = 'N' AND (lower(u.preferred_last_name) LIKE lower(p_last_name)))
-				))
-
-			--
-			-- companies are weird... need to look into dept when use_dept_company requested
-			--
-			AND ((p_company_id IS NULL) OR
-				((v_use_dept_company = 'N' AND u.company_id = p_company_id)) OR
-				((v_use_dept_company = 'Y' AND (u.company_id = p_company_id OR d.company_id = p_company_id)))
-			)
-
-			--
-			-- limit by phone number, phone isn't actually in output (can't be)
-			--
-			AND ((p_phone_number IS NULL) OR (u.system_user_id IN
-			(
-				SELECT p.system_user_id
-				FROM system_user_phone p
-				WHERE p.phone_number LIKE p_phone_number
-				AND ((p_phone_number_type IS NULL) OR (p.phone_number_type LIKE p_phone_number_type))
-			)))
-
-			--
-			-- limit by dept_code
-			--
-			AND ((p_dept_code IS NULL) OR (u.system_user_id IN
-			(
-				SELECT m.system_user_id
-				FROM dept_member m, dept d
-				WHERE m.dept_id = d.dept_id
-				AND m.reporting_type = 'direct'
-				AND d.dept_code = p_dept_code
-			)))
-
-			--
-			-- limit by dept_id
-			--
-			AND ((p_dept_id IS NULL) OR (u.system_user_id IN
-			(
-				SELECT m.system_user_id
-				FROM dept_member m, dept d
-				WHERE m.dept_id = d.dept_id
-				AND m.reporting_type = 'direct'
-				AND d.dept_id = p_dept_id
-			)))
-
-			--
-			-- if we're limiting data, better sort it properly
-			--
-			ORDER BY log_id DESC
-		)
-		WHERE (p_wantrows IS NULL OR ROWNUM <= p_wantrows)
-		;
-
-EXCEPTION
-	WHEN OTHERS THEN
-		G_err_num := SQLCODE;
-		G_err_msg := substr(SQLERRM, 1, 150);
-		global_util.debug_msg(v_std_object_name || ':(' || G_err_num || ') "' || G_err_msg || '"');
-		global_errors.log_error(G_err_num, v_std_object_name, G_err_msg);
-		raise;
-
-END s2log_search;
-
-PROCEDURE info_portal
-(
-	p_cursor		OUT	GLOBAL_TYPES.jazzhands_ref_cur
-)
-AS
-
-v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.info_portal';
-
-BEGIN
-
-	OPEN p_cursor FOR
-		SELECT portal_id, portal_name
-		FROM s2portal;
-
-EXCEPTION
-	WHEN OTHERS THEN
-		G_err_num := SQLCODE;
-		G_err_msg := substr(SQLERRM, 1, 150);
-		global_util.debug_msg(v_std_object_name || ':(' || G_err_num || ') "' || G_err_msg || '"');
-		global_errors.log_error(G_err_num, v_std_object_name, G_err_msg);
-		raise;
-
-END info_portal;
-
 END;
 /

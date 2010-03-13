@@ -26,7 +26,7 @@
 --
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -37,7 +37,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -48,7 +48,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -59,7 +59,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -70,7 +70,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -81,7 +81,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -92,7 +92,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -103,7 +103,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -114,7 +114,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -125,7 +125,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -136,7 +136,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -147,7 +147,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -158,7 +158,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -171,7 +171,7 @@ INSERT INTO
 --prompt AUTRALIAN EXTERNAL TERRITORIES HAS INCORRECT ISO.. CHANGED FROM AU TO EA
 
 --INSERT INTO
---	JazzHands.VAL_Country_Code(
+--	VAL_Country_Code(
 --		ISO_Country_Code,
 --		Dial_Country_Code,
 --		Country_Name
@@ -182,7 +182,7 @@ INSERT INTO
 --	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -193,7 +193,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -204,7 +204,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -215,7 +215,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -226,7 +226,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -237,7 +237,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -248,7 +248,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -259,7 +259,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -270,7 +270,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -281,7 +281,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -292,7 +292,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -303,7 +303,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -314,7 +314,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -325,7 +325,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -336,7 +336,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -347,7 +347,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -358,7 +358,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -369,7 +369,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -380,7 +380,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -391,7 +391,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -402,7 +402,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -413,7 +413,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -424,7 +424,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -435,7 +435,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -446,7 +446,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -457,7 +457,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -468,7 +468,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -479,7 +479,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -490,7 +490,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -501,7 +501,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -512,7 +512,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -523,7 +523,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -534,7 +534,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -545,7 +545,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -556,7 +556,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -567,7 +567,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -578,7 +578,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -589,7 +589,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -600,7 +600,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -611,7 +611,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -622,7 +622,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -633,7 +633,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -644,7 +644,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -655,7 +655,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -666,7 +666,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -677,7 +677,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -688,7 +688,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -699,7 +699,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -710,7 +710,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -721,7 +721,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -732,7 +732,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -743,7 +743,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -754,7 +754,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -765,7 +765,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -776,7 +776,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -787,7 +787,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -798,7 +798,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -809,7 +809,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -820,7 +820,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -831,7 +831,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -842,7 +842,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -853,7 +853,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -864,7 +864,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -875,7 +875,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -886,7 +886,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -897,7 +897,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -908,7 +908,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -919,7 +919,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -930,7 +930,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -941,7 +941,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -952,7 +952,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -963,7 +963,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -974,7 +974,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -985,7 +985,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -996,7 +996,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1007,7 +1007,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1018,7 +1018,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1029,7 +1029,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1040,7 +1040,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1051,7 +1051,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1062,7 +1062,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1073,7 +1073,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1084,7 +1084,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1095,7 +1095,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1106,7 +1106,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1117,7 +1117,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1128,7 +1128,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1139,7 +1139,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1150,7 +1150,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1161,7 +1161,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1172,7 +1172,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1183,7 +1183,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1194,7 +1194,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1205,7 +1205,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1216,7 +1216,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1227,7 +1227,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1238,7 +1238,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1249,7 +1249,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1260,7 +1260,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1271,7 +1271,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1282,7 +1282,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1293,7 +1293,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1304,7 +1304,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1315,7 +1315,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1326,7 +1326,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1337,7 +1337,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1348,7 +1348,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1359,7 +1359,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1370,7 +1370,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1381,7 +1381,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1392,7 +1392,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1403,7 +1403,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1414,7 +1414,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1425,7 +1425,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1436,7 +1436,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1447,7 +1447,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1458,7 +1458,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1469,7 +1469,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1480,7 +1480,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1491,7 +1491,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1502,7 +1502,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1513,7 +1513,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1524,7 +1524,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1535,7 +1535,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1546,7 +1546,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1557,7 +1557,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1568,7 +1568,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1579,7 +1579,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1590,7 +1590,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1601,7 +1601,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1612,7 +1612,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1623,7 +1623,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1634,7 +1634,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1645,7 +1645,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1656,7 +1656,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1667,7 +1667,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1678,7 +1678,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1689,7 +1689,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1700,7 +1700,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1711,7 +1711,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1722,7 +1722,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1733,7 +1733,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1744,7 +1744,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1755,7 +1755,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1766,7 +1766,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1777,7 +1777,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1788,7 +1788,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1799,7 +1799,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1810,7 +1810,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1821,7 +1821,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1832,7 +1832,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1843,7 +1843,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1854,7 +1854,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1865,7 +1865,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1876,7 +1876,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1887,7 +1887,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1898,7 +1898,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1909,7 +1909,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1920,7 +1920,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1931,7 +1931,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1942,7 +1942,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1953,7 +1953,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1964,7 +1964,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1975,7 +1975,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1986,7 +1986,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -1997,7 +1997,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2008,7 +2008,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2019,7 +2019,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2030,7 +2030,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2041,7 +2041,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2052,7 +2052,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2063,7 +2063,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2074,7 +2074,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2085,7 +2085,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2096,7 +2096,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2107,7 +2107,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2118,7 +2118,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2129,7 +2129,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2140,7 +2140,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2151,7 +2151,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2162,7 +2162,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2173,7 +2173,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2184,7 +2184,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2195,7 +2195,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2206,7 +2206,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2217,7 +2217,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2228,7 +2228,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2239,7 +2239,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2250,7 +2250,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2261,7 +2261,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2272,7 +2272,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2283,7 +2283,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2294,7 +2294,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2305,7 +2305,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2316,7 +2316,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2327,7 +2327,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2338,7 +2338,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2349,7 +2349,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2360,7 +2360,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2371,7 +2371,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2382,7 +2382,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2393,7 +2393,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2404,7 +2404,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2415,7 +2415,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2426,7 +2426,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2437,7 +2437,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2448,7 +2448,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2459,7 +2459,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2470,7 +2470,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2481,7 +2481,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2492,7 +2492,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2503,7 +2503,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2514,7 +2514,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2525,7 +2525,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2536,7 +2536,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2547,7 +2547,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name
@@ -2558,7 +2558,7 @@ INSERT INTO
 	);
 
 INSERT INTO
-	JazzHands.VAL_Country_Code(
+	VAL_Country_Code(
 		ISO_Country_Code,
 		Dial_Country_Code,
 		Country_Name

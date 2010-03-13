@@ -1,0 +1,55 @@
+$Id$
+$HeadURL$
+
+Here's a description of what things are.  These are auto-generated  from
+modeling software for now, though we expect this to change.
+
+At this time, the only database that works is Oracle (and probably
+EnterpriseDB), and we hope to have postgresql in place in short order.
+
+In some cases, the scripts are redundant do each other, so you don't want to
+run all of them.  They're split up to make it easier to port to other
+databasees, but also make it easier to build the reference platform.
+
+We have historically kept the tables and indexes in a modeling tool in order
+to do E-R diagrams and views, audit tables, and other bits are maintained out
+of the schema, so there's this weird hybrid between the two.
+
+build_audit_tables.sql
+build_audit_triggers.sql
+	- These are used to build the audit tables and triggers based on
+	  what's in the schema.  These are not generated.
+
+create_full_schema.sql
+create_full_triggers.sql
+	- These drop and recreate everything non-audit including physical
+	  characteristics.
+
+drop_triggers.sql
+drop_schema.sql
+	- These drop the schema and triggers, run the second, then the first
+		to empty everything non-audit.
+	  
+create_schema_physical.sql
+	- These creates the schema (tables, constraints, views) and all the
+	  physical characteristics.  They make assumptions about the underlying
+	  tapespace setup.
+
+create_schema.sql
+create_triggers.sql
+	- Creates the schema (tables, constraints, viefws) and the triggers.
+	  The triggers need to be created after views and other bits are
+	  created (see ../../README), which is why they are pulled out
+
+create_database_JAZZHANDS.sql
+create_tablespace_data_blob.sql
+create_schema_jazzhands_stats.sql
+	- random bits that we use to set things up.  Note that this was just
+		originally done against 10.2.0.something, but it runs on 11g
+		as well.
+
+create_extra_objects.sql
+create_audit_indexes.sql
+create_audit_views.sql
+	- These create objects that aren't in the other scripts for some
+	  reason.  See ../../README
