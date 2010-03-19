@@ -175,9 +175,7 @@ sub dump_nodes {
 			dom.soa_name,
 			ip_manip.v4_octet_from_int(nb.ip_address) as ip,
 			nb.netblock_status,
-			nb.description,
-			nb.approval_type,
-			nb.approval_ref_num
+			nb.description
 		  from	netblock nb
 			left join dns_record dns
 				on dns.netblock_id = nb.netblock_id
@@ -242,8 +240,8 @@ sub dump_nodes {
 			$dom    = $hashref->{$ip}->{'SOA_NAME'};
 			$status = $hashref->{$ip}->{'NETBLOCK_STATUS'};
 			$desc   = $hashref->{$ip}->{'DESCRIPTION'};
-			$atix   = $hashref->{$ip}->{'APPROVAL_REF_NUM'};
-			$atixsys = $hashref->{$ip}->{'APPROVAL_TYPE'};
+			$atix   = undef;
+			$atixsys = undef;
 
 			$printip = "$ip/$bits";
 
