@@ -332,7 +332,9 @@ sub build_page {
 
 	my $bottomTr = "";
 	if ( !defined($device) ) {
-		my $funcboxes = $stab->build_dev_function_checkboxes($device);
+		# my $funcboxes = $stab->build_dev_function_checkboxes($device);
+		my $funcboxes = $cgi->div({-class => 'approle'},
+			$stab->device_appgroup_tab());
 		$bottomTr =
 		  $cgi->Tr( { -align => 'center;' }, $cgi->td($funcboxes) ),
 		  undef $funcboxes;
@@ -372,6 +374,7 @@ sub build_page {
 			#	"IPRoute" => "IP Routing",
 			#	"Circuit" => "Voice",
 			"Serial"     => "Serial",
+			"AppGroup"     => "AppGroup",
 			"Power"      => "Power",
 			"Switchport" => "Switch Port",
 
@@ -379,7 +382,7 @@ sub build_page {
 			"Location"     => "Location",
 			"Advanced"     => "Advanced",
 			"Notes"        => "Notes$numnotes",
-			"DevFunctions" => "Functions",
+			# "DevFunctions" => "Functions",
 		};
 
 		my (@tablist);
@@ -498,6 +501,8 @@ sub build_parent_device_box {
 			-onKeydown =>
 "keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
 			-onBlur  => "hidePopup_Search($pdnam)",
+			-onChange=>"updateDeviceParentLink($devid, $pdid
+)",
 			-default => $pname,
 		}
 	  );

@@ -55,14 +55,23 @@ print $cgi->ul(
 				{ -href => "dns/soacheck.pl" },
 				"NIC vs JazzHands"
 			)
-		)
+		),
+		$cgi->li(
+			$cgi->a(
+				{ -href => "dns/dns-debug.pl" },
+				"DNS Namespace Debugging"
+			)
+		),
 	),
 	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
 	  . "\n",
 	$cgi->li(
 		$cgi->a(
 			{ -href => "device/type/" }, "Device Type Management"
-		)
+		),
+		$cgi->a(
+			{ -href => "device/apps/" }, "Application Management"
+		),
 	  )
 	  . "\n",
 	$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )

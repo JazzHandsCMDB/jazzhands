@@ -33,7 +33,7 @@ sub do_site_page {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $sitecode = $stab->cgi_parse_param('sitecode');
+	my $sitecode = $stab->cgi_parse_param('SITE_CODE');
 
 	if ( !defined($sitecode) ) {
 		dump_all_sites($stab);
@@ -114,7 +114,7 @@ sub dump_site {
 		{ -title => "Site Code Breakdown for $sitecode" } );
 
 	my $netblocks = build_site_netblocks( $stab, $sitecode );
-	my $racks = "";    #build_site_racks($stab, $sitecode);
+	my $racks = "";    # build_site_racks($stab, $sitecode);
 
 	print $cgi->table(
 		{ -border => 1 },
@@ -206,6 +206,7 @@ sub build_site_netblocks {
 	$sth->execute($sitecode) || die $sth->errstr;
 
 	my $x = $cgi->start_table( { -border => 1 } );
+	$x .= $cgi->th([ "Block", "Description" ]);
 	while ( my ( $id, $ip, $bits, $desc ) = $sth->fetchrow_array ) {
 		my $link = "../netblock/?nblkid=$id";
 		$link .= "&expand=yes" if ( $bits >= 24 );

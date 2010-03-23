@@ -184,10 +184,14 @@ sub device_type_power_form {
 	);
 
 	my $powerbox = build_power_box( $stab, $devtypid );
-	my $serialbox = build_serial_box( $stab, $devtypid );
+	my $serialbox = build_physical_port_box($stab, $devtypid, 'serial');
+	my $networkbox = build_physical_port_box($stab, $devtypid, 'network');
 
 	my $poweraddbox = build_power_add_box( $stab, $devtypid );
-	my $serialaddbox = build_serial_add_box( $stab, $devtypid );
+	my $serialaddbox = build_physical_port_add_box($stab, $devtypid, 'serial');
+	my $networkaddbox = build_physical_port_add_box($stab, $devtypid, 'network');
+  
+
 
 	my $offparams = { -align => 'center' };
 
@@ -202,6 +206,10 @@ sub device_type_power_form {
 
 	if ( !defined($serialbox) || !length($serialbox) ) {
 		$serialbox = "no serial configuration";
+	}
+
+	if(!defined($networkbox) || !length($networkbox)) {
+		$serialbox = "no switchport configuration";
 	}
 
 	my $hdrparam = {
@@ -233,6 +241,17 @@ sub device_type_power_form {
 			$serialrow = $cgi->Tr( $addparams, $serialaddbox );
 		}
 
+ 		my $networkrow;
+ 		if(defined($networkbox) && length($networkbox)) {
+ 			$networkbox = $cgi->td($offparams, $networkbox);
+ 			$networkaddbox = $cgi->td($addparams, $networkaddbox);
+ 			$networkrow = $cgi->Tr( $networkbox, $networkaddbox );
+ 		} else {
+ 			$networkaddbox = $cgi->td({-colspan=>2}, $networkaddbox);
+ 			$networkrow = $cgi->Tr($addparams, $networkaddbox );
+ 		}
+
+
 		print $cgi->start_form(
 			{ -method => 'POST', -action => 'write/updatedt.pl' }
 		  ),
@@ -248,6 +267,10 @@ sub device_type_power_form {
 				$cgi->td( $hdrparam, "Serial Port Template" )
 			),
 			$serialrow,
+			$cgi->Tr(
+				$cgi->td( $hdrparam, "Switch Port Template" )
+			),
+			$networkrow,
 			$cgi->Tr(
 				$cgi->td(
 					$hdrparam,
@@ -269,7 +292,9 @@ sub device_type_power_form {
 			$cgi->Tr( $cgi->td($leftbox), $cgi->td($rightbox) ),
 			$cgi->Tr(
 				$cgi->td( $addparams, $poweraddbox ),
-				$cgi->td( $addparams, $serialaddbox )
+				$cgi->td( $addparams, $serialaddbox,
+					$cgi->hr, $networkaddbox, 
+				)
 			),
 			$cgi->Tr(
 				$cgi->td(
@@ -286,33 +311,44 @@ sub device_type_power_form {
 
 }
 
-sub build_serial_box {
-	my ( $stab, $devtypid ) = @_;
+sub build_physical_port_box {
+	my ( $stab, $devtypid, $type ) = @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
+	my $humantype = $type;
+	$humantype = 'switch' if($humantype eq 'network');
+	my $captype = $humantype;
+	substr($captype, $[, 1) =~ tr/a-z/A-Z/;
+
+
 	my $q = qq{
-		select	device_type_id, port_name
+		select	device_type_id, port_name, port_type
 		  from	device_type_phys_port_templt
 		 where	device_type_id = :1
-		   and	port_type = 'serial'
+		   and	port_type = :2
 		order by to_number(
 			regexp_replace(port_name, '[^[:digit:]]', '')),
 				port_name
 	};
 
 	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($devtypid) || $stab->return_db_err($sth);
+	$sth->execute($devtypid, $type) || $stab->return_db_err($sth);
 
 	my $numrows  = 0;
 	my $existing = "";
 
-	my (@keys) = ( 'DEVICE_TYPE_ID', 'PORT_NAME' );
+	my (@keys) = ( 'DEVICE_TYPE_ID', 'PORT_TYPE', 'PORT_NAME' );
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		$numrows++;
 
-		my $idx = $hr->{'DEVICE_TYPE_ID'} . "_" . $hr->{'PORT_NAME'};
+ 		my $idx = join("_",
+ 				$hr->{'DEVICE_TYPE_ID'},
+ 				$hr->{'PORT_TYPE'},
+ 				$hr->{'PORT_NAME'},
+ 		);
+
 
 		$existing .= $cgi->Tr(
 			$cgi->td(
@@ -337,30 +373,40 @@ sub build_serial_box {
 			-align   => 'center',
 			-colspan => 2
 		};
-		$existing =
-		  $cgi->Tr( $cgi->td( $offparams, "no serial configuration" ) );
+		$existing = $cgi->Tr($cgi->td($offparams, "no $humantype configu
+ration"));
+
 	}
 	$rv = $cgi->table(
 		{ -border => 1, -width => '100%' },
-		$cgi->caption("Current Serial Port Template"),
-		$cgi->th( [ 'Delete', 'Serial Port Name' ] ),
-		$existing
+ 		$cgi->caption("Current $captype Port Template"),
+ 		$cgi->th(['Delete', "$captype Port Name"]), $existing
 	);
 
 	$rv;
 }
 
-sub build_serial_add_box {
-	my ( $stab, $devtypid ) = @_;
+sub build_physical_port_add_box {
+	my ( $stab, $devtypid, $type ) = @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
+ 	my $pfx = $type;
+ 	$pfx =~ tr/a-z/A-Z/;
+ 
+ 	my $humantype = $type;
+ 	$humantype = 'switch' if ($type eq 'network');
+
+
 	my $title;
 	if ($devtypid) {
-		$title = 'Add to serial port template';
+		$title = 'Add to $humantype port template';
 	} else {
-		$title = $cgi->b('Serial Template');
+ 		my $captype = $humantype;
+ 		substr($captype, $[, 1) =~ tr/a-z/A-Z/;
+ 		$title = $cgi->b("$captype Template");
+
 	}
 
 	$cgi->table(
@@ -368,19 +414,19 @@ sub build_serial_add_box {
 		$stab->build_tr(
 			{ -textfield_width => 10 }, undef,
 			"b_textfield",        'NamePrefix',
-			'SERIAL_PORT_PREFIX', 'DEVICE_TYPE_ID',
+			"${pfx}_PORT_PREFIX", 'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
 			{ -textfield_width => 10 }, undef,
 			"b_textfield",                 'StartPort',
-			'SERIAL_INTERFACE_PORT_START', 'DEVICE_TYPE_ID',
+			"${pfx}_INTERFACE_PORT_START", 'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
 			{ -textfield_width => 10 }, undef,
 			"b_textfield",                 'Count',
-			'SERIAL_INTERFACE_PORT_COUNT', 'DEVICE_TYPE_ID',
+			"${pfx}_INTERFACE_PORT_COUNT", 'DEVICE_TYPE_ID',
 			$devtypid
 		),
 	);

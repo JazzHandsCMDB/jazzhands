@@ -69,16 +69,18 @@ sub link_inaddr_zone($$$) {
 sub add_default_ns_records($$) {
 	my ( $stab, $dnsdomid ) = @_;
 
+	# these really need to be set as properties in the database...
+
 	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
 		'auth00.ns.example.com.' );
 	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
 		'auth01.ns.example.com.' );
 	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'ns1.example.com.' );
+		'auth02.ns.example.com.' );
 	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'ns3.example.com.' );
+		'auth03.ns.example.com.' );
 	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'ns4.example.com.' );
+		'auth04.ns.example.com.' );
 
 }
 

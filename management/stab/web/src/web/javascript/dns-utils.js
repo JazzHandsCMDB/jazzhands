@@ -42,3 +42,33 @@ function show_soa(switchid, tableid)
 		t.style.display = '';
 	}
 }
+
+function dns_show_approles(button)
+{
+	var div;
+	div = document.getElementById("approle_div");
+	if(!div) {
+		return;
+	}
+
+	if(div.style.display == 'none') {
+		button.innerHTML = "Hide AppRoles";
+		div.style.display = '';
+	} else {
+		button.innerHTML = "Show AppRoles";
+		div.style.display = 'none';
+	}
+}
+
+function dns_debug_addns(button)
+{
+	var ns, br;
+
+	ns = document.createElement('input');
+	ns.name = 'extra_ns';
+	ns.type = 'text';
+	button.parentNode.appendChild(ns);
+
+	br = document.createElement('br');
+	button.parentNode.appendChild(br);
+}

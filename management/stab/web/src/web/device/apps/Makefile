@@ -1,4 +1,3 @@
-#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -21,31 +20,30 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# $Id$
+#
+# $Id: Makefile 240930 2007-05-10 22:15:51Z kovert $
 #
 
-STAB_DIR=/prod/www/stab/docs/javascript
+STAB_DIR=/prod/www/stab/docs/device/apps
 
-SUBDIRS=
+# SUBDIRS= write
 
-SCRIPTS= ajax-utils.js app-utils.js ajaxsearch.js device-utils.js 
-	dns-utils.js \
-	devicetype.js \
-	tickets.js racks.js table-manip.js
+SCRIPTS= index.pl
 
 all:
-	@#@for subdir in $(SUBDIRS) ; do \
-	@#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all) 
-	@#done
+	@echo nothing to do
+    	#@for subdir in $(SUBDIRS) ; do \
+	#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all)  ;\
+	#done \
 
 install:
 	install -d -o root -g bin -m 755 $(DESTDIR)/$(STAB_DIR)
-	@#@for subdir in $(SUBDIRS) ; do \
-	@#	here=`pwd` ;\
-	@#	cd $$subdir && $(MAKE) -e $(MFLAGS) install ;\
-	@#	cd $$here ;\
-	@#done
-	for script in $(SCRIPTS) ; do \
+	#@for subdir in $(SUBDIRS) ; do \
+	#	here=`pwd` ;\
+	#	cd $$subdir && $(MAKE) -e $(MFLAGS) install ;\
+	#	cd $$here ;\
+	#done
+	@for script in $(SCRIPTS) ; do \
 		echo 1>&2 installing $$script into $(DESTDIR)/$(STAB_DIR) ;\
 		install -o root -g bin -m 755 $$script $(DESTDIR)/$(STAB_DIR)/$$script ;\
 	done

@@ -68,7 +68,7 @@ my $maxperrow = 4;
 
 print $cgi->start_table( { -border => 1 } ), "\n";
 
-print $cgi->h2( { -align => 'center' }, "IP \"Spreadsheet\"" ), "\n";
+print $cgi->h2( { -align => 'center' }, "IP Network Allocation" ), "\n";
 
 my $curperrow = -1;
 my $rowtxt    = "";
@@ -93,8 +93,9 @@ while ( my ( $sitecode, $name, $addr, $npanxx, $status, $desc ) =
 			# $cgi->td( ((defined($desc))?$desc:"") ),
 		) . "\n";
 	}
-	my $entry =
 
+	my $sitelink = $cgi->a({-href=>"./?SITE_CODE=$sitecode"}, $sitecode);
+	my $entry =
 	  #$cgi->table({-border => 1, -width=>'100%', -align=>'top'},
 	  $cgi->table(
 		{ -width => '100%', -align => 'top' },
@@ -104,9 +105,10 @@ while ( my ( $sitecode, $name, $addr, $npanxx, $status, $desc ) =
 					-align => 'center',
 					-style => 'background: yellow'
 				},
-				$cgi->b($sitecode)
+				$cgi->b($sitelink)
 			)
 		),
+		$cgi->b($sitecode),
 		$cgi->Tr(
 			$cgi->td(
 				{

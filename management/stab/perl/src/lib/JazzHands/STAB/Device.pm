@@ -48,6 +48,38 @@ our @ISA = qw( );
 
 our $VERSION = '1.0.0';
 
+sub setup_device_power {
+	my($self, $devid) = @_;
+
+	my $dbh = $self->dbh || die "Could not create dbh";
+
+	my $q = qq{
+		begin
+			port_utils.setup_device_power(:1);
+		end;
+	};
+	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
+	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->finish;
+}
+
+
+sub setup_device_physical_ports {
+	my($self, $devid, $type) = @_;
+
+	my $dbh = $self->dbh || die "Could not create dbh";
+
+	my $q = qq{
+		begin
+			port_utils.setup_device_physical_ports(:1, :2);
+		end;
+	};
+	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
+	$sth->execute($devid, $type) || $self->return_db_err($sth);
+	$sth->finish;
+}
+
+
 ##############################################################################
 #
 # Device Notes
@@ -275,6 +307,8 @@ sub device_circuit_tab {
 sub device_switch_port {
 	my ( $self, $devid, $parent ) = @_;
 
+	$self->setup_device_physical_ports($devid, 'network');
+
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
@@ -343,7 +377,7 @@ sub device_switch_port {
 					-style  => 'border: 1px solid;'
 				},
 				$cgi->caption('Switchport Connections'),
-				$cgi->th( [ 'Port', 'Other End', 'Port' ] ),
+				$cgi->th( [ 'Port/Label', 'Other End', 'Port' ] ),
 				$x
 			);
 		} else {
@@ -395,6 +429,13 @@ sub build_switch_drop_tr {
 
 	my $htmlid = "P1_PHYSICAL_PORT_ID__$pportid";
 
+	my $pname = $hr->{'P1_PORT_NAME'};
+	if($hr->{'P1_PHYSICAL_LABEL'}) {
+		$pname .= "/".$cgi->span({-class=>'port_label'},
+			$hr->{'P1_PHYSICAL_LABEL'});
+	}
+
+
 	$cgi->Tr(
 		$cgi->td(
 			$cgi->b(
@@ -403,7 +444,7 @@ sub build_switch_drop_tr {
 					-id    => $htmlid,
 					-value => $pportid
 				),
-				$hr->{'P1_PORT_NAME'}
+				$pname,
 			)
 		),
 		$cgi->td(
@@ -562,7 +603,7 @@ sub powerport_device_magic {
 
 	my $cgi = $self->cgi;
 
-	my $id        = $hr->{'P1_POWER_INTERFACE_PORT'};
+	my $id	= $hr->{'P1_POWER_INTERFACE_PORT'};
 	my $devlinkid = "power_devlink_$id";
 	my $args;
 
@@ -614,21 +655,6 @@ sub powerport_device_magic {
 	$rv;
 }
 
-sub setup_device_power {
-	my ( $self, $devid ) = @_;
-
-	my $dbh = $self->dbh || die "Could not create dbh";
-
-	my $q = qq{
-		begin
-			port_utils.setup_device_power(:1);
-		end;
-	};
-	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
-	$sth->execute($devid) || $self->return_db_err($sth);
-	$sth->finish;
-}
-
 ##############################################################################
 #
 # Serial Portage
@@ -637,7 +663,7 @@ sub setup_device_power {
 sub device_serial_ports {
 	my ( $self, $devid ) = @_;
 
-	$self->setup_device_serial($devid);
+	$self->setup_device_physical_ports($devid, 'serial');
 
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
@@ -665,11 +691,9 @@ sub device_serial_ports {
 		$cgi->table(
 			{ -align => 'center' },
 			$cgi->caption('Serial Connections'),
-
-#$cgi->th(['Local Port', 'Other End', 'Port', 'Baud', 'Stop Bits', 'Data Bits', 'Parity', 'Flow Control']),
 			$cgi->th(
 				[
-					'Local Port', 'Other End',
+					'Local Port/Label', 'Other End',
 					'Port',       'Baud',
 					'Params',     'Flow Control'
 				]
@@ -679,21 +703,6 @@ sub device_serial_ports {
 	} else {
 		"";
 	}
-}
-
-sub setup_device_serial {
-	my ( $self, $devid ) = @_;
-
-	my $dbh = $self->dbh || die "Could not create dbh";
-
-	my $q = qq{
-		begin
-			port_utils.setup_device_serial(:1);
-		end;
-	};
-	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
-	$sth->execute($devid) || $self->return_db_err($sth);
-	$sth->finish;
 }
 
 sub build_serial_drop_tr {
@@ -706,6 +715,13 @@ sub build_serial_drop_tr {
 
 	my $htmlid = "P1_PHYSICAL_PORT_ID__$pportid";
 
+	my $pname = $hr->{'P1_PORT_NAME'};
+	if($hr->{'P1_PHYSICAL_LABEL'}) {
+		$pname .= "/".$cgi->span({-class=>'port_label'},
+			$hr->{'P1_PHYSICAL_LABEL'});
+	}
+
+
 	$cgi->Tr(
 		$cgi->td(
 			$cgi->b(
@@ -714,7 +730,7 @@ sub build_serial_drop_tr {
 					-id    => $htmlid,
 					-value => $pportid
 				),
-				$hr->{'P1_PORT_NAME'}
+				$pname,
 			)
 		),
 		$cgi->td(
@@ -1205,6 +1221,7 @@ sub build_physical_port_query {
 					as sort_id,
 				p1.physical_port_id as p1_physical_port_id,
 				p1.port_name	as p1_port_name,
+				p1.physical_label	as p1_physical_label,
 				p1.device_id	as p1_device_id,
 				p2.physical_port_id as p2_physical_port_id,
 				p2.port_name	as p2_port_name,
@@ -1232,6 +1249,7 @@ sub build_physical_port_query {
 					as sort_id,
 				p1.physical_port_id as p1_physical_port_id,
 				p1.port_name	as p1_port_name,
+				p1.physical_label	as p1_physical_label,
 				p1.device_id	as p1_device_id,
 				p2.physical_port_id as p2_physical_port_id,
 				p2.port_name	as p2_port_name,
@@ -1259,6 +1277,7 @@ sub build_physical_port_query {
 					as sort_id,
 				p1.physical_port_id as p1_physical_port_id,
 				p1.port_name	as p1_port_name,
+				p1.physical_label	as p1_physical_label,
 				p1.device_id	as p1_device_id,
 				NULL,
 				NULL,
@@ -1460,6 +1479,7 @@ sub dump_advanced_tab {
 
 	my $addpwrid = "power_port_resync_$devid";
 	my $addserid = "serial_port_resync_$devid";
+	my $addnetid = "switch_port_resync_$devid";
 
 	my $rv =
 	  $cgi->h3( { -style => 'text-align: center' }, "Advanced Operations" );
@@ -1505,7 +1525,13 @@ sub dump_advanced_tab {
 				-label => 'Add missing serial from Device Type',
 			)
 		),
-
+		$cgi->li($cgi->checkbox(
+				-name=> $addnetid,
+				-id=> $addnetid,
+				-checked => undef,
+				-value => 'off',
+				-label => 'Add missing switchports from Device Type',
+		)),
 	);
 
 	my $dev;
@@ -2379,18 +2405,18 @@ qq{Rack $rack->{ROOM} : $rack->{RACK_ROW} - $rack->{RACK_NAME}}
 			'LOCATION_ID'
 		),
 		$self->build_tr(
-			$hr,                    "b_textfield",
+			$hr,		    "b_textfield",
 			"U Offset of Top Left", 'LOCATION_RU_OFFSET',
 			'LOCATION_ID'
 		),
 		$self->build_tr(
-			$hr,         "b_nondbdropdown",
+			$hr,	 "b_nondbdropdown",
 			"Rack Side", 'LOCATION_RACK_SIDE',
 			'LOCATION_ID'
 		),
 		$self->build_tr(
 			{ -mark => 'optional' }, $hr,
-			"b_textfield",               "Horizontal Offset",
+			"b_textfield",	       "Horizontal Offset",
 			'LOCATION_INTER_DEV_OFFSET', 'LOCATION_ID'
 		),
 		$racklink
@@ -2404,6 +2430,9 @@ qq{Rack $rack->{ROOM} : $rack->{RACK_ROW} - $rack->{RACK_NAME}}
 # Application Groups / Roles
 #
 ##############################################################################
+# note that this is shared between the tab generation code and the add a device
+# code.  This should probably be overhauled so the "add a device code"
+# actually can use tabs..
 sub device_appgroup_tab {
 	my ( $self, $devid ) = @_;
 
@@ -2431,24 +2460,48 @@ sub device_appgroup_tab {
 		 ) HIER_Q
 			left join device_collection_member dcm
 				on dcm.device_collection_id = hier_q.device_collection_id
-		 WHERE root_id not in (
-					select device_collection_id from device_collection_hier
-				) 
-		  AND	
-				HIER_Q.device_collection_id not in
-				(
-					select parent_device_collection_id
-					 from	device_collection_hier
-				)
-		  AND
-				(dcm.device_id is NULL or dcm.device_id = :1)
-		 order by hier_q.path, hier_q.name
-	}
-	);
+				-- here because in the where clause it shrinks the rows rtnd
+				and dcm.device_id = :1
+		WHERE hier_q.root_id not in (
+			select device_collection_id from device_collection_hier
+		)
+		order by (CASE WHEN root_name = 'legacy' THEN 1 ELSE 0 END),
+			hier_q.path, hier_q.name
+	});
 
 	$sth->execute($devid) || return_db_err($sth);
 
 	my ( @options, @set, %labels );
+
+	my $name = "appgroup";
+
+	my $resetlink = "";
+	my $warnmsg = "";
+	my $indicatetab = "";
+	if($devid) {
+		# this only shows if we're updating an existing device.  If we'r
+e
+		# adding new, then this is somewhat superfluous.
+		$warnmsg = qq{
+			Please select all that apply.  Please note that if you
+			are adding additional items, you need to use a key
+			modifier with the mouse (typically ctrl or shift,
+			depending on the browser and operating system).  If you
+			inadvertently remove functions, the "reset tab" link wil
+l
+			reset the list to be in sync with the database, as thoug
+h
+			no changes were made.
+		};
+		$resetlink = $cgi->div({-style => 'text-align: center;'},
+			$cgi->a({ -href=>"apps/", -target => 'TOP', },
+				"(explore apps)").
+				$resetlink
+			);
+		$indicatetab = $cgi->hidden("has_appgroup_tab_$devid", $devid);
+		$name = 'appgroup_'.$devid;
+	}
+
 
 	my $tt = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
@@ -2460,18 +2513,25 @@ sub device_appgroup_tab {
 		  if ( $hr->{'DEVICE_ID'} );
 		$labels{ $hr->{'DEVICE_COLLECTION_ID'} } = $printable;
 	}
-	my $x = $cgi->h3( { -align => 'center' }, 'Application Groupings' )
-	  . $cgi->div(
-		{ -style => 'text-align: center' },
-		$cgi->scrolling_list(
-			-name     => 'appgroup_' . $devid,
-			-values   => \@options,
-			-default  => \@set,
-			-labels   => \%labels,
-			-size     => 10,
-			-multiple => 'true'
-		)
-	  );
+	my $x = $cgi->h3({-align=>'center'}, 'Application Groupings').
+		$cgi->div({-style => 'text-align: center'},
+			$warnmsg).
+		$indicatetab.
+		$cgi->div({-style => 'text-align: center'},
+			$cgi->scrolling_list(
+				-name => $name,
+				-values=> \@options,
+				-default => \@set,
+				-labels => \%labels,
+				-size => 10,
+				-multiple => 'true'
+			)
+		).
+			$cgi->div({-style => 'text-align: center;'},
+				$cgi->a({ -href=>"apps/", -target => 'TOP', },
+					"(explore apps)").
+			$resetlink
+		);
 	$x;
 }
 
@@ -2541,7 +2601,10 @@ sub build_dev_function_checkboxes_legacy {
 	}
 	push( @boxen, $box );
 
-	my $funcid = "dev_func_tab_loaded_" . $device->{'DEVICE_ID'};
+	my $funcid = "dev_func_tab_loaded_";
+	if($device) {
+		$funcid .= $device->{'DEVICE_ID'};
+	}
 
 	my $rv = $cgi->div(
 		{ -align => 'center' },

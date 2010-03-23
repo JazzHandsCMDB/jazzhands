@@ -228,6 +228,13 @@ sub start_html {
 					-src => "$root/javascript/dns-utils.js"
 				}
 			);
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript/device-utils.js"
+				}
+			);
 		}
 		if ( $opts->{-javascript} eq 'cca' ) {
 			if ( !exists( $args{'-script'} ) ) {
@@ -271,7 +278,21 @@ sub start_html {
 					-src => "$root/javascript/ajax-utils.js"
 				}
 			);
-
+		}
+		if($opts->{-javascript} eq 'apps') {
+			if(!exists($args{'-script'})) {
+				$args{'-script'} = [];
+			}
+			push(@{$args{-script}},
+				{ -language => 'JavaScript',
+					-src => "$root/javascript/app-utils.js"
+				}
+			);
+			push(@{$args{-script}},
+				{ -language => 'JavaScript',
+					-src => "$root/javascript/ajax-utils.js"
+				}
+			);
 		}
 
 	}
@@ -304,9 +325,22 @@ sub start_html {
 	# This might get around tabindex issues
 	#
 	$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
+	# need to move to this...
+	#$args{'-dtd'} = '-//W3C//DTD HTML 4.01 Transitional//EN';
 
-	if ( defined( $opts->{'title'} ) ) {
-		$args{'-title'} = $opts->{'title'};
+
+	if( defined($opts->{'-title'}) && length($opts->{'-title'}) ) {
+		$args{'-title'} = "STAB: ". $opts->{'-title'};
+		# $args{'-title'} = $opts->{'-title'};
+	} else {
+		$args{'-title'} = "STAB";
+	}
+  
+	# development.  XXX Probably need to put in a is_dev_instance
+	# function that can be used to discern this throughout the code,
+	# although this is only used in the css for the background and here.
+	if($root !~ m,://stab.example.com/?$,) {
+		$args{'-title'} =~ s/STAB:/STAB(D):/;
 	}
 
 	#
@@ -1055,6 +1089,8 @@ sub b_dropdown {
 	# [XXX] need to consider making id/name always the same?
 	my $id = $params->{'-id'};
 
+	my $showhidden = $params->{'-showHidden'};
+
 	my $pkn = "";
 	if ( defined($pkeyfield) && defined($values) ) {
 		if ( ref $pkeyfield eq 'ARRAY' ) {
@@ -1187,10 +1223,17 @@ sub b_dropdown {
 			order by description, network_interface_purpose
 		};
 	} elsif ( $field eq 'DNS_TYPE' ) {
+		my $list = q{  ('ID', 'NON-ID') };
+		if($showhidden) {
+			# XXX when db constraint on val_dns_type.id_type is updated to
+			# include HIDDEN, the or clause can go away.  This should happen
+			# with 3.1.
+			$list = q{  ('ID', 'NON-ID', 'HIDDEN') or dns_type = 'SOA' };
+               }
 		$q = qq{
 			select	dns_type, description
 			  from	val_dns_type
-			 where	id_type in ('ID', 'NON-ID')
+			 where	id_type in $list
 			order by description, dns_type
 		};
 		$pickone = "Choose";
@@ -1952,7 +1995,8 @@ sub parse_netblock_search {
 
 	my $parent = $self->guess_parent_netblock_id( $nb->base, $nb->bits );
 
-	if ( !defined($parent) ) {
+	# zero is 0/0, which is also considered "not found"
+	if(!$parent) {
 		return $self->error_return("Network not found");
 	}
 	$parent;
@@ -2296,39 +2340,43 @@ sub add_power_ports {
 	++$total;
 }
 
-sub add_serial_ports {
-	my ( $self, $devtypid ) = @_;
+sub add_physical_ports {
+	my ( $self, $devtypid, $type ) = @_;
+
+	my $captype = $type;
+	$captype =~ tr/a-z/A-Z/;
 
 	my $cgi = $self->cgi || die "Could not create cgi";
 	my $dbh = $self->dbh || die "Could not create dbh";
 
-	my $prefix = $self->cgi_parse_param('SERIAL_PORT_PREFIX');
-	my $start  = $self->cgi_parse_param('SERIAL_INTERFACE_PORT_START');
-	my $count  = $self->cgi_parse_param('SERIAL_INTERFACE_PORT_COUNT');
+	my $prefix  = $self->cgi_parse_param("${captype}_PORT_PREFIX");
+	my $start   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
+	my $count   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
+
 
 	if ( !defined($count) ) {
 		$self->error_return(
-			"You must specify the number of serial ports");
+			"You must specify the number of $type ports");
 	}
 
 	if ( !defined($start) && $count ne 1 ) {
 		$self->error_return(
-			"You must specify one serial port or a starting number"
+			"You must specify one $type port or a starting number"
 		);
 	}
 
 	if ( defined($start) && ( $start !~ /^\d+$/ || $start < 0 ) ) {
 		$self->error_return(
-			"Starting serial port must be a positive number");
+			"Starting $type port must be a positive number");
 	}
 	if ( $count !~ /^\d+$/ || $count <= 0 ) {
 		$self->error_return(
-			"Serial Port count must be a positive number");
+			"$type Port count must be a positive number");
 	}
 
 	if ( $prefix && length($prefix) > 180 ) {
 		$self->error_return(
-			"Power prefix must be no more than 180 characters");
+			"$type prefix must be no more than 180 characters");
 	}
 
 	my $q = qq{
@@ -2347,12 +2395,12 @@ sub add_serial_ports {
 			if ( defined($prefix) ) {
 				$portname = "$prefix$i";
 			}
-			$sth->execute( $devtypid, $portname )
+			$sth->execute( $devtypid, $portname, $type )
 			  || $self->return_db_err($dbh);
 			$total++;
 		}
 	} else {
-		$sth->execute( $devtypid, $prefix )
+		$sth->execute( $devtypid, $prefix, $type )
 		  || $self->return_db_err($dbh);
 		$total++;
 	}

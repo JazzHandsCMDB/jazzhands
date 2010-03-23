@@ -54,7 +54,8 @@ sub dump_all_zones_dropdown {
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html( { -title => "DNS Zones" } ), "\n";
+	print $stab->start_html({-title=>"DNS Zones", -javascript => 'dns'}), "\n";
+
 
 	print $cgi->h4( { -align => 'center' }, "Find a Zone" );
 	print $cgi->start_form( { -action => "search.pl" } );
@@ -109,7 +110,9 @@ sub dump_all_zones {
 	my ( $stab, $cgi, $dbh ) = @_;
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html( { -title => "DNS Zones" } ), "\n";
+	print $stab->start_html({-title=>"DNS Zones", -javascript => 'dns'}), "\
+n";
+
 
 	my $q = qq{
 		select 	dns_domain_id,
@@ -557,7 +560,7 @@ sub dump_zone {
 	$title .= " (Auto Generated) " if ( $hr->{'SHOULD_GENERATE'} eq 'Y' );
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html( { -title => $title } ), "\n";
+	print $stab->start_html({-title=> $title, -javascript => 'dns'} ), "\n";
 	print $cgi->start_form( { -action => "write/update_domain.pl" } );
 	print $cgi->hidden(
 		-name    => 'DNS_DOMAIN_ID',

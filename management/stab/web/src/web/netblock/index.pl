@@ -184,7 +184,8 @@ sub dump_nodes {
 			left join network_interface ni
 				on ni.v4_netblock_id = nb.netblock_id
 		 where	nb.parent_netblock_id = :1
-		order by nb.ip_address
+		order by nb.ip_address,
+			decode(dns.should_generate_ptr, 'Y', 1, 0)
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);

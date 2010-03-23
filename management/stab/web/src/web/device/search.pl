@@ -54,7 +54,8 @@ sub find_devices {
 	if ( defined($name) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .=
-" (lower(d.device_name) like lower(:name) or dns.dns_name like lower(:name) or d.physical_label like lower(:name))";
+			" (lower(d.device_name) like lower(:name) or lower(dns.dns_name) like lower(:name) or lower(d.physical_label) like lower(:name))";
+
 	}
 
 	if ( defined($serial) ) {

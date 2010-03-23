@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/sites
 
 SUBDIRS=write racks
 
-SCRIPTS= blockmgr.pl index.pl rackit.pl dhcprange.pl
+SCRIPTS= blockmgr.pl index.pl rackit.pl 
 
 all:
 	@for subdir in $(SUBDIRS) ; do \

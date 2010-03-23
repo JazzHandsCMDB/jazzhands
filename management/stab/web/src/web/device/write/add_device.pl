@@ -25,6 +25,7 @@
 # $Id$
 #
 
+
 #
 # this script validates input for an addition, and in the event of problem,
 # will send an error message and present the user with an opportunity to
@@ -39,12 +40,10 @@ use vars qw($stab);
 use vars qw($cgi);
 use vars qw($dbh);
 
-$stab = new JazzHands::STAB || die "Could not create STAB";
-$cgi  = $stab->cgi          || die "Could not create cgi";
-$dbh  = $stab->dbh          || die "Could not create dbh";
+do_device_add();
 
 sub check_for_device {
-	my ( $dbh, $name ) = @_;
+	my($dbh, $name) = @_;
 
 	my $q = qq{
 		select	count(*)
@@ -53,173 +52,203 @@ sub check_for_device {
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($name) || $stab->return_db_err($sth);
-	( $sth->fetchrow_array )[0];
+	($sth->fetchrow_array)[0];
 }
 
-my $device_name = $stab->cgi_parse_param('DEVICE_NAME');
-my $devtypeid   = $stab->cgi_parse_param('DEVICE_TYPE_ID');
-my $serialno    = $stab->cgi_parse_param('SERIAL_NUMBER');
-my $partno      = $stab->cgi_parse_param('PART_NUMBER');
-my $status      = $stab->cgi_parse_param('STATUS');
-my $owner       = $stab->cgi_parse_param('OWNERSHIP_STATUS');
-my $prodstate   = $stab->cgi_parse_param('PRODUCTION_STATE');
-my $osid        = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
-my $voeid       = $stab->cgi_parse_param('VOE_ID');
-my $commstr     = $stab->cgi_parse_param('SNMP_COMMSTR');
-my $ismonitored = $stab->cgi_parse_param('chk_IS_MONITORED');
-my $localmgd    = $stab->cgi_parse_param('chk_IS_LOCALLY_MANAGED');
-my $cfgfetch    = $stab->cgi_parse_param('chk_SHOULD_FETCH_CONFIG');
-my $virtdev     = $stab->cgi_parse_param('chk_IS_VIRTUAL_DEVICE');
-my $mgmtprot    = $stab->cgi_parse_param('AUTO_MGMT_PROTOCOL');
-my $voetrax     = $stab->cgi_parse_param('VOE_SYMBOLIC_TRACK_ID');
 
-if ($device_name) {
-	$device_name =~ s/^\s+//;
-	$device_name =~ s/\s+$//;
-	$device_name =~ tr/A-Z/a-z/;
+sub do_device_add {
+	$stab = new JazzHands::STAB || die "Could not create STAB";
+	$cgi = $stab->cgi || die "Could not create cgi";
+	$dbh = $stab->dbh || die "Could not create dbh";
 
-	my $existingdev = $stab->get_dev_from_name($device_name);
-	if ($existingdev) {
-		$stab->error_return("A device by that name already exists.");
+	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+
+	my $device_name	= $stab->cgi_parse_param('DEVICE_NAME');
+	my $devtypeid	= $stab->cgi_parse_param('DEVICE_TYPE_ID');
+	my $serialno	= $stab->cgi_parse_param('SERIAL_NUMBER');
+	my $partno	= $stab->cgi_parse_param('PART_NUMBER');
+	my $status	= $stab->cgi_parse_param('STATUS');
+	my $owner	= $stab->cgi_parse_param('OWNERSHIP_STATUS');
+	my $prodstate	= $stab->cgi_parse_param('PRODUCTION_STATE');
+	my $osid	= $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
+	my $voeid	= $stab->cgi_parse_param('VOE_ID');
+	my $commstr	= $stab->cgi_parse_param('SNMP_COMMSTR');
+	my $ismonitored	= $stab->cgi_parse_param('chk_IS_MONITORED');
+	my $localmgd	= $stab->cgi_parse_param('chk_IS_LOCALLY_MANAGED');
+	my $cfgfetch    = $stab->cgi_parse_param('chk_SHOULD_FETCH_CONFIG');
+	my $virtdev     = $stab->cgi_parse_param('chk_IS_VIRTUAL_DEVICE');
+	my $mgmtprot    = $stab->cgi_parse_param('AUTO_MGMT_PROTOCOL');
+	my $voetrax     = $stab->cgi_parse_param('VOE_SYMBOLIC_TRACK_ID');
+
+	if($device_name) {
+		$device_name =~ s/^\s+//; 
+		$device_name =~ s/\s+$//;
+		$device_name =~ tr/A-Z/a-z/;
+
+		my $existingdev = $stab->get_dev_from_name($device_name);
+		if($existingdev) {
+			$stab->error_return("A device by that name already exists.");
+		}
 	}
-}
 
-if ($serialno) {
-	$serialno =~ s/^\s+//;
-	$serialno =~ s/\s+$//;
+	if($serialno) {
+		$serialno =~ s/^\s+//; 
+		$serialno =~ s/\s+$//;
 
-	my $otherdev = $stab->get_dev_from_serial($serialno);
-	if ($otherdev) {
-		undef $otherdev;
-
-		# probably want to check device type [XXX]
-		$stab->error_return("That serial number is in use.");
+		my $otherdev = $stab->get_dev_from_serial($serialno);
+		if($otherdev) {
+			undef $otherdev;
+			$stab->error_return("That serial number is in use.");
+		}
 	}
-}
 
-#
-# gather up all the device functions
-#
-my (@devfuncs);
-foreach my $p ( $cgi->param ) {
-	if ( $p =~ /^chk_DEV_FUNC_(.+)$/ ) {
-		my $func = $1;
-		$func =~ tr/A-Z/a-z/;
-		push( @devfuncs, $func );
+	#
+	# gather up all the device functions
+	#
+	my(@devfuncs);
+	foreach my $p ($cgi->param) {
+		if($p =~ /^chk_DEV_FUNC_(.+)$/) {
+			my $func = $1;
+			$func =~ tr/A-Z/a-z/;
+			push(@devfuncs, $func);
+		}
 	}
-}
 
-if ( !defined($device_name) ) {
-	$stab->error_return("You must enter a device name.");
-} elsif ( check_for_device( $dbh, $device_name ) != 0 ) {
-	$stab->error_return("Device $device_name already exists.");
-}
+	#
+	# gather up all the appgroups.  This actually overrides the above.
+	#
+	my(@appgroups);
+	foreach my $p ($stab->cgi_parse_param('appgroup')) {
+		push(@appgroups, $p);
+	}
 
-if ( !defined($devtypeid) ) {
-	$stab->error_return("You must set a device type.");
-}
+	if(!defined($device_name)) {
+		$stab->error_return("You must enter a device name.");
+	} elsif(check_for_device($dbh, $device_name) != 0) {
+		$stab->error_return("Device $device_name already exists.");
+	}
 
-if ( !defined($status) ) {
-	$stab->error_return("You must set a status.");
-}
 
-if ( !defined($osid) ) {
-	$stab->error_return("You must set an operating system.");
-}
+	if(!defined($devtypeid)) {
+		$stab->error_return("You must set a device type.");
+	}
 
-if ( !defined($owner) ) {
-	$stab->error_return("You must describe the ownership arrangement.");
-}
+	if(!defined($status)) {
+		$stab->error_return("You must set a status.");
+	}
 
-if ( !defined($prodstate) ) {
-	$stab->error_return("You must describe the production state.");
-}
+	if(!defined($osid)) {
+		$stab->error_return("You must set an operating system.");
+	}
 
-$ismonitored = $stab->mk_chk_yn($ismonitored);
-$localmgd    = $stab->mk_chk_yn($localmgd);
-$cfgfetch    = $stab->mk_chk_yn($cfgfetch);
-$virtdev     = $stab->mk_chk_yn($virtdev);
+	if(!defined($owner)) {
+		$stab->error_return("You must describe the ownership arrangement.");
+	}
 
-my $q = qq{
-	insert into device (
-		DEVICE_TYPE_ID, DEVICE_NAME, SERIAL_NUMBER, 
-		PART_NUMBER, STATUS,
- 		PRODUCTION_STATE, OPERATING_SYSTEM_ID, VOE_ID,
- 		OWNERSHIP_STATUS, IS_MONITORED, IS_LOCALLY_MANAGED,
-		SHOULD_FETCH_CONFIG, IS_VIRTUAL_DEVICE, AUTO_MGMT_PROTOCOL,
-		VOE_SYMBOLIC_TRACK_ID
-	 ) values (
-		:device_type_id, :device_name, :serial_number, 
-		:part_number, :status,
-		:prodstate, :osid, :voeid,
-		:ownstat, :ismon, :islclmgd,
-		:cfgfetch, :isvirt, :mgmtprot, 
-		:voetrax
-	) returning device_id into :device_id
-};
+	if(!defined($prodstate)) {
+		$stab->error_return("You must describe the production state.");
+	}
 
-my $devid;
+	$ismonitored = $stab->mk_chk_yn($ismonitored);
+	$localmgd = $stab->mk_chk_yn($localmgd);
+	$cfgfetch = $stab->mk_chk_yn($cfgfetch);
+	$virtdev = $stab->mk_chk_yn($virtdev);
 
-my $sth = $stab->prepare($q) || die $stab->return_db_err($dbh);
-$sth->bind_param( ':device_type_id', $devtypeid ) || $stab->return_db_err($sth);
-$sth->bind_param( ':device_name', $device_name ) || $stab->return_db_err($sth);
-$sth->bind_param( ':part_number', $partno )      || $stab->return_db_err($sth);
-$sth->bind_param( ':serial_number', $serialno )  || $stab->return_db_err($sth);
-$sth->bind_param( ':status',        $status )    || $stab->return_db_err($sth);
-$sth->bind_param( ':prodstate',     $prodstate ) || $stab->return_db_err($sth);
-$sth->bind_param( ':osid',          $osid )      || $stab->return_db_err($sth);
-$sth->bind_param( ':voeid',         $voeid )     || $stab->return_db_err($sth);
-$sth->bind_param( ':ownstat',       $owner )     || $stab->return_db_err($sth);
-$sth->bind_param( ':ismon',    $ismonitored ) || $stab->return_db_err($sth);
-$sth->bind_param( ':islclmgd', $localmgd )    || $stab->return_db_err($sth);
-
-$sth->bind_param( ':cfgfetch', $cfgfetch ) || $stab->return_db_err($sth);
-$sth->bind_param( ':isvirt',   $virtdev )  || $stab->return_db_err($sth);
-$sth->bind_param( ':mgmtprot', $mgmtprot ) || $stab->return_db_err($sth);
-$sth->bind_param( ':voetrax',  $voetrax )  || $stab->return_db_err($sth);
-
-$sth->bind_param_inout( ':device_id', \$devid, 500 )
-  || $stab->return_db_err($sth);
-
-$sth->execute || $stab->return_db_err($sth);
-
-$sth->finish;
-
-if ( defined($commstr) ) {
-	$q = qq{
-		insert into snmp_commstr
-		(
-			device_id, snmp_commstr_type, rd_string, purpose
-		) values (
-			:1, 'legacy', :2, 'historical community string'
-		)
+	my $q = qq{
+		insert into device (
+			DEVICE_TYPE_ID, DEVICE_NAME, SERIAL_NUMBER, 
+			PART_NUMBER, STATUS,
+	 		PRODUCTION_STATE, OPERATING_SYSTEM_ID, VOE_ID,
+	 		OWNERSHIP_STATUS, IS_MONITORED, IS_LOCALLY_MANAGED,
+			SHOULD_FETCH_CONFIG, IS_VIRTUAL_DEVICE, AUTO_MGMT_PROTOCOL,
+			VOE_SYMBOLIC_TRACK_ID
+		 ) values (
+			:device_type_id, :device_name, :serial_number, 
+			:part_number, :status,
+			:prodstate, :osid, :voeid,
+			:ownstat, :ismon, :islocmgd,
+			:cfgfetch, :isvirt, :mgmtprot, 
+			:voetrax
+		) returning device_id into :device_id
 	};
-	$sth = $stab->prepare($q) || die $stab->return_db_err($dbh);
-	$sth->execute( $devid, $commstr ) || die $stab->return_db_err($sth);
+
+	my $devid;
+
+	my $sth = $stab->prepare($q) || die $stab->return_db_err($dbh);
+	$sth->bind_param(':device_type_id', $devtypeid) || $stab->return_db_err($sth);
+	$sth->bind_param(':device_name', $device_name) || $stab->return_db_err($sth);
+	$sth->bind_param(':part_number', $partno) || $stab->return_db_err($sth);
+	$sth->bind_param(':serial_number', $serialno) || $stab->return_db_err($sth);
+	$sth->bind_param(':status', $status) || $stab->return_db_err($sth);
+	$sth->bind_param(':prodstate', $prodstate) || $stab->return_db_err($sth);
+	$sth->bind_param(':osid', $osid) || $stab->return_db_err($sth);
+	$sth->bind_param(':voeid', $voeid) || $stab->return_db_err($sth);
+	$sth->bind_param(':ownstat', $owner) || $stab->return_db_err($sth);
+	$sth->bind_param(':ismon', $ismonitored) || $stab->return_db_err($sth);
+	$sth->bind_param(':islocmgd', $localmgd) || $stab->return_db_err($sth);
+
+	$sth->bind_param(':cfgfetch', $cfgfetch) || $stab->return_db_err($sth);
+	$sth->bind_param(':isvirt', $virtdev) || $stab->return_db_err($sth);
+	$sth->bind_param(':mgmtprot', $mgmtprot) || $stab->return_db_err($sth);
+	$sth->bind_param(':voetrax', $voetrax) || $stab->return_db_err($sth);
+
+	$sth->bind_param_inout(':device_id', \$devid, 500) || $stab->return_db_err($sth);
+
+	$sth->execute || $stab->return_db_err($sth);
+
 	$sth->finish;
-}
 
-if ( $#devfuncs > -1 ) {
-	$q = qq{
-		insert into device_function (
-			device_id, device_function_type
-		) values (
-			:1, :2
-		)
-	};
-	$sth = $stab->prepare($q) || die $stab->return_db_err($sth);
-
-	foreach my $func (@devfuncs) {
-		$sth->execute( $devid, $func )
-		  || die $stab->return_db_err($sth);
+	if(defined($commstr)) {
+		$q = qq{
+			insert into snmp_commstr
+			(
+				device_id, snmp_commstr_type, rd_string, purpose
+			) values (
+				:1, 'legacy', :2, 'historical community string'
+			)
+		};
+		$sth = $stab->prepare($q) || die $stab->return_db_err($dbh);
+		$sth->execute($devid, $commstr) || die $stab->return_db_err($sth);
+		$sth->finish;
 	}
-	$sth->finish;
+
+	if($#devfuncs > -1) {
+		$q = qq{
+			insert into device_function (
+				device_id, device_function_type
+			) values (
+				:1, :2
+			)
+		};
+		$sth = $stab->prepare($q) || die $stab->return_db_err($sth);
+
+		foreach my $func (@devfuncs) {
+			$sth->execute($devid, $func) || die $stab->return_db_err($sth);
+		}
+		$sth->finish;
+	}
+
+	if($#appgroups > -1) {
+		# note that appgroup_util.add_role validates the device collection
+		# id to ensure that its of the right type, so that does not need to
+		# happen here.
+		$sth = $stab->prepare(qq{
+			begin
+				appgroup_util.add_role(:1, :2);
+			end;
+		}) || die $stab->return_db_err;
+
+		foreach my $dcid (@appgroups) {
+			$sth->execute($devid, $dcid) || die $stab->return_db_err;
+		}
+	}
+
+	$stab->setup_device_power($devid);
+	$stab->setup_device_physical_ports($devid);
+
+	$dbh->commit;
+
+
+	my $url = "../device.pl?devid=$devid";
+	$stab->msg_return("Device Added Successfully.", $url);
 }
-
-$stab->setup_device_power($devid);
-$stab->setup_device_serial($devid);
-
-$dbh->commit;
-
-my $url = "../device.pl?devid=$devid";
-$stab->msg_return( "Device Added Successfully.", $url );

@@ -767,7 +767,9 @@ sub configure_allocated_netblock {
 	my $parnb;
 	if ( !defined($nblk) ) {
 		$parnb = $self->guess_parent_netblock_id( $ip, 32 );
-		if ( !defined($parnb) ) {
+		# if the ip addres is 0/0 (or 0/anything), then it should
+		# be considered unset
+		if(!defined($parnb) || (!$parnb->{IP_ADDRESS}) ) {
 			$self->error_return("Unable to find network for $ip");
 		}
 	} elsif ( $nblk->{'NETBLOCK_STATUS'} eq 'Allocated' ) {
@@ -1394,26 +1396,34 @@ sub resync_device_power {
 	$tally;
 }
 
-sub resync_device_serial {
-	my ( $self, $dev ) = @_;
+sub resync_physical_ports {
+	my ( $self, $dev, $type ) = @_;
+
+	my $typeadd = "";
+	if($type)  {
+		$typeadd = "and port_type = :ptype";
+	}
 
 	my $sth = $self->prepare(
 		qq{
 		insert into physical_port
 			(device_id, port_name, port_type)
-		select	:1, serial_port, 'serial'
-		  from	DEVICE_TYPE_SERIAL_PORT_TEMPLT
-		 where	device_type_id = :2
+		select	:devid, port_name, port_type
+		  from	device_type_phys_port_templt
+		 where	device_type_id = :dtid
+		   $typeadd
 		   and	serial_port not in
 				(select port_name from physical_port
-					where device_id = :1
-					and port_type = 'serial'
+					where device_id = :devid
+					Rtypeadd
 				)
+	});
+	$sth->bind_param(':devid', $dev->{'DEVICE_ID'}) || $self->return_db_err($sth);
+	$sth->bind_param(':dtid', $dev->{'DEVICE_TYPE_ID'}) || $self->return_db_err($sth);
+	if($type) {
+		$sth->bind_param(':ptype', $type) || $self->return_db_err($sth);
 	}
-	);
-	my $tally +=
-	     $sth->execute( $dev->{'DEVICE_ID'}, $dev->{'DEVICE_TYPE_ID'} )
-	  || $self->return_db_err($sth);
+	my $tally += $sth->execute || $self->return_db_err($sth);
 	$tally;
 }
 

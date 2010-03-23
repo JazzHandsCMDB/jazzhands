@@ -205,6 +205,20 @@ function uncheck (id, restoclass) {
 // //////////////////////////////////////////////////////////////////////////
 function updateDeviceParentLink(devid, paridfld) {
 	var devlink;
+	var txtfld;
+
+	// if the name field is empty, but the id field is not, we also need
+	// to sync that up.  This happens when the box is completely emptied.
+	// XXX I think this needs to be reconciled with the hostname
+	// selection code in switch/console/etc ports to make sure they make
+	// things blank consistently.  (tho maybe not?)
+	txtfld = document.getElementById("PARENT_DEVICE_NAME_"+devid);
+	if(txtfld) {
+		if(!txtfld.value || !txtfld.value.length) {
+			paridfld.value = "";
+		}
+	}
+
 
 	devlink = document.getElementById("parent_link_" + devid);
 	if(devlink) {

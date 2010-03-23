@@ -33,6 +33,13 @@ use Net::DNS;
 
 do_soacheck();
 
+sub lower {
+	my $ x = shift(@_);
+
+	$x =~ tr/A-Z/a-z/;
+	$x;
+}
+
 sub do_soacheck {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 
@@ -140,7 +147,7 @@ sub dump_soacheck_all {
 		if ( $#nic > -1 ) {
 			foreach my $ns ( sort @nic ) {
 				if ( $#jazzhands > -1
-					&& grep( $_ eq $ns, @jazzhands ) )
+					&& grep( lower($_) eq lower($ns), @jazzhands ) )
 				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
@@ -176,7 +183,7 @@ sub dump_soacheck_all {
 		);
 		if ( $#jazzhands > -1 ) {
 			foreach my $ns ( sort @jazzhands ) {
-				if ( $#nic > -1 && grep( $_ eq $ns, @nic ) ) {
+				if ( $#nic > -1 && grep( lower($_) eq lower($ns), @nic ) ) {
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
 					$nslist .= $cgi->Tr(
@@ -345,18 +352,25 @@ sub build_dns_ask_list {
 sub get_nic_ns {
 	my ( $zone, @ips ) = @_;
 
-	if ( $#ips == -1 ) {
-		@ips = (
-			'198.41.0.4',    '192.228.79.201',
-			'',              '192.33.4.12',
-			'128.8.10.90',   '192.203.230.10',
-			'192.5.5.241',   '192.112.36.4',
-			'',              '128.63.2.53',
-			'192.36.148.17', '192.58.128.30',
-			'193.0.14.129',  '198.32.64.12',
-			'202.12.27.33'
-		);
+ 	# should probably cache this somewhere, rather than hit it for
+ 	# every zone, but since its stored locally, or cached, its not
+ 	# that big of a deal, really...
+  	if($#ips == -1) {
+ 		my $res = Net::DNS::Resolver->new;
+ 
+ 		my $packet = $res->send(".", "NS") || die;
+ 		foreach my $ans ($packet->answer) {
+         		next if($ans->type ne 'NS');
+         		my $i = Net::DNS::Resolver->new;
+         		my $ipp = $i->send($ans->rdatastr, "A") || die;
+         		foreach my $a ($ipp->answer) {
+                 		if($a->type eq 'A') {
+                         		push(@ips, $a->address);
+                 		}
+         		}
+ 		}
 	}
+
 
 	my $iterations = 0;
 

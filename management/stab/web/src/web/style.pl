@@ -43,8 +43,18 @@ sub do_style_dump {
 			}
 			a { color: blue }
 			a:visited { color: purple }
+
 		};
 	}
+
+	print qq{
+			div.introblurb {
+				margin-left: auto;
+				margin-right: auto;
+				text-align: center;
+				width: 60%;
+			}
+	};
 
 	#
 	# device box pretty
@@ -194,5 +204,60 @@ sub do_style_dump {
 	print qq{
 		tr.cca_rt { background: lightpink; }
 		tr.cca_crt { background: lightyellow; }
+	};
+	# displaying apps
+	#
+	print qq{
+		div.approle_inside {
+			text-align: center;
+			border: 1px solid;
+		}
+		div.approle {
+			background: #DDE;
+			border: 1px solid;
+		}
+		div.approle_leaf {
+			color: green;
+		}
+		div.approle_undecided {
+			/* color: yellow; */
+			color: green;
+		}
+		a.approle_addchild {
+			font-size: 50%;
+			color: red; 
+		}
+	};
+
+	print qq{
+		span.port_label {
+			color: green;
+		}
+	};
+
+	print qq{
+		table.center_table, form.center_form {
+			text-align: center;
+		}
+
+		table.center_table tbody {
+			text-align: left;
+		}
+
+		div.approles {
+			margin-left: auto;
+			margin-right: auto;
+			background: orange;
+			text-align: center;
+			border: 1px solid;
+		}
+		div.approles > div {
+			text-align: left;
+		}
+
+		label {
+			font-weight: bold;
+		}
+
 	};
 }
