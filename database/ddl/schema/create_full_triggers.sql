@@ -1592,7 +1592,7 @@ COMMENT ON COLUMN DEVICE_COLLECTION_ASSIGND_CERT.KEY_USAGE_REASON_FOR_ASSIGN IS 
 
 
 
-COMMENT ON TABLE DEVICE_TICKET IS 'associates devices and trouble tickets together (external to sysdb)';
+COMMENT ON TABLE DEVICE_TICKET IS 'associates devices and trouble tickets together (external to jazzhands)';
 
 
 
@@ -19001,48 +19001,45 @@ CREATE  TRIGGER C_TIBUR_VAL_PROPERTY
   for each row
   
 declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+ integrity_error exception;
+ errno integer;
+ errmsg char(200);
+ dummy integer;
+ found boolean;
+ V_CONTEXT_USER VARCHAR2(256):=NULL;
 
 begin
-    -- Context should be used by apps to list the end-user id.
-    -- if it is filled, then concatenate it on.
-    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
-    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+ -- Context should be used by apps to list the end-user id.
+ -- if it is filled, then concatenate it on.
+ V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+ V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
 
-    IF INSERTING
-    THEN
-        -- Override whatever is passed with context user
-        :new.data_ins_user:=V_CONTEXT_USER;
+ IF INSERTING
+ THEN
+ -- Override whatever is passed with context user
+ :new.data_ins_user:=V_CONTEXT_USER;
 
-        -- Force date to be sysdate
-        :new.data_ins_date:=sysdate;
-    END IF;
+ -- Force date to be sysdate
+ :new.data_ins_date:=sysdate;
+ END IF;
 
-    IF UPDATING
-    THEN
-        -- Preventing changes to insert user and date columns happens in
-        -- another trigger
+ IF UPDATING
+ THEN
+ -- Preventing changes to insert user and date columns happens in
+ -- another trigger
 
-        -- Override whatever is passed with context user
-        :new.data_upd_user:=V_CONTEXT_USER;
+ -- Override whatever is passed with context user
+ :new.data_upd_user:=V_CONTEXT_USER;
 
-        -- Force date to be sysdate
-        :new.data_upd_date:=sysdate;
-    END IF;
+ -- Force date to be sysdate
+ :new.data_upd_date:=sysdate;
+ END IF;
 
---  Errors handling
+-- Errors handling
 exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
+ when integrity_error then
+ raise_application_error(errno, errmsg);
 end;
-
-
-
 /
 
 
@@ -19061,36 +19058,39 @@ CREATE  TRIGGER TUB_VAL_PROPERTY
   for each row
   
 declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
+ integrity_error exception;
+ errno integer;
+ errmsg char(200);
+ dummy integer;
+ found boolean;
 
 begin
-    --  Non modifiable column "DATA_INS_USER" cannot be modified
-    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
-       raise integrity_error;
-    end if;
+ -- Non modifiable column "DATA_INS_USER" cannot be modified
+ if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+ errno := -20001;
+ errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+ raise integrity_error;
+ end if;
 
-    --  Non modifiable column "DATA_INS_DATE" cannot be modified
-    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
-       raise integrity_error;
-    end if;
+ -- Non modifiable column "DATA_INS_DATE" cannot be modified
+ if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+ errno := -20001;
+ errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+ raise integrity_error;
+ end if;
 
+ --  Non modifiable column "IS_MULTIVALUE" cannot be modified
+ if updating('IS_MULTIVALUE') and :old.IS_MULTIVALUE != :new.IS_MULTIVALUE then
+    errno  := -20001;
+    errmsg := 'Non modifiable column "IS_MULTIVALUE" cannot be modified.';
+    raise integrity_error;
+ end if;
 
---  Errors handling
+-- Errors handling
 exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
+ when integrity_error then
+ raise_application_error(errno, errmsg);
 end;
-
-
-
 /
 
 
@@ -19206,48 +19206,45 @@ CREATE  TRIGGER C_TIBUR_VAL_PROPERTY_TYPE
   for each row
   
 declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+ integrity_error exception;
+ errno integer;
+ errmsg char(200);
+ dummy integer;
+ found boolean;
+ V_CONTEXT_USER VARCHAR2(256):=NULL;
 
 begin
-    -- Context should be used by apps to list the end-user id.
-    -- if it is filled, then concatenate it on.
-    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
-    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+ -- Context should be used by apps to list the end-user id.
+ -- if it is filled, then concatenate it on.
+ V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+ V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
 
-    IF INSERTING
-    THEN
-        -- Override whatever is passed with context user
-        :new.data_ins_user:=V_CONTEXT_USER;
+ IF INSERTING
+ THEN
+ -- Override whatever is passed with context user
+ :new.data_ins_user:=V_CONTEXT_USER;
 
-        -- Force date to be sysdate
-        :new.data_ins_date:=sysdate;
-    END IF;
+ -- Force date to be sysdate
+ :new.data_ins_date:=sysdate;
+ END IF;
 
-    IF UPDATING
-    THEN
-        -- Preventing changes to insert user and date columns happens in
-        -- another trigger
+ IF UPDATING
+ THEN
+ -- Preventing changes to insert user and date columns happens in
+ -- another trigger
 
-        -- Override whatever is passed with context user
-        :new.data_upd_user:=V_CONTEXT_USER;
+ -- Override whatever is passed with context user
+ :new.data_upd_user:=V_CONTEXT_USER;
 
-        -- Force date to be sysdate
-        :new.data_upd_date:=sysdate;
-    END IF;
+ -- Force date to be sysdate
+ :new.data_upd_date:=sysdate;
+ END IF;
 
---  Errors handling
+-- Errors handling
 exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
+ when integrity_error then
+ raise_application_error(errno, errmsg);
 end;
-
-
-
 /
 
 
@@ -19266,36 +19263,40 @@ CREATE  TRIGGER TUB_VAL_PROPERTY_TYPE
   for each row
   
 declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
+ integrity_error exception;
+ errno integer;
+ errmsg char(200);
+ dummy integer;
+ found boolean;
 
 begin
-    --  Non modifiable column "DATA_INS_USER" cannot be modified
-    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
-       raise integrity_error;
-    end if;
+ -- Non modifiable column "DATA_INS_USER" cannot be modified
+ if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+ errno := -20001;
+ errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+ raise integrity_error;
+ end if;
 
-    --  Non modifiable column "DATA_INS_DATE" cannot be modified
-    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
-       raise integrity_error;
-    end if;
+ -- Non modifiable column "DATA_INS_DATE" cannot be modified
+ if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+ errno := -20001;
+ errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+ raise integrity_error;
+ end if;
+
+ --  Non modifiable column "IS_MULTIVALUE" cannot be modified
+ if updating('IS_MULTIVALUE') and :old.IS_MULTIVALUE != :new.IS_MULTIVALUE then
+    errno  := -20001;      
+    errmsg := 'Non modifiable column "IS_MULTIVALUE" cannot be modified.';
+    raise integrity_error; 
+ end if;
 
 
---  Errors handling
+-- Errors handling
 exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
+ when integrity_error then
+ raise_application_error(errno, errmsg);
 end;
-
-
-
 /
 
 

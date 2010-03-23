@@ -4,11 +4,11 @@
 --
 -- Redistribution and use in source and binary forms, with or without
 -- modification, are permitted provided that the following conditions are met:
--- * Redistributions of source code must retain the above copyright
--- notice, this list of conditions and the following disclaimer.
--- * Redistributions in binary form must reproduce the above copyright
--- notice, this list of conditions and the following disclaimer in the
--- documentation and/or other materials provided with the distribution.
+--   * Redistributions of source code must retain the above copyright
+--    notice, this list of conditions and the following disclaimer.
+--   * Redistributions in binary form must reproduce the above copyright
+--    notice, this list of conditions and the following disclaimer in the
+--    documentation and/or other materials provided with the distribution.
 --
 -- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
 -- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -1592,7 +1592,7 @@ COMMENT ON COLUMN DEVICE_COLLECTION_ASSIGND_CERT.KEY_USAGE_REASON_FOR_ASSIGN IS 
 
 
 
-COMMENT ON TABLE DEVICE_TICKET IS 'associates devices and trouble tickets together (external to sysdb)';
+COMMENT ON TABLE DEVICE_TICKET IS 'associates devices and trouble tickets together (external to jazzhands)';
 
 
 
