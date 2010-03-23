@@ -21,7 +21,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# $Id: Makefile 240930 2007-05-10 22:15:51Z kovert $
+# $Id$
 #
 
 STAB_DIR=/prod/www/stab/docs/device/apps
