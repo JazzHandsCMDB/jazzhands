@@ -50,7 +50,7 @@ IS
 	return number
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4manip.v4_int_from_octet(java.lang.String, int)
+	NAME 'IPv4Manip.v4_int_from_octet(java.lang.String, int)
 		return long';
 	-- end of procedure java_v4_int_from_octet
 	-------------------------------------------------------------------
@@ -91,7 +91,7 @@ IS
 	return varchar2
 	DETERMINISTIC
 	AS LANGUAGE java
-	NAME 'IPv4manip.LongToString(long)
+	NAME 'IPv4Manip.LongToString(long)
 		return java.lang.String';
 	-- end of procedure v4_octet_from_int
 	-------------------------------------------------------------------
@@ -108,7 +108,7 @@ IS
 	return number
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4manip.BitsToNetmask(int)
+	NAME 'IPv4Manip.BitsToNetmask(int)
 		return long';
 	-- end of procedure v4_netmask_from_bits
 	-------------------------------------------------------------------
@@ -123,7 +123,7 @@ IS
 	return number
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4manip.NetmaskStringToBits(long)
+	NAME 'IPv4Manip.NetmaskStringToBits(long)
 		return int';
 	-- end of procedure v4_bits_from_netmask
 	-------------------------------------------------------------------
@@ -140,7 +140,7 @@ IS
 	return number
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4manip.NetworkOfIp(long, int)
+	NAME 'IPv4Manip.NetworkOfIp(long, int)
 		return long';
 	-- end of procedure v4_base
 	-------------------------------------------------------------------
@@ -155,7 +155,7 @@ IS
 	return varchar2
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4manip.IsIp1918Space_yn(long)
+	NAME 'IPv4Manip.IsIp1918Space_yn(long)
 		return java.lang.String';
 	-- end of procedure v4_is_private_yn
 	-------------------------------------------------------------------
@@ -187,7 +187,7 @@ IS
 	return varchar2
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4manip.IsIpInNet_yn(long, int, long)
+	NAME 'IPv4Manip.IsIpInNet_yn(long, int, long)
 		return java.lang.String';
 	-- end of procedure v4_is_in_block
 	-------------------------------------------------------------------
