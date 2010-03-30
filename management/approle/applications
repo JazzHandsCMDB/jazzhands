@@ -1,0 +1,90 @@
+# Copyright (c) 2005-2010, Vonage Holdings Corp.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in the
+#       documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#
+# $Id$
+#
+# example applications for app roles.  This probably needs to be
+# completely replaced with applications as proper database entities
+
+	- network
+		- router
+			- border router
+			- tunnel termination
+		- switch
+			- ethernet switch
+		- wifi access point
+		- load balancer
+		- firewall
+		- serial terminal server
+		- gps clock
+	- desktop
+	- office
+		- copier
+		- printer
+	- appliance
+		- monitoring appliance
+		- search appliance
+	- tape library
+	- server
+		- security
+			- radius server
+			- kerberos server
+			- account management server
+		- web
+			- stab web server
+			- user enrollment server
+			- unspecified web server
+		- mail
+			- mx mail server
+		- dns
+			- dns auth server
+			- dns cahcing server
+		- unspecified server
+	- physical infrastructure
+		- cable management
+		- racking element
+		- power
+			- power rectifier
+			- power distribution unit
+			- fuse panel
+			- remote power controller
+			- ups
+		- patch panel
+		- network camera
+	- storage
+		- san
+			- san storage
+			- san switch
+			- san router
+		- direct attached storage
+		- network attached storage
+	- cluster
+		- distributed cluster
+			- distributed cluster master
+			- distributed cluster slave
+		- failover cluster
+			- failover cluster primary
+			- failover cluster standby
+	- failover group
+		- failover group primary
+		- failover group standby
