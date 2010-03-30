@@ -8491,11 +8491,6 @@ ADD CONSTRAINT  AK_UNIX_GROUP_UNIX_GROUP_NAME UNIQUE (GROUP_NAME)  NOT DEFERRABL
 
 
 
-ALTER TABLE UNIX_GROUP
-ADD CONSTRAINT  AK_UNXGRP_UCLID UNIQUE (UCLASS_ID);
-
-
-
 /***********************************************
  * Table: USER_UNIX_INFO
  ***********************************************/

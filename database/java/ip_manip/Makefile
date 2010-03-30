@@ -32,6 +32,6 @@ clean:
 install:
 	@echo You need to run load_java.sh to import the java into the DB
 
-.java.class:
-	/usr/j2se/bin/javac $<
+IPv4Manip.class: IPv4Manip.java
+	/u01/app/oracle/product/11.1.0/db_1/jdk/bin/javac $<
 

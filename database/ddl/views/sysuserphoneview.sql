@@ -25,7 +25,7 @@ create or replace view v_system_user_phone
 as
 select
 s.system_user_id,
-x.hris_id,
+x.external_hr_id,
 x.payroll_id,
 login,
 first_name,

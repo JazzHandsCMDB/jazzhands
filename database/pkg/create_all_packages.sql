@@ -26,20 +26,6 @@
 -- $Id$
 --
 
---
--- NOTE:  make sure that ../ddl/dropJazzHandsdev.sql has any packages you
--- add here!
---
-
-prompt 'MAKE SURE THE JAVA IS LOADED INTO THE DB FIRST  Press ENTER:' ;
-
-@@global_types_spec.sql
-show errors
-@@global_errors_spec.sql
-show errors
-@@global_util_spec.sql
-show errors
-
 @@system_user_util_spec.sql
 show errors
 @@unix_util_spec.sql
@@ -50,10 +36,6 @@ show errors
 show errors
 @@netblock_verify_spec.sql
 show errors
-@@ip_manip_spec.sql
-show errors
-@@network_strings_spec.sql
-show errors
 @@netblock_utils_spec.sql
 show errors
 --@@fqdn_util_spec.sql
@@ -63,10 +45,10 @@ show errors
 show errors
 @@dns_gen_utils_spec.sql
 show errors
-@@voe_manip_util_spec.sql
-show errors
-@@voe_track_manip_spec.sql
-show errors
+-- @@voe_manip_util_spec.sql
+-- show errors
+-- @@voe_track_manip_spec.sql
+-- show errors
 @@port_support_spec.sql
 show errors
 @@port_util_spec.sql
@@ -101,10 +83,7 @@ show errors
 @@mclass_prop_override_verify_body.sql
 show errors
 @@netblock_verify_body.sql
-@@ip_manip_body.sql
-show errors
-@@network_strings_body.sql
-show errors
+show errors;
 @@netblock_utils_body.sql
 show errors
 --@@fqdn_util_body.sql
@@ -114,10 +93,10 @@ show errors
 show errors
 @@dns_gen_utils_body.sql
 show errors
-@@voe_manip_util_body.sql
-show errors
-@@voe_track_manip_body.sql
-show errors
+-- @@voe_manip_util_body.sql
+-- show errors
+-- @@voe_track_manip_body.sql
+-- show errors
 @@port_support_body.sql
 show errors
 @@port_util_body.sql

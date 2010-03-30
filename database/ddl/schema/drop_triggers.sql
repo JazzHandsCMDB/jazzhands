@@ -4,11 +4,11 @@
 --
 -- Redistribution and use in source and binary forms, with or without
 -- modification, are permitted provided that the following conditions are met:
---   * Redistributions of source code must retain the above copyright
---    notice, this list of conditions and the following disclaimer.
---   * Redistributions in binary form must reproduce the above copyright
---    notice, this list of conditions and the following disclaimer in the
---    documentation and/or other materials provided with the distribution.
+--     * Redistributions of source code must retain the above copyright
+--       notice, this list of conditions and the following disclaimer.
+--     * Redistributions in binary form must reproduce the above copyright
+--       notice, this list of conditions and the following disclaimer in the
+--       documentation and/or other materials provided with the distribution.
 --
 -- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
 -- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -29,10 +29,6 @@
 
 
 DROP TRIGGER C_TIUBR_UNIX_GROUP;
-
-
-
-DROP TRIGGER TIB_UNIX_GROUP;
 
 
 
@@ -313,10 +309,6 @@ DROP TRIGGER TUB_PARTNER;
 
 
 DROP TRIGGER C_TIUBR_USER_UNIX_INFO;
-
-
-
-DROP TRIGGER K_TIUBR_USER_UNIX_INFO;
 
 
 
@@ -1040,15 +1032,15 @@ DROP TRIGGER TUB_ENCRYPTION_KEY;
 
 
 
-DROP TRIGGER C_TIUBR_VONAGE_OPERATING_ENV;
+DROP TRIGGER C_TIUBR_VOE;
 
 
 
-DROP TRIGGER TIB_VONAGE_OPERATING_ENV;
+DROP TRIGGER TIB_VOE;
 
 
 
-DROP TRIGGER TUB_VONAGE_OPERATING_ENV;
+DROP TRIGGER TUB_VOE;
 
 
 
@@ -1552,7 +1544,7 @@ COMMENT ON COLUMN APPAAL_INSTANCE_PROPERTY.ENCRYPTION_KEY_ID IS 'encryption info
 
 
 
-COMMENT ON TABLE DEVICE_COLLECTION_ASSIGND_CERT IS 'Actual assignment of the usage category APPLICATION Certificates to Device Collections.';
+COMMENT ON TABLE DEVICE_COLLECTION_ASSIGND_CERT IS 'Actual  assignment of the usage category APPLICATION Certificates to Device Collections.';
 
 
 
@@ -1612,19 +1604,19 @@ COMMENT ON TABLE ENCRYPTION_KEY IS 'Keep information on keys used to encrypt sen
 
 
 
-COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_KEY_DB_VALUE IS 'part of 3-tuple that is the key used to encrypt. The other portions are provided by a user and stored in the key_crypto package';
+COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_KEY_DB_VALUE IS 'part of 3-tuple that is the key used to encrypt.  The other portions are provided by a user and stored in the key_crypto package';
 
 
 
-COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_KEY_PURPOSE IS 'indicates the purpose of infrastructure providing the key. Used externally by applications to manage their portion of the key';
+COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_KEY_PURPOSE IS 'indicates the purpose of infrastructure providing the key.  Used externally by applications to manage their portion of the key';
 
 
 
-COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_KEY_PURPOSE_VERSION IS 'indicates the version of the application portion of the key. Used externally by applications to manage their portion of the key';
+COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_KEY_PURPOSE_VERSION IS 'indicates the version of the application portion of the key.  Used externally by applications to manage their portion of the key';
 
 
 
-COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_METHOD IS 'Text representation of the method of encryption. Format is the same as Kerberos uses such as in rfc3962';
+COMMENT ON COLUMN ENCRYPTION_KEY.ENCRYPTION_METHOD IS 'Text representation of the method of encryption.  Format is the same as Kerberos uses such as in rfc3962';
 
 
 
@@ -1632,7 +1624,7 @@ COMMENT ON TABLE PROPERTY IS 'generic property instance that describes system wi
 
 
 
-COMMENT ON COLUMN PROPERTY.PROPERTY_ID IS 'primary key for table to uniquely identify rows. Values came from uclass_property_override or were contrived in 2009Q2 with the property migration.';
+COMMENT ON COLUMN PROPERTY.PROPERTY_ID IS 'primary key for table to uniquely identify rows.  Values came from uclass_property_override or were contrived in 2009Q2 with the property migration.';
 
 
 
@@ -1672,7 +1664,7 @@ COMMENT ON COLUMN PROPERTY.PROPERTY_TYPE IS 'textual type of a department';
 
 
 
-COMMENT ON COLUMN PROPERTY.PROPERTY_VALUE IS 'general purpose column for value of property not defined by other types. This may be enforced by fk (trigger) if val_property.property_data_type is list (fk is to val_property_value).';
+COMMENT ON COLUMN PROPERTY.PROPERTY_VALUE IS 'general purpose column for value of property not defined by other types.  This may be enforced by fk (trigger) if val_property.property_data_type is list (fk is to val_property_value).';
 
 
 
@@ -1692,7 +1684,7 @@ COMMENT ON COLUMN PROPERTY.IS_ENABLED IS 'indiciates if the property is temporar
 
 
 
-COMMENT ON TABLE SYSTEM_USER_ASSIGND_CERT IS 'Actual assignment of the usage category USER Certificates to System Users.';
+COMMENT ON TABLE SYSTEM_USER_ASSIGND_CERT IS 'Actual  assignment of the usage category USER Certificates to System Users.';
 
 
 
@@ -1756,7 +1748,7 @@ COMMENT ON TABLE VAL_ENCRYPTION_KEY_PURPOSE IS 'Valid purpose of encryption used
 
 
 
-COMMENT ON TABLE VAL_ENCRYPTION_METHOD IS 'List of text representations of methods of encryption. Format is the same as Kerberos uses such as in rfc3962';
+COMMENT ON TABLE VAL_ENCRYPTION_METHOD IS 'List of text representations of methods of encryption.  Format is the same as Kerberos uses such as in rfc3962';
 
 
 
@@ -1824,7 +1816,7 @@ COMMENT ON COLUMN VAL_PROPERTY_VALUE.PROPERTY_TYPE IS 'property type for validat
 
 
 
-COMMENT ON COLUMN VAL_PROPERTY_VALUE.VALID_PROPERTY_VALUE IS 'if applicatable, servves as a fk for valid property_values. This depends on val_property.property_data_type being set to list.';
+COMMENT ON COLUMN VAL_PROPERTY_VALUE.VALID_PROPERTY_VALUE IS 'if applicatable, servves as a fk for valid property_values.  This depends on val_property.property_data_type being set to list.';
 
 
 

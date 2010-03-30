@@ -42,9 +42,17 @@ SUBTYPE gender_type				IS		SYSTEM_USER.GENDER%TYPE;
 
 TYPE property_rec_type IS RECORD
 (
-	property_id		property.property_id%TYPE,
-	property_name		property.property_name%TYPE,
-	property_type		property.property_type%TYPE
+	property_id				property.property_id%TYPE,
+	property_name			property.property_name%TYPE,
+	property_type			property.property_type%TYPE,
+	company_id				property.company_id%TYPE,
+	device_collection_id	property.device_collection_id%TYPE,
+	dns_domain_id			property.dns_domain_id%TYPE,
+	operating_system_id		property.operating_system_id%TYPE,
+	production_state		property.production_state%TYPE,
+	site_code				property.site_code%TYPE,
+	system_user_id			property.system_user_id%TYPE,
+	uclass_id				property.uclass_id%TYPE
 );
 
 

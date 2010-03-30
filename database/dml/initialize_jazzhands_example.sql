@@ -20,57 +20,31 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+-- 
+-- $Id$
+--
+-- Items that are accurate but are not strictly required
 
-create or replace view v_system_user
-as
-select
-s.system_user_id,
-x.external_hr_id,
-x.payroll_id,
-login,
-first_name,
-middle_name,
-last_name,
-name_suffix,
-preferred_first_name,
-preferred_last_name,
-system_user_status,
-system_user_type,
-employee_id,
-position_title,
-s.company_id person_company_id,
-c.company_code person_company_code,
-c.company_name person_company_name,
-badge_id,
-gender,
-hire_date,
-termination_date,
-dmd.dept_id,
-dmd.dept_code,
-dmd.cost_center,
-dmd.dept_company_id,
-dmd.dept_company_code,
-dmd.dept_company_name,
-dmd.reporting_type,
-dmd.name dept_name,
-dmd.dept_start_date,
-dmd.dept_finish_date,
-s.dn_name,
-s.manager_system_user_id
-FROM
-  system_user s,
-  system_user_xref x,
-  company c,
-  ( select dm.system_user_id,dm.reporting_type,dm.dept_id, d.dept_code,d.cost_center, d.company_id dept_company_id,
-	c2.company_code dept_company_code, c2.company_name  dept_company_name,
-	d.name,dm.start_date dept_start_date, dm.finish_date dept_finish_date
-	from dept_member dm, dept d, company c2
-	where dm.dept_id=d.dept_id
-	and d.company_id=c2.company_id
-	and dm.reporting_type='direct'
-   ) dmd
-where s.system_user_id = x.system_user_id (+)
-and s.system_user_id= dmd.system_user_id (+)
-and s.company_id=c.company_id (+)
-;
+insert into company (company_name, is_corporate_family)
+	values ('Omniscient Technologies', 'Y');
+insert into company (company_name, is_corporate_family)
+	values ('Sucksless Industries', 'Y');
 
+INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
+	VALUES ('Virginia', 'Purcellville, VA',0,
+	(select company_id from company where company_name =
+		'Omniscient Technologies'));
+INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
+	VALUES ('Austin', 'Austin, TX', 0,
+	(select company_id from company where company_name =
+		'Sucksless Industries'));
+INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
+	VALUES ('Čerčany', 'Cercany, Czech Republic', 1,
+	(select company_id from company where company_name =
+		'Omniscient Technologies'));
+INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
+	VALUES ('Strančice', 'Strancice, Czech Republic', 2,
+	(select company_id from company where company_name =
+		'Omniscient Technologies'));
+
+INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('MIT.EDU');

@@ -2013,7 +2013,6 @@ exception
     when integrity_error then
        raise_application_error(errno, errmsg);
 end;
-
 /
 
 
@@ -2055,7 +2054,7 @@ begin
     IF (:new.VOE_ID is NOT NULL)
     THEN
         SELECT SW_PACKAGE_REPOSITORY_ID into v_voe_sw_pkg_repos
-        FROM VONAGE_OPERATING_ENV
+        FROM VOE
         WHERE VOE_ID=:new.VOE_ID;
 
 
@@ -2087,7 +2086,6 @@ exception
     when integrity_error then
        raise_application_error(errno, errmsg);
 end;
-
 /
 
 
@@ -2129,7 +2127,6 @@ exception
     when integrity_error then
        raise_application_error(errno, errmsg);
 end;
-
 /
 
 
@@ -2189,7 +2186,6 @@ exception
     when integrity_error then
        raise_application_error(errno, errmsg);
 end;
-
 /
 
 
@@ -7185,7 +7181,6 @@ begin
         property_verify.G_property_recs_name.delete;
 end;
 /
-/
 
 
 
@@ -7230,7 +7225,7 @@ BEGIN
         EXCEPTION
                 WHEN NO_DATA_FOUND THEN
                         errno := -20900;
-                        errmsg := 'Property name or type does not exist';
+                        errmsg := 'Property name or type does not exist (' || :new.property_name, || ',' || :new.property_type || ')';
                         raise integrity_error;
         END;
 
@@ -10168,15 +10163,13 @@ BEGIN
 
         uclass_name := 'all_' || :OLD.System_User_Type;
 
-        DELETE FROM Property WHERE
+        DELETE FROM Uclass_User WHERE
             System_User_ID = :OLD.System_User_ID AND
-            property_name = 'UclassMembership' AND
-            property_type = 'UclassMembership' AND			
             UClass_ID = (
                 SELECT UClass_ID FROM UClass WHERE
                     Name = uclass_name AND
                     UClass_Type = 'systems'
-            );
+        );
     END IF;
     uclass_name := 'all_' || :NEW.System_User_Type;
     BEGIN
@@ -10192,20 +10185,12 @@ BEGIN
             ) RETURNING UClass_ID INTO ucid;
     END;
     IF ucid IS NOT NULL THEN
-        INSERT INTO Property (
+        INSERT INTO Uclass_user (
                 UClass_ID,
-                System_User_ID,
-                Property_Name,
-                Property_Type
-                Approval_Type,
-                Approval_Ref_Num
+                System_User_ID
             ) VALUES (
                 ucid,
-                :NEW.System_User_ID,
-                'UclassMembership',
-                'UclassMembership',
-                'rule',
-                'system_user_type change'
+                :NEW.System_User_ID
             );
     END IF;
 END;
@@ -10241,7 +10226,6 @@ BEGIN
 		END IF;
 
 		-- Remove the user out of the old company uclass
-
 		BEGIN
 			SELECT Company_Name INTO compname FROM Company WHERE
 				Company_ID = :OLD.Company_ID;
@@ -10270,21 +10254,6 @@ BEGIN
 						' (corporation|inc|llc|ltd|co|corp|llp)$'),
 					' ', '_');
 
-			-- Update the approval, then delete it, for audit logs
-
-			UPDATE
-				UClass_User
-			SET
-				Approval_Type = 'rule',
-				Approval_Ref_Num = 'company membership'
-			WHERE
-				System_User_ID = :OLD.System_User_ID AND
-				UClass_ID = (
-					SELECT UClass_ID FROM UClass WHERE
-						Name = uclass_name AND
-						UClass_Type = 'systems'
-				);
-
 			DELETE FROM UClass_User WHERE
 				System_User_ID = :OLD.System_User_ID AND
 				UClass_ID = (
@@ -10296,7 +10265,6 @@ BEGIN
 	END IF;
 
 	-- Insert the user into the new company uclass
-
 	BEGIN
 		SELECT Company_Name INTO compname FROM Company WHERE
 			Company_ID = :NEW.Company_ID;
@@ -10340,19 +10308,14 @@ BEGIN
 		IF ucid IS NOT NULL THEN
 			INSERT INTO UClass_User (
 					UClass_ID,
-					System_User_ID,
-					Approval_Type,
-					Approval_Ref_Num
+					System_User_ID
 				) VALUES (
 					ucid,
-					:NEW.System_User_ID,
-					'rule',
-					'company membership'
+					:NEW.System_User_ID
 				);
 		END IF;
 	END IF;
 END;
-
 /
 
 
@@ -11168,20 +11131,6 @@ BEGIN
 					'[^A-Za-z0-9 ]', ''),
 				' ', '_');
 
-		-- Update the approval, then delete it, for audit logs
-
-		UPDATE
-			UClass_User
-		SET
-			Approval_Type = 'rule',
-			Approval_Ref_Num = 'site location'
-		WHERE
-			System_User_ID = :OLD.System_User_ID AND
-			UClass_ID = (
-				SELECT UClass_ID FROM UClass WHERE
-					Name = uclass_name AND
-					UClass_Type = 'systems'
-			);
 
 		DELETE FROM UClass_User WHERE
 			System_User_ID = :OLD.System_User_ID AND
@@ -11234,18 +11183,13 @@ BEGIN
 	IF ucid IS NOT NULL THEN
 		INSERT INTO UClass_User (
 				UClass_ID,
-				System_User_ID,
-				Approval_Type,
-				Approval_Ref_Num
+				System_User_ID
 			) VALUES (
 				ucid,
-				:NEW.System_User_ID,
-				'rule',
-				'site location'
+				:NEW.System_User_ID
 			);
 	END IF;
 END;
-
 /
 
 
@@ -12981,48 +12925,6 @@ ALTER TRIGGER C_TIUBR_UNIX_GROUP
 
 
 
-CREATE  OR REPLACE  TRIGGER TIB_UNIX_GROUP
- BEFORE INSERT
- ON UNIX_GROUP
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-
-begin
-    -- For sequences, only update column if null
-    --  Column "UNIX_GROUP_ID" uses sequence SYSDB.SEQ_UNIX_GROUP_ID
-    IF (:new.UNIX_GROUP_ID IS NULL)
-    THEN
-        -- Was the following.  Removed owner because quest doesn't handle it properly (for non owner builds)
-        --select SYSDB.SEQ_UNIX_GROUP_ID.NEXTVAL
-        select SEQ_UNIX_GROUP_ID.NEXTVAL
-        INTO :new.UNIX_GROUP_ID
-        from dual;
-    END IF;
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-
-ALTER TRIGGER TIB_UNIX_GROUP
-	ENABLE;
-
-
-
-
 CREATE  OR REPLACE  TRIGGER TUB_UNIX_GROUP
  BEFORE UPDATE OF 
         UNIX_GID,
@@ -13127,57 +13029,6 @@ end;
 
 
 ALTER TRIGGER C_TIUBR_USER_UNIX_INFO
-	ENABLE;
-
-
-
-
-CREATE  TRIGGER K_TIUBR_USER_UNIX_INFO
- BEFORE INSERT OR UPDATE
- ON USER_UNIX_INFO
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    tally	     integer;
-begin
-    tally := 0;
-    if :new.UNIX_GROUP_ID is not NULL then
-	tally := tally + 1;
-    end if;
-    if :new.UNIX_GROUP_UCLASS_ID is not NULL then
-	tally := tally + 1;
-    end if;
-
-    if tally = 0 then
-       errno  := -20001;
-       errmsg := 'One of the FILE_GROUP fields must be set.';
-       raise integrity_error;
-    end if;
-
-    -- during migration to a uclass based group system, we will probably
-    -- set both to handle an easier backout procedure..  yay.
-    --if tally > 1 then
-    --   errno  := -20001;
-    --   errmsg := 'Only One of the FILE_GROUP fields can be set.';
-    --   raise integrity_error;
-    --end if;
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-/
-
-
-
-
-ALTER TRIGGER K_TIUBR_USER_UNIX_INFO
 	ENABLE;
 
 
@@ -20097,7 +19948,7 @@ ALTER TRIGGER TUB_VLAN_RANGE
 
 
 
-CREATE  OR REPLACE  TRIGGER C_TIUBR_VONAGE_OPERATING_ENV
+CREATE  OR REPLACE  TRIGGER C_TIUBR_VOE
  BEFORE INSERT OR UPDATE
  ON VOE
  REFERENCING OLD AS OLD NEW AS NEW
@@ -20151,13 +20002,13 @@ end;
 
 
 
-ALTER TRIGGER C_TIUBR_VONAGE_OPERATING_ENV
+ALTER TRIGGER C_TIUBR_VOE
 	ENABLE;
 
 
 
 
-CREATE  OR REPLACE  TRIGGER TIB_VONAGE_OPERATING_ENV
+CREATE  OR REPLACE  TRIGGER TIB_VOE
  BEFORE INSERT
  ON VOE
  REFERENCING OLD AS OLD NEW AS NEW
@@ -20193,13 +20044,13 @@ end;
 
 
 
-ALTER TRIGGER TIB_VONAGE_OPERATING_ENV
+ALTER TRIGGER TIB_VOE
 	ENABLE;
 
 
 
 
-CREATE  OR REPLACE  TRIGGER TUB_VONAGE_OPERATING_ENV
+CREATE  OR REPLACE  TRIGGER TUB_VOE
  BEFORE UPDATE OF 
         VOE_STATE,
         DATA_INS_DATE,
@@ -20246,7 +20097,7 @@ end;
 
 
 
-ALTER TRIGGER TUB_VONAGE_OPERATING_ENV
+ALTER TRIGGER TUB_VOE
 	ENABLE;
 
 

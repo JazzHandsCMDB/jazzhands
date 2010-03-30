@@ -26,20 +26,24 @@
 CREATE OR REPLACE VIEW V_User_Prop_Exp_NoMV AS
 		SELECT
 			System_User_Id,
-			Uclass_Property_Type,
-			Uclass_Property_Name,
+			Property_Type,
+			Property_Name,
 			Property_Value,
+			Property_Value_Timestamp,
 			Property_Value_Company_Id,
+			Property_Value_DNS_Domain_ID,
+			Property_Value_Netblock_ID,
 			Property_Value_Password_Type,
 			Property_Value_Token_Col_Id,
 			Property_Value_Uclass_Id,
-			DECODE(Is_Multivalue, 'N', 0, 'Y', 1) Is_Multivalue,
-			DECODE(Is_Property_A_Boolean, 'N', 0, 'Y', 1) Is_Boolean
-		FROM V_Uclass_User_Expanded_Detail JOIN UClass USING (Uclass_ID) JOIN
-			Uclass_Property_Override USING (Uclass_ID) JOIN
-			VAL_Uclass_Property_Name USING
-				(Uclass_Property_Name, Uclass_Property_Type) JOIN
-			System_User USING (System_User_Id)
+			DECODE(Is_Multivalue, 'N', 0, 'Y', 1) Is_Multivalue
+		FROM 
+			V_Uclass_User_Expanded_Detail UUED JOIN 
+			UClass USING (Uclass_ID) JOIN
+			Property USING (Uclass_ID) JOIN
+			VAL_Property USING
+				(Property_Name, Property_Type) JOIN
+			System_User SU ON (SU.System_User_Id = UUED.System_User_ID)
 		ORDER BY
 			 DECODE(UClass_Type,
 				'per-user', 0,

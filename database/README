@@ -8,6 +8,9 @@ The database must support hierarhical (recursive) queries in views and
 natively for raw sql queries, we rely heavily on those.  This rules
 mysql out at last investigation.
 
+Under oracle, everthing must me loaded into the same schema.  The schema
+owner is generally not used for anything else. 
+
 In the oracle variant, ip addresses are stored as numbers (in pgsql, they'll
 be native), and that necessitates converting them to/from text.  This is
 done through an oracle package that is a wrapper around  java bits.  The
@@ -15,12 +18,16 @@ network strings module is just used for sorting queries so cisco
 interfaces Gi1/0 will be sorted by slot/port rather than by name.
 Sometimes this doesn't work as well as it should.
 
+see ddl/schema/create_database_JAZZHANDS.sql for an example of how to
+create everything from a virgin install.  It assumes some things about
+how the local system is laid out, and is setup for oracle 10.2.0
+
 To load java bits, you need a java compiler and build the class files
 under java/*manip.   (Makefile is there; you may need to adjust your path to
-javac).  To put them in oracle:
+javac).  To put them in oracle, as the user that owns the schema:
 
-loadjava -user system@DB -oci8 -resolve IPv4Manip.class
-loadjava -user system@DB -oci8 -resolve NetworkStrings.class
+loadjava -user user@DB -oci8 -resolve IPv4Manip.class
+loadjava -user user@DB -oci8 -resolve NetworkStrings.class
 
 create_oracle_schema.sql can be run from this directory to build out a
 complete oracle schema without and data.

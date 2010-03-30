@@ -71,9 +71,7 @@ create or replace view v_application_role_member as
 		DATA_INS_USER,
 		DATA_INS_DATE,
 		DATA_UPD_USER,
-		DATA_UPD_DATE,
-		APPROVAL_TYPE,
-		APPROVAL_REF_NUM
+		DATA_UPD_DATE
 	from	device_collection_member
 	where	device_collection_id in
 		(select device_collection_id from device_collection

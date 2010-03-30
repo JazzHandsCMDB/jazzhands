@@ -12,6 +12,7 @@ select systimestamp from dual;
 @@ddl/schema/build_audit_triggers.sql
 -- (next item generated above into the current directory)
 @@generated_audit_triggers.sql
+@@pkg/create_early_packages.sql
 @@ddl/views/create_extra_views.sql
 @@ddl/schema/create_audit_indexes.sql
 @@ddl/schema/create_extra_objects.sql

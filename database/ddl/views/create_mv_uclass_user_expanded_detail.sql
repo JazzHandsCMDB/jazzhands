@@ -35,7 +35,8 @@
 -- create materialized view log on uclass_user
 -- 	with rowid (uclass_id, system_user_id) including new values;
 
-drop materialized view mv_uclass_user_expanded_detail;
+-- XX
+-- drop materialized view mv_uclass_user_expanded_detail;
 
 create materialized view mv_uclass_user_expanded_detail
 build immediate

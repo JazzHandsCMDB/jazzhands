@@ -32,13 +32,13 @@ select *
 from property
 where	is_enabled = 'Y'
 and	(
-		(start_date is null and end_date is null)
+		(start_date is null and finish_date is null)
 	OR
-		(start_date is null and systimestamp <= end_date )
+		(start_date is null and systimestamp <= finish_date )
 	OR
-		(start_date <= systimestamp and end_date is NULL )
+		(start_date <= systimestamp and finish_date is NULL )
 	OR
-		(start_date <= systimestamp and systimestamp <= end_date )
+		(start_date <= systimestamp and systimestamp <= finish_date )
 	)
 
 /

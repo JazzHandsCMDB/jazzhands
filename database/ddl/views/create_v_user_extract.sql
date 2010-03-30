@@ -30,7 +30,7 @@ create or replace view v_user_extract
 as
 select
 s.system_user_id,
-x.hris_id,
+x.external_hr_id,
 s.login,
 nvl(s.preferred_first_name,s.first_name) first_name,
 s.middle_name,
