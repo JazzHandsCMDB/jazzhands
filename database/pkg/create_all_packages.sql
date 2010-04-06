@@ -32,8 +32,6 @@ show errors
 show errors
 @@dept_member_verify_spec.sql
 show errors
-@@mclass_prop_override_verify_spec.sql
-show errors
 @@netblock_verify_spec.sql
 show errors
 @@netblock_utils_spec.sql
@@ -79,8 +77,6 @@ show errors
 @@unix_util_body.sql
 show errors
 @@dept_member_verify_body.sql
-show errors
-@@mclass_prop_override_verify_body.sql
 show errors
 @@netblock_verify_body.sql
 show errors;
