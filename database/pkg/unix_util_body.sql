@@ -166,7 +166,7 @@ PROCEDURE unix_add
 )
 IS
 v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.unix_add';
-v_group_id		UNIX_GROUP.UNIX_GROUP_ID % TYPE;
+v_group_uclass_id	UNIX_GROUP.UCLASS_ID % TYPE;
 v_login			SYSTEM_USER.LOGIN % TYPE;
 
 BEGIN
@@ -186,17 +186,17 @@ BEGIN
 	--
 	-- needs to be first to get id for next insert(s)
 	--
-	group_add(v_group_id, p_gid, p_gpass, v_login);
+	group_add(v_group_uclass_id, p_gid, p_gpass, v_login);
 
 	--
 	-- user being inserted should be a member of the group too
 	--
-	member_add(p_system_user_id, v_group_id);
+	member_add(p_system_user_id, v_group_uclass_id);
 
 	--
 	-- finally the thing that hooks them together
 	--
-	user_add(p_system_user_id, p_uid, v_group_id, p_shell, p_home);
+	user_add(p_system_user_id, p_uid, v_group_uclass_id, p_shell, p_home);
 
 	EXCEPTION
 		WHEN OTHERS THEN
@@ -211,7 +211,7 @@ END unix_add;
 -------------------------------------------------------------------------------------------------------------------
 PROCEDURE group_add
 (
-	p_group_id		OUT	UNIX_GROUP.UNIX_GROUP_ID % TYPE,
+	p_group_uclass_id	OUT	UNIX_GROUP.UCLASS_ID % TYPE,
 	p_gid			IN	UNIX_GROUP.UNIX_GID % TYPE,
 	p_passwd		IN	UNIX_GROUP.GROUP_PASSWORD % TYPE,
 	p_name			IN	UNIX_GROUP.GROUP_NAME % TYPE
@@ -236,7 +236,7 @@ BEGIN
 		p_passwd,
 		p_name
 	)
-	RETURNING unix_group_id INTO p_group_id;
+	RETURNING uclass_id INTO p_group_uclass_id;
 
 	EXCEPTION
 		WHEN OTHERS THEN
@@ -252,7 +252,7 @@ END group_add;
 PROCEDURE member_add
 (
 	p_system_user_id	IN	SYSTEM_USER.SYSTEM_USER_ID % TYPE,
-	p_group_id		IN	UNIX_GROUP.UNIX_GROUP_ID % TYPE
+	p_uclass_group_id	IN 	UNIX_GROUP.UCLASS_ID % TYPE
 )
 IS
 v_uclass_id UCLASS.UCLASS_ID % TYPE;
@@ -282,14 +282,15 @@ BEGIN
 		RAISE VALUE_ERROR;
 	END IF;
 
-	INSERT INTO unix_group_uclass
+	-- XXX not sure why this is not going into uclass_user.  hmm.
+	INSERT INTO uclass_hier
 	(
-		Unix_Group_ID,
-		UClass_ID
+		uclass_id,
+		child_uclass_id
 	)
 	VALUES
 	(
-		p_group_id,
+		p_uclass_group_id,
 		v_uclass_id
 	);
 
@@ -308,7 +309,7 @@ PROCEDURE user_add
 (
 	p_system_user_id	IN	USER_UNIX_INFO.SYSTEM_USER_ID % TYPE,
 	p_uid			IN	USER_UNIX_INFO.UNIX_UID % TYPE,
-	p_group_id		IN	USER_UNIX_INFO.UNIX_GROUP_ID % TYPE,
+	p_group_uclass_id	IN	USER_UNIX_INFO.UNIX_GROUP_UCLASS_ID % TYPE,
 	p_shell			IN	USER_UNIX_INFO.SHELL % TYPE,
 	p_home			IN	USER_UNIX_INFO.DEFAULT_HOME % TYPE
 )
@@ -351,7 +352,7 @@ BEGIN
 		SELECT unix_gid
 		INTO v_uid
 		FROM unix_group
-		WHERE unix_group_id = p_group_id;
+		WHERE uclass_id = p_group_uclass_id;
 	ELSE
 		v_uid := p_uid;
 	END IF;
@@ -363,7 +364,7 @@ BEGIN
 	(
 		system_user_id,
 		unix_uid,
-		unix_group_id,
+		unix_group_uclass_id,
 		shell,
 		default_home
 	)
@@ -371,7 +372,7 @@ BEGIN
 	(
 		p_system_user_id,
 		v_uid,
-		p_group_id,
+		p_group_uclass_id,
 		v_shell,
 		v_home
 	);

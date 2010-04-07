@@ -492,6 +492,9 @@ sub dns_domain_authcheck {
 	# look through the www group.  This must match the apache config.  Yes,
 	# this is a gross hack.
 	#
+	# if there's no auth directory, then its not on, and return.
+	# (this needs to move to db based auth)
+	return 1 if(! -d "/prod/www/auth");
 	my $fn   = "/prod/www/auth/groups";
 	my $auth = new FileHandle($fn);
 

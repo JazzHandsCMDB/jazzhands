@@ -104,6 +104,7 @@ sub do_domain_add {
 	  || 'hostmaster.example.com';
 	my $gen   = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
 	my $addns = $stab->cgi_parse_param('chk_DEFAULT_NS_RECORDS');
+	my $type = $stab->cgi_parse_param('DNS_DOMAIN_TYPE');
 	my $class = 'IN';
 
 	$gen   = $stab->mk_chk_yn($gen);
@@ -114,6 +115,10 @@ sub do_domain_add {
 
 	if ( !defined($soaname) ) {
 		$stab->error_return("You must specify a Domain Name");
+	}
+
+	if ( !defined($type) ) {
+		$stab->error_return("You must specify a Domain Type");
 	}
 
 	if ( defined($soaname) ) {
@@ -149,6 +154,7 @@ sub do_domain_add {
 			soa_mname,
 			soa_rname,
 			parent_dns_domain_id,
+			dns_domain_type,
 			should_generate
 		) values (
 			:soaname,
@@ -162,6 +168,7 @@ sub do_domain_add {
 			:mname,
 			:rname,
 			:parent,
+			:type,
 			:shouldgen
 		) returning dns_domain_id into :dnsdomid
 	};
@@ -178,6 +185,7 @@ sub do_domain_add {
 	$sth->bind_param( ':minimum', $min )     || $stab->return_db_err($sth);
 	$sth->bind_param( ':mname',   $mname )   || $stab->return_db_err($sth);
 	$sth->bind_param( ':rname',   $rname )   || $stab->return_db_err($sth);
+	$sth->bind_param( ':type',   $type )   || $stab->return_db_err($sth);
 	$sth->bind_param( ':parent', $bestparent )
 	  || $stab->return_db_err($sth);
 	$sth->bind_param( ':shouldgen', $gen ) || $stab->return_db_err($sth);

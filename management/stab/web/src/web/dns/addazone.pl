@@ -67,6 +67,14 @@ sub do_add_a_zone {
 			)
 		)
 	);
+	print $stab->build_tr(
+		undef, 
+		'b_dropdown', 
+		'Domain Type',
+		'DNS_DOMAIN_TYPE',
+		'DNS_DOMAIN_TYPE',
+	);
+
 	print $cgi->Tr(
 		{ -align => 'center' },
 		$cgi->td(

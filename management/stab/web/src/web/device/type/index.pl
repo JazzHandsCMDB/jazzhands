@@ -112,7 +112,10 @@ sub do_device_type_power {
 	$model = $dt->{'PARTNER_NAME'} . " " . $dt->{'MODEL'};
 
 	print $cgi->header('text/html');
-	print $stab->start_html( { -title => "Device Type $model" } ), "\n";
+	print $stab->start_html( { 
+		-title => "Device Type $model",
+		-javascript => 'devicetype',
+	} ), "\n";
 
 	device_type_power_form( $stab, $devtypid, $dt );
 
@@ -401,7 +404,7 @@ sub build_physical_port_add_box {
 
 	my $title;
 	if ($devtypid) {
-		$title = 'Add to $humantype port template';
+		$title = "Add to $humantype port template";
 	} else {
  		my $captype = $humantype;
  		substr($captype, $[, 1) =~ tr/a-z/A-Z/;

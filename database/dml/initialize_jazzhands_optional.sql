@@ -82,6 +82,11 @@ INSERT INTO VAL_Device_Function_Type (Device_Function_Type)
 INSERT INTO VAL_Device_Function_Type (Device_Function_Type)
 	VALUES ('ups');
 
+insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
+	values ('Legacy', 'Used by Legacy Apps'); 
+insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
+	values ('Cricket', 'Used by the Cricket Application'); 
+
 INSERT INTO Partner (Partner_ID, Name)
 	VALUES (0, 'Not Applicable');
 UPDATE Partner SET Partner_ID = 0 where Name = 'Not Applicable';
@@ -97,6 +102,8 @@ INSERT INTO Partner (Name)
 	VALUES ('HP');
 INSERT INTO Partner (Name)
 	VALUES ('Cyclades');
+INSERT INTO Partner (Name)
+	VALUES ('Xen');
 
 INSERT INTO Device_Type (
 	Partner_ID,
@@ -196,6 +203,24 @@ INSERT INTO Device_Type (
 	'Y',
 	'Y',
 	1
+);
+
+INSERT INTO Device_Type (
+	Partner_ID,
+	Model,
+	Has_802_3_Interface,
+	Has_802_11_Interface,
+	SNMP_Capable,
+	Is_Chasis,
+	Rack_Units
+) VALUES (
+	(SELECT Partner_ID FROM Partner WHERE Name = 'Xen'),
+	'Virtual Machine',
+	'Y',
+	'N',
+	'Y',
+	'Y',
+	0
 );
 
 INSERT INTO Operating_System (

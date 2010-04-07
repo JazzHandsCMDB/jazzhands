@@ -45,6 +45,28 @@ INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
 INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
 	VALUES ('Strančice', 'Strancice, Czech Republic', 2,
 	(select company_id from company where company_name =
-		'Omniscient Technologies'));
+	'Omniscient Technologies'));
 
 INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('MIT.EDU');
+
+insert into site (site_code, colo_partner_id, site_status, description)
+	values ('CORP0', 0, 'ACTIVE', 'Corporate Headquarters');
+
+insert into rack (
+	SITE_CODE, ROOM, SUB_ROOM, RACK_ROW, RACK_NAME, RACK_HEIGHT_IN_U,
+	RACK_TYPE, DISPLAY_FROM_BOTTOM
+) values (
+	'CORP0', 'DC-A', 'CAGE 1', '1', '1', 50,
+	'CABINET', 'Y'
+);
+
+insert into rack (
+	SITE_CODE, ROOM, SUB_ROOM, RACK_ROW, RACK_NAME, RACK_HEIGHT_IN_U,
+	RACK_TYPE, DISPLAY_FROM_BOTTOM
+) values (
+	'CORP0', 'DC-A', 'CAGE 1', '1', '2', 50,
+	'RELAY', 'Y'
+);
+
+insert into site (site_code, colo_partner_id, site_status, description)
+	values ('CZ0', 0, 'ACTIVE', 'Czech Satellite Office');

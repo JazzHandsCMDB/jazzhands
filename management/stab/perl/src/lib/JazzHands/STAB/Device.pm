@@ -663,6 +663,7 @@ sub powerport_device_magic {
 sub device_serial_ports {
 	my ( $self, $devid ) = @_;
 
+
 	$self->setup_device_physical_ports($devid, 'serial');
 
 	my $dbh = $self->dbh || die "Could not create dbh";
@@ -2479,8 +2480,7 @@ sub device_appgroup_tab {
 	my $warnmsg = "";
 	my $indicatetab = "";
 	if($devid) {
-		# this only shows if we're updating an existing device.  If we'r
-e
+		# this only shows if we're updating an existing device.  If we're
 		# adding new, then this is somewhat superfluous.
 		$warnmsg = qq{
 			Please select all that apply.  Please note that if you
@@ -2494,10 +2494,11 @@ h
 			no changes were made.
 		};
 		$resetlink = $cgi->div({-style => 'text-align: center;'},
-			$cgi->a({ -href=>"apps/", -target => 'TOP', },
-				"(explore apps)").
-				$resetlink
-			);
+			$cgi->a({   
+				-href=>"javascript:void(null)",
+				-onClick => qq{ShowDevTab("AppGroup", "$devid", "force")}, 
+			},
+		"(reset tab)"));
 		$indicatetab = $cgi->hidden("has_appgroup_tab_$devid", $devid);
 		$name = 'appgroup_'.$devid;
 	}

@@ -1467,6 +1467,12 @@ sub b_dropdown {
 			select	X509_FILE_FORMAT, DESCRIPTION
 			  from	VAL_X509_CERTIFICATE_FILE_FMT
 		};
+	} elsif ( $field eq 'DNS_DOMAIN_TYPE' ) {
+		$q = qq{
+			select	DNS_DOMAIN_TYPE, DESCRIPTION
+			  from	VAL_DNS_DOMAIN_TYPE
+		};
+		$default = 'service' if ( !defined($default) );
 	} elsif ( $field eq 'DEVICE_COLLECTION_ID' ) {
 		$q = qq{
 			select	DEVICE_COLLECTION_ID, NAME
@@ -2383,7 +2389,7 @@ sub add_physical_ports {
 		insert into     device_type_phys_port_templt (
 			device_type_id, port_name, port_type
 		) values (
-			:1, :2, 'serial'
+			:1, :2, :3
 		)
 	};
 	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);

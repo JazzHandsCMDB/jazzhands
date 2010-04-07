@@ -148,7 +148,7 @@ INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('adhoc');
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
-	VALUES ('approle');
+	VALUES ('appgroup');
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('undefined');
 
@@ -222,6 +222,143 @@ insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 	values ('sparc', 64);
 
+insert into val_plug_style (plug_style) values ('DC');
+insert into val_plug_style (plug_style) values ('Hubbell CS8365C');
+insert into val_plug_style (plug_style) values ('IEC-60320-C13');
+insert into val_plug_style (plug_style) values ('IEC-60320-C13/14');
+insert into val_plug_style (plug_style) values ('IEC-60320-C19/20');
+insert into val_plug_style (plug_style) values ('NEMA 5-15P');
+insert into val_plug_style (plug_style) values ('NEMA 5-20P');
+insert into val_plug_style (plug_style) values ('NEMA 5-30P');
+insert into val_plug_style (plug_style) values ('NEMA 5-50P');
+insert into val_plug_style (plug_style) values ('NEMA 6-15P');
+insert into val_plug_style (plug_style) values ('NEMA 6-20P');
+insert into val_plug_style (plug_style) values ('NEMA 6-30P');
+insert into val_plug_style (plug_style) values ('NEMA 6-50P');
+insert into val_plug_style (plug_style) values ('NEMA L14-30P');
+insert into val_plug_style (plug_style) values ('NEMA L15-30P');
+insert into val_plug_style (plug_style) values ('NEMA L21-30P');
+insert into val_plug_style (plug_style) values ('NEMA L5-15P');
+insert into val_plug_style (plug_style) values ('NEMA L5-20P');
+insert into val_plug_style (plug_style) values ('NEMA L5-30P');
+insert into val_plug_style (plug_style) values ('NEMA L6-15P');
+insert into val_plug_style (plug_style) values ('NEMA L6-20P');
+insert into val_plug_style (plug_style) values ('NEMA L6-30P');
+
+insert into val_port_type (port_type) values ('network');
+insert into val_port_type (port_type) values ('patchpanel');
+insert into val_port_type (port_type) values ('serial');
+insert into val_port_type (port_type) values ('switch');
+
+insert into val_baud (baud) values (110);
+insert into val_baud (baud) values (300);
+insert into val_baud (baud) values (1200);
+insert into val_baud (baud) values (2400);
+insert into val_baud (baud) values (4800);
+insert into val_baud (baud) values (9600);
+insert into val_baud (baud) values (19200);
+insert into val_baud (baud) values (38400);
+insert into val_baud (baud) values (57600);
+insert into val_baud (baud) values (115200);
+
+insert into val_flow_control (flow_control, description) 
+	values ('ctsrts', 'CTS/RTS');
+insert into val_flow_control (flow_control, description) 
+	values ('dsrdte', 'Xon/Xoff');
+insert into val_flow_control (flow_control, description) 
+	values ('dtrdce', 'DSR/DTE');
+insert into val_flow_control (flow_control, description) 
+	values ('xonxoff', 'DTR/DCE');
+
+insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
+	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
+values
+	('ssh', 22, 'standard ssh');
+
+insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
+	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
+values
+	('telnet', 23, 'standard telnet');
+
+-- these probably need to just be check constraints.  oops.
+insert into val_stop_bits (stop_bits) values (7);
+insert into val_stop_bits (stop_bits) values (1);
+insert into val_stop_bits (stop_bits) values (2);
+insert into val_stop_bits (stop_bits,description) values (15, '1.5');
+
+insert into val_data_bits (data_bits) values (7);
+insert into val_data_bits (data_bits) values (8);
+
+insert into val_parity (parity) values ('none');
+insert into val_parity (parity) values ('even');
+insert into val_parity (parity) values ('odd');
+insert into val_parity (parity) values ('mark');
+insert into val_parity (parity) values ('space');
+
+insert into val_CABLE_TYPE (CABLE_TYPE) values ('straight');
+insert into val_CABLE_TYPE (CABLE_TYPE) values ('rollover');
+insert into val_CABLE_TYPE (CABLE_TYPE) values ('crossover');
+
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('retired');
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('vanity');
+
+insert into val_dns_class (dns_class) values ('IN');
+insert into val_dns_class (dns_class) values ('HESOID');
+insert into val_dns_class (dns_class) values ('CH');
+
+insert into val_dns_type (dns_type,id_type) values ('AAAA', 'ID');
+insert into val_dns_type (dns_type,id_type) values ('AFSDB', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('A', 'ID');
+insert into val_dns_type (dns_type,id_type) values ('CERT', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('CNAME', 'ID');
+insert into val_dns_type (dns_type,id_type) values ('DNAME', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('GID', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('GPOS', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('HINFO', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('ISDN', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('KEY', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('KX', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('LOC', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('MB', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('MF', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('MINFO', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('MR', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('MX', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('NAPTR', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('NG', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('NSAP-PTR', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('NS', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('NXT', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('OPT', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('PTR', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('PX', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('RP', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('RT', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('SIG', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('SOA', 'LINK');
+insert into val_dns_type (dns_type,id_type) values ('SPF', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('SRV', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('TXT', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('UID', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('UINFO', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('UNSPEC', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('WKS', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('X25', 'NON-ID');
+
+insert into val_dns_type (dns_type,id_type,description) 
+	values ('REVERSE_ZONE_BLOCK_PTR', 'LINK',
+	'not really a type; in-addr backend link');
+
+insert into val_network_interface_purpose 
+	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+	values ('oobmgmt', 'Out of Band Management');
+insert into val_network_interface_purpose 
+	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+	values ('ibmgmt', 'In-Band Management');
+insert into val_network_interface_purpose 
+	(NETWORK_INTERFACE_PURPOSE)
+	values ('service');
 
 -- XXX need to auto-create a uclass all_company_XX
 INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
@@ -293,3 +430,4 @@ VALUES (
 	'default',
 	'mclass'
 	);
+

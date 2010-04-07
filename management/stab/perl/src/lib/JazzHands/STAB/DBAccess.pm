@@ -144,7 +144,7 @@ sub check_ip_on_local_nets {
 		select  count(*)
 		  from  network_interface ni
 			inner join netblock nb on
-				ni.primary_v4_netblock_id = nb.netblock_id
+				ni.v4_netblock_id = nb.netblock_id
 		where
 			ni.device_id = :1
 		 and

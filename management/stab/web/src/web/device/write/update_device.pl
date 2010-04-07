@@ -632,7 +632,7 @@ sub get_network_interface {
 			IS_PRIMARY,
 			SHOULD_MONITOR,
 			PROVIDES_NAT,
-			PRIMARY_V4_NETBLOCK_ID,
+			V4_NETBLOCK_ID,
 			SHOULD_MANAGE,
 			PROVIDES_DHCP,
 			PHYSICAL_PORT_ID,
@@ -843,7 +843,7 @@ sub delete_interface {
 	}
 
 	my $nbq = qq{
-		select	ni.primary_v4_netblock_id,
+		select	ni.v4_netblock_id,
 			ni.physical_port_id,
 			ni.is_primary,
 			ni.is_management_interface,
@@ -854,9 +854,9 @@ sub delete_interface {
 			dom.soa_name
 		  from	network_interface ni
 			inner join netblock nb on
-				ni.primary_v4_netblock_id = nb.netblock_id
+				ni.v4_netblock_id = nb.netblock_id
 			left join dns_record dns on
-				dns.netblock_id = ni.primary_v4_netblock_id
+				dns.netblock_id = ni.v4_netblock_id
 			left join dns_domain dom on
 				dom.dns_domain_id = dns.dns_domain_id
 		 where	ni.network_interface_id = :1
@@ -1798,7 +1798,7 @@ sub update_interface {
 	# first deal with the netblock, including grabbing old dns info
 	#
 	my $oldblock =
-		$stab->get_netblock_from_id($old_int->{'PRIMARY_V4_NETBLOCK_ID'});
+		$stab->get_netblock_from_id($old_int->{'V4_NETBLOCK_ID'});
 
 	#
 	# properly deal with keeping IP address around
@@ -1864,7 +1864,7 @@ sub update_interface {
 		IS_PRIMARY => $ispriint,
 		SHOULD_MONITOR => $shldmon,
 		PROVIDES_NAT => $isnatint,
-		PRIMARY_V4_NETBLOCK_ID => $prinblkid,
+		V4_NETBLOCK_ID => $prinblkid,
 		SHOULD_MANAGE => $shldmng,
 		IS_MANAGEMENT_INTERFACE => $ismgmtip,
 		PHYSICAL_PORT_ID => $newppid,
@@ -2189,7 +2189,7 @@ sub add_interfaces {
 			IS_INTERFACE_UP, MAC_ADDR,
 			NETWORK_INTERFACE_PURPOSE, IS_PRIMARY, SHOULD_MONITOR,
 			physical_port_id, provides_nat, provides_dhcp,
-			PRIMARY_V4_NETBLOCK_ID, SHOULD_MANAGE, IS_MANAGEMENT_INTERFACE
+			V4_NETBLOCK_ID, SHOULD_MANAGE, IS_MANAGEMENT_INTERFACE
 		) values (
 			:devid, :name, :nitype,
 			:isup, :mac,
@@ -2343,7 +2343,7 @@ sub delete_device_secondary_interfaces {
 		select	netblock_id from secondary_netblock
 		  where	netblock_id in
 			(
-				select primary_v4_netblock_id from network_interface
+				select v4_netblock_id from network_interface
 					where device_id = :1
 			)
 	};
@@ -2389,7 +2389,7 @@ sub delete_device_interfaces {
 
 	my(@netblocks);
 	my $nbq = qq{
-		select	primary_v4_netblock_id from network_interface
+		select	v4_netblock_id from network_interface
 					where device_id = :1
 	};
 	my $Nsth = $stab->prepare($nbq) || $stab->return_db_err;
@@ -2402,7 +2402,7 @@ sub delete_device_interfaces {
 	my @qs = (qq{
 		delete from dns_record
 			where netblock_id in
-					(select primary_v4_netblock_id from network_interface
+					(select v4_netblock_id from network_interface
 						where device_id = :1
 					)
 		},

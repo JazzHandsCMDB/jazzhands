@@ -312,10 +312,6 @@ DROP TRIGGER C_TIUBR_USER_UNIX_INFO;
 
 
 
-DROP TRIGGER TIB_USER_UNIX_INFO;
-
-
-
 DROP TRIGGER TUB_USER_UNIX_INFO;
 
 
@@ -816,10 +812,6 @@ DROP TRIGGER C_TIUBR_APPAAL_INSTANCE;
 
 
 
-DROP TRIGGER K_TIUBR_APPAAL_INSTANCE;
-
-
-
 DROP TRIGGER TIB_APPAAL_INSTANCE;
 
 
@@ -1077,10 +1069,6 @@ DROP TRIGGER TUB_VAL_NETWORK_INTERFACE_TYPE;
 
 
 DROP TRIGGER C_TIUBR_DEV_COLL_ASSIGND_CERT;
-
-
-
-DROP TRIGGER K_TIUBR_DEV_COLL_ASSIGND_CERT;
 
 
 
@@ -2139,57 +2127,6 @@ end;
 
 
 ALTER TRIGGER C_TIUBR_APPAAL_INSTANCE
-	ENABLE;
-
-
-
-
-CREATE  TRIGGER K_TIUBR_APPAAL_INSTANCE
- BEFORE INSERT OR UPDATE
- ON APPAAL_INSTANCE
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    tally	     integer;
-begin
-    tally := 0;
-    if :new.FILE_GROUP_UNIX_GROUP_ID is not NULL then
-	tally := tally + 1;
-    end if;
-    if :new.FILE_GROUP_UCLASS_ID is not NULL then
-	tally := tally + 1;
-    end if;
-
-    if tally = 0 then
-       errno  := -20001;
-       errmsg := 'One of the FILE_GROUP fields must be set.';
-       raise integrity_error;
-    end if;
-
-    -- during migration to a uclass based group system, we will probably
-    -- set both to handle an easier backout procedure..  yay.
-    --if tally > 1 then
-    --   errno  := -20001;
-    --   errmsg := 'Only One of the FILE_GROUP fields can be set.';
-    --   raise integrity_error;
-    --end if;
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-/
-
-
-
-
-ALTER TRIGGER K_TIUBR_APPAAL_INSTANCE
 	ENABLE;
 
 
@@ -3829,13 +3766,6 @@ declare
     errmsg           char(200);
     dummy            integer;
     found            boolean;
-    --  Declaration of UpdateParentRestrict constraint for "MCLASS_UNIX_PROP"
-    cursor cfk11_mclass_unix_prop(var_device_collection_id number) is
-       select 1
-       from   MCLASS_UNIX_PROP
-       where  DEVICE_COLLECTION_ID = var_device_collection_id
-        and   var_device_collection_id is not null;
-
 begin
     --  Non modifiable column "DATA_INS_USER" cannot be modified
     if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
@@ -3849,28 +3779,13 @@ begin
        errno  := -20001;
        errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
        raise integrity_error;
-    end if;
-
-    --  Cannot modify parent code in "DEVICE_COLLECTION" if children still exist in "MCLASS_UNIX_PROP"
-    if (updating('DEVICE_COLLECTION_ID') and :old.DEVICE_COLLECTION_ID != :new.DEVICE_COLLECTION_ID) then
-       open  cfk11_mclass_unix_prop(:old.DEVICE_COLLECTION_ID);
-       fetch cfk11_mclass_unix_prop into dummy;
-       found := cfk11_mclass_unix_prop%FOUND;
-       close cfk11_mclass_unix_prop;
-       if found then
-          errno  := -20005;
-          errmsg := 'Children still exist in "MCLASS_UNIX_PROP". Cannot modify parent code in "DEVICE_COLLECTION".';
-          raise integrity_error;
-       end if;
-    end if;
-
+    end if; \
 
 --  Errors handling
 exception
     when integrity_error then
        raise_application_error(errno, errmsg);
 end;
-
 /
 
 
@@ -3937,58 +3852,6 @@ end;
 
 
 ALTER TRIGGER C_TIUBR_DEV_COLL_ASSIGND_CERT
-	ENABLE;
-
-
-
-
-CREATE  OR REPLACE  TRIGGER K_TIUBR_DEV_COLL_ASSIGND_CERT
- BEFORE INSERT OR UPDATE
- ON DEVICE_COLLECTION_ASSIGND_CERT
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    tally	     integer;
-begin
-    tally := 0;
-    if :new.FILE_GROUP_UNIX_GROUP_ID is not NULL then
-	tally := tally + 1;
-    end if;
-    if :new.FILE_GROUP_UCLASS_ID is not NULL then
-	tally := tally + 1;
-    end if;
-
-    if tally = 0 then
-       errno  := -20001;
-       errmsg := 'One of the FILE_GROUP fields must be set.';
-       raise integrity_error;
-    end if;
-
-    -- during migration to a uclass based group system, we will probably
-    -- set both to handle an easier backout procedure..  yay.
-    --if tally > 1 then
-    --   errno  := -20001;
-    --   errmsg := 'Only One of the FILE_GROUP fields can be set.';
-    --   raise integrity_error;
-    --end if;
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-
-ALTER TRIGGER K_TIUBR_DEV_COLL_ASSIGND_CERT
 	ENABLE;
 
 
@@ -8167,7 +8030,6 @@ CREATE  TRIGGER C_TIUA_PHYSICAL_CONNECTION
   
   
   
-DECLARE NUMROWS INTEGER;
 declare
     integrity_error  exception;
     errno            integer;
@@ -8737,7 +8599,7 @@ BEGIN
         EXCEPTION
                 WHEN NO_DATA_FOUND THEN
                         errno := -20900;
-                        errmsg := 'Property name or type does not exist (' || :new.property_name, || ',' || :new.property_type || ')';
+                        errmsg := 'Property name or type does not exist (' || :new.property_name || ',' || :new.property_type || ')';
                         raise integrity_error;
         END;
 
@@ -14546,57 +14408,6 @@ ALTER TRIGGER C_TIUBR_USER_UNIX_INFO
 
 
 
-CREATE  OR REPLACE  TRIGGER TIB_USER_UNIX_INFO
- BEFORE INSERT
- ON USER_UNIX_INFO
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    --  Declaration of InsertChildParentExist constraint for the parent "SYSTEM_USER"
-    cursor cpk1_user_unix_info(var_system_user_id number) is
-       select 1
-       from   SYSTEM_USER
-       where  SYSTEM_USER_ID = var_system_user_id
-        and   var_system_user_id is not null;
-
-begin
-    --  Parent "SYSTEM_USER" must exist when inserting a child in "USER_UNIX_INFO"
-    if :new.SYSTEM_USER_ID is not null then
-       open  cpk1_user_unix_info(:new.SYSTEM_USER_ID);
-       fetch cpk1_user_unix_info into dummy;
-       found := cpk1_user_unix_info%FOUND;
-       close cpk1_user_unix_info;
-       if not found then
-          errno  := -20002;
-          errmsg := 'Parent does not exist in "SYSTEM_USER". Cannot create child in "USER_UNIX_INFO".';
-          raise integrity_error;
-       end if;
-    end if;
-
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-
-ALTER TRIGGER TIB_USER_UNIX_INFO
-	ENABLE;
-
-
-
-
 CREATE  OR REPLACE  TRIGGER TUB_USER_UNIX_INFO
  BEFORE UPDATE OF 
         SYSTEM_USER_ID,
@@ -14611,16 +14422,6 @@ declare
     integrity_error  exception;
     errno            integer;
     errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    seq NUMBER;
-    --  Declaration of UpdateChildParentExist constraint for the parent "SYSTEM_USER"
-    cursor cpk1_user_unix_info(var_system_user_id number) is
-       select 1
-       from   SYSTEM_USER
-       where  SYSTEM_USER_ID = var_system_user_id
-        and   var_system_user_id is not null;
-
 begin
     --  Non modifiable column "DATA_INS_USER" cannot be modified
     if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
@@ -14635,28 +14436,11 @@ begin
        errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
        raise integrity_error;
     end if;
-
-    seq := IntegrityPackage.GetNestLevel;
-    --  Parent "SYSTEM_USER" must exist when updating a child in "USER_UNIX_INFO"
-    if (:new.SYSTEM_USER_ID is not null) and (seq = 0) then
-       open  cpk1_user_unix_info(:new.SYSTEM_USER_ID);
-       fetch cpk1_user_unix_info into dummy;
-       found := cpk1_user_unix_info%FOUND;
-       close cpk1_user_unix_info;
-       if not found then
-          errno  := -20003;
-          errmsg := 'Parent does not exist in "SYSTEM_USER". Cannot update child in "USER_UNIX_INFO".';
-          raise integrity_error;
-       end if;
-    end if;
-
-
 --  Errors handling
 exception
     when integrity_error then
        raise_application_error(errno, errmsg);
 end;
-
 /
 
 

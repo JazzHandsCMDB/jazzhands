@@ -604,8 +604,6 @@ sub dump_zone {
 	$parlink = $cgi->span( $cgi->b("Parent: ") . $parlink );
 	my $nblink = build_reverse_association_section( $stab, $dnsdomainid );
 
-	print $cgi->pre( "cgi: ", $CGI::VERSION );
-
 	if ( $nblink && length($nblink) ) {
 		$nblink = $cgi->br($nblink);
 	}
