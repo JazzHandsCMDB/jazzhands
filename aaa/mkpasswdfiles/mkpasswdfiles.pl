@@ -196,7 +196,7 @@ sub get_passwd_line($$$$) {
 	else {
 		if ( defined( $mp->{MCLASS_UNIX_PW_TYPE} ) ) {
 			if (       $login eq 'root'
-				|| $mp->{MCLASS_UNIX_PW_TYPE} eq 'crypt' )
+				|| $mp->{MCLASS_UNIX_PW_TYPE} eq 'des' )
 			{
 				$crypt = $u->{DES_PASSWORD} || '*';
 			}
@@ -301,7 +301,7 @@ sub get_uclass_properties() {
 	$sth->execute;
 
 	## If there are lines with duplicate device_collection_id,
-	## system_user_id, uclass_property_name, the first line is what counts.
+    ## system_user_id, property_name, the first line is what counts.
 
 	while ( @r = $sth->fetchrow_array ) {
 		my ( $dcid, $suid, $upn, $pv, $gid ) = @r;
@@ -548,6 +548,10 @@ sub generate_passwd_files($) {
 		if ( defined($last_dcid) ) {
 			if ( $last_dcid != $dcid ) {
 				foreach my $p ( sort _by_uid @pwdlines ) {
+					if (grep { !defined($_) } @$p) {
+						warn "MCLASS_ID $last_dcid: malformed passwd line: " .
+							join(':', map { defined($_) ? $_ : '' } @$p) . "\n";					}
+				else {
 					print $fh join( ':', @$p ), "\n";
 				}
 
@@ -593,7 +597,12 @@ sub generate_passwd_files($) {
 	## Let's not forget to write the passwd file for the last MCLASS
 
 	foreach my $p ( sort _by_uid @pwdlines ) {
-		print $fh join( ':', @$p ), "\n";
+		if (grep { !defined($_) } @$p) {
+			warn "MCLASS_ID $last_dcid: malformed passwd line: " .
+				join(':', map { defined($_) ? $_ : '' } @$p) . "\n";
+		} else {
+			print $fh join( ':', @$p ), "\n";
+		}
 	}
 
 	$fh->close if ( defined $fh );
@@ -1418,6 +1427,14 @@ sub generate_dbal_files($) {
 		$text .= "DBType:\t$dbtype\n";
 		$text .= "ServiceName:\t$servicename\n";
 		$text .= "Username:\t$username\n";
+	## placeholder for setting perms on this generated file.
+	## mode will be the usual 4 digit octal 
+	## user, group will be login-names/group-names
+	## these are optional and if found & valid will
+	## override the defaults of 0644, root, root.
+	## $text .= "AuthFileMode:\t$blah\n";
+	## $text .= "AuthFileUser:\t$blah\n";
+	## $text .= "AuthFileGroup:\t$blah\n";
 
 		if ( $method eq "password" ) {
 			$text .= "Password:\t$password\n";
