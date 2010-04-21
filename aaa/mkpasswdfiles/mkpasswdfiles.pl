@@ -97,7 +97,7 @@ Write the output files to the directory output_dir. The default is
 
 use strict;
 use warnings;
-use Jazzhands::DBI;
+use JazzHands::DBI;
 use File::Temp qw(tempdir);
 use IO::File;
 use File::Copy;
@@ -550,11 +550,11 @@ sub generate_passwd_files($) {
 				foreach my $p ( sort _by_uid @pwdlines ) {
 					if (grep { !defined($_) } @$p) {
 						warn "MCLASS_ID $last_dcid: malformed passwd line: " .
-							join(':', map { defined($_) ? $_ : '' } @$p) . "\n";					}
-				else {
-					print $fh join( ':', @$p ), "\n";
+							join(':',map { defined($_) ? $_ : '' } @$p) . "\n";
+					} else {
+						print $fh join( ':', @$p ), "\n";
+					}
 				}
-
 				$fh =
 				  new_mclass_file( $dir, $r->{MCLASS}, $fh,
 					'passwd' );
@@ -1770,7 +1770,7 @@ sub main {
 	) or exit(2);
 
 	$dbh =
-	  Jazzhands::DBI->connect( 'mkpwdfiles',
+	  JazzHands::DBI->connect( 'mkpwdfiles',
 		{ RaiseError => 1, AutoCommit => 0 } );
 
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
