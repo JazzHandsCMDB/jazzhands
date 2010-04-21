@@ -349,11 +349,16 @@ sub get_mclass_properties {
 	my ( $q, $sth, $m_prop, @r );
 
 	$q = q{
-        select d.device_collection_id, mclass_unix_home_type,
-               mclass_unix_pw_type, home_place
-        from mclass_unix_prop p join v_device_coll_hier_detail d
-               on p.device_collection_id = d.parent_device_collection_id
-    };
+	select	d.device_collection_id,
+		p.property_name,
+		p.property_type,
+		p.property_value
+	  from	v_property p
+		join v_device_coll_hier_detail d
+			on p.device_collection_id = 
+				d.parent_device_collection_id
+	 where p.property_type = 'MclassUnixProp'
+    	};
 
 	if ($q_mclass_ids) {
 		$q .= "where d.device_collection_id in $q_mclass_ids";
@@ -368,19 +373,29 @@ sub get_mclass_properties {
 	## store that.
 
 	while ( @r = $sth->fetchrow_array ) {
-		my ( $dcid, $muht, $mupt, $hp ) = @r;
+		my ( $dcid, $propn, $propt, $propv ) = @r;
 
 		$m_prop->{$dcid}{DEVICE_COLLECTION_ID} = $dcid
 		  unless ( defined $m_prop->{$dcid}{DEVICE_COLLECTION_ID} );
 
-		$m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE} = $muht
-		  unless ( defined $m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE} );
+		if($propn eq 'UnixHomeType' && $propt eq 'MclassUnixProp') {
+			$m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE} = $propv
+		  	unless ( defined $m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE} );
+		}
 
-		$m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} = $mupt
-		  unless ( defined $m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} );
+		if($propn eq 'UnixPwType' && $propt eq 'MclassUnixProp') {
+		    $m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} = $propv
+		      unless ( defined $m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} );
+		}
 
-		$m_prop->{$dcid}{HOME_PLACE} = $hp
-		  unless ( defined $m_prop->{$dcid}{HOME_PLACE} );
+		if($propn eq 'HomePlace' && $propt eq 'MclassUnixProp') {
+		    $m_prop->{$dcid}{HOME_PLACE} = $propv
+		      unless ( defined $m_prop->{$dcid}{HOME_PLACE} );
+		}
+
+		# XXX consider logging when unidentified properties have showed up?
+		# probably need to keep track of ones we don't pay attention to here
+		# such as UnixLogin and UnixGroupAssign
 	}
 
 	return $m_prop;
@@ -409,15 +424,16 @@ sub get_group_properties() {
         from unix_group g
         join (
           select row_number()
-            over (partition by hd.device_collection_id, gp.unix_group_id
+            over (partition by hd.device_collection_id, gp.uclass_id
                   order by device_collection_level,
                         hd.parent_device_collection_id) r,
-            hd.device_collection_id, unix_group_id, unix_property force_gid
+            hd.device_collection_id, uclass_id, property_value AS force_gid
           from v_device_coll_hier_detail hd
-          join unix_group_property gp
+          join v_property gp
           on hd.parent_device_collection_id = gp.device_collection_id
-          where unix_group_prop_type = 'ForceGID') y
-        on g.unix_group_id = y.unix_group_id
+          where gp.property_name = 'ForceGroupGID'
+	  	and gp.property_type = 'UnixGroupFileProperty') y
+        on g.uclass_id = y.uclass_id
         where r = 1
     };
 
@@ -493,7 +509,8 @@ sub generate_passwd_files($) {
 	## but without the overrides. Overrides are applied later.
 
 	$q = q{
-        select distinct device_collection_id, s.system_user_id, c.name mclass,
+        select distinct c.device_collection_id, s.system_user_id, 
+			   c.name mclass,
                login,
                case when login = 'root'
                       or nvl(p1.expire_time, p1.change_time + 90) > sysdate
@@ -509,7 +526,7 @@ sub generate_passwd_files($) {
              join user_unix_info ui
                 on (s.system_user_id = ui.system_user_id)
              join unix_group ug
-                on (ui.unix_group_id = ug.unix_group_id)
+                on (ui.unix_group_uclass_id = ug.uclass_id)
              join v_device_col_uclass_expanded cce
                 on (s.system_user_id = cce.system_user_id)
              join device_collection c
@@ -638,29 +655,24 @@ sub generate_group_files($) {
 	);
 
 	## The following query determines which unix groups are assigned
-	## to which MCLASSes taking inheritance and INCLUDE/EXCLUDE flags
+	## to which MCLASSes taking inheritance 
 	## into account. The query also determines the group password and
 	## the default GID which the group would have without any overrides.
 
 	$q = q{
         select distinct dchd2.device_collection_id, c.name mclass, 
-               ug.unix_group_id, ug.group_name, ug.unix_gid, 
-               ug.group_password
+               ug.uclass_id, ugu.name, ug.unix_gid, 
+               ug.group_password	-- XXX needs to be a property
         from v_device_coll_hier_detail dchd2
-        join mclass_group mg2
-        on mg2.device_collection_id = dchd2.parent_device_collection_id
+        join v_property mg2
+        	on mg2.device_collection_id = dchd2.parent_device_collection_id
         join device_collection c
-        on dchd2.device_collection_id = c.device_collection_id
-        join unix_group ug on mg2.unix_group_id = ug.unix_group_id
+        	on dchd2.device_collection_id = c.device_collection_id
+        join unix_group ug on mg2.property_value_uclass_id = ug.uclass_id
+		join uclass ugu on ugu.uclass_id = ug.uclass_id 
         where c.device_collection_type = 'mclass'
-        and mg2.include_exclude_flag = 'INCLUDE'
-        and not exists (
-            select * from v_device_coll_hier_detail dchd1
-            join mclass_group mg1
-            on mg1.device_collection_id = dchd1.parent_device_collection_id
-            where mg1.include_exclude_flag = 'EXCLUDE'
-            and dchd1.device_collection_id = dchd2.device_collection_id
-            and mg1.unix_group_id = mg2.unix_group_id)
+		and mg2.property_name = 'MclassUnixProp'
+		and mg2.property_name = 'UnixGroupAssign'
     };
 
 	if ($q_mclass_ids) {
@@ -695,14 +707,17 @@ sub generate_group_files($) {
 	## attribute set.
 
 	$q = q{
-        select c.device_collection_id, unix_group_id, group_name, s.login
+        select c.device_collection_id, ug.uclass_id, ug.group_name, s.login
         from device_collection c
-        join unix_group_uclass ugu
-        on c.device_collection_id = ugu.device_collection_id
-        join unix_group ug on ugu.unix_group_id = ug.unix_group_id
-        join v_uclass_user_expanded vuue on ugu.uclass_id = vuue.uclass_id
+        join v_property ugu
+        	on c.device_collection_id = ugu.device_collection_id
+        join unix_group ug on ugu.uclass_id = ug.uclass_id
+        join v_uclass_user_expanded vuue 
+			on ugu.property_value_uclass_id = vuue.uclass_id
         join system_user s on vuue.system_user_id = s.system_user_id
         where s.system_user_status in ('enabled', 'onleave-enable')
+		and ugu.property_name = 'UnixGroupAssign'
+		and ugu.property_type = 'MclassUnixProp'
     };
 
 	if ($q_mclass_ids) {
@@ -729,20 +744,23 @@ sub generate_group_files($) {
 
 	## The following query determines Unix group membership. It maps
 	## Unix groups to logins that belong to each particular group for
-	## entries in UNIX_GROUP_UCLASS that have DEVICE_COLLECTION_ID
-	## NULL. I would have loved to combine this query and the previous
+	## entries in V_PROPERTY (device_collection to uclass mapping)
+	## that have DEVICE_COLLECTION_ID NULL. I would have loved to combine 
+	## this query and the previous
 	## one into one query (using the UNION keyword), but Oracle just
 	## could not handle it. Each query separately takes a few seconds,
 	## but once they are combined, it never finishes.
 
 	$q = q{
-        select ug.unix_group_id, group_name, s.login
-        from unix_group_uclass ugu
-        join unix_group ug on ug.unix_group_id = ugu.unix_group_id
+        select ug.uclass_id, ug.group_name, s.login
+        from v_property ugu
+        join unix_group ug on ug.uclass_id = ugu.property_value_uclass_id
         join v_uclass_user_expanded vuue on ugu.uclass_id = vuue.uclass_id
         join system_user s on vuue.system_user_id = s.system_user_id
         where s.system_user_status in ('enabled', 'onleave-enable')
         and ugu.device_collection_id is null
+		and ugu.property_name = 'UnixGroupAssign'
+		and ugu.property_type = 'MclassUnixProp'
     };
 
 	$sth = $dbh->prepare($q);
@@ -1540,15 +1558,15 @@ sub generate_wwwgroup_files($) {
 
 	$q = q{
         select distinct c.name mclass,
-               nvl(uo.property_value, u.name) wwwgroup, s.login
+               nvl(p.property_value, u.name) wwwgroup, s.login
         from device_collection c
         join v_device_col_uclass_expanded dcue
-        on c.device_collection_id = dcue.device_collection_id
+        	on c.device_collection_id = dcue.device_collection_id
         join system_user s on dcue.system_user_id = s.system_user_id
         join uclass u on dcue.uclass_id = u.uclass_id
-        left join uclass_property_override uo on (u.uclass_id = uo.uclass_id
-        and uo.uclass_property_type = 'wwwgroup'
-        and uo.uclass_property_name = 'WWWGroupName')
+        left join property p on (u.uclass_id = p.uclass_id
+        and p.property_type = 'wwwgroup'
+        and p.property_name = 'WWWGroupName')
         where u.uclass_type = 'wwwgroup'
         and c.device_collection_type = 'mclass'
         and s.system_user_status in ('enabled', 'onleave-enable')

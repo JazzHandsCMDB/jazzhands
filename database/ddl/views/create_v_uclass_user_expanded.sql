@@ -56,8 +56,6 @@ SELECT uch.uclass_id, uu.system_user_id FROM (
     SELECT connect_by_root uclass_id AS uclass_id, child_uclass_id
     FROM uclass_hier CONNECT BY PRIOR child_uclass_id = uclass_id
 ) uch
-INNER JOIN v_property uu ON uch.child_uclass_id = uu.uclass_id
-  AND uu.property_name = 'UclassMembership'
+INNER JOIN uclass_user uu ON uch.child_uclass_id = uu.uclass_id
 UNION
-SELECT uu.uclass_id, uu.system_user_id FROM v_property uu
-WHERE uu.property_name = 'UclassMembership';
+SELECT uu.uclass_id, uu.system_user_id FROM uclass_user uu;
