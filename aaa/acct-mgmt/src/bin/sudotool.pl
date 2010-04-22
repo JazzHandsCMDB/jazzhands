@@ -162,7 +162,7 @@ BEGIN {
 
 use strict;
 use warnings;
-use DBI;
+use JazzHands::DBI;
 use Getopt::Long;
 use Pod::Usage;
 use IO::File;
@@ -226,7 +226,7 @@ GetOptions(
 ) or exit(2);
 
 my $vi     = '/bin/vi';
-my $visudo = '/usr/local/sbin/visudo';
+my $visudo = 'visudo';
 my $jh;
 
 main();

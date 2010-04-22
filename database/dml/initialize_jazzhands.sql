@@ -620,6 +620,16 @@ INSERT INTO System_Password (
 	SYSDATE
 );
 
+insert into uclass (name, uclass_type)
+	values ('root', 'per-user');
+
+insert into uclass_user (uclass_id, system_user_id)
+select u.uclass_id, su.system_user_id
+from    uclass u, system_User su
+where u.uclass_type in ('unix-group', 'per-user') and u.name = 'root'
+and su.login in ('root');
+
+
 
 INSERT INTO
 	Device_Collection (Name, Device_Collection_Type)

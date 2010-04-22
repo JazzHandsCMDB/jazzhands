@@ -45,7 +45,7 @@ BEGIN {
 }
 
 use strict;
-use DBI;
+use JazzHands::DBI;
 use Getopt::Long qw(:config no_ignore_case bundling);
 use JazzHands::Management qw(:DEFAULT);
 use Pod::Usage;
