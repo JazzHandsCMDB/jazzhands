@@ -66,6 +66,14 @@ INSERT INTO VAL_UClass_Type (UClass_Type, Description)
 	VALUES ('unix-group', 'Uclass representing a Unix group');
 INSERT INTO VAL_UClass_Type (UClass_Type, Description)
 	VALUES ('doors', 'UClass that can be assigned to door-type objects to control access to physical areas');
+INSERT INTO VAL_UClass_Type (UClass_Type, Description)
+	VALUES ('property', 'UClass for storing global property values');
+INSERT INTO VAL_UClass_Type (UClass_Type, Description)
+	VALUES ('company', 'automatic uclasses defined by company membership');
+INSERT INTO VAL_UClass_Type (UClass_Type, Description)
+	VALUES ('usertype', 'automatic uclasses defined by user type');
+INSERT INTO VAL_UClass_Type (UClass_Type, Description)
+	VALUES ('site', 'automatic uclasses defined by user site');
 
 INSERT INTO VAL_Status (Status, Description)
 	VALUES ('unknown', 'Unknown or incompletely entered');
