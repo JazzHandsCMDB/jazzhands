@@ -1,0 +1,70 @@
+To allow the sync to AD to work, the AD schema needs to be modified.
+This is presented as a scary horrible thing to do but is generally ok.
+
+The problem is once you add something to the schema, you can never remove
+it, so make sure you really want to do that.
+
+Need to figure out how to do this with ldap modify, but if you want to
+do it by hand, some hoop jumping is necessary..
+
+Register the schema editor as a snap-in by doing something like:
+
+regsvr32 C:\windows\system32\schmmgmt.dll 
+mmc /a
+start up the active directory schema editor
+right click and connect to schema operatoins master
+
+add an attribute (right click, create new...)  ignore warning
+        commonname: jazzHandsSystemUserID
+        display name: jazzHandsSystemUserID
+        x500 id: 1.3.6.1.4.1.31752.1.1.1.1
+        description: jazzhands user id for account sync
+        syntax: integer
+
+right click on properties:
+        Index this attribute
+        Replicate this attribute to the global catalog
+
+[ fields ]
+
+right click on user
+attribuets tab
+add optional attribute from before.
+
+... need to create "Unsorted Accounts" as a group to toss people into.
+
+ldaps OR starttls OR ldap+kerberos for setting the password. 
+Authen::Krb5 had issues under ubuntu8.04 that seem to point to protocol
+mismatches or some such.  We may have to require ldaps.
+
+Attempting to reset a password via non-encrypted ldap gives:
+        "The server is unwilling to perform the requested operation"
+as an error back.  This situation could probably be handled more gracefully.
+
+To enable ldaps..
+
+The local computer to have a certificate ...    This means generating
+(and signing as appropriate) a .p12 cert file by whatever your prefered
+means are, for the local machine, such as using openssl to generate
+key/crt pem files and merging them together as follows:
+
+openssl pkcs12 -inkey exampledc-01.ad.example.com.key \
+        -in exampledc-01.ad.example.com.crt -nodes \
+        -name exampledc-01.ad.example.com  \
+        -out exampledc-01.ad.example.com.p12 -export
+
+Once you have that on the Domain Controller, there are two way sot import
+it into the machine.  The first way, which is the only way before Windows
+Server 2008, is to put it in the Local Computer's Personal Certificate,
+which you do as follows.
+
+        (0) get the file onto the machine. 
+
+        (1) run mmc on the File menu add a snap-in for Certificates.
+           These are for the local computer,w hen prompted
+
+        (2) Open the snap-in, right click on Personal and go to All Tasks ->
+                Import, go through the import wizard and include all
+                extended properties and place it in the "Personal" store
+                (which should be checked)
+
