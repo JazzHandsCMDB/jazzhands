@@ -137,7 +137,7 @@ sub new {
 		my $answer;
 
 		if ( !$packet ) {
-			print $res->errorstring;
+			warn $res->errorstring;
 			return
 "Unable to find LDAP server while querying '$querystring'\n";
 		}
@@ -147,10 +147,13 @@ sub new {
 
 			#
 			# This is a hack.
+			# XXX need to have a way to ignore certain
+			# servers due do network stupidity (such as if
+			# some DC is in a far off site).
 			#
-			next
-			  if (     ( $answer->target !~ /^nj-dc/ )
-				|| ( $answer->target =~ /nj-dc4\./ ) );
+			#next
+			#  if (     ( $answer->target !~ /^va-dc/ )
+			#	|| ( $answer->target =~ /va-dc4\./ ) );
 			push @servers, $answer->target;
 		}
 		if ( !@servers ) {
@@ -160,13 +163,14 @@ sub new {
 		push( @servers, split( /,/, $server ) );
 	}
 
-	if ( !defined( $self = Net::LDAP->new( \@servers, timeout => 10 ) ) ) {
+
+	if ( !defined( $self = Net::LDAP->new( \@servers, timeout => 10) ) ) {
 		return
 		  "Unable to open connection to LDAP hosts: "
 		  . join( ', ', @servers ) . "\n";
 	}
 
-	$self->start_tls( verify => 'none' );
+	$self->start_tls( verify => 'none' ) || die "start_tls";
 
 	$self->{domain}   = $domain;
 	$self->{krbrealm} = uc($domain);
@@ -245,26 +249,30 @@ sub new {
 	my $princ =
 	  Authen::Krb5::parse_name( $krbuser . '@' . $self->{krbrealm} );
 
-	$cc->initialize($princ);
+	# Ubuntu 8.04.4 did not like this at all.  Caused it to fail.  Need
+	# to discern if we want to do this at all (such as when tls is not
+	# going on) or just require tls/ldaps
+	if(0) {
+		# $cc->initialize($princ) || die;
 
-	if (
-		!Authen::Krb5::get_in_tkt_with_password(
-			$princ,
-			Authen::Krb5::parse_name(
-				    "krbtgt/"
-				  . $self->{krbrealm} . '@'
-				  . uc( $self->{domain} )
-			),
-			$password,
-			$cc
-		)
-	  )
-	{
-		$cc->destroy;
-	} else {
-		$krb->{cc} = $cc;
+		if (
+			!Authen::Krb5::get_in_tkt_with_password(
+				$princ,
+				Authen::Krb5::parse_name(
+				    	"krbtgt/"
+				  	. $self->{krbrealm} . '@'
+				  	. uc( $self->{domain} )
+				),
+				$password,
+				$cc
+			)
+	  	)
+		{
+			$cc->destroy;
+		} else {
+			$krb->{cc} = $cc;
+		}
 	}
-
       krb5done:
 
 	bless( $self, $class );
@@ -461,21 +469,19 @@ sub CreateUser {
 		objectClass       => [qw(top person organizationalPerson user)],
 		sAMAccountName    => $opt->{login},
 		cn                => $opt->{cn},
-		userPrincipalName => $opt->{login} . "\@EXAMPLE.COM",
+		userPrincipalName => $opt->{login} . "\@AD.EXAMPLE.COM",
 		name              => $opt->{displayname}
 		  || $opt->{cn},
 		displayName => $opt->{displayname}
 		  || $opt->{cn},
 		sn                    => $opt->{sn},
 		givenName             => $opt->{givenname},
-		mail                  => $opt->{login} . "\@EXAMPLE.COM",
-		mailNickname          => $opt->{login},
-		msExchALObjectVersion => 139,
+		mail                  => $opt->{login} . "\@AD.EXAMPLE.COM",
 		proxyAddresses =>
 		  [ "SMTP:" . $opt->{login} . "\@ad.example.com", ],
 		altSecurityIdentities => "Kerberos:"
 		  . $opt->{login}
-		  . "\@EXAMPLE.COM",
+		  . "\@AD.EXAMPLE.COM",
 		jazzHandsSystemUserID => $opt->{uid},
 		homeDrive             => "Y:",
 		homedirectory         => (
@@ -484,35 +490,37 @@ sub CreateUser {
 		  )
 		  . $opt->{login},
 		scriptPath => "logon.cmd",
-		msExchPoliciesIncluded =>
-"{8B508B43-0100-49F2-B4AD-7682AD9C6BC5},{26491CFC-9E50-4857-861B-0CB8DF22B5D7}",
-		homeMTA => (
-			     $companyparms->{ $opt->{company} }->{homemta}
-			  || $companyparms->{""}->{homemta}
-		),
-
-		homeMDB => (
-			     $companyparms->{ $opt->{company} }->{homemdb}
-			  || $companyparms->{""}->{homemdb}
-		),
-		msExchHomeServerName => (
-			     $companyparms->{ $opt->{company} }->{homesrvname}
-			  || $companyparms->{""}->{homesrvname}
-		),
-		showInAddressBook => [
-"CN=Default Global Address List,CN=All Global Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=ad,DC=example,DC=com",
-"CN=All Users,CN=All Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=ad,DC=example,DC=com"
-		],
-		legacyExchangeDN =>
-"/o=My Company/ou=First Administrative Group/cn=Recipients/cn="
-		  . $opt->{login},
-		textEncodedORAddress => sprintf(
-			"c=US;a= ;p=My Company;o=Exchange;s=%s;g=%s;",
-			$opt->{sn}, $opt->{givenname}
-		)
+#		mailNickname          => $opt->{login},
+#		msExchALObjectVersion => 139,
+#		msExchPoliciesIncluded =>
+#"{8B508B43-0100-49F2-B4AD-7682AD9C6BC5},{26491CFC-9E50-4857-861B-0CB8DF22B5D7}",
+#		homeMTA => (
+#			     $companyparms->{ $opt->{company} }->{homemta}
+#			  || $companyparms->{""}->{homemta}
+#		),
+#
+#		homeMDB => (
+#			     $companyparms->{ $opt->{company} }->{homemdb}
+#			  || $companyparms->{""}->{homemdb}
+#		),
+#		msExchHomeServerName => (
+#			     $companyparms->{ $opt->{company} }->{homesrvname}
+#			  || $companyparms->{""}->{homesrvname}
+#		),
+#		showInAddressBook => [
+#"CN=Default Global Address List,CN=All Global Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=ad,DC=example,DC=com",
+#"CN=All Users,CN=All Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=ad,DC=example,DC=com"
+#		],
+#		legacyExchangeDN =>
+#"/o=My Company/ou=First Administrative Group/cn=Recipients/cn="
+#		  . $opt->{login},
+#		textEncodedORAddress => sprintf(
+#			"c=US;a= ;p=My Company;o=Exchange;s=%s;g=%s;",
+#			$opt->{sn}, $opt->{givenname}
+#		)
 	);
 
-	#
+	
 	# If these optional parameters are passed, then shove them in as
 	# well
 	#
@@ -587,7 +595,7 @@ sub CreateUser {
 	printf STDERR "Setting password for %s\n", $opt->{login}
 	  if $self->{verbose};
 	if (
-		!$self->setLDAPPpassword(
+		!$self->setLDAPPassword(
 			dn       => $dn,
 			password => $opt->{password}
 		)
@@ -701,7 +709,7 @@ sub setLDAPPassword {
 		return undef;
 	}
 
-	my $mesg = $self->modify( $opt->{dn}, replace => $attrs );
+	$mesg = $self->modify( $opt->{dn}, replace => $attrs );
 
 	if ( $mesg->is_error ) {
 		$self->Error( $mesg->error_text );

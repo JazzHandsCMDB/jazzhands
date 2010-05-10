@@ -47,6 +47,7 @@ BEGIN {
 use strict;
 use Getopt::Std;
 use Pod::Usage;
+use JazzHands::DBI;
 use JazzHands::Management;
 use JazzHands::ActiveDirectory;
 use Net::LDAP::Control::Paged;
@@ -55,10 +56,11 @@ use Socket;
 
 my $LOG = "/var/log/syncadaccts";
 
-my $defaultou  = "OU=Unsorted Accounts,DC=example,DC=com";
-my $inactiveou = "OU=Users,OU=Inactive,OU=Admin,DC=example,DC=com";
-my $onleaveou  = "OU=UsersOnLeave,OU=Admin,DC=example,DC=com";
-my $wrongdept  = "OU=Wrong Dept,DC=example,DC=com";
+# XXX - This really wants to be defined in properties
+my $defaultou  = "OU=Unsorted Accounts,DC=ad,DC=example,DC=com";
+my $inactiveou = "OU=Users,OU=Inactive,OU=Admin,DC=ad,DC=example,DC=com";
+my $onleaveou  = "OU=UsersOnLeave,OU=Admin,DC=ad,DC=example,DC=com";
+my $wrongdept  = "OU=Wrong Dept,DC=ad,DC=example,DC=com";
 
 #
 # Number of days to leave a terminated account before deleting it
@@ -132,7 +134,7 @@ $q = qq {
 		System_User_Status,
 		System_User_Type,
 		Manager_System_User_ID,
-		HRIS_ID,
+		EXTERNAL_HR_ID,
 		Position_Title,
 		Time_Util.Epoch(Termination_Date) AS Termination_Date,
 		C.Company_Name Person_Company_Name,
@@ -277,7 +279,7 @@ while ( $row = $sth->fetchrow_hashref ) {
 	if ( $row->{ADDRESS_2} ) {
 		$entry->{ADDRESS} .= ', ' . $row->{ADDRESS_2};
 	}
-	$entry->{CITY}        = $row->{CITY}        || '';
+	$entry->{CITY}	= $row->{CITY}	|| '';
 	$entry->{STATE}       = $row->{STATE}       || '';
 	$entry->{POSTAL_CODE} = $row->{POSTAL_CODE} || '';
 	$entry->{COUNTRY}     = $row->{COUNTRY}     || '';
@@ -314,10 +316,10 @@ my $adusersbyuid = {};
 
 while (1) {
 	$mesg = $adh->search(
-		base    => "dc=example,dc=com",
+		base    => "dc=ad,dc=example,dc=com",
 		filter  => "(jazzHandsSystemUserID=*)",
 		control => [$page]
-	);
+	) || die "unable to search.  Is jazzHandsSystemUserId in the db?";
 
 	if ( $mesg->is_error ) {
 		write_log( $mesg->error_text );
@@ -364,7 +366,7 @@ foreach my $uid ( keys %$userinfo ) {
 	  . ( $entry->{MIDDLE_NAME} ? $entry->{MIDDLE_NAME} . ' ' : '' )
 	  . ( $entry->{PREFERRED_LAST_NAME} || $entry->{LAST_NAME} );
 
-	$entry->{DISPLAY_NAME}        = $displayName;
+	$entry->{DISPLAY_NAME}	= $displayName;
 	$entry->{DISPLAY_MIDDLE_NAME} = $displayMiddleName;
 
 	if ( !defined( $displayname{$displayName} ) ) {
@@ -452,14 +454,14 @@ foreach my $uid ( keys %$userinfo ) {
 
 		my @args = (
 			login     => $entry->{LOGIN},
-			ou        => $ou,
+			ou	=> $ou,
 			givenname => $entry->{PREFERRED_FIRST_NAME}
 			  || $entry->{FIRST_NAME},
 			sn => $entry->{PREFERRED_LAST_NAME}
 			  || $entry->{LAST_NAME},
-			uid         => $entry->{SYSTEM_USER_ID},
+			uid	 => $entry->{SYSTEM_USER_ID},
 			password    => $password,
-			cn          => $entry->{DISPLAY_NAME},
+			cn	  => $entry->{DISPLAY_NAME},
 			displayname => $entry->{DISPLAY_NAME}
 		);
 
@@ -760,8 +762,8 @@ foreach my $uid ( keys %$adusersbyuid ) {
 		if ( !( $adentry->{showinaddressbook} ) ) {
 			push @changes, add => [
 				showInAddressBook => [
-"CN=Default Global Address List,CN=All Global Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=example,DC=com",
-"CN=All Users,CN=All Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=example,DC=com"
+"CN=Default Global Address List,CN=All Global Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=ad,DC=example,DC=com",
+"CN=All Users,CN=All Address Lists,CN=Address Lists Container,CN=My Company,CN=Microsoft Exchange,CN=Services,CN=Configuration,DC=ad,DC=example,DC=com"
 				]
 			];
 		}
@@ -841,16 +843,16 @@ foreach my $uid ( keys %$adusersbyuid ) {
 	my @changes;
 
 	my %sync = (
-		displayname                => "DISPLAY_NAME",
-		mobile                     => "MOBILE_PHONE",
-		title                      => "POSITION_TITLE",
-		description                => "POSITION_TITLE",
-		department                 => "DEPT_NAME",
-		manager                    => "MANAGER_SYSTEM_USER_ID",
-		telephonenumber            => "OFFICE_PHONE",
-		roomnumber                 => "LOCATION",
+		displayname		=> "DISPLAY_NAME",
+		mobile		     => "MOBILE_PHONE",
+		title		      => "POSITION_TITLE",
+		description		=> "POSITION_TITLE",
+		department		 => "DEPT_NAME",
+		manager		    => "MANAGER_SYSTEM_USER_ID",
+		telephonenumber	    => "OFFICE_PHONE",
+		roomnumber		 => "LOCATION",
 		physicaldeliveryofficename => "LOCATION",
-		company                    => "PERSON_COMPANY_NAME"
+		company		    => "PERSON_COMPANY_NAME"
 	);
 
 	foreach my $key ( keys %sync ) {
@@ -1043,7 +1045,7 @@ sub makeuprandompasswd {
 }
 
 sub normalizephone {
-	my $phone        = shift;
+	my $phone	= shift;
 	my $country_code = shift;
 
 	# There should be no spaces, but whatever.
@@ -1087,3 +1089,19 @@ sub write_log {
 	}
 	printf LOG "\n";
 }
+
+#
+# This function should be used to determine if a user account should be
+# active or not.  We seem to keep adding special cases to account statuses
+#
+# XXX This defintion needs to move into the db
+#       
+sub IsUserEnabled {  
+	my $status = shift;
+	if ($status eq "enabled" || $status eq "onleave-enable") {
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
