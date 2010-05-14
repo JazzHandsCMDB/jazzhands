@@ -41,7 +41,7 @@ BINS=insertaladdindata tokutil synctokendata
 
 
 all:
-	cd perl && perl Makefile.PL && make
+	cd perl && perl Makefile.PL && $(MAKE)
 	cd lib && $(MAKE) INSTALLDIR=$(INSTALLDIR)
 
 install:

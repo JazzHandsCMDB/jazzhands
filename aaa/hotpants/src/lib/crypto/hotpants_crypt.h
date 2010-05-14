@@ -29,6 +29,7 @@
 #define __HOTPANTS_CRYPT_H
 
 #include <sys/types.h>
+#include <stdint.h>
 
 #ifndef __BIT_TYPES_DEFINED__
 #define __BIT_TYPES_DEFINED__
@@ -46,7 +47,7 @@ char *__md5crypt_r(const char *pw, const char *salt, char *password);	/* XXX */
 char *__bcrypt_r(const char *, const char *, char *password);	/* XXX */
 char *__crypt_sha1_r(const char *pw, const char *salt, char *password);
 unsigned int __crypt_sha1_iterations(unsigned int hint);
-void __hmac_sha1(unsigned char *, size_t, unsigned char *, size_t, unsigned char *);
+void __hmac_sha1(const unsigned char *, size_t, const unsigned char *, size_t, unsigned char *);
 void __crypt_to64(char *s, u_int32_t v, int n);
 
 int __gensalt_blowfish(char *salt, size_t saltlen, const char *option);

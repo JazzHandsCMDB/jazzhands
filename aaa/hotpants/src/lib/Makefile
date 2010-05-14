@@ -27,6 +27,7 @@
 OS=$(shell uname -s)
 ifeq ($(OS), SunOS)
 	INSTALL=/usr/ucb/install
+	PIC=-Kpic
 	CFLAGS=-I/usr/local/db4.4/include -I/usr/local/openssl-0.9.8/include -DSOLARIS
 	LDFLAGS=-L/usr/local/db4.4/lib -R/usr/local/db4.4/lib -L/usr/local/openssl-0.9.8/lib -R/usr/local/openssl-0.9.8/lib -Lcrypto -R$(INSTALLDIR)/lib -lhotpants_crypto -lcrypto -ldb -lsocket -lnsl
 endif
@@ -34,6 +35,13 @@ ifeq ($(OS), NetBSD)
 	CFLAGS=-I/usr/pkg/include/db4
 	LDFLAGS=-L/usr/pkg/lib -R/usr/pkg/lib -Lcrypto -lhotpants_crypt -ldb4
 endif
+ifeq ($(OS), Linux)
+	INSTALL=/usr/bin/install
+	PIC=-fpic
+	CFLAGS=
+	LDFLAGS=-Lcrypto -R$(INSTALLDIR)/lib -lhotpants_crypto -ldb-4.6
+endif
+
 CC=cc
 DEBUG=-g
 
@@ -51,14 +59,14 @@ SUBDIRS=crypto
 crypto/libhotpants_crypto.so: crypto
 
 $(SUBDIRS):
-	cd $@; gmake
+	cd $@; $(MAKE)
 
 OBJS=db.o serialize.o base64.o user.o token.o auth.o config.o hotp.o error.o
 
 
 $(OBJS): ../include/hotpants.h
 $(OBJS): %.o: %.c
-	$(CC) -c $(CFLAGS) $(DEBUG) -Kpic $< -o $@
+	$(CC) -c $(CFLAGS) $(DEBUG) $(PIC) $< -o $@
 
 auth.o: ../include/hotpants.h ../include/hotpants_internals.h
 
@@ -75,7 +83,7 @@ authtest: libhotpants.so authtest.o
 	$(CC) -o $@ $(DEBUG) authtest.o -L. -Lcrypto -R`pwd` -lhotpants
 
 clean:
-	cd crypto; gmake clean
+	cd crypto; $(MAKE) clean
 	rm -f $(OBJS) dbtest.o authtest.o
 	rm -f libhotpants.so
 	rm -f dbtest authtest hotp

@@ -40,6 +40,7 @@
 #include <netinet/in.h>
 #include <inttypes.h>
 #endif
+#include <stdint.h>
 
 #ifndef __BIT_TYPES_DEFINED__
 #define __BIT_TYPES_DEFINED__
