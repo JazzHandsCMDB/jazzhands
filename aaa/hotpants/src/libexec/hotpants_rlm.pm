@@ -304,6 +304,14 @@ sub authenticate {
 	}
 
 	#
+	# Copy all of the attribute/value pairs.  Where $source is radius,
+	# JH-Application-ACL is handled differently below.  This probably
+	# needs to be rethought.
+	#
+	map { $RAD_REPLY{$_} = $attrs->{RADIUS}->{$_}->{value} }
+	  sort keys %{ $attrs->{RADIUS} };
+
+	#
 	# If we have JH-Application-Name set, return all of the attributes
 	# for that application type.  If JH-Application-ACL was set, then
 	# see if any of the ACLs match
@@ -330,13 +338,6 @@ sub authenticate {
 				}
 			}
 		}
-	} else {
-
-		#
-		# Otherwise, just copy all of the attribute/value pairs
-		#
-		map { $RAD_REPLY{$_} = $attrs->{RADIUS}->{$_}->{value} }
-		  sort keys %{ $attrs->{RADIUS} };
 	}
 
 	$hp->closedb;
