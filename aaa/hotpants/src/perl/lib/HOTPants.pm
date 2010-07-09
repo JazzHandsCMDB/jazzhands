@@ -1835,7 +1835,8 @@ sub HOTPAuthenticate {
 		}
 	}
 	if ( !$validtoken ) {
-		$errstr = "no valid tokens found for user";
+		$errstr = "unable to find a token with that PIN and OTP assigned
+ to user";
 		goto HOTPAuthDone;
 	}
 	if ( !$pinfound ) {
