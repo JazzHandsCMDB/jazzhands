@@ -213,7 +213,7 @@ sub do_work {
 	}
 
 	my $grps = {};
-	$fh = new FileHandle($passwd) || die "$passwd: $!";
+	my $fh = new FileHandle($passwd) || die "$passwd: $!";
 	while(my $line = $fh->getline) {
 		chomp($line);
 		my(@f) = split(/:/, $line);
