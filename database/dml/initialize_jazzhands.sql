@@ -648,3 +648,6 @@ VALUES (
 	'mclass'
 	);
 
+
+insert into val_auth_resource (auth_resource) values ('radius');
+

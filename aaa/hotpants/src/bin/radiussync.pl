@@ -438,7 +438,7 @@ if ($syncusers) {
 		exit -1;
 	}
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing database query: %s\n",
+		printf STDERR "Error executing user query: %s\n",
 		  $dbh->errstr;
 		exit -1;
 	}
@@ -475,7 +475,7 @@ if ($syncusers) {
 		)
 	  )
 	{
-		printf STDERR "Error preparing database query: %s\n",
+		printf STDERR "Error preparing system user database query: %s\n",
 		  $dbh->errstr;
 		exit -1;
 	}
@@ -1061,7 +1061,7 @@ if ($syncpasswds) {
 	}
 
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing passwd query: %s\n",
+		print STDERR "Error executing passwd query: %s",
 		  $sth->errstr;
 		exit 1;
 	}
@@ -1200,8 +1200,8 @@ if ($syncattrs) {
 	$q = qq {
 		SELECT
 			Login,
-			UClass_Property_Name,
-			UClass_Property_Type,
+			Property_Name,
+			Property_Type,
 			Property_Value,
 			Is_Multivalue,
 			Is_Boolean,
@@ -1212,7 +1212,7 @@ if ($syncattrs) {
 		WHERE
 			System_User_Status IN ('enabled') AND
 			(Device_Collection_Type = 'radius_app' OR
-			UClass_Property_Type = 'RADIUS')
+			Property_Type = 'RADIUS')
 	};
 
        #

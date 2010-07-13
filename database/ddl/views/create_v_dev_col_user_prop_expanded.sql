@@ -29,8 +29,9 @@
 CREATE OR REPLACE VIEW v_dev_col_user_prop_expanded AS
 SELECT dchd.device_collection_id,
   s.system_user_id, s.login, s.system_user_status,
-  upo.property_type uclass_property_type,
-  upo.property_name uclass_property_name, upo.property_value,
+  upo.property_type property_type,
+  upo.property_name property_name, 
+  upo.property_value,
   decode(upn.is_multivalue, 'N', 0, 'Y', 1) is_multivalue,
   CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
 FROM v_uclass_user_expanded_detail uued
