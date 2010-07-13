@@ -30,9 +30,7 @@ use warnings;
 use FileHandle;
 use Net::Netmask;
 use JazzHands::STAB;
-use vars qw($stab);
-use vars qw($cgi);
-use vars qw($dbh);
+use Data::Dumper;
 
 do_add_child_netblock_prompt();
 
@@ -43,9 +41,9 @@ do_add_child_netblock_prompt();
 ###########################################################################3
 
 sub do_add_child_netblock_prompt {
-	$stab = new JazzHands::STAB || die "Could not create STAB";
-	$cgi  = $stab->cgi          || die "Could not create cgi";
-	$dbh  = $stab->dbh          || die "Could not create dbh";
+	my $stab = new JazzHands::STAB || die "Could not create STAB";
+	my $cgi  = $stab->cgi          || die "Could not create cgi";
+	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
 	my $netblkid = $cgi->param('id') || undef;
 
@@ -53,31 +51,18 @@ sub do_add_child_netblock_prompt {
 		$stab->error_return("You must specify a valid Netblock!");
 	}
 
-	my $q = qq{
-		select	ip_manip.v4_octet_from_int(ip_address) as ip,
-			netmask_bits,
-			description
-		 from	netblock
-		where	netblock_id = :1
-	};
-	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
-
-	if ( !( $sth->execute($netblkid) ) ) {
-		$stab->return_db_err($sth);
-	}
-
-	my ( $ip, $bits, $desc ) = $sth->fetchrow_array;
-	$sth->finish;
-
-	if ( !defined($ip) ) {
+	my $blk = $stab->get_netblock_from_id($netblkid, 'N');
+  
+	if(!defined($blk)) {
 		$stab->error_return("Unknown Parent Netblock");
 	}
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html( { -title => 'STAB: Add a child netblock' } ),
 	  "\n";
-	print $cgi->h2( "Add a child to $ip/$bits "
-		  . ( ( defined($desc) ) ? "($desc)" : "" ) );
+	print $cgi->h2( "Add a child to ", $blk->{'IP'}, '/', 
+		$blk->{NETMASK_BITS},
+		  ( (defined($blk->{DESCRIPTION}))?"$blk->{DESCRIPTION}":""));
 
 	print $cgi->start_form( { -action => "doadd.pl" } ), "\n";
 	print "IP/Bits:, "

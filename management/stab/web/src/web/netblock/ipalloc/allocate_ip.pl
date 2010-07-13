@@ -38,6 +38,7 @@ use warnings;
 use JazzHands::STAB;
 use Data::Dumper;
 use Carp;
+use Net::IP;
 
 process_netblock_reservations();
 
@@ -65,11 +66,20 @@ sub process_netblock_reservations {
 	#
 	# we actually only get here if something changed..
 	#
-	for my $ip ( $stab->cgi_get_ids('desc') ) {
-		my $inid   = $stab->cgi_parse_param( 'rowblk',           $ip );
-		my $indesc = $stab->cgi_parse_param( 'desc',             $ip );
-		my $tixsys = $stab->cgi_parse_param( 'APPROVAL_TYPE',    $ip );
-		my $intix  = $stab->cgi_parse_param( 'APPROVAL_REF_NUM', $ip );
+	for my $uniqid ( $stab->cgi_get_ids('desc') ) {
+		my $inid   = $stab->cgi_parse_param( 'rowblk',           $uniqid );
+		my $indesc = $stab->cgi_parse_param( 'desc',             $uniqid );
+		my $tixsys = $stab->cgi_parse_param( 'APPROVAL_TYPE',    $uniqid );
+		my $intix  = $stab->cgi_parse_param( 'APPROVAL_REF_NUM', $uniqid );
+		my $inip  = $stab->cgi_parse_param( 'ip', $uniqid );
+
+		my $ip;
+		if($uniqid !~ /^new_\d+/) {
+			$ip = $uniqid;
+		} else {
+			$ip = $inip;
+		}
+
 
 		# already exists, so assume so.
 		if ($inid) {
@@ -190,6 +200,21 @@ sub ipalloc_get_or_create_netblock_id {
 		return undef;
 	}
 
+	my $pip = new Net::IP($netblock->{IP}."/".$netblock->{NETMASK_BITS}) ||
+		$stab->error_return("Netblock IP is not valid") ;
+
+	my $nip = new Net::IP($insert_ip) ||
+		$stab->error_return("IP: $insert_ip is not valid") ;
+
+	#
+	# check to see if IP is in the parent netblock.  This is more meaningful
+	# in Ipv6 (or large block) additions
+	#
+	if($pip->overlaps($nip) != $IP_B_IN_A_OVERLAP) {
+		$stab->error_return("$insert_ip is not in ".
+			$netblock->{IP}."/".$netblock->{NETMASK_BITS});
+	}
+
 	my $nbid;
 	my $q = qq {
 		insert into netblock (
@@ -199,7 +224,7 @@ sub ipalloc_get_or_create_netblock_id {
 			PARENT_NETBLOCK_ID, DESCRIPTION, 
 			APPROVAL_TYPE, APPROVAL_REF_NUM
 		) values (
-			ip_manip.v4_int_from_octet(:ip, 1), :bits, 'Y',
+			:ip, :bits, :ipv4,
 			'Y', 'Reserved',
 			'N',
 			:parent_nblkid, :description, 
@@ -209,13 +234,15 @@ sub ipalloc_get_or_create_netblock_id {
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
 	$sth->bind_param_inout( ":rv", \$nbid, 500 )
 	  || $stab->return_db_err($sth);
-	$sth->bind_param( ":ip",   $insert_ip ) || $stab->return_db_err($sth);
+	$sth->bind_param( ":ip",   $nip->intip() ) || $stab->return_db_err($sth);
 	$sth->bind_param( ":bits", $bits )      || $stab->return_db_err($sth);
 	$sth->bind_param( ":parent_nblkid", $par_nbid )
 	  || $stab->return_db_err($sth);
 	$sth->bind_param( ":description", $desc ) || $stab->return_db_err($sth);
 	$sth->bind_param( ":tixsys", $tixsys ) || $stab->return_db_err($sth);
 	$sth->bind_param( ":tix",    $tix )    || $stab->return_db_err($sth);
+	$sth->bind_param(":ipv4", ($bits>32)?'N':'Y') || $stab->return_db_err($sth);
+
 	$sth->execute || $stab->return_db_err($sth);
 	$nbid;
 }
@@ -345,11 +372,18 @@ sub cleanup_unchanged_netblocks {
 	$sth->execute($nblkid) || $stab->return_db_err($sth);
 	my $all = $sth->fetchall_hashref('NETBLOCK_ID');
 
-	for my $ip ( $stab->cgi_get_ids('desc') ) {
-		my $inid   = $stab->cgi_parse_param( 'rowblk',           $ip );
-		my $indesc = $stab->cgi_parse_param( 'desc',             $ip );
-		my $intix  = $stab->cgi_parse_param( 'APPROVAL_REF_NUM', $ip );
-		my $intixsys = $stab->cgi_parse_param( 'APPROVAL_TYPE', $ip );
+	for my $uniqid ( $stab->cgi_get_ids('desc') ) {
+		my $inid   = $stab->cgi_parse_param( 'rowblk',           $uniqid );
+		my $indesc = $stab->cgi_parse_param( 'desc',             $uniqid );
+		my $intix  = $stab->cgi_parse_param( 'APPROVAL_REF_NUM', $uniqid );
+		my $intixsys = $stab->cgi_parse_param( 'APPROVAL_TYPE', $uniqid );
+
+		#
+		# new IP addresses, need to add them.
+		next if($uniqid =~ /^new_\d+/);
+
+		my $ip = $uniqid;
+
 
 	    # if it correponds to an actual row, compare, otherwise only keep if
 	    # something is set.

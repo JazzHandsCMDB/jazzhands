@@ -2425,6 +2425,70 @@ qq{Rack $rack->{ROOM} : $rack->{RACK_ROW} - $rack->{RACK_NAME}}
 
 	$rv;
 }
+##############################################################################
+#
+# License Tracking
+#
+##############################################################################
+sub device_license_tab {
+	my($self, $devid) = @_;
+
+	my $cgi = $self->cgi;
+
+	my $rv = "";
+
+	my $sth = $self->prepare(qq{
+		select	dc.device_collection_id, dc.name
+ 		  from	device_collection dc
+				inner join device_collection_member dcm
+					on dc.device_collection_id = dcm.device_collection_id
+		 where	dc.device_collection_type = 'applicense'
+		   and	dcm.device_id = :1
+	}) || $self->return_db_err;
+
+	$sth->execute($devid) || $self->return_db_err;
+
+	my $tt = "";
+	while(my $hr = $sth->fetchrow_hashref) {
+		my $delid = "rm_Lic_DEVICE_COLLECTION_". $hr->{DEVICE_COLLECTION_ID};
+		my $rm .= $cgi->checkbox(
+			-name=> $delid,
+			-id=> $delid,
+			-checked => undef,
+			-value => 'on',
+			-label => 'Delete',
+		);
+		$tt .= $cgi->Tr($cgi->td( [
+			$rm,
+			$hr->{NAME},
+		]));
+	}
+
+	my $addid = "tr_lic_devid_". $devid;
+	$rv = $cgi->table({-align => 'center', border=>1}, 
+		$cgi->th(['Remove', 'License Type']), 
+		$tt,
+		$cgi->Tr({-id => $addid}, 
+			$cgi->td({-colspan => 2, style=>'text-align: center;'}, 
+				$cgi->a({-onClick => "add_License(this, \"$addid\", $devid)",
+						-href=>"javascript:void(null)"}, 
+					"Add a License"),
+			),
+		)
+	);
+
+#	$rv = $cgi->table({-align => 'center'}, 
+#		$cgi->th(['Remove', 'License Type']), 
+#		$cgi->Tr($cgi->td( [
+#			"r",
+#			$self->b_dropdown({ -deviceCollectionType => 'applicense'},
+#				undef, 'DEVICE_COLLECTION_ID'),
+#		])),
+#	);
+
+	$rv;
+}
+	
 
 ##############################################################################
 #

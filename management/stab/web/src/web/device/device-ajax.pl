@@ -53,6 +53,9 @@ sub do_show_serial {
 	my $osid     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID')  || undef;
 	my $site     = $stab->cgi_parse_param('SITE_CODE')            || undef;
 	my $locid    = $stab->cgi_parse_param('LOCATION_ID')          || undef;
+	my $dropid = $stab->cgi_parse_param('dropid') || undef;
+	my $uniqid = $stab->cgi_parse_param('uniqid');
+  
 
 	if ( $what eq 'serial' ) {
 		$what = 'Serial';
@@ -179,6 +182,8 @@ sub do_show_serial {
 		print $stab->device_switch_port( $devid, $parent );
 	} elsif ( $what eq 'PatchPanel' ) {
 		print $stab->device_patch_ports($devid);
+	} elsif($what eq 'Licenses') {
+		print $stab->device_license_tab($devid);
 	} elsif ( $what eq 'PhysicalConnection' ) {
 		if ($row) {
 			print $stab->device_physical_connection( $devid,
@@ -187,6 +192,19 @@ sub do_show_serial {
 			print $stab->device_physical_connection( $devid,
 				$pportid );
 		}
+	} elsif($what eq 'IpRow') {
+		# params, blk, hr, ip, reservation
+		print $stab->build_netblock_ip_row(
+			{-uniqid => $uniqid},
+		);
+	} elsif($what eq 'LicenseDrop') {
+		my $values = undef;
+		my $args = {};
+		$args->{-deviceCollectionType} = 'applicense';
+		$args->{-id} = $dropid;
+		$args->{-name} = $dropid;
+		print $stab->b_dropdown($args, $values,
+			'DEVICE_COLLECTION_ID', 'DEVICE_ID');
 	} elsif ( $what eq 'SiteRacks' ) {
 		my $p;
 		if ( $locid || $site ) {

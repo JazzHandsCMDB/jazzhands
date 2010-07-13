@@ -1005,7 +1005,7 @@ function showCircuitKids(link, circid, parent_tr_id, interface_id)
 	tr.appendChild(td);
 
 	td = document.createElement("td");
-	td.inner_html = " I am a total td";
+	td.innerHTML = " I am a total td";
 	td.colSpan = 5;
 	tr.appendChild(td);
 
@@ -1023,4 +1023,72 @@ function showCircuitKids(link, circid, parent_tr_id, interface_id)
 		}
 	}
 	ajaxrequest.send(null);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// License
+//
+/////////////////////////////////////////////////////////////////////////////
+function add_License(thing, parent_tr_id, devid)
+{
+	var tbl, newtd, newtr, ptr, url, dropname;
+	var ajaxrequest;
+
+	for(tbl = thing; tbl.parentNode != null; 	tbl = tbl.parentNode) {
+		if(tbl.tagName == 'TABLE') {
+			break;
+		}
+	}
+
+	ptr = document.getElementById(parent_tr_id);
+	if(ptr == null) {
+		return;
+	}
+
+	if(tbl) {
+		var trid, rmclick;
+		for(var i = 0; ; i++) {
+			var idname = "";
+			idname = "add_license_" + devid + "_" + i;
+			trid = "addlictr_" + devid + "_" + i;
+			dropname = document.getElementById(idname);
+			if(dropname == null) {
+				break;
+			}
+		}
+
+		// insert before the "add a license" button"
+		newtr = tbl.insertRow(ptr.rowIndex);
+		newtr.style.display = 'none';
+		newtr.id = trid;
+		newtr.style.visibility = 'hidden';
+
+
+		newtd = document.createElement("td");
+		rmclick = document.createElement("a");
+		rmclick.innerHTML = "REMOVE";
+		rmclick.onclick = function() { newtr.parentNode.removeChild(newtr); };
+		newtd.appendChild(rmclick);
+		newtr.appendChild(newtd);
+
+		newtd = document.createElement("td");
+		// note that newtd is used later!
+		newtr.appendChild(newtd);
+
+		url = "device-ajax.pl?what=LicenseDrop;dropid=" + idname;
+		ajaxrequest = createRequest();
+		ajaxrequest.open("GET", url, true);
+		ajaxrequest.onreadystatechange = function () {
+			if(ajaxrequest.readyState == 4) {
+				var htmlgoo = ajaxrequest.responseText;
+				// swaparrows("cirExpand_" + circid, 'down');
+				newtd.innerHTML = htmlgoo;
+				newtr.style.display = '';
+				newtr.style.visibility = 'visible';
+			}
+		}
+	    ajaxrequest.send(null);
+
+	}
 }

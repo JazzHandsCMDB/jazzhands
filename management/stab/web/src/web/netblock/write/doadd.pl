@@ -30,9 +30,6 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
-use vars qw($stab);
-use vars qw($cgi);
-use vars qw($dbh);
 
 do_netblock_addition();
 
@@ -43,18 +40,35 @@ do_netblock_addition();
 #############################################################################
 
 sub do_netblock_addition {
-	$stab = new JazzHands::STAB || die "Could not create STAB";
-	$cgi  = $stab->cgi          || die "Could not create cgi";
-	$dbh  = $stab->dbh          || die "Could not create dbh";
+	my $stab = new JazzHands::STAB || die "Could not create STAB";
+	my $cgi  = $stab->cgi          || die "Could not create cgi";
+	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
 	my $par_nblkid = $cgi->param('parentnblkid') || undef;
 	my $ip         = $stab->cgi_parse_param('ip');
 	my $bits       = $stab->cgi_parse_param('bits');
 	my $desc       = $stab->cgi_parse_param('description');
 
-	if ( !defined($par_nblkid) || !defined($ip) || !defined($bits) ) {
+	if ( !defined($par_nblkid) || !defined($ip)) {
 		$stab->error_return("Insufficient Values Specified.");
 	}
+
+	if($ip =~ s,/(\d+)$,,) {
+		my $embedbits = $1;
+		warn "compare $bits and $embedbits\n";
+		if(defined($embedbits) && defined($bits)) {
+			if($embedbits != $bits) {
+				$stab->error_return("Bits do not match");
+			}
+		} elsif(defined($embedbits) && !defined($bits)) {
+			$bits = $embedbits;
+		}
+	}
+
+	if(!defined($bits)) {
+		$stab->error_return("Insufficient Bits Specified");
+	}
+
 
 	if ( $bits == 0 ) {
 		$stab->error_return(
@@ -75,18 +89,54 @@ sub do_netblock_addition {
 	my $par_ip   = $netblock->{'IP'};
 	my $par_bits = $netblock->{'NETMASK_BITS'};
 
-	my $parnb = new Net::Netmask("$par_ip/$par_bits");
+	#
+	# Check to ensure that parent/child relationship is ok.  This can
+	# actually all be done with Net::IP, and does not need to be done
+	# with Net::Netmask.  Part of the ripping apart of all of this...
+	# [XXX]
+	#
+	if($netblock->{'IS_IPV4_ADDRESS'} eq 'Y') {
+        	my $par_ip = $netblock->{'IP'};
+        	my $par_bits = $netblock->{'NETMASK_BITS'};
+  
+		my $parnb = new Net::Netmask("$par_ip/$par_bits") || $stab->error_return("Invalid IPv4 address: ", Net::IP::Error());
 
-	if ( !$parnb->contains("$ip/$bits") ) {
-		$cgi->delete('orig_referer');
-		$stab->error_return(
-			qq{
-			$ip/$bits is not a child netblock of 
-			$par_ip/$par_bits
+
+		if ( !$parnb->contains("$ip/$bits") ) {
+			$cgi->delete('orig_referer');
+			$stab->error_return(
+				qq{
+				$ip/$bits is not a child netblock of 
+				$par_ip/$par_bits
+			}
+			);
+			exit 0;
 		}
-		);
-		exit 0;
+	 } else { # IPv6
+		my $par_ip = $netblock->{'IP'};
+		my $par_bits = $netblock->{'NETMASK_BITS'};
+
+		my $parn = new Net::IP("$par_ip/$par_bits") ||
+			$stab->error_return(
+				"Invalid IPv6 parent address: ", Net::IP::Error()
+			);
+
+		my $me = new Net::IP($ip) ||
+			$stab->error_return(
+				"Invalid IPv6 address: ", Net::IP::Error()
+			);
+
+
+		if($me->intip() < $parn->intip() ||
+		   $me->intip() > ($parn->intip() + $parn->size())) {
+			$stab->error_return(qq{
+				$ip/$bits is not a child netblock of
+				$par_ip/$par_bits
+			});
+		}
 	}
+
+	my $me = new Net::IP($ip) || $stab->error_return("Invalid IPv6 address: ", Net::IP::Error());
 
 	my $q = qq{
 		insert into netblock
@@ -95,15 +145,19 @@ sub do_netblock_addition {
 		 	is_single_address, parent_netblock_id, netblock_status,
 		 	description, is_organizational
 		) values (
-			ip_manip.v4_int_from_octet(:1,1), :2, 'Y', 
-		 	'N', :3, 'Allocated',
-			:4, 'N'
+			:1, :2, :3,
+		 	'N', :4, 'Allocated',
+			:5, 'N'
 		)
 	};
 
-	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
+	my $sth = $stab->prepare($q) || die "$q" . $stab->errstr;
 
-	if ( !( $sth->execute( $ip, $bits, $par_nblkid, $desc ) ) ) {
+	# XXX $me->ip_is_ipv4() is not reasonable, so I just do a stupid
+	# check against bits.  ugh.
+	if ( !( $sth->execute( $me->intip(), $bits, 
+			($bits > 32)?'N':'Y',
+			$par_nblkid, $desc ) ) ) {
 		print $cgi->delete('orig_referer');
 		if ( $sth->err == 29532 ) {
 			print $stab->error_return("Invalid IP");

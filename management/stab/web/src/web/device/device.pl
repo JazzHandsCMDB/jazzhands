@@ -380,6 +380,7 @@ sub build_page {
 
 			#	"AppGroup" => "AppGroup",
 			"Location"     => "Location",
+			"Licenses"     => "Licenses",
 			"Advanced"     => "Advanced",
 			"Notes"        => "Notes$numnotes",
 			# "DevFunctions" => "Functions",
@@ -396,7 +397,7 @@ sub build_page {
 			);
 		}
 
-		push( @tablist, qw{Location Advanced} );
+		push( @tablist, qw{Location Licenses Advanced} );
 
 		my $intertab = "";
 		foreach my $tab (@tablist) {

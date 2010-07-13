@@ -158,6 +158,8 @@ INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('appgroup');
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
+	VALUES ('applicense');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('undefined');
 
 INSERT INTO VAL_Password_Type (PASSWORD_TYPE)

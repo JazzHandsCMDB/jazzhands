@@ -159,6 +159,7 @@ sub do_update_device {
 	my $osid	= $stab->cgi_parse_param('OPERATING_SYSTEM_ID', $devid);
 	my $voeid	= $stab->cgi_parse_param('VOE_ID', $devid);
 	my $ismonitored	= $stab->cgi_parse_param('chk_IS_MONITORED', $devid);
+	my $baselined	= $stab->cgi_parse_param('chk_IS_BASELINED', $devid);
 	my $parentid	= $stab->cgi_parse_param('PARENT_DEVICE_ID', $devid);
 	my $localmgd	= $stab->cgi_parse_param('chk_IS_LOCALLY_MANAGED', $devid);
 	my $cfgfetch	= $stab->cgi_parse_param('chk_SHOULD_FETCH_CONFIG', $devid);
@@ -204,6 +205,7 @@ sub do_update_device {
 	$localmgd = $stab->mk_chk_yn($localmgd);
 	$virtdev = $stab->mk_chk_yn($virtdev);
 	$cfgfetch = $stab->mk_chk_yn($cfgfetch);
+	$baselined = $stab->mk_chk_yn($baselined);
 
 	if(!defined($devid)) {
 		$stab->error_return("You must actually specify a device to update.");
@@ -288,6 +290,8 @@ sub do_update_device {
 	$numchanges += update_power_ports($stab, $devid);
 
 	$numchanges += add_interfaces($stab, $devid);
+
+	$numchanges += process_licenses($stab, $devid);
 
 	$numchanges += process_interfaces($stab, $devid);
 
@@ -388,7 +392,7 @@ sub reconcile_appgroup {
 
 	# get a list of the currently assigned leaf nodes for manipulation
 	# purposes;
-	my @curlist = $stab->get_device_collection($devid, 'appgroup');
+	my @curlist = $stab->get_device_collections_for_device($devid, 'appgroup');
 
 	# 1. go through all the leaf appgroups in the db and see if any need
 	# to be unset
@@ -1956,6 +1960,43 @@ sub add_device_note {
 }
 
 ########################################################################
+sub process_licenses {
+	my($stab, $devid) = @_;
+
+	my $cgi = $stab->cgi;
+	my $numchanges = 0;
+
+	my @existingdc = $stab->get_device_collections_for_device($devid, 'applicense');
+
+	for my $dcid ($stab->cgi_get_ids('rm_Lic_DEVICE_COLLECTION')) {
+		# my $checked	= $stab->cgi_parse_param("rm_Lic_DEVICE_COLLECTION", $dcid);
+		if($dcid !~ /^\d+$/ || !grep($dcid == $_, @existingdc)) {
+			# $stab->error_return("Device Collection ($dcid) is not assigned to this node.");
+			next;
+		}
+		my $dc = $stab->get_device_collection($dcid);
+		if($dc->{DEVICE_COLLECTION_TYPE} ne 'applicense') {
+			$stab->error_return("Invalid attempt to remove a non-license");
+		}
+		$numchanges += $stab->remove_from_device_collection($devid, $dcid, 'applicense');
+	}
+
+	for my $offset ($stab->cgi_get_ids("add_license_$devid")) {
+		my $dcid	= $stab->cgi_parse_param("add_license_$devid", $offset);
+		if($dcid !~ /^\d+$/ || grep($dcid == $_, @existingdc)) {
+			# $stab->error_return("Device Collection ($dcid) is already assigned to this node.");
+			next;
+		}
+		my $dc = $stab->get_device_collection($dcid);
+		if($dc->{DEVICE_COLLECTION_TYPE} ne 'applicense') {
+			$stab->error_return("Invalid attempt to remove a non-license");
+		}
+		$numchanges += $stab->add_to_device_collection($devid, $dcid);
+	}
+
+	$numchanges;
+}
+
 sub process_interfaces {
 	my($stab, $devid) = @_;
 

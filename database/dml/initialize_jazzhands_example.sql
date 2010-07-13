@@ -70,3 +70,35 @@ insert into rack (
 
 insert into site (site_code, colo_partner_id, site_status, description)
 	values ('CZ0', 0, 'ACTIVE', 'Czech Satellite Office');
+
+-- FC00::/7
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334965454937798799971759379190646833152, 7, 'N', 'N', 'Allocated', 'RFC4193 IPV6 Block', 'N', null);
+
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010747267358593998913536, 48, 'N', 'N', 'Allocated', 'Test Block 1', 'N', (select netblock_id from netblock where ip_address = 334965454937798799971759379190646833152 and netmask_bits = 7));
+
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010747267358593998913536, 64, 'N', 'N', 'Allocated', 'Test Block 2', 'N', (select netblock_id from netblock where ip_address = 334969971398294010747267358593998913536 and netmask_bits = 48));
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010931734799331094429696, 64, 'N', 'N', 'Allocated', 'Test Block 3', 'N', (select netblock_id from netblock where ip_address = 334969971398294010747267358593998913536 and netmask_bits = 48));
+
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010931734799331094429697, 64, 'N', 'Y', 'Reserved', 'test address 1', 'N', (select netblock_id from netblock where ip_address = 334969971398294010931734799331094429696 and netmask_bits = 64));
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010931734799331094429698, 64, 'N', 'Y', 'Reserved', 'test address 2', 'N', (select netblock_id from netblock where ip_address = 334969971398294010931734799331094429696 and netmask_bits = 64));
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010931734799331094429705, 64, 'N', 'Y', 'Reserved', 'test address 3', 'N', (select netblock_id from netblock where ip_address = 334969971398294010931734799331094429696 and netmask_bits = 64));
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010931734799331094429999, 64, 'N', 'Y', 'Reserved', 'test address 4', 'N', (select netblock_id from netblock where ip_address = 334969971398294010931734799331094429696 and netmask_bits = 64));
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
+        (334969971398294010931734799331094500000, 64, 'N', 'Y', 'Reserved', 'test address 5', 'N', (select netblock_id from netblock where ip_address = 334969971398294010931734799331094429696 and netmask_bits = 64));
+
+insert into device_collection 
+	(name, DEVICE_COLLECTION_TYPE, SHOULD_GENERATE_SUDOERS)
+values
+	('cots1', 'applicense', 'N');
+insert into device_collection 
+	(name, DEVICE_COLLECTION_TYPE, SHOULD_GENERATE_SUDOERS)
+values
+	('cots2', 'applicense', 'N');

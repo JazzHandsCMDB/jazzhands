@@ -52,6 +52,10 @@ sub do_netblock_search {
 	}
 
 	if ( defined($bycidr) ) {
+		if($bycidr =~ /:/) {
+			$stab->error_return("No support for IPv6 yet.  Soon.");
+		}
+
 		my $blk = $stab->parse_netblock_search($bycidr);
 
 		if ( !defined($blk) ) {

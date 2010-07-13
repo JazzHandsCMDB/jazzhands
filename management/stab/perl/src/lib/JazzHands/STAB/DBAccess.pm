@@ -34,6 +34,8 @@ use Data::Dumper;
 use JazzHands::DBI;
 use URI;
 use Carp;
+use Math::BigInt;
+use Net::IP qw(:PROC);
 
 our @ISA = qw( );
 
@@ -177,7 +179,9 @@ sub get_netblock_from_id {
 
 	my $q = qq{
 		select  netblock.*,
-			ip_manip.v4_octet_from_int(ip_address) as ip
+            		decode(IS_IPV4_ADDRESS, 'Y',
+                		ip_manip.v4_octet_from_int(ip_address),
+                		ip_address) as ip
 		 from   netblock
 		where   netblock_id = :1
 		  	$singq
@@ -186,6 +190,15 @@ sub get_netblock_from_id {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($nblkid) || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
+
+	# [XXX] this needs to be in the database and not translated here.
+	# yuck.
+	if($hr->{'IS_IPV4_ADDRESS'} eq 'N') {
+		my $binip = ip_inttobin($hr->{'IP'}, 6);
+		my $makeip = ip_bintoip($binip,  6);
+		my $ip = new Net::IP ($makeip) or die (Net::IP::Error());
+		$hr->{'IP'} = $ip->short();
+	}
 	$sth->finish;
 
 	return $hr;
@@ -1226,6 +1239,109 @@ sub get_device_functions {
 	\@funcs;
 }
 
+sub add_to_device_collection {
+	my($self, $devid, $dcid) = @_;
+
+	my $sth = $self->prepare(qq{
+		insert into device_collection_member (
+			device_collection_id,
+			device_id
+		) values (
+			:1,
+			:2
+		)
+	}) || $self->return_db_err;
+
+	my $numchanges = 0;
+	$numchanges += $sth->execute($dcid, $devid) || 
+		$self->return_db_err($sth);
+	$numchanges;
+}
+
+sub remove_from_device_collection {
+	my($self, $devid, $dcid,$type) = @_;
+
+	my $q = qq{
+		delete from device_collection_member
+		 where	device_collection_id = :dc
+		  and	device_id = :devid
+	};
+
+	if($type) {
+		$q .= qq{and device_collection_id in
+			(select device_collection_id 
+			   from device_collection
+			  where	device_collection_type = :type
+			)
+		};
+	}
+			 
+	my $sth = $self->prepare($q) || $self->return_db_err;
+
+	my $numchanges = 0;
+	$sth->bind_param(':dc', $dcid) || $self->return_db_err($sth);
+	$sth->bind_param(':devid', $devid) || $self->return_db_err($sth);
+	if($type) {
+		$sth->bind_param(':type', $type) || $self->return_db_err($sth);
+	}
+	$numchanges += $sth->execute || $self->return_db_err($sth);
+	$numchanges;
+}
+
+sub get_device_collection {
+	my($self, $dcid) = @_;
+
+	my $sth = $self->prepare(qq{
+		select	*
+		  from	device_collection
+		 where	device_collection_id = :1
+	}) || die $self->return_db_err;
+
+	$sth->execute($dcid) || $self->return_db_err($sth);
+	my $dc = $sth->fetchrow_hashref;
+	$sth->finish;
+	$dc;
+}
+
+sub get_device_collections_for_device {
+	my($self, $devid, $type) = @_;
+
+	my @dcids;
+	my $q = qq{
+		select	device_collection_id
+		  from	device_collection_member
+		 where	device_id = :devid
+		  and
+				device_collection_id not in
+					(select parent_device_collection_id
+					  from	device_collection_hier
+					)
+	};
+	if($type) {
+		$q .= qq{and device_collection_id in
+			(select device_collection_id 
+			  from device_collection 
+			  where device_collection_type = :type
+			)
+		};
+	}
+
+	my $sth = $self->prepare($q) || $self->return_db_err;
+
+	$sth->bind_param(':devid', $devid) || $self->return_db_err($sth);
+	if($type) {
+		$sth->bind_param(':type', $type) || $self->return_db_err($sth);
+	}
+
+	$sth->execute || $self->return_db_err($sth);
+
+	my(@rv);
+	while( my ($dcid) = $sth->fetchrow_array) {
+		push(@rv, $dcid);
+	}
+	@rv;
+}
+
 sub get_system_user {
 	my ( $self, $suid ) = @_;
 
@@ -1480,6 +1596,171 @@ sub get_x509_cert_by_id {
 	$sth->finish;
 	$hr;
 }
+
+#
+# needs to move into database
+#
+sub v6_int_to_octet {
+	my($self, $in_int) = @_;
+
+	my $binip = ip_inttobin($in_int, 6);
+	my $makeip = ip_bintoip($binip,  6);
+	my $ip = new Net::IP ("$makeip") or die (Net::IP::Error());
+	$ip->short();
+}
+
+sub build_netblock_ip_row {
+	my ($self, $params, $blk, $hr, $ip, $reservation) = @_;
+
+	my $cgi = $self->cgi;
+
+	#
+	# This is used to present a gap that a user can expand to add more
+	# IP addresses;  used mostly with IPv6 where there is potential for
+	# huge spaces between assignments
+	if($params && $params->{-gap}) {
+		my $trgap = $params->{-trgap};
+		my $gapsize = $params->{-gap};
+		my $gapno = $params->{-gapno};
+
+		my $gapnoid = 'nbgap'.$gapno;
+		my $rowid = "trgap_".$trgap++;
+		return $cgi->Tr({-style => 'text-align: center',
+				-id => $rowid,
+			},
+			$cgi->td($cgi->a({
+				-href=>'javascript:void(null);',
+				-onClick => qq{AddIpSpace(this, "$rowid", "$gapnoid");},
+			}, "ADD",
+			)),
+			$cgi->td({-colspan => 5},
+			$cgi->em($cgi->span({-id=>$gapnoid}, $gapsize),
+			"address gap"),
+			),
+		);
+	}
+
+	my $showtr = 1;
+
+	my $org = (defined($blk))?$blk->{'IS_ORGANIZATIONAL'}:undef;
+	$org = 'N' if(!$org); 
+
+	my($id,$bits,$devid,$name,$dom,$status,$desc, $atix, $atixsys);
+
+	$status = "";
+	$name = "";
+	$dom = "";
+
+	my $editabledesc = 0;
+
+	$org = ($hr)?$hr->{'IS_ORGANIZATIONAL'}:'N';
+
+	my $uniqid = $ip;
+	if(defined($params->{-uniqid})) {
+		$uniqid = "new_".$params->{-uniqid};
+	} elsif(!defined($uniqid)) {
+		$uniqid = "__R" . rand();
+	}
+
+	my $printip;
+	if(!defined($ip)) {
+		# [XXX] probably should not asssume this will be there.
+		$showtr = 0;
+		$printip = $cgi->textfield(
+			-name => "ip_$uniqid",
+			-size => '30',
+		);
+	} else {
+		$printip = $ip;
+	}
+
+	if($reservation) {
+		$status = 'Allocation';
+		$desc = $reservation;
+	} elsif(defined($hr)) {
+		$id = $hr->{'NETBLOCK_ID'};
+		$bits = $hr->{'NETMASK_BITS'} || $blk->{'NETMASK_BITS'};
+		$devid = $hr->{'DEVICE_ID'};
+		$name = $hr->{'DNS_NAME'};
+		$dom = $hr->{'SOA_NAME'};
+		$status = $hr->{'NETBLOCK_STATUS'};
+		$desc = $hr->{'DESCRIPTION'};
+		$atix = $hr->{'APPROVAL_REF_NUM'};
+		$atixsys = $hr->{'APPROVAL_TYPE'};
+
+		$printip = "$ip/$bits";
+	
+		my $fqhn = "";
+		if(defined($name)) {
+			$fqhn = $name . (defined($dom)?".$dom":"");
+		}
+	
+		if($status eq 'Reserved' || $status eq 'Legacy') {
+			$editabledesc = 1;
+			if(!defined($devid) && $fqhn) {
+				$desc = $fqhn;
+			}
+		}
+
+		if(defined($devid)) {
+			$printip = $cgi->a({-href=>"../device/device.pl?devid=$devid"}, $printip);
+			$name = $cgi->a({-href=>"../device/device.pl?devid=$devid"}, $name);
+			$desc = $fqhn;
+		}
+	} else {
+		$editabledesc = 1;
+	}
+
+	my $maketixlink;
+	if($editabledesc) {
+		my $h = $cgi->hidden(-name=>"rowblk_$uniqid",
+					-default=>$id);
+		$desc = ( ($id)?$h:"" ) .
+			$cgi->textfield(-name=>"desc_$uniqid",
+				-default=>( ($desc)?$desc:"" ),
+				-size=>50)
+		;
+
+		if(! defined($atix)) {
+			$atix = $self->build_ticket_row($hr, $uniqid, 'IP');
+		} else {
+			$maketixlink = 1;
+		}
+	} else {
+		$maketixlink = 1;
+	}
+
+	my $url;
+	if($maketixlink && defined($atix)) {
+		$url = $self->build_trouble_ticket_link($atix, $atixsys);
+		if($url) {
+			$atix = $cgi->a(
+				{
+		 		-href => $self->build_trouble_ticket_link($atix, $atixsys),
+		 		-target => 'top'
+				}, 
+				"$atixsys:$atix");
+		} else {
+			$atix = "$atixsys:$atix";
+		}
+	}
+
+	my $tds = $cgi->td([
+			$printip, 
+			$status, 
+			$name,
+			($dom)?$dom:"",
+			$desc,
+			$atix,
+		]);
+
+	if($showtr) {
+		$cgi->Tr( $tds );
+	} else {
+		$tds;
+	}
+}
+
 
 1;
 __END__

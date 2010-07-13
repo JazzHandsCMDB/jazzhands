@@ -216,6 +216,20 @@ sub start_html {
 					-src => "$root/javascript/tickets.js"
 				}
 			);
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript/netblock.js"
+				}
+			);
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript/ajax-utils.js"
+				}
+			);
 		}
 		if ( $opts->{-javascript} eq 'dns' ) {
 			if ( !exists( $args{'-script'} ) ) {
@@ -985,7 +999,7 @@ sub b_nondbdropdown {
 		# a Y/N column in the db indicating that is a user
 		# selectable value or some such.
 		%list = (
-			'nsi-rt'      => 'NSI-RT',
+			'rt'      => 'RT',
 			'ppm'         => 'PPM',
 			'servicedesk' => 'ServiceDesk',
 		);
@@ -1482,7 +1496,7 @@ sub b_dropdown {
 			$q .= "where device_collection_type = :devcoltype";
 			$devcoltype = $params->{'-deviceCollectionType'};
 		}
-		$pickone = "Please Select Domain";
+		$pickone = "Please Select License";
 	} else {
 		return "-XX-";
 	}
@@ -2096,15 +2110,15 @@ sub build_trouble_ticket_link {
 	if ( !defined($system) ) {
 		if ( $tix =~ s/^ppm:// ) {
 			$system = 'ppm';
-		} elsif ( $tix =~ s/^nsi-rt:// ) {
-			$system = 'nsi-rt';
+		} elsif ( $tix =~ s/^rt:// ) {
+			$system = 'rt';
 		}
 	}
 
 	if ( $system eq 'ppm' ) {
-"https://ppm.example.com/itg/web/knta/crt/RequestDetail.jsp?REQUEST_ID=$tix";
-	} elsif ( $system eq 'nsi-rt' ) {
-"https://tickets.example.com/Ticket/Display.html?id=$tix";
+		"https://othertool.example.com/ticket?REQUEST_ID=$tix";
+	} elsif ( $system eq 'rt' ) {
+		"https://tickets.example.com/Ticket/Display.html?id=$tix";
 	} else {
 
 		# undef causes the caller to have to not show a link.
