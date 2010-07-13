@@ -78,9 +78,9 @@ BEGIN
  
            --Add precision for NUMBER or provide a default.
            IF cur_col2audit_rec.data_precision IS NULL THEN
-              lv_precision_and_scale := '38,0)';
+              lv_precision_and_scale := '';
            ELSE
-              lv_precision_and_scale :=
+              lv_precision_and_scale := '(' ||
                cur_col2audit_rec.data_precision||','||
                cur_col2audit_rec.data_scale||')';
            END IF;
@@ -88,7 +88,7 @@ BEGIN
            DBMS_OUTPUT.PUT_LINE
 
             (RPAD(LOWER(cur_col2audit_rec.column_name),35)||
-            cur_col2audit_rec.data_type||'('||
+            cur_col2audit_rec.data_type||''||
             lv_precision_and_scale||',');
 
 
