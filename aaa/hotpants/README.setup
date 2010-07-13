@@ -1,0 +1,134 @@
+on Ubuntu8.04.4 -
+
+compile:
+	libdb4.6-dev
+
+run:
+	install freeradius (2.1.0+)
+	libcrypt-eksblowfish-perl
+	libdigest-hmac-perl
+	libberkeleydb-perl (0.27)
+	libdb4.6
+
+	freeradius-utils (fro radclient amoung others)
+
+configure:
+
+need /etc/freeradius/users.hotpants:
+DEFAULT Auth-Type = HOTPants
+        Fall-Through = 1
+
+
+===SNIP=== /etc/freeradius/radiusd.conf
+prefix=/usr
+raddbdir = /var/log/radius
+logdir = ${raddbdir}/log
+radacctdir = ${logdir}/radacct
+client 10.0.0.0/8 {
+	shortname	= 10net
+	secret		= testing123
+	# virtual_server  = default
+}
+max_request_time = 30
+delete_blocked_requests = no
+cleanup_delay = 5
+max_requests = 1024
+security {
+        max_attributes = 200
+        reject_delay = 1
+        status_server = yes
+}
+
+hostname_lookups = no
+allow_core_dumps = no
+regular_expressions     = yes
+extended_expressions    = yes
+log {
+        destination = syslog
+        syslog_facility = local5
+        stripped_names = no
+        auth = yes
+        auth_badpass = no
+        auth_goodpass = no
+}
+
+modules {
+        preprocess {
+                huntgroups = /dev/null
+                hints = /dev/null
+        }
+
+        perl hotpants_rlm {
+                module = ...aaa/hotpants/src/libexec/hotpants_rlm.pm
+        }
+
+        files {
+                usersfile = ${confdir}/users.hotpants
+                acctusersfile = /dev/null
+                preproxy_usersfile = /dev/null
+                compat = no
+        }
+        detail {
+                detailfile = ${radacctdir}/%{Client-IP-Address}/detail-%Y%m%d
+                detailperm = 0600
+        }
+}
+
+server default {
+	listen {
+		ipaddr = 127.0.0.1
+		port = 1812
+		type = auth
+	}
+	client 127.0.0.1 {
+		shortname	= example-client
+		secret		= testing123
+	}
+
+	authorize {
+		preprocess
+		files
+		hotpants_rlm
+	}
+
+	authenticate {
+                Auth-Type HOTPants {
+                        hotpants_rlm
+                }
+	}
+
+	post-auth {
+	}
+	accounting {
+		detail
+	}
+
+}
+===SNIP===
+
+siliness:
+	LD_PRELOAD=/usr/lib/libperl.so.5.8.8 /usr/sbin/freeradius -X
+
+not sure wtf, but its not worth digging that deeply just yet.
+
+set default to password type 'blowfish' similar to:
+
+insert into property(property_type, property_name, 
+	device_collection_id, property_value_password_type)
+VALUES ('MclassUnixProp', 'UnixPwType', 1, 'blowfish');
+
+give 'peeps' radius access on default
+insert into property(property_type, property_name, uclass_Id,
+	device_collection_id, property_value)
+VALUES ('RADIUS', 'GrantAccess', 161, 1, 'Y');
+
+(peeps is just a uclass with 'username' below in it) 
+
+	mkdir /prod/hotpants /prod/hotpants/db
+	aaa/hotpants/src/bin/bin/radiussync.pl
+
+test:
+	radclient -x conje auth testing123 <<EOF
+User-Name= username
+User-Password= password
+EOF

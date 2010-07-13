@@ -47,10 +47,13 @@ our @ISA = ( "Exporter", "JazzHands::Management" );
   IsValidUserType
   GetUser
   GetUsers
+  IsUserEnabled
 );
 
 sub import {
 	JazzHands::Management::User->export_to_level( 1, @_ );
+	# XXX this is here for IsUserEnabled
+	JazzHands::Management::User->export_to_level( 2, @_ );
 }
 
 sub _options {
@@ -989,5 +992,22 @@ sub SetUserAuthQuestions {
 	}
 	return 1;
 }
+
+# XXX this is dup'd in syncadaccts.pl and really just needs to be redone.
+#
+# This function should be used to determine if a user account should be
+# active or not.  We seem to keep adding special cases to account statuses
+#
+# XXX This defintion needs to move into the db
+#
+sub IsUserEnabled {
+        my $status = shift;
+        if ($status eq "enabled" || $status eq "onleave-enable") {
+                return 1;
+        } else {
+                return 0;
+        }
+}
+
 
 1;

@@ -42,7 +42,7 @@ BEGIN {
 		unshift( @INC, "$dir/../../fakeroot.lib/$incentry" );
 
 	}
-	unshift( @INC, "$dir/../perl/lib" );
+	unshift( @INC, "$dir/../../../acct-mgmt/src/lib/lib/" );
 }
 
 use strict;
@@ -723,11 +723,11 @@ if ($syncclients) {
 		FROM	
 			Device_Collection JOIN Device_Collection_Member
 				USING (Device_Collection_ID) JOIN
-			Device USING (Device_Id) JOIN
+			Device USING (Device_Id) LEFT JOIN
 			Device_Function USING (Device_ID) LEFT JOIN
 			Network_Interface NI USING (Device_ID) LEFT JOIN
 			Netblock NB ON
-				(NI.Primary_V4_Netblock_Id = NB.Netblock_ID)
+				(NI.V4_Netblock_Id = NB.Netblock_ID)
 		WHERE
 			Device_Collection_Type = 'mclass' AND
 			Device_Name IS NOT NULL AND
@@ -922,11 +922,13 @@ if ($syncdevcollprops) {
 	$q = qq {
 		SELECT
 			Device_Collection_Id,
-			MClass_Unix_PW_Type
+			Property_Value_Password_Type
 		FROM	
-			MClass_Unix_Prop
+			Property
 		WHERE
-			MClass_Unix_PW_Type IS NOT NULL
+			Property_Name = 'UnixPwType'
+		AND
+			Property_Type = 'MclassUnixProp'
 	};
 
 	if ( !( $sth = $dbh->prepare($q) ) ) {

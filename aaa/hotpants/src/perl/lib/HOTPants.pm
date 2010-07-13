@@ -2335,7 +2335,7 @@ sub AuthenticateUser {
 	{
 		$checkpass = crypt( $password, $p->{passwd} );
 	}
-	( $authmech eq 'sha1_nosalt' )  {
+	elsif ( $authmech eq 'sha1_nosalt' )  {
 		  $checkpass = sha1_base64($password);
 	  } else {
 		  $self->Error(

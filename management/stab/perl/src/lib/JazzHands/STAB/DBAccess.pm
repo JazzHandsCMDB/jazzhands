@@ -92,6 +92,9 @@ sub delete_netblock {
 sub guess_parent_netblock_id {
 	my ( $self, $in_ip, $in_bits ) = @_;
 
+	#-- need to deal with this being IPv4-specific.  So much to go and
+	#-- tweak for ipv6..  *sigh*  XXX
+
 	$in_bits = 32 if ( !defined($in_bits) );
 	my $q = qq {
 		select  Netblock_Id,
@@ -106,6 +109,7 @@ sub guess_parent_netblock_id {
 						ip_manip.v4_int_from_octet(:1),
 					netmask_bits)
 			    and netmask_bits <= :2
+			    and is_ipv4_address = 'Y'
 			    and is_single_address = 'N'
 			    and is_organizational = 'N'
 			order by netmask_bits desc

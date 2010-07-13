@@ -677,7 +677,7 @@ sub GetAllTokenAssignments {
 				Is_User_Token_Locked,
 				Time_Util.Epoch(Token_Unlock_Time),
 				Bad_Logins,
-				Time_Util.Epoch(Last_Updated)
+				Time_Util.Epoch(System_user_Token.Last_Updated)
 			FROM
 				System_User_Token JOIN System_User USING (System_User_ID)
 				JOIN Token USING (Token_ID)
