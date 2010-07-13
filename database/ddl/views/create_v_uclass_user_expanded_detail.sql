@@ -111,8 +111,7 @@ FROM
 		FROM uclass_hier
 		CONNECT BY PRIOR child_uclass_id = uclass_id
 	) uch
-INNER JOIN v_property uu ON uch.child_uclass_id = uu.uclass_id
-      AND property_name = 'UclassMembership'
+INNER JOIN Uclass_User uu ON uch.child_uclass_id = uu.uclass_id
 UNION
 SELECT uu.uclass_id,
 	uu.system_user_id,
@@ -122,6 +121,6 @@ SELECT uu.uclass_id,
 	NULL dept_inherit_path,
 	0 dept_level,
 	0 uclass_level
-FROM v_property uu WHERE property_name = 'UclassMembership'
+FROM uclass_user uu
 );
 
