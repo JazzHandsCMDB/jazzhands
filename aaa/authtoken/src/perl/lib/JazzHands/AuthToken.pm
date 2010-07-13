@@ -528,8 +528,7 @@ user encoded in the 'login' field of the authentication token has at
 least one of the specified UCLASS properties in JazzHands. The
 -required_properties option must be a reference to an array of strings
 with an even number of elements. The odd elements are
-UCLASS_PROPERTY_TYPEs, and the even elements are
-UCLASS_PROPERTY_NAMEs.
+PROPERTY_TYPEs, and the even elements are PROPERTY_NAMEs.
 
 =item -dbhandle
 
@@ -684,15 +683,15 @@ sub Verify {
 	## Assemble the query
 
         $sql = q{
-            select uclass_property_name, property_value,
+            select property_name, property_value,
               property_value_company_id, property_value_password_type,
               property_value_token_col_id, property_value_uclass_id
             from v_user_prop_expanded where system_user_id = ? and
         };
 
 	while (($t, $n) = splice(@$p, 0, 2)) {
-	    push(@tn, "(uclass_property_type = '$t' " . 
-		 "and uclass_property_name = '$n')");
+	    push(@tn, "(property_type = '$t' " . 
+		 "and property_name = '$n')");
 	}
 
 	$sql .= '(' . join(' or ', @tn) . ')';

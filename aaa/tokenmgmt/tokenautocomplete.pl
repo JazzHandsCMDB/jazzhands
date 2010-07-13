@@ -144,8 +144,8 @@ sub gettokenlist {
 			V_User_Prop_Expanded
 		WHERE
 			System_User_ID = :sysuid AND
-			UClass_Property_Type = 'TokenMgmt' AND
-			UClass_Property_Name = 'GlobalAdmin'
+			Property_Type = 'TokenMgmt' AND
+			Property_Name = 'GlobalAdmin'
 	};
 
 	if (!($sth = $dbh->prepare($q))) {
@@ -211,8 +211,8 @@ sub gettokenlist {
 				V_Token USING (Token_ID)
 			WHERE   
 				UPE.System_User_ID = :sysuid AND
-				UClass_Property_Type = 'TokenMgmt' AND
-				UClass_Property_Name = 'ManageTokenCollection' AND
+				Property_Type = 'TokenMgmt' AND
+				Property_Name = 'ManageTokenCollection' AND
 				REGEXP_LIKE(Token_Serial, :serial || '$', 'i') AND
 				Token_Status <> 'DESTROYED'
 		};

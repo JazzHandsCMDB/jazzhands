@@ -54,12 +54,12 @@ sub GetDeviceCollection {
 
 	#
 	# options:
-	#   name         - name of the device collection to find/create
-	#   id           - Device_Collection_ID of the device collection to find
+	#   name	 - name of the device collection to find/create
+	#   id	   - Device_Collection_ID of the device collection to find
 	#   create       - create the device collection
-	#   type         - set the type of device collection
+	#   type	 - set the type of device collection
 	#   noexisterror - if true, don't return an error if create is passed
-	#                  and the device collection already exists
+	#		  and the device collection already exists
 	#
 
 	my $self = shift;
@@ -222,13 +222,19 @@ sub AddUclassPropertyInstance {
 
 	my ( $q, $sth );
 	$q = qq {
-		INSERT INTO Mclass_Property_Override (
-			Uclass_Property_Id,
-			Device_Collection_Id
+		INSERT INTO Property (
+			Property_Name,
+			Property_Type,
+			Device_Collection_Id,
+			Uclass_Id,
+			Property_Value
 		) VALUES (
-			:ucpropid,
-			:devcollid
-		)
+			:propname,
+			:proptype,
+			:devcollid,
+			:uclassid,
+			:value
+		)       
 	};
 	if ( !( $sth = $dbh->prepare($q) ) ) {
 		$self->Error(
@@ -236,8 +242,11 @@ sub AddUclassPropertyInstance {
 		);
 		return undef;
 	}
-	$sth->bind_param( ":ucpropid",  $instance->Id );
-	$sth->bind_param( ":devcollid", $self->Id );
+        $sth->bind_param(":propname", $instance->{UclassProperty}->{Name});
+        $sth->bind_param(":proptype", $instance->{UclassProperty}->{Type});
+        $sth->bind_param(":devcollid", $self->Id);
+        $sth->bind_param(":uclassid", $instance->{Uclass}->{Id});
+        $sth->bind_param(":value", $instance->{Value});
 	if ( !( $sth->execute ) ) {
 		$self->Error(
 "AddUclassPropertyInstance: Error executing database insert"
@@ -273,9 +282,9 @@ sub RemoveUclassPropertyInstance {
 	my ( $q, $sth );
 	$q = qq {
 		DELETE FROM 
-			Mclass_Property_Override
+			Property
 		WHERE
-			Uclass_Property_Id = :ucpropid AND
+			Property_Id = :ucpropid AND
 			Device_Collection_Id = :devcollid
 	};
 	if ( !( $sth = $dbh->prepare($q) ) ) {

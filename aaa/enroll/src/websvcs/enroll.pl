@@ -176,8 +176,8 @@ sub enroll {
 			V_User_Prop_Expanded
 		WHERE
 			System_User_ID = :sysuid AND
-			UClass_Property_Type = 'TokenMgmt' AND
-			UClass_Property_Name = 'GlobalAdmin'
+			Property_Type = 'TokenMgmt' AND
+			Property_Name = 'GlobalAdmin'
 	};
 
 	if ( !( $sth = $dbh->prepare($q) ) ) {

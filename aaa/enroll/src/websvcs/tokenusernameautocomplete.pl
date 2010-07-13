@@ -118,8 +118,8 @@ sub getuserlist {
 			V_User_Prop_Expanded
 		WHERE
 			System_User_ID = :1 AND
-			UClass_Property_Type = 'UserMgmt' AND
-			UClass_Property_Name = 'GlobalTokenAdmin'
+			Property_Type = 'UserMgmt' AND
+			Property_Name = 'GlobalTokenAdmin'
 	};
 
 	if ( !( $sth = $dbh->prepare($q) ) ) {
@@ -177,8 +177,8 @@ q{    <li id="%d">%s<span class="informal"> - %s %s</span></li>}
 				System_User SU ON (UUE.System_User_ID = SU.System_User_ID)
 			WHERE   
 				UPE.System_User_ID = :sysuid AND
-				UClass_Property_Type = 'UserMgmt' AND
-				UClass_Property_Name = 'TokenAdminForUclass'
+				Property_Type = 'UserMgmt' AND
+				Property_Name = 'TokenAdminForUclass'
 		}, $user->Id;
 		if ( !( $sth = $dbh->prepare($q) ) ) {
 			error( "Unable to prepare database query: "

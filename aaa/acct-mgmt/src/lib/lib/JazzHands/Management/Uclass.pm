@@ -36,7 +36,6 @@ $VERSION = '1.0.1';    # $Date$
 require Exporter;
 our @ISA = ( "Exporter", "JazzHands::Management" );
 @EXPORT = qw(
-  AssignUclassPropertyToMclass
   GetUclassFromName
   GetPerUclass
   GetAllUclassesForUser
@@ -46,7 +45,6 @@ our @ISA = ( "Exporter", "JazzHands::Management" );
   CreatePerUserUclass
   AddUsertoUclass
   CreateUclass
-  RemoveUclassPropertyFromMclass
   VerifyUclassPropertyType
 );
 
@@ -632,51 +630,6 @@ sub GetAllUclassesForUser {
       failure:
 	$JazzHands::Management::Errmsg = $DBI::errstr;
 	undef;
-}
-
-sub AssignUclassPropertyToMclass {
-	my $dbh = shift;
-
-	if ( ref($dbh) eq "JazzHands::Management" ) {
-		$dbh = $dbh->DBHandle;
-	}
-	return undef if !$dbh;
-
-	my ( $propid, $mclassid ) = @_;
-
-	my $q = qq{
-		INSERT INTO Mclass_Property_Override (
-			Device_Collection_ID,
-			UClass_Property_ID
-		) VALUES (
-			$mclassid,
-			$propid
-		)
-	};
-	my $sth = runquery( $dbh, $q );
-
-	return undef if ( !$sth );
-	1;
-}
-
-sub RemoveUclassPropertyFromMclass {
-	my $dbh = shift;
-
-	if ( ref($dbh) eq "JazzHands::Management" ) {
-		$dbh = $dbh->DBHandle;
-	}
-	return undef if !$dbh;
-
-	my ( $propid, $mclassid ) = @_;
-
-	my $q = qq{delete from Mclass_Property_Override
-		   where Device_Collection_ID = $mclassid
-		     and UClass_Property_ID = $propid
-	};
-	my $sth = runquery( $dbh, $q );
-
-	return undef if ( !$sth );
-	1;
 }
 
 #

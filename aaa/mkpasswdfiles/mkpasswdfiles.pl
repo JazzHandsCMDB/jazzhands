@@ -79,7 +79,7 @@ Write the output files to the directory output_dir. The default is
  GRANT SELECT ON SYSTEM_PASSWORD
  GRANT SELECT ON SYSTEM_USER
  GRANT SELECT ON UCLASS
- GRANT SELECT ON UCLASS_PROPERTY_OVERRIDE
+ GRANT SELECT ON PROPERTY
  GRANT SELECT ON UNIX_GROUP
  GRANT SELECT ON UNIX_GROUP_PROPERTY
  GRANT SELECT ON UNIX_GROUP_UCLASS
@@ -154,7 +154,7 @@ exit(0);
 #   MCLASS_UNIX_HOME_TYPE
 #
 # $up is a reference to a hash with the following elements. They are
-# pulled from the UCLASS_PROPERTY_OVERRIDE table.
+# pulled from the PROPERTY table.
 #
 #   ForceCrypt
 #   ForceUserUID
@@ -265,13 +265,13 @@ sub get_passwd_line($$$$) {
 #
 # usage: $u_prop = get_uclass_properties();
 #
-# Retrieves UCLASS_PROPERTY_OVERRIDEs for all MCLASSes and all enabled
+# Retrieves PROPERTYs for all MCLASSes and all enabled
 # users. Uses the V_DEV_COL_USER_PROP_EXPANDED view to expand UCLASSes
 # all the way down to individual users, take inheritance into account,
 # and resolve conflicting properties. Returns a reference to a hash.
 # The first level key is DEVICE_COLLECTION_ID, the second level key is
-# SYSTEM_USER_ID, the third level key is UCLASS_PROPERTY_NAME, and the
-# value is PROPERTY_VALUE. If UCLASS_PROPERTY_NAME is ForceUserGroup,
+# SYSTEM_USER_ID, the third level key is PROPERTY_NAME, and the
+# value is PROPERTY_VALUE. If PROPERTY_NAME is ForceUserGroup,
 # there are two fourth level keys GROUP_NAME and UNIX_GID, and the
 # values are the group name and the GID of the group.
 #
@@ -282,14 +282,14 @@ sub get_uclass_properties() {
 
 	$q = q{
         select device_collection_id, system_user_id,
-               uclass_property_name, property_value,
-               case when uclass_property_name = 'ForceUserGroup'
+               property_name, property_value,
+               case when property_name = 'ForceUserGroup'
                     then to_char(unix_gid) 
                     else null end unix_gid
         from v_dev_col_user_prop_expanded pe
         left join unix_group ug on pe.property_value = ug.group_name
         where system_user_status in ('enabled', 'onleave-enable')
-        and uclass_property_type = 'UnixPasswdFileValue'
+        and property_type = 'UnixPasswdFileValue'
         and device_collection_id is not null
     };
 
