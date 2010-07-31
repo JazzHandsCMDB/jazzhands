@@ -40,7 +40,7 @@ public class IPv6Manip {
 
 	/**********************************************************************
 	 *
-	 * Constructors - XXX - need to deal with the rest of these
+	 * Constructors 
 	 *
 	 **********************************************************************/
 	public IPv6Manip(BigInteger in_ipaddr) {
@@ -72,6 +72,7 @@ public class IPv6Manip {
 	 *
 	 **********************************************************************/
 
+	// XXX throw an error if we have bum input (not [0-9a-z:]
 	private static Integer[] StringToInts(String in_ipaddr) {
 		// This deals with things starting with a :.
 		String xlate = in_ipaddr.replaceAll("^::", "0::");
@@ -134,7 +135,7 @@ public class IPv6Manip {
 	private static String IntsToBitsString(Integer[] hex) {
 		String r = "";
 		for(int i = 0; i < hex.length; i++) {
-			r += String.format("%8s", Integer.toBinaryString(hex[i]));
+			r += String.format("%16s", Integer.toBinaryString(hex[i]));
 		}
 		r = r.replace(" ", "0");
 		return r;
@@ -220,7 +221,7 @@ public class IPv6Manip {
 	 *
 	 **********************************************************************/
 
-	public String toString() {
+	public String toLongString() {
 		String rv;
 		rv = IntsToFullString(IP);
 		if(Bits >= 0) {
@@ -234,11 +235,14 @@ public class IPv6Manip {
 		return IntsToBitsString(IP);
 	}
 
-	public String toShortString() {
+	public String toString() {
 		return IntegerToShortString(IP);
 	}
 
 	public BigInteger BitsToBigInt() {
+		if(Bits < 0) {
+			throw new IllegalArgumentException("Netblock size not set");
+		}
 		Integer[] mask = BitsToMask(Bits);
 		String x = IntsToHexString(mask);
 		return new BigInteger(x, 16);
@@ -260,11 +264,8 @@ public class IPv6Manip {
 		return base;
 	}
 
-	public BigInteger base() {
-		BigInteger me = toBigInteger();
-		BigInteger mask = BitsToBigInt();
-		BigInteger base = me.and(mask);
-		return base;
+	public String base() {
+		return baseShortString();
 	}
 
 	public String baseShortString() {
@@ -285,12 +286,54 @@ public class IPv6Manip {
 		return IntsToBitsString(basea);
 	}
 
-	// return the end of the block
-	// return the bits
-	// return the number of addresses in the block
+	public BigInteger size() {
+		if(Bits < 0) {
+			throw new IllegalArgumentException("Netblock size not set");
+		}
+		BigInteger x = new BigInteger("2");
+		return x.pow(128 - Bits);
+	} 
+
+	public BigInteger lastLong() {
+		if(Bits < 0) {
+			throw new IllegalArgumentException("Netblock size not set");
+		}
+		BigInteger x = new BigInteger("2");
+		BigInteger size = x.pow(128 - Bits);
+		BigInteger base = baseLong();
+		return base.add(size).subtract(new BigInteger("1"));
+	} 
+
+	public String last() {
+		if(Bits < 0) {
+			throw new IllegalArgumentException("Netblock size not set");
+		}
+		BigInteger x = new BigInteger("2");
+		BigInteger size = x.pow(128 - Bits);
+		BigInteger base = baseLong();
+		Integer[] end = BigIntToIntArray( base.add(size).subtract(new BigInteger("1")) );
+		return IntsToShortString(end);
+	} 
+
+	public Boolean contains(String in) {
+		Integer[] checkme = StringToInts(in);
+		String x = IntsToHexString(checkme);
+		BigInteger inbig = new BigInteger(x, 16);
+
+		BigInteger base = baseLong();
+		if(inbig.compareTo(base) < 0) {
+			return false;
+		}
+		BigInteger last = lastLong();
+		if(inbig.compareTo(last) > 0) {
+			return false;
+		}
+		return true;
+	}
+
 	// return the type??
 	// return the in-addr record
-	// is address X in this block?
+	// is address X in this block? -- for other types (Ip, bigint?)
 
 	/**********************************************************************
 	 *
