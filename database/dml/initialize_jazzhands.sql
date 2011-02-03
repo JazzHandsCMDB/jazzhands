@@ -572,7 +572,6 @@ INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
 	VALUES (0, 'none', 'N');
 
 INSERT INTO System_User (
-	System_User_ID,
 	Login,
 	First_Name,
 	Last_Name,
@@ -580,7 +579,6 @@ INSERT INTO System_User (
 	System_User_Type,
 	Company_Id
 ) VALUES (
-	SEQ_System_User_ID.nextval,
 	'root',
 	'Super',
 	'User',
@@ -589,8 +587,8 @@ INSERT INTO System_User (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'none')
 );
 
-insert into uclass (uclass_id, name, uclass_type)
-	values (SEQ_UCLASS_ID.nextval, 'root', 'unix-group');
+insert into uclass (name, uclass_type)
+	values ('root', 'unix-group');
 
 INSERT INTO Unix_Group (
 	Uclass_id,
@@ -598,7 +596,8 @@ INSERT INTO Unix_Group (
 	Group_Password,
 	Group_Name
 ) VALUES (
-	SEQ_UCLASS_ID.currval,
+	(select uclass_id from uclass where name = 'root' 
+		and uclass_type = 'unix-group'),
 	0,
 	'*',
 	'root'
@@ -611,9 +610,10 @@ INSERT INTO User_Unix_Info (
 	Shell,
 	Default_Home
 ) VALUES (
-	SEQ_System_User_ID.currval,
+	(select system_user_id from system_user where login = 'root'),
 	0,
-	SEQ_UCLASS_ID.currval,
+	(select uclass_id from uclass where name = 'root' 
+		and uclass_type = 'unix-group'),
 	'/bin/sh',
 	'/'
 );
@@ -624,7 +624,7 @@ INSERT INTO System_Password (
 	User_Password,
 	Change_Time
 ) VALUES (
-	SEQ_System_User_ID.currval,
+	(select system_user_id from system_user where login = 'root'),
 	'des',
 	'T6r7sdlVHpZH2',
 	SYSDATE
