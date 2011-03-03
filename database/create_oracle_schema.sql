@@ -13,7 +13,10 @@ select systimestamp from dual;
 -- (next item generated above into the current directory)
 @@generated_audit_triggers.sql
 @@pkg/create_early_packages.sql
-@@ddl/views/create_extra_views.sql
+-- split out into oracle and common
+@@ddl/views/oracle/create_oracle_views.sql
+@@ddl/views/create_extra_views_oracle.sql
+--
 @@ddl/schema/create_audit_indexes.sql
 @@ddl/schema/create_extra_objects.sql
 @@pkg/create_all_packages.sql

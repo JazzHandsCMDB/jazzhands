@@ -26,28 +26,10 @@
 -- $Id$
 --
 
-set echo on
-set termout on
-
-@@sysuserview.sql
-@@sysuserphoneview.sql
-@@create_v_login_changes.sql
-@@create_v_user_deletions.sql
-@@create_v_user_extract.sql 
-@@create_v_property.sql
 @@create_v_uclass_user_expanded_detail.sql
-@@create_v_user_prop_exp_nomv.sql
-@@create_token_views.sql
 @@create_v_uclass_user_expanded.sql
-@@create_audit_views.sql
-@@create_v_limited_users.sql
-@@create_v_joined_uclass_user_detail.sql
 @@create_v_device_coll_hier_detail.sql
-@@create_v_device_col_uclass_expanded.sql
-@@create_v_dev_col_user_prop_expanded.sql
-@@create_v_l1_all_physical_ports.sql
-@@create_mv_system_user_last_auth.sql
-@@create_mv_uclass_user_expanded_detail.sql 
-@@create_v_user_prop_expanded.sql 
+@@create_mv_uclass_user_expanded_detail.sql
 @@create_mv_uclass_user_expanded.sql
 @@create_v_application_role.sql
+
