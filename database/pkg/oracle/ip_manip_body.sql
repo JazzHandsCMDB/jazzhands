@@ -132,7 +132,7 @@ IS
 	-- given an IP address and bits, returns the network address (the
 	-- lowest address in that netblock)
 	-------------------------------------------------------------------
-	function v4_base
+	function v4_base_java
 		(
 		p_ip_address		in		number,
 		p_bits			in		number
@@ -142,6 +142,27 @@ IS
 	AS LANGUAGE JAVA
 	NAME 'IPv4Manip.NetworkOfIp(long, int)
 		return long';
+	-- end of procedure v4_base
+	-------------------------------------------------------------------
+
+	-------------------------------------------------------------------
+	-- calls v4_base_java, but is smart enough to return 0 if the
+	-- addres is not ipv4 rather than throw an exception.
+	-------------------------------------------------------------------
+	function v4_base
+		(
+		p_ip_address		in		number,
+		p_bits			in		number
+		)
+	return number
+	DETERMINISTIC
+	AS 
+	begin
+		if(p_ip_address > 4294967295) then
+			return( 0 );
+		end if;
+		return(v4_base_java(p_ip_address, p_bits));
+	end;
 	-- end of procedure v4_base
 	-------------------------------------------------------------------
 
@@ -187,9 +208,49 @@ IS
 	return varchar2
 	DETERMINISTIC
 	AS LANGUAGE JAVA
-	NAME 'IPv4Manip.IsIpInNet_yn(long, int, long)
+	NAME 'IPv4Manip.IsIpInNet_yn(java.math.BigInteger, int, long)
 		return java.lang.String';
 	-- end of procedure v4_is_in_block
+	-------------------------------------------------------------------
+
+	-------------------------------------------------------------------
+	-------------------------------------------------------------------
+	function java_v6_int_from_string
+	(
+		p_ip_address			in varchar2,
+		p_raise_exception_on_error	in number
+	)
+	return number
+	DETERMINISTIC
+	AS LANGUAGE JAVA
+	NAME 'IPv6Manip.v6_int_from_string(java.lang.String, int)
+		return java.math.BigInteger';
+	-- end of procedure java_v4_int_from_octet
+	-------------------------------------------------------------------
+
+	-------------------------------------------------------------------
+	-- given a textual string, return an integer.
+	-- if p_raise_exception_on_error, lets Java will throw an
+	-- exception, otherwise it returns NULL1
+	-------------------------------------------------------------------
+	function v6_int_from_string
+	(
+		p_ip_address			in varchar2,
+		p_raise_exception_on_error	in number 	default 0
+	)
+	return number 
+	DETERMINISTIC
+	as 
+		v_rv number;
+	begin
+		v_rv := java_v6_int_from_string(p_ip_address,
+			p_raise_exception_on_error);
+		if(v_rv = -1) then
+			return(NULL);
+		end if;
+		return(v_rv);
+	end;
+	-- end of procedure v4_int_from_octet
 	-------------------------------------------------------------------
 end;
 /

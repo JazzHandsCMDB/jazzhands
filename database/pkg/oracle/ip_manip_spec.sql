@@ -78,6 +78,13 @@ as
 		)
 	return number DETERMINISTIC;
 
+	function v4_base_java
+		(
+		p_ip_address		in		number,
+		p_bits			in		number
+		)
+	return number DETERMINISTIC;
+
 	function v4_base
 		(
 		p_ip_address		in		number,
@@ -104,6 +111,23 @@ as
 		p_ipaddr		in		number
 		)
 	return varchar2 DETERMINISTIC;
+
+	-- ipv6
+
+	function java_v6_int_from_string
+	(
+		p_ip_address			in varchar2,
+		p_raise_exception_on_error	in number
+	)
+	return number DETERMINISTIC;
+
+	function v6_int_from_string
+	(
+		p_ip_address			in varchar2,
+		p_raise_exception_on_error	in number default 0
+	)
+	return number DETERMINISTIC;
+
 end;
 /
 show errors;
