@@ -96,5 +96,4 @@ UNION
 		on l1.physical_port1_id = P1.physical_port_id
 		or l1.physical_port2_id = P1.physical_port_id
 	     where  l1.layer1_connection_id is NULL
-) order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
-/
+) subquery order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name);
