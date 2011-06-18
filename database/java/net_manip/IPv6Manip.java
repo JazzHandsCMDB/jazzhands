@@ -136,6 +136,7 @@ public class IPv6Manip {
 	// return one long hex string (no colons);
 	private String IntsToBitsString(Integer[] hex) {
 		String r = "";
+		System.out.println("hex length is " + hex.length);
 		for(int i = 0; i < hex.length; i++) {
 			r += String.format("%16s", Integer.toBinaryString(hex[i]));
 		}
@@ -357,6 +358,7 @@ public class IPv6Manip {
 			v6split = StringToInts(ip);
 			tstr = IntsToHexString(v6split);
 			bi = new BigInteger(tstr, 16);
+			System.out.println("result is " + bi);
 			return bi;
                 } catch (IllegalArgumentException x) {
                         if (do_except == 0) {
