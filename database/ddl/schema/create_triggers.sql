@@ -4972,7 +4972,7 @@ begin
          * unless it's in 1918 space in which case multiple entries can
          * exist.
          */
-        if ip_manip.v4_is_private(:new.ip_address) = false then
+        if net_manip.inet_is_private(:new.ip_address) = false then
                 numrows := netblock_verify.count_matching_rows(:new.ip_address, :new.netmask_bits);
                 if(inserting and numrows > 0) then
                         raise_application_error(global_errors.ERRNUM_NETBLOCK_NODUPS, global_errors.ERRMSG_NETBLOCK_NODUPS || ': ' || :new.ip_address || '/' || :new.netmask_bits);
@@ -4996,7 +4996,7 @@ begin
                         raise_application_error(global_errors.ERRNUM_NETBLOCK_SMALLPARENT, global_errors.ERRMSG_NETBLOCK_SMALLPARENT || '(' || :new.parent_netblock_Id || ')');
                 end if;
 
-                if(ip_manip.v4_is_in_block(pip, pbits, :new.ip_address) = 'N') then
+                if(net_manip.inet_inblock(pip, pbits, :new.ip_address) = 'N') then
                         raise_application_error(global_errors.ERRNUM_NETBLOCK_RANGEERROR, global_errors.ERRMSG_NETBLOCK_RANGEERROR);
                 end if;
 

@@ -107,7 +107,7 @@ IS
 			  from netblock
 			 where netblock_id = v_id;
 			for item in kid_iterate(v_id) loop
-				if(ip_manip.v4_is_in_block(v_blk_ip, v_blk_bits,item.ip_address) = 'N') then
+				if(net_manip.inet_inblock(v_blk_ip, v_blk_bits,item.ip_address) = 'N') then
 					G_err_num := global_errors.ERRNUM_NETBLOCK_BADPARENT;
 					G_err_msg := global_errors.ERRMSG_NETBLOCK_BADPARENT;
 					global_errors.log_error(G_err_num, v_std_object_name,

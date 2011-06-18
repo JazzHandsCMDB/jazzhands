@@ -50,8 +50,8 @@ IS
 		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
 			    from NetBlock
 			   where
-				ip_manip.v4_base(ip_address, netmask_bits) =
-					ip_manip.v4_base(in_IpAddress, 
+				net_manip.inet_base(ip_address, netmask_bits) =
+					net_manip.inet_base(in_IpAddress, 
 						netmask_bits)
 			    and netmask_bits <= in_Netmask_Bits
 			    and is_single_address = 'N'
@@ -75,11 +75,11 @@ IS
 		CURSOR nb_match ( in_nb_id netblock.netblock_id%type) IS
 			-- The query used to include this in the where clause, but
 			-- oracle was uber slow 
-			--	ip_manip.v4_base(nb.ip_address, root.netmask_bits) =  
-			--		ip_manip.v4_base(root.ip_address, root.netmask_bits) 
+			--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
+			--		net_manip.inet_base(root.ip_address, root.netmask_bits) 
 			select  rootd.dns_domain_id,
-					 ip_manip.v4_base(nb.ip_address, root.netmask_bits),
-					 ip_manip.v4_base(root.ip_address, root.netmask_bits)
+					 net_manip.inet_base(nb.ip_address, root.netmask_bits),
+					 net_manip.inet_base(root.ip_address, root.netmask_bits)
 			  from  netblock nb,
 				netblock root
 					inner join dns_record rootd

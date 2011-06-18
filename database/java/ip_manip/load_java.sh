@@ -24,4 +24,5 @@
 
 echo on the db server, set ORACLE_HOME, and run:
 echo '$ORACLE_HOME/bin/'loadjava -user '<user>/<passwd>@<DB>' -oci8 -resolve IPv4Manip.class
+echo '$ORACLE_HOME/bin/'loadjava -user '<user>/<passwd>@<DB>' -oci8 -resolve IPv6Manip.class
 

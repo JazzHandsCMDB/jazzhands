@@ -24,7 +24,7 @@
 # $Id$
 #
 
-all: IPv4Manip.class IPv6Manip.class Test.class
+all: IPv4Manip.class IPv6Manip.class Test.class Test2.class
 
 clean:
 	rm -f *.class
@@ -40,4 +40,7 @@ IPv6Manip.class: IPv6Manip.java
 	/u01/app/oracle/product/11.1.0/db_1/jdk/bin/javac $<
 
 Test.class: Test.java
+	/u01/app/oracle/product/11.1.0/db_1/jdk/bin/javac $<
+
+Test2.class: Test2.java
 	/u01/app/oracle/product/11.1.0/db_1/jdk/bin/javac $<

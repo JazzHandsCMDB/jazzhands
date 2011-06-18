@@ -40,11 +40,11 @@ show errors
 @@global_util_spec.sql
 show errors
 
-@@ip_manip_spec.sql
+@@net_manip_spec.sql
 show errors
 @@network_strings_spec.sql
 show errors
-@@ip_manip_body.sql
+@@net_manip_body.sql
 show errors
 @@network_strings_body.sql
 show errors

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2010, Todd M. Kover
+* Copyright (c) 2010-2011, Todd M. Kover
 * All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
@@ -25,6 +25,8 @@
  * $Id$
  *
  * basic IPv6 manipulation, does more than InetAddress does
+ *
+ * This really wants to be merged into IPv4Manip...
  */
 
 
@@ -72,7 +74,7 @@ public class IPv6Manip {
 	 *
 	 **********************************************************************/
 
-	// XXX throw an error if we have bum input (not [0-9a-z:]
+	// XXX throw an error if we have bum input (not [0-9a-z:])
 	private static Integer[] StringToInts(String in_ipaddr) {
 		// This deals with things starting with a :.
 		String xlate = in_ipaddr.replaceAll("^::", "0::");
@@ -97,7 +99,7 @@ public class IPv6Manip {
 	}
 
 	// print the IPv6 address with all double octets (no ::)
-	private String IntsToFullString(Integer[] hex) {
+	private static String IntsToFullString(Integer[] hex) {
 		String r = "";
 		for(int i = 0; i < hex.length; i++) {
 			if(i > 0) {
@@ -123,7 +125,7 @@ public class IPv6Manip {
 	}
 
 	// return one long hex string (no colons);
-	private String IntsToHexString(Integer[] hex) {
+	private static String IntsToHexString(Integer[] hex) {
 		String r = "";
 		for(int i = 0; i < hex.length; i++) {
 			r += String.format("%04x", hex[i]);
@@ -132,7 +134,7 @@ public class IPv6Manip {
 	}
 
 	// return one long hex string (no colons);
-	private static String IntsToBitsString(Integer[] hex) {
+	private String IntsToBitsString(Integer[] hex) {
 		String r = "";
 		for(int i = 0; i < hex.length; i++) {
 			r += String.format("%16s", Integer.toBinaryString(hex[i]));
@@ -166,7 +168,7 @@ public class IPv6Manip {
 	}
 
 	// given a string mask, returns the number of bits
-	private static Integer MaskToBits(String in) {
+	private Integer MaskToBits(String in) {
 		Integer[] mask = StringToInts(in);
 		String bits = IntsToBitsString(mask);
 		return bits.indexOf("0");
@@ -204,7 +206,7 @@ public class IPv6Manip {
 		return x.replaceAll("^0::", "::");
 	}
 
-	private Integer[] BigIntToIntArray(BigInteger in) {
+	private static Integer[] BigIntToIntArray(BigInteger in) {
 		Integer[] rv = { 0,0,0,0,0,0,0,0 };
 
 		// ** need to figure out the right way to break this up!
@@ -339,7 +341,7 @@ public class IPv6Manip {
 	 *
 	 * Public interface for manipulating IPv6 addresses
 	 *
-	 * NONE OF THESE ARE IMPLEMENTED YET...
+	 * NONE OF THESE ARE IMPLEMENTED YET...  Well, maybe the first one
 	 *
 	 **********************************************************************/
 
@@ -348,19 +350,31 @@ public class IPv6Manip {
         // -1 indicating failure and let the caller do with it as he/she
         // pleases.
         public static BigInteger v6_int_from_string(String ip, int do_except) {
-		BigInteger l;
+		Integer v6split[];
+		String tstr;
+		BigInteger bi;
                 try {
-			l = new BigInteger(ip);
-                        return (l);
+			v6split = StringToInts(ip);
+			tstr = IntsToHexString(v6split);
+			bi = new BigInteger(tstr, 16);
+			return bi;
                 } catch (IllegalArgumentException x) {
                         if (do_except == 0) {
-				l = BigInteger.valueOf(-1);
-                                return (l);
+				return null;
                         } else {
                                 throw x;
                         }
                 }
         }
+
+	// convert an ip  to a string
+	public static String ora_v6_string_from_int(BigInteger in_ip)  {
+		Integer v6split[];
+
+		v6split = BigIntToIntArray(in_ip);
+		return IntsToFullString(v6split);
+	}
+		
 
 	// is this block in that block
 	// address && mask == address
