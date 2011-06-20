@@ -305,7 +305,6 @@ IS
 	-------------------------------------------------------------------
 
 	-------------------------------------------------------------------
-	-------------------------------------------------------------------
 	function java_v6_int_from_string
 	(
 		p_ip_address			in varchar2,
@@ -317,6 +316,32 @@ IS
 	NAME 'IPv6Manip.v6_int_from_string(java.lang.String, int)
 		return java.math.BigInteger';
 	-- end of procedure java_v4_int_from_string
+	-------------------------------------------------------------------
+
+	-------------------------------------------------------------------
+	function dbton
+	(
+		p_ip_address			in number
+	)
+	return number DETERMINISTIC
+	IS
+	BEGIN
+		return(p_ip_address);
+	END;
+	-- end of function dbton
+	-------------------------------------------------------------------
+
+	-------------------------------------------------------------------
+	function ntodb
+	(
+		p_ip_address			in number
+	)
+	return number DETERMINISTIC
+	IS
+	BEGIN
+		return(p_ip_address);
+	END;
+	-- end of function ntodb
 	-------------------------------------------------------------------
 end;
 /

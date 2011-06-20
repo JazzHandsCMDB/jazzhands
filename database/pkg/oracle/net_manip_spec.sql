@@ -131,6 +131,19 @@ IS
 		p_raise_exception_on_error	in number
 	)
 	return number DETERMINISTIC;
+
+	function dbton
+	(
+		p_ip_address			in number
+	)
+	return number DETERMINISTIC;
+
+	function ntodb
+	(
+		p_ip_address			in number
+	)
+	return number DETERMINISTIC;
+
 end;
 /
 show errors;
