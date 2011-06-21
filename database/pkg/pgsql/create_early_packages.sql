@@ -21,25 +21,39 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
 --
---
+-- This will create all packages in the proper order
 --
 -- $Id$
 --
 
-@@sysuserview.sql
-@@sysuserphoneview.sql
--- not sure that we need these anymore
--- @@create_v_login_changes.sql
--- @@create_v_user_deletions.sql
-@@create_v_user_extract.sql 
-@@create_v_user_prop_exp_nomv.sql
-@@create_token_views.sql
--- not sure that we need these anymore
--- @@create_audit_views.sql
-@@create_v_limited_users.sql
-@@create_v_joined_uclass_user_detail.sql
-@@create_v_device_col_uclass_expanded.sql
-@@create_v_dev_col_user_prop_expanded.sql
-@@create_v_l1_all_physical_ports.sql
-@@create_mv_system_user_last_auth.sql
-@@create_v_user_prop_expanded.sql 
+--
+-- NOTE:  make sure that ../ddl/dropJazzHandsdev.sql has any packages you
+-- add here!
+--
+
+
+-- its not clear that any of the types need to survive and the oracle
+-- types should be rethought, so this is nonexistant until needed.
+--
+-- \i global_types.sql
+--
+-- This includes all the error types, however it looks like pgsql does not
+-- support defining constants in a similar fashion (did not research
+-- extensively) so they are just being hardcoded where used.  Note that
+-- unlike the oracle errors, these are positive (can't be negative under
+-- pgsql).  This also contains error stack traces which we didn't really
+-- use under oracle, so they haven't been ported to postgresql.  That should
+-- be reconciled.
+--
+-- \i global_errors.sql
+--
+-- This has some handy utilities that were never really used in oracle
+-- space, so not porting them to postgresql.  Like the global_errors
+-- package, this may need to be rethought.
+-- 
+-- \i global_util.sql
+-- 
+
+-- ALL NEED TO BE PORTED
+\i net_manip.sql
+\i network_strings.sql

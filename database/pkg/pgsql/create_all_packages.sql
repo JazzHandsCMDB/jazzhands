@@ -21,25 +21,35 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
 --
---
+-- This will create all packages in the proper order
 --
 -- $Id$
 --
 
-@@sysuserview.sql
-@@sysuserphoneview.sql
--- not sure that we need these anymore
--- @@create_v_login_changes.sql
--- @@create_v_user_deletions.sql
-@@create_v_user_extract.sql 
-@@create_v_user_prop_exp_nomv.sql
-@@create_token_views.sql
--- not sure that we need these anymore
--- @@create_audit_views.sql
-@@create_v_limited_users.sql
-@@create_v_joined_uclass_user_detail.sql
-@@create_v_device_col_uclass_expanded.sql
-@@create_v_dev_col_user_prop_expanded.sql
-@@create_v_l1_all_physical_ports.sql
-@@create_mv_system_user_last_auth.sql
-@@create_v_user_prop_expanded.sql 
+-- NEED TO PORT all of these
+-- The ones starting with --++ may not need to be ported since they're also
+-- commented out in the oracle part of things..
+
+-- \i global_errors.sql
+-- \i global_types.sql
+-- \i global_util.sql
+
+-- \i system_user_util.sql
+-- \i unix_util.sql
+-- \i dept_member_verify.sql
+-- \i netblock_verify.sql
+-- \i netblock_utils.sql
+--++ \i fqdn_util.sql
+-- \i token_util.sql
+-- \i time_util.sql
+-- \i dns_gen_utils.sql
+--++  \i voe_manip_util.sql
+--++ \i voe_track_manip.sql
+\i port_support.sql
+\i port_util.sql
+-- \i device_utils.sql
+-- \i netblock_utils.sql
+-- \i key_crypto.sql
+-- \i dbms_job_util.sql
+-- \i appgroup_util.sql
+-- \i property_verify.sql

@@ -34,7 +34,7 @@ AS
 		Token_Serial,
 		Token_Sequence,
 		System_User_ID,
-		NVL2(Token_PIN, 'set', NULL) Token_PIN,
+		coalesce(Token_PIN, 'set', NULL) Token_PIN,
 		Zero_Time,
 		Time_Modulo,
 		Time_Skew,

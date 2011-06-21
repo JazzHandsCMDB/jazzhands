@@ -1,0 +1,3 @@
+CREATE DATABASE jazzhands WITH OWNER jazzhands ENCODING 'UTF8'
+	TEMPLATE = template0;
+

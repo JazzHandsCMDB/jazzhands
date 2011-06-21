@@ -1,0 +1,1 @@
+CREATE ROLE jazzhands WITH LOGIN ENCRYPTED PASSWORD 'somepassword';

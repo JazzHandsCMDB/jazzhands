@@ -58,9 +58,12 @@ dmd.dept_finish_date,
 s.dn_name,
 s.manager_system_user_id
 FROM
-  system_user s,
-  system_user_xref x,
-  company c,
+  system_user s
+  left join system_user_xref x
+	on s.system_user_id = x.system_user_id
+  left join company c
+	on s.company_id = c.company_id
+  left join
   ( select dm.system_user_id,dm.reporting_type,dm.dept_id, d.dept_code,d.cost_center, d.company_id dept_company_id,
 	c2.company_code dept_company_code, c2.company_name  dept_company_name,
 	d.name,dm.start_date dept_start_date, dm.finish_date dept_finish_date
@@ -69,8 +72,6 @@ FROM
 	and d.company_id=c2.company_id
 	and dm.reporting_type='direct'
    ) dmd
-where s.system_user_id = x.system_user_id (+)
-and s.system_user_id= dmd.system_user_id (+)
-and s.company_id=c.company_id (+)
+	on s.system_user_id= dmd.system_user_id 
 ;
 

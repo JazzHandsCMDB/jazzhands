@@ -1,0 +1,39 @@
+CREATE OR REPLACE TRIGGER TUB_DEVICE_COLLECTION
+	- removed this trigger.  Not sure of the point/benefit of the stanza
+	  to not allow changing device collection membership if mclass_unix_prop
+	  stuff exists 
+
+ALTER TABLE Uclass DROP CONSTRAINT UQ_UCL_NAME;
+ALTER TABLE Uclass RENAME COLUMN Name TO UClass_Name;
+ALTER TABLE Uclass ADD CONSTRAINT UQ_UCL_NAME UNIQUE (UClass_Name, UClass_Type);
+
+ALTER TABLE netblock
+	ALTER COLUMN ip_address TYPE inet USING '0.0.0.0';
+
+ALTER TABLE val_office_site ALTER COLUMN company_id SET DEFAULT 0;
+ALTER TABLE val_office_site ALTER COLUMN site_rank SET DEFAULT 1;
+
+ALTER TABLE VAL_Status RENAME TO VAL_Device_Status;
+ALTER TABLE VAL_Property_Type ALTER COLUMN is_multivalue SET DEFAULT 'Y';
+ALTER TABLE VAL_Property ALTER COLUMN is_multivalue SET DEFAULT 'N';
+
+ALTER TABLE VAL_DNS_TYPE DROP CONSTRAINT CKC_ID_TYPE_VAL_DNS_;
+ALTER TABLE VAL_DNS_TYPE
+    ADD CONSTRAINT CKC_ID_TYPE_VAL_DNS_ CHECK (ID_TYPE IN ('ID', 'LINK', 'NON-ID', 'HIDDEN')) ;
+
+Removed trigger K_TAU_SYS_USER_STATUS since this needs to be done differently.
+Essentially, this trigger inserts a fake auth record dated 85 days previously
+to catch a 5-day expire if the account hasn't been used.  This needs to be
+dealt with via other rules and database-stored parameters
+
+Removed trigger K_TIUBR_SYSTEM_USER_VATT since this needs to be done
+differently.  This trigger enforces business rules that expires vendors at
+the end of "the next quarter".  This also needs to be dealt with via other
+rules and database-stored parameters.
+
+Removed trigger TUB_USER_UNIX_INFO, TIB_USER_UNIX_INFO since these just
+validate a foreign key
+
+K_TAIU_SYSTEM_USER_TYPE migrated back from using properties to uclass_user
+
+Fixed Property.Property_ID to properly be a type SERIAL

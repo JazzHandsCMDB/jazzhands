@@ -29,69 +29,69 @@
 create or replace view v_user_extract
 as
 select
-s.system_user_id,
-x.external_hr_id,
-s.login,
-nvl(s.preferred_first_name,s.first_name) first_name,
-s.middle_name,
-nvl(s.preferred_last_name,s.last_name) last_name,
-(s.login||'@example.com') EMAIL_ADDRESS,
-s.name_suffix,
-s.system_user_status,
-s.system_user_type,
-s.employee_id,
-s.position_title,
-s.company_id person_company_id,
-c.company_name person_company_name,
-s.hire_date,
-s.termination_date,
-s.manager_system_user_id,
-s2.login manager_login,
-dmd.dept_code,
-dmd.dept_name,
-dmd.dept_company_id,
-dmd.dept_company_name,
-sul.office_site,
-sul.city,
-sul.state,
-sul.country,
-(CASE
-	WHEN empcount.tally <= 0 or empcount.tally is NULL THEN 'N'
-	ELSE 'Y'
- END) as has_reports
+	s.system_user_id,
+	x.external_hr_id,
+	s.login,
+	coalesce(s.preferred_first_name,s.first_name) first_name,
+	s.middle_name,
+	coalesce(s.preferred_last_name,s.last_name) last_name,
+	(s.login||'@example.com') EMAIL_ADDRESS,
+	s.name_suffix,
+	s.system_user_status,
+	s.system_user_type,
+	s.employee_id,
+	s.position_title,
+	s.company_id person_company_id,
+	c.company_name person_company_name,
+	s.hire_date,
+	s.termination_date,
+	s.manager_system_user_id,
+	s2.login manager_login,
+	dmd.dept_code,
+	dmd.dept_name,
+	dmd.dept_company_id,
+	dmd.dept_company_name,
+	sul.office_site,
+	sul.city,
+	sul.state,
+	sul.country,
+	(CASE
+		WHEN empcount.tally <= 0 or empcount.tally is NULL THEN 'N'
+		ELSE 'Y'
+ 	END) as has_reports
 FROM
-  system_user s,
---  val_system_user_type vsut,
-  system_user_xref x,
-  system_user s2,
-  ( select sl.system_user_id,sl.office_site,sl.city,sl.state,sl.country
+  system_user s
+  left join system_user_xref x
+	on s.system_user_id = x.system_user_id
+  left join system_user s2
+	on s.manager_system_user_id = s2.system_user_id
+  left join ( select sl.system_user_id,sl.office_site,sl.city,
+		sl.state,sl.country
     from system_user_location sl
     where sl.system_user_location_type='office'
-  ) sul,
-  company c,
-  ( select dm.system_user_id,dm.reporting_type,dm.dept_id, d.dept_code, d.company_id dept_company_id,
+  ) sul
+	on s.system_user_id= sul.system_user_id
+  left join company c
+	on s.company_id=c.company_id
+  left join ( select dm.system_user_id,dm.reporting_type,dm.dept_id, 
+		d.dept_code, d.company_id dept_company_id,
 	c2.company_code dept_company_code, c2.company_name  dept_company_name,
 	d.name dept_name
 	from dept_member dm, dept d, company c2
 	where dm.dept_id=d.dept_id
 	and d.company_id=c2.company_id
 	and dm.reporting_type='direct'
-   ) dmd,
-   ( select manager_system_user_id as system_user_id, count(*) as tally
+   ) dmd
+	on s.system_user_id= dmd.system_user_id
+   left join ( select manager_system_user_id as system_user_id, 
+		count(*) as tally
        from system_user
      where manager_system_user_id is not NULL
      and system_user_type in ('employee','contractor','vendor')
      group by manager_system_user_id
    ) empcount
+	on s.system_user_id = empcount.system_user_id
 where
-s.system_user_type in ('employee','contractor','vendor')
--- s.system_user_type=z.system_user_type
--- and z.is_person='Y'
-and  s.system_user_id = x.system_user_id (+)
-and s.manager_system_user_id = s2.system_user_id (+)
-and s.system_user_id= dmd.system_user_id (+)
-and s.company_id=c.company_id (+)
-and s.system_user_id= sul.system_user_id (+)
-and s.system_user_id = empcount.system_user_id (+)
+	s.system_user_type in ('employee','contractor','vendor')
 ;
 

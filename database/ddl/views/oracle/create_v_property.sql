@@ -22,24 +22,22 @@
 --
 --
 --
---
 -- $Id$
 --
 
-@@sysuserview.sql
-@@sysuserphoneview.sql
--- not sure that we need these anymore
--- @@create_v_login_changes.sql
--- @@create_v_user_deletions.sql
-@@create_v_user_extract.sql 
-@@create_v_user_prop_exp_nomv.sql
-@@create_token_views.sql
--- not sure that we need these anymore
--- @@create_audit_views.sql
-@@create_v_limited_users.sql
-@@create_v_joined_uclass_user_detail.sql
-@@create_v_device_col_uclass_expanded.sql
-@@create_v_dev_col_user_prop_expanded.sql
-@@create_v_l1_all_physical_ports.sql
-@@create_mv_system_user_last_auth.sql
-@@create_v_user_prop_expanded.sql 
+
+create or replace view v_property
+as
+select *
+from property
+where	is_enabled = 'Y'
+and	(
+		(start_date is null and finish_date is null)
+	OR
+		(start_date is null and systimestamp <= finish_date )
+	OR
+		(start_date <= systimestamp and finish_date is NULL )
+	OR
+		(start_date <= systimestamp and systimestamp <= finish_date )
+	)
+;

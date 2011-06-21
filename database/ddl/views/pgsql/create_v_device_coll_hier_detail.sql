@@ -20,25 +20,27 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
---
 -- $Id$
 --
-
-
-create or replace view v_property
-as
-select *
-from property
-where	is_enabled = 'Y'
-and	(
-		(start_date is null and finish_date is null)
-	OR
-		(start_date is null and systimestamp <= finish_date )
-	OR
-		(start_date <= systimestamp and finish_date is NULL )
-	OR
-		(start_date <= systimestamp and systimestamp <= finish_date )
+create view V_Device_Coll_Hier_Detail as 
+	SELECT * FROM (
+		SELECT
+			Device_Collection_Id,
+			Device_Collection_Id Parent_Device_Collection_Id,
+			0 Device_Collection_Level
+		FROM
+			Device_Collection
 	)
+	UNION 
+	SELECT * FROM (
+		SELECT
+			CONNECT_BY_ROOT Device_Collection_Id Device_Collection_Id,
+			Parent_Device_Collection_Id,
+			LEVEL Device_Collection_Level
+		FROM
+			Device_Collection_Hier
+		CONNECT BY PRIOR
+			Parent_Device_Collection_Id = Device_Collection_Id
+	)
+;
 
-/

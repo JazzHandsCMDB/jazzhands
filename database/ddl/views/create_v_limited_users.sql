@@ -25,7 +25,7 @@
 --
 -- This was for gsievers, so he could query data directly, versus using web tools, due to vision issues/ease of use
 
-CREATE OR REPLACE FORCE VIEW v_limited_users (system_user_id,
+CREATE OR REPLACE VIEW v_limited_users (system_user_id,
 external_hr_id,
 payroll_id,
 login,
@@ -60,17 +60,17 @@ dn_name,
 manager_system_user_id
 )
 AS
-   SELECT "SYSTEM_USER_ID", "EXTERNAL_HR_ID", "PAYROLL_ID", "LOGIN", 
-	  "FIRST_NAME",
-          "MIDDLE_NAME", "LAST_NAME", "NAME_SUFFIX", "PREFERRED_FIRST_NAME",
-          "PREFERRED_LAST_NAME", "SYSTEM_USER_STATUS", "SYSTEM_USER_TYPE",
-          "EMPLOYEE_ID", "POSITION_TITLE", "PERSON_COMPANY_ID",
-          "PERSON_COMPANY_CODE", "PERSON_COMPANY_NAME", "BADGE_ID", "GENDER",
-          "HIRE_DATE", "TERMINATION_DATE", "DEPT_ID", "DEPT_CODE",
-          "COST_CENTER", "DEPT_COMPANY_ID", "DEPT_COMPANY_CODE",
-          "DEPT_COMPANY_NAME", "REPORTING_TYPE", "DEPT_NAME",
-          "DEPT_START_DATE", "DEPT_FINISH_DATE", "DN_NAME",
-          "MANAGER_SYSTEM_USER_ID"
+   SELECT SYSTEM_USER_ID, EXTERNAL_HR_ID, PAYROLL_ID, LOGIN, 
+	  FIRST_NAME,
+          MIDDLE_NAME, LAST_NAME, NAME_SUFFIX, PREFERRED_FIRST_NAME,
+          PREFERRED_LAST_NAME, SYSTEM_USER_STATUS, SYSTEM_USER_TYPE,
+          EMPLOYEE_ID, POSITION_TITLE, PERSON_COMPANY_ID,
+          PERSON_COMPANY_CODE, PERSON_COMPANY_NAME, BADGE_ID, GENDER,
+          HIRE_DATE, TERMINATION_DATE, DEPT_ID, DEPT_CODE,
+          COST_CENTER, DEPT_COMPANY_ID, DEPT_COMPANY_CODE,
+          DEPT_COMPANY_NAME, REPORTING_TYPE, DEPT_NAME,
+          DEPT_START_DATE, DEPT_FINISH_DATE, DN_NAME,
+          MANAGER_SYSTEM_USER_ID
      FROM v_system_user
     WHERE system_user_type IN ('employee', 'contractor', 'vendor');
 
