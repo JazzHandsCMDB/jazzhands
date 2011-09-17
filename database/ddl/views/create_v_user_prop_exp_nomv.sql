@@ -25,7 +25,7 @@
 
 CREATE OR REPLACE VIEW V_User_Prop_Exp_NoMV AS
 		SELECT
-			System_User_Id,
+			Account_Id,
 			Property_Type,
 			Property_Name,
 			Property_Value,
@@ -35,15 +35,15 @@ CREATE OR REPLACE VIEW V_User_Prop_Exp_NoMV AS
 			Property_Value_Netblock_ID,
 			Property_Value_Password_Type,
 			Property_Value_Token_Col_Id,
-			Property_Value_Uclass_Id,
+			Property_Value_User_Collection_Id,
 			DECODE(Is_Multivalue, 'N', 0, 'Y', 1) Is_Multivalue
 		FROM 
-			V_Uclass_User_Expanded_Detail UUED JOIN 
-			UClass USING (Uclass_ID) JOIN
-			Property USING (Uclass_ID) JOIN
+			V_User_Collection_User_Expanded_Detail UUED JOIN 
+			UClass USING (User_Collection_ID) JOIN
+			Property USING (User_Collection_ID) JOIN
 			VAL_Property USING
 				(Property_Name, Property_Type) JOIN
-			System_User SU ON (SU.System_User_Id = UUED.System_User_ID)
+			Account SU ON (SU.Account_Id = UUED.Account_ID)
 		ORDER BY
 			 DECODE(UClass_Type,
 				'per-user', 0,
@@ -51,12 +51,12 @@ CREATE OR REPLACE VIEW V_User_Prop_Exp_NoMV AS
 				'systems', 2,
 				3),
 			 DECODE(Assign_Method,
-				'UclassAssignedToPerson', 0,
-				'UclassAssignedToDept', 1,
-				'ParentUclassOfUclassAssignedToPerson', 2,
-				'ParentUclassOfUclassAssignedToDept', 2,
-				'UclassAssignedToParentDept', 3,
-				'ParentUclassOfUclassAssignedToParentDep', 3,
+				'User_CollectionAssignedToPerson', 0,
+				'User_CollectionAssignedToDept', 1,
+				'ParentUser_CollectionOfUser_CollectionAssignedToPerson', 2,
+				'ParentUser_CollectionOfUser_CollectionAssignedToDept', 2,
+				'User_CollectionAssignedToParentDept', 3,
+				'ParentUser_CollectionOfUser_CollectionAssignedToParentDep', 3,
 				6),
 			 Dept_Level, UClass_Level, UClass_ID;
 

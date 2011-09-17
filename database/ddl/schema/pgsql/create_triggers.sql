@@ -239,10 +239,12 @@ select rebuild_stamp_triggers();
 -- Make sure there is only one department of type 'direct' for a given user
 --
 
+/* XXX REVISIT
+
 CREATE OR REPLACE FUNCTION verify_direct_dept_member() RETURNS TRIGGER AS $$
 BEGIN
 	PERFORM count(*) FROM dept_member WHERE reporting_type = 'DIRECT'
-		GROUP BY system_user_id HAVING count(*) > 1;
+		GROUP BY person_id HAVING count(*) > 1;
 	IF FOUND THEN
 		RAISE EXCEPTION 'Users may not directly report to multiple departments';
 	END IF;
@@ -257,6 +259,8 @@ $$ LANGUAGE plpgsql;
 DROP TRIGGER IF EXISTS trigger_verify_direct_dept_member ON dept_member;
 CREATE TRIGGER trigger_verify_direct_dept_member AFTER INSERT OR UPDATE 
 	ON dept_member EXECUTE PROCEDURE verify_direct_dept_member();
+
+*/
 
 CREATE OR REPLACE FUNCTION verify_layer1_connection() RETURNS TRIGGER AS $$
 BEGIN
@@ -381,27 +385,31 @@ DROP TRIGGER IF EXISTS trigger_update_dns_zone ON dns_record;
 CREATE TRIGGER trigger_update_dns_zone AFTER INSERT OR DELETE OR UPDATE 
 	ON dns_record FOR EACH ROW EXECUTE PROCEDURE update_dns_zone();
 
+/* XXX REVISIT
+
 CREATE OR REPLACE FUNCTION populate_default_vendor_term() RETURNS TRIGGER AS $$
 BEGIN
 	-- set default termination date as the end of the following quarter
-	IF (NEW.system_user_type = 'vendor' AND NEW.termination_date IS NULL) THEN
+	IF (NEW.person_type = 'vendor' AND NEW.termination_date IS NULL) THEN
 		NEW.termination_date := date_trunc('quarter', now()) + interval '6 months';
 	END IF;
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_populate_vendor_default_term ON system_user;
-CREATE TRIGGER trigger_populate_vendor_default_term BEFORE INSERT OR UPDATE
-	ON system_user FOR EACH ROW EXECUTE PROCEDURE populate_default_vendor_term();
 
+DROP TRIGGER IF EXISTS trigger_populate_vendor_default_term ON person;
+CREATE TRIGGER trigger_populate_vendor_default_term BEFORE INSERT OR UPDATE
+	ON person FOR EACH ROW EXECUTE PROCEDURE populate_default_vendor_term();
+
+*/
 
 CREATE OR REPLACE FUNCTION validate_property() RETURNS TRIGGER AS $$
 DECLARE
 	tally			integer;
 	v_prop			VAL_Property%ROWTYPE;
 	v_proptype		VAL_Property_Type%ROWTYPE;
-	v_uclass		UClass%ROWTYPE;
+	v_user_collection	User_Collection%ROWTYPE;
 	v_num			integer;
 	v_listvalue		Property.Property_Value%TYPE;
 BEGIN
@@ -444,10 +452,10 @@ BEGIN
 				(Production_State = NEW.Production_State)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
-			((System_User_Id IS NULL AND NEW.System_User_Id IS NULL) OR
-				(System_User_Id = NEW.System_User_Id)) AND
-			((Uclass_Id IS NULL AND NEW.Uclass_Id IS NULL) OR
-				(Uclass_Id = NEW.Uclass_Id));
+			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
+				(Account_Id = NEW.Account_Id)) AND
+			((User_Collection_Id IS NULL AND NEW.User_Collection_Id IS NULL) OR
+				(User_Collection_Id = NEW.User_Collection_Id));
 			
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -478,10 +486,10 @@ BEGIN
 				(Production_State = NEW.Production_State)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
-			((System_User_Id IS NULL AND NEW.System_User_Id IS NULL) OR
-				(System_User_Id = NEW.System_User_Id)) AND
-			((Uclass_Id IS NULL AND NEW.Uclass_Id IS NULL) OR
-				(Uclass_Id = NEW.Uclass_Id));
+			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
+				(Account_Id = NEW.Account_Id)) AND
+			((User_Collection_Id IS NULL AND NEW.User_Collection_Id IS NULL) OR
+				(User_Collection_Id = NEW.User_Collection_Id));
 			
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -533,11 +541,11 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_Uclass_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'uclass_id' THEN
+	IF NEW.Property_Value_User_Collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'user_collection_i' THEN
 			tally := tally + 1;
 		ELSE
-			RAISE 'Property value may not be Uclass_Id' USING
+			RAISE 'Property value may not be User_Collection_Id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -616,18 +624,18 @@ BEGIN
 			ERRCODE = 'invalid_parameter_value';
 	END IF;
 
-	-- If the RHS contains a Uclass_ID, check to see if it must be a
+	-- If the RHS contains a User_Collection_ID, check to see if it must be a
 	-- specific type (e.g. per-user), and verify that if so
 	
-	IF NEW.Property_Value_Uclass_Id IS NOT NULL THEN
-		IF v_prop.Prop_Val_UClass_Type_Rstrct IS NOT NULL THEN
+	IF NEW.Property_Value_User_Collection_Id IS NOT NULL THEN
+		IF v_prop.Prop_Val_User_Collection_Type_Rstrct IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_uclass FROM UClass WHERE
-					UClass_Id = NEW.Property_Value_UClass_Id;
-				IF v_uclass.UClass_Type != v_prop.Prop_Val_UClass_Type_Rstrct
+				SELECT * INTO STRICT v_user_collection FROM User_Collection WHERE
+					User_Collection_Id = NEW.Property_Value_User_Collection_Id;
+				IF v_user_collection.User_Collection_Type != v_prop.Prop_Val_User_Collection_Type_Rstrct
 				THEN
-					RAISE 'Property_Value_UClass_Id must be of type %',
-					v_prop.Prop_Val_UClass_Type_Rstrct
+					RAISE 'Property_Value_User_Collection_Id must be of type %',
+					v_prop.Prop_Val_User_Collection_Type_Rstrct
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -718,26 +726,26 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.Permit_System_User_Id = 'REQUIRED' THEN
-			IF NEW.System_User_Id IS NULL THEN
-				RAISE 'System_User_Id is required.'
+	IF v_prop.Permit_Account_Id = 'REQUIRED' THEN
+			IF NEW.Account_Id IS NULL THEN
+				RAISE 'Account_Id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.Permit_System_User_Id = 'PROHIBITED' THEN
-			IF NEW.System_User_Id IS NOT NULL THEN
-				RAISE 'System_User_Id is prohibited.'
+	ELSIF v_prop.Permit_Account_Id = 'PROHIBITED' THEN
+			IF NEW.Account_Id IS NOT NULL THEN
+				RAISE 'Account_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
 
-	IF v_prop.Permit_UClass_Id = 'REQUIRED' THEN
-			IF NEW.UClass_Id IS NULL THEN
-				RAISE 'UClass_Id is required.'
+	IF v_prop.Permit_User_Collection_Id = 'REQUIRED' THEN
+			IF NEW.User_Collection_Id IS NULL THEN
+				RAISE 'User_Collection_Id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.Permit_UClass_Id = 'PROHIBITED' THEN
-			IF NEW.UClass_Id IS NOT NULL THEN
-				RAISE 'UClass_Id is prohibited.'
+	ELSIF v_prop.Permit_User_Collection_Id = 'PROHIBITED' THEN
+			IF NEW.User_Collection_Id IS NOT NULL THEN
+				RAISE 'User_Collection_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
@@ -749,60 +757,66 @@ DROP TRIGGER IF EXISTS trigger_validate_property ON Property;
 CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE 
 	ON Property FOR EACH ROW EXECUTE PROCEDURE validate_property();
 
-CREATE OR REPLACE FUNCTION update_system_user_type_uclass() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION update_account_type_user_collection() RETURNS TRIGGER AS $$
 DECLARE
-	uc_name		UClass.Name%TYPE;
-	ucid		UClass.UClass_Id%TYPE;
+	uc_name		User_Collection.User_Collection_Name%TYPE;
+	ucid		User_Collection.User_Collection_Id%TYPE;
 BEGIN
 	IF TG_OP = 'UPDATE' THEN
-		IF OLD.System_User_Type = NEW.System_User_Type THEN 
+		IF OLD.Account_Type = NEW.Account_Type THEN 
 			RETURN NEW;
 		END IF;
 
-	uc_name := OLD.System_User_Type;
+	uc_name := OLD.Account_Type;
 
-	DELETE FROM UClass_User WHERE System_User_ID = OLD.System_User_ID AND
-		UClass_ID = (
-			SELECT UClass_ID FROM UClass WHERE Name = uc_name AND
-			UClass_Type = 'usertype');
+	DELETE FROM User_Collection_User WHERE Account_Id = OLD.Account_Id AND
+		User_Collection_ID = (
+			SELECT User_Collection_ID 
+			FROM User_Collection 
+			WHERE User_Collection_Name = uc_name 
+			AND User_Collection_Type = 'usertype');
 
 	END IF;
-	uc_name := NEW.System_User_Type;
+	uc_name := NEW.Account_Type;
 	BEGIN
-		SELECT UClass_ID INTO STRICT ucid FROM UClass WHERE
-			Name = uc_name AND UClass_Type = 'usertype';
+		SELECT User_Collection_ID INTO STRICT ucid 
+		  FROM User_Collection 
+		 WHERE User_Collection_Name = uc_name 
+		AND User_Collection_Type = 'usertype';
 	EXCEPTION
 		WHEN NO_DATA_FOUND THEN
-			INSERT INTO UClass (
-				Name, UClass_Type
+			INSERT INTO User_Collection (
+				User_Collection_Name, User_Collection_Type
 			) VALUES (
 				uc_name, 'usertype'
-			) RETURNING UClass_Id INTO ucid;
+			) RETURNING User_Collection_Id INTO ucid;
 	END;
 	IF ucid IS NOT NULL THEN
-		INSERT INTO UClass_User (
-			UClass_ID,
-			System_User_ID
+		INSERT INTO User_Collection_User (
+			User_Collection_ID,
+			Account_Id
 		) VALUES (
 			ucid,
-			NEW.System_User_Id
+			NEW.Account_Id
 		);
 	END IF;
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_update_system_user_type_uclass
-	ON System_User;
-CREATE TRIGGER trigger_update_system_user_type_uclass AFTER INSERT OR UPDATE 
-	ON System_User FOR EACH ROW EXECUTE PROCEDURE 
-	update_system_user_type_uclass();
+DROP TRIGGER IF EXISTS trigger_update_account_type_user_collection
+	ON Account;
+CREATE TRIGGER trigger_update_account_type_user_collection AFTER INSERT OR UPDATE 
+	ON Account FOR EACH ROW EXECUTE PROCEDURE 
+	update_account_type_user_collection();
 
-CREATE OR REPLACE FUNCTION update_company_uclass() RETURNS TRIGGER AS $$
+/* XXX REVISIT
+
+CREATE OR REPLACE FUNCTION update_company_user_collection() RETURNS TRIGGER AS $$
 DECLARE
 	compname	Company.Company_Name%TYPE;
-	uc_name		UClass.Name%TYPE;
-	ucid		UClass.UClass_Id%TYPE;
+	uc_name		User_Collection.Name%TYPE;
+	ucid		User_Collection.User_Collection_Id%TYPE;
 BEGIN
 	IF TG_OP = 'UPDATE' THEN
 		IF OLD.Company_Id = NEW.Company_Id THEN 
@@ -833,10 +847,10 @@ BEGIN
 						' (corporation|inc|llc|ltd|co|corp|llp)$', ''),
 					' ', '_');
 
-			DELETE FROM UClass_User WHERE System_User_ID = OLD.System_User_ID 
-				AND UClass_ID = (
-					SELECT UClass_ID FROM UClass WHERE Name = uc_name 
-					AND UClass_Type = 'company');
+			DELETE FROM User_Collection_User WHERE Account_id = OLD.Person_ID 
+				AND User_Collection_ID = (
+					SELECT User_Collection_ID FROM User_Collection WHERE Name = uc_name 
+					AND User_Collection_Type = 'company');
 		END IF;
 	END IF;
 
@@ -865,23 +879,23 @@ BEGIN
 				' ', '_');
 
 		BEGIN
-			SELECT UClass_ID INTO STRICT ucid FROM UClass WHERE
-				Name = uc_name AND UClass_Type = 'company';
+			SELECT User_Collection_ID INTO STRICT ucid FROM User_Collection WHERE
+				Name = uc_name AND User_Collection_Type = 'company';
 		EXCEPTION
 			WHEN NO_DATA_FOUND THEN
-				INSERT INTO UClass (
-					Name, UClass_Type
+				INSERT INTO User_Collection (
+					Name, User_Collection_Type
 				) VALUES (
 					uc_name, 'company'
-				) RETURNING UClass_Id INTO ucid;
+				) RETURNING User_Collection_Id INTO ucid;
 		END;
 		IF ucid IS NOT NULL THEN
-			INSERT INTO UClass_User (
-				UClass_ID,
-				System_User_ID
+			INSERT INTO User_Collection_User (
+				User_Collection_ID,
+				Person_ID
 			) VALUES (
 				ucid,
-				NEW.System_User_Id
+				NEW.Person_Id
 			);
 		END IF;
 	END IF;
@@ -889,10 +903,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_update_company_uclass 
-	ON System_User;
-CREATE TRIGGER trigger_update_company_uclass AFTER INSERT OR UPDATE 
-	ON System_User FOR EACH ROW EXECUTE PROCEDURE update_company_uclass();
+DROP TRIGGER IF EXISTS trigger_update_company_user_collection 
+	ON Person;
+CREATE TRIGGER trigger_update_company_user_collection AFTER INSERT OR UPDATE 
+	ON Person FOR EACH ROW EXECUTE PROCEDURE update_company_user_collection();
+
+*/
 
 /*
  * XXX - this needs ot be compared to the oracle trigger.
@@ -925,7 +941,7 @@ BEGIN
 	 * separate table that says which blocks are ok.  (make the 
 	 * mutating table stuff better?) 
 	 */
-	IF ip_manip.v4_is_private(NEW.ip_address) = FALSE THEN
+	IF net_manip.inet_is_private(NEW.ip_address) = FALSE THEN
 			PERFORM netblock_id 
 			   FROM netblock 
 			  WHERE ip_address = new.ip_address;
@@ -956,7 +972,7 @@ BEGIN
 			END IF;
 		END IF;
 		IF dumb = TRUE THEN
-			SELECT ip_address 
+			SELECT cast(host(ip_address) || '/' || netmask_bits as inet)  
 		      INTO pip 
 			  FROM netblock 
 		     WHERE netblock_id = new.parent_netblock_id;
@@ -966,7 +982,7 @@ BEGIN
 			END IF;
 			IF NOT(NEW.ip_address << pip) THEN
 				RAISE EXCEPTION 'Netblock is not contained in parent'
-					USING ERRCODE = -20703;
+					USING ERRCODE = 20703;
 			END IF;
 		END IF;
 	END IF;

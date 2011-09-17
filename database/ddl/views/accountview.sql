@@ -21,12 +21,12 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-create or replace view v_system_user
+create or replace view v_account
 as
 select
-s.system_user_id,
-x.external_hr_id,
-x.payroll_id,
+a.account_id,
+ps.external_hr_id,
+ps.payroll_id,
 login,
 first_name,
 middle_name,
@@ -34,17 +34,17 @@ last_name,
 name_suffix,
 preferred_first_name,
 preferred_last_name,
-system_user_status,
-system_user_type,
+account_status,
+account_type,
 employee_id,
 position_title,
-s.company_id person_company_id,
+a.company_id person_company_id,
 c.company_code person_company_code,
 c.company_name person_company_name,
 badge_id,
 gender,
 hire_date,
-termination_date,
+pc.termination_date,
 dmd.dept_id,
 dmd.dept_code,
 dmd.cost_center,
@@ -55,23 +55,23 @@ dmd.reporting_type,
 dmd.name dept_name,
 dmd.dept_start_date,
 dmd.dept_finish_date,
-s.dn_name,
-s.manager_system_user_id
+a.dn_name,
+a.manager_account_id
 FROM
-  system_user s
-  left join system_user_xref x
-	on s.system_user_id = x.system_user_id
+  account a
+  left join person_company pc
+	on a.person_id = pc.person_id
   left join company c
-	on s.company_id = c.company_id
+	on pc.company_id = c.company_id
   left join
-  ( select dm.system_user_id,dm.reporting_type,dm.dept_id, d.dept_code,d.cost_center, d.company_id dept_company_id,
+  ( select dm.account_id,dm.reporting_type,dm.dept_id, d.dept_code,d.cost_center, d.company_id dept_company_id,
 	c2.company_code dept_company_code, c2.company_name  dept_company_name,
 	d.name,dm.start_date dept_start_date, dm.finish_date dept_finish_date
-	from dept_member dm, dept d, company c2
+	from user_collection_user uu, dept d, user_collection u, company c2
 	where dm.dept_id=d.dept_id
 	and d.company_id=c2.company_id
 	and dm.reporting_type='direct'
    ) dmd
-	on s.system_user_id= dmd.system_user_id 
+	on s.account_id= dmd.account_id 
 ;
 

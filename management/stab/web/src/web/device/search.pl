@@ -202,7 +202,7 @@ sub do_device_search {
 	} elsif ( $#searchresults > 0 ) {
 		if ( $#searchresults > 500 ) {
 			$stab->error_return(
-				"Too many matches.  Please limit your query");
+				"Too many matches ($#searchresults).  Please limit your query");
 		}
 		my $devlist = join( ",", @searchresults );
 		my $url = $stab->build_passback_url( devlist => $devlist );

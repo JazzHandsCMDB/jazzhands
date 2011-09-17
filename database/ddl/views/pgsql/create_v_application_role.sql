@@ -38,9 +38,9 @@ WITH RECURSIVE var_recurse(
 		0					as role_level,
 		device_collection_id			as role_id,
 		device_collection_id			as root_id,
-		name					as root_name,
-		name					as path,
-		name					as role_name,
+		device_collection_name			as root_name,
+		device_collection_name			as path,
+		device_collection_name			as role_name,
 		'N'					as is_leaf
 	FROM
 		device_collection
@@ -53,8 +53,9 @@ UNION ALL
 		dch.device_collection_id 			as role_id,
 		x.root_id 					as root_id,
 		x.root_name 					as root_name,
-		cast(x.path || '/' || dc.name as varchar(255))	as path,
-		dc.name 					as role_name,
+		cast(x.path || '/' || dc.device_collection_name 
+					as varchar(255))	as path,
+		dc.device_collection_name			as role_name,
 		case WHEN lchk.parent_device_collection_id IS NULL
 			THEN 'Y'
 			ELSE 'N'

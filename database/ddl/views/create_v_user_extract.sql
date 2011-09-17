@@ -29,7 +29,7 @@
 create or replace view v_user_extract
 as
 select
-	s.system_user_id,
+	s.account_id,
 	x.external_hr_id,
 	s.login,
 	coalesce(s.preferred_first_name,s.first_name) first_name,
@@ -37,15 +37,15 @@ select
 	coalesce(s.preferred_last_name,s.last_name) last_name,
 	(s.login||'@example.com') EMAIL_ADDRESS,
 	s.name_suffix,
-	s.system_user_status,
-	s.system_user_type,
+	s.account_status,
+	s.account_type,
 	s.employee_id,
 	s.position_title,
 	s.company_id person_company_id,
 	c.company_name person_company_name,
 	s.hire_date,
 	s.termination_date,
-	s.manager_system_user_id,
+	s.manager_account_id,
 	s2.login manager_login,
 	dmd.dept_code,
 	dmd.dept_name,
@@ -60,20 +60,20 @@ select
 		ELSE 'Y'
  	END) as has_reports
 FROM
-  system_user s
-  left join system_user_xref x
-	on s.system_user_id = x.system_user_id
-  left join system_user s2
-	on s.manager_system_user_id = s2.system_user_id
-  left join ( select sl.system_user_id,sl.office_site,sl.city,
+  account s
+  left join account_xref x
+	on s.account_id = x.account_id
+  left join account s2
+	on s.manager_account_id = s2.account_id
+  left join ( select sl.account_id,sl.office_site,sl.city,
 		sl.state,sl.country
-    from system_user_location sl
-    where sl.system_user_location_type='office'
+    from account_location sl
+    where sl.account_location_type='office'
   ) sul
-	on s.system_user_id= sul.system_user_id
+	on s.account_id= sul.account_id
   left join company c
 	on s.company_id=c.company_id
-  left join ( select dm.system_user_id,dm.reporting_type,dm.dept_id, 
+  left join ( select dm.account_id,dm.reporting_type,dm.dept_id, 
 		d.dept_code, d.company_id dept_company_id,
 	c2.company_code dept_company_code, c2.company_name  dept_company_name,
 	d.name dept_name
@@ -82,16 +82,16 @@ FROM
 	and d.company_id=c2.company_id
 	and dm.reporting_type='direct'
    ) dmd
-	on s.system_user_id= dmd.system_user_id
-   left join ( select manager_system_user_id as system_user_id, 
+	on s.account_id= dmd.account_id
+   left join ( select manager_account_id as account_id, 
 		count(*) as tally
-       from system_user
-     where manager_system_user_id is not NULL
-     and system_user_type in ('employee','contractor','vendor')
-     group by manager_system_user_id
+       from account
+     where manager_account_id is not NULL
+     and account_type in ('employee','contractor','vendor')
+     group by manager_account_id
    ) empcount
-	on s.system_user_id = empcount.system_user_id
+	on s.account_id = empcount.account_id
 where
-	s.system_user_type in ('employee','contractor','vendor')
+	s.account_type in ('employee','contractor','vendor')
 ;
 

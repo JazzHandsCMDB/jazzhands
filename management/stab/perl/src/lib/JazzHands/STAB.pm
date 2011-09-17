@@ -34,6 +34,7 @@ use JazzHands::STAB::DBAccess;
 use JazzHands::STAB::Device;
 use JazzHands::STAB::Rack;
 use JazzHands::DBI;
+use JazzHands::GenericDB;
 use CGI;    #qw(-no_xhtml);
 use CGI::Pretty;
 use URI;
@@ -79,12 +80,15 @@ sub _initdb {
 	}
 	$dbh->rollback;
 
+# oracle initialization...
+if(0) {
 	$dbh->func( 1000000, 'dbms_output_enable' ) if ( $self->{_debug} );
 
 	$dbh->do("alter session set nls_date_format = 'YYYY-MM-DD HH24:MI:SS'");
 	$dbh->do(
 "alter session set nls_timestamp_format = 'YYYY-MM-DD HH24:MI:SS.FF'"
 	);
+}
 
 	my $cgi  = $self->cgi;
 	my $dude = "unknown";
@@ -97,11 +101,21 @@ sub _initdb {
 	if ( !defined($dude) ) {
 		$dude = ( getpwuid($<) )[0] || 'unknown';
 	}
+	my $q;
+if(0) {
 	my $q = qq{
 		begin 
 			dbms_session.set_identifier ('$dude');
 		end;
 	};
+} else {
+	my $q = qq{
+		begin 
+			set jazzhands.appuser to '$dude';
+		end;
+	};
+}
+
 	if ( my $sth = $dbh->prepare($q) ) {
 		$sth->execute;
 	}
@@ -1096,6 +1110,10 @@ sub b_dropdown {
 	}
 	my ( $values, $field, $pkeyfield, $noguessunknown ) = @_;
 
+	# XXX probably should do this elsewhere, but...
+	$field = _dbx($field) if(defined($field));
+	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+
 	my $dbh      = $self->dbh;
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
@@ -1139,40 +1157,47 @@ sub b_dropdown {
 
 	my $argone_grey;
 
+	# oracle/pgsqlism
+	my $selectfield = $field;
+	$selectfield =~ tr/a-z/A-Z/;
+
 	my $q;
-	if ( $field eq 'DEVICE_TYPE_ID' ) {
+	if ( $selectfield eq 'DEVICE_TYPE_ID' ) {
 
 		# kookiness is to strip out 'Not Applicable' partners.
 		$q = qq{
 			select * from
 			(select	dt.device_type_id,
-					decode(p.name, 'Not Applicable', ' ', p.name) as name,
+					CASE WHEN p.name = 'Not Applicable' THEN ' '
+						ELSE p.name END as name,
 					dt.model
 			  from	device_type dt
 					inner join partner p
 						on p.partner_id = dt.partner_id
-			)
-			order by decode(name, ' ', lower(model), lower(name)), lower(model)
+			) xx
+			order by 
+				CASE WHEN name = ' ' THEN lower(model) ELSE lower(name) END,
+				lower(model)
 		};
-	} elsif ( $field eq 'STATUS' ) {
+	} elsif ( $selectfield eq 'STATUS' ) {
 		$q = qq{
 			select	status, description
 			  from	val_status
 			order by description, status
 		};
-	} elsif ( $field eq 'AUTO_MGMT_PROTOCOL' ) {
+	} elsif ( $selectfield eq 'AUTO_MGMT_PROTOCOL' ) {
 		$q = qq{
 			select	AUTO_MGMT_PROTOCOL, description
 			  from	val_device_auto_mgmt_protocol
 			order by description, AUTO_MGMT_PROTOCOL
 		};
-	} elsif ( $field eq 'OWNERSHIP_STATUS' ) {
+	} elsif ( $selectfield eq 'OWNERSHIP_STATUS' ) {
 		$q = qq{
 			select	ownership_status, description
 			  from	val_ownership_status
 			order by description, ownership_status
 		};
-	} elsif ( $field eq 'VOE_ID' ) {
+	} elsif ( $selectfield eq 'VOE_ID' ) {
 		$q = qq{
 		select
 			voe.voe_id,  
@@ -1192,7 +1217,7 @@ sub b_dropdown {
 		    order by spr.apt_repository, voe.voe_name
 		};
 		$withlevel = 0;
-	} elsif ( $field eq 'OPERATING_SYSTEM_ID' ) {
+	} elsif ( $selectfield eq 'OPERATING_SYSTEM_ID' ) {
 		$q = qq{
 			select	os.operating_system_id,
 				os.name, os.version,
@@ -1207,7 +1232,7 @@ sub b_dropdown {
 						on pa.processor_architecture = os.processor_architecture
 			order by os.name, os.version, pa.kernel_bits
 		};
-	} elsif ( $field eq 'DNS_DOMAIN_ID' ) {
+	} elsif ( $selectfield eq 'DNS_DOMAIN_ID' ) {
 		my $limitverbiage = "";
 		if ( defined( $params->{'-only_nonauto'} ) ) {
 			$limitverbiage = "where SHOULD_GENERATE = 'N'";
@@ -1218,25 +1243,25 @@ sub b_dropdown {
 			order by soa_name
 		};
 		$pickone = "Please Select Domain";
-	} elsif ( $field eq 'PRODUCTION_STATE' ) {
+	} elsif ( $selectfield eq 'PRODUCTION_STATE' ) {
 		$q = qq{
 			select	production_state, description
 			  from	val_production_state
 			order by description, production_state
 		};
-	} elsif ( $field eq 'NETWORK_INTERFACE_TYPE' ) {
+	} elsif ( $selectfield eq 'NETWORK_INTERFACE_TYPE' ) {
 		$q = qq{
 			select	network_interface_type, description
 			  from	val_network_interface_type
 			order by description, network_interface_type 
 		};
-	} elsif ( $field eq 'NETWORK_INTERFACE_PURPOSE' ) {
+	} elsif ( $selectfield eq 'NETWORK_INTERFACE_PURPOSE' ) {
 		$q = qq{
 			select	network_interface_purpose, description
 			  from	val_network_interface_purpose
 			order by description, network_interface_purpose
 		};
-	} elsif ( $field eq 'DNS_TYPE' ) {
+	} elsif ( $selectfield eq 'DNS_TYPE' ) {
 		my $list = q{  ('ID', 'NON-ID') };
 		if($showhidden) {
 			# XXX when db constraint on val_dns_type.id_type is updated to
@@ -1251,27 +1276,27 @@ sub b_dropdown {
 			order by description, dns_type
 		};
 		$pickone = "Choose";
-	} elsif ( $field eq 'DNS_CLASS' ) {
+	} elsif ( $selectfield eq 'DNS_CLASS' ) {
 		$q = qq{
 			select	dns_class, description
 			  from	val_dns_class
 			order by description, dns_class
 		};
 		$pickone = "Choose";
-	} elsif ( $field eq 'PARTNER_ID' || $field =~ /_PARTNER_ID$/ ) {
+	} elsif ( $selectfield eq 'PARTNER_ID' || $selectfield =~ /_PARTNER_ID$/ ) {
 		$q = qq{
 			select	partner_id, name
 			  from	partner
 			order by lower(name)
 		};
 		$pickone = "Choose";
-	} elsif ( $field eq 'PLUG_STYLE' ) {
+	} elsif ( $selectfield eq 'PLUG_STYLE' ) {
 		$q = qq{
 			select	plug_style, description
 			  from	val_PLUG_STYLE
 			order by PLUG_STYLE
 		};
-	} elsif ( $field eq 'P2_DEVICE_ID' ) {
+	} elsif ( $selectfield eq 'P2_DEVICE_ID' ) {
 
 		#
 		# This is used to make a drop down of devices that meet
@@ -1298,7 +1323,7 @@ sub b_dropdown {
 			 $ordev
 			 order by lower(d.device_name)
 		};
-	} elsif ( $field =~ '(PC_)?P[12]_PHYSICAL_PORT_ID' ) {
+	} elsif ( $selectfield =~ '(PC_)?P[12]_PHYSICAL_PORT_ID' ) {
 		$devidmap = $params->{'-deviceid'};
 		if ( !$devidmap ) {
 			return (
@@ -1315,8 +1340,11 @@ sub b_dropdown {
 		} else {
 			$portrestrict = "";
 		}
+		# ORACLE/PGSQL -- the E\\\1 vs \\1
+		# was distinct, maybe needs to be?
+		# probably want to sort by network_strings...
 		$q = qq{
-			select  distinct
+			select  
 				CASE 
      			     WHEN l1.layer1_connection_id is not NULL THEN 1       
 			  	 WHEN pc.physical_connection_id is not NULL THEN 1
@@ -1334,9 +1362,12 @@ sub b_dropdown {
 						)
 			 where	p.device_id = :devid
 			   $portrestrict
-			 order by regexp_replace(p.port_name, '^[^0-9]*([0-9]*)[^0-9]*\$','\\1'), p.port_name
+			 order by 
+			 	regexp_replace(p.port_name, 
+					'^[^0-9]*([0-9]*)[^0-9]*\$',E'\\\\1'),
+				p.port_name
 		};
-	} elsif ( $field eq 'P2_POWER_DEVICE_ID' ) {
+	} elsif ( $selectfield eq 'P2_POWER_DEVICE_ID' ) {
 		$q = qq{
 			select	d.device_id,
 				d.device_name
@@ -1345,13 +1376,13 @@ sub b_dropdown {
 					on df.device_id = d.device_id
 			 where	df.device_function_type = 'rpc'
 		};
-	} elsif ( $field eq 'CABLE_TYPE' ) {
+	} elsif ( $selectfield eq 'CABLE_TYPE' ) {
 		$q = qq{
 			select	cable_type,
 				description
 			  from	val_cable_type
 		};
-	} elsif ( $field eq 'P2_POWER_INTERFACE_PORT' ) {
+	} elsif ( $selectfield eq 'P2_POWER_INTERFACE_PORT' ) {
 		$devidmap = $params->{'-deviceid'};
 		if ( !$devidmap ) {
 			return (
@@ -1374,47 +1405,47 @@ sub b_dropdown {
 			 where	p.device_id = :devid
 		};
 
-	} elsif ( $field eq 'SNMP_COMMSTR_TYPE' ) {
+	} elsif ( $selectfield eq 'SNMP_COMMSTR_TYPE' ) {
 		$q = qq{
 			select	snmp_commstr_type
 			  from	val_snmp_commstr_type
 			order by snmp_commstr_type
 		};
 		$pickone = "Choose";
-	} elsif ( $field eq 'PROCESSOR_ARCHITECTURE' ) {
+	} elsif ( $selectfield eq 'PROCESSOR_ARCHITECTURE' ) {
 		$q = qq{
 			select  processor_architecture, description
 			  from  val_processor_architecture
 			order by description, processor_architecture
 		};
-	} elsif ( $field eq 'STOP_BITS' ) {
+	} elsif ( $selectfield eq 'STOP_BITS' ) {
 		$q = qq{
 			select  stop_bits, description
 			  from  val_stop_bits
 			order by description, stop_bits
 		};
 		$default = 1 if ( !defined($default) );
-	} elsif ( $field eq 'BAUD' ) {
+	} elsif ( $selectfield eq 'BAUD' ) {
 		$q = qq{
 			select  baud, description
 			  from  val_baud
 			order by description, baud
 		};
 		$default = 9600 if ( !defined($default) );
-	} elsif ( $field eq 'DATA_BITS' ) {
+	} elsif ( $selectfield eq 'DATA_BITS' ) {
 		$q = qq{
 			select  data_bits, description
 			  from  val_data_bits
 			order by description, data_bits
 		};
 		$default = 8 if ( !defined($default) );
-	} elsif ( $field eq 'FLOW_CONTROL' ) {
+	} elsif ( $selectfield eq 'FLOW_CONTROL' ) {
 		$q = qq{
 			select  flow_control, description
 			  from  val_flow_control
 			order by description, flow_control
 		};
-	} elsif ( $field eq 'SITE_CODE' || $field eq 'RACK_SITE_CODE' ) {
+	} elsif ( $selectfield eq 'SITE_CODE' || $selectfield eq 'RACK_SITE_CODE' ) {
 
 		# [XXX] - consider making planned/active doober smarter
 		# for places where someone may want to look at all sites.
@@ -1424,32 +1455,32 @@ sub b_dropdown {
 			order by site_code
 		};
 		$default = 'none' if ( !defined($default) );
-	} elsif ( $field eq 'RACK_ID' || $field eq 'LOCATION_RACK_ID' ) {
+	} elsif ( $selectfield eq 'RACK_ID' || $selectfield eq 'LOCATION_RACK_ID' ) {
 		my $siteclause = "";
 		if ($site) {
 			$siteclause = 'and site_code = :site';
 		}
 		$q = qq{
 			select  rack_id,
-					decode(SITE_CODE, 'n/a', '', SITE_CODE || '-') as SITE_CODE,
-					decode(ROOM, 'n/a', '', ROOM || '-') as ROOM,
-					decode(SUB_ROOM, 'n/a', '', SUB_ROOM || '-') as SUB_ROOM,
-					decode(RACK_ROW, 'n/a', '', RACK_ROW || '-') as RACK_ROW,
-					decode(RACK_NAME, 'n/a', '', RACK_NAME) as RACK_NAME
+					CASE WHEN SITE_CODE = 'n/a' THEN '' ELSE SITE_CODE || '-' END	as SITE_CODE,
+					CASE WHEN ROOM = 'n/a' THEN '' ELSE ROOM || '-' END	as ROOM,
+					CASE WHEN SUB_ROOM = 'n/a' THEN '' ELSE SUB_ROOM || '-' END	as SUN_ROOM,
+					CASE WHEN RACK_ROW = 'n/a' THEN '' ELSE RACK_ROW || '-' END	as RACK_ROW,
+					CASE WHEN RACK_NAME = 'n/a' THEN '' ELSE RACK_NAME || '-' END	as RACK_NAME
 			  from  rack
 			where	rack_id > 0
 			$siteclause
 			order by site_code, room, sub_room, rack_row, rack_name
 		};
 		$default = 'none' if ( !defined($default) );
-	} elsif ( $field eq 'PARITY' ) {
+	} elsif ( $selectfield eq 'PARITY' ) {
 		$q = qq{
 			select  parity, description
 			  from  val_parity
 			order by description, parity
 		};
 		$default = 'none' if ( !defined($default) );
-	} elsif ( $field eq 'VOE_SYMBOLIC_TRACK_ID' ) {
+	} elsif ( $selectfield eq 'VOE_SYMBOLIC_TRACK_ID' ) {
 		$q = qq{
 			select	voe_symbolic_track_id,
 				vst.symbolic_track_name
@@ -1466,28 +1497,28 @@ sub b_dropdown {
 			$voetraxmap = $values->{'OPERATING_SYSTEM_ID'};
 			$bindos     = 1;
 		}
-	} elsif ( $field eq 'X509_CERT_ID' ) {
+	} elsif ( $selectfield eq 'X509_CERT_ID' ) {
 		$q = qq{
 			select	x509_cert_Id, subject
 			  from	x509_certificate
 		};
-	} elsif ( $field eq 'X509_KEY_USG' ) {
+	} elsif ( $selectfield eq 'X509_KEY_USG' ) {
 		$q = qq{
 			select	X509_KEY_USG, DESCRIPTION
 			  from	VAL_X509_KEY_USAGE
 		};
-	} elsif ( $field eq 'X509_FILE_FORMAT' ) {
+	} elsif ( $selectfield eq 'X509_FILE_FORMAT' ) {
 		$q = qq{
 			select	X509_FILE_FORMAT, DESCRIPTION
 			  from	VAL_X509_CERTIFICATE_FILE_FMT
 		};
-	} elsif ( $field eq 'DNS_DOMAIN_TYPE' ) {
+	} elsif ( $selectfield eq 'DNS_DOMAIN_TYPE' ) {
 		$q = qq{
 			select	DNS_DOMAIN_TYPE, DESCRIPTION
 			  from	VAL_DNS_DOMAIN_TYPE
 		};
 		$default = 'service' if ( !defined($default) );
-	} elsif ( $field eq 'DEVICE_COLLECTION_ID' ) {
+	} elsif ( $selectfield eq 'DEVICE_COLLECTION_ID' ) {
 		$q = qq{
 			select	DEVICE_COLLECTION_ID, NAME
 			  from	DEVICE_COLLECTION
@@ -1594,9 +1625,10 @@ sub b_dropdown {
 		$list{$default} = "--Unset--";
 	}
 
-	$field =~ tr/a-z/A-Z/;
+	my $nfield = $field;
+	$nfield =~ tr/a-z/A-Z/;
 
-	my $name = "$field$pkn";
+	my $name = "$nfield$pkn";
 	if ( defined($params) && exists( $params->{-name} ) ) {
 		$name = $params->{-name};
 	}
@@ -1731,6 +1763,10 @@ sub b_textfield {
 	}
 	my ( $values, $field, $pkeyfield ) = @_;
 
+	# XXX probably should do this elsewhere, but...
+	$field = _dbx($field) if(defined($field));
+	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+
 	my $default = $params->{'-default'};
 	my $ip0     = $params->{'-allow_ip0'};
 
@@ -1754,8 +1790,10 @@ sub b_textfield {
 		}
 	}
 
-	$field =~ tr/a-z/A-Z/;
+	# XXX this was setting both $f and $field to uppercase under oracle
+	# need to reconsider
 	my $f = $field;
+	$f =~ tr/a-z/A-Z/;
 
 	my $name = "$f$pkn";
 	if ( $params && $params->{'-name'} ) {
@@ -1772,6 +1810,10 @@ sub b_textfield {
 	if ( !$ip0 && ( defined($allf) && $allf eq '0.0.0.0' ) ) {
 		$allf = "";
 	}
+
+	# oracle/pgsqlism
+	my $selectfield = $field;
+	$field =~ tr/a-z/A-Z/;
 
 	my $size = $params->{-textfield_width};
 	if ( !defined($size) && $self->textfield_sizing ) {
@@ -1889,6 +1931,9 @@ sub build_tr {
 
 	my ( $values, $callback, $header, $field, $pkeyfield ) = @_;
 
+	# XXX probably should do this elsewhere, but...
+	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+
 	my $cgi = $self->cgi;
 
 	my $f = "";
@@ -1925,6 +1970,10 @@ sub build_checkbox {
 		$params = shift(@_);
 	}
 	my ( $values, $label, $field, $pkeyfield, $checked ) = @_;
+
+	# XXX probably should do this elsewhere, but...
+	$field = _dbx($field) if(defined($field));
+	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
 
 	my $cgi = $self->cgi;
 
@@ -2491,6 +2540,7 @@ sub DESTROY {
 		delete( $self->{_JazzHandsSth} );
 	}
 
+if(0) {
 	if ( defined($dbh) && $dbh->ping ) {
 		my $x = join( "\n", $dbh->func('dbms_output_get') );
 		print STDERR $x, "\n"
@@ -2499,6 +2549,7 @@ sub DESTROY {
 		$dbh->disconnect;
 		$self->{dbh} = undef;
 	}
+}
 }
 
 1;

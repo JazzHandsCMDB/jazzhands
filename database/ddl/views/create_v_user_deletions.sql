@@ -30,7 +30,7 @@
 
 CREATE OR REPLACE VIEW v_user_deletions
 as
-SELECT system_user_id,login,system_user_type,company_id person_company_id,aud#action,aud#timestamp,aud#user
+SELECT account_id,login,account_type,company_id person_company_id,aud#action,aud#timestamp,aud#user
 from AUD$SYSTEM_USER
 where aud#action='DEL';
 
@@ -41,7 +41,7 @@ where aud#action='DEL';
 CREATE OR REPLACE VIEW v_user_deletions_extract
 as
 select * from v_user_deletions a
-where not exists (select 1 from system_user b
+where not exists (select 1 from account b
 			where a.login=b.login);
 
 

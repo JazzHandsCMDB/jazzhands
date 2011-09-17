@@ -20,32 +20,21 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
---
 -- $Id$
 --
-CREATE OR REPLACE VIEW 
-	V_Token
-AS 
-	SELECT 
-		Token_ID,
-		Token_Type,
-		Token_Status,
-		Token_Serial,
-		Token_Sequence,
-		Account_ID,
-		coalesce(Token_PIN, 'set', NULL) Token_PIN,
-		Zero_Time,
-		Time_Modulo,
-		Time_Skew,
-		Is_User_Token_Locked,
-		Token_Unlock_Time,
-		Bad_Logins,
-		Issued_Date,
-		T.Last_Updated AS Token_Last_Updated,
-		TS.Last_Updated AS Token_Sequence_Last_Updated,
-		SUT.Last_Updated AS Lock_Status_Last_Updated
-	FROM
-		Token T LEFT OUTER JOIN Token_Sequence TS USING (Token_ID)
-		LEFT OUTER JOIN Account_Token SUT USING (Token_ID)
-;
+
+-- This view shows which users are mapped to which device collections,
+-- which is particularly important for generating passwd files. Please
+-- note that the same account_id can be mapped to the same
+-- device_collection multiple times via different user_collectiones. The
+-- user_collection_id column is important mostly to join the results of the
+-- view back to the user_collection table, and select only certain user_collection
+-- types (such as 'system' and 'per-user') to be expanded.
+
+CREATE OR REPLACE VIEW v_device_col_user_col_expanded AS
+SELECT DISTINCT dchd.device_collection_id, dcu.user_collection_id, vuue.account_id
+FROM v_device_coll_hier_detail dchd
+JOIN v_property dcu ON dcu.device_collection_id = 
+	dchd.parent_device_collection_id
+JOIN v_user_collection_user_expanded vuue on vuue.user_collection_id = dcu.user_collection_id
+WHERE dcu.property_name = 'UnixLogin' and dcu.property_type = 'MclassUnixProp';

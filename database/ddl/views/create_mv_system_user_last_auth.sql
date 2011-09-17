@@ -21,24 +21,24 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -- $Id$
 
--- drop materialized view log on system_user_auth_log;
--- drop materialized view mv_system_user_last_auth;
+-- drop materialized view log on account_auth_log;
+-- drop materialized view mv_account_last_auth;
 
-create materialized view log on system_user_auth_log 
-	with rowid (SYSTEM_USER_AUTH_TS, system_user_id) including new values;
+create materialized view log on account_auth_log 
+	with rowid (SYSTEM_USER_AUTH_TS, account_id) including new values;
 
-create materialized view mv_system_user_last_auth
+create materialized view mv_account_last_auth
 build immediate
 refresh force
 start with sysdate
 next sysdate + 1/8
 with primary key
 	AS (
-	select	system_user_id, max(SYSTEM_USER_AUTH_TS) as
+	select	account_id, max(SYSTEM_USER_AUTH_TS) as
 		SYSTEM_USER_AUTH_TS
-	  from	system_user_auth_log
+	  from	account_auth_log
 	 where	was_auth_success = 'Y'
-	group by system_user_id
+	group by account_id
 );
 
---  EXECUTE DBMS_MVIEW.REFRESH('mv_system_user_last_auth');
+--  EXECUTE DBMS_MVIEW.REFRESH('mv_account_last_auth');

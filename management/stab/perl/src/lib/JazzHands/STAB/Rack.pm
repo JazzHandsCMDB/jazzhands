@@ -84,7 +84,7 @@ sub build_rack {
 			left join device pard
 				on d.parent_device_id = pard.device_id
 		WHERE 
-			l.rack_id = :1
+			l.rack_id = ?
 		ORDER BY l.rack_u_offset_of_device_top
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err;

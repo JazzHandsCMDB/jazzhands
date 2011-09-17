@@ -25,63 +25,58 @@
 --
 -- Items that are essential.
 
-INSERT INTO VAL_System_User_Type(System_User_Type, Is_Person, Description)
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
 	VALUES ('employee', 'Y', 'Employee');
-INSERT INTO VAL_System_User_Type(System_User_Type, Is_Person, Description)
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
 	VALUES ('contractor', 'Y', 'Contractor');
-INSERT INTO VAL_System_User_Type(System_User_Type, Is_Person, Description)
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
 	VALUES ('pseudouser', 'N', 'PseudoUser');
-INSERT INTO VAL_System_User_Type(System_User_Type, Is_Person, Description)
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
 	VALUES ('vendor', 'Y', 'Vendor');
-INSERT INTO VAL_System_User_Type(System_User_Type, Is_Person, Description)
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
 	VALUES ('blacklist', 'N', 'Blacklist');
 
-INSERT INTO VAL_System_User_Status(System_User_Status, Description)
+INSERT INTO VAL_Account_Status(Account_Status, Description)
 	VALUES ('enabled', 'Enabled');
-INSERT INTO VAL_System_User_Status(System_User_Status, Description)
+INSERT INTO VAL_Account_Status(Account_Status, Description)
 	VALUES ('disabled', 'Disabled');
-INSERT INTO VAL_System_User_Status(System_User_Status, Description)
+INSERT INTO VAL_Account_Status(Account_Status, Description)
 	VALUES ('forcedisable', 'forcedisable - User Forced to Disabled status');
-INSERT INTO VAL_System_User_Status(System_User_Status, Description)
+INSERT INTO VAL_Account_Status(Account_Status, Description)
 	VALUES ('deleted', 'deleted');
-INSERT INTO VAL_System_User_Status(System_User_Status, Description)
+INSERT INTO VAL_Account_Status(Account_Status, Description)
 	VALUES ('terminated', 'terminated - User has been terminated');
-INSERT INTO VAL_System_User_Status(System_User_Status, Description)
+INSERT INTO VAL_Account_Status(Account_Status, Description)
 	VALUES ('onleave', 'onleave - User is disabled due to being on leave');
 
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('jpeg');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('tiff');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('pnm');
 
-INSERT INTO VAL_Reporting_Type(Reporting_Type, Description)
-	VALUES ('direct', 'Direct');
-INSERT INTO VAL_Reporting_Type(Reporting_Type, Description)
-	VALUES ('indirect', 'Indirect');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('per-user', 'User_Collection that contain a single user for assigning individual users to objects that only accept User_Collection assignments');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('systems', 'User_Collection that can be assigned to system-type objects to control access to system and network resources');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('unix-group', 'User_Collection representing a Unix group');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('doors', 'User_Collection that can be assigned to door-type objects to control access to physical areas');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('property', 'User_Collection for storing global property values');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('company', 'automatic User_Collectiones defined by company membership');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('usertype', 'automatic User_Collectiones defined by user type');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('site', 'automatic User_Collectiones defined by user site');
 
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('per-user', 'UClass that contain a single user for assigning individual users to objects that only accept UClass assignments');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('systems', 'UClass that can be assigned to system-type objects to control access to system and network resources');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('unix-group', 'Uclass representing a Unix group');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('doors', 'UClass that can be assigned to door-type objects to control access to physical areas');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('property', 'UClass for storing global property values');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('company', 'automatic uclasses defined by company membership');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('usertype', 'automatic uclasses defined by user type');
-INSERT INTO VAL_UClass_Type (UClass_Type, Description)
-	VALUES ('site', 'automatic uclasses defined by user site');
-
-INSERT INTO VAL_Status (Status, Description)
+INSERT INTO VAL_Device_Status (Device_Status, Description)
 	VALUES ('unknown', 'Unknown or incompletely entered');
-INSERT INTO VAL_Status (Status, Description)
+INSERT INTO VAL_Device_Status (Device_Status, Description)
 	VALUES ('up', 'Up/Normal');
-INSERT INTO VAL_Status (Status, Description)
+INSERT INTO VAL_Device_Status (Device_Status, Description)
 	VALUES ('down', 'Intentionally down or offline');
-INSERT INTO VAL_Status (Status, Description)
+INSERT INTO VAL_Device_Status (Device_Status, Description)
 	VALUES ('removed', 'System has been removed');
 
 INSERT INTO VAL_Production_State (Production_State)
@@ -108,14 +103,33 @@ INSERT INTO VAL_Ownership_Status (Ownership_Status)
 INSERT INTO VAL_Ownership_Status (Ownership_Status)
 	VALUES ('unknown');
 
-INSERT INTO VAL_Phone_Number_Type (Phone_Number_Type)
-	VALUES ('office');
-INSERT INTO VAL_Phone_Number_Type (Phone_Number_Type)
+insert into Val_Person_Contact_Type(person_contact_type)
+	values ('chat');
+insert into Val_Person_Contact_Type(person_contact_type)
+	values ('phone');
+
+INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
+	Person_Contact_Type)
+	VALUES ('phone', 'phone');
+INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
+	Person_Contact_Type)
+	VALUES ('mobile', 'phone');
+INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
+	Person_Contact_Type)
+	VALUES ('fax', 'phone');
+INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
+	Person_Contact_Type)
+	VALUES ('voicemail', 'phone');
+INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
+	Person_Contact_Type)
+	VALUES ('conference', 'phone');
+
+INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
 	VALUES ('home');
-INSERT INTO VAL_Phone_Number_Type (Phone_Number_Type)
-	VALUES ('mobile');
-INSERT INTO VAL_Phone_Number_Type (Phone_Number_Type)
-	VALUES ('fax');
+INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
+	VALUES ('personal');
+INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
+	VALUES ('office');
 
 insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
 	('DBType', 'Database Type');
@@ -124,17 +138,18 @@ insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
 insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
 	('Password', 'Password or equivalent');
 insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
-	('ServiceName', 'Service Name used for certain methods (DB methods, notably)');
+	('ServiceName', 
+	'Service Name used for certain methods (DB methods, notably)');
 insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
 	('Username', 'Username or equivalent');
 
 INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
 	VALUES ('Method', 'password');
 
-INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
-	VALUES ('office');
-INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
-	VALUES ('home');
+--INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
+--	VALUES ('office');
+--INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
+--	VALUES ('home');
 
 INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
 	VALUES ('DBType', 'ftp');
@@ -151,16 +166,21 @@ INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
 INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
 	VALUES ('DBType', 'tds');
 
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
-	VALUES ('mclass');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
-	VALUES ('adhoc');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
-	VALUES ('appgroup');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
-	VALUES ('applicense');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
-	VALUES ('undefined');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
+		Can_Have_User_Collection)
+	VALUES ('mclass', 'Y');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
+		Can_Have_User_Collection)
+	VALUES ('adhoc', 'N');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
+		Can_Have_User_Collection)
+	VALUES ('appgroup', 'N');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
+		Can_Have_User_Collection)
+	VALUES ('applicense', 'N');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
+		Can_Have_User_Collection)
+	VALUES ('undefined', 'N');
 
 INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
 	VALUES ('star');
@@ -385,7 +405,7 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE)
 values ('password_type');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('token_collection_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('uclass_id');
+insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('User_Collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('sw_package_id');
 
@@ -412,100 +432,100 @@ insert into val_property_type (property_type, description,is_multivalue)
 	'wwwgroup','WWW Group properties','Y');
 
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('AllMclasses',			'ConsoleACL',           'console access control for all mclasses',                                     'N',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('PerMclass',			'ConsoleACL',           'per mclass console access control',                                           'N',            'string',              'PROHIBITED',  'REQUIRED',    'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
-('SudoGrantsConsole',		'ConsoleACL',           'sudo grants console uclass attribute',                                        'N',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
+('SudoGrantsConsole',		'ConsoleACL',           'sudo grants console User_Collection attribute',                                        'N',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Class',			'RADIUS',               'Radius Class from RFC2138',                                                   'Y',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Foundry-Privilege-Level',	'RADIUS',               'Privilege level on a Foundry device',                                         'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('GrantAccess',			'RADIUS',               'Permit user access to device',                                                'N',            'boolean',             'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Juniper-Allow-Commands',	'RADIUS',               'Extended regex of additional operational commands to allow to be run',        'Y',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Juniper-Allow-Configuration',	'RADIUS',               'Extended regex of portions of the configuration to allow the user to modify', 'Y',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Juniper-Deny-Commands',	'RADIUS',               'Extended regex of operational commands to deny',                              'Y',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Juniper-Deny-Configuration',	'RADIUS',               'Extended regex of portions of the configuration to deny the user to modify',  'Y',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Juniper-Local-User-Name',	'RADIUS',               'Name of Juniper user template',                                               'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('NS-Admin-Privilege',		'RADIUS',               'Netscreen Admin Level',                                                       'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('NS-User-Group',		'RADIUS',               'Netscreen User Group Name',                                                   'Y',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
-('PWType',			'RADIUS',               'Force password verification type for this uclass',                            'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
+('PWType',			'RADIUS',               'Force password verification type for this User_Collection',                            'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('Service-Type',		'RADIUS',               'RADIUS Service-Type from RFC2138',                                         'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('cisco-avpair=shell:priv-lvl',	'RADIUS',               'Enable level of user on a Cisco device',                                      'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('GlobalAdmin',			'TokenMgmt',            'User can manage any token',                                                   'N',            'boolean',             'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ManageTokenCollection',	'TokenMgmt',            'User can manage any token in the token collection',                           'N',            'token_collection_id', 'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceCrypt',			'UnixPasswdFileValue',  'Sets the users Crypt to something other than the default (OS dependent)',     'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceHome',			'UnixPasswdFileValue',  'Sets the users Home directory to something other than the default',           'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceMD5',			'UnixPasswdFileValue',  'Sets the users MD5 to something other than the default (OS depenent)',        'N',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceShell',			'UnixPasswdFileValue',  'Sets the users Shell to something other than the default',                    'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceStdShell',		'UnixPasswdFileValue',  'Prevents the users shell from being set to anything but the default',         'N',            'boolean',             'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceUserGroup',		'UnixPasswdFileValue',  'Sets the users GID to something other than the default',                      'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceUserUID',		'UnixPasswdFileValue',  'Sets the users UID to something other than the default',                      'N',            'string',              'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('GlobalPasswordAdmin',		'UserMgmt',             'User can reset passwords for any user',                                       'N',            'boolean',             'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('GlobalTokenAdmin',		'UserMgmt',             'User can manage token assignments for any user',                              'N',            'boolean',             'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('MasterPasswordAdmin',		'UserMgmt',             'Admin can reset passwords without answering challenge questions',             'N',            'boolean',             'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
-('PasswordAdminForUclass',	'UserMgmt',             'User can reset passwords for the uclass',                                     'N',            'boolean',             'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
+('PasswordAdminForUser_Collection',	'UserMgmt',             'User can reset passwords for the User_Collection',                                     'N',            'boolean',             'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
-('TokenAdminForUclass',		'UserMgmt',             'User can manage token assignments for any user in the uclass',                'N',            'token_collection_id', 'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
+('TokenAdminForUser_Collection',		'UserMgmt',             'User can manage token assignments for any user in the User_Collection',                'N',            'token_collection_id', 'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('prohibit-feed',		'feed-attributes',      'prevent feeding a user for a given feed',                                     'Y',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_SYSTEM_USER_ID, PERMIT_UCLASS_ID, PERMIT_OPERATING_SYSTEM_ID) values
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_User_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('WWWGroupName',		'wwwgroup',             'WWW Group name overrides',                                                    'N',            'string',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 
 
@@ -536,7 +556,7 @@ insert into val_property (
 );
 insert into val_property (
         PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
-        PERMIT_DEVICE_COLLECTION_ID, PERMIT_UCLASS_ID
+        PERMIT_DEVICE_COLLECTION_ID, PERMIT_User_Collection_ID
 ) values (
         'UnixLogin', 'MclassUnixProp', 'N', 'none',
         'REQUIRED', 'REQUIRED'
@@ -560,89 +580,89 @@ insert into val_property_type (
 );
 insert into val_property (
         PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
-        PERMIT_DEVICE_COLLECTION_ID, PERMIT_UCLASS_ID
+        PERMIT_DEVICE_COLLECTION_ID, PERMIT_User_Collection_ID
 ) values (
         'ForceGroupGID', 'UnixGroupFileProperty', 'N', 'none',
         'REQUIRED', 'REQUIRED'
 );
 
 
--- XXX need to auto-create a uclass all_company_XX
+-- XXX need to auto-create a User_Collection all_company_XX
 INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
 	VALUES (0, 'none', 'N');
 
-INSERT INTO System_User (
+INSERT INTO Account (
 	Login,
-	First_Name,
-	Last_Name,
-	System_User_Status,
-	System_User_Type,
-	Company_Id
+	Description,
+	Account_Status,
+	Account_Type
 ) VALUES (
 	'root',
-	'Super',
-	'User',
+	'Super User',
 	'enabled',
-	'pseudouser',
-	(SELECT Company_ID FROM Company WHERE Company_Name = 'none')
+	'pseudouser'
 );
 
-insert into uclass (name, uclass_type)
+insert into user_collection (user_collection_name, user_collection_type)
 	values ('root', 'unix-group');
 
 INSERT INTO Unix_Group (
-	Uclass_id,
+	User_Collection_id,
 	Unix_GID,
 	Group_Password,
 	Group_Name
 ) VALUES (
-	(select uclass_id from uclass where name = 'root' 
-		and uclass_type = 'unix-group'),
+	(select User_Collection_id 
+	   from user_collection 
+	   where User_Collection_Name = 'root' 
+		and user_collection_type = 'unix-group'),
 	0,
 	'*',
 	'root'
 );
 
 INSERT INTO User_Unix_Info (
-	System_User_ID,
+	Account_Id,
 	Unix_UID,
-	UNIX_GROUP_UCLASS_ID,
+	UNIX_GROUP_User_Collection_Id,
 	Shell,
 	Default_Home
 ) VALUES (
-	(select system_user_id from system_user where login = 'root'),
+	(select account_id from account where login = 'root'),
 	0,
-	(select uclass_id from uclass where name = 'root' 
-		and uclass_type = 'unix-group'),
+	(select User_Collection_Id from User_Collection 
+		where user_collection_name = 'root' 
+		and user_collection_Type = 'unix-group'),
 	'/bin/sh',
 	'/'
 );
 
-INSERT INTO System_Password (
-	System_User_ID,
+INSERT INTO Account_Password (
+	Account_Id,
 	Password_type,
 	User_Password,
 	Change_Time
 ) VALUES (
-	(select system_user_id from system_user where login = 'root'),
+	(select account_Id from account where login = 'root'),
 	'des',
 	'T6r7sdlVHpZH2',
-	SYSDATE
+	now()
 );
 
-insert into uclass (name, uclass_type)
+insert into User_Collection (User_Collection_Name, User_Collection_Type)
 	values ('root', 'per-user');
 
-insert into uclass_user (uclass_id, system_user_id)
-select u.uclass_id, su.system_user_id
-from    uclass u, system_User su
-where u.uclass_type in ('unix-group', 'per-user') and u.name = 'root'
-and su.login in ('root');
+insert into User_Collection_User (User_Collection_Id, Account_Id)
+select u.user_collection_id, a.account_id
+from    user_collection u, account a
+where u.user_collection_type in ('unix-group', 'per-user')
+and u.user_collection_name = 'root'
+and a.login in ('root');
 
 
 
 INSERT INTO
-	Device_Collection (Name, Device_Collection_Type)
+	Device_Collection (Device_Collection_Name, Device_Collection_Type)
 VALUES (
 	'default',
 	'mclass'

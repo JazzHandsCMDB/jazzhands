@@ -30,6 +30,8 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
+use Data::Dumper;
 
 do_device_type();
 
@@ -97,7 +99,7 @@ sub do_device_type_power {
 		  from	device_type dt
 			inner join partner p
 				on dt.partner_id = p.partner_id
-		where	dt.device_type_id = :1
+		where	dt.device_type_id = ?
 	};
 
 	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
@@ -109,7 +111,7 @@ sub do_device_type_power {
 		return $stab->error_return("Unknown Device Type");
 	}
 
-	$model = $dt->{'PARTNER_NAME'} . " " . $dt->{'MODEL'};
+	$model = $dt->{_dbx('PARTNER_NAME')} . " " . $dt->{_dbx('MODEL')};
 
 	print $cgi->header('text/html');
 	print $stab->start_html( { 
@@ -329,12 +331,14 @@ sub build_physical_port_box {
 	my $q = qq{
 		select	device_type_id, port_name, port_type
 		  from	device_type_phys_port_templt
-		 where	device_type_id = :1
-		   and	port_type = :2
-		order by to_number(
-			regexp_replace(port_name, '[^[:digit:]]', '')),
-				port_name
+		 where	device_type_id = ?
+		   and	port_type = ?
 	};
+# XXX ORACLE/pgsql
+#		order by to_number(
+#			regexp_replace(port_name, '[^\d]', '')),
+#				port_name
+#	};
 
 	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($devtypid, $type) || $stab->return_db_err($sth);
@@ -347,9 +351,9 @@ sub build_physical_port_box {
 		$numrows++;
 
  		my $idx = join("_",
- 				$hr->{'DEVICE_TYPE_ID'},
- 				$hr->{'PORT_TYPE'},
- 				$hr->{'PORT_NAME'},
+ 				$hr->{_dbx('DEVICE_TYPE_ID')},
+ 				$hr->{_dbx('PORT_TYPE')},
+ 				$hr->{_dbx('PORT_NAME')},
  		);
 
 
@@ -445,11 +449,13 @@ sub build_power_box {
 		select	DEVICE_TYPE_ID, POWER_INTERFACE_PORT,
 				PLUG_STYLE, VOLTAGE, MAX_AMPERAGE
 		  from	DEVICE_TYPE_POWER_PORT_TEMPLT
-		 where	device_type_id = :1
-		order by to_number(
-					regexp_replace(POWER_INTERFACE_PORT, '[^[:digit:]]', '')),
-				power_interface_port
+		 where	device_type_id = ?
 	};
+# XXX ORACLE/pgsql
+#		order by to_number(
+#					regexp_replace(POWER_INTERFACE_PORT, '[^[:digit:]]', '')),
+#				power_interface_port
+#	};
 
 	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($devtypid) || $stab->return_db_err($sth);
@@ -463,11 +469,11 @@ sub build_power_box {
 		$numrows++;
 
 		my $idx = "pwr_"
-		  . $hr->{DEVICE_TYPE_ID} . "_"
-		  . $hr->{POWER_INTERFACE_PORT};
+		  . $hr->{_dbx('DEVICE_TYPE_ID')} . "_"
+		  . $hr->{_dbx('POWER_INTERFACE_PORT')};
 		$idx = $cgi->escapeHTML($idx);
 
-		my $pstyle = $hr->{'PLUG_STYLE'};
+		my $pstyle = $hr->{_dbx('PLUG_STYLE')};
 		$pstyle =~ tr/A-Z/a-z/;
 		$pstyle =~ s,/.*$,,;
 		$pstyle =~ s,^.+\s+,,;

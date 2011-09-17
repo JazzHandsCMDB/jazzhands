@@ -30,6 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
 
 do_show_serial();
 
@@ -46,7 +47,7 @@ sub do_show_serial {
 	my $q = qq{
 		select	device_id, device_name
 		  from	device
-		 where	device_name like :1
+		 where	device_name like ?
 		  and	device_name not like '%--otherside%'
 		 order by device_name
 	};

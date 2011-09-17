@@ -41,6 +41,7 @@ use strict;
 use warnings;
 
 use JazzHands::DBI;
+use JazzHands::GenericDB;
 use Data::Dumper;
 use URI;
 
@@ -51,12 +52,14 @@ our $VERSION = '1.0.0';
 sub setup_device_power {
 	my($self, $devid) = @_;
 
+	# XXX ORACLE/pgsql
+	# oracle requires this to be wrapped in a begin/end, pgsql needs the
+	# select
+
 	my $dbh = $self->dbh || die "Could not create dbh";
 
 	my $q = qq{
-		begin
-			port_utils.setup_device_power(:1);
-		end;
+			SELECT port_utils.setup_device_power(?);
 	};
 	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute($devid) || $self->return_db_err($sth);
@@ -67,14 +70,16 @@ sub setup_device_power {
 sub setup_device_physical_ports {
 	my($self, $devid, $type) = @_;
 
+	# XXX ORACLE/pgsql
+	# oracle requires this to be wrapped in a begin/end, pgsql needs the
+	# select
+
 	my $dbh = $self->dbh || die "Could not create dbh";
 
 	my $q = qq{
-		begin
-			port_utils.setup_device_physical_ports(:1, :2);
-		end;
+			SELECT port_utils.setup_device_physical_ports(?, ?);
 	};
-	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
+	my $sth = $dbh->prepare($q) || $self->return_db_err($q, $dbh);
 	$sth->execute($devid, $type) || $self->return_db_err($sth);
 	$sth->finish;
 }
@@ -96,7 +101,7 @@ sub device_notes_print {
 	my $q = qq{
 		select	note_id, lower(note_user), note_date, note_text
 		  from	device_note
-		 where	device_id = :1
+		 where	device_id = ?
 		order by note_date desc
 	};
 	my $sth = $dbh->prepare($q) || die $self->return_db_err($dbh);
@@ -163,6 +168,7 @@ sub device_circuit_tab {
 		$limit = "ni.PARENT_NETWORK_INTERFACE_ID = :1";
 	}
 
+	# XXX ORACLE/PGSQL issue
 	my $q = qq{
 		select	ni.network_interface_id,
 			ni.name as network_interface_name,
@@ -191,7 +197,7 @@ sub device_circuit_tab {
 				on tg.trunk_group_id = c.trunk_group_id
 		 where	 $limit
 		   and	ni.network_interface_purpose = 'voice'
-	     order by NETWORK_STRINGS.NUMERIC_INTERFACE(ni.name)
+	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(ni.name)
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err;
 
@@ -320,13 +326,14 @@ sub device_switch_port {
 		55 )
 	{
 		my $root = $self->guess_stab_root;
+		# XXX ORACLE/PGSQL
 		my $sth  = $self->prepare(
 			q{
-			select  distinct regexp_replace(port_name, '/.*$', '') as port_name    
+			select  distinct regexp_replace(port_name, '/.*$', '') as port_name
 			 from   physical_port
 			 where   device_id = :1
-			   and   port_type = :2 
-	     order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
+			   and   port_type = :2
+	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
 		}
 		);
 		$sth->execute( $devid, 'network' )
@@ -424,15 +431,15 @@ sub build_switch_drop_tr {
 
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $pportid   = $hr->{'P1_PHYSICAL_PORT_ID'};
+	my $pportid   = $hr->{ _dbx('P1_PHYSICAL_PORT_ID') };
 	my $divwrapid = "div_p2_physical_port_id_$pportid";
 
 	my $htmlid = "P1_PHYSICAL_PORT_ID__$pportid";
 
-	my $pname = $hr->{'P1_PORT_NAME'};
-	if($hr->{'P1_PHYSICAL_LABEL'}) {
+	my $pname = $hr->{ _dbx('P1_PORT_NAME') };
+	if($hr->{ _dbx('P1_PHYSICAL_LABEL') }) {
 		$pname .= "/".$cgi->span({-class=>'port_label'},
-			$hr->{'P1_PHYSICAL_LABEL'});
+			$hr->{ _dbx('P1_PHYSICAL_LABEL') });
 	}
 
 
@@ -460,7 +467,7 @@ sub build_switch_drop_tr {
 				{
 					-portLimit => 'network',
 					-divWrap   => $divwrapid,
-					-deviceid  => $hr->{'P2_DEVICE_ID'}
+					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') }
 				},
 				$hr,
 				'P2_PHYSICAL_PORT_ID',
@@ -483,9 +490,10 @@ sub device_power_ports {
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
+	# ORACLE/PGSQL
 	my $q = qq{
 		select * from (
-			select	
+			select
 				c.DEVICE_POWER_CONNECTION_ID,
 				c.device_id as p1_power_device_id,
 				c.power_interface_port as p1_power_interface_port,
@@ -498,9 +506,9 @@ sub device_power_ports {
 							and i.power_interface_port = c.power_interface_port
 					inner join device d2
 						on d2.device_id = c.rpc_device_id
-			 where	i.device_id = :1
+			 where	i.device_id = :devid
 		UNION
-			select	
+			select
 				c.DEVICE_POWER_CONNECTION_ID,
 				c.rpc_device_id as p1_power_device_id,
 				c.rpc_power_interface_port as p1_power_interface_port,
@@ -510,13 +518,13 @@ sub device_power_ports {
 			  from	device_power_connection c
 					inner join device_power_interface i
 						on i.device_id = c.rpc_device_id
-							and i.power_interface_port 
+							and i.power_interface_port
 								= c.rpc_power_interface_port
 					inner join device d2
 						on d2.device_id = c.device_id
-			 where	i.device_id = :1
+			 where	i.device_id = :devid
 		UNION
-			select	
+			select
 				c.DEVICE_POWER_CONNECTION_ID,
 				i.device_id as p1_power_device_id,
 				i.power_interface_port as p1_power_interface_port,
@@ -526,28 +534,29 @@ sub device_power_ports {
 			  from	device_power_interface i
 					left join device_power_connection c
 						on (i.device_id = c.rpc_device_id
-							and i.power_interface_port 
+							and i.power_interface_port
 								= c.rpc_power_interface_port)
 						OR (i.device_id = c.device_id
-							and i.power_interface_port 
+							and i.power_interface_port
 								= c.power_interface_port)
 				where
 					c.DEVICE_POWER_CONNECTION_ID is NULL
-			 	and	i.device_id = :1
-		)
-	     order by NETWORK_STRINGS.NUMERIC_INTERFACE(p1_power_interface_port)
-			
+			 	and	i.device_id = :devid
+		) xx
+	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(p1_power_interface_port)
+
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 
-	$sth->execute($devid) || $self->return_db_err($self);
+	$sth->bind_param(':devid', $devid) || $self->return_db_err($self);
+	$sth->execute || $self->return_db_err($self);
 
 	my $x = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
 
-		my $powerid   = $hr->{'P1_POWER_INTERFACE_PORT'};
+		my $powerid   = $hr->{_dbx('P1_POWER_INTERFACE_PORT')};
 		my $divwrapid = "div_p2_power_port_id_$powerid";
-		my $htmlid    = "P1_POWER_INTERFACE_PORT_$powerid";
+		my $htmlid    = _dbx("P1_POWER_INTERFACE_PORT_$powerid");
 
 		$x .= $cgi->Tr(
 			$cgi->td(
@@ -557,7 +566,7 @@ sub device_power_ports {
 						-id    => $htmlid,
 						-value => $powerid
 					),
-					$hr->{'P1_POWER_INTERFACE_PORT'}
+					$hr->{_dbx('P1_POWER_INTERFACE_PORT')}
 				)
 			),
 			$cgi->td(
@@ -570,7 +579,7 @@ sub device_power_ports {
 					{
 						-divWrap => $divwrapid,
 						-deviceid =>
-						  $hr->{'P2_POWER_DEVICE_ID'}
+						  $hr->{_dbx('P2_POWER_DEVICE_ID')}
 					},
 					$hr,
 					'P2_POWER_INTERFACE_PORT',
@@ -603,14 +612,14 @@ sub powerport_device_magic {
 
 	my $cgi = $self->cgi;
 
-	my $id	= $hr->{'P1_POWER_INTERFACE_PORT'};
+	my $id	= $hr->{_dbx('P1_POWER_INTERFACE_PORT')};
 	my $devlinkid = "power_devlink_$id";
 	my $args;
 
 	my $devdrop = "P2_POWER_DEVICE_ID_$id";
 	my $devname = "P2_POWER_DEVICE_NAME_$id";
-	my $pdevid  = $hr->{'P2_POWER_DEVICE_ID'};
-	my $pname   = $hr->{'P2_POWER_DEVICE_NAME'};
+	my $pdevid  = $hr->{ _dbx('P2_POWER_DEVICE_ID') };
+	my $pname   = $hr->{ _dbx('P2_POWER_DEVICE_NAME') };
 
 	my $pdnam = "P2_POWER_DEVICE_NAME_" . $id;
 	my $dostuffjavascript =
@@ -711,15 +720,15 @@ sub build_serial_drop_tr {
 
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $pportid   = $hr->{'P1_PHYSICAL_PORT_ID'};
+	my $pportid   = $hr->{_dbx('P1_PHYSICAL_PORT_ID')};
 	my $divwrapid = "div_p2_physical_port_id_$pportid";
 
-	my $htmlid = "P1_PHYSICAL_PORT_ID__$pportid";
+	my $htmlid = _dbx("P1_PHYSICAL_PORT_ID__$pportid");
 
-	my $pname = $hr->{'P1_PORT_NAME'};
-	if($hr->{'P1_PHYSICAL_LABEL'}) {
+	my $pname = $hr->{_dbx('P1_PORT_NAME')};
+	if($hr->{_dbx('P1_PHYSICAL_LABEL')}) {
 		$pname .= "/".$cgi->span({-class=>'port_label'},
-			$hr->{'P1_PHYSICAL_LABEL'});
+			$hr->{_dbx('P1_PHYSICAL_LABEL')});
 	}
 
 
@@ -747,7 +756,7 @@ sub build_serial_drop_tr {
 				{
 					-portLimit => 'serial',
 					-divWrap   => $divwrapid,
-					-deviceid  => $hr->{'P2_DEVICE_ID'}
+					-deviceid  => $hr->{_dbx('P2_DEVICE_ID')}
 				},
 				$hr,
 				'P2_PHYSICAL_PORT_ID',
@@ -1208,96 +1217,39 @@ sub physical_connection_row {
 sub build_physical_port_query {
 	my ( $what, $parent ) = @_;
 
+	# ORACLE/PGSQL -- regexp_like (o)  vs regexp_matches (p)
 	my $parentq = "";
 	if ($parent) {
-		$parentq .= qq{where regexp_like(p1_port_name, :3)};
+		$parentq .= qq{and regexp_matches(l1.port_name, :3)};
 	}
 
+	# XXX - this needs to be made to just not suck.  The whole P1/P2 stuff
+	# is disgusting in the way it was dealt with
 	my $q = qq{
-		select * from
-		(
-		select   
-				l1.layer1_connection_Id,
-				regexp_replace(p1.port_name, '^[^0-9]*([0-9]*)[^0-9]*\$','\\1')
-					as sort_id,
-				p1.physical_port_id as p1_physical_port_id,
-				p1.port_name	as p1_port_name,
-				p1.physical_label	as p1_physical_label,
-				p1.device_id	as p1_device_id,
-				p2.physical_port_id as p2_physical_port_id,
-				p2.port_name	as p2_port_name,
-				p2.device_id	as p2_device_id,
-				d2.device_name	as p2_device_name,
-				l1.baud,
-				l1.data_bits,
-				l1.stop_bits,
-				l1.parity,
-				l1.flow_control
-			  from  physical_port p1
-			    inner join layer1_connection l1
-					on l1.physical_port1_id = p1.physical_port_id
-			    inner join physical_port p2
-					on l1.physical_port2_id = p2.physical_port_id
-				inner join device d2
-					on p2.device_id = d2.device_id
-			 where  p1.port_type = :2
-			   and  (p2.port_type = :2 or p2.port_type is NULL)
-			   and  p1.device_id = :1
-		UNION
-			 select
-				l1.layer1_connection_Id,
-				regexp_replace(p1.port_name, '^[^0-9]*([0-9]*)[^0-9]*\$','\\1')
-					as sort_id,
-				p1.physical_port_id as p1_physical_port_id,
-				p1.port_name	as p1_port_name,
-				p1.physical_label	as p1_physical_label,
-				p1.device_id	as p1_device_id,
-				p2.physical_port_id as p2_physical_port_id,
-				p2.port_name	as p2_port_name,
-				p2.device_id	as p2_device_id,
-				d2.device_name	as d2_device_name,
-				l1.baud,
-				l1.data_bits,
-				l1.stop_bits,
-				l1.parity,
-				l1.flow_control
-			  from  physical_port p1
-			    inner join layer1_connection l1
-					on l1.physical_port2_id = p1.physical_port_id
-			    inner join physical_port p2
-					on l1.physical_port1_id = p2.physical_port_id
-				inner join device d2
-					on p2.device_id = d2.device_id
-			 where  p1.port_type = :2
-			   and  (p2.port_type = :2 or p2.port_type is NULL)
-			   and  p1.device_id = :1
-		UNION
-			 select
-				NULL,
-				regexp_replace(p1.port_name, '^[^0-9]*([0-9]*)[^0-9]*\$','\\1')
-					as sort_id,
-				p1.physical_port_id as p1_physical_port_id,
-				p1.port_name	as p1_port_name,
-				p1.physical_label	as p1_physical_label,
-				p1.device_id	as p1_device_id,
-				NULL,
-				NULL,
-				NULL,
-				NULL,
-				NULL,
-				NULL,
-				NULL,
-				NULL,
-				NULL
-			  from  physical_port p1
-			left join layer1_connection l1
-				on l1.physical_port1_id = P1.physical_port_id
-				or l1.physical_port2_id = P1.physical_port_id
-	     where  p1.device_id = :1 
-	      and   p1.port_type = :2
-	      and   l1.layer1_connection_id is NULL
-		) $parentq
-	     order by NETWORK_STRINGS.NUMERIC_INTERFACE(p1_port_name)
+		select
+			l1.layer1_connection_Id,
+			l1.physical_port_id		as p1_physical_port_id,
+			l1.device_id				as p1_device_id,
+			l1.port_name				as p1_port_name,
+			l1.port_type				as p1_port_type,
+			l1.port_purpose			as p1_port_purpose,
+			l1.other_physical_port_id	as p2_physical_port_id,
+			l1.other_device_id			as p2_device_id,
+			d.device_name				as p2_device_name,
+			l1.other_port_name			as p2_port_name,
+			l1.other_port_purpose		as p2_port_purpose,
+			l1.baud,
+			l1.data_bits,
+			l1.stop_bits,
+			l1.parity,
+			l1.flow_control
+		  from v_l1_all_physical_ports l1
+			left join device d
+				on l1.other_device_id = d.device_id
+		  where	l1.device_id = ?
+			and l1.port_type = ?
+			$parentq
+	     -- XXX order by NETWORK_STRINGS.NUMERIC_INTERFACE(l1.p1_port_name)
 	};
 
 	$q;
@@ -1309,10 +1261,10 @@ sub build_physical_port_conn_query {
 	# [XXX] - need to tweak to actually deal with physical connections
 
 	my $q = qq{
-			select  
+			select
 				pcore.port_name	as	patch_name,
-				d1.device_id 	as d1_device_id, 
-				d1.device_name	as d1_device_name, 
+				d1.device_id 	as d1_device_id,
+				d1.device_name	as d1_device_name,
 				p1.port_name	as d1_port_name,
 				d2.device_id	as d2_device_id,
 				d2.device_name	as d2_device_name,
@@ -1329,8 +1281,8 @@ sub build_physical_port_conn_query {
 				left join physical_port p2
 					ON p2.physical_port_id = pc2.physical_port_id1
 				left join device d2
-					on p2.device_id = d2.device_id 
-			where   
+					on p2.device_id = d2.device_id
+			where
 				pcore.device_id = :1
 			AND
 				pcore.port_type = :2
@@ -1380,9 +1332,9 @@ sub physicalport_otherend_device_magic {
 	my ( $pdevid, $pname, $pportid );
 
 	if ($hr) {
-		$pdevid  = $hr->{"${prefix}P${side}_DEVICE_ID"};
-		$pname   = $hr->{"${prefix}P${side}_DEVICE_NAME"};
-		$pportid = $hr->{"${prefix}P1_PHYSICAL_PORT_ID"};
+		$pdevid  = $hr->{_dbx("${prefix}P${side}_DEVICE_ID")};
+		$pname   = $hr->{_dbx("${prefix}P${side}_DEVICE_NAME")};
+		$pportid = $hr->{_dbx("${prefix}P1_PHYSICAL_PORT_ID")};
 	} elsif ( $params && exists( $params->{'-uniqID'} ) ) {
 		$pdevid  = '';
 		$pname   = '';
@@ -1399,8 +1351,8 @@ sub physicalport_otherend_device_magic {
 		$sidestuff = ", $side";
 	}
 
-	my $pdid  = "${prefix}P${side}_DEVICE_ID_" . $pportid;
-	my $pdnam = "${prefix}P${side}_DEVICE_NAME_" . $pportid;
+	my $pdid  = _dbx("${prefix}P${side}_DEVICE_ID_" . $pportid);
+	my $pdnam = _dbx("${prefix}P${side}_DEVICE_NAME_" . $pportid);
 	my $rv    = $cgi->hidden(
 		{
 			-name    => $pdid,
@@ -1693,10 +1645,10 @@ sub get_device_netblock_routes {
 			ip_manip.v4_octet_from_int(rnb.ip_address) as device_ip,
 			srt.NETWORK_INTERFACE_DST_ID,
 			srt.NETBLOCK_SRC_ID,
-			ip_manip.v4_octet_from_int(snb.ip_address) as source_block_ip,  
+			ip_manip.v4_octet_from_int(snb.ip_address) as source_block_ip,
 			snb.netmask_bits as source_block_bits,
-			ni.v4_netblock_id as destination_netblock_id,   
-			ip_manip.v4_octet_from_int(dnb.ip_address) as destination_ip, 
+			ni.v4_netblock_id as destination_netblock_id,
+			ip_manip.v4_octet_from_int(dnb.ip_address) as destination_ip,
 			dni.name as interface_name,
 			dni.network_interface_id,
 			ddev.device_name,
@@ -1707,18 +1659,18 @@ sub get_device_netblock_routes {
 			inner join netblock tnb
 				on tnb.netblock_id = srt.netblock_id
 			inner join netblock rnb
-				on ip_manip.v4_base(rnb.ip_address, rnb.netmask_bits) = 
+				on ip_manip.v4_base(rnb.ip_address, rnb.netmask_bits) =
 					tnb.ip_address
 			inner join network_interface ni
 				on rnb.netblock_id = ni.v4_netblock_id
 			inner join network_interface dni
 				on dni.network_interface_id = srt.network_interface_dst_id
-			inner join netblock dnb 
+			inner join netblock dnb
 				on dni.v4_netblock_id = dnb.netblock_id
 			inner join device ddev
 				on dni.device_id = ddev.device_Id
 		where
-			tnb.netmask_bits = rnb.netmask_bits 
+			tnb.netmask_bits = rnb.netmask_bits
 		  and   ni.device_id = :1
 	}
 	);
@@ -1799,7 +1751,7 @@ sub dump_interfaces {
 			ni.name as interface_name,
 			ni.network_interface_type,
 			ni.is_interface_up,
-			to_char(ni.mac_addr, 'XXXXXXXXXXXX') as mac_addr,
+			ni.mac_addr,
 			ni.network_interface_purpose,
 			ni.is_primary,
 			ni.should_monitor,
@@ -1819,7 +1771,7 @@ sub dump_interfaces {
 				dns.netblock_id = nb.netblock_id
 			left join netblock pnb on
 				nb.parent_netblock_id = pnb.netblock_id
-		where ni.device_id = :1
+		where ni.device_id = ?
 		order by ni.name, ni.network_interface_id,
 			dns.should_generate_ptr desc
 	};
@@ -1869,11 +1821,12 @@ sub build_secondary_collapsed {
 	my $rv = "";
 	if ( defined($netint) ) {
 		my $q = qq{
-			select	
+			select
 					secondary_netblock_id,
 					network_interface_id,
 					ip_manip.v4_octet_from_int(nb.ip_address) as IP,
-					to_char(snb.mac_addr, 'XXXXXXXXXXXX') as mac_addr,
+					snb.mac_addr,
+					-- XXX to_char(snb.mac_addr, 'XXXXXXXXXXXX') as mac_addr,
 					dns.dns_name,
 					dns.dns_domain_id
 			 from	secondary_netblock snb
@@ -2223,15 +2176,15 @@ sub build_dns_rr_table {
 	my $dbh = $self->dbh || die "Could not create dbh";
 
 	my $q = qq{
-		select	dns.dns_record_id, dns.dns_name, 
+		select	dns.dns_record_id, dns.dns_name,
 				dns.dns_domain_id, dom.soa_name
 		  from	dns_record dns
 				inner join dns_domain dom
 					on dom.dns_domain_id = dns.dns_domain_id
 				inner join network_interface ni
 					on dns.netblock_id = ni.v4_netblock_id
-		 where	ni.network_interface_id = :1
-		  and	dns.dns_record_id != :2
+		 where	ni.network_interface_id = ?
+		  and	dns.dns_record_id != ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
 
@@ -2268,7 +2221,8 @@ sub build_secondary_netblocks_table {
 	if ( defined($values) ) {
 		my $q = qq{
 			select	snb.SECONDARY_NETBLOCK_ID, snb.NETWORK_INTERFACE_ID,
-					to_char(snb.mac_addr, 'XXXXXXXXXXXX') as mac_addr,
+					-- XXX to_char(snb.mac_addr, 'XXXXXXXXXXXX') as mac_addr,
+					mac_addr,
 					snb.DESCRIPTION,
 					ip_manip.v4_octet_from_int(nb.ip_address) as IP,
 					dns.dns_name,
@@ -2278,7 +2232,7 @@ sub build_secondary_netblocks_table {
 					left join dns_record dns
 						on dns.netblock_id = snb.netblock_id
 			where
-					snb.network_interface_id = :1
+					snb.network_interface_id = ?
 			order by description
 		};
 		my $sth = $self->prepare($q) || $self->return_db_err($dbh);
@@ -2443,7 +2397,7 @@ sub device_license_tab {
 				inner join device_collection_member dcm
 					on dc.device_collection_id = dcm.device_collection_id
 		 where	dc.device_collection_type = 'applicense'
-		   and	dcm.device_id = :1
+		   and	dcm.device_id = ?
 	}) || $self->return_db_err;
 
 	$sth->execute($devid) || $self->return_db_err;
@@ -2465,20 +2419,20 @@ sub device_license_tab {
 	}
 
 	my $addid = "tr_lic_devid_". $devid;
-	$rv = $cgi->table({-align => 'center', border=>1}, 
-		$cgi->th(['Remove', 'License Type']), 
+	$rv = $cgi->table({-align => 'center', border=>1},
+		$cgi->th(['Remove', 'License Type']),
 		$tt,
-		$cgi->Tr({-id => $addid}, 
-			$cgi->td({-colspan => 2, style=>'text-align: center;'}, 
+		$cgi->Tr({-id => $addid},
+			$cgi->td({-colspan => 2, style=>'text-align: center;'},
 				$cgi->a({-onClick => "add_License(this, \"$addid\", $devid)",
-						-href=>"javascript:void(null)"}, 
+						-href=>"javascript:void(null)"},
 					"Add a License"),
 			),
 		)
 	);
 
-#	$rv = $cgi->table({-align => 'center'}, 
-#		$cgi->th(['Remove', 'License Type']), 
+#	$rv = $cgi->table({-align => 'center'},
+#		$cgi->th(['Remove', 'License Type']),
 #		$cgi->Tr($cgi->td( [
 #			"r",
 #			$self->b_dropdown({ -deviceCollectionType => 'applicense'},
@@ -2488,7 +2442,7 @@ sub device_license_tab {
 
 	$rv;
 }
-	
+
 
 ##############################################################################
 #
@@ -2505,33 +2459,12 @@ sub device_appgroup_tab {
 
 	my $sth = $self->prepare(
 		qq{
-		SELECT hier_q.*, dcm.device_id from (
-				select  level, dc.device_collection_id,
-					connect_by_root dcp.device_collection_id as root_id,
-					connect_by_root dcp.name as root_name,
-					SYS_CONNECT_BY_PATH(dcp.name, '/') as path,
-					dc.name as name,
-					connect_by_isleaf as leaf
-				  from  device_collection dc
-					inner join  device_collection_hier dch
-						on dch.device_collection_id = 
-							dc.device_collection_id
-					inner join device_collection dcp
-						on dch.parent_device_collection_id = 
-							dcp.device_collection_id
-				where   dc.device_collection_type = 'appgroup'
-					connect by prior dch.device_collection_id
-						= dch.parent_device_collection_id
-		 ) HIER_Q
-			left join device_collection_member dcm
-				on dcm.device_collection_id = hier_q.device_collection_id
-				-- here because in the where clause it shrinks the rows rtnd
-				and dcm.device_id = :1
-		WHERE hier_q.root_id not in (
-			select device_collection_id from device_collection_hier
-		)
-		order by (CASE WHEN root_name = 'legacy' THEN 1 ELSE 0 END),
-			hier_q.path, hier_q.name
+		select	r.role_level, r.role_id, root_id, root_name, path, role_name, is_leaf, rm.device_Id
+		  FROM	v_application_role r
+			LEFT JOIN v_application_role_member rm
+				on rm.role_id = r.role_id
+		WHERE	rm.device_id = ? or rm.device_id is NULL
+		order by path, role_name
 	});
 
 	$sth->execute($devid) || return_db_err($sth);
@@ -2558,9 +2491,9 @@ h
 			no changes were made.
 		};
 		$resetlink = $cgi->div({-style => 'text-align: center;'},
-			$cgi->a({   
+			$cgi->a({
 				-href=>"javascript:void(null)",
-				-onClick => qq{ShowDevTab("AppGroup", "$devid", "force")}, 
+				-onClick => qq{ShowDevTab("AppGroup", "$devid", "force")},
 			},
 		"(reset tab)"));
 		$indicatetab = $cgi->hidden("has_appgroup_tab_$devid", $devid);
@@ -2570,13 +2503,13 @@ h
 
 	my $tt = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		next if ( $hr->{'LEAF'} != 1 );
-		my $printable = $hr->{'PATH'} . '/' . $hr->{'NAME'};
+		next if ( $hr->{_dbx('IS_LEAF')} eq 'N' );
+		my $printable = $hr->{_dbx('PATH')} . '/' . $hr->{_dbx('ROLE_NAME')};
 		$printable =~ s,^/,,;
-		push( @options, $hr->{'DEVICE_COLLECTION_ID'} );
-		push( @set,     $hr->{'DEVICE_COLLECTION_ID'} )
-		  if ( $hr->{'DEVICE_ID'} );
-		$labels{ $hr->{'DEVICE_COLLECTION_ID'} } = $printable;
+		push( @options, $hr->{_dbx('ROLE_ID')} );
+		push( @set,     $hr->{_dbx('ROLE_ID')} )
+			if ( $hr->{_dbx('DEVICE_ID')} );
+		$labels{ $hr->{_dbx('ROLE_ID')} } = $printable;
 	}
 	my $x = $cgi->h3({-align=>'center'}, 'Application Groupings').
 		$cgi->div({-style => 'text-align: center'},

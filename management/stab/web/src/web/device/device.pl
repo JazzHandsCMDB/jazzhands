@@ -30,6 +30,8 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
+use Data::Dumper;
 
 do_device_page();
 
@@ -60,10 +62,9 @@ sub do_device_page {
 
 		my $values = $stab->get_dev_from_devid($devid);
 		if ( defined($values) ) {
-			if ( defined( $values->{'DEVICE_ID'} ) ) {
-				my $n = $values->{'DEVICE_NAME'};
+			if ( defined( ($values->{_dbx('DEVICE_ID')}) ) ) {
+				my $n = ($values->{_dbx('DEVICE_NAME')});
 				if ($n) {
-
 					# ok to remove this
 					$n =~ s/\.example\.com\.?$//;
 					$title .= " ( $n )";
@@ -158,8 +159,8 @@ sub build_device_box {
 		);
 	} else {
 		$top_table = $cgi->hidden(
-			-name    => 'DEVICE_ID_' . $values->{'DEVICE_ID'},
-			-default => $values->{'DEVICE_ID'}
+			-name    => 'DEVICE_ID_' . $values->{_dbx('DEVICE_ID')},
+			-default => $values->{_dbx('DEVICE_ID')},
 		);
 		$top_table .=
 		  $stab->build_tr( $values, "b_offtextfield", "Device Name",
@@ -221,10 +222,11 @@ sub build_device_box {
 		}
 
 		$voetraxdivid =
-		  "voe_symbolic_track_id_" . $values->{DEVICE_ID} . "_div";
+		  "voe_symbolic_track_id_" . 
+			$values->{_dbx('DEVICE_ID')} . "_div";
 
 	}
-	my $ID = ($values) ? $values->{DEVICE_ID} : "null";
+	my $ID = ($values) ? $values->{_dbx('DEVICE_ID')} : "null";
 	$osargs->{-onChange} = "update_voe_options($ID, \"$voetraxdivid\")";
 
 	$voetr .= $stab->build_tr( { -divWrap => $voetraxdivid },
@@ -257,21 +259,21 @@ sub build_device_box {
 			$cgi->td(
 				build_parent_device_box(
 					$stab,
-					$values->{'PARENT_DEVICE_ID'},
-					$values->{'DEVICE_ID'}
+					$values->{_dbx('PARENT_DEVICE_ID')},
+					$values->{_dbx('DEVICE_ID')}
 				)
 			)
 		);
 	}
 
 	if ( defined($values) ) {
-		if ( $values->{'HOST_ID'} ) {
+		if ( $values->{_dbx('HOST_ID')} ) {
 			$right_table .= $cgi->Tr(
 				$cgi->td(
 					{ -align => 'right' },
 					$cgi->b("Host ID")
 				),
-				$cgi->td( $values->{'HOST_ID'} )
+				$cgi->td( $values->{_dbx('HOST_ID')} )
 			);
 		} else {
 			$right_table .= $cgi->Tr(
@@ -283,14 +285,14 @@ sub build_device_box {
 			);
 		}
 
-		my $cnt = $stab->get_snmpstr_count( $values->{'DEVICE_ID'} );
+		my $cnt = $stab->get_snmpstr_count( $values->{_dbx('DEVICE_ID')} );
 		$right_table .= $cgi->Tr(
 			$cgi->td(
 				{ -colspan => 2 },
 				$cgi->a(
 					{
 						-href => "snmp/?DEVICE_ID="
-						  . $values->{'DEVICE_ID'}
+						  . $values->{_dbx('DEVICE_ID')}
 					},
 					"$cnt SNMP string"
 					  . ( ( $cnt == 1 ) ? '' : "s" )
@@ -327,7 +329,7 @@ sub build_page {
 
 	my $pnk = "";
 	if ( defined($device) ) {
-		$pnk = "_" . $device->{'DEVICE_ID'};
+		$pnk = "_" . $device->{_dbx('DEVICE_ID')};
 	}
 
 	my $bottomTr = "";
@@ -346,7 +348,7 @@ sub build_page {
 	undef $bottomTr;
 
 	if ( defined($device) ) {
-		my $devid = $device->{'DEVICE_ID'};
+		my $devid = $device->{_dbx('DEVICE_ID')};
 
 		my $opentabid = "__default_tab__";
 		my $otabval   = $stab->cgi_parse_param('default_tab');
@@ -474,8 +476,8 @@ sub build_parent_device_box {
 	if ($parid) {
 		$dev = $stab->get_dev_from_devid($parid);
 		if ($dev) {
-			$pdevid = $dev->{'DEVICE_ID'};
-			$pname  = $dev->{'DEVICE_NAME'};
+			$pdevid = $dev->{_dbx('DEVICE_ID')};
+			$pname  = $dev->{_dbx('DEVICE_NAME')};
 			if ($pname) {
 				$pname =~ s/.example.com$//;
 			} else {
@@ -484,8 +486,8 @@ sub build_parent_device_box {
 		}
 	}
 
-	my $pdid  = "PARENT_DEVICE_ID_" . $devid;
-	my $pdnam = "PARENT_DEVICE_NAME_" . $devid;
+	my $pdid  = _dbx("PARENT_DEVICE_ID_" . $devid);
+	my $pdnam = _dbx("PARENT_DEVICE_NAME_" . $devid);
 	my $rv    = $cgi->hidden(
 		{
 			-name    => $pdid,

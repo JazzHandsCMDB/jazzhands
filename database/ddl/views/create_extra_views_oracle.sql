@@ -26,7 +26,7 @@
 -- $Id$
 --
 
-@@sysuserview.sql
+@accountview.sql
 @@sysuserphoneview.sql
 -- not sure that we need these anymore
 -- @@create_v_login_changes.sql
@@ -37,9 +37,9 @@
 -- not sure that we need these anymore
 -- @@create_audit_views.sql
 @@create_v_limited_users.sql
-@@create_v_joined_uclass_user_detail.sql
-@@create_v_device_col_uclass_expanded.sql
+@@create_v_joined_user_collection_user_detail.sql
+@@create_v_device_col_user_collection_expanded.sql
 @@create_v_dev_col_user_prop_expanded.sql
 @@create_v_l1_all_physical_ports.sql
-@@create_mv_system_user_last_auth.sql
+@@create_mv_account_last_auth.sql
 @@create_v_user_prop_expanded.sql 

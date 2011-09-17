@@ -45,7 +45,7 @@ sub lookfor {
 	my $findSth = $dbh->prepare_cached(qq{
 		select	device_collection_id
 		  from	device_collection
-		 where	name = :1
+		 where	name = ?
 		  and	device_collection_type = 'appgroup'
 	}) || die $dbh->errstr;
 
@@ -58,17 +58,17 @@ sub lookfor {
 sub do_work {
 	my $dbh = JazzHands::DBI->connect('apps', {AutoCommit=>0}) || confess;
 
-	{
-		my $dude = (getpwuid($<))[0] || 'unknown';
-		my $q = qq{ 
-			begin
-				dbms_session.set_identifier ('$dude');
-			end;
-		};
-		if(my $sth = $dbh->prepare($q)) {
-			$sth->execute || confess $sth->errstr;
-		}
-	}
+#	{
+#		my $dude = (getpwuid($<))[0] || 'unknown';
+#		my $q = qq{ 
+#			begin
+#				dbms_session.set_identifier ('$dude');
+#			end;
+#		};
+#		if(my $sth = $dbh->prepare($q)) {
+#			$sth->execute || confess $sth->errstr;
+#		}
+#	}
 
 	my ($parentid, $lastindent) = (undef, 0);
 	my(@parentage);
@@ -80,15 +80,16 @@ sub do_work {
 			(name, device_collection_type,SHOULD_GENERATE_SUDOERS)
 		values
 			(:name, 'appgroup', 'N')
-		returning device_collection_id into :dcid
+		returning device_collection_id 
 	}) || die $dbh->errstr;
+	# INTO missing
 
 	my $HRsth = $dbh->prepare_cached(qq{
 		insert into device_collection_hier
 			(PARENT_DEVICE_COLLECTION_ID, DEVICE_COLLECTION_ID
 			)
 		values
-			(:1, :2)
+			(?, ?)
 	}) || die $dbh->errstr;
 
 	while(my $line = $fh->getline) {
@@ -114,9 +115,12 @@ sub do_work {
 		# dogs and cats to be living together.
 		my $id = lookfor($dbh, $name);
 		if(!$id) {
-			$DCsth->bind_param(':name', $name) || die $DCsth->errstr;
-			$DCsth->bind_param_inout(':dcid', \$id, 50) || die $DCsth->errstr;
-			$DCsth->execute || die $DCsth->errstr;
+			$id = 0; 	# wtf?
+			$DCsth->bind_param(":name", $name) || die $DCsth->errstr;
+			# $DCsth->bind_param_inout(':dcid', \$id, 50) || die $DCsth->errstr;
+			$DCsth->execute || die $DCsth->errstr, "-- $name";
+			$id = $DCsth->fetch()->[0];
+			warn "id is totally $id\n";
 			$DCsth->finish;
 
 			if($parent) {

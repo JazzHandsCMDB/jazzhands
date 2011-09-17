@@ -30,6 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
 
 do_rack();
 
@@ -81,7 +82,7 @@ sub do_rack_chooser {
 			undef, 1
 		),
 	);
-
+#
 	print $cgi->h3( { -align => 'center' }, 'Pick a rack:' );
 	print $cgi->div(
 		{ -align => 'center', -id => $rackdivid },

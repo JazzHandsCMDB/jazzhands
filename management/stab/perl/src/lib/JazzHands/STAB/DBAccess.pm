@@ -79,7 +79,7 @@ sub delete_netblock {
 	my ( $self, $id ) = @_;
 
 	my $q = q{
-		delete from netblock where netblock_id = :1
+		delete from netblock where netblock_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
@@ -106,9 +106,9 @@ sub guess_parent_netblock_id {
 			   where
 				ip_manip.v4_base(ip_address, netmask_bits) =
 					ip_manip.v4_base(
-						ip_manip.v4_int_from_octet(:1),
+						ip_manip.v4_int_from_octet(?),
 					netmask_bits)
-			    and netmask_bits <= :2
+			    and netmask_bits <= ?
 			    and is_ipv4_address = 'Y'
 			    and is_single_address = 'N'
 			    and is_organizational = 'N'
@@ -132,7 +132,7 @@ sub get_interface_from_ip {
 		  from	network_interface ni
 		 		inner join netblock nb
 					on nb.netblock_id = ni.v4_netblock_id
-		 where	ip_manip.v4_int_from_octet(:1) = nb.ip_address
+		 where	ip_manip.v4_int_from_octet(?) = nb.ip_address
 	}
 	);
 	$sth->execute($ip) || $self->return_db_err($sth);
@@ -152,9 +152,9 @@ sub check_ip_on_local_nets {
 			inner join netblock nb on
 				ni.v4_netblock_id = nb.netblock_id
 		where
-			ni.device_id = :1
+			ni.device_id = ?
 		 and
-			ip_manip.v4_base(ip_manip.v4_int_from_octet(:2), nb.netmask_bits) =
+			ip_manip.v4_base(ip_manip.v4_int_from_octet(?), nb.netmask_bits) =
 				ip_manip.v4_base(nb.ip_address, nb.netmask_bits)
 	}
 	);
@@ -187,7 +187,7 @@ sub get_netblock_from_id {
                 		ip_manip.v4_octet_from_int(ip_address),
                 		ip_address) as ip
 		 from   netblock
-		where   netblock_id = :1
+		where   netblock_id = ?
 		  	$singq
 		  	$orgq
 	};
@@ -265,10 +265,10 @@ sub get_rackid_from_params {
 	my $q = qq{
 		select 	rack_id
 		  from  rack
-		 where  site_code = :1
-		  AND	room = :2
-		  AND	rack_row = :2
-		  AND	rack_name = :2
+		 where  site_code = ?
+		  AND	room = ?
+		  AND	rack_row = ?
+		  AND	rack_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute( $site, $room, $row, $rack )
@@ -286,7 +286,7 @@ sub get_rack_from_rackid {
 	my $q = qq{
 		select  *
 		  from  rack
-		 where  rack_id = :1
+		 where  rack_id = ?
 	};
 	if ($uncooked) {
 		$q =~ s/\s+as\s+[^,\s]+(,?\s*\n)/$1/gim;
@@ -315,7 +315,7 @@ sub get_location_from_devid {
 				d.location_id = l.location_id
 			inner join rack r on
 				r.rack_id = l.rack_id
-		 where  d.device_id = :1
+		 where  d.device_id = ?
 	};
 	if ($uncooked) {
 		$q =~ s/\s+as\s+[^,\s]+(,?\s*\n)/$1/gim;
@@ -384,7 +384,7 @@ sub guess_dns_domain_from_devid {
 	my $q = qq{
 		select  dns_domain_id
 		  from  dns_domain
-		 where  soa_name = :1
+		 where  soa_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 
@@ -414,7 +414,7 @@ sub get_dns_record_from_id {
 			is_enabled,
 			netblock_id
 		 from   dns_record
-		where   dns_record_id = :1
+		where   dns_record_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
@@ -436,8 +436,8 @@ sub get_dns_record_from_name {
 			dns_value,
 			netblock_id
 		 from   dns_record
-		where   dns_name = :1
-		 and	dns_domain_id = :2
+		where   dns_name = ?
+		 and	dns_domain_id = ?
 
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -453,11 +453,13 @@ sub check_func {
 	my ($q) = qq{
 		select	count(*)
 		 from	device_function
-		where	device_function_type = :2
-		 and	device_id = :1
+		where	device_function_type = :dftype
+		 and	device_id = :devid
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute( $id, $func ) || $self->return_db_err($sth);
+	$sth->bind_param(':devid', $id) || $self->return_db_err($sth);
+	$sth->bind_param(':dftype', $func) || $self->return_db_err($sth);
+	$sth->execute || $self->return_db_err($sth);
 	my $tally = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$tally;
@@ -481,7 +483,7 @@ sub get_dns_domain_from_id {
 			parent_dns_domain_id,
 			should_generate
 		 from   dns_domain
-		where   dns_domain_id = :1
+		where   dns_domain_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
@@ -508,7 +510,7 @@ sub get_dns_domain_from_name {
 			parent_dns_domain_id,
 			should_generate
 		 from   dns_domain
-		where   soa_name = :1
+		where   soa_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($name) || $self->return_db_err($sth);
@@ -534,7 +536,7 @@ sub get_netblock_from_ip {
 		select  netblock.*,
 			ip_manip.v4_octet_from_int(ip_address) as ip
 		 from   netblock
-		where   ip_address = ip_manip.v4_int_from_octet(:1, 1)
+		where   ip_address = ip_manip.v4_int_from_octet(?, 1)
 		  $singq
 		  $orgq
 	};
@@ -561,10 +563,11 @@ sub get_dev_from_devid {
 	my $q = qq{
 		select  *
 		  from  device
-		 where  device_id = :1
+		 where  device_id = :devid
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->bind_param(':devid', $devid) || $self->return_db_err($sth);
+	$sth->execute || $self->return_db_err($sth);
 
      # when putting this in, make sure that updates to devices don't touch these
      # fields.  I think it's smart, but make sure. -kovert [XXX]
@@ -636,7 +639,7 @@ sub get_dev_from_name {
 			IS_VIRTUAL_DEVICE,
 			AUTO_MGMT_PROTOCOL
 		  from  device
-		 where  device_name = :1
+		 where  device_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($name) || $self->return_db_err($sth);
@@ -664,7 +667,7 @@ sub get_dev_from_serial {
 			IS_VIRTUAL_DEVICE,
 			AUTO_MGMT_PROTOCOL
 		  from  device
-		 where  lower(serial_number) = lower(:1)
+		 where  lower(serial_number) = lower(?)
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($serno) || $self->return_db_err($sth);
@@ -685,7 +688,7 @@ sub get_snmpcommstr_from_id {
 			wr_string,
 			purpose
 		  from  snmp_commstr
-		 where  snmp_commstr_id = :1
+		 where  snmp_commstr_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($snmpid) || $self->return_db_err($sth);
@@ -700,11 +703,12 @@ sub get_snmpstr_count {
 	my $q = qq{
 		select  count(*)
 		  from  snmp_commstr
-		 where  device_id = :1
+		 where  device_id = :devid
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($deviceid) || $self->return_db_err($sth);
+	$sth->bind_param(':devid', $deviceid) || $self->return_db_err($sth);
+	$sth->execute() || $self->return_db_err($sth);
 	my $rv = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$rv;
@@ -722,7 +726,7 @@ sub ptr_exists {
 	my $q = qq{
 		select	count(*)
 		  from	dns_record
-		 where	netblock_id = :1
+		 where	netblock_id = ?
 		   and	should_generate_ptr = 'Y'
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -803,7 +807,7 @@ sub configure_allocated_netblock {
 		my $q = qq{
 			update	netblock
 		       set	netblock_status = 'Allocated'
-		 	 where	netblock_id = :1
+		 	 where	netblock_id = ?
 		};
 		my $sth = $self->prepare($q) || $self->return_db_err($self);
 		$sth->execute( $nblk->{'NETBLOCK_ID'} )
@@ -827,7 +831,7 @@ sub get_operating_system_from_id {
 		  from  operating_system os
 			inner join partner p on
 				p.partner_id = os.partner_id
-		 where  os.operating_system_id = :1
+		 where  os.operating_system_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -852,7 +856,7 @@ sub get_voe_from_id {
 			inner join sw_package_repository spr
 				on spr.sw_package_repository_id =
 					voe.sw_package_repository_id
-		 where  voe.voe_id = :1
+		 where  voe.voe_id = ?
 
 	};
 
@@ -878,7 +882,7 @@ sub get_package_release {
 		    inner join voe_sw_package voeswp
 			    on voeswp.sw_package_release_id =
 				pkgr.sw_package_release_id
-	     where  voeswp.sw_package_release_id = :1
+	     where  voeswp.sw_package_release_id = ?
 	    order by pkg.sw_package_name
 	};
 
@@ -893,7 +897,7 @@ sub get_device_from_id {
 	my ( $self, $id ) = @_;
 
 	my $q = qq{
-		select * from device where device_id = :1
+		select * from device where device_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -920,7 +924,7 @@ sub get_device_type_from_id {
 		  from  device_type dt
 			inner join partner p
 				on dt.partner_id = p.partner_id
-		where   dt.device_type_id = :1
+		where   dt.device_type_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -947,7 +951,7 @@ sub get_device_type_from_name {
 			inner join partner p
 				on dt.partner_id = p.partner_id
 		where   dt.model = :2
-		  and	p.partner_id = :1
+		  and	p.partner_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -971,7 +975,7 @@ sub get_packages_for_voe {
 				on pr.sw_package_release_id =
 					voe.sw_package_release_id
 		 where
-			voe.voe_id = :1
+			voe.voe_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -998,7 +1002,7 @@ sub get_dependancies_for_voe {
 				on pr.sw_package_release_id =
 					voe.sw_package_release_id
 		 where
-			voe.voe_id = :1
+			voe.voe_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -1038,7 +1042,7 @@ sub get_physical_path_from_l1conn {
 		connect by prior pc.PHYSICAL_PORT_ID2 = pc.PHYSICAL_PORT_ID1
 		start with pc.PHYSICAL_PORT_ID1 =
 			(select physical_port1_id from layer1_connection
-				where layer1_connection_id = :1 )
+				where layer1_connection_id = ? )
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -1070,8 +1074,8 @@ sub get_layer1_connection_from_port {
 			PARITY,
 			FLOW_CONTROL
 		  from	layer1_connection
-		 where	physical_port1_id = :1 or
-			physical_port2_id = :1
+		 where	physical_port1_id = ? or
+			physical_port2_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($port) || $self->return_db_err($sth);
@@ -1094,7 +1098,7 @@ sub get_layer1_connection {
 			PARITY,
 			FLOW_CONTROL
 		  from	layer1_connection
-		 where	layer1_connection_id = :1
+		 where	layer1_connection_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($l1cid) || $self->return_db_err($sth);
@@ -1116,7 +1120,7 @@ sub get_physical_port {
 			PORT_PURPOSE,
 			TCP_PORT
 		  from	physical_port
-		 where	physical_port_id = :1
+		 where	physical_port_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($pportid) || $self->return_db_err($sth);
@@ -1138,9 +1142,9 @@ sub get_physical_port_byport {
 			PORT_PURPOSE,
 			TCP_PORT
 		  from	physical_port
-		 where	device_id = :1
-		   and	port_name = :2
-		   and	port_type = :3
+		 where	device_id = ?
+		   and	port_name = ?
+		   and	port_type = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute( $devid, $port, $type ) || $self->return_db_err($sth);
@@ -1154,15 +1158,17 @@ sub get_physical_port_tally {
 
 	my $limitq = "";
 	if ($limit) {
-		$limitq = "and	regexp_like(port_name, :3)";
+		# ORACLE/PGSQL 
+		#$limitq = "and	regexp_matches(port_name, ?)";
+		$limitq = "and	port_name ~ ?";
 	}
 
 	my $sth = $self->prepare(
 		qq{
 		select	count(*)
 		  from	physical_port
-		 where	device_id = :1
-		   and	port_type = :2
+		 where	device_id = ?
+		   and	port_type = ?
 		   $limitq
 	}
 	);
@@ -1196,7 +1202,7 @@ sub get_physical_ports_for_dev {
 		my $q = qq{
 			select	physical_port_id
 			  from	physical_port
-			 where	device_id = :1
+			 where	device_id = ?
 		};
 		$sth = $self->prepare($q) || $self->return_db_err($self);
 		$sth->execute($devid) || $self->return_db_err($sth);
@@ -1214,10 +1220,11 @@ sub get_num_dev_notes {
 	my $q = qq{
 		select	count(*)
 		  from	device_note
-		 where	device_id = :1
+		 where	device_id = :devid
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->bind_param(':devid', $devid) || $self->return_db_err($sth);
+	$sth->execute() || $self->return_db_err($sth);
 
 	my $tally = ( $sth->fetchrow_array )[0];
 	$sth->finish;
@@ -1231,7 +1238,7 @@ sub get_device_functions {
 	my $q = qq{
 	    select  device_function_type
 	      from  device_function
-	     where  device_id = :1
+	     where  device_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($devid) || $self->return_db_err($sth);
@@ -1251,8 +1258,8 @@ sub add_to_device_collection {
 			device_collection_id,
 			device_id
 		) values (
-			:1,
-			:2
+			?,
+			?
 		)
 	}) || $self->return_db_err;
 
@@ -1298,7 +1305,7 @@ sub get_device_collection {
 	my $sth = $self->prepare(qq{
 		select	*
 		  from	device_collection
-		 where	device_collection_id = :1
+		 where	device_collection_id = ?
 	}) || die $self->return_db_err;
 
 	$sth->execute($dcid) || $self->return_db_err($sth);
@@ -1353,7 +1360,7 @@ sub get_system_user {
 		qq{
 		select  *
 		  from  system_user
-		 where  system_user_id = :1
+		 where  system_user_id = ?
 	}
 	) || die $self->return_db_err;
 
@@ -1371,9 +1378,9 @@ sub is_static_route_on_device {
 		qq{
 		select	count(*)
 		  from	static_route
-		 where	device_src_id = :1
-		   and	network_interface_dst_id = :2
-		   and	netblock_id = :3
+		 where	device_src_id = ?
+		   and	network_interface_dst_id = ?
+		   and	netblock_id = ?
 	}
 	);
 	$sth->execute( $devid, $niid, $nbid ) || $self->return_db_err;
@@ -1395,7 +1402,7 @@ sub add_static_route_from_template {
 		from
 			static_route_template
 		where
-			STATIC_ROUTE_TEMPLATE_ID = :1
+			STATIC_ROUTE_TEMPLATE_ID = ?
 	}
 	);
 
@@ -1409,7 +1416,7 @@ sub rm_static_route_from_device {
 
 	my $sth = $self->prepare(
 		qq{
-		delete from static_route where static_route_id = :1
+		delete from static_route where static_route_id = ?
 	}
 	);
 	my $tally += $sth->execute($srid) || $self->return_db_err($sth);
@@ -1421,7 +1428,7 @@ sub rm_static_route_from_netblock {
 
 	my $sth = $self->prepare(
 		qq{
-		delete from static_route_template where static_route_template_id = :1
+		delete from static_route_template where static_route_template_id = ?
 	}
 	);
 	my $tally += $sth->execute($srid) || $self->return_db_err($sth);
@@ -1554,7 +1561,7 @@ sub get_circuit {
 		qq{
 		select  *
 		  from  circuit
-		 where  circuit_id = :1
+		 where  circuit_id = ?
 	}
 	) || die $self->return_db_err;
 
@@ -1572,7 +1579,7 @@ sub get_trunk_group {
 		qq{
 		select  *
 		  from  trunk_group
-		 where  trunk_group_id = :1
+		 where  trunk_group_id = ?
 	}
 	) || die $self->return_db_err;
 
@@ -1590,7 +1597,7 @@ sub get_x509_cert_by_id {
 		qq{
 		select	*
 		  from	x509_certificate
-		 where	x509_cert_id = :1
+		 where	x509_cert_id = ?
 	}
 	) || die $self->return_db_err;
 

@@ -25,7 +25,7 @@
 --
 -- This was for gsievers, so he could query data directly, versus using web tools, due to vision issues/ease of use
 
-CREATE OR REPLACE VIEW v_limited_users (system_user_id,
+CREATE OR REPLACE VIEW v_limited_users (account_id,
 external_hr_id,
 payroll_id,
 login,
@@ -35,8 +35,8 @@ last_name,
 name_suffix,
 preferred_first_name,
 preferred_last_name,
-system_user_status,
-system_user_type,
+account_status,
+account_type,
 employee_id,
 position_title,
 person_company_id,
@@ -57,7 +57,7 @@ dept_name,
 dept_start_date,
 dept_finish_date,
 dn_name,
-manager_system_user_id
+manager_account_id
 )
 AS
    SELECT SYSTEM_USER_ID, EXTERNAL_HR_ID, PAYROLL_ID, LOGIN, 
@@ -71,8 +71,8 @@ AS
           DEPT_COMPANY_NAME, REPORTING_TYPE, DEPT_NAME,
           DEPT_START_DATE, DEPT_FINISH_DATE, DN_NAME,
           MANAGER_SYSTEM_USER_ID
-     FROM v_system_user
-    WHERE system_user_type IN ('employee', 'contractor', 'vendor');
+     FROM v_account
+    WHERE account_type IN ('employee', 'contractor', 'vendor');
 
 
 

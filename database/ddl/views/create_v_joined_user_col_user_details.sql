@@ -20,21 +20,27 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
+--
 -- $Id$
 --
+-- This is just a join between the expanded user_collection view (details) and the user and user_collection tables.  Needed for the rights web page.
 
--- This view shows which users are mapped to which device collections,
--- which is particularly important for generating passwd files. Please
--- note that the same system_user_id can be mapped to the same
--- device_collection multiple times via different uclasses. The
--- uclass_id column is important mostly to join the results of the
--- view back to the uclass table, and select only certain uclass
--- types (such as 'system' and 'per-user') to be expanded.
+CREATE OR REPLACE FORCE VIEW v_joined_user_col_user_detail
+(user_collection_id,
+NAME,
+account_id,
+login,
+assign_method,
+user_collection_is_leaf,
+user_collection_inherit_path,
+dept_is_leaf,
+dept_inherit_path
+)
+AS
+   SELECT v.user_collection_id, u.NAME, v.account_id, su.login, v.assign_method,
+          v.user_collection_is_leaf, v.user_collection_inherit_path, v.dept_is_leaf,
+          v.dept_inherit_path
+     FROM v_user_collection_user_expanded_detail v, account su, user_collection u
+    WHERE su.account_id = v.account_id AND u.user_collection_id = v.user_collection_id;
 
-CREATE OR REPLACE VIEW v_device_col_uclass_expanded AS
-SELECT DISTINCT dchd.device_collection_id, dcu.uclass_id, vuue.system_user_id
-FROM v_device_coll_hier_detail dchd
-JOIN v_property dcu ON dcu.device_collection_id = 
-	dchd.parent_device_collection_id
-JOIN v_uclass_user_expanded vuue on vuue.uclass_id = dcu.uclass_id
-WHERE dcu.property_name = 'UnixLogin' and dcu.property_type = 'MclassUnixProp';
+

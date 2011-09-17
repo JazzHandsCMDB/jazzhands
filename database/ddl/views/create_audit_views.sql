@@ -32,7 +32,7 @@ CREATE OR REPLACE VIEW v_aud$dept AS
 SELECT  a.dept_id to_dept_id,
 	a.name to_name,
 	a.parent_dept_id to_parent_dept_id,
-	a.manager_system_user_id to_manager_system_user_id,
+	a.manager_account_id to_manager_account_id,
 	a.company_id to_company_id,
 	a.default_badge_type_id to_default_badge_type_id,
 	a.dept_ou to_dept_ou,
@@ -43,7 +43,7 @@ SELECT  a.dept_id to_dept_id,
 	b.dept_id from_dept_id,
 	b.name from_name,
 	b.parent_dept_id from_parent_dept_id,
-	b.manager_system_user_id from_manager_system_user_id,
+	b.manager_account_id from_manager_account_id,
 	b.company_id from_company_id,
 	b.default_badge_type_id from_default_badge_type_id,
 	b.dept_ou from_dept_ou,
@@ -65,7 +65,7 @@ SELECT
 	NULL to_dept_id,
         NULL to_name,
         NULL to_parent_dept_id,
-        NULL to_manager_system_user_id,
+        NULL to_manager_account_id,
         NULL to_company_id,
         NULL to_default_badge_type_id,
         NULL to_dept_ou,
@@ -76,7 +76,7 @@ SELECT
 	d.dept_id from_dept_id,
 	d.name from_name,
 	d.parent_dept_id from_parent_dept_id,
-	d.manager_system_user_id from_manager_system_user_id,
+	d.manager_account_id from_manager_account_id,
 	d.company_id from_company_id,
 	d.default_badge_type_id from_default_badge_type_id,
 	d.dept_ou from_dept_ou,
@@ -94,74 +94,74 @@ WHERE not exists (select 1 from aud$dept e
 
 
 
-CREATE OR REPLACE VIEW v_aud$uclass AS 
-SELECT  a.uclass_id to_uclass_id,
-	a.uclass_type to_uclass_type,
+CREATE OR REPLACE VIEW v_aud$user_collection AS 
+SELECT  a.user_collection_id to_user_collection_id,
+	a.user_collection_type to_user_collection_type,
 	a.name to_name,
 	a.description to_description,
 	a.aud#timestamp to_aud#timestamp,
-	b.uclass_id from_uclass_id,
-	b.uclass_type from_uclass_type,
+	b.user_collection_id from_user_collection_id,
+	b.user_collection_type from_user_collection_type,
 	b.name from_name,
 	b.description from_description,
 	b.aud#timestamp from_aud#timestamp
-FROM aud$uclass a, aud$uclass b
+FROM aud$user_collection a, aud$user_collection b
 WHERE 
-    a.uclass_id=b.uclass_id
+    a.user_collection_id=b.user_collection_id
 AND a.aud#timestamp > b.aud#timestamp
-AND not exists (select 1 from aud$uclass c
-		where c.uclass_id=a.uclass_id 
+AND not exists (select 1 from aud$user_collection c
+		where c.user_collection_id=a.user_collection_id 
 		and c.rowid != a.rowid
 		and c.aud#timestamp > b.aud#timestamp
 		and c.aud#timestamp <= a.aud#timestamp )
 UNION
-SELECT  NULL to_uclass_id,
-	NULL to_uclass_type,
+SELECT  NULL to_user_collection_id,
+	NULL to_user_collection_type,
 	NULL to_name,
 	NULL to_description,
 	NULL to_aud#timestamp,
-	d.uclass_id from_uclass_id,
-	d.uclass_type from_uclass_type,
+	d.user_collection_id from_user_collection_id,
+	d.user_collection_type from_user_collection_type,
 	d.name from_name,
 	d.description from_description,
 	d.aud#timestamp from_aud#timestamp
-FROM aud$uclass d
-WHERE not exists (select 1 from aud$uclass e
-		where e.uclass_id=d.uclass_id
+FROM aud$user_collection d
+WHERE not exists (select 1 from aud$user_collection e
+		where e.user_collection_id=d.user_collection_id
 		and e.aud#timestamp > d.aud#timestamp);
 
 
 
 -- This is problematic..
 
-CREATE OR REPLACE VIEW v_aud$uclass_dept AS 
-SELECT  a.uclass_id to_uclass_id,
+CREATE OR REPLACE VIEW v_aud$user_collection_dept AS 
+SELECT  a.user_collection_id to_user_collection_id,
 	a.dept_id to_dept_id,
 	a.aud#timestamp to_aud#timestamp,
-	b.uclass_id from_uclass_id,
+	b.user_collection_id from_user_collection_id,
 	b.dept_id from_dept_id,
 	b.aud#timestamp from_aud#timestamp
-FROM aud$uclass_dept a, aud$uclass_dept b
+FROM aud$user_collection_dept a, aud$user_collection_dept b
 WHERE 
-    a.uclass_id=b.uclass_id
+    a.user_collection_id=b.user_collection_id
 AND a.dept_id=b.dept_id
 AND a.aud#timestamp > b.aud#timestamp
-AND not exists (select 1 from aud$uclass_dept c
-		where c.uclass_id=a.uclass_id 
+AND not exists (select 1 from aud$user_collection_dept c
+		where c.user_collection_id=a.user_collection_id 
 		and c.dept_id=a.dept_id 
 		and c.rowid != a.rowid
 		and c.aud#timestamp > b.aud#timestamp
 		and c.aud#timestamp <= a.aud#timestamp )
 UNION
-SELECT  NULL to_uclass_id,
+SELECT  NULL to_user_collection_id,
         NULL to_dept_id,
         NULL to_aud#timestamp,
-        d.uclass_id from_uclass_id,
+        d.user_collection_id from_user_collection_id,
         d.dept_id from_dept_id,
         d.aud#timestamp from_aud#timestamp
-FROM aud$uclass_dept d
-WHERE not exists (select 1 from aud$uclass_dept e
-		where e.uclass_id=d.uclass_id
+FROM aud$user_collection_dept d
+WHERE not exists (select 1 from aud$user_collection_dept e
+		where e.user_collection_id=d.user_collection_id
 		and e.dept_id=d.dept_id
 		and e.aud#timestamp > d.aud#timestamp);
 
@@ -320,7 +320,7 @@ WHERE not exists (select 1 from aud$device e
 
 
 
-CREATE OR REPLACE VIEW v_aud$system_user AS
+CREATE OR REPLACE VIEW v_aud$account AS
 SELECT 
 a. SYSTEM_USER_ID     to_SYSTEM_USER_ID,
 a. LOGIN     to_LOGIN,
@@ -384,12 +384,12 @@ b.PARENT_ACCOUNT_SYSTEM_USER_ID 	from_PARENT_ACCOUNT_SUID,
 b.cms_id 	from_cms_id,
 b. DESCRIPTION     from_DESCRIPTION,
         b.aud#timestamp from_aud#timestamp
-FROM aud$system_user a, aud$system_user b
+FROM aud$account a, aud$account b
 WHERE
-    a.system_user_id=b.system_user_id
+    a.account_id=b.account_id
 AND a.aud#timestamp > b.aud#timestamp
-AND not exists (select 1 from aud$system_user c
-                where c.system_user_id=a.system_user_id
+AND not exists (select 1 from aud$account c
+                where c.account_id=a.account_id
                 and c.rowid != a.rowid
                 and c.aud#timestamp > b.aud#timestamp
                 and c.aud#timestamp <= a.aud#timestamp )
@@ -457,9 +457,9 @@ d. PARENT_ACCOUNT_SYSTEM_USER_ID     from_PARENT_ACCOUNT_SUID,
 d. CMS_ID     from_CMS_ID,
 d. DESCRIPTION     from_DESCRIPTION,
         d.aud#timestamp from_aud#timestamp
-FROM aud$system_user d
-WHERE not exists (select 1 from aud$system_user e
-                where e.system_user_id=d.system_user_id
+FROM aud$account d
+WHERE not exists (select 1 from aud$account e
+                where e.account_id=d.account_id
                 and e.aud#timestamp > d.aud#timestamp);
 
 

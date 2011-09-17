@@ -19,28 +19,58 @@
 -- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
---
---
--- $Id$
---
--- This is just a join between the expanded uclass view (details) and the user and uclass tables.  Needed for the rights web page.
 
-CREATE OR REPLACE FORCE VIEW v_joined_uclass_user_detail
-(uclass_id,
-NAME,
-system_user_id,
-login,
-assign_method,
-uclass_is_leaf,
-uclass_inherit_path,
-dept_is_leaf,
-dept_inherit_path
-)
-AS
-   SELECT v.uclass_id, u.NAME, v.system_user_id, su.login, v.assign_method,
-          v.uclass_is_leaf, v.uclass_inherit_path, v.dept_is_leaf,
-          v.dept_inherit_path
-     FROM v_uclass_user_expanded_detail v, system_user su, uclass u
-    WHERE su.system_user_id = v.system_user_id AND u.uclass_id = v.uclass_id;
 
+create or replace view v_peson_phone
+as
+select
+	a.account_id,
+	pc.external_hr_id,
+	pc.payroll_id,
+	login,
+	first_name,
+	middle_name,
+	last_name,
+	p.account_phone_id,
+	p.iso_country_code,
+	p.phone_number,
+	p.phone_number_type,
+	p.phone_type_order,
+	name_suffix,
+	preferred_first_name,
+	preferred_last_name,
+	account_status,
+	account_type,
+	position_title,
+	a.company_id person_company_id,
+	c.company_code person_company_code,
+	c.company_name person_company_name,
+	gender,
+	dmd.dept_id,
+	dmd.name dept_name,
+	dmd.dept_code,
+	dmd.dept_company_id,
+	dmd.dept_company_code,
+	dmd.dept_company_name,
+	dmd.reporting_type,
+	a.dn_name
+FROM
+  account a
+  left join person_company pc
+	on a.person_id = pc.person_id
+  left join person_contact p
+	on a.person_id=p.account_id
+  left join company c
+	on pc.company_id=c.company_id
+  left join ( select dm.account_id,dm.reporting_type,dm.dept_id, 
+	d.dept_code, d.company_id dept_company_id,
+	c2.company_code dept_company_code, c2.company_name  dept_company_name,
+	d.name,dm.start_date dept_start_date, dm.finish_date dept_finish_date
+	from dept_member dm, dept d, company c2
+	where dm.dept_id=d.dept_id
+	and d.company_id=c2.company_id
+	and dm.reporting_type='direct'
+   ) dmd
+	on a.account_id= dmd.account_id
+;
 

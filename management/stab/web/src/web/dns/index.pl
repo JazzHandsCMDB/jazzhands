@@ -231,7 +231,7 @@ sub zone_dns_records {
 		where	vdt.id_type in ('ID', 'NON-ID')
 		  and	dns.dns_name is NULL
 		  and	dns.reference_dns_record_id is null
-		  and	dns.dns_domain_id = :1
+		  and	dns.dns_domain_id = ?
 		order by dns.dns_type
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
@@ -387,7 +387,7 @@ sub zone_fwd_records {
 				or
 		  			dns.reference_dns_record_id is not null
 				)
-		  and	dns.dns_domain_id = :1
+		  and	dns.dns_domain_id = ?
 		order by dns.dns_name
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
@@ -433,7 +433,7 @@ sub zone_rvs_records {
 		   and  ip_manip.v4_base(nb.ip_address, root.netmask_bits) =
 				ip_manip.v4_base(root.ip_address,
 					root.netmask_bits)
-		   and  rootd.dns_domain_id = :1
+		   and  rootd.dns_domain_id = ?
 		order by nb.ip_address
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
@@ -545,7 +545,7 @@ sub dump_zone {
 		  from	dns_domain d1
 				left join dns_domain d2 on
 					d1.parent_dns_domain_id = d2.dns_domain_id
-		where	d1.dns_domain_id = :1
+		where	d1.dns_domain_id = ?
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
 	$sth->execute($dnsdomainid) || return $stab->return_db_err($sth);
@@ -671,7 +671,7 @@ sub build_reverse_association_section {
 			inner join netblock nb
 				on nb.netblock_id = d.netblock_id
 		 where	d.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-		   and	d.dns_domain_id = :1
+		   and	d.dns_domain_id = ?
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
 	$sth->execute($domid) || return $stab->return_db_err($sth);

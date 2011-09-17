@@ -100,8 +100,8 @@ BEGIN
 			END;
 			$TQ$ LANGUAGE plpgsql
 		$ZZ$;
-		EXECUTE 'DROP TRIGGER IF EXISTS ' ||
-			quote_ident('trigger_audit_' || name) || ' ON ' || quote_ident(name);
+		-- EXECUTE 'DROP TRIGGER IF EXISTS ' ||
+		-- 	quote_ident('trigger_audit_' || name) || ' ON ' || quote_ident(name);
 		EXECUTE 'CREATE TRIGGER ' ||
 			quote_ident('trigger_audit_' || name) || ' AFTER INSERT OR UPDATE OR DELETE ON ' ||
 				quote_ident(name) || ' FOR EACH ROW EXECUTE PROCEDURE ' ||

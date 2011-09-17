@@ -30,13 +30,13 @@
 
 CREATE OR REPLACE VIEW v_login_changes
 as
-select system_user_id,current_login,system_user_type,previous_login,person_company_id,aud#action,aud#timestamp,aud#user,latest_timestamp
+select account_id,current_login,account_type,previous_login,person_company_id,aud#action,aud#timestamp,aud#user,latest_timestamp
 from (
-	 SELECT a.system_user_id,a.login CURRENT_LOGIN,a.system_user_type,b.login PREVIOUS_LOGIN,b.company_id person_company_id,b.aud#action,b.aud#timestamp,b.aud#user,
-		first_value(aud#timestamp) over (partition by a.system_user_id order by aud#timestamp desc nulls last) latest_timestamp
-	from AUD$SYSTEM_USER b, system_user a
+	 SELECT a.account_id,a.login CURRENT_LOGIN,a.account_type,b.login PREVIOUS_LOGIN,b.company_id person_company_id,b.aud#action,b.aud#timestamp,b.aud#user,
+		first_value(aud#timestamp) over (partition by a.account_id order by aud#timestamp desc nulls last) latest_timestamp
+	from AUD$SYSTEM_USER b, account a
 	where aud#action='UPD'
-	and a.system_user_id=b.system_user_id
+	and a.account_id=b.account_id
 	and a.login!=b.login
       )
 where aud#timestamp=latest_timestamp
@@ -49,7 +49,7 @@ where aud#timestamp=latest_timestamp
 CREATE OR REPLACE VIEW v_login_changes_extract
 as
 select * from v_login_changes a
-where not exists (select 1 from system_user b
+where not exists (select 1 from account b
 			where a.previous_login=b.login
-			and b.system_user_type = 'employee');
+			and b.account_type = 'employee');
 
