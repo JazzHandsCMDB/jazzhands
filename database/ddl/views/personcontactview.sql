@@ -21,7 +21,7 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-create or replace view v_peson_phone
+create or replace view v_person_phone
 as
 select
 	a.account_id,
