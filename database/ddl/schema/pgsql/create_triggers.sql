@@ -769,7 +769,7 @@ BEGIN
 
 	uc_name := OLD.Account_Type;
 
-	DELETE FROM User_Collection_User WHERE Account_Id = OLD.Account_Id AND
+	DELETE FROM User_Collection_Account WHERE Account_Id = OLD.Account_Id AND
 		User_Collection_ID = (
 			SELECT User_Collection_ID 
 			FROM User_Collection 
@@ -792,7 +792,7 @@ BEGIN
 			) RETURNING User_Collection_Id INTO ucid;
 	END;
 	IF ucid IS NOT NULL THEN
-		INSERT INTO User_Collection_User (
+		INSERT INTO User_Collection_Account (
 			User_Collection_ID,
 			Account_Id
 		) VALUES (
@@ -847,7 +847,7 @@ BEGIN
 						' (corporation|inc|llc|ltd|co|corp|llp)$', ''),
 					' ', '_');
 
-			DELETE FROM User_Collection_User WHERE Account_id = OLD.Person_ID 
+			DELETE FROM User_Collection_Account WHERE Account_id = OLD.Person_ID 
 				AND User_Collection_ID = (
 					SELECT User_Collection_ID FROM User_Collection WHERE Name = uc_name 
 					AND User_Collection_Type = 'company');
@@ -890,7 +890,7 @@ BEGIN
 				) RETURNING User_Collection_Id INTO ucid;
 		END;
 		IF ucid IS NOT NULL THEN
-			INSERT INTO User_Collection_User (
+			INSERT INTO User_Collection_Account (
 				User_Collection_ID,
 				Person_ID
 			) VALUES (

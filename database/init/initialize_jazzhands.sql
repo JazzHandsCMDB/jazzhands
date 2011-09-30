@@ -25,31 +25,61 @@
 --
 -- Items that are essential.
 
-INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
-	VALUES ('employee', 'Y', 'Employee');
-INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
-	VALUES ('contractor', 'Y', 'Contractor');
-INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
-	VALUES ('pseudouser', 'N', 'PseudoUser');
-INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
-	VALUES ('vendor', 'Y', 'Vendor');
-INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Description)
-	VALUES ('blacklist', 'N', 'Blacklist');
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced, 
+		Description)
+	VALUES ('person', 'Y', 'Y', 'person_id is meaningful');
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced, 
+		Description)
+	VALUES ('pseudouser', 'N', 'N', 'person_id is not useful');
+INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced, 
+	Description)
+	VALUES ('blacklist', 'N', 'N', 'login name blacklist');
 
-INSERT INTO VAL_Account_Status(Account_Status, Description)
-	VALUES ('enabled', 'Enabled');
-INSERT INTO VAL_Account_Status(Account_Status, Description)
-	VALUES ('disabled', 'Disabled');
-INSERT INTO VAL_Account_Status(Account_Status, Description)
-	VALUES ('forcedisable', 'forcedisable - User Forced to Disabled status');
-INSERT INTO VAL_Account_Status(Account_Status, Description)
-	VALUES ('deleted', 'deleted');
-INSERT INTO VAL_Account_Status(Account_Status, Description)
-	VALUES ('terminated', 'terminated - User has been terminated');
-INSERT INTO VAL_Account_Status(Account_Status, Description)
-	VALUES ('onleave', 'onleave - User is disabled due to being on leave');
+INSERT INTO VAL_Person_Status(Person_Status, Description,
+		is_disabled, is_propagated_from_person, propagate_from_person)
+	VALUES ('enabled', 'Enabled',
+		'N', 'N', 'N');
+INSERT INTO VAL_Person_Status(Person_Status, Description,
+		is_disabled, is_propagated_from_person, propagate_from_person)
+	VALUES ('disabled', 'Disabled',
+		'N', 'N', 'N');
+INSERT INTO VAL_Person_Status(Person_Status, Description,
+		is_disabled, is_propagated_from_person, propagate_from_person)
+	VALUES ('forcedisabled', 'User Forced to Disabled status',
+		'Y', 'N', 'N');
+INSERT INTO VAL_Person_Status(Person_Status, Description,
+		is_disabled, is_propagated_from_person, propagate_from_person)
+	VALUES ('terminated', 'User has been terminated',
+		'Y', 'N', 'N');
+INSERT INTO VAL_Person_Status(Person_Status, Description,
+		is_disabled, is_propagated_from_person, propagate_from_person)
+	VALUES ('autoterminated', 'User has been terminated by auto process',
+		'Y', 'Y', 'Y');
+INSERT INTO VAL_Person_Status(Person_Status, Description,
+		is_disabled, is_propagated_from_person, propagate_from_person)
+	VALUES ('onleave', 'User is disabled due to being on leave',
+		'Y', 'Y', 'Y');
+
+INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
+	VALUES ('employee', 'Employee');
+INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
+	VALUES ('consultant', 'Consultant');
+INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
+	VALUES ('vendor', 'Vendor');
+INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
+	VALUES ('n/a', 'Not a person');
+
+INSERT INTO VAL_ACCOUNT_ROLE (Account_Role, Uid_Gid_Forced, Description)
+	VALUES ('primary', 'N', 
+		'Primary account for user in this Account Realm');
+INSERT INTO VAL_ACCOUNT_ROLE (Account_Role, Uid_Gid_Forced, Description)
+	VALUES ('administrator', 'N',
+	'Administrative account for user in this Account Realm');
+INSERT INTO VAL_ACCOUNT_ROLE (Account_Role, Uid_Gid_Forced, Description)
+	VALUES ('test', 'N', 'Test Account for User');
 
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('jpeg');
+INSERT INTO VAL_Image_Type(Image_Type) VALUES ('png');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('tiff');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('pnm');
 
@@ -61,6 +91,8 @@ INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
 	VALUES ('unix-group', 'User_Collection representing a Unix group');
 INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
 	VALUES ('doors', 'User_Collection that can be assigned to door-type objects to control access to physical areas');
+INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
+	VALUES ('department', 'User_Collection for Corporate Departments');
 INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
 	VALUES ('property', 'User_Collection for storing global property values');
 INSERT INTO VAL_User_Collection_Type (User_Collection_Type, Description)
@@ -591,15 +623,42 @@ insert into val_property (
 INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
 	VALUES (0, 'none', 'N');
 
+INSERT INTO Person(Person_Id, first_name, last_name)
+	VALUES (0, 'Non', 'Person');
+
+INSERT INTO Account_Realm(Account_Realm_Id, Account_Realm_Name)
+	VALUES (0, 'Non Realm');
+
+INSERT INTO PERSON_COMPANY (company_id, person_id, person_company_status,
+	person_company_relation, is_exempt)
+values (0, 0, 'enabled',
+	'n/a', 'N');
+
+INSERT INTO Account_Realm_Company(Account_Realm_Id, Company_Id)
+	VALUES (0, 0);
+
+insert into person_account_realm_company (
+	person_id, company_id, account_realm_id)
+values
+	(0, 0, 0);
+
 INSERT INTO Account (
 	Login,
+	Person_Id,
+	Company_Id,
+	Account_Realm_Id,
 	Description,
 	Account_Status,
+	Account_Role,
 	Account_Type
 ) VALUES (
 	'root',
+	0,
+	0,
+	0,
 	'Super User',
 	'enabled',
+	'primary',
 	'pseudouser'
 );
 
@@ -652,7 +711,7 @@ INSERT INTO Account_Password (
 insert into User_Collection (User_Collection_Name, User_Collection_Type)
 	values ('root', 'per-user');
 
-insert into User_Collection_User (User_Collection_Id, Account_Id)
+insert into User_Collection_Account (User_Collection_Id, Account_Id)
 select u.user_collection_id, a.account_id
 from    user_collection u, account a
 where u.user_collection_type in ('unix-group', 'per-user')

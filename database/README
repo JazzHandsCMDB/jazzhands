@@ -1,12 +1,14 @@
 $Id$
 $HeadURL$
 
-At present, this is only supported under oracle (and probably enterprsiedb).
-We hope to add postgresql support (>= 8.4) in the near future. 
+This works udner oracle and postgresql >= 8.4  Most development is now against
+postgresql 9.1 (or greater).
 
 The database must support hierarhical (recursive) queries in views and
 natively for raw sql queries, we rely heavily on those.  This rules
 mysql out at last investigation.
+
+For Oracle:
 
 Under oracle, everthing must me loaded into the same schema.  The schema
 owner is generally not used for anything else. 
@@ -32,5 +34,20 @@ loadjava -user user@DB -oci8 -resolve NetworkStrings.class
 create_oracle_schema.sql can be run from this directory to build out a
 complete oracle schema without and data.
 
+For PostgreSQL:
+
+Much of this needs to be written.
+
+Everything is in one database, but there are many schemas.  The main schema
+is jazzhands.  [ flesh out flesh out ]
+
+custom variable classes are used throughout for auditing.  You need to  put:
+	custom_variable_classes='jazzhands' in postgresql.conf (generally
+	towards the end)
+
+Initializing Data:
+
 initialize_schema_data.sql will deposit a bunch of example data. Some of
-it you probably want to preserve, some of it -- not so much.
+it you probably want to preserve, as many of the tools expect it to be there.
+Some of it, not so much.  (the optional and example files fall into this
+category).

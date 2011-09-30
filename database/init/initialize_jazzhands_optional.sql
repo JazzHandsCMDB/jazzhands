@@ -30,26 +30,23 @@ insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
 insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
 	values ('Cricket', 'Used by the Cricket Application'); 
 
-INSERT INTO Partner (Partner_ID, Name)
-	VALUES (0, 'Not Applicable');
-UPDATE Partner SET Partner_ID = 0 where Name = 'Not Applicable';
-INSERT INTO Partner (Name)
-	VALUES ('Sun Microsystems');
-INSERT INTO Partner (Name)
-	VALUES ('IBM');
-INSERT INTO Partner (Name)
+INSERT INTO Company (Company_Name)
+	VALUES ('Sun Microsystemse');
+INSERT INTO Company (Company_Name)
+	VALUES ('Dell');
+INSERT INTO Company (Company_Name)
 	VALUES ('RedHat');
-INSERT INTO Partner (Name)
+INSERT INTO Company (Company_Name)
 	VALUES ('Debian');
-INSERT INTO Partner (Name)
+INSERT INTO Company (Company_Name)
 	VALUES ('HP');
-INSERT INTO Partner (Name)
+INSERT INTO Company (Company_Name)
 	VALUES ('Cyclades');
-INSERT INTO Partner (Name)
+INSERT INTO Company (Company_Name)
 	VALUES ('Xen');
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_Id,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
@@ -67,7 +64,7 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_Id,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
@@ -75,7 +72,7 @@ INSERT INTO Device_Type (
 	Is_Chasis,
 	RACK_UNITS
 ) VALUES (
-	(SELECT Partner_ID FROM Partner WHERE Name = 'Sun Microsystems'),
+	(SELECT Company_Id FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'SunFire T1000',
 	'Y',
 	'N',
@@ -85,7 +82,7 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_ID,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
@@ -93,7 +90,7 @@ INSERT INTO Device_Type (
 	Is_Chasis,
 	RACK_UNITS
 ) VALUES (
-	(SELECT Partner_ID FROM Partner WHERE Name = 'Sun Microsystems'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'SunFire T2000',
 	'Y',
 	'N',
@@ -103,13 +100,13 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_ID,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable, is_chasis, rack_units
 ) VALUES (
-	(SELECT Partner_ID FROM Partner WHERE Name = 'IBM'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'IBM'),
 	'eServer 326',
 	'Y',
 	'N',
@@ -117,13 +114,13 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_ID,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable, is_chasis, rack_units
 ) VALUES (
-	(SELECT Partner_ID FROM Partner WHERE Name = 'HP'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'HP'),
 	'DL360',
 	'Y',
 	'N',
@@ -131,7 +128,7 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_ID,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
@@ -139,7 +136,7 @@ INSERT INTO Device_Type (
 	Is_Chasis,
 	Rack_Units
 ) VALUES (
-	(SELECT Partner_ID FROM Partner WHERE Name = 'Cyclades'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'Cyclades'),
 	'AlterPath ACS48',
 	'Y',
 	'N',
@@ -149,7 +146,7 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Device_Type (
-	Partner_ID,
+	Company_ID,
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
@@ -157,7 +154,7 @@ INSERT INTO Device_Type (
 	Is_Chasis,
 	Rack_Units
 ) VALUES (
-	(SELECT Partner_ID FROM Partner WHERE Name = 'Xen'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'Xen'),
 	'Virtual Machine',
 	'Y',
 	'N',
@@ -168,37 +165,37 @@ INSERT INTO Device_Type (
 
 INSERT INTO Operating_System (
 	Operating_System_ID,
-	Name,
+	Operating_System_Name,
 	Version,
-	Partner_ID, processor_architecture
+	Company_ID, processor_architecture
 ) VALUES (
 	0,
 	'unknown',
 	'unknown',
 	0, 'noarch'
 );
-UPDATE Operating_System SET Operating_System_ID = 0 where Partner_ID = 0;
+UPDATE Operating_System SET Operating_System_ID = 0 where Company_ID = 0;
 
 INSERT INTO Operating_System (
-	Name,
+	Operating_System_Name,
 	Version,
-	Partner_ID,
+	Company_ID,
 	PROCESSOR_ARCHITECTURE
 ) VALUES(
 	'Solaris',
 	'10',
-	(SELECT Partner_ID FROM Partner WHERE Name = 'Sun Microsystems'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'amd64'
 );
 
 INSERT INTO Operating_System (
-	Name,
+	Operating_System_Name,
 	Version,
-	Partner_ID,
+	Company_ID,
 	PROCESSOR_ARCHITECTURE
 ) VALUES(
 	'Solaris',
 	'10',
-	(SELECT Partner_ID FROM Partner WHERE Name = 'Sun Microsystems'),
+	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'sparc'
 );

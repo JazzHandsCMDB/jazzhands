@@ -52,7 +52,7 @@ INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
 
 INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('MIT.EDU');
 
-insert into site (site_code, colo_partner_id, site_status, description)
+insert into site (site_code, colo_company_id, site_status, description)
 	values ('CORP0', 0, 'ACTIVE', 'Corporate Headquarters');
 
 insert into rack (
@@ -71,7 +71,7 @@ insert into rack (
 	'RELAY', 'Y'
 );
 
-insert into site (site_code, colo_partner_id, site_status, description)
+insert into site (site_code, colo_company_id, site_status, description)
 	values ('CZ0', 0, 'ACTIVE', 'Czech Satellite Office');
 
 -- FC00::/7

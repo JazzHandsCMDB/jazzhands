@@ -3,6 +3,6 @@
 \i init/initialize_jazzhands_optional.sql
 -- this is example data that should be inserted differently
 -- \i init/initialize_jazzhands_example.sql
-\i init/insert_blacklist.sql
+-- XXX PERSON/ACOUNT \i init/insert_blacklist.sql
 -- XXX once sorted out for oracle, this needs to be converted to pgsqlism
 -- @@init/oracle/submit_scheduler.sql
