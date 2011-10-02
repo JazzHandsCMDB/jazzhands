@@ -995,4 +995,41 @@ DROP TRIGGER IF EXISTS trigger_validate_netblock ON netblock;
 CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON netblock
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock();
 
+/*
+ * Deal with propagating person status down to accounts, if appropriate
+ *
+ * XXX - this needs to be reimplemented in oracle
+ */
+CREATE OR REPLACE FUNCTION propagate_person_status_to_account()
+	RETURNS TRIGGER AS $$
+DECLARE
+	should_propagate 	val_person_status.propagate_from_person%type;
+BEGIN
+	
+	IF OLD.person_company_status != NEW.person_company_status THEN
+		select propagate_from_person
+		  into should_propagate
+		 from	val_person_status
+		 where	person_status = NEW.person_company_status;
+		IF should_propagate = 'Y' THEN
+			update account
+			  set	account_status = NEW.person_company_status
+			 where	person_id = NEW.person_id
+			  AND	company_id = NEW.company_id
+			  AND	account_status in (
+				  	SELECT	person_status
+					  FROM	val_person_status
+					 WHERE	propagate_from_person = 'Y'
+			  	);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account 
+	ON person_company;
+CREATE TRIGGER trigger_propagate_person_status_to_account 
+AFTER UPDATE ON person_company
+	FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
+ 
