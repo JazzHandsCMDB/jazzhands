@@ -20,42 +20,41 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
---
---
 -- $Id$
 --
 
-\i accountview.sql
-\i sysuserphoneview.sql
--- not sure that we need these anymore.
--- \i create_v_login_changes.sql
--- \i create_v_user_deletions.sql
-
-\i create_v_user_extract.sql 
-\i pgsql/create_v_property.sql
-\i pgsql/v_user_coll_account_expanded.sql
--- \i pgsql/create_v_user_collection_user_expanded_detail.sql
-
--- XXX needs to be ported
--- \i create_v_user_prop_exp_nomv.sql
-\i create_token_views.sql
--- \i pgsql/create_v_user_collection_user_expanded.sql
--- not sure that we need these anymore.
--- \i create_audit_views.sql
-
-\i create_v_limited_users.sql
-\i create_v_l1_all_physical_ports.sql
-
--- XXX these need to be ported
--- \i create_v_joined_user_collection_user_detail.sql
--- \i pgsql/create_v_device_coll_hier_detail.sql
--- \i create_v_device_col_user_collection_expanded.sql
--- \i create_v_dev_col_user_prop_expanded.sql
--- \i create_mv_account_last_auth.sql
--- \i pgsql/create_mv_user_collection_user_expanded_detail.sql 
--- \i create_v_user_prop_expanded.sql 
--- \i pgsql/create_mv_user_collection_user_expanded.sql
-
-
-\i pgsql/create_v_application_role.sql
+CREATE OR REPLACE VIEW v_user_coll_account_expanded AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_collection_id,
+	user_collection_id,
+	child_user_collection_id,
+	account_id
+) as (
+	SELECT	
+		0				as level,
+		u.user_collection_id		as root_collection_id, 
+		u.user_collection_id		as user_collection_id, 
+		u.user_collection_id		as child_user_collection_id,
+		ua.account_Id			as account_id
+	  FROM	user_collection u
+		inner join user_collection_account ua
+			on u.user_collection_id =
+				ua.user_collection_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.user_collection_id		as root_user_collection_id, 
+		uch.user_collection_id		as user_collection_id, 
+		uch.child_user_collection_id	as child_user_collection_id,
+		ua.account_Id			as account_id
+	  FROM	var_recurse x
+		inner join user_collection_hier uch
+			on x.child_user_collection_id =
+				uch.user_collection_id
+		inner join user_collection_account ua
+			on uch.child_user_collection_id =
+				ua.user_collection_id
+) SELECT	distinct root_collection_id as user_collection_id,
+		account_id as account_id
+  from 		var_recurse;
