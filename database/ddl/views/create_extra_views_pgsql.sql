@@ -34,7 +34,7 @@
 
 \i create_v_user_extract.sql 
 \i pgsql/create_v_property.sql
-\i pgsql/v_user_coll_account_expanded.sql
+\i pgsql/create_v_user_coll_account_expanded.sql
 -- \i pgsql/create_v_user_collection_user_expanded_detail.sql
 
 -- XXX needs to be ported
