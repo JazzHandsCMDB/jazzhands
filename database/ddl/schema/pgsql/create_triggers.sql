@@ -1033,3 +1033,26 @@ CREATE TRIGGER trigger_propagate_person_status_to_account
 AFTER UPDATE ON person_company
 	FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
  
+/*
+ * Do not let hierarchy point to itself.  This shoudl probabyl be extended
+ * to check up/down the hierarchy to prevent loops.  Needs to be ported to
+ * oracle XXX
+ */
+CREATE OR REPLACE FUNCTION check_user_colllection_hier_loop()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.user_collection_id = NEW.child_user_collection_id THEN
+		RAISE EXCEPTION 'Uclass User Collection Loops Not Pernitted '
+			USING ERRCODE = 20704;	/* XXX */
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_check_user_collection_hier_loop 
+	ON user_collection_hier;
+CREATE TRIGGER trigger_check_user_collection_hier_loop 
+AFTER INSERT OR UPDATE ON user_collection_hier
+	FOR EACH ROW EXECUTE PROCEDURE check_user_colllection_hier_loop();
+ 
+
