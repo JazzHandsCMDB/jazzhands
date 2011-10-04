@@ -1,4 +1,4 @@
--- Copyright (c) 2011, Todd M. Kover
+-- Copyright (c) 2011 Todd M. Kover
 -- All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
@@ -20,41 +20,40 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
--- $Id$
+-- $Id: create_v_user_coll_account_expanded.sql 60 2011-10-03 09:11:29Z kovert $
 --
 
-CREATE OR REPLACE VIEW v_user_coll_account_expanded AS
+CREATE OR REPLACE VIEW v_person_company_expanded AS
 WITH RECURSIVE var_recurse (
 	level,
-	root_collection_id,
-	user_collection_id,
-	child_user_collection_id,
-	account_id
+	root_company_id,
+	company_id,
+	person_id
 ) as (
 	SELECT	
 		0				as level,
-		u.user_collection_id		as root_collection_id, 
-		u.user_collection_id		as user_collection_id, 
-		u.user_collection_id		as child_user_collection_id,
-		ua.account_Id			as account_id
-	  FROM	user_collection u
-		inner join user_collection_account ua
-			on u.user_collection_id =
-				ua.user_collection_id
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	company c
+		inner join person_company pc
+			on c.company_id = pc.company_id
 UNION ALL
 	SELECT	
 		x.level + 1			as level,
-		x.user_collection_id		as root_user_collection_id, 
-		uch.user_collection_id		as user_collection_id, 
-		uch.child_user_collection_id	as child_user_collection_id,
-		ua.account_Id			as account_id
+		x.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
 	  FROM	var_recurse x
-		inner join user_collection_hier uch
-			on x.child_user_collection_id =
-				uch.user_collection_id
-		inner join user_collection_account ua
-			on uch.child_user_collection_id =
-				ua.user_collection_id
-) SELECT	distinct root_collection_id as user_collection_id,
-		account_id as account_id
+		inner join company c
+			on c.parent_company_id = x.company_id
+		inner join person_company pc
+			on c.company_id = pc.company_id
+) SELECT	distinct root_company_id as company_id, person_id
   from 		var_recurse;
+
+
+
+
+
+
