@@ -1,4 +1,4 @@
--- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- Copyright (c) 2011 Todd M. Kover
 -- All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
@@ -20,44 +20,34 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
---
---
 -- $Id$
 --
 
-\i accountview.sql
-\i sysuserphoneview.sql
--- not sure that we need these anymore.
--- \i create_v_login_changes.sql
--- \i create_v_user_deletions.sql
-
-\i create_v_user_extract.sql 
-\i pgsql/create_v_property.sql
-\i pgsql/create_v_user_coll_account_expanded.sql
-\i pgsql/create_v_person_company_expanded.sql
-\i pgsql/create_v_department_company_expanded.sql
--- \i pgsql/create_v_user_collection_user_expanded_detail.sql
-
--- XXX needs to be ported
--- \i create_v_user_prop_exp_nomv.sql
-\i create_token_views.sql
--- \i pgsql/create_v_user_collection_user_expanded.sql
--- not sure that we need these anymore.
--- \i create_audit_views.sql
-
-\i create_v_limited_users.sql
-\i create_v_l1_all_physical_ports.sql
-
--- XXX these need to be ported
--- \i create_v_joined_user_collection_user_detail.sql
--- \i pgsql/create_v_device_coll_hier_detail.sql
--- \i create_v_device_col_user_collection_expanded.sql
--- \i create_v_dev_col_user_prop_expanded.sql
--- \i create_mv_account_last_auth.sql
--- \i pgsql/create_mv_user_collection_user_expanded_detail.sql 
--- \i create_v_user_prop_expanded.sql 
--- \i pgsql/create_mv_user_collection_user_expanded.sql
-
-
-\i pgsql/create_v_application_role.sql
+CREATE OR REPLACE VIEW v_department_company_expanded AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_company_id,
+	company_id,
+	user_collection_id
+) as (
+	SELECT	
+		0				as level,
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		d.user_collection_id		as user_collection_id
+	  FROM	company c
+		inner join department d
+			on c.company_id = d.company_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.company_id			as root_company_id,
+		c.company_id			as company_id,
+		d.user_collection_id		as user_collection_id
+	  FROM	var_recurse x
+		inner join company c
+			on c.parent_company_id = x.company_id
+		inner join department d
+			on c.company_id = d.company_id
+) SELECT	distinct root_company_id as company_id, user_collection_id
+  from 		var_recurse;
