@@ -730,3 +730,7 @@ VALUES (
 
 insert into val_auth_resource (auth_resource) values ('radius');
 
+insert into val_diet (diet) values ( 'Carnivore');
+insert into val_diet (diet) values ( 'Omnivore');
+insert into val_diet (diet) values ( 'Vegetarian');
+insert into val_diet (diet) values ( 'Pescatarian');
