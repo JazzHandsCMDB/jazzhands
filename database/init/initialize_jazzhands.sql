@@ -138,6 +138,8 @@ INSERT INTO VAL_Ownership_Status (Ownership_Status)
 insert into Val_Person_Contact_Type(person_contact_type)
 	values ('chat');
 insert into Val_Person_Contact_Type(person_contact_type)
+	values ('email');
+insert into Val_Person_Contact_Type(person_contact_type)
 	values ('phone');
 
 INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
@@ -734,3 +736,11 @@ insert into val_diet (diet) values ( 'Carnivore');
 insert into val_diet (diet) values ( 'Omnivore');
 insert into val_diet (diet) values ( 'Vegetarian');
 insert into val_diet (diet) values ( 'Pescatarian');
+
+--  XXX - need to insert these for the default companies!!
+-- consider renaming to company_relation
+insert into val_company_type(company_type) values  ('corporate family');
+insert into val_company_type(company_type) values  ('vendor');
+insert into val_company_type(company_type) values  ('consultant provider');
+insert into val_company_type(company_type) values  ('hardware provider');
+insert into val_company_type(company_type) values  ('software provider');
