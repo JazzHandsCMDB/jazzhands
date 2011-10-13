@@ -20,7 +20,7 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
--- $Id: create_v_user_coll_account_expanded.sql 60 2011-10-03 09:11:29Z kovert $
+-- $Id: create_v_acct_coll_account_expanded.sql 60 2011-10-03 09:11:29Z kovert $
 --
 
 CREATE OR REPLACE VIEW v_person_company_expanded AS

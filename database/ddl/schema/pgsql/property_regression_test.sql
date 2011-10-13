@@ -37,8 +37,8 @@ DECLARE
 	v_production_state		Property.production_state%TYPE;
 	v_site_code				Property.site_code%TYPE;
 	v_system_user_id		Property.system_user_id%TYPE;
-	v_uclass_id				Property.uclass_id%TYPE;
-	v_uclass_id2			Property.uclass_id%TYPE;
+	v_account_collection_id				Property.account_collection_id%TYPE;
+	v_account_collection_id2			Property.account_collection_id%TYPE;
 	v_netblock_id			Property.Property_Value_Netblock_ID%TYPE;
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
 	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
@@ -76,7 +76,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -85,7 +85,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'Prohibited',
 		'test',
@@ -106,7 +106,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -115,7 +115,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
 		'test',
@@ -136,7 +136,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -145,7 +145,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'Singlevalue',
 		'test',
@@ -166,7 +166,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -175,7 +175,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
 		'multivaluetest',
@@ -196,7 +196,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -205,7 +205,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'AnotherProperty',
 		'multivaluetest',
@@ -226,7 +226,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -235,7 +235,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'Allowed',
 		'test',
@@ -256,7 +256,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -265,7 +265,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'Required',
 		'test',
@@ -286,7 +286,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -295,9 +295,9 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
-		'RestrictUclass',
+		'RestrictAccount_Collectiong',
 		'test',
 		'N',
 		'per-user',
@@ -317,7 +317,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -326,7 +326,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'boolean',
 		'test',
@@ -348,7 +348,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -357,7 +357,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'company_id',
 		'test',
@@ -379,7 +379,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -388,7 +388,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'dns_domain_id',
 		'test',
@@ -410,7 +410,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -419,7 +419,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'netblock_id',
 		'test',
@@ -440,7 +440,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -449,7 +449,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'sw_package_id',
 		'test',
@@ -471,7 +471,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -480,7 +480,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'none',
 		'test',
@@ -502,7 +502,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -511,7 +511,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'number',
 		'test',
@@ -533,7 +533,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -542,7 +542,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'password_type',
 		'test',
@@ -564,7 +564,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -573,7 +573,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'string',
 		'test',
@@ -595,7 +595,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -604,7 +604,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'timestamp',
 		'test',
@@ -626,7 +626,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -635,7 +635,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
 		'token_collection_id',
 		'test',
@@ -657,7 +657,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -666,13 +666,13 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_Id
 	) VALUES (
-		'uclass_id',
+		'account_collection_id',
 		'test',
 		'N',
 		NULL,
-		'uclass_id',
+		'account_collection_id',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -688,7 +688,7 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Uclass_Type_Rstrct,
+		Prop_Val_Acct_Coll_Type_Rstrct,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
@@ -697,7 +697,7 @@ BEGIN
 		Permit_Production_State,
 		Permit_Site_Code,
 		Permit_System_User_Id,
-		Permit_Uclass_Id
+		Permit_Account_Collection_id
 	) VALUES (
 		'list',
 		'test',
@@ -742,10 +742,10 @@ BEGIN
 		LIMIT 1;
 	SELECT System_User_ID INTO v_system_user_id FROM System_User 
 		LIMIT 1;
-	SELECT Uclass_ID INTO v_uclass_id FROM Uclass 
-		WHERE UClass_Type = 'per-user' LIMIT 1;
-	SELECT Uclass_ID INTO v_uclass_id2 FROM Uclass 
-		WHERE UClass_Type <> 'per-user' LIMIT 1; 
+	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection 
+		WHERE Account_Collectiong_Type = 'per-user' LIMIT 1;
+	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collectiong 
+		WHERE Account_Collectiong_Type <> 'per-user' LIMIT 1; 
 	SELECT Netblock_ID INTO v_netblock_id FROM Netblock 
 		LIMIT 1;
 	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type 
@@ -762,8 +762,8 @@ BEGIN
 	RAISE NOTICE 'v_production_state is %', v_production_state;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
 	RAISE NOTICE 'v_system_user_id is %', v_system_user_id;
-	RAISE NOTICE 'v_uclass_id is %', v_uclass_id;
-	RAISE NOTICE 'v_uclass_id2 is %', v_uclass_id2;
+	RAISE NOTICE 'v_account_collection_id is %', v_account_collection_id;
+	RAISE NOTICE 'v_account_collection_id2 is %', v_account_collection_id2;
 	RAISE NOTICE 'v_netblock_id is %', v_netblock_id;
 	RAISE NOTICE 'v_password_type is %', v_password_type;
 	RAISE NOTICE 'v_token_collection_id is %', v_token_collection_id;
@@ -778,17 +778,17 @@ BEGIN
 	--
 	RAISE NOTICE 'Inserting non-multivalue property';
 	INSERT INTO Property (Property_Name, Property_Type,
-		Company_Id, Uclass_ID, Property_Value
+		Company_Id, Account_Collection_Id, Property_Value
 		) VALUES (
-		'Singlevalue', 'test', v_company_id, v_uclass_id, 'test'
+		'Singlevalue', 'test', v_company_id, v_account_collection_id, 'test'
 		);
 
 	RAISE NOTICE 'Inserting duplicate non-multivalue property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Company_Id, Uclass_ID, Property_Value
+			Company_Id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Singlevalue', 'test', v_company_id, v_uclass_id, 'test2'
+			'Singlevalue', 'test', v_company_id, v_account_collection_id, 'test2'
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -798,15 +798,15 @@ BEGIN
 	END;
 
 	--
-	-- Insert a second property of the same type with a different uclass_id.
+	-- Insert a second property of the same type with a different account_collection_id.
 	-- This should succeed.
 	--
 	RAISE NOTICE 'Inserting same property with different lhs into non-multi-valued property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Company_Id, Uclass_ID, Property_Value
+			Company_Id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Singlevalue', 'test', v_company_id, v_uclass_id2, 'test'
+			'Singlevalue', 'test', v_company_id, v_account_collection_id2, 'test'
 			);
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
@@ -821,17 +821,17 @@ BEGIN
 	--
 	RAISE NOTICE 'Inserting multi-valued property';
 	INSERT INTO Property (Property_Name, Property_Type,
-		Company_Id, Uclass_ID, Property_Value
+		Company_Id, Account_Collection_Id, Property_Value
 		) VALUES (
-		'Multivalue', 'test', v_company_id, v_uclass_id, 'test'
+		'Multivalue', 'test', v_company_id, v_account_collection_id, 'test'
 		);
 
 	RAISE NOTICE 'Inserting into the same multi-valued property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Company_Id, Uclass_ID, Property_Value
+			Company_Id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Multivalue', 'test', v_company_id, v_uclass_id, 'test2'
+			'Multivalue', 'test', v_company_id, v_account_collection_id, 'test2'
 			);
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
@@ -846,17 +846,17 @@ BEGIN
 	--
 	RAISE NOTICE 'Inserting a non-multi-valued-type property';
 	INSERT INTO Property (Property_Name, Property_Type,
-		Company_Id, Uclass_ID, Property_Value
+		Company_Id, Account_Collection_Id, Property_Value
 		) VALUES (
-		'Multivalue', 'multivaluetest', v_company_id, v_uclass_id, 'test'
+		'Multivalue', 'multivaluetest', v_company_id, v_account_collection_id, 'test'
 		);
 
 	RAISE NOTICE 'Inserting a different non-multivalue-type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Company_Id, Uclass_ID, Property_Value
+			Company_Id, Account_Collection_id, Property_Value
 			) VALUES (
-			'AnotherProperty', 'multivaluetest', v_company_id, v_uclass_id, 
+			'AnotherProperty', 'multivaluetest', v_company_id, v_account_collection_id, 
 				'test2'
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -896,7 +896,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Allowed', 'test', 'test',
 			v_company_id,
@@ -906,7 +906,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
@@ -926,7 +926,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -936,7 +936,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
@@ -956,7 +956,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			NULL,
@@ -966,7 +966,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -986,7 +986,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -996,7 +996,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1016,7 +1016,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -1026,7 +1026,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1046,7 +1046,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -1056,7 +1056,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1076,7 +1076,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -1086,7 +1086,7 @@ BEGIN
 			NULL,
 			v_site_code,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1106,7 +1106,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -1116,7 +1116,7 @@ BEGIN
 			v_production_state,
 			NULL,
 			v_system_user_id,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1136,7 +1136,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -1146,7 +1146,7 @@ BEGIN
 			v_production_state,
 			v_site_code,
 			NULL,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1155,7 +1155,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Omitting UClass_ID from property with REQUIRED UClass_ID lhs field';
+	RAISE NOTICE 'Omitting Account_Collection_Id from property with REQUIRED Account_Collection_Id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1166,7 +1166,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
@@ -1196,7 +1196,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1226,7 +1226,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			v_company_id,
@@ -1256,7 +1256,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1286,7 +1286,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1316,7 +1316,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1346,7 +1346,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1376,7 +1376,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1406,7 +1406,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1425,7 +1425,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Adding UClass_ID to property with PROHIBITED UClass_ID lhs field';
+	RAISE NOTICE 'Adding Account_Collection_Id to property with PROHIBITED Account_Collection_Id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1436,7 +1436,7 @@ BEGIN
 			Production_State,
 			Site_Code,
 			System_User_ID,
-			Uclass_ID
+			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			NULL,
@@ -1446,7 +1446,7 @@ BEGIN
 			NULL,
 			NULL,
 			NULL,
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1570,13 +1570,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into string property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'string', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1710,13 +1710,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into timestamp property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'timestamp', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1850,13 +1850,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into company_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into company_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'company_id', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1991,13 +1991,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into dns_domain_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into dns_domain_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'dns_domain_id', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2131,13 +2131,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into netblock_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into netblock_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'netblock_id', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2271,13 +2271,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into password_type property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'password_type', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2412,13 +2412,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into sw_package_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'sw_package_id', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2552,13 +2552,13 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into token_collection_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'token_collection_id', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2568,15 +2568,15 @@ BEGIN
 	END;
 
 	--
-	-- UClass_ID
+	-- Account_Collection_Id
 	--
 
-	RAISE NOTICE 'Inserting string value into uclass_id property';
+	RAISE NOTICE 'Inserting string value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			'test'
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2586,12 +2586,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting timestamp value into uclass_id property';
+	RAISE NOTICE 'Inserting timestamp value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Timestamp
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			now()
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2601,12 +2601,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into uclass_id property';
+	RAISE NOTICE 'Inserting Company_ID value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Company_ID
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			v_company_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2616,12 +2616,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into uclass_id property';
+	RAISE NOTICE 'Inserting DNS_Domain_ID value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_DNS_Domain_ID
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			v_dns_domain_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2631,12 +2631,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into uclass_id property';
+	RAISE NOTICE 'Inserting Netblock_ID value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Netblock_ID
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			v_netblock_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2646,12 +2646,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Password_Type value into uclass_id property';
+	RAISE NOTICE 'Inserting Password_Type value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Password_Type
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			v_password_type
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2661,12 +2661,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting SW_Package_ID value into uclass_id property';
+	RAISE NOTICE 'Inserting SW_Package_ID value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_SW_Package_ID
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			v_sw_package_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2676,12 +2676,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Token_Collection_ID value into uclass_id property';
+	RAISE NOTICE 'Inserting Token_Collection_ID value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Token_Col_ID
 			) VALUES (
-			'uclass_id', 'test',
+			'account_collection_id', 'test',
 			v_token_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2691,13 +2691,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting UCLass_ID value into uclass_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_UCLass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
-			'uclass_id', 'test',
-			v_uclass_id
+			'account_collection_id', 'test',
+			v_account_collection_id
 			) RETURNING Property_ID INTO v_property_id;
 		RAISE NOTICE '... Success';
 	EXCEPTION
@@ -2832,13 +2832,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting uclass_id value into none property';
+	RAISE NOTICE 'Inserting account_collection_id value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Uclass_ID
+			Property_Value_Account_Collection_id
 			) VALUES (
 			'none', 'test',
-			v_uclass_id
+			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;

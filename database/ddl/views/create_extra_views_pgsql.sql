@@ -34,15 +34,15 @@
 
 \i create_v_user_extract.sql 
 \i pgsql/create_v_property.sql
-\i pgsql/create_v_user_coll_account_expanded.sql
+\i pgsql/create_v_acct_coll_account_expanded.sql
 \i pgsql/create_v_person_company_expanded.sql
 \i pgsql/create_v_department_company_expanded.sql
--- \i pgsql/create_v_user_collection_user_expanded_detail.sql
+-- \i pgsql/create_v_acct_collection_user_expanded_detail.sql
 
 -- XXX needs to be ported
 -- \i create_v_user_prop_exp_nomv.sql
 \i create_token_views.sql
--- \i pgsql/create_v_user_collection_user_expanded.sql
+-- \i pgsql/create_v_acct_collection_user_expanded.sql
 -- not sure that we need these anymore.
 -- \i create_audit_views.sql
 
@@ -50,14 +50,14 @@
 \i create_v_l1_all_physical_ports.sql
 
 -- XXX these need to be ported
--- \i create_v_joined_user_collection_user_detail.sql
+-- \i create_v_joined_acct_collection_user_detail.sql
 -- \i pgsql/create_v_device_coll_hier_detail.sql
--- \i create_v_device_col_user_collection_expanded.sql
+-- \i create_v_device_col_acct_collection_expanded.sql
 -- \i create_v_dev_col_user_prop_expanded.sql
 -- \i create_mv_account_last_auth.sql
--- \i pgsql/create_mv_user_collection_user_expanded_detail.sql 
+-- \i pgsql/create_mv_acct_collection_user_expanded_detail.sql 
 -- \i create_v_user_prop_expanded.sql 
--- \i pgsql/create_mv_user_collection_user_expanded.sql
+-- \i pgsql/create_mv_acct_collection_user_expanded.sql
 
 
 \i pgsql/create_v_application_role.sql

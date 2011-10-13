@@ -67,8 +67,8 @@ FROM
   ( select dm.account_id,dm.reporting_type,dm.dept_id, d.dept_code,d.cost_center, d.company_id dept_company_id,
 	c2.company_code dept_company_code, c2.company_name  dept_company_name,
 	d.name,dm.start_date dept_start_date, dm.finish_date dept_finish_date
-	from user_collection_account uu, department d, 
-		user_collection u, company c2
+	from Account_Collection_account uu, department d, 
+		Account_Collection u, company c2
 	where dm.dept_id=d.dept_id
 	and d.company_id=c2.company_id
 	and dm.reporting_type='direct'

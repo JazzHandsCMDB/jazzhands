@@ -35,28 +35,28 @@ CREATE OR REPLACE VIEW V_User_Prop_Expanded AS
 			Property_Value_Netblock_ID,
 			Property_Value_Password_Type,
 			Property_Value_Token_Col_Id,
-			Property_Value_User_Collection_Id,
+			Property_Value_Account_Collection_Id,
 			DECODE(Is_Multivalue, 'N', 0, 'Y', 1) Is_Multivalue
 		FROM 
-			MV_User_Collection_User_Expanded_Detail UUED JOIN 
-			UClass USING (User_Collection_ID) JOIN
-			Property USING (User_Collection_ID) JOIN
+			MV_Account_Collection_User_Expanded_Detail UUED JOIN 
+			Account_Collection USING (Account_Collection_ID) JOIN
+			Property USING (Account_Collection_ID) JOIN
 			VAL_Property USING
 				(Property_Name, Property_Type) JOIN
 			Account SU ON (SU.Account_Id = UUED.Account_ID)
 		ORDER BY
-			 DECODE(UClass_Type,
+			 DECODE(Account_Collection_Type,
 				'per-user', 0,
 				'property', 1,
 				'systems', 2,
 				3),
 			 DECODE(Assign_Method,
-				'User_CollectionAssignedToPerson', 0,
-				'User_CollectionAssignedToDept', 1,
-				'ParentUser_CollectionOfUser_CollectionAssignedToPerson', 2,
-				'ParentUser_CollectionOfUser_CollectionAssignedToDept', 2,
-				'User_CollectionAssignedToParentDept', 3,
-				'ParentUser_CollectionOfUser_CollectionAssignedToParentDep', 3,
+				'Account_CollectionAssignedToPerson', 0,
+				'Account_CollectionAssignedToDept', 1,
+				'ParentAccount_CollectionOfAccount_CollectionAssignedToPerson', 2,
+				'ParentAccount_CollectionOfAccount_CollectionAssignedToDept', 2,
+				'Account_CollectionAssignedToParentDept', 3,
+				'ParentAccount_CollectionOfAccount_CollectionAssignedToParentDep', 3,
 				6),
-			 Dept_Level, UClass_Level, UClass_ID;
+			 Dept_Level, Account_Collection_Level, Account_Collection_ID;
 

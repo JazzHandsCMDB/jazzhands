@@ -409,7 +409,7 @@ DECLARE
 	tally			integer;
 	v_prop			VAL_Property%ROWTYPE;
 	v_proptype		VAL_Property_Type%ROWTYPE;
-	v_user_collection	User_Collection%ROWTYPE;
+	v_account_collection	account_collection%ROWTYPE;
 	v_num			integer;
 	v_listvalue		Property.Property_Value%TYPE;
 BEGIN
@@ -454,8 +454,8 @@ BEGIN
 				(Site_Code = NEW.Site_Code)) AND
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
 				(Account_Id = NEW.Account_Id)) AND
-			((User_Collection_Id IS NULL AND NEW.User_Collection_Id IS NULL) OR
-				(User_Collection_Id = NEW.User_Collection_Id));
+			((account_collection_Id IS NULL AND NEW.account_collection_Id IS NULL) OR
+				(account_collection_Id = NEW.account_collection_Id));
 			
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -488,8 +488,8 @@ BEGIN
 				(Site_Code = NEW.Site_Code)) AND
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
 				(Account_Id = NEW.Account_Id)) AND
-			((User_Collection_Id IS NULL AND NEW.User_Collection_Id IS NULL) OR
-				(User_Collection_Id = NEW.User_Collection_Id));
+			((account_collection_Id IS NULL AND NEW.account_collection_Id IS NULL) OR
+				(account_collection_Id = NEW.account_collection_Id));
 			
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -541,11 +541,11 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_User_Collection_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'user_collection_i' THEN
+	IF NEW.Property_Value_account_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'account_collection_i' THEN
 			tally := tally + 1;
 		ELSE
-			RAISE 'Property value may not be User_Collection_Id' USING
+			RAISE 'Property value may not be account_collection_Id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -624,18 +624,18 @@ BEGIN
 			ERRCODE = 'invalid_parameter_value';
 	END IF;
 
-	-- If the RHS contains a User_Collection_ID, check to see if it must be a
+	-- If the RHS contains a account_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-user), and verify that if so
 	
-	IF NEW.Property_Value_User_Collection_Id IS NOT NULL THEN
-		IF v_prop.Prop_Val_User_Collection_Type_Rstrct IS NOT NULL THEN
+	IF NEW.Property_Value_account_collection_Id IS NOT NULL THEN
+		IF v_prop.Prop_Val_account_collection_Type_Rstrct IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_user_collection FROM User_Collection WHERE
-					User_Collection_Id = NEW.Property_Value_User_Collection_Id;
-				IF v_user_collection.User_Collection_Type != v_prop.Prop_Val_User_Collection_Type_Rstrct
+				SELECT * INTO STRICT v_account_collection FROM account_collection WHERE
+					account_collection_Id = NEW.Property_Value_account_collection_Id;
+				IF v_account_collection.account_collection_Type != v_prop.Prop_Val_account_collection_Type_Rstrct
 				THEN
-					RAISE 'Property_Value_User_Collection_Id must be of type %',
-					v_prop.Prop_Val_User_Collection_Type_Rstrct
+					RAISE 'Property_Value_account_collection_Id must be of type %',
+					v_prop.Prop_Val_account_collection_Type_Rstrct
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -738,14 +738,14 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.Permit_User_Collection_Id = 'REQUIRED' THEN
-			IF NEW.User_Collection_Id IS NULL THEN
-				RAISE 'User_Collection_Id is required.'
+	IF v_prop.Permit_account_collection_Id = 'REQUIRED' THEN
+			IF NEW.account_collection_Id IS NULL THEN
+				RAISE 'account_collection_Id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.Permit_User_Collection_Id = 'PROHIBITED' THEN
-			IF NEW.User_Collection_Id IS NOT NULL THEN
-				RAISE 'User_Collection_Id is prohibited.'
+	ELSIF v_prop.Permit_account_collection_Id = 'PROHIBITED' THEN
+			IF NEW.account_collection_Id IS NOT NULL THEN
+				RAISE 'account_collection_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
@@ -757,10 +757,10 @@ DROP TRIGGER IF EXISTS trigger_validate_property ON Property;
 CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE 
 	ON Property FOR EACH ROW EXECUTE PROCEDURE validate_property();
 
-CREATE OR REPLACE FUNCTION update_account_type_user_collection() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION update_account_type_account_collection() RETURNS TRIGGER AS $$
 DECLARE
-	uc_name		User_Collection.User_Collection_Name%TYPE;
-	ucid		User_Collection.User_Collection_Id%TYPE;
+	uc_name		account_collection.account_collection_Name%TYPE;
+	ucid		account_collection.account_collection_Id%TYPE;
 BEGIN
 	IF TG_OP = 'UPDATE' THEN
 		IF OLD.Account_Type = NEW.Account_Type THEN 
@@ -769,31 +769,31 @@ BEGIN
 
 	uc_name := OLD.Account_Type;
 
-	DELETE FROM User_Collection_Account WHERE Account_Id = OLD.Account_Id AND
-		User_Collection_ID = (
-			SELECT User_Collection_ID 
-			FROM User_Collection 
-			WHERE User_Collection_Name = uc_name 
-			AND User_Collection_Type = 'usertype');
+	DELETE FROM account_collection_Account WHERE Account_Id = OLD.Account_Id AND
+		account_collection_ID = (
+			SELECT account_collection_ID 
+			FROM account_collection 
+			WHERE account_collection_Name = uc_name 
+			AND account_collection_Type = 'usertype');
 
 	END IF;
 	uc_name := NEW.Account_Type;
 	BEGIN
-		SELECT User_Collection_ID INTO STRICT ucid 
-		  FROM User_Collection 
-		 WHERE User_Collection_Name = uc_name 
-		AND User_Collection_Type = 'usertype';
+		SELECT account_collection_ID INTO STRICT ucid 
+		  FROM account_collection 
+		 WHERE account_collection_Name = uc_name 
+		AND account_collection_Type = 'usertype';
 	EXCEPTION
 		WHEN NO_DATA_FOUND THEN
-			INSERT INTO User_Collection (
-				User_Collection_Name, User_Collection_Type
+			INSERT INTO account_collection (
+				account_collection_Name, account_collection_Type
 			) VALUES (
 				uc_name, 'usertype'
-			) RETURNING User_Collection_Id INTO ucid;
+			) RETURNING account_collection_Id INTO ucid;
 	END;
 	IF ucid IS NOT NULL THEN
-		INSERT INTO User_Collection_Account (
-			User_Collection_ID,
+		INSERT INTO account_collection_Account (
+			account_collection_ID,
 			Account_Id
 		) VALUES (
 			ucid,
@@ -804,19 +804,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_update_account_type_user_collection
+DROP TRIGGER IF EXISTS trigger_update_account_type_account_collection
 	ON Account;
-CREATE TRIGGER trigger_update_account_type_user_collection AFTER INSERT OR UPDATE 
+CREATE TRIGGER trigger_update_account_type_account_collection AFTER INSERT OR UPDATE 
 	ON Account FOR EACH ROW EXECUTE PROCEDURE 
-	update_account_type_user_collection();
+	update_account_type_account_collection();
 
 /* XXX REVISIT
 
-CREATE OR REPLACE FUNCTION update_company_user_collection() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION update_company_account_collection() RETURNS TRIGGER AS $$
 DECLARE
 	compname	Company.Company_Name%TYPE;
-	uc_name		User_Collection.Name%TYPE;
-	ucid		User_Collection.User_Collection_Id%TYPE;
+	uc_name		account_collection.Name%TYPE;
+	ucid		account_collection.account_collection_Id%TYPE;
 BEGIN
 	IF TG_OP = 'UPDATE' THEN
 		IF OLD.Company_Id = NEW.Company_Id THEN 
@@ -847,10 +847,10 @@ BEGIN
 						' (corporation|inc|llc|ltd|co|corp|llp)$', ''),
 					' ', '_');
 
-			DELETE FROM User_Collection_Account WHERE Account_id = OLD.Person_ID 
-				AND User_Collection_ID = (
-					SELECT User_Collection_ID FROM User_Collection WHERE Name = uc_name 
-					AND User_Collection_Type = 'company');
+			DELETE FROM account_collection_Account WHERE Account_id = OLD.Person_ID 
+				AND account_collection_ID = (
+					SELECT account_collection_ID FROM account_collection WHERE Name = uc_name 
+					AND account_collection_Type = 'company');
 		END IF;
 	END IF;
 
@@ -879,19 +879,19 @@ BEGIN
 				' ', '_');
 
 		BEGIN
-			SELECT User_Collection_ID INTO STRICT ucid FROM User_Collection WHERE
-				Name = uc_name AND User_Collection_Type = 'company';
+			SELECT account_collection_ID INTO STRICT ucid FROM account_collection WHERE
+				Name = uc_name AND account_collection_Type = 'company';
 		EXCEPTION
 			WHEN NO_DATA_FOUND THEN
-				INSERT INTO User_Collection (
-					Name, User_Collection_Type
+				INSERT INTO account_collection (
+					Name, account_collection_Type
 				) VALUES (
 					uc_name, 'company'
-				) RETURNING User_Collection_Id INTO ucid;
+				) RETURNING account_collection_Id INTO ucid;
 		END;
 		IF ucid IS NOT NULL THEN
-			INSERT INTO User_Collection_Account (
-				User_Collection_ID,
+			INSERT INTO account_collection_Account (
+				account_collection_ID,
 				Person_ID
 			) VALUES (
 				ucid,
@@ -903,10 +903,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_update_company_user_collection 
+DROP TRIGGER IF EXISTS trigger_update_company_account_collection 
 	ON Person;
-CREATE TRIGGER trigger_update_company_user_collection AFTER INSERT OR UPDATE 
-	ON Person FOR EACH ROW EXECUTE PROCEDURE update_company_user_collection();
+CREATE TRIGGER trigger_update_company_account_collection AFTER INSERT OR UPDATE 
+	ON Person FOR EACH ROW EXECUTE PROCEDURE update_company_account_collection();
 
 */
 
@@ -1038,21 +1038,21 @@ AFTER UPDATE ON person_company
  * to check up/down the hierarchy to prevent loops.  Needs to be ported to
  * oracle XXX
  */
-CREATE OR REPLACE FUNCTION check_user_colllection_hier_loop()
+CREATE OR REPLACE FUNCTION check_account_colllection_hier_loop()
 	RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.user_collection_id = NEW.child_user_collection_id THEN
-		RAISE EXCEPTION 'Uclass User Collection Loops Not Pernitted '
+	IF NEW.account_collection_id = NEW.child_account_collection_id THEN
+		RAISE EXCEPTION 'Account Collection Loops Not Pernitted '
 			USING ERRCODE = 20704;	/* XXX */
 	END IF;
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_check_user_collection_hier_loop 
-	ON user_collection_hier;
-CREATE TRIGGER trigger_check_user_collection_hier_loop 
-AFTER INSERT OR UPDATE ON user_collection_hier
-	FOR EACH ROW EXECUTE PROCEDURE check_user_colllection_hier_loop();
+DROP TRIGGER IF EXISTS trigger_check_account_collection_hier_loop 
+	ON account_collection_hier;
+CREATE TRIGGER trigger_check_account_collection_hier_loop 
+AFTER INSERT OR UPDATE ON account_collection_hier
+	FOR EACH ROW EXECUTE PROCEDURE check_account_colllection_hier_loop();
  
 

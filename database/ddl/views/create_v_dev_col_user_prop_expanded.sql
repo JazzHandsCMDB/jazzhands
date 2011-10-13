@@ -34,9 +34,9 @@ SELECT dchd.device_collection_id,
   upo.property_value,
   decode(upn.is_multivalue, 'N', 0, 'Y', 1) is_multivalue,
   CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
-FROM v_user_collection_user_expanded_detail uued
-JOIN user_collection u ON uued.user_collection_id = u.user_collection_id
-JOIN v_property upo ON upo.user_collection_id = u.user_collection_id
+FROM v_Account_Collection_user_expanded_detail uued
+JOIN Account_Collection u ON uued.Account_Collection_id = u.Account_Collection_id
+JOIN v_property upo ON upo.Account_Collection_id = u.Account_Collection_id
  AND upo.property_type in (
   'CCAForceCreation', 'CCARight', 'ConsoleACL', 'RADIUS', 'TokenMgmt',
   'UnixPasswdFileValue', 'UserMgmt', 'cca', 'feed-attributes',
@@ -50,15 +50,15 @@ LEFT JOIN v_device_coll_hier_detail dchd
   ON (dchd.parent_device_collection_id = upo.device_collection_id)
 JOIN account s ON uued.account_id = s.account_id
 ORDER BY device_collection_level,
-  decode(u.user_collection_type, 
+  decode(u.Account_Collection_type, 
     'per-user', 0,
     'property', 1,
     'systems',  2, 3),
   decode(uued.assign_method,
-    'User_CollectionAssignedToPerson',                  0,
-    'User_CollectionAssignedToDept',                    1,
-    'ParentUser_CollectionOfUser_CollectionAssignedToPerson',    2,
-    'ParentUser_CollectionOfUser_CollectionAssignedToDept',      2,
-    'User_CollectionAssignedToParentDept',              3,
-    'ParentUser_CollectionOfUser_CollectionAssignedToParentDep', 3, 6),
-  uued.dept_level, uued.user_collection_level, dchd.device_collection_id, u.user_collection_id;
+    'Account_CollectionAssignedToPerson',                  0,
+    'Account_CollectionAssignedToDept',                    1,
+    'ParentAccount_CollectionOfAccount_CollectionAssignedToPerson',    2,
+    'ParentAccount_CollectionOfAccount_CollectionAssignedToDept',      2,
+    'Account_CollectionAssignedToParentDept',              3,
+    'ParentAccount_CollectionOfAccount_CollectionAssignedToParentDep', 3, 6),
+  uued.dept_level, uued.Account_Collection_level, dchd.device_collection_id, u.Account_Collection_id;

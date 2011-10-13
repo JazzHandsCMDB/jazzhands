@@ -28,13 +28,13 @@ WITH RECURSIVE var_recurse (
 	level,
 	root_company_id,
 	company_id,
-	user_collection_id
+	account_collection_id
 ) as (
 	SELECT	
 		0				as level,
 		c.company_id			as root_company_id,
 		c.company_id			as company_id,
-		d.user_collection_id		as user_collection_id
+		d.account_collection_id		as account_collection_id
 	  FROM	company c
 		inner join department d
 			on c.company_id = d.company_id
@@ -43,11 +43,11 @@ UNION ALL
 		x.level + 1			as level,
 		x.company_id			as root_company_id,
 		c.company_id			as company_id,
-		d.user_collection_id		as user_collection_id
+		d.account_collection_id		as account_collection_id
 	  FROM	var_recurse x
 		inner join company c
 			on c.parent_company_id = x.company_id
 		inner join department d
 			on c.company_id = d.company_id
-) SELECT	distinct root_company_id as company_id, user_collection_id
+) SELECT	distinct root_company_id as company_id, account_collection_id
   from 		var_recurse;

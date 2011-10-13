@@ -1,4 +1,4 @@
--- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- Copyright (c) 2011, Todd M. Kover
 -- All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
@@ -20,27 +20,41 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
 -- $Id$
 --
--- This is just a join between the expanded user_collection view (details) and the user and user_collection tables.  Needed for the rights web page.
 
-CREATE OR REPLACE FORCE VIEW v_joined_user_col_user_detail
-(user_collection_id,
-NAME,
-account_id,
-login,
-assign_method,
-user_collection_is_leaf,
-user_collection_inherit_path,
-dept_is_leaf,
-dept_inherit_path
-)
-AS
-   SELECT v.user_collection_id, u.NAME, v.account_id, su.login, v.assign_method,
-          v.user_collection_is_leaf, v.user_collection_inherit_path, v.dept_is_leaf,
-          v.dept_inherit_path
-     FROM v_user_collection_user_expanded_detail v, account su, user_collection u
-    WHERE su.account_id = v.account_id AND u.user_collection_id = v.user_collection_id;
-
-
+CREATE OR REPLACE VIEW v_acct_coll_account_expanded AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_collection_id,
+	account_collection_id,
+	child_account_collection_id,
+	account_id
+) as (
+	SELECT	
+		0				as level,
+		u.account_collection_id		as root_collection_id, 
+		u.account_collection_id		as account_collection_id, 
+		u.account_collection_id		as child_account_collection_id,
+		ua.account_Id			as account_id
+	  FROM	account_collection u
+		inner join account_collection_account ua
+			on u.account_collection_id =
+				ua.account_collection_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.account_collection_id		as root_account_collection_id, 
+		uch.account_collection_id		as account_collection_id, 
+		uch.child_account_collection_id	as child_account_collection_id,
+		ua.account_Id			as account_id
+	  FROM	var_recurse x
+		inner join account_collection_hier uch
+			on x.child_account_collection_id =
+				uch.account_collection_id
+		inner join account_collection_account ua
+			on uch.child_account_collection_id =
+				ua.account_collection_id
+) SELECT	distinct root_collection_id as account_collection_id,
+		account_id as account_id
+  from 		var_recurse;

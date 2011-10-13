@@ -94,74 +94,74 @@ WHERE not exists (select 1 from aud$dept e
 
 
 
-CREATE OR REPLACE VIEW v_aud$user_collection AS 
-SELECT  a.user_collection_id to_user_collection_id,
-	a.user_collection_type to_user_collection_type,
+CREATE OR REPLACE VIEW v_aud$Account_Collection AS 
+SELECT  a.Account_Collection_id to_Account_Collection_id,
+	a.Account_Collection_type to_Account_Collection_type,
 	a.name to_name,
 	a.description to_description,
 	a.aud#timestamp to_aud#timestamp,
-	b.user_collection_id from_user_collection_id,
-	b.user_collection_type from_user_collection_type,
+	b.Account_Collection_id from_Account_Collection_id,
+	b.Account_Collection_type from_Account_Collection_type,
 	b.name from_name,
 	b.description from_description,
 	b.aud#timestamp from_aud#timestamp
-FROM aud$user_collection a, aud$user_collection b
+FROM aud$Account_Collection a, aud$Account_Collection b
 WHERE 
-    a.user_collection_id=b.user_collection_id
+    a.Account_Collection_id=b.Account_Collection_id
 AND a.aud#timestamp > b.aud#timestamp
-AND not exists (select 1 from aud$user_collection c
-		where c.user_collection_id=a.user_collection_id 
+AND not exists (select 1 from aud$Account_Collection c
+		where c.Account_Collection_id=a.Account_Collection_id 
 		and c.rowid != a.rowid
 		and c.aud#timestamp > b.aud#timestamp
 		and c.aud#timestamp <= a.aud#timestamp )
 UNION
-SELECT  NULL to_user_collection_id,
-	NULL to_user_collection_type,
+SELECT  NULL to_Account_Collection_id,
+	NULL to_Account_Collection_type,
 	NULL to_name,
 	NULL to_description,
 	NULL to_aud#timestamp,
-	d.user_collection_id from_user_collection_id,
-	d.user_collection_type from_user_collection_type,
+	d.Account_Collection_id from_Account_Collection_id,
+	d.Account_Collection_type from_Account_Collection_type,
 	d.name from_name,
 	d.description from_description,
 	d.aud#timestamp from_aud#timestamp
-FROM aud$user_collection d
-WHERE not exists (select 1 from aud$user_collection e
-		where e.user_collection_id=d.user_collection_id
+FROM aud$Account_Collection d
+WHERE not exists (select 1 from aud$Account_Collection e
+		where e.Account_Collection_id=d.Account_Collection_id
 		and e.aud#timestamp > d.aud#timestamp);
 
 
 
 -- This is problematic..
 
-CREATE OR REPLACE VIEW v_aud$user_collection_dept AS 
-SELECT  a.user_collection_id to_user_collection_id,
+CREATE OR REPLACE VIEW v_aud$Account_Collection_dept AS 
+SELECT  a.Account_Collection_id to_Account_Collection_id,
 	a.dept_id to_dept_id,
 	a.aud#timestamp to_aud#timestamp,
-	b.user_collection_id from_user_collection_id,
+	b.Account_Collection_id from_Account_Collection_id,
 	b.dept_id from_dept_id,
 	b.aud#timestamp from_aud#timestamp
-FROM aud$user_collection_dept a, aud$user_collection_dept b
+FROM aud$Account_Collection_dept a, aud$Account_Collection_dept b
 WHERE 
-    a.user_collection_id=b.user_collection_id
+    a.Account_Collection_id=b.Account_Collection_id
 AND a.dept_id=b.dept_id
 AND a.aud#timestamp > b.aud#timestamp
-AND not exists (select 1 from aud$user_collection_dept c
-		where c.user_collection_id=a.user_collection_id 
+AND not exists (select 1 from aud$Account_Collection_dept c
+		where c.Account_Collection_id=a.Account_Collection_id 
 		and c.dept_id=a.dept_id 
 		and c.rowid != a.rowid
 		and c.aud#timestamp > b.aud#timestamp
 		and c.aud#timestamp <= a.aud#timestamp )
 UNION
-SELECT  NULL to_user_collection_id,
+SELECT  NULL to_Account_Collection_id,
         NULL to_dept_id,
         NULL to_aud#timestamp,
-        d.user_collection_id from_user_collection_id,
+        d.Account_Collection_id from_Account_Collection_id,
         d.dept_id from_dept_id,
         d.aud#timestamp from_aud#timestamp
-FROM aud$user_collection_dept d
-WHERE not exists (select 1 from aud$user_collection_dept e
-		where e.user_collection_id=d.user_collection_id
+FROM aud$Account_Collection_dept d
+WHERE not exists (select 1 from aud$Account_Collection_dept e
+		where e.Account_Collection_id=d.Account_Collection_id
 		and e.dept_id=d.dept_id
 		and e.aud#timestamp > d.aud#timestamp);
 
