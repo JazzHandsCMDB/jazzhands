@@ -7542,6 +7542,108 @@ ALTER TRIGGER TUB_PERSON_IMAGE
 	ENABLE;
 
 
+CREATE  OR REPLACE  TRIGGER C_TIUBR_PERSON_IMAGE_USAGE
+ BEFORE INSERT OR UPDATE
+ ON PERSON_IMAGE_USAGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_PERSON_IMAGE_USAGE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_PERSON_IMAGE_USAGE
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON PERSON_IMAGE_USAGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_PERSON_IMAGE_USAGE
+	ENABLE;
+
+
 CREATE  OR REPLACE  TRIGGER C_TIUBR_PERSON_NOTE
  BEFORE INSERT OR UPDATE
  ON PERSON_NOTE
@@ -8386,6 +8488,10 @@ BEGIN
                                 (production_state = v_prop_rec.production_state))
                   AND   ((site_code IS NULL AND v_prop_rec.site_code IS NULL) OR
                                 (site_code = v_prop_rec.site_code))
+                  AND   ((person_id IS NULL AND 
+                                        v_prop_rec.person_id IS NULL) OR
+                                (person_id = v_prop_rec.person_id))
+                  AND   ((account_collection_id IS NULL AND v_prop_rec.account_collection_id IS NULL) OR
                   AND   ((account_id IS NULL AND 
                                         v_prop_rec.account_id IS NULL) OR
                                 (account_id = v_prop_rec.account_id))
@@ -8533,6 +8639,7 @@ BEGIN
         v_prop_rec.site_code                    :=      :new.site_code;
         v_prop_rec.account_id               :=      :new.account_id;
         v_prop_rec.account_collection_id                    :=      :new.account_collection_id;
+        v_prop_rec.person_id                    := :new.person_id;
 
         -- if it ends up matching either of these, stash it for future lookup
 
@@ -8646,6 +8753,15 @@ BEGIN
            else
           errno := -20900;
           errmsg := 'Property value may not be netblock_id';
+                  raise integrity_error;
+           END IF;
+        END IF;
+        IF :new.PROPERTY_VALUE_PERSON_ID is not NULL THEN
+           IF v_prop.PROPERTY_DATA_TYPE = 'person_id' THEN
+                  tally := tally + 1;
+           else
+          errno := -20900;
+          errmsg := 'Property value may not be person_id';
                   raise integrity_error;
            END IF;
         END IF;
@@ -8822,6 +8938,20 @@ BEGIN
                 END IF;
         END IF;
 
+        IF v_prop.PERMIT_PERSON_ID = 'REQUIRED' THEN
+                IF :new.person_ID is null THEN
+                        errno := -20903;
+                        errmsg := 'PERSON_ID is required.';
+                        raise integrity_error;
+                END IF;
+        ELSIF v_prop.PERMIT_PERSON_ID = 'PROHIBITED' THEN
+                IF :new.PERSON_ID is not null THEN
+                        errno := -20904;
+                        errmsg := 'PERSON_ID is prohibited.';
+                        raise integrity_error;
+                END IF;
+        END IF;
+
         IF v_prop.PERMIT_account_ID = 'REQUIRED' THEN
                 IF :new.account_ID is null THEN
                         errno := -20903;
@@ -8855,6 +8985,7 @@ BEGIN
         -- the whole Oracle mutating table fun.
 
 --  Errors handling  
+
 exception
         when integrity_error THEN  
            raise_application_error(errno, errmsg);
@@ -15696,6 +15827,108 @@ end;
 
 
 ALTER TRIGGER TUB_VAL_PERSON_CONTACT_TYPE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_VAL_PERSON_IMAGE_USAGE
+ BEFORE INSERT OR UPDATE
+ ON VAL_PERSON_IMAGE_USAGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_VAL_PERSON_IMAGE_USAGE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_VAL_PERSON_IMAGE_USAGE
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON VAL_PERSON_IMAGE_USAGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_VAL_PERSON_IMAGE_USAGE
 	ENABLE;
 
 

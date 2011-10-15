@@ -455,7 +455,10 @@ BEGIN
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
 				(Account_Id = NEW.Account_Id)) AND
 			((account_collection_Id IS NULL AND NEW.account_collection_Id IS NULL) OR
-				(account_collection_Id = NEW.account_collection_Id));
+				(account_collection_Id = NEW.account_collection_Id)) AND
+			((person_id IS NULL AND NEW.Person_id IS NULL) OR
+				(Account_Id = NEW.person_id))
+			;
 			
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -486,11 +489,13 @@ BEGIN
 				(Production_State = NEW.Production_State)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
+			((Person_id IS NULL AND NEW.Person_id IS NULL) OR
+				(Person_Id = NEW.Person_Id)) AND
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
 				(Account_Id = NEW.Account_Id)) AND
 			((account_collection_Id IS NULL AND NEW.account_collection_Id IS NULL) OR
 				(account_collection_Id = NEW.account_collection_Id));
-			
+
 		IF FOUND THEN
 			RAISE EXCEPTION 
 				'Property % of type % already exists for given LHS and property type is not multivalue',
@@ -570,6 +575,14 @@ BEGIN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be Netblock_Id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Person_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'Person_Id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be Person_Id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -746,6 +759,18 @@ BEGIN
 	ELSIF v_prop.Permit_account_collection_Id = 'PROHIBITED' THEN
 			IF NEW.account_collection_Id IS NOT NULL THEN
 				RAISE 'account_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Person_Id = 'REQUIRED' THEN
+			IF NEW.Person_Id IS NULL THEN
+				RAISE 'Person_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Person_Id = 'PROHIBITED' THEN
+			IF NEW.Person_Id IS NOT NULL THEN
+				RAISE 'Person_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;

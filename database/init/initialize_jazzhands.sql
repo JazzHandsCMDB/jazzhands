@@ -436,7 +436,9 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('dns_domain_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('netblock_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
-values ('password_type');
+	values ('password_type');
+insert into val_property_data_type (PROPERTY_DATA_TYPE)
+	values ('person_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('token_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('Account_Collection_id');
