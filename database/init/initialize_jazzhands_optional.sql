@@ -199,3 +199,9 @@ INSERT INTO Operating_System (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'sparc'
 );
+
+insert into val_person_image_usage (
+	person_image_usage, is_multivalue
+) values (
+	'corpdirectory', 'N'
+);
