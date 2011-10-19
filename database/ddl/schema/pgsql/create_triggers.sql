@@ -546,7 +546,7 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_account_collection_Id IS NOT NULL THEN
+	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'account_collection_i' THEN
 			tally := tally + 1;
 		ELSE
@@ -640,14 +640,14 @@ BEGIN
 	-- If the RHS contains a account_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-user), and verify that if so
 	
-	IF NEW.Property_Value_account_collection_Id IS NOT NULL THEN
+	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
 		IF v_prop.Prop_Val_account_collection_Type_Rstrct IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_account_collection FROM account_collection WHERE
-					account_collection_Id = NEW.Property_Value_account_collection_Id;
+					account_collection_Id = NEW.Property_Value_Account_Coll_Id;
 				IF v_account_collection.account_collection_Type != v_prop.Prop_Val_account_collection_Type_Rstrct
 				THEN
-					RAISE 'Property_Value_account_collection_Id must be of type %',
+					RAISE 'Property_Value_Account_Coll_Id must be of type %',
 					v_prop.Prop_Val_account_collection_Type_Rstrct
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
