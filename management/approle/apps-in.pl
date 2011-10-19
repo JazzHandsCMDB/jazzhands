@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/pkg/bin/perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -45,7 +45,7 @@ sub lookfor {
 	my $findSth = $dbh->prepare_cached(qq{
 		select	device_collection_id
 		  from	device_collection
-		 where	name = ?
+		 where	device_collection_name = ?
 		  and	device_collection_type = 'appgroup'
 	}) || die $dbh->errstr;
 
@@ -77,7 +77,7 @@ sub do_work {
 
 	my $DCsth = $dbh->prepare_cached(qq{
 		insert into device_collection 
-			(name, device_collection_type,SHOULD_GENERATE_SUDOERS)
+			(device_collection_name, device_collection_type,SHOULD_GENERATE_SUDOERS)
 		values
 			(:name, 'appgroup', 'N')
 		returning device_collection_id 
