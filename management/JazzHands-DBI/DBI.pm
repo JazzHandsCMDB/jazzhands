@@ -15,10 +15,21 @@ my $dbh = JazzHands::DBI->connect($app, [ $instance, ] [ $flags ]);
 
 I totally need to write this.
 
+=head1 CONFIGURATION FILE
+
+The gloabl configuration file (defaults to /etc/
+
 =head1 FILES
 
 /etc/jazzhands/dbauth.json - configuration file
 /var/lib/jazzhands/dbauth-info - Default Location for Auth Files
+
+=head1 ENVIRONMENT
+
+The DBAUTH_CONFIG config can be set to a pathname to a json configuration
+file that will be used instead of the optional global config file.  Setting
+this variable, the config file becomes required.
+
 
 =head1 AUTHORS
 
@@ -46,10 +57,12 @@ $VERSION = '$Revision$';
 #
 # places where the auth files may live
 #
-my (@searchdirs);
+our (@searchdirs);
 
 # Parsed JSON config
-my $dbi_config;
+our $dbi_config;
+
+our $errstr;
 
 #
 # If the environment variable is set, require it, otherwise use an optional
@@ -172,6 +185,8 @@ sub do_database_connect {
 	#
 	# Most of these have not yet been tested.
 	#
+	# Note: SSL mode, Compress, etc needs to be normalized.
+	#
 	my $dbdmap = {
 		'oracle' => { 
 					'_DBD' => 'Oracle' 
@@ -186,20 +201,35 @@ sub do_database_connect {
 					'SSLMode' => 'sslmode',
 			},
 		'mysql' => {
-					DBD => 'mysql',
+					'_DBD' => 'mysql',
+					'DBName' => 'database',
+					'DBHost' => 'host',
+					'DBPort' => 'port',
+					'Compress' => 'mysql_compression',
+					'ConnectTimeout' => 'mysql_connect_timeout',
+					'SSLMode' => 'mysql_ssl',
 			},
 		'tds' => {
-					DBD => 'Sybase'
+					'_DBD' => 'Sybase'
 		},
 		'sqlite' => {
-					DBD => 'SQLite',
+					'_DBD' => 'SQLite',
+					'DBName' => 'dbname',
+					'_fileonly' => 'yes',
 		},
 	};
 
 	my $auth = find_and_parse_auth($app, $instance);
 
-	return undef if(!defined($auth) || !defined($auth->{'Method'}));
-	return undef if(!defined($auth->{'DBType'}));
+	if(!defined($auth))  {
+		$errstr = "Unable to find app $app".
+			(($instance)?" $instance":"");
+		return undef;
+	}
+	if(!defined($auth->{'DBType'})) {
+		$errstr = "No DBType specified for app $app";
+		return undef;
+	}
 
 	#
 	# only support Password at the moment
@@ -210,6 +240,23 @@ sub do_database_connect {
 	$dbtype =~ tr/A-Z/a-z/;
 
 	my $dbd = $dbdmap->{$dbtype}->{_DBD};
+
+	if(!defined($dbd)) {
+		$errstr = "Unable to map $dbtype to a DBD Module.  Sorry";
+		return undef;
+	}
+
+	my $fileonly;
+	if(defined($dbdmap->{$dbtype}->{_fileonly}) &&
+		$dbdmap->{$dbtype}->{_fileonly} eq 'yes') {
+		delete $dbdmap->{$dbtype}->{_fileonly};
+		$fileonly = 'yes';
+	} else {
+		if(!defined($auth->{'Method'})) {
+			$errstr = "No method defined for app $app";
+			return undef;
+		}
+	}
 
 	my @vals;
 	foreach my $k (keys(% {$auth} )) {
@@ -225,13 +272,16 @@ sub do_database_connect {
 		}
 	}
 
-	if(lc($auth->{'Method'}) ne 'password') {
+	if(!$fileonly && lc($auth->{'Method'}) ne 'password') {
+		$errstr = "Only password method supported for app $app";
 		return undef;
 	}
 
 	my $dbstr = "dbi:${dbd}:". join(";", @vals);
 
-	return DBI->connect($dbstr, $user, $pass, $dbiflags);
+	my $dbh = DBI->connect($dbstr, $user, $pass, $dbiflags);
+	$errstr = $DBI::errstr;
+	$dbh;
 }
 
 

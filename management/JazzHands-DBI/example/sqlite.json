@@ -1,0 +1,4 @@
+{
+	"DBType": "sqlite",
+	"DBName": "/var/lib/db/sqlite.db"
+}

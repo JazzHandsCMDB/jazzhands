@@ -1,0 +1,13 @@
+{
+	"onload": {
+		"environment": [
+			{ "ORACLE_HOME": "/usr/vendor/oracle/" }
+		]
+	},
+	"search_dirs": [
+		".",
+		"/var/lib/jazzhands/dbauth-info"
+	],
+	"sloppy_instance_match": "yes"
+		
+}

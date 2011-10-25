@@ -1,0 +1,9 @@
+{
+	"DBType": "postgresql",
+	"Method": "password",
+	"DBName": "jazzhands",
+	"DBHost": "postgresql.example.com",
+	"DBPort": "5432",
+	"Username": "jazzmaster",
+	"Password": "password"
+}
