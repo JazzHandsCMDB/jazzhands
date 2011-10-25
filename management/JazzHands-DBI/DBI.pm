@@ -96,6 +96,10 @@ BEGIN {
 			}
 		}
 	}
+
+	if($#searchdirs < 0) {
+		push(@searchdirs, "/var/lib/jazzhands/dbauth-info");
+	}
 }
 
 #
