@@ -38,7 +38,7 @@
 -- \i unix_util.sql
 -- \i dept_member_verify.sql
 -- \i netblock_verify.sql
--- \i netblock_utils.sql
+\i netblock_utils.sql
 --++ \i fqdn_util.sql
 -- \i token_util.sql
 -- \i time_util.sql

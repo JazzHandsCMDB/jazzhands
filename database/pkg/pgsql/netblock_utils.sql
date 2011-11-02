@@ -64,46 +64,44 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-/*
+CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
+	in_netblock_id	netblock.netblock_id%type
+) RETURNS dns_domain.dns_domain_id%type AS $$
+DECLARE
+	v_rv	dns_domain.dns_domain_id%type;
+	v_domid	dns_domain.dns_domain_id%type;
+	v_lhsip	netblock.ip_address%type;
+	v_rhsip	netblock.ip_address%type;
+	nb_match CURSOR ( in_nb_id netblock.netblock_id%type) FOR
+		-- The query used to include this in the where clause, but
+		-- oracle was uber slow 
+		--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
+		--		net_manip.inet_base(root.ip_address, root.netmask_bits) 
+		select  rootd.dns_domain_id,
+				 net_manip.inet_base(nb.ip_address, root.netmask_bits),
+				 net_manip.inet_base(root.ip_address, root.netmask_bits)
+		  from  netblock nb,
+			netblock root
+				inner join dns_record rootd
+					on rootd.netblock_id = root.netblock_id
+					and rootd.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
+		 where
+		  	nb.netblock_id = in_nb_id;
+BEGIN
+	v_rv := NULL;
+	OPEN nb_match(in_netblock_id);
+	LOOP
+		FETCH  nb_match INTO v_domid, v_lhsip, v_rhsip;
+		if NOT FOUND THEN
+			EXIT;
+		END IF;
 
-	FUNCTION find_rvs_zone_from_netblock_id(
-		in_netblock_id	netblock.netblock_id%type
-	) return dns_domain.dns_domain_id%type
-	IS
-		pragma	autonomous_transaction;
-		v_rv	dns_domain.dns_domain_id%type;
-		v_domid	dns_domain.dns_domain_id%type;
-		v_lhsip	netblock.ip_address%type;
-		v_rhsip	netblock.ip_address%type;
-		CURSOR nb_match ( in_nb_id netblock.netblock_id%type) IS
-			-- The query used to include this in the where clause, but
-			-- oracle was uber slow 
-			--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
-			--		net_manip.inet_base(root.ip_address, root.netmask_bits) 
-			select  rootd.dns_domain_id,
-					 net_manip.inet_base(nb.ip_address, root.netmask_bits),
-					 net_manip.inet_base(root.ip_address, root.netmask_bits)
-			  from  netblock nb,
-				netblock root
-					inner join dns_record rootd
-						on rootd.netblock_id = root.netblock_id
-						and rootd.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-			 where
-			  	nb.netblock_id = in_nb_id;
-	BEGIN
-		v_rv := NULL;
-		OPEN nb_match(in_netblock_id);
-		LOOP
-			FETCH  nb_match INTO v_domid, v_lhsip, v_rhsip;
-			EXIT WHEN nb_match%NOTFOUND;
-
-			if v_lhsip = v_rhsip THEN
-				v_rv := v_domid;
-				EXIT;
-			END IF;
-		END LOOP;
-		return v_rv;
-	END;
-
-end;
- */
+		if v_lhsip = v_rhsip THEN
+			v_rv := v_domid;
+			EXIT;
+		END IF;
+	END LOOP;
+	CLOSE nb_match;
+	return v_rv;
+END;
+$$ LANGUAGE plpgsql;
