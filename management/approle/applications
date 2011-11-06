@@ -58,7 +58,7 @@
 			- mx mail server
 		- dns
 			- dns auth server
-			- dns cahcing server
+			- dns caching server
 		- unspecified server
 	- physical infrastructure
 		- cable management
