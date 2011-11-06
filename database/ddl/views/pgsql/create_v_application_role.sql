@@ -28,20 +28,20 @@ CREATE OR REPLACE VIEW v_application_role AS
 WITH RECURSIVE var_recurse(
 	role_level,
 	role_id,
-	root_id,
-	root_name,
-	path,
+	root_role_id,
+	root_role_name,
 	role_name,
-	is_leaf
+	role_path,
+	role_is_leaf
 ) as (
 	SELECT	
 		0					as role_level,
 		device_collection_id			as role_id,
-		device_collection_id			as root_id,
-		device_collection_name			as root_name,
-		device_collection_name			as path,
+		device_collection_id			as root_role_id,
+		device_collection_name			as root_role_name,
 		device_collection_name			as role_name,
-		'N'					as is_leaf
+		device_collection_name			as role_path,
+		'N'					as role_is_leaf
 	FROM
 		device_collection
 	WHERE
@@ -51,15 +51,15 @@ WITH RECURSIVE var_recurse(
 UNION ALL
 	SELECT	x.role_level + 1				as role_level,
 		dch.device_collection_id 			as role_id,
-		x.root_id 					as root_id,
-		x.root_name 					as root_name,
-		cast(x.path || '/' || dc.device_collection_name 
-					as varchar(255))	as path,
+		x.root_role_id 					as root_role_id,
+		x.root_role_name 				as root_role_name,
 		dc.device_collection_name			as role_name,
+		cast(x.role_path || '/' || dc.device_collection_name 
+					as varchar(255))	as role_path,
 		case WHEN lchk.parent_device_collection_id IS NULL
 			THEN 'Y'
 			ELSE 'N'
-			END 					as is_leaf
+			END 					as role_is_leaf
 	FROM	var_recurse x
 		inner join device_collection_hier dch
 			on x.role_id = dch.parent_device_collection_id
@@ -70,13 +70,13 @@ UNION ALL
 				= lchk.parent_device_collection_id
 ) SELECT * FROM var_recurse;
 
--- consider adding order by root_id, role_level, length(path)
+-- consider adding order by root_role_id, role_level, length(role_path)
 -- or leave that to things calling it (probably smarter)
 
 -- XXX v_application_role_member this should probably be pulled out to common
 -- XXX need to decide how to deal with oracle's WITH READ ONLY
 
-create or replace view v_application_role_member as
+CREATE OR REPLACE VIEW v_application_role_member AS
 	select	device_id,
 		device_collection_id as role_id,
 		DATA_INS_USER,
