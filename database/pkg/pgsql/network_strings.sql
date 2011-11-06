@@ -57,7 +57,7 @@ BEGIN
 	iface := regexp_replace(p_intname, E'^[^\\d]+', ''); 
 	RAISE NOTICE '% to %', p_intname, iface;
 	iface := regexp_replace(iface, E'[^\\d+]+$/', '');
-	if( regexp_matches( iface, E'^\\d+$') ) THEN
+	if iface SIMILAR TO  E'^\\d+$'   THEN
 		return p_intname;
 	END IF;
 
