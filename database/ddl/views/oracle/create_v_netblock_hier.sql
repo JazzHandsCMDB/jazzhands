@@ -20,21 +20,37 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
+--
+--
 -- $Id$
 --
 
--- This view shows which users are mapped to which device collections,
--- which is particularly important for generating passwd files. Please
--- note that the same account_id can be mapped to the same
--- device_collection multiple times via different user_collectiones. The
--- user_collection_id column is important mostly to join the results of the
--- view back to the user_collection table, and select only certain user_collection
--- types (such as 'system' and 'per-user') to be expanded.
+-- was originally in netblock/index.pl from stab.  It originally had
+-- 	connect by prior nb.netblock_id = parent_netblock_id
+-- 	start with nb.parent_netblock_id = ?
+-- 	order siblings by ip_address, netmask_bits
+-- and this makes the root selection by including root_netblock_id.
+-- This may break down the "everything can be represented by a view" because
+-- the recursive table takes too long to build.
 
-CREATE OR REPLACE VIEW v_device_col_user_col_expanded AS
-SELECT DISTINCT dchd.device_collection_id, dcu.user_collection_id, vuue.account_id
-FROM v_device_coll_hier_detail dchd
-JOIN v_property dcu ON dcu.device_collection_id = 
-	dchd.parent_device_collection_id
-JOIN v_user_collection_user_expanded vuue on vuue.user_collection_id = dcu.user_collection_id
-WHERE dcu.property_name = 'UnixLogin' and dcu.property_type = 'MclassUnixProp';
+
+create view v_netblock_hier
+as
+	select  level as netblock_level,
+		connect_by_root nb.parent_netblock_id as root_netblock_id,
+		net_manip.inet_dbtop(nb.ip_address) as ip,
+		nb.netblock_id,
+		nb.ip_address,
+		nb.netmask_bits, nb.netblock_status,
+		nb.IS_SINGLE_ADDRESS,
+		nb.IS_IPV4_ADDRESS,
+		nb.description,
+		nb.parent_netblock_id,
+		snb.site_code
+	  from  netblock nb
+		left join site_netblock snb
+			on snb.netblock_id = nb.netblock_id
+	where   nb.IS_SINGLE_ADDRESS = 'N' 
+	connect by prior nb.netblock_id = parent_netblock_id
+	order siblings by ip_address, netmask_bits
+;

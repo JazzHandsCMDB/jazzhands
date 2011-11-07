@@ -28,6 +28,7 @@ CREATE OR REPLACE VIEW v_application_role AS
 WITH RECURSIVE var_recurse(
 	role_level,
 	role_id,
+	parent_role_id,
 	root_role_id,
 	root_role_name,
 	role_name,
@@ -37,10 +38,11 @@ WITH RECURSIVE var_recurse(
 	SELECT	
 		0					as role_level,
 		device_collection_id			as role_id,
+		NULL					as parent_role_id,
 		device_collection_id			as root_role_id,
 		device_collection_name			as root_role_name,
 		device_collection_name			as role_name,
-		device_collection_name			as role_path,
+		'/'||device_collection_name		as role_path,
 		'N'					as role_is_leaf
 	FROM
 		device_collection
@@ -51,6 +53,7 @@ WITH RECURSIVE var_recurse(
 UNION ALL
 	SELECT	x.role_level + 1				as role_level,
 		dch.device_collection_id 			as role_id,
+		dch.parent_device_collection_id 		as parent_role_id,
 		x.root_role_id 					as root_role_id,
 		x.root_role_name 				as root_role_name,
 		dc.device_collection_name			as role_name,
@@ -68,7 +71,7 @@ UNION ALL
 		left join device_collection_hier lchk
 			on dch.device_collection_id 
 				= lchk.parent_device_collection_id
-) SELECT * FROM var_recurse;
+) SELECT distinct * FROM var_recurse;
 
 -- consider adding order by root_role_id, role_level, length(role_path)
 -- or leave that to things calling it (probably smarter)
