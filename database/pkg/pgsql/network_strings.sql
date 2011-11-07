@@ -55,7 +55,6 @@ DECLARE
 BEGIN
 	rv := '';
 	iface := regexp_replace(p_intname, E'^[^\\d]+', ''); 
-	RAISE NOTICE '% to %', p_intname, iface;
 	iface := regexp_replace(iface, E'[^\\d+]+$/', '');
 	if iface SIMILAR TO  E'^\\d+$'   THEN
 		return p_intname;
@@ -64,7 +63,6 @@ BEGIN
 	ary := regexp_split_to_array(iface, E'[=\\./]');
 	for i in 1..array_length( ary, 1)
 	LOOP
-		RAISE NOTICE 'considering %', ary[i];
 		rv := rv || lpad(ary[i], 5, '0') || '.';
 	END LOOP; 
 	return rv;
