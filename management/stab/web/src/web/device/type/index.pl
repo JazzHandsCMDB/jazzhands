@@ -33,7 +33,7 @@ use JazzHands::STAB;
 use JazzHands::GenericDB;
 use Data::Dumper;
 
-do_device_type();
+exit do_device_type();
 
 ############################################################################3
 #
@@ -88,17 +88,17 @@ sub do_device_type_power {
 
 	my ( $dt, $model );
 	my $q = qq{
-		select	dt.DEVICE_TYPE_ID, p.name as partner_name,
-			p.address as partner_address,
-			dt.partner_id, dt.model,
+		select	dt.DEVICE_TYPE_ID, c.company_name,
+			-- p.address as partner_address, XXX
+			dt.company_id, dt.model,
 			dt.config_fetch_type, dt.rack_units,
 			dt.description,
 			dt.has_802_3_interface,
 			dt.has_802_11_interface,
 			dt.snmp_capable
 		  from	device_type dt
-			inner join partner p
-				on dt.partner_id = p.partner_id
+			inner join company c
+				on dt.company_id = c.company_id
 		where	dt.device_type_id = ?
 	};
 
@@ -111,7 +111,7 @@ sub do_device_type_power {
 		return $stab->error_return("Unknown Device Type");
 	}
 
-	$model = $dt->{_dbx('PARTNER_NAME')} . " " . $dt->{_dbx('MODEL')};
+	$model = $dt->{_dbx('COMPANY_NAME')} . " " . $dt->{_dbx('MODEL')};
 
 	print $cgi->header('text/html');
 	print $stab->start_html( { 
@@ -133,7 +133,7 @@ sub device_type_power_form {
 	my $leftbox = $cgi->table(
 		$stab->build_tr(
 			$dt,      "b_dropdown",
-			"Vendor", 'PARTNER_ID',
+			"Vendor", 'COMPANY_ID',
 			'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(

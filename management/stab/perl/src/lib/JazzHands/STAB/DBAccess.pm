@@ -32,10 +32,11 @@ use warnings;
 
 use Data::Dumper;
 use JazzHands::DBI;
+use JazzHands::GenericDB;
 use URI;
 use Carp;
 use Math::BigInt;
-use Net::IP qw(:PROC);
+use Data::Dumper;
 
 our @ISA = qw( );
 
@@ -98,15 +99,15 @@ sub guess_parent_netblock_id {
 	$in_bits = 32 if ( !defined($in_bits) );
 	my $q = qq {
 		select  Netblock_Id,
-			ip_manip.v4_octet_from_int(ip_address) as IP,
+			net_manip.inet_dbtop(ip_address) as IP,
 			ip_address,
 			netmask_bits
 		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
 			    from NetBlock
 			   where
-				ip_manip.v4_base(ip_address, netmask_bits) =
-					ip_manip.v4_base(
-						ip_manip.v4_int_from_octet(?),
+				net_manip.inet_base(ip_address, netmask_bits) =
+					net_manip.inet_base(
+						net_manip.inet_ptodb(?),
 					netmask_bits)
 			    and netmask_bits <= ?
 			    and is_ipv4_address = 'Y'
@@ -132,7 +133,7 @@ sub get_interface_from_ip {
 		  from	network_interface ni
 		 		inner join netblock nb
 					on nb.netblock_id = ni.v4_netblock_id
-		 where	ip_manip.v4_int_from_octet(?) = nb.ip_address
+		 where	net_manip.inet_ptodb(?) = nb.ip_address
 	}
 	);
 	$sth->execute($ip) || $self->return_db_err($sth);
@@ -154,8 +155,8 @@ sub check_ip_on_local_nets {
 		where
 			ni.device_id = ?
 		 and
-			ip_manip.v4_base(ip_manip.v4_int_from_octet(?), nb.netmask_bits) =
-				ip_manip.v4_base(nb.ip_address, nb.netmask_bits)
+			net_manip.inet_base(net_manip.inet_ptodb(?), nb.netmask_bits) =
+				net_manip.inet_base(nb.ip_address, nb.netmask_bits)
 	}
 	);
 
@@ -183,9 +184,7 @@ sub get_netblock_from_id {
 
 	my $q = qq{
 		select  netblock.*,
-            		decode(IS_IPV4_ADDRESS, 'Y',
-                		ip_manip.v4_octet_from_int(ip_address),
-                		ip_address) as ip
+                	net_manip.inet_dbtop(ip_address) as ip
 		 from   netblock
 		where   netblock_id = ?
 		  	$singq
@@ -194,15 +193,6 @@ sub get_netblock_from_id {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($nblkid) || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
-
-	# [XXX] this needs to be in the database and not translated here.
-	# yuck.
-	if($hr->{'IS_IPV4_ADDRESS'} eq 'N') {
-		my $binip = ip_inttobin($hr->{'IP'}, 6);
-		my $makeip = ip_bintoip($binip,  6);
-		my $ip = new Net::IP ($makeip) or die (Net::IP::Error());
-		$hr->{'IP'} = $ip->short();
-	}
 	$sth->finish;
 
 	return $hr;
@@ -215,8 +205,8 @@ sub add_netblock {
 
 	my $parid;
 	if ($parnb) {
-		$bits = $parnb->{'NETMASK_BITS'} if ( !$bits );
-		$parid = $parnb->{'NETBLOCK_ID'};
+		$bits = $parnb->{_dbx('NETMASK_BITS')} if ( !$bits );
+		$parid = $parnb->{_dbx('NETBLOCK_ID')};
 	}
 
 	if ( !$bits ) {
@@ -231,7 +221,7 @@ sub add_netblock {
 			is_single_address, netblock_status, is_organizational,
 			PARENT_NETBLOCK_ID
 		) values (
-			ip_manip.v4_int_from_octet(:ipaddr, 1),
+			net_manip.inet_ptodb(:ipaddr, 1),
 			:bits, 'Y',
 			'Y', 'Allocated', :isorg,
 			:parnbid
@@ -339,7 +329,8 @@ sub fake_unset_location {
 	return undef if ( !$location );
 
 	foreach my $key ( keys %$location ) {
-		next if ( $key =~ /^DATA/ );
+		$key = _dbx($key);
+		next if ( $key =~ /^DATA/i );
 		if ( $location->{$key} =~ /^[-\d]+$/ ) {
 			if ( $location->{$key} < -10 ) {
 				$location->{$key} = undef;
@@ -388,7 +379,7 @@ sub guess_dns_domain_from_devid {
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 
-	my $name = $device->{'DEVICE_NAME'};
+	my $name = $device->{_dbx('DEVICE_NAME')};
 	while ( $name =~ s/^[^\.]+\.// ) {
 		$sth->execute($name) || $self->return_db_err($sth);
 		my ($domid) = $sth->fetchrow_array;
@@ -445,24 +436,6 @@ sub get_dns_record_from_name {
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
-}
-
-sub check_func {
-	my ( $self, $id, $func ) = @_;
-
-	my ($q) = qq{
-		select	count(*)
-		 from	device_function
-		where	device_function_type = :dftype
-		 and	device_id = :devid
-	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->bind_param(':devid', $id) || $self->return_db_err($sth);
-	$sth->bind_param(':dftype', $func) || $self->return_db_err($sth);
-	$sth->execute || $self->return_db_err($sth);
-	my $tally = ( $sth->fetchrow_array )[0];
-	$sth->finish;
-	$tally;
 }
 
 sub get_dns_domain_from_id {
@@ -534,9 +507,9 @@ sub get_netblock_from_ip {
 
 	my $q = qq{
 		select  netblock.*,
-			ip_manip.v4_octet_from_int(ip_address) as ip
+			net_manip.inet_dbtop(ip_address) as ip
 		 from   netblock
-		where   ip_address = ip_manip.v4_int_from_octet(?, 1)
+		where   ip_address = net_manip.inet_ptodb(?, 1)
 		  $singq
 		  $orgq
 	};
@@ -548,7 +521,7 @@ sub get_netblock_from_ip {
 			$hr = $rhr;
 			last;
 		}
-		if ( $bits == $rhr->{'NETMASK_BITS'} ) {
+		if ( $bits == $rhr->{_dbx('NETMASK_BITS')} ) {
 			$hr = $rhr;
 			last;
 		}
@@ -596,13 +569,13 @@ sub add_location_to_dev {
 	    ) returning LOCATION_ID into :locid
 	};
 	my $lsth = $self->prepare($lq) || $self->return_db_err($self);
-	$lsth->bind_param( ':rackid', $loc->{'RACK_ID'} )
+	$lsth->bind_param( ':rackid', $loc->{_dbx('RACK_ID')} )
 	  || $self->return_db_err($lsth);
-	$lsth->bind_param( ':ru', $loc->{'RACK_U_OFFSET_OF_DEVICE_TOP'} )
+	$lsth->bind_param( ':ru', $loc->{_dbx('RACK_U_OFFSET_OF_DEVICE_TOP')} )
 	  || $self->return_db_err($lsth);
-	$lsth->bind_param( ':rackside', $loc->{'RACK_SIDE'} )
+	$lsth->bind_param( ':rackside', $loc->{_dbx('RACK_SIDE')} )
 	  || $self->return_db_err($lsth);
-	$lsth->bind_param( ':interu', $loc->{'INTER_DEVICE_OFFSET'} )
+	$lsth->bind_param( ':interu', $loc->{_dbx('INTER_DEVICE_OFFSET')} )
 	  || $self->return_db_err($lsth);
 	my $locid;
 	$lsth->bind_param_inout( ':locid', \$locid, 50 )
@@ -790,18 +763,18 @@ sub configure_allocated_netblock {
 		$parnb = $self->guess_parent_netblock_id( $ip, 32 );
 		# if the ip addres is 0/0 (or 0/anything), then it should
 		# be considered unset
-		if(!defined($parnb) || (!$parnb->{IP_ADDRESS}) ) {
+		if(!defined($parnb) || (!$parnb->{_dbx('IP_ADDRESS')}) ) {
 			$self->error_return("Unable to find network for $ip");
 		}
-	} elsif ( $nblk->{'NETBLOCK_STATUS'} eq 'Allocated' ) {
+	} elsif ( $nblk->{_dbx('NETBLOCK_STATUS')} eq 'Allocated' ) {
 		$self->error_return("Address ($ip) is already allocated.");
 	}
 
 	# if netblock is reserved, switch it to allocated
 	if (
 		defined($nblk)
-		&& (       $nblk->{'NETBLOCK_STATUS'} eq 'Legacy'
-			|| $nblk->{'NETBLOCK_STATUS'} eq 'Reserved' )
+		&& (       $nblk->{_dbx('NETBLOCK_STATUS')} eq 'Legacy'
+			|| $nblk->{_dbx('NETBLOCK_STATUS')} eq 'Reserved' )
 	  )
 	{
 		my $q = qq{
@@ -810,7 +783,7 @@ sub configure_allocated_netblock {
 		 	 where	netblock_id = ?
 		};
 		my $sth = $self->prepare($q) || $self->return_db_err($self);
-		$sth->execute( $nblk->{'NETBLOCK_ID'} )
+		$sth->execute( $nblk->{_dbx('NETBLOCK_ID')} )
 		  || $self->return_db_err($sth);
 	} else {
 		$nblk = $self->add_netblock( $ip, $parnb );
@@ -823,14 +796,14 @@ sub get_operating_system_from_id {
 
 	my $q = qq{
 		select  os.operating_system_id,
-			p.name as partner_name,
-			os.partner_id,
+			c.company_name,
+			os.company_id,
 			os.name,
 			os.version,
 			os.processor_architecture
 		  from  operating_system os
-			inner join partner p on
-				p.partner_id = os.partner_id
+			inner join company c on
+				c.company_id = os.company_id
 		 where  os.operating_system_id = ?
 	};
 
@@ -912,9 +885,9 @@ sub get_device_type_from_id {
 	my ( $self, $id ) = @_;
 
 	my $q = qq{
-		select  dt.DEVICE_TYPE_ID, p.name as partner_name,
-			p.address as partner_address,
-			dt.partner_id, dt.model,
+		select  dt.DEVICE_TYPE_ID, c.company_name,
+			-- p.address as partner_address, XXX
+			c.company_id, dt.model,
 			dt.config_fetch_type, dt.rack_units,
 			dt.description,
 			dt.has_802_3_interface,
@@ -922,8 +895,8 @@ sub get_device_type_from_id {
 			dt.processor_architecture,
 			dt.snmp_capable
 		  from  device_type dt
-			inner join partner p
-				on dt.partner_id = p.partner_id
+			inner join company c
+				on dt.company_id = c.company_id
 		where   dt.device_type_id = ?
 	};
 
@@ -936,26 +909,26 @@ sub get_device_type_from_id {
 }
 
 sub get_device_type_from_name {
-	my ( $self, $partner, $model ) = @_;
+	my ( $self, $companyid, $model ) = @_;
 
 	my $q = qq{
-		select  dt.DEVICE_TYPE_ID, p.name as partner_name,
-			p.address as partner_address,
-			dt.partner_id, dt.model,
+		select  dt.DEVICE_TYPE_ID, c.company_name,
+			-- p.address as partner_address, XXX
+			dt.company_id, dt.model,
 			dt.config_fetch_type, dt.rack_units,
 			dt.description,
 			dt.has_802_3_interface,
 			dt.has_802_11_interface,
 			dt.snmp_capable
 		  from  device_type dt
-			inner join partner p
-				on dt.partner_id = p.partner_id
-		where   dt.model = :2
-		  and	p.partner_id = ?
+			inner join company c
+				on dt.company_id = c.company_id
+		where   c.company_id = ?
+		 AND	dt.model = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute( $partner, $model ) || $self->return_db_err($sth);
+	$sth->execute( $companyid, $model ) || $self->return_db_err($sth);
 
 	my $dt = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -1231,25 +1204,6 @@ sub get_num_dev_notes {
 	$tally;
 }
 
-sub get_device_functions {
-	my ( $self, $devid ) = @_;
-
-	my @funcs;
-	my $q = qq{
-	    select  device_function_type
-	      from  device_function
-	     where  device_id = ?
-	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($devid) || $self->return_db_err($sth);
-
-	while ( my ($func) = $sth->fetchrow_array ) {
-		push( @funcs, $func );
-	}
-	$sth->finish;
-	\@funcs;
-}
-
 sub add_to_device_collection {
 	my($self, $devid, $dcid) = @_;
 
@@ -1490,7 +1444,7 @@ sub validate_route_entry {
 		if ( !$nb ) {
 			confess
 "WEIRD: could not create route on $destip for $srcip/$srcbits to $destip "
-			  . $ni->{'NETWORK_INTERFACE_ID'};
+			  . $ni->{_dbx('NETWORK_INTERFACE_ID')};
 			$self->error_return(
 "There was a temporary error creating the static route.  Please report this. "
 			);
@@ -1518,7 +1472,8 @@ sub resync_device_power {
 	}
 	);
 	my $tally +=
-	     $sth->execute( $dev->{'DEVICE_ID'}, $dev->{'DEVICE_TYPE_ID'} )
+	     $sth->execute( $dev->{_dbx('DEVICE_ID')}, 
+		$dev->{_dbx('DEVICE_TYPE_ID')} )
 	  || $self->return_db_err($sth);
 	$tally;
 }
@@ -1545,8 +1500,10 @@ sub resync_physical_ports {
 					Rtypeadd
 				)
 	});
-	$sth->bind_param(':devid', $dev->{'DEVICE_ID'}) || $self->return_db_err($sth);
-	$sth->bind_param(':dtid', $dev->{'DEVICE_TYPE_ID'}) || $self->return_db_err($sth);
+	$sth->bind_param(':devid', $dev->{_dbx('DEVICE_ID')}) || 
+		$self->return_db_err($sth);
+	$sth->bind_param(':dtid', $dev->{_dbx('DEVICE_TYPE_ID')}) || 
+		$self->return_db_err($sth);
 	if($type) {
 		$sth->bind_param(':ptype', $type) || $self->return_db_err($sth);
 	}
@@ -1608,18 +1565,6 @@ sub get_x509_cert_by_id {
 	$hr;
 }
 
-#
-# needs to move into database
-#
-sub v6_int_to_octet {
-	my($self, $in_int) = @_;
-
-	my $binip = ip_inttobin($in_int, 6);
-	my $makeip = ip_bintoip($binip,  6);
-	my $ip = new Net::IP ("$makeip") or die (Net::IP::Error());
-	$ip->short();
-}
-
 sub build_netblock_ip_row {
 	my ($self, $params, $blk, $hr, $ip, $reservation) = @_;
 
@@ -1653,8 +1598,8 @@ sub build_netblock_ip_row {
 
 	my $showtr = 1;
 
-	my $org = (defined($blk))?$blk->{'IS_ORGANIZATIONAL'}:undef;
-	$org = 'N' if(!$org); 
+	my $org = ($blk && defined($blk->{_dbx('IS_ORGANIZATIONAL')}))?
+		$blk->{_dbx('IS_ORGANIZATIONAL')}:'N';
 
 	my($id,$bits,$devid,$name,$dom,$status,$desc, $atix, $atixsys);
 
@@ -1664,7 +1609,8 @@ sub build_netblock_ip_row {
 
 	my $editabledesc = 0;
 
-	$org = ($hr)?$hr->{'IS_ORGANIZATIONAL'}:'N';
+	$org = ($hr && defined($hr->{_dbx('IS_ORGANIZATIONAL')}))?
+		$hr->{_dbx('IS_ORGANIZATIONAL')}:'N';
 
 	my $uniqid = $ip;
 	if(defined($params->{-uniqid})) {
@@ -1689,15 +1635,16 @@ sub build_netblock_ip_row {
 		$status = 'Allocation';
 		$desc = $reservation;
 	} elsif(defined($hr)) {
-		$id = $hr->{'NETBLOCK_ID'};
-		$bits = $hr->{'NETMASK_BITS'} || $blk->{'NETMASK_BITS'};
-		$devid = $hr->{'DEVICE_ID'};
-		$name = $hr->{'DNS_NAME'};
-		$dom = $hr->{'SOA_NAME'};
-		$status = $hr->{'NETBLOCK_STATUS'};
-		$desc = $hr->{'DESCRIPTION'};
-		$atix = $hr->{'APPROVAL_REF_NUM'};
-		$atixsys = $hr->{'APPROVAL_TYPE'};
+		$id = $hr->{_dbx('NETBLOCK_ID')};
+		$bits = $hr->{_dbx('NETMASK_BITS')} || 
+			$blk->{_dbx('NETMASK_BITS')};
+		$devid = $hr->{_dbx('DEVICE_ID')};
+		$name = $hr->{_dbx('DNS_NAME')};
+		$dom = $hr->{_dbx('SOA_NAME')};
+		$status = $hr->{_dbx('NETBLOCK_STATUS')};
+		$desc = $hr->{_dbx('DESCRIPTION')};
+		$atix = $hr->{_dbx('APPROVAL_REF_NUM')};
+		$atixsys = $hr->{_dbx('APPROVAL_TYPE')};
 
 		$printip = "$ip/$bits";
 	
@@ -1754,6 +1701,8 @@ sub build_netblock_ip_row {
 		} else {
 			$atix = "$atixsys:$atix";
 		}
+	} else {
+		$atix = "";
 	}
 
 	my $tds = $cgi->td([

@@ -28,8 +28,10 @@ use strict;
 use warnings;
 use POSIX;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
 use CGI::Pretty;
 use Net::DNS;
+use Data::Dumper;
 
 exit (do_zone_debug() || 0);
 
@@ -40,7 +42,7 @@ sub process_answer {
 	my($stab, $stripdmns, $dns) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $ttl = $cgi->b($dns->ttl);
+	my $ttl = $cgi->b($dns->ttl) || "";
 
 	my $txt;
 
@@ -53,7 +55,8 @@ sub process_answer {
 	} elsif($dns->type eq 'TXT') {
 		$txt = $dns->txtdata;
 	} else {
-		$ttl = undef;
+		# this was here; not clearwhy.
+		# $ttl = '';
 		$txt = $dns->string;
 	}
 
@@ -87,7 +90,7 @@ sub dump_appls {
 	my $sth = $stab->prepare(qq{
 		select	role_level, role_id, role_path, role_is_leaf
 		  from	v_application_role
-		 where	role_path like '/server/dns/%'
+		 where	role_path like '/server/dns%'
 		 -- and	role_is_leaf in ('Y', 'N')
 		 order by role_path
 	}) || $stab->return_db_err;
@@ -176,11 +179,11 @@ sub do_zone_debug {
 	print $cgi->end_form;
 
 	return if(!$dnsrec);
-	$stab->return_error("No Appliction Roles Checked") if($#applist == -1);
+	$stab->error_return("No Appliction Roles Checked") if($#applist == -1);
 
 	foreach my $x (@applist) {
-		if($x !~ /^\d+$/) {
-			return $stab->return_error("Invalid application entry.");
+		if(defined($x) && $x !~ /^\d+$/) {
+			return $stab->error_return("Invalid application entry.");
 		}
 	}
 
@@ -196,7 +199,7 @@ sub do_zone_debug {
 				inner join v_application_role ar
 					on ar.role_id = am.role_id
 		where
-				role_path like '/server/dns/%'
+				role_path like '/server/dns%'
 	}) || return $stab->return_db_err;
 
 
@@ -204,7 +207,7 @@ sub do_zone_debug {
 
 	my $tt = "";
 	while( my $hr = $sth->fetchrow_hashref ) {
-		next if(!grep($_ == $hr->{'ROLE_ID'}, @applist));
+		next if(!grep($_ == $hr->{_dbx('ROLE_ID')}, @applist));
 		$tt .= query_fmt_ns($stab, $hr, $dnsrec, $dnstype, $stripdmns);
 	}
 
@@ -234,9 +237,9 @@ sub query_fmt_ns {
 
 	my($name, $link);
 	if(ref $hr eq 'HASH') {
-		my $devid = $hr->{'DEVICE_ID'};
-		$name = $hr->{'DEVICE_NAME'};
-		my $pname = $hr->{'DEVICE_NAME'};
+		my $devid = $hr->{_dbx('DEVICE_ID')};
+		$name = $hr->{_dbx('DEVICE_NAME')};
+		my $pname = $hr->{_dbx('DEVICE_NAME')};
 
 		# pluck from db
 		$pname =~ s,.example.com$,<b>...</b>, if($stripdmns);

@@ -1164,26 +1164,26 @@ sub b_dropdown {
 	my $q;
 	if ( $selectfield eq 'DEVICE_TYPE_ID' ) {
 
-		# kookiness is to strip out 'Not Applicable' partners.
+		# kookiness is to strip out 'Not Applicable' companies.
 		$q = qq{
 			select * from
 			(select	dt.device_type_id,
-					CASE WHEN p.name = 'Not Applicable' THEN ' '
-						ELSE p.name END as name,
+					CASE WHEN c.company_name = 'Not Applicable' THEN ' '
+						ELSE c.company_name END as name,
 					dt.model
 			  from	device_type dt
-					inner join partner p
-						on p.partner_id = dt.partner_id
+					inner join company c
+						on c.company_id = dt.company_id
 			) xx
 			order by 
 				CASE WHEN name = ' ' THEN lower(model) ELSE lower(name) END,
 				lower(model)
 		};
-	} elsif ( $selectfield eq 'STATUS' ) {
+	} elsif ( $selectfield eq 'DEVICE_STATUS' ) {
 		$q = qq{
-			select	status, description
-			  from	val_status
-			order by description, status
+			select	device_status, description
+			  from	val_device_status
+			order by description, device_status
 		};
 	} elsif ( $selectfield eq 'AUTO_MGMT_PROTOCOL' ) {
 		$q = qq{
@@ -1220,7 +1220,7 @@ sub b_dropdown {
 	} elsif ( $selectfield eq 'OPERATING_SYSTEM_ID' ) {
 		$q = qq{
 			select	os.operating_system_id,
-				os.name, os.version,
+				os.operating_system_name, os.version,
 				(case WHEN os.processor_architecture <> 'noarch' 
 					THEN ' - ' || os.processor_architecture || ' - ' ||
 						pa.kernel_bits || ' bit'
@@ -1230,7 +1230,7 @@ sub b_dropdown {
 			  from	operating_system os
 					inner join val_processor_architecture pa
 						on pa.processor_architecture = os.processor_architecture
-			order by os.name, os.version, pa.kernel_bits
+			order by os.operating_system_name, os.version, pa.kernel_bits
 		};
 	} elsif ( $selectfield eq 'DNS_DOMAIN_ID' ) {
 		my $limitverbiage = "";
@@ -1283,11 +1283,11 @@ sub b_dropdown {
 			order by description, dns_class
 		};
 		$pickone = "Choose";
-	} elsif ( $selectfield eq 'PARTNER_ID' || $selectfield =~ /_PARTNER_ID$/ ) {
+	} elsif ( $selectfield eq 'COMPANY_ID' || $selectfield =~ /_COMPANY_ID$/ ) {
 		$q = qq{
-			select	partner_id, name
-			  from	partner
-			order by lower(name)
+			select	company_id, company_name
+			  from	company
+			order by lower(company_name)
 		};
 		$pickone = "Choose";
 	} elsif ( $selectfield eq 'PLUG_STYLE' ) {
@@ -1297,32 +1297,34 @@ sub b_dropdown {
 			order by PLUG_STYLE
 		};
 	} elsif ( $selectfield eq 'P2_DEVICE_ID' ) {
-
-		#
-		# This is used to make a drop down of devices that meet
-		# certain requirements.  It must be restricted to a certain
-		# type, and that type should probably not be server.  It's
-		# primarily used in device/device.pl .
-		#
-		if ( !defined( $params->{'-devfuncrestrict'} ) ) {
-			return ("");
-		}
-		$devfuncmap = $params->{'-devfuncrestrict'};
-		my $ordev = "";
-		if ( defined($values) && defined( $values->{$field} ) ) {
-			$ordev    = 'or d.device_id = :devid';
-			$devidmap = $values->{$field};
-		}
-		$q = qq{
-			select  d.device_id,
-				d.device_name
-			  from  device d
-				inner join device_function df
-					on df.device_id = d.device_id
-			where   df.device_function_type = :dev_func
-			 $ordev
-			 order by lower(d.device_name)
-		};
+		## commented out because I think its not used with
+		## device_function going away out left here inc ase I'm
+		## wrong and need to figure out wtf.
+		##
+		## This is used to make a drop down of devices that meet
+		## certain requirements.  It must be restricted to a certain
+		## type, and that type should probably not be server.  It's
+		## primarily used in device/device.pl .
+		##
+		#if ( !defined( $params->{'-devfuncrestrict'} ) ) {
+		#	return ("");
+		#}
+		#$devfuncmap = $params->{'-devfuncrestrict'};
+		#my $ordev = "";
+		#if ( defined($values) && defined( $values->{$field} ) ) {
+		#	$ordev    = 'or d.device_id = :devid';
+		#	$devidmap = $values->{$field};
+		#}
+		#$q = qq{
+		#	select  d.device_id,
+		#		d.device_name
+		#	  from  device d
+		#		inner join device_function df
+		#			on df.device_id = d.device_id
+		#	where   df.device_function_type = :dev_func
+		#	 $ordev
+		#	 order by lower(d.device_name)
+		#};
 	} elsif ( $selectfield =~ '(PC_)?P[12]_PHYSICAL_PORT_ID' ) {
 		$devidmap = $params->{'-deviceid'};
 		if ( !$devidmap ) {
@@ -1492,9 +1494,9 @@ sub b_dropdown {
 					on os.sw_package_repository_id =
 						vst.sw_package_repository_id
 		};
-		if ( exists( $values->{'OPERATING_SYSTEM_ID'} ) ) {
+		if ( exists( $values->{_dbx('OPERATING_SYSTEM_ID')} ) ) {
 			$q .= "where os.operating_system_id = :osid";
-			$voetraxmap = $values->{'OPERATING_SYSTEM_ID'};
+			$voetraxmap = $values->{_dbx('OPERATING_SYSTEM_ID')};
 			$bindos     = 1;
 		}
 	} elsif ( $selectfield eq 'X509_CERT_ID' ) {
@@ -1520,7 +1522,8 @@ sub b_dropdown {
 		$default = 'service' if ( !defined($default) );
 	} elsif ( $selectfield eq 'DEVICE_COLLECTION_ID' ) {
 		$q = qq{
-			select	DEVICE_COLLECTION_ID, NAME
+			select	DEVICE_COLLECTION_ID, 
+				DEVICE_COLLECTION_NAME
 			  from	DEVICE_COLLECTION
 		};
 		if ( exists( $params->{'-deviceCollectionType'} ) ) {
@@ -2078,7 +2081,7 @@ sub parse_netblock_description_search {
 
 	my $q = qq{
 		select	nb.netblock_id as netblock_id,
-			ip_manip.v4_octet_from_int(nb.ip_address) as ip,
+			net_manip.inet_dbtop(nb.ip_address) as ip,
 			nb.netmask_bits, 
 			nb.ip_address,
 			nb.is_ipv4_address,
@@ -2275,15 +2278,15 @@ sub zone_header {
 
 	my $class = 'IN';
 	my $type  = 'SOA';
-	my $mname = "auth00.kewr0.s.EXAMPLE.COM.";
+	my $mname = "auth00.example.com";
 	my $rname = "hostmaster.example.com.";
 	my $ttl   = 3600;
 
 	if ( defined($hr) ) {
-		$type  = $hr->{'SOA_TYPE'} || 'SOA';
-		$mname = $hr->{'SOA_MNAME'};
-		$rname = $hr->{'SOA_RNAME'};
-		$ttl   = $hr->{'TTL'};
+		$type  = $hr->{_dbx('SOA_TYPE')} || 'SOA';
+		$mname = $hr->{_dbx('SOA_MNAME')} || "";
+		$rname = $hr->{_dbx('SOA_RNAME')} || "";
+		$ttl   = $hr->{_dbx('TTL')} || "";
 	}
 
 	my $style = '';
@@ -2491,7 +2494,7 @@ sub validate_ip {
 }
 
 #
-# given a jazzhands partner name, return a link to the logo for said partner
+# given a jazzhands company name, return a link to the logo for said company
 #
 sub vendor_logo {
 	my ( $self, $vendor ) = @_;
@@ -2540,16 +2543,18 @@ sub DESTROY {
 		delete( $self->{_JazzHandsSth} );
 	}
 
-if(0) {
+if(0) { # XXX
 	if ( defined($dbh) && $dbh->ping ) {
 		my $x = join( "\n", $dbh->func('dbms_output_get') );
 		print STDERR $x, "\n"
-		  if ( $self->{_debug} && $x && length($x) );
+			if ( $self->{_debug} && $x && length($x) );
+	}
+}
+	if( defined($dbh) ) {
 		$dbh->rollback;
 		$dbh->disconnect;
 		$self->{dbh} = undef;
 	}
-}
 }
 
 1;

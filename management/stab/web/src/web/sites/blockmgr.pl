@@ -38,27 +38,27 @@ print $stab->start_html( { -title => "Netblock and IP Allocation" } ), "\n";
 
 my $persiteq = qq{
 	select	nb.netblock_id,
-		ip_manip.v4_octet_from_int(nb.ip_address),
+		net_manip.inet_dbtop(nb.ip_address) as ip,
 		nb.netmask_bits,
 		nb.description
 	  from	netblock nb
 		inner join site_netblock snb
 			on snb.netblock_id = nb.netblock_id
-	 where	snb.site_code = :1
+	 where	snb.site_code = ?
 	 order by ip_address
 };
 my $persitesth = $stab->prepare($persiteq) || die $dbh->errstr;
 
 my $q = qq{
 	select 	s.site_code,
-	 	p.name,
-		p.address,
+	 	c.company_name,
+		-- p.address, XXX
 		s.npanxx,
 		s.site_status,
 		s.description
 	  from	site s
-		left join partner p
-			on p.partner_id = s.colo_partner_id
+		left join company c
+			on c.company_id = s.colo_company_id
 	order by s.site_code
 };
 my $sth = $stab->prepare($q) || die $dbh->errstr;

@@ -46,7 +46,7 @@ sub do_device_type_add {
 	my $pwrcount = $stab->cgi_parse_param('POWER_INTERFACE_PORT_COUNT');
 	# physical portage is handled later
 
-	my $partid = $stab->cgi_parse_param('PARTNER_ID', $devtypid);
+	my $compid = $stab->cgi_parse_param('COMPANY_ID', $devtypid);
 	my $arch = $stab->cgi_parse_param('PROCESSOR_ARCHITECTURE', $devtypid);
 	my $model = $stab->cgi_parse_param('MODEL', $devtypid);
 	my $descr = $stab->cgi_parse_param('DESCRIPTION', $devtypid);
@@ -60,7 +60,7 @@ sub do_device_type_add {
 	$has8023 = $stab->mk_chk_yn($has8023);
 	$has80211 = $stab->mk_chk_yn($has8023);
 
-	if(!defined($partid)) {
+	if(!defined($compid)) {
 		return $stab->error_return("You must specify a vendor");
 	}
 
@@ -68,7 +68,7 @@ sub do_device_type_add {
 		return $stab->error_return("You must specify a model");
 	}
 
-	my $curdt = $stab->get_device_type_from_name($partid, $model);
+	my $curdt = $stab->get_device_type_from_name($compid, $model);
 	if($curdt) {
 		undef $curdt;
 		$stab->error_return("That device already exists.");
@@ -111,17 +111,17 @@ sub do_device_type_add {
 	# defaults to N.
 	my $q = qq{
 		insert into device_type (
-			PARTNER_ID, MODEL, CONFIG_FETCH_TYPE, RACK_UNITS,
+			COMPANY_ID, MODEL, CONFIG_FETCH_TYPE, RACK_UNITS,
 			HAS_802_3_INTERFACE, HAS_802_11_INTERFACE, SNMP_CAPABLE,
 			PROCESSOR_ARCHITECTURE, DESCRIPTION
 		) values (
-			:partner, :model, :cfgfetch, :ru,
+			:company, :model, :cfgfetch, :ru,
 			:has8023, :has80211, :cansnmp,
 			:procarch, :descr
 		) returning DEVICE_TYPE_ID into :devtypid
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_error;
-	$sth->bind_param(':partner', $partid) || $stab->return_db_error($sth);
+	$sth->bind_param(':company', $compid) || $stab->return_db_error($sth);
 	$sth->bind_param(':model', $model) || $stab->return_db_error($sth);
 	$sth->bind_param(':cfgfetch', $cfgfetch) || $stab->return_db_error($sth);
 	$sth->bind_param(':descr', $descr) || $stab->return_db_error($sth);

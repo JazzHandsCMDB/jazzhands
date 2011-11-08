@@ -65,14 +65,14 @@ print $cgi->ul(
 	),
 	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
 	  . "\n",
-	$cgi->li(
+	$cgi->li([
 		$cgi->a(
 			{ -href => "device/type/" }, "Device Type Management"
 		),
 		$cgi->a(
 			{ -href => "device/apps/" }, "Application Management"
 		),
-	  )
+	  ])
 	  . "\n",
 	$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
 	  . "\n",

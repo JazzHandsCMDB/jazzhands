@@ -31,6 +31,7 @@ package JazzHands::STAB::Rack;
 use 5.008007;
 use strict;
 use warnings;
+use JazzHands::GenericDB;
 
 our @ISA = qw( );
 
@@ -72,15 +73,15 @@ sub build_rack {
 			dt.rack_units,
 			l.rack_u_offset_of_device_top,
 			l.rack_side,
-			d.status,
-			p.name
+			d.device_status,
+			c.company_name
 		FROM		device d
 			inner join location l
 				on l.location_id = d.location_id
 			inner join device_type dt
 				on d.device_type_id = dt.device_type_id
-			inner join partner p
-				on p.partner_id = dt.partner_id
+			left join company c
+				on c.company_id = dt.company_id
 			left join device pard
 				on d.parent_device_id = pard.device_id
 		WHERE 
@@ -104,16 +105,16 @@ sub build_rack {
 			[
 				"u",
 				join( " ",
-					$rack->{SITE_CODE},
-					$rack->{ROOM},
-					$rack->{RACK_ROW},
-					$rack->{RACK_NAME},
+					$rack->{_dbx('SITE_CODE')},
+					$rack->{_dbx('ROOM')},
+					$rack->{_dbx('RACK_ROW')},
+					$rack->{_dbx('RACK_NAME')},
 				)
 			]
 		)
 	);
 
-	my $MAX_RACKSIZE = $rack->{RACK_HEIGHT_IN_U} || 50;    # size of rack
+	my $MAX_RACKSIZE = $rack->{_dbx('RACK_HEIGHT_IN_U')} || 50;    # size of rack
 	while (
 		my (
 			$did,   $name,   $pardid, $parname, $label,
@@ -330,11 +331,11 @@ print "Query: <PRE>$sql</PRE>\n";
 				location.rack_u_offset_of_device_top,
 				location.rack_side,
 				device.device_id,
-				partner.name
+				company.company_name
 			FROM	device,
 				device_type,
 				location,
-				partner
+				company
 			WHERE 	device.device_type_id=device_type.device_type_id
 			AND	device.location_id=location.location_id
 			AND	location.site_code='$input{site}'
@@ -342,7 +343,7 @@ print "Query: <PRE>$sql</PRE>\n";
 			AND	location.rack_row='$input{row}'
 			AND	location.room='$input{room}'
 			AND	device.status != 'removed'
-			AND	device_type.partner_id=partner.partner_id
+			AND	device_type.company_id=company.comany_id
 			ORDER BY location.rack_u_offset_of_device_top
 		};
 		$sth=$dbh->prepare($sql);
@@ -548,7 +549,7 @@ sub disp_device {
 			device.status,
 			device.production_state,
 			device_type.model,
-			partner.name,
+			company.company_name,
 			device_type.rack_units,
 			device_type.processor_architecture,
 			device.serial_number,
@@ -559,10 +560,10 @@ sub disp_device {
 			location.rack_u_offset_of_device_top
 		FROM	device,
 			device_type,
-			partner,
+			company,
 			location
 		WHERE	device.device_type_id=device_type.device_type_id
-		AND	partner.partner_id=device_type.partner_id
+		AND	company.company_id = device_type.company_id
 		AND	device.device_id=$did
 		AND	device.location_id=location.location_id
 	};
@@ -602,8 +603,6 @@ sub disp_device {
 			printf "<TR><TD>NIC Port Info:</TD><TD>%s</TD></TR>\n",
 				&get_switchport($dbh, $did);
 			printf "<TR><TD>Console Port Info:</TD><TD> %s</TD></TR>\n", &get_console($dbh, $did);
-			# add functions here, select from device_function
-			print "<TR><TD>Device Functions</TD><TD>TODO</TD></TR>\n";
 			print "<TR><TD>Related Data:</TD><TD>\n";
 			print "<A HREF=\"/cgi-bin/htmlrpt.pl?hostname=$name\">Zamfir Report (servers)</A><BR>\n";
 			print "<A HREF=\"/cgi-bin/rancidlist.pl?$name\">Rancid Config (router/switch)</A><BR>\n";
@@ -681,7 +680,6 @@ sub get_console {
 	my $retbuf="";
 
 	return "?";
-#		AND	d1.device_name='s63.kewr0.m.example.com'
 	my($sql)=qq{
 		SELECT	d1.device_name,
          		p1.port_name,

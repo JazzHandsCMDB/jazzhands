@@ -160,8 +160,6 @@ sub do_show_serial {
 		print $stab->device_circuit_tab( $devid, $parent );
 	} elsif ( $what eq 'AppGroup' ) {
 		print $stab->device_appgroup_tab($devid);
-	} elsif ( $what eq 'DevFunctions' ) {
-		print $stab->build_dev_function_checkboxes($devid);
 	} elsif ( $what eq 'Advanced' ) {
 		print $stab->dump_advanced_tab($devid);
 	} elsif ( $what eq 'IP' ) {

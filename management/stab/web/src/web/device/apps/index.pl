@@ -30,9 +30,10 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
 use Data::Dumper;
 
-return do_apps();
+exit do_apps();
 
 ############################################################################3
 #
@@ -61,13 +62,14 @@ sub build_hier {
 
 		my $canadd = 0;
 		if( $tier->{hr}->{$item} && 
-			(!$tier->{hr}->{$item}->{NUM_DEVICES} || 
-				$tier->{hr}->{$item}->{NUM_KIDS}) ) {
+			(!$tier->{hr}->{$item}->{_dbx('NUM_DEVICES')} || 
+				$tier->{hr}->{$item}->{_dbx('NUM_KIDS')}) ) {
 					$canadd = 1;
 		}
 
-	 # FOR NOW
-  $canadd = 0;
+	 	# FOR NOW - no add functionality written, so that needs to be written
+		# before this can be flipped on...
+  		$canadd = 0;
 
 		my $style1 = "";
 		my $style2 = "";
@@ -146,65 +148,27 @@ sub do_apps {
 				coalesce(devs.tally, 0) as num_devices,
 				coalesce(kids.tally, 0) as num_kids
 		  from (
-				-- cover the hierarchy
-				(
 				select kids.* from 
 				(
-					select  level as tier, dc.device_collection_id,
-					    connect_by_root dcp.device_collection_id as root_id,
-					    connect_by_root dcp.name as root_name,
-					    SYS_CONNECT_BY_PATH(dcp.name, '/') as path,
-					    dc.name as name,
-					    connect_by_isleaf as leaf
-					  from device_collection dc
-					    inner join  device_collection_hier dch
-							on dch.device_collection_id =
-						    	dc.device_collection_id
-					    left join device_collection dcp
-							on dch.parent_device_collection_id =
-						    	dcp.device_collection_id
-					where   dc.device_collection_type = 'appgroup'
-					    connect by prior dch.device_collection_id
-							= dch.parent_device_collection_id
+					select *
+					  from v_application_role
 				)  kids
-				where kids.root_id not in
-					(select device_collection_id from device_collection_hier)
-				)		
-				UNION
-				-- cover the roots of the above query
-				(
-					select	0,
-							device_collection_id,
-							device_collection_id as root_id,
-							name as root_name,
-							'/' as path,
-							name as name,
-							0 as leaf
-					 from	device_collection
-							where device_collection_id not in
-								(select device_collection_id 
-								   from device_collection_hier)
-							and device_collection_id in
-								(select parent_device_collection_id 
-								   from device_collection_hier)
-							and device_collection_type = 'appgroup'
-				)
 		  ) x
 				-- figure out which have devices assigned already for
 				-- purposes of adding
 				left join (
-					select device_collection_id, count(*) as tally
-					  from device_collection_member 
-					group by device_collection_id
-				) devs on devs.device_collection_id = x.device_collection_id
+					select role_id, count(*) as tally
+					  from v_application_role_member 
+					group by role_id
+				) devs on devs.role_id = x.role_id
 				left join (
 					select parent_device_collection_id as
 								device_collection_id, 
 							count(*) as tally
 					  from	device_collection_hier
 					  group by parent_device_collection_id
-				) kids on kids.device_collection_id = x.device_collection_id
-		order by x.root_id, length(path), tier
+				) kids on kids.device_collection_id = x.role_id
+		order by x.root_role_id, length(role_path), role_level
 	});
 	$sth->execute || $stab->return_db_err($sth);
 
@@ -223,8 +187,15 @@ sub do_apps {
 	while(my $hr = $sth->fetchrow_hashref) {
 		my $cur = $tier->{kids};
 		my $bo = $tier;
-		my $fullp = $hr->{PATH} . "/" . $hr->{NAME};
-		foreach my $elem (split('/', $hr->{PATH})) {
+		my $fullp = $hr->{_dbx('ROLE_PATH')} . "/" . $hr->{_dbx('ROLE_NAME')};
+
+		# in oracle, ROLE_PATH was just /, did not include the curent one.
+		# This may make more sense, but the postgresql version does it so the
+		# path is fully qualified.  Need to rethink.  XXX
+		my $splitem = $hr->{_dbx('ROLE_PATH')};
+		my $rn = $hr->{_dbx('ROLE_NAME')};
+		$splitem =~ s,$rn$,,;
+		foreach my $elem (split('/', $splitem)) {
 			next if($elem eq '');
 			if(!exists($cur->{$elem})) {
 				$cur->{$elem} = {};
@@ -238,9 +209,9 @@ sub do_apps {
 			$bo->{keys} = [];
 			$bo->{hr} = {};
 		}
-		push( @{$bo->{keys}}, $hr->{NAME});
+		push( @{$bo->{keys}}, $hr->{_dbx('ROLE_NAME')});
 
-		$bo->{hr}->{ $hr->{NAME} } = $hr;
+		$bo->{hr}->{ $hr->{_dbx('ROLE_NAME')} } = $hr;
 	}
 
 	# print $cgi->pre(Dumper ( $tier ) );

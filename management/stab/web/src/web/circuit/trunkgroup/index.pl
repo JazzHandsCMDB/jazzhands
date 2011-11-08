@@ -68,14 +68,14 @@ sub dump_tg {
 	{
 		my $sth = $stab->prepare(
 			qq{
-		select	p.name as partner_name,
-				p.partner_id,
-				tg.trunk_group_name,
-				tg.src_point_code,
-				tg.dst_point_code
+		select	c.company_name,
+			c.company_id,
+			tg.trunk_group_name,
+			tg.src_point_code,
+			tg.dst_point_code
 		  from	trunk_group tg
-				inner join partner p
-					on tg.partner_id = p.partner_id
+				inner join company c
+					on c.company_id = tg.company_id
 		 where	tg.trunk_group_id = :1
 	}
 		);
@@ -103,7 +103,7 @@ sub dump_tg {
 				$cgi->td(
 					[
 						$cgi->b('Vendor'),
-						$hr->{'PARTNER_NAME'}
+						$hr->{'COMPANY_ID'}
 					]
 				)
 			),
@@ -128,7 +128,7 @@ sub dump_tg {
 			p.physical_port_id,
 			p.port_name,
 			p.port_type,
-			part.name as partner_name,
+			comp.company_name,
 			c.circuit_id,
 			c.vendor_circuit_id_str,
 			ni.network_interface_type,
@@ -146,8 +146,8 @@ sub dump_tg {
 				 p.physical_port_id = l1c.physical_port2_id)
 			inner join circuit c on
 				c.circuit_id = l1c.circuit_id
-			inner join partner part on
-				part.partner_id = c.VENDOR_PARTNER_ID
+			inner join company comp on
+				comp.company_id = c.VENDOR_COMPANY_ID
 			inner join trunk_group tg
 				on tg.trunk_group_id = c.trunk_group_id
 		 where  tg.trunk_group_id = :1

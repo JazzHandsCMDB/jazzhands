@@ -223,7 +223,7 @@ sub do_device_type_update {
 	$numchanges+= process_physical_port_updates($stab, $devtypid, 'serial');
 	$numchanges+= process_physical_port_updates($stab, $devtypid, 'network');
 
-	my $partid = $stab->cgi_parse_param('PARTNER_ID', $devtypid);
+	my $partid = $stab->cgi_parse_param('COMPANY_ID', $devtypid);
 	my $arch = $stab->cgi_parse_param('PROCESSOR_ARCHITECTURE', $devtypid);
 	my $model = $stab->cgi_parse_param('MODEL', $devtypid);
 	my $cfgfetch = $stab->cgi_parse_param('CONFIG_FETCH_TYPE', $devtypid);
@@ -271,7 +271,7 @@ sub do_device_type_update {
 
 	my %newdevice = (
 		DEVICE_TYPE_ID		=> $devtypid,
-		PARTNER_ID			=> $partid,
+		COMPANY_ID			=> $partid,
 		MODEL				=> $model,
 		CONFIG_FETCH_TYPE	=> $cfgfetch,
 		PROCESSOR_ARCHITECTURE	=> $arch,

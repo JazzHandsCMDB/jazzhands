@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/pkg/bin/perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -53,6 +53,8 @@ sub do_rack {
 	}
 
 	do_rack_chooser($stab);
+
+	$stab->rollback;
 }
 
 sub do_rack_chooser {

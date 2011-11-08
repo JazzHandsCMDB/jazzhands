@@ -50,14 +50,14 @@ sub do_os_update {
 
 	my $didstuff = 0;
 
-	my $partid  = $stab->cgi_parse_param( 'PARTNER_ID',             $osid );
+	my $compid  = $stab->cgi_parse_param( 'COMPANY_ID',             $osid );
 	my $name    = $stab->cgi_parse_param( 'NAME',                   $osid );
 	my $version = $stab->cgi_parse_param( 'VERSION',                $osid );
 	my $bits    = $stab->cgi_parse_param( 'PROCESSOR_ARCHITECTURE', $osid );
 
 	my %newos = (
 		OPERATING_SYSTEM_ID    => $osid,
-		PARTNER_ID             => $partid,
+		COMPANY_ID             => $compid,
 		NAME                   => $name,
 		VERSION                => => $version,
 		PROCESSOR_ARCHITECTURE => $bits,

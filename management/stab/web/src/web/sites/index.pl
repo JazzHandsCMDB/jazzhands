@@ -66,14 +66,14 @@ sub dump_all_sites {
 
 	my $q = qq{
 		select 	s.site_code,
-		 	p.name,
-			p.address,
+		 	c.company_name,
+			-- p.address, XXX
 			s.npanxx,
 			s.site_status,
 			s.description
 		  from	site s
-			left join partner p
-				on p.partner_id = s.colo_partner_id
+			left join company c
+				on c.company_id = s.colo_company_id
 		order by s.site_code
 	};
 

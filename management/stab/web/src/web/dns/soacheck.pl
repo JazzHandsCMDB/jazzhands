@@ -29,6 +29,7 @@ use strict;
 use warnings;
 use POSIX;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
 use Net::DNS;
 
 do_soacheck();
@@ -119,15 +120,15 @@ sub dump_soacheck_all {
 			$rowtxt = "";
 		}
 
-		my $zone_name = $hr->{'SOA_NAME'};
-		my $domid     = $hr->{'DNS_DOMAIN_ID'};
-		my $gen       = $hr->{'SHOULD_GENERATE'};
+		my $zone_name = $hr->{_dbx('SOA_NAME')};
+		my $domid     = $hr->{_dbx('DNS_DOMAIN_ID')};
+		my $gen       = $hr->{_dbx('SHOULD_GENERATE')};
 
-		if ( $nogenshow eq 'no' && $hr->{'SHOULD_GENERATE'} eq 'N' ) {
+		if ( $nogenshow eq 'no' && $hr->{_dbx('SHOULD_GENERATE')} eq 'N' ) {
 			next;
 		}
 
-		if ( $nogenshow eq 'yes' && $hr->{'SHOULD_GENERATE'} eq 'Y' ) {
+		if ( $nogenshow eq 'yes' && $hr->{_dbx('SHOULD_GENERATE')} eq 'Y' ) {
 			next;
 		}
 
@@ -274,7 +275,7 @@ sub get_jazzhands_namservers {
 				dns.netblock_id,
 				dns.should_generate_ptr,
 				nb.netblock_id,
-				ip_manip.v4_octet_from_int(nb.ip_address)
+				net_manip.inet_dbtop(nb.ip_address)
 		 from   dns_domain dom
 				inner join dns_record dns
 					on dns.dns_domain_id = dom.dns_domain_id
@@ -286,7 +287,7 @@ sub get_jazzhands_namservers {
 		  and	dns.dns_type = 'NS'
 		  and   dns.dns_name is NULL
 		  and   dns.reference_dns_record_id is null
-		  and   dom.soa_name = :1
+		  and   dom.soa_name = ?
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
@@ -294,8 +295,8 @@ sub get_jazzhands_namservers {
 
 	my (@ns);
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		if ( $hr->{'DNS_TYPE'} eq 'NS' ) {
-			push( @ns, $hr->{'DNS_VALUE'} );
+		if ( $hr->{_dbx('DNS_TYPE')} eq 'NS' ) {
+			push( @ns, $hr->{_dbx('DNS_VALUE')} );
 		}
 	}
 	$sth->finish;

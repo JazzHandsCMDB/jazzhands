@@ -236,7 +236,7 @@ sub build_device_box {
 	my ( $left_table, $right_table ) = ( "", "" );
 
 	$left_table .=
-	  $stab->build_tr( $values, "b_dropdown", "Status", "STATUS",
+	  $stab->build_tr( $values, "b_dropdown", "Status", "DEVICE_STATUS",
 		'DEVICE_ID' );
 	$left_table .=
 	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
@@ -334,12 +334,11 @@ sub build_page {
 
 	my $bottomTr = "";
 	if ( !defined($device) ) {
-		# my $funcboxes = $stab->build_dev_function_checkboxes($device);
-		my $funcboxes = $cgi->div({-class => 'approle'},
+		my $approleboxes = $cgi->div({-class => 'approle'},
 			$stab->device_appgroup_tab());
 		$bottomTr =
-		  $cgi->Tr( { -align => 'center;' }, $cgi->td($funcboxes) ),
-		  undef $funcboxes;
+		  $cgi->Tr( { -align => 'center;' }, $cgi->td($approleboxes) ),
+		  undef $approleboxes;
 	}
 
 	my $maindiv = $cgi->table( { -border => 1, width => '100%' },
@@ -385,19 +384,20 @@ sub build_page {
 			"Licenses"     => "Licenses",
 			"Advanced"     => "Advanced",
 			"Notes"        => "Notes$numnotes",
-			# "DevFunctions" => "Functions",
 		};
 
 		my (@tablist);
 		push( @tablist, "Notes", "DevFunctions", "AppGroup" );
 
-		if ( $stab->check_func( $devid, 'patchpanel' ) ) {
-			push( @tablist, "PatchPanel" );
-		} elsif ( !$stab->check_func( $devid, 'cablemanagement' ) ) {
+		# XXX - used to run check_func, needs to move to application
+		# roles!
+		#if ( $stab->check_func( $devid, 'patchpanel' ) ) {
+		#	push( @tablist, "PatchPanel" );
+		#} elsif ( !$stab->check_func( $devid, 'cablemanagement' ) ) {
 			push( @tablist,
 				qw{IP IPRoute Circuit Serial Power Switchport }
 			);
-		}
+		#}
 
 		push( @tablist, qw{Location Licenses Advanced} );
 

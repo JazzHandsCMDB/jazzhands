@@ -28,7 +28,10 @@
 use strict;
 use warnings;
 use POSIX;
+use Data::Dumper;
+use Carp;
 use JazzHands::STAB;
+use JazzHands::GenericDB;
 
 do_dns_toplevel();
 
@@ -103,7 +106,6 @@ sub dump_all_zones_dropdown {
 	print $cgi->end_form;
 
 	print $cgi->end_html, "\n";
-
 }
 
 sub dump_all_zones {
@@ -147,8 +149,8 @@ n";
 			$rowtxt = "";
 		}
 
-		if ( !defined( $hr->{'LAST_GENERATED'} ) ) {
-			$hr->{'LAST_GENERATED'} = $cgi->escapeHTML('<never>');
+		if ( !defined( $hr->{_dbx('LAST_GENERATED')} ) ) {
+			$hr->{_dbx('LAST_GENERATED')} = $cgi->escapeHTML('<never>');
 		}
 
 		my $xbox =
@@ -168,8 +170,8 @@ n";
 		  $stab->b_textfield( $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID' );
 		$stab->textfield_sizing(1);
 
-		my $link = build_dns_link( $stab, $hr->{'DNS_DOMAIN_ID'} );
-		my $zone = $cgi->a( { -href => $link }, $hr->{'SOA_NAME'} );
+		my $link = build_dns_link( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
+		my $zone = $cgi->a( { -href => $link }, $hr->{_dbx('SOA_NAME')} );
 
 		my $entry = $cgi->table(
 			{ -width => '100%', -align => 'top' },
@@ -189,7 +191,7 @@ n";
 			#$cgi->Tr($cgi->td("Expire: ", $expire )),
 			#$cgi->Tr($cgi->td("Minimum: ", $minimum )),
 			$cgi->Tr(
-				$cgi->td( "LastGen:", $hr->{'LAST_GENERATED'} )
+				$cgi->td( "LastGen:", $hr->{_dbx('LAST_GENERATED')} )
 			),
 			$cgi->Tr( $cgi->td($xbox) )
 		) . "\n";
@@ -200,8 +202,7 @@ n";
 	print $cgi->end_table;
 	print $cgi->end_html, "\n";
 
-	$dbh->rollback;
-	$dbh->disconnect;
+	$sth->finish;
 	$dbh = undef;
 }
 
@@ -222,7 +223,7 @@ sub zone_dns_records {
 				dns.is_enabled,
 				dns.should_generate_ptr,
 				nb.netblock_id,
-				ip_manip.v4_octet_from_int(nb.ip_address) as IP
+				net_manip.inet_dbtop(nb.ip_address) as IP
 		 from 	dns_record dns
 				inner join val_dns_type vdt on
 					dns.dns_type = vdt.dns_type
@@ -240,13 +241,13 @@ sub zone_dns_records {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		print build_fwd_zone_Tr( $stab, $hr, 1 );
 	}
+	$sth->finish;
 }
 
 sub build_fwd_zone_Tr {
 	my ( $stab, $hr, $iszone ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $ttl =
 	  $stab->b_offalwaystextfield( $hr, 'DNS_TTL', 'DNS_RECORD_ID' );
@@ -257,24 +258,24 @@ sub build_fwd_zone_Tr {
 	my $class = "";
 	my $type  = "";
 
-	if ( defined($hr) && defined( $hr->{'DNS_NAME'} ) ) {
-		$name = $hr->{'DNS_NAME'};
+	if ( defined($hr) && defined( $hr->{_dbx('DNS_NAME')} ) ) {
+		$name = $hr->{_dbx('DNS_NAME')};
 	}
 	my $showexcess = 1;
 	my $ttlonly    = 0;
-	if ( defined($hr) && $hr->{'DEVICE_ID'} ) {
-		$showexcess = 0 if ( $hr->{'SHOULD_GENERATE_PTR'} eq 'Y' );
+	if ( defined($hr) && $hr->{_dbx('DEVICE_ID')} ) {
+		$showexcess = 0 if ( $hr->{_dbx('SHOULD_GENERATE_PTR')} eq 'Y' );
 		$ttlonly = 1;
-		my $link = "../device/device.pl?devid=" . $hr->{'DEVICE_ID'};
+		my $link = "../device/device.pl?devid=" . $hr->{_dbx('DEVICE_ID')};
 		$name = $cgi->a( { -href => $link }, $name );
 
 	   #$class = $stab->b_dropdown(undef, $hr, 'DNS_CLASS', 'DNS_CLASS', 1);
 	   #$type = $stab->b_dropdown(undef, $hr, 'DNS_TYPE', 'DNS_TYPE', 1);
-		$class = $hr->{'DNS_CLASS'};
-		$type  = $hr->{'DNS_TYPE'};
-		$value = $hr->{'DNS_VALUE'};
-		if ( defined($hr) && $hr->{'DNS_TYPE'} eq 'A' ) {
-			$value = $hr->{'IP'};
+		$class = $hr->{_dbx('DNS_CLASS')};
+		$type  = $hr->{_dbx('DNS_TYPE')};
+		$value = $hr->{_dbx('DNS_VALUE')};
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
+			$value = $hr->{_dbx('IP')};
 		}
 	} elsif ( !defined($iszone) ) {
 		$name = $stab->b_textfield( $hr, 'DNS_NAME', 'DNS_RECORD_ID' );
@@ -284,20 +285,20 @@ sub build_fwd_zone_Tr {
 		  $stab->b_dropdown( $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
 		$value = $stab->b_textfield( { -textfield_width => 40 },
 			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
-		if ( defined($hr) && $hr->{'DNS_TYPE'} eq 'A' ) {
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
 
 			# [XXX] hack hack hack, needs to be fixed right.
-			$hr->{'DNS_VALUE'} = $hr->{'IP'};
+			$hr->{_dbx('DNS_VALUE')} = $hr->{_dbx('IP')};
 			$value = $stab->b_textfield( $hr, 'DNS_VALUE',
 				'DNS_RECORD_ID' );
 		}
 	} else {
 		$value = $stab->b_textfield( { -textfield_width => 40 },
 			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
-		if ( defined($hr) && $hr->{'DNS_TYPE'} eq 'A' ) {
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
 
 			# [XXX] hack hack hack, needs to be fixed right.
-			$hr->{'DNS_VALUE'} = $hr->{'IP'};
+			$hr->{_dbx('DNS_VALUE')} = $hr->{_dbx('IP')};
 			$value = $stab->b_textfield( $hr, 'DNS_VALUE',
 				'DNS_RECORD_ID' );
 		}
@@ -313,7 +314,7 @@ sub build_fwd_zone_Tr {
 			$excess .= $cgi->checkbox(
 				{
 					-name => "Del_"
-					  . $hr->{'DNS_RECORD_ID'},
+					  . $hr->{_dbx('DNS_RECORD_ID')},
 					-label => 'Delete',
 				}
 			);
@@ -324,7 +325,7 @@ sub build_fwd_zone_Tr {
 	if ( $ttlonly && defined($hr) ) {
 		$excess .= $cgi->hidden(
 			{
-				-name  => "ttlonly_" . $hr->{'DNS_RECORD_ID'},
+				-name  => "ttlonly_" . $hr->{_dbx('DNS_RECORD_ID')},
 				-value => 'ttlonly'
 			}
 		);
@@ -335,8 +336,8 @@ sub build_fwd_zone_Tr {
 		$hidden = $cgi->hidden(
 			{
 				-name => "DNS_RECORD_ID_"
-				  . $hr->{'DNS_RECORD_ID'},
-				-value => $hr->{'DNS_RECORD_ID'}
+				  . $hr->{_dbx('DNS_RECORD_ID')},
+				-value => $hr->{_dbx('DNS_RECORD_ID')}
 			}
 		);
 	}
@@ -371,7 +372,7 @@ sub zone_fwd_records {
 				dns.should_generate_ptr,
 				dns.is_enabled,
 				nb.netblock_id,
-				ip_manip.v4_octet_from_int(nb.ip_address) as IP,
+				net_manip.inet_dbtop(nb.ip_address) as IP,
 				ni.device_id
 		 from 	dns_record dns
 				inner join val_dns_type vdt on
@@ -396,6 +397,7 @@ sub zone_fwd_records {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		print build_fwd_zone_Tr( $stab, $hr );
 	}
+	$sth->finish;
 }
 
 sub zone_rvs_records {
@@ -406,12 +408,12 @@ sub zone_rvs_records {
 
 	my $q = qq{
 		select  distinct nb.ip_address,
-			ip_manip.v4_octet_from_int(nb.ip_address) as ip,
+			net_manip.inet_dbtop(nb.ip_address) as ip,
 			dns.dns_name,
 			dns.is_enabled,
 			dom.soa_name,
-			ip_manip.v4_octet_from_int(
-				ip_manip.v4_base(nb.ip_address,  
+			net_manip.inet_dbtop(
+				net_manip.inet_base(nb.ip_address,  
 				nb.netmask_bits)) as ip_base,
 			nb.netmask_bits as netmask_bits,
 			ni.device_id
@@ -430,8 +432,8 @@ sub zone_rvs_records {
 						'REVERSE_ZONE_BLOCK_PTR'
 		 where  dns.should_generate_ptr = 'Y'
 		   and  dns.dns_class = 'IN' and dns.dns_type = 'A'
-		   and  ip_manip.v4_base(nb.ip_address, root.netmask_bits) =
-				ip_manip.v4_base(root.ip_address,
+		   and  net_manip.inet_base(nb.ip_address, root.netmask_bits) =
+				net_manip.inet_base(root.ip_address,
 					root.netmask_bits)
 		   and  rootd.dns_domain_id = ?
 		order by nb.ip_address
@@ -441,28 +443,28 @@ sub zone_rvs_records {
 
 	$stab->textfield_sizing(0);
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $lastoctet = ( split( /\./, $hr->{'IP'} ) )[3];
+		my $lastoctet = ( split( /\./, $hr->{_dbx('IP')} ) )[3];
 
 		# only print the shortname if it is actually set.
 		my $name = (
-			defined( ( $hr->{'DNS_NAME'} ) )
-			? $hr->{'DNS_NAME'} . "."
+			defined( ( $hr->{_dbx('DNS_NAME')} ) )
+			? $hr->{_dbx('DNS_NAME')} . "."
 			: "" )
-		  . $hr->{'SOA_NAME'} . ".";
+		  . $hr->{_dbx('SOA_NAME')} . ".";
 
 		my $ttl   = "";
 		my $class = 'IN';
 		my $type  = 'PTR';
 		my $value =
 		  $stab->b_textfield( $hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
-		if ( $hr && $hr->{'DNS_TYPE'} && $hr->{'DNS_TYPE'} eq 'A' ) {
+		if ( $hr && $hr->{_dbx('DNS_TYPE')} && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
 			$value =
 			  $stab->b_textfield( $hr, 'IP', 'DNS_RECORD_ID' );
 		}
 
-		if ( $hr->{'DEVICE_ID'} ) {
+		if ( $hr->{_dbx('DEVICE_ID')} ) {
 			my $link =
-			  "../device/device.pl?devid=" . $hr->{'DEVICE_ID'};
+			  "../device/device.pl?devid=" . $hr->{_dbx('DEVICE_ID')};
 			$name = $cgi->a( { -href => $link }, $name );
 		}
 
@@ -470,34 +472,34 @@ sub zone_rvs_records {
 	      # at this point, we don't want direct manipulation of PTR records.
 	      #
 		my $button = "";
-		if ( 0 && defined($hr) && defined( $hr->{'DNS_RECORD_ID'} ) ) {
+		if ( 0 && defined($hr) && defined( $hr->{_dbx('DNS_RECORD_ID')} ) ) {
 
 			# [XXX] these aren't buttons now, but rather
 			# a delete check box...
 			$button = $cgi->submit(
 				{
 					-name => "Update_"
-					  . $hr->{'DNS_RECORD_ID'},
+					  . $hr->{_dbx('DNS_RECORD_ID')},
 					-value => 'Update'
 				}
 			);
 			$button .= $cgi->submit(
 				{
 					-name => "Del_"
-					  . $hr->{'DNS_RECORD_ID'},
+					  . $hr->{_dbx('DNS_RECORD_ID')},
 					-value => 'Delete'
 				}
 			);
 		}
 
 		my $hidden = "";
-		if ( $hr && $hr->{'DNS_RECORD_ID'} )
+		if ( $hr && $hr->{_dbx('DNS_RECORD_ID')} )
 		{    # should not need the && case?
 			$hidden = $cgi->hidden(
 				{
 					-name => "DNS_RECORD_ID_"
-					  . $hr->{'DNS_RECORD_ID'},
-					-value => $hr->{'DNS_RECORD_ID'}
+					  . $hr->{_dbx('DNS_RECORD_ID')},
+					-value => $hr->{_dbx('DNS_RECORD_ID')}
 				}
 			);
 		}
@@ -519,6 +521,7 @@ sub zone_rvs_records {
 		);
 	}
 	$stab->textfield_sizing(1);
+	$sth->finish;
 }
 
 sub dump_zone {
@@ -551,13 +554,14 @@ sub dump_zone {
 	$sth->execute($dnsdomainid) || return $stab->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
 
 	if ( !defined($hr) ) {
 		$stab->error_return("Unknown Domain");
 	}
 
-	my $title = $hr->{'SOA_NAME'};
-	$title .= " (Auto Generated) " if ( $hr->{'SHOULD_GENERATE'} eq 'Y' );
+	my $title = $hr->{_dbx('SOA_NAME')};
+	$title .= " (Auto Generated) " if ( $hr->{_dbx('SHOULD_GENERATE')} eq 'Y' );
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html({-title=> $title, -javascript => 'dns'} ), "\n";
@@ -567,12 +571,17 @@ sub dump_zone {
 		-default => $hr->{'DNS_DOMAIN_ID'}
 	);
 
+	my $lastgen = 'never';
+	if(defined($hr->{_dbx('LAST_GENERATED')})) {
+		$lastgen = $hr->{_dbx('LAST_GENERATED')};
+	}
+
 	print $cgi->hr;
 	print $cgi->start_table( { -align => 'center', -border => 1 } );
 	print $cgi->Tr(
-		$cgi->td( "Last Generated: ", $hr->{'LAST_GENERATED'} ) );
+		$cgi->td( "Last Generated: $lastgen") );
 	my $autogen = "";
-	if ( $hr->{'SHOULD_GENERATE'} eq 'Y' ) {
+	if ( $hr->{_dbx('SHOULD_GENERATE')} eq 'Y' ) {
 		$autogen = "Turn Off Autogen";
 	} else {
 		$autogen = "Turn On Autogen";
@@ -592,12 +601,12 @@ sub dump_zone {
 	print $cgi->end_table;
 
 	my $parlink = "--none--";
-	if ( $hr->{'PARENT_DNS_DOMAIN_ID'} ) {
+	if ( $hr->{_dbx('PARENT_DNS_DOMAIN_ID')} ) {
 		my $url =
-		  build_dns_link( $stab, $hr->{'PARENT_DNS_DOMAIN_ID'} );
+		  build_dns_link( $stab, $hr->{_dbx('PARENT_DNS_DOMAIN_ID')} );
 		my $parent =
-		  ( $hr->{'PARENT_SOA_NAME'} )
-		  ? $hr->{'PARENT_SOA_NAME'}
+		  ( $hr->{_dbx('PARENT_SOA_NAME')} )
+		  ? $hr->{_dbx('PARENT_SOA_NAME')}
 		  : "unnamed zone";
 		$parlink = $cgi->a( { -href => $url }, $parent );
 	}
@@ -640,11 +649,11 @@ sub dump_zone {
 		)
 	);
 
-	zone_dns_records( $stab, $hr->{'DNS_DOMAIN_ID'} );
+	zone_dns_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
 	print build_fwd_zone_Tr($stab);
 
-	zone_fwd_records( $stab, $hr->{'DNS_DOMAIN_ID'} );
-	zone_rvs_records( $stab, $hr->{'DNS_DOMAIN_ID'} );
+	zone_fwd_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
+	zone_rvs_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
 
 	print $cgi->end_table;
 	print $cgi->submit(
@@ -655,7 +664,6 @@ sub dump_zone {
 		}
 	);
 	print $cgi->end_form;
-
 }
 
 sub build_reverse_association_section {
@@ -665,7 +673,7 @@ sub build_reverse_association_section {
 
 	my $q = qq{
 		select	d.netblock_id,
-			ip_manip.v4_octet_from_int(nb.ip_address),
+			net_manip.inet_dbtop(nb.ip_address),
 			nb.netmask_bits
 		  from	dns_record d
 			inner join netblock nb
@@ -683,6 +691,7 @@ sub build_reverse_association_section {
 			"$ip/$bits" );
 	}
 	$linkage = $cgi->b("Reverse Linked Netblock:") . $linkage if ($linkage);
+	$sth->finish;
 	$linkage;
 }
 

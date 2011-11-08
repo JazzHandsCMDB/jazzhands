@@ -79,7 +79,7 @@ sub dump_circuit {
 		$stab->build_tr(
 			undef,               $c,
 			'b_dropdown',        "Carrier",
-			'VENDOR_PARTNER_ID', 'CIRCUIT_ID'
+			'VENDOR_COMPANY_ID', 'CIRCUIT_ID'
 		),
 		$stab->build_tr(
 			undef,                   $c,
@@ -176,7 +176,7 @@ sub build_circuit_aloc {
 		$stab->build_tr(
 			undef,                       $c,
 			'b_dropdown',                "Carrier",
-			"${side}LOC_LEC_PARTNER_ID", 'CIRCUIT_ID'
+			"${side}LOC_LEC_COMPANY_ID", 'CIRCUIT_ID'
 		),
 		$stab->build_tr(
 			undef,                           $c,
@@ -203,7 +203,7 @@ sub dump_circuit_l1table {
 			p.physical_port_id,
 			p.port_name,
 			p.port_type,
-			part.name as partner_name,
+			comp.company_name,
 			c.circuit_id,
 			c.vendor_circuit_id_str,
 			ni.network_interface_type,
@@ -221,8 +221,8 @@ sub dump_circuit_l1table {
 				 p.physical_port_id = l1c.physical_port2_id)
 			inner join circuit c on
 				c.circuit_id = l1c.circuit_id
-			inner join partner part on
-				part.partner_id = c.VENDOR_PARTNER_ID
+			inner join company comp on
+				company.company_id = c.VENDOR_COMPANY_ID
 			left join trunk_group tg
 				on tg.trunk_group_id = c.trunk_group_id
 		 where  c.circuit_id = :1

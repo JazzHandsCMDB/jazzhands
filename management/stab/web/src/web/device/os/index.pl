@@ -73,7 +73,7 @@ sub manip_operating_system {
 		{ -align => 'center' },
 		$stab->build_tr(
 			$os,      "b_dropdown",
-			"Vendor", 'PARTNER_ID',
+			"Vendor", 'COMPANY_ID',
 			'OPERATING_SYSTEM_ID'
 		),
 		$stab->build_tr(
