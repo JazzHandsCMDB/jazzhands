@@ -23,7 +23,7 @@
  * $Id$
  */
 
-drop schema netblock_utils cascade;
+drop schema if exists netblock_utils cascade;
 create schema netblock_utils authorization jazzhands;
 
 -------------------------------------------------------------------

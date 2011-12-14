@@ -38,7 +38,7 @@ WITH RECURSIVE var_recurse(
 	SELECT	
 		0					as role_level,
 		device_collection_id			as role_id,
-		NULL					as parent_role_id,
+		cast(NULL AS integer)			as parent_role_id,
 		device_collection_id			as root_role_id,
 		device_collection_name			as root_role_name,
 		device_collection_name			as role_name,
