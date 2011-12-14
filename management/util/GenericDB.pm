@@ -27,7 +27,7 @@ use vars qw(@EXPORT @EXPORT_OK @ISA $VERSION);
 $VERSION   = '1.0';
 
 @ISA	   = qw(Exporter);
-@EXPORT    = qw(_dbx hash_table_diff val_person_contact_type);
+@EXPORT    = qw(_dbx hash_table_diff val_person_contact_type hash_table_diff run_update_from_hash);
 @EXPORT_OK = qw( );
 
 our $direction = 'lower';
