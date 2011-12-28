@@ -547,10 +547,10 @@ BEGIN
 		END IF;
 	END IF;
 	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'account_collection_i' THEN
+		IF v_prop.Property_Data_Type = 'account_collection_id' THEN
 			tally := tally + 1;
 		ELSE
-			RAISE 'Property value may not be account_collection_Id' USING
+			RAISE 'Property value may not be account_collection_id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -641,14 +641,14 @@ BEGIN
 	-- specific type (e.g. per-user), and verify that if so
 	
 	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
-		IF v_prop.Prop_Val_account_collection_Type_Rstrct IS NOT NULL THEN
+		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_account_collection FROM account_collection WHERE
 					account_collection_Id = NEW.Property_Value_Account_Coll_Id;
-				IF v_account_collection.account_collection_Type != v_prop.Prop_Val_account_collection_Type_Rstrct
+				IF v_account_collection.account_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
 				THEN
 					RAISE 'Property_Value_Account_Coll_Id must be of type %',
-					v_prop.Prop_Val_account_collection_Type_Rstrct
+					v_prop.prop_val_acct_coll_type_rstrct
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -1081,3 +1081,46 @@ AFTER INSERT OR UPDATE ON account_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_account_colllection_hier_loop();
  
 
+/*
+ * enforces is_multivalue in val_person_image_usage
+ *
+ * Need to be ported to oracle XXX
+ */
+CREATE OR REPLACE FUNCTION check_person_image_usage_mv()
+RETURNS TRIGGER AS $$
+DECLARE
+	ismv	char;
+	tally	INTEGER;
+BEGIN
+	select  vpiu.is_multivalue, count(*)
+ 	  into	ismv, tally
+	  from  person_image pi
+		inner join person_image_usage piu
+			using (person_image_id)
+		inner join val_person_image_usage vpiu
+			using (person_image_usage)
+	 where	pi.person_id in
+	 	(select person_id from person_image
+		 where person_image_id = NEW.person_image_id
+		)
+	  and	person_image_usage = NEW.person_image_usage
+	group by vpiu.is_multivalue;
+
+	IF ismv = 'N' THEN
+		IF tally > 1 THEN
+			RAISE EXCEPTION
+				'Person may only be assigned %s for one image',
+				NEW.person_image_usage
+			USING ERRCODE = 20705;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+DROP TRIGGER IF EXISTS trigger_check_person_image_usage_mv ON person_image_usage;
+CREATE TRIGGER trigger_check_person_image_usage_mv AFTER INSERT OR UPDATE
+    ON person_image_usage 
+    FOR EACH ROW 
+    EXECUTE PROCEDURE check_person_image_usage_mv();

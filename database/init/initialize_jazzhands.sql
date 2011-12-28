@@ -441,7 +441,8 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('person_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('token_collection_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('Account_Collection_id');
+insert into val_property_data_type (PROPERTY_DATA_TYPE) values 
+	('account_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('sw_package_id');
 
