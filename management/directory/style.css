@@ -1,0 +1,261 @@
+body {
+	background: black ;
+	color: inherit;
+	font: 10px/1.3em "Helvetica Neue",Arial,Helvetica,sans-serif;
+	margin: auto;
+	padding: 0;
+	text-align: center;
+
+	height: 100%;
+	min-height: 90ex;
+	min-width: 67em;
+}
+
+img {
+	border: none;
+}
+
+#peoplelist {
+	display: inline;
+	background: transparent;
+	margin: 15px;
+	border-collapse: collapse;
+	color: inherit;
+}
+
+#peoplelist tbody,th,tr,td { 
+	background: transparent; 
+	color: inherit; 
+	border: 1px solid;
+	padding: 5px;
+}
+
+#contact {
+	border: none;
+}
+
+#contact td { 
+	background: transparent; 
+	color: inherit; 
+	border: 1px solid;
+	border: none;
+	padding: 0px;
+}
+
+#yearbook {
+	background: transparent;
+	margin: 15px;
+	border-collapse: collapse;
+	color: inherit;
+}
+
+#yearbook tbody,th,tr,td { 
+	background: transparent; 
+	color: inherit; 
+	border: 1px solid;
+	padding: 5px;
+}
+
+p, dt, dd, form, input, table {
+	font-size: 100%;
+}
+
+a {
+	text-decoration: none;
+	background-color: inherit;
+	color: red;
+	outline: none;
+}
+
+a:hover {
+	text-decoration: none;
+}
+
+#main a:visited {
+	background-color: inherit;
+}
+
+#main a:hover {
+	text-decoration: none;
+	background-color: inherit;
+	color: orange;
+}
+
+#head {
+	background: none;
+	height: 50px;
+	margin-bottom: 3px;
+	margin-left: 3px;
+	position: relative;
+}
+
+#page {
+	/*width: 760px;*/
+	margin: 0 auto;
+}
+
+#mast {
+	background-color: blue;
+	background-position: 12px center;
+	background-repeat: no-repeat;
+	border-radius: 0 0 12px 12px;
+	color: #FFF;
+	display: block;
+	font-size: 18px;
+	height: 50px;
+	line-height: 50px;
+	margin: 0 auto;
+	padding: 0;
+	position: relative;
+	text-align: center;
+	text-decoration: none;
+	text-shadow: 1px 1px 1px #000;
+	width: 30em;
+	outline: none;
+}
+
+#main {
+	display: inline-block;
+	margin-left: auto;
+	margin-right: auto;
+	text-align: center;
+
+	background-color: lightblue;
+	border-radius: 12px;
+	font-size: 130%;
+	margin: 0 auto;
+	min-height: 30ex;
+	min-width: 50em;
+
+}
+
+div.directorypic {
+	display: inline;
+	border: 1px solid;
+	float: left;
+	margin: 5px 0 0;
+	margin-bottom: 1ex;
+	margin-left: 1em;
+	margin-top: 1ex;
+}
+
+div.description {
+	margin-left: 2em;
+	width: 60%;
+	border: none;
+	text-align: left;
+	float: left;
+}
+
+h1 {
+	font-size: 150%;
+}
+
+img.fullsize { width: 200px; }
+
+img.thumb { width: 50px; }
+
+img.yearbook { max-width: 300px; }
+
+.addphone {
+	border: 2px solid;
+	width: 100%; 
+	overflow: hidden;
+	background: purple;
+}
+
+.sbmtphone, .addphonebutton, .picmanipbutton {
+	border: 2px solid;
+	background-color: blue;
+	color: white;
+}
+
+.phoneremove {
+	margin: auto;
+	float: left;
+	height: 100%;
+	vertical-align: middle;
+}
+
+.phoneattribs {
+	background:orange;
+	height: 100%; 
+	float: left;
+	margin: auto;
+}
+	
+
+.phoneattribs select { display: block; }
+
+.phonedigits { 
+	margin: 0 auto; 
+	float: right;
+	background: yellow;
+}
+
+/* used to show error messages adding phones */
+div.msg {
+	color: red;
+}
+
+input.inputhint {
+	color: grey;
+	font-style: italic;
+}
+
+div.searchbox {
+	background: turquoise;
+}
+
+img.removex {
+	width: 1em;
+	height: 2ex;
+}
+
+/* kooky inline div and 50%/-50% is to keep it centered */
+div#resultsparents {
+	margin-top: -2ex; /* need to figure out why this is needed */
+	position:absolute; 
+	left:50%;
+}
+div#resultsbox  {
+	text-align:left;  
+	left:-50%;
+	background: blue;
+	color: white;
+	opacity: .90;
+	position: relative;
+	display: block;
+}
+
+#resultsbox > table {
+	border: 1px solid;
+}
+
+.phonerowform {
+	display: inline;
+}
+
+#picsdisplay {
+	position: absolute;
+	display: none;
+	width: 75%;
+	height: 75%;
+	opacity: .95;
+	background: lightblue;
+	margin: 12%;
+}
+
+.popup {
+	border: 3px double;
+	overflow: scroll;
+	z-index: 100;
+}
+
+table.picmanip {
+	width: 100%;
+}
+
+table.picmanip input{
+	width: 100%;
+}
