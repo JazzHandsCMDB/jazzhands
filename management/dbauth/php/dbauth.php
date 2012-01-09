@@ -47,7 +47,6 @@ if(getenv('DBAUTH_CONFIG')) {
 	}
 }
 if(file_exists($__dbauthcfg)) {
-	echo "loading $__dbauthcfg";
 	$__json = json_decode(file_get_contents($__dbauthcfg));
 }
 
@@ -85,7 +84,6 @@ class dbauth {
 		global $__json;
 		global $__dbauthcfg;
 		if(isset($instance)) {
-			echo "instance is set\n";
 			$x = dbauth::find_and_parse_series("$instance/$app");
 			if(isset($x)) {
 				return($x);
@@ -94,14 +92,12 @@ class dbauth {
 
 		if(!isset($instance) || !isset($__json->{'sloppy_instance_match'}) ||
 				$__json->{'sloppy_instance_match'} != 'no') {
-			echo "global \n";
 			$x = dbauth::find_and_parse_series("$app");
 			if(isset($x)) {
 				return($x);
 			}
 		}
 
-		echo "returning nothing\n";
 	}
 	public function connect($app, $instance = null, $flags = null) {
 		$dbspec = dbauth::find_and_parse_auth($app, $instance);
