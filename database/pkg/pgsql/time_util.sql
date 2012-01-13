@@ -20,40 +20,29 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
--- This will create all packages in the proper order
---
 -- $Id$
 --
 
---
--- NOTE:  make sure that ../ddl/dropJazzHandsdev.sql has any packages you
--- add here!
---
+drop schema if exists time_util cascade;
+create schema time_util authorization jazzhands;
 
+-------------------------------------------------------------------
+-- returns the Id tag for CM
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION time_util.id_tag() RETURNS VARCHAR AS $$
+BEGIN
+	RETURN('<-- $Id$ -->');
+END;
+$$ LANGUAGE plpgsql;
+--end of procedure id_tag
+-------------------------------------------------------------------
 
--- its not clear that any of the types need to survive and the oracle
--- types should be rethought, so this is nonexistant until needed.
---
--- \i global_types.sql
---
--- This includes all the error types, however it looks like pgsql does not
--- support defining constants in a similar fashion (did not research
--- extensively) so they are just being hardcoded where used.  Note that
--- unlike the oracle errors, these are positive (can't be negative under
--- pgsql).  This also contains error stack traces which we didn't really
--- use under oracle, so they haven't been ported to postgresql.  That should
--- be reconciled.
---
--- \i global_errors.sql
---
--- This has some handy utilities that were never really used in oracle
--- space, so not porting them to postgresql.  Like the global_errors
--- package, this may need to be rethought.
--- 
--- \i global_util.sql
--- 
-
-\i net_manip.sql
-\i network_strings.sql
-\i time_util.sql
+CREATE OR REPLACE FUNCTION time_util.epoch(in_time TIMESTAMP WITH TIME ZONE) 
+RETURNS INTEGER AS $$
+DECLARE
+	rv	integer;
+BEGIN
+	select extract(epoch from date_trunc('day', now() )) into rv;
+	return rv;
+END;
+$$ LANGUAGE plpgsql;
