@@ -39,11 +39,11 @@
 //
 $__json = null;
 $__dbauthcfg = "/Users/kovert/.auth-info/auth-config.json";
-if(getenv('DBAUTH_CONFIG')) {
-	if(! file_exists(getenv('DBAUTH_CONFIG'))) {
-		die("Unable to find dbauth config: ". getenv('DBAUTH_CONFIG'));
+if(getenv('APPAUTHAL_CONFIG')) {
+	if(! file_exists(getenv('APPAUTHAL_CONFIG'))) {
+		die("Unable to find dbauth config: ". getenv('APPAUTHAL_CONFIG'));
 	} else {
-		$__dbauthcfg = getenv('DBAUTH_CONFIG');
+		$__dbauthcfg = getenv('APPAUTHAL_CONFIG');
 	}
 }
 if(file_exists($__dbauthcfg)) {
@@ -59,10 +59,14 @@ foreach ($__json->{'onload'}->{'environment'} as $rowcount => $row) {
 
 class dbauth {
 	private function parse_json_auth($filename) {
-		return json_decode(file_get_contents($filename));
+		$thing = json_decode(file_get_contents($filename));
+		if(isset($thing->{'database'})) {
+			return $thing->{'database'};
+		}
 	}
 
 	private function find_and_parse_series($place) {
+		global $__json, $__dbauthcfg;
 		$default_dir = "/var/lib/jazzhands/dbauth-info";
 		if(isset($__json) && isset($__json->{'search_dirs'})) {
 			foreach ($__json->{'search_dirs'} as $dir) {
@@ -100,8 +104,13 @@ class dbauth {
 
 	}
 	public function connect($app, $instance = null, $flags = null) {
-		$dbspec = dbauth::find_and_parse_auth($app, $instance);
+		$dbspecs = dbauth::find_and_parse_auth($app, $instance);
 
+		if(!isset($dbspecs)) {
+			return null;
+		}
+
+		foreach ($dbspecs as $dbspec) {
 		switch( $dbspec->{'DBType'} ) {
 			case 'postgresql':
 					$connstr = "";
@@ -130,7 +139,10 @@ class dbauth {
 						$connstr .= " password=".$dbspec->{'Password'};
 					}
 
-					return pg_connect($connstr);
+					$dbh = pg_connect($connstr);
+					if(isset($dbh) && $dbh != null) {
+						return $dbh;
+					}
 					break;
 			case 'mysql':
 					break;
@@ -141,7 +153,7 @@ class dbauth {
 					die("Unknown database ". $dbspec->{'DBType'});
 				}
 		}
-
+		}
 		
 	}
 }

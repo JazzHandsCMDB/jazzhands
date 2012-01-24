@@ -50,7 +50,7 @@ The gloabl configuration file (defaults to /etc/
 
 =head1 ENVIRONMENT
 
-The DBAUTH_CONFIG config can be set to a pathname to a json configuration
+The APPAUTHAL_CONFIG config can be set to a pathname to a json configuration
 file that will be used instead of the optional global config file.  Setting
 this variable, the config file becomes required.
 
@@ -94,8 +94,8 @@ our $errstr;
 #
 BEGIN {
 	my $fn;
-	if(defined($ENV{'DBAUTH_CONFIG'})) {
-		$fn = $ENV{'DBAUTH_CONFIG'};
+	if(defined($ENV{'APPAUTHAl_CONFIG'})) {
+		$fn = $ENV{'APPAUTHAL_CONFIG'};
 	}
 	if(defined($fn)) { 
 		if(! -r $fn) {
@@ -150,7 +150,10 @@ sub parse_json_auth {
 	my $json = join("", $fh->getlines);
 	$fh->close;
 	my $thing = decode_json($json) || die "Unable to parse config file";
-	$thing;
+	if($thing->{'database'}) {
+		return $thing->{'database'};
+	}
+	undef;
 }
 
 #
@@ -243,69 +246,80 @@ sub do_database_connect {
 		},
 	};
 
-	my $auth = find_and_parse_auth($app, $instance);
-
-	if(!defined($auth))  {
-		$errstr = "Unable to find app $app".
-			(($instance)?" $instance":"");
-		return undef;
-	}
-	if(!defined($auth->{'DBType'})) {
-		$errstr = "No DBType specified for app $app";
-		return undef;
-	}
+	my $autharray = find_and_parse_auth($app, $instance);
 
 	#
-	# only support Password at the moment
+	# Return the first one that works.
 	#
-	my($user,$pass);
-
-	my $dbtype = $auth->{'DBType'};
-	$dbtype =~ tr/A-Z/a-z/;
-
-	my $dbd = $dbdmap->{$dbtype}->{_DBD};
-
-	if(!defined($dbd)) {
-		$errstr = "Unable to map $dbtype to a DBD Module.  Sorry";
-		return undef;
-	}
-
-	my $fileonly;
-	if(defined($dbdmap->{$dbtype}->{_fileonly}) &&
-		$dbdmap->{$dbtype}->{_fileonly} eq 'yes') {
-		delete $dbdmap->{$dbtype}->{_fileonly};
-		$fileonly = 'yes';
-	} else {
-		if(!defined($auth->{'Method'})) {
-			$errstr = "No method defined for app $app";
-			return undef;
+	# [XXX] Probably want a global config that indiciates if it should 
+	# indicate what entries it should skip (incomplete?  fail to connect?
+	# other failure modes?)
+	#
+	foreach my $auth (@{$autharray}) {
+		if(!defined($auth))  {
+			$errstr = "Unable to find app $app".
+				(($instance)?" $instance":"");
+			next;
 		}
-	}
+		if(!defined($auth->{'DBType'})) {
+			$errstr = "No DBType specified for app $app";
+			next;
+		}
 
-	my @vals;
-	foreach my $k (keys(% {$auth} )) {
-		if($k eq 'Username') {
-			$user = $auth->{'Username'};
-		} elsif($k eq 'Password') {
-			$pass = $auth->{'Password'};
+		#
+		# only support Password at the moment
+		#
+		my($user,$pass);
+	
+		my $dbtype = $auth->{'DBType'};
+		$dbtype =~ tr/A-Z/a-z/;
+	
+		my $dbd = $dbdmap->{$dbtype}->{_DBD};
+	
+		if(!defined($dbd)) {
+			$errstr = "Unable to map $dbtype to a DBD Module.  Sorry";
+			next;
+		}
+	
+		my $fileonly;
+		if(defined($dbdmap->{$dbtype}->{_fileonly}) &&
+			$dbdmap->{$dbtype}->{_fileonly} eq 'yes') {
+			delete $dbdmap->{$dbtype}->{_fileonly};
+			$fileonly = 'yes';
 		} else {
-			next if(!exists($dbdmap->{$dbtype}->{$k}));
-			my $pk = $dbdmap->{$dbtype}->{$k};
-			my $v = $auth->{$k};
-			push(@vals, "$pk=$v");
+			if(!defined($auth->{'Method'})) {
+				$errstr = "No method defined for app $app";
+				next;
+			}
+		}
+	
+		my @vals;
+		foreach my $k (keys(% {$auth} )) {
+			if($k eq 'Username') {
+				$user = $auth->{'Username'};
+			} elsif($k eq 'Password') {
+				$pass = $auth->{'Password'};
+			} else {
+				next if(!exists($dbdmap->{$dbtype}->{$k}));
+				my $pk = $dbdmap->{$dbtype}->{$k};
+				my $v = $auth->{$k};
+				push(@vals, "$pk=$v");
+			}
+		}
+	
+		if(!$fileonly && lc($auth->{'Method'}) ne 'password') {
+			$errstr = "Only password method supported for app $app";
+			next;
+		}
+	
+		my $dbstr = "dbi:${dbd}:". join(";", @vals);
+		my $dbh = DBI->connect($dbstr, $user, $pass, $dbiflags);
+		$errstr = $DBI::errstr;
+		if($dbh) {
+			return $dbh;
 		}
 	}
-
-	if(!$fileonly && lc($auth->{'Method'}) ne 'password') {
-		$errstr = "Only password method supported for app $app";
-		return undef;
-	}
-
-	my $dbstr = "dbi:${dbd}:". join(";", @vals);
-
-	my $dbh = DBI->connect($dbstr, $user, $pass, $dbiflags);
-	$errstr = $DBI::errstr;
-	$dbh;
+	return undef;
 }
 
 

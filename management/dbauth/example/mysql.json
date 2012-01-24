@@ -1,8 +1,10 @@
 {
-	"DBType": "mysql",
-	"Method": "password",
-	"DBHost": "mysql.example.com",
-	"DBName": "mysqldb",
-	"Username": "mysqluser",
-	"Password": "password"
+	"database": [
+		"DBType": "mysql",
+		"Method": "password",
+		"DBHost": "mysql.example.com",
+		"DBName": "mysqldb",
+		"Username": "mysqluser",
+		"Password": "password"
+	]
 }
