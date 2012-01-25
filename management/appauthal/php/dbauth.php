@@ -38,16 +38,16 @@
 // (or not) as connections are made.
 //
 $__json = null;
-$__dbauthcfg = "/Users/kovert/.auth-info/auth-config.json";
+$__appauthcfg = "etc/jazzhands/appauth-config.json";
 if(getenv('APPAUTHAL_CONFIG')) {
 	if(! file_exists(getenv('APPAUTHAL_CONFIG'))) {
-		die("Unable to find dbauth config: ". getenv('APPAUTHAL_CONFIG'));
+		die("Unable to find appauth config: ". getenv('APPAUTHAL_CONFIG'));
 	} else {
-		$__dbauthcfg = getenv('APPAUTHAL_CONFIG');
+		$__appauthcfg = getenv('APPAUTHAL_CONFIG');
 	}
 }
-if(file_exists($__dbauthcfg)) {
-	$__json = json_decode(file_get_contents($__dbauthcfg));
+if(file_exists($__appauthcfg)) {
+	$__json = json_decode(file_get_contents($__appauthcfg));
 }
 
 foreach ($__json->{'onload'}->{'environment'} as $rowcount => $row) {
@@ -66,12 +66,12 @@ class dbauth {
 	}
 
 	private function find_and_parse_series($place) {
-		global $__json, $__dbauthcfg;
-		$default_dir = "/var/lib/jazzhands/dbauth-info";
+		global $__json, $__appauthcfg;
+		$default_dir = "/var/lib/jazzhands/appauth-info";
 		if(isset($__json) && isset($__json->{'search_dirs'})) {
 			foreach ($__json->{'search_dirs'} as $dir) {
 				if($dir == '.') {
-					$dir = dirname($__dbauthcfg);
+					$dir = dirname($__appauthcfg);
 				}
 				if(file_exists("$dir/$place.json")) {
 					return dbauth::parse_json_auth("$dir/$place.json");
@@ -86,7 +86,7 @@ class dbauth {
 
 	private function find_and_parse_auth($app, $instance) {
 		global $__json;
-		global $__dbauthcfg;
+		global $__appauthauthcfg;
 		if(isset($instance)) {
 			$x = dbauth::find_and_parse_series("$instance/$app");
 			if(isset($x)) {

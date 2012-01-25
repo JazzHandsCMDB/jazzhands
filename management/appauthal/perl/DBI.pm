@@ -45,8 +45,8 @@ The gloabl configuration file (defaults to /etc/
 
 =head1 FILES
 
-/etc/jazzhands/dbauth.json - configuration file
-/var/lib/jazzhands/dbauth-info - Default Location for Auth Files
+/etc/jazzhands/appauth.json - configuration file
+/var/lib/jazzhands/appauth-info - Default Location for Auth Files
 
 =head1 ENVIRONMENT
 
@@ -86,7 +86,7 @@ our (@searchdirs);
 # Parsed JSON config
 our $dbi_config;
 
-our $errstr;
+our $errstr = "";
 
 #
 # If the environment variable is set, require it, otherwise use an optional
@@ -102,7 +102,7 @@ BEGIN {
 			die "$fn is unreadable or nonexistance.\n";
 		}
 	} else {
-		$fn = "/etc/jazzhands/dbauth.json";
+		$fn = "/etc/jazzhands/appauth-config.json";
 	}
 	if(-r $fn) {
 		my $fh = new FileHandle($fn) || die "$fn: $!\n";
@@ -135,7 +135,7 @@ BEGIN {
 	}
 
 	if($#searchdirs < 0) {
-		push(@searchdirs, "/var/lib/jazzhands/dbauth-info");
+		push(@searchdirs, "/var/lib/jazzhands/appauth-info");
 	}
 }
 
