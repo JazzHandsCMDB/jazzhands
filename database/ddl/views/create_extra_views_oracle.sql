@@ -31,6 +31,7 @@
 -- not sure that we need these anymore
 -- @@create_v_login_changes.sql
 -- @@create_v_user_deletions.sql
+@@create_v_netblock_hier.sql
 @@create_v_user_extract.sql 
 @@create_v_user_prop_exp_nomv.sql
 @@create_token_views.sql

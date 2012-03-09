@@ -32,6 +32,7 @@
 -- \i create_v_login_changes.sql
 -- \i create_v_user_deletions.sql
 
+\i pgsql/create_v_netblock_hier.sql
 \i create_v_user_extract.sql 
 \i pgsql/create_v_property.sql
 \i pgsql/create_v_acct_coll_account_expanded.sql
