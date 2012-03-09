@@ -43,7 +43,7 @@ function hierlink($index, $id, $text) {
 
 function build_header($title, $style = null, $heading = null) {
 	if(!isset($heading)) {
-		$heading = "Directory";
+		$heading = "Phone Directory";
 	}
 	if($style == null) {
 		$style = "style.css";
@@ -64,7 +64,7 @@ function build_header($title, $style = null, $heading = null) {
 	<div id="page">
 		<div id="head">
                 	<a id="mast" href="./"
- 			title="Link to Homepage"><strong>$heading</strong></a>
+ 			title="Link to Homepage">$heading</a>
 		</div>
 
 		<div id="main">

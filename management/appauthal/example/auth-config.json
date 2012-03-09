@@ -8,6 +8,7 @@
 		".",
 		"/var/lib/jazzhands/dbauth-info"
 	],
-	"sloppy_instance_match": "yes"
+	"sloppy_instance_match": "yes",
+	"set_session_variables": "yes"
 		
 }

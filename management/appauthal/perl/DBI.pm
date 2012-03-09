@@ -33,7 +33,14 @@ JazzHands::DBI - database authentication abstraction for Perl
 =head1 SYNOPSIS
 
 use JazzHands::DBI;
-my $dbh = JazzHands::DBI->connect($app, [ $instance, ] [ $flags ]);
+my $dbh = JazzHands::DBI->connect($app, [ $instance, ] [ $flags ], [$user]);
+
+Instance and flags are optional, but if you want to set user, you need to pass
+an undef for instance.
+
+DBI::set_session_user($dbh, $user)
+
+Sets the session user based on what is appropriate for the underlying database
 
 =head1 DESCRIPTION
 
@@ -41,7 +48,8 @@ I totally need to write this.
 
 =head1 CONFIGURATION FILE
 
-The gloabl configuration file (defaults to /etc/
+The global configuration file (defaults to /etc/jazzhands/appauth.json) can
+be used to define system wide defaults.  It is optional.
 
 =head1 FILES
 
@@ -51,8 +59,8 @@ The gloabl configuration file (defaults to /etc/
 =head1 ENVIRONMENT
 
 The APPAUTHAL_CONFIG config can be set to a pathname to a json configuration
-file that will be used instead of the optional global config file.  Setting
-this variable, the config file becomes required.
+file that will be used instead of the optional global config file.  If this
+variable is set, the config file becomes required.
 
 
 =head1 AUTHORS
@@ -70,12 +78,12 @@ use DBI;
 use FileHandle;
 use JSON::PP;
 use Data::Dumper;
-use vars qw(@EXPORT_OK @ISA $VERSION $db_config);
+use vars qw(@EXPORT_OK @ISA $VERSION $appauth_config);
 
 $VERSION = '$Revision$';
 
 @ISA       = qw(DBI Exporter);
-@EXPORT_OK = qw(do_database_connect);
+@EXPORT_OK = qw(do_database_connect set_session_user);
 
 
 #
@@ -84,7 +92,7 @@ $VERSION = '$Revision$';
 our (@searchdirs);
 
 # Parsed JSON config
-our $dbi_config;
+our ($appauth_config);
 
 our $errstr = "";
 
@@ -94,7 +102,7 @@ our $errstr = "";
 #
 BEGIN {
 	my $fn;
-	if(defined($ENV{'APPAUTHAl_CONFIG'})) {
+	if(defined($ENV{'APPAUTHAL_CONFIG'})) {
 		$fn = $ENV{'APPAUTHAL_CONFIG'};
 	}
 	if(defined($fn)) { 
@@ -108,10 +116,10 @@ BEGIN {
 		my $fh = new FileHandle($fn) || die "$fn: $!\n";
 		my $json = join("", $fh->getlines);
 		$fh->close;
-		$dbi_config = decode_json($json) || die "Unable to parse config file";
-		if(exists($dbi_config->{'onload'})) {
-			if(defined($dbi_config->{'onload'}->{'environment'})) {
-				foreach my $e (@{$dbi_config->{'onload'}->{'environment'}}) {
+		$appauth_config = decode_json($json) || die "Unable to parse config file";
+		if(exists($appauth_config->{'onload'})) {
+			if(defined($appauth_config->{'onload'}->{'environment'})) {
+				foreach my $e (@{$appauth_config->{'onload'}->{'environment'}}) {
 					foreach my $k (keys %$e) {
 						$ENV{'$k'} = $e->{$k};
 					}
@@ -120,8 +128,8 @@ BEGIN {
 		}
 		my $dirname = $fn;
 		$dirname =~ s,/[^/]+$,,;
-		if(exists($dbi_config->{'search_dirs'})) {
-			foreach my $d (@{$dbi_config->{'search_dirs'}}) {
+		if(exists($appauth_config->{'search_dirs'})) {
+			foreach my $d (@{$appauth_config->{'search_dirs'}}) {
 				#
 				# Translate . by itself to the directory that the file is
 				# in.  If someone actually wants the current directory, use ./
@@ -150,8 +158,8 @@ sub parse_json_auth {
 	my $json = join("", $fh->getlines);
 	$fh->close;
 	my $thing = decode_json($json) || die "Unable to parse config file";
-	if($thing->{'database'}) {
-		return $thing->{'database'};
+	if($thing && $thing->{'database'}) {
+		return $thing;
 	}
 	undef;
 }
@@ -179,8 +187,8 @@ sub find_and_parse_auth {
 			}
 		}
 
-		if(defined($dbi_config->{'sloppy_instance_match'}) &&
-			$dbi_config->{'sloppy_instance_match'} =~ /^n(o)?$/i) {
+		if(defined($appauth_config->{'sloppy_instance_match'}) &&
+			$appauth_config->{'sloppy_instance_match'} =~ /^n(o)?$/i) {
 				return undef;
 		}
 	}
@@ -205,6 +213,7 @@ sub do_database_connect {
 	my $app = shift;
 	my $instance = shift;
 	my $dbiflags = shift;
+	my $dude = shift;
 
 	# Mapping from what the db is called to how to set parameters
 	# parameter names preceeded by an r: are required, everything else is
@@ -246,8 +255,14 @@ sub do_database_connect {
 		},
 	};
 
-	my $autharray = find_and_parse_auth($app, $instance);
 
+	my $record = find_and_parse_auth($app, $instance);
+	if(!$record) {
+		$errstr = "Unable to find entry";
+		return undef;
+	}
+
+	my $autharray = $record->{'database'};
 	#
 	# Return the first one that works.
 	#
@@ -316,12 +331,64 @@ sub do_database_connect {
 		my $dbh = DBI->connect($dbstr, $user, $pass, $dbiflags);
 		$errstr = $DBI::errstr;
 		if($dbh) {
-			return $dbh;
+			return optional_set_session_user($dbh, $record->{'options'}, $dude);
 		}
 	}
 	return undef;
 }
 
+sub optional_set_session_user {
+	my($dbh, $options, $dude) = @_;
+
+	return $dbh if(!$dbh);
+
+	my $doit = 0;
+	if($options && $options->{'use_session_variables'}) {
+		if($options->{'use_session_variables'} =~ /^y(es)?$/i) {
+			$doit = 1;
+		}
+	}
+	if(!$doit) {
+		if(!defined($appauth_config->{'use_session_variables'})) {
+			return $dbh;
+		}
+
+		if($appauth_config->{'use_session_variables'} =~ /^n(o)?$/i) {
+			return $dbh;
+		}
+		$doit = 1;
+	}
+
+	return $dbh if(!$doit);
+
+	# If here is reached, then it means session variables are on.  The
+	# default is to not use them.
+
+	if(! defined($dude)) {
+		$dude = ( getpwuid($<) )[0] || 'unknown';
+	}
+	return set_session_user($dbh, $dude);
+}
+
+sub set_session_user {
+	my($dbh, $dude) = @_;
+
+	# XXX oracle untested
+	if($dbh->{Driver}->{Name} eq 'oracle') {
+		$dbh->do(qq{
+			begin
+				dbms_session.set_identifier ('$dude');
+			end;
+		});	# XXX not fatal?
+	} elsif($dbh->{Driver}->{Name} eq 'Pg') {
+		$dbh->do(qq{
+				set jazzhands.appuser to '$dude';
+		}); # XXX not fatal?
+	} else {
+		# unable to do it for this type, so silently let through.
+	}
+	$dbh;
+}
 
 #
 # Our implementation of connect.  In order to accomadate the instance being an
@@ -332,12 +399,17 @@ sub connect {
 	my $app = shift;
 	my $instance = shift;
 	my $flags = shift;
+	my $user = shift;
 
+	my $dbh;
 	if(ref($instance)) {
-		return do_database_connect($app, undef, $instance);
+		$dbh = do_database_connect($app, undef, $instance, $flags);
+	} elsif($flags && !ref($flags)) {
+		$dbh = do_database_connect($app, $instance, undef, $flags);
 	} else {
-		return do_database_connect($app, $instance, $flags);
+		$dbh = do_database_connect($app, $instance, $flags, $user);
 	}
+	$dbh;
 }
 
 1;

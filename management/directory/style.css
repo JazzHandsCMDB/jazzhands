@@ -114,6 +114,10 @@ a:hover {
 	outline: none;
 }
 
+a#mast {
+	font-weight: bolder;
+}
+
 #main {
 	display: inline-block;
 	margin-left: auto;

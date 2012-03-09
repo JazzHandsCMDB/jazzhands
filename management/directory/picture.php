@@ -1,7 +1,7 @@
 <?php 
 include "dbauth.php";
 
-$dbconn = dbauth::connect('directory') or die("Could not connect: " . pg_last_error() );
+$dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
 pg_query($dbconn, "begin");
 

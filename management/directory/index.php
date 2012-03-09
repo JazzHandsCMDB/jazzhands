@@ -1,7 +1,7 @@
 <?php 
 include "personlib.php" ;
 
-$dbconn = dbauth::connect('directory') or die("Could not connect: " . pg_last_error() );
+$dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
 $index = isset($_GET['index']) ? $_GET['index'] : 'default';
 
@@ -93,7 +93,7 @@ switch($index) {
 		break;
 }
 
-echo build_header("Employee Directory");
+echo build_header("Directory");
 
 // Printing results in HTML
 echo "<table id=\"peoplelist\">\n";

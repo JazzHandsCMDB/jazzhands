@@ -1,7 +1,7 @@
 <?php 
 include "personlib.php" ;
 
-$dbconn = dbauth::connect('directory') or die("Could not connect: " . pg_last_error() );
+$dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
 $personid = isset($_GET['person_id']) ? $_GET['person_id'] : null;
 

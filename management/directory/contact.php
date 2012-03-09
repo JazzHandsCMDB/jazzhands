@@ -114,7 +114,7 @@ EOREMOVES;
         return "<tr><td>$removes$lhs:$removee</td> <td>$rhs</td></tr>";
 }
 
-$dbconn = dbauth::connect('directory') or die("Could not connect: " . pg_last_error() );
+$dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
 
 pg_query($dbconn, "begin");

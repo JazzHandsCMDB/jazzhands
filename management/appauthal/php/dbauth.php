@@ -50,9 +50,11 @@ if(file_exists($__appauthcfg)) {
 	$__json = json_decode(file_get_contents($__appauthcfg));
 }
 
-foreach ($__json->{'onload'}->{'environment'} as $rowcount => $row) {
-	foreach ($row as $lhs => $rhs) {
-		$_ENV[$lhs] = $rhs;
+if(isset($__json->{'onload'}) && isset($__json->{'environment'})) {
+	foreach ($__json->{'onload'}->{'environment'} as $rowcount => $row) {
+		foreach ($row as $lhs => $rhs) {
+			$_ENV[$lhs] = $rhs;
+		}
 	}
 }
 
@@ -61,7 +63,7 @@ class dbauth {
 	private function parse_json_auth($filename) {
 		$thing = json_decode(file_get_contents($filename));
 		if(isset($thing->{'database'})) {
-			return $thing->{'database'};
+			return $thing;
 		}
 	}
 
@@ -103,8 +105,66 @@ class dbauth {
 		}
 
 	}
-	public function connect($app, $instance = null, $flags = null) {
-		$dbspecs = dbauth::find_and_parse_auth($app, $instance);
+
+	// discern the underlying database and make the right call. This is kind
+	// of lame, but Vv.
+	private function optional_set_session_user($dbh, $login, $options) {
+		global $__json;
+
+		$doit = 0;
+		if(isset($options) && isset($options->{'use_session_variables'})) {
+			if($options->{'use_session_variables'} != 'no') {
+				$doit = 1;
+			}
+		}
+
+		if(!$doit) {
+			if(!isset($__json->{'use_session_variables'})) {
+				return null;
+			}
+			if($__json->{'use_session_variables'} == 'no') {
+				return null;
+			}
+		}
+
+		if(!isset($dbh)) {
+			return null;
+		}
+
+		if(!isset($login) || $login == null) {
+			if(! function_exists('posix_getpwuid') ) {
+				return null;
+			} else {
+				//  assume  if posix_getpwuid exists, posix_getuid does
+				$dude = posix_getpwuid( posix_getuid() );
+				$login = $dude['name'];
+			}
+		}
+
+		return dbauth::set_session_user($dbh, $login);
+	}
+
+	public function set_session_user($dbh, $login) { 
+		if(gettype($dbh) == 'resource') {
+			switch( get_resource_type( $dbh ) ) {
+				case 'pgsql link':
+					$result = pg_query("set jazzhands.appuser = '$login'"); // or die( pg_last_error() );
+					pg_free_result($result);
+					break;
+			}
+		}
+
+		return 1;
+	}
+
+	public function connect($app, $instance = null, $login = null, $flags = null) {
+		$record = dbauth::find_and_parse_auth($app, $instance);
+
+		if(!isset($record)) {
+			return null;
+		}
+
+		$dbspecs = $record->{'database'};
 
 		if(!isset($dbspecs)) {
 			return null;
@@ -141,6 +201,7 @@ class dbauth {
 
 					$dbh = pg_connect($connstr);
 					if(isset($dbh) && $dbh != null) {
+							dbauth::optional_set_session_user($dbh, $login, (isset($record->{'options'}))?$record->{'options'}:null);
 						return $dbh;
 					}
 					break;

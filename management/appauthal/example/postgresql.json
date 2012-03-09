@@ -1,4 +1,8 @@
 {
+	"options": {
+		"use_session_variables": "yes"
+		
+	},
 	"database": [
 		"DBType": "postgresql",
 		"Method": "password",
