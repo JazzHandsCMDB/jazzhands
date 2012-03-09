@@ -72,49 +72,33 @@ sub _initdb {
 	# [XXX] need to probably handle errors better
 	#
 
-	my $dbh =
-	  JazzHands::DBI->connect( $self->{_dbuser}, { AutoCommit => 0 } );
-	if ( !$dbh ) {
-		cluck "failed to login to db\n";
-		return undef;
-	}
-	$dbh->rollback;
-
-# oracle initialization...
-if(0) {
-	$dbh->func( 1000000, 'dbms_output_enable' ) if ( $self->{_debug} );
-
-	$dbh->do("alter session set nls_date_format = 'YYYY-MM-DD HH24:MI:SS'");
-	$dbh->do(
-"alter session set nls_timestamp_format = 'YYYY-MM-DD HH24:MI:SS.FF'"
-	);
-}
-
 	my $cgi  = $self->cgi;
-	my $dude = "unknown";
+	my $dude = undef;
 	if ( defined($cgi) ) {
 		$dude = $cgi->remote_user;
 	} else {
 		$dude = $ENV{'REMOTE_USER'};
 	}
 
-	if ( !defined($dude) ) {
-		$dude = ( getpwuid($<) )[0] || 'unknown';
+	my $dbh =
+	  JazzHands::DBI->connect( $self->{_dbuser}, { AutoCommit => 0 }, $dude );
+	if ( !$dbh ) {
+		cluck "failed to login to db\n";
+		return undef;
 	}
+	$dbh->rollback;
+
+	# oracle initialization...
+	if(0) {
+		$dbh->func( 1000000, 'dbms_output_enable' ) if ( $self->{_debug} );
+
+		$dbh->do("alter session set nls_date_format = 'YYYY-MM-DD HH24:MI:SS'");
+		$dbh->do(
+			"alter session set nls_timestamp_format = 'YYYY-MM-DD HH24:MI:SS.FF'"
+		);
+	}
+
 	my $q;
-if(0) {
-	my $q = qq{
-		begin 
-			dbms_session.set_identifier ('$dude');
-		end;
-	};
-} else {
-	my $q = qq{
-		begin 
-			set jazzhands.appuser to '$dude';
-		end;
-	};
-}
 
 	if ( my $sth = $dbh->prepare($q) ) {
 		$sth->execute;
