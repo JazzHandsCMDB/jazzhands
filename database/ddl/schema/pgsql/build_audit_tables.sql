@@ -98,7 +98,7 @@ BEGIN
 				END IF;
 				RETURN NULL;
 			END;
-			$TQ$ LANGUAGE plpgsql
+			$TQ$ LANGUAGE plpgsql SECURITY DEFINER
 		$ZZ$;
 		-- EXECUTE 'DROP TRIGGER IF EXISTS ' ||
 		-- 	quote_ident('trigger_audit_' || name) || ' ON ' || quote_ident(name);
