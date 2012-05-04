@@ -51,24 +51,6 @@ INSERT INTO Device_Type (
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable,
-	is_chasis,
-	rack_units
-) VALUES (
-	0,
-	'unknown',
-	'N',
-	'N',
-	'N',
-	'N',
-	0
-);
-
-INSERT INTO Device_Type (
-	Company_Id,
-	Model,
-	Has_802_3_Interface,
-	Has_802_11_Interface,
-	SNMP_Capable,
 	Is_Chasis,
 	RACK_UNITS
 ) VALUES (
@@ -164,19 +146,6 @@ INSERT INTO Device_Type (
 );
 
 INSERT INTO Operating_System (
-	Operating_System_ID,
-	Operating_System_Name,
-	Version,
-	Company_ID, processor_architecture
-) VALUES (
-	0,
-	'unknown',
-	'unknown',
-	0, 'noarch'
-);
-UPDATE Operating_System SET Operating_System_ID = 0 where Company_ID = 0;
-
-INSERT INTO Operating_System (
 	Operating_System_Name,
 	Version,
 	Company_ID,
@@ -198,10 +167,4 @@ INSERT INTO Operating_System (
 	'10',
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'sparc'
-);
-
-insert into val_person_image_usage (
-	person_image_usage, is_multivalue
-) values (
-	'corpdirectory', 'N'
 );

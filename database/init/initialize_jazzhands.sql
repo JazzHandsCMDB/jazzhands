@@ -592,20 +592,20 @@ insert into val_property (
 	'HomePlace', 'MclassUnixProp', 'N', 'string', 'REQUIRED'
 );
 insert into val_property (
-        PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
-        PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) values (
-        'UnixLogin', 'MclassUnixProp', 'N', 'none',
-        'REQUIRED', 'REQUIRED'
+	'UnixLogin', 'MclassUnixProp', 'N', 'none',
+	'REQUIRED', 'REQUIRED'
 );
 
 insert into val_property_value (
-        property_name, property_type, valid_property_value, description
+	property_name, property_type, valid_property_value, description
 ) values 
 	('UnixHomeType','MclassUnixProp','standard','per-user home directories'); 
 
 insert into val_property_value (
-        property_name, property_type, valid_property_value, description
+	property_name, property_type, valid_property_value, description
 ) values 
 	('UnixHomeType','MclassUnixProp','generic','per-user home directories'); 
 
@@ -616,11 +616,11 @@ insert into val_property_type (
 	'UnixGroupFileProperty', 'properties on unix group files', 'Y'
 );
 insert into val_property (
-        PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
-        PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) values (
-        'ForceGroupGID', 'UnixGroupFileProperty', 'N', 'none',
-        'REQUIRED', 'REQUIRED'
+	'ForceGroupGID', 'UnixGroupFileProperty', 'N', 'none',
+	'REQUIRED', 'REQUIRED'
 );
 
 
@@ -747,3 +747,41 @@ insert into val_company_type(company_type) values  ('vendor');
 insert into val_company_type(company_type) values  ('consultant provider');
 insert into val_company_type(company_type) values  ('hardware provider');
 insert into val_company_type(company_type) values  ('software provider');
+
+--- XXX these may be optional
+INSERT INTO Device_Type (
+	Company_Id,
+	Model,
+	Has_802_3_Interface,
+	Has_802_11_Interface,
+	SNMP_Capable,
+	is_chasis,
+	rack_units
+) VALUES (
+	0,
+	'unknown',
+	'N',
+	'N',
+	'N',
+	'N',
+	0
+);
+
+INSERT INTO Operating_System (
+	Operating_System_ID,
+	Operating_System_Name,
+	Version,
+	Company_ID, processor_architecture
+) VALUES (
+	0,
+	'unknown',
+	'unknown',
+	0, 'noarch'
+);
+UPDATE Operating_System SET Operating_System_ID = 0 where Company_ID = 0;
+
+insert into val_person_image_usage (
+	person_image_usage, is_multivalue
+) values (
+	'corpdirectory', 'N'
+);
