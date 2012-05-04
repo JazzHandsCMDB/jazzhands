@@ -755,7 +755,7 @@ INSERT INTO Device_Type (
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable,
-	is_chasis,
+	is_chassis,
 	rack_units
 ) VALUES (
 	0,
