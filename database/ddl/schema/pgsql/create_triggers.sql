@@ -179,10 +179,10 @@ DECLARE
 	appuser	VARCHAR;
 BEGIN
 	BEGIN
-		appuser := current_user || '/' || current_setting('jazzhands.appuser');
+		appuser := session_user || '/' || current_setting('jazzhands.appuser');
 	EXCEPTION
 		WHEN OTHERS THEN
-			appuser := current_user;
+			appuser := session_user;
 	END;
 	IF TG_OP = 'INSERT' THEN
 		NEW.data_ins_user = appuser;
