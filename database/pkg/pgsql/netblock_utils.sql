@@ -62,7 +62,7 @@ BEGIN
 
 	return par_nbid;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
 	in_netblock_id	netblock.netblock_id%type
@@ -104,4 +104,4 @@ BEGIN
 	CLOSE nb_match;
 	return v_rv;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

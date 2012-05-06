@@ -1,4 +1,4 @@
--- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- Copyright (c) 2011, Todd M. Kover
 -- All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
@@ -20,46 +20,41 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
---
---
---
 -- $Id$
 --
 
-\i accountview.sql
-\i sysuserphoneview.sql
--- not sure that we need these anymore.
--- \i create_v_login_changes.sql
--- \i create_v_user_deletions.sql
-
-\i pgsql/create_v_netblock_hier.sql
-\i create_v_user_extract.sql 
-\i pgsql/create_v_property.sql
-\i pgsql/create_v_acct_coll_account_expanded.sql
-\i pgsql/create_v_nblk_coll_netblock_expanded.sql
-\i pgsql/create_v_person_company_expanded.sql
-\i pgsql/create_v_department_company_expanded.sql
--- \i pgsql/create_v_acct_collection_user_expanded_detail.sql
-
--- XXX needs to be ported
--- \i create_v_user_prop_exp_nomv.sql
-\i create_token_views.sql
--- \i pgsql/create_v_acct_collection_user_expanded.sql
--- not sure that we need these anymore.
--- \i create_audit_views.sql
-
-\i create_v_limited_users.sql
-\i create_v_l1_all_physical_ports.sql
-
--- XXX these need to be ported
--- \i create_v_joined_acct_collection_user_detail.sql
--- \i pgsql/create_v_device_coll_hier_detail.sql
--- \i create_v_device_col_acct_collection_expanded.sql
--- \i create_v_dev_col_user_prop_expanded.sql
--- \i create_mv_account_last_auth.sql
--- \i pgsql/create_mv_acct_collection_user_expanded_detail.sql 
--- \i create_v_user_prop_expanded.sql 
--- \i pgsql/create_mv_acct_collection_user_expanded.sql
-
-
-\i pgsql/create_v_application_role.sql
+CREATE OR REPLACE VIEW v_nblk_coll_netblock_expanded AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_collection_id,
+	netblock_collection_id,
+	child_netblock_collection_id,
+	netblock_id
+) as (
+	SELECT	
+		0				as level,
+		u.netblock_collection_id		as root_collection_id, 
+		u.netblock_collection_id		as netblock_collection_id, 
+		u.netblock_collection_id		as child_netblock_collection_id,
+		ua.netblock_Id			as netblock_id
+	  FROM	netblock_collection u
+		inner join netblock_collection_netblock ua
+			on u.netblock_collection_id =
+				ua.netblock_collection_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.netblock_collection_id		as root_netblock_collection_id, 
+		uch.netblock_collection_id		as netblock_collection_id, 
+		uch.child_netblock_collection_id	as child_netblock_collection_id,
+		ua.netblock_Id			as netblock_id
+	  FROM	var_recurse x
+		inner join netblock_collection_hier uch
+			on x.child_netblock_collection_id =
+				uch.netblock_collection_id
+		inner join netblock_collection_netblock ua
+			on uch.child_netblock_collection_id =
+				ua.netblock_collection_id
+) SELECT	distinct root_collection_id as netblock_collection_id,
+		netblock_id as netblock_id
+  from 		var_recurse;

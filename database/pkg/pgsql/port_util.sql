@@ -61,7 +61,7 @@ BEGIN
 		 where device_type_id = dt_id;
 
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- sets up serial ports for a device if they are not there.
@@ -74,7 +74,7 @@ DECLARE
 BEGIN
 	return setup_device_physical_ports(in_device_id, 'serial');
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- sets up physical ports for a device if they are not there.  This
@@ -113,7 +113,7 @@ BEGIN
 		end if;
 	END LOOP;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- connect to layer1 devices
@@ -423,7 +423,7 @@ BEGIN
 	RAISE DEBUG 'returning %', updateitr;
 	return updateitr;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- connect two power devices
@@ -605,7 +605,7 @@ BEGIN
 		  where	device_power_connection_id = v_pc_id;
 	END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- setup console information (dns and whatnot)
@@ -668,7 +668,7 @@ BEGIN
 		);
 	END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- cleanup a console connection
@@ -688,4 +688,4 @@ BEGIN
 	 where	dns_name = in_name
 	   and	dns_domain_id = v_zoneid;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

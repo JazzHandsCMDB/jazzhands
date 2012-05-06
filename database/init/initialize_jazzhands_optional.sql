@@ -51,7 +51,7 @@ INSERT INTO Device_Type (
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable,
-	Is_Chasis,
+	Is_Chassis,
 	RACK_UNITS
 ) VALUES (
 	(SELECT Company_Id FROM Company WHERE Company_Name = 'Sun Microsystems'),
@@ -69,7 +69,7 @@ INSERT INTO Device_Type (
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable,
-	Is_Chasis,
+	Is_Chassis,
 	RACK_UNITS
 ) VALUES (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
@@ -86,7 +86,7 @@ INSERT INTO Device_Type (
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
-	SNMP_Capable, is_chasis, rack_units
+	SNMP_Capable, is_chassis, rack_units
 ) VALUES (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'IBM'),
 	'eServer 326',
@@ -100,7 +100,7 @@ INSERT INTO Device_Type (
 	Model,
 	Has_802_3_Interface,
 	Has_802_11_Interface,
-	SNMP_Capable, is_chasis, rack_units
+	SNMP_Capable, is_chassis, rack_units
 ) VALUES (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'HP'),
 	'DL360',
@@ -115,7 +115,7 @@ INSERT INTO Device_Type (
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable,
-	Is_Chasis,
+	Is_Chassis,
 	Rack_Units
 ) VALUES (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Cyclades'),
@@ -133,7 +133,7 @@ INSERT INTO Device_Type (
 	Has_802_3_Interface,
 	Has_802_11_Interface,
 	SNMP_Capable,
-	Is_Chasis,
+	Is_Chassis,
 	Rack_Units
 ) VALUES (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Xen'),

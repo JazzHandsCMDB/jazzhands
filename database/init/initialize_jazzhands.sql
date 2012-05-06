@@ -434,7 +434,8 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('timestamp');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('company_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('dns_domain_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('netblock_id');
+insert into val_property_data_type (PROPERTY_DATA_TYPE) 
+	values ('netblock_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('password_type');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
@@ -622,6 +623,16 @@ insert into val_property (
 	'ForceGroupGID', 'UnixGroupFileProperty', 'N', 'none',
 	'REQUIRED', 'REQUIRED'
 );
+
+-- system wide defaults concepts used by various tools
+insert into val_property_type (property_type, description,is_multivalue)
+        values ( 'Defaults', 'System Wide Defaults', 'N');
+
+insert into val_property
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_PRODUCTION_STATE, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 
+values
+('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'N', 'company_id',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'PROHIBITED', 'PROHIBITED', 'PROHIBITED');
+
 
 
 -- XXX need to auto-create a Account_Collection all_company_XX

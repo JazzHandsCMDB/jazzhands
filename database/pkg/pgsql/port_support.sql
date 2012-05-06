@@ -60,7 +60,7 @@ BEGIN
 
 	return TRUE;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of procedure has_power_ports
 -------------------------------------------------------------------
 
@@ -73,7 +73,7 @@ CREATE OR REPLACE FUNCTION port_support.has_serial_ports (
 BEGIN
 	return has_physical_ports(in_Device_id, 'serial');
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of procedure has_serial_ports
 -------------------------------------------------------------------
 
@@ -108,7 +108,7 @@ BEGIN
 
 	return TRUE;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of procedure has_physical_ports
 -------------------------------------------------------------------
 
@@ -145,6 +145,6 @@ BEGIN
 	-- in pl/pgsql.  alas.
 	EXECUTE l_stmt;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of procedure do_l1_connection_update
 -------------------------------------------------------------------

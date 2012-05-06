@@ -282,6 +282,20 @@ DROP TRIGGER TUB_NETBLOCK;
 
 DROP TRIGGER K_TIUB_NETBLOCK;
 
+DROP TRIGGER C_TIUBR_NETBLOCK_COLLECTION;
+
+DROP TRIGGER TIB_NETBLOCK_COLLECTION;
+
+DROP TRIGGER TUB_NETBLOCK_COLLECTION;
+
+DROP TRIGGER C_TIUBR_NETBLOCK_COLLECTION_HI;
+
+DROP TRIGGER TUB_NETBLOCK_COLLECTION_HIER;
+
+DROP TRIGGER C_TIUBR_ACCOUNT_COLLECTION_ACC;
+
+DROP TRIGGER TUB_ACCOUNT_COLLECTION_ACCOUNT;
+
 DROP TRIGGER C_TIUBR_NETWORK_INTERFACE;
 
 DROP TRIGGER TIB_NETWORK_INTERFACE;
@@ -599,6 +613,10 @@ DROP TRIGGER TUB_VAL_IMAGE_TYPE;
 DROP TRIGGER C_TIUBR_REASON_FOR_ASSIGN;
 
 DROP TRIGGER TUB_REASON_FOR_ASSIGN;
+
+DROP TRIGGER CTIUBR_VAL_NETBLOCK_COLLECTION;
+
+DROP TRIGGER TUB_VAL_NETBLOCK_COLLECTION_TY;
 
 DROP TRIGGER C_TIUBR_VAL_NETBLOCK_STATUS;
 
@@ -7130,6 +7148,349 @@ ALTER TRIGGER TUB_NETBLOCK
 	ENABLE;
 
 
+CREATE  OR REPLACE  TRIGGER C_TIUBR_NETBLOCK_COLLECTION
+ BEFORE INSERT OR UPDATE
+ ON NETBLOCK_COLLECTION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_NETBLOCK_COLLECTION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TIB_NETBLOCK_COLLECTION
+ BEFORE INSERT
+ ON NETBLOCK_COLLECTION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    IF (:new.NETBLOCK_COLLECTION_ID IS NULL)
+    THEN
+        select SEQ_NETBLOCK_COLLECTION_ID.NEXTVAL
+        INTO :new.NETBLOCK_COLLECTION_ID
+        from dual;
+    END IF;
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TIB_NETBLOCK_COLLECTION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_NETBLOCK_COLLECTION
+ BEFORE UPDATE OF 
+        NETBLOCK_COLLECTION_NAME,
+        DATA_INS_DATE,
+        DATA_INS_USER,
+        NETBLOCK_COLLECTION_ID
+ ON NETBLOCK_COLLECTION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_NETBLOCK_COLLECTION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_NETBLOCK_COLLECTION_HI
+ BEFORE INSERT OR UPDATE
+ ON NETBLOCK_COLLECTION_HIER
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_NETBLOCK_COLLECTION_HI
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_NETBLOCK_COLLECTION_HIER
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON NETBLOCK_COLLECTION_HIER
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_NETBLOCK_COLLECTION_HIER
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_ACCOUNT_COLLECTION_ACC
+ BEFORE INSERT OR UPDATE
+ ON NETBLOCK_COLLECTION_NETBLOCK
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_ACCOUNT_COLLECTION_ACC
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_ACCOUNT_COLLECTION_ACCOUNT
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON NETBLOCK_COLLECTION_NETBLOCK
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_ACCOUNT_COLLECTION_ACCOUNT
+	ENABLE;
+
+
 CREATE  OR REPLACE  TRIGGER C_TIUBR_NETWORK_INTERFACE
  BEFORE INSERT OR UPDATE
  ON NETWORK_INTERFACE
@@ -9233,26 +9594,22 @@ BEGIN
                   AND   property_type = v_prop_rec.property_type
                   AND   ((company_id IS NULL AND v_prop_rec.company_id IS NULL) OR
                                 (company_id = v_prop_rec.company_id))
-                  AND   ((device_collection_id IS NULL AND 
-                                        v_prop_rec.device_collection_id IS NULL) OR
+                  AND   ((device_collection_id IS NULL AND v_prop_rec.device_collection_id IS NULL) OR
                                 (device_collection_id = v_prop_rec.device_collection_id))
                   AND   ((dns_domain_id IS NULL AND v_prop_rec.dns_domain_id IS NULL) OR
                                 (dns_domain_id = v_prop_rec.dns_domain_id))
-                  AND   ((operating_system_id IS NULL AND 
-                                        v_prop_rec.operating_system_id IS NULL) OR
+                  AND   ((operating_system_id IS NULL AND v_prop_rec.operating_system_id IS NULL) OR
                                 (operating_system_id = v_prop_rec.operating_system_id))
-                  AND   ((production_state IS NULL AND 
-                                        v_prop_rec.production_state IS NULL) OR
+                  AND   ((production_state IS NULL AND v_prop_rec.production_state IS NULL) OR
                                 (production_state = v_prop_rec.production_state))
                   AND   ((site_code IS NULL AND v_prop_rec.site_code IS NULL) OR
                                 (site_code = v_prop_rec.site_code))
-                  AND   ((person_id IS NULL AND 
-                                        v_prop_rec.person_id IS NULL) OR
+                  AND   ((person_id IS NULL AND v_prop_rec.person_id IS NULL) OR
                                 (person_id = v_prop_rec.person_id))
-                  AND   ((account_collection_id IS NULL AND v_prop_rec.account_collection_id IS NULL) OR
-                  AND   ((account_id IS NULL AND 
-                                        v_prop_rec.account_id IS NULL) OR
-                                (account_id = v_prop_rec.account_id))
+                  AND   ((netblock_collection_id IS NULL AND v_prop_rec.netblock_collection_id IS NULL) OR
+                                (netblock_collection_id = v_prop_rec.netblock_collection_id));
+                  AND   ((account_id IS NULL AND v_prop_rec.account_id IS NULL) OR
+                                (account_id = v_prop_rec.account_id))                
                   AND   ((account_collection_id IS NULL AND v_prop_rec.account_collection_id IS NULL) OR
                                 (account_collection_id = v_prop_rec.account_collection_id));
                 
@@ -9278,6 +9635,7 @@ BEGIN
 --              dbms_output.put_line('property_id:   ' || v_prop_rec.property_id);
 --              dbms_output.put_line('property_name: ' || v_prop_rec.property_name);
 --              dbms_output.put_line('property_type: ' || v_prop_rec.property_type);
+--              dbms_output.put_line('netblock_collection_id:     ' || v_prop_rec.netblock_collection_id);
 --              dbms_output.put_line('account_collection_id:     ' || v_prop_rec.account_collection_id);
 --              dbms_output.put_line('company_id:    ' || v_prop_rec.company_id);
 --              dbms_output.put_line(' ');
@@ -9290,25 +9648,23 @@ BEGIN
                   AND   property_type = v_prop_rec.property_type
                   AND   ((company_id IS NULL AND v_prop_rec.company_id IS NULL) OR
                                 (company_id = v_prop_rec.company_id))
-                  AND   ((device_collection_id IS NULL AND 
-                                        v_prop_rec.device_collection_id IS NULL) OR
+                  AND   ((device_collection_id IS NULL AND v_prop_rec.device_collection_id IS NULL) OR
                                 (device_collection_id = v_prop_rec.device_collection_id))
                   AND   ((dns_domain_id IS NULL AND v_prop_rec.dns_domain_id IS NULL) OR
                                 (dns_domain_id = v_prop_rec.dns_domain_id))
-                  AND   ((operating_system_id IS NULL AND 
-                                        v_prop_rec.operating_system_id IS NULL) OR
+                  AND   ((operating_system_id IS NULL AND v_prop_rec.operating_system_id IS NULL) OR
                                 (operating_system_id = v_prop_rec.operating_system_id))
-                  AND   ((production_state IS NULL AND 
-                                        v_prop_rec.production_state IS NULL) OR
+                  AND   ((production_state IS NULL AND v_prop_rec.production_state IS NULL) OR
                                 (production_state = v_prop_rec.production_state))
                   AND   ((site_code IS NULL AND v_prop_rec.site_code IS NULL) OR
                                 (site_code = v_prop_rec.site_code))
-                  AND   ((account_id IS NULL AND 
-                                        v_prop_rec.account_id IS NULL) OR
+                  AND   ((netblock_collection_id IS NULL AND v_prop_rec.netblock_collection_id IS NULL) OR
+                                (netblock_collection_id = v_prop_rec.netblock_collection_id))
+                  AND   ((account_id IS NULL AND v_prop_rec.account_id IS NULL) OR
                                 (account_id = v_prop_rec.account_id))
                   AND   ((account_collection_id IS NULL AND v_prop_rec.account_collection_id IS NULL) OR
                                 (account_collection_id = v_prop_rec.account_collection_id));
-
+ 
                 IF ( v_tally > 0) THEN
                         RAISE_APPLICATION_ERROR(
                                 global_errors.ERRNUM_MULTIVALUE_OVERRIDE,
@@ -9396,6 +9752,7 @@ BEGIN
         v_prop_rec.production_state             :=      :new.production_state;
         v_prop_rec.site_code                    :=      :new.site_code;
         v_prop_rec.account_id               :=      :new.account_id;
+        v_prop_rec.netblock_collection_id                    :=      :new.netblock_collection_id;
         v_prop_rec.account_collection_id                    :=      :new.account_collection_id;
         v_prop_rec.person_id                    := :new.person_id;
 
@@ -9478,6 +9835,16 @@ BEGIN
                   raise integrity_error;
            END IF;
         END IF;
+        IF :new.property_value_netblock_coll_id is not NULL THEN
+           IF v_prop.PROPERTY_DATA_TYPE = 'netblock_collection_id' THEN
+                  tally := tally + 1;
+           else
+          errno := -20900;
+          errmsg := 'Property value may not be netblock_collection_id';
+                  raise integrity_error;
+           END IF;
+        END IF;
+
         IF :new.property_value_account_coll_id is not NULL THEN
            IF v_prop.PROPERTY_DATA_TYPE = 'account_collection_id' THEN
                   tally := tally + 1;
@@ -9502,15 +9869,6 @@ BEGIN
            else
           errno := -20900;
           errmsg := 'Property value may not be dns_domain_id';
-                  raise integrity_error;
-           END IF;
-        END IF;
-        IF :new.PROPERTY_VALUE_NETBLOCK_ID is not NULL THEN
-           IF v_prop.PROPERTY_DATA_TYPE = 'netblock_id' THEN
-                  tally := tally + 1;
-           else
-          errno := -20900;
-          errmsg := 'Property value may not be netblock_id';
                   raise integrity_error;
            END IF;
         END IF;
@@ -9603,6 +9961,32 @@ BEGIN
                         end;
                 END IF;
         END IF;
+
+        -- If the RHS contains a netblock_collection_ID, check to see if it must be a
+        -- specific type (e.g. per-network), and verify that if so
+        
+        IF :new.property_value_nblk_coll_id is not NULL THEN
+                IF v_prop.PROP_VAL_nblk_coll_TYPE_RSTRCT is not NULL THEN
+                        begin
+                                select *
+                                  into v_netblock_collection
+                                  from netblock_collection
+                                 where netblock_collection_id = :new.property_value_nblk_coll_id;
+
+                                 IF v_nblk_coll,netblock_collection_type <> v_prop.PROP_VAL_netblock_collection_TYPE_RSTRCT
+                                 THEN
+                                                errno := -20905;
+                                                errmsg := 'account_collection property value must be of type ' ||
+                                                                v_prop.PROP_VAL_nblk_coll_TYPE_RSTRCT;
+                                                raise integrity_error;
+                                 END IF;
+                        exception when NO_DATA_FOUND THEN
+                                -- let the database deal with the fk exception later
+                                null;
+                        end;
+                END IF;
+        END IF;
+
 
         -- At this point, the RHS has been checked, other than the multivalue
         -- check, so now we verify data set on the LHS
@@ -9720,6 +10104,20 @@ BEGIN
                 IF :new.account_ID is not null THEN
                         errno := -20904;
                         errmsg := 'account_ID is prohibited.';
+                        raise integrity_error;
+                END IF;
+        END IF;
+
+        IF v_prop.PERMIT_netblock_collection_ID = 'REQUIRED' THEN
+                IF :new.netblock_collection_ID is null THEN
+                        errno := -20903;
+                        errmsg := 'netblock_collection_ID is required.';
+                        raise integrity_error;
+                END IF;
+        ELSIF v_prop.PERMIT_netblock_collection_ID = 'PROHIBITED' THEN
+                IF :new.netblock_collection_ID is not null THEN
+                        errno := -20904;
+                        errmsg := 'netblock_collection_ID is prohibited.';
                         raise integrity_error;
                 END IF;
         END IF;
@@ -15349,6 +15747,109 @@ end;
 
 
 ALTER TRIGGER TUB_REASON_FOR_ASSIGN
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER CTIUBR_VAL_NETBLOCK_COLLECTION
+ BEFORE INSERT OR UPDATE
+ ON VAL_NETBLOCK_COLLECTION_TYPE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER CTIUBR_VAL_NETBLOCK_COLLECTION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_VAL_NETBLOCK_COLLECTION_TY
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER,
+        NETBLOCK_COLLECTION_TYPE
+ ON VAL_NETBLOCK_COLLECTION_TYPE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_VAL_NETBLOCK_COLLECTION_TY
 	ENABLE;
 
 

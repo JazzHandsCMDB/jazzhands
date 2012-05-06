@@ -24,7 +24,7 @@ CREATE OR REPLACE FUNCTION "IntegrityPackage"."InitNestLevel"()
 BEGIN
 	SELECT set_config('jazzhands.nestlevel', 0, false);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to return the trigger nest level
 
@@ -41,7 +41,7 @@ BEGIN
 	END;
     RETURN (level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Procedure to increase the trigger nest level
 
@@ -64,7 +64,7 @@ BEGIN
 	END IF;
 	RETURN(level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Procedure to decrease the trigger nest level
 
@@ -87,7 +87,7 @@ BEGIN
 	END IF;
 	RETURN(level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 /* Temporary table version */
 /*
@@ -111,7 +111,7 @@ BEGIN
 	END;
 	RETURN(0);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to return the trigger nest level
 
@@ -129,7 +129,7 @@ BEGIN
     END;
     RETURN (level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Procedure to increase the trigger nest level
 
@@ -149,7 +149,7 @@ BEGIN
 	UPDATE "IntegrityPackageVariables" SET nestlevel = level;
 	RETURN(level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Procedure to decrease the trigger nest level
 
@@ -171,7 +171,7 @@ BEGIN
 	END IF;
 	RETURN(level);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 */
 
 CREATE OR REPLACE FUNCTION trigger_ins_upd_generic_func() RETURNS TRIGGER AS $$
@@ -203,7 +203,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION rebuild_stamp_triggers() RETURNS VOID AS $$
 BEGIN
@@ -231,7 +231,7 @@ BEGIN
 		END LOOP;
 	END;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 select rebuild_stamp_triggers();
 
@@ -250,7 +250,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
 --
@@ -273,7 +273,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_verify_layer1_connection ON layer1_connection;
 CREATE TRIGGER trigger_verify_layer1_connection AFTER INSERT OR UPDATE 
@@ -290,7 +290,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_verify_physical_connection ON physical_connection;
 CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE 
@@ -337,7 +337,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
 CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
@@ -379,7 +379,7 @@ BEGIN
     END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_update_dns_zone ON dns_record;
 CREATE TRIGGER trigger_update_dns_zone AFTER INSERT OR DELETE OR UPDATE 
@@ -395,7 +395,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 DROP TRIGGER IF EXISTS trigger_populate_vendor_default_term ON person;
@@ -410,6 +410,7 @@ DECLARE
 	v_prop			VAL_Property%ROWTYPE;
 	v_proptype		VAL_Property_Type%ROWTYPE;
 	v_account_collection	account_collection%ROWTYPE;
+	v_netblock_collection	netblock_collection%ROWTYPE;
 	v_num			integer;
 	v_listvalue		Property.Property_Value%TYPE;
 BEGIN
@@ -456,6 +457,8 @@ BEGIN
 				(Account_Id = NEW.Account_Id)) AND
 			((account_collection_Id IS NULL AND NEW.account_collection_Id IS NULL) OR
 				(account_collection_Id = NEW.account_collection_Id)) AND
+			((netblock_collection_Id IS NULL AND NEW.netblock_collection_Id IS NULL) OR
+				(netblock_collection_Id = NEW.netblock_collection_Id)) AND
 			((person_id IS NULL AND NEW.Person_id IS NULL) OR
 				(Account_Id = NEW.person_id))
 			;
@@ -494,7 +497,9 @@ BEGIN
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
 				(Account_Id = NEW.Account_Id)) AND
 			((account_collection_Id IS NULL AND NEW.account_collection_Id IS NULL) OR
-				(account_collection_Id = NEW.account_collection_Id));
+				(account_collection_Id = NEW.account_collection_Id)) AND
+			((netblock_collection_Id IS NULL AND NEW.netblock_collection_Id IS NULL) OR
+				(netblock_collection_Id = NEW.netblock_collection_Id));
 
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -554,6 +559,14 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
+	IF NEW.Property_Value_nblk_Coll_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'nblk_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be nblk_collection_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
 	IF NEW.Property_Value_Timestamp IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'timestamp' THEN
 			tally := tally + 1;
@@ -567,14 +580,6 @@ BEGIN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be DNS_Domain_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Netblock_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'netblock_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Netblock_Id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -639,7 +644,6 @@ BEGIN
 
 	-- If the RHS contains a account_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-user), and verify that if so
-	
 	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
 		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
 			BEGIN
@@ -648,6 +652,27 @@ BEGIN
 				IF v_account_collection.account_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
 				THEN
 					RAISE 'Property_Value_Account_Coll_Id must be of type %',
+					v_prop.prop_val_acct_coll_type_rstrct
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a netblock_collection_ID, check to see if it must be a
+	-- specific type and verify that if so
+	IF NEW.Property_Value_nblk_Coll_Id IS NOT NULL THEN
+		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_netblock_collection FROM netblock_collection WHERE
+					netblock_collection_Id = NEW.Property_Value_nblk_Coll_Id;
+				IF v_netblock_collection.netblock_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
+				THEN
+					RAISE 'Property_Value_nblk_Coll_Id must be of type %',
 					v_prop.prop_val_acct_coll_type_rstrct
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
@@ -763,6 +788,18 @@ BEGIN
 			END IF;
 	END IF;
 
+	IF v_prop.Permit_netblock_collection_Id = 'REQUIRED' THEN
+			IF NEW.netblock_collection_Id IS NULL THEN
+				RAISE 'netblock_collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_netblock_collection_Id = 'PROHIBITED' THEN
+			IF NEW.netblock_collection_Id IS NOT NULL THEN
+				RAISE 'netblock_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
 	IF v_prop.Permit_Person_Id = 'REQUIRED' THEN
 			IF NEW.Person_Id IS NULL THEN
 				RAISE 'Person_Id is required.'
@@ -776,11 +813,115 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_property ON Property;
 CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE 
 	ON Property FOR EACH ROW EXECUTE PROCEDURE validate_property();
+
+--- start of per-user manipulations
+-- manage per-user account collection types.  Arguably we want to extend
+-- account collections to be per account_realm, but I was not ready to do this at
+-- implementaion time.
+-- XXX need automated test case
+
+-- before an account is deleted, remove the per-user account collections, if appropriate
+-- this runs on DELETE only
+CREATE OR REPLACE FUNCTION delete_peruser_account_collection() RETURNS TRIGGER AS $$
+DECLARE
+	def_acct_rlm	account_realm.account_realm_id%TYPE;
+	acid			account_collection.account_collection_id%TYPE;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		SELECT	account_realm_id
+		  INTO	def_acct_rlm
+		  FROM	account_realm_company
+		 WHERE	company_id IN
+		 		(select property_value_company_id
+				   from property
+				  where	property_name = '_rootcompanyid'
+				    and	property_type = 'Defaults'
+				);
+		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm THEN
+				SELECT	account_collection_id
+				  INTO	acid
+				 WHERE	account_collection_name = OLD.login
+				   AND	account_collection_type = 'per-user';
+	
+				 DELETE from account_collection_account
+				  where account_collection_id = acid;
+	
+				 DELETE from account_collection
+				  where account_collection_id = acid;
+		END IF;
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_delete_peruser_account_collection ON Property;
+CREATE TRIGGER trigger_delete_peruser_account_collection BEFORE DELETE
+	ON Account FOR EACH ROW EXECUTE PROCEDURE delete_peruser_account_collection();
+
+
+-- on insertys/updates ensure the per-user account is updated properly
+CREATE OR REPLACE FUNCTION update_peruser_account_collection() RETURNS TRIGGER AS $$
+DECLARE
+	def_acct_rlm	account_realm.account_realm_id%TYPE;
+	acid			account_collection.account_collection_id%TYPE;
+BEGIN
+	SELECT	account_realm_id
+	  INTO	def_acct_rlm
+	  FROM	account_realm_company
+	 WHERE	company_id IN
+	 		(select property_value_company_id
+			   from property
+			  where	property_name = '_rootcompanyid'
+			    and	property_type = 'Defaults'
+			);
+    RAISE NOTICE 'update_peruser_account_collection realm is %', def_acct_rlm;
+	IF def_acct_rlm is not NULL AND NEW.account_realm_id = def_acct_rlm THEN
+    RAISE NOTICE 'manipulating';
+		if TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.account_realm_id != NEW.account_realm_id) THEN
+    	RAISE NOTICE 'inserting %', NEW.login;
+			insert into account_collection 
+				(account_collection_name, account_collection_type)
+			values
+				(NEW.login, 'per-user')
+			RETURNING account_collection_id INTO acid;
+			insert into account_collection_account 
+				(account_collection_id, account_id)
+			VALUES
+				(acid, NEW.account_id);
+		END IF;
+
+		IF TG_OP = 'UPDATE' AND OLD.login != NEW.login THEN
+			IF OLD.account_realm_id = NEW.account_realm_id THEN
+				update	account_collection
+				    set	account_collection_name = NEW.login
+				  where	account_collection_type = 'per-user'
+				    and	account_collection_name = OLD.login;
+			END IF;
+		END IF;
+	END IF;
+
+	-- remove the per-user entry if the new account realm is not the default
+	IF TG_OP = 'UPDATE'  THEN
+		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm AND NEW.account_realm_id != OLD.account_realm_id THEN
+			SELECT	account_collection_id
+			  INTO	acid
+			 WHERE	account_collection_name = OLD.login
+			   AND	account_collection_type = 'per-user';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_update_peruser_account_collection ON Property;
+CREATE TRIGGER trigger_update_peruser_account_collection AFTER INSERT OR UPDATE
+	ON Account FOR EACH ROW EXECUTE PROCEDURE update_peruser_account_collection();
+
+--- end of per-user manipulations
 
 CREATE OR REPLACE FUNCTION update_account_type_account_collection() RETURNS TRIGGER AS $$
 DECLARE
@@ -827,7 +968,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_update_account_type_account_collection
 	ON Account;
@@ -926,7 +1067,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_update_company_account_collection 
 	ON Person;
@@ -1014,7 +1155,7 @@ BEGIN
 
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_netblock ON netblock;
 CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON netblock
@@ -1050,16 +1191,16 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account 
 	ON person_company;
 CREATE TRIGGER trigger_propagate_person_status_to_account 
 AFTER UPDATE ON person_company
 	FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
- 
+
 /*
- * Do not let hierarchy point to itself.  This shoudl probabyl be extended
+ * Do not let hierarchy point to itself.  This shoudl probably be extended
  * to check up/down the hierarchy to prevent loops.  Needs to be ported to
  * oracle XXX
  */
@@ -1072,14 +1213,36 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_account_collection_hier_loop 
 	ON account_collection_hier;
 CREATE TRIGGER trigger_check_account_collection_hier_loop 
 AFTER INSERT OR UPDATE ON account_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_account_colllection_hier_loop();
- 
+
+/*
+ * Do not let hierarchy point to itself.  This shoudl probably be extended
+ * to check up/down the hierarchy to prevent loops.  Needs to be ported to
+ * oracle XXX
+ */
+CREATE OR REPLACE FUNCTION check_netblock_colllection_hier_loop()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.netblock_collection_id = NEW.child_netblock_collection_id THEN
+		RAISE EXCEPTION 'Netblock Collection Loops Not Pernitted '
+			USING ERRCODE = 20704;	/* XXX */
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_check_netblock_collection_hier_loop 
+	ON netblock_collection_hier;
+CREATE TRIGGER trigger_check_netblock_collection_hier_loop 
+AFTER INSERT OR UPDATE ON netblock_collection_hier
+	FOR EACH ROW EXECUTE PROCEDURE check_netblock_colllection_hier_loop();
+
 
 /*
  * enforces is_multivalue in val_person_image_usage
@@ -1116,7 +1279,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 DROP TRIGGER IF EXISTS trigger_check_person_image_usage_mv ON person_image_usage;

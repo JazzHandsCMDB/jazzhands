@@ -67,7 +67,7 @@ begin
 exception when NO_DATA_FOUND then
 	return 0;
 end;    
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of procedure count_matching_rows
 -------------------------------------------------------------------
 
@@ -85,7 +85,7 @@ begin
 	  from	NETBLOCK
 	 where	netblock_id = in_netblock_id;
 end;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of procedure get_netblock_ip_and_bits
 -------------------------------------------------------------------
 
