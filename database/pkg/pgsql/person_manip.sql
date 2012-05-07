@@ -44,7 +44,7 @@ CREATE OR REPLACE FUNCTION person_manip.get_account_collection_id( department va
 DECLARE
 	_account_collection_id INTEGER;
 BEGIN
-	SELECT account_collection_id INTO _account_collection_id FROM account_collection WHERE account_collection_type='department'
+	SELECT account_collection_id INTO _account_collection_id FROM account_collection WHERE account_collection_type= type
 		AND account_collection_name= department;
 	IF NOT FOUND THEN
 		_account_collection_id = nextval('account_collection_account_collection_id_seq');
