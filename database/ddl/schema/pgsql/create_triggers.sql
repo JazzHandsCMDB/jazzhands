@@ -878,11 +878,8 @@ BEGIN
 			  where	property_name = '_rootcompanyid'
 			    and	property_type = 'Defaults'
 			);
-    RAISE NOTICE 'update_peruser_account_collection realm is %', def_acct_rlm;
 	IF def_acct_rlm is not NULL AND NEW.account_realm_id = def_acct_rlm THEN
-    RAISE NOTICE 'manipulating';
 		if TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.account_realm_id != NEW.account_realm_id) THEN
-    	RAISE NOTICE 'inserting %', NEW.login;
 			insert into account_collection 
 				(account_collection_name, account_collection_type)
 			values
