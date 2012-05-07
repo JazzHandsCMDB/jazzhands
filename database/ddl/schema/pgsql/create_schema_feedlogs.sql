@@ -22,10 +22,10 @@
 --
 -- $Id$
 --
-create database feedlogs;
-create user feedlogs;
 
-\c feedlogs
+-- create database feedlogs;
+-- create user feedlogs;
+\c feedlogs feedlogs
 
 CREATE TABLE hr_scripts (
 	id SERIAL NOT NULL PRIMARY KEY,
