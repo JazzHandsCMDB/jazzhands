@@ -49,7 +49,7 @@ BEGIN
 	IF NOT FOUND THEN
 		_account_collection_id = nextval('account_collection_account_collection_id_seq');
 		INSERT INTO account_collection (account_collection_id, account_collection_type, account_collection_name)
-			VALUES (_account_collection_id, 'department', department);
+			VALUES (_account_collection_id, type, department);
 		--RAISE NOTICE 'Created new department % with account_collection_id %', department, _account_collection_id;
 	END IF;
 	RETURN _account_collection_id;
