@@ -108,5 +108,3 @@ BEGIN
 	INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( _account_collection_id, account_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
-grant usage on schema person_manip to ap_hrfeed;
