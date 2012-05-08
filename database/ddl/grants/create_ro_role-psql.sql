@@ -32,8 +32,14 @@ grant connect to ro_role;
 
 grant select on all tables in schema audit to ro_role;
 grant select on all tables in schema public to ro_role;
-
 grant execute on all functions in schema net_manip to ro_role;
 grant execute on all functions in schema netblock_utils to ro_role;
 grant execute on all functions in schema network_strings to ro_role;
-grant execute on all functions in schema time_util to ro_role;
+
+grant usage on schema time_util to ro_role;
+grant usage on schema audit to ro_role;
+grant usage on schema public to ro_role;
+grant usage on schema net_manip to ro_role;
+grant usage on schema netblock_utils to ro_role;
+grant usage on schema network_strings to ro_role;
+grant usage on schema time_util to ro_role;
