@@ -75,6 +75,7 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 	name_suffix VARCHAR, 
 	gender VARCHAR(1), 
 	preferred_first_name VARCHAR,
+	birth_date DATE,
 	_company_id INTEGER, 
 	external_hr_id VARCHAR, 
 	person_company_status VARCHAR, 
@@ -92,8 +93,8 @@ DECLARE
 	_account_realm_id INTEGER;
 BEGIN
 	person_id = nextval('person_person_id_seq');
-	INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name)
-		VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name);
+	INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, birth_date)
+		VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, birth_date);
 	INSERT INTO person_company
 		(person_id,company_id,external_hr_id,person_company_status,is_exempt,employee_id,hire_date,termination_date,person_company_relation)
 		VALUES
