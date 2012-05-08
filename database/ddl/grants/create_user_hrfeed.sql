@@ -45,6 +45,8 @@ GRANT UPDATE ON account_collection_account_collection_id_seq TO ap_hrfeed;
 GRANT SELECT ON property TO ap_hrfeed;
 GRANT SELECT ON val_person_status TO ap_hrfeed;
 
+grant usage on schema person_manip to ap_hrfeed;
+
 \c feedlogs;
 
 GRANT INSERT ON hr_scripts TO ap_hrfeed;

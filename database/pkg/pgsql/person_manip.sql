@@ -61,7 +61,7 @@ CREATE OR REPLACE FUNCTION person_manip.update_department( department varchar, _
 DECLARE
 	_account_collection_id INTEGER;
 BEGIN
-	_account_collection_id = get_account_collection_id( department, 'department' ); 
+	_account_collection_id = person_manip.get_account_collection_id( department, 'department' ); 
 	--RAISE NOTICE 'updating account_collection_account with id % for account %', _account_collection_id, _account_id; 
 	UPDATE account_collection_account SET account_collection_id = _account_collection_id WHERE account_id = _account_id AND account_collection_id=old_account_collection_id;
 	RETURN _account_collection_id;
@@ -103,7 +103,9 @@ BEGIN
 	account_id = nextval('account_account_id_seq');
 	INSERT INTO account ( account_id, login, person_id, company_id, account_realm_id, account_status, account_role, account_type) 
 		VALUES (account_id, login, person_id, _company_id, _account_realm_id, person_company_status, 'primary', 'person');
-	_account_collection_id = get_account_collection_id(department, 'department');
+	_account_collection_id = person_manip.get_account_collection_id(department, 'department');
 	INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( _account_collection_id, account_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+grant usage on schema person_manip to ap_hrfeed;
