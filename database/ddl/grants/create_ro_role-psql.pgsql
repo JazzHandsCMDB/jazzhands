@@ -27,13 +27,13 @@
 
 
 
-create role iud_role;
-grant connect to iud_role;
+create role ro_role;
+grant connect to ro_role;
 
-grant select on all tables in schema audit to iud_role;
-grant select on all tables in schema public to iud_role;
+grant select on all tables in schema audit to ro_role;
+grant select on all tables in schema public to ro_role;
 
-grant execute on all functions in schema net_manip to iud_role;
-grant execute on all functions in schema netblock_utils to iud_role;
-grant execute on all functions in schema network_strings to iud_role;
-grant execute on all functions in schema time_util to iud_role;
+grant execute on all functions in schema net_manip to ro_role;
+grant execute on all functions in schema netblock_utils to ro_role;
+grant execute on all functions in schema network_strings to ro_role;
+grant execute on all functions in schema time_util to ro_role;
