@@ -84,6 +84,7 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 	hire_date DATE,
 	termination_date DATE,
 	person_company_relation VARCHAR,
+	job_title VARCHAR,
 	department VARCHAR, login VARCHAR,
 	OUT person_id INTEGER,
 	OUT _account_collection_id INTEGER,
@@ -96,9 +97,9 @@ BEGIN
 	INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, birth_date)
 		VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, birth_date);
 	INSERT INTO person_company
-		(person_id,company_id,external_hr_id,person_company_status,is_exempt,employee_id,hire_date,termination_date,person_company_relation)
+		(person_id,company_id,external_hr_id,person_company_status,is_exempt,employee_id,hire_date,termination_date,person_company_relation, position_title)
 		VALUES
-		(person_id, _company_id, external_hr_id, person_company_status, is_exempt, employee_id, hire_date, termination_date, person_company_relation);
+		(person_id, _company_id, external_hr_id, person_company_status, is_exempt, employee_id, hire_date, termination_date, person_company_relation, job_title);
 	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = _company_id;
 	INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( person_id, _company_id, _account_realm_id);
 	account_id = nextval('account_account_id_seq');
