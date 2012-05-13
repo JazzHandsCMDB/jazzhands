@@ -38,7 +38,8 @@ objectclass
       MAY jazzHandsAccountId 
   )
 
-# better to make it associated with inetOrgPerson, but that was challenging
+# better to make it associated with organizationalUnit or posixGroup, but 
+# that was challenging
 objectclass
    ( JazzHandsObjects:2
       NAME 'jazzHandsAccountCollectionObject'
