@@ -1,0 +1,48 @@
+#
+# $Id$
+# $HeadURL$
+#
+# LDAP schema for mapping to jazzhands items
+#
+
+objectIdentifier JazzHandsRoot		1.3.6.1.4.1.39422
+objectIdentifier JazzHandsMaps		JazzHandsRoot:1
+objectIdentifier JazzHandsLdapMap	JazzHandsMaps:1
+objectIdentifier JazzHandsIds		JazzHandsLdapMap:1
+objectIdentifier JazzHandsObjects	JazzHandsLdapMap:2
+
+attributetype
+   ( JazzHandsIds:1
+      NAME 'jazzHandsAccountId'
+      DESC 'jazzhands account table primary key'
+      EQUALITY integerMatch
+      SYNTAX 1.3.6.1.4.1.1466.115.121.1.27
+      SINGLE-VALUE
+   )
+
+attributetype
+   ( JazzHandsIds:2
+      NAME 'jazzHandsAccountCollectionId'
+      DESC 'jazzhands account_collection table primary key'
+      EQUALITY integerMatch
+      SYNTAX 1.3.6.1.4.1.1466.115.121.1.27
+      SINGLE-VALUE
+   )
+
+# better to make it associated with inetOrgPerson, but that was challenging
+objectclass
+   ( JazzHandsObjects:1
+      NAME 'jazzHandsAccountObject'
+      DESC 'jazzHands account object class'
+      SUP top AUXILIARY 
+      MAY jazzHandsAccountId 
+  )
+
+# better to make it associated with inetOrgPerson, but that was challenging
+objectclass
+   ( JazzHandsObjects:2
+      NAME 'jazzHandsAccountCollectionObject'
+      DESC 'jazzHands account collection class'
+      SUP top AUXILIARY
+      MAY jazzHandsAccountCollectionId 
+  )
