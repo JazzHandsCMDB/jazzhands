@@ -843,7 +843,7 @@ BEGIN
 				    and	property_type = 'Defaults'
 				);
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm THEN
-				SELECT	account_collection_id
+				SELECT	account_collection_id FROM account_collection
 				  INTO	acid
 				 WHERE	account_collection_name = OLD.login
 				   AND	account_collection_type = 'per-user';
@@ -855,6 +855,7 @@ BEGIN
 				  where account_collection_id = acid;
 		END IF;
 	END IF;
+	RETURN OLD;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
