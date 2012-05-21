@@ -105,6 +105,9 @@ BEGIN
 	account_id = nextval('account_account_id_seq');
 	INSERT INTO account ( account_id, login, person_id, company_id, account_realm_id, account_status, account_role, account_type) 
 		VALUES (account_id, login, person_id, _company_id, _account_realm_id, person_company_status, 'primary', 'person');
+	IF department IS NULL THEN
+		RETURN;
+	END IF;
 	_account_collection_id = person_manip.get_account_collection_id(department, 'department');
 	INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( _account_collection_id, account_id);
 END;
