@@ -187,9 +187,7 @@ sub do_work {
 			my @newusg = $cgi->param("person_image_usage_$picid");
 
 			foreach my $usg (@$oldusg) {
-				warn "considering removal of $usg from $picid";
 				if( ! grep($_ eq $usg, @newusg)) {
-					warn "REMOVING $usg!\n";
 					remove_pic_usage($dbh, $picid, $usg);
 				}
 			}
