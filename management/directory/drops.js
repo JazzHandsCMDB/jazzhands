@@ -39,7 +39,7 @@ function process_search(searchbox) {
 					}
 				}
 			);
-		}, 350);
+		}, 250);
 	}
 }
 
@@ -99,7 +99,7 @@ function add_phone(add_button) {
 
 			var pic = document.createElement("img");
 			pic.setAttribute("class", "removex");
-			pic.src = "images/round_red_x_sign_4229.jpg";
+			pic.src = "images/Octagon_delete.svg";
 			pic.setAttribute("alt", "X");
 			var a = document.createElement("a");
 			a.href = "#"
@@ -289,6 +289,7 @@ function pic_manip(person_id) {
 
 				$(t).append(tr);
 			}
+
 			tr = document.createElement("tr");
 			td = document.createElement("td");
 			td.colSpan = 3;
@@ -375,6 +376,14 @@ $(document).ready(function(){
 			}
 	);
 
+	// prevent submit button from working
+	$("input#searchfor").keydown( 
+	 		function(event){
+				if(event.which == 13)
+					return false;
+			}
+	);
+
 	$("a.sbmtphone").live('click', function(event){
 		var form = $(this).closest('form');
 		if(form) {
@@ -400,7 +409,7 @@ $(document).ready(function(){
 
 					var pic = document.createElement("img");
 					pic.setAttribute("class", "removex");
-					pic.src = "images/round_red_x_sign_4229.jpg";
+					pic.src = "images/Octagon_delete.svg";
 					pic.setAttribute("alt", "X");
 					var a = document.createElement("a");
 					a.href = "#"

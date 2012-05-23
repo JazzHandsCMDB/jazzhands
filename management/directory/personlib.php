@@ -70,7 +70,7 @@ function build_header($title, $style = null, $heading = null) {
 		<div id="main">
 		<div class="searchbox">
 			<form name="search">
-				Search: <input type="text" id="searchfor" 
+				Search: <input type="text" id="searchfor"  action="#"
 					name="searchfor">
 			</form>
 			<div id="resultsparents">

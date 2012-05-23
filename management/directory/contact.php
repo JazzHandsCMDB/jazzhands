@@ -9,7 +9,7 @@ function check_admin($dbconn, $login) {
 			inner join account_collection ac
 				on ac.account_collection_id =
 					p.property_value_account_coll_id
-			inner join public.v_acct_coll_account_expanded ae
+			inner join v_acct_coll_account_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
 			inner join account a
@@ -106,7 +106,7 @@ function build_tr($lhs, $rhs, $remove = null, $id = null, $isadmin = null) {
 			<form class="phonerowform">
 				<input type=hidden name="person_contact_id" value="$id">
 				<a href="#" class="remove_phone" >
-				<img alt="X" class="removex" src="images/round_red_x_sign_4229.jpg" />
+				<img alt="X" class="removex" src="images/Octagon_delete.svg" />
 				</a>
 EOREMOVES;
 		$removee = "</form>";

@@ -129,7 +129,7 @@ a#mast {
 	font-size: 130%;
 	margin: 0 auto;
 	min-height: 30ex;
-	min-width: 50em;
+	min-width: 52em;
 
 }
 
@@ -165,7 +165,7 @@ img.yearbook { max-width: 300px; }
 	border: 2px solid;
 	width: 100%; 
 	overflow: hidden;
-	background: purple;
+	background: lightblue;
 }
 
 .sbmtphone, .addphonebutton, .picmanipbutton {
@@ -182,7 +182,6 @@ img.yearbook { max-width: 300px; }
 }
 
 .phoneattribs {
-	background:orange;
 	height: 100%; 
 	float: left;
 	margin: auto;
@@ -194,7 +193,6 @@ img.yearbook { max-width: 300px; }
 .phonedigits { 
 	margin: 0 auto; 
 	float: right;
-	background: yellow;
 }
 
 /* used to show error messages adding phones */

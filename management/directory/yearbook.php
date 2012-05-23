@@ -42,7 +42,8 @@ $query = "
 		where	pc.person_company_status = 'enabled'
 		 and	pi.description is not null
 			$wherextra
-		order by pc.employee_id
+		-- order by pc.employee_id
+		order by pc.hire_date
 ";
 
 if(strlen($wherextra) >  0) {
