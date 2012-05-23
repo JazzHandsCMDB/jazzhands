@@ -18,10 +18,11 @@ function img($personid, $personimageid, $thumb) {
 	$raw = "picture.php?person_id=$personid&person_image_id=$personimageid";
 	$src = "$raw$thumb";
 
-	return("<a href=\"$raw\"><img alt=\"person\" src=\"$src\" class=\"$class\" /></a>");
+	return("<a href=\"contact.php?person_id=$personid\"><img alt=\"person\" src=\"$src\" class=\"$class\" /></a>");
 }
 
 function personlink($personid, $text) {
+	# note the img() function also returns a conteact link.
 	return "<a href=\"contact.php?person_id=$personid\">$text</a>";
 }
 
