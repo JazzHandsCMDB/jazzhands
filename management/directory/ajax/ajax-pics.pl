@@ -57,7 +57,9 @@ sub do_work {
 		push (@{ $x->{ person_image_usage } }, $hr->{person_image_usage});
 	}
 
-	push(@ {$r->{pics}}, $x);
+	if(defined($x)) {
+		push(@ {$r->{pics}}, $x);
+	}
 
 	$sth = $dbh->prepare_cached(qq{
 		select  person_image_usage, is_multivalue

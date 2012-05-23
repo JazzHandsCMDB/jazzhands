@@ -58,6 +58,7 @@ sub do_work {
 				iso_country_code || ': +' ||
 					dial_country_code as display
 			  from	val_country_code
+			  where ( display_priority > 0 or display_priority is NULL)
 			  order by display_priority, iso_country_code
 		}) || die $dbh->errstr;
 

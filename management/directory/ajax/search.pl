@@ -29,7 +29,12 @@ sub do_work {
 					on pc.person_id = p.person_id
 				inner join v_person_company_expanded pce
 					on p.person_id = pce.person_id
-	   where	pce.company_id = 8		-- XXX
+	   where	pce.company_id = (
+				select	property_value_company_id
+				  from	property
+				 where	property_name = '_rootcompanyid'
+				   and	property_type = 'Defaults'
+			)
 		and	pc.person_company_status = 'enabled'
 		and	(
 				lower(p.last_name) like ?
@@ -47,6 +52,7 @@ sub do_work {
 	}) || die $dbh->errstr;
 
 	my $s = "$searchfor%";
+	warn "lookingn for $s\n";
 
 	# XXX - need to process nicknames and maybe add pictures
 	$sth->execute($s, $s, $s, $s, $s) || die $sth->errstr;

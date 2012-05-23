@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use CGI;
 use JSON::PP;
+use Carp;
 
 BEGIN { unshift(@INC, "/Users/kovert"); };
 
@@ -83,6 +84,25 @@ sub has_pic_usage {
 	$tally;
 }
 
+sub get_pic_usage {
+	my($dbh, $picid) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		select	person_image_usage
+		 from	person_image_usage
+		where	person_image_id = ?
+	}) || die $dbh->errstr;
+
+	$sth->execute($picid) || croak $sth->errstr;
+	my(@rv);
+	while(my($usg) = $sth->fetchrow_array) {
+		push(@rv, $usg);
+	}
+	$sth->finish;
+	\@rv;
+}
+
+
 sub add_pic_usage {
 	my($dbh, $picid, $usage) = @_;
 
@@ -99,6 +119,20 @@ sub add_pic_usage {
 	$sth->execute($picid, $usage) || croak $sth->errstr;
 	$sth->finish;
 }
+
+sub remove_pic_usage {
+	my($dbh, $picid, $usage) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		delete from person_image_usage
+		 where	person_image_id = ?
+		   and	person_image_usage = ?
+	}) || die $dbh->errstr;
+
+	$sth->execute($picid, $usage) || croak $sth->errstr;
+	$sth->finish;
+}
+
 
 sub get_image_by_checksum {
 	my($dbh, $personid, $checksum) = @_;
@@ -138,29 +172,62 @@ sub do_work {
 	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
 		die $JazzHands::DBI::errstr;
 
+	# XXX - should make sure that this person is PERMITTED to manipulate
+	# this picture!!
+
 	my $cgi = CGI->new;
 
 	my $personid = $cgi->param("person_id");
 
+	# remove usage from things that have it off
+	foreach my $param ($cgi->param) {
+		if($param =~ /^person_image_usage_(\d+)/) {
+			my $picid = $1;
+			my $oldusg = get_pic_usage($dbh, $picid);
+			my @newusg = $cgi->param("person_image_usage_$picid");
+
+			foreach my $usg (@$oldusg) {
+				warn "considering removal of $usg from $picid";
+				if( ! grep($_ eq $usg, @newusg)) {
+					warn "REMOVING $usg!\n";
+					remove_pic_usage($dbh, $picid, $usg);
+				}
+			}
+		}
+	}
+
 	# add any new paramters
 	foreach my $param ($cgi->param) {
-		next if($param !~ /^newpic_file_(\d+)/);
-		my $offset = $1;
-		my $fn = $cgi->param($param);
-		my $tfn = $cgi->tmpFileName($fn);
+		if($param =~ /^newpic_file_(\d+)/) {
+			my $offset = $1;
+			my $fn = $cgi->param($param);
+			my $tfn = $cgi->tmpFileName($fn);
 
-		my $description = $cgi->param("new_description_$offset");
+			my $description = $cgi->param("new_description_$offset");
 
-		my @usg = $cgi->param("new_person_image_usage_$offset");
-		if(my $picid = add_pic($dbh, $personid, $tfn, $description, $fn)) {
-			foreach my $usg (@usg) {
-				add_pic_usge($dbh, $picid, $usg);
+			my @usg = $cgi->param("new_person_image_usage_$offset");
+			if(my $picid = add_pic($dbh, $personid, $tfn, $description, $fn)) {
+				foreach my $usg (@usg) {
+					add_pic_usage($dbh, $picid, $usg);
+				}
+				my $sth = $dbh->prepare_cached(qq{
+					select	person_image_usage
+				  	from	person_image_usage
+				 	where	person_image_id = ?
+				});
 			}
-			my $sth = $dbh->prepare_cached(qq{
-				select	person_image_usage
-				  from	person_image_usage
-				 where	person_image_id = ?
-			});
+
+		} elsif($param =~ /^person_image_usage_(\d+)/) {
+			my $picid = $1;
+			my $oldusg = get_pic_usage($dbh, $picid);
+			my @newusg = $cgi->param("person_image_usage_$picid");
+
+			foreach my $usg (@newusg) {
+				if( ! grep($_ eq $usg, @$oldusg)) {
+					add_pic_usage($dbh, $picid, $usg);
+				}
+			}
+
 		}
 	}
 
