@@ -135,7 +135,8 @@ $query = "
 		coalesce(mgrp.preferred_last_name, mgrp.last_name) as mgr_last_name,
 		u.account_collection_id,
 		u.account_collection_name,
-		a.login
+		a.login,
+		numreports.tally as num_reports
 	   from person p
 	   	inner join person_company pc
 			using (person_id)
@@ -159,6 +160,12 @@ $query = "
         	) pi on p.person_id = pi.person_id
 		left join person mgrp
 			on pc.manager_person_id = mgrp.person_id
+		left join ( -- this probably needs to be smarter
+			   select manager_person_id as person_id, count(*)  as tally
+			     from person_company
+			     where person_company_status = 'enabled'
+			     group by manager_person_id
+		) numreports on p.person_id = numreports.person_id
 	where p.person_id = $1
 ";
 
@@ -193,6 +200,9 @@ if(isset($row['nickname']) && strtolower($row['nickname']) != strtolower($row['f
 	echo "AKA ", $row['nickname'], " </br>\n";
 }
 echo "<table id=\"contact\">\n";
+if(isset($row['num_reports']) && $row['num_reports'] > 0) {
+	$title = "$title (". hierlink('reports', $row['person_id'], "reports") .")";
+}
 echo build_tr("Title", $title);
 /* Was $deptc at the end, which includes the company */
 echo build_tr("Dept", hierlink('department', $row['account_collection_id'],
