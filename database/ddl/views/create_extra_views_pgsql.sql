@@ -61,5 +61,7 @@
 -- \i create_v_user_prop_expanded.sql 
 -- \i pgsql/create_mv_acct_collection_user_expanded.sql
 
+\i pgsql/create_v_account_coll_expanded.sql
+\i pgsql/create_v_acct_coll_account_expanded.sql
 
 \i pgsql/create_v_application_role.sql
