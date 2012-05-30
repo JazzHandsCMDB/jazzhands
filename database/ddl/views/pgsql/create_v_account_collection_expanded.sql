@@ -23,7 +23,7 @@
 -- $Id$
 --
 
-CREATE OR REPLACE VIEW v_acct_coll_expanded AS
+CREATE OR REPLACE VIEW v_account_collection_expanded AS
 WITH RECURSIVE var_recurse (
 	level,
 	root_account_collection_id,
@@ -43,7 +43,7 @@ UNION ALL
 		inner join account_collection_hier ach
 			on x.account_collection_id =
 				ach.account_collection_id
-) SELECT	distinct level,
+) SELECT	level,
 			root_account_collection_id,
 			account_collection_id
   from 		var_recurse;
