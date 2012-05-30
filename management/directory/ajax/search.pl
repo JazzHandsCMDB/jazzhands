@@ -37,13 +37,21 @@ sub do_work {
 			)
 		and	pc.person_company_status = 'enabled'
 		and	(
-				lower(p.last_name) like ?
+				lower(p.first_name || ' ' || p.last_name) like ?
 			or
-				lower(p.preferred_first_name) like ?
+				lower(p.preferred_first_name || ' ' || p.preferred_last_name) like ?
+			or
+				lower(p.first_name || ' ' || p.preferred_last_name) like ?
+			or
+				lower(p.preferred_first_name || ' ' || p.last_name) like ?
+			or
+				lower(p.last_name) like ?
+--			or
+--				lower(p.preferred_first_name) like ?
 			or
 				lower(p.preferred_last_name) like ?
-			or
-				lower(p.first_name) like ?
+--			or
+--				lower(p.first_name) like ?
 			or
 				lower(p.nickname) like ?
 			)
@@ -52,10 +60,12 @@ sub do_work {
 	}) || die $dbh->errstr;
 
 	my $s = "$searchfor%";
-	warn "lookingn for $s\n";
+	$s =~ s/\s+/ /g;
+	$s =~ tr/A-Z/a-z/;
+
 
 	# XXX - need to process nicknames and maybe add pictures
-	$sth->execute($s, $s, $s, $s, $s) || die $sth->errstr;
+	$sth->execute($s, $s, $s, $s, $s, $s, $s) || die $sth->errstr;
 
 	my $r = {};
 	$r->{type} = 'person';
