@@ -80,7 +80,7 @@ our $errstr = "";
 #
 BEGIN {
 	my $fn;
-	if(defined($ENV{'APPAUTHAl_CONFIG'})) {
+	if(defined($ENV{'APPAUTHAL_CONFIG'})) {
 		$fn = $ENV{'APPAUTHAL_CONFIG'};
 	}
 	if(defined($fn)) { 
