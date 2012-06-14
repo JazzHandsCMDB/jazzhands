@@ -514,3 +514,20 @@ SELECT	ace.level,
 	INNER JOIN v_account_collection_account aca
 		using (account_collection_id)
 ;
+
+--- grants
+GRANT ALL ON TABLE val_account_collection_type TO jazzhands;
+GRANT SELECT ON TABLE val_account_collection_type TO ro_role;
+GRANT ALL ON TABLE val_account_collection_type TO jazzhands;
+GRANT INSERT,DELETE,UPDATE ON TABLE val_account_collection_type TO iud_role;
+GRANT SELECT ON TABLE val_account_collection_type TO ro_role;
+GRANT ALL ON SCHEMA person_manip TO jazzhands;
+GRANT USAGE ON SCHEMA person_manip TO ap_hrfeed;
+GRANT ALL ON SCHEMA audit TO jazzhands;
+GRANT USAGE ON SCHEMA audit TO ro_role;
+-- probably not necessary
+GRANT ALL ON TABLE account_unix_info TO jazzhands;
+GRANT SELECT ON TABLE account_unix_info TO ro_role;
+GRANT ALL ON TABLE account_unix_info TO jazzhands;
+GRANT INSERT,DELETE,UPDATE ON TABLE account_unix_info TO iud_role;
+GRANT SELECT ON TABLE account_unix_info TO ro_role;
