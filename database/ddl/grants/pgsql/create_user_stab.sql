@@ -34,21 +34,26 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA port_utils TO stab_role;
 -- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA device_utils TO stab_role;
 
 GRANT SELECT,UPDATE,INSERT,DELETE	ON netblock TO stab_role;
+GRANT SELECT,UPDATE					ON netblock_netblock_id_seq TO stab_role;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON secondary_netblock TO stab_role;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON dns_record TO stab_role;
-GRANT SELECT,UPDATE,INSERT		ON dns_domain TO stab_role;
+GRANT SELECT,UPDATE					ON dns_record_dns_domain_id_seq TO stab_role;
+GRANT SELECT,UPDATE,INSERT			ON dns_domain TO stab_role;
+GRANT SELECT,UPDATE					ON dns_domain_dns_domain_id_seq TO stab_role;
 GRANT SELECT				ON company TO stab_role;
 GRANT SELECT				ON site TO stab_role;
 
 GRANT SELECT,UPDATE,INSERT,DELETE	ON physical_port TO stab_role;
+GRANT SELECT,UPDATE					ON physical_port_physical_port_id_seq TO stab_role;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON network_interface TO stab_role;
+GRANT SELECT,UPDATE					ON network_interface_network_interface_id_seq TO stab_role;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON device TO stab_role;
+GRANT SELECT,UPDATE					ON device_device_id_seq TO stab_role;
 GRANT SELECT,UPDATE,INSERT		ON val_device_status TO stab_role;
 GRANT SELECT,UPDATE,INSERT		ON site_netblock TO stab_role;
 -- GRANT SELECT,UPDATE,INSERT		ON device_function TO stab_role;
 GRANT SELECT				ON device_type TO stab_role;
 GRANT SELECT				ON operating_system TO stab_role;
-GRANT SELECT				ON composite_os_version TO stab_role;
 GRANT SELECT				ON val_ownership_status TO stab_role;
 GRANT SELECT				ON val_production_state TO stab_role;
 -- GRANT SELECT				ON val_device_function_type TO stab_role;
@@ -58,10 +63,14 @@ GRANT SELECT				ON val_dns_type TO stab_role;
 GRANT SELECT				ON val_dns_class TO stab_role;
 GRANT SELECT,INSERT			ON snmp_commstr TO stab_role;
 GRANT SELECT				ON val_device_auto_mgmt_protocol TO stab_role;
+GRANT SELECT				ON val_processor_architecture TO stab_role;
 
 GRANT SELECT,UPDATE,DELETE	   	ON layer1_connection TO stab_role;
+GRANT SELECT,UPDATE					ON layer1_connection_layer1_connection_id_seq TO stab_role;
 GRANT SELECT,UPDATE,INSERT	    	ON device_type TO stab_role;
+GRANT SELECT,UPDATE					ON device_type_device_type_id_seq TO stab_role;
 GRANT SELECT,UPDATE,INSERT	    	ON operating_system TO stab_role;
+GRANT SELECT,UPDATE					ON operating_system_operating_system_id_seq TO stab_role;
 GRANT SELECT,INSERT,UPDATE	    	ON snmp_commstr TO stab_role;
 GRANT SELECT			  	ON val_snmp_commstr_type TO stab_role;
 GRANT SELECT,INSERT,UPDATE,DELETE    	ON device_type_power_port_templt TO stab_role;
@@ -69,12 +78,15 @@ GRANT SELECT,INSERT,UPDATE,DELETE    	ON device_type_phys_port_templt TO stab_ro
 GRANT SELECT			  	ON val_plug_style TO stab_role;
 GRANT SELECT,INSERT		  	ON device_note TO stab_role;
 GRANT SELECT,INSERT,UPDATE,DELETE  	ON location TO stab_role;
+GRANT SELECT,UPDATE					ON location_location_id_seq TO stab_role;
 GRANT SELECT,INSERT,UPDATE,DELETE  	ON device_power_interface TO stab_role;
 GRANT SELECT,INSERT,UPDATE,DELETE  	ON device_power_connection TO stab_role;
 GRANT SELECT,INSERT,UPDATE,DELETE  	ON physical_connection TO stab_role;
+GRANT SELECT,UPDATE					ON physical_connection_physical_connection_id_seq TO stab_role;
 
 
 GRANT SELECT,UPDATE,INSERT		ON voe TO stab_role;
+GRANT SELECT,UPDATE				ON voe_voe_id_seq TO stab_role;
 GRANT SELECT				ON val_processor_architecture TO stab_role;
 GRANT SELECT				ON sw_package_repository TO stab_role;
 
@@ -99,6 +111,7 @@ GRANT SELECT				ON val_parity TO stab_role;
 GRANT SELECT				ON val_cable_type TO stab_role;
 GRANT SELECT				ON val_account_type TO stab_role;
 GRANT SELECT,INSERT,UPDATE,DELETE  	ON dhcp_range TO stab_role;
+GRANT SELECT,UPDATE				ON dhcp_range_dhcp_range_id_seq TO stab_role;
 GRANT SELECT				ON device_collection TO stab_role;
 GRANT SELECT				ON device_collection_hier TO stab_role;
 GRANT SELECT				ON device_collection_member TO stab_role;
