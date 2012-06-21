@@ -92,7 +92,7 @@ sub new {
 			$opt->{keytab}, KADM5_ADMIN_SERVICE, $kconfig ) ;
 	} elsif ( $opt->{password} ) {
 		  $kadm =
-		    Authen::Krb5::Admin->init_with_pasword( $opt->{user},
+		    Authen::Krb5::Admin->init_with_password( $opt->{user},
 			  $opt->{password}, KADM5_ADMIN_SERVICE, $kconfig ) ;
 	} else {
 		  return "Must provide either a password or a keytab";
