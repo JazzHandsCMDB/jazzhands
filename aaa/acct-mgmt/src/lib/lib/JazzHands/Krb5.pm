@@ -7,6 +7,8 @@ use JazzHands::Krb5::Tools;
 use JazzHands::AppAuthAL;
 use Carp 'confess';
 
+our $VERSION = '0.01';
+
 sub admin {
         my $params = JazzHands::AppAuthAL::find_and_parse_auth($_[1],'','krb5');
         my %params = %$params;
@@ -18,7 +20,7 @@ sub admin {
 		realm    => $realm,
 		password => $pass
 	);
-	ref($kadm) or die sprintf "Unable to get admin principal to change Kerberos password: %s", $kadm;
+	ref($kadm) or confess sprintf "Unable to get admin principal to change Kerberos password: %s", $kadm;
 	$kadm
 }
 
