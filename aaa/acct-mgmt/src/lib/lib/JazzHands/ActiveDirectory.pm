@@ -26,30 +26,14 @@
 
 package JazzHands::ActiveDirectory;
 
-use 5.006;
 use strict;
 use warnings;
-use Net::LDAP;
+use base 'Net::LDAPS';
 use Net::LDAP::Entry;
 use Net::DNS;
+use JazzHands::AppAuthAL;
 use IO::Socket;
 use Authen::Krb5;
-
-# XXX use JazzHands::DBI;
-use DBI;
-
-BEGIN {
-	use Exporter ();
-	our ( $VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS );
-
-	$VERSION     = 1.00;
-	@ISA         = qw(Net::LDAP Exporter);
-	@EXPORT      = qw();
-	%EXPORT_TAGS = ();
-	@EXPORT_OK   = ();
-
-}
-our @EXPORT_OK;
 
 my $DefaultDomain  = "ad.example.com";
 my $ksetpw_command = "/usr/local/sbin/ksetpw";
@@ -102,7 +86,8 @@ sub new {
 	#
 	my $authfile = $opt->{authfile} || "ActiveDirectory";
 
-	my %dbauthal = JazzHands::DBI::parse_auth_file($authfile);
+	my $dbauthal_conf = JazzHands::AppAuthAL::find_and_parse_auth($authfile,'', 'AD');
+	my %dbauthal = %$dbauthal_conf;
 
 	#
 	# Use defaults if available
@@ -164,13 +149,12 @@ sub new {
 	}
 
 
-	if ( !defined( $self = Net::LDAP->new( \@servers, timeout => 10) ) ) {
+	if ( !defined( $self = $class->SUPER::new( \@servers, timeout => 10) ) ) {
 		return
 		  "Unable to open connection to LDAP hosts: "
 		  . join( ', ', @servers ) . "\n";
 	}
 
-	$self->start_tls( verify => 'none' ) || die "start_tls";
 
 	$self->{domain}   = $domain;
 	$self->{krbrealm} = uc($domain);
