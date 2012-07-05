@@ -28,7 +28,7 @@ package JazzHands::ActiveDirectory;
 
 use strict;
 use warnings;
-use base 'Net::LDAPS';
+use base 'Net::LDAP';
 use Net::LDAP::Entry;
 use Net::DNS;
 use JazzHands::AppAuthAL;
@@ -96,6 +96,7 @@ sub new {
 	$password = $dbauthal{Password} if $dbauthal{Password};
 	$domain = $dbauthal{Domain} || $DefaultDomain;
 	$server = $dbauthal{ServerName} if $dbauthal{ServerName};
+	my $tls = $dbauthal{tls} or warn "No tls option for the connection to AD\n";
 	$krbrealm =
 	  $dbauthal{KrbRealm} ? uc( $dbauthal{KrbRealm} ) : uc($domain);
 
@@ -154,14 +155,15 @@ sub new {
 		  "Unable to open connection to LDAP hosts: "
 		  . join( ', ', @servers ) . "\n";
 	}
-
+	my $mesg = $self->start_tls( %$tls ); 
+	if($mesg->code){ die "Cannot issue STARTTLS command $!\n" . $mesg->error }
 
 	$self->{domain}   = $domain;
 	$self->{krbrealm} = uc($domain);
 
 	$self->{searchbase} = "dc=" . join( ",dc=", split( /\./, $domain ) );
 
-	my $mesg = $self->bind( $username, password => $password );
+	$mesg = $self->bind( $username, password => $password );
 	if ( $mesg->is_error ) {
 		return $mesg->error_text;
 	}
