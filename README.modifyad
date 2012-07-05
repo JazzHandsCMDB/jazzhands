@@ -11,13 +11,13 @@ Register the schema editor as a snap-in by doing something like:
 
 regsvr32 C:\windows\system32\schmmgmt.dll 
 mmc /a
-start up the active directory schema editor
+start up the active directory schema editor (adsiedit.msc)
 right click and connect to schema operatoins master
 
 add an attribute (right click, create new...)  ignore warning
         commonname: jazzHandsSystemUserID
         display name: jazzHandsSystemUserID
-        x500 id: 1.3.6.1.4.1.31752.1.1.1.1
+        x500 id: 1.3.6.1.4.1.39422.1.1
         description: jazzhands user id for account sync
         syntax: integer
 
