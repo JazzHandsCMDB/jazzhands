@@ -1146,7 +1146,7 @@ manually.
 Immediate credentials.  If the password for this user is non-null, you
 must supply it using the B<password> option.
 
-=back 4
+=back
 
 =item B<GetHashByMatch>(I<string>, \@attributes)
 
@@ -1197,7 +1197,7 @@ system_user_id's are returned.
 
 =item B<GetUserByUID>(I<system_user_id>)
 
-Search for a specific user specified by uid.
+Search for a specific user specified by uid.  This assumes that a special JazzHandsObject schema has been added to the standard ActiveDirectroy LDAP schema
 
 =item B<GetUserByUsername>(I<username>)
 
@@ -1206,11 +1206,18 @@ Search for a specific user specified by username.
 =item B<setpassword>(I<username>, I<newpassword>)
 
 Set the password for I<username> to I<newpassword>.  Returns zero on
-failure, and non-zero on success.
+failure, and non-zero on success.  This method calls a compiled binary located
+at /usr/local/sbin/ksetpw
+
+=item B<setLDAPPassword>( dn => <dn>, password => <password> )
+
+This alternative method sets the password using LDAP protocol.  To get 'dn', use either 'GetUserByUsername' or 'GetUserbyUID'; these two methods return 'dn'
 
 =item B<setRoamingProfile>(OPTIONS)
 
 Set the roaming profile for the user.  The I<userid> option must be set.
+
+=back
 
 =head1 AUTHOR
 
