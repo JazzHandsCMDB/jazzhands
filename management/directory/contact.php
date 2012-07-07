@@ -146,9 +146,9 @@ $query = "
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
-		inner join account_collection_account uc
+		left join account_collection_account uc
 			on uc.account_id = a.account_id
-		inner join account_collection u
+		left join account_collection u
 			on u.account_collection_id = uc.account_collection_id
 			and u.account_collection_type = 'department'
 		left join (     
