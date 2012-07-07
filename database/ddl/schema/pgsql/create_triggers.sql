@@ -1218,9 +1218,43 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-
 DROP TRIGGER IF EXISTS trigger_check_person_image_usage_mv ON person_image_usage;
 CREATE TRIGGER trigger_check_person_image_usage_mv AFTER INSERT OR UPDATE
     ON person_image_usage 
     FOR EACH ROW 
     EXECUTE PROCEDURE check_person_image_usage_mv();
+
+/*
+ * deal with the insertion of images
+ */
+
+/*
+ * enforces is_multivalue in val_person_image_usage
+ *
+ * no consideration for oracle, but probably not necessary
+ */
+
+CREATE OR REPLACE FUNCTION fix_person_image_oid_ownership()
+RETURNS TRIGGER AS $$
+DECLARE
+   b	integer;
+BEGIN
+	b := NEW.image_blob; 
+	BEGIN
+		EXECUTE 'GRANT SELECT on LARGE OBJECT b to picture_image_ro';
+		EXECUTE 'GRANT UPGRADE on LARGE OBJECT b to picture_image_rw';
+		EXECUTE 'ALTER large object b owner to jazzhands';
+	EXCEPTION WHEN OTHERS THEN
+		RAISE NOTICE 'Unable to adjust ownership of %', b;
+	END;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+
+DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image_usage;
+CREATE TRIGGER fix_person_image_oid_ownership BEFORE INSERT OR UPDATE OR DELETE
+    ON person_image
+    FOR EACH ROW 
+    EXECUTE PROCEDURE fix_person_image_oid_ownership();
+
