@@ -18,7 +18,7 @@ if(!is_dir($_CACHEDIR)) {
 /*
  * copies the specific oid to the given file descriptor
  */
-function copy_db_image($dbconn, $oid, $wfd, $header) {
+function copy_db_image($dbconn, $row, $wfd, $header = null) {
 	$oid = $row['image_blob'];
 	$type = $row['image_type'];
 
@@ -103,15 +103,41 @@ function send_cached_image($dbconn, $row, $in_hint) {
  	 * harder to find the right one.
 	 */
 	if($row['image_type'] == 'jpeg') {
-		$srcprog = "djpeg";
-		$dstprog = "cjpeg";
+		$uqsrcprog = "djpeg";
+		$uqdstprog = "cjpeg";
 	} elseif($row['image_type'] == 'png') {
-		$srcprog = "pngtopnm";
-		$dstprog = "pngtopnm";
+		$uqsrcprog = "pngtopnm";
+		$uqdstprog = "pnmtopng";
 	} elseif($row['image_type'] == 'tiff') {
-		$srcprog = "tifftopnm";
-		$dstprog = "tifftopnm";
+		$uqsrcprog = "tifftopnm";
+		$uqdstprog = "tifftopnm";
 	}
+
+	/*
+	 * Now try to find it based on some sensible pathisms
+	 */
+	$path = split(":", getenv('PATH'));
+	array_push($path, "/usr/pkg/bin");
+	array_push($path, "/usr/local/bin");
+	array_push($path, "/usr/sfw/bin");
+
+	$srcprog = $uqsrcprog;
+	$dstprog = $uqdstprog;
+	$uqcvt = "pamscale";
+	$cvt = $uqcvt;
+
+	foreach (array_reverse($path) as $p) {
+		if(is_executable("$p/$uqsrcprog")) {
+			$srcprog = "$p/$uqsrcprog";
+		}
+		if(is_executable("$p/$uqdstprog")) {
+			$dstprog = "$p/$uqdstprog";
+		}
+		if(is_executable("$p/$uqcvt")) {
+			$cvt = "$p/$uqcvt";
+		}
+	}
+
 
 	if($hint == 'thumb') {
 		$width= "50";
@@ -121,8 +147,7 @@ function send_cached_image($dbconn, $row, $in_hint) {
 		$width= "300";
 	}
 
-	$cmd =  "cat $fullfn | $srcprog | /usr/pkg/bin/pnmscale -xsize=$width | $dstprog | tee $fn";
-	error_log($cmd);
+	$cmd =  "cat $fullfn | $srcprog | $cvt -xsize=$width | $dstprog | tee $fn";
 	$str = `$cmd`;
 	if(strlen($str)) {
 		header('Content-Type: image/'.$row['image_type']);
@@ -175,9 +200,11 @@ if($person_id && $person_image_id) {
 
 	if( $row = pg_fetch_array($result, null, PGSQL_ASSOC) ) {
 		if(! send_cached_image( $dbconn, $row, $hint ) ) {
-			if(!copy_db_image($dbconn, $row['image_blob'], STDOUT, 1)) {
+			$stdout= fope("php://stdout", "w");
+			if(!copy_db_image($dbconn, $row, $stdout, 1)) {
 				die("failed to display image #". $row['image_blob']);
 			}
+			fclose($stdout);
 		} else {
 			$showpic = 1;
 		}
