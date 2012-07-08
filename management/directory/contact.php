@@ -190,7 +190,7 @@ if(isset($row['mgr_last_name'])) {
 
 echo build_header($name);
 
-echo "<div class=directorypic>" . img($row['person_id'], $row['person_image_id'], 'fullsize').
+echo "<div class=directorypic>" . img($row['person_id'], $row['person_image_id'], 'contact').
 	"</div>";
 
 echo "<div class=\"description\">";
