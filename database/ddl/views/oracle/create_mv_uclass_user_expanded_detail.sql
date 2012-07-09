@@ -45,10 +45,19 @@ start with sysdate
 next sysdate + 1/8
 with primary key
 	AS (
-	SELECT uclass_id,system_user_id,
-		decode (uclass_is_leaf,1,decode(dept_is_leaf,0,'UclassAssignedToParentDept',1,'UclassAssignedToDept','UclassAssignedToPerson'),
-					0,decode(dept_is_leaf,0,'ParentUclassOfUclassAssignedToParentDept',1,'ParentUclassOfUclassAssignedToDept','ParentUclassOfUclassAssignedToPerson'),
-			'unknown'
+	SELECT 
+		uclass_id,
+		system_user_id,
+		decode (uclass_is_leaf,
+				1, decode(dept_is_leaf,
+					0,'UclassAssignedToParentDept',
+					1,'UclassAssignedToDept',
+					'UclassAssignedToPerson'),
+				0,decode(dept_is_leaf,
+					0,'ParentUclassOfUclassAssignedToParentDept',
+					1,'ParentUclassOfUclassAssignedToDept',
+					'ParentUclassOfUclassAssignedToPerson'),
+				'unknown'
 			) assign_method,
 		uclass_is_leaf,
 		uclass_inherit_path,
