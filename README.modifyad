@@ -12,24 +12,50 @@ Register the schema editor as a snap-in by doing something like:
 regsvr32 C:\windows\system32\schmmgmt.dll 
 mmc /a
 start up the active directory schema editor (adsiedit.msc)
-right click and connect to schema operatoins master
+right click and connect to schema operations master
+
+note taht these should be in sync with doc/jazzhands.schema
 
 add an attribute (right click, create new...)  ignore warning
-        commonname: jazzHandsSystemUserID
-        display name: jazzHandsSystemUserID
-        x500 id: 1.3.6.1.4.1.39422.1.1
-        description: jazzhands user id for account sync
+        commonname: jazzHandsAccountId
+        display name: jazzhandsAccountId
+        x500 id: 1.3.6.1.4.1.39422.1.1.1
+        description: jazzhands account id for account sync
         syntax: integer
 
-right click on properties:
+add an attribute (right click, create new...)  ignore warning
+        commonname: jazzHandsAccountCollectionId
+        display name: jazzHandsAccountCollectionId
+        x500 id: 1.3.6.1.4.1.39422.1.1.2
+        description: jazzhands account collection id for group sync
+        syntax: integer
+
+Then go back to each attribute, and right click on properties:
         Index this attribute
         Replicate this attribute to the global catalog
 
-[ fields ]
+add class (right click, create new) ignore warning:
 
-right click on user
-attribuets tab
-add optional attribute from before.
+
+add an object class (right click, create new)... ignore warning
+        commonname: jazzHandsAccountObject
+        display name: jazzHandsAccountObject
+        x500 id: 1.3.6.1.4.1.39422.1.2.1
+        description: object that an be mapped to a jazzhands account
+        parent class: top
+	class type: Auxiliary
+
+	NEXT -> mandatory jazzHandsAccountId
+
+add an object class (right click, create new)... ignore warning
+        commonname: jazzHandsAccountCollectionObject
+        display name: jazzHandsAccountCollectionObject
+        x500 id: 1.3.6.1.4.1.39422.1.2.2
+        description: object that can be mapped to a jazzhands account collection
+        parent class: top
+	class type: Auxiliary
+
+	NEXT -> mandatory jazzHandsAccountCollectionId
 
 ... need to create "Unsorted Accounts" as a group to toss people into.
 
@@ -53,7 +79,7 @@ openssl pkcs12 -inkey exampledc-01.ad.example.com.key \
         -name exampledc-01.ad.example.com  \
         -out exampledc-01.ad.example.com.p12 -export
 
-Once you have that on the Domain Controller, there are two way sot import
+Once you have that on the Domain Controller, there are two ways to import
 it into the machine.  The first way, which is the only way before Windows
 Server 2008, is to put it in the Local Computer's Personal Certificate,
 which you do as follows.
