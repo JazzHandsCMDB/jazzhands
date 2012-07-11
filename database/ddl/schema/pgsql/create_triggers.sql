@@ -388,8 +388,8 @@ BEGIN
 				(DNS_Domain_Id = NEW.DNS_Domain_Id)) AND
 			((Operating_System_Id IS NULL AND NEW.Operating_System_Id IS NULL) OR
 				(Operating_System_Id = NEW.Operating_System_Id)) AND
-			((Production_State IS NULL AND NEW.Production_State IS NULL) OR
-				(Production_State = NEW.Production_State)) AND
+			((service_environment IS NULL AND NEW.service_environment IS NULL) OR
+				(service_environment = NEW.service_environment)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
@@ -427,8 +427,8 @@ BEGIN
 				(DNS_Domain_Id = NEW.DNS_Domain_Id)) AND
 			((Operating_System_Id IS NULL AND NEW.Operating_System_Id IS NULL) OR
 				(Operating_System_Id = NEW.Operating_System_Id)) AND
-			((Production_State IS NULL AND NEW.Production_State IS NULL) OR
-				(Production_State = NEW.Production_State)) AND
+			((service_environment IS NULL AND NEW.service_environment IS NULL) OR
+				(service_environment = NEW.service_environment)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
 			((Person_id IS NULL AND NEW.Person_id IS NULL) OR
@@ -667,14 +667,14 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.Permit_Production_State = 'REQUIRED' THEN
-			IF NEW.Production_State IS NULL THEN
-				RAISE 'Production_State is required.'
+	IF v_prop.Permit_service_environment = 'REQUIRED' THEN
+			IF NEW.service_environment IS NULL THEN
+				RAISE 'service_environment is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.Permit_Production_State = 'PROHIBITED' THEN
-			IF NEW.Production_State IS NOT NULL THEN
-				RAISE 'Production_State is prohibited.'
+	ELSIF v_prop.Permit_service_environment = 'PROHIBITED' THEN
+			IF NEW.service_environment IS NOT NULL THEN
+				RAISE 'service_environment is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;

@@ -107,14 +107,10 @@ insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_addr
 --	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::1:12a0)', 64, 'N', 'Y', 'Reserved', 'test address 5', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
 
 insert into device_collection 
-	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE, 
-	 SHOULD_GENERATE_SUDOERS)
+	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE)
 values
-	('cots1', 'applicense', 
-	 'N');
+	('cots1', 'applicense');
 insert into device_collection 
-	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE, 
-	 SHOULD_GENERATE_SUDOERS)
+	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE)
 values
-	('cots2', 'applicense', 
-	 'N');
+	('cots2', 'applicense');

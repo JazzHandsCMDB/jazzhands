@@ -34,7 +34,7 @@ DECLARE
 	v_device_collection_id	Property.device_collection_id%TYPE;
 	v_dns_domain_id			Property.dns_domain_id%TYPE;
 	v_operating_system_id	Property.operating_system_id%TYPE;
-	v_production_state		Property.production_state%TYPE;
+	v_service_environment		Property.service_environment%TYPE;
 	v_site_code				Property.site_code%TYPE;
 	v_system_user_id		Property.system_user_id%TYPE;
 	v_account_collection_id				Property.account_collection_id%TYPE;
@@ -82,7 +82,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -112,7 +112,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -142,7 +142,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -172,7 +172,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -202,7 +202,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -232,7 +232,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -262,7 +262,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -292,7 +292,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -323,7 +323,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -354,7 +354,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -385,7 +385,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -416,7 +416,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -446,7 +446,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -477,7 +477,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -508,7 +508,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -539,7 +539,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -570,7 +570,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -601,7 +601,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -632,7 +632,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -663,7 +663,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_Id
@@ -694,7 +694,7 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_Production_State,
+		Permit_service_environment,
 		Permit_Site_Code,
 		Permit_System_User_Id,
 		Permit_Account_Collection_id
@@ -736,7 +736,7 @@ BEGIN
 		LIMIT 1;
 	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System 
 		LIMIT 1;
-	SELECT Production_State INTO v_production_state FROM VAL_Production_State 
+	SELECT service_environment INTO v_service_environment FROM VAL_service_environment 
 		LIMIT 1;
 	SELECT Site_Code INTO v_site_code FROM Site 
 		LIMIT 1;
@@ -759,7 +759,7 @@ BEGIN
 	RAISE NOTICE 'v_device_collection_id is %', v_device_collection_id;
 	RAISE NOTICE 'v_dns_domain_id is %', v_dns_domain_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
-	RAISE NOTICE 'v_production_state is %', v_production_state;
+	RAISE NOTICE 'v_service_environment is %', v_service_environment;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
 	RAISE NOTICE 'v_system_user_id is %', v_system_user_id;
 	RAISE NOTICE 'v_account_collection_id is %', v_account_collection_id;
@@ -893,7 +893,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -903,7 +903,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			v_account_collection_id
@@ -923,7 +923,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -933,7 +933,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			v_account_collection_id
@@ -953,7 +953,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -963,7 +963,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			v_account_collection_id
@@ -983,7 +983,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -993,7 +993,7 @@ BEGIN
 			NULL,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			v_account_collection_id
@@ -1013,7 +1013,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1023,7 +1023,7 @@ BEGIN
 			v_device_collection_id,
 			NULL,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			v_account_collection_id
@@ -1043,7 +1043,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1053,7 +1053,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			NULL,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			v_account_collection_id
@@ -1065,7 +1065,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Omitting Production_State from property with REQUIRED Production_State lhs field';
+	RAISE NOTICE 'Omitting service_environment from property with REQUIRED service_environment lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1073,7 +1073,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1103,7 +1103,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1113,7 +1113,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			NULL,
 			v_system_user_id,
 			v_account_collection_id
@@ -1133,7 +1133,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1143,7 +1143,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			NULL,
 			v_account_collection_id
@@ -1163,7 +1163,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1173,7 +1173,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_production_state,
+			v_service_environment,
 			v_site_code,
 			v_system_user_id,
 			NULL
@@ -1193,7 +1193,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1223,7 +1223,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1253,7 +1253,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1283,7 +1283,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1313,7 +1313,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1335,7 +1335,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Adding Production_State to property with PROHIBITED Production_State lhs field';
+	RAISE NOTICE 'Adding service_environment to property with PROHIBITED service_environment lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1343,7 +1343,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1353,7 +1353,7 @@ BEGIN
 			NULL,
 			NULL,
 			NULL,
-			v_production_state,
+			v_service_environment,
 			NULL,
 			NULL,
 			NULL
@@ -1373,7 +1373,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1403,7 +1403,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
@@ -1433,7 +1433,7 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			Production_State,
+			service_environment,
 			Site_Code,
 			System_User_ID,
 			Account_Collection_id
