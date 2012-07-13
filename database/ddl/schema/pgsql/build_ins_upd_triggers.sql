@@ -34,6 +34,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION rebuild_stamp_trigger(name varchar) RETURNS VOID AS $$
+BEGIN
+	BEGIN
+		EXECUTE 'DROP TRIGGER IF EXISTS ' ||
+			quote_ident('trig_userlog_' || name) ||
+			' ON ' || quote_ident(name);
+		EXECUTE 'CREATE TRIGGER ' ||
+			quote_ident('trig_userlog_' || name) ||
+			' BEFORE INSERT OR UPDATE ON ' ||
+			quote_ident(name) ||
+			' FOR EACH ROW EXECUTE PROCEDURE trigger_ins_upd_generic_func()';
+	END;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE OR REPLACE FUNCTION rebuild_stamp_triggers() RETURNS VOID AS $$
 BEGIN
 	DECLARE
@@ -49,14 +64,7 @@ BEGIN
 				table_type = 'BASE TABLE' AND
 				table_name NOT LIKE 'aud$%'
 		LOOP
-			EXECUTE 'DROP TRIGGER IF EXISTS ' ||
-				quote_ident('trig_userlog_' || tab.table_name) ||
-				' ON ' || quote_ident(tab.table_name);
-			EXECUTE 'CREATE TRIGGER ' ||
-				quote_ident('trig_userlog_' || tab.table_name) ||
-				' BEFORE INSERT OR UPDATE ON ' ||
-				quote_ident(tab.table_name) ||
-				' FOR EACH ROW EXECUTE PROCEDURE trigger_ins_upd_generic_func()';
+			PERFORM rebuild_stamp_trigger(tab.table_name);
 		END LOOP;
 	END;
 END;

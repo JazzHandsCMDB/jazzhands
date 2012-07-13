@@ -3484,8 +3484,6 @@ COMMENT ON COLUMN X509_CERTIFICATE.PUBLIC_KEY IS 'Textual representation of Cert
 
 COMMENT ON COLUMN X509_CERTIFICATE.PRIVATE_KEY IS 'Textual representation of Certificate Private Key. Private Key is a component of X509 standard and is used for encryption.';
 
-COMMENT ON COLUMN X509_CERTIFICATE.CERT_SIGNING_RQST IS 'Textual representation of a CSR. In public key infrastructure systems, a certificate signing request (also CSR or certification request) is a message sent from an applicant to a certificate authority in order to apply for a digital identity certificate.';
-
 COMMENT ON COLUMN X509_CERTIFICATE.SUBJECT IS 'Textual representation of a certificate subject. Certificate subject is a part of X509 certificate specifications.';
 
 COMMENT ON COLUMN X509_CERTIFICATE.VALID_FROM IS 'Timestamp indicating when the certificate becomes valid and can be used.';

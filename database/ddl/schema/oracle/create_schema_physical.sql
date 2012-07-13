@@ -10858,8 +10858,6 @@ CREATE TABLE X509_CERTIFICATE
 			  NOT DEFERRABLE  INITIALLY IMMEDIATE  ENABLE  VALIDATE,
 	PRIVATE_KEY          VARCHAR2(4000 BYTE) NOT NULL 
 			  NOT DEFERRABLE  INITIALLY IMMEDIATE  ENABLE  VALIDATE,
-	CERT_SIGNING_RQST    VARCHAR2(4000 BYTE) NOT NULL 
-			  NOT DEFERRABLE  INITIALLY IMMEDIATE  ENABLE  VALIDATE,
 	SUBJECT              VARCHAR2(255 BYTE) NOT NULL 
 			  NOT DEFERRABLE  INITIALLY IMMEDIATE  ENABLE  VALIDATE,
 	VALID_FROM           TIMESTAMP(6) NOT NULL 
@@ -10902,8 +10900,6 @@ COMMENT ON COLUMN X509_CERTIFICATE.X509_CA_CERT_SERIAL_NUMBER IS 'Serial number 
 COMMENT ON COLUMN X509_CERTIFICATE.PUBLIC_KEY IS 'Textual representation of Certificate Public Key. Public Key is a component of X509 standard and is used for encryption.';
 
 COMMENT ON COLUMN X509_CERTIFICATE.PRIVATE_KEY IS 'Textual representation of Certificate Private Key. Private Key is a component of X509 standard and is used for encryption.';
-
-COMMENT ON COLUMN X509_CERTIFICATE.CERT_SIGNING_RQST IS 'Textual representation of a CSR. In public key infrastructure systems, a certificate signing request (also CSR or certification request) is a message sent from an applicant to a certificate authority in order to apply for a digital identity certificate.';
 
 COMMENT ON COLUMN X509_CERTIFICATE.SUBJECT IS 'Textual representation of a certificate subject. Certificate subject is a part of X509 certificate specifications.';
 
