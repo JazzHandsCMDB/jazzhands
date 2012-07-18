@@ -14,7 +14,7 @@ mmc /a
 start up the active directory schema editor (adsiedit.msc)
 right click and connect to schema operations master
 
-note taht these should be in sync with doc/jazzhands.schema
+note that these should be in sync with doc/jazzhands.schema
 
 add an attribute (right click, create new...)  ignore warning
         commonname: jazzHandsAccountId
