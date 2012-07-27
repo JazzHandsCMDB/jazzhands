@@ -16,7 +16,7 @@
 -- $Id$
 --
 
-DROP VIEW IF EXISTS v_account_collection_expanded;
+DROP VIEW IF EXISTS v_account_collection_expanded CASCADE;
 CREATE OR REPLACE VIEW v_account_collection_expanded AS
 WITH RECURSIVE var_recurse (
 	level,

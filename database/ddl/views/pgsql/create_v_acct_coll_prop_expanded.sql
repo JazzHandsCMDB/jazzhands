@@ -1,6 +1,7 @@
 CREATE OR REPLACE VIEW v_acct_coll_prop_expanded AS
 	SELECT
 		root_account_collection_id as account_collection_id,
+		property_id,
 		property_name,
 		property_type,
 		property_value,
