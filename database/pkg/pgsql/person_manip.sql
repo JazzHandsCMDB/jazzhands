@@ -112,3 +112,65 @@ BEGIN
 	INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( _account_collection_id, account_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION person_manip.add_account_non_person(_company_id integer, _account_status character varying, _login character varying, _description character varying) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+	_account_realm_id INTEGER;
+	_person_id INTEGER;
+	_account_id INTEGER;
+BEGIN
+	_person_id := 0;
+	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = _company_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Cannot find account_realm_id with company id %',_company_id;
+	END IF;
+	_account_id = nextval('public.account_account_id_seq');
+	INSERT INTO account ( account_id, login, person_id, company_id, account_realm_id, account_status, description, account_role, account_type) 
+		VALUES (_account_id, _login, _person_id, _company_id, _account_realm_id, _account_status, _description, 'primary', 'pseudouser');
+	RETURN _account_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION person_manip.get_unix_uid(account_type CHARACTER VARYING) RETURNS INTEGER AS $$
+DECLARE new_id INTEGER;
+BEGIN
+        IF account_type = 'people' THEN
+                SELECT 
+                        coalesce(max(unix_uid),10199) INTO new_id 
+                FROM
+                        account_unix_info aui
+                JOIN
+                        account a 
+                USING
+                        (account_id)
+                JOIN
+                        person p 
+                USING
+                        (person_id)
+                WHERE
+                        p.person_id != 0;
+		new_id = new_id + 1;
+        ELSE
+                SELECT
+                        coalesce(min(unix_uid),10000) INTO new_id
+                FROM
+                        account_unix_info aui
+                JOIN
+                        account a
+                USING
+                        (account_id)
+                JOIN
+                        person p
+                USING
+                        (person_id)
+                WHERE
+                        p.person_id = 0 AND unix_uid >0;
+		new_id = new_id - 1;
+        END IF;
+        RETURN new_id;
+END;
+
+$$
+        LANGUAGE plpgsql SECURITY DEFINER;
+
