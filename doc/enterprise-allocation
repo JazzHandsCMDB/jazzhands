@@ -1,4 +1,4 @@
-$Ida$
+$Id$
 $HeadURL$
 
 JazzHands has an enterprise number allocated to it, 39422
@@ -8,13 +8,13 @@ JazzHands has an enterprise number allocated to it, 39422
 What's underneath is tracked here for now.
 
 .1 - JazzHands Objects
+.1 - Mappings to JazzHands Objects
+.1.1 -- Mappings for LDAP
 
-.1.1 -- objects
+.1.1.1 -- id mappings
+.1.1.1.1 -- account id
+.1.1.1.2 -- account_collection_id
 
-.1.1.1 -- account id
-.1.1.2 -- account_collection_id
-
-.1.2 -- groups of objects
-
-.1.2.1 - account object
-.1.2.2 - account collection object
+.1.1.2 -- object classes
+.1.1.2.1 - account object
+.1.1.2.2 - account collection object
