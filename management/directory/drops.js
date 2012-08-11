@@ -242,13 +242,15 @@ function pic_manip(person_id) {
 			$(input).attr('value', person_id);
 			$(form).append(input);
 
-			for(var i = 0; i < resp['pics'].length; i++) {
+			for(var i = 0; 
+					typeof(resp['pics']) != 'undefined' && 
+					 i < resp['pics'].length; i++) {
 				var imgid = resp['pics'][i]['person_image_id'];
 				var tr = document.createElement("tr");
 				var td = document.createElement("td");
 				var img = document.createElement("img");
 				img.setAttribute("class", "fullsize");
-				img.src = "picture.php?person_id="+person_id+"&person_image_id="+ imgid;
+				img.src = "picture.php?person_id="+person_id+"&person_image_id="+ imgid + "&type=contact";
 				$(td).append(img);
 				$(tr).append(td);
 

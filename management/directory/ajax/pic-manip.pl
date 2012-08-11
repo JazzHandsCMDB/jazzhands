@@ -176,8 +176,31 @@ sub do_work {
 	# this picture!!
 
 	my $cgi = CGI->new;
+	# print $cgi->header, $cgi->start_html;
+	# print $cgi->Dump, $cgi->end_html;  exit;
 
 	my $personid = $cgi->param("person_id");
+
+	my $psth = $dbh->prepare_cached(qq{
+		select	person_image_id
+		  from	person_image
+		 where	person_id = ?
+	}) || die $dbh->errstr;
+
+	$psth->execute($personid) || die $psth->errstr;
+
+	while ( my ($picid) = $psth->fetchrow_array ) {
+		# objects with no person image usage at all will not show up as params,
+		# so need to look at the db and see if usage is still set.
+		my $oldusg = get_pic_usage($dbh, $picid);
+		my @newusg = $cgi->param("person_image_usage_$picid");
+
+		foreach my $usg (@$oldusg) {
+			if( ! grep($_ eq $usg, @newusg)) {
+				remove_pic_usage($dbh, $picid, $usg);
+			}
+		}
+	}
 
 	# remove usage from things that have it off
 	foreach my $param ($cgi->param) {
@@ -231,8 +254,6 @@ sub do_work {
 
 	# now go over the old ones and fix things that have changed.
 
-	# print $cgi->header, $cgi->start_html;
-	# print $cgi->Dump, $cgi->end_html; 
 	$dbh->commit;
 	$dbh->disconnect;
 	$cgi->redirect($cgi->referer);
