@@ -35,7 +35,6 @@
 \i pgsql/create_v_netblock_hier.sql
 \i create_v_user_extract.sql 
 \i pgsql/create_v_property.sql
-\i pgsql/create_v_acct_coll_account_expanded.sql
 \i pgsql/create_v_nblk_coll_netblock_expanded.sql
 \i pgsql/create_v_person_company_expanded.sql
 \i pgsql/create_v_department_company_expanded.sql
@@ -60,9 +59,16 @@
 -- \i pgsql/create_mv_acct_collection_user_expanded_detail.sql 
 -- \i create_v_user_prop_expanded.sql 
 -- \i pgsql/create_mv_acct_collection_user_expanded.sql
+-- NOTE, some of these above may have been ported; need to dig into. XXX
+\i pgsql/create_v_account_collection_account.sql
+\i pgsql/create_v_account_collection_expanded.sql
+\i pgsql/create_v_acct_coll_expanded_detail.sql
+\i pgsql/create_v_acct_coll_expanded.sql
+\i pgsql/create_v_acct_coll_acct_expanded.sql
+\i pgsql/create_v_acct_coll_acct_expanded_detail.sql
+\i pgsql/create_v_acct_coll_prop_expanded.sql
 
 \i pgsql/create_v_account_collection_expanded.sql
-\i pgsql/create_v_account_collection_account.sql
-\i pgsql/create_v_acct_coll_account_expanded.sql
 
 \i pgsql/create_v_application_role.sql
+
