@@ -798,7 +798,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_delete_peruser_account_collection ON Property;
+DROP TRIGGER IF EXISTS trigger_delete_peruser_account_collection ON Account;
 CREATE TRIGGER trigger_delete_peruser_account_collection BEFORE DELETE
 	ON Account FOR EACH ROW EXECUTE PROCEDURE delete_peruser_account_collection();
 
@@ -1118,12 +1118,7 @@ BEGIN
 			update account
 			  set	account_status = NEW.person_company_status
 			 where	person_id = NEW.person_id
-			  AND	company_id = NEW.company_id
-			  AND	account_status in (
-				  	SELECT	person_status
-					  FROM	val_person_status
-					 WHERE	propagate_from_person = 'Y'
-			  	);
+			  AND	company_id = NEW.company_id;
 		END IF;
 	END IF;
 	RETURN NEW;
@@ -1253,7 +1248,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 
 DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image_usage;
-CREATE TRIGGER fix_person_image_oid_ownership BEFORE INSERT OR UPDATE OR DELETE
+CREATE TRIGGER trigger_fix_person_image_oid_ownership BEFORE INSERT OR UPDATE OR DELETE
     ON person_image
     FOR EACH ROW 
     EXECUTE PROCEDURE fix_person_image_oid_ownership();

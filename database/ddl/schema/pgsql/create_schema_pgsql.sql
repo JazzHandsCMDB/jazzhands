@@ -5544,6 +5544,8 @@ ALTER TABLE X509_KEY_USAGE_CATEGORIZATION
 
 ALTER TABLE X509_KEY_USAGE_CATEGORIZATION
 	ADD CONSTRAINT FK_X509_KEY_USAGE FOREIGN KEY (X509_KEY_USG) REFERENCES VAL_X509_KEY_USAGE (X509_KEY_USG)  ;
-create role picture_image_ro;
-create role picture_image_rw;
-create role picture_image_rm;
+
+-- needs to be created...
+--create role picture_image_ro;
+--create role picture_image_rw;
+--create role picture_image_rm;

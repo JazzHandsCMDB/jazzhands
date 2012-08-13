@@ -7,8 +7,15 @@
 select now();
 
 \i ddl/schema/pgsql/create_schema_pgsql.sql
-\i ddl/schema/pgsql/build_audit_tables.sql
-\i ddl/schema/pgsql/build_ins_upd_triggers.sql
+
+CREATE SCHEMA audit;
+\i ddl/schema/pgsql/create_schema_support.sql
+
+-- \i ddl/schema/pgsql/build_audit_tables.sql
+-- \i ddl/schema/pgsql/build_ins_upd_triggers.sql
+
+SELECT schema_support.rebuild_stamp_triggers();
+SELECT schema_support.build_audit_tables();
 
 
 \cd pkg/pgsql
