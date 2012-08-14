@@ -3558,6 +3558,83 @@ SELECT schema_support.build_audit_tables();
 drop function trigger_ins_upd_generic_func();
 
 
+--- XXX
+-- excess ones, relevant to prod instance; probably need to handle these
+-- in a smarter fashion but I am just putting them all here in case some
+-- were missed.
+GRANT SELECT ON val_production_state TO stab_role;
+GRANT ALL ON val_production_state TO jazzhands;
+GRANT SELECT ON val_production_state TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON val_production_state TO iud_role;
+GRANT ALL ON appaal_instance TO jazzhands;
+GRANT SELECT ON appaal_instance TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON appaal_instance TO iud_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON device TO stab_role;
+GRANT ALL ON device TO jazzhands;
+GRANT SELECT ON device TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON device TO iud_role;
+GRANT SELECT ON device_collection TO stab_role;
+GRANT ALL ON device_collection TO jazzhands;
+GRANT SELECT ON device_collection TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON device_collection TO iud_role;
+GRANT SELECT ON device_collection TO ap_ldapfeed;
+GRANT SELECT ON device_collection TO ap_hrfeed;
+GRANT ALL ON network_service TO jazzhands;
+GRANT SELECT ON network_service TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON network_service TO iud_role;
+GRANT SELECT ON property TO ap_corpit;
+GRANT ALL ON property TO jazzhands;
+GRANT SELECT ON property TO ap_directory;
+GRANT SELECT ON property TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON property TO iud_role;
+GRANT SELECT ON property TO ap_hrfeed;
+GRANT SELECT ON sw_package_release TO stab_role;
+GRANT ALL ON sw_package_release TO jazzhands;
+GRANT SELECT ON sw_package_release TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON sw_package_release TO iud_role;
+GRANT ALL ON unix_group TO jazzhands;
+GRANT SELECT ON unix_group TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON unix_group TO iud_role;
+GRANT SELECT ON unix_group TO ap_ldapfeed;
+GRANT ALL ON val_property TO jazzhands;
+GRANT SELECT ON val_property TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON val_property TO iud_role;
+GRANT SELECT ON val_property TO ap_ldapfeed;
+GRANT SELECT ON val_property TO ap_hrfeed;
+GRANT INSERT,SELECT,UPDATE ON voe TO stab_role;
+GRANT ALL ON voe TO jazzhands;
+GRANT SELECT ON voe TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON voe TO iud_role;
+GRANT ALL ON x509_certificate TO jazzhands;
+GRANT SELECT ON x509_certificate TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON x509_certificate TO iud_role;
+GRANT ALL ON v_application_role TO jazzhands;
+GRANT SELECT ON v_application_role TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON v_application_role TO iud_role;
+GRANT ALL ON v_application_role_member TO jazzhands;
+GRANT SELECT ON v_application_role_member TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON v_application_role_member TO iud_role;
+GRANT SELECT ON v_property TO ap_passwd;
+GRANT ALL ON v_property TO jazzhands;
+GRANT SELECT ON v_property TO ro_role;
+GRANT INSERT,SELECT,UPDATE,DELETE ON v_property TO iud_role;
+GRANT SELECT ON v_property TO ap_ldapfeed;
+GRANT SELECT ON v_property TO ap_hrfeed;
+GRANT ALL ON v_acct_coll_expanded TO jazzhands;
+GRANT INSERT,SELECT,UPDATE ON v_acct_coll_expanded TO iud_role;
+GRANT SELECT ON v_acct_coll_acct_expanded TO ap_passwd;
+GRANT ALL ON v_acct_coll_acct_expanded TO jazzhands;
+GRANT INSERT,SELECT,UPDATE ON v_acct_coll_acct_expanded TO iud_role;
+GRANT SELECT ON v_acct_coll_acct_expanded TO ap_ldapfeed;
+GRANT SELECT ON v_acct_coll_acct_expanded TO ap_hrfeed;
+GRANT ALL ON v_acct_coll_expanded_detail TO jazzhands;
+GRANT INSERT,SELECT,UPDATE ON v_acct_coll_expanded_detail TO iud_role;
+GRANT ALL ON v_acct_coll_prop_expanded TO jazzhands;
+GRANT SELECT ON v_acct_coll_prop_expanded TO ap_ldapfeed;
+GRANT ALL ON v_acct_coll_acct_expanded_detail TO jazzhands;
+GRANT INSERT,SELECT,UPDATE ON v_acct_coll_acct_expanded_detail TO iud_role;
+GRANT SELECT ON v_acct_coll_acct_expanded_detail TO ap_accttools;
+
 --- XXX --- KEEP AT END
 grant insert,update,delete on all tables in schema public to iud_role;
 grant select,update on all sequences in schema public to iud_role;
