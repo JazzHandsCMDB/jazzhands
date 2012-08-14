@@ -58,8 +58,8 @@ WITH RECURSIVE var_recurse(
 	WHERE
 		NOT x.cycle
 ) SELECT 
-	root_account_collection_id,
 	account_collection_id,
+	root_account_collection_id,
 	account_id,
 	acct_coll_level,
 	dept_level,
