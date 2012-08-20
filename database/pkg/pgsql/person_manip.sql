@@ -183,24 +183,24 @@ CREATE OR REPLACE FUNCTION person_manip.purge_account(
 		in_account_id	account.account_id%TYPE
 ) RETURNS void AS $$
 BEGIN
-		DELETE FROM account_assignd_cert where ACCOUNT_ID = in_account_id;
-		DELETE FROM account_token where ACCOUNT_ID = in_account_id;
-		DELETE FROM account_unix_info where ACCOUNT_ID = in_account_id;
-		DELETE FROM klogin where ACCOUNT_ID = in_account_id;
-		DELETE FROM property where ACCOUNT_ID = in_account_id;
-		DELETE FROM account_password where ACCOUNT_ID = in_account_id;
-		DELETE FROM unix_group where account_collection_id in 
-			(select account_collection_id from account_collection where account_collection_name in
-				(select login from account where account_id = in_account_id)
-				and account_collection_type in ('unix-group')
-			);
-		DELETE FROM account_collection_account where ACCOUNT_ID = in_account_id;
-
-		DELETE FROM account_collection where account_collection_name in 
+	DELETE FROM account_assignd_cert where ACCOUNT_ID = in_account_id;
+	DELETE FROM account_token where ACCOUNT_ID = in_account_id;
+	DELETE FROM account_unix_info where ACCOUNT_ID = in_account_id;
+	DELETE FROM klogin where ACCOUNT_ID = in_account_id;
+	DELETE FROM property where ACCOUNT_ID = in_account_id;
+	DELETE FROM account_password where ACCOUNT_ID = in_account_id;
+	DELETE FROM unix_group where account_collection_id in 
+		(select account_collection_id from account_collection where account_collection_name in
 			(select login from account where account_id = in_account_id)
-			and account_collection_type in ('per-user', 'unix-group');
+			and account_collection_type in ('unix-group')
+		);
+	DELETE FROM account_collection_account where ACCOUNT_ID = in_account_id;
 
-		DELETE FROM account where ACCOUNT_ID = in_account_id;
+	DELETE FROM account_collection where account_collection_name in 
+		(select login from account where account_id = in_account_id)
+		and account_collection_type in ('per-user', 'unix-group');
+
+	DELETE FROM account where ACCOUNT_ID = in_account_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
