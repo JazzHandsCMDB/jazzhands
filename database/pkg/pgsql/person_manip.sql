@@ -33,7 +33,7 @@ create schema person_manip authorization jazzhands;
 CREATE OR REPLACE FUNCTION person_manip.id_tag()
 RETURNS VARCHAR AS $$
 BEGIN
-	RETURN('<-- $Id -->');
+	RETURN('<-- $Id$ -->');
 END;
 $$ LANGUAGE plpgsql;
 -- end of procedure id_tag
