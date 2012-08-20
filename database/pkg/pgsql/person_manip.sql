@@ -255,7 +255,7 @@ BEGIN
 	UPDATE	account_collection_account
 	   SET	ACCOUNT_ID = merge_to_account_id
 	 WHERE	ACCOUNT_ID = merge_from_account_id
-	  AND	ACCOUNT_COLLECTION_ID NOT IN (
+	  AND	ACCOUNT_COLLECTION_ID IN (
 			SELECT ACCOUNT_COLLECTION_ID
 			  FROM	ACCOUNT_COLLECTION
 				INNER JOIN VAL_ACCOUNT_COLLECTION_TYPE
@@ -265,7 +265,7 @@ BEGIN
 	  AND	account_collection_id not in (
 			SELECT	account_collection_id
 			  FROM	account_collection_account
-			 WHERE	account_id != merge_to_account_id
+			 WHERE	account_id = merge_to_account_id
 	);
 
 	-- Now begin removing the old account
