@@ -3,9 +3,11 @@ package JazzHands::LDAP;
 use strict;
 use warnings;
 
+use base 'Net::LDAP';
+
 use JazzHands::AppAuthAL;
 use Carp 'confess';
-use Net::LDAP;
+
 
 our $VERSION = '0.10';
 
@@ -19,15 +21,15 @@ sub new {
 	my $tls = $params{TLS};
 	my $bind_dn = $params{binddn};
 	my $bind_pw = $params{bindpw};
-        my $ldap = Net::LDAP->new( $host , port => $port) or die "Cannot create an ldap object $@\n";
+        my $self = $class->SUPER::new( $host , port => $port) or die "Cannot create an ldap object $@\n";
 	if('HASH' eq ref $tls){
-		my $mesg = $ldap->start_tls( %$tls );
-		if($mesg->code){ confess "cannot issue STARTTLS command $!\n" . $mesg->error }
+		my $mesg = $self->start_tls( %$tls );
+		if($mesg->code){ confess "Cannot issue STARTTLS command $!\n" . $mesg->error }
 	}
 	my @bind_params = $bind_dn ? ($bind_dn, 'password', $bind_pw) : ();
-        my $mesg = $ldap->bind( @bind_params );
+        my $mesg = $self->bind( @bind_params );
         if($mesg->code){ die "cannot bind $!\n" . $mesg->error }
-	$ldap
+	$self
 }
 
 1
