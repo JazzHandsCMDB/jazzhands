@@ -140,7 +140,7 @@ sub parse_json_auth {
 	if($section and $thing->{$section}) {
 		return $thing->{$section};
 	} else { return $thing } 
-	undef;
+	{};
 }
 
 #
@@ -169,7 +169,7 @@ sub find_and_parse_auth {
 
 		if(defined($appauth_config->{'sloppy_instance_match'}) &&
 			$appauth_config->{'sloppy_instance_match'} =~ /^n(o)?$/i) {
-				return undef;
+				return {};
 		}
 	}
 
@@ -181,7 +181,7 @@ sub find_and_parse_auth {
 		}
 	}
 
-	undef;
+	{}
 }
 
 1;

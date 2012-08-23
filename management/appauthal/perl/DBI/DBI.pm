@@ -15,7 +15,7 @@
 # limitations under the License.
 
 #
-# $Id: DBI.pm 116 2012-05-08 01:57:21Z kovert $
+# $Id: DBI.pm 99 2012-03-09 01:35:38Z kovert $
 #
 
 
@@ -69,133 +69,19 @@ use warnings;
 use Exporter;
 use DBI;
 use FileHandle;
-use JSON::PP;
 use Data::Dumper;
-use vars qw(@EXPORT_OK @ISA $VERSION $appauth_config);
+use JazzHands::AppAuthAL;
 
-$VERSION = '$Revision$';
+use vars qw(@EXPORT_OK @ISA $VERSION);
+
+$VERSION = '0.51';
 
 @ISA       = qw(DBI Exporter);
 @EXPORT_OK = qw(do_database_connect set_session_user);
 
-
-#
-# places where the auth files may live
-#
-our (@searchdirs);
-
-# Parsed JSON config
-our ($appauth_config);
+my $appauth_config = $JazzHands::AppAuthAL::appauth_config;
 
 our $errstr = "";
-
-#
-# If the environment variable is set, require it, otherwise use an optional
-# config file
-#
-BEGIN {
-	my $fn;
-	if(defined($ENV{'APPAUTHAL_CONFIG'})) {
-		$fn = $ENV{'APPAUTHAL_CONFIG'};
-	}
-	if(defined($fn)) { 
-		if(! -r $fn) {
-			die "$fn is unreadable or nonexistance.\n";
-		}
-	} else {
-		$fn = "/etc/jazzhands/appauth-config.json";
-	}
-	if(-r $fn) {
-		my $fh = new FileHandle($fn) || die "$fn: $!\n";
-		my $json = join("", $fh->getlines);
-		$fh->close;
-		$appauth_config = decode_json($json) || die "Unable to parse config file $fn";
-		if(exists($appauth_config->{'onload'})) {
-			if(defined($appauth_config->{'onload'}->{'environment'})) {
-				foreach my $e (@{$appauth_config->{'onload'}->{'environment'}}) {
-					foreach my $k (keys %$e) {
-						$ENV{'$k'} = $e->{$k};
-					}
-				}
-			}
-		}
-		my $dirname = $fn;
-		$dirname =~ s,/[^/]+$,,;
-		if(exists($appauth_config->{'search_dirs'})) {
-			foreach my $d (@{$appauth_config->{'search_dirs'}}) {
-				#
-				# Translate . by itself to the directory that the file is
-				# in.  If someone actually wants the current directory, use ./
-				if($d eq '.') {
-					push(@searchdirs, $dirname);
-				} else {
-					push(@searchdirs, $d);
-				}
-			}
-		}
-	}
-
-	if($#searchdirs < 0) {
-		push(@searchdirs, "/var/lib/jazzhands/appauth-info");
-	}
-}
-
-#
-# Parse a JSON file and return the variable/value pairs to be used by other
-# operations
-#
-sub parse_json_auth {
-	my $fn = shift;
-
-	my $fh = new FileHandle($fn) || die "$fn: $!\n";
-	my $json = join("", $fh->getlines);
-	$fh->close;
-	my $thing = decode_json($json) || die "Unable to parse config file";
-	if($thing && $thing->{'database'}) {
-		return $thing;
-	}
-	undef;
-}
-
-#
-# Find an authfile on the search paths and return the procssed version
-#
-sub find_and_parse_auth {
-	my $app = shift @_;
-	my $instance = shift @_;
-
-	#
-	# This implementation only supports json, but others may want something
-	# in XML, plantext or something else.
-	#
-	#
-	# If instance is set, then look for $d/$app/$instance.json.  if that is
-	# not there, check to see if sloppy_instance_match is set to no, in which
-	# case don't check for a non-instance version.
-	#
-	if($instance) {
-		foreach my $d (@searchdirs) {
-			if(-f "$d/$app/$instance.json") {
-				return(parse_json_auth("$d/$app.$instance/json"));
-			}
-		}
-
-		if(defined($appauth_config->{'sloppy_instance_match'}) &&
-			$appauth_config->{'sloppy_instance_match'} =~ /^n(o)?$/i) {
-				return undef;
-		}
-	}
-
-	foreach my $d (@searchdirs) {
-		if(-f "$d/$app.json") {
-			return(parse_json_auth("$d/$app.json"));
-		} elsif(-f "$d/$app") {
-			return(parse_json_auth("$d/$app"));
-		}
-	}
-
-	undef;
-}
 
 #
 # our implemenation of DBI::connect.
@@ -207,6 +93,7 @@ sub do_database_connect {
 	my $instance = shift;
 	my $dbiflags = shift;
 	my $dude = shift;
+	my $override = shift;
 
 	# Mapping from what the db is called to how to set parameters
 	# parameter names preceeded by an r: are required, everything else is
@@ -249,13 +136,12 @@ sub do_database_connect {
 	};
 
 
-	my $record = find_and_parse_auth($app, $instance);
+	my $record = JazzHands::AppAuthAL::find_and_parse_auth($app, $instance);
 	if(!$record) {
 		$errstr = "Unable to find entry";
 		return undef;
 	}
-
-	my $autharray = $record->{'database'};
+	my $autharray = $record->{database};
 	#
 	# Return the first one that works.
 	#
@@ -310,7 +196,12 @@ sub do_database_connect {
 			} else {
 				next if(!exists($dbdmap->{$dbtype}->{$k}));
 				my $pk = $dbdmap->{$dbtype}->{$k};
-				my $v = $auth->{$k};
+				my $v;
+				if(ref $override and $override->{$k}){
+					$v = $override->{ $k }
+				} else {
+					$v = $auth->{ $k } 
+				}
 				push(@vals, "$pk=$v");
 			}
 		}
@@ -393,6 +284,7 @@ sub connect {
 	my $instance = shift;
 	my $flags = shift;
 	my $user = shift;
+	my $override = shift;
 
 	my $dbh;
 	if(ref($instance)) {
@@ -400,7 +292,7 @@ sub connect {
 	} elsif($flags && !ref($flags)) {
 		$dbh = do_database_connect($app, $instance, undef, $flags);
 	} else {
-		$dbh = do_database_connect($app, $instance, $flags, $user);
+		$dbh = do_database_connect($app, $instance, $flags, $user, $override);
 	}
 	$dbh;
 }
