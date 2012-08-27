@@ -1,5 +1,5 @@
 <?php 
-include "dbauth.php";
+include "jazzhands/dbauth.php";
 
 /* Sort out the cache dir. */ 
 

@@ -1,5 +1,5 @@
 <?php 
-include "dbauth.php";
+include "jazzhands/dbauth.php";
 
 //
 // general routines for dislpaying people.
