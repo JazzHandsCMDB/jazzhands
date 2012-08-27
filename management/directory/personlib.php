@@ -55,6 +55,7 @@ function build_header($title, $style = null, $heading = null) {
         	<title> $title </title>
         	<style type="text/css">
                 	@import url("$style");
+                	@import url("local-style.css");
         	</style>
 		<script src="js/jquery-1.7.1.js" type="text/javascript"></script>
 		<script src="drops.js" type="text/javascript"></script>
