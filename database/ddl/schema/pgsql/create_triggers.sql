@@ -1253,3 +1253,25 @@ CREATE TRIGGER trigger_fix_person_image_oid_ownership BEFORE INSERT OR UPDATE OR
     FOR EACH ROW 
     EXECUTE PROCEDURE fix_person_image_oid_ownership();
 
+
+CREATE OR REPLACE FUNCTION create_new_unix_account() RETURNS TRIGGER AS $$
+DECLARE
+	unix_id INTEGER;
+	_account_collection_id integer;
+BEGIN
+	IF NEW.person_id != 0 THEN
+		unix_id = person_manip.get_unix_uid('people');
+		_account_collection_id = person_manip.get_account_collection_id(NEW.login, 'unix-group');
+		INSERT INTO unix_group (account_collection_id, group_name, unix_gid) VALUES (_account_collection_id, NEW.login, unix_id);
+		INSERT INTO account_collection_account (account_id,account_collection_id) VALUES (NEW.account_id, _account_collection_id);
+		INSERT INTO account_unix_info (unix_uid,unix_group_acct_collection_id,account_id,shell) VALUES (unix_id, _account_collection_id, NEW.account_id,'/bin/bash');
+	END IF;
+	RETURN NEW;	
+END;
+
+DROP TRIGGER IF EXISTS trigger_create_new_unix_account() ON person_image_usage;
+CREATE TRIGGER trigger_create_new_unix_account 
+BEFORE INSERT 
+    ON account
+    FOR EACH ROW 
+    EXECUTE PROCEDURE create_new_unix_account();
