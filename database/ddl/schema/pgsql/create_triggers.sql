@@ -1254,7 +1254,8 @@ CREATE TRIGGER trigger_fix_person_image_oid_ownership BEFORE INSERT OR UPDATE OR
     EXECUTE PROCEDURE fix_person_image_oid_ownership();
 
 
-CREATE OR REPLACE FUNCTION create_new_unix_account() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION create_new_unix_account() 
+RETURNS TRIGGER AS $$
 DECLARE
 	unix_id INTEGER;
 	_account_collection_id integer;
@@ -1268,8 +1269,9 @@ BEGIN
 	END IF;
 	RETURN NEW;	
 END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
-DROP TRIGGER IF EXISTS trigger_create_new_unix_account() ON person_image_usage;
+DROP TRIGGER IF EXISTS trigger_create_new_unix_account ON account;
 CREATE TRIGGER trigger_create_new_unix_account 
 BEFORE INSERT 
     ON account
