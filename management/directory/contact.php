@@ -9,7 +9,7 @@ function check_admin($dbconn, $login) {
 			inner join account_collection ac
 				on ac.account_collection_id =
 					p.property_value_account_coll_id
-			inner join v_acct_coll_account_expanded ae
+			inner join v_acct_coll_acct_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
 			inner join account a
