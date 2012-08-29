@@ -1228,17 +1228,24 @@ CREATE TRIGGER trigger_check_person_image_usage_mv AFTER INSERT OR UPDATE
  *
  * no consideration for oracle, but probably not necessary
  */
-
 CREATE OR REPLACE FUNCTION fix_person_image_oid_ownership()
 RETURNS TRIGGER AS $$
 DECLARE
    b	integer;
+   str	varchar;
 BEGIN
 	b := NEW.image_blob; 
 	BEGIN
-		EXECUTE 'GRANT SELECT on LARGE OBJECT b to picture_image_ro';
-		EXECUTE 'GRANT UPGRADE on LARGE OBJECT b to picture_image_rw';
-		EXECUTE 'ALTER large object b owner to jazzhands';
+		str := 'GRANT SELECT on LARGE OBJECT ' || b || ' to picture_image_ro';
+		EXECUTE str;
+		str :=  'GRANT UPDATE on LARGE OBJECT ' || b || ' to picture_image_rw';
+		EXECUTE str;
+	EXCEPTION WHEN OTHERS THEN
+		RAISE NOTICE 'Unable to grant on %', b;
+	END;
+
+	BEGIN
+		EXECUTE 'ALTER large object ' || b || ' owner to jazzhands';
 	EXCEPTION WHEN OTHERS THEN
 		RAISE NOTICE 'Unable to adjust ownership of %', b;
 	END;
@@ -1247,8 +1254,9 @@ END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 
-DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image_usage;
-CREATE TRIGGER trigger_fix_person_image_oid_ownership BEFORE INSERT OR UPDATE OR DELETE
+DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image;
+CREATE TRIGGER trigger_fix_person_image_oid_ownership 
+BEFORE INSERT OR UPDATE OR DELETE
     ON person_image
     FOR EACH ROW 
     EXECUTE PROCEDURE fix_person_image_oid_ownership();
