@@ -25,13 +25,16 @@ function copy_db_image($dbconn, $row, $wfd, $header = null) {
 	if(isset($header)) {
 		header("Content-type: image/".$row['image_type']);
 	}
-	if($fd = pg_lo_open($dbconn, $oid, 'r')) {
+	$fd = pg_lo_open($dbconn, $oid, 'r');
+	if($fd) {
 		$str = pg_lo_read($fd, 8192);
 		do {
 			fwrite($wfd, $str, strlen($str));
 		} while( $str = pg_lo_read($fd, 8192) );
+		pg_lo_close($fd);
+	} else {
+		error_log("Unable to open oid $oid in db: ". pg_last_error() );
 	}
-	pg_lo_close($fd);
 }
 
 /*
@@ -200,7 +203,7 @@ if($person_id && $person_image_id) {
 
 	if( $row = pg_fetch_array($result, null, PGSQL_ASSOC) ) {
 		if(! send_cached_image( $dbconn, $row, $hint ) ) {
-			$stdout= fope("php://stdout", "w");
+			$stdout= fopen("php://stdout", "w");
 			if(!copy_db_image($dbconn, $row, $stdout, 1)) {
 				die("failed to display image #". $row['image_blob']);
 			}
