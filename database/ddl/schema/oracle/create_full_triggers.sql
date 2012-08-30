@@ -76,6 +76,10 @@ DROP TRIGGER C_TIUBR_ACCOUNT_REALM_COMPANY;
 
 DROP TRIGGER TUB_ACCOUNT_REALM_COMPANY;
 
+DROP TRIGGER C_TIUBR_ACCOUNT_SSH_KEY;
+
+DROP TRIGGER TUB_ACCOUNT_SSH_KEY;
+
 DROP TRIGGER TUB_ACCOUNT_TOKEN;
 
 DROP TRIGGER C_TIUBR_ACCOUNT_TOKEN;
@@ -183,6 +187,10 @@ DROP TRIGGER TUB_DEVICE_POWER_CONNECTION;
 DROP TRIGGER C_TIUBR_DEVICE_POWER_INTERFACE;
 
 DROP TRIGGER TUB_DEVICE_POWER_INTERFACE;
+
+DROP TRIGGER C_TIUBR_DEVICE_SSH_KEY;
+
+DROP TRIGGER TUB_DEVICE_SSH_KEY;
 
 DROP TRIGGER C_TIBUR_DEVICE_TICKET;
 
@@ -433,6 +441,12 @@ DROP TRIGGER K_TBIU_SNMP_COMMSTR;
 DROP TRIGGER TIB_SNMP_COMMSTR;
 
 DROP TRIGGER TUB_SNMP_COMMSTR;
+
+DROP TRIGGER C_TIUBR_SSH_KEY;
+
+DROP TRIGGER TUB_SSH_KEY;
+
+DROP TRIGGER TIB_SSH_KEY;
 
 DROP TRIGGER C_TIUBR_STATIC_ROUTE;
 
@@ -715,6 +729,10 @@ DROP TRIGGER TUB_VAL_SERVICE_ENVIRONMENT;
 DROP TRIGGER C_TIUBR_VAL_SNMP_COMMSTR_TYPE;
 
 DROP TRIGGER TUB_VAL_SNMP_COMMSTR_TYPE;
+
+DROP TRIGGER Trigger_14950;
+
+DROP TRIGGER Trigger_14951;
 
 DROP TRIGGER TUB_VAL_STOP_BITS;
 
@@ -2077,6 +2095,108 @@ end;
 
 
 ALTER TRIGGER TUB_ACCOUNT_REALM_COMPANY
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_ACCOUNT_SSH_KEY
+ BEFORE INSERT OR UPDATE
+ ON ACCOUNT_SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_ACCOUNT_SSH_KEY
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_ACCOUNT_SSH_KEY
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON ACCOUNT_SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_ACCOUNT_SSH_KEY
 	ENABLE;
 
 
@@ -4752,6 +4872,108 @@ end;
 
 
 ALTER TRIGGER TUB_DEVICE_POWER_INTERFACE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_DEVICE_SSH_KEY
+ BEFORE INSERT OR UPDATE
+ ON DEVICE_SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_DEVICE_SSH_KEY
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_DEVICE_SSH_KEY
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON DEVICE_SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_DEVICE_SSH_KEY
 	ENABLE;
 
 
@@ -11242,6 +11464,145 @@ end;
 
 
 ALTER TRIGGER TUB_SNMP_COMMSTR
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_SSH_KEY
+ BEFORE INSERT OR UPDATE
+ ON SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_SSH_KEY
+	ENABLE;
+
+
+CREATE  TRIGGER TIB_SSH_KEY
+ BEFORE INSERT
+ ON SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    IF (:new.SSH_KEY_ID IS NULL)
+    THEN
+        -- Was the following.  Removed owner because quest doesn't handle it properly (for non owner builds)
+        --select SEQ_SSH_KEY_ID.NEXTVAL
+        select SEQ_SSH_KEY_ID.NEXTVAL
+        INTO :new.SSH_KEY_ID
+        from dual;
+    END IF;
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TIB_SSH_KEY
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_SSH_KEY
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON SSH_KEY
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_SSH_KEY
 	ENABLE;
 
 
@@ -18358,6 +18719,108 @@ end;
 
 
 ALTER TRIGGER TUB_VAL_SNMP_COMMSTR_TYPE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER Trigger_14950
+ BEFORE INSERT OR UPDATE
+ ON VAL_SSH_KEY_TYPE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER Trigger_14950
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER Trigger_14951
+ BEFORE UPDATE OF 
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON VAL_SSH_KEY_TYPE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER Trigger_14951
 	ENABLE;
 
 
