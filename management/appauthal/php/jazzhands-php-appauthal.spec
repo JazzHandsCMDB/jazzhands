@@ -1,6 +1,6 @@
 %define name    php-jazzhands-appauthal
 %define prefix	/usr/share/php
-%define version 0.2.7.0
+%define version 0.2.7.1
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -40,6 +40,8 @@ rm -rf %{buildroot}
 %{prefix}/jazzhands/dbauth.php
 
 %changelog
+* Mon Aug 27 2012 Todd Kover <kovert@omniscient.com> 0.2.7.0-1
+ - add basic support for mysql
 * Mon Aug 27 2012 Todd Kover <kovert@omniscient.com> 0.2.7.0-1
  - initial release
 

@@ -196,11 +196,15 @@ class dbauth {
 
 					$dbh = pg_connect($connstr);
 					if(isset($dbh) && $dbh != null) {
-							dbauth::optional_set_session_user($dbh, $login, (isset($record->{'options'}))?$record->{'options'}:null);
-						return $dbh;
+						dbauth::optional_set_session_user($dbh, $login, (isset($record->{'options'}))?$record->{'options'}:null);
 					}
+					return $dbh;
 					break;
 			case 'mysql':
+					$dbh = new mysqli( $dbspec->{'DBHost'}, $dbspec->{'Username'}, $dbspec->{'Password'}, $dbspec->{'DBName'} );
+					// no support for session variables, so not doing anything.
+					// need to deal with options
+					return $dbh;
 					break;
 			default:
 				if(!isset($dbspec->{'DBType'})) {
