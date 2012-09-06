@@ -45,15 +45,13 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 DECLARE
 	par_nbid	netblock.netblock_id%type;
 BEGIN
+	in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
 	select  Netblock_Id
 	  into	par_nbid
 	  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
 		    from NetBlock
 		   where
-			net_manip.inet_base(ip_address, netmask_bits) =
-				net_manip.inet__base(in_IpAddress, 
-					netmask_bits)
-		    and netmask_bits <= in_Netmask_Bits
+		   	in_IpAddress <<= ip_address
 		    and is_single_address = 'N'
 		    and is_organizational = 'N'
 		    and netmask_bits > 0
@@ -63,6 +61,7 @@ BEGIN
 	return par_nbid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
 	in_netblock_id	netblock.netblock_id%type

@@ -16,8 +16,8 @@
  * $Id$
  */
 
-drop schema if exists net_manip cascade;
-create schema net_manip authorization jazzhands;
+DROP SCHEMA IF EXISTS net_manip CASCADE;
+CREATE SCHEMA net_manip AUTHORIZATION jazzhands;
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -39,7 +39,7 @@ CREATE OR REPLACE FUNCTION net_manip.inet_ptodb
 	p_ip_address			in inet,
 	p_raise_exception_on_error	in integer 	default 0
 )
-returns inet AS $$
+RETURNS inet AS $$
 BEGIN
 	return(p_ip_address);
 END;
@@ -54,7 +54,7 @@ CREATE OR REPLACE FUNCTION net_manip.inet_dbtop
 (
 	p_ip_address			in inet
 )
-returns inet AS $$
+RETURNS inet AS $$
 BEGIN
 	return( p_ip_address );	 --  may want this to be host(inet)
 END;
@@ -66,76 +66,80 @@ CREATE OR REPLACE FUNCTION net_manip.inet_bits_to_mask
 	(
 	p_bits				in integer
 	)
-returns inet AS $$
+RETURNS inet AS $$
 BEGIN
-	return( netmask(cast('0.0.0.0/' || p_bits as INET)) );
+	IF p_bits > 32 OR p_bits < 0 THEN
+		RAISE EXCEPTION 'Value for p_bits must be between 0 and 32';
+	END IF;
+		
+	RETURN( netmask(cast('0.0.0.0/' || p_bits AS inet)) );
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE function net_manip.inet_mask_to_bits
+CREATE OR REPLACE FUNCTION net_manip.inet_mask_to_bits
 	(
 	p_netmask			in inet
 	)
-returns integer AS $$
+RETURNS integer AS $$
 BEGIN
-	return (32-log(2, 4294967296 - net_manip.inet_dbton(p_netmask)))::integer;
+	IF family(p_netmask) = 6 THEN
+		RAISE EXCEPTION 'Netmask is not supported for IPv6 addresses';
+	END IF;
+	RETURN (32-log(2, 4294967296 - net_manip.inet_dbton(p_netmask)))::integer;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE function net_manip.inet_base
+CREATE OR REPLACE FUNCTION net_manip.inet_base
 	(
 	p_ip_address		in		inet,
 	p_bits			in		integer
 	)
-returns inet AS $$
+RETURNS inet AS $$
 DECLARE
 	host inet;
 BEGIN
-	host = host(p_ip_address) || '/' || p_bits;
+	host = set_masklen(p_ip_address, p_bits);
 	return network(host);
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE function net_manip.inet_is_private_yn
+CREATE OR REPLACE FUNCTION net_manip.inet_is_private_yn
 	(
 	p_ip_address		  in		  inet
 	)
-returns char AS $$
+RETURNS char AS $$
 BEGIN
-	if( net_manip.inet_is_private(p_ip_address)) THEN
-		return 'Y';
-	else
-		return 'N';
-	end if;
+	IF (net_manip.inet_is_private(p_ip_address)) THEN
+		RETURN 'Y';
+	ELSE
+		RETURN 'N';
+	END IF;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE function net_manip.inet_is_private
+CREATE OR REPLACE FUNCTION net_manip.inet_is_private
 	(
 	p_ip_address		in		inet
 	)
-returns boolean AS $$
+RETURNS boolean AS $$
 BEGIN
-	if( family(p_ip_address) = 4) THEN
-		if('192.168/16' >> p_ip_address) THEN
-			return(true);
+	IF( family(p_ip_address) = 4) THEN
+		IF ('192.168/16' >> p_ip_address) THEN
+			RETURN(true);
 		END IF;
-		if('10/8' >> p_ip_address) THEN
-			return(true);
+		IF ('10/8' >> p_ip_address) THEN
+			RETURN(true);
 		END IF;
-		if('172.16/12' >> p_ip_address) THEN
-			return(true);
-		END IF;
-		if('172.16/12' >> p_ip_address) THEN
-			return(true);
+		IF ('172.16/12' >> p_ip_address) THEN
+			RETURN(true);
 		END IF;
 	else
-		if('FC00::/7' >> p_ip_address) THEN
-			return(true);
-		end if;
+		IF ('FC00::/7' >> p_ip_address) THEN
+			RETURN(true);
+		END IF;
 	END IF;
 
-	return(false);
+	RETURN(false);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -145,11 +149,10 @@ CREATE OR REPLACE function net_manip.inet_inblock
 	p_bits			in		integer,
 	p_ipaddr		in		inet
 	)
-returns char AS $$
+RETURNS char AS $$
 BEGIN
-	return(
-		cast(host(p_network) || '/' || p_bits as inet) >>
-			host(p_ipaddr)
+	RETURN(
+		CAST(host(p_network) || '/' || p_bits AS inet) >> p_ipaddr
 	);
 END;
 $$ LANGUAGE plpgsql;
@@ -159,17 +162,12 @@ CREATE OR REPLACE function net_manip.inet_dbton
 	(
 	p_ipaddr		in		inet
 	)
-returns bigint AS $$
+RETURNS bigint AS $$
 BEGIN
-	IF( family(p_ip_address) = 4) THEN
-		return(
-			((split_part(host(p_ipaddr), '.', 1))::BIGINT << 24) +
-			((split_part(host(p_ipaddr), '.', 2))::BIGINT << 16) +
-			((split_part(host(p_ipaddr), '.', 3))::BIGINT << 8) +
-			((split_part(host(p_ipaddr), '.', 4))::BIGINT) 
-		);
+	IF (family(p_ipaddr) = 4) THEN
+		RETURN p_ipaddr - '0.0.0.0';
 	ELSE
-		RAISE EXCEPTION 'Netmasks unsupported for IPv6';
+		RETURN p_ipaddr - '::0';
 	END IF;
 END;
 $$ LANGUAGE plpgsql;
@@ -178,12 +176,12 @@ CREATE OR REPLACE function net_manip.inet_ntodb
 	(
 	p_ipaddr		in		bigint
 	)
-returns inet AS $$
+RETURNS inet AS $$
 BEGIN
-	IF( family(p_ip_address) != 4) THEN
-		RAISE EXCEPTION 'Netmasks unsupported for IPv6.';
+	IF p_ipaddr > 4294967296 OR p_ipaddr < 16777216 THEN
+		RETURN inet('::0') + p_ipaddr;
 	ELSE
-		RAISE EXCEPTION 'Not implemented Yet. - XXX';
+		RETURN inet('0.0.0.0') + p_ipaddr;
 	END IF;
 END;
 $$ LANGUAGE plpgsql;

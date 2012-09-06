@@ -35,4 +35,5 @@ SELECT schema_support.build_audit_tables();
 \cd ../..
 
 \i ddl/schema/pgsql/create_triggers.sql
+\i ddl/schema/pgsql/create_netblock_triggers.sql
 select now();
