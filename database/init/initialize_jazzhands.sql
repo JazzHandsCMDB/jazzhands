@@ -659,7 +659,61 @@ insert into val_property
 values
 ('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'N', 'company_id',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'PROHIBITED', 'PROHIBITED', 'PROHIBITED');
 
+insert into val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type, permit_account_collection_id,
+	permit_device_collection_id)
+VALUES (
+	'RecurseMembership',
+	'feed-attributes',
+	'Expand account collection membership through children for this feed',
+	'N',
+	'boolean',
+	'REQUIRED',
+	'REQUIRED'
+);
 
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type, permit_account_collection_id,
+	permit_device_collection_id)
+VALUES (
+	'FeedEmptyGroups',
+	'feed-attributes',
+	'Feed account collections even if empty',
+	'N',
+	'boolean',
+	'REQUIRED',
+	'REQUIRED'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type, permit_account_collection_id,
+	permit_device_collection_id)
+VALUES (
+	'LDAPParentDN',
+	'feed-attributes',
+	'DN of LDAP parent (where to place group in LDAP structure)',
+	'N',
+	'string',
+	'REQUIRED',
+	'REQUIRED'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type, permit_account_collection_id,
+	permit_device_collection_id)
+VALUES (
+	'FeedAccountCollection',
+	'feed-attributes',
+	'Synchronize this account collection to this feed',
+	'N',
+	'boolean',
+	'REQUIRED',
+	'REQUIRED'
+);
 
 -- XXX need to auto-create a Account_Collection all_company_XX
 INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
