@@ -121,8 +121,12 @@ pg_query($dbconn, "begin");
 
 $personid = (isset($_GET['person_id']))? $_GET['person_id']:null;
 
+// the order by is used to get the non-NULL ones pushed to the top.  THis is
+// due to the left join matching account_collection_account
+// and account_collection when a person is part of more than one.  That should
+// probably be a sub-select, but I am feeling lazy.
 $query = "
-	select  p.person_id,
+	select  distinct p.person_id,
 		coalesce(p.preferred_first_name, p.first_name) as first_name,
 		coalesce(p.preferred_last_name, p.last_name) as last_name,
 		coalesce(pc.nickname, p.nickname) as nickname,
@@ -133,8 +137,8 @@ $query = "
 		pc.manager_person_id,
 		coalesce(mgrp.preferred_first_name, mgrp.first_name) as mgr_first_name,
 		coalesce(mgrp.preferred_last_name, mgrp.last_name) as mgr_last_name,
-		u.account_collection_id,
-		u.account_collection_name,
+		ac.account_collection_id,
+		ac.account_collection_name,
 		a.login,
 		numreports.tally as num_reports
 	   from person p
@@ -146,11 +150,11 @@ $query = "
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
-		left join account_collection_account uc
-			on uc.account_id = a.account_id
-		left join account_collection u
-			on u.account_collection_id = uc.account_collection_id
-			and u.account_collection_type = 'department'
+		left join account_collection_account aca
+			on aca.account_id = a.account_id
+		left join account_collection ac
+			on ac.account_collection_id = aca.account_collection_id
+			and ac.account_collection_type = 'department'
 		left join (     
         	select  pi.*, piu.person_image_usage
        		  from	person_image pi
@@ -167,6 +171,7 @@ $query = "
 			     group by manager_person_id
 		) numreports on p.person_id = numreports.person_id
 	where p.person_id = $1
+	order by ac.account_collection_name
 ";
 
 $result = pg_query_params($dbconn, $query, array($personid)) 
@@ -205,7 +210,7 @@ if(isset($row['num_reports']) && $row['num_reports'] > 0) {
 }
 echo build_tr("Title", $title);
 /* Was $deptc at the end, which includes the company */
-echo build_tr("Dept", hierlink('department', $row['account_collection_id'],
+echo build_tr("Department", hierlink('department', $row['account_collection_id'],
                 $row['account_collection_name']));
 
 if(isset($manager)) {
