@@ -6,6 +6,8 @@ use warnings;
 use base 'Net::LDAP';
 
 use JazzHands::AppAuthAL;
+use AN::DNS;
+
 use Carp 'confess';
 
 
@@ -17,6 +19,10 @@ sub new {
 	my $params = JazzHands::AppAuthAL::find_and_parse_auth(shift,'','ldap');
 	my %params = %$params;
 	my $host = $params{LDAPHost};
+	unless($host){
+		my $domain = $params{Domain} or die "Neither LDAPHost or Domain parameter supplied\n";
+		$host = AN::DNS->get_srv($domain)
+	}
 	my $port = $params{LDAPPort} || 389;
 	my $tls = $params{TLS};
 	my $bind_dn = $params{binddn};
