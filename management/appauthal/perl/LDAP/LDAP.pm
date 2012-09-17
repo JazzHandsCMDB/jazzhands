@@ -1,3 +1,23 @@
+=head1
+
+Example content of json file when SRV record is not used.
+
+{
+        "ldap" : {
+                "binddn"   : "KZSAND\\jazzhands_user",
+                "bindpw"   : "secret",
+                "LDAPHost" : "kz-sand.kzsand.corp.appnexus.com",
+                "TLS" : { 
+                        "verify" : "none",
+                        "cafile" : "/etc/pki/tls/certs/trusted_by_openldap_clients.crt" }
+        }
+}
+
+To use SRV record, replace 'LDAPHost' entry with 'Domain' entry where 'Domain' is to be used in SRV record as follows:
+
+_ldap._tcp.Domain
+
+=cut
 package JazzHands::LDAP;
 
 use strict;
@@ -10,6 +30,8 @@ use AN::DNS;
 
 use Carp 'confess';
 
+#TODO
+# pod to describe json file format
 
 our $VERSION = '0.10';
 
@@ -21,7 +43,7 @@ sub new {
 	my $host = $params{LDAPHost};
 	unless($host){
 		my $domain = $params{Domain} or die "Neither LDAPHost or Domain parameter supplied\n";
-		$host = AN::DNS->get_srv($domain)
+		$host = AN::DNS->get_srv(domain => $domain, service => 'ldap')
 	}
 	my $port = $params{LDAPPort} || 389;
 	my $tls = $params{TLS};
