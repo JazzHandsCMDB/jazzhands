@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -95,6 +95,8 @@ Write the output files to the directory output_dir. The default is
 
 ###############################################################################
 
+BEGIN { push(@INC, "/Users/kovert"); }
+
 use strict;
 use warnings;
 use JazzHands::DBI;
@@ -104,6 +106,7 @@ use File::Copy;
 use File::Path;
 use Getopt::Long;
 use FindBin qw($Script);
+use JazzHands::GenericDB;
 
 my $o_output_dir = "/prod/pwgen/out";
 my $o_verbose;
@@ -180,29 +183,29 @@ sub get_passwd_line($$$$) {
 
 	## Default values
 
-	$login = $u->{LOGIN};
+	$login = $u->{_dbx('LOGIN')};
 	$crypt = '*';
-	$uid   = $u->{UNIX_UID};
-	$gid   = $u->{UNIX_GID};
-	$home  = $u->{DEFAULT_HOME};
-	$shell = $u->{SHELL};
+	$uid   = $u->{_dbx('UNIX_UID')};
+	$gid   = $u->{_dbx('UNIX_GID')};
+	$home  = $u->{_dbx('DEFAULT_HOME')};
+	$shell = $u->{_dbx('SHELL')};
 
 	## Determine the password
 
-	if ( defined( $up->{ForceCrypt} ) ) {
+	if ( defined( $up->{_dbx('ForceCrypt')} ) ) {
 		$crypt = $up->{ForceCrypt};
 	}
 
 	else {
-		if ( defined( $mp->{MCLASS_UNIX_PW_TYPE} ) ) {
+		if ( defined( $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} ) ) {
 			if (       $login eq 'root'
-				|| $mp->{MCLASS_UNIX_PW_TYPE} eq 'des' )
+				|| $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} eq 'des' )
 			{
-				$crypt = $u->{DES_PASSWORD} || '*';
+				$crypt = $u->{_dbx('DES_PASSWORD')} || '*';
 			}
 
-			elsif ( $mp->{MCLASS_UNIX_PW_TYPE} eq 'md5' ) {
-				$crypt = $u->{MD5_PASSWORD} || '*';
+			elsif ( $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} eq 'md5' ) {
+				$crypt = $u->{_dbx('MD5_PASSWORD')} || '*';
 			}
 		}
 	}
@@ -214,15 +217,15 @@ sub get_passwd_line($$$$) {
 	## Determine GID
 
 	if ( defined( $up->{ForceUserGroup} ) ) {
-		$gname = $up->{ForceUserGroup}{GROUP_NAME};
+		$gname = $up->{ForceUserGroup}{_dbx('GROUP_NAME')};
 		$gid =
 		  defined( $gp->{$gname} )
-		  ? $gp->{$gname}{FORCE_GID}
-		  : $up->{ForceUserGroup}{UNIX_GID};
+		  ? $gp->{$gname}{_dbx('FORCE_GID')}
+		  : $up->{ForceUserGroup}{_dbx('UNIX_GID')};
 	}
 
 	else {
-		$gname = $u->{GROUP_NAME};
+		$gname = $u->{_dbx('GROUP_NAME')};
 		$gid =
 		  defined( $gp->{$gname} ) ? $gp->{$gname}{FORCE_GID} : $gid;
 	}
@@ -232,16 +235,16 @@ sub get_passwd_line($$$$) {
 	$full_name = join(
 		' ',
 		grep( defined($_),
-			$u->{FIRST_NAME}, $u->{MIDDLE_NAME},
-			$u->{LAST_NAME} )
+			$u->{_dbx('FIRST_NAME')}, $u->{_dbx('MIDDLE_NAME')},
+			$u->{_dbx('LAST_NAME')} )
 	);
 
 	## Determine home directory
 
-	my $hp = defined( $mp->{HOME_PLACE} ) ? $mp->{HOME_PLACE} : '/var/home';
+	my $hp = defined( $mp->{_dbx('HOME_PLACE')} ) ? $mp->{_dbx('HOME_PLACE')} : '/var/home';
 	$home = "$hp/$1" if ( $home =~ m!/([^/]+)$! );
 
-	if ( ( $mp->{MCLASS_UNIX_HOME_TYPE} || '' ) eq 'generic' ) {
+	if ( ( $mp->{_dbx('MCLASS_UNIX_HOME_TYPE')} || '' ) eq 'generic' ) {
 		$home = "$hp/generic";
 	}
 
@@ -279,6 +282,9 @@ sub get_passwd_line($$$$) {
 
 sub get_uclass_properties() {
 	my ( $q, $sth, $mu_prop, @r );
+
+	# XXX - need to port this.  Its not clear that a group name 
+	return  undef;
 
 	$q = q{
         select device_collection_id, system_user_id,
@@ -420,20 +426,24 @@ sub get_group_properties() {
 	my ( $q, $sth, $g_prop, $r );
 
 	$q = q{
-        select device_collection_id, group_name, force_gid
+        select device_collection_id, 
+		ac.account_collection_name as group_name, force_gid
         from unix_group g
         join (
           select row_number()
-            over (partition by hd.device_collection_id, gp.uclass_id
+            over (partition by hd.device_collection_id, gp.account_collection_id
                   order by device_collection_level,
                         hd.parent_device_collection_id) r,
-            hd.device_collection_id, uclass_id, property_value AS force_gid
+            hd.device_collection_id, account_collection_id, 
+	    property_value AS force_gid
           from v_device_coll_hier_detail hd
           join v_property gp
           on hd.parent_device_collection_id = gp.device_collection_id
           where gp.property_name = 'ForceGroupGID'
 	  	and gp.property_type = 'UnixGroupFileProperty') y
-        on g.uclass_id = y.uclass_id
+	join account_collection ac
+		using (account_collection_id)
+        on g.account_collection_id = y.account_collection_id
         where r = 1
     };
 
@@ -445,7 +455,7 @@ sub get_group_properties() {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		$g_prop->{ $r->{DEVICE_COLLECTION_ID} }{ $r->{GROUP_NAME} } =
+		$g_prop->{ $r->{_dbx('DEVICE_COLLECTION_ID')} }{ $r->{_dbx('GROUP_NAME')} } =
 		  $r;
 	}
 
@@ -508,39 +518,50 @@ sub generate_passwd_files($) {
 	## The following query returns the passwd file lines for all MCLASSes
 	## but without the overrides. Overrides are applied later.
 
-	$q = q{
-        select distinct c.device_collection_id, s.system_user_id, 
-			   c.name mclass,
+	my $dys = "90";	# XXX - oracle, need to be smarter
+	$dys = "interval '90 days'";
+
+	my $now = "sysdate";	# XXX - oracle, need to be smarter
+	$now = "current_timestamp";
+
+	$q = qq{
+        select distinct c.device_collection_id, a.account_id, 
+			   c.device_collection_name mclass,
                login,
                case when login = 'root'
-                      or nvl(p1.expire_time, p1.change_time + 90) > sysdate
-                    then p1.user_password else null end md5_password,
+                      or coalesce(p1.expire_time, p1.change_time + $dys) > $now
+                    then p1.password else null end md5_password,
                case when login = 'root'
-                      or nvl(p2.expire_time, p2.change_time + 90) > sysdate
-                    then p2.user_password else null end des_password,
-               unix_uid, group_name, unix_gid, first_name, 
+                      or coalesce(p2.expire_time, p2.change_time + $dys) > $now
+                    then p2.password else null end des_password,
+               unix_uid, ac.account_collection_name as group_name, 
+			   unix_gid, first_name, 
                case when length(middle_name) = 1
                     then middle_name || '.' else middle_name end middle_name,
                last_name, default_home, shell
-        from system_user s
-             join user_unix_info ui
-                on (s.system_user_id = ui.system_user_id)
+        from account a
+			join person p
+				on (p.person_id = a.person_id)
+             join account_unix_info ui
+                on (a.account_id = ui.account_id)
              join unix_group ug
-                on (ui.unix_group_uclass_id = ug.uclass_id)
-             join v_device_col_uclass_expanded cce
-                on (s.system_user_id = cce.system_user_id)
+                on (ui.unix_group_acct_collection_id 
+					= ug.account_collection_id)
+             join v_device_col_acct_col_expanded cce
+                on (a.account_id = cce.account_id)
              join device_collection c
                 on (cce.device_collection_id = c.device_collection_id)
-             join uclass u on (cce.uclass_id = u.uclass_id)
-             left join system_password p1
-                on (s.system_user_id = p1.system_user_id
+             join account_collection ac on 
+		(cce.account_collection_id = ac.account_collection_id)
+             left join account_password p1
+                on (a.account_id = p1.account_id
                     and p1.password_type = 'md5')
-             left join system_password p2
-                on (s.system_user_id = p2.system_user_id
+             left join account_password p2
+                on (a.account_id = p2.account_id
                     and p2.password_type = 'des')
-        where system_user_status in ('enabled', 'onleave-enable')
+        where account_status in ('enabled', 'onleave-enable')
         and c.device_collection_type = 'mclass'
-        and u.uclass_type in ('systems', 'per-user')
+        and ac.account_collection_type in ('systems', 'per-user')
     };
 
 	if ($q_mclass_ids) {
@@ -555,8 +576,8 @@ sub generate_passwd_files($) {
 	## Iterate over all MCLASSes and UIDs
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid = $r->{DEVICE_COLLECTION_ID};
-		my $suid = $r->{SYSTEM_USER_ID};
+		my $dcid = $r->{_dbx('DEVICE_COLLECTION_ID')};
+		my $suid = $r->{_dbx('ACCOUNT_ID')};
 		my ( @pwd, $login, $gid, $gname );
 
 		## If we switched to a new MCLASS, write the passwd file
@@ -573,7 +594,7 @@ sub generate_passwd_files($) {
 					}
 				}
 				$fh =
-				  new_mclass_file( $dir, $r->{MCLASS}, $fh,
+				  new_mclass_file( $dir, $r->{_dbx('MCLASS')}, $fh,
 					'passwd' );
 				$last_dcid = $dcid;
 				undef(@pwdlines);
@@ -582,7 +603,7 @@ sub generate_passwd_files($) {
 
 		else {
 			$fh =
-			  new_mclass_file( $dir, $r->{MCLASS}, $fh, 'passwd' );
+			  new_mclass_file( $dir, $r->{_dbx('MCLASS')}, $fh, 'passwd' );
 			$last_dcid = $dcid;
 		}
 
@@ -660,16 +681,20 @@ sub generate_group_files($) {
 	## the default GID which the group would have without any overrides.
 
 	$q = q{
-        select distinct dchd2.device_collection_id, c.name mclass, 
-               ug.uclass_id, ugu.name, ug.unix_gid, 
+        select distinct dchd2.device_collection_id, 
+			   c.device_collection_name mclass, 
+               ug.account_collection_id, 
+			   ugu.account_collection_name as group_name, ug.unix_gid, 
                ug.group_password	-- XXX needs to be a property
         from v_device_coll_hier_detail dchd2
         join v_property mg2
         	on mg2.device_collection_id = dchd2.parent_device_collection_id
         join device_collection c
         	on dchd2.device_collection_id = c.device_collection_id
-        join unix_group ug on mg2.property_value_uclass_id = ug.uclass_id
-		join uclass ugu on ugu.uclass_id = ug.uclass_id 
+        join unix_group ug on 
+			mg2.property_value_account_coll_id = ug.account_collection_id
+		join account_collection ugu on 
+			ugu.account_collection_id = ug.account_collection_id 
         where c.device_collection_type = 'mclass'
 		and mg2.property_name = 'MclassUnixProp'
 		and mg2.property_name = 'UnixGroupAssign'
@@ -686,8 +711,8 @@ sub generate_group_files($) {
 	## DEVICE_COLLECTION_ID and UNIX_GROUP_ID as it's keys.
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid = $r->{DEVICE_COLLECTION_ID};
-		my $ugid = $r->{UNIX_GROUP_ID};
+		my $dcid = $r->{_dbx('DEVICE_COLLECTION_ID')};
+		my $ugid = $r->{_dbx('UNIX_GROUP_ID')};
 
 		$group{$dcid}{$ugid} = $r;
 	}
@@ -695,11 +720,12 @@ sub generate_group_files($) {
 	## This is an auxiliary query which maps MCLASS IDs to MCLASS names
 
 	$q = q{
-        select device_collection_id, name mclass from device_collection
+        select device_collection_id, device_collection_name mclass 
+		from device_collection
         where device_collection_type = 'mclass'
     };
 
-	$mclass = $dbh->selectall_hashref( $q, 'DEVICE_COLLECTION_ID' );
+	$mclass = $dbh->selectall_hashref( $q, _dbx('DEVICE_COLLECTION_ID') );
 
 	## The following query determines Unix group membership. It maps
 	## Unix groups to logins that belong to each particular group for
@@ -707,15 +733,19 @@ sub generate_group_files($) {
 	## attribute set.
 
 	$q = q{
-        select c.device_collection_id, ug.uclass_id, ug.group_name, s.login
+        select c.device_collection_id, 
+			   ug.account_collection_id, gac.account_collection_name, a.login
         from device_collection c
         join v_property ugu
         	on c.device_collection_id = ugu.device_collection_id
-        join unix_group ug on ugu.uclass_id = ug.uclass_id
-        join v_uclass_user_expanded vuue 
-			on ugu.property_value_uclass_id = vuue.uclass_id
-        join system_user s on vuue.system_user_id = s.system_user_id
-        where s.system_user_status in ('enabled', 'onleave-enable')
+        join unix_group ug on 
+			ugu.account_collection_id = ug.account_collection_id
+		join account_collection gac on
+			ug.account_collection_id = gac.account_collection_id
+        join v_acct_coll_acct_expanded vuue 
+			on ugu.property_value_account_coll_id = vuue.account_collection_id
+        join account a on vuue.account_id = a.account_id
+        where a.account_status in ('enabled', 'onleave-enable')
 		and ugu.property_name = 'UnixGroupAssign'
 		and ugu.property_type = 'MclassUnixProp'
     };
@@ -734,12 +764,12 @@ sub generate_group_files($) {
 	## hashes is a reference to the list of the group members.
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid  = $r->{DEVICE_COLLECTION_ID};
-		my $ugid  = $r->{UNIX_GROUP_ID};
-		my $gname = $r->{GROUP_NAME};
+		my $dcid  = $r->{_dbx('DEVICE_COLLECTION_ID')};
+		my $ugid  = $r->{_dbx('ACCOUNT_COLLECTION_ID')};
+		my $gname = $r->{_dbx('GROUP_NAME')};
 
-		push( @{ $m_member{$dcid}{$ugid} },     $r->{LOGIN} );
-		push( @{ $gn_m_member{$dcid}{$gname} }, $r->{LOGIN} );
+		push( @{ $m_member{$dcid}{$ugid} },     $r->{_dbx('LOGIN')} );
+		push( @{ $gn_m_member{$dcid}{$gname} }, $r->{_dbx('LOGIN')} );
 	}
 
 	## The following query determines Unix group membership. It maps
@@ -752,12 +782,17 @@ sub generate_group_files($) {
 	## but once they are combined, it never finishes.
 
 	$q = q{
-        select ug.uclass_id, ug.group_name, s.login
+        select ug.account_collection_id, 
+		gac.account_collection_name as group_name, a.login
         from v_property ugu
-        join unix_group ug on ug.uclass_id = ugu.property_value_uclass_id
-        join v_uclass_user_expanded vuue on ugu.uclass_id = vuue.uclass_id
-        join system_user s on vuue.system_user_id = s.system_user_id
-        where s.system_user_status in ('enabled', 'onleave-enable')
+        join unix_group ug on 
+		ug.account_collection_id = ugu.property_value_account_coll_id
+	join account_collection gac on
+		gac.account_collection_id = ug.account_collection_id
+        join v_acct_coll_acct_expanded vuue on 
+		ugu.account_collection_id = vuue.account_collection_id
+        join account a on vuue.account_id = a.account_id
+        where a.account_status in ('enabled', 'onleave-enable')
         and ugu.device_collection_id is null
 		and ugu.property_name = 'UnixGroupAssign'
 		and ugu.property_type = 'MclassUnixProp'
@@ -773,11 +808,11 @@ sub generate_group_files($) {
 	## hashes is a reference to the list of the group members.
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $ugid  = $r->{UNIX_GROUP_ID};
-		my $gname = $r->{GROUP_NAME};
+		my $ugid  = $r->{_dbx('UNIX_GROUP_ID') };
+		my $gname = $r->{_dbx('GROUP_NAME') };
 
-		push( @{ $member{$ugid} },     $r->{LOGIN} );
-		push( @{ $gn_member{$gname} }, $r->{LOGIN} );
+		push( @{ $member{$ugid} },     $r->{_dbx('LOGIN')} );
+		push( @{ $gn_member{$gname} }, $r->{_dbx('LOGIN')} );
 	}
 
 	## The $passwd_grp hash is built during generation of passwd
@@ -800,12 +835,12 @@ sub generate_group_files($) {
 
 		foreach my $ugid ( keys %$gdc ) {
 			my $g     = $gdc->{$ugid};
-			my $gpass = $g->{GROUP_PASSWORD} || '*';
-			my $gname = $g->{GROUP_NAME};
+			my $gpass = $g->{_dbx('GROUP_PASSWORD')} || '*';
+			my $gname = $g->{_dbx('GROUP_NAME')};
 			my $gid =
 			    $gp && defined( $gp->{$gname} )
-			  ? $gp->{$gname}{FORCE_GID}
-			  : $g->{UNIX_GID};
+			  ? $gp->{$gname}{_dbx('FORCE_GID')}
+			  : $g->{_dbx('UNIX_GID')};
 
 			$gm->{$gname}{gid}      = $gid;
 			$gm->{$gname}{password} = $gpass;
@@ -956,9 +991,11 @@ sub retrieve_sudo_data() {
 	## defaults
 
 	$q = q{
-        select c.device_collection_id, sudo_value
-        from sudo_default d, device_collection c
-        where c.sudo_default_id = d.sudo_default_id
+        select	d.device_collection_id, property_value AS sudo_value
+        from	property p, device_collection d
+        where	p.device_collection_id = d.device_collection_id
+	and	p.property_name = 'sudo-default'
+	and	p.property_type = 'sudoers'
     };
 
 	$aref = $dbh->selectall_arrayref($q);
@@ -972,7 +1009,7 @@ sub retrieve_sudo_data() {
 
 	$q = q{
         select device_collection_id, a.sudo_alias_name, sudo_alias_value
-        from sudo_uclass_device_collection c, sudo_alias a
+        from sudo_acct_col_device_collectio c, sudo_alias a
         where c.sudo_alias_name = a.sudo_alias_name
     };
 
@@ -986,15 +1023,16 @@ sub retrieve_sudo_data() {
 	## uclasses
 
 	$q = q{
-        select distinct c1.device_collection_id, 'U', u1.uclass_id, u1.name
-        from sudo_uclass_device_collection c1, uclass u1
-        where c1.uclass_id = u1.uclass_id
+        select distinct c1.device_collection_id, 'U', 
+		u1.account_collection_id, u1.account_collection_name
+        from sudo_acct_col_device_collectio c1, account_collection u1
+        where c1.account_collection_id = u1.account_collection_id
         union
         select distinct c2.device_collection_id, 'R', 
-               c2.run_as_uclass_id, u2.name
-        from sudo_uclass_device_collection c2, uclass u2
-        where c2.run_as_uclass_id = u2.uclass_id
-        and c2.run_as_uclass_id is not null
+               c2.run_as_account_collection_id, u2.account_collection_name
+        from sudo_acct_col_device_collectio c2, account_collection u2
+        where c2.run_as_account_collection_id = u2.account_collection_id
+        and c2.run_as_account_collection_id is not null
     };
 
 	$aref = $dbh->selectall_arrayref($q);
@@ -1007,10 +1045,10 @@ sub retrieve_sudo_data() {
 	## User specifications
 
 	$q = q{
-        select device_collection_id, sudo_alias_name, uclass_id,
-               run_as_uclass_id, requires_password, can_exec_child
-        from sudo_uclass_device_collection
-        order by uclass_id
+        select device_collection_id, sudo_alias_name, account_collection_id,
+               run_as_account_collection_id, requires_password, can_exec_child
+        from sudo_acct_col_device_collectio
+        order by account_collection_id
     };
 
 	$aref = $dbh->selectall_arrayref($q);
@@ -1023,14 +1061,15 @@ sub retrieve_sudo_data() {
 	## Expand UCLASSes found in sudoers files into logins
 
 	$q = q{
-        select uclass_id, login from system_user
-        join v_uclass_user_expanded using(system_user_id)
-        where uclass_id in (
-          select uclass_id from sudo_uclass_device_collection
+        select account_collection_id, login from account
+        join v_acct_coll_acct_expanded using(account_id)
+        where account_id in (
+          select account_id from sudo_acct_col_device_collectio
           union
-          select run_as_uclass_id from sudo_uclass_device_collection
+          select run_as_account_collection_id from 
+			sudo_acct_col_device_collectio
         )
-        and system_user_status in ('enabled', 'onleave-enable')
+        and account_status in ('enabled', 'onleave-enable')
     };
 
 	$aref = $dbh->selectall_arrayref($q);
@@ -1342,9 +1381,11 @@ sub generate_sudoers_files($) {
 	my ( $q, $sth, $r, $fh );
 
 	$q = q{
-        select device_collection_id, name mclass from device_collection
-        where device_collection_type = 'mclass'
-        and should_generate_sudoers = 'Y'
+        select device_collection_id, device_collection_name mclass 
+	  from device_collection
+		join v_property using (device_collection_id)
+        where property_name = 'generate-sudoers'
+         and  property_type = 'sudoers'
     };
 
 	if ($q_mclass_ids) {
@@ -1355,8 +1396,9 @@ sub generate_sudoers_files($) {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		$fh = new_mclass_file( $dir, $r->{MCLASS}, $fh, 'sudoers' );
-		print $fh get_sudoers_file( $r->{DEVICE_COLLECTION_ID} );
+		$fh = new_mclass_file( $dir, $r->{_dbx('MCLASS')}, 
+			$fh, 'sudoers' );
+		print $fh get_sudoers_file( $r->{_dbx('DEVICE_COLLECTION_ID')} );
 		$fh->close;
 	}
 
@@ -1377,13 +1419,13 @@ sub generate_dbal_files($) {
 	my ( $q, $sth, $row, $last_mclass, $fh, $text );
 
 	$q = q{
-        select c.name mclass, a.appaal_name,
-          max(decode(p.app_key,'Method',p.app_value,NULL)) method,
-          max(decode(p.app_key,'DBType',p.app_value,NULL)) dbtype,
-          max(decode(p.app_key,'Username',p.app_value,NULL)) username,
-          max(decode(p.app_key,'Password',p.app_value,NULL)) password,
-          max(decode(p.app_key,'ServiceName',p.app_value,NULL)) servicename,
-          max(decode(p.app_key,'Keytab',p.app_value,NULL)) keytab
+        select c.device_collection_name mclass, a.appaal_name,
+	  max(CASE WHEN p.app_key = 'Method' THEN p.app_value ELSE NULL END ) as method,
+	  max(CASE WHEN p.app_key = 'DBType' THEN p.app_value ELSE NULL END ) as dbtype,
+	  max(CASE WHEN p.app_key = 'Username' THEN p.app_value ELSE NULL END ) as username,
+	  max(CASE WHEN p.app_key = 'Password' THEN p.app_value ELSE NULL END ) as password,
+	  max(CASE WHEN p.app_key = 'ServiceName' THEN p.app_value ELSE NULL END ) as servicename,
+	  max(CASE WHEN p.app_key = 'Keytab' THEN p.app_value ELSE NULL END ) as keytab
         from appaal_instance i
         join appaal_instance_property p
         on i.appaal_instance_id = p.appaal_instance_id
@@ -1399,7 +1441,7 @@ sub generate_dbal_files($) {
 		$q .= "and c.device_collection_id in $q_mclass_ids";
 	}
 
-	$q .= " group by c.name, a.appaal_name order by c.name, a.appaal_name";
+	$q .= " group by c.device_collection_name, a.appaal_name order by c.device_collection_name, a.appaal_name";
 	$sth = $dbh->prepare($q);
 	$sth->execute;
 
@@ -1482,8 +1524,8 @@ sub generate_k5login_root_files($) {
 	my ( $q, $sth, $r, $last_mclass, $fh, $text );
 
 	$q = q{
-        select distinct c.name mclass,
-          su.login || '/' || k.krb_instance || '@' || kr.realm_name princ_name
+        select distinct c.device_collection_name mclass,
+          a.login || '/' || k.krb_instance || '@' || kr.realm_name princ_name
         from v_device_coll_hier_detail dchd2
         join klogin_mclass km2
         on km2.device_collection_id = dchd2.parent_device_collection_id
@@ -1491,10 +1533,10 @@ sub generate_k5login_root_files($) {
         on dchd2.device_collection_id = c.device_collection_id
         join klogin k on km2.klogin_id = k.klogin_id
         join kerberos_realm kr on k.krb_realm_id = kr.krb_realm_id
-        join system_user su on su.system_user_id = k.system_user_id
-        where k.dest_system_user_id = 
-        (select system_user_id from system_user where login = 'root')
-        and su.system_user_status in ('enabled', 'onleave-enable')
+        join account a on a.account_id = k.account_id
+        where k.dest_account_Id = 
+        (select account_id from account where login = 'root')
+        and a.account_status in ('enabled', 'onleave-enable')
         and c.device_collection_type = 'mclass'
         and km2.include_exclude_flag = 'INCLUDE'
         and not exists (
@@ -1516,7 +1558,7 @@ sub generate_k5login_root_files($) {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $mclass = $r->{MCLASS};
+		my $mclass = $r->{_dbx('MCLASS')};
 
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
@@ -1537,7 +1579,7 @@ sub generate_k5login_root_files($) {
 			$last_mclass = $mclass;
 		}
 
-		$text .= $r->{PRINC_NAME} . "\n";
+		$text .= $r->{_dbx('PRINC_NAME')} . "\n";
 	}
 
 	print $fh $text if ( $fh && $text );
@@ -1557,19 +1599,22 @@ sub generate_wwwgroup_files($) {
 	my ( $q, $sth, $r, $last_mclass, $fh, %member );
 
 	$q = q{
-        select distinct c.name mclass,
-               nvl(p.property_value, u.name) wwwgroup, s.login
+        select distinct c.device_collection_name mclass,
+               coalesce(p.property_value, u.account_collection_name) wwwgroup, 
+	       a.login
         from device_collection c
-        join v_device_col_uclass_expanded dcue
+        join v_device_col_acct_col_expanded dcue
         	on c.device_collection_id = dcue.device_collection_id
-        join system_user s on dcue.system_user_id = s.system_user_id
-        join uclass u on dcue.uclass_id = u.uclass_id
-        left join property p on (u.uclass_id = p.uclass_id
+        join account a on dcue.account_id = a.account_id
+        join account_collection u on 
+		dcue.account_collection_id = u.account_collection_id
+        left join property p on 
+		(u.account_collection_id = p.account_collection_id
         and p.property_type = 'wwwgroup'
         and p.property_name = 'WWWGroupName')
-        where u.uclass_type = 'wwwgroup'
+        where u.account_collection_type = 'wwwgroup'
         and c.device_collection_type = 'mclass'
-        and s.system_user_status in ('enabled', 'onleave-enable')
+        and a.account_status in ('enabled', 'onleave-enable')
     };
 
 	if ($q_mclass_ids) {
@@ -1582,7 +1627,7 @@ sub generate_wwwgroup_files($) {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $mclass = $r->{MCLASS};
+		my $mclass = $r->{_dbx('MCLASS')};
 
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
@@ -1608,7 +1653,7 @@ sub generate_wwwgroup_files($) {
 			$last_mclass = $mclass;
 		}
 
-		push( @{ $member{ $r->{WWWGROUP} } }, $r->{LOGIN} );
+		push( @{ $member{ $r->{_dbx('WWWGROUP')} } }, $r->{_dbx('LOGIN')} );
 	}
 
 	foreach ( sort { $a cmp $b } keys %member ) {
@@ -1675,7 +1720,7 @@ sub create_host_symlinks($@) {
 	## Now retrieve the current host -> mclass mapping from JazzHands
 
 	$q = q{
-        select device_name, name mclass
+        select device_name, device_collection_name mclass
         from device_collection
         join device_collection_member using (device_collection_id) 
         join device using (device_id)
@@ -1687,15 +1732,15 @@ sub create_host_symlinks($@) {
 	}
 
 	$q .= " order by mclass, device_name";
-	$new = $dbh->selectall_hashref( $q, 'DEVICE_NAME' );
+	$new = $dbh->selectall_hashref( $q, _dbx('DEVICE_NAME') );
 
 	## Adjust the symbolic links to point to the right place.
 
 	foreach my $device ( keys %old ) {
 		if ( exists $new->{$device} ) {
-			if ( $new->{$device}{MCLASS} ne $old{$device} ) {
+			if ( $new->{$device}{_dbx('MCLASS')} ne $old{$device} ) {
 				unlink("$dir/$device");
-				symlink( "../mclass/$new->{$device}{MCLASS}",
+				symlink( "../mclass/$new->{$device}{_dbx('MCLASS')}",
 					"$dir/$device" );
 			}
 		}
@@ -1711,7 +1756,7 @@ sub create_host_symlinks($@) {
 			## for a few MCLASSes as opposed to all of them and links
 			## need to be repointed.
 			unlink("$dir/$device");
-			symlink( "../mclass/$new->{$device}{MCLASS}",
+			symlink( "../mclass/$new->{$device}{_dbx('MCLASS')}",
 				"$dir/$device" );
 		}
 	}
