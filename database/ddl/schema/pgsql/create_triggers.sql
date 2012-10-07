@@ -499,7 +499,7 @@ BEGIN
 		END IF;
 	END IF;
 	IF NEW.Property_Value_nblk_Coll_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'nblk_collection_id' THEN
+		IF v_prop.Property_Data_Type = 'netblock_collection_id' THEN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be nblk_collection_id' USING
