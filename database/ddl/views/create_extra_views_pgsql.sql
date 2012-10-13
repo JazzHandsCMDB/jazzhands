@@ -52,9 +52,8 @@
 
 -- XXX these need to be ported
 -- \i create_v_joined_acct_collection_user_detail.sql
--- \i pgsql/create_v_device_coll_hier_detail.sql
+\i pgsql/create_v_device_coll_hier_detail.sql
 -- \i create_v_device_col_acct_collection_expanded.sql
--- \i create_v_dev_col_user_prop_expanded.sql
 -- \i create_mv_account_last_auth.sql
 -- \i pgsql/create_mv_acct_collection_user_expanded_detail.sql 
 -- \i create_v_user_prop_expanded.sql 
@@ -66,6 +65,7 @@
 \i pgsql/create_v_acct_coll_expanded.sql
 \i pgsql/create_v_acct_coll_acct_expanded.sql
 \i pgsql/create_v_acct_coll_acct_expanded_detail.sql
+\i create_v_dev_col_user_prop_expanded.sql
 \i pgsql/create_v_acct_coll_prop_expanded.sql
 
 \i pgsql/create_v_account_collection_expanded.sql
