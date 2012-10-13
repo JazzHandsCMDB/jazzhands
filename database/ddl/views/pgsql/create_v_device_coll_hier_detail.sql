@@ -22,25 +22,30 @@
 --
 -- $Id$
 --
-create view V_Device_Coll_Hier_Detail as 
-	SELECT * FROM (
-		SELECT
-			Device_Collection_Id,
-			Device_Collection_Id Parent_Device_Collection_Id,
-			0 Device_Collection_Level
-		FROM
-			Device_Collection
-	)
-	UNION 
-	SELECT * FROM (
-		SELECT
-			CONNECT_BY_ROOT Device_Collection_Id Device_Collection_Id,
-			Parent_Device_Collection_Id,
-			LEVEL Device_Collection_Level
-		FROM
-			Device_Collection_Hier
-		CONNECT BY PRIOR
-			Parent_Device_Collection_Id = Device_Collection_Id
-	)
-;
+create or replace view v_device_coll_hier_detail as 
+WITH RECURSIVE var_recurse (
+	root_device_collection_id,
+	device_collection_id,
+	parent_device_collection_id,
+	device_collection_level
+) as (
+	SELECT	device_collection_id	as root_device_collection_id,
+		device_collection_id	as device_collection_id,
+		device_collection_id	as parent_device_collection_id,
+		0			as device_collection_level
+	FROM	device_collection
+UNION  ALL
+	SELECT	x.root_device_collection_id	as root_device_collection_id,
+		dch.device_collection_id,
+		dch.parent_device_collection_id,
+		x.device_collection_level + 1 as device_collection_level
+	 FROM	var_recurse x
+		inner join device_collection_hier dch
+			on x.parent_device_collection_id = 
+				dch.device_collection_id
+) SELECT
+	root_device_collection_id	as device_collection_id,
+	parent_device_collection_id	as parent_device_collection_id,
+	device_collection_level		as device_collection_level
+FROM	var_recurse;
 

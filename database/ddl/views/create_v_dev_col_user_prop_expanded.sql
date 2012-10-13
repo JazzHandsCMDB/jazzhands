@@ -32,9 +32,10 @@ SELECT dchd.device_collection_id,
   upo.property_type property_type,
   upo.property_name property_name, 
   upo.property_value,
-  decode(upn.is_multivalue, 'N', 0, 'Y', 1) is_multivalue,
+   CASE WHEN upn.is_multivalue = 'N' THEN 0
+	ELSE 1 END is_multievalue,
   CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
-FROM v_Account_Collection_user_expanded_detail uued
+FROM v_acct_coll_acct_expanded_detail uued
 JOIN Account_Collection u ON uued.Account_Collection_id = u.Account_Collection_id
 JOIN v_property upo ON upo.Account_Collection_id = u.Account_Collection_id
  AND upo.property_type in (
@@ -50,15 +51,21 @@ LEFT JOIN v_device_coll_hier_detail dchd
   ON (dchd.parent_device_collection_id = upo.device_collection_id)
 JOIN account s ON uued.account_id = s.account_id
 ORDER BY device_collection_level,
-  decode(u.Account_Collection_type, 
-    'per-user', 0,
-    'property', 1,
-    'systems',  2, 3),
-  decode(uued.assign_method,
-    'Account_CollectionAssignedToPerson',                  0,
-    'Account_CollectionAssignedToDept',                    1,
-    'ParentAccount_CollectionOfAccount_CollectionAssignedToPerson',    2,
-    'ParentAccount_CollectionOfAccount_CollectionAssignedToDept',      2,
-    'Account_CollectionAssignedToParentDept',              3,
-    'ParentAccount_CollectionOfAccount_CollectionAssignedToParentDep', 3, 6),
-  uued.dept_level, uued.Account_Collection_level, dchd.device_collection_id, u.Account_Collection_id;
+   CASE WHEN u.Account_Collection_type = 'per-user' THEN 0
+   	WHEN u.Account_Collection_type = 'property' THEN 1
+   	WHEN u.Account_Collection_type = 'systems' THEN 2
+	ELSE 3 END,
+  CASE WHEN uued.assign_method = 'Account_CollectionAssignedToPerson' THEN 0
+  	WHEN uued.assign_method = 'Account_CollectionAssignedToDept' THEN 1
+  	WHEN uued.assign_method = 
+	'ParentAccount_CollectionOfAccount_CollectionAssignedToPerson' THEN 2
+  	WHEN uued.assign_method = 
+	'ParentAccount_CollectionOfAccount_CollectionAssignedToDept' THEN 2
+  	WHEN uued.assign_method = 
+	'Account_CollectionAssignedToParentDept' THEN 3
+  	WHEN uued.assign_method = 
+	'ParentAccount_CollectionOfAccount_CollectionAssignedToParentDep' 
+			THEN 3
+        ELSE 6 END,
+  uued.dept_level, uued.acct_coll_level, dchd.device_collection_id, 
+  u.Account_Collection_id;
