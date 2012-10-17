@@ -47,9 +47,9 @@ BEGIN
 	SELECT account_collection_id INTO _account_collection_id FROM account_collection WHERE account_collection_type= type
 		AND account_collection_name= department;
 	IF NOT FOUND THEN
-		_account_collection_id = nextval('account_collection_account_collection_id_seq');
-		INSERT INTO account_collection (account_collection_id, account_collection_type, account_collection_name)
-			VALUES (_account_collection_id, type, department);
+		INSERT INTO account_collection (account_collection_type, account_collection_name)
+			VALUES (type, department)
+		RETURNING account_collection_id into _account_collection_id;
 		--RAISE NOTICE 'Created new department % with account_collection_id %', department, _account_collection_id;
 	END IF;
 	RETURN _account_collection_id;
@@ -94,9 +94,9 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 DECLARE
 	_account_realm_id INTEGER;
 BEGIN
-	person_id = nextval('person_person_id_seq');
-	INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-		VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date);
+	INSERT INTO person (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+		VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+		RETURNING person_id into person_id;
 	INSERT INTO person_company
 		(person_id,company_id,external_hr_id,person_company_status,is_exempt,employee_id,hire_date,termination_date,person_company_relation, position_title)
 		VALUES
@@ -127,9 +127,9 @@ BEGIN
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Cannot find account_realm_id with company id %',_company_id;
 	END IF;
-	_account_id = nextval('public.account_account_id_seq');
-	INSERT INTO account ( account_id, login, person_id, company_id, account_realm_id, account_status, description, account_role, account_type) 
-		VALUES (_account_id, _login, _person_id, _company_id, _account_realm_id, _account_status, _description, 'primary', 'pseudouser');
+	INSERT INTO account ( login, person_id, company_id, account_realm_id, account_status, description, account_role, account_type) 
+		VALUES (_login, _person_id, _company_id, _account_realm_id, _account_status, _description, 'primary', 'pseudouser')
+	RETURNING account_id into _account_id;
 	RETURN _account_id;
 END;
 $$;
