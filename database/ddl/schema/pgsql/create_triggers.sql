@@ -1195,7 +1195,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 DROP TRIGGER IF EXISTS trigger_create_new_unix_account ON account;
 CREATE TRIGGER trigger_create_new_unix_account 
-BEFORE INSERT 
+AFTER INSERT 
     ON account
     FOR EACH ROW 
     EXECUTE PROCEDURE create_new_unix_account();
