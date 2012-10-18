@@ -87,30 +87,30 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 	person_company_relation VARCHAR,
 	job_title VARCHAR,
 	department VARCHAR, login VARCHAR,
-	OUT person_id INTEGER,
+	OUT _person_id INTEGER,
 	OUT _account_collection_id INTEGER,
-	OUT account_id INTEGER)
+	OUT _account_id INTEGER)
  AS $$
 DECLARE
 	_account_realm_id INTEGER;
 BEGIN
 	INSERT INTO person (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
 		VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-		RETURNING person_id into person_id;
+		RETURNING person_id into _person_id;
 	INSERT INTO person_company
 		(person_id,company_id,external_hr_id,person_company_status,is_exempt,employee_id,hire_date,termination_date,person_company_relation, position_title)
 		VALUES
-		(person_id, _company_id, external_hr_id, person_company_status, is_exempt, employee_id, hire_date, termination_date, person_company_relation, job_title);
+		(_person_id, _company_id, external_hr_id, person_company_status, is_exempt, employee_id, hire_date, termination_date, person_company_relation, job_title);
 	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = _company_id;
-	INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( person_id, _company_id, _account_realm_id);
-	account_id = nextval('account_account_id_seq');
-	INSERT INTO account ( account_id, login, person_id, company_id, account_realm_id, account_status, account_role, account_type) 
-		VALUES (account_id, login, person_id, _company_id, _account_realm_id, person_company_status, 'primary', 'person');
+	INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( _person_id, _company_id, _account_realm_id);
+	INSERT INTO account ( login, person_id, company_id, account_realm_id, account_status, account_role, account_type) 
+		VALUES ( login, _person_id, _company_id, _account_realm_id, person_company_status, 'primary', 'person')
+		RETURNING account_id INTO _account_id;
 	IF department IS NULL THEN
 		RETURN;
 	END IF;
 	_account_collection_id = person_manip.get_account_collection_id(department, 'department');
-	INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( _account_collection_id, account_id);
+	INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( _account_collection_id, _account_id);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
