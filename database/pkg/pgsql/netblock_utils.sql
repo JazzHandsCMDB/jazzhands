@@ -49,12 +49,12 @@ BEGIN
 	select  Netblock_Id
 	  into	par_nbid
 	  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
-		    from NetBlock
+		    from netblock
 		   where
 		   	in_IpAddress <<= ip_address
 		    and is_single_address = 'N'
 		    and is_organizational = 'N'
-		    and netmask_bits > 0
+		    and netmask_bits < in_Netmask_Bits
 		order by netmask_bits desc
 	) subq LIMIT 1;
 
