@@ -62,6 +62,64 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION netblock_utils.delete_netblock(
+	in_netblock_id	netblock.netblock_id%type
+) RETURNS VOID AS $$
+DECLARE
+	par_nbid	netblock.netblock_id%type;
+BEGIN
+	/*
+	 * Update netblocks that use this as a parent to point to my parent
+	 */
+	SELECT
+		netblock_id INTO par_nbid
+	FROM
+		netblock
+	WHERE 
+		netblock_id = in_netblock_id;
+	
+	UPDATE
+		netblock
+	SET
+		parent_netblock_id = par_nbid
+	WHERE
+		parent_netblock_id = in_netblock_id;
+	
+	/*
+	 * Now delete the record
+	 */
+	DELETE FROM netblock WHERE netblock_id = in_netblock_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
+	in_netblock_id	netblock.netblock_id%type
+) RETURNS VOID AS $$
+DECLARE
+	nbrec		RECORD;
+	childrec	RECORD;
+	nbid		netblock.netblock_id%type;
+	ipaddr		inet;
+
+BEGIN
+	SELECT * INTO nbrec FROM netblock WHERE netblock_id = in_netblock_id;
+
+	nbid := netblock_utils.find_best_parent_id(
+		nbrec.ip_address, nbrec.netmask_bits);
+
+	UPDATE netblock SET parent_netblock_id = nbid
+		WHERE netblock_id = nbrec.netblock_id;
+	
+	FOR childrec IN SELECT * FROM netblock WHERE parent_netblock_id = nbid
+		AND netblock_id != in_netblock_id
+	LOOP
+		IF (childrec.ip_address <<= nbrec.ip_address) THEN
+			UPDATE netblock SET parent_netblock_id = in_netblock_id
+				WHERE netblock_id = childrec.netblock_id;
+		END IF;
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
 	in_netblock_id	netblock.netblock_id%type
