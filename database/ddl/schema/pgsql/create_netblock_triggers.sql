@@ -74,6 +74,7 @@ CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON netblock
 CREATE OR REPLACE FUNCTION validate_netblock_parentage() RETURNS TRIGGER AS $$
 DECLARE
 	nbrec			record;
+	realnew			record;
 	nbid			netblock.netblock_id%type;
 	ipaddr			inet;
 	single_count		integer;
@@ -81,39 +82,46 @@ DECLARE
 	pip	    		netblock.ip_address%type;
 BEGIN
 	/*
+	 * It's possible that due to delayed triggers that what is stored in
+	 * NEW is not current, so fetch the current values
+	 */
+	
+	SELECT * INTO realnew FROM netblock WHERE netblock_id = NEW.netblock_id;
+
+	/*
 	 * validate that this netblock is attached to its correct parent
 	 */
-	IF NEW.parent_netblock_id IS NULL THEN
+	IF realnew.parent_netblock_id IS NULL THEN
 		/*
 		 * Validate that if a non-organizational netblock has a parent, unless
 		 * it is the root of a hierarchy
 		 */
-		IF NEW.is_organizational='N' THEN
-			nbid := netblock_utils.find_best_parent_id(NEW.ip_address, 
-				masklen(NEW.ip_address));
+		IF realnew.is_organizational='N' THEN
+			nbid := netblock_utils.find_best_parent_id(realnew.ip_address, 
+				masklen(realnew.ip_address));
 			IF nbid IS NOT NULL THEN
-				RAISE EXCEPTION 'Non-organizational netblock must have correct parent(%)',
-					nbid USING ERRCODE = 22102;
+				RAISE EXCEPTION 'Non-organizational netblock % must have correct parent(%)',
+					realnew.netblock_id, nbid USING ERRCODE = 22102;
 			END IF;
 		END IF;
 	ELSE
 	 	/*
 		 * Reject a block that is self-referential
 		 */
-	 	IF NEW.parent_netblock_id = NEW.netblock_id THEN
+	 	IF realnew.parent_netblock_id = realnew.netblock_id THEN
 			RAISE EXCEPTION 'Netblock may not have itself as a parent'
 				USING ERRCODE = 22101;
 		END IF;
 		
 		SELECT * INTO nbrec FROM netblock WHERE netblock_id = 
-			NEW.parent_netblock_id;
+			realnew.parent_netblock_id;
 
 		/*
 		 * This shouldn't happen, but may because of deferred constraints
 		 */
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'Parent netblock % does not exist',
-			NEW.parent_netblock_id
+			realnew.parent_netblock_id
 			USING ERRCODE = 23503;
 		END IF;
 
@@ -122,34 +130,36 @@ BEGIN
 			USING ERRCODE = 23504;
 		END IF;
 
-		IF NEW.is_organizational='Y' THEN
+		IF realnew.is_organizational='Y' THEN
 			/*
 			 * organizational addresses may not have the best parent as
 			 * a parent, but if they have a parent, it should validate
 			 */
 
-			IF NOT (NEW.ip_address << nbrec.ip_address OR
-					cidr(NEW.ip_address) != nbrec.ip_address) THEN
+			IF NOT (realnew.ip_address << nbrec.ip_address OR
+					cidr(realnew.ip_address) != nbrec.ip_address) THEN
 				RAISE EXCEPTION 'Parent netblock is a valid parent'
 					USING ERRCODE = 22102;
 			END IF;
 		ELSE
-			nbid := netblock_utils.find_best_parent_id(NEW.ip_address, 
-				masklen(NEW.ip_address));
-			if (nbid IS NULL OR NEW.parent_netblock_id != nbid) THEN
-				RAISE EXCEPTION 'Parent netblock is not the correct parent'
+			nbid := netblock_utils.find_best_parent_id(realnew.ip_address, 
+				masklen(realnew.ip_address));
+			if (nbid IS NULL OR realnew.parent_netblock_id != nbid) THEN
+				RAISE EXCEPTION 
+					'Parent netblock % for netblock % is not the correct parent (%)',
+					realnew.parent_netblock_id, realnew.netblock_id, nbid
 					USING ERRCODE = 22102;
 			END IF;
 		END IF;
-		IF NEW.is_single_address = 'Y' AND 
-				((family(NEW.ip_address) = 4 AND 
-					masklen(NEW.ip_address) < 32) OR
-				(family(NEW.ip_address) = 6 AND 
-					masklen(NEW.ip_address) < 128))
+		IF realnew.is_single_address = 'Y' AND 
+				((family(realnew.ip_address) = 4 AND 
+					masklen(realnew.ip_address) < 32) OR
+				(family(realnew.ip_address) = 6 AND 
+					masklen(realnew.ip_address) < 128))
 				THEN 
 			SELECT ip_address INTO ipaddr FROM netblock
 				WHERE netblock_id = nbid;
-			IF (masklen(NEW.ip_address) != masklen(ipaddr)) THEN
+			IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
 			RAISE EXCEPTION 'Parent netblock does not have same netmask for single address'
 				USING ERRCODE = 22105;
 			END IF;
@@ -160,10 +170,10 @@ BEGIN
 		 */
 		SELECT count(*) INTO single_count FROM netblock WHERE
 			is_single_address='Y' and parent_netblock_id = 
-			NEW.parent_netblock_id;
+			realnew.parent_netblock_id;
 		SELECT count(*) INTO nonsingle_count FROM netblock WHERE
 			is_single_address='N' and parent_netblock_id =
-			NEW.parent_netblock_id;
+			realnew.parent_netblock_id;
 
 		IF (single_count > 0 and nonsingle_count > 0) THEN
 			RAISE EXCEPTION 'Netblock may not have direct children for both single and multiple addresses simultaneously'
@@ -175,9 +185,9 @@ BEGIN
 		 * of the hierarchy)
 		 */
 		 PERFORM netblock_id FROM netblock WHERE 
-		 	parent_netblock_id = NEW.parent_netblock_id AND
-			netblock_id != NEW.netblock_id AND
-		 	ip_address <<= NEW.ip_address;
+		 	parent_netblock_id = realnew.parent_netblock_id AND
+			netblock_id != realnew.netblock_id AND
+		 	ip_address <<= realnew.ip_address;
 		IF FOUND THEN
 			RAISE EXCEPTION 'Other netblocks have children that should belong to this parent'
 				USING ERRCODE = 22108;
@@ -190,6 +200,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage 
-	AFTER INSERT OR UPDATE ON netblock DEFERRABLE FOR EACH ROW 
-	EXECUTE PROCEDURE validate_netblock_parentage();
+	AFTER INSERT OR UPDATE ON netblock DEFERRABLE INITIALLY DEFERRED
+	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
 
