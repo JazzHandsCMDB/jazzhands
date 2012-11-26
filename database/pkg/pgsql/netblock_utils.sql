@@ -40,7 +40,9 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress netblock.ip_address%type,
-	in_Netmask_Bits netblock.NETMASK_BITS%type
+	in_Netmask_Bits netblock.NETMASK_BITS%type,
+	in_netblock_type netblock.netblock_type%type,
+	in_ip_universe_id ip_universe.ip_universe_id%type
 ) RETURNS netblock.netblock_id%type AS $$
 DECLARE
 	par_nbid	netblock.netblock_id%type;
@@ -53,12 +55,30 @@ BEGIN
 		   where
 		   	in_IpAddress <<= ip_address
 		    and is_single_address = 'N'
-		    and is_organizational = 'N'
+			and netblock_type = in_netblock_type
+			and ip_universe_id = in_ip_universe_id
 		    and netmask_bits < in_Netmask_Bits
 		order by netmask_bits desc
 	) subq LIMIT 1;
 
 	return par_nbid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
+	in_netblock_id netblock.netblock_id%type
+) RETURNS netblock.netblock_id%type AS $$
+DECLARE
+	nbrec		RECORD;
+BEGIN
+	SELECT * INTO nbrec FROM netblock WHERE netblock_id = in_netblock_id;
+
+	RETURN netblock_utils.find_best_parent_id(
+		nbrec.ip_address,
+		nbrec.netmask_bits,
+		nbrec.netblock_type,
+		nbrec.ip_universe_id
+	);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -104,11 +124,10 @@ DECLARE
 BEGIN
 	SELECT * INTO nbrec FROM netblock WHERE netblock_id = in_netblock_id;
 
-	nbid := netblock_utils.find_best_parent_id(
-		nbrec.ip_address, nbrec.netmask_bits);
+	nbid := netblock_utils.find_best_parent_id(in_netblock_id);
 
 	UPDATE netblock SET parent_netblock_id = nbid
-		WHERE netblock_id = nbrec.netblock_id;
+		WHERE netblock_id = in_netblock_id;
 	
 	FOR childrec IN SELECT * FROM netblock WHERE parent_netblock_id = nbid
 		AND netblock_id != in_netblock_id

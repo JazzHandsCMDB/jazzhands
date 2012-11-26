@@ -1,10 +1,6 @@
 
 CREATE OR REPLACE FUNCTION validate_netblock() RETURNS TRIGGER AS $$
 BEGIN
-	/* note, the autonomous transaction stuff may make some of the stuff  
-	 * we're trying to do here weird.
-	 */
-	 
 	/*
 	 * Force netmask_bits to be authoritative
 	 */
@@ -41,7 +37,9 @@ BEGIN
 */
 			PERFORM netblock_id 
 			   FROM netblock 
-			  WHERE ip_address = new.ip_address;
+			  WHERE ip_address = new.ip_address AND
+					ip_universe_id = new.ip_universe_id AND
+					netblock_type = new.netblock_type;
 			IF (TG_OP = 'INSERT' AND FOUND) THEN 
 				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %', 
 					new.ip_address
@@ -75,9 +73,10 @@ CREATE OR REPLACE FUNCTION validate_netblock_parentage() RETURNS TRIGGER AS $$
 DECLARE
 	nbrec			record;
 	realnew			record;
+	nbtype			record;
 	nbid			netblock.netblock_id%type;
 	ipaddr			inet;
-	single_count		integer;
+	single_count	integer;
 	nonsingle_count	integer;
 	pip	    		netblock.ip_address%type;
 BEGIN
@@ -86,23 +85,63 @@ BEGIN
 	 * NEW is not current, so fetch the current values
 	 */
 	
+	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+		netblock_type = NEW.netblock_type;
+
+/*
+	-- This needs to get f1x0r3d
+	IF nbtype.db_forced_hierarchy = 'Y' THEN
+		PERFORM netblock_utils.recalculate_parentage(NEW.netblock_id);
+	END IF;
+*/
+
 	SELECT * INTO realnew FROM netblock WHERE netblock_id = NEW.netblock_id;
+	/*
+	 * If the parent changed above (or somewhere else between update and
+	 * now), just bail, because another trigger will have been fired that
+	 * we can do the full check with.
+	 */
+	IF NEW.parent_netblock_id != realnew.parent_netblock_id THEN
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * Validate that all children are of the same netblock_type and
+	 * in the same ip_universe.  We care about this even if the
+	 * netblock type is not a validated type.
+	 */
+	PERFORM netblock_id FROM netblock WHERE
+		parent_netblock_id = realnew.netblock_id AND
+		netblock_type != realnew.netblock_type AND
+		ip_universe_id != realnew.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 22109;
+	END IF;
 
 	/*
 	 * validate that this netblock is attached to its correct parent
 	 */
 	IF realnew.parent_netblock_id IS NULL THEN
+		IF nbtype.is_validated_hierarchy='N' THEN
+			RETURN NULL;
+		END IF;
+
 		/*
-		 * Validate that if a non-organizational netblock has a parent, unless
+		 * Validate that if a netblock has a parent, unless
 		 * it is the root of a hierarchy
 		 */
-		IF realnew.is_organizational='N' THEN
-			nbid := netblock_utils.find_best_parent_id(realnew.ip_address, 
-				masklen(realnew.ip_address));
-			IF nbid IS NOT NULL THEN
-				RAISE EXCEPTION 'Non-organizational netblock % must have correct parent(%)',
-					realnew.netblock_id, nbid USING ERRCODE = 22102;
-			END IF;
+		nbid := netblock_utils.find_best_parent_id(
+			realnew.ip_address, 
+			masklen(realnew.ip_address),
+			realnew.netblock_type,
+			realnew.ip_universe_id
+		);
+
+		IF nbid IS NOT NULL THEN
+			RAISE EXCEPTION 'Non-organizational netblock % must have correct parent(%)',
+				realnew.netblock_id, nbid USING ERRCODE = 22102;
 		END IF;
 	ELSE
 	 	/*
@@ -130,67 +169,77 @@ BEGIN
 			USING ERRCODE = 23504;
 		END IF;
 
-		IF realnew.is_organizational='Y' THEN
+		IF nbrec.ip_universe_id != realnew.ip_universe_id OR
+				nbrec.netblock_type != realnew.netblock_type THEN
+			RAISE EXCEPTION 'Parent netblock must be the same type and ip_universe'
+			USING ERRCODE = 22110;
+		END IF;
+
+		IF nbtype.is_validated_hierarchy='N' THEN
 			/*
-			 * organizational addresses may not have the best parent as
-			 * a parent, but if they have a parent, it should validate
+			 * validated hierarchy addresses may not have the best parent as
+			 * a parent, but if they have a parent, it should be a superblock
 			 */
 
 			IF NOT (realnew.ip_address << nbrec.ip_address OR
 					cidr(realnew.ip_address) != nbrec.ip_address) THEN
-				RAISE EXCEPTION 'Parent netblock is a valid parent'
+				RAISE EXCEPTION 'Parent netblock is not a valid parent'
 					USING ERRCODE = 22102;
 			END IF;
 		ELSE
-			nbid := netblock_utils.find_best_parent_id(realnew.ip_address, 
-				masklen(realnew.ip_address));
+			nbid := netblock_utils.find_best_parent_id(
+				realnew.ip_address, 
+				masklen(realnew.ip_address),
+				realnew.netblock_type,
+				realnew.ip_universe_id
+				);
 			if (nbid IS NULL OR realnew.parent_netblock_id != nbid) THEN
 				RAISE EXCEPTION 
 					'Parent netblock % for netblock % is not the correct parent (%)',
 					realnew.parent_netblock_id, realnew.netblock_id, nbid
 					USING ERRCODE = 22102;
 			END IF;
-		END IF;
-		IF realnew.is_single_address = 'Y' AND 
-				((family(realnew.ip_address) = 4 AND 
-					masklen(realnew.ip_address) < 32) OR
-				(family(realnew.ip_address) = 6 AND 
-					masklen(realnew.ip_address) < 128))
-				THEN 
-			SELECT ip_address INTO ipaddr FROM netblock
-				WHERE netblock_id = nbid;
-			IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
-			RAISE EXCEPTION 'Parent netblock does not have same netmask for single address'
-				USING ERRCODE = 22105;
+			IF realnew.is_single_address = 'Y' AND 
+					((family(realnew.ip_address) = 4 AND 
+						masklen(realnew.ip_address) < 32) OR
+					(family(realnew.ip_address) = 6 AND 
+						masklen(realnew.ip_address) < 128))
+					THEN 
+				SELECT ip_address INTO ipaddr FROM netblock
+					WHERE netblock_id = nbid;
+				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
+				RAISE EXCEPTION 'Parent netblock does not have same netmask for single address'
+					USING ERRCODE = 22105;
+				END IF;
 			END IF;
-		END IF;
-		/*
-		 * Validate that all children are is_single_address='Y' or
-		 * all children are is_single_address='N'
-		 */
-		SELECT count(*) INTO single_count FROM netblock WHERE
-			is_single_address='Y' and parent_netblock_id = 
-			realnew.parent_netblock_id;
-		SELECT count(*) INTO nonsingle_count FROM netblock WHERE
-			is_single_address='N' and parent_netblock_id =
-			realnew.parent_netblock_id;
+			/*
+			 * Validate that all children are is_single_address='Y' or
+			 * all children are is_single_address='N'
+			 */
+			SELECT count(*) INTO single_count FROM netblock WHERE
+				is_single_address='Y' and parent_netblock_id = 
+				realnew.parent_netblock_id;
+			SELECT count(*) INTO nonsingle_count FROM netblock WHERE
+				is_single_address='N' and parent_netblock_id =
+				realnew.parent_netblock_id;
 
-		IF (single_count > 0 and nonsingle_count > 0) THEN
-			RAISE EXCEPTION 'Netblock may not have direct children for both single and multiple addresses simultaneously'
-				USING ERRCODE = 22107;
-		END IF;
-		/*
-		 * Validate that none of the children of the parent netblock are
-		 * children of this netblock (e.g. if inserting into the middle
-		 * of the hierarchy)
-		 */
-		 PERFORM netblock_id FROM netblock WHERE 
-		 	parent_netblock_id = realnew.parent_netblock_id AND
-			netblock_id != realnew.netblock_id AND
-		 	ip_address <<= realnew.ip_address;
-		IF FOUND THEN
-			RAISE EXCEPTION 'Other netblocks have children that should belong to this parent'
-				USING ERRCODE = 22108;
+			IF (single_count > 0 and nonsingle_count > 0) THEN
+				RAISE EXCEPTION 'Netblock may not have direct children for both single and multiple addresses simultaneously'
+					USING ERRCODE = 22107;
+			END IF;
+			/*
+			 * Validate that none of the children of the parent netblock are
+			 * children of this netblock (e.g. if inserting into the middle
+			 * of the hierarchy)
+			 */
+			 PERFORM netblock_id FROM netblock WHERE 
+				parent_netblock_id = realnew.parent_netblock_id AND
+				netblock_id != realnew.netblock_id AND
+				ip_address <<= realnew.ip_address;
+			IF FOUND THEN
+				RAISE EXCEPTION 'Other netblocks have children that should belong to this parent'
+					USING ERRCODE = 22108;
+			END IF;
 		END IF;
 	END IF;
 
