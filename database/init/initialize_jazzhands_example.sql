@@ -74,37 +74,42 @@ insert into rack (
 insert into site (site_code, colo_company_id, site_status, description)
 	values ('CZ0', 0, 'ACTIVE', 'Czech Satellite Office');
 
+-- RFC1493 exampele space
 -- FC00::/7
 -- 334965454937798799971759379190646833152
-insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id, can_subnet) values
-        (net_manip.inet_ptodb('FC00::'), 7, 'N', 'N', 'Allocated', 'RFC4193 IPV6 Block', 'N', null, 'Y');
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, 
+	description, netblock_type, parent_netblock_id, can_subnet) values
+(net_manip.inet_ptodb('FC00::'), 7, 'N', 'N', 'Allocated', 
+	'RFC4193 IPV6 Block', 'default', null, 'Y');
 
 -- 334969971398294010747267358593998913536
-insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id, can_subnet) values
-        (net_manip.inet_ptodb('FC00:DEAD:BEEF::'), 48, 'N', 'N', 'Allocated', 'Test Block 1', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('fc00::') and netmask_bits = 7), 'Y');
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, 
+	description, netblock_type, parent_netblock_id, can_subnet) values
+(net_manip.inet_ptodb('FC00:DEAD:BEEF::'), 48, 'N', 'N', 'Allocated', 
+	'Test Block 1', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('fc00::') and netmask_bits = 7), 'Y');
 
 -- 334969971398294010747267358593998913536
-insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id, can_subnet) values
-        (net_manip.inet_ptodb('fc00:dead:beef::'), 64, 'N', 'N', 'Allocated', 'Test Block 2', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF::') and netmask_bits = 48), 'Y');
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id, can_subnet) values
+        (net_manip.inet_ptodb('fc00:dead:beef::'), 64, 'N', 'N', 'Allocated', 'Test Block 2', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF::') and netmask_bits = 48), 'Y');
 -- 334969971398294010931734799331094429696
-insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id, can_subnet) values
-        (net_manip.inet_ptodb('fc00:dead:beef:a::'), 64, 'N', 'N', 'Allocated', 'Test Block 3', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF::') and netmask_bits = 48), 'Y');
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id, can_subnet) values
+        (net_manip.inet_ptodb('fc00:dead:beef:a::'), 64, 'N', 'N', 'Allocated', 'Test Block 3', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF::') and netmask_bits = 48), 'Y');
 
 --	++	-- 334969971398294010931734799331094429697
---	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
---	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::1'), 64, 'N', 'Y', 'Reserved', 'test address 1', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
+--	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id) values
+--	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::1'), 64, 'N', 'Y', 'Reserved', 'test address 1', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
 --	++	-- 334969971398294010931734799331094429698
---	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
---	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::2'), 64, 'N', 'Y', 'Reserved', 'test address 2', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
+--	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id) values
+--	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::2'), 64, 'N', 'Y', 'Reserved', 'test address 2', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
 --	++	-- 334969971398294010931734799331094429705
---	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
---	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::9'), 64, 'N', 'Y', 'Reserved', 'test address 3', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
+--	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id) values
+--	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::9'), 64, 'N', 'Y', 'Reserved', 'test address 3', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
 --	++	-- 334969971398294010931734799331094429999
---	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
---	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::12f)', 64, 'N', 'Y', 'Reserved', 'test address 4', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
+--	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id) values
+--	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::12f)', 64, 'N', 'Y', 'Reserved', 'test address 4', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
 --	++	-- 334969971398294010931734799331094500000
---	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, is_organizational, parent_netblock_id) values
---	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::1:12a0)', 64, 'N', 'Y', 'Reserved', 'test address 5', 'N', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
+--	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id) values
+--	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::1:12a0)', 64, 'N', 'Y', 'Reserved', 'test address 5', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::') and netmask_bits = 64));
 
 insert into device_collection 
 	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE)

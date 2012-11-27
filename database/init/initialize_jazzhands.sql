@@ -282,6 +282,30 @@ insert into val_netblock_status (NETBLOCK_STATUS) values ('Legacy');
 insert into val_netblock_status (NETBLOCK_STATUS) values ('ExternalOwned');
 insert into val_netblock_status (NETBLOCK_STATUS) values ('Reserved');
 
+INSERT INTO ip_universe (
+	ip_universe_id, ip_universe_name, description
+) VALUES (
+        0, 'default', 'default IP universe'    
+);
+
+INSERT INTO val_netblock_type(
+	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
+) VALUES (
+        'default', 'standard hierarchical netblock type', 'Y', 'Y'
+);
+
+INSERT INTO val_netblock_type(
+	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
+) VALUES (
+	'adhoc', 'standard non-hierarchical netblock type', 'N', 'Y'
+);
+
+INSERT INTO val_netblock_type(
+	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
+) VALUES (
+	'dns', 'organizational groupings used for assigning DNS in-addr records', 'Y', 'Y'
+);
+
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 	values ('noarch', 0);
 -- consider better how to deal with these
