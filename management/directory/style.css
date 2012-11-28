@@ -23,6 +23,18 @@ img {
 	color: inherit;
 }
 
+div.deptlist {
+	text-align: center;
+	display: inline;
+	margin: 20%;
+}
+
+div.deptlist ul {
+	margin: auto;
+	text-align: left;
+	margin-left: 30%;
+}
+
 #peoplelist tbody,th,tr,td { 
 	background: transparent; 
 	color: inherit; 
