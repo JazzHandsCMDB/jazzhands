@@ -34,16 +34,28 @@ $$ LANGUAGE plpgsql;
 -------------------------------------------------------------------
 -- returns its first argument (noop under postgresql)
 -------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION net_manip.inet_ptodb
 (
-	p_ip_address			in inet,
-	p_raise_exception_on_error	in integer 	default 0
+	p_ip_address			in inet
 )
 RETURNS inet AS $$
 BEGIN
 	return(p_ip_address);
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION net_manip.inet_ptodb
+(
+	p_ip_address			in inet,
+	p_netmask_bits			in integer
+)
+RETURNS inet AS $$
+BEGIN
+	return(set_masklen(p_ip_address, p_netmask_bits));
+END;
+$$ LANGUAGE plpgsql;
+
 -- end of net_manip.inet_ptodb
 -------------------------------------------------------------------
 
@@ -56,7 +68,7 @@ CREATE OR REPLACE FUNCTION net_manip.inet_dbtop
 )
 RETURNS inet AS $$
 BEGIN
-	return( p_ip_address );	 --  may want this to be host(inet)
+	return( host(p_ip_address) );
 END;
 $$ LANGUAGE plpgsql;
 -- end of net_manip.inet_dbtop
@@ -184,4 +196,16 @@ BEGIN
 		RETURN inet('0.0.0.0') + p_ipaddr;
 	END IF;
 END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE function net_manip.inet_ntodb
+	(
+	p_ipaddr		in		bigint,
+	p_netmask_bits	in		integer
+	)
+RETURNS inet AS $$
+BEGIN
+	RETURN(set_masklen(net_manip.inet_ntodb(p_ipaddr), p_netmask_bits));
+END;
+
 $$ LANGUAGE plpgsql;
