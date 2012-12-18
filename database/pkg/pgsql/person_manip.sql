@@ -205,6 +205,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
+	allow_external_hr_id_in_dest_account BOOLEAN,
 	merge_from_account_id	account.account_Id%TYPE,
 	merge_to_account_id	account.account_Id%TYPE
 ) RETURNS INTEGER AS $$
@@ -234,7 +235,7 @@ BEGIN
 		RAISE EXCEPTION 'People have different relationships';
 	END IF;
 
-	IF(tpc.external_hr_id is NOT NULL) THEN
+	IF(tpc.external_hr_id is NOT NULL AND NOT allow_external_hr_id_in_dest_account) THEN
 		RAISE EXCEPTION 'Destination account has an external HR ID';
 	END IF;
 
