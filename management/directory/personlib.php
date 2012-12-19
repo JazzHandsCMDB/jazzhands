@@ -44,7 +44,7 @@ function hierlink($index, $id, $text) {
 
 function build_header($title, $style = null, $heading = null) {
 	if(!isset($heading)) {
-		$heading = "Phone Directory";
+		$heading = "Directory";
 	}
 	if($style == null) {
 		$style = "style.css";

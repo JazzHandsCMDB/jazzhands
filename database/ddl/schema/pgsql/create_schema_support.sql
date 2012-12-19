@@ -74,7 +74,7 @@ BEGIN
 	FOR table_list IN SELECT table_name FROM information_schema.tables
 		WHERE
 			table_type = 'BASE TABLE' AND
-			table_schema = 'public' AND
+			table_schema = 'jazzhands' AND
 			table_name IN (
 				SELECT
 					table_name 
@@ -130,7 +130,7 @@ BEGIN
 	FOR table_list IN SELECT table_name FROM information_schema.tables
 		WHERE
 			table_type = 'BASE TABLE' AND
-			table_schema = 'public' AND
+			table_schema = 'jazzhands' AND
 			NOT( table_name IN (
 				SELECT
 					table_name 
@@ -211,7 +211,7 @@ BEGIN
 			FROM
 				information_schema.tables
 			WHERE
-				table_schema = 'public' AND
+				table_schema = 'jazzhands' AND
 				table_type = 'BASE TABLE' AND
 				table_name NOT LIKE 'aud$%'
 		LOOP

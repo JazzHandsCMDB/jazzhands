@@ -6,7 +6,7 @@ $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Co
 $index = isset($_GET['index']) ? $_GET['index'] : 'default';
 
 $query_firstpart = "
-	select  p.person_id,
+	select  distinct p.person_id,
 		coalesce(p.preferred_first_name, p.first_name) as first_name,
 		coalesce(p.preferred_last_name, p.last_name) as last_name,
 		pc.position_title,
@@ -57,6 +57,7 @@ $orderby = "order by
 		p.person_id
 ";
 
+$style = 'peoplelist';
 switch($index) {
 	case 'reports':
 		$who = $_GET['person_id'];
@@ -82,7 +83,7 @@ switch($index) {
 			or die('Query failed: ' . pg_last_error());
 		break;
 
-  	default:
+  	case 'hier':
 		$query = "
 			$query_firstpart
 		where pc.manager_person_id is NULL
@@ -91,61 +92,94 @@ switch($index) {
 		";
 		$result = pg_query($query) or die('Query failed: ' . pg_last_error());
 		break;
+
+	default:
+		$style = 'departmentlist';
+		$query = "
+			select	distinct
+					account_collection_name,
+					account_collection_id
+			 from	account_collection
+			 		inner join account_collection_account
+							using(account_collection_id)
+					inner join account
+							using(account_id)
+					inner join val_person_status vps
+							on vps.person_status = account_status
+			where	account_collection_type = 'department'
+			 and	vps.is_disabled = 'N'
+				
+			order by account_collection_name
+		";
+		$result = pg_query($query) or die('Query failed: ' . pg_last_error());
+		break;
 }
 
 echo build_header("Directory");
 
-// Printing results in HTML
-echo "<table id=\"peoplelist\">\n";
-?>
+if($style == 'peoplelist') {
+	// Printing results in HTML
+	echo "<table id=\"peoplelist\">\n";
+	?>
 
-<tr>
-<td> </td>
-<td> Employee Name </td> 
-<td> Title </td> 
-<td> Company </td> 
-<td> Manager </td> 
-<td> Department </td> 
-</tr>
+	<tr>
+	<td> </td>
+	<td> Employee Name </td> 
+	<td> Title </td> 
+	<td> Company </td> 
+	<td> Manager </td> 
+	<td> Department </td> 
+	</tr>
 
-<?php
-while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
-	$name = $row['first_name']. " ". $row['last_name'];
-	echo "\t<tr>\n";
-	if(isset($row['person_image_id'])) {
-		$pic = img($row['person_id'], $row['person_image_id'], 'thumb');
-		echo "<td> $pic </td>";
-			
-	} else {
-		echo "<td> </td>";
+	<?php
+	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
+		$name = $row['first_name']. " ". $row['last_name'];
+		echo "\t<tr>\n";
+		if(isset($row['person_image_id'])) {
+			$pic = img($row['person_id'], $row['person_image_id'], 'thumb');
+			echo "<td> $pic </td>";
+
+		} else {
+			echo "<td> </td>";
+		}
+		echo "<td>". personlink($row['person_id'], $name);
+
+	   	if(isset($row['num_reports']) && $row['num_reports'] > 0) {
+			echo "<br>(" .hierlink('reports', $row['person_id'], "reports").")";
+		}
+		echo "</td>";
+
+		echo "<td> ". $row['position_title'] . "</td>\n";
+		echo "<td> ". $row['company_name'] . "</td>\n";
+
+		# Show Manager Links
+		if(isset($row['manager_person_id'])) {
+			$mgrname = $row['mgr_first_name']. " ". $row['mgr_last_name'];
+			echo "<td>". personlink($row['manager_person_id'], $mgrname);
+
+			echo "<br>(" .hierlink('reports', $row['manager_person_id'], "reports").")";
+			echo "</td>\n";
+
+		} else {
+			echo "<td></td>";
+		}
+
+		echo "<td>" . hierlink('department', $row['account_collection_id'],
+			$row['account_collection_name']). "</td>\n";
+	    echo "\t</tr>\n";
 	}
-	echo "<td>". personlink($row['person_id'], $name);
-
-   	if(isset($row['num_reports']) && $row['num_reports'] > 0) {
-		echo "<br>(" .hierlink('reports', $row['person_id'], "reports").")";
+	echo "</table>\n";
+} else {
+	echo "<h3> Browse by Department </h3>\n";
+	echo "<div class=deptlist><ul>\n";
+	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
+		echo "<li>" . hierlink('department', $row['account_collection_id'],
+			$row['account_collection_name']). "</li>\n";
+		
 	}
-	echo "</td>";
-
-	echo "<td> ". $row['position_title'] . "</td>\n";
-	echo "<td> ". $row['company_name'] . "</td>\n";
-
-	# Show Manager Links
-	if(isset($row['manager_person_id'])) {
-		$mgrname = $row['mgr_first_name']. " ". $row['mgr_last_name'];
-		echo "<td>". personlink($row['manager_person_id'], $mgrname);
-
-		echo "<br>(" .hierlink('reports', $row['manager_person_id'], "reports").")";
-		echo "</td>\n";
-
-	} else {
-		echo "<td></td>";
-	}
-
-	echo "<td>" . hierlink('department', $row['account_collection_id'],
-		$row['account_collection_name']). "</td>\n";
-    echo "\t</tr>\n";
+	echo "</ul>\n";
+	echo "</div>\n";
 }
-echo "</table>\n";
 
 echo build_footer();
 
