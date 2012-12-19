@@ -1,3 +1,4 @@
+-- Copyright (c) 2012 Matthew Ragan
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -42,7 +43,8 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress netblock.ip_address%type,
 	in_Netmask_Bits netblock.NETMASK_BITS%type,
 	in_netblock_type netblock.netblock_type%type,
-	in_ip_universe_id ip_universe.ip_universe_id%type
+	in_ip_universe_id ip_universe.ip_universe_id%type,
+	in_is_single_address netblock.is_single_address%type
 ) RETURNS netblock.netblock_id%type AS $$
 DECLARE
 	par_nbid	netblock.netblock_id%type;
@@ -57,7 +59,11 @@ BEGIN
 		    and is_single_address = 'N'
 			and netblock_type = in_netblock_type
 			and ip_universe_id = in_ip_universe_id
-		    and netmask_bits < in_Netmask_Bits
+		    and (
+				(in_is_single_address = 'N' AND netmask_bits < in_Netmask_Bits)
+				OR
+				(in_is_single_address = 'Y' AND netmask_bits = in_Netmask_Bits)
+			)
 		order by netmask_bits desc
 	) subq LIMIT 1;
 
@@ -77,7 +83,8 @@ BEGIN
 		nbrec.ip_address,
 		nbrec.netmask_bits,
 		nbrec.netblock_type,
-		nbrec.ip_universe_id
+		nbrec.ip_universe_id,
+		nbrec.is_single_address
 	);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -114,7 +121,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
 	in_netblock_id	netblock.netblock_id%type
-) RETURNS VOID AS $$
+) RETURNS INTEGER AS $$
 DECLARE
 	nbrec		RECORD;
 	childrec	RECORD;
@@ -137,6 +144,7 @@ BEGIN
 				WHERE netblock_id = childrec.netblock_id;
 		END IF;
 	END LOOP;
+	RETURN nbid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
