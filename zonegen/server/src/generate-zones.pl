@@ -139,6 +139,7 @@ sub iptoint {
 sub record_newgen {
 	my ( $dbh, $domid, $script_start ) = @_;
 
+	# not sure if this needs to be oratime anymore
 	my $oratime = strftime( "%F %T", gmtime($script_start) );
 
 	my $sth = getSth(
