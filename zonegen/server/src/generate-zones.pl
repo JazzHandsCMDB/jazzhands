@@ -1279,7 +1279,7 @@ Todd Kover
 
 =head1 SEE ALSO
 
-named(9), L<JazzHands::DBI>
+named(9), L<JazzHands::DBI>, L<JazzHands::GenericDB>
 
 =head1 BUGS
 
