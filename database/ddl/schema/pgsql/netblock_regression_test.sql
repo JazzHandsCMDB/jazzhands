@@ -60,12 +60,12 @@ BEGIN
 	INSERT INTO val_netblock_type 
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
-		('JHTEST-manual', 'Y', 'Y');
+		('JHTEST-manual', 'N', 'Y');
 
 	INSERT INTO val_netblock_type 
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
-		('JHTEST-freeforall', 'Y', 'Y');
+		('JHTEST-freeforall', 'N', 'N');
 
 --
 -- Set up a couple of test universes
@@ -74,10 +74,9 @@ BEGIN
 	INSERT INTO ip_universe (ip_universe_name) VALUES ('testuniverse')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[0] := v_ip_universe_id;
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('testuniverse')
+	INSERT INTO ip_universe (ip_universe_name) VALUES ('testuniverse2')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[1] := v_ip_universe_id;
-
 
 --
 --  Test netblock trigger
@@ -179,7 +178,21 @@ BEGIN
 		 ip_universe_id)
 	VALUES
 		('172.31.0.0/16', 16, 'JHTEST-auto2', 'Y', 'N', 'Y', NULL,
-			'Allocated', a_ip_universe[0]);
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[6] = v_netblock_id;
+
+
+	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16 in different ip_universe';
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.0.0/16', 16, 'JHTEST-auto2', 'Y', 'N', 'Y', NULL,
+			'Allocated', a_ip_universe[1])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[7] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-manual top 172.31.0.0/16';
 	INSERT INTO netblock 
@@ -191,6 +204,17 @@ BEGIN
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[1] = v_netblock_id;
+
+	RAISE NOTICE '    Inserting JHTEST-manual top 172.31.0.0/16 universe 1';
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.0.0/16', 16, 'JHTEST-manual', 'Y', 'N', 'Y', NULL,
+			'Allocated', a_ip_universe[1])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[8] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-freeforall top 172.31.0.0/16';
 	INSERT INTO netblock 
@@ -206,6 +230,401 @@ BEGIN
 
 	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
 	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+
+--
+-- Test validation trigger
+--
+
+	RAISE NOTICE 'Inserting hierarchy to test validation trigger';
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.128.0/17', 17, 'JHTEST-manual', 'Y', 'N', 'Y',
+			a_netblock_list[1],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[10] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.128.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			a_netblock_list[10],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[11] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.129.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			a_netblock_list[10],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[12] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.129.1/24', 24, 'JHTEST-manual', 'Y', 'Y', 'N',
+			a_netblock_list[12],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[13] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.0.0/17', 17, 'JHTEST-manual', 'Y', 'N', 'Y',
+			a_netblock_list[1],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[14] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.0.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			a_netblock_list[14],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[15] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.1.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			a_netblock_list[14],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[16] = v_netblock_id;
+
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.0.128/24', 24, 'JHTEST-manual', 'Y', 'Y', 'N',
+			a_netblock_list[15],
+			'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+	a_netblock_list[17] = v_netblock_id;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+	RAISE NOTICE 'Hierarchy inserted...';
+
+--
+-- Now test things that should fail validation
+--
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	RAISE NOTICE '    Insert a block with a mismatched parent type';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.8.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[2],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22109' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a block with a mismatched ip_universe';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.8.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[2],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22109' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a single block with a NULL parent';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.4.129/24', 24, 'JHTEST-manual', 'Y', 'Y', 'N',
+				NULL,
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22105' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a block with a NULL parent that should be in the hierarchy';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.4.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+				NULL,
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22102' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a self-referential block';
+	BEGIN
+		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.30.0.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+				NULL,
+				'Allocated', a_ip_universe[0])
+		RETURNING netblock_id INTO v_netblock_id;
+		UPDATE netblock SET parent_netblock_id = v_netblock_id WHERE
+			netblock_id = v_netblock_id;
+		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22101' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a block in the wrong place (parent not a parent)';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.2.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[1],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22102' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a block in the wrong place (better parent)';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.1.128/28', 28, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[14],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22102' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+
+	RAISE NOTICE '    Insert a block in the wrong place (parent not a parent)';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.2.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[1],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22102' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+
+	RAISE NOTICE '    Insert a single block with a parent with a different netmask';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.1.1/28', 28, 'JHTEST-manual', 'Y', 'Y', 'N',
+				a_netblock_list[16],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22105' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Insert a non-single block with a parent that has single blocks';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.0.64/28', 28, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[15],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22107' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+
+	RAISE NOTICE '    Insert a block into the middle of a hierarchy without rehoming the children';
+	BEGIN
+		INSERT INTO netblock 
+			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+			 ip_universe_id)
+		VALUES
+			('172.31.0.0/20', 20, 'JHTEST-manual', 'Y', 'N', 'Y',
+				a_netblock_list[14],
+				'Allocated', a_ip_universe[0]);
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22108' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a block with a mismatched parent type';
+	BEGIN
+		UPDATE netblock SET netblock_type = 'JHTEST-freeforall' WHERE
+			netblock_id = a_netblock_list[17];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22109' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a block with a mismatched ip_universe';
+	BEGIN
+		UPDATE netblock SET ip_universe_id = a_ip_universe[1] WHERE
+			netblock_id = a_netblock_list[17];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22109' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a single block to have a NULL parent';
+	BEGIN
+		UPDATE netblock SET parent_netblock_id = NULL
+			WHERE netblock_id = a_netblock_list[17];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22105' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a block with a NULL parent that should be in the hierarchy';
+	BEGIN
+		UPDATE netblock SET parent_netblock_id = NULL
+			WHERE netblock_id = a_netblock_list[14];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22102' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a block to have itself as a parent';
+	BEGIN
+		UPDATE netblock SET parent_netblock_id = a_netblock_list[16]
+			WHERE netblock_id = a_netblock_list[16];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22101' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a block to be in an incorrect part of the hierarchy';
+	BEGIN
+		UPDATE netblock SET parent_netblock_id = a_netblock_list[1]
+			WHERE netblock_id = a_netblock_list[16];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22102' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a single block so it does not have the same netmask as its parent';
+	BEGIN
+		UPDATE netblock SET ip_address = set_masklen(ip_address, 28),
+			netmask_bits = 28
+			WHERE netblock_id = a_netblock_list[17];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22105' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Update a parent block so it does not have the same netmask as its children';
+	BEGIN
+		UPDATE netblock SET ip_address = set_masklen(ip_address, 25),
+			netmask_bits = 25
+			WHERE netblock_id = a_netblock_list[15];
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE '22112' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+--
+-- Deletes will be caught by standard foreign key constraints
+--
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+
 --
 -- Insert some children of the auto-maintained type and validate that
 -- Things should be what we think they should be

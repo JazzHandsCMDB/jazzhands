@@ -277,7 +277,7 @@ BEGIN
 	SELECT * INTO nbtype FROM val_netblock_type WHERE 
 		netblock_type = v_trigger.netblock_type;
 
-	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+	IF (NOT FOUND) THEN
 		RETURN NULL;
 	END IF;
 
@@ -297,11 +297,12 @@ BEGIN
 	END IF;
 
 	/*
-	 * Validate that all children are of the same netblock_type and
+	 * Validate that parent and all children are of the same netblock_type and
 	 * in the same ip_universe.  We care about this even if the
 	 * netblock type is not a validated type.
 	 */
 	
+	RAISE DEBUG 'Verifying child ip_universe and type match';
 	PERFORM netblock_id FROM netblock WHERE
 		parent_netblock_id = realnew.netblock_id AND
 		netblock_type != realnew.netblock_type AND
@@ -311,6 +312,8 @@ BEGIN
 		RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
 			USING ERRCODE = 22109;
 	END IF;
+
+	RAISE DEBUG '... OK';
 
 	/*
 	 * validate that this netblock is attached to its correct parent
@@ -340,8 +343,12 @@ BEGIN
 		);
 
 		IF parent_nbid IS NOT NULL THEN
-			RAISE EXCEPTION 'Netblock % has NULL parent; should be %',
-				realnew.netblock_id, parent_nbid USING ERRCODE = 22102;
+			SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+				parent_nbid;
+
+			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
+				realnew.netblock_id, realnew.ip_address, 
+				parent_nbid, nbrec.ip_address USING ERRCODE = 22102;
 		END IF;
 	ELSE
 	 	/*
@@ -366,13 +373,13 @@ BEGIN
 
 		IF nbrec.is_single_address = 'Y' THEN
 			RAISE EXCEPTION 'Parent netblock may not be a single address'
-			USING ERRCODE = 23504;
+			USING ERRCODE = 22110;
 		END IF;
 
 		IF nbrec.ip_universe_id != realnew.ip_universe_id OR
 				nbrec.netblock_type != realnew.netblock_type THEN
-			RAISE EXCEPTION 'Parent netblock must be the same type and ip_universe'
-			USING ERRCODE = 22110;
+			RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 22109;
 		END IF;
 
 		IF nbtype.is_validated_hierarchy='N' THEN
@@ -395,6 +402,25 @@ BEGIN
 				realnew.is_single_address
 				);
 
+			IF realnew.can_subnet = 'N' THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.netblock_id AND
+					is_single_address = 'N';
+				IF FOUND THEN
+					RAISE EXCEPTION 'A non-subnettable netblock may not have child network netblocks'
+					USING ERRCODE = 22111;
+				END IF;
+			END IF;
+			IF realnew.is_single_address = 'Y' THEN 
+				SELECT ip_address INTO ipaddr FROM netblock
+					WHERE netblock_id = realnew.parent_netblock_id;
+				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
+					RAISE 'Parent netblock % does not have same netmask as single address child % (% vs %)',
+						parent_nbid, realnew.netblock_id, masklen(ipaddr),
+						masklen(realnew.ip_address)
+						USING ERRCODE = 22105;
+				END IF;
+			END IF;
 			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
 				SELECT ip_address INTO parent_ipaddr FROM netblock WHERE
 					netblock_id = parent_nbid;
@@ -407,16 +433,6 @@ BEGIN
 					realnew.netblock_id, realnew.ip_address,
 					parent_nbid, parent_ipaddr
 					USING ERRCODE = 22102;
-			END IF;
-			IF realnew.is_single_address = 'Y' THEN 
-				SELECT ip_address INTO ipaddr FROM netblock
-					WHERE netblock_id = parent_nbid;
-				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
-					RAISE 'Parent netblock % does not have same netmask as single address child % (% vs %)',
-						parent_nbid, realnew.netblock_id, masklen(ipaddr),
-						masklen(realnew.ip_address)
-						USING ERRCODE = 22105;
-				END IF;
 			END IF;
 			/*
 			 * Validate that all children are is_single_address='Y' or
@@ -433,6 +449,25 @@ BEGIN
 				RAISE EXCEPTION 'Netblock may not have direct children for both single and multiple addresses simultaneously'
 					USING ERRCODE = 22107;
 			END IF;
+			/*
+			 *  If we're updating and we changed our ip_address (including
+			 *  netmask bits), then check that our children still belong to
+			 *  us
+			 */
+			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
+				PERFORM netblock_id FROM netblock WHERE 
+					parent_netblock_id = realnew.netblock_id AND
+					((is_single_address = 'Y' AND NEW.ip_address != 
+						ip_address::cidr) OR
+					(is_single_address = 'N' AND realnew.netblock_id !=
+						netblock_utils.find_best_parent_id(netblock_id)));
+				IF FOUND THEN
+					RAISE EXCEPTION 'Update causes parent to have children that do not belong to it'
+						USING ERRCODE = 22112;
+				END IF;
+			END IF;
+
+
 			/*
 			 * Validate that none of the children of the parent netblock are
 			 * children of this netblock (e.g. if inserting into the middle
