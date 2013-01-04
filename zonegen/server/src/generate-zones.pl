@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/pkg/bin/perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -34,6 +34,7 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::DBI;
+use JazzHands::GenericDB;
 use Net::Netmask;
 use Getopt::Long qw(:config no_ignore_case bundling);
 use Socket;
@@ -138,17 +139,20 @@ sub iptoint {
 sub record_newgen {
 	my ( $dbh, $domid, $script_start ) = @_;
 
+	# not sure if this needs to be oratime anymore
 	my $oratime = strftime( "%F %T", gmtime($script_start) );
 
 	my $sth = getSth(
 		$dbh, qq{
 		update	dns_domain
 		  set	soa_serial = soa_serial + 1,
-			last_generated = to_date(:2, 'YYYY-MM-DD HH24:MI:SS')
-		where	dns_domain_id = :1
+			last_generated = to_date(:whence, 'YYYY-MM-DD HH24:MI:SS')
+		where	dns_domain_id = :domid
 	}
 	);
-	$sth->execute( $domid, $oratime ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $oratime ) || die $sth->errstr;
+	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	$sth->execute  || die $sth->errstr;
 }
 
 #
@@ -169,17 +173,19 @@ sub check_for_changes {
 		  from  dns_record d
 		    left join netblock nb
 			on d.netblock_id = nb.netblock_id
-		 where  d.dns_domain_id = :1
+		 where  d.dns_domain_id = :domid
 		   and  (
-				d.data_ins_date > :2
-			   or   d.data_upd_date > :2
-			   or   nb.data_ins_date > :2
-			   or   nb.data_upd_date > :2
+				d.data_ins_date > :whence
+			   or   d.data_upd_date > :whence
+			   or   nb.data_ins_date > :whence
+			   or   nb.data_upd_date > :whence
 			)
 	}
 	);
 
-	$sth->execute( $domid, $last ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $last ) || die $sth->errstr;
+	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	$sth->execute || die $sth->errstr;
 	my $count = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	return $count if ($count);
@@ -203,27 +209,29 @@ sub check_for_changes {
 				'REVERSE_ZONE_BLOCK_PTR'
 		 where  dns.should_generate_ptr = 'Y'
 		   and  dns.dns_class = 'IN' and dns.dns_type = 'A'
-		   and  ip_manip.v4_base(nb.ip_address, root.netmask_bits) =
-			ip_manip.v4_base(root.ip_address,
+		   and  net_manip.inet_base(nb.ip_address, root.netmask_bits) =
+			net_manip.inet_base(root.ip_address,
 			    root.netmask_bits)
-		   and  rootd.dns_domain_id = :1
+		   and  rootd.dns_domain_id = :domid
 		   and  (
-				nb.data_ins_date > :2
-			   or (nb.data_upd_date is not NULL and nb.data_upd_date > :2)
-			   or dns.data_ins_date > :2
-			   or (dns.data_upd_date is not NULL and dns.data_upd_date > :2)
-			   or dom.data_ins_date > :2  
-			   or (dom.data_upd_date is not NULL and dom.data_upd_date > :2)
-			   or root.data_ins_date > :2 
-			   or (root.data_upd_date is not NULL and root.data_upd_date > :2 )
-			   or rootd.data_ins_date > :2
-			   or (rootd.data_upd_date is not NULL and rootd.data_upd_date > :2)
+				nb.data_ins_date > :whence
+			   or (nb.data_upd_date is not NULL and nb.data_upd_date > :whence)
+			   or dns.data_ins_date > :whence
+			   or (dns.data_upd_date is not NULL and dns.data_upd_date > :whence)
+			   or dom.data_ins_date > :whence  
+			   or (dom.data_upd_date is not NULL and dom.data_upd_date > :whence)
+			   or root.data_ins_date > :whence 
+			   or (root.data_upd_date is not NULL and root.data_upd_date > :whence )
+			   or rootd.data_ins_date > :whence
+			   or (rootd.data_upd_date is not NULL and rootd.data_upd_date > :whence)
 			)
 		order by nb.ip_address
 	}
 	);
 
-	$sth->execute( $domid, $last ) || die $sth->errstr;
+	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $last ) || die $sth->errstr;
+	$sth->execute || die $sth->errstr;
 	$count += ( $sth->fetchrow_array )[0];
 	return $count if ($count);
 	0;
@@ -243,8 +251,8 @@ sub build_dhcp_range_table {
 			dr.stop_netblock_id,
 			nbstart.ip_address as start_num_ip,
 			nbstop.ip_address as stop_num_ip,
-			ip_manip.v4_octet_from_int(nbstart.ip_address) as start_ip,
-			ip_manip.v4_octet_from_int(nbstop.ip_address) as stop_ip,
+			net_manip.inet_dbtop(nbstart.ip_address) as start_ip,
+			net_manip.inet_dbtop(nbstop.ip_address) as stop_ip,
 			dom.soa_name,
 			dr.data_ins_date as range_insert_date,
 			dr.data_upd_date as range_update_date,
@@ -268,18 +276,18 @@ sub build_dhcp_range_table {
 			ni.network_interface_id = dr.network_interface_id
 		and
 		(
-			ip_manip.v4_base(nb.ip_address, nbstart.netmask_bits) =
-				ip_manip.v4_base(nbstart.ip_address, nbstart.netmask_bits)
+			net_manip.inet_base(nb.ip_address, nbstart.netmask_bits) =
+				net_manip.inet_base(nbstart.ip_address, nbstart.netmask_bits)
 		   or
-			ip_manip.v4_base(nb.ip_address, nbstop.netmask_bits) =
-				ip_manip.v4_base(nbstop.ip_address, nbstop.netmask_bits)
+			net_manip.inet_base(nb.ip_address, nbstop.netmask_bits) =
+				net_manip.inet_base(nbstop.ip_address, nbstop.netmask_bits)
 		)
 	}
 	);
 
 	$sth->execute || die $sth->errstr;
 
-	my $rv = $sth->fetchall_hashref('DHCP_RANGE_ID');
+	my $rv = $sth->fetchall_hashref(_dbx('DHCP_RANGE_ID'));
 	$sth->finish;
 	$rv;
 }
@@ -290,11 +298,11 @@ sub process_fwd_dhcp {
 	foreach my $rangeid ( keys(%$dhcp_range_table) ) {
 		my $rec = $dhcp_range_table->{$rangeid};
 
-		my $soa_name = $rec->{'SOA_NAME'};
+		my $soa_name = $rec->{_dbx('SOA_NAME')};
 		next if ( $soa_name ne $domain );
 
-		my $start = $rec->{'START_NUM_IP'};
-		my $stop  = $rec->{'STOP_NUM_IP'};
+		my $start = $rec->{_dbx('START_NUM_IP')};
+		my $stop  = $rec->{_dbx('STOP_NUM_IP')};
 
 		for ( my $i = $start ; $i <= $stop ; $i++ ) {
 			my $real_int_ip = pack( 'N', $i );
@@ -315,14 +323,14 @@ sub process_rvs_dhcp {
 	my $sth = getSth(
 		$dbh, qq{
 		select  distinct
-			ip_manip.v4_octet_from_int(
-				ip_manip.v4_base(n.ip_address,n.netmask_bits)),
+			net_manip.inet_dbtop(
+				net_manip.inet_base(n.ip_address,n.netmask_bits)),
 			netmask_bits
 		  from  netblock n
 			inner join dns_record d
 				on d.netblock_id = n.netblock_id
 		 where  d.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-		   and  d.dns_domain_id = :1
+		   and  d.dns_domain_id = ?
 	}
 	);
 	$sth->execute($domid) || die $sth->errstr;
@@ -338,13 +346,13 @@ sub process_rvs_dhcp {
 	foreach my $rangeid ( keys(%$dhcp_range_table) ) {
 		my $rec = $dhcp_range_table->{$rangeid};
 
-		my $soa_name = $rec->{'SOA_NAME'};
+		my $soa_name = $rec->{_dbx('SOA_NAME')};
 
-		my $start = $rec->{'START_NUM_IP'};
-		my $stop  = $rec->{'STOP_NUM_IP'};
+		my $start = $rec->{_dbx('START_NUM_IP')};
+		my $stop  = $rec->{_dbx('STOP_NUM_IP')};
 
-		my $start_ip = $rec->{'START_IP'};
-		my $stop_ip  = $rec->{'STOP_IP'};
+		my $start_ip = $rec->{_dbx('START_IP')};
+		my $stop_ip  = $rec->{_dbx('STOP_IP')};
 
 		if (
 			!(
@@ -399,7 +407,7 @@ sub process_child_ns_records {
 				on dns.dns_domain_id = dom.dns_domain_id
 		 where	dns.dns_name is NULL
 		  and	dns.dns_type = 'NS'
-		  and 	dom.parent_dns_domain_id = :1
+		  and 	dom.parent_dns_domain_id = ?
 		order by dom.soa_name, dns.dns_value
 	}
 	);
@@ -432,7 +440,7 @@ sub process_fwd_records {
 		select  distinct
 			d.dns_record_id, d.dns_name, d.dns_ttl, d.dns_class,
 			d.dns_type, d.dns_value, d.dns_priority,
-			ip_manip.v4_octet_from_int(ni.ip_address),
+			net_manip.inet_dbtop(ni.ip_address),
 			rdns.dns_record_Id,
 			rdns.dns_name,
 			d.dns_srv_service, d.dns_srv_protocol, 
@@ -450,9 +458,9 @@ sub process_fwd_records {
 			left join dns_record rdns
 				on rdns.dns_record_id =
 					d.reference_dns_record_id
-		 where	d.dns_domain_id = :1
+		 where	d.dns_domain_id = ?
 		   and	d.dns_type != 'REVERSE_ZONE_BLOCK_PTR'
-		order by sort_order, ip_manip.v4_octet_from_int(ni.ip_address)
+		order by sort_order, net_manip.inet_dbtop(ni.ip_address)
 	}
 	);
 
@@ -541,11 +549,11 @@ sub process_reverse {
 
 	my $sth = getSth(
 		$dbh, qq{
-		select  ip_manip.v4_octet_from_int(nb.ip_address) as ip,
+		select  net_manip.inet_dbtop(nb.ip_address) as ip,
 			dns.dns_name,
 			dom.soa_name,
-			ip_manip.v4_octet_from_int(
-				ip_manip.v4_base(nb.ip_address,
+			net_manip.inet_dbtop(
+				net_manip.inet_base(nb.ip_address,
 				nb.netmask_bits)) as ip_base,
 			nb.netmask_bits as netmask_bits,
 			dns.is_enabled
@@ -562,10 +570,10 @@ sub process_reverse {
 						'REVERSE_ZONE_BLOCK_PTR'
 		 where  dns.should_generate_ptr = 'Y'
 		   and  dns.dns_class = 'IN' and dns.dns_type = 'A'
-		   and  ip_manip.v4_base(nb.ip_address, root.netmask_bits) =
-				ip_manip.v4_base(root.ip_address,
+		   and  net_manip.inet_base(nb.ip_address, root.netmask_bits) =
+				net_manip.inet_base(root.ip_address,
 					root.netmask_bits)
-		   and  rootd.dns_domain_id = :1
+		   and  rootd.dns_domain_id = ?
 		order by nb.ip_address
 	}
 	);
@@ -605,7 +613,7 @@ sub process_soa {
 			soa_expire, soa_minimum,
 			soa_mname, soa_rname
 		  from	dns_domain
-		 where	dns_domain_id = :1
+		 where	dns_domain_id = ?
 	}
 	);
 
@@ -1008,18 +1016,6 @@ mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 
 my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
 
-{
-	my $dude = ( getpwuid($<) )[0] || 'unknown';
-	my $q = qq{ 
-		begin
-			dbms_session.set_identifier ('$dude');
-		end;
-	};
-	if ( my $sth = $dbh->prepare($q) ) {
-		$sth->execute;
-	}
-}
-
 $dhcp_range_table = build_dhcp_range_table($dbh);
 
 my $should_gen = "where should_generate = 'Y'";
@@ -1283,7 +1279,7 @@ Todd Kover
 
 =head1 SEE ALSO
 
-named(9), L<JazzHands::DBI>
+named(9), L<JazzHands::DBI>, L<JazzHands::GenericDB>
 
 =head1 BUGS
 
