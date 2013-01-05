@@ -4,6 +4,13 @@ $HeadURL$
 Here's a description of what things are.  These are auto-generated  from
 modeling software for now, though we expect this to change.
 
+This was originally designed in Oracle, and the modeling software
+is still authoritative.  It should load in Oracle (and presumably
+EnterpriseDB).  However, ongoing work is done in Postgresql, and
+while we have made effort to not do things that will prevent oracle
+from working, there are some features that have not been ported to
+oracle.  We are considering abandoning oracle support completely.
+
 At this time, the only database that works is Oracle (and probably
 EnterpriseDB), and we hope to have postgresql in place in short order.
 

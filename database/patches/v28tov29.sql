@@ -262,7 +262,10 @@ ALTER SEQUENCE ip_universe_ip_universe_id_seq
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE ip_universe ADD CONSTRAINT pk_ip_universe PRIMARY KEY (ip_universe_id);
+ALTER TABLE ONLY ip_universe
+	ADD CONSTRAINT ak_ip_universe_name UNIQUE (ip_universe_name);
 -- INDEXES
+
 
 -- CHECK CONSTRAINTS
 
@@ -384,7 +387,7 @@ CREATE TABLE netblock
 	netblock_id	integer NOT NULL,
 	ip_address	inet NOT NULL,
 	netmask_bits	integer NOT NULL,
-	netblock_type	varchar(50)  NULL,
+	netblock_type	varchar(50)  NOT NULL,
 	is_ipv4_address	character(1) NOT NULL,
 	is_single_address	character(1) NOT NULL,
 	can_subnet	character(1) NOT NULL,
@@ -572,6 +575,21 @@ ALTER TABLE netblock
 -- TRIGGERS
 -- this just inserted straight from 
 -- ../ddl/schema/pgsql/create_netblock_triggers.sql
+-- Copyright (c) 2012, Matthew Ragan
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 CREATE OR REPLACE FUNCTION validate_netblock() RETURNS TRIGGER AS $$
 BEGIN
 	/*
@@ -580,7 +598,7 @@ BEGIN
 
 	IF NEW.netmask_bits IS NULL THEN
 		RAISE EXCEPTION 'Column netmask_bits may not be null'
-			USING ERRCODE = 23502;
+			USING ERRCODE = 'not_null_violation';
 	ELSE
 		NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
 	END IF;
@@ -593,17 +611,16 @@ BEGIN
 	IF NEW.is_single_address = 'N' AND (NEW.ip_address != cidr(NEW.ip_address))
 			THEN
 		RAISE EXCEPTION
-			'Non-network bits must be zero if is_single_address is set'
+			'Non-network bits must be zero if is_single_address is N'
 			USING ERRCODE = 22103;
 	END IF;
 
 	/*
-	 * only allow multiple addresses to exist if it is a 1918-space 
-	 * address.   (This may need to be revised for sites that do really
-	 *  really really stupid things.  Perhaps a marker in the netblock 
-	 * that indicates that its one of these blocks or  some such?  Or a
-	 * separate table that says which blocks are ok.  (make the 
-	 * mutating table stuff better?) 
+	 * Commented out check for RFC1918 space.  This is probably handled
+	 * well enough by the ip_universe/netblock_type additions, although
+	 * it's possible that netblock_type may need to have an additional
+	 * field added to allow people to be stupid (for example,
+	 * allow_duplicates='Y','N','RFC1918')
 	 */
 /*
 	IF NOT net_manip.inet_is_private(NEW.ip_address) THEN
@@ -616,14 +633,14 @@ BEGIN
 			IF (TG_OP = 'INSERT' AND FOUND) THEN 
 				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %', 
 					new.ip_address
-					USING ERRCODE= 23505;
+					USING ERRCODE= 'unique_violation';
 			END IF;
 			IF (TG_OP = 'UPDATE') THEN
 				IF (NEW.ip_address != OLD.ip_address AND FOUND) THEN
 					RAISE EXCEPTION 
 						'Unique Constraint Violated on IP Address: %', 
 						new.ip_address
-						USING ERRCODE = 23505;
+						USING ERRCODE = 'unique_violation';
 				END IF;
 			END IF;
 /*
@@ -642,13 +659,181 @@ DROP TRIGGER IF EXISTS trigger_validate_netblock ON netblock;
 CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON netblock
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock();
 
+CREATE OR REPLACE FUNCTION manipulate_netblock_parentage_before() RETURNS TRIGGER AS $$
+
+DECLARE
+	nbtype				record;
+	v_trigger			record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	IF TG_OP = 'DELETE' THEN
+		v_trigger := OLD;
+	ELSE
+		v_trigger := NEW;
+	END IF;
+		
+	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+		netblock_type = v_trigger.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN v_trigger;
+	END IF;
+
+	/*
+	 * Find the correct parent netblock if we're not deleting
+	 */ 
+
+	IF TG_OP != 'DELETE' THEN
+		RAISE DEBUG 'Checking forced hierarchical netblock %', NEW.netblock_id;
+		NEW.parent_netblock_id = netblock_utils.find_best_parent_id(
+			NEW.ip_address,
+			NEW.netmask_bits,
+			NEW.netblock_type,
+			NEW.ip_universe_id,
+			NEW.is_single_address
+			);
+
+		RAISE DEBUG 'Setting parent for netblock % to %', NEW.netblock_id,
+			NEW.parent_netblock_id;
+
+		/*
+		 * If we are an end-node, then we're done
+		 */
+
+		IF NEW.is_single_address = 'Y' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+
+	/*
+	 * If we are deleting, attach all children to the parent and wipe
+	 * hands on pants;
+	 */
+	IF TG_OP = 'DELETE' THEN
+		RAISE DEBUG 'Setting parent for all child netblocks of deleted netblock % to %',
+			OLD.netblock_id,
+			OLD.parent_netblock_id;
+
+		UPDATE 
+			netblock 
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = OLD.netblock_id;
+		RETURN OLD;
+	END IF;
+
+	/*
+	 * If we're updating and we're a container netblock, find
+	 * all of the children of our new parent that should be ours and take 
+	 * them.  They will already be guaranteed to be of the correct
+	 * netblock_type and ip_universe_id.  We can't do this for inserts
+	 * because the row doesn't exist causing foreign key problems, so
+	 * that needs to be done in an after trigger.
+	 */
+	IF TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+			NEW.parent_netblock_id,
+			NEW.netblock_id;
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+
+		RAISE DEBUG 'Setting parent for all child netblocks of netblock % that no longer belong to it to %',
+			NEW.parent_netblock_id,
+			NEW.netblock_id;
+		RAISE DEBUG 'Setting parent % to %',
+			OLD.netblock_id,
+			OLD.parent_netblock_id;
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = NEW.netblock_id AND
+			(ip_universe_id != NEW.ip_universe_id OR
+			 netblock_type != NEW.netblock_type OR
+			 NOT(ip_address <<= NEW.ip_address));
+	END IF;
+
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manipulate_netblock_parentage ON netblock;
+DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON netblock;
+
+CREATE TRIGGER tb_manipulate_netblock_parentage
+	BEFORE INSERT OR DELETE OR UPDATE OF
+		ip_address, netmask_bits, netblock_type, ip_universe_id
+	ON netblock
+	FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_before();
+
+
+CREATE OR REPLACE FUNCTION manipulate_netblock_parentage_after() RETURNS TRIGGER AS $$
+
+DECLARE
+	nbtype				record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+		netblock_type = NEW.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+		NEW.parent_netblock_id,
+		NEW.netblock_id;
+	UPDATE
+		netblock
+	SET
+		parent_netblock_id = NEW.netblock_id
+	WHERE
+		parent_netblock_id = NEW.parent_netblock_id AND
+		ip_address <<= NEW.ip_address AND
+		netblock_id != NEW.netblock_id;
+
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS ta_manipulate_netblock_parentage ON netblock;
+
+CREATE CONSTRAINT TRIGGER ta_manipulate_netblock_parentage
+	AFTER INSERT ON netblock NOT DEFERRABLE
+	FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_after();
+
 CREATE OR REPLACE FUNCTION validate_netblock_parentage() RETURNS TRIGGER AS $$
 DECLARE
 	nbrec			record;
 	realnew			record;
 	nbtype			record;
-	nbid			netblock.netblock_id%type;
+	v_trigger		record;
+	parent_nbid		netblock.netblock_id%type;
 	ipaddr			inet;
+	parent_ipaddr	inet;
 	single_count	integer;
 	nonsingle_count	integer;
 	pip	    		netblock.ip_address%type;
@@ -658,31 +843,43 @@ BEGIN
 	 * NEW is not current, so fetch the current values
 	 */
 	
-	SELECT * INTO nbtype FROM val_netblock_type WHERE 
-		netblock_type = NEW.netblock_type;
-
-/*
-	-- This needs to get f1x0r3d
-	IF nbtype.db_forced_hierarchy = 'Y' THEN
-		PERFORM netblock_utils.recalculate_parentage(NEW.netblock_id);
+	IF TG_OP = 'DELETE' THEN
+		v_trigger := OLD;
+	ELSE
+		v_trigger := NEW;
 	END IF;
-*/
+	
+	RAISE DEBUG 'Validating  % of netblock %', TG_OP, v_trigger.netblock_id;
 
-	SELECT * INTO realnew FROM netblock WHERE netblock_id = NEW.netblock_id;
+	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+		netblock_type = v_trigger.netblock_type;
+
+	IF (NOT FOUND) THEN
+		RETURN NULL;
+	END IF;
+
+	SELECT * INTO realnew FROM netblock WHERE netblock_id =
+		v_trigger.netblock_id;
+	
 	/*
 	 * If the parent changed above (or somewhere else between update and
 	 * now), just bail, because another trigger will have been fired that
 	 * we can do the full check with.
 	 */
-	IF NEW.parent_netblock_id != realnew.parent_netblock_id THEN
+	IF NEW.parent_netblock_id != realnew.parent_netblock_id AND
+		realnew.parent_netblock_id IS NOT NULL
+	THEN
+		RAISE DEBUG '... skipping for now';
 		RETURN NULL;
 	END IF;
 
 	/*
-	 * Validate that all children are of the same netblock_type and
+	 * Validate that parent and all children are of the same netblock_type and
 	 * in the same ip_universe.  We care about this even if the
 	 * netblock type is not a validated type.
 	 */
+	
+	RAISE DEBUG 'Verifying child ip_universe and type match';
 	PERFORM netblock_id FROM netblock WHERE
 		parent_netblock_id = realnew.netblock_id AND
 		netblock_type != realnew.netblock_type AND
@@ -693,6 +890,8 @@ BEGIN
 			USING ERRCODE = 22109;
 	END IF;
 
+	RAISE DEBUG '... OK';
+
 	/*
 	 * validate that this netblock is attached to its correct parent
 	 */
@@ -700,21 +899,33 @@ BEGIN
 		IF nbtype.is_validated_hierarchy='N' THEN
 			RETURN NULL;
 		END IF;
+		RAISE DEBUG 'Checking hierarchical netblock_id % with NULL parent',
+			NEW.netblock_id;
+
+		IF realnew.is_single_address = 'Y' THEN
+			RAISE 'A single address must be the child of a parent netblock'
+				USING ERRCODE = 22105;
+		END IF;		
 
 		/*
-		 * Validate that if a netblock has a parent, unless
+		 * Validate that a netblock has a parent, unless
 		 * it is the root of a hierarchy
 		 */
-		nbid := netblock_utils.find_best_parent_id(
+		parent_nbid := netblock_utils.find_best_parent_id(
 			realnew.ip_address, 
 			masklen(realnew.ip_address),
 			realnew.netblock_type,
-			realnew.ip_universe_id
+			realnew.ip_universe_id,
+			realnew.is_single_address
 		);
 
-		IF nbid IS NOT NULL THEN
-			RAISE EXCEPTION 'Non-organizational netblock % must have correct parent(%)',
-				realnew.netblock_id, nbid USING ERRCODE = 22102;
+		IF parent_nbid IS NOT NULL THEN
+			SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+				parent_nbid;
+
+			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
+				realnew.netblock_id, realnew.ip_address, 
+				parent_nbid, nbrec.ip_address USING ERRCODE = 22102;
 		END IF;
 	ELSE
 	 	/*
@@ -739,13 +950,13 @@ BEGIN
 
 		IF nbrec.is_single_address = 'Y' THEN
 			RAISE EXCEPTION 'Parent netblock may not be a single address'
-			USING ERRCODE = 23504;
+			USING ERRCODE = 22110;
 		END IF;
 
 		IF nbrec.ip_universe_id != realnew.ip_universe_id OR
 				nbrec.netblock_type != realnew.netblock_type THEN
-			RAISE EXCEPTION 'Parent netblock must be the same type and ip_universe'
-			USING ERRCODE = 22110;
+			RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 22109;
 		END IF;
 
 		IF nbtype.is_validated_hierarchy='N' THEN
@@ -760,30 +971,45 @@ BEGIN
 					USING ERRCODE = 22102;
 			END IF;
 		ELSE
-			nbid := netblock_utils.find_best_parent_id(
+			parent_nbid := netblock_utils.find_best_parent_id(
 				realnew.ip_address, 
 				masklen(realnew.ip_address),
 				realnew.netblock_type,
-				realnew.ip_universe_id
+				realnew.ip_universe_id,
+				realnew.is_single_address
 				);
-			if (nbid IS NULL OR realnew.parent_netblock_id != nbid) THEN
-				RAISE EXCEPTION 
-					'Parent netblock % for netblock % is not the correct parent (%)',
-					realnew.parent_netblock_id, realnew.netblock_id, nbid
-					USING ERRCODE = 22102;
-			END IF;
-			IF realnew.is_single_address = 'Y' AND 
-					((family(realnew.ip_address) = 4 AND 
-						masklen(realnew.ip_address) < 32) OR
-					(family(realnew.ip_address) = 6 AND 
-						masklen(realnew.ip_address) < 128))
-					THEN 
-				SELECT ip_address INTO ipaddr FROM netblock
-					WHERE netblock_id = nbid;
-				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
-				RAISE EXCEPTION 'Parent netblock does not have same netmask for single address'
-					USING ERRCODE = 22105;
+
+			IF realnew.can_subnet = 'N' THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.netblock_id AND
+					is_single_address = 'N';
+				IF FOUND THEN
+					RAISE EXCEPTION 'A non-subnettable netblock may not have child network netblocks'
+					USING ERRCODE = 22111;
 				END IF;
+			END IF;
+			IF realnew.is_single_address = 'Y' THEN 
+				SELECT ip_address INTO ipaddr FROM netblock
+					WHERE netblock_id = realnew.parent_netblock_id;
+				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
+					RAISE 'Parent netblock % does not have same netmask as single address child % (% vs %)',
+						parent_nbid, realnew.netblock_id, masklen(ipaddr),
+						masklen(realnew.ip_address)
+						USING ERRCODE = 22105;
+				END IF;
+			END IF;
+			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
+				SELECT ip_address INTO parent_ipaddr FROM netblock WHERE
+					netblock_id = parent_nbid;
+				SELECT ip_address INTO ipaddr FROM netblock WHERE
+					netblock_id = realnew.parent_netblock_id;
+
+				RAISE EXCEPTION 
+					'Parent netblock % (%) for netblock % (%) is not the correct parent (should be % (%))',
+					realnew.parent_netblock_id, ipaddr,
+					realnew.netblock_id, realnew.ip_address,
+					parent_nbid, parent_ipaddr
+					USING ERRCODE = 22102;
 			END IF;
 			/*
 			 * Validate that all children are is_single_address='Y' or
@@ -800,6 +1026,25 @@ BEGIN
 				RAISE EXCEPTION 'Netblock may not have direct children for both single and multiple addresses simultaneously'
 					USING ERRCODE = 22107;
 			END IF;
+			/*
+			 *  If we're updating and we changed our ip_address (including
+			 *  netmask bits), then check that our children still belong to
+			 *  us
+			 */
+			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
+				PERFORM netblock_id FROM netblock WHERE 
+					parent_netblock_id = realnew.netblock_id AND
+					((is_single_address = 'Y' AND NEW.ip_address != 
+						ip_address::cidr) OR
+					(is_single_address = 'N' AND realnew.netblock_id !=
+						netblock_utils.find_best_parent_id(netblock_id)));
+				IF FOUND THEN
+					RAISE EXCEPTION 'Update causes parent to have children that do not belong to it'
+						USING ERRCODE = 22112;
+				END IF;
+			END IF;
+
+
 			/*
 			 * Validate that none of the children of the parent netblock are
 			 * children of this netblock (e.g. if inserting into the middle
@@ -820,9 +1065,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+/*
+ * NOTE: care needs to be taken to make this trigger name come
+ * lexicographically last, since it needs to check what happened in the
+ * other triggers
+ */
+
 DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage 
-	AFTER INSERT OR UPDATE ON netblock DEFERRABLE INITIALLY DEFERRED
+	AFTER INSERT OR UPDATE OR DELETE ON netblock DEFERRABLE INITIALLY DEFERRED
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
 
 -- END ../ddl/schema/pgsql/create_netblock_triggers.sql
@@ -1223,7 +1474,7 @@ UNION ALL
 
 
 -- include ../pkg/pgsql/netblock_utils.sql
-
+-- Copyright (c) 2012 Matthew Ragan
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -1249,8 +1500,8 @@ UNION ALL
  * $Id$
  */
 
--- drop schema if exists netblock_utils cascade;
--- create schema netblock_utils authorization jazzhands;
+drop schema if exists netblock_utils cascade;
+create schema netblock_utils authorization jazzhands;
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -1264,13 +1515,12 @@ $$ LANGUAGE plpgsql;
 -- end of procedure id_tag
 -------------------------------------------------------------------
 
-drop function netblock_utils.find_best_parent_id(inet, integer);
-
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress netblock.ip_address%type,
 	in_Netmask_Bits netblock.NETMASK_BITS%type,
 	in_netblock_type netblock.netblock_type%type,
-	in_ip_universe_id ip_universe.ip_universe_id%type
+	in_ip_universe_id ip_universe.ip_universe_id%type,
+	in_is_single_address netblock.is_single_address%type
 ) RETURNS netblock.netblock_id%type AS $$
 DECLARE
 	par_nbid	netblock.netblock_id%type;
@@ -1285,7 +1535,11 @@ BEGIN
 		    and is_single_address = 'N'
 			and netblock_type = in_netblock_type
 			and ip_universe_id = in_ip_universe_id
-		    and netmask_bits < in_Netmask_Bits
+		    and (
+				(in_is_single_address = 'N' AND netmask_bits < in_Netmask_Bits)
+				OR
+				(in_is_single_address = 'Y' AND netmask_bits = in_Netmask_Bits)
+			)
 		order by netmask_bits desc
 	) subq LIMIT 1;
 
@@ -1305,7 +1559,8 @@ BEGIN
 		nbrec.ip_address,
 		nbrec.netmask_bits,
 		nbrec.netblock_type,
-		nbrec.ip_universe_id
+		nbrec.ip_universe_id,
+		nbrec.is_single_address
 	);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -1342,7 +1597,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
 	in_netblock_id	netblock.netblock_id%type
-) RETURNS VOID AS $$
+) RETURNS INTEGER AS $$
 DECLARE
 	nbrec		RECORD;
 	childrec	RECORD;
@@ -1365,6 +1620,7 @@ BEGIN
 				WHERE netblock_id = childrec.netblock_id;
 		END IF;
 	END LOOP;
+	RETURN nbid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -1409,7 +1665,6 @@ BEGIN
 	return v_rv;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- END ../pkg/pgsql/netblock_utils.sql
 
 -- views that are no longer the same in prod for some reason, probably
@@ -1713,6 +1968,308 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+
+-- prod patch, being folded in
+drop function person_manip.merge_accounts(integer, integer);
+CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
+	allow_external_hr_id_in_dest_account BOOLEAN,
+	merge_from_account_id	account.account_Id%TYPE,
+	merge_to_account_id	account.account_Id%TYPE
+) RETURNS INTEGER AS $$
+DECLARE
+	fpc		person_company%ROWTYPE;
+	tpc		person_company%ROWTYPE;
+BEGIN
+	select	*
+	  into	fpc
+	  from	person_company
+	 where	(person_id, company_id) in
+		(select person_id, company_id 
+		   from account where account_id = merge_from_account_id);
+
+	select	*
+	  into	tpc
+	  from	person_company
+	 where	(person_id, company_id) in
+		(select person_id, company_id 
+		   from account where account_id = merge_to_account_id);
+
+	IF (fpc.company_id != tpc.company_id) THEN
+		RAISE EXCEPTION 'Accounts are in different companies';
+	END IF;
+
+	IF (fpc.person_company_relation != tpc.person_company_relation) THEN
+		RAISE EXCEPTION 'People have different relationships';
+	END IF;
+
+	IF(tpc.external_hr_id is NOT NULL AND NOT allow_external_hr_id_in_dest_account) THEN
+		RAISE EXCEPTION 'Destination account has an external HR ID';
+	END IF;
+
+	-- Switch the HR ID
+	UPDATE PERSON_COMPANY
+	  SET  EXTERNAL_HR_ID = NULL
+	WHERE	PERSON_ID = fpc.person_id
+	  AND	COMPANY_ID = fpc.company_id;
+
+	UPDATE PERSON_COMPANY
+	  SET  EXTERNAL_HR_ID = fpc.external_hr_id
+	WHERE	PERSON_ID = tpc.person_id
+	  AND	COMPANY_ID = tpc.company_id;
+
+	-- move any account collections over that are
+	-- not infrastructure ones, and the new person is
+	-- not in
+	UPDATE	account_collection_account
+	   SET	ACCOUNT_ID = merge_to_account_id
+	 WHERE	ACCOUNT_ID = merge_from_account_id
+	  AND	ACCOUNT_COLLECTION_ID IN (
+			SELECT ACCOUNT_COLLECTION_ID
+			  FROM	ACCOUNT_COLLECTION
+				INNER JOIN VAL_ACCOUNT_COLLECTION_TYPE
+					USING (ACCOUNT_COLLECTION_TYPE)
+			 WHERE	IS_INFRASTRUCTURE_TYPE = 'N'
+		)
+	  AND	account_collection_id not in (
+			SELECT	account_collection_id
+			  FROM	account_collection_account
+			 WHERE	account_id = merge_to_account_id
+	);
+
+	-- Now begin removing the old account
+	PERFORM person_manip.purge_account( merge_from_account_id );
+
+	update person_contact set person_id = tpc.person_id where person_id = fpc.person_id;
+	update person_image set person_id = tpc.person_id where person_id = fpc.person_id;
+	update person_vehicle set person_id = tpc.person_id where person_id = fpc.person_id;
+	update property set person_id = tpc.person_id where person_id = fpc.person_id;
+	delete from person_account_realm_company where person_id = fpc.person_id AND company_id = fpc.company_id;
+	delete from person_company where person_id = fpc.person_id AND company_id = fpc.company_id;
+	-- if there are other relations that may exist, do not delete the person.
+	BEGIN
+		delete from person where person_id = fpc.person_id;
+	EXCEPTION WHEN foreign_key_violation THEN
+		NULL;
+	END;
+	return merge_to_account_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- BEGIN: ../pkg/pgsql/net_manip.sql
+-- Copyright (c) 2011, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+/*
+ * $Id$
+ */
+
+-- DROP SCHEMA IF EXISTS net_manip CASCADE;
+-- CREATE SCHEMA net_manip AUTHORIZATION jazzhands;
+
+-------------------------------------------------------------------
+-- returns the Id tag for CM
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION net_manip.id_tag()
+RETURNS VARCHAR AS $$
+BEGIN
+	RETURN('<-- $Id -->');
+END;
+$$ LANGUAGE plpgsql;
+-- end of procedure id_tag
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+-- returns its first argument (noop under postgresql)
+-------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION net_manip.inet_ptodb
+(
+	p_ip_address			in inet
+)
+RETURNS inet AS $$
+BEGIN
+	return(p_ip_address);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP FUNCTION net_manip.inet_ptodb(inet, integer);
+CREATE OR REPLACE FUNCTION net_manip.inet_ptodb
+(
+	p_ip_address			in inet,
+	p_netmask_bits			in integer
+)
+RETURNS inet AS $$
+BEGIN
+	return(set_masklen(p_ip_address, p_netmask_bits));
+END;
+$$ LANGUAGE plpgsql;
+
+-- end of net_manip.inet_ptodb
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+-- returns its first argument (noop under postgresql)
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION net_manip.inet_dbtop
+(
+	p_ip_address			in inet
+)
+RETURNS inet AS $$
+BEGIN
+	return( host(p_ip_address) );
+END;
+$$ LANGUAGE plpgsql;
+-- end of net_manip.inet_dbtop
+-------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION net_manip.inet_bits_to_mask
+	(
+	p_bits				in integer
+	)
+RETURNS inet AS $$
+BEGIN
+	IF p_bits > 32 OR p_bits < 0 THEN
+		RAISE EXCEPTION 'Value for p_bits must be between 0 and 32';
+	END IF;
+		
+	RETURN( netmask(cast('0.0.0.0/' || p_bits AS inet)) );
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION net_manip.inet_mask_to_bits
+	(
+	p_netmask			in inet
+	)
+RETURNS integer AS $$
+BEGIN
+	IF family(p_netmask) = 6 THEN
+		RAISE EXCEPTION 'Netmask is not supported for IPv6 addresses';
+	END IF;
+	RETURN (32-log(2, 4294967296 - net_manip.inet_dbton(p_netmask)))::integer;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION net_manip.inet_base
+	(
+	p_ip_address		in		inet,
+	p_bits			in		integer
+	)
+RETURNS inet AS $$
+DECLARE
+	host inet;
+BEGIN
+	host = set_masklen(p_ip_address, p_bits);
+	return network(host);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION net_manip.inet_is_private_yn
+	(
+	p_ip_address		  in		  inet
+	)
+RETURNS char AS $$
+BEGIN
+	IF (net_manip.inet_is_private(p_ip_address)) THEN
+		RETURN 'Y';
+	ELSE
+		RETURN 'N';
+	END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION net_manip.inet_is_private
+	(
+	p_ip_address		in		inet
+	)
+RETURNS boolean AS $$
+BEGIN
+	IF( family(p_ip_address) = 4) THEN
+		IF ('192.168/16' >> p_ip_address) THEN
+			RETURN(true);
+		END IF;
+		IF ('10/8' >> p_ip_address) THEN
+			RETURN(true);
+		END IF;
+		IF ('172.16/12' >> p_ip_address) THEN
+			RETURN(true);
+		END IF;
+	else
+		IF ('FC00::/7' >> p_ip_address) THEN
+			RETURN(true);
+		END IF;
+	END IF;
+
+	RETURN(false);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE function net_manip.inet_inblock
+	(
+	p_network		in		inet,
+	p_bits			in		integer,
+	p_ipaddr		in		inet
+	)
+RETURNS char AS $$
+BEGIN
+	RETURN(
+		CAST(host(p_network) || '/' || p_bits AS inet) >> p_ipaddr
+	);
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE function net_manip.inet_dbton
+	(
+	p_ipaddr		in		inet
+	)
+RETURNS bigint AS $$
+BEGIN
+	IF (family(p_ipaddr) = 4) THEN
+		RETURN p_ipaddr - '0.0.0.0';
+	ELSE
+		RETURN p_ipaddr - '::0';
+	END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE function net_manip.inet_ntodb
+	(
+	p_ipaddr		in		bigint
+	)
+RETURNS inet AS $$
+BEGIN
+	IF p_ipaddr > 4294967296 OR p_ipaddr < 16777216 THEN
+		RETURN inet('::0') + p_ipaddr;
+	ELSE
+		RETURN inet('0.0.0.0') + p_ipaddr;
+	END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE function net_manip.inet_ntodb
+	(
+	p_ipaddr		in		bigint,
+	p_netmask_bits	in		integer
+	)
+RETURNS inet AS $$
+BEGIN
+	RETURN(set_masklen(net_manip.inet_ntodb(p_ipaddr), p_netmask_bits));
+END;
+
+$$ LANGUAGE plpgsql;
+
+-- END: ../pkg/pgsql/net_manip.sql
 
 -- regular grants
 grant insert,update,delete on all tables in schema jazzhands to iud_role;

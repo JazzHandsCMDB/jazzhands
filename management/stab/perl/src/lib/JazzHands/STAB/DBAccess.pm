@@ -112,7 +112,8 @@ sub guess_parent_netblock_id {
 			    and netmask_bits <= ?
 			    and is_ipv4_address = 'Y'
 			    and is_single_address = 'N'
-			    and is_organizational = 'N'
+			    and netblock_type = 'default'
+			    and ip_universe_id = 0
 			order by netmask_bits desc
 		)  where rownum = 1
 	};
@@ -178,8 +179,11 @@ sub get_netblock_from_id {
 	}
 
 	my $orgq = "";
+	# XXX - need to deal with better as far as types go
 	if ( !defined($orgnocare) ) {
-		$orgq = "and is_organizational = 'N'";
+		$orgq = "and netblock_type != 'default'";
+	} else {
+		$orgq = "and netblock_type = 'default'";
 	}
 
 	my $q = qq{
@@ -187,8 +191,8 @@ sub get_netblock_from_id {
                 	net_manip.inet_dbtop(ip_address) as ip
 		 from   netblock
 		where   netblock_id = ?
-		  	$singq
 		  	$orgq
+		  	$singq
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($nblkid) || $self->return_db_err($sth);
@@ -213,24 +217,30 @@ sub add_netblock {
 		return undef;
 	}
 
+	# XXX need to deal with more smartly  -- $isorg!!
+	my $type = 'default';
+	if($isorg eq 'Y') {
+		return undef;
+	}
+
 	my $nblkid;
 	my $q = qq{
 		insert into netblock (
 			ip_address,
 			netmask_bits, is_ipv4_address,
-			is_single_address, netblock_status, is_organizational,
+			is_single_address, netblock_status, netblock_type,
 			PARENT_NETBLOCK_ID
 		) values (
 			net_manip.inet_ptodb(:ipaddr, 1),
 			:bits, 'Y',
-			'Y', 'Allocated', :isorg,
+			'Y', 'Allocated', :type,
 			:parnbid
 		) returning netblock_id into :rv
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->bind_param( ':ipaddr',  $ip )    || $self->return_db_err($sth);
 	$sth->bind_param( ':bits',    $bits )  || $self->return_db_err($sth);
-	$sth->bind_param( ':isorg',   $isorg ) || $self->return_db_err($sth);
+	$sth->bind_param( ':type',   $type ) || $self->return_db_err($sth);
 	$sth->bind_param( ':parnbid', $parid ) || $self->return_db_err($sth);
 	$sth->bind_param_inout( ':rv', \$nblkid, 500 )
 	  || $self->return_db_err($sth);
@@ -501,8 +511,11 @@ sub get_netblock_from_ip {
 	}
 
 	my $orgq = "";
+	# XXX - need to deal with better as far as types go
 	if ( !defined($orgnocare) ) {
-		$orgq = "and is_organizational = 'N'";
+		$orgq = "and netblock_type != 'default'";
+	} else {
+		$orgq = "and netblock_type = 'default'";
 	}
 
 	my $q = qq{
@@ -1598,9 +1611,6 @@ sub build_netblock_ip_row {
 
 	my $showtr = 1;
 
-	my $org = ($blk && defined($blk->{_dbx('IS_ORGANIZATIONAL')}))?
-		$blk->{_dbx('IS_ORGANIZATIONAL')}:'N';
-
 	my($id,$bits,$devid,$name,$dom,$status,$desc, $atix, $atixsys);
 
 	$status = "";
@@ -1608,9 +1618,6 @@ sub build_netblock_ip_row {
 	$dom = "";
 
 	my $editabledesc = 0;
-
-	$org = ($hr && defined($hr->{_dbx('IS_ORGANIZATIONAL')}))?
-		$hr->{_dbx('IS_ORGANIZATIONAL')}:'N';
 
 	my $uniqid = $ip;
 	if(defined($params->{-uniqid})) {

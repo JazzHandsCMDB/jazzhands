@@ -143,11 +143,11 @@ sub do_netblock_addition {
 		(
 			ip_address, netmask_bits, is_ipv4_address,
 		 	is_single_address, parent_netblock_id, netblock_status,
-		 	description, is_organizational
+		 	description, netblock_type
 		) values (
 			:1, :2, :3,
 		 	'N', :4, 'Allocated',
-			:5, 'N'
+			:5, 'default'
 		)
 	};
 

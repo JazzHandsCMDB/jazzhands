@@ -126,7 +126,7 @@ sub dump_toplevel {
 				left join site_netblock snb
 					on snb.netblock_id = nb.netblock_id
 		 where	nb.parent_netblock_id is NULL
-		   and	nb.is_organizational = 'N'
+		   and	nb.netblock_type = 'default'
 		 order by nb.ip_address
 	};
 

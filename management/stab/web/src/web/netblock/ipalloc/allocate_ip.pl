@@ -220,13 +220,13 @@ sub ipalloc_get_or_create_netblock_id {
 		insert into netblock (
 			ip_address, netmask_bits, is_ipv4_address,
 			is_single_address, netblock_status,
-			is_organizational,
+			netblock_type,
 			PARENT_NETBLOCK_ID, DESCRIPTION, 
 			APPROVAL_TYPE, APPROVAL_REF_NUM
 		) values (
 			:ip, :bits, :ipv4,
 			'Y', 'Reserved',
-			'N',
+			'default',
 			:parent_nblkid, :description, 
 			:tixsys, :tix
 		) returning netblock_id into :rv

@@ -2070,7 +2070,6 @@ sub parse_netblock_description_search {
 			nb.ip_address,
 			nb.is_ipv4_address,
 			nb.is_single_address,
-			nb.is_organizational,
 			nb.parent_netblock_id,
 			nb.netblock_status,
 			nb.description
