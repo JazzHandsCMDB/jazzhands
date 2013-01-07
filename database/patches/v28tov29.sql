@@ -1500,8 +1500,9 @@ UNION ALL
  * $Id$
  */
 
-drop schema if exists netblock_utils cascade;
-create schema netblock_utils authorization jazzhands;
+-- this just adds unnecessary complicates, m'kay...
+-- drop schema if exists netblock_utils cascade;
+-- create schema netblock_utils authorization jazzhands;
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -1515,6 +1516,7 @@ $$ LANGUAGE plpgsql;
 -- end of procedure id_tag
 -------------------------------------------------------------------
 
+DROP FUNCTION IF EXISTS netblock_utils.find_best_parent_id(inet,integer);
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress netblock.ip_address%type,
 	in_Netmask_Bits netblock.NETMASK_BITS%type,
@@ -1595,6 +1597,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP FUNCTION IF EXISTS netblock_utils.recalculate_parentage(integer);
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
 	in_netblock_id	netblock.netblock_id%type
 ) RETURNS INTEGER AS $$
@@ -1970,7 +1973,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- prod patch, being folded in
-drop function person_manip.merge_accounts(integer, integer);
+drop function IF EXISTS person_manip.merge_accounts(integer, integer);
+drop function IF EXISTS person_manip.merge_accounts(boolean, integer, integer);
 CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
 	allow_external_hr_id_in_dest_account BOOLEAN,
 	merge_from_account_id	account.account_Id%TYPE,
