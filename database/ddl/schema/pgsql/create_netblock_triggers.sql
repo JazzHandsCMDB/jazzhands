@@ -229,16 +229,29 @@ BEGIN
 	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
 		NEW.parent_netblock_id,
 		NEW.netblock_id;
-	UPDATE
-		netblock
-	SET
-		parent_netblock_id = NEW.netblock_id
-	WHERE
-		parent_netblock_id = NEW.parent_netblock_id AND
-		ip_address <<= NEW.ip_address AND
-		netblock_id != NEW.netblock_id;
 
-	RETURN NULL;
+	IF NEW.parent_netblock_id IS NULL THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id IS NULL AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+		RETURN NULL;
+	ELSE
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+
+		RETURN NULL;
+	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -261,28 +274,27 @@ DECLARE
 	nonsingle_count	integer;
 	pip	    		netblock.ip_address%type;
 BEGIN
+
 	/*
 	 * It's possible that due to delayed triggers that what is stored in
 	 * NEW is not current, so fetch the current values
 	 */
 	
-	IF TG_OP = 'DELETE' THEN
-		v_trigger := OLD;
-	ELSE
-		v_trigger := NEW;
-	END IF;
-	
-	RAISE DEBUG 'Validating  % of netblock %', TG_OP, v_trigger.netblock_id;
+	RAISE DEBUG 'Validating  % of netblock %', TG_OP, NEW.netblock_id;
 
 	SELECT * INTO nbtype FROM val_netblock_type WHERE 
-		netblock_type = v_trigger.netblock_type;
+		netblock_type = NEW.netblock_type;
 
 	IF (NOT FOUND) THEN
 		RETURN NULL;
 	END IF;
 
 	SELECT * INTO realnew FROM netblock WHERE netblock_id =
-		v_trigger.netblock_id;
+		NEW.netblock_id;
+	IF NOT FOUND THEN
+		realnew = NEW;
+	END IF;
+	
 	
 	/*
 	 * If the parent changed above (or somewhere else between update and
@@ -349,6 +361,19 @@ BEGIN
 			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
 				realnew.netblock_id, realnew.ip_address, 
 				parent_nbid, nbrec.ip_address USING ERRCODE = 22102;
+		END IF;
+
+		/*
+		 * Validate that none of the other top-level netblocks should
+		 * belong to this netblock
+		 */
+		PERFORM netblock_id FROM netblock WHERE 
+			parent_netblock_id IS NULL AND
+			netblock_id != NEW.netblock_id AND
+			ip_address <<= NEW.ip_address;
+		IF FOUND THEN
+			RAISE EXCEPTION 'Other top-level netblocks should belong to this parent'
+				USING ERRCODE = 22108;
 		END IF;
 	ELSE
 	 	/*
@@ -467,13 +492,12 @@ BEGIN
 				END IF;
 			END IF;
 
-
 			/*
 			 * Validate that none of the children of the parent netblock are
 			 * children of this netblock (e.g. if inserting into the middle
 			 * of the hierarchy)
 			 */
-			 PERFORM netblock_id FROM netblock WHERE 
+			PERFORM netblock_id FROM netblock WHERE 
 				parent_netblock_id = realnew.parent_netblock_id AND
 				netblock_id != realnew.netblock_id AND
 				ip_address <<= realnew.ip_address;
@@ -496,6 +520,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage 
-	AFTER INSERT OR UPDATE OR DELETE ON netblock DEFERRABLE INITIALLY DEFERRED
+	AFTER INSERT OR UPDATE ON netblock DEFERRABLE INITIALLY DEFERRED
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
 
