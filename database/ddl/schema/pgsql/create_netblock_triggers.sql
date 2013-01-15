@@ -34,7 +34,8 @@ BEGIN
 	IF NEW.is_single_address = 'N' AND (NEW.ip_address != cidr(NEW.ip_address))
 			THEN
 		RAISE EXCEPTION
-			'Non-network bits must be zero if is_single_address is N'
+			'Non-network bits must be zero if is_single_address is N for %',
+			realnew.ip_address
 			USING ERRCODE = 22103;
 	END IF;
 
@@ -112,7 +113,7 @@ BEGIN
 	 */ 
 
 	IF TG_OP != 'DELETE' THEN
-		RAISE DEBUG 'Checking forced hierarchical netblock %', NEW.netblock_id;
+		RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
 		NEW.parent_netblock_id = netblock_utils.find_best_parent_id(
 			NEW.ip_address,
 			NEW.netmask_bits,
@@ -121,7 +122,9 @@ BEGIN
 			NEW.is_single_address
 			);
 
-		RAISE DEBUG 'Setting parent for netblock % to %', NEW.netblock_id,
+		RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %', 
+			NEW.netblock_id, NEW.ip_address, NEW.netblock_type,
+			NEW.ip_universe_id, NEW.is_single_address,
 			NEW.parent_netblock_id;
 
 		/*
@@ -338,7 +341,8 @@ BEGIN
 			NEW.netblock_id;
 
 		IF realnew.is_single_address = 'Y' THEN
-			RAISE 'A single address must be the child of a parent netblock'
+			RAISE 'A single address (%) must be the child of a parent netblock',
+				realnew.ip_address
 				USING ERRCODE = 22105;
 		END IF;		
 
@@ -397,7 +401,8 @@ BEGIN
 		END IF;
 
 		IF nbrec.is_single_address = 'Y' THEN
-			RAISE EXCEPTION 'Parent netblock may not be a single address'
+			RAISE EXCEPTION 'Parent netblock % of single address % may not also be a single address',
+			nbrec.netblock_id, realnew.ip_address
 			USING ERRCODE = 22110;
 		END IF;
 
@@ -415,7 +420,8 @@ BEGIN
 
 			IF NOT (realnew.ip_address << nbrec.ip_address OR
 					cidr(realnew.ip_address) != nbrec.ip_address) THEN
-				RAISE EXCEPTION 'Parent netblock is not a valid parent'
+				RAISE EXCEPTION 'Parent netblock % (%)  is not a valid parent for %',
+					nbrec.ip_address, nbrec.netblock_id, realnew.ip_address
 					USING ERRCODE = 22102;
 			END IF;
 		ELSE
@@ -432,7 +438,8 @@ BEGIN
 					parent_netblock_id = realnew.netblock_id AND
 					is_single_address = 'N';
 				IF FOUND THEN
-					RAISE EXCEPTION 'A non-subnettable netblock may not have child network netblocks'
+					RAISE EXCEPTION 'A non-subnettable netblock (%) may not have child network netblocks',
+					realnew.netblock_id
 					USING ERRCODE = 22111;
 				END IF;
 			END IF;
@@ -471,7 +478,10 @@ BEGIN
 				realnew.parent_netblock_id;
 
 			IF (single_count > 0 and nonsingle_count > 0) THEN
-				RAISE EXCEPTION 'Netblock may not have direct children for both single and multiple addresses simultaneously'
+				SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+					realnew.parent_netblock_id;
+				RAISE EXCEPTION 'Netblock % (%) may not have direct children for both single and multiple addresses simultaneously',
+					nbrec.netblock_id, nbrec.ip_address
 					USING ERRCODE = 22107;
 			END IF;
 			/*
@@ -487,7 +497,8 @@ BEGIN
 					(is_single_address = 'N' AND realnew.netblock_id !=
 						netblock_utils.find_best_parent_id(netblock_id)));
 				IF FOUND THEN
-					RAISE EXCEPTION 'Update causes parent to have children that do not belong to it'
+					RAISE EXCEPTION 'Update for netblock % (%) causes parent to have children that do not belong to it',
+						realnew.netblock_id, realnew.ip_address
 						USING ERRCODE = 22112;
 				END IF;
 			END IF;
@@ -497,13 +508,16 @@ BEGIN
 			 * children of this netblock (e.g. if inserting into the middle
 			 * of the hierarchy)
 			 */
-			PERFORM netblock_id FROM netblock WHERE 
-				parent_netblock_id = realnew.parent_netblock_id AND
-				netblock_id != realnew.netblock_id AND
-				ip_address <<= realnew.ip_address;
-			IF FOUND THEN
-				RAISE EXCEPTION 'Other netblocks have children that should belong to this parent'
-					USING ERRCODE = 22108;
+			IF (realnew.is_single_address = 'N') THEN
+				PERFORM netblock_id FROM netblock WHERE 
+					parent_netblock_id = realnew.parent_netblock_id AND
+					netblock_id != realnew.netblock_id AND
+					ip_address <<= realnew.ip_address;
+				IF FOUND THEN
+					RAISE EXCEPTION 'Other netblocks have children that should belong to parent % (%)',
+						realnew.parent_netblock_id, realnew.ip_address
+						USING ERRCODE = 22108;
+				END IF;
 			END IF;
 		END IF;
 	END IF;
