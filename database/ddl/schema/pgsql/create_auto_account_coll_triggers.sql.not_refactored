@@ -1,0 +1,164 @@
+CREATE OR REPLACE FUNCTION insert_if_not_there_account_collection_account(INTEGER, INTEGER) RETURNS VOID AS $_$
+BEGIN
+	PERFORM 1 FROM account_collection_account WHERE account_collection_id = $1 AND account_id = $2;
+	IF NOT FOUND THEN
+		INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ($1, $2);
+	END IF;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION handle_automated_ac(_is_insert BOOLEAN, _new_account_role VARCHAR, _new_account_status VARCHAR, _new_account_id INTEGER, _old_account_role VARCHAR, _ac_name VARCHAR, _old_account_status VARCHAR) RETURNS VOID AS $$
+DECLARE
+	ac_id INTEGER;
+BEGIN
+	IF _is_insert THEN
+		IF _new_account_role != 'primary' THEN
+			RETURN;
+		END IF;
+		PERFORM 1 FROM val_person_status WHERE _new_account_status = person_status AND is_disabled = 'N';
+		IF NOT FOUND THEN
+			RETURN;
+		END IF;
+	END IF;
+	SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = _ac_name AND account_collection_type ='automated';
+	IF NOT FOUND THEN
+		RAISE NOTICE 'Account collection name % of type "automated" not found', _ac_name;
+		RETURN;
+--			insert into account_collection (account_collection_name, account_collection_type) values (ac_name, 'automated')
+--				RETURNING account_collection_id into ac_id;
+	END IF;
+	IF _is_insert THEN
+		PERFORM insert_if_not_there_account_collection_account(ac_id, _new_account_id);
+	ELSE
+		IF _new_account_role != 'primary' AND _new_account_role != _old_account_role THEN
+			DELETE FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = _new_account_id;	
+			RETURN;
+		END IF;
+		PERFORM 1 FROM val_person_status WHERE _new_account_status = person_status AND is_disabled = 'N';
+		IF NOT FOUND THEN
+			DELETE FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = _new_account_id;	
+			RETURN;
+		END IF;
+		IF _new_account_role = 'primary' AND _new_account_role != _old_account_role OR
+			_new_account_status != _old_account_status THEN
+			PERFORM insert_if_not_there_account_collection_account(ac_id, _new_account_id);
+		END IF;
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION automated_realm_ac() RETURNS TRIGGER AS $_$
+DECLARE
+	acr	VARCHAR;
+	ac_name VARCHAR;
+BEGIN
+	SELECT account_realm_name INTO acr FROM account_realm WHERE account_realm_id = NEW.account_realm_id;
+	ac_name = acr || '_' || NEW.account_type;
+	PERFORM handle_automated_ac(TG_OP = 'INSERT', NEW.account_role, NEW.account_status, NEW.account_id, OLD.account_role, ac_name, OLD.account_status);
+	RETURN NEW;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS trig_automated_realm_ac ON account;
+CREATE TRIGGER trig_automated_realm_ac AFTER INSERT OR UPDATE ON account FOR EACH ROW EXECUTE PROCEDURE automated_realm_ac();
+
+CREATE OR REPLACE FUNCTION automated_realm_company_ac() RETURNS TRIGGER AS $_$
+DECLARE
+	acr	VARCHAR;
+	c_name VARCHAR;
+	ac_name VARCHAR;
+BEGIN
+	SELECT company_short_name INTO c_name FROM company WHERE company_id = NEW.company_id;
+	IF NOT FOUND OR c_name IS NULL THEN
+		RAISE NOTICE 'Company short name cannot be determined from company_id % in %', NEW.company_id, TG_NAME;
+		RETURN NEW;
+	END IF;
+	SELECT account_realm_name INTO acr FROM account_realm WHERE account_realm_id = NEW.account_realm_id;
+	ac_name = acr || '_' || c_name || '_' || NEW.account_type;
+	PERFORM handle_automated_ac(TG_OP = 'INSERT', NEW.account_role, NEW.account_status, NEW.account_id, OLD.account_role, ac_name, OLD.account_status);
+	RETURN NEW;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS trig_automated_realm_company_ac ON account;
+CREATE TRIGGER trig_automated_realm_company_ac AFTER INSERT OR UPDATE ON account FOR EACH ROW EXECUTE PROCEDURE automated_realm_company_ac();
+
+CREATE OR REPLACE FUNCTION automated_realm_site_ac() RETURNS TRIGGER AS $_$
+DECLARE
+	acr	VARCHAR;
+	sc VARCHAR;
+	ac_name VARCHAR;
+BEGIN
+	SELECT site_code INTO sc FROM person_location WHERE person_id = NEW.person_id;
+	IF NOT FOUND or sc IS NULL THEN
+		RETURN NEW;
+	END IF;
+	SELECT account_realm_name INTO acr FROM account_realm WHERE account_realm_id = NEW.account_realm_id;
+	ac_name = acr || '_' || sc;	
+	PERFORM handle_automated_ac(TG_OP = 'INSERT', NEW.account_role, NEW.account_status, NEW.account_id, OLD.account_role, ac_name, OLD.account_status);
+	RETURN NEW;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS trig_automated_realm_site_ac ON account;
+CREATE TRIGGER trig_automated_realm_site_ac AFTER INSERT OR UPDATE ON account FOR EACH ROW EXECUTE PROCEDURE automated_realm_site_ac();
+
+CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl() RETURNS TRIGGER AS $_$
+DECLARE
+	sc VARCHAR;
+	r RECORD;
+	ac_id INTEGER;
+	ac_name VARCHAR;
+	p_id INTEGER;
+BEGIN
+	IF TG_OP = 'UPDATE' AND (NEW.site_code = OLD.site_code OR NEW.person_location_type != 'office' AND OLD.person_location_type != 'office') THEN
+		RETURN NEW;
+	END IF;
+
+	IF TG_OP = 'INSERT' AND NEW.person_location_type != 'office' THEN
+		RETURN NEW;
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.person_location_type != 'office' THEN
+			RETURN OLD;
+		END IF;
+		p_id = OLD.person_id;
+		sc = OLD.site_code;
+	ELSE
+		p_id = NEW.person_id;
+		sc = NEW.site_code;
+	END IF;
+
+	FOR r IN SELECT account_realm_name, account_id FROM account_realm ar
+		JOIN account a ON ar.account_realm_id=a.account_realm_id AND a.account_role = 'primary' AND a.person_id = p_id 
+		JOIN val_person_status vps ON vps.person_status = a.account_status AND vps.is_disabled='N'
+		JOIN site s ON s.site_code = sc AND a.company_id = s.colo_company_id
+	LOOP
+		IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+			ac_name = r.account_realm_name || '_' || sc;
+			SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
+			IF NOT FOUND THEN
+				RAISE NOTICE 'Account collection name % of type "automated" not found in %', ac_name, TG_NAME;
+				CONTINUE;
+			END IF;
+			IF TG_OP = 'UPDATE' AND NEW.person_location_type != 'office' THEN
+				CONTINUE;
+			END IF;
+			PERFORM	insert_if_not_there_account_collection_account(ac_id, r.account_id);
+		END IF;
+		IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+			ac_name = r.account_realm_name || '_' || OLD.site_code;
+			SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
+			IF NOT FOUND THEN
+				RAISE NOTICE 'Account collection name % of type "automated" not found in %', ac_name, TG_NAME;
+				CONTINUE;
+			END IF;
+			DELETE FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
+		END IF;
+	END LOOP;
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	END IF;
+	RETURN NEW;
+END	
+$_$ LANGUAGE plpgsql SECURITY DEFINER;
+DROP TRIGGER IF EXISTS trig_automated_realm_site_ac_pl ON person_location;
+CREATE TRIGGER trig_automated_realm_site_ac_pl AFTER DELETE OR INSERT OR UPDATE ON person_location FOR EACH ROW EXECUTE PROCEDURE automated_realm_site_ac_pl();
