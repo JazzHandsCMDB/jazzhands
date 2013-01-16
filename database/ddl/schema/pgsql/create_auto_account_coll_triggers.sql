@@ -4,10 +4,9 @@ DECLARE
 BEGIN
 	SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
 	IF NOT FOUND THEN
-		RAISE NOTICE 'Account collection name % of type "automated" not found', ac_name;
-		RETURN -1;
---			insert into account_collection (account_collection_name, account_collection_type) values (ac_name, 'automated')
---				RETURNING account_collection_id into ac_id;
+		RAISE NOTICE 'Account collection name % of type "automated" not found. Creating', ac_name;
+		INSERT INTO account_collection (account_collection_name, account_collection_type) VALUES (ac_name, 'automated')
+			RETURNING account_collection_id INTO ac_id;
 	END IF;
 	RETURN ac_id;
 END;
@@ -125,11 +124,7 @@ BEGIN
 	LOOP
 		IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
 			ac_name = r.account_realm_name || '_' || sc;
-			SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
-			IF NOT FOUND THEN
-				RAISE NOTICE 'Account collection name % of type "automated" not found in %', ac_name, TG_NAME;
-				CONTINUE;
-			END IF;
+			ac_id = get_automated_account_collection_id( r.account_realm_name || '_' || sc );
 			IF TG_OP = 'UPDATE' AND NEW.person_location_type != 'office' THEN
 				CONTINUE;
 			END IF;
