@@ -35,7 +35,7 @@ BEGIN
 			THEN
 		RAISE EXCEPTION
 			'Non-network bits must be zero if is_single_address is N for %',
-			realnew.ip_address
+			NEW.ip_address
 			USING ERRCODE = 22103;
 	END IF;
 
@@ -51,19 +51,19 @@ BEGIN
 */
 			PERFORM netblock_id 
 			   FROM netblock 
-			  WHERE ip_address = new.ip_address AND
-					ip_universe_id = new.ip_universe_id AND
-					netblock_type = new.netblock_type;
+			  WHERE ip_address = NEW.ip_address AND
+					ip_universe_id = NEW.ip_universe_id AND
+					netblock_type = NEW.netblock_type;
 			IF (TG_OP = 'INSERT' AND FOUND) THEN 
 				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %', 
-					new.ip_address
+					NEW.ip_address
 					USING ERRCODE= 'unique_violation';
 			END IF;
 			IF (TG_OP = 'UPDATE') THEN
 				IF (NEW.ip_address != OLD.ip_address AND FOUND) THEN
 					RAISE EXCEPTION 
 						'Unique Constraint Violated on IP Address: %', 
-						new.ip_address
+						NEW.ip_address
 						USING ERRCODE = 'unique_violation';
 				END IF;
 			END IF;
