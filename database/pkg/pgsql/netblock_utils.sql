@@ -40,20 +40,20 @@ $$ LANGUAGE plpgsql;
 -------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
-	in_IpAddress netblock.ip_address%type,
-	in_Netmask_Bits netblock.NETMASK_BITS%type,
-	in_netblock_type netblock.netblock_type%type,
-	in_ip_universe_id ip_universe.ip_universe_id%type,
-	in_is_single_address netblock.is_single_address%type
-) RETURNS netblock.netblock_id%type AS $$
+	in_IpAddress jazzhands.netblock.ip_address%type,
+	in_Netmask_Bits jazzhands.netblock.netmask_bits%type,
+	in_netblock_type jazzhands.netblock.netblock_type%type,
+	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type,
+	in_is_single_address jazzhands.netblock.is_single_address%type
+) RETURNS jazzhands.netblock.netblock_id%type AS $$
 DECLARE
-	par_nbid	netblock.netblock_id%type;
+	par_nbid	jazzhands.netblock.netblock_id%type;
 BEGIN
 	in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
 	select  Netblock_Id
 	  into	par_nbid
 	  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
-		    from netblock
+		    from jazzhands.netblock
 		   where
 		   	in_IpAddress <<= ip_address
 		    and is_single_address = 'N'
@@ -72,12 +72,13 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
-	in_netblock_id netblock.netblock_id%type
-) RETURNS netblock.netblock_id%type AS $$
+	in_netblock_id jazzhands.netblock.netblock_id%type
+) RETURNS jazzhands.netblock.netblock_id%type AS $$
 DECLARE
 	nbrec		RECORD;
 BEGIN
-	SELECT * INTO nbrec FROM netblock WHERE netblock_id = in_netblock_id;
+	SELECT * INTO nbrec FROM jazzhands.netblock WHERE 
+		netblock_id = in_netblock_id;
 
 	RETURN netblock_utils.find_best_parent_id(
 		nbrec.ip_address,
@@ -90,10 +91,10 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.delete_netblock(
-	in_netblock_id	netblock.netblock_id%type
+	in_netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS VOID AS $$
 DECLARE
-	par_nbid	netblock.netblock_id%type;
+	par_nbid	jazzhands.netblock.netblock_id%type;
 BEGIN
 	/*
 	 * Update netblocks that use this as a parent to point to my parent
@@ -101,12 +102,12 @@ BEGIN
 	SELECT
 		netblock_id INTO par_nbid
 	FROM
-		netblock
+		jazzhands.netblock
 	WHERE 
 		netblock_id = in_netblock_id;
 	
 	UPDATE
-		netblock
+		jazzhands.netblock
 	SET
 		parent_netblock_id = par_nbid
 	WHERE
@@ -115,32 +116,34 @@ BEGIN
 	/*
 	 * Now delete the record
 	 */
-	DELETE FROM netblock WHERE netblock_id = in_netblock_id;
+	DELETE FROM jazzhands.netblock WHERE netblock_id = in_netblock_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
-	in_netblock_id	netblock.netblock_id%type
+	in_netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS INTEGER AS $$
 DECLARE
 	nbrec		RECORD;
 	childrec	RECORD;
-	nbid		netblock.netblock_id%type;
+	nbid		jazzhands.netblock.netblock_id%type;
 	ipaddr		inet;
 
 BEGIN
-	SELECT * INTO nbrec FROM netblock WHERE netblock_id = in_netblock_id;
+	SELECT * INTO nbrec FROM jazzhands.netblock WHERE 
+		netblock_id = in_netblock_id;
 
 	nbid := netblock_utils.find_best_parent_id(in_netblock_id);
 
-	UPDATE netblock SET parent_netblock_id = nbid
+	UPDATE jazzhands.netblock SET parent_netblock_id = nbid
 		WHERE netblock_id = in_netblock_id;
 	
-	FOR childrec IN SELECT * FROM netblock WHERE parent_netblock_id = nbid
+	FOR childrec IN SELECT * FROM jazzhands.netblock WHERE 
+		parent_netblock_id = nbid
 		AND netblock_id != in_netblock_id
 	LOOP
 		IF (childrec.ip_address <<= nbrec.ip_address) THEN
-			UPDATE netblock SET parent_netblock_id = in_netblock_id
+			UPDATE jazzhands.netblock SET parent_netblock_id = in_netblock_id
 				WHERE netblock_id = childrec.netblock_id;
 		END IF;
 	END LOOP;
@@ -149,14 +152,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
-	in_netblock_id	netblock.netblock_id%type
-) RETURNS dns_domain.dns_domain_id%type AS $$
+	in_netblock_id	jazzhands.netblock.netblock_id%type
+) RETURNS jazzhands.dns_domain.dns_domain_id%type AS $$
 DECLARE
-	v_rv	dns_domain.dns_domain_id%type;
-	v_domid	dns_domain.dns_domain_id%type;
-	v_lhsip	netblock.ip_address%type;
-	v_rhsip	netblock.ip_address%type;
-	nb_match CURSOR ( in_nb_id netblock.netblock_id%type) FOR
+	v_rv	jazzhands.dns_domain.dns_domain_id%type;
+	v_domid	jazzhands.dns_domain.dns_domain_id%type;
+	v_lhsip	jazzhands.netblock.ip_address%type;
+	v_rhsip	jazzhands.netblock.ip_address%type;
+	nb_match CURSOR ( in_nb_id jazzhands.netblock.netblock_id%type) FOR
 		-- The query used to include this in the where clause, but
 		-- oracle was uber slow 
 		--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
@@ -164,9 +167,9 @@ DECLARE
 		select  rootd.dns_domain_id,
 				 net_manip.inet_base(nb.ip_address, root.netmask_bits),
 				 net_manip.inet_base(root.ip_address, root.netmask_bits)
-		  from  netblock nb,
-			netblock root
-				inner join dns_record rootd
+		  from  jazzhands.netblock nb,
+			jazzhands.netblock root
+				inner join jazzhands.dns_record rootd
 					on rootd.netblock_id = root.netblock_id
 					and rootd.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
 		 where

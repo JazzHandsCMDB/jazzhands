@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE OR REPLACE FUNCTION validate_netblock() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock() RETURNS TRIGGER AS $$
 BEGIN
 	/*
 	 * Force netmask_bits to be authoritative
@@ -50,7 +50,7 @@ BEGIN
 	IF NOT net_manip.inet_is_private(NEW.ip_address) THEN
 */
 			PERFORM netblock_id 
-			   FROM netblock 
+			   FROM jazzhands.netblock 
 			  WHERE ip_address = NEW.ip_address AND
 					ip_universe_id = NEW.ip_universe_id AND
 					netblock_type = NEW.netblock_type;
@@ -79,16 +79,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_netblock ON netblock;
-CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON netblock
-	FOR EACH ROW EXECUTE PROCEDURE validate_netblock();
+DROP TRIGGER IF EXISTS trigger_validate_netblock ON jazzhands.netblock;
+CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON 
+	jazzhands.netblock FOR EACH ROW EXECUTE PROCEDURE 
+	jazzhands.validate_netblock();
 
-CREATE OR REPLACE FUNCTION manipulate_netblock_parentage_before() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_before() RETURNS TRIGGER AS $$
 
 DECLARE
 	nbtype				record;
 	v_trigger			record;
-	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+	v_netblock_type		jazzhands.val_netblock_type.netblock_type%TYPE;
 BEGIN
 	/*
 	 * Get the parameters for the given netblock type to see if we need
@@ -101,7 +102,7 @@ BEGIN
 		v_trigger := NEW;
 	END IF;
 		
-	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
 		netblock_type = v_trigger.netblock_type;
 
 	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
@@ -147,7 +148,7 @@ BEGIN
 			OLD.parent_netblock_id;
 
 		UPDATE 
-			netblock 
+			jazzhands.netblock 
 		SET
 			parent_netblock_id = OLD.parent_netblock_id
 		WHERE
@@ -168,7 +169,7 @@ BEGIN
 			NEW.parent_netblock_id,
 			NEW.netblock_id;
 		UPDATE
-			netblock
+			jazzhands.netblock
 		SET
 			parent_netblock_id = NEW.netblock_id
 		WHERE
@@ -183,7 +184,7 @@ BEGIN
 			OLD.netblock_id,
 			OLD.parent_netblock_id;
 		UPDATE
-			netblock
+			jazzhands.netblock
 		SET
 			parent_netblock_id = OLD.parent_netblock_id
 		WHERE
@@ -197,28 +198,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_manipulate_netblock_parentage ON netblock;
-DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON netblock;
+DROP TRIGGER IF EXISTS trigger_manipulate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON jazzhands.netblock;
 
 CREATE TRIGGER tb_manipulate_netblock_parentage
 	BEFORE INSERT OR DELETE OR UPDATE OF
 		ip_address, netmask_bits, netblock_type, ip_universe_id
-	ON netblock
-	FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_before();
+	ON jazzhands.netblock
+	FOR EACH ROW EXECUTE PROCEDURE jazzhands.manipulate_netblock_parentage_before();
 
 
-CREATE OR REPLACE FUNCTION manipulate_netblock_parentage_after() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_after() RETURNS TRIGGER AS $$
 
 DECLARE
 	nbtype				record;
-	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+	v_netblock_type		jazzhands.val_netblock_type.netblock_type%TYPE;
 BEGIN
 	/*
 	 * Get the parameters for the given netblock type to see if we need
 	 * to do anything
 	 */
 
-	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
 		netblock_type = NEW.netblock_type;
 
 	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
@@ -235,7 +236,7 @@ BEGIN
 
 	IF NEW.parent_netblock_id IS NULL THEN
 		UPDATE
-			netblock
+			jazzhands.netblock
 		SET
 			parent_netblock_id = NEW.netblock_id
 		WHERE
@@ -245,7 +246,7 @@ BEGIN
 		RETURN NULL;
 	ELSE
 		UPDATE
-			netblock
+			jazzhands.netblock
 		SET
 			parent_netblock_id = NEW.netblock_id
 		WHERE
@@ -258,24 +259,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS ta_manipulate_netblock_parentage ON netblock;
+DROP TRIGGER IF EXISTS ta_manipulate_netblock_parentage ON jazzhands.netblock;
 
 CREATE CONSTRAINT TRIGGER ta_manipulate_netblock_parentage
-	AFTER INSERT ON netblock NOT DEFERRABLE
-	FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_after();
+	AFTER INSERT ON jazzhands.netblock NOT DEFERRABLE
+	FOR EACH ROW EXECUTE PROCEDURE jazzhands.manipulate_netblock_parentage_after();
 
-CREATE OR REPLACE FUNCTION validate_netblock_parentage() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_parentage() RETURNS TRIGGER AS $$
 DECLARE
 	nbrec			record;
 	realnew			record;
 	nbtype			record;
 	v_trigger		record;
-	parent_nbid		netblock.netblock_id%type;
+	parent_nbid		jazzhands.netblock.netblock_id%type;
 	ipaddr			inet;
 	parent_ipaddr	inet;
 	single_count	integer;
 	nonsingle_count	integer;
-	pip	    		netblock.ip_address%type;
+	pip	    		jazzhands.netblock.ip_address%type;
 BEGIN
 
 	/*
@@ -285,14 +286,14 @@ BEGIN
 	
 	RAISE DEBUG 'Validating  % of netblock %', TG_OP, NEW.netblock_id;
 
-	SELECT * INTO nbtype FROM val_netblock_type WHERE 
+	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
 		netblock_type = NEW.netblock_type;
 
 	IF (NOT FOUND) THEN
 		RETURN NULL;
 	END IF;
 
-	SELECT * INTO realnew FROM netblock WHERE netblock_id =
+	SELECT * INTO realnew FROM jazzhands.netblock WHERE netblock_id =
 		NEW.netblock_id;
 	IF NOT FOUND THEN
 		realnew = NEW;
@@ -318,7 +319,7 @@ BEGIN
 	 */
 	
 	RAISE DEBUG 'Verifying child ip_universe and type match';
-	PERFORM netblock_id FROM netblock WHERE
+	PERFORM netblock_id FROM jazzhands.netblock WHERE
 		parent_netblock_id = realnew.netblock_id AND
 		netblock_type != realnew.netblock_type AND
 		ip_universe_id != realnew.ip_universe_id;
@@ -359,7 +360,7 @@ BEGIN
 		);
 
 		IF parent_nbid IS NOT NULL THEN
-			SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+			SELECT * INTO nbrec FROM jazzhands.netblock WHERE netblock_id =
 				parent_nbid;
 
 			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
@@ -371,7 +372,7 @@ BEGIN
 		 * Validate that none of the other top-level netblocks should
 		 * belong to this netblock
 		 */
-		PERFORM netblock_id FROM netblock WHERE 
+		PERFORM netblock_id FROM jazzhands.netblock WHERE 
 			parent_netblock_id IS NULL AND
 			netblock_id != NEW.netblock_id AND
 			ip_address <<= NEW.ip_address;
@@ -388,7 +389,7 @@ BEGIN
 				USING ERRCODE = 22101;
 		END IF;
 		
-		SELECT * INTO nbrec FROM netblock WHERE netblock_id = 
+		SELECT * INTO nbrec FROM jazzhands.netblock WHERE netblock_id = 
 			realnew.parent_netblock_id;
 
 		/*
@@ -434,7 +435,7 @@ BEGIN
 				);
 
 			IF realnew.can_subnet = 'N' THEN
-				PERFORM netblock_id FROM netblock WHERE
+				PERFORM netblock_id FROM jazzhands.netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
 					is_single_address = 'N';
 				IF FOUND THEN
@@ -444,7 +445,7 @@ BEGIN
 				END IF;
 			END IF;
 			IF realnew.is_single_address = 'Y' THEN 
-				SELECT ip_address INTO ipaddr FROM netblock
+				SELECT ip_address INTO ipaddr FROM jazzhands.netblock
 					WHERE netblock_id = realnew.parent_netblock_id;
 				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
 					RAISE 'Parent netblock % does not have same netmask as single address child % (% vs %)',
@@ -454,9 +455,10 @@ BEGIN
 				END IF;
 			END IF;
 			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
-				SELECT ip_address INTO parent_ipaddr FROM netblock WHERE
+				SELECT ip_address INTO parent_ipaddr FROM jazzhands.netblock
+				WHERE
 					netblock_id = parent_nbid;
-				SELECT ip_address INTO ipaddr FROM netblock WHERE
+				SELECT ip_address INTO ipaddr FROM jazzhands.netblock WHERE
 					netblock_id = realnew.parent_netblock_id;
 
 				RAISE EXCEPTION 
@@ -470,15 +472,15 @@ BEGIN
 			 * Validate that all children are is_single_address='Y' or
 			 * all children are is_single_address='N'
 			 */
-			SELECT count(*) INTO single_count FROM netblock WHERE
+			SELECT count(*) INTO single_count FROM jazzhands.netblock WHERE
 				is_single_address='Y' and parent_netblock_id = 
 				realnew.parent_netblock_id;
-			SELECT count(*) INTO nonsingle_count FROM netblock WHERE
+			SELECT count(*) INTO nonsingle_count FROM jazzhands.netblock WHERE
 				is_single_address='N' and parent_netblock_id =
 				realnew.parent_netblock_id;
 
 			IF (single_count > 0 and nonsingle_count > 0) THEN
-				SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+				SELECT * INTO nbrec FROM jazzhands.netblock WHERE netblock_id =
 					realnew.parent_netblock_id;
 				RAISE EXCEPTION 'Netblock % (%) may not have direct children for both single and multiple addresses simultaneously',
 					nbrec.netblock_id, nbrec.ip_address
@@ -490,7 +492,7 @@ BEGIN
 			 *  us
 			 */
 			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
-				PERFORM netblock_id FROM netblock WHERE 
+				PERFORM netblock_id FROM jazzhands.netblock WHERE 
 					parent_netblock_id = realnew.netblock_id AND
 					((is_single_address = 'Y' AND NEW.ip_address != 
 						ip_address::cidr) OR
@@ -509,7 +511,7 @@ BEGIN
 			 * of the hierarchy)
 			 */
 			IF (realnew.is_single_address = 'N') THEN
-				PERFORM netblock_id FROM netblock WHERE 
+				PERFORM netblock_id FROM jazzhands.netblock WHERE 
 					parent_netblock_id = realnew.parent_netblock_id AND
 					netblock_id != realnew.netblock_id AND
 					ip_address <<= realnew.ip_address;
@@ -532,8 +534,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
  * other triggers
  */
 
-DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
+DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON jazzhands.netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage 
-	AFTER INSERT OR UPDATE ON netblock DEFERRABLE INITIALLY DEFERRED
-	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
+	AFTER INSERT OR UPDATE ON jazzhands.netblock DEFERRABLE INITIALLY DEFERRED
+	FOR EACH ROW EXECUTE PROCEDURE jazzhands.validate_netblock_parentage();
 
