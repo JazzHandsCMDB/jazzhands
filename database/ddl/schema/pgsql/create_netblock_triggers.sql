@@ -137,7 +137,6 @@ BEGIN
 		END IF;
 	END IF;
 
-
 	/*
 	 * If we are deleting, attach all children to the parent and wipe
 	 * hands on pants;
@@ -153,6 +152,7 @@ BEGIN
 			parent_netblock_id = OLD.parent_netblock_id
 		WHERE
 			parent_netblock_id = OLD.netblock_id;
+			
 		RETURN OLD;
 	END IF;
 
@@ -279,11 +279,6 @@ DECLARE
 	pip	    		jazzhands.netblock.ip_address%type;
 BEGIN
 
-	/*
-	 * It's possible that due to delayed triggers that what is stored in
-	 * NEW is not current, so fetch the current values
-	 */
-	
 	RAISE DEBUG 'Validating  % of netblock %', TG_OP, NEW.netblock_id;
 
 	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
@@ -293,10 +288,19 @@ BEGIN
 		RETURN NULL;
 	END IF;
 
+	/*
+	 * It's possible that due to delayed triggers that what is stored in
+	 * NEW is not current, so fetch the current values
+	 */
+	
 	SELECT * INTO realnew FROM jazzhands.netblock WHERE netblock_id =
 		NEW.netblock_id;
 	IF NOT FOUND THEN
-		realnew = NEW;
+		/* 
+		 * If the netblock isn't there, it was subsequently deleted, so 
+		 * our parentage doesn't need to be checked
+		 */
+		RETURN NULL;
 	END IF;
 	
 	
