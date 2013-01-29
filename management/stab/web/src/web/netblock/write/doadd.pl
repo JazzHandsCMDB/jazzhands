@@ -22,14 +22,27 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# $Id$
+# Copyright (c) 2013 Matthew Ragan
+# All rights reserved.
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 use strict;
 use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB qw(_dbx);
 
 do_netblock_addition();
 
@@ -42,14 +55,13 @@ do_netblock_addition();
 sub do_netblock_addition {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
-	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
 	my $par_nblkid = $cgi->param('parentnblkid') || undef;
 	my $ip         = $stab->cgi_parse_param('ip');
 	my $bits       = $stab->cgi_parse_param('bits');
 	my $desc       = $stab->cgi_parse_param('description');
 
-	if ( !defined($par_nblkid) || !defined($ip)) {
+	if (!defined($ip)) {
 		$stab->error_return("Insufficient Values Specified.");
 	}
 
@@ -79,98 +91,87 @@ sub do_netblock_addition {
 		);
 	}
 
-	my $netblock = $stab->get_netblock_from_id( $par_nblkid, 1 );
+	my $childaddr = NetAddr::IP->new($ip, $bits);
 
-	if ( !defined($netblock) ) {
-		$stab->error_return("Invalid Parent Netblock");
-		exit 0;
-	}
+	my @errors;
+	if (defined($par_nblkid)) {
+		my $netblock = $stab->GetNetblock( netblock_id => $par_nblkid, 
+			errors => \@errors);
 
-	my $par_ip   = $netblock->{'IP'};
-	my $par_bits = $netblock->{'NETMASK_BITS'};
-
-	#
-	# Check to ensure that parent/child relationship is ok.  This can
-	# actually all be done with Net::IP, and does not need to be done
-	# with Net::Netmask.  Part of the ripping apart of all of this...
-	# [XXX]
-	#
-	if($netblock->{'IS_IPV4_ADDRESS'} eq 'Y') {
-        	my $par_ip = $netblock->{'IP'};
-        	my $par_bits = $netblock->{'NETMASK_BITS'};
-  
-		my $parnb = new Net::Netmask("$par_ip/$par_bits") || $stab->error_return("Invalid IPv4 address: ", Net::IP::Error());
-
-
-		if ( !$parnb->contains("$ip/$bits") ) {
-			$cgi->delete('orig_referer');
-			$stab->error_return(
-				qq{
-				$ip/$bits is not a child netblock of 
-				$par_ip/$par_bits
+		if ( !defined($netblock) ) {
+			if (@errors) {
+				$stab->error_return(join ",", @errors);
+			} else {
+				$stab->error_return("Invalid Parent Netblock");
 			}
+			exit 0;
+		}
+
+		my $par_ip   = $netblock->IPAddress;
+
+		#
+		# Validate that this netblock is a child of the parent.  This probably
+		# isn't *strictly* necessary, since a) the database will take care of
+		# homing the netblock correctly and b) it only checks that it's a child
+		# of this block and not necessarily a child of a child of this block,
+		# but it will at least catch some instances of fat-fingering.
+		#
+		if (!($par_ip->contains($childaddr))) {
+			$cgi->delete('orig_referer');
+			$stab->error_return( qq{
+					$childaddr is not a child netblock of $par_ip
+				}
 			);
 			exit 0;
 		}
-	 } else { # IPv6
-		my $par_ip = $netblock->{'IP'};
-		my $par_bits = $netblock->{'NETMASK_BITS'};
-
-		my $parn = new Net::IP("$par_ip/$par_bits") ||
-			$stab->error_return(
-				"Invalid IPv6 parent address: ", Net::IP::Error()
-			);
-
-		my $me = new Net::IP($ip) ||
-			$stab->error_return(
-				"Invalid IPv6 address: ", Net::IP::Error()
-			);
-
-
-		if($me->intip() < $parn->intip() ||
-		   $me->intip() > ($parn->intip() + $parn->size())) {
-			$stab->error_return(qq{
-				$ip/$bits is not a child netblock of
-				$par_ip/$par_bits
-			});
-		}
 	}
+	#
+	# Create a new netblock object
+	#
 
-	my $me = new Net::IP($ip) || $stab->error_return("Invalid IPv6 address: ", Net::IP::Error());
+	my $me = new JazzHands::Mgmt::Netblock (
+		jhhandle => $stab,
+		is_single_address => 'N',
+		can_subnet => 'Y',
+		netblock_status => 'Allocated',
+		description => $desc,
+		netblock_type => 'default',
+		ip_address => $childaddr,
+		errors => \@errors
+	);
 
-	my $q = qq{
-		insert into netblock
-		(
-			ip_address, netmask_bits, is_ipv4_address,
-		 	is_single_address, parent_netblock_id, netblock_status,
-		 	description, netblock_type
-		) values (
-			:1, :2, :3,
-		 	'N', :4, 'Allocated',
-			:5, 'default'
-		)
-	};
-
-	my $sth = $stab->prepare($q) || die "$q" . $stab->errstr;
-
-	# XXX $me->ip_is_ipv4() is not reasonable, so I just do a stupid
-	# check against bits.  ugh.
-	if ( !( $sth->execute( $me->intip(), $bits, 
-			($bits > 32)?'N':'Y',
-			$par_nblkid, $desc ) ) ) {
-		print $cgi->delete('orig_referer');
-		if ( $sth->err == 29532 ) {
-			print $stab->error_return("Invalid IP");
-		} elsif ( $sth->err == 1722 ) {
-			$stab->error_return("Invalid BITS");
+	if ( !defined($me) ) {
+		if (@errors) {
+			$stab->error_return(join ",", @errors);
 		} else {
-			$stab->return_db_err($sth);
+			$stab->error_return("Unknown error inserting netblock");
 		}
+		exit 0;
 	}
 
-	$dbh->commit;
-	$dbh->disconnect;
-	$dbh = undef;
-	my $refurl = "../?nblkid=$par_nblkid";
+	#
+	# Now write it out
+	#
+
+	if (!($me->write(errors => \@errors))) {
+		if (@errors) {
+			$stab->error_return(join ",", @errors);
+		} else {
+			$stab->error_return("Invalid Parent Netblock");
+		}
+		exit 0;
+	}
+
+
+	$me->commit;
+	$stab->disconnect;
+
+	my $refurl = "../";
+	if ($me->hash->{_dbx('parent_netblock_id')}) {
+		$refurl .= "?nblkid=" . $me->hash->{_dbx('parent_netblock_id')};
+	}
+	undef $me;
 	$stab->msg_return( "Child Netblock Added", $refurl, 1 );
+	undef $stab;
+	1;
 }

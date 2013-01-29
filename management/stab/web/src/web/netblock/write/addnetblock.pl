@@ -30,6 +30,7 @@ use warnings;
 use FileHandle;
 use Net::Netmask;
 use JazzHands::STAB;
+use JazzHands::GenericDB qw(_dbx);
 use Data::Dumper;
 
 do_add_child_netblock_prompt();
@@ -47,31 +48,42 @@ sub do_add_child_netblock_prompt {
 
 	my $netblkid = $cgi->param('id') || undef;
 
-	if ( !defined($netblkid) ) {
-		$stab->error_return("You must specify a valid Netblock!");
-	}
+	my @errors;
+	my $blk;
 
-	my $blk = $stab->get_netblock_from_id($netblkid, 'N');
-  
-	if(!defined($blk)) {
-		$stab->error_return("Unknown Parent Netblock");
-	}
+	if ( defined($netblkid) ) {
 
+		$blk = $stab->GetNetblock(netblock_id => $netblkid, 
+			errors => \@errors);
+	 
+		if(!defined($blk)) {
+			if (@errors) {
+				$stab->error_return(join ",", @errors);
+			} else {
+				$stab->error_return("Unknown Parent Netblock");
+			}
+		}
+	}
 	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html( { -title => 'STAB: Add a child netblock' } ),
+	print $stab->start_html( { -title => 'STAB: Add a netblock' } ),
 	  "\n";
-	print $cgi->h2( "Add a child to ", $blk->{'IP'}, '/', 
-		$blk->{NETMASK_BITS},
-		  ( (defined($blk->{DESCRIPTION}))?"$blk->{DESCRIPTION}":""));
+	if (defined($blk)) {
+		print $cgi->h2( "Add a child to ", $blk->IPAddress,
+			  ($blk->hash()->{_dbx('description')} || ""));
+	} else {
+		print $cgi->h2( "Add a netblock");
+	}
 
 	print $cgi->start_form( { -action => "doadd.pl" } ), "\n";
-	print "IP/Bits:, "
+	print "IP/Bits: "
 	  . $cgi->textfield( { -size => 15, -name => 'ip' } ) . "/"
 	  . $cgi->textfield( { -size => 2,  -name => 'bits' } ) . "\n";
 	print $cgi->br, "\n";
 	print "Description: ", $cgi->textfield('description') . "\n";
 	print $cgi->submit( { -label => 'Submit' } ), "\n";
-	print $cgi->hidden( 'parentnblkid', $netblkid );
+	if (defined($netblkid)) {
+		print $cgi->hidden( 'parentnblkid', $netblkid );
+	}
 	print $cgi->end_form, "\n";
 	print $cgi->end_html, "\n";
 

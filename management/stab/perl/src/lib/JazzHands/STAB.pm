@@ -1,4 +1,20 @@
 #
+# Copyright (c) 2013 Matthew Ragan
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -34,16 +50,20 @@ use JazzHands::STAB::DBAccess;
 use JazzHands::STAB::Device;
 use JazzHands::STAB::Rack;
 use JazzHands::DBI;
-use JazzHands::GenericDB;
+use JazzHands::Common;
+use JazzHands::GenericDB qw(_dbx);
+
 use CGI;    #qw(-no_xhtml);
 use CGI::Pretty;
 use URI;
 use Carp qw(cluck);
 use Data::Dumper;
 
-our @ISA = qw( JazzHands::STAB::DBAccess
-  JazzHands::STAB::Device
-  JazzHands::STAB::Rack
+our @ISA = qw( 
+	JazzHands::Mgmt
+	JazzHands::STAB::DBAccess
+	JazzHands::STAB::Device
+	JazzHands::STAB::Rack
 );
 
 our $VERSION = '1.0.0';
@@ -55,87 +75,52 @@ our $VERSION = '1.0.0';
 # little more effort to make them inaccessable.  Or not.
 #
 
-sub _options {
-	my %ret = @_;
-	for my $v ( grep { /^-/ } keys %ret ) {
-		$ret{ substr( $v, 1 ) } = $ret{$v};
-	}
-	\%ret;
-}
-
-sub _initdb {
-	my ($self) = @_;
-
-	$self->{_dbuser} = 'stab' if ( !defined( $self->{_dbuser} ) );
-
-	#
-	# [XXX] need to probably handle errors better
-	#
-
-	my $cgi  = $self->cgi;
-	my $dude = undef;
-	if ( defined($cgi) ) {
-		$dude = $cgi->remote_user;
-	} else {
-		$dude = $ENV{'REMOTE_USER'};
-	}
-
-	my $dbh =
-	  JazzHands::DBI->connect( $self->{_dbuser}, { AutoCommit => 0 }, $dude );
-	if ( !$dbh ) {
-		cluck "failed to login to db\n";
-		return undef;
-	}
-	$dbh->rollback;
-
-	# oracle initialization...
-	if(0) {
-		$dbh->func( 1000000, 'dbms_output_enable' ) if ( $self->{_debug} );
-
-		$dbh->do("alter session set nls_date_format = 'YYYY-MM-DD HH24:MI:SS'");
-		$dbh->do(
-			"alter session set nls_timestamp_format = 'YYYY-MM-DD HH24:MI:SS.FF'"
-		);
-	}
-
-	my $q;
-
-	if ( my $sth = $dbh->prepare($q) ) {
-		$sth->execute;
-	}
-	$self->{dbh} = $dbh;
-}
-
 sub new {
-	my (@params) = @_;
+	my $class = shift;
+	my $opt = &_options(@_);
 
-	my $class = shift @params;
-
-	my $self = {};
-	bless $self, $class;
-
-	while ( my $thing = shift(@params) ) {
-		if ( $thing eq 'dbh' ) {
-			$self->{dbh} = shift(@params);
-		} elsif ( $thing eq 'cgi' ) {
-			$self->{cgi} = shift(@params);
-		} elsif ( $thing eq 'dbuser' ) {
-			$self->{_dbuser} = shift(@params);
-		} elsif ( $thing eq 'ajax' ) {
-			$self->{_ajax} = shift(@params);
-		} elsif ( $thing eq 'debug' ) {
-			$self->{_debug} = shift(@params);
-		}
+	#
+	# Accept either dbh (deprecated) or dbhandle
+	#
+	if ($opt->{dbh}) {
+		cluck "WARNING: dbh parameter to JazzHands::STAB::new() is deprecated\n";
+		push (@_, 'dbhandle', $opt->{dbh});
+	}
+	if (!$opt->{application}) {
+		push (@_, 'application', 'stab');
+	}
+	my $cgi;
+	if (!$opt->{cgi}) {
+		$cgi = new CGI || return undef;
+		push (@_, 'appuser', $cgi->remote_user || $ENV{'REMOTE_USER'});
 	}
 
-	if ( !defined( $self->{cgi} ) ) {
-		$self->{cgi} = new CGI || return undef;
+	my $self = $class->SUPER::new(@_);
+	$self->{cgi} = $cgi;
+
+	foreach my $something ('ajax', 'debug') {
+		$self->{$something} = $opt->{$something};
 	}
-	$self->_initdb() if ( !defined( $self->{dbh} ) );
+#	while ( my $thing = shift(@params) ) {
+#		if ( $thing eq 'dbh' ) {
+#			$self->{dbh} = shift(@params);
+#		} elsif ( $thing eq 'cgi' ) {
+#			$self->{cgi} = shift(@params);
+#		} elsif ( $thing eq 'dbuser' ) {
+#			$self->{_dbuser} = shift(@params);
+#		} elsif ( $thing eq 'ajax' ) {
+#			$self->{_ajax} = shift(@params);
+#		} elsif ( $thing eq 'debug' ) {
+#			$self->{_debug} = shift(@params);
+#		}
+#	}
+
+#	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
 	$self->textfield_sizing(1);
 
-	$self;
+	bless $self, $class;
+
 }
 
 sub cgi {
@@ -143,13 +128,6 @@ sub cgi {
 
 	if (@_) { $self->{cgi} = shift }
 	return $self->{cgi};
-}
-
-sub dbh {
-	my $self = shift;
-
-	if (@_) { $self->{dbh} = shift }
-	return $self->{dbh};
 }
 
 #
@@ -173,136 +151,107 @@ sub start_html {
 
 	my $cgi = $self->cgi;
 
-	my $root = $self->guess_stab_root;
+	my $stabroot = $self->guess_stab_root;
+	my $root = $stabroot;
+	$root =~ s,/stab$,,;
 
 	my (%args);
-	if ( $opts->{-javascript} ) {
-		if ( $opts->{-javascript} eq 'device' ) {
-			$args{'-script'} = [
+	$args{'-script'} = $opts->{script} || [];
+
+	if ( $opts->{javascript} ) {
+		if ( $opts->{javascript} eq 'device' ) {
+			push (@{$args{'-script'}},
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/ajaxsearch.js"
+					-src => "$stabroot/javascript/ajaxsearch.js"
 				},
 				{
 					-language => 'JavaScript',
 					-src =>
-					  "$root/javascript/table-manip.js"
+					  "$stabroot/javascript/table-manip.js"
 				},
 				{
 					-language => 'JavaScript',
 					-src =>
-					  "$root/javascript/device-utils.js"
+					  "$stabroot/javascript/device-utils.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src      => "$root/javascript/racks.js"
+					-src      => "$stabroot/javascript/racks.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/ajax-utils.js"
+					-src => "$stabroot/javascript/ajax-utils.js"
 				},
-			];
-		}
-		if ( $opts->{-javascript} eq 'netblock' ) {
-			if ( !exists( $args{'-script'} ) ) {
-				$args{'-script'} = [];
-			}
-			push(
-				@{ $args{-script} },
-				{
-					-language => 'JavaScript',
-					-src => "$root/javascript/tickets.js"
-				}
-			);
-			push(
-				@{ $args{-script} },
-				{
-					-language => 'JavaScript',
-					-src => "$root/javascript/netblock.js"
-				}
-			);
-			push(
-				@{ $args{-script} },
-				{
-					-language => 'JavaScript',
-					-src => "$root/javascript/ajax-utils.js"
-				}
 			);
 		}
-		if ( $opts->{-javascript} eq 'dns' ) {
-			if ( !exists( $args{'-script'} ) ) {
-				$args{'-script'} = [];
-			}
+		if ( $opts->{javascript} eq 'netblock' ) {
 			push(
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/dns-utils.js"
-				}
-			);
-			push(
-				@{ $args{-script} },
+					-src => "$root/javascript/external/jQuery/jquery.js",
+				},
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/device-utils.js"
+					-src => "$root/javascript/common.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src => "$stabroot/javascript/tickets.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src => "$stabroot/javascript/netblock.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
-		if ( $opts->{-javascript} eq 'cca' ) {
-			if ( !exists( $args{'-script'} ) ) {
-				$args{'-script'} = [];
-			}
+		if ( $opts->{javascript} eq 'dns' ) {
 			push(
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/tickets.js"
+					-src => "$stabroot/javascript/dns-utils.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src => "$stabroot/javascript/device-utils.js"
 				}
 			);
 		}
-		if ( $opts->{-javascript} eq 'devicetype' ) {
-			if ( !exists( $args{'-script'} ) ) {
-				$args{'-script'} = [];
-			}
+		if ( $opts->{javascript} eq 'devicetype' ) {
 			push(
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/devicetype.js"
+					-src => "$stabroot/javascript/devicetype.js"
 				}
 			);
 		}
-		if ( $opts->{-javascript} eq 'rack' ) {
-			if ( !exists( $args{'-script'} ) ) {
-				$args{'-script'} = [];
-			}
+		if ( $opts->{javascript} eq 'rack' ) {
 			push(
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src      => "$root/javascript/racks.js"
-				}
-			);
-			push(
-				@{ $args{-script} },
+					-src      => "$stabroot/javascript/racks.js"
+				},
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/ajax-utils.js"
+					-src => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
-		if($opts->{-javascript} eq 'apps') {
-			if(!exists($args{'-script'})) {
-				$args{'-script'} = [];
-			}
+		if($opts->{javascript} eq 'apps') {
 			push(@{$args{-script}},
 				{ -language => 'JavaScript',
-					-src => "$root/javascript/app-utils.js"
-				}
-			);
-			push(@{$args{-script}},
+					-src => "$stabroot/javascript/app-utils.js"
+				},
 				{ -language => 'JavaScript',
-					-src => "$root/javascript/ajax-utils.js"
+					-src => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -312,14 +261,14 @@ sub start_html {
 	$args{'-head'} = $cgi->Link(
 		{
 			-rel  => 'icon',
-			-href => "$root/stabcons/stab.png",
+			-href => "$stabroot/stabcons/stab.png",
 			-type => 'image/png'
 		}
 	  )
 	  . $cgi->Link(
 		{
 			-rel  => 'shortcut icon',
-			-href => "$root/stabcons/stab.png",
+			-href => "$stabroot/stabcons/stab.png",
 			-type => 'image/png'
 		}
 	  );
@@ -341,9 +290,9 @@ sub start_html {
 	#$args{'-dtd'} = '-//W3C//DTD HTML 4.01 Transitional//EN';
 
 
-	if( defined($opts->{'-title'}) && length($opts->{'-title'}) ) {
-		$args{'-title'} = "STAB: ". $opts->{'-title'};
-		# $args{'-title'} = $opts->{'-title'};
+	if( defined($opts->{'title'}) && length($opts->{'title'}) ) {
+		$args{'-title'} = "STAB: ". $opts->{'title'};
+		# $args{'-title'} = $opts->{'title'};
 	} else {
 		$args{'-title'} = "STAB";
 	}
@@ -351,7 +300,7 @@ sub start_html {
 	# development.  XXX Probably need to put in a is_dev_instance
 	# function that can be used to discern this throughout the code,
 	# although this is only used in the css for the background and here.
-	if($root !~ m,://stab.example.com/?$,) {
+	if($stabroot !~ m,://stab.example.com/?$,) {
 		$args{'-title'} =~ s/STAB:/STAB(D):/;
 	}
 
@@ -362,12 +311,12 @@ sub start_html {
 		$args{'-style'} = $opts->{'style'};
 		if ( exists( $opts->{'style'}->{'SRC'} ) ) {
 			$args{'-style'}->{'SRC'} =
-			  [ "$root/style.pl", $opts->{'style'}->{'SRC'} ];
+			  [ "$stabroot/style.pl", $opts->{'style'}->{'SRC'} ];
 		} else {
-			$args{'-style'}->{'SRC'} = "$root/style.pl";
+			$args{'-style'}->{'SRC'} = "$stabroot/style.pl";
 		}
 	} else {
-		$args{'-style'} = { 'SRC' => "$root/style.pl" };
+		$args{'-style'} = { 'SRC' => "$stabroot/style.pl" };
 	}
 
 	my $inline_title = "";
@@ -382,16 +331,16 @@ sub start_html {
 
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
 		my $navbar =
-		    $cgi->a( { -href => "$root/device/" },   "Device" ) . " - "
-		  . $cgi->a( { -href => "$root/dns" },       "DNS" ) . " - "
-		  . $cgi->a( { -href => "$root/netblock/" }, "Netblock" )
+		    $cgi->a( { -href => "$stabroot/device/" },   "Device" ) . " - "
+		  . $cgi->a( { -href => "$stabroot/dns" },       "DNS" ) . " - "
+		  . $cgi->a( { -href => "$stabroot/netblock/" }, "Netblock" )
 		  . " - "
-		  . $cgi->a( { -href => "$root/sites/blockmgr.pl" },
+		  . $cgi->a( { -href => "$stabroot/sites/blockmgr.pl" },
 			"Site IPs" )
 		  . " - "
-		  . $cgi->a( { -href => "$root/sites/racks/" }, "Racks" )
+		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
 		  . " - "
-		  . $cgi->a( { -href => "$root/" }, "STAB" );
+		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
 		$inline_title .=
 		  $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
 			"[ $navbar ] " )
@@ -503,8 +452,8 @@ sub build_passback_url {
 		my $origuri = new URI($origurl);
 		$origurl = $origuri->canonical;
 		if ( $uri->canonical eq $origurl ) {
-			my $root = $self->guess_stab_root;
-			$uri = new URI("$root/error.pl");
+			my $stabroot = $self->guess_stab_root;
+			$uri = new URI("$stabroot/error.pl");
 			$uri->query($qs) if ( defined($qs) && length($qs) );
 			$ref            = new CGI("");
 			$nopreserveargs = 1;
@@ -705,127 +654,6 @@ sub mk_chk_yn {
 		}
 	}
 	return 'N';
-}
-
-#
-# This takes two hash tables and returns the differences between the two
-#
-# - If the second hash is not defined, it returns the first hash
-# - If a key is in hash1 but does not exist in hash2, it is not included
-# - if a key is in hash1 but exists and not defined in hash2, its included
-# - if a key is not in hash1, it will not be included
-# - if a key exists in hash1 but not defined and is not defined in hash2,
-#	it will be included
-# - if its defined and both, and they differ, it will be included
-sub hash_table_diff {
-	my ( $self, $hash1, $hash2 ) = @_;
-
-	my %rv;
-	if ( !defined($hash2) ) {
-		%rv = %$hash1;
-	} else {
-		foreach my $key ( keys %$hash1 ) {
-			next if ( !exists( $hash2->{$key} ) );
-			if (       !defined( $hash1->{$key} )
-				&& !defined( $hash2->{$key} ) )
-			{
-				next;
-			} elsif ( defined( $hash1->{$key} )
-				&& !defined( $hash2->{$key} ) )
-			{
-				$rv{$key} = undef;
-			} elsif (
-				(
-					  !defined( $hash1->{$key} )
-					&& defined( $hash2->{$key} )
-				)
-				|| $hash1->{$key} ne $hash2->{$key}
-			  )
-			{
-				$rv{$key} = $hash2->{$key};
-			}
-		}
-	}
-	\%rv;
-}
-
-#
-# $dbkey and $keyval can either be scalars or arrays.
-#
-# if arrays, the array membership must match.
-#
-sub build_update_sth_from_hash {
-	my ( $self, $table, $dbkey, $keyval, $hash ) = @_;
-	my $dbh = $self->dbh;
-
-	#
-	# first build the query
-	#
-	my $setq  = "";
-	my $sofar = "";
-	foreach my $key ( keys %$hash ) {
-		$setq .= "$sofar$key = :$key";
-		$sofar = ",\n\t";
-	}
-
-	if ( !length($setq) ) {
-		return undef;
-	}
-
-	my $update_whereclause;
-	if ( !ref($dbkey) ) {
-
-		# 'tis a scalar
-		$update_whereclause = "$dbkey = :pk__$dbkey";
-	} elsif ( ref($dbkey) eq 'ARRAY' ) {
-		$update_whereclause = "";
-		if ( ( scalar @$dbkey ) != ( scalar @$keyval ) ) {
-
-			# die?
-			return undef;
-		}
-		for ( my $i = 0 ; $i < ( scalar @$dbkey ) ; $i++ ) {
-			if ( length($update_whereclause) ) {
-				$update_whereclause .= " and ";
-			}
-			$update_whereclause .=
-			  $$dbkey[$i] . " = :pk__" . $$dbkey[$i];
-		}
-	} else {
-
-		# die?
-		return undef;
-	}
-	my $q = qq{
-		update $table
-		   set $setq
-		 where $update_whereclause
-	};
-
-	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
-
-	#
-	# bind variables
-	#
-	if ( !ref($dbkey) ) {
-		$sth->bind_param( ":pk__$dbkey", $keyval )
-		  || $self->return_db_err($sth);
-	} elsif ( ref($dbkey) eq 'ARRAY' ) {
-
-		# sanity checking was done above.
-		for ( my $i = 0 ; $i < ( scalar @$dbkey ) ; $i++ ) {
-			my $tkey = $$dbkey[$i];
-			my $tval = $$keyval[$i];
-			$sth->bind_param( ":pk__$tkey", $tval )
-			  || $self->return_db_err($sth);
-		}
-	}
-	foreach my $key ( keys %$hash ) {
-		$sth->bind_param( ":$key", $hash->{$key} )
-		  || $self->return_db_err($sth);
-	}
-	$sth->execute || $self->return_db_err($sth);
-	1;
 }
 
 sub remove_other_flagged {

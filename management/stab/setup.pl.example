@@ -1,0 +1,12 @@
+#
+# so stab works (the perl module), though apache will likely need to be
+# restarted each time it changes
+#
+# In a development environment, you will most likely need to run
+# ./buildperllib.sh in the perllib directory to create the symlinks
+# to all of the things it needs
+#
+
+push(@INC, '..../jazzhands/perllib');
+
+1;

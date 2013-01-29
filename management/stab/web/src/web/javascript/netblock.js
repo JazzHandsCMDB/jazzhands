@@ -55,6 +55,5 @@ function AddIpSpace(thing, parent_tr_id, gapid)
 			}
 		}
 		ajaxrequest.send(null);
-
 	}
 }

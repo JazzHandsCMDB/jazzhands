@@ -46,18 +46,17 @@ sub edit_netblock {
 
 	my $numchanges = 0;
 
-	$numchanges += process_routes
+#	$numchanges += process_routes
 
-	  foreach my $id ( $stab->cgi_get_ids('NETBLOCK_DESCRIPTION') ) {
+	foreach my $id ( $stab->cgi_get_ids('NETBLOCK_DESCRIPTION') ) {
 		my $v    = $cgi->param("NETBLOCK_DESCRIPTION_$id");
-		  my $ov = $cgi->param("orig_NETBLOCK_DESCRIPTION_$id");
-		  if ( $v ne $ov ) {
-			$numchanges +=
-			  process_netblock_update( $stab, $id, $v );
+		my $ov = $cgi->param("orig_NETBLOCK_DESCRIPTION_$id");
+		if ( $v ne $ov ) {
+			$numchanges += process_netblock_update( $stab, $id, $v );
 		}
-	  }
+	}
 
-	  if ( $numchanges > 0 ) {
+	if ( $numchanges > 0 ) {
 		$dbh->commit;
 		$dbh->disconnect;
 		$stab->msg_return( "$numchanges changes commited", undef, 1 );
@@ -74,11 +73,11 @@ sub process_netblock_update {
 	my $dbh = $stab->dbh;
 	my $q   = qq{
 		update	netblock
-		  set	description = :2
-		where	netblock_id = :1
+		  set	description = ?
+		where	netblock_id = ?
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute( $nblkid, $newval ) || $stab->return_db_err($sth);
+	$sth->execute( $newval, $nblkid ) || $stab->return_db_err($sth);
 	1;
 }

@@ -30,6 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB qw(_dbx);
 use vars qw($stab);
 use vars qw($cgi);
 use vars qw($dbh);
@@ -53,14 +54,20 @@ sub do_remove_netblock {
 		$stab->error_return("You must specify a valid netblock.");
 	}
 
-	my $netblock = $stab->get_netblock_from_id( $nblkid, 1 );
+	my @errors;
+#	my $netblock = $stab->get_netblock_from_id( $nblkid, 1 );
+	my $netblock = $stab->GetNetblock( netblock_id => $nblkid, 
+		errors => \@errors);
 	if ( !defined($netblock) ) {
-		$stab->error_return("You must specify a valid netblock.");
+		if (@errors) {
+			$stab->error_return(join ';', @errors);
+		} else {
+			$stab->error_return("You must specify a valid netblock.");
+		}
 	}
 
-	my $ip    = $netblock->{'IP'};
-	my $bits  = $netblock->{'NETMASK_BITS'};
-	my $parid = $netblock->{'PARENT_NETBLOCK_ID'};
+	my $ip    = $netblock->IPAddress;
+	my $parid = $netblock->hash->{_dbx('parent_netblock_id')};
 
 	my $ref = "../";
 	if ( defined($parid) ) {
@@ -68,28 +75,31 @@ sub do_remove_netblock {
 	}
 
 	$cgi->param( 'orig_referer', $ref );
-	$stab->check_if_sure("remove $ip/$bits");
+	$stab->check_if_sure("remove $ip");
 
-	my $q = qq{
-		delete from netblock where netblock_id = :1
-	};
-	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
-
-	if ( !( $sth->execute($nblkid) ) ) {
-		if ( $sth->err == 2292 ) {
-			$stab->error_return(
-				qq{
-				This netblock has children that must 
-				be dealt with before it can be removed. 
-				 Sorry.
-			}
-			);
-		} else {
-			$stab->return_db_err($sth);
-		}
+	if (!($netblock->delete(errors => \@errors))) {
+		$stab->error_return(join ";", @errors);
 	}
+#	my $q = qq{
+#		delete from netblock where netblock_id = :1
+#	};
+#	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
+#
+#	if ( !( $sth->execute($nblkid) ) ) {
+#		if ( $sth->err == 2292 ) {
+#			$stab->error_return(
+#				qq{
+#				This netblock has children that must 
+#				be dealt with before it can be removed. 
+#				 Sorry.
+#			}
+#			);
+#		} else {
+#			$stab->return_db_err($sth);
+#		}
+#	}
 
 	$dbh->commit;
 	$dbh->disconnect;
-	$stab->msg_return( "Successfully removed $ip/$bits.", $ref, 1 );
+	$stab->msg_return( "Successfully removed $ip.", $ref, 1 );
 }
