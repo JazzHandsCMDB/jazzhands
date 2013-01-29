@@ -46,6 +46,7 @@ BEGIN
 	 * field added to allow people to be stupid (for example,
 	 * allow_duplicates='Y','N','RFC1918')
 	 */
+
 /*
 	IF NOT net_manip.inet_is_private(NEW.ip_address) THEN
 */
@@ -88,7 +89,6 @@ CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_before() RETU
 
 DECLARE
 	nbtype				record;
-	v_trigger			record;
 	v_netblock_type		jazzhands.val_netblock_type.netblock_type%TYPE;
 BEGIN
 	/*
@@ -96,64 +96,39 @@ BEGIN
 	 * to do anything
 	 */
 
-	IF TG_OP = 'DELETE' THEN
-		v_trigger := OLD;
-	ELSE
-		v_trigger := NEW;
-	END IF;
+	RAISE DEBUG 'Performing % on netblock %', TG_OP, NEW.netblock_id;
 		
 	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
-		netblock_type = v_trigger.netblock_type;
+		netblock_type = NEW.netblock_type;
 
 	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
-		RETURN v_trigger;
+		RETURN NEW;
 	END IF;
 
 	/*
-	 * Find the correct parent netblock if we're not deleting
+	 * Find the correct parent netblock
 	 */ 
 
-	IF TG_OP != 'DELETE' THEN
-		RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
-		NEW.parent_netblock_id = netblock_utils.find_best_parent_id(
-			NEW.ip_address,
-			NEW.netmask_bits,
-			NEW.netblock_type,
-			NEW.ip_universe_id,
-			NEW.is_single_address
-			);
+	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
+	NEW.parent_netblock_id = netblock_utils.find_best_parent_id(
+		NEW.ip_address,
+		NEW.netmask_bits,
+		NEW.netblock_type,
+		NEW.ip_universe_id,
+		NEW.is_single_address
+		);
 
-		RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %', 
-			NEW.netblock_id, NEW.ip_address, NEW.netblock_type,
-			NEW.ip_universe_id, NEW.is_single_address,
-			NEW.parent_netblock_id;
-
-		/*
-		 * If we are an end-node, then we're done
-		 */
-
-		IF NEW.is_single_address = 'Y' THEN
-			RETURN NEW;
-		END IF;
-	END IF;
+	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %', 
+		NEW.netblock_id, NEW.ip_address, NEW.netblock_type,
+		NEW.ip_universe_id, NEW.is_single_address,
+		NEW.parent_netblock_id;
 
 	/*
-	 * If we are deleting, attach all children to the parent and wipe
-	 * hands on pants;
+	 * If we are an end-node, then we're done
 	 */
-	IF TG_OP = 'DELETE' THEN
-		RAISE DEBUG 'Setting parent for all child netblocks of deleted netblock % to %',
-			OLD.netblock_id,
-			OLD.parent_netblock_id;
 
-		UPDATE 
-			jazzhands.netblock 
-		SET
-			parent_netblock_id = OLD.parent_netblock_id
-		WHERE
-			parent_netblock_id = OLD.netblock_id;
-			
-		RETURN OLD;
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NEW;
 	END IF;
 
 	/*
@@ -202,7 +177,7 @@ DROP TRIGGER IF EXISTS trigger_manipulate_netblock_parentage ON jazzhands.netblo
 DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON jazzhands.netblock;
 
 CREATE TRIGGER tb_manipulate_netblock_parentage
-	BEFORE INSERT OR DELETE OR UPDATE OF
+	BEFORE INSERT OR UPDATE OF
 		ip_address, netmask_bits, netblock_type, ip_universe_id
 	ON jazzhands.netblock
 	FOR EACH ROW EXECUTE PROCEDURE jazzhands.manipulate_netblock_parentage_before();
@@ -213,16 +188,49 @@ CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_after() RETUR
 DECLARE
 	nbtype				record;
 	v_netblock_type		jazzhands.val_netblock_type.netblock_type%TYPE;
+	v_row_count			integer;
+	v_trigger			record;
 BEGIN
 	/*
 	 * Get the parameters for the given netblock type to see if we need
 	 * to do anything
 	 */
 
+	IF TG_OP = 'DELETE' THEN
+		v_trigger := OLD;
+	ELSE
+		v_trigger := NEW;
+	END IF;
+
 	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
-		netblock_type = NEW.netblock_type;
+		netblock_type = v_trigger.netblock_type;
 
 	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * If we are deleting, attach all children to the parent and wipe
+	 * hands on pants;
+	 */
+	IF TG_OP = 'DELETE' THEN
+		UPDATE 
+			jazzhands.netblock 
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = OLD.netblock_id;
+		
+		GET DIAGNOSTICS v_row_count = ROW_COUNT;
+	--	IF (v_row_count > 0) THEN
+			RAISE DEBUG 'Set parent for all child netblocks of deleted netblock % (address %, is_single_address %) to % (% rows updated)',
+				OLD.netblock_id,
+				OLD.ip_address,
+				OLD.is_single_address,
+				OLD.parent_netblock_id,
+				v_row_count;
+	--	END IF;
+
 		RETURN NULL;
 	END IF;
 
@@ -262,7 +270,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS ta_manipulate_netblock_parentage ON jazzhands.netblock;
 
 CREATE CONSTRAINT TRIGGER ta_manipulate_netblock_parentage
-	AFTER INSERT ON jazzhands.netblock NOT DEFERRABLE
+	AFTER INSERT OR DELETE ON jazzhands.netblock NOT DEFERRABLE
 	FOR EACH ROW EXECUTE PROCEDURE jazzhands.manipulate_netblock_parentage_after();
 
 CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_parentage() RETURNS TRIGGER AS $$
@@ -270,7 +278,6 @@ DECLARE
 	nbrec			record;
 	realnew			record;
 	nbtype			record;
-	v_trigger		record;
 	parent_nbid		jazzhands.netblock.netblock_id%type;
 	ipaddr			inet;
 	parent_ipaddr	inet;
@@ -279,7 +286,7 @@ DECLARE
 	pip	    		jazzhands.netblock.ip_address%type;
 BEGIN
 
-	RAISE DEBUG 'Validating  % of netblock %', TG_OP, NEW.netblock_id;
+	RAISE DEBUG 'Validating % of netblock %', TG_OP, NEW.netblock_id;
 
 	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
 		netblock_type = NEW.netblock_type;
