@@ -1,0 +1,4 @@
+lib/JazzHands/Common.pm
+lib/JazzHands/GenericDB.pm
+Makefile.PL
+MANIFEST
