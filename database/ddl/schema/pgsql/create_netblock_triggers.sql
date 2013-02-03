@@ -14,17 +14,46 @@
 -- limitations under the License.
 
 CREATE OR REPLACE FUNCTION jazzhands.validate_netblock() RETURNS TRIGGER AS $$
+DECLARE
+	nbtype				RECORD;
+	v_netblock_id		jazzhands.netblock.netblock_id%TYPE;
+	parent_netblock		RECORD;
 BEGIN
 	/*
-	 * Force netmask_bits to be authoritative
+	 * Force netmask_bits to be authoritative.  If netblock_bits is NULL
+	 * and this is a validated hierarchy, then set things to match the best
+	 * parent
 	 */
 
 	IF NEW.netmask_bits IS NULL THEN
-		RAISE EXCEPTION 'Column netmask_bits may not be null'
-			USING ERRCODE = 'not_null_violation';
-	ELSE
-		NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
+		SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
+			netblock_type = NEW.netblock_type;
+
+		IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+			RAISE EXCEPTION 'Column netmask_bits may not be null'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	
+		RAISE DEBUG 'Calculating netmask for new netblock';
+
+		v_netblock_id := netblock_utils.find_best_parent_id(
+			NEW.ip_address,
+			NULL,
+			NEW.netblock_type,
+			NEW.ip_universe_id,
+			NEW.is_single_address
+			);
+	
+		SELECT masklen(ip_address) INTO NEW.netmask_bits FROM netblock
+			WHERE netblock_id = v_netblock_id;
+
+		IF NEW.netmask_bits IS NULL THEN
+			RAISE EXCEPTION 'Column netmask_bits may not be null'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
 	END IF;
+
+	NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
 
 	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
 		RAISE EXCEPTION 'Single addresses may not be subnettable'
@@ -81,7 +110,11 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_netblock ON jazzhands.netblock;
-CREATE TRIGGER trigger_validate_netblock BEFORE INSERT OR UPDATE ON 
+DROP TRIGGER IF EXISTS tb_a_validate_netblock ON jazzhands.netblock;
+
+/* This should be lexicographically the first trigger to fire */
+
+CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR UPDATE ON 
 	jazzhands.netblock FOR EACH ROW EXECUTE PROCEDURE 
 	jazzhands.validate_netblock();
 
@@ -110,7 +143,7 @@ BEGIN
 	 */ 
 
 	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
-	NEW.parent_netblock_id = netblock_utils.find_best_parent_id(
+	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
 		NEW.ip_address,
 		NEW.netmask_bits,
 		NEW.netblock_type,

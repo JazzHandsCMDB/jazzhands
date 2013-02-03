@@ -49,7 +49,9 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 DECLARE
 	par_nbid	jazzhands.netblock.netblock_id%type;
 BEGIN
-	in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
+	IF (in_netmask_bits IS NOT NULL) THEN
+		in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
+	END IF;
 	select  Netblock_Id
 	  into	par_nbid
 	  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
@@ -62,14 +64,15 @@ BEGIN
 		    and (
 				(in_is_single_address = 'N' AND netmask_bits < in_Netmask_Bits)
 				OR
-				(in_is_single_address = 'Y' AND netmask_bits = in_Netmask_Bits)
+				(in_is_single_address = 'Y' AND 
+					(in_Netmask_Bits IS NULL OR netmask_bits = in_Netmask_Bits))
 			)
 		order by netmask_bits desc
 	) subq LIMIT 1;
 
 	return par_nbid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_netblock_id jazzhands.netblock.netblock_id%type
@@ -88,7 +91,7 @@ BEGIN
 		nbrec.is_single_address
 	);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.delete_netblock(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -118,7 +121,7 @@ BEGIN
 	 */
 	DELETE FROM jazzhands.netblock WHERE netblock_id = in_netblock_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -149,7 +152,7 @@ BEGIN
 	END LOOP;
 	RETURN nbid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -191,4 +194,7 @@ BEGIN
 	CLOSE nb_match;
 	return v_rv;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
+
+GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO PUBLIC;
