@@ -1899,14 +1899,14 @@ sub parse_netblock_description_search {
 			nb.netblock_status,
 			nb.description
 		  from	netblock nb
-		 where	nb.description like :1
+		 where	lower(nb.description) like lower(?)
 	};
 
 	$bydesc = "%$bydesc%";
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute($bydesc) || $self->return_db_err($sth);
 
-	my $hr = $sth->fetchall_hashref('NETBLOCK_ID');
+	my $hr = $sth->fetchall_hashref(_dbx('NETBLOCK_ID'));
 	$hr;
 }
 
