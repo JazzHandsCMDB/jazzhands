@@ -36,6 +36,8 @@ use strict;
 use JazzHands::STAB;
 use Net::DNS;
 use Data::Dumper;
+use JazzHands::GenericDB qw(_dbx);
+use Carp;
 
 do_dns_compare();
 
@@ -88,9 +90,10 @@ sub process_zone {
 		$xferzone = '112.10.in-addr.arpa';
 	}
 
+
 	my @zone = $res->axfr($xferzone);
 	if($#zone == -1) {
-		$stab->error_return("Unable to AXFR zone from authoritative DNS server.");
+		$stab->error_return("Unable to AXFR zone from authoritative DNS server $ns");
 	}
 
 	my $msg = "";
@@ -101,8 +104,12 @@ sub process_zone {
 			$rr->name =~ /^(\d+)\.(\d+)\.(\d+)\.(\d+)\./;
 			next if(defined($do_16) && $do_16 != $2);
 			my @addr = ($1,$2,$3,$4);
-			my $addr = join(".", reverse(@addr));
-			$msg .= check_addr($stab, $rr->ptrdname, $addr, $rr->type);
+			if(!$addr[0]) {
+				$msg .= "Weird, unverified PTR record: $rr->name";
+			} else {
+				my $addr = join(".", reverse(@addr));
+				$msg .= check_addr($stab, $rr->ptrdname, $addr, $rr->type);
+			}
 		} elsif($rr->type eq 'A') {
 			$msg .= check_addr($stab, $rr->name, $rr->address, $rr->type);
 			$msg .= check_name($stab, $rr->name, $rr->address, $rr->type, $zone);
@@ -141,20 +148,9 @@ sub device_from_name {
 	my $dbh = $stab->dbh;
 
 	my $q = qq{
-		select  device_id, device_name,
-			device_type_id, serial_number, 
-			asset_tag, operating_system_id,
-			status, production_state,
-			ownership_status,
-			is_monitored,
-			is_locally_managed,
-			identifying_dns_record_id,
-			SHOULD_FETCH_CONFIG,
-			PARENT_DEVICE_ID,
-			IS_VIRTUAL_DEVICE,
-			AUTO_MGMT_PROTOCOL
+		select  *
 		  from  device
-		 where  device_name = :1
+		 where  device_name = ?
 	};       
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($name) || $stab->return_db_err($sth);
@@ -168,7 +164,7 @@ sub check_for_zone {
 	my $sth = $stab->prepare(qq{
 		select	dns_domain_id
 		 from	dns_domain
-		 where	soa_name = :1
+		 where	soa_name = ?
 	}) || $stab->return_db_err;
 
 	$sth->execute($zone) || $stab->return_db_err;
@@ -185,26 +181,26 @@ sub check_soa {
 	my $sth = $stab->prepare(qq{
 		select	*
 		 from	dns_domain
-		where	soa_name = :1
+		where	soa_name = ?
 	}) || $stab->return_db_err;
 
 	$sth->execute($zone) || $stab->return_db_err;
 
 	my $msg = "";
 	while(my $hr = $sth->fetchrow_hashref) {
-		if($hr->{SOA_SERIAL} < $rr->serial) {
+		if($hr->{_dbx('SOA_SERIAL')} < $rr->serial) {
 			$msg .= $cgi->li("SOA: Serial number in JazzHands (", 
-				$cgi->b($hr->{SOA_SERIAL}),
+				$cgi->b($hr->{_dbx('SOA_SERIAL')}),
 				") is less than the one in zone (", $rr->serial, ")");
 		}
-		if($hr->{SOA_EXPIRE} != $rr->expire) {
+		if($hr->{_dbx('SOA_EXPIRE')} != $rr->expire) {
 			$msg .= $cgi->li("SOA: Expire time in JazzHands (", 
-				$cgi->b($hr->{SOA_EXPIRE}),
+				$cgi->b($hr->{_dbx('SOA_EXPIRE')}),
 				") is different than the one in zone (", $rr->expire, ")");
 		}
-		if($hr->{SOA_TTL} != $rr->minimum) {
+		if($hr->{_dbx('SOA_TTL')} != $rr->minimum) {
 			$msg .= $cgi->li("SOA: TTL in JazzHands (", 
-				$cgi->b($hr->{SOA_TTL}),
+				$cgi->b($hr->{_dbx('SOA_TTL')}),
 				") is different than the one in zone (", $rr->minimum, ")");
 		}
 	}
@@ -249,11 +245,11 @@ sub check_ns {
 	my $msg = "";
 	my $found = 0;
 	while(my $hr = $sth->fetchrow_hashref) {
-		if($hr->{DNS_VALUE} eq $nsdname.".")  {
+		if($hr->{_dbx('DNS_VALUE')} eq $nsdname.".")  {
 			$found = 1;
 		} else {
 			$msg .= $cgi->li("NS: $name ($nsdname) does not match JazzHands (",
-				$hr->{DNS_VALUE}, ")");
+				$hr->{_dbx('DNS_VALUE')}, ")");
 		}
 	}
 
@@ -373,34 +369,34 @@ sub check_srv {
 		my $mesh = join(" ",  $rr->priority, $rr->weight, $rr->port, 
 			$rr->target.".");
 		$mesh =~ s/\s+/ /g;
-		if(defined($hr->{'DNS_SRV_PORT'})) {
-			if($hr->{DNS_VALUE} eq $rr->target."." &&
-				$hr->{DNS_SRV_SERVICE} == $svc &&
-				$hr->{DNS_SRV_PROTOCOL} == $proto &&
-				$hr->{DNS_PRIORITY} == $rr->priority &&
-				$hr->{DNS_SRV_WEIGHT} == $rr->weight &&
-				$hr->{DNS_SRV_PORT} == $rr->port) {
+		if(defined($hr->{_dbx('DNS_SRV_PORT')})) {
+			if($hr->{_dbx('DNS_VALUE')} eq $rr->target."." &&
+				$hr->{_dbx('DNS_SRV_SERVICE')} == $svc &&
+				$hr->{_dbx('DNS_SRV_PROTOCOL')} == $proto &&
+				$hr->{_dbx('DNS_PRIORITY')} == $rr->priority &&
+				$hr->{_dbx('DNS_SRV_WEIGHT')} == $rr->weight &&
+				$hr->{_dbx('DNS_SRV_PORT')} == $rr->port) {
 					$found = 1;
 			} else {
 				my $dbmesh = join(" ",
-					$hr->{DNS_PRIORITY},
-					$hr->{DNS_SRV_WEIGHT},
-					$hr->{DNS_SRV_PORT},
-					$hr->{DNS_VALUE});
+					$hr->{_dbx('DNS_PRIORITY')},
+					$hr->{_dbx('DNS_SRV_WEIGHT')},
+					$hr->{_dbx('DNS_SRV_PORT')},
+					$hr->{_dbx('DNS_VALUE')});
 				$dbmesh =~ s/\s+/ /g;
 				$msg .= $cgi->li("SRV record ", $rr->name, " is '", $cgi->b($dbmesh), 
 					"' not '$mesh'");
 			}
-		} elsif($hr->{DNS_VALUE} eq $mesh) {
+		} elsif($hr->{_dbx('DNS_VALUE')} eq $mesh) {
 			$found = 1;
 		} else {
-			my $dbmesh = $hr->{DNS_VALUE};
-			if($hr->{DNS_SRV_PORT}) {
+			my $dbmesh = $hr->{_dbx('DNS_VALUE')};
+			if($hr->{_dbx('DNS_SRV_PORT')}) {
 				$dbmesh = join(" ",
-					$hr->{DNS_PRIORITY},
-					$hr->{DNS_SRV_WEIGHT},
-					$hr->{DNS_SRV_PORT},
-					$hr->{DNS_VALUE});
+					$hr->{_dbx('DNS_PRIORITY')},
+					$hr->{_dbx('DNS_SRV_WEIGHT')},
+					$hr->{_dbx('DNS_SRV_PORT')},
+					$hr->{_dbx('DNS_VALUE')});
 				$dbmesh =~ s/\s+/ /g;
 				$msg .= $cgi->li("SRV record ", $rr->name, " is ", $cgi->b($dbmesh), 
 					" not '$mesh'");
@@ -492,8 +488,8 @@ sub check_cname {
 			  from	dns_record dns
 					inner join dns_domain dom
 						on dom.dns_domain_id = dns.dns_domain_id
-			 where	lower(dns.dns_name) = lower(:1)
-			   and	dom.soa_name = :2
+			 where	lower(dns.dns_name) = lower(?)
+			   and	dom.soa_name = ?
 			   and	dns.dns_type = 'CNAME'
 		};
 		$cnameSth = $stab->prepare($q) || die $dbh->errstr;
@@ -535,7 +531,7 @@ sub check_name {
 	$stripname =~ s/\.$zone$//;
 
 	my $q = qq{
-		select	ip_manip.v4_octet_from_int(ip_address) as ip,
+		select	net_manip.inet_dbtop(ip_address) as ip,
 				dns.dns_name,
 				dom.soa_name,
 				dom.dns_domain_id
@@ -544,9 +540,9 @@ sub check_name {
 					nb.netblock_id = dns.netblock_id
 				inner join dns_domain dom on
 					dom.dns_domain_id = dns.dns_domain_id
-		where	dns.dns_name = :1
+		where	dns.dns_name = ?
 		  and	dns.dns_type = 'A'
-		  and	dom.soa_name = :2
+		  and	dom.soa_name = ?
 
 	};
 	my $sth = $stab->prepare($q) || die $dbh->errstr;
@@ -587,16 +583,15 @@ sub check_addr {
 					inner join dns_domain dom on
 						dom.dns_domain_id = dns.dns_domain_id
 			where	nb.ip_address =
-						ip_manip.v4_int_from_octet(:1)
+						net_manip.inet_ptodb(?)
 			  and	dns.dns_type = 'A'
 		};
 		$casth = $stab->prepare($q) || die $dbh->errstr;
 	}
 
-	$casth->execute($addr) || die $casth->errstr;
+	$casth->execute($addr) || croak $casth->errstr;
 
 	my $t = "";
-
 
 	$in_name =~ tr/A-Z/a-z/;
 	my $mismatch = 0;
@@ -657,7 +652,7 @@ sub device_link {
 	if(!$dev) {
 		return($name);
 	} else {
-		return($cgi->a({-href=>"../device/device.pl?devid=".$dev->{'DEVICE_ID'}},
+		return($cgi->a({-href=>"../device/device.pl?devid=".$dev->{_dbx('DEVICE_ID')}},
 			$altname));
 	}
 
@@ -673,10 +668,9 @@ sub do_dns_compare {
 	my $domid = $stab->cgi_parse_param("DNS_DOMAIN_ID") || $stab->error_return("you must specify a domain");
 
 	my $domain = $stab->get_dns_domain_from_id($domid) || $stab->error_return("unknown domain id $domid");
-	my $zone = $domain->{'SOA_NAME'};
+	my $zone = $domain->{_dbx('SOA_NAME')};
 
 	my $ns = $stab->cgi_parse_param('zone') || find_best_ns($stab, $zone);
-
 
 	my $msg = process_zone($stab, $ns, $zone);
 	print $cgi->header;
