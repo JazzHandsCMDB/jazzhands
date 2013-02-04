@@ -30,6 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::GenericDB qw(_dbx);
 
 do_netblock_search();
 
@@ -52,10 +53,6 @@ sub do_netblock_search {
 	}
 
 	if ( defined($bycidr) ) {
-		if($bycidr =~ /:/) {
-			$stab->error_return("No support for IPv6 yet.  Soon.");
-		}
-
 		my $blk = $stab->parse_netblock_search($bycidr);
 
 		if ( !defined($blk) ) {
@@ -63,7 +60,7 @@ sub do_netblock_search {
 			$stab->error_return(
 				"Could not locate a netblock $bycidr");
 		}
-		my $blkid = $blk->{'NETBLOCK_ID'};
+		my $blkid = $blk->{_dbx('NETBLOCK_ID')};
 
 		my $url = "index.pl?nblkid=$blkid";
 		$cgi->redirect($url);
@@ -87,11 +84,11 @@ sub do_netblock_search {
 			foreach my $id ( sort numerically keys(%$blks) ) {
 				my $blk = $blks->{$id};
 				my $mask =
-				  $blk->{'IP'} . "/" . $blk->{'NETMASK_BITS'};
-				my $desc = $blk->{'DESCRIPTION'};
-				my $tix  = $blk->{'RESERVATION_TICKET_NUMBER'};
-				my $pid  = $blk->{'PARENT_NETBLOCK_ID'};
-				my $stat = $blk->{'NETBLOCK_STATUS'};
+				  $blk->{_dbx('IP')} . "/" . $blk->{_dbx('NETMASK_BITS')};
+				my $desc = $blk->{_dbx('DESCRIPTION')};
+				my $tix  = $blk->{_dbx('RESERVATION_TICKET_NUMBER')};
+				my $pid  = $blk->{_dbx('PARENT_NETBLOCK_ID')};
+				my $stat = $blk->{_dbx('NETBLOCK_STATUS')};
 
 				$desc = ( defined($desc) ? $desc : "" );
 				$tix  = ( defined($tix)  ? $tix  : "" );

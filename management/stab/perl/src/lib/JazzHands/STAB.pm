@@ -58,6 +58,7 @@ use CGI::Pretty;
 use URI;
 use Carp qw(cluck);
 use Data::Dumper;
+use NetAddr::IP;
 
 our @ISA = qw( 
 	JazzHands::Mgmt
@@ -1867,17 +1868,13 @@ sub parse_netblock_search {
 	my $cgi = $self->cgi || die "Could not create cgi";
 	my $dbh = $self->dbh || die "Could not create dbh";
 
-	my $nb;
-
-	if ( defined($bycidr) ) {
-		$nb = new2 Net::Netmask($bycidr);
-	}
+	my $nb = new NetAddr::IP($bycidr);
 
 	if ( !defined($nb) ) {
 		return $self->error_return("You specified an invalid address");
 	}
 
-	my $parent = $self->guess_parent_netblock_id( $nb->base, $nb->bits );
+	my $parent = $self->guess_parent_netblock_id( $bycidr);
 
 	# zero is 0/0, which is also considered "not found"
 	if(!$parent) {

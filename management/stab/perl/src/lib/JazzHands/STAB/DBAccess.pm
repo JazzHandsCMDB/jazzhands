@@ -110,33 +110,25 @@ sub delete_netblock {
 sub guess_parent_netblock_id {
 	my ( $self, $in_ip, $in_bits ) = @_;
 
-	#-- need to deal with this being IPv4-specific.  So much to go and
-	#-- tweak for ipv6..  *sigh*  XXX
-
-	$in_bits = 32 if ( !defined($in_bits) );
 	my $q = qq {
 		select  Netblock_Id,
 			net_manip.inet_dbtop(ip_address) as IP,
 			ip_address,
 			netmask_bits
-		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
-			    from NetBlock
-			   where
-				net_manip.inet_base(ip_address, netmask_bits) =
-					net_manip.inet_base(
-						net_manip.inet_ptodb(?),
-					netmask_bits)
-			    and netmask_bits <= ?
-			    and is_ipv4_address = 'Y'
-			    and is_single_address = 'N'
-			    and netblock_type = 'default'
-			    and ip_universe_id = 0
-			order by netmask_bits desc
-		)  where rownum = 1
+		  from  netblock
+		  where	netblock_id in (
+			netblock_utils.find_best_parent_id(
+				net_manip.inet_ptodb(:ip), :bits, 'default', 
+				0, 'Y')
+			)
 	};
 
+	warn "q is $q\n$in_ip, $in_bits";
+
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute( $in_ip, $in_bits ) || $self->return_db_err($sth);
+	$sth->bind_param(':ip', $in_ip) || die $sth->errstr;
+	$sth->bind_param(':bits', $in_bits) || die $sth->errstr;
+	$sth->execute || $self->return_db_err($sth);
 	my $rv = $sth->fetchrow_hashref;
 	$sth->finish;
 	$rv;
