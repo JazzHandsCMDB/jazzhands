@@ -330,17 +330,17 @@ if($style == 'peoplelist') {
 		echo "<div class=navbar>\n";
 		if($offset >= 1) {
 			$qs = build_url(build_qs(null, 'offset', 0));
-			?> <a href="<? echo $qs; ?> "> FIRST </a> // <?
+			?> <a href="<?php echo $qs; ?> "> FIRST </a> // <?php
 
 			$qs = build_url(build_qs(null, 'offset', $offset-1));
-			?> <a href="<? echo $qs; ?> "> PREV </a> // <?
+			?> <a href="<?php echo $qs; ?> "> PREV </a> // <?php
 		} 
 
 		if($numpages) {
 			$qs = build_url(build_qs(null, 'offset', $offset+1));
-			?> <a href="<? echo $qs; ?> "> NEXT </a> <?
+			?> <a href="<?php echo $qs; ?> "> NEXT </a> <?php
 			$qs = build_url(build_qs(null, 'offset', $numpages));
-			?> // <a href="<? echo $qs; ?> "> LAST </a> <?
+			?> // <a href="<?php echo $qs; ?> "> LAST </a> <?php
 		}
 
 		echo "</div>\n";
