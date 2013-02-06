@@ -90,4 +90,16 @@ function build_footer() {
 	return( "</div></div></div>");
 }
 
+function build_qs($params = null, $key, $value = null) {
+	if($params == null) {
+		$params = $_GET;
+	}
+	$params[$key] = $value;
+	return $params;
+}
+
+function build_url($params) {
+	return $_SERVER['PHP_SELF']."?".http_build_query($params);
+}
+
 ?>

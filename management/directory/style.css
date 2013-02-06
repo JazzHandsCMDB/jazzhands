@@ -273,3 +273,19 @@ table.picmanip {
 table.picmanip input{
 	width: 100%;
 }
+
+.filterbar {
+	background: #FF9933;
+	margin: auto;
+	height: 1.5em;
+	width: 90%;
+	text-align:center;
+}
+.navbar {
+	margin: auto;
+	padding: 3px;
+	height: 1em;
+	background: #FF9933;
+	width: 90%;
+	text-align: center;
+}

@@ -26,7 +26,18 @@ function process_search(searchbox) {
 						if(resp['people']) {
 							for(var i = 0; i < resp['people'].length; i++) {
 								var tr = document.createElement("tr");
-								var td = document.createElement("tr");
+								// show their picture if we have it
+								var td = document.createElement("td");
+								if(resp['people'][i]['img']) {
+									var pic = document.createElement('img');
+									pic.src = resp['people'][i]['img'];
+									pic.setAttribute("class", "thumb");
+									pic.setAttribute("alt", "pic");
+									td.appendChild(pic);
+								}
+								tr.appendChild(td);
+								// link to the person
+								td = document.createElement("td");
 								var a = document.createElement("a");
 								a.href = resp['people'][i]['link'];
 								$(a).text(resp['people'][i]['name']);

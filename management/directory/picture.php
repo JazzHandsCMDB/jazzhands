@@ -9,7 +9,9 @@ if(! strlen($_CACHEDIR)) {
 }
 
 if(!is_dir($_CACHEDIR)) {
-	mkdir($_CACHEDIR);
+	if(!(mkdir($_CACHEDIR))) {
+		error_log("Issue creating $_CACHEDIR");
+	}
 }
 
 
@@ -119,7 +121,7 @@ function send_cached_image($dbconn, $row, $in_hint) {
 	/*
 	 * Now try to find it based on some sensible pathisms
 	 */
-	$path = split(":", getenv('PATH'));
+	$path = explode(":", getenv('PATH'));
 	array_push($path, "/usr/pkg/bin");
 	array_push($path, "/usr/local/bin");
 	array_push($path, "/usr/sfw/bin");

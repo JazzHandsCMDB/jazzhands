@@ -14,6 +14,7 @@ function check_admin($dbconn, $login) {
 					ac.account_collection_id
 			inner join account a
 				on ae.account_id = a.account_id
+
 		 where	p.property_name = 'PhoneDirectoryAdmin'
 		  and	p.property_type = 'PhoneDirectoryAttributes'
 		  and	a.login = $1
@@ -131,6 +132,7 @@ $query = "
 		coalesce(p.preferred_last_name, p.last_name) as last_name,
 		coalesce(pc.nickname, p.nickname) as nickname,
 		pc.position_title,
+		pc.person_company_relation,
 		c.company_name,
 		c.company_id,
 		pi.person_image_id,
@@ -140,7 +142,8 @@ $query = "
 		ac.account_collection_id,
 		ac.account_collection_name,
 		a.login,
-		numreports.tally as num_reports
+		numreports.tally as num_reports,
+		ofc.display_label
 	   from person p
 	   	inner join person_company pc
 			using (person_id)
@@ -170,6 +173,20 @@ $query = "
 			     where person_company_status = 'enabled'
 			     group by manager_person_id
 		) numreports on p.person_id = numreports.person_id
+		left join (
+			select	pl.person_id, 
+				pa.display_label,
+				pl.building,
+				pl.floor,
+				pl.section,
+				pl.seat_number
+			from   person_location pl
+				inner join physical_address pa
+					on pl.physical_address_id =
+						pa.physical_address_id
+			where   pl.person_location_type = 'office'
+			order by site_rank
+		) ofc on ofc.person_id = p.person_id
 	where p.person_id = $1
 	order by ac.account_collection_name
 ";
@@ -208,7 +225,10 @@ echo "<table id=\"contact\">\n";
 if(isset($row['num_reports']) && $row['num_reports'] > 0) {
 	$title = "$title (". hierlink('reports', $row['person_id'], "reports") .")";
 }
-echo build_tr("Title", $title);
+if(isset($title)) {
+	echo build_tr("Title", $title);
+}
+
 /* Was $deptc at the end, which includes the company */
 echo build_tr("Department", hierlink('department', $row['account_collection_id'],
                 $row['account_collection_name']));
@@ -217,6 +237,13 @@ if(isset($manager)) {
 	echo build_tr("Manager", 
 		personlink($row['manager_person_id'], $manager));
 }
+
+echo build_tr("Relation", $row['person_company_relation']);
+
+if(isset($row['display_label'])) {
+	echo build_tr("Location", $row['display_label']);
+}
+
 echo "<p>\n";
 
 $q = "
@@ -260,7 +287,7 @@ if($isadmin) {
 
 <tr id=add_phones> 
 	<td colspan=2>
-		<a class="addphonebutton" href="#">ADD </a>
+		<a class="addphonebutton" href="#">ADD# </a>
 		<a class="picmanipbutton" href="#" onClick="pic_manip(<?php echo $personid ?>);">PICS </a>
 	</td>
 </tr>

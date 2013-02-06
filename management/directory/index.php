@@ -1,12 +1,84 @@
 <?php 
 include "personlib.php" ;
 
+//
+// prints a bar across the top of locations to limit things by and
+//
+function locations_limit($dbconn = null) {
+	$query = "
+		select physical_address_id, display_label
+		from	physical_address
+		where	company_id in (
+			select company_id from v_company_hier
+			where root_company_id IN
+				(select property_value_company_id
+                                   from property
+                                  where property_name = '_rootcompanyid'
+                                    and property_type = 'Defaults'
+                                )
+				
+			) order by display_label
+	";
+	$result = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
+
+
+	$rv = "";
+	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
+		if(isset($_GET['physical_address_id']) && $_GET['physical_address_id'] == $row['physical_address_id']) {
+			$class = 'activefilter';
+		} else {
+			$class = 'inactivefilter';
+		}
+		$url = build_url(build_qs(null, 'physical_address_id', $row['physical_address_id']));
+		$lab = $row['display_label'];
+		if(strlen($rv)) {
+			$rv = "$rv | ";
+		}
+		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
+	}
+	if(isset($_GET['physical_address_id'])) {
+		$url = build_url(build_qs(null, 'physical_address_id', null));
+		$lab = '| Clear';
+		$rv = "$rv <a class=\"inactivefilter\" href=\"$url\"> $lab </a> ";
+	}
+	return "<div class=filterbar>[ $rv ]</div>";
+}
+
+//
+// print various ways to browse at the top
+//
+function browse_limit($current) {
+	$arr = array(
+		'byname' => "By Name",
+		'bydept' => "By Dept",
+		'hier' => "By Org"
+	);
+
+	$rv = "";
+	foreach ($arr as $k => $v) {
+		$url = build_url(build_qs(null, 'index', $k));
+		$lab = $arr[$k];
+		if(strlen($rv)) {
+			$rv = "$rv | ";
+		}
+		if($current == $k) {
+			$class = 'activefilter';
+		} else {
+			$class = 'inactivefilter';
+		}
+		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
+			
+	}
+	return "<div class=filterbar>[ Browse: $rv ]</div>";
+}
+
+
 $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
-$index = isset($_GET['index']) ? $_GET['index'] : 'default';
+$index = isset($_GET['index']) ? $_GET['index'] : 'byname';
 
-$query_firstpart = "
-	select  distinct p.person_id,
+$select_fields = "
+		distinct p.person_id,
 		coalesce(p.preferred_first_name, p.first_name) as first_name,
 		coalesce(p.preferred_last_name, p.last_name) as last_name,
 		pc.position_title,
@@ -18,8 +90,13 @@ $query_firstpart = "
 		coalesce(mgrp.preferred_last_name, mgrp.last_name) as mgr_last_name,
 		u.account_collection_id,
 		u.account_collection_name,
-		numreports.tally as num_reports
-	   from person p
+		numreports.tally as num_reports,
+		ofc.display_label as office_location,
+		ofc.physical_address_id
+";
+
+$query_tables = "
+	   FROM person p
 	   	inner join person_company pc
 			using (person_id)
 	   	inner join company c
@@ -48,14 +125,35 @@ $query_firstpart = "
 			  from person_company
 			  where person_company_status = 'enabled'
 			  group by manager_person_id
-		) numreports on numreports.person_id = p.person_id 
+			) numreports on numreports.person_id = p.person_id 
+		left join (
+			select pl.person_id, pa.physical_address_id,
+				pa.display_label
+			 from	person_location pl
+			 	inner join physical_address pa
+					on pl.physical_address_id = 
+						pa.physical_address_id
+			where	pl.person_location_type = 'office'
+			order by site_rank
+			) ofc on ofc.person_id = p.person_id
 ";
 
-$orderby = "order by
+$query_firstpart = "
+	SELECT $select_fields
+		$query_tables";
+
+$orderby = "
+	order by
 		coalesce(p.preferred_last_name, p.last_name),
 		coalesce(p.preferred_first_name, p.first_name),
 		p.person_id
 ";
+
+$limit = "";
+
+$address = $_GET['physical_address_id'];
+
+$showarrow = 0;
 
 $style = 'peoplelist';
 switch($index) {
@@ -75,7 +173,11 @@ switch($index) {
 		$dept = $_GET['department_id'];
 		$query = "
 		  $query_firstpart
-		  where uc.account_collection_id = $1
+		  where (
+				a.account_id in (select account_id
+				from v_acct_coll_acct_expanded
+				where account_collection_id = $1 )
+			)
 		    and pc.person_company_status = 'enabled'
 		  $orderby
 		";
@@ -93,7 +195,54 @@ switch($index) {
 		$result = pg_query($query) or die('Query failed: ' . pg_last_error());
 		break;
 
-	default:
+	case 'byname':
+		$params = array();
+		$numshow = 10;
+		$offset = (isset($_GET['offset']))?$_GET['offset']:0;
+		if( ($offset * 1) != $offset) {
+			$offset = 0;
+		}
+		$dboffset = $offset * $numshow;
+		$orderby = "ORDER BY
+			coalesce(p.preferred_first_name, p.first_name),
+			coalesce(p.preferred_last_name, p.last_name),
+			p.person_id
+		";
+		$addrq = "";
+		if(isset($address)) {
+			// XXXX BIND VARIABLES
+			$num = array_push($params, $address);
+			$addrq = "and ofc.physical_address_id = $$num";
+		}
+		$query = "
+			$query_firstpart
+		    	where pc.person_company_status = 'enabled'
+			$addrq
+			$orderby
+			LIMIT $numshow  OFFSET $dboffset
+		";
+		$result = pg_query_params($query, $params) or die("Query failed\n$query\n:" .pg_last_error());
+
+		//
+		// Need to figure out how many pages would need to be shown
+		//
+		$q = "SELECT count(*) as tally $query_tables 
+		    	where pc.person_company_status = 'enabled'
+			$addrq
+		";
+		$r = pg_query_params($dbconn, $q, $params) or die("Query failed: $q :".pg_last_error());
+		$row = pg_fetch_array($r, null, PGSQL_ASSOC);
+		if(isset($row['tally'])) {
+			$numrows = $row['tally'];
+		}
+
+		$numpages = 0;
+		$numpages = ceil($numrows / $numshow) - 1;
+
+		$showarrow = 1;
+		break;
+
+	case 'bydept':
 		$style = 'departmentlist';
 		$query = "
 			select	distinct
@@ -119,8 +268,13 @@ echo build_header("Directory");
 
 if($style == 'peoplelist') {
 	// Printing results in HTML
+	echo browse_limit($index);
+	if($index == 'byname') {
+		echo locations_limit($dbconn);
+	}
 	echo "<table id=\"peoplelist\">\n";
 	?>
+
 
 	<tr>
 	<td> </td>
@@ -129,6 +283,7 @@ if($style == 'peoplelist') {
 	<td> Company </td> 
 	<td> Manager </td> 
 	<td> Department </td> 
+	<td> Location </td> 
 	</tr>
 
 	<?php
@@ -166,10 +321,32 @@ if($style == 'peoplelist') {
 
 		echo "<td>" . hierlink('department', $row['account_collection_id'],
 			$row['account_collection_name']). "</td>\n";
+		echo "<td> ". $row['office_location'] . "</td>\n";
 	    echo "\t</tr>\n";
 	}
 	echo "</table>\n";
+
+	if($showarrow) {
+		echo "<div class=navbar>\n";
+		if($offset >= 1) {
+			$qs = build_url(build_qs(null, 'offset', 0));
+			?> <a href="<? echo $qs; ?> "> FIRST </a> // <?
+
+			$qs = build_url(build_qs(null, 'offset', $offset-1));
+			?> <a href="<? echo $qs; ?> "> PREV </a> // <?
+		} 
+
+		if($numpages) {
+			$qs = build_url(build_qs(null, 'offset', $offset+1));
+			?> <a href="<? echo $qs; ?> "> NEXT </a> <?
+			$qs = build_url(build_qs(null, 'offset', $numpages));
+			?> // <a href="<? echo $qs; ?> "> LAST </a> <?
+		}
+
+		echo "</div>\n";
+	}
 } else {
+	echo browse_limit($index);
 	echo "<h3> Browse by Department </h3>\n";
 	echo "<div class=deptlist><ul>\n";
 	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
