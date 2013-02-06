@@ -72,3 +72,4 @@
 
 \i pgsql/create_v_application_role.sql
 
+\i pgsql/create_v_company_hier.sql
