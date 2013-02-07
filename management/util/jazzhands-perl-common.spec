@@ -15,3 +15,5 @@ Common utility modules used by JazzHands scripts.
 %attr (-, root, bin) /usr/lib/perl5/vendor_perl/JazzHands/Common.pm
 %attr (-, root, bin) /usr/lib/perl5/vendor_perl/JazzHands/GenericDB.pm
 %attr (-, root, bin) /usr/lib/perl5/vendor_perl/x86_64-linux-thread-multi/auto/JazzHands/Common/.packlist
+%attr (-, root, bin) /usr/share/man/man3/JazzHands::GenericDB.3pm
+
