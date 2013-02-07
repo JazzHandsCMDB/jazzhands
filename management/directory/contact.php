@@ -310,6 +310,11 @@ if($isadmin) {
 	<td colspan=2>
 		<a class="addphonebutton" href="#">ADD# </a>
 		<a class="picmanipbutton" href="#" onClick="pic_manip(<?php echo $personid ?>);">PICS </a>
+<?php
+	if( $row['display_label'] != null) {
+		echo '<a class="locationmanipbutton" href="#">DESK </a>';
+	}
+?>
 	</td>
 </tr>
 <?php
