@@ -9,7 +9,7 @@ install:
 buildpkg:
 	rm -rf `pwd`/haterpm
 	mkdir -p `pwd`/haterpm/RPMS
-	rpmbuild --define "_topdir ./haterpm" --buildroot `pwd`/fakeroot -bb --short-circuit jazzhands-perl-common.spec
+	rpmbuild -ba --define "_topdir ./haterpm" --buildroot `pwd`/fakeroot -bb --short-circuit jazzhands-perl-common.spec
 
 clean:
 	rm -rf fakeroot haterpm
