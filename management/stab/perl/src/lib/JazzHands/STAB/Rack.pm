@@ -1,4 +1,3 @@
-#!/usr/local/bin/perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #

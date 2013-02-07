@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 
 #
 # Copyright (c) 2013 Matthew Ragan
