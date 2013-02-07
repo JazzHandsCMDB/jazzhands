@@ -115,7 +115,7 @@ sub run_update_from_hash {
 	my($dbh, $table, $dbkey, $keyval, $hash) = @_;
 
 	return DBUpdate(undef,
-		dbh => $dbh,
+		dbhandle => $dbh,
 		table => $table,
 		dbkey => $dbkey,
 		keyval => $keyval,
