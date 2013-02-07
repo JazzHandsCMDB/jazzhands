@@ -143,7 +143,11 @@ $query = "
 		ac.account_collection_name,
 		a.login,
 		numreports.tally as num_reports,
-		ofc.display_label
+		ofc.display_label,
+		ofc.building,
+		ofc.floor,
+		ofc.section,
+		ofc.seat_number
 	   from person p
 	   	inner join person_company pc
 			using (person_id)
@@ -245,6 +249,21 @@ echo build_tr("Relation", $row['person_company_relation']);
 if(isset($row['display_label'])) {
 	echo build_tr("Location", $row['display_label']);
 }
+
+$loc = "";
+foreach (array("building","floor","section","seat_number") as $num => $str) { 
+	if(isset($row[$str])) {
+		if(strlen($loc)) {
+			$loc .= "-";
+		}
+		$loc .= $row[$str];
+	}
+}
+
+if(strlen($loc)) {
+	echo build_tr("Desk", $loc);
+}
+
 
 echo "<p>\n";
 
