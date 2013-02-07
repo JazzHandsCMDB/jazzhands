@@ -111,6 +111,105 @@ function remove_phone(remove_button) {
 	}
 }
 
+function update_location(button) {
+	var tbl = $(button).closest('TABLE');
+
+	// get person_id from the uri args to pass through as a hidden
+	// element
+	var r = new RegExp('[\\?&;]person_id=([^&#;]*)');
+	var rr = r.exec(window.location.href); 
+	var personid;
+	if(rr) {
+		personid = decodeURIComponent(rr[1]);
+	}
+	$.getJSON('ajax/location.pl','person_id='+personid,
+		function(resp) {
+			$('#locationmanip').toggle(1);
+			$('#locationmanip').empty();
+			var close = document.createElement("a");
+			close.setAttribute("class", "closebutton");
+			$(close).click(function() {
+				$('#locationmanip').toggle(0);
+				$('#locationmanip').empty();
+			});
+			close.href = "#";
+			$(close).text("[XXXX]");
+			$('#locationmanip').append(close);
+
+			var form = document.createElement("FORM");
+			form.action = 'ajax/location.pl';
+			$(form).attr('method', 'POST');
+			$(form).attr('enctype','multipart/form-data');
+			var tbl = document.createElement("TABLE");
+			tbl.setAttribute('class', "locationmanip"); 
+
+			var input = document.createElement("input");
+			$(input).attr('type', 'hidden');
+			$(input).attr('name', 'person_id');
+			$(input).attr('value', resp['record']['person_id']);
+			$(form).append(input);
+
+			input = document.createElement("input");
+			$(input).attr('type', 'hidden');
+			$(input).attr('name', 'person_location_id');
+			$(input).attr('value', resp['record']['person_location_id']);
+			$(form).append(input);
+		
+			var tr = document.createElement("tr");
+			var td = document.createElement("td");
+			td.innerHTML = "Location";
+			$(tr).append(td);
+			td = document.createElement("td");
+			td.innerHTML = resp['record']['display_label'];
+			$(tr).append(td);
+			$(tbl).append(tr);
+
+
+			for each ( var col in ['building', 'floor', 'section', 'seat_number']) {
+				tr = document.createElement("tr");
+				td = document.createElement("td");
+				td.innerHTML = col;
+				$(tr).append(td);
+				td = document.createElement("td");
+
+				input = document.createElement("input");
+				$(input).attr('name', col + '_' + resp['record']['person_location_id']);
+				$(input).val( resp['record'][col] );
+				$(td).append(input);
+				$(tr).append(td);
+				$(tbl).append(tr);
+			}
+
+			// submit button
+			tr = document.createElement("tr");
+			td = document.createElement("td");
+			td.colSpan = 2;
+			input = document.createElement("input");
+			$(input).attr('type','submit');
+			$(input).val('Submit');
+			$(td).append(input);
+			$(tr).append(td);
+			$(tbl).append(tr);
+
+			// set onclick to submit and make popup go away
+			$(form).submit(
+				function() {
+					s = $(form).serialize();
+					$.post('ajax/location.pl', s, function(resp) {
+						$('#locationmanip').toggle(1);
+						$('#locationmanip').empty();
+					});
+					return(false);
+				}
+			);
+
+			$(form).append(tbl);
+			$('#locationmanip').append(form);
+		}
+	);
+	return 0;
+}
+
 function add_phone(add_button) {
 	var tbl = $(add_button).closest('TABLE');
 	$.getJSON('ajax/contact.pl',
@@ -378,11 +477,10 @@ function pic_manip(person_id) {
 			input = document.createElement("input");
 			$(input).attr('type','submit');
 			$(input).val('Submit');
+
 			$(td).append(input);
 			$(tr).append(td);
 			$(t).append(tr);
-
-			// set onclick function on
 
 			$(form).append(t);
 			$('#picsdisplay').append(form);
@@ -465,6 +563,9 @@ $(document).ready(function(){
 
 	$("a.addphonebutton").live('click',function(event){
 		add_phone($(this));});
+
+	$("a.locationmanipbutton").live('click',function(event){
+		update_location($(this));});
 
 	// remove the greyed out hint that was there
 	$("input.inputhint").live('focus',function(event){

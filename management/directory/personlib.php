@@ -92,6 +92,7 @@ function build_header($title, $style = null, $heading = null) {
 	</head>
 	<body>
 	<div class="popup" id="picsdisplay"> <div> </div> </div>
+	<div class="popup" id="locationmanip"> <div> </div> </div>
 	<div id="page">
 		<div id="head">
                 	<a id="mast" href="./"

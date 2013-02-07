@@ -180,7 +180,7 @@ img.yearbook { max-width: 300px; }
 	background: lightblue;
 }
 
-.sbmtphone, .addphonebutton, .picmanipbutton {
+.sbmtphone, .addphonebutton, .picmanipbutton, .locationmanipbutton {
 	border: 2px solid;
 	background-color: blue;
 	color: white;
@@ -272,6 +272,28 @@ table.picmanip {
 
 table.picmanip input{
 	width: 100%;
+}
+
+table.locationmanip {
+	width: 100%;
+}
+
+table.locationmanip input{
+	width: 100%;
+}
+
+div#locationmanip {
+	position: fixed;
+	margin-left: auto;
+	margin-right: auto;
+	background-color: lightblue;
+	border-width: 4px;
+	left: 50%; 
+	top: 10%;
+	width: 50ex;
+	height: 30em;
+	display: none;
+	z-index: 100;
 }
 
 .filterbar {
