@@ -212,6 +212,8 @@ if(isset($row['mgr_last_name'])) {
 
 echo build_header($name);
 
+echo browse_limit($dbconn);
+
 echo "<div class=directorypic>" . img($row['person_id'], $row['person_image_id'], 'contact').
 	"</div>";
 
@@ -223,7 +225,7 @@ if(isset($row['nickname']) && strtolower($row['nickname']) != strtolower($row['f
 }
 echo "<table id=\"contact\">\n";
 if(isset($row['num_reports']) && $row['num_reports'] > 0) {
-	$title = "$title (". hierlink('reports', $row['person_id'], "reports") .")";
+	$title = "$title (". hierlink('reports', $row['person_id'], "team") .")";
 }
 if(isset($title)) {
 	echo build_tr("Title", $title);

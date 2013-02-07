@@ -44,34 +44,6 @@ function locations_limit($dbconn = null) {
 	return "<div class=filterbar>[ $rv ]</div>";
 }
 
-//
-// print various ways to browse at the top
-//
-function browse_limit($current) {
-	$arr = array(
-		'byname' => "By Name",
-		'bydept' => "By Dept",
-		'hier' => "By Org"
-	);
-
-	$rv = "";
-	foreach ($arr as $k => $v) {
-		$url = build_url(build_qs(null, 'index', $k));
-		$lab = $arr[$k];
-		if(strlen($rv)) {
-			$rv = "$rv | ";
-		}
-		if($current == $k) {
-			$class = 'activefilter';
-		} else {
-			$class = 'inactivefilter';
-		}
-		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
-			
-	}
-	return "<div class=filterbar>[ Browse: $rv ]</div>";
-}
-
 
 $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
@@ -300,7 +272,7 @@ if($style == 'peoplelist') {
 		echo "<td>". personlink($row['person_id'], $name);
 
 	   	if(isset($row['num_reports']) && $row['num_reports'] > 0) {
-			echo "<br>(" .hierlink('reports', $row['person_id'], "reports").")";
+			echo "<br>(" .hierlink('reports', $row['person_id'], "team").")";
 		}
 		echo "</td>";
 
@@ -312,7 +284,7 @@ if($style == 'peoplelist') {
 			$mgrname = $row['mgr_first_name']. " ". $row['mgr_last_name'];
 			echo "<td>". personlink($row['manager_person_id'], $mgrname);
 
-			echo "<br>(" .hierlink('reports', $row['manager_person_id'], "reports").")";
+			echo "<br>(" .hierlink('reports', $row['manager_person_id'], "team").")";
 			echo "</td>\n";
 
 		} else {

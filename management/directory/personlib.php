@@ -2,6 +2,35 @@
 include "jazzhands/dbauth.php";
 
 //
+// print various ways to browse at the top
+//
+function browse_limit($current) {
+	$arr = array(
+		'byname' => "By Name",
+		'bydept' => "By Dept",
+		'hier' => "By Org"
+	);
+
+	$rv = "";
+	foreach ($arr as $k => $v) {
+		$url = build_url(build_qs(null, 'index', $k), "./");
+		$lab = $arr[$k];
+		if(strlen($rv)) {
+			$rv = "$rv | ";
+		}
+		if($current == $k) {
+			$class = 'activefilter';
+		} else {
+			$class = 'inactivefilter';
+		}
+		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
+			
+	}
+	return "<div class=filterbar>[ Browse: $rv ]</div>";
+}
+
+
+//
 // general routines for dislpaying people.
 //
 
@@ -98,8 +127,11 @@ function build_qs($params = null, $key, $value = null) {
 	return $params;
 }
 
-function build_url($params) {
-	return $_SERVER['PHP_SELF']."?".http_build_query($params);
+function build_url($params, $root = null) {
+	if($root == null) {
+		$root = $_SERVER['PHP_SELF'];
+	}
+	return "$root?".http_build_query($params);
 }
 
 ?>
