@@ -21,16 +21,17 @@ function process_search(searchbox) {
 			$(results).empty();
 			$.getJSON('ajax/search.pl', "find="+find,
 				function(resp) {
+					var t = document.createElement('table');
 					if(resp['type'] == 'person') {
-						var t = document.createElement('table');
 						if(resp['people']) {
 							for(var i = 0; i < resp['people'].length; i++) {
+								var dude = resp['people'][i];
 								var tr = document.createElement("tr");
 								// show their picture if we have it
 								var td = document.createElement("td");
-								if(resp['people'][i]['img']) {
+								if(dude['img']) {
 									var pic = document.createElement('img');
-									pic.src = resp['people'][i]['img'];
+									pic.src = dude['img'];
 									pic.setAttribute("class", "thumb");
 									pic.setAttribute("alt", "pic");
 									td.appendChild(pic);
@@ -39,14 +40,31 @@ function process_search(searchbox) {
 								// link to the person
 								td = document.createElement("td");
 								var a = document.createElement("a");
-								a.href = resp['people'][i]['link'];
-								$(a).text(resp['people'][i]['name']);
+								a.href = dude['link'];
+								$(a).text(dude['name']);
 								td.appendChild(a);
 								tr.appendChild(td);
+
+								// show the person's office location 
+								td = document.createElement("td");
+								if(dude['location'] != null) {
+									td.innerHTML = dude['location'];
+								} else {
+									td.innerHTML = "";
+								}
+								tr.appendChild(td);
+
 								t.appendChild(tr);
 							}
-							$(results).append(t);
+						} else {
+							// not found
+							var tr = document.createElement("tr");
+							var td = document.createElement("td");
+							td.innerHTML = "No Matches Found";
+							tr.appendChild(td);
+							t.appendChild(tr);
 						}
+						$(results).append(t);
 					}
 				}
 			);
