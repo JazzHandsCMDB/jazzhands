@@ -19,15 +19,15 @@ Requires:      	php
 
 System Tools for Administrative Baselining
 
-%package -n perl-jazzhands-stab
+%package -n jazzhands-perl-stab
 group: System Environment/Libraries
 Summary: Perl library for STAB
 
-%description -n perl-jazzhands-stab
+%description -n jazzhands-perl-stab
 Perl libraries for STAB
 
 %prep
-%setup -q -n stab
+%setup -q -n %{name}
 
 echo Nothing to do for web site
 echo Building perl modules
@@ -195,7 +195,7 @@ rm -rf %{buildroot}
 %{prefix}/dns/write/update_domain.pl
 %{prefix}/dns/soacheck.pl
 
-%files -n perl-jazzhands-stab
+%files -n jazzhands-perl-stab
 ##  %doc Changes README
 %{perl_vendorlib}/*
 %{_mandir}/man3/*
