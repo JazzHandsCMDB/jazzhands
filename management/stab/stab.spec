@@ -13,7 +13,7 @@ Source0:	%{name}.tgz
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:	noarch
 #BuildRequires: 
-Requires:      	php
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common, jazzhands-perl-stab
 
 %description
 
@@ -22,6 +22,8 @@ System Tools for Administrative Baselining
 %package -n jazzhands-perl-stab
 group: System Environment/Libraries
 Summary: Perl library for STAB
+Requires: perl-Net-IP, perl-Net-Netmask, perl-Net-DNS, perl-NetAddr-IP
+
 
 %description -n jazzhands-perl-stab
 Perl libraries for STAB
