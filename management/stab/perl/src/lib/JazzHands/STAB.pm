@@ -331,15 +331,15 @@ sub start_html {
 	}
 
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
-		my $navbar =
-		    $cgi->a( { -href => "$stabroot/device/" },   "Device" ) . " - "
+		my $navbar = ""
+#		    $cgi->a( { -href => "$stabroot/device/" },   "Device" ) . " - "
 		  . $cgi->a( { -href => "$stabroot/dns" },       "DNS" ) . " - "
 		  . $cgi->a( { -href => "$stabroot/netblock/" }, "Netblock" )
 		  . " - "
 		  . $cgi->a( { -href => "$stabroot/sites/blockmgr.pl" },
 			"Site IPs" )
 		  . " - "
-		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
+#		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
 		  . " - "
 		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
 		$inline_title .=

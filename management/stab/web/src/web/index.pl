@@ -56,24 +56,24 @@ print $cgi->ul(
 				"NIC vs JazzHands"
 			)
 		),
-		$cgi->li(
-			$cgi->a(
-				{ -href => "dns/dns-debug.pl" },
-				"DNS Namespace Debugging"
-			)
-		),
+#		$cgi->li(
+#			$cgi->a(
+#				{ -href => "dns/dns-debug.pl" },
+#				"DNS Namespace Debugging"
+#			)
+#		),
 	),
-	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
-	  . "\n",
-	$cgi->li([
-		$cgi->a(
-			{ -href => "device/type/" }, "Device Type Management"
-		),
-		$cgi->a(
-			{ -href => "device/apps/" }, "Application Management"
-		),
-	  ])
-	  . "\n",
+#	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
+#	  . "\n",
+#	$cgi->li([
+#		$cgi->a(
+#			{ -href => "device/type/" }, "Device Type Management"
+#		),
+#		$cgi->a(
+#			{ -href => "device/apps/" }, "Application Management"
+#		),
+#	  ])
+#	  . "\n",
 	$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
 	  . "\n",
 	$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
@@ -84,11 +84,12 @@ print $cgi->ul(
 				"IP Space Management by Site"
 			)
 		),
-		$cgi->li(
-			$cgi->a( { -href => "sites/racks/" }, "Racks by Site" )
-		)
+#		$cgi->li(
+#			$cgi->a( { -href => "sites/racks/" }, "Racks by Site" )
+#		)
 	),
-	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) . "\n"
+#	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) . 
+	"\n",
 );
 
 print $cgi->end_html, "\n";
