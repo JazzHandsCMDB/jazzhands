@@ -34,6 +34,7 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
+use JazzHands::GenericDB qw(_dbx);
 use URI;
 
 do_domain_update();
@@ -107,13 +108,13 @@ sub process_domain_soa_changes {
 		SOA_EXPIRE    => $expire,
 		SOA_MINIMUM   => $minimum
 	);
-	my $diffs = $stab->hash_table_diff( $orig, \%newdomain );
+	my $diffs = $stab->hash_table_diff( $orig, _dbx(\%newdomain) );
 	my $tally = keys %$diffs;
 
 	if ( !$tally ) {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
 	} elsif (
-		!$stab->build_update_sth_from_hash(
+		!$stab->run_update_from_hash(
 			"DNS_DOMAIN", "DNS_DOMAIN_ID", $domid, $diffs
 		)
 	  )
