@@ -41,7 +41,7 @@ use strict;
 use warnings;
 
 use JazzHands::DBI;
-use JazzHands::GenericDB;
+use JazzHands::GenericDB qw(_dbx);
 use Data::Dumper;
 use URI;
 

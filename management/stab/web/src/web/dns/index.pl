@@ -31,7 +31,7 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::GenericDB;
+use JazzHands::GenericDB qw(_dbx);
 
 do_dns_toplevel();
 

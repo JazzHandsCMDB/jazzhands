@@ -28,7 +28,7 @@ use strict;
 use warnings;
 use POSIX;
 use JazzHands::STAB;
-use JazzHands::GenericDB;
+use JazzHands::GenericDB qw(_dbx);
 use CGI::Pretty;
 use Net::DNS;
 use Data::Dumper;

@@ -30,7 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::GenericDB;
+use JazzHands::GenericDB qw(_dbx);
 
 do_rack();
 
