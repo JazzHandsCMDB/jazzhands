@@ -40,7 +40,6 @@ do_domain_update();
 
 sub do_domain_update {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
-	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
 	my $domid   = $stab->cgi_parse_param('DNS_DOMAIN_ID');
@@ -71,13 +70,13 @@ sub toggle_domain_autogen {
 	if ( $direction eq 'Y' ) {
 		$q = qq{
 			begin
-				dns_gen_utils.generation_on(:1);
+				dns_gen_utils.generation_on(?);
 			end;
 		};
 	} else {
 		$q = qq{
 			begin
-				dns_gen_utils.generation_off(:1);
+				dns_gen_utils.generation_off(?);
 			end;
 		};
 	}
@@ -91,7 +90,6 @@ sub toggle_domain_autogen {
 
 sub process_domain_soa_changes {
 	my ( $stab, $domid ) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $serial  = $stab->cgi_parse_param( 'SOA_SERIAL',  $domid );

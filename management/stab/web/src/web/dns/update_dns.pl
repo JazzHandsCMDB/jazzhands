@@ -55,11 +55,11 @@ sub clear_same_dns_params {
 		select	d.dns_record_id,
 				d.dns_name, d.dns_class, d.dns_type, 
 				d.dns_value, d.dns_ttl, d.is_enabled,
-				ip_manip.v4_octet_from_int(nb.ip_address) as ip
+				net_manip.dbtop(nb.ip_address) as ip
 		  from	dns_record d
 				left join netblock nb
 					on nb.netblock_id = d.netblock_id
-		 where	dns_domain_id = :1
+		 where	dns_domain_id = ?
 	};
 	my $sth = $dbh->prepare($q) || $stab->return_db_err;
 	$sth->execute($domid) || $stab->return_db_err;
@@ -273,7 +273,7 @@ sub do_dns_update {
 		if ( !defined($delsth) ) {
 			my $q = qq{
 				delete from dns_record
-				 where	dns_record_id = :1
+				 where	dns_record_id = ?
 			};
 			$delsth = $stab->prepare($q)
 			  || $stab->return_db_err($dbh);

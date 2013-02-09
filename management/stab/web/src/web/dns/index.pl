@@ -568,7 +568,7 @@ sub dump_zone {
 	print $cgi->start_form( { -action => "write/update_domain.pl" } );
 	print $cgi->hidden(
 		-name    => 'DNS_DOMAIN_ID',
-		-default => $hr->{'DNS_DOMAIN_ID'}
+		-default => $hr->{_dbx('DNS_DOMAIN_ID')}
 	);
 
 	my $lastgen = 'never';
@@ -640,7 +640,7 @@ sub dump_zone {
 	print $cgi->start_table;
 	print $cgi->hidden(
 		-name    => 'DNS_DOMAIN_ID',
-		-default => $hr->{'DNS_DOMAIN_ID'}
+		-default => $hr->{_dbx('DNS_DOMAIN_ID')}
 	);
 
 	print $cgi->Tr(
