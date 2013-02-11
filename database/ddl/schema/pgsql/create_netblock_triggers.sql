@@ -83,7 +83,8 @@ BEGIN
 			   FROM jazzhands.netblock 
 			  WHERE ip_address = NEW.ip_address AND
 					ip_universe_id = NEW.ip_universe_id AND
-					netblock_type = NEW.netblock_type;
+					netblock_type = NEW.netblock_type AND
+					is_single_address = NEW.is_single_address;
 			IF (TG_OP = 'INSERT' AND FOUND) THEN 
 				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %', 
 					NEW.ip_address
