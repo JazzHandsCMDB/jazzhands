@@ -1,5 +1,6 @@
 #!/bin/sh
 
+[ -d JazzHands ] && rm -rf JazzHands 
 mkdir -p JazzHands
 
 for i in ../aaa/acct-mgmt/src/lib/lib ../aaa/authtoken/src/perl/lib ../management/mgmt/perl/lib ../management/util/perl/lib ../poll/lib ../management/stab/perl/src/lib ../management/appauthal/perl/*/lib; do

@@ -34,7 +34,7 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::DBI;
-use JazzHands::GenericDB;
+use JazzHands::Common::Util (_dbx);
 use Net::Netmask;
 use Getopt::Long qw(:config no_ignore_case bundling);
 use Socket;
@@ -1279,7 +1279,7 @@ Todd Kover
 
 =head1 SEE ALSO
 
-named(9), L<JazzHands::DBI>, L<JazzHands::GenericDB>
+named(9), L<JazzHands::DBI>, L<JazzHands::Common::Util>
 
 =head1 BUGS
 

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2011 Todd M. Kover
+# Copyright (c) 2011, 2013 Todd M. Kover
 # Copyright (c) 2011, 2012, 2013 Matthew Ragan
 # All rights reserved.
 #
@@ -17,87 +17,30 @@
 
 ###############################################################################
 
-package JazzHands::GenericDB;
+package JazzHands::Common::GenericDB;
 
 use strict;
 use Exporter;
-use vars qw(@EXPORT @EXPORT_OK @ISA $VERSION);
-use JazzHands::Common;
+use JazzHands::Common::Util qw(:all);
+use JazzHands::Common::Error qw(:all);
 use DBI::Const::GetInfoType;
 use Data::Dumper;
 
-$VERSION   = '1.0';
+our $VERSION   = '1.0';
 
-@ISA	   = qw(Exporter);
-@EXPORT_OK = qw(_dbx);
+our @ISA	   = qw(Exporter);
 
-our $direction = 'lower';
+our %EXPORT_TAGS = 
+(
+        'all' => [qw(run_update_from_hash 
+			DBUpdate
+			DBInsert
+			DBDelete
+			DBFetch
+		)],
+);
 
-###############################################################################
-
-sub _dbx {
-	# XXX if oracle, return upper case, otherwise lower case
-	my $x = shift;
-
-	my $dir = $direction;
-
-	if(ref($x)) { 
-		if(ref($x) eq 'HASH') {
-			my $r = {};
-			foreach my $k (keys %$x) {
-				if($direction eq 'lower') {
-					$r->{ lc($k) } = $x->{$k};
-				} else {
-					$r->{ uc($k) } = $x->{$k};
-				}
-			}
-			return $r;
-		} else {
-			return undef;
-		}
-	} else {
-		if($direction eq 'lower') {
-			return lc($x);
-		} else {
-			return uc($x);
-		}
-	}
-}
-
-#
-# This takes two hash tables and returns the differences between the two,
-# essentially returning the items in the second hash.
-
-# - If the second hash is not defined, it returns the first hash
-# - If a key is in hash1 but does not exist in hash2, it is not included
-# - if a key is in hash1 but exists and not defined in hash2, its included
-# - if a key is not in hash1, it will not be included
-# - if a key exists in hash1 but not defined and is not defined in hash2,
-#       it will be included
-# - if its defined and both, and they differ, it will be included
-sub hash_table_diff {
-	my $self = shift;
-	my($hash1, $hash2) = @_;
-
-	my %rv;
-	if(!defined($hash2)) {
-		%rv = %$hash1;
-	} else {
-		foreach my $key (keys %$hash1) {
-			next if(!exists($hash2->{$key}));
-			#- warn "comparing $hash1->{$key} && $hash2->{$key}\n";
-			if(!defined($hash1->{$key}) && !defined($hash2->{$key})) {
-				next;
-			} elsif(defined($hash1->{$key}) && !defined($hash2->{$key})) {
-				$rv{$key} = undef;
-			} elsif((!defined($hash1->{$key})&&defined($hash2->{$key})) || $hash1->{$key} ne $hash2->{$key}) {
-				#- warn "no match, adding $key";
-				$rv{$key} = $hash2->{$key};
-			}
-		}
-	}
-	\%rv;
-}
+Exporter::export_ok_tags('all');
 
 #
 # $dbkey and $keyval can either be scalars or arrays.
@@ -111,8 +54,11 @@ sub hash_table_diff {
 # hash - values on the lhs of the hash are set to the rhs.  hash_table_diff
 #	can be used to determine what should be updated.
 #
+# NOTE NOTE NOTE:  This is deprecated!
 sub run_update_from_hash {
 	my($dbh, $table, $dbkey, $keyval, $hash) = @_;
+
+	warn "foo!\n";
 
 	return DBUpdate(undef,
 		dbhandle => $dbh,
@@ -128,9 +74,13 @@ sub DBUpdate {
 	my $opt = &_options(@_);
 
 	my ($dbh, $table, $dbkey, $keyval, $hash);
+	# accept either because STAB uses dbh
 	if (!($dbh = $opt->{dbhandle})) {
+		$dbh = $opt->{dbh};
+	}
+	if(!$dbh) {
 		SetError($opt->{errors},
-			"must pass dbhandle parameter to DBUpdate");
+			"must pass dbhandle parameter to DBFetch");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
@@ -257,9 +207,13 @@ sub DBInsert {
 	my $opt = &_options(@_);
 
 	my ($dbh, $table, $hash);
+	# accept either because STAB uses dbh
 	if (!($dbh = $opt->{dbhandle})) {
+		$dbh = $opt->{dbh};
+	}
+	if(!$dbh) {
 		SetError($opt->{errors},
-			"must pass dbhandle parameter to DBInsert");
+			"must pass dbhandle parameter to DBFetch");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
@@ -333,9 +287,13 @@ sub DBDelete {
 	my $opt = &_options(@_);
 
 	my ($dbh, $table, $dbkey, $keyval, $hash);
+	# accept either because STAB uses dbh
 	if (!($dbh = $opt->{dbhandle})) {
+		$dbh = $opt->{dbh};
+	}
+	if(!$dbh) {
 		SetError($opt->{errors},
-			"must pass dbhandle parameter to DBDelete");
+			"must pass dbhandle parameter to DBFetch");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
@@ -438,7 +396,11 @@ sub DBFetch {
 	my $opt = &_options(@_);
 
 	my ($dbh, $table);
+	# accept either because STAB uses dbh
 	if (!($dbh = $opt->{dbhandle})) {
+		$dbh = $opt->{dbh};
+	}
+	if(!$dbh) {
 		SetError($opt->{errors},
 			"must pass dbhandle parameter to DBFetch");
 		return undef;

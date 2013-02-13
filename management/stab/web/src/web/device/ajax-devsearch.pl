@@ -30,7 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 
 do_show_serial();
 

@@ -30,7 +30,7 @@ use warnings;
 use FileHandle;
 use Net::Netmask;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common::Util qw(_dbx);
 use Data::Dumper;
 
 do_add_child_netblock_prompt();

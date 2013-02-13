@@ -12,8 +12,7 @@ BuildArch:  noarch
 Common utility modules used by JazzHands scripts.
 
 %files
-%attr (-, root, bin) /usr/lib/perl5/vendor_perl/JazzHands/Common.pm
-%attr (-, root, bin) /usr/lib/perl5/vendor_perl/JazzHands/GenericDB.pm
-%attr (-, root, bin) /usr/lib/perl5/vendor_perl/x86_64-linux-thread-multi/auto/JazzHands/Common/.packlist
-%attr (-, root, bin) /usr/share/man/man3/JazzHands::GenericDB.3pm
-
+%attr (-, root, bin) /usr/lib/perl5/vendor_perl//JazzHands/Common/Error.pm
+%attr (-, root, bin) /usr/lib/perl5/vendor_perl//JazzHands/Common/GenericDB.pm
+%attr (-, root, bin) /usr/lib/perl5/vendor_perl//JazzHands/Common/Util.pm
+%attr (-, root, bin) /usr/lib/perl5/vendor_perl//JazzHands/Common.pm

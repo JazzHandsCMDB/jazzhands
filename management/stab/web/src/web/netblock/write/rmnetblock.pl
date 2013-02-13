@@ -30,7 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common::Util qw(_dbx);
 use vars qw($stab);
 use vars qw($cgi);
 use vars qw($dbh);

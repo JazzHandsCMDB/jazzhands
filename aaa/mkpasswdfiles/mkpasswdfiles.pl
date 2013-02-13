@@ -106,7 +106,7 @@ use File::Copy;
 use File::Path;
 use Getopt::Long;
 use FindBin qw($Script);
-use JazzHands::GenericDB;
+use JazzHands::Common qw(:all);
 
 my $o_output_dir = "/prod/pwgen/out";
 my $o_verbose;

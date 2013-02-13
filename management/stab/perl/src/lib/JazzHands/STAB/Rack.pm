@@ -30,7 +30,7 @@ package JazzHands::STAB::Rack;
 use 5.008007;
 use strict;
 use warnings;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common::Util qw(_dbx);
 
 our @ISA = qw( );
 

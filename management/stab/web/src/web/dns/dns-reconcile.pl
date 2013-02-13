@@ -36,7 +36,7 @@ use strict;
 use JazzHands::STAB;
 use Net::DNS;
 use Data::Dumper;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 use Carp;
 
 do_dns_compare();

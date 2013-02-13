@@ -19,8 +19,8 @@ use 5.008007;
 use strict;
 use warnings;
 use JazzHands::DBI;
-use JazzHands::Common;
-use JazzHands::GenericDB;
+use JazzHands::Common qw(_options SetError);
+use JazzHands::Common::GenericDB;
 
 use JazzHands::Mgmt::Netblock qw(GetNetblock);
 
@@ -205,7 +205,7 @@ sub write {
 				return undef;
 			}
 		}
-		if (!(JazzHands::GenericDB->DBDelete(
+		if (!(JazzHands::Common::GenericDB->DBDelete(
 				dbhandle => $dbh,
 				table => $self->{_dbtable},
 				dbkey => { map { $_ => $self->{_orig}->{$_} } 
@@ -235,11 +235,11 @@ sub write {
 				return undef;
 			}
 		}
-        my $updatehash = JazzHands::GenericDB::hash_table_diff(
+        my $updatehash = JazzHands::Common::GenericDB::hash_table_diff(
             $self->{_orig}, $self->{_current});
 
         if (scalar(%{$updatehash})) {
-			if (!(JazzHands::GenericDB->DBUpdate(
+			if (!(JazzHands::Common::GenericDB->DBUpdate(
 					dbhandle => $dbh,
 					table => $self->{_dbtable},
 					dbkey => { map { $_ => $self->{_orig}->{$_} } 
@@ -260,7 +260,7 @@ sub write {
 				return undef;
 			}
 		}
-        if (!(JazzHands::GenericDB->DBInsert(
+        if (!(JazzHands::Common::GenericDB->DBInsert(
                 dbhandle => $dbh,
                 table => $self->{_dbtable},
                 hash => $self->{_current},

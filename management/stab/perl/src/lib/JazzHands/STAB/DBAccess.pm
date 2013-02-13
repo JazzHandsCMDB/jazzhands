@@ -45,7 +45,7 @@ use warnings;
 
 use Data::Dumper;
 use JazzHands::DBI;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common::Util qw(_dbx);
 use JazzHands::Mgmt;
 use URI;
 use Carp;
@@ -55,7 +55,7 @@ use Apache2::Log;
 use Apache2::Const -compile => qw(OK :log);
 use APR::Const    -compile => qw(:error SUCCESS);
 
-our @ISA = qw( JazzHands::GenericDB );
+our @ISA = qw( JazzHands::Common );
 
 our $VERSION = '1.0.0';
 

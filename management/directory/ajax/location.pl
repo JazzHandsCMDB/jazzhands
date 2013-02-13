@@ -7,7 +7,7 @@ use JSON::PP;
 use Data::Dumper;
 BEGIN { unshift(@INC, "/Users/kovert"); };
 
-use JazzHands::GenericDB;
+use JazzHands::Common qw(:all);
 
 use JazzHands::DBI;
 
@@ -81,12 +81,12 @@ sub do_work {
 			seat_number => $seat,
 		};
 
-		my $diff = JazzHands::GenericDB::hash_table_diff(undef, $hr, $nt);
+		my $diff = JazzHands::Common::GenericDB::hash_table_diff(undef, $hr, $nt);
 
 		warn Dumper($diff);
 
 		my @error;
-		my $ x = JazzHands::GenericDB::DBUpdate(undef,
+		my $ x = JazzHands::Common::GenericDB::DBUpdate(undef,
 			dbhandle => $dbh, 
 			table => 'person_location', 
 			dbkey => 'person_location_id', 

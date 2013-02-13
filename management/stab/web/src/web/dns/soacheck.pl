@@ -29,7 +29,7 @@ use strict;
 use warnings;
 use POSIX;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 use Net::DNS;
 
 do_soacheck();

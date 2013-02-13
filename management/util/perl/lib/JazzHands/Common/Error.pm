@@ -1,5 +1,6 @@
 #
-# Copyright (c) 2012 Matthew Ragan
+# Copyright (c) 2012-2013 Matthew Ragan
+# Copyright (c) 2012-2013 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-package JazzHands::Common;
+package JazzHands::Common::Error;
 
 use strict;
 use warnings;
@@ -24,7 +25,13 @@ use Exporter 'import';
 our $VERSION = '1.0';
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(SetError _options);
+our @EXPORT_OK = qw(SetError );
+
+our %EXPORT_TAGS = 
+(
+        'all' => [qw(SetError)],
+);
+
 
 sub SetError {
 	my $error = shift;
@@ -40,11 +47,22 @@ sub SetError {
 	}
 }
 
-sub _options {
-	my %ret = @_;
-	for my $v ( grep { /^-/ } keys %ret ) {
-		$ret{ substr( $v, 1 ) } = $ret{$v};
-	}
-	\%ret;
-}
 1;
+
+__END__
+
+
+=head1 NAME
+
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+=head1 FILES
+
+
+=head1 AUTHORS
+
+=cut
+

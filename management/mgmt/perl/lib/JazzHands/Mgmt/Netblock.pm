@@ -20,8 +20,8 @@ use strict;
 use warnings;
 
 use DBI;
-use JazzHands::Common;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(_options SetError);
+use JazzHands::Common::GenericDB;
 use NetAddr::IP;
 use	Data::Dumper;
 
@@ -145,7 +145,7 @@ sub GetNetblock {
 		}
 	}
 
-	my $rows = JazzHands::GenericDB->DBFetch(
+	my $rows = JazzHands::Common::GenericDB->DBFetch(
 		dbhandle => $dbh,
 		table => 'netblock',
 		match => $match,

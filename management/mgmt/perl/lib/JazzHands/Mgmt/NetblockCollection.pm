@@ -20,8 +20,7 @@ use strict;
 use warnings;
 
 use DBI;
-use JazzHands::Common;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 
 use vars qw($VERSION @EXPORT @EXPORT_OK @ISA);
 

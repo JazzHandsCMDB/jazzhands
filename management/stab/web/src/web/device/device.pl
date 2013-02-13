@@ -30,7 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 do_device_page();

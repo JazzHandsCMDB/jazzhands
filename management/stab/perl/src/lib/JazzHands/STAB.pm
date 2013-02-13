@@ -50,8 +50,7 @@ use JazzHands::STAB::DBAccess;
 use JazzHands::STAB::Device;
 use JazzHands::STAB::Rack;
 use JazzHands::DBI;
-use JazzHands::Common;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 
 use CGI;    #qw(-no_xhtml);
 use CGI::Pretty;
@@ -62,6 +61,7 @@ use NetAddr::IP;
 
 our @ISA = qw( 
 	JazzHands::Mgmt
+	JazzHands::Common
 	JazzHands::STAB::DBAccess
 	JazzHands::STAB::Device
 	JazzHands::STAB::Rack
@@ -214,6 +214,10 @@ sub start_html {
 		if ( $opts->{javascript} eq 'dns' ) {
 			push(
 				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript/external/jQuery/jquery.js",
+				},
 				{
 					-language => 'JavaScript',
 					-src => "$stabroot/javascript/dns-utils.js"
@@ -930,6 +934,7 @@ sub b_dropdown {
 	my $dbh      = $self->dbh;
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
+	my $class    = $params->{'-class'};
 
 	# [XXX] need to consider making id/name always the same?
 	my $id = $params->{'-id'};
@@ -1501,6 +1506,7 @@ sub b_dropdown {
 	$popupargs->{-labels}     = \%list if ( $#list >= 0 );
 	$popupargs->{-default}    = $default;
 	$popupargs->{-onChange}   = $onchange if ( defined($onchange) );
+	$popupargs->{-class}   	  = $class if ( defined($class) );
 	$popupargs->{-attributes} = \%attr;
 	$popupargs->{-id}         = $id if ( defined($id) );
 

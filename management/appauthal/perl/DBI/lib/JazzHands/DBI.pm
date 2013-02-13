@@ -72,7 +72,7 @@ use DBI;
 use FileHandle;
 use Data::Dumper;
 use JazzHands::AppAuthAL;
-use	JazzHands::Common;
+use JazzHands::Common qw(_options SetError);
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
 
