@@ -1,0 +1,121 @@
+#
+# Copyright (c) 2013 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package JazzHands::Common;
+
+use strict;
+use warnings;
+use JazzHands::Common::Util qw(:all);
+use JazzHands::Common::Error qw(:all);
+
+# use vars qw(@ISA %EXPORT_TAGS @EXPORT);
+
+use Exporter;# 'import';
+
+our $VERSION = '1.0';
+
+our @ISA = qw(
+	Exporter
+	JazzHands::Common::Util
+	JazzHands::Common::Error
+) ;
+
+our @EXPORT;
+our @EXPORT_OK;
+our %EXPORT_TAGS = 
+(
+        'all' => [],
+		# note that :db is special, see my import function
+);
+
+#foreach my $c (@ISA) {
+#	print "C is $c\n";
+#	my @x = @{$c::EXPORT};
+#	foreach my $name (@x) {
+#		print "NAME in $c is $name\n";
+#	}
+#}
+
+# pull up all the stuff from JazzHands::Common::Util
+foreach my $name (@JazzHands::Common::Util::EXPORT) {
+	push(@EXPORT, $name);
+}
+foreach my $name (@JazzHands::Common::Util::EXPORT_OK) {
+	push(@EXPORT_OK, $name);
+}
+foreach my $name (keys %JazzHands::Common::Util::EXPORT_TAGS) {
+	push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::Util::EXPORT_TAGS{$name}});
+}
+
+# pull up all the stuff from JazzHands::Common::Error
+foreach my $name (@JazzHands::Common::Error::EXPORT) {
+	push(@EXPORT, $name);
+}
+foreach my $name (@JazzHands::Common::Error::EXPORT_OK) {
+	push(@EXPORT_OK, $name);
+}
+foreach my $name (keys %JazzHands::Common::Error::EXPORT_TAGS) {
+	push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::Error::EXPORT_TAGS{$name}});
+}
+
+sub import {
+	if(grep($_ =~ /^\:(db|all)$/, @_)) {
+		use JazzHands::Common::GenericDB qw(:all);
+		push(@ISA, 'JazzHands::Common::GenericDB');
+		# pull up all the stuff from JazzHands::Common::GenericDB
+		foreach my $name (@JazzHands::Common::GenericDB::EXPORT) {
+			push(@EXPORT, $name);
+		}
+		foreach my $name (@JazzHands::Common::GenericDB::EXPORT_OK) {
+			push(@EXPORT_OK, $name);
+		}
+		foreach my $name (keys %JazzHands::Common::GenericDB::EXPORT_TAGS) {
+			push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{$name}});
+		}
+			push(@{$EXPORT_TAGS{'db'}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{'all'}});
+	}
+
+	my $save = $Exporter::ExportLevel;
+	$Exporter::ExportLevel = 1;
+	Exporter::import(@_);
+	$Exporter::ExportLevel = $save;
+}
+
+=head1 NAME
+
+JazzHands::Common - Perl extensions that are used throughout JazzHands
+
+=head1 SYNOPSIS
+
+use JazzHands::Common;
+
+This class imports (and makes available for export) things in other
+subclasses.  
+
+=head1 DESCRIPTION
+head1 SEE ALSO
+
+JazzHands::Common::Util, JazzHands::Common::GenericDB, 
+	JazzHands::Common::Error
+
+=head1 AUTHOR
+
+Todd Kover, Matthew Ragan
+
+=head1 COPYRIGHT AND LICENSE
+
+
+1;
