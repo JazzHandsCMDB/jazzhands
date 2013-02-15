@@ -178,7 +178,7 @@ $show_anything = 1;
 
 $person_id = (isset($_GET['person_id']))? $_GET['person_id']:null;
 $person_image_id = (isset($_GET['person_image_id']))? $_GET['person_image_id']:null;
-$hint = (isset($_GET['class'])? $_GET['class']:null);
+$hint = (isset($_GET['type'])? $_GET['type']:null);
 
 # Attempt to sanitize input a bit.  At the very least, make attempts
 # to turn something into a filename bit work.

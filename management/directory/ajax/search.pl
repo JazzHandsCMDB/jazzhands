@@ -93,7 +93,7 @@ sub do_work {
 	while(my $hr = $sth->fetchrow_hashref) {
 		my $x = {};
 		if($hr->{person_image_id}) {
-			$x->{img} = "picture.php?person_id=$hr->{person_id}&person_image_id=$hr->{person_image_id}&class=thumb";
+			$x->{img} = "picture.php?person_id=$hr->{person_id}&person_image_id=$hr->{person_image_id}&type=thumb";
 		}
 		$x->{name} = join(" ", $hr->{first_name}, $hr->{last_name});
 		$x->{link} = "contact.php?person_id=" . $hr->{person_id};
