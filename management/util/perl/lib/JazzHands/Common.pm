@@ -50,23 +50,15 @@ our %EXPORT_TAGS =
 #}
 
 # pull up all the stuff from JazzHands::Common::Util
-foreach my $name (@JazzHands::Common::Util::EXPORT) {
-	push(@EXPORT, $name);
-}
-foreach my $name (@JazzHands::Common::Util::EXPORT_OK) {
-	push(@EXPORT_OK, $name);
-}
+push(@EXPORT, @JazzHands::Common::Util::EXPORT);
+push(@EXPORT_OK, @JazzHands::Common::Util::EXPORT_OK);
 foreach my $name (keys %JazzHands::Common::Util::EXPORT_TAGS) {
 	push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::Util::EXPORT_TAGS{$name}});
 }
 
 # pull up all the stuff from JazzHands::Common::Error
-foreach my $name (@JazzHands::Common::Error::EXPORT) {
-	push(@EXPORT, $name);
-}
-foreach my $name (@JazzHands::Common::Error::EXPORT_OK) {
-	push(@EXPORT_OK, $name);
-}
+push(@EXPORT, @JazzHands::Common::Error::EXPORT);
+push(@EXPORT_OK, @JazzHands::Common::Error::EXPORT_OK);
 foreach my $name (keys %JazzHands::Common::Error::EXPORT_TAGS) {
 	push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::Error::EXPORT_TAGS{$name}});
 }
@@ -76,16 +68,12 @@ sub import {
 		use JazzHands::Common::GenericDB qw(:all);
 		push(@ISA, 'JazzHands::Common::GenericDB');
 		# pull up all the stuff from JazzHands::Common::GenericDB
-		foreach my $name (@JazzHands::Common::GenericDB::EXPORT) {
-			push(@EXPORT, $name);
-		}
-		foreach my $name (@JazzHands::Common::GenericDB::EXPORT_OK) {
-			push(@EXPORT_OK, $name);
-		}
+		push(@EXPORT, @JazzHands::Common::GenericDB::EXPORT);
+		push(@EXPORT_OK, @JazzHands::Common::GenericDB::EXPORT_OK);
 		foreach my $name (keys %JazzHands::Common::GenericDB::EXPORT_TAGS) {
 			push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{$name}});
 		}
-			push(@{$EXPORT_TAGS{'db'}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{'all'}});
+		push(@{$EXPORT_TAGS{'db'}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{'all'}});
 	}
 
 	my $save = $Exporter::ExportLevel;
@@ -94,6 +82,14 @@ sub import {
 	$Exporter::ExportLevel = $save;
 }
 
+sub new {
+	my $proto = shift;
+	my $class = ref($proto) || $proto;
+	my $self = {};
+	bless $self, $class;
+}
+
+1;
 =head1 NAME
 
 JazzHands::Common - Perl extensions that are used throughout JazzHands
@@ -117,5 +113,3 @@ Todd Kover, Matthew Ragan
 
 =head1 COPYRIGHT AND LICENSE
 
-
-1;

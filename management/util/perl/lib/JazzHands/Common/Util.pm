@@ -96,14 +96,8 @@ sub _dbx {
 #       it will be included
 # - if its defined and both, and they differ, it will be included
 sub hash_table_diff {
-	my ($arg1, $arg2, $arg3) = @_;
-
-	my($self, $hash1, $hash2);
-	if(defined($arg3)) {
-		($hash1, $hash2) = ($arg2, $arg3);
-	} else {
-		($hash1, $hash2) = ($arg1, $arg2);
-	}
+	shift if ($#_ eq 2);
+	my($hash1, $hash2) = @_;
 
 	my %rv;
 	if(!defined($hash2)) {
@@ -125,6 +119,33 @@ sub hash_table_diff {
 	\%rv;
 }
 
+#
+# member_hash_diff is similar to hash_table_diff except that it returns
+# a pointer to a hash with two keys, 'additions' and 'deletions' that just
+# contain the keys that differ between the two hashes.  The values of the
+# keys in the passed hashes are not compared at all; it is just a test for
+# key existence.
+#
+sub member_hash_diff {
+	shift if ($#_ eq 2);
+	my($hash1, $hash2) = @_;
+
+	my $rv = { 
+		additions => [],
+		deletions => [],
+	};
+	if(!defined($hash2)) {
+		$rv->{additions} = [ keys %$hash1 ];
+	} else {
+		foreach my $key (keys %$hash1) {
+			push($rv->{deletions}, $key) if (!exists($hash2->{$key}));
+		}
+		foreach my $key (keys %$hash2) {
+			push($rv->{additions}, $key) if (!exists($hash1->{$key}));
+		}
+	}
+	$rv;
+}
 1;
 
 __END__
