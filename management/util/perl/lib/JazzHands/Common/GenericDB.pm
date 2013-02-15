@@ -420,6 +420,7 @@ sub DBFetch {
 			if (!exists($matchentry->{matchtype})) {
 				$matchentry->{matchtype} = "eq";
 			}
+			$matchentry->{matchtype} = lc($matchentry->{matchtype});
 			my $operator;
 			if ($matchentry->{matchtype} eq "eq") {
 				$operator = "=";
@@ -441,7 +442,13 @@ sub DBFetch {
 					!defined($matchentry->{value})) {
 				push @where, sprintf("%s IS NOT NULL", $matchentry->{key});
 			} else {
-				push @where, sprintf("%s %s ?", $matchentry->{key}, $operator);
+				if (ref($matchentry->{value}) eq 'ARRAY') {
+					push @where, sprintf("%s %s ANY (?)",
+						$matchentry->{key}, $operator);
+				} else {
+					push @where,
+						sprintf("%s %s ?", $matchentry->{key}, $operator);
+				}
 				push @params, $matchentry->{value};
 			}
 		}
