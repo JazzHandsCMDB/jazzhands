@@ -1170,7 +1170,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image;
 CREATE TRIGGER trigger_fix_person_image_oid_ownership 
-BEFORE INSERT OR UPDATE OR DELETE
+BEFORE INSERT 
     ON person_image
     FOR EACH ROW 
     EXECUTE PROCEDURE fix_person_image_oid_ownership();
