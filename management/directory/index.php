@@ -176,8 +176,8 @@ switch($index) {
 		}
 		$dboffset = $offset * $numshow;
 		$orderby = "ORDER BY
-			coalesce(p.preferred_first_name, p.first_name),
 			coalesce(p.preferred_last_name, p.last_name),
+			coalesce(p.preferred_first_name, p.first_name),
 			p.person_id
 		";
 		$addrq = "";
