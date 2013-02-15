@@ -68,7 +68,7 @@ function process_search(searchbox) {
 					}
 				}
 			);
-		}, 250);
+		}, 200);
 	}
 }
 
@@ -165,7 +165,7 @@ function update_location(button) {
 			$(tbl).append(tr);
 
 
-			for each ( var col in ['building', 'floor', 'section', 'seat_number']) {
+			for ( var col in ['building', 'floor', 'section', 'seat_number']) {
 				tr = document.createElement("tr");
 				td = document.createElement("td");
 				td.innerHTML = col;
@@ -498,6 +498,9 @@ function pic_manip(person_id) {
  */
 
 $(document).ready(function(){
+	// do not let the search for actually submit.
+	$("#search").submit( function(event) { return false; } );
+
 	// binding to click does not work on dynamic elements 
 	$("input#searchfor").keyup( 
 	 		function(event){
