@@ -47,7 +47,8 @@ sub do_work {
                         where   pl.person_location_type = 'office'
                         order by site_rank
                         ) ofc on ofc.person_id = p.person_id
-	   where	pce.company_id = (
+	   where	p.person_id >= 1
+		and	pce.company_id = (
 				select	property_value_company_id
 				  from	property
 				 where	property_name = '_rootcompanyid'
