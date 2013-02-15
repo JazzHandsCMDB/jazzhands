@@ -94,6 +94,8 @@ sub import {
 	$Exporter::ExportLevel = $save;
 }
 
+1;
+
 =head1 NAME
 
 JazzHands::Common - Perl extensions that are used throughout JazzHands
@@ -117,5 +119,3 @@ Todd Kover, Matthew Ragan
 
 =head1 COPYRIGHT AND LICENSE
 
-
-1;
