@@ -184,6 +184,9 @@ img.yearbook { max-width: 300px; }
 	border: 2px solid;
 	background-color: blue;
 	color: white;
+	border-radius: 15px;
+	padding-left: 5px;
+	padding-right: 5px;
 }
 
 .phoneremove {
@@ -310,4 +313,23 @@ div#locationmanip {
 	background: #FF9933;
 	width: 90%;
 	text-align: center;
+}
+
+.hintpopup {
+	border: 1px solid;
+	background-color: lightyellow;
+	color: black;
+	max-width: 20em;
+	position: absolute;
+	padding: 10px;
+}
+
+.hintoff {
+	display:none;
+}
+
+.editbuttons {
+	background: lightyellow;
+	width: 100%;
+	text-align:center;
 }

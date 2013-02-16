@@ -82,6 +82,7 @@ function build_header($title, $style = null, $heading = null) {
 	<html>
 	<head>
         	<title> $title </title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         	<style type="text/css">
                 	@import url("$style");
                 	@import url("local-style.css");

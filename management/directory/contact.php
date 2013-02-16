@@ -33,7 +33,7 @@ EOQ;
 	return $rv;
 }
 
-function pretty_phone_row($row) {
+function pretty_phone_row($row, $id = null) {
 	$str =	'+'.
 		$row['dial_country_code']." ".
 		$row['phone_number'];
@@ -47,7 +47,10 @@ function pretty_phone_row($row) {
 	if($row['person_contact_privacy'] != 'PUBLIC') {
 		$str .= " (" .$row['person_contact_privacy'] .")";
 	}
-	return $str;
+	if($id != null && strlen($id)) {
+		$idstr="id=PERSON_CONTACT_ID=$id";
+	}
+	return "<span $idstr class=phoneno>$str</span>";
 }
 
 /* This is no longer used and can be deleted */
@@ -297,7 +300,7 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 	echo build_tr(
 		$pc['person_contact_technology']."(".
 		$pc['person_contact_location_type'].")",
-		pretty_phone_row($pc),
+		pretty_phone_row($pc, $pc['person_contact_id']),
 		'remove',
 		$pc['person_contact_id'], $isadmin);
 }
@@ -306,10 +309,12 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 if($isadmin) {
 ?>
 
-<tr id=add_phones> 
+<tr id=add_phones class=editbuttons>  
 	<td colspan=2>
-		<a class="addphonebutton" href="#">ADD# </a>
-		<a class="picmanipbutton" href="#" onClick="pic_manip(<?php echo $personid ?>);">PICS </a>
+	<b>EDIT</b>
+	<br>
+		<a class="addphonebutton" href="#"> Add Phone# </a>
+		<a class="picmanipbutton" href="#" onClick="pic_manip(<?php echo $personid ?>);"> Edit Photos </a>
 <?php
 	if( $row['display_label'] != null) {
 		echo '<a class="locationmanipbutton" href="#">DESK </a>';
@@ -317,10 +322,28 @@ if($isadmin) {
 ?>
 	</td>
 </tr>
+<div class="hintpopup hintoff" id=usermaniphint>
+Use these buttons to add a phone number, manipulate pictures
+or to adjust seat information.  
+</div>
 <?php
 }
 
 echo "</ul>\n";
+?>
+
+<div class="hintpopup hintoff" id=addphonehint>
+When adding phone number, set the type of contact, the type of phone, and how private it should be.
+<p>
+
+For new phone numbers, the country code is a dropdown seperate from the rest of the dialing digits.  The
+pin number is usually left empty.
+
+<p>
+Hidden numbers are only visible to administrators and a person's management chain.  Private numbers are marked
+as such and meant not to be shared outside the company.
+</div>
+<?php
 
 echo build_footer();
 
@@ -332,5 +355,6 @@ pg_query($dbconn, "rollback");
 pg_close($dbconn);
 
 ?>
+
 </body>
 </html>

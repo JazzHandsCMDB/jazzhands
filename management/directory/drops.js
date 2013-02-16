@@ -97,6 +97,9 @@ function build_option(newid, in_list) {
 function remove_phone(remove_button) {
 	var form = $(remove_button).closest('form');
 
+	// only necessary on new phones
+	$("#addphonehint").addClass("hintoff");
+
 	if(confirm("Are you sure you want to remove this phone?")) {
 		// post results, and in the results, we'll remove
 		// and replace with a proper row
@@ -304,6 +307,11 @@ function add_phone(add_button) {
 			tr.appendChild(td);
 			$('tr#add_phones').before(tr);
 
+			var position = $(tr).offset();
+			position.left += $(tr).width();
+			$("#addphonehint").removeClass("hintoff");
+			$("#addphonehint").offset({left: 0, top: 0});
+			$("#addphonehint").offset( position);
 
 		}
 	);
@@ -485,6 +493,10 @@ function pic_manip(person_id) {
 			$(form).append(t);
 			$('#picsdisplay').append(form);
 
+			var d = document.createElement("div");
+			d.innerHTML = "The caption is used in yearbook photos and is otherwise unused.  The type marked as corpdirectory is used by this directory.  Headshots are professional photographs that are not, at present, in use.  ";
+			$('#picsdisplay').append(d);
+
 		});
 }
 
@@ -517,8 +529,10 @@ $(document).ready(function(){
 	);
 
 	$("a.sbmtphone").live('click', function(event){
+		$("#addphonehint").addClass("hintoff");
 		var form = $(this).closest('form');
 		if(form) {
+
 			s = $(form).serialize();
 
 			// post results, and in the results, we'll remove
@@ -576,6 +590,17 @@ $(document).ready(function(){
 		$(this).val("");
 	});
 
+	$('.editbuttons').mouseenter(function(event) {
+		var position = $('tr.editbuttons').offset();
+		var height=  $('tr.editbuttons').height();
+		position.top += $('tr.editbuttons').height();
+		$("#usermaniphint").removeClass("hintoff");
+		$("#usermaniphint").offset({left: 0, top: 0});
+		$("#usermaniphint").offset( position);
+	});
+	$('.editbuttons').mouseleave(function(event) {
+		$("#usermaniphint").addClass("hintoff");
+	});
 
 	// This is here in case the search box is populated when the page
 	// is reloaded.  Consistency is swell.
