@@ -72,7 +72,7 @@ function process_search(searchbox) {
 	}
 }
 
-function build_option(newid, in_list) {
+function build_option(newid, in_list, val) {
 	var s, o;
 
 	s = document.createElement("select");
@@ -86,8 +86,14 @@ function build_option(newid, in_list) {
 		// o.value = in_list[i];
 		if($.isArray(in_list[i])) {
 			o = new Option(in_list[i][1], in_list[i][0]);
+			if (in_list[i][0] == val) {
+				$(o).attr('selected', true);
+			}
 		} else {
 			o = new Option(in_list[i], in_list[i]);
+			if (in_list[i] == val) {
+				$(o).attr('selected', true);
+			}
 		}
 		s.add(o);
 	}
@@ -168,13 +174,15 @@ function update_location(button) {
 			$(tbl).append(tr);
 
 
-			for ( var col in ['building', 'floor', 'section', 'seat_number']) {
+			var a = [ 'building', 'floor', 'section', 'seat_number'];
+			for ( var idx in a) {
+				var col = a[idx];
 				tr = document.createElement("tr");
 				td = document.createElement("td");
 				td.innerHTML = col;
 				$(tr).append(td);
-				td = document.createElement("td");
 
+				td = document.createElement("td");
 				input = document.createElement("input");
 				$(input).attr('name', col + '_' + resp['record']['person_location_id']);
 				$(input).val( resp['record'][col] );
@@ -213,11 +221,22 @@ function update_location(button) {
 	return 0;
 }
 
-function add_phone(add_button) {
+function manip_phone(add_button) {
 	var tbl = $(add_button).closest('TABLE');
+	var id = $(add_button).attr('id');
+	var swaptr;
+
+	if(id) {
+		swaptr = $(add_button).closest('TR');
+		// $(tr).empty();
+		id = "&"+id;
+	} else {
+		id="";
+	}
 	$.getJSON('ajax/contact.pl',
-		"type=phone",
+		"type=phone"+id,
 		function(resp) {
+			var contact = (resp['contact'])?resp['contact']:null;
 			var tr = document.createElement("tr");
 			var td = document.createElement("td");
 			td.colSpan = 2;
@@ -225,21 +244,6 @@ function add_phone(add_button) {
 			var form = document.createElement("form");
 			form.setAttribute("class", "addphone");
 
-			var lhs = document.createElement("div");
-			lhs.setAttribute("class", "phoneremove");
-
-			var pic = document.createElement("img");
-			pic.setAttribute("class", "removex");
-			pic.src = "images/Octagon_delete.svg";
-			pic.setAttribute("alt", "X");
-			var a = document.createElement("a");
-			a.href = "#"
-			a.setAttribute("class", "remove_phone");
-			a.appendChild(pic);
-			lhs.appendChild(a);
-			form.appendChild(lhs);
-
-			// this is acutally the middle now that there is a remove button */
 			lhs = document.createElement("div");
 			lhs.setAttribute("class", "phoneattribs");
 
@@ -258,13 +262,21 @@ function add_phone(add_button) {
 			input.setAttribute('value', personid);
 			lhs.appendChild(input);
 
-			var s = build_option("locations", resp['locations']);
+			if(contact) {
+				input = document.createElement("input");
+				input.setAttribute('type', "hidden");
+				input.setAttribute('name', "person_contact_id");
+				input.setAttribute('value', contact['person_contact_id']);
+				lhs.appendChild(input);
+			}
+
+			var s = build_option("locations", resp['locations'], (contact)?contact['person_contact_location_type']:null);
 			lhs.appendChild(s);
 
-			s = build_option('technology', resp['technologies']);
+			s = build_option('technology', resp['technologies'], (contact)?contact['person_contact_technology']:null);
 			lhs.appendChild(s);
 
-			s = build_option('privacy', resp['privacy']);
+			s = build_option('privacy', resp['privacy'], (contact)?contact['person_contact_privacy']:null );
 			lhs.appendChild(s);
 
 			form.appendChild(lhs);
@@ -272,23 +284,49 @@ function add_phone(add_button) {
 			var rhs = document.createElement("div");
 			rhs.setAttribute("class", "phonedigits");
 
-			s = build_option('country', resp['countries']);
+			s = build_option('country', resp['countries'], (contact)?contact['iso_country_code']:null);
 			rhs.appendChild(s);
 
 			input = document.createElement("input");
-			input.setAttribute("class", "inputhint");
+			$(input).addClass("hinted");
 			input.setAttribute("id", "phone");
 			input.setAttribute("name", "phone");
-			input.setAttribute("value", "phone");
 			input.setAttribute("size", "15");
+			if(contact) {
+				$(input).val( contact['phone_number'] );
+			}
+			if( $(input).val() == '') {
+				$(input).addClass("inputhint");
+				input.setAttribute("value", "phone");
+			}
 			rhs.appendChild(input);
 
 			input = document.createElement("input");
-			input.setAttribute("class", "inputhint");
+			$(input).addClass("hinted");
+			input.setAttribute("id", "phone_extension");
+			input.setAttribute("name", "phone_extension");
+			input.setAttribute("size", "5");
+			if(contact && contact['phone_extension']) {
+				$(input).val( contact['phone_extension'] );
+			}
+			if( $(input).val() == '') {
+				$(input).addClass("inputhint");
+				input.setAttribute("value", "ext");
+			}
+			rhs.appendChild(input);
+
+			input = document.createElement("input");
+			$(input).addClass("hinted");
 			input.setAttribute("id", "pin");
 			input.setAttribute("name", "pin");
-			input.setAttribute("value", "pin");
 			input.setAttribute("size", "5");
+			if(contact && contact['phone_pin']) {
+				$(input).val( contact['phone_pin'] );
+			}
+			if( $(input).val() == '') {
+				$(input).addClass("inputhint");
+				input.setAttribute("value", "pin");
+			}
 			rhs.appendChild(input);
 
 			var msg = document.createElement("div");
@@ -301,11 +339,23 @@ function add_phone(add_button) {
 			submit.setAttribute("class", "sbmtphone");
 			rhs.appendChild(submit);
 
+			var cancel = document.createElement("a");
+			cancel.href = "#";
+			cancel.innerHTML = "CANCEL";
+			cancel.setAttribute("class", "cancelphone");
+			rhs.appendChild(cancel);
+
 			form.appendChild(rhs);
 
 			td.appendChild(form);
 			tr.appendChild(td);
-			$('tr#add_phones').before(tr);
+			if(swaptr) {
+				$(swaptr).after(tr);
+				$(swaptr).addClass('hide');
+			} else {
+				$('tr#add_phones').before(tr);
+			}
+	
 
 			var position = $(tr).offset();
 			position.left += $(tr).width();
@@ -528,6 +578,12 @@ $(document).ready(function(){
 			}
 	);
 
+	$("a.cancelphone").live('click', function(event) {
+		$("#addphonehint").addClass("hintoff");
+		$(this).closest('tr').prev().removeClass('hide');
+		$(this).closest('tr').remove();
+	});
+
 	$("a.sbmtphone").live('click', function(event){
 		$("#addphonehint").addClass("hintoff");
 		var form = $(this).closest('form');
@@ -537,15 +593,23 @@ $(document).ready(function(){
 
 			// post results, and in the results, we'll remove
 			// and replace with a proper row
-			$.post('ajax/add_number.pl', s, function(resp) {
+			$.post('ajax/manip_number.pl', s, function(resp, textStatus, jqXHR) {
 				if(resp['error']) {
 					x = $(form).find('div.msg').text(resp['error']);
 				} else {
+					// if there is already a row for this contactid,
+					// that means this was an edit, so the old row should
+					// go away.
+					var trid = 'contact'+resp['record']['person_contact_id'];
+					$('tr#'+trid).remove();
 					var tr = $(form).closest('tr');
 					$(tr).empty();
+					$(tr).attr('id', trid);
 
 					var td = document.createElement("td");
 					var newform = document.createElement("form");
+
+					$(newform).addClass('phonerowform');
 
 					var hidden = document.createElement("input");
 					hidden.setAttribute("type", "hidden");
@@ -562,16 +626,22 @@ $(document).ready(function(){
 					a.setAttribute("class", "remove_phone");
 					a.appendChild(pic);
 					$(newform).append(a);
-					$(newform).append( resp['record']['print_title'] );
+					$(newform).append( resp['record']['print_title']+':' );
 
 					$(td).append(newform);
 					$(tr).append(td);
 
 					td = document.createElement("td");
-					$(td).text( resp['record']['print_number'] );
+					var span = document.createElement("span");
+					$(span).addClass('phoneno');
+					$(span).attr('id', 'PHONE_CONTACT_ID='+resp['record']['person_contact_id']);
+					$(span).text( resp['record']['print_number'] );
+					$(td).append(span);
 					$(tr).append(td);
 				}
-			});
+			}).error(function() {
+				alert("There was an issue submitting your request.  Please try again later");
+			});;
 		}
 	});
 
@@ -579,7 +649,7 @@ $(document).ready(function(){
 		remove_phone($(this));});
 
 	$("a.addphonebutton").live('click',function(event){
-		add_phone($(this));});
+		manip_phone($(this));});
 
 	$("a.locationmanipbutton").live('click',function(event){
 		update_location($(this));});
@@ -587,7 +657,16 @@ $(document).ready(function(){
 	// remove the greyed out hint that was there
 	$("input.inputhint").live('focus',function(event){
 		$(this).removeClass("inputhint");
+		this.preservedHint = $(this).val();
 		$(this).val("");
+	});
+
+	// remove the greyed out hint that was there
+	$("input.hinted").live('blur',function(event){
+		if( $(this).val() == '' && this.preservedHint ) {
+			$(this).addClass('inputhint');
+			$(this).val( event.target.preservedHint );
+		}
 	});
 
 	$('.editbuttons').mouseenter(function(event) {
@@ -601,6 +680,11 @@ $(document).ready(function(){
 	$('.editbuttons').mouseleave(function(event) {
 		$("#usermaniphint").addClass("hintoff");
 	});
+
+	$('.phoneno').live('click', function(event) {
+		manip_phone(event.target);
+	});
+
 
 	// This is here in case the search box is populated when the page
 	// is reloaded.  Consistency is swell.

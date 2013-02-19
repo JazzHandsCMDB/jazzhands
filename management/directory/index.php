@@ -123,7 +123,7 @@ $orderby = "
 
 $limit = "";
 
-$address = $_GET['physical_address_id'];
+$address = ($_GET['physical_address_id'])?$_GET['physical_address_id']:null;
 
 $showarrow = 0;
 

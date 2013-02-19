@@ -18,6 +18,7 @@ sub do_work {
 	my $cgi = new CGI;
 
 	my $type = $cgi->param('type');
+	my $contactid = $cgi->param('PERSON_CONTACT_ID');
 
 	my $r = {};
 
@@ -68,6 +69,23 @@ sub do_work {
 			push(@{$r->{countries} }, \@x);
 		}
 		$sth->finish;
+		
+		# XXX INFORMATION LEAK.  CHECK PERMS!
+		if($contactid) {
+			$sth = $dbh->prepare_cached(qq{
+				select	*
+				  from	person_contact
+				 where	person_contact_id = ?
+			}) || die $sth->errstr;
+			$sth->execute($contactid) || die $sth->errstr;
+
+			my $hr = $sth->fetchrow_hashref;
+			$sth->finish;
+			if($hr) {
+				$r->{contact} = $hr;
+			}
+		}
+
 		$r->{error} = undef;
 	} else {
 		$r->{error} = "Unknown Type";

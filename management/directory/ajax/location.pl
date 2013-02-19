@@ -13,6 +13,95 @@ use JazzHands::DBI;
 
 exit do_work();
 
+sub get_login {
+	my($dbh, $personid) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		select	a.login
+		 from	account a
+		 	inner join v_person_company_expanded pc
+				using (person_id, company_id)
+		where	person_id = ?
+                and     company_id = (
+                                select  property_value_company_id
+                                  from  property
+                                 where  property_name = '_rootcompanyid'
+                                   and  property_type = 'Defaults'
+                        )
+	}) || die $dbh->errstr;
+	$sth->execute($personid) || die $sth->errstr;
+	my $login = ($sth->fetchrow_array)[0];
+	$sth->finish;
+	$login;
+}
+
+# XXX - need to move to a library; this is shared in a few plces
+sub check_admin {
+	my ($dbh, $login) = @_;
+
+        my $sth = $dbh->prepare_cached(qq {
+                select  count(*) as tally
+                 from   property p
+                        inner join account_collection ac
+                                on ac.account_collection_id =
+                                        p.property_value_account_coll_id
+                        inner join v_acct_coll_acct_expanded ae
+                                on ae.account_collection_id =
+                                        ac.account_collection_id
+                        inner join account a
+                                on ae.account_id = a.account_id
+                 where  p.property_name = 'PhoneDirectoryAdmin'
+                  and   p.property_type = 'PhoneDirectoryAttributes'
+                  and   a.login = ?
+	}) || die $dbh->errstr;
+
+	$sth->execute($login) || die $sth->errstr;
+	my $hr = $sth->fetchrow_hashref();
+	$sth->finish;
+
+	if($hr && $hr->{tally} > 0) {
+		return 1;
+        } else {
+                return 0;
+        }
+}
+
+sub do_work {
+	my $cgi = new CGI;
+
+	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
+		die $JazzHands::DBI::errstr;
+
+
+	# figure out if person is an admin or editing themselves
+	my $personid = $cgi->param('person_id');
+	my $login = get_login($dbh, $personid);
+
+	my $commit = 0;
+
+	my $r;
+	if($cgi->remote_user() ne $login && !check_admin($dbh, $login)) {
+		$r = {};
+		$r->{error} = "You are not permitted to manipulate this user.";
+		$commit = 1;
+	} else {
+		$r = do_b_manip($dbh, $cgi);
+		$commit = 0;
+	}
+
+	print $cgi->header( -type => 'application/json', -charset => 'utf-8');
+	print encode_json ( $r );
+
+	if($commit) {
+		$dbh->commit;
+	} else {
+		$dbh->rollback;
+	}
+	$dbh->disconnect;
+}
+
+################
+
 sub do_work {
 	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
 		die $JazzHands::DBI::errstr;
@@ -103,3 +192,4 @@ sub do_work {
 	$dbh->commit;
 	$dbh->disconnect;
 }
+

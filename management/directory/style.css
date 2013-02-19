@@ -178,9 +178,10 @@ img.yearbook { max-width: 300px; }
 	width: 100%; 
 	overflow: hidden;
 	background: lightblue;
+	border-radius: 5px;
 }
 
-.sbmtphone, .addphonebutton, .picmanipbutton, .locationmanipbutton {
+.sbmtphone, .cancelphone, .addphonebutton, .picmanipbutton, .locationmanipbutton {
 	border: 2px solid;
 	background-color: blue;
 	color: white;
@@ -189,25 +190,21 @@ img.yearbook { max-width: 300px; }
 	padding-right: 5px;
 }
 
-.phoneremove {
-	margin: auto;
-	float: left;
-	height: 100%;
-	vertical-align: middle;
-}
-
 .phoneattribs {
 	height: 100%; 
 	float: left;
 	margin: auto;
+	width: 30%;
 }
 	
 
 .phoneattribs select { display: block; }
 
 .phonedigits { 
-	margin: 0 auto; 
+	height: 100%;
 	float: right;
+	margin: 0 auto; 
+	width: 70%;
 }
 
 /* used to show error messages adding phones */
@@ -306,6 +303,7 @@ div#locationmanip {
 	width: 90%;
 	text-align:center;
 }
+
 .navbar {
 	margin: auto;
 	padding: 3px;
@@ -333,3 +331,14 @@ div#locationmanip {
 	width: 100%;
 	text-align:center;
 }
+
+.hide {
+	display: none;
+	visibility: hidden;
+}
+
+span.phoneno {
+	text-decoration: underline;
+}
+
+table#contact td { min-width: 10em; };

@@ -33,7 +33,7 @@ EOQ;
 	return $rv;
 }
 
-function pretty_phone_row($row, $id = null) {
+function pretty_phone_row($row, $id = null, $admin = 0) {
 	$str =	'+'.
 		$row['dial_country_code']." ".
 		$row['phone_number'];
@@ -50,7 +50,11 @@ function pretty_phone_row($row, $id = null) {
 	if($id != null && strlen($id)) {
 		$idstr="id=PERSON_CONTACT_ID=$id";
 	}
-	return "<span $idstr class=phoneno>$str</span>";
+	if ($admin) {
+		return "<span $idstr class=phoneno>$str</span>";
+	} else {
+		return $str;
+	} 
 }
 
 /* This is no longer used and can be deleted */
@@ -99,13 +103,13 @@ function get_phone($db, $pid, $tech, $locale) {
 	return $row;
 }
 
-function build_tr($lhs, $rhs, $remove = null, $id = null, $isadmin = null) {
+function build_tr($lhs, $rhs, $remove = null, $id = null, $canedit = null) {
 	// if remove is set then that indicates that the lhs should have a
 	// remove button inside a form that javascript will take care of
 	// allowing someone to remove.
 	$removes = "";
 	$removee = "";
-	if(isset($remove) && isset($id) && $isadmin == 1) {
+	if(isset($remove) && isset($id) && $canedit == 1) {
 		$removes = <<<EOREMOVES
 			<form class="phonerowform">
 				<input type=hidden name="person_contact_id" value="$id">
@@ -115,7 +119,11 @@ function build_tr($lhs, $rhs, $remove = null, $id = null, $isadmin = null) {
 EOREMOVES;
 		$removee = "</form>";
 	}
-        return "<tr><td>$removes$lhs:$removee</td> <td>$rhs</td></tr>";
+	$tr= "";
+	if($id) {
+		$tr = "contact$id";
+	}
+        return "<tr id=\"$tr\"><td>$removes$lhs:$removee</td> <td>$rhs</td></tr>";
 }
 
 $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
@@ -204,9 +212,9 @@ $result = pg_query_params($dbconn, $query, array($personid))
 $row = pg_fetch_array($result, null, PGSQL_ASSOC) or die("no person");
 
 if($row['login'] == $_SERVER['REMOTE_USER'] || check_admin($dbconn, $_SERVER['REMOTE_USER']) ) {
-	$isadmin = 1;
+	$canedit = 1;
 } else {
-	$isadmin = 0;
+	$canedit = 0;
 }
 
 $name = $row['first_name']. " " . $row['last_name'];
@@ -300,13 +308,13 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 	echo build_tr(
 		$pc['person_contact_technology']."(".
 		$pc['person_contact_location_type'].")",
-		pretty_phone_row($pc, $pc['person_contact_id']),
+		pretty_phone_row($pc, $pc['person_contact_id'], $canedit),
 		'remove',
-		$pc['person_contact_id'], $isadmin);
+		$pc['person_contact_id'], $canedit);
 }
 		// should probably use jquery for picmanipbutton...
 
-if($isadmin) {
+if($canedit) {
 ?>
 
 <tr id=add_phones class=editbuttons>  
@@ -317,7 +325,7 @@ if($isadmin) {
 		<a class="picmanipbutton" href="#" onClick="pic_manip(<?php echo $personid ?>);"> Edit Photos </a>
 <?php
 	if( $row['display_label'] != null) {
-		echo '<a class="locationmanipbutton" href="#">DESK </a>';
+		echo '<a class="locationmanipbutton" href="#">Edit Desk</a>';
 	}
 ?>
 	</td>
