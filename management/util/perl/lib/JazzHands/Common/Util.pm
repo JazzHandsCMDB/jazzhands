@@ -52,8 +52,10 @@ sub _options {
 sub _dbx {
 	# XXX if oracle, return upper case, otherwise lower case
 	my $x = shift;
+	my $indir = shift;
 
-	my $dir = $direction;
+	# XXX should validate upper or lower
+	my $dir = ($indir)?$indir:$direction;
 
 	if(ref($x)) { 
 		if(ref($x) eq 'HASH') {
