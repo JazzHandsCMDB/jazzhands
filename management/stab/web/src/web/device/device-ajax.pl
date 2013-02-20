@@ -49,6 +49,7 @@ sub do_show_serial {
 	my $side     = $stab->cgi_parse_param('side')                 || undef;
 	my $passedin = $stab->cgi_parse_param('passedin')             || undef;
 	my $xml      = $stab->cgi_parse_param('xml')                  || 'no';
+	my $json      = $stab->cgi_parse_param('json')                || 'no';
 	my $parent   = $stab->cgi_parse_param('parent')               || undef;
 	my $osid     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID')  || undef;
 	my $site     = $stab->cgi_parse_param('SITE_CODE')            || undef;
@@ -89,9 +90,8 @@ sub do_show_serial {
 
 	if ( $xml ne 'yes' ) {
 		print $cgi->header("text/html");
-	} else {
-		print $cgi->header("text/xml");
-		print '<?xml version="1.0" encoding="utf-8" ?>', "\n\n";
+	} elsif( $json eq 'yes') {
+		print $cgi->header("text/json);
 		print "<response>\n";
 	}
 

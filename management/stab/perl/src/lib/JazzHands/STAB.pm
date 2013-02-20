@@ -119,9 +119,7 @@ sub new {
 #	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
 	$self->textfield_sizing(1);
-
 	bless $self, $class;
-
 }
 
 sub cgi {
@@ -839,6 +837,13 @@ sub b_nondbdropdown {
 		$pickone        = "Pick System";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
+	} elsif ( $field eq 'DNS_SRV_PROTOCOL' ) {
+		$default = '__unknown__';
+		@list = qw(tcp udp);
+		foreach my $l (@list) { $list{$l} = $l }
+		$pickone = 'Pick';
+		$list{$default} = $pickone;
+		unshift(@list, $default);
 	} elsif ( $field eq 'LOCATION_RACK_SIDE' ) {
 		@list = ( 'FRONT', 'BACK' );
 		my $df = 'FRONT';
@@ -1349,6 +1354,11 @@ sub b_dropdown {
 			$devcoltype = $params->{'-deviceCollectionType'};
 		}
 		$pickone = "Please Select License";
+	} elsif ( $selectfield eq 'DNS_SRV_SERVICE' ) {
+		$q = qq{
+			select	dns_srv_service, description
+			  from	val_dns_srv_service;
+		};
 	} else {
 		return "-XX-";
 	}
@@ -1591,6 +1601,7 @@ sub b_textfield {
 
 	my $default = $params->{'-default'};
 	my $ip0     = $params->{'-allow_ip0'};
+	my $class   = $params->{'-class'};
 
 	my $cgi = $self->cgi;
 
@@ -1723,6 +1734,7 @@ sub b_textfield {
 	$args->{'-disabled'} = 'true' if ($disabled);
 	$args->{'-name'}     = $name;
 	$args->{'-id'}       = $name;
+	$args->{'-class'}    = $class if( defined($class) );
 	$args->{'-default'}  = $allf if ( defined($allf) );
 	$args->{'-size'}     = $size if ($size);
 	$args->{'-maxlength'} = 2048;    ## [XXX] probably need to rethink!

@@ -34,6 +34,8 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
+use JazzHands::Common qw(_dbx);
+use Data::Dumper;
 use URI;
 
 do_domain_add();
@@ -55,14 +57,18 @@ sub link_inaddr_zone($$$) {
 	if ( !$nb ) {
 		my $parnb = $stab->guess_parent_netblock_id( $ip, 24 );
 		if ($parnb) {
-			$parnb = $parnb->{'NETBLOCK_ID'};
+			$parnb = $parnb->{_dbx('NETBLOCK_ID')};
 		}
 		$nb = $stab->add_netblock( $ip, $parnb, 24, 'Y' );
 	}
 
-	my $nbid = $nb->{'NETBLOCK_ID'};
-	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN',
-		'REVERSE_ZONE_BLOCK_PTR', $nbid );
+	my $nbid = $nb->{_dbx('NETBLOCK_ID')};
+	$stab->add_dns_record({
+		dns_domain_id => $dnsdomid,
+		dns_class => 'IN',
+		dns_type => 'REVERSE_ZONE_BLOCK_PTR',
+		netblock_id => $nbid
+	});
 	return 1;
 }
 
@@ -71,17 +77,31 @@ sub add_default_ns_records($$) {
 
 	# these really need to be set as properties in the database...
 
-	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'auth00.ns.example.com.' );
-	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'auth01.ns.example.com.' );
-	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'auth02.ns.example.com.' );
-	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'auth03.ns.example.com.' );
-	$stab->add_dns_record( $dnsdomid, undef, undef, 'IN', 'NS',
-		'auth04.ns.example.com.' );
+	my $match = [
+		{	key => 'property_name',
+			value => '_authdns'
+		},
+		{	key => 'property_type',
+			value => 'Defaults'
+		},
+	];
 
+	my $numchanges = 0;
+
+	my @errs;
+	foreach my $row (@{$stab->DBFetch(
+			table => 'property',
+			match => $match,
+			errors => \@errs)}) {
+		my $new = {
+			dns_domain_id => $dnsdomid,
+			dns_class => 'IN',
+			dns_type => 'NS',
+			dns_value => $row->{property_value}
+		};
+		$numchanges += $stab->add_dns_record($new)
+	}
+	$numchanges;
 }
 
 #
@@ -125,7 +145,7 @@ sub do_domain_add {
 		my $q = qq{
 			 select	dns_domain_id
 			   from	dns_domain
-			  where soa_name = :1
+			  where soa_name = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
 		$sth->execute($soaname) || $stab->return_db_err($sth);
@@ -141,58 +161,32 @@ sub do_domain_add {
 	my $bestparent =
 	  guess_best_parent_dns_domain_from_domain( $stab, $soaname );
 
-	my $q = qq{
-		insert into dns_domain (
-			soa_name,
-			soa_class,
-			soa_ttl,
-			soa_serial,
-			soa_refresh,
-			soa_retry,
-			soa_expire,
-			soa_minimum,
-			soa_mname,
-			soa_rname,
-			parent_dns_domain_id,
-			dns_domain_type,
-			should_generate
-		) values (
-			:soaname,
-			:class,
-			:ttl,
-			:serial,
-			:refresh,
-			:retry,
-			:expire,
-			:minimum,
-			:mname,
-			:rname,
-			:parent,
-			:type,
-			:shouldgen
-		) returning dns_domain_id into :dnsdomid
-	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err;
+	my $new = {
+			soa_name => $soaname,
+			soa_class => $class,
+			soa_ttl => $ttl,
+			soa_serial => $serial,
+			soa_refresh => $refresh,
+			soa_retry => $retry,
+			soa_expire => $expire,
+			soa_minimum => $min,
+			soa_mname => $mname,
+			soa_rname => $rname,
+			parent_dns_domain_id => $bestparent,
+			dns_domain_type => $type,
+			should_generate => $gen
+		};
 
-	my $dnsdomid;
-	$sth->bind_param( ':soaname', $soaname ) || $stab->return_db_err($sth);
-	$sth->bind_param( ':class',   $class )   || $stab->return_db_err($sth);
-	$sth->bind_param( ':ttl',     $ttl )     || $stab->return_db_err($sth);
-	$sth->bind_param( ':serial',  $serial )  || $stab->return_db_err($sth);
-	$sth->bind_param( ':refresh', $refresh ) || $stab->return_db_err($sth);
-	$sth->bind_param( ':retry',   $retry )   || $stab->return_db_err($sth);
-	$sth->bind_param( ':expire',  $expire )  || $stab->return_db_err($sth);
-	$sth->bind_param( ':minimum', $min )     || $stab->return_db_err($sth);
-	$sth->bind_param( ':mname',   $mname )   || $stab->return_db_err($sth);
-	$sth->bind_param( ':rname',   $rname )   || $stab->return_db_err($sth);
-	$sth->bind_param( ':type',   $type )   || $stab->return_db_err($sth);
-	$sth->bind_param( ':parent', $bestparent )
-	  || $stab->return_db_err($sth);
-	$sth->bind_param( ':shouldgen', $gen ) || $stab->return_db_err($sth);
-	$sth->bind_param_inout( ':dnsdomid', \$dnsdomid, 500 )
-	  || $stab->return_db_err($sth);
+        my @errs;
+        if(! ($numchanges = $stab->DBInsert(
+                table => 'dns_domain',
+                hash=> $new,
+                errors=> \@errs
+        ))) {
+                $stab->error_return(join(" ", @errs));
+        }
 
-	$numchanges += $sth->execute || $stab->return_db_err($sth);
+	my $dnsdomid = $new->{_dbx('dns_domain_id')};
 
 	if ( $soaname =~ /^((\d+)\.){3}in-addr.arpa$/ ) {
 		$numchanges += link_inaddr_zone( $stab, $soaname, $dnsdomid );
@@ -219,7 +213,7 @@ sub guess_best_parent_dns_domain_from_domain {
 	my $q = qq{
 		select	dns_domain_id
 		  from	dns_domain
-		 where	soa_name = :1
+		 where	soa_name = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
 

@@ -256,7 +256,7 @@ label {
 
 /* Editable descriptions */
 
-span.hinttext {
+.hinttext, .hint {
 	color: #a9a9a9;
 	font-size: 75%;
 	font-style: italic;
@@ -264,6 +264,15 @@ span.hinttext {
 
 input.editabletext {
 	width: 200px;
+}
+
+input.srvnum {
+	width: 5em;
+}
+
+.irrelevant {
+	display: none;
+	visibility: hidden;
 }
 
 END

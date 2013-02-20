@@ -22,6 +22,22 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
+# Copyright (c) 2013 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
 # $Id$
 #
 
@@ -34,6 +50,7 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
+use JazzHands::Common qw(:all);
 use FileHandle;
 use Data::Dumper;
 use URI;
@@ -49,22 +66,21 @@ do_dns_update();
 sub clear_same_dns_params {
 	my ( $stab, $domid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $q = qq{
 		select	d.dns_record_id,
 				d.dns_name, d.dns_class, d.dns_type, 
 				d.dns_value, d.dns_ttl, d.is_enabled,
-				net_manip.dbtop(nb.ip_address) as ip
+				net_manip.inet_dbtop(nb.ip_address) as ip
 		  from	dns_record d
 				left join netblock nb
 					on nb.netblock_id = d.netblock_id
 		 where	dns_domain_id = ?
 	};
-	my $sth = $dbh->prepare($q) || $stab->return_db_err;
+	my $sth = $stab->prepare($q) || $stab->return_db_err;
 	$sth->execute($domid) || $stab->return_db_err;
 
-	my $all = $sth->fetchall_hashref('DNS_RECORD_ID')
+	my $all = $sth->fetchall_hashref( _dbx('DNS_RECORD_ID') )
 	  || $stab->error_return(
 		"Unable to obtain existing DNS records from database.");
 
@@ -91,6 +107,17 @@ sub clear_same_dns_params {
 		my $in_enabled =
 		  $stab->cgi_parse_param( 'chk_IS_ENABLED', $dnsid );
 
+		my $in_srv_svc =
+		  $stab->cgi_parse_param( 'DNS_SRV_SERVICE', $dnsid );
+		my $in_srv_proto =
+		  $stab->cgi_parse_param( 'DNS_SRV_PROTOCOL', $dnsid );
+		my $in_srv_weight =
+		  $stab->cgi_parse_param( 'DNS_SRV_WEIGHT', $dnsid );
+		my $in_srv_port =
+		  $stab->cgi_parse_param( 'DNS_SRV_PORT', $dnsid );
+		my $in_priority =
+		  $stab->cgi_parse_param( 'DNS_PRIORITY', $dnsid );
+
 		$in_enabled = $stab->mk_chk_yn($in_enabled);
 
 		if ( !exists( $all->{$dnsid} ) ) {
@@ -98,37 +125,48 @@ sub clear_same_dns_params {
 		}
 
 		if ( !defined($in_ttl) ) {
-			$in_ttl = $all->{$dnsid}->{DNS_TTL};
+			$in_ttl = $all->{$dnsid}->{ _dbx('DNS_TTL') };
 		}
 
 		if ($in_ttlonly) {
-			if ( $all->{$dnsid}->{DNS_TTL} && $in_ttl ) {
-				if ( $all->{$dnsid}->{DNS_TTL} != $in_ttl ) {
+			if ( $all->{$dnsid}->{ _dbx('DNS_TTL') } && $in_ttl ) {
+				if ( $all->{$dnsid}->{ _dbx('DNS_TTL') } !=
+					$in_ttl )
+				{
 					next;
 				}
-			} elsif ( !$all->{$dnsid}->{DNS_TTL} && !$in_ttl ) {
+			} elsif (  !$all->{$dnsid}->{ _dbx('DNS_TTL') }
+				&& !$in_ttl )
+			{
 				;
 			} else {
 				next;
 			}
 
-			if ( $all->{$dnsid}->{IS_ENABLED} ne $in_enabled ) {
+			if ( $all->{$dnsid}->{ _dbx('IS_ENABLED') } ne
+				$in_enabled )
+			{
 				next;
 			}
 
 		} else {
-			if ( $all->{$dnsid}->{DNS_TYPE} eq 'A' ) {
-				$all->{$dnsid}->{DNS_VALUE} =
-				  $all->{$dnsid}->{IP};
+			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } eq 'A' ) {
+				$all->{$dnsid}->{ _dbx('DNS_VALUE') } =
+				  $all->{$dnsid}->{ _dbx('IP') };
 			}
 
 			my $map = {
-				DNS_NAME   => $in_name,
-				DNS_CLASS  => $in_class,
-				DNS_TYPE   => $in_type,
-				DNS_VALUE  => $in_value,
-				DNS_TTL    => $in_ttl,
-				IS_ENABLED => $in_enabled,
+				DNS_NAME         => $in_name,
+				DNS_CLASS        => $in_class,
+				DNS_TYPE         => $in_type,
+				DNS_VALUE        => $in_value,
+				DNS_TTL          => $in_ttl,
+				IS_ENABLED       => $in_enabled,
+				DNS_SRV_SERVICE  => $in_srv_svc,
+				DNS_SRV_PROTOCOL => $in_srv_proto,
+				DNS_SRV_WEIGHT   => $in_srv_weight,
+				DNS_SRV_PORT     => $in_srv_port,
+				DNS_SRV_PRIORITY => $in_priority,
 			};
 
 	    # if it correponds to an actual row, compare, otherwise only keep if
@@ -186,7 +224,6 @@ sub clear_same_dns_params {
 sub process_dns_add {
 	my ( $stab, $domid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $numchanges = 0;
 
@@ -196,9 +233,15 @@ sub process_dns_add {
 	my $type  = $stab->cgi_parse_param('DNS_TYPE');
 	my $value = $stab->cgi_parse_param('DNS_VALUE');
 
-	if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
-		return $numchanges;
+	if ( !$name && !$class && !$type && !$value ) {
+		return 0;
 	}
+
+	my $in_srv_svc    = $stab->cgi_parse_param('DNS_SRV_SERVICE');
+	my $in_srv_proto  = $stab->cgi_parse_param('DNS_SRV_PROTOCOL');
+	my $in_srv_weight = $stab->cgi_parse_param('DNS_SRV_WEIGHT');
+	my $in_srv_port   = $stab->cgi_parse_param('DNS_SRV_PORT');
+	my $in_priority   = $stab->cgi_parse_param('DNS_PRIORITY');
 
 	if ( defined($name) ) {
 		$name =~ s/^\s+//;
@@ -220,14 +263,42 @@ sub process_dns_add {
 		$stab->error_return("TTL, if set, must be a number");
 	}
 
+	if ( $type eq 'MX' ) {
+		$in_srv_svc = $in_srv_proto = $in_srv_weight =
+		  $in_srv_port = undef;
+	} elsif ( $type ne 'SRV' ) {
+		$in_srv_svc    = $in_srv_proto = $in_srv_weight =
+		  $in_srv_port = $in_priority  = undef;
+	}
+
+	if ( defined($in_srv_port) && $in_srv_port !~ /^\d+/ ) {
+		$stab->error_return("SRV Port must be a number");
+	}
+
+	if ( defined($in_srv_weight) && $in_srv_weight !~ /^\d+/ ) {
+		$stab->error_return("SRV weight must be a number");
+	}
+
+	if ( defined($in_priority) && $in_priority !~ /^\d+/ ) {
+		$stab->error_return("SRV/MX Priority must be a number");
+	}
+
+	if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
+		return $numchanges;
+	}
+
 	my $cur = $stab->get_dns_record_from_name( $name, $domid );
 	if ($cur) {
-		if ( $type eq 'CNAME' && $cur->{'DNS_TYPE'} ne 'CNAME' ) {
+		if (       $type eq 'CNAME'
+			&& $cur->{ _dbx('DNS_TYPE') } ne 'CNAME' )
+		{
 			$stab->error_return(
 "You may not add a CNAME, when records of other types exist."
 			);
 		}
-		if ( $type ne 'CNAME' && $cur->{'DNS_TYPE'} eq 'CNAME' ) {
+		if (       $type ne 'CNAME'
+			&& $cur->{ _dbx('DNS_TYPE') } eq 'CNAME' )
+		{
 			$stab->error_return(
 "You may not add non-CNAMEs when CNAMEs already exist"
 			);
@@ -236,11 +307,26 @@ sub process_dns_add {
 
 	if ( ( !defined($name) || !length($name) ) && $type eq 'CNAME' ) {
 		$stab->error_return(
-			"CNAMEs are illegal when combined with an SOA record.");
+			"CNAMEs are illegal when combined with an SOA record."
+		);
 	}
-	$numchanges +=
-	  process_and_insert_dns_record( $stab, $domid, $name, $ttl, $class,
-		$type, $value );
+
+	my $new = {
+		dns_name         => $name,
+		dns_domain_id    => $domid,
+		dns_ttl          => $ttl,
+		dns_class        => $class,
+		dns_type         => $type,
+		dns_value        => $value,
+		dns_priority     => $in_priority,
+		dns_srv_service  => $in_srv_svc,
+		dns_srv_protocol => $in_srv_proto,
+		dns_srv_weight   => $in_srv_weight,
+		dns_srv_port     => $in_srv_port,
+		is_enabled       => 'Y'
+	};
+
+	$numchanges += process_and_insert_dns_record( $stab, $new );
 
 	$numchanges;
 }
@@ -248,9 +334,10 @@ sub process_dns_add {
 sub do_dns_update {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
-	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
 	my $numchanges;
+
+      #- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $domid = $stab->cgi_parse_param('DNS_DOMAIN_ID');
 
@@ -260,8 +347,6 @@ sub do_dns_update {
 	}
 
 	clear_same_dns_params( $stab, $domid );
-
-       # print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $genflip = $stab->cgi_parse_param('AutoGen');
 
@@ -276,7 +361,7 @@ sub do_dns_update {
 				 where	dns_record_id = ?
 			};
 			$delsth = $stab->prepare($q)
-			  || $stab->return_db_err($dbh);
+			  || $stab->return_db_err;
 		}
 		$delsth->execute($delid) || $stab->return_db_err($delsth);
 		$cgi->delete("Del_$delid");
@@ -338,32 +423,35 @@ sub do_dns_update {
 	}
 
 	if ($numchanges) {
-		$dbh->commit;
+		$stab->commit;
 		my $url = "./?dnsdomainid=" . $domid;
 		$stab->msg_return( "Zone Updated", $url, 1 );
 	}
 
-	$dbh->rollback;
+	$stab->rollback;
 	$stab->msg_return("Nothing to do");
 }
 
 sub process_and_insert_dns_record {
-	my ( $stab, $domid, $name, $ttl, $class, $type, $value ) = @_;
+	my $stab = shift @_;
+	my $opts = shift @_;
 
-	my $dbh = $stab->dbh;
+	$opts = _dbx( $opts, 'lower' );
 
-	if ( $type eq 'A' ) {
-		if ( $value !~ /^(\d+\.){3}\d+/ ) {
-			$stab->error_return("$value is not a valid IP address");
-		}
-		my $block = $stab->get_netblock_from_ip($value);
-		if ( !defined($block) ) {
+	if ( $opts->{dns_type} eq 'A' ) {
+		if ( $opts->{dns_value} !~ /^(\d+\.){3}\d+/ ) {
 			$stab->error_return(
-				"IP Address $value is not reserved");
+				$opts->{value} . " is not a valid IP address" );
 		}
-		$value = $block->{'NETBLOCK_ID'};
+		my $block = $stab->get_netblock_from_ip( $opts->{dns_value} );
+		if ( !defined($block) ) {
+			$stab->error_return( "IP Address "
+				  . $opts->{dns_value}
+				  . " is not reserved" );
+		}
+		$opts->{dns_value} = $block->{ _dbx('NETBLOCK_ID') };
 	}
-	$stab->add_dns_record( $domid, $name, $ttl, $class, $type, $value );
+	$stab->add_dns_record($opts);
 
 	return 1;
 }
@@ -373,14 +461,13 @@ sub process_and_update_dns_record {
 		$stab, $dnsrecid, $name,    $ttl, $class,
 		$type, $value,    $ttlonly, $enabled
 	) = @_;
-	my $dbh = $stab->dbh;
 
 	$enabled = 'Y' if ( !defined($enabled) );
 
 	my $orig = $stab->get_dns_record_from_id($dnsrecid);
 
 	if ( !defined($ttl) ) {
-		$ttl = $orig->{'DNS_TTL'};
+		$ttl = $orig->{ _dbx('DNS_TTL') };
 	} elsif ( !length($ttl) ) {
 		$ttl = undef;
 	}
@@ -403,15 +490,15 @@ sub process_and_update_dns_record {
 		);
 	}
 	if ( defined($class) ) {
-		$newrecord{'DNS_CLASS'} = $class;
+		$newrecord{ _dbx('DNS_CLASS') } = $class;
 	}
 
 	if ( defined($type) ) {
-		$newrecord{'DNS_TYPE'} = $type;
+		$newrecord{ _dbx('DNS_TYPE') } = $type;
 	}
 
-	if ( $orig->{'DNS_TYPE'} ne 'A' && $type eq 'A' ) {
-		$newrecord{'DNS_VALUE'} = undef;
+	if ( $orig->{ _dbx('DNS_TYPE') } ne 'A' && $type eq 'A' ) {
+		$newrecord{ _dbx('DNS_VALUE') } = undef;
 
 		if ( $value !~ /^(\d+\.){3}\d+/ ) {
 			$stab->error_return("$value is not a valid IP address");
@@ -421,20 +508,21 @@ sub process_and_update_dns_record {
 		if ( !defined($block) ) {
 			$stab->error_return("IP Address is not reserved");
 		}
-		$newrecord{'NETBLOCK_ID'} = $block->{'NETBLOCK_ID'};
+		$newrecord{ _dbx('NETBLOCK_ID') } =
+		  $block->{ _dbx('NETBLOCK_ID') };
 	}
 
-	my $diffs = $stab->hash_table_diff( $orig, \%newrecord );
+	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newrecord ) );
 	my $tally = keys %$diffs;
 	if ( !$tally ) {
 		return 0;
 	} elsif (
-		!$stab->build_update_sth_from_hash(
+		!$stab->run_update_from_hash(
 			"DNS_RECORD", "DNS_RECORD_ID", $dnsrecid, $diffs
 		)
 	  )
 	{
-		$dbh->rollback;
+		$stab->rollback;
 		$stab->error_return(
 			"Unknown Error with Update for id#$dnsrecid");
 	}
@@ -447,6 +535,11 @@ sub process_and_update_dns_record {
 #
 sub dns_domain_authcheck {
 	my ( $stab, $domid ) = @_;
+
+	# XXXXXXXXXXXXXXXXXXXXXX
+	# XXX -- NEED TO FIX XXX
+	# XXXXXXXXXXXXXXXXXXXXXX
+	return 1;
 
 	my $cgi = $stab->cgi;
 
@@ -485,7 +578,7 @@ sub dns_domain_authcheck {
 	my $altwwwgroup = $wwwgroup;
 	my $hr          = $stab->get_dns_domain_from_id($domid);
 	if ($hr) {
-		$altwwwgroup = $wwwgroup . "--" . $hr->{'SOA_NAME'};
+		$altwwwgroup = $wwwgroup . "--" . $hr->{ _dbx('SOA_NAME') };
 	}
 
 	#
@@ -494,7 +587,7 @@ sub dns_domain_authcheck {
 	#
 	# if there's no auth directory, then its not on, and return.
 	# (this needs to move to db based auth)
-	return 1 if(! -d "/prod/www/auth");
+	return 1 if ( !-d "/prod/www/auth" );
 	my $fn   = "/prod/www/auth/groups";
 	my $auth = new FileHandle($fn);
 

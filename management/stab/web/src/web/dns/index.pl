@@ -31,20 +31,18 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(_dbx);
 
 do_dns_toplevel();
 
 sub do_dns_toplevel {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
-	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
 	my $dnsid = $stab->cgi_parse_param('dnsdomainid');
 
 	if ( !defined($dnsid) ) {
 
-		# dump_all_zones($stab,$cgi,$dbh);
 		dump_all_zones_dropdown($stab);
 	} else {
 		dump_zone( $stab, $dnsid );
@@ -54,7 +52,6 @@ sub do_dns_toplevel {
 sub dump_all_zones_dropdown {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html({-title=>"DNS Zones", -javascript => 'dns'}), "\n";
@@ -109,7 +106,7 @@ sub dump_all_zones_dropdown {
 }
 
 sub dump_all_zones {
-	my ( $stab, $cgi, $dbh ) = @_;
+	my ( $stab, $cgi) = @_;
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html({-title=>"DNS Zones", -javascript => 'dns'}), "\
@@ -133,7 +130,7 @@ n";
 		  from	dns_domain
 		order by soa_name
 	};
-	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q) || return $stab->return_db_err;
 	$sth->execute || return $stab->return_db_err($sth);
 
 	my $maxperrow = 4;
@@ -203,14 +200,12 @@ n";
 	print $cgi->end_html, "\n";
 
 	$sth->finish;
-	$dbh = undef;
 }
 
 sub zone_dns_records {
 	my ( $stab, $dnsdomainid ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $q = qq{
 		select	dns.dns_record_id,
@@ -235,7 +230,7 @@ sub zone_dns_records {
 		  and	dns.dns_domain_id = ?
 		order by dns.dns_type
 	};
-	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q) || return $stab->return_db_err;
 	$sth->execute($dnsdomainid) || return $stab->return_db_err($sth);
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
@@ -261,6 +256,7 @@ sub build_fwd_zone_Tr {
 	if ( defined($hr) && defined( $hr->{_dbx('DNS_NAME')} ) ) {
 		$name = $hr->{_dbx('DNS_NAME')};
 	}
+
 	my $showexcess = 1;
 	my $ttlonly    = 0;
 	if ( defined($hr) && $hr->{_dbx('DEVICE_ID')} ) {
@@ -282,7 +278,7 @@ sub build_fwd_zone_Tr {
 		$class =
 		  $stab->b_dropdown( $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
 		$type =
-		  $stab->b_dropdown( $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
+		  $stab->b_dropdown({-class=>'dnstype'}, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
 		$value = $stab->b_textfield( { -textfield_width => 40 },
 			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
 		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
@@ -305,7 +301,7 @@ sub build_fwd_zone_Tr {
 		$class =
 		  $stab->b_dropdown( $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
 		$type =
-		  $stab->b_dropdown( $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
+		  $stab->b_dropdown({-class=>'dnstype'}, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
 	}
 
 	my $excess = "";
@@ -345,6 +341,25 @@ sub build_fwd_zone_Tr {
 	my $enablebox = $stab->build_checkbox( { -default => 'Y' },
 		$hr, "", "IS_ENABLED", 'DNS_RECORD_ID' );
 
+	# for SRV records, it iss necessary to prepend the 
+	# protocol and service name to the name 
+	if($hr && $hr->{_dbx('DNS_TYPE')} eq 'SRV') {
+		$name = 
+			$stab->b_nondbdropdown(undef, $hr, 'DNS_SRV_PROTOCOL', 'DNS_RECORD_ID', 1). 
+			$stab->b_dropdown(undef, $hr, 'DNS_SRV_SERVICE', 'DNS_RECORD_ID', 1). 
+			$name;
+
+		$value = 
+			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_PRIORITY', 'DNS_RECORD_ID' ).
+			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_SRV_WEIGHT', 'DNS_RECORD_ID' ).
+			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_SRV_PORT', 'DNS_RECORD_ID' ).
+			$value;
+	} elsif($hr && $hr->{_dbx('DNS_TYPE')} eq 'MX') {
+		$value =
+			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_PRIORITY', 'DNS_RECORD_ID' ).
+			$value;
+	}
+
 	$stab->textfield_sizing(1);
 	return $cgi->Tr(
 		$cgi->td( $hidden, $enablebox ), $cgi->td($name),
@@ -358,19 +373,9 @@ sub zone_fwd_records {
 	my ( $stab, $dnsdomainid ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $q = qq{
-		select	dns.dns_record_id,
-				dns.dns_name,
-				dns.dns_domain_id,
-				dns.dns_ttl,
-				dns.dns_class,
-				dns.DNS_TYPE,
-				dns.dns_value,
-				dns.netblock_id,
-				dns.should_generate_ptr,
-				dns.is_enabled,
+		select	dns.*,
 				nb.netblock_id,
 				net_manip.inet_dbtop(nb.ip_address) as IP,
 				ni.device_id
@@ -391,7 +396,7 @@ sub zone_fwd_records {
 		  and	dns.dns_domain_id = ?
 		order by dns.dns_name
 	};
-	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q) || return $stab->return_db_err();
 	$sth->execute($dnsdomainid) || return $stab->return_db_err($sth);
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
@@ -404,7 +409,6 @@ sub zone_rvs_records {
 	my ( $stab, $dnsdomainid ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $q = qq{
 		select  distinct nb.ip_address,
@@ -438,7 +442,7 @@ sub zone_rvs_records {
 		   and  rootd.dns_domain_id = ?
 		order by nb.ip_address
 	};
-	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q) || return $stab->return_db_err();
 	$sth->execute($dnsdomainid) || return $stab->return_db_err($sth);
 
 	$stab->textfield_sizing(0);
@@ -527,7 +531,6 @@ sub zone_rvs_records {
 sub dump_zone {
 	my ( $stab, $dnsdomainid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $q = qq{
 		select 	d1.dns_domain_id,
@@ -550,7 +553,7 @@ sub dump_zone {
 					d1.parent_dns_domain_id = d2.dns_domain_id
 		where	d1.dns_domain_id = ?
 	};
-	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q) || return $stab->return_db_err;
 	$sth->execute($dnsdomainid) || return $stab->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
@@ -669,7 +672,6 @@ sub dump_zone {
 sub build_reverse_association_section {
 	my ( $stab, $domid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $q = qq{
 		select	d.netblock_id,
@@ -681,7 +683,7 @@ sub build_reverse_association_section {
 		 where	d.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
 		   and	d.dns_domain_id = ?
 	};
-	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q) || return $stab->return_db_err();
 	$sth->execute($domid) || return $stab->return_db_err($sth);
 
 	my $linkage = "";

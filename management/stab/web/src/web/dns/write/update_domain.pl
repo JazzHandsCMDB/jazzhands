@@ -34,7 +34,7 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::GenericDB qw(_dbx);
+use JazzHands::Common qw(:all);
 use URI;
 
 do_domain_update();
@@ -114,13 +114,17 @@ sub process_domain_soa_changes {
 	if ( !$tally ) {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
 	} elsif (
-		!$stab->run_update_from_hash(
-			"DNS_DOMAIN", "DNS_DOMAIN_ID", $domid, $diffs
+		!$stab->DBUpdate(
+			table => "DNS_DOMAIN", 
+			dbkey => "DNS_DOMAIN_ID", 
+			keyval => $domid, 
+			hash => $diffs
 		)
 	  )
 	{
 		$dbh->rollback;
-		$stab->error_return("Unknown Error with Update");
+		#$stab->error_return("Unknown Error with Update");
+		$stab->return_db_err($dbh);
 	} else {
 		$dbh->commit;
 		$stab->msg_return( "Successful update!", undef, 1 );

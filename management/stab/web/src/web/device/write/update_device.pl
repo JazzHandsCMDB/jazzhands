@@ -1111,7 +1111,12 @@ sub process_ip {
 		}
 	} elsif(defined($dns) && defined($dnsdomid)) {
 		$numchanges++;
-		$stab->add_dns_a_record($dns, $dnsdomid, $nblk->{'NETBLOCK_ID'});
+		$stab->add_dns_record({
+			dns_name => $dns,
+			dns_domain_id => $dnsdomid,
+			dns_type => 'A',
+			netblock_id = $nblk->{_dbx('NETBLOCK_ID')},
+		});
 	}
 
 	if($numchanges == 0) {
@@ -2259,7 +2264,12 @@ sub add_interfaces {
 	$sth->execute || $stab->return_db_err($sth, "network_interface");
 
 	if(defined($dns) && defined($dnsdomid)) {
-		$stab->add_dns_a_record($dns, $dnsdomid, $nblk->{'NETBLOCK_ID'});
+		$stab->add_dns_record({
+			dns_name => $dns,
+			dns_domain_id => $dnsdomid,
+			dns_type => 'A',
+			netblock_id = $nblk->{_dbx('NETBLOCK_ID')},
+		});
 }
 
 	#
