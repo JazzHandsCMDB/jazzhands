@@ -29,11 +29,11 @@ our $VERSION = '1.0';
 our @ISA = qw(
 	Exporter
 );
-our @EXPORT_OK = qw(_options _dbx hash_table_diff );
+our @EXPORT_OK = qw(_options _dbx hash_table_diff member_hash_diff );
 
 %EXPORT_TAGS = 
 (
-	'all' => [qw(_options _dbx hash_table_diff)],
+	'all' => [qw(_options _dbx hash_table_diff member_hash_diff )],
 );
 
 our $direction = 'lower';
