@@ -55,14 +55,14 @@ if(isset($__json->{'onload'}) && isset($__json->{'environment'})) {
 
 
 class dbauth {
-	private function parse_json_auth($filename) {
+	private static function parse_json_auth($filename) {
 		$thing = json_decode(file_get_contents($filename));
 		if(isset($thing->{'database'})) {
 			return $thing;
 		}
 	}
 
-	private function find_and_parse_series($place) {
+	private static function find_and_parse_series($place) {
 		global $__json, $__appauthcfg;
 		$default_dir = "/var/lib/jazzhands/appauth-info";
 		if(isset($__json) && isset($__json->{'search_dirs'})) {
@@ -81,7 +81,7 @@ class dbauth {
 		}
 	}
 
-	private function find_and_parse_auth($app, $instance) {
+	private static function find_and_parse_auth($app, $instance) {
 		global $__json;
 		global $__appauthauthcfg;
 		if(isset($instance)) {
@@ -103,7 +103,7 @@ class dbauth {
 
 	// discern the underlying database and make the right call. This is kind
 	// of lame, but Vv.
-	private function optional_set_session_user($dbh, $login, $options) {
+	private static function optional_set_session_user($dbh, $login, $options) {
 		global $__json;
 
 		$doit = 0;
@@ -139,7 +139,7 @@ class dbauth {
 		return dbauth::set_session_user($dbh, $login);
 	}
 
-	public function set_session_user($dbh, $login) { 
+	public static function set_session_user($dbh, $login) { 
 		if(gettype($dbh) == 'resource') {
 			switch( get_resource_type( $dbh ) ) {
 				case 'pgsql link':
@@ -152,7 +152,7 @@ class dbauth {
 		return 1;
 	}
 
-	public function connect($app, $instance = null, $login = null, $flags = null) {
+	public static function connect($app, $instance = null, $login = null, $flags = null) {
 		$record = dbauth::find_and_parse_auth($app, $instance);
 
 		if(!isset($record)) {
