@@ -70,14 +70,22 @@ sub run_update_from_hash {
 }
 
 sub DBUpdate {
-	my $self = shift;
+	my $self;
+	$self = shift if ($#_ % 2 == 0);
 	my $opt = &_options(@_);
 
 	my ($dbh, $table, $dbkey, $keyval, $hash);
+
 	# accept either because STAB uses dbh
-	if (!($dbh = $opt->{dbhandle})) {
-		$dbh = $opt->{dbh};
+	$dbh = $opt->{dbhandle} || $opt->{dbh};
+
+	#
+	# Check the object for a valid database handle if one wasn't passed
+	#
+	if (!$dbh) {
+		eval { $dbh = $self->DBHandle };
 	}
+
 	if(!$dbh) {
 		SetError($opt->{errors},
 			"must pass dbhandle parameter to DBFetch");
@@ -193,27 +201,37 @@ sub DBUpdate {
 			return undef;
 		}
 	}
-	if (!($sth->execute)) {
+	my $ret;
+	if (!($ret = $sth->execute)) {
 		SetError($opt->{errors}, 
 			sprintf("DBUpdate: Error executing update: %s",
 				$sth->errstr));
 		return undef;
 	}
-	1;
+	$sth->finish;
+	$ret;
 }
 
 sub DBInsert {
-	my $self = shift;
+	my $self;
+	$self = shift if ($#_ % 2 == 0);
 	my $opt = &_options(@_);
 
 	my ($dbh, $table, $hash);
+
 	# accept either because STAB uses dbh
-	if (!($dbh = $opt->{dbhandle})) {
-		$dbh = $opt->{dbh};
+	$dbh = $opt->{dbhandle} || $opt->{dbh};
+
+	#
+	# Check the object for a valid database handle if one wasn't passed
+	#
+	if (!$dbh) {
+		eval { $dbh = $self->DBHandle };
 	}
+
 	if(!$dbh) {
 		SetError($opt->{errors},
-			"must pass dbhandle parameter to DBFetch");
+			"must pass dbhandle parameter to DBInsert");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
@@ -261,7 +279,8 @@ sub DBInsert {
 			return undef;
 		}
 	}
-	if (!($sth->execute)) {
+	my $ret;
+	if (!($ret = $sth->execute)) {
 		SetError($opt->{errors}, 
 			sprintf("DBInsert: Error executing insert: %s",
 				$sth->errstr));
@@ -279,21 +298,28 @@ sub DBInsert {
 		}
 	}
 	$sth->finish;
-	1;
+	$ret;
 }
 
 sub DBDelete {
-	my $self = shift;
+	my $self;
+	$self = shift if ($#_ % 2 == 0);
 	my $opt = &_options(@_);
 
 	my ($dbh, $table, $dbkey, $keyval, $hash);
+
 	# accept either because STAB uses dbh
-	if (!($dbh = $opt->{dbhandle})) {
-		$dbh = $opt->{dbh};
+	$dbh = $opt->{dbhandle} || $opt->{dbh};
+
+	#
+	# Check the object for a valid database handle if one wasn't passed
+	#
+	if (!$dbh) {
+		eval { $dbh = $self->DBHandle };
 	}
 	if(!$dbh) {
 		SetError($opt->{errors},
-			"must pass dbhandle parameter to DBFetch");
+			"must pass dbhandle parameter to DBDelete");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
@@ -313,6 +339,7 @@ sub DBDelete {
 	#
 
 	my $update_whereclause;
+	my $multikey = 0;
 	if(!ref($dbkey)) {
 		$update_whereclause = "$dbkey = :pk__$dbkey";
 	} elsif(ref($dbkey) eq 'ARRAY') {
@@ -326,15 +353,32 @@ sub DBDelete {
 			if(length($update_whereclause)) {
 				$update_whereclause .= " and ";
 			}
-			$update_whereclause .= $$dbkey[$i] . " = :pk__".$$dbkey[$i];
+			if (ref($keyval->[$i]) eq 'ARRAY') {
+				$update_whereclause .= $$dbkey[$i] . "= ANY( :pk__".$$dbkey[$i] . ')';
+				$multikey++;
+			} else {
+				$update_whereclause .= $$dbkey[$i] . " = :pk__".$$dbkey[$i];
+			}
 		}
 	} else {
 		foreach my $key (keys %$dbkey) {
 			if(length($update_whereclause)) {
 				$update_whereclause .= " and ";
 			}
-			$update_whereclause .= $key . " = :pk__".$key;
+			if (ref($dbkey->{$key}) eq 'ARRAY') {
+				$update_whereclause .= $key . " = ANY( :pk__".$key .')';
+				$multikey++;
+			} else {
+				$update_whereclause .= $key . " = :pk__".$key;
+			}
 		}
+	}
+	#
+	# This is just for safety
+	#
+	if ($multikey > 1) {
+		SetError($opt->{errors}, 'only one multivalue key may be passed to DBDelete');
+		return undef;
 	}
 	my $q = qq{
 		delete from $table
@@ -382,23 +426,33 @@ sub DBDelete {
 			}
 		}
 	}
-	if (!($sth->execute)) {
+
+	my $ret;
+	if (!($ret = $sth->execute)) {
 		SetError($opt->{errors}, 
 			sprintf("DBDelete: Error executing update: %s",
 				$sth->errstr));
 		return undef;
 	}
-	1;
+	$sth->finish;
+	$ret;
 }
 
 sub DBFetch {
-	my $self = shift;
+	my $self;
+	$self = shift if ($#_ % 2 == 0);
 	my $opt = &_options(@_);
 
 	my ($dbh, $table);
+
 	# accept either because STAB uses dbh
-	if (!($dbh = $opt->{dbhandle})) {
-		$dbh = $opt->{dbh};
+	$dbh = $opt->{dbhandle} || $opt->{dbh};
+
+	#
+	# Check the object for a valid database handle if one wasn't passed
+	#
+	if (!$dbh) {
+		eval { $dbh = $self->DBHandle };
 	}
 	if(!$dbh) {
 		SetError($opt->{errors},

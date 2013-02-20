@@ -97,7 +97,6 @@ sub GetNetblock {
 		return undef;
 	}
 
-	SetError($opt->{debug}, "Totally here");
 	my $match;
 
 	if ( $opt->{netblock_id} ) {
@@ -105,7 +104,9 @@ sub GetNetblock {
 			key => 'netblock_id',
 			value => $opt->{netblock_id}
 		};
-		$opt->{single} = 1;
+		if (!ref($opt->{netblock_id})) {
+			$opt->{single} = 1;
+		}
 	} else {
 		push @$match, {
 			key => 'ip_universe_id',

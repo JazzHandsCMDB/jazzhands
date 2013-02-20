@@ -1,17 +1,17 @@
-## Copyright (c) 2012,2013 Matthew Ragan
-## All rights reserved.
-##
-## Licensed under the Apache License, Version 2.0 (the "License");
-## you may not use this file except in compliance with the License.
-## You may obtain a copy of the License at
-##
-##       http://www.apache.org/licenses/LICENSE-2.0
-##
-## Unless required by applicable law or agreed to in writing, software
-## distributed under the License is distributed on an "AS IS" BASIS,
-## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-## See the License for the specific language governing permissions and
-## limitations under the License.
+# Copyright (c) 2012,2013 Matthew Ragan
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 package JazzHands::Mgmt;
 
@@ -21,8 +21,12 @@ use warnings;
 use JazzHands::DBI;
 use JazzHands::Common qw(_options SetError);
 use JazzHands::Common::GenericDB;
+use JazzHands::Common::Util qw(:all);
 
 use JazzHands::Mgmt::Netblock qw(GetNetblock);
+use JazzHands::Mgmt::Collection qw(GetCollection);
+
+use Data::Dumper;
 
 my $ErrMsg = undef;
 
@@ -31,7 +35,6 @@ my $ErrMsg = undef;
 # modules.
 
 use DBI;
-#use JazzHands::Mgmt::Netblock qw(:DEFAULT);
 
 use POSIX;
 
@@ -190,6 +193,50 @@ sub write {
     }
 
 	#
+	# If we're a collection, process deletions first, so if we're deleting
+	# the collection itself, that won't fail because of constraints
+	#
+	my $memberdiff;
+	if ($self->{_objecttype} eq 'membertable') {
+		#
+		# If the _currentmember hash does not exist, then we're deleting
+		#
+		if (!exists($self->{_currentmembers})) {
+			if (exists($self->{_origmembers})) {
+				if (!(JazzHands::Common::GenericDB->DBDelete(
+						dbhandle => $dbh,
+						table => $self->{_dbmembertable},
+						dbkey => { map { $_ => $self->{_orig}->{$_} } 
+							@{$self->{_dbkey}} },
+						errors => $opt->{errors}))) {
+					return undef;
+				}
+				delete $self->{_origmembers};
+			}
+		} else {
+			if (exists($self->{_origmembers})) {
+				$memberdiff = 
+					member_hash_diff(
+						$self->{_origmembers}, $self->{_currentmembers});
+
+				if (@{$memberdiff->{deletions}}) {
+					if (!(JazzHands::Common::GenericDB->DBDelete(
+							dbhandle => $dbh,
+							table => $self->{_dbmembertable},
+							dbkey => { 
+								(map { $_ => $self->{_orig}->{$_} } 
+									@{$self->{_dbkey}}), 
+								$self->{_memberkey} => 
+									$memberdiff->{deletions}
+							},
+							errors => $opt->{errors}))) {
+						return undef;
+					}
+				}
+			}
+		}
+	}
+	#
 	# If the _current hash does not exist, then we're deleting
 	#
 	if (!exists($self->{_current})) {
@@ -235,10 +282,10 @@ sub write {
 				return undef;
 			}
 		}
-        my $updatehash = JazzHands::Common::GenericDB::hash_table_diff(
-            $self->{_orig}, $self->{_current});
+		my $updatehash = hash_table_diff(
+			$self->{_orig}, $self->{_current});
 
-        if (scalar(%{$updatehash})) {
+		if (scalar(%{$updatehash})) {
 			if (!(JazzHands::Common::GenericDB->DBUpdate(
 					dbhandle => $dbh,
 					table => $self->{_dbtable},
@@ -248,12 +295,12 @@ sub write {
 					errors => $opt->{errors}))) {
 				return undef;
 			}
-			if (ref($self->{_updateafterhook}) eq 'CODE') {
-				if (!(&{$self->{_updateafterhook}}($self, @_))) {
-					return undef;
-				}
+		}
+		if (ref($self->{_updateafterhook}) eq 'CODE') {
+			if (!(&{$self->{_updateafterhook}}($self, @_))) {
+				return undef;
 			}
-        }
+		}
     } else {
 		if (ref($self->{_insertbeforehook}) eq 'CODE') {
 			if (!(&{$self->{_insertbeforehook}}($self, @_))) {
@@ -280,6 +327,33 @@ sub write {
 	foreach my $key (keys %{$self->{_current}}) {
 		$self->{_orig}->{$key} = $self->{_current}->{$key};
 	}
+
+	#
+	# Process member additions (deletes were done above)
+	#
+	if ($self->{_objecttype} eq 'membertable') {
+		my $additions;
+		if (exists($self->{_origmembers})) {
+			$additions = $memberdiff->{additions};
+		} else {
+			$additions = [ keys %{$self->{_currentmembers}} ];
+		}
+		foreach my $key (@$additions) {
+			if (!(JazzHands::Common::GenericDB->DBInsert(
+					dbhandle => $dbh,
+					table => $self->{_dbmembertable},
+					hash => { 
+						(map { $_ => $self->{_orig}->{$_} } 
+							@{$self->{_dbkey}}), 
+						$self->{_memberkey} => $key
+					},
+					errors => $opt->{errors}))) {
+				return undef;
+			}
+		}
+		$self->{_origmembers} = { %{$self->{_currentmembers}} };
+	}
+	
 	1;
 }
 
