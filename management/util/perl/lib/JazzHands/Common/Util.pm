@@ -140,10 +140,10 @@ sub member_hash_diff {
 		$rv->{additions} = [ keys %$hash1 ];
 	} else {
 		foreach my $key (keys %$hash1) {
-			push($rv->{deletions}, $key) if (!exists($hash2->{$key}));
+			push(@{$rv->{deletions}}, $key) if (!exists($hash2->{$key}));
 		}
 		foreach my $key (keys %$hash2) {
-			push($rv->{additions}, $key) if (!exists($hash1->{$key}));
+			push(@{$rv->{additions}}, $key) if (!exists($hash1->{$key}));
 		}
 	}
 	$rv;
