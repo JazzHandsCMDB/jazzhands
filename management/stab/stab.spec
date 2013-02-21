@@ -196,6 +196,7 @@ rm -rf %{buildroot}
 %{prefix}/dns/write/.htaccess
 %{prefix}/dns/write/update_domain.pl
 %{prefix}/dns/soacheck.pl
+%{prefix}/dns/dns-ajax.pl
 
 %files -n jazzhands-perl-stab
 ##  %doc Changes README
