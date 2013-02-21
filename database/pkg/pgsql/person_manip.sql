@@ -253,6 +253,15 @@ BEGIN
 	-- move any account collections over that are
 	-- not infrastructure ones, and the new person is
 	-- not in
+    DELETE FROM account_collection_account WHERE
+		account_id = merge_to_account_id  AND
+		account_collection_id IN (
+			SELECT account_collection_id
+				FROM account_collection
+					INNER JOIN val_account_collection_type
+						USING (account_collection_type)
+				WHERE is_infrastructure_type = 'N'
+		);
 	UPDATE	account_collection_account
 	   SET	ACCOUNT_ID = merge_to_account_id
 	 WHERE	ACCOUNT_ID = merge_from_account_id
