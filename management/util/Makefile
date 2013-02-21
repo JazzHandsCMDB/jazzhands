@@ -1,7 +1,8 @@
 INSTBASE=/usr/lib/perl5/vendor_perl
 
 all:
-	(cd perl && perl Makefile.PL LIB=$(INSTBASE) && $(MAKE) pure_all)
+	(cd perl && perl Makefile.PL INSTALLDIRS=vendor LIB=$(INSTBASE) && $(MAKE) pure_all)
+
 
 install:
 	(cd perl && $(MAKE) DESTDIR=`pwd`/../fakeroot pure_vendor_install)
