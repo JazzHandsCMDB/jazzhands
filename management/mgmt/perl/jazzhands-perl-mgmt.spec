@@ -1,5 +1,5 @@
 %define name    jazzhands-perl-mgmt
-%define version 0.51.0
+%define version 0.51.1
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -46,5 +46,7 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Thu Feb  7 2012 Todd Kover <kovert@omniscient.com> 0.51.0-1
+* Thu Feb 20 2013 Todd Kover <kovert@omniscient.com> 0.51.1-1
+  - netblock collection improvements
+* Thu Feb  7 2013 Todd Kover <kovert@omniscient.com> 0.51.1-1
   - initial release with netblocks and netblock collections
