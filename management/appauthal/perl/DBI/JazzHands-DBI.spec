@@ -13,9 +13,9 @@
 
 name:      perl-JazzHands-DBI
 summary:   JazzHands-DBI - database authentication abstraction for Perl
-version:   0.51
-release:   6
-vendor:    Todd Kover <kovert@appnexus.com>
+version:   0.51.1
+release:   1
+vendor:    Todd Kover <kovert@omniscient.com>
 packager:  K Z Win <kwin@appnexus.com>
 license:   BSD
 group:     Applications/AppNexus
@@ -26,7 +26,7 @@ prefix:    %(echo %{_prefix})
 provides:  perl(JazzHands::DBI)
 requires:  perl-JazzHands-AppAuthAL
 requires:  perl-DBI
-source:    JazzHands-DBI.tar.gz
+source:    JazzHands-DBI.tgz
 
 %description
 I totally need to write this.
@@ -83,7 +83,7 @@ find %{buildroot}%{_prefix}             \
 
 %{__perl} -MFile::Find -le '
     find({ wanted => \&wanted, no_chdir => 1}, "%{buildroot}");
-    print "%doc  Changes README";
+    # print "%doc  Changes README";
     for my $x (sort @dirs, @files) {
         push @ret, $x unless indirs($x);
         }
@@ -123,5 +123,7 @@ find %{buildroot}%{_prefix}             \
 %defattr(-,root,root)
 
 %changelog
-* Thu Aug 23 2012 kwin@01.kwin-sand.nym1.appnexus.net
+* Thu Feb 21 2013 Todd Kover kovert@omniscient.com 0.51.1-1
+- OO improvements
+* Thu Aug 23 2012 kwin@01.kwin-sand.nym1.appnexus.net 0.51-1
 - Initial build.
