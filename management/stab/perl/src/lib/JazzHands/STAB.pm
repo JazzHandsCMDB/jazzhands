@@ -195,11 +195,11 @@ sub start_html {
 				{
 					-language => 'JavaScript',
 					-src =>
-"$root/javascript/external/jQuery/jquery.js",
+"$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/common.js",
+					-src => "$root/javascript-common/common.js",
 				},
 				{
 					-language => 'JavaScript',
@@ -224,7 +224,7 @@ sub start_html {
 				{
 					-language => 'JavaScript',
 					-src =>
-"$root/javascript/external/jQuery/jquery.js",
+"$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
