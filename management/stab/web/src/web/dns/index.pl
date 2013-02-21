@@ -345,8 +345,8 @@ sub build_fwd_zone_Tr {
 	# protocol and service name to the name 
 	if($hr && $hr->{_dbx('DNS_TYPE')} eq 'SRV') {
 		$name = 
-			$stab->b_nondbdropdown(undef, $hr, 'DNS_SRV_PROTOCOL', 'DNS_RECORD_ID', 1). 
 			$stab->b_dropdown(undef, $hr, 'DNS_SRV_SERVICE', 'DNS_RECORD_ID', 1). 
+			$stab->b_nondbdropdown(undef, $hr, 'DNS_SRV_PROTOCOL', 'DNS_RECORD_ID'). 
 			$name;
 
 		$value = 

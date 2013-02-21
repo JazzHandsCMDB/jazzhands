@@ -59,12 +59,12 @@ use Carp qw(cluck);
 use Data::Dumper;
 use NetAddr::IP;
 
-our @ISA = qw( 
-	JazzHands::Mgmt
-	JazzHands::Common
-	JazzHands::STAB::DBAccess
-	JazzHands::STAB::Device
-	JazzHands::STAB::Rack
+our @ISA = qw(
+  JazzHands::Mgmt
+  JazzHands::Common
+  JazzHands::STAB::DBAccess
+  JazzHands::STAB::Device
+  JazzHands::STAB::Rack
 );
 
 our $VERSION = '1.0.0';
@@ -78,45 +78,47 @@ our $VERSION = '1.0.0';
 
 sub new {
 	my $class = shift;
-	my $opt = &_options(@_);
+	my $opt   = &_options(@_);
 
 	#
 	# Accept either dbh (deprecated) or dbhandle
 	#
-	if ($opt->{dbh}) {
-		cluck "WARNING: dbh parameter to JazzHands::STAB::new() is deprecated\n";
-		push (@_, 'dbhandle', $opt->{dbh});
+	if ( $opt->{dbh} ) {
+		cluck
+"WARNING: dbh parameter to JazzHands::STAB::new() is deprecated\n";
+		push( @_, 'dbhandle', $opt->{dbh} );
 	}
-	if (!$opt->{application}) {
-		push (@_, 'application', 'stab');
+	if ( !$opt->{application} ) {
+		push( @_, 'application', 'stab' );
 	}
 	my $cgi;
-	if (!$opt->{cgi}) {
+	if ( !$opt->{cgi} ) {
 		$cgi = new CGI || return undef;
-		push (@_, 'appuser', $cgi->remote_user || $ENV{'REMOTE_USER'});
+		push( @_, 'appuser', $cgi->remote_user || $ENV{'REMOTE_USER'} );
 	}
 
 	my $self = $class->SUPER::new(@_);
 	$self->{cgi} = $cgi;
 
-	foreach my $something ('ajax', 'debug') {
+	foreach my $something ( 'ajax', 'debug' ) {
 		$self->{$something} = $opt->{$something};
 	}
-#	while ( my $thing = shift(@params) ) {
-#		if ( $thing eq 'dbh' ) {
-#			$self->{dbh} = shift(@params);
-#		} elsif ( $thing eq 'cgi' ) {
-#			$self->{cgi} = shift(@params);
-#		} elsif ( $thing eq 'dbuser' ) {
-#			$self->{_dbuser} = shift(@params);
-#		} elsif ( $thing eq 'ajax' ) {
-#			$self->{_ajax} = shift(@params);
-#		} elsif ( $thing eq 'debug' ) {
-#			$self->{_debug} = shift(@params);
-#		}
-#	}
 
-#	$self->_initdb() if ( !defined( $self->{dbh} ) );
+	#	while ( my $thing = shift(@params) ) {
+	#		if ( $thing eq 'dbh' ) {
+	#			$self->{dbh} = shift(@params);
+	#		} elsif ( $thing eq 'cgi' ) {
+	#			$self->{cgi} = shift(@params);
+	#		} elsif ( $thing eq 'dbuser' ) {
+	#			$self->{_dbuser} = shift(@params);
+	#		} elsif ( $thing eq 'ajax' ) {
+	#			$self->{_ajax} = shift(@params);
+	#		} elsif ( $thing eq 'debug' ) {
+	#			$self->{_debug} = shift(@params);
+	#		}
+	#	}
+
+	#	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
 	$self->textfield_sizing(1);
 	bless $self, $class;
@@ -151,7 +153,7 @@ sub start_html {
 	my $cgi = $self->cgi;
 
 	my $stabroot = $self->guess_stab_root;
-	my $root = $stabroot;
+	my $root     = $stabroot;
 	$root =~ s,/stab$,,;
 
 	my (%args);
@@ -159,10 +161,12 @@ sub start_html {
 
 	if ( $opts->{javascript} ) {
 		if ( $opts->{javascript} eq 'device' ) {
-			push (@{$args{'-script'}},
+			push(
+				@{ $args{'-script'} },
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/ajaxsearch.js"
+					-src =>
+					  "$stabroot/javascript/ajaxsearch.js"
 				},
 				{
 					-language => 'JavaScript',
@@ -176,11 +180,12 @@ sub start_html {
 				},
 				{
 					-language => 'JavaScript',
-					-src      => "$stabroot/javascript/racks.js"
+					-src => "$stabroot/javascript/racks.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/ajax-utils.js"
+					-src =>
+					  "$stabroot/javascript/ajax-utils.js"
 				},
 			);
 		}
@@ -189,7 +194,8 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/external/jQuery/jquery.js",
+					-src =>
+"$root/javascript/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
@@ -197,15 +203,18 @@ sub start_html {
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/tickets.js"
+					-src =>
+					  "$stabroot/javascript/tickets.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/netblock.js"
+					-src =>
+					  "$stabroot/javascript/netblock.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/ajax-utils.js"
+					-src =>
+					  "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -214,15 +223,18 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript/external/jQuery/jquery.js",
+					-src =>
+"$root/javascript/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/dns-utils.js"
+					-src =>
+					  "$stabroot/javascript/dns-utils.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/device-utils.js"
+					-src =>
+					  "$stabroot/javascript/device-utils.js"
 				}
 			);
 		}
@@ -231,7 +243,8 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/devicetype.js"
+					-src =>
+					  "$stabroot/javascript/devicetype.js"
 				}
 			);
 		}
@@ -240,21 +253,27 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src      => "$stabroot/javascript/racks.js"
+					-src => "$stabroot/javascript/racks.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/ajax-utils.js"
+					-src =>
+					  "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
-		if($opts->{javascript} eq 'apps') {
-			push(@{$args{-script}},
-				{ -language => 'JavaScript',
-					-src => "$stabroot/javascript/app-utils.js"
+		if ( $opts->{javascript} eq 'apps' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/app-utils.js"
 				},
-				{ -language => 'JavaScript',
-					-src => "$stabroot/javascript/ajax-utils.js"
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -281,7 +300,7 @@ sub start_html {
 	}
 
 	$args{'-meta'} = {
-		'id' => '$Id$',
+		'id'        => '$Id$',
 		'Generator' => "STAB!  STAB!  STAB!"
 	};
 
@@ -289,21 +308,22 @@ sub start_html {
 	# This might get around tabindex issues
 	#
 	$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
+
 	# need to move to this...
 	#$args{'-dtd'} = '-//W3C//DTD HTML 4.01 Transitional//EN';
 
+	if ( defined( $opts->{'title'} ) && length( $opts->{'title'} ) ) {
+		$args{'-title'} = "STAB: " . $opts->{'title'};
 
-	if( defined($opts->{'title'}) && length($opts->{'title'}) ) {
-		$args{'-title'} = "STAB: ". $opts->{'title'};
 		# $args{'-title'} = $opts->{'title'};
 	} else {
 		$args{'-title'} = "STAB";
 	}
-  
+
 	# development.  XXX Probably need to put in a is_dev_instance
 	# function that can be used to discern this throughout the code,
 	# although this is only used in the css for the background and here.
-	if($stabroot !~ m,://stab.example.com/?$,) {
+	if ( $stabroot !~ m,://stab.example.com/?$, ) {
 		$args{'-title'} =~ s/STAB:/STAB(D):/;
 	}
 
@@ -334,16 +354,17 @@ sub start_html {
 
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
 		my $navbar = ""
-#		    $cgi->a( { -href => "$stabroot/device/" },   "Device" ) . " - "
+
+	  #		    $cgi->a( { -href => "$stabroot/device/" },   "Device" ) . " - "
 		  . $cgi->a( { -href => "$stabroot/dns" },       "DNS" ) . " - "
 		  . $cgi->a( { -href => "$stabroot/netblock/" }, "Netblock" )
 		  . " - "
 		  . $cgi->a( { -href => "$stabroot/sites/blockmgr.pl" },
 			"Site IPs" )
 		  . " - "
-#		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
+
+		#		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
+		  . " - " . $cgi->a( { -href => "$stabroot/" }, "STAB" );
 		$inline_title .=
 		  $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
 			"[ $navbar ] " )
@@ -828,9 +849,10 @@ sub b_nondbdropdown {
 		# a Y/N column in the db indicating that is a user
 		# selectable value or some such.
 		%list = (
-			'rt'      => 'RT',
+			'rt'          => 'RT',
 			'ppm'         => 'PPM',
 			'servicedesk' => 'ServiceDesk',
+			'jira'        => 'Jira',
 		);
 		foreach my $l ( sort keys %list ) { push( @list, $l ); }
 		$default        = "__unknown__";
@@ -838,12 +860,15 @@ sub b_nondbdropdown {
 		$list{$default} = $pickone;
 		unshift( @list, $default );
 	} elsif ( $field eq 'DNS_SRV_PROTOCOL' ) {
-		$default = '__unknown__';
-		@list = qw(tcp udp);
-		foreach my $l (@list) { $list{$l} = $l }
-		$pickone = 'Pick';
+		%list = (
+			'tcp' => '_tcp',
+			'udp' => '_udp',
+		);
+		foreach my $l ( sort keys %list ) { push( @list, $l ); }
+		$default        = "__unknown__";
+		$pickone        = "Pick";
 		$list{$default} = $pickone;
-		unshift(@list, $default);
+		unshift( @list, $default );
 	} elsif ( $field eq 'LOCATION_RACK_SIDE' ) {
 		@list = ( 'FRONT', 'BACK' );
 		my $df = 'FRONT';
@@ -857,7 +882,7 @@ sub b_nondbdropdown {
 		$list{$default} = $pickone;
 	}
 
-	if ( !defined($default) && defined($values) ) {
+	if ( defined($values) ) {
 		$default =
 		  ( defined( $values->{$field} ) ) ? $values->{$field} : undef;
 	}
@@ -905,7 +930,7 @@ sub b_nondbdropdown {
 	$popup_args->{'-onChange'} = $onchange if ($onchange);
 	$popup_args->{'-id'}       = $id if ($id);
 
-	my $x = $cgi->popup_menu( $popup_args );
+	my $x = $cgi->popup_menu($popup_args);
 
 	if ( $params->{-divWrap} ) {
 		$x = $cgi->div( { -id => $params->{-divWrap} }, $x );
@@ -933,8 +958,8 @@ sub b_dropdown {
 	my ( $values, $field, $pkeyfield, $noguessunknown ) = @_;
 
 	# XXX probably should do this elsewhere, but...
-	$field = _dbx($field) if(defined($field));
-	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+	$field     = _dbx($field)     if ( defined($field) );
+	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $dbh      = $self->dbh;
 	my $cgi      = $self->cgi;
@@ -951,9 +976,11 @@ sub b_dropdown {
 		if ( ref $pkeyfield eq 'ARRAY' ) {
 			foreach my $k (@$pkeyfield) {
 				$pkn .= "_"
-				  . ( ( defined( $values->{$k} ) )
+				  . (
+					( defined( $values->{$k} ) )
 					? $values->{$k}
-					: "" );
+					: ""
+				  );
 			}
 		} else {
 			if ( defined( $values->{$pkeyfield} ) ) {
@@ -1086,12 +1113,14 @@ sub b_dropdown {
 		};
 	} elsif ( $selectfield eq 'DNS_TYPE' ) {
 		my $list = q{  ('ID', 'NON-ID') };
-		if($showhidden) {
-			# XXX when db constraint on val_dns_type.id_type is updated to
-			# include HIDDEN, the or clause can go away.  This should happen
-			# with 3.1.
-			$list = q{  ('ID', 'NON-ID', 'HIDDEN') or dns_type = 'SOA' };
-               }
+		if ($showhidden) {
+
+		# XXX when db constraint on val_dns_type.id_type is updated to
+		# include HIDDEN, the or clause can go away.  This should happen
+		# with 3.1.
+			$list =
+			  q{  ('ID', 'NON-ID', 'HIDDEN') or dns_type = 'SOA' };
+		}
 		$q = qq{
 			select	dns_type, description
 			  from	val_dns_type
@@ -1106,7 +1135,9 @@ sub b_dropdown {
 			order by description, dns_class
 		};
 		$pickone = "Choose";
-	} elsif ( $selectfield eq 'COMPANY_ID' || $selectfield =~ /_COMPANY_ID$/ ) {
+	} elsif (  $selectfield eq 'COMPANY_ID'
+		|| $selectfield =~ /_COMPANY_ID$/ )
+	{
 		$q = qq{
 			select	company_id, company_name
 			  from	company
@@ -1165,6 +1196,7 @@ sub b_dropdown {
 		} else {
 			$portrestrict = "";
 		}
+
 		# ORACLE/PGSQL -- the E\\\1 vs \\1
 		# was distinct, maybe needs to be?
 		# probably want to sort by network_strings...
@@ -1270,7 +1302,9 @@ sub b_dropdown {
 			  from  val_flow_control
 			order by description, flow_control
 		};
-	} elsif ( $selectfield eq 'SITE_CODE' || $selectfield eq 'RACK_SITE_CODE' ) {
+	} elsif (  $selectfield eq 'SITE_CODE'
+		|| $selectfield eq 'RACK_SITE_CODE' )
+	{
 
 		# [XXX] - consider making planned/active doober smarter
 		# for places where someone may want to look at all sites.
@@ -1280,7 +1314,9 @@ sub b_dropdown {
 			order by site_code
 		};
 		$default = 'none' if ( !defined($default) );
-	} elsif ( $selectfield eq 'RACK_ID' || $selectfield eq 'LOCATION_RACK_ID' ) {
+	} elsif (  $selectfield eq 'RACK_ID'
+		|| $selectfield eq 'LOCATION_RACK_ID' )
+	{
 		my $siteclause = "";
 		if ($site) {
 			$siteclause = 'and site_code = :site';
@@ -1317,9 +1353,9 @@ sub b_dropdown {
 					on os.sw_package_repository_id =
 						vst.sw_package_repository_id
 		};
-		if ( exists( $values->{_dbx('OPERATING_SYSTEM_ID')} ) ) {
+		if ( exists( $values->{ _dbx('OPERATING_SYSTEM_ID') } ) ) {
 			$q .= "where os.operating_system_id = :osid";
-			$voetraxmap = $values->{_dbx('OPERATING_SYSTEM_ID')};
+			$voetraxmap = $values->{ _dbx('OPERATING_SYSTEM_ID') };
 			$bindos     = 1;
 		}
 	} elsif ( $selectfield eq 'X509_CERT_ID' ) {
@@ -1516,7 +1552,7 @@ sub b_dropdown {
 	$popupargs->{-labels}     = \%list if ( $#list >= 0 );
 	$popupargs->{-default}    = $default;
 	$popupargs->{-onChange}   = $onchange if ( defined($onchange) );
-	$popupargs->{-class}   	  = $class if ( defined($class) );
+	$popupargs->{-class}      = $class if ( defined($class) );
 	$popupargs->{-attributes} = \%attr;
 	$popupargs->{-id}         = $id if ( defined($id) );
 
@@ -1596,8 +1632,8 @@ sub b_textfield {
 	my ( $values, $field, $pkeyfield ) = @_;
 
 	# XXX probably should do this elsewhere, but...
-	$field = _dbx($field) if(defined($field));
-	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+	$field     = _dbx($field)     if ( defined($field) );
+	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $default = $params->{'-default'};
 	my $ip0     = $params->{'-allow_ip0'};
@@ -1734,7 +1770,7 @@ sub b_textfield {
 	$args->{'-disabled'} = 'true' if ($disabled);
 	$args->{'-name'}     = $name;
 	$args->{'-id'}       = $name;
-	$args->{'-class'}    = $class if( defined($class) );
+	$args->{'-class'}    = $class if ( defined($class) );
 	$args->{'-default'}  = $allf if ( defined($allf) );
 	$args->{'-size'}     = $size if ($size);
 	$args->{'-maxlength'} = 2048;    ## [XXX] probably need to rethink!
@@ -1766,7 +1802,7 @@ sub build_tr {
 	my ( $values, $callback, $header, $field, $pkeyfield ) = @_;
 
 	# XXX probably should do this elsewhere, but...
-	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $cgi = $self->cgi;
 
@@ -1806,8 +1842,8 @@ sub build_checkbox {
 	my ( $values, $label, $field, $pkeyfield, $checked ) = @_;
 
 	# XXX probably should do this elsewhere, but...
-	$field = _dbx($field) if(defined($field));
-	$pkeyfield = _dbx($pkeyfield) if(defined($pkeyfield));
+	$field     = _dbx($field)     if ( defined($field) );
+	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $cgi = $self->cgi;
 
@@ -1892,10 +1928,10 @@ sub parse_netblock_search {
 		return $self->error_return("You specified an invalid address");
 	}
 
-	my $parent = $self->guess_parent_netblock_id( $bycidr);
+	my $parent = $self->guess_parent_netblock_id($bycidr);
 
 	# zero is 0/0, which is also considered "not found"
-	if(!$parent) {
+	if ( !$parent ) {
 		return $self->error_return("Network not found");
 	}
 	$parent;
@@ -1924,7 +1960,7 @@ sub parse_netblock_description_search {
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute($bydesc) || $self->return_db_err($sth);
 
-	my $hr = $sth->fetchall_hashref(_dbx('NETBLOCK_ID'));
+	my $hr = $sth->fetchall_hashref( _dbx('NETBLOCK_ID') );
 	$hr;
 }
 
@@ -2100,10 +2136,8 @@ sub zone_header {
 	  $self->b_textfield( $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
 	my $minimum =
 	  $self->b_textfield( $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID', 3600 );
-	my $mname = 
-	  $self->b_textfield( $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID');
-	my $rname = 
-	  $self->b_textfield( $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID');
+	my $mname = $self->b_textfield( $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID' );
+	my $rname = $self->b_textfield( $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID' );
 	$self->textfield_sizing(1);
 
 	my $class = 'IN';
@@ -2111,15 +2145,14 @@ sub zone_header {
 	my $ttl   = 3600;
 
 	if ( defined($hr) ) {
-		$type  = $hr->{_dbx('SOA_TYPE')} || 'SOA';
-		$ttl   = $hr->{_dbx('TTL')} || "";
+		$type = $hr->{ _dbx('SOA_TYPE') } || 'SOA';
+		$ttl  = $hr->{ _dbx('TTL') }      || "";
 	}
 
 	my $style = '';
 	if ( !$change_type || $change_type ne 'update' ) {
 		$style = 'visibility: hidden; display: none';
 	}
-
 
 	my $t = $cgi->table(
 		{ -id => 'soa_table', -style => $style, -class => 'soatable' },
@@ -2248,10 +2281,9 @@ sub add_physical_ports {
 	my $cgi = $self->cgi || die "Could not create cgi";
 	my $dbh = $self->dbh || die "Could not create dbh";
 
-	my $prefix  = $self->cgi_parse_param("${captype}_PORT_PREFIX");
-	my $start   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
-	my $count   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
-
+	my $prefix = $self->cgi_parse_param("${captype}_PORT_PREFIX");
+	my $start  = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
+	my $count  = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
 
 	if ( !defined($count) ) {
 		$self->error_return(
@@ -2370,14 +2402,14 @@ sub DESTROY {
 		delete( $self->{_JazzHandsSth} );
 	}
 
-if(0) { # XXX
-	if ( defined($dbh) && $dbh->ping ) {
-		my $x = join( "\n", $dbh->func('dbms_output_get') );
-		print STDERR $x, "\n"
-			if ( $self->{_debug} && $x && length($x) );
+	if (0) {    # XXX
+		if ( defined($dbh) && $dbh->ping ) {
+			my $x = join( "\n", $dbh->func('dbms_output_get') );
+			print STDERR $x, "\n"
+			  if ( $self->{_debug} && $x && length($x) );
+		}
 	}
-}
-	if( defined($dbh) ) {
+	if ( defined($dbh) ) {
 		$dbh->rollback;
 		$dbh->disconnect;
 		$self->{dbh} = undef;
