@@ -358,7 +358,7 @@ sub get_netblock_link_header {
 	}
 
 	my $ops = "";
-	if ( num_kids( $stab, $nblkid, 'Y' ) == 0 ) {
+	if ( num_kids( $stab, $nblkid ) == 0 ) {
 		$ops = " - "
 		  . $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
 			"[Subnet this block]" )
@@ -410,13 +410,18 @@ sub generate_netblock_line {
 		errors => $opt->{errors}
 	);
 
+	my $nb = $netblock->hash;
+
 	my $ops = "";
-	if (!@$nblist) {
-		$ops = " - "
-		  . $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
-			"[Subnet this block]" )
-		  . $cgi->a( { -href => "write/rmnetblock.pl?id=$nblkid" },
-			"[Remove this netblock]" );
+	if ($nb->{is_single_address} eq 'N' && !@$nblist) {
+		$ops = " - ";
+		if($nb->{can_subnet} eq 'Y') {
+			$ops .= $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
+				"[Subnet]" )
+		}
+		$ops .= 
+		  $cgi->a( { -href => "write/rmnetblock.pl?id=$nblkid" },
+			"[Remove]" );
 	}
 
 	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
@@ -427,29 +432,28 @@ sub generate_netblock_line {
 	my $descr = '<span class="editabletext" id="' .  $name . '">' .
 	 	 ($nbhash->{_dbx('description')} || "") . '</span>';
 
+	my $status = $nb->{netblock_status};
+
 	my $url = make_url( $stab, $nblkid );
 	return $cgi->li(
 		$cgi->a( { -href => $url }, $netblock->IPAddress )
-		  . $ops . " - "
+		  . $ops . " ($status) - "
 		  . ( $descr || "" ), "\n"
 	);
 }
 
 sub num_kids {
-	my ( $stab, $nblkid, $issingle ) = @_;
+	my ( $stab, $nblkid ) = @_;
 
 	my $dbh = $stab->dbh;
-
-	$issingle = 'N' if ( !defined($issingle) );
 
 	my $q = qq{
 		select	count(*)
 		  from	netblock
 		 where	parent_netblock_id = ?
-		   and	is_single_address = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute( $nblkid, $issingle ) || $stab->return_db_err($sth);
+	$sth->execute( $nblkid ) || $stab->return_db_err($sth);
 	my $x = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$x;
@@ -584,12 +588,6 @@ sub do_dump_netblock {
 	print "</ul>\n";
 
 	print $cgi->end_form, "\n";
-
-#	if (       ( defined($expand) && $expand eq 'yes' )
-#		|| ( !defined($expand) && !num_kids( $stab, $start_id ) ) )
-#	{
-#		dump_nodes( $stab, $start_id, $nblk);
-#	}
 
 	print $cgi->end_html, "\n";
 
