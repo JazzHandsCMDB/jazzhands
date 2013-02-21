@@ -1,4 +1,4 @@
-lib/JazzHands/Mgmt/NetblockCollection.pm
+lib/JazzHands/Mgmt/Collection.pm
 lib/JazzHands/Mgmt/Netblock.pm
 lib/JazzHands/Mgmt.pm
 Makefile.PL

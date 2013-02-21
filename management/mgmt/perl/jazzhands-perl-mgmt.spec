@@ -41,7 +41,7 @@ rm -rf %{buildroot}
 %{_mandir}/man3/JazzHands::Mgmt.3pm.gz
 %{perl_vendorlib}//JazzHands/Mgmt.pm
 %{perl_vendorlib}//JazzHands/Mgmt/Netblock.pm
-%{perl_vendorlib}//JazzHands/Mgmt/NetblockCollection.pm
+%{perl_vendorlib}//JazzHands/Mgmt/Collection.pm
 
 
 
