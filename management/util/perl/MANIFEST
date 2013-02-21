@@ -1,4 +1,6 @@
 lib/JazzHands/Common.pm
-lib/JazzHands/GenericDB.pm
+lib/JazzHands/Common/GenericDB.pm
+lib/JazzHands/Common/Error.pm
+lib/JazzHands/Common/Util.pm
 Makefile.PL
 MANIFEST
