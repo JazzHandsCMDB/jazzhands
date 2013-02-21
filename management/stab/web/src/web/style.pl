@@ -275,6 +275,10 @@ input.srvnum {
 	visibility: hidden;
 }
 
+#SOA_MNAME, #SOA_RNAME {
+	width: 35ex; 
+}
+
 END
 
 }

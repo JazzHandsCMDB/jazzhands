@@ -79,7 +79,7 @@ $q = qq{
 	SELECT 
 		D.Device_Name, DCM.Device_Collection_ID, DF.Device_Function_Type
 	FROM 
-		Device_Collection_Member DCM, Device_Function DF, Device D,
+		device_collection_device DCM, Device_Function DF, Device D,
 		Device_Collection DC
 	WHERE 
 		DCM.Device_ID = D.Device_ID AND

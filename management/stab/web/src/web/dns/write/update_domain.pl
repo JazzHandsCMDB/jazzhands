@@ -35,6 +35,7 @@ use strict;
 use warnings;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
+use DBI::Const::GetInfoType;
 use URI;
 
 do_domain_update();
@@ -67,23 +68,14 @@ sub toggle_domain_autogen {
 	my ( $stab, $domid, $direction ) = @_;
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	my $q = "";
-	if ( $direction eq 'Y' ) {
-		$q = qq{
-			begin
-				dns_gen_utils.generation_on(?);
-			end;
-		};
-	} else {
-		$q = qq{
-			begin
-				dns_gen_utils.generation_off(?);
-			end;
-		};
-	}
-
-	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($domid) || $stab->return_db_err($dbh);
+	my $sth = $stab->prepare_cached(qq{
+		update dns_domain
+		   set	should_generate = :direction
+		 where	dns_domain_id = :dom
+	}) || $stab->return_db_err($dbh);
+	$sth->bind_param(':dom', $domid) || $stab->return_db_err($dbh);
+	$sth->bind_param(':direction', $direction) || $stab->return_db_err($dbh);
+	$sth->execute || $stab->return_db_err($dbh);
 
 	$dbh->commit;
 	$stab->msg_return( "Auto Generation Configuration Changed", undef, 1 );
@@ -98,6 +90,8 @@ sub process_domain_soa_changes {
 	my $retry   = $stab->cgi_parse_param( 'SOA_RETRY',   $domid );
 	my $expire  = $stab->cgi_parse_param( 'SOA_EXPIRE',  $domid );
 	my $minimum = $stab->cgi_parse_param( 'SOA_MINIMUM', $domid );
+	my $rname   = $stab->cgi_parse_param( 'SOA_RNAME',   $domid );
+	my $mname   = $stab->cgi_parse_param( 'SOA_MNAME',   $domid );
 
 	my $orig      = $stab->get_dns_domain_from_id($domid);
 	my %newdomain = (
@@ -106,23 +100,26 @@ sub process_domain_soa_changes {
 		SOA_REFRESH   => $refresh,
 		SOA_RETRY     => $retry,
 		SOA_EXPIRE    => $expire,
-		SOA_MINIMUM   => $minimum
+		SOA_MINIMUM   => $minimum,
+		SOA_RNAME     => $rname,
+		SOA_MNAMEUM   => $mname,
 	);
-	my $diffs = $stab->hash_table_diff( $orig, _dbx(\%newdomain) );
+	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newdomain ) );
 	my $tally = keys %$diffs;
 
 	if ( !$tally ) {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
 	} elsif (
 		!$stab->DBUpdate(
-			table => "DNS_DOMAIN", 
-			dbkey => "DNS_DOMAIN_ID", 
-			keyval => $domid, 
-			hash => $diffs
+			table  => "DNS_DOMAIN",
+			dbkey  => "DNS_DOMAIN_ID",
+			keyval => $domid,
+			hash   => $diffs
 		)
 	  )
 	{
 		$dbh->rollback;
+
 		#$stab->error_return("Unknown Error with Update");
 		$stab->return_db_err($dbh);
 	} else {

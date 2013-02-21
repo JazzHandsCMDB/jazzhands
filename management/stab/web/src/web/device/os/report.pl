@@ -85,7 +85,7 @@ sub version_arch {
 				  )
 			  and	device_id in
 					(
-					 select device_id from device_collection_member
+					 select device_id from device_collection_device
 					 where device_collection_id in
 						(select device_collection_id
 						   from	device_collection
@@ -138,7 +138,7 @@ sub by_version {
 				  )
 			  and	device_id in
 					(
-					 select device_id from device_collection_member
+					 select device_id from device_collection_device
 					 where device_collection_id in
 						(select device_collection_id
 						   from	device_collection
@@ -234,7 +234,7 @@ sub name_only {
 					os.name = 'unknown'
 				  )
 			  and device_id in (
-					 select device_id from device_collection_member
+					 select device_id from device_collection_device
 					 where device_collection_id in
 						(select device_collection_id
 						   from	device_collection
@@ -283,7 +283,7 @@ sub by_arch {
 					os.name = 'unknown'
 				  )
 			  and device_id in (
-					 select device_id from device_collection_member
+					 select device_id from device_collection_device
 					 where device_collection_id in
 						(select device_collection_id
 						   from	device_collection

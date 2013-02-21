@@ -88,7 +88,7 @@ sub DBUpdate {
 
 	if(!$dbh) {
 		SetError($opt->{errors},
-			"must pass dbhandle parameter to DBFetch");
+			"must pass dbhandle parameter to DBUpdate");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {

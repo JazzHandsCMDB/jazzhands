@@ -2396,7 +2396,7 @@ sub device_license_tab {
 	my $sth = $self->prepare(qq{
 		select	dc.device_collection_id, dc.device_collection_name
  		  from	device_collection dc
-				inner join device_collection_member dcm
+				inner join device_collection_device dcm
 					on dc.device_collection_id = dcm.device_collection_id
 		 where	dc.device_collection_type = 'applicense'
 		   and	dcm.device_id = ?

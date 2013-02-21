@@ -1257,7 +1257,7 @@ sub GetNconsoleConfMclasses {
         and   (p2.port_name like 'ttyS%' or p2.port_name like 'line%')
         and   d1.device_id in (
           select m.device_id
-          from device_collection c, device_collection_member m
+          from device_collection c, device_collection_device m
           where c.device_collection_id = m.device_collection_id
           and (c.device_collection_id = ? or c.device_collection_id in (
               select device_collection_id child_id from device_collection_hier
@@ -1279,7 +1279,7 @@ sub GetNconsoleConfMclasses {
         and   (p2.port_name like 'ttyS%' or p2.port_name like 'line%')
         and   d1.device_id in (
           select m.device_id
-          from device_collection c, device_collection_member m
+          from device_collection c, device_collection_device m
           where c.device_collection_id = m.device_collection_id
           and (c.device_collection_id = ? or c.device_collection_id in (
               select device_collection_id child_id from device_collection_hier

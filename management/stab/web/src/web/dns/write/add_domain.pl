@@ -118,10 +118,8 @@ sub do_domain_add {
 	my $expire  = $stab->cgi_parse_param('SOA_EXPIRE') || 2419200;
 	my $min     = $stab->cgi_parse_param('SOA_MINIMUM') || 3600;
 	my $ttl     = $stab->cgi_parse_param('SOA_TTL') || $min || 3600;
-	my $mname   = $stab->cgi_parse_param('SOA_MNAME')
-	  || 'auth00.ns.example.com';
-	my $rname = $stab->cgi_parse_param('SOA_RNAME')
-	  || 'hostmaster.example.com';
+	my $mname   = $stab->cgi_parse_param('SOA_MNAME');
+	my $rname = $stab->cgi_parse_param('SOA_RNAME');
 	my $gen   = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
 	my $addns = $stab->cgi_parse_param('chk_DEFAULT_NS_RECORDS');
 	my $type = $stab->cgi_parse_param('DNS_DOMAIN_TYPE');
@@ -161,6 +159,21 @@ sub do_domain_add {
 	my $bestparent =
 	  guess_best_parent_dns_domain_from_domain( $stab, $soaname );
 
+	my @errs;
+	if(!$mname) {
+		$mname = $stab->fetch_property('Defaults', '_dnsmname');
+		if(!$mname) {
+			$stab->error_return("There is no default mname configured.  You must enter one or set a default");
+		}
+	}
+
+	if(!$rname) {
+		$rname = $stab->fetch_property('Defaults', '_dnsrname');
+		if(!$rname) {
+			$stab->error_return("There is no default rname configured.  You must set one or set a default.");
+		}
+	}
+
 	my $new = {
 			soa_name => $soaname,
 			soa_class => $class,
@@ -177,7 +190,6 @@ sub do_domain_add {
 			should_generate => $gen
 		};
 
-        my @errs;
         if(! ($numchanges = $stab->DBInsert(
                 table => 'dns_domain',
                 hash=> $new,

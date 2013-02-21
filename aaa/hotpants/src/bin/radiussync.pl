@@ -721,7 +721,7 @@ if ($syncclients) {
 			Device_Collection_Type,
 			IP_Address
 		FROM	
-			Device_Collection JOIN Device_Collection_Member
+			Device_Collection JOIN device_collection_device
 				USING (Device_Collection_ID) JOIN
 			Device USING (Device_Id) LEFT JOIN
 			Device_Function USING (Device_ID) LEFT JOIN

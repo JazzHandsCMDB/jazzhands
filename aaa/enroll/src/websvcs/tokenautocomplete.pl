@@ -157,7 +157,7 @@ sub getuserlist {
 				V_User_Prop_Expanded UPE JOIN
 				Token_Collection TC ON
 					(Property_Value_Token_Col_ID = Token_Collection_ID) JOIN
-				Token_Collection_Member USING (Token_Collection_ID) JOIN
+				token_collection_token USING (Token_Collection_ID) JOIN
 				V_Token USING (Token_ID)
 			WHERE   
 				UPE.System_User_ID = :sysuid AND

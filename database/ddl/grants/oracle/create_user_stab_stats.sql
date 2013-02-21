@@ -35,7 +35,7 @@ grant execute 			on jazzhands.ip_manip to stab_stats_role;
 
 grant select			on jazzhands.device_function to stab_stats_role;
 grant select			on jazzhands.val_device_function_type to stab_stats_role;
-grant select			on jazzhands.device_collection_member to stab_stats_role;
+grant select			on jazzhands.device_collection_device to stab_stats_role;
 grant select			on jazzhands.device_collection to stab_stats_role;
 grant select			on jazzhands.device to stab_stats_role;
 grant select			on jazzhands.composite_os_version to stab_stats_role;
@@ -50,7 +50,7 @@ grant stab_stats_role to ap_stab_stats;
 
 create synonym ap_stab_stats.device_function for jazzhands.device_function;
 create synonym ap_stab_stats.val_device_function_type for jazzhands.val_device_function_type;
-create synonym ap_stab_stats.device_collection_member for jazzhands.device_collection_member;
+create synonym ap_stab_stats.device_collection_device for jazzhands.device_collection_device;
 create synonym ap_stab_stats.device_collection for jazzhands.device_collection;
 create synonym ap_stab_stats.composite_os_version for jazzhands.composite_os_version;
 create synonym ap_stab_stats.device for jazzhands.device;

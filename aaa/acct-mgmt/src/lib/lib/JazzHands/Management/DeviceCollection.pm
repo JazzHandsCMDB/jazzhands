@@ -358,7 +358,7 @@ sub FindDeviceCollectionForDevice {
 			Device_Collection_ID,
 			Device_Collection.Device_Collection_Type
 		FROM
-			(Device_Collection JOIN Device_Collection_Member 
+			(Device_Collection JOIN device_collection_device 
 				USING (Device_Collection_Id)) JOIN
 			Device USING (Device_ID)
 		WHERE

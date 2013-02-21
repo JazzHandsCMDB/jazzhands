@@ -755,7 +755,7 @@ sub add_dns_record {
 		}
 	} elsif ( $opts->{dns_type} eq 'REVERSE_ZONE_BLOCK_PTR' ) {
 		$opts->{netblock_id} = $opts->{dns_value};
-		$opts->{dns_value} = undef;
+		$opts->{dns_value}   = undef;
 	}
 
 	if ( !$opts->{should_generate_ptr} ) {
@@ -763,14 +763,45 @@ sub add_dns_record {
 	}
 
 	my @errs;
-	if(! ($self->DBInsert(
-		table => 'dns_record',
-		hash=> $opts,
-		errors=> \@errs
-	))) {
-		$self->error_return(join(" ", @errs));
+	if (
+		!(
+			$self->DBInsert(
+				table  => 'dns_record',
+				hash   => $opts,
+				errors => \@errs
+			)
+		)
+	  )
+	{
+		$self->error_return( join( " ", @errs ) );
 	}
-	return($opts->{_dbx('dns_domain_id')});
+	return ( $opts->{ _dbx('dns_domain_id') } );
+}
+
+sub fetch_property {
+	my ( $self, $type, $name ) = @_;
+
+	my @errs;
+	my $match = [
+		{
+			key   => 'property_name',
+			value => $name,
+		},
+		{
+			key   => 'property_type',
+			value => $type,
+		},
+	];
+	my $rows = $self->DBFetch(
+		table  => 'property',
+		match  => $match,
+		errors => \@errs
+	) || die $self->return_db_err();
+	my $hr = $rows->[0];
+	if ( $hr && defined( $hr->{property_value} ) ) {
+		return $hr->{property_value};
+	}
+	return undef;
 }
 
 sub configure_allocated_netblock {
@@ -1229,7 +1260,7 @@ sub add_to_device_collection {
 
 	my $sth = $self->prepare(
 		qq{
-		insert into device_collection_member (
+		insert into device_collection_device (
 			device_collection_id,
 			device_id
 		) values (
@@ -1249,7 +1280,7 @@ sub remove_from_device_collection {
 	my ( $self, $devid, $dcid, $type ) = @_;
 
 	my $q = qq{
-		delete from device_collection_member
+		delete from device_collection_device
 		 where	device_collection_id = :dc
 		  and	device_id = :devid
 	};
@@ -1299,7 +1330,7 @@ sub get_device_collections_for_device {
 	my @dcids;
 	my $q = qq{
 		select	device_collection_id
-		  from	device_collection_member
+		  from	device_collection_device
 		 where	device_id = :devid
 		  and
 				device_collection_id not in

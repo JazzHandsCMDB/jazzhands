@@ -73,7 +73,7 @@ IS
 
 		-- insert the device into the entire hierarchy but exclude
 		-- membership that is already assigned
-		insert into device_collection_member
+		insert into device_collection_device
 		(
 			device_id, device_collection_id
 		)
@@ -90,7 +90,7 @@ IS
 		 			) or device_collection_id = p_device_collection_id
 			) and device_collection_id not in
 				(select device_collection_id
-				  from	device_collection_member
+				  from	device_collection_device
 				where	device_id = p_device_id
 				);
 	END;
@@ -118,7 +118,7 @@ IS
 			raise_application_error(G_err_num, G_err_msg);
 		END;
 
-		delete from device_collection_member
+		delete from device_collection_device
 		where 
 			device_id = p_device_id
 			and (
@@ -148,7 +148,7 @@ IS
 						(
 							select	dc.device_collection_Id
 						  	  from	device_collection dc
-									left join device_collection_member dm 
+									left join device_collection_device dm 
 										ON dm.device_collection_id = 
 											dc.device_collection_id
 						     where	dc.device_collection_type = 'appgroup'

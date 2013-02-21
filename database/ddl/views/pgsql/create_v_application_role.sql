@@ -78,7 +78,7 @@ CREATE OR REPLACE VIEW v_application_role_member AS
 		DATA_INS_DATE,
 		DATA_UPD_USER,
 		DATA_UPD_DATE
-	from	device_collection_member
+	from	device_collection_device
 	where	device_collection_id in
 		(select device_collection_id from device_collection
 			where device_collection_type = 'appgroup'

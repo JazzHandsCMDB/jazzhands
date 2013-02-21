@@ -55,7 +55,7 @@ sub get_inmclass_total {
 		my $q = qq{
 			select  count(*) 
 			  from  device  d 
-				 inner join device_collection_member dcm
+				 inner join device_collection_device dcm
 					  on dcm.device_id = d.device_id
 				 inner join device_collection dc
 					  on dc.device_collection_id = dcm.device_collection_id
@@ -72,7 +72,7 @@ sub get_inmclass_total {
 		my $q = qq{
 			select  count(*) 
 			  from  device  d 
-				 inner join device_collection_member dcm
+				 inner join device_collection_device dcm
 					  on dcm.device_id = d.device_id
 				 inner join device_collection dc
 					  on dc.device_collection_id = dcm.device_collection_id

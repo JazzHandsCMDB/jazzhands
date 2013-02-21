@@ -67,7 +67,7 @@ Write the output files to the directory output_dir. The default is
  GRANT SELECT ON DEVICE
  GRANT SELECT ON DEVICE_COLLECTION
  GRANT SELECT ON DEVICE_COLLECTION_HIER
- GRANT SELECT ON DEVICE_COLLECTION_MEMBER
+ GRANT SELECT ON device_collection_device
  GRANT SELECT ON KERBEROS_REALM
  GRANT SELECT ON KLOGIN
  GRANT SELECT ON KLOGIN_MCLASS
@@ -1722,7 +1722,7 @@ sub create_host_symlinks($@) {
 	$q = q{
         select device_name, device_collection_name mclass
         from device_collection
-        join device_collection_member using (device_collection_id) 
+        join device_collection_device using (device_collection_id) 
         join device using (device_id)
         where device_collection_type = 'mclass' and device_name is not null
     };

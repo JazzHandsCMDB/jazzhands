@@ -104,7 +104,7 @@ grant select				on jazzhands.val_system_user_type to stab_role;
 grant select,insert,update,delete  	on jazzhands.dhcp_range to stab_role;
 grant select				on jazzhands.device_collection to stab_role;
 grant select				on jazzhands.device_collection_hier to stab_role;
-grant select				on jazzhands.device_collection_member to stab_role;
+grant select				on jazzhands.device_collection_device to stab_role;
 
 -- 
 -- for stuff that probably does not belong in stab

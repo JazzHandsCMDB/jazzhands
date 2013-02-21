@@ -114,6 +114,6 @@ GRANT SELECT,INSERT,UPDATE,DELETE  	ON dhcp_range TO stab_role;
 GRANT SELECT,UPDATE				ON dhcp_range_dhcp_range_id_seq TO stab_role;
 GRANT SELECT				ON device_collection TO stab_role;
 GRANT SELECT				ON device_collection_hier TO stab_role;
-GRANT SELECT				ON device_collection_member TO stab_role;
+GRANT SELECT				ON device_collection_device TO stab_role;
 
 GRANT stab_role TO ap_stab;

@@ -42,7 +42,7 @@ IS
 	IS
 		v_loc_id	location.location_id%type;
 	BEGIN
-		delete from device_collection_member where device_id = in_Device_id;
+		delete from device_collection_device where device_id = in_Device_id;
 		delete from device_function where device_id = in_Device_id;
 		delete from snmp_commstr where device_id = in_Device_id;
 

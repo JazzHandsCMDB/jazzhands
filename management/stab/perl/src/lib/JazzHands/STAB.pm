@@ -2100,18 +2100,18 @@ sub zone_header {
 	  $self->b_textfield( $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
 	my $minimum =
 	  $self->b_textfield( $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID', 3600 );
+	my $mname = 
+	  $self->b_textfield( $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID');
+	my $rname = 
+	  $self->b_textfield( $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID');
 	$self->textfield_sizing(1);
 
 	my $class = 'IN';
 	my $type  = 'SOA';
-	my $mname = "auth00.example.com";
-	my $rname = "hostmaster.example.com.";
 	my $ttl   = 3600;
 
 	if ( defined($hr) ) {
 		$type  = $hr->{_dbx('SOA_TYPE')} || 'SOA';
-		$mname = $hr->{_dbx('SOA_MNAME')} || "";
-		$rname = $hr->{_dbx('SOA_RNAME')} || "";
 		$ttl   = $hr->{_dbx('TTL')} || "";
 	}
 
@@ -2119,6 +2119,7 @@ sub zone_header {
 	if ( !$change_type || $change_type ne 'update' ) {
 		$style = 'visibility: hidden; display: none';
 	}
+
 
 	my $t = $cgi->table(
 		{ -id => 'soa_table', -style => $style, -class => 'soatable' },
