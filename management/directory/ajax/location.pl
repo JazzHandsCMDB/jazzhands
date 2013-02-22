@@ -67,27 +67,16 @@ sub check_admin {
 }
 
 sub do_work {
-	my $cgi = new CGI;
-
 	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
 		die $JazzHands::DBI::errstr;
 
+	my $cgi = new CGI;
 
 	# figure out if person is an admin or editing themselves
 	my $personid = $cgi->param('person_id');
-	my $login = get_login($dbh, $personid);
 
-	my $commit = 0;
-
-	my $r;
-	if($cgi->remote_user() ne $login && !check_admin($dbh, $login)) {
-		$r = {};
-		$r->{error} = "You are not permitted to manipulate this user.";
-		$commit = 1;
-	} else {
-		$r = do_b_manip($dbh, $cgi);
-		$commit = 0;
-	}
+	my $commit = 1;
+	my $r = do_location_manip($dbh, $cgi);
 
 	print $cgi->header( -type => 'application/json', -charset => 'utf-8');
 	print encode_json ( $r );
@@ -102,11 +91,8 @@ sub do_work {
 
 ################
 
-sub do_work {
-	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
-		die $JazzHands::DBI::errstr;
-
-	my $cgi = new CGI;
+sub do_location_manip {
+	my($dbh, $cgi) = @_;
 
 	my $r = {};
 
@@ -114,7 +100,6 @@ sub do_work {
 	my $locid = $cgi->param('person_location_id');
 
 	if(!$locid) {
-
 		my $sth = $dbh->prepare(qq{
 			select	person_id,
 				person_location_id,
@@ -142,6 +127,11 @@ sub do_work {
 
 		$sth->finish;
 	} else {
+		my $login = get_login($dbh, $personid);
+		if($cgi->remote_user() ne $login && !check_admin($dbh, $cgi->remote_user())) {
+			$r->{error} = "You are not permitted to manipulate this user.";
+			return $r;
+		}
 		my $building = $cgi->param("building_$locid");
 		my $floor = $cgi->param("floor_$locid");
 		my $section = $cgi->param("section_$locid");
@@ -172,8 +162,6 @@ sub do_work {
 
 		my $diff = JazzHands::Common::GenericDB::hash_table_diff(undef, $hr, $nt);
 
-		warn Dumper($diff);
-
 		my @error;
 		my $ x = JazzHands::Common::GenericDB::DBUpdate(undef,
 			dbhandle => $dbh, 
@@ -184,12 +172,7 @@ sub do_work {
 			error => \@error
 		);
 		$r->{success} = $x;
-		warn Dumper($r, "error: ", \@error);
 	}
-	print $cgi->header( -type => 'application/json', -charset => 'utf-8');
-	print encode_json ( $r );
-
-	$dbh->commit;
-	$dbh->disconnect;
+	$r;
 }
 

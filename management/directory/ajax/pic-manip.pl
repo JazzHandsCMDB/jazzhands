@@ -5,12 +5,104 @@ use warnings;
 use CGI;
 use JSON::PP;
 use Carp;
+use Data::Dumper;
 
 BEGIN { unshift(@INC, "/Users/kovert"); };
 
 use JazzHands::DBI;
 
 exit do_work();
+
+# XXX - need to move to a library; this is shared in a few plces
+sub check_admin {
+	my ($dbh, $login) = @_;
+
+        my $sth = $dbh->prepare_cached(qq {
+                select  count(*) as tally
+                 from   property p
+                        inner join account_collection ac
+                                on ac.account_collection_id =
+                                        p.property_value_account_coll_id
+                        inner join v_acct_coll_acct_expanded ae
+                                on ae.account_collection_id =
+                                        ac.account_collection_id
+                        inner join account a
+                                on ae.account_id = a.account_id
+                 where  p.property_name = 'PhoneDirectoryAdmin'
+                  and   p.property_type = 'PhoneDirectoryAttributes'
+                  and   a.login = ?
+	}) || die $dbh->errstr;
+
+	$sth->execute($login) || die $sth->errstr;
+	my $hr = $sth->fetchrow_hashref();
+	$sth->finish;
+
+	if($hr && $hr->{tally} > 0) {
+		return 1;
+        } else {
+                return 0;
+        }
+}
+
+sub get_login {
+	my($dbh, $personid) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		select	a.login
+		 from	account a
+		 	inner join v_person_company_expanded pc
+				using (person_id, company_id)
+		where	person_id = ?
+                and     company_id = (
+                                select  property_value_company_id
+                                  from  property
+                                 where  property_name = '_rootcompanyid'
+                                   and  property_type = 'Defaults'
+                        )
+	}) || die $dbh->errstr;
+	$sth->execute($personid) || die $sth->errstr;
+	my $login = ($sth->fetchrow_array)[0];
+	$sth->finish;
+	$login;
+}
+
+sub do_work {
+	my $cgi = new CGI;
+
+	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
+		die $JazzHands::DBI::errstr;
+
+
+	# figure out if person is an admin or editing themselves
+	my $personid = $cgi->param('person_id');
+	my $login = get_login($dbh, $personid);
+
+	my $commit = 0;
+
+	my $r;
+	if($cgi->remote_user() ne $login && !check_admin($dbh, $cgi->remote_user() )) {
+		$r = {};
+		$r->{error} = "You are not permitted to manipulate this user.";
+		$commit = 0;
+		print $cgi->header( -type => 'application/json', -charset => 'utf-8');
+		print encode_json ( $r );
+	} else {
+		do_pic_manip($dbh, $cgi);
+		$commit = 1;
+	}
+
+
+	if($commit) {
+		$dbh->commit;
+	} else {
+		$dbh->rollback;
+	}
+	$dbh->disconnect;
+	$cgi->redirect($cgi->referer);
+	1;
+}
+
+################
 
 sub add_pic {
 	my($dbh, $personid, $fn, $description, $formatn) = @_;
@@ -168,14 +260,9 @@ sub get_max_order {
 	defined($max)?$max:0;
 }
 
-sub do_work {
-	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
-		die $JazzHands::DBI::errstr;
+sub do_pic_manip {
+	my($dbh, $cgi) = @_;
 
-	# XXX - should make sure that this person is PERMITTED to manipulate
-	# this picture!!
-
-	my $cgi = CGI->new;
 	# print $cgi->header, $cgi->start_html;
 	# print $cgi->Dump, $cgi->end_html;  exit;
 
@@ -201,6 +288,7 @@ sub do_work {
 			}
 		}
 	}
+	$psth->finish;
 
 	# remove usage from things that have it off
 	foreach my $param ($cgi->param) {
@@ -231,11 +319,11 @@ sub do_work {
 				foreach my $usg (@usg) {
 					add_pic_usage($dbh, $picid, $usg);
 				}
-				my $sth = $dbh->prepare_cached(qq{
-					select	person_image_usage
-				  	from	person_image_usage
-				 	where	person_image_id = ?
-				});
+				#my $sth = $dbh->prepare_cached(qq{
+				#	select	person_image_usage
+				#  	from	person_image_usage
+				# 	where	person_image_id = ?
+				#});
 			}
 
 		} elsif($param =~ /^person_image_usage_(\d+)/) {
@@ -253,8 +341,6 @@ sub do_work {
 	}
 
 	# now go over the old ones and fix things that have changed.
-
-	$dbh->commit;
-	$dbh->disconnect;
-	$cgi->redirect($cgi->referer);
+	1;
 }
+

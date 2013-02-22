@@ -116,7 +116,9 @@ function remove_phone(remove_button) {
 			} else {
 				$(form).closest('tr').remove();
 			}
-		});
+		}).error(function() {
+			alert("There was an issue submitting your request.  Please try again later");
+		});;
 	}
 }
 
@@ -135,15 +137,6 @@ function update_location(button) {
 		function(resp) {
 			$('#locationmanip').toggle(1);
 			$('#locationmanip').empty();
-			var close = document.createElement("a");
-			close.setAttribute("class", "closebutton");
-			$(close).click(function() {
-				$('#locationmanip').toggle(0);
-				$('#locationmanip').empty();
-			});
-			close.href = "#";
-			$(close).text("[XXXX]");
-			$('#locationmanip').append(close);
 
 			var form = document.createElement("FORM");
 			form.action = 'ajax/location.pl';
@@ -195,10 +188,24 @@ function update_location(button) {
 			tr = document.createElement("tr");
 			td = document.createElement("td");
 			td.colSpan = 2;
+
 			input = document.createElement("input");
 			$(input).attr('type','submit');
+			$(input).addClass('abutton');
 			$(input).val('Submit');
 			$(td).append(input);
+
+			var close = document.createElement("input");
+			$(close).attr('type', 'submit');
+			$(close).addClass('abutton');
+			$(close).click(function() {
+				$('#locationmanip').toggle(0);
+				$('#locationmanip').empty();
+			});
+			close.href = "#";
+			$(close).val("Cancel");
+			$(td).append(close);
+
 			$(tr).append(td);
 			$(tbl).append(tr);
 
@@ -209,7 +216,9 @@ function update_location(button) {
 					$.post('ajax/location.pl', s, function(resp) {
 						$('#locationmanip').toggle(1);
 						$('#locationmanip').empty();
-					});
+					}).error(function() {
+						alert("There was an issue submitting your request.  Please try again later");
+					});;
 					return(false);
 				}
 			);
@@ -403,15 +412,6 @@ function pic_manip(person_id) {
 		function(resp) {
 			$('#picsdisplay').toggle(1);
 			$('#picsdisplay').empty();
-			var close = document.createElement("a");
-			close.setAttribute("class", "closebutton");
-			$(close).click(function() {
-				$('#picsdisplay').toggle(0);
-				$('#picsdisplay').empty();
-			});
-			close.href = "#";
-			$(close).text("[XXXX]");
-			$('#picsdisplay').append(close);
 
 			var addtr;
 
@@ -533,10 +533,21 @@ function pic_manip(person_id) {
 			td = document.createElement("td");
 			td.colSpan = 3;
 			input = document.createElement("input");
+			$(input).addClass('abutton');
 			$(input).attr('type','submit');
 			$(input).val('Submit');
-
 			$(td).append(input);
+
+			var close = document.createElement("input");
+			$(close).click(function() {
+				$('#picsdisplay').toggle(0);
+				$('#picsdisplay').empty();
+			});
+			close.href = "#";
+			$(close).addClass('abutton');
+			$(close).val('Cancel');
+			$(td).append(close);
+
 			$(tr).append(td);
 			$(t).append(tr);
 

@@ -181,13 +181,14 @@ img.yearbook { max-width: 300px; }
 	border-radius: 5px;
 }
 
-.sbmtphone, .cancelphone, .addphonebutton, .picmanipbutton, .locationmanipbutton {
+.sbmtphone, .cancelphone, .addphonebutton, .picmanipbutton, .locationmanipbutton, .abutton {
 	border: 2px solid;
 	background-color: blue;
 	color: white;
 	border-radius: 15px;
 	padding-left: 5px;
 	padding-right: 5px;
+	text-align: center;
 }
 
 .phoneattribs {
