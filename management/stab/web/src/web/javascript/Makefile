@@ -30,7 +30,7 @@ SUBDIRS=
 
 SCRIPTS= ajax-utils.js app-utils.js ajaxsearch.js device-utils.js 
 	dns-utils.js \
-	devicetype.js \
+	devicetype.js netblock.js \
 	tickets.js racks.js table-manip.js
 
 all:
