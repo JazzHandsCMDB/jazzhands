@@ -39,6 +39,9 @@ our @EXPORT_OK = qw(_options _dbx hash_table_diff member_hash_diff );
 our $direction = 'lower';
 
 sub _options {
+	if(ref $_[0] eq 'HASH') {
+		return $_[0];
+	}
 	my %ret = @_;
 	for my $v ( grep { /^-/ } keys %ret ) {
 		$ret{ substr( $v, 1 ) } = $ret{$v};
