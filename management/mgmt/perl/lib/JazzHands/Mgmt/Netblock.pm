@@ -56,8 +56,6 @@ sub new {
 	$self->{_dbtable} = "netblock";
 	$self->{_dbkey} = [ qw(netblock_id) ];
 	$self->{_current} = {};
-	$self->{_insertafterhook} = \&_afterhook;
-	$self->{_updateafterhook} = \&_afterhook;
 
 	bless $self, $class;
 	foreach my $key ( qw( netblock_id is_ipv4_address
