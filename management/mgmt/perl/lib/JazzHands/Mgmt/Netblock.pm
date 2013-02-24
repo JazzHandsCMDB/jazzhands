@@ -97,7 +97,7 @@ sub GetNetblock {
 		return undef;
 	}
 
-	my $match;
+	my ($match, $order);
 
 	if ( $opt->{netblock_id} ) {
 		push @$match, {
@@ -133,6 +133,12 @@ sub GetNetblock {
 				key => 'netmask_bits',
 				value => $opt->{netmask_bits}
 			};
+		} else {
+			push @$match, {
+				key => 'host(ip_address)',
+				value => $opt->{ip_address}
+			};
+			$order = 'netmask_bits desc';
 		}
 	}
 
@@ -150,11 +156,12 @@ sub GetNetblock {
 		dbhandle => $dbh,
 		table => 'netblock',
 		match => $match,
+		($order ? ('order' => $order) : ()),
 		errors => $opt->{errors},
 		debug => $opt->{debug});
 	return undef if (!defined($rows));
 
-	if ($opt->{single}) {
+	if ($opt->{single} && $opt->{single} ne 'first') {
 		if (scalar(@$rows) > 1) {
 			SetError($opt->{errors},
 				"Multiple values returned to GetNetblock");

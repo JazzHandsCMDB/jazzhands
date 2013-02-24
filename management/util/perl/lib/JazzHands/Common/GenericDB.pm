@@ -510,6 +510,19 @@ sub DBFetch {
 	if (@where) {
 		$q .= " WHERE " . join(' AND ', @where);
 	}
+	if ($opt->{order}) {
+		$q .= " ORDER BY ";
+		if (!ref($opt->{order})) {
+			$q .= $opt->{order};
+		} elsif (ref($opt->{order}) eq 'ARRAY') {
+			$q .= join ',', @{$opt->{order}};
+		} else {
+			SetError($opt->{errors},
+				"Value for 'order' parameter must be scalar or array reference"
+				);
+			return undef;
+		}
+	}
 	SetError($opt->{debug}, "Query: " . $q);
 	SetError($opt->{debug}, "Params: " . join(',', @params));
 	my $sth;
