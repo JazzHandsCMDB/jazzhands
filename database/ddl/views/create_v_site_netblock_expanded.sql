@@ -23,8 +23,9 @@
 -- $Id$
 --
 
--- This view maps users to device collections and lists properties
--- assigned to the users in order of their priorities.
+-- This view shows the site code for each entry in the netblock table
+-- even when it's one of the ancestor netblocks that has the
+-- site_netblock assignments
 
 CREATE OR REPLACE VIEW v_site_netblock_expanded AS
 WITH RECURSIVE parent_netblock AS (
