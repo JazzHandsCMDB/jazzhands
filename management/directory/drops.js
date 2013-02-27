@@ -67,7 +67,9 @@ function process_search(searchbox) {
 						$(results).append(t);
 					}
 				}
-			);
+			).error(function() {
+				alert("There was an issue completing the search.  Try reloading the directory.");
+			});
 		}, 200);
 	}
 }
@@ -226,7 +228,9 @@ function update_location(button) {
 			$(form).append(tbl);
 			$('#locationmanip').append(form);
 		}
-	);
+	).error(function() {
+		alert("There was an issue downloading location information.    Please reload the page or try later.");
+	});
 	return 0;
 }
 
@@ -373,7 +377,9 @@ function manip_phone(add_button) {
 			$("#addphonehint").offset( position);
 
 		}
-	);
+	).error(function() {
+		alert("There was an issue downloading contact information.    Please reload the page or try later.");
+	});
 	return 0;
 }
 
@@ -558,6 +564,8 @@ function pic_manip(person_id) {
 			d.innerHTML = "The caption is used in yearbook photos and is otherwise unused.  The type marked as corpdirectory is used by this directory.  Headshots are professional photographs that are not, at present, in use.  ";
 			$('#picsdisplay').append(d);
 
+		}).error(function() {
+			alert("There was an issue downloading picture information.    Please reload the page or try later.");
 		});
 }
 

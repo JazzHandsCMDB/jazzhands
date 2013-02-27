@@ -327,7 +327,7 @@ div#locationmanip {
 	display:none;
 }
 
-.editbuttons {
+.editbuttons, .legend {
 	background: lightyellow;
 	width: 100%;
 	text-align:center;
