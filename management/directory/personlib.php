@@ -22,6 +22,8 @@ function locations_limit($dbconn = null) {
 	$result = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
 
 
+	$params = build_qs(null, 'offset', null);
+
 	$rv = "";
 	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 		if(isset($_GET['physical_address_id']) && $_GET['physical_address_id'] == $row['physical_address_id']) {
@@ -29,7 +31,7 @@ function locations_limit($dbconn = null) {
 		} else {
 			$class = 'inactivefilter';
 		}
-		$url = build_url(build_qs(null, 'physical_address_id', $row['physical_address_id']));
+		$url = build_url(build_qs($params, 'physical_address_id', $row['physical_address_id']));
 		$lab = $row['display_label'];
 		if(strlen($rv)) {
 			$rv = "$rv | ";
@@ -37,7 +39,7 @@ function locations_limit($dbconn = null) {
 		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
 	}
 	if(isset($_GET['physical_address_id'])) {
-		$url = build_url(build_qs(null, 'physical_address_id', null));
+		$url = build_url(build_qs($params, 'physical_address_id', null));
 		$lab = '| Clear';
 		$rv = "$rv <a class=\"inactivefilter\" href=\"$url\"> $lab </a> ";
 	}
@@ -55,9 +57,10 @@ function browse_limit($current) {
 		'hier' => "By Org"
 	);
 
+	$params = build_qs(null, 'offset', null);
 	$rv = "";
 	foreach ($arr as $k => $v) {
-		$url = build_url(build_qs(null, 'index', $k), "./");
+		$url = build_url(build_qs($params, 'index', $k), "./");
 		$lab = $arr[$k];
 		if(strlen($rv)) {
 			$rv = "$rv | ";
