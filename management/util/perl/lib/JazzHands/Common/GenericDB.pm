@@ -467,13 +467,15 @@ sub DBFetch {
 
 	my $q = sprintf("SELECT * FROM %s", $table);
 
-	if ($opt->{match_array}) {
-		while (@{$opt->{match_array}}) {
-			push @{$opt->{match}}, { 
-				key => shift @{$opt->{match_array}},
-				value => shift @{$opt->{match_array}} 
+	if (ref($opt->{match}->[0]) ne 'HASH') {
+		my @match;
+		while (@{$opt->{match}}) {
+			push @match, { 
+				key => shift @{$opt->{match}},
+				value => shift @{$opt->{match}} 
 			};
 		}
+		$opt->{match} = \@match;
 	}
 	my ($where, $params) = parsematch($opt->{match});
 	if (@{$where}) {
