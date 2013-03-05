@@ -79,14 +79,9 @@ sub do_work {
 	my $commit = 0;
 
 	my $r;
-	if($cgi->remote_user() ne $login && !check_admin($dbh, $login)) {
-		$r = {};
-		$r->{error} = "You are not permitted to manipulate this user.";
-		$commit = 1;
-	} else {
-		$r = do_pic_manip($dbh, $cgi);
-		$commit = 0;
-	}
+	# There is no reason to check for admin here
+	$r->{error} = "You are not permitted to manipulate this user.";
+	$r = do_pic_manip($dbh, $cgi);
 
 	print $cgi->header( -type => 'application/json', -charset => 'utf-8');
 	print encode_json ( $r );
