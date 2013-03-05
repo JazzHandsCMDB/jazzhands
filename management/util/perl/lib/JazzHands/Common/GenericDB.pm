@@ -32,15 +32,24 @@ our @ISA	   = qw(Exporter);
 
 our %EXPORT_TAGS = 
 (
-        'all' => [qw(run_update_from_hash 
+        'all' => [qw(
 			DBUpdate
 			DBInsert
 			DBDelete
 			DBFetch
+			DBHandle
+			commit
+			rollback
+			disconnect
+		)],
+        'legacy' => [qw(
+			dbh 
+			run_update_from_hash 
 		)],
 );
 
 Exporter::export_ok_tags('all');
+Exporter::export_ok_tags('legacy');
 
 #
 # $dbkey and $keyval can either be scalars or arrays.
@@ -68,6 +77,18 @@ sub run_update_from_hash {
 		hash => $hash
 	);
 }
+
+sub DBHandle {
+	my $self = shift;
+
+	if (@_) { $self->{_dbh} = shift }
+	return $self->{_dbh};
+}
+
+sub dbh {
+	&DBHandle(@_);
+}
+
 
 sub DBUpdate {
 	my $self;
@@ -546,6 +567,32 @@ sub DBFetch {
 	}
 	$sth->finish;
 	return $rows;
+}
+
+
+
+sub commit {
+	my $self = shift;
+
+	if ( my $dbh = $self->DBHandle ) {
+		return $dbh->commit;
+	}
+}
+
+sub rollback {
+	my $self = shift;
+
+	if ( my $dbh = $self->DBHandle ) {
+		return $dbh->rollback;
+	}
+}
+
+sub disconnect {
+	my $self = shift;
+
+	if ( my $dbh = $self->DBHandle ) {
+		return $dbh->disconnect;
+	}
 }
 
 1;
