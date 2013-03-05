@@ -44,7 +44,7 @@ BEGIN
 			NEW.is_single_address
 			);
 	
-		SELECT masklen(ip_address) INTO NEW.netmask_bits FROM netblock
+		SELECT masklen(ip_address) INTO NEW.netmask_bits FROM jazzhands.netblock
 			WHERE netblock_id = v_netblock_id;
 
 		IF NEW.netmask_bits IS NULL THEN

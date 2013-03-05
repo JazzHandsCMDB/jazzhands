@@ -1,50 +1,6 @@
 <?php 
 include "personlib.php" ;
 
-//
-// prints a bar across the top of locations to limit things by and
-//
-function locations_limit($dbconn = null) {
-	$query = "
-		select physical_address_id, display_label
-		from	physical_address
-		where	company_id in (
-			select company_id from v_company_hier
-			where root_company_id IN
-				(select property_value_company_id
-                                   from property
-                                  where property_name = '_rootcompanyid'
-                                    and property_type = 'Defaults'
-                                )
-				
-			) order by display_label
-	";
-	$result = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
-
-
-	$rv = "";
-	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
-		if(isset($_GET['physical_address_id']) && $_GET['physical_address_id'] == $row['physical_address_id']) {
-			$class = 'activefilter';
-		} else {
-			$class = 'inactivefilter';
-		}
-		$url = build_url(build_qs(null, 'physical_address_id', $row['physical_address_id']));
-		$lab = $row['display_label'];
-		if(strlen($rv)) {
-			$rv = "$rv | ";
-		}
-		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
-	}
-	if(isset($_GET['physical_address_id'])) {
-		$url = build_url(build_qs(null, 'physical_address_id', null));
-		$lab = '| Clear';
-		$rv = "$rv <a class=\"inactivefilter\" href=\"$url\"> $lab </a> ";
-	}
-	return "<div class=filterbar>[ $rv ]</div>";
-}
-
-
 $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
 $index = isset($_GET['index']) ? $_GET['index'] : 'byname';
