@@ -467,9 +467,76 @@ sub DBFetch {
 
 	my $q = sprintf("SELECT * FROM %s", $table);
 
+	if ($opt->{match_array}) {
+		while (@{$opt->{match_array}}) {
+			push @{$opt->{match}}, { 
+				key => shift @{$opt->{match_array}},
+				value => shift @{$opt->{match_array}} 
+			};
+		}
+	}
+	my ($where, $params) = parsematch($opt->{match});
+	if (@{$where}) {
+		$q .= " WHERE " . join(' AND ', @{$where});
+	}
+	if ($opt->{order}) {
+		$q .= " ORDER BY ";
+		if (!ref($opt->{order})) {
+			$q .= $opt->{order};
+		} elsif (ref($opt->{order}) eq 'ARRAY') {
+			$q .= join ',', @{$opt->{order}};
+		} else {
+			SetError($opt->{errors},
+				"Value for 'order' parameter must be scalar or array reference"
+				);
+			return undef;
+		}
+	}
+	SetError($opt->{debug}, "Query: " . $q);
+	SetError($opt->{debug}, "Params: " . join(',', @{$params}));
+	my $sth;
+	if (!($sth = $dbh->prepare_cached($q))) {
+		SetError($opt->{errors}, 
+			sprintf("DBFetch: Error preparing database statement %s",
+				$dbh->errstr));
+		return undef;
+	}
+
+	if (!($sth->execute(@{$params}))) {
+		SetError($opt->{errors}, 
+			sprintf("DBFetch: Error executing update: %s",
+				$sth->errstr));
+		return undef;
+	}
+
+	my $rows = [];
+	while (my $row = $sth->fetchrow_hashref) {
+		push @$rows, _dbx($row);
+	}
+	$sth->finish;
+	if ($opt->{result_set_size} eq 'count') {
+		if (!@{$rows}) {
+			return 0E0;
+		} else {
+			return $#$rows + 1;
+		}
+	} elsif ($opt->{result_set_size} eq 'exactlyone') {
+		if (!@{$rows} || ($#$rows > 0)) {
+			SetError($opt->{errors}, "Multiple rows returned");
+			return undef;
+		}
+		return $rows->[0];
+	} elsif ($opt->{result_set_size} eq 'first') {
+		return $rows->[0];
+	}
+	return $rows;
+}
+
+sub parsematch {
+	my $match = shift;
 	my (@where, @params);
-	if ($opt->{match}) {
-		while (my $matchentry = shift @{$opt->{match}}) {
+	if ($match) {
+		while (my $matchentry = shift @{$match}) {
 			next if !$matchentry->{key};
 			if (!exists($matchentry->{matchtype})) {
 				$matchentry->{matchtype} = "eq";
@@ -507,45 +574,7 @@ sub DBFetch {
 			}
 		}
 	}
-	if (@where) {
-		$q .= " WHERE " . join(' AND ', @where);
-	}
-	if ($opt->{order}) {
-		$q .= " ORDER BY ";
-		if (!ref($opt->{order})) {
-			$q .= $opt->{order};
-		} elsif (ref($opt->{order}) eq 'ARRAY') {
-			$q .= join ',', @{$opt->{order}};
-		} else {
-			SetError($opt->{errors},
-				"Value for 'order' parameter must be scalar or array reference"
-				);
-			return undef;
-		}
-	}
-	SetError($opt->{debug}, "Query: " . $q);
-	SetError($opt->{debug}, "Params: " . join(',', @params));
-	my $sth;
-	if (!($sth = $dbh->prepare_cached($q))) {
-		SetError($opt->{errors}, 
-			sprintf("DBFetch: Error preparing database statement %s",
-				$dbh->errstr));
-		return undef;
-	}
-
-	if (!($sth->execute(@params))) {
-		SetError($opt->{errors}, 
-			sprintf("DBFetch: Error executing update: %s",
-				$sth->errstr));
-		return undef;
-	}
-
-	my $rows = [];
-	while (my $row = $sth->fetchrow_hashref) {
-		push @$rows, _dbx($row);
-	}
-	$sth->finish;
-	return $rows;
+	return (\@where, \@params);
 }
 
 1;
