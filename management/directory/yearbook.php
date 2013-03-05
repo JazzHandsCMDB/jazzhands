@@ -6,11 +6,20 @@ $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Co
 $personid = isset($_GET['person_id']) ? $_GET['person_id'] : null;
 
 $wherextra = "";
-$args = null;
+$args = array();
+$argoffset = 1;
 if(isset($personid)) {
-	$wherextra = "and p.person_id = $1";
-	$args = array($personid);
+	$wherextra = "and p.person_id = $".$argoffset++;
+	array_push($args, $personid);
 }
+
+$address = ($_GET['physical_address_id'])?$_GET['physical_address_id']:null;
+
+if($address) {
+	$wherextra .=" and  ofc.physical_address_id = $".$argoffset++;
+	array_push($args, $address);
+}
+error_log( "address is $address" );
 
 $query = "
 	select  p.person_id,
@@ -39,10 +48,19 @@ $query = "
 		inner join person_image_usage piu
 			on pi.person_image_id = piu.person_image_id
 				and piu.person_image_usage = 'yearbook'
+	       left join (
+			select pl.person_id, pa.physical_address_id,
+				pa.display_label
+			 from   person_location pl
+				inner join physical_address pa
+					on pl.physical_address_id = 
+						pa.physical_address_id
+			where   pl.person_location_type = 'office'
+			order by site_rank
+			) ofc on ofc.person_id = p.person_id
 		where	pc.person_company_status = 'enabled'
 		 and	pi.description is not null
 			$wherextra
-		-- order by pc.employee_id
 		order by pc.hire_date
 ";
 
@@ -55,18 +73,26 @@ if(strlen($wherextra) >  0) {
 }
 
 echo build_header("Yearbook", null, "Yearbook");
-if(! isset($personid)) {
-	?>
-	<table id=yearbook>
-		<tr>
-			<td> Name </td> 
-			<td> Photo </td> 
-			<td> Most Likely To... </td> 
-		</tr>
-	<?php
-}
 
+echo locations_limit($dbconn);
+
+
+$first = 0;
 while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
+	// only print the header if there are rows.
+	if($first == 0 ) {
+		$first++;
+		if(! isset($personid)) {
+			?>
+			<table id=yearbook>
+				<tr>
+					<td> Name </td> 
+					<td> Photo </td> 
+					<td> Most Likely To... </td> 
+				</tr>
+			<?php
+		}
+	}
 	$pic = null;
 	if(isset($row['person_image_id'])) {
 		$pic = img($row['person_id'], $row['person_image_id'], 'yearbook');
@@ -94,9 +120,13 @@ while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 	}
 }
 	
-if(! isset($personid)) {
-	echo "</table>\n";
-};
+if($first) {
+	if(! isset($personid)) {
+		echo "</table>\n";
+	} 
+} else {
+	echo "There is no yearbook content for this location.";
+}
 
 echo build_footer();
 
