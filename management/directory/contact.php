@@ -255,7 +255,7 @@ if(isset($manager)) {
 		personlink($row['manager_person_id'], $manager));
 }
 
-echo build_tr("Relation", $row['person_company_relation']);
+echo build_tr("Status", $row['person_company_relation']);
 
 if(isset($row['display_label'])) {
 	echo build_tr("Location", $row['display_label']);
@@ -316,6 +316,16 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 
 if($canedit) {
 ?>
+
+<tr id=legend class=legend>
+	<td colspan=2>
+	<b> <center> Phone Qualifiers </center> </b>
+	PRIVATE: Not to be shared outside company.  
+	<br>
+	HIDDEN:  Visible to person, their managers and administrators.
+	</td>
+</tr>
+
 
 <tr id=add_phones class=editbuttons>  
 	<td colspan=2>

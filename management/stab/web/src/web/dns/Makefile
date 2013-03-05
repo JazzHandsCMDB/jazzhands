@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/dns
 
 SUBDIRS=write 
 
-SCRIPTS= index.pl  search.pl soacheck.pl dns-reconcile.pl db-reconcile.pl addazone.pl update_dns.pl
+SCRIPTS= index.pl  search.pl soacheck.pl dns-reconcile.pl db-reconcile.pl addazone.pl update_dns.pl dns-ajax.pl
 
 all:
 	@for subdir in $(SUBDIRS) ; do \

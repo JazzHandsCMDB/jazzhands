@@ -83,10 +83,10 @@ sub do_work {
 	if($cgi->remote_user() ne $login && !check_admin($dbh, $cgi->remote_user())) {
 		$r = {};
 		$r->{error} = "You are not permitted to manipulate this user.";
-		$commit = 1;
+		$commit = 0;
 	} else {
 		$r = do_db_manip($dbh, $cgi);
-		$commit = 0;
+		$commit = 1;
 	}
 
 	print $cgi->header( -type => 'application/json', -charset => 'utf-8');
@@ -209,7 +209,6 @@ sub do_db_manip {
 		};
 
 		my $diff = $c->hash_table_diff($hr, $n);
-		warn "diff is ", Dumper($diff);
 		if(keys $diff > 0) {
 			$c->DBUpdate(
 				dbhandle => $dbh,

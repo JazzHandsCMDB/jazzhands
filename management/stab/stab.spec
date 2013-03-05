@@ -13,7 +13,7 @@ Source0:	%{name}.tgz
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:	noarch
 #BuildRequires: 
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common, jazzhands-perl-stab
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common, jazzhands-perl-stab, jazzhands-javascript-common
 
 %description
 
@@ -196,6 +196,7 @@ rm -rf %{buildroot}
 %{prefix}/dns/write/.htaccess
 %{prefix}/dns/write/update_domain.pl
 %{prefix}/dns/soacheck.pl
+%{prefix}/dns/dns-ajax.pl
 
 %files -n jazzhands-perl-stab
 ##  %doc Changes README

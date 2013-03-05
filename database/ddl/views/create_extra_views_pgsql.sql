@@ -73,3 +73,4 @@
 \i pgsql/create_v_application_role.sql
 
 \i pgsql/create_v_company_hier.sql
+\i pgsql/create_v_site_netblock_expanded.sql
