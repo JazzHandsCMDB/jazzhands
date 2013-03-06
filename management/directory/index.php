@@ -3,7 +3,7 @@ include "personlib.php" ;
 
 $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
 
-$index = isset($_GET['index']) ? $_GET['index'] : 'byname';
+$index = isset($_GET['index']) ? $_GET['index'] : 'random';
 
 $select_fields = "
 		distinct p.person_id,
@@ -85,6 +85,22 @@ $showarrow = 0;
 
 $style = 'peoplelist';
 switch($index) {
+	case 'random':
+		$query = "
+			select p.person_id $query_tables order by random() limit 1
+		";
+		$result = pg_query($query)
+			or die('Query failed: ' . pg_last_error());
+		
+		$row = pg_fetch_array($result, null, PGSQL_ASSOC);
+		if($row && $row['person_id']) {
+			Header('Location: '.personlinkurl($row['person_id'], 'random=yes'));
+		}
+		pg_free_result($result);
+		pg_close($dbconn);
+		exit(0);
+		break;
+
 	case 'reports':
 		$who = $_GET['person_id'];
 		$query = "
