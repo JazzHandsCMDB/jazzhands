@@ -38,6 +38,10 @@ $query_tables = "
 		inner join account_collection u
 			on u.account_collection_id = uc.account_collection_id
 			and u.account_collection_type = 'department'
+		inner join val_person_status vps
+			on ( vps.person_status = pc.person_company_status
+			 and	vps.is_disabled = 'N'
+			)
 		left join (
 			select	pi.*, piu.person_image_usage
 			 from	person_image pi
