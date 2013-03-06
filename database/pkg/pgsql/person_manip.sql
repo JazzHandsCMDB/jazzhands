@@ -62,8 +62,12 @@ DECLARE
 	_account_collection_id INTEGER;
 BEGIN
 	_account_collection_id = person_manip.get_account_collection_id( department, 'department' ); 
-	--RAISE NOTICE 'updating account_collection_account with id % for account %', _account_collection_id, _account_id; 
-	UPDATE account_collection_account SET account_collection_id = _account_collection_id WHERE account_id = _account_id AND account_collection_id=old_account_collection_id;
+	IF old_account_collection_id IS NULL THEN
+		INSERT INTO account_collection_account (account_id, account_collection_id) VALUES (_account_id, _account_collection_id);
+	ELSE
+		--RAISE NOTICE 'updating account_collection_account with id % for account %', _account_collection_id, _account_id;
+		UPDATE account_collection_account SET account_collection_id = _account_collection_id WHERE account_id = _account_id AND account_collection_id=old_account_collection_id;
+	END IF;
 	RETURN _account_collection_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

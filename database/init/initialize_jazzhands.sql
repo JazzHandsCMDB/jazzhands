@@ -683,6 +683,11 @@ insert into val_property
 values
 ('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'N', 'company_id',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'PROHIBITED', 'PROHIBITED', 'PROHIBITED');
 
+insert into val_property
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE)
+values
+('_defaultdomain', 'Defaults', 'defines domain used for defaultas where necessary', 'N', 'string');
+
 insert into val_property(
 	property_name, property_type, description, is_multivalue,
 	property_data_type, permit_account_collection_id,
