@@ -168,3 +168,84 @@ INSERT INTO Operating_System (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'sparc'
 );
+
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('127.0.0.0'), 8, 'Y', 'N',
+        'Allocated', 'default', 'Localhost Network', 'Y');
+
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('127.0.0.1'), 8, 'Y', 'Y',
+        'Allocated', 'default', 'Localhost', 'N');
+
+
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('::1'), 128, 'N', 'N',
+        'Allocated', 'default', 'Localhost', 'N');
+
+
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('::1'), 128, 'N', 'Y',
+        'Allocated', 'default', 'Localhost', 'N');
+
+-- RFC1493 Example space
+-- FC00::/7
+-- 334965454937798799971759379190646833152
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status,
+        description, netblock_type, parent_netblock_id, can_subnet) values
+(net_manip.inet_ptodb('FC00::'), 7, 'N', 'N', 'Allocated',
+        'RFC4193 IPV6 Block', 'default', null, 'Y');
+
+-- RFC 1918 space
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('10.0.0.0'), 8, 'Y', 'N',
+        'Allocated', 'default', 'RFC1918 Space', 'Y');
+
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('192.168.0.0'), 16, 'Y', 'N',
+        'Allocated', 'default', 'RFC1918 Space', 'Y');
+
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('172.16.0.0'), 12, 'Y', 'N',
+        'Allocated', 'default', 'RFC1918 Space', 'Y');
+
+-- RFC3927
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('169.254.0.0'), 16, 'Y', 'N',
+        'Allocated', 'default', 'RFC3927 Autoconfig', 'Y');
+
+-- Multicast
+insert into netblock
+        (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,
+         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+values
+        (net_manip.inet_ptodb('224.0.0.0'), 4, 'Y', 'N',
+        'Allocated', 'default', 'IPv4 Multicast', 'Y');
+
+insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status,
+        description, netblock_type, parent_netblock_id, can_subnet) values
+(net_manip.inet_ptodb('FF00::'), 8, 'N', 'N', 'Allocated',
+        'IPv6 Multicast', 'default', null, 'Y');

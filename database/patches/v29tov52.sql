@@ -1,5 +1,10 @@
 \set ON_ERROR_STOP
 
+set search_path = jazzhands;
+
+-- views that get recreated later
+drop view v_person_company_expanded;
+
 -- rename device_collection_member to device_collection_device
 alter table audit.device_collection_member rename to device_collection_device;
 alter table device_collection_member rename to device_collection_device;
@@ -15,6 +20,15 @@ ALTER TABLE ONLY device_collection_device
     ADD CONSTRAINT fk_devcolldev_dev_id FOREIGN KEY (device_id) REFERENCES device(device_id);
 
 ALTER TABLE ONLY device_collection_device DROP CONSTRAINT fk_devcollmem_devc_id;
+
+ALTER TABLE ONLY device_collection_device
+	ADD CONSTRAINT fk_devcolldev_dev_colid FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+
+ALTER TABLE ONLY device_collection_device
+ 	DROP  CONSTRAINT sys_c002655;
+
+ALTER TABLE ONLY device_collection_device
+	ADD CONSTRAINT pk_device_collection_device PRIMARY KEY (device_id, device_collection_id);
 
 DROP TRIGGER IF EXISTS trig_userlog_device_collection_member on device_collection_device;
 CREATE TRIGGER trig_userlog_device_collection_device BEFORE INSERT OR UPDATE ON device_collection_device FOR EACH ROW EXECUTE PROCEDURE schema_support.trigger_ins_upd_generic_func();
@@ -53,7 +67,7 @@ CREATE TRIGGER trig_userlog_token_collection_token BEFORE INSERT OR UPDATE ON to
 
 DROP TRIGGER IF EXISTS trigger_audit_token_collection_member ON token_collection_token;
 DROP FUNCTION IF EXISTS perform_audit_token_collection_member();
-SELECT schema_support.rebuild_audit_trigger('device_collection_device');
+SELECT schema_support.rebuild_audit_trigger('token_collection_token');
 
 -- DEALING WITH TABLE dns_domain [655411]
 
@@ -76,8 +90,8 @@ drop trigger trigger_audit_dns_domain on dns_domain;
 drop trigger trig_userlog_dns_domain on dns_domain;
 
 
-ALTER TABLE dns_domain RENAME TO dns_domain_v29;
-ALTER TABLE audit.dns_domain RENAME TO dns_domain_v29;
+ALTER TABLE dns_domain RENAME TO dns_domain_v52;
+ALTER TABLE audit.dns_domain RENAME TO dns_domain_v52;
 
 CREATE TABLE dns_domain
 (
@@ -144,7 +158,7 @@ INSERT INTO dns_domain (
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM dns_domain_v29;
+FROM dns_domain_v52;
 
 INSERT INTO audit.dns_domain (
 	dns_domain_id,
@@ -195,7 +209,7 @@ INSERT INTO audit.dns_domain (
 	"aud#timestamp",
 	"aud#user",
 	"aud#seq"
-FROM audit.dns_domain_v29;
+FROM audit.dns_domain_v52;
 
 ALTER TABLE dns_domain
 	ALTER dns_domain_id
@@ -235,8 +249,8 @@ SELECT schema_support.rebuild_stamp_trigger('dns_domain');
 SELECT schema_support.rebuild_audit_trigger('dns_domain');
 ALTER SEQUENCE dns_domain_dns_domain_id_seq
 	 OWNED BY dns_domain.dns_domain_id;
-DROP TABLE dns_domain_v29;
-DROP TABLE audit.dns_domain_v29;
+DROP TABLE dns_domain_v52;
+DROP TABLE audit.dns_domain_v52;
 -- DEALING WITH TABLE x509_certificate [656668]
 
 -- FOREIGN KEYS FROM
@@ -254,8 +268,8 @@ drop trigger trig_userlog_x509_certificate on x509_certificate;
 drop trigger trigger_audit_x509_certificate on x509_certificate;
 
 
-ALTER TABLE x509_certificate RENAME TO x509_certificate_v29;
-ALTER TABLE audit.x509_certificate RENAME TO x509_certificate_v29;
+ALTER TABLE x509_certificate RENAME TO x509_certificate_v52;
+ALTER TABLE audit.x509_certificate RENAME TO x509_certificate_v52;
 
 CREATE TABLE x509_certificate
 (
@@ -308,28 +322,28 @@ INSERT INTO x509_certificate (
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM x509_certificate_v29;
+FROM x509_certificate_v52;
 
 COMMENT ON TABLE x509_certificate IS 'X509 specification Certificate.';
 COMMENT ON COLUMN x509_certificate.x509_cert_id IS 'Uniquely identifies Certificate';
 COMMENT ON COLUMN x509_certificate.signing_cert_id IS 'Identifier for the certificate that has signed this one.';
 COMMENT ON COLUMN x509_certificate.x509_ca_cert_serial_number IS 'Serial INTEGER assigned to the certificate within Certificate Authority. It uniquely identifies certificate within the realm of the CA.';
-COMMENT ON TABLE x509_certificate_v29 IS 'X509 specification Certificate.';
+COMMENT ON TABLE x509_certificate_v52 IS 'X509 specification Certificate.';
 COMMENT ON COLUMN x509_certificate.public_key IS 'Textual representation of Certificate Public Key. Public Key is a component of X509 standard and is used for encryption.';
-COMMENT ON COLUMN x509_certificate_v29.x509_cert_id IS 'Uniquely identifies Certificate';
+COMMENT ON COLUMN x509_certificate_v52.x509_cert_id IS 'Uniquely identifies Certificate';
 COMMENT ON COLUMN x509_certificate.private_key IS 'Textual representation of Certificate Private Key. Private Key is a component of X509 standard and is used for encryption.';
-COMMENT ON COLUMN x509_certificate_v29.signing_cert_id IS 'Identifier for the certificate that has signed this one.';
+COMMENT ON COLUMN x509_certificate_v52.signing_cert_id IS 'Identifier for the certificate that has signed this one.';
 COMMENT ON COLUMN x509_certificate.subject IS 'Textual representation of a certificate subject. Certificate subject is a part of X509 certificate specifications.';
-COMMENT ON COLUMN x509_certificate_v29.x509_ca_cert_serial_number IS 'Serial INTEGER assigned to the certificate within Certificate Authority. It uniquely identifies certificate within the realm of the CA.';
+COMMENT ON COLUMN x509_certificate_v52.x509_ca_cert_serial_number IS 'Serial INTEGER assigned to the certificate within Certificate Authority. It uniquely identifies certificate within the realm of the CA.';
 COMMENT ON COLUMN x509_certificate.valid_from IS 'Timestamp indicating when the certificate becomes valid and can be used.';
-COMMENT ON COLUMN x509_certificate_v29.public_key IS 'Textual representation of Certificate Public Key. Public Key is a component of X509 standard and is used for encryption.';
+COMMENT ON COLUMN x509_certificate_v52.public_key IS 'Textual representation of Certificate Public Key. Public Key is a component of X509 standard and is used for encryption.';
 COMMENT ON COLUMN x509_certificate.valid_to IS 'Timestamp indicating when the certificate becomes invalid and can''t be used.';
-COMMENT ON COLUMN x509_certificate_v29.private_key IS 'Textual representation of Certificate Private Key. Private Key is a component of X509 standard and is used for encryption.';
+COMMENT ON COLUMN x509_certificate_v52.private_key IS 'Textual representation of Certificate Private Key. Private Key is a component of X509 standard and is used for encryption.';
 COMMENT ON COLUMN x509_certificate.is_cert_revoked IS 'Indicates if certificate has been revoked. ''Y'' indicates that Certificate has been revoked.';
-COMMENT ON COLUMN x509_certificate_v29.subject IS 'Textual representation of a certificate subject. Certificate subject is a part of X509 certificate specifications.';
-COMMENT ON COLUMN x509_certificate_v29.valid_from IS 'Timestamp indicating when the certificate becomes valid and can be used.';
-COMMENT ON COLUMN x509_certificate_v29.valid_to IS 'Timestamp indicating when the certificate becomes invalid and can''t be used.';
-COMMENT ON COLUMN x509_certificate_v29.is_cert_revoked IS 'Indicates if certificate has been revoked. ''Y'' indicates that Certificate has been revoked.';
+COMMENT ON COLUMN x509_certificate_v52.subject IS 'Textual representation of a certificate subject. Certificate subject is a part of X509 certificate specifications.';
+COMMENT ON COLUMN x509_certificate_v52.valid_from IS 'Timestamp indicating when the certificate becomes valid and can be used.';
+COMMENT ON COLUMN x509_certificate_v52.valid_to IS 'Timestamp indicating when the certificate becomes invalid and can''t be used.';
+COMMENT ON COLUMN x509_certificate_v52.is_cert_revoked IS 'Indicates if certificate has been revoked. ''Y'' indicates that Certificate has been revoked.';
 
 INSERT INTO audit.x509_certificate (
 	x509_cert_id,
@@ -370,7 +384,7 @@ INSERT INTO audit.x509_certificate (
 	"aud#timestamp",
 	"aud#user",
 	"aud#seq"
-FROM audit.x509_certificate_v29;
+FROM audit.x509_certificate_v52;
 
 ALTER TABLE x509_certificate
 	ALTER x509_cert_id
@@ -401,8 +415,8 @@ SELECT schema_support.rebuild_stamp_trigger('x509_certificate');
 SELECT schema_support.rebuild_audit_trigger('x509_certificate');
 ALTER SEQUENCE x509_certificate_x509_cert_id_seq
 	 OWNED BY x509_certificate.x509_cert_id;
-DROP TABLE x509_certificate_v29;
-DROP TABLE audit.x509_certificate_v29;
+DROP TABLE x509_certificate_v52;
+DROP TABLE audit.x509_certificate_v52;
 
 -- DEALING WITH TABLE dns_record [707740]
 
@@ -445,8 +459,8 @@ drop trigger trigger_audit_dns_record on dns_record;
 drop trigger trigger_update_dns_zone on dns_record;
 
 
-ALTER TABLE dns_record RENAME TO dns_record_v29;
-ALTER TABLE audit.dns_record RENAME TO dns_record_v29;
+ALTER TABLE dns_record RENAME TO dns_record_v52;
+ALTER TABLE audit.dns_record RENAME TO dns_record_v52;
 
 CREATE TABLE dns_record
 (
@@ -516,7 +530,7 @@ INSERT INTO dns_record (
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM dns_record_v29;
+FROM dns_record_v52;
 
 INSERT INTO audit.dns_record (
 	dns_record_id,
@@ -569,7 +583,7 @@ INSERT INTO audit.dns_record (
 	"aud#timestamp",
 	"aud#user",
 	"aud#seq"
-FROM audit.dns_record_v29;
+FROM audit.dns_record_v52;
 
 ALTER TABLE dns_record
 	ALTER dns_record_id
@@ -592,8 +606,8 @@ CREATE INDEX idx_dnsrec_dnstype ON dns_record USING btree (dns_type);
 CREATE INDEX idx_dnsrec_dnsclass ON dns_record USING btree (dns_class);
 
 -- CHECK CONSTRAINTS
-ALTER TABLE dns_record ADD CONSTRAINT ckc_dns_srv_protocol_dns_reco
-	CHECK ((dns_srv_protocol IS NULL) OR (((dns_srv_protocol)::text = ANY ((ARRAY['tcp'::character varying, 'udp'::character varying])::text[])) AND ((dns_srv_protocol)::text = lower((dns_srv_protocol)::text))));
+ALTER TABLE DNS_RECORD
+        ADD CONSTRAINT  CKC_DNS_SRV_PROTOCOL_DNS_RECO CHECK (DNS_SRV_PROTOCOL is null or (DNS_SRV_PROTOCOL in ('tcp','udp') and DNS_SRV_PROTOCOL = lower(DNS_SRV_PROTOCOL)))  ;
 ALTER TABLE dns_record ADD CONSTRAINT ckc_is_enabled_dns_reco
 	CHECK ((is_enabled = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])) AND ((is_enabled)::text = upper((is_enabled)::text)));
 ALTER TABLE dns_record ADD CONSTRAINT ckc_should_generate_p_dns_reco
@@ -643,8 +657,229 @@ SELECT schema_support.rebuild_stamp_trigger('dns_record');
 SELECT schema_support.rebuild_audit_trigger('dns_record');
 ALTER SEQUENCE dns_record_dns_record_id_seq
 	 OWNED BY dns_record.dns_record_id;
-DROP TABLE dns_record_v29;
-DROP TABLE audit.dns_record_v29;
+DROP TABLE dns_record_v52;
+DROP TABLE audit.dns_record_v52;
+
+-- DEALING WITH TABLE person_company [766344]
+
+-- FOREIGN KEYS FROM
+alter table account drop constraint fk_account_company_person;
+
+-- FOREIGN KEYS TO
+alter table person_company drop constraint fk_person_company_prsncmpyrelt;
+alter table person_company drop constraint fk_person_company_prsncmpy_sta;
+alter table person_company drop constraint fk_person_company_mgrprsn_id;
+alter table person_company drop constraint fk_person_company_sprprsn_id;
+alter table person_company drop constraint fk_person_company_company_id;
+alter table person_company drop constraint fk_person_company_prsnid;
+alter table person_company drop constraint ak_uq_person_company_empid;
+alter table person_company drop constraint ak_uq_prson_company_bdgid;
+alter table person_company drop constraint pk_person_company;
+-- INDEXES
+DROP INDEX xifperson_company_person_id;
+DROP INDEX xifperson_company_company_id;
+DROP INDEX xif6person_company;
+DROP INDEX xif4person_company;
+DROP INDEX xif5person_company;
+DROP INDEX xif3person_company;
+-- CHECK CONSTRAINTS, etc
+alter table person_company drop constraint check_yes_no_1391508687;
+-- TRIGGERS, etc
+drop trigger trigger_audit_person_company on person_company;
+drop trigger trigger_propagate_person_status_to_account on person_company;
+drop trigger trig_userlog_person_company on person_company;
+
+
+ALTER TABLE person_company RENAME TO person_company_v52;
+ALTER TABLE audit.person_company RENAME TO person_company_v52;
+
+CREATE TABLE person_company
+(
+	company_id	integer NOT NULL,
+	person_id	integer NOT NULL,
+	person_company_status	varchar(50) NOT NULL,
+	person_company_relation	varchar(50) NOT NULL,
+	is_exempt	character(1) NOT NULL,
+	is_management	character(1) NOT NULL,
+	is_full_time	character(1) NOT NULL,
+	description	varchar(255)  NULL,
+	employee_id	integer  NULL,
+	payroll_id	varchar(255)  NULL,
+	external_hr_id	varchar(255)  NULL,
+	position_title	varchar(50)  NULL,
+	badge_id	varchar(12)  NULL,
+	hire_date	timestamp with time zone  NULL,
+	termination_date	timestamp with time zone  NULL,
+	manager_person_id	integer  NULL,
+	supervisor_person_id	integer  NULL,
+	nickname	varchar(255)  NULL,
+	data_ins_user	varchar(30)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(30)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('person_company', false);
+INSERT INTO person_company (
+	company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	is_management,
+	is_full_time,
+	description,
+	employee_id,
+	payroll_id,
+	external_hr_id,
+	position_title,
+	badge_id,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	supervisor_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT		company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	'N',
+	is_exempt,
+	description,
+	employee_id,
+	payroll_id,
+	external_hr_id,
+	position_title,
+	badge_id,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	supervisor_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM person_company_v52;
+
+INSERT INTO audit.person_company (
+	company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	is_management,
+	is_full_time,
+	description,
+	employee_id,
+	payroll_id,
+	external_hr_id,
+	position_title,
+	badge_id,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	supervisor_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+) SELECT		company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	'N',
+	is_exempt,
+	description,
+	employee_id,
+	payroll_id,
+	external_hr_id,
+	position_title,
+	badge_id,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	supervisor_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+FROM audit.person_company_v52;
+
+ALTER TABLE person_company
+	ALTER is_management
+	SET DEFAULT 'N'::bpchar;
+ALTER TABLE person_company
+	ALTER is_full_time
+	SET DEFAULT 'Y'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE person_company ADD CONSTRAINT ak_uq_person_company_empid UNIQUE (employee_id, company_id);
+ALTER TABLE person_company ADD CONSTRAINT ak_uq_prson_company_bdgid UNIQUE (badge_id, company_id);
+ALTER TABLE person_company ADD CONSTRAINT pk_person_company PRIMARY KEY (company_id, person_id);
+-- INDEXES
+CREATE INDEX xifperson_company_person_id ON person_company USING btree (person_id);
+CREATE INDEX xifperson_company_company_id ON person_company USING btree (company_id);
+CREATE INDEX xif6person_company ON person_company USING btree (person_company_relation);
+CREATE INDEX xif4person_company ON person_company USING btree (supervisor_person_id);
+CREATE INDEX xif5person_company ON person_company USING btree (person_company_status);
+CREATE INDEX xif3person_company ON person_company USING btree (manager_person_id);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE person_company ADD CONSTRAINT check_yes_no_691526916
+	CHECK (is_full_time = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE person_company ADD CONSTRAINT check_yes_no_1391508687
+	CHECK (is_exempt = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE person_company ADD CONSTRAINT check_yes_no_prsncmpy_mgmt
+	CHECK (is_management = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account
+	ADD CONSTRAINT fk_account_company_person
+	FOREIGN KEY (company_id, person_id) REFERENCES person_company(company_id, person_id) ON DELETE SET NULL;
+
+-- FOREIGN KEYS TO
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsncmpyrelt
+	FOREIGN KEY (person_company_relation) REFERENCES val_person_company_relation(person_company_relation) ON DELETE SET NULL;
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsncmpy_sta
+	FOREIGN KEY (person_company_status) REFERENCES val_person_status(person_status) ON DELETE SET NULL;
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_mgrprsn_id
+	FOREIGN KEY (manager_person_id) REFERENCES person(person_id) ON DELETE SET NULL;
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_sprprsn_id
+	FOREIGN KEY (supervisor_person_id) REFERENCES person(person_id) ON DELETE SET NULL;
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id);
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsnid
+	FOREIGN KEY (person_id) REFERENCES person(person_id);
+
+COMMENT ON COLUMN person_company.nickname IS 'Nickname in the context of a given company.  This is less likely to be used, the value in person is preferrred.';
+-- TRIGGERS
+--- XXX trigger: trigger_propagate_person_status_to_account
+SELECT schema_support.rebuild_stamp_trigger('person_company');
+SELECT schema_support.rebuild_audit_trigger('person_company');
+DROP TABLE person_company_v52;
+DROP TABLE audit.person_company_v52;
 
 ---  redo v_application_role
 -- Copyright (c) 2011, Todd M. Kover
@@ -984,7 +1219,7 @@ GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO PUBLIC;
 
 
---- netblock triggers
+--- START netblock triggers
 -- Copyright (c) 2012, Matthew Ragan
 -- All rights reserved.
 --
@@ -1031,7 +1266,7 @@ BEGIN
 			NEW.is_single_address
 			);
 	
-		SELECT masklen(ip_address) INTO NEW.netmask_bits FROM netblock
+		SELECT masklen(ip_address) INTO NEW.netmask_bits FROM jazzhands.netblock
 			WHERE netblock_id = v_netblock_id;
 
 		IF NEW.netmask_bits IS NULL THEN
@@ -1571,11 +1806,137 @@ CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage
 	AFTER INSERT OR UPDATE ON jazzhands.netblock DEFERRABLE INITIALLY DEFERRED
 	FOR EACH ROW EXECUTE PROCEDURE jazzhands.validate_netblock_parentage();
 
+--- END netblock triggers
+
+--- START netblock triggers
+
+--- views
+
+-- Copyright (c) 2011, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- $Id: create_v_acct_coll_account_expanded.sql 60 2011-10-03 09:11:29Z kovert $
+--
+
+CREATE OR REPLACE VIEW v_person_company_expanded AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_company_id,
+	company_id,
+	person_id
+) as (
+	SELECT	
+		0				as level,
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	company c
+		inner join person_company pc
+			on c.company_id = pc.company_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	var_recurse x
+		inner join company c
+			on c.parent_company_id = x.company_id
+		inner join person_company pc
+			on c.company_id = pc.company_id
+) SELECT	distinct root_company_id as company_id, person_id
+  from 		var_recurse;
+
+
+
+-- START ../ddl/views/pgsql/create_v_site_netblock_expanded.sql
+
+-- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--     * Redistributions of source code must retain the above copyright
+--       notice, this list of conditions and the following disclaimer.
+--     * Redistributions in binary form must reproduce the above copyright
+--       notice, this list of conditions and the following disclaimer in the
+--       documentation and/or other materials provided with the distribution.
+--
+-- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+-- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+-- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+-- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+-- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+-- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+-- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+-- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+-- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+--
+-- $Id$
+--
+
+-- This view shows the site code for each entry in the netblock table
+-- even when it's one of the ancestor netblocks that has the
+-- site_netblock assignments
+
+CREATE OR REPLACE VIEW v_site_netblock_expanded AS
+WITH RECURSIVE parent_netblock AS (
+  SELECT n.netblock_id, n.parent_netblock_id, n.ip_address, sn.site_code
+  FROM netblock n LEFT JOIN site_netblock sn on n.netblock_id = sn.netblock_id
+  WHERE n.parent_netblock_id IS NULL
+  UNION
+  SELECT n.netblock_id, n.parent_netblock_id, n.ip_address,
+    coalesce(sn.site_code, p.site_code)
+  FROM netblock n JOIN parent_netblock p ON n.parent_netblock_id = p.netblock_id
+  LEFT JOIN site_netblock sn ON n.netblock_id = sn.netblock_id
+)
+SELECT site_code, netblock_id FROM parent_netblock;
+-- END ../ddl/views/pgsql/create_v_site_netblock_expanded.sql
+
+
 
 --- random fixes
 
 DROP TRIGGER trigger_fix_person_image_oid_ownership on person_image;
 CREATE TRIGGER trigger_fix_person_image_oid_ownership BEFORE INSERT ON person_image FOR EACH ROW EXECUTE PROCEDURE fix_person_image_oid_ownership();
+
+DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account
+        ON person_company;
+CREATE TRIGGER trigger_propagate_person_status_to_account
+AFTER UPDATE ON person_company
+        FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
+
+
+-- from ../pkg/pgsql/person_manip.sql
+CREATE OR REPLACE FUNCTION person_manip.update_department( department varchar, _account_id integer, old_account_collection_id integer) 
+	RETURNS INTEGER AS $$
+DECLARE
+	_account_collection_id INTEGER;
+BEGIN
+	_account_collection_id = person_manip.get_account_collection_id( department, 'department' ); 
+	IF old_account_collection_id IS NULL THEN
+		INSERT INTO account_collection_account (account_id, account_collection_id) VALUES (_account_id, _account_collection_id);
+	ELSE
+		--RAISE NOTICE 'updating account_collection_account with id % for account %', _account_collection_id, _account_id;
+		UPDATE account_collection_account SET account_collection_id = _account_collection_id WHERE account_id = _account_id AND account_collection_id=old_account_collection_id;
+	END IF;
+	RETURN _account_collection_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 grant insert,update,delete on all tables in schema jazzhands to iud_role;
 grant select,update on all sequences in schema public to iud_role;
