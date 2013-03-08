@@ -10,6 +10,7 @@ use Data::Dumper;
 BEGIN { unshift(@INC, "/Users/kovert"); };
 
 use JazzHands::DBI;
+use JazzHands::Common qw(:db);
 
 exit do_work();
 
@@ -266,17 +267,18 @@ sub do_pic_manip {
 	# print $cgi->header, $cgi->start_html;
 	# print $cgi->Dump, $cgi->end_html;  exit;
 
+        my $c = new JazzHands::Common;
+	$c->DBHandle($dbh);
+
 	my $personid = $cgi->param("person_id");
 
-	my $psth = $dbh->prepare_cached(qq{
-		select	person_image_id
-		  from	person_image
-		 where	person_id = ?
-	}) || die $dbh->errstr;
+	my @errs;
+	foreach my $row (@{$c->DBFetch(
+			table => 'person_image',
+			match => { person_id => $personid },
+			errors => \@errs)}) {
+		my $picid = $row->{person_image_id};
 
-	$psth->execute($personid) || die $psth->errstr;
-
-	while ( my ($picid) = $psth->fetchrow_array ) {
 		# objects with no person image usage at all will not show up as params,
 		# so need to look at the db and see if usage is still set.
 		my $oldusg = get_pic_usage($dbh, $picid);
@@ -287,8 +289,25 @@ sub do_pic_manip {
 				remove_pic_usage($dbh, $picid, $usg);
 			}
 		}
+
+		# also check to see if other fields (such as description) were changed
+		my $d = $cgi->param("description_$picid");
+
+		my $new = {
+			description => $d,
+		};
+		my $diff = $c->hash_table_diff($row, $new);
+		if(scalar %$diff) {
+			$c->DBUpdate(
+				table => 'person_image',
+				dbkey => 'person_image_id',
+				keyval => $picid,
+				hash => $diff,
+				errs => \@errs,
+			) || die join(" ", @errs);
+		}
+
 	}
-	$psth->finish;
 
 	# remove usage from things that have it off
 	foreach my $param ($cgi->param) {
