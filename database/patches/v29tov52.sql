@@ -2,9 +2,6 @@
 
 set search_path = jazzhands;
 
--- views that get recreated later
-drop view v_person_company_expanded;
-
 -- rename device_collection_member to device_collection_device
 alter table audit.device_collection_member rename to device_collection_device;
 alter table device_collection_member rename to device_collection_device;
@@ -672,7 +669,7 @@ alter table person_company drop constraint fk_person_company_mgrprsn_id;
 alter table person_company drop constraint fk_person_company_sprprsn_id;
 alter table person_company drop constraint fk_person_company_company_id;
 alter table person_company drop constraint fk_person_company_prsnid;
-alter table person_company drop constraint ak_uq_person_company_empid;
+alter table person_company drop constraint IF EXISTS ak_uq_person_company_empid;
 alter table person_company drop constraint ak_uq_prson_company_bdgid;
 alter table person_company drop constraint pk_person_company;
 -- INDEXES
@@ -748,7 +745,7 @@ INSERT INTO person_company (
 	person_company_relation,
 	is_exempt,
 	'N',
-	is_exempt,
+	coalesce(is_exempt, 'Y'),
 	description,
 	employee_id,
 	payroll_id,
@@ -799,7 +796,7 @@ INSERT INTO audit.person_company (
 	person_company_relation,
 	is_exempt,
 	'N',
-	is_exempt,
+	coalesce(is_exempt, 'Y'),
 	description,
 	employee_id,
 	payroll_id,
@@ -820,6 +817,106 @@ INSERT INTO audit.person_company (
 	"aud#user",
 	"aud#seq"
 FROM audit.person_company_v52;
+
+--- views
+
+-- Copyright (c) 2011, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- $Id: create_v_acct_coll_account_expanded.sql 60 2011-10-03 09:11:29Z kovert $
+--
+
+CREATE OR REPLACE VIEW v_person_company_expanded AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_company_id,
+	company_id,
+	person_id
+) as (
+	SELECT	
+		0				as level,
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	company c
+		inner join person_company pc
+			on c.company_id = pc.company_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	var_recurse x
+		inner join company c
+			on c.parent_company_id = x.company_id
+		inner join person_company pc
+			on c.company_id = pc.company_id
+) SELECT	distinct root_company_id as company_id, person_id
+  from 		var_recurse;
+
+-- v_company_hier
+-- Copyright (c) 2012, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- $Id$
+--
+
+CREATE OR REPLACE VIEW v_company_hier AS
+WITH RECURSIVE var_recurse (
+	level,
+	root_company_id,
+	company_id,
+	person_id
+) as (
+	SELECT	
+		0				as level,
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	company c
+		inner join person_company pc
+			on c.company_id = pc.company_id
+UNION ALL
+	SELECT	
+		x.level + 1			as level,
+		x.company_id			as root_company_id,
+		c.company_id			as company_id,
+		pc.person_id			as person_id
+	  FROM	var_recurse x
+		inner join company c
+			on c.parent_company_id = x.company_id
+		inner join person_company pc
+			on c.company_id = pc.company_id
+) SELECT	distinct root_company_id as root_company_id, company_id
+  from 		var_recurse;
+
+
+
 
 ALTER TABLE person_company
 	ALTER is_management
@@ -969,54 +1066,6 @@ CREATE OR REPLACE VIEW v_application_role_member AS
 		)
 ;
 
-
--- v_company_hier
--- Copyright (c) 2012, Todd M. Kover
--- All rights reserved.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---       http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
---
--- $Id$
---
-
-CREATE OR REPLACE VIEW v_company_hier AS
-WITH RECURSIVE var_recurse (
-	level,
-	root_company_id,
-	company_id,
-	person_id
-) as (
-	SELECT	
-		0				as level,
-		c.company_id			as root_company_id,
-		c.company_id			as company_id,
-		pc.person_id			as person_id
-	  FROM	company c
-		inner join person_company pc
-			on c.company_id = pc.company_id
-UNION ALL
-	SELECT	
-		x.level + 1			as level,
-		x.company_id			as root_company_id,
-		c.company_id			as company_id,
-		pc.person_id			as person_id
-	  FROM	var_recurse x
-		inner join company c
-			on c.parent_company_id = x.company_id
-		inner join person_company pc
-			on c.company_id = pc.company_id
-) SELECT	distinct root_company_id as root_company_id, company_id
-  from 		var_recurse;
 
 -- netblock_manip
 
@@ -1810,57 +1859,6 @@ CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage
 
 --- START netblock triggers
 
---- views
-
--- Copyright (c) 2011, Todd M. Kover
--- All rights reserved.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---       http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
---
--- $Id: create_v_acct_coll_account_expanded.sql 60 2011-10-03 09:11:29Z kovert $
---
-
-CREATE OR REPLACE VIEW v_person_company_expanded AS
-WITH RECURSIVE var_recurse (
-	level,
-	root_company_id,
-	company_id,
-	person_id
-) as (
-	SELECT	
-		0				as level,
-		c.company_id			as root_company_id,
-		c.company_id			as company_id,
-		pc.person_id			as person_id
-	  FROM	company c
-		inner join person_company pc
-			on c.company_id = pc.company_id
-UNION ALL
-	SELECT	
-		x.level + 1			as level,
-		x.company_id			as root_company_id,
-		c.company_id			as company_id,
-		pc.person_id			as person_id
-	  FROM	var_recurse x
-		inner join company c
-			on c.parent_company_id = x.company_id
-		inner join person_company pc
-			on c.company_id = pc.company_id
-) SELECT	distinct root_company_id as company_id, person_id
-  from 		var_recurse;
-
-
-
 -- START ../ddl/views/pgsql/create_v_site_netblock_expanded.sql
 
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
@@ -1946,4 +1944,6 @@ grant select on all tables in schema jazzhands to ro_role;
 grant execute on all functions in schema net_manip to ro_role;
 grant execute on all functions in schema netblock_utils to ro_role;
 
+grant execute on all functions in schema netblock_utils to ro_role;
+grant usage on schema netblock_utils to ro_role;
 
