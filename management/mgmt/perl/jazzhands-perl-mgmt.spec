@@ -1,5 +1,5 @@
 %define name    jazzhands-perl-mgmt
-%define version 0.51.1
+%define version 0.52
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -46,6 +46,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-1
+  - migrate commit/rollback/etc to JH:Common
+  - improvements to orering in DBFetch
+  - better support for dealing with one and only one style nets
 * Thu Feb 20 2013 Todd Kover <kovert@omniscient.com> 0.51.1-1
   - netblock collection improvements
 * Thu Feb  7 2013 Todd Kover <kovert@omniscient.com> 0.51.1-1
