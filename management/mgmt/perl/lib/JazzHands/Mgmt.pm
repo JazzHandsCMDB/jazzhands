@@ -90,46 +90,11 @@ sub clone {
 	bless $self, $class;
 }
 
-sub DBHandle {
-	my $self = shift;
-
-	if (@_) { $self->{_dbh} = shift }
-	return $self->{_dbh};
-}
-
-sub dbh {
-	&DBHandle(@_);
-}
-
 sub ErrorRef {
 	my $self = shift;
 
 	if (@_) { $self->{_errors} = shift }
 	return $self->{_errors};
-}
-
-sub commit {
-	my $self = shift;
-
-	if ( my $dbh = $self->DBHandle ) {
-		return $dbh->commit;
-	}
-}
-
-sub rollback {
-	my $self = shift;
-
-	if ( my $dbh = $self->DBHandle ) {
-		return $dbh->rollback;
-	}
-}
-
-sub disconnect {
-	my $self = shift;
-
-	if ( my $dbh = $self->DBHandle ) {
-		return $dbh->disconnect;
-	}
 }
 
 sub InitializeCache {
