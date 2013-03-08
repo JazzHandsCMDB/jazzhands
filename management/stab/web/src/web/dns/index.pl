@@ -208,15 +208,7 @@ sub zone_dns_records {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $q = qq{
-		select	dns.dns_record_id,
-				dns.dns_name,
-				dns.dns_domain_id,
-				dns.dns_ttl,
-				dns.dns_class,
-				dns.DNS_TYPE,
-				dns.dns_value,
-				dns.is_enabled,
-				dns.should_generate_ptr,
+		select	dns.*,
 				nb.netblock_id,
 				net_manip.inet_dbtop(nb.ip_address) as IP
 		 from 	dns_record dns
