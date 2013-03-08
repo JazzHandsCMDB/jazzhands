@@ -32,15 +32,24 @@ our @ISA	   = qw(Exporter);
 
 our %EXPORT_TAGS = 
 (
-        'all' => [qw(run_update_from_hash 
+        'all' => [qw(
 			DBUpdate
 			DBInsert
 			DBDelete
 			DBFetch
+			DBHandle
+			commit
+			rollback
+			disconnect
+		)],
+        'legacy' => [qw(
+			dbh 
+			run_update_from_hash 
 		)],
 );
 
 Exporter::export_ok_tags('all');
+Exporter::export_ok_tags('legacy');
 
 #
 # $dbkey and $keyval can either be scalars or arrays.
@@ -68,6 +77,18 @@ sub run_update_from_hash {
 		hash => $hash
 	);
 }
+
+sub DBHandle {
+	my $self = shift;
+
+	if (@_) { $self->{_dbh} = shift }
+	return $self->{_dbh};
+}
+
+sub dbh {
+	&DBHandle(@_);
+}
+
 
 sub DBUpdate {
 	my $self;
@@ -467,15 +488,31 @@ sub DBFetch {
 
 	my $q = sprintf("SELECT * FROM %s", $table);
 
-	if (ref($opt->{match}->[0]) ne 'HASH') {
+	if (ref($opt->{match}) eq 'HASH') {
 		my @match;
-		while (@{$opt->{match}}) {
-			push @match, { 
-				key => shift @{$opt->{match}},
-				value => shift @{$opt->{match}} 
+		foreach my $k (sort keys %{$opt->{match}}) {
+			push @match, {
+				'key' => $k,
+				'value' => $opt->{match}->{$k},
 			};
 		}
 		$opt->{match} = \@match;
+	} elsif(ref($opt->{match}) eq 'ARRAY') {
+		if (ref($opt->{match}->[0]) ne 'HASH') {
+			my @match;
+			while (@{$opt->{match}}) {
+				push @match, { 
+					key => shift @{$opt->{match}},
+					value => shift @{$opt->{match}} 
+				};
+			}
+			$opt->{match} = \@match;
+		}
+	} else {
+		SetError($opt->{errors},
+			"Match must be a referene to a hash or an array"
+			);
+		return undef;
 	}
 	my ($where, $params) = parsematch($opt->{match});
 	if (@{$where}) {
@@ -516,20 +553,25 @@ sub DBFetch {
 		push @$rows, _dbx($row);
 	}
 	$sth->finish;
-	if ($opt->{result_set_size} eq 'count') {
-		if (!@{$rows}) {
-			return 0E0;
-		} else {
-			return $#$rows + 1;
+	if (defined($opt->{result_set_size})) {
+		if ($opt->{result_set_size} eq 'count') {
+			if (!@{$rows}) {
+				return 0E0;
+			} else {
+				return $#$rows + 1;
+			}
+		} elsif ($opt->{result_set_size} eq 'exactlyone') {
+			if (!@{$rows}) {
+				SetError($opt->{errors}, "No rows returned");
+				return undef;
+			} elsif ($#$rows > 0) {
+				SetError($opt->{errors}, "Multiple rows returned");
+				return undef;
+			}
+			return $rows->[0];
+		} elsif ($opt->{result_set_size} eq 'first') {
+				return $rows->[0];
 		}
-	} elsif ($opt->{result_set_size} eq 'exactlyone') {
-		if (!@{$rows} || ($#$rows > 0)) {
-			SetError($opt->{errors}, "Multiple rows returned");
-			return undef;
-		}
-		return $rows->[0];
-	} elsif ($opt->{result_set_size} eq 'first') {
-		return $rows->[0];
 	}
 	return $rows;
 }
@@ -577,6 +619,32 @@ sub parsematch {
 		}
 	}
 	return (\@where, \@params);
+}
+
+
+
+sub commit {
+	my $self = shift;
+
+	if ( my $dbh = $self->DBHandle ) {
+		return $dbh->commit;
+	}
+}
+
+sub rollback {
+	my $self = shift;
+
+	if ( my $dbh = $self->DBHandle ) {
+		return $dbh->rollback;
+	}
+}
+
+sub disconnect {
+	my $self = shift;
+
+	if ( my $dbh = $self->DBHandle ) {
+		return $dbh->disconnect;
+	}
 }
 
 1;

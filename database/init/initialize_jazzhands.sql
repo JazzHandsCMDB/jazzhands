@@ -303,7 +303,7 @@ INSERT INTO val_netblock_type(
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
 ) VALUES (
-	'dns', 'organizational groupings used for assigning DNS in-addr records', 'Y', 'Y'
+	'dns', 'organizational groupings used for assigning DNS', 'Y', 'Y'
 );
 
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
@@ -682,6 +682,11 @@ insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENVIRONMENT, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 
 values
 ('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'N', 'company_id',              'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'PROHIBITED', 'PROHIBITED', 'PROHIBITED');
+
+insert into val_property
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE)
+values
+('_defaultdomain', 'Defaults', 'defines domain used for defaultas where necessary', 'N', 'string');
 
 insert into val_property(
 	property_name, property_type, description, is_multivalue,
