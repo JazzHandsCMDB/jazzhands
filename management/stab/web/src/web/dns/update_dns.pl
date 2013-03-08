@@ -443,13 +443,18 @@ sub process_and_insert_dns_record {
 			$stab->error_return(
 				$opts->{value} . " is not a valid IP address" );
 		}
-		my $block = $stab->get_netblock_from_ip( $opts->{dns_value} );
+		my $block = $stab->get_netblock_from_ip( ip_address => $opts->{dns_value} );
+		my $id;
 		if ( !defined($block) ) {
-			$stab->error_return( "IP Address "
-				  . $opts->{dns_value}
-				  . " is not reserved" );
+			$id = $stab->add_netblock(
+				ip_address => $opts->{dns_value},
+				is_single_address => 'Y'
+			) || die $stab->return_db_err();
+		} else {
+			$id = $block->{_dbx('NETBLOCK_ID')};
 		}
-		$opts->{dns_value} = $block->{ _dbx('NETBLOCK_ID') };
+	
+		$opts->{netblock_id} = $id;
 	}
 	$stab->add_dns_record($opts);
 
@@ -476,13 +481,13 @@ sub process_and_update_dns_record {
 
 	if ($ttlonly) {
 		%newrecord = (
-			DNS_RECIRD_ID => $dnsrecid,
+			DNS_RECORD_ID => $dnsrecid,
 			DNS_TTL       => $ttl,
 			IS_ENABLED    => $enabled,
 		);
 	} else {
 		%newrecord = (
-			DNS_RECIRD_ID => $dnsrecid,
+			DNS_RECORD_ID => $dnsrecid,
 			DNS_TTL       => $ttl,
 			DNS_NAME      => $name,
 			DNS_VALUE     => $value,
@@ -497,21 +502,40 @@ sub process_and_update_dns_record {
 		$newrecord{ _dbx('DNS_TYPE') } = $type;
 	}
 
-	if ( $orig->{ _dbx('DNS_TYPE') } ne 'A' && $type eq 'A' ) {
+	if ( $orig->{ _dbx('DNS_TYPE') } ne 'A' && $type ne $orig->{ _dbx('DNS_TYPE') } ) {
 		$newrecord{ _dbx('DNS_VALUE') } = undef;
 
-		if ( $value !~ /^(\d+\.){3}\d+/ ) {
-			$stab->error_return("$value is not a valid IP address");
+		if ( $value !~ /^(\d+\.){3}\d+/ && $type eq 'A' ) {
+			$stab->error_return("$value is not a valid IPv4 address");
+		} elsif ( $value !~ /^[A-Z0-9:]+$/ && $type eq 'AAAA' ) {
+			$stab->error_return("$value is not a valid IPv6 address");
 		}
 
-		my $block = $stab->get_netblock_from_ip($value);
+		my $block = $stab->get_netblock_from_ip(ip_address => $value);
+		my $id;
 		if ( !defined($block) ) {
-			$stab->error_return("IP Address is not reserved");
+			$id = $stab->add_netblock(
+				ip_address => $value,
+				is_single_address => 'Y'
+			) || die $stab->return_db_err();
+		} else {
+			$id = $block->{_dbx('NETBLOCK_ID')};
 		}
-		$newrecord{ _dbx('NETBLOCK_ID') } =
-		  $block->{ _dbx('NETBLOCK_ID') };
-	}
-
+	} elsif($orig->{ _dbx('DNS_TYPE') } eq 'A' && $type eq $orig->{ _dbx('DNS_TYPE') } ) {
+		my $id;
+		my $block = $stab->get_netblock_from_ip( ip_address => $value );
+		if ( !defined($block) ) {
+			$id = $stab->add_netblock(
+				ip_address => $value,
+				is_single_address => 'Y'
+			) || die $stab->return_db_err();
+		} else {
+			$id = $block->{_dbx('NETBLOCK_ID')};
+		}
+		$newrecord{ 'DNS_VALUE' } = undef;
+		$newrecord{ 'NETBLOCK_ID' } = $block->{_dbx('netblock_id')};
+	} 
+		
 	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newrecord ) );
 	my $tally = keys %$diffs;
 	if ( !$tally ) {
@@ -526,6 +550,10 @@ sub process_and_update_dns_record {
 		$stab->error_return(
 			"Unknown Error with Update for id#$dnsrecid");
 	}
+	#
+	# XXX -- NEED TO TRY TO REMOVE OLD NETBLOCK BUT NOT FAIL IF IT FAILS!
+	#
+	#
 	return $tally;
 }
 

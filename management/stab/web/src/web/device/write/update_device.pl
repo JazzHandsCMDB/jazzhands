@@ -566,7 +566,7 @@ sub delete_old_netblock {
 sub configure_nb_if_ok {
 	my($stab, $oldblock, $ip) = @_;
 
-	my $newblock = $stab->get_netblock_from_ip($ip);
+	my $newblock = $stab->get_netblock_from_ip(ip_address => $ip);
 
 	#
 	# if netblocks aren't changing, then its ok.
@@ -2189,7 +2189,7 @@ sub add_interfaces {
 		}
 	}
 
-	my $nblk = $stab->get_netblock_from_ip($ip);
+	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip);
 	my $xblk = $stab->configure_allocated_netblock($ip, $nblk);
 	$nblk = $xblk;
 

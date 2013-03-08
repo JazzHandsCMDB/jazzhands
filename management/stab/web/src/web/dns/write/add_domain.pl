@@ -49,16 +49,20 @@ do_domain_add();
 sub link_inaddr_zone($$$) {
 	my ( $stab, $name, $dnsdomid ) = @_;
 
+	die "XXX NEED TO PORT TO NWO!! XXX";
+
 	$name =~ s/.in-addr.arpa//;
 	my $ip =
 	  join( ".", reverse( ( split( /\./, $name ) )[ 0, 1, 2 ] ) ) . ".0";
 
-	my $nb = $stab->get_netblock_from_ip( $ip, 24, 'nocare', 'nocare' );
+	# XXX - need to figure out in the NWO
+	my $nb = $stab->get_netblock_from_ip( ip_address => $ip );
 	if ( !$nb ) {
 		my $parnb = $stab->guess_parent_netblock_id( $ip, 24 );
 		if ($parnb) {
 			$parnb = $parnb->{_dbx('NETBLOCK_ID')};
 		}
+		# XXX need to deal with this.  We no lonegr have "is_organizational";
 		$nb = $stab->add_netblock( $ip, $parnb, 24, 'Y' );
 	}
 
