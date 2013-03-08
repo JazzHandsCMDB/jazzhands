@@ -45,7 +45,7 @@ use warnings;
 
 use Data::Dumper;
 use JazzHands::DBI;
-use JazzHands::Common::Util qw(_dbx);
+use JazzHands::Common::Util qw(:all);
 use JazzHands::Mgmt;
 use URI;
 use Carp;
@@ -216,51 +216,81 @@ sub get_netblock_from_id {
 }
 
 sub add_netblock {
-	my ( $self, $ip, $parnb, $bits, $isorg ) = @_;
+	my $self = shift @_;
+	my $opts = _options(@_);
 
-	$isorg = 'N' if ( !$isorg );
-
-	my $parid;
-	if ($parnb) {
-		$bits = $parnb->{ _dbx('NETMASK_BITS') } if ( !$bits );
-		$parid = $parnb->{ _dbx('NETBLOCK_ID') };
-	}
-
-	if ( !$bits ) {
-		return undef;
-	}
+	# The parent netblock id is handled automatially by triggers
+	# most of the time, so no need to do so.
+	#my $parid;
+	#if ($parnb) {
+	#	$bits = $parnb->{ _dbx('NETMASK_BITS') } if ( !$bits );
+	#	$parid = $parnb->{ _dbx('NETBLOCK_ID') };
+	#}
+	#
+	#if ( !$bits ) {
+	#	return undef;
+	#}
 
 	# XXX need to deal with more smartly  -- $isorg!!
-	my $type = 'default';
-	if ( $isorg eq 'Y' ) {
-		return undef;
+	#my $type = 'default';
+	#if ( $isorg eq 'Y' ) {
+	#	return undef;
+	#}
+
+	# these are defaults...
+	my $new = {
+		ip_address => $opts->{ip_address},
+		netblock_type => 'default',
+		ip_universe_id => 0,
+		netblock_status => 'Allocated',
+	};
+
+	for my $f (
+			'netmask_bits',
+			'netblock_type',
+			'is_ipv4_address',
+			'is_single_address',
+			'can_subnet',
+			'parent_netblock_id',
+			'netblock_status',
+			'nic_id',
+			'nic_company_id',
+			'ip_universe_id',
+			'description',
+			'reservation_ticket_number',
+			) {
+		if(exists($opts->{$f})) {
+			$new->{$f} = $opts->{$f};
+		}
 	}
 
-	my $nblkid;
-	my $q = qq{
-		insert into netblock (
-			ip_address,
-			netmask_bits, is_ipv4_address,
-			is_single_address, netblock_status, netblock_type,
-			PARENT_NETBLOCK_ID
-		) values (
-			net_manip.inet_ptodb(:ipaddr, 1),
-			:bits, 'Y',
-			'Y', 'Allocated', :type,
-			:parnbid
-		) returning netblock_id into :rv
-	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->bind_param( ':ipaddr',  $ip )    || $self->return_db_err($sth);
-	$sth->bind_param( ':bits',    $bits )  || $self->return_db_err($sth);
-	$sth->bind_param( ':type',    $type )  || $self->return_db_err($sth);
-	$sth->bind_param( ':parnbid', $parid ) || $self->return_db_err($sth);
-	$sth->bind_param_inout( ':rv', \$nblkid, 500 )
-	  || $self->return_db_err($sth);
-	$sth->execute || die $self->return_db_err($sth);
-	$sth->finish;
-	my $x = $self->get_netblock_from_id( $nblkid, 'N', 'N' );
-	$x;
+	if(!defined($new->{can_subnet})) {
+		if($new->{is_single_address} eq 'Y') {
+			$new->{can_subnet} = 'N';
+		} else {
+			$new->{can_subnet} = 'Y';
+		}
+	}
+
+	if(!defined($new->{is_ipv4_address})) {
+		if($new->{ip_address} =~ /:/) {
+			$new->{is_ipv4_address} = 'N';
+		} else {
+			$new->{is_ipv4_address} = 'Y';
+		}
+	}
+
+	my @errs;
+	my $numchanges;
+	if(! ($numchanges = $self->DBInsert(
+		table => 'netblock',
+		hash => $new,
+		errors => \@errs)
+	)) {
+		$self->error_return(join(" ", @errs));
+	}
+
+	return($new->{_dbx('NETBLOCK_ID')});
 }
 
 #############################################################################
@@ -517,47 +547,38 @@ sub get_dns_domain_from_name {
 
 sub get_netblock_from_ip {
 	my $self = shift(@_);
+	my $opts = _options(@_);
 
-	die;
-
-	my $opts = $self->_options(@_);
-	my ( $ip, $bits, $singnocare, $orgnocare ) = @_;
-
-	my $singq = "";
-	if ( !defined($singnocare) ) {
-		$singq = "and is_single_address = 'Y'";
-	}
-
-	my $orgq = "";
-
-	# XXX - need to deal with better as far as types go
-	if ( !defined($orgnocare) ) {
-		$orgq = "and netblock_type != 'default'";
-	} else {
-		$orgq = "and netblock_type = 'default'";
-	}
-
-	my $q = qq{
-		select  netblock.*,
-			net_manip.inet_dbtop(ip_address) as ip
-		 from   netblock
-		where   ip_address = net_manip.inet_ptodb(?, 1)
+	my @errors;
+	my $args = {
+		ip_address => $opts->{ip_address},
+		netblock_type => 'default',
+		single => 'first',
+		errors => \@errors,
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($ip) || $self->return_db_err($sth);
-	my $hr;
-	while ( my $rhr = $sth->fetchrow_hashref ) {
-		if ( !$bits ) {
-			$hr = $rhr;
-			last;
-		}
-		if ( $bits == $rhr->{ _dbx('NETMASK_BITS') } ) {
-			$hr = $rhr;
-			last;
-		}
+
+	if($opts->{'is_single_address'}) {
+		$args->{'is_single_address'} = 'Y';
 	}
-	$sth->finish;
-	$hr;
+
+	warn "looking for ", $opts->{ip_address};
+	my $netblock = $self->GetNetblock( $args );
+
+	if(!$netblock) {
+		if(@errors) {
+			$self->error_return("Netblock issue: ".join(';', @errors). "for ".$opts->{ip_address});
+		}
+		return undef;
+	}
+
+	my $h = $netblock->hash;
+	if(!$h) {
+		if(@errors) {
+			$self->error_return("Netblock has hash issue: ".join(';', @errors));
+		}
+		return undef;
+	}
+	$h;
 }
 
 sub get_dev_from_devid {
@@ -836,7 +857,10 @@ sub configure_allocated_netblock {
 		$sth->execute( $nblk->{ _dbx('NETBLOCK_ID') } )
 		  || $self->return_db_err($sth);
 	} else {
-		$nblk = $self->add_netblock( $ip, $parnb );
+		$nblk = $self->add_netblock(
+			ip_address => $ip,
+			parent_netblock_id => $parnb->{_dbx('PARENT_NETBLOCK_ID')}
+		);
 	}
 	$nblk;
 }
@@ -1494,8 +1518,12 @@ sub validate_route_entry {
 		if ( !$nb ) {
 			my $parnb =
 			  $self->guess_parent_netblock_id( $srcip, $srcbits );
-			$nb =
-			  $self->add_netblock( $srcip, $parnb, $srcbits, 'Y' );
+			$nb = $self->add_netblock( 
+				ip_address => $srcip,
+				parent_netblock_id => $parnb->{_dbx('PARENT_NETBLOCK_ID')},
+				netmask_bits => $srcbits,
+				netblock_type => 'default',	# XXX -- need to reconsider!
+			);
 		}
 
 		if ( !$nb ) {

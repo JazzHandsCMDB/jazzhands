@@ -159,7 +159,7 @@ function build_header($title, $style = null, $heading = null) {
                 	@import url("$style");
                 	@import url("local-style.css");
         	</style>
-		<script src="js/jquery-1.7.1.js" type="text/javascript"></script>
+		<script src="../javascript-common/external/jQuery/jquery-1.9.0.js" type="text/javascript"></script>
 		<script src="drops.js" type="text/javascript"></script>
 		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
 	</head>

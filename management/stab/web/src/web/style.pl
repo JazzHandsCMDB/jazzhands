@@ -275,6 +275,11 @@ input.srvnum {
 	visibility: hidden;
 }
 
+span.netblocklink {
+	float: left;
+	min-width: 30ex;
+}
+
 #SOA_MNAME, #SOA_RNAME {
 	width: 35ex; 
 }

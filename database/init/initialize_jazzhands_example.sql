@@ -74,14 +74,6 @@ insert into rack (
 insert into site (site_code, colo_company_id, site_status, description)
 	values ('CZ0', 0, 'ACTIVE', 'Czech Satellite Office');
 
--- RFC1493 exampele space
--- FC00::/7
--- 334965454937798799971759379190646833152
-insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, 
-	description, netblock_type, parent_netblock_id, can_subnet) values
-(net_manip.inet_ptodb('FC00::'), 7, 'N', 'N', 'Allocated', 
-	'RFC4193 IPV6 Block', 'default', null, 'Y');
-
 -- 334969971398294010747267358593998913536
 insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, 
 	description, netblock_type, parent_netblock_id, can_subnet) values

@@ -1,7 +1,7 @@
 Summary:    jazzhands-perl-common - JazzHands perl common utility modules
 Vendor:     JazzHands
 Name:       jazzhands-perl-common
-Version:    0.51.1
+Version:    0.52
 Release:    2
 License:    Unknown
 Group:      System/Management
@@ -45,5 +45,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-2
+  - allow match option to DBetch to take a simple hash
+  - warnings fixes
+  - migrate DBHandle/commont/rollback/disconnct from JH::Mgmt
+  - other DB improvements
+  - allow _options to take a hash
 * Thu Feb 20 2013 Todd Kover <kovert@omniscient.com> 0.51.1-2
   - make work

@@ -24,8 +24,8 @@ grant connect to iud_role;
 
 grant ro_role to iud_role;
 
-grant insert,update,delete on all tables in schema public to iud_role;
-grant select,update on all sequences in schema public to iud_role;
+grant insert,update,delete on all tables in schema jazzhands to iud_role;
+grant select,update on all sequences in schema jazzhands to iud_role;
 
 grant execute on all functions in schema person_manip to iud_role;
 grant execute on all functions in schema port_support to iud_role;
