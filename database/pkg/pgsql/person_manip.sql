@@ -86,6 +86,7 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 	person_company_status VARCHAR, 
 	is_manager VARCHAR(1),
 	is_exempt VARCHAR(1),
+	is_full_time VARCHAR(1),
 	employee_id INTEGER,
 	hire_date DATE,
 	termination_date DATE,
@@ -103,9 +104,9 @@ BEGIN
 		VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
 		RETURNING person_id into _person_id;
 	INSERT INTO person_company
-		(person_id,company_id,external_hr_id,person_company_status,is_management, is_exempt,employee_id,hire_date,termination_date,person_company_relation, position_title)
+		(person_id,company_id,external_hr_id,person_company_status,is_management, is_exempt, is_full_time, employee_id,hire_date,termination_date,person_company_relation, position_title)
 		VALUES
-		(_person_id, _company_id, external_hr_id, person_company_status, is_manager, is_exempt, employee_id, hire_date, termination_date, person_company_relation, job_title);
+		(_person_id, _company_id, external_hr_id, person_company_status, is_manager, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, job_title);
 	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = _company_id;
 	INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( _person_id, _company_id, _account_realm_id);
 	INSERT INTO account ( login, person_id, company_id, account_realm_id, account_status, account_role, account_type) 
