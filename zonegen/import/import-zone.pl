@@ -18,7 +18,6 @@
 # $Id$
 #
 
-
 # does an axfr of a zone and the zone into jazzhands
 
 use warnings;
@@ -26,6 +25,7 @@ use strict;
 use Net::DNS;
 use JazzHands::DBI;
 use NetAddr::IP;
+use Getopt::Long;
 use Data::Dumper;
 use JazzHands::Common qw(:all);
 use Carp;
@@ -39,37 +39,38 @@ exit do_zone_load();
 sub get_inaddr {
 	my $ip = shift(@_);
 
-	my $i = new NetAddr::IP($ip) || die "Unable to parse invalid ip $ip\n";;
+	my $i = new NetAddr::IP($ip) || die "Unable to parse invalid ip $ip\n";
 
 	my @ip;
-	if($i->version() == 4) {
-		@ip = reverse split(/\./, $ip);
-	} elsif($i->version() == 6) {
+	if ( $i->version() == 4 ) {
+		@ip = reverse split( /\./, $ip );
+	} elsif ( $i->version() == 6 ) {
 		my $i = new NetAddr::IP($ip);
 		my $x = $i->full();
 		$x =~ s/://g;
-		@ip = reverse split(//, $x);
+		@ip = reverse split( //, $x );
 	} else {
 		die "Unknown IP version ", $i->version();
 	}
 
-	my $inaddr = join(".", @ip). ".in-addr.arpa";
-	my $res = new Net::DNS::Resolver;
-	my $a = $res->query($inaddr, 'PTR');
+	my $inaddr = join( ".", @ip ) . ".in-addr.arpa";
+	my $res    = new Net::DNS::Resolver;
+	my $a      = $res->query( $inaddr, 'PTR' );
+
 	# return the first one.  If there is more than one,
 	# we will consider that broken setup.  Perhaps
 	# a warning is in order here.  XXX
-	return undef if(!$a);
-	foreach my $rr (grep {$_->type eq 'PTR'} $a->answer) {
+	return undef if ( !$a );
+	foreach my $rr ( grep { $_->type eq 'PTR' } $a->answer ) {
 		return $rr->ptrdname;
 	}
 }
 
 sub by_name {
-	if($a->name =~ /^\d+$/ && $b->name =~ /^\d+$/) {
-		return($a->name <=> $b->name);
+	if ( $a->name =~ /^\d+$/ && $b->name =~ /^\d+$/ ) {
+		return ( $a->name <=> $b->name );
 	} else {
-		return($a->name cmp $b->name);
+		return ( $a->name cmp $b->name );
 	}
 }
 
@@ -78,89 +79,92 @@ sub by_name {
 # makes sure the database matches for all the SOA vaules
 #
 sub freshen_zone {
-	my($c, $ns, $zone) = @_;
+	my ( $c, $ns, $zone, $dom ) = @_;
+
+	my $numchanges = 0;
 
 	my $res = new Net::DNS::Resolver;
-	$res->nameservers( $ns );
+	$res->nameservers($ns);
 
-	my $answer = $res->query($zone, 'SOA') || return undef; # XXX
+	my $answer = $res->query( $zone, 'SOA' ) || return undef;    # XXX
 
-	my $dom;
-	foreach my $rr (grep {$_->type eq 'SOA'} $answer->answer) {
-		next if($rr->name ne $zone);
-		my @errs;	
-		my $rows = $c->DBFetch(
-			table => 'dns_domain',
-			match => [
-				{
-					key => 'soa_name',
-					value => $zone,
-				}
-			],
-			errors => \@errs
+	foreach my $rr ( grep { $_->type eq 'SOA' } $answer->answer ) {
+		next if ( $rr->name ne $zone );
+		my @errs;
+		my $old = $c->DBFetch(
+			table           => 'dns_domain',
+			match           => { soa_name => $zone },
+			result_set_size => 'exactlyone',
+			errors          => \@errs
 		);
 
-		my $old = $rows->[0];
+		if ( !$old ) {
+			if ( $c->DBHandle->err ) {
+				die "$zone: ", join( " ", @errs );
+			}
+		}
 
-		my $domid = ($old)?$old->{dns_domain_id}:undef;
+		my $domid = ($old) ? $old->{dns_domain_id} : undef;
 
 		# should only be one SOA record, but just in case...
 		my $new = {
-			dns_domain_id	=> $domid,
-			soa_name	=> $zone,
-			soa_class	=> $rr->class,
-			soa_ttl		=> $rr->ttl,
-			soa_serial	=> $rr->serial,
-			soa_refresh	=> $rr->refresh,
-			soa_retry	=> $rr->retry,
-			soa_expire	=> $rr->expire,
-			soa_minimum	=> $rr->minimum,
-			soa_mname	=> $rr->mname,
-			soa_rname	=> $rr->rname,
+			dns_domain_id => $domid,
+			soa_name      => $zone,
+			soa_class     => $rr->class,
+			soa_ttl       => $rr->ttl,
+			soa_serial    => $rr->serial,
+			soa_refresh   => $rr->refresh,
+			soa_retry     => $rr->retry,
+			soa_expire    => $rr->expire,
+			soa_minimum   => $rr->minimum,
+			soa_mname     => $rr->mname,
+			soa_rname     => $rr->rname,
 		};
+
 		# XXX needs to be fixed!
-		if($new->{soa_serial} > 2147483647) {
+		if ( $new->{soa_serial} > 2147483647 ) {
 			$new->{soa_serial} = 2147483646;
-		};
-		if($old) {
-			my $diff = $c->hash_table_diff($old, $new);
-			if(scalar %$diff) {
-				$c->DBUpdate(
-					table => 'dns_domain',
-					dbkey => 'dns_domain_id',
+		}
+		if ($old) {
+			my $diff = $c->hash_table_diff( $old, $new );
+			if ( scalar %$diff ) {
+				$numchanges += $c->DBUpdate(
+					table  => 'dns_domain',
+					dbkey  => 'dns_domain_id',
 					keyval => $domid,
-					hash => $diff,
-					errs => \@errs,
-				) || die join(" ", @errs);
+					hash   => $diff,
+					errs   => \@errs,
+				) || die join( " ", @errs );
 			}
-			$dom = $new;
+			$$dom = $new;
 		} else {
-			delete($new->{dns_domain_id});
+			delete( $new->{dns_domain_id} );
 			$new->{should_generate} = 'N';
-			$new->{dns_domain_type} = 'service';	# XXX
-			$c->DBInsert(
+			$new->{dns_domain_type} = 'service';    # XXX
+			$numchanges += $c->DBInsert(
 				table => 'dns_domain',
-				hash => $new,
+				hash  => $new,
 				errrs => \@errs,
-			) || die join(" ", @errs);
-			$dom = $new;
-			# XXX need to deal with rehoming subzones and homing this zone to parent
+			) || die join( " ", @errs );
+			$$dom = $new;
+
+	# XXX need to deal with rehoming subzones and homing this zone to parent
 		}
 	}
 
-	$dom;
+	$numchanges;
 }
 
 sub build_match_entry {
 	my $in = shift @_;
 
 	my $match;
-	foreach my $k (sort keys %$in) {
+	foreach my $k ( sort keys %$in ) {
 		my $x = {
-			'key' => $k,
+			'key'   => $k,
 			'value' => $in->{$k},
 		};
-		push(@{$match}, $x);
+		push( @{$match}, $x );
 	}
 	$match;
 }
@@ -168,203 +172,344 @@ sub build_match_entry {
 sub refresh_dns_record {
 	my $opt = _options(@_);
 
-	my $c = $opt->{handle};
-	my $name = $opt->{name};
-	my $address = $opt->{address};
-	my $value = $opt->{value};
-	my $priority = $opt->{priority};
-	my $srv_service = $opt->{srv_service};
+	my $numchanges = 0E0;
+
+	my $c            = $opt->{handle};
+	my $name         = $opt->{name};
+	my $address      = $opt->{address};
+	my $value        = $opt->{value};
+	my $priority     = $opt->{priority};
+	my $srv_service  = $opt->{srv_service};
 	my $srv_protocol = $opt->{srv_protocol};
-	my $srv_weight = $opt->{srv_weight};
-	my $srv_port = $opt->{srv_port};
-	my $genptr = $opt->{genptr};
+	my $srv_weight   = $opt->{srv_weight};
+	my $srv_port     = $opt->{srv_port};
+	my $genptr       = $opt->{genptr};
 
 	my $nb;
-	my @errs;	
-	if(defined($address)) {
-		my $rows = $c->DBFetch(
-			table => 'netblock',
-			match => [
-				{
-					key => 'is_single_address',
-					value => 'Y',
-				},
-				{
-					key => 'netblock_type',
-					value => 'default',
-				},
-				{
-					key => 'ip_universe_id',
-					value => '0',
-				},
-				{
-					key => 'host(ip_address)',	# XXX - postgresql only
-					value => $address,
-				},
-			],
-			errors => \@errs
+	my @errs;
+	if ( defined($address) ) {
+		warn "Attempting to find $address... \n" if ( $c->{verbose} );
+		my $match = {
+			'is_single_address' => 'Y',
+			'netblock_type'     => 'default',
+			'ip_universe_id'    => 0,
+			'host(ip_address)'  => $address
+		};
+		$nb = $c->DBFetch(
+			table           => 'netblock',
+			match           => $match,
+			errors          => \@errs,
+			result_set_size => 'first',
 		);
-		$nb = $rows->[0];
+		$c->dbh->err && die join( " ", @errs );
+
+		# If there was not a type default, check for one
+		# that is just there for DNS.
+		if ( !$nb ) {
+			$match->{netblock_type} = 'dns';
+			$nb = $c->DBFetch(
+				table           => 'netblock',
+				match           => $match,
+				errors          => \@errs,
+				result_set_size => 'first',
+			);
+			$c->dbh->err && die join( " ", @errs );
+		}
+
+		if ( !$nb ) {
+			if ( defined( $c->{nbrule} ) && $c->{nbrule} eq 'skip' )
+			{
+				warn
+"$name ($address) - Netblock not found.  Skipping.\n";
+				return 0;
+			} else {
+				warn
+"$name ($address) - Netblock not found.  Creating.\n";
+			}
+
+			$nb = {
+				ip_address        => $address,
+				netblock_type     => 'default',
+				is_single_address => 'Y',
+				can_subnet        => 'N',
+				netblock_status   => 'Allocated',
+				ip_universe_id    => 0,
+				is_ipv4_address   => ( $opt->{dns_type} eq 'A' )
+				? 'Y'
+				: 'N',
+			};
+			$c->dbh->do("SAVEPOINT biteme");
+			my $x = $c->DBInsert(
+				table => 'netblock',
+				hash  => $nb,
+				errs  => \@errs,
+			);
+			if ( !$x ) {
+				if ( $c->dbh->err == 7 ) {
+					$c->dbh->do(
+						"ROLLBACK TO SAVEPOINT biteme");
+					if ( defined( $c->{nbrule} )
+						&& $c->{nbrule} eq 'iponly' )
+					{
+						warn "\tskipping ...",
+						  join( " ", @errs );
+						return;
+					} else {
+						$nb->{netblock_type} = 'dns';
+						$nb->{netmask_bits}  = 32;
+						my $x = $c->DBInsert(
+							table => 'netblock',
+							hash  => $nb,
+							errrs => \@errs,
+						  )
+						  || die "$address: [",
+						  $c->dbh->err, "] ",
+						  join( " ", @errs );
+					}
+				} else {
+					die "$address: [", $c->dbh->err, "] ",
+					  join( " ", @errs );
+				}
+				$c->dbh->do("RELEASE SAVEPOINT biteme");
+			} else {
+				$numchanges += $x;
+			}
+		}
+
 	}
 
 	my $match = {
-			dns_name => $name,
-			dns_value => $value,
-			netblock_id => ($nb)?$nb->{netblock_id}:undef,
+		dns_name    => $name,
+		dns_value   => $value,
+		netblock_id => ($nb) ? $nb->{netblock_id} : undef,
 	};
 	my $rows = $c->DBFetch(
-		table => 'dns_record',
-		match => $match,
+		table  => 'dns_record',
+		match  => $match,
 		errors => \@errs,
-	) || die join(" ", @errs);
+	) || die join( " ", @errs );
 
 	my $dnsrec = $rows->[0];
 
 	my $new = {
-		'dns_name' => $name,
-		'dns_domain_id' => $opt->{dns_domain_id},
-		'dns_ttl' => $opt->{ttl},
-		'dns_class' => $opt->{dns_class},
-		'dns_type' => $opt->{dns_type},
-		'dns_value' => $value,
-		'dns_priority' => $priority,
-		'dns_srv_service' => $srv_service,
-		'dns_srv_protocol' => $srv_protocol,
-		'dns_srv_weight' => $srv_weight,
-		'dns_srv_port' => $srv_port,
-		'netblock_id' => ($nb)?$nb->{netblock_id}:undef,
-		'reference_dns_record_id' => $opt->{reference_dns_record_id}, 
-		'dns_value_record_id' => $opt->{dns_value_record_id},
-		'should_generate_ptr' => $genptr,
-		'is_enabled' => 'Y',
+		'dns_name'                => $name,
+		'dns_domain_id'           => $opt->{dns_domain_id},
+		'dns_ttl'                 => $opt->{ttl},
+		'dns_class'               => $opt->{dns_class},
+		'dns_type'                => $opt->{dns_type},
+		'dns_value'               => $value,
+		'dns_priority'            => $priority,
+		'dns_srv_service'         => $srv_service,
+		'dns_srv_protocol'        => $srv_protocol,
+		'dns_srv_weight'          => $srv_weight,
+		'dns_srv_port'            => $srv_port,
+		'netblock_id'             => ($nb) ? $nb->{netblock_id} : undef,
+		'reference_dns_record_id' => $opt->{reference_dns_record_id},
+		'dns_value_record_id'     => $opt->{dns_value_record_id},
+		'should_generate_ptr'     => $genptr,
+		'is_enabled'              => 'Y',
 	};
 
 	my $dnsrecid;
-	if($dnsrec) {
+	if ($dnsrec) {
+
 		# Find if there is a dns record associated with this record
 		$dnsrecid = $dnsrec->{dns_record_id};
-		my $diff = $c->hash_table_diff($dnsrec, $new);
-		if(scalar %$diff) {
+		my $diff = $c->hash_table_diff( $dnsrec, $new );
+		if ( scalar %$diff ) {
 			$c->DBUpdate(
-				table => 'dns_record',
-				dbkey => 'dns_record_id',
+				table  => 'dns_record',
+				dbkey  => 'dns_record_id',
 				keyval => $dnsrec->{dns_record_id},
-				hash => $diff,
-				errs => \@errs,
-			) || die join(" ", @errs);
+				hash   => $diff,
+				errs   => \@errs,
+			) || die join( " ", @errs );
 		}
 	} else {
-		$c->DBInsert(
+		$numchanges += $c->DBInsert(
 			table => 'dns_record',
-			hash => $new,
+			hash  => $new,
 			errrs => \@errs,
-		) || die join(" ", @errs);
+		) || die join( " ", @errs );
 		$dnsrecid = $new->{dns_record_id};
 	}
 
-	$dnsrecid;
+	$numchanges;
 }
 
 sub process_zone {
-	my($c, $ns, $xferzone) = @_;
+	my ( $c, $ns, $xferzone ) = @_;
 
-	my $dom = freshen_zone($c, $ns, $xferzone);
+	my $numchanges = 0;
+
+	my $dom;
+	$numchanges += freshen_zone( $c, $ns, $xferzone, \$dom );
 
 	my $domid = $dom->{dns_domain_id};
 
 	my $res = new Net::DNS::Resolver;
-	$res->nameservers( $ns );
+	$res->nameservers($ns);
 
 	my @zone = $res->axfr($xferzone);
-	if($#zone == -1) {
-		die "Unable to AXFR zone from authoritative DNS server $ns";
+	if ( $#zone == -1 ) {
+		return undef;
 	}
 
-	#
-	# XXX - First go through the zone and find things that are not there that should be
+#
+# XXX - First go through the zone and find things that are not there that should be
 	my $numrec = 0;
-	foreach my $rr (sort by_name @zone) {
+	foreach my $rr ( sort by_name @zone ) {
+
 		# warn "CONSIDER ", $rr->print;
 		my $name = $rr->name;
-		if($name eq $dom->{soa_name}) {
+		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
 		} else {
 			$name =~ s/\.$dom->{soa_name}$//;
 		}
-		
+
 		$numrec++;
 		my $new = {
-			handle => $c,
-			domain => $xferzone,
-			name => $name,
+			handle        => $c,
+			domain        => $xferzone,
+			name          => $name,
 			dns_domain_id => $domid,
-			dns_type => $rr->type,
-			dns_class => $rr->class,
-			dns_ttl => ($rr->ttl == $dom->{soa_ttl}?undef:$rr->ttl),
+			dns_type      => $rr->type,
+			dns_class     => $rr->class,
+			dns_ttl =>
+			  ( $rr->ttl == $dom->{soa_ttl} ? undef : $rr->ttl ),
 			genptr => 'N',
 		};
-		if($rr->type eq 'PTR') {
+		if ( $rr->type eq 'PTR' ) {
 			$new->{value} = $rr->ptrdname;
-		} elsif($rr->type eq 'A' || $rr->type eq 'AAAA') {
-			my $ptr = get_inaddr($rr->address);
+		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
+			my $ptr = get_inaddr( $rr->address );
 
 			$new->{address} = $rr->address;
-			$new->{genptr} = (defined($ptr) && $ptr eq $rr->name)?'Y':'N';
-		} elsif($rr->type eq 'MX') {
+			$new->{genptr} =
+			  ( defined($ptr) && $ptr eq $rr->name ) ? 'Y' : 'N';
+		} elsif ( $rr->type eq 'MX' ) {
 			$new->{priority} = $rr->preference;
-			$new->{value} = $rr->exchange;
-		} elsif($rr->type eq 'CNAME') {
+			$new->{value}    = $rr->exchange;
+		} elsif ( $rr->type eq 'CNAME' ) {
 			$new->{value} = $rr->cname;
-		} elsif($rr->type eq 'DNAME') {
+		} elsif ( $rr->type eq 'DNAME' ) {
 			$new->{value} = $rr->dname;
-		} elsif($rr->type eq 'SRV') {
+		} elsif ( $rr->type eq 'SRV' ) {
+
 			# $msg .= check_srv($c, $rr, $zone);
-		} elsif($rr->type eq 'TXT' || $rr->type eq 'SPF') {
+		} elsif ( $rr->type eq 'TXT' || $rr->type eq 'SPF' ) {
 			$new->{value} = $rr->txtdata;
-		} elsif($rr->type eq 'NS') {
+		} elsif ( $rr->type eq 'NS' ) {
+
 			# XXX note, need to handle subzones
 			$new->{value} = $rr->nsdname;
-		} elsif($rr->type =~ /^AFSDB$/) {
+		} elsif ( $rr->type =~ /^AFSDB$/ ) {
 			$new->{value} = $rr->subtype;
-		} elsif($rr->type eq 'SSHFP') {
+		} elsif ( $rr->type eq 'SSHFP' ) {
 			warn "record type ", $rr->type, " unsupported\n";
 			next;
-		} elsif($rr->type eq 'TLSA') {
+		} elsif ( $rr->type eq 'TLSA' ) {
 			warn "record type ", $rr->type, " unsupported\n";
 			next;
-		} elsif($rr->type =~ /^(APL|CAA|CERT|DHCID|HIP|IPSECKEY|LOC|NAPTR)/) {
+		} elsif ( $rr->type =~
+			/^(APL|CAA|CERT|DHCID|HIP|IPSECKEY|LOC|NAPTR)/ )
+		{
 			warn "record type ", $rr->type, " unsupported\n";
 			next;
-		} elsif($rr->type =~ /^(CLV|DNAME|DNSKEY|DS|KEY|KX|NSEC|NSEC3.*|RRSIG|RP|SIG|TA|TKEY|TSIG)$/) {
+		} elsif ( $rr->type =~
+/^(CLV|DNAME|DNSKEY|DS|KEY|KX|NSEC|NSEC3.*|RRSIG|RP|SIG|TA|TKEY|TSIG)$/
+		  )
+		{
 			warn "DNSSEC record type ", $rr->type, " unsupported\n";
 			next;
-		} elsif($rr->type eq 'SOA') {
+		} elsif ( $rr->type eq 'SOA' ) {
 			next;
 		} else {
-			warn "Unable to process record for ", $rr->name, " -- ", $rr->type, "\n";
+			warn "Unable to process record for ", $rr->name, " -- ",
+			  $rr->type, "\n";
 			next;
 		}
-		refresh_dns_record($new);
+		if ( defined( my $nr = refresh_dns_record($new) ) ) {
+			$numchanges += $nr;
+		}
 	}
 
-	#
-	# XXX - now go through the zone and find things that are there that should not be.
-	#
+#
+# XXX - now go through the zone and find things that are there that should not be.
+#
+	return $numchanges;
+}
 
-	warn "Processed $numrec records";
+sub process_db {
+	my ( $c, $zone ) = @_;
+
+	my @errs;
+	my $rows = $c->DBFetch(
+		table           => 'dns_domain',
+		match           => { soa_name => $zone, },
+		result_set_size => 'exactlyone',
+		errors          => \@errs,
+	) || die join( " ", @errs );
 }
 
 #############################################################################
 
 sub do_zone_load {
-	my $zone = shift(@ARGV) || die "No zone specified";
-	my $ns = shift(@ARGV) || die "No nameserver specified"
+	my $app    = 'zoneimport';
+	my $nbrule = 'skip';
+	my ( $ns, $verbose );
 
-	my $dbh = JazzHands::DBI->connect('zoneimport', {AutoCommit => 0}) || die $JazzHands::DBI::errstr;
+	my $r = GetOptions(
+		"verbose"             => \$verbose,
+		"dbapp=s"             => \$app,
+		"nameserver=s"        => \$ns,
+		"unknown-netblocks=s" => \$nbrule,
+	) || die "Issues";
+
+	if ( defined($nbrule) ) {
+		die "--unknown-netblocks can be skip, insert, iponly\n"
+		  if (     $nbrule ne 'skip'
+			&& $nbrule ne 'insert'
+			&& $nbrule ne 'iponly' );
+	}
+
+	my $dbh = JazzHands::DBI->connect( $app, { AutoCommit => 0 } )
+	  || die $JazzHands::DBI::errstr;
 	my $c = new JazzHands::Common;
 	$c->DBHandle($dbh);
 
-	process_zone($c, $ns, $zone);
+	$c->{nbrule}  = $nbrule;
+	$c->{verbose} = $verbose;
+
+	foreach my $zone (@ARGV) {
+		warn "Processing zone $zone...\n";
+		if ($ns) {
+			process_zone( $c, $ns, $zone );
+			process_db( $c, $zone );
+		} else {
+			my $res = new Net::DNS::Resolver;
+			my $resp = $res->query( $zone, 'NS' );
+			if ( !$resp ) {
+				die
+"Unable to find name servers for $zone.  Aborting.\n";
+			}
+			foreach
+			  my $rr ( grep { $_->type eq 'NS' } $resp->answer )
+			{
+				my $ns = $rr->nsdname;
+				warn "consdering $ns\n";
+				my $num = process_zone( $c, $ns, $zone );
+				if ( !defined($num) ) {
+					next;
+				}
+				warn "updated $num records\n";
+				process_db( $c, $zone );
+				last;
+			}
+		}
+	}
+
 	$dbh->commit;
 	$dbh->disconnect;
 }
