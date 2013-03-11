@@ -302,8 +302,14 @@ DECLARE
 	ac_name VARCHAR;
 	p_id INTEGER;
 BEGIN
-	IF TG_OP = 'UPDATE' AND (NEW.site_code = OLD.site_code OR NEW.person_location_type != 'office' AND OLD.person_location_type != 'office') THEN
-		RETURN NEW;
+	IF TG_OP = 'UPDATE' THEN
+		IF NEW.person_location_id != OLD.person_location_id THEN
+			RAISE 'This trigger % does not support changing person_location_id';
+			RETURN NEW;
+		END IF;
+		IF NEW.site_code = OLD.site_code OR NEW.person_location_type != 'office' AND OLD.person_location_type != 'office' THEN
+			RETURN NEW;
+		END IF;
 	END IF;
 
 	IF TG_OP = 'INSERT' AND NEW.person_location_type != 'office' THEN
