@@ -58,7 +58,7 @@ BEGIN
 	ELSIF flag = 'U' THEN
 		RETURN 'unspecified_gender';
 	END IF;
-	RAISE NOTICE 'Gender account collection name cannot be determined for flag %', flag;
+	RAISE NOTICE 'Gender account collection name cannot be determined from flag %', flag;
 	RETURN NULL;
 END;
 $_$ LANGUAGE plpgsql;
