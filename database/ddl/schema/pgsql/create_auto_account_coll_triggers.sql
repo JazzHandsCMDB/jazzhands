@@ -325,15 +325,16 @@ DECLARE
 BEGIN
 	IF TG_OP = 'UPDATE' THEN
 		IF NEW.person_location_id != OLD.person_location_id THEN
-			RAISE 'This trigger % does not support changing person_location_id';
+			RAISE NOTICE 'This trigger % does not support changing person_location_id', TG_NAME;
 			RETURN NEW;
 		END IF;
 		IF NEW.person_id IS NOT NULL AND OLD.person_id IS NOT NULL AND NEW.person_id != OLD.person_id THEN
-			RAISE 'This trigger % does not support changing person_id';
+			RAISE NOTICE 'This trigger % does not support changing person_id', TG_NAME;
 			RETURN NEW;
 		END IF;
 		IF NEW.person_id IS NULL OR OLD.person_id IS NULL THEN
-			RAISE 'This trigger % does not support null person_id';
+			-- setting person_id to NULL is done by 'usermgr merge'
+			-- RAISE NOTICE 'This trigger % does not support null person_id', TG_NAME;
 			RETURN NEW;
 		END IF;
 		IF NEW.site_code IS NOT NULL AND OLD.site_code IS NOT NULL AND NEW.site_code = OLD.site_code
@@ -341,7 +342,7 @@ BEGIN
 			RETURN NEW;
 		END IF;
 		IF NEW.site_code IS NULL OR OLD.site_code IS NULL THEN
-			RAISE 'This trigger % does not support null site_code';
+			RAISE NOTICE 'This trigger % does not support null site_code', TG_NAME;
 			RETURN NEW;
 		END IF;
 	END IF;
