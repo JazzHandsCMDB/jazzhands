@@ -341,10 +341,6 @@ BEGIN
 			OR NEW.person_location_type != 'office' AND OLD.person_location_type != 'office' THEN
 			RETURN NEW;
 		END IF;
-		IF NEW.site_code IS NULL OR OLD.site_code IS NULL THEN
-			RAISE NOTICE 'This trigger % does not support null site_code', TG_NAME;
-			RETURN NEW;
-		END IF;
 	END IF;
 
 	IF TG_OP = 'INSERT' AND NEW.person_location_type != 'office' THEN
@@ -381,15 +377,17 @@ BEGIN
 		IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
 			ac_name = r.account_realm_name || '_' || sc;
 			ac_id = acct_coll_manip.get_automated_account_collection_id( r.account_realm_name || '_' || sc );
-			IF TG_OP = 'UPDATE' AND NEW.person_location_type != 'office' THEN
-				CONTINUE;
-			END IF;
-			PERFORM 1 FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
-			IF NOT FOUND THEN
-				INSERT INTO account_collection_account (account_collection_id, account_id) VALUES (ac_id, r.account_id);
+			IF TG_OP != 'UPDATE' OR NEW.person_location_type = 'office' THEN
+				PERFORM 1 FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
+				IF NOT FOUND THEN
+					INSERT INTO account_collection_account (account_collection_id, account_id) VALUES (ac_id, r.account_id);
+				END IF;
 			END IF;
 		END IF;
 		IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+			IF OLD.site_code IS NULL THEN
+				CONTINUE;
+			END IF;
 			ac_name = r.account_realm_name || '_' || OLD.site_code;
 			SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
 			IF NOT FOUND THEN
