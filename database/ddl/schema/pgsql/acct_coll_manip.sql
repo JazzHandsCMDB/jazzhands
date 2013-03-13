@@ -34,31 +34,31 @@ BEGIN
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION acct_coll_manip.person_company_flags_to_automated_ac_name(old_flag VARCHAR(1), base_name VARCHAR, OUT old VARCHAR, OUT new VARCHAR) AS $_$
+CREATE OR REPLACE FUNCTION acct_coll_manip.person_company_flags_to_automated_ac_name(flag VARCHAR(1), base_name VARCHAR, OUT name VARCHAR, OUT non_name VARCHAR) AS $_$
 BEGIN
-	old = base_name;
-	IF old_flag = 'N' THEN
-		old  = 'non_' || base_name;
-		new = base_name;
+	name = base_name;
+	IF flag = 'N' THEN
+		name  = 'non_' || base_name;
+		non_name = base_name;
 	ELSE
-		new = 'non_' || base_name;
+		non_name = 'non_' || base_name;
 	END IF;
 END;
 $_$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION acct_coll_manip.person_gender_flag_to_automated_ac_name(flag VARCHAR(1)) RETURNS VARCHAR AS $_$
+CREATE OR REPLACE FUNCTION acct_coll_manip.person_gender_char_to_automated_ac_name(gender VARCHAR(1)) RETURNS VARCHAR AS $_$
 BEGIN
-	IF flag IS NULL THEN
+	IF gender IS NULL THEN
 		RETURN NULL;
 	END IF;
-	IF flag = 'M' THEN
+	IF gender = 'M' THEN
 		RETURN 'male';
-	ELSIF flag = 'F' THEN
+	ELSIF gender = 'F' THEN
 		RETURN 'female';
-	ELSIF flag = 'U' THEN
+	ELSIF gender = 'U' THEN
 		RETURN 'unspecified_gender';
 	END IF;
-	RAISE NOTICE 'Gender account collection name cannot be determined from flag %', flag;
+	RAISE NOTICE 'Gender account collection name cannot be determined from gender symbol ''%''', gender;
 	RETURN NULL;
 END;
 $_$ LANGUAGE plpgsql;
