@@ -322,9 +322,7 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 }
 		// should probably use jquery for picmanipbutton...
 
-if($canedit) {
 ?>
-
 <tr id=legend class=legend>
 	<td colspan=2>
 	<b> <center> Phone Qualifiers </center> </b>
@@ -333,6 +331,10 @@ if($canedit) {
 	HIDDEN:  Visible to person, their managers and administrators.
 	</td>
 </tr>
+<?php
+
+if($canedit) {
+?>
 
 
 <tr id=add_phones class=editbuttons>  
