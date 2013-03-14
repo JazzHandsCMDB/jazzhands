@@ -342,4 +342,11 @@ span.phoneno {
 	text-decoration: underline;
 }
 
-table#contact td { min-width: 10em; };
+table#contact td { min-width: 10em; }
+
+div#random {
+	padding: 5px;
+	height: 2ex;
+	background-color: red;
+	font-size: 150%;
+}

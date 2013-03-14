@@ -229,6 +229,10 @@ echo build_header($name);
 
 echo browse_limit($dbconn);
 
+if ( isset($_GET['random']) && $_GET['random'] == 'yes') {
+	echo "<div id=random> <a href=\"./?index=random\"> Another Random Person </a> </div>\n";
+}
+
 echo "<div class=directorypic>" . img($row['person_id'], $row['person_image_id'], 'contact').
 	"</div>";
 
@@ -249,6 +253,10 @@ if(isset($title)) {
 /* Was $deptc at the end, which includes the company */
 echo build_tr("Department", hierlink('department', $row['account_collection_id'],
                 $row['account_collection_name']));
+
+$email = $row['login']."@". get_default_domain($dbconn);
+
+echo build_tr("Email", $email);
 
 if(isset($manager)) {
 	echo build_tr("Manager", 
@@ -314,9 +322,7 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 }
 		// should probably use jquery for picmanipbutton...
 
-if($canedit) {
 ?>
-
 <tr id=legend class=legend>
 	<td colspan=2>
 	<b> <center> Phone Qualifiers </center> </b>
@@ -325,6 +331,10 @@ if($canedit) {
 	HIDDEN:  Visible to person, their managers and administrators.
 	</td>
 </tr>
+<?php
+
+if($canedit) {
+?>
 
 
 <tr id=add_phones class=editbuttons>  
@@ -362,8 +372,8 @@ Hidden numbers are only visible to administrators and a person's management chai
 as such and meant not to be shared outside the company.
 </div>
 <?php
-
 echo build_footer();
+
 
 // Free resultset
 pg_free_result($result);

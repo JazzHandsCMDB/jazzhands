@@ -366,7 +366,8 @@ function manip_phone(add_button) {
 				$(swaptr).after(tr);
 				$(swaptr).addClass('hide');
 			} else {
-				$('tr#add_phones').before(tr);
+				// used to be tr#add_phones
+				$('tr#legend').before(tr);
 			}
 	
 
@@ -552,6 +553,7 @@ function pic_manip(person_id) {
 			close.href = "#";
 			$(close).addClass('abutton');
 			$(close).val('Cancel');
+			$(close).attr('type','submit');
 			$(td).append(close);
 
 			$(tr).append(td);
@@ -597,13 +599,13 @@ $(document).ready(function(){
 			}
 	);
 
-	$("a.cancelphone").live('click', function(event) {
+	$("table#contact").on('click', 'a.cancelphone', function(event) {
 		$("#addphonehint").addClass("hintoff");
 		$(this).closest('tr').prev().removeClass('hide');
 		$(this).closest('tr').remove();
 	});
 
-	$("a.sbmtphone").live('click', function(event){
+	$("table#contact").on('click', 'a.sbmtphone', function(event){
 		$("#addphonehint").addClass("hintoff");
 		var form = $(this).closest('form');
 		if(form) {
@@ -653,7 +655,7 @@ $(document).ready(function(){
 					td = document.createElement("td");
 					var span = document.createElement("span");
 					$(span).addClass('phoneno');
-					$(span).attr('id', 'PHONE_CONTACT_ID='+resp['record']['person_contact_id']);
+					$(span).attr('id', 'PERSON_CONTACT_ID='+resp['record']['person_contact_id']);
 					$(span).text( resp['record']['print_number'] );
 					$(td).append(span);
 					$(tr).append(td);
@@ -664,24 +666,24 @@ $(document).ready(function(){
 		}
 	});
 
-	$("a.remove_phone").live('click',function(event){
+	$("table#contact").on('click', 'a.remove_phone', function(event){
 		remove_phone($(this));});
 
-	$("a.addphonebutton").live('click',function(event){
+	$("table#contact").on('click', 'a.addphonebutton', function(event){
 		manip_phone($(this));});
 
-	$("a.locationmanipbutton").live('click',function(event){
+	$("table#contact").on('click', 'a.locationmanipbutton', function(event){
 		update_location($(this));});
 
 	// remove the greyed out hint that was there
-	$("input.inputhint").live('focus',function(event){
+	$("table#contact").on('focus', 'input.inputhint', function(event){
 		$(this).removeClass("inputhint");
 		this.preservedHint = $(this).val();
 		$(this).val("");
 	});
 
 	// remove the greyed out hint that was there
-	$("input.hinted").live('blur',function(event){
+	$("table#contact").on('blur', 'input.hinted', function(event){
 		if( $(this).val() == '' && this.preservedHint ) {
 			$(this).addClass('inputhint');
 			$(this).val( event.target.preservedHint );
@@ -689,18 +691,18 @@ $(document).ready(function(){
 	});
 
 	$('.editbuttons').mouseenter(function(event) {
-		var position = $('tr.editbuttons').offset();
-		var height=  $('tr.editbuttons').height();
-		position.top += $('tr.editbuttons').height();
+		var position = $('table#contact').offset();
+		var height=  $('table#contact').height();
+		position.top += $('table#contact').height();
 		$("#usermaniphint").removeClass("hintoff");
 		$("#usermaniphint").offset({left: 0, top: 0});
-		$("#usermaniphint").offset( position);
+		$("#usermaniphint").offset(position);
 	});
 	$('.editbuttons').mouseleave(function(event) {
 		$("#usermaniphint").addClass("hintoff");
 	});
 
-	$('.phoneno').live('click', function(event) {
+	$('table#contact').on('click', '.phoneno', function(event) {
 		manip_phone(event.target);
 	});
 

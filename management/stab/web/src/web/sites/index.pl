@@ -135,9 +135,9 @@ sub build_site_racks {
 	my $q = qq{
 		select	rack_row, rack
 		  from	location
-		 where	site_code = :1
-		   AND	room = :2
-		   AND	sub_room = :3
+		 where	site_code = ?
+		   AND	room = ?
+		   AND	sub_room = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
 
@@ -173,7 +173,7 @@ sub get_room_list {
 	my $q = qq{
 		select	room, sub_room
 		  from	location
-		 where	site_code = :1
+		 where	site_code = ?
 		 order by room, sub_room
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
@@ -193,13 +193,13 @@ sub build_site_netblocks {
 
 	my $q = qq{
 		select	nb.netblock_id,
-			ip_manip.v4_octet_from_int(nb.ip_address),
+			net_manip.inet_dbtop(nb.ip_address) as ip,
 			nb.netmask_bits,
 			nb.description
 		  from	netblock nb
 			inner join site_netblock snb
 				on snb.netblock_id = nb.netblock_id
-		 where	snb.site_code = :1
+		 where	snb.site_code = ?
 		 order by ip_address
 	};
 	my $sth = $stab->prepare($q) || die $dbh->errstr;

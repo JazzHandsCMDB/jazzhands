@@ -59,7 +59,6 @@ $query = "
 			order by site_rank
 			) ofc on ofc.person_id = p.person_id
 		where	pc.person_company_status = 'enabled'
-		 and	pi.description is not null
 			$wherextra
 		order by pc.hire_date
 ";
@@ -103,8 +102,11 @@ while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 		$name = $row['first_name']." ".$row['last_name'];
 	}
 	if(isset($personid)) {
+		echo "<p>";
 		echo "$name<br>$pic<br>";
-		echo "Most Likely to ".$row['description'];
+		if(isset($row['description'])) {
+			echo "Most Likely to ".$row['description'];
+		}
 		echo "<p>";
 	} else {
 		$lname = yearbooklink($row['person_id'], $name);
@@ -119,13 +121,13 @@ while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 		echo "</tr>\n";
 	}
 }
-	
+
 if($first) {
 	if(! isset($personid)) {
 		echo "</table>\n";
 	} 
 } else {
-	echo "There is no yearbook content for this location.";
+	echo "<p><div>There is no yearbook content for this location.</div>";
 }
 
 echo build_footer();

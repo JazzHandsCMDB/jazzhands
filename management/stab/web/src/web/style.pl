@@ -53,7 +53,8 @@ sub do_style_dump {
 	print $cgi->header( { -type => 'text/css' } ), "\n";
 
 	my $root = $stab->guess_stab_root;
-	if ( $root !~ m,://stab.EXAMPLE.COM/?$, ) {
+	# this could be smarter.
+	if ( $root !~ m,://stab.[^/]+/?$, && $root !~ /dev/ ) {
 		print <<END;
 
 BODY { 
@@ -273,6 +274,11 @@ input.srvnum {
 .irrelevant {
 	display: none;
 	visibility: hidden;
+}
+
+span.netblocklink {
+	float: left;
+	min-width: 30ex;
 }
 
 #SOA_MNAME, #SOA_RNAME {

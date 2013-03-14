@@ -121,7 +121,7 @@ sub make_url {
 sub dump_toplevel {
 	my ( $stab, $dbh, $cgi ) = @_;
 
-	my $showsite = $cgi->param('showsite') || undef;
+	my $showsite = $cgi->param('showsite') || 'yes';
 
 	print $stab->start_html(
 		-title      => 'STAB: Top Level Netblocks',
@@ -168,9 +168,10 @@ sub dump_toplevel {
 
 		print "\t"
 		  . $cgi->li(
-			$cgi->a( { -href => $url }, "$site$blk" )
-			  . " [$id] - "
-			  . ( ($desc) ? $desc : "" ),
+			$cgi->span({-class => 'netblocklink'}, $cgi->a( { -href => $url }, "$site$blk" ) )
+			  # . " [$id] - " 
+			  . " - " 
+			  . $cgi->span( { -class => 'netblockdesc'}, ( ($desc) ? $desc : "" )),
 			"\n"
 		  );
 	}
@@ -339,7 +340,7 @@ sub get_netblock_link_header {
 	my $cgi = $stab->cgi;
 	my $dbh = $stab->dbh;
 
-	my $showsite = $stab->cgi_parse_param('showsite');
+	my $showsite = $stab->cgi_parse_param('showsite') || 'yes';
 	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
 
 	my $displaysite = "";
@@ -432,13 +433,17 @@ sub generate_netblock_line {
 	my $descr = '<span class="editabletext" id="' .  $name . '">' .
 	 	 ($nbhash->{_dbx('description')} || "") . '</span>';
 
+	if($nb->{netblock_status} eq 'Allocated' && ($nb->{is_single_address} eq 'Y' && (!defined($nb->{description}) || $nb->{description} eq '')) ) {
+		$descr = 'not in dns';
+	}
+
 	my $status = $nb->{netblock_status};
 
 	my $url = make_url( $stab, $nblkid );
 	return $cgi->li(
-		$cgi->a( { -href => $url }, $netblock->IPAddress )
+		$cgi->span({-class=>'netblocklink'}, $cgi->a( { -href => $url }, $netblock->IPAddress ) )
 		  . $ops . " ($status) - "
-		  . ( $descr || "" ), "\n"
+		  . $cgi->span({-class=>'netblockdesc'}, ( $descr || "" )), "\n"
 	);
 }
 

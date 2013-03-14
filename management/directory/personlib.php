@@ -54,7 +54,8 @@ function browse_limit($current) {
 	$arr = array(
 		'byname' => "By Name",
 		'bydept' => "By Dept",
-		'hier' => "By Org"
+		'hier' => "By Org",
+		'random' => "Random"
 	);
 
 	$params = build_qs(null, 'offset', null);
@@ -74,6 +75,21 @@ function browse_limit($current) {
 			
 	}
 	return "<div class=filterbar>[ Browse: $rv ]</div>";
+}
+
+function get_default_domain($dbconn = null) {
+	$query = "
+		select	property_value
+		  from	property
+		 where	property_name = '_defaultdomain'
+		   and	property_type = 'Defaults'
+	";
+	$result = pg_query($dbconn, $query) or die ("Query Failed: " . pg_last_error());
+
+	if($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
+		return( $row['property_value'] );
+	}
+	return "";
 }
 
 
@@ -97,9 +113,18 @@ function img($personid, $personimageid, $thumb) {
 	return("<a href=\"contact.php?person_id=$personid\"><img alt=\"person\" src=\"$src\" class=\"$class\" /></a>");
 }
 
+function personlinkurl($personid, $extra = null) {
+	if(isset($extra)) {
+		$extra = "&$extra";
+	} else {
+		$extra = "";
+	}
+	return "contact.php?person_id=$personid$extra";
+}
+
 function personlink($personid, $text) {
-	# note the img() function also returns a conteact link.
-	return "<a href=\"contact.php?person_id=$personid\">$text</a>";
+	# note the img() function also returns a contact link.
+	return "<a href=\"". personlinkurl($personid) ."\">$text</a>";
 }
 
 function yearbooklink($personid, $text) {
@@ -134,7 +159,7 @@ function build_header($title, $style = null, $heading = null) {
                 	@import url("$style");
                 	@import url("local-style.css");
         	</style>
-		<script src="js/jquery-1.7.1.js" type="text/javascript"></script>
+		<script src="../javascript-common/external/jQuery/jquery-1.9.0.js" type="text/javascript"></script>
 		<script src="drops.js" type="text/javascript"></script>
 		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
 	</head>

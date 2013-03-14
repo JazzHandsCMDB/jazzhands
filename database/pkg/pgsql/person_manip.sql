@@ -62,8 +62,12 @@ DECLARE
 	_account_collection_id INTEGER;
 BEGIN
 	_account_collection_id = person_manip.get_account_collection_id( department, 'department' ); 
-	--RAISE NOTICE 'updating account_collection_account with id % for account %', _account_collection_id, _account_id; 
-	UPDATE account_collection_account SET account_collection_id = _account_collection_id WHERE account_id = _account_id AND account_collection_id=old_account_collection_id;
+	IF old_account_collection_id IS NULL THEN
+		INSERT INTO account_collection_account (account_id, account_collection_id) VALUES (_account_id, _account_collection_id);
+	ELSE
+		--RAISE NOTICE 'updating account_collection_account with id % for account %', _account_collection_id, _account_id;
+		UPDATE account_collection_account SET account_collection_id = _account_collection_id WHERE account_id = _account_id AND account_collection_id=old_account_collection_id;
+	END IF;
 	RETURN _account_collection_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -80,7 +84,9 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 	_company_id INTEGER, 
 	external_hr_id VARCHAR, 
 	person_company_status VARCHAR, 
+	is_manager VARCHAR(1),
 	is_exempt VARCHAR(1),
+	is_full_time VARCHAR(1),
 	employee_id INTEGER,
 	hire_date DATE,
 	termination_date DATE,
@@ -98,9 +104,9 @@ BEGIN
 		VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
 		RETURNING person_id into _person_id;
 	INSERT INTO person_company
-		(person_id,company_id,external_hr_id,person_company_status,is_exempt,employee_id,hire_date,termination_date,person_company_relation, position_title)
+		(person_id,company_id,external_hr_id,person_company_status,is_management, is_exempt, is_full_time, employee_id,hire_date,termination_date,person_company_relation, position_title)
 		VALUES
-		(_person_id, _company_id, external_hr_id, person_company_status, is_exempt, employee_id, hire_date, termination_date, person_company_relation, job_title);
+		(_person_id, _company_id, external_hr_id, person_company_status, is_manager, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, job_title);
 	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = _company_id;
 	INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( _person_id, _company_id, _account_realm_id);
 	INSERT INTO account ( login, person_id, company_id, account_realm_id, account_status, account_role, account_type) 

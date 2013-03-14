@@ -1,0 +1,7 @@
+need to setup properties
+ - root company id
+ - optional:
+ 	- default mname 
+ 	- default rname
+ 	- default nameservers (optional)
+ - default domain

@@ -1970,7 +1970,7 @@ sub guess_stab_root {
 	my $cgi = $self->cgi;
 
 	my $root = $cgi->url( { -absolute => 1 } );
-	if ( $root =~ /~.*stab/ ) {
+	if ( $root =~ /~.*stab/ || $root =~ m,/stab/,) {
 		$root =~ s,(stab).*$,$1,;
 	} else {
 		$root = $cgi->url( { -base => 1 } );

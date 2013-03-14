@@ -209,7 +209,7 @@ sub do_db_manip {
 		};
 
 		my $diff = $c->hash_table_diff($hr, $n);
-		if(keys $diff > 0) {
+		if(keys %$diff > 0) {
 			$c->DBUpdate(
 				dbhandle => $dbh,
 				table => 'person_contact',
