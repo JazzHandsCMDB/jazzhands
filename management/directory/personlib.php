@@ -151,8 +151,10 @@ function build_header($title, $style = null, $heading = null) {
 		$style = "style.css";
 	}
 	return (<<<ENDHDR
+	<!DOCTYPE HTML>
 	<html>
 	<head>
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" >
         	<title> $title </title>
 		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
         	<style type="text/css">
