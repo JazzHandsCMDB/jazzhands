@@ -32,6 +32,25 @@ use Carp;
 
 exit do_zone_load();
 
+sub get_parent_domain {
+	my ($c, $zone) = @_;
+
+	print "processing zone is $zone\n";
+	my (@errs);
+	while($zone =~ s/^[^\.]+\.//) {
+		my $old = $c->DBFetch(
+			table           => 'dns_domain',
+			match           => { soa_name => $zone },
+			result_set_size => 'exactlyone',
+			errors          => \@errs
+		);
+		if($old) {
+			return $old;
+		}
+	}
+	undef;
+}
+
 #
 # Given an ipv4 or ipv6 address, returns what the PTR record
 # says for it.
@@ -121,10 +140,16 @@ sub freshen_zone {
 			soa_rname     => $rr->rname,
 		};
 
-		# XXX needs to be fixed!
-		if ( $new->{soa_serial} > 2147483647 ) {
-			$new->{soa_serial} = 2147483646;
+		my $parent;
+		if($parent = get_parent_domain($c, $zone) ) {
+			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
 		}
+
+		# XXX needs to be fixed!
+		# This should be a bigint now, so this needs to be tested and this code can be removed.
+		#if ( $new->{soa_serial} > 2147483647 ) {
+		#	$new->{soa_serial} = 2147483646;
+		#}
 		if ($old) {
 			my $diff = $c->hash_table_diff( $old, $new );
 			if ( scalar %$diff ) {
@@ -147,9 +172,69 @@ sub freshen_zone {
 				errrs => \@errs,
 			) || die join( " ", @errs );
 			$$dom = $new;
-
-	# XXX need to deal with rehoming subzones and homing this zone to parent
 		}
+
+		if($parent) {
+			# In our parent, if there are any NS record for us, they
+			# should be deleted, because Zone Generaion will DTRT with
+			# delegation
+			my $shortname = $zone;
+			$shortname =~ s/.$parent->{soa_name}$//;
+			foreach my $z (@{$c->DBFetch(
+					table           => 'dns_record',
+					match           => { 
+										dns_domain_id => $parent->{dns_domain_id},
+										dns_type => 'NS',
+										dns_name => $shortname,
+									},
+					errors          => \@errs
+			)}) {
+				warn "deleting ns record ", $z->{dns_record_id};
+				my $ret = 0;
+				if(! ($ret = $c->DBDelete(
+						table	=> 'dns_record',
+						dbkey	=> 'dns_record_id',
+						keyval	=> $z->{dns_record_id},
+						errors	=> \@errs,
+				))) {
+					die "Error deleting record ", join(" ", @errs), ": ", Dumper($z);
+				}
+				$numchanges += $ret;
+			}
+		}
+
+		my $lineage = $zone;
+		$lineage =~ s/^[^\.]+\././;
+		foreach my $z (@{$c->DBFetch(
+					table => 'dns_domain',
+					match => [
+						{	key => 'soa_name',
+							value => $lineage,
+							matchtype => 'like',
+						}
+					],
+					errors	=> \@errs,
+				)}) {
+				warn Dumper($z);
+			if(!defined($z->{parent_dns_domain_id}) || $z->{parent_dns_domain_id} != $new->{dns_domain_id}) {
+				if($c->{verbose}) {
+					warn "updating ", $z->{soa_name}, " to have parent of ", $new->{soa_name}, "\n";
+				}
+				$numchanges += $c->DBUpdate(
+					table  => 'dns_domain',
+					dbkey  => 'dns_domain_id',
+					keyval => $z->{dns_domain_id},
+					hash   => {
+							parent_dns_domain_id => $new->{dns_domain_id},
+					},
+					errs   => \@errs,
+				) || die join( " ", @errs );
+			}
+		}
+
+		# XXX rehome children appropriately
+
+		# XXX need to deal with rehoming subzones and homing this zone to parent
 	}
 
 	$numchanges;
@@ -281,6 +366,7 @@ sub refresh_dns_record {
 	my $match = {
 		dns_name    => $name,
 		dns_value   => $value,
+		dns_domain_id	=> $opt->{dns_domain_id},
 		netblock_id => ($nb) ? $nb->{netblock_id} : undef,
 	};
 	my $rows = $c->DBFetch(
@@ -312,12 +398,11 @@ sub refresh_dns_record {
 
 	my $dnsrecid;
 	if ($dnsrec) {
-
 		# Find if there is a dns record associated with this record
 		$dnsrecid = $dnsrec->{dns_record_id};
 		my $diff = $c->hash_table_diff( $dnsrec, $new );
 		if ( scalar %$diff ) {
-			$c->DBUpdate(
+			$numchanges += $c->DBUpdate(
 				table  => 'dns_record',
 				dbkey  => 'dns_record_id',
 				keyval => $dnsrec->{dns_record_id},
@@ -343,7 +428,12 @@ sub process_zone {
 	my $numchanges = 0;
 
 	my $dom;
-	$numchanges += freshen_zone( $c, $ns, $xferzone, \$dom );
+	my $r = freshen_zone( $c, $ns, $xferzone, \$dom );
+	if(defined($r)) {
+		$numchanges += $r;
+	}
+
+#return undef;
 
 	my $domid = $dom->{dns_domain_id};
 
@@ -385,6 +475,8 @@ sub process_zone {
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
 			my $ptr = get_inaddr( $rr->address );
 
+			next if $rr->address eq '8.12.229.167';
+
 			$new->{address} = $rr->address;
 			$new->{genptr} =
 			  ( defined($ptr) && $ptr eq $rr->name ) ? 'Y' : 'N';
@@ -401,8 +493,20 @@ sub process_zone {
 		} elsif ( $rr->type eq 'TXT' || $rr->type eq 'SPF' ) {
 			$new->{value} = $rr->txtdata;
 		} elsif ( $rr->type eq 'NS' ) {
-
-			# XXX note, need to handle subzones
+			# XXX may want to consider this check to be optional.
+			if(defined($name) && length($name)) {
+				my @errs;
+				my $count = $c->DBFetch(
+					table           => 'dns_domain',
+					match           => { soa_name => $rr->name },
+					result_set_size => 'exactlyone',
+					errors          => \@errs
+				);
+				if($count) {
+					warn "Skipping subzone NS records for $name (", $rr->nsdname, ")\n";
+					next;
+				}
+			}
 			$new->{value} = $rr->nsdname;
 		} elsif ( $rr->type =~ /^AFSDB$/ ) {
 			$new->{value} = $rr->subtype;
@@ -429,6 +533,13 @@ sub process_zone {
 			warn "Unable to process record for ", $rr->name, " -- ",
 			  $rr->type, "\n";
 			next;
+		}
+		# for record that point elsewhere, make sure they are dot terminated
+		# should that be necessary.  Some are probably missing.
+		if($rr->type =~ /^(CNAME|SRV|NS|MX|DNAME)/) {
+			if($new->{value} !~ s/\.$xferzone$//) {
+				$new->{value} .= ".";
+			}
 		}
 		if ( defined( my $nr = refresh_dns_record($new) ) ) {
 			$numchanges += $nr;
@@ -499,11 +610,11 @@ sub do_zone_load {
 			{
 				my $ns = $rr->nsdname;
 				warn "consdering $ns\n";
-				my $num = process_zone( $c, $ns, $zone );
-				if ( !defined($num) ) {
+				my $numchanges = process_zone( $c, $ns, $zone );
+				if ( !defined($numchanges) ) {
 					next;
 				}
-				warn "updated $num records\n";
+				warn "updated $numchanges records\n";
 				process_db( $c, $zone );
 				last;
 			}

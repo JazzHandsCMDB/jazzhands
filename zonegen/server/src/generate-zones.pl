@@ -34,7 +34,7 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::DBI;
-use JazzHands::Common::Util (_dbx);
+use JazzHands::Common::Util qw(_dbx);
 use Net::Netmask;
 use Getopt::Long qw(:config no_ignore_case bundling);
 use Socket;
@@ -435,17 +435,27 @@ sub process_fwd_records {
 	# end up first.  The processing of the query inserts a newline when
 	# going between the two, so that value is also used later.
 	#
+	# NOTE:  It is possible to have an in database "cname" that causes
+	# another records ip address or name to be put in.  This only works
+	# for NS, A, AAAA, MX and CNAMEs.  It almost certainly needs to be
+	# broken out better in the db.
+	#
 	my $sth = getSth(
 		$dbh, qq {
 		select  distinct
 			d.dns_record_id, d.dns_name, d.dns_ttl, d.dns_class,
-			d.dns_type, d.dns_value, d.dns_priority,
-			net_manip.inet_dbtop(ni.ip_address),
+			d.dns_type, d.dns_value, 
+			d.dns_priority,
+			net_manip.inet_dbtop(ni.ip_address) as ip,
 			rdns.dns_record_Id,
 			rdns.dns_name,
 			d.dns_srv_service, d.dns_srv_protocol, 
 			d.dns_srv_weight, d.dns_srv_port,
 			d.is_enabled,
+			dv.dns_name as val_dns_name,
+			dv.soa_name as val_domain,
+			dv.dns_value as val_value,
+			dv.ip as val_ip,
 			(CASE WHEN(d.dns_name is NULL and
 				   d.reference_dns_record_id is NULL)
 				THEN 0
@@ -458,6 +468,17 @@ sub process_fwd_records {
 			left join dns_record rdns
 				on rdns.dns_record_id =
 					d.reference_dns_record_id
+			left join (
+				select	dr.dns_record_id, dr.dns_name, 
+					dom.dns_domain_id, dom.soa_name,
+					dr.dns_value,
+					net_manip.inet_dbtop(dnb.ip_address) as ip
+				  from	dns_record dr
+				  	inner join dns_domain dom
+						using (dns_domain_id)
+					left join netblock dnb
+						using (netblock_id)
+			) dv on d.dns_value_record_id = dv.dns_record_id
 		 where	d.dns_domain_id = ?
 		   and	d.dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		order by sort_order, net_manip.inet_dbtop(ni.ip_address)
@@ -473,6 +494,7 @@ sub process_fwd_records {
 			$type,     $val,       $pri,     $ip,
 			$rid,      $rname,,    $srv,
 			$srvproto, $srvweight, $srvport, $enable,
+			$valname,  $valdomain, $valval,  $valip,
 			$so
 		)
 		= $sth->fetchrow_array
@@ -486,8 +508,8 @@ sub process_fwd_records {
 		$name   = "" if ( !defined($name) && !defined($rname) );
 		$name   = $rname if ( !defined($name) );
 		my $value = $val;
-		if ( $type eq 'A' ) {
-			$value = $ip;
+		if ( $type eq 'A'|| $type eq 'AAAA' ) {
+			$value = ($valip)?$valip:$ip;
 		} elsif ( $type eq 'MX' ) {
 
 			# at the moment, STAB nudges people towards putting
@@ -503,10 +525,25 @@ sub process_fwd_records {
 			}
 			$pri .= " " if ( defined($pri) );
 			$value = "$pri$value";
+			if($valname) {
+				if($valdomain eq $domain) {
+					$value = $valname;
+				} else {
+					$value = "$valname.$valdomain";
+				}
+			}
 		} elsif ( $type eq 'TXT' ) {
 			$value =~ s/^"//;
 			$value =~ s/"$//;
 			$value = "\"$value\"";
+		} elsif ( $type eq 'CNAME' || $type eq 'NS') {
+			if($valname) {
+				if($valdomain eq $domain) {
+					$value = $valname;
+				} else {
+					$value = "$valname.$valdomain";
+				}
+			}
 		} elsif ( $type eq 'SRV' ) {
 			if ( $srvproto && $srvproto !~ /^_/ ) {
 				$srvproto = "_$srvproto";
