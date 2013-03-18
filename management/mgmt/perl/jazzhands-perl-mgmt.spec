@@ -1,5 +1,5 @@
 %define name    jazzhands-perl-mgmt
-%define version 0.52
+%define version 0.52.2
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -46,6 +46,8 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1
+  - fix issue with inheritance from JazzHands::Common
 * Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-1
   - migrate commit/rollback/etc to JH:Common
   - improvements to orering in DBFetch

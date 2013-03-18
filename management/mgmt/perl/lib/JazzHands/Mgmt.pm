@@ -44,7 +44,7 @@ $VERSION = '1.0';    # $Date$
 
 require Exporter;
 
-our @ISA = ("Exporter");
+our @ISA = ("Exporter", "JazzHands::Common::GenericDB", "JazzHands::Common::Util");
 *import = \&Exporter::import;
 
 sub new {
