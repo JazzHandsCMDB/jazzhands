@@ -284,9 +284,13 @@ BEGIN
 		WHERE
 			parent_netblock_id IS NULL AND
 			ip_address <<= NEW.ip_address AND
-			netblock_id != NEW.netblock_id;
+			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id;
 		RETURN NULL;
 	ELSE
+		-- We don't need to specify the netblock_type or ip_universe_id here
+		-- because the parent would have had to match
 		UPDATE
 			jazzhands.netblock
 		SET
@@ -295,7 +299,6 @@ BEGIN
 			parent_netblock_id = NEW.parent_netblock_id AND
 			ip_address <<= NEW.ip_address AND
 			netblock_id != NEW.netblock_id;
-
 		RETURN NULL;
 	END IF;
 END;
@@ -420,6 +423,8 @@ BEGIN
 		PERFORM netblock_id FROM jazzhands.netblock WHERE 
 			parent_netblock_id IS NULL AND
 			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id AND
 			ip_address <<= NEW.ip_address;
 		IF FOUND THEN
 			RAISE EXCEPTION 'Other top-level netblocks should belong to this parent'
