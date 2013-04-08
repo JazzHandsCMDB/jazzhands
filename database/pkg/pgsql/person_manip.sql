@@ -73,6 +73,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION person_manip.add_person(
+	__person_id INTEGER,
 	first_name VARCHAR, 
 	middle_name VARCHAR, 
 	last_name VARCHAR,
@@ -100,9 +101,15 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 DECLARE
 	_account_realm_id INTEGER;
 BEGIN
-	INSERT INTO person (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-		VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-		RETURNING person_id into _person_id;
+	IF __person_id IS NULL THEN
+		INSERT INTO person (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+			VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+			RETURNING person_id into _person_id;
+	ELSE
+		INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+			VALUES (__person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date);
+		_person_id = __person_id;
+	END IF;
 	INSERT INTO person_company
 		(person_id,company_id,external_hr_id,person_company_status,is_management, is_exempt, is_full_time, employee_id,hire_date,termination_date,person_company_relation, position_title)
 		VALUES
