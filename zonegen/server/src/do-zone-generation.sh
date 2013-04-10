@@ -91,12 +91,13 @@ if [ -z "$*" ] ; then
 fi
 
 TMPFILE=/tmp/zonegenzonelist.$$
-LIST=/etc/jazzhands/nameserver.conf
+PERSERVER_HOSTFILE=/etc/jazzhands/zonegen-perserver.conf
+ALLZONE_HOSTFILE=/etc/jazzhands/zonegen-allzone.conf
 
 LISTGEN=/usr/libxec/jazzhands/zonegen/generate-list
 
 SRC_ROOT=${ZG_ROOT}/auto-gen/perserver
-DST_ROOT=/var/named/chroot/var/named/masters/
+DST_ROOT=/var/named/chroot/auto-gen
 RSYNC_RSH=/usr/libexec/jazzhands/zonegen/ssh-wrap
 
 export RSYNC_RSH
@@ -105,9 +106,8 @@ if [ ! -x ${RSYNC_RSH} ] ; then
 	RSYNC_RSH=ssh
 fi
 
-LISTGEN=/tmp/listgen
 if [ -x ${LISTGEN} ] ; then
-	LIST=${TMPFILE}
+	ALLZONE_HOSTFILE=${TMPFILE}
 	${LISTGEN} > ${TMPFILE}
 fi
 
@@ -118,11 +118,11 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 	echo 1>&2  "Generating Zones (This may take a while)..."
 	/usr/libexec/jazzhands/zonegen/generate-zones "$@" >  /dev/null
 
-	if [ -r $LIST ] ; then
-		if [ -f /etc/krb5.keytab.zonegen ] ; then
-			kinit -k -t /etc/krb5.keytab.zonegen zonegen
-		fi
-		sed -e 's/#.*//' $LIST | 
+	if [ -f /etc/krb5.keytab.zonegen ] ; then
+		kinit -k -t /etc/krb5.keytab.zonegen zonegen
+	fi
+	if [ -r $PERSERVER_HOSTFILE ] ; then
+		sed -e 's/#.*//' $PERSERVER_HOSTFILE | 
 		while read ns servers ; do
 			if [ "$servers" = "" ] ; then
 				servers="$ns"
@@ -135,6 +135,13 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 					$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
 				done
 			fi
+		done
+	fi
+	if [ -r $ALLZONE_HOSTFILE ] ; then
+		sed -e 's/#.*//' $ALLZONE_HOSTFILE | 
+		while read host ; do
+			rsync </dev/null -rLpt --delete-after $SRC_ROOT/../zones $SRC_ROOT/../etc ${host}:$DST_ROOT
+			$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
 		done
 	fi
 fi
