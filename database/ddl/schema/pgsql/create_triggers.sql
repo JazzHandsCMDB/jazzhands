@@ -282,48 +282,6 @@ DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
 CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
 	ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
 
-CREATE OR REPLACE FUNCTION update_dns_zone() RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP IN ('INSERT', 'UPDATE') THEN
-		UPDATE dns_domain SET zone_last_updated = now()
-            WHERE dns_domain_id = NEW.dns_domain_id;
-
-		IF NEW.dns_type = 'A' THEN
-			UPDATE  dns_domain SET zone_last_updated = now()
-				WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id);
-		END IF;
-
-		IF TG_OP = 'UPDATE' THEN
-			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
-				UPDATE dns_domain SET zone_last_updated = now()
-					 WHERE dns_domain_id = OLD.dns_domain_id;
-			END IF;
-			IF NEW.dns_type = 'A' THEN
-				IF OLD.netblock_id != NEW.netblock_id THEN
-					UPDATE  dns_domain SET zone_last_updated = now()
-						 WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id);
-				END IF;
-			END IF;
-		END IF;
-	END IF;
-
-    IF TG_OP = 'DELETE' THEN
-        UPDATE  dns_domain SET zone_last_updated = now()
-			WHERE dns_domain_id = OLD.dns_domain_id;
-
-        IF OLD.dns_type = 'A' THEN
-			UPDATE dns_domain SET zone_last_updated = now()
-                 WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id);
-        END IF;
-    END IF;
-	RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_update_dns_zone ON dns_record;
-CREATE TRIGGER trigger_update_dns_zone AFTER INSERT OR DELETE OR UPDATE 
-	ON dns_record FOR EACH ROW EXECUTE PROCEDURE update_dns_zone();
-
 /* XXX REVISIT
 
 CREATE OR REPLACE FUNCTION populate_default_vendor_term() RETURNS TRIGGER AS $$

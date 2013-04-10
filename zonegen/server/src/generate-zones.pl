@@ -1,4 +1,4 @@
-#!/usr/pkg/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -782,7 +782,7 @@ sub generate_complete_files {
 		my $fn = $zone;
 		$fn = "inaddr/$zone" if ( $fn =~ /.in-addr.arpa/ );
 		$cfgf->print(
-"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/$fn\";\n}\n\n"
+"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/$fn\";\n};\n\n"
 		);
 	}
 	$cfgf->close;
@@ -797,17 +797,21 @@ sub generate_complete_files {
 	print_comments( $zcf, '#' );
 	print_rndc_header($zcf);
 
+	#
+	# XXX this really wants to be a variable set in the db to determine
+	# if views are in use or not.
 	my $tally = 0;
 	foreach my $zone ( sort keys(%$zonesgend) ) {
 		if ( defined($zonesgend) && defined( $zonesgend->{$zone} ) ) {
 
 			# oh, this is a hack!
-			$zcf->print("rndc reload $zone || rndc reload\n");
+#			$zcf->print("rndc reload $zone || rndc reload\n");
 			$tally++;
 		}
 	}
 
-	# $zcf->print("rndc reload\n\n") if($tally);
+
+	$zcf->print("rndc reload\n\n") if($tally);
 	$zcf->close;
 	unlink($zcfn);
 	rename( $tmpzcfn, $zcfn );
@@ -1003,6 +1007,8 @@ sub print_rndc_header {
 # main stuff starts here
 #
 #############################################################################
+
+$ENV{'PATH'} = $ENV{'PATH'}.":/usr/local/sbin:/usr/sbin";
 
 my $genall   = 0;
 my $dumpzone = 0;

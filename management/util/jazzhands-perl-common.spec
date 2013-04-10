@@ -17,15 +17,15 @@ Common utility modules used by JazzHands scripts.
 %prep
 %setup -q -n %{name}
 
-cd perl && %{__perl} Makefile.PL INSTALLDIRS=vendor --default
+cd perl && %{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
 
 %install
-rm -rf $RPM_BUILD_ROOT
 
-cd perl && make pure_install PERL_INSTALL_ROOT=$RPM_BUILD_ROOT
+rm -rf %{buildroot}
+cd perl && make pure_install 
 
-find $RPM_BUILD_ROOT -type f -name .packlist -exec rm -f {} \;
-find $RPM_BUILD_ROOT -depth -type d -exec rmdir {} 2>/dev/null \;
+find %{buildroot} -type f -name .packlist -exec rm -f {} \;
+find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;
 
 %clean
 rm -rf %{buildroot}
