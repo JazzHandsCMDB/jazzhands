@@ -694,7 +694,7 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $dbh, $zoneroot, $domid, $domain, $errcheck ) = @_;
+	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last ) = @_;
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -722,6 +722,12 @@ sub process_domain {
 	process_reverse( $dbh, $out, $domid );
 	print STDERR "\tprocess_domain complete\n" if ($debug);
 	$out->close;
+
+	if($last) {
+		my($y,$m,$d,$h,$min,$s)  = ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)\D/ );
+		my $whence = mktime($s, $min, $h, $d, $m - 1, $y - 1900);
+		utime($whence, $whence, $tmpfn);  # If it does not work, then Vv
+	} 
 
 	if ( !$zoneroot ) {
 		return 0;
@@ -1092,7 +1098,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	# [XXX]
 	#
 	if ( $dumpzone && grep( $_ eq $domain, @ARGV ) ) {
-		process_domain( $dbh, undef, $domid, $domain );
+		process_domain( $dbh, undef, $domid, $domain, undef, $last );
 		next;
 	}
 
@@ -1123,7 +1129,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 			print "$domain\n";
 			if (
 				process_domain(
-					$dbh, $zoneroot, $domid, $domain
+					$dbh, $zoneroot, $domid, $domain, undef, $last
 				)
 			  )
 			{
