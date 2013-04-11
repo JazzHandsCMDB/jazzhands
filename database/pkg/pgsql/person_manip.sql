@@ -218,13 +218,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
-	allow_external_hr_id_in_dest_account BOOLEAN,
+	keep_login_unix_attr_from_dest_acct BOOLEAN,
 	merge_from_account_id	account.account_Id%TYPE,
 	merge_to_account_id	account.account_Id%TYPE
 ) RETURNS INTEGER AS $$
 DECLARE
 	fpc		person_company%ROWTYPE;
 	tpc		person_company%ROWTYPE;
+	to_account RECORD;
 BEGIN
 	select	*
 	  into	fpc
@@ -248,27 +249,16 @@ BEGIN
 		RAISE EXCEPTION 'People have different relationships';
 	END IF;
 
-	IF(tpc.external_hr_id is NOT NULL AND NOT allow_external_hr_id_in_dest_account) THEN
-		RAISE EXCEPTION 'Destination account has an external HR ID';
+	IF(tpc.external_hr_id is NOT NULL AND fpc.external_hr_id IS NULL) THEN
+		RAISE EXCEPTION 'Destination account has an external HR ID and origin account has none';
 	END IF;
-
-	-- Switch the HR ID
-	UPDATE PERSON_COMPANY
-	  SET  EXTERNAL_HR_ID = NULL
-	WHERE	PERSON_ID = fpc.person_id
-	  AND	COMPANY_ID = fpc.company_id;
-
-	UPDATE PERSON_COMPANY
-	  SET  EXTERNAL_HR_ID = fpc.external_hr_id
-	WHERE	PERSON_ID = tpc.person_id
-	  AND	COMPANY_ID = tpc.company_id;
 
 	-- move any account collections over that are
 	-- not infrastructure ones, and the new person is
 	-- not in
 	UPDATE	account_collection_account
-	   SET	ACCOUNT_ID = merge_to_account_id
-	 WHERE	ACCOUNT_ID = merge_from_account_id
+	   SET	ACCOUNT_ID = merge_from_account_id
+	 WHERE	ACCOUNT_ID = merge_to_account_id
 	  AND	ACCOUNT_COLLECTION_ID IN (
 			SELECT ACCOUNT_COLLECTION_ID
 			  FROM	ACCOUNT_COLLECTION
@@ -279,24 +269,46 @@ BEGIN
 	  AND	account_collection_id not in (
 			SELECT	account_collection_id
 			  FROM	account_collection_account
-			 WHERE	account_id = merge_to_account_id
+			 WHERE	account_id = merge_from_account_id
 	);
+	IF keep_login_unix_attr_from_dest_acct THEN
+		SELECT
+			unix_uid, unix_gid, login
+		INTO
+			to_account
+		FROM
+			account
+		JOIN
+			account_unix_info
+		USING
+			(account_id)
+		JOIN
+			unix_group
+		ON
+			unix_group_acct_collection_id=account_collection_id
+		WHERE account_id = merge_to_account_id;
+	END IF;
+	-- Now remove the old account
+	PERFORM person_manip.purge_account( merge_to_account_id );
+	IF keep_login_unix_attr_from_dest_acct THEN
+		UPDATE account SET login = to_account.login WHERE account_id = merge_from_account_id;
+		UPDATE account_unix_info SET unix_uid = to_account.unix_uid WHERE account_id = merge_from_account_id;
+		UPDATE unix_group SET unix_gid = to_account.unix_gid WHERE account_collection_id =
+			(SELECT unix_group_acct_collection_id FROM account_unix_info WHERE account_id = merge_from_account_id);
+	END IF;
 
-	-- Now begin removing the old account
-	PERFORM person_manip.purge_account( merge_from_account_id );
-
-	update person_contact set person_id = tpc.person_id where person_id = fpc.person_id;
-	update person_image set person_id = tpc.person_id where person_id = fpc.person_id;
-	update person_vehicle set person_id = tpc.person_id where person_id = fpc.person_id;
-	update property set person_id = tpc.person_id where person_id = fpc.person_id;
-	delete from person_account_realm_company where person_id = fpc.person_id AND company_id = fpc.company_id;
-	delete from person_company where person_id = fpc.person_id AND company_id = fpc.company_id;
+	update person_contact set person_id = fpc.person_id where person_id = tpc.person_id;
+	update person_image set person_id = fpc.person_id where person_id = tpc.person_id;
+	update person_vehicle set person_id = fpc.person_id where person_id = tpc.person_id;
+	update property set person_id = fpc.person_id where person_id = tpc.person_id;
+	delete from person_account_realm_company where person_id = tpc.person_id AND company_id = tpc.company_id;
+	delete from person_company where person_id = tpc.person_id AND company_id = tpc.company_id;
 	-- if there are other relations that may exist, do not delete the person.
 	BEGIN
-		delete from person where person_id = fpc.person_id;
+		delete from person where person_id = tpc.person_id;
 	EXCEPTION WHEN foreign_key_violation THEN
 		NULL;
 	END;
-	return merge_to_account_id;
+	return merge_from_account_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
