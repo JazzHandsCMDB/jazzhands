@@ -1,4 +1,4 @@
-#!/usr/pkg/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -42,7 +42,7 @@ use POSIX;
 use Pod::Usage;
 use Carp;
 
-my $output_root = "/prod/zonegen/auto-gen";
+my $output_root = "/var/lib/zonegen/auto-gen";
 
 my $dhcp_range_table;
 my $verbose = 0;
@@ -70,12 +70,34 @@ sub getSth {
 	$sth;
 }
 
+sub get_db_default {
+	my( $dbh, $prop, $default ) = @_;
+
+	my $q = qq {
+		select	property_value
+		  from	property
+		 where	property_type = 'Defaults'
+		   and	property_name = :1
+	};
+
+	my $sth = $dbh->prepare_cached($q) || die "$q: ", $dbh->errstr;
+	$sth->execute($prop) || die $dbh->errstr;
+
+	my ($pv) = $sth->fetchrow_array;
+	$sth->finish;
+	if($pv) {
+		$pv;
+	} else {
+		$default
+	}
+}
+
 #
 # print comments to a FileHandle object to indicate that the file is
 # auto-generated and likely not hand maintained.
 #
 sub print_comments {
-	my ( $fn, $commchr ) = @_;
+	my ( $dbh, $fn, $commchr ) = @_;
 
 	$commchr = '#' if ( !defined($commchr) );
 
@@ -88,6 +110,8 @@ sub print_comments {
 	my $idtag =
 	  '$Id$';
 
+	my $email = get_db_default($dbh, '_supportemail', 'jazzhands@example.com');
+
 	$fn->print(
 		qq{
 $commchr
@@ -99,7 +123,7 @@ $commchr
 $commchr It was generated at $whence by
 $commchr $idtag
 $commchr
-$commchr Please contact jazzhands\@example.com. if you require more info.
+$commchr Please contact $email if you require more info.
 }
 	);
 
@@ -139,18 +163,20 @@ sub iptoint {
 sub record_newgen {
 	my ( $dbh, $domid, $script_start ) = @_;
 
-	# not sure if this needs to be oratime anymore
-	my $oratime = strftime( "%F %T", gmtime($script_start) );
+	my $dbtime = strftime( "%F %T", gmtime($script_start) );
+
+	# This is for postgresql, oracle is to_date XXX
+	my $func = 'to_timestamp';
 
 	my $sth = getSth(
 		$dbh, qq{
 		update	dns_domain
 		  set	soa_serial = soa_serial + 1,
-			last_generated = to_date(:whence, 'YYYY-MM-DD HH24:MI:SS')
+			last_generated = $func(:whence, 'YYYY-MM-DD HH24:MI:SS')
 		where	dns_domain_id = :domid
 	}
 	);
-	$sth->bind_param( ':whence', $oratime ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $dbtime ) || die $sth->errstr;
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
 	$sth->execute  || die $sth->errstr;
 }
@@ -670,15 +696,15 @@ sub process_soa {
 	$exp    = 2419200 if ( !defined($exp) );
 	$min    = 3006    if ( !defined($min) );
 
-	$rname = 'hostmaster.example.com' if ( !defined($rname) );
-	$mname = "auth00.example.com"     if ( !defined($mname) );
+	$rname = get_db_default($dbh, '_dnsrname', 'hostmaster.example.com') if( !defined($rname) );
+	$mname = get_db_default($dbh, '_dnsmname', 'auth00.example.com') if( !defined($mname) );
 
 	$mname =~ s/\@/./g;
 
 	$mname .= "." if ( $mname =~ /\./ );
 	$rname .= "." if ( $rname =~ /\./ );
 
-	print_comments( $out, ';' );
+	print_comments( $dbh, $out, ';' );
 
 	$out->print( '$TTL', "\t$min\n" );
 	$out->print("@\t$ttl\t$class\tSOA $mname $rname (\n");
@@ -694,7 +720,7 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $dbh, $zoneroot, $domid, $domain, $errcheck ) = @_;
+	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last ) = @_;
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -722,6 +748,12 @@ sub process_domain {
 	process_reverse( $dbh, $out, $domid );
 	print STDERR "\tprocess_domain complete\n" if ($debug);
 	$out->close;
+
+	if($last) {
+		my($y,$m,$d,$h,$min,$s)  = ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)\D/ );
+		my $whence = mktime($s, $min, $h, $d, $m - 1, $y - 1900);
+		utime($whence, $whence, $tmpfn);  # If it does not work, then Vv
+	} 
 
 	if ( !$zoneroot ) {
 		return 0;
@@ -776,7 +808,7 @@ sub generate_complete_files {
 		my $fn = $zone;
 		$fn = "inaddr/$zone" if ( $fn =~ /.in-addr.arpa/ );
 		$cfgf->print(
-"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/$fn\";\n}\n\n"
+"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/$fn\";\n};\n\n"
 		);
 	}
 	$cfgf->close;
@@ -791,17 +823,21 @@ sub generate_complete_files {
 	print_comments( $zcf, '#' );
 	print_rndc_header($zcf);
 
+	#
+	# XXX this really wants to be a variable set in the db to determine
+	# if views are in use or not.
 	my $tally = 0;
 	foreach my $zone ( sort keys(%$zonesgend) ) {
 		if ( defined($zonesgend) && defined( $zonesgend->{$zone} ) ) {
 
 			# oh, this is a hack!
-			$zcf->print("rndc reload $zone || rndc reload\n");
+#			$zcf->print("rndc reload $zone || rndc reload\n");
 			$tally++;
 		}
 	}
 
-	# $zcf->print("rndc reload\n\n") if($tally);
+
+	$zcf->print("rndc reload\n\n") if($tally);
 	$zcf->close;
 	unlink($zcfn);
 	rename( $tmpzcfn, $zcfn );
@@ -998,6 +1034,8 @@ sub print_rndc_header {
 #
 #############################################################################
 
+$ENV{'PATH'} = $ENV{'PATH'}.":/usr/local/sbin:/usr/sbin";
+
 my $genall   = 0;
 my $dumpzone = 0;
 my $forcegen = 0;
@@ -1086,7 +1124,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	# [XXX]
 	#
 	if ( $dumpzone && grep( $_ eq $domain, @ARGV ) ) {
-		process_domain( $dbh, undef, $domid, $domain );
+		process_domain( $dbh, undef, $domid, $domain, undef, $last );
 		next;
 	}
 
@@ -1117,7 +1155,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 			print "$domain\n";
 			if (
 				process_domain(
-					$dbh, $zoneroot, $domid, $domain
+					$dbh, $zoneroot, $domid, $domain, undef, $last
 				)
 			  )
 			{
