@@ -70,12 +70,34 @@ sub getSth {
 	$sth;
 }
 
+sub get_db_default {
+	my( $dbh, $prop, $default ) = @_;
+
+	my $q = qq {
+		select	property_value
+		  from	property
+		 where	property_type = 'Defaults'
+		   and	property_name = :1
+	};
+
+	my $sth = $dbh->prepare_cached($q) || die "$q: ", $dbh->errstr;
+	$sth->execute($prop) || die $dbh->errstr;
+
+	my ($pv) = $sth->fetchrow_array;
+	$sth->finish;
+	if($pv) {
+		$pv;
+	} else {
+		$default
+	}
+}
+
 #
 # print comments to a FileHandle object to indicate that the file is
 # auto-generated and likely not hand maintained.
 #
 sub print_comments {
-	my ( $fn, $commchr ) = @_;
+	my ( $dbh, $fn, $commchr ) = @_;
 
 	$commchr = '#' if ( !defined($commchr) );
 
@@ -88,6 +110,8 @@ sub print_comments {
 	my $idtag =
 	  '$Id$';
 
+	my $email = get_db_default($dbh, '_supportemail', 'jazzhands@example.com');
+
 	$fn->print(
 		qq{
 $commchr
@@ -99,7 +123,7 @@ $commchr
 $commchr It was generated at $whence by
 $commchr $idtag
 $commchr
-$commchr Please contact jazzhands\@example.com. if you require more info.
+$commchr Please contact $email if you require more info.
 }
 	);
 
@@ -139,18 +163,20 @@ sub iptoint {
 sub record_newgen {
 	my ( $dbh, $domid, $script_start ) = @_;
 
-	# not sure if this needs to be oratime anymore
-	my $oratime = strftime( "%F %T", gmtime($script_start) );
+	my $dbtime = strftime( "%F %T", gmtime($script_start) );
+
+	# This is for postgresql, oracle is to_date XXX
+	my $func = 'to_timestamp';
 
 	my $sth = getSth(
 		$dbh, qq{
 		update	dns_domain
 		  set	soa_serial = soa_serial + 1,
-			last_generated = to_date(:whence, 'YYYY-MM-DD HH24:MI:SS')
+			last_generated = $func(:whence, 'YYYY-MM-DD HH24:MI:SS')
 		where	dns_domain_id = :domid
 	}
 	);
-	$sth->bind_param( ':whence', $oratime ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $dbtime ) || die $sth->errstr;
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
 	$sth->execute  || die $sth->errstr;
 }
@@ -670,15 +696,15 @@ sub process_soa {
 	$exp    = 2419200 if ( !defined($exp) );
 	$min    = 3006    if ( !defined($min) );
 
-	$rname = 'hostmaster.example.com' if ( !defined($rname) );
-	$mname = "auth00.example.com"     if ( !defined($mname) );
+	$rname = get_db_default($dbh, '_dnsrname', 'hostmaster.example.com') if( !defined($rname) );
+	$mname = get_db_default($dbh, '_dnsmname', 'auth00.example.com') if( !defined($mname) );
 
 	$mname =~ s/\@/./g;
 
 	$mname .= "." if ( $mname =~ /\./ );
 	$rname .= "." if ( $rname =~ /\./ );
 
-	print_comments( $out, ';' );
+	print_comments( $dbh, $out, ';' );
 
 	$out->print( '$TTL', "\t$min\n" );
 	$out->print("@\t$ttl\t$class\tSOA $mname $rname (\n");
