@@ -77,10 +77,10 @@ sub get_db_default {
 		select	property_value
 		  from	property
 		 where	property_type = 'Defaults'
-		   and	property_name = :1
+		   and	property_name = ?
 	};
 
-	my $sth = $dbh->prepare_cached($q) || die "$q: ", $dbh->errstr;
+	my $sth = getSth( $dbh, $q ) || die "$q: ", $dbh->errstr;
 	$sth->execute($prop) || die $dbh->errstr;
 
 	my ($pv) = $sth->fetchrow_array;
@@ -793,7 +793,7 @@ sub generate_complete_files {
 	my $tmpcfgfn = "$cfgfn.tmp.$$";
 	my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
 
-	print_comments( $cfgf, '#' );
+	print_comments( $dbh, $cfgf, '#' );
 
 	my $sth = getSth(
 		$dbh, qq{
@@ -820,7 +820,7 @@ sub generate_complete_files {
 	my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
 	chmod( 0755, $tmpzcfn );
 
-	print_comments( $zcf, '#' );
+	print_comments( $dbh, $zcf, '#' );
 	print_rndc_header($zcf);
 
 	#
@@ -933,13 +933,13 @@ sub process_perserver {
 		my $tmpcfgfn = "$cfgfn.tmp.$$";
 		my $cfgf = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
 
-		print_comments( $cfgf, '#' );
+		print_comments( $dbh, $cfgf, '#' );
 
 		my $zcfn    = "$cfgdir/zones-changed.rndc";
 		my $tmpzcfn = "$zcfn.tmp.$$";
 		my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
 		chmod( 0755, $tmpzcfn );
-		print_comments( $zcf, '#' );
+		print_comments( $dbh, $zcf, '#' );
 
 		print_rndc_header($zcf);
 
