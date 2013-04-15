@@ -278,11 +278,11 @@ BEGIN
 			to_account
 		FROM
 			account
-		JOIN
+		LEFT JOIN
 			account_unix_info
 		USING
 			(account_id)
-		JOIN
+		LEFT JOIN
 			unix_group
 		ON
 			unix_group_acct_collection_id=account_collection_id
@@ -292,9 +292,13 @@ BEGIN
 	PERFORM person_manip.purge_account( merge_to_account_id );
 	IF keep_login_unix_attr_from_dest_acct THEN
 		UPDATE account SET login = to_account.login WHERE account_id = merge_from_account_id;
-		UPDATE account_unix_info SET unix_uid = to_account.unix_uid WHERE account_id = merge_from_account_id;
-		UPDATE unix_group SET unix_gid = to_account.unix_gid WHERE account_collection_id =
-			(SELECT unix_group_acct_collection_id FROM account_unix_info WHERE account_id = merge_from_account_id);
+		IF to_account.unix_id IS NOT NULL THEN
+			UPDATE account_unix_info SET unix_uid = to_account.unix_uid WHERE account_id = merge_from_account_id;
+		END IF;
+		IF to_account.unix_gid IS NOT NULL THEN
+			UPDATE unix_group SET unix_gid = to_account.unix_gid WHERE account_collection_id =
+				(SELECT unix_group_acct_collection_id FROM account_unix_info WHERE account_id = merge_from_account_id);
+		END IF;
 	END IF;
 
 	update person_contact set person_id = fpc.person_id where person_id = tpc.person_id;
