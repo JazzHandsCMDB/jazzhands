@@ -31,7 +31,7 @@ $(function() {
 
 		var text = $(el).html();
 		var id = $(el).attr('id');
-		$(el).text(null);
+		$(el).text('');
 
 		// Create a new hidden box with the original value of the text
 		// element
