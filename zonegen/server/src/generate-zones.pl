@@ -750,9 +750,14 @@ sub process_domain {
 	$out->close;
 
 	if($last) {
-		my($y,$m,$d,$h,$min,$s)  = ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)\D/ );
-		my $whence = mktime($s, $min, $h, $d, $m - 1, $y - 1900);
-		utime($whence, $whence, $tmpfn);  # If it does not work, then Vv
+		$last =~ s/\..*$//;
+		my($y,$m,$d,$h,$min,$s)  = ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
+		if($y) {
+			my $whence = mktime($s, $min, $h, $d, $m - 1, $y - 1900);
+			utime($whence, $whence, $tmpfn);  # If it does not work, then Vv
+		} else {
+			warn "difficulting breaking apart $last";
+		}
 	} 
 
 	if ( !$zoneroot ) {
@@ -1118,6 +1123,8 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	$sth->fetchrow_array )
 {
 
+	warn "Processing: $domid / $domain / $genme / $last / $due / $state\n" if($debug);
+
 	#
 	# this is something of a hack, since process_domain is called in two
 	# places.  Probably want to restructure so it only gets called once.
@@ -1143,6 +1150,15 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 		#print "checking for changes in $domid -- $domain\n" if($debug);
 		#$changes = check_for_changes($dbh, $domid, $last);
 	}
+
+	if(!$last) {
+		$last = strftime( "%F %T", gmtime($script_start) );
+	}
+
+	# If a zone is not there but comes in the list, then we should mark it
+	# has having changes
+	my $gendomain = 0;
+
 	if ( $changes || $forcegen ) {
 		if ( $#ARGV == -1 || grep( $_ eq $domain, @ARGV ) ) {
 			if ( !$nosoa && ( $changes || $forcesoa ) ) {
@@ -1153,6 +1169,17 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 				$lgupdate{$domid} = $script_start;
 			}
 			print "$domain\n";
+			$gendomain = 1;
+		}
+		$last = strftime( "%F %T", gmtime($script_start) );
+	}
+
+	if(! -f "$zoneroot/$domain"  && ! -f "$zoneroot/inaddr/$domain") {
+		warn "generating $domain beause it is not there" if($debug);
+		$gendomain = 1;
+	}
+
+	if( $gendomain ) {
 			if (
 				process_domain(
 					$dbh, $zoneroot, $domid, $domain, undef, $last
@@ -1161,7 +1188,6 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 			{
 				$zones{$domain}++ if ( $genme eq 'Y' );
 			}
-		}
 	}
 }
 

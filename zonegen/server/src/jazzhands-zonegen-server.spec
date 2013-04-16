@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.52
+Version:    0.52.1
 Release:    1
 License:    Unknown
 Group:      System/Management
