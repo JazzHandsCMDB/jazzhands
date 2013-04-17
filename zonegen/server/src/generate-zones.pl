@@ -667,7 +667,7 @@ sub process_reverse {
 }
 
 sub process_soa {
-	my ( $dbh, $out, $domid ) = @_;
+	my ( $dbh, $out, $domid, $bumpsoa ) = @_;
 
 	my $sth = getSth(
 		$dbh, qq{
@@ -688,6 +688,7 @@ sub process_soa {
 	) = $sth->fetchrow_array;
 	$sth->finish;
 
+
 	$class  = 'IN'    if ( !defined($class) );
 	$ttl    = 72000   if ( !defined($ttl) );
 	$serial = 0       if ( !defined($serial) );
@@ -695,6 +696,14 @@ sub process_soa {
 	$ret    = 1800    if ( !defined($ret) );
 	$exp    = 2419200 if ( !defined($exp) );
 	$min    = 3006    if ( !defined($min) );
+
+	#
+	# This happens in order to allow updates to the dns_domain rows to happen
+	# all at once, right before commit, to minimize the amount of time a row
+	# is locked due to an update.  Both the "last_generated" and "soa_serial"
+	# columns are updated to match this.
+	#
+	$serial += 1 if($bumpsoa);
 
 	$rname = get_db_default($dbh, '_dnsrname', 'hostmaster.example.com') if( !defined($rname) );
 	$mname = get_db_default($dbh, '_dnsmname', 'auth00.example.com') if( !defined($mname) );
@@ -720,7 +729,7 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last ) = @_;
+	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -739,7 +748,7 @@ sub process_domain {
 	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
 
 	print STDERR "\tprocess SOA to $tmpfn\n" if ($debug);
-	process_soa( $dbh, $out, $domid );
+	process_soa( $dbh, $out, $domid, $bumpsoa );
 	print STDERR "\tprocess fwd\n" if ($debug);
 	process_fwd_records( $dbh, $out, $domid, $domain );
 	print STDERR "\tprocess child ns\n" if ($debug);
@@ -1131,7 +1140,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	# [XXX]
 	#
 	if ( $dumpzone && grep( $_ eq $domain, @ARGV ) ) {
-		process_domain( $dbh, undef, $domid, $domain, undef, $last );
+		process_domain( $dbh, undef, $domid, $domain, undef, $last, undef );
 		next;
 	}
 
@@ -1158,6 +1167,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	# If a zone is not there but comes in the list, then we should mark it
 	# has having changes
 	my $gendomain = 0;
+	my $bumpsoa = 0;
 
 	if ( $changes || $forcegen ) {
 		if ( $#ARGV == -1 || grep( $_ eq $domain, @ARGV ) ) {
@@ -1167,6 +1177,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 				# the end so they happen right before the
 				# commit.
 				$lgupdate{$domid} = $script_start;
+				$bumpsoa = 1;
 			}
 			print "$domain\n";
 			$gendomain = 1;
@@ -1182,7 +1193,7 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	if( $gendomain ) {
 			if (
 				process_domain(
-					$dbh, $zoneroot, $domid, $domain, undef, $last
+					$dbh, $zoneroot, $domid, $domain, undef, $last, $bumpsoa
 				)
 			  )
 			{

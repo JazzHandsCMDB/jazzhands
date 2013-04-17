@@ -53,6 +53,13 @@ if [ ! -r ${ZG_ROOT} ] ; then
 	mkdir -p ${ZG_ROOT}/auto-gen/perserver
 fi
 
+# redirect debugging to /dev/null unless this is a tty
+exec 3>/dev/null
+tty -s
+if [ $? = 0 ] ; then
+	exec 3>&2
+fi
+
 LOCKFILE=${ZG_ROOT}/run/zonegen.lock
 
 cleanup() {
@@ -73,7 +80,7 @@ fi
 
 list=`find 2>/dev/null $LOCKFILE -mmin +180`
 if [ ! -z "$list" ] ; then
-	echo 1>&2 removing lockfile $LOCKFILE as three hours has past.
+	echo 1>&3 removing lockfile $LOCKFILE as three hours has past.
 	rm -f $LOCKFILE
 fi
 
@@ -82,7 +89,7 @@ umask 022
 lockingon=no
 if [ -z "$*" ] ; then
 	if [ -r $LOCKFILE ] ; then
-		echo Locked, Skipping.
+		echo 1>&2 Locked, Skipping.
 		exit 0
 	fi
 	echo Locking
@@ -106,22 +113,25 @@ if [ ! -x ${RSYNC_RSH} ] ; then
 	RSYNC_RSH=ssh
 fi
 
+UNLINK_ALLZONE=no
 if [ -x ${LISTGEN} ] ; then
 	ALLZONE_HOSTFILE=${TMPFILE}
 	${LISTGEN} > ${TMPFILE}
+	UNLINK_ALLZONE=yes
 fi
 
 KRB5CCNAME=/tmp/krb5cc_zonegen_$$_do_zonegen
 export KRB5CCNAME
 
 if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
-	echo 1>&2  "Generating Zones (This may take a while)..."
-	/usr/libexec/jazzhands/zonegen/generate-zones "$@" >  /dev/null
+	echo 1>&3  "Generating Zones (This may take a while)..."
+	/usr/libexec/jazzhands/zonegen/generate-zones "$@" >&3
 
 	if [ -f /etc/krb5.keytab.zonegen ] ; then
 		kinit -k -t /etc/krb5.keytab.zonegen zonegen
 	fi
 	if [ -r $PERSERVER_HOSTFILE ] ; then
+		echo 1>&3 Rsyncing to pesrserver hosts listed in $ALLZONE_HOSTFILE
 		sed -e 's/#.*//' $PERSERVER_HOSTFILE | 
 		while read ns servers ; do
 			if [ "$servers" = "" ] ; then
@@ -130,25 +140,35 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 			if [ "$ns" != "" ] ; then
 				servers=`echo $servers | sed 's/,/ /'`
 				for host in $servers ; do
-					echo 1>&2  "Processing $host (in $ns) ..."
-					rsync </dev/null -rLpt --delete-after $SRC_ROOT/$ns/ ${host}:$DST_ROOT
-					$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
+					if [ x"$host" != "x" ] ;then
+						echo 1>&3  "Rsyncing to $host (in $ns) ..."
+						rsync </dev/null -rLpt --delete-after $SRC_ROOT/$ns/ ${host}:$DST_ROOT
+						$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
+					fi
 				done
 			fi
 		done
 	fi
 	if [ -r $ALLZONE_HOSTFILE ] ; then
+		echo 1>&3 Rsyncing to allzone hosts listed in $ALLZONE_HOSTFILE
 		sed -e 's/#.*//' $ALLZONE_HOSTFILE | 
 		while read host ; do
-			rsync </dev/null -rLpt --delete-after $SRC_ROOT/../zones $SRC_ROOT/../etc ${host}:$DST_ROOT
-			$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
+			if [ x"$host" != "x" ] ;then
+				echo 1>&3 ++ Rsyncing to $host
+				rsync </dev/null -rLpt --delete-after $SRC_ROOT/../zones $SRC_ROOT/../etc ${host}:$DST_ROOT
+				$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
+			fi
 		done
 	fi
 fi
 
 if [ "$lockingon" = "yes" ] ; then
-	echo Unlocking
+	echo 1>&3 Unlocking
 	rm -f $LOCKFILE
+fi
+
+if [ x"$UNLINK_ALLZONE" = xyes ] ; then
+	rm -f $ALLZONE_HOSTFILE
 fi
 
 kdestroy >/dev/null 2>&1
