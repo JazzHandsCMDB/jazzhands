@@ -63,8 +63,9 @@ fi
 LOCKFILE=${ZG_ROOT}/run/zonegen.lock
 
 cleanup() {
-        cleaning up lockfile after signal
+        echo 1>&2 cleaning up lockfile after signal
         rm -f $LOCKFILE
+	exit 1
 }
 
 trap cleanup HUP INT TERM
