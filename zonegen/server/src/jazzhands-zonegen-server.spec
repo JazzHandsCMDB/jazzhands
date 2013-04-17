@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.52.1
+Version:    0.52.2
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -53,5 +53,17 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Wed Apr 17 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1
+- fix signal handling in do-zone-generation
+* Wed Apr 17 2013 Todd Kover <kovert@omniscient.com> 0.52.1-1
+- print debugging to stderr when not invoked vi a tty.  silence is tty normal
+- unlink allzone file when generated, do not otherwise
+- print more info on steps when invoked from a tty
+- make extractions have correct soa serial number before db is updated
+  to minimize the amount of time between update of dns_domain and commit
+- generate zones without an soabump if the file is not there
+- deal properly with no last date being set in zone generation
+- use script invocation time as time for new zones
+- properly regenerate zones that are not there for initial deployment
 * Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-1
 - initial release
