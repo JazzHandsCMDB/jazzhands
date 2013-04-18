@@ -695,7 +695,7 @@ sub process_soa {
 	$ref    = 3600    if ( !defined($ref) );
 	$ret    = 1800    if ( !defined($ret) );
 	$exp    = 2419200 if ( !defined($exp) );
-	$min    = 3006    if ( !defined($min) );
+	$min    = 3600    if ( !defined($min) );
 
 	#
 	# This happens in order to allow updates to the dns_domain rows to happen
