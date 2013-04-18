@@ -715,7 +715,7 @@ sub process_soa {
 
 	print_comments( $dbh, $out, ';' );
 
-	$out->print( '$TTL', "\t$min\n" );
+	$out->print( '$TTL', "\t$ttl\n" );
 	$out->print("@\t$ttl\t$class\tSOA $mname $rname (\n");
 	$out->print("\t\t\t\t$serial\t; serial number\n");
 	$out->print("\t\t\t\t$ref\t; refresh\n");
