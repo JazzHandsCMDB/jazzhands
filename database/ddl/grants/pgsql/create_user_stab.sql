@@ -63,6 +63,7 @@ GRANT SELECT				ON val_production_state TO app_stab;
 -- GRANT SELECT				ON val_device_function_type TO app_stab;
 GRANT SELECT				ON val_network_interface_purpose TO app_stab;
 GRANT SELECT				ON val_network_interface_type TO app_stab;
+GRANT SELECT				ON val_dns_domain_type TO app_stab;
 GRANT SELECT				ON val_dns_type TO app_stab;
 GRANT SELECT				ON val_dns_class TO app_stab;
 GRANT SELECT,INSERT			ON snmp_commstr TO app_stab;
