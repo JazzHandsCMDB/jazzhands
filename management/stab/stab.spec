@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.52
+%define version 0.52.2
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,8 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 19 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1
+ - minor dns and netblock fixes
 * Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-1
  - fix mx/srv records when they are assigned to work on zone
  - much more liberal use of JH::Common::Util
