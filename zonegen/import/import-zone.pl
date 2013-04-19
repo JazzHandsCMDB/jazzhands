@@ -32,6 +32,113 @@ use Carp;
 
 exit do_zone_load();
 
+sub link_inaddr {
+	my($c, $domid, $block) = @_;
+
+	my(@errs);
+	if(my $dbrec = $c->DBFetch(
+		table           => 'dns_record',
+		match           => {
+			dns_domain_id => $domid,
+			dns_type => 'REVERSE_ZONE_BLOCK_PTR'
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	)) {
+		return 0;
+	}
+
+	my($ip, $bits) = split(m,/,, $block,2);
+	my $nblk = $c->DBFetch(
+		table           => 'netblock',
+		match           => { ip_address => $block, netblock_type => 'dns' },
+		errors          => \@errs,
+		result_set_size => 'first',
+	);
+	$c->dbh->err && die join( " ", @errs );
+
+	if(!$nblk) {
+		$nblk = {
+			ip_address        => $ip,
+			netmask_bits	  => $bits,
+			netblock_type     => 'dns',
+			is_single_address => 'N',
+			can_subnet        => 'N',
+			netblock_status   => 'Allocated',
+			ip_universe_id    => 0,
+			is_ipv4_address   => ( $block =~ /:/ )?'N':'Y',
+		};
+		$c->DBInsert(
+			table => 'netblock',
+			hash  => $nblk,
+			errs  => \@errs,
+		) || die join( " ", @errs );
+	};
+
+	my $dns = {
+		dns_domain_id	=> $domid,
+		dns_class	=> 'IN',
+		dns_type	=> 'REVERSE_ZONE_BLOCK_PTR',
+		netblock_id	=> $nblk->{netblock_id},
+	};
+	$c->DBInsert(
+		table => 'dns_record',
+		hash => $dns,,,,
+		errs => \@errs,
+	) || die join( " ", @errs );
+	1;
+}
+
+#
+# given an IP, returns the forward record that defines that
+# PTR record
+#
+sub get_ptr {
+	my($c, $ip) = @_;
+
+	my(@errs);
+	my $nblk = $c->DBFetch(
+		table           => 'netblock',
+		match           => {
+			'host(ip_address)' => $ip,
+			'is_single_address' => 'Y',
+			'netblock_type'     => 'default',
+			'ip_universe_id'    => 0,
+			'host(ip_address)'  => $ip
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	);
+	return undef if !$nblk;
+
+	my $dns = $c->DBFetch(
+		table	=>	'dns_record',
+		match	=>	{
+			netblock_id => $nblk->{netblock_id},
+			should_generate_ptr => 'Y',
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	);
+	return undef if !$dns;
+
+	my $dom = $c->DBFetch(
+		table	=>	'dns_domain',
+		match	=>	{
+			dns_domain_id => $dns->{dns_domain_id},
+		},
+		result_set_size => 'exactlyone',
+		errors          => \@errs
+	) || die "$ip: ", join(",", @errs);
+
+	if(defined($dns->{dns_name})) {
+		return join(".", $dns->{dns_name}, $dom->{soa_name});
+	} else {
+		return $dom->{soa_name};
+	}
+	undef;
+}
+
 sub get_parent_domain {
 	my ($c, $zone) = @_;
 
@@ -174,6 +281,30 @@ sub freshen_zone {
 			$$dom = $new;
 		}
 
+		# If this is an in-addr zone, then do reverse linkage
+		if($zone =~ /in-addr.arpa$/) {
+			# XXX needs to be combined with routine in gen_ptr
+			$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
+			if($1) {
+				my $block;
+				my @digits = reverse split(/\./, $1);
+				my ($ip, $bit);
+				if($#digits <= 3) {
+					$ip = join(".", @digits);
+					# ipv4, most likely...
+					if($#digits == 2) {
+						$block = "$ip.0/24";
+					}
+				} else {
+					die "need to sort out ipv6\n";
+				}
+				die "Unable to discern block for $zone", if(!$block);
+				$numchanges += link_inaddr($c, $$dom->{dns_domain_id}, $block);
+			} else {
+				warn "Unable to make in-addr dns linkage\n";
+			}
+		}
+
 		if($parent) {
 			# In our parent, if there are any NS record for us, they
 			# should be deleted, because Zone Generaion will DTRT with
@@ -215,7 +346,6 @@ sub freshen_zone {
 					],
 					errors	=> \@errs,
 				)}) {
-				warn Dumper($z);
 			if(!defined($z->{parent_dns_domain_id}) || $z->{parent_dns_domain_id} != $new->{dns_domain_id}) {
 				if($c->{verbose}) {
 					warn "updating ", $z->{soa_name}, " to have parent of ", $new->{soa_name}, "\n";
@@ -442,6 +572,7 @@ sub process_zone {
 
 	my @zone = $res->axfr($xferzone);
 	if ( $#zone == -1 ) {
+		warn "No records returned in AXFR\n";
 		return undef;
 	}
 
@@ -450,7 +581,7 @@ sub process_zone {
 	my $numrec = 0;
 	foreach my $rr ( sort by_name @zone ) {
 
-		# warn "CONSIDER ", $rr->print;
+		# warn "CONSIDER ", $rr->string;
 		my $name = $rr->name;
 		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
@@ -471,11 +602,33 @@ sub process_zone {
 			genptr => 'N',
 		};
 		if ( $rr->type eq 'PTR' ) {
+			# If this is a legitimate PTR record, check the
+			# forward record and see if it is there and genptr is
+			# set, and if so, skip, otherwise print a warning and
+			# insert as expected.
+			$rr->name =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
+			if($1) {
+				my @digits = reverse split(/\./, $1);
+				my $ip;
+				if($#digits == 3) {
+					$ip = join(".", @digits);
+				} else {
+					$ip = join("", @digits);
+					$ip =~ s/(....)/$1:/g;
+					$ip =~ s/:$//;
+				}
+				if(my $dbrec = get_ptr($c, $ip)) {
+					if($dbrec ne $rr->ptrdname) {
+						warn "$ip has a PTR record that does not match DB (", $rr->ptrdname, "), skipping\n";
+					}
+					next;
+				} else {
+					warn "DB has no FWD record for $ip (", $rr->ptrdname, "), adding\n";
+				}
+			}
 			$new->{value} = $rr->ptrdname;
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
 			my $ptr = get_inaddr( $rr->address );
-
-			next if $rr->address eq '8.12.229.167';
 
 			$new->{address} = $rr->address;
 			$new->{genptr} =
@@ -555,11 +708,13 @@ sub process_zone {
 sub process_db {
 	my ( $c, $zone ) = @_;
 
+	return 0;
+
 	my @errs;
 	my $rows = $c->DBFetch(
 		table           => 'dns_domain',
 		match           => { soa_name => $zone, },
-		result_set_size => 'exactlyone',
+		result_set_size => 'first',
 		errors          => \@errs,
 	) || die join( " ", @errs );
 }
