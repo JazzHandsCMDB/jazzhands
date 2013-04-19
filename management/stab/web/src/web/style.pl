@@ -53,7 +53,8 @@ sub do_style_dump {
 	print $cgi->header( { -type => 'text/css' } ), "\n";
 
 	my $root = $stab->guess_stab_root;
-	# this could be smarter.
+	# this could be smarter.  It also apperas in STAB.pm for
+	# the title bar
 	if ( $root !~ m,://stab.[^/]+/?$, && $root !~ /dev/ ) {
 		print <<END;
 

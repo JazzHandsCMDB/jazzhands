@@ -198,11 +198,12 @@ sub check_soa {
 				$cgi->b($hr->{_dbx('SOA_EXPIRE')}),
 				") is different than the one in zone (", $rr->expire, ")");
 		}
-		if($hr->{_dbx('SOA_TTL')} != $rr->minimum) {
-			$msg .= $cgi->li("SOA: TTL in JazzHands (", 
-				$cgi->b($hr->{_dbx('SOA_TTL')}),
+		if($hr->{_dbx('SOA_MINIMUM')} != $rr->minimum) {
+			$msg .= $cgi->li("SOA: minimum in JazzHands (", 
+				$cgi->b($hr->{_dbx('SOA_MINIMUM')}),
 				") is different than the one in zone (", $rr->minimum, ")");
 		}
+
 	}
 
 	return $msg;

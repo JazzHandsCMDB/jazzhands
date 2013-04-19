@@ -115,6 +115,7 @@ sub delete_netblock {
 sub guess_parent_netblock_id {
 	my ( $self, $in_ip, $in_bits ) = @_;
 
+	# select is needed for postgres 9.1 to optimize right.
 	my $q = qq {
 		select  Netblock_Id,
 			net_manip.inet_dbtop(ip_address) as IP,
@@ -122,7 +123,7 @@ sub guess_parent_netblock_id {
 			netmask_bits
 		  from  netblock
 		  where	netblock_id in (
-			netblock_utils.find_best_parent_id(
+			SELECT netblock_utils.find_best_parent_id(
 				net_manip.inet_ptodb(:ip), :bits, 'default', 
 				0, 'Y')
 			)
