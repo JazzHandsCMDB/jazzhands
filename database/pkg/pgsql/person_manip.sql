@@ -218,3 +218,4 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 \i merge_accounts.sql
+\i change_company.sql
