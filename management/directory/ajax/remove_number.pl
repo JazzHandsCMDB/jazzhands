@@ -15,17 +15,17 @@ sub get_login {
 	my($dbh, $personid) = @_;
 
 	my $sth = $dbh->prepare_cached(qq{
-		select	a.login
-		 from	account a
-		 	inner join v_person_company_expanded pc
-				using (person_id, company_id)
-		where	person_id = ?
-                and     company_id = (
-                                select  property_value_company_id
-                                  from  property
-                                 where  property_name = '_rootcompanyid'
-                                   and  property_type = 'Defaults'
-                        )
+	       select  a.login
+		 from   account a
+			inner join v_person_company_expanded pc
+				using (person_id)
+		where   person_id = ?
+		and     pc.company_id in (
+				select  property_value_company_id
+				  from  property
+				 where  property_name = '_rootcompanyid'
+				   and  property_type = 'Defaults'
+			)
 	}) || die $dbh->errstr;
 	$sth->execute($personid) || die $sth->errstr;
 	my $login = ($sth->fetchrow_array)[0];
@@ -37,20 +37,20 @@ sub get_login {
 sub check_admin {
 	my ($dbh, $login) = @_;
 
-        my $sth = $dbh->prepare_cached(qq {
-                select  count(*) as tally
-                 from   property p
-                        inner join account_collection ac
-                                on ac.account_collection_id =
-                                        p.property_value_account_coll_id
-                        inner join v_acct_coll_acct_expanded ae
-                                on ae.account_collection_id =
-                                        ac.account_collection_id
-                        inner join account a
-                                on ae.account_id = a.account_id
-                 where  p.property_name = 'PhoneDirectoryAdmin'
-                  and   p.property_type = 'PhoneDirectoryAttributes'
-                  and   a.login = ?
+	my $sth = $dbh->prepare_cached(qq {
+		select  count(*) as tally
+		 from   property p
+			inner join account_collection ac
+				on ac.account_collection_id =
+					p.property_value_account_coll_id
+			inner join v_acct_coll_acct_expanded ae
+				on ae.account_collection_id =
+					ac.account_collection_id
+			inner join account a
+				on ae.account_id = a.account_id
+		 where  p.property_name = 'PhoneDirectoryAdmin'
+		  and   p.property_type = 'PhoneDirectoryAttributes'
+		  and   a.login = ?
 	}) || die $dbh->errstr;
 
 	$sth->execute($login) || die $sth->errstr;
@@ -59,9 +59,9 @@ sub check_admin {
 
 	if($hr && $hr->{tally} > 0) {
 		return 1;
-        } else {
-                return 0;
-        }
+	} else {
+		return 0;
+	}
 }
 
 sub get_pic_owner {

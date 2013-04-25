@@ -37,16 +37,16 @@ sub do_work {
 					  	inner join person_image_usage  using (person_image_id)
 					 where	person_image_usage = 'corpdirectory'
 				) pi on pi.person_id = p.person_id
-                left join (
-                        select pl.person_id, pa.physical_address_id,
-                                pa.display_label
-                         from   person_location pl
-                                inner join physical_address pa
-                                        on pl.physical_address_id = 
-                                                pa.physical_address_id
-                        where   pl.person_location_type = 'office'
-                        order by site_rank
-                        ) ofc on ofc.person_id = p.person_id
+		left join (
+			select pl.person_id, pa.physical_address_id,
+				pa.display_label
+			 from   person_location pl
+				inner join physical_address pa
+					on pl.physical_address_id = 
+						pa.physical_address_id
+			where   pl.person_location_type = 'office'
+			order by site_rank
+			) ofc on ofc.person_id = p.person_id
 	   where	p.person_id >= 1
 		and	pce.company_id = (
 				select	property_value_company_id
