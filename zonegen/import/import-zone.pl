@@ -32,6 +32,38 @@ use Carp;
 
 exit do_zone_load();
 
+sub check_and_add_service {
+	my($c, $service) = @_;
+
+	my(@errs);
+	my $dbrec;
+	if($dbrec = $c->DBFetch(
+		table           => 'val_dns_srv_service',
+		match           => {
+			dns_srv_service => $service,
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	)) {
+		return 0;
+	}
+	$c->dbh->err && die join( " ", @errs );
+
+	if($dbrec) {
+		return;
+	}
+	if(!$c->{addservice}) {
+		die "$service not in DB, can not add record\n";
+	}
+	$c->DBInsert(
+		table => 'val_dns_srv_service',
+		hash  => {
+			dns_srv_service => $service
+		},
+		errs  => \@errs,
+	) || die join( " ", @errs );
+}
+
 sub link_inaddr {
 	my($c, $domid, $block) = @_;
 
@@ -641,8 +673,20 @@ sub process_zone {
 		} elsif ( $rr->type eq 'DNAME' ) {
 			$new->{value} = $rr->dname;
 		} elsif ( $rr->type eq 'SRV' ) {
+			my($srv, $proto, $n) = split(/\./, $rr->name);
+			if($n) {
+				$new->{srv_service} = $srv;
+				$proto =~ s/^_//;
+				$new->{srv_protocol} = $proto;
+				$new->{name} = $n;
 
-			# $msg .= check_srv($c, $rr, $zone);
+				check_and_add_service($c, $srv);
+			}
+			#
+			$new->{priority} = $rr->priority;
+			$new->{srv_weight} = $rr->weight;
+			$new->{srv_port} = $rr->port;
+			$new->{value} = $rr->target;
 		} elsif ( $rr->type eq 'TXT' || $rr->type eq 'SPF' ) {
 			$new->{value} = $rr->txtdata;
 		} elsif ( $rr->type eq 'NS' ) {
@@ -721,15 +765,17 @@ sub process_db {
 
 #############################################################################
 
+my $dbh;
 sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
-	my ( $ns, $verbose );
+	my ( $ns, $verbose, $addsvr );
 
 	my $r = GetOptions(
 		"verbose"             => \$verbose,
 		"dbapp=s"             => \$app,
 		"nameserver=s"        => \$ns,
+		"add-services"        => \$addsvr,
 		"unknown-netblocks=s" => \$nbrule,
 	) || die "Issues";
 
@@ -740,13 +786,14 @@ sub do_zone_load {
 			&& $nbrule ne 'iponly' );
 	}
 
-	my $dbh = JazzHands::DBI->connect( $app, { AutoCommit => 0 } )
+	$dbh = JazzHands::DBI->connect( $app, { AutoCommit => 0 } )
 	  || die $JazzHands::DBI::errstr;
 	my $c = new JazzHands::Common;
 	$c->DBHandle($dbh);
 
 	$c->{nbrule}  = $nbrule;
 	$c->{verbose} = $verbose;
+	$c->{addservice} = $addsvr;
 
 	foreach my $zone (@ARGV) {
 		warn "Processing zone $zone...\n";
@@ -778,4 +825,13 @@ sub do_zone_load {
 
 	$dbh->commit;
 	$dbh->disconnect;
+	$dbh = undef;
+	0;
+}
+
+END {
+	if($dbh) {
+		$dbh->rollback;
+		$dbh->disconnect;
+	}
 }
