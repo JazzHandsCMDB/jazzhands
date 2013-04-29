@@ -584,7 +584,7 @@ sub check_addr {
 					inner join dns_domain dom on
 						dom.dns_domain_id = dns.dns_domain_id
 			where	nb.ip_address =
-						net_manip.inet_ptodb(?)
+						net_manip.inet_ptodb(?, netmask_bits)
 			  and	dns.dns_type = 'A'
 		};
 		$casth = $stab->prepare($q) || die $dbh->errstr;
