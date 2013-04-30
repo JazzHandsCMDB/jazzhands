@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.52.2
+Version:    0.52.3
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -53,6 +53,8 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Thu Apr 18 2013 Todd Kover <kovert@omniscient.com> 0.52.3-1
+- fix use of minimum and ttl in generated zones
 * Wed Apr 17 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1
 - fix signal handling in do-zone-generation
 * Wed Apr 17 2013 Todd Kover <kovert@omniscient.com> 0.52.1-1
