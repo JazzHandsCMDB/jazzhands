@@ -246,11 +246,17 @@ sub check_ns {
 	my $msg = "";
 	my $found = 0;
 	while(my $hr = $sth->fetchrow_hashref) {
-		if($hr->{_dbx('DNS_VALUE')} eq $nsdname.".")  {
+		my $dnsval = $hr->{_dbx('DNS_VALUE')};
+		my $altn = $nsdname;
+		if($nsdname ne $zone) {
+			$altn =~ s/\.$zone$//;
+		}
+		warn "consider $shortname -- '$altn' '$nsdname' '$dnsval'\n" if !length($shortname);;
+		if($dnsval eq $nsdname."." || $dnsval eq $altn )  {
 			$found = 1;
 		} else {
-			$msg .= $cgi->li("NS: $name ($nsdname) does not match JazzHands (",
-				$hr->{_dbx('DNS_VALUE')}, ")");
+			$msg .= $cgi->li("NS: $name ($nsdname) does not match JazzHands for $shortname (",
+				"$dnsval");
 		}
 	}
 
@@ -258,7 +264,13 @@ sub check_ns {
 		if($msg && length($msg)) {
 			return $msg;
 		} else {
-			return $cgi->li("NS record $nsdname not in JazzHands");
+			my $ps;
+			if(length($shortname)) {
+				$ps = "for $shortname";
+			} else {
+				$ps = "for domain";
+			}
+			return $cgi->li("NS record $ps: $nsdname not in JazzHands");
 		}
 	}
 }
@@ -453,6 +465,9 @@ sub check_mx {
 	while(my ($val, $pri) = $sth->fetchrow_array) {
 		$found = 1;
 		my $combo = "$pref $mx.";
+		if($val !~ /\.$/) {
+			$val .= ".$zone.";
+		}
 		if(defined($pri) && $pref == $pri && $val eq "$mx.") {
 			$found = 1;
 			$msg = "";
@@ -556,6 +571,7 @@ sub check_name {
 	while(my($ip, $name, $dom, $id, $soa) = $sth->fetchrow_array) {
 		$m .= $cgi->li("** A record for ", $cgi->b($in_name), " is $ip (not $addr) in DB");
 		if($addr eq $ip) {
+			$sth->finish;
 			return "";
 		}
 	}
@@ -671,7 +687,7 @@ sub do_dns_compare {
 	my $domain = $stab->get_dns_domain_from_id($domid) || $stab->error_return("unknown domain id $domid");
 	my $zone = $domain->{_dbx('SOA_NAME')};
 
-	my $ns = $stab->cgi_parse_param('zone') || find_best_ns($stab, $zone);
+	my $ns = $stab->cgi_parse_param('ns') || find_best_ns($stab, $zone);
 
 	my $msg = process_zone($stab, $ns, $zone);
 	print $cgi->header;
