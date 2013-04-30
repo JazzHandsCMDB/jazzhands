@@ -195,6 +195,7 @@ sub get_parent_domain {
 # says for it.
 #
 sub get_inaddr {
+	my $c = shift(@_);
 	my $ip = shift(@_);
 
 	my $i = new NetAddr::IP($ip) || die "Unable to parse invalid ip $ip\n";
@@ -213,6 +214,7 @@ sub get_inaddr {
 
 	my $inaddr = join( ".", @ip ) . ".in-addr.arpa";
 	my $res    = new Net::DNS::Resolver;
+	$res->nameserver( $c->{nameserver} ) if($c->{nameserver});
 	my $a      = $res->query( $inaddr, 'PTR' );
 
 	# return the first one.  If there is more than one,
@@ -639,7 +641,9 @@ sub process_zone {
 			# set, and if so, skip, otherwise print a warning and
 			# insert as expected.
 			$rr->name =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
+			my $isip;
 			if($1) {
+				$isip = 1;
 				my @digits = reverse split(/\./, $1);
 				my $ip;
 				if($#digits == 3) {
@@ -659,8 +663,9 @@ sub process_zone {
 				}
 			}
 			$new->{value} = $rr->ptrdname;
+			$new->{value} .= "." if($isip);
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
-			my $ptr = get_inaddr( $rr->address );
+			my $ptr = get_inaddr( $c, $rr->address );
 
 			$new->{address} = $rr->address;
 			$new->{genptr} =
@@ -794,6 +799,7 @@ sub do_zone_load {
 	$c->{nbrule}  = $nbrule;
 	$c->{verbose} = $verbose;
 	$c->{addservice} = $addsvr;
+	$c->{nameserver} = $ns if($ns);
 
 	foreach my $zone (@ARGV) {
 		warn "Processing zone $zone...\n";
@@ -802,6 +808,7 @@ sub do_zone_load {
 			process_db( $c, $zone );
 		} else {
 			my $res = new Net::DNS::Resolver;
+			$res->nameservers($ns) if($ns);
 			my $resp = $res->query( $zone, 'NS' );
 			if ( !$resp ) {
 				die
