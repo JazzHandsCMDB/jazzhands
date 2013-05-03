@@ -1090,7 +1090,8 @@ sub b_dropdown {
 		$q = qq{
 			select	dns_domain_id, soa_name
 			  from	dns_domain $limitverbiage
-			order by soa_name
+			order by CASE WHEN soa_name like '%in-addr.arpa' THEN 1 ELSE 0 END,
+				soa_name
 		};
 		$pickone = "Please Select Domain";
 	} elsif ( $selectfield eq 'PRODUCTION_STATE' ) {

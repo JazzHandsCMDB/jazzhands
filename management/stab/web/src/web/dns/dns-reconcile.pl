@@ -251,7 +251,6 @@ sub check_ns {
 		if($nsdname ne $zone) {
 			$altn =~ s/\.$zone$//;
 		}
-		warn "consider $shortname -- '$altn' '$nsdname' '$dnsval'\n" if !length($shortname);;
 		if($dnsval eq $nsdname."." || $dnsval eq $altn )  {
 			$found = 1;
 		} else {

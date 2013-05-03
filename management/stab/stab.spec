@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.52.3
+%define version 0.52.4
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May  3 2013 Todd Kover <kovert@omniscient.com> 0.52.4-1
+  - remove debug statements that leaked in
+  - sort dns records in drop downs with in-addr after others
+  - fix dns changes to actaully clear params and have minimal url
+  - handle DNS that points to things that are not normal blocks
 * Fri Apr 19 2013 Todd Kover <kovert@omniscient.com> 0.52.3-1
  - imporve dns reconciliation for mx and ns records
 * Fri Apr 19 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1

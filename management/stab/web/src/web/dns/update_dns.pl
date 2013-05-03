@@ -71,6 +71,9 @@ sub clear_same_dns_params {
 		select	d.dns_record_id,
 				d.dns_name, d.dns_class, d.dns_type, 
 				d.dns_value, d.dns_ttl, d.is_enabled,
+				d.dns_srv_service, d.dns_srv_protocol, 
+				d.dns_srv_weight, d.dns_srv_port,
+				d.dns_priority,
 				net_manip.inet_dbtop(nb.ip_address) as ip
 		  from	dns_record d
 				left join netblock nb
@@ -166,7 +169,7 @@ sub clear_same_dns_params {
 				DNS_SRV_PROTOCOL => $in_srv_proto,
 				DNS_SRV_WEIGHT   => $in_srv_weight,
 				DNS_SRV_PORT     => $in_srv_port,
-				DNS_SRV_PRIORITY => $in_priority,
+				DNS_PRIORITY => $in_priority,
 			};
 
 	    # if it correponds to an actual row, compare, otherwise only keep if
@@ -177,15 +180,15 @@ sub clear_same_dns_params {
 			{
 				my $x = $all->{$dnsid};
 				foreach my $key ( sort keys(%$map) ) {
-					if (       defined( $x->{$key} )
+					if (       defined( $x->{ _dbx($key) } )
 						&& defined( $map->{$key} ) )
 					{
-						if ( $x->{$key} ne
+						if ( $x->{ _dbx($key) } ne
 							$map->{$key} )
 						{
 							next DNS;
 						}
-					} elsif (  !defined( $x->{$key} )
+					} elsif (  !defined( $x->{_dbx($key) } )
 						&& !defined( $map->{$key} ) )
 					{
 						;
@@ -202,6 +205,11 @@ sub clear_same_dns_params {
 		$purge->{ 'DNS_TYPE_' . $dnsid }       = 1;
 		$purge->{ 'DNS_CLASS_' . $dnsid }      = 1;
 		$purge->{ 'DNS_VALUE_' . $dnsid }      = 1;
+		$purge->{ 'DNS_SRV_SERVICE_' . $dnsid }= 1;
+		$purge->{ 'DNS_SRV_PROTOCOL_' . $dnsid }= 1;
+		$purge->{ 'DNS_SRV_WEIGHT_' . $dnsid } = 1;
+		$purge->{ 'DNS_SRV_PORT_' . $dnsid }   = 1;
+		$purge->{ 'DNS_PRIORITY_' . $dnsid }   = 1;
 		$purge->{ 'ttlonly_' . $dnsid }        = 1;
 		$purge->{ 'chk_IS_ENABLED_' . $dnsid } = 1;
 	}
@@ -212,6 +220,7 @@ sub clear_same_dns_params {
 	$cgi->delete_all;
 	my $v = $n->Vars;
 	foreach my $p ( keys %$v ) {
+		next if ( $p eq 'Records');
 		next if ( defined( $purge->{$p} ) );
 		$cgi->param( $p, $v->{$p} );
 	}
@@ -446,10 +455,18 @@ sub process_and_insert_dns_record {
 		my $block = $stab->get_netblock_from_ip( ip_address => $opts->{dns_value} );
 		my $id;
 		if ( !defined($block) ) {
-			$id = $stab->add_netblock(
+			my $h = {
 				ip_address => $opts->{dns_value},
 				is_single_address => 'Y'
-			) || die $stab->return_db_err();
+			};
+			if( ! ( my $par = $stab->guess_parent_netblock_id( $opts->{dns_value} ) ) ) {
+				# XXX This is outside our IP universe, which we should probably
+				# print a warning on, but lacking that, it gets created as a
+				# type dns
+				$h->{netblock_type} = 'dns';
+				$h->{netmask_bits} = 32;
+			}
+			$id = $stab->add_netblock( $h ) || die $stab->return_db_err();
 		} else {
 			$id = $block->{_dbx('NETBLOCK_ID')};
 		}
@@ -514,10 +531,18 @@ sub process_and_update_dns_record {
 		my $block = $stab->get_netblock_from_ip(ip_address => $value);
 		my $id;
 		if ( !defined($block) ) {
-			$id = $stab->add_netblock(
-				ip_address => $value,
+			my $h = {
+				ip_address => $opts->{dns_value},
 				is_single_address => 'Y'
-			) || die $stab->return_db_err();
+			};
+			if( ! ( my $par = $stab->guess_parent_netblock_id( $opts->{dns_value} ) ) ) {
+				# XXX This is outside our IP universe, which we should probably
+				# print a warning on, but lacking that, it gets created as a
+				# type dns
+				$h->{netblock_type} = 'dns';
+				$h->{netmask_bits} = 32;
+			}
+			$id = $stab->add_netblock( $h ) || die $stab->return_db_err();
 		} else {
 			$id = $block->{_dbx('NETBLOCK_ID')};
 		}
@@ -525,10 +550,18 @@ sub process_and_update_dns_record {
 		my $id;
 		my $block = $stab->get_netblock_from_ip( ip_address => $value );
 		if ( !defined($block) ) {
-			$id = $stab->add_netblock(
-				ip_address => $value,
+			my $h = {
+				ip_address => $opts->{dns_value},
 				is_single_address => 'Y'
-			) || die $stab->return_db_err();
+			};
+			if( ! ( my $par = $stab->guess_parent_netblock_id( $opts->{dns_value} ) ) ) {
+				# XXX This is outside our IP universe, which we should probably
+				# print a warning on, but lacking that, it gets created as a
+				# type dns
+				$h->{netblock_type} = 'dns';
+				$h->{netmask_bits} = 32;
+			}
+			$id = $stab->add_netblock( $h ) || die $stab->return_db_err();
 		} else {
 			$id = $block->{_dbx('NETBLOCK_ID')};
 		}

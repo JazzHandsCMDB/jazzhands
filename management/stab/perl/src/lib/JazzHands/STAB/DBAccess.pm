@@ -562,7 +562,6 @@ sub get_netblock_from_ip {
 		$args->{'is_single_address'} = 'Y';
 	}
 
-	warn "looking for ", $opts->{ip_address};
 	my $netblock = $self->GetNetblock( $args );
 
 	if(!$netblock) {
