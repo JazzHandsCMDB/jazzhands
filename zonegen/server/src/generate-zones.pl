@@ -509,7 +509,7 @@ sub process_fwd_records {
 			) dv on d.dns_value_record_id = dv.dns_record_id
 		 where	d.dns_domain_id = ?
 		   and	d.dns_type != 'REVERSE_ZONE_BLOCK_PTR'
-		order by sort_order, net_manip.inet_dbtop(ni.ip_address)
+		order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 	}
 	);
 
