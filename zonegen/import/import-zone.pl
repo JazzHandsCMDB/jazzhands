@@ -534,6 +534,7 @@ sub refresh_dns_record {
 	my $match = {
 		dns_name    => $name,
 		dns_value   => $value,
+		dns_type   => $opt->{dns_type},
 		dns_domain_id	=> $opt->{dns_domain_id},
 		netblock_id => ($nb) ? $nb->{netblock_id} : undef,
 	};
