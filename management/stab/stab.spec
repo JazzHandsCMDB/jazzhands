@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.52.4
+%define version 0.52.5
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.5-1
+- dns-reconcile: improve SRV checks
+- dns-reconcile: do not compare A records to ipv6 records
 * Fri May  3 2013 Todd Kover <kovert@omniscient.com> 0.52.4-1
   - remove debug statements that leaked in
   - sort dns records in drop downs with in-addr after others
