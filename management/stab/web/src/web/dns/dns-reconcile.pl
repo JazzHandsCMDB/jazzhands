@@ -341,6 +341,8 @@ sub check_srv {
 	if($name eq $zone) {
 		$full = undef;
 		$name = undef;
+	} else {
+		$name =~ s/\.$zone$//;
 	}
 
 	my $aq = "";
@@ -383,8 +385,9 @@ sub check_srv {
 
 	$sth->bind_param(':zone', $zone) || $stab->return_db_err($sth);
 	if($full) {
-		$sth->bind_param(':fullname', $full) || $stab->return_db_err($sth);
+		$sth->bind_param(':fullname', $name) || $stab->return_db_err($sth);
 	}
+
 
 	my $msg = "";
 	if($pq && length($pq)) {
@@ -397,6 +400,7 @@ sub check_srv {
 	while(my $hr = $sth->fetchrow_hashref) {
 		# slap the zone back on some compares to what came from dns look right...
 		$hr->{ _dbx('DNS_VALUE') }.= ".$zone" if( $hr->{ _dbx('DNS_VALUE') } !~ /\.$/ );
+		$hr->{ _dbx('DNS_VALUE') } =~ s/\.$//;
 		my $mesh = join(" ",  $rr->priority, $rr->weight, $rr->port, 
 			$rr->target);
 		$mesh =~ s/\s+/ /g;
@@ -415,7 +419,7 @@ sub check_srv {
 					$hr->{_dbx('DNS_SRV_PORT')},
 					$hr->{_dbx('DNS_VALUE')});
 				$dbmesh =~ s/\s+/ /g;
-				$msg .= $cgi->li("SRV record ", $rr->name, " is '", $cgi->b($dbmesh), 
+				$msg .= $cgi->li("SRV record in DNS ", $rr->name, " is '", $cgi->b($dbmesh), 
 					"' not '$mesh'");
 			}
 		} elsif($hr->{_dbx('DNS_VALUE')} eq $mesh) {
@@ -538,6 +542,8 @@ sub check_cname {
 
 	my $devname = $pointsto;
 	$pointsto .= ".";
+
+	$pointsto =~ tr/A-Z/a-z/;
 
 	my $rv = "";
 	if(!defined($db)) {
