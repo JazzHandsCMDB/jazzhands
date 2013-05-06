@@ -562,6 +562,10 @@ sub get_netblock_from_ip {
 		$args->{'is_single_address'} = 'Y';
 	}
 
+	if($opts->{'netblock_type'}) {
+		$args->{'netblock_type'} = $opts->{'netblock_type'};
+	}
+
 	my $netblock = $self->GetNetblock( $args );
 
 	if(!$netblock) {

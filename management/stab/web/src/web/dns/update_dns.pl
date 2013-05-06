@@ -453,6 +453,9 @@ sub process_and_insert_dns_record {
 				$opts->{value} . " is not a valid IP address" );
 		}
 		my $block = $stab->get_netblock_from_ip( ip_address => $opts->{dns_value} );
+		if(! $block) {
+			$block = $stab->get_netblock_from_ip( ip_address => $opts->{dns_value}, netblock_type => 'dns' );
+		}
 		my $id;
 		if ( !defined($block) ) {
 			my $h = {
@@ -529,13 +532,16 @@ sub process_and_update_dns_record {
 		}
 
 		my $block = $stab->get_netblock_from_ip(ip_address => $value);
+		if(! $block) {
+			$block = $stab->get_netblock_from_ip( ip_address => $value, netblock_type => 'dns' );
+		}
 		my $id;
 		if ( !defined($block) ) {
 			my $h = {
-				ip_address => $opts->{dns_value},
+				ip_address => $value,
 				is_single_address => 'Y'
 			};
-			if( ! ( my $par = $stab->guess_parent_netblock_id( $opts->{dns_value} ) ) ) {
+			if( ! ( my $par = $stab->guess_parent_netblock_id( $value ) ) ) {
 				# XXX This is outside our IP universe, which we should probably
 				# print a warning on, but lacking that, it gets created as a
 				# type dns
@@ -549,12 +555,15 @@ sub process_and_update_dns_record {
 	} elsif($orig->{ _dbx('DNS_TYPE') } eq 'A' && $type eq $orig->{ _dbx('DNS_TYPE') } ) {
 		my $id;
 		my $block = $stab->get_netblock_from_ip( ip_address => $value );
+		if(! $block) {
+			$block = $stab->get_netblock_from_ip( ip_address => $value, netblock_type => 'dns' );
+		}
 		if ( !defined($block) ) {
 			my $h = {
-				ip_address => $opts->{dns_value},
+				ip_address => $value,
 				is_single_address => 'Y'
 			};
-			if( ! ( my $par = $stab->guess_parent_netblock_id( $opts->{dns_value} ) ) ) {
+			if( ! ( my $par = $stab->guess_parent_netblock_id( $value ) ) ) {
 				# XXX This is outside our IP universe, which we should probably
 				# print a warning on, but lacking that, it gets created as a
 				# type dns
