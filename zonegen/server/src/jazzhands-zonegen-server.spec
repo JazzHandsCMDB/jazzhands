@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.52.3
+Version:    0.52.4
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -53,6 +53,10 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Thu Apr 18 2013 Todd Kover <kovert@omniscient.com> 0.52.4-1
+- improve generation of SRV records
+- make dumpzone not regenerate every zone
+- fully qualify ns records with domain if appropriate
 * Thu Apr 18 2013 Todd Kover <kovert@omniscient.com> 0.52.3-1
 - fix use of minimum and ttl in generated zones
 * Wed Apr 17 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1

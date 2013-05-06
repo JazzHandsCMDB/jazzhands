@@ -446,7 +446,9 @@ sub process_child_ns_records {
 		my $com = ( $enable eq 'N' ) ? ";" : "";
 		$class = 'IN' if ( !defined($class) );
 		$type  = 'NS' if ( !defined($type) );
-		$ns .= "." if ( $ns !~ /\.$/ );
+		if ( $ns !~ /\.$/ ) {
+			$ns = "$ns.$dom.";
+		}
 		$dom =~ s/.$parent_domain$//;
 		$out->print("$com$dom\t$class\t$type\t$ns\n");
 	}
@@ -578,15 +580,6 @@ sub process_fwd_records {
 			$name = "$srvproto$name" if ($srvproto);
 			$name = ".$name"         if ( $srv && length($name) );
 			$name = "$srv$name"      if ($srv);
-
-		 #
-		 # these should never be not set, but people are cramming the
-		 # srv values into the value field (because stab doesn't support
-		 # otherwise, so it does happen).
-		 #
-			$pri       ||= '';
-			$srvweight ||= '';
-			$srvport   ||= '';
 
 			$value = "$pri $srvweight $srvport $value";
 		}
@@ -1185,9 +1178,11 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 		$last = strftime( "%F %T", gmtime($script_start) );
 	}
 
-	if(! -f "$zoneroot/$domain"  && ! -f "$zoneroot/inaddr/$domain") {
-		warn "generating $domain beause it is not there" if($debug);
-		$gendomain = 1;
+	if(!$dumpzone) {
+		if( ! -f "$zoneroot/$domain"  && ! -f "$zoneroot/inaddr/$domain") {
+			warn "generating $domain beause it is not there" if($debug);
+			$gendomain = 1;
+		}
 	}
 
 	if( $gendomain ) {
