@@ -336,22 +336,38 @@ sub check_srv {
 	my $cgi = $stab->cgi || die "no cgi!";
 
 	my $full = $rr->name;
-	$full =~ s/\.$zone$//;
 	my ($svc, $proto, $name) = split(/\./, $full, 3);
 
+	if($name eq $zone) {
+		$full = undef;
+		$name = undef;
+	}
+
+	my $aq = "";
+	if($name) {
+		$aq = "d.dns_name = :fullname";
+	} else {
+		$aq = "d.dns_name is null";
+	}
 	my $pq = "";
 	if($proto) {
 		$proto =~ s/^_//;
-		$pq = q{ OR (
-				d.dns_name = :shortname
-			AND	d.dns_srv_protocol = :proto
+		$pq = q{ (
+				d.dns_srv_protocol = :proto
 			AND	d.dns_srv_service = :svc
 			)
 		};
 	}
 
-	my $sth = $stab->prepare(qq{
-		select	d.dns_name,
+	if(length($aq)) {
+		$aq = "( $aq AND $pq )";
+	} else {
+		$aq = $pq;
+	};
+
+	my $q = qq{
+		select	d.dns_record_id,
+			d.dns_name,
 			d.dns_priority,
 			d.dns_srv_service,
 			d.dns_srv_protocol,
@@ -361,16 +377,17 @@ sub check_srv {
 		  from	dns_record d
 				inner join dns_domain dom USING (dns_domain_id)
 		 where	dom.soa_name = :zone
-		  and	(d.dns_name = :fullname 
-				$pq )
-	}) || return $stab->return_db_err;
+		  and	$aq
+	};
+	my $sth = $stab->prepare( $q ) || return $stab->return_db_err;
 
 	$sth->bind_param(':zone', $zone) || $stab->return_db_err($sth);
-	$sth->bind_param(':fullname', $full) || $stab->return_db_err($sth);
+	if($full) {
+		$sth->bind_param(':fullname', $full) || $stab->return_db_err($sth);
+	}
 
 	my $msg = "";
 	if($pq && length($pq)) {
-		$sth->bind_param(':shortname', $name) || $stab->return_db_err($sth);
 		$sth->bind_param(':proto', $proto) || $stab->return_db_err($sth);
 		$sth->bind_param(':svc', $svc) || $stab->return_db_err($sth);
 	}
@@ -378,13 +395,15 @@ sub check_srv {
 
 	my $found = 0;
 	while(my $hr = $sth->fetchrow_hashref) {
+		# slap the zone back on some compares to what came from dns look right...
+		$hr->{ _dbx('DNS_VALUE') }.= ".$zone" if( $hr->{ _dbx('DNS_VALUE') } !~ /\.$/ );
 		my $mesh = join(" ",  $rr->priority, $rr->weight, $rr->port, 
-			$rr->target.".");
+			$rr->target);
 		$mesh =~ s/\s+/ /g;
 		if(defined($hr->{_dbx('DNS_SRV_PORT')})) {
-			if($hr->{_dbx('DNS_VALUE')} eq $rr->target."." &&
-				$hr->{_dbx('DNS_SRV_SERVICE')} == $svc &&
-				$hr->{_dbx('DNS_SRV_PROTOCOL')} == $proto &&
+			if($hr->{_dbx('DNS_VALUE')} eq $rr->target &&
+				# $hr->{_dbx('DNS_SRV_SERVICE')} == $svc &&
+				# $hr->{_dbx('DNS_SRV_PROTOCOL')} eq "_$proto" &&
 				$hr->{_dbx('DNS_PRIORITY')} == $rr->priority &&
 				$hr->{_dbx('DNS_SRV_WEIGHT')} == $rr->weight &&
 				$hr->{_dbx('DNS_SRV_PORT')} == $rr->port) {
@@ -410,7 +429,7 @@ sub check_srv {
 					$hr->{_dbx('DNS_SRV_PORT')},
 					$hr->{_dbx('DNS_VALUE')});
 				$dbmesh =~ s/\s+/ /g;
-				$msg .= $cgi->li("SRV record ", $rr->name, " is ", $cgi->b($dbmesh), 
+				$msg .= $cgi->li("combined SRV record ", $rr->name, " is ", $cgi->b($dbmesh), 
 					" not '$mesh'");
 			}
 		}
@@ -477,7 +496,8 @@ sub check_mx {
 			last;
 		} else {
 			my $x = ($pri)?"$pri $val":$val;
-			$msg .= $cgi->li("MX record $name ($x) in JazzHands does not match ($combo)");
+			my $mname = $name || "";
+			$msg .= $cgi->li("MX record $mname ($x) in JazzHands does not match ($combo)");
 		}
 	}
 	$sth->finish;
@@ -601,6 +621,7 @@ sub check_addr {
 			where	nb.ip_address =
 						net_manip.inet_ptodb(?, netmask_bits)
 			  and	dns.dns_type = 'A'
+			  and	nb.is_ipv4_address = 'Y'
 		};
 		$casth = $stab->prepare($q) || die $dbh->errstr;
 	}
