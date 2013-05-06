@@ -354,15 +354,19 @@ sub freshen_zone {
 									},
 					errors          => \@errs
 			)}) {
-				warn "deleting ns record ", $z->{dns_record_id};
 				my $ret = 0;
-				if(! ($ret = $c->DBDelete(
+				if($c->{nodelete}) {
+					warn "Skipping NS record cleanup on ", $z->{dns_record_id}, "\n";
+				} else {
+					warn "deleting ns record ", $z->{dns_record_id};
+					if(! ($ret = $c->DBDelete(
 						table	=> 'dns_record',
 						dbkey	=> 'dns_record_id',
 						keyval	=> $z->{dns_record_id},
 						errors	=> \@errs,
-				))) {
-					die "Error deleting record ", join(" ", @errs), ": ", Dumper($z);
+					))) {
+						die "Error deleting record ", join(" ", @errs), ": ", Dumper($z);
+					}
 				}
 				$numchanges += $ret;
 			}
@@ -437,7 +441,7 @@ sub refresh_dns_record {
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
-		warn "Attempting to find $address... \n" if ( $c->{verbose} );
+		warn "Attempting to find $address... \n" if ( $c->{debug} );
 		my $match = {
 			'is_single_address' => 'Y',
 			'netblock_type'     => 'default',
@@ -533,6 +537,11 @@ sub refresh_dns_record {
 		dns_domain_id	=> $opt->{dns_domain_id},
 		netblock_id => ($nb) ? $nb->{netblock_id} : undef,
 	};
+	if($srv_service) {
+		$match->{dns_srv_service} 	= $srv_service;
+		$match->{dns_srv_protocol} 	= $srv_protocol;
+	}
+	
 	my $rows = $c->DBFetch(
 		table  => 'dns_record',
 		match  => $match,
@@ -573,6 +582,7 @@ sub refresh_dns_record {
 				hash   => $diff,
 				errs   => \@errs,
 			) || die join( " ", @errs );
+			warn " ++ refresh dns record ", $dnsrec->{dns_record_id}, "\n" if($c->{verbose});
 		}
 	} else {
 		$numchanges += $c->DBInsert(
@@ -581,6 +591,7 @@ sub refresh_dns_record {
 			errrs => \@errs,
 		) || die join( " ", @errs );
 		$dnsrecid = $new->{dns_record_id};
+		warn " ++ inserted new dns record ", $new->{dns_record_id}, "\n" if($c->{verbose});
 	}
 
 	$numchanges;
@@ -678,12 +689,17 @@ sub process_zone {
 		} elsif ( $rr->type eq 'DNAME' ) {
 			$new->{value} = $rr->dname;
 		} elsif ( $rr->type eq 'SRV' ) {
-			my($srv, $proto, $n) = split(/\./, $rr->name);
+			my($srv, $proto, $n) = split(/\./, $rr->name, 3);
 			if($n) {
 				$new->{srv_service} = $srv;
 				$proto =~ s/^_//;
 				$new->{srv_protocol} = $proto;
-				$new->{name} = $n;
+				if($n eq $xferzone) {
+					$new->{name}  = undef;
+				} else {
+					$n =~ s/\.$xferzone$//;
+					$new->{name} = $n;
+				}
 
 				check_and_add_service($c, $srv);
 			}
@@ -774,15 +790,19 @@ my $dbh;
 sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
-	my ( $ns, $verbose, $addsvr );
+	my ( $ns, $verbose, $addsvr, $nodelete, $debug );
 
 	my $r = GetOptions(
+		"debug"               => \$debug,
 		"verbose"             => \$verbose,
 		"dbapp=s"             => \$app,
 		"nameserver=s"        => \$ns,
 		"add-services"        => \$addsvr,
+		"no-delete"	      => \$nodelete,
 		"unknown-netblocks=s" => \$nbrule,
 	) || die "Issues";
+
+	$verbose = 1 if($debug);
 
 	if ( defined($nbrule) ) {
 		die "--unknown-netblocks can be skip, insert, iponly\n"
@@ -798,7 +818,9 @@ sub do_zone_load {
 
 	$c->{nbrule}  = $nbrule;
 	$c->{verbose} = $verbose;
+	$c->{debug} = $debug;
 	$c->{addservice} = $addsvr;
+	$c->{nodelete} = $nodelete;
 	$c->{nameserver} = $ns if($ns);
 
 	foreach my $zone (@ARGV) {
