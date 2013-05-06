@@ -1469,6 +1469,8 @@ sub b_dropdown {
 		}
 	}
 
+	$sth->finish;
+
 	#
 	# here we take the hackish method of looking for a field with
 	# unknown in it, and if it's not found and there's no default, then

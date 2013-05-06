@@ -47,32 +47,59 @@ do_domain_add();
 # isn't one, create it.
 #
 sub link_inaddr_zone($$$) {
-	my ( $stab, $name, $dnsdomid ) = @_;
+	my ( $stab, $inname, $dnsdomid ) = @_;
 
-	die "XXX NEED TO PORT TO NWO!! XXX";
+	my $name = $inname;
+	my $bits;
 
-	$name =~ s/.in-addr.arpa//;
-	my $ip =
-	  join( ".", reverse( ( split( /\./, $name ) )[ 0, 1, 2 ] ) ) . ".0";
-
-	# XXX - need to figure out in the NWO
-	my $nb = $stab->get_netblock_from_ip( ip_address => $ip );
-	if ( !$nb ) {
-		my $parnb = $stab->guess_parent_netblock_id( $ip, 24 );
-		if ($parnb) {
-			$parnb = $parnb->{_dbx('NETBLOCK_ID')};
-		}
-		# XXX need to deal with this.  We no lonegr have "is_organizational";
-		$nb = $stab->add_netblock( $ip, $parnb, 24, 'Y' );
+	$name =~ s/\.in-addr\.arpa$//;
+	my $bits;
+	my @ip = reverse split( /\./, $name );
+	my $nbip;
+	# NOTE:  /16s do NOT get linkage although this should probably be
+	# configurable...  It makes for a mighty big in-addr zone..
+	if ( $#ip == 1 ) {
+		$nbip = join( ".", @ip[0..1]). ".0.0";
+		$bits = 16;
+		return 0;
+	} elsif ( $#ip == 2 ) {
+		$nbip = join( ".", @ip[0..2]). ".0";
+		$bits = 24;
+	} else {
+		$stab->error_return("Unable to handle anything but IPv4 /24 or /16.  $inname is problematic");
 	}
 
-	my $nbid = $nb->{_dbx('NETBLOCK_ID')};
-	$stab->add_dns_record({
-		dns_domain_id => $dnsdomid,
-		dns_class => 'IN',
-		dns_type => 'REVERSE_ZONE_BLOCK_PTR',
-		netblock_id => $nbid
-	});
+	my $nbid;
+	my $nb = $stab->get_netblock_from_ip(
+		ip_address   => $nbip,
+		netmask_bits => $bits,
+		netmask_type => 'dns',
+	);
+	if ( !$nb ) {
+		my $h = {
+			ip_address        => $nbip,
+			netmask_bits      => $bits,
+			netblock_type     => 'dns',
+			is_single_address => 'N',
+			can_subnet        => 'N',
+			netblock_status   => 'Allocated',
+			ip_universe_id    => 0,
+			is_ipv4_address   => ( $nbip =~ /:/ ) ? 'N' : 'Y',
+		};
+
+		$nbid = $stab->add_netblock( $h ) || die $stab->return_db_err;
+	} else {
+		$nbid = $nb->{ _dbx('NETBLOCK_ID') };
+	}
+
+	$stab->add_dns_record(
+		{
+			dns_domain_id => $dnsdomid,
+			dns_class     => 'IN',
+			dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
+			dns_value   => $nbid	# XXX
+		}
+	);
 	return 1;
 }
 
@@ -82,10 +109,12 @@ sub add_default_ns_records($$) {
 	# these really need to be set as properties in the database...
 
 	my $match = [
-		{	key => 'property_name',
+		{
+			key   => 'property_name',
 			value => '_authdns'
 		},
-		{	key => 'property_type',
+		{
+			key   => 'property_type',
 			value => 'Defaults'
 		},
 	];
@@ -93,17 +122,23 @@ sub add_default_ns_records($$) {
 	my $numchanges = 0;
 
 	my @errs;
-	foreach my $row (@{$stab->DBFetch(
-			table => 'property',
-			match => $match,
-			errors => \@errs)}) {
+	foreach my $row (
+		@{
+			$stab->DBFetch(
+				table  => 'property',
+				match  => $match,
+				errors => \@errs
+			)
+		}
+	  )
+	{
 		my $new = {
 			dns_domain_id => $dnsdomid,
-			dns_class => 'IN',
-			dns_type => 'NS',
-			dns_value => $row->{property_value}
+			dns_class     => 'IN',
+			dns_type      => 'NS',
+			dns_value     => $row->{property_value}
 		};
-		$numchanges += $stab->add_dns_record($new)
+		$numchanges += $stab->add_dns_record($new);
 	}
 	$numchanges;
 }
@@ -123,11 +158,11 @@ sub do_domain_add {
 	my $min     = $stab->cgi_parse_param('SOA_MINIMUM') || 3600;
 	my $ttl     = $stab->cgi_parse_param('SOA_TTL') || $min || 3600;
 	my $mname   = $stab->cgi_parse_param('SOA_MNAME');
-	my $rname = $stab->cgi_parse_param('SOA_RNAME');
-	my $gen   = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
-	my $addns = $stab->cgi_parse_param('chk_DEFAULT_NS_RECORDS');
-	my $type = $stab->cgi_parse_param('DNS_DOMAIN_TYPE');
-	my $class = 'IN';
+	my $rname   = $stab->cgi_parse_param('SOA_RNAME');
+	my $gen     = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
+	my $addns   = $stab->cgi_parse_param('chk_DEFAULT_NS_RECORDS');
+	my $type    = $stab->cgi_parse_param('DNS_DOMAIN_TYPE');
+	my $class   = 'IN';
 
 	$gen   = $stab->mk_chk_yn($gen);
 	$addns = $stab->mk_chk_yn($addns);
@@ -164,47 +199,56 @@ sub do_domain_add {
 	  guess_best_parent_dns_domain_from_domain( $stab, $soaname );
 
 	my @errs;
-	if(!$mname) {
-		$mname = $stab->fetch_property('Defaults', '_dnsmname');
-		if(!$mname) {
-			$stab->error_return("There is no default mname configured.  You must enter one or set a default");
+	if ( !$mname ) {
+		$mname = $stab->fetch_property( 'Defaults', '_dnsmname' );
+		if ( !$mname ) {
+			$stab->error_return(
+"There is no default mname configured.  You must enter one or set a default"
+			);
 		}
 	}
 
-	if(!$rname) {
-		$rname = $stab->fetch_property('Defaults', '_dnsrname');
-		if(!$rname) {
-			$stab->error_return("There is no default rname configured.  You must set one or set a default.");
+	if ( !$rname ) {
+		$rname = $stab->fetch_property( 'Defaults', '_dnsrname' );
+		if ( !$rname ) {
+			$stab->error_return(
+"There is no default rname configured.  You must set one or set a default."
+			);
 		}
 	}
 
 	my $new = {
-			soa_name => $soaname,
-			soa_class => $class,
-			soa_ttl => $ttl,
-			soa_serial => $serial,
-			soa_refresh => $refresh,
-			soa_retry => $retry,
-			soa_expire => $expire,
-			soa_minimum => $min,
-			soa_mname => $mname,
-			soa_rname => $rname,
-			parent_dns_domain_id => $bestparent,
-			dns_domain_type => $type,
-			should_generate => $gen
-		};
+		soa_name             => $soaname,
+		soa_class            => $class,
+		soa_ttl              => $ttl,
+		soa_serial           => $serial,
+		soa_refresh          => $refresh,
+		soa_retry            => $retry,
+		soa_expire           => $expire,
+		soa_minimum          => $min,
+		soa_mname            => $mname,
+		soa_rname            => $rname,
+		parent_dns_domain_id => $bestparent,
+		dns_domain_type      => $type,
+		should_generate      => $gen
+	};
 
-        if(! ($numchanges = $stab->DBInsert(
-                table => 'dns_domain',
-                hash=> $new,
-                errors=> \@errs
-        ))) {
-                $stab->error_return(join(" ", @errs));
-        }
+	if (
+		!(
+			$numchanges = $stab->DBInsert(
+				table  => 'dns_domain',
+				hash   => $new,
+				errors => \@errs
+			)
+		)
+	  )
+	{
+		$stab->error_return( join( " ", @errs ) );
+	}
 
-	my $dnsdomid = $new->{_dbx('dns_domain_id')};
+	my $dnsdomid = $new->{ _dbx('dns_domain_id') };
 
-	if ( $soaname =~ /^((\d+)\.){3}in-addr.arpa$/ ) {
+	if ( $soaname =~ /\.in-addr.arpa$/ ) {
 		$numchanges += link_inaddr_zone( $stab, $soaname, $dnsdomid );
 	}
 

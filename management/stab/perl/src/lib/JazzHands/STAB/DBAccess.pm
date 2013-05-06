@@ -558,8 +558,16 @@ sub get_netblock_from_ip {
 		errors => \@errors,
 	};
 
+	if($opts->{'netmask_bits'}) {
+		$args->{'netmask_bits'} = $opts->{'netmask_bits'};
+	}
+
 	if($opts->{'is_single_address'}) {
 		$args->{'is_single_address'} = 'Y';
+	}
+
+	if($opts->{'netblock_type'}) {
+		$args->{'netblock_type'} = $opts->{'netblock_type'};
 	}
 
 	my $netblock = $self->GetNetblock( $args );

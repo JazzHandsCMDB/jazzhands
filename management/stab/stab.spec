@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.52.6
+%define version 0.52.7
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,8 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.7-1
+- dns: improve add/update of netblocks of type dns
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.6-1
 - dns-reconcile: improve SRV checks
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.5-1

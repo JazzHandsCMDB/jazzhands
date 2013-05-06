@@ -37,7 +37,7 @@ do_dns_toplevel();
 
 sub do_dns_toplevel {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
-	my $cgi  = $stab->cgi          || die "Could not create cgi";
+	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
 	my $dnsid = $stab->cgi_parse_param('dnsdomainid');
 
@@ -666,23 +666,37 @@ sub build_reverse_association_section {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $q = qq{
-		select	d.netblock_id,
+
+		select  nbr.netblock_id,
 			net_manip.inet_dbtop(nb.ip_address),
 			nb.netmask_bits
-		  from	dns_record d
+		  from  dns_record d
 			inner join netblock nb
 				on nb.netblock_id = d.netblock_id
-		 where	d.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-		   and	d.dns_domain_id = ?
+			left join netblock nbr
+				on nbr.ip_address = nb.ip_address
+				and nbr.netmask_bits = nb.netmask_bits
+				and nbr.netblock_type = 'default'
+		 where  d.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
+		   and  d.dns_domain_id = ?
+
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err();
 	$sth->execute($domid) || return $stab->return_db_err($sth);
 
+	#
+	# Print a useful /24 if it exists, otherwise, just show
+	# what it is.
+	#
 	my $linkage = "";
 	while ( my ( $nbid, $ip, $bits ) = $sth->fetchrow_array ) {
-		$linkage =
-		  $cgi->a( { -href => "../netblock/?nblkid=$nbid" },
-			"$ip/$bits" );
+		if($nbid) {
+			$linkage =
+			  $cgi->a( { -href => "../netblock/?nblkid=$nbid" },
+				"$ip/$bits" );
+		} else { 
+			$linkage = "$ip/$bits";
+		}
 	}
 	$linkage = $cgi->b("Reverse Linked Netblock:") . $linkage if ($linkage);
 	$sth->finish;
