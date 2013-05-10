@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.52.7
+%define version 0.52.8
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 10 2013 Todd Kover <kovert@omniscient.com> 0.52.8-1
+- deal with in-addr and automatic association with netblocks
+- point the netblock association to the interesting /24 where applicable
+- more domain addition fixes
+- perltidy
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.7-1
 - dns: improve add/update of netblocks of type dns
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.6-1
