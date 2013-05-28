@@ -860,8 +860,8 @@ sub generate_complete_files {
 
 
 	if($tally) {
-		$zcf->print("rndc reconfig\n\n") 
-		$zcf->print("rndc reload\n\n") 
+		$zcf->print("rndc reconfig\n\n") ;
+		$zcf->print("rndc reload\n\n") ;
 	}	
 	$zcf->close;
 	unlink($zcfn);

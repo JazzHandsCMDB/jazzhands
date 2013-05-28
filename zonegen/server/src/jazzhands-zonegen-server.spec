@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.52.6
+Version:    0.52.6.1
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -53,6 +53,8 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Tue May 28 2013 Todd Kover <kovert@omniscient.com> 0.52.6.1-1
+- fix perl syntax error
 * Tue May 28 2013 Todd Kover <kovert@omniscient.com> 0.52.6-1
 - only run rndc reload/reconfig when zones change
 * Thu Apr 18 2013 Todd Kover <kovert@omniscient.com> 0.52.5-1
