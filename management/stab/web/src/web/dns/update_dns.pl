@@ -236,106 +236,108 @@ sub process_dns_add {
 
 	my $numchanges = 0;
 
-	my $name  = $stab->cgi_parse_param('DNS_NAME');
-	my $ttl   = $stab->cgi_parse_param('DNS_TTL');
-	my $class = $stab->cgi_parse_param('DNS_CLASS');
-	my $type  = $stab->cgi_parse_param('DNS_TYPE');
-	my $value = $stab->cgi_parse_param('DNS_VALUE');
+	foreach my $newid ($stab->cgi_get_ids("new_DNS_NAME")) {
+		my $name  = $stab->cgi_parse_param("new_DNS_NAME_$newid");
+		my $ttl   = $stab->cgi_parse_param("new_DNS_TTL_$newid");
+		my $class = $stab->cgi_parse_param("new_DNS_CLASS_$newid");
+		my $type  = $stab->cgi_parse_param("new_DNS_TYPE_$newid");
+		my $value = $stab->cgi_parse_param("new_DNS_VALUE_$newid");
 
-	if ( !$name && !$class && !$type && !$value ) {
-		return 0;
-	}
+		if ( !$name && !$class && !$type && !$value ) {
+			return 0;
+		}
 
-	my $in_srv_svc    = $stab->cgi_parse_param('DNS_SRV_SERVICE');
-	my $in_srv_proto  = $stab->cgi_parse_param('DNS_SRV_PROTOCOL');
-	my $in_srv_weight = $stab->cgi_parse_param('DNS_SRV_WEIGHT');
-	my $in_srv_port   = $stab->cgi_parse_param('DNS_SRV_PORT');
-	my $in_priority   = $stab->cgi_parse_param('DNS_PRIORITY');
+		my $in_srv_svc    = $stab->cgi_parse_param("new_DNS_SRV_SERVICE_$newid");
+		my $in_srv_proto  = $stab->cgi_parse_param("new_DNS_SRV_PROTOCOL_$newid");
+		my $in_srv_weight = $stab->cgi_parse_param("new_DNS_SRV_WEIGHT_$newid");
+		my $in_srv_port   = $stab->cgi_parse_param("new_DNS_SRV_PORT_$newid");
+		my $in_priority   = $stab->cgi_parse_param("new_DNS_PRIORITY_$newid");
 
-	if ( defined($name) ) {
-		$name =~ s/^\s+//;
-		$name =~ s/\s+$//;
-	}
-	if ( defined($value) ) {
-		$value =~ s/^\s+//;
-		$value =~ s/\s+$//;
-	}
+		if ( defined($name) ) {
+			$name =~ s/^\s+//;
+			$name =~ s/\s+$//;
+		}
+		if ( defined($value) ) {
+			$value =~ s/^\s+//;
+			$value =~ s/\s+$//;
+		}
 
-	$class = 'IN' if ( !defined($class) );
-	if ( !defined($type) || !length($type) ) {
-		$stab->error_return("Must set a record type");
-	}
-	if ( !defined($value) || !length($value) ) {
-		$stab->error_return("Must set a value");
-	}
-	if ( defined($ttl) && $ttl !~ /^\d+$/ ) {
-		$stab->error_return("TTL, if set, must be a number");
-	}
+		$class = 'IN' if ( !defined($class) );
+		if ( !defined($type) || !length($type) ) {
+			$stab->error_return("Must set a record type");
+		}
+		if ( !defined($value) || !length($value) ) {
+			$stab->error_return("Must set a value");
+		}
+		if ( defined($ttl) && $ttl !~ /^\d+$/ ) {
+			$stab->error_return("TTL, if set, must be a number");
+		}
 
-	if ( $type eq 'MX' ) {
-		$in_srv_svc = $in_srv_proto = $in_srv_weight =
-		  $in_srv_port = undef;
-	} elsif ( $type ne 'SRV' ) {
-		$in_srv_svc    = $in_srv_proto = $in_srv_weight =
-		  $in_srv_port = $in_priority  = undef;
-	}
+		if ( $type eq 'MX' ) {
+			$in_srv_svc = $in_srv_proto = $in_srv_weight =
+			  $in_srv_port = undef;
+		} elsif ( $type ne 'SRV' ) {
+			$in_srv_svc    = $in_srv_proto = $in_srv_weight =
+			  $in_srv_port = $in_priority  = undef;
+		}
 
-	if ( defined($in_srv_port) && $in_srv_port !~ /^\d+/ ) {
-		$stab->error_return("SRV Port must be a number");
-	}
+		if ( defined($in_srv_port) && $in_srv_port !~ /^\d+/ ) {
+			$stab->error_return("SRV Port must be a number");
+		}
 
-	if ( defined($in_srv_weight) && $in_srv_weight !~ /^\d+/ ) {
-		$stab->error_return("SRV weight must be a number");
-	}
+		if ( defined($in_srv_weight) && $in_srv_weight !~ /^\d+/ ) {
+			$stab->error_return("SRV weight must be a number");
+		}
 
-	if ( defined($in_priority) && $in_priority !~ /^\d+/ ) {
-		$stab->error_return("SRV/MX Priority must be a number");
-	}
+		if ( defined($in_priority) && $in_priority !~ /^\d+/ ) {
+			$stab->error_return("SRV/MX Priority must be a number");
+		}
 
-	if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
-		return $numchanges;
-	}
+		if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
+			return $numchanges;
+		}
 
-	my $cur = $stab->get_dns_record_from_name( $name, $domid );
-	if ($cur) {
-		if (       $type eq 'CNAME'
-			&& $cur->{ _dbx('DNS_TYPE') } ne 'CNAME' )
-		{
+		my $cur = $stab->get_dns_record_from_name( $name, $domid );
+		if ($cur) {
+			if (       $type eq 'CNAME'
+				&& $cur->{ _dbx('DNS_TYPE') } ne 'CNAME' )
+			{
+				$stab->error_return(
+	"You may not add a CNAME, when records of other types exist."
+				);
+			}
+			if (       $type ne 'CNAME'
+				&& $cur->{ _dbx('DNS_TYPE') } eq 'CNAME' )
+			{
+				$stab->error_return(
+	"You may not add non-CNAMEs when CNAMEs already exist"
+				);
+			}
+		}
+
+		if ( ( !defined($name) || !length($name) ) && $type eq 'CNAME' ) {
 			$stab->error_return(
-"You may not add a CNAME, when records of other types exist."
+				"CNAMEs are illegal when combined with an SOA record."
 			);
 		}
-		if (       $type ne 'CNAME'
-			&& $cur->{ _dbx('DNS_TYPE') } eq 'CNAME' )
-		{
-			$stab->error_return(
-"You may not add non-CNAMEs when CNAMEs already exist"
-			);
-		}
+
+		my $new = {
+			dns_name         => $name,
+			dns_domain_id    => $domid,
+			dns_ttl          => $ttl,
+			dns_class        => $class,
+			dns_type         => $type,
+			dns_value        => $value,
+			dns_priority     => $in_priority,
+			dns_srv_service  => $in_srv_svc,
+			dns_srv_protocol => $in_srv_proto,
+			dns_srv_weight   => $in_srv_weight,
+			dns_srv_port     => $in_srv_port,
+			is_enabled       => 'Y'
+		};
+
+		$numchanges += process_and_insert_dns_record( $stab, $new );
 	}
-
-	if ( ( !defined($name) || !length($name) ) && $type eq 'CNAME' ) {
-		$stab->error_return(
-			"CNAMEs are illegal when combined with an SOA record."
-		);
-	}
-
-	my $new = {
-		dns_name         => $name,
-		dns_domain_id    => $domid,
-		dns_ttl          => $ttl,
-		dns_class        => $class,
-		dns_type         => $type,
-		dns_value        => $value,
-		dns_priority     => $in_priority,
-		dns_srv_service  => $in_srv_svc,
-		dns_srv_protocol => $in_srv_proto,
-		dns_srv_weight   => $in_srv_weight,
-		dns_srv_port     => $in_srv_port,
-		is_enabled       => 'Y'
-	};
-
-	$numchanges += process_and_insert_dns_record( $stab, $new );
 
 	$numchanges;
 }
@@ -473,7 +475,7 @@ sub process_and_insert_dns_record {
 		} else {
 			$id = $block->{_dbx('NETBLOCK_ID')};
 		}
-	
+
 		$opts->{netblock_id} = $id;
 	}
 	$stab->add_dns_record($opts);
@@ -577,7 +579,7 @@ sub process_and_update_dns_record {
 		$newrecord{ 'DNS_VALUE' } = undef;
 		$newrecord{ 'NETBLOCK_ID' } = $block->{_dbx('netblock_id')};
 	} 
-		
+
 	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newrecord ) );
 	my $tally = keys %$diffs;
 	if ( !$tally ) {

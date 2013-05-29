@@ -286,6 +286,10 @@ span.netblocklink {
 	width: 35ex; 
 }
 
+tr.dnsadd {
+	background: lightgrey;
+}
+
 END
 
 }

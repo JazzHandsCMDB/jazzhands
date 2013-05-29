@@ -234,10 +234,19 @@ sub zone_dns_records {
 sub build_fwd_zone_Tr {
 	my ( $stab, $hr, $iszone ) = @_;
 
+	my $cssclass = 'dnsupdate';
+
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
+	my $opts = {};
+
+	if(! defined($hr) ) {
+		$opts->{-prefix} = "new_";
+		$opts->{-suffix} = "_0";
+	}
+
 	my $ttl =
-	  $stab->b_offalwaystextfield( $hr, 'DNS_TTL', 'DNS_RECORD_ID' );
+	  $stab->b_offalwaystextfield( $opts, $hr, 'DNS_TTL', 'DNS_RECORD_ID' );
 	$stab->textfield_sizing(0);
 
 	my $value = "";
@@ -257,8 +266,8 @@ sub build_fwd_zone_Tr {
 		my $link = "../device/device.pl?devid=" . $hr->{_dbx('DEVICE_ID')};
 		$name = $cgi->a( { -href => $link }, $name );
 
-	   #$class = $stab->b_dropdown(undef, $hr, 'DNS_CLASS', 'DNS_CLASS', 1);
-	   #$type = $stab->b_dropdown(undef, $hr, 'DNS_TYPE', 'DNS_TYPE', 1);
+	   #$class = $stab->b_dropdown($opts, $hr, 'DNS_CLASS', 'DNS_CLASS', 1);
+	   #$type = $stab->b_dropdown($opts, $hr, 'DNS_TYPE', 'DNS_TYPE', 1);
 		$class = $hr->{_dbx('DNS_CLASS')};
 		$type  = $hr->{_dbx('DNS_TYPE')};
 		$value = $hr->{_dbx('DNS_VALUE')};
@@ -266,34 +275,45 @@ sub build_fwd_zone_Tr {
 			$value = $hr->{_dbx('IP')};
 		}
 	} elsif ( !defined($iszone) ) {
-		$name = $stab->b_textfield( $hr, 'DNS_NAME', 'DNS_RECORD_ID' );
+		$name = $stab->b_textfield($opts, $hr, 'DNS_NAME', 'DNS_RECORD_ID' );
 		$class =
-		  $stab->b_dropdown( $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
-		$type =
-		  $stab->b_dropdown({-class=>'dnstype'}, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
-		$value = $stab->b_textfield( { -textfield_width => 40 },
-			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
-		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
+		  $stab->b_dropdown( $opts, $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
 
+		$opts->{-class} = 'dnstype';
+		$type =
+		  $stab->b_dropdown( $opts, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
+		delete($opts->{-class});
+
+		$opts->{-textfield_width} = 40;
+		$value = $stab->b_textfield( $opts,
+			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
+		delete($opts->{-textfield_width});
+
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
 			# [XXX] hack hack hack, needs to be fixed right.
 			$hr->{_dbx('DNS_VALUE')} = $hr->{_dbx('IP')};
-			$value = $stab->b_textfield( $hr, 'DNS_VALUE',
+			$value = $stab->b_textfield( $opts, $hr, 'DNS_VALUE',
 				'DNS_RECORD_ID' );
 		}
 	} else {
-		$value = $stab->b_textfield( { -textfield_width => 40 },
+		$opts->{-textfield_width} = 40;
+		$value = $stab->b_textfield( $opts,
 			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
+		delete($opts->{-textfield_width});
 		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
 
 			# [XXX] hack hack hack, needs to be fixed right.
 			$hr->{_dbx('DNS_VALUE')} = $hr->{_dbx('IP')};
-			$value = $stab->b_textfield( $hr, 'DNS_VALUE',
+			$value = $stab->b_textfield( $opts, $hr, 'DNS_VALUE',
 				'DNS_RECORD_ID' );
 		}
 		$class =
-		  $stab->b_dropdown( $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
+		  $stab->b_dropdown( $opts, $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
+
+		$opts->{-class} = 'dnstype';
 		$type =
-		  $stab->b_dropdown({-class=>'dnstype'}, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
+		  $stab->b_dropdown( $opts, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
+		delete($opts->{-class});
 	}
 
 	my $excess = "";
@@ -307,6 +327,7 @@ sub build_fwd_zone_Tr {
 				}
 			);
 		} else {
+			$cssclass = "dnsadd";
 			$excess .= "(Add)";
 		}
 	}
@@ -330,30 +351,37 @@ sub build_fwd_zone_Tr {
 		);
 	}
 
-	my $enablebox = $stab->build_checkbox( { -default => 'Y' },
+	$opts->{-default} = 'Y';
+	my $enablebox = $stab->build_checkbox( $opts,
 		$hr, "", "IS_ENABLED", 'DNS_RECORD_ID' );
+	delete($opts->{-default});
 
 	# for SRV records, it iss necessary to prepend the 
 	# protocol and service name to the name 
 	if($hr && $hr->{_dbx('DNS_TYPE')} eq 'SRV') {
 		$name = 
-			$stab->b_dropdown(undef, $hr, 'DNS_SRV_SERVICE', 'DNS_RECORD_ID', 1). 
-			$stab->b_nondbdropdown(undef, $hr, 'DNS_SRV_PROTOCOL', 'DNS_RECORD_ID'). 
+			$stab->b_dropdown($opts, $hr, 'DNS_SRV_SERVICE', 'DNS_RECORD_ID', 1). 
+			$stab->b_nondbdropdown($opts, $hr, 'DNS_SRV_PROTOCOL', 'DNS_RECORD_ID'). 
 			$name;
 
+		$opts->{-class} = 'srvnum';
 		$value = 
-			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_PRIORITY', 'DNS_RECORD_ID' ).
-			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_SRV_WEIGHT', 'DNS_RECORD_ID' ).
-			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_SRV_PORT', 'DNS_RECORD_ID' ).
+			$stab->b_textfield( $opts, $hr, 'DNS_PRIORITY', 'DNS_RECORD_ID' ).
+			$stab->b_textfield( $opts, $hr, 'DNS_SRV_WEIGHT', 'DNS_RECORD_ID' ).
+			$stab->b_textfield( $opts, $hr, 'DNS_SRV_PORT', 'DNS_RECORD_ID' ).
 			$value;
+		delete($opts->{-class});
 	} elsif($hr && $hr->{_dbx('DNS_TYPE')} eq 'MX') {
+		$opts->{-class} = 'srvnum';
 		$value =
-			$stab->b_textfield({-class=>'srvnum'}, $hr, 'DNS_PRIORITY', 'DNS_RECORD_ID' ).
+			$stab->b_textfield( $opts, $hr, 'DNS_PRIORITY', 'DNS_RECORD_ID' ).
 			$value;
+		delete($opts->{-class});
 	}
 
 	$stab->textfield_sizing(1);
 	return $cgi->Tr(
+		{ -class => $cssclass, },
 		$cgi->td( $hidden, $enablebox ), $cgi->td($name),
 		$cgi->td($ttl),  $cgi->td($class),
 		$cgi->td($type), $cgi->td($value),
@@ -644,8 +672,8 @@ sub dump_zone {
 		)
 	);
 
-	zone_dns_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
 	print build_fwd_zone_Tr($stab);
+	zone_dns_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
 
 	zone_fwd_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );
 	zone_rvs_records( $stab, $hr->{_dbx('DNS_DOMAIN_ID')} );

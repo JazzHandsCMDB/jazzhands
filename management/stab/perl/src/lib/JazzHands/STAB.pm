@@ -784,6 +784,8 @@ sub b_nondbdropdown {
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
 	my $id       = $params->{'-id'};
+	my $prefix   = $params->{'-prefix'} || "";
+	my $suffix   = $params->{'-suffix'} || "";
 
 	my $xml = $params->{'-xml'};
 
@@ -913,7 +915,7 @@ sub b_nondbdropdown {
 
 	$field =~ tr/a-z/A-Z/;
 
-	my $name = "$field$pkn";
+	my $name = "$prefix$field$pkn$suffix";
 	if ( defined($params) && exists( $params->{-name} ) ) {
 		$name = $params->{-name};
 	}
@@ -965,6 +967,8 @@ sub b_dropdown {
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
 	my $class    = $params->{'-class'};
+	my $prefix   = $params->{'-prefix'} || "";
+	my $suffix   = $params->{'-suffix'} || "";
 
 	# [XXX] need to consider making id/name always the same?
 	my $id = $params->{'-id'};
@@ -1503,6 +1507,8 @@ sub b_dropdown {
 		$name = $params->{-name};
 	}
 
+	$name = "$prefix$name$suffix";
+
 	if ( !defined($id) ) {
 		$id = $name;
 	}
@@ -1616,9 +1622,12 @@ sub b_offalwaystextfield {
 	}
 	my ( $values, $field, $pkeyfield ) = @_;
 
+	# arguably, args should always be copied here or old value preserved.
 	$params = {} if ( !$params );
 	$params->{-noEdit} = 'always';
-	$self->b_textfield( $params, $values, $field, $pkeyfield );
+	my $x = $self->b_textfield( $params, $values, $field, $pkeyfield );
+	delete($params->{-noEdit});
+	$x;
 }
 
 sub b_textfield {
@@ -1641,6 +1650,9 @@ sub b_textfield {
 	my $default = $params->{'-default'};
 	my $ip0     = $params->{'-allow_ip0'};
 	my $class   = $params->{'-class'};
+	my $editoff = $params->{'-noEdit'} || 'never';
+	my $prefix  = $params->{'-prefix'} || "";
+	my $suffix  = $params->{'-suffix'} || "";
 
 	my $cgi = $self->cgi;
 
@@ -1667,9 +1679,10 @@ sub b_textfield {
 	my $f = $field;
 	$f =~ tr/a-z/A-Z/;
 
-	my $name = "$f$pkn";
+	my $name = $pkn;
+	my $webname = "$prefix$f$pkn$suffix";
 	if ( $params && $params->{'-name'} ) {
-		$name = $params->{'-name'};
+		$name = $webname = $params->{'-name'};
 	}
 	my $allf =
 	  defined( $values && defined( ( $values->{$field} ) ) )
@@ -1723,8 +1736,7 @@ sub b_textfield {
 	my ( $button, $disabled ) = ( "", undef );
 	if (       $values
 		&& defined($field)
-		&& defined( $params->{-noEdit} )
-		&& $params->{-noEdit} =~ /^(yes|always)$/i )
+		&& $editoff =~ /^(yes|always)$/i )
 	{
 		my $id =
 		  ( $values->{$pkeyfield} )
@@ -1746,8 +1758,7 @@ sub b_textfield {
 		}
 		$disabled = 'true';
 
-	} elsif ( exists( $params->{-noEdit} )
-		&& $params->{-noEdit} eq 'always' )
+	} elsif ( $editoff eq 'always' )
 	{
 		my $id = $field;
 
@@ -1771,8 +1782,8 @@ sub b_textfield {
 
 	my $args = {};
 	$args->{'-disabled'} = 'true' if ($disabled);
-	$args->{'-name'}     = $name;
-	$args->{'-id'}       = $name;
+	$args->{'-name'}     = $webname;
+	$args->{'-id'}       = $webname;
 	$args->{'-class'}    = $class if ( defined($class) );
 	$args->{'-default'}  = $allf if ( defined($allf) );
 	$args->{'-size'}     = $size if ($size);
@@ -1874,6 +1885,14 @@ sub build_checkbox {
 
 	$field =~ tr/a-z/A-Z/;
 	my $name = "chk_${field}$pkn";
+
+	if(defined ($params->{-prefix}) ) {
+		$name = $params->{-prefix}.$name;
+	}
+
+	if(defined ($params->{-suffix}) ) {
+		$name = $name.$params->{-suffix};
+	}
 
 	my $cb = $cgi->checkbox(
 		-name    => $name,
