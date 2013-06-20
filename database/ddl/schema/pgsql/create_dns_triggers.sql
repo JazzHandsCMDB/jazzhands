@@ -15,6 +15,25 @@
  * limitations under the License.
  */
 
+CREATE OR REPLACE FUNCTION dns_rec_before() RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		PERFORM 1 FROM dns_domain WHERE dns_domain_id = OLD.dns_domain_id FOR UPDATE;
+		RETURN OLD;
+	ELSE
+		PERFORM 1 FROM dns_domain WHERE dns_domain_id = NEW.dns_domain_id FOR UPDATE;
+		RETURN NEW;
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_rec_before ON dns_record;
+CREATE TRIGGER trigger_dns_rec_before 
+	BEFORE INSERT OR DELETE OR UPDATE 
+	ON dns_record 
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_rec_before();
+
 CREATE OR REPLACE FUNCTION update_dns_zone() RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
