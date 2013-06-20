@@ -18,10 +18,10 @@
 CREATE OR REPLACE FUNCTION dns_rec_before() RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'DELETE' THEN
-		PERFORM 1 FROM dns_domain WHERE dns_domain_id = OLD.dns_domain_id FOR UPDATE;
+		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id = OLD.dns_domain_id FOR UPDATE;
 		RETURN OLD;
 	ELSE
-		PERFORM 1 FROM dns_domain WHERE dns_domain_id = NEW.dns_domain_id FOR UPDATE;
+		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id = NEW.dns_domain_id FOR UPDATE;
 		RETURN NEW;
 	END IF;
 END;
