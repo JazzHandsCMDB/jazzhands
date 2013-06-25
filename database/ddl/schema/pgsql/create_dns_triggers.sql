@@ -21,7 +21,11 @@ BEGIN
 		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id = OLD.dns_domain_id FOR UPDATE;
 		RETURN OLD;
 	ELSE
-		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id = NEW.dns_domain_id FOR UPDATE;
+		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+		    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+		)
+		FOR UPDATE;
+
 		RETURN NEW;
 	END IF;
 END;
