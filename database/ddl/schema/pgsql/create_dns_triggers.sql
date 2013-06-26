@@ -18,13 +18,32 @@
 CREATE OR REPLACE FUNCTION dns_rec_before() RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'DELETE' THEN
-		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id = OLD.dns_domain_id FOR UPDATE;
+		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+		    OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
+		)
+		FOR UPDATE;
+
 		RETURN OLD;
-	ELSE
+	ELSIF TG_OP = 'INSERT' THEN
 		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
 		    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
 		)
 		FOR UPDATE;
+
+		RETURN NEW;
+	ELSE
+		IF OLD.netblock_id IS DISTINCT FROM NEW.netblock_id THEN
+			PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+			    OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id),
+			    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+			)
+			FOR UPDATE;
+		ELSE
+			PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+			    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+			)
+			FOR UPDATE;
+		END IF;
 
 		RETURN NEW;
 	END IF;
