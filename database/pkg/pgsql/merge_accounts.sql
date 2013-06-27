@@ -63,6 +63,7 @@ BEGIN
 	UPDATE account SET account_realm_id = _account_realm_id, person_id = fpc.person_id WHERE person_id = tpc.person_id AND company_id = fpc.company_id;
 	DELETE FROM person_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
 	DELETE FROM person_account_realm_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
+	UPDATE person_image SET person_id = fpc.person_id WHERE person_id = tpc.person_id;
 	-- if there are other relations that may exist, do not delete the person.
 	BEGIN
 		delete from person where person_id = tpc.person_id;
