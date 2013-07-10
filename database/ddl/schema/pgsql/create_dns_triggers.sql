@@ -60,35 +60,41 @@ CREATE TRIGGER trigger_dns_rec_before
 CREATE OR REPLACE FUNCTION update_dns_zone() RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
-		UPDATE jazzhands.dns_domain SET zone_last_updated = now()
-            WHERE dns_domain_id = NEW.dns_domain_id;
+		UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+            WHERE dns_domain_id = NEW.dns_domain_id
+			AND zone_last_updated < last_generated;
 
 		IF NEW.dns_type = 'A' THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = now()
-				WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id);
+			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+				WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+				AND zone_last_updated < last_generated;
 		END IF;
 
 		IF TG_OP = 'UPDATE' THEN
 			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
-				UPDATE jazzhands.dns_domain SET zone_last_updated = now()
-					 WHERE dns_domain_id = OLD.dns_domain_id;
+				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+					 WHERE dns_domain_id = OLD.dns_domain_id
+					 AND zone_last_updated < last_generated;
 			END IF;
 			IF NEW.dns_type = 'A' THEN
 				IF OLD.netblock_id != NEW.netblock_id THEN
-					UPDATE jazzhands.dns_domain SET zone_last_updated = now()
-						 WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id);
+					UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+						 WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
+						 AND zone_last_updated < last_generated;
 				END IF;
 			END IF;
 		END IF;
 	END IF;
 
     IF TG_OP = 'DELETE' THEN
-        UPDATE jazzhands.dns_domain SET zone_last_updated = now()
-			WHERE dns_domain_id = OLD.dns_domain_id;
+        UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+			WHERE dns_domain_id = OLD.dns_domain_id
+			AND zone_last_updated < last_generated;
 
         IF OLD.dns_type = 'A' THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = now()
-                 WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id);
+			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+                 WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
+				 AND zone_last_updated < last_generated;
         END IF;
     END IF;
 	RETURN NEW;
@@ -96,6 +102,10 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_update_dns_zone ON dns_record;
-CREATE TRIGGER trigger_update_dns_zone AFTER INSERT OR DELETE OR UPDATE 
-	ON dns_record FOR EACH ROW EXECUTE PROCEDURE update_dns_zone();
+CREATE CONSTRAINT TRIGGER trigger_update_dns_zone 
+	AFTER INSERT OR DELETE OR UPDATE 
+	ON dns_record 
+	INITIALLY DEFERRED
+	FOR EACH ROW 
+	EXECUTE PROCEDURE update_dns_zone();
 
