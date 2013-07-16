@@ -67,8 +67,19 @@ function process_search(searchbox) {
 						$(results).append(t);
 					}
 				}
-			).error(function() {
-				alert("There was an issue completing the search.  Try reloading the directory.");
+			).fail(function(jqXHDR, testSTatus, errorThrown) {
+				if(jqXHDR.status == 500) {
+					alert("There was an issue completing the search.  Please try again later.");
+				} else {
+					// clears the search box so there is not an infinte reloading.
+					// This is attempted if we get a valid page back (or a redirect) to cause
+					// reauth to happen if necessary.  With something like cosign, reuath
+					// request show up as 200. 
+					window.clearTimeout( search_timer );
+					search_timer = null;
+					$(searchbox).val('');
+					window.location.reload();
+				}
 			});
 		}, 200);
 	}
@@ -118,7 +129,7 @@ function remove_phone(remove_button) {
 			} else {
 				$(form).closest('tr').remove();
 			}
-		}).error(function() {
+		}).fail(function() {
 			alert("There was an issue submitting your request.  Please try again later");
 		});;
 	}
@@ -218,7 +229,7 @@ function update_location(button) {
 					$.post('ajax/location.pl', s, function(resp) {
 						$('#locationmanip').toggle(1);
 						$('#locationmanip').empty();
-					}).error(function() {
+					}).fail(function() {
 						alert("There was an issue submitting your request.  Please try again later");
 					});;
 					return(false);
@@ -228,7 +239,7 @@ function update_location(button) {
 			$(form).append(tbl);
 			$('#locationmanip').append(form);
 		}
-	).error(function() {
+	).fail(function() {
 		alert("There was an issue downloading location information.    Please reload the page or try later.");
 	});
 	return 0;
@@ -378,7 +389,7 @@ function manip_phone(add_button) {
 			$("#addphonehint").offset( position);
 
 		}
-	).error(function() {
+	).fail(function() {
 		alert("There was an issue downloading contact information.    Please reload the page or try later.");
 	});
 	return 0;
@@ -566,7 +577,7 @@ function pic_manip(person_id) {
 			d.innerHTML = "The caption is used in yearbook photos and is otherwise unused.  The type marked as corpdirectory is used by this directory.  Headshots are professional photographs that are not, at present, in use.  ";
 			$('#picsdisplay').append(d);
 
-		}).error(function() {
+		}).fail(function() {
 			alert("There was an issue downloading picture information.    Please reload the page or try later.");
 		});
 }
@@ -660,7 +671,7 @@ $(document).ready(function(){
 					$(td).append(span);
 					$(tr).append(td);
 				}
-			}).error(function() {
+			}).fail(function() {
 				alert("There was an issue submitting your request.  Please try again later");
 			});;
 		}

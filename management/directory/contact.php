@@ -1,6 +1,33 @@
 <?php
 include "personlib.php" ;
 
+//
+// this probably wants to move to the main query and fetched along with
+// phone numbers
+function get_email( $dbconn, $personid ) {
+	$qq = <<<EOQ
+		select	person_contact_account_name as email_address
+		  from	person_contact
+		 where	person_id = $1
+		  and	person_contact_type = 'email'
+		  and	person_contact_technology = 'email'
+		  and	person_contact_location_type = 'office'
+		  and	person_contact_privacy != 'HIDDEN'
+		 order by person_contact_order
+		 LIMIT 1
+EOQ;
+	$args = array($personid);
+	$r = pg_query_params($dbconn, $qq, $args) 
+		or die("Admin Check Query failed: ".pg_last_error());
+
+	$row = pg_fetch_array($r, null, PGSQL_ASSOC);
+	pg_free_result($r);
+	if($row == null) {
+		return null;
+	}
+	return $row{'email_address'};;
+}
+
 // XXX - need to move to a library
 function check_admin($dbconn, $login) {
 	$aq = <<<EOQ
@@ -144,6 +171,7 @@ $query = "
 		coalesce(pc.nickname, p.nickname) as nickname,
 		pc.position_title,
 		pc.person_company_relation,
+		pc.hire_date,
 		c.company_name,
 		c.company_id,
 		pi.person_image_id,
@@ -227,7 +255,7 @@ if(isset($row['mgr_last_name'])) {
 
 echo build_header($name);
 
-echo browse_limit($dbconn);
+echo browsingMenu($dbconn, null);
 
 if ( isset($_GET['random']) && $_GET['random'] == 'yes') {
 	echo "<div id=random> <a href=\"./?index=random\"> Another Random Person </a> </div>\n";
@@ -254,7 +282,10 @@ if(isset($title)) {
 echo build_tr("Department", hierlink('department', $row['account_collection_id'],
                 $row['account_collection_name']));
 
-$email = $row['login']."@". get_default_domain($dbconn);
+$email = get_email( $dbconn, $row{'person_id'} );
+if( $email == null) {
+	$email = $row['login']."@". get_default_domain($dbconn);
+}
 
 echo build_tr("Email", $email);
 
@@ -263,6 +294,11 @@ if(isset($manager)) {
 		personlink($row['manager_person_id'], $manager));
 }
 
+if(isset($row['hire_date'])) {
+	$hd = $row['hire_date'];
+	$hd = preg_replace("/\s.*$/", "", $row['hire_date']);
+	echo build_tr("Hire Date", $hd);
+}
 echo build_tr("Status", $row['person_company_relation']);
 
 if(isset($row['display_label'])) {

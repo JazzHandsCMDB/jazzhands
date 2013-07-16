@@ -2,79 +2,76 @@
 include "jazzhands/dbauth.php";
 
 //
-// prints a bar across the top of locations to limit things by and
-//
-function locations_limit($dbconn = null) {
-	$query = "
-		select physical_address_id, display_label
-		from	physical_address
-		where	company_id in (
-			select company_id from v_company_hier
-			where root_company_id IN
-				(select property_value_company_id
-                                   from property
-                                  where property_name = '_rootcompanyid'
-                                    and property_type = 'Defaults'
-                                )
-				
-			) order by display_label
-	";
-	$result = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
-
-
-	$params = build_qs(null, 'offset', null);
-
-	$rv = "";
-	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
-		if(isset($_GET['physical_address_id']) && $_GET['physical_address_id'] == $row['physical_address_id']) {
-			$class = 'activefilter';
-		} else {
-			$class = 'inactivefilter';
-		}
-		$url = build_url(build_qs($params, 'physical_address_id', $row['physical_address_id']));
-		$lab = $row['display_label'];
-		if(strlen($rv)) {
-			$rv = "$rv | ";
-		}
-		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
-	}
-	if(isset($_GET['physical_address_id'])) {
-		$url = build_url(build_qs($params, 'physical_address_id', null));
-		$lab = '| Clear';
-		$rv = "$rv <a class=\"inactivefilter\" href=\"$url\"> $lab </a> ";
-	}
-	return "<div class=filterbar>[ $rv ]</div>";
-}
-
-
-//
 // print various ways to browse at the top
 //
-function browse_limit($current) {
-	$arr = array(
-		'byname' => "By Name",
-		'bydept' => "By Dept",
-		'hier' => "By Org",
-		'random' => "Random"
-	);
-
-	$params = build_qs(null, 'offset', null);
+function browsingMenu($dbconn, $current, $content = 'default') {
+	$params = build_qs(array(), 'offset', null);
 	$rv = "";
-	foreach ($arr as $k => $v) {
-		$url = build_url(build_qs($params, 'index', $k), "./");
-		$lab = $arr[$k];
-		if(strlen($rv)) {
-			$rv = "$rv | ";
+
+	if($content == 'both' || $content == 'default') {
+		$arr = array(
+			'byname' => "By Name",
+			'bydept' => "By Dept",
+			'hier' => "By Org",
+			'random' => "Random"
+		);
+
+		foreach ($arr as $k => $v) {
+			$url = build_url(build_qs($params, 'index', $k), "./");
+			$lab = $arr[$k];
+			if(strlen($rv)) {
+				$rv = "$rv ";
+			}
+			if($current == $k) {
+				$class = 'activefilter';
+			} else {
+				$class = 'inactivefilter';
+			}
+			$rv = "$rv <a class=\"$class filteroption\" href=\"$url\"> $lab </a> ";
 		}
-		if($current == $k) {
-			$class = 'activefilter';
-		} else {
-			$class = 'inactivefilter';
-		}
-		$rv = "$rv <a class=\"$class\" href=\"$url\"> $lab </a> ";
-			
 	}
-	return "<div class=filterbar>[ Browse: $rv ]</div>";
+
+	$sitelimit = "";
+	if($content == 'both' || $content == 'locations') {
+		$query = "
+			select physical_address_id, display_label
+			from	physical_address
+			where	company_id in (
+				select company_id from v_company_hier
+				where root_company_id IN
+					(select property_value_company_id
+	                                   from property
+	                                  where property_name = '_rootcompanyid'
+	                                    and property_type = 'Defaults'
+	                                )
+					
+				) order by display_label
+		";
+		$result = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
+	
+		$params = build_qs(null, 'offset', null);
+
+		$label = "limit by Site";
+	
+		while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
+			if(isset($_GET['physical_address_id']) && $_GET['physical_address_id'] == $row['physical_address_id']) {
+				$class = 'activefilter';
+				$label = $row['display_label'];
+			} else {
+				$class = 'inactivefilter';
+			}
+			$url = build_url(build_qs($params, 'physical_address_id', $row['physical_address_id']));
+			$lab = $row['display_label'];
+			$sitelimit = "$sitelimit <a class=\"$class limitsiterow\" href=\"$url\"> $lab </a><br> ";
+		}
+		if(isset($_GET['physical_address_id'])) {
+			$url = build_url(build_qs($params, 'physical_address_id', null));
+			$lab = '| Clear';
+			$return = "$return <a class=\"inactivefilter limitsiterow\" href=\"$url\"> $lab </a> ";
+		}
+		$rv = "$rv <a class=\"$class filteroption locationfilter\"> $label </a>";
+	}
+	return "<div class=filterbar>$rv</div> <div class=\"sitelimit \">$sitelimit</div>";
 }
 
 function get_default_domain($dbconn = null) {
@@ -151,6 +148,7 @@ function build_header($title, $style = null, $heading = null) {
 		$style = "style.css";
 	}
 	return (<<<ENDHDR
+	<!DOCTYPE HTML>
 	<html>
 	<head>
 		<meta http-equiv="X-UA-Compatible" content="IE=edge" >
@@ -195,7 +193,7 @@ function build_footer() {
 }
 
 function build_qs($params = null, $key, $value = null) {
-	if($params == null) {
+	if($params == null && !is_array($params)) {
 		$params = $_GET;
 	}
 	$params[$key] = $value;

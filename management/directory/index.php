@@ -83,7 +83,7 @@ $orderby = "
 
 $limit = "";
 
-$address = ($_GET['physical_address_id'])?$_GET['physical_address_id']:null;
+$address = (isset ($_GET['physical_address_id']) )?$_GET['physical_address_id']:null;
 
 $showarrow = 0;
 
@@ -216,10 +216,7 @@ echo build_header("Directory");
 
 if($style == 'peoplelist') {
 	// Printing results in HTML
-	echo browse_limit($index);
-	if($index == 'byname') {
-		echo locations_limit($dbconn);
-	}
+	echo browsingMenu($dbconn, $index, ($index == 'byname')?'both':null);
 	echo "<table id=\"peoplelist\">\n";
 	?>
 
@@ -294,7 +291,7 @@ if($style == 'peoplelist') {
 		echo "</div>\n";
 	}
 } else {
-	echo browse_limit($index);
+	echo browsingMenu($dbconn, $index, ($index == 'byname')?'both':null);
 	echo "<h3> Browse by Department </h3>\n";
 	echo "<div class=deptlist><ul>\n";
 	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
