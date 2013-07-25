@@ -109,7 +109,7 @@ BEGIN
     EXECUTE 'CREATE TABLE ' || quote_ident(aud_schema) || '.'
         || quote_ident(table_name) || ' AS '
         || 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
-        || 'NULL::varchar(30) AS "aud#user", NULL::integer AS "aud#seq" '
+        || 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
         || 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name) 
         || ' LIMIT 0';
 
