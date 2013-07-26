@@ -1223,6 +1223,9 @@ if ( !$dumpzone ) {
 	generate_complete_files( $dbh, $zoneroot, \%zones );
 }
 
+# no changes should have been made
+$dbh->rollback;
+
 #
 # update the db's "last generated" date now.  This is saved to the end so
 # that all the updates happen quickly, and right before commit so the time
@@ -1230,13 +1233,9 @@ if ( !$dumpzone ) {
 #
 foreach my $domid ( keys(%lgupdate) ) {
 	record_newgen( $dbh, $domid, $lgupdate{$domid} );
-}
-
-if ($dumpzone) {
-	$dbh->rollback;
-} else {
 	$dbh->commit;
 }
+
 $dbh->disconnect;
 $dbh = undef;
 
