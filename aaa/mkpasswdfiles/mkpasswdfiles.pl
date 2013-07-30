@@ -21,6 +21,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+# Copyright (c) 2013, Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 #
 # $Id$
 #
@@ -95,8 +110,6 @@ Write the output files to the directory output_dir. The default is
 
 ###############################################################################
 
-BEGIN { push(@INC, "/Users/kovert"); }
-
 use strict;
 use warnings;
 use JazzHands::DBI;
@@ -119,7 +132,7 @@ my (
 	%sudo_user_spec, %sudo_expand_uclass
 );
 
-my ( $support_email );
+my ($support_email);
 
 main();
 exit(0);
@@ -132,21 +145,23 @@ exit(0);
 # example.com address
 #
 sub get_support_email($) {
-    my($dbh) = @_;
+	my ($dbh) = @_;
 
-    my $sth = $dbh->prepare_cached(q{
+	my $sth = $dbh->prepare_cached(
+		q{
     	SELECT	property_value
 	  FROM	property
 	 WHERE	property_name = '_supportemail'
 	  AND   property_type = 'Defaults'
-    }) || die $dbh->errstr;
+    }
+	) || die $dbh->errstr;
 
-    $sth->execute || die $sth->errstr;
+	$sth->execute || die $sth->errstr;
 
-    my ($addr) = $sth->fetchrow_array;
-    $sth->finish;
-    $addr = 'support@example.com' if(!$addr);
-    $addr;
+	my ($addr) = $sth->fetchrow_array;
+	$sth->finish;
+	$addr = 'support@example.com' if ( !$addr );
+	$addr;
 }
 
 ###############################################################################
@@ -212,12 +227,12 @@ sub get_passwd_line($$$$) {
 
 	## Default values
 
-	$login = $u->{_dbx('LOGIN')};
+	$login = $u->{ _dbx('LOGIN') };
 	$crypt = '*';
-	$uid   = $u->{_dbx('UNIX_UID')};
-	$gid   = $u->{_dbx('UNIX_GID')};
-	$home  = $u->{_dbx('DEFAULT_HOME')};
-	$shell = $u->{_dbx('SHELL')};
+	$uid   = $u->{ _dbx('UNIX_UID') };
+	$gid   = $u->{ _dbx('UNIX_GID') };
+	$home  = $u->{ _dbx('DEFAULT_HOME') };
+	$shell = $u->{ _dbx('SHELL') };
 
 	## Determine the password
 
@@ -226,21 +241,21 @@ sub get_passwd_line($$$$) {
 	}
 
 	else {
-		if ( defined( $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} ) ) {
+		if ( defined( $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') } ) ) {
 			my $ptype = $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') };
-			if(defined( $u->{$ptype} )) {
-				$crypt = $u->{ $ptype };
+			if ( defined( $u->{$ptype} ) ) {
+				$crypt = $u->{$ptype};
 			}
 		} else {
-			if($u->{ _dbx('MD5_PASSWORD') }) {
+			if ( $u->{ _dbx('MD5_PASSWORD') } ) {
 				$crypt = $u->{ _dbx('MD5_PASSWORD') };
-			} elsif($u->{ _dbx('DES_PASSWORD') } ) {
+			} elsif ( $u->{ _dbx('DES_PASSWORD') } ) {
 				$crypt = $u->{ _dbx('DES_PASSWORD') };
 			}
 		}
 	}
 
-	$crypt = '*' if(!$crypt);
+	$crypt = '*' if ( !$crypt );
 
 	## Determine UID
 
@@ -249,15 +264,15 @@ sub get_passwd_line($$$$) {
 	## Determine GID
 
 	if ( defined( $up->{ForceUserGroup} ) ) {
-		$gname = $up->{ForceUserGroup}{_dbx('GROUP_NAME')};
+		$gname = $up->{ForceUserGroup}{ _dbx('GROUP_NAME') };
 		$gid =
 		  defined( $gp->{$gname} )
-		  ? $gp->{$gname}{_dbx('FORCE_GID')}
-		  : $up->{ForceUserGroup}{_dbx('UNIX_GID')};
+		  ? $gp->{$gname}{ _dbx('FORCE_GID') }
+		  : $up->{ForceUserGroup}{ _dbx('UNIX_GID') };
 	}
 
 	else {
-		$gname = $u->{_dbx('GROUP_NAME')};
+		$gname = $u->{ _dbx('GROUP_NAME') };
 		$gid =
 		  defined( $gp->{$gname} ) ? $gp->{$gname}{FORCE_GID} : $gid;
 	}
@@ -267,24 +282,28 @@ sub get_passwd_line($$$$) {
 	$full_name = join(
 		' ',
 		grep( defined($_),
-			$u->{_dbx('FIRST_NAME')}, $u->{_dbx('MIDDLE_NAME')},
-			$u->{_dbx('LAST_NAME')} )
+			$u->{ _dbx('FIRST_NAME') },
+			$u->{ _dbx('MIDDLE_NAME') },
+			$u->{ _dbx('LAST_NAME') } )
 	);
 
 	## Determine home directory
 
-	my $hp = defined( $mp->{_dbx('HOME_PLACE')} ) ? $mp->{_dbx('HOME_PLACE')} : '/home';
-	if($home) {
+	my $hp =
+	  defined( $mp->{ _dbx('HOME_PLACE') } )
+	  ? $mp->{ _dbx('HOME_PLACE') }
+	  : '/home';
+	if ($home) {
 		$home =~ m!/([^/]+)$!;
-		if( defined( $1 ) ) {
+		if ( defined($1) ) {
 			$home = "$hp/$1";
 		}
 	}
-	
-	#  home of last resort
-	$home = "$hp/$login" if(! defined ( $home ) );
 
-	if ( ( $mp->{_dbx('MCLASS_UNIX_HOME_TYPE')} || '' ) eq 'generic' ) {
+	#  home of last resort
+	$home = "$hp/$login" if ( !defined($home) );
+
+	if ( ( $mp->{ _dbx('MCLASS_UNIX_HOME_TYPE') } || '' ) eq 'generic' ) {
 		$home = "$hp/generic";
 	}
 
@@ -323,7 +342,7 @@ sub get_passwd_line($$$$) {
 sub get_uclass_properties() {
 	my ( $q, $sth, $mu_prop, @r );
 
-	# XXX - need to port this.  Its not clear that a group name 
+	# XXX - need to port this.  Its not clear that a group name
 	#	is the right way to go about this
 	# return  undef;
 
@@ -352,7 +371,7 @@ sub get_uclass_properties() {
 	$sth->execute;
 
 	## If there are lines with duplicate device_collection_id,
-    ## system_user_id, property_name, the first line is what counts.
+	## system_user_id, property_name, the first line is what counts.
 
 	while ( @r = $sth->fetchrow_array ) {
 		my ( $dcid, $suid, $upn, $pv, $gid ) = @r;
@@ -429,24 +448,27 @@ sub get_mclass_properties {
 		$m_prop->{$dcid}{DEVICE_COLLECTION_ID} = $dcid
 		  unless ( defined $m_prop->{$dcid}{DEVICE_COLLECTION_ID} );
 
-		if($propn eq 'UnixHomeType' && $propt eq 'MclassUnixProp') {
+		if ( $propn eq 'UnixHomeType' && $propt eq 'MclassUnixProp' ) {
 			$m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE} = $propv
-		  	unless ( defined $m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE} );
+			  unless (
+				defined $m_prop->{$dcid}{MCLASS_UNIX_HOME_TYPE}
+			  );
 		}
 
-		if($propn eq 'UnixPwType' && $propt eq 'MclassUnixProp') {
-		    $m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} = $propv
-		      unless ( defined $m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} );
+		if ( $propn eq 'UnixPwType' && $propt eq 'MclassUnixProp' ) {
+			$m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} = $propv
+			  unless (
+				defined $m_prop->{$dcid}{MCLASS_UNIX_PW_TYPE} );
 		}
 
-		if($propn eq 'HomePlace' && $propt eq 'MclassUnixProp') {
-		    $m_prop->{$dcid}{HOME_PLACE} = $propv
-		      unless ( defined $m_prop->{$dcid}{HOME_PLACE} );
+		if ( $propn eq 'HomePlace' && $propt eq 'MclassUnixProp' ) {
+			$m_prop->{$dcid}{HOME_PLACE} = $propv
+			  unless ( defined $m_prop->{$dcid}{HOME_PLACE} );
 		}
 
-		# XXX consider logging when unidentified properties have showed up?
-		# probably need to keep track of ones we don't pay attention to here
-		# such as UnixLogin and UnixGroupAssign
+	    # XXX consider logging when unidentified properties have showed up?
+	    # probably need to keep track of ones we don't pay attention to here
+	    # such as UnixLogin and UnixGroupAssign
 	}
 
 	return $m_prop;
@@ -500,8 +522,8 @@ sub get_group_properties() {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		$g_prop->{ $r->{_dbx('DEVICE_COLLECTION_ID')} }{ $r->{_dbx('GROUP_NAME')} } =
-		  $r;
+		$g_prop->{ $r->{ _dbx('DEVICE_COLLECTION_ID') } }
+		  { $r->{ _dbx('GROUP_NAME') } } = $r;
 	}
 
 	return $g_prop;
@@ -520,7 +542,7 @@ sub get_group_properties() {
 
 sub new_mclass_file($$$$) {
 	my ( $dir, $mclass, $fh, $filename ) = @_;
-	die "attempt to create a non-existant mclass" if(!$mclass);
+	die "attempt to create a non-existant mclass" if ( !$mclass );
 	my $mdir = "$dir/$mclass";
 
 	$fh->close if ( defined $fh );
@@ -564,10 +586,10 @@ sub generate_passwd_files($) {
 	## The following query returns the passwd file lines for all MCLASSes
 	## but without the overrides. Overrides are applied later.
 
-	my $dys = "90";	# XXX - oracle, need to be smarter
+	my $dys = "90";    # XXX - oracle, need to be smarter
 	$dys = "interval '90 days'";
 
-	my $now = "sysdate";	# XXX - oracle, need to be smarter
+	my $now = "sysdate";    # XXX - oracle, need to be smarter
 	$now = "current_timestamp";
 
 	$q = qq{
@@ -627,8 +649,8 @@ sub generate_passwd_files($) {
 	## Iterate over all MCLASSes and UIDs
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid = $r->{_dbx('DEVICE_COLLECTION_ID')};
-		my $suid = $r->{_dbx('ACCOUNT_ID')};
+		my $dcid = $r->{ _dbx('DEVICE_COLLECTION_ID') };
+		my $suid = $r->{ _dbx('ACCOUNT_ID') };
 		my ( @pwd, $login, $gid, $gname );
 
 		## If we switched to a new MCLASS, write the passwd file
@@ -637,18 +659,18 @@ sub generate_passwd_files($) {
 		if ( defined($last_dcid) ) {
 			if ( $last_dcid != $dcid ) {
 				my $json = JSON::PP->new->ascii;
-				print $fh $json->pretty->encode(\@pwdlines);
+				print $fh $json->pretty->encode( \@pwdlines );
 				$fh =
-				  new_mclass_file( $dir, $r->{_dbx('MCLASS')}, $fh,
-					'passwd' );
+				  new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
+					$fh, 'passwd' );
 				$last_dcid = $dcid;
 				undef(@pwdlines);
 			}
 		}
 
 		else {
-			$fh =
-			  new_mclass_file( $dir, $r->{_dbx('MCLASS')}, $fh, 'passwd' );
+			$fh = new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
+				$fh, 'passwd' );
 			$last_dcid = $dcid;
 		}
 
@@ -672,14 +694,14 @@ sub generate_passwd_files($) {
 		};
 
 		my $userhash = {
-			'login' => $pwd[0],
+			'login'         => $pwd[0],
 			'password_hash' => $pwd[1],
-			'uid' => $pwd[2],
-			'gid' => $pwd[3],
-			'gecos' => $pwd[4],
-			'home' => $pwd[5],
-			'shell' => $pwd[6],
-			'group_name' => $pwd[7],
+			'uid'           => $pwd[2],
+			'gid'           => $pwd[3],
+			'gecos'         => $pwd[4],
+			'home'          => $pwd[5],
+			'shell'         => $pwd[6],
+			'group_name'    => $pwd[7],
 		};
 
 		## Accumulate all passwd file lines in @pwdlines.
@@ -690,7 +712,7 @@ sub generate_passwd_files($) {
 
 	## Let's not forget to write the passwd file for the last MCLASS
 	my $json = JSON::PP->new->ascii;
-	print $fh $json->pretty->encode(\@pwdlines) if($fh);
+	print $fh $json->pretty->encode( \@pwdlines ) if ($fh);
 	$fh->close if ( defined $fh );
 }
 
@@ -724,7 +746,7 @@ sub generate_group_files($) {
 	);
 
 	## The following query determines which unix groups are assigned
-	## to which MCLASSes taking inheritance 
+	## to which MCLASSes taking inheritance
 	## into account. The query also determines the group password and
 	## the default GID which the group would have without any overrides.
 
@@ -759,8 +781,8 @@ sub generate_group_files($) {
 	## DEVICE_COLLECTION_ID and UNIX_GROUP_ID as it's keys.
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid = $r->{_dbx('DEVICE_COLLECTION_ID')};
-		my $ugid = $r->{_dbx('UNIX_GROUP_ID')};
+		my $dcid = $r->{ _dbx('DEVICE_COLLECTION_ID') };
+		my $ugid = $r->{ _dbx('UNIX_GROUP_ID') };
 
 		$group{$dcid}{$ugid} = $r;
 	}
@@ -812,18 +834,18 @@ sub generate_group_files($) {
 	## hashes is a reference to the list of the group members.
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid  = $r->{_dbx('DEVICE_COLLECTION_ID')};
-		my $ugid  = $r->{_dbx('ACCOUNT_COLLECTION_ID')};
-		my $gname = $r->{_dbx('GROUP_NAME')};
+		my $dcid  = $r->{ _dbx('DEVICE_COLLECTION_ID') };
+		my $ugid  = $r->{ _dbx('ACCOUNT_COLLECTION_ID') };
+		my $gname = $r->{ _dbx('GROUP_NAME') };
 
-		push( @{ $m_member{$dcid}{$ugid} },     $r->{_dbx('LOGIN')} );
-		push( @{ $gn_m_member{$dcid}{$gname} }, $r->{_dbx('LOGIN')} );
+		push( @{ $m_member{$dcid}{$ugid} },     $r->{ _dbx('LOGIN') } );
+		push( @{ $gn_m_member{$dcid}{$gname} }, $r->{ _dbx('LOGIN') } );
 	}
 
 	## The following query determines Unix group membership. It maps
 	## Unix groups to logins that belong to each particular group for
 	## entries in V_PROPERTY (device_collection to uclass mapping)
-	## that have DEVICE_COLLECTION_ID NULL. I would have loved to combine 
+	## that have DEVICE_COLLECTION_ID NULL. I would have loved to combine
 	## this query and the previous
 	## one into one query (using the UNION keyword), but Oracle just
 	## could not handle it. Each query separately takes a few seconds,
@@ -856,11 +878,11 @@ sub generate_group_files($) {
 	## hashes is a reference to the list of the group members.
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $ugid  = $r->{_dbx('UNIX_GROUP_ID') };
-		my $gname = $r->{_dbx('GROUP_NAME') };
+		my $ugid  = $r->{ _dbx('UNIX_GROUP_ID') };
+		my $gname = $r->{ _dbx('GROUP_NAME') };
 
-		push( @{ $member{$ugid} },     $r->{_dbx('LOGIN')} );
-		push( @{ $gn_member{$gname} }, $r->{_dbx('LOGIN')} );
+		push( @{ $member{$ugid} },     $r->{ _dbx('LOGIN') } );
+		push( @{ $gn_member{$gname} }, $r->{ _dbx('LOGIN') } );
 	}
 
 	## The $passwd_grp hash is built during generation of passwd
@@ -883,12 +905,12 @@ sub generate_group_files($) {
 
 		foreach my $ugid ( keys %$gdc ) {
 			my $g     = $gdc->{$ugid};
-			my $gpass = $g->{_dbx('GROUP_PASSWORD')} || '*';
-			my $gname = $g->{_dbx('GROUP_NAME')};
+			my $gpass = $g->{ _dbx('GROUP_PASSWORD') } || '*';
+			my $gname = $g->{ _dbx('GROUP_NAME') };
 			my $gid =
 			    $gp && defined( $gp->{$gname} )
-			  ? $gp->{$gname}{_dbx('FORCE_GID')}
-			  : $g->{_dbx('UNIX_GID')};
+			  ? $gp->{$gname}{ _dbx('FORCE_GID') }
+			  : $g->{ _dbx('UNIX_GID') };
 
 			$gm->{$gname}{gid}      = $gid;
 			$gm->{$gname}{password} = $gpass;
@@ -966,15 +988,18 @@ sub generate_group_files($) {
 
 			#print $fh "$gname:*:$gid:"
 			#  . join( ',', sort { $a cmp $b } @m ) . "\n";
-			push(@allgrp, {
-				'group_name'	=>	$gname,
-				'group_password' 	=>	'*',
-				'gid'	=>	$gid,
-				'members' => \@m
-			});
+			push(
+				@allgrp,
+				{
+					'group_name'     => $gname,
+					'group_password' => '*',
+					'gid'            => $gid,
+					'members'        => \@m
+				}
+			);
 		}
 		my $json = JSON::PP->new->ascii;
-		print $fh $json->pretty->encode(\@allgrp);
+		print $fh $json->pretty->encode( \@allgrp );
 	}
 }
 
@@ -1453,9 +1478,10 @@ sub generate_sudoers_files($) {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		$fh = new_mclass_file( $dir, $r->{_dbx('MCLASS')}, 
+		$fh = new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
 			$fh, 'sudoers' );
-		print $fh get_sudoers_file( $r->{_dbx('DEVICE_COLLECTION_ID')} );
+		print $fh get_sudoers_file(
+			$r->{ _dbx('DEVICE_COLLECTION_ID') } );
 		$fh->close;
 	}
 
@@ -1511,100 +1537,114 @@ sub generate_appaal_files($) {
 	# can be built up and written out when complete.  Similarly, a build up
 	# for mclasses.  There is probably a smarter way to do it.
 	my $allapps;
-	my $appkeys = {};
-	my $md = {};
-	my $closeapp = 0;
+	my $appkeys     = {};
+	my $md          = {};
+	my $closeapp    = 0;
 	my $closemclass = 0;
 	do {
-		$row = $sth->fetchrow_arrayref ;
+		$row = $sth->fetchrow_arrayref;
 		my ( $mclass, $applname, $owner, $group, $mode, $key, $val );
-		if(!$row) {
+		if ( !$row ) {
 			$closemclass = 1;
-			$closeapp = 1;
+			$closeapp    = 1;
 		} else {
-			( $mclass, $applname, $owner, $group, $mode, $key, $val ) = @$row;
+			(
+				$mclass, $applname, $owner, $group, $mode,
+				$key, $val
+			) = @$row;
 			$closemclass = 0;
-			$closeapp = 0;
+			$closeapp    = 0;
 		}
 
 		## If we switched apps, save out the data for future writing
 		if ( defined($last_app) ) {
-			if(defined ($applname)) {
+			if ( defined($applname) ) {
 				if ( $last_app ne $applname ) {
 					$closeapp = 1;
 				}
-			
+
 			} else {
 				$closeapp = 1;
 			}
 		} else {
-			$last_app = $applname;
+			$last_app         = $applname;
 			$md->{file_owner} = $owner;
 			$md->{file_group} = $group;
 			$md->{file_mode} = sprintf "0%o", $mode;
 		}
 
-
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
 		if ( defined($last_mclass) ) {
-			if(defined($mclass) ) {
+			if ( defined($mclass) ) {
 				if ( $last_mclass ne $mclass ) {
 					$closemclass = 1;
 				}
 			} else {
 				$closemclass = 1;
 			}
-		} elsif($mclass) { 
+		} elsif ($mclass) {
 			$fh = new_mclass_file( $dir, $mclass, $fh, 'appaal' );
 			$last_mclass = $mclass;
 		}
 
-		if($closeapp) {
+		if ($closeapp) {
 			my $go = 1;
 
-			# check to see fi we are complete.  If not, do not generate an error.
-			# This probably wants a warning...
-			$go = 0 if ($appkeys->{'Method'} eq 'Password' && !defined($appkeys->{'Password'}));
-			$go = 0 if ($appkeys->{'Method'} eq 'Kerberos' && !defined($appkeys->{'Keytab'}));
+	   # check to see fi we are complete.  If not, do not generate an error.
+	   # This probably wants a warning...
+			$go = 0
+			  if ( $appkeys->{'Method'} eq 'Password'
+				&& !defined( $appkeys->{'Password'} ) );
+			$go = 0
+			  if ( $appkeys->{'Method'} eq 'Kerberos'
+				&& !defined( $appkeys->{'Keytab'} ) );
 
-			if($go) {
+			if ($go) {
 				my $h = {};
-				if( exists($appkeys->{use_session_variables}) ) {
+				if (
+					exists(
+						$appkeys
+						  ->{use_session_variables}
+					)
+				  )
+				{
 					$h->{options} = {};
-					$h->{options}->{use_session_variables} = $appkeys->{use_session_variables};
-					delete $appkeys->{use_session_variables};
+					$h->{options}->{use_session_variables}
+					  = $appkeys->{use_session_variables};
+					delete
+					  $appkeys->{use_session_variables};
 				}
-				push(@{$h->{database}}, $appkeys);
-				$allapps->{$last_app}->{data} = $h;
+				push( @{ $h->{database} }, $appkeys );
+				$allapps->{$last_app}->{data}     = $h;
 				$allapps->{$last_app}->{metadata} = $md;
 			}
 			$appkeys = {};
-			$md = {};
-			if($applname) {
+			$md      = {};
+			if ($applname) {
 				$md->{file_owner} = $owner;
 				$md->{file_group} = $group;
-				$md->{file_mode} = sprintf "0%o", $mode;
+				$md->{file_mode}  = sprintf "0%o", $mode;
 			}
 			$last_app = $applname;
 		}
 
-
-		if($closemclass) {
+		if ($closemclass) {
 			my $json = JSON::PP->new->ascii;
 			print $fh $json->pretty->encode($allapps);
-			if($mclass) {
+			if ($mclass) {
 				$fh =
-			  	new_mclass_file( $dir, $mclass, $fh, 'appaal' );
+				  new_mclass_file( $dir, $mclass, $fh,
+					'appaal' );
 			}
 			$last_mclass = $mclass;
-			$allapps = {};
+			$allapps     = {};
 		}
 
-		if($key) {
+		if ($key) {
 			$appkeys->{$key} = $val;
 		}
-	} while(! $closemclass );
+	} while ( !$closemclass );
 	$fh->close if ($fh);
 }
 
@@ -1655,7 +1695,7 @@ sub generate_k5login_root_files($) {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $mclass = $r->{_dbx('MCLASS')};
+		my $mclass = $r->{ _dbx('MCLASS') };
 
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
@@ -1676,7 +1716,7 @@ sub generate_k5login_root_files($) {
 			$last_mclass = $mclass;
 		}
 
-		$text .= $r->{_dbx('PRINC_NAME')} . "\n";
+		$text .= $r->{ _dbx('PRINC_NAME') } . "\n";
 	}
 
 	print $fh $text if ( $fh && $text );
@@ -1724,7 +1764,7 @@ sub generate_wwwgroup_files($) {
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		my $mclass = $r->{_dbx('MCLASS')};
+		my $mclass = $r->{ _dbx('MCLASS') };
 
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
@@ -1750,7 +1790,10 @@ sub generate_wwwgroup_files($) {
 			$last_mclass = $mclass;
 		}
 
-		push( @{ $member{ $r->{_dbx('WWWGROUP')} } }, $r->{_dbx('LOGIN')} );
+		push(
+			@{ $member{ $r->{ _dbx('WWWGROUP') } } },
+			$r->{ _dbx('LOGIN') }
+		);
 	}
 
 	foreach ( sort { $a cmp $b } keys %member ) {
@@ -1835,10 +1878,14 @@ sub create_host_symlinks($@) {
 
 	foreach my $device ( keys %old ) {
 		if ( exists $new->{$device} ) {
-			if ( $new->{$device}{_dbx('MCLASS')} ne $old{$device} ) {
+			if ( $new->{$device}{ _dbx('MCLASS') } ne
+				$old{$device} )
+			{
 				unlink("$dir/$device");
-				symlink( "../mclass/$new->{$device}{_dbx('MCLASS')}",
-					"$dir/$device" );
+				symlink(
+"../mclass/$new->{$device}{_dbx('MCLASS')}",
+					"$dir/$device"
+				);
 			}
 		}
 
