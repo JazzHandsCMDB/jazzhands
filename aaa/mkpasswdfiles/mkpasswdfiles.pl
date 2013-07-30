@@ -694,6 +694,7 @@ sub generate_passwd_files($) {
 		};
 
 		my $userhash = {
+			'account_id'    => $r->{_dbx('ACCOUNT_ID')},
 			'login'         => $pwd[0],
 			'password_hash' => $pwd[1],
 			'uid'           => $pwd[2],
