@@ -105,6 +105,7 @@ use IO::File;
 use File::Copy;
 use File::Path;
 use Getopt::Long;
+use Data::Dumper;
 use FindBin qw($Script);
 use JazzHands::Common qw(:all);
 
@@ -192,23 +193,26 @@ sub get_passwd_line($$$$) {
 
 	## Determine the password
 
-	if ( defined( $up->{_dbx('ForceCrypt')} ) ) {
+	if ( defined( $up->{'ForceCrypt'} ) ) {
 		$crypt = $up->{ForceCrypt};
 	}
 
 	else {
 		if ( defined( $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} ) ) {
-			if (       $login eq 'root'
-				|| $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} eq 'des' )
-			{
-				$crypt = $u->{_dbx('DES_PASSWORD')} || '*';
+			my $ptype = $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') };
+			if(defined( $u->{$ptype} )) {
+				$crypt = $u->{ $ptype };
 			}
-
-			elsif ( $mp->{_dbx('MCLASS_UNIX_PW_TYPE')} eq 'md5' ) {
-				$crypt = $u->{_dbx('MD5_PASSWORD')} || '*';
+		} else {
+			if($u->{ _dbx('MD5_PASSWORD') }) {
+				$crypt = $u->{ _dbx('MD5_PASSWORD') };
+			} elsif($u->{ _dbx('DES_PASSWORD') } ) {
+				$crypt = $u->{ _dbx('DES_PASSWORD') };
 			}
 		}
 	}
+
+	$crypt = '*' if(!$crypt);
 
 	## Determine UID
 
@@ -242,7 +246,15 @@ sub get_passwd_line($$$$) {
 	## Determine home directory
 
 	my $hp = defined( $mp->{_dbx('HOME_PLACE')} ) ? $mp->{_dbx('HOME_PLACE')} : '/var/home';
-	$home = "$hp/$1" if ( $home =~ m!/([^/]+)$! );
+	if($home) {
+		$home =~ m!/([^/]+)$!;
+		if( defined( $1 ) ) {
+			$home = "$hp/$1";
+		}
+	}
+	
+	#  home of last resort
+	$home = "$hp/$login" if(! defined ( $home ) );
 
 	if ( ( $mp->{_dbx('MCLASS_UNIX_HOME_TYPE')} || '' ) eq 'generic' ) {
 		$home = "$hp/generic";
@@ -284,17 +296,22 @@ sub get_uclass_properties() {
 	my ( $q, $sth, $mu_prop, @r );
 
 	# XXX - need to port this.  Its not clear that a group name 
-	return  undef;
+	#	is the right way to go about this
+	# return  undef;
 
 	$q = q{
-        select device_collection_id, system_user_id,
-               property_name, property_value,
-               case when property_name = 'ForceUserGroup'
-                    then to_char(unix_gid) 
-                    else null end unix_gid
+        select device_collection_id, account_id,
+               property_name, property_value
+--		,
+--               case when property_name = 'ForceUserGroup'
+ --                   then to_char(unix_gid) 
+  --                  else null end unix_gid
         from v_dev_col_user_prop_expanded pe
-        left join unix_group ug on pe.property_value = ug.group_name
-        where system_user_status in ('enabled', 'onleave-enable')
+			join account a using(account_id)
+			join val_person_status vps
+				on vps.person_status = a.account_status
+        -- left join unix_group ug on pe.property_value = ug.group_name
+        where vps.is_disabled = 'N'
         and property_type = 'UnixPasswdFileValue'
         and device_collection_id is not null
     };
@@ -534,7 +551,7 @@ sub generate_passwd_files($) {
                case when login = 'root'
                       or coalesce(p2.expire_time, p2.change_time + $dys) > $now
                     then p2.password else null end des_password,
-               unix_uid, ac.account_collection_name as group_name, 
+               unix_uid, ugac.account_collection_name as group_name, 
 			   unix_gid, first_name, 
                case when length(middle_name) = 1
                     then middle_name || '.' else middle_name end middle_name,
@@ -547,21 +564,26 @@ sub generate_passwd_files($) {
              join unix_group ug
                 on (ui.unix_group_acct_collection_id 
 					= ug.account_collection_id)
+			 join account_collection ugac
+                on (ugac.account_collection_id 
+					= ug.account_collection_id)
              join v_device_col_acct_col_expanded cce
                 on (a.account_id = cce.account_id)
              join device_collection c
                 on (cce.device_collection_id = c.device_collection_id)
              join account_collection ac on 
-		(cce.account_collection_id = ac.account_collection_id)
+				(cce.account_collection_id = ac.account_collection_id)
+			 join val_person_status vps
+				on a.account_status = vps.person_status
              left join account_password p1
                 on (a.account_id = p1.account_id
                     and p1.password_type = 'md5')
              left join account_password p2
                 on (a.account_id = p2.account_id
                     and p2.password_type = 'des')
-        where account_status in ('enabled', 'onleave-enable')
+        where is_disabled = 'N'
         and c.device_collection_type = 'mclass'
-        and ac.account_collection_type in ('systems', 'per-user')
+        -- and ac.account_collection_type in ('systems', 'per-user')
     };
 
 	if ($q_mclass_ids) {
@@ -886,7 +908,7 @@ sub generate_group_files($) {
 
 		## And now write all the groups to the group file
 
-		$fh = new_mclass_file( $dir, $mclass->{$dcid}{MCLASS},
+		$fh = new_mclass_file( $dir, $mclass->{$dcid}{ _dbx('MCLASS') },
 			$fh, 'group' );
 
 		foreach my $gname (
@@ -1424,7 +1446,7 @@ sub generate_dbal_files($) {
 	  max(CASE WHEN p.app_key = 'DBType' THEN p.app_value ELSE NULL END ) as dbtype,
 	  max(CASE WHEN p.app_key = 'Username' THEN p.app_value ELSE NULL END ) as username,
 	  max(CASE WHEN p.app_key = 'Password' THEN p.app_value ELSE NULL END ) as password,
-	  max(CASE WHEN p.app_key = 'ServiceName' THEN p.app_value ELSE NULL END ) as servicename,
+	  max(CASE WHEN p.app_key = 'DBName' THEN p.app_value ELSE NULL END ) as servicename,
 	  max(CASE WHEN p.app_key = 'Keytab' THEN p.app_value ELSE NULL END ) as keytab
         from appaal_instance i
         join appaal_instance_property p
