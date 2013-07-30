@@ -108,6 +108,7 @@ use Getopt::Long;
 use Data::Dumper;
 use FindBin qw($Script);
 use JazzHands::Common qw(:all);
+use JSON::PP;
 
 my $o_output_dir = "/prod/pwgen/out";
 my $o_verbose;
@@ -519,6 +520,7 @@ sub get_group_properties() {
 
 sub new_mclass_file($$$$) {
 	my ( $dir, $mclass, $fh, $filename ) = @_;
+	die "attempt to create a non-existant mclass" if(!$mclass);
 	my $mdir = "$dir/$mclass";
 
 	$fh->close if ( defined $fh );
@@ -1465,11 +1467,14 @@ sub generate_sudoers_files($) {
 
 sub generate_appaal_files($) {
 	my $dir = shift;
-	my ( $q, $sth, $row, $last_mclass, $last_app, $fh, $text );
+	my ( $q, $sth, $row, $last_mclass, $last_app, $fh );
 
 	$q = q{
 		select	c.device_collection_name mclass,
 			a.appaal_name,
+			fa.login as file_owner,
+			fg.account_collection_name as group_name,
+			i.file_mode,
 			p.app_key,
 			p.app_value
 		 from	appaal_instance i
@@ -1481,6 +1486,10 @@ sub generate_appaal_files($) {
 				on i.appaal_instance_id = ac.appaal_instance_id
 			inner join device_collection c
 				on c.device_collection_id = ac.device_collection_id
+			inner join account fa
+				on fa.account_id = i.file_owner_account_id
+			inner join account_collection fg
+				on fg.account_collection_id = i.file_group_acct_collection_id
 		where c.device_collection_type = 'mclass'
 	};
 
@@ -1492,59 +1501,104 @@ sub generate_appaal_files($) {
 	$sth = $dbh->prepare($q);
 	$sth->execute;
 
-	## $text .= "AuthFileMode:\t$blah\n";
-	## $text .= "AuthFileUser:\t$blah\n";
-	## $text .= "AuthFileGroup:\t$blah\n";
-
+	# This convoluted way of dealing with things is so that the hash for dbs
+	# can be built up and written out when complete.  Similarly, a build up
+	# for mclasses.  There is probably a smarter way to do it.
+	my $allapps;
 	my $appkeys = {};
-	while ( $row = $sth->fetchrow_arrayref ) {
-		my ( $mclass, $applname, $key, $val ) = @$row;
+	my $md = {};
+	my $closeapp = 0;
+	my $closemclass = 0;
+	do {
+		$row = $sth->fetchrow_arrayref ;
+		my ( $mclass, $applname, $owner, $group, $mode, $key, $val );
+		if(!$row) {
+			$closemclass = 1;
+			$closeapp = 1;
+		} else {
+			( $mclass, $applname, $owner, $group, $mode, $key, $val ) = @$row;
+			$closemclass = 0;
+			$closeapp = 0;
+		}
 
 		## If we switched apps, save out the data for future writing
 		if ( defined($last_app) ) {
-			if ( $last_app ne $applname ) {
-				my $go = 1;
-
-				# check to see fi we are complete.  If not, do not generate an error.
-				# This probably wants a warning...
-				$go = 0 if ($appkeys->{'Method'} eq 'Password' && !defined($appkeys->{'Password'}));
-				$go = 0 if ($appkeys->{'Method'} eq 'Kerberos' && !defined($appkeys->{'Keytab'}));
-
-				if($go) {
-					$text .= "Application: $last_app\n";
-					foreach my $k (sort keys(%$appkeys) ) {
-						$text .= "$k: ". $appkeys->{$k}. "\n";
-					}
-					$text .= "\n";
+			if(defined ($applname)) {
+				if ( $last_app ne $applname ) {
+					$closeapp = 1;
 				}
-				$appkeys = {};
-				$last_app = $applname;
+			
+			} else {
+				$closeapp = 1;
 			}
 		} else {
 			$last_app = $applname;
+			$md->{file_owner} = $owner;
+			$md->{file_group} = $group;
+			$md->{file_mode} = sprintf "0%o", $mode;
 		}
+
 
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
 		if ( defined($last_mclass) ) {
-			if ( $last_mclass ne $mclass ) {
-				print $fh $text;
-				$fh =
-				  new_mclass_file( $dir, $mclass, $fh, 'appaal' );
-				$last_mclass = $mclass;
-				undef($text);
+			if(defined($mclass) ) {
+				if ( $last_mclass ne $mclass ) {
+					$closemclass = 1;
+				}
+			} else {
+				$closemclass = 1;
 			}
-		}
-
-		else {
+		} elsif($mclass) { 
 			$fh = new_mclass_file( $dir, $mclass, $fh, 'appaal' );
 			$last_mclass = $mclass;
 		}
 
-		$appkeys->{$key} = $val;
-	}
+		if($closeapp) {
+			my $go = 1;
 
-	print $fh $text if ( $fh && $text );
+			# check to see fi we are complete.  If not, do not generate an error.
+			# This probably wants a warning...
+			$go = 0 if ($appkeys->{'Method'} eq 'Password' && !defined($appkeys->{'Password'}));
+			$go = 0 if ($appkeys->{'Method'} eq 'Kerberos' && !defined($appkeys->{'Keytab'}));
+
+			if($go) {
+				my $h = {};
+				if( exists($appkeys->{use_session_variables}) ) {
+					$h->{options} = {};
+					$h->{options}->{use_session_variables} = $appkeys->{use_session_variables};
+					delete $appkeys->{use_session_variables};
+				}
+				push(@{$h->{database}}, $appkeys);
+				$allapps->{$last_app}->{data} = $h;
+				$allapps->{$last_app}->{metadata} = $md;
+			}
+			$appkeys = {};
+			$md = {};
+			if($applname) {
+				$md->{file_owner} = $owner;
+				$md->{file_group} = $group;
+				$md->{file_mode} = sprintf "0%o", $mode;
+			}
+			$last_app = $applname;
+		}
+
+
+		if($closemclass) {
+			my $json = JSON::PP->new->ascii;
+			print $fh $json->pretty->encode($allapps);
+			if($mclass) {
+				$fh =
+			  	new_mclass_file( $dir, $mclass, $fh, 'appaal' );
+			}
+			$last_mclass = $mclass;
+			$allapps = {};
+		}
+
+		if($key) {
+			$appkeys->{$key} = $val;
+		}
+	} while(! $closemclass );
 	$fh->close if ($fh);
 }
 
