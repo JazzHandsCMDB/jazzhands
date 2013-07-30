@@ -36,7 +36,7 @@
 =head1 DESCRIPTION
 
 mkpasswdfiles reads user account and server information from JazzHands,
-and creates passwd, group, sudoers, k5login-root, dbal, and wwwgroup
+and creates passwd, group, sudoers, k5login-root, appaal, and wwwgroup
 files for MCLASSes specified on the command line. If no MCLASSes are
 specified, files for all MCLASSes are created. See the DATABASE
 PERMISSIONS section below for a list of JazzHands tables and views
@@ -1456,104 +1456,92 @@ sub generate_sudoers_files($) {
 
 ###############################################################################
 #
-# usage: generate_dbal_files($dir);
+# usage: generate_appaal_files($dir);
 #
-# Create dbal files in the directory $dir for all specified MCLASSes.
+# Create appaal files in the directory $dir for all specified MCLASSes.
 # Most of the code is taken from the old mkpasswdfiles.
 #
 ###############################################################################
 
-sub generate_dbal_files($) {
+sub generate_appaal_files($) {
 	my $dir = shift;
-	my ( $q, $sth, $row, $last_mclass, $fh, $text );
+	my ( $q, $sth, $row, $last_mclass, $last_app, $fh, $text );
 
 	$q = q{
-        select c.device_collection_name mclass, a.appaal_name,
-	  max(CASE WHEN p.app_key = 'Method' THEN p.app_value ELSE NULL END ) as method,
-	  max(CASE WHEN p.app_key = 'DBType' THEN p.app_value ELSE NULL END ) as dbtype,
-	  max(CASE WHEN p.app_key = 'Username' THEN p.app_value ELSE NULL END ) as username,
-	  max(CASE WHEN p.app_key = 'Password' THEN p.app_value ELSE NULL END ) as password,
-	  max(CASE WHEN p.app_key = 'DBName' THEN p.app_value ELSE NULL END ) as servicename,
-	  max(CASE WHEN p.app_key = 'Keytab' THEN p.app_value ELSE NULL END ) as keytab
-        from appaal_instance i
-        join appaal_instance_property p
-        on i.appaal_instance_id = p.appaal_instance_id
-        join appaal a on i.appaal_id = a.appaal_id
-        join appaal_instance_device_coll ac
-        on i.appaal_instance_id = ac.appaal_instance_id
-        join device_collection c
-        on c.device_collection_id = ac.device_collection_id
-        where c.device_collection_type = 'mclass'        
-    };
+		select	c.device_collection_name mclass,
+			a.appaal_name,
+			p.app_key,
+			p.app_value
+		 from	appaal_instance i
+		 	inner join appaal_instance_property p
+				on i.appaal_instance_id = p.appaal_instance_id
+			inner join appaal a
+				on i.appaal_id = a.appaal_id
+			inner join appaal_instance_device_coll ac
+				on i.appaal_instance_id = ac.appaal_instance_id
+			inner join device_collection c
+				on c.device_collection_id = ac.device_collection_id
+		where c.device_collection_type = 'mclass'
+	};
 
 	if ($q_mclass_ids) {
 		$q .= "and c.device_collection_id in $q_mclass_ids";
 	}
 
-	$q .= " group by c.device_collection_name, a.appaal_name order by c.device_collection_name, a.appaal_name";
+	$q .= " order by c.device_collection_name, a.appaal_name";
 	$sth = $dbh->prepare($q);
 	$sth->execute;
 
+	## $text .= "AuthFileMode:\t$blah\n";
+	## $text .= "AuthFileUser:\t$blah\n";
+	## $text .= "AuthFileGroup:\t$blah\n";
+
+	my $appkeys = {};
 	while ( $row = $sth->fetchrow_arrayref ) {
-		my ( $mclass, $applname, $method, $dbtype, $username, $password,
-			$servicename, $keytab )
-		  = @$row;
+		my ( $mclass, $applname, $key, $val ) = @$row;
+
+		## If we switched apps, save out the data for future writing
+		if ( defined($last_app) ) {
+			if ( $last_app ne $applname ) {
+				my $go = 1;
+
+				# check to see fi we are complete.  If not, do not generate an error.
+				# This probably wants a warning...
+				$go = 0 if ($appkeys->{'Method'} eq 'Password' && !defined($appkeys->{'Password'}));
+				$go = 0 if ($appkeys->{'Method'} eq 'Kerberos' && !defined($appkeys->{'Keytab'}));
+
+				if($go) {
+					$text .= "Application: $last_app\n";
+					foreach my $k (sort keys(%$appkeys) ) {
+						$text .= "$k: ". $appkeys->{$k}. "\n";
+					}
+					$text .= "\n";
+				}
+				$appkeys = {};
+				$last_app = $applname;
+			}
+		} else {
+			$last_app = $applname;
+		}
 
 		## If we switched MCLASSes, write the accumulated text to the file,
 		## open a new file, and empty the buffer
-
 		if ( defined($last_mclass) ) {
 			if ( $last_mclass ne $mclass ) {
 				print $fh $text;
 				$fh =
-				  new_mclass_file( $dir, $mclass, $fh, 'dbal' );
+				  new_mclass_file( $dir, $mclass, $fh, 'appaal' );
 				$last_mclass = $mclass;
 				undef($text);
 			}
 		}
 
 		else {
-			$fh = new_mclass_file( $dir, $mclass, $fh, 'dbal' );
+			$fh = new_mclass_file( $dir, $mclass, $fh, 'appaal' );
 			$last_mclass = $mclass;
 		}
 
-		## This part of the code is copied from the old mkpasswdfiles.
-		## It will need to be modified to support arbitrary key/value pairs
-		## in DBAAL files.
-
-		next if ( !$username || !$method || !$servicename );
-
-		if ( $method eq "password" ) {
-			next if ( !$password );
-		}
-
-		elsif ( $method eq "kerberos" ) {
-			next if ( !$keytab );
-		}
-
-		$text .= "Application:\t$applname\n";
-		$text .= "Method:\t$method\n";
-		$text .= "DBType:\t$dbtype\n";
-		$text .= "ServiceName:\t$servicename\n";
-		$text .= "Username:\t$username\n";
-	## placeholder for setting perms on this generated file.
-	## mode will be the usual 4 digit octal 
-	## user, group will be login-names/group-names
-	## these are optional and if found & valid will
-	## override the defaults of 0644, root, root.
-	## $text .= "AuthFileMode:\t$blah\n";
-	## $text .= "AuthFileUser:\t$blah\n";
-	## $text .= "AuthFileGroup:\t$blah\n";
-
-		if ( $method eq "password" ) {
-			$text .= "Password:\t$password\n";
-		}
-
-		elsif ( $method eq "kerberos" ) {
-			$text .= "Keytab:\t$keytab\n";
-		}
-
-		$text .= "\n";
+		$appkeys->{$key} = $val;
 	}
 
 	print $fh $text if ( $fh && $text );
@@ -1913,7 +1901,7 @@ sub main {
 	generate_group_files($dir);
 	retrieve_sudo_data();
 	generate_sudoers_files($dir);
-	generate_dbal_files($dir);
+	generate_appaal_files($dir);
 	generate_k5login_root_files($dir);
 	generate_wwwgroup_files($dir);
 
