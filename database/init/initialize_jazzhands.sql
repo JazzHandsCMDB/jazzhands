@@ -611,7 +611,7 @@ insert into val_property_type (
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID) values
-('sudo-default','sudoers', 'sudo default values', 'N', 'string', 'REQUIRED');
+('sudo-default','sudoers', 'sudo default values', 'N', 'number', 'REQUIRED');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID) values
@@ -687,6 +687,12 @@ insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE)
 values
 ('_defaultdomain', 'Defaults', 'defines domain used for defaultas where necessary', 'N', 'string');
+
+insert into val_property
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE)
+values
+('_supportemail', 'Defaults', 'defines support email used by tools', 'N', 
+'string');
 
 insert into val_property(
 	property_name, property_type, description, is_multivalue,
