@@ -273,7 +273,7 @@ sub get_passwd_line($$$$) {
 
 	## Determine home directory
 
-	my $hp = defined( $mp->{_dbx('HOME_PLACE')} ) ? $mp->{_dbx('HOME_PLACE')} : '/var/home';
+	my $hp = defined( $mp->{_dbx('HOME_PLACE')} ) ? $mp->{_dbx('HOME_PLACE')} : '/home';
 	if($home) {
 		$home =~ m!/([^/]+)$!;
 		if( defined( $1 ) ) {
@@ -636,14 +636,8 @@ sub generate_passwd_files($) {
 
 		if ( defined($last_dcid) ) {
 			if ( $last_dcid != $dcid ) {
-				foreach my $p ( sort _by_uid @pwdlines ) {
-					if (grep { !defined($_) } @$p) {
-						warn "MCLASS_ID $last_dcid: malformed passwd line: " .
-							join(':',map { defined($_) ? $_ : '' } @$p) . "\n";
-					} else {
-						print $fh join( ':', @$p ), "\n";
-					}
-				}
+				my $json = JSON::PP->new->ascii;
+				print $fh $json->pretty->encode(\@pwdlines);
 				$fh =
 				  new_mclass_file( $dir, $r->{_dbx('MCLASS')}, $fh,
 					'passwd' );
@@ -677,23 +671,26 @@ sub generate_passwd_files($) {
 			GID        => $gid
 		};
 
+		my $userhash = {
+			'login' => $pwd[0],
+			'password_hash' => $pwd[1],
+			'uid' => $pwd[2],
+			'gid' => $pwd[3],
+			'gecos' => $pwd[4],
+			'home' => $pwd[5],
+			'shell' => $pwd[6],
+			'group_name' => $pwd[7],
+		};
+
 		## Accumulate all passwd file lines in @pwdlines.
 		## $pwd[7] is the group name. We don't need it anymore.
 
-		push( @pwdlines, [ @pwd[ 0 .. 6 ] ] );
+		push( @pwdlines, $userhash );
 	}
 
 	## Let's not forget to write the passwd file for the last MCLASS
-
-	foreach my $p ( sort _by_uid @pwdlines ) {
-		if (grep { !defined($_) } @$p) {
-			warn "MCLASS_ID $last_dcid: malformed passwd line: " .
-				join(':', map { defined($_) ? $_ : '' } @$p) . "\n";
-		} else {
-			print $fh join( ':', @$p ), "\n";
-		}
-	}
-
+	my $json = JSON::PP->new->ascii;
+	print $fh $json->pretty->encode(\@pwdlines) if($fh);
 	$fh->close if ( defined $fh );
 }
 
@@ -940,6 +937,7 @@ sub generate_group_files($) {
 		$fh = new_mclass_file( $dir, $mclass->{$dcid}{ _dbx('MCLASS') },
 			$fh, 'group' );
 
+		my @allgrp;
 		foreach my $gname (
 			sort    ## by GID
 			{
@@ -966,9 +964,17 @@ sub generate_group_files($) {
 
 			@m = grep( defined( $passwd_grp->{$dcid}{$_} ), @m );
 
-			print $fh "$gname:*:$gid:"
-			  . join( ',', sort { $a cmp $b } @m ) . "\n";
+			#print $fh "$gname:*:$gid:"
+			#  . join( ',', sort { $a cmp $b } @m ) . "\n";
+			push(@allgrp, {
+				'group_name'	=>	$gname,
+				'group_password' 	=>	'*',
+				'gid'	=>	$gid,
+				'members' => \@m
+			});
 		}
+		my $json = JSON::PP->new->ascii;
+		print $fh $json->pretty->encode(\@allgrp);
 	}
 }
 
