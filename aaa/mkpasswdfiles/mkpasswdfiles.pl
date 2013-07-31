@@ -150,7 +150,7 @@ sub get_support_email($) {
 	my $sth = $dbh->prepare_cached(
 		q{
     	SELECT	property_value
-	  FROM	property
+	  FROM	v_property
 	 WHERE	property_name = '_supportemail'
 	  AND   property_type = 'Defaults'
     }
@@ -1075,7 +1075,7 @@ sub retrieve_sudo_data() {
 
 	$q = q{
         select	d.device_collection_id, property_value AS sudo_value
-        from	property p, device_collection d
+        from	v_property p, device_collection d
         where	p.device_collection_id = d.device_collection_id
 	and	p.property_name = 'sudo-default'
 	and	p.property_type = 'sudoers'
@@ -1746,7 +1746,7 @@ sub generate_wwwgroup_files($) {
         join account a on dcue.account_id = a.account_id
         join account_collection u on 
 		dcue.account_collection_id = u.account_collection_id
-        left join property p on 
+        left join v_property p on 
 		(u.account_collection_id = p.account_collection_id
         and p.property_type = 'wwwgroup'
         and p.property_name = 'WWWGroupName')
@@ -1980,6 +1980,10 @@ sub main {
 	$dbh =
 	  JazzHands::DBI->connect( 'mkpwdfiles',
 		{ RaiseError => 1, AutoCommit => 0 } );
+
+	if( !$dbh ) {
+		die "mkpwdfiles: ", $dbh->errstr;
+	}
 
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
 	umask(027);
