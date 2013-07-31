@@ -1,6 +1,6 @@
 %define name    jazzhands-perl-mgmt
-%define version 0.52.2
-%define release 1
+%define version 0.53
+%define release 0
 Name:   	%{name}
 Version:        %{version}
 Release:        %{release}%{?dist}
@@ -12,7 +12,7 @@ Source0:	%{name}.tgz
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:	noarch
 #BuildRequires: 
-Requires:      	php
+#Requires:      	php
 
 %description
 
@@ -23,18 +23,16 @@ System Tools for Administrative Baselining
 
 echo Nothing to do for web site
 echo Building perl modules
-%{__perl} Makefile.PL INSTALLDIRS=vendor --default
+%{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
 
 %install
-rm -rf $RPM_BUILD_ROOT
+make pure_install
 
-make pure_install PERL_INSTALL_ROOT=$RPM_BUILD_ROOT
-
-find $RPM_BUILD_ROOT -type f -name .packlist -exec rm -f {} \;
-find $RPM_BUILD_ROOT -depth -type d -exec rmdir {} 2>/dev/null \;
+find %{buildroot} -type f -name .packlist -exec rm -f {} \;
+find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;
 
 %clean
-rm -rf %{buildroot}
+#rm -rf %{buildroot}
 
 %files
 %defattr(755,root,root,-)
