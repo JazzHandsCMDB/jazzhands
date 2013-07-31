@@ -30,7 +30,7 @@ use vars qw($VERSION @EXPORT @EXPORT_OK @ISA);
 $VERSION = '1.0';
 
 require Exporter;
-our @ISA = qw ( Exporter JazzHands::Mgmt);
+our @ISA = qw ( Exporter JazzHands::Mgmt JazzHands::Common::GenericDB );
 
 # The only things that should be in this list that require a JazzHands::Mgmt
 # object explicity (typically just Get* functions)

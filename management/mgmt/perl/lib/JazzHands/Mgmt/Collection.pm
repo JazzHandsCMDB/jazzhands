@@ -45,6 +45,7 @@ my $collection_params = {
 	'netblock' => {
 		_dbtable => "netblock_collection",
 		_dbmembertable => "netblock_collection_netblock",
+		_dbhiertable => "netblock_collection_hier",
 		_memberobject => 'JazzHands::Mgmt::Netblock',
 		_memberfetchfunction => \&JazzHands::Mgmt::Netblock::GetNetblock,
 		_dbkey => [ qw(netblock_collection_id) ],
@@ -84,6 +85,12 @@ sub new {
 		$self->{$key} = $collection_params->{$opt->{type}}->{$key};
 	}
 	$self->{_current} = {};
+    foreach my $key ( @{$collection_params->{$opt->{type}}->{_validmatch}},
+			'description' ) {
+        if ($opt->{$key}) {
+            $self->{_current}->{$key} = $opt->{$key};
+        }
+    }
 
 	bless $self, $class;
 	#
@@ -102,6 +109,16 @@ sub new {
 	}
 
 	return $self;
+}
+
+sub hash {
+	my $self = shift;
+	return $self->{_current};
+}
+
+sub members {
+	my $self = shift;
+	return $self->{_currentmembers};
 }
 
 sub GetCollection {
@@ -127,7 +144,7 @@ sub GetCollection {
 			"invalid type passed to JazzHands::Mgmt::Collection::GetCollection");
 		return undef;
 	}
-	my $match;
+	my $match = [];
 
 	foreach my $key ( @{$collection_params->{$type}->{_validmatch}}) {
 		if ($opt->{$key}) {
@@ -137,7 +154,7 @@ sub GetCollection {
 			};
 		}
 	}
-	
+
 	my $rows = DBFetch(
 		dbhandle => $dbh,
 		table => $collection_params->{$type}->{_dbtable},

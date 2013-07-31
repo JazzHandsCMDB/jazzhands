@@ -510,7 +510,7 @@ sub DBFetch {
 		}
 	} else {
 		SetError($opt->{errors},
-			"Match must be a referene to a hash or an array"
+			"Match must be a reference to a hash or an array"
 			);
 		return undef;
 	}

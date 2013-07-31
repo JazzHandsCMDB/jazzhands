@@ -28,7 +28,7 @@ set search_path = jazzhands;
 
 CREATE USER app_stab LOGIN;
 
-alter user app_stab set serach_path = jazzhands;
+alter user app_stab set search_path = jazzhands;
 
 grant usage on schema net_manip to app_stab;
 grant usage on schema port_utils to app_stab;
