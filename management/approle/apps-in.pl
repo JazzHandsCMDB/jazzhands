@@ -77,9 +77,9 @@ sub do_work {
 
 	my $DCsth = $dbh->prepare_cached(qq{
 		insert into device_collection 
-			(device_collection_name, device_collection_type,SHOULD_GENERATE_SUDOERS)
+			(device_collection_name, device_collection_type)
 		values
-			(:name, 'appgroup', 'N')
+			(:name, 'appgroup')
 		returning device_collection_id 
 	}) || die $dbh->errstr;
 	# INTO missing
