@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2010, Todd Kover
 # All rights reserved.
 #
@@ -50,10 +50,10 @@ sub process_groups {
 		$g->{$name}->{gid} = $gid;
 
 		my $namesth = $dbh->prepare_cached(qq{
-			select	uclass_id
-			  from	uclass
-			 where	uclass_type = 'unix-group'
-			  and	name = :1
+			select	account_collection_id
+			  from	account_collection
+			 where	account_collection_type = 'unix-group'
+			  and	account_collection_name = ?
 		}) || die $dbh->errstr;
 		$namesth->execute($name) || die $namesth->errstr;
 		my ($id) = ($namesth->fetchrow_array)[0];
@@ -64,12 +64,12 @@ sub process_groups {
 		}
 
 		my $idsth = $dbh->prepare_cached(qq{
-			select	u.uclass_id, u.name
+			select	ac.account_collection_id, ac.account_collection_name
 			  from	unix_group ug
-					inner join uclass u
-						on u.uclass_id = ug.uclass_id
-			 where	u.uclass_type = 'unix-group'
-			  and	ug.unix_gid = :1
+					inner join account_collection ac
+					on ac.account_collection_id = ug.account_collection_id
+			 where	ac.account_collection_type = 'unix-group'
+			  and	ug.unix_gid = ?
 		}) || die $dbh->errstr;
 		$idsth->execute($gid) || die $idsth->errstr;
 		my ($dbid, $dbname) = ($idsth->fetchrow_array)[0, 1];
@@ -80,31 +80,37 @@ sub process_groups {
 		}
 
 		my $sth = $dbh->prepare_cached(qq{
-			begin
-				insert into uclass
-					(name, uclass_type)
+			WITH ins as (
+				insert into account_collection
+					(account_collection_name, account_collection_type)
 				values
-					(:name, 'unix-group')
-				returning uclass_id into :uclassid;
+					(:acname, 'unix-group')
+				returning account_collection_id
+			) SELECT account_collection_id from ins
+		}) || die $dbh->errstr;
+		$sth->bind_param(':acname', $name) || die $sth->errstr;
+		# NOTE: This does not work in oracle!
+		$sth->execute || die $sth->errstr;
+		my($acid) = $sth->fetchrow_array || die "could not get acid";
+		$sth->finish;
 
+		$sth = $dbh->prepare_cached(qq{
 				insert into unix_group (
-					uclass_id, group_name,
+					account_collection_id, 
 					unix_gid, group_password
 				) values (
-					:uclassid, :name,
+					:ac_id,
 					:gid, :pwd
-				);
-			end;
+				)
 		}) || die $dbh->errstr;
 
 		$pwd = undef if($pwd && $pwd =~ /^.$/);
-		$sth->bind_param(':name', $name) || die $sth->errstr;
 		$sth->bind_param(':gid', $gid) || die $sth->errstr;
 		$sth->bind_param(':pwd', $pwd) || die $sth->errstr;
-		$sth->bind_param_inout(':uclassid', \$id, 50) || die $sth->errstr;
+		$sth->bind_param(':ac_id', $acid) || die $sth->errstr;
 		$sth->execute || die $sth->errstr;
 
-		$g->{$name}->{id} = $id;
+		$g->{$name}->{id} = $acid;
 	}
 	$fh->close;
 	$g;
@@ -118,27 +124,21 @@ sub add_user {
 	# if user is there, do nothing.
 	# need to have bjech's magical name matching logic apply.
 
+	# NOTE: XXX - this needs to distinguish between people and non-people
+	# (pseudousers).  Right not it assumes everyone is a person which is
+	# WRONG.
 	my $sth = $dbh->prepare_cached(qq{
 		begin
-			system_user_util.user_add(
-				p_system_user_id => :id,
-				p_login => :login,
+			PERFORM person_manip.add_person (
+				__person_id => :id,
+				login => :login,
 				p_first_name => :first,
 				p_middle_name => :middle,
 				p_last_name => :last,
-				p_system_user_status => 'enabled',
-				p_system_user_type => :type,
-				p_company_id => 0,
-				p_employee_id => :empid,
-				p_name_suffix => NULL,
-				p_position_title => NULL,
-				p_gender => NULL,
-				p_preferred_first_name => NULL,
-				p_preferred_last_name => NULL,
-				p_hire_date => NULL,
-				p_shirt_size => NULL,
-				p_pant_size => NULL,
-				p_hat_size => NULL
+				is_manager => 'N',
+				is_exempt => 'N',
+				is_full_time => 'N',
+				person_company_relation => 'employee'
 			);
 		end;
 	}) || die $dbh->errstr;
@@ -158,39 +158,27 @@ sub add_user {
 	$sth->bind_param(':first', $first) || die $sth->errstr;
 	$sth->bind_param(':middle', $middle) || die $sth->errstr;
 	$sth->bind_param(':last', $last) || die $sth->errstr;
-	$sth->bind_param(':type', $type) || die $sth->errstr;
 
 	my ($id, $empid);
 	$sth->bind_param_inout(':id', \$id, 50) || die $sth->errstr;
-	$sth->bind_param_inout(':empid', \$empid, 50) || die $sth->errstr;
 	$sth->execute || die $sth->errstr;
 	$id;
 }
 
 sub do_work {
-	my $dbh = JazzHands::DBI->connect('jazzhands', {AutoCommit=>0}) || confess;
-
-	{
-		my $dude = (getpwuid($<))[0] || 'unknown';
-		my $q = qq{ 
-			begin
-				dbms_session.set_identifier ('$dude');
-			end;
-		};
-		if(my $sth = $dbh->prepare($q)) {
-			$sth->execute || confess $sth->errstr;
-		}
-	}
+	my $dbh = JazzHands::DBI->connect('import-passwd', {AutoCommit=>0}) || confess "Connect to DB: ", $JazzHands::DBI::errstr;
 
 	#
 	# XXX - needs to be converted to arguments, and also
 	#
 	my $group="group";
-	my $passwd="master.passwd";
+	#my $passwd="master.passwd";
+	my $passwd="/etc/passwd";
 	my $shadow="shadow";
 
 	# my $fmt = "shadow";
-	my $fmt = "masterpasswd";
+	# my $fmt = "masterpasswd";
+	my $fmt = "passwd";
 
 	my $grp = process_groups($dbh, $group);
 
@@ -215,6 +203,8 @@ sub do_work {
 		# XXX - need to deal with the rest of the master.passwd entries
 		if($fmt eq 'masterpasswd') {
 			($dude,$crypt,$uid,$gid,$gecos,$home,$shell) = @f[0,1,2,3,7,8,9];
+		} elsif($fmt eq 'passwd') {
+			($dude,$crypt,$uid,$gid,$gecos,$home,$shell) = @f[0,1,2,3,4,5,6];
 		} elsif($fmt eq 'shadow') {
 			($dude,$crypt,$uid,$gid,$gecos,$home,$shell) = @f[0,1,2,3,4,5,6];
 		}
@@ -228,9 +218,9 @@ sub do_work {
 		# including if password type is not there (may be a bad idea)
 		if($dude) {
 			my $sth = $dbh->prepare_cached(qq{
-				select	system_user_id
-				 from	system_user
-				where	login = :1
+				select	account_id
+				 from	account
+				where	login = ?
 			}) || die $dbh->errstr;
 			$sth->execute($dude) || die $sth->errstr;
 			my $suid = ($sth->fetchrow_array)[0];
@@ -269,9 +259,9 @@ sub do_work {
 						password_type,
 						user_password
 					) values (
-						:1,
-						:2,
-						:3
+						?,
+						?,
+						?
 					)
 				}) || die $dbh->errstr;
 				$sth->execute($suid, $pwtype, $crypt) || die $sth->errstr;
@@ -293,18 +283,18 @@ sub do_work {
 					next;
 				}
 				my $sth = $dbh->prepare_cached(qq{
-					insert into user_unix_info (
+					insert into account_unix_info (
 						system_user_id,
 						unix_uid,
-						unix_group_uclass_id,
+						unix_group_acct_collection_id,
 						shell,
 						default_home
 					) values (
-						:1,
-						:2,
-						:3,
-						:4,
-						:5
+						?,
+						?,
+						?,
+						?,
+						?
 					)
 				}) || die $dbh->errstr;
 				$sth->execute($suid,$uid,$dbgid,$shell,$home) || die $sth->errstr;
