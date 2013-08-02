@@ -107,7 +107,7 @@ sub add_instance($$$) {
 				) values (
 					?,
 					?,
-					0755,
+					493,
 					(select account_id from account where login = 'root'),
 					(select account_collection_id from account_collection
 					 where account_collection_name = 'root'
@@ -187,7 +187,7 @@ sub add_dc($$$) {
 
 
 sub do_work {
-	my $dbh = JazzHands::DBI->connect('import-passwd', {AutoCommit=>0}) || confess "Connect to DB: ", $JazzHands::DBI::errstr;
+	my $dbh = JazzHands::DBI->connect('import-appaal', {AutoCommit=>0}) || confess "Connect to DB: ", $JazzHands::DBI::errstr;
 
 	my $mclass;
 	my $jsondir;
