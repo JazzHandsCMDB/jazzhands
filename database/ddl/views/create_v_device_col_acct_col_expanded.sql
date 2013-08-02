@@ -32,7 +32,8 @@
 -- types (such as 'system' and 'per-user') to be expanded.
 
 CREATE OR REPLACE VIEW v_device_col_acct_col_expanded AS
-SELECT DISTINCT dchd.device_collection_id, dcu.account_collection_id, vuue.account_id
+SELECT DISTINCT dchd.device_collection_id, dcu.account_collection_id, 
+	vuue.account_id
 FROM v_device_coll_hier_detail dchd
 JOIN v_property dcu ON dcu.device_collection_id = 
 	dchd.parent_device_collection_id

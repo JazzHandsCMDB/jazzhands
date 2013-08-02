@@ -3,8 +3,8 @@
 -- $Id$
 --
 
--- DROP SCHEMA IF EXISTS schema_support;
--- CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
+DROP SCHEMA IF EXISTS schema_support;
+CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -150,7 +150,7 @@ BEGIN
             ( aud_schema, tbl_schema, table_list.table_name );
     END LOOP;
 
-    PERFORM schema_support.rebuild_audit_triggers();
+    PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
 END;
 $FUNC$ LANGUAGE plpgsql;
 

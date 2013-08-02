@@ -21,15 +21,42 @@
 -- even when it's one of the ancestor netblocks that has the
 -- site_netblock assignments
 
-CREATE OR REPLACE VIEW v_site_netblock_expanded AS
+CREATE OR REPLACE VIEW v_netblock_expanded AS
 WITH RECURSIVE parent_netblock AS (
-  SELECT n.netblock_id, n.parent_netblock_id, n.ip_address, sn.site_code
+  SELECT n.*, sn.site_code, 'EXPLICIT' as site_assignment
   FROM netblock n LEFT JOIN site_netblock sn on n.netblock_id = sn.netblock_id
   WHERE n.parent_netblock_id IS NULL
   UNION
-  SELECT n.netblock_id, n.parent_netblock_id, n.ip_address,
-    coalesce(sn.site_code, p.site_code)
-  FROM netblock n JOIN parent_netblock p ON n.parent_netblock_id = p.netblock_id
-  LEFT JOIN site_netblock sn ON n.netblock_id = sn.netblock_id
+  SELECT n.*, coalesce(sn.site_code, p.site_code) as site_code,
+	case	WHEN sn.site_code is NULL THEN 'INHERITED'
+		WHEN p.site_code is NULL THEN NULL
+		ELSE 'ASSIGNED' END as site_assignment
+  FROM netblock n 
+	JOIN parent_netblock p 
+		ON n.parent_netblock_id = p.netblock_id
+  LEFT JOIN site_netblock sn 
+	ON n.netblock_id = sn.netblock_id
 )
-SELECT site_code, netblock_id FROM parent_netblock;
+SELECT 
+	netblock_id,
+	host(ip_address) as IP,
+	ip_address,
+	netmask_bits,
+	netblock_type,
+	is_ipv4_address,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	nic_id,
+	nic_company_id,
+	ip_universe_id,
+	description,
+	reservation_ticket_number,
+	site_code,
+	site_assignment,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM parent_netblock;

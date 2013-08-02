@@ -26,14 +26,18 @@
 -- $Id$
 --
 
-\i accountview.sql
-\i sysuserphoneview.sql
+-- XXX - Not sure if these two are still needed.  Leaving out until it is
+-- \i accountview.sql
+-- \i sysuserphoneview.sql
+
 -- not sure that we need these anymore.
 -- \i create_v_login_changes.sql
 -- \i create_v_user_deletions.sql
 
 \i pgsql/create_v_netblock_hier.sql
-\i create_v_user_extract.sql 
+
+-- XXX - not sure if this is still needed.  Leaving out until it is
+-- \i create_v_user_extract.sql 
 \i pgsql/create_v_property.sql
 \i pgsql/create_v_nblk_coll_netblock_expanded.sql
 \i pgsql/create_v_person_company_expanded.sql
@@ -47,7 +51,8 @@
 -- not sure that we need these anymore.
 -- \i create_audit_views.sql
 
-\i create_v_limited_users.sql
+-- XXX - not sure if this is still needed.  Leaving out until it is.
+-- \i create_v_limited_users.sql
 \i create_v_l1_all_physical_ports.sql
 
 -- XXX these need to be ported
@@ -74,3 +79,5 @@
 
 \i pgsql/create_v_company_hier.sql
 \i pgsql/create_v_site_netblock_expanded.sql
+
+\i create_v_device_col_acct_col_expanded.sql

@@ -47,6 +47,7 @@ DECLARE
 	dt_id	device.device_type_id%type;
 BEGIN
 	if( port_support.has_power_ports(in_device_id) ) then
+		return;
 	end if;
 
 	select  device_type_id

@@ -41,9 +41,10 @@ Much of this needs to be written.
 Everything is in one database, but there are many schemas.  The main schema
 is jazzhands.  [ flesh out flesh out ]
 
-custom variable classes are used throughout for auditing.  You need to  put:
-	custom_variable_classes='jazzhands' in postgresql.conf (generally
-	towards the end)
+custom variable classes are used throughout for auditing.  For before postgresql
+	9.2, you need to  put: 
+		custom_variable_classes='jazzhands' in postgresql.conf 
+	(generally towards the end)
 
 Initializing Data:
 
@@ -51,3 +52,9 @@ initialize_schema_data.sql will deposit a bunch of example data. Some of
 it you probably want to preserve, as many of the tools expect it to be there.
 Some of it, not so much.  (the optional and example files fall into this
 category).
+
+you need to create these as a superuser:
+	create role picture_image_ro;
+	create role picture_image_rw;
+	create role picture_image_rm;
+

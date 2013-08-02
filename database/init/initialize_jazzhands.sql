@@ -809,6 +809,16 @@ INSERT INTO Unix_Group (
 	'*'
 );
 
+insert into Account_Collection (Account_Collection_Name, Account_Collection_Type)
+	values ('root', 'per-user');
+
+insert into Account_Collection_Account (Account_Collection_Id, Account_Id)
+select u.Account_Collection_id, a.account_id
+from    Account_Collection u, account a
+where u.Account_Collection_type in ('unix-group', 'per-user')
+and u.Account_Collection_name = 'root'
+and a.login in ('root');
+
 INSERT INTO Account_Unix_Info (
 	Account_Id,
 	Unix_UID,
@@ -836,16 +846,6 @@ INSERT INTO Account_Password (
 	'T6r7sdlVHpZH2',
 	now()
 );
-
-insert into Account_Collection (Account_Collection_Name, Account_Collection_Type)
-	values ('root', 'per-user');
-
-insert into Account_Collection_Account (Account_Collection_Id, Account_Id)
-select u.Account_Collection_id, a.account_id
-from    Account_Collection u, account a
-where u.Account_Collection_type in ('unix-group', 'per-user')
-and u.Account_Collection_name = 'root'
-and a.login in ('root');
 
 
 
