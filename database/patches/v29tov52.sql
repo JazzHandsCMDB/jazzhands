@@ -1,4 +1,4 @@
-\set ON_ERROR_STOP
+-- \set ON_ERROR_STOP
 
 set search_path = jazzhands;
 
@@ -696,7 +696,7 @@ CREATE TABLE person_company
 	person_id	integer NOT NULL,
 	person_company_status	varchar(50) NOT NULL,
 	person_company_relation	varchar(50) NOT NULL,
-	is_exempt	character(1) NOT NULL,
+	is_exempt	character(1) NULL,
 	is_management	character(1) NOT NULL,
 	is_full_time	character(1) NOT NULL,
 	description	varchar(255)  NULL,
@@ -926,7 +926,7 @@ ALTER TABLE person_company
 	SET DEFAULT 'Y'::bpchar;
 
 -- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE person_company ADD CONSTRAINT ak_uq_person_company_empid UNIQUE (employee_id, company_id);
+-- ALTER TABLE person_company ADD CONSTRAINT ak_uq_person_company_empid UNIQUE (employee_id, company_id);
 ALTER TABLE person_company ADD CONSTRAINT ak_uq_prson_company_bdgid UNIQUE (badge_id, company_id);
 ALTER TABLE person_company ADD CONSTRAINT pk_person_company PRIMARY KEY (company_id, person_id);
 -- INDEXES
