@@ -122,6 +122,7 @@ use Data::Dumper;
 use FindBin qw($Script);
 use JazzHands::Common qw(:all);
 use JSON::PP;
+use File::Find;
 
 my $o_output_dir = "/prod/pwgen/out";
 my $o_verbose;
@@ -1975,6 +1976,33 @@ sub cleanup_old_tempdirs($) {
 }
 
 ###############################################################################
+# usage: create_json_manifest( $dir, $output_dir, $output_file );
+#
+# Creates a JSON manifest file that is an array of all of the files in the specified directory
+#
+###############################################################################
+
+sub create_json_manifest {
+	my ($dir, $output_dir, $output_file) = @_;
+	
+	my @files;
+	my $finder = sub {
+		if (-f or -l) {
+			my $file = $File::Find::name;
+			$file =~ s#^$output_dir/##;
+			push @files, $file;
+		}
+	};
+	find ($finder, $dir);
+	@files = sort(@files);
+	my $json = JSON::PP->new->ascii;
+	my $fh = IO::File->new( "$output_dir/$output_file", "w", 0640 )
+        	or die "can't create file $output_dir/$output_file: $!\n";
+	print $fh $json->pretty->encode( \@files );
+       	$fh->close if ( defined $fh );
+}
+
+###############################################################################
 
 sub main {
 	my $dir;
@@ -2034,4 +2062,7 @@ sub main {
 
 	create_host_symlinks( "$o_output_dir/hosts", @ARGV );
 	$dbh->disconnect;
+
+	## Create the manifest
+	create_json_manifest( $o_output_dir, $o_output_dir, 'manifest.json' );
 }
