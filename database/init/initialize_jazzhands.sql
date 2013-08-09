@@ -101,6 +101,8 @@ INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('usertype', 'automatic Account_Collectiones defined by user type');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('site', 'automatic Account_Collectiones defined by user site');
+INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
+	VALUES ('automated', 'automatic Account_Collectiones managed by trigger');
 
 INSERT INTO VAL_Device_Status (Device_Status, Description)
 	VALUES ('unknown', 'Unknown or incompletely entered');
@@ -793,8 +795,10 @@ INSERT INTO Account (
 	'pseudouser'
 );
 
-insert into Account_Collection (Account_Collection_name, Account_Collection_type)
-	values ('root', 'unix-group');
+insert into Account_Collection 
+	(Account_Collection_name, Account_Collection_type)
+values 
+	('root', 'unix-group');
 
 INSERT INTO Unix_Group (
 	Account_Collection_id,
