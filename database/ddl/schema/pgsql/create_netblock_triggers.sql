@@ -305,8 +305,9 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS ta_manipulate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS aaa_ta_manipulate_netblock_parentage ON jazzhands.netblock;
 
-CREATE CONSTRAINT TRIGGER ta_manipulate_netblock_parentage
+CREATE CONSTRAINT TRIGGER aaa_ta_manipulate_netblock_parentage
 	AFTER INSERT OR DELETE ON jazzhands.netblock NOT DEFERRABLE
 	FOR EACH ROW EXECUTE PROCEDURE jazzhands.manipulate_netblock_parentage_after();
 
