@@ -62,25 +62,26 @@ BEGIN
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
 		UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
             WHERE dns_domain_id = NEW.dns_domain_id
-			AND zone_last_updated < last_generated;
+			AND ( zone_last_updated < last_generated
+			OR zone_last_updated is NULL);
 
 		IF NEW.dns_type = 'A' THEN
 			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
 				WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-				AND zone_last_updated < last_generated;
+				AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 		END IF;
 
 		IF TG_OP = 'UPDATE' THEN
 			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
 				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
 					 WHERE dns_domain_id = OLD.dns_domain_id
-					 AND zone_last_updated < last_generated;
+					 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
 			IF NEW.dns_type = 'A' THEN
 				IF OLD.netblock_id != NEW.netblock_id THEN
 					UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
 						 WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
-						 AND zone_last_updated < last_generated;
+					     AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 				END IF;
 			END IF;
 		END IF;
@@ -89,12 +90,12 @@ BEGIN
     IF TG_OP = 'DELETE' THEN
         UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
 			WHERE dns_domain_id = OLD.dns_domain_id
-			AND zone_last_updated < last_generated;
+			AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 
         IF OLD.dns_type = 'A' THEN
 			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
                  WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
-				 AND zone_last_updated < last_generated;
+				 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
         END IF;
     END IF;
 	RETURN NEW;

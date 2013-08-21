@@ -708,6 +708,19 @@ BEGIN
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
+
+	IF v_prop.Permit_Property_Rank = 'REQUIRED' THEN
+			IF NEW.property_rank IS NULL THEN
+				RAISE 'property_rank is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Property_Rank = 'PROHIBITED' THEN
+			IF NEW.property_rank IS NOT NULL THEN
+				RAISE 'property_rank is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
