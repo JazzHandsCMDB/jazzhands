@@ -429,6 +429,7 @@ sub get_mclass_properties {
 			on p.device_collection_id = 
 				d.parent_device_collection_id
 	 where p.property_type = 'MclassUnixProp'
+		and p.property_name != 'UnixLogin'
     	};
 
 	if ($q_mclass_ids) {
@@ -776,7 +777,6 @@ sub generate_group_files($) {
 			ugu.account_collection_id = ug.account_collection_id 
         where c.device_collection_type = 'mclass'
 		and mg2.property_name = 'MclassUnixProp'
-		and mg2.property_name = 'UnixGroupAssign'
     };
 
 	if ($q_mclass_ids) {
@@ -2048,7 +2048,7 @@ sub main {
 	generate_group_files($dir);
 	retrieve_sudo_data();
 	generate_sudoers_files($dir);
-	generate_appaal_files($dir);
+#	generate_appaal_files($dir);
 	generate_k5login_root_files($dir);
 	generate_wwwgroup_files($dir);
 
