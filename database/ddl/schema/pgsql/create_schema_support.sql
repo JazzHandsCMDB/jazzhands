@@ -35,6 +35,8 @@ BEGIN
                     appuser := session_user;
                 END;
 
+    		appuser = substr(appuser, 1, 255);
+
                 IF TG_OP = 'DELETE' THEN
                     INSERT INTO $ZZ$ || quote_ident(aud_schema) 
                         || '.' || quote_ident(table_name) || $ZZ$
@@ -167,7 +169,7 @@ BEGIN
         WHEN OTHERS THEN appuser := session_user;
     END;
 
-    appuser = substr(appuser, 1, 30);
+    appuser = substr(appuser, 1, 255);
 
     IF TG_OP = 'INSERT' THEN
         NEW.data_ins_user = appuser;

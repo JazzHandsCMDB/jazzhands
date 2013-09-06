@@ -1,10 +1,14 @@
 \set ON_ERROR_STOP
 
+drop view v_application_role_member;
 drop view v_acct_coll_prop_expanded;
 drop view v_dev_col_user_prop_expanded;
 drop view v_l1_all_physical_ports;
 drop view v_device_col_acct_col_expanded;
+drop view v_acct_coll_acct_expanded;
+drop view v_account_collection_account;
 drop view v_property;
+
 
 /*
 
@@ -142,9 +146,9 @@ CREATE TABLE val_property
 	permit_service_env_collection	character(10) NOT NULL,
 	permit_site_code	character(10) NOT NULL,
 	permit_property_rank	character(10) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_property', false);
@@ -377,9 +381,9 @@ CREATE TABLE val_power_plug_style
 (
 	power_plug_style	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_power_plug_style', false);
@@ -479,9 +483,9 @@ CREATE TABLE device_type_power_port_templt
 	max_amperage	integer NOT NULL,
 	provides_power	character(1) NOT NULL,
 	is_optional	character(1) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device_type_power_port_templt', false);
@@ -583,9 +587,9 @@ CREATE TABLE encapsulation_netblock
 (
 	encapsulation_id	integer NOT NULL,
 	netblock_id	integer NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'encapsulation_netblock', true);
@@ -617,9 +621,9 @@ CREATE TABLE val_device_mgmt_ctrl_type
 (
 	device_mgmt_control_type	varchar(255) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_device_mgmt_ctrl_type', true);
@@ -646,9 +650,9 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_device_mg
 CREATE TABLE val_ip_group_protocol
 (
 	ip_group_protocol	character(18) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_ip_group_protocol', true);
@@ -676,9 +680,9 @@ CREATE TABLE val_layer2_encapsulation_type
 (
 	layer2_encapsulation_type	character(18) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_layer2_encapsulation_type', true);
@@ -707,9 +711,9 @@ CREATE TABLE val_port_medium
 	port_medium	varchar(50) NOT NULL,
 	port_plug_style	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_port_medium', true);
@@ -740,9 +744,9 @@ CREATE TABLE val_port_protocol
 (
 	port_protocol	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_port_protocol', true);
@@ -774,9 +778,9 @@ CREATE TABLE val_port_speed
 	port_speed	varchar(50) NOT NULL,
 	port_speed_bps	bigint NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_port_speed', true);
@@ -807,9 +811,9 @@ CREATE TABLE val_rack_type
 (
 	rack_type	varchar(255) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_rack_type', true);
@@ -869,9 +873,9 @@ CREATE TABLE device_type_phys_port_templt
 	port_purpose	varchar(50)  NULL,
 	tcp_port	integer  NULL,
 	is_optional	character(1) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device_type_phys_port_templt', false);
@@ -1044,9 +1048,9 @@ CREATE TABLE physical_port
 	physical_label	varchar(50)  NULL,
 	port_purpose	varchar(50)  NULL,
 	tcp_port	integer  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'physical_port', false);
@@ -1221,9 +1225,9 @@ CREATE TABLE network_interface_purpose
 	network_interface_purpose	varchar(50) NOT NULL,
 	network_interface_id	integer  NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'network_interface_purpose', true);
@@ -1326,9 +1330,9 @@ CREATE TABLE network_interface
 	provides_nat	character(1) NOT NULL,
 	should_manage	character(1) NOT NULL,
 	provides_dhcp	character(1) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'network_interface', false);
@@ -1640,9 +1644,9 @@ CREATE TABLE layer2_encapsulation
 	layer2_encapsulation_type	character(18)  NULL,
 	physical_port_id	integer NOT NULL,
 	encapsulation_id	integer NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'layer2_encapsulation', false);
@@ -1739,9 +1743,9 @@ CREATE TABLE ip_group
 	ip_group_protocol	character(18) NOT NULL,
 	netblock_collection_id	integer NOT NULL,
 	description	varchar(255)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'ip_group', true);
@@ -1778,9 +1782,9 @@ CREATE TABLE ip_group_network_interface
 	ip_group_id	character(18) NOT NULL,
 	network_interface_id	integer NOT NULL,
 	priority	integer NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'ip_group_network_interface', true);
@@ -1843,9 +1847,9 @@ CREATE TABLE rack
 	description	varchar(255)  NULL,
 	rack_height_in_u	integer NOT NULL,
 	display_from_bottom	character(1) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'rack', false);
@@ -1973,9 +1977,9 @@ CREATE TABLE device_management_controller
 	device_id	integer NOT NULL,
 	device_mgmt_control_type	varchar(255) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device_management_controller', true);
@@ -2104,9 +2108,9 @@ CREATE TABLE device
 	is_baselined	character(1) NOT NULL,
 	lease_expiration_date	timestamp with time zone  NULL,
 	date_in_service	timestamp with time zone  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device', false);
@@ -2417,9 +2421,9 @@ CREATE TABLE service_environment_collection
 	service_env_collection_name	varchar(50) NOT NULL,
 	service_env_collection_type	varchar(50)  NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment_collection', true);
@@ -2462,9 +2466,9 @@ CREATE TABLE service_environment_hier
 	service_env_collection_id	integer NOT NULL,
 	child_service_env_coll_id	integer NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment_hier', true);
@@ -2497,9 +2501,9 @@ CREATE TABLE svc_environment_coll_svc_env
 	service_environment	varchar(50) NOT NULL,
 	service_env_collection_id	integer NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'svc_environment_coll_svc_env', true);
@@ -2532,9 +2536,9 @@ CREATE TABLE val_service_env_coll_type
 (
 	service_env_collection_type	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_service_env_coll_type', true);
@@ -2644,9 +2648,9 @@ CREATE TABLE property
 	start_date	timestamp without time zone  NULL,
 	finish_date	timestamp without time zone  NULL,
 	is_enabled	character(1) NOT NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'property', false);
@@ -2914,9 +2918,9 @@ CREATE TABLE val_port_plug_style
 (
 	port_plug_style	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_port_plug_style', true);
@@ -2946,9 +2950,9 @@ CREATE TABLE val_port_protocol_speed
 	port_protocol	varchar(50) NOT NULL,
 	port_speed	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
-	data_ins_user	varchar(30)  NULL,
+	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(30)  NULL,
+	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_port_protocol_speed', true);
@@ -2982,6 +2986,27 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_port_prot
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
+-- increase size of data_ins/upd_user columns
+------------------------------------------------------------------------------
+DO $$
+DECLARE
+    col RECORD;
+BEGIN
+    FOR col IN
+        SELECT c.table_schema, c.table_name, c.column_name
+        FROM information_schema.columns c JOIN information_schema.tables t
+        ON c.table_schema = t.table_schema AND c.table_name = t.table_name
+        WHERE t.table_type = 'BASE TABLE'
+        AND c.column_name IN ('data_ins_user', 'data_upd_user')
+	AND c.character_maximum_length = 30
+    LOOP
+        EXECUTE 'ALTER TABLE ' || col.table_schema || '.' || col.table_name
+        || ' ALTER COLUMN ' || col.column_name || ' TYPE varchar(255)';
+    END LOOP;
+END
+$$;
+
+------------------------------------------------------------------------------
 -- BEGIN: RECREATE VIEWS
 ------------------------------------------------------------------------------
 CREATE VIEW v_property AS
@@ -3007,6 +3032,42 @@ GRANT SELECT ON v_property TO ro_role;
 GRANT INSERT,UPDATE,DELETE ON v_property TO iud_role;
 -- DONE DEALING WITH TABLE v_property [947993]
 --------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_account_collection_account [1168109]
+CREATE VIEW v_account_collection_account AS
+ SELECT account_collection_account.account_collection_id, 
+    account_collection_account.account_id, 
+    account_collection_account.account_id_rank, 
+    account_collection_account.start_date, 
+    account_collection_account.finish_date, 
+    account_collection_account.data_ins_user, 
+    account_collection_account.data_ins_date, 
+    account_collection_account.data_upd_user, 
+    account_collection_account.data_upd_date
+   FROM account_collection_account
+  WHERE account_collection_account.start_date IS NULL AND account_collection_account.finish_date IS NULL OR account_collection_account.start_date IS NULL AND now() <= account_collection_account.finish_date OR account_collection_account.start_date <= now() AND account_collection_account.finish_date IS NULL OR account_collection_account.start_date <= now() AND now() <= account_collection_account.finish_date;
+
+GRANT ALL ON v_account_collection_account TO jazzhands;
+GRANT SELECT ON v_account_collection_account TO ro_role;
+GRANT INSERT,UPDATE,DELETE ON v_account_collection_account TO iud_role;
+-- DONE DEALING WITH TABLE v_account_collection_account [1162371]
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_acct_coll_acct_expanded [1168113]
+CREATE VIEW v_acct_coll_acct_expanded AS
+ SELECT DISTINCT ace.account_collection_id, aca.account_id
+   FROM v_acct_coll_expanded ace
+   JOIN v_account_collection_account aca ON aca.account_collection_id = ace.root_account_collection_id;
+
+GRANT ALL ON v_acct_coll_acct_expanded TO jazzhands;
+GRANT SELECT ON v_acct_coll_acct_expanded TO ro_role;
+GRANT INSERT,UPDATE,DELETE ON v_acct_coll_acct_expanded TO iud_role;
+-- DONE DEALING WITH TABLE v_acct_coll_acct_expanded [1162390]
+--------------------------------------------------------------------
+
 CREATE VIEW v_device_col_acct_col_expanded AS
  SELECT DISTINCT dchd.device_collection_id, dcu.account_collection_id, 
     vuue.account_id
@@ -3018,8 +3079,11 @@ CREATE VIEW v_device_col_acct_col_expanded AS
 GRANT ALL ON v_device_col_acct_col_expanded TO jazzhands;
 GRANT SELECT ON v_device_col_acct_col_expanded TO ro_role;
 GRANT INSERT,UPDATE,DELETE ON v_device_col_acct_col_expanded TO iud_role;
+
+
 -- DONE DEALING WITH TABLE v_device_col_acct_col_expanded [948090]
 --------------------------------------------------------------------
+
 CREATE VIEW v_l1_all_physical_ports AS
  SELECT subquery.layer1_connection_id, subquery.physical_port_id, 
     subquery.device_id, subquery.port_name, subquery.port_type, 
@@ -3153,6 +3217,26 @@ GRANT ALL ON v_acct_coll_prop_expanded TO jazzhands;
 GRANT SELECT ON v_acct_coll_prop_expanded TO ro_role;
 GRANT INSERT,UPDATE,DELETE ON v_acct_coll_prop_expanded TO iud_role;
 -- DONE DEALING WITH TABLE v_acct_coll_prop_expanded [948061]
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_application_role_member [1168123]
+CREATE VIEW v_application_role_member AS
+ SELECT device_collection_device.device_id, 
+    device_collection_device.device_collection_id AS role_id, 
+    device_collection_device.data_ins_user, 
+    device_collection_device.data_ins_date, 
+    device_collection_device.data_upd_user, 
+    device_collection_device.data_upd_date
+   FROM device_collection_device
+  WHERE (device_collection_device.device_collection_id IN ( SELECT device_collection.device_collection_id
+           FROM device_collection
+          WHERE device_collection.device_collection_type::text = 'appgroup'::text));
+
+GRANT ALL ON v_application_role_member TO jazzhands;
+GRANT SELECT ON v_application_role_member TO ro_role;
+GRANT INSERT,UPDATE,DELETE ON v_application_role_member TO iud_role;
+-- DONE DEALING WITH TABLE v_application_role_member [1162419]
 --------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -3624,8 +3708,117 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ------------------------------------------------------------------------------
--- BEGIN regenerate validate_property()
+-- END regenerate validate_property()
 ------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- BEGIN regenerate schema_support.rebuild_audit_trigger to truncate
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_trigger
+    ( aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR )
+RETURNS VOID AS $$
+BEGIN
+    EXECUTE 'CREATE OR REPLACE FUNCTION ' || quote_ident(tbl_schema)
+        || '.' || quote_ident('perform_audit_' || table_name)
+        || $ZZ$() RETURNS TRIGGER AS $TQ$
+            DECLARE
+                appuser VARCHAR;
+            BEGIN
+                BEGIN
+                    appuser := session_user
+                        || '/' || current_setting('jazzhands.appuser');
+                EXCEPTION WHEN OTHERS THEN
+                    appuser := session_user;
+                END;
+
+    		appuser = substr(appuser, 1, 255);
+
+                IF TG_OP = 'DELETE' THEN
+                    INSERT INTO $ZZ$ || quote_ident(aud_schema) 
+                        || '.' || quote_ident(table_name) || $ZZ$
+                    VALUES ( OLD.*, 'DEL', now(), appuser );
+                    RETURN OLD;
+                ELSIF TG_OP = 'UPDATE' THEN
+                    INSERT INTO $ZZ$ || quote_ident(aud_schema)
+                        || '.' || quote_ident(table_name) || $ZZ$
+                    VALUES ( NEW.*, 'UPD', now(), appuser );
+                    RETURN NEW;
+                ELSIF TG_OP = 'INSERT' THEN
+                    INSERT INTO $ZZ$ || quote_ident(aud_schema)
+                        || '.' || quote_ident(table_name) || $ZZ$
+                    VALUES ( NEW.*, 'INS', now(), appuser );
+                    RETURN NEW;
+                END IF;
+                RETURN NULL;
+            END;
+        $TQ$ LANGUAGE plpgsql SECURITY DEFINER
+    $ZZ$;
+
+    EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident('trigger_audit_'
+        || table_name) || ' ON ' || quote_ident(tbl_schema) || '.'
+        || quote_ident(table_name);
+
+    EXECUTE 'CREATE TRIGGER ' || quote_ident('trigger_audit_' || table_name)
+        || ' AFTER INSERT OR UPDATE OR DELETE ON ' || quote_ident(tbl_schema)
+        || '.' || quote_ident(table_name) || ' FOR EACH ROW EXECUTE PROCEDURE ' 
+        || quote_ident(tbl_schema) || '.' || quote_ident('perform_audit_'
+        || table_name) || '()';
+END;
+$$ LANGUAGE plpgsql;
+------------------------------------------------------------------------------
+-- END regenerate schema_support.rebuild_audit_trigger to truncate
+------------------------------------------------------------------------------
+
+-- rebuild all audit triggers, to change above
+SELECT schema_support.build_audit_tables('audit', 'jazzhands');
+
+
+------------------------------------------------------------------------------
+-- BEGIN regenerate schema_support.trigger_ins_upd_generic_func() to truncate
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.trigger_ins_upd_generic_func()
+RETURNS TRIGGER AS $$
+DECLARE
+    appuser VARCHAR;
+BEGIN
+    BEGIN
+        appuser := session_user || '/' || current_setting('jazzhands.appuser');
+    EXCEPTION
+        WHEN OTHERS THEN appuser := session_user;
+    END;
+
+    appuser = substr(appuser, 1, 255);
+
+    IF TG_OP = 'INSERT' THEN
+        NEW.data_ins_user = appuser;
+        NEW.data_ins_date = 'now';
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        NEW.data_upd_user = appuser;
+        NEW.data_upd_date = 'now';
+
+        IF OLD.data_ins_user != NEW.data_ins_user THEN
+            RAISE EXCEPTION
+                'Non modifiable column "DATA_INS_USER" cannot be modified.';
+        END IF;
+
+        IF OLD.data_ins_date != NEW.data_ins_date THEN
+            RAISE EXCEPTION
+                'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+------------------------------------------------------------------------------
+-- END regenerate schema_support.trigger_ins_upd_generic_func() to truncate
+------------------------------------------------------------------------------
+
+-- note:  do not need to run schema_support.rebuild_stamp_triggers since 
+-- they all call the above function
 
 ------------------------------------------------------------------------------
 -- Add new definitions of data whose purpose is changing
@@ -3715,5 +3908,5 @@ insert into val_port_protocol_speed (port_protocol, port_speed)
 insert into val_port_protocol_speed (port_protocol, port_speed)
         values ('Ethernet', '100G');
 
+RAISE EXCEPTION 'need to deal with per-service environment collections -- create new per-environment types and whatnot';
 
-RAISE EXCEPTION 'need to deal with per-service environment collections'; 
