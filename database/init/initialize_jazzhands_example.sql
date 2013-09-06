@@ -57,7 +57,7 @@ insert into site (site_code, colo_company_id, site_status, description)
 
 insert into rack (
 	SITE_CODE, ROOM, SUB_ROOM, RACK_ROW, RACK_NAME, RACK_HEIGHT_IN_U,
-	RACK_TYPE, DISPLAY_FROM_BOTTOM
+	RACK_STYLE, DISPLAY_FROM_BOTTOM
 ) values (
 	'CORP0', 'DC-A', 'CAGE 1', '1', '1', 50,
 	'CABINET', 'Y'
@@ -65,7 +65,7 @@ insert into rack (
 
 insert into rack (
 	SITE_CODE, ROOM, SUB_ROOM, RACK_ROW, RACK_NAME, RACK_HEIGHT_IN_U,
-	RACK_TYPE, DISPLAY_FROM_BOTTOM
+	RACK_STYLE, DISPLAY_FROM_BOTTOM
 ) values (
 	'CORP0', 'DC-A', 'CAGE 1', '1', '2', 50,
 	'RELAY', 'Y'

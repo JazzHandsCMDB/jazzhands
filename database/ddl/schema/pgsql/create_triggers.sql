@@ -346,8 +346,8 @@ BEGIN
 				(DNS_Domain_Id = NEW.DNS_Domain_Id)) AND
 			((Operating_System_Id IS NULL AND NEW.Operating_System_Id IS NULL) OR
 				(Operating_System_Id = NEW.Operating_System_Id)) AND
-			((service_environment IS NULL AND NEW.service_environment IS NULL) OR
-				(service_environment = NEW.service_environment)) AND
+			((service_env_collection_id IS NULL AND NEW.service_env_collection_id IS NULL) OR
+				(service_env_collection_id = NEW.service_env_collection_id)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
 			((Account_Id IS NULL AND NEW.Account_Id IS NULL) OR
@@ -385,8 +385,8 @@ BEGIN
 				(DNS_Domain_Id = NEW.DNS_Domain_Id)) AND
 			((Operating_System_Id IS NULL AND NEW.Operating_System_Id IS NULL) OR
 				(Operating_System_Id = NEW.Operating_System_Id)) AND
-			((service_environment IS NULL AND NEW.service_environment IS NULL) OR
-				(service_environment = NEW.service_environment)) AND
+			((service_env_collection_id IS NULL AND NEW.service_env_collection_id IS NULL) OR
+				(service_env_collection_id = NEW.service_env_collection_id)) AND
 			((Site_Code IS NULL AND NEW.Site_Code IS NULL) OR
 				(Site_Code = NEW.Site_Code)) AND
 			((Person_id IS NULL AND NEW.Person_id IS NULL) OR
@@ -625,13 +625,13 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.Permit_service_environment = 'REQUIRED' THEN
-			IF NEW.service_environment IS NULL THEN
-				RAISE 'service_environment is required.'
+	IF v_prop.permit_service_env_collection = 'REQUIRED' THEN
+			IF NEW.service_env_collection_id IS NULL THEN
+				RAISE 'service_env_collection_id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.Permit_service_environment = 'PROHIBITED' THEN
-			IF NEW.service_environment IS NOT NULL THEN
+	ELSIF v_prop.permit_service_env_collection = 'PROHIBITED' THEN
+			IF NEW.service_env_collection_id IS NOT NULL THEN
 				RAISE 'service_environment is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
