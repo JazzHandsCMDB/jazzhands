@@ -167,6 +167,8 @@ BEGIN
         WHEN OTHERS THEN appuser := session_user;
     END;
 
+    appuser = substr(appuser, 1, 30);
+
     IF TG_OP = 'INSERT' THEN
         NEW.data_ins_user = appuser;
         NEW.data_ins_date = 'now';
