@@ -14,13 +14,13 @@ x drop view v_account_collection_account;
 x drop schema if exists person_manip cascade;
 x drop schema if exists port_utils cascade;
 
-
 -- just in case 
 set search_path=jazzhands;
 
 -- views that need to be dropped and recreated
 drop view v_acct_coll_prop_expanded;
 drop view v_dev_col_user_prop_expanded;
+drop view v_device_col_acct_col_expanded;
 drop view v_property;
 drop view v_nblk_coll_netblock_expanded;
 drop view v_application_role_member;
