@@ -1141,6 +1141,9 @@ ALTER TABLE physical_port
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE physical_port ADD CONSTRAINT pk_physical_port PRIMARY KEY (physical_port_id);
 ALTER TABLE physical_port ADD CONSTRAINT ak_physical_port_devnamtype UNIQUE (device_id, port_name, port_type);
+ALTER TABLE PHYSICAL_PORT
+ADD CONSTRAINT  IAK_PPORT_DVID_PPORTID UNIQUE (PHYSICAL_PORT_ID,DEVICE_ID);
+
 -- INDEXES
 CREATE INDEX xif4physical_port ON physical_port USING btree (port_protocol);
 CREATE INDEX idx_physport_device_id ON physical_port USING btree (device_id);
@@ -1164,8 +1167,9 @@ ALTER TABLE physical_connection
 	ADD CONSTRAINT fk_patch_panel_port1
 	FOREIGN KEY (physical_port_id1) REFERENCES physical_port(physical_port_id);
 ALTER TABLE network_interface
-	ADD CONSTRAINT fk_network_int_phys_port
-	FOREIGN KEY (physical_port_id) REFERENCES physical_port(physical_port_id);
+	ADD CONSTRAINT FK_NETWORK_INT_PHYS_PORT_DEVID
+	FOREIGN KEY (physical_port_id, device_id) REFERENCES 
+	physical_port(physical_port_id, device_id);
 ALTER TABLE layer2_encapsulation
 	ADD CONSTRAINT fk_l2encap_physport_id
 	FOREIGN KEY (physical_port_id) REFERENCES physical_port(physical_port_id);
@@ -1240,6 +1244,7 @@ CREATE INDEX xif1network_interface_purpose ON network_interface_purpose USING bt
 CREATE INDEX xif2network_interface_purpose ON network_interface_purpose USING btree (network_interface_purpose);
 CREATE INDEX xif3network_interface_purpose ON network_interface_purpose USING btree (network_interface_id, device_id);
 
+
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
@@ -1277,7 +1282,8 @@ alter table secondary_netblock drop constraint fk_secnblk_netint_id;
 alter table network_interface drop constraint fk_netint_netinttyp_id;
 alter table network_interface drop constraint fk_netint_netblk_v6id;
 alter table network_interface drop constraint fk_netint_netblk_v4id;
-alter table network_interface drop constraint fk_network_int_phys_port;
+-- XXX made to go away earlier
+-- alter table network_interface drop constraint fk_network_int_phys_port;
 -- XXX is this somethign else?
 -- alter table network_interface drop constraint fk_netint_netintprp_id;
 alter table network_interface drop constraint fk_netint_device_id;
@@ -1550,6 +1556,8 @@ CREATE INDEX idx_netint_providesnat ON network_interface USING btree (provides_n
 CREATE INDEX idx_netint_parentnetint ON network_interface USING btree (parent_network_interface_id);
 CREATE INDEX idx_netint_shouldmonitor ON network_interface USING btree (should_monitor);
 CREATE INDEX idx_netint_isifaceup ON network_interface USING btree (is_interface_up);
+CREATE  INDEX XIF8NETWORK_INTERFACE ON NETWORK_INTERFACE USING btree
+	(PHYSICAL_PORT_ID,DEVICE_ID);
 
 -- CHECK CONSTRAINTS
 ALTER TABLE network_interface ADD CONSTRAINT ckc_should_manage_network_
@@ -1841,7 +1849,7 @@ CREATE TABLE rack
 	room	varchar(50)  NULL,
 	sub_room	varchar(50)  NULL,
 	rack_row	varchar(50)  NULL,
-	rack_name	varchar(50)  NULL,
+	rack_name	varchar(50)  NOT NULL,
 	rack_style	varchar(50) NOT NULL,
 	rack_type	varchar(255)  NULL,
 	description	varchar(255)  NULL,
@@ -2981,6 +2989,326 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_port_prot
 -- DONE DEALING WITH TABLE val_port_protocol_speed [1109706]
 --------------------------------------------------------------------
 
+--------------------------------------------------------------------
+-- DEALING WITH TABLE x509_certificate [1286248]
+
+-- FOREIGN KEYS FROM
+alter table x509_key_usage_attribute drop constraint fk_x509_certificate;
+
+-- FOREIGN KEYS TO
+alter table x509_certificate drop constraint fk_x509_cert_cert;
+alter table x509_certificate drop constraint fk_x509cert_enc_id_id;
+alter table x509_certificate drop constraint pk_x509_certificate;
+alter table x509_certificate drop constraint ak_x509_cert_cert_ca_ser;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+drop trigger trig_userlog_x509_certificate on x509_certificate;
+drop trigger trigger_audit_x509_certificate on x509_certificate;
+
+
+ALTER TABLE x509_certificate RENAME TO x509_certificate_v53;
+ALTER TABLE audit.x509_certificate RENAME TO x509_certificate_v53;
+
+CREATE TABLE x509_certificate
+(
+	x509_cert_id	integer NOT NULL,
+	is_certificate_authority	character(1) NOT NULL,
+	signing_cert_id	integer  NULL,
+	x509_ca_cert_serial_number	integer  NULL,
+	public_key	varchar(4000) NOT NULL,
+	private_key	varchar(4000) NOT NULL,
+	certificate_sign_req	varchar(4000)  NULL,
+	subject	varchar(255) NOT NULL,
+	valid_from	timestamp(6) without time zone NOT NULL,
+	valid_to	timestamp(6) without time zone NOT NULL,
+	is_cert_revoked	character(1) NOT NULL,
+	passphrase	varchar(255)  NULL,
+	encryption_key_id	integer  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'x509_certificate', false);
+INSERT INTO x509_certificate (
+	x509_cert_id,
+	is_certificate_authority,		-- new column (is_certificate_authority)
+	signing_cert_id,
+	x509_ca_cert_serial_number,
+	public_key,
+	private_key,
+	certificate_sign_req,
+	subject,
+	valid_from,
+	valid_to,
+	is_cert_revoked,
+	passphrase,
+	encryption_key_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	x509_cert_id,
+	NULL,		-- new column (is_certificate_authority)
+	signing_cert_id,
+	x509_ca_cert_serial_number,
+	public_key,
+	private_key,
+	certificate_sign_req,
+	subject,
+	valid_from,
+	valid_to,
+	is_cert_revoked,
+	passphrase,
+	encryption_key_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM x509_certificate_v53;
+
+INSERT INTO audit.x509_certificate (
+	x509_cert_id,
+	is_certificate_authority,		-- new column (is_certificate_authority)
+	signing_cert_id,
+	x509_ca_cert_serial_number,
+	public_key,
+	private_key,
+	certificate_sign_req,
+	subject,
+	valid_from,
+	valid_to,
+	is_cert_revoked,
+	passphrase,
+	encryption_key_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	x509_cert_id,
+	NULL,		-- new column (is_certificate_authority)
+	signing_cert_id,
+	x509_ca_cert_serial_number,
+	public_key,
+	private_key,
+	certificate_sign_req,
+	subject,
+	valid_from,
+	valid_to,
+	is_cert_revoked,
+	passphrase,
+	encryption_key_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+FROM audit.x509_certificate_v53;
+
+ALTER TABLE x509_certificate
+	ALTER x509_cert_id
+	SET DEFAULT nextval('x509_certificate_x509_cert_id_seq'::regclass);
+ALTER TABLE x509_certificate
+	ALTER is_certificate_authority
+	SET DEFAULT 'N'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE x509_certificate ADD CONSTRAINT pk_x509_certificate PRIMARY KEY (x509_cert_id);
+ALTER TABLE x509_certificate ADD CONSTRAINT ak_x509_cert_cert_ca_ser UNIQUE (signing_cert_id, x509_ca_cert_serial_number);
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+ALTER TABLE x509_certificate ADD CONSTRAINT check_yes_no_31190954
+	CHECK (is_certificate_authority = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+
+-- FOREIGN KEYS FROM
+ALTER TABLE x509_key_usage_attribute
+	ADD CONSTRAINT fk_x509_certificate
+	FOREIGN KEY (x509_cert_id) REFERENCES x509_certificate(x509_cert_id);
+
+-- FOREIGN KEYS TO
+ALTER TABLE x509_certificate
+	ADD CONSTRAINT fk_x509_cert_cert
+	FOREIGN KEY (signing_cert_id) REFERENCES x509_certificate(x509_cert_id);
+ALTER TABLE x509_certificate
+	ADD CONSTRAINT fk_x509cert_enc_id_id
+	FOREIGN KEY (encryption_key_id) REFERENCES encryption_key(encryption_key_id);
+
+-- TRIGGERS
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'x509_certificate');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'x509_certificate');
+ALTER SEQUENCE x509_certificate_x509_cert_id_seq
+	 OWNED BY x509_certificate.x509_cert_id;
+DROP TABLE x509_certificate_v53;
+DROP TABLE audit.x509_certificate_v53;
+-- DONE DEALING WITH TABLE x509_certificate [1280415]
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEALING WITH TABLE device_collection_assignd_cert [1299375]
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+alter table device_collection_assignd_cert drop constraint fk_key_usg_reason_for_assng_d;
+alter table device_collection_assignd_cert drop constraint fk_devcolascrt_flownacctid;
+alter table device_collection_assignd_cert drop constraint fk_x509_key_usg_attrbt_dvc;
+alter table device_collection_assignd_cert drop constraint fk_x509_certificate_file_fmt;
+alter table device_collection_assignd_cert drop constraint fk_devcolascrt_devcolid;
+alter table device_collection_assignd_cert drop constraint fk_devcol_asscrt_acctcolid;
+alter table device_collection_assignd_cert drop constraint pk_device_collection_assigned;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+drop trigger trigger_audit_device_collection_assignd_cert on device_collection_assignd_cert;
+drop trigger trig_userlog_device_collection_assignd_cert on device_collection_assignd_cert;
+
+
+ALTER TABLE device_collection_assignd_cert RENAME TO device_collection_assignd_cert_v53;
+ALTER TABLE audit.device_collection_assignd_cert RENAME TO device_collection_assignd_cert_v53;
+
+CREATE TABLE device_collection_assignd_cert
+(
+	device_collection_id	integer NOT NULL,
+	x509_cert_id	integer NOT NULL,
+	x509_key_usg	varchar(50) NOT NULL,
+	x509_file_format	varchar(50) NOT NULL,
+	file_location_path	varchar(255) NOT NULL,
+	key_tool_label	varchar(255)  NULL,
+	file_access_mode	integer NOT NULL,
+	file_owner_account_id	integer NOT NULL,
+	file_group_acct_collection_id	integer NOT NULL,
+	file_passphrase_path	varchar(255)  NULL,
+	key_usage_reason_for_assign	varchar(50)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device_collection_assignd_cert', false);
+INSERT INTO device_collection_assignd_cert (
+	device_collection_id,
+	x509_cert_id,
+	x509_key_usg,
+	x509_file_format,
+	file_location_path,
+	key_tool_label,
+	file_access_mode,
+	file_owner_account_id,
+	file_group_acct_collection_id,
+	file_passphrase_path,
+	key_usage_reason_for_assign,
+	data_ins_user,
+	data_ins_date,
+	data_upd_date,
+	data_upd_user
+) SELECT
+	device_collection_id,
+	x509_cert_id,
+	x509_key_usg,
+	x509_file_format,
+	file_location_path,
+	key_tool_label,
+	file_access_mode,
+	file_owner_account_id,
+	file_group_acct_collection_id,
+	file_passphrase_path,
+	key_usage_reason_for_assign,
+	data_ins_user,
+	data_ins_date,
+	data_upd_date::timestamp,
+	data_upd_user
+FROM device_collection_assignd_cert_v53;
+
+INSERT INTO audit.device_collection_assignd_cert (
+	device_collection_id,
+	x509_cert_id,
+	x509_key_usg,
+	x509_file_format,
+	file_location_path,
+	key_tool_label,
+	file_access_mode,
+	file_owner_account_id,
+	file_group_acct_collection_id,
+	file_passphrase_path,
+	key_usage_reason_for_assign,
+	data_ins_user,
+	data_ins_date,
+	data_upd_date,
+	data_upd_user,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	device_collection_id,
+	x509_cert_id,
+	x509_key_usg,
+	x509_file_format,
+	file_location_path,
+	key_tool_label,
+	file_access_mode,
+	file_owner_account_id,
+	file_group_acct_collection_id,
+	file_passphrase_path,
+	key_usage_reason_for_assign,
+	data_ins_user,
+	data_ins_date,
+	data_upd_date::timestamp,
+	data_upd_user,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+FROM audit.device_collection_assignd_cert_v53;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE device_collection_assignd_cert ADD CONSTRAINT pk_device_collection_assigned PRIMARY KEY (device_collection_id, x509_cert_id, x509_key_usg);
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_key_usg_reason_for_assng_d
+	FOREIGN KEY (key_usage_reason_for_assign) REFERENCES val_key_usg_reason_for_assgn(key_usage_reason_for_assign);
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_devcolascrt_flownacctid
+	FOREIGN KEY (file_owner_account_id) REFERENCES account(account_id);
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_x509_key_usg_attrbt_dvc
+	FOREIGN KEY (x509_cert_id, x509_key_usg) REFERENCES x509_key_usage_attribute(x509_cert_id, x509_key_usg);
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_x509_certificate_file_fmt
+	FOREIGN KEY (x509_file_format) REFERENCES val_x509_certificate_file_fmt(x509_file_format);
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_devcolascrt_devcolid
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_devcol_asscrt_acctcolid
+	FOREIGN KEY (file_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
+
+-- TRIGGERS
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'device_collection_assignd_cert');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'device_collection_assignd_cert');
+DROP TABLE device_collection_assignd_cert_v53;
+DROP TABLE audit.device_collection_assignd_cert_v53;
+-- DONE DEALING WITH TABLE device_collection_assignd_cert [1293177]
+--------------------------------------------------------------------
+
 ------------------------------------------------------------------------------
 -- END: TABLE MIGRATION
 ------------------------------------------------------------------------------
@@ -3909,4 +4237,6 @@ insert into val_port_protocol_speed (port_protocol, port_speed)
         values ('Ethernet', '100G');
 
 RAISE EXCEPTION 'need to deal with per-service environment collections -- create new per-environment types and whatnot';
+
+RAISE EXCEPTION 'regenerate everything from erwin just in case';
 

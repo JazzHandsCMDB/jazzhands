@@ -25,24 +25,32 @@ BEGIN
 
 		RETURN OLD;
 	ELSIF TG_OP = 'INSERT' THEN
-		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
-		    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-		)
-		FOR UPDATE;
+		IF NEW.netblock_id IS NOT NULL THEN
+			PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+		    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+			) FOR UPDATE;
+		END IF;
 
 		RETURN NEW;
 	ELSE
 		IF OLD.netblock_id IS DISTINCT FROM NEW.netblock_id THEN
-			PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
-			    OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id),
-			    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-			)
-			FOR UPDATE;
+			IF OLD.netblock_id IS NOT NULL THEN
+				PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+			    	OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id))
+				FOR UPDATE;
+			END IF;
+			IF NEW.netblock_id IS NOT NULL THEN
+				PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+				)
+				FOR UPDATE;
+			END IF;
 		ELSE
-			PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
-			    NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-			)
-			FOR UPDATE;
+			IF NEW.netblock_id IS NOT NULL THEN
+				PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+				) FOR UPDATE;
+			END IF;
 		END IF;
 
 		RETURN NEW;
@@ -65,25 +73,26 @@ BEGIN
 			AND ( zone_last_updated < last_generated
 			OR zone_last_updated is NULL);
 
-		IF NEW.dns_type = 'A' THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
-				WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-				AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-		END IF;
-
 		IF TG_OP = 'UPDATE' THEN
 			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
 				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
 					 WHERE dns_domain_id = OLD.dns_domain_id
 					 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
-			IF NEW.dns_type = 'A' THEN
-				IF OLD.netblock_id != NEW.netblock_id THEN
-					UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
-						 WHERE dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
-					     AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-				END IF;
+			IF NEW.netblock_id != OLD.netblock_id THEN
+				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+					 WHERE dns_domain_id in (
+						 netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id),
+						 netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+					)
+				     AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
+		ELSIF TG_OP = 'INSERT' AND NEW.netblock_id is not NULL THEN
+			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+				WHERE dns_domain_id = 
+					netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+				AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
+
 		END IF;
 	END IF;
 
@@ -92,7 +101,7 @@ BEGIN
 			WHERE dns_domain_id = OLD.dns_domain_id
 			AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 
-        IF OLD.dns_type = 'A' THEN
+		IF OLD.dns_type = 'A' || OLD.dns_type = 'AAAA' THEN
 			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
                  WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
 				 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
