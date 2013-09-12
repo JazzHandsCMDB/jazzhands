@@ -101,7 +101,7 @@ BEGIN
 			WHERE dns_domain_id = OLD.dns_domain_id
 			AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 
-		IF OLD.dns_type = 'A' || OLD.dns_type = 'AAAA' THEN
+		IF OLD.dns_type = 'A' OR OLD.dns_type = 'AAAA' THEN
 			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
                  WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
 				 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
