@@ -119,3 +119,30 @@ CREATE CONSTRAINT TRIGGER trigger_update_dns_zone
 	FOR EACH ROW 
 	EXECUTE PROCEDURE update_dns_zone();
 
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION dns_rec_type_validation() RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
+		RAISE EXCEPTION 'Attempt to set % record without a Netblock',
+			NEW.dns_type;
+	END IF;
+
+	IF NEW.netblock_Id is not NULL and 
+			( NEW.dns_value IS NOT NULL OR NEW.dns_value_record_id IS NOT NULL ) THEN
+		RAISE EXCEPTION 'Both dns_value and netblock_id may not be set';
+	END IF;
+
+	IF NEW.dns_value IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
+		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set';
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_rec_a_type_validation ON dns_record;
+CREATE TRIGGER trigger_dns_rec_a_type_validation 
+	BEFORE INSERT OR UPDATE 
+	ON dns_record 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE dns_rec_type_validation();
