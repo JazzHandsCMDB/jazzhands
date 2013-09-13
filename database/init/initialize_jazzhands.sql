@@ -124,20 +124,22 @@ insert into val_production_state (production_state)
 insert into val_production_state (production_state)
 	values ('unallocated');
 
+insert into val_service_env_coll_type
+        ( service_env_collection_type ) values ('per-environment');
 
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('unspecified', 'unspecified');
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('unallocated', 'unallocated');
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('production', 'production');
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('development', 'development');
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('qa', 'test');
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('staging', 'test');
-INSERT INTO VAL_service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment, production_state)
 	VALUES ('test', 'test');
 
 INSERT INTO VAL_Ownership_Status (Ownership_Status)
@@ -961,3 +963,8 @@ insert into val_port_protocol_speed (port_protocol, port_speed)
 	values ('Ethernet', '40G');
 insert into val_port_protocol_speed (port_protocol, port_speed)
 	values ('Ethernet', '100G');
+
+insert into val_device_collection_type 
+	(device_collection_type, can_have_account_collection) 
+values 
+	('per-device', 'N');

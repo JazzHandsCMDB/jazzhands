@@ -4,7 +4,7 @@ drop view v_application_role_member;
 drop view v_acct_coll_prop_expanded;
 drop view v_dev_col_user_prop_expanded;
 drop view v_l1_all_physical_ports;
-drop view v_device_col_acct_col_expanded;
+drop view IF EXISTS v_device_col_acct_col_expanded;
 drop view v_acct_coll_acct_expanded;
 drop view v_account_collection_account;
 drop view v_property;
@@ -43,7 +43,7 @@ NOTES:
 	device_management_controller
 	device
 	service_environment_collection
-	service_environment_hier
+	service_environment_coll_hier
 	svc_environment_coll_svc_env
 	property
  */
@@ -1013,7 +1013,7 @@ alter table layer1_connection drop constraint fk_layer1_cnct_phys_port1;
 alter table layer1_connection drop constraint fk_layer1_cnct_phys_port2;
 alter table physical_connection drop constraint fk_patch_panel_port2;
 alter table physical_connection drop constraint fk_patch_panel_port1;
-alter table network_interface drop constraint fk_network_int_phys_port;
+alter table network_interface drop constraint IF EXISTS fk_network_int_phys_port;
 alter table layer2_encapsulation drop constraint fk_l2encap_physport_id;
 
 -- FOREIGN KEYS TO
@@ -1282,10 +1282,8 @@ alter table secondary_netblock drop constraint fk_secnblk_netint_id;
 alter table network_interface drop constraint fk_netint_netinttyp_id;
 alter table network_interface drop constraint fk_netint_netblk_v6id;
 alter table network_interface drop constraint fk_netint_netblk_v4id;
--- XXX made to go away earlier
--- alter table network_interface drop constraint fk_network_int_phys_port;
--- XXX is this somethign else?
--- alter table network_interface drop constraint fk_netint_netintprp_id;
+alter table network_interface drop constraint IF EXISTS fk_network_int_phys_port;
+alter table network_interface drop constraint IF EXISTS fk_netint_netintprp_id;
 alter table network_interface drop constraint fk_netint_device_id;
 alter table network_interface drop constraint fk_netint_ref_parentnetint;
 alter table network_interface drop constraint fk_netint_devid_name;
@@ -1603,14 +1601,15 @@ ALTER TABLE network_interface
 	ADD CONSTRAINT fk_netint_netblk_v4id
 	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
 ALTER TABLE network_interface
-	ADD CONSTRAINT fk_network_int_phys_port
-	FOREIGN KEY (physical_port_id) REFERENCES physical_port(physical_port_id);
-ALTER TABLE network_interface
 	ADD CONSTRAINT fk_netint_device_id
 	FOREIGN KEY (device_id) REFERENCES device(device_id);
 ALTER TABLE network_interface
 	ADD CONSTRAINT fk_netint_ref_parentnetint
 	FOREIGN KEY (parent_network_interface_id) REFERENCES network_interface(network_interface_id);
+ALTER TABLE ONLY network_interface
+	ADD CONSTRAINT fk_network_int_phys_port_devid 
+	FOREIGN KEY (physical_port_id, device_id) 
+	REFERENCES physical_port(physical_port_id, device_id);
 
 -- TRIGGERS
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'network_interface');
@@ -1747,7 +1746,7 @@ GRANT INSERT,UPDATE,DELETE ON layer2_encapsulation TO iud_role;
 --------------------------------------------------------------------
 CREATE TABLE ip_group
 (
-	ip_group_id	character(18) NOT NULL,
+	ip_group_id	integer NOT NULL,
 	ip_group_protocol	character(18) NOT NULL,
 	netblock_collection_id	integer NOT NULL,
 	description	varchar(255)  NULL,
@@ -1757,6 +1756,13 @@ CREATE TABLE ip_group
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'ip_group', true);
+
+CREATE SEQUENCE ip_group_ip_group_id_seq;
+ALTER TABLE ip_group
+        ALTER ip_group_id
+        SET DEFAULT nextval('ip_group_ip_group_id_seq'::regclass);
+ALTER SEQUENCE ip_group_ip_group_id_seq
+	 OWNED BY ip_group.ip_group_id;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE ip_group ADD CONSTRAINT pk_ip_group PRIMARY KEY (ip_group_id);
@@ -1787,7 +1793,7 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'ip_group');
 --------------------------------------------------------------------
 CREATE TABLE ip_group_network_interface
 (
-	ip_group_id	character(18) NOT NULL,
+	ip_group_id	integer NOT NULL,
 	network_interface_id	integer NOT NULL,
 	priority	integer NOT NULL,
 	data_ins_user	varchar(255)  NULL,
@@ -2024,7 +2030,6 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'device_manage
 -- DEALING WITH TABLE device [433295]
 
 -- FOREIGN KEYS FROM
--- XXX fixed later?
 alter table physical_port drop constraint fk_phys_port_dev_id;
 alter table network_service drop constraint fk_netsvc_device_id;
 alter table device_ssh_key drop constraint fk_dev_ssh_key_ssh_key_id;
@@ -2410,7 +2415,6 @@ CREATE TRIGGER trigger_verify_device_voe
 	BEFORE INSERT OR UPDATE ON device 
 	FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
 
-
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'device');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'device');
 ALTER SEQUENCE device_device_id_seq
@@ -2436,6 +2440,14 @@ CREATE TABLE service_environment_collection
 );
 SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment_collection', true);
 
+CREATE SEQUENCE service_environment_collection_service_env_collection_id_seq;
+ALTER TABLE service_environment_collection
+        ALTER service_env_collection_id
+        SET DEFAULT nextval('service_environment_collection_service_env_collection_id_seq'::regclass);
+
+ALTER SEQUENCE service_environment_collection_service_env_collection_id_seq
+	 OWNED BY service_environment_collection.service_env_collection_id;
+
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE service_environment_collection ADD CONSTRAINT pk_service_environment_collect PRIMARY KEY (service_env_collection_id);
 ALTER TABLE service_environment_collection ADD CONSTRAINT ak_val_svc_env_name_type UNIQUE (service_env_collection_name, service_env_collection_type);
@@ -2452,10 +2464,10 @@ CREATE INDEX xif1service_environment_collec ON service_environment_collection US
 --ALTER TABLE property
 --	ADD CONSTRAINT FK_PROP_SVC_ENV_COLL_ID
 --	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
---ALTER TABLE service_environment_hier
+--ALTER TABLE service_environment_coll_hier
 --	ADD CONSTRAINT fk_svcenv_coll_child_svccollid
 --	FOREIGN KEY (child_service_env_coll_id) REFERENCES service_environment_collection(service_env_collection_id);
--- ALTER TABLE service_environment_hier
+-- ALTER TABLE service_environment_coll_hier
 --	ADD CONSTRAINT fk_svc_env_hier_svc_env_coll_i
 --	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
 
@@ -2469,7 +2481,10 @@ SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment_co
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment_collection');
 -- DONE DEALING WITH TABLE service_environment_collection [744946]
 --------------------------------------------------------------------
-CREATE TABLE service_environment_hier
+
+--------------------------------------------------------------------
+-- DEALING WITH TABLE service_environment_coll_hier []
+CREATE TABLE service_environment_coll_hier
 (
 	service_env_collection_id	integer NOT NULL,
 	child_service_env_coll_id	integer NOT NULL,
@@ -2479,30 +2494,32 @@ CREATE TABLE service_environment_hier
 	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
-SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment_hier', true);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment_coll_hier', true);
 
 -- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE service_environment_hier ADD CONSTRAINT pk_service_environment_hier PRIMARY KEY (service_env_collection_id, child_service_env_coll_id);
+ALTER TABLE service_environment_coll_hier ADD CONSTRAINT pk_service_environment_hier PRIMARY KEY (service_env_collection_id, child_service_env_coll_id);
 -- INDEXES
-CREATE INDEX xif2service_environment_hier ON service_environment_hier USING btree (service_env_collection_id);
-CREATE INDEX xif1service_environment_hier ON service_environment_hier USING btree (child_service_env_coll_id);
+CREATE INDEX xif2service_environment_coll_h ON service_environment_coll_hier USING btree (service_env_collection_id);
+CREATE INDEX xif1service_environment_coll_h ON service_environment_coll_hier USING btree (child_service_env_coll_id);
 
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
 
 -- FOREIGN KEYS TO
-ALTER TABLE service_environment_hier
+ALTER TABLE service_environment_coll_hier
 	ADD CONSTRAINT fk_svcenv_coll_child_svccollid
 	FOREIGN KEY (child_service_env_coll_id) REFERENCES service_environment_collection(service_env_collection_id);
-ALTER TABLE service_environment_hier
+ALTER TABLE service_environment_coll_hier
 	ADD CONSTRAINT fk_svc_env_hier_svc_env_coll_i
 	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
 
 -- TRIGGERS
-SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment_hier');
-SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment_hier');
--- DONE DEALING WITH TABLE service_environment_hier [744957]
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment_coll_hier');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment_coll_hier');
+-- DONE DEALING WITH TABLE service_environment_coll_hier [171000]
+--------------------------------------------------------------------
+
 --------------------------------------------------------------------
 CREATE TABLE svc_environment_coll_svc_env
 (
@@ -2530,9 +2547,10 @@ CREATE INDEX xif1svc_environment_coll_svc_e ON svc_environment_coll_svc_env USIN
 ALTER TABLE svc_environment_coll_svc_env
 	ADD CONSTRAINT fk_svc_env_coll_svc_coll_id
 	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
-ALTER TABLE svc_environment_coll_svc_env
-	ADD CONSTRAINT fk_svc_env_col_svc_env
-	FOREIGN KEY (service_environment) REFERENCES val_service_environment(service_environment);
+-- added for realz later
+--ALTER TABLE svc_environment_coll_svc_env
+--	ADD CONSTRAINT fk_svc_env_col_svc_env
+--	FOREIGN KEY (service_environment) REFERENCES val_service_environment(service_environment);
 
 -- TRIGGERS
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'svc_environment_coll_svc_env');
@@ -2571,6 +2589,155 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_service_e
 --------------------------------------------------------------------
 
 --------------------------------------------------------------------
+-- DEALING WITH TABLE val_service_environment [135878]
+
+-- FOREIGN KEYS FROM
+alter table network_service drop constraint fk_netsvc_csvcenv;
+alter table device drop constraint fk_device_fk_dev_v_svcenv;
+alter table appaal_instance drop constraint fk_appaal_i_fk_applic_svcenv;
+alter table voe drop constraint fk_voe_ref_v_svcenv;
+alter table sw_package_release drop constraint fk_sw_pkg_rel_ref_vsvcenv;
+alter table sw_package drop constraint fk_sw_pkg_ref_v_prod_state;
+alter table property drop constraint fk_property_svcenv;
+
+-- FOREIGN KEYS TO
+alter table val_service_environment drop constraint fk_val_svcenv_prodstate;
+alter table val_service_environment drop constraint pk_val_service_environment;
+-- INDEXES
+DROP INDEX xif1val_service_environment;
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+drop trigger trig_userlog_val_service_environment on val_service_environment;
+drop trigger trigger_audit_val_service_environment on val_service_environment;
+
+drop function perform_audit_val_service_environment();
+
+ALTER TABLE val_service_environment RENAME TO val_service_environment_v53;
+ALTER TABLE audit.val_service_environment RENAME TO val_service_environment_v53;
+
+CREATE TABLE service_environment
+(
+	service_environment	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	production_state	varchar(50) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+ALTER SEQUENCE audit.val_service_environment_seq RENAME TO service_environment_seq;
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment', false);
+INSERT INTO service_environment (
+	service_environment,
+	description,
+	production_state,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	service_environment,
+	description,
+	production_state,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_service_environment_v53;
+
+INSERT INTO audit.service_environment (
+	service_environment,
+	description,
+	production_state,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	service_environment,
+	description,
+	production_state,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+FROM audit.val_service_environment_v53;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE service_environment ADD CONSTRAINT pk_service_environment PRIMARY KEY (service_environment);
+-- INDEXES
+CREATE INDEX xif1service_environment ON service_environment USING btree (production_state);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+ALTER TABLE svc_environment_coll_svc_env
+	ADD CONSTRAINT fk_svc_env_col_svc_env
+	FOREIGN KEY (service_environment) REFERENCES service_environment(service_environment);
+ALTER TABLE network_service
+	ADD CONSTRAINT fk_netsvc_csvcenv
+	FOREIGN KEY (service_environment) REFERENCES service_environment(service_environment);
+ALTER TABLE device
+	ADD CONSTRAINT fk_device_fk_dev_v_svcenv
+	FOREIGN KEY (service_environment) REFERENCES service_environment(service_environment);
+ALTER TABLE appaal_instance
+	ADD CONSTRAINT fk_appaal_i_fk_applic_svcenv
+	FOREIGN KEY (service_environment) REFERENCES service_environment(service_environment);
+ALTER TABLE voe
+	ADD CONSTRAINT fk_voe_ref_v_svcenv
+	FOREIGN KEY (service_environment) REFERENCES service_environment(service_environment);
+ALTER TABLE sw_package_release
+	ADD CONSTRAINT fk_sw_pkg_rel_ref_vsvcenv
+	FOREIGN KEY (service_environment) REFERENCES service_environment(service_environment);
+ALTER TABLE sw_package
+	ADD CONSTRAINT fk_sw_pkg_ref_v_prod_state
+	FOREIGN KEY (production_state_restriction) REFERENCES service_environment(service_environment);
+
+-- FOREIGN KEYS TO
+ALTER TABLE service_environment
+	ADD CONSTRAINT fk_val_svcenv_prodstate
+	FOREIGN KEY (production_state) REFERENCES val_production_state(production_state);
+
+-- TRIGGERS
+--- XXX trigger: trigger_delete_per_svc_env_svc_env_collection
+--- XXX trigger: trigger_update_per_svc_env_svc_env_collection
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment');
+DROP TABLE val_service_environment_v53;
+DROP TABLE audit.val_service_environment_v53;
+-- DONE DEALING WITH TABLE service_environment [127108]
+--------------------------------------------------------------------
+
+
+-- NOW...  Create service environment collections that would have been
+-- previously setup by triggers that will get added later on here.
+-- NOTE:  The update of property uses these.
+
+insert into val_service_env_coll_type
+	( service_env_collection_type ) values ('per-environment');
+
+insert into service_environment_collection
+	(service_env_collection_name, service_env_collection_type)
+SELECT	service_environment, 'per-environment' AS type
+  FROM	service_environment;
+
+insert into svc_environment_coll_svc_env
+	(service_environment, service_env_collection_id)
+SELECT	service_env_collection_name, service_env_collection_id
+ from	service_environment_collection
+WHERE	service_env_collection_type = 'per-environment';
+
+
+--------------------------------------------------------------------
 -- DEALING WITH TABLE property [438512]
 
 -- FOREIGN KEYS FROM
@@ -2581,7 +2748,7 @@ alter table property drop constraint fk_property_person_id;
 alter table property drop constraint fk_property_site_code;
 alter table property drop constraint fk_property_pval_compid;
 alter table property drop constraint fk_property_osid;
-alter table property drop constraint fk_property_svcenv;
+alter table property drop constraint IF EXISTS fk_property_svcenv;
 alter table property drop constraint fk_property_nblk_coll_id;
 alter table property drop constraint fk_property_acct_col;
 alter table property drop constraint fk_property_pval_tokcolid;
@@ -4149,7 +4316,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- they all call the above function
 
 ------------------------------------------------------------------------------
--- update dns_record triggers
+-- BEGIN update dns_record triggers
 ------------------------------------------------------------------------------
 /*
  * Copyright (c) 2012 Todd Kover
@@ -4272,6 +4439,236 @@ CREATE CONSTRAINT TRIGGER trigger_update_dns_zone
 	FOR EACH ROW 
 	EXECUTE PROCEDURE update_dns_zone();
 
+------------------------------------------------------------------------------
+-- BEGIN update dns_record triggers
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- BEGIN add new device triggers
+------------------------------------------------------------------------------
+/*
+ * Copyright (c) 2013 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+-- Manage per-device device collections.
+--
+-- When a device is added, updated or removed, there is a per-device
+-- device-collection that goes along with it
+
+-- XXX Need automated test cases
+
+-- before a device is deleted, remove the per-device device collections, 
+-- if appropriate
+CREATE OR REPLACE FUNCTION delete_per_device_device_collection() 
+RETURNS TRIGGER AS $$
+DECLARE
+	dcid			device_collection.device_collection_id%TYPE;
+BEGIN
+	SELECT	device_collection_id
+	  FROM  device_collection
+	  INTO	dcid
+	 WHERE	device_collection_type = 'per-device'
+	   AND	device_collection_id in
+		(select device_collection_id
+		 from device_collection_device
+		where device_id = OLD.device_id
+		)
+	ORDER BY device_collection_id
+	LIMIT 1;
+
+	IF dcid IS NOT NULL THEN
+		DELETE FROM device_collection_device
+		WHERE device_collection_id = dcid;
+
+		DELETE from device_collection
+		WHERE device_collection_id = dcid;
+	END IF;
+
+	RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_delete_per_device_device_collection ON Device;
+CREATE TRIGGER trigger_delete_per_device_device_collection 
+BEFORE DELETE
+ON device
+FOR EACH ROW EXECUTE PROCEDURE delete_per_device_device_collection();
+
+------------------------------------------------------------------------------
+
+
+-- On inserts and updates, ensure the per-device device collection is updated
+-- correctly.
+CREATE OR REPLACE FUNCTION update_per_device_device_collection()
+RETURNS TRIGGER AS $$
+DECLARE
+	dcid		device_collection.device_collection_id%TYPE;
+	newname		device_collection.device_collection_name%TYPE;
+BEGIN
+	IF NEW.device_name IS NOT NULL THEN
+		newname = NEW.device_name || '_' || NEW.device_id;
+	ELSE
+		newname = 'per_d_dc_contrived_' || NEW.device_id;
+	END IF;
+
+	IF TG_OP = 'INSERT' THEN
+		insert into device_collection 
+			(device_collection_name, device_collection_type)
+		values
+			(newname, 'per-device')
+		RETURNING device_collection_id INTO dcid;
+		insert into device_collection_device 
+			(device_collection_id, device_id)
+		VALUES
+			(dcid, NEW.device_id);
+	ELSIF TG_OP = 'UPDATE'  THEN
+		UPDATE	device_collection
+		   SET	device_collection_name = newname
+		 WHERE	device_collection_name != newname
+		   AND	device_collection_type = 'per-device'
+		   AND	device_collection_id in (
+			SELECT	device_collection_id
+			  FROM	device_collection_device
+			 WHERE	device_id = NEW.device_id
+			);
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_update_per_device_device_collection ON device;
+CREATE TRIGGER trigger_update_per_device_device_collection 
+AFTER INSERT OR UPDATE
+ON device 
+FOR EACH ROW EXECUTE PROCEDURE update_per_device_device_collection();
+------------------------------------------------------------------------------
+-- END add new device triggers
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- BEGIN add new service_environment triggers
+------------------------------------------------------------------------------
+/*
+ * Copyright (c) 2013 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+-- Manage per-service_environment collections.
+--
+-- When a service environment is added, updated or removed, there is a
+-- per-environment
+-- service environment collection that goes along with it
+
+-- XXX Need automated test cases
+
+-- before a serivce environment is deleted, remove the 
+-- collection its a part of, -- if appropriate
+CREATE OR REPLACE FUNCTION delete_per_svc_env_svc_env_collection() 
+RETURNS TRIGGER AS $$
+DECLARE
+	secid	service_environment_collection.service_env_collection_id%TYPE;
+BEGIN
+	SELECT	service_env_collection_id
+	  FROM  service_environment_collection
+	  INTO	secid
+	 WHERE	service_env_collection_type = 'per-environment'
+	   AND	service_env_collection_id in
+		(select service_env_collection_id
+		 from svc_environment_coll_svc_env
+		where service_environment = OLD.service_environment
+		)
+	ORDER BY service_env_collection_id
+	LIMIT 1;
+
+	IF secid IS NOT NULL THEN
+		DELETE FROM svc_environment_coll_svc_env
+		WHERE service_env_collection_id = secid;
+
+		DELETE from service_environment_collection
+		WHERE service_env_collection_id = secid;
+	END IF;
+
+	RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection ON service_environment;
+CREATE TRIGGER trigger_delete_per_svc_env_svc_env_collection 
+BEFORE DELETE
+ON service_environment
+FOR EACH ROW EXECUTE PROCEDURE delete_per_svc_env_svc_env_collection();
+
+------------------------------------------------------------------------------
+
+
+-- On inserts and updates, ensure the per-environment service collection 
+-- is updated correctly.
+CREATE OR REPLACE FUNCTION update_per_svc_env_svc_env_collection()
+RETURNS TRIGGER AS $$
+DECLARE
+	secid		service_environment_collection.service_env_collection_id%TYPE;
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		insert into service_environment_collection 
+			(service_env_collection_name, service_env_collection_type)
+		values
+			(NEW.service_environment, 'per-environment')
+		RETURNING service_env_collection_id INTO secid;
+		insert into svc_environment_coll_svc_env 
+			(service_env_collection_id, service_environment)
+		VALUES
+			(secid, NEW.service_environment);
+	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment != NEW.service_environment THEN
+		UPDATE	service_environment_collection
+		   SET	service_env_collection_name = NEW.service_environment
+		 WHERE	service_env_collection_name != NEW.service_environment
+		   AND	service_env_collection_type = 'per-environment'
+		   AND	service_environment in (
+			SELECT	service_environment
+			  FROM	svc_environment_coll_svc_env
+			 WHERE	service_environment = NEW.service_environment
+			);
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_update_per_svc_env_svc_env_collection ON service_environment;
+CREATE TRIGGER trigger_update_per_svc_env_svc_env_collection 
+AFTER INSERT OR UPDATE
+ON service_environment 
+FOR EACH ROW EXECUTE PROCEDURE update_per_svc_env_svc_env_collection();
+------------------------------------------------------------------------------
+-- END add new service_environment triggers
+------------------------------------------------------------------------------
+
 ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION dns_rec_type_validation() RETURNS TRIGGER AS $$
@@ -4299,6 +4696,31 @@ CREATE TRIGGER trigger_dns_rec_a_type_validation
 	ON dns_record 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE dns_rec_type_validation();
+------------------------------------------------------------------------------
+-- BEGIN COMMENTS!
+COMMENT ON COLUMN device_collection_assignd_cert.file_access_mode IS 'Numeric representation of the File Access Mode.';
+COMMENT ON COLUMN device_collection_assignd_cert.file_group_acct_collection_id IS 'Identifies user collection that corresponds to a unix group for the file to be owned by';
+COMMENT ON COLUMN device_collection_assignd_cert.file_location_path IS 'Alphanumeric representation of the path leading to the file.';
+COMMENT ON COLUMN device_collection_assignd_cert.file_owner_account_id IS 'Identifier of the file owner.';
+COMMENT ON COLUMN device_collection_assignd_cert.key_tool_label IS 'Alphanumeric representation of the label attached to the certificate by Key Tool';
+COMMENT ON COLUMN device_collection_assignd_cert.key_usage_reason_for_assign IS 'Uniquely identifies and indicates reason for assignment.';
+COMMENT ON COLUMN device_collection_assignd_cert.x509_cert_id IS 'Uniquely identifies Certificate';
+COMMENT ON COLUMN device_collection_assignd_cert.x509_file_format IS 'Format Name of the file containing Certificate information. Example; keytool, rsa';
+COMMENT ON COLUMN device_collection_assignd_cert.x509_key_usg IS 'Name of the Certificate.';
+COMMENT ON COLUMN x509_certificate.is_cert_revoked IS 'Indicates if certificate has been revoked. ''Y'' indicates that Certificate has been revoked.';
+COMMENT ON COLUMN x509_certificate.private_key IS 'Textual representation of Certificate Private Key. Private Key is a component of X509 standard and is used for encryption.';
+COMMENT ON COLUMN x509_certificate.public_key IS 'Textual representation of Certificate Public Key. Public Key is a component of X509 standard and is used for encryption.';
+COMMENT ON COLUMN x509_certificate.signing_cert_id IS 'Identifier for the certificate that has signed this one.';
+COMMENT ON COLUMN x509_certificate.subject IS 'Textual representation of a certificate subject. Certificate subject is a part of X509 certificate specifications.';
+COMMENT ON COLUMN x509_certificate.valid_from IS 'Timestamp indicating when the certificate becomes valid and can be used.';
+COMMENT ON COLUMN x509_certificate.valid_to IS 'Timestamp indicating when the certificate becomes invalid and can''t be used.';
+COMMENT ON COLUMN x509_certificate.x509_ca_cert_serial_number IS 'Serial INTEGER assigned to the certificate within Certificate Authority. It uniquely identifies certificate within the realm of the CA.';
+COMMENT ON COLUMN x509_certificate.x509_cert_id IS 'Uniquely identifies Certificate';
+COMMENT ON TABLE device_collection_assignd_cert IS 'Actual  assignment of the usage category APPLICATION Certificates to Device Collections.';
+COMMENT ON TABLE x509_certificate IS 'X509 specification Certificate.';
+-- END COMMENTS!
+------------------------------------------------------------------------------
+
 ------------------------------------------------------------------------------
 -- Add new definitions of data whose purpose is changing
 ------------------------------------------------------------------------------
@@ -4387,12 +4809,11 @@ insert into val_port_protocol_speed (port_protocol, port_speed)
 insert into val_port_protocol_speed (port_protocol, port_speed)
         values ('Ethernet', '100G');
 
-insert into val_service_env_coll_type
-	( service_env_collection_type ) values ('per-environment');
+insert into val_device_collection_type
+        (device_collection_type, can_have_account_collection)
+values
+        ('per-device', 'N');
 
-insert into service_environment_collection
-	( service_env_collection_name, service_env_collection_type ) 
-	select service_environment, 'per-environment'
-	 from	val_service_environment;
+RAISE EXCEPTION 'XXX consdier setting these up for existing devices';
 
-RAISE EXCEPTION 'need to deal with per-service environment collections -- create new per-environment types and whatnot';
+RAISE EXCEPTION 'views for org accounts (_rootcompanyid)'
