@@ -3296,7 +3296,13 @@ ALTER TABLE x509_certificate ADD CONSTRAINT ak_x509_cert_cert_ca_ser UNIQUE (sig
 
 -- CHECK CONSTRAINTS
 ALTER TABLE x509_certificate ADD CONSTRAINT check_yes_no_31190954
-	CHECK (is_certificate_authority = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+	CHECK 
+	(is_certificate_authority = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE X509_CERTIFICATE
+	ADD CONSTRAINT  CHECK_YES_NO_293461963 
+	CHECK (IS_CERT_REVOKED IN ('Y', 'N'));
+ALTER TABLE X509_CERTIFICATE
+	ALTER IS_CERT_REVOKED SET DEFAULT 'N';
 
 -- FOREIGN KEYS FROM
 ALTER TABLE x509_key_usage_attribute
