@@ -1956,7 +1956,7 @@ CREATE INDEX xif2rack ON rack USING btree (rack_type);
 -- CHECK CONSTRAINTS
 ALTER TABLE rack ADD CONSTRAINT ckc_display_from_bott_rack
 	CHECK ((display_from_bottom = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])) AND ((display_from_bottom)::text = upper((display_from_bottom)::text)));
-ALTER TABLE rack ADD CONSTRAINT ckc_rack_style_rack CHECK ((((rack_style)::text = ANY ((ARRAY['RELAY'::character varying, 'CABINET'::character varying])::text[])) AND ((rack_type)::text = upper((rack_style)::text))));
+ALTER TABLE rack ADD CONSTRAINT ckc_rack_style_rack CHECK ((((rack_style)::text = ANY ((ARRAY['RELAY'::character varying, 'CABINET'::character varying])::text[])) AND ((rack_style)::text = upper((rack_style)::text))));
 
 
 
@@ -4814,6 +4814,12 @@ insert into val_device_collection_type
 values
         ('per-device', 'N');
 
-RAISE EXCEPTION 'XXX consdier setting these up for existing devices';
+-- RAISE EXCEPTION 'XXX consdier setting these up for existing devices';
 
-RAISE EXCEPTION 'views for org accounts (_rootcompanyid)'
+-- RAISE EXCEPTION 'views for org accounts (_rootcompanyid)'
+
+GRANT select on all tables in schema jazzhands to ro_role;
+GRANT insert,update,delete on all tables in schema jazzhands to iud_role;
+GRANT select on all sequences in schema jazzhands to ro_role;
+GRANT usage on all sequences in schema jazzhands to iud_role;
+
