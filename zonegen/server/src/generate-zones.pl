@@ -308,7 +308,7 @@ sub build_dhcp_range_table {
 					on dr.stop_netblock_id = nbstop.netblock_id,
 			network_interface ni
 				inner join netblock nb
-					on ni.v4_netblock_id = nb.netblock_id
+					on ni.netblock_id = nb.netblock_id
 				inner join dns_record dns
 					on dns.netblock_id = nb.netblock_id
 				inner join dns_domain dom
