@@ -113,6 +113,7 @@ rm -rf %{buildroot}
 %{prefix}/javascript/racks.js
 %{prefix}/javascript/netblock.js
 %{prefix}/javascript/device-utils.js
+%{prefix}/javascript/stab-common.js
 %{prefix}/circuit/index.pl
 %{prefix}/circuit/trunkgroup/index.pl
 %{prefix}/stabcons/Makefile
