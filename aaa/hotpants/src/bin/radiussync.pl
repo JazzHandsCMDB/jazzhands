@@ -727,7 +727,7 @@ if ($syncclients) {
 			Device_Function USING (Device_ID) LEFT JOIN
 			Network_Interface NI USING (Device_ID) LEFT JOIN
 			Netblock NB ON
-				(NI.V4_Netblock_Id = NB.Netblock_ID)
+				(NI.Netblock_Id = NB.Netblock_ID)
 		WHERE
 			Device_Collection_Type = 'mclass' AND
 			Device_Name IS NOT NULL AND
