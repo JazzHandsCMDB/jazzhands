@@ -405,7 +405,7 @@ sub zone_fwd_records {
 				left join netblock nb
 					on nb.netblock_id = dns.netblock_id
 				left join network_interface ni
-					on ni.v4_netblock_id = nb.netblock_id
+					on ni.netblock_id = nb.netblock_id
 		where	vdt.id_type in ('ID', 'NON-ID')
 		  and	
 				(	
@@ -448,7 +448,7 @@ sub zone_rvs_records {
 					on dns.dns_domain_id =
 						dom.dns_domain_id
 				left join network_interface ni
-					on ni.v4_netblock_id = nb.netblock_id,
+					on ni.netblock_id = nb.netblock_id,
 			netblock root
 				inner join dns_record rootd
 					on rootd.netblock_id = root.netblock_id

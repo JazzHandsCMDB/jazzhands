@@ -53,7 +53,7 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
-* Fri Jul 26 2013 Todd Kover <kovert@omniscient.com> 0.54.0
+* Wed Sept 25 013 Todd Kover <kovert@omniscient.com> 0.54.0
 - deal with v0.54 and moving v4_netblock_id to netblock_id
 * Fri Jul 26 2013 Todd Kover <kovert@omniscient.com> 0.52.6.2-1
 - commit for each zone update

@@ -405,7 +405,7 @@ sub fix_goofy_ips {
 				ip_manip.v4_octet_from_int(nb.ip_address) as ip
 		  from	network_interface ni
 				inner join netblock nb
-					on nb.netblock_id = ni.primary_v4_netblock_id
+					on nb.netblock_id = ni.primary_netblock_id
 		 where	device_id = :1
 	};
 	my $sth = $dbh->prepare($q) || die $dbh->errstr;
@@ -490,7 +490,7 @@ sub do_work {
 				on ni.device_id = d.device_id
 				and is_management_interface = 'Y'
 			left join dns_record dns
-				on dns.netblock_id = ni.primary_v4_netblock_id
+				on dns.netblock_id = ni.primary_netblock_id
 			left join dns_domain dom
 				on dns.dns_domain_id = dom.dns_domain_id
 			left join snmp_commstr snmp

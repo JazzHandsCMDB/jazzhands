@@ -63,7 +63,7 @@ sub do_dump_dhcp_range {
 				inner join network_interface ni
 					on dhcp.network_interface_id = ni.network_interface_id
 				inner join netblock nb
-					on nb.netblock_id = ni.v4_netblock_id
+					on nb.netblock_id = ni.netblock_id
 				inner join device d
 					on d.device_id = ni.device_id
 				inner join netblock lhs

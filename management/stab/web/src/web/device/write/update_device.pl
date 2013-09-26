@@ -847,7 +847,7 @@ sub delete_interface {
 	}
 
 	my $nbq = qq{
-		select	ni.v4_netblock_id,
+		select	ni.netblock_id,
 			ni.physical_port_id,
 			ni.is_primary,
 			ni.is_management_interface,
@@ -858,9 +858,9 @@ sub delete_interface {
 			dom.soa_name
 		  from	network_interface ni
 			inner join netblock nb on
-				ni.v4_netblock_id = nb.netblock_id
+				ni.netblock_id = nb.netblock_id
 			left join dns_record dns on
-				dns.netblock_id = ni.v4_netblock_id
+				dns.netblock_id = ni.netblock_id
 			left join dns_domain dom on
 				dom.dns_domain_id = dns.dns_domain_id
 		 where	ni.network_interface_id = :1
@@ -2394,7 +2394,7 @@ sub delete_device_secondary_interfaces {
 		select	netblock_id from secondary_netblock
 		  where	netblock_id in
 			(
-				select v4_netblock_id from network_interface
+				select netblock_id from network_interface
 					where device_id = :1
 			)
 	};
@@ -2440,7 +2440,7 @@ sub delete_device_interfaces {
 
 	my(@netblocks);
 	my $nbq = qq{
-		select	v4_netblock_id from network_interface
+		select	netblock_id from network_interface
 					where device_id = :1
 	};
 	my $Nsth = $stab->prepare($nbq) || $stab->return_db_err;
@@ -2453,7 +2453,7 @@ sub delete_device_interfaces {
 	my @qs = (qq{
 		delete from dns_record
 			where netblock_id in
-					(select v4_netblock_id from network_interface
+					(select netblock_id from network_interface
 						where device_id = :1
 					)
 		},

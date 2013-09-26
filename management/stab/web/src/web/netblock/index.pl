@@ -226,7 +226,7 @@ sub dump_nodes {
 			left join dns_domain dom
 				on dns.dns_domain_id = dom.dns_domain_id
 			left join network_interface ni
-				on ni.v4_netblock_id = nb.netblock_id
+				on ni.netblock_id = nb.netblock_id
 		 where	nb.parent_netblock_id = ?
 		order by nb.ip_address
 			-- XXX ,decode(dns.should_generate_ptr, 'Y', 1, 0)
@@ -710,7 +710,7 @@ sub dump_netblock_routes {
 				inner join network_interface ni
 					on srt.network_interface_dst_id = ni.network_interface_id 
 				inner join netblock dnb
-					on dnb.netblock_id = ni.v4_netblock_id
+					on dnb.netblock_id = ni.netblock_id
 				inner join device d
 					on d.device_id = ni.device_id
 		where	srt.netblock_id = ?

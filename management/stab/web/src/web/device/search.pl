@@ -105,7 +105,7 @@ sub find_devices {
 			left join network_interface ni
 				on ni.device_id = d.device_id
 			left join netblock nb
-				on nb.netblock_id = ni.v4_netblock_id
+				on nb.netblock_id = ni.netblock_id
 			left join dns_record dns
 				on dns.netblock_id = nb.netblock_id
 			left join secondary_netblock snb

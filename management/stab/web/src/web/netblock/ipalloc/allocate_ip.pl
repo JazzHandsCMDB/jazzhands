@@ -269,7 +269,7 @@ sub cleanup_unchanged_routes {
 			inner join network_interface ni
 			    on srt.network_interface_dst_id = ni.network_interface_id
 			inner join netblock dnb
-			    on dnb.netblock_id = ni.v4_netblock_id
+			    on dnb.netblock_id = ni.netblock_id
 			inner join device d
 			    on d.device_id = ni.device_id
 		where   srt.netblock_id = :1

@@ -1545,7 +1545,7 @@ sub dump_device_route {
 				inner join device ddev
 					on ddev.device_id = dni.device_id
 				left join netblock dnb
-					on dni.v4_netblock_id = dnb.netblock_id
+					on dni.netblock_id = dnb.netblock_id
 		 where	sr.device_src_id = :1
 	}
 	);
@@ -1649,7 +1649,7 @@ sub get_device_netblock_routes {
 			srt.NETBLOCK_SRC_ID,
 			net_manip.inet_dbtop(snb.ip_address) as source_block_ip,
 			snb.netmask_bits as source_block_bits,
-			ni.v4_netblock_id as destination_netblock_id,
+			ni.netblock_id as destination_netblock_id,
 			net_manip.inet_dbtop(dnb.ip_address) as destination_ip,
 			dni.name as interface_name,
 			dni.network_interface_id,
@@ -1664,11 +1664,11 @@ sub get_device_netblock_routes {
 				on net_manip.inet_base(rnb.ip_address, rnb.netmask_bits) =
 					tnb.ip_address
 			inner join network_interface ni
-				on rnb.netblock_id = ni.v4_netblock_id
+				on rnb.netblock_id = ni.netblock_id
 			inner join network_interface dni
 				on dni.network_interface_id = srt.network_interface_dst_id
 			inner join netblock dnb
-				on dni.v4_netblock_id = dnb.netblock_id
+				on dni.netblock_id = dnb.netblock_id
 			inner join device ddev
 				on dni.device_id = ddev.device_Id
 		where
@@ -1768,7 +1768,7 @@ sub dump_interfaces {
 			nb.parent_netblock_id
 		  from	network_interface ni
 			left join netblock nb on
-				nb.netblock_id = ni.v4_netblock_id
+				nb.netblock_id = ni.netblock_id
 			left join dns_record dns on
 				dns.netblock_id = nb.netblock_id
 			left join netblock pnb on
@@ -2184,7 +2184,7 @@ sub build_dns_rr_table {
 				inner join dns_domain dom
 					on dom.dns_domain_id = dns.dns_domain_id
 				inner join network_interface ni
-					on dns.netblock_id = ni.v4_netblock_id
+					on dns.netblock_id = ni.netblock_id
 		 where	ni.network_interface_id = ?
 		  and	dns.dns_record_id != ?
 	};

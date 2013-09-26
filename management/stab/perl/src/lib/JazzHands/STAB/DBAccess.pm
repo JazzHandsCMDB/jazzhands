@@ -146,7 +146,7 @@ sub get_interface_from_ip {
 		select	ni.*
 		  from	network_interface ni
 		 		inner join netblock nb
-					on nb.netblock_id = ni.v4_netblock_id
+					on nb.netblock_id = ni.netblock_id
 		 where	net_manip.inet_ptodb(?) = nb.ip_address
 	}
 	);
@@ -165,7 +165,7 @@ sub check_ip_on_local_nets {
 		select  count(*)
 		  from  network_interface ni
 			inner join netblock nb on
-				ni.v4_netblock_id = nb.netblock_id
+				ni.netblock_id = nb.netblock_id
 		where
 			ni.device_id = ?
 		 and

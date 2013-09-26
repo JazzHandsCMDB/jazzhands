@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.52.7
+%define version 0.54
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,8 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Sep 25 2013 Todd Kover <kovert@omniscient.com> 0.54-1
+- migrate network_interface.v4_netblock_id to netblock_id
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.7-1
 - dns: improve add/update of netblocks of type dns
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.6-1

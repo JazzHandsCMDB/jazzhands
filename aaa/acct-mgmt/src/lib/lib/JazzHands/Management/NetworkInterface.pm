@@ -166,7 +166,7 @@ sub dbinsert {
 			network_interface_type, is_interface_up,
 			mac_addr, network_interface_purpose,
 			is_primary, should_monitor,
-			v4_netblock_id, should_manage,
+			netblock_id, should_manage,
 			provides_dhcp, provides_nat, is_management_interface
 		) values (
 			:device_id, :name, $pport_id,
@@ -265,7 +265,7 @@ sub changeip {
 
 		$q = qq {
 			update network_interface
-			   set	v4_netblock_id = :2
+			   set	netblock_id = :2
 			 where	network_interface_id = :1
 		};
 		$sth = $dbh->prepare($q) || return $me->setdberr;
@@ -714,9 +714,9 @@ sub refresh_class_from_db {
 				dom.soa_name	    as domain_name	  
 			  from  network_interface ni
 				left join netblock nb
-				    on  ni.v4_netblock_id = nb.netblock_id
+				    on  ni.netblock_id = nb.netblock_id
 				left join   dns_record dns
-				    on dns.netblock_id = ni.v4_netblock_id
+				    on dns.netblock_id = ni.netblock_id
 				left join   dns_domain  dom
 				    on dns.dns_domain_id  = dom.dns_domain_id
 			 where  ni.network_interface_id = :1
@@ -746,9 +746,9 @@ sub refresh_class_from_db {
 				dom.soa_name	    as domain_name	  
 			  from  network_interface ni
 				left join netblock nb
-				    on  ni.v4_netblock_id = nb.netblock_id
+				    on  ni.netblock_id = nb.netblock_id
 				left join   dns_record dns
-				    on dns.netblock_id = ni.v4_netblock_id
+				    on dns.netblock_id = ni.netblock_id
 				left join   dns_domain  dom
 				    on dns.dns_domain_id  = dom.dns_domain_id
 			 where  ni.name = :2
