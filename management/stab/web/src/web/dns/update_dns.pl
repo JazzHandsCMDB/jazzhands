@@ -60,6 +60,44 @@ use POSIX;
 do_dns_update();
 
 #
+# given an IP, returns the forward record that defines that
+# PTR record
+#
+sub check_ptr {
+	my ( $stab, $ip ) = @_;
+
+	# NOTE:  This crosses netblock types!
+	# NOTE: need to reconsider ip universes
+	my (@errs);
+	my $nblk = $stab->DBFetch(
+		table => 'netblock',
+		match => {
+			'host(ip_address)'  => $ip,
+			'is_single_address' => 'Y',
+			'ip_universe_id'    => 0,
+			'host(ip_address)'  => $ip
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	);
+	return undef if !$nblk;
+
+	my $dns = $stab->DBFetch(
+		table => 'dns_record',
+		match => {
+			netblock_id         => $nblk->{netblock_id},
+			should_generate_ptr => 'Y',
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	);
+	return undef if !$dns;
+
+	return $dns->{dns_record_id};
+
+}
+
+#
 # I probably need to find a better way to do this.  This allows error
 # responses to be much less sucky, but it's going to be way slow.
 #
@@ -73,7 +111,7 @@ sub clear_same_dns_params {
 				d.dns_value, d.dns_ttl, d.is_enabled,
 				d.dns_srv_service, d.dns_srv_protocol, 
 				d.dns_srv_weight, d.dns_srv_port,
-				d.dns_priority,
+				d.dns_priority, d.should_generate_ptr,
 				net_manip.inet_dbtop(nb.ip_address) as ip
 		  from	dns_record d
 				left join netblock nb
@@ -87,7 +125,7 @@ sub clear_same_dns_params {
 	  || $stab->error_return(
 		"Unable to obtain existing DNS records from database.");
 
-	my ($purge);
+	my ($purge) = {};
 
 	#
 	# iterate over TTL because that's a record that exists for everything,
@@ -110,6 +148,9 @@ sub clear_same_dns_params {
 		my $in_enabled =
 		  $stab->cgi_parse_param( 'chk_IS_ENABLED', $dnsid );
 
+		my $in_ptr =
+		  $stab->cgi_parse_param( 'chk_SHOULD_GENERATE_PTR', $dnsid );
+
 		my $in_srv_svc =
 		  $stab->cgi_parse_param( 'DNS_SRV_SERVICE', $dnsid );
 		my $in_srv_proto =
@@ -122,6 +163,7 @@ sub clear_same_dns_params {
 		  $stab->cgi_parse_param( 'DNS_PRIORITY', $dnsid );
 
 		$in_enabled = $stab->mk_chk_yn($in_enabled);
+		$in_ptr     = $stab->mk_chk_yn($in_ptr);
 
 		if ( !exists( $all->{$dnsid} ) ) {
 			next;
@@ -131,6 +173,12 @@ sub clear_same_dns_params {
 			$in_ttl = $all->{$dnsid}->{ _dbx('DNS_TTL') };
 		}
 
+	     #
+	     # TTL only records are setup on the device and changes need to be
+	     # made there.  It is not clear if SHOULD_GENERATE_PTR should be
+	     # manipulatable or not but its here for now.  It probably should if
+	     # enabled and TTL are around.
+	     #
 		if ($in_ttlonly) {
 			if ( $all->{$dnsid}->{ _dbx('DNS_TTL') } && $in_ttl ) {
 				if ( $all->{$dnsid}->{ _dbx('DNS_TTL') } !=
@@ -152,6 +200,12 @@ sub clear_same_dns_params {
 				next;
 			}
 
+			if ( $all->{$dnsid}->{ _dbx('SHOULD_GENERATE_PTR') }
+				ne $in_ptr )
+			{
+				next;
+			}
+
 		} else {
 			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } eq 'A' ) {
 				$all->{$dnsid}->{ _dbx('DNS_VALUE') } =
@@ -159,17 +213,18 @@ sub clear_same_dns_params {
 			}
 
 			my $map = {
-				DNS_NAME         => $in_name,
-				DNS_CLASS        => $in_class,
-				DNS_TYPE         => $in_type,
-				DNS_VALUE        => $in_value,
-				DNS_TTL          => $in_ttl,
-				IS_ENABLED       => $in_enabled,
-				DNS_SRV_SERVICE  => $in_srv_svc,
-				DNS_SRV_PROTOCOL => $in_srv_proto,
-				DNS_SRV_WEIGHT   => $in_srv_weight,
-				DNS_SRV_PORT     => $in_srv_port,
-				DNS_PRIORITY => $in_priority,
+				DNS_NAME            => $in_name,
+				DNS_CLASS           => $in_class,
+				DNS_TYPE            => $in_type,
+				DNS_VALUE           => $in_value,
+				DNS_TTL             => $in_ttl,
+				IS_ENABLED          => $in_enabled,
+				DNS_SRV_SERVICE     => $in_srv_svc,
+				DNS_SRV_PROTOCOL    => $in_srv_proto,
+				DNS_SRV_WEIGHT      => $in_srv_weight,
+				DNS_SRV_PORT        => $in_srv_port,
+				DNS_PRIORITY        => $in_priority,
+				SHOULD_GENERATE_PTR => $in_ptr,
 			};
 
 	    # if it correponds to an actual row, compare, otherwise only keep if
@@ -188,7 +243,7 @@ sub clear_same_dns_params {
 						{
 							next DNS;
 						}
-					} elsif (  !defined( $x->{_dbx($key) } )
+					} elsif ( !defined( $x->{ _dbx($key) } )
 						&& !defined( $map->{$key} ) )
 					{
 						;
@@ -199,19 +254,20 @@ sub clear_same_dns_params {
 			}
 		}
 
-		$purge->{ 'DNS_RECORD_ID_' . $dnsid }  = 1;
-		$purge->{ 'DNS_NAME_' . $dnsid }       = 1;
-		$purge->{ 'DNS_TTL_' . $dnsid }        = 1;
-		$purge->{ 'DNS_TYPE_' . $dnsid }       = 1;
-		$purge->{ 'DNS_CLASS_' . $dnsid }      = 1;
-		$purge->{ 'DNS_VALUE_' . $dnsid }      = 1;
-		$purge->{ 'DNS_SRV_SERVICE_' . $dnsid }= 1;
-		$purge->{ 'DNS_SRV_PROTOCOL_' . $dnsid }= 1;
-		$purge->{ 'DNS_SRV_WEIGHT_' . $dnsid } = 1;
-		$purge->{ 'DNS_SRV_PORT_' . $dnsid }   = 1;
-		$purge->{ 'DNS_PRIORITY_' . $dnsid }   = 1;
-		$purge->{ 'ttlonly_' . $dnsid }        = 1;
-		$purge->{ 'chk_IS_ENABLED_' . $dnsid } = 1;
+		$purge->{ 'DNS_RECORD_ID_' . $dnsid }           = 1;
+		$purge->{ 'DNS_NAME_' . $dnsid }                = 1;
+		$purge->{ 'DNS_TTL_' . $dnsid }                 = 1;
+		$purge->{ 'DNS_TYPE_' . $dnsid }                = 1;
+		$purge->{ 'DNS_CLASS_' . $dnsid }               = 1;
+		$purge->{ 'DNS_VALUE_' . $dnsid }               = 1;
+		$purge->{ 'DNS_SRV_SERVICE_' . $dnsid }         = 1;
+		$purge->{ 'DNS_SRV_PROTOCOL_' . $dnsid }        = 1;
+		$purge->{ 'DNS_SRV_WEIGHT_' . $dnsid }          = 1;
+		$purge->{ 'DNS_SRV_PORT_' . $dnsid }            = 1;
+		$purge->{ 'DNS_PRIORITY_' . $dnsid }            = 1;
+		$purge->{ 'ttlonly_' . $dnsid }                 = 1;
+		$purge->{ 'chk_IS_ENABLED_' . $dnsid }          = 1;
+		$purge->{ 'chk_SHOULD_GENERATE_PTR_' . $dnsid } = 1;
 	}
 
 	undef $all;
@@ -220,7 +276,7 @@ sub clear_same_dns_params {
 	$cgi->delete_all;
 	my $v = $n->Vars;
 	foreach my $p ( keys %$v ) {
-		next if ( $p eq 'Records');
+		next if ( $p eq 'Records' );
 		next if ( defined( $purge->{$p} ) );
 		$cgi->param( $p, $v->{$p} );
 	}
@@ -230,28 +286,149 @@ sub clear_same_dns_params {
 	undef $purge;
 }
 
+sub process_dns_update {
+	my ( $stab, $domid, $updateid ) = @_;
+
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my $numchanges = 0;
+
+	my $name  = $stab->cgi_parse_param( 'DNS_NAME', $updateid );
+	my $ttl   = $cgi->param( 'DNS_TTL_' . $updateid );
+	my $class = $stab->cgi_parse_param( 'DNS_CLASS', $updateid );
+	my $type  = $stab->cgi_parse_param( 'DNS_TYPE', $updateid );
+	my $value = $stab->cgi_parse_param( 'DNS_VALUE', $updateid );
+	my $genptr =
+	  $stab->cgi_parse_param( 'chk_SHOULD_GENERATE_PTR', $updateid );
+	my $enabled = $stab->cgi_parse_param( 'chk_IS_ENABLED', $updateid );
+	my $ttlonly = $stab->cgi_parse_param( 'ttlonly',        $updateid );
+
+	my $in_srv_svc =
+	  $stab->cgi_parse_param( "DNS_SRV_SERVICE", $updateid );
+	my $in_srv_proto =
+	  $stab->cgi_parse_param( "DNS_SRV_PROTOCOL", $updateid );
+	my $in_srv_weight =
+	  $stab->cgi_parse_param( "DNS_SRV_WEIGHT", $updateid );
+	my $in_srv_port =
+	  $stab->cgi_parse_param( "DNS_SRV_PORT", $updateid );
+	my $in_priority =
+	  $stab->cgi_parse_param( "DNS_PRIORITY", $updateid );
+
+	$enabled = $stab->mk_chk_yn($enabled);
+	$genptr  = $stab->mk_chk_yn($genptr);
+
+	if ( $type eq 'MX' ) {
+		$in_srv_svc = $in_srv_proto = $in_srv_weight =
+		  $in_srv_port = undef;
+	} elsif ( $type ne 'SRV' ) {
+		$in_srv_svc    = $in_srv_proto = $in_srv_weight =
+		  $in_srv_port = $in_priority  = undef;
+	}
+
+	if ( defined($in_srv_port) && $in_srv_port !~ /^\d+/ ) {
+		$stab->error_return("SRV Port must be a number");
+	}
+
+	if ( defined($in_srv_weight) && $in_srv_weight !~ /^\d+/ ) {
+		$stab->error_return("SRV weight must be a number");
+	}
+
+	if ( defined($in_priority) && $in_priority !~ /^\d+/ ) {
+		$stab->error_return("SRV/MX Priority must be a number");
+	}
+
+	if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
+		return $numchanges;
+	}
+
+	if ( !$ttlonly ) {
+
+		# this are just informational records.
+		next if ( !$name && !$class && !$type && !$value );
+		if ($name) {
+			$name =~ s/^\s+//;
+			$name =~ s/\s+$//;
+		}
+		if ( !$value ) {
+			my $hint = $name || "";
+			$hint = "($hint id#$updateid)";
+			$stab->error_return(
+				"Records may not have empty values ($hint)");
+		}
+		$value =~ s/^\s+//;
+		$value =~ s/\s+$//;
+	}
+
+	if ( $ttl && $ttl !~ /^\d+/ ) {
+		$stab->error_return("TTLs must be numbers");
+	}
+
+	# [XXX] need to check value and deal with it appropriately (or figure
+	# out where quotes should go in the extraction.
+	if ( $name && $name =~ /\s/ ) {
+		$stab->error_return("DNS Records may not contain spaces");
+	}
+
+	my $new = {
+		dns_name            => $name,
+		dns_record_id       => $updateid,
+		dns_domain_id       => $domid,
+		dns_ttl             => $ttl,
+		dns_class           => $class,
+		dns_type            => $type,
+		dns_value           => $value,
+		dns_priority        => $in_priority,
+		dns_srv_service     => $in_srv_svc,
+		dns_srv_protocol    => $in_srv_proto,
+		dns_srv_weight      => $in_srv_weight,
+		dns_srv_port        => $in_srv_port,
+		is_enabled          => 'Y',
+		should_generate_ptr => $genptr,
+	};
+
+	$numchanges += process_and_update_dns_record( $stab, $new, $ttlonly );
+
+}
+
 sub process_dns_add {
 	my ( $stab, $domid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $numchanges = 0;
 
-	foreach my $newid ($stab->cgi_get_ids("new_DNS_NAME")) {
+	foreach my $newid ( $stab->cgi_get_ids("new_DNS_NAME") ) {
 		my $name  = $stab->cgi_parse_param("new_DNS_NAME_$newid");
 		my $ttl   = $stab->cgi_parse_param("new_DNS_TTL_$newid");
 		my $class = $stab->cgi_parse_param("new_DNS_CLASS_$newid");
 		my $type  = $stab->cgi_parse_param("new_DNS_TYPE_$newid");
 		my $value = $stab->cgi_parse_param("new_DNS_VALUE_$newid");
+		my $enabled =
+		  $stab->cgi_parse_param( 'new_chk_IS_ENABLED', $newid );
+		my $genptr =
+		  $stab->cgi_parse_param( "new_chk_SHOULD_GENERATE_PTR",
+			$newid );
+
+		$enabled = $stab->mk_chk_yn($enabled);
+
+		# Need to capture if this is checked or not.
+		if ($genptr) {
+			$genptr = $stab->mk_chk_yn($genptr);
+		}
 
 		if ( !$name && !$class && !$type && !$value ) {
 			return 0;
 		}
 
-		my $in_srv_svc    = $stab->cgi_parse_param("new_DNS_SRV_SERVICE_$newid");
-		my $in_srv_proto  = $stab->cgi_parse_param("new_DNS_SRV_PROTOCOL_$newid");
-		my $in_srv_weight = $stab->cgi_parse_param("new_DNS_SRV_WEIGHT_$newid");
-		my $in_srv_port   = $stab->cgi_parse_param("new_DNS_SRV_PORT_$newid");
-		my $in_priority   = $stab->cgi_parse_param("new_DNS_PRIORITY_$newid");
+		my $in_srv_svc =
+		  $stab->cgi_parse_param("new_DNS_SRV_SERVICE_$newid");
+		my $in_srv_proto =
+		  $stab->cgi_parse_param("new_DNS_SRV_PROTOCOL_$newid");
+		my $in_srv_weight =
+		  $stab->cgi_parse_param("new_DNS_SRV_WEIGHT_$newid");
+		my $in_srv_port =
+		  $stab->cgi_parse_param("new_DNS_SRV_PORT_$newid");
+		my $in_priority =
+		  $stab->cgi_parse_param("new_DNS_PRIORITY_$newid");
 
 		if ( defined($name) ) {
 			$name =~ s/^\s+//;
@@ -293,7 +470,8 @@ sub process_dns_add {
 			$stab->error_return("SRV/MX Priority must be a number");
 		}
 
-		if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
+		if ( !defined($name) && !$ttl && !$class && !$type && !$value )
+		{
 			return $numchanges;
 		}
 
@@ -303,37 +481,39 @@ sub process_dns_add {
 				&& $cur->{ _dbx('DNS_TYPE') } ne 'CNAME' )
 			{
 				$stab->error_return(
-	"You may not add a CNAME, when records of other types exist."
+"You may not add a CNAME, when records of other types exist."
 				);
 			}
 			if (       $type ne 'CNAME'
 				&& $cur->{ _dbx('DNS_TYPE') } eq 'CNAME' )
 			{
 				$stab->error_return(
-	"You may not add non-CNAMEs when CNAMEs already exist"
+"You may not add non-CNAMEs when CNAMEs already exist"
 				);
 			}
 		}
 
-		if ( ( !defined($name) || !length($name) ) && $type eq 'CNAME' ) {
+		if ( ( !defined($name) || !length($name) ) && $type eq 'CNAME' )
+		{
 			$stab->error_return(
-				"CNAMEs are illegal when combined with an SOA record."
+"CNAMEs are illegal when combined with an SOA record."
 			);
 		}
 
 		my $new = {
-			dns_name         => $name,
-			dns_domain_id    => $domid,
-			dns_ttl          => $ttl,
-			dns_class        => $class,
-			dns_type         => $type,
-			dns_value        => $value,
-			dns_priority     => $in_priority,
-			dns_srv_service  => $in_srv_svc,
-			dns_srv_protocol => $in_srv_proto,
-			dns_srv_weight   => $in_srv_weight,
-			dns_srv_port     => $in_srv_port,
-			is_enabled       => 'Y'
+			dns_name            => $name,
+			dns_domain_id       => $domid,
+			dns_ttl             => $ttl,
+			dns_class           => $class,
+			dns_type            => $type,
+			dns_value           => $value,
+			dns_priority        => $in_priority,
+			dns_srv_service     => $in_srv_svc,
+			dns_srv_protocol    => $in_srv_proto,
+			dns_srv_weight      => $in_srv_weight,
+			dns_srv_port        => $in_srv_port,
+			is_enabled          => 'Y',
+			should_generate_ptr => $genptr,
 		};
 
 		$numchanges += process_and_insert_dns_record( $stab, $new );
@@ -361,9 +541,9 @@ sub do_dns_update {
 
 	my $genflip = $stab->cgi_parse_param('AutoGen');
 
-	$numchanges += process_dns_add( $stab, $domid );
-
-	# process deletions
+    # process deletions
+    # Done first so that updates that need to make decisions about defaults will
+    # have a resonable state
 	my $delsth;
 	foreach my $delid ( $stab->cgi_get_ids('Del') ) {
 		if ( !defined($delsth) ) {
@@ -384,57 +564,16 @@ sub do_dns_update {
 	my $updsth;
 	foreach my $updateid ( $stab->cgi_get_ids('DNS_RECORD_ID') ) {
 		next if ( !$updateid );
-
-		my $name  = $stab->cgi_parse_param( 'DNS_NAME', $updateid );
-		my $ttl   = $cgi->param( 'DNS_TTL_' . $updateid );
-		my $class = $stab->cgi_parse_param( 'DNS_CLASS', $updateid );
-		my $type  = $stab->cgi_parse_param( 'DNS_TYPE', $updateid );
-		my $value = $stab->cgi_parse_param( 'DNS_VALUE', $updateid );
-		my $enabled =
-		  $stab->cgi_parse_param( 'chk_IS_ENABLED', $updateid );
-		my $ttlonly = $stab->cgi_parse_param( 'ttlonly', $updateid );
-
-		$enabled = $stab->mk_chk_yn($enabled);
-
-		if ( !$ttlonly ) {
-
-			# this are just informational records.
-			next if ( !$name && !$class && !$type && !$value );
-			if ($name) {
-				$name =~ s/^\s+//;
-				$name =~ s/\s+$//;
-			}
-			if ( !$value ) {
-				my $hint = $name || "";
-				$hint = "($hint id#$updateid)";
-				$stab->error_return(
-"Records may not have empty values ($hint)"
-				);
-			}
-			$value =~ s/^\s+//;
-			$value =~ s/\s+$//;
-		}
-
-		if ( $ttl && $ttl !~ /^\d+/ ) {
-			$stab->error_return("TTLs must be numbers");
-		}
-
-	   # [XXX] need to check value and deal with it appropriately (or figure
-	   # out where quotes should go in the extraction.
-		if ( $name && $name =~ /\s/ ) {
-			$stab->error_return(
-				"DNS Records may not contain spaces");
-		}
-
-		$numchanges += process_and_update_dns_record(
-			$stab, $updateid, $name,    $ttl, $class,
-			$type, $value,    $ttlonly, $enabled
-		);
-
+		$numchanges += process_dns_update( $stab, $domid, $updateid );
 	}
 
+  # These are saved for the end so that PTR record sets are handled properly, as
+  # updates may have it set to 'Y' because they used to have it so an add would
+  # get overwritten.
+	$numchanges += process_dns_add( $stab, $domid );
+
 	if ($numchanges) {
-		$stab->commit;
+		$stab->commit || $stab->return_db_err();
 		my $url = "./?dnsdomainid=" . $domid;
 		$stab->msg_return( "Zone Updated", $url, 1 );
 	}
@@ -451,29 +590,67 @@ sub process_and_insert_dns_record {
 
 	if ( $opts->{dns_type} eq 'A' ) {
 		if ( $opts->{dns_value} !~ /^(\d+\.){3}\d+/ ) {
-			$stab->error_return(
-				$opts->{value} . " is not a valid IP address" );
+			$stab->error_return( $opts->{dns_value}
+				  . " is not a valid IP address" );
 		}
-		my $block = $stab->get_netblock_from_ip( ip_address => $opts->{dns_value} );
-		if(! $block) {
-			$block = $stab->get_netblock_from_ip( ip_address => $opts->{dns_value}, netblock_type => 'dns' );
+		my $block = $stab->get_netblock_from_ip(
+			ip_address => $opts->{dns_value} );
+		if ( !$block ) {
+			$block = $stab->get_netblock_from_ip(
+				ip_address    => $opts->{dns_value},
+				netblock_type => 'dns'
+			);
+		}
+
+      # now figure out what to do if ptr is set.  If it is set, then we
+      # unconditionally make other records not have the PTR.
+      # If it is not set, we set it for the user if the IP address is showing up
+      # for the firs time
+		if ( defined( $opts->{ _dbx('SHOULD_GENERATE_PTR') } )
+			&& $opts->{ _dbx('SHOULD_GENERATE_PTR') } eq 'Y' )
+		{
+	      # set all other dns_records but this one to have ptr = 'N'
+	      # more than one should never happen, btu this is a while loop just
+	      # in case.
+			while ( my $recid =
+				check_ptr( $stab, $opts->{dns_value} ) )
+			{
+				$stab->run_update_from_hash( "DNS_RECORD",
+					"DNS_RECORD_ID", $recid,
+					{ should_generate_ptr => 'N' } );
+			}
+		} else {
+			if ( !check_ptr( $stab, $opts->{dns_value} ) ) {
+				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
+			} else {
+				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
+			}
 		}
 		my $id;
 		if ( !defined($block) ) {
 			my $h = {
-				ip_address => $opts->{dns_value},
+				ip_address        => $opts->{dns_value},
 				is_single_address => 'Y'
 			};
-			if( ! ( my $par = $stab->guess_parent_netblock_id( $opts->{dns_value} ) ) ) {
-				# XXX This is outside our IP universe, which we should probably
-				# print a warning on, but lacking that, it gets created as a
-				# type dns
+			if (
+				!(
+					my $par =
+					$stab->guess_parent_netblock_id(
+						$opts->{dns_value}
+					)
+				)
+			  )
+			{
+		 # XXX This is outside our IP universe, which we should probably
+		 # print a warning on, but lacking that, it gets created as a
+		 # type dns
 				$h->{netblock_type} = 'dns';
-				$h->{netmask_bits} = 32;
+				$h->{netmask_bits}  = 32;
 			}
-			$id = $stab->add_netblock( $h ) || die $stab->return_db_err();
+			$id = $stab->add_netblock($h)
+			  || die $stab->return_db_err();
 		} else {
-			$id = $block->{_dbx('NETBLOCK_ID')};
+			$id = $block->{ _dbx('NETBLOCK_ID') };
 		}
 
 		$opts->{netblock_id} = $id;
@@ -484,101 +661,162 @@ sub process_and_insert_dns_record {
 }
 
 sub process_and_update_dns_record {
-	my (
-		$stab, $dnsrecid, $name,    $ttl, $class,
-		$type, $value,    $ttlonly, $enabled
-	) = @_;
+	my ( $stab, $opts, $ttlonly ) = @_;
 
-	$enabled = 'Y' if ( !defined($enabled) );
+	$opts = _dbx( $opts, 'lower' );
 
-	my $orig = $stab->get_dns_record_from_id($dnsrecid);
+	$opts->{'is_enabled'} = 'Y' if ( !defined( $opts->{'is_enabled'} ) );
 
-	if ( !defined($ttl) ) {
-		$ttl = $orig->{ _dbx('DNS_TTL') };
-	} elsif ( !length($ttl) ) {
-		$ttl = undef;
+	my $orig = $stab->get_dns_record_from_id( $opts->{'dns_record_id'} );
+
+
+	if ( !defined( $opts->{'dns_ttl'} ) ) {
+		$opts->{'dns_ttl'} = $orig->{ _dbx('DNS_TTL') };
+	} elsif ( !length( $opts->{'ttl'} ) ) {
+		$opts->{'dns_ttl'} = undef;
 	}
 
 	my %newrecord;
 
+	# ttlonly applies only to A/AAAA records anchored to hosts
 	if ($ttlonly) {
 		%newrecord = (
-			DNS_RECORD_ID => $dnsrecid,
-			DNS_TTL       => $ttl,
-			IS_ENABLED    => $enabled,
+			DNS_RECORD_ID       => $opts->{'dns_record_id'},
+			DNS_TTL             => $opts->{'dns_ttl'},
+			IS_ENABLED          => $opts->{'is_enabled'},
+			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
 		);
 	} else {
 		%newrecord = (
-			DNS_RECORD_ID => $dnsrecid,
-			DNS_TTL       => $ttl,
-			DNS_NAME      => $name,
-			DNS_VALUE     => $value,
-			IS_ENABLED    => $enabled,
+			DNS_RECORD_ID       => $opts->{'dns_record_id'},
+			DNS_TTL             => $opts->{'dns_ttl'},
+			DNS_NAME            => $opts->{'dns_name'},
+			DNS_VALUE           => $opts->{'dns_value'},
+			DNS_TYPE            => $opts->{'dns_type'},
+			IS_ENABLED          => $opts->{'is_enabled'},
+			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
+			DNS_PRIORITY        => $opts->{'dns_priority'},
+			DNS_SRV_SERVICE     => $opts->{'dns_srv_service'},
+			DNS_SRV_PROTOCOl    => $opts->{'dns_srv_protocol'},
+			DNS_SRV_WEIGHT      => $opts->{'dns_srv_weight'},
+			DNS_SRV_PORT        => $opts->{'dns_srv_port'},
 		);
 	}
-	if ( defined($class) ) {
-		$newrecord{ _dbx('DNS_CLASS') } = $class;
+	if ( defined( $opts->{class} ) ) {
+		$newrecord{ _dbx('DNS_CLASS') } = $opts->{dns_class};
 	}
 
-	if ( defined($type) ) {
-		$newrecord{ _dbx('DNS_TYPE') } = $type;
+	# On update:
+	#	Only pay attention to if the new type is A or AAAA.
+	#	If it is set to 'Y', then set it to 'Y' and change all other
+	#		records to the same netblock to 'N'.
+	#	If it a type change, and set to 'N', then check to see if there
+	#		is already a record with PTR.  If there is already, then set
+	#		to 'N'.
+	#	If it is not a type change, then just obey what it was set to.
+	#
+	if (       $opts->{should_generate_ptr}
+		&& $opts->{'dns_type'} =~ /^A(AAA)?$/ )
+	{
+		if ( $opts->{should_generate_ptr} eq 'Y' ) {
+			$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
+			  $opts->{should_generate_ptr};
+		} elsif ( $orig->{ _dbx('DNS_TYPE') } ne $opts->{'dns_type'} ) {
+			if ( !check_ptr( $stab, $opts->{'dns_value'} ) ) {
+				$newrecord{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
+			} else {
+				$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
+				  $opts->{should_generate_ptr};
+			}
+		} else {
+			$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
+			  $opts->{should_generate_ptr};
+		}
+
+		if ( $opts->{should_generate_ptr} eq 'Y' ) {
+
+		      # set all other dns_records but this one to have ptr = 'N'
+			if ( my $recid =
+				check_ptr( $stab, $opts->{'dns_value'} ) )
+			{
+				$stab->run_update_from_hash( "DNS_RECORD",
+					"DNS_RECORD_ID", $recid,
+					{ should_generate_ptr => 'N' } );
+			}
+		}
 	}
 
-	if ( $orig->{ _dbx('DNS_TYPE') } ne 'A' && $type ne $orig->{ _dbx('DNS_TYPE') } ) {
-		$newrecord{ _dbx('DNS_VALUE') } = undef;
+	my $nblkid;
 
-		if ( $value !~ /^(\d+\.){3}\d+/ && $type eq 'A' ) {
-			$stab->error_return("$value is not a valid IPv4 address");
-		} elsif ( $value !~ /^[A-Z0-9:]+$/ && $type eq 'AAAA' ) {
-			$stab->error_return("$value is not a valid IPv6 address");
+# if the new type is A/AAAA then find the netblock and create if it does not exist.
+# Creation should only happen on a change.
+	if ( $opts->{'dns_type'} =~ /^A(AAA)?/ ) {
+		if (       $opts->{'dns_value'} !~ /^(\d+\.){3}\d+/
+			&& $opts->{'dns_type'} eq 'A' )
+		{
+			$stab->error_return(
+"$opts->{'dns_value'} is not a valid IPv4 address"
+			);
+		} elsif (  $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/
+			&& $opts->{'dns_type'} eq 'AAAA' )
+		{
+			$stab->error_return(
+"$opts->{'dns_value'} is not a valid IPv6 address"
+			);
 		}
-
-		my $block = $stab->get_netblock_from_ip(ip_address => $value);
-		if(! $block) {
-			$block = $stab->get_netblock_from_ip( ip_address => $value, netblock_type => 'dns' );
-		}
-		my $id;
-		if ( !defined($block) ) {
-			my $h = {
-				ip_address => $value,
-				is_single_address => 'Y'
-			};
-			if( ! ( my $par = $stab->guess_parent_netblock_id( $value ) ) ) {
-				# XXX This is outside our IP universe, which we should probably
-				# print a warning on, but lacking that, it gets created as a
-				# type dns
-				$h->{netblock_type} = 'dns';
-				$h->{netmask_bits} = 32;
-			}
-			$id = $stab->add_netblock( $h ) || die $stab->return_db_err();
-		} else {
-			$id = $block->{_dbx('NETBLOCK_ID')};
-		}
-	} elsif($orig->{ _dbx('DNS_TYPE') } eq 'A' && $type eq $orig->{ _dbx('DNS_TYPE') } ) {
-		my $id;
-		my $block = $stab->get_netblock_from_ip( ip_address => $value );
-		if(! $block) {
-			$block = $stab->get_netblock_from_ip( ip_address => $value, netblock_type => 'dns' );
+		my $block = $stab->get_netblock_from_ip(
+			ip_address => $opts->{'dns_value'} );
+		if ( !$block ) {
+			$block = $stab->get_netblock_from_ip(
+				ip_address    => $opts->{'dns_value'},
+				netblock_type => 'dns'
+			);
 		}
 		if ( !defined($block) ) {
 			my $h = {
-				ip_address => $value,
+				ip_address        => $opts->{'dns_value'},
 				is_single_address => 'Y'
 			};
-			if( ! ( my $par = $stab->guess_parent_netblock_id( $value ) ) ) {
-				# XXX This is outside our IP universe, which we should probably
-				# print a warning on, but lacking that, it gets created as a
-				# type dns
+			if (
+				!(
+					my $par =
+					$stab->guess_parent_netblock_id(
+						$opts->{'dns_value'}
+					)
+				)
+			  )
+			{
+		 # XXX This is outside our IP universe, which we should probably
+		 # print a warning on, but lacking that, it gets created as a
+		 # type dns
 				$h->{netblock_type} = 'dns';
-				$h->{netmask_bits} = 32;
+				$h->{netmask_bits}  = 32;
 			}
-			$id = $stab->add_netblock( $h ) || die $stab->return_db_err();
+			$nblkid = $stab->add_netblock($h)
+			  || die $stab->return_db_err();
 		} else {
-			$id = $block->{_dbx('NETBLOCK_ID')};
+			$nblkid = $block->{ _dbx('NETBLOCK_ID') };
 		}
-		$newrecord{ 'DNS_VALUE' } = undef;
-		$newrecord{ 'NETBLOCK_ID' } = $block->{_dbx('netblock_id')};
-	} 
+	}
+
+# if changing from A/AAAA or back then just swap out the netblock id and don't set the
+# value
+	if (       $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
+		&& $opts->{dns_type} =~ /^A(AAA)?/ )
+	{
+		$newrecord{ _dbx('DNS_VALUE') }   = undef;
+		$newrecord{ _dbx('NETBLOCK_ID') } = $nblkid;
+	} elsif (  $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
+		&& $opts->{dns_type} !~ /^A(AAA)?/ )
+	{
+		$newrecord{ _dbx('DNS_VALUE') }   = $opts->{dns_value};
+		$newrecord{ _dbx('NETBLOCK_ID') } = undef;
+	} elsif (  $orig->{ _dbx('DNS_TYPE') } !~ /^A(AAA)?/
+		&& $opts->{dns_type} =~ /^A(AAA)?/ )
+	{
+		$newrecord{ _dbx('DNS_VALUE') }   = undef;
+		$newrecord{ _dbx('NETBLOCK_ID') } = $nblkid;
+	}
 
 	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newrecord ) );
 	my $tally = keys %$diffs;
@@ -586,13 +824,13 @@ sub process_and_update_dns_record {
 		return 0;
 	} elsif (
 		!$stab->run_update_from_hash(
-			"DNS_RECORD", "DNS_RECORD_ID", $dnsrecid, $diffs
+			"DNS_RECORD",           "DNS_RECORD_ID",
+			$orig->{dns_record_id}, $diffs
 		)
 	  )
 	{
 		$stab->rollback;
-		$stab->error_return(
-			"Unknown Error with Update for id#$dnsrecid");
+		$stab->return_db_err();
 	}
 	#
 	# XXX -- NEED TO TRY TO REMOVE OLD NETBLOCK BUT NOT FAIL IF IT FAILS!

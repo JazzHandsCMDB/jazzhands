@@ -233,17 +233,17 @@ function updateDeviceParentLink(devid, paridfld) {
 
 function setDevLinkRedir(dropfield, redirlink, root) {
     if(! dropfield) {
-        return null;
+	return null;
     }
 
     if(root == null) {
-        root = "./";
+	root = "./";
     } 
     
     if(dropfield && dropfield.value) {
-        redirlink.href = root+"type/?DEVICE_TYPE_ID=" + dropfield.value;
+	redirlink.href = root+"type/?DEVICE_TYPE_ID=" + dropfield.value;
     } else {
-        redirlink.href = "javascript:void(null);";
+	redirlink.href = "javascript:void(null);";
     }   
 }   
 
@@ -654,12 +654,15 @@ function verify_device_submission(form) {
 	return true;
 }
 
-function toggleon_text(editbutton_id,textf_id) {
-	var textf = document.getElementById(textf_id);
-	var editbutton = document.getElementById(editbutton_id);
+// jquery version
+function toggleon_text(but) {
+	// var p = $(but).prev(":input").removeAttr('disabled');
+	// var d = $(but).previousSibling;
+	// $(but).filter(":parent").filter("input:disabled").removeAttr('disabled');
 
-	textf.disabled = null;
-	editbutton.style.visibility = 'hidden';
+	$(but).prev(":input").removeAttr('disabled');
+	$(but).addClass('irrelevant');
+	
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -1092,3 +1095,11 @@ function add_License(thing, parent_tr_id, devid)
 
 	}
 }
+
+// jQuery magic!
+$(document).ready(function(){
+	// this causes the EDIT button to show up where needed
+	$("table").on('click', ".stabeditbutton", function(event) {
+		toggleon_text(event.target);
+	});
+});

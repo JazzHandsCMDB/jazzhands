@@ -356,6 +356,14 @@ sub build_fwd_zone_Tr {
 		$hr, "", "IS_ENABLED", 'DNS_RECORD_ID' );
 	delete($opts->{-default});
 
+	my $ptrbox = "";
+	if($hr && $hr->{_dbx('DNS_TYPE')} =~ /^A(AAA)?$/) {
+		$opts->{-class} = "ptrbox";
+		$ptrbox = $stab->build_checkbox( $opts,
+			$hr, "", "SHOULD_GENERATE_PTR", 'DNS_RECORD_ID' );
+		delete($opts->{-class});
+	}
+	
 	# for SRV records, it iss necessary to prepend the 
 	# protocol and service name to the name 
 	if($hr && $hr->{_dbx('DNS_TYPE')} eq 'SRV') {
@@ -380,11 +388,20 @@ sub build_fwd_zone_Tr {
 	}
 
 	$stab->textfield_sizing(1);
+	my $args = {
+		'-class' => $cssclass
+	};
+	if($hr) {
+		$args->{'-id'} = $hr->{_dbx('DNS_RECORD_ID')};
+	} else {
+		$args->{'-id'} = "0";
+	}
 	return $cgi->Tr(
-		{ -class => $cssclass, },
-		$cgi->td( $hidden, $enablebox ), $cgi->td($name),
+		$args,
+		$cgi->td( $hidden, $enablebox ), $cgi->td({-class => 'DNS_NAME'}, $name),
 		$cgi->td($ttl),  $cgi->td($class),
 		$cgi->td($type), $cgi->td($value),
+		$cgi->td({-class => 'ptrtd'}, $ptrbox),
 		$cgi->td($excess)
 	);
 }
@@ -668,7 +685,7 @@ sub dump_zone {
 
 	print $cgi->Tr(
 		$cgi->th(
-			[ 'Enable', 'Record', 'TTL', 'Class', 'Type', 'Value' ]
+			[ 'Enable', 'Record', 'TTL', 'Class', 'Type', 'Value', 'PTR' ]
 		)
 	);
 

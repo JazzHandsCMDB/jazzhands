@@ -13,7 +13,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 
-
 #
 # $Id$
 #
@@ -27,16 +26,16 @@ use JazzHands::STAB;
 use Data::Dumper;
 use JSON::PP;
 
-do_show_serial();
+do_dns_ajax();
 
-sub do_show_serial {
+sub do_dns_ajax {
 	my $stab = new JazzHands::STAB( ajax => 'yes' )
 	  || die "Could not create STAB";
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $passedin = $stab->cgi_parse_param('passedin')            || undef;
+	my $passedin = $stab->cgi_parse_param('passedin') || undef;
 
-	my $mime    = $stab->cgi_parse_param('MIME_TYPE')            || 'text';
-	my $what    = $stab->cgi_parse_param('what')            || 'none';
+	my $mime = $stab->cgi_parse_param('MIME_TYPE') || 'text';
+	my $what = $stab->cgi_parse_param('what')      || 'none';
 
 	#
 	# passedin contains all the arguments that were passed to the original
@@ -55,7 +54,7 @@ sub do_show_serial {
 		}
 	}
 
-	if( $mime eq 'xml') {
+	if ( $mime eq 'xml' ) {
 		print $cgi->header("text/xml");
 		print '<?xml version="1.0" encoding="utf-8" ?>', "\n\n";
 	} elsif ( $mime ne 'json' ) {
@@ -77,13 +76,15 @@ sub do_show_serial {
 	} elsif ( $what eq 'Services' ) {
 		my $r = {};
 		$r->{'DNS_SRV_SERVICE'} = {};
-		my $sth = $stab->prepare(qq{
+		my $sth = $stab->prepare(
+			qq{
 			select  dns_srv_service, description
 			  from  val_dns_srv_service;
-		});
+		}
+		);
 		$sth->execute || die $sth->errstr;
 		my $j = JSON::PP->new->utf8;
-		while(my($srv,$d) = $sth->fetchrow_array) {
+		while ( my ( $srv, $d ) = $sth->fetchrow_array ) {
 			$r->{'DNS_SRV_SERVICE'}->{$srv} = $d;
 		}
 		print $j->encode($r);

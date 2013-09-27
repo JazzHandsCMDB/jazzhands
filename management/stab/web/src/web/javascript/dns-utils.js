@@ -47,7 +47,7 @@ function QsToObj() {
     var vars = window.location.search.substring(1).split(';');
 	var rv = new Array();
     for (var i = 0; i < vars.length; i++) {
-        var pair = vars[i].split('=');
+	var pair = vars[i].split('=');
 		if(pair.length == 2) {
 			rv[ pair[0] ] = decodeURIComponent(pair[1]);
 		}
@@ -104,16 +104,24 @@ function dns_debug_addns(button)
 }
 
 //
-//  builds a drop down based on what was fetched from an ajax server.  
+//  builds a drop down based on what was fetched from an ajax server.
 // Optionally takes a hash at the end that contains possible defaults
 //
-function build_dns_drop(sel, detail, queryparams) {
-	if(sel == null) {
+function build_dns_drop(in_sel, detail, queryparams, id, prefix) {
+	var sel = in_sel;
+	if(in_sel == null) {
 		sel = document.createElement("select");
 	}
 	for(var field in detail) {
-		$(sel).attr('name', field);
-		$(sel).attr('id', field);
+		var f = field;
+		if(id) {
+			f += "_" + id;
+		}
+		if(prefix) {
+			f = prefix + "_" + f;
+		}
+		$(sel).attr('name', f);
+		$(sel).attr('id', f);
 		$(sel).addClass('srvnum');
 		$(sel).addClass('hint');
 		for(var key in detail[field]) {
@@ -131,64 +139,135 @@ function build_dns_drop(sel, detail, queryparams) {
 }
 
 //
+//  builds a drop down based on what was fetched from an ajax server.  
+// Optionally takes a hash at the end that contains possible defaults
+//
+function wtf_build_dns_drop(sel, detail, queryparams) {
+	if(sel == null) {
+		sel = document.createElement("select");
+	}
+	$(detail).each(function(index, in_elem) {
+		for(var field in in_elem) {
+			$(sel).addClass('srvnum');
+			$(sel).addClass('hint');
+			for(var in_key in detail[field]) {
+				var key = $(in_key).get();
+				var val = (detail[field][key] == null)?key:detail[field][key];
+				var o = new Option(key, val);
+				if(queryparams != null && field in queryparams) {
+					if(queryparams[field] == val) {
+						$(o).attr('selected', true);
+					}
+				}
+				sel.add(o);
+			}
+		}
+	});
+	return(sel);
+}
+
+//
 // This deals with showing extra fields for SRV and MX records, and making
 // them go away the class changes.  There is a lot of repetition, so
 // it should probably be broken out into some supporting functions...
 //
 function change_dns_record(obj) {
 	var prms = QsToObj();
-	if(obj.value == 'SRV') {
-		var name = document.getElementById('DNS_NAME');
-		var value = document.getElementById('DNS_VALUE');
-		var priority = document.getElementById('DNS_PRIORITY');
-		var protocol = document.getElementById('DNS_SRV_PROTOCOL');
-		var weight = document.getElementById('DNS_SRV_WEIGHT');
-		var port = document.getElementById('DNS_SRV_PORT');
+	var nametr = $(obj).closest('tr').first();
+	var nametd = $(obj).closest('tr').find('td.DNS_NAME');
 
-		if(weight) {
+	// deal with showing/hiding the PTR box for A records
+	if(obj.value == 'A' || obj.value == 'AAAA') {
+		var x = $(obj).closest('tr').find('.ptrbox').first();
+		if(! x.length ) {
+			var newname = 'chk_SHOULD_GENERATE_PTR';
+			if($(nametr).hasClass('dnsadd')) {
+				newname = "new_" + newname + "_" + $(nametr).attr('id');
+			} else {
+				newname += "_" + $(nametr).attr('id');
+			}
+			var ck = document.createElement('input');
+			$(ck).attr('class', 'ptrbox');
+			$(ck).attr('type', 'checkbox');
+			$(ck).attr('name', newname);
+			$(ck).attr('id', newname);
+			$(ck).addClass('srvnum');
+			$(obj).closest('tr').find('.ptrtd').first().append(ck);
+		} else {
+			$(x).removeClass('irrelevant');
+		}
+	} else {
+		$(obj).closest('tr').find('.ptrbox').addClass('irrelevant');
+	}
+
+	if($(nametr).hasClass('dnsadd')) {
+		prefix = 'new';
+		plusprefix = 'new_';
+	} else {
+		prefix = '';
+		plusprefix = '';
+	}
+
+	var value = $(obj).closest('tr').find('input[name*="DNS_VALUE"]');
+	if(obj.value == 'SRV' || obj.value == 'MX') {
+		if(priority && $(priority).is("input") )  {
+			$(priority).removeClass('irrelevant');
+		} else {
+			// need to fetch from server...
+			var box = $("<input />", {
+				name: plusprefix + 'DNS_PRIORITY' + "_" + $(nametr).attr('id'),
+				id: plusprefix + 'DNS_PRIORITY' + "_" + $(nametr).attr('id'),
+				"class": 'srvnum'
+			});
+			if( 'DNS_PRIORITY' in prms) {
+				box.value = prms['DNS_PRIORITY'];
+			} else {
+				$(box).addClass('hint');
+				$(box).val('pri');
+			}
+			$(box).insertBefore(value);
+		}
+	}
+
+	if(obj.value == 'SRV') {
+		var name = $(obj).closest('tr').find('input[name*="DNS_NAME"]');
+		var priority = $(obj).closest('tr').find('input[name*="DNS_PRIORITY"]');
+		var protocol = $(obj).closest('tr').find('select[name*="DNS_SRV_PROTOCOL"]');
+		var weight = $(obj).closest('tr').find('input[name*="DNS_SRV_WEIGHT"]');
+		var port = $(obj).closest('tr').find('input[name*="DNS_SRV_PORT"]');
+		var svc = $(obj).closest('tr').find('select[name*="DNS_SRV_SERVICE"]');
+		var ttl = $(obj).closest('tr').find('input[name*="DNS_TTL"]');
+
+		if(svc && $(svc).is("input") )  {
 			$(priority).removeClass('irrelevant');
 			$(protocol).removeClass('irrelevant');
 			$(weight).removeClass('irrelevant');
 			$(port).removeClass('irrelevant');
+			$(svc).removeClass('irrelevant');
 		} else {
 			var protos = document.createElement("select");
 			var services = document.createElement("select");
+
 			$.getJSON('dns-ajax.pl',
 				'what=Protocols',
 				function(resp) {
-					build_dns_drop(protos, resp, prms);
-					$(protos).insertBefore(name);
+					build_dns_drop(protos, resp, prms, $(nametr).attr('id'), prefix);
+					$(protos).prependTo(nametd);
 			});
 
 			$.getJSON('dns-ajax.pl',
 				'what=Services',
 				function(resp) {
-					build_dns_drop(services, resp, prms);
+					build_dns_drop(services, resp, prms, $(nametr).attr('id'), prefix);
 					$(services).insertBefore(protos);
 			});
 
-			if(priority) {
-				priority.style.visibility = 'visible';
-			} else {
-				// need to fetch from server...
-				var box = document.createElement("input");
-				$(box).attr('name', 'DNS_PRIORITY');
-				$(box).attr('id', 'DNS_PRIORITY');
-				$(box).addClass('srvnum');
-				if( 'DNS_PRIORITY' in prms) {
-					box.value = prms['DNS_PRIORITY'];
-				} else {
-					$(box).addClass('hint');
-					box.value = 'pri';
-				}
-				$(box).insertBefore(value);
-			}
-
 			// need to fetch from server...
-			var box = document.createElement("input");
-			$(box).attr('name', 'DNS_SRV_WEIGHT');
-			$(box).attr('id', 'DNS_SRV_WEIGHT');
-			$(box).addClass('srvnum');
+			var box = $("<input />", {
+				name: plusprefix + 'DNS_SRV_WEIGHT' + "_" + $(nametr).attr('id'),
+				id: plusprefix + 'DNS_SRV_WEIGHT' + "_" + $(nametr).attr('id'),
+				"class": 'srvnum'
+			});
 			if( 'DNS_SRV_WEIGHT' in prms) {
 				box.value = prms['DNS_SRV_WEIGHT'];
 			} else {
@@ -196,12 +275,11 @@ function change_dns_record(obj) {
 				box.value = 'weight';
 			}
 			$(box).insertBefore(value);
-
-			// need to fetch from server...
-			var box = document.createElement("input");
-			$(box).attr('name', 'DNS_SRV_PORT');
-			$(box).attr('id', 'DNS_SRV_PORT');
-			$(box).addClass('srvnum');
+			var box = $("<input />", {
+				name: plusprefix + 'DNS_SRV_PORT' + "_" + $(nametr).attr('id'),
+				id: plusprefix + 'DNS_SRV_PORT' + "_" + $(nametr).attr('id'),
+				"class": 'srvnum'
+			});
 			if( 'DNS_SRV_PORT' in prms) {
 				box.value = prms['DNS_SRV_PORT'];
 			} else {
@@ -212,49 +290,16 @@ function change_dns_record(obj) {
 
 		}
 	} else if(obj.value == 'MX') {
-		var priority = document.getElementById('DNS_PRIORITY');
-		if(priority)  {
-			$(priority).removeClass('irrelevant');
-		} else {
-			var value = document.getElementById('DNS_VALUE');
-			// need to fetch from server...
-			var box = document.createElement("input");
-			$(box).attr('name', 'DNS_PRIORITY');
-			$(box).attr('id', 'DNS_PRIORITY');
-			$(box).addClass('srvnum');
-			if( 'DNS_PRIORITY' in prms) {
-				box.value = prms['DNS_PRIORITY'];
-			} else {
-				$(box).addClass('hint');
-				box.value = 'priority';
-			}
-			$(box).insertBefore(value);
-		}
-		var protocol = document.getElementById('DNS_SRV_PROTOCOL');
-		var weight = document.getElementById('DNS_SRV_WEIGHT');
-		var port = document.getElementById('DNS_SRV_PORT');
-		var service = document.getElementById('DNS_SRV_SERVICE');
-		if(weight) {
-			$(protocol).addClass('irrelevant');
-			$(weight).addClass('irrelevant');
-			$(port).addClass('irrelevant');
-			$(service).addClass('irrelevant');
-		}
+		protocol = $(obj).closest('tr').find('select[name*="DNS_SRV_PROTOCOL"]').addClass("irrelevant");
+		weight = $(obj).closest('tr').find('input[name*="DNS_SRV_WEIGHT"]').addClass("irrelevant");
+		port = $(obj).closest('tr').find('input[name*="DNS_SRV_PORT"]').addClass("irrelevant");
+		service = $(obj).closest('tr').find('select[name*="DNS_SRV_SERVICE"]').addClass("irrelevant");
 	} else {
-		var priority = document.getElementById('DNS_PRIORITY');
-		var protocol = document.getElementById('DNS_SRV_PROTOCOL');
-		var weight = document.getElementById('DNS_SRV_WEIGHT');
-		var service = document.getElementById('DNS_SRV_SERVICE');
-		var port = document.getElementById('DNS_SRV_PORT');
-		if(weight) {
-			$(protocol).addClass('irrelevant');
-			$(weight).addClass('irrelevant');
-			$(port).addClass('irrelevant');
-			$(service).addClass('irrelevant');
-		}
-		if(priority) {
-			$(priority).addClass('irrelevant');
-		}
+		priority = $(obj).closest('tr').find('input[name*="DNS_PRIORITY"]').addClass("irrelevant");;
+		protocol = $(obj).closest('tr').find('select[name*="DNS_SRV_PROTOCOL"]').addClass("irrelevant");;
+		weight = $(obj).closest('tr').find('input[name*="DNS_SRV_WEIGHT"]').addClass("irrelevant");;
+		service = $(obj).closest('tr').find('select[name*="DNS_SRV_SERVICE"]').addClass("irrelevant");;
+		port = $(obj).closest('tr').find('input[name*="DNS_SRV_PORT"]').addClass("irrelevant");;
 	}
 }
 
@@ -283,5 +328,10 @@ $(document).ready(function(){
 			$(event.target).addClass('hint');
 			$(event.target).val( event.target.preservedHint );
 		}
+	});
+
+	// this causes the EDIT button to show up where needed
+	$("table").on('click', ".stabeditbutton", function(event) {
+		toggleon_text(event.target);
 	});
 });

@@ -166,12 +166,22 @@ sub start_html {
 				{
 					-language => 'JavaScript',
 					-src =>
+"$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
 					  "$stabroot/javascript/ajaxsearch.js"
 				},
 				{
 					-language => 'JavaScript',
 					-src =>
 					  "$stabroot/javascript/table-manip.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/stab-common.js"
 				},
 				{
 					-language => 'JavaScript',
@@ -229,13 +239,13 @@ sub start_html {
 				{
 					-language => 'JavaScript',
 					-src =>
-					  "$stabroot/javascript/dns-utils.js"
+					  "$stabroot/javascript/stab-common.js"
 				},
 				{
 					-language => 'JavaScript',
 					-src =>
-					  "$stabroot/javascript/device-utils.js"
-				}
+					  "$stabroot/javascript/dns-utils.js"
+				},
 			);
 		}
 		if ( $opts->{javascript} eq 'devicetype' ) {
@@ -780,6 +790,10 @@ sub b_nondbdropdown {
 	}
 	my ( $values, $field, $pkeyfield, $noguessunknown ) = @_;
 
+	# XXX probably should do this elsewhere, but...
+	$field     = _dbx($field)     if ( defined($field) );
+	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
+
 	my $dbh      = $self->dbh;
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
@@ -817,12 +831,16 @@ sub b_nondbdropdown {
 
 	my $withlevel = 0;
 
+	# oracle/pgsqlism
+	my $selectfield = $field;
+	$selectfield =~ tr/a-z/A-Z/;
+
 	my @list;
 	my %list;
 	my $default;
-	if ( $field eq 'BAUD' ) {
+	if ( $selectfield eq 'BAUD' ) {
 		@list = ( 300, 1200, 2400, 4800, 9600, 115200 );
-	} elsif ( $field eq 'SERIAL_PARAMS' ) {
+	} elsif ( $selectfield eq 'SERIAL_PARAMS' ) {
 		@list = (
 			'8-N-1',   '7-N-1',   '8-N-2',   '7-N-2',
 			'8-N-1.5', '7-N-1.5', '8-E-1',   '7-E-1',
@@ -838,14 +856,14 @@ sub b_nondbdropdown {
 		$pickone = '--Unset--';
 		unshift( @list, $df );
 		$list{$df} = $pickone;
-	} elsif ( $field eq 'TIX_SYSTEM' ) {
+	} elsif ( $selectfield eq 'TIX_SYSTEM' ) {
 		@list = ( "NSI-RT", "PPM" );
 		foreach my $l (@list) { $list{$l} = $l }
 		$default        = "__unknown__";
 		$pickone        = "Pick System";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
-	} elsif ( $field =~ /APPROVAL_TYPE$/ ) {
+	} elsif ( $selectfield =~ /APPROVAL_TYPE$/ ) {
 
 		# this probably needs to be handled better, perhaps with
 		# a Y/N column in the db indicating that is a user
@@ -861,7 +879,7 @@ sub b_nondbdropdown {
 		$pickone        = "Pick System";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
-	} elsif ( $field eq 'DNS_SRV_PROTOCOL' ) {
+	} elsif ( $selectfield eq 'DNS_SRV_PROTOCOL' ) {
 		%list = (
 			'tcp' => '_tcp',
 			'udp' => '_udp',
@@ -871,11 +889,11 @@ sub b_nondbdropdown {
 		$pickone        = "Pick";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
-	} elsif ( $field eq 'LOCATION_RACK_SIDE' ) {
+	} elsif ( $selectfield eq 'LOCATION_RACK_SIDE' ) {
 		@list = ( 'FRONT', 'BACK' );
 		my $df = 'FRONT';
-	} elsif (  $field =~ '(PC_)?P[12]_PHYSICAL_PORT_ID'
-		|| $field eq 'P2_POWER_INTERFACE_PORT' )
+	} elsif (  $selectfield =~ '(PC_)?P[12]_PHYSICAL_PORT_ID'
+		|| $selectfield eq 'P2_POWER_INTERFACE_PORT' )
 	{
 		$default = '__unknown__';
 		$pickone = 'Pick Device';
@@ -1748,8 +1766,8 @@ sub b_textfield {
 			$button = $cgi->a(
 				{
 					-id => $buttonid,
-					-href =>
-"javascript:toggleon_text(\"$buttonid\", \"$id\")",
+					-class => 'stabeditbutton',
+					-href => '#',
 					-style =>
 					  'border: 1px solid; font-size: 50%'
 				},
@@ -1767,8 +1785,8 @@ sub b_textfield {
 			$button = $cgi->a(
 				{
 					-id => $buttonid,
-					-href =>
-"javascript:toggleon_text(\"$buttonid\", \"$id\")",
+					-class => 'stabeditbutton',
+					-href => '#',
 					-style =>
 					  'border: 1px solid; font-size: 50%'
 				},
@@ -1893,12 +1911,19 @@ sub build_checkbox {
 	if(defined ($params->{-suffix}) ) {
 		$name = $name.$params->{-suffix};
 	}
-
-	my $cb = $cgi->checkbox(
+	my $args = {
 		-name    => $name,
 		-checked => $checked,
 		-value   => 'on',
-		-label   => $label
+		-label   => $label,
+	};
+
+	if($params->{-class}) {
+		$args->{-class} = $params->{-class};
+	}
+
+	my $cb = $cgi->checkbox(
+		$args,
 	);
 
 	if ( !$params->{-nodiv} ) {

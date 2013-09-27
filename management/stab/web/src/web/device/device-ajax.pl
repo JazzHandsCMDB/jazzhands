@@ -91,7 +91,7 @@ sub do_show_serial {
 	if ( $xml ne 'yes' ) {
 		print $cgi->header("text/html");
 	} elsif( $json eq 'yes') {
-		print $cgi->header("text/json);
+		print $cgi->header("text/json");
 		print "<response>\n";
 	}
 

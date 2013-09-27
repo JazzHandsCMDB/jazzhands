@@ -30,6 +30,7 @@ $(function() {
 		// it
 
 		var text = $(el).html();
+		text = text.trim();
 		var id = $(el).attr('id');
 		$(el).text('');
 

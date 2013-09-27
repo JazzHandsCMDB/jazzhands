@@ -449,15 +449,7 @@ sub get_dns_record_from_id {
 	my ( $self, $id ) = @_;
 
 	my $q = qq{
-		select  dns_record_Id,
-			dns_name,
-			dns_domain_id,
-			dns_ttl,
-			dns_class,
-			dns_type,
-			dns_value,
-			is_enabled,
-			netblock_id
+		select  *
 		 from   dns_record
 		where   dns_record_id = ?
 	};
@@ -472,14 +464,7 @@ sub get_dns_record_from_name {
 	my ( $self, $shortname, $domid ) = @_;
 
 	my $q = qq{
-		select  dns_record_Id,
-			dns_name,
-			dns_domain_id,
-			dns_ttl,
-			dns_class,
-			dns_type,
-			dns_value,
-			netblock_id
+		select  *
 		 from   dns_record
 		where   dns_name = ?
 		 and	dns_domain_id = ?
@@ -791,10 +776,10 @@ sub add_dns_record {
 		$opts->{should_generate_ptr} = 'N';
 	}
 
-	my @errs;
+	my @errs; my $x;
 	if (
 		!(
-			$self->DBInsert(
+			$x = $self->DBInsert(
 				table  => 'dns_record',
 				hash   => $opts,
 				errors => \@errs
@@ -1734,6 +1719,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$printip = $ip;
 	}
 
+	my $fqhn = "";
 	if ($reservation) {
 		$status = 'Allocation';
 		$desc   = $reservation;
@@ -1751,7 +1737,6 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 		$printip = "$ip/$bits";
 
-		my $fqhn = "";
 		if ( defined($name) ) {
 			$fqhn = $name . ( defined($dom) ? ".$dom" : "" );
 		}
@@ -1779,26 +1764,28 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 	}
 
 	my $maketixlink;
-	if ($editabledesc) {
+	#if ($editabledesc) {
 		my $h = $cgi->hidden(
 			-name    => "rowblk_$uniqid",
 			-default => $id
 		);
-		$desc = ( ($id) ? $h : "" )
-		  . $cgi->textfield(
-			-name    => "desc_$uniqid",
-			-default => ( ($desc) ? $desc : "" ),
-			-size    => 50
-		  );
+		#$desc = ( ($id) ? $h : "" )
+		#  . $cgi->textfield(
+		#	-name    => "desc_$uniqid",
+		#	-default => ( ($desc) ? $desc : "" ),
+		#	-size    => 50
+		#  );
+		$desc = $cgi->span({-class=>'editabletext', -id => "desc_$uniqid"},
+			($desc || ""));
 
 		if ( !defined($atix) ) {
 			$atix = $self->build_ticket_row( $hr, $uniqid, 'IP' );
 		} else {
 			$maketixlink = 1;
 		}
-	} else {
-		$maketixlink = 1;
-	}
+	#} else {
+	#	$maketixlink = 1;
+	#}
 
 	my $url;
 	if ( $maketixlink && defined($atix) ) {
@@ -1822,7 +1809,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 	}
 
 	my $tds = $cgi->td(
-		[ $printip, $status, $name, ($dom) ? $dom : "", $desc, $atix, ]
+		[ $printip, $status, $fqhn, $desc, $atix, ]
 	);
 
 	if ($showtr) {

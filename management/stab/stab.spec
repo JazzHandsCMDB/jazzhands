@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.54
+%define version 0.54.1
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -204,8 +204,16 @@ rm -rf %{buildroot}
 %{perl_vendorlib}/*
 %{_mandir}/man3/*
 
-
 %changelog
+* Fri Sep 27 2013 Todd Kover <kovert@omniscient.com> 0.54.1-1
+- use jquery more
+- fix b_nondbdropdown to work in postgresql world
+- migrate edit button to jquery implementation
+- manage should_generate_ptr from dns tab
+- fix a record changing
+- overhaul SRV record management
+- NOTE: deleting the last ptr record does NOT move the PTR record..
+- give error back to user if it happened on commit
 * Wed Sep 25 2013 Todd Kover <kovert@omniscient.com> 0.54-1
 - migrate network_interface.v4_netblock_id to netblock_id
 * Mon May  6 2013 Todd Kover <kovert@omniscient.com> 0.52.7-1

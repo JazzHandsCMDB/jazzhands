@@ -636,7 +636,7 @@ sub get_network_interface {
 			IS_PRIMARY,
 			SHOULD_MONITOR,
 			PROVIDES_NAT,
-			V4_NETBLOCK_ID,
+			NETBLOCK_ID,
 			SHOULD_MANAGE,
 			PROVIDES_DHCP,
 			PHYSICAL_PORT_ID,
@@ -1807,7 +1807,7 @@ sub update_interface {
 	# first deal with the netblock, including grabbing old dns info
 	#
 	my $oldblock =
-		$stab->get_netblock_from_id($old_int->{'V4_NETBLOCK_ID'});
+		$stab->get_netblock_from_id($old_int->{'NETBLOCK_ID'});
 
 	#
 	# properly deal with keeping IP address around
@@ -1873,7 +1873,7 @@ sub update_interface {
 		IS_PRIMARY => $ispriint,
 		SHOULD_MONITOR => $shldmon,
 		PROVIDES_NAT => $isnatint,
-		V4_NETBLOCK_ID => $prinblkid,
+		NETBLOCK_ID => $prinblkid,
 		SHOULD_MANAGE => $shldmng,
 		IS_MANAGEMENT_INTERFACE => $ismgmtip,
 		PHYSICAL_PORT_ID => $newppid,
@@ -2235,7 +2235,7 @@ sub add_interfaces {
 			IS_INTERFACE_UP, MAC_ADDR,
 			NETWORK_INTERFACE_PURPOSE, IS_PRIMARY, SHOULD_MONITOR,
 			physical_port_id, provides_nat, provides_dhcp,
-			V4_NETBLOCK_ID, SHOULD_MANAGE, IS_MANAGEMENT_INTERFACE
+			NETBLOCK_ID, SHOULD_MANAGE, IS_MANAGEMENT_INTERFACE
 		) values (
 			:devid, :name, :nitype,
 			:isup, :mac,
