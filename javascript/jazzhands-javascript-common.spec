@@ -3,7 +3,7 @@
 Summary:    Javascript used by all JazzHands systems
 Vendor:     JazzHands
 Name:       jazzhands-javascript-common
-Version:    0.51
+Version:    0.54.0
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -45,7 +45,8 @@ rm -rf %{buildroot}
 %{prefix}//external/jQuery/jquery-1.9.0.js
 %{prefix}//external/prototype/prototype.js
 
-
 %changelog
+* Fri Sep 27 2013 Todd Kover <kovert@omniscient.com> 0.54.0-2
+  - trim strings as they are edited with jquery editabletext
 * Thu Feb 20 2013 Todd Kover <kovert@omniscient.com> 0.51.1-2
   - make work
