@@ -1,6 +1,8 @@
 <?php 
 include "jazzhands/dbauth.php";
 
+date_default_timezone_set('UTC');
+
 //
 // print various ways to browse at the top
 //

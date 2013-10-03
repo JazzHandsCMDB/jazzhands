@@ -171,6 +171,9 @@ $query = "
 		coalesce(pc.nickname, p.nickname) as nickname,
 		pc.position_title,
 		pc.person_company_relation,
+		date_part('month', p.birth_date) as birth_date_month,
+		date_part('day', p.birth_date) as birth_date_day,
+		date_part('epoch', p.birth_date) as birth_date_epoch,
 		pc.hire_date,
 		c.company_name,
 		c.company_id,
@@ -299,6 +302,10 @@ if(isset($row['hire_date'])) {
 	$hd = preg_replace("/\s.*$/", "", $row['hire_date']);
 	echo build_tr("Hire Date", $hd);
 }
+if(isset($row['birth_date_epoch'])) {
+	echo build_tr("Birthday", date("F j", $row['birth_date_epoch']));
+}
+
 echo build_tr("Status", $row['person_company_relation']);
 
 if(isset($row['display_label'])) {

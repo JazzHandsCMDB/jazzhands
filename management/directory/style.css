@@ -350,3 +350,26 @@ div#random {
 	background-color: red;
 	font-size: 150%;
 }
+
+table.events {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+table.events tbody {
+	display: block;
+	border: 1px solid;
+}
+table.events tr.month {
+	text-align: center;
+	font-weight: bolder;
+}
+table.events tr {
+	border: solid 1px;
+	text-align: left;
+	border: 1px solid;
+}
+
+table.events td {
+	border: none;
+}
