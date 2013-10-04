@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.54.1
+%define version 0.54.2
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -205,6 +205,11 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Fri Oct  4 2013 Todd Kover <kovert@omniscient.com> 0.54.2-1
+- reset netblock management  back to "old" behavior that is more
+  hierarchy friendly, hits the db more, and only allows descriptions on
+  reserved addresses
+- misc fixes
 * Fri Sep 27 2013 Todd Kover <kovert@omniscient.com> 0.54.1-1
 - use jquery more
 - fix b_nondbdropdown to work in postgresql world

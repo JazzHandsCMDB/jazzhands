@@ -25,6 +25,9 @@ $(function() {
 	// make all divs with a class of 'editabletext' be able to click to
 	// edit the text
 
+	// NOTE:  This should probably just dynamically create the record on
+	// click!
+
 	$("span.editabletext").each( function ( index, el) {
 		// Get the text value of the div as initial value, then clear
 		// it
@@ -34,15 +37,9 @@ $(function() {
 		var id = $(el).attr('id');
 		$(el).text('');
 
-		// Create a new hidden box with the original value of the text
-		// element
-
-		var textbox = $("<input/>", {
-			name: "orig_" + id,
-			type: "hidden",
-			value: text
-		});
-		$(el).append(textbox);
+		// possibly unnecessary
+		// save the original value of the element
+		// el.orig_value = textbox;
 
 		// Create a new hidden input box with the value of the text
 		// element

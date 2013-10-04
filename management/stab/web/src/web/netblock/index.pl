@@ -1,22 +1,4 @@
-#!/usr/bin/env perl
-
-#
-# Copyright (c) 2013 Matthew Ragan
-# All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-
+#!/usr/local/bin/perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -118,6 +100,7 @@ sub make_url {
 	$c->self_url;
 }
 
+
 sub dump_toplevel {
 	my ( $stab, $dbh, $cgi ) = @_;
 
@@ -183,12 +166,10 @@ sub dump_toplevel {
 	$dbh->disconnect;
 }
 
-
 sub dump_nodes {
 	my($stab, $p_nblkid, $nblk) = @_;
-	my $org = $nblk->{_dbx('IS_ORGANIZATIONAL')};
 	my $v4 = $nblk->{_dbx('IS_IPV4_ADDRESS')};
-	$org = 'N' if(!$org);
+	my $org = 'N';
 
 	my $cgi = $stab->cgi;
 
@@ -204,16 +185,16 @@ sub dump_nodes {
 
 	print $cgi->hidden(-name => 'NETBLOCK_ID', -default => $p_nblkid);
 	print $cgi->submit(-align=>'center', -name=>'Submit Updates');
-	print $cgi->start_table({-border=>1});
+	print $cgi->start_table({-class=>'nblk_ipallocation'});
 
-	print $cgi->th(['IP', 'Status', 'DNS Hostname', 'DNS Domain', 'Description', 'Ticket']);
+	print $cgi->th(['IP', 'Status', 'DNS', 'Description', 'Ticket']);
 
 
 	my $q = qq{
 		select	nb.netblock_id, 
 			nb.netmask_bits,
 			ni.device_id,
-			dns.dns_name, 
+			dns.dns_name,
 			dom.soa_name,
 			net_manip.inet_dbtop(nb.ip_address) as ip,
 			nb.ip_address,
@@ -254,7 +235,7 @@ sub dump_nodes {
 		# ipv6 is different because dumping out a /64 is going to be an
 		# effing huge web page.  ipv4 could probably be folded into that,
 		# but being able to visualize the spaces is useful, so maybe only
-		# for blocks after a certain domain
+		# for blocks after a certain size
 		my $lastip;
 		my $trgap = 0;
 		my $gapno = 0;
@@ -328,19 +309,22 @@ sub dump_nodes {
 	}
 	
 	print $cgi->end_table;
-	print dump_netblock_routes($stab, $p_nblkid, $nb);
+	# XXX - need to reconsider when/how to do this.
+	if(0) {
+		print dump_netblock_routes($stab, $p_nblkid, $nb);
+	}
 	print $cgi->submit(-align=>'center', -name=>'Submit Updates');
 	print $cgi->end_form, "\n";
 }
 
 
 sub get_netblock_link_header {
-	my ( $stab, $id, $blk, $bits, $nblkid, $descr, $pnbid, $site ) = @_;
+	my ( $stab, $nblkid, $blk, $bits, $startnblkid, $descr, $pnbid, $site ) = @_;
 
 	my $cgi = $stab->cgi;
 	my $dbh = $stab->dbh;
 
-	my $showsite = $stab->cgi_parse_param('showsite') || 'yes';
+	my $showsite = $stab->cgi_parse_param('showsite');
 	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
 
 	my $displaysite = "";
@@ -348,9 +332,9 @@ sub get_netblock_link_header {
 		$displaysite = ( "[" . ( defined($site) ? $site : "" ) . "] " );
 	}
 
-	my $pnb = $stab->get_netblock_from_id( $pnbid, 1 );
+	my $pnb = $stab->get_netblock_from_id( $pnbid, 1, 1 );
 	my $parent = "";
-	if ($pnb) {
+	if ($pnb && $nblkid == $startnblkid) {
 		my $purl = make_url( $stab, $pnbid );
 		$parent = " - "
 		  . $cgi->a( { -href => $purl, },
@@ -359,106 +343,60 @@ sub get_netblock_link_header {
 	}
 
 	my $ops = "";
-	if ( num_kids( $stab, $nblkid ) == 0 ) {
+	if ( num_kids( $stab, $nblkid, 'Y' ) == 0 ) {
 		$ops = " - "
-		  . $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
-			"[Subnet this block]" )
-		  . $cgi->a( { -href => "write/rmnetblock.pl?id=$nblkid" },
-			"[Remove this netblock]" );
+		  . $cgi->a( { -href => "write/addchild.pl?id=$nblkid" },
+			"[Subnet]" )
+		  . $cgi->a( { -href => "write/rmblock.pl?id=$nblkid" },
+			"[Remove]" );
 	}
 
-	if ( $allowdescedit eq 'yes' ) {
+	if ( 1 || $allowdescedit eq 'yes' ) {
 		my $name = "NETBLOCK_DESCRIPTION_$nblkid";
-		$descr = $cgi->hidden(
-			-name    => "orig_$name",
-			-default => $descr
-		  )
-		  . $cgi->textfield(
-			{
-				-size  => 80,
-				-name  => $name,
-				-value => $descr
-			}
-		  );
+		#$descr = $cgi->hidden(
+		#	-name    => "orig_$name",
+		#	-default => $descr
+		#  )
+		#  . $cgi->textfield(
+		#	{
+		#		-size  => 80,
+		#		-name  => $name,
+		#		-value => $descr
+		#	}
+		#  );
+		$descr = $cgi->span({-class => 'editabletext',
+			-id=> $name
+			},($descr || ""));
+			
 	}
 
-	my $url = make_url( $stab, $id );
+	my $url = make_url( $stab, $nblkid );
 	return $cgi->li(
-		$cgi->a( { -href => $url }, $blk )
+		$cgi->span({-class=>'netblocklink'},
+			$cgi->a( { -href => $url }, $blk ))
+		  . "-" 
 		  . $displaysite
-		  . $ops . " - "
-		  . ( ($descr) ? $descr : "" ),
+		  . $cgi->span({-class=>'netblockdesc'}, ( $descr || "" ))
+		  . $ops,
 		$parent, "\n"
 	);
 }
 
-
-sub generate_netblock_line {
-	my $opt = _options(@_);
-	my $stab = $opt->{stab};
-	my $netblock = $opt->{netblock};
-
-	my $cgi = $stab->cgi;
-	my $nbhash = $netblock->hash;
-	my $nblkid = $nbhash->{_dbx('netblock_id')};
-
-	#
-	# See if this netblock has any children that are leafs
-	#
-	my $nblist = $stab->GetNetblock(
-		parent_netblock_id => $nbhash->{_dbx('netblock_id')},
-		is_single_address => 'Y',
-		errors => $opt->{errors}
-	);
-
-	my $nb = $netblock->hash;
-
-	my $ops = "";
-	if ($nb->{is_single_address} eq 'N' && !@$nblist) {
-		$ops = " - ";
-		if($nb->{can_subnet} eq 'Y') {
-			$ops .= $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
-				"[Subnet]" )
-		}
-		$ops .= 
-		  $cgi->a( { -href => "write/rmnetblock.pl?id=$nblkid" },
-			"[Remove]" );
-	}
-
-	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
-#	my $descr = $cgi->hidden(
-#			-name    => "orig_$name",
-#			-default => $nbhash->{_dbx('description')}
-#		 ) . 
-	my $descr = '<span class="editabletext" id="' .  $name . '">' .
-	 	 ($nbhash->{_dbx('description')} || "") . '</span>';
-
-	if($nb->{netblock_status} eq 'Allocated' && ($nb->{is_single_address} eq 'Y' && (!defined($nb->{description}) || $nb->{description} eq '')) ) {
-		$descr = 'not in dns';
-	}
-
-	my $status = $nb->{netblock_status};
-
-	my $url = make_url( $stab, $nblkid );
-	return $cgi->li(
-		$cgi->span({-class=>'netblocklink'}, $cgi->a( { -href => $url }, $netblock->IPAddress ) )
-		  . $ops . " ($status) - "
-		  . $cgi->span({-class=>'netblockdesc'}, ( $descr || "" )), "\n"
-	);
-}
-
 sub num_kids {
-	my ( $stab, $nblkid ) = @_;
+	my ( $stab, $nblkid, $issingle ) = @_;
 
 	my $dbh = $stab->dbh;
+
+	$issingle = 'N' if ( !defined($issingle) );
 
 	my $q = qq{
 		select	count(*)
 		  from	netblock
 		 where	parent_netblock_id = ?
+		   and	is_single_address = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute( $nblkid ) || $stab->return_db_err($sth);
+	$sth->execute( $nblkid, $issingle ) || $stab->return_db_err($sth);
 	my $x = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$x;
@@ -481,35 +419,19 @@ sub do_dump_netblock {
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 
-	my $netblock;
-	my @errors;
-
+	my $nb;
 	if ( !defined($start_id) ) {
 		if ( defined($block) ) {
-			my $ipaddr = NetAddr::IP->new($block);
-			#
-			# Should probably fix this to support non-default netblock types
-			#
-			$netblock = $stab->GetNetblock(
-				ip_address => $ipaddr,
-				netblock_type => 'default',
-				errors => \@errors);
-			$start_id = $netblock->hash->{_dbx('netblock_id')};
+			$nb = new Net::Netmask($block);
+			$start_id = get_netblock_id( $stab, $nb );
 
 			if ( !defined($start_id) ) {
-				if (@errors) {
-					$stab->error_return(join ';', @errors);
-				} else {
-					$stab->error_return("Netblock not found");
-				}
+				$stab->error_return("Netblock not found");
 			} else {
 				my $url = make_url( $stab, $start_id );
 				print $cgi->redirect($url);
 				exit 1;
 			}
-		} else {
-			dump_toplevel( $stab, $dbh, $cgi );
-			exit;
 		}
 	} else {
 		if ( $start_id !~ /^\d+$/ ) {
@@ -517,24 +439,65 @@ sub do_dump_netblock {
 				"Invalid netblock id ($start_id) specified");
 		}
 
-		$netblock = $stab->GetNetblock(
-			netblock_id => $start_id,
-			errors => \@errors
-			);
+		my $netblock =
+		  $stab->get_netblock_from_id( $start_id, 1, 'N', 'N' );
 		if ( !defined($netblock) ) {
-			if (@errors) {
-				$stab->error_return(join ';', @errors);
-			} else {
-				$stab->error_return(
-					"Invalid netblock id ($start_id) specified");
-			}
+			$stab->error_return(
+				"Invalid netblock id ($start_id) specified");
+		}
+		my $base = $netblock->{_dbx('IP')};
+		my $bits = $netblock->{_dbx('NETMASK_BITS')};
+		if ($netblock->{_dbx('IS_IPV4_ADDRESS')} eq 'Y' && defined($base) && defined($bits) ) {
+			$nb = new Net::Netmask("$base/$bits");
 		}
 	}
 
-	my $root = $netblock->IPAddress;
+	my ($nblk);
+
+	#
+	# if a bogus block was specified, it will still be undef.
+	#
+	if ( !defined($start_id) ) {
+		dump_toplevel( $stab, $dbh, $cgi );
+		exit;
+	} else {
+		$nblk = $stab->get_netblock_from_id( $start_id, 1, 'N', 'N' );
+		if ( !defined($nblk) ) {
+			$stab->error_return(
+				"Unable to find Netblock ($start_id)",
+				undef, 1 );
+		}
+	}
+
+	if($nblk->{_dbx('IS_IPV4_ADDRESS')} eq 'Y' && !defined($nb)) {
+		$stab->error_return("You must specify a valid netblock!\n");
+	}
+
+	my $q = qq{
+		select  netblock_level,
+			netblock_id,
+			ip,
+			netmask_bits,
+			netblock_status,
+			is_single_address,
+			is_ipv4_address,
+			description,
+			parent_netblock_id,
+			site_code
+		  from  v_netblock_hier
+		where	root_netblock_id = ?
+		order by array_ip_path
+		-- XXX probably need to rethink the order by here.
+	};
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	$sth->execute($start_id) || $stab->return_db_err($sth);
+
+	my $ipstr = $nblk->{_dbx('IP')} . "/" . $nblk->{_dbx('NETMASK_BITS')};
+
 	print $stab->start_html(
 		{
-			-title      => "Netblock " . $root,
+			-title      => "Netblock $ipstr",
 			-javascript => 'netblock',
 		}
 	);
@@ -563,6 +526,19 @@ sub do_dump_netblock {
 	}, $cgi->a( { -href => "../device/" }, "device manager" ), ")."
 	);
 
+	# neeed to see if we even need Net::Netmask.  I don't think we do
+	# anymore.
+	my $root;
+	if($nblk->{_dbx('IS_IPV4_ADDRESS')} eq 'Y') {
+		$root = $nb->base."/".$nb->bits;
+	} else {
+		$root = join('/', $nblk->{_dbx('IP')}, $nblk->{_dbx('NETMASK_BITS')});
+	}
+
+	my ( @hier, %kids );
+	my $lastl = -1;
+	push( @hier, $root );
+
 	print $cgi->p;
 
 	print $cgi->start_form(
@@ -570,32 +546,64 @@ sub do_dump_netblock {
 		-action => 'write/edit_netblock.pl'
 	);
 
-	print $cgi->submit("Submit Updates");
-
-	my $netblock_list = $stab->GetNetblock(
-		parent_netblock_id => $netblock->hash->{netblock_id},
-		errors => \@errors
-	);
-
-	print "<ul>\n";
-	print generate_netblock_line(
-		stab => $stab,
-		netblock => $netblock);
-	print "<ul>\n";
-	foreach my $nb 
-			( sort { $a->IPAddress <=> $b->IPAddress } @$netblock_list) {
-		my $nbhash = $nb->hash;
-		print generate_netblock_line(
-			stab => $stab,
-			netblock => $nb);
+	if ( $allowdescedit eq 'yes' || $nblk->{_dbx('CAN_SUBNET')} eq 'Y') {
+		warn Dumper($nblk);
+		print $cgi->submit("Submit Updates");
 	}
-	print "</ul>\n";
-	print "</ul>\n";
+
+	# This is required for oracle, I *THINK*.  Under postgresql, this results
+	# in double printing  a given block.  All this needs to be rewritten.
+
+	#print get_netblock_link_header(
+	#	$stab, $start_id, $root, $nblk->{_dbx('NETMASK_BITS')},
+	#	$start_id,
+	#	$nblk->{_dbx('DESCRIPTION')},
+	#	$nblk->{_dbx('PARENT_NETBLOCK_ID')}
+	#);
+
+	while (
+		my (
+			$level,  $nblkid, $ip,    $bits, $status,
+			$single, $v4,     $descr,  $pnbid, $site
+		)
+		= $sth->fetchrow_array
+	  )
+	{
+		if ( $lastl < $level ) {
+			for ( my $i = $lastl ; $i < $level ; $i++ ) {
+				print "<ul>";
+			}
+		}
+		if ( $lastl > $level ) {
+			print "</ul><ul>\n";
+			for ( my $i = $lastl ; $i > $level ; $i-- ) {
+				print "</ul>";
+			}
+		}
+		my $blk = "$ip/$bits";
+
+		print get_netblock_link_header(
+			$stab,     $nblkid, $blk,   $bits,
+			$start_id, $descr,  $pnbid, $site
+		);
+		$lastl = $level;
+	}
+	$sth->finish;
+	for ( my $i = $lastl ; $i ; $i-- ) {
+		print "</ul>";
+	}
+	print "\n";
 
 	print $cgi->end_form, "\n";
+	if (       ( defined($expand) && $expand eq 'yes' )
+		|| ( !defined($expand) && !num_kids( $stab, $start_id ) ) )
+	{
+		dump_nodes( $stab, $start_id, $nblk);
+	}
 
 	print $cgi->end_html, "\n";
 
+	$sth->finish;
 	$dbh->rollback;
 	$dbh->disconnect;
 	$dbh = undef;
@@ -700,7 +708,7 @@ sub dump_netblock_routes {
 				net_manip.inet_dbtop(snb.ip_address),
 				snb.netmask_bits as SOURCE_NETMASK_BITS,
 				ni.network_interface_id,
-				ni.name as interface_name,
+				ni.network_interface_name as interface_name,
 				d.device_name,
 				dnb.netblock_Id as dest_netblock_id,
 				net_manip.inet_dbtop(dnb.ip_address) as ROUTE_DESTINATION_IP

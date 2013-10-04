@@ -30,6 +30,7 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::Common qw(:all);
 
 edit_netblock();
 
@@ -41,43 +42,46 @@ edit_netblock();
 
 sub edit_netblock {
 	my $stab = new JazzHands::STAB;
-	my $cgi  = $stab->cgi;
-	my $dbh  = $stab->dbh;
+
+	my $cgi = $stab->cgi;
+	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $numchanges = 0;
 
 #	$numchanges += process_routes
 
 	foreach my $id ( $stab->cgi_get_ids('NETBLOCK_DESCRIPTION') ) {
-		my $v    = $cgi->param("NETBLOCK_DESCRIPTION_$id");
-		my $ov = $cgi->param("orig_NETBLOCK_DESCRIPTION_$id");
-		if ( $v ne $ov ) {
-			$numchanges += process_netblock_update( $stab, $id, $v );
-		}
+		my $v    = $stab->cgi_parse_param("NETBLOCK_DESCRIPTION_$id");
+		$v = $cgi->unescapeHTML($v);
+		$numchanges += process_netblock_update( $stab, $id, $v );
+
 	}
 
 	if ( $numchanges > 0 ) {
-		$dbh->commit;
-		$dbh->disconnect;
+		$stab->commit || die $stab->return_db_err;
 		$stab->msg_return( "$numchanges changes commited", undef, 1 );
 	}
 
-	$dbh->rollback;
-	$dbh->disconnect;
+	$stab->rollback;
 	$stab->msg_return( "There were no changes.", undef, 1 );
 }
 
 sub process_netblock_update {
 	my ( $stab, $nblkid, $newval ) = @_;
 
-	my $dbh = $stab->dbh;
-	my $q   = qq{
-		update	netblock
-		  set	description = ?
-		where	netblock_id = ?
+	my $orig = $stab->get_netblock_from_id( $nblkid, 1, 1);
+
+	my $new = {
+		NETBLOCK_ID	=> $nblkid,
+		DESCRIPTION	=> $newval,
 	};
 
-	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute( $newval, $nblkid ) || $stab->return_db_err($sth);
-	1;
+	my $diffs = $stab->hash_table_diff( $orig, _dbx($new) );
+	my $tally = keys %$diffs;
+	if( $tally ) {
+		$stab->run_update_from_hash(
+			'NETBLOCK', 'NETBLOCK_ID', $nblkid, $diffs
+		) || die $stab->return_db_err();
+	}
+	$tally;
 }

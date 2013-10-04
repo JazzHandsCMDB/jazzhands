@@ -178,7 +178,6 @@ sub check_ip_on_local_nets {
 	my ($count) = $sth->fetchrow_array;
 	$sth->errstr;
 	$count;
-
 }
 
 sub get_netblock_from_id {
@@ -1721,8 +1720,9 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 	my $fqhn = "";
 	if ($reservation) {
-		$status = 'Allocation';
+		$status = 'Allocated';
 		$desc   = $reservation;
+		$editabledesc = 0;
 	} elsif ( defined($hr) ) {
 		$id   = $hr->{ _dbx('NETBLOCK_ID') };
 		$bits = $hr->{ _dbx('NETMASK_BITS') }
@@ -1735,6 +1735,8 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$atix    = $hr->{ _dbx('APPROVAL_REF_NUM') };
 		$atixsys = $hr->{ _dbx('APPROVAL_TYPE') };
 
+		# $editabledesc =  1;
+
 		$printip = "$ip/$bits";
 
 		if ( defined($name) ) {
@@ -1743,9 +1745,10 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 		if ( $status eq 'Reserved' || $status eq 'Legacy' ) {
 			$editabledesc = 1;
-			if ( !defined($devid) && $fqhn ) {
-				$desc = $fqhn;
-			}
+			# allow descriptions to not match DNS
+			#if ( !defined($devid) && $fqhn ) {
+			#	$desc = $fqhn;
+			#}
 		}
 
 		if ( defined($devid) ) {
@@ -1764,7 +1767,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 	}
 
 	my $maketixlink;
-	#if ($editabledesc) {
+	if ($editabledesc) {
 		my $h = $cgi->hidden(
 			-name    => "rowblk_$uniqid",
 			-default => $id
@@ -1775,7 +1778,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		#	-default => ( ($desc) ? $desc : "" ),
 		#	-size    => 50
 		#  );
-		$desc = $cgi->span({-class=>'editabletext', -id => "desc_$uniqid"},
+		$desc = $h.$cgi->span({-class=>'editabletext', -id => "desc_$uniqid"},
 			($desc || ""));
 
 		if ( !defined($atix) ) {
@@ -1783,9 +1786,9 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		} else {
 			$maketixlink = 1;
 		}
-	#} else {
-	#	$maketixlink = 1;
-	#}
+	} else {
+		$maketixlink = 1;
+	}
 
 	my $url;
 	if ( $maketixlink && defined($atix) ) {

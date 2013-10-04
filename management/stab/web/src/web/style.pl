@@ -290,6 +290,11 @@ tr.dnsadd {
 	background: lightgrey;
 }
 
+/* netblock management (pre rewrite */
+table.nblk_ipallocation tr,td {
+	outline: 1px solid;
+}
+
 END
 
 }
