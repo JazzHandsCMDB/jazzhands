@@ -1026,6 +1026,7 @@ sub b_dropdown {
 	my $default;
 	my $portrestrict;
 	my $devcoltype;
+	my $dnsdomaintype;
 
 	my $argone_grey;
 
@@ -1109,10 +1110,15 @@ sub b_dropdown {
 		if ( defined( $params->{'-only_nonauto'} ) ) {
 			$limitverbiage = "where SHOULD_GENERATE = 'N'";
 		}
+		if ( defined( $params->{'-dnsdomaintype'} ) ) {
+			$limitverbiage .= " AND " if(length($limitverbiage));
+			$limitverbiage = "dns_domain_type = :dnsdomaintype";
+			$dnsdomaintype = $params->{'-dnsdomaintype'};
+		}
 		$q = qq{
 			select	dns_domain_id, soa_name
 			  from	dns_domain $limitverbiage
-			order by CASE WHEN soa_name like '%in-addr.arpa' THEN 1 ELSE 0 END,
+			order by CASE WHEN dns_domain_type = 'reverse' THEN 1 ELSE 0 END,
 				soa_name
 		};
 		$pickone = "Please Select Domain";
@@ -1446,6 +1452,10 @@ sub b_dropdown {
 
 	if ( defined($devcoltype) ) {
 		$sth->bind_param( ':devcoltype', $devcoltype );
+	}
+
+	if ( defined($dnsdomaintype) ) {
+		$sth->bind_param( ':dnsdomaintype', $dnsdomaintype );
 	}
 
 	$sth->execute || $self->return_db_err($sth);

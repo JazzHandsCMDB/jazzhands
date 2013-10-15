@@ -1766,6 +1766,14 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$editabledesc = 1;
 	}
 
+	#
+	# When device ids are not set, then allow the dns name to be changed
+	# or set from here
+	#
+	if(!$devid) {
+		$fqhn = $cgi->span({-class=>'editdns'}, $fqhn );
+	}
+
 	my $maketixlink;
 	if ($editabledesc) {
 		my $h = $cgi->hidden(
@@ -1811,15 +1819,160 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$atix = "";
 	}
 
+	my $trid = $uniqid;
+
 	my $tds = $cgi->td(
 		[ $printip, $status, $fqhn, $desc, $atix, ]
 	);
 
 	if ($showtr) {
-		$cgi->Tr($tds);
+		$cgi->Tr({-id => $trid}, $tds);
 	} else {
 		$tds;
 	}
+}
+
+#
+# given an IP, returns the forward record that defines that
+# PTR record
+#
+sub get_dns_a_record_for_ptr {
+	my ( $self, $ip ) = @_;
+
+	# NOTE:  This crosses netblock types!
+	# NOTE: need to reconsider ip universes
+	my (@errs);
+	my $nblk = $self->DBFetch(
+		table => 'netblock',
+		match => {
+			'host(ip_address)'  => $ip,
+			'is_single_address' => 'Y',
+			'ip_universe_id'    => 0,
+			'host(ip_address)'  => $ip
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	);
+	return undef if !$nblk;
+
+	my $dns = $self->DBFetch(
+		table => 'dns_record',
+		match => {
+			netblock_id         => $nblk->{netblock_id},
+			should_generate_ptr => 'Y',
+		},
+		result_set_size => 'first',
+		errors          => \@errs
+	);
+	return undef if !$dns;
+
+	return $dns->{dns_record_id};
+
+}
+
+sub process_and_insert_dns_record {
+	my $self = shift @_;
+	my $opts = shift @_;
+
+	$opts = _dbx( $opts, 'lower' );
+
+	if ( $opts->{dns_type} eq 'A' ) {
+		if ( $opts->{dns_value} !~ /^(\d+\.){3}\d+/ ) {
+			$self->error_return( $opts->{dns_value}
+				  . " is not a valid IP address" );
+		}
+		my $block = $self->get_netblock_from_ip(
+			ip_address => $opts->{dns_value} );
+		if ( !$block ) {
+			$block = $self->get_netblock_from_ip(
+				ip_address    => $opts->{dns_value},
+				netblock_type => 'dns'
+			);
+		}
+
+      # now figure out what to do if ptr is set.  If it is set, then we
+      # unconditionally make other records not have the PTR.
+      # If it is not set, we set it for the user if the IP address is showing up
+      # for the firs time
+		if ( defined( $opts->{ _dbx('SHOULD_GENERATE_PTR') } )
+			&& $opts->{ _dbx('SHOULD_GENERATE_PTR') } eq 'Y' )
+		{
+	      # set all other dns_records but this one to have ptr = 'N'
+	      # more than one should never happen, btu this is a while loop just
+	      # in case.
+			while ( my $recid =
+				$self->get_dns_a_record_for_ptr( $opts->{dns_value} ) )
+			{
+				$self->run_update_from_hash( "DNS_RECORD",
+					"DNS_RECORD_ID", $recid,
+					{ should_generate_ptr => 'N' } );
+			}
+		} else {
+			if ( !$self->get_dns_a_record_for_ptr( $opts->{dns_value} ) ) {
+				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
+			} else {
+				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
+			}
+		}
+		my $id;
+		if ( !defined($block) ) {
+			my $h = {
+				ip_address        => $opts->{dns_value},
+				is_single_address => 'Y'
+			};
+			if (
+				!(
+					my $par =
+					$self->guess_parent_netblock_id(
+						$opts->{dns_value}
+					)
+				)
+			  )
+			{
+		 # XXX This is outside our IP universe, which we should probably
+		 # print a warning on, but lacking that, it gets created as a
+		 # type dns
+				$h->{netblock_type} = 'dns';
+				$h->{netmask_bits}  = 32;
+			}
+			$id = $self->add_netblock($h)
+			  || die $self->return_db_err();
+		} else {
+			$id = $block->{ _dbx('NETBLOCK_ID') };
+		}
+
+		$opts->{netblock_id} = $id;
+	}
+	$self->add_dns_record($opts);
+
+	return 1;
+}
+
+sub delete_netblock {
+	my($self, $nblkid, $fkok) = @_;
+
+	# XXX - note, using bind variables gives an error
+	# presumably because things are nexted.  This probably
+	# wants to move to a stored procedure.  yay.
+	my $q = qq{
+		delete from netblock where netblock_id = $nblkid;
+	};
+
+	if( $fkok ) {
+		$q = q{
+			DO $$
+			BEGIN
+		} . $q . q{
+			EXCEPTION WHEN foreign_key_violation THEN 
+				NULL;
+			END
+			$$
+		};
+	}
+	my $sth = $self->prepare( $q ) || die $self->return_db_err();
+	#- $sth->bind_param('Lid', $nblkid) || die $self->return_db_err();
+
+	$sth->execute || die $self->return_db_err($sth);
 }
 
 1;

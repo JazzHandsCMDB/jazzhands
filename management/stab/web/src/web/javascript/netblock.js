@@ -57,3 +57,54 @@ function AddIpSpace(thing, parent_tr_id, gapid)
 		ajaxrequest.send(null);
 	}
 }
+
+
+//
+// much of this probably wants to be shared
+//
+$(document).ready(function() {
+
+	// Put "set DNS" on reserved records without DNS set
+	$("span.editdns").each( function ( index, el) {
+		var text = $(el).html().trim();
+		if(! text.length) {
+			$(el).html("Setup DNS");
+			$(el).addClass('hint');
+		}
+	});
+
+	$("table.nblk_ipallocation").on('click', 'span.editdns', function(event) {
+
+		var el = this;
+		if( $(el).hasClass('hint')) {
+			$(el).removeClass('hint');
+			$(el).html('');
+			// This case happens when it says 'set dns'.  In this case, user
+			// has clicked on an empty field, and the span gets cleared and
+			// replaced with a dns_value input box and a dns domain drop down
+			var trid = $(el).parents("tr").first().attr('id');
+			$.getJSON('../dns/dns-ajax.pl',
+				'MIME_TYPE=json;what=domains;type=service',
+				function (resp) {
+					var name = $("<input/>", {
+						name: 'DNS_RECORD_ID_' + trid,
+						id: 'DNS_RECORD_ID_' + trid,
+						type: 'text'
+ 					});
+					var s = $("<select/>", {
+						name: 'DNS_DOMAIN_ID_' + trid,
+						type: "input",
+						id: "DNS_DOMAIN_ID_" + trid
+					});
+
+					for(var field in resp['options']) {
+						var o = $("<option/>", resp['options'][field]);
+						$(s).append(o);
+					}
+					$(el).append(name);
+					$(el).append(s);
+					$(name).focus();
+			});
+		}
+	});
+});

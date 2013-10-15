@@ -88,6 +88,32 @@ sub do_dns_ajax {
 			$r->{'DNS_SRV_SERVICE'}->{$srv} = $d;
 		}
 		print $j->encode($r);
+	} elsif ( $what eq 'domains' ) {
+		my $type = $stab->cgi_parse_param('type');
+		my $where = "";
+		if($type) {
+			$where = "WHERE dns_domain_type = :dnsdomaintype";
+		}
+		my $r = {};
+		$r->{options} = {};
+		my $sth = $stab->prepare(
+			qq{
+				select	DNS_DOMAIN_ID, SOA_NAME
+				  from	DNS_DOMAIN
+				  $where
+			}
+		) || die ;
+		if($type) {
+			$sth->bind_param(':dnsdomaintype', $type);
+		}
+		$sth->execute;
+		my $j = JSON::PP->new->utf8;
+		while ( my ( $id, $name ) = $sth->fetchrow_array ) {
+			$r->{options}->{$id} = {};
+			$r->{'options'}->{$id}->{'value'} = $id;
+			$r->{'options'}->{$id}->{'text'} = $name;
+		}
+		print $j->encode($r);
 	} else {
 
 		# catch-all error condition

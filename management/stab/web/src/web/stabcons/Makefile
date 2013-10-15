@@ -26,7 +26,9 @@
 
 STAB_DIR=/prod/www/stab/docs/stabcons
 
-IMAGES= collapse.jpg expand.jpg progress.gif stab.png
+# note that axe and the two X's are used by directory and should be shared
+IMAGES= collapse.jpg expand.jpg progress.gif stab.png \
+	Axe_001.svg Octagon_delete.svg round_red_x_sign_4229.jpg
 
 SUBDIRS=
 

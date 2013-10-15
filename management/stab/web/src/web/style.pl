@@ -291,8 +291,12 @@ tr.dnsadd {
 }
 
 /* netblock management (pre rewrite */
-table.nblk_ipallocation tr,td {
+table.nblk_ipallocation tr, table.nblk_ipallocation td {
 	outline: 1px solid;
+}
+
+img.subnet {
+	width: 1em;
 }
 
 END

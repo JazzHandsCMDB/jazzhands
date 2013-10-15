@@ -61,7 +61,9 @@ sub process_netblock_reservations {
 	# Temporarily remove the routing stuff
 	#- cleanup_unchanged_routes( $stab, $nblkid );
 
-    #-print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+    	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+
+	$numchanges += process_dns_additions( $stab, $nblkid );
 
 	$numchanges += parse_netblock_routes( $stab, $nblkid );
 
@@ -545,6 +547,26 @@ sub update_netblock_routes {
 			$dbh->rollback;
 			$stab->error_return("Unknown Error with Update");
 		}
+	}
+	$numchanges;
+}
+
+sub process_dns_additions( ) {
+	my $stab = shift @_;
+	my $nblkid = shift @_;   # probably not used
+
+	my $numchanges = 0;
+
+	for my $uniqid ( $stab->cgi_get_ids('DNS_RECORD_ID') ) {
+		my $new = {
+			DNS_NAME		=> $stab->cgi_parse_param( 'DNS_RECORD_ID', $uniqid ),
+			DNS_DOMAIN_ID		=> $stab->cgi_parse_param( 'DNS_DOMAIN_ID', $uniqid ),
+			DNS_CLASS		=> 'IN',
+			DNS_TYPE		=> 'A',
+			DNS_VALUE		=> $uniqid,
+			IS_ENABLED		=> 'Y',
+		};
+		$numchanges += $stab->process_and_insert_dns_record ( $new );
 	}
 	$numchanges;
 }

@@ -60,44 +60,6 @@ use POSIX;
 do_dns_update();
 
 #
-# given an IP, returns the forward record that defines that
-# PTR record
-#
-sub check_ptr {
-	my ( $stab, $ip ) = @_;
-
-	# NOTE:  This crosses netblock types!
-	# NOTE: need to reconsider ip universes
-	my (@errs);
-	my $nblk = $stab->DBFetch(
-		table => 'netblock',
-		match => {
-			'host(ip_address)'  => $ip,
-			'is_single_address' => 'Y',
-			'ip_universe_id'    => 0,
-			'host(ip_address)'  => $ip
-		},
-		result_set_size => 'first',
-		errors          => \@errs
-	);
-	return undef if !$nblk;
-
-	my $dns = $stab->DBFetch(
-		table => 'dns_record',
-		match => {
-			netblock_id         => $nblk->{netblock_id},
-			should_generate_ptr => 'Y',
-		},
-		result_set_size => 'first',
-		errors          => \@errs
-	);
-	return undef if !$dns;
-
-	return $dns->{dns_record_id};
-
-}
-
-#
 # I probably need to find a better way to do this.  This allows error
 # responses to be much less sucky, but it's going to be way slow.
 #
@@ -516,7 +478,7 @@ sub process_dns_add {
 			should_generate_ptr => $genptr,
 		};
 
-		$numchanges += process_and_insert_dns_record( $stab, $new );
+		$numchanges += $stab->process_and_insert_dns_record( $new );
 	}
 
 	$numchanges;
@@ -546,6 +508,7 @@ sub do_dns_update {
     # have a resonable state
 	my $delsth;
 	foreach my $delid ( $stab->cgi_get_ids('Del') ) {
+		my $dns = $stab->get_dns_record_from_id( $delid);
 		if ( !defined($delsth) ) {
 			my $q = qq{
 				delete from dns_record
@@ -558,6 +521,10 @@ sub do_dns_update {
 		$cgi->delete("Del_$delid");
 		$cgi->delete("DNS_RECORD_ID_$delid");
 		$numchanges++;
+
+		if($dns && $dns->{_dbx('DNS_TYPE')} =~ /^A(AAA)?$/) {
+			$numchanges += $stab->delete_netblock( $dns->{_dbx('NETBLOCK_ID')}, 1  );
+		}
 	}
 
 	# process updates
@@ -582,84 +549,6 @@ sub do_dns_update {
 	$stab->msg_return("Nothing to do");
 }
 
-sub process_and_insert_dns_record {
-	my $stab = shift @_;
-	my $opts = shift @_;
-
-	$opts = _dbx( $opts, 'lower' );
-
-	if ( $opts->{dns_type} eq 'A' ) {
-		if ( $opts->{dns_value} !~ /^(\d+\.){3}\d+/ ) {
-			$stab->error_return( $opts->{dns_value}
-				  . " is not a valid IP address" );
-		}
-		my $block = $stab->get_netblock_from_ip(
-			ip_address => $opts->{dns_value} );
-		if ( !$block ) {
-			$block = $stab->get_netblock_from_ip(
-				ip_address    => $opts->{dns_value},
-				netblock_type => 'dns'
-			);
-		}
-
-      # now figure out what to do if ptr is set.  If it is set, then we
-      # unconditionally make other records not have the PTR.
-      # If it is not set, we set it for the user if the IP address is showing up
-      # for the firs time
-		if ( defined( $opts->{ _dbx('SHOULD_GENERATE_PTR') } )
-			&& $opts->{ _dbx('SHOULD_GENERATE_PTR') } eq 'Y' )
-		{
-	      # set all other dns_records but this one to have ptr = 'N'
-	      # more than one should never happen, btu this is a while loop just
-	      # in case.
-			while ( my $recid =
-				check_ptr( $stab, $opts->{dns_value} ) )
-			{
-				$stab->run_update_from_hash( "DNS_RECORD",
-					"DNS_RECORD_ID", $recid,
-					{ should_generate_ptr => 'N' } );
-			}
-		} else {
-			if ( !check_ptr( $stab, $opts->{dns_value} ) ) {
-				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
-			} else {
-				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
-			}
-		}
-		my $id;
-		if ( !defined($block) ) {
-			my $h = {
-				ip_address        => $opts->{dns_value},
-				is_single_address => 'Y'
-			};
-			if (
-				!(
-					my $par =
-					$stab->guess_parent_netblock_id(
-						$opts->{dns_value}
-					)
-				)
-			  )
-			{
-		 # XXX This is outside our IP universe, which we should probably
-		 # print a warning on, but lacking that, it gets created as a
-		 # type dns
-				$h->{netblock_type} = 'dns';
-				$h->{netmask_bits}  = 32;
-			}
-			$id = $stab->add_netblock($h)
-			  || die $stab->return_db_err();
-		} else {
-			$id = $block->{ _dbx('NETBLOCK_ID') };
-		}
-
-		$opts->{netblock_id} = $id;
-	}
-	$stab->add_dns_record($opts);
-
-	return 1;
-}
-
 sub process_and_update_dns_record {
 	my ( $stab, $opts, $ttlonly ) = @_;
 
@@ -670,9 +559,9 @@ sub process_and_update_dns_record {
 	my $orig = $stab->get_dns_record_from_id( $opts->{'dns_record_id'} );
 
 
-	if ( !defined( $opts->{'dns_ttl'} ) ) {
+	if ( !exists( $opts->{'dns_ttl'} ) ) {
 		$opts->{'dns_ttl'} = $orig->{ _dbx('DNS_TTL') };
-	} elsif ( !length( $opts->{'ttl'} ) ) {
+	} elsif ( !length( $opts->{'dns_ttl'} ) ) {
 		$opts->{'dns_ttl'} = undef;
 	}
 
@@ -722,7 +611,7 @@ sub process_and_update_dns_record {
 			$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
 			  $opts->{should_generate_ptr};
 		} elsif ( $orig->{ _dbx('DNS_TYPE') } ne $opts->{'dns_type'} ) {
-			if ( !check_ptr( $stab, $opts->{'dns_value'} ) ) {
+			if ( ! $stab->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) ) {
 				$newrecord{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
 			} else {
 				$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
@@ -737,7 +626,7 @@ sub process_and_update_dns_record {
 
 		      # set all other dns_records but this one to have ptr = 'N'
 			if ( my $recid =
-				check_ptr( $stab, $opts->{'dns_value'} ) )
+				$stab->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
 			{
 				$stab->run_update_from_hash( "DNS_RECORD",
 					"DNS_RECORD_ID", $recid,

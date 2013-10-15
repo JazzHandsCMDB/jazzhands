@@ -345,10 +345,21 @@ sub get_netblock_link_header {
 	my $ops = "";
 	if ( num_kids( $stab, $nblkid, 'Y' ) == 0 ) {
 		$ops = " - "
-		  . $cgi->a( { -href => "write/addchild.pl?id=$nblkid" },
-			"[Subnet]" )
-		  . $cgi->a( { -href => "write/rmblock.pl?id=$nblkid" },
-			"[Remove]" );
+		  . $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
+			$cgi->img({
+				-class=>'subnet',
+				-src=>"../stabcons/Axe_001.svg",
+				-alt=> "[Subnet]",
+				-title=> "Subnet Network"
+			}))
+		  . $cgi->a( { -href => "write/rmnetblock.pl?id=$nblkid" },
+			$cgi->img({
+				-class=>'subnet',
+				-src=>"../stabcons/Octagon_delete.svg",
+				-alt=> "[Remove]",
+				-title=> "Remove Network",
+			})) 
+		;
 	}
 
 	if ( 1 || $allowdescedit eq 'yes' ) {
