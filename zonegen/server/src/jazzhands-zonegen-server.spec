@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.54.0
+Version:    0.54.1
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -53,6 +53,8 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Wed Oct 16 013 Todd Kover <kovert@omniscient.com> 0.54.0
+- pull TTL for NS records from actual child NS records when setting up delegations
 * Wed Sept 25 013 Todd Kover <kovert@omniscient.com> 0.54.0
 - deal with v0.54 and moving v4_netblock_id to netblock_id
 * Fri Jul 26 2013 Todd Kover <kovert@omniscient.com> 0.52.6.2-1

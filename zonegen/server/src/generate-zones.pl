@@ -439,6 +439,7 @@ sub process_child_ns_records {
 		$dbh, qq{
 		select	distinct
 			dom.soa_name,
+			dns.dns_ttl,
 			dns.dns_class,
 			dns.dns_type,
 			dns.dns_value,
@@ -455,17 +456,22 @@ sub process_child_ns_records {
 
 	$sth->execute($domid) || die $sth->errstr;
 
-	while ( my ( $dom, $class, $type, $ns, $enable ) =
+	while ( my ( $dom, $ttl, $class, $type, $ns, $enable ) =
 		$sth->fetchrow_array )
 	{
 		my $com = ( $enable eq 'N' ) ? ";" : "";
+		if ( !defined($ttl) ) {
+			$ttl = '';
+		} else {
+			$ttl .= ' ';
+		}
 		$class = 'IN' if ( !defined($class) );
 		$type  = 'NS' if ( !defined($type) );
 		if ( $ns !~ /\.$/ ) {
 			$ns = "$ns.$dom.";
 		}
 		$dom =~ s/.$parent_domain$//;
-		$out->print("$com$dom\t$class\t$type\t$ns\n");
+		$out->print("$com$dom\t$ttl$class\t$type\t$ns\n");
 	}
 
 }
