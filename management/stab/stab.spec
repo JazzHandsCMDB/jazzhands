@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.54.3
+%define version 0.54.4
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -208,6 +208,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Thu Oct 17 2013 Todd Kover <kovert@omniscient.com> 0.54.4-1
+- move /usr/local/bin/perl reference to STFU rpm
 * Tue Oct 15 2013 Todd Kover <kovert@omniscient.com> 0.54.3-1
 - overhaul netblock presentation to be better for subnets and hierarchies
 - allow setting (but not manipulation) of dns from netblock page
