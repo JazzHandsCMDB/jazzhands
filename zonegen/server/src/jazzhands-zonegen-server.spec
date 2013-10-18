@@ -3,7 +3,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.54.1
+Version:    0.55.0
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -53,6 +53,11 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Thu Oct 17 2013 Todd Kover <kovert@omniscient.com> 0.55.0
+- dhcp_range -> network_range
+- network range: dhcp prefix, dns_domain
+- Use A record ttl in PTR
+- perltidy
 * Wed Oct 16 2013 Todd Kover <kovert@omniscient.com> 0.54.1
 - pull TTL for NS records from actual child NS records when setting up delegations
 * Wed Sep 25 2013 Todd Kover <kovert@omniscient.com> 0.54.0

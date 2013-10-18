@@ -4738,151 +4738,6 @@ ALTER TRIGGER TUB_DEVICE_TYPE_POWER_PORT_TEM
 	ENABLE;
 
 
-CREATE  OR REPLACE  TRIGGER C_TIUBR_DHCP_RANGE
- BEFORE INSERT OR UPDATE
- ON DHCP_RANGE
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    V_CONTEXT_USER  VARCHAR2(256):=NULL;
-
-begin
-    -- Context should be used by apps to list the end-user id.
-    -- if it is filled, then concatenate it on.
-    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
-    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
-
-    IF INSERTING
-    THEN
-        -- Override whatever is passed with context user
-        :new.data_ins_user:=V_CONTEXT_USER;
-
-        -- Force date to be sysdate
-        :new.data_ins_date:=sysdate;
-    END IF;
-
-    IF UPDATING
-    THEN
-        -- Preventing changes to insert user and date columns happens in
-        -- another trigger
-
-        -- Override whatever is passed with context user
-        :new.data_upd_user:=V_CONTEXT_USER;
-
-        -- Force date to be sysdate
-        :new.data_upd_date:=sysdate;
-    END IF;
-
-
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-ALTER TRIGGER C_TIUBR_DHCP_RANGE
-	ENABLE;
-
-
-CREATE  OR REPLACE  TRIGGER TIB_DHCP_RANGE
- BEFORE INSERT
- ON DHCP_RANGE
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-
-begin
-    -- For sequences, only update column if null
-    --  Column "DHCP_RANGE_ID" uses sequence SYSDB.SEQ_DHCP_RANGE_ID
-    IF (:new.DHCP_RANGE_ID IS NULL)
-    THEN
-        -- Was the following.  Removed owner because quest doesn't handle it properly (for non owner builds)
-        --select SYSDB.SEQ_DHCP_RANGE_ID.NEXTVAL
-        select SEQ_DHCP_RANGE_ID.NEXTVAL
-        INTO :new.DHCP_RANGE_ID
-        from dual;
-    END IF;
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-ALTER TRIGGER TIB_DHCP_RANGE
-	ENABLE;
-
-
-CREATE  OR REPLACE  TRIGGER TUB_DHCP_RANGE
- BEFORE UPDATE OF 
-        DHCP_RANGE_ID,
-        START_NETBLOCK_ID,
-        NETWORK_INTERFACE_ID,
-        DATA_INS_DATE,
-        DATA_INS_USER,
-        STOP_NETBLOCK_ID
- ON DHCP_RANGE
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-
-begin
-    --  Non modifiable column "DATA_INS_USER" cannot be modified
-    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
-       raise integrity_error;
-    end if;
-
-    --  Non modifiable column "DATA_INS_DATE" cannot be modified
-    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
-       raise integrity_error;
-    end if;
-
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-ALTER TRIGGER TUB_DHCP_RANGE
-	ENABLE;
-
-
 CREATE  OR REPLACE  TRIGGER C_TIUBR_DNS_DOMAIN
  BEFORE INSERT OR UPDATE
  ON DNS_DOMAIN
@@ -7910,6 +7765,150 @@ end;
 
 
 ALTER TRIGGER TUB_NETWORK_INTERFACE_PURPOSE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_NETWORK_RANGE
+ BEFORE INSERT OR UPDATE
+ ON NETWORK_RANGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_NETWORK_RANGE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TIB_NETWORK_RANGE
+ BEFORE INSERT
+ ON NETWORK_RANGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    -- For sequences, only update column if null
+    --  Column "DHCP_RANGE_ID" uses sequence SYSDB.SEQ_DHCP_RANGE_ID
+    IF (:new.DHCP_RANGE_ID IS NULL)
+    THEN
+        -- Was the following.  Removed owner because quest doesn't handle it properly (for non owner builds)
+        --select SYSDB.SEQ_DHCP_RANGE_ID.NEXTVAL
+        select SEQ_DHCP_RANGE_ID.NEXTVAL
+        INTO :new.DHCP_RANGE_ID
+        from dual;
+    END IF;
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TIB_NETWORK_RANGE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_NETWORK_RANGE
+ BEFORE UPDATE OF 
+        NETWORK_RANGE_ID,
+        START_NETBLOCK_ID,
+        DATA_INS_DATE,
+        DATA_INS_USER,
+        STOP_NETBLOCK_ID
+ ON NETWORK_RANGE
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_NETWORK_RANGE
 	ENABLE;
 
 

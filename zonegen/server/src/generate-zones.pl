@@ -55,11 +55,12 @@ use Getopt::Long qw(:config no_ignore_case bundling);
 use Socket;
 use POSIX;
 use Pod::Usage;
+use Data::Dumper;
 use Carp;
 
 my $output_root = "/var/lib/zonegen/auto-gen";
 
-my $dhcp_range_table;
+my $network_range_table;
 my $verbose = 0;
 my $debug   = 0;
 
@@ -86,7 +87,7 @@ sub getSth {
 }
 
 sub get_db_default {
-	my( $dbh, $prop, $default ) = @_;
+	my ( $dbh, $prop, $default ) = @_;
 
 	my $q = qq {
 		select	property_value
@@ -100,10 +101,10 @@ sub get_db_default {
 
 	my ($pv) = $sth->fetchrow_array;
 	$sth->finish;
-	if($pv) {
+	if ($pv) {
 		$pv;
 	} else {
-		$default
+		$default;
 	}
 }
 
@@ -122,10 +123,10 @@ sub print_comments {
 	$where  =~ s/\s*$//s;
 	$whence =~ s/\s*$//s;
 
-	my $idtag =
-	  '$Id$';
+	my $idtag = '$Id$';
 
-	my $email = get_db_default($dbh, '_supportemail', 'jazzhands@example.com');
+	my $email =
+	  get_db_default( $dbh, '_supportemail', 'jazzhands@example.com' );
 
 	$fn->print(
 		qq{
@@ -192,8 +193,8 @@ sub record_newgen {
 	}
 	);
 	$sth->bind_param( ':whence', $dbtime ) || die $sth->errstr;
-	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
-	$sth->execute  || die $sth->errstr;
+	$sth->bind_param( ':domid',  $domid )  || die $sth->errstr;
+	$sth->execute || die $sth->errstr;
 }
 
 #
@@ -224,8 +225,8 @@ sub check_for_changes {
 	}
 	);
 
-	$sth->bind_param( ':whence', $last ) || die $sth->errstr;
-	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $last )  || die $sth->errstr;
+	$sth->bind_param( ':domid',  $domid ) || die $sth->errstr;
 	$sth->execute || die $sth->errstr;
 	my $count = ( $sth->fetchrow_array )[0];
 	$sth->finish;
@@ -270,8 +271,8 @@ sub check_for_changes {
 	}
 	);
 
-	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
-	$sth->bind_param( ':whence', $last ) || die $sth->errstr;
+	$sth->bind_param( ':domid',  $domid ) || die $sth->errstr;
+	$sth->bind_param( ':whence', $last )  || die $sth->errstr;
 	$sth->execute || die $sth->errstr;
 	$count += ( $sth->fetchrow_array )[0];
 	return $count if ($count);
@@ -279,19 +280,20 @@ sub check_for_changes {
 }
 
 #
-# used internally to figure out where we do dhcp ranges rather than hammer
-# the db more than necessary.
+# used internally to figure out where we do network (dhcp) ranges rather than 
+# hammer the db more than necessary.
 #
-sub build_dhcp_range_table {
+sub build_network_range_table {
 	my ($dbh) = @_;
 
 	my $sth = getSth(
 		$dbh, qq{
-		select  dr.dhcp_range_id,
+		select  dr.network_range_id,
 			dr.start_netblock_id,
 			dr.stop_netblock_id,
-			nbstart.ip_address as start_num_ip,
-			nbstop.ip_address as stop_num_ip,
+			dr.dns_prefix,
+			net_manip.inet_dbton(nbstart.ip_address) as start_num_ip,
+			net_manip.inet_dbton(nbstop.ip_address) as stop_num_ip,
 			net_manip.inet_dbtop(nbstart.ip_address) as start_ip,
 			net_manip.inet_dbtop(nbstop.ip_address) as stop_ip,
 			dom.soa_name,
@@ -301,49 +303,36 @@ sub build_dhcp_range_table {
 			nbstart.data_upd_date as start_update_date,
 			nbstop.data_ins_date as stop_insert_date,
 			nbstop.data_upd_date as stop_update_date
-		  from  dhcp_range dr
+		  from  network_range dr
+				inner join dns_domain dom
+						USING (dns_domain_id)
 				inner join netblock nbstart
 					on dr.start_netblock_id = nbstart.netblock_id
 				inner join netblock nbstop
-					on dr.stop_netblock_id = nbstop.netblock_id,
-			network_interface ni
-				inner join netblock nb
-					on ni.netblock_id = nb.netblock_id
-				inner join dns_record dns
-					on dns.netblock_id = nb.netblock_id
-				inner join dns_domain dom
-					on dom.dns_domain_id = dns.dns_domain_id
-		where
-			ni.network_interface_id = dr.network_interface_id
-		and
-		(
-			net_manip.inet_base(nb.ip_address, nbstart.netmask_bits) =
-				net_manip.inet_base(nbstart.ip_address, nbstart.netmask_bits)
-		   or
-			net_manip.inet_base(nb.ip_address, nbstop.netmask_bits) =
-				net_manip.inet_base(nbstop.ip_address, nbstop.netmask_bits)
-		)
+					on dr.stop_netblock_id = nbstop.netblock_id
 	}
 	);
 
 	$sth->execute || die $sth->errstr;
 
-	my $rv = $sth->fetchall_hashref(_dbx('DHCP_RANGE_ID'));
+	my $rv = $sth->fetchall_hashref( _dbx('network_range_ID') );
 	$sth->finish;
 	$rv;
 }
 
-sub process_fwd_dhcp {
+sub process_fwd_range {
 	my ( $dbh, $out, $domid, $domain ) = @_;
 
-	foreach my $rangeid ( keys(%$dhcp_range_table) ) {
-		my $rec = $dhcp_range_table->{$rangeid};
+	foreach my $rangeid ( keys(%$network_range_table) ) {
+		my $rec = $network_range_table->{$rangeid};
 
-		my $soa_name = $rec->{_dbx('SOA_NAME')};
+		my $soa_name = $rec->{ _dbx('SOA_NAME') };
 		next if ( $soa_name ne $domain );
 
-		my $start = $rec->{_dbx('START_NUM_IP')};
-		my $stop  = $rec->{_dbx('STOP_NUM_IP')};
+		my $start = $rec->{ _dbx('START_NUM_IP') };
+		my $stop  = $rec->{ _dbx('STOP_NUM_IP') };
+
+		my $pool  = $rec->{ _dbx('DNS_PREFIX') } || 'pool';
 
 		for ( my $i = $start ; $i <= $stop ; $i++ ) {
 			my $real_int_ip = pack( 'N', $i );
@@ -351,14 +340,14 @@ sub process_fwd_dhcp {
 
 			my $human = $ip;
 			$human =~ s/\./-/g;
-			$human = "dhcp-$human";
+			$human = "${pool}-$human";
 			$out->print("$human\tIN\tA\t$ip\n");
 		}
 	}
 
 }
 
-sub process_rvs_dhcp {
+sub process_rvs_range {
 	my ( $dbh, $out, $domid, $block ) = @_;
 
 	my $sth = getSth(
@@ -384,16 +373,18 @@ sub process_rvs_dhcp {
 	my $low_block  = iptoint( $nb->base() );
 	my $high_block = iptoint( $nb->broadcast() );
 
-	foreach my $rangeid ( keys(%$dhcp_range_table) ) {
-		my $rec = $dhcp_range_table->{$rangeid};
+	foreach my $rangeid ( keys(%$network_range_table) ) {
+		my $rec = $network_range_table->{$rangeid};
 
-		my $soa_name = $rec->{_dbx('SOA_NAME')};
+		my $soa_name = $rec->{ _dbx('SOA_NAME') };
 
-		my $start = $rec->{_dbx('START_NUM_IP')};
-		my $stop  = $rec->{_dbx('STOP_NUM_IP')};
+		my $start = $rec->{ _dbx('START_NUM_IP') };
+		my $stop  = $rec->{ _dbx('STOP_NUM_IP') };
 
-		my $start_ip = $rec->{_dbx('START_IP')};
-		my $stop_ip  = $rec->{_dbx('STOP_IP')};
+		my $start_ip = $rec->{ _dbx('START_IP') };
+		my $stop_ip  = $rec->{ _dbx('STOP_IP') };
+
+		my $pool  = $rec->{ _dbx('DNS_PREFIX') } || 'pool';
 
 		if (
 			!(
@@ -425,8 +416,11 @@ sub process_rvs_dhcp {
 
 			if ( !defined( $$block[$lastoctet] ) ) {
 				$ip =~ s/\./-/g;
-				$ip = "dhcp-$ip";
-				$$block[$lastoctet] = "$ip.$soa_name.";
+				$ip = "${pool}-$ip";
+				$$block[$lastoctet] = {
+					enabled => 'Y',
+					name => "$ip.$soa_name."
+				};
 			}
 		}
 	}
@@ -557,8 +551,8 @@ sub process_fwd_records {
 		$name   = "" if ( !defined($name) && !defined($rname) );
 		$name   = $rname if ( !defined($name) );
 		my $value = $val;
-		if ( $type eq 'A'|| $type eq 'AAAA' ) {
-			$value = ($valip)?$valip:$ip;
+		if ( $type eq 'A' || $type eq 'AAAA' ) {
+			$value = ($valip) ? $valip : $ip;
 		} elsif ( $type eq 'MX' ) {
 
 			# at the moment, STAB nudges people towards putting
@@ -574,8 +568,8 @@ sub process_fwd_records {
 			}
 			$pri .= " " if ( defined($pri) );
 			$value = "$pri$value";
-			if($valname) {
-				if($valdomain eq $domain) {
+			if ($valname) {
+				if ( $valdomain eq $domain ) {
 					$value = $valname;
 				} else {
 					$value = "$valname.$valdomain";
@@ -585,9 +579,9 @@ sub process_fwd_records {
 			$value =~ s/^"//;
 			$value =~ s/"$//;
 			$value = "\"$value\"";
-		} elsif ( $type eq 'CNAME' || $type eq 'NS') {
-			if($valname) {
-				if($valdomain eq $domain) {
+		} elsif ( $type eq 'CNAME' || $type eq 'NS' ) {
+			if ($valname) {
+				if ( $valdomain eq $domain ) {
 					$value = $valname;
 				} else {
 					$value = "$valname.$valdomain";
@@ -617,7 +611,7 @@ sub process_fwd_records {
 			$com, $width, $name, $ttl, $class, $type, $value );
 	}
 	$out->print("\n");
-	process_fwd_dhcp( $dbh, $out, $domid, $domain );
+	process_fwd_range( $dbh, $out, $domid, $domain );
 	$out->print("\n");
 }
 
@@ -629,6 +623,7 @@ sub process_reverse {
 		select  net_manip.inet_dbtop(nb.ip_address) as ip,
 			dns.dns_name,
 			dom.soa_name,
+			dns.dns_ttl,
 			net_manip.inet_dbtop(
 				net_manip.inet_base(nb.ip_address,
 				nb.netmask_bits)) as ip_base,
@@ -657,26 +652,27 @@ sub process_reverse {
 
 	$sth->execute($domid) || die $sth->errstr;
 
-	my @com;
-
 	my (@block);
-	while ( my ( $ip, $sn, $dom, $base, $bits, $enable ) =
+	while ( my ( $ip, $sn, $dom, $ttl, $base, $bits, $enable ) =
 		$sth->fetchrow_array )
 	{
 		my $lastoctet = ( split( /\./, $ip ) )[3];
-		$com[$lastoctet] = $enable;
-		if ($sn) {
-			$block[$lastoctet] = "$sn.$dom.";
-		} else {
-			$block[$lastoctet] = "$dom.";
-		}
+		$block[$lastoctet] = {
+			'ttl'   => $ttl,
+			name    => ($sn) ? "$sn.$dom." : "$dom.",
+			enabled => $enable,
+		};
 	}
-	process_rvs_dhcp( $dbh, $out, $domid, \@block );
+	process_rvs_range( $dbh, $out, $domid, \@block );
 
 	for ( my $i = 0 ; $i <= $#block ; $i++ ) {
 		next if ( !defined( $block[$i] ) );
-		my $com = ( $com[$i] && $com[$i] eq 'N' ) ? ";" : "";
-		$out->print( "$com$i\tIN\tPTR\t" . $block[$i] . "\n" );
+		my $r = $block[$i];
+
+		my $com = ( $r->{enabled} eq 'N' ) ? ";" : "";
+		my $ttl = ( $r->{ttl} ) ? $r->{ttl} . " " : '';
+		my $name = $r->{name};
+		$out->print("$com$i\t${ttl}IN\tPTR\t$name\n");
 	}
 }
 
@@ -702,7 +698,6 @@ sub process_soa {
 	) = $sth->fetchrow_array;
 	$sth->finish;
 
-
 	$class  = 'IN'    if ( !defined($class) );
 	$ttl    = 72000   if ( !defined($ttl) );
 	$serial = 0       if ( !defined($serial) );
@@ -711,16 +706,18 @@ sub process_soa {
 	$exp    = 2419200 if ( !defined($exp) );
 	$min    = 3600    if ( !defined($min) );
 
-	#
-	# This happens in order to allow updates to the dns_domain rows to happen
-	# all at once, right before commit, to minimize the amount of time a row
-	# is locked due to an update.  Both the "last_generated" and "soa_serial"
-	# columns are updated to match this.
-	#
-	$serial += 1 if($bumpsoa);
+       #
+       # This happens in order to allow updates to the dns_domain rows to happen
+       # all at once, right before commit, to minimize the amount of time a row
+       # is locked due to an update.  Both the "last_generated" and "soa_serial"
+       # columns are updated to match this.
+       #
+	$serial += 1 if ($bumpsoa);
 
-	$rname = get_db_default($dbh, '_dnsrname', 'hostmaster.example.com') if( !defined($rname) );
-	$mname = get_db_default($dbh, '_dnsmname', 'auth00.example.com') if( !defined($mname) );
+	$rname = get_db_default( $dbh, '_dnsrname', 'hostmaster.example.com' )
+	  if ( !defined($rname) );
+	$mname = get_db_default( $dbh, '_dnsmname', 'auth00.example.com' )
+	  if ( !defined($mname) );
 
 	$mname =~ s/\@/./g;
 
@@ -743,7 +740,8 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
+	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) =
+	  @_;
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -772,16 +770,19 @@ sub process_domain {
 	print STDERR "\tprocess_domain complete\n" if ($debug);
 	$out->close;
 
-	if($last) {
+	if ($last) {
 		$last =~ s/\..*$//;
-		my($y,$m,$d,$h,$min,$s)  = ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
-		if($y) {
-			my $whence = mktime($s, $min, $h, $d, $m - 1, $y - 1900);
-			utime($whence, $whence, $tmpfn);  # If it does not work, then Vv
+		my ( $y, $m, $d, $h, $min, $s ) =
+		  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
+		if ($y) {
+			my $whence =
+			  mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
+			utime( $whence, $whence, $tmpfn )
+			  ;    # If it does not work, then Vv
 		} else {
 			warn "difficulting breaking apart $last";
 		}
-	} 
+	}
 
 	if ( !$zoneroot ) {
 		return 0;
@@ -859,16 +860,15 @@ sub generate_complete_files {
 		if ( defined($zonesgend) && defined( $zonesgend->{$zone} ) ) {
 
 			# oh, this is a hack!
-#			$zcf->print("rndc reload $zone || rndc reload\n");
+			#			$zcf->print("rndc reload $zone || rndc reload\n");
 			$tally++;
 		}
 	}
 
-
-	if($tally) {
-		$zcf->print("rndc reconfig\n\n") ;
-		$zcf->print("rndc reload\n\n") ;
-	}	
+	if ($tally) {
+		$zcf->print("rndc reconfig\n\n");
+		$zcf->print("rndc reload\n\n");
+	}
 	$zcf->close;
 	unlink($zcfn);
 	rename( $tmpzcfn, $zcfn );
@@ -1063,7 +1063,7 @@ sub print_rndc_header {
 #
 #############################################################################
 
-$ENV{'PATH'} = $ENV{'PATH'}.":/usr/local/sbin:/usr/sbin";
+$ENV{'PATH'} = $ENV{'PATH'} . ":/usr/local/sbin:/usr/sbin";
 
 my $genall   = 0;
 my $dumpzone = 0;
@@ -1120,7 +1120,7 @@ mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 
 my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
 
-$dhcp_range_table = build_dhcp_range_table($dbh);
+$network_range_table = build_network_range_table($dbh);
 
 my $should_gen = "where should_generate = 'Y'";
 if ( $genall || $dumpzone ) {
@@ -1147,7 +1147,8 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	$sth->fetchrow_array )
 {
 
-	warn "Processing: $domid / $domain / $genme / $last / $due / $state\n" if($debug);
+	warn "Processing: $domid / $domain / $genme / $last / $due / $state\n"
+	  if ($debug);
 
 	#
 	# this is something of a hack, since process_domain is called in two
@@ -1155,7 +1156,8 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 	# [XXX]
 	#
 	if ( $dumpzone && grep( $_ eq $domain, @ARGV ) ) {
-		process_domain( $dbh, undef, $domid, $domain, undef, $last, undef );
+		process_domain( $dbh, undef, $domid, $domain, undef, $last,
+			undef );
 		next;
 	}
 
@@ -1175,14 +1177,14 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 		#$changes = check_for_changes($dbh, $domid, $last);
 	}
 
-	if(!$last) {
+	if ( !$last ) {
 		$last = strftime( "%F %T", gmtime($script_start) );
 	}
 
 	# If a zone is not there but comes in the list, then we should mark it
 	# has having changes
 	my $gendomain = 0;
-	my $bumpsoa = 0;
+	my $bumpsoa   = 0;
 
 	if ( $changes || $forcegen ) {
 		if ( $#ARGV == -1 || grep( $_ eq $domain, @ARGV ) ) {
@@ -1200,22 +1202,25 @@ while ( my ( $domid, $domain, $genme, $last, $due, $state ) =
 		$last = strftime( "%F %T", gmtime($script_start) );
 	}
 
-	if(!$dumpzone) {
-		if( ! -f "$zoneroot/$domain"  && ! -f "$zoneroot/inaddr/$domain") {
-			warn "generating $domain beause it is not there" if($debug);
+	if ( !$dumpzone ) {
+		if ( !-f "$zoneroot/$domain" && !-f "$zoneroot/inaddr/$domain" )
+		{
+			warn "generating $domain beause it is not there"
+			  if ($debug);
 			$gendomain = 1;
 		}
 	}
 
-	if( $gendomain ) {
-			if (
-				process_domain(
-					$dbh, $zoneroot, $domid, $domain, undef, $last, $bumpsoa
-				)
-			  )
-			{
-				$zones{$domain}++ if ( $genme eq 'Y' );
-			}
+	if ($gendomain) {
+		if (
+			process_domain(
+				$dbh,  $zoneroot, $domid, $domain,
+				undef, $last,     $bumpsoa
+			)
+		  )
+		{
+			$zones{$domain}++ if ( $genme eq 'Y' );
+		}
 	}
 }
 
@@ -1362,7 +1367,7 @@ to stdout.  Note that it does NOT change the serial number if it's due
 for updating, so it will match the last generation of the record.  This
 is meant as an error checking aide.
 
-generate-zones uses the rows of the dhcp_range, dns_domain,
+generate-zones uses the rows of the network_range, dns_domain,
 dns_record, netblock, and network_interface tables in JazzHands to create
 zones file.
 
@@ -1390,11 +1395,12 @@ should_generate_ptr flag is set to 'N' for a given A record.
 
 Other records are set via the dns_value flag in the dns_record table.
 
-The dhcp_range simply causes dns entries of the form dhcp<ip>, with
+The network_range simply causes dns entries of the form pool-<ip>, with
 the dots translated to dashes in the appropriate zone (as ascertained
-from the dns name of the network_interface record).  If a name is set
+from the dns name of the network_interface record), unless dns_prefix is set,
+in which case, it will use that.  If a name is set
 elsewhere in the db for an IP, that name will be favored over the
-generated name in a dhcp entry.
+generated name in a network range entry.
 
 =head1 ENVIRONMENT
 
