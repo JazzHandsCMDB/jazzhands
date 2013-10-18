@@ -1,5 +1,15 @@
 
 --------------------------------------------------------------------
+-- DEALING WITH x509 certificates
+create sequence x509_ca_cert_serial_number_seq;
+
+alter table x509_certificate alter column x509_ca_cert_serial_number type numeric;
+alter table audit.x509_certificate alter column x509_ca_cert_serial_number type numeric;
+
+-- DONE DEALING WITH x509 certificates
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
 -- DEALING WITH TABLE network_interface
 
 alter table network_interface alter column netblock_id drop not null;

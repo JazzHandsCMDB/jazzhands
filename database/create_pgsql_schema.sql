@@ -28,7 +28,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 -- NEED TO PORT: @@ddl/schema/plpgsql/create_audit_indexes.sql
 
--- PROBABLY NOT APPLICABLE:: ddl/schema/create_extra_objects.sql
+\i ddl/schema/pgsql/create_extra_objects.sql
 
 \cd pkg/pgsql
 \i create_all_packages.sql
