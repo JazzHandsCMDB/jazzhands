@@ -16,3 +16,4 @@ language-agnostic JSON configuration files
 %files
 %attr (-, root, bin) /usr/lib/perl5/vendor_perl/JazzHands/AppAuthAL.pm
 %attr (-, root, bin) /usr/lib/perl5/vendor_perl/x86_64-linux-thread-multi/auto/JazzHands/AppAuthAL/.packlist
+%attr (-, root, bin)  %{_mandir}/*/*
