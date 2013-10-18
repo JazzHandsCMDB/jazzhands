@@ -17,11 +17,11 @@ install_%:
 	(cd $* && $(MAKE) DESTDIR=`pwd`/../fakeroot.$* pure_vendor_install)
 
 buildpkg_%:
-	rm -rf `pwd`/haterpm
 	mkdir -p `pwd`/haterpm/RPMS
 	rpmbuild --define "_topdir ./haterpm" --buildroot `pwd`/fakeroot.$* -bb --short-circuit perl-JazzHands-$*.spec
 
 clean_%:
 	rm -rf fakeroot.$*
+	rm -rf `pwd`/haterpm
 	(cd $* && ([ ! -f Makefile ] || make clean) && rm -f Makefile.old)
 
