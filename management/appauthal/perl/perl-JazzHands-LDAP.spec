@@ -12,6 +12,6 @@ BuildArch:  noarch
 JazzHands LDAP connection and management modules for perl
 
 %files
-%attr (-, root, bin) /usr/lib/perl5/vendor_perl/JazzHands/LDAP.pm
-%attr (-, root, bin) /usr/lib/perl5/vendor_perl/x86_64-linux-thread-multi/auto/JazzHands/LDAP/.packlist
+%attr (-, root, bin) %{perl_vendorlib}/JazzHands/LDAP.pm
+%attr (-, root, bin) %{perl_vendorarch}/auto/JazzHands/LDAP/.packlist
 %attr (-, root, bin) %{_mandir}/*/* 

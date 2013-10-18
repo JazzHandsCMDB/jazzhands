@@ -1,4 +1,4 @@
-INSTBASE=/usr/lib/perl5/vendor_perl
+#INSTBASE=/usr/lib/perl5/vendor_perl
 DIRS=AppAuthAL LDAP DBI
 
 all: $(addprefix all_,$(DIRS))
