@@ -18,7 +18,7 @@ alter table person_company drop constraint fk_person_company_company_id;
 alter table person_company drop constraint fk_person_company_prsnid;
 alter table person_company drop constraint fk_person_company_prsncmpyrelt;
 alter table person_company drop constraint ak_uq_prson_company_bdgid;
-alter table person_company drop constraint ak_uq_person_company_empid;
+alter table person_company drop constraint IF EXISTS ak_uq_person_company_empid;
 alter table person_company drop constraint pk_person_company;
 -- INDEXES
 DROP INDEX xifperson_company_person_id;
@@ -179,7 +179,7 @@ ALTER TABLE person_company
 	SET DEFAULT 'Y'::bpchar;
 
 -- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE person_company ADD CONSTRAINT ak_uq_person_company_empid UNIQUE (employee_id, company_id);
+ALTER TABLE jazzhands.person_company ADD CONSTRAINT ak_uq_person_company_empid UNIQUE (employee_id, company_id);
 ALTER TABLE person_company ADD CONSTRAINT ak_uq_prson_company_bdgid UNIQUE (badge_system_id, company_id);
 ALTER TABLE person_company ADD CONSTRAINT pk_person_company PRIMARY KEY (company_id, person_id);
 -- INDEXES
