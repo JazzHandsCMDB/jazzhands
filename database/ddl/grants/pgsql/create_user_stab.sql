@@ -120,3 +120,20 @@ GRANT SELECT,UPDATE				ON dhcp_range_dhcp_range_id_seq TO app_stab;
 GRANT SELECT				ON device_collection TO app_stab;
 GRANT SELECT				ON device_collection_hier TO app_stab;
 GRANT SELECT				ON device_collection_device TO app_stab;
+
+grant select		on v_application_role_member to app_stab;
+grant select		on v_application_role to app_stab;
+
+grant select		on v_l1_all_physical_ports to app_stab;
+grant select		on rack to app_stab;
+
+grant usage on schema port_utils to app_stab;
+grant execute		on all functions in schema port_utils to app_stab;
+grant execute		on all functions in schema port_utils to iud_role;
+
+
+grant select on val_power_plug_style to app_stab;
+grant select on val_port_speed to app_stab;
+grant select on val_port_protocol to app_stab;
+grant select on val_port_medium to app_stab;
+grant select on val_port_plug_style to app_stab;

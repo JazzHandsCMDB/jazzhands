@@ -31,22 +31,22 @@ DECLARE
 	dcid			device_collection.device_collection_id%TYPE;
 BEGIN
 	SELECT	device_collection_id
-	  FROM  device_collection
+	  FROM  jazzhands.device_collection
 	  INTO	dcid
 	 WHERE	device_collection_type = 'per-device'
 	   AND	device_collection_id in
 		(select device_collection_id
-		 from device_collection_device
+		 from jazzhands.device_collection_device
 		where device_id = OLD.device_id
 		)
 	ORDER BY device_collection_id
 	LIMIT 1;
 
 	IF dcid IS NOT NULL THEN
-		DELETE FROM device_collection_device
+		DELETE FROM jazzhands.device_collection_device
 		WHERE device_collection_id = dcid;
 
-		DELETE from device_collection
+		DELETE from jazzhands.device_collection
 		WHERE device_collection_id = dcid;
 	END IF;
 
@@ -78,12 +78,12 @@ BEGIN
 	END IF;
 
 	IF TG_OP = 'INSERT' THEN
-		insert into device_collection 
+		insert into jazzhands.device_collection 
 			(device_collection_name, device_collection_type)
 		values
 			(newname, 'per-device')
 		RETURNING device_collection_id INTO dcid;
-		insert into device_collection_device 
+		insert into jazzhands.device_collection_device 
 			(device_collection_id, device_id)
 		VALUES
 			(dcid, NEW.device_id);
@@ -94,7 +94,7 @@ BEGIN
 		   AND	device_collection_type = 'per-device'
 		   AND	device_collection_id in (
 			SELECT	device_collection_id
-			  FROM	device_collection_device
+			  FROM	jazzhands.device_collection_device
 			 WHERE	device_id = NEW.device_id
 			);
 	END IF;
@@ -107,3 +107,53 @@ CREATE TRIGGER trigger_update_per_device_device_collection
 AFTER INSERT OR UPDATE
 ON device 
 FOR EACH ROW EXECUTE PROCEDURE update_per_device_device_collection();
+
+--- Other triggers on device
+
+CREATE OR REPLACE FUNCTION verify_device_voe() RETURNS TRIGGER AS $$
+DECLARE
+	voe_sw_pkg_repos		sw_package_repository.sw_package_repository_id%TYPE;
+	os_sw_pkg_repos		operating_system.sw_package_repository_id%TYPE;
+	voe_sym_trx_sw_pkg_repo_id	voe_symbolic_track.sw_package_repository_id%TYPE;
+BEGIN
+
+	IF (NEW.operating_system_id IS NOT NULL)
+	THEN
+		SELECT sw_package_repository_id INTO os_sw_pkg_repos
+			FROM
+				jazzhands.operating_system
+			WHERE
+				operating_system_id = NEW.operating_system_id;
+	END IF;
+
+	IF (NEW.voe_id IS NOT NULL) THEN
+		SELECT sw_package_repository_id INTO voe_sw_pkg_repos
+			FROM
+				jazzhands.voe
+			WHERE
+				voe_id=NEW.voe_id;
+		IF (voe_sw_pkg_repos != os_sw_pkg_repos) THEN
+			RAISE EXCEPTION 
+				'Device OS and VOE have different SW Pkg Repositories';
+		END IF;
+	END IF;
+
+	IF (NEW.voe_symbolic_track_id IS NOT NULL) THEN
+		SELECT sw_package_repository_id INTO voe_sym_trx_sw_pkg_repo_id	
+			FROM
+				jazzhands.voe_symbolic_track
+			WHERE
+				voe_symbolic_track_id=NEW.voe_symbolic_track_id;
+		IF (voe_sym_trx_sw_pkg_repo_id != os_sw_pkg_repos) THEN
+			RAISE EXCEPTION 
+				'Device OS and VOE track have different SW Pkg Repositories';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
+CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
+	ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
+

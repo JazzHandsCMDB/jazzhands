@@ -239,7 +239,8 @@ CREATE TRIGGER trigger_verify_layer1_connection AFTER INSERT OR UPDATE
 CREATE OR REPLACE FUNCTION verify_physical_connection() RETURNS TRIGGER AS $$
 BEGIN
 	PERFORM 1 FROM 
-		physical_connection l1 JOIN physical_connection l2 ON 
+		jazzhands.physical_connection l1 
+		JOIN jazzhands.physical_connection l2 ON 
 			l1.physical_port_id1 = l2.physical_port_id2 AND
 			l1.physical_port_id2 = l2.physical_port_id1;
 	IF FOUND THEN
@@ -252,53 +253,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_verify_physical_connection ON physical_connection;
 CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE 
 	ON physical_connection EXECUTE PROCEDURE verify_physical_connection();
-
-CREATE OR REPLACE FUNCTION verify_device_voe() RETURNS TRIGGER AS $$
-DECLARE
-	voe_sw_pkg_repos		sw_package_repository.sw_package_repository_id%TYPE;
-	os_sw_pkg_repos		operating_system.sw_package_repository_id%TYPE;
-	voe_sym_trx_sw_pkg_repo_id	voe_symbolic_track.sw_package_repository_id%TYPE;
-BEGIN
-
-	IF (NEW.operating_system_id IS NOT NULL)
-	THEN
-		SELECT sw_package_repository_id INTO os_sw_pkg_repos
-			FROM
-				operating_system
-			WHERE
-				operating_system_id = NEW.operating_system_id;
-	END IF;
-
-	IF (NEW.voe_id IS NOT NULL) THEN
-		SELECT sw_package_repository_id INTO voe_sw_pkg_repos
-			FROM
-				voe
-			WHERE
-				voe_id=NEW.voe_id;
-		IF (voe_sw_pkg_repos != os_sw_pkg_repos) THEN
-			RAISE EXCEPTION 
-				'Device OS and VOE have different SW Pkg Repositories';
-		END IF;
-	END IF;
-
-	IF (NEW.voe_symbolic_track_id IS NOT NULL) THEN
-		SELECT sw_package_repository_id INTO voe_sym_trx_sw_pkg_repo_id	
-			FROM
-				voe_symbolic_track
-			WHERE
-				voe_symbolic_track_id=NEW.voe_symbolic_track_id;
-		IF (voe_sym_trx_sw_pkg_repo_id != os_sw_pkg_repos) THEN
-			RAISE EXCEPTION 
-				'Device OS and VOE track have different SW Pkg Repositories';
-		END IF;
-	END IF;
-	RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
-CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
-	ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
 
 /* XXX REVISIT
 
@@ -999,8 +953,8 @@ DROP TRIGGER IF EXISTS trigger_update_company_account_collection
 	ON Person;
 CREATE TRIGGER trigger_update_company_account_collection AFTER INSERT OR UPDATE 
 	ON Person FOR EACH ROW EXECUTE PROCEDURE update_company_account_collection();
-
 */
+
 /*
  * Deal with propagating person status down to accounts, if appropriate
  *
