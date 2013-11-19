@@ -172,6 +172,9 @@ INSERT INTO audit.person_company (
 FROM audit.person_company_v53;
 
 ALTER TABLE person_company
+        ALTER is_exempt
+        SET DEFAULT 'Y'::bpchar;
+ALTER TABLE person_company
 	ALTER is_management
 	SET DEFAULT 'N'::bpchar;
 ALTER TABLE person_company
