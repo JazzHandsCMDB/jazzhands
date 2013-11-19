@@ -1,6 +1,8 @@
 
 \set ON_ERROR_STOP
 
+set search_path=jazzhands;
+
 drop view v_person_company_expanded;
 drop view v_company_hier;
 
@@ -568,3 +570,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- DONE DEALING with port_utils.setup_device_physical_ports 
 --------------------------------------------------------------------
+
+GRANT select on all tables in schema jazzhands to ro_role;
+GRANT insert,update,delete on all tables in schema jazzhands to iud_role;
+GRANT select on all sequences in schema jazzhands to ro_role;
+GRANT usage on all sequences in schema jazzhands to iud_role;
+grant execute on all functions in schema port_support to iud_role;
+grant execute on all functions in schema port_utils to iud_role;
