@@ -173,6 +173,8 @@ INSERT INTO audit.person_company (
 	"aud#seq"
 FROM audit.person_company_v53;
 
+update person_company set is_exempt = 'Y' where is_exempt not in ('N', 'Y');
+
 ALTER TABLE person_company
         ALTER is_exempt
         SET DEFAULT 'Y'::bpchar;
