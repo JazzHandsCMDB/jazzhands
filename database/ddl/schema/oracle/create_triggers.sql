@@ -9945,8 +9945,8 @@ ALTER TRIGGER TUB_PHYSICAL_ADDRESS
 
 CREATE  TRIGGER C_TIUA_PHYSICAL_CONNECTION
   AFTER INSERT OR UPDATE OF 
-        PHYSICAL_PORT_ID1,
-        PHYSICAL_PORT_ID2
+        PHYSICAL_PORT1_ID,
+        PHYSICAL_PORT2_ID
   ON PHYSICAL_CONNECTION
   
   
@@ -9960,8 +9960,8 @@ declare
 begin
     select count(*) into v_cnt
     from physical_connection l1 join physical_connection l2
-    on  l1.physical_port_id1 = l2.physical_port_id2
-    and l1.physical_port_id2 = l2.physical_port_id1;
+    on  l1.physical_port1_id = l2.physical_port2_id
+    and l1.physical_port2_id = l2.physical_port1_id;
 
     if ( v_cnt > 0 ) then
         errno  := -20001;
@@ -10083,8 +10083,8 @@ CREATE  OR REPLACE  TRIGGER TUB_PHYSICAL_CONNECTION
         DATA_INS_DATE,
         DATA_INS_USER,
         PHYSICAL_CONNECTION_ID,
-        PHYSICAL_PORT_ID1,
-        PHYSICAL_PORT_ID2
+        PHYSICAL_PORT1_ID,
+        PHYSICAL_PORT2_ID
  ON PHYSICAL_CONNECTION
  REFERENCING OLD AS OLD NEW AS NEW
  for each row

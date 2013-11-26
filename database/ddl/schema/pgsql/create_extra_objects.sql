@@ -17,3 +17,7 @@
 
 create sequence x509_ca_cert_serial_number_seq;
 
+create sequence note_id_seq;
+
+alter table device_note alter column note_id set default nextval('note_id_seq');
+alter table person_note alter column note_id set default nextval('note_id_seq');

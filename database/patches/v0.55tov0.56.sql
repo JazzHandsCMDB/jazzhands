@@ -294,6 +294,130 @@ COMMENT ON COLUMN person_company_badge.badge_id IS
 
 -- DONE DEALING WITH TABLE person_company_badge [101707]
 --------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE physical_connection [261333]
+--
+-- RENAME physical_port columns to match layer1_connection columns.
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+alter table physical_connection drop constraint fk_physical_conn_v_cable_type;
+alter table physical_connection drop constraint fk_patch_panel_port1;
+alter table physical_connection drop constraint fk_patch_panel_port2;
+alter table physical_connection drop constraint pk_physical_connection;
+alter table physical_connection drop constraint ak_uq_physical_port_id2;
+alter table physical_connection drop constraint ak_uq_physical_port_id1;
+-- INDEXES
+DROP INDEX idx_physconn_cabletype;
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+drop trigger trig_userlog_physical_connection on physical_connection;
+drop trigger trigger_verify_physical_connection on physical_connection;
+drop trigger trigger_audit_physical_connection on physical_connection;
+
+
+ALTER TABLE physical_connection RENAME TO physical_connection_v53;
+ALTER TABLE audit.physical_connection RENAME TO physical_connection_v53;
+
+CREATE TABLE physical_connection
+(
+	physical_connection_id	integer NOT NULL,
+	physical_port1_id	integer NOT NULL,
+	physical_port2_id	integer NOT NULL,
+	cable_type	varchar(50) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'physical_connection', false);
+INSERT INTO physical_connection (
+	physical_connection_id,
+	physical_port1_id,		-- new column (physical_port1_id)
+	physical_port2_id,		-- new column (physical_port2_id)
+	cable_type,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	physical_connection_id,
+	physical_port_id1,		-- new column (physical_port1_id)
+	physical_port_id2,		-- new column (physical_port2_id)
+	cable_type,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM physical_connection_v53;
+
+INSERT INTO audit.physical_connection (
+	physical_connection_id,
+	physical_port1_id,		-- new column (physical_port1_id)
+	physical_port2_id,		-- new column (physical_port2_id)
+	cable_type,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	physical_connection_id,
+	physical_port_id1,		-- new column (physical_port1_id)
+	physical_port_id2,		-- new column (physical_port2_id)
+	cable_type,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#user",
+	"aud#seq"
+FROM audit.physical_connection_v53;
+
+ALTER TABLE physical_connection
+	ALTER physical_connection_id
+	SET DEFAULT nextval('physical_connection_physical_connection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE physical_connection ADD CONSTRAINT ak_uq_physical_port_id1 UNIQUE (physical_port1_id);
+ALTER TABLE physical_connection ADD CONSTRAINT pk_physical_connection PRIMARY KEY (physical_connection_id);
+ALTER TABLE physical_connection ADD CONSTRAINT ak_uq_physical_port_id2 UNIQUE (physical_port2_id);
+-- INDEXES
+CREATE INDEX idx_physconn_cabletype ON physical_connection USING btree (cable_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+ALTER TABLE physical_connection
+	ADD CONSTRAINT fk_physical_conn_v_cable_type
+	FOREIGN KEY (cable_type) REFERENCES val_cable_type(cable_type);
+ALTER TABLE physical_connection
+	ADD CONSTRAINT fk_patch_panel_port2
+	FOREIGN KEY (physical_port2_id) REFERENCES physical_port(physical_port_id);
+ALTER TABLE physical_connection
+	ADD CONSTRAINT fk_patch_panel_port1
+	FOREIGN KEY (physical_port1_id) REFERENCES physical_port(physical_port_id);
+
+-- TRIGGERS
+CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE
+        ON physical_connection EXECUTE PROCEDURE verify_physical_connection();
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'physical_connection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'physical_connection');
+ALTER SEQUENCE physical_connection_physical_connection_id_seq
+	 OWNED BY physical_connection.physical_connection_id;
+DROP TABLE physical_connection_v53;
+DROP TABLE audit.physical_connection_v53;
+-- DONE DEALING WITH TABLE physical_connection [267614]
+--------------------------------------------------------------------
 
 --------------------------------------------------------------------
 -- BEGIN FULLY QUALIFYING DEVICE related TRIGGERS 
@@ -569,6 +693,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- DONE DEALING with port_utils.setup_device_physical_ports 
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEAL WITH DEVICE_NOTE SEQUENCE
+create sequence note_id_seq;
+
+alter table device_note alter column note_id set default nextval('note_id_seq');
+alter table person_note alter column note_id set default nextval('note_id_seq');
+
+-- DONE: DEAL WITH DEVICE_NOTE SEQUENCE
 --------------------------------------------------------------------
 
 GRANT select on all tables in schema jazzhands to ro_role;
