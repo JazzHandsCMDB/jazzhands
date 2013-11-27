@@ -173,8 +173,8 @@ INSERT INTO audit.person_company (
 	"aud#seq"
 FROM audit.person_company_v53;
 
-update audit.person_company set is_exempt = 'Y' where is_exempt not in ('N', 'Y');
-update person_company set is_exempt = 'Y' where is_exempt not in ('N', 'Y');
+update audit.person_company set is_exempt = 'Y' where is_exempt not in ('N', 'Y') or is_exempt is NULL;
+update person_company set is_exempt = 'Y' where is_exempt not in ('N', 'Y') or is_exempt is NULL;
 alter table person_company alter column is_exempt set not null;
 
 
