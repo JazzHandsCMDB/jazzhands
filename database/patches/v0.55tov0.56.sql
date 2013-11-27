@@ -49,7 +49,7 @@ CREATE TABLE person_company
 	person_id	integer NOT NULL,
 	person_company_status	varchar(50) NOT NULL,
 	person_company_relation	varchar(50) NOT NULL,
-	is_exempt	character(1) NOT NULL,
+	is_exempt	character(1) NULL,
 	is_management	character(1) NOT NULL,
 	is_full_time	character(1) NOT NULL,
 	description	varchar(255)  NULL,
