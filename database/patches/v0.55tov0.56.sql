@@ -200,8 +200,8 @@ alter table person_company alter column is_exempt set not null;
 
 
 ALTER TABLE person_company
-        ALTER is_exempt
-        SET DEFAULT 'Y'::bpchar;
+	ALTER is_exempt
+	SET DEFAULT 'Y'::bpchar;
 ALTER TABLE person_company
 	ALTER is_management
 	SET DEFAULT 'N'::bpchar;
@@ -258,10 +258,10 @@ ALTER TABLE person_company
 --- XXX trigger: trig_automated_ac
 
 DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account
-        ON person_company;
+	ON person_company;
 CREATE TRIGGER trigger_propagate_person_status_to_account
 AFTER UPDATE ON person_company
-        FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
+	FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
 
 DROP TRIGGER IF EXISTS trig_automated_ac ON person_company;
 CREATE TRIGGER trig_automated_ac AFTER UPDATE ON person_company 
@@ -434,7 +434,7 @@ ALTER TABLE physical_connection
 
 -- TRIGGERS
 CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE
-        ON physical_connection EXECUTE PROCEDURE verify_physical_connection();
+	ON physical_connection EXECUTE PROCEDURE verify_physical_connection();
 
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'physical_connection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'physical_connection');
@@ -592,12 +592,12 @@ CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
 CREATE OR REPLACE FUNCTION verify_physical_connection() RETURNS TRIGGER AS $$
 BEGIN
     PERFORM 1 FROM
-        jazzhands.physical_connection l1
-        JOIN jazzhands.physical_connection l2 ON
-            l1.physical_port1_id = l2.physical_port2_id AND
-            l1.physical_port2_id = l2.physical_port1_id;
+	jazzhands.physical_connection l1
+	JOIN jazzhands.physical_connection l2 ON
+	    l1.physical_port1_id = l2.physical_port2_id AND
+	    l1.physical_port2_id = l2.physical_port1_id;
     IF FOUND THEN
-        RAISE EXCEPTION 'Connection already exists in opposite direction';
+	RAISE EXCEPTION 'Connection already exists in opposite direction';
     END IF;
     RETURN NEW;
 END;
@@ -617,21 +617,21 @@ CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE
 -- DEALING WITH TABLE v_person_company_expanded []
 CREATE VIEW v_person_company_expanded AS
  WITH RECURSIVE var_recurse(level, root_company_id, company_id, person_id) AS (
-                 SELECT 0 AS level, 
-                    c.company_id AS root_company_id, 
-                    c.company_id, 
-                    pc.person_id
-                   FROM company c
-              JOIN person_company pc ON c.company_id = pc.company_id
-        UNION ALL 
-                 SELECT x.level + 1 AS level, 
-                    x.company_id AS root_company_id, 
-                    c.company_id, 
-                    pc.person_id
-                   FROM var_recurse x
-              JOIN company c ON c.parent_company_id = x.company_id
-         JOIN person_company pc ON c.company_id = pc.company_id
-        )
+		 SELECT 0 AS level, 
+		    c.company_id AS root_company_id, 
+		    c.company_id, 
+		    pc.person_id
+		   FROM company c
+	      JOIN person_company pc ON c.company_id = pc.company_id
+	UNION ALL 
+		 SELECT x.level + 1 AS level, 
+		    x.company_id AS root_company_id, 
+		    c.company_id, 
+		    pc.person_id
+		   FROM var_recurse x
+	      JOIN company c ON c.parent_company_id = x.company_id
+	 JOIN person_company pc ON c.company_id = pc.company_id
+	)
  SELECT DISTINCT var_recurse.root_company_id AS company_id, 
     var_recurse.person_id
    FROM var_recurse;
@@ -642,21 +642,21 @@ CREATE VIEW v_person_company_expanded AS
 -- DEALING WITH TABLE v_company_hier []
 CREATE VIEW v_company_hier AS
  WITH RECURSIVE var_recurse(level, root_company_id, company_id, person_id) AS (
-                 SELECT 0 AS level, 
-                    c.company_id AS root_company_id, 
-                    c.company_id, 
-                    pc.person_id
-                   FROM company c
-              JOIN person_company pc ON c.company_id = pc.company_id
-        UNION ALL 
-                 SELECT x.level + 1 AS level, 
-                    x.company_id AS root_company_id, 
-                    c.company_id, 
-                    pc.person_id
-                   FROM var_recurse x
-              JOIN company c ON c.parent_company_id = x.company_id
-         JOIN person_company pc ON c.company_id = pc.company_id
-        )
+		 SELECT 0 AS level, 
+		    c.company_id AS root_company_id, 
+		    c.company_id, 
+		    pc.person_id
+		   FROM company c
+	      JOIN person_company pc ON c.company_id = pc.company_id
+	UNION ALL 
+		 SELECT x.level + 1 AS level, 
+		    x.company_id AS root_company_id, 
+		    c.company_id, 
+		    pc.person_id
+		   FROM var_recurse x
+	      JOIN company c ON c.parent_company_id = x.company_id
+	 JOIN person_company pc ON c.company_id = pc.company_id
+	)
  SELECT DISTINCT var_recurse.root_company_id, 
     var_recurse.company_id
    FROM var_recurse;
@@ -799,24 +799,24 @@ with recursive var_recurse (
 	       select 	0,
 			l1.layer1_connection_id,
 			pc.PHYSICAL_CONNECTION_ID,
-	                l1.physical_port1_id	as layer1_physical_port1_id,
-	                l1.physical_port2_id	as layer1_physical_port2_id,
-	                pc.physical_port1_id,
-	                pc.physical_port2_id
-	          from  layer1_connection l1
-	        	inner join physical_connection pc
+			l1.physical_port1_id	as layer1_physical_port1_id,
+			l1.physical_port2_id	as layer1_physical_port2_id,
+			pc.physical_port1_id,
+			pc.physical_port2_id
+		  from  layer1_connection l1
+			inner join physical_connection pc
 				using (physical_port1_id)
 UNION ALL
        select 	x.level + 1,
 		x.layer1_connection_id,
 		pc.PHYSICAL_CONNECTION_ID,
-                x.physical_port1_id 	as layer1_physical_port1_id,
-                x.physical_port2_id 	as layer1_physical_port2_id,
-                pc.physical_port1_id,
-                pc.physical_port2_id
+		x.physical_port1_id 	as layer1_physical_port1_id,
+		x.physical_port2_id 	as layer1_physical_port2_id,
+		pc.physical_port1_id,
+		pc.physical_port2_id
 	FROM    var_recurse x
-	        inner join physical_connection pc
-	                on x.physical_port2_id = pc.physical_port1_id
+		inner join physical_connection pc
+			on x.physical_port2_id = pc.physical_port1_id
 ) select
 	level,
 	layer1_connection_id,
@@ -829,6 +829,39 @@ from var_recurse;
 
 -- DONE ADD v_physical_connection
 --------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEAL WITH device_power_connection SEQUENCE
+
+CREATE SEQUENCE device_power_connection_device_power_connection_id_seq;
+
+ALTER SEQUENCE device_power_connection_device_power_connection_id_seq
+	 OWNED BY device_power_connection.device_power_connection_id;
+
+ALTER TABLE device_power_connection
+	ALTER device_power_connection_id
+	SET DEFAULT 
+	nextval('device_power_connection_device_power_connection_id_seq'::regclass);
+
+
+-- DEAL WITH device_power_connection SEQUENCE
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEAL WITH DEVICE_NOTE SEQUENCE
+create sequence note_id_seq;
+
+alter table device_note alter column note_id set default nextval('note_id_seq');
+alter table person_note alter column note_id set default nextval('note_id_seq');
+
+-- DONE: DEAL WITH DEVICE_NOTE SEQUENCE
+--------------------------------------------------------------------
+
+-- random
+DROP INDEX IF EXISTS netblock_case_idx;
+CREATE INDEX netblock_case_idx ON netblock USING btree ((
+CASE
+WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
 
 
 --------------------------------------------------------------------
