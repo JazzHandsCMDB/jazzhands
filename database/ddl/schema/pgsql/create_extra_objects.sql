@@ -21,3 +21,10 @@ create sequence note_id_seq;
 
 alter table device_note alter column note_id set default nextval('note_id_seq');
 alter table person_note alter column note_id set default nextval('note_id_seq');
+
+CREATE INDEX netblock_case_idx ON netblock USING btree ((
+CASE
+WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
+	ELSE NULL::bigint
+END));
+

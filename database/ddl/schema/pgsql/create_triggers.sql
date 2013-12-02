@@ -241,8 +241,8 @@ BEGIN
 	PERFORM 1 FROM 
 		jazzhands.physical_connection l1 
 		JOIN jazzhands.physical_connection l2 ON 
-			l1.physical_port_id1 = l2.physical_port_id2 AND
-			l1.physical_port_id2 = l2.physical_port_id1;
+			l1.physical_port1_id = l2.physical_port2_id AND
+			l1.physical_port2_id = l2.physical_port1_id;
 	IF FOUND THEN
 		RAISE EXCEPTION 'Connection already exists in opposite direction';
 	END IF;

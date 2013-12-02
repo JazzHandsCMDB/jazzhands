@@ -1,4 +1,25 @@
-
+--
+-- Numerous licenses apply to code herein and you can find them throughout
+-- the JazzHands source repository.  The patch file copyright for things not
+-- covered elsewhere is here:
+--
+-- Copyright (c) 2013, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- $Id$
+--
 \set ON_ERROR_STOP
 
 set search_path=jazzhands;
@@ -568,19 +589,17 @@ DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
 CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
 	ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
 
-
-
 CREATE OR REPLACE FUNCTION verify_physical_connection() RETURNS TRIGGER AS $$
 BEGIN
-	PERFORM 1 FROM 
-		jazzhands.physical_connection l1 
-		JOIN jazzhands.physical_connection l2 ON 
-			l1.physical_port_id1 = l2.physical_port_id2 AND
-			l1.physical_port_id2 = l2.physical_port_id1;
-	IF FOUND THEN
-		RAISE EXCEPTION 'Connection already exists in opposite direction';
-	END IF;
-	RETURN NEW;
+    PERFORM 1 FROM
+        jazzhands.physical_connection l1
+        JOIN jazzhands.physical_connection l2 ON
+            l1.physical_port1_id = l2.physical_port2_id AND
+            l1.physical_port2_id = l2.physical_port1_id;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Connection already exists in opposite direction';
+    END IF;
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -701,6 +720,118 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --------------------------------------------------------------------
 
 --------------------------------------------------------------------
+-- ADD v_corp_family_account
+
+-- Copyright (c) 2013, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- $Id$
+--
+
+create view v_corp_family_account
+AS
+SELECT	*
+  FROM	account 
+ WHERE	account_realm_id in
+	(
+	 SELECT account_realm_id
+	  FROM	account_realm_company
+	 WHERE	company_id IN (
+		SELECT	property_value_company_id
+		 FROM	property
+		WHERE	property_name = '_rootcompanyid'
+		 AND	property_type = 'Defaults'
+		)
+	);
+
+
+
+-- DONE ADD v_corp_family_account
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- ADD v_physical_connection
+
+-- Copyright (c) 2013, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+-- $Id$
+--
+
+--
+-- The layer1_connection get the physical_port1/2 columns to make joining
+-- a little easier.  I waffled.  -kovert
+--
+CREATE OR REPLACE VIEW v_physical_connection AS
+with recursive var_recurse (
+	level,
+	layer1_connection_id,
+	PHYSICAL_CONNECTION_ID,
+	layer1_physical_port1_id,
+	layer1_physical_port2_id,
+	physical_port1_id,
+	physical_port2_id
+) as (
+	       select 	0,
+			l1.layer1_connection_id,
+			pc.PHYSICAL_CONNECTION_ID,
+	                l1.physical_port1_id	as layer1_physical_port1_id,
+	                l1.physical_port2_id	as layer1_physical_port2_id,
+	                pc.physical_port1_id,
+	                pc.physical_port2_id
+	          from  layer1_connection l1
+	        	inner join physical_connection pc
+				using (physical_port1_id)
+UNION ALL
+       select 	x.level + 1,
+		x.layer1_connection_id,
+		pc.PHYSICAL_CONNECTION_ID,
+                x.physical_port1_id 	as layer1_physical_port1_id,
+                x.physical_port2_id 	as layer1_physical_port2_id,
+                pc.physical_port1_id,
+                pc.physical_port2_id
+	FROM    var_recurse x
+	        inner join physical_connection pc
+	                on x.physical_port2_id = pc.physical_port1_id
+) select
+	level,
+	layer1_connection_id,
+	PHYSICAL_CONNECTION_ID,
+	layer1_physical_port1_id,
+	layer1_physical_port2_id,
+	physical_port1_id,
+	physical_port2_id
+from var_recurse;
+
+-- DONE ADD v_physical_connection
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
 -- DEAL WITH DEVICE_NOTE SEQUENCE
 create sequence note_id_seq;
 
@@ -709,6 +840,15 @@ alter table person_note alter column note_id set default nextval('note_id_seq');
 
 -- DONE: DEAL WITH DEVICE_NOTE SEQUENCE
 --------------------------------------------------------------------
+
+-- random
+DROP INDEX IF EXISTS netblock_case_idx;
+CREATE INDEX netblock_case_idx ON netblock USING btree ((
+CASE
+WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
+       ELSE NULL::bigint
+END));
+
 
 GRANT select on all tables in schema jazzhands to ro_role;
 GRANT insert,update,delete on all tables in schema jazzhands to iud_role;
