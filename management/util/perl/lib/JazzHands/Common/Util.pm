@@ -71,6 +71,14 @@ sub _dbx {
 				}
 			}
 			return $r;
+		} elsif(ref($x) eq 'ARRAY') {
+			my $new = ();
+			foreach my $k (@$x) {
+				push(@$new, 
+					($direction eq 'lower')?lc($k):uc($k)
+				);
+			}
+			return($new);
 		} else {
 			return undef;
 		}

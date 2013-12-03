@@ -25,6 +25,7 @@ use JazzHands::Common::Util qw(:all);
 use JazzHands::Common::Error qw(:all);
 use DBI::Const::GetInfoType;
 use Data::Dumper;
+use Carp qw(cluck);
 
 our $VERSION   = '1.0';
 
@@ -66,8 +67,6 @@ Exporter::export_ok_tags('legacy');
 # NOTE NOTE NOTE:  This is deprecated!
 sub run_update_from_hash {
 	my($dbh, $table, $dbkey, $keyval, $hash) = @_;
-
-	warn "foo!\n";
 
 	return DBUpdate(undef,
 		dbhandle => $dbh,
