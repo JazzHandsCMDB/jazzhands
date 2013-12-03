@@ -128,10 +128,10 @@ sub build_device_checkboxes {
 	$checkbox1 .= $stab->build_checkbox( $device, "Virtual Device",
 		'IS_VIRTUAL_DEVICE', 'DEVICE_ID', undef )
 	  . "\n";
-	$checkbox1 .=
-	  $stab->build_checkbox( $device, "Baselined", 'IS_BASELINED',
-		'DEVICE_ID', undef )
-	  . "\n";
+#	$checkbox1 .=
+#	  $stab->build_checkbox( $device, "Baselined", 'IS_BASELINED',
+#		'DEVICE_ID', undef )
+#	  . "\n";
 
 	my $rv = $cgi->td($checkbox1);
 	undef $checkbox1;
@@ -178,6 +178,10 @@ sub build_device_box {
 		'DEVICE_ID'
 	);
 	$top_table .= $stab->build_tr(
+		$values, "b_textfield", "Asset Tag", "ASSET_TAG",
+		'DEVICE_ID'
+	);
+	$top_table .= $stab->build_tr(
 		$values, "b_textfield", "Part #", "PART_NUMBER",
 		'DEVICE_ID'
 	);
@@ -189,64 +193,64 @@ sub build_device_box {
 	my $voetr        = "";
 	my $voetraxdivid = "voe_symtrax_id_add_div";
 	my $osargs       = {};
-	if ( defined($values) ) {
-		if ( defined( $values->{VOE_ID} ) ) {
-			my $voeid = $values->{VOE_ID};
-			my $voe   = $stab->get_voe_from_id($voeid);
+#	if ( defined($values) ) {
+#		if ( defined( $values->{VOE_ID} ) ) {
+#			my $voeid = $values->{VOE_ID};
+#			my $voe   = $stab->get_voe_from_id($voeid);
+#
+#			my $voelink = "";
+#			if ($voe) {
+#				$voelink =
+#				  $cgi->a( { -href => "voe/?VOE_ID=$voeid" },
+#					$voe->{VOE_NAME} );
+#			} else {
+#				$voelink = "--none--";
+#			}
+#			$voetr = $cgi->Tr(
+#				$cgi->td(
+#					{ -align => 'right' },
+#					$cgi->b("VOE:")
+#				),
+#				$cgi->td($voelink)
+#			);
+#		}
+#
+#		if ( !length($voetr) ) {
+#			$voetr = $cgi->Tr(
+#				$cgi->td(
+#					{ -align => 'right' },
+#					$cgi->b("VOE")
+#				),
+#				$cgi->td("--none--")
+#			);
+#		}
+#
+#		$voetraxdivid =
+#		  "voe_symbolic_track_id_" . 
+#			$values->{_dbx('DEVICE_ID')} . "_div";
+#
+#	}
+#	my $ID = ($values) ? $values->{_dbx('DEVICE_ID')} : "null";
+#	$osargs->{-onChange} = "update_voe_options($ID, \"$voetraxdivid\")";
 
-			my $voelink = "";
-			if ($voe) {
-				$voelink =
-				  $cgi->a( { -href => "voe/?VOE_ID=$voeid" },
-					$voe->{VOE_NAME} );
-			} else {
-				$voelink = "--none--";
-			}
-			$voetr = $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("VOE:")
-				),
-				$cgi->td($voelink)
-			);
-		}
-
-		if ( !length($voetr) ) {
-			$voetr = $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("VOE")
-				),
-				$cgi->td("--none--")
-			);
-		}
-
-		$voetraxdivid =
-		  "voe_symbolic_track_id_" . 
-			$values->{_dbx('DEVICE_ID')} . "_div";
-
-	}
-	my $ID = ($values) ? $values->{_dbx('DEVICE_ID')} : "null";
-	$osargs->{-onChange} = "update_voe_options($ID, \"$voetraxdivid\")";
-
-	$voetr .= $stab->build_tr( { -divWrap => $voetraxdivid },
-		$values, "b_dropdown", "VOE Track", "VOE_SYMBOLIC_TRACK_ID",
-		"DEVICE_ID" );
+#	$voetr .= $stab->build_tr( { -divWrap => $voetraxdivid },
+#		$values, "b_dropdown", "VOE Track", "VOE_SYMBOLIC_TRACK_ID",
+#		"DEVICE_ID" );
 
 	my ( $left_table, $right_table ) = ( "", "" );
 
-	$left_table .=
-	  $stab->build_tr( $values, "b_dropdown", "Status", "DEVICE_STATUS",
-		'DEVICE_ID' );
-	$left_table .=
-	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
-		"OPERATING_SYSTEM_ID", 'DEVICE_ID' );
+#	$left_table .=
+#	  $stab->build_tr( $values, "b_dropdown", "Status", "DEVICE_STATUS",
+#		'DEVICE_ID' );
+#	$left_table .=
+#	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
+#		"OPERATING_SYSTEM_ID", 'DEVICE_ID' );
 	$left_table  .= $voetr;
 	$right_table .= $stab->build_tr( $values, "b_dropdown", "Ownership",
 		"OWNERSHIP_STATUS", 'DEVICE_ID' );
 	$right_table .=
-	  $stab->build_tr( $values, "b_dropdown", "Production Status",
-		"PRODUCTION_STATE", 'DEVICE_ID' );
+	  $stab->build_tr( $values, "b_dropdown", "Service Environment",
+		"SERVICE_ENVIRONMENT", 'DEVICE_ID' );
 	$right_table .= $stab->build_tr( $values, "b_dropdown", "Mgmt Protocol",
 		"AUTO_MGMT_PROTOCOL", 'DEVICE_ID' );
 
@@ -371,33 +375,52 @@ sub build_page {
 		my $tablist = {
 			"PatchPanel" => "Patch Panel",
 			"IP"         => "IP Network",
-
 			#	"IPRoute" => "IP Routing",
 			#	"Circuit" => "Voice",
 			"Serial"     => "Serial",
-			"AppGroup"     => "AppGroup",
+			#"AppGroup"     => "AppGroup",
 			"Power"      => "Power",
 			"Switchport" => "Switch Port",
 
 			#	"AppGroup" => "AppGroup",
 			"Location"     => "Location",
-			"Licenses"     => "Licenses",
+			#"Licenses"     => "Licenses",
 			"Advanced"     => "Advanced",
 			"Notes"        => "Notes$numnotes",
 		};
+
+		if(! $stab->get_power_port_count($devid)) {
+			delete ( $tablist -> {Power} );
+		}
+
+		if(! $stab->get_physical_port_count($devid, 'network')) {
+			delete ( $tablist -> {Switchport} );
+		}
+
+		if(! $stab->get_physical_port_count($devid, 'serial')) {
+			delete ( $tablist -> {Serial} );
+		}
+		if(! $stab->get_physical_port_count($devid, 'patchpanel')) {
+			delete ( $tablist -> {PatchPanel} );
+		}
+
+		if( $device->{_dbx('IS_VIRTUAL_DEVICE')} eq 'Y' ) {
+			delete ( $tablist -> {Location} );
+		}
 
 		my (@tablist);
 		push( @tablist, "Notes", "DevFunctions", "AppGroup" );
 
 		# XXX - used to run check_func, needs to move to application
 		# roles!
-		#if ( $stab->check_func( $devid, 'patchpanel' ) ) {
-		#	push( @tablist, "PatchPanel" );
-		#} elsif ( !$stab->check_func( $devid, 'cablemanagement' ) ) {
+		# } elsif ( !$stab->check_func( $devid, 'cablemanagement' ) ) {
+		if( exists ( $tablist->{PatchPanel} ) ) {
+			push( @tablist, "PatchPanel" );
+		} else {
 			push( @tablist,
 				qw{IP IPRoute Circuit Serial Power Switchport }
 			);
-		#}
+		}
 
 		push( @tablist, qw{Location Licenses Advanced} );
 
@@ -486,8 +509,8 @@ sub build_parent_device_box {
 		}
 	}
 
-	my $pdid  = _dbx("PARENT_DEVICE_ID_" . $devid);
-	my $pdnam = _dbx("PARENT_DEVICE_NAME_" . $devid);
+	my $pdid  = "PARENT_DEVICE_ID_" . $devid;
+	my $pdnam = "PARENT_DEVICE_NAME_" . $devid;
 	my $rv    = $cgi->hidden(
 		{
 			-name    => $pdid,

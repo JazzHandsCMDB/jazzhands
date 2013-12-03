@@ -332,7 +332,7 @@ sub get_netblock_link_header {
 		$displaysite = ( "[" . ( defined($site) ? $site : "" ) . "] " );
 	}
 
-	my $pnb = $stab->get_netblock_from_id( $pnbid, 1, 1 );
+	my $pnb = $stab->get_netblock_from_id( $pnbid );
 	my $parent = "";
 	if ($pnb && $nblkid == $startnblkid) {
 		my $purl = make_url( $stab, $pnbid );
@@ -451,7 +451,8 @@ sub do_dump_netblock {
 		}
 
 		my $netblock =
-		  $stab->get_netblock_from_id( $start_id, 1, 'N', 'N' );
+		  $stab->get_netblock_from_id( $start_id, 
+			{ is_single_address => 'N' });
 		if ( !defined($netblock) ) {
 			$stab->error_return(
 				"Invalid netblock id ($start_id) specified");
@@ -472,7 +473,8 @@ sub do_dump_netblock {
 		dump_toplevel( $stab, $dbh, $cgi );
 		exit;
 	} else {
-		$nblk = $stab->get_netblock_from_id( $start_id, 1, 'N', 'N' );
+		$nblk = $stab->get_netblock_from_id( $start_id, 
+			{ is_single_address => 'N' });
 		if ( !defined($nblk) ) {
 			$stab->error_return(
 				"Unable to find Netblock ($start_id)",
@@ -558,7 +560,6 @@ sub do_dump_netblock {
 	);
 
 	if ( $allowdescedit eq 'yes' || $nblk->{_dbx('CAN_SUBNET')} eq 'Y') {
-		warn Dumper($nblk);
 		print $cgi->submit("Submit Updates");
 	}
 

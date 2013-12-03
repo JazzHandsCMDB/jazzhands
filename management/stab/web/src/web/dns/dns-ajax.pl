@@ -94,25 +94,8 @@ sub do_dns_ajax {
 		if($type) {
 			$where = "WHERE dns_domain_type = :dnsdomaintype";
 		}
-		my $r = {};
-		$r->{options} = {};
-		my $sth = $stab->prepare(
-			qq{
-				select	DNS_DOMAIN_ID, SOA_NAME
-				  from	DNS_DOMAIN
-				  $where
-			}
-		) || die ;
-		if($type) {
-			$sth->bind_param(':dnsdomaintype', $type);
-		}
-		$sth->execute;
+		my $r = $stab->build_dns_drop(undef, $type);
 		my $j = JSON::PP->new->utf8;
-		while ( my ( $id, $name ) = $sth->fetchrow_array ) {
-			$r->{options}->{$id} = {};
-			$r->{'options'}->{$id}->{'value'} = $id;
-			$r->{'options'}->{$id}->{'text'} = $name;
-		}
 		print $j->encode($r);
 	} else {
 

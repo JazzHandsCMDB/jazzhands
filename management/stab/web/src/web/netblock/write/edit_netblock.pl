@@ -69,7 +69,7 @@ sub edit_netblock {
 sub process_netblock_update {
 	my ( $stab, $nblkid, $newval ) = @_;
 
-	my $orig = $stab->get_netblock_from_id( $nblkid, 1, 1);
+	my $orig = $stab->get_netblock_from_id( $nblkid );
 
 	my $new = {
 		NETBLOCK_ID	=> $nblkid,

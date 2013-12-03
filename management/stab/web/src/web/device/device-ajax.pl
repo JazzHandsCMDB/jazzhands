@@ -30,8 +30,10 @@ use warnings;
 use Net::Netmask;
 use FileHandle;
 use CGI;
+use JazzHands::Common::Util qw(_dbx);
 use JazzHands::STAB;
 use Data::Dumper;
+use JSON::PP;
 
 do_show_serial();
 
@@ -43,6 +45,7 @@ sub do_show_serial {
 	my $devnam   = $stab->cgi_parse_param('DEVICE_NAME')          || undef;
 	my $pportid  = $stab->cgi_parse_param('PHYSICAL_PORT_ID')     || undef;
 	my $piport   = $stab->cgi_parse_param('POWER_INTERFACE_PORT') || undef;
+	my $niid     = $stab->cgi_parse_param('NETWORK_INTERFACE_ID') || undef;
 	my $what     = $stab->cgi_parse_param('what')                 || undef;
 	my $type     = $stab->cgi_parse_param('type')                 || undef;
 	my $row      = $stab->cgi_parse_param('row')                  || undef;
@@ -88,11 +91,13 @@ sub do_show_serial {
 		}
 	}
 
-	if ( $xml ne 'yes' ) {
-		print $cgi->header("text/html");
+	if ( $xml eq 'yes' ) {
+		print $cgi->header("text/xml");
+		print "<response>\n";
 	} elsif( $json eq 'yes') {
 		print $cgi->header("text/json");
-		print "<response>\n";
+	} elsif( $xml eq 'no') {
+		print $cgi->header("text/html");
 	}
 
 	$what = "" if ( !defined($what) );
@@ -131,7 +136,7 @@ sub do_show_serial {
 				$values{"P1_PHYSICAL_PORT_ID"} = $pportid;
 			}
 		}
-		print $stab->b_dropdown( $args, \%values,
+		print $stab->b_dropdown( $args, _dbx(\%values),
 			"P${side}_PHYSICAL_PORT_ID", 'P1_PHYSICAL_PORT_ID' );
 	} elsif ( $what eq 'PowerPorts' ) {
 		my %values;
@@ -139,10 +144,10 @@ sub do_show_serial {
 		$values{'P1_POWER_INTERFACE_PORT'} = $piport;
 		if ( $devid && $devid =~ /^\d+/ ) {
 			print $stab->b_dropdown( { -deviceid => $devid },
-				\%values, 'P2_POWER_INTERFACE_PORT',
+				_dbx(\%values), 'P2_POWER_INTERFACE_PORT',
 				'P1_POWER_INTERFACE_PORT' );
 		} else {
-			print $stab->b_dropdown( undef, \%values,
+			print $stab->b_dropdown( undef, _dbx(\%values),
 				'P2_POWER_INTERFACE_PORT',
 				'P1_POWER_INTERFACE_PORT' );
 		}
@@ -218,6 +223,50 @@ sub do_show_serial {
 			print $stab->b_dropdown( { -site => $site },
 				$p, 'RACK_ID', 'LOCATION_ID', 1 );
 		}
+	} elsif ( $what eq 'interfacedns' ) {
+		my $sth = $stab->prepare(qq{
+			select	dns.dns_record_id,
+					dns.dns_domain_id,
+					dom.soa_name,
+					dns.dns_name,
+					ni.network_interface_id
+			  from	network_interface ni
+					left join dns_record dns using (netblock_id)
+			  		left join dns_domain dom using (dns_domain_id)
+			 where	ni.network_interface_id= ?
+			 order by dns.should_generate_ptr desc, dns.dns_record_id
+			 limit 1
+		}) || $stab->return_db_err();
+		$sth->execute($niid) || die $sth->errstr;
+		my $row = $sth->fetchrow_hashref;
+		$sth->finish;
+		my $doms = "";
+		if($row) {
+			$doms = $stab->build_dns_drop( 
+				$row->{ _dbx('DNS_DOMAIN_ID')},
+				$type );
+		}
+		my $j = JSON::PP->new->utf8;
+		my $r = { 
+			'NETWORK_INTERFACE_ID' => $niid,
+			'domains' => $doms,
+			'DNS_NAME' => {
+				'name' => "DNS_NAME_$niid",
+				'id' => "DNS_NAME_$niid",
+				'type' => 'text',
+			},
+			'DNS_DOMAIN' => {
+				'name' => "DNS_DOMAIN_ID_$niid",
+				'id' => "DNS_DOMAIN_ID_$niid",
+				'type' => 'input',
+			}
+		};
+		if($row) {
+			if(exists($row->{_dbx('DNS_NAME')})) {
+				$r->{"DNS_NAME"}->{'value'} = $row->{_dbx('DNS_NAME')};
+			}
+		}
+		print $j->encode($r);
 	} else {
 
 		# catch-all error condition

@@ -55,7 +55,7 @@ sub do_remove_netblock {
 	}
 
 	my @errors;
-#	my $netblock = $stab->get_netblock_from_id( $nblkid, 1 );
+#	my $netblock = $stab->get_netblock_from_id( $nblkid );
 	my $netblock = $stab->GetNetblock( netblock_id => $nblkid, 
 		errors => \@errors);
 	if ( !defined($netblock) ) {

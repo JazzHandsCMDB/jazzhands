@@ -96,20 +96,6 @@ sub prepare_cached {
 }
 
 #
-# delete netblock
-#
-sub delete_netblock {
-	my ( $self, $id ) = @_;
-
-	my $q = q{
-		delete from netblock where netblock_id = ?
-	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
-	$sth->finish;
-}
-
-#
 # different from other implementations
 #
 sub guess_parent_netblock_id {
@@ -124,8 +110,11 @@ sub guess_parent_netblock_id {
 		  from  netblock
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
-				net_manip.inet_ptodb(:ip), :bits, 'default', 
-				0, 'Y')
+				in_IpAddress := net_manip.inet_ptodb(:ip), 
+				in_Netmask_Bits := :bits, 
+				in_ip_universe_id := 0,
+				in_netblock_type := 'default', 
+				in_is_single_address := 'N')
 			)
 	};
 
@@ -181,34 +170,34 @@ sub check_ip_on_local_nets {
 }
 
 sub get_netblock_from_id {
-	my ( $self, $nblkid, $singnocare, $orgnocare ) = @_;
+	my ( $self, $nblkid, $opts) = @_;
 
-	return undef if ( !defined($nblkid) );
+	return undef if(!$nblkid);
 
-	my $singq = "";
-	if ( !defined($singnocare) ) {
-		$singq = "and is_single_address = 'Y'";
-	}
+	my $morewhere = "";
 
-	my $orgq = "";
-
-	# XXX - need to deal with better as far as types go
-	if ( !defined($orgnocare) ) {
-		$orgq = "and netblock_type != 'default'";
-	} else {
-		$orgq = "and netblock_type = 'default'";
+	#
+	# This allows restriction of types of netblock if necessary.
+	#
+	if($opts) {
+		foreach my $flag (keys %$opts) {
+			$morewhere .= "AND $flag = :$flag\n";
+		}
 	}
 
 	my $q = qq{
 		select  netblock.*,
-                	net_manip.inet_dbtop(ip_address) as ip
+			net_manip.inet_dbtop(ip_address) as ip
 		 from   netblock
-		where   netblock_id = ?
-		  	$orgq
-		  	$singq
+		where   netblock_id = :nblkid
+			$morewhere
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($nblkid) || $self->return_db_err($sth);
+	foreach my $flag (keys %$opts) {
+		$sth->bind_param(":$flag", $opts->{$flag});
+	}
+	$sth->bind_param(':nblkid', $nblkid) || die $self->return_db_err($sth);
+	$sth->execute || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 
@@ -289,6 +278,7 @@ sub add_netblock {
 	)) {
 		$self->error_return(join(" ", @errs));
 	}
+
 
 	return($new->{_dbx('NETBLOCK_ID')});
 }
@@ -398,29 +388,6 @@ sub fake_unset_location {
 #############################################################################
 # end of weird location stuff
 #############################################################################
-
-sub create_physical_port {
-	my ( $self, $devid, $name, $type, $desc ) = @_;
-
-	my $ppid;
-	my $q = qq {
-		insert into physical_port (
-			device_id, port_name, port_type, description
-		) values (
-			:devid, :name, :type, :descr
-		) returning physical_port_id into :rv
-	};
-	my $sth = $self->prepare($q) || die $self->return_db_err($self);
-	$sth->bind_param( ":devid", $devid ) || $self->return_db_err($sth);
-	$sth->bind_param( ":name",  $name )  || $self->return_db_err($sth);
-	$sth->bind_param( ":type",  $type )  || $self->return_db_err($sth);
-	$sth->bind_param( ":descr", $desc )  || $self->return_db_err($sth);
-	$sth->bind_param_inout( ":rv", \$ppid, 500 )
-	  || $self->return_db_err($sth);
-	$sth->execute || $self->return_db_err($sth);
-	$sth->finish;
-	$ppid;
-}
 
 sub guess_dns_domain_from_devid {
 	my ( $self, $device ) = @_;
@@ -642,19 +609,7 @@ sub get_dev_from_name {
 	my ( $self, $name ) = @_;
 
 	my $q = qq{
-		select  device_id, device_name,
-			device_type_id, serial_number,
-			asset_tag, operating_system_id,
-			voe_id,
-			status, production_state,
-			ownership_status,
-			is_monitored,
-			is_locally_managed,
-			identifying_dns_record_id,
-			SHOULD_FETCH_CONFIG,
-			PARENT_DEVICE_ID,
-			IS_VIRTUAL_DEVICE,
-			AUTO_MGMT_PROTOCOL
+		select  *
 		  from  device
 		 where  device_name = ?
 	};
@@ -670,19 +625,7 @@ sub get_dev_from_serial {
 	my ( $self, $serno ) = @_;
 
 	my $q = qq{
-		select  device_id, device_name,
-			device_type_id, serial_number,
-			asset_tag, operating_system_id,
-			voe_id,
-			status, production_state,
-			ownership_status,
-			is_monitored,
-			is_locally_managed,
-			identifying_dns_record_id,
-			SHOULD_FETCH_CONFIG,
-			PARENT_DEVICE_ID,
-			IS_VIRTUAL_DEVICE,
-			AUTO_MGMT_PROTOCOL
+		select  *
 		  from  device
 		 where  lower(serial_number) = lower(?)
 	};
@@ -698,12 +641,7 @@ sub get_snmpcommstr_from_id {
 	my ( $self, $snmpid ) = @_;
 
 	my $q = qq{
-		select  snmp_commstr_id,
-			device_id,
-			snmp_commstr_type,
-			rd_string,
-			wr_string,
-			purpose
+		select  *
 		  from  snmp_commstr
 		 where  snmp_commstr_id = ?
 	};
@@ -849,10 +787,15 @@ sub configure_allocated_netblock {
 		$sth->execute( $nblk->{ _dbx('NETBLOCK_ID') } )
 		  || $self->return_db_err($sth);
 	} else {
-		$nblk = $self->add_netblock(
-			ip_address => $ip,
-			parent_netblock_id => $parnb->{_dbx('PARENT_NETBLOCK_ID')}
-		);
+		my $h = {
+			ip_address	=> $ip,
+			is_single_address=> 'Y',
+			can_subnet => 'N',
+			netblock_status => 'Allocated',
+			is_ipv4_address => ( $ip =~ /:/ ) ? 'N' : 'Y',
+		};
+		my $nblkid = $self->add_netblock( $h );
+		$nblk = $self->get_netblock_from_id( $nblkid );
 	}
 	$nblk;
 }
@@ -1069,19 +1012,19 @@ sub get_physical_path_from_l1conn {
 			p2.port_name as pc_p2_physical_port_name,
 			d2.device_id as pc_p2_device_id,
 			d2.device_name as pc_p2_device_name
-		  from	physical_connection pc
+		  from	v_physical_connection vpc
+			inner join physical_connection pc
+				using (physical_connection_id)
 			inner join physical_port p1
-				on p1.physical_port_id = pc.physical_port_id1
+				on p1.physical_port_id = pc.physical_port1_id
 			inner join device d1
 				on d1.device_id = p1.device_id
 			inner join physical_port p2
-				on p2.physical_port_id = pc.physical_port_id2
+				on p2.physical_port_id = pc.physical_port2_id
 			inner join device d2
 				on d2.device_id = p2.device_id
-		connect by prior pc.PHYSICAL_PORT_ID2 = pc.PHYSICAL_PORT_ID1
-		start with pc.PHYSICAL_PORT_ID1 =
-			(select physical_port1_id from layer1_connection
-				where layer1_connection_id = ? )
+		where	vpc.layer1_connection_id = ?
+		order by level
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -1113,11 +1056,12 @@ sub get_layer1_connection_from_port {
 			PARITY,
 			FLOW_CONTROL
 		  from	layer1_connection
-		 where	physical_port1_id = ? or
-			physical_port2_id = ?
+		 where	physical_port1_id = :pportid or
+			physical_port2_id = :pportid
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($port) || $self->return_db_err($sth);
+	$sth->bind_param(':pportid', $port) || $self->return_db_err;
+	$sth->execute || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -1590,6 +1534,41 @@ sub resync_physical_ports {
 	$tally;
 }
 
+sub get_power_port_count {
+	my ($self, $devid )  = @_;
+
+	my $sth = $self->prepare(
+		qq{
+			select	count(*)
+			  from	device_power_interface
+			 where	device_id = ?
+		}
+	) || die $self->return_db_err;
+
+	$sth->execute($devid) || $self->return_db_err;
+	my $count = ($sth->fetchrow_array)[0];
+	$sth->finish;
+	$count;
+}
+
+sub get_physical_port_count {
+	my ($self, $devid, $type )  = @_;
+
+	my $sth = $self->prepare(
+		qq{
+			select	count(*)
+			  from	physical_port
+			 where	device_id = ?
+			   and	port_type = ? 
+		}
+	) || die $self->return_db_err;
+
+	$sth->execute($devid, $type) || $self->return_db_err;
+	my $count = ($sth->fetchrow_array)[0];
+	$sth->finish;
+	$count;
+}
+
 sub get_circuit {
 	my ( $self, $cid ) = @_;
 
@@ -1851,18 +1830,18 @@ sub get_dns_a_record_for_ptr {
 			'host(ip_address)'  => $ip
 		},
 		result_set_size => 'first',
-		errors          => \@errs
+		errors	  => \@errs
 	);
 	return undef if !$nblk;
 
 	my $dns = $self->DBFetch(
 		table => 'dns_record',
 		match => {
-			netblock_id         => $nblk->{netblock_id},
+			netblock_id	 => $nblk->{netblock_id},
 			should_generate_ptr => 'Y',
 		},
 		result_set_size => 'first',
-		errors          => \@errs
+		errors	  => \@errs
 	);
 	return undef if !$dns;
 
@@ -1917,7 +1896,7 @@ sub process_and_insert_dns_record {
 		my $id;
 		if ( !defined($block) ) {
 			my $h = {
-				ip_address        => $opts->{dns_value},
+				ip_address	=> $opts->{dns_value},
 				is_single_address => 'Y'
 			};
 			if (
@@ -1973,6 +1952,40 @@ sub delete_netblock {
 	#- $sth->bind_param('Lid', $nblkid) || die $self->return_db_err();
 
 	$sth->execute || die $self->return_db_err($sth);
+}
+
+#
+# Builds a list of dns domains 
+#
+sub build_dns_drop {
+	my $self = shift @_;
+	my $onid = shift @_;
+	my $type = shift @_;
+
+	my $where = "";
+	if($type) {
+		$where = "WHERE dns_domain_type = :dnsdomaintype";
+	}
+	my $sth = $self->prepare(qq{
+		select  DNS_DOMAIN_ID, SOA_NAME
+		  from  DNS_DOMAIN
+		  $where
+	}) || die ;
+	if($type) {
+		$sth->bind_param(':dnsdomaintype', $type);
+	}
+	$sth->execute;
+	my $r = {};
+	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
+		$r->{options}->{$id} = {};
+		$r->{'options'}->{$id}->{'value'} = $id;
+		$r->{'options'}->{$id}->{'text'} = $name;
+		if($onid && $id == $onid) {
+			$r->{'options'}->{$id}->{'selected'} = 'true';
+		}
+	}
+	$sth->finish;
+	$r;
 }
 
 1;

@@ -290,6 +290,10 @@ tr.dnsadd {
 	background: lightgrey;
 }
 
+tr.intadd {
+	background: grey;
+}
+
 /* netblock management (pre rewrite */
 table.nblk_ipallocation tr, table.nblk_ipallocation td {
 	outline: 1px solid;
@@ -297,6 +301,26 @@ table.nblk_ipallocation tr, table.nblk_ipallocation td {
 
 img.subnet {
 	width: 1em;
+}
+
+table.intmoretable {
+	background: lightyellow;
+}
+
+.intableheader {
+	text-align: center;
+	font-weight: bold;
+	background: orange;
+}
+
+table.interfacetable {
+	display; inline;
+	margin: auto;
+	text-align: center;
+}
+
+table.interfacetable tr {
+	outline: 1px solid;
 }
 
 END

@@ -209,7 +209,8 @@ sub start_html {
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$root/javascript-common/common.js",
+					-src =>
+					  "$root/javascript-common/common.js",
 				},
 				{
 					-language => 'JavaScript',
@@ -251,6 +252,11 @@ sub start_html {
 		if ( $opts->{javascript} eq 'devicetype' ) {
 			push(
 				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src =>
+"$root/javascript-common/external/jQuery/jquery.js",
+				},
 				{
 					-language => 'JavaScript',
 					-src =>
@@ -365,7 +371,8 @@ sub start_html {
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
 		my $navbar = ""
 
-	  #		    $cgi->a( { -href => "$stabroot/device/" },   "Device" ) . " - "
+		  . $cgi->a( { -href => "$stabroot/device/" }, "Device" )
+		  . " - "
 		  . $cgi->a( { -href => "$stabroot/dns" },       "DNS" ) . " - "
 		  . $cgi->a( { -href => "$stabroot/netblock/" }, "Netblock" )
 		  . " - "
@@ -373,8 +380,9 @@ sub start_html {
 			"Site IPs" )
 		  . " - "
 
-		#		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
-		  . " - " . $cgi->a( { -href => "$stabroot/" }, "STAB" );
+		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
+		  . " - "
+		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
 		$inline_title .=
 		  $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
 			"[ $navbar ] " )
@@ -691,8 +699,8 @@ sub mk_chk_yn {
 }
 
 sub remove_other_flagged {
-	my ( $self, $oldblk, $newblk, $table, $pkey, $reckey, $field, $human ) =
-	  @_;
+	my ( $self, $oldblk, $newblk, $table, $pkey, $reckey, $field, $human )
+	  = @_;
 
 	my $dbh = $self->dbh;
 
@@ -1111,7 +1119,7 @@ sub b_dropdown {
 			$limitverbiage = "where SHOULD_GENERATE = 'N'";
 		}
 		if ( defined( $params->{'-dnsdomaintype'} ) ) {
-			$limitverbiage .= " AND " if(length($limitverbiage));
+			$limitverbiage .= " AND " if ( length($limitverbiage) );
 			$limitverbiage = "dns_domain_type = :dnsdomaintype";
 			$dnsdomaintype = $params->{'-dnsdomaintype'};
 		}
@@ -1127,6 +1135,16 @@ sub b_dropdown {
 			select	production_state, description
 			  from	val_production_state
 			order by description, production_state
+		};
+	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT' ) {
+		$q = qq{
+			select	service_environment, 
+				coalesce(description,
+					concat(service_environment,
+						' (', production_state, ')'))
+						as description
+			  from	service_environment
+			order by description, service_environment
 		};
 	} elsif ( $selectfield eq 'NETWORK_INTERFACE_TYPE' ) {
 		$q = qq{
@@ -1173,11 +1191,11 @@ sub b_dropdown {
 			order by lower(company_name)
 		};
 		$pickone = "Choose";
-	} elsif ( $selectfield eq 'PLUG_STYLE' ) {
+	} elsif ( $selectfield eq 'POWER_PLUG_STYLE' ) {
 		$q = qq{
-			select	plug_style, description
-			  from	val_PLUG_STYLE
-			order by PLUG_STYLE
+			select	power_plug_style, description
+			  from	val_POWER_PLUG_STYLE
+			order by POWER_PLUG_STYLE
 		};
 	} elsif ( $selectfield eq 'P2_DEVICE_ID' ) {
 		## commented out because I think its not used with
@@ -1243,8 +1261,8 @@ sub b_dropdown {
 						 l1.PHYSICAL_PORT2_ID = p.physical_port_id
 						)
 					left join physical_connection pc on
-						(pc.PHYSICAL_PORT_ID1 = p.physical_port_id or
-						 pc.PHYSICAL_PORT_ID2 = p.physical_port_id
+						(pc.PHYSICAL_PORT1_ID = p.physical_port_id or
+						 pc.PHYSICAL_PORT2_ID = p.physical_port_id
 						)
 			 where	p.device_id = :devid
 			   $portrestrict
@@ -1261,6 +1279,36 @@ sub b_dropdown {
 				inner join device_function df
 					on df.device_id = d.device_id
 			 where	df.device_function_type = 'rpc'
+		};
+	} elsif ( $selectfield eq 'PORT_SPEED' ) {
+		$q = qq{
+			select	port_speed,
+				description
+			  from	val_port_speed
+		};
+	} elsif ( $selectfield eq 'PORT_PURPOSE' ) {
+		$q = qq{
+			select	port_purpose,
+				description
+			  from	val_port_purpose
+		};
+	} elsif ( $selectfield eq 'PORT_PROTOCOL' ) {
+		$q = qq{
+			select	port_protocol,
+				description
+			  from	val_port_protocol
+		};
+	} elsif ( $selectfield eq 'PORT_PLUG_STYLE' ) {
+		$q = qq{
+			select	port_plug_style,
+				description
+			  from	val_port_plug_style
+		};
+	} elsif ( $selectfield eq 'PORT_MEDIUM' ) {
+		$q = qq{
+			select	distinct port_medium,
+				description
+			  from	val_port_medium
 		};
 	} elsif ( $selectfield eq 'CABLE_TYPE' ) {
 		$q = qq{
@@ -1654,7 +1702,7 @@ sub b_offalwaystextfield {
 	$params = {} if ( !$params );
 	$params->{-noEdit} = 'always';
 	my $x = $self->b_textfield( $params, $values, $field, $pkeyfield );
-	delete($params->{-noEdit});
+	delete( $params->{-noEdit} );
 	$x;
 }
 
@@ -1707,7 +1755,7 @@ sub b_textfield {
 	my $f = $field;
 	$f =~ tr/a-z/A-Z/;
 
-	my $name = $pkn;
+	my $name    = $pkn;
 	my $webname = "$prefix$f$pkn$suffix";
 	if ( $params && $params->{'-name'} ) {
 		$name = $webname = $params->{'-name'};
@@ -1732,7 +1780,7 @@ sub b_textfield {
 	if ( !defined($size) && $self->textfield_sizing ) {
 		$size =
 		  ( defined($allf) && length($allf) > 60 ) ? length($allf) : 60;
-		$size = 7 if ( $field =~ /APPROVAL_REF_NUM\b/ );
+		$size = 7  if ( $field =~ /APPROVAL_REF_NUM\b/ );
 		$size = 20 if ( $field eq 'SNMP_COMMSTR' );
 		$size = 16 if ( $field =~ /_?IP$/ );
 		$size = 3  if ( $field =~ /NETMASK_BITS$/ );
@@ -1775,9 +1823,9 @@ sub b_textfield {
 			my $buttonid = "editbut_$id";
 			$button = $cgi->a(
 				{
-					-id => $buttonid,
+					-id    => $buttonid,
 					-class => 'stabeditbutton',
-					-href => '#',
+					-href  => '#',
 					-style =>
 					  'border: 1px solid; font-size: 50%'
 				},
@@ -1786,17 +1834,16 @@ sub b_textfield {
 		}
 		$disabled = 'true';
 
-	} elsif ( $editoff eq 'always' )
-	{
+	} elsif ( $editoff eq 'always' ) {
 		my $id = $field;
 
 		if ( defined($id) ) {
 			my $buttonid = "editbut_$id";
 			$button = $cgi->a(
 				{
-					-id => $buttonid,
+					-id    => $buttonid,
 					-class => 'stabeditbutton',
-					-href => '#',
+					-href  => '#',
 					-style =>
 					  'border: 1px solid; font-size: 50%'
 				},
@@ -1883,6 +1930,14 @@ sub build_checkbox {
 	}
 	my ( $values, $label, $field, $pkeyfield, $checked ) = @_;
 
+	# This gets around $label not being set in the other build_* b_
+	# commands that may be passed to build_tr
+	if ( $params && exists( $params->{-label} ) ) {
+		$pkeyfield = $field;
+		$field     = $label;
+		$label     = $params->{-label};
+	}
+
 	# XXX probably should do this elsewhere, but...
 	$field     = _dbx($field)     if ( defined($field) );
 	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
@@ -1890,11 +1945,21 @@ sub build_checkbox {
 	my $cgi = $self->cgi;
 
 	my $pkn = "";
-	if (       defined($pkeyfield)
-		&& defined($values)
-		&& defined( $values->{$pkeyfield} ) )
-	{
-		$pkn = "_" . $values->{$pkeyfield};
+	if ( defined($pkeyfield) && defined($values) ) {
+		if ( ref $pkeyfield eq 'ARRAY' ) {
+			foreach my $k (@$pkeyfield) {
+				$pkn .= "_"
+				  . (
+					( defined( $values->{$k} ) )
+					? $values->{$k}
+					: ""
+				  );
+			}
+		} else {
+			if ( defined( $values->{$pkeyfield} ) ) {
+				$pkn = "_" . $values->{$pkeyfield};
+			}
+		}
 	}
 
 	if ( defined($values) ) {
@@ -1914,12 +1979,12 @@ sub build_checkbox {
 	$field =~ tr/a-z/A-Z/;
 	my $name = "chk_${field}$pkn";
 
-	if(defined ($params->{-prefix}) ) {
-		$name = $params->{-prefix}.$name;
+	if ( defined( $params->{-prefix} ) ) {
+		$name = $params->{-prefix} . $name;
 	}
 
-	if(defined ($params->{-suffix}) ) {
-		$name = $name.$params->{-suffix};
+	if ( defined( $params->{-suffix} ) ) {
+		$name = $name . $params->{-suffix};
 	}
 	my $args = {
 		-name    => $name,
@@ -1928,13 +1993,11 @@ sub build_checkbox {
 		-label   => $label,
 	};
 
-	if($params->{-class}) {
+	if ( $params->{-class} ) {
 		$args->{-class} = $params->{-class};
 	}
 
-	my $cb = $cgi->checkbox(
-		$args,
-	);
+	my $cb = $cgi->checkbox( $args, );
 
 	if ( !$params->{-nodiv} ) {
 		return ( $cgi->div($cb) );
@@ -2027,7 +2090,7 @@ sub guess_stab_root {
 	my $cgi = $self->cgi;
 
 	my $root = $cgi->url( { -absolute => 1 } );
-	if ( $root =~ /~.*stab/ || $root =~ m,/stab/,) {
+	if ( $root =~ /~.*stab/ || $root =~ m,/stab/, ) {
 		$root =~ s,(stab).*$,$1,;
 	} else {
 		$root = $cgi->url( { -base => 1 } );
@@ -2256,9 +2319,14 @@ sub add_power_ports {
 	my $prefix = $self->cgi_parse_param('POWER_INTERFACE_PORT_PREFIX');
 	my $start  = $self->cgi_parse_param('POWER_INTERFACE_PORT_START');
 	my $count  = $self->cgi_parse_param('POWER_INTERFACE_PORT_COUNT');
-	my $pstyl  = $self->cgi_parse_param('PLUG_STYLE');
+	my $pstyl  = $self->cgi_parse_param('POWER_PLUG_STYLE');
 	my $volt   = $self->cgi_parse_param('VOLTAGE');
 	my $maxamp = $self->cgi_parse_param('MAX_AMPERAGE');
+	my $dopwr  = $self->cgi_parse_param('chk_PROVIDES_POWER');
+	my $isopt  = $self->cgi_parse_param('chk_IS_OPTIONAL');
+
+	$dopwr = $self->mk_chk_yn($dopwr);
+	$isopt = $self->mk_chk_yn($isopt);
 
 	if ( !defined($start) ) {
 		$self->error_return("You must specify the first port");
@@ -2274,7 +2342,7 @@ sub add_power_ports {
 			"Power port count must be a positive number.");
 	}
 	if ( !defined($pstyl) ) {
-		$self->error_return("You must specify the plug style");
+		$self->error_return("You must specify the power plug style");
 	}
 	if ( !defined($volt) ) {
 		$self->error_return("You must specify the voltage");
@@ -2306,12 +2374,12 @@ sub add_power_ports {
 	my $q = qq{
 		insert into     device_type_power_port_templt (
 			device_type_id, power_interface_port,
-			plug_style, voltage, max_amperage,
-			provides_power
+			power_plug_style, voltage, max_amperage,
+			provides_power, is_optional
 		) values (
-			:1, :2,
-			:3, :4, :5,
-			'N'
+			?, ?,
+			?, ?, ?,
+			?, ?
 		)
 	};
 	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
@@ -2322,7 +2390,7 @@ sub add_power_ports {
 		if ( defined($prefix) ) {
 			$portname = "$prefix$i";
 		}
-		$sth->execute( $devtypid, $portname, $pstyl, $volt, $maxamp )
+		$sth->execute( $devtypid, $portname, $pstyl, $volt, $maxamp, $dopwr, $isopt )
 		  || $self->return_db_err($dbh);
 		$total++;
 	}
@@ -2341,6 +2409,13 @@ sub add_physical_ports {
 	my $prefix = $self->cgi_parse_param("${captype}_PORT_PREFIX");
 	my $start  = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
 	my $count  = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
+	my $tcp  = $self->cgi_parse_param("${captype}_TCP_PORT_START");
+    my $purpose  = $self->cgi_parse_param("${captype}_PORT_PURPOSE");
+    my $speed  = $self->cgi_parse_param("${captype}_PORT_SPEED");
+    my $protocol  = $self->cgi_parse_param("${captype}_PORT_PROTOCOL");
+    my $medium  = $self->cgi_parse_param("${captype}_PORT_MEDIUM");
+    my $plug  = $self->cgi_parse_param("${captype}_PORT_PLUG_STYLE");
+
 
 	if ( !defined($count) ) {
 		$self->error_return(
@@ -2362,16 +2437,25 @@ sub add_physical_ports {
 			"$type Port count must be a positive number");
 	}
 
-	if ( $prefix && length($prefix) > 180 ) {
+	if ( $prefix && length($prefix) > 50 ) {
+		$self->error_return(
+			"$type prefix must be no more than 180 characters");
+	}
+
+	if ( $purpose && length($purpose) > 50 ) {
 		$self->error_return(
 			"$type prefix must be no more than 180 characters");
 	}
 
 	my $q = qq{
 		insert into     device_type_phys_port_templt (
-			device_type_id, port_name, port_type
+			device_type_id, port_name, port_type,
+			port_plug_style, port_medium, port_protocol, port_speed,
+			port_purpose, tcp_port
 		) values (
-			:1, :2, :3
+			:typeid, :name, :type,
+			:plug, :medium, :protocol, :speed,
+			:purpose, :tcpport
 		)
 	};
 	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
@@ -2383,8 +2467,20 @@ sub add_physical_ports {
 			if ( defined($prefix) ) {
 				$portname = "$prefix$i";
 			}
-			$sth->execute( $devtypid, $portname, $type )
-			  || $self->return_db_err($dbh);
+			$sth->bind_param(':typeid', $devtypid) || $self->return_db_err($dbh);
+			$sth->bind_param(':name', $portname) || $self->return_db_err($dbh);
+			$sth->bind_param(':type', $type) || $self->return_db_err($dbh);
+			$sth->bind_param(':plug', $plug) || $self->return_db_err($dbh);
+			$sth->bind_param(':medium', $medium) || $self->return_db_err($dbh);
+			$sth->bind_param(':protocol', $protocol) || $self->return_db_err($dbh);
+			$sth->bind_param(':speed', $speed) || $self->return_db_err($dbh);
+			$sth->bind_param(':purpose', $purpose) || $self->return_db_err($dbh);
+			if($tcp) {
+				$sth->bind_param(':tcpport', $tcp + ($i-$start) ) || $self->return_db_err($dbh);
+			} else {
+				$sth->bind_param(':tcpport',  undef ) || $self->return_db_err($dbh);
+			}
+			$sth->execute || $self->return_db_err($dbh);
 			$total++;
 		}
 	} else {

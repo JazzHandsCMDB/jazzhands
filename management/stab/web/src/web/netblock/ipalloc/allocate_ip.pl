@@ -85,7 +85,7 @@ sub process_netblock_reservations {
 
 		# already exists, so assume so.
 		if (defined($inid) ) {
-			my $netblock = $stab->get_netblock_from_id($inid, 1, 1);
+			my $netblock = $stab->get_netblock_from_id($inid);
 			if ( !defined($netblock) ) {
 				$stab->error_return(
 					"Unable to find IP ($ip) in DB for $inid.  Seek Help");
@@ -193,7 +193,7 @@ sub ipalloc_get_or_create_netblock_id {
 
 	return undef if ( !defined($par_nbid) );
 
-	my $netblock = $stab->get_netblock_from_id( $par_nbid, 1, 1 );
+	my $netblock = $stab->get_netblock_from_id( $par_nbid );
 	if ( !defined($netblock) ) {
 		$stab->error_return(
 "Unable to find/configure parent IP in DB.  Please seek help"

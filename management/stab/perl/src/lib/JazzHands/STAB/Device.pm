@@ -163,15 +163,15 @@ sub device_circuit_tab {
 	# [XXX] want to switch to named bind variables, methinks.
 	#
 	my $limit =
-	  "p.device_id = :1  and	ni.PARENT_NETWORK_INTERFACE_ID is NULL";
+	  "p.device_id = ?  and	ni.PARENT_NETWORK_INTERFACE_ID is NULL";
 	if ($parent) {
-		$limit = "ni.PARENT_NETWORK_INTERFACE_ID = :1";
+		$limit = "ni.PARENT_NETWORK_INTERFACE_ID = ?";
 	}
 
 	# XXX ORACLE/PGSQL issue
 	my $q = qq{
 		select	ni.network_interface_id,
-			ni.name as network_interface_name,
+			ni.network_interface_name,
 			p.physical_port_id,
 			p.port_name,
 			p.port_type,
@@ -196,8 +196,7 @@ sub device_circuit_tab {
 			left join trunk_group tg
 				on tg.trunk_group_id = c.trunk_group_id
 		 where	 $limit
-		   and	ni.network_interface_purpose = 'voice'
-	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(ni.name)
+	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(ni.network_interface_name)
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err;
 
@@ -217,7 +216,7 @@ sub device_circuit_tab {
 		$nitype =~ tr/A-Z/a-z/;
 
 		my $Xsth = $self->prepare(
-"select count(*) from network_interface where parent_network_interface_id = :1"
+"select count(*) from network_interface where parent_network_interface_id = ?"
 		);
 		$Xsth->execute( $hr->{_dbx('NETWORK_INTERFACE_ID')} )
 		  || $self->return_db_err($Xsth);
@@ -331,8 +330,8 @@ sub device_switch_port {
 			q{
 			select  distinct regexp_replace(port_name, '/.*$', '') as port_name
 			 from   physical_port
-			 where   device_id = :1
-			   and   port_type = :2
+			 where   device_id = ?
+			   and   port_type = ?
 	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
 		}
 		);
@@ -434,7 +433,7 @@ sub build_switch_drop_tr {
 	my $pportid   = $hr->{ _dbx('P1_PHYSICAL_PORT_ID') };
 	my $divwrapid = "div_p2_physical_port_id_$pportid";
 
-	my $htmlid = "P1_PHYSICAL_PORT_ID__$pportid";
+	my $htmlid = "P1_PHYSICAL_PORT_ID_$pportid";
 
 	my $pname = $hr->{ _dbx('P1_PORT_NAME') };
 	if($hr->{ _dbx('P1_PHYSICAL_LABEL') }) {
@@ -556,7 +555,7 @@ sub device_power_ports {
 
 		my $powerid   = $hr->{_dbx('P1_POWER_INTERFACE_PORT')};
 		my $divwrapid = "div_p2_power_port_id_$powerid";
-		my $htmlid    = _dbx("P1_POWER_INTERFACE_PORT_$powerid");
+		my $htmlid    = "P1_POWER_INTERFACE_PORT_$powerid";
 
 		$x .= $cgi->Tr(
 			$cgi->td(
@@ -723,7 +722,7 @@ sub build_serial_drop_tr {
 	my $pportid   = $hr->{_dbx('P1_PHYSICAL_PORT_ID')};
 	my $divwrapid = "div_p2_physical_port_id_$pportid";
 
-	my $htmlid = _dbx("P1_PHYSICAL_PORT_ID__$pportid");
+	my $htmlid = "P1_PHYSICAL_PORT_ID_$pportid";
 
 	my $pname = $hr->{_dbx('P1_PORT_NAME')};
 	if($hr->{_dbx('P1_PHYSICAL_LABEL')}) {
@@ -881,7 +880,7 @@ sub device_physical_connection {
 		if ( !defined($row) ) {
 			my $tt = "";
 
-			my $count = $#{@$path};
+			my $count = $#{$path};
 			my $side  = 1;
 			if ($backwards) {
 				$side = 2;
@@ -920,9 +919,9 @@ sub device_physical_connection {
 						-deviceID => $devid,
 						-pportKey => $pportkey,
 						-choosable =>
-						  ( $iter != $#{@$path} ),
+						  ( $iter != $count ),
 						-showAdd =>
-						  ( $iter != $#{@$path} ),
+						  ( $iter != $count ),
 						-showCable => 1,
 						-tableId   => $tableid,
 						-backwards => $backwards,
@@ -1222,7 +1221,8 @@ sub build_physical_port_query {
 	# ORACLE/PGSQL -- regexp_like (o)  vs regexp_matches (p)
 	my $parentq = "";
 	if ($parent) {
-		$parentq .= qq{and regexp_matches(l1.port_name, :3)};
+		# $parentq .= qq{and regexp_matches(l1.port_name, ?)};
+		$parentq .= qq{and l1.port_name ~ ?};
 	}
 
 	# XXX - this needs to be made to just not suck.  The whole P1/P2 stuff
@@ -1234,10 +1234,10 @@ sub build_physical_port_query {
 			l1.device_id				as p1_device_id,
 			l1.port_name				as p1_port_name,
 			l1.port_type				as p1_port_type,
-			l1.port_purpose			as p1_port_purpose,
+			l1.port_purpose				as p1_port_purpose,
 			l1.other_physical_port_id	as p2_physical_port_id,
 			l1.other_device_id			as p2_device_id,
-			d.device_name				as p2_device_name,
+			coalesce(d.device_name, d.physical_label) as p2_device_name,
 			l1.other_port_name			as p2_port_name,
 			l1.other_port_purpose		as p2_port_purpose,
 			l1.baud,
@@ -1273,21 +1273,21 @@ sub build_physical_port_conn_query {
 				p2.port_name	as d2_port_name
 			  from  physical_port pcore
 				left join physical_connection pc1
-					on pc1.physical_port_id1 = pcore.physical_port_id
+					on pc1.physical_port1_id = pcore.physical_port_id
 				left join physical_port p1
-					on p1.physical_port_id = pc1.physical_port_id2
+					on p1.physical_port_id = pc1.physical_port2_id
 				left join device d1
 					on p1.device_id = d1.device_id
 				left join physical_connection pc2
-					on pc2.physical_port_id2 = pcore.physical_port_id
+					on pc2.physical_port2_id = pcore.physical_port_id
 				left join physical_port p2
-					ON p2.physical_port_id = pc2.physical_port_id1
+					ON p2.physical_port_id = pc2.physical_port1_id
 				left join device d2
 					on p2.device_id = d2.device_id
 			where
-				pcore.device_id = :1
+				pcore.device_id = ?
 			AND
-				pcore.port_type = :2
+				pcore.port_type = ?
 			order by NETWORK_STRINGS.NUMERIC_INTERFACE(patch_name)
 	};
 
@@ -1346,15 +1346,15 @@ sub physicalport_otherend_device_magic {
 	}
 
 	#
-	# need to effing clean this up.
+	# XXX need to effing clean this up.
 	#
 	my $sidestuff = '';
 	if ( $what eq '' ) {
 		$sidestuff = ", $side";
 	}
 
-	my $pdid  = _dbx("${prefix}P${side}_DEVICE_ID_" . $pportid);
-	my $pdnam = _dbx("${prefix}P${side}_DEVICE_NAME_" . $pportid);
+	my $pdid  = "${prefix}P${side}_DEVICE_ID_" . $pportid;
+	my $pdnam = "${prefix}P${side}_DEVICE_NAME_" . $pportid;
 	my $rv    = $cgi->hidden(
 		{
 			-name    => $pdid,
@@ -1533,7 +1533,7 @@ sub dump_device_route {
 				net_manip.inet_dbtop(snb.ip_address) as route_src_ip,
 				snb.netmask_bits as route_src_netmask_bits,
 				ddev.device_name as dest_device_name,
-				dni.name as dest_interface_name,
+				dni.network_interface_name as dest_interface_name,
 				dni.network_interface_id,
 				net_manip.inet_dbtop(dnb.ip_address) as route_dest_ip
 		   from	static_route sr
@@ -1546,7 +1546,7 @@ sub dump_device_route {
 					on ddev.device_id = dni.device_id
 				left join netblock dnb
 					on dni.netblock_id = dnb.netblock_id
-		 where	sr.device_src_id = :1
+		 where	sr.device_src_id = ?
 	}
 	);
 
@@ -1651,7 +1651,7 @@ sub get_device_netblock_routes {
 			snb.netmask_bits as source_block_bits,
 			ni.netblock_id as destination_netblock_id,
 			net_manip.inet_dbtop(dnb.ip_address) as destination_ip,
-			dni.name as interface_name,
+			dni.network_interface_name,
 			dni.network_interface_id,
 			ddev.device_name,
 			srt.DESCRIPTION
@@ -1673,7 +1673,7 @@ sub get_device_netblock_routes {
 				on dni.device_id = ddev.device_Id
 		where
 			tnb.netmask_bits = rnb.netmask_bits
-		  and   ni.device_id = :1
+		  and   ni.device_id = ?
 	}
 	);
 
@@ -1704,7 +1704,7 @@ sub get_device_netblock_routes {
 				$cgi->td( $hr->{_dbx('DESTINATION_IP')} ),
 				$cgi->td(
 					$hr->{_dbx('DEVICE_NAME')}, ":",
-					$hr->{_dbx('INTERFACE_NAME')}
+					$hr->{_dbx('NETWORK_INTERFACE_NAME')}
 				)
 			);
 		}
@@ -1741,7 +1741,7 @@ sub dump_interfaces {
 			$cgi->img( { -src => "../stabcons/expand.jpg" } ) );
 	}
 
-	$collapse = 'no';    # [XXX] need to figure out how to do the
+	$collapse = 'yes';    # [XXX] need to figure out how to do the
 	$img      = '';      # [XXX] collapsing better w/ the tabs!
 
 	my $rv =
@@ -1750,51 +1750,49 @@ sub dump_interfaces {
 	my $lastid;
 	my $q = qq{
 		select	ni.network_interface_id,
-			ni.name as interface_name,
+			ni.network_interface_name,
 			ni.network_interface_type,
 			ni.is_interface_up,
 			ni.mac_addr,
-			ni.network_interface_purpose,
-			ni.is_primary,
-			ni.should_monitor,
 			ni.provides_nat,
 			ni.should_manage,
-			ni.is_management_interface,
+			ni.should_monitor,
+			ni.provides_dhcp,
+			ni.description,
 			net_manip.inet_dbtop(nb.ip_address) as IP,
 			dns.dns_record_id,
 			dns.dns_name,
 			dns.dns_domain_id,
+			dom.soa_name,
 			net_manip.inet_dbtop(pnb.ip_address) as parent_IP,
 			nb.parent_netblock_id
 		  from	network_interface ni
-			left join netblock nb on
-				nb.netblock_id = ni.netblock_id
-			left join dns_record dns on
-				dns.netblock_id = nb.netblock_id
+			left join netblock nb using (netblock_id)
+			left join dns_record dns using (netblock_id)
+			left join dns_domain dom using (dns_domain_id)
 			left join netblock pnb on
 				nb.parent_netblock_id = pnb.netblock_id
 		where ni.device_id = ?
-		order by ni.name, ni.network_interface_id,
+		order by ni.network_interface_name, ni.network_interface_id,
 			dns.should_generate_ptr desc
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute($devid) || $self->return_db_err($sth);
 
+
 	while ( my ($values) = $sth->fetchrow_hashref ) {
 		last if ( !defined($values) );
 
-		$values->{_dbx('MAC_ADDR')} =
-		  mac_int_to_text( $values->{_dbx('MAC_ADDR')} );
-
-		# these are handled later, so skip now.
+		# XXX: These need to be handled!
 		next
 		  if (     $lastid
 			&& $lastid == $values->{_dbx('NETWORK_INTERFACE_ID')} );
 		if ( $collapse eq 'yes' ) {
 			$rv .= $self->build_collapsed_if_box( $values, $devid );
-			$rv .=
-			  $self->build_secondary_collapsed( $values, $devid );
+			# XXX need to kill secondary interfaces everywhere!
+			#$rv .=
+			#  $self->build_secondary_collapsed( $values, $devid );
 		} else {
 			$rv .= $self->build_interface_box( $values, $devid );
 		}
@@ -1802,12 +1800,17 @@ sub dump_interfaces {
 	}
 
 	if ( $collapse eq 'yes' ) {
+		my $collist = [ 'Del', 'Name', 'IP', 'DNS', 'Type', 'More'];
 		$rv =
-		  $cgi->table(
-			$cgi->th( [ 'Int', 'IP', 'DNS', 'Domain' ] ) . $rv );
+		  $cgi->table({-class => 'interfacetable'},
+			$cgi->th( $collist ), $rv,
+				$cgi->Tr({-class => 'intableheader'},
+					$cgi->td({-colspan=> $#{$collist} + 1}, 
+					"Add Interface")),
+				$self->build_collapsed_if_box( undef, $devid ));
+	} else {
+		$rv .= $self->build_interface_box( undef, $devid );
 	}
-
-	$rv .= $self->build_interface_box( undef, $devid );
 
 	$sth->finish;
 	$rv .= "\n";
@@ -1829,6 +1832,7 @@ sub build_secondary_collapsed {
 					net_manip.inet_dbtop(nb.ip_address) as IP,
 					snb.mac_addr,
 					-- XXX to_char(snb.mac_addr, 'XXXXXXXXXXXX') as mac_addr,
+					dns.dns_record_id,
 					dns.dns_name,
 					dns.dns_domain_id
 			 from	secondary_netblock snb
@@ -1837,7 +1841,7 @@ sub build_secondary_collapsed {
 						on dns.netblock_id = snb.netblock_id
 					left join dns_domain dom
 						on dom.dns_domain_id = dns.dns_domain_id
-			where	snb.network_interface_id = :1
+			where	snb.network_interface_id = ?
 		};
 		my $sth = $self->prepare($q) || $self->return_db_err($dbh);
 		$sth->execute( $netint->{_dbx('NETWORK_INTERFACE_ID')} )
@@ -1859,11 +1863,19 @@ sub build_collapsed_if_box {
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	return undef if ( !defined($values) );
+	my $defchecked = undef;
 
 	my $action_url = "write/update_interface.pl";
 	my $hidden     = "";
+	my $showxtraclass = "irrelevant";
+
+	my $rowitems = {};
+
+	my $delbox = "";
+
 	if ( !defined($values) ) {
+		$rowitems->{'class'} = "intadd";
+		$defchecked = 'on';
 		$action_url = "write/add_interface.pl";
 		$hidden     = $cgi->hidden(
 			-name    => 'DEVICE_ID',
@@ -1871,33 +1883,84 @@ sub build_collapsed_if_box {
 		);
 	} else {
 		$hidden = $cgi->hidden(
+			-class => 'recordid',
 			-name => 'NETWORK_INTERFACE_ID_'
 			  . $values->{_dbx('NETWORK_INTERFACE_ID')},
 			-id => 'NETWORK_INTERFACE_ID_'
 			  . $values->{_dbx('NETWORK_INTERFACE_ID')},
 			-default => $values->{_dbx('NETWORK_INTERFACE_ID')}
 		);
+		$delbox = $self->build_checkbox($values, "", 
+			"rm_NETWORK_INTERFACE", 'NETWORK_INTERFACE_ID');
 	}
 
 	$self->textfield_sizing(undef);
 
-	my $intname =
-	  ( defined( $values->{_dbx('INTERFACE_NAME')} ) )
-	  ? $values->{_dbx('INTERFACE_NAME')}
-	  : "";
 
 	my $pk = "NETWORK_INTERFACE_ID";
+	my $intname =
+		$self->b_textfield( $values, 'NETWORK_INTERFACE_NAME', $pk);
+
 	if ( defined( $values->{_dbx('SECONDARY_NETBLOCK_ID')} ) ) {
 		my @pk = ( 'NETWORK_INTERFACE_ID', 'SECONDARY_NETBLOCK_ID' );
 		$pk = \@pk;
 	}
 
-	my $rv = $cgi->Tr(
-		$cgi->td( $hidden, $intname ),
+	my $dns = "";
+	if($values && $values->{ _dbx('DNS_RECORD_ID') } ) {
+		my $dot = "";
+		if($values->{ _dbx('DNS_NAME')} ) {
+			$dot = ".";
+		} 
+		$dns = $cgi->a({ -class => 'intdns',
+			-target => "dns_domain_id". $values->{ _dbx('DNS_DOMAIN_ID') },
+			-href => '../dns/?dnsdomainid='.$values->{ _dbx('DNS_DOMAIN_ID') },
+			}, 
+				$values->{ _dbx('DNS_NAME') }.$dot.$values->{ _dbx('SOA_NAME') },
+			).
+			$cgi->img({-src=> "../stabcons/e.gif", 
+				-alt=>"Edit", 
+				-title=>'Edit',
+				-class=>'intdnsedit',
+			}),
+	} else {
+		$dns =
+			$self->b_textfield( $values, "DNS_NAME", $pk ).
+			$self->b_dropdown( $values, "DNS_DOMAIN_ID", $pk );
+	}
+
+	# Build a table for Extras
+	my $xbox = 
+		$cgi->table({-class=> "intmoretable $showxtraclass"}, 
+		  	$self->build_tr( {}, $values, "b_textfield", "Description",
+				'DESCRIPTION', 'NETWORK_INTERFACE_ID' ),
+			$cgi->Tr($cgi->td($self->build_checkbox( $values, "Up", 
+				'IS_INTERFACE_UP', 'NETWORK_INTERFACE_ID', $defchecked))),
+			$cgi->Tr($cgi->td($self->build_checkbox( $values, "Should Manage",
+				'SHOULD_MANAGE', 'NETWORK_INTERFACE_ID', $defchecked ))),
+			$cgi->Tr($cgi->td($self->build_checkbox( $values, "Should Monitor",
+				'SHOULD_MONITOR', 'NETWORK_INTERFACE_ID', $defchecked ))),
+			$cgi->Tr($cgi->td($self->build_checkbox( $values, "NATing", 
+				'PROVIDES_NAT', 'NETWORK_INTERFACE_ID' ))),
+			$cgi->Tr($cgi->td($self->build_checkbox( $values, "DHCP",
+				'PROVIDES_DHCP', 'NETWORK_INTERFACE_ID'))),
+			(length($delbox))?
+				$cgi->Tr($cgi->td($self->build_checkbox( $values, 
+					"Do Not Free IPs on Removal",
+					'rm_NET_INT_preserveips', 'NETWORK_INTERFACE_ID')))
+				:"",
+		);
+
+	# Make the extras something that can be clicked on and expanded
+	$xbox = $cgi->a({-href=>'#', -class => 'showmore'}, "More"). $xbox;
+
+	my $rv = $cgi->Tr( $rowitems,
+		$cgi->td( $hidden, $delbox),
+		$cgi->td( $intname ),
 		$cgi->td( $self->b_textfield( $values, "IP",       $pk ) ),
-		$cgi->td( $self->b_textfield( $values, "DNS_NAME", $pk ) ),
-		$cgi->td( $self->b_dropdown( $values, "DNS_DOMAIN_ID", $pk ) ),
-		$cgi->td( $cgi->submit("Change") ),
+		$cgi->td( $dns),
+		$cgi->td( $self->b_dropdown($values, 'NETWORK_INTERFACE_TYPE', $pk) ),
+		$cgi->td( $xbox ),
 	);
 	$self->textfield_sizing(1);
 	$rv;
@@ -1909,16 +1972,10 @@ sub build_interface_box {
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $defchecked = undef;
-	$defchecked = 'on' if ( !defined($values) );
+	my $defchecked = 'on';
 
 	my $xbox = $self->build_checkbox( $values, "Up", 'IS_INTERFACE_UP',
 		'NETWORK_INTERFACE_ID', $defchecked );
-	$xbox .=
-	  $self->build_checkbox( $values, "Mgmt IP", 'IS_MANAGEMENT_INTERFACE',
-		'NETWORK_INTERFACE_ID' );
-	$xbox .= $self->build_checkbox( $values, "Primary", 'IS_PRIMARY',
-		'NETWORK_INTERFACE_ID' );
 	$xbox .= $self->build_checkbox( $values, "NATing", 'PROVIDES_NAT',
 		'NETWORK_INTERFACE_ID' );
 	$xbox .= $self->build_checkbox( $values, "Should Manage",
@@ -1992,13 +2049,13 @@ sub build_interface_box {
 	if ( defined($values) ) {
 		$ltd .=
 		  $self->build_tr( {}, $values, "b_textfield", "Iface",
-			'INTERFACE_NAME', 'NETWORK_INTERFACE_ID' );
+			'NETWORK_INTERFACE_NAME', 'NETWORK_INTERFACE_ID' );
 
-# $ltd .= $cgi->hidden('INTERFACE_NAME_'.$values->{_dbx('NETWORK_INTERFACE_ID')}, $values->{_dbx('INTERFACE_NAME')});
+# $ltd .= $cgi->hidden('NETWORK_INTERFACE_NAME_'.$values->{_dbx('NETWORK_INTERFACE_ID')}, $values->{_dbx('NETWORK_INTERFACE_NAME')});
 	} else {
 		$ltd .=
 		  $self->build_tr( {}, $values, "b_textfield", "Iface",
-			'INTERFACE_NAME', 'NETWORK_INTERFACE_ID' );
+			'NETWORK_INTERFACE_NAME', 'NETWORK_INTERFACE_ID' );
 	}
 	$ltd .= $self->build_tr( $values, "b_textfield", "MAC", 'MAC_ADDR',
 		'NETWORK_INTERFACE_ID' );
@@ -2020,8 +2077,6 @@ sub build_interface_box {
 	$self->textfield_sizing(1);
 	$ltd .= $self->build_tr( $values, "b_dropdown", "Type",
 		'NETWORK_INTERFACE_TYPE', 'NETWORK_INTERFACE_ID' );
-	$ltd .= $self->build_tr( $values, "b_dropdown", "Purpose",
-		'NETWORK_INTERFACE_PURPOSE', 'NETWORK_INTERFACE_ID' );
 
 	if ( defined($values) ) {
 		my $dns = build_dns_rr_table( $self, $values );
@@ -2251,21 +2306,7 @@ sub build_secondary_netblocks_table {
 		  $values->{_dbx('NETWORK_INTERFACE_ID')};
 	}
 
-	$rv .= $cgi->Tr(
-		$cgi->td(
-			{
-				-align => 'center',
-				-style => 'background: lightgrey'
-			},
-			"Add SecondaryIPs"
-		)
-	);
-	$rv .= $self->build_secondary_netblock_Tr( \%novals, \@keyfields );
-
 	$rv = $cgi->table( { -border => 1 }, $rv );
-	$rv = $cgi->div( { -align => 'center' },
-		$cgi->b('Subinterfaces/VRRP (not aliases like eth0:0)') )
-	  . $rv;
 
 	undef %novals;
 	$rv;

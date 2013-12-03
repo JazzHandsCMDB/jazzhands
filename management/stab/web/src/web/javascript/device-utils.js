@@ -147,6 +147,8 @@ function ShowDevTab(what,devid) {
 				obj.style.textAlign = '';
 				obj.style.padding = '';
 				obj.innerHTML = htmlgoo;
+
+				RefreshAfterTabs();
 			}
 		}
 		ajaxrequest.send(null);
@@ -1096,10 +1098,69 @@ function add_License(thing, parent_tr_id, devid)
 	}
 }
 
+//
+// replaces the name.domain link with a textbox and drop down for dns
+// suitable for changing.  Name and domain will match the link so submits
+// will not change anything; this is just to not make devices with many
+// interfaces not have giant pages.
+//
+function replace_int_dns_drop (td, resp)
+{
+	$(td).empty();
+	var name = $("<input />", resp['DNS_NAME']);
+	var s = $("<select />", resp['DNS_DOMAIN']);
+
+	for(var field in resp['domains']['options']) {
+		var o = $("<option/>",resp['domains']['options'][field]);
+		$(s).append(o);
+	}
+	$(td).append(name);
+	$(td).append(s);
+	$(name).focus();
+}
+
 // jQuery magic!
 $(document).ready(function(){
 	// this causes the EDIT button to show up where needed
 	$("table").on('click', ".stabeditbutton", function(event) {
 		toggleon_text(event.target);
 	});
+
 });
+
+//
+// This is called after any device tab is rendered fresh (additional clicks
+// on the tap will not call it
+//
+function RefreshAfterTabs() {
+	// When the more button is clicked on, find the table underneath
+	// and toggle if its shown or not
+	$("a.showmore").on('click', function(event) {
+		var t = $(this).closest("td").find("table.intmoretable");
+		if(t) {
+			if ($(t).hasClass('irrelevant') ){
+				$(t).removeClass('irrelevant');
+			} else {
+				$(t).addClass('irrelevant');
+			}
+		} else {
+			alert('Can not find "More" table');
+		}
+	});
+
+	$("table.interfacetable").on('click', 'img.intdnsedit', function(event) {
+		var td = $(this).closest("td");
+		var id = $(this).closest("tr").find('.recordid').val();
+		if( $(td).is("td") && id) {
+			$.getJSON('device-ajax.pl',
+				'json=yes;type=service;what=interfacedns;NETWORK_INTERFACE_ID='+ id,
+				function (resp) {
+					replace_int_dns_drop (td, resp);
+				}
+			);
+		} else {
+			alert("Nonsensical lookup of recordid");
+		}
+		return(0);
+	});
+}
