@@ -846,24 +846,6 @@ ALTER TABLE device_power_connection
 
 -- DEAL WITH device_power_connection SEQUENCE
 --------------------------------------------------------------------
-
---------------------------------------------------------------------
--- DEAL WITH DEVICE_NOTE SEQUENCE
-create sequence note_id_seq;
-
-alter table device_note alter column note_id set default nextval('note_id_seq');
-alter table person_note alter column note_id set default nextval('note_id_seq');
-
--- DONE: DEAL WITH DEVICE_NOTE SEQUENCE
---------------------------------------------------------------------
-
--- random
-DROP INDEX IF EXISTS netblock_case_idx;
-CREATE INDEX netblock_case_idx ON netblock USING btree ((
-CASE
-WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
-
-
 --------------------------------------------------------------------
 -- DEAL WITH DEVICE_NOTE SEQUENCE
 create sequence note_id_seq;
