@@ -1802,10 +1802,9 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 sub get_dns_a_record_for_ptr {
 	my ( $self, $ip ) = @_;
 
-	# NOTE:  This crosses netblock types!
 	# NOTE: need to reconsider ip universes
 	my (@errs);
-	my $nblk = $self->DBFetch(
+	my $rows = $self->DBFetch(
 		table => 'netblock',
 		match => {
 			'host(ip_address)'  => $ip,
@@ -1813,9 +1812,14 @@ sub get_dns_a_record_for_ptr {
 			'ip_universe_id'    => 0,
 			'host(ip_address)'  => $ip
 		},
-		result_set_size => 'first',
 		errors          => \@errs
 	);
+	my $nblk = undef;
+	foreach my $n (@$rows) {
+		next if ($n->{netblock_type} !~ /^(dns|default)$/);
+		$nblk = $n;
+		last;
+	}
 	return undef if !$nblk;
 
 	my $dns = $self->DBFetch(
@@ -1824,13 +1828,11 @@ sub get_dns_a_record_for_ptr {
 			netblock_id         => $nblk->{netblock_id},
 			should_generate_ptr => 'Y',
 		},
-		result_set_size => 'first',
 		errors          => \@errs
 	);
 	return undef if !$dns;
 
-	return $dns->{dns_record_id};
-
+	return $dns->[0]->{dns_record_id};
 }
 
 sub process_and_insert_dns_record {
@@ -1853,27 +1855,30 @@ sub process_and_insert_dns_record {
 			);
 		}
 
-      # now figure out what to do if ptr is set.  If it is set, then we
-      # unconditionally make other records not have the PTR.
-      # If it is not set, we set it for the user if the IP address is showing up
-      # for the firs time
-		if ( defined( $opts->{ _dbx('SHOULD_GENERATE_PTR') } )
-			&& $opts->{ _dbx('SHOULD_GENERATE_PTR') } eq 'Y' )
+		# now figure out what to do if ptr is set.  If it is set, 
+		# then we unconditionally make other records not have the PTR.
+		# If it is not set, we set it for the user if the IP address
+		# is showing up for the first time
+
+		if ( exists( $opts->{ 'should_generate_ptr'} )
+			&& $opts->{ 'should_generate_ptr' } eq 'Y' )
 		{
-	      # set all other dns_records but this one to have ptr = 'N'
-	      # more than one should never happen, btu this is a while loop just
-	      # in case.
+	        	# set all other dns_records but this one to have 
+			# ptr = 'N'. More than one should never happen, but 
+			# this is a while loop just in case.
 			while (
 				my $recid = $self->get_dns_a_record_for_ptr(
 					$opts->{dns_value}
 				)
 			  )
 			{
+				warn "++ running update on $recid\n";
 				$self->run_update_from_hash( "DNS_RECORD",
 					"DNS_RECORD_ID", $recid,
 					{ should_generate_ptr => 'N' } );
 			}
 		} else {
+			warn "++ checking for other prts", Dumper($opts);
 			if (
 				!$self->get_dns_a_record_for_ptr(
 					$opts->{dns_value}
