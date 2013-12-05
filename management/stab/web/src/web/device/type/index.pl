@@ -306,7 +306,7 @@ sub device_type_power_form {
 					$hdrparam,
 					$cgi->submit('Add'),
 					$cgi->caption(
-"Vendor, Model and Rack Units are Required.  To add vendors, contact jazzhands\@example.com"
+"Vendor, Model and Rack Units are Required.  To add vendors, contact ", $stab->support_email, "\n"
 					)
 				)
 			),

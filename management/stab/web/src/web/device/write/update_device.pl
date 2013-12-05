@@ -337,15 +337,15 @@ sub do_update_device {
 	$numchanges += $tally;
 
 	if($resyncpower) {
-		$numchanges += $stab->resync_device_power($newdevice);
+		$numchanges += $stab->resync_device_power(_dbx($newdevice));
 	}
 
 	if($resyncserial) {
-		$numchanges += $stab->resync_physical_ports($newdevice, 'serial');
+		$numchanges += $stab->resync_physical_ports(_dbx($newdevice), 'serial');
 	}
 
 	if($resyncswitch) {
-		$numchanges += $stab->resync_physical_ports($newdevice, 'network');
+		$numchanges += $stab->resync_physical_ports(_dbx($newdevice), 'network');
 	}
 
 	if($numchanges == 0) {
@@ -525,9 +525,6 @@ sub update_location {
 		INTER_DEVICE_OFFSET => $interoff,
 	);
 	my $newloc = \%newloc;
-
-	# umm, don't think I want to do this.
-	# $newloc = $stab->fake_unset_location($newloc);
 
 	#
 	# no location previously existed, lets set a new one!
@@ -860,8 +857,6 @@ sub delete_interface {
 			$nbsth->fetchrow_array;
 	$nbsth->finish;
 
-	#- delete_secondary_interfaces($stab, $netintid, $ipdisposition);
-
 	if($netintid) {
 		my $q = qq{
 			delete	from network_interface
@@ -871,94 +866,18 @@ sub delete_interface {
 		$sth->execute($netintid) || $stab->return_db_err($sth, "netintid: $netintid");
 	}
 
-	# we don't want to do this anymore since there are often switchport
-	# connections that will need to persist regardless of if an interface
-	# exists.  Virtual interfaces (eth0:1, etc) also need to be dealt with
-	# better here...
-	#if($ppid) {
-	#	my $q = qq{
-	#		delete	from physical_port
-	#		  where	physical_port_id = ?
-	#	};
-	#	my $sth = $stab->prepare($q) || $stab->return_db_err;
-	#	$sth->execute($ppid) || $stab->return_db_err($sth);
-	#}
-
 	if(!$nblkid) {
 		$stab->commit || $stab->error_return;
 		return 1;
 	}
 
-	delete_netblock($stab, $nblkid, $nbdesc, $ipdisposition);
+	local_delete_netblock($stab, $nblkid, $nbdesc, $ipdisposition);
 
 	$stab->commit || $stab->error_return;
 	1;
 }
 
-sub delete_secondary_interfaces {
-	my($stab, $netintid, $ipdisposition) = @_;
-
-	my $numchanges = 0;
-
-	my $deleteq = qq{
-		delete from secondary_netblock
-		  where	secondary_netblock_id = ?
-	};
-	my $delsth = $stab->prepare($deleteq) || $stab->return_db_err;
-
-	my $q = qq{
-		select	secondary_netblock_id, description, netblock_id
-		  from	secondary_netblock
-		 where	network_interface_id = ?
-	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err;
-	$sth->execute($netintid) || $stab->return_db_err($sth);
-
-	while(my($snbid, $descr, $nbid) = $sth->fetchrow_array) {
-		$delsth->execute($snbid)  || $stab->return_db_err($delsth);
-		$delsth->finish;
-		delete_netblock($stab, $nbid, $descr, $ipdisposition);
-		$numchanges++;
-	}
-	$sth->finish;
-	$numchanges;
-}
-
-
-#
-# This is almost identical to delete_secondary_interfaces, just one line
-# change.  They should probably be rolled together, though, or something.
-#
-sub delete_secondary_interface {
-	my($stab, $secintid, $ipdisposition) = @_;
-
-	my $numchanges = 0;
-
-	my $deleteq = qq{
-		delete from secondary_netblock
-		  where	secondary_netblock_id = ?
-	};
-	my $delsth = $stab->prepare($deleteq) || $stab->return_db_err;
-
-	my $q = qq{
-		select	secondary_netblock_id, description, netblock_id
-		  from	secondary_netblock
-		 where	secondary_netblock_id = ?
-	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err;
-	$sth->execute($secintid) || $stab->return_db_err($sth);
-
-	while(my($snbid, $descr, $nbid) = $sth->fetchrow_array) {
-		$delsth->execute($snbid)  || $stab->return_db_err($delsth);
-		$delsth->finish;
-		delete_netblock($stab, $nbid, $descr, $ipdisposition);
-		$numchanges++;
-	}
-	$sth->finish;
-	$numchanges;
-}
-
-sub delete_netblock {
+sub local_delete_netblock {
 	my($stab, $nblkid, $nbdesc, $ipdisposition) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
@@ -1194,7 +1113,9 @@ sub update_power_port {
 	$sth->bind_param(':dev2', $otherdev ) || $stab->return_db_err($stab);
 	$sth->bind_param(':port2', $otherport ) || $stab->return_db_err($stab);
 
-	my $numchanges = ( $sth->fetchrow_array) [ 0 ];
+	#- $numchanges += ( $sth->fetchrow_array) [ 0 ];
+	# this function does not return anything.   it should.  XXX
+	$numchanges += 1;
 
 	$sth->execute || $stab->return_db_err($stab);;
 	$numchanges;
@@ -1218,7 +1139,6 @@ sub update_physical_ports {
 		$numchanges += update_physical_connection($stab, $pportid);
 	}
 
-warn "+++ about to consider...";
 	for my $pportid ($stab->cgi_get_ids('P1_PHYSICAL_PORT_ID')) {
 		$numchanges += update_physical_port($stab, $pportid, $serial_reset);
 	}
@@ -1228,7 +1148,6 @@ warn "+++ about to consider...";
 sub update_physical_port {
 	my($stab, $pportid, $serial_reset) = @_;
 
-warn "+++ updating physical ports $pportid";
 
 	my $p2devid = $stab->cgi_parse_param('P2_DEVICE_ID', $pportid);
 	my $p2portid = $stab->cgi_parse_param('P2_PHYSICAL_PORT_ID', $pportid);
@@ -1252,10 +1171,8 @@ warn "+++ updating physical ports $pportid";
 
 	my $numchanges = 0;
 
-warn " +++ $p2devid";
 	if(!$p2devid) {
 		my $l1c = $stab->get_layer1_connection_from_port($pportid);
-warn " +++ $l1c";
 		return 0 if(!$l1c);
 
 		#
@@ -1290,7 +1207,6 @@ warn " +++ $l1c";
 	my $l1c = $stab->get_layer1_connection_from_port($pportid);
 	my $path = $stab->get_physical_path_from_l1conn($l1c->{_dbx('LAYER1_CONNECTION_ID')});
 
-warn "+++ connecting ";
 	# XXX oracle/pgsqlism
 	my $q = qq{
 		SELECT port_utils.configure_layer1_connect(
@@ -1316,7 +1232,7 @@ warn "+++ connecting ";
 	$sth->bind_param(':flw_cntrl', $flow ) || $stab->return_db_err($sth);
 
 	$sth->execute || $stab->return_db_err($sth);;
-	my ($numchanges) = ($sth->fetchrow_array)[0];
+	$numchanges += ($sth->fetchrow_array)[0];
 	$numchanges += $tally;
 
 	#
@@ -1874,9 +1790,6 @@ sub update_interface {
 		}
 	}
 
-	# XXX -- remove secondary interfaces!
-	#- $numchanges += process_all_secondary_int_updates($stab, $old_int);
-
 	$numchanges;
 }
 
@@ -2405,8 +2318,6 @@ sub delete_device_secondary_interfaces {
 sub delete_device_interfaces {
 	my($stab, $devid) = @_;
 
-	delete_device_secondary_interfaces($stab, $devid);
-
 	my(@netblocks);
 	my $nbq = qq{
 		select	netblock_id from network_interface
@@ -2433,7 +2344,7 @@ sub delete_device_interfaces {
 
 	foreach my $q (@qs) {
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
-		$sth->execute($devid, $devid) || $stab->return_db_err($sth);
+		$sth->execute($devid) || $stab->return_db_err($sth);
 	}
 
 	foreach my $nbid (@netblocks) {
@@ -2497,7 +2408,7 @@ sub retire_device {
 	delete_device_power($stab, $devid);
 
 	my(@removeqs) = (
-		"begin device_utils.retire_device_ancillary(?); end;",
+		"SELECT device_utils.retire_device_ancillary(?);",
 	);
 
 	my $devtoo = 0;
@@ -2505,7 +2416,7 @@ sub retire_device {
 		push(@removeqs, "delete from device where device_id = ?");
 		$devtoo = 1;
 	} else {
-		push(@removeqs, "update device set device_name = NULL, production_state = 'unallocated', status = 'removed', voe_symbolic_track_id = NULL where device_id = ?");
+		push(@removeqs, "update device set device_name = NULL, service_environment = 'unallocated', device_status = 'removed', voe_symbolic_track_id = NULL where device_id = ?");
 	}
 
 	foreach my $q (@removeqs) {

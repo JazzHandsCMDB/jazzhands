@@ -729,7 +729,7 @@ sub get_switchport {
 	my $retbuf="";
 
 	return("?");
-#		AND	d1.device_name='s63.kewr0.m.example.com'
+#		AND	d1.device_name='nameserver.example.com'
 	my($sql)=qq{
 		SELECT	d1.device_name,
          		p1.port_name,

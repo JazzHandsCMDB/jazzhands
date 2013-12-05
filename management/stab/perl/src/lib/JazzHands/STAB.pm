@@ -132,6 +132,15 @@ sub cgi {
 }
 
 #
+# fetch support email
+#
+sub support_email {
+	my $self = shift @_;
+	my $email = $self->fetch_property('Defaults', '_supportemail');
+	$email || '-- email support address not set --';
+}
+
+#
 # handles dealing with java script, standard favorite icon, other things
 # that are consistant across all apps.
 #

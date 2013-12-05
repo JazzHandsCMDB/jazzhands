@@ -338,8 +338,9 @@ sub build_page {
 
 	my $bottomTr = "";
 	if ( !defined($device) ) {
-		my $approleboxes = $cgi->div({-class => 'approle'},
-			$stab->device_appgroup_tab());
+		#my $approleboxes = $cgi->div({-class => 'approle'},
+		#	$stab->device_appgroup_tab());
+		my $approleboxes = "";
 		$bottomTr =
 		  $cgi->Tr( { -align => 'center;' }, $cgi->td($approleboxes) ),
 		  undef $approleboxes;

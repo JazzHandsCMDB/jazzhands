@@ -34,8 +34,9 @@ my $cgi  = $stab->cgi          || die "no cgi!";
 print $cgi->header( { -type => 'text/html' } ), "\n";
 print $stab->start_html('STAB: System Tools for Administrative Baselining');
 
-my $mailto = $cgi->a( { -href => 'mailto:jazzhands@example.com' },
-	'jazzhands@example.com' );
+my $email = $stab->support_email();
+
+my $mailto = $cgi->a( { -href => $email }, $email );
 
 print qq{
 	STAB is a web front-end to JazzHands.
@@ -63,17 +64,17 @@ print $cgi->ul(
 #			)
 #		),
 	),
-#	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
-#	  . "\n",
-#	$cgi->li([
-#		$cgi->a(
-#			{ -href => "device/type/" }, "Device Type Management"
-#		),
+	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
+	  . "\n",
+	$cgi->li([
+		$cgi->a(
+			{ -href => "device/type/" }, "Device Type Management"
+		),
 #		$cgi->a(
 #			{ -href => "device/apps/" }, "Application Management"
 #		),
-#	  ])
-#	  . "\n",
+	  ])
+	  . "\n",
 	$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
 	  . "\n",
 	$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
@@ -84,9 +85,9 @@ print $cgi->ul(
 				"IP Space Management by Site"
 			)
 		),
-#		$cgi->li(
-#			$cgi->a( { -href => "sites/racks/" }, "Racks by Site" )
-#		)
+		$cgi->li(
+			$cgi->a( { -href => "sites/racks/" }, "Racks by Site" )
+		)
 	),
 #	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) . 
 	"\n",

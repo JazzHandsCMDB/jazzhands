@@ -127,7 +127,7 @@ sub check_for_devices {
 
 	my $lsite = $site;
 	$lsite =~ tr/A-Z/a-z/;
-	$sth->execute( $site, "^.*$site\.[sm]\.example.com" )
+	$sth->execute( $site, "^.*$site\.example.com" )
 	  || $stab->return_db_err($sth);
 	my ($rv) = $sth->fetchrow_array;
 	$sth->finish;

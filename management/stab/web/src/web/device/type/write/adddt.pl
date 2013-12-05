@@ -29,6 +29,7 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
+use JazzHands::Common qw(_dbx);
 use URI;
 
 do_device_type_add();
@@ -37,129 +38,140 @@ do_device_type_add();
 
 sub do_device_type_add {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
 	my $numchanges = 0;
 
 	my $devtypid;
 
 	my $pwrcount = $stab->cgi_parse_param('POWER_INTERFACE_PORT_COUNT');
+
 	# physical portage is handled later
 
-	my $compid = $stab->cgi_parse_param('COMPANY_ID', $devtypid);
-	my $arch = $stab->cgi_parse_param('PROCESSOR_ARCHITECTURE', $devtypid);
-	my $model = $stab->cgi_parse_param('MODEL', $devtypid);
-	my $descr = $stab->cgi_parse_param('DESCRIPTION', $devtypid);
-	my $cfgfetch = $stab->cgi_parse_param('CONFIG_FETCH_TYPE', $devtypid);
-	my $racku = $stab->cgi_parse_param('RACK_UNITS', $devtypid);
-	my $cansnmp = $stab->cgi_parse_param('chk_SNMP_CAPABLE', $devtypid);
-	my $has8023 = $stab->cgi_parse_param('chk_HAS_802_3_INTERFACE', $devtypid);
-	my $has80211 = $stab->cgi_parse_param('chk_HAS_802_11_INTERFACE', $devtypid);
+	my $compid = $stab->cgi_parse_param( 'COMPANY_ID', $devtypid );
+	my $arch =
+	  $stab->cgi_parse_param( 'PROCESSOR_ARCHITECTURE', $devtypid );
+	my $model    = $stab->cgi_parse_param( 'MODEL',             $devtypid );
+	my $descr    = $stab->cgi_parse_param( 'DESCRIPTION',       $devtypid );
+	my $cfgfetch = $stab->cgi_parse_param( 'CONFIG_FETCH_TYPE', $devtypid );
+	my $racku    = $stab->cgi_parse_param( 'RACK_UNITS',        $devtypid );
+	my $cansnmp  = $stab->cgi_parse_param( 'chk_SNMP_CAPABLE',  $devtypid );
+	my $has8023 =
+	  $stab->cgi_parse_param( 'chk_HAS_802_3_INTERFACE', $devtypid );
+	my $has80211 =
+	  $stab->cgi_parse_param( 'chk_HAS_802_11_INTERFACE', $devtypid );
 
-	$cansnmp = $stab->mk_chk_yn($cansnmp);
-	$has8023 = $stab->mk_chk_yn($has8023);
+	$cansnmp  = $stab->mk_chk_yn($cansnmp);
+	$has8023  = $stab->mk_chk_yn($has8023);
 	$has80211 = $stab->mk_chk_yn($has8023);
 
-	if(!defined($compid)) {
+	if ( !defined($compid) ) {
 		return $stab->error_return("You must specify a vendor");
 	}
 
-	if(!defined($model)) {
+	if ( !defined($model) ) {
 		return $stab->error_return("You must specify a model");
 	}
 
-	my $curdt = $stab->get_device_type_from_name($compid, $model);
-	if($curdt) {
+	my $curdt = $stab->get_device_type_from_name( $compid, $model );
+	if ($curdt) {
 		undef $curdt;
 		$stab->error_return("That device already exists.");
 	}
 
-	if(!defined($racku)) {
+	if ( !defined($racku) ) {
 		return $stab->error_return("You must specify rack units");
-	} elsif($racku !~ /^[\d\-]+$/ || ($racku != -99 && $racku <0) ) {
-		return $stab->error_return("Rack Units must be a positive number");
+	} elsif ( $racku !~ /^[\d\-]+$/ || ( $racku != -99 && $racku < 0 ) ) {
+		return $stab->error_return(
+			"Rack Units must be a positive number");
 	}
 
-	if($model && length($model) > 1000) {
-		return $stab->error_return("Model length exceeds 1000 characters");
+	if ( $model && length($model) > 1000 ) {
+		return $stab->error_return(
+			"Model length exceeds 1000 characters");
 	}
 
-	if($cfgfetch && length($cfgfetch) > 200) {
-		return $stab->error_return("Config Fetch type exceeds 200 characters");
+	if ( $cfgfetch && length($cfgfetch) > 200 ) {
+		return $stab->error_return(
+			"Config Fetch type exceeds 200 characters");
 	}
 
-	if($descr && length($descr) > 16000) {
-		return $stab->error_return("Description Exceeds 16000 characters");
+	if ( $descr && length($descr) > 16000 ) {
+		return $stab->error_return(
+			"Description Exceeds 16000 characters");
 	}
 
 	#
 	# Check to see if a start, voltage, amp are specified without a
 	# count.
 	#
-	my $pwrstart    = $stab->cgi_parse_param('POWER_INTERFACE_PORT_START');
-	my $pwrpstyl    = $stab->cgi_parse_param('PLUG_STYLE');
-	my $pwrvolt	= $stab->cgi_parse_param('VOLTAGE');
-	my $pwrmaxamp   = $stab->cgi_parse_param('MAX_AMPERAGE');
+	my $pwrstart  = $stab->cgi_parse_param('POWER_INTERFACE_PORT_START');
+	my $pwrpstyl  = $stab->cgi_parse_param('PLUG_STYLE');
+	my $pwrvolt   = $stab->cgi_parse_param('VOLTAGE');
+	my $pwrmaxamp = $stab->cgi_parse_param('MAX_AMPERAGE');
 
-	if(!$pwrcount && ($pwrstart || $pwrpstyl || $pwrvolt || $pwrmaxamp)) {
-		return $stab->error_return("You must specify a power count to setup power ports");
+	if ( !$pwrcount
+		&& ( $pwrstart || $pwrpstyl || $pwrvolt || $pwrmaxamp ) )
+	{
+		return $stab->error_return(
+			"You must specify a power count to setup power ports");
 	}
 
 	#################
 	### Now go and add the device type
-	# [XXX] - need to properly handle provides_power Y/N.  Now it just
-	# defaults to N.
-	my $q = qq{
-		insert into device_type (
-			COMPANY_ID, MODEL, CONFIG_FETCH_TYPE, RACK_UNITS,
-			HAS_802_3_INTERFACE, HAS_802_11_INTERFACE, SNMP_CAPABLE,
-			PROCESSOR_ARCHITECTURE, DESCRIPTION
-		) values (
-			:company, :model, :cfgfetch, :ru,
-			:has8023, :has80211, :cansnmp,
-			:procarch, :descr
-		) returning DEVICE_TYPE_ID into :devtypid
+	my $new = {
+		company_id             => $compid,
+		model                  => $model,
+		config_fetch_type      => $cfgfetch,
+		description            => $descr,
+		rack_units             => $racku,
+		has_802_11_interface   => $has80211,
+		has_802_3_interface    => $has8023,
+		snmp_capable           => $cansnmp,
+		processor_architecture => $arch,
 	};
-	my $sth = $stab->prepare($q) || $stab->return_db_error;
-	$sth->bind_param(':company', $compid) || $stab->return_db_error($sth);
-	$sth->bind_param(':model', $model) || $stab->return_db_error($sth);
-	$sth->bind_param(':cfgfetch', $cfgfetch) || $stab->return_db_error($sth);
-	$sth->bind_param(':descr', $descr) || $stab->return_db_error($sth);
-	$sth->bind_param(':ru', $racku) || $stab->return_db_error($sth);
-	$sth->bind_param(':has8023', $has8023) || $stab->return_db_error($sth);
-	$sth->bind_param(':has80211', $has80211) || $stab->return_db_error($sth);
-	$sth->bind_param(':cansnmp', $cansnmp) || $stab->return_db_error($sth);
-	$sth->bind_param(':procarch', $arch) || $stab->return_db_error($sth);
 
-	$sth->bind_param_inout(':devtypid', \$devtypid, 50) || $stab->return_db_error($sth);
+	my @errs;
+	if (
+		!(
+			$numchanges += $stab->DBInsert(
+				table  => 'device_type',
+				hash   => $new,
+				errors => \@errs
+			)
+		)
+	  )
+	{
+		$stab->error_return( join( " ", @errs ) );
+	}
 
-	$numchanges += $sth->execute || $stab->return_db_error($sth);
+	$devtypid = $new->{ _dbx('device_type_id') };
 
 	### Add power ports
 
 	my $didstuff = 0;
-	if(defined($pwrcount) && $pwrcount) {
-		if($pwrcount > 50) {
+	if ( defined($pwrcount) && $pwrcount ) {
+		if ( $pwrcount > 50 ) {
 			$stab->error_return("You can't be serious?");
 		}
 		$numchanges += $stab->add_power_ports($devtypid);
 	}
 
 	### Add physical ports
-	$numchanges += process_physical_portage($stab, $devtypid, 'serial');
-	$numchanges += process_physical_portage($stab, $devtypid, 'network');
+	$numchanges += process_physical_portage( $stab, $devtypid, 'serial' );
+	$numchanges += process_physical_portage( $stab, $devtypid, 'network' );
 
-	if($numchanges) {
+	if ($numchanges) {
 		my $url = "../?DEVICE_TYPE_ID=$devtypid";
 		$stab->commit;
-		$stab->msg_return("Addition Suceeded", $url, 1);
+		$stab->msg_return( "Addition Suceeded", $url, 1 );
 	}
 	$stab->rollback;
-	$stab->msg_return("Nothing to do", undef, 1);
+	$stab->msg_return( "Nothing to do", undef, 1 );
 }
 
 sub process_physical_portage {
-	my ($stab, $devtypid, $type) = @_;
+	my ( $stab, $devtypid, $type ) = @_;
 
 	my $captype = $type;
 	$captype =~ tr/a-z/A-Z/;
@@ -167,20 +179,21 @@ sub process_physical_portage {
 	#
 	# Check to see if physical port fields are specified without a count
 	#
-	my $count = $stab->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
-	my $prefix	= $stab->cgi_parse_param("${captype}_PORT_PREFIX");
-	my $start	= $stab->cgi_parse_param("${captype}_INTERFACE_PORT_START");
+	my $count  = $stab->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
+	my $prefix = $stab->cgi_parse_param("${captype}_PORT_PREFIX");
+	my $start  = $stab->cgi_parse_param("${captype}_INTERFACE_PORT_START");
 
-	if(!$count && ($prefix || $start) ) {
-		return $stab->error_return("You must specify a $type count to setup $type ports.");
+	if ( !$count && ( $prefix || $start ) ) {
+		return $stab->error_return(
+			"You must specify a $type count to setup $type ports.");
 	}
 
 	my $numchanges = 0;
-	if((defined($count) && $count) || defined($prefix)) {
-		if($count > 250) {
+	if ( ( defined($count) && $count ) || defined($prefix) ) {
+		if ( $count > 250 ) {
 			$stab->error_return("($type) You can't be serious?");
 		}
-		$numchanges += $stab->add_physical_ports($devtypid, $type);
+		$numchanges += $stab->add_physical_ports( $devtypid, $type );
 	}
 	$numchanges;
 }
