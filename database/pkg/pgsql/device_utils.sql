@@ -41,8 +41,8 @@
  * $Id$
  */
 
--- drop schema if exists device_utils cascade;
--- create schema device_utils authorization jazzhands;
+drop schema if exists device_utils cascade;
+create schema device_utils authorization jazzhands;
 
 
 -------------------------------------------------------------------
