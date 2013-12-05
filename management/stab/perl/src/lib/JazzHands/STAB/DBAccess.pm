@@ -1872,13 +1872,11 @@ sub process_and_insert_dns_record {
 				)
 			  )
 			{
-				warn "++ running update on $recid\n";
 				$self->run_update_from_hash( "DNS_RECORD",
 					"DNS_RECORD_ID", $recid,
 					{ should_generate_ptr => 'N' } );
 			}
 		} else {
-			warn "++ checking for other prts", Dumper($opts);
 			if (
 				!$self->get_dns_a_record_for_ptr(
 					$opts->{dns_value}

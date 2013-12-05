@@ -67,7 +67,6 @@ sub do_netblock_addition {
 
 	if($ip =~ s,/(\d+)$,,) {
 		my $embedbits = $1;
-		warn "compare $bits and $embedbits\n";
 		if(defined($embedbits) && defined($bits)) {
 			if($embedbits != $bits) {
 				$stab->error_return("Bits do not match");
