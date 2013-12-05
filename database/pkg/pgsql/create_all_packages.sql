@@ -49,7 +49,7 @@
 --++ \i voe_track_manip.sql
 \i port_support.sql
 \i port_util.sql
--- \i device_utils.sql
+\i device_utils.sql
 -- \i netblock_utils.sql
 -- \i key_crypto.sql
 -- \i dbms_job_util.sql
