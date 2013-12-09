@@ -31,8 +31,8 @@ BEGIN
 		 * not a /32 (the default), then use that for the netmask.
 		 */
 
-		IF (ip_address IS NOT NULL and masklen(ip_address) != 32) THEN
-			NEW.netmask_bits := masklen(ip_address)
+		IF (NEW.ip_address IS NOT NULL and masklen(NEW.ip_address) != 32) THEN
+			NEW.netmask_bits := masklen(NEW.ip_address);
 		END IF;
 
 		/*
