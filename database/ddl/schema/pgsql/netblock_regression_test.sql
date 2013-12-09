@@ -92,21 +92,21 @@ BEGIN
 
 	RAISE NOTICE 'Testing netblock triggers';
 
-	RAISE NOTICE '    Inserting a netblock with NULL netblock_bits';
-	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
-			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
-			 ip_universe_id)
-		VALUES
-			('172.31.0.0/16', NULL, 'JHTEST-freeforall', 'Y', 'N', 'Y', NULL,
-				'Allocated', a_ip_universe[0]);
-		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
-			ERRCODE = 'error_in_assignment';
-	EXCEPTION
-		WHEN not_null_violation THEN
-			RAISE NOTICE '        ... Failed correctly';
-	END;
+--	RAISE NOTICE '    Inserting a netblock with NULL netblock_bits';
+--	BEGIN
+--		INSERT INTO netblock 
+--			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+--			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+--			 ip_universe_id)
+--		VALUES
+--			('172.31.0.0/16', NULL, 'JHTEST-freeforall', 'Y', 'N', 'Y', NULL,
+--				'Allocated', a_ip_universe[0]);
+--		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+--			ERRCODE = 'error_in_assignment';
+--	EXCEPTION
+--		WHEN not_null_violation THEN
+--			RAISE NOTICE '        ... Failed correctly';
+--	END;
 
 	RAISE NOTICE '    Inserting a netblock with can_subnet=Y and is_single_address=Y';
 	BEGIN
@@ -845,7 +845,7 @@ BEGIN
 -- Change the IP address on a netblock and ensure all children get rehomed correctly
 --
 
-	RAISE NOTICE '    Changing address of 172.31.0.0/19 back to 172.31.16.0/22 to ensure children change correctly';
+	RAISE NOTICE '    Changing IP address of 172.31.0.0/19 to 172.31.16.0/22 to ensure children change correctly';
 	UPDATE netblock SET ip_address = '172.31.16.0/22', netmask_bits = 22 WHERE
 		netblock_id = a_netblock_list[5];
 
