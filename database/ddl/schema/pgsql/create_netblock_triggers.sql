@@ -26,33 +26,53 @@ BEGIN
 	 */
 
 	IF NEW.netmask_bits IS NULL THEN
-		SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
-			netblock_type = NEW.netblock_type;
+		/*
+		 * If netmask_bits is not set, and ip_address has a netmask that is
+		 * not a /32 (the default), then use that for the netmask.
+		 */
 
-		IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
-			RAISE EXCEPTION 'Column netmask_bits may not be null'
-				USING ERRCODE = 'not_null_violation';
+		IF (NEW.ip_address IS NOT NULL and masklen(NEW.ip_address) != 32) THEN
+			NEW.netmask_bits := masklen(NEW.ip_address);
 		END IF;
-	
-		RAISE DEBUG 'Calculating netmask for new netblock';
 
-		v_netblock_id := netblock_utils.find_best_parent_id(
-			NEW.ip_address,
-			NULL,
-			NEW.netblock_type,
-			NEW.ip_universe_id,
-			NEW.is_single_address
-			);
-	
-		SELECT masklen(ip_address) INTO NEW.netmask_bits FROM jazzhands.netblock
-			WHERE netblock_id = v_netblock_id;
+		/*
+		 * Don't automatically determine the netmask unless is_single_address
+		 * is 'Y'.  If it is, enforce it if it's a managed hierarchy
+		 */
+		IF NEW.is_single_address = 'Y' THEN
+			SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
+				netblock_type = NEW.netblock_type;
 
+			IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+				RAISE EXCEPTION 'Column netmask_bits may not be null'
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+	
+			RAISE DEBUG 'Calculating netmask for new netblock';
+
+			v_netblock_id := netblock_utils.find_best_parent_id(
+				NEW.ip_address,
+				NULL,
+				NEW.netblock_type,
+				NEW.ip_universe_id,
+				NEW.is_single_address,
+				NEW.netblock_id
+				);
+		
+			SELECT masklen(ip_address) INTO NEW.netmask_bits FROM
+				jazzhands.netblock WHERE netblock_id = v_netblock_id;
+
+		END IF;
 		IF NEW.netmask_bits IS NULL THEN
 			RAISE EXCEPTION 'Column netmask_bits may not be null'
 				USING ERRCODE = 'not_null_violation';
 		END IF;
 	END IF;
 
+	/*
+	 * If netmask_bits was not NULL, then it wins.  This will go away
+	 * in the future
+	 */
 	NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
 
 	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
@@ -149,7 +169,8 @@ BEGIN
 		NEW.netmask_bits,
 		NEW.netblock_type,
 		NEW.ip_universe_id,
-		NEW.is_single_address
+		NEW.is_single_address,
+		NEW.netblock_id
 		);
 
 	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %', 
@@ -405,7 +426,8 @@ BEGIN
 			masklen(realnew.ip_address),
 			realnew.netblock_type,
 			realnew.ip_universe_id,
-			realnew.is_single_address
+			realnew.is_single_address,
+			realnew.netblock_id
 		);
 
 		IF parent_nbid IS NOT NULL THEN
@@ -482,7 +504,8 @@ BEGIN
 				masklen(realnew.ip_address),
 				realnew.netblock_type,
 				realnew.ip_universe_id,
-				realnew.is_single_address
+				realnew.is_single_address,
+				realnew.netblock_id
 				);
 
 			IF realnew.can_subnet = 'N' THEN

@@ -1,4 +1,4 @@
--- Copyright (c) 2012 Matthew Ragan
+-- Copyright (c) 2012,2013 Matthew Ragan
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -44,7 +44,8 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_Netmask_Bits jazzhands.netblock.netmask_bits%type,
 	in_netblock_type jazzhands.netblock.netblock_type%type,
 	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type,
-	in_is_single_address jazzhands.netblock.is_single_address%type
+	in_is_single_address jazzhands.netblock.is_single_address%type,
+	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL
 ) RETURNS jazzhands.netblock.netblock_id%type AS $$
 DECLARE
 	par_nbid	jazzhands.netblock.netblock_id%type;
@@ -67,6 +68,7 @@ BEGIN
 				(in_is_single_address = 'Y' AND 
 					(in_Netmask_Bits IS NULL OR netmask_bits = in_Netmask_Bits))
 			)
+			and netblock_id != in_netblock_id
 		order by netmask_bits desc
 	) subq LIMIT 1;
 
@@ -88,7 +90,8 @@ BEGIN
 		nbrec.netmask_bits,
 		nbrec.netblock_type,
 		nbrec.ip_universe_id,
-		nbrec.is_single_address
+		nbrec.is_single_address,
+		in_netblock_id
 	);
 END;
 $$ LANGUAGE plpgsql;

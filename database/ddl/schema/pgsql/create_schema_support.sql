@@ -122,6 +122,9 @@ BEGIN
         || quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
         || $$')$$;
 
+    EXECUTE 'CREATE INDEX ON ' || quote_ident(aud_schema) || '.'
+        || quote_ident(table_name) || '("aud#timestamp")';
+
     IF first_time THEN
         PERFORM schema_support.rebuild_audit_trigger
             ( aud_schema, tbl_schema, table_name );

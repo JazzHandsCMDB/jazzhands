@@ -28,7 +28,7 @@
 CREATE OR REPLACE FUNCTION delete_per_device_device_collection() 
 RETURNS TRIGGER AS $$
 DECLARE
-	dcid			device_collection.device_collection_id%TYPE;
+	dcid			jazzhands.device_collection.device_collection_id%TYPE;
 BEGIN
 	SELECT	device_collection_id
 	  FROM  jazzhands.device_collection
@@ -68,8 +68,8 @@ FOR EACH ROW EXECUTE PROCEDURE delete_per_device_device_collection();
 CREATE OR REPLACE FUNCTION update_per_device_device_collection()
 RETURNS TRIGGER AS $$
 DECLARE
-	dcid		device_collection.device_collection_id%TYPE;
-	newname		device_collection.device_collection_name%TYPE;
+	dcid		jazzhands.device_collection.device_collection_id%TYPE;
+	newname		jazzhands.device_collection.device_collection_name%TYPE;
 BEGIN
 	IF NEW.device_name IS NOT NULL THEN
 		newname = NEW.device_name || '_' || NEW.device_id;
@@ -112,9 +112,9 @@ FOR EACH ROW EXECUTE PROCEDURE update_per_device_device_collection();
 
 CREATE OR REPLACE FUNCTION verify_device_voe() RETURNS TRIGGER AS $$
 DECLARE
-	voe_sw_pkg_repos		sw_package_repository.sw_package_repository_id%TYPE;
-	os_sw_pkg_repos		operating_system.sw_package_repository_id%TYPE;
-	voe_sym_trx_sw_pkg_repo_id	voe_symbolic_track.sw_package_repository_id%TYPE;
+	voe_sw_pkg_repos		jazzhands.sw_package_repository.sw_package_repository_id%TYPE;
+	os_sw_pkg_repos		jazzhands.operating_system.sw_package_repository_id%TYPE;
+	voe_sym_trx_sw_pkg_repo_id	jazzhands.voe_symbolic_track.sw_package_repository_id%TYPE;
 BEGIN
 
 	IF (NEW.operating_system_id IS NOT NULL)
@@ -155,5 +155,5 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
 CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
-	ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
+ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
 
