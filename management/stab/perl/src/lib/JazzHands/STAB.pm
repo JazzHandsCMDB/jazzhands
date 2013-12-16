@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Matthew Ragan
+# Copyright (c) 2013 Todd M. Kover, Matthew Ragan
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -100,6 +100,8 @@ sub new {
 	my $self = $class->SUPER::new(@_);
 	$self->{cgi} = $cgi;
 
+	$self->{_username} = $cgi->remote_user;
+
 	foreach my $something ( 'ajax', 'debug' ) {
 		$self->{$something} = $opt->{$something};
 	}
@@ -120,8 +122,34 @@ sub new {
 
 	#	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
+
 	$self->textfield_sizing(1);
 	bless $self, $class;
+
+	if(!exists($opt->{nocheck_perms})) {
+		if(! $self->check_permissions() ) {
+			$self->return_permission_denied();
+		}
+	}
+
+	$self;
+}
+
+sub return_permission_denied {
+	my $self = shift @_;
+
+	my $cgi = $self->cgi;
+	my $refurl = $cgi->referer;
+	my $stabroot = $self->guess_stab_root();
+
+	if($refurl && $refurl =~ m,^$stabroot,) {
+		$self->error_return("Permission Denied");
+	}
+
+	print $cgi->header(
+		-status => 403
+	);
+	exit 0;
 }
 
 sub cgi {
@@ -138,6 +166,33 @@ sub support_email {
 	my $self = shift @_;
 	my $email = $self->fetch_property('Defaults', '_supportemail');
 	$email || '-- email support address not set --';
+}
+
+sub check_permissions {
+	my $self = shift;
+	my $role = shift;
+
+	$role = 'StabAccess' if(!$role);
+
+	my $q = qq{
+		select	count(*)
+		  from	v_property p
+				inner join v_acct_coll_acct_expanded ae
+						using (account_collection_id)
+				inner join v_corp_family_account a
+						on ae.account_id = a.account_id
+		where	a.login = ?
+		 and	p.property_type = 'StabRole'
+		and		p.property_name = ?
+	} || die $self->return_db_err();
+
+	my $sth = $self->prepare($q) || $self->return_db_err;
+
+	$sth->execute($self->{_username}, $role) || die $self->return_db_err;
+
+	my ($count) = $sth->fetchrow_array;
+	$sth->finish;
+	$count;
 }
 
 #
@@ -389,7 +444,7 @@ sub start_html {
 			"Site IPs" )
 		  . " - "
 
-		  . $cgi->a( { -href => "$stabroot/sites/racks/" }, "Racks" )
+		  . $cgi->a( { -href => "$stabroot/sites/rack/" }, "Racks" )
 		  . " - "
 		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
 		$inline_title .=
@@ -917,8 +972,10 @@ sub b_nondbdropdown {
 
 		@list = ($default);
 		$list{$default} = $pickone;
+	} elsif ( $selectfield eq 'RACK_STYLE' ) {
+		@list = ( 'CABINET', 'RELAY' );
+		my $df = 'CABINET';
 	}
-
 	if ( defined($values) ) {
 		$default =
 		  ( defined( $values->{$field} ) ) ? $values->{$field} : undef;
@@ -1481,6 +1538,11 @@ sub b_dropdown {
 			select	dns_srv_service, description
 			  from	val_dns_srv_service;
 		};
+	} elsif ( $selectfield eq 'RACK_TYPE' ) {
+		$q = qq{
+			select	rack_type, description
+			  from	val_racK_type;
+		};
 	} else {
 		return "-XX-";
 	}
@@ -1618,7 +1680,7 @@ sub b_dropdown {
 			);
 		}
 		if ( $params->{'-dolinkUpdate'} eq 'rack' ) {
-			my $root = $self->guess_stab_root() . "/sites/racks/";
+			my $root = $self->guess_stab_root() . "/sites/rack/";
 			my $redirid = "rack_link" . $id;
 			$onchange =
 			  "setRackLinkRedir(\"$id\", \"$redirid\", \"$root\")";
@@ -1789,6 +1851,8 @@ sub b_textfield {
 	if ( !defined($size) && $self->textfield_sizing ) {
 		$size =
 		  ( defined($allf) && length($allf) > 60 ) ? length($allf) : 60;
+		$size = 30  if ( $field eq 'LEASE_EXPIRATION_DATE' );
+
 		$size = 7  if ( $field =~ /APPROVAL_REF_NUM\b/ );
 		$size = 20 if ( $field eq 'SNMP_COMMSTR' );
 		$size = 16 if ( $field =~ /_?IP$/ );
@@ -2094,13 +2158,13 @@ sub parse_netblock_description_search {
 }
 
 sub guess_stab_root {
-	my ($self) = @_;
+	my ($self, $abs) = @_;
 
 	my $cgi = $self->cgi;
 
-	my $root = $cgi->url( { -absolute => 1 } );
+	my $root = $cgi->url( { -full => 1 } );
 	if ( $root =~ /~.*stab/ || $root =~ m,/stab/, ) {
-		$root =~ s,(stab).*$,$1,;
+			$root =~ s,(stab).*$,$1,;
 	} else {
 		$root = $cgi->url( { -base => 1 } );
 	}

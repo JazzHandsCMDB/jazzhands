@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/netblock/ipalloc
 
 SUBDIRS=
 
-SCRIPTS= allocate_ip.pl .htaccess
+SCRIPTS= allocate_ip.pl 
 
 all:
 	@echo nothing to do

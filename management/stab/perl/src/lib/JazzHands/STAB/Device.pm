@@ -542,9 +542,10 @@ sub device_power_ports {
 					c.DEVICE_POWER_CONNECTION_ID is NULL
 			 	and	i.device_id = :devid
 		) xx
-	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(p1_power_interface_port)
+		order by p1_power_interface_port
 
 	};
+	     # -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(p1_power_interface_port)
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 
 	$sth->bind_param(':devid', $devid) || $self->return_db_err($self);
@@ -654,7 +655,7 @@ sub powerport_device_magic {
 	$rv .= $cgi->a(
 		{
 			-style  => 'font-size: 30%;',
-			-target => 'TOP',
+			-target => "stab_device_$pdevid",
 			id      => $devlinkid,
 			-href   => $devlink
 		},
@@ -1002,21 +1003,23 @@ sub build_patchpanel_drop_tr {
 
 	my $root = $self->guess_stab_root;
 	if ( $hr->{_dbx('D1_DEVICE_NAME')} ) {
+		my $rdevid = $hr->{_dbx('D1_DEVICE_ID')};
 		$lhs = $cgi->a(
 			{
 				-href => "$root/device/device.pl?devid="
-				  . $hr->{_dbx('D1_DEVICE_ID')},
-				-target => 'TOP'
+				  . $rdevid,
+				-target => "stab_device_$rdevid",
 			},
 			$hr->{_dbx('D1_DEVICE_NAME')}
 		);
 	}
 	if ( $hr->{_dbx('D2_DEVICE_NAME')} ) {
+		my $rdevid = $hr->{_dbx('D2_DEVICE_ID')};
 		$rhs = $cgi->a(
 			{
 				-href => "$root/device/device.pl?devid="
-				  . $hr->{_dbx('D2_DEVICE_ID')},
-				-target => 'TOP'
+				  . $rdevid,
+				-target => "stab_device_$rdevid",
 			},
 			$hr->{_dbx('D2_DEVICE_NAME')}
 		);
@@ -1399,7 +1402,7 @@ sub physicalport_otherend_device_magic {
 	$rv .= $cgi->a(
 		{
 			-style  => 'font-size: 30%;',
-			-target => 'TOP',
+			-target => "stab_device_pp_$pportid",
 			id      => $what . "_devlink_$pportid",
 			-href   => $devlink
 		},
@@ -1800,7 +1803,7 @@ sub dump_interfaces {
 	}
 
 	if ( $collapse eq 'yes' ) {
-		my $collist = [ 'Del', 'Name', 'IP', 'DNS', 'Type', 'More'];
+		my $collist = [ 'Del', 'Name', 'IP', 'Mac', 'DNS', 'Type', 'More'];
 		$rv =
 		  $cgi->table({-class => 'interfacetable'},
 			$cgi->th( $collist ), $rv,
@@ -1958,6 +1961,7 @@ sub build_collapsed_if_box {
 		$cgi->td( $hidden, $delbox),
 		$cgi->td( $intname ),
 		$cgi->td( $self->b_textfield( $values, "IP",       $pk ) ),
+		$cgi->td( $self->b_textfield( $values, "MAC_ADDR", $pk ) ),
 		$cgi->td( $dns),
 		$cgi->td( $self->b_dropdown($values, 'NETWORK_INTERFACE_TYPE', $pk) ),
 		$cgi->td( $xbox ),
@@ -2356,18 +2360,26 @@ sub device_location_print {
 	if ( $hr && exists( $hr->{_dbx('LOCATION_RACK_ID')} ) ) {
 		my $rack =
 		  $self->get_rack_from_rackid( $hr->{_dbx('LOCATION_RACK_ID')} );
+
+		my $rackname = "";
+		foreach my $c ('ROOM', 'SUB_ROOM', 'RACK_ROW', 'RACK_NAME') {
+			if(defined($rack->{_dbx($c)})) {
+				$rackname .= "-" if(length($rackname));
+				$rackname .= $rack->{ _dbx($c) };
+			}
+		}
+		my $rackid = $hr->{_dbx('LOCATION_RACK_ID')};
 		$racklink .= $cgi->Tr(
 			$cgi->td(
 				{ -colspan => 2, -align => 'center' },
 				$cgi->a(
 					{
 						-align  => 'center',
-						-target => 'TOP',
+						-target => "stab_location_$rackid",
 						-href   => $root
-						  . "/sites/racks/?RACK_ID="
+						  . "/sites/rack/?RACK_ID="
 						  . $hr->{_dbx('LOCATION_RACK_ID')}
-					},
-qq{Rack $rack->{_dbx('ROOM')} : $rack->{_dbx('RACK_ROW')} - $rack->{_dbx('RACK_NAME')}}
+					}, $rackname,
 				)
 			)
 		);
@@ -2577,7 +2589,8 @@ h
 			)
 		).
 			$cgi->div({-style => 'text-align: center;'},
-				$cgi->a({ -href=>"apps/", -target => 'TOP', },
+				$cgi->a({ -href=>"apps/", 
+					-target => 'stab_apps', },
 					"(explore apps)").
 			$resetlink
 		);

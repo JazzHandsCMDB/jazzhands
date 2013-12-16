@@ -395,17 +395,17 @@ sub build_physical_port_box {
 				),
 				$cgi->td(
 					$stab->b_dropdown( undef,
-						$hr, 'PORT_PLUG_STYLE', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown( undef,
 						$hr, 'PORT_SPEED', \@keys
 					)
 				),
 				$cgi->td(
 					$stab->b_dropdown( undef,
 						$hr, 'PORT_PROTOCOL', \@keys
+					)
+				),
+				$cgi->td(
+					$stab->b_dropdown( undef,
+						$hr, 'PORT_PLUG_STYLE', \@keys
 					)
 				),
 				$cgi->td(
@@ -439,9 +439,9 @@ sub build_physical_port_box {
 		"Name",
 		'Descrip',
 		'Label',
-		'Plug',
 		'Speed',
 		'Protocol',
+		'Plug',
 		'Medium',
 		'Purpose',
 	];

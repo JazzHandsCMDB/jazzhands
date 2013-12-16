@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/device/voe/write
 
 SUBDIRS= 
 
-SCRIPTS= .htaccess
+SCRIPTS= 
 
 all:
 	@echo nothing to do

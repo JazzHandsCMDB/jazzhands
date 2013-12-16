@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/dns/write
 
 SUBDIRS=
 
-SCRIPTS= add_domain.pl update_domain.pl .htaccess
+SCRIPTS= add_domain.pl update_domain.pl 
 
 all:
 	@echo nothing to do

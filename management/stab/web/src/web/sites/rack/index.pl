@@ -91,7 +91,8 @@ sub do_rack_chooser {
 		$stab->b_dropdown( undef, 'RACK_ID', undef, 1 ),
 	);
 
-	print $cgi->h3( { -align => 'center' }, $cgi->submit );
+	print $cgi->h3( { -align => 'center' }, 
+		$cgi->submi({-label=>"Submit"}) );
 
 	print $cgi->end_form;
 	print $cgi->end_html;
@@ -122,10 +123,20 @@ sub do_one_rack {
 		$stab->build_tr(
 			$hr, "b_textfield", "Rack", "RACK_NAME", "RACK_ID"
 		),
-
-		#$stab->build_tr($hr, "b_textfield",
-		#	"Height in U", "RACK_HEIGHT_IN_U", "RACK_ID"),
+		$stab->build_tr(
+			$hr, "b_textfield", "Description", "DESCRIPTION", "RACK_ID"
+		),
+		$stab->build_tr(
+			$hr, "b_dropdown", "Type", "RACK_TYPE", "RACK_ID"
+		),
+		$stab->build_tr(
+			$hr, "b_nondbdropdown", "Style", "RACK_STYLE", "RACK_ID"
+		),
+		$stab->build_tr(
+			$hr, "b_textfield", "Height in U", "RACK_HEIGHT_IN_U", "RACK_ID"
+		),
 		# [XXX]Display from Bottom
+		$cgi->Tr( $cgi->td ( {-colspan => 2}, $cgi->submit() )),
 	);
 
 	my $rack = $stab->build_rack($rackid);
@@ -139,7 +150,12 @@ sub do_one_rack {
 	);
 
 	print $cgi->start_form(
-		{ -method => 'GET', -action => 'write/updaterack.pl' } );
+		{ -method => 'GET', -action => 'updaterack.pl' } );
+	print $cgi->hidden(
+		-name    => 'RACK_ID_' . $hr->{_dbx('RACK_ID')},
+		-default => $hr->{_dbx('RACK_ID')},
+	);
+
 	print $cgi->table( { -class => 'rack_summary', -align => 'center' },
 		$box );
 
