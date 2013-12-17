@@ -1,7 +1,7 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
 %define version 0.56.5
-%define release 1
+%define release 3
 Name:   	%{name}
 Version:        %{version}
 Release:        %{release}%{?dist}
@@ -13,7 +13,7 @@ Source0:	%{name}.tgz
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:	noarch
 #BuildRequires: 
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common>=0.56.3, jazzhands-perl-stab, jazzhands-javascript-common 
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab, jazzhands-javascript-common 
 
 %description
 
