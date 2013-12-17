@@ -1,7 +1,7 @@
 Summary:    jazzhands-perl-common - JazzHands perl common utility modules
 Vendor:     JazzHands
 Name:       jazzhands-perl-common
-Version:    0.56.2
+Version:    0.56.3
 Release:    1
 License:    Unknown
 Group:      System/Management

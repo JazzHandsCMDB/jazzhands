@@ -147,3 +147,8 @@ grant usage on schema device_utils to app_stab;
 grant execute on all functions in schema device_utils to app_stab;
 
 grant select on val_rack_type to app_stab;
+
+grant select on v_property to app_stab;
+grant select on v_corp_family_account to app_stab;
+grant select on v_acct_coll_acct_expanded to app_stab;
+

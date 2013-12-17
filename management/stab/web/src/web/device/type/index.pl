@@ -447,12 +447,12 @@ sub build_physical_port_box {
 	];
 
 	if($type eq 'serial') {
-		push($headers,
+		push(@{$headers},
 			'TCP Port',
 		);
 	}
 
-	push($headers,
+	push(@{$headers},
 		'Optional',
 	);
 
