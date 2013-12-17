@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.56.2
+%define version 0.56.4
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -177,6 +177,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.4-1
+- minor tweaks
 * Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.2-1
 - port device, rack, etc sections to postgresql, NWO
 - add basic permissions model
