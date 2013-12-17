@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.54.4
+%define version 0.55.999999.1
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -124,12 +124,12 @@ rm -rf %{buildroot}
 %{prefix}/stabcons/round_red_x_sign_4229.jpg
 %{prefix}/stabcons/Axe_001.svg
 %{prefix}/stabcons/Octagon_delete.svg
+%{prefix}/stabcons/e.gif
 %{prefix}/device/type/Makefile
 %{prefix}/device/type/index.pl
 %{prefix}/device/type/dtsearch.pl
 %{prefix}/device/type/write/updatedt.pl
 %{prefix}/device/type/write/Makefile
-%{prefix}/device/type/write/.htaccess
 %{prefix}/device/type/write/adddt.pl
 %{prefix}/device/os/search.pl
 %{prefix}/device/os/Makefile
