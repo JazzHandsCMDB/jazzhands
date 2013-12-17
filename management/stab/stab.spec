@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.56.4
+%define version 0.56.5
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -13,7 +13,7 @@ Source0:	%{name}.tgz
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:	noarch
 #BuildRequires: 
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common, jazzhands-perl-stab, jazzhands-javascript-common >= 0.56.3
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >=0.56.3, jazzhands-perl-stab, jazzhands-javascript-common 
 
 %description
 
@@ -177,6 +177,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.5-1
+- rpm depend fix
 * Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.4-1
 - minor tweaks
 * Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.2-1
