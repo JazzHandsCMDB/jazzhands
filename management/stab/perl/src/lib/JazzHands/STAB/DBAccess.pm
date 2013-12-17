@@ -544,12 +544,14 @@ sub get_dev_from_devid {
 sub add_location_to_dev {
 	my ( $self, $devid, $loc ) = @_;
 
+	$loc = _dbx($loc);
+
 	my $new = {
 		rack_id => $loc->{ _dbx('RACK_ID') },
 		rack_u_offset_of_device_top =>
 		  $loc->{ _dbx('RACK_U_OFFSET_OF_DEVICE_TOP') },
 		rack_side           => $loc->{ _dbx('RACK_SIDE') },
-		inter_device_iffset => $loc->{ _dbx('INTER_DEVICE_OFFSET') },
+		inter_device_offset => $loc->{ _dbx('INTER_DEVICE_OFFSET') },
 	};
 
 	my $numchanges = 0;
@@ -575,8 +577,8 @@ sub add_location_to_dev {
 		  where	device_id = :devid
 	};
 	my $dsth = $self->prepare($dq) || $self->return_db_err();
-	$dsth->bind_param( 'locid', $locid ) || $self->return_db_err();
-	$dsth->bind_param( 'devid', $devid ) || $self->return_db_err();
+	$dsth->bind_param( ':locid', $locid ) || $self->return_db_err();
+	$dsth->bind_param( ':devid', $devid ) || $self->return_db_err();
 
 	$numchanges += $dsth->execute() || $self->return_db_err();
 

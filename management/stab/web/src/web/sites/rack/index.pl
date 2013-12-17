@@ -92,7 +92,7 @@ sub do_rack_chooser {
 	);
 
 	print $cgi->h3( { -align => 'center' }, 
-		$cgi->submi({-label=>"Submit"}) );
+		$cgi->submit({-label=>"Submit"}) );
 
 	print $cgi->end_form;
 	print $cgi->end_html;
