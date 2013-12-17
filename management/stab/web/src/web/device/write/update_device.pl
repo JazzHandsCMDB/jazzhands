@@ -172,7 +172,7 @@ sub do_update_device {
 	my $appgtab	= $stab->cgi_parse_param('has_appgroup_tab', $devid);
 	my @appgroup	= $stab->cgi_parse_param('appgroup', $devid);
 
-	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	#-print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 	# print $cgi->header, $cgi->start_html,
 	# my @x = $cgi->param('appgroup_'.$devid);
 	# print $cgi->p("appgroup is ", $cgi->ul(@appgroup), "totally");
@@ -304,7 +304,6 @@ sub do_update_device {
 		DEVICE_ID		=> $devid,
 		DEVICE_NAME		=> $devname,
 		DEVICE_TYPE_ID		=> $devtypeid,
-		PARENT_DEVICE_ID	=> $parentid,
 		SERIAL_NUMBER		=> $serialno,
 		PART_NUMBER		=> $partno,
 		PHYSICAL_LABEL		=> $physlabel,
@@ -321,6 +320,13 @@ sub do_update_device {
 		AUTO_MGMT_PROTOCOL	=> $mgmtprot,
 		#- VOE_SYMBOLIC_TRACK_ID	=> $voetrax,
 	};
+
+	#
+	# This can not be set on pages where there are virtual devices
+	# and thus would clear the field if it was blindly passed in.
+	if($dbdevice->{ _dbx('IS_VIRTUAL_DEVICE')} eq 'N') {
+		$newdevice->{'PARENT_DEVICE_ID'} = $parentid;
+	}
 
 	my $diffs = $stab->hash_table_diff($dbdevice, _dbx($newdevice));
 
@@ -776,7 +782,8 @@ sub process_all_secondary_int_updates {
 		#
 		my $procdmac = undef;
 		if(defined($macaddr)) {
-			$procdmac = $stab->int_mac_from_text($macaddr);
+			#$procdmac = $stab->int_mac_from_text($macaddr);
+			my $procdmac = $macaddr;
 			if(!defined($procdmac)) {
 				$stab->error_return("Unable to parse mac address ".
 					((defined($macaddr))?$macaddr:"") );
@@ -1684,7 +1691,8 @@ sub update_interface {
 	#
 	my $procdmac = undef;
 	if(defined($macaddr)) {
-		$procdmac = $stab->int_mac_from_text($macaddr);
+		# $procdmac = $stab->int_mac_from_text($macaddr);
+		$procdmac = $macaddr;
 		if(!defined($procdmac)) {
 			$stab->error_return("Unable to parse mac address ".
 				((defined($macaddr))?$macaddr:"") );

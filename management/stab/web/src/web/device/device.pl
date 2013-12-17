@@ -185,6 +185,10 @@ sub build_device_box {
 		$values, "b_textfield", "Part #", "PART_NUMBER",
 		'DEVICE_ID'
 	);
+	$top_table .= $stab->build_tr(
+		$values, "b_dropdown", "Site Code", "SITE_CODE",
+		'DEVICE_ID'
+	);
 
 	#$top_table .= $stab->build_tr($values, "b_textfield",
 	#	"Asset #", "ASSET_TAG", 'DEVICE_ID');
@@ -248,6 +252,10 @@ sub build_device_box {
 	$left_table  .= $voetr;
 	$right_table .= $stab->build_tr( $values, "b_dropdown", "Ownership",
 		"OWNERSHIP_STATUS", 'DEVICE_ID' );
+	if(!$values || $values->{ _dbx('OWNERSHIP_STATUS')} eq 'leased') {
+		$right_table .= $stab->build_tr( $values, "b_textfield", "Lease Expires",
+			"LEASE_EXPIRATION_DATE", 'DEVICE_ID' );
+	}
 	$right_table .=
 	  $stab->build_tr( $values, "b_dropdown", "Service Environment",
 		"SERVICE_ENVIRONMENT", 'DEVICE_ID' );
@@ -264,10 +272,26 @@ sub build_device_box {
 				build_parent_device_box(
 					$stab,
 					$values->{_dbx('PARENT_DEVICE_ID')},
-					$values->{_dbx('DEVICE_ID')}
+					$values->{_dbx('DEVICE_ID')},
+					$values->{_dbx('IS_VIRTUAL_DEVICE')},
 				)
 			)
 		);
+
+		if($values->{ _dbx('IS_VIRTUAL_DEVICE')} eq 'N') {
+			$left_table .= $cgi->Tr(
+				$cgi->td(
+					{ -align => 'right' },
+					$cgi->b("Children Devices")
+				),
+				$cgi->td(
+					build_children_device_list(
+						$stab,
+						$values->{_dbx('DEVICE_ID')},
+					)
+				)
+			);
+		}
 	}
 
 	if ( defined($values) ) {
@@ -491,8 +515,38 @@ sub build_page {
 	$page;
 }
 
+sub build_children_device_list {
+	my($stab, $devid) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my $q = qq{
+		select	device_id, device_name
+		  from	device
+		 where	parent_device_id = ?
+	} || $stab->return_db_err();
+
+	my $sth = $stab->prepare( $q ) || $stab->return_db_err();
+	$sth->execute($devid) || $stab->return_db_err();
+
+	my $list = "";
+	while(my ($id,$name) = $sth->fetchrow_array) {
+		$list .= $cgi->li(
+			$cgi->a({
+				-target => "stab_device_$id",
+				-href => "./device.pl?devid=$id",
+			}, $name));
+	}
+	$sth->finish;
+
+	if(length($list)) {
+		$cgi->ul($list);
+	} else {
+		"none";
+	}
+}
+
 sub build_parent_device_box {
-	my ( $stab, $parid, $devid ) = @_;
+	my ( $stab, $parid, $devid, $isvirt ) = @_;
 
 	my $cgi = $stab->cgi;
 
@@ -510,43 +564,53 @@ sub build_parent_device_box {
 		}
 	}
 
-	my $pdid  = "PARENT_DEVICE_ID_" . $devid;
-	my $pdnam = "PARENT_DEVICE_NAME_" . $devid;
-	my $rv    = $cgi->hidden(
-		{
-			-name    => $pdid,
-			-id      => $pdid,
-			-default => $pdevid
-		}
-	  )
-	  . $cgi->textfield(
-		{
-			-name => $pdnam,
-			-id   => $pdnam,
-			-onInput =>
-"inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
-			-onKeydown =>
-"keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
-			-onBlur  => "hidePopup_Search($pdnam)",
-			-onChange=>"updateDeviceParentLink($devid, $pdid
-)",
-			-default => $pname,
-		}
-	  );
-
 	my $devlink = "javascript:void(null);";
 	if ($pdevid) {
 		$devlink = "./device.pl?devid=$pdevid";
 	}
 
+	my $pdid  = "PARENT_DEVICE_ID_" . $devid;
+	my $pdnam = "PARENT_DEVICE_NAME_" . $devid;
+
+	my $style = "";
+	my $rv = "";
+	my $linktext = ">>";
+	if($isvirt eq 'N') {
+		$style ='font-size: 30%;',
+		$rv    = $cgi->hidden(
+			{
+				-name    => $pdid,
+				-id      => $pdid,
+				-default => $pdevid
+			}
+		  )
+		  . $cgi->textfield(
+			{
+				-name => $pdnam,
+				-id   => $pdnam,
+				-size => 50,
+				-onInput =>
+"inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
+				-onKeydown =>
+"keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
+				-onBlur  => "hidePopup_Search($pdnam)",
+				-onChange=>"updateDeviceParentLink($devid, $pdid
+)",
+				-default => $pname,
+			}
+	  	);
+	} else {
+		$linktext = $pname;
+	};
+
 	$rv .= $cgi->a(
 		{
-			-style  => 'font-size: 30%;',
-			-target => 'TOP',
+			-style  => $style,
+			-target => "stab_device_$devid",
 			id      => "parent_link_$devid",
 			-href   => $devlink
 		},
-		">>"
+		$linktext
 	);
 	$rv;
 }

@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/device/certs/write
 
 SUBDIRS=
 
-SCRIPTS= .htaccess update_cert.pl add_cert.pl
+SCRIPTS= update_cert.pl add_cert.pl
 	
 
 all:

@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/device/os/write
 
 SUBDIRS= 
 
-SCRIPTS= updateos.pl .htaccess
+SCRIPTS= updateos.pl 
 
 all:
 	@echo nothing to do

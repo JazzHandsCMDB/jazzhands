@@ -125,7 +125,7 @@ grant select		on v_application_role_member to app_stab;
 grant select		on v_application_role to app_stab;
 
 grant select		on v_l1_all_physical_ports to app_stab;
-grant select		on rack to app_stab;
+grant select,insert,update		on rack to app_stab;
 
 grant usage on schema port_utils to app_stab;
 grant execute		on all functions in schema port_utils to app_stab;
@@ -146,3 +146,4 @@ grant select on val_port_purpose to app_stab;
 grant usage on schema device_utils to app_stab;
 grant execute on all functions in schema device_utils to app_stab;
 
+grant select on val_rack_type to app_stab;

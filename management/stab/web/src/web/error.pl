@@ -37,8 +37,8 @@ sub print_error_screen {
 
 	print qq{
 		You have found an error in the stab error/message notification
-		system.  You can report this to 
-	}, $stab->support_email();
+		system.
+	};
 
 	my $notemsg = $cgi->param("__notemsg__");
 	my $errmsg  = $cgi->param("__errmsg__");

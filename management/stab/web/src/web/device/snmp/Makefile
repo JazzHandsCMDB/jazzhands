@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/device/snmp
 
 SUBDIRS=
 
-SCRIPTS= .htaccess commit_change.pl index.pl
+SCRIPTS= commit_change.pl index.pl
 
 all:
 	@echo nothing to do

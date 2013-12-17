@@ -968,3 +968,17 @@ insert into val_device_collection_type
 	(device_collection_type, can_have_account_collection) 
 values 
 	('per-device', 'N');
+
+--- stab stuff
+insert into val_property_type (property_type, description, is_multivalue)
+values
+	('StabRole', 'roles for users in stab', 'Y');
+
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	permit_account_collection_id
+) values (
+	'StabAccess', 'StabRole', 'N', 'boolean',
+	'REQUIRED'
+);
+

@@ -1,6 +1,6 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.55.999999.1
+%define version 0.56.2
 %define release 1
 Name:   	%{name}
 Version:        %{version}
@@ -208,6 +208,13 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.2-1
+- port device, rack, etc sections to postgresql, NWO
+- add basic permissions model
+- support email from db
+- device shows child record
+- comment out bits that are not in use right now (voe, etc)
+- remove htaccess files
 * Thu Oct 17 2013 Todd Kover <kovert@omniscient.com> 0.54.4-1
 - move /usr/local/bin/perl reference to STFU rpm
 * Tue Oct 15 2013 Todd Kover <kovert@omniscient.com> 0.54.3-1

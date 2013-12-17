@@ -26,7 +26,7 @@
 
 STAB_DIR=/prod/www/stab/docs/sites
 
-SUBDIRS=write racks
+SUBDIRS=write rack
 
 SCRIPTS= blockmgr.pl index.pl rackit.pl 
 

@@ -68,6 +68,7 @@ sub do_device_add {
 	my $partno      = $stab->cgi_parse_param('PART_NUMBER');
 	my $status      = $stab->cgi_parse_param('STATUS');
 	my $owner       = $stab->cgi_parse_param('OWNERSHIP_STATUS');
+	my $sitecode    = $stab->cgi_parse_param('SITE_CODE');
 	my $svcenv      = $stab->cgi_parse_param('SERVICE_ENVIRONMENT');
 	my $osid        = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
 	my $voeid       = $stab->cgi_parse_param('VOE_ID');
@@ -166,6 +167,7 @@ sub do_device_add {
 		OPERATING_SYSTEM_ID   => $osid,
 		VOE_ID                => $voeid,
 		OWNERSHIP_STATUS      => $owner,
+		SITE_CODE	      => $sitecode,
 		IS_MONITORED          => $ismonitored,
 		IS_LOCALLY_MANAGED    => $localmgd,
 		SHOULD_FETCH_CONFIG   => $cfgfetch,

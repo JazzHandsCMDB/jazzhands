@@ -86,7 +86,7 @@ print $cgi->ul(
 			)
 		),
 		$cgi->li(
-			$cgi->a( { -href => "sites/racks/" }, "Racks by Site" )
+			$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
 		)
 	),
 #	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) . 
