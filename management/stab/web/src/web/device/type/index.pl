@@ -306,7 +306,7 @@ sub device_type_power_form {
 					$hdrparam,
 					$cgi->submit('Add'),
 					$cgi->caption(
-"Vendor, Model and Rack Units are Required.  To add vendors, contact jazzhands\@example.com"
+"Vendor, Model and Rack Units are Required.  To add vendors, contact ", $stab->support_email, "\n"
 					)
 				)
 			),
@@ -395,17 +395,17 @@ sub build_physical_port_box {
 				),
 				$cgi->td(
 					$stab->b_dropdown( undef,
-						$hr, 'PORT_PLUG_STYLE', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown( undef,
 						$hr, 'PORT_SPEED', \@keys
 					)
 				),
 				$cgi->td(
 					$stab->b_dropdown( undef,
 						$hr, 'PORT_PROTOCOL', \@keys
+					)
+				),
+				$cgi->td(
+					$stab->b_dropdown( undef,
+						$hr, 'PORT_PLUG_STYLE', \@keys
 					)
 				),
 				$cgi->td(
@@ -439,20 +439,20 @@ sub build_physical_port_box {
 		"Name",
 		'Descrip',
 		'Label',
-		'Plug',
 		'Speed',
 		'Protocol',
+		'Plug',
 		'Medium',
 		'Purpose',
 	];
 
 	if($type eq 'serial') {
-		push($headers,
+		push(@{$headers},
 			'TCP Port',
 		);
 	}
 
-	push($headers,
+	push(@{$headers},
 		'Optional',
 	);
 

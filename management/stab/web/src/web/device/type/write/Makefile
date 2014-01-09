@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/device/type/write
 
 SUBDIRS=
 
-SCRIPTS= .htaccess updatedt.pl adddt.pl
+SCRIPTS= updatedt.pl adddt.pl
 
 all:
 	@echo nothing to do

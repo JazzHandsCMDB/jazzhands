@@ -1,0 +1,46 @@
+%define	prefix	/usr
+%define	mkproot	libexec/jazzhands/mkpasswdfiles
+Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
+Vendor:     JazzHands
+Name:       jazzhands-mkpasswdfiles
+Version:    0.56
+Release:    1
+License:    Unknown
+Group:      System/Management
+Url:        http://www.jazzhands.net/
+BuildArch:  noarch
+Source0:	%{name}.tgz
+BuildRoot:      %{_tmppath}/%{name}-root
+BuildArch:	noarch
+Requires:       jazzhands-perl-common, perl-JazzHands-DBI, 
+
+
+%description
+Generates unix credentials
+
+%prep
+%setup -q -n %{name}
+
+%install
+
+rm -rf %{buildroot}
+mkdir -p %{buildroot}/%{prefix}/%{mkproot}
+for file in mkpasswdfiles.pl ; do
+	newfn=`echo $file | sed 's/\..*$//'`
+	install -m 555  $file %{buildroot}/%{prefix}/%{mkproot}/$newfn
+done
+
+%clean
+rm -rf %{buildroot}
+
+
+%files
+%defattr(755,root,root,-)
+
+%{prefix}/%{mkproot}/mkpasswdfiles
+
+# %post
+
+%changelog
+* Fri Dec 20 2013 Todd Kover <kovert@omniscient.com> 0.56.0
+- initial release

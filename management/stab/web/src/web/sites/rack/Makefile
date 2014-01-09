@@ -26,9 +26,9 @@
 
 STAB_DIR=/prod/www/stab/docs/sites/racks
 
-SUBDIRS=write
+SUBDIRS=
 
-SCRIPTS= index.pl
+SCRIPTS= index.pl updaterack.pl
 
 all:
 	@for subdir in $(SUBDIRS) ; do \

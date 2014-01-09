@@ -85,13 +85,10 @@ sub find_devices {
 		$criteria .= " and " if ( length($criteria) );
 		if ( $bits < 32 ) {
 			$criteria .=
-" (ip_manip.v4_base(nb.ip_address, :bits) = ip_manip.v4_base(ip_manip.v4_int_from_octet(:ip, 1), :bits)";
-			$criteria .=
-" or ip_manip.v4_base(snbnb.ip_address, :bits) = ip_manip.v4_base(ip_manip.v4_int_from_octet(:ip, 1), :bits)";
-			$criteria .= " )";
+" (net_manip.inet_base(nb.ip_address, :bits) = net_manip.inet_base(net_manip.inet_ptodb(:ip, 1), :bits))";
 		} else {
 			$criteria .=
-" (nb.ip_address = ip_manip.v4_int_from_octet(:ip) or snbnb.ip_address = ip_manip.v4_int_from_octet(:ip))";
+" (host(nb.ip_address)::inet = net_manip.inet_ptodb(:ip))";
 		}
 	}
 
@@ -108,16 +105,13 @@ sub find_devices {
 				on nb.netblock_id = ni.netblock_id
 			left join dns_record dns
 				on dns.netblock_id = nb.netblock_id
-			left join secondary_netblock snb
-				on snb.network_interface_id =
-					ni.network_interface_id
-			left join netblock snbnb
-				on snbnb.netblock_id = snb.netblock_id
 		 where	
 			$criteria
 		 order by d.device_name
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+
+warn "q is $q";
 
 	if ( defined($name) ) {
 		$sth->bind_param( ":name", "%$name%" )
@@ -142,8 +136,9 @@ sub find_devices {
 		  || $stab->return_db_err($sth);
 	}
 	if ( defined($mac) ) {
-		my $intmac = $stab->int_mac_from_text($mac);
-		$sth->bind_param( ":mac", $intmac )
+		# XXX
+		# my $intmac = $stab->int_mac_from_text($mac);
+		$sth->bind_param( ":mac", $mac )
 		  || $stab->return_db_err($sth);
 	}
 	$sth->execute || $stab->return_db_err($sth);

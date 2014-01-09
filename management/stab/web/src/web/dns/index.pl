@@ -260,7 +260,9 @@ sub build_fwd_zone_Tr {
 
 	my $showexcess = 1;
 	my $ttlonly    = 0;
-	if ( defined($hr) && $hr->{_dbx('DEVICE_ID')} ) {
+	# XXX need to make secondary name and CNAME manipulation right in
+	# device tab before this is reenabled!
+	if ( 0 && defined($hr) && $hr->{_dbx('DEVICE_ID')} ) {
 		$showexcess = 0 if ( $hr->{_dbx('SHOULD_GENERATE_PTR')} eq 'Y' );
 		$ttlonly = 1;
 		my $link = "../device/device.pl?devid=" . $hr->{_dbx('DEVICE_ID')};

@@ -1,7 +1,7 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.54.4
-%define release 1
+%define version 0.56.5
+%define release 3
 Name:   	%{name}
 Version:        %{version}
 Release:        %{release}%{?dist}
@@ -13,7 +13,7 @@ Source0:	%{name}.tgz
 BuildRoot:      %{_tmppath}/%{name}-root
 BuildArch:	noarch
 #BuildRequires: 
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common, jazzhands-perl-stab, jazzhands-javascript-common
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab, jazzhands-javascript-common 
 
 %description
 
@@ -36,6 +36,7 @@ echo Building perl modules
 cd perl/src && %{__perl} Makefile.PL INSTALLDIRS=vendor --default
 
 
+
 %install
 rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT/%{prefix}
@@ -45,6 +46,7 @@ cd perl/src && make pure_install PERL_INSTALL_ROOT=$RPM_BUILD_ROOT
 
 find $RPM_BUILD_ROOT -type f -name .packlist -exec rm -f {} \;
 find $RPM_BUILD_ROOT -depth -type d -exec rmdir {} 2>/dev/null \;
+find %{buildroot} -name Makefile -print |xargs rm -f 
 
 %clean
 rm -rf %{buildroot}
@@ -54,8 +56,6 @@ rm -rf %{buildroot}
 %{prefix}/sites.pl
 %{prefix}/style.pl
 %{prefix}/error.pl
-%{prefix}/Makefile
-%{prefix}/images/Makefile
 %{prefix}/images/electric/l6-30p.png
 %{prefix}/images/electric/l5-20p.png
 %{prefix}/images/electric/6-20p.png
@@ -65,7 +65,6 @@ rm -rf %{buildroot}
 %{prefix}/images/electric/iec-60320-c14.png
 %{prefix}/images/electric/5-50p.png
 %{prefix}/images/electric/9p54u2.png
-%{prefix}/images/electric/Makefile
 %{prefix}/images/electric/l21-30p.png
 %{prefix}/images/electric/6-15p.png
 %{prefix}/images/electric/5-30p.png
@@ -90,7 +89,6 @@ rm -rf %{buildroot}
 %{prefix}/images/vendors/google.ico
 %{prefix}/images/vendors/juniper.ico
 %{prefix}/images/vendors/emc.ico
-%{prefix}/images/vendors/Makefile
 %{prefix}/images/vendors/hp.ico
 %{prefix}/images/vendors/netapp.ico
 %{prefix}/images/vendors/sun.ico
@@ -105,7 +103,6 @@ rm -rf %{buildroot}
 %{prefix}/javascript/dns-utils.js
 %{prefix}/javascript/app-utils.js
 %{prefix}/javascript/ajax-utils.js
-%{prefix}/javascript/Makefile
 %{prefix}/javascript/table-manip.js
 %{prefix}/javascript/devicetype.js
 %{prefix}/javascript/tickets.js
@@ -116,7 +113,6 @@ rm -rf %{buildroot}
 %{prefix}/javascript/stab-common.js
 %{prefix}/circuit/index.pl
 %{prefix}/circuit/trunkgroup/index.pl
-%{prefix}/stabcons/Makefile
 %{prefix}/stabcons/stab.png
 %{prefix}/stabcons/collapse.jpg
 %{prefix}/stabcons/expand.jpg
@@ -124,19 +120,14 @@ rm -rf %{buildroot}
 %{prefix}/stabcons/round_red_x_sign_4229.jpg
 %{prefix}/stabcons/Axe_001.svg
 %{prefix}/stabcons/Octagon_delete.svg
-%{prefix}/device/type/Makefile
+%{prefix}/stabcons/e.gif
 %{prefix}/device/type/index.pl
 %{prefix}/device/type/dtsearch.pl
 %{prefix}/device/type/write/updatedt.pl
-%{prefix}/device/type/write/Makefile
-%{prefix}/device/type/write/.htaccess
 %{prefix}/device/type/write/adddt.pl
 %{prefix}/device/os/search.pl
-%{prefix}/device/os/Makefile
 %{prefix}/device/os/report.pl
 %{prefix}/device/os/index.pl
-%{prefix}/device/os/write/Makefile
-%{prefix}/device/os/write/.htaccess
 %{prefix}/device/os/write/updateos.pl
 %{prefix}/device/ajax-devsearch.pl
 %{prefix}/device/device.pl
@@ -144,60 +135,38 @@ rm -rf %{buildroot}
 %{prefix}/device/voe/voecompare.pl
 %{prefix}/device/voe/pkg.pl
 %{prefix}/device/voe/search.pl
-%{prefix}/device/voe/Makefile
 %{prefix}/device/voe/voesymtrax.pl
 %{prefix}/device/voe/index.pl
-%{prefix}/device/voe/write/Makefile
-%{prefix}/device/voe/write/.htaccess
-%{prefix}/device/apps/Makefile
 %{prefix}/device/apps/index.pl
-%{prefix}/device/Makefile
 %{prefix}/device/index.pl
-%{prefix}/device/snmp/Makefile
 %{prefix}/device/snmp/index.pl
-%{prefix}/device/snmp/.htaccess
 %{prefix}/device/snmp/commit_change.pl
 %{prefix}/device/device-ajax.pl
-%{prefix}/device/certs/Makefile
 %{prefix}/device/certs/index.pl
-%{prefix}/device/certs/write/Makefile
 %{prefix}/device/write/update_device.pl
-%{prefix}/device/write/Makefile
-%{prefix}/device/write/.htaccess
 %{prefix}/device/write/add_device.pl
-%{prefix}/sites/racks/Makefile
-%{prefix}/sites/racks/index.pl
-%{prefix}/sites/racks/write/Makefile
-%{prefix}/sites/Makefile
+%{prefix}/sites/rack/index.pl
+%{prefix}/sites/rack/updaterack.pl
 %{prefix}/sites/index.pl
 %{prefix}/sites/rackit.pl
 %{prefix}/sites/write/retire_site.pl
-%{prefix}/sites/write/Makefile
 %{prefix}/sites/blockmgr.pl
 %{prefix}/netblock/ipalloc/allocate_ip.pl
-%{prefix}/netblock/ipalloc/Makefile
-%{prefix}/netblock/ipalloc/.htaccess
 %{prefix}/netblock/search.pl
-%{prefix}/netblock/Makefile
 %{prefix}/netblock/index.pl
 %{prefix}/netblock/dhcprange.pl
 %{prefix}/netblock/write/rmnetblock.pl
 %{prefix}/netblock/write/doadd.pl
 %{prefix}/netblock/write/addnetblock.pl
 %{prefix}/netblock/write/edit_netblock.pl
-%{prefix}/netblock/write/Makefile
-%{prefix}/netblock/write/.htaccess
 %{prefix}/dns/addazone.pl
 %{prefix}/dns/dns-reconcile.pl
 %{prefix}/dns/search.pl
-%{prefix}/dns/Makefile
 %{prefix}/dns/index.pl
 %{prefix}/dns/update_dns.pl
 %{prefix}/dns/db-reconcile.pl
 %{prefix}/dns/dns-debug.pl
 %{prefix}/dns/write/add_domain.pl
-%{prefix}/dns/write/Makefile
-%{prefix}/dns/write/.htaccess
 %{prefix}/dns/write/update_domain.pl
 %{prefix}/dns/soacheck.pl
 %{prefix}/dns/dns-ajax.pl
@@ -208,6 +177,17 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.5-1
+- rpm depend fix
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.4-1
+- minor tweaks
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.2-1
+- port device, rack, etc sections to postgresql, NWO
+- add basic permissions model
+- support email from db
+- device shows child record
+- comment out bits that are not in use right now (voe, etc)
+- remove htaccess files
 * Thu Oct 17 2013 Todd Kover <kovert@omniscient.com> 0.54.4-1
 - move /usr/local/bin/perl reference to STFU rpm
 * Tue Oct 15 2013 Todd Kover <kovert@omniscient.com> 0.54.3-1

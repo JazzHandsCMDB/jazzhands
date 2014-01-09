@@ -37,7 +37,7 @@ sub print_error_screen {
 
 	print qq{
 		You have found an error in the stab error/message notification
-		system.  You can report this to jazzhands\@example.com.
+		system.
 	};
 
 	my $notemsg = $cgi->param("__notemsg__");

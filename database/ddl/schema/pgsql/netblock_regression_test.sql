@@ -1,4 +1,4 @@
--- Copyright (c) 2012 Matthew Ragan
+-- Copyright (c) 2012,2013 Matthew Ragan
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -71,10 +71,10 @@ BEGIN
 -- Set up a couple of test universes
 --
 	RAISE NOTICE 'Creating test universes...';
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('testuniverse')
+	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[0] := v_ip_universe_id;
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('testuniverse2')
+	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse2')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[1] := v_ip_universe_id;
 
@@ -92,21 +92,21 @@ BEGIN
 
 	RAISE NOTICE 'Testing netblock triggers';
 
-	RAISE NOTICE '    Inserting a netblock with NULL netblock_bits';
-	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
-			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
-			 ip_universe_id)
-		VALUES
-			('172.31.0.0/16', NULL, 'JHTEST-freeforall', 'Y', 'N', 'Y', NULL,
-				'Allocated', a_ip_universe[0]);
-		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
-			ERRCODE = 'error_in_assignment';
-	EXCEPTION
-		WHEN not_null_violation THEN
-			RAISE NOTICE '        ... Failed correctly';
-	END;
+--	RAISE NOTICE '    Inserting a netblock with NULL netblock_bits';
+--	BEGIN
+--		INSERT INTO netblock 
+--			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+--			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+--			 ip_universe_id)
+--		VALUES
+--			('172.31.0.0/16', NULL, 'JHTEST-freeforall', 'Y', 'N', 'Y', NULL,
+--				'Allocated', a_ip_universe[0]);
+--		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+--			ERRCODE = 'error_in_assignment';
+--	EXCEPTION
+--		WHEN not_null_violation THEN
+--			RAISE NOTICE '        ... Failed correctly';
+--	END;
 
 	RAISE NOTICE '    Inserting a netblock with can_subnet=Y and is_single_address=Y';
 	BEGIN
@@ -648,13 +648,13 @@ BEGIN
 	END IF;
 	a_netblock_list[3] = netblock_rec.netblock_id;
 
-	RAISE NOTICE '    Inserting 172.31.128.0/17';
+	RAISE NOTICE '    Inserting 172.31.18.0/25';
 	INSERT INTO netblock 
 		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.128.0/17', 17, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
+		('172.31.18.0/25', 25, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -701,8 +701,8 @@ BEGIN
 		netblock_id = a_netblock_list[4];
 
 	IF v_netblock_id != a_netblock_list[0] THEN
-		RAISE '        parent for 172.31.1.0/24 should still be %, but is %', 
-			a_netblock_list[5],
+		RAISE '        parent for 172.31.18.0/25 should still be %, but is %', 
+			a_netblock_list[0],
 			v_netblock_id;
 	ELSE
 		RAISE NOTICE '        parent for netblock % should still be and is %',
@@ -766,13 +766,142 @@ BEGIN
 	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
 	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 
+
 --
--- Ensure that it's possible to change the netmask on a block, provided
--- that everything gets handled before the after trigger
+-- Change the netmask on a netblock and ensure all children get rehomed correctly
 --
 
+	RAISE NOTICE '    Changing netmask of 172.31.0.0/22 to 172.31.0.0/19 to ensure children change correctly';
+	UPDATE netblock SET ip_address = set_masklen(ip_address, 19), netmask_bits = 19 WHERE
+		netblock_id = a_netblock_list[5];
+
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[3];
+
+	IF v_netblock_id != a_netblock_list[5] THEN
+		RAISE '        parent for 172.31.1.0/24 should still be %, but is %', 
+			a_netblock_list[5],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should still be and is %',
+			a_netblock_list[3],
+			a_netblock_list[5];
+	END IF;
+
+
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[4];
+
+	IF v_netblock_id != a_netblock_list[5] THEN
+		RAISE '        parent for 172.31.18.0/25 should now be %, but is %', 
+			a_netblock_list[5],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should now be and is %',
+			a_netblock_list[4],
+			a_netblock_list[5];
+	END IF;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+
+
+	RAISE NOTICE '    Changing netmask of 172.31.0.0/19 back to 172.31.0.0/22 to ensure children change correctly';
+	UPDATE netblock SET ip_address = set_masklen(ip_address, 22), netmask_bits = 22 WHERE
+		netblock_id = a_netblock_list[5];
+
+
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[3];
+
+	IF v_netblock_id != a_netblock_list[5] THEN
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+			a_netblock_list[5],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should now be and is %',
+			a_netblock_list[3],
+			a_netblock_list[5];
+	END IF;
+
+
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[4];
+
+	IF v_netblock_id != a_netblock_list[0] THEN
+		RAISE '        parent for 172.31.18.0/25 should still be %, but is %', 
+			a_netblock_list[0],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should still be and is %',
+			a_netblock_list[4],
+			a_netblock_list[0];
+	END IF;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+
+--
+-- Change the IP address on a netblock and ensure all children get rehomed correctly
+--
+
+	RAISE NOTICE '    Changing IP address of 172.31.0.0/19 to 172.31.16.0/22 to ensure children change correctly';
+	UPDATE netblock SET ip_address = '172.31.16.0/22', netmask_bits = 22 WHERE
+		netblock_id = a_netblock_list[5];
+
+
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[3];
+
+	IF v_netblock_id != a_netblock_list[0] THEN
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+			a_netblock_list[0],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should now be and is %',
+			a_netblock_list[3],
+			v_netblock_id;
+	END IF;
+
+
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[4];
+
+	IF v_netblock_id != a_netblock_list[5] THEN
+		RAISE '        parent for 172.31.18.0/25 should now be %, but is %', 
+			a_netblock_list[5],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should now be and is %',
+			a_netblock_list[4],
+			v_netblock_id;
+	END IF;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+
+--
+-- Delete a netblock which has a child and ensure that it gets correctly reparented
+--
+
+	RAISE NOTICE '    Deleting 172.31.16.0/22, which is both the parent and child of other netblocks';
+	DELETE FROM netblock WHERE netblock_id = a_netblock_list[5];
 	
+	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
+		netblock_id = a_netblock_list[4];
 
+	IF v_netblock_id != a_netblock_list[0] THEN
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+			a_netblock_list[0],
+			v_netblock_id;
+	ELSE
+		RAISE NOTICE '        parent for netblock % should now be and is %',
+			a_netblock_list[4],
+			a_netblock_list[0];
+	END IF;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 
 --
 -- Yay!  We're done!

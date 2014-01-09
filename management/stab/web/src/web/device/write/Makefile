@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/device/write
 
 SUBDIRS=
 
-SCRIPTS= .htaccess add_device.pl update_device.pl  
+SCRIPTS= add_device.pl update_device.pl  
 	
 
 all:

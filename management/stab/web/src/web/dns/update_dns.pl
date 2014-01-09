@@ -565,18 +565,18 @@ sub process_and_update_dns_record {
 		$opts->{'dns_ttl'} = undef;
 	}
 
-	my %newrecord;
+	my $newrecord;
 
 	# ttlonly applies only to A/AAAA records anchored to hosts
 	if ($ttlonly) {
-		%newrecord = (
+		$newrecord = {
 			DNS_RECORD_ID       => $opts->{'dns_record_id'},
 			DNS_TTL             => $opts->{'dns_ttl'},
 			IS_ENABLED          => $opts->{'is_enabled'},
 			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
-		);
+		};
 	} else {
-		%newrecord = (
+		$newrecord = {
 			DNS_RECORD_ID       => $opts->{'dns_record_id'},
 			DNS_TTL             => $opts->{'dns_ttl'},
 			DNS_NAME            => $opts->{'dns_name'},
@@ -589,11 +589,13 @@ sub process_and_update_dns_record {
 			DNS_SRV_PROTOCOl    => $opts->{'dns_srv_protocol'},
 			DNS_SRV_WEIGHT      => $opts->{'dns_srv_weight'},
 			DNS_SRV_PORT        => $opts->{'dns_srv_port'},
-		);
+		};
 	}
 	if ( defined( $opts->{class} ) ) {
-		$newrecord{ _dbx('DNS_CLASS') } = $opts->{dns_class};
+		$newrecord->{ 'DNS_CLASS' } = $opts->{dns_class};
 	}
+
+	$newrecord = _dbx($newrecord, 'lower');
 
 	# On update:
 	#	Only pay attention to if the new type is A or AAAA.
@@ -608,18 +610,17 @@ sub process_and_update_dns_record {
 		&& $opts->{'dns_type'} =~ /^A(AAA)?$/ )
 	{
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
-			$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
+			$newrecord->{'should_generate_ptr'} =
 			  $opts->{should_generate_ptr};
-		} elsif ( $orig->{ _dbx('DNS_TYPE') } ne $opts->{'dns_type'} ) {
+		} elsif ( $orig->{'dns_type'} ne $opts->{'dns_type'} ) {
 			if ( ! $stab->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) ) {
-				$newrecord{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
+				$newrecord->{'should_generate_ptr'} = 'Y';
 			} else {
-				$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
+				$newrecord->{'should_generate_ptr'} =
 				  $opts->{should_generate_ptr};
 			}
 		} else {
-			$newrecord{ _dbx('SHOULD_GENERATE_PTR') } =
-			  $opts->{should_generate_ptr};
+			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
 		}
 
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
@@ -693,21 +694,21 @@ sub process_and_update_dns_record {
 	if (       $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
 		&& $opts->{dns_type} =~ /^A(AAA)?/ )
 	{
-		$newrecord{ _dbx('DNS_VALUE') }   = undef;
-		$newrecord{ _dbx('NETBLOCK_ID') } = $nblkid;
+		$newrecord->{ _dbx('DNS_VALUE') }   = undef;
+		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
 	} elsif (  $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
 		&& $opts->{dns_type} !~ /^A(AAA)?/ )
 	{
-		$newrecord{ _dbx('DNS_VALUE') }   = $opts->{dns_value};
-		$newrecord{ _dbx('NETBLOCK_ID') } = undef;
+		$newrecord->{ _dbx('DNS_VALUE') }   = $opts->{dns_value};
+		$newrecord->{ _dbx('NETBLOCK_ID') } = undef;
 	} elsif (  $orig->{ _dbx('DNS_TYPE') } !~ /^A(AAA)?/
 		&& $opts->{dns_type} =~ /^A(AAA)?/ )
 	{
-		$newrecord{ _dbx('DNS_VALUE') }   = undef;
-		$newrecord{ _dbx('NETBLOCK_ID') } = $nblkid;
+		$newrecord->{ _dbx('DNS_VALUE') }   = undef;
+		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
 	}
 
-	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newrecord ) );
+	my $diffs = $stab->hash_table_diff( $orig, _dbx( $newrecord ) );
 	my $tally = keys %$diffs;
 	if ( !$tally ) {
 		return 0;

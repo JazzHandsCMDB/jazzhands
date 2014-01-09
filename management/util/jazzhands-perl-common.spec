@@ -1,7 +1,7 @@
 Summary:    jazzhands-perl-common - JazzHands perl common utility modules
 Vendor:     JazzHands
 Name:       jazzhands-perl-common
-Version:    0.55
+Version:    0.56.3
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -45,6 +45,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.3-1
+  - make _dbx handle references to arrays instead of returning undef
+  - remove warn that made it out accidentally
 * Tue Dec  3 2013 Todd Kover <kovert@omniscient.com> 0.55-1
   - make _dbx handle references to arrays instead of returning undef
   - remove warn that made it out accidentally
