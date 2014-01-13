@@ -69,7 +69,7 @@ Turn on more verbose output.
 =item -o output_dir
 
 Write the output files to the directory output_dir. The default is
-/prod/pwgen/out.
+/var/lib/jazzhands/acfetchfiles/out.
 
 =back
 
@@ -124,7 +124,7 @@ use JazzHands::Common qw(:all);
 use JSON::PP;
 use File::Find;
 
-my $o_output_dir = "/prod/pwgen/out";
+my $o_output_dir = "/var/lib/jazzhands/acfetchfiles/out";
 my $o_verbose;
 
 my ( $q_mclass_ids, $dbh, $g_prop, $passwd_grp, %mclass_file );
@@ -608,7 +608,7 @@ sub generate_passwd_files($) {
 			   unix_gid, first_name, 
                case when length(middle_name) = 1
                     then middle_name || '.' else middle_name end middle_name,
-               last_name, default_home, shell, array_agg(ssh_public_key) ssh_public_key
+               last_name, default_home, shell, ssh.ssh_public_key
         from account a
 			join person p
 				on (p.person_id = a.person_id)
@@ -634,11 +634,12 @@ sub generate_passwd_files($) {
              left join account_password p2
                 on (a.account_id = p2.account_id
                     and p2.password_type = 'des')
-         
-             left join account_ssh_key ask
-                 on (a.account_id = ask.account_id)
-             left join ssh_key ssh
-                 on (ask.ssh_key_id = ssh.ssh_key_id)
+			left join (
+				select	account_id, array_agg(ssh_public_key) as ssh_public_key
+					from	account_ssh_key ask
+							inner join ssh_key skey using (ssh_key_id)
+					group by account_id
+			) ssh on (a.account_id = ssh.account_id)
         where is_disabled = 'N'
         and c.device_collection_type = 'mclass'
         -- and ac.account_collection_type in ('systems', 'per-user')
@@ -648,7 +649,6 @@ sub generate_passwd_files($) {
 		$q .= "and cce.device_collection_id in $q_mclass_ids";
 	}
 
-	$q .= " group by c.device_collection_id, a.account_id, mclass, login, md5_password, des_password, unix_uid, group_name, unix_gid, first_name, middle_name, last_name, default_home, shell";
 	$q .= " order by device_collection_id, unix_uid";
 
 	$sth = $dbh->prepare($q);
@@ -711,8 +711,11 @@ sub generate_passwd_files($) {
 			'home'           => $pwd[5],
 			'shell'          => $pwd[6],
 			'group_name'     => $pwd[7],
-                        'ssh_public_key' => $r->{_dbx('SSH_PUBLIC_KEY')},
 		};
+
+		if( defined $r->{_dbx('SSH_PUBLIC_KEY')} ) {
+                        $userhash->{'ssh_public_key'} = $r->{_dbx('SSH_PUBLIC_KEY')};
+		}
 
 		## Accumulate all passwd file lines in @pwdlines.
 		## $pwd[7] is the group name. We don't need it anymore.
@@ -1812,6 +1815,85 @@ sub generate_wwwgroup_files($) {
 	$fh->close if ($fh);
 }
 
+sub  generate_config_files {
+	my ($dir ) = @_;
+
+	my $q = q{
+		SELECT pv.device_collection_id,
+			   pv.property_name,
+			   pv.property_type,
+			   pv.property_value,
+			   dc.device_collection_name
+		FROM (
+				SELECT device_collection_id, 
+					property_name, property_type,
+					property_value, rank()
+				OVER (PARTITION BY device_collection_id 
+					ORDER BY  device_collection_level)
+				FROM (
+					select
+						dc.device_collection_level,
+						dc.device_collection_id,
+						p.property_name,
+						p.property_type,
+						p.property_value
+					from   v_property p
+					inner join v_device_coll_hier_detail dc on
+						p.device_collection_id = dc.parent_device_collection_id
+					where   p.property_name = 'ShouldDeploy' 
+						and p.property_type = 'MclassUnixProp'
+				) xxx
+		) pv
+		INNER JOIN device_collection dc using (device_collection_id)
+		WHERE pv.rank = 1
+    };
+
+	if ($q_mclass_ids) {
+		$q .= "and pv.device_collection_id in $q_mclass_ids";
+	}
+
+	my $sth = $dbh->prepare($q);
+	$sth->execute;
+
+	my $cfg = {};
+	my $mclass_fn = "_config.json";
+
+	my($last_mclass, $fh);
+	while ( my $r = $sth->fetchrow_hashref ) {
+		my $mclass = $r->{ _dbx('DEVICE_COLLECTION_NAME') };
+
+		## If we switched MCLASSes, write the accumulated text to the file,
+		## open a new file, and empty the buffer
+
+		if ( defined($last_mclass) ) {
+			if ( $last_mclass ne $mclass ) {
+				my $json = JSON::PP->new->ascii;
+				print $fh $json->pretty->encode( {
+					'config' => $cfg } ), "\n";
+				$fh = new_mclass_file( $dir, $mclass, $fh,
+					$mclass_fn );
+				$last_mclass = $mclass;
+				$cfg = {};
+			}
+		}
+
+		else {
+			$fh = new_mclass_file( $dir, $mclass, $fh, $mclass_fn );
+			print $fh "# Apache group file\n";
+			$last_mclass = $mclass;
+		}
+
+		$cfg->{ $r->{_dbx('PROPERTY_NAME') } } =
+			($r->{ _dbx('PROPERTY_VALUE') } eq 'Y') ? 1 : 0;
+	}
+
+
+	my $json = JSON::PP->new->ascii;
+	print $fh $json->pretty->encode( {
+			'config' => $cfg } ), "\n";
+	$fh->close if ($fh);
+}
+
 ###############################################################################
 #
 # usage: create_host_symlinks($dir, @mclasses);
@@ -2021,7 +2103,8 @@ sub main {
 	}
 
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
-	umask(027);
+	# umask(027);
+	umask(022);
 
 	## Cleanup old temporary directories
 
@@ -2051,6 +2134,8 @@ sub main {
 #	generate_appaal_files($dir);
 	generate_k5login_root_files($dir);
 	generate_wwwgroup_files($dir);
+
+	generate_config_files($dir);
 
 	## Move the files from the temporary directory to the mclass directory
 
