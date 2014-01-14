@@ -2068,7 +2068,7 @@ sub add_interfaces {
 		}
 	}
 
-	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip, is_single_address = 'Y', netblock_type => 'default');
+	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip, is_single_address => 'Y', netblock_type => 'default');
 	my $xblk = $stab->configure_allocated_netblock($ip, $nblk);
 	$nblk = $xblk;
 
