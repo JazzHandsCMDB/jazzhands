@@ -771,6 +771,7 @@ sub configure_allocated_netblock {
 		my $h = {
 			ip_address        => $ip,
 			is_single_address => 'Y',
+			netblock_type	  => 'default',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
 			is_ipv4_address   => ( $ip =~ /:/ ) ? 'N' : 'Y',
