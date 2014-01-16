@@ -52,8 +52,6 @@ DECLARE
 BEGIN
 	IF (in_netmask_bits IS NOT NULL) THEN
 		in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
-	ELSE
-		in_Netmask_Bits := masklen(in_IpAddress);
 	END IF;
 
 	select  Netblock_Id
