@@ -1,7 +1,7 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.56.5
-%define release 3
+%define version 0.56.6
+%define release 0
 Name:   	%{name}
 Version:        %{version}
 Release:        %{release}%{?dist}
@@ -177,6 +177,9 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Mon Jan 13 2014 Todd Kover <kovert@omniscient.com> 0.56.6-1
+- on retiring device delete from network purpose & device collection
+- fix site code updates on device tab
 * Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.5-1
 - rpm depend fix
 * Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.4-1

@@ -50,6 +50,8 @@ GRANT SELECT				ON site TO app_stab;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON physical_port TO app_stab;
 GRANT SELECT,UPDATE			ON physical_port_physical_port_id_seq TO app_stab;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON network_interface TO app_stab;
+GRANT SELECT,UPDATE,INSERT,DELETE	ON network_interface_purpose TO app_stab;
+GRANT SELECT,UPDATE,INSERT,DELETE	ON device_collection_device TO app_stab;
 GRANT SELECT,UPDATE			ON network_interface_network_interface_id_seq TO app_stab;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON device TO app_stab;
 GRANT SELECT,UPDATE			ON device_device_id_seq TO app_stab;

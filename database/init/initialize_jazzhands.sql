@@ -640,6 +640,27 @@ insert into val_property_value (
 ) values 
 	('UnixHomeType','MclassUnixProp','generic','per-user home directories'); 
 
+--- Various properities that define how account management works
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	DESCRIPTION,
+	PERMIT_DEVICE_COLLECTION_ID
+) values (
+	'ShouldDeploy', 'MclassUnixProp', 'N', 'boolean',
+	'If credentials managmeent should deploy files or not',
+	'REQUIRED'
+);
+
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	DESCRIPTION,
+	PERMIT_DEVICE_COLLECTION_ID, PERMIT_ACCOUNT_COLLECTION_ID
+) values (
+	'PreferLocal', 'MclassUnixProp', 'N', 'boolean',
+	'If credentials management client should prefer local uid,gid,shell',
+	'REQUIRED', 'REQUIRED'
+);
+
 -- XXX Consider if type UnixGroupAssign should be folded into MclassUnixProp
 insert into val_property_type (
 	PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE

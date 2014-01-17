@@ -41,10 +41,10 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress jazzhands.netblock.ip_address%type,
-	in_Netmask_Bits jazzhands.netblock.netmask_bits%type,
-	in_netblock_type jazzhands.netblock.netblock_type%type,
-	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type,
-	in_is_single_address jazzhands.netblock.is_single_address%type,
+	in_Netmask_Bits jazzhands.netblock.netmask_bits%type DEFAULT NULL,
+	in_netblock_type jazzhands.netblock.netblock_type%type DEFAULT 'default',
+	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
+	in_is_single_address jazzhands.netblock.is_single_address%type DEFAULT 'N',
 	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL
 ) RETURNS jazzhands.netblock.netblock_id%type AS $$
 DECLARE
@@ -52,7 +52,10 @@ DECLARE
 BEGIN
 	IF (in_netmask_bits IS NOT NULL) THEN
 		in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
+	ELSE
+		in_Netmask_Bits := masklen(in_IpAddress);
 	END IF;
+
 	select  Netblock_Id
 	  into	par_nbid
 	  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
@@ -68,7 +71,8 @@ BEGIN
 				(in_is_single_address = 'Y' AND 
 					(in_Netmask_Bits IS NULL OR netmask_bits = in_Netmask_Bits))
 			)
-			and netblock_id != in_netblock_id
+			and (in_netblock_id IS NULL OR
+				netblock_id != in_netblock_id)
 		order by netmask_bits desc
 	) subq LIMIT 1;
 

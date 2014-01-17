@@ -155,6 +155,7 @@ sub do_update_device {
 	my $devtypeid	= $stab->cgi_parse_param('DEVICE_TYPE_ID', $devid);
 	my $serialno	= $stab->cgi_parse_param('SERIAL_NUMBER', $devid);
 	my $partno		= $stab->cgi_parse_param('PART_NUMBER', $devid);
+	my $site		= $stab->cgi_parse_param('SITE_CODE', $devid);
 	my $status	= $stab->cgi_parse_param('DEVICE_STATUS', $devid);
 	my $owner	= $stab->cgi_parse_param('OWNERSHIP_STATUS', $devid);
 	my $svcenv	= $stab->cgi_parse_param('SERVICE_ENVIRONMENT', $devid);
@@ -319,6 +320,7 @@ sub do_update_device {
 		IS_VIRTUAL_DEVICE	=> $virtdev,
 		AUTO_MGMT_PROTOCOL	=> $mgmtprot,
 		#- VOE_SYMBOLIC_TRACK_ID	=> $voetrax,
+		SITE_CODE			=> $site,
 	};
 
 	#
@@ -2066,7 +2068,7 @@ sub add_interfaces {
 		}
 	}
 
-	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip);
+	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip, netblock_type => 'default');
 	my $xblk = $stab->configure_allocated_netblock($ip, $nblk);
 	$nblk = $xblk;
 
@@ -2231,7 +2233,6 @@ sub find_phys_con_endpoint_from_port {
 	$endpoint;
 }
 
-
 sub delete_device_connections {
 	my($stab, $devid, $limit) = @_;
 
@@ -2256,6 +2257,20 @@ sub delete_device_connections {
 
 	$sth1->finish;
 	1;
+}
+
+sub delete_device_collection_membership {
+	my($stab, $devid) = @_;
+
+	my $q = qq{
+		delete from device_collection_device where device_id = ?
+	};
+	my $sth = $stab->prepare($q) || $stab->return_db_err;
+
+	my $numchanges = $sth->execute($devid) || $stab->return_db_err($sth);
+
+	$sth->finish;
+	$numchanges;
 }
 
 sub delete_device_phys_ports {
@@ -2338,12 +2353,15 @@ sub delete_device_interfaces {
 	}
 	$Nsth->finish;
 
-	my @qs = (qq{
-		delete from dns_record
+	my @qs = (
+		qq{delete from dns_record
 			where netblock_id in
 					(select netblock_id from network_interface
 						where device_id = ?
 					)
+		},
+		qq{delete from network_interface_purpose
+					where device_id = ?
 		},
 		qq{delete from network_interface
 					where device_id = ?
@@ -2414,6 +2432,8 @@ sub retire_device {
 	delete_device_interfaces($stab, $devid);
 	delete_device_phys_ports($stab, $devid);
 	delete_device_power($stab, $devid);
+
+	delete_device_collection_membership($stab, $devid);
 
 	my(@removeqs) = (
 		"SELECT device_utils.retire_device_ancillary(?);",
