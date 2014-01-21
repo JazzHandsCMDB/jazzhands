@@ -69,7 +69,7 @@ Turn on more verbose output.
 =item -o output_dir
 
 Write the output files to the directory output_dir. The default is
-/var/lib/jazzhands/acfetchfiles/out.
+/var/lib/jazzhands/creds-mgmt-server/ .
 
 =back
 
@@ -124,7 +124,7 @@ use JazzHands::Common qw(:all);
 use JSON::PP;
 use File::Find;
 
-my $o_output_dir = "/var/lib/jazzhands/acfetchfiles/out";
+my $o_output_dir = "/var/lib/jazzhands/creds-mgmt-server/out";
 my $o_verbose;
 
 my ( $q_mclass_ids, $dbh, $g_prop, $passwd_grp, %mclass_file );
@@ -1879,7 +1879,6 @@ sub  generate_config_files {
 
 		else {
 			$fh = new_mclass_file( $dir, $mclass, $fh, $mclass_fn );
-			print $fh "# Apache group file\n";
 			$last_mclass = $mclass;
 		}
 
