@@ -1,3 +1,6 @@
-lib/JazzHands/LDAP.pm
+Changes
 Makefile.PL
 MANIFEST
+README
+t/JazzHands-LDAP.t
+lib/JazzHands/LDAP.pm

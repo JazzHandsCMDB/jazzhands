@@ -4,9 +4,9 @@ Example content of json file when SRV record is not used.
 
 {
         "ldap" : {
-                "binddn"   : "KZSAND\\jazzhands_user",
+                "binddn"   : "syncuser",
                 "bindpw"   : "secret",
-                "LDAPHost" : "kz-sand.kzsand.corp.appnexus.com",
+                "LDAPHost" : "sync.example.com",
                 "TLS" : { 
                         "verify" : "none",
                         "cafile" : "/etc/pki/tls/certs/trusted_by_openldap_clients.crt" }

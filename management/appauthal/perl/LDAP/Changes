@@ -1,0 +1,6 @@
+Revision history for Perl extension JazzHands::LDAP.
+
+0.01  Wed May 16 10:45:20 2012
+	- original version; created by h2xs 1.23 with options
+		-AX JazzHands::LDAP
+
