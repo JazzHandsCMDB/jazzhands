@@ -7,22 +7,23 @@ License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
 BuildArch:  noarch
-Source0:	%{name}.tgz
-BuildRoot:      %{_tmppath}/%{name}-root
-BuildArch:	noarch
+Source0:    %{name}-%{version}.tar.gz
+BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+
+BuildArch:  noarch
 
 %description
 Common utility modules used by JazzHands scripts.
 
 %prep
-%setup -q -n %{name}
+%setup -q -n %{name}-%{version}
 
-cd perl && %{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
+%{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
 
 %install
 
 rm -rf %{buildroot}
-cd perl && make pure_install 
+make pure_install 
 
 find %{buildroot} -type f -name .packlist -exec rm -f {} \;
 find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;

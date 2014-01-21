@@ -1,0 +1,19 @@
+THIS IS NOT READY FOR REAL RELEASE YET...
+
+This is the first pass at generating a release.  It does not handle the
+database (important!), debs and pulls versions from the spec files intead of
+tags, but its a step in the right direction
+
+NOTES:
+
+- release contains information on releases
+- build-release spits out .tar.gzs in the current directory that are release
+  ready (well, for some definition).  More work needs to be done.
+
+testing was done with:
+
+rm -f *.tgz
+./build-release
+fail=''
+for i in *.gz ; do rpmbuild -tb $i || fail="$file $i"; done
+echo $fail

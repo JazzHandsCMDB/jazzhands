@@ -2,15 +2,15 @@
 %define prefix	/var/www/stab
 %define version 0.56.6
 %define release 0
-Name:   	%{name}
-Version:        %{version}
-Release:        %{release}%{?dist}
+Name:   	jazzhands-stab
+Version:        0.56.6
+Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
 License:        BSD
 URL:    	http://www.jazzhands.net/
-Source0:	%{name}.tgz
-BuildRoot:      %{_tmppath}/%{name}-root
+Source0:        %{name}-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 #BuildRequires: 
 Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab, jazzhands-javascript-common 
@@ -29,7 +29,7 @@ Requires: perl-Net-IP, perl-Net-Netmask, perl-Net-DNS, perl-NetAddr-IP
 Perl libraries for STAB
 
 %prep
-%setup -q -n %{name}
+%setup -q -n %{name}-%{version}
 
 echo Nothing to do for web site
 echo Building perl modules

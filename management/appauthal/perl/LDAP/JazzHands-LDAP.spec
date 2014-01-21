@@ -17,16 +17,15 @@ version:   0.10
 release:   9
 vendor:    K Z Win <kwin@appnexus.com>
 packager:  K Z Win <kwin@appnexus.com>
-license:   Artistic
-group:     Applications/AppNexus
-url:       http://www.appnexus.com
-buildroot: %{_tmppath}/%{name}-%{version}-%(id -u -n)
+license:   Apache
+url:       http://www.jazzhands.net
+Source0:   %{name}-%{version}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
 prefix:    %(echo %{_prefix})
 provides:  perl(JazzHands::LDAP)
 requires:  perl-JazzHands-AppAuthAL
 requires:  perl-LDAP
-source:    JazzHands-LDAP.tar.gz
 
 %description
 None.
@@ -38,8 +37,8 @@ None.
 #
 
 %prep
-%setup -q -n %{pkgname} 
-chmod -R u+w %{_builddir}/%{pkgname}
+%setup -q -n %{name}-%{version}
+chmod -R u+w %{_builddir}/%{name}-%{version}
 
 %build
 grep -rsl '^#!.*perl' . |

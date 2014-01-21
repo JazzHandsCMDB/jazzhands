@@ -18,14 +18,14 @@ release:   8
 vendor:    K Z Win <kwin@appnexus.com>
 packager:  K Z Win <kwin@appnexus.com>
 license:   Artistic
-group:     Applications/AppNexus
-url:       http://www.appnexus.com
-buildroot: %{_tmppath}/%{name}-%{version}-%(id -u -n)
+group:     Applications
+url:       http://www.jazzhands.net/
+Source:	   %{name}-%{version}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
 prefix:    %(echo %{_prefix})
 provides:  perl(JazzHands::AppAuthAL)
 requires:  perl-JSON
-source:    JazzHands-AppAuthAL.tar.gz
 
 %description
 I totally need to write this.
@@ -37,8 +37,8 @@ I totally need to write this.
 #
 
 %prep
-%setup -q -n %{pkgname} 
-chmod -R u+w %{_builddir}/%{pkgname}
+%setup -q -n %{name}-%{version}
+chmod -R u+w %{_builddir}/%{name}-%{version}
 
 %build
 grep -rsl '^#!.*perl' . |
@@ -82,7 +82,7 @@ find %{buildroot}%{_prefix}             \
 
 %{__perl} -MFile::Find -le '
     find({ wanted => \&wanted, no_chdir => 1}, "%{buildroot}");
-    print "%doc  Changes README";
+    # print "%doc  Changes README";
     for my $x (sort @dirs, @files) {
         push @ret, $x unless indirs($x);
         }

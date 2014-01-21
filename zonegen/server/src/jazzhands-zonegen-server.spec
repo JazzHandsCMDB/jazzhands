@@ -1,5 +1,6 @@
 %define	prefix	/usr
 %define	zgroot	libexec/jazzhands/zonegen
+
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
@@ -9,10 +10,10 @@ License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
 BuildArch:  noarch
-Source0:	%{name}.tgz
-BuildRoot:      %{_tmppath}/%{name}-root
-BuildArch:	noarch
-Requires:       jazzhands-perl-common, perl-JazzHands-DBI, bind
+Source0:    %{name}-%{version}.tar.gz
+BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+BuildArch:  noarch
+Requires:   jazzhands-perl-common, perl-JazzHands-DBI, bind
 # bind is there for named-checkzone
 
 
@@ -20,7 +21,7 @@ Requires:       jazzhands-perl-common, perl-JazzHands-DBI, bind
 Generates zone and configuration from JazzHands database
 
 %prep
-%setup -q -n %{name}
+%setup -q -n %{name}-%{version}
 
 %install
 

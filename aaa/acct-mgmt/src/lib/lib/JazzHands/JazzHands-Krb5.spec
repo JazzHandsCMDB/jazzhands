@@ -20,7 +20,8 @@ packager:  K Z Win <kwin@appnexus.com>
 license:   Artistic
 group:     Applications/AppNexus
 url:       http://www.appnexus.com
-buildroot: %{_tmppath}/%{name}-%{version}-%(id -u -n)
+Source0:   %{name}-%{version}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
 prefix:    %(echo %{_prefix})
 provides:  perl(JazzHands::Krb5)
@@ -28,7 +29,6 @@ provides:  perl(JazzHands::Krb5::Tool)
 requires:  perl(JazzHands::AppAuthAL)
 requires:  perl-Authen-Krb5-Admin
 requires:  perl-Authen-Krb5
-source:    JazzHands-Krb5.tar.gz
 
 %description
 None.
@@ -40,10 +40,11 @@ None.
 #
 
 %prep
-%setup -q -n %{pkgname} 
-chmod -R u+w %{_builddir}/%{pkgname}
+%setup -q -n %{name}-%{version}
+chmod -R u+w %{_builddir}/%{name}-%{version}
 
 %build
+echo "++--> "; pwd
 grep -rsl '^#!.*perl' . |
 grep -v '.bak$' |xargs --no-run-if-empty \
 %__perl -MExtUtils::MakeMaker -e 'MY->fixin(@ARGV)'

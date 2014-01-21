@@ -1,16 +1,14 @@
-%define name    php-jazzhands-appauthal
 %define prefix	/usr/share/php
-%define version 0.2.7.1
-%define release 1
-Name:   	%{name}
-Version:        %{version}
-Release:        %{release}%{?dist}
+
+Name:   	php-jazzhands-appauthal
+Version:        0.2.7.1
+Release:        1%{?dist}
 Summary:        JazzHands App Authorization Abstraction Layer for php
 Group:  	System Environment/Libraries
 License:        BSD
 URL:    	http://www.jazzhands.net/
-Source0:	%{name}.tgz
-BuildRoot:      %{_tmppath}/%{name}-root
+Source0:        %{name}-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 #BuildRequires: 
 Requires:      	php
@@ -20,7 +18,7 @@ Requires:      	php
 Rudimentary AppAuthAL database auth module for jazzhands 
 
 %prep
-%setup -q -n %{name}
+%setup -q -n %{name}-%{version}
 
 %build
 echo Nothing to do

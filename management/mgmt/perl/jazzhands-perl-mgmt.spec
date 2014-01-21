@@ -1,25 +1,22 @@
-%define name    jazzhands-perl-mgmt
-%define version 0.53
-%define release 0
-Name:   	%{name}
-Version:        %{version}
-Release:        %{release}%{?dist}
+Name:   	jazzhands-perl-mgmt
+Version:        0.53
+Release:        1%{?dist}
 Summary:        JazzHands Management Perl Libraries
 Group:  	System Environment/Libraries
 License:        BSD
 URL:    	http://www.jazzhands.net/
-Source0:	%{name}.tgz
-BuildRoot:      %{_tmppath}/%{name}-root
+Source0:        %{name}-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 #BuildRequires: 
 #Requires:      	php
 
 %description
 
-System Tools for Administrative Baselining
+ORM for perl for JazzHands.
 
 %prep
-%setup -q -n %{name}
+%setup -q -n %{name}-%{version}
 
 echo Nothing to do for web site
 echo Building perl modules

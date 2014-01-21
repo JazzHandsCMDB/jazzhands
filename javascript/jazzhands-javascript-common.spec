@@ -9,15 +9,15 @@ License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
 BuildArch:  noarch
-Source0:	%{name}.tgz
-BuildRoot:      %{_tmppath}/%{name}-root
-BuildArch:	noarch
+Source0:   %{name}-%{version}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+BuildArch:noarch
 
 %description
 Javascript used by all JazzHands systems (many external)
 
 %prep
-%setup -q -n %{name}
+%setup -q -n %{name}-%{version}
 
 %install
 rm -rf %{buildroot}
