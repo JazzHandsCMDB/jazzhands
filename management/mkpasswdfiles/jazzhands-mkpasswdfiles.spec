@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.56
+Version:    0.56.1
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -33,14 +33,16 @@ done
 %clean
 rm -rf %{buildroot}
 
-
 %files
 %defattr(755,root,root,-)
 
 %{prefix}/%{mkproot}/mkpasswdfiles
 
-# %post
+%post
+[ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  && mkdir -p /var/lib/jazzhands/creds-mgmt-server/out
 
 %changelog
+* Wed Jan 22 2014 Todd Kover <kovert@omniscient.com> 0.56.1
+- add a %post
 * Fri Dec 20 2013 Todd Kover <kovert@omniscient.com> 0.56.0
 - initial release
