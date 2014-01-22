@@ -9,7 +9,7 @@ Url:        http://www.jazzhands.net/
 BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
-
+BuildRequires: perl-ExtUtils-MakeMaker
 BuildArch:  noarch
 
 %description

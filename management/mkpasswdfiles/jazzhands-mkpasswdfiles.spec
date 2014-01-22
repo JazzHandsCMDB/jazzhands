@@ -9,7 +9,6 @@ Release:    1
 License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
-BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch

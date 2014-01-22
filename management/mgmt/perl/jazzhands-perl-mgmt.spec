@@ -8,7 +8,7 @@ URL:    	http://www.jazzhands.net/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
-#BuildRequires: 
+BuildRequires:  perl-ExtUtils-MakeMaker
 #Requires:      	php
 
 %description

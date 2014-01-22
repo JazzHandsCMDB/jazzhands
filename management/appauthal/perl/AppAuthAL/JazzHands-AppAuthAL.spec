@@ -21,6 +21,7 @@ license:   Artistic
 group:     Applications
 url:       http://www.jazzhands.net/
 Source:	   %{name}-%{version}.tar.gz
+BuildRequires: perl-ExtUtils-MakeMaker
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
 prefix:    %(echo %{_prefix})
