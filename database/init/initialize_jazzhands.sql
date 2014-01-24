@@ -630,6 +630,31 @@ insert into val_property (
 	'REQUIRED', 'REQUIRED'
 );
 
+-- this puts a group on a given mclass/device collection
+insert into val_property 
+	(property_name, property_type, is_multivalue, 
+	permit_account_collection_id, permit_device_collection_id, 
+	property_data_type
+) values (
+	'UnixGroup', 'MclassUnixProp', 'N', 
+	'REQUIRED', 'REQUIRED', 
+	'none'
+);
+
+-- this puts user(s) in a group on on a given device collection and only
+-- on that device collection.  It does not imply that the group gets assigned
+-- to the device collection however, although the wisdom of this can be
+-- debated.
+insert into val_property 
+	(property_name, property_type, is_multivalue, 
+	permit_account_collection_id, permit_device_collection_id, 
+	property_data_type
+) values (
+	'UnixGroupMemberOverride', 'MclassUnixProp', 'N', 
+	'REQUIRED', 'REQUIRED', 
+	'account_collection_id'
+);
+
 insert into val_property_value (
 	property_name, property_type, valid_property_value, description
 ) values 
