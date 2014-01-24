@@ -42,7 +42,7 @@ rm -rf %{buildroot}
 [ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  && mkdir -p /var/lib/jazzhands/creds-mgmt-server/out
 
 %changelog
-* Fri Jan 24 2013 Todd Kover <kovert@omniscient.com> 0.56.7
+* Fri Jan 24 2014 Todd Kover <kovert@omniscient.com> 0.56.7
 - make group management work properly
 * Wed Jan 22 2014 Todd Kover <kovert@omniscient.com> 0.56.1
 - add a %post
