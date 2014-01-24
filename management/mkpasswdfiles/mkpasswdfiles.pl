@@ -71,6 +71,10 @@ Turn on more verbose output.
 Write the output files to the directory output_dir. The default is
 /var/lib/jazzhands/creds-mgmt-server/ .
 
+=item --random-sleep #
+
+Sleep a random number of seconds up to # before starting
+
 =back
 
 =head1 DATABASE PERMISSIONS
@@ -126,6 +130,7 @@ use File::Find;
 
 my $o_output_dir = "/var/lib/jazzhands/creds-mgmt-server/out";
 my $o_verbose;
+my $o_random;
 
 my ( $q_mclass_ids, $dbh, $g_prop, $passwd_grp, %mclass_file );
 my (
@@ -2107,10 +2112,18 @@ sub main {
 	my $dir;
 
 	GetOptions(
+		'random-sleep=i'      => \$o_random,
 		'v|verbose'      => \$o_verbose,
 		'o|output-dir=s' => \$o_output_dir
 	) or exit(2);
 
+	if($o_random) {
+		my $delay = int( rand ($o_random ) );
+		warn "Sleeping $delay seconds\n" if($o_verbose);
+		sleep( $delay );
+	}
+
+	warn "Connecting to DB..." if($o_verbose);
 	$dbh =
 	  JazzHands::DBI->connect( 'mkpwdfiles',
 		{ RaiseError => 1, AutoCommit => 0 } );
