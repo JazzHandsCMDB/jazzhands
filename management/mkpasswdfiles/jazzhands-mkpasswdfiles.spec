@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.56.8
+Version:    0.56.9
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -42,6 +42,8 @@ rm -rf %{buildroot}
 [ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  && mkdir -p /var/lib/jazzhands/creds-mgmt-server/out
 
 %changelog
+* Mon Jan 27 2014 Todd Kover <kovert@omniscient.com> 0.56.9
+- add PrerferLocal flag to users...
 * Fri Jan 24 2014 Todd Kover <kovert@omniscient.com> 0.56.8
 - add -random-sleep argument
 * Fri Jan 24 2014 Todd Kover <kovert@omniscient.com> 0.56.7

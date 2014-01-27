@@ -613,7 +613,8 @@ sub generate_passwd_files($) {
 			   unix_gid, first_name, 
 	       case when length(middle_name) = 1
 		    then middle_name || '.' else middle_name end middle_name,
-	       last_name, default_home, shell, ssh.ssh_public_key
+	       last_name, default_home, shell, ssh.ssh_public_key,
+	       coalesce(locpref.property_value, 'N') as preferlocal
 	from account a
 			join person p
 				on (p.person_id = a.person_id)
@@ -639,12 +640,26 @@ sub generate_passwd_files($) {
 	     left join account_password p2
 		on (a.account_id = p2.account_id
 		    and p2.password_type = 'des')
-			left join (
-				select	account_id, array_agg(ssh_public_key) as ssh_public_key
-					from	account_ssh_key ask
-							inner join ssh_key skey using (ssh_key_id)
-					group by account_id
-			) ssh on (a.account_id = ssh.account_id)
+		left join (
+		select	account_id, array_agg(ssh_public_key) as ssh_public_key
+			from	account_ssh_key ask
+			inner join ssh_key skey using (ssh_key_id)
+			group by account_id
+		) ssh on (a.account_id = ssh.account_id)
+	    left join (
+	    	select dh.device_collection_id,
+			aca.account_Id, p.property_value
+	    	from v_property p
+		inner join v_device_coll_hier_detail dh
+			on dh.parent_device_collection_id = 
+				p.device_collection_id
+	        inner join v_acct_coll_acct_expanded aca
+		                    using (account_collection_id)
+		where   property_name = 'PreferLocal'
+		and    property_type = 'MclassUnixProp'
+	    ) locpref on 
+	    	(locpref.account_id, locpref.device_collection_id) =
+		(a.account_id, cce.device_collection_id)
 	where is_disabled = 'N'
 	and c.device_collection_type = 'mclass'
 	-- and ac.account_collection_type in ('systems', 'per-user')
@@ -716,6 +731,7 @@ sub generate_passwd_files($) {
 			'home'          => $pwd[5],
 			'shell'         => $pwd[6],
 			'group_name'    => $pwd[7],
+			'PreferLocal'   => $r->{ _dbx('PREFERLOCAL') },
 		};
 
 		if ( defined $r->{ _dbx('SSH_PUBLIC_KEY') } ) {
