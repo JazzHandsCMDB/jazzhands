@@ -248,7 +248,7 @@ BEGIN
 			END IF;
 
 			PERFORM person_manip.setup_unix_account(
-				in_account_id := _account_id,
+				in_account_id := account_id,
 				in_account_type := _account_type,
 				in_uid := _uid
 			);
@@ -407,12 +407,14 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- arguably this should be two sequences, one up from 10k, the other
 -- down from 10k.
-CREATE OR REPLACE FUNCTION person_manip.get_unix_uid(account_type CHARACTER VARYING) RETURNS INTEGER AS $$
+CREATE OR REPLACE FUNCTION person_manip.get_unix_uid(
+	account_type CHARACTER VARYING
+) RETURNS INTEGER AS $$
 DECLARE new_id INTEGER;
 BEGIN
-        IF account_type = 'people' THEN
+        IF account_type = 'people' OR account_type = 'person' THEN
                 SELECT
-                        coalesce(max(unix_uid),10000)  INTO new_id
+                        coalesce(max(unix_uid),9999)  INTO new_id
                 FROM
                         account_unix_info aui
                 JOIN
@@ -428,7 +430,7 @@ BEGIN
 		new_id = new_id + 1;
         ELSE
                 SELECT
-                        coalesce(min(unix_uid),9999)  INTO new_id
+                        coalesce(min(unix_uid),10000)  INTO new_id
                 FROM
                         account_unix_info aui
                 JOIN
