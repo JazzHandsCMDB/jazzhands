@@ -1023,6 +1023,7 @@ sub process_ip {
 			dns_name => $dns,
 			dns_domain_id => $dnsdomid,
 			dns_type => 'A',
+			dns_class => 'IN',
 			netblock_id => $nblk->{_dbx('NETBLOCK_ID')},
 		});
 	}
@@ -2068,7 +2069,7 @@ sub add_interfaces {
 		}
 	}
 
-	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip, netblock_type => 'default');
+	my $nblk = $stab->get_netblock_from_ip(ip_address => $ip, is_single_address => 'Y', netblock_type => 'default');
 	my $xblk = $stab->configure_allocated_netblock($ip, $nblk);
 	$nblk = $xblk;
 
