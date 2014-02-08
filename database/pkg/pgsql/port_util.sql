@@ -107,12 +107,13 @@ BEGIN
 					(device_id, port_name, port_type, description,
 					 port_plug_style,
 					 port_medium, port_protocol, port_speed,
-					 physical_label, port_purpose, tcp_port
+					 physical_label, port_purpose, tcp_port, is_hardwired
 					)
 					select	in_device_id, port_name, port_type, description,
 					 		port_plug_style,
 					 		port_medium, port_protocol, port_speed,
-					 		physical_label, port_purpose, tcp_port
+					 		physical_label, port_purpose, tcp_port,
+							is_hardwired
 					  from	device_type_phys_port_templt
 					 where  device_type_id = v_dt_id
 					  and	port_type = v_pt

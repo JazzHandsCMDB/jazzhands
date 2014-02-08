@@ -32,22 +32,22 @@ DECLARE
 	secid	service_environment_collection.service_env_collection_id%TYPE;
 BEGIN
 	SELECT	service_env_collection_id
-	  FROM  service_environment_collection
+	  FROM  jazzhands.service_environment_collection
 	  INTO	secid
 	 WHERE	service_env_collection_type = 'per-environment'
 	   AND	service_env_collection_id in
 		(select service_env_collection_id
-		 from svc_environment_coll_svc_env
+		 from jazzhands.svc_environment_coll_svc_env
 		where service_environment = OLD.service_environment
 		)
 	ORDER BY service_env_collection_id
 	LIMIT 1;
 
 	IF secid IS NOT NULL THEN
-		DELETE FROM svc_environment_coll_svc_env
+		DELETE FROM jazzhands.svc_environment_coll_svc_env
 		WHERE service_env_collection_id = secid;
 
-		DELETE from service_environment_collection
+		DELETE from jazzhands.service_environment_collection
 		WHERE service_env_collection_id = secid;
 	END IF;
 
@@ -72,23 +72,23 @@ DECLARE
 	secid		service_environment_collection.service_env_collection_id%TYPE;
 BEGIN
 	IF TG_OP = 'INSERT' THEN
-		insert into service_environment_collection 
+		insert into jazzhands.service_environment_collection 
 			(service_env_collection_name, service_env_collection_type)
 		values
 			(NEW.service_environment, 'per-environment')
 		RETURNING service_env_collection_id INTO secid;
-		insert into svc_environment_coll_svc_env 
+		insert into jazzhands.svc_environment_coll_svc_env 
 			(service_env_collection_id, service_environment)
 		VALUES
 			(secid, NEW.service_environment);
 	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment != NEW.service_environment THEN
-		UPDATE	service_environment_collection
+		UPDATE	jazzhands.service_environment_collection
 		   SET	service_env_collection_name = NEW.service_environment
 		 WHERE	service_env_collection_name != NEW.service_environment
 		   AND	service_env_collection_type = 'per-environment'
 		   AND	service_environment in (
 			SELECT	service_environment
-			  FROM	svc_environment_coll_svc_env
+			  FROM	jazzhands.svc_environment_coll_svc_env
 			 WHERE	service_environment = NEW.service_environment
 			);
 	END IF;

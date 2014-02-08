@@ -121,7 +121,104 @@ CREATE CONSTRAINT TRIGGER trigger_update_dns_zone
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION dns_rec_type_validation() RETURNS TRIGGER AS $$
+--
+-- This shall replace all the aforementioned triggers
+--
+
+CREATE OR REPLACE FUNCTION dns_record_update_nontime() 
+RETURNS TRIGGER AS $$
+DECLARE
+	_dnsdomainid	DNS_DOMAIN.DNS_DOMAIN_ID%type;
+	_ipaddr			NETBLOCK.IP_ADDRESS%type;
+	_mkold			boolean;
+	_mknew			boolean;
+	_mkdom			boolean;
+	_mkip			boolean;
+BEGIN
+	_mkold = false;
+	_mkold = false;
+
+	IF TG_OP = 'DELETE' THEN
+		_mkold := true;
+		_mkdom := true;
+		if  OLD.netblock_id is not null  THEN
+			_mkip := true;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		_mkold := false;
+		_mkdom := true;
+		if  NEW.netblock_id is not null  THEN
+			_mkip := true;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
+			_mkold := true;
+			_mknew := true;
+			_mkdom := true;
+		END IF;
+
+		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
+				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID is NULL)
+				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID IS NOT NULL
+					AND OLD.NETBLOCK_ID != NEW.NETBLOCK_ID) THEN
+			_mkold := true;
+			_mknew := true;
+			_mkip := true;
+		END IF;
+	END IF;
+				
+	if _mkold THEN
+		IF _mkdom THEN
+			_dnsdomainid := OLD.dns_domain_id;
+		ELSE
+			_dnsdomainid := NULL;
+		END IF;
+		if _mkip and OLD.netblock_id is not NULL THEN
+			SELECT	ip_address 
+			  INTO	_ipaddr 
+			  FROM	jazzhands.netblock 
+			 WHERE	netblock_id  = OLD.netblock_id;
+		ELSE
+			_ipaddr := NULL;
+		END IF;
+		insert into jazzhands.DNS_RECORD_CHANGE
+			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
+	END IF;
+	if _mknew THEN
+		if _mkdom THEN
+			_dnsdomainid := NEW.dns_domain_id;
+		ELSE
+			_dnsdomainid := NULL;
+		END IF;
+		if _mkip and NEW.netblock_id is not NULL THEN
+			SELECT	ip_address 
+			  INTO	_ipaddr 
+			  FROM	jazzhands.netblock 
+			 WHERE	netblock_id  = NEW.netblock_id;
+		ELSE
+			_ipaddr := NULL;
+		END IF;
+		insert into jazzhands.DNS_RECORD_CHANGE
+			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
+	END IF;
+	IF TG_OP = 'DELETE' THEN
+		return OLD;
+	ELSE
+		return NEW;
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_record_update_nontime ON dns_record;
+CREATE TRIGGER trigger_dns_record_update_nontime 
+	BEFORE INSERT OR UPDATE OF NETBLOCK_ID, DNS_DOMAIN_ID OR DELETE
+	ON dns_record 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE dns_record_update_nontime();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION dns_a_rec_validation() RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
 		RAISE EXCEPTION 'Attempt to set % record without a Netblock',
@@ -140,9 +237,45 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_dns_rec_a_type_validation ON dns_record;
-CREATE TRIGGER trigger_dns_rec_a_type_validation 
+DROP TRIGGER IF EXISTS trigger_dns_a_rec_validation ON dns_record;
+CREATE TRIGGER trigger_dns_a_rec_validation 
 	BEFORE INSERT OR UPDATE 
 	ON dns_record 
 	FOR EACH ROW 
-	EXECUTE PROCEDURE dns_rec_type_validation();
+	EXECUTE PROCEDURE dns_a_rec_validation();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION dns_rec_prevent_dups() 
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
+		IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+			SELECT	count(*)
+			 INTO	_tally
+			 FROM	jazzhands.dns_record
+			WHERE dns_class = 'IN' 
+			AND dns_type = 'A' 
+			AND should_generate_ptr = 'Y'
+			AND is_enabled = 'Y'
+			AND netblock_id = NEW.NETBLOCK_ID
+			AND dns_record_id != NEW.DNS_RECORD_ID;
+	
+			IF _tally != 0 THEN
+				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same netblock';
+			END IF;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_rec_prevent_dups ON dns_record;
+CREATE TRIGGER trigger_dns_rec_prevent_dups 
+	BEFORE INSERT OR UPDATE 
+	ON dns_record 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE dns_rec_prevent_dups();
+

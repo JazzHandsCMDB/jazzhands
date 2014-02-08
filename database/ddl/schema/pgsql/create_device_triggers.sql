@@ -109,6 +109,7 @@ ON device
 FOR EACH ROW EXECUTE PROCEDURE update_per_device_device_collection();
 
 --- Other triggers on device
+-- The whole VOE thing is not well supported.
 
 CREATE OR REPLACE FUNCTION verify_device_voe() RETURNS TRIGGER AS $$
 DECLARE
@@ -156,4 +157,28 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
 CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
 ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
+
+
+-- A before trigger will exist such that if you update device_type_id,
+-- it will go and update location.device_type_id because that would be
+-- super annoying to have to remember if its not a device-in-a-device.
+
+CREATE OR REPLACE FUNCTION device_update_location_fix() 
+RETURNS TRIGGER AS $$
+BEGIN
+	IF OLD.DEVICE_TYPE_ID != NEW.DEVICE_TYPE_ID THEN
+		IF NEW.location_id IS NOT NULL THEN
+			UPDATE jazzhands.location SET devivce_type_id = NEW.device_type_id
+			WHERE location_id = NEW.location_id;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_update_location_fix ON device;
+CREATE TRIGGER trigger_device_update_location_fix 
+	BEFORE UPDATE OF DEVICE_TYPE_ID
+	ON device FOR EACH ROW EXECUTE PROCEDURE device_update_location_fix();
+
 

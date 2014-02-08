@@ -222,9 +222,10 @@ CREATE TRIGGER trigger_verify_direct_dept_member AFTER INSERT OR UPDATE
 CREATE OR REPLACE FUNCTION verify_layer1_connection() RETURNS TRIGGER AS $$
 BEGIN
 	PERFORM 1 FROM 
-		layer1_connection l1 JOIN layer1_connection l2 ON 
-			l1.physical_port1_id = l2.physical_port2_id AND
-			l1.physical_port2_id = l2.physical_port1_id;
+		jazzhands.layer1_connection l1 
+			JOIN jazzhands.layer1_connection l2 ON 
+				l1.physical_port1_id = l2.physical_port2_id AND
+				l1.physical_port2_id = l2.physical_port1_id;
 	IF FOUND THEN
 		RAISE EXCEPTION 'Connection already exists in opposite direction';
 	END IF;
@@ -288,11 +289,11 @@ BEGIN
 	-- figure out what is and is not valid
 
 	BEGIN
-		SELECT * INTO STRICT v_prop FROM VAL_Property WHERE
+		SELECT * INTO STRICT v_prop FROM jazzhands.VAL_Property WHERE
 			Property_Name = NEW.Property_Name AND
 			Property_Type = NEW.Property_Type;
 
-		SELECT * INTO STRICT v_proptype FROM VAL_Property_Type WHERE
+		SELECT * INTO STRICT v_proptype FROM jazzhands.VAL_Property_Type WHERE
 			Property_Type = NEW.Property_Type;
 	EXCEPTION
 		WHEN NO_DATA_FOUND THEN
@@ -346,7 +347,7 @@ BEGIN
 	-- for a specific property LHS
 
 	IF (v_proptype.is_multivalue = 'N') THEN
-		PERFORM 1 FROM Property WHERE
+		PERFORM 1 FROM jazzhands.Property WHERE
 			Property_Id != NEW.Property_Id AND
 			Property_Type = NEW.Property_Type AND
 			((Company_Id IS NULL AND NEW.Company_Id IS NULL) OR
@@ -516,7 +517,8 @@ BEGIN
 	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
 		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_account_collection FROM account_collection WHERE
+				SELECT * INTO STRICT v_account_collection 
+					FROM jazzhands.account_collection WHERE
 					account_collection_Id = NEW.Property_Value_Account_Coll_Id;
 				IF v_account_collection.account_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
 				THEN
@@ -537,7 +539,8 @@ BEGIN
 	IF NEW.Property_Value_nblk_Coll_Id IS NOT NULL THEN
 		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_netblock_collection FROM netblock_collection WHERE
+				SELECT * INTO STRICT v_netblock_collection 
+					FROM jazzhands.netblock_collection WHERE
 					netblock_collection_Id = NEW.Property_Value_nblk_Coll_Id;
 				IF v_netblock_collection.netblock_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
 				THEN
@@ -717,23 +720,24 @@ BEGIN
 	IF TG_OP = 'DELETE' THEN
 		SELECT	account_realm_id
 		  INTO	def_acct_rlm
-		  FROM	account_realm_company
+		  FROM	jazzhands.account_realm_company
 		 WHERE	company_id IN
 		 		(select property_value_company_id
-				   from property
+				   from jazzhands.property
 				  where	property_name = '_rootcompanyid'
 				    and	property_type = 'Defaults'
 				);
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm THEN
-				SELECT	account_collection_id FROM account_collection
+				SELECT	account_collection_id 
+				  FROM	jazzhands.account_collection
 				  INTO	acid
 				 WHERE	account_collection_name = OLD.login
 				   AND	account_collection_type = 'per-user';
 	
-				 DELETE from account_collection_account
+				 DELETE from jazzhands.account_collection_account
 				  where account_collection_id = acid;
 	
-				 DELETE from account_collection
+				 DELETE from jazzhands.account_collection
 				  where account_collection_id = acid;
 		END IF;
 	END IF;
@@ -754,21 +758,21 @@ DECLARE
 BEGIN
 	SELECT	account_realm_id
 	  INTO	def_acct_rlm
-	  FROM	account_realm_company
+	  FROM	jazzhands.account_realm_company
 	 WHERE	company_id IN
 	 		(select property_value_company_id
-			   from property
+			   from jazzhands.property
 			  where	property_name = '_rootcompanyid'
 			    and	property_type = 'Defaults'
 			);
 	IF def_acct_rlm is not NULL AND NEW.account_realm_id = def_acct_rlm THEN
 		if TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.account_realm_id != NEW.account_realm_id) THEN
-			insert into account_collection 
+			insert into jazzhands.account_collection 
 				(account_collection_name, account_collection_type)
 			values
 				(NEW.login, 'per-user')
 			RETURNING account_collection_id INTO acid;
-			insert into account_collection_account 
+			insert into jazzhands.account_collection_account 
 				(account_collection_id, account_id)
 			VALUES
 				(acid, NEW.account_id);
@@ -776,7 +780,7 @@ BEGIN
 
 		IF TG_OP = 'UPDATE' AND OLD.login != NEW.login THEN
 			IF OLD.account_realm_id = NEW.account_realm_id THEN
-				update	account_collection
+				update	jazzhands.account_collection
 				    set	account_collection_name = NEW.login
 				  where	account_collection_type = 'per-user'
 				    and	account_collection_name = OLD.login;
@@ -788,6 +792,7 @@ BEGIN
 	IF TG_OP = 'UPDATE'  THEN
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm AND NEW.account_realm_id != OLD.account_realm_id THEN
 			SELECT	account_collection_id
+		      FROM	jazzhands.account_collection
 			  INTO	acid
 			 WHERE	account_collection_name = OLD.login
 			   AND	account_collection_type = 'per-user';
@@ -818,7 +823,7 @@ BEGIN
 	DELETE FROM account_collection_Account WHERE Account_Id = OLD.Account_Id AND
 		account_collection_ID = (
 			SELECT account_collection_ID 
-			FROM account_collection 
+			FROM jazzhands.account_collection 
 			WHERE account_collection_Name = uc_name 
 			AND account_collection_Type = 'usertype');
 
@@ -826,19 +831,19 @@ BEGIN
 	uc_name := NEW.Account_Type;
 	BEGIN
 		SELECT account_collection_ID INTO STRICT ucid 
-		  FROM account_collection 
+		  FROM jazzhands.account_collection 
 		 WHERE account_collection_Name = uc_name 
 		AND account_collection_Type = 'usertype';
 	EXCEPTION
 		WHEN NO_DATA_FOUND THEN
-			INSERT INTO account_collection (
+			INSERT INTO jazzhands.account_collection (
 				account_collection_Name, account_collection_Type
 			) VALUES (
 				uc_name, 'usertype'
 			) RETURNING account_collection_Id INTO ucid;
 	END;
 	IF ucid IS NOT NULL THEN
-		INSERT INTO account_collection_Account (
+		INSERT INTO jazzhands.account_collection_Account (
 			account_collection_ID,
 			Account_Id
 		) VALUES (
@@ -869,7 +874,7 @@ BEGIN
 			RETURN NEW;
 		END IF;
 
-		SELECT Company_Name INTO compname FROM Company WHERE
+		SELECT Company_Name INTO compname FROM jazzhands.Company WHERE
 			Company_Id = OLD.Company_ID;
 
 		IF compname IS NOT NULL THEN
@@ -893,14 +898,14 @@ BEGIN
 						' (corporation|inc|llc|ltd|co|corp|llp)$', ''),
 					' ', '_');
 
-			DELETE FROM account_collection_Account WHERE Account_id = OLD.Person_ID 
+			DELETE FROM jazzhands.account_collection_Account WHERE Account_id = OLD.Person_ID 
 				AND account_collection_ID = (
-					SELECT account_collection_ID FROM account_collection WHERE Name = uc_name 
+					SELECT account_collection_ID FROM jazzhands.account_collection WHERE Name = uc_name 
 					AND account_collection_Type = 'company');
 		END IF;
 	END IF;
 
-	SELECT Company_Name INTO compname FROM Company WHERE
+	SELECT Company_Name INTO compname FROM jazzhands.Company WHERE
 		Company_Id = NEW.Company_ID;
 
 	IF compname IS NOT NULL THEN
@@ -925,18 +930,18 @@ BEGIN
 				' ', '_');
 
 		BEGIN
-			SELECT account_collection_ID INTO STRICT ucid FROM account_collection WHERE
+			SELECT account_collection_ID INTO STRICT ucid FROM jazzhands.account_collection WHERE
 				Name = uc_name AND account_collection_Type = 'company';
 		EXCEPTION
 			WHEN NO_DATA_FOUND THEN
-				INSERT INTO account_collection (
+				INSERT INTO jazzhands.account_collection (
 					Name, account_collection_Type
 				) VALUES (
 					uc_name, 'company'
 				) RETURNING account_collection_Id INTO ucid;
 		END;
 		IF ucid IS NOT NULL THEN
-			INSERT INTO account_collection_Account (
+			INSERT INTO jazzhands.account_collection_Account (
 				account_collection_ID,
 				Person_ID
 			) VALUES (
@@ -969,10 +974,10 @@ BEGIN
 	IF OLD.person_company_status != NEW.person_company_status THEN
 		select propagate_from_person
 		  into should_propagate
-		 from	val_person_status
+		 from	jazzhands.val_person_status
 		 where	person_status = NEW.person_company_status;
 		IF should_propagate = 'Y' THEN
-			update account
+			update jazzhands.account
 			  set	account_status = NEW.person_company_status
 			 where	person_id = NEW.person_id
 			  AND	company_id = NEW.company_id;
@@ -1046,13 +1051,13 @@ DECLARE
 BEGIN
 	select  vpiu.is_multivalue, count(*)
  	  into	ismv, tally
-	  from  person_image pi
-		inner join person_image_usage piu
+	  from  jazzhands.person_image pi
+		inner join jazzhands.person_image_usage piu
 			using (person_image_id)
-		inner join val_person_image_usage vpiu
+		inner join jazzhands.val_person_image_usage vpiu
 			using (person_image_usage)
 	 where	pi.person_id in
-	 	(select person_id from person_image
+	 	(select person_id from jazzhands.person_image
 		 where person_image_id = NEW.person_image_id
 		)
 	  and	person_image_usage = NEW.person_image_usage
