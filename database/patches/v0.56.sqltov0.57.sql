@@ -381,6 +381,82 @@ $function$
 -- DONE WITH proc schema_support.build_audit_table -> build_audit_table 
 --------------------------------------------------------------------
 
+--
+-- Sets up temporary tables for replaying grants if it does not exist
+--
+-- This is called by other functions in this module.
+--
+CREATE OR REPLACE FUNCTION schema_support.prepare_for_object_replay()
+RETURNS VOID AS $$
+DECLARE
+	_tally integer;
+BEGIN
+	SELECT	count(*)
+	  INTO	_tally
+	  FROM	pg_catalog.pg_class
+	 WHERE	relname = '__recreate'
+	   AND	relpersistence = 't';
+	
+	IF _tally = 0 THEN
+		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, type text, ddl text);
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- Collect grants for relations and saves them for future replay (if objects
+-- are dropped and recreated)
+--
+CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
+	schema varchar,
+	object varchar
+) RETURNS VOID AS $$
+DECLARE
+	_tabs		RECORD;
+	_perm		RECORD;
+	_grant		varchar;
+	_fullgrant		varchar;
+	_role		varchar;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object);
+	INSERT INTO __recreate (schema, object, type, ddl )
+	SELECT n.nspname, c.relname, 'view', 
+		pg_get_viewdef(c.oid, true)
+	FROM pg_class c
+	INNER JOIN pg_namespace n on n.oid = c.relnamespace
+	WHERE c.relname = object
+	AND n.nspname = schema;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates() 
+RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_tally	integer;
+BEGIN
+	FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
+	LOOP
+		RAISE NOTICE 'Recreating: %.%', _r.schema, _r.object;
+		EXECUTE _r.ddl; 
+		DELETE from __recreate where id = _r.id;
+	END LOOP;
+
+	SELECT count(*) INTO _tally from __recreate;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+	ELSE
+		DROP TABLE __recreate;
+	END IF;
+	
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- SELECT schema_support.save_view_for_replay('jazzhands', 
+--	'v_l1_all_physical_ports');
 
 ---------- ========================================================= ----------
 -- Begin dealing with actual maint.  The above is preliminary work.
@@ -391,8 +467,7 @@ CREATE INDEX idx_device_type_location ON device USING btree (device_type_id, loc
 CREATE INDEX xif13device ON device USING btree (location_id, device_type_id);
 
 
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_l1_all_physical_ports', 'v_l1_all_physical_ports');
-
+SELECT schema_support.save_view_for_replay('v_l1_all_physical_ports', 'v_l1_all_physical_ports');
 drop view v_l1_all_physical_ports;
 
 --------------------------------------------------------------------
@@ -1739,88 +1814,6 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of retire_device_ancillary id_tag
 -------------------------------------------------------------------
-
---------------------------------------------------------------------
--- DEALING WITH TABLE v_l1_all_physical_ports [688871]
--- Save grants for later reapplication
-CREATE VIEW v_l1_all_physical_ports AS
- SELECT subquery.layer1_connection_id,
-    subquery.physical_port_id,
-    subquery.device_id,
-    subquery.port_name,
-    subquery.port_type,
-    subquery.port_purpose,
-    subquery.other_physical_port_id,
-    subquery.other_device_id,
-    subquery.other_port_name,
-    subquery.other_port_purpose,
-    subquery.baud,
-    subquery.data_bits,
-    subquery.stop_bits,
-    subquery.parity,
-    subquery.flow_control
-   FROM (        (         SELECT l1.layer1_connection_id,
-                            p1.physical_port_id,
-                            p1.device_id,
-                            p1.port_name,
-                            p1.port_type,
-                            p1.port_purpose,
-                            p2.physical_port_id AS other_physical_port_id,
-                            p2.device_id AS other_device_id,
-                            p2.port_name AS other_port_name,
-                            p2.port_purpose AS other_port_purpose,
-                            l1.baud,
-                            l1.data_bits,
-                            l1.stop_bits,
-                            l1.parity,
-                            l1.flow_control
-                           FROM physical_port p1
-                      JOIN layer1_connection l1 ON l1.physical_port1_id = p1.physical_port_id
-                 JOIN physical_port p2 ON l1.physical_port2_id = p2.physical_port_id
-                WHERE p1.port_type::text = p2.port_type::text
-                UNION
-                         SELECT l1.layer1_connection_id,
-                            p1.physical_port_id,
-                            p1.device_id,
-                            p1.port_name,
-                            p1.port_type,
-                            p1.port_purpose,
-                            p2.physical_port_id AS other_physical_port_id,
-                            p2.device_id AS other_device_id,
-                            p2.port_name AS other_port_name,
-                            p2.port_purpose AS other_port_purpose,
-                            l1.baud,
-                            l1.data_bits,
-                            l1.stop_bits,
-                            l1.parity,
-                            l1.flow_control
-                           FROM physical_port p1
-                      JOIN layer1_connection l1 ON l1.physical_port2_id = p1.physical_port_id
-                 JOIN physical_port p2 ON l1.physical_port1_id = p2.physical_port_id
-                WHERE p1.port_type::text = p2.port_type::text)
-        UNION
-                 SELECT NULL::integer,
-                    p1.physical_port_id,
-                    p1.device_id,
-                    p1.port_name,
-                    p1.port_type,
-                    p1.port_purpose,
-                    NULL::integer,
-                    NULL::integer,
-                    NULL::character varying,
-                    NULL::character varying,
-                    NULL::integer,
-                    NULL::integer,
-                    NULL::integer,
-                    NULL::character varying,
-                    NULL::character varying
-                   FROM physical_port p1
-              LEFT JOIN layer1_connection l1 ON l1.physical_port1_id = p1.physical_port_id OR l1.physical_port2_id = p1.physical_port_id
-             WHERE l1.layer1_connection_id IS NULL) subquery
-  ORDER BY network_strings.numeric_interface(subquery.port_name);
-
--- DONE DEALING WITH TABLE v_l1_all_physical_ports [666876]
---------------------------------------------------------------------
 
 
 --------------------------------------------------------------------
@@ -4771,10 +4764,154 @@ END
 $$;
 
 --------------------------------------------------------------------
+
+-- Iniitalization Fixes
+UPDATE val_property
+set PERMIT_DEVICE_COLLECTION_ID = 'ALLOWED'
+where property_name = 'ForceShell' and property_type = 'UnixPasswdFileValue'
+and PERMIT_DEVICE_COLLECTION_ID != 'ALLOWED';
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'UnixGroup'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property
+		(property_name, property_type, is_multivalue,
+		permit_account_collection_id, permit_device_collection_id,
+		property_data_type
+		) values (
+		'UnixGroup', 'MclassUnixProp', 'N',
+		'REQUIRED', 'REQUIRED',
+		'none'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'UnixGroupMemberOverride'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property
+			(property_name, property_type, is_multivalue,
+			permit_account_collection_id, 
+			permit_device_collection_id,
+			property_data_type
+		) values (
+			'UnixGroupMemberOverride', 'MclassUnixProp', 'N',
+			'REQUIRED', 
+			'REQUIRED',
+			'account_collection_id'
+		);
+	END IF;
+END;
+$$;
+
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'ShouldDeploy'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property (
+			PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, 
+			PROPERTY_DATA_TYPE,
+			DESCRIPTION,
+			PERMIT_DEVICE_COLLECTION_ID
+		) values (
+			'ShouldDeploy', 'MclassUnixProp', 'N', 'boolean',
+			'If credentials managmeent should deploy files or not',
+			'REQUIRED'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'PreferLocal'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property (
+			PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, 
+			PROPERTY_DATA_TYPE,
+			DESCRIPTION,
+			PERMIT_DEVICE_COLLECTION_ID, 
+			PERMIT_ACCOUNT_COLLECTION_ID
+		) values (
+			'PreferLocal', 'MclassUnixProp', 'N', 
+			'boolean',
+			'If credentials management client should prefer local uid,gid,shell',
+			'REQUIRED', 
+			'REQUIRED'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property_type 
+	where property_type = 'StabRole';
+
+	IF _tal = 0 THEN
+		insert into val_property_type 
+		(property_type, description, is_multivalue)
+		values
+       		('StabRole', 'roles for users in stab', 'Y');
+	END IF;
+END;
+$$;
+
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'StabAccess'
+	and property_type = 'StabRole';
+
+	IF _tal = 0 THEN
+		insert into val_property (
+			PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, 
+			PROPERTY_DATA_TYPE,
+		permit_account_collection_id
+		) values (
+			'StabAccess', 'StabRole', 'N', 'boolean',
+			'REQUIRED'
+		);
+
+	END IF;
+END;
+$$;
+
+
+--------------------------------------------------------------------
 --
+SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_saved_grants();
 
-RAISE EXCEPTION 'Need to check for property/init changes';
 RAISE EXCEPTION 'Need to test, test, test....';
 
 SELECT schema_support.end_maintenance();

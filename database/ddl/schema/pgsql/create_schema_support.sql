@@ -478,11 +478,87 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+--
+-- Sets up temporary tables for replaying grants if it does not exist
+--
+-- This is called by other functions in this module.
+--
+CREATE OR REPLACE FUNCTION schema_support.prepare_for_object_replay()
+RETURNS VOID AS $$
+DECLARE
+	_tally integer;
+BEGIN
+	SELECT	count(*)
+	  INTO	_tally
+	  FROM	pg_catalog.pg_class
+	 WHERE	relname = '__recreate'
+	   AND	relpersistence = 't';
+	
+	IF _tally = 0 THEN
+		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, type text, ddl text);
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- Collect grants for relations and saves them for future replay (if objects
+-- are dropped and recreated)
+--
+CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
+	schema varchar,
+	object varchar
+) RETURNS VOID AS $$
+DECLARE
+	_tabs		RECORD;
+	_perm		RECORD;
+	_grant		varchar;
+	_fullgrant		varchar;
+	_role		varchar;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object);
+	INSERT INTO __recreate (schema, object, type, ddl )
+	SELECT n.nspname, c.relname, 'view', 
+		pg_get_viewdef(c.oid, true)
+	FROM pg_class c
+	INNER JOIN pg_namespace n on n.oid = c.relnamespace
+	WHERE c.relname = object
+	AND n.nspname = schema;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates() 
+RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_tally	integer;
+BEGIN
+	FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
+	LOOP
+		RAISE NOTICE 'Recreating: %.%', _r.schema, _r.object;
+		EXECUTE _r.ddl; 
+		DELETE from __recreate where id = _r.id;
+	END LOOP;
+
+	SELECT count(*) INTO _tally from __recreate;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+	ELSE
+		DROP TABLE __recreate;
+	END IF;
+	
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Notable queries..
 -- select schema_support.save_grants_for_replay('jazzhands', 'physical_port');
 -- select schema_support.save_grants_for_replay('port_support', 
 -- 'do_l1_connection_update');
 -- SELECT  schema_support.replay_saved_grants();
+-- SELECT schema_support.save_view_for_replay('jazzhands', 
+--	'v_l1_all_physical_ports');
 
 -------------------------------------------------------------------------------
 -- select schema_support.rebuild_stamp_triggers();
