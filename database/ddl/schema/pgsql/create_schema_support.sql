@@ -3,8 +3,23 @@
 -- $Id$
 --
 
-DROP SCHEMA IF EXISTS schema_support;
-CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
+
+-- Create schema if it does not exist, do nothing otherwise.
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	select count(*) 
+	from pg_catalog.pg_namespace 
+	into _tal
+	where nspname = 'schema_support';
+	IF _tal = 0 THEN
+		DROP SCHEMA IF EXISTS schema_support;
+		CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
+	END IF;
+END;
+$$;
+
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -122,7 +137,9 @@ BEGIN
 	|| quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
 	|| $$')$$;
 
-    EXECUTE 'CREATE INDEX ON ' || quote_ident(aud_schema) || '.'
+    EXECUTE 'CREATE INDEX ' 
+	|| quote_ident( table_name || '_aud#timestamp_idx')
+	|| ' ON ' || quote_ident(aud_schema) || '.'
 	|| quote_ident(table_name) || '("aud#timestamp")';
 
     IF first_time THEN
@@ -308,7 +325,7 @@ BEGIN
 	  FROM	pg_catalog.pg_class
 	 WHERE	relname = '__regrants'
 	   AND	relpersistence = 't';
-	
+
 	IF _tally = 0 THEN
 		CREATE TEMPORARY TABLE IF NOT EXISTS __regrants (id SERIAL, schema text, object text, newname text, regrant text);
 	END IF;
@@ -333,11 +350,11 @@ DECLARE
 	_fullgrant		varchar;
 	_role		varchar;
 BEGIN
+	_schema := schema;
+	_object := object;
 	if newname IS NULL THEN
 		newname := _object;
 	END IF;
-	_schema := schema;
-	_object := object;
 	PERFORM schema_support.prepare_for_grant_replay();
 	FOR _tabs IN SELECT  n.nspname as schema,
 			c.relname as name,
@@ -375,6 +392,10 @@ BEGIN
 				_schema || '.' ||
 				newname || ' to ' ||
 				_role || _grant;
+			IF _fullgrant IS NULL THEN
+				RAISE EXCEPTION 'built up grant for %.% (%) is NULL',
+					schema, object, newname;
+	    END IF;
 			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
 		END LOOP;
 	END LOOP;
@@ -382,10 +403,10 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
--- Collect grants for procedures and saves them for future replay (if objects
+-- Collect grants for functions and saves them for future replay (if objects
 -- are dropped and recreated)
 --
-CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_procedures(
+CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_functions(
 	schema varchar,
 	object varchar,
 	newname varchar DEFAULT NULL
@@ -399,15 +420,15 @@ DECLARE
 	_role		varchar;
 	_fullgrant		varchar;
 BEGIN
+	_schema := schema;
+	_object := object;
 	if newname IS NULL THEN
 		newname := _object;
 	END IF;
-	_schema := schema;
-	_object := object;
 	PERFORM schema_support.prepare_for_grant_replay();
 	FOR _procs IN SELECT  n.nspname as schema, p.proname,
-	        	pg_get_function_arguments(p.oid) as args,
-	        	proacl as privs
+			pg_get_function_identity_arguments(p.oid) as args,
+			proacl as privs
 		FROM    pg_catalog.pg_proc  p
 				inner join pg_catalog.pg_namespace n on n.oid = p.pronamespace
 		WHERE   n.nspname = _schema
@@ -432,6 +453,7 @@ BEGIN
 				_schema || '.' ||
 				newname || '(' || _procs.args || ')  to ' ||
 				_role || _grant;
+			-- RAISE DEBUG 'inserting % for %', _fullgrant, _perm;
 			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
 		END LOOP;
 	END LOOP;
@@ -439,7 +461,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
--- save grants for object regardless of if its a relation or procedure.
+-- save grants for object regardless of if its a relation or function.
 --
 CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay(
 	schema varchar,
@@ -448,14 +470,16 @@ CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay(
 ) RETURNS VOID AS $$
 BEGIN
 	PERFORM schema_support.save_grants_for_replay_relations(schema, object, newname);
-	PERFORM schema_support.save_grants_for_replay_procedures(schema, object, newname);
+	PERFORM schema_support.save_grants_for_replay_functions(schema, object, newname);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
 -- replay saved grants, drop temporary tables
 --
-CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants() 
+CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants(
+	beverbose	boolean DEFAULT false
+) 
 RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -463,7 +487,9 @@ DECLARE
 BEGIN
 	FOR _r in SELECT * from __regrants FOR UPDATE
 	LOOP
-		RAISE NOTICE 'Executing: %', _r.regrant;
+		IF beverbose THEN
+			RAISE NOTICE 'Regrant Executing: %', _r.regrant;
+		END IF;
 		EXECUTE _r.regrant; 
 		DELETE from __regrants where id = _r.id;
 	END LOOP;
@@ -474,7 +500,7 @@ BEGIN
 	ELSE
 		DROP TABLE __regrants;
 	END IF;
-	
+
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -493,7 +519,7 @@ BEGIN
 	  FROM	pg_catalog.pg_class
 	 WHERE	relname = '__recreate'
 	   AND	relpersistence = 't';
-	
+
 	IF _tally = 0 THEN
 		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, type text, ddl text);
 	END IF;
@@ -501,35 +527,93 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
--- Collect grants for relations and saves them for future replay (if objects
--- are dropped and recreated)
+-- Saves view definition for replay later.  This is to allow for dropping
+-- dependant views and having a migration script recreate them.
 --
 CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
 	schema varchar,
-	object varchar
+	object varchar,
+	dropit boolean DEFAULT true
 ) RETURNS VOID AS $$
 DECLARE
-	_tabs		RECORD;
-	_perm		RECORD;
-	_grant		varchar;
-	_fullgrant		varchar;
-	_role		varchar;
+	_r		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object);
-	INSERT INTO __recreate (schema, object, type, ddl )
-	SELECT n.nspname, c.relname, 'view', 
-		pg_get_viewdef(c.oid, true)
-	FROM pg_class c
-	INNER JOIN pg_namespace n on n.oid = c.relnamespace
-	WHERE c.relname = object
-	AND n.nspname = schema;
+	FOR _r in SELECT n.nspname, c.relname, 'view', 
+				pg_get_viewdef(c.oid, true) as viewdef
+		FROM pg_class c
+		INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE c.relname = object
+		AND n.nspname = schema
+	LOOP
+		_ddl := 'CREATE OR REPLACE VIEW ' || _r.nspname || '.' || _r.relname ||
+			' AS ' || _r.viewdef;
+		IF _ddl is NULL THEN
+			RAISE EXCEPTION 'Unable to define view for %', _r;
+		END IF;
+		INSERT INTO __recreate (schema, object, type, ddl )
+			VALUES (
+				_r.nspname, _r.relname, 'view', _ddl
+			);
+		IF dropit  THEN
+			_cmd = 'DROP VIEW ' || _r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates() 
+--
+-- Saves view definition for replay later.  This is to allow for dropping
+-- dependant functions and having a migration script recreate them.
+--
+-- Note this will drop and recreate all functions of the name.  This sh
+--
+CREATE OR REPLACE FUNCTION schema_support.save_function_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object);
+	FOR _r IN SELECT n.nspname, p.proname, 
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		INSERT INTO __recreate (schema, object, type, ddl )
+		VALUES (
+			_r.nspname, _r.proname, 'function', _r.funcdef
+		);
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
+				_r.proname || '(' || _r.idargs || ');';
+			EXECUTE _cmd;
+		END IF;
+
+	END LOOP;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates(
+	beverbose	boolean DEFAULT false
+) 
 RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -537,7 +621,9 @@ DECLARE
 BEGIN
 	FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
 	LOOP
-		RAISE NOTICE 'Recreating: %.%', _r.schema, _r.object;
+		IF beverbose THEN
+			RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
+		END IF;
 		EXECUTE _r.ddl; 
 		DELETE from __recreate where id = _r.id;
 	END LOOP;
@@ -548,7 +634,7 @@ BEGIN
 	ELSE
 		DROP TABLE __recreate;
 	END IF;
-	
+
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
