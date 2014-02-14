@@ -5177,6 +5177,20 @@ ALTER TABLE netblock
 ALTER TABLE dns_record
 	ALTER COLUMN dns_class set DEFAULT 'IN'::varchar;
 
-RAISE EXCEPTION 'Need to test, test, test....';
+-- rename some trigger names to not suck
+DROP TRIGGER IF EXISTS trig_automated_ac ON person_company;
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
+CREATE TRIGGER trigger_automated_ac_on_person_company
+        AFTER UPDATE ON person_company
+        FOR EACH ROW EXECUTE PROCEDURE
+        automated_ac_on_person_company();
 
+DROP TRIGGER IF EXISTS trig_automated_ac ON person;
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
+CREATE TRIGGER trigger_automated_ac_on_person
+        AFTER UPDATE ON person
+        FOR EACH ROW
+        EXECUTE PROCEDURE automated_ac_on_person();
+
+RAISE EXCEPTION 'Need to test, test, test....';
 -- SELECT schema_support.end_maintenance();
