@@ -1678,11 +1678,8 @@ $function$
 
 -- RECREATE FUNCTION
 -- consider NEW oid 667082
-CREATE OR REPLACE FUNCTION jazzhands.dns_record_update_nontime()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+CREATE OR REPLACE FUNCTION dns_record_update_nontime() 
+RETURNS TRIGGER AS $$
 DECLARE
 	_dnsdomainid	DNS_DOMAIN.DNS_DOMAIN_ID%type;
 	_ipaddr			NETBLOCK.IP_ADDRESS%type;
@@ -1709,9 +1706,9 @@ BEGIN
 	ELSIF TG_OP = 'UPDATE' THEN
 		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
 			_mkold := true;
-			_mknew := true;
-			_mkdom := true;
 		END IF;
+		_mknew := true;
+		_mkdom := true;
 
 		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
 				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID is NULL)
@@ -1737,7 +1734,7 @@ BEGIN
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_RECORD_CHANGE
+		insert into jazzhands.DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	if _mknew THEN
@@ -1754,7 +1751,7 @@ BEGIN
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_RECORD_CHANGE
+		insert into jazzhands.DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	IF TG_OP = 'DELETE' THEN
@@ -1763,8 +1760,9 @@ BEGIN
 		return NEW;
 	END IF;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 
 CREATE TRIGGER trigger_dns_record_update_nontime 
 	BEFORE INSERT OR DELETE OR UPDATE OF netblock_id, dns_domain_id 

@@ -153,9 +153,9 @@ BEGIN
 	ELSIF TG_OP = 'UPDATE' THEN
 		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
 			_mkold := true;
-			_mknew := true;
-			_mkdom := true;
 		END IF;
+		_mknew := true;
+		_mkdom := true;
 
 		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
 				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID is NULL)
@@ -181,7 +181,7 @@ BEGIN
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_RECORD_CHANGE
+		insert into jazzhands.DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	if _mknew THEN
@@ -198,7 +198,7 @@ BEGIN
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_RECORD_CHANGE
+		insert into jazzhands.DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	IF TG_OP = 'DELETE' THEN
@@ -211,7 +211,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_update_nontime ON dns_record;
 CREATE TRIGGER trigger_dns_record_update_nontime 
-	BEFORE INSERT OR UPDATE OF NETBLOCK_ID, DNS_DOMAIN_ID OR DELETE
+	BEFORE INSERT OR UPDATE OR DELETE
 	ON dns_record 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE dns_record_update_nontime();
