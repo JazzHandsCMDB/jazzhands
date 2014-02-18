@@ -34,12 +34,12 @@ DECLARE
 	v_device_collection_id	Property.device_collection_id%TYPE;
 	v_dns_domain_id			Property.dns_domain_id%TYPE;
 	v_operating_system_id	Property.operating_system_id%TYPE;
-	v_service_environment		Property.service_environment%TYPE;
+	v_svc_env_id		Property.service_env_collection_id%TYPE;
 	v_site_code				Property.site_code%TYPE;
-	v_system_user_id		Property.system_user_id%TYPE;
+	v_account_id			Property.account_id%TYPE;
 	v_account_collection_id				Property.account_collection_id%TYPE;
 	v_account_collection_id2			Property.account_collection_id%TYPE;
-	v_netblock_id			Property.Property_Value_Netblock_ID%TYPE;
+	v_net_coll_Id			Property.property_value_nblk_coll_id%TYPE;
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
 	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
 	v_token_collection_id	Property.Property_Value_Token_Col_ID%TYPE;
@@ -82,9 +82,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		Permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Prohibited',
@@ -112,9 +112,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		Permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
@@ -142,9 +142,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Singlevalue',
@@ -172,9 +172,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
@@ -202,9 +202,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'AnotherProperty',
@@ -232,9 +232,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Allowed',
@@ -262,9 +262,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Required',
@@ -292,12 +292,12 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
-		'RestrictAccount_Collectiong',
+		'RestrictAccount_Collection',
 		'test',
 		'N',
 		'per-user',
@@ -323,9 +323,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'boolean',
@@ -354,9 +354,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'company_id',
@@ -385,9 +385,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'dns_domain_id',
@@ -416,16 +416,16 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
-		'netblock_id',
+		'netblock_collection_id',
 		'test',
 		'N',
 		NULL,
-		'netblock_id',
+		'netblock_collection_id',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -446,9 +446,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'sw_package_id',
@@ -477,9 +477,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'none',
@@ -508,9 +508,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'number',
@@ -539,9 +539,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'password_type',
@@ -570,9 +570,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'string',
@@ -601,9 +601,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'timestamp',
@@ -632,9 +632,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'token_collection_id',
@@ -663,9 +663,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'account_collection_id',
@@ -694,9 +694,9 @@ BEGIN
 		Permit_Device_Collection_Id,
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment,
+		permit_service_env_collection,
 		Permit_Site_Code,
-		Permit_System_User_Id,
+		Permit_Account_Id,
 		Permit_Account_Collection_id
 	) VALUES (
 		'list',
@@ -736,17 +736,17 @@ BEGIN
 		LIMIT 1;
 	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System 
 		LIMIT 1;
-	SELECT service_environment INTO v_service_environment FROM VAL_service_environment 
+	SELECT service_env_collection_id INTO v_svc_env_id FROM service_environment_collection
 		LIMIT 1;
 	SELECT Site_Code INTO v_site_code FROM Site 
 		LIMIT 1;
-	SELECT System_User_ID INTO v_system_user_id FROM System_User 
+	SELECT Account_Id INTO v_account_Id FROM account 
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection 
-		WHERE Account_Collectiong_Type = 'per-user' LIMIT 1;
-	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collectiong 
-		WHERE Account_Collectiong_Type <> 'per-user' LIMIT 1; 
-	SELECT Netblock_ID INTO v_netblock_id FROM Netblock 
+		WHERE Account_Collection_Type = 'per-user' LIMIT 1;
+	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection 
+		WHERE Account_Collection_Type <> 'per-user' LIMIT 1; 
+	SELECT Netblock_Collection_id INTO v_net_coll_Id FROM Netblock_Collection
 		LIMIT 1;
 	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type 
 		LIMIT 1;
@@ -759,12 +759,12 @@ BEGIN
 	RAISE NOTICE 'v_device_collection_id is %', v_device_collection_id;
 	RAISE NOTICE 'v_dns_domain_id is %', v_dns_domain_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
-	RAISE NOTICE 'v_service_environment is %', v_service_environment;
+	RAISE NOTICE 'v_svc_env_id is %', v_svc_env_id;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
-	RAISE NOTICE 'v_system_user_id is %', v_system_user_id;
+	RAISE NOTICE 'v_account_Id is %', v_account_Id;
 	RAISE NOTICE 'v_account_collection_id is %', v_account_collection_id;
 	RAISE NOTICE 'v_account_collection_id2 is %', v_account_collection_id2;
-	RAISE NOTICE 'v_netblock_id is %', v_netblock_id;
+	RAISE NOTICE 'v_net_coll_Id is %', v_net_coll_Id;
 	RAISE NOTICE 'v_password_type is %', v_password_type;
 	RAISE NOTICE 'v_token_collection_id is %', v_token_collection_id;
 
@@ -893,9 +893,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			Account_Id,
 			Account_Collection_id
 			) VALUES (
 			'Allowed', 'test', 'test',
@@ -903,9 +903,9 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
@@ -923,9 +923,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			Account_Id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -933,9 +933,9 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
@@ -953,9 +953,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -963,9 +963,9 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -983,9 +983,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -993,9 +993,9 @@ BEGIN
 			NULL,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1013,9 +1013,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -1023,9 +1023,9 @@ BEGIN
 			v_device_collection_id,
 			NULL,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1043,9 +1043,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -1053,9 +1053,9 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			NULL,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1065,7 +1065,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Omitting service_environment from property with REQUIRED service_environment lhs field';
+	RAISE NOTICE 'Omitting service_env_collection_id from property with REQUIRED service_env_collection_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1073,9 +1073,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -1085,7 +1085,7 @@ BEGIN
 			v_operating_system_id,
 			NULL,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1103,9 +1103,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -1113,9 +1113,9 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			NULL,
-			v_system_user_id,
+			v_account_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1125,7 +1125,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Omitting System_User_ID from property with REQUIRED System_User_ID lhs field';
+	RAISE NOTICE 'Omitting account_id from property with REQUIRED account_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1133,9 +1133,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -1143,7 +1143,7 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
 			NULL,
 			v_account_collection_id
@@ -1163,9 +1163,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -1173,9 +1173,9 @@ BEGIN
 			v_device_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
-			v_service_environment,
+			v_svc_env_id,
 			v_site_code,
-			v_system_user_id,
+			v_account_id,
 			NULL
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1193,9 +1193,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1223,9 +1223,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1253,9 +1253,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1283,9 +1283,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1313,9 +1313,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1335,7 +1335,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Adding service_environment to property with PROHIBITED service_environment lhs field';
+	RAISE NOTICE 'Adding service_env_collection_id to property with PROHIBITED service_env_collection_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1343,9 +1343,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1353,7 +1353,7 @@ BEGIN
 			NULL,
 			NULL,
 			NULL,
-			v_service_environment,
+			v_svc_env_id,
 			NULL,
 			NULL,
 			NULL
@@ -1373,9 +1373,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1395,7 +1395,7 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Adding System_User_ID to property with PROHIBITED System_User_ID lhs field';
+	RAISE NOTICE 'Adding account_id to property with PROHIBITED account_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
@@ -1403,9 +1403,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1415,7 +1415,7 @@ BEGIN
 			NULL,
 			NULL,
 			NULL,
-			v_system_user_id,
+			v_account_id,
 			NULL
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1433,9 +1433,9 @@ BEGIN
 			Device_Collection_ID,
 			DNS_Domain_ID,
 			Operating_System_ID,
-			service_environment,
+			service_env_collection_id,
 			Site_Code,
-			System_User_ID,
+			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
@@ -1510,13 +1510,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into string property';
+	RAISE NOTICE 'Inserting Netblock_collection_Id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'string', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1573,7 +1573,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'string', 'test',
 			v_account_collection_id
@@ -1650,13 +1650,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into timestamp property';
+	RAISE NOTICE 'Inserting Netblock_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'timestamp', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1713,7 +1713,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'timestamp', 'test',
 			v_account_collection_id
@@ -1790,13 +1790,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into company_id property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into company_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'company_id', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1853,7 +1853,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into company_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'company_id', 'test',
 			v_account_collection_id
@@ -1931,13 +1931,13 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into dns_domain_id property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into dns_domain_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'dns_domain_id', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1994,7 +1994,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into dns_domain_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'dns_domain_id', 'test',
 			v_account_collection_id
@@ -2007,15 +2007,15 @@ BEGIN
 	END;
 
 	--
-	-- Netblock_ID
+	-- Netblock_Collection_Id
 	--
 
-	RAISE NOTICE 'Inserting string value into netblock_id property';
+	RAISE NOTICE 'Inserting string value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			'test'
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2025,12 +2025,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting timestamp value into netblock_id property';
+	RAISE NOTICE 'Inserting timestamp value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Timestamp
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			now()
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2040,12 +2040,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into netblock_id property';
+	RAISE NOTICE 'Inserting Company_ID value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Company_ID
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			v_company_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2055,12 +2055,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into netblock_id property';
+	RAISE NOTICE 'Inserting DNS_Domain_ID value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_DNS_Domain_ID
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			v_dns_domain_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2070,13 +2070,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into netblock_id property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
-			'netblock_id', 'test',
-			v_netblock_id
+			'netblock_collection_id', 'test',
+			v_net_coll_Id
 			) RETURNING Property_ID INTO v_property_id;
 		RAISE NOTICE '... Success';
 	EXCEPTION
@@ -2086,12 +2086,12 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting Password_Type value into netblock_id property';
+	RAISE NOTICE 'Inserting Password_Type value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Password_Type
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			v_password_type
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2101,12 +2101,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting SW_Package_ID value into netblock_id property';
+	RAISE NOTICE 'Inserting SW_Package_ID value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_SW_Package_ID
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			v_sw_package_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2116,12 +2116,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Token_Collection_ID value into netblock_id property';
+	RAISE NOTICE 'Inserting Token_Collection_ID value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value_Token_Col_ID
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			v_token_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2131,12 +2131,12 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Account_Collection_id value into netblock_id property';
+	RAISE NOTICE 'Inserting Account_Collection_id value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
-			'netblock_id', 'test',
+			'netblock_collection_id', 'test',
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2210,13 +2210,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into password_type property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'password_type', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2274,7 +2274,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'password_type', 'test',
 			v_account_collection_id
@@ -2350,13 +2350,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into sw_package_id property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'sw_package_id', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2415,7 +2415,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'sw_package_id', 'test',
 			v_account_collection_id
@@ -2491,13 +2491,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into token_collection_id property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'token_collection_id', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2555,7 +2555,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'token_collection_id', 'test',
 			v_account_collection_id
@@ -2631,13 +2631,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into account_collection_id property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'account_collection_id', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2694,7 +2694,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'account_collection_id', 'test',
 			v_account_collection_id
@@ -2771,13 +2771,13 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Netblock_ID value into none property';
+	RAISE NOTICE 'Inserting Netblock_Collection_Id value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Netblock_ID
+			property_value_nblk_coll_id
 			) VALUES (
 			'none', 'test',
-			v_netblock_id
+			v_net_coll_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2835,7 +2835,7 @@ BEGIN
 	RAISE NOTICE 'Inserting account_collection_id value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Account_Collection_id
+			property_value_account_coll_id
 			) VALUES (
 			'none', 'test',
 			v_account_collection_id
