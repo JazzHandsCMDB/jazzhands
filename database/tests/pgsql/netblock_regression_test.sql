@@ -73,10 +73,10 @@ BEGIN
 	RAISE NOTICE 'Creating test universes...';
 	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
-	a_ip_universe[0] := v_ip_universe_id;
+	a_ip_universe[0] = v_ip_universe_id;
 	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse2')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
-	a_ip_universe[1] := v_ip_universe_id;
+	a_ip_universe[1] = v_ip_universe_id;
 
 --
 --  Test netblock trigger
@@ -750,6 +750,7 @@ BEGIN
 		('172.31.1.1/24', 24, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
 			'Allocated', a_ip_universe[0])
 	RETURNING * INTO netblock_rec;
+	a_netblock_list[18] = netblock_rec.netblock_id;
 
 	IF netblock_rec.parent_netblock_id = a_netblock_list[3] THEN
 		RAISE NOTICE '        parent should be and is %', a_netblock_list[3];
@@ -903,6 +904,58 @@ BEGIN
 	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
 	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 
+--
+-- Change the netmask on a netblock and ensure that the is_single_address
+-- children get readdressed
+--
+
+	RAISE NOTICE '    Inserting 172.31.1.16/24 that is a single address';
+	INSERT INTO netblock 
+		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+		 ip_universe_id)
+	VALUES
+		('172.31.1.16/24', 24, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
+			'Allocated', a_ip_universe[0])
+	RETURNING * INTO netblock_rec;
+	a_netblock_list[19] = netblock_rec.netblock_id;
+
+	RAISE NOTICE '    Changing netmask for 172.31.1.0/24 to /26 to validate children mask changes';
+	UPDATE netblock SET ip_address = set_masklen(ip_address, 26),
+		netmask_bits = NULL
+	WHERE
+		netblock_id = netblock_rec.parent_netblock_id;
+
+	SELECT * INTO netblock_rec FROM netblock WHERE netblock_id =
+		a_netblock_list[19];
+
+	IF masklen(netblock_rec.ip_address) = 26 THEN
+		RAISE NOTICE '        Child netblock is now a /26';
+	ELSE
+		RAISE '        Child netblock is /% (should be /26)',
+			masklen(netblock_rec.ip_address);
+	END IF;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+
+	RAISE NOTICE '    Readdressing netblock to be too small for its children';
+
+	BEGIN
+		UPDATE netblock SET ip_address = set_masklen(ip_address, 29),
+			netmask_bits = NULL
+		WHERE
+			netblock_id = netblock_rec.parent_netblock_id;
+		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+	EXCEPTION
+		WHEN SQLSTATE '22105' THEN
+			SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+			RAISE NOTICE '        failed corectly';
+	END;
+
+	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 --
 -- Yay!  We're done!
 --
