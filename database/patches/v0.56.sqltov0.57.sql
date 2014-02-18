@@ -36,19 +36,284 @@
 
 \set ON_ERROR_STOP
 
--- random renamed objects
+---------- ========================================================= ----------
+--- BEGIN: recreate schema_support
 
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.begin_maintenance -> begin_maintenance 
+-- :r ../ddl/schema/pgsql/create_schema_support.sql
+
+--
+-- $HeadURL$
+-- $Id$
+--
 
 
--- RECREATE FUNCTION
--- consider NEW oid 660479
-CREATE OR REPLACE FUNCTION schema_support.begin_maintenance(shouldbesuper boolean DEFAULT true)
- RETURNS boolean
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+-- Create schema if it does not exist, do nothing otherwise.
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	select count(*) 
+	from pg_catalog.pg_namespace 
+	into _tal
+	where nspname = 'schema_support';
+	IF _tal = 0 THEN
+		DROP SCHEMA IF EXISTS schema_support;
+		CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
+	END IF;
+END;
+$$;
+
+
+-------------------------------------------------------------------
+-- returns the Id tag for CM
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.id_tag()
+RETURNS VARCHAR AS $$
+BEGIN
+    RETURN('<-- $Id -->');
+END;
+$$ LANGUAGE plpgsql;
+-- end of procedure id_tag
+-------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_trigger
+    ( aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR )
+RETURNS VOID AS $$
+BEGIN
+    EXECUTE 'CREATE OR REPLACE FUNCTION ' || quote_ident(tbl_schema)
+	|| '.' || quote_ident('perform_audit_' || table_name)
+	|| $ZZ$() RETURNS TRIGGER AS $TQ$
+	    DECLARE
+		appuser VARCHAR;
+	    BEGIN
+		BEGIN
+		    appuser := session_user
+			|| '/' || current_setting('jazzhands.appuser');
+		EXCEPTION WHEN OTHERS THEN
+		    appuser := session_user;
+		END;
+
+    		appuser = substr(appuser, 1, 255);
+
+		IF TG_OP = 'DELETE' THEN
+		    INSERT INTO $ZZ$ || quote_ident(aud_schema) 
+			|| '.' || quote_ident(table_name) || $ZZ$
+		    VALUES ( OLD.*, 'DEL', now(), appuser );
+		    RETURN OLD;
+		ELSIF TG_OP = 'UPDATE' THEN
+		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
+			|| '.' || quote_ident(table_name) || $ZZ$
+		    VALUES ( NEW.*, 'UPD', now(), appuser );
+		    RETURN NEW;
+		ELSIF TG_OP = 'INSERT' THEN
+		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
+			|| '.' || quote_ident(table_name) || $ZZ$
+		    VALUES ( NEW.*, 'INS', now(), appuser );
+		    RETURN NEW;
+		END IF;
+		RETURN NULL;
+	    END;
+	$TQ$ LANGUAGE plpgsql SECURITY DEFINER
+    $ZZ$;
+
+    EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident('trigger_audit_'
+	|| table_name) || ' ON ' || quote_ident(tbl_schema) || '.'
+	|| quote_ident(table_name);
+
+    EXECUTE 'CREATE TRIGGER ' || quote_ident('trigger_audit_' || table_name)
+	|| ' AFTER INSERT OR UPDATE OR DELETE ON ' || quote_ident(tbl_schema)
+	|| '.' || quote_ident(table_name) || ' FOR EACH ROW EXECUTE PROCEDURE ' 
+	|| quote_ident(tbl_schema) || '.' || quote_ident('perform_audit_'
+	|| table_name) || '()';
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_triggers
+    ( aud_schema varchar, tbl_schema varchar )
+RETURNS VOID AS $$
+DECLARE
+    table_list RECORD;
+BEGIN
+    --
+    -- select tables with audit tables
+    --
+    FOR table_list IN
+	SELECT table_name FROM information_schema.tables
+	WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+	AND table_name IN (
+	    SELECT table_name FROM information_schema.tables
+	    WHERE table_schema = aud_schema AND table_type = 'BASE TABLE'
+	) ORDER BY table_name
+    LOOP
+	PERFORM schema_support.rebuild_audit_trigger
+	    (aud_schema, tbl_schema, table_list.table_name);
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
+    aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
+    first_time boolean DEFAULT true
+)
+RETURNS VOID AS $FUNC$
+BEGIN
+    IF first_time THEN
+	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
+	    || quote_ident(table_name || '_seq');
+    END IF;
+
+    EXECUTE 'CREATE TABLE ' || quote_ident(aud_schema) || '.'
+	|| quote_ident(table_name) || ' AS '
+	|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
+	|| 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
+	|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name) 
+	|| ' LIMIT 0';
+
+    EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
+	|| quote_ident(table_name)
+	|| $$ ALTER COLUMN "aud#seq" SET NOT NULL, $$
+	|| $$ ALTER COLUMN "aud#seq" SET DEFAULT nextval('$$
+	|| quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
+	|| $$')$$;
+
+    EXECUTE 'CREATE INDEX ' 
+	|| quote_ident( table_name || '_aud#timestamp_idx')
+	|| ' ON ' || quote_ident(aud_schema) || '.'
+	|| quote_ident(table_name) || '("aud#timestamp")';
+
+    IF first_time THEN
+	PERFORM schema_support.rebuild_audit_trigger
+	    ( aud_schema, tbl_schema, table_name );
+    END IF;
+END;
+$FUNC$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.build_audit_tables
+    ( aud_schema varchar, tbl_schema varchar )
+RETURNS VOID AS $FUNC$
+DECLARE
+     table_list RECORD;
+BEGIN
+    FOR table_list IN
+	SELECT table_name FROM information_schema.tables
+	WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+	AND NOT ( 
+	    table_name IN (
+		SELECT table_name FROM information_schema.tables
+		WHERE table_schema = aud_schema
+	    )
+	)
+	ORDER BY table_name
+    LOOP
+	PERFORM schema_support.build_audit_table
+	    ( aud_schema, tbl_schema, table_list.table_name );
+    END LOOP;
+
+    PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
+END;
+$FUNC$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.trigger_ins_upd_generic_func()
+RETURNS TRIGGER AS $$
+DECLARE
+    appuser VARCHAR;
+BEGIN
+    BEGIN
+	appuser := session_user || '/' || current_setting('jazzhands.appuser');
+    EXCEPTION
+	WHEN OTHERS THEN appuser := session_user;
+    END;
+
+    appuser = substr(appuser, 1, 255);
+
+    IF TG_OP = 'INSERT' THEN
+	NEW.data_ins_user = appuser;
+	NEW.data_ins_date = 'now';
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+	NEW.data_upd_user = appuser;
+	NEW.data_upd_date = 'now';
+
+	IF OLD.data_ins_user != NEW.data_ins_user THEN
+	    RAISE EXCEPTION
+		'Non modifiable column "DATA_INS_USER" cannot be modified.';
+	END IF;
+
+	IF OLD.data_ins_date != NEW.data_ins_date THEN
+	    RAISE EXCEPTION
+		'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+	END IF;
+    END IF;
+
+    RETURN NEW;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_stamp_trigger
+    (tbl_schema VARCHAR, table_name VARCHAR)
+RETURNS VOID AS $$
+BEGIN
+    EXECUTE 'DROP TRIGGER IF EXISTS '
+	|| quote_ident('trig_userlog_' || table_name)
+	|| ' ON ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name);
+
+    EXECUTE 'CREATE TRIGGER '
+	|| quote_ident('trig_userlog_' || table_name)
+	|| ' BEFORE INSERT OR UPDATE ON '
+	|| quote_ident(tbl_schema) || '.' || quote_ident(table_name)
+	|| ' FOR EACH ROW EXECUTE PROCEDURE'
+	|| ' schema_support.trigger_ins_upd_generic_func()';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_stamp_triggers
+    (tbl_schema VARCHAR)
+RETURNS VOID AS $$
+BEGIN
+    DECLARE
+	tab RECORD;
+    BEGIN
+	FOR tab IN 
+	    SELECT table_name FROM information_schema.tables
+	    WHERE table_schema = tbl_schema AND table_type = 'BASE TABLE'
+	    AND table_name NOT LIKE 'aud$%'
+	LOOP
+	    PERFORM schema_support.rebuild_stamp_trigger
+		(tbl_schema, tab.table_name);
+	END LOOP;
+    END;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-------------------------------------------------------------------------------
+
+-- MAINTENANCE SUPPORT FUNCTIONS
+
+--
+-- Check for ideal maintenance conditions.
+-- Are we superuser? (argument turns this off if it is not necessary
+-- Are we in a transaction?
+--
+-- Raise an exception now
+--
+CREATE OR REPLACE FUNCTION schema_support.begin_maintenance(
+	shouldbesuper boolean DEFAULT true
+)
+RETURNS BOOLEAN AS $$
 DECLARE 
 	issuper	boolean;
 	_tally	integer;
@@ -71,25 +336,13 @@ BEGIN
 	END IF;
 	RETURN true;
 END;
-$function$
-;
-SELECT schema_support.begin_maintenance();
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.begin_maintenance -> begin_maintenance 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.end_maintenance -> end_maintenance 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 660480
+--
+-- Revokes superuser if its set on the current user
+--
 CREATE OR REPLACE FUNCTION schema_support.end_maintenance()
- RETURNS boolean
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+RETURNS BOOLEAN AS $$
 DECLARE issuper boolean;
 BEGIN
 		SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
@@ -98,24 +351,15 @@ BEGIN
 		END IF;
 		RETURN true;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.end_maintenance -> end_maintenance 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.prepare_for_grant_replay -> prepare_for_grant_replay 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 660481
+--
+-- Sets up temporary tables for replaying grants if it does not exist
+--
+-- This is called by other functions in this module.
+--
 CREATE OR REPLACE FUNCTION schema_support.prepare_for_grant_replay()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+RETURNS VOID AS $$
 DECLARE
 	_tally integer;
 BEGIN
@@ -124,29 +368,22 @@ BEGIN
 	  FROM	pg_catalog.pg_class
 	 WHERE	relname = '__regrants'
 	   AND	relpersistence = 't';
-	
+
 	IF _tally = 0 THEN
 		CREATE TEMPORARY TABLE IF NOT EXISTS __regrants (id SERIAL, schema text, object text, newname text, regrant text);
 	END IF;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.prepare_for_grant_replay -> prepare_for_grant_replay 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.save_grants_for_replay_relations -> save_grants_for_replay_relations 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 660482
-CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_relations(schema character varying, object character varying, newname character varying DEFAULT NULL::character varying)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+--
+-- Collect grants for relations and saves them for future replay (if objects
+-- are dropped and recreated)
+--
+CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_relations(
+	schema varchar,
+	object varchar,
+	newname varchar DEFAULT NULL
+) RETURNS VOID AS $$
 DECLARE
 	_schema		varchar;
 	_object	varchar;
@@ -156,11 +393,11 @@ DECLARE
 	_fullgrant		varchar;
 	_role		varchar;
 BEGIN
+	_schema := schema;
+	_object := object;
 	if newname IS NULL THEN
 		newname := _object;
 	END IF;
-	_schema := schema;
-	_object := object;
 	PERFORM schema_support.prepare_for_grant_replay();
 	FOR _tabs IN SELECT  n.nspname as schema,
 			c.relname as name,
@@ -198,28 +435,25 @@ BEGIN
 				_schema || '.' ||
 				newname || ' to ' ||
 				_role || _grant;
+			IF _fullgrant IS NULL THEN
+				RAISE EXCEPTION 'built up grant for %.% (%) is NULL',
+					schema, object, newname;
+	    END IF;
 			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
 		END LOOP;
 	END LOOP;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.save_grants_for_replay_relations -> save_grants_for_replay_relations 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.save_grants_for_replay_procedures -> save_grants_for_replay_procedures 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 660483
-CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_procedures(schema character varying, object character varying, newname character varying DEFAULT NULL::character varying)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+--
+-- Collect grants for functions and saves them for future replay (if objects
+-- are dropped and recreated)
+--
+CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_functions(
+	schema varchar,
+	object varchar,
+	newname varchar DEFAULT NULL
+) RETURNS VOID AS $$
 DECLARE
 	_schema		varchar;
 	_object		varchar;
@@ -229,15 +463,15 @@ DECLARE
 	_role		varchar;
 	_fullgrant		varchar;
 BEGIN
+	_schema := schema;
+	_object := object;
 	if newname IS NULL THEN
 		newname := _object;
 	END IF;
-	_schema := schema;
-	_object := object;
 	PERFORM schema_support.prepare_for_grant_replay();
 	FOR _procs IN SELECT  n.nspname as schema, p.proname,
-	        	pg_get_function_arguments(p.oid) as args,
-	        	proacl as privs
+			pg_get_function_identity_arguments(p.oid) as args,
+			proacl as privs
 		FROM    pg_catalog.pg_proc  p
 				inner join pg_catalog.pg_namespace n on n.oid = p.pronamespace
 		WHERE   n.nspname = _schema
@@ -262,57 +496,43 @@ BEGIN
 				_schema || '.' ||
 				newname || '(' || _procs.args || ')  to ' ||
 				_role || _grant;
+			-- RAISE DEBUG 'inserting % for %', _fullgrant, _perm;
 			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
 		END LOOP;
 	END LOOP;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.save_grants_for_replay_procedures -> save_grants_for_replay_procedures 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.save_grants_for_replay -> save_grants_for_replay 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 660484
-CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay(schema character varying, object character varying, newname character varying DEFAULT NULL::character varying)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+--
+-- save grants for object regardless of if its a relation or function.
+--
+CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay(
+	schema varchar,
+	object varchar,
+	newname varchar DEFAULT NULL
+) RETURNS VOID AS $$
 BEGIN
 	PERFORM schema_support.save_grants_for_replay_relations(schema, object, newname);
-	PERFORM schema_support.save_grants_for_replay_procedures(schema, object, newname);
+	PERFORM schema_support.save_grants_for_replay_functions(schema, object, newname);
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.save_grants_for_replay -> save_grants_for_replay 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.replay_saved_grants -> replay_saved_grants 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 660485
-CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+--
+-- replay saved grants, drop temporary tables
+--
+CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants(
+	beverbose	boolean DEFAULT false
+) 
+RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
 	_tally	integer;
 BEGIN
 	FOR _r in SELECT * from __regrants FOR UPDATE
 	LOOP
-		RAISE NOTICE 'Executing: %', _r.regrant;
+		IF beverbose THEN
+			RAISE NOTICE 'Regrant Executing: %', _r.regrant;
+		END IF;
 		EXECUTE _r.regrant; 
 		DELETE from __regrants where id = _r.id;
 	END LOOP;
@@ -323,67 +543,160 @@ BEGIN
 	ELSE
 		DROP TABLE __regrants;
 	END IF;
-	
+
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.replay_saved_grants -> replay_saved_grants 
---------------------------------------------------------------------
-
---------------------------------------------------------------------
--- DEALING WITH proc schema_support.build_audit_table -> build_audit_table 
-
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('schema_support', 'build_audit_table', 'build_audit_table');
-
--- DROP OLD FUNCTION
--- consider old oid 769159
--- DROP FUNCTION IF EXISTS schema_support.build_audit_table(aud_schema character varying, tbl_schema character varying, table_name character varying, first_time boolean);
-
--- RECREATE FUNCTION
--- consider NEW oid 749320
-CREATE OR REPLACE FUNCTION schema_support.build_audit_table(aud_schema character varying, tbl_schema character varying, table_name character varying, first_time boolean DEFAULT true)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+--
+-- Sets up temporary tables for replaying grants if it does not exist
+--
+-- This is called by other functions in this module.
+--
+CREATE OR REPLACE FUNCTION schema_support.prepare_for_object_replay()
+RETURNS VOID AS $$
+DECLARE
+	_tally integer;
 BEGIN
-    IF first_time THEN
-	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
-	    || quote_ident(table_name || '_seq');
-    END IF;
+	SELECT	count(*)
+	  INTO	_tally
+	  FROM	pg_catalog.pg_class
+	 WHERE	relname = '__recreate'
+	   AND	relpersistence = 't';
 
-    EXECUTE 'CREATE TABLE ' || quote_ident(aud_schema) || '.'
-	|| quote_ident(table_name) || ' AS '
-	|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
-	|| 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
-	|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name) 
-	|| ' LIMIT 0';
-
-    EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
-	|| quote_ident(table_name)
-	|| $$ ALTER COLUMN "aud#seq" SET NOT NULL, $$
-	|| $$ ALTER COLUMN "aud#seq" SET DEFAULT nextval('$$
-	|| quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
-	|| $$')$$;
-
-    EXECUTE 'CREATE INDEX ON ' || quote_ident(aud_schema) || '.'
-	|| quote_ident(table_name) || '("aud#timestamp")';
-
-    IF first_time THEN
-	PERFORM schema_support.rebuild_audit_trigger
-	    ( aud_schema, tbl_schema, table_name );
-    END IF;
+	IF _tally = 0 THEN
+		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, type text, ddl text);
+	END IF;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- DONE WITH proc schema_support.build_audit_table -> build_audit_table 
---------------------------------------------------------------------
+--
+-- Saves view definition for replay later.  This is to allow for dropping
+-- dependant views and having a migration script recreate them.
+--
+CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
 
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object);
+	FOR _r in SELECT n.nspname, c.relname, 'view', 
+				pg_get_viewdef(c.oid, true) as viewdef
+		FROM pg_class c
+		INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE c.relname = object
+		AND n.nspname = schema
+	LOOP
+		_ddl := 'CREATE OR REPLACE VIEW ' || _r.nspname || '.' || _r.relname ||
+			' AS ' || _r.viewdef;
+		IF _ddl is NULL THEN
+			RAISE EXCEPTION 'Unable to define view for %', _r;
+		END IF;
+		INSERT INTO __recreate (schema, object, type, ddl )
+			VALUES (
+				_r.nspname, _r.relname, 'view', _ddl
+			);
+		IF dropit  THEN
+			_cmd = 'DROP VIEW ' || _r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+--
+-- Saves view definition for replay later.  This is to allow for dropping
+-- dependant functions and having a migration script recreate them.
+--
+-- Note this will drop and recreate all functions of the name.  This sh
+--
+CREATE OR REPLACE FUNCTION schema_support.save_function_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object);
+	FOR _r IN SELECT n.nspname, p.proname, 
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		INSERT INTO __recreate (schema, object, type, ddl )
+		VALUES (
+			_r.nspname, _r.proname, 'function', _r.funcdef
+		);
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
+				_r.proname || '(' || _r.idargs || ');';
+			EXECUTE _cmd;
+		END IF;
+
+	END LOOP;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates(
+	beverbose	boolean DEFAULT false
+) 
+RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_tally	integer;
+BEGIN
+	FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
+	LOOP
+		IF beverbose THEN
+			RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
+		END IF;
+		EXECUTE _r.ddl; 
+		DELETE from __recreate where id = _r.id;
+	END LOOP;
+
+	SELECT count(*) INTO _tally from __recreate;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+	ELSE
+		DROP TABLE __recreate;
+	END IF;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Notable queries..
+-- select schema_support.save_grants_for_replay('jazzhands', 'physical_port');
+-- select schema_support.save_grants_for_replay('port_support', 
+-- 'do_l1_connection_update');
+-- SELECT  schema_support.replay_saved_grants();
+-- SELECT schema_support.save_view_for_replay('jazzhands', 
+--	'v_l1_all_physical_ports');
+
+-------------------------------------------------------------------------------
+-- select schema_support.rebuild_stamp_triggers();
+-- SELECT schema_support.build_audit_tables();
+--- DONE:  recreate schema_support
 ---------- ========================================================= ----------
 -- Begin dealing with actual maint.  The above is preliminary work.
+
+SELECT schema_support.begin_maintenance();
 
 drop trigger IF EXISTS trigger_dns_rec_a_type_validation ON dns_record;
 
@@ -391,9 +704,18 @@ CREATE INDEX idx_device_type_location ON device USING btree (device_type_id, loc
 CREATE INDEX xif13device ON device USING btree (location_id, device_type_id);
 
 
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_l1_all_physical_ports', 'v_l1_all_physical_ports');
+SELECT schema_support.save_view_for_replay('jazzhands', 'v_l1_all_physical_ports');
 
-drop view v_l1_all_physical_ports;
+-- drop these index if they exist so things are recreated properly.
+-- Later, we will do this as part of the table teardown..  Did not make this
+-- revision of the migration generator.
+DROP INDEX IF EXISTS audit."location_aud#timestamp_idx";
+DROP INDEX IF EXISTS audit."physical_port_aud#timestamp_idx";
+DROP INDEX IF EXISTS audit."device_ticket_aud#timestamp_idx";
+DROP INDEX IF EXISTS audit."device_power_interface_aud#timestamp_idx";
+DROP INDEX IF EXISTS audit."device_type_aud#timestamp_idx";
+DROP INDEX IF EXISTS audit."device_type_phys_port_templt_aud#timestamp_idx";
+
 
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE device_type_module
@@ -557,7 +879,7 @@ ALTER TABLE audit.location RENAME TO location_v56;
 CREATE TABLE location
 (
 	location_id	integer NOT NULL,
-	device_type_id	integer NOT NULL,
+	device_type_id	integer NULL,
 	device_type_module_name	character(18)  NULL,
 	rack_id	integer  NULL,
 	rack_u_offset_of_device_top	integer  NULL,
@@ -580,17 +902,17 @@ INSERT INTO location (
 	data_upd_user,
 	data_upd_date
 ) SELECT
-	location_id,
+	l.location_id,
 	NULL,		-- new column (device_type_id)
 	NULL,		-- new column (device_type_module_name)
-	rack_id,
-	rack_u_offset_of_device_top,
-	rack_side,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM location_v56;
+	l.rack_id,
+	l.rack_u_offset_of_device_top,
+	l.rack_side,
+	l.data_ins_user,
+	l.data_ins_date,
+	l.data_upd_user,
+	l.data_upd_date
+FROM location_v56 l;
 
 INSERT INTO audit.location (
 	location_id,
@@ -608,21 +930,22 @@ INSERT INTO audit.location (
 	"aud#user",
 	"aud#seq"
 ) SELECT
-	location_id,
+	l.location_id,
 	NULL,		-- new column (device_type_id)
 	NULL,		-- new column (device_type_module_name)
-	rack_id,
-	rack_u_offset_of_device_top,
-	rack_side,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
-	"aud#action",
-	"aud#timestamp",
-	"aud#user",
-	"aud#seq"
-FROM audit.location_v56;
+	l.rack_id,
+	l.rack_u_offset_of_device_top,
+	l.rack_side,
+	l.data_ins_user,
+	l.data_ins_date,
+	l.data_upd_user,
+	l.data_upd_date,
+	l."aud#action",
+	l."aud#timestamp",
+	l."aud#user",
+	l."aud#seq"
+FROM audit.location_v56 l;
+
 
 ALTER TABLE location
 	ALTER location_id
@@ -630,7 +953,8 @@ ALTER TABLE location
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE location ADD CONSTRAINT pk_location_id PRIMARY KEY (location_id);
-ALTER TABLE location ADD CONSTRAINT ak_location_id_device_typ_id UNIQUE (location_id, device_type_id);
+-- Not going to strictly require this yet.
+-- ALTER TABLE location ADD CONSTRAINT ak_location_id_device_typ_id UNIQUE (location_id, device_type_id);
 ALTER TABLE location ADD CONSTRAINT ak_uq_rack_offset_sid_location UNIQUE (rack_id, rack_u_offset_of_device_top, rack_side);
 
 -- Table/Column Comments
@@ -642,9 +966,13 @@ ALTER TABLE location ADD CONSTRAINT ckc_rack_side_location
 	CHECK ((((rack_side)::text = ANY (ARRAY[('FRONT'::character varying)::text, ('BACK'::character varying)::text])) AND ((rack_side)::text = upper((rack_side)::text))));
 
 -- FOREIGN KEYS FROM
+-- ALTER TABLE device
+--	ADD CONSTRAINT fk_dev_location_id
+--	FOREIGN KEY (location_id, device_type_id) REFERENCES location(location_id, device_type_id);
+
 ALTER TABLE device
 	ADD CONSTRAINT fk_dev_location_id
-	FOREIGN KEY (location_id, device_type_id) REFERENCES location(location_id, device_type_id);
+	FOREIGN KEY (location_id) REFERENCES location(location_id);
 
 -- FOREIGN KEYS TO
 ALTER TABLE location
@@ -854,7 +1182,7 @@ INSERT INTO physical_port (
 	physical_label,
 	port_purpose,
 	tcp_port,
-	NULL,		-- new column (is_hardwired)
+	'Y',		-- new column (is_hardwired)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -896,7 +1224,7 @@ INSERT INTO audit.physical_port (
 	physical_label,
 	port_purpose,
 	tcp_port,
-	NULL,		-- new column (is_hardwired)
+	'Y',		-- new column (is_hardwired)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -1350,11 +1678,8 @@ $function$
 
 -- RECREATE FUNCTION
 -- consider NEW oid 667082
-CREATE OR REPLACE FUNCTION jazzhands.dns_record_update_nontime()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
+CREATE OR REPLACE FUNCTION dns_record_update_nontime() 
+RETURNS TRIGGER AS $$
 DECLARE
 	_dnsdomainid	DNS_DOMAIN.DNS_DOMAIN_ID%type;
 	_ipaddr			NETBLOCK.IP_ADDRESS%type;
@@ -1381,9 +1706,9 @@ BEGIN
 	ELSIF TG_OP = 'UPDATE' THEN
 		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
 			_mkold := true;
-			_mknew := true;
-			_mkdom := true;
 		END IF;
+		_mknew := true;
+		_mkdom := true;
 
 		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
 				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID is NULL)
@@ -1409,7 +1734,7 @@ BEGIN
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_RECORD_CHANGE
+		insert into jazzhands.DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	if _mknew THEN
@@ -1426,7 +1751,7 @@ BEGIN
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_RECORD_CHANGE
+		insert into jazzhands.DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	IF TG_OP = 'DELETE' THEN
@@ -1435,8 +1760,9 @@ BEGIN
 		return NEW;
 	END IF;
 END;
-$function$
-;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 
 CREATE TRIGGER trigger_dns_record_update_nontime 
 	BEFORE INSERT OR DELETE OR UPDATE OF netblock_id, dns_domain_id 
@@ -1586,7 +1912,7 @@ CREATE TRIGGER trigger_device_update_location_fix
 SELECT schema_support.save_grants_for_replay('netblock_utils', 'find_best_parent_id', 'find_best_parent_id');
 
 -- adjust the regrant for this becuase the functoin definition changes.
-update __regrants set regrant = replace(regrant, 'in_is_single_address character', 'in_is_single_address character, in_netblock_id integer') where object = 'find_best_parent_id';
+update __regrants set regrant = replace(regrant, 'in_is_single_address character)', 'in_is_single_address character, in_netblock_id integer)') where object = 'find_best_parent_id';
 
 -- DROP OLD FUNCTION
 -- consider old oid 540965
@@ -1740,88 +2066,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --end of retire_device_ancillary id_tag
 -------------------------------------------------------------------
 
---------------------------------------------------------------------
--- DEALING WITH TABLE v_l1_all_physical_ports [688871]
--- Save grants for later reapplication
-CREATE VIEW v_l1_all_physical_ports AS
- SELECT subquery.layer1_connection_id,
-    subquery.physical_port_id,
-    subquery.device_id,
-    subquery.port_name,
-    subquery.port_type,
-    subquery.port_purpose,
-    subquery.other_physical_port_id,
-    subquery.other_device_id,
-    subquery.other_port_name,
-    subquery.other_port_purpose,
-    subquery.baud,
-    subquery.data_bits,
-    subquery.stop_bits,
-    subquery.parity,
-    subquery.flow_control
-   FROM (        (         SELECT l1.layer1_connection_id,
-                            p1.physical_port_id,
-                            p1.device_id,
-                            p1.port_name,
-                            p1.port_type,
-                            p1.port_purpose,
-                            p2.physical_port_id AS other_physical_port_id,
-                            p2.device_id AS other_device_id,
-                            p2.port_name AS other_port_name,
-                            p2.port_purpose AS other_port_purpose,
-                            l1.baud,
-                            l1.data_bits,
-                            l1.stop_bits,
-                            l1.parity,
-                            l1.flow_control
-                           FROM physical_port p1
-                      JOIN layer1_connection l1 ON l1.physical_port1_id = p1.physical_port_id
-                 JOIN physical_port p2 ON l1.physical_port2_id = p2.physical_port_id
-                WHERE p1.port_type::text = p2.port_type::text
-                UNION
-                         SELECT l1.layer1_connection_id,
-                            p1.physical_port_id,
-                            p1.device_id,
-                            p1.port_name,
-                            p1.port_type,
-                            p1.port_purpose,
-                            p2.physical_port_id AS other_physical_port_id,
-                            p2.device_id AS other_device_id,
-                            p2.port_name AS other_port_name,
-                            p2.port_purpose AS other_port_purpose,
-                            l1.baud,
-                            l1.data_bits,
-                            l1.stop_bits,
-                            l1.parity,
-                            l1.flow_control
-                           FROM physical_port p1
-                      JOIN layer1_connection l1 ON l1.physical_port2_id = p1.physical_port_id
-                 JOIN physical_port p2 ON l1.physical_port1_id = p2.physical_port_id
-                WHERE p1.port_type::text = p2.port_type::text)
-        UNION
-                 SELECT NULL::integer,
-                    p1.physical_port_id,
-                    p1.device_id,
-                    p1.port_name,
-                    p1.port_type,
-                    p1.port_purpose,
-                    NULL::integer,
-                    NULL::integer,
-                    NULL::character varying,
-                    NULL::character varying,
-                    NULL::integer,
-                    NULL::integer,
-                    NULL::integer,
-                    NULL::character varying,
-                    NULL::character varying
-                   FROM physical_port p1
-              LEFT JOIN layer1_connection l1 ON l1.physical_port1_id = p1.physical_port_id OR l1.physical_port2_id = p1.physical_port_id
-             WHERE l1.layer1_connection_id IS NULL) subquery
-  ORDER BY network_strings.numeric_interface(subquery.port_name);
-
--- DONE DEALING WITH TABLE v_l1_all_physical_ports [666876]
---------------------------------------------------------------------
-
 
 --------------------------------------------------------------------
 -- DEALING WITH TABLE device_power_interface [782756]
@@ -1867,7 +2111,7 @@ INSERT INTO device_power_interface (
 ) SELECT
 	device_id,
 	power_interface_port,
-	NULL,		-- new column (provides_power)
+	'N',		-- new column (provides_power)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -1889,7 +2133,7 @@ INSERT INTO audit.device_power_interface (
 ) SELECT
 	device_id,
 	power_interface_port,
-	NULL,		-- new column (provides_power)
+	'N',		-- new column (provides_power)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -2205,7 +2449,7 @@ INSERT INTO device_type_phys_port_templt (
 	physical_label,
 	port_purpose,
 	tcp_port,
-	NULL,		-- new column (is_hardwired)
+	'Y',		-- new column (is_hardwired)
 	is_optional,
 	data_ins_user,
 	data_ins_date,
@@ -2247,7 +2491,7 @@ INSERT INTO audit.device_type_phys_port_templt (
 	physical_label,
 	port_purpose,
 	tcp_port,
-	NULL,		-- new column (is_hardwired)
+	'Y',		-- new column (is_hardwired)
 	is_optional,
 	data_ins_user,
 	data_ins_date,
@@ -4755,15 +4999,18 @@ DECLARE
 BEGIN
     FOR tbl IN
         SELECT table_name FROM information_schema.tables
-        WHERE table_type = 'BASE TABLE' AND table_schema = 'jazzhands'
+        WHERE table_type = 'BASE TABLE' AND table_schema = 'audit'
         ORDER BY table_name
     LOOP
-	idx = quote_ident(tbl.table_name) || '_aud#timestamp_idx';
+	idx = tbl.table_name || '_aud#timestamp_idx';
 	SELECT count(*) INTO tal FROM pg_catalog.pg_indexes WHERE
 		schemaname = 'audit' AND indexname =  idx;
 	IF tal = 0 THEN
-		RAISE NOTICE 'Creating index %', idx;
-    		EXECUTE 'CREATE INDEX ON ' || quote_ident('audit') || '.'
+		RAISE NOTICE 'On table %, creating index %', 
+			tbl.table_name, idx;
+    		EXECUTE 'CREATE INDEX ' 
+			|| quote_ident(idx) || ' ' 
+			|| ' ON ' || quote_ident('audit') || '.'
         		|| quote_ident(tbl.table_name) || '("aud#timestamp")';
 	END IF;
     END LOOP;
@@ -4771,10 +5018,177 @@ END
 $$;
 
 --------------------------------------------------------------------
+
+-- Iniitalization Fixes
+UPDATE val_property
+set PERMIT_DEVICE_COLLECTION_ID = 'ALLOWED'
+where property_name = 'ForceShell' and property_type = 'UnixPasswdFileValue'
+and PERMIT_DEVICE_COLLECTION_ID != 'ALLOWED';
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'UnixGroup'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property
+		(property_name, property_type, is_multivalue,
+		permit_account_collection_id, permit_device_collection_id,
+		property_data_type
+		) values (
+		'UnixGroup', 'MclassUnixProp', 'N',
+		'REQUIRED', 'REQUIRED',
+		'none'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'UnixGroupMemberOverride'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property
+			(property_name, property_type, is_multivalue,
+			permit_account_collection_id, 
+			permit_device_collection_id,
+			property_data_type
+		) values (
+			'UnixGroupMemberOverride', 'MclassUnixProp', 'N',
+			'REQUIRED', 
+			'REQUIRED',
+			'account_collection_id'
+		);
+	END IF;
+END;
+$$;
+
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'ShouldDeploy'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property (
+			PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, 
+			PROPERTY_DATA_TYPE,
+			DESCRIPTION,
+			PERMIT_DEVICE_COLLECTION_ID
+		) values (
+			'ShouldDeploy', 'MclassUnixProp', 'N', 'boolean',
+			'If credentials managmeent should deploy files or not',
+			'REQUIRED'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'PreferLocal'
+	and property_type = 'MclassUnixProp';
+
+	IF _tal = 0 THEN
+		insert into val_property (
+			PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, 
+			PROPERTY_DATA_TYPE,
+			DESCRIPTION,
+			PERMIT_DEVICE_COLLECTION_ID, 
+			PERMIT_ACCOUNT_COLLECTION_ID
+		) values (
+			'PreferLocal', 'MclassUnixProp', 'N', 
+			'boolean',
+			'If credentials management client should prefer local uid,gid,shell',
+			'REQUIRED', 
+			'REQUIRED'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property_type 
+	where property_type = 'StabRole';
+
+	IF _tal = 0 THEN
+		insert into val_property_type 
+		(property_type, description, is_multivalue)
+		values
+       		('StabRole', 'roles for users in stab', 'Y');
+	END IF;
+END;
+$$;
+
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	SELECT COUNT(*) INTO _tal FROM val_property 
+	where property_name = 'StabAccess'
+	and property_type = 'StabRole';
+
+	IF _tal = 0 THEN
+		insert into val_property (
+			PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, 
+			PROPERTY_DATA_TYPE,
+		permit_account_collection_id
+		) values (
+			'StabAccess', 'StabRole', 'N', 'boolean',
+			'REQUIRED'
+		);
+
+	END IF;
+END;
+$$;
+
+
+--------------------------------------------------------------------
 --
+SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_saved_grants();
 
-RAISE EXCEPTION 'Need to check for property/init changes';
-RAISE EXCEPTION 'Need to test, test, test....';
+ALTER TABLE netblock DROP CONSTRAINT fk_netblk_netblk_parid;
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblk_netblk_parid 
+	FOREIGN KEY (parent_netblock_id) REFERENCES netblock(netblock_id)
+	DEFERRABLE INITIALLY DEFERRED;
 
-SELECT schema_support.end_maintenance();
+ALTER TABLE dns_record
+	ALTER COLUMN dns_class set DEFAULT 'IN'::varchar;
+
+-- rename some trigger names to not suck
+DROP TRIGGER IF EXISTS trig_automated_ac ON person_company;
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
+CREATE TRIGGER trigger_automated_ac_on_person_company
+        AFTER UPDATE ON person_company
+        FOR EACH ROW EXECUTE PROCEDURE
+        automated_ac_on_person_company();
+
+DROP TRIGGER IF EXISTS trig_automated_ac ON person;
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
+CREATE TRIGGER trigger_automated_ac_on_person
+        AFTER UPDATE ON person
+        FOR EACH ROW
+        EXECUTE PROCEDURE automated_ac_on_person();
+
+RAISE EXCEPTION 'Need to test, test, test....';
+-- SELECT schema_support.end_maintenance();

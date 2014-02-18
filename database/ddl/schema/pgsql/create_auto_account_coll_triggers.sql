@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2013-2014 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 CREATE OR REPLACE FUNCTION automated_ac() RETURNS TRIGGER AS $_$
 DECLARE
 	acr	VARCHAR;
@@ -222,8 +239,11 @@ BEGIN
 	RETURN NEW;
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER;
-DROP TRIGGER IF EXISTS trig_automated_ac ON person_company;
-CREATE TRIGGER trig_automated_ac AFTER UPDATE ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
+CREATE TRIGGER trigger_automated_ac_on_person_company 
+	AFTER UPDATE ON person_company 
+	FOR EACH ROW EXECUTE PROCEDURE 
+	automated_ac_on_person_company();
 
 CREATE OR REPLACE FUNCTION automated_ac_on_person() RETURNS TRIGGER AS $_$
 DECLARE
@@ -312,8 +332,11 @@ BEGIN
 	RETURN NEW;
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER;
-DROP TRIGGER IF EXISTS trig_automated_ac ON person;
-CREATE TRIGGER trig_automated_ac AFTER UPDATE ON person FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person();
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
+CREATE TRIGGER trigger_automated_ac_on_person 
+	AFTER UPDATE ON person 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE automated_ac_on_person();
 
 CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl() RETURNS TRIGGER AS $_$
 DECLARE

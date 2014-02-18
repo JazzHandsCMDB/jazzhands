@@ -23,14 +23,61 @@
 -- 
 -- $Id$
 --
--- Items that are accurate but are not strictly required
+-- Example Items that may be used for a real life instantiation of the system
+-- You probably do NOT want to 
+
+insert into account_realm(account_realm_name) values ('Omniscient');
 
 insert into company (company_name, is_corporate_family)
 	values ('Omniscient Technologies', 'Y');
-insert into company (company_name, is_corporate_family)
-	values ('Sucksless Industries', 'Y');
 
-/*
+insert into company (company_name, is_corporate_family, parent_company_id)
+	select 'Sucksless Industries', 'Y', company_id
+	from company
+	where company_name = 'Omniscient Technologies'
+;
+
+insert into company_type (company_id, company_type)
+select company_id, 'corporate family'
+  from company
+where	company_name = 'Omniscient'
+  and	is_corporate_family = 'Y';
+
+insert into company_type (company_id, company_type)
+select company_id, 'corporate family'
+  from company
+where	company_name = 'Sucksless Industries'
+  and	is_corporate_family = 'Y';
+
+insert into property (
+	property_name, property_type, 
+	property_value_company_id
+) VALUES  (
+	'_rootcompanyid', 'Defaults', 
+	(select company_id from company where company_name = 'Omniscient Technologies')
+ );
+
+insert into account_realm_company (
+	account_realm_id, 
+	company_id
+) values (
+	(select account_realm_id from account_realm 
+		where account_realm_name = 'Omniscient'),
+	(select company_id from company 
+		where company_name = 'Omniscient Technologies')
+);
+
+insert into account_realm_company (
+	account_realm_id, 
+	company_id
+) values (
+	(select account_realm_id from account_realm 
+		where account_realm_name = 'Omniscient'),
+	(select company_id from company 
+		where company_name = 'Sucksless Industries')
+);
+
+/*   These now go in SITE
 
 INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
 	VALUES ('Virginia', 'Purcellville, VA',0,
@@ -48,9 +95,10 @@ INSERT INTO VAL_Office_Site(Office_Site, Description,SITE_RANK,COMPANY_ID)
 	VALUES ('Strančice', 'Strancice, Czech Republic', 2,
 	(select company_id from company where company_name =
 	'Omniscient Technologies'));
- */
 
-INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('MIT.EDU');
+*/
+
+INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('OMNISCIENT.COM');
 
 insert into site (site_code, colo_company_id, site_status, description)
 	values ('CORP0', 0, 'ACTIVE', 'Corporate Headquarters');
@@ -103,6 +151,9 @@ insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_addr
 --	++	insert into  netblock (ip_address, netmask_bits, is_ipv4_address, is_single_address, netblock_status, description, netblock_type, parent_netblock_id) values
 --	++	        (net_manip.inet_ptodb('fc00:dead:beef:a::1:12a0)', 64, 'N', 'Y', 'Reserved', 'test address 5', 'default', (select netblock_id from netblock where ip_address = net_manip.inet_ptodb('FC00:DEAD:BEEF:a::', 64) and netmask_bits = 64));
 
+--
+-- This stuff will probably go away
+--
 insert into device_collection 
 	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE)
 values
@@ -111,3 +162,123 @@ insert into device_collection
 	(DEVICE_COLLECTION_NAME, DEVICE_COLLECTION_TYPE)
 values
 	('cots2', 'applicense');
+
+--- 
+-- add some example user data
+--
+
+
+--- deal with system wide default
+
+-- insert test user - kovert
+insert into person (first_name, middle_name, last_name, gender)
+	values ('Todd', 'M', 'Kover', 'M');
+
+insert into person_company (company_id, person_id, 
+	employee_id, is_exempt,
+	person_company_status, person_company_relation
+	) 
+values(
+	(select company_id from company 
+		where company_name = 'Omniscient Technologies'),
+	(select person_id from person where first_name = 'Todd' and
+		last_name = 'Kover'),
+	10, 'Y',
+	'enabled', 'employee'
+);
+
+insert into person_account_realm_company (
+	person_id,
+	account_realm_id,
+	company_id
+) values (
+	(select person_id from person 
+		where last_name = 'Kover'),
+	(select account_realm_id from account_realm 
+		where account_realm_name = 'Omniscient'),
+	(select company_id from company 
+		where company_name = 'Omniscient Technologies')
+);
+
+insert into account (login, person_id, account_realm_id, company_id,
+	account_status, account_type, account_role)
+values ('kovert', 
+	(select person_id from person where first_name = 'Todd'
+		and last_name = 'Kover'), 
+	(select account_realm_id from account_realm where 
+		account_realm_name = 'Omniscient'),
+	(select company_id from company 
+		where company_name = 'Omniscient Technologies'),
+	'enabled', 'person', 'primary'
+);
+
+-- insert test user - mdr
+insert into person (first_name, middle_name, last_name, gender)
+	values ('Matthew', 'D', 'Ragan', 'M');
+
+insert into person_company (company_id, person_id, 
+	employee_id, is_exempt,
+	person_company_status, person_company_relation
+	) 
+values(
+	(select company_id from company where company_name = 'Sucksless Industries'),
+	(select person_id from person where first_name = 'Matthew' and
+		last_name = 'Ragan'),
+	5, 'Y',
+	'enabled', 'employee'
+);
+
+insert into person_account_realm_company (
+	person_id,
+	account_realm_id,
+	company_id
+) values (
+	(select person_id from person 
+		where last_name = 'Ragan'),
+	(select account_realm_id from account_realm 
+		where account_realm_name = 'Omniscient'),
+	(select company_id from company 
+		where company_name = 'Sucksless Industries')
+);
+
+insert into account (login, person_id, account_realm_id, company_id,
+	account_status, account_type, account_role)
+values ('mdr', 
+	(select person_id from person where first_name = 'Matthew'
+		and last_name = 'Ragan'), 
+	(select account_realm_id from account_realm where 
+		account_realm_name = 'Omniscient'),
+	(select company_id from company 
+		where company_name = 'Sucksless Industries'),
+	'enabled', 'person', 'primary'
+);
+
+
+-- insert characteristics about directory (should perhaps fold into default)
+insert into val_person_image_usage (
+        person_image_usage, is_multivalue
+) values (
+        'headshot', 'N'
+);
+
+
+insert into val_person_image_usage (
+	person_image_usage, is_multivalue
+) values (
+	'yearbook', 'N'
+);
+
+-- token testing (needs to be fleshed out)
+insert into val_token_collection_type (
+	token_collection_type
+) values (
+	'default'
+);
+
+insert into token_collection (
+	token_collection_name,
+	token_collection_type
+) values (
+	'test',
+	'default'
+);
