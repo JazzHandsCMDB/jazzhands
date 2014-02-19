@@ -264,7 +264,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.129.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+	('172.31.129.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'N',
 			a_netblock_list[10],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -297,7 +297,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+		('172.31.0.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'N',
 			a_netblock_list[14],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;

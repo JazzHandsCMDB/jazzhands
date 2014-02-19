@@ -48,16 +48,20 @@ grant create on database jazzhands_new to jazzhands;
 \c jazzhands_new jazzhands;
 
 \i create_pgsql_schema.sql
+
 \i init/initialize_country_codes.sql
 \i init/initialize_jazzhands.sql
 \i init/initialize_jazzhands_optional.sql
 -- \i init/insert_blacklist.sql
 -- \i init/oracle/submit_scheduler.sql
 
+
 -- Example Data is used by the tests
 begin;
+-- set search_path=public;
 \i init/initialize_jazzhands_example.sql
 -- various test records that need to be generified and moved over
+
 \i ../../omniscient/insert_records.sql
 \i ../../omniscient/insert_devices.sql
 \i ../../omniscient/insert_records_later.sql

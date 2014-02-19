@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 
-CREATE OR REPLACE FUNCTION automated_ac() RETURNS TRIGGER AS $_$
+CREATE OR REPLACE FUNCTION automated_ac() 
+RETURNS TRIGGER AS $_$
 DECLARE
 	acr	VARCHAR;
 	c_name VARCHAR;
@@ -32,7 +33,7 @@ BEGIN
 		IF NEW.account_role != 'primary' THEN
 			RETURN NEW;
 		END IF;
-		PERFORM 1 FROM jazzhands.val_person_status WHERE NEW.account_status = person_status AND is_disabled = 'N';
+		PERFORM 1 FROM val_person_status WHERE NEW.account_status = person_status AND is_disabled = 'N';
 		IF NOT FOUND THEN
 			RETURN NEW;
 		END IF;
@@ -48,9 +49,9 @@ BEGIN
 		RETURN NEW;
 	END IF;
 	ac_ids = '{-1,-1,-1,-1,-1,-1,-1}';
-	SELECT account_realm_name INTO acr FROM jazzhands.account_realm WHERE account_realm_id = NEW.account_realm_id;
+	SELECT account_realm_name INTO acr FROM account_realm WHERE account_realm_id = NEW.account_realm_id;
 	ac_ids[0] = acct_coll_manip.get_automated_account_collection_id(acr || '_' || NEW.account_type);
-	SELECT company_short_name INTO c_name FROM jazzhands.company WHERE company_id = NEW.company_id AND company_short_name IS NOT NULL;
+	SELECT company_short_name INTO c_name FROM company WHERE company_id = NEW.company_id AND company_short_name IS NOT NULL;
 	IF NOT FOUND THEN
 		RAISE NOTICE 'Company short name cannot be determined from company_id % in %', NEW.company_id, TG_NAME;
 	ELSE
@@ -61,9 +62,9 @@ BEGIN
 		INTO
 			_person_company
 		FROM
-			jazzhands.person_company pc
+			person_company pc
 		JOIN
-			jazzhands.account a
+			account a
 		USING
 			(person_id)
 		WHERE
@@ -84,9 +85,9 @@ BEGIN
 		INTO
 			_gender
 		FROM
-			jazzhands.person
+			person
 		JOIN
-			jazzhands.account a
+			account a
 		USING
 			(person_id)
 		WHERE
@@ -98,7 +99,7 @@ BEGIN
 			END IF;
 		END IF;
 	END IF;
-	SELECT site_code INTO sc FROM jazzhands.person_location WHERE person_id = NEW.person_id AND site_code IS NOT NULL;
+	SELECT site_code INTO sc FROM person_location WHERE person_id = NEW.person_id AND site_code IS NOT NULL;
 	IF FOUND THEN
 		ac_ids[6] = acct_coll_manip.get_automated_account_collection_id(acr || '_' || sc);
 	END IF;
@@ -111,7 +112,7 @@ BEGIN
 			PERFORM acct_coll_manip.insert_or_delete_automated_ac('t', OLD.account_id, ac_ids);
 			RETURN NEW;
 		END IF;
-		PERFORM 1 FROM jazzhands.val_person_status WHERE NEW.account_status = person_status AND is_disabled = 'N';
+		PERFORM 1 FROM val_person_status WHERE NEW.account_status = person_status AND is_disabled = 'N';
 		IF NOT FOUND THEN
 			-- reaching here means account must be removed from all automated account collections
 			PERFORM acct_coll_manip.insert_or_delete_automated_ac('t', OLD.account_id, ac_ids);
@@ -131,11 +132,18 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$_$ LANGUAGE plpgsql SECURITY DEFINER;
-DROP TRIGGER IF EXISTS trig_automated_ac ON account;
-CREATE TRIGGER trig_automated_ac AFTER INSERT OR UPDATE ON account FOR EACH ROW EXECUTE PROCEDURE automated_ac();
+$_$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION automated_ac_on_person_company() RETURNS TRIGGER AS $_$
+DROP TRIGGER IF EXISTS trig_automated_ac ON account;
+CREATE TRIGGER trig_automated_ac 
+	AFTER INSERT OR UPDATE ON account 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE automated_ac();
+
+CREATE OR REPLACE FUNCTION automated_ac_on_person_company() 
+RETURNS TRIGGER AS $_$
 DECLARE
 	ac_id INTEGER[];
 	c_name VARCHAR;
@@ -162,7 +170,7 @@ BEGIN
 		RAISE NOTICE 'This trigger % does not support changing company_id', TG_NAME;
 		RETURN NEW;
 	END IF;
-	SELECT company_short_name INTO c_name FROM jazzhands.company WHERE company_id = OLD.company_id AND company_short_name IS NOT NULL;
+	SELECT company_short_name INTO c_name FROM company WHERE company_id = OLD.company_id AND company_short_name IS NOT NULL;
 	IF NOT FOUND THEN
 		RAISE NOTICE 'Company short name cannot be determined from company_id % in trigger %', OLD.company_id, TG_NAME;
 		RETURN NEW;
@@ -171,13 +179,13 @@ BEGIN
 		IN SELECT
 			account_realm_name, account_id
 		FROM
-			jazzhands.account_realm ar
+			account_realm ar
 		JOIN
-			jazzhands.account a
+			account a
 		USING
 			(account_realm_id)
 		JOIN
-			jazzhands.val_person_status vps
+			val_person_status vps
 		ON
 			account_status = vps.person_status AND vps.is_disabled='N'
 		WHERE
@@ -187,18 +195,18 @@ BEGIN
 		IF coalesce(NEW.is_exempt, '') != coalesce(OLD.is_exempt, '') THEN
 			IF OLD.is_exempt IS NOT NULL THEN
 				SELECT * INTO exempt_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(OLD.is_exempt, 'exempt');
-				DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
+				DELETE FROM account_collection_account WHERE account_id = old_r.account_id
 					AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' || exempt_status.name);
 			END IF;
 		END IF;
 		IF NEW.is_full_time != OLD.is_full_time THEN
 			SELECT * INTO full_time_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(OLD.is_full_time, 'full_time');
-			DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
+			DELETE FROM account_collection_account WHERE account_id = old_r.account_id
 				AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' || full_time_status.name);
 		END IF;
 		IF NEW.is_management != OLD.is_management THEN
 			SELECT * INTO manager_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(OLD.is_management, 'management');
-			DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
+			DELETE FROM account_collection_account WHERE account_id = old_r.account_id
 				AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' || manager_status.name);
 		END IF;
 		-- looping over the same set of data.  TODO: optimize for speed
@@ -206,13 +214,13 @@ BEGIN
 			IN SELECT
 				account_realm_name, account_id
 			FROM
-				jazzhands.account_realm ar
+				account_realm ar
 			JOIN
-				jazzhands.account a
+				account a
 			USING
 				(account_realm_id)
 			JOIN
-				jazzhands.val_person_status vps
+				val_person_status vps
 			ON
 				account_status = vps.person_status AND vps.is_disabled='N'
 			WHERE
@@ -238,14 +246,17 @@ BEGIN
 	END LOOP;
 	RETURN NEW;
 END;
-$_$ LANGUAGE plpgsql SECURITY DEFINER;
+$_$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
 CREATE TRIGGER trigger_automated_ac_on_person_company 
 	AFTER UPDATE ON person_company 
 	FOR EACH ROW EXECUTE PROCEDURE 
 	automated_ac_on_person_company();
 
-CREATE OR REPLACE FUNCTION automated_ac_on_person() RETURNS TRIGGER AS $_$
+CREATE OR REPLACE FUNCTION automated_ac_on_person() 
+RETURNS TRIGGER AS $_$
 DECLARE
 	ac_id INTEGER[];
 	c_name VARCHAR;
@@ -267,24 +278,24 @@ BEGIN
 		IN SELECT
 			account_realm_name, account_id, company_id
 		FROM
-			jazzhands.account_realm ar
+			account_realm ar
 		JOIN
-			jazzhands.account a
+			account a
 		USING
 			(account_realm_id)
 		JOIN
-			jazzhands.val_person_status vps
+			val_person_status vps
 		ON
 			account_status = vps.person_status AND vps.is_disabled='N'
 		WHERE
 			a.person_id = OLD.person_id
 	LOOP
-		SELECT company_short_name INTO old_c_name FROM jazzhands.company WHERE company_id = old_r.company_id AND company_short_name IS NOT NULL;
+		SELECT company_short_name INTO old_c_name FROM company WHERE company_id = old_r.company_id AND company_short_name IS NOT NULL;
 		IF FOUND THEN
 			old_acr_c_name = old_r.account_realm_name || '_' || old_c_name;
 			gender_string = acct_coll_manip.person_gender_char_to_automated_ac_name(OLD.gender);
 			IF gender_string IS NOT NULL THEN
-				DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
+				DELETE FROM account_collection_account WHERE account_id = old_r.account_id
 					AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' ||  gender_string);
 			END IF;
 		ELSE
@@ -295,13 +306,13 @@ BEGIN
 			IN SELECT
 				account_realm_name, account_id, company_id
 			FROM
-				jazzhands.account_realm ar
+				account_realm ar
 			JOIN
-				jazzhands.account a
+				account a
 			USING
 				(account_realm_id)
 			JOIN
-				jazzhands.val_person_status vps
+				val_person_status vps
 			ON
 				account_status = vps.person_status AND vps.is_disabled='N'
 			WHERE
@@ -314,7 +325,7 @@ BEGIN
 				END IF;
 				c_name = old_c_name;
 			ELSE
-				SELECT company_short_name INTO c_name FROM jazzhands.company WHERE company_id = r.company_id AND company_short_name IS NOT NULL;
+				SELECT company_short_name INTO c_name FROM company WHERE company_id = r.company_id AND company_short_name IS NOT NULL;
 				IF NOT FOUND THEN
 					RAISE NOTICE 'New company short name cannot be determined from company_id % in %', r.company_id, TG_NAME;
 					CONTINUE;
@@ -331,14 +342,17 @@ BEGIN
 	END LOOP;
 	RETURN NEW;
 END;
-$_$ LANGUAGE plpgsql SECURITY DEFINER;
+$_$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
 CREATE TRIGGER trigger_automated_ac_on_person 
 	AFTER UPDATE ON person 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE automated_ac_on_person();
 
-CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl() RETURNS TRIGGER AS $_$
+CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl() 
+RETURNS TRIGGER AS $_$
 DECLARE
 	sc VARCHAR;
 	r RECORD;
@@ -383,17 +397,17 @@ BEGIN
 
 	FOR r IN SELECT account_realm_name, account_id
 		FROM
-			jazzhands.account_realm ar
+			account_realm ar
 		JOIN
-			jazzhands.account a
+			account a
 		ON
 			ar.account_realm_id=a.account_realm_id AND a.account_role = 'primary' AND a.person_id = p_id 
 		JOIN
-			jazzhands.val_person_status vps
+			val_person_status vps
 		ON
 			vps.person_status = a.account_status AND vps.is_disabled='N'
 		JOIN
-			jazzhands.site s
+			site s
 		ON
 			s.site_code = sc AND a.company_id = s.colo_company_id
 	LOOP
@@ -401,7 +415,7 @@ BEGIN
 			ac_name = r.account_realm_name || '_' || sc;
 			ac_id = acct_coll_manip.get_automated_account_collection_id( r.account_realm_name || '_' || sc );
 			IF TG_OP != 'UPDATE' OR NEW.person_location_type = 'office' THEN
-				PERFORM 1 FROM jazzhands.account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
+				PERFORM 1 FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
 				IF NOT FOUND THEN
 					INSERT INTO account_collection_account (account_collection_id, account_id) VALUES (ac_id, r.account_id);
 				END IF;
@@ -412,12 +426,12 @@ BEGIN
 				CONTINUE;
 			END IF;
 			ac_name = r.account_realm_name || '_' || OLD.site_code;
-			SELECT account_collection_id INTO ac_id FROM jazzhands.account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
+			SELECT account_collection_id INTO ac_id FROM account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
 			IF NOT FOUND THEN
 				RAISE NOTICE 'Account collection name % of type "automated" not found in %', ac_name, TG_NAME;
 				CONTINUE;
 			END IF;
-			DELETE FROM jazzhands.account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
+			DELETE FROM account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
 		END IF;
 	END LOOP;
 	IF TG_OP = 'DELETE' THEN
@@ -425,6 +439,13 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$_$ LANGUAGE plpgsql SECURITY DEFINER;
+$_$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
 DROP TRIGGER IF EXISTS trig_automated_realm_site_ac_pl ON person_location;
-CREATE TRIGGER trig_automated_realm_site_ac_pl AFTER DELETE OR INSERT OR UPDATE ON person_location FOR EACH ROW EXECUTE PROCEDURE automated_realm_site_ac_pl();
+CREATE TRIGGER trig_automated_realm_site_ac_pl 
+	AFTER DELETE OR INSERT OR UPDATE 
+	ON person_location 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE automated_realm_site_ac_pl();

@@ -15,10 +15,11 @@
  * limitations under the License.
  */
 
-CREATE OR REPLACE FUNCTION dns_rec_before() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION dns_rec_before() 
+RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'DELETE' THEN
-		PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+		PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
 		    OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
 		)
 		FOR UPDATE;
@@ -26,7 +27,7 @@ BEGIN
 		RETURN OLD;
 	ELSIF TG_OP = 'INSERT' THEN
 		IF NEW.netblock_id IS NOT NULL THEN
-			PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+			PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
 		    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
 			) FOR UPDATE;
 		END IF;
@@ -35,19 +36,19 @@ BEGIN
 	ELSE
 		IF OLD.netblock_id IS DISTINCT FROM NEW.netblock_id THEN
 			IF OLD.netblock_id IS NOT NULL THEN
-				PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
 			    	OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id))
 				FOR UPDATE;
 			END IF;
 			IF NEW.netblock_id IS NOT NULL THEN
-				PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
 			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
 				)
 				FOR UPDATE;
 			END IF;
 		ELSE
 			IF NEW.netblock_id IS NOT NULL THEN
-				PERFORM 1 FROM jazzhands.dns_domain WHERE dns_domain_id IN (
+				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
 			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
 				) FOR UPDATE;
 			END IF;
@@ -56,7 +57,9 @@ BEGIN
 		RETURN NEW;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_rec_before ON dns_record;
 CREATE TRIGGER trigger_dns_rec_before 
@@ -65,22 +68,23 @@ CREATE TRIGGER trigger_dns_rec_before
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_rec_before();
 
-CREATE OR REPLACE FUNCTION update_dns_zone() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION update_dns_zone() 
+RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
-		UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+		UPDATE dns_domain SET zone_last_updated = clock_timestamp()
             WHERE dns_domain_id = NEW.dns_domain_id
 			AND ( zone_last_updated < last_generated
 			OR zone_last_updated is NULL);
 
 		IF TG_OP = 'UPDATE' THEN
 			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
-				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+				UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 					 WHERE dns_domain_id = OLD.dns_domain_id
 					 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
 			IF NEW.netblock_id != OLD.netblock_id THEN
-				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+				UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 					 WHERE dns_domain_id in (
 						 netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id),
 						 netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
@@ -88,7 +92,7 @@ BEGIN
 				     AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
 		ELSIF TG_OP = 'INSERT' AND NEW.netblock_id is not NULL THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+			UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 				WHERE dns_domain_id = 
 					netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
 				AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
@@ -97,19 +101,22 @@ BEGIN
 	END IF;
 
     IF TG_OP = 'DELETE' THEN
-        UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+        UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 			WHERE dns_domain_id = OLD.dns_domain_id
 			AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 
 		IF OLD.dns_type = 'A' OR OLD.dns_type = 'AAAA' THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+			UPDATE dns_domain SET zone_last_updated = clock_timestamp()
                  WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
 				 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
         END IF;
     END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+LANGUAGE plpgsql 
+SET search_path=jazzhands
+SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_update_dns_zone ON dns_record;
 CREATE CONSTRAINT TRIGGER trigger_update_dns_zone 
@@ -137,8 +144,10 @@ DECLARE
 BEGIN
 	_mkold = false;
 	_mkold = false;
+	_mknew = true;
 
 	IF TG_OP = 'DELETE' THEN
+		_mknew := false;
 		_mkold := true;
 		_mkdom := true;
 		if  OLD.netblock_id is not null  THEN
@@ -154,7 +163,6 @@ BEGIN
 		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
 			_mkold := true;
 		END IF;
-		_mknew := true;
 		_mkdom := true;
 
 		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
@@ -176,12 +184,12 @@ BEGIN
 		if _mkip and OLD.netblock_id is not NULL THEN
 			SELECT	ip_address 
 			  INTO	_ipaddr 
-			  FROM	jazzhands.netblock 
+			  FROM	netblock 
 			 WHERE	netblock_id  = OLD.netblock_id;
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_CHANGE_RECORD
+		insert into DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	if _mknew THEN
@@ -193,21 +201,22 @@ BEGIN
 		if _mkip and NEW.netblock_id is not NULL THEN
 			SELECT	ip_address 
 			  INTO	_ipaddr 
-			  FROM	jazzhands.netblock 
+			  FROM	netblock 
 			 WHERE	netblock_id  = NEW.netblock_id;
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_CHANGE_RECORD
+		insert into DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	IF TG_OP = 'DELETE' THEN
 		return OLD;
-	ELSE
-		return NEW;
 	END IF;
+	return NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_update_nontime ON dns_record;
 CREATE TRIGGER trigger_dns_record_update_nontime 
@@ -235,7 +244,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_a_rec_validation ON dns_record;
 CREATE TRIGGER trigger_dns_a_rec_validation 
@@ -255,7 +266,7 @@ BEGIN
 		IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
 			SELECT	count(*)
 			 INTO	_tally
-			 FROM	jazzhands.dns_record
+			 FROM	dns_record
 			WHERE dns_class = 'IN' 
 			AND dns_type = 'A' 
 			AND should_generate_ptr = 'Y'
@@ -270,7 +281,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_rec_prevent_dups ON dns_record;
 CREATE TRIGGER trigger_dns_rec_prevent_dups 

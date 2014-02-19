@@ -24,47 +24,49 @@
 
 -- XXX Need automated test cases
 
--- before a serivce environment is deleted, remove the 
+-- before a serivce environment is deleted, remove the
 -- collection its a part of, -- if appropriate
-CREATE OR REPLACE FUNCTION delete_per_svc_env_svc_env_collection() 
+CREATE OR REPLACE FUNCTION delete_per_svc_env_svc_env_collection()
 RETURNS TRIGGER AS $$
 DECLARE
 	secid	service_environment_collection.service_env_collection_id%TYPE;
 BEGIN
 	SELECT	service_env_collection_id
-	  FROM  jazzhands.service_environment_collection
+	  FROM  service_environment_collection
 	  INTO	secid
 	 WHERE	service_env_collection_type = 'per-environment'
 	   AND	service_env_collection_id in
 		(select service_env_collection_id
-		 from jazzhands.svc_environment_coll_svc_env
+		 from svc_environment_coll_svc_env
 		where service_environment = OLD.service_environment
 		)
 	ORDER BY service_env_collection_id
 	LIMIT 1;
 
 	IF secid IS NOT NULL THEN
-		DELETE FROM jazzhands.svc_environment_coll_svc_env
+		DELETE FROM svc_environment_coll_svc_env
 		WHERE service_env_collection_id = secid;
 
-		DELETE from jazzhands.service_environment_collection
+		DELETE from service_environment_collection
 		WHERE service_env_collection_id = secid;
 	END IF;
 
 	RETURN OLD;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection ON service_environment;
-CREATE TRIGGER trigger_delete_per_svc_env_svc_env_collection 
-BEFORE DELETE
-ON service_environment
-FOR EACH ROW EXECUTE PROCEDURE delete_per_svc_env_svc_env_collection();
+CREATE TRIGGER trigger_delete_per_svc_env_svc_env_collection
+	BEFORE DELETE
+	ON service_environment
+	FOR EACH ROW EXECUTE PROCEDURE delete_per_svc_env_svc_env_collection();
 
 ------------------------------------------------------------------------------
 
 
--- On inserts and updates, ensure the per-environment service collection 
+-- On inserts and updates, ensure the per-environment service collection
 -- is updated correctly.
 CREATE OR REPLACE FUNCTION update_per_svc_env_svc_env_collection()
 RETURNS TRIGGER AS $$
@@ -72,32 +74,35 @@ DECLARE
 	secid		service_environment_collection.service_env_collection_id%TYPE;
 BEGIN
 	IF TG_OP = 'INSERT' THEN
-		insert into jazzhands.service_environment_collection 
+		insert into service_environment_collection
 			(service_env_collection_name, service_env_collection_type)
 		values
 			(NEW.service_environment, 'per-environment')
 		RETURNING service_env_collection_id INTO secid;
-		insert into jazzhands.svc_environment_coll_svc_env 
+		insert into svc_environment_coll_svc_env
 			(service_env_collection_id, service_environment)
 		VALUES
 			(secid, NEW.service_environment);
 	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment != NEW.service_environment THEN
-		UPDATE	jazzhands.service_environment_collection
+		UPDATE	service_environment_collection
 		   SET	service_env_collection_name = NEW.service_environment
 		 WHERE	service_env_collection_name != NEW.service_environment
 		   AND	service_env_collection_type = 'per-environment'
 		   AND	service_environment in (
 			SELECT	service_environment
-			  FROM	jazzhands.svc_environment_coll_svc_env
+			  FROM	svc_environment_coll_svc_env
 			 WHERE	service_environment = NEW.service_environment
 			);
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_update_per_svc_env_svc_env_collection ON service_environment;
-CREATE TRIGGER trigger_update_per_svc_env_svc_env_collection 
-AFTER INSERT OR UPDATE
-ON service_environment 
-FOR EACH ROW EXECUTE PROCEDURE update_per_svc_env_svc_env_collection();
+DROP TRIGGER IF EXISTS trigger_update_per_svc_env_svc_env_collection 
+	ON service_environment;
+CREATE TRIGGER trigger_update_per_svc_env_svc_env_collection
+	AFTER INSERT OR UPDATE
+	ON service_environment
+	FOR EACH ROW EXECUTE PROCEDURE update_per_svc_env_svc_env_collection();

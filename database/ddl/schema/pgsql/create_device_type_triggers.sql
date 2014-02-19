@@ -54,7 +54,7 @@ BEGIN
 		ELSE
 			SELECT	COUNT(*)
 			  INTO	_tally
-			  FROM	jazzhands.device_type_module
+			  FROM	device_type_module
 			 WHERE	(NEW.device_type_id, NEW.device_type_module_name) 
 			 		IN (device_type_id, device_type_module_name) ;
 
@@ -66,7 +66,9 @@ BEGIN
 	
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_location_complex_sanity ON location;
 CREATE TRIGGER trigger_location_complex_sanity 
@@ -83,7 +85,7 @@ DECLARE
 BEGIN
 	SELECT	COUNT(*)
 	  INTO	_tally
-	  FROM	jazzhands.location
+	  FROM	location
 	 WHERE	(OLD.device_type_id, OLD.device_type_module_name) 
 		 		IN (device_type_id, device_type_module_name) ;
 
@@ -93,7 +95,9 @@ BEGIN
 	
 	RETURN OLD;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_device_type_module_sanity_del 
 	ON device_type_module;
@@ -116,7 +120,8 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_device_type_module_sanity_set 
 	ON device_type_module;

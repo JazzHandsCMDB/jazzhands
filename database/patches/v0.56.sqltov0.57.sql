@@ -15,6 +15,24 @@
  * limitations under the License.
  */
 
+/*
+
+Things to test:
+     - new approach to dnsregneration triggers (ok, first pass)
+     - dns_record.dns_class gets default of 'IN'
+     - device type modules and triggers
+     - redo locations to support devices in chassis
+     - add ticketing_system
+     - overhall device_ticket
+     - qualify various triggers to have 'jazzhands' in table names
+       to not require a specific search path
+     - person_manip.adduser
+     - do not allow dup A record with the PTR record set
+     - netblock validation checks
+     - "provides power" concept on power ports
+     - is_hardwared on physical ports
+*/
+
 
 -- Objects affected...
 
@@ -33,6 +51,9 @@
 -- device_power_interface device_type
 -- validate_netblock_parentage
 -- device_type_phys_port_templt
+-- netblock_utils.find_free_netblock netblock_utils.find_free_netblocks
+-- verify_device_voe
+-- verify_layer1_connection verify_physical_connection
 
 \set ON_ERROR_STOP
 
@@ -777,6 +798,7 @@ $function$
 CREATE OR REPLACE FUNCTION jazzhands.device_type_module_sanity_del()
  RETURNS trigger
  LANGUAGE plpgsql
+ SET search_path=jazzhands
  SECURITY DEFINER
 AS $function$
 DECLARE
@@ -784,7 +806,7 @@ DECLARE
 BEGIN
 	SELECT	COUNT(*)
 	  INTO	_tally
-	  FROM	jazzhands.location
+	  FROM	location
 	 WHERE	(OLD.device_type_id, OLD.device_type_module_name) 
 		 		IN (device_type_id, device_type_module_name) ;
 
@@ -985,6 +1007,7 @@ ALTER TABLE location
 CREATE OR REPLACE FUNCTION jazzhands.location_complex_sanity()
  RETURNS trigger
  LANGUAGE plpgsql
+ set search_path=jazzhands
  SECURITY DEFINER
 AS $function$
 DECLARE
@@ -1016,7 +1039,7 @@ BEGIN
 		ELSE
 			SELECT	COUNT(*)
 			  INTO	_tally
-			  FROM	jazzhands.device_type_module
+			  FROM	device_type_module
 			 WHERE	(NEW.device_type_id, NEW.device_type_module_name) 
 			 		IN (device_type_id, device_type_module_name) ;
 
@@ -1675,11 +1698,14 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc jazzhands.dns_record_update_nontime -> dns_record_update_nontime 
 
-
 -- RECREATE FUNCTION
--- consider NEW oid 667082
-CREATE OR REPLACE FUNCTION dns_record_update_nontime() 
-RETURNS TRIGGER AS $$
+-- consider NEW oid 1504713
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_update_nontime()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
 DECLARE
 	_dnsdomainid	DNS_DOMAIN.DNS_DOMAIN_ID%type;
 	_ipaddr			NETBLOCK.IP_ADDRESS%type;
@@ -1690,8 +1716,10 @@ DECLARE
 BEGIN
 	_mkold = false;
 	_mkold = false;
+	_mknew = true;
 
 	IF TG_OP = 'DELETE' THEN
+		_mknew := false;
 		_mkold := true;
 		_mkdom := true;
 		if  OLD.netblock_id is not null  THEN
@@ -1707,7 +1735,6 @@ BEGIN
 		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
 			_mkold := true;
 		END IF;
-		_mknew := true;
 		_mkdom := true;
 
 		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
@@ -1729,12 +1756,12 @@ BEGIN
 		if _mkip and OLD.netblock_id is not NULL THEN
 			SELECT	ip_address 
 			  INTO	_ipaddr 
-			  FROM	jazzhands.netblock 
+			  FROM	netblock 
 			 WHERE	netblock_id  = OLD.netblock_id;
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_CHANGE_RECORD
+		insert into DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	if _mknew THEN
@@ -1746,26 +1773,24 @@ BEGIN
 		if _mkip and NEW.netblock_id is not NULL THEN
 			SELECT	ip_address 
 			  INTO	_ipaddr 
-			  FROM	jazzhands.netblock 
+			  FROM	netblock 
 			 WHERE	netblock_id  = NEW.netblock_id;
 		ELSE
 			_ipaddr := NULL;
 		END IF;
-		insert into jazzhands.DNS_CHANGE_RECORD
+		insert into DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
 	IF TG_OP = 'DELETE' THEN
 		return OLD;
-	ELSE
-		return NEW;
 	END IF;
+	return NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-
+$function$
+;
 
 CREATE TRIGGER trigger_dns_record_update_nontime 
-	BEFORE INSERT OR DELETE OR UPDATE OF netblock_id, dns_domain_id 
+	BEFORE INSERT OR DELETE OR UPDATE 
 	ON dns_record 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE dns_record_update_nontime();
@@ -1778,19 +1803,13 @@ CREATE TRIGGER trigger_dns_record_update_nontime
 --------------------------------------------------------------------
 -- DEALING WITH proc dns_rec_type_validation -> dns_rec_type_validation 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_rec_type_validation', 'dns_rec_type_validation');
-
--- DROP OLD FUNCTION
--- consider old oid 541042
--- DROP FUNCTION IF EXISTS dns_rec_type_validation();
-
 -- RECREATE FUNCTION
--- consider NEW oid 667086
+-- consider NEW oid 1479512
 CREATE OR REPLACE FUNCTION jazzhands.dns_a_rec_validation()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 BEGIN
 	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
@@ -1810,6 +1829,7 @@ BEGIN
 END;
 $function$
 ;
+
 
 DROP TRIGGER IF EXISTS trigger_dns_a_rec_validation ON dns_record;
 CREATE TRIGGER trigger_dns_a_rec_validation
@@ -1833,6 +1853,7 @@ DROP FUNCTION IF EXISTS dns_rec_type_validation();
 -- consider NEW oid 667089
 CREATE OR REPLACE FUNCTION jazzhands.dns_rec_prevent_dups()
  RETURNS trigger
+ SET search_path=jazzhands
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$
@@ -1843,7 +1864,7 @@ BEGIN
 		IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
 			SELECT	count(*)
 			 INTO	_tally
-			 FROM	jazzhands.dns_record
+			 FROM	dns_record
 			WHERE dns_class = 'IN' 
 			AND dns_type = 'A' 
 			AND should_generate_ptr = 'Y'
@@ -1871,6 +1892,70 @@ CREATE TRIGGER trigger_dns_rec_prevent_dups
 -- DONE WITH proc dns_rec_prevent_dups -> dns_rec_prevent_dups 
 --------------------------------------------------------------------
 
+--------------------------------------------------------------------
+-- DEALING WITH proc dns_rec_before -> dns_rec_before 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_rec_before', 'dns_rec_before');
+
+-- DROP OLD FUNCTION
+-- consider old oid 1495721
+-- DROP FUNCTION IF EXISTS dns_rec_before();
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1479505
+CREATE OR REPLACE FUNCTION jazzhands.dns_rec_before()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
+		    OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
+		)
+		FOR UPDATE;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.netblock_id IS NOT NULL THEN
+			PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
+		    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+			) FOR UPDATE;
+		END IF;
+
+		RETURN NEW;
+	ELSE
+		IF OLD.netblock_id IS DISTINCT FROM NEW.netblock_id THEN
+			IF OLD.netblock_id IS NOT NULL THEN
+				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
+			    	OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id))
+				FOR UPDATE;
+			END IF;
+			IF NEW.netblock_id IS NOT NULL THEN
+				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
+			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+				)
+				FOR UPDATE;
+			END IF;
+		ELSE
+			IF NEW.netblock_id IS NOT NULL THEN
+				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
+			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
+				) FOR UPDATE;
+			END IF;
+		END IF;
+
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+
+-- DONE WITH proc dns_rec_before -> dns_rec_before 
+--------------------------------------------------------------------
+
 
 --------------------------------------------------------------------
 -- DEALING WITH proc device_update_location_fix -> device_update_location_fix 
@@ -1880,13 +1965,14 @@ CREATE TRIGGER trigger_dns_rec_prevent_dups
 -- consider NEW oid 667070
 CREATE OR REPLACE FUNCTION jazzhands.device_update_location_fix()
  RETURNS trigger
+ SET search_path=jazzhands
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$
 BEGIN
 	IF OLD.DEVICE_TYPE_ID != NEW.DEVICE_TYPE_ID THEN
 		IF NEW.location_id IS NOT NULL THEN
-			UPDATE jazzhands.location SET devivce_type_id = NEW.device_type_id
+			UPDATE location SET devivce_type_id = NEW.device_type_id
 			WHERE location_id = NEW.location_id;
 		END IF;
 	END IF;
@@ -1911,7 +1997,7 @@ CREATE TRIGGER trigger_device_update_location_fix
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('netblock_utils', 'find_best_parent_id', 'find_best_parent_id');
 
--- adjust the regrant for this becuase the functoin definition changes.
+-- adjust the regrant for this becuase the function definition changes.
 update __regrants set regrant = replace(regrant, 'in_is_single_address character)', 'in_is_single_address character, in_netblock_id integer)') where object = 'find_best_parent_id';
 
 -- DROP OLD FUNCTION
@@ -1967,7 +2053,7 @@ BEGIN
 		    and (
 				(in_is_single_address = 'N' AND netmask_bits < in_Netmask_Bits)
 				OR
-				(in_is_single_address = 'Y' AND 
+				(in_is_single_address = 'Y' AND can_subnet = 'N' AND
 					(in_Netmask_Bits IS NULL OR netmask_bits = in_Netmask_Bits))
 			)
 			and (in_netblock_id IS NULL OR
@@ -1981,6 +2067,114 @@ $function$
 ;
 
 -- DONE WITH proc netblock_utils.find_best_parent_id -> find_best_parent_id 
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEALING WITH proc manipulate_netblock_parentage_after -> manipulate_netblock_parentage_after 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'manipulate_netblock_parentage_after', 'manipulate_netblock_parentage_after');
+
+-- DROP OLD FUNCTION
+-- consider old oid 1495704
+-- DROP FUNCTION IF EXISTS manipulate_netblock_parentage_after();
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1479480
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_after()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+
+DECLARE
+	nbtype				record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+	v_row_count			integer;
+	v_trigger			record;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	IF TG_OP = 'DELETE' THEN
+		v_trigger := OLD;
+	ELSE
+		v_trigger := NEW;
+	END IF;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = v_trigger.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * If we are deleting, attach all children to the parent and wipe
+	 * hands on pants;
+	 */
+	IF TG_OP = 'DELETE' THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = OLD.netblock_id;
+
+		GET DIAGNOSTICS v_row_count = ROW_COUNT;
+	--	IF (v_row_count > 0) THEN
+			RAISE DEBUG 'Set parent for all child netblocks of deleted netblock % (address %, is_single_address %) to % (% rows updated)',
+				OLD.netblock_id,
+				OLD.ip_address,
+				OLD.is_single_address,
+				OLD.parent_netblock_id,
+				v_row_count;
+	--	END IF;
+
+		RETURN NULL;
+	END IF;
+
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+		NEW.parent_netblock_id,
+		NEW.netblock_id;
+
+	IF NEW.parent_netblock_id IS NULL THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id IS NULL AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id;
+		RETURN NULL;
+	ELSE
+		-- We don't need to specify the netblock_type or ip_universe_id here
+		-- because the parent would have had to match
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+		RETURN NULL;
+	END IF;
+END;
+$function$
+;
+
+-- DONE WITH proc manipulate_netblock_parentage_after -> manipulate_netblock_parentage_after 
 --------------------------------------------------------------------
 
 
@@ -2590,23 +2784,24 @@ $function$
 -- DEALING WITH proc manipulate_netblock_parentage_before -> manipulate_netblock_parentage_before 
 
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'manipulate_netblock_parentage_before', 'manipulate_netblock_parentage_before');
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'manipulate_netblock_parentage_before', 'manipulate_netblock_parentage_before');
 
 -- DROP OLD FUNCTION
--- consider old oid 689036
+-- consider old oid 1495702
 -- DROP FUNCTION IF EXISTS manipulate_netblock_parentage_before();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667051
+-- consider NEW oid 1479478
 CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_before()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 
 DECLARE
 	nbtype				record;
-	v_netblock_type		jazzhands.val_netblock_type.netblock_type%TYPE;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
 BEGIN
 	/*
 	 * Get the parameters for the given netblock type to see if we need
@@ -2614,8 +2809,8 @@ BEGIN
 	 */
 
 	RAISE DEBUG 'Performing % on netblock %', TG_OP, NEW.netblock_id;
-		
-	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
 		netblock_type = NEW.netblock_type;
 
 	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
@@ -2624,7 +2819,7 @@ BEGIN
 
 	/*
 	 * Find the correct parent netblock
-	 */ 
+	 */
 
 	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
 	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
@@ -2636,7 +2831,7 @@ BEGIN
 		NEW.netblock_id
 		);
 
-	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %', 
+	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %',
 		NEW.netblock_id, NEW.ip_address, NEW.netblock_type,
 		NEW.ip_universe_id, NEW.is_single_address,
 		NEW.parent_netblock_id;
@@ -2651,7 +2846,7 @@ BEGIN
 
 	/*
 	 * If we're updating and we're a container netblock, find
-	 * all of the children of our new parent that should be ours and take 
+	 * all of the children of our new parent that should be ours and take
 	 * them.  They will already be guaranteed to be of the correct
 	 * netblock_type and ip_universe_id.  We can't do this for inserts
 	 * because the row doesn't exist causing foreign key problems, so
@@ -2662,7 +2857,7 @@ BEGIN
 			NEW.parent_netblock_id,
 			NEW.netblock_id;
 		UPDATE
-			jazzhands.netblock
+			netblock
 		SET
 			parent_netblock_id = NEW.netblock_id
 		WHERE
@@ -2677,7 +2872,7 @@ BEGIN
 			OLD.netblock_id,
 			OLD.parent_netblock_id;
 		UPDATE
-			jazzhands.netblock
+			netblock
 		SET
 			parent_netblock_id = OLD.parent_netblock_id
 		WHERE
@@ -2704,6 +2899,7 @@ $function$
 -- consider NEW oid 666972
 CREATE OR REPLACE FUNCTION person_manip.pick_login(in_account_realm_id integer, in_first_name character varying DEFAULT NULL::character varying, in_middle_name character varying DEFAULT NULL::character varying, in_last_name character varying DEFAULT NULL::character varying)
  RETURNS character varying
+ SET search_path=jazzhands
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$
@@ -2772,6 +2968,7 @@ $function$
 -- consider NEW oid 666979
 CREATE OR REPLACE FUNCTION person_manip.setup_unix_account(in_account_id integer, in_account_type character varying, in_uid integer DEFAULT NULL::integer)
  RETURNS integer
+ SET search_path=jazzhands
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$
@@ -2827,143 +3024,10 @@ $function$
 -- DONE WITH proc person_manip.setup_unix_account -> setup_unix_account 
 --------------------------------------------------------------------
 
-
-
-
 --------------------------------------------------------------------
 -- DEALING WITH proc automated_ac -> automated_ac 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'automated_ac', 'automated_ac');
-
--- DROP OLD FUNCTION
--- consider old oid 695656
--- DROP FUNCTION IF EXISTS automated_ac();
-
--- RECREATE FUNCTION
--- consider NEW oid 667097
-CREATE OR REPLACE FUNCTION jazzhands.automated_ac()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	acr	VARCHAR;
-	c_name VARCHAR;
-	sc VARCHAR;
-	ac_ids INTEGER[];
-	delete_aca BOOLEAN;
-	_gender VARCHAR;
-	_person_company RECORD;
-	acr_c_name VARCHAR;
-	gender_string VARCHAR;
-	_status RECORD;
-BEGIN
-	IF TG_OP = 'INSERT' THEN
-		IF NEW.account_role != 'primary' THEN
-			RETURN NEW;
-		END IF;
-		PERFORM 1 FROM jazzhands.val_person_status WHERE NEW.account_status = person_status AND is_disabled = 'N';
-		IF NOT FOUND THEN
-			RETURN NEW;
-		END IF;
-	-- The triggers need not deal with account realms companies or sites being renamed, although we may want to revisit this later.
-	ELSIF NEW.account_id != OLD.account_id THEN
-		RAISE NOTICE 'This trigger does not handle changing account id';
-		RETURN NEW;
-	ELSIF NEW.account_realm_id != OLD.account_realm_id THEN
-		RAISE NOTICE 'This trigger does not handle changing account_realm_id';
-		RETURN NEW;
-	ELSIF NEW.company_id != OLD.company_id THEN
-		RAISE NOTICE 'This trigger does not handle changing company_id';
-		RETURN NEW;
-	END IF;
-	ac_ids = '{-1,-1,-1,-1,-1,-1,-1}';
-	SELECT account_realm_name INTO acr FROM jazzhands.account_realm WHERE account_realm_id = NEW.account_realm_id;
-	ac_ids[0] = acct_coll_manip.get_automated_account_collection_id(acr || '_' || NEW.account_type);
-	SELECT company_short_name INTO c_name FROM jazzhands.company WHERE company_id = NEW.company_id AND company_short_name IS NOT NULL;
-	IF NOT FOUND THEN
-		RAISE NOTICE 'Company short name cannot be determined from company_id % in %', NEW.company_id, TG_NAME;
-	ELSE
-		acr_c_name = acr || '_' || c_name;
-		ac_ids[1] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || NEW.account_type);
-		SELECT
-			pc.*
-		INTO
-			_person_company
-		FROM
-			jazzhands.person_company pc
-		JOIN
-			jazzhands.account a
-		USING
-			(person_id)
-		WHERE
-			a.person_id != 0 AND account_id = NEW.account_id;
-		IF FOUND THEN
-			IF _person_company.is_exempt IS NOT NULL THEN
-				SELECT * INTO _status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(_person_company.is_exempt, 'exempt');
-				-- will remove account from old account collection
-				ac_ids[2] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || _status.name);
-			END IF;
-			SELECT * INTO _status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(_person_company.is_full_time, 'full_time');
-			ac_ids[3] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || _status.name);
-			SELECT * INTO _status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(_person_company.is_management, 'management');
-			ac_ids[4] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || _status.name);
-		END IF;
-		SELECT
-			gender
-		INTO
-			_gender
-		FROM
-			jazzhands.person
-		JOIN
-			jazzhands.account a
-		USING
-			(person_id)
-		WHERE
-			account_id = NEW.account_id AND a.person_id !=0 AND gender IS NOT NULL;
-		IF FOUND THEN
-			gender_string = acct_coll_manip.person_gender_char_to_automated_ac_name(_gender);
-			IF gender_string IS NOT NULL THEN
-				ac_ids[5] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || gender_string);
-			END IF;
-		END IF;
-	END IF;
-	SELECT site_code INTO sc FROM jazzhands.person_location WHERE person_id = NEW.person_id AND site_code IS NOT NULL;
-	IF FOUND THEN
-		ac_ids[6] = acct_coll_manip.get_automated_account_collection_id(acr || '_' || sc);
-	END IF;
-	delete_aca = 't';
-	IF TG_OP = 'INSERT' THEN
-		delete_aca = 'f';
-	ELSE
-		IF NEW.account_role != 'primary' AND NEW.account_role != OLD.account_role THEN
-			-- reaching here means account must be removed from all automated account collections
-			PERFORM acct_coll_manip.insert_or_delete_automated_ac('t', OLD.account_id, ac_ids);
-			RETURN NEW;
-		END IF;
-		PERFORM 1 FROM jazzhands.val_person_status WHERE NEW.account_status = person_status AND is_disabled = 'N';
-		IF NOT FOUND THEN
-			-- reaching here means account must be removed from all automated account collections
-			PERFORM acct_coll_manip.insert_or_delete_automated_ac('t', OLD.account_id, ac_ids);
-			RETURN NEW;
-		END IF;
-		IF NEW.account_role = 'primary' AND NEW.account_role != OLD.account_role OR
-			NEW.account_status != OLD.account_status THEN
-			-- reaching here means there were no automated account collection for this account
-			-- and this is the first time this account goes into the automated collections even though this is not SQL insert
-			-- notice that NEW.account_status here is 'enabled' or similar type
-			delete_aca = 'f';
-		END IF;
-	END IF;
-	IF NOT delete_aca THEN
-		-- do all inserts
-		PERFORM acct_coll_manip.insert_or_delete_automated_ac('f', NEW.account_id, ac_ids);
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION automated_ac() SET search_path = jazzhands;
 
 -- DONE WITH proc automated_ac -> automated_ac 
 --------------------------------------------------------------------
@@ -2974,107 +3038,7 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc automated_ac_on_person -> automated_ac_on_person 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'automated_ac_on_person', 'automated_ac_on_person');
-
--- DROP OLD FUNCTION
--- consider old oid 702539
--- DROP FUNCTION IF EXISTS automated_ac_on_person();
-
--- RECREATE FUNCTION
--- consider NEW oid 667101
-CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	ac_id INTEGER[];
-	c_name VARCHAR;
-	old_c_name VARCHAR;
-	old_acr_c_name VARCHAR;
-	acr_c_name VARCHAR;
-	gender_string VARCHAR;
-	r RECORD;
-	old_r RECORD;
-BEGIN
-	IF NEW.gender = OLD.gender OR NEW.person_id = 0 AND OLD.person_id = 0 THEN
-		RETURN NEW;
-	END IF;
-	IF OLD.person_id != NEW.person_id THEN
-		RAISE NOTICE 'This trigger % does not support changing person_id.  old person_id % new person_id %', TG_NAME, OLD.person_id, NEW.person_id;
-		RETURN NEW;
-	END IF;
-	FOR old_r
-		IN SELECT
-			account_realm_name, account_id, company_id
-		FROM
-			jazzhands.account_realm ar
-		JOIN
-			jazzhands.account a
-		USING
-			(account_realm_id)
-		JOIN
-			jazzhands.val_person_status vps
-		ON
-			account_status = vps.person_status AND vps.is_disabled='N'
-		WHERE
-			a.person_id = OLD.person_id
-	LOOP
-		SELECT company_short_name INTO old_c_name FROM jazzhands.company WHERE company_id = old_r.company_id AND company_short_name IS NOT NULL;
-		IF FOUND THEN
-			old_acr_c_name = old_r.account_realm_name || '_' || old_c_name;
-			gender_string = acct_coll_manip.person_gender_char_to_automated_ac_name(OLD.gender);
-			IF gender_string IS NOT NULL THEN
-				DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
-					AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' ||  gender_string);
-			END IF;
-		ELSE
-			RAISE NOTICE 'Company short name cannot be determined from company_id % in %', old_r.company_id, TG_NAME;
-		END IF;
-		-- looping over the same set of data.  TODO: optimize for speed
-		FOR r
-			IN SELECT
-				account_realm_name, account_id, company_id
-			FROM
-				jazzhands.account_realm ar
-			JOIN
-				jazzhands.account a
-			USING
-				(account_realm_id)
-			JOIN
-				jazzhands.val_person_status vps
-			ON
-				account_status = vps.person_status AND vps.is_disabled='N'
-			WHERE
-				a.person_id = NEW.person_id
-		LOOP
-			IF old_r.company_id = r.company_id THEN
-				IF old_c_name IS NULL THEN
-					RAISE NOTICE 'The new company short name is null like the old company short name. Going to the next record if there is any';
-					CONTINUE;
-				END IF;
-				c_name = old_c_name;
-			ELSE
-				SELECT company_short_name INTO c_name FROM jazzhands.company WHERE company_id = r.company_id AND company_short_name IS NOT NULL;
-				IF NOT FOUND THEN
-					RAISE NOTICE 'New company short name cannot be determined from company_id % in %', r.company_id, TG_NAME;
-					CONTINUE;
-				END IF;
-			END IF;
-			acr_c_name = r.account_realm_name || '_' || c_name;
-			gender_string = acct_coll_manip.person_gender_char_to_automated_ac_name(NEW.gender);
-			IF gender_string IS NULL THEN
-				CONTINUE;
-			END IF;
-			ac_id[0] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || gender_string);
-			PERFORM acct_coll_manip.insert_or_delete_automated_ac('f', r.account_id, ac_id);
-		END LOOP;
-	END LOOP;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION automated_ac_on_person() set search_path=jazzhands;
 
 -- DONE WITH proc automated_ac_on_person -> automated_ac_on_person 
 --------------------------------------------------------------------
@@ -3084,124 +3048,7 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc automated_ac_on_person_company -> automated_ac_on_person_company 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'automated_ac_on_person_company', 'automated_ac_on_person_company');
-
--- DROP OLD FUNCTION
--- consider old oid 709418
--- DROP FUNCTION IF EXISTS automated_ac_on_person_company();
-
--- RECREATE FUNCTION
--- consider NEW oid 667099
-CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person_company()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	ac_id INTEGER[];
-	c_name VARCHAR;
-	old_acr_c_name VARCHAR;
-	acr_c_name VARCHAR;
-	exempt_status RECORD;
-	new_exempt_status RECORD;
-	full_time_status RECORD;
-	manager_status RECORD;
-	old_r RECORD;
-	r RECORD;
-BEGIN
-	-- at this time person_company.is_exempt column can be null.
-	-- take into account of is_exempt going from null to not null
-	IF (NEW.is_exempt IS NOT NULL AND OLD.is_exempt IS NOT NULL AND NEW.is_exempt = OLD.is_exempt OR NEW.is_exempt IS NULL AND OLD.is_exempt IS NULL)
-		AND NEW.is_management = OLD.is_management AND NEW.is_full_time = OLD.is_full_time
-		OR (NEW.person_id = 0 AND OLD.person_id = 0) THEN
-		RETURN NEW;
-	END IF;
-	IF NEW.person_id != OLD.person_id THEN
-		RAISE NOTICE 'This trigger % does not support changing person_id', TG_NAME;
-		RETURN NEW;
-	ELSIF NEW.company_id != OLD.company_id THEN
-		RAISE NOTICE 'This trigger % does not support changing company_id', TG_NAME;
-		RETURN NEW;
-	END IF;
-	SELECT company_short_name INTO c_name FROM jazzhands.company WHERE company_id = OLD.company_id AND company_short_name IS NOT NULL;
-	IF NOT FOUND THEN
-		RAISE NOTICE 'Company short name cannot be determined from company_id % in trigger %', OLD.company_id, TG_NAME;
-		RETURN NEW;
-	END IF;
-	FOR old_r
-		IN SELECT
-			account_realm_name, account_id
-		FROM
-			jazzhands.account_realm ar
-		JOIN
-			jazzhands.account a
-		USING
-			(account_realm_id)
-		JOIN
-			jazzhands.val_person_status vps
-		ON
-			account_status = vps.person_status AND vps.is_disabled='N'
-		WHERE
-			a.person_id = OLD.person_id AND a.company_id = OLD.company_id
-	LOOP
-		old_acr_c_name = old_r.account_realm_name || '_' || c_name;
-		IF coalesce(NEW.is_exempt, '') != coalesce(OLD.is_exempt, '') THEN
-			IF OLD.is_exempt IS NOT NULL THEN
-				SELECT * INTO exempt_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(OLD.is_exempt, 'exempt');
-				DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
-					AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' || exempt_status.name);
-			END IF;
-		END IF;
-		IF NEW.is_full_time != OLD.is_full_time THEN
-			SELECT * INTO full_time_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(OLD.is_full_time, 'full_time');
-			DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
-				AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' || full_time_status.name);
-		END IF;
-		IF NEW.is_management != OLD.is_management THEN
-			SELECT * INTO manager_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(OLD.is_management, 'management');
-			DELETE FROM jazzhands.account_collection_account WHERE account_id = old_r.account_id
-				AND account_collection_id = acct_coll_manip.get_automated_account_collection_id(old_acr_c_name || '_' || manager_status.name);
-		END IF;
-		-- looping over the same set of data.  TODO: optimize for speed
-		FOR r
-			IN SELECT
-				account_realm_name, account_id
-			FROM
-				jazzhands.account_realm ar
-			JOIN
-				jazzhands.account a
-			USING
-				(account_realm_id)
-			JOIN
-				jazzhands.val_person_status vps
-			ON
-				account_status = vps.person_status AND vps.is_disabled='N'
-			WHERE
-				a.person_id = NEW.person_id AND a.company_id = NEW.company_id
-		LOOP
-			acr_c_name = r.account_realm_name || '_' || c_name;
-			IF coalesce(NEW.is_exempt, '') != coalesce(OLD.is_exempt, '') THEN
-				IF NEW.is_exempt IS NOT NULL THEN
-					SELECT * INTO new_exempt_status FROM acct_coll_manip.person_company_flags_to_automated_ac_name(NEW.is_exempt, 'exempt');
-					ac_id[0] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || new_exempt_status.name);
-					PERFORM acct_coll_manip.insert_or_delete_automated_ac('f', r.account_id, ac_id);
-				END IF;
-			END IF;
-			IF NEW.is_full_time != OLD.is_full_time THEN
-				ac_id[0] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || full_time_status.non_name);
-				PERFORM acct_coll_manip.insert_or_delete_automated_ac('f', r.account_id, ac_id);
-			END IF;
-			IF NEW.is_management != OLD.is_management THEN
-				ac_id[0] = acct_coll_manip.get_automated_account_collection_id(acr_c_name || '_' || manager_status.non_name);
-				PERFORM acct_coll_manip.insert_or_delete_automated_ac('f', r.account_id, ac_id);
-			END IF;
-		END LOOP;
-	END LOOP;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION automated_ac_on_person_company() set search_path=jazzhands;
 
 -- DONE WITH proc automated_ac_on_person_company -> automated_ac_on_person_company 
 --------------------------------------------------------------------
@@ -3210,108 +3057,7 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc automated_realm_site_ac_pl -> automated_realm_site_ac_pl 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'automated_realm_site_ac_pl', 'automated_realm_site_ac_pl');
-
--- DROP OLD FUNCTION
--- consider old oid 716021
--- DROP FUNCTION IF EXISTS automated_realm_site_ac_pl();
-
--- RECREATE FUNCTION
--- consider NEW oid 667103
-CREATE OR REPLACE FUNCTION jazzhands.automated_realm_site_ac_pl()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	sc VARCHAR;
-	r RECORD;
-	ac_id INTEGER;
-	ac_name VARCHAR;
-	p_id INTEGER;
-BEGIN
-	IF TG_OP = 'UPDATE' THEN
-		IF NEW.person_location_id != OLD.person_location_id THEN
-			RAISE NOTICE 'This trigger % does not support changing person_location_id', TG_NAME;
-			RETURN NEW;
-		END IF;
-		IF NEW.person_id IS NOT NULL AND OLD.person_id IS NOT NULL AND NEW.person_id != OLD.person_id THEN
-			RAISE NOTICE 'This trigger % does not support changing person_id', TG_NAME;
-			RETURN NEW;
-		END IF;
-		IF NEW.person_id IS NULL OR OLD.person_id IS NULL THEN
-			-- setting person_id to NULL is done by 'usermgr merge'
-			-- RAISE NOTICE 'This trigger % does not support null person_id', TG_NAME;
-			RETURN NEW;
-		END IF;
-		IF NEW.site_code IS NOT NULL AND OLD.site_code IS NOT NULL AND NEW.site_code = OLD.site_code
-			OR NEW.person_location_type != 'office' AND OLD.person_location_type != 'office' THEN
-			RETURN NEW;
-		END IF;
-	END IF;
-
-	IF TG_OP = 'INSERT' AND NEW.person_location_type != 'office' THEN
-		RETURN NEW;
-	END IF;
-
-	IF TG_OP = 'DELETE' THEN
-		IF OLD.person_location_type != 'office' THEN
-			RETURN OLD;
-		END IF;
-		p_id = OLD.person_id;
-		sc = OLD.site_code;
-	ELSE
-		p_id = NEW.person_id;
-		sc = NEW.site_code;
-	END IF;
-
-	FOR r IN SELECT account_realm_name, account_id
-		FROM
-			jazzhands.account_realm ar
-		JOIN
-			jazzhands.account a
-		ON
-			ar.account_realm_id=a.account_realm_id AND a.account_role = 'primary' AND a.person_id = p_id 
-		JOIN
-			jazzhands.val_person_status vps
-		ON
-			vps.person_status = a.account_status AND vps.is_disabled='N'
-		JOIN
-			jazzhands.site s
-		ON
-			s.site_code = sc AND a.company_id = s.colo_company_id
-	LOOP
-		IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-			ac_name = r.account_realm_name || '_' || sc;
-			ac_id = acct_coll_manip.get_automated_account_collection_id( r.account_realm_name || '_' || sc );
-			IF TG_OP != 'UPDATE' OR NEW.person_location_type = 'office' THEN
-				PERFORM 1 FROM jazzhands.account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
-				IF NOT FOUND THEN
-					INSERT INTO account_collection_account (account_collection_id, account_id) VALUES (ac_id, r.account_id);
-				END IF;
-			END IF;
-		END IF;
-		IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
-			IF OLD.site_code IS NULL THEN
-				CONTINUE;
-			END IF;
-			ac_name = r.account_realm_name || '_' || OLD.site_code;
-			SELECT account_collection_id INTO ac_id FROM jazzhands.account_collection WHERE account_collection_name = ac_name AND account_collection_type ='automated';
-			IF NOT FOUND THEN
-				RAISE NOTICE 'Account collection name % of type "automated" not found in %', ac_name, TG_NAME;
-				CONTINUE;
-			END IF;
-			DELETE FROM jazzhands.account_collection_account WHERE account_collection_id = ac_id AND account_id = r.account_id;
-		END IF;
-	END LOOP;
-	IF TG_OP = 'DELETE' THEN
-		RETURN OLD;
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION automated_realm_site_ac_pl() set search_path=jazzhands;
 
 -- DONE WITH proc automated_realm_site_ac_pl -> automated_realm_site_ac_pl 
 --------------------------------------------------------------------
@@ -3320,50 +3066,8 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc check_person_image_usage_mv -> check_person_image_usage_mv 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'check_person_image_usage_mv', 'check_person_image_usage_mv');
-
--- DROP OLD FUNCTION
--- consider old oid 722580
--- DROP FUNCTION IF EXISTS check_person_image_usage_mv();
-
--- RECREATE FUNCTION
--- consider NEW oid 667043
-CREATE OR REPLACE FUNCTION jazzhands.check_person_image_usage_mv()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	ismv	char;
-	tally	INTEGER;
-BEGIN
-	select  vpiu.is_multivalue, count(*)
- 	  into	ismv, tally
-	  from  jazzhands.person_image pi
-		inner join jazzhands.person_image_usage piu
-			using (person_image_id)
-		inner join jazzhands.val_person_image_usage vpiu
-			using (person_image_usage)
-	 where	pi.person_id in
-	 	(select person_id from jazzhands.person_image
-		 where person_image_id = NEW.person_image_id
-		)
-	  and	person_image_usage = NEW.person_image_usage
-	group by vpiu.is_multivalue;
-
-	IF ismv = 'N' THEN
-		IF tally > 1 THEN
-			RAISE EXCEPTION
-				'Person may only be assigned %s for one image',
-				NEW.person_image_usage
-			USING ERRCODE = 20705;
-		END IF;
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION jazzhands.check_person_image_usage_mv()
+	SET search_path=jazzhands;
 
 -- DONE WITH proc check_person_image_usage_mv -> check_person_image_usage_mv 
 --------------------------------------------------------------------
@@ -3404,72 +3108,23 @@ $function$
 -- DONE WITH proc create_new_unix_account -> create_new_unix_account 
 --------------------------------------------------------------------
 
-
---------------------------------------------------------------------
--- DEALING WITH proc delete_per_device_device_collection -> delete_per_device_device_collection 
-
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'delete_per_device_device_collection', 'delete_per_device_device_collection');
-
--- DROP OLD FUNCTION
--- consider old oid 729196
--- DROP FUNCTION IF EXISTS delete_per_device_device_collection();
-
--- RECREATE FUNCTION
--- consider NEW oid 667064
-CREATE OR REPLACE FUNCTION jazzhands.delete_per_device_device_collection()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	dcid			jazzhands.device_collection.device_collection_id%TYPE;
-BEGIN
-	SELECT	device_collection_id
-	  FROM  jazzhands.device_collection
-	  INTO	dcid
-	 WHERE	device_collection_type = 'per-device'
-	   AND	device_collection_id in
-		(select device_collection_id
-		 from jazzhands.device_collection_device
-		where device_id = OLD.device_id
-		)
-	ORDER BY device_collection_id
-	LIMIT 1;
-
-	IF dcid IS NOT NULL THEN
-		DELETE FROM jazzhands.device_collection_device
-		WHERE device_collection_id = dcid;
-
-		DELETE from jazzhands.device_collection
-		WHERE device_collection_id = dcid;
-	END IF;
-
-	RETURN OLD;
-END;
-$function$
-;
-
--- DONE WITH proc delete_per_device_device_collection -> delete_per_device_device_collection 
---------------------------------------------------------------------
-
-
 --------------------------------------------------------------------
 -- DEALING WITH proc delete_peruser_account_collection -> delete_peruser_account_collection 
 
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'delete_peruser_account_collection', 'delete_peruser_account_collection');
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'delete_peruser_account_collection', 'delete_peruser_account_collection');
 
 -- DROP OLD FUNCTION
--- consider old oid 729167
+-- consider old oid 1495682
 -- DROP FUNCTION IF EXISTS delete_peruser_account_collection();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667031
+-- consider NEW oid 1479458
 CREATE OR REPLACE FUNCTION jazzhands.delete_peruser_account_collection()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
 	def_acct_rlm	account_realm.account_realm_id%TYPE;
@@ -3478,24 +3133,24 @@ BEGIN
 	IF TG_OP = 'DELETE' THEN
 		SELECT	account_realm_id
 		  INTO	def_acct_rlm
-		  FROM	jazzhands.account_realm_company
+		  FROM	account_realm_company
 		 WHERE	company_id IN
 		 		(select property_value_company_id
-				   from jazzhands.property
+				   from property
 				  where	property_name = '_rootcompanyid'
 				    and	property_type = 'Defaults'
 				);
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm THEN
 				SELECT	account_collection_id 
-				  FROM	jazzhands.account_collection
+				  FROM	account_collection
 				  INTO	acid
 				 WHERE	account_collection_name = OLD.login
 				   AND	account_collection_type = 'per-user';
 	
-				 DELETE from jazzhands.account_collection_account
+				 DELETE from account_collection_account
 				  where account_collection_id = acid;
 	
-				 DELETE from jazzhands.account_collection
+				 DELETE from account_collection
 				  where account_collection_id = acid;
 		END IF;
 	END IF;
@@ -3504,6 +3159,7 @@ END;
 $function$
 ;
 
+
 -- DONE WITH proc delete_peruser_account_collection -> delete_peruser_account_collection 
 --------------------------------------------------------------------
 
@@ -3511,40 +3167,8 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc propagate_person_status_to_account -> propagate_person_status_to_account 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'propagate_person_status_to_account', 'propagate_person_status_to_account');
-
--- DROP OLD FUNCTION
--- consider old oid 729173
--- DROP FUNCTION IF EXISTS propagate_person_status_to_account();
-
--- RECREATE FUNCTION
--- consider NEW oid 667037
-CREATE OR REPLACE FUNCTION jazzhands.propagate_person_status_to_account()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	should_propagate 	val_person_status.propagate_from_person%type;
-BEGIN
-	
-	IF OLD.person_company_status != NEW.person_company_status THEN
-		select propagate_from_person
-		  into should_propagate
-		 from	jazzhands.val_person_status
-		 where	person_status = NEW.person_company_status;
-		IF should_propagate = 'Y' THEN
-			update jazzhands.account
-			  set	account_status = NEW.person_company_status
-			 where	person_id = NEW.person_id
-			  AND	company_id = NEW.company_id;
-		END IF;
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION propagate_person_status_to_account()
+	SET search_path=jazzhands;
 
 -- DONE WITH proc propagate_person_status_to_account -> propagate_person_status_to_account 
 --------------------------------------------------------------------
@@ -3553,66 +3177,8 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc update_account_type_account_collection -> update_account_type_account_collection 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'update_account_type_account_collection', 'update_account_type_account_collection');
-
--- DROP OLD FUNCTION
--- consider old oid 729171
--- DROP FUNCTION IF EXISTS update_account_type_account_collection();
-
--- RECREATE FUNCTION
--- consider NEW oid 667035
-CREATE OR REPLACE FUNCTION jazzhands.update_account_type_account_collection()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	uc_name		account_collection.account_collection_Name%TYPE;
-	ucid		account_collection.account_collection_Id%TYPE;
-BEGIN
-	IF TG_OP = 'UPDATE' THEN
-		IF OLD.Account_Type = NEW.Account_Type THEN 
-			RETURN NEW;
-		END IF;
-
-	uc_name := OLD.Account_Type;
-
-	DELETE FROM account_collection_Account WHERE Account_Id = OLD.Account_Id AND
-		account_collection_ID = (
-			SELECT account_collection_ID 
-			FROM jazzhands.account_collection 
-			WHERE account_collection_Name = uc_name 
-			AND account_collection_Type = 'usertype');
-
-	END IF;
-	uc_name := NEW.Account_Type;
-	BEGIN
-		SELECT account_collection_ID INTO STRICT ucid 
-		  FROM jazzhands.account_collection 
-		 WHERE account_collection_Name = uc_name 
-		AND account_collection_Type = 'usertype';
-	EXCEPTION
-		WHEN NO_DATA_FOUND THEN
-			INSERT INTO jazzhands.account_collection (
-				account_collection_Name, account_collection_Type
-			) VALUES (
-				uc_name, 'usertype'
-			) RETURNING account_collection_Id INTO ucid;
-	END;
-	IF ucid IS NOT NULL THEN
-		INSERT INTO jazzhands.account_collection_Account (
-			account_collection_ID,
-			Account_Id
-		) VALUES (
-			ucid,
-			NEW.Account_Id
-		);
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION jazzhands.update_account_type_account_collection()
+	set search_path=jazzhands;
 
 -- DONE WITH proc update_account_type_account_collection -> update_account_type_account_collection 
 --------------------------------------------------------------------
@@ -3621,48 +3187,8 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc update_per_svc_env_svc_env_collection -> update_per_svc_env_svc_env_collection 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'update_per_svc_env_svc_env_collection', 'update_per_svc_env_svc_env_collection');
-
--- DROP OLD FUNCTION
--- consider old oid 729204
--- DROP FUNCTION IF EXISTS update_per_svc_env_svc_env_collection();
-
--- RECREATE FUNCTION
--- consider NEW oid 667075
-CREATE OR REPLACE FUNCTION jazzhands.update_per_svc_env_svc_env_collection()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	secid		service_environment_collection.service_env_collection_id%TYPE;
-BEGIN
-	IF TG_OP = 'INSERT' THEN
-		insert into jazzhands.service_environment_collection 
-			(service_env_collection_name, service_env_collection_type)
-		values
-			(NEW.service_environment, 'per-environment')
-		RETURNING service_env_collection_id INTO secid;
-		insert into jazzhands.svc_environment_coll_svc_env 
-			(service_env_collection_id, service_environment)
-		VALUES
-			(secid, NEW.service_environment);
-	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment != NEW.service_environment THEN
-		UPDATE	jazzhands.service_environment_collection
-		   SET	service_env_collection_name = NEW.service_environment
-		 WHERE	service_env_collection_name != NEW.service_environment
-		   AND	service_env_collection_type = 'per-environment'
-		   AND	service_environment in (
-			SELECT	service_environment
-			  FROM	jazzhands.svc_environment_coll_svc_env
-			 WHERE	service_environment = NEW.service_environment
-			);
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
+ALTER FUNCTION update_per_svc_env_svc_env_collection()
+	set search_path=jazzhands;
 
 -- DONE WITH proc update_per_svc_env_svc_env_collection -> update_per_svc_env_svc_env_collection 
 --------------------------------------------------------------------
@@ -3672,18 +3198,19 @@ $function$
 -- DEALING WITH proc update_peruser_account_collection -> update_peruser_account_collection 
 
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'update_peruser_account_collection', 'update_peruser_account_collection');
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'update_peruser_account_collection', 'update_peruser_account_collection');
 
 -- DROP OLD FUNCTION
--- consider old oid 729169
+-- consider old oid 1495684
 -- DROP FUNCTION IF EXISTS update_peruser_account_collection();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667033
+-- consider NEW oid 1479460
 CREATE OR REPLACE FUNCTION jazzhands.update_peruser_account_collection()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
 	def_acct_rlm	account_realm.account_realm_id%TYPE;
@@ -3691,21 +3218,21 @@ DECLARE
 BEGIN
 	SELECT	account_realm_id
 	  INTO	def_acct_rlm
-	  FROM	jazzhands.account_realm_company
+	  FROM	account_realm_company
 	 WHERE	company_id IN
 	 		(select property_value_company_id
-			   from jazzhands.property
+			   from property
 			  where	property_name = '_rootcompanyid'
 			    and	property_type = 'Defaults'
 			);
 	IF def_acct_rlm is not NULL AND NEW.account_realm_id = def_acct_rlm THEN
 		if TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.account_realm_id != NEW.account_realm_id) THEN
-			insert into jazzhands.account_collection 
+			insert into account_collection 
 				(account_collection_name, account_collection_type)
 			values
 				(NEW.login, 'per-user')
 			RETURNING account_collection_id INTO acid;
-			insert into jazzhands.account_collection_account 
+			insert into account_collection_account 
 				(account_collection_id, account_id)
 			VALUES
 				(acid, NEW.account_id);
@@ -3713,7 +3240,7 @@ BEGIN
 
 		IF TG_OP = 'UPDATE' AND OLD.login != NEW.login THEN
 			IF OLD.account_realm_id = NEW.account_realm_id THEN
-				update	jazzhands.account_collection
+				update	account_collection
 				    set	account_collection_name = NEW.login
 				  where	account_collection_type = 'per-user'
 				    and	account_collection_name = OLD.login;
@@ -3725,7 +3252,7 @@ BEGIN
 	IF TG_OP = 'UPDATE'  THEN
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm AND NEW.account_realm_id != OLD.account_realm_id THEN
 			SELECT	account_collection_id
-		      FROM	jazzhands.account_collection
+		      FROM	account_collection
 			  INTO	acid
 			 WHERE	account_collection_name = OLD.login
 			   AND	account_collection_type = 'per-user';
@@ -3736,6 +3263,7 @@ END;
 $function$
 ;
 
+
 -- DONE WITH proc update_peruser_account_collection -> update_peruser_account_collection 
 --------------------------------------------------------------------
 
@@ -3744,34 +3272,35 @@ $function$
 -- DEALING WITH proc update_dns_zone -> update_dns_zone 
 
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'update_dns_zone', 'update_dns_zone');
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'update_dns_zone', 'update_dns_zone');
 
 -- DROP OLD FUNCTION
--- consider old oid 729208
+-- consider old oid 1495723
 -- DROP FUNCTION IF EXISTS update_dns_zone();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667079
+-- consider NEW oid 1479507
 CREATE OR REPLACE FUNCTION jazzhands.update_dns_zone()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 BEGIN
     IF TG_OP IN ('INSERT', 'UPDATE') THEN
-		UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+		UPDATE dns_domain SET zone_last_updated = clock_timestamp()
             WHERE dns_domain_id = NEW.dns_domain_id
 			AND ( zone_last_updated < last_generated
 			OR zone_last_updated is NULL);
 
 		IF TG_OP = 'UPDATE' THEN
 			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
-				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+				UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 					 WHERE dns_domain_id = OLD.dns_domain_id
 					 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
 			IF NEW.netblock_id != OLD.netblock_id THEN
-				UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+				UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 					 WHERE dns_domain_id in (
 						 netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id),
 						 netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
@@ -3779,7 +3308,7 @@ BEGIN
 				     AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 			END IF;
 		ELSIF TG_OP = 'INSERT' AND NEW.netblock_id is not NULL THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+			UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 				WHERE dns_domain_id = 
 					netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
 				AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
@@ -3788,12 +3317,12 @@ BEGIN
 	END IF;
 
     IF TG_OP = 'DELETE' THEN
-        UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+        UPDATE dns_domain SET zone_last_updated = clock_timestamp()
 			WHERE dns_domain_id = OLD.dns_domain_id
 			AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
 
 		IF OLD.dns_type = 'A' OR OLD.dns_type = 'AAAA' THEN
-			UPDATE jazzhands.dns_domain SET zone_last_updated = clock_timestamp()
+			UPDATE dns_domain SET zone_last_updated = clock_timestamp()
                  WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
 				 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
         END IF;
@@ -3811,47 +3340,8 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc delete_per_svc_env_svc_env_collection -> delete_per_svc_env_svc_env_collection 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'delete_per_svc_env_svc_env_collection', 'delete_per_svc_env_svc_env_collection');
-
--- DROP OLD FUNCTION
--- consider old oid 735813
--- DROP FUNCTION IF EXISTS delete_per_svc_env_svc_env_collection();
-
--- RECREATE FUNCTION
--- consider NEW oid 667073
-CREATE OR REPLACE FUNCTION jazzhands.delete_per_svc_env_svc_env_collection()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	secid	service_environment_collection.service_env_collection_id%TYPE;
-BEGIN
-	SELECT	service_env_collection_id
-	  FROM  jazzhands.service_environment_collection
-	  INTO	secid
-	 WHERE	service_env_collection_type = 'per-environment'
-	   AND	service_env_collection_id in
-		(select service_env_collection_id
-		 from jazzhands.svc_environment_coll_svc_env
-		where service_environment = OLD.service_environment
-		)
-	ORDER BY service_env_collection_id
-	LIMIT 1;
-
-	IF secid IS NOT NULL THEN
-		DELETE FROM jazzhands.svc_environment_coll_svc_env
-		WHERE service_env_collection_id = secid;
-
-		DELETE from jazzhands.service_environment_collection
-		WHERE service_env_collection_id = secid;
-	END IF;
-
-	RETURN OLD;
-END;
-$function$
-;
+ALTER FUNCTION delete_per_svc_env_svc_env_collection()
+	set search_path=jazzhands;
 
 -- DONE WITH proc delete_per_svc_env_svc_env_collection -> delete_per_svc_env_svc_env_collection 
 --------------------------------------------------------------------
@@ -3861,22 +3351,23 @@ $function$
 -- DEALING WITH proc update_per_device_device_collection -> update_per_device_device_collection 
 
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'update_per_device_device_collection', 'update_per_device_device_collection');
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'update_per_device_device_collection', 'update_per_device_device_collection');
 
 -- DROP OLD FUNCTION
--- consider old oid 735809
+-- consider old oid 1495713
 -- DROP FUNCTION IF EXISTS update_per_device_device_collection();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667066
+-- consider NEW oid 1479495
 CREATE OR REPLACE FUNCTION jazzhands.update_per_device_device_collection()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
-	dcid		jazzhands.device_collection.device_collection_id%TYPE;
-	newname		jazzhands.device_collection.device_collection_name%TYPE;
+	dcid		device_collection.device_collection_id%TYPE;
+	newname		device_collection.device_collection_name%TYPE;
 BEGIN
 	IF NEW.device_name IS NOT NULL THEN
 		newname = NEW.device_name || '_' || NEW.device_id;
@@ -3885,12 +3376,12 @@ BEGIN
 	END IF;
 
 	IF TG_OP = 'INSERT' THEN
-		insert into jazzhands.device_collection 
+		insert into device_collection
 			(device_collection_name, device_collection_type)
 		values
 			(newname, 'per-device')
 		RETURNING device_collection_id INTO dcid;
-		insert into jazzhands.device_collection_device 
+		insert into device_collection_device
 			(device_collection_id, device_id)
 		VALUES
 			(dcid, NEW.device_id);
@@ -3901,7 +3392,7 @@ BEGIN
 		   AND	device_collection_type = 'per-device'
 		   AND	device_collection_id in (
 			SELECT	device_collection_id
-			  FROM	jazzhands.device_collection_device
+			  FROM	device_collection_device
 			 WHERE	device_id = NEW.device_id
 			);
 	END IF;
@@ -3917,23 +3408,25 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc validate_netblock -> validate_netblock 
 
+
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_netblock', 'validate_netblock');
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_netblock', 'validate_netblock');
 
 -- DROP OLD FUNCTION
--- consider old oid 735796
+-- consider old oid 1495700
 -- DROP FUNCTION IF EXISTS validate_netblock();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667049
+-- consider NEW oid 1479476
 CREATE OR REPLACE FUNCTION jazzhands.validate_netblock()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
 	nbtype				RECORD;
-	v_netblock_id		jazzhands.netblock.netblock_id%TYPE;
+	v_netblock_id		netblock.netblock_id%TYPE;
 	parent_netblock		RECORD;
 BEGIN
 	/*
@@ -3957,14 +3450,14 @@ BEGIN
 		 * is 'Y'.  If it is, enforce it if it's a managed hierarchy
 		 */
 		IF NEW.is_single_address = 'Y' THEN
-			SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
+			SELECT * INTO nbtype FROM val_netblock_type WHERE
 				netblock_type = NEW.netblock_type;
 
 			IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
 				RAISE EXCEPTION 'Column netmask_bits may not be null'
 					USING ERRCODE = 'not_null_violation';
 			END IF;
-	
+
 			RAISE DEBUG 'Calculating netmask for new netblock';
 
 			v_netblock_id := netblock_utils.find_best_parent_id(
@@ -3975,9 +3468,9 @@ BEGIN
 				NEW.is_single_address,
 				NEW.netblock_id
 				);
-		
+
 			SELECT masklen(ip_address) INTO NEW.netmask_bits FROM
-				jazzhands.netblock WHERE netblock_id = v_netblock_id;
+				netblock WHERE netblock_id = v_netblock_id;
 
 		END IF;
 		IF NEW.netmask_bits IS NULL THEN
@@ -4016,21 +3509,21 @@ BEGIN
 /*
 	IF NOT net_manip.inet_is_private(NEW.ip_address) THEN
 */
-			PERFORM netblock_id 
-			   FROM jazzhands.netblock 
+			PERFORM netblock_id
+			   FROM netblock
 			  WHERE ip_address = NEW.ip_address AND
 					ip_universe_id = NEW.ip_universe_id AND
 					netblock_type = NEW.netblock_type AND
 					is_single_address = NEW.is_single_address;
-			IF (TG_OP = 'INSERT' AND FOUND) THEN 
-				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %', 
+			IF (TG_OP = 'INSERT' AND FOUND) THEN
+				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %',
 					NEW.ip_address
 					USING ERRCODE= 'unique_violation';
 			END IF;
 			IF (TG_OP = 'UPDATE') THEN
 				IF (NEW.ip_address != OLD.ip_address AND FOUND) THEN
-					RAISE EXCEPTION 
-						'Unique Constraint Violated on IP Address: %', 
+					RAISE EXCEPTION
+						'Unique Constraint Violated on IP Address: %',
 						NEW.ip_address
 						USING ERRCODE = 'unique_violation';
 				END IF;
@@ -4055,19 +3548,14 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc validate_property -> validate_property 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_property', 'validate_property');
-
--- DROP OLD FUNCTION
--- consider old oid 735774
--- DROP FUNCTION IF EXISTS validate_property();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667028
+-- consider NEW oid 1539445
 CREATE OR REPLACE FUNCTION jazzhands.validate_property()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
 	tally			integer;
@@ -4083,11 +3571,11 @@ BEGIN
 	-- figure out what is and is not valid
 
 	BEGIN
-		SELECT * INTO STRICT v_prop FROM jazzhands.VAL_Property WHERE
+		SELECT * INTO STRICT v_prop FROM VAL_Property WHERE
 			Property_Name = NEW.Property_Name AND
 			Property_Type = NEW.Property_Type;
 
-		SELECT * INTO STRICT v_proptype FROM jazzhands.VAL_Property_Type WHERE
+		SELECT * INTO STRICT v_proptype FROM VAL_Property_Type WHERE
 			Property_Type = NEW.Property_Type;
 	EXCEPTION
 		WHEN NO_DATA_FOUND THEN
@@ -4141,7 +3629,7 @@ BEGIN
 	-- for a specific property LHS
 
 	IF (v_proptype.is_multivalue = 'N') THEN
-		PERFORM 1 FROM jazzhands.Property WHERE
+		PERFORM 1 FROM Property WHERE
 			Property_Id != NEW.Property_Id AND
 			Property_Type = NEW.Property_Type AND
 			((Company_Id IS NULL AND NEW.Company_Id IS NULL) OR
@@ -4312,7 +3800,7 @@ BEGIN
 		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_account_collection 
-					FROM jazzhands.account_collection WHERE
+					FROM account_collection WHERE
 					account_collection_Id = NEW.Property_Value_Account_Coll_Id;
 				IF v_account_collection.account_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
 				THEN
@@ -4334,7 +3822,7 @@ BEGIN
 		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_netblock_collection 
-					FROM jazzhands.netblock_collection WHERE
+					FROM netblock_collection WHERE
 					netblock_collection_Id = NEW.Property_Value_nblk_Coll_Id;
 				IF v_netblock_collection.netblock_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
 				THEN
@@ -4495,95 +3983,26 @@ END;
 $function$
 ;
 
+
 -- DONE WITH proc validate_property -> validate_property 
 --------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc verify_device_voe -> verify_device_voe 
-
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'verify_device_voe', 'verify_device_voe');
-
--- DROP OLD FUNCTION
--- consider old oid 735811
--- DROP FUNCTION IF EXISTS verify_device_voe();
-
--- RECREATE FUNCTION
--- consider NEW oid 667068
-CREATE OR REPLACE FUNCTION jazzhands.verify_device_voe()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	voe_sw_pkg_repos		jazzhands.sw_package_repository.sw_package_repository_id%TYPE;
-	os_sw_pkg_repos		jazzhands.operating_system.sw_package_repository_id%TYPE;
-	voe_sym_trx_sw_pkg_repo_id	jazzhands.voe_symbolic_track.sw_package_repository_id%TYPE;
-BEGIN
-
-	IF (NEW.operating_system_id IS NOT NULL)
-	THEN
-		SELECT sw_package_repository_id INTO os_sw_pkg_repos
-			FROM
-				jazzhands.operating_system
-			WHERE
-				operating_system_id = NEW.operating_system_id;
-	END IF;
-
-	IF (NEW.voe_id IS NOT NULL) THEN
-		SELECT sw_package_repository_id INTO voe_sw_pkg_repos
-			FROM
-				jazzhands.voe
-			WHERE
-				voe_id=NEW.voe_id;
-		IF (voe_sw_pkg_repos != os_sw_pkg_repos) THEN
-			RAISE EXCEPTION 
-				'Device OS and VOE have different SW Pkg Repositories';
-		END IF;
-	END IF;
-
-	IF (NEW.voe_symbolic_track_id IS NOT NULL) THEN
-		SELECT sw_package_repository_id INTO voe_sym_trx_sw_pkg_repo_id	
-			FROM
-				jazzhands.voe_symbolic_track
-			WHERE
-				voe_symbolic_track_id=NEW.voe_symbolic_track_id;
-		IF (voe_sym_trx_sw_pkg_repo_id != os_sw_pkg_repos) THEN
-			RAISE EXCEPTION 
-				'Device OS and VOE track have different SW Pkg Repositories';
-		END IF;
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
-
--- DONE WITH proc verify_device_voe -> verify_device_voe 
---------------------------------------------------------------------
-
 
 --------------------------------------------------------------------
 -- DEALING WITH proc verify_layer1_connection -> verify_layer1_connection 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'verify_layer1_connection', 'verify_layer1_connection');
-
--- DROP OLD FUNCTION
--- consider old oid 735767
--- DROP FUNCTION IF EXISTS verify_layer1_connection();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667023
+-- consider NEW oid 1572988
 CREATE OR REPLACE FUNCTION jazzhands.verify_layer1_connection()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 BEGIN
 	PERFORM 1 FROM 
-		jazzhands.layer1_connection l1 
-			JOIN jazzhands.layer1_connection l2 ON 
+		layer1_connection l1 
+			JOIN layer1_connection l2 ON 
 				l1.physical_port1_id = l2.physical_port2_id AND
 				l1.physical_port2_id = l2.physical_port1_id;
 	IF FOUND THEN
@@ -4597,6 +4016,83 @@ $function$
 -- DONE WITH proc verify_layer1_connection -> verify_layer1_connection 
 --------------------------------------------------------------------
 
+
+--------------------------------------------------------------------
+-- DEALING WITH proc verify_physical_connection -> verify_physical_connection 
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1572990
+CREATE OR REPLACE FUNCTION jazzhands.verify_physical_connection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM 1 FROM 
+		physical_connection l1 
+		JOIN physical_connection l2 ON 
+			l1.physical_port1_id = l2.physical_port2_id AND
+			l1.physical_port2_id = l2.physical_port1_id;
+	IF FOUND THEN
+		RAISE EXCEPTION 'Connection already exists in opposite direction';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- DONE WITH proc verify_physical_connection -> verify_physical_connection 
+--------------------------------------------------------------------
+
+--------------------------------------------------------------------
+-- DEALING WITH proc delete_per_device_device_collection -> delete_per_device_device_collection 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'delete_per_device_device_collection', 'delete_per_device_device_collection');
+
+-- DROP OLD FUNCTION
+-- consider old oid 1485822
+-- DROP FUNCTION IF EXISTS delete_per_device_device_collection();
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1479493
+CREATE OR REPLACE FUNCTION jazzhands.delete_per_device_device_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	dcid			device_collection.device_collection_id%TYPE;
+BEGIN
+	SELECT	device_collection_id
+	  FROM  device_collection
+	  INTO	dcid
+	 WHERE	device_collection_type = 'per-device'
+	   AND	device_collection_id in
+		(select device_collection_id
+		 from device_collection_device
+		where device_id = OLD.device_id
+		)
+	ORDER BY device_collection_id
+	LIMIT 1;
+
+	IF dcid IS NOT NULL THEN
+		DELETE FROM device_collection_device
+		WHERE device_collection_id = dcid;
+
+		DELETE from device_collection
+		WHERE device_collection_id = dcid;
+	END IF;
+
+	RETURN OLD;
+END;
+$function$
+;
+
+-- DONE WITH proc delete_per_device_device_collection -> delete_per_device_device_collection 
+--------------------------------------------------------------------
 
 --------------------------------------------------------------------
 -- DEALING WITH proc person_manip.add_account_non_person -> add_account_non_person 
@@ -4639,35 +4135,30 @@ $function$
 --------------------------------------------------------------------
 -- DEALING WITH proc validate_netblock_parentage -> validate_netblock_parentage 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_netblock_parentage', 'validate_netblock_parentage');
-
--- DROP OLD FUNCTION
--- consider old oid 742392
--- DROP FUNCTION IF EXISTS validate_netblock_parentage();
 
 -- RECREATE FUNCTION
--- consider NEW oid 667060
+-- consider NEW oid 1519217
 CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_parentage()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
 	nbrec			record;
 	realnew			record;
 	nbtype			record;
-	parent_nbid		jazzhands.netblock.netblock_id%type;
+	parent_nbid		netblock.netblock_id%type;
 	ipaddr			inet;
 	parent_ipaddr	inet;
 	single_count	integer;
 	nonsingle_count	integer;
-	pip	    		jazzhands.netblock.ip_address%type;
+	pip	    		netblock.ip_address%type;
 BEGIN
 
 	RAISE DEBUG 'Validating % of netblock %', TG_OP, NEW.netblock_id;
 
-	SELECT * INTO nbtype FROM jazzhands.val_netblock_type WHERE 
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
 		netblock_type = NEW.netblock_type;
 
 	IF (NOT FOUND) THEN
@@ -4678,18 +4169,18 @@ BEGIN
 	 * It's possible that due to delayed triggers that what is stored in
 	 * NEW is not current, so fetch the current values
 	 */
-	
-	SELECT * INTO realnew FROM jazzhands.netblock WHERE netblock_id =
+
+	SELECT * INTO realnew FROM netblock WHERE netblock_id =
 		NEW.netblock_id;
 	IF NOT FOUND THEN
-		/* 
-		 * If the netblock isn't there, it was subsequently deleted, so 
+		/*
+		 * If the netblock isn't there, it was subsequently deleted, so
 		 * our parentage doesn't need to be checked
 		 */
 		RETURN NULL;
 	END IF;
-	
-	
+
+
 	/*
 	 * If the parent changed above (or somewhere else between update and
 	 * now), just bail, because another trigger will have been fired that
@@ -4707,9 +4198,9 @@ BEGIN
 	 * in the same ip_universe.  We care about this even if the
 	 * netblock type is not a validated type.
 	 */
-	
+
 	RAISE DEBUG 'Verifying child ip_universe and type match';
-	PERFORM netblock_id FROM jazzhands.netblock WHERE
+	PERFORM netblock_id FROM netblock WHERE
 		parent_netblock_id = realnew.netblock_id AND
 		netblock_type != realnew.netblock_type AND
 		ip_universe_id != realnew.ip_universe_id;
@@ -4735,14 +4226,14 @@ BEGIN
 			RAISE 'A single address (%) must be the child of a parent netblock',
 				realnew.ip_address
 				USING ERRCODE = 22105;
-		END IF;		
+		END IF;
 
 		/*
 		 * Validate that a netblock has a parent, unless
 		 * it is the root of a hierarchy
 		 */
 		parent_nbid := netblock_utils.find_best_parent_id(
-			realnew.ip_address, 
+			realnew.ip_address,
 			masklen(realnew.ip_address),
 			realnew.netblock_type,
 			realnew.ip_universe_id,
@@ -4751,11 +4242,11 @@ BEGIN
 		);
 
 		IF parent_nbid IS NOT NULL THEN
-			SELECT * INTO nbrec FROM jazzhands.netblock WHERE netblock_id =
+			SELECT * INTO nbrec FROM netblock WHERE netblock_id =
 				parent_nbid;
 
 			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
-				realnew.netblock_id, realnew.ip_address, 
+				realnew.netblock_id, realnew.ip_address,
 				parent_nbid, nbrec.ip_address USING ERRCODE = 22102;
 		END IF;
 
@@ -4763,7 +4254,7 @@ BEGIN
 		 * Validate that none of the other top-level netblocks should
 		 * belong to this netblock
 		 */
-		PERFORM netblock_id FROM jazzhands.netblock WHERE 
+		PERFORM netblock_id FROM netblock WHERE
 			parent_netblock_id IS NULL AND
 			netblock_id != NEW.netblock_id AND
 			netblock_type = NEW.netblock_type AND
@@ -4781,8 +4272,8 @@ BEGIN
 			RAISE EXCEPTION 'Netblock may not have itself as a parent'
 				USING ERRCODE = 22101;
 		END IF;
-		
-		SELECT * INTO nbrec FROM jazzhands.netblock WHERE netblock_id = 
+
+		SELECT * INTO nbrec FROM netblock WHERE netblock_id =
 			realnew.parent_netblock_id;
 
 		/*
@@ -4820,7 +4311,7 @@ BEGIN
 			END IF;
 		ELSE
 			parent_nbid := netblock_utils.find_best_parent_id(
-				realnew.ip_address, 
+				realnew.ip_address,
 				masklen(realnew.ip_address),
 				realnew.netblock_type,
 				realnew.ip_universe_id,
@@ -4829,7 +4320,7 @@ BEGIN
 				);
 
 			IF realnew.can_subnet = 'N' THEN
-				PERFORM netblock_id FROM jazzhands.netblock WHERE
+				PERFORM netblock_id FROM netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
 					is_single_address = 'N';
 				IF FOUND THEN
@@ -4838,8 +4329,8 @@ BEGIN
 					USING ERRCODE = 22111;
 				END IF;
 			END IF;
-			IF realnew.is_single_address = 'Y' THEN 
-				SELECT ip_address INTO ipaddr FROM jazzhands.netblock
+			IF realnew.is_single_address = 'Y' THEN
+				SELECT ip_address INTO ipaddr FROM netblock
 					WHERE netblock_id = realnew.parent_netblock_id;
 				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
 					RAISE 'Parent netblock % does not have same netmask as single address child % (% vs %)',
@@ -4849,13 +4340,13 @@ BEGIN
 				END IF;
 			END IF;
 			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
-				SELECT ip_address INTO parent_ipaddr FROM jazzhands.netblock
+				SELECT ip_address INTO parent_ipaddr FROM netblock
 				WHERE
 					netblock_id = parent_nbid;
-				SELECT ip_address INTO ipaddr FROM jazzhands.netblock WHERE
+				SELECT ip_address INTO ipaddr FROM netblock WHERE
 					netblock_id = realnew.parent_netblock_id;
 
-				RAISE EXCEPTION 
+				RAISE EXCEPTION
 					'Parent netblock % (%) for netblock % (%) is not the correct parent (should be % (%))',
 					realnew.parent_netblock_id, ipaddr,
 					realnew.netblock_id, realnew.ip_address,
@@ -4866,15 +4357,15 @@ BEGIN
 			 * Validate that all children are is_single_address='Y' or
 			 * all children are is_single_address='N'
 			 */
-			SELECT count(*) INTO single_count FROM jazzhands.netblock WHERE
-				is_single_address='Y' and parent_netblock_id = 
+			SELECT count(*) INTO single_count FROM netblock WHERE
+				is_single_address='Y' and parent_netblock_id =
 				realnew.parent_netblock_id;
-			SELECT count(*) INTO nonsingle_count FROM jazzhands.netblock WHERE
+			SELECT count(*) INTO nonsingle_count FROM netblock WHERE
 				is_single_address='N' and parent_netblock_id =
 				realnew.parent_netblock_id;
 
 			IF (single_count > 0 and nonsingle_count > 0) THEN
-				SELECT * INTO nbrec FROM jazzhands.netblock WHERE netblock_id =
+				SELECT * INTO nbrec FROM netblock WHERE netblock_id =
 					realnew.parent_netblock_id;
 				RAISE EXCEPTION 'Netblock % (%) may not have direct children for both single and multiple addresses simultaneously',
 					nbrec.netblock_id, nbrec.ip_address
@@ -4886,9 +4377,9 @@ BEGIN
 			 *  us
 			 */
 			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
-				PERFORM netblock_id FROM jazzhands.netblock WHERE 
+				PERFORM netblock_id FROM netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
-					((is_single_address = 'Y' AND NEW.ip_address != 
+					((is_single_address = 'Y' AND NEW.ip_address !=
 						ip_address::cidr) OR
 					(is_single_address = 'N' AND realnew.netblock_id !=
 						netblock_utils.find_best_parent_id(netblock_id)));
@@ -4905,7 +4396,7 @@ BEGIN
 			 * of the hierarchy)
 			 */
 			IF (realnew.is_single_address = 'N') THEN
-				PERFORM netblock_id FROM jazzhands.netblock WHERE 
+				PERFORM netblock_id FROM netblock WHERE
 					parent_netblock_id = realnew.parent_netblock_id AND
 					netblock_id != realnew.netblock_id AND
 					ip_address <<= realnew.ip_address;
@@ -4984,6 +4475,165 @@ $function$
 ;
 
 -- DONE WITH proc port_utils.setup_device_physical_ports -> setup_device_physical_ports 
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH proc netblock_utils.find_free_netblock -> find_free_netblock 
+
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1539414
+CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(netblock_id integer, netmask_bits integer DEFAULT NULL::integer, single_address boolean DEFAULT false, allocate_from_bottom boolean DEFAULT true)
+ RETURNS TABLE(ip_address inet)
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
+		netblock_id := netblock_id,
+		netmask_bits := netmask_bits,
+		single_address := single_address,
+		allocate_from_bottom := allocate_from_bottom,
+		max_addresses := 1);
+END;
+$function$
+;
+
+-- DONE WITH proc netblock_utils.find_free_netblock -> find_free_netblock 
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH proc netblock_utils.find_free_netblocks -> find_free_netblocks 
+
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1539415
+CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(netblock_id integer, netmask_bits integer DEFAULT NULL::integer, single_address boolean DEFAULT false, allocate_from_bottom boolean DEFAULT true, max_addresses integer DEFAULT 1024)
+ RETURNS TABLE(ip_address inet)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	step			integer;
+	nb_size			integer;
+	offset			integer;
+	netblock_rec	jazzhands.netblock%ROWTYPE;
+	current_ip		inet;
+	max_ip			inet;
+	matches			integer;
+	family_bits		integer;
+BEGIN
+	SELECT 
+		* INTO netblock_rec
+	FROM
+		jazzhands.netblock n
+	WHERE
+		n.netblock_id = find_free_netblocks.netblock_id;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Netblock % does not exist', 
+			find_free_netblocks.netblock_id;
+	END IF;
+
+	family_bits := 
+		(CASE family(netblock_rec.ip_address) WHEN 4 THEN 32 ELSE 128 END);
+
+	IF single_address THEN 
+		netmask_bits := 32;
+	END IF;
+
+	IF netmask_bits <= masklen(netblock_rec.ip_address) THEN
+		RAISE EXCEPTION 'netmask_bits must be larger than the netblock (%)',
+			masklen(netblock_rec.ip_address);
+	END IF;
+
+	IF netmask_bits > family_bits
+		THEN
+		RAISE EXCEPTION 'netmask_bits must be no more than % for netblock %',
+			family_bits,
+			netblock_rec.ip_address;
+	END IF;
+
+	IF single_address AND netblock_rec.can_subnet = 'Y' THEN
+		RAISE NOTICE 'single addresses may not be assigned to to a block where can_subnet is Y';
+		RETURN;
+	END IF;
+
+	IF (NOT single_address) AND netblock_rec.can_subnet = 'N' THEN
+		RAISE NOTICE 'Netblock % (%) may not be subnetted',
+			netblock_rec.ip_address,
+			netblock_rec.netblock_id;
+		RETURN;
+	END IF;
+
+	-- It would be nice to be able to use generate_series here, but
+	-- that could get really huge
+
+	nb_size := 1 << ( family_bits - netmask_bits );
+	max_ip := netblock_rec.ip_address + 
+		(1 << (family_bits - masklen(netblock_rec.ip_address)));
+
+	IF allocate_from_bottom THEN
+		current_ip := set_masklen(netblock_rec.ip_address, netmask_bits);
+	ELSE
+		current_ip := set_masklen(max_ip, netmask_bits) - nb_size;
+		nb_size := -nb_size;
+	END IF;
+
+	RAISE DEBUG 'Searching netblock % (%)',
+		netblock_rec.netblock_id,
+		netblock_rec.ip_address;
+
+	-- For single addresses, make the netmask match the netblock of the
+	-- containing block, and skip the network and broadcast addresses
+
+	IF single_address THEN
+		current_ip := 
+			set_masklen(current_ip, masklen(netblock_rec.ip_address)) +
+			nb_size;
+		max_ip := max_ip - 1;
+	END IF;
+
+	RAISE DEBUG 'Starting with IP address % with step of %',
+		current_ip,
+		nb_size;
+
+	matches := 0;
+	WHILE (
+			current_ip >= (CASE WHEN single_address 
+				THEN netblock_rec.ip_address + 1
+				ELSE netblock_rec.ip_address
+				END) AND
+			current_ip < max_ip AND
+			matches < max_addresses
+	) LOOP
+		RAISE DEBUG '   Checking netblock %', current_ip;
+
+		PERFORM * FROM netblock n WHERE
+			n.ip_universe_id = netblock_rec.ip_universe_id AND
+			n.netblock_type = netblock_rec.netblock_type AND
+			-- A block with the parent either contains or is contained
+			-- by this block
+			n.parent_netblock_id = netblock_rec.netblock_id AND
+			CASE WHEN single_address THEN
+				n.ip_address = current_ip
+			ELSE
+				(n.ip_address >>= current_ip OR current_ip >>= n.ip_address)
+			END;
+		IF NOT FOUND THEN
+			find_free_netblocks.ip_address := current_ip;
+			RETURN NEXT;
+			matches := matches + 1;
+		END IF;
+
+		current_ip := current_ip + nb_size;
+	END LOOP;
+	RETURN;
+END;
+$function$
+;
+
+-- DONE WITH proc netblock_utils.find_free_netblocks -> find_free_netblocks 
 --------------------------------------------------------------------
 
 
@@ -5160,6 +4810,62 @@ BEGIN
 END;
 $$;
 
+--------------------------------------------------------------------
+-- DEALING WITH proc verify_device_voe -> verify_device_voe 
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1560064
+CREATE OR REPLACE FUNCTION jazzhands.verify_device_voe()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	voe_sw_pkg_repos		sw_package_repository.sw_package_repository_id%TYPE;
+	os_sw_pkg_repos		operating_system.sw_package_repository_id%TYPE;
+	voe_sym_trx_sw_pkg_repo_id	voe_symbolic_track.sw_package_repository_id%TYPE;
+BEGIN
+
+	IF (NEW.operating_system_id IS NOT NULL)
+	THEN
+		SELECT sw_package_repository_id INTO os_sw_pkg_repos
+			FROM
+				operating_system
+			WHERE
+				operating_system_id = NEW.operating_system_id;
+	END IF;
+
+	IF (NEW.voe_id IS NOT NULL) THEN
+		SELECT sw_package_repository_id INTO voe_sw_pkg_repos
+			FROM
+				voe
+			WHERE
+				voe_id=NEW.voe_id;
+		IF (voe_sw_pkg_repos != os_sw_pkg_repos) THEN
+			RAISE EXCEPTION
+				'Device OS and VOE have different SW Pkg Repositories';
+		END IF;
+	END IF;
+
+	IF (NEW.voe_symbolic_track_id IS NOT NULL) THEN
+		SELECT sw_package_repository_id INTO voe_sym_trx_sw_pkg_repo_id
+			FROM
+				voe_symbolic_track
+			WHERE
+				voe_symbolic_track_id=NEW.voe_symbolic_track_id;
+		IF (voe_sym_trx_sw_pkg_repo_id != os_sw_pkg_repos) THEN
+			RAISE EXCEPTION
+				'Device OS and VOE track have different SW Pkg Repositories';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- DONE WITH proc verify_device_voe -> verify_device_voe 
+--------------------------------------------------------------------
 
 --------------------------------------------------------------------
 --

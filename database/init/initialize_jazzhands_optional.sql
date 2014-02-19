@@ -174,7 +174,7 @@ insert into netblock
          NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
         (net_manip.inet_ptodb('127.0.0.0'), 8, 'Y', 'N',
-        'Allocated', 'default', 'Localhost Network', 'Y');
+        'Allocated', 'default', 'Localhost Network', 'N');
 
 insert into netblock
         (IP_ADDRESS, NETMASK_BITS,IS_IPV4_ADDRESS,IS_SINGLE_ADDRESS,

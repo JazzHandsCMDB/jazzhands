@@ -91,7 +91,9 @@ BEGIN
 	-- wtf. this should never happen
 	RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION person_manip.get_account_collection_id( department varchar, type varchar )
 	RETURNS INTEGER AS $$
@@ -403,7 +405,9 @@ BEGIN
 	);
 	RETURN in_account_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 -- arguably this should be two sequences, one up from 10k, the other
 -- down from 10k.

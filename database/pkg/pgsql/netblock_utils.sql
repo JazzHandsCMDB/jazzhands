@@ -76,7 +76,9 @@ BEGIN
 
 	return par_nbid;
 END;
-$$ LANGUAGE plpgsql;
+$$ 
+-- SET search_path=jazzhands
+LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_netblock_id jazzhands.netblock.netblock_id%type
