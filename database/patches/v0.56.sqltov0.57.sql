@@ -54,6 +54,7 @@ Things to test:
 -- netblock_utils.find_free_netblock netblock_utils.find_free_netblocks
 -- verify_device_voe
 -- verify_layer1_connection verify_physical_connection
+-- dns_non_a_rec_validation
 
 \set ON_ERROR_STOP
 
@@ -1804,27 +1805,56 @@ CREATE TRIGGER trigger_dns_record_update_nontime
 -- DEALING WITH proc dns_rec_type_validation -> dns_rec_type_validation 
 
 -- RECREATE FUNCTION
--- consider NEW oid 1479512
+-- consider NEW oid 1649305
 CREATE OR REPLACE FUNCTION jazzhands.dns_a_rec_validation()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO jazzhands
 AS $function$
+DECLARE
+	_ip		netblock.ip_address%type;
 BEGIN
 	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
 		RAISE EXCEPTION 'Attempt to set % record without a Netblock',
-			NEW.dns_type;
+			NEW.dns_type
+			USING ERRCODE = 'not_null_violation';
 	END IF;
 
 	IF NEW.netblock_Id is not NULL and 
 			( NEW.dns_value IS NOT NULL OR NEW.dns_value_record_id IS NOT NULL ) THEN
-		RAISE EXCEPTION 'Both dns_value and netblock_id may not be set';
+		RAISE EXCEPTION 'Both dns_value and netblock_id may not be set'
+			USING ERRCODE = 'JH200';
 	END IF;
 
 	IF NEW.dns_value IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
-		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set';
+		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set'
+			USING ERRCODE = 'JH200';
 	END IF;
+
+	IF NEW.netblock_id IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
+		RAISE EXCEPTION 'Both netblock_id and dns_value_record_id may not be set'
+			USING ERRCODE = 'JH200';
+	END IF;
+
+	-- XXX need to deal with changing a netblock type and breaking dns_record.. 
+	IF NEW.netblock_id IS NOT NULL THEN
+		SELECT ip_address 
+		  INTO _ip 
+		  FROM netblock
+		 WHERE netblock_id = NEW.netblock_id;
+
+		IF NEW.dns_type = 'A' AND family(_ip) != '4' THEN
+			RAISE EXCEPTION 'A records must be assigned to non-IPv4 records'
+				USING ERRCODE = 'JH201';
+		END IF;
+
+		IF NEW.dns_type = 'AAAA' AND family(_ip) != '6' THEN
+			RAISE EXCEPTION 'AAAA records must be assigned to non-IPv6 records'
+				USING ERRCODE = 'JH201';
+		END IF;
+	END IF;
+
 	RETURN NEW;
 END;
 $function$
@@ -1844,22 +1874,87 @@ DROP FUNCTION IF EXISTS dns_rec_type_validation();
 -- DONE WITH proc dns_rec_type_validation -> dns_rec_type_validation 
 --------------------------------------------------------------------
 
+--------------------------------------------------------------------
+-- DEALING WITH proc dns_non_a_rec_validation -> dns_non_a_rec_validation 
+
+
+-- RECREATE FUNCTION
+-- consider NEW oid 1649307
+CREATE OR REPLACE FUNCTION jazzhands.dns_non_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ip		netblock.ip_address%type;
+BEGIN
+	IF NEW.dns_type NOT in ('A', 'AAAA') AND NEW.dns_value IS NULL THEN
+		RAISE EXCEPTION 'Attempt to set % record without a value',
+			NEW.dns_type
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+DROP TRIGGER IF EXISTS trigger_dns_non_a_rec_validation on DNS_RECORD;
+CREATE TRIGGER trigger_dns_non_a_rec_validation 
+	BEFORE INSERT OR UPDATE ON dns_record 
+	FOR EACH ROW 
+EXECUTE PROCEDURE dns_non_a_rec_validation();
+
+
+
+-- DONE WITH proc dns_non_a_rec_validation -> dns_non_a_rec_validation 
+--------------------------------------------------------------------
+
 
 --------------------------------------------------------------------
 -- DEALING WITH proc dns_rec_prevent_dups -> dns_rec_prevent_dups 
 
-
 -- RECREATE FUNCTION
--- consider NEW oid 667089
+-- consider NEW oid 1649309
 CREATE OR REPLACE FUNCTION jazzhands.dns_rec_prevent_dups()
  RETURNS trigger
- SET search_path=jazzhands
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO jazzhands
 AS $function$
 DECLARE
 	_tally	INTEGER;
 BEGIN
+	-- should not be able to insert the same record(s) twice
+	SELECT	count(*)
+	  INTO	_tally
+	  FROM	dns_record
+	  WHERE
+	  		( dns_name = NEW.dns_name OR 
+				(DNS_name IS NULL AND NEW.dns_name is NULL)
+			)
+		AND
+	  		( dns_domain_id = NEW.dns_domain_id )
+		AND
+	  		( dns_class = NEW.dns_class )
+		AND
+	  		( dns_type = NEW.dns_type )
+		AND 
+	  		( dns_value = NEW.dns_value OR 
+				(dns_value IS NULL and NEW.dns_value is NULL)
+			)
+		AND
+	  		( netblock_id = NEW.netblock_id OR 
+				(netblock_id IS NULL AND NEW.netblock_id is NULL)
+			)
+		AND	is_enabled = 'Y';
+
+	IF _tally != 0 THEN
+		RAISE EXCEPTION 'Attempt to insert the same dns record'
+			USING ERRCODE = 'unique_violation';
+	END IF;
+
 	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
 		IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
 			SELECT	count(*)
@@ -1873,14 +1968,20 @@ BEGIN
 			AND dns_record_id != NEW.DNS_RECORD_ID;
 	
 			IF _tally != 0 THEN
-				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same netblock';
+				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same IP on netblock_id %', NEW.netblock_id
+					USING ERRCODE = 'JH202';
 			END IF;
 		END IF;
 	END IF;
+
 	RETURN NEW;
 END;
 $function$
 ;
+
+-- DONE WITH proc dns_rec_prevent_dups -> dns_rec_prevent_dups 
+--------------------------------------------------------------------
+
 
 CREATE TRIGGER trigger_dns_rec_prevent_dups
         BEFORE INSERT OR UPDATE
@@ -1895,15 +1996,8 @@ CREATE TRIGGER trigger_dns_rec_prevent_dups
 --------------------------------------------------------------------
 -- DEALING WITH proc dns_rec_before -> dns_rec_before 
 
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_rec_before', 'dns_rec_before');
-
--- DROP OLD FUNCTION
--- consider old oid 1495721
--- DROP FUNCTION IF EXISTS dns_rec_before();
-
 -- RECREATE FUNCTION
--- consider NEW oid 1479505
+-- consider NEW oid 1649298
 CREATE OR REPLACE FUNCTION jazzhands.dns_rec_before()
  RETURNS trigger
  LANGUAGE plpgsql

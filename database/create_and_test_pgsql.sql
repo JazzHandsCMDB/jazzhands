@@ -57,7 +57,9 @@ grant create on database jazzhands_new to jazzhands;
 
 
 -- Example Data is used by the tests
+
 begin;
+
 -- set search_path=public;
 \i init/initialize_jazzhands_example.sql
 -- various test records that need to be generified and moved over
@@ -69,6 +71,7 @@ begin;
 
 \i tests/pgsql/location_regression_test.sql
 \i tests/pgsql/netblock_regression_test.sql
+\i tests/pgsql/dns_record_regression_test.sql
 \i tests/pgsql/property_regression_test.sql
 
 rollback;
