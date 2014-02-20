@@ -337,7 +337,9 @@ BEGIN
 	  		( netblock_id = NEW.netblock_id OR 
 				(netblock_id IS NULL AND NEW.netblock_id is NULL)
 			)
-		AND	is_enabled = 'Y';
+		AND	is_enabled = 'Y'
+	    AND dns_record_id != NEW.dns_record_id
+	;
 
 	IF _tally != 0 THEN
 		RAISE EXCEPTION 'Attempt to insert the same dns record'

@@ -35,7 +35,7 @@ DECLARE
 	_ip6id1			netblock.netblock_id%TYPE;
 	_dnsrec			dns_record%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'Cleanup';
+	RAISE NOTICE 'Cleanup Records from Previous Tests';
 	delete from dns_record where dns_name like 'JHTEST%' 
 		or dns_value like 'JHTEST%';
 	delete from netblock where description like 'JHTEST%' 
@@ -54,6 +54,7 @@ BEGIN
 	 INTO	_tally
 	 FROM	dns_change_record;
 
+	-- This should never happen due to the earlier delete..
 	IF _tally > 0 THEN
 		RAISE 'DNS_CHANGE_RECORD has records.  This will confuse testing';
 	END IF;
@@ -147,17 +148,14 @@ BEGIN
 	END IF;
 	DELETE from dns_change_record;
 
+	RAISE NOTICE 'Checking to see if second non-netlock dns_records trigger';
 	INSERT INTO DNS_RECORD (
 		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 		should_generate_ptr
 	) VALUES (
 		'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, 'Y'
 	) RETURNING dns_record_id INTO _dnsrecid1; 
-	SELECT count(*) 
-	  INTO _tally
-	  FROM dns_change_record;
 
-	RAISE NOTICE 'Checking to see if second non-netlock dns_records trigger';
 	SELECT count(*) 
 	  INTO _tally
 	  FROM dns_change_record
@@ -170,6 +168,7 @@ BEGIN
 	END IF;
 	DELETE from dns_change_record;
 
+	-- Note this one is both used immediately and later for a dup test.
 	INSERT INTO DNS_RECORD (
 		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 		should_generate_ptr
@@ -282,7 +281,26 @@ BEGIN
 		RAISE NOTICE 'Inserting two PTR enabled A records fails as expeceted';
 	END;
 
-	-- cleanup
+	RAISE NOTICE 'Testing if switching a PTR record on fails';
+	INSERT INTO DNS_RECORD (
+		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
+		should_generate_ptr
+	) VALUES (
+		'JHTEST-A2alt', _dnsdomid, 'IN', 'A', _ip1id, 'N'
+	) RETURNING dns_record_id INTO _dnsrecid2; 
+
+	RAISE NOTICE 'Checking if multi-PTR update fails..';
+	BEGIN
+		UPDATE dns_record 
+		SET should_generate_ptr = 'Y' 
+		WHERE dns_record_id = _dnsrecid2;
+		RAISE EXCEPTION 'Updating to get two PTR enabled records succeeded';
+	EXCEPTION WHEN SQLSTATE 'JH202' THEN
+		RAISE NOTICE 'Updating to get two PTR enabled A records fails as expeceted';
+	END;
+
+
+	-- cleanup; note this must be run after the above
 	delete from dns_record where dns_name like 'JHTEST%' 
 		or dns_value like 'JHTEST%';
 
@@ -303,11 +321,21 @@ BEGIN
 		RAISE NOTICE 'Inserting the same A record failed as expected';
 	END;
 
+	UPDATE dns_record
+	  SET	netblock_id = netblock_id
+	WHERE	dns_record_id = _dnsrecid1;
+	RAISE NOTICE 'Updating a netblock and setting it to itself worked.';
+
+	UPDATE dns_record
+	  SET	netblock_id = _ip2id
+	WHERE	dns_record_id = _dnsrecid1;
+	RAISE NOTICE 'Updating a netblock to a different IP worked';
+
 	INSERT INTO DNS_RECORD (
 		dns_name, dns_domain_id, dns_class, dns_type, dns_value
 	) VALUES (
 		'JHTEST-CNAME00', _dnsdomid, 'IN', 'CNAME', 'JHTEST-CNAMEVALUE'
-	);
+	) RETURNING DNS_RECORD_ID into _dnsrecid1;
 
 	BEGIN
 		INSERT INTO DNS_RECORD (
@@ -318,6 +346,17 @@ BEGIN
 	EXCEPTION WHEN unique_violation THEN
 		RAISE NOTICE 'Inserting the same CNAME record failed as expected';
 	END;
+
+	RAISE NOTICE 'Attempting to change a CNAME';
+	UPDATE dns_record
+	  SET	dns_value = 'JHTEST-CNAME2'
+	WHERE	dns_record_id = _dnsrecid1;
+	RAISE NOTICE 'Updating a dns_value and setting it to itself worked.';
+
+	UPDATE dns_record
+	  SET	dns_value = dns_value
+	WHERE	dns_record_id = _dnsrecid1;
+	RAISE NOTICE 'Updating a dns_value and setting it to itself worked.';
 
 	RAISE NOTICE '++ Ending test of dns_rec_prevent_dups....';
 

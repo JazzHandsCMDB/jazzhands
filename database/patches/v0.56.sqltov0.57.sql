@@ -1915,6 +1915,7 @@ EXECUTE PROCEDURE dns_non_a_rec_validation();
 --------------------------------------------------------------------
 -- DEALING WITH proc dns_rec_prevent_dups -> dns_rec_prevent_dups 
 
+
 -- RECREATE FUNCTION
 -- consider NEW oid 1649309
 CREATE OR REPLACE FUNCTION jazzhands.dns_rec_prevent_dups()
@@ -1948,7 +1949,9 @@ BEGIN
 	  		( netblock_id = NEW.netblock_id OR 
 				(netblock_id IS NULL AND NEW.netblock_id is NULL)
 			)
-		AND	is_enabled = 'Y';
+		AND	is_enabled = 'Y'
+	    AND dns_record_id != NEW.dns_record_id
+	;
 
 	IF _tally != 0 THEN
 		RAISE EXCEPTION 'Attempt to insert the same dns record'
@@ -1978,6 +1981,7 @@ BEGIN
 END;
 $function$
 ;
+
 
 -- DONE WITH proc dns_rec_prevent_dups -> dns_rec_prevent_dups 
 --------------------------------------------------------------------
