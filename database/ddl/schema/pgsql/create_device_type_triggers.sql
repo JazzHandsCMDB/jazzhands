@@ -43,23 +43,27 @@ BEGIN
 		END IF;
 		IF NEW.RACK_ID IS NULL OR NEW.RACK_U_OFFSET_OF_DEVICE_TOP IS NULL
 				OR NEW.RACK_SIDE IS NULL THEN
-			RAISE EXCEPTION 'LOCATION.RACK_* Values must be set if one is set.';
+			RAISE EXCEPTION 'LOCATION.RACK_* Values must be set if one is set.'
+				USING ERRCODE = 'not_null_violation';
 		END IF;
 		IF NEW.DEVICE_TYPE_MODULE_NAME IS NOT NULL THEN
-			RAISE EXCEPTION 'LOCATION.RACK_* must not be set at the same time as DEVICE_MODULE_NAME';
+			RAISE EXCEPTION 'LOCATION.RACK_* must not be set at the same time as DEVICE_MODULE_NAME'
+				USING ERRCODE = 'JH350';
 		END IF;
 	ELSE
 		IF NEW.DEVICE_TYPE_MODULE_NAME IS NULL THEN
-			RAISE EXCEPTION 'All of LOCATION.RACK_* or DEVICE_MODULE_NAME must be set.';
+			RAISE EXCEPTION 'All of LOCATION.RACK_* or DEVICE_MODULE_NAME must be set.'
+				USING ERRCODE = 'not_null_violation';
 		ELSE
 			SELECT	COUNT(*)
 			  INTO	_tally
 			  FROM	device_type_module
 			 WHERE	(NEW.device_type_id, NEW.device_type_module_name) 
-			 		IN (device_type_id, device_type_module_name) ;
+			 		= (device_type_id, device_type_module_name) ;
 
-			IF _tally == 0 THEN
-				RAISE EXCEPTION '(device_type_id, device_type_module_name) must exist in device_type_module.';
+			IF _tally = 0 THEN
+				RAISE EXCEPTION '(device_type_id, device_type_module_name) must exist in device_type_module.'
+					USING ERRCODE = 'foreign_key_violation';
 			END IF;
 		END IF;
 	END IF;
@@ -86,11 +90,12 @@ BEGIN
 	SELECT	COUNT(*)
 	  INTO	_tally
 	  FROM	location
-	 WHERE	(OLD.device_type_id, OLD.device_type_module_name) 
-		 		IN (device_type_id, device_type_module_name) ;
+	 WHERE	(OLD.device_type_id, OLD.device_type_module_name)  =
+		 		(device_type_id, device_type_module_name) ;
 
-	IF _tally == 0 THEN
-		RAISE EXCEPTION '(device_type_id, device_type_module_name) must NOT exist in location.';
+	IF _tally > 0 THEN
+		RAISE EXCEPTION '(device_type_id, device_type_module_name) must NOT exist in location.'
+			USING ERRCODE = 'foreign_key_violation';
 	END IF;
 	
 	RETURN OLD;
@@ -116,7 +121,8 @@ CREATE OR REPLACE FUNCTION device_type_module_sanity_set()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.DEVICE_TYPE_Z_OFFSET IS NOT NULL AND NEW.DEVICE_TYPE_SIDE IS NOT NULL THEN
-		RAISE EXCEPTION 'Both Z Offset and Device_Type_Side may not be set';
+		RAISE EXCEPTION 'Both Z Offset and Device_Type_Side may not be set'
+			USING ERRCODE = 'JH350';
 	END IF;
 	RETURN NEW;
 END;
@@ -125,9 +131,8 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_device_type_module_sanity_set 
 	ON device_type_module;
-
 CREATE TRIGGER trigger_device_type_module_sanity_set 
-	BEFORE INSERT OR DELETE ON device_type_module 
+	BEFORE INSERT OR UPDATE ON device_type_module 
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_module_sanity_set();
 
