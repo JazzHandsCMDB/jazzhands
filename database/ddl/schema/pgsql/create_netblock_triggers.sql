@@ -1,4 +1,4 @@
--- Copyright (c) 2012, Matthew Ragan
+-- Copyright (c) 2012,2013,2014 Matthew Ragan
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,7 +78,7 @@ BEGIN
 
 	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
 		RAISE EXCEPTION 'Single addresses may not be subnettable'
-			USING ERRCODE = 22106;
+			USING ERRCODE = 'JH106';
 	END IF;
 
 	IF NEW.is_single_address = 'N' AND (NEW.ip_address != cidr(NEW.ip_address))
@@ -86,7 +86,7 @@ BEGIN
 		RAISE EXCEPTION
 			'Non-network bits must be zero if is_single_address is N for %',
 			NEW.ip_address
-			USING ERRCODE = 22103;
+			USING ERRCODE = 'JH103';
 	END IF;
 
 	/*
@@ -406,7 +406,7 @@ BEGIN
 
 	IF FOUND THEN
 		RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
-			USING ERRCODE = 22109;
+			USING ERRCODE = 'JH109';
 	END IF;
 
 	RAISE DEBUG '... OK';
@@ -422,9 +422,9 @@ BEGIN
 			NEW.netblock_id;
 
 		IF realnew.is_single_address = 'Y' THEN
-			RAISE 'A single address (%) must be the child of a parent netblock',
+			RAISE 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N',
 				realnew.ip_address
-				USING ERRCODE = 22105;
+				USING ERRCODE = 'JH105';
 		END IF;
 
 		/*
@@ -446,7 +446,7 @@ BEGIN
 
 			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
 				realnew.netblock_id, realnew.ip_address,
-				parent_nbid, nbrec.ip_address USING ERRCODE = 22102;
+				parent_nbid, nbrec.ip_address USING ERRCODE = 'JH102';
 		END IF;
 
 		/*
@@ -461,7 +461,7 @@ BEGIN
 			ip_address <<= NEW.ip_address;
 		IF FOUND THEN
 			RAISE EXCEPTION 'Other top-level netblocks should belong to this parent'
-				USING ERRCODE = 22108;
+				USING ERRCODE = 'JH108';
 		END IF;
 	ELSE
 	 	/*
@@ -469,7 +469,7 @@ BEGIN
 		 */
 	 	IF realnew.parent_netblock_id = realnew.netblock_id THEN
 			RAISE EXCEPTION 'Netblock may not have itself as a parent'
-				USING ERRCODE = 22101;
+				USING ERRCODE = 'JH101';
 		END IF;
 
 		SELECT * INTO nbrec FROM netblock WHERE netblock_id =
@@ -481,32 +481,32 @@ BEGIN
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'Parent netblock % does not exist',
 			realnew.parent_netblock_id
-			USING ERRCODE = 23503;
+			USING ERRCODE = 'foreign_key_violation';
 		END IF;
 
 		IF nbrec.is_single_address = 'Y' THEN
-			RAISE EXCEPTION 'Parent netblock % of single address % may not also be a single address',
+			RAISE EXCEPTION 'A parent netblock (% for %) may not be a single address',
 			nbrec.netblock_id, realnew.ip_address
-			USING ERRCODE = 22110;
+			USING ERRCODE = 'JH10A';
 		END IF;
 
 		IF nbrec.ip_universe_id != realnew.ip_universe_id OR
 				nbrec.netblock_type != realnew.netblock_type THEN
 			RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
-			USING ERRCODE = 22109;
+			USING ERRCODE = 'JH109';
 		END IF;
 
 		IF nbtype.is_validated_hierarchy='N' THEN
 			/*
-			 * validated hierarchy addresses may not have the best parent as
+			 * non-validated hierarchy addresses may not have the best parent as
 			 * a parent, but if they have a parent, it should be a superblock
 			 */
 
 			IF NOT (realnew.ip_address << nbrec.ip_address OR
 					cidr(realnew.ip_address) != nbrec.ip_address) THEN
-				RAISE EXCEPTION 'Parent netblock % (%)  is not a valid parent for %',
+				RAISE EXCEPTION 'Parent netblock % (%) is not a valid parent for %',
 					nbrec.ip_address, nbrec.netblock_id, realnew.ip_address
-					USING ERRCODE = 22102;
+					USING ERRCODE = 'JH104';
 			END IF;
 		ELSE
 			parent_nbid := netblock_utils.find_best_parent_id(
@@ -525,17 +525,24 @@ BEGIN
 				IF FOUND THEN
 					RAISE EXCEPTION 'A non-subnettable netblock (%) may not have child network netblocks',
 					realnew.netblock_id
-					USING ERRCODE = 22111;
+					USING ERRCODE = 'JH10B';
 				END IF;
 			END IF;
 			IF realnew.is_single_address = 'Y' THEN
-				SELECT ip_address INTO ipaddr FROM netblock
+				SELECT * INTO nbrec FROM netblock
 					WHERE netblock_id = realnew.parent_netblock_id;
-				IF (masklen(realnew.ip_address) != masklen(ipaddr)) THEN
-					RAISE 'Parent netblock % does not have same netmask as single address child % (% vs %)',
+				IF (nbrec.can_subnet = 'Y') THEN
+					RAISE 'Parent netblock % for single-address % must have can_subnet=N',
+						nbrec.netblock_id,
+						realnew.ip_address
+						USING ERRCODE = 'JH10D';
+				END IF;
+				IF (masklen(realnew.ip_address) != 
+						masklen(nbrec.ip_address)) THEN
+					RAISE 'Parent netblock % does not have same netmask as single-address child % (% vs %)',
 						parent_nbid, realnew.netblock_id, masklen(ipaddr),
 						masklen(realnew.ip_address)
-						USING ERRCODE = 22105;
+						USING ERRCODE = 'JH105';
 				END IF;
 			END IF;
 			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
@@ -550,7 +557,7 @@ BEGIN
 					realnew.parent_netblock_id, ipaddr,
 					realnew.netblock_id, realnew.ip_address,
 					parent_nbid, parent_ipaddr
-					USING ERRCODE = 22102;
+					USING ERRCODE = 'JH102';
 			END IF;
 			/*
 			 * Validate that all children are is_single_address='Y' or
@@ -568,7 +575,7 @@ BEGIN
 					realnew.parent_netblock_id;
 				RAISE EXCEPTION 'Netblock % (%) may not have direct children for both single and multiple addresses simultaneously',
 					nbrec.netblock_id, nbrec.ip_address
-					USING ERRCODE = 22107;
+					USING ERRCODE = 'JH107';
 			END IF;
 			/*
 			 *  If we're updating and we changed our ip_address (including
@@ -585,7 +592,7 @@ BEGIN
 				IF FOUND THEN
 					RAISE EXCEPTION 'Update for netblock % (%) causes parent to have children that do not belong to it',
 						realnew.netblock_id, realnew.ip_address
-						USING ERRCODE = 22112;
+						USING ERRCODE = 'JH10E';
 				END IF;
 			END IF;
 
@@ -602,7 +609,7 @@ BEGIN
 				IF FOUND THEN
 					RAISE EXCEPTION 'Other netblocks have children that should belong to parent % (%)',
 						realnew.parent_netblock_id, realnew.ip_address
-						USING ERRCODE = 22108;
+						USING ERRCODE = 'JH108';
 				END IF;
 			END IF;
 		END IF;
