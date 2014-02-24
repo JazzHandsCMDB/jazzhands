@@ -120,7 +120,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22106' THEN
+		WHEN SQLSTATE 'JH106' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -136,7 +136,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22103' THEN
+		WHEN SQLSTATE 'JH103' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -308,7 +308,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+		('172.31.1.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'N',
 			a_netblock_list[14],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -347,7 +347,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22109' THEN
+		WHEN SQLSTATE 'JH109' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -364,7 +364,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22109' THEN
+		WHEN SQLSTATE 'JH109' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -381,7 +381,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22105' THEN
+		WHEN SQLSTATE 'JH105' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -398,7 +398,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22102' THEN
+		WHEN SQLSTATE 'JH102' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -420,7 +420,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22101' THEN
+		WHEN SQLSTATE 'JH101' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -437,7 +437,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22102' THEN
+		WHEN SQLSTATE 'JH102' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -454,7 +454,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22102' THEN
+		WHEN SQLSTATE 'JH102' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -472,7 +472,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22102' THEN
+		WHEN SQLSTATE 'JH102' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -490,7 +490,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22105' THEN
+		WHEN SQLSTATE 'JH105' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -507,7 +507,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22107' THEN
+		WHEN SQLSTATE 'JH107' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -525,7 +525,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22108' THEN
+		WHEN SQLSTATE 'JH108' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -536,7 +536,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22109' THEN
+		WHEN SQLSTATE 'JH109' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -547,7 +547,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22109' THEN
+		WHEN SQLSTATE 'JH109' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -558,7 +558,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22105' THEN
+		WHEN SQLSTATE 'JH105' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -569,7 +569,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22102' THEN
+		WHEN SQLSTATE 'JH102' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -580,7 +580,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22101' THEN
+		WHEN SQLSTATE 'JH101' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -591,7 +591,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22102' THEN
+		WHEN SQLSTATE 'JH102' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -603,7 +603,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22105' THEN
+		WHEN SQLSTATE 'JH105' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -615,7 +615,7 @@ BEGIN
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
 	EXCEPTION
-		WHEN SQLSTATE '22112' THEN
+		WHEN SQLSTATE 'JH10E' THEN
 			RAISE NOTICE '        ... Failed correctly';
 	END;
 
@@ -637,7 +637,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.0/24', 24, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
+		('172.31.1.0/24', 24, 'JHTEST-auto', 'Y', 'N', 'N', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -731,7 +731,7 @@ BEGIN
 		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 		RAISE '        INSERT ALLOWED - THIS IS A PROBLEM';
 	EXCEPTION
-		WHEN SQLSTATE '22105' THEN
+		WHEN SQLSTATE 'JH105' THEN
 			SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 			RAISE NOTICE '        insert failed correctly';
 	END;
@@ -909,53 +909,54 @@ BEGIN
 -- children get readdressed
 --
 
-	RAISE NOTICE '    Inserting 172.31.1.16/24 that is a single address';
-	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
-		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
-		 ip_universe_id)
-	VALUES
-		('172.31.1.16/24', 24, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
-			'Allocated', a_ip_universe[0])
-	RETURNING * INTO netblock_rec;
-	a_netblock_list[19] = netblock_rec.netblock_id;
+--	RAISE NOTICE '    Inserting 172.31.1.16/24 that is a single address';
+--	INSERT INTO netblock 
+--		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+--		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
+--		 ip_universe_id)
+--	VALUES
+--		('172.31.1.16/24', 24, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
+--			'Allocated', a_ip_universe[0])
+--	RETURNING * INTO netblock_rec;
+--	a_netblock_list[19] = netblock_rec.netblock_id;
+--
+--	RAISE NOTICE '    Changing netmask for 172.31.1.0/24 to /26 to validate children mask changes';
+--	UPDATE netblock SET ip_address = set_masklen(ip_address, 26),
+--		netmask_bits = NULL
+--	WHERE
+--		netblock_id = netblock_rec.parent_netblock_id;
+--
+--	SELECT * INTO netblock_rec FROM netblock WHERE netblock_id =
+--		a_netblock_list[19];
+--
+--	IF masklen(netblock_rec.ip_address) = 26 THEN
+--		RAISE NOTICE '        Child netblock is now a /26';
+--	ELSE
+--		RAISE '        Child netblock is /% (should be /26)',
+--			masklen(netblock_rec.ip_address);
+--	END IF;
+--
+--	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+--	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+--
+--	RAISE NOTICE '    Readdressing netblock to be too small for its children';
+--
+--	BEGIN
+--		UPDATE netblock SET ip_address = set_masklen(ip_address, 29),
+--			netmask_bits = NULL
+--		WHERE
+--			netblock_id = netblock_rec.parent_netblock_id;
+--		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+--		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+--	EXCEPTION
+--		WHEN SQLSTATE 'JH105' THEN
+--			SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
+--			RAISE NOTICE '        failed corectly';
+--	END;
+--
+--	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
+--	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 
-	RAISE NOTICE '    Changing netmask for 172.31.1.0/24 to /26 to validate children mask changes';
-	UPDATE netblock SET ip_address = set_masklen(ip_address, 26),
-		netmask_bits = NULL
-	WHERE
-		netblock_id = netblock_rec.parent_netblock_id;
-
-	SELECT * INTO netblock_rec FROM netblock WHERE netblock_id =
-		a_netblock_list[19];
-
-	IF masklen(netblock_rec.ip_address) = 26 THEN
-		RAISE NOTICE '        Child netblock is now a /26';
-	ELSE
-		RAISE '        Child netblock is /% (should be /26)',
-			masklen(netblock_rec.ip_address);
-	END IF;
-
-	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
-	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
-
-	RAISE NOTICE '    Readdressing netblock to be too small for its children';
-
-	BEGIN
-		UPDATE netblock SET ip_address = set_masklen(ip_address, 29),
-			netmask_bits = NULL
-		WHERE
-			netblock_id = netblock_rec.parent_netblock_id;
-		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
-		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
-	EXCEPTION
-		WHEN SQLSTATE '22105' THEN
-			SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
-			RAISE NOTICE '        failed corectly';
-	END;
-
-	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
-	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 --
 -- Yay!  We're done!
 --

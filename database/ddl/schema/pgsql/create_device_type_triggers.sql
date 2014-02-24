@@ -15,104 +15,126 @@
  * limitations under the License.
  */
 
--- (1) Previously, location.rack_* were NOT NULL.  Now trigger will enforce
---     that either all of rack_* or device_type_module_name is set but not
---     both.
--- (2) When device_type_module_name is set, there will be
---     trigger enforcement to ensure that it acts like a fk to
---     device_type_module.(device_type_id,device_type_module_name).  I did
---     not set this because it is possible for location.device_type_id to be
---     set to NULL when its not a device in a device
-CREATE OR REPLACE FUNCTION location_complex_sanity() 
+
+-- These next two triggers go away with device.location_id does.
+
+--
+-- This trigger enforces that new inserts only set one of location_id or
+-- rack_location_id
+--
+-- It also enforces that if something updates rack_location_id that  it does
+-- not also update location_id.
+CREATE OR REPLACE FUNCTION aaa_device_location_migration_2() 
 RETURNS TRIGGER AS $$
 DECLARE
-	_tally	INTEGER;
 BEGIN
-	--
-	-- If rack_* is set, then all rack_* must be set.
-	--
-	-- If rack_* is set, then device_type_module must not be set.
-	--
-	-- device_type_module_name is special
-	--
-	IF NEW.RACK_ID IS NOT NULL OR NEW.RACK_U_OFFSET_OF_DEVICE_TOP IS NOT NULL
-			OR NEW.RACK_SIDE IS NOT NULL THEN
-		-- default
-		IF NEW.RACK_SIDE IS NULL THEN
-			NEW.RACK_SIDE = 'FRONT';
-		END IF;
-		IF NEW.RACK_ID IS NULL OR NEW.RACK_U_OFFSET_OF_DEVICE_TOP IS NULL
-				OR NEW.RACK_SIDE IS NULL THEN
-			RAISE EXCEPTION 'LOCATION.RACK_* Values must be set if one is set.'
-				USING ERRCODE = 'not_null_violation';
-		END IF;
-		IF NEW.DEVICE_TYPE_MODULE_NAME IS NOT NULL THEN
-			RAISE EXCEPTION 'LOCATION.RACK_* must not be set at the same time as DEVICE_MODULE_NAME'
-				USING ERRCODE = 'JH350';
-		END IF;
-	ELSE
-		IF NEW.DEVICE_TYPE_MODULE_NAME IS NULL THEN
-			RAISE EXCEPTION 'All of LOCATION.RACK_* or DEVICE_MODULE_NAME must be set.'
-				USING ERRCODE = 'not_null_violation';
-		ELSE
-			SELECT	COUNT(*)
-			  INTO	_tally
-			  FROM	device_type_module
-			 WHERE	(NEW.device_type_id, NEW.device_type_module_name) 
-			 		= (device_type_id, device_type_module_name) ;
-
-			IF _tally = 0 THEN
-				RAISE EXCEPTION '(device_type_id, device_type_module_name) must exist in device_type_module.'
-					USING ERRCODE = 'foreign_key_violation';
+	IF TG_OP = 'INSERT' THEN
+		IF NEW.rack_location_id is not null and NEW.location_id is NOT NULL THEN
+			RAISE EXCEPTION 'Only rack_location_id should be set.  Location_Id is going away.'
+				USING ERRCODE = 'JH0FF';
+		ELSIF NEW.rack_location_id IS NOT NULL OR NEW.location_Id IS NOT NULL THEN
+			IF NEW.rack_location_id IS NULL THEN
+				NEW.rack_location_id = NEW.location_id;
+			ELSIF NEW.location_id IS NULL THEN
+				NEW.location_id = NEW.rack_location_id;
+			ELSE
+				RAISE EXCEPTION 'This shold never happen';
 			END IF;
 		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		if OLD.RACK_LOCATION_ID != NEW.RACK_LOCATION_ID THEN
+			IF NEW.LOCATION_ID != OLD.LOCATION_ID THEN
+				RAISE EXCEPTION 'Only rack_location_id should be set.  Location_Id is going away.'
+					USING ERRCODE = 'JH0FF';
+			END IF;
+			NEW.RACK_LOCATION_ID := NEW.LOCATION_ID;
+		END IF;
 	END IF;
-	
+
 	RETURN NEW;
 END;
 $$ 
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_location_complex_sanity ON location;
-CREATE TRIGGER trigger_location_complex_sanity 
-	BEFORE INSERT OR UPDATE
-	ON location 
+DROP TRIGGER IF EXISTS trigger_aaa_device_location_migration_2 ON device;
+CREATE TRIGGER trigger_aaa_device_location_migration_2 
+	BEFORE INSERT OR UPDATE of RACK_LOCATION_ID
+	ON device 
 	FOR EACH ROW
-	EXECUTE PROCEDURE location_complex_sanity();
+	EXECUTE PROCEDURE aaa_device_location_migration_2();
 
 
-CREATE OR REPLACE FUNCTION device_type_module_sanity_del() 
+-- This ensures that if someone is updating location_id that they are not
+-- also updating rack_location_id.  It runs before the previous trigger, but it
+-- provides a similar sanity chek as the update clause of there.
+CREATE OR REPLACE FUNCTION aaa_device_location_migration_1() 
 RETURNS TRIGGER AS $$
 DECLARE
-	_tally	INTEGER;
 BEGIN
-	SELECT	COUNT(*)
-	  INTO	_tally
-	  FROM	location
-	 WHERE	(OLD.device_type_id, OLD.device_type_module_name)  =
-		 		(device_type_id, device_type_module_name) ;
-
-	IF _tally > 0 THEN
-		RAISE EXCEPTION '(device_type_id, device_type_module_name) must NOT exist in location.'
-			USING ERRCODE = 'foreign_key_violation';
+	-- If location_id did not really change, then there is nothing to do here,
+	-- although it is fishy
+	if OLD.LOCATION_ID != NEW.LOCATION_ID THEN
+		IF NEW.LOCATION_ID = NEW.RACK_LOCATION_ID THEN
+			RAISE EXCEPTION 'Only rack_location_id should be set.  Location_Id is going away.'
+				USING ERRCODE = 'JH0FF';
+		END IF;
+		NEW.RACK_LOCATION_ID := NEW.LOCATION_ID;
+	else
+		RAISE NOTICE 'aaa_device_location_migration_1 called for no apparent reason. This is fishy';
 	END IF;
-	
-	RETURN OLD;
+	return NEW;
 END;
 $$ 
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_device_type_module_sanity_del 
-	ON device_type_module;
-
-CREATE TRIGGER trigger_device_type_module_sanity_del 
-	BEFORE DELETE ON device_type_module 
+DROP TRIGGER IF EXISTS trigger_aaa_device_location_migration_1 ON device;
+CREATE TRIGGER trigger_aaa_device_location_migration_1 
+	BEFORE UPDATE of LOCATION_ID
+	ON device 
 	FOR EACH ROW
-	EXECUTE PROCEDURE device_type_module_sanity_del();
+	EXECUTE PROCEDURE aaa_device_location_migration_1();
 
 
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+-- 
+-- column retirement triggers above, below, not so much.
+--
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION device_one_location_validate() 
+RETURNS TRIGGER AS $$
+DECLARE
+BEGIN
+	IF NEW.RACK_LOCATION_ID IS NOT NULL AND NEW.CHASSIS_LOCATION_ID IS NOT NULL THEN
+		RAISE EXCEPTION 'Both Rack_Location_Id and Chassis_Location_Id may not be set.'
+			USING ERRCODE = 'unique_violation';
+	END IF;
+
+	IF NEW.CHASSIS_LOCATION_ID IS NOT NULL AND NEW.PARENT_DEVICE_ID IS NULL THEN
+		RAISE EXCEPTION 'Must set parent_device_id if setting chassis location.'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_one_location_validate ON device;
+CREATE TRIGGER trigger_device_one_location_validate 
+	BEFORE INSERT OR UPDATE -- OF RACK_LOCATION_ID, CHASSIS_LOCATION_ID, PARENT_DEVICE_ID
+	ON device 
+	FOR EACH ROW
+	EXECUTE PROCEDURE device_one_location_validate();
+
+
+----------------------------------------------------------------------------
 
 -- Only one of device_type_module_z or device_type_side may be set.  If
 -- the former, it means the module is inside the device, if the latter, its
@@ -122,7 +144,7 @@ RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.DEVICE_TYPE_Z_OFFSET IS NOT NULL AND NEW.DEVICE_TYPE_SIDE IS NOT NULL THEN
 		RAISE EXCEPTION 'Both Z Offset and Device_Type_Side may not be set'
-			USING ERRCODE = 'JH350';
+			USING ERRCODE = 'JH001';
 	END IF;
 	RETURN NEW;
 END;
@@ -135,4 +157,77 @@ CREATE TRIGGER trigger_device_type_module_sanity_set
 	BEFORE INSERT OR UPDATE ON device_type_module 
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_module_sanity_set();
+
+-- 
+-- device types marked with is_chassis = 'Y' need to keep that if there
+-- are device_type_modules associated.
+-- 
+CREATE OR REPLACE FUNCTION device_type_chassis_check()
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF TG_OP != 'UPDATE' THEN
+		RAISE EXCEPTION 'This should not happen %!', TG_OP;
+	END IF;
+	IF OLD.is_chassis = 'Y' THEN
+		IF NEW.is_chassis = 'N' THEN
+			SELECT 	count(*)
+			  INTO	_tally
+			  FROM	device_type_module
+			 WHERE	device_type_id = NEW.device_type_id;
+
+			IF _tally >  0 THEN
+				RAISE EXCEPTION 'Is_chassis must be Y when a device_type still has device_type_module s'
+					USING ERRCODE = 'foreign_key_violation';
+			END IF;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_type_chassis_check 
+	ON device_type;
+CREATE TRIGGER trigger_device_type_chassis_check 
+	BEFORE UPDATE OF is_chassis
+	ON device_type
+	FOR EACH ROW
+	EXECUTE PROCEDURE device_type_chassis_check();
+
+--
+-- related to above.  device_type_module.device_type_id must have
+-- 
+--
+CREATE OR REPLACE FUNCTION device_type_module_chassis_check()
+RETURNS TRIGGER AS $$
+DECLARE
+	_ischass	device_type.is_chassis%TYPE;
+BEGIN
+	SELECT 	is_chassis
+	  INTO	_ischass
+	  FROM	device_type
+	 WHERE	device_type_id = NEW.device_type_id;
+
+	IF _ischass = 'N' THEN
+		RAISE EXCEPTION 'Is_chassis must be Y for chassis device_types'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	RETURN NEW;
+
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_type_module_chassis_check 
+	ON device_type_module;
+CREATE TRIGGER trigger_device_type_module_chassis_check 
+	BEFORE INSERT OR UPDATE of DEVICE_TYPE_ID
+	ON device_type_module 
+	FOR EACH ROW
+	EXECUTE PROCEDURE device_type_module_chassis_check();
 

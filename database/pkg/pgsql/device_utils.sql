@@ -41,8 +41,21 @@
  * $Id$
  */
 
-drop schema if exists device_utils cascade;
-create schema device_utils authorization jazzhands;
+-- Create schema if it does not exist, do nothing otherwise.
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'device_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS device_utils;
+                CREATE SCHEMA device_utils AUTHORIZATION jazzhands;
+        END IF;
+END;
+$$;
 
 
 -------------------------------------------------------------------
@@ -61,19 +74,19 @@ CREATE OR REPLACE FUNCTION device_utils.retire_device_ancillary (
 	in_Device_id device.device_id%type
 ) RETURNS VOID AS $$
 DECLARE
-	v_loc_id	location.location_id%type;
+	v_loc_id	rack_location.rack_location_id%type;
 BEGIN
 	delete from device_collection_device where device_id = in_Device_id;
 	delete from snmp_commstr where device_id = in_Device_id;
 
-	select	location_id
+	select	rack_location_id
 	  into	v_loc_id
 	  from	device
 	 where	device_id = in_Device_id;
 
 	IF v_loc_id is not NULL  THEN
-		update device set location_Id = NULL where device_id = in_device_id;
-		delete from location where location_id = v_loc_id;
+		update device set rack_location_Id = NULL where device_id = in_device_id;
+		delete from rack_location where rack_location_id = v_loc_id;
 	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

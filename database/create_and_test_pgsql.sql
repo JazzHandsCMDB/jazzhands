@@ -70,9 +70,13 @@ begin;
 \i ../../omniscient/test_netblock_collection.sql
 
 \i tests/pgsql/location_regression_test.sql
+\i tests/pgsql/location_regression_test-RETIRE.sql
 \i tests/pgsql/netblock_regression_test.sql
+\i tests/pgsql/netblock_regression_test-RETIRE.sql
 \i tests/pgsql/dns_record_regression_test.sql
 \i tests/pgsql/property_regression_test.sql
+\i tests/pgsql/device_ticket_regression.sql
+\i tests/pgsql/device_power_regression.sql
 
 rollback;
 -- RAISE EXCEPTION 'need to put transactions back in testing';

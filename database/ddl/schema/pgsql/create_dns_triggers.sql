@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012 Todd Kover
+ * Copyright (c) 2012-2014 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -220,7 +220,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_update_nontime ON dns_record;
 CREATE TRIGGER trigger_dns_record_update_nontime 
-	BEFORE INSERT OR UPDATE OR DELETE
+	AFTER INSERT OR UPDATE OR DELETE
 	ON dns_record 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE dns_record_update_nontime();
@@ -240,17 +240,17 @@ BEGIN
 	IF NEW.netblock_Id is not NULL and 
 			( NEW.dns_value IS NOT NULL OR NEW.dns_value_record_id IS NOT NULL ) THEN
 		RAISE EXCEPTION 'Both dns_value and netblock_id may not be set'
-			USING ERRCODE = 'JH200';
+			USING ERRCODE = 'JH001';
 	END IF;
 
 	IF NEW.dns_value IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
 		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set'
-			USING ERRCODE = 'JH200';
+			USING ERRCODE = 'JH001';
 	END IF;
 
 	IF NEW.netblock_id IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
 		RAISE EXCEPTION 'Both netblock_id and dns_value_record_id may not be set'
-			USING ERRCODE = 'JH200';
+			USING ERRCODE = 'JH001';
 	END IF;
 
 	-- XXX need to deal with changing a netblock type and breaking dns_record.. 
@@ -262,12 +262,12 @@ BEGIN
 
 		IF NEW.dns_type = 'A' AND family(_ip) != '4' THEN
 			RAISE EXCEPTION 'A records must be assigned to non-IPv4 records'
-				USING ERRCODE = 'JH201';
+				USING ERRCODE = 'JH200';
 		END IF;
 
 		IF NEW.dns_type = 'AAAA' AND family(_ip) != '6' THEN
 			RAISE EXCEPTION 'AAAA records must be assigned to non-IPv6 records'
-				USING ERRCODE = 'JH201';
+				USING ERRCODE = 'JH200';
 		END IF;
 	END IF;
 
@@ -360,7 +360,7 @@ BEGIN
 	
 			IF _tally != 0 THEN
 				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same IP on netblock_id %', NEW.netblock_id
-					USING ERRCODE = 'JH202';
+					USING ERRCODE = 'JH201';
 			END IF;
 		END IF;
 	END IF;
@@ -377,4 +377,40 @@ CREATE TRIGGER trigger_dns_rec_prevent_dups
 	ON dns_record 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE dns_rec_prevent_dups();
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_domain_trigger_change()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF new.SHOULD_GENERATE = 'Y' THEN
+		insert into DNS_CHANGE_RECORD
+			(dns_domain_id) VALUES (NEW.dns_domain_id);
+	END IF;	
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
+CREATE TRIGGER trigger_dns_domain_trigger_change 
+	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl, soa_serial,
+		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
+		soa_rname, should_generate
+	ON dns_domain 
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_domain_trigger_change();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_change_record_pgnotify()
+RETURNS TRIGGER AS $$
+BEGIN
+	NOTIFY dns_zone_gen;
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_change_record_pgnotify ON dns_change_record;
+CREATE TRIGGER trigger_dns_change_record_pgnotify 
+	AFTER INSERT OR UPDATE 
+	ON dns_change_record 
+	EXECUTE PROCEDURE dns_change_record_pgnotify();

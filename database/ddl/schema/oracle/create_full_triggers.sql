@@ -120,6 +120,12 @@ DROP TRIGGER TIB_BADGE_TYPE;
 
 DROP TRIGGER TUB_BADGE_TYPE;
 
+DROP TRIGGER C_TIUBR_CHASSIS_LOCATION;
+
+DROP TRIGGER TIB_CHASSIS_LOCATION;
+
+DROP TRIGGER TUB_CHASSIS_LOCATION;
+
 DROP TRIGGER C_TIUBR_CIRCUIT;
 
 DROP TRIGGER TIB_CIRCUIT;
@@ -304,12 +310,6 @@ DROP TRIGGER TIB_LAYER2_ENCAPSULATION;
 
 DROP TRIGGER TUB_LAYER2_ENCAPSULATION;
 
-DROP TRIGGER C_TIUBR_LOCATION;
-
-DROP TRIGGER TIB_LOCATION;
-
-DROP TRIGGER TUB_LOCATION;
-
 DROP TRIGGER C_TIUBR_NETBLOCK;
 
 DROP TRIGGER K_TAIU_NONROW_NETBLOCK;
@@ -473,6 +473,12 @@ DROP TRIGGER TIB_RACK;
 DROP TRIGGER C_TIUBR_RACK;
 
 DROP TRIGGER TUB_RACK;
+
+DROP TRIGGER C_TIUBR_RACK_LOCATION;
+
+DROP TRIGGER TIB_RACK_LOCATION;
+
+DROP TRIGGER TUB_RACK_LOCATION;
 
 DROP TRIGGER C_TIUBR_SECONDARY_NETBLOCK;
 
@@ -3298,6 +3304,144 @@ end;
 
 
 ALTER TRIGGER TUB_BADGE_TYPE
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_CHASSIS_LOCATION
+ BEFORE INSERT OR UPDATE
+ ON CHASSIS_LOCATION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_CHASSIS_LOCATION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TIB_CHASSIS_LOCATION
+ BEFORE INSERT
+ ON CHASSIS_LOCATION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    IF (:new.CHASSIS_LOCATION_ID IS NULL)
+    THEN
+        select SEQ_CHASSIS_LOCATION_ID.NEXTVAL
+        INTO :new.CHASSIS_LOCATION_ID
+        from dual;
+    END IF;
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TIB_CHASSIS_LOCATION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_CHASSIS_LOCATION
+ BEFORE UPDATE OF 
+        CHASSIS_LOCATION_ID,
+        DATA_INS_DATE,
+        DATA_INS_USER
+ ON CHASSIS_LOCATION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_CHASSIS_LOCATION
 	ENABLE;
 
 
@@ -7852,151 +7996,6 @@ ALTER TRIGGER TUB_LAYER2_ENCAPSULATION
 	ENABLE;
 
 
-CREATE  OR REPLACE  TRIGGER C_TIUBR_LOCATION
- BEFORE INSERT OR UPDATE
- ON LOCATION
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-    V_CONTEXT_USER  VARCHAR2(256):=NULL;
-
-begin
-    -- Context should be used by apps to list the end-user id.
-    -- if it is filled, then concatenate it on.
-    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
-    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
-
-    IF INSERTING
-    THEN
-        -- Override whatever is passed with context user
-        :new.data_ins_user:=V_CONTEXT_USER;
-
-        -- Force date to be sysdate
-        :new.data_ins_date:=sysdate;
-    END IF;
-
-    IF UPDATING
-    THEN
-        -- Preventing changes to insert user and date columns happens in
-        -- another trigger
-
-        -- Override whatever is passed with context user
-        :new.data_upd_user:=V_CONTEXT_USER;
-
-        -- Force date to be sysdate
-        :new.data_upd_date:=sysdate;
-    END IF;
-
-
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-ALTER TRIGGER C_TIUBR_LOCATION
-	ENABLE;
-
-
-CREATE  OR REPLACE  TRIGGER TIB_LOCATION
- BEFORE INSERT
- ON LOCATION
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-
-begin
-    -- For sequences, only update column if null
-    --  Column "LOCATION_ID" uses sequence SYSDB.SEQ_LOCATION_ID
-    IF (:new.LOCATION_ID IS NULL)
-    THEN
-        -- Was the following.  Removed owner because quest doesn't handle it properly (for non owner builds)
-        --select SYSDB.SEQ_LOCATION_ID.NEXTVAL
-        select SEQ_LOCATION_ID.NEXTVAL
-        INTO :new.LOCATION_ID
-        from dual;
-    END IF;
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-ALTER TRIGGER TIB_LOCATION
-	ENABLE;
-
-
-CREATE  OR REPLACE  TRIGGER TUB_LOCATION
- BEFORE UPDATE OF 
-        LOCATION_ID,
-        RACK_U_OFFSET_OF_DEVICE_TOP,
-        DATA_INS_DATE,
-        RACK_SIDE,
-        RACK_ID,
-        DATA_INS_USER
- ON LOCATION
- REFERENCING OLD AS OLD NEW AS NEW
- for each row
- 
-declare
-    integrity_error  exception;
-    errno            integer;
-    errmsg           char(200);
-    dummy            integer;
-    found            boolean;
-
-begin
-    --  Non modifiable column "DATA_INS_USER" cannot be modified
-    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
-       raise integrity_error;
-    end if;
-
-    --  Non modifiable column "DATA_INS_DATE" cannot be modified
-    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
-       errno  := -20001;
-       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
-       raise integrity_error;
-    end if;
-
-
---  Errors handling
-exception
-    when integrity_error then
-       raise_application_error(errno, errmsg);
-end;
-
-/
-
-
-
-ALTER TRIGGER TUB_LOCATION
-	ENABLE;
-
-
 CREATE  OR REPLACE  TRIGGER C_TIUBR_NETBLOCK
  BEFORE INSERT OR UPDATE
  ON NETBLOCK
@@ -12435,6 +12434,147 @@ end;
 
 
 ALTER TRIGGER TUB_RACK
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER C_TIUBR_RACK_LOCATION
+ BEFORE INSERT OR UPDATE
+ ON RACK_LOCATION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+    V_CONTEXT_USER  VARCHAR2(256):=NULL;
+
+begin
+    -- Context should be used by apps to list the end-user id.
+    -- if it is filled, then concatenate it on.
+    V_CONTEXT_USER:=SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER');
+    V_CONTEXT_USER:=UPPER(SUBSTR((USER||'/'||V_CONTEXT_USER),1,30));
+
+    IF INSERTING
+    THEN
+        -- Override whatever is passed with context user
+        :new.data_ins_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_ins_date:=sysdate;
+    END IF;
+
+    IF UPDATING
+    THEN
+        -- Preventing changes to insert user and date columns happens in
+        -- another trigger
+
+        -- Override whatever is passed with context user
+        :new.data_upd_user:=V_CONTEXT_USER;
+
+        -- Force date to be sysdate
+        :new.data_upd_date:=sysdate;
+    END IF;
+
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER C_TIUBR_RACK_LOCATION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TIB_RACK_LOCATION
+ BEFORE INSERT
+ ON RACK_LOCATION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    IF (:new.RACK_LOCATION_ID IS NULL)
+    THEN
+        select SEQ_RACK_LOCATION_ID.NEXTVAL
+        INTO :new.RACK_LOCATION_ID
+        from dual;
+    END IF;
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TIB_RACK_LOCATION
+	ENABLE;
+
+
+CREATE  OR REPLACE  TRIGGER TUB_RACK_LOCATION
+ BEFORE UPDATE OF 
+        RACK_LOCATION_ID,
+        RACK_U_OFFSET_OF_DEVICE_TOP,
+        DATA_INS_DATE,
+        RACK_SIDE,
+        RACK_ID,
+        DATA_INS_USER
+ ON RACK_LOCATION
+ REFERENCING OLD AS OLD NEW AS NEW
+ for each row
+ 
+declare
+    integrity_error  exception;
+    errno            integer;
+    errmsg           char(200);
+    dummy            integer;
+    found            boolean;
+
+begin
+    --  Non modifiable column "DATA_INS_USER" cannot be modified
+    if updating('DATA_INS_USER') and :old.DATA_INS_USER != :new.DATA_INS_USER then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_USER" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+    --  Non modifiable column "DATA_INS_DATE" cannot be modified
+    if updating('DATA_INS_DATE') and :old.DATA_INS_DATE != :new.DATA_INS_DATE then
+       errno  := -20001;
+       errmsg := 'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+       raise integrity_error;
+    end if;
+
+
+--  Errors handling
+exception
+    when integrity_error then
+       raise_application_error(errno, errmsg);
+end;
+
+/
+
+
+
+ALTER TRIGGER TUB_RACK_LOCATION
 	ENABLE;
 
 

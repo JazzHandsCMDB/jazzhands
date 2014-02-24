@@ -1,0 +1,207 @@
+
+JazzHands database error codes
+------------------------------
+
+This document contains a list of custom error codes that can be raised by
+various functions and triggers, grouped by type.  All JazzHands error
+codes start with 'JH':
+
+
+----------------------
+General ERRORS (JH0xx)
+----------------------
+
+These transcend modules and are for common errors that may happen throughout
+JazzHands.
+
+---------------------------------------------------------------------------
+
+JH001	-	Multiple values specified when it is not permitted
+
+The schema allows one and only one value to be set in a given table.
+This error is raised when this is violated.  It is similar to
+parameter_value_error.
+
+
+---------------------------------------------------------------------------
+
+
+---------------------------------------------------------------------------
+
+JH0FF	-	Transition feature invoked
+
+There is trigger support in place for when you update column x and it go
+sets column y and either one or the other is to be updated, but both were.
+The calling code should be modified to use the "new" way.
+
+---------------------------------------------------------------------------
+
+
+------------------------
+NETBLOCK ERRORS (JH1xx)
+------------------------
+
+***NOTE***  A netblock_type as specified in the val_netblock_type table may be
+either is_validated_hierarchy = 'Y' or is_validated_hierarchy = 'N'.  Many
+of the errors below will only be returned if the netblock_type specifies
+is_validated_hierarchy = 'Y'.
+
+---------------------------------------------------------------------------
+
+JH101	-	Netblock may not have itself as a parent
+
+A netblock may not have itself as a parent.
+
+---------------------------------------------------------------------------
+
+JH102	-	Invalid netblock parent set.
+
+A netblock in a validated hierarchy does not have a parent set, but a
+valid parent was found that it should have assigned, or the parent is set
+but it is not the correct parent for this netblock.  Not checked for
+non-validated hierarchies.
+
+---------------------------------------------------------------------------
+
+JH103	-	Non-network bits must be zero if is_single_address is N
+
+If a netblock does not represent a single address, then ip_address must be
+a valid network address (i.e. there are no bits set to the right of the
+subnet mask)
+
+---------------------------------------------------------------------------
+
+JH104	-	Parent network % is not a superblock of %
+
+In a non-validated hierarchy, the parent_netblock_id is not a superblock
+of the child.  No other checks are made for validation, including if it is
+the best parent.
+
+---------------------------------------------------------------------------
+
+JH105	-	A single address must be the child of a parent netblock, which must have can_subnet=N
+
+A netblock with is_single_address = 'Y' must be the child of a netblock
+with a matching container netblock (i.e. the netmask bits must match and
+the parent must be the same network).  Also, the parent will not be valid
+if it is not marked as can_subnet='N'.  Not checked for non-validated
+hierarchies.
+
+---------------------------------------------------------------------------
+
+JH106	-	Single addresses may not be subnettable
+
+A netblock that has is_single_address = 'Y' may not also have can_subnet = 'Y'
+
+---------------------------------------------------------------------------
+
+JH107	-	Netblock may not have direct children for both single and multiple addresses simultaneously
+
+A netblock may only have children that are either other container netblocks
+or are single addresses, but not both.  Not checked for non-validated
+hierarchies.
+
+---------------------------------------------------------------------------
+
+JH108	-	Other netblocks have children that should belong to this parent
+
+There are other netblocks that have children that should belong to this
+parent.  Not checked for non-validated hierarchies.
+
+---------------------------------------------------------------------------
+
+JH109	-	Netblock children must all be of the same type and universe as the parent
+
+All netblocks in a hierarchy must have the same netblock_type and the same
+ip_universe_id.  This error will happen if a netblock is inserted or updated
+so that a mismatch occurs.
+
+---------------------------------------------------------------------------
+
+JH10A	-	Parent netblock may not be a single address
+
+The parent of a netblock must have is_single_address = 'N'.  Not checked
+for non-validated hierarchies.
+
+---------------------------------------------------------------------------
+
+JH10B	-	A non-subnettable netblock may not have child network netblocks
+
+A netblock with can_subnet = 'N' may only have children that are
+is_single_address = 'Y'.  Not checked for non-validated hierarchies.
+
+---------------------------------------------------------------------------
+
+JH10C	-	Parent netblock % does not have same netmask as single-address child % (% vs %)
+
+The parent netblock of a single-address child must have the same netmask
+as the child.  Not checked for non-validated hierarchies.
+
+---------------------------------------------------------------------------
+
+JH10D	-	Parent netblock % for address % must have can_subnet=N
+
+The parent netblock of a single-address child must have can_subnet set to
+'N'.  Not checked for non-validated hierarchies.
+
+---------------------------------------------------------------------------
+
+JH10E	-	A parent netblock has children that do not belong to it
+
+An update statement caused a parent netblock to have children that should
+not belong to it.
+
+---------------------------------------------------------------------------
+
+-------------------
+DNS  ERRORS (JH2xx)
+-------------------
+---------------------------------------------------------------------------
+
+JH200	-	record type and value mismatch
+
+A record type and the value pointed to are wrong (say, AAAA pointing to an
+ipv4 netblock or A record pointing to an ipv6 address).
+
+---------------------------------------------------------------------------
+
+JH201	-	Two different records have SHOULD_GENERATE_PTR set
+
+Two records in dns_record for the same dns_record have SHOULD_GENERATE_PTR
+set.
+
+---------------------------------------------------------------------------
+
+------------------------
+DEVICE  ERRORS (JH3xx)
+------------------------
+---------------------------------------------------------------------------
+
+JH360	-	Power Connection Plugs must match
+
+The power_interface_connection row must be between itwo 
+power_interface_ports where the plug styles match.
+
+---------------------------------------------------------------------------
+
+JH361	-	Power Connections must be between a power consumer and provider
+
+The power_interface_connection row must be between power_interface_ports where
+providers_power is complementary.
+
+---------------------------------------------------------------------------
+
+
+JH362	-	RPCs must provde power
+
+power_interface_port for the rpc_* side of a power_interface_conncetion must
+have provides_power set to 'Y'
+
+---------------------------------------------------------------------------
+
+JH363	-	Power Cosumers must not provide power
+
+power_interface_port for the non rpc_* side of a power_interface_conncetion 
+must have provides_power set to 'N'
+
+---------------------------------------------------------------------------

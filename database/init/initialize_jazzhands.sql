@@ -283,7 +283,7 @@ INSERT INTO val_netblock_type(
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
 ) VALUES (
-	'dns', 'organizational groupings used for assigning DNS', 'Y', 'Y'
+	'dns', 'organizational groupings used for assigning DNS', 'N', 'N'
 );
 
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)

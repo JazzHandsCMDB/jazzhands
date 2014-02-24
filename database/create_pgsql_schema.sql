@@ -36,10 +36,12 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 \i ddl/schema/pgsql/create_triggers.sql
 \i ddl/schema/pgsql/create_netblock_triggers.sql
+\i ddl/schema/pgsql/create_netblock_triggers-RETIRE.sql
 \i ddl/schema/pgsql/create_device_type_triggers.sql
 \i ddl/schema/pgsql/create_device_triggers.sql
 \i ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
 \i ddl/schema/pgsql/create_dns_triggers.sql
 \i ddl/schema/pgsql/create_device_type_triggers.sql
 \i ddl/schema/pgsql/create_auto_account_coll_triggers.sql
+\i ddl/schema/pgsql/create_device_power_triggers.sql
 select now();
