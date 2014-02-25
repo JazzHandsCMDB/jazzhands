@@ -18,9 +18,45 @@
 \set ON_ERROR_STOP
 
 ---------- ========================================================= ----------
---- BEGIN: recreate schema_support
+--------------------------------------------------------------------
+--- BEGIN: ddl/schema/pgsql/create_schema_support.sql
+--------------------------------------------------------------------
 
--- :r ../ddl/schema/pgsql/create_schema_support.sql
+
+/*
+ * Copyright (c) 2010-2014 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright (c) 2010 Matthew Ragan
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 
 --
 -- $HeadURL$
@@ -545,7 +581,7 @@ BEGIN
 	   AND	relpersistence = 't';
 
 	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, type text, ddl text);
+		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, owner text, type text, ddl text, idargs text);
 	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -568,10 +604,15 @@ BEGIN
 
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object);
-	FOR _r in SELECT n.nspname, c.relname, 'view', 
+
+	-- save any triggers on the view
+	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
+	FOR _r in SELECT n.nspname, c.relname, 'view',
+				coalesce(u.usename, 'public') as owner,
 				pg_get_viewdef(c.oid, true) as viewdef
 		FROM pg_class c
 		INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		LEFT JOIN pg_user u on u.usesysid = c.relowner
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
@@ -580,12 +621,95 @@ BEGIN
 		IF _ddl is NULL THEN
 			RAISE EXCEPTION 'Unable to define view for %', _r;
 		END IF;
-		INSERT INTO __recreate (schema, object, type, ddl )
+		INSERT INTO __recreate (schema, object, owner, type, ddl )
 			VALUES (
-				_r.nspname, _r.relname, 'view', _ddl
+				_r.nspname, _r.relname, _r.owner, 'view', _ddl
 			);
 		IF dropit  THEN
 			_cmd = 'DROP VIEW ' || _r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- given schema.object, save all triggers for replay 
+--
+CREATE OR REPLACE FUNCTION schema_support.save_trigger_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	FOR _r in 	
+		SELECT n.nspname, c.relname, trg.tgname,
+				pg_get_triggerdef(trg.oid, true) as def
+		FROM pg_trigger trg
+			INNER JOIN pg_class c on trg.tgrelid =  c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE n.nspname = schema and c.relname = object
+	LOOP
+		INSERT INTO __recreate (schema, object, type, ddl )
+			VALUES (
+				_r.nspname, _r.relname, 'trigger', _r.def
+			);
+		IF dropit  THEN
+			_cmd = 'DROP TRIGGER ' || _r.tgname || ' ON ' ||
+				_r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+--
+-- given schema.object, look for all constraints to it outside of schema
+--
+CREATE OR REPLACE FUNCTION schema_support.save_constraint_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	FOR _r in 	SELECT n.nspname, c.relname, con.conname,
+				pg_get_constraintdef(con.oid, true) as def
+		FROM pg_constraint con
+			INNER JOIN pg_class c on (c.relnamespace, c.oid) =
+				(con.connamespace, con.conrelid)
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE con.confrelid in (
+			select c.oid 
+			from pg_class c
+				inner join pg_namespace n on n.oid = c.relnamespace
+			WHERE c.relname = object
+			AND n.nspname = schema
+		) AND n.nspname != schema
+	LOOP
+		_ddl := 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
+			' ADD CONSTRAINT ' || _r.conname || ' ' || _r.def;
+		IF _ddl is NULL THEN
+			RAISE EXCEPTION 'Unable to define constraint for %', _r;
+		END IF;
+		INSERT INTO __recreate (schema, object, type, ddl )
+			VALUES (
+				_r.nspname, _r.relname, 'constraint', _ddl
+			);
+		IF dropit  THEN
+			_cmd = 'ALTER TABLE ' || _r.nspname || '.' || _r.relname || 
+				' DROP CONSTRAINT ' || _r.conname || ';';
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
@@ -612,17 +736,19 @@ BEGIN
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object);
 	FOR _r IN SELECT n.nspname, p.proname, 
+				coalesce(u.usename, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
 				pg_get_function_identity_arguments(p.oid) as idargs
 		FROM    pg_catalog.pg_proc  p
 				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
 				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
-		INSERT INTO __recreate (schema, object, type, ddl )
+		INSERT INTO __recreate (schema, object, type, owner, ddl, idargs )
 		VALUES (
-			_r.nspname, _r.proname, 'function', _r.funcdef
+			_r.nspname, _r.proname, 'function', _r.owner, _r.funcdef, _r.idargs
 		);
 		IF dropit  THEN
 			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
@@ -649,6 +775,17 @@ BEGIN
 			RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
 		END IF;
 		EXECUTE _r.ddl; 
+		IF _r.owner is not NULL THEN
+			IF _r.type = 'view' THEN
+				EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
+					' OWNER TO ' || _r.owner || ';';
+			ELSIF _r.type = 'function' THEN
+				EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
+					'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
+			ELSE
+				RAISE EXCEPTION 'Unable to restore grant for %', _r;
+			END IF;
+		END IF;
 		DELETE from __recreate where id = _r.id;
 	END LOOP;
 
@@ -673,7 +810,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -------------------------------------------------------------------------------
 -- select schema_support.rebuild_stamp_triggers();
 -- SELECT schema_support.build_audit_tables();
---- DONE:  recreate schema_support
+--------------------------------------------------------------------
+--- DONE: ddl/schema/pgsql/create_schema_support.sql
+--------------------------------------------------------------------
+
 ---------- ========================================================= ----------
 -- Begin dealing with actual maint.  The above is preliminary work.
 
@@ -903,7 +1043,7 @@ CREATE TABLE rack_location
 (
 	rack_location_id	integer NOT NULL,
 	rack_id	integer NOT NULL,
-	rack_u_offset_of_device_top	integer NOT NULL,
+	rack_u_offset_of_device_top	integer NULL,
 	rack_side	varchar(10) NOT NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -1426,7 +1566,7 @@ SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device_power_inte
 INSERT INTO device_power_interface (
 	device_id,
 	power_interface_port,
-	power_plug_style,		-- new column (power_plug_style)
+	power_plug_style,	-- new column (power_plug_style)
 	voltage,		-- new column (voltage)
 	max_amperage,		-- new column (max_amperage)
 	provides_power,
@@ -1435,24 +1575,27 @@ INSERT INTO device_power_interface (
 	data_upd_user,
 	data_upd_date
 ) SELECT
-	device_id,
-	power_interface_port,
-	NULL,		-- new column (power_plug_style)
-	NULL,		-- new column (voltage)
-	NULL,		-- new column (max_amperage)
-	NULL,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM device_power_interface_v56;
+	dpi.device_id,
+	dpi.power_interface_port,
+	ppt.power_plug_style,		-- new column (power_plug_style)
+	ppt.voltage,			-- new column (voltage)
+	ppt.max_amperage,		-- new column (max_amperage)
+	ppt.provides_power,
+	dpi.data_ins_user,
+	dpi.data_ins_date,
+	dpi.data_upd_user,
+	dpi.data_upd_date
+FROM device_power_interface_v56 dpi
+	left  join device using (device_id)
+	left join device_type_power_port_templt ppt
+		using (device_type_id, power_interface_port);
 
 INSERT INTO audit.device_power_interface (
 	device_id,
 	power_interface_port,
 	power_plug_style,		-- new column (power_plug_style)
-	voltage,		-- new column (voltage)
-	max_amperage,		-- new column (max_amperage)
+	voltage,			-- new column (voltage)
+	max_amperage,			-- new column (max_amperage)
 	provides_power,
 	data_ins_user,
 	data_ins_date,
@@ -1463,21 +1606,24 @@ INSERT INTO audit.device_power_interface (
 	"aud#user",
 	"aud#seq"
 ) SELECT
-	device_id,
-	power_interface_port,
-	NULL,		-- new column (power_plug_style)
-	NULL,		-- new column (voltage)
-	NULL,		-- new column (max_amperage)
-	NULL,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
+	dpi.device_id,
+	dpi.power_interface_port,
+	ppt.power_plug_style,		-- new column (power_plug_style)
+	ppt.voltage,			-- new column (voltage)
+	ppt.max_amperage,		-- new column (max_amperage)
+	ppt.provides_power,
+	dpi.data_ins_user,
+	dpi.data_ins_date,
+	dpi.data_upd_user,
+	dpi.data_upd_date,
 	"aud#action",
 	"aud#timestamp",
 	"aud#user",
 	"aud#seq"
-FROM audit.device_power_interface_v56;
+FROM audit.device_power_interface_v56 dpi
+	left  join device using (device_id)
+	left join device_type_power_port_templt ppt
+		using (device_type_id, power_interface_port);
 
 ALTER TABLE device_power_interface
 	ALTER provides_power
@@ -1979,7 +2125,7 @@ DROP TRIGGER IF EXISTS trigger_delete_per_device_device_collection ON device;
 
 -- FOREIGN KEYS TO
 -- INDEXES
-DROP INDEX IF EXISTS "device_aud#timestamp_idx";
+DROP INDEX IF EXISTS audit."device_aud#timestamp_idx";
 -- CHECK CONSTRAINTS, etc
 -- TRIGGERS, etc
 ---- DONE audit.device TEARDOWN
@@ -6300,8 +6446,20 @@ $$;
 
 --------------------------------------------------------------------
 
-SELECT schema_support.replay_object_recreates();
-SELECT schema_support.replay_saved_grants();
+CREATE VIEW location AS
+ SELECT rack_location.rack_location_id AS location_id,
+    rack_location.rack_id,
+    rack_location.rack_u_offset_of_device_top,
+    rack_location.rack_side,
+    NULL::integer AS inter_device_offset,
+    rack_location.data_ins_user,
+    rack_location.data_ins_date,
+    rack_location.data_upd_user,
+    rack_location.data_upd_date
+   FROM rack_location;
+
+SELECT schema_support.replay_object_recreates(true);
+SELECT schema_support.replay_saved_grants(true);
 
 ALTER TABLE netblock DROP CONSTRAINT fk_netblk_netblk_parid;
 ALTER TABLE netblock
@@ -6326,18 +6484,6 @@ CREATE TRIGGER trigger_automated_ac_on_person
         AFTER UPDATE ON person
         FOR EACH ROW
         EXECUTE PROCEDURE automated_ac_on_person();
-
-CREATE VIEW location AS
- SELECT rack_location.rack_location_id AS location_id,
-    rack_location.rack_id,
-    rack_location.rack_u_offset_of_device_top,
-    rack_location.rack_side,
-    NULL::integer AS inter_device_offset,
-    rack_location.data_ins_user,
-    rack_location.data_ins_date,
-    rack_location.data_upd_user,
-    rack_location.data_upd_date
-   FROM rack_location;
 
 
 -- RAISE EXCEPTION 'Need to test, test, test....';

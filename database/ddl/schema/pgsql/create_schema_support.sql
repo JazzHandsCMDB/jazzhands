@@ -1,3 +1,38 @@
+/*
+ * Copyright (c) 2010-2014 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Copyright (c) 2010 Matthew Ragan
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
 --
 -- $HeadURL$
 -- $Id$
@@ -521,7 +556,7 @@ BEGIN
 	   AND	relpersistence = 't';
 
 	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, type text, ddl text);
+		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, owner text, type text, ddl text, idargs text);
 	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -544,10 +579,15 @@ BEGIN
 
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object);
-	FOR _r in SELECT n.nspname, c.relname, 'view', 
+
+	-- save any triggers on the view
+	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
+	FOR _r in SELECT n.nspname, c.relname, 'view',
+				coalesce(u.usename, 'public') as owner,
 				pg_get_viewdef(c.oid, true) as viewdef
 		FROM pg_class c
 		INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		LEFT JOIN pg_user u on u.usesysid = c.relowner
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
@@ -556,12 +596,95 @@ BEGIN
 		IF _ddl is NULL THEN
 			RAISE EXCEPTION 'Unable to define view for %', _r;
 		END IF;
-		INSERT INTO __recreate (schema, object, type, ddl )
+		INSERT INTO __recreate (schema, object, owner, type, ddl )
 			VALUES (
-				_r.nspname, _r.relname, 'view', _ddl
+				_r.nspname, _r.relname, _r.owner, 'view', _ddl
 			);
 		IF dropit  THEN
 			_cmd = 'DROP VIEW ' || _r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- given schema.object, save all triggers for replay 
+--
+CREATE OR REPLACE FUNCTION schema_support.save_trigger_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	FOR _r in 	
+		SELECT n.nspname, c.relname, trg.tgname,
+				pg_get_triggerdef(trg.oid, true) as def
+		FROM pg_trigger trg
+			INNER JOIN pg_class c on trg.tgrelid =  c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE n.nspname = schema and c.relname = object
+	LOOP
+		INSERT INTO __recreate (schema, object, type, ddl )
+			VALUES (
+				_r.nspname, _r.relname, 'trigger', _r.def
+			);
+		IF dropit  THEN
+			_cmd = 'DROP TRIGGER ' || _r.tgname || ' ON ' ||
+				_r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+--
+-- given schema.object, look for all constraints to it outside of schema
+--
+CREATE OR REPLACE FUNCTION schema_support.save_constraint_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
+BEGIN
+	PERFORM schema_support.prepare_for_object_replay();
+
+	FOR _r in 	SELECT n.nspname, c.relname, con.conname,
+				pg_get_constraintdef(con.oid, true) as def
+		FROM pg_constraint con
+			INNER JOIN pg_class c on (c.relnamespace, c.oid) =
+				(con.connamespace, con.conrelid)
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE con.confrelid in (
+			select c.oid 
+			from pg_class c
+				inner join pg_namespace n on n.oid = c.relnamespace
+			WHERE c.relname = object
+			AND n.nspname = schema
+		) AND n.nspname != schema
+	LOOP
+		_ddl := 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
+			' ADD CONSTRAINT ' || _r.conname || ' ' || _r.def;
+		IF _ddl is NULL THEN
+			RAISE EXCEPTION 'Unable to define constraint for %', _r;
+		END IF;
+		INSERT INTO __recreate (schema, object, type, ddl )
+			VALUES (
+				_r.nspname, _r.relname, 'constraint', _ddl
+			);
+		IF dropit  THEN
+			_cmd = 'ALTER TABLE ' || _r.nspname || '.' || _r.relname || 
+				' DROP CONSTRAINT ' || _r.conname || ';';
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
@@ -588,17 +711,19 @@ BEGIN
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object);
 	FOR _r IN SELECT n.nspname, p.proname, 
+				coalesce(u.usename, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
 				pg_get_function_identity_arguments(p.oid) as idargs
 		FROM    pg_catalog.pg_proc  p
 				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
 				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
-		INSERT INTO __recreate (schema, object, type, ddl )
+		INSERT INTO __recreate (schema, object, type, owner, ddl, idargs )
 		VALUES (
-			_r.nspname, _r.proname, 'function', _r.funcdef
+			_r.nspname, _r.proname, 'function', _r.owner, _r.funcdef, _r.idargs
 		);
 		IF dropit  THEN
 			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
@@ -625,6 +750,17 @@ BEGIN
 			RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
 		END IF;
 		EXECUTE _r.ddl; 
+		IF _r.owner is not NULL THEN
+			IF _r.type = 'view' THEN
+				EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
+					' OWNER TO ' || _r.owner || ';';
+			ELSIF _r.type = 'function' THEN
+				EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
+					'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
+			ELSE
+				RAISE EXCEPTION 'Unable to restore grant for %', _r;
+			END IF;
+		END IF;
 		DELETE from __recreate where id = _r.id;
 	END LOOP;
 
