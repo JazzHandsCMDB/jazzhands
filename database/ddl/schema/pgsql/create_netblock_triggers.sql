@@ -26,13 +26,19 @@ BEGIN
 	 * parent
 	 */
 
+	IF NEW.ip_address IS NULL THEN
+		RAISE EXCEPTION 'Column ip_address may not be null'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
 	IF NEW.netmask_bits IS NULL THEN
 		/*
 		 * If netmask_bits is not set, and ip_address has a netmask that is
 		 * not a /32 (the default), then use that for the netmask.
 		 */
 
-		IF (NEW.ip_address IS NOT NULL and masklen(NEW.ip_address) != 32) THEN
+		IF (masklen(NEW.ip_address) !=
+				CASE WHEN family(NEW.ip_address) = 4 THEN 32 ELSE 128 END) THEN
 			NEW.netmask_bits := masklen(NEW.ip_address);
 		END IF;
 

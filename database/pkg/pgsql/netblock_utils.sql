@@ -1,4 +1,4 @@
--- Copyright (c) 2012,2013 Matthew Ragan
+-- Copyright (c) 2012-2014 Matthew Ragan
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -204,7 +204,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(
-	netblock_id				jazzhands.netblock.netblock_id%TYPE,
+	parent_netblock_id		jazzhands.netblock.netblock_id%TYPE,
 	netmask_bits			integer DEFAULT NULL,
 	single_address			boolean DEFAULT false,
 	allocate_from_bottom	boolean DEFAULT true
@@ -213,7 +213,7 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(
 ) AS $$
 BEGIN
 	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
-		netblock_id := netblock_id,
+		parent_netblock_id := parent_netblock_id,
 		netmask_bits := netmask_bits,
 		single_address := single_address,
 		allocate_from_bottom := allocate_from_bottom,
@@ -222,7 +222,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
-	netblock_id				jazzhands.netblock.netblock_id%TYPE,
+	parent_netblock_id		jazzhands.netblock.netblock_id%TYPE,
 	netmask_bits			integer DEFAULT NULL,
 	single_address			boolean DEFAULT false,
 	allocate_from_bottom	boolean DEFAULT true,
@@ -236,6 +236,7 @@ DECLARE
 	offset			integer;
 	netblock_rec	jazzhands.netblock%ROWTYPE;
 	current_ip		inet;
+	min_ip			inet;
 	max_ip			inet;
 	matches			integer;
 	family_bits		integer;
@@ -245,21 +246,19 @@ BEGIN
 	FROM
 		jazzhands.netblock n
 	WHERE
-		n.netblock_id = find_free_netblocks.netblock_id;
+		n.netblock_id = find_free_netblocks.parent_netblock_id;
 
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Netblock % does not exist', 
-			find_free_netblocks.netblock_id;
+			find_free_netblocks.parent_netblock_id;
 	END IF;
 
 	family_bits := 
 		(CASE family(netblock_rec.ip_address) WHEN 4 THEN 32 ELSE 128 END);
 
 	IF single_address THEN 
-		netmask_bits := 32;
-	END IF;
-
-	IF netmask_bits <= masklen(netblock_rec.ip_address) THEN
+		netmask_bits := family_bits;
+	ELSIF netmask_bits <= masklen(netblock_rec.ip_address) THEN
 		RAISE EXCEPTION 'netmask_bits must be larger than the netblock (%)',
 			masklen(netblock_rec.ip_address);
 	END IF;
@@ -272,12 +271,12 @@ BEGIN
 	END IF;
 
 	IF single_address AND netblock_rec.can_subnet = 'Y' THEN
-		RAISE NOTICE 'single addresses may not be assigned to to a block where can_subnet is Y';
+		RAISE EXCEPTION 'single addresses may not be assigned to to a block where can_subnet is Y';
 		RETURN;
 	END IF;
 
 	IF (NOT single_address) AND netblock_rec.can_subnet = 'N' THEN
-		RAISE NOTICE 'Netblock % (%) may not be subnetted',
+		RAISE EXCEPTION 'Netblock % (%) may not be subnetted',
 			netblock_rec.ip_address,
 			netblock_rec.netblock_id;
 		RETURN;
@@ -287,8 +286,8 @@ BEGIN
 	-- that could get really huge
 
 	nb_size := 1 << ( family_bits - netmask_bits );
-	max_ip := netblock_rec.ip_address + 
-		(1 << (family_bits - masklen(netblock_rec.ip_address)));
+	min_ip := netblock_rec.ip_address;
+	max_ip := min_ip + (1 << (family_bits - masklen(min_ip)));
 
 	IF allocate_from_bottom THEN
 		current_ip := set_masklen(netblock_rec.ip_address, netmask_bits);
@@ -305,10 +304,13 @@ BEGIN
 	-- containing block, and skip the network and broadcast addresses
 
 	IF single_address THEN
-		current_ip := 
-			set_masklen(current_ip, masklen(netblock_rec.ip_address)) +
-			nb_size;
-		max_ip := max_ip - 1;
+		current_ip := set_masklen(current_ip, masklen(netblock_rec.ip_address));
+		IF family(netblock_rec.ip_address) = 4 AND
+				masklen(netblock_rec.ip_address) < 31 THEN
+			current_ip := current_ip + nb_size;
+			min_ip := min_ip - 1;
+			max_ip := max_ip - 1;
+		END IF;
 	END IF;
 
 	RAISE DEBUG 'Starting with IP address % with step of %',
@@ -317,10 +319,7 @@ BEGIN
 
 	matches := 0;
 	WHILE (
-			current_ip >= (CASE WHEN single_address 
-				THEN netblock_rec.ip_address + 1
-				ELSE netblock_rec.ip_address
-				END) AND
+			current_ip >= min_ip AND
 			current_ip < max_ip AND
 			matches < max_addresses
 	) LOOP

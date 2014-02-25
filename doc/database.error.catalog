@@ -6,7 +6,6 @@ This document contains a list of custom error codes that can be raised by
 various functions and triggers, grouped by type.  All JazzHands error
 codes start with 'JH':
 
-
 ----------------------
 General ERRORS (JH0xx)
 ----------------------
@@ -22,10 +21,6 @@ The schema allows one and only one value to be set in a given table.
 This error is raised when this is violated.  It is similar to
 parameter_value_error.
 
-
----------------------------------------------------------------------------
-
-
 ---------------------------------------------------------------------------
 
 JH0FF	-	Transition feature invoked
@@ -35,8 +30,7 @@ sets column y and either one or the other is to be updated, but both were.
 The calling code should be modified to use the "new" way.
 
 ---------------------------------------------------------------------------
-
-
+ 
 ------------------------
 NETBLOCK ERRORS (JH1xx)
 ------------------------
@@ -90,7 +84,7 @@ hierarchies.
 ---------------------------------------------------------------------------
 
 JH106	-	Single addresses may not be subnettable
-
+'
 A netblock that has is_single_address = 'Y' may not also have can_subnet = 'Y'
 
 ---------------------------------------------------------------------------
@@ -153,18 +147,25 @@ not belong to it.
 
 ---------------------------------------------------------------------------
 
+JH110	-	No free netblocks available
+
+No netblocks were available to allocate matching the parameters
+
+---------------------------------------------------------------------------
 -------------------
 DNS  ERRORS (JH2xx)
 -------------------
 ---------------------------------------------------------------------------
 
 JH200	-	record type and value mismatch
-
++JH110	-	No free netblocks available
+ 
 A record type and the value pointed to are wrong (say, AAAA pointing to an
 ipv4 netblock or A record pointing to an ipv6 address).
-
----------------------------------------------------------------------------
-
++No netblocks were available to allocate matching the parameters
+ 
+ ---------------------------------------------------------------------------
+ 
 JH201	-	Two different records have SHOULD_GENERATE_PTR set
 
 Two records in dns_record for the same dns_record have SHOULD_GENERATE_PTR
