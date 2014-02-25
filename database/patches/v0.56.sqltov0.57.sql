@@ -3506,198 +3506,6 @@ $function$
 -- DONE WITH proc port_utils.setup_device_physical_ports -> setup_device_physical_ports 
 --------------------------------------------------------------------
 
-
---------------------------------------------------------------------
--- DEALING WITH proc netblock_utils.find_free_netblock -> find_free_netblock 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 1539414
-CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(netblock_id integer, netmask_bits integer DEFAULT NULL::integer, single_address boolean DEFAULT false, allocate_from_bottom boolean DEFAULT true)
- RETURNS TABLE(ip_address inet)
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
-		netblock_id := netblock_id,
-		netmask_bits := netmask_bits,
-		single_address := single_address,
-		allocate_from_bottom := allocate_from_bottom,
-		max_addresses := 1);
-END;
-$function$
-;
-
--- DONE WITH proc netblock_utils.find_free_netblock -> find_free_netblock 
---------------------------------------------------------------------
-
-
---------------------------------------------------------------------
--- DEALING WITH proc netblock_utils.find_free_netblocks -> find_free_netblocks 
-
-
--- RECREATE FUNCTION
--- consider NEW oid 1539415
-CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(netblock_id integer, netmask_bits integer DEFAULT NULL::integer, single_address boolean DEFAULT false, allocate_from_bottom boolean DEFAULT true, max_addresses integer DEFAULT 1024)
- RETURNS TABLE(ip_address inet)
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-	step			integer;
-	nb_size			integer;
-	offset			integer;
-	netblock_rec	jazzhands.netblock%ROWTYPE;
-	current_ip		inet;
-	max_ip			inet;
-	matches			integer;
-	family_bits		integer;
-BEGIN
-	SELECT 
-		* INTO netblock_rec
-	FROM
-		jazzhands.netblock n
-	WHERE
-		n.netblock_id = find_free_netblocks.netblock_id;
-
-	IF NOT FOUND THEN
-		RAISE EXCEPTION 'Netblock % does not exist', 
-			find_free_netblocks.netblock_id;
-	END IF;
-
-	family_bits := 
-		(CASE family(netblock_rec.ip_address) WHEN 4 THEN 32 ELSE 128 END);
-
-	IF single_address THEN 
-		netmask_bits := 32;
-	END IF;
-
-	IF netmask_bits <= masklen(netblock_rec.ip_address) THEN
-		RAISE EXCEPTION 'netmask_bits must be larger than the netblock (%)',
-			masklen(netblock_rec.ip_address);
-	END IF;
-
-	IF netmask_bits > family_bits
-		THEN
-		RAISE EXCEPTION 'netmask_bits must be no more than % for netblock %',
-			family_bits,
-			netblock_rec.ip_address;
-	END IF;
-
-	IF single_address AND netblock_rec.can_subnet = 'Y' THEN
-		RAISE NOTICE 'single addresses may not be assigned to to a block where can_subnet is Y';
-		RETURN;
-	END IF;
-
-	IF (NOT single_address) AND netblock_rec.can_subnet = 'N' THEN
-		RAISE NOTICE 'Netblock % (%) may not be subnetted',
-			netblock_rec.ip_address,
-			netblock_rec.netblock_id;
-		RETURN;
-	END IF;
-
-	-- It would be nice to be able to use generate_series here, but
-	-- that could get really huge
-
-	nb_size := 1 << ( family_bits - netmask_bits );
-	max_ip := netblock_rec.ip_address + 
-		(1 << (family_bits - masklen(netblock_rec.ip_address)));
-
-	IF allocate_from_bottom THEN
-		current_ip := set_masklen(netblock_rec.ip_address, netmask_bits);
-	ELSE
-		current_ip := set_masklen(max_ip, netmask_bits) - nb_size;
-		nb_size := -nb_size;
-	END IF;
-
-	RAISE DEBUG 'Searching netblock % (%)',
-		netblock_rec.netblock_id,
-		netblock_rec.ip_address;
-
-	-- For single addresses, make the netmask match the netblock of the
-	-- containing block, and skip the network and broadcast addresses
-
-	IF single_address THEN
-		current_ip := 
-			set_masklen(current_ip, masklen(netblock_rec.ip_address)) +
-			nb_size;
-		max_ip := max_ip - 1;
-	END IF;
-
-	RAISE DEBUG 'Starting with IP address % with step of %',
-		current_ip,
-		nb_size;
-
-	matches := 0;
-	WHILE (
-			current_ip >= (CASE WHEN single_address 
-				THEN netblock_rec.ip_address + 1
-				ELSE netblock_rec.ip_address
-				END) AND
-			current_ip < max_ip AND
-			matches < max_addresses
-	) LOOP
-		RAISE DEBUG '   Checking netblock %', current_ip;
-
-		PERFORM * FROM netblock n WHERE
-			n.ip_universe_id = netblock_rec.ip_universe_id AND
-			n.netblock_type = netblock_rec.netblock_type AND
-			-- A block with the parent either contains or is contained
-			-- by this block
-			n.parent_netblock_id = netblock_rec.netblock_id AND
-			CASE WHEN single_address THEN
-				n.ip_address = current_ip
-			ELSE
-				(n.ip_address >>= current_ip OR current_ip >>= n.ip_address)
-			END;
-		IF NOT FOUND THEN
-			find_free_netblocks.ip_address := current_ip;
-			RETURN NEXT;
-			matches := matches + 1;
-		END IF;
-
-		current_ip := current_ip + nb_size;
-	END LOOP;
-	RETURN;
-END;
-$function$
-;
-
--- DONE WITH proc netblock_utils.find_free_netblocks -> find_free_netblocks 
---------------------------------------------------------------------
-
-
-
--- create audit table indexes that aren't there
-
-DO $$
-
-DECLARE
-	tbl RECORD;
-	tal INTEGER;
-	idx varchar;
-BEGIN
-    FOR tbl IN
-        SELECT table_name FROM information_schema.tables
-        WHERE table_type = 'BASE TABLE' AND table_schema = 'audit'
-        ORDER BY table_name
-    LOOP
-	idx = tbl.table_name || '_aud#timestamp_idx';
-	SELECT count(*) INTO tal FROM pg_catalog.pg_indexes WHERE
-		schemaname = 'audit' AND indexname =  idx;
-	IF tal = 0 THEN
-		RAISE NOTICE 'On table %, creating index %', 
-			tbl.table_name, idx;
-    		EXECUTE 'CREATE INDEX ' 
-			|| quote_ident(idx) || ' ' 
-			|| ' ON ' || quote_ident('audit') || '.'
-        		|| quote_ident(tbl.table_name) || '("aud#timestamp")';
-	END IF;
-    END LOOP;
-END
-$$;
-
---------------------------------------------------------------------
-
 -- Iniitalization Fixes
 UPDATE val_property
 set PERMIT_DEVICE_COLLECTION_ID = 'ALLOWED'
@@ -5315,7 +5123,7 @@ BEGIN
 		 * not a /32 (the default), then use that for the netmask.
 		 */
 
-		IF (masklen(NEW.ip_address) !=
+		IF (masklen(NEW.ip_address) != 
 				CASE WHEN family(NEW.ip_address) = 4 THEN 32 ELSE 128 END) THEN
 			NEW.netmask_bits := masklen(NEW.ip_address);
 		END IF;
@@ -6027,81 +5835,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- END with adding pkg/pgsql/device_utils.sql
 --------------------------------------------------------------------
 
--- Copyright (c) 2005-2010, Vonage Holdings Corp.
--- All rights reserved.
---
--- Redistribution and use in source and binary forms, with or without
--- modification, are permitted provided that the following conditions are met:
---     * Redistributions of source code must retain the above copyright
---       notice, this list of conditions and the following disclaimer.
---     * Redistributions in binary form must reproduce the above copyright
---       notice, this list of conditions and the following disclaimer in the
---       documentation and/or other materials provided with the distribution.
---
--- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
--- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
--- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
--- DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
--- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
--- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
--- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
--- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
--- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
--- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-/*
- * Copyright (c) 2013-2014 Todd Kover
- * All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
--------------------------------------------------------------------
--- sets up power ports for a device if they are not there.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_power (
-	in_Device_id device.device_id%type
-) RETURNS VOID AS $$
-DECLARE
-	dt_id	device.device_type_id%type;
-BEGIN
-	if( port_support.has_power_ports(in_device_id) ) then
-		return;
-	end if;
-
-	select  device_type_id
-	  into	dt_id
-	  from  device
-	 where	device_id = in_device_id;
-
-	 insert into device_power_interface (
-		device_id, power_interface_port, 
-		 power_plug_style,
-		 voltage, max_amperage, provides_power
-		)
-		select in_device_id, power_interface_port,
-		 	power_plug_style,
-		 	voltage, max_amperage, provides_power
-		  from device_type_power_port_templt
-		 where device_type_id = dt_id;
-
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
---------------------------------------------------------------------
--- DONE with adding pkg/pgsql/device_utils.sql
---------------------------------------------------------------------
-
 --------------------------------------------------------------------
 -- BEGIN with adding pkg/pgsql/netblock_utils.sql
 --------------------------------------------------------------------
@@ -6458,16 +6191,115 @@ $$ LANGUAGE 'plpgsql';
 
 GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO PUBLIC;
-
 --------------------------------------------------------------------
 -- DONE with adding pkg/pgsql/netblock_utils.sql
 --------------------------------------------------------------------
 
+-- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--     * Redistributions of source code must retain the above copyright
+--       notice, this list of conditions and the following disclaimer.
+--     * Redistributions in binary form must reproduce the above copyright
+--       notice, this list of conditions and the following disclaimer in the
+--       documentation and/or other materials provided with the distribution.
+--
+-- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+-- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+-- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+-- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+-- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+-- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+-- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+-- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+-- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+/*
+ * Copyright (c) 2013-2014 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+-------------------------------------------------------------------
+-- sets up power ports for a device if they are not there.
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION port_utils.setup_device_power (
+	in_Device_id device.device_id%type
+) RETURNS VOID AS $$
+DECLARE
+	dt_id	device.device_type_id%type;
+BEGIN
+	if( port_support.has_power_ports(in_device_id) ) then
+		return;
+	end if;
+
+	select  device_type_id
+	  into	dt_id
+	  from  device
+	 where	device_id = in_device_id;
+
+	 insert into device_power_interface (
+		device_id, power_interface_port, 
+		 power_plug_style,
+		 voltage, max_amperage, provides_power
+		)
+		select in_device_id, power_interface_port,
+		 	power_plug_style,
+		 	voltage, max_amperage, provides_power
+		  from device_type_power_port_templt
+		 where device_type_id = dt_id;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 ---------- =========== DONE WITH PKGS ========= ----------------
 
+-- create audit table indexes that aren't there
+
+DO $$
+DECLARE
+	tbl RECORD;
+	tal INTEGER;
+	idx varchar;
+BEGIN
+	FOR tbl IN
+		SELECT table_name FROM information_schema.tables
+			WHERE table_type = 'BASE TABLE' AND table_schema = 'audit'
+			ORDER BY table_name
+	LOOP
+		idx = tbl.table_name || '_aud#timestamp_idx';
+		SELECT count(*) INTO tal FROM pg_catalog.pg_indexes WHERE
+			schemaname = 'audit' AND indexname =  idx;
+		IF tal = 0 THEN
+			RAISE NOTICE 'On table %, creating index %',
+				tbl.table_name, idx;
+			EXECUTE 'CREATE INDEX '
+				|| quote_ident(idx) || ' '
+				|| ' ON ' || quote_ident('audit') || '.'
+				|| quote_ident(tbl.table_name) || '("aud#timestamp")';
+		END IF;
+	END LOOP;
+END
+$$;
+
+
 --------------------------------------------------------------------
---
+
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_saved_grants();
 
