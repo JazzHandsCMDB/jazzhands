@@ -40,7 +40,6 @@
 -- \i unix_util.sql
 -- \i dept_member_verify.sql
 -- \i netblock_verify.sql
-\i netblock_utils.sql
 --++ \i fqdn_util.sql
 -- \i token_util.sql
 -- \i time_util.sql
@@ -50,7 +49,8 @@
 \i port_support.sql
 \i port_util.sql
 \i device_utils.sql
--- \i netblock_utils.sql
+\i netblock_utils.sql
+\i netblock_manip.sql
 -- \i key_crypto.sql
 -- \i dbms_job_util.sql
 -- \i appgroup_util.sql
