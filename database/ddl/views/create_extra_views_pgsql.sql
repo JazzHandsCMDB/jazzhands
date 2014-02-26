@@ -84,5 +84,3 @@
 \i create_v_device_col_acct_col_expanded.sql
 \i create_v_corp_family_account.sql
 
--- arguably, this should only live in a migration
-\i create_location_compatibility_view.sql

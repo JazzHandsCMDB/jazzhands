@@ -28,7 +28,10 @@ DECLARE
 	_chassisloc2	rack_location%ROWTYPE;
 	_chassis_dt		device_type%ROWTYPE;
 	_rack			rack%ROWTYPE;
-	_r			RECORD;
+	_nrack			rack%ROWTYPE;
+	_r				RECORD;
+	_loc			location%ROWTYPE;
+	_nloc			location%ROWTYPE;
 BEGIN
 	-- delete some stuff
 	SET CONSTRAINTS fk_chasloc_chass_devid DEFERRED;
@@ -150,6 +153,58 @@ BEGIN
 		RAISE EXCEPTION '... IT DID NOT';
 	END IF;
 
+	RAISE NOTICE 'Checking to see if inserts to location work... ';
+	INSERT INTO location (
+		rack_id, rack_u_offset_of_device_top, rack_side,
+		inter_device_offset
+	) values (
+		_rack.rack_id, 15, 'FRONT',
+		15
+	) RETURNING * INTO _loc;
+
+	IF _loc.location_id is NULL or _loc.rack_id != _rack.rack_id or _loc.rack_u_offset_of_device_top != 15 or _loc.rack_side != 'FRONT' THEN
+		RAISE EXCEPTION '... They do not: %', _loc;
+	ELSE
+		RAISE NOTICE '... They do: %', _loc;
+	END IF;
+
+	RAISE NOTICE 'Checking to see if updates on location work... ';
+	INSERT INTO rack (
+		site_code, rack_name, rack_style, rack_height_in_u, display_from_bottom
+	) values (
+		'JHTEST01', 'JHTEST-02', 'CABINET', 42, 'Y'
+	) RETURNING * into _nrack;
+
+	UPDATE location set
+		location_id = location_id + 1,
+		rack_id = _nrack.rack_id,
+		rack_side = 'BACK',
+		rack_u_offset_of_device_top = 17
+	WHERE location_id = _loc.location_id;
+
+	SELECT * INTO _nloc from location where location_id = _loc.location_id + 1;
+
+	IF _nloc.location_id is NULL or _nloc.location_id != _loc.location_id + 1 or _nloc.rack_id != _nrack.rack_id or _nloc.rack_u_offset_of_device_top != 17 or _nloc.rack_side != 'BACK' THEN
+		RAISE EXCEPTION '... They do: % %', _loc, _nloc;
+	ELSE
+		RAISE NOTICE '... They do: % %', _loc, _nloc;
+	END IF;
+
+	RAISE NOTICE 'Checking to see if updating things to raises an exception...';
+	UPDATE location 
+	set location_id = location_id 
+	where location_id = _nloc.location_id;
+	RAISE NOTICE '... It does';
+
+	RAISE NOTICE 'Deleting a record to see if it goes away...';
+	DELETE from location where location_id = _nloc.location_id;
+
+	SELECT * INTO _nloc from location where location_id = _loc.location_id + 1;
+	IF _nloc.location_id IS NULL THEN
+		RAISE NOTICE '... It does.';
+	ELSE
+		RAISE EXCEPTION '... It does NOT %', _nloc;
+	END IF;
 
 	-- test all the states
 	-- run same deletes as at start

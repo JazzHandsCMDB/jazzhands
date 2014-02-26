@@ -55,6 +55,8 @@ grant create on database jazzhands_new to jazzhands;
 -- \i init/insert_blacklist.sql
 -- \i init/oracle/submit_scheduler.sql
 
+-- Things that are only done in migrations
+\i compat/pgsql/create_location_compatibility_view.sql
 
 -- Example Data is used by the tests
 
