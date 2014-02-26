@@ -6978,8 +6978,20 @@ CREATE TRIGGER trigger_automated_ac_on_person
 	FOR EACH ROW
 	EXECUTE PROCEDURE automated_ac_on_person();
 
+-- The netblock triggers now enforce this
+update netblock 
+	set can_subnet = 'N' 
+where netblock_id in 
+	(
+		select distinct p.netblock_id 
+		from netblock n 
+			join netblock p 
+				on (n.parent_netblock_id = p.netblock_id) 
+		where 
+			n.is_single_address = 'Y' and p.can_subnet = 'Y'
+	);
 
 -- RAISE EXCEPTION 'Need to test, test, test....';
--- SELECT schema_support.end_maintenance();
+SELECT schema_support.end_maintenance();
 
 select now();
