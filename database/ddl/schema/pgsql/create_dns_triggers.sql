@@ -392,7 +392,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change 
-	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl, soa_serial,
+	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl, 
 		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
 		soa_rname, should_generate
 	ON dns_domain 
