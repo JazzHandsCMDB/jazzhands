@@ -2218,7 +2218,7 @@ INSERT INTO device (
 	host_id,
 	physical_label,
 	asset_tag,
-	NULL,		-- new column (rack_location_id)
+	location_id,		-- new column (rack_location_id)
 	NULL,		-- new column (chassis_location_id)
 	location_id,
 	parent_device_id,
@@ -2292,7 +2292,7 @@ INSERT INTO audit.device (
 	host_id,
 	physical_label,
 	asset_tag,
-	NULL,		-- new column (rack_location_id)
+	location_id,		-- new column (rack_location_id)
 	NULL,		-- new column (chassis_location_id)
 	location_id,
 	parent_device_id,
