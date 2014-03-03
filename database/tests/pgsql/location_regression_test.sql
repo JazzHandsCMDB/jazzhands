@@ -74,9 +74,9 @@ BEGIN
 	) RETURNING * INTO _sled_dt;
 
 	INSERT INTO rack_location (
-		rack_id, rack_u_offset_of_device_top, rack_side
+		rack_id, rack_u_offset_of_device_top
 	) VALUES (
-		_rack.rack_id, 5, 'FRONT'
+		_rack.rack_id, 5
 	) RETURNING * INTO _chassisloc;
 
 	INSERT INTO rack_location (

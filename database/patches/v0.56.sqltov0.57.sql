@@ -822,7 +822,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 SELECT schema_support.begin_maintenance();
 
 drop trigger IF EXISTS trigger_dns_rec_a_type_validation ON dns_record;
-drop function dns_rec_type_validation();
+drop function IF EXISTS dns_rec_type_validation();
 
 CREATE INDEX idx_device_type_location ON device USING btree (device_type_id, location_id);
 CREATE INDEX xif13device ON device USING btree (location_id, device_type_id);
@@ -4979,8 +4979,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS aaaa_trigger_retire_netblock_columns ON netblock;
-CREATE TRIGGER aaaa_trigger_retire_netblock_columns
+DROP TRIGGER IF EXISTS zzzz_trigger_retire_netblock_columns ON netblock;
+CREATE TRIGGER zzzz_trigger_retire_netblock_columns
 	BEFORE INSERT OR UPDATE OF ip_address, netmask_bits, is_ipv4_address
 	ON netblock 
 	FOR EACH ROW EXECUTE PROCEDURE retire_netblock_columns();
@@ -6765,6 +6765,10 @@ AS $$
 DECLARE
 	_r		RACK_LOCATION%rowtype;
 BEGIN
+	-- deal with DEFAULT as best we can
+	IF NEW.rack_side is NULL THEN
+		NEW.rack_side := 'FRONT';
+	END IF;
 	IF NEW.location_id is not null THEN
 		INSERT INTO rack_location (
 			rack_location_id,

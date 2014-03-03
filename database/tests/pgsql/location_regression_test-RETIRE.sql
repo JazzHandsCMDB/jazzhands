@@ -155,10 +155,10 @@ BEGIN
 
 	RAISE NOTICE 'Checking to see if inserts to location work... ';
 	INSERT INTO location (
-		rack_id, rack_u_offset_of_device_top, rack_side,
+		rack_id, rack_u_offset_of_device_top, 
 		inter_device_offset
 	) values (
-		_rack.rack_id, 15, 'FRONT',
+		_rack.rack_id, 15, 
 		15
 	) RETURNING * INTO _loc;
 

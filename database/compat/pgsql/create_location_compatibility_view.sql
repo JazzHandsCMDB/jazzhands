@@ -1,4 +1,5 @@
--— Copyright (c) 2014, Todd M. Kover
+/*
+-- Copyright (c) 2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +16,7 @@
 --
 -- $Id$
 --
+ */
 
 CREATE OR REPLACE VIEW location
 AS
@@ -36,6 +38,10 @@ AS $$
 DECLARE
 	_r		RACK_LOCATION%rowtype;
 BEGIN
+	-- deal with DEFAULT as best we can
+	IF NEW.rack_side is NULL THEN
+		NEW.rack_side := 'FRONT';
+	END IF;
 	IF NEW.location_id is not null THEN
 		INSERT INTO rack_location (
 			rack_location_id,

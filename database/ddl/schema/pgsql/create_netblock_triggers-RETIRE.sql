@@ -58,8 +58,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS aaaa_trigger_retire_netblock_columns ON netblock;
-CREATE TRIGGER aaaa_trigger_retire_netblock_columns
+DROP TRIGGER IF EXISTS zzzz_trigger_retire_netblock_columns ON netblock;
+CREATE TRIGGER zzzz_trigger_retire_netblock_columns
 	BEFORE INSERT OR UPDATE OF ip_address, netmask_bits, is_ipv4_address
 	ON netblock 
 	FOR EACH ROW EXECUTE PROCEDURE retire_netblock_columns();
