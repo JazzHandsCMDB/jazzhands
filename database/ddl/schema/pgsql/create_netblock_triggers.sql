@@ -31,30 +31,11 @@ BEGIN
 			USING ERRCODE = 'not_null_violation';
 	END IF;
 
-	IF NEW.netmask_bits IS NULL THEN
-		/*
-		 * If netmask_bits is not set, and ip_address has a netmask that is
-		 * not a /32 (the default), then use that for the netmask.
-		 */
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
 
-		IF (masklen(NEW.ip_address) !=
-				CASE WHEN family(NEW.ip_address) = 4 THEN 32 ELSE 128 END) THEN
-			NEW.netmask_bits := masklen(NEW.ip_address);
-		END IF;
-
-		/*
-		 * Don't automatically determine the netmask unless is_single_address
-		 * is 'Y'.  If it is, enforce it if it's a managed hierarchy
-		 */
-		IF NEW.is_single_address = 'Y' THEN
-			SELECT * INTO nbtype FROM val_netblock_type WHERE
-				netblock_type = NEW.netblock_type;
-
-			IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
-				RAISE EXCEPTION 'Column netmask_bits may not be null'
-					USING ERRCODE = 'not_null_violation';
-			END IF;
-
+	IF NEW.is_single_address = 'Y' THEN
+		IF nbtype.db_forced_hierarchy = 'Y' THEN
 			RAISE DEBUG 'Calculating netmask for new netblock';
 
 			v_netblock_id := netblock_utils.find_best_parent_id(
@@ -66,21 +47,29 @@ BEGIN
 				NEW.netblock_id
 				);
 
+			IF v_netblock_id IS NULL THEN
+				RAISE EXCEPTION 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N', NEW.ip_address
+					USING ERRCODE = 'JH105';
+			END IF;
+
 			SELECT masklen(ip_address) INTO NEW.netmask_bits FROM
 				netblock WHERE netblock_id = v_netblock_id;
-
-		END IF;
-		IF NEW.netmask_bits IS NULL THEN
-			RAISE EXCEPTION 'Column netmask_bits may not be null'
-				USING ERRCODE = 'not_null_violation';
 		END IF;
 	END IF;
 
-	/*
-	 * If netmask_bits was not NULL, then it wins.  This will go away
-	 * in the future
-	 */
-	NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
+	IF NEW.netmask_bits IS NULL THEN
+		NEW.netmask_bits := masklen(NEW.ip_address);
+	ELSIF TG_OP = 'UPDATE' AND NEW.netmask_bits = OLD.netmask_bits AND
+			masklen(NEW.ip_address) != masklen(OLD.ip_address) THEN
+
+		/* masklen changes, but netmask_bits doesn't, so prefer masklen */
+		NEW.netmask_bits := masklen(NEW.ip_address);
+	ELSE
+		/* If none of the above cases pass, then netmask_bits wins.  For now */
+		NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
+	END IF;
+
+	/* Done with handling of netmasks */
 
 	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
 		RAISE EXCEPTION 'Single addresses may not be subnettable'
@@ -366,10 +355,6 @@ BEGIN
 	SELECT * INTO nbtype FROM val_netblock_type WHERE
 		netblock_type = NEW.netblock_type;
 
-	IF (NOT FOUND) THEN
-		RETURN NULL;
-	END IF;
-
 	/*
 	 * It's possible that due to delayed triggers that what is stored in
 	 * NEW is not current, so fetch the current values
@@ -503,17 +488,7 @@ BEGIN
 		END IF;
 
 		IF nbtype.is_validated_hierarchy='N' THEN
-			/*
-			 * non-validated hierarchy addresses may not have the best parent as
-			 * a parent, but if they have a parent, it should be a superblock
-			 */
-
-			IF NOT (realnew.ip_address << nbrec.ip_address OR
-					cidr(realnew.ip_address) != nbrec.ip_address) THEN
-				RAISE EXCEPTION 'Parent netblock % (%) is not a valid parent for %',
-					nbrec.ip_address, nbrec.netblock_id, realnew.ip_address
-					USING ERRCODE = 'JH104';
-			END IF;
+			RETURN NULL;
 		ELSE
 			parent_nbid := netblock_utils.find_best_parent_id(
 				realnew.ip_address,

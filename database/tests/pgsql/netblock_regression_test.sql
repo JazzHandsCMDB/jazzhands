@@ -18,7 +18,7 @@
 --
 \t on
 
-CREATE FUNCTION validate_netblock_triggers() RETURNS BOOLEAN AS $$
+DO $$
 DECLARE
 	v_netblock_id			netblock.netblock_id%TYPE;
 	v_parent_netblock_id	netblock.parent_netblock_id%TYPE;
@@ -978,12 +978,7 @@ BEGIN
 	DELETE FROM ip_universe WHERE ip_universe_name IN
 		('JHTEST-testuniverse', 'JHTEST-testuniverse2');
 
-
-	RETURN true;
 END;
 $$ LANGUAGE plpgsql;
-
-SELECT validate_netblock_triggers();
-DROP FUNCTION validate_netblock_triggers();
 
 \t off
