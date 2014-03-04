@@ -96,8 +96,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_retire_netblock_columns ON netblock;
-CREATE TRIGGER trigger_retire_netblock_columns
+DROP TRIGGER IF EXISTS trigger_netblock_complain_on_mismatch ON netblock;
+CREATE TRIGGER trigger_netblock_complain_on_mismatch
 	AFTER INSERT OR UPDATE OF ip_address, netmask_bits, is_ipv4_address
 	ON netblock 
 	FOR EACH ROW EXECUTE PROCEDURE netblock_complain_on_mismatch();

@@ -330,6 +330,18 @@ BEGIN
 		AND
 	  		( dns_type = NEW.dns_type )
 		AND 
+	  		( dns_srv_service = NEW.dns_srv_service OR 
+				(dns_srv_service IS NULL and NEW.dns_srv_service is NULL)
+			)
+		AND 
+	  		( dns_srv_protocol = NEW.dns_srv_protocol OR 
+				(dns_srv_protocol IS NULL and NEW.dns_srv_protocol is NULL)
+			)
+		AND 
+	  		( dns_srv_port = NEW.dns_srv_port OR 
+				(dns_srv_port IS NULL and NEW.dns_srv_port is NULL)
+			)
+		AND 
 	  		( dns_value = NEW.dns_value OR 
 				(dns_value IS NULL and NEW.dns_value is NULL)
 			)

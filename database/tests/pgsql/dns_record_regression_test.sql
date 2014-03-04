@@ -370,6 +370,56 @@ BEGIN
 
 	RAISE NOTICE '++ Ending test of dns_rec_prevent_dups....';
 
+	RAISE NOTICE 'Attempting to insert some SRV records...';
+	INSERT INTO val_dns_srv_service (dns_srv_service) values ('_foo');
+	INSERT INTO val_dns_srv_service (dns_srv_service) values ('_bar');
+
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value, dns_priority,
+		dns_srv_service, dns_srv_protocol, dns_srv_weight, dns_srv_port
+	) VALUES (
+		'JHTEST-foo', _dnsdomid, 'SRV', 'JHTEST2', 50,
+		'_foo', 'tcp', 50, 1234
+	);
+
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value, dns_priority,
+		dns_srv_service, dns_srv_protocol, dns_srv_weight, dns_srv_port
+	) VALUES (
+		'JHTEST-foo', _dnsdomid, 'SRV', 'JHTEST2', 50,
+		'_bar', 'tcp', 50, 1234
+	);
+
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value, dns_priority,
+		dns_srv_service, dns_srv_protocol, dns_srv_weight, dns_srv_port
+	) VALUES (
+		'JHTEST-foo', _dnsdomid, 'SRV', 'JHTEST2', 50,
+		'_bar', 'tcp', 50, 1235
+	);
+
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value, dns_priority,
+		dns_srv_service, dns_srv_protocol, dns_srv_weight, dns_srv_port
+	) VALUES (
+		'JHTEST-foo', _dnsdomid, 'SRV', 'JHTEST2', 50,
+		'_foo', 'udp', 50, 1234
+	);
+
+	RAISE NOTICE 'Checking if inserting a dup SRV works...';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value, dns_priority,
+			dns_srv_service, dns_srv_protocol, dns_srv_weight, dns_srv_port
+		) VALUES (
+			'JHTEST-foo', _dnsdomid, 'SRV', 'JHTEST2', 50,
+			'_foo', 'tcp', 50, 1234
+		);
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;
