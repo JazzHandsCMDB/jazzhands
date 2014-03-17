@@ -1,9 +1,8 @@
 %define name    jazzhands-stab
 %define prefix	/var/www/stab
-%define version 0.57.1
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.56.6
+Version:        0.57.1
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
