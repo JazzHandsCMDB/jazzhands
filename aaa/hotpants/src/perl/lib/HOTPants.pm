@@ -55,6 +55,8 @@ my %__HOTPANTS_SERIALIZE_VERSION = (
 );
 
 my %__HOTPANTS_CONFIG_PARAMS = (
+	TimeSequenceSkew		=> 2,	# sequence skew allowed for time-based
+									# tokens
 	SequenceSkew          => 7,     # Normal amount of sequence skew allowed
 	ResyncSequenceSkew    => 100,   # Amount of sequence skew allowed for
 	                                # unassisted resync (i.e. two successive
@@ -1934,15 +1936,32 @@ sub HOTPAuthenticate {
 			$sequence, $token->{token_id} );
 	}
 
+	my $initialseq;
+	my $maxskew;
+	if ($token->{time_modulo}) {
+		$initialseq = time() % $token->{time_modulo}) - 
+			$__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
+		#
+		# If we already have an auth from this sequence, don't
+		# allow replays
+		#
+		if ($token->{sequence} >= $initialseq) {
+			$initialseq = $token->{sequence} + 1;
+		}
+		$maxskew = $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
+	} else {
+		$initialseq = $token->{sequence} + 1;
+		$maxskew = $__HOTPANTS_CONFIG_PARAMS{SequenceSkew};
+	}
+		
 	#
 	# Either the token is not skewed, or the skew reset failed.  Perform
 	# normal authentication
 	#
 	for (
-		$sequence = $token->{sequence} +
-		1 ;
+		$sequence = $initialseq;
 		$sequence <= $token->{sequence} +
-		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
+			$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
 		$sequence++
 	  )
 	{
@@ -1982,16 +2001,13 @@ sub HOTPAuthenticate {
 	# If we find the sequence, but it's between SequenceSkew and
 	# ResyncSequenceSkew, but the token into next OTP mode
 	#
-	if ( $sequence >
-		$token->{sequence} + $__HOTPANTS_CONFIG_PARAMS{SequenceSkew} )
-	{
+	if ( $sequence > $maxskew ) {
 		$errstr = sprintf(
 "OTP sequence %d for token %d outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
 			$sequence,
 			$token->{token_id},
 			$login,
-			$token->{sequence} +
-			  $__HOTPANTS_CONFIG_PARAMS{SequenceSkew}
+			$maxskew
 		);
 		$self->UserError(
 "One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
