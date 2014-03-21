@@ -446,7 +446,7 @@ BEGIN
                 USING
                         (person_id)
                 WHERE
-                        p.person_id = 0 AND unix_uid >5000;
+                        p.person_id = 0 AND unix_uid >6000;
 		new_id = new_id - 1;
         END IF;
         RETURN new_id;
