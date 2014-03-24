@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#!/usr/bin/env perl -w
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
