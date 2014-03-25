@@ -289,7 +289,7 @@ CREATE OR REPLACE FUNCTION dns_non_a_rec_validation() RETURNS TRIGGER AS $$
 DECLARE
 	_ip		netblock.ip_address%type;
 BEGIN
-	IF NEW.dns_type NOT in ('A', 'AAAA') AND NEW.dns_value IS NULL THEN
+	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND NEW.dns_value IS NULL THEN
 		RAISE EXCEPTION 'Attempt to set % record without a value',
 			NEW.dns_type
 			USING ERRCODE = 'not_null_violation';
