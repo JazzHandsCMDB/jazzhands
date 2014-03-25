@@ -433,7 +433,7 @@ sub get_mclass_properties {
     	};
 
 	if ($q_mclass_ids) {
-		$q .= "where d.device_collection_id in $q_mclass_ids";
+		$q .= "and d.device_collection_id in $q_mclass_ids";
 	}
 
 	$q .=
@@ -835,12 +835,13 @@ sub generate_group_files($) {
 	## -- rhs: account collection that gets membership
 
 	$q = q{
-		select	dc.device_collection_id, 
+		select	distinct dc.device_collection_id, 
 				ug.account_collection_id, 
 				grp_ac.account_collection_name as group_name, 
 				a.login
-		from device_collection dc
-		    inner join v_property p using (device_collection_id)
+		from v_device_coll_hier_detail dc
+		    inner join v_property p on
+				p.device_collection_id = dc.parent_device_collection_id
 		    inner join account_collection grp_ac using (account_collection_id)
 		    inner join unix_group ug using (account_collection_id)
 		    inner join v_acct_coll_acct_expanded mac
@@ -856,7 +857,7 @@ sub generate_group_files($) {
     };
 
 	if ($q_mclass_ids) {
-		$q .= "and c.device_collection_id in $q_mclass_ids";
+		$q .= "and dc.device_collection_id in $q_mclass_ids";
 	}
 
 	$sth = $dbh->prepare($q);
@@ -952,6 +953,7 @@ sub generate_group_files($) {
 			  if ( defined $member{$ugid} );
 
 			## Add members that are specific to this MCLASS
+
 
 			push(
 				@{ $gm->{$gname}{members} },
@@ -2039,16 +2041,16 @@ sub validate_mclasses(@) {
 	my ( $q, $ref, @mclass_ids );
 
 	$q = q{
-	select name, device_collection_id from device_collection
+	select device_collection_name, device_collection_id from device_collection
 	where device_collection_type = 'mclass'
     };
 
-	$q .= "and name in ('" . join( "','", @mclasses ) . "')";
-	$ref = $dbh->selectall_hashref( $q, 'NAME' );
+	$q .= "and device_collection_name in ('" . join( "','", @mclasses ) . "')";
+	$ref = $dbh->selectall_hashref( $q, _dbx('DEVICE_COLLECTION_NAME') );
 
 	foreach (@mclasses) {
 		if ( exists $ref->{$_} ) {
-			push( @mclass_ids, $ref->{$_}{DEVICE_COLLECTION_ID} );
+			push( @mclass_ids, $ref->{$_}{_dbx('DEVICE_COLLECTION_ID')} );
 		}
 
 		else {

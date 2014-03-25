@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.57.2
+Version:    0.57.3
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -42,6 +42,9 @@ rm -rf %{buildroot}
 [ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  && mkdir -p /var/lib/jazzhands/creds-mgmt-server/out
 
 %changelog
+* Mon Jan 27 2014 Todd Kover <kovert@omniscient.com> 0.57.3
+- make running on individual mclasses work
+- make recursion work for group member overrides
 * Mon Jan 27 2014 Todd Kover <kovert@omniscient.com> 0.57.2
 - add PreferLocalSSHAuthorizedKeys per-user attribute
 - migrate PreferLocal to be a UnixPasswdFileValue
