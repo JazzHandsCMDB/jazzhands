@@ -278,7 +278,7 @@ sub get_passwd_line($$$$) {
 	else {
 		$gname = $u->{ _dbx('GROUP_NAME') };
 		$gid =
-		  defined( $gp->{$gname} ) ? $gp->{$gname}{FORCE_GID} : $gid;
+		  defined( $gp->{$gname} ) ? $gp->{$gname}{_dbx('FORCE_GID')} : $gid;
 	}
 
 	## Determine full name
@@ -929,6 +929,7 @@ sub generate_group_files($) {
 		my $gp  = $g_prop->{$dcid};
 		my $gm;
 
+		#- next if(!$gdc);
 		## $gm will store group member information for this MCLASS.
 		## The first level key is the group name. The second level
 		## keys are 'gid', 'password', and 'members'.
@@ -965,7 +966,7 @@ sub generate_group_files($) {
 		## the group information from $passwd_grp which stores the
 		## primary group information from the passwd file.
 
-		foreach my $login ( keys %{ $passwd_grp->{$dcid} } ) {
+		foreach my $login ( sort keys %{ $passwd_grp->{$dcid} } ) {
 			my $gname = $passwd_grp->{$dcid}{$login}{GROUP_NAME};
 			my $gid   = $passwd_grp->{$dcid}{$login}{GID};
 
