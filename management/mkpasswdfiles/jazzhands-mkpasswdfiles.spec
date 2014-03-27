@@ -42,7 +42,7 @@ rm -rf %{buildroot}
 [ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  && mkdir -p /var/lib/jazzhands/creds-mgmt-server/out
 
 %changelog
-* Mon Jan 27 2014 Todd Kover <kovert@omniscient.com> 0.57.4
+* Thu Mar 27 2014 Todd Kover <kovert@omniscient.com> 0.57.4
 - fix gid overrides to work
 * Tue Mar 25 2014 Todd Kover <kovert@omniscient.com> 0.57.2
 - add PreferLocalSSHAuthorizedKeys per-user attribute
