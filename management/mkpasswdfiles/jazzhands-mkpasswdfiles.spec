@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.57.5
+Version:    0.57.6
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,6 +46,8 @@ else
 fi
 
 %changelog
+* Fri Mar 28 2014 Todd Kover <kovert@omniscient.com> 0.57.6
+- actually selected out description from an account as a gecos override
 * Fri Mar 28 2014 Todd Kover <kovert@omniscient.com> 0.57.5
 - force uids and gids to integers
 * Thu Mar 27 2014 Todd Kover <kovert@omniscient.com> 0.57.4

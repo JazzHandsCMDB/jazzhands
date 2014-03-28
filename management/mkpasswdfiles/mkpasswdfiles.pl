@@ -610,7 +610,8 @@ sub generate_passwd_files($) {
 			   unix_gid, first_name, 
 	       case when length(middle_name) = 1
 		    then middle_name || '.' else middle_name end middle_name,
-	       last_name, default_home, shell, ssh.ssh_public_key
+	       last_name, default_home, shell, ssh.ssh_public_key,
+		a.description
 	from account a
 			join person p
 				on (p.person_id = a.person_id)
