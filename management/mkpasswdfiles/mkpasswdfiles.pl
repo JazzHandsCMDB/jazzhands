@@ -706,8 +706,8 @@ sub generate_passwd_files($) {
 			'account_id'    => $r->{ _dbx('ACCOUNT_ID') },
 			'login'         => $pwd[0],
 			'password_hash' => $pwd[1],
-			'uid'           => $pwd[2],
-			'gid'           => $pwd[3],
+			'uid'           => int($pwd[2]),
+			'gid'           => int($pwd[3]),
 			'gecos'         => $pwd[4],
 			'home'          => $pwd[5],
 			'shell'         => $pwd[6],
@@ -1028,7 +1028,7 @@ sub generate_group_files($) {
 				{
 					'group_name'     => $gname,
 					'group_password' => '*',
-					'gid'            => $gid,
+					'gid'            => int($gid),
 					'members'        => \@m
 				}
 			);
