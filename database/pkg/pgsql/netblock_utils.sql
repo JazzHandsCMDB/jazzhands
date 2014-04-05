@@ -24,8 +24,49 @@
  * $Id$
  */
 
-drop schema if exists netblock_utils cascade;
-create schema netblock_utils authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'netblock_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS device_utils;
+                CREATE SCHEMA device_utils AUTHORIZATION jazzhands;
+        END IF;
+END;
+$$;
+
+/*
+
+notes on how to dealw ith reverse_zone_block_ptr.
+
+select  distinct dns.dns_domain_id, dom.soa_name, chg.ip_address
+ from   dns_record dns
+                inner join dns_domain dom using (dns_domain_id)
+                inner join netblock n using (netblock_id),
+        dns_change_record chg
+where   dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
+and     net_manip.inet_base(n.ip_address, masklen(n.ip_address)) =
+                net_manip.inet_base(chg.ip_address, masklen(n.ip_address));
+
+select  distinct dns.dns_domain_id, dom.soa_name
+ from   dns_record dns
+                inner join dns_domain dom using (dns_domain_id)
+                inner join netblock n using (netblock_id),
+        dns_change_record chg
+where   dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
+and     net_manip.inet_base(n.ip_address, masklen(n.ip_address)) =
+                net_manip.inet_base(chg.ip_address, masklen(n.ip_address));
+
+
+
+
+ */
+
+RAISE EXCEPTION 'Need to sort this out';
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -161,7 +202,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
+CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id_nbid(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS jazzhands.dns_domain.dns_domain_id%type AS $$
 DECLARE
@@ -202,6 +243,49 @@ BEGIN
 	return v_rv;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
+	in_ip_address	jazzhands.netblock.ip_address%type
+) RETURNS jazzhands.dns_domain.dns_domain_id%type AS $$
+DECLARE
+	v_rv	jazzhands.dns_domain.dns_domain_id%type;
+	v_domid	jazzhands.dns_domain.dns_domain_id%type;
+	v_lhsip	jazzhands.netblock.ip_address%type;
+	v_rhsip	jazzhands.netblock.ip_address%type;
+	nb_match CURSOR ( in_ip jazzhands.netblock.ip_address%type) FOR
+		-- The query used to include this in the where clause, but
+		-- oracle was uber slow 
+		--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
+		--		net_manip.inet_base(root.ip_address, root.netmask_bits) 
+		select  rootd.dns_domain_id,
+				 net_manip.inet_base(nb.ip_address, root.netmask_bits),
+				 net_manip.inet_base(root.ip_address, root.netmask_bits)
+		  from  jazzhands.netblock nb,
+			jazzhands.netblock root
+				inner join jazzhands.dns_record rootd
+					on rootd.netblock_id = root.netblock_id
+					and rootd.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
+		 where
+		  	host(nb.ip_address) = host(in_ip);
+BEGIN
+	v_rv := NULL;
+	OPEN nb_match(in_ip_address);
+	LOOP
+		FETCH  nb_match INTO v_domid, v_lhsip, v_rhsip;
+		if NOT FOUND THEN
+			EXIT;
+		END IF;
+
+		if v_lhsip = v_rhsip THEN
+			v_rv := v_domid;
+			EXIT;
+		END IF;
+	END LOOP;
+	CLOSE nb_match;
+	return v_rv;
+END;
+$$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(
 	parent_netblock_id		jazzhands.netblock.netblock_id%TYPE,
