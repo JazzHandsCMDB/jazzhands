@@ -2121,7 +2121,7 @@ sub parse_netblock_search {
 		return $self->error_return("You specified an invalid address");
 	}
 
-	my $parent = $self->guess_parent_netblock_id($bycidr);
+	my $parent = $self->guess_parent_netblock_id($bycidr, undef, 'Y');
 
 	# zero is 0/0, which is also considered "not found"
 	if ( !$parent ) {

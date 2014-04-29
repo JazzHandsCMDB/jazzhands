@@ -98,8 +98,16 @@ sub prepare_cached {
 #
 # different from other implementations
 #
+# This really wants to have some more quality time spent on it.
+#
+#
 sub guess_parent_netblock_id {
-	my ( $self, $in_ip, $in_bits ) = @_;
+	my ( $self, $in_ip, $in_bits, $sing ) = @_;
+
+	#
+	# parse_netblock_search wants this to be Y
+	#
+	$sing = 'N' if(!$sing);
 
 	# select is needed for postgres 9.1 to optimize right.
 	my $q = qq {
@@ -114,13 +122,14 @@ sub guess_parent_netblock_id {
 				in_Netmask_Bits := :bits, 
 				in_ip_universe_id := 0,
 				in_netblock_type := 'default', 
-				in_is_single_address := 'N')
+				in_is_single_address := :sing)
 			)
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->bind_param( ':ip',   $in_ip )   || die $sth->errstr;
 	$sth->bind_param( ':bits', $in_bits ) || die $sth->errstr;
+	$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
 	$sth->execute || $self->return_db_err($sth);
 	my $rv = $sth->fetchrow_hashref;
 	$sth->finish;

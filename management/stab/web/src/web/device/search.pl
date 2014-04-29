@@ -111,8 +111,6 @@ sub find_devices {
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 
-warn "q is $q";
-
 	if ( defined($name) ) {
 		$sth->bind_param( ":name", "%$name%" )
 		  || $stab->return_db_err($sth);
