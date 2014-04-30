@@ -377,6 +377,10 @@ sub generate_named_acl_file($$$) {
 
 	$fn = "$zoneroot/$fn";
 
+	if(! -d $zoneroot) {
+		mkdir_p($zoneroot);
+	}
+
 	my $tmpfn = "$fn.$$.zonetmp";
 	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
 	print_comments( $dbh, $out, '//' );
@@ -457,7 +461,7 @@ sub build_network_range_table {
 sub process_fwd_range {
 	my ( $dbh, $out, $domid, $domain ) = @_;
 
-	foreach my $rangeid ( keys(%$network_range_table) ) {
+	foreach my $rangeid ( sort keys(%$network_range_table) ) {
 		my $rec = $network_range_table->{$rangeid};
 
 		my $soa_name = $rec->{ _dbx('SOA_NAME') };
@@ -507,7 +511,7 @@ sub process_rvs_range {
 	my $low_block  = iptoint( $nb->base() );
 	my $high_block = iptoint( $nb->broadcast() );
 
-	foreach my $rangeid ( keys(%$network_range_table) ) {
+	foreach my $rangeid ( sort keys(%$network_range_table) ) {
 		my $rec = $network_range_table->{$rangeid};
 
 		my $soa_name = $rec->{ _dbx('SOA_NAME') };
