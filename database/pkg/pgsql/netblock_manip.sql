@@ -89,13 +89,42 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 								DEFAULT NULL
 ) RETURNS jazzhands.netblock AS $$
 DECLARE
+	netblock_rec	RECORD;
+BEGIN
+	SELECT netblock_manip.allocate_netblock(
+		parent_netblock_list := ARRAY[parent_netblock_id],
+		netmask_bits := netmask_bits,
+		address_type := address_type,
+		can_subnet := can_subnet,
+		allocate_from_bottom := allocate_from_bottom,
+		description := description,
+		netblock_status := netblock_status
+	) into netblock_rec;
+	RETURN netblock_rec;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
+	parent_netblock_list	integer[],
+	netmask_bits			integer DEFAULT NULL,
+	address_type			text DEFAULT 'netblock',
+	-- alternatvies: 'single', 'loopback'
+	can_subnet				boolean DEFAULT true,
+	allocate_from_bottom	boolean DEFAULT true,
+	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
+	netblock_status			jazzhands.netblock.netblock_status%TYPE
+								DEFAULT NULL
+) RETURNS jazzhands.netblock AS $$
+DECLARE
 	parent_rec		RECORD;
 	netblock_rec	RECORD;
-	inet_rec		inet;
+	inet_rec		RECORD;
 	loopback_bits	integer;
+	inet_family		integer;
 BEGIN
-	IF parent_netblock_id IS NULL THEN
-		RAISE 'parent_netblock_id must be specified'
+	IF parent_netblock_list IS NULL THEN
+		RAISE 'parent_netblock_list must be specified'
 		USING ERRCODE = 'null_value_not_allowed';
 	END IF;
 
@@ -104,45 +133,69 @@ BEGIN
 		USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 		
+	IF netmask_bits IS NULL AND address_type = 'netblock' THEN
+		RAISE EXCEPTION
+			'You must specify a netmask when address_type is netblock'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
 
-	SELECT * INTO parent_rec FROM netblock WHERE netblock_id = 
-		allocate_netblock.parent_netblock_id FOR UPDATE;
-	IF NOT FOUND THEN
-		RAISE EXCEPTION 'parent_netblock_id % is not valid',
-			allocate_netblock.parent_netblock_id
-			USING ERRCODE = 'invalid_parameter_value';
-	END IF;
+	FOR parent_rec IN SELECT * FROM netblock WHERE netblock_id = 
+			ANY(allocate_netblock.parent_netblock_list) FOR UPDATE LOOP
 
-	IF parent_rec.is_single_address = 'Y' THEN
-		RAISE EXCEPTION 'parent_netblock_id refers to a single_address netblock'
-			USING ERRCODE = 'invalid_parameter_value';
-	END IF;
-
-	IF netmask_bits IS NULL AND address_type = 'netblock' THEN
-		RAISE EXCEPTION
-			'You must either specify a netmask when address_type is netblock'
-			USING ERRCODE = 'invalid_parameter_value';
-	END IF;
-
-	IF address_type = 'loopback' THEN
-		IF parent_rec.can_subnet = 'N' THEN
-			RAISE EXCEPTION 'parent subnet must have can_subnet set to Y'
-				USING ERRCODE = 'JH10B';
+		IF parent_rec.is_single_address = 'Y' THEN
+			RAISE EXCEPTION 'parent_netblock_id refers to a single_address netblock'
+				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 
+		IF inet_family IS NULL THEN
+			inet_family := family(parent_rec.ip_address);
+		ELSIF inet_family != family(parent_rec.ip_address) THEN
+			RAISE EXCEPTION 'Allocation may not mix IPv4 and IPv6 addresses'
+			USING ERRCODE = 'JH10F';
+		END IF;
+
+		IF address_type = 'loopback' THEN
+			loopback_bits := 
+				CASE WHEN 
+					family(parent_rec.ip_address) = 4 THEN 32 ELSE 128 END;
+
+			IF parent_rec.can_subnet = 'N' THEN
+				RAISE EXCEPTION 'parent subnet must have can_subnet set to Y'
+					USING ERRCODE = 'JH10B';
+			END IF;
+		ELSIF address_type = 'single' THEN
+			IF parent_rec.can_subnet = 'Y' THEN
+				RAISE EXCEPTION
+					'parent subnet for single address must have can_subnet set to N'
+					USING ERRCODE = 'JH10B';
+			END IF;
+		ELSIF address_type = 'netblock' THEN
+			IF parent_rec.can_subnet = 'N' THEN
+				RAISE EXCEPTION 'parent subnet must have can_subnet set to Y'
+					USING ERRCODE = 'JH10B';
+			END IF;
+		END IF;
+	END LOOP;
+
+ 	IF NOT FOUND THEN
+ 		RAISE EXCEPTION 'parent_netblock_list is not valid'
+ 			USING ERRCODE = 'invalid_parameter_value';
+ 	END IF;
+
+	IF address_type = 'loopback' THEN
 		-- If we're allocating a loopback address, then we need to create
 		-- a new parent to hold the single loopback address
 
-		loopback_bits := 
-			CASE WHEN family(parent_rec.ip_address) = 4 THEN 32 ELSE 128 END;
-
-		SELECT netblock_utils.find_free_netblock(
-			parent_netblock_id := parent_netblock_id,
+		SELECT * INTO inet_rec FROM netblock_utils.find_free_netblocks(
+			parent_netblock_list := parent_netblock_list,
 			netmask_bits := loopback_bits,
 			single_address := false,
-			allocate_from_bottom := allocate_from_bottom) INTO inet_rec;
+			allocate_from_bottom := allocate_from_bottom,
+			max_addresses := 1
+			);
 
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'No valid netblocks found to allocate'
@@ -151,31 +204,26 @@ BEGIN
 
 		INSERT INTO netblock (
 			ip_address,
-			netmask_bits,
 			netblock_type,
-			is_ipv4_address,
 			is_single_address,
 			can_subnet,
 			ip_universe_id,
 			description,
 			netblock_status
 		) VALUES (
-			inet_rec,
+			inet_rec.ip_address,
 			loopback_bits,
-			parent_rec.netblock_type,
-			parent_rec.is_ipv4_address,
+			inet_rec.netblock_type,
 			'N',
 			'N',
-			parent_rec.ip_universe_id,
+			inet_rec.ip_universe_id,
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO parent_rec;
 
 		INSERT INTO netblock (
 			ip_address,
-			netmask_bits,
 			netblock_type,
-			is_ipv4_address,
 			is_single_address,
 			can_subnet,
 			ip_universe_id,
@@ -185,7 +233,6 @@ BEGIN
 			inet_rec,
 			masklen(inet_rec),
 			parent_rec.netblock_type,
-			parent_rec.is_ipv4_address,
 			'Y',
 			'N',
 			parent_rec.ip_universe_id,
@@ -197,40 +244,34 @@ BEGIN
 	END IF;
 
 	IF address_type = 'single' THEN
-		IF parent_rec.can_subnet = 'Y' THEN
-			RAISE EXCEPTION
-				'parent subnet for single address must have can_subnet set to N'
-				USING ERRCODE = 'JH10B';
-		END IF;
-
-		SELECT netblock_utils.find_free_netblock(
-			parent_netblock_id := parent_rec.netblock_id,
+		SELECT * INTO inet_rec FROM netblock_utils.find_free_netblocks(
+			parent_netblock_list := parent_netblock_list,
 			single_address := true,
-			allocate_from_bottom := allocate_from_bottom) INTO inet_rec;
+			allocate_from_bottom := allocate_from_bottom,
+			max_addresses := 1
+			);
 
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'No valid netblocks found to allocate'
 			USING ERRCODE = 'JH110';
 		END IF;
 
+		RAISE NOTICE 'ip_address is %', inet_rec.ip_address;
+
 		INSERT INTO netblock (
 			ip_address,
-			netmask_bits,
 			netblock_type,
-			is_ipv4_address,
 			is_single_address,
 			can_subnet,
 			ip_universe_id,
 			description,
 			netblock_status
 		) VALUES (
-			inet_rec,
-			masklen(inet_rec),
-			parent_rec.netblock_type,
-			parent_rec.is_ipv4_address,
+			inet_rec.ip_address,
+			inet_rec.netblock_type,
 			'Y',
 			'N',
-			parent_rec.ip_universe_id,
+			inet_rec.ip_universe_id,
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
@@ -238,16 +279,12 @@ BEGIN
 		RETURN netblock_rec;
 	END IF;
 	IF address_type = 'netblock' THEN
-		IF parent_rec.can_subnet = 'N' THEN
-			RAISE EXCEPTION 'parent subnet must have can_subnet set to Y'
-				USING ERRCODE = 'JH10B';
-		END IF;
-
-		SELECT netblock_utils.find_free_netblock(
-			parent_netblock_id := parent_rec.netblock_id,
+		SELECT * INTO inet_rec FROM netblock_utils.find_free_netblocks(
+			parent_netblock_list := parent_netblock_list,
 			netmask_bits := netmask_bits,
 			single_address := false,
-			allocate_from_bottom := allocate_from_bottom) INTO inet_rec;
+			allocate_from_bottom := allocate_from_bottom,
+			max_addresses := 1);
 
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'No valid netblocks found to allocate'
@@ -256,22 +293,18 @@ BEGIN
 
 		INSERT INTO netblock (
 			ip_address,
-			netmask_bits,
 			netblock_type,
-			is_ipv4_address,
 			is_single_address,
 			can_subnet,
 			ip_universe_id,
 			description,
 			netblock_status
 		) VALUES (
-			inet_rec,
-			masklen(inet_rec),
-			parent_rec.netblock_type,
-			parent_rec.is_ipv4_address,
+			inet_rec.ip_address,
+			inet_rec.netblock_type,
 			'N',
 			CASE WHEN can_subnet THEN 'Y' ELSE 'N' END,
-			parent_rec.ip_universe_id,
+			inet_rec.ip_universe_id,
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;

@@ -24,20 +24,8 @@
  * $Id$
  */
 
-drop schema if exists netblock_utils cascade;
-create schema netblock_utils authorization jazzhands;
-
--------------------------------------------------------------------
--- returns the Id tag for CM
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION netblock_utils.id_tag()
-RETURNS VARCHAR AS $$
-BEGIN
-	RETURN('<-- $Id -->');
-END;
-$$ LANGUAGE plpgsql;
--- end of procedure id_tag
--------------------------------------------------------------------
+DROP SCHEMA IF EXISTS netblock_utils CASCADE;
+CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress jazzhands.netblock.ip_address%type,
@@ -209,7 +197,9 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(
 	single_address			boolean DEFAULT false,
 	allocate_from_bottom	boolean DEFAULT true
 ) RETURNS TABLE (
-	ip_address	inet
+	ip_address		inet,
+	netblock_type	jazzhands.netblock.netblock_type%TYPE,
+	ip_universe_id	jazzhands.netblock.ip_universe_id%TYPE
 ) AS $$
 BEGIN
 	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
@@ -228,9 +218,33 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
 	allocate_from_bottom	boolean DEFAULT true,
 	max_addresses			integer DEFAULT 1024
 ) RETURNS TABLE (
-	ip_address	inet
+	ip_address		inet,
+	netblock_type	jazzhands.netblock.netblock_type%TYPE,
+	ip_universe_id	jazzhands.netblock.ip_universe_id%TYPE
+) AS $$
+BEGIN
+	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
+		parent_netblock_list := ARRAY[parent_netblock_id],
+		netmask_bits := netmask_bits,
+		single_address := single_address,
+		allocate_from_bottom := allocate_from_bottom,
+		max_addresses := max_addresses);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
+	parent_netblock_list	integer[],
+	netmask_bits			integer DEFAULT NULL,
+	single_address			boolean DEFAULT false,
+	allocate_from_bottom	boolean DEFAULT true,
+	max_addresses			integer DEFAULT 1024
+) RETURNS TABLE (
+	ip_address		inet,
+	netblock_type	jazzhands.netblock.netblock_type%TYPE,
+	ip_universe_id	jazzhands.netblock.ip_universe_id%TYPE
 ) AS $$
 DECLARE
+	parent_nbid		jazzhands.netblock.netblock_id%TYPE;
 	step			integer;
 	nb_size			integer;
 	offset			integer;
@@ -241,108 +255,111 @@ DECLARE
 	matches			integer;
 	family_bits		integer;
 BEGIN
-	SELECT 
-		* INTO netblock_rec
-	FROM
-		jazzhands.netblock n
-	WHERE
-		n.netblock_id = find_free_netblocks.parent_netblock_id;
-
-	IF NOT FOUND THEN
-		RAISE EXCEPTION 'Netblock % does not exist', 
-			find_free_netblocks.parent_netblock_id;
-	END IF;
-
-	family_bits := 
-		(CASE family(netblock_rec.ip_address) WHEN 4 THEN 32 ELSE 128 END);
-
-	IF single_address THEN 
-		netmask_bits := family_bits;
-	ELSIF netmask_bits <= masklen(netblock_rec.ip_address) THEN
-		RAISE EXCEPTION 'netmask_bits must be larger than the netblock (%)',
-			masklen(netblock_rec.ip_address);
-	END IF;
-
-	IF netmask_bits > family_bits
-		THEN
-		RAISE EXCEPTION 'netmask_bits must be no more than % for netblock %',
-			family_bits,
-			netblock_rec.ip_address;
-	END IF;
-
-	IF single_address AND netblock_rec.can_subnet = 'Y' THEN
-		RAISE EXCEPTION 'single addresses may not be assigned to to a block where can_subnet is Y';
-		RETURN;
-	END IF;
-
-	IF (NOT single_address) AND netblock_rec.can_subnet = 'N' THEN
-		RAISE EXCEPTION 'Netblock % (%) may not be subnetted',
-			netblock_rec.ip_address,
-			netblock_rec.netblock_id;
-		RETURN;
-	END IF;
-
-	-- It would be nice to be able to use generate_series here, but
-	-- that could get really huge
-
-	nb_size := 1 << ( family_bits - netmask_bits );
-	min_ip := netblock_rec.ip_address;
-	max_ip := min_ip + (1 << (family_bits - masklen(min_ip)));
-
-	IF allocate_from_bottom THEN
-		current_ip := set_masklen(netblock_rec.ip_address, netmask_bits);
-	ELSE
-		current_ip := set_masklen(max_ip, netmask_bits) - nb_size;
-		nb_size := -nb_size;
-	END IF;
-
-	RAISE DEBUG 'Searching netblock % (%)',
-		netblock_rec.netblock_id,
-		netblock_rec.ip_address;
-
-	-- For single addresses, make the netmask match the netblock of the
-	-- containing block, and skip the network and broadcast addresses
-
-	IF single_address THEN
-		current_ip := set_masklen(current_ip, masklen(netblock_rec.ip_address));
-		IF family(netblock_rec.ip_address) = 4 AND
-				masklen(netblock_rec.ip_address) < 31 THEN
-			current_ip := current_ip + nb_size;
-			min_ip := min_ip - 1;
-			max_ip := max_ip - 1;
-		END IF;
-	END IF;
-
-	RAISE DEBUG 'Starting with IP address % with step of %',
-		current_ip,
-		nb_size;
-
 	matches := 0;
-	WHILE (
-			current_ip >= min_ip AND
-			current_ip < max_ip AND
-			matches < max_addresses
-	) LOOP
-		RAISE DEBUG '   Checking netblock %', current_ip;
+	FOREACH parent_nbid IN ARRAY parent_netblock_list LOOP
+		SELECT 
+			* INTO netblock_rec
+		FROM
+			jazzhands.netblock n
+		WHERE
+			n.netblock_id = parent_nbid;
 
-		PERFORM * FROM netblock n WHERE
-			n.ip_universe_id = netblock_rec.ip_universe_id AND
-			n.netblock_type = netblock_rec.netblock_type AND
-			-- A block with the parent either contains or is contained
-			-- by this block
-			n.parent_netblock_id = netblock_rec.netblock_id AND
-			CASE WHEN single_address THEN
-				n.ip_address = current_ip
-			ELSE
-				(n.ip_address >>= current_ip OR current_ip >>= n.ip_address)
-			END;
 		IF NOT FOUND THEN
-			find_free_netblocks.ip_address := current_ip;
-			RETURN NEXT;
-			matches := matches + 1;
+			RAISE EXCEPTION 'Netblock % does not exist', parent_nbid;
 		END IF;
 
-		current_ip := current_ip + nb_size;
+		family_bits := 
+			(CASE family(netblock_rec.ip_address) WHEN 4 THEN 32 ELSE 128 END);
+
+		IF single_address THEN 
+			netmask_bits := family_bits;
+		ELSIF netmask_bits <= masklen(netblock_rec.ip_address) THEN
+			RAISE EXCEPTION 'netmask_bits must be larger than the netblock (%)',
+				masklen(netblock_rec.ip_address);
+		END IF;
+
+		IF netmask_bits > family_bits
+			THEN
+			RAISE EXCEPTION 'netmask_bits must be no more than % for netblock %',
+				family_bits,
+				netblock_rec.ip_address;
+		END IF;
+
+		IF single_address AND netblock_rec.can_subnet = 'Y' THEN
+			RAISE EXCEPTION 'single addresses may not be assigned to to a block where can_subnet is Y';
+		END IF;
+
+		IF (NOT single_address) AND netblock_rec.can_subnet = 'N' THEN
+			RAISE EXCEPTION 'Netblock % (%) may not be subnetted',
+				netblock_rec.ip_address,
+				netblock_rec.netblock_id;
+		END IF;
+
+		-- It would be nice to be able to use generate_series here, but
+		-- that could get really huge
+
+		nb_size := 1 << ( family_bits - netmask_bits );
+		min_ip := netblock_rec.ip_address;
+		max_ip := min_ip + (1 << (family_bits - masklen(min_ip)));
+
+		IF allocate_from_bottom THEN
+			current_ip := set_masklen(netblock_rec.ip_address, netmask_bits);
+		ELSE
+			current_ip := set_masklen(max_ip, netmask_bits) - nb_size;
+			nb_size := -nb_size;
+		END IF;
+
+		RAISE DEBUG 'Searching netblock % (%)',
+			netblock_rec.netblock_id,
+			netblock_rec.ip_address;
+
+		-- For single addresses, make the netmask match the netblock of the
+		-- containing block, and skip the network and broadcast addresses
+
+		IF single_address THEN
+			current_ip := set_masklen(current_ip, masklen(netblock_rec.ip_address));
+			IF family(netblock_rec.ip_address) = 4 AND
+					masklen(netblock_rec.ip_address) < 31 THEN
+				current_ip := current_ip + nb_size;
+				min_ip := min_ip - 1;
+				max_ip := max_ip - 1;
+			END IF;
+		END IF;
+
+		RAISE DEBUG 'Starting with IP address % with step of %',
+			current_ip,
+			nb_size;
+
+		WHILE (
+				current_ip >= min_ip AND
+				current_ip < max_ip AND
+				matches < max_addresses
+		) LOOP
+			RAISE DEBUG '   Checking netblock %', current_ip;
+
+			PERFORM * FROM netblock n WHERE
+				n.ip_universe_id = netblock_rec.ip_universe_id AND
+				n.netblock_type = netblock_rec.netblock_type AND
+				-- A block with the parent either contains or is contained
+				-- by this block
+				n.parent_netblock_id = netblock_rec.netblock_id AND
+				CASE WHEN single_address THEN
+					n.ip_address = current_ip
+				ELSE
+					(n.ip_address >>= current_ip OR current_ip >>= n.ip_address)
+				END;
+			IF NOT FOUND THEN
+				find_free_netblocks.netblock_type :=
+					netblock_rec.netblock_type;
+				find_free_netblocks.ip_universe_id :=
+					netblock_rec.ip_universe_id;
+				find_free_netblocks.ip_address := current_ip;
+				RETURN NEXT;
+				matches := matches + 1;
+			END IF;
+
+			current_ip := current_ip + nb_size;
+		END LOOP;
 	END LOOP;
 	RETURN;
 END;

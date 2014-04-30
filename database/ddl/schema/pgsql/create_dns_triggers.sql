@@ -15,119 +15,7 @@
  * limitations under the License.
  */
 
-CREATE OR REPLACE FUNCTION dns_rec_before() 
-RETURNS TRIGGER AS $$
-BEGIN
-	IF TG_OP = 'DELETE' THEN
-		PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
-		    OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
-		)
-		FOR UPDATE;
-
-		RETURN OLD;
-	ELSIF TG_OP = 'INSERT' THEN
-		IF NEW.netblock_id IS NOT NULL THEN
-			PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
-		    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-			) FOR UPDATE;
-		END IF;
-
-		RETURN NEW;
-	ELSE
-		IF OLD.netblock_id IS DISTINCT FROM NEW.netblock_id THEN
-			IF OLD.netblock_id IS NOT NULL THEN
-				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
-			    	OLD.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id))
-				FOR UPDATE;
-			END IF;
-			IF NEW.netblock_id IS NOT NULL THEN
-				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
-			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-				)
-				FOR UPDATE;
-			END IF;
-		ELSE
-			IF NEW.netblock_id IS NOT NULL THEN
-				PERFORM 1 FROM dns_domain WHERE dns_domain_id IN (
-			    	NEW.dns_domain_id, netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-				) FOR UPDATE;
-			END IF;
-		END IF;
-
-		RETURN NEW;
-	END IF;
-END;
-$$ 
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_dns_rec_before ON dns_record;
-CREATE TRIGGER trigger_dns_rec_before 
-	BEFORE INSERT OR DELETE OR UPDATE 
-	ON dns_record 
-	FOR EACH ROW
-	EXECUTE PROCEDURE dns_rec_before();
-
-CREATE OR REPLACE FUNCTION update_dns_zone() 
-RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP IN ('INSERT', 'UPDATE') THEN
-		UPDATE dns_domain SET zone_last_updated = clock_timestamp()
-            WHERE dns_domain_id = NEW.dns_domain_id
-			AND ( zone_last_updated < last_generated
-			OR zone_last_updated is NULL);
-
-		IF TG_OP = 'UPDATE' THEN
-			IF OLD.dns_domain_id != NEW.dns_domain_id THEN
-				UPDATE dns_domain SET zone_last_updated = clock_timestamp()
-					 WHERE dns_domain_id = OLD.dns_domain_id
-					 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-			END IF;
-			IF NEW.netblock_id != OLD.netblock_id THEN
-				UPDATE dns_domain SET zone_last_updated = clock_timestamp()
-					 WHERE dns_domain_id in (
-						 netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id),
-						 netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-					)
-				     AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-			END IF;
-		ELSIF TG_OP = 'INSERT' AND NEW.netblock_id is not NULL THEN
-			UPDATE dns_domain SET zone_last_updated = clock_timestamp()
-				WHERE dns_domain_id = 
-					netblock_utils.find_rvs_zone_from_netblock_id(NEW.netblock_id)
-				AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-
-		END IF;
-	END IF;
-
-    IF TG_OP = 'DELETE' THEN
-        UPDATE dns_domain SET zone_last_updated = clock_timestamp()
-			WHERE dns_domain_id = OLD.dns_domain_id
-			AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-
-		IF OLD.dns_type = 'A' OR OLD.dns_type = 'AAAA' THEN
-			UPDATE dns_domain SET zone_last_updated = clock_timestamp()
-                 WHERE  dns_domain_id = netblock_utils.find_rvs_zone_from_netblock_id(OLD.netblock_id)
-				 AND ( zone_last_updated < last_generated or zone_last_updated is NULL );
-        END IF;
-    END IF;
-	RETURN NEW;
-END;
-$$ 
-LANGUAGE plpgsql 
-SET search_path=jazzhands
-SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_update_dns_zone ON dns_record;
-CREATE CONSTRAINT TRIGGER trigger_update_dns_zone 
-	AFTER INSERT OR DELETE OR UPDATE 
-	ON dns_record 
-	INITIALLY DEFERRED
-	FOR EACH ROW 
-	EXECUTE PROCEDURE update_dns_zone();
-
 ---------------------------------------------------------------------------
-
 --
 -- This shall replace all the aforementioned triggers
 --
@@ -164,6 +52,23 @@ BEGIN
 			_mkold := true;
 		END IF;
 		_mkdom := true;
+
+		IF (OLD.DNS_NAME is NULL and NEW.DNS_NAME is not NULL )
+				OR (OLD.DNS_NAME IS NOT NULL and NEW.DNS_NAME is NULL)
+				OR (OLD.DNS_NAME IS NOT NULL and NEW.DNS_NAME IS NOT NULL
+					AND OLD.DNS_NAME != NEW.DNS_NAME) THEN
+			_mknew := true;
+			IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
+				IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+					_mkip := true;
+				END IF;
+			END IF;
+		END IF;
+
+		IF OLD.SHOULD_GENERATE_PTR != NEW.SHOULD_GENERATE_PTR THEN
+			_mkold := true;
+			_mkip := true;
+		END IF;
 
 		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
 				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID is NULL)
@@ -289,7 +194,7 @@ CREATE OR REPLACE FUNCTION dns_non_a_rec_validation() RETURNS TRIGGER AS $$
 DECLARE
 	_ip		netblock.ip_address%type;
 BEGIN
-	IF NEW.dns_type NOT in ('A', 'AAAA') AND NEW.dns_value IS NULL THEN
+	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND NEW.dns_value IS NULL THEN
 		RAISE EXCEPTION 'Attempt to set % record without a value',
 			NEW.dns_type
 			USING ERRCODE = 'not_null_violation';

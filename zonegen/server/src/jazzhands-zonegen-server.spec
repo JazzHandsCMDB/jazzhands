@@ -4,7 +4,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.55.0
+Version:    0.57.7
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -54,6 +54,11 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Wed Apr 30 2014 Todd Kover <kovert@omniscient.com> 0.57.7
+- make the acl root dir exist before creating file
+- sort pool records so they always end up in the same order
+- Update zonegen to use new dns_change-record table. 
+- Generate a site netblocks acl file
 * Thu Oct 17 2013 Todd Kover <kovert@omniscient.com> 0.55.0
 - dhcp_range -> network_range
 - network range: dhcp prefix, dns_domain

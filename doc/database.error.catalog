@@ -147,6 +147,12 @@ not belong to it.
 
 ---------------------------------------------------------------------------
 
+JH10F	-	Allocation may not mix IPv4 and IPv6 addresses
+
+When allocating addresses, parent netblocks may not mix IP family types
+
+---------------------------------------------------------------------------
+
 JH110	-	No free netblocks available
 
 No netblocks were available to allocate matching the parameters

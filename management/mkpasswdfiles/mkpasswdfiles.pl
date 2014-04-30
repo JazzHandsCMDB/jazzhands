@@ -244,9 +244,7 @@ sub get_passwd_line($$$$) {
 
 	if ( defined( $up->{'ForceCrypt'} ) ) {
 		$crypt = $up->{ForceCrypt};
-	}
-
-	else {
+	} else {
 		if ( defined( $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') } ) ) {
 			my $ptype = $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') };
 			if ( defined( $u->{$ptype} ) ) {
@@ -280,18 +278,22 @@ sub get_passwd_line($$$$) {
 	else {
 		$gname = $u->{ _dbx('GROUP_NAME') };
 		$gid =
-		  defined( $gp->{$gname} ) ? $gp->{$gname}{FORCE_GID} : $gid;
+		  defined( $gp->{$gname} ) ? $gp->{$gname}{_dbx('FORCE_GID')} : $gid;
 	}
 
 	## Determine full name
 
-	$full_name = join(
-		' ',
-		grep( defined($_),
-			$u->{ _dbx('FIRST_NAME') },
-			$u->{ _dbx('MIDDLE_NAME') },
-			$u->{ _dbx('LAST_NAME') } )
-	);
+	if ( defined( $u->{ _dbx('DESCRIPTION') } ) ) {
+		$full_name = $u->{ _dbx('DESCRIPTION') };
+	} else {
+		$full_name = join(
+			' ',
+			grep( defined($_),
+				$u->{ _dbx('FIRST_NAME') },
+				$u->{ _dbx('MIDDLE_NAME') },
+				$u->{ _dbx('LAST_NAME') } )
+		);
+	}
 
 	## Determine home directory
 
@@ -355,15 +357,10 @@ sub get_uclass_properties() {
 	$q = q{
 	select device_collection_id, account_id,
 	       property_name, property_value
---		,
---	       case when property_name = 'ForceUserGroup'
- --		   then to_char(unix_gid) 
-  --		  else null end unix_gid
 	from v_dev_col_user_prop_expanded pe
 			join account a using(account_id)
 			join val_person_status vps
 				on vps.person_status = a.account_status
-	-- left join unix_group ug on pe.property_value = ug.group_name
 	where vps.is_disabled = 'N'
 	and property_type = 'UnixPasswdFileValue'
 	and device_collection_id is not null
@@ -388,9 +385,7 @@ sub get_uclass_properties() {
 					GROUP_NAME => $pv,
 					UNIX_GID   => $gid
 				};
-			}
-
-			else {
+			} else {
 				$mu_prop->{$dcid}{$suid}{$upn} = $pv;
 			}
 		}
@@ -433,12 +428,12 @@ sub get_mclass_properties {
 		join v_device_coll_hier_detail d
 			on p.device_collection_id = 
 				d.parent_device_collection_id
-	 where p.property_type = 'MclassUnixProp'
+	 where p.property_type in ( 'MclassUnixProp' )
 		and p.property_name != 'UnixLogin'
     	};
 
 	if ($q_mclass_ids) {
-		$q .= "where d.device_collection_id in $q_mclass_ids";
+		$q .= "and d.device_collection_id in $q_mclass_ids";
 	}
 
 	$q .=
@@ -599,6 +594,8 @@ sub generate_passwd_files($) {
 	my $now = "sysdate";    # XXX - oracle, need to be smarter
 	$now = "current_timestamp";
 
+	#
+	# NOTE:  Need to come up with a smarter way of getting user properties.
 	$q = qq{
 	select distinct c.device_collection_id, a.account_id, 
 			   c.device_collection_name mclass,
@@ -614,7 +611,7 @@ sub generate_passwd_files($) {
 	       case when length(middle_name) = 1
 		    then middle_name || '.' else middle_name end middle_name,
 	       last_name, default_home, shell, ssh.ssh_public_key,
-	       coalesce(locpref.property_value, 'N') as preferlocal
+		a.description
 	from account a
 			join person p
 				on (p.person_id = a.person_id)
@@ -646,20 +643,6 @@ sub generate_passwd_files($) {
 			inner join ssh_key skey using (ssh_key_id)
 			group by account_id
 		) ssh on (a.account_id = ssh.account_id)
-	    left join (
-	    	select dh.device_collection_id,
-			aca.account_Id, p.property_value
-	    	from v_property p
-		inner join v_device_coll_hier_detail dh
-			on dh.parent_device_collection_id = 
-				p.device_collection_id
-	        inner join v_acct_coll_acct_expanded aca
-		                    using (account_collection_id)
-		where   property_name = 'PreferLocal'
-		and    property_type = 'MclassUnixProp'
-	    ) locpref on 
-	    	(locpref.account_id, locpref.device_collection_id) =
-		(a.account_id, cce.device_collection_id)
 	where is_disabled = 'N'
 	and c.device_collection_type = 'mclass'
 	-- and ac.account_collection_type in ('systems', 'per-user')
@@ -694,9 +677,7 @@ sub generate_passwd_files($) {
 				$last_dcid = $dcid;
 				undef(@pwdlines);
 			}
-		}
-
-		else {
+		} else {
 			$fh = new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
 				$fh, 'passwd' );
 			$last_dcid = $dcid;
@@ -721,17 +702,26 @@ sub generate_passwd_files($) {
 			GID        => $gid
 		};
 
+		my $up       = $u_prop->{$dcid}{$suid};
 		my $userhash = {
 			'account_id'    => $r->{ _dbx('ACCOUNT_ID') },
 			'login'         => $pwd[0],
 			'password_hash' => $pwd[1],
-			'uid'           => $pwd[2],
-			'gid'           => $pwd[3],
+			'uid'           => int($pwd[2]),
+			'gid'           => int($pwd[3]),
 			'gecos'         => $pwd[4],
 			'home'          => $pwd[5],
 			'shell'         => $pwd[6],
 			'group_name'    => $pwd[7],
-			'PreferLocal'   => $r->{ _dbx('PREFERLOCAL') },
+			'PreferLocal'   => (
+				     $up->{'PreferLocal'}
+				  && $up->{'PreferLocal'} eq 'Y'
+			  ) ? 'Y' : 'N',
+			'PreferLocalSSHAuthorizedKeys' => (
+				     $up->{'PreferLocalSSHAuthorizedKeys'}
+				  && $up->{'PreferLocalSSHAuthorizedKeys'} eq
+				  'Y'
+			) ? 'Y' : 'N',
 		};
 
 		if ( defined $r->{ _dbx('SSH_PUBLIC_KEY') } ) {
@@ -846,12 +836,13 @@ sub generate_group_files($) {
 	## -- rhs: account collection that gets membership
 
 	$q = q{
-		select	dc.device_collection_id, 
+		select	distinct dc.device_collection_id, 
 				ug.account_collection_id, 
 				grp_ac.account_collection_name as group_name, 
 				a.login
-		from device_collection dc
-		    inner join v_property p using (device_collection_id)
+		from v_device_coll_hier_detail dc
+		    inner join v_property p on
+				p.device_collection_id = dc.parent_device_collection_id
 		    inner join account_collection grp_ac using (account_collection_id)
 		    inner join unix_group ug using (account_collection_id)
 		    inner join v_acct_coll_acct_expanded mac
@@ -867,7 +858,7 @@ sub generate_group_files($) {
     };
 
 	if ($q_mclass_ids) {
-		$q .= "and c.device_collection_id in $q_mclass_ids";
+		$q .= "and dc.device_collection_id in $q_mclass_ids";
 	}
 
 	$sth = $dbh->prepare($q);
@@ -939,6 +930,7 @@ sub generate_group_files($) {
 		my $gp  = $g_prop->{$dcid};
 		my $gm;
 
+		#- next if(!$gdc);
 		## $gm will store group member information for this MCLASS.
 		## The first level key is the group name. The second level
 		## keys are 'gid', 'password', and 'members'.
@@ -964,6 +956,7 @@ sub generate_group_files($) {
 
 			## Add members that are specific to this MCLASS
 
+
 			push(
 				@{ $gm->{$gname}{members} },
 				@{ $m_member{$dcid}{$ugid} }
@@ -974,7 +967,7 @@ sub generate_group_files($) {
 		## the group information from $passwd_grp which stores the
 		## primary group information from the passwd file.
 
-		foreach my $login ( keys %{ $passwd_grp->{$dcid} } ) {
+		foreach my $login ( sort keys %{ $passwd_grp->{$dcid} } ) {
 			my $gname = $passwd_grp->{$dcid}{$login}{GROUP_NAME};
 			my $gid   = $passwd_grp->{$dcid}{$login}{GID};
 
@@ -1030,12 +1023,13 @@ sub generate_group_files($) {
 
 			#print $fh "$gname:*:$gid:"
 			#  . join( ',', sort { $a cmp $b } @m ) . "\n";
+			@m = sort(@m);
 			push(
 				@allgrp,
 				{
 					'group_name'     => $gname,
 					'group_password' => '*',
-					'gid'            => $gid,
+					'gid'            => int($gid),
 					'members'        => \@m
 				}
 			);
@@ -2049,16 +2043,16 @@ sub validate_mclasses(@) {
 	my ( $q, $ref, @mclass_ids );
 
 	$q = q{
-	select name, device_collection_id from device_collection
+	select device_collection_name, device_collection_id from device_collection
 	where device_collection_type = 'mclass'
     };
 
-	$q .= "and name in ('" . join( "','", @mclasses ) . "')";
-	$ref = $dbh->selectall_hashref( $q, 'NAME' );
+	$q .= "and device_collection_name in ('" . join( "','", @mclasses ) . "')";
+	$ref = $dbh->selectall_hashref( $q, _dbx('DEVICE_COLLECTION_NAME') );
 
 	foreach (@mclasses) {
 		if ( exists $ref->{$_} ) {
-			push( @mclass_ids, $ref->{$_}{DEVICE_COLLECTION_ID} );
+			push( @mclass_ids, $ref->{$_}{_dbx('DEVICE_COLLECTION_ID')} );
 		}
 
 		else {
@@ -2109,7 +2103,7 @@ sub create_json_manifest {
 	my $finder = sub {
 		if ( -f or -l ) {
 			my $file = $File::Find::name;
-			$file =~ s#^$output_dir/##;
+			$file =~ s#^$output_dir/*##;
 			push @files, $file;
 		}
 	};
@@ -2128,18 +2122,18 @@ sub main {
 	my $dir;
 
 	GetOptions(
-		'random-sleep=i'      => \$o_random,
+		'random-sleep=i' => \$o_random,
 		'v|verbose'      => \$o_verbose,
 		'o|output-dir=s' => \$o_output_dir
 	) or exit(2);
 
-	if($o_random) {
-		my $delay = int( rand ($o_random ) );
-		warn "Sleeping $delay seconds\n" if($o_verbose);
-		sleep( $delay );
+	if ($o_random) {
+		my $delay = int( rand($o_random) );
+		warn "Sleeping $delay seconds\n" if ($o_verbose);
+		sleep($delay);
 	}
 
-	warn "Connecting to DB..." if($o_verbose);
+	warn "Connecting to DB..." if ($o_verbose);
 	$dbh =
 	  JazzHands::DBI->connect( 'mkpwdfiles',
 		{ RaiseError => 1, AutoCommit => 0 } );

@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.56.9
+Version:    0.57.6
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -39,9 +39,22 @@ rm -rf %{buildroot}
 %{prefix}/%{mkproot}/mkpasswdfiles
 
 %post
-[ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  && mkdir -p /var/lib/jazzhands/creds-mgmt-server/out
+if [ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  ;then
+	mkdir -p /var/lib/jazzhands/creds-mgmt-server/out || true
+else
+	true
+fi
 
 %changelog
+* Fri Mar 28 2014 Todd Kover <kovert@omniscient.com> 0.57.6
+- actually selected out description from an account as a gecos override
+* Fri Mar 28 2014 Todd Kover <kovert@omniscient.com> 0.57.5
+- force uids and gids to integers
+* Thu Mar 27 2014 Todd Kover <kovert@omniscient.com> 0.57.4
+- fix gid overrides to work
+* Tue Mar 25 2014 Todd Kover <kovert@omniscient.com> 0.57.2
+- add PreferLocalSSHAuthorizedKeys per-user attribute
+- migrate PreferLocal to be a UnixPasswdFileValue
 * Mon Jan 27 2014 Todd Kover <kovert@omniscient.com> 0.56.9
 - add PrerferLocal flag to users...
 * Fri Jan 24 2014 Todd Kover <kovert@omniscient.com> 0.56.8
