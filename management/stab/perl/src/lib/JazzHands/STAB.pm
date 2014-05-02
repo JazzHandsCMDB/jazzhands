@@ -2616,7 +2616,7 @@ sub vendor_logo {
 
 sub DESTROY {
 	my $self = shift;
-	my $dbh  = $self->{dbh};
+	my $dbh  = $self->dbh;
 
 	if ( $self->{_JazzHandsSth} ) {
 		foreach my $q ( keys( %{ $self->{_JazzHandsSth} } ) ) {
