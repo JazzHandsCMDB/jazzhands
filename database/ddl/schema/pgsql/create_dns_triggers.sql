@@ -50,6 +50,7 @@ BEGIN
 	ELSIF TG_OP = 'UPDATE' THEN
 		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
 			_mkold := true;
+			_mkip := true;
 		END IF;
 		_mkdom := true;
 
