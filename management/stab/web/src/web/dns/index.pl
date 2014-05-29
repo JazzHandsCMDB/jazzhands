@@ -273,7 +273,7 @@ sub build_fwd_zone_Tr {
 		$class = $hr->{_dbx('DNS_CLASS')};
 		$type  = $hr->{_dbx('DNS_TYPE')};
 		$value = $hr->{_dbx('DNS_VALUE')};
-		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} =~ /^A(AAA)?$/ ) {
 			$value = $hr->{_dbx('IP')};
 		}
 	} elsif ( !defined($iszone) ) {
@@ -291,7 +291,7 @@ sub build_fwd_zone_Tr {
 			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
 		delete($opts->{-textfield_width});
 
-		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} =~ /^A(AAA)?$/ ) {
 			# [XXX] hack hack hack, needs to be fixed right.
 			$hr->{_dbx('DNS_VALUE')} = $hr->{_dbx('IP')};
 			$value = $stab->b_textfield( $opts, $hr, 'DNS_VALUE',
@@ -302,7 +302,7 @@ sub build_fwd_zone_Tr {
 		$value = $stab->b_textfield( $opts,
 			$hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
 		delete($opts->{-textfield_width});
-		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} eq 'A' ) {
+		if ( defined($hr) && $hr->{_dbx('DNS_TYPE')} =~ /^A(AAA)?$/ ) {
 
 			# [XXX] hack hack hack, needs to be fixed right.
 			$hr->{_dbx('DNS_VALUE')} = $hr->{_dbx('IP')};

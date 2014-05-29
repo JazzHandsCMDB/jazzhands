@@ -58,7 +58,7 @@ sub new {
 	$self->{_current} = {};
 
 	bless $self, $class;
-	foreach my $key ( qw( netblock_id is_ipv4_address
+	foreach my $key ( qw( netblock_id 
 			is_single_address can_subnet parent_netblock_id netblock_status
 			nic_id nic_company_id description netblock_type ip_universe_id
 			reservation_ticket_number )) {
@@ -71,9 +71,6 @@ sub new {
 		my @args = (
 			'ip_address', $opt->{ip_address},
 			'errors', $opt->{errors});
-		if (defined($opt->{netmask_bits})) {
-			push @args, 'netmask_bits', $opt->{netmask_bits};
-		}
 		if (!($self->IPAddress(@args))) {
 			return undef;
 		}
@@ -118,30 +115,17 @@ sub GetNetblock {
 				key => 'ip_address',
 				value => sprintf("%s", $opt->{ip_address})
 			};
-			push @$match, {
-				key => 'netmask_bits',
-				value => $opt->{ip_address}->masklen
-			};
-		} elsif ($opt->{ip_address} && $opt->{netmask_bits}) {
-			push @$match, {
-				key => 'ip_address',
-				value => $opt->{ip_address}
-			};
-			push @$match, {
-				key => 'netmask_bits',
-				value => $opt->{netmask_bits}
-			};
 		} else {
 			push @$match, {
 				key => 'host(ip_address)',
 				value => $opt->{ip_address}
 			};
-			$order = 'netmask_bits desc';
+			$order = 'family(ip_address) desc';
 		}
 	}
 
 	foreach my $key ( qw(netblock_type parent_netblock_id is_single_address
-			can_subnet is_ipv4_address) ) {
+			can_subnet ) ) {
 		if ( $opt->{$key} ) {
 			push @$match, {
 				key => $key,
@@ -210,27 +194,15 @@ sub IPAddress {
 						$opt->{ip_address}));
 				return undef;
 			}
-		} elsif ($opt->{netmask_bits}) {
-			$ip_address = NetAddr::IP->new(
-				sprintf("%s/%d", $opt->{ip_address}, $opt->{netmask_bits}));
-			if (!$ip_address) {
-				SetError($opt->{errors}, 
-					sprintf("Invalid network address: %s/%s",
-						$opt->{ip_address}, $opt->{netmask_bits}));
-				return undef;
-			}
 		} else {
 			SetError($opt->{errors}, 
-				"netmask_bits must be set or address must be given with /");
+				"address must be given with /");
 			return undef;
 		}
 		$opt->{ip_address} = $ip_address;
 	}
 	$self->{ip_address} = $opt->{ip_address};
 	$self->{_current}->{ip_address} = sprintf("%s", $opt->{ip_address});
-	$self->{_current}->{netmask_bits} = $opt->{ip_address}->masklen;
-	$self->{_current}->{is_ipv4_address} = 
-		$opt->{ip_address}->version == 4 ? 'Y' : 'N';
 	1;
 }
 

@@ -1534,7 +1534,6 @@ sub dump_device_route {
 		q{
 		select	sr.static_route_id,
 				net_manip.inet_dbtop(snb.ip_address) as route_src_ip,
-				snb.netmask_bits as route_src_netmask_bits,
 				ddev.device_name as dest_device_name,
 				dni.network_interface_name as dest_interface_name,
 				dni.network_interface_id,
@@ -1565,8 +1564,7 @@ sub dump_device_route {
 		]
 	);
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		$seen{      $hr->{_dbx('ROUTE_SRC_IP')} . "/"
-			  . $hr->{_dbx('ROUTE_SRC_NETMASK_BITS')} } =
+		$seen{      $hr->{_dbx('ROUTE_SRC_IP')} } =
 		  $hr->{_dbx('NETWORK_INTERFACE_ID')};
 		$tt .= $self->build_existing_route_box($hr);
 	}
@@ -1621,12 +1619,6 @@ sub build_existing_route_box {
 					"ROUTE_SRC_IP",
 					'STATIC_ROUTE_ID'
 				),
-				"/",
-				$self->b_textfield(
-					$hr,
-					"ROUTE_SRC_NETMASK_BITS",
-					'STATIC_ROUTE_ID'
-				),
 			]
 		),
 		$cgi->td(
@@ -1651,7 +1643,6 @@ sub get_device_netblock_routes {
 			srt.NETWORK_INTERFACE_DST_ID,
 			srt.NETBLOCK_SRC_ID,
 			net_manip.inet_dbtop(snb.ip_address) as source_block_ip,
-			snb.netmask_bits as source_block_bits,
 			ni.netblock_id as destination_netblock_id,
 			net_manip.inet_dbtop(dnb.ip_address) as destination_ip,
 			dni.network_interface_name,
@@ -1664,7 +1655,7 @@ sub get_device_netblock_routes {
 			inner join netblock tnb
 				on tnb.netblock_id = srt.netblock_id
 			inner join netblock rnb
-				on net_manip.inet_base(rnb.ip_address, rnb.netmask_bits) =
+				on net_manip.inet_base(rnb.ip_address, masklen(rnb.ip_address)) =
 					tnb.ip_address
 			inner join network_interface ni
 				on rnb.netblock_id = ni.netblock_id
@@ -1675,7 +1666,7 @@ sub get_device_netblock_routes {
 			inner join device ddev
 				on dni.device_id = ddev.device_Id
 		where
-			tnb.netmask_bits = rnb.netmask_bits
+			masklen(tnb.ip_address) = masklen(rnb.ip_address)
 		  and   ni.device_id = ?
 	}
 	);

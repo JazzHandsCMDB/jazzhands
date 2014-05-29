@@ -113,13 +113,11 @@ sub guess_parent_netblock_id {
 	my $q = qq {
 		select  Netblock_Id,
 			net_manip.inet_dbtop(ip_address) as IP,
-			ip_address,
-			netmask_bits
+			ip_address
 		  from  netblock
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
 				in_IpAddress := net_manip.inet_ptodb(:ip), 
-				in_Netmask_Bits := :bits, 
 				in_ip_universe_id := 0,
 				in_netblock_type := 'default', 
 				in_is_single_address := :sing)
@@ -155,6 +153,10 @@ sub get_interface_from_ip {
 
 }
 
+#
+# returns non-zero if a given IP address is on an interface for a device or
+# not.  Primarily used for setting up static routes on hosts
+#
 sub check_ip_on_local_nets {
 	my ( $self, $devid, $ip ) = @_;
 
@@ -162,13 +164,13 @@ sub check_ip_on_local_nets {
 		qq{
 		select  count(*)
 		  from  network_interface ni
-			inner join netblock nb on
-				ni.netblock_id = nb.netblock_id
+			inner join netblock nb using (netblock_id)
 		where
 			ni.device_id = ?
 		 and
-			net_manip.inet_base(net_manip.inet_ptodb(?), nb.netmask_bits) =
-				net_manip.inet_base(nb.ip_address, nb.netmask_bits)
+			net_manip.inet_base(net_manip.inet_ptodb(?), 
+					family(nb.ip_address)) =
+				net_manip.inet_base(nb.ip_address, family(nb.ip_address))
 	}
 	);
 
@@ -218,18 +220,6 @@ sub add_netblock {
 	my $self = shift @_;
 	my $opts = _options(@_);
 
-	# The parent netblock id is handled automatially by triggers
-	# most of the time, so no need to do so.
-	#my $parid;
-	#if ($parnb) {
-	#	$bits = $parnb->{ _dbx('NETMASK_BITS') } if ( !$bits );
-	#	$parid = $parnb->{ _dbx('NETBLOCK_ID') };
-	#}
-	#
-	#if ( !$bits ) {
-	#	return undef;
-	#}
-
 	# XXX need to deal with more smartly  -- $isorg!!
 	#my $type = 'default';
 	#if ( $isorg eq 'Y' ) {
@@ -245,8 +235,7 @@ sub add_netblock {
 	};
 
 	for my $f (
-		'netmask_bits',    'netblock_type',
-		'is_ipv4_address', 'is_single_address',
+		'is_single_address',
 		'can_subnet',      'parent_netblock_id',
 		'netblock_status', 'nic_id',
 		'nic_company_id',  'ip_universe_id',
@@ -263,14 +252,6 @@ sub add_netblock {
 			$new->{can_subnet} = 'N';
 		} else {
 			$new->{can_subnet} = 'Y';
-		}
-	}
-
-	if ( !defined( $new->{is_ipv4_address} ) ) {
-		if ( $new->{ip_address} =~ /:/ ) {
-			$new->{is_ipv4_address} = 'N';
-		} else {
-			$new->{is_ipv4_address} = 'Y';
 		}
 	}
 
@@ -494,10 +475,6 @@ sub get_netblock_from_ip {
 		errors        => \@errors,
 	};
 
-	if ( $opts->{'netmask_bits'} ) {
-		$args->{'netmask_bits'} = $opts->{'netmask_bits'};
-	}
-
 	if ( $opts->{'is_single_address'} ) {
 		$args->{'is_single_address'} = 'Y';
 	}
@@ -684,7 +661,7 @@ sub add_dns_record {
 
 	$opts = _dbx( $opts, 'lower' );
 
-	if ( $opts->{dns_type} eq 'A' ) {
+	if ( $opts->{dns_type} =~ /^A(AAA)?/ ) {
 		$opts->{dns_value} = undef;
 		if ( !$opts->{should_generate_ptr} ) {
 			if ( $self->ptr_exists( $opts->{netblock_id} ) ) {
@@ -783,7 +760,6 @@ sub configure_allocated_netblock {
 			netblock_type	  => 'default',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
-			is_ipv4_address   => ( $ip =~ /:/ ) ? 'N' : 'Y',
 		};
 		my $nblkid = $self->add_netblock($h);
 		$nblk = $self->get_netblock_from_id($nblkid);
@@ -1449,7 +1425,6 @@ sub validate_route_entry {
 				ip_address => $srcip,
 				parent_netblock_id =>
 				  $parnb->{ _dbx('PARENT_NETBLOCK_ID') },
-				netmask_bits => $srcbits,
 				netblock_type =>
 				  'default',    # XXX -- need to reconsider!
 			);
@@ -1698,8 +1673,6 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$editabledesc = 0;
 	} elsif ( defined($hr) ) {
 		$id   = $hr->{ _dbx('NETBLOCK_ID') };
-		$bits = $hr->{ _dbx('NETMASK_BITS') }
-		  || $blk->{ _dbx('NETMASK_BITS') };
 		$devid   = $hr->{ _dbx('DEVICE_ID') };
 		$name    = $hr->{ _dbx('DNS_NAME') };
 		$dom     = $hr->{ _dbx('SOA_NAME') };
@@ -1919,7 +1892,6 @@ sub process_and_insert_dns_record {
 		 # print a warning on, but lacking that, it gets created as a
 		 # type dns
 				$h->{netblock_type} = 'dns';
-				$h->{netmask_bits}  = 32;
 			}
 			$id = $self->add_netblock($h)
 			  || die $self->return_db_err();
