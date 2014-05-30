@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.57.1
+Version:        0.57.8
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -176,6 +176,9 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.8 
+- fix search by cidr on netblock page
+- make db disconnects work correctly 
 * Mon Mar 17 2014 Todd Kover <kovert@omniscient.com> 0.57.1 
 - when adding a new ip address for a loopback to a network interface, use the
   single address

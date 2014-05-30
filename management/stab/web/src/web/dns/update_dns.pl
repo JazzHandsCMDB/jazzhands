@@ -169,7 +169,7 @@ sub clear_same_dns_params {
 			}
 
 		} else {
-			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } eq 'A' ) {
+			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/ ) {
 				$all->{$dnsid}->{ _dbx('DNS_VALUE') } =
 				  $all->{$dnsid}->{ _dbx('IP') };
 			}
@@ -638,20 +638,19 @@ sub process_and_update_dns_record {
 
 	my $nblkid;
 
-# if the new type is A/AAAA then find the netblock and create if it does not exist.
-# Creation should only happen on a change.
+	# if the new type is A/AAAA then find the netblock and create if it 
+	# does not exist.
+	# Creation should only happen on a change.
 	if ( $opts->{'dns_type'} =~ /^A(AAA)?/ ) {
 		if (       $opts->{'dns_value'} !~ /^(\d+\.){3}\d+/
-			&& $opts->{'dns_type'} eq 'A' )
-		{
+				&& $opts->{'dns_type'} eq 'A' ) {
 			$stab->error_return(
-"$opts->{'dns_value'} is not a valid IPv4 address"
+				"$opts->{'dns_value'} is not a valid IPv4 address"
 			);
 		} elsif (  $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/
-			&& $opts->{'dns_type'} eq 'AAAA' )
-		{
+				&& $opts->{'dns_type'} eq 'AAAA' ) {
 			$stab->error_return(
-"$opts->{'dns_value'} is not a valid IPv6 address"
+				"$opts->{'dns_value'} is not a valid IPv6 address"
 			);
 		}
 		my $block = $stab->get_netblock_from_ip(

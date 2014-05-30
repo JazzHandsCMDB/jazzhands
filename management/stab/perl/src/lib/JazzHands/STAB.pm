@@ -1856,7 +1856,6 @@ sub b_textfield {
 		$size = 7  if ( $field =~ /APPROVAL_REF_NUM\b/ );
 		$size = 20 if ( $field eq 'SNMP_COMMSTR' );
 		$size = 16 if ( $field =~ /_?IP$/ );
-		$size = 3  if ( $field =~ /NETMASK_BITS$/ );
 		$size = 18 if ( $field eq 'MAC_ADDR' );
 		$size = 40 if ( $field eq 'DNS_NAME' );
 		$size = 10 if ( $field eq 'RACK_UNITS' );
@@ -2138,9 +2137,7 @@ sub parse_netblock_description_search {
 	my $q = qq{
 		select	nb.netblock_id as netblock_id,
 			net_manip.inet_dbtop(nb.ip_address) as ip,
-			nb.netmask_bits, 
 			nb.ip_address,
-			nb.is_ipv4_address,
 			nb.is_single_address,
 			nb.parent_netblock_id,
 			nb.netblock_status,
@@ -2616,7 +2613,7 @@ sub vendor_logo {
 
 sub DESTROY {
 	my $self = shift;
-	my $dbh  = $self->{dbh};
+	my $dbh  = $self->dbh;
 
 	if ( $self->{_JazzHandsSth} ) {
 		foreach my $q ( keys( %{ $self->{_JazzHandsSth} } ) ) {

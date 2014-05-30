@@ -1852,7 +1852,8 @@ sub generate_config_files {
 				SELECT device_collection_id, 
 					property_name, property_type,
 					property_value, rank()
-				OVER (PARTITION BY device_collection_id 
+				OVER (PARTITION BY device_collection_id ,
+					property_name, property_type
 					ORDER BY  device_collection_level)
 				FROM (
 					select
@@ -1864,8 +1865,16 @@ sub generate_config_files {
 					from   v_property p
 					inner join v_device_coll_hier_detail dc on
 						p.device_collection_id = dc.parent_device_collection_id
-					where   p.property_name = 'ShouldDeploy' 
-						and p.property_type = 'MclassUnixProp'
+					where   ((
+							p.property_name = 'ShouldDeploy'  and
+							p.property_type = 'MclassUnixProp'
+							) OR (
+							p.property_name = 'PermitUIDOverride'  and
+							p.property_type = 'MclassUnixProp'
+							) OR (
+							p.property_name = 'PermitGIDOverride'  and
+							p.property_type = 'MclassUnixProp'
+							))
 				) xxx
 		) pv
 		INNER JOIN device_collection dc using (device_collection_id)

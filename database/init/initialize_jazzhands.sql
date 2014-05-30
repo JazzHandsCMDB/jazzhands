@@ -679,6 +679,26 @@ insert into val_property (
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	DESCRIPTION,
+	PERMIT_DEVICE_COLLECTION_ID
+) values (
+	'PermitUIDOverride', 'MclassUnixProp', 'N', 'boolean',
+	'Allow Credentials Mangement to override uids locally',
+	'REQUIRED'
+);
+
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	DESCRIPTION,
+	PERMIT_DEVICE_COLLECTION_ID
+) values (
+	'PermitGIDOverride', 'MclassUnixProp', 'N', 'boolean',
+	'Allow Credentials Mangement to override uids locally',
+	'REQUIRED'
+);
+
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	DESCRIPTION,
 	PERMIT_DEVICE_COLLECTION_ID, PERMIT_ACCOUNT_COLLECTION_ID
 ) values (
 	'PreferLocal', 'MclassUnixProp', 'N', 'boolean',
