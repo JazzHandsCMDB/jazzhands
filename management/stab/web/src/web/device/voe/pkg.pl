@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -47,6 +46,7 @@ sub do_sw_package {
 	}
 
 	$stab->msg_return("Nothing to do yet");
+	undef $stab;
 }
 
 sub dump_package_release {

@@ -39,7 +39,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common::Util qw(_dbx);
@@ -61,25 +60,24 @@ sub do_netblock_addition {
 	my $bits       = $stab->cgi_parse_param('bits');
 	my $desc       = $stab->cgi_parse_param('description');
 
-	if (!defined($ip)) {
+	if ( !defined($ip) ) {
 		$stab->error_return("Insufficient Values Specified.");
 	}
 
-	if($ip =~ s,/(\d+)$,,) {
+	if ( $ip =~ s,/(\d+)$,, ) {
 		my $embedbits = $1;
-		if(defined($embedbits) && defined($bits)) {
-			if($embedbits != $bits) {
+		if ( defined($embedbits) && defined($bits) ) {
+			if ( $embedbits != $bits ) {
 				$stab->error_return("Bits do not match");
 			}
-		} elsif(defined($embedbits) && !defined($bits)) {
+		} elsif ( defined($embedbits) && !defined($bits) ) {
 			$bits = $embedbits;
 		}
 	}
 
-	if(!defined($bits)) {
+	if ( !defined($bits) ) {
 		$stab->error_return("Insufficient Bits Specified");
 	}
-
 
 	if ( $bits == 0 ) {
 		$stab->error_return(
@@ -90,34 +88,37 @@ sub do_netblock_addition {
 		);
 	}
 
-	my $childaddr = NetAddr::IP->new($ip, $bits);
+	my $childaddr = NetAddr::IP->new( $ip, $bits );
 
 	my @errors;
-	if (defined($par_nblkid)) {
-		my $netblock = $stab->GetNetblock( netblock_id => $par_nblkid, 
-			errors => \@errors);
+	if ( defined($par_nblkid) ) {
+		my $netblock = $stab->GetNetblock(
+			netblock_id => $par_nblkid,
+			errors      => \@errors
+		);
 
 		if ( !defined($netblock) ) {
 			if (@errors) {
-				$stab->error_return(join ",", @errors);
+				$stab->error_return( join ",", @errors );
 			} else {
 				$stab->error_return("Invalid Parent Netblock");
 			}
 			exit 0;
 		}
 
-		my $par_ip   = $netblock->IPAddress;
+		my $par_ip = $netblock->IPAddress;
 
-		#
-		# Validate that this netblock is a child of the parent.  This probably
-		# isn't *strictly* necessary, since a) the database will take care of
-		# homing the netblock correctly and b) it only checks that it's a child
-		# of this block and not necessarily a child of a child of this block,
-		# but it will at least catch some instances of fat-fingering.
-		#
-		if (!($par_ip->contains($childaddr))) {
+	 #
+	 # Validate that this netblock is a child of the parent.  This probably
+	 # isn't *strictly* necessary, since a) the database will take care of
+	 # homing the netblock correctly and b) it only checks that it's a child
+	 # of this block and not necessarily a child of a child of this block,
+	 # but it will at least catch some instances of fat-fingering.
+	 #
+		if ( !( $par_ip->contains($childaddr) ) ) {
 			$cgi->delete('orig_referer');
-			$stab->error_return( qq{
+			$stab->error_return(
+				qq{
 					$childaddr is not a child netblock of $par_ip
 				}
 			);
@@ -128,20 +129,20 @@ sub do_netblock_addition {
 	# Create a new netblock object
 	#
 
-	my $me = new JazzHands::Mgmt::Netblock (
-		jhhandle => $stab,
+	my $me = new JazzHands::Mgmt::Netblock(
+		jhhandle          => $stab,
 		is_single_address => 'N',
-		can_subnet => 'Y',
-		netblock_status => 'Allocated',
-		description => $desc,
-		netblock_type => 'default',
-		ip_address => $childaddr,
-		errors => \@errors
+		can_subnet        => 'Y',
+		netblock_status   => 'Allocated',
+		description       => $desc,
+		netblock_type     => 'default',
+		ip_address        => $childaddr,
+		errors            => \@errors
 	);
 
 	if ( !defined($me) ) {
 		if (@errors) {
-			$stab->error_return(join ",", @errors);
+			$stab->error_return( join ",", @errors );
 		} else {
 			$stab->error_return("Unknown error inserting netblock");
 		}
@@ -152,22 +153,22 @@ sub do_netblock_addition {
 	# Now write it out
 	#
 
-	if (!($me->write(errors => \@errors))) {
+	if ( !( $me->write( errors => \@errors ) ) ) {
 		if (@errors) {
-			$stab->error_return(join ",", @errors);
+			$stab->error_return( join ",", @errors );
 		} else {
 			$stab->error_return("Invalid Parent Netblock");
 		}
 		exit 0;
 	}
 
-
 	$me->commit;
 	$stab->disconnect;
 
 	my $refurl = "../";
-	if ($me->hash->{_dbx('parent_netblock_id')}) {
-		$refurl .= "?nblkid=" . $me->hash->{_dbx('parent_netblock_id')};
+	if ( $me->hash->{ _dbx('parent_netblock_id') } ) {
+		$refurl .=
+		  "?nblkid=" . $me->hash->{ _dbx('parent_netblock_id') };
 	}
 	undef $me;
 	$stab->msg_return( "Child Netblock Added", $refurl, 1 );

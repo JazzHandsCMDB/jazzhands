@@ -35,7 +35,7 @@ use Net::DNS;
 do_soacheck();
 
 sub lower {
-	my $ x = shift(@_);
+	my $x = shift(@_);
 
 	$x =~ tr/A-Z/a-z/;
 	$x;
@@ -45,6 +45,7 @@ sub do_soacheck {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 
 	dump_soacheck_all($stab);
+	undef $stab;
 }
 
 sub dump_soacheck_all {
@@ -120,15 +121,19 @@ sub dump_soacheck_all {
 			$rowtxt = "";
 		}
 
-		my $zone_name = $hr->{_dbx('SOA_NAME')};
-		my $domid     = $hr->{_dbx('DNS_DOMAIN_ID')};
-		my $gen       = $hr->{_dbx('SHOULD_GENERATE')};
+		my $zone_name = $hr->{ _dbx('SOA_NAME') };
+		my $domid     = $hr->{ _dbx('DNS_DOMAIN_ID') };
+		my $gen       = $hr->{ _dbx('SHOULD_GENERATE') };
 
-		if ( $nogenshow eq 'no' && $hr->{_dbx('SHOULD_GENERATE')} eq 'N' ) {
+		if (       $nogenshow eq 'no'
+			&& $hr->{ _dbx('SHOULD_GENERATE') } eq 'N' )
+		{
 			next;
 		}
 
-		if ( $nogenshow eq 'yes' && $hr->{_dbx('SHOULD_GENERATE')} eq 'Y' ) {
+		if (       $nogenshow eq 'yes'
+			&& $hr->{ _dbx('SHOULD_GENERATE') } eq 'Y' )
+		{
 			next;
 		}
 
@@ -147,8 +152,11 @@ sub dump_soacheck_all {
 		);
 		if ( $#nic > -1 ) {
 			foreach my $ns ( sort @nic ) {
-				if ( $#jazzhands > -1
-					&& grep( lower($_) eq lower($ns), @jazzhands ) )
+				if (
+					$#jazzhands > -1
+					&& grep( lower($_) eq lower($ns),
+						@jazzhands )
+				  )
 				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
@@ -184,7 +192,10 @@ sub dump_soacheck_all {
 		);
 		if ( $#jazzhands > -1 ) {
 			foreach my $ns ( sort @jazzhands ) {
-				if ( $#nic > -1 && grep( lower($_) eq lower($ns), @nic ) ) {
+				if ( $#nic > -1
+					&& grep( lower($_) eq lower($ns), @nic )
+				  )
+				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
 					$nslist .= $cgi->Tr(
@@ -295,8 +306,8 @@ sub get_jazzhands_namservers {
 
 	my (@ns);
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		if ( $hr->{_dbx('DNS_TYPE')} eq 'NS' ) {
-			push( @ns, $hr->{_dbx('DNS_VALUE')} );
+		if ( $hr->{ _dbx('DNS_TYPE') } eq 'NS' ) {
+			push( @ns, $hr->{ _dbx('DNS_VALUE') } );
 		}
 	}
 	$sth->finish;
@@ -353,25 +364,24 @@ sub build_dns_ask_list {
 sub get_nic_ns {
 	my ( $zone, @ips ) = @_;
 
- 	# should probably cache this somewhere, rather than hit it for
- 	# every zone, but since its stored locally, or cached, its not
- 	# that big of a deal, really...
-  	if($#ips == -1) {
- 		my $res = Net::DNS::Resolver->new;
- 
- 		my $packet = $res->send(".", "NS") || die;
- 		foreach my $ans ($packet->answer) {
-         		next if($ans->type ne 'NS');
-         		my $i = Net::DNS::Resolver->new;
-         		my $ipp = $i->send($ans->rdatastr, "A") || die;
-         		foreach my $a ($ipp->answer) {
-                 		if($a->type eq 'A') {
-                         		push(@ips, $a->address);
-                 		}
-         		}
- 		}
-	}
+	# should probably cache this somewhere, rather than hit it for
+	# every zone, but since its stored locally, or cached, its not
+	# that big of a deal, really...
+	if ( $#ips == -1 ) {
+		my $res = Net::DNS::Resolver->new;
 
+		my $packet = $res->send( ".", "NS" ) || die;
+		foreach my $ans ( $packet->answer ) {
+			next if ( $ans->type ne 'NS' );
+			my $i = Net::DNS::Resolver->new;
+			my $ipp = $i->send( $ans->rdatastr, "A" ) || die;
+			foreach my $a ( $ipp->answer ) {
+				if ( $a->type eq 'A' ) {
+					push( @ips, $a->address );
+				}
+			}
+		}
+	}
 
 	my $iterations = 0;
 

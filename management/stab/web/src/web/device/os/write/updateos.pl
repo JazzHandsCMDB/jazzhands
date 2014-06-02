@@ -91,4 +91,5 @@ sub do_os_update {
 	}
 
 	$dbh->rollback;
+	undef $stab;
 }

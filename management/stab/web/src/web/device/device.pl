@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
@@ -62,9 +61,10 @@ sub do_device_page {
 
 		my $values = $stab->get_dev_from_devid($devid);
 		if ( defined($values) ) {
-			if ( defined( ($values->{_dbx('DEVICE_ID')}) ) ) {
-				my $n = ($values->{_dbx('DEVICE_NAME')});
+			if ( defined( ( $values->{ _dbx('DEVICE_ID') } ) ) ) {
+				my $n = ( $values->{ _dbx('DEVICE_NAME') } );
 				if ($n) {
+
 					# ok to remove this
 					$n =~ s/\.example\.com\.?$//;
 					$title .= " ( $n )";
@@ -128,10 +128,11 @@ sub build_device_checkboxes {
 	$checkbox1 .= $stab->build_checkbox( $device, "Virtual Device",
 		'IS_VIRTUAL_DEVICE', 'DEVICE_ID', undef )
 	  . "\n";
-#	$checkbox1 .=
-#	  $stab->build_checkbox( $device, "Baselined", 'IS_BASELINED',
-#		'DEVICE_ID', undef )
-#	  . "\n";
+
+	#	$checkbox1 .=
+	#	  $stab->build_checkbox( $device, "Baselined", 'IS_BASELINED',
+	#		'DEVICE_ID', undef )
+	#	  . "\n";
 
 	my $rv = $cgi->td($checkbox1);
 	undef $checkbox1;
@@ -159,8 +160,8 @@ sub build_device_box {
 		);
 	} else {
 		$top_table = $cgi->hidden(
-			-name    => 'DEVICE_ID_' . $values->{_dbx('DEVICE_ID')},
-			-default => $values->{_dbx('DEVICE_ID')},
+			-name => 'DEVICE_ID_' . $values->{ _dbx('DEVICE_ID') },
+			-default => $values->{ _dbx('DEVICE_ID') },
 		);
 		$top_table .=
 		  $stab->build_tr( $values, "b_offtextfield", "Device Name",
@@ -197,63 +198,65 @@ sub build_device_box {
 	my $voetr        = "";
 	my $voetraxdivid = "voe_symtrax_id_add_div";
 	my $osargs       = {};
-#	if ( defined($values) ) {
-#		if ( defined( $values->{VOE_ID} ) ) {
-#			my $voeid = $values->{VOE_ID};
-#			my $voe   = $stab->get_voe_from_id($voeid);
-#
-#			my $voelink = "";
-#			if ($voe) {
-#				$voelink =
-#				  $cgi->a( { -href => "voe/?VOE_ID=$voeid" },
-#					$voe->{VOE_NAME} );
-#			} else {
-#				$voelink = "--none--";
-#			}
-#			$voetr = $cgi->Tr(
-#				$cgi->td(
-#					{ -align => 'right' },
-#					$cgi->b("VOE:")
-#				),
-#				$cgi->td($voelink)
-#			);
-#		}
-#
-#		if ( !length($voetr) ) {
-#			$voetr = $cgi->Tr(
-#				$cgi->td(
-#					{ -align => 'right' },
-#					$cgi->b("VOE")
-#				),
-#				$cgi->td("--none--")
-#			);
-#		}
-#
-#		$voetraxdivid =
-#		  "voe_symbolic_track_id_" . 
-#			$values->{_dbx('DEVICE_ID')} . "_div";
-#
-#	}
-#	my $ID = ($values) ? $values->{_dbx('DEVICE_ID')} : "null";
-#	$osargs->{-onChange} = "update_voe_options($ID, \"$voetraxdivid\")";
 
-#	$voetr .= $stab->build_tr( { -divWrap => $voetraxdivid },
-#		$values, "b_dropdown", "VOE Track", "VOE_SYMBOLIC_TRACK_ID",
-#		"DEVICE_ID" );
+	#	if ( defined($values) ) {
+	#		if ( defined( $values->{VOE_ID} ) ) {
+	#			my $voeid = $values->{VOE_ID};
+	#			my $voe   = $stab->get_voe_from_id($voeid);
+	#
+	#			my $voelink = "";
+	#			if ($voe) {
+	#				$voelink =
+	#				  $cgi->a( { -href => "voe/?VOE_ID=$voeid" },
+	#					$voe->{VOE_NAME} );
+	#			} else {
+	#				$voelink = "--none--";
+	#			}
+	#			$voetr = $cgi->Tr(
+	#				$cgi->td(
+	#					{ -align => 'right' },
+	#					$cgi->b("VOE:")
+	#				),
+	#				$cgi->td($voelink)
+	#			);
+	#		}
+	#
+	#		if ( !length($voetr) ) {
+	#			$voetr = $cgi->Tr(
+	#				$cgi->td(
+	#					{ -align => 'right' },
+	#					$cgi->b("VOE")
+	#				),
+	#				$cgi->td("--none--")
+	#			);
+	#		}
+	#
+	#		$voetraxdivid =
+	#		  "voe_symbolic_track_id_" .
+	#			$values->{_dbx('DEVICE_ID')} . "_div";
+	#
+	#	}
+	#	my $ID = ($values) ? $values->{_dbx('DEVICE_ID')} : "null";
+	#	$osargs->{-onChange} = "update_voe_options($ID, \"$voetraxdivid\")";
+
+	#	$voetr .= $stab->build_tr( { -divWrap => $voetraxdivid },
+	#		$values, "b_dropdown", "VOE Track", "VOE_SYMBOLIC_TRACK_ID",
+	#		"DEVICE_ID" );
 
 	my ( $left_table, $right_table ) = ( "", "" );
 
-#	$left_table .=
-#	  $stab->build_tr( $values, "b_dropdown", "Status", "DEVICE_STATUS",
-#		'DEVICE_ID' );
-#	$left_table .=
-#	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
-#		"OPERATING_SYSTEM_ID", 'DEVICE_ID' );
+	#	$left_table .=
+	#	  $stab->build_tr( $values, "b_dropdown", "Status", "DEVICE_STATUS",
+	#		'DEVICE_ID' );
+	#	$left_table .=
+	#	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
+	#		"OPERATING_SYSTEM_ID", 'DEVICE_ID' );
 	$left_table  .= $voetr;
 	$right_table .= $stab->build_tr( $values, "b_dropdown", "Ownership",
 		"OWNERSHIP_STATUS", 'DEVICE_ID' );
-	if(!$values || $values->{ _dbx('OWNERSHIP_STATUS')} eq 'leased') {
-		$right_table .= $stab->build_tr( $values, "b_textfield", "Lease Expires",
+	if ( !$values || $values->{ _dbx('OWNERSHIP_STATUS') } eq 'leased' ) {
+		$right_table .=
+		  $stab->build_tr( $values, "b_textfield", "Lease Expires",
 			"LEASE_EXPIRATION_DATE", 'DEVICE_ID' );
 	}
 	$right_table .=
@@ -271,14 +274,14 @@ sub build_device_box {
 			$cgi->td(
 				build_parent_device_box(
 					$stab,
-					$values->{_dbx('PARENT_DEVICE_ID')},
-					$values->{_dbx('DEVICE_ID')},
-					$values->{_dbx('IS_VIRTUAL_DEVICE')},
+					$values->{ _dbx('PARENT_DEVICE_ID') },
+					$values->{ _dbx('DEVICE_ID') },
+					$values->{ _dbx('IS_VIRTUAL_DEVICE') },
 				)
 			)
 		);
 
-		if($values->{ _dbx('IS_VIRTUAL_DEVICE')} eq 'N') {
+		if ( $values->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'N' ) {
 			$left_table .= $cgi->Tr(
 				$cgi->td(
 					{ -align => 'right' },
@@ -287,7 +290,7 @@ sub build_device_box {
 				$cgi->td(
 					build_children_device_list(
 						$stab,
-						$values->{_dbx('DEVICE_ID')},
+						$values->{ _dbx('DEVICE_ID') },
 					)
 				)
 			);
@@ -295,13 +298,13 @@ sub build_device_box {
 	}
 
 	if ( defined($values) ) {
-		if ( $values->{_dbx('HOST_ID')} ) {
+		if ( $values->{ _dbx('HOST_ID') } ) {
 			$right_table .= $cgi->Tr(
 				$cgi->td(
 					{ -align => 'right' },
 					$cgi->b("Host ID")
 				),
-				$cgi->td( $values->{_dbx('HOST_ID')} )
+				$cgi->td( $values->{ _dbx('HOST_ID') } )
 			);
 		} else {
 			$right_table .= $cgi->Tr(
@@ -313,14 +316,16 @@ sub build_device_box {
 			);
 		}
 
-		my $cnt = $stab->get_snmpstr_count( $values->{_dbx('DEVICE_ID')} );
+		my $cnt =
+		  $stab->get_snmpstr_count( $values->{ _dbx('DEVICE_ID') } );
 		$right_table .= $cgi->Tr(
 			$cgi->td(
 				{ -colspan => 2 },
 				$cgi->a(
 					{
 						-href => "snmp/?DEVICE_ID="
-						  . $values->{_dbx('DEVICE_ID')}
+						  . $values->{ _dbx('DEVICE_ID')
+						  }
 					},
 					"$cnt SNMP string"
 					  . ( ( $cnt == 1 ) ? '' : "s" )
@@ -357,11 +362,12 @@ sub build_page {
 
 	my $pnk = "";
 	if ( defined($device) ) {
-		$pnk = "_" . $device->{_dbx('DEVICE_ID')};
+		$pnk = "_" . $device->{ _dbx('DEVICE_ID') };
 	}
 
 	my $bottomTr = "";
 	if ( !defined($device) ) {
+
 		#my $approleboxes = $cgi->div({-class => 'approle'},
 		#	$stab->device_appgroup_tab());
 		my $approleboxes = "";
@@ -376,7 +382,7 @@ sub build_page {
 	undef $bottomTr;
 
 	if ( defined($device) ) {
-		my $devid = $device->{_dbx('DEVICE_ID')};
+		my $devid = $device->{ _dbx('DEVICE_ID') };
 
 		my $opentabid = "__default_tab__";
 		my $otabval   = $stab->cgi_parse_param('default_tab');
@@ -400,37 +406,40 @@ sub build_page {
 		my $tablist = {
 			"PatchPanel" => "Patch Panel",
 			"IP"         => "IP Network",
+
 			#	"IPRoute" => "IP Routing",
 			#	"Circuit" => "Voice",
-			"Serial"     => "Serial",
+			"Serial" => "Serial",
+
 			#"AppGroup"     => "AppGroup",
 			"Power"      => "Power",
 			"Switchport" => "Switch Port",
 
 			#	"AppGroup" => "AppGroup",
-			"Location"     => "Location",
+			"Location" => "Location",
+
 			#"Licenses"     => "Licenses",
-			"Advanced"     => "Advanced",
-			"Notes"        => "Notes$numnotes",
+			"Advanced" => "Advanced",
+			"Notes"    => "Notes$numnotes",
 		};
 
-		if(! $stab->get_power_port_count($devid)) {
-			delete ( $tablist -> {Power} );
+		if ( !$stab->get_power_port_count($devid) ) {
+			delete( $tablist->{Power} );
 		}
 
-		if(! $stab->get_physical_port_count($devid, 'network')) {
-			delete ( $tablist -> {Switchport} );
+		if ( !$stab->get_physical_port_count( $devid, 'network' ) ) {
+			delete( $tablist->{Switchport} );
 		}
 
-		if(! $stab->get_physical_port_count($devid, 'serial')) {
-			delete ( $tablist -> {Serial} );
+		if ( !$stab->get_physical_port_count( $devid, 'serial' ) ) {
+			delete( $tablist->{Serial} );
 		}
-		if(! $stab->get_physical_port_count($devid, 'patchpanel')) {
-			delete ( $tablist -> {PatchPanel} );
+		if ( !$stab->get_physical_port_count( $devid, 'patchpanel' ) ) {
+			delete( $tablist->{PatchPanel} );
 		}
 
-		if( $device->{_dbx('IS_VIRTUAL_DEVICE')} eq 'Y' ) {
-			delete ( $tablist -> {Location} );
+		if ( $device->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'Y' ) {
+			delete( $tablist->{Location} );
 		}
 
 		my (@tablist);
@@ -439,7 +448,7 @@ sub build_page {
 		# XXX - used to run check_func, needs to move to application
 		# roles!
 		# } elsif ( !$stab->check_func( $devid, 'cablemanagement' ) ) {
-		if( exists ( $tablist->{PatchPanel} ) ) {
+		if ( exists( $tablist->{PatchPanel} ) ) {
 			push( @tablist, "PatchPanel" );
 		} else {
 			push( @tablist,
@@ -516,7 +525,7 @@ sub build_page {
 }
 
 sub build_children_device_list {
-	my($stab, $devid) = @_;
+	my ( $stab, $devid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $q = qq{
@@ -525,20 +534,24 @@ sub build_children_device_list {
 		 where	parent_device_id = ?
 	} || $stab->return_db_err();
 
-	my $sth = $stab->prepare( $q ) || $stab->return_db_err();
+	my $sth = $stab->prepare($q) || $stab->return_db_err();
 	$sth->execute($devid) || $stab->return_db_err();
 
 	my $list = "";
-	while(my ($id,$name) = $sth->fetchrow_array) {
+	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
 		$list .= $cgi->li(
-			$cgi->a({
-				-target => "stab_device_$id",
-				-href => "./device.pl?devid=$id",
-			}, $name));
+			$cgi->a(
+				{
+					-target => "stab_device_$id",
+					-href   => "./device.pl?devid=$id",
+				},
+				$name
+			)
+		);
 	}
 	$sth->finish;
 
-	if(length($list)) {
+	if ( length($list) ) {
 		$cgi->ul($list);
 	} else {
 		"none";
@@ -554,8 +567,8 @@ sub build_parent_device_box {
 	if ($parid) {
 		$dev = $stab->get_dev_from_devid($parid);
 		if ($dev) {
-			$pdevid = $dev->{_dbx('DEVICE_ID')};
-			$pname  = $dev->{_dbx('DEVICE_NAME')};
+			$pdevid = $dev->{ _dbx('DEVICE_ID') };
+			$pname  = $dev->{ _dbx('DEVICE_NAME') };
 			if ($pname) {
 				$pname =~ s/.example.com$//;
 			} else {
@@ -572,12 +585,12 @@ sub build_parent_device_box {
 	my $pdid  = "PARENT_DEVICE_ID_" . $devid;
 	my $pdnam = "PARENT_DEVICE_NAME_" . $devid;
 
-	my $style = "";
-	my $rv = "";
+	my $style    = "";
+	my $rv       = "";
 	my $linktext = ">>";
-	if($isvirt eq 'N') {
-		$style ='font-size: 30%;',
-		$rv    = $cgi->hidden(
+	if ( $isvirt eq 'N' ) {
+		$style = 'font-size: 30%;',
+		  $rv  = $cgi->hidden(
 			{
 				-name    => $pdid,
 				-id      => $pdid,
@@ -593,15 +606,16 @@ sub build_parent_device_box {
 "inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
 				-onKeydown =>
 "keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
-				-onBlur  => "hidePopup_Search($pdnam)",
-				-onChange=>"updateDeviceParentLink($devid, $pdid
+				-onBlur => "hidePopup_Search($pdnam)",
+				-onChange =>
+				  "updateDeviceParentLink($devid, $pdid
 )",
 				-default => $pname,
 			}
-	  	);
+		  );
 	} else {
 		$linktext = $pname;
-	};
+	}
 
 	$rv .= $cgi->a(
 		{

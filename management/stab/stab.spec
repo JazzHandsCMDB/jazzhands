@@ -21,7 +21,7 @@ System Tools for Administrative Baselining
 %package -n jazzhands-perl-stab
 group: System Environment/Libraries
 Summary: Perl library for STAB
-Requires: perl-Net-IP, perl-Net-Netmask, perl-Net-DNS, perl-NetAddr-IP
+Requires: perl-Net-IP, perl-Net-DNS, perl-NetAddr-IP
 
 
 %description -n jazzhands-perl-stab
@@ -153,7 +153,7 @@ rm -rf %{buildroot}
 %{prefix}/netblock/ipalloc/allocate_ip.pl
 %{prefix}/netblock/search.pl
 %{prefix}/netblock/index.pl
-%{prefix}/netblock/dhcprange.pl
+%{prefix}/netblock/networkrange.pl
 %{prefix}/netblock/write/rmnetblock.pl
 %{prefix}/netblock/write/doadd.pl
 %{prefix}/netblock/write/addnetblock.pl
@@ -177,8 +177,22 @@ rm -rf %{buildroot}
 
 %changelog
 * Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.8 
-- fix search by cidr on netblock page
-- make db disconnects work correctly 
+- small random bug fixes
+- if its an in-addr zone, make the type reverse automatically
+- make disabling dns record work again
+- make ipv6 work on device page
+- rip out secondary_netblock references
+- make manipulation of v6 and v4 addresses work in dns section
+- make ipv6 dns manipulation work from netblock page.
+- make netblock gap manipipulation work again
+- use netblock gaps for large ipv4 blocks (>= /23)
+- allow editdesc/editdns magic to be be rerun without creating havoc
+- migrate to Net::IP completely (remove Net::Netmask)
+- remove references to is_ipv4_address, netmask_bits
+- get dbh via functino rather than (obsoleted) variable.
+- explitly undefine $stab to make memory definitely go away
+- remove some debugging warnings
+- perltidy
 * Mon Mar 17 2014 Todd Kover <kovert@omniscient.com> 0.57.1 
 - when adding a new ip address for a loopback to a network interface, use the
   single address

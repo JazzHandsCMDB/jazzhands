@@ -37,7 +37,7 @@ $cgi  = $stab->cgi          || die "Could not create cgi";
 $dbh  = $stab->dbh          || die "Could not create dbh";
 
 my $devlist = $stab->cgi_parse_param('devlist');
-$cgi->delete($devlist) if($devlist);
+$cgi->delete($devlist) if ($devlist);
 
 print $cgi->header('text/html');
 print $stab->start_html( { -title => "Device Management" } ), "\n";
@@ -128,5 +128,7 @@ print $cgi->p( { -align => 'center' },
 print $cgi->hr, "\n";
 
 print $cgi->end_html, "\n";
+
+undef $stab;
 
 exit 0;

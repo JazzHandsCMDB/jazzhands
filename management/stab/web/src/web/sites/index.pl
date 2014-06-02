@@ -33,7 +33,7 @@ sub do_site_page {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $sitecode = $stab->cgi_parse_param('SITE_CODE');
+	my $sitecode = $stab->cgi_parse_param('sitecode');
 
 	if ( !defined($sitecode) ) {
 		dump_all_sites($stab);
@@ -44,6 +44,7 @@ sub do_site_page {
 	$dbh->rollback;
 	$dbh->disconnect;
 	$dbh = undef;
+	undef $stab;
 }
 
 sub make_url {
@@ -194,7 +195,7 @@ sub build_site_netblocks {
 	my $q = qq{
 		select	nb.netblock_id,
 			net_manip.inet_dbtop(nb.ip_address) as ip,
-			nb.netmask_bits,
+			masklen(nb.ip_address) as masklen,
 			nb.description
 		  from	netblock nb
 			inner join site_netblock snb
@@ -206,7 +207,7 @@ sub build_site_netblocks {
 	$sth->execute($sitecode) || die $sth->errstr;
 
 	my $x = $cgi->start_table( { -border => 1 } );
-	$x .= $cgi->th([ "Block", "Description" ]);
+	$x .= $cgi->th( [ "Block", "Description" ] );
 	while ( my ( $id, $ip, $bits, $desc ) = $sth->fetchrow_array ) {
 		my $link = "../netblock/?nblkid=$id";
 		$link .= "&expand=yes" if ( $bits >= 24 );

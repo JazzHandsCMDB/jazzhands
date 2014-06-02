@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs/netblock
 
 SUBDIRS=write ipalloc
 
-SCRIPTS= index.pl  search.pl dhcprange.pl
+SCRIPTS= index.pl  search.pl networkrange.pl
 
 all:
 	@for subdir in $(SUBDIRS) ; do \

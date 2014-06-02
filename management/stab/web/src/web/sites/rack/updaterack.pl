@@ -37,21 +37,21 @@ sub update_rack($$) {
 
 	my $numchanges = 0;
 
-	my $site   = $stab->cgi_parse_param('SITE_CODE', $rackid);
-	my $room   = $stab->cgi_parse_param('ROOM', $rackid);
-	my $subr   = $stab->cgi_parse_param('SUB_ROOM', $rackid);
-	my $row    = $stab->cgi_parse_param('RACK_ROW', $rackid);
-	my $rackn  = $stab->cgi_parse_param('RACK_NAME', $rackid);
-	my $desc   = $stab->cgi_parse_param('DESCRIPTION', $rackid);
-	my $type   = $stab->cgi_parse_param('RACK_TYPE', $rackid);
-	my $style  = $stab->cgi_parse_param('RACK_STYLE', $rackid);
-	my $height = $stab->cgi_parse_param('RACK_HEIGHT_IN_U', $rackid);
+	my $site   = $stab->cgi_parse_param( 'SITE_CODE',        $rackid );
+	my $room   = $stab->cgi_parse_param( 'ROOM',             $rackid );
+	my $subr   = $stab->cgi_parse_param( 'SUB_ROOM',         $rackid );
+	my $row    = $stab->cgi_parse_param( 'RACK_ROW',         $rackid );
+	my $rackn  = $stab->cgi_parse_param( 'RACK_NAME',        $rackid );
+	my $desc   = $stab->cgi_parse_param( 'DESCRIPTION',      $rackid );
+	my $type   = $stab->cgi_parse_param( 'RACK_TYPE',        $rackid );
+	my $style  = $stab->cgi_parse_param( 'RACK_STYLE',       $rackid );
+	my $height = $stab->cgi_parse_param( 'RACK_HEIGHT_IN_U', $rackid );
 
 	my @errs;
 	my $hr = $stab->DBFetch(
-		table  => 'rack',
-		match  => { rack_id => $rackid },
-		errors => \@errs,
+		table           => 'rack',
+		match           => { rack_id => $rackid },
+		errors          => \@errs,
 		result_set_size => 'exactlyone',
 	);
 
@@ -74,7 +74,7 @@ sub update_rack($$) {
 	my $diffs = $stab->hash_table_diff( $hr, _dbx($new) );
 	my $tally += keys %$diffs;
 
-	return 0 if(!$tally);
+	return 0 if ( !$tally );
 
 	if (
 		$tally
@@ -87,8 +87,6 @@ sub update_rack($$) {
 	}
 	$numchanges += $tally;
 
-warn "updated stuff";
-
 	$numchanges;
 }
 
@@ -96,12 +94,11 @@ sub do_update_racks {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
-	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+      #- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $numchanges = 0;
 	foreach my $rackid ( $stab->cgi_get_ids('RACK_ID') ) {
-		warn "++ processing $rackid";
-		if($rackid) {
+		if ($rackid) {
 			$numchanges += update_rack( $stab, $rackid );
 		}
 	}

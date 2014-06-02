@@ -61,6 +61,7 @@ sub do_snmp_update {
 		$dbh->disconnect;
 		$stab->msg_return( "No changes", $refurl, 1 );
 	}
+	undef $stab;
 }
 
 sub process_snmp_commstr_updates {

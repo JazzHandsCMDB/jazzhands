@@ -50,6 +50,7 @@ use JazzHands::Mgmt;
 use URI;
 use Carp;
 use Math::BigInt;
+use Net::IP;
 
 use Apache2::Log;
 use Apache2::Const -compile => qw(OK :log);
@@ -107,7 +108,12 @@ sub guess_parent_netblock_id {
 	#
 	# parse_netblock_search wants this to be Y
 	#
-	$sing = 'N' if(!$sing);
+	$sing = 'Y' if ( !$sing );
+
+	if ( $in_bits && $in_ip !~ m,/, ) {
+		$in_ip   = "$in_ip/$in_bits";
+		$in_bits = undef;
+	}
 
 	# select is needed for postgres 9.1 to optimize right.
 	my $q = qq {
@@ -125,9 +131,8 @@ sub guess_parent_netblock_id {
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->bind_param( ':ip',   $in_ip )   || die $sth->errstr;
-	$sth->bind_param( ':bits', $in_bits ) || die $sth->errstr;
-	$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
+	$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
+	$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
 	$sth->execute || $self->return_db_err($sth);
 	my $rv = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -198,7 +203,8 @@ sub get_netblock_from_id {
 
 	my $q = qq{
 		select  netblock.*,
-			net_manip.inet_dbtop(ip_address) as ip
+			net_manip.inet_dbtop(ip_address) as ip,
+			family(ip_address) as family
 		 from   netblock
 		where   netblock_id = :nblkid
 			$morewhere
@@ -235,11 +241,11 @@ sub add_netblock {
 	};
 
 	for my $f (
-		'is_single_address',
-		'can_subnet',      'parent_netblock_id',
-		'netblock_status', 'nic_id',
-		'nic_company_id',  'ip_universe_id',
-		'description',     'reservation_ticket_number',
+		'is_single_address', 'netblock_type',
+		'can_subnet',        'parent_netblock_id',
+		'netblock_status',   'nic_id',
+		'nic_company_id',    'ip_universe_id',
+		'description',       'reservation_ticket_number',
 	  )
 	{
 		if ( exists( $opts->{$f} ) ) {
@@ -727,7 +733,7 @@ sub configure_allocated_netblock {
 
 	my $parnb;
 	if ( !defined($nblk) ) {
-		$parnb = $self->guess_parent_netblock_id( $ip, 32 );
+		$parnb = $self->guess_parent_netblock_id( $ip, undef, 'Y' );
 
 		# if the ip addres is 0/0 (or 0/anything), then it should
 		# be considered unset
@@ -757,7 +763,7 @@ sub configure_allocated_netblock {
 		my $h = {
 			ip_address        => $ip,
 			is_single_address => 'Y',
-			netblock_type	  => 'default',
+			netblock_type     => 'default',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
 		};
@@ -1592,6 +1598,10 @@ sub get_x509_cert_by_id {
 	$hr;
 }
 
+#
+# NOTE:  This is called via an ajax call in device-ajax.pl +
+# netblock/index.pl
+#
 sub build_netblock_ip_row {
 	my ( $self, $params, $blk, $hr, $ip, $reservation ) = @_;
 
@@ -1638,15 +1648,16 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 	my $showtr = 1;
 
-	my ( $id, $bits, $devid, $name, $dom, $status, $desc, $atix, $atixsys );
+	my ( $id, $devid, $name, $dom, $status, $desc, $atix, $atixsys );
 
 	$status = "";
 	$name   = "";
 	$dom    = "";
 
-	my $editabledesc = 0;
+	my $editabledesc = 1;
 
 	my $uniqid = $ip;
+	$uniqid =~ s,/\d+$,, if ($uniqid);
 	if ( defined( $params->{-uniqid} ) ) {
 		$uniqid = "new_" . $params->{-uniqid};
 	} elsif ( !defined($uniqid) ) {
@@ -1664,6 +1675,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		);
 	} else {
 		$printip = $ip;
+		$ip =~ s,/\d+$,,;
 	}
 
 	my $fqhn = "";
@@ -1672,7 +1684,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$desc         = $reservation;
 		$editabledesc = 0;
 	} elsif ( defined($hr) ) {
-		$id   = $hr->{ _dbx('NETBLOCK_ID') };
+		$id      = $hr->{ _dbx('NETBLOCK_ID') };
 		$devid   = $hr->{ _dbx('DEVICE_ID') };
 		$name    = $hr->{ _dbx('DNS_NAME') };
 		$dom     = $hr->{ _dbx('SOA_NAME') };
@@ -1681,9 +1693,12 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$atix    = $hr->{ _dbx('APPROVAL_REF_NUM') };
 		$atixsys = $hr->{ _dbx('APPROVAL_TYPE') };
 
-		# $editabledesc =  1;
+		if ( $status ne 'Reserved' && $status ne 'Legacy' ) {
+			$editabledesc = 0;
+		}
 
-		$printip = "$ip/$bits";
+		# $printip = $ip;
+		# $ip =~ s,/\d+$,,;
 
 		if ( defined($name) ) {
 			$fqhn = $name . ( defined($dom) ? ".$dom" : "" );
@@ -1707,7 +1722,8 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 				{ -href => "../device/device.pl?devid=$devid" },
 				$name
 			);
-			$desc = $fqhn;
+
+			# $desc = $fqhn;
 		}
 	} else {
 		$editabledesc = 1;
@@ -1773,11 +1789,13 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 	my $tds = $cgi->td( [ $printip, $status, $fqhn, $desc, $atix, ] );
 
+	my $rv;
 	if ($showtr) {
-		$cgi->Tr( { -id => $trid }, $tds );
+		$rv = $cgi->Tr( { -id => $trid }, $tds );
 	} else {
-		$tds;
+		$rv = $tds;
 	}
+	return $rv;
 }
 
 #
@@ -1797,11 +1815,11 @@ sub get_dns_a_record_for_ptr {
 			'ip_universe_id'    => 0,
 			'host(ip_address)'  => $ip
 		},
-		errors          => \@errs
+		errors => \@errs
 	);
 	my $nblk = undef;
 	foreach my $n (@$rows) {
-		next if ($n->{netblock_type} !~ /^(dns|default)$/);
+		next if ( $n->{netblock_type} !~ /^(dns|default)$/ );
 		$nblk = $n;
 		last;
 	}
@@ -1813,7 +1831,7 @@ sub get_dns_a_record_for_ptr {
 			netblock_id         => $nblk->{netblock_id},
 			should_generate_ptr => 'Y',
 		},
-		errors          => \@errs
+		errors => \@errs
 	);
 	return undef if !$dns;
 
@@ -1826,11 +1844,13 @@ sub process_and_insert_dns_record {
 
 	$opts = _dbx( $opts, 'lower' );
 
-	if ( $opts->{dns_type} eq 'A' ) {
-		if ( $opts->{dns_value} !~ /^(\d+\.){3}\d+/ ) {
-			$self->error_return( $opts->{dns_value}
-				  . " is not a valid IP address" );
-		}
+	if ( $opts->{dns_type} =~ /^A(AAA)?/ ) {
+		my $i = new Net::IP( $opts->{dns_value} )
+		  || $self->error_return( $opts->{dns_value}
+			  . " is not a valid IP address ("
+			  . Net::IP::Error()
+			  . ")" );
+
 		my $block = $self->get_netblock_from_ip(
 			ip_address => $opts->{dns_value} );
 		if ( !$block ) {
@@ -1840,16 +1860,16 @@ sub process_and_insert_dns_record {
 			);
 		}
 
-		# now figure out what to do if ptr is set.  If it is set, 
+		# now figure out what to do if ptr is set.  If it is set,
 		# then we unconditionally make other records not have the PTR.
 		# If it is not set, we set it for the user if the IP address
 		# is showing up for the first time
 
-		if ( exists( $opts->{ 'should_generate_ptr'} )
-			&& $opts->{ 'should_generate_ptr' } eq 'Y' )
+		if ( exists( $opts->{'should_generate_ptr'} )
+			&& $opts->{'should_generate_ptr'} eq 'Y' )
 		{
-	        	# set all other dns_records but this one to have 
-			# ptr = 'N'. More than one should never happen, but 
+			# set all other dns_records but this one to have
+			# ptr = 'N'. More than one should never happen, but
 			# this is a while loop just in case.
 			while (
 				my $recid = $self->get_dns_a_record_for_ptr(
@@ -1929,12 +1949,14 @@ sub delete_netblock {
 		};
 		$sth = $self->prepare($q) || die $self->return_db_err();
 
-	#- $sth->bind_param(':id', $nblkid) || die $self->return_db_err();
+	      #- $sth->bind_param(':id', $nblkid) || die $self->return_db_err();
 	} else {
-		$sth = $self->prepare(qq{
+		$sth = $self->prepare(
+			qq{
 			delete from netblock where netblock_id = :id
-		}) || die $self->return_db_err();
-		$sth->bind_param(':id', $nblkid);
+		}
+		) || die $self->return_db_err();
+		$sth->bind_param( ':id', $nblkid );
 	}
 
 	$sth->execute || die $self->return_db_err($sth);

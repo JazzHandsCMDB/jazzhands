@@ -19,7 +19,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use CGI;
 use JazzHands::STAB;
@@ -89,12 +88,12 @@ sub do_dns_ajax {
 		}
 		print $j->encode($r);
 	} elsif ( $what eq 'domains' ) {
-		my $type = $stab->cgi_parse_param('type');
+		my $type  = $stab->cgi_parse_param('type');
 		my $where = "";
-		if($type) {
+		if ($type) {
 			$where = "WHERE dns_domain_type = :dnsdomaintype";
 		}
-		my $r = $stab->build_dns_drop(undef, $type);
+		my $r = $stab->build_dns_drop( undef, $type );
 		my $j = JSON::PP->new->utf8;
 		print $j->encode($r);
 	} else {
@@ -113,4 +112,5 @@ sub do_dns_ajax {
 	if ( $dbh && $dbh->{'Active'} ) {
 		$dbh->commit;
 	}
+	undef $stab;
 }

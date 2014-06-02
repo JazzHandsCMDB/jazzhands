@@ -75,6 +75,7 @@ sub retire_site {
 		$stab->rollback;
 		$stab->msg_return("Nothing to change");
 	}
+	undef $stab;
 }
 
 sub check_site_validity {

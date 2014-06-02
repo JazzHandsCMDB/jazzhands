@@ -31,14 +31,13 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use Net::IP;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
 use Data::Dumper;
 use Carp;
-use Math::BigInt;
+use Math::BigFloat;
 
 do_dump_netblock();
 
@@ -48,20 +47,19 @@ do_dump_netblock();
 #
 ############################################################################3
 
-
 sub get_netblock_id {
 	my ( $stab, $block ) = @_;
 
 	my $dbh = $stab->dbh;
 
-	my $base = $block->base;
-	my $bits = $block->bits;
+	my $base = $block->ip();
+	my $bits = $block->prefixlen();
 
 	my $q = qq{
 		select	netblock_id
 		  from	netblock
 		 where	ip_address = net_manip.inet_ptodb(?, 1)
-		   and	netmask_bits = ?
+		   and	family(ip_address) = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute( $base, $bits ) || $stab->return_db_err($sth);
@@ -100,7 +98,6 @@ sub make_url {
 	$c->self_url;
 }
 
-
 sub dump_toplevel {
 	my ( $stab, $dbh, $cgi ) = @_;
 
@@ -113,16 +110,13 @@ sub dump_toplevel {
 	print netblock_search_box($stab);
 
 	print "Please select a block to drill down into, or "
-		  . $cgi->a( { -href => "write/addnetblock.pl" },
-			"[Add a Netblock]" );
+	  . $cgi->a( { -href => "write/addnetblock.pl" }, "[Add a Netblock]" );
 
 	my $q = qq{
 		SELECT
-			net_manip.inet_dbtop(nb.ip_address) as ip,
+			nb.ip_address,
 			nb.netblock_id,
-			nb.netmask_bits, 
 			nb.netblock_status, 
-			nb.is_ipv4_address,
 			nb.description,
 			snb.site_code
 		  from  netblock nb
@@ -137,25 +131,31 @@ sub dump_toplevel {
 	$sth->execute || $stab->return_db_err($sth);
 
 	print "<ul>\n";
-	while ( my ( $ip, $id, $bits, $stat, $v4, $desc, $site ) =
-		$sth->fetchrow_array )
-	{
+	while ( my ( $ip, $id, $stat, $desc, $site ) = $sth->fetchrow_array ) {
 		next if ( defined($site) && !defined($showsite) );
-		my $blk = "$ip/$bits";
 		my $url = make_url( $stab, $id );
-		if ( defined($site) ) {
-			$site = "[$site] ";
-		} else {
-			$site = "";
+		if ( !defined($site) ) {
+			$site = "-";
 		}
 
 		print "\t"
 		  . $cgi->li(
-			$cgi->span({-class => 'netblocklink'}, $cgi->a( { -href => $url }, "$site$blk" ) )
-			  # . " [$id] - " 
-			  . " - " 
-			  . $cgi->span( { -class => 'netblockdesc'}, ( ($desc) ? $desc : "" )),
-			"\n"
+			join(
+				" ",
+				$cgi->span(
+					{ -class => 'netblocksite' }, $site
+				),
+				$cgi->span(
+					{ -class => 'netblocklink' },
+					"- ",
+					$cgi->a( { -href => $url }, "$ip" )
+				),
+				$cgi->span(
+					{ -class => 'netblockdesc' },
+					"- " . ( ($desc) ? $desc : "" )
+				),
+				"\n"
+			)
 		  );
 	}
 	print "</ul>\n";
@@ -167,32 +167,36 @@ sub dump_toplevel {
 }
 
 sub dump_nodes {
-	my($stab, $p_nblkid, $nblk) = @_;
-	my $v4 = $nblk->{_dbx('IS_IPV4_ADDRESS')};
+	my ( $stab, $p_nblkid, $nblk ) = @_;
 	my $org = 'N';
+
+	my $nb       = new Net::IP( $nblk->{ _dbx('IP_ADDRESS') } );
+	my $fam      = $nblk->{ _dbx('FAMILY') } || -1;
+	my $showgaps = 1;
+	if ( $fam == 6 ) {
+		$showgaps = 0;
+	} elsif ( $nb->prefixlen() <= 22 ) {
+		$showgaps = 0;
+	}
 
 	my $cgi = $stab->cgi;
 
-	print $cgi->start_form(-method=>'POST',
-		-action=>'ipalloc/allocate_ip.pl'
-	), "\n";
+	print $cgi->start_form(
+		-method => 'POST',
+		-action => 'ipalloc/allocate_ip.pl'
+	  ),
+	  "\n";
 
-	my $nb;
-	if($v4 eq 'Y') {
-		$nb = new Net::Netmask($nblk->{_dbx('IP')}."/".$nblk->{_dbx('NETMASK_BITS')}) || return;
-		print print_netblock_allocation($stab, $p_nblkid, $nb, $org);
-	}
+	print print_netblock_allocation( $stab, $p_nblkid, $nb, $org );
 
-	print $cgi->hidden(-name => 'NETBLOCK_ID', -default => $p_nblkid);
-	print $cgi->submit(-align=>'center', -name=>'Submit Updates');
-	print $cgi->start_table({-class=>'nblk_ipallocation'});
+	print $cgi->hidden( -name => 'NETBLOCK_ID', -default => $p_nblkid );
+	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
+	print $cgi->start_table( { -class => 'nblk_ipallocation' } );
 
-	print $cgi->th(['IP', 'Status', 'DNS', 'Description', 'Ticket']);
-
+	print $cgi->th( [ 'IP', 'Status', 'DNS', 'Description', 'Ticket' ] );
 
 	my $q = qq{
 		select	nb.netblock_id, 
-			nb.netmask_bits,
 			ni.device_id,
 			dns.dns_name,
 			dom.soa_name,
@@ -216,26 +220,28 @@ sub dump_nodes {
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
 	$sth->execute($p_nblkid) || $stab->return_db_err($sth);
 
-	if(!$v4 || $v4 eq 'Y') {
-		my $hashref = $sth->fetchall_hashref(_dbx('IP'));
+	if ($showgaps) {
+		my $hashref = $sth->fetchall_hashref( _dbx('IP') );
 		$sth->finish;
 
-		foreach my $ip ($nb->enumerate) {
+		my $newnb = new Net::IP( $nb->print );
+		do {
+			my $ip = $newnb->ip();
 			my $desc;
-			if( ($org eq 'N' && $ip eq $nb->base) ) {
+			if ( ( $org eq 'N' && $ip eq $nb->ip() ) ) {
 				$desc = "reserved for network address\n";
-			} elsif( ($org eq 'N' && $ip eq $nb->broadcast) ) {
+			} elsif ( ( $org eq 'N' && $ip eq $nb->last_ip ) ) {
 				$desc = "reserved for broadcast address\n";
 			}
-			print $stab->build_netblock_ip_row(undef,
-				$nblk, $hashref->{$ip}, $ip, $desc
-			);
-		}
+			print $stab->build_netblock_ip_row( undef,
+				$nblk, $hashref->{$ip}, $ip, $desc );
+		} while ( ++$newnb );
 	} else {
-		# ipv6 is different because dumping out a /64 is going to be an
-		# effing huge web page.  ipv4 could probably be folded into that,
-		# but being able to visualize the spaces is useful, so maybe only
-		# for blocks after a certain size
+
+	       # ipv6 is different because dumping out a /64 is going to be an
+	       # effing huge web page.  ipv4 could probably be folded into that,
+	       # but being able to visualize the spaces is useful, so maybe only
+	       # for blocks after a certain size
 		my $lastip;
 		my $trgap = 0;
 		my $gapno = 0;
@@ -243,83 +249,89 @@ sub dump_nodes {
 
 		# XXX - need to deal with ipv6 in the db, not translate address
 		# here.
-		while(my $hr = $sth->fetchrow_hashref) {
+		while ( my $hr = $sth->fetchrow_hashref ) {
+			my $printable = $hr->{ _dbx('IP_ADDRESS') };
+			$printable =~ s,/\d+$,,;
+			my $myip = new Net::IP($printable)
+			  || die( Net::IP::Error() );
 			#
 			# deal with any gaps at the beginning
 			#
-			if($first) {
+			if ($first) {
 				$first = 0;
-				my $bst = new Math::BigInt($nblk->{_dbx('IP_ADDRESS')});
-				my $thegap = $hr->{_dbx('IP_ADDRESS')} - $bst;
-				if($thegap > 0) {
+				my $thegap = $myip->intip() - $nb->intip();
+				if ( $thegap > 0 ) {
 					print $stab->build_netblock_ip_row(
-						{ -trgap=> $trgap++, -gap => $thegap,
-							-gapno => $gapno++ }
+						{
+							-trgap => $trgap++,
+							-gap   => $thegap,
+							-gapno => $gapno++
+						}
 					);
-					
+
 				}
 			}
 
 			#
 			# deal with any gaps
 			#
-			my $ip = $hr->{_dbx('IP')};
-			if(defined($lastip)) {
-				# pgsql - XXX
-				# frickin' 64 bit support
-				my $new = new Math::BigInt("$hr->{_dbx('IP_ADDRESS')}");
-				my $thegap = $new - $lastip;
-				if($thegap > 1) {
+			my $ip = $hr->{ _dbx('IP_ADDRESS') };
+			if ( defined($lastip) ) {
+				my $thegap =
+				  $myip->intip() - $lastip->intip() - 1;
+				if ( $thegap > 0 ) {
 					print $stab->build_netblock_ip_row(
-						{ -trgap=> $trgap++, -gap => $thegap,
-							-gapno => $gapno++ }
+						{
+							-trgap => $trgap++,
+							-gap   => $thegap,
+							-gapno => $gapno++
+						}
 					);
 				}
 			}
-			$lastip = new Math::BigInt("$hr->{_dbx('IP_ADDRESS')}");
-			print $stab->build_netblock_ip_row(undef,
-				$nblk, $hr, $ip
-			);
+			$lastip = $myip;
+			print $stab->build_netblock_ip_row( undef,
+				$nblk, $hr, $ip );
 		}
 
 		# deal with empty block
-		if(!$lastip) {
-			$lastip = new Math::BigInt($nblk->{_dbx('IP_ADDRESS')});
+		if ( !$lastip ) {
+			$lastip = $nb;
 		}
 
 		#
 		# check the block to see how many nodes are left at the end and
 		# print as much
 		#
-		my $thing = $nblk->{_dbx('IP')}."/".$nblk->{_dbx('NETMASK_BITS')};
-		if(my $b = new Net::IP( $thing ) ) {
-			my $x = new Net::IP($thing);
-			my $bst = new Math::BigInt($nblk->{_dbx('IP_ADDRESS')});
-			my $bsz = new Math::BigInt($x->size);
-			my $size = new Math::BigInt($bst + $bsz);
-
-			my $thegap = $size - $lastip;
-			if($thegap > 1) {
+		my $l = $nb->last_ip();
+		my $endoblock = new Net::IP($l) || die Net::IP::Error();
+		if ( $endoblock->ip() ne $lastip->ip() ) {
+			my $thegap = $endoblock->intip() - $lastip->intip();
+			if ( $thegap > 1 ) {
 				print $stab->build_netblock_ip_row(
-					{ -trgap=> $trgap++, -gap => $thegap,
-						-gapno => $gapno++ }
+					{
+						-trgap => $trgap++,
+						-gap   => $thegap,
+						-gapno => $gapno++
+					}
 				);
 			}
-		} 
+		}
 	}
-	
+
 	print $cgi->end_table;
+
 	# XXX - need to reconsider when/how to do this.
-	if(0) {
-		print dump_netblock_routes($stab, $p_nblkid, $nb);
+	if (0) {
+		print dump_netblock_routes( $stab, $p_nblkid, $nb );
 	}
-	print $cgi->submit(-align=>'center', -name=>'Submit Updates');
+	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
 	print $cgi->end_form, "\n";
 }
 
-
 sub get_netblock_link_header {
-	my ( $stab, $nblkid, $blk, $bits, $startnblkid, $descr, $pnbid, $site ) = @_;
+	my ( $stab, $nblkid, $blk, $bits, $startnblkid, $descr, $pnbid, $site )
+	  = @_;
 
 	my $cgi = $stab->cgi;
 	my $dbh = $stab->dbh;
@@ -332,38 +344,46 @@ sub get_netblock_link_header {
 		$displaysite = ( "[" . ( defined($site) ? $site : "" ) . "] " );
 	}
 
-	my $pnb = $stab->get_netblock_from_id( $pnbid );
+	my $pnb    = $stab->get_netblock_from_id($pnbid);
 	my $parent = "";
-	if ($pnb && $nblkid == $startnblkid) {
+	if ( $pnb && $nblkid == $startnblkid ) {
 		my $purl = make_url( $stab, $pnbid );
 		$parent = " - "
 		  . $cgi->a( { -href => $purl, },
-			"Parent: ", $pnb->{_dbx('IP')}. "/". 
-				$pnb->{_dbx('NETMASK_BITS')} );
+			"Parent: ", $pnb->{ _dbx('IP_ADDRESS') } );
 	}
 
 	my $ops = "";
 	if ( num_kids( $stab, $nblkid, 'Y' ) == 0 ) {
 		$ops = " - "
-		  . $cgi->a( { -href => "write/addnetblock.pl?id=$nblkid" },
-			$cgi->img({
-				-class=>'subnet',
-				-src=>"../stabcons/Axe_001.svg",
-				-alt=> "[Subnet]",
-				-title=> "Subnet Network"
-			}))
-		  . $cgi->a( { -href => "write/rmnetblock.pl?id=$nblkid" },
-			$cgi->img({
-				-class=>'subnet',
-				-src=>"../stabcons/Octagon_delete.svg",
-				-alt=> "[Remove]",
-				-title=> "Remove Network",
-			})) 
-		;
+		  . $cgi->a(
+			{ -href => "write/addnetblock.pl?id=$nblkid" },
+			$cgi->img(
+				{
+					-class => 'subnet',
+					-src   => "../stabcons/Axe_001.svg",
+					-alt   => "[Subnet]",
+					-title => "Subnet Network"
+				}
+			)
+		  )
+		  . $cgi->a(
+			{ -href => "write/rmnetblock.pl?id=$nblkid" },
+			$cgi->img(
+				{
+					-class => 'subnet',
+					-src =>
+					  "../stabcons/Octagon_delete.svg",
+					-alt   => "[Remove]",
+					-title => "Remove Network",
+				}
+			)
+		  );
 	}
 
 	if ( 1 || $allowdescedit eq 'yes' ) {
 		my $name = "NETBLOCK_DESCRIPTION_$nblkid";
+
 		#$descr = $cgi->hidden(
 		#	-name    => "orig_$name",
 		#	-default => $descr
@@ -375,19 +395,25 @@ sub get_netblock_link_header {
 		#		-value => $descr
 		#	}
 		#  );
-		$descr = $cgi->span({-class => 'editabletext',
-			-id=> $name
-			},($descr || ""));
-			
+		$descr = $cgi->span(
+			{
+				-class => 'editabletext',
+				-id    => $name
+			},
+			( $descr || "" )
+		);
+
 	}
 
 	my $url = make_url( $stab, $nblkid );
 	return $cgi->li(
-		$cgi->span({-class=>'netblocklink'},
-			$cgi->a( { -href => $url }, $blk ))
-		  . "-" 
+		$cgi->span(
+			{ -class => 'netblocklink' },
+			$cgi->a( { -href => $url }, $blk )
+		  )
+		  . "-"
 		  . $displaysite
-		  . $cgi->span({-class=>'netblockdesc'}, ( $descr || "" ))
+		  . $cgi->span( { -class => 'netblockdesc' }, ( $descr || "" ) )
 		  . $ops,
 		$parent, "\n"
 	);
@@ -433,7 +459,7 @@ sub do_dump_netblock {
 	my $nb;
 	if ( !defined($start_id) ) {
 		if ( defined($block) ) {
-			$nb = new Net::Netmask($block);
+			$nb = new Net::IP($block);
 			$start_id = get_netblock_id( $stab, $nb );
 
 			if ( !defined($start_id) ) {
@@ -451,17 +477,14 @@ sub do_dump_netblock {
 		}
 
 		my $netblock =
-		  $stab->get_netblock_from_id( $start_id, 
-			{ is_single_address => 'N' });
+		  $stab->get_netblock_from_id( $start_id,
+			{ is_single_address => 'N' } );
 		if ( !defined($netblock) ) {
 			$stab->error_return(
 				"Invalid netblock id ($start_id) specified");
 		}
-		my $base = $netblock->{_dbx('IP')};
-		my $bits = $netblock->{_dbx('NETMASK_BITS')};
-		if ($netblock->{_dbx('IS_IPV4_ADDRESS')} eq 'Y' && defined($base) && defined($bits) ) {
-			$nb = new Net::Netmask("$base/$bits");
-		}
+		my $base = $netblock->{ _dbx('IP_ADDRESS') };
+		$nb = new Net::IP($base);
 	}
 
 	my ($nblk);
@@ -473,8 +496,8 @@ sub do_dump_netblock {
 		dump_toplevel( $stab, $dbh, $cgi );
 		exit;
 	} else {
-		$nblk = $stab->get_netblock_from_id( $start_id, 
-			{ is_single_address => 'N' });
+		$nblk = $stab->get_netblock_from_id( $start_id,
+			{ is_single_address => 'N' } );
 		if ( !defined($nblk) ) {
 			$stab->error_return(
 				"Unable to find Netblock ($start_id)",
@@ -482,18 +505,13 @@ sub do_dump_netblock {
 		}
 	}
 
-	if($nblk->{_dbx('IS_IPV4_ADDRESS')} eq 'Y' && !defined($nb)) {
-		$stab->error_return("You must specify a valid netblock!\n");
-	}
-
 	my $q = qq{
 		select  netblock_level,
 			netblock_id,
-			ip,
-			netmask_bits,
+			ip_address,
 			netblock_status,
 			is_single_address,
-			is_ipv4_address,
+			family(ip_address) as family,
 			description,
 			parent_netblock_id,
 			site_code
@@ -506,7 +524,7 @@ sub do_dump_netblock {
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($start_id) || $stab->return_db_err($sth);
 
-	my $ipstr = $nblk->{_dbx('IP')} . "/" . $nblk->{_dbx('NETMASK_BITS')};
+	my $ipstr = $nblk->{ _dbx('IP_ADDRESS') };
 
 	print $stab->start_html(
 		{
@@ -539,14 +557,7 @@ sub do_dump_netblock {
 	}, $cgi->a( { -href => "../device/" }, "device manager" ), ")."
 	);
 
-	# neeed to see if we even need Net::Netmask.  I don't think we do
-	# anymore.
-	my $root;
-	if($nblk->{_dbx('IS_IPV4_ADDRESS')} eq 'Y') {
-		$root = $nb->base."/".$nb->bits;
-	} else {
-		$root = join('/', $nblk->{_dbx('IP')}, $nblk->{_dbx('NETMASK_BITS')});
-	}
+	my $root = $nblk->{'IP_ADDRESS'};
 
 	my ( @hier, %kids );
 	my $lastl = -1;
@@ -559,15 +570,16 @@ sub do_dump_netblock {
 		-action => 'write/edit_netblock.pl'
 	);
 
-	if ( $allowdescedit eq 'yes' || $nblk->{_dbx('CAN_SUBNET')} eq 'Y') {
+	if ( $allowdescedit eq 'yes' || $nblk->{ _dbx('CAN_SUBNET') } eq 'Y' ) {
 		print $cgi->submit("Submit Updates");
 	}
 
-	# This is required for oracle, I *THINK*.  Under postgresql, this results
-	# in double printing  a given block.  All this needs to be rewritten.
+       # This is required for oracle, I *THINK*.  Under postgresql, this results
+       # in double printing  a given block.  All this needs to be rewritten.
+       # ... and netmask bits is gone.
 
 	#print get_netblock_link_header(
-	#	$stab, $start_id, $root, $nblk->{_dbx('NETMASK_BITS')},
+	#	$stab, $start_id, $root, $nblk->{_dbx('NETMASK BITS')},
 	#	$start_id,
 	#	$nblk->{_dbx('DESCRIPTION')},
 	#	$nblk->{_dbx('PARENT_NETBLOCK_ID')}
@@ -575,8 +587,8 @@ sub do_dump_netblock {
 
 	while (
 		my (
-			$level,  $nblkid, $ip,    $bits, $status,
-			$single, $v4,     $descr,  $pnbid, $site
+			$level,  $nblkid, $ip,    $status,
+			$single, $descr,  $pnbid, $site
 		)
 		= $sth->fetchrow_array
 	  )
@@ -592,12 +604,8 @@ sub do_dump_netblock {
 				print "</ul>";
 			}
 		}
-		my $blk = "$ip/$bits";
-
-		print get_netblock_link_header(
-			$stab,     $nblkid, $blk,   $bits,
-			$start_id, $descr,  $pnbid, $site
-		);
+		print get_netblock_link_header( $stab, $nblkid, $ip,
+			$start_id, $descr, $pnbid, $site );
 		$lastl = $level;
 	}
 	$sth->finish;
@@ -610,15 +618,13 @@ sub do_dump_netblock {
 	if (       ( defined($expand) && $expand eq 'yes' )
 		|| ( !defined($expand) && !num_kids( $stab, $start_id ) ) )
 	{
-		dump_nodes( $stab, $start_id, $nblk);
+		dump_nodes( $stab, $start_id, $nblk );
 	}
 
 	print $cgi->end_html, "\n";
 
 	$sth->finish;
-	$dbh->rollback;
-	$dbh->disconnect;
-	$dbh = undef;
+	undef $stab;
 	exit 0;
 }
 
@@ -658,7 +664,7 @@ sub print_netblock_allocation {
 
 	my $dbh  = $stab->dbh;
 	my $cgi  = $stab->cgi;
-	my $size = $nb->size;
+	my $size = new Math::BigFloat( $nb->size() );
 
 	my $q = qq{
 		select	netblock_status, count(*) as tally
@@ -684,8 +690,6 @@ sub print_netblock_allocation {
 		$breakdown{'Allocated'} += 2;
 		$total += 2;
 	}
-
-	$total = 256 if ( $total > 256 );
 
 	my $x = "";
 	foreach my $what ( sort( keys(%breakdown) ) ) {
@@ -717,8 +721,7 @@ sub dump_netblock_routes {
 		select	srt.STATIC_ROUTE_TEMPLATE_ID,
 				srt.description as ROUTE_DESCRIPTION,
 				snb.netblock_Id as source_netblock_id,
-				net_manip.inet_dbtop(snb.ip_address),
-				snb.netmask_bits as SOURCE_NETMASK_BITS,
+				snb.ip_address,
 				ni.network_interface_id,
 				ni.network_interface_name as interface_name,
 				d.device_name,
@@ -768,8 +771,10 @@ sub build_route_Tr {
 	my $dev = "";
 	my $del = "ADD";
 	if ($hr) {
-		my $id = $hr->{_dbx('STATIC_ROUTE_TEMPLATE_ID')};
-		$dev   = $hr->{_dbx('DEVICE_NAME')} . ":" . $hr->{_dbx('INTERFACE_NAME')},
+		my $id = $hr->{ _dbx('STATIC_ROUTE_TEMPLATE_ID') };
+		$dev =
+		    $hr->{ _dbx('DEVICE_NAME') } . ":"
+		  . $hr->{ _dbx('INTERFACE_NAME') },
 		  $del = $cgi->hidden(
 			-name    => "STATIC_ROUTE_TEMPLATE_ID_$id",
 			-default => $id
@@ -793,7 +798,7 @@ sub build_route_Tr {
 				"/",
 				$stab->b_textfield(
 					$hr,
-					'SOURCE_NETMASK_BITS',
+					'SOURCE_MASKLEN',
 					'STATIC_ROUTE_TEMPLATE_ID'
 				),
 				$dev,

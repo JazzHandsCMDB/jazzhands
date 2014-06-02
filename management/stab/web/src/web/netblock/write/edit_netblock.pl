@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
@@ -44,14 +43,15 @@ sub edit_netblock {
 	my $stab = new JazzHands::STAB;
 
 	my $cgi = $stab->cgi;
-	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+
+       # print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $numchanges = 0;
 
-#	$numchanges += process_routes
+	#	$numchanges += process_routes
 
 	foreach my $id ( $stab->cgi_get_ids('NETBLOCK_DESCRIPTION') ) {
-		my $v    = $stab->cgi_parse_param("NETBLOCK_DESCRIPTION_$id");
+		my $v = $stab->cgi_parse_param("NETBLOCK_DESCRIPTION_$id");
 		$v = $cgi->unescapeHTML($v);
 		$numchanges += process_netblock_update( $stab, $id, $v );
 
@@ -64,24 +64,25 @@ sub edit_netblock {
 
 	$stab->rollback;
 	$stab->msg_return( "There were no changes.", undef, 1 );
+	undef $stab;
 }
 
 sub process_netblock_update {
 	my ( $stab, $nblkid, $newval ) = @_;
 
-	my $orig = $stab->get_netblock_from_id( $nblkid );
+	my $orig = $stab->get_netblock_from_id($nblkid);
 
 	my $new = {
-		NETBLOCK_ID	=> $nblkid,
-		DESCRIPTION	=> $newval,
+		NETBLOCK_ID => $nblkid,
+		DESCRIPTION => $newval,
 	};
 
 	my $diffs = $stab->hash_table_diff( $orig, _dbx($new) );
 	my $tally = keys %$diffs;
-	if( $tally ) {
-		$stab->run_update_from_hash(
-			'NETBLOCK', 'NETBLOCK_ID', $nblkid, $diffs
-		) || die $stab->return_db_err();
+	if ($tally) {
+		$stab->run_update_from_hash( 'NETBLOCK', 'NETBLOCK_ID',
+			$nblkid, $diffs )
+		  || die $stab->return_db_err();
 	}
 	$tally;
 }

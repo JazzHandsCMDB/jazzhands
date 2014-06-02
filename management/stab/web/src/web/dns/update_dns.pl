@@ -56,6 +56,7 @@ use Data::Dumper;
 use URI;
 use CGI;
 use POSIX;
+use Net::IP;
 
 do_dns_update();
 
@@ -169,7 +170,9 @@ sub clear_same_dns_params {
 			}
 
 		} else {
-			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/ ) {
+			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } =~
+				/^A(AAA)?/ )
+			{
 				$all->{$dnsid}->{ _dbx('DNS_VALUE') } =
 				  $all->{$dnsid}->{ _dbx('IP') };
 			}
@@ -265,16 +268,13 @@ sub process_dns_update {
 	my $enabled = $stab->cgi_parse_param( 'chk_IS_ENABLED', $updateid );
 	my $ttlonly = $stab->cgi_parse_param( 'ttlonly',        $updateid );
 
-	my $in_srv_svc =
-	  $stab->cgi_parse_param( "DNS_SRV_SERVICE", $updateid );
+	my $in_srv_svc = $stab->cgi_parse_param( "DNS_SRV_SERVICE", $updateid );
 	my $in_srv_proto =
 	  $stab->cgi_parse_param( "DNS_SRV_PROTOCOL", $updateid );
 	my $in_srv_weight =
 	  $stab->cgi_parse_param( "DNS_SRV_WEIGHT", $updateid );
-	my $in_srv_port =
-	  $stab->cgi_parse_param( "DNS_SRV_PORT", $updateid );
-	my $in_priority =
-	  $stab->cgi_parse_param( "DNS_PRIORITY", $updateid );
+	my $in_srv_port = $stab->cgi_parse_param( "DNS_SRV_PORT", $updateid );
+	my $in_priority = $stab->cgi_parse_param( "DNS_PRIORITY", $updateid );
 
 	$enabled = $stab->mk_chk_yn($enabled);
 	$genptr  = $stab->mk_chk_yn($genptr);
@@ -344,7 +344,7 @@ sub process_dns_update {
 		dns_srv_protocol    => $in_srv_proto,
 		dns_srv_weight      => $in_srv_weight,
 		dns_srv_port        => $in_srv_port,
-		is_enabled          => 'Y',
+		is_enabled          => $enabled,
 		should_generate_ptr => $genptr,
 	};
 
@@ -478,7 +478,7 @@ sub process_dns_add {
 			should_generate_ptr => $genptr,
 		};
 
-		$numchanges += $stab->process_and_insert_dns_record( $new );
+		$numchanges += $stab->process_and_insert_dns_record($new);
 	}
 
 	$numchanges;
@@ -490,8 +490,6 @@ sub do_dns_update {
 
 	my $numchanges;
 
-      #- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
-
 	my $domid = $stab->cgi_parse_param('DNS_DOMAIN_ID');
 
 	if ( !dns_domain_authcheck( $stab, $domid ) ) {
@@ -501,6 +499,8 @@ sub do_dns_update {
 
 	clear_same_dns_params( $stab, $domid );
 
+      #- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+
 	my $genflip = $stab->cgi_parse_param('AutoGen');
 
     # process deletions
@@ -508,7 +508,7 @@ sub do_dns_update {
     # have a resonable state
 	my $delsth;
 	foreach my $delid ( $stab->cgi_get_ids('Del') ) {
-		my $dns = $stab->get_dns_record_from_id( $delid);
+		my $dns = $stab->get_dns_record_from_id($delid);
 		if ( !defined($delsth) ) {
 			my $q = qq{
 				delete from dns_record
@@ -522,8 +522,10 @@ sub do_dns_update {
 		$cgi->delete("DNS_RECORD_ID_$delid");
 		$numchanges++;
 
-		if($dns && $dns->{_dbx('DNS_TYPE')} =~ /^A(AAA)?$/) {
-			$numchanges += $stab->delete_netblock( $dns->{_dbx('NETBLOCK_ID')}, 1  );
+		if ( $dns && $dns->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/ ) {
+			$numchanges +=
+			  $stab->delete_netblock( $dns->{ _dbx('NETBLOCK_ID') },
+				1 );
 		}
 	}
 
@@ -547,6 +549,7 @@ sub do_dns_update {
 
 	$stab->rollback;
 	$stab->msg_return("Nothing to do");
+	undef $stab;
 }
 
 sub process_and_update_dns_record {
@@ -557,7 +560,6 @@ sub process_and_update_dns_record {
 	$opts->{'is_enabled'} = 'Y' if ( !defined( $opts->{'is_enabled'} ) );
 
 	my $orig = $stab->get_dns_record_from_id( $opts->{'dns_record_id'} );
-
 
 	if ( !exists( $opts->{'dns_ttl'} ) ) {
 		$opts->{'dns_ttl'} = $orig->{ _dbx('DNS_TTL') };
@@ -592,10 +594,10 @@ sub process_and_update_dns_record {
 		};
 	}
 	if ( defined( $opts->{class} ) ) {
-		$newrecord->{ 'DNS_CLASS' } = $opts->{dns_class};
+		$newrecord->{'DNS_CLASS'} = $opts->{dns_class};
 	}
 
-	$newrecord = _dbx($newrecord, 'lower');
+	$newrecord = _dbx( $newrecord, 'lower' );
 
 	# On update:
 	#	Only pay attention to if the new type is A or AAAA.
@@ -613,21 +615,30 @@ sub process_and_update_dns_record {
 			$newrecord->{'should_generate_ptr'} =
 			  $opts->{should_generate_ptr};
 		} elsif ( $orig->{'dns_type'} ne $opts->{'dns_type'} ) {
-			if ( ! $stab->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) ) {
+			if (
+				!$stab->get_dns_a_record_for_ptr(
+					$opts->{'dns_value'}
+				)
+			  )
+			{
 				$newrecord->{'should_generate_ptr'} = 'Y';
 			} else {
 				$newrecord->{'should_generate_ptr'} =
 				  $opts->{should_generate_ptr};
 			}
 		} else {
-			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
+			$newrecord->{'should_generate_ptr'} =
+			  $opts->{should_generate_ptr};
 		}
 
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
 
 		      # set all other dns_records but this one to have ptr = 'N'
-			if ( my $recid =
-				$stab->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
+			if (
+				my $recid = $stab->get_dns_a_record_for_ptr(
+					$opts->{'dns_value'}
+				)
+			  )
 			{
 				$stab->run_update_from_hash( "DNS_RECORD",
 					"DNS_RECORD_ID", $recid,
@@ -638,21 +649,24 @@ sub process_and_update_dns_record {
 
 	my $nblkid;
 
-	# if the new type is A/AAAA then find the netblock and create if it 
+	# if the new type is A/AAAA then find the netblock and create if it
 	# does not exist.
 	# Creation should only happen on a change.
 	if ( $opts->{'dns_type'} =~ /^A(AAA)?/ ) {
-		if (       $opts->{'dns_value'} !~ /^(\d+\.){3}\d+/
-				&& $opts->{'dns_type'} eq 'A' ) {
+		my $i = new Net::IP( $opts->{'dns_value'} )
+		  || $stab->error_return(
+			"$opts->{'dns_value'} is not a valid IP address");
+		if ( $opts->{'dns_type'} eq 'A' && $i->version() != 4 ) {
 			$stab->error_return(
-				"$opts->{'dns_value'} is not a valid IPv4 address"
-			);
-		} elsif (  $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/
-				&& $opts->{'dns_type'} eq 'AAAA' ) {
-			$stab->error_return(
-				"$opts->{'dns_value'} is not a valid IPv6 address"
+"$opts->{'dns_value'} is not a valid IPv4 address"
 			);
 		}
+		if ( $opts->{'dns_type'} eq 'AAAA' && $i->version() != 6 ) {
+			$stab->error_return(
+"$opts->{'dns_value'} is not a valid IPv6 address"
+			);
+		}
+
 		my $block = $stab->get_netblock_from_ip(
 			ip_address => $opts->{'dns_value'} );
 		if ( !$block ) {
@@ -675,11 +689,11 @@ sub process_and_update_dns_record {
 				)
 			  )
 			{
-		 # XXX This is outside our IP universe, which we should probably
-		 # print a warning on, but lacking that, it gets created as a
-		 # type dns
+				# XXX This is outside our IP universe,
+				# which we should probably print a warning
+				# on, but lacking that, it gets created as a
+				# type dns
 				$h->{netblock_type} = 'dns';
-				$h->{netmask_bits}  = 32;
 			}
 			$nblkid = $stab->add_netblock($h)
 			  || die $stab->return_db_err();
@@ -707,7 +721,7 @@ sub process_and_update_dns_record {
 		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
 	}
 
-	my $diffs = $stab->hash_table_diff( $orig, _dbx( $newrecord ) );
+	my $diffs = $stab->hash_table_diff( $orig, _dbx($newrecord) );
 	my $tally = keys %$diffs;
 	if ( !$tally ) {
 		return 0;

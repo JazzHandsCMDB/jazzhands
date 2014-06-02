@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
@@ -58,6 +57,7 @@ sub do_dt_search {
 		$stab->error_return('Unknown Device Type');
 	}
 
-	my $url = "index.pl?DEVICE_TYPE_ID=" . $dt->{_dbx('DEVICE_TYPE_ID')};
+	my $url = "index.pl?DEVICE_TYPE_ID=" . $dt->{ _dbx('DEVICE_TYPE_ID') };
 	print $cgi->redirect($url);
+	undef $stab;
 }

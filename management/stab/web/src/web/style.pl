@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -53,6 +52,7 @@ sub do_style_dump {
 	print $cgi->header( { -type => 'text/css' } ), "\n";
 
 	my $root = $stab->guess_stab_root;
+
 	# this could be smarter.  It also apperas in STAB.pm for
 	# the title bar
 	if ( $root !~ m,://stab.[^/]+/?$, && $root !~ /dev/ ) {
@@ -277,9 +277,14 @@ input.srvnum {
 	visibility: hidden;
 }
 
-span.netblocklink {
+span.netblocksite {
+	width: 8ex;
 	float: left;
+}
+
+span.netblocklink {
 	min-width: 30ex;
+	float: left;
 }
 
 #SOA_MNAME, #SOA_RNAME {
@@ -314,7 +319,7 @@ table.intmoretable {
 }
 
 table.interfacetable {
-	display; inline;
+	display: inline;
 	margin: auto;
 	text-align: center;
 }
@@ -324,5 +329,5 @@ table.interfacetable tr {
 }
 
 END
-
+	undef $stab;
 }

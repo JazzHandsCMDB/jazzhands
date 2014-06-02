@@ -52,18 +52,15 @@ function AddIpSpace(thing, parent_tr_id, gapid)
 						ptr.style.display = 'none';
 					}
 				}
+				jazzhands_common_init();
+				configure_setupdns();
 			}
 		}
 		ajaxrequest.send(null);
 	}
 }
 
-
-//
-// much of this probably wants to be shared
-//
-$(document).ready(function() {
-
+function configure_setupdns() {
 	// Put "set DNS" on reserved records without DNS set
 	$("span.editdns").each( function ( index, el) {
 		var text = $(el).html().trim();
@@ -72,6 +69,14 @@ $(document).ready(function() {
 			$(el).addClass('hint');
 		}
 	});
+}
+
+//
+// much of this probably wants to be shared
+//
+$(document).ready(function() {
+
+	configure_setupdns();
 
 	$("table.nblk_ipallocation").on('click', 'span.editdns', function(event) {
 

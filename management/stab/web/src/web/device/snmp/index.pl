@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -111,6 +110,7 @@ sub do_device_snmp_page {
 
 	$dbh->rollback;
 	$dbh->disconnect;
+	undef $stab;
 }
 
 sub build_snmp_row {

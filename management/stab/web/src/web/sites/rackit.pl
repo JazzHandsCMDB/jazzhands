@@ -73,6 +73,7 @@ sub do_rackit {
 		$stab->error_return("Global View Not implemented");
 		show_chooser();
 	}
+	undef $stab;
 }
 
 exit 0;

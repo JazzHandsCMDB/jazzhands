@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -59,4 +58,5 @@ sub do_os_search {
 
 	my $url = ".?OPERATING_SYSTEM_ID=" . $os->{'OPERATING_SYSTEM_ID'};
 	print $cgi->redirect($url);
+	undef $stab;
 }

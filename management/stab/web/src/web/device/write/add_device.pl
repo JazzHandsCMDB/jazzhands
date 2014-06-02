@@ -167,7 +167,7 @@ sub do_device_add {
 		OPERATING_SYSTEM_ID   => $osid,
 		VOE_ID                => $voeid,
 		OWNERSHIP_STATUS      => $owner,
-		SITE_CODE	      => $sitecode,
+		SITE_CODE             => $sitecode,
 		IS_MONITORED          => $ismonitored,
 		IS_LOCALLY_MANAGED    => $localmgd,
 		SHOULD_FETCH_CONFIG   => $cfgfetch,
@@ -210,23 +210,23 @@ sub do_device_add {
 		$sth->finish;
 	}
 
-#	if ( $#appgroups > -1 ) {
-#	     # note that appgroup_util.add_role validates the device collection
-#	     # id to ensure that its of the right type, so that does not need to
-#	     # happen here.
-#		my $sth = $stab->prepare(
-#			qq{
-#			begin
-#				appgroup_util.add_role(:1, :2);
-#			end;
-#		}
-#		) || die $stab->return_db_err;
-#
-#		foreach my $dcid (@appgroups) {
-#			$sth->execute( $devid, $dcid )
-#			  || die $stab->return_db_err;
-#		}
-#	}
+      #	if ( $#appgroups > -1 ) {
+      #	     # note that appgroup_util.add_role validates the device collection
+      #	     # id to ensure that its of the right type, so that does not need to
+      #	     # happen here.
+      #		my $sth = $stab->prepare(
+      #			qq{
+      #			begin
+      #				appgroup_util.add_role(:1, :2);
+      #			end;
+      #		}
+      #		) || die $stab->return_db_err;
+      #
+      #		foreach my $dcid (@appgroups) {
+      #			$sth->execute( $devid, $dcid )
+      #			  || die $stab->return_db_err;
+      #		}
+      #	}
 
 	$stab->setup_device_power($devid);
 	$stab->setup_device_physical_ports($devid);
@@ -235,4 +235,5 @@ sub do_device_add {
 
 	my $url = "../device.pl?devid=$devid";
 	$stab->msg_return( "Device Added Successfully.", $url );
+	undef $stab;
 }

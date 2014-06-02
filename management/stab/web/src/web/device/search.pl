@@ -28,7 +28,7 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use Net::Netmask;
+use Net::IP;
 
 do_device_search();
 
@@ -40,7 +40,7 @@ sub find_devices {
 
 	my ( $ip, $bits );
 	if ( defined($ipblock) ) {
-		my $nb = new2 Net::Netmask($ipblock);
+		my $nb = new2 Net::IP($ipblock);
 		if ( defined($nb) ) {
 			( $ip, $bits ) = ( $nb->base, $nb->bits );
 		} else {
@@ -54,7 +54,7 @@ sub find_devices {
 	if ( defined($name) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .=
-			" (lower(d.device_name) like lower(:name) or lower(dns.dns_name) like lower(:name) or lower(d.physical_label) like lower(:name))";
+" (lower(d.device_name) like lower(:name) or lower(dns.dns_name) like lower(:name) or lower(d.physical_label) like lower(:name))";
 
 	}
 
@@ -134,6 +134,7 @@ sub find_devices {
 		  || $stab->return_db_err($sth);
 	}
 	if ( defined($mac) ) {
+
 		# XXX
 		# my $intmac = $stab->int_mac_from_text($mac);
 		$sth->bind_param( ":mac", $mac )
@@ -195,7 +196,8 @@ sub do_device_search {
 	} elsif ( $#searchresults > 0 ) {
 		if ( $#searchresults > 500 ) {
 			$stab->error_return(
-				"Too many matches ($#searchresults).  Please limit your query");
+"Too many matches ($#searchresults).  Please limit your query"
+			);
 		}
 		my $devlist = join( ",", @searchresults );
 		my $url = $stab->build_passback_url( devlist => $devlist );
@@ -205,5 +207,6 @@ sub do_device_search {
 
 	$stab->msg_return("No devices found matching that criteria");
 
+	undef $stab;
 	exit 0;
 }

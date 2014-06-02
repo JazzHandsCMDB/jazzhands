@@ -104,16 +104,17 @@ sub build_rack {
 			[
 				"u",
 				join( " ",
-					$rack->{_dbx('SITE_CODE')},
-					$rack->{_dbx('ROOM')},
-					$rack->{_dbx('RACK_ROW')},
-					$rack->{_dbx('RACK_NAME')},
+					$rack->{ _dbx('SITE_CODE') },
+					$rack->{ _dbx('ROOM') },
+					$rack->{ _dbx('RACK_ROW') },
+					$rack->{ _dbx('RACK_NAME') },
 				)
 			]
 		)
 	);
 
-	my $MAX_RACKSIZE = $rack->{_dbx('RACK_HEIGHT_IN_U')} || 50;    # size of rack
+	my $MAX_RACKSIZE =
+	  $rack->{ _dbx('RACK_HEIGHT_IN_U') } || 50;    # size of rack
 	while (
 		my (
 			$did,   $name,   $pardid, $parname, $label,

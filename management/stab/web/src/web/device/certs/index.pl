@@ -28,7 +28,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -50,6 +49,8 @@ sub do_cert_manip {
 	} else {
 		show_cert( $stab, $certid );
 	}
+	undef $stab;
+	1;
 }
 
 sub show_cert_picker {
