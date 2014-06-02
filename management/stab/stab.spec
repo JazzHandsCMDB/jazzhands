@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.57.8
+Version:        0.57.10
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -176,7 +176,7 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
-* Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.8 
+* Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.10
 - small random bug fixes
 - if its an in-addr zone, make the type reverse automatically
 - make disabling dns record work again

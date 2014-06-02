@@ -3,7 +3,7 @@
 Summary:    Javascript used by all JazzHands systems
 Vendor:     JazzHands
 Name:       jazzhands-javascript-common
-Version:    0.57.8
+Version:    0.57.10
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,7 +46,7 @@ rm -rf %{buildroot}
 %{prefix}//external/prototype/prototype.js
 
 %changelog
-* Fri Jun  2 2014 Todd Kover <kovert@omniscient.com> 0.57.8
+* Fri Jun  2 2014 Todd Kover <kovert@omniscient.com> 0.57.10
   - make it so that description stuff can be run multiple times
 * Fri Sep 27 2013 Todd Kover <kovert@omniscient.com> 0.54.2-1
   - do away with "original" description in editabletext implementation
