@@ -17,7 +17,7 @@ sub get_login {
 
 	my $sth = $dbh->prepare_cached(qq{
 	       select  a.login
-		 from   account a
+		 from   v_corp_family_account a
 			inner join v_person_company_expanded pc
 				using (person_id)
 		where   person_id = ?
@@ -47,7 +47,7 @@ sub check_admin {
 			inner join v_acct_coll_acct_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
-			inner join account a
+			inner join v_corp_family_account a
 				on ae.account_id = a.account_id
 		 where  p.property_name = 'PhoneDirectoryAdmin'
 		  and   p.property_type = 'PhoneDirectoryAttributes'

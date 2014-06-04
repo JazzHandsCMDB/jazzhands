@@ -39,7 +39,7 @@ function check_admin($dbconn, $login) {
 			inner join v_acct_coll_acct_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
-			inner join account a
+			inner join v_corp_family_account a
 				on ae.account_id = a.account_id
 
 		 where	p.property_name = 'PhoneDirectoryAdmin'
@@ -191,11 +191,14 @@ $query = "
 		ofc.section,
 		ofc.seat_number
 	   from person p
-	   	inner join person_company pc
+	   	inner join (
+			select * from person_company
+			where hire_date is null or hire_date <= now()
+		) pc
 			using (person_id)
 	   	inner join company c
 			using (company_id)
-		inner join account a
+		left join v_corp_family_account a
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
@@ -281,15 +284,22 @@ if(isset($title)) {
 	echo build_tr("Title", $title);
 }
 
-/* Was $deptc at the end, which includes the company */
-echo build_tr("Department", hierlink('department', $row['account_collection_id'],
+if(isset($row['account_collection_id'])) {
+	/* Was $deptc at the end, which includes the company */
+	echo build_tr("Department", hierlink('department', $row['account_collection_id'],
                 $row['account_collection_name']));
-
-$email = get_email( $dbconn, $row{'person_id'} );
-if( $email == null) {
-	$email = $row['login']."@". get_default_domain($dbconn);
+} else {
+	echo build_tr("Department", 'NONE');
 }
 
+	$email = get_email( $dbconn, $row{'person_id'} );
+if(isset($email) || isset($row['login'])) {
+	if( $email == null) {
+		$email = $row['login']."@". get_default_domain($dbconn);
+	}
+} else {
+	$email = "<b> NONE </b>";
+}
 echo build_tr("Email", $email);
 
 if(isset($manager)) {
@@ -371,7 +381,7 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 	<b> <center> Phone Qualifiers </center> </b>
 	PRIVATE: Not to be shared outside company.  
 	<br>
-	HIDDEN:  Visible to person, their managers and administrators.
+	HIDDEN:  Visible only to person, their managers and administrators.
 	</td>
 </tr>
 <?php

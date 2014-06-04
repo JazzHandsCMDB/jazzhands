@@ -25,11 +25,14 @@ $select_fields = "
 
 $query_tables = "
 	   FROM person p
-	   	inner join person_company pc
+	   	inner join (
+			select * from person_company
+			where hire_date is null or hire_date <= now()
+		) pc
 			using (person_id)
 	   	inner join company c
 			using (company_id)
-		inner join account a
+		inner join v_corp_family_account a
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
@@ -144,6 +147,7 @@ switch($index) {
 		break;
 
 	case 'byname':
+	case 'byoffice':
 		$params = array();
 		$numshow = 10;
 		$offset = (isset($_GET['offset']))?$_GET['offset']:0;
@@ -199,7 +203,7 @@ switch($index) {
 			 from	account_collection
 			 		inner join account_collection_account
 							using(account_collection_id)
-					inner join account
+					inner join v_corp_family_account
 							using(account_id)
 					inner join val_person_status vps
 							on vps.person_status = account_status
@@ -216,7 +220,7 @@ echo build_header("Directory");
 
 if($style == 'peoplelist') {
 	// Printing results in HTML
-	echo browsingMenu($dbconn, $index, ($index == 'byname')?'both':null);
+	echo browsingMenu($dbconn, $index, (preg_match('/^by(office|name)$/', $index))?'both':'default');
 	echo "<table id=\"peoplelist\">\n";
 	?>
 
@@ -291,7 +295,7 @@ if($style == 'peoplelist') {
 		echo "</div>\n";
 	}
 } else {
-	echo browsingMenu($dbconn, $index, ($index == 'byname')?'both':null);
+	echo browsingMenu($dbconn, $index);
 	echo "<h3> Browse by Department </h3>\n";
 	echo "<div class=deptlist><ul>\n";
 	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {

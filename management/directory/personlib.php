@@ -14,6 +14,7 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 		$arr = array(
 			'byname' => "By Name",
 			'bydept' => "By Dept",
+			'byoffice' => "By Office",
 			'hier' => "By Org",
 			'random' => "Random"
 		);
@@ -29,8 +30,9 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 			} else {
 				$class = 'inactivefilter';
 			}
-			$rv = "$rv <a class=\"$class filteroption\" href=\"$url\"> $lab </a> ";
+			$rv = "$rv | <a class=\"$class filteroption\" href=\"$url\"> $lab </a> ";
 		}
+		$rv .= " |";
 	}
 
 	$sitelimit = "";
@@ -53,7 +55,8 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 	
 		$params = build_qs(null, 'offset', null);
 
-		$label = "limit by Site";
+		# used to have the site limiter in the menubar
+		$label = "";
 	
 		while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 			if(isset($_GET['physical_address_id']) && $_GET['physical_address_id'] == $row['physical_address_id']) {
@@ -64,14 +67,15 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 			}
 			$url = build_url(build_qs($params, 'physical_address_id', $row['physical_address_id']));
 			$lab = $row['display_label'];
-			$sitelimit = "$sitelimit <a class=\"$class limitsiterow\" href=\"$url\"> $lab </a><br> ";
+			$sitelimit = "$sitelimit | <a class=\"$class limitsiterow\" href=\"$url\"> $lab </a>";
 		}
+		$sitelimit .= "|";
 		if(isset($_GET['physical_address_id'])) {
 			$url = build_url(build_qs($params, 'physical_address_id', null));
 			$lab = '| Clear';
 			$return = "$return <a class=\"inactivefilter limitsiterow\" href=\"$url\"> $lab </a> ";
 		}
-		$rv = "$rv <a class=\"$class filteroption locationfilter\"> $label </a>";
+		$rv = "$rv <a class=\"$class filteroption locationfilter\"> </a>";
 	}
 	return "<div class=filterbar>$rv</div> <div class=\"sitelimit \">$sitelimit</div>";
 }

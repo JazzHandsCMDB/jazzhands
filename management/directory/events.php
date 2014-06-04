@@ -16,7 +16,10 @@ $query ="
 			pc.hire_date as whence_human,
 			'Hire Date' as event
 	 	from	person p
-		inner join person_company pc using(person_id)
+		inner join (
+			select * from person_company
+			where hire_date is null or hire_date <= now()
+		) pc using(person_id)
 		WHERE	pc.hire_date is not null
 	UNION
 		select p.person_Id,
@@ -28,7 +31,10 @@ $query ="
 	 	from	person p
 		WHERE	p.birth_date is not null
 	) events
-	       inner join person_company pc
+	       inner join (
+			select * from person_company
+			where hire_date is null or hire_date <= now()
+		) pc
 			using (person_id)
 	       inner join v_person_company_expanded vpc
 			using (person_id)

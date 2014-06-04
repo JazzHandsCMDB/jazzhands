@@ -27,8 +27,12 @@ sub do_work {
 				pi.person_image_id,
 				ofc.display_label
 		 from	person p
-		 		inner join person_company pc
-					on pc.person_id = p.person_id
+		 		inner join (
+					select * from person_company
+					where hire_date is null or hire_date <= now()
+				) pc using (person_id)
+				inner join v_corp_family_account a
+					using (person_id, company_id)
 				inner join v_person_company_expanded pce
 					on p.person_id = pce.person_id
 				left join (
