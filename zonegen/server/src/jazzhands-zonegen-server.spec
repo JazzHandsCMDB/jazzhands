@@ -4,7 +4,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.57.7
+Version:    0.57.10
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -13,7 +13,7 @@ BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
-Requires:   jazzhands-perl-common, perl-JazzHands-DBI, bind
+Requires:   jazzhands-perl-common, perl-JazzHands-DBI, perl-Net-IP, bind
 # bind is there for named-checkzone
 
 
@@ -54,6 +54,11 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Mon Jun  9 2014 Todd Kover <kovert@omniscient.com> 0.57.10
+- migrate zonegen to Net::IP from Net::Netmask
+- convert to postgresql native inetbaseness for ipv4
+- make in-addr generation work for ipv6
+- put ip6.arpa zones in their own directory
 * Wed Apr 30 2014 Todd Kover <kovert@omniscient.com> 0.57.7
 - make the acl root dir exist before creating file
 - sort pool records so they always end up in the same order
