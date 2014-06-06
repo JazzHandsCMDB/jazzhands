@@ -304,9 +304,10 @@ sub check_for_changes {
 				'REVERSE_ZONE_BLOCK_PTR'
 		 where  dns.should_generate_ptr = 'Y'
 		   and  dns.dns_class = 'IN' and dns.dns_type = 'A'
-		   and  net_manip.inet_base(nb.ip_address, root.netmask_bits) =
+		   and  net_manip.inet_base(nb.ip_address, 
+				masklen(root.ip_address)) =
 			net_manip.inet_base(root.ip_address,
-			    root.netmask_bits)
+			    masklen(root.ip_address))
 		   and  rootd.dns_domain_id = :domid
 		   and  (
 				nb.data_ins_date > :whence
@@ -490,10 +491,7 @@ sub process_rvs_range {
 
 	my $sth = getSth(
 		$dbh, qq{
-		select  distinct
-			net_manip.inet_dbtop(
-				net_manip.inet_base(n.ip_address,n.netmask_bits)),
-			netmask_bits
+		select  distinct ip_address
 		  from  netblock n
 			inner join dns_record d
 				on d.netblock_id = n.netblock_id
@@ -503,11 +501,12 @@ sub process_rvs_range {
 	);
 	$sth->execute($domid) || die $sth->errstr;
 
-	my ( $base, $bits ) = $sth->fetchrow_array;
+	my ( $ip ) = $sth->fetchrow_array;
 	$sth->finish;
-	return if ( !defined($base) || !defined($bits) );
+	return if ( !defined($ip) );
 
-	my $nb	 = new Net::Netmask("$base/$bits") || return;
+
+	my $nb	 = new Net::Netmask("$ip") || return;
 	my $low_block  = iptoint( $nb->base() );
 	my $high_block = iptoint( $nb->broadcast() );
 
@@ -762,10 +761,8 @@ sub process_reverse {
 			dns.dns_name,
 			dom.soa_name,
 			dns.dns_ttl,
-			net_manip.inet_dbtop(
-				net_manip.inet_base(nb.ip_address,
-				nb.netmask_bits)) as ip_base,
-			nb.netmask_bits as netmask_bits,
+			net_manip.inet_base(nb.ip_address,
+				masklen(nb.ip_address)) as ip_base,
 			dns.is_enabled
 		  from  netblock nb
 				inner join dns_record dns
@@ -780,9 +777,9 @@ sub process_reverse {
 						'REVERSE_ZONE_BLOCK_PTR'
 		 where  dns.should_generate_ptr = 'Y'
 		   and  dns.dns_class = 'IN' and dns.dns_type = 'A'
-		   and  net_manip.inet_base(nb.ip_address, root.netmask_bits) =
+		   and  net_manip.inet_base(nb.ip_address, masklen(root.ip_address)) =
 				net_manip.inet_base(root.ip_address,
-					root.netmask_bits)
+					masklen(root.ip_address))
 		   and  rootd.dns_domain_id = ?
 		order by nb.ip_address
 	}
@@ -791,7 +788,7 @@ sub process_reverse {
 	$sth->execute($domid) || die $sth->errstr;
 
 	my (@block);
-	while ( my ( $ip, $sn, $dom, $ttl, $base, $bits, $enable ) =
+	while ( my ( $ip, $sn, $dom, $ttl, $ipbase, $enable ) =
 		$sth->fetchrow_array )
 	{
 		my $lastoctet = ( split( /\./, $ip ) )[3];
