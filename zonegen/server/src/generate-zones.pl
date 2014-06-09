@@ -1004,8 +1004,11 @@ sub generate_complete_files {
 
 	while ( my ($zone) = $sth->fetchrow_array ) {
 		my $fn = $zone;
-		$fn = "inaddr/$zone" if ( $fn =~ /.in-addr.arpa/ );
-		$fn = "ip6/$zone"    if ( $fn =~ /.ip6.arpa/ );
+		if ( $fn =~ /.in-addr.arpa/ ) {
+			$fn = "inaddr/$zone";
+		} elsif ( $fn =~ /.ip6.arpa/ ) {
+			$fn = "ip6/$zone";
+		}
 		$cfgf->print(
 "zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/$fn\";\n};\n\n"
 		);
@@ -1157,7 +1160,7 @@ sub process_perserver {
 					$zr = "../$zr";
 				}
 				$fqn = "$zonedir/inaddr/$zone";
-
+				$zr .= "/inaddr/$zone";
 			} elsif ( $zone =~ /ip6.arpa$/ ) {
 				if ( $zr =~ /^\.\./ ) {
 					$zr = "../$zr";
