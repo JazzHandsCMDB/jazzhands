@@ -7941,10 +7941,16 @@ DROP FUNCTION IF EXISTS del_location_transition();
 DROP FUNCTION IF EXISTS upd_location_transition();
 DROP FUNCTION IF EXISTS ins_location_transition();
 
+GRANT select on all tables in schema jazzhands to ro_role;
+GRANT insert,update,delete on all tables in schema jazzhands to iud_role;
+GRANT select on all sequences in schema jazzhands to ro_role;
+GRANT usage on all sequences in schema jazzhands to iud_role;
+
 -- Clean Up
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_saved_grants();
 
 SELECT schema_support.end_maintenance();
+
 
 select now();
