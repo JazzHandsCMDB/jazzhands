@@ -229,6 +229,22 @@ BEGIN
 	END;
 
 	RAISE NOTICE '++ Done tests of device_power...';
+	RAISE NOTICE 'Cleanup Test Records';
+	delete from device_power_connection
+		where rpc_device_id in
+			(select device_id from device where site_code like 'JHTEST%')
+		or device_id in
+			(select device_id from device where site_code like 'JHTEST%');
+	delete from device_power_interface where device_id in
+			(select device_id from device where site_code = 'JHTEST01');
+	delete from device_type_power_port_templt where device_type_id in
+			(select device_type_id from device_type 
+				where model like 'JHTEST%');
+	delete from device where site_code like 'JHTEST%' 
+		or device_name like 'JHTEST%';
+	delete from device_type where model like 'JHTEST%';
+	delete from rack where site_code = 'JHTEST01';
+	delete from site where site_code = 'JHTEST01';
 
 	RETURN true;
 END;

@@ -268,7 +268,7 @@ BEGIN
 	|| ' FOR EACH ROW EXECUTE PROCEDURE'
 	|| ' schema_support.trigger_ins_upd_generic_func()';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 -------------------------------------------------------------------------------
 
@@ -289,7 +289,7 @@ BEGIN
 	END LOOP;
     END;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 -------------------------------------------------------------------------------
 
@@ -328,7 +328,7 @@ BEGIN
 	END IF;
 	RETURN true;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Revokes superuser if its set on the current user
@@ -343,7 +343,7 @@ BEGIN
 		END IF;
 		RETURN true;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Sets up temporary tables for replaying grants if it does not exist
@@ -365,7 +365,7 @@ BEGIN
 		CREATE TEMPORARY TABLE IF NOT EXISTS __regrants (id SERIAL, schema text, object text, newname text, regrant text);
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Collect grants for relations and saves them for future replay (if objects
@@ -435,7 +435,7 @@ BEGIN
 		END LOOP;
 	END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Collect grants for functions and saves them for future replay (if objects
@@ -493,7 +493,7 @@ BEGIN
 		END LOOP;
 	END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- save grants for object regardless of if its a relation or function.
@@ -507,7 +507,7 @@ BEGIN
 	PERFORM schema_support.save_grants_for_replay_relations(schema, object, newname);
 	PERFORM schema_support.save_grants_for_replay_functions(schema, object, newname);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- replay saved grants, drop temporary tables
@@ -520,24 +520,34 @@ DECLARE
 	_r		RECORD;
 	_tally	integer;
 BEGIN
-	FOR _r in SELECT * from __regrants FOR UPDATE
-	LOOP
-		IF beverbose THEN
-			RAISE NOTICE 'Regrant Executing: %', _r.regrant;
-		END IF;
-		EXECUTE _r.regrant; 
-		DELETE from __regrants where id = _r.id;
-	END LOOP;
+	 SELECT  count(*)
+      INTO  _tally
+      FROM  pg_catalog.pg_class
+     WHERE  relname = '__regrants'
+       AND  relpersistence = 't';
 
-	SELECT count(*) INTO _tally from __regrants;
 	IF _tally > 0 THEN
-		RAISE EXCEPTION 'Grant extractions were run while replaying grants - %.', _tally;
+	    FOR _r in SELECT * from __regrants FOR UPDATE
+	    LOOP
+		    IF beverbose THEN
+			    RAISE NOTICE 'Regrant Executing: %', _r.regrant;
+		    END IF;
+		    EXECUTE _r.regrant; 
+		    DELETE from __regrants where id = _r.id;
+	    END LOOP;
+    
+	    SELECT count(*) INTO _tally from __regrants;
+	    IF _tally > 0 THEN
+		    RAISE EXCEPTION 'Grant extractions were run while replaying grants - %.', _tally;
+	    ELSE
+		    DROP TABLE __regrants;
+	    END IF;
 	ELSE
-		DROP TABLE __regrants;
+		RAISE NOTICE '**** WARNING: replay_saved_grants did NOT have anything to regrant!';
 	END IF;
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Sets up temporary tables for replaying grants if it does not exist
@@ -559,7 +569,7 @@ BEGIN
 		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, owner text, type text, ddl text, idargs text);
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Saves view definition for replay later.  This is to allow for dropping
@@ -606,7 +616,62 @@ BEGIN
 		END IF;
 	END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+--
+-- Saves relations dependant on an object for reply.
+--
+CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true
+) RETURNS VOID AS $$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
+BEGIN
+	RAISE NOTICE 'processing %.%', schema, object;
+	-- process stored procedures
+	FOR _r in SELECT  distinct np.nspname::text, dependent.proname::text
+		FROM   pg_depend dep
+			INNER join pg_type dependee on dependee.oid = dep.refobjid
+			INNER join pg_namespace n on n.oid = dependee.typnamespace
+			INNER join pg_proc dependent on dependent.oid = dep.objid
+			INNER join pg_namespace np on np.oid = dependent.pronamespace
+			WHERE   dependee.typname = object
+			  AND	  n.nspname = schema
+	LOOP
+		RAISE NOTICE '1 dealing with  %.%', _r.nspname, _r.proname;
+		PERFORM schema_support.save_constraint_for_replay(_r.nspname, _r.proname, dropit);
+		PERFORM schema_support.save_dependant_objects_for_replay(_r.nspname, _r.proname, dropit);
+		PERFORM schema_support.save_function_for_replay(_r.nspname, _r.proname, dropit);
+	END LOOP;
+
+	-- save any triggers on the view
+	FOR _r in SELECT distinct n.nspname::text, dependee.relname::text, dependee.relkind
+		FROM pg_depend
+		JOIN pg_rewrite ON pg_depend.objid = pg_rewrite.oid
+		JOIN pg_class as dependee ON pg_rewrite.ev_class = dependee.oid
+		JOIN pg_class as dependent ON pg_depend.refobjid = dependent.oid
+		JOIN pg_namespace n on n.oid = dependee.relnamespace
+		JOIN pg_namespace sn on sn.oid = dependent.relnamespace
+		JOIN pg_attribute ON pg_depend.refobjid = pg_attribute.attrelid
+   			AND pg_depend.refobjsubid = pg_attribute.attnum
+		WHERE dependent.relname = object
+  		AND sn.nspname = schema
+	LOOP
+		IF _r.relkind = 'v' THEN
+			RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
+			PERFORM * FROM save_dependant_objects_for_replay(_r.nspname, _r.relname, dropit);
+			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit);
+		END IF;
+	END LOOP;
+END;
+$$ 
+SET search_path=schema_support
+LANGUAGE plpgsql 
+SECURITY INVOKER;
 
 --
 -- given schema.object, save all triggers for replay 
@@ -641,7 +706,7 @@ BEGIN
 		END IF;
 	END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 
 --
@@ -689,7 +754,7 @@ BEGIN
 		END IF;
 	END LOOP;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Saves view definition for replay later.  This is to allow for dropping
@@ -734,7 +799,7 @@ BEGIN
 	END LOOP;
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates(
 	beverbose	boolean DEFAULT false
@@ -744,44 +809,109 @@ DECLARE
 	_r		RECORD;
 	_tally	integer;
 BEGIN
-	FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
-	LOOP
-		IF beverbose THEN
-			RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
-		END IF;
-		EXECUTE _r.ddl; 
-		IF _r.owner is not NULL THEN
-			IF _r.type = 'view' THEN
-				EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
-					' OWNER TO ' || _r.owner || ';';
-			ELSIF _r.type = 'function' THEN
-				EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
-					'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
-			ELSE
-				RAISE EXCEPTION 'Unable to restore grant for %', _r;
-			END IF;
-		END IF;
-		DELETE from __recreate where id = _r.id;
-	END LOOP;
+	SELECT	count(*)
+	  INTO	_tally
+	  FROM	pg_catalog.pg_class
+	 WHERE	relname = '__recreate'
+	   AND	relpersistence = 't';
 
-	SELECT count(*) INTO _tally from __recreate;
 	IF _tally > 0 THEN
-		RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+		FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
+		LOOP
+			IF beverbose THEN
+				RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
+			END IF;
+			EXECUTE _r.ddl; 
+			IF _r.owner is not NULL THEN
+				IF _r.type = 'view' THEN
+					EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
+						' OWNER TO ' || _r.owner || ';';
+				ELSIF _r.type = 'function' THEN
+					EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
+						'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
+				ELSE
+					RAISE EXCEPTION 'Unable to restore grant for %', _r;
+				END IF;
+			END IF;
+			DELETE from __recreate where id = _r.id;
+		END LOOP;
+
+		SELECT count(*) INTO _tally from __recreate;
+		IF _tally > 0 THEN
+			RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+		ELSE
+			DROP TABLE __recreate;
+		END IF;
 	ELSE
-		DROP TABLE __recreate;
+		RAISE NOTICE '**** WARNING: replay_object_recreates did NOT have anything to regrant!';
 	END IF;
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
--- Notable queries..
--- select schema_support.save_grants_for_replay('jazzhands', 'physical_port');
--- select schema_support.save_grants_for_replay('port_support', 
--- 'do_l1_connection_update');
--- SELECT  schema_support.replay_saved_grants();
--- SELECT schema_support.save_view_for_replay('jazzhands', 
---	'v_l1_all_physical_ports');
+/**************************************************************
+ *  FUNCTIONS
+
+schema_support.begin_maintenance
+
+	- ensures you are running in a transaction
+	- ensures you are a superuser (based on argument)
+
+schema_support.end_maintenance
+	- revokes superuser from running user (based on argument)
+
+
+These will save an object for replay, including presering grants
+automatically:
+
+SELECT schema_support.save_function_for_replayjazzhands', 'fncname');
+	- saves all function of a given name
+
+SELECT schema_support.save_view_for_replay('jazzhands',  'mytableorview');
+	- saves a view includling triggers on the view, for replay
+
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'table');
+	- saves constraints pointing to an object for replay
+
+SELECT schema_support.save_trigger_for_replay('jazzhands', 'relation');
+	- save triggers poinging to an object for replay
+
+SELECT schema_support.save_dependant_objects_for_replay(schema, object)
+
+This will take an option (relation[table/view] or procedure) and figure
+out what depends on it, and save the ddl to recreate tehm.
+
+NOTE:  This does not always handle constraints well. (bug, needs to be fixed)
+Right now you may also need to call schema_support.save_constraint_for_replay.
+
+NOTE:  All of the aforementioned tables take an optional boolean argument
+at the end.  That argument defaults to true and indicates whether or not
+the object shouldbe dropped after saveing grants and other info
+
+==== GRANTS ===
+
+This will save grants for later relay on a relation (view, table) or proc:
+
+select schema_support.save_grants_for_replay('jazzhands', 'physical_port');
+select schema_support.save_grants_for_replay('port_support', 
+	'do_l1_connection_update');
+
+NOTE:  It saves the grants of stored procedures based on the arguments
+passed in, so if you change those, you need to update the definitions in 
+__regrants (or __recreates)  before replying them.
+
+NOTE:  These procedures end up losing who did the grants originally
+
+THESE:
+
+	SELECT schema_support.replay_object_recreates();
+	SELECT schema_support.replay_saved_grants();
+
+will replay object creations and grants on them respectively.  They should
+be called in that order at the end of a maintenance script
 
 -------------------------------------------------------------------------------
 -- select schema_support.rebuild_stamp_triggers();
 -- SELECT schema_support.build_audit_tables();
+
+**************************************************************/

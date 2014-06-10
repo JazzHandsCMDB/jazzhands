@@ -56,7 +56,7 @@ grant create on database jazzhands_new to jazzhands;
 -- \i init/oracle/submit_scheduler.sql
 
 -- Things that are only done in migrations
-\i compat/pgsql/create_location_compatibility_view.sql
+-- \i compat/pgsql/create_location_compatibility_view.sql
 
 -- Example Data is used by the tests
 
@@ -64,21 +64,23 @@ begin;
 
 -- set search_path=public;
 \i init/initialize_jazzhands_example.sql
--- various test records that need to be generified and moved over
-
-\i ../../omniscient/insert_records.sql
-\i ../../omniscient/insert_devices.sql
-\i ../../omniscient/insert_records_later.sql
-\i ../../omniscient/test_netblock_collection.sql
-
+-- example insertions with some real life looking test data
+\i tests/init/insert_records.sql
+\i tests/init/insert_devices.sql
+\i tests/init/insert_records_later.sql
+\i tests/init/test_netblock_collection.sql
 \i tests/pgsql/location_regression_test.sql
-\i tests/pgsql/location_regression_test-RETIRE.sql
 \i tests/pgsql/netblock_regression_test.sql
 \i tests/pgsql/netblock_regression_test-RETIRE.sql
 \i tests/pgsql/dns_record_regression_test.sql
 \i tests/pgsql/property_regression_test.sql
 \i tests/pgsql/device_ticket_regression.sql
 \i tests/pgsql/device_power_regression.sql
+\i tests/pgsql/device_coll_hier_regression.sql
+\i tests/pgsql/account_coll_hier_regression.sql
+\i tests/pgsql/netblock_coll_hier_regression.sql
+\i tests/pgsql/token_coll_hier_regression.sql
+\i tests/pgsql/svcenv_coll_hier_regression.sql
 
 rollback;
 -- RAISE EXCEPTION 'need to put transactions back in testing';

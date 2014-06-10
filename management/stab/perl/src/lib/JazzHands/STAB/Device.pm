@@ -1597,8 +1597,8 @@ sub dump_device_route {
 		]
 	);
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		$seen{ $hr->{ _dbx('ROUTE_SRC_IP') } } =
-		  $hr->{ _dbx('NETWORK_INTERFACE_ID') };
+		$seen{      $hr->{_dbx('ROUTE_SRC_IP')} } =
+		  $hr->{_dbx('NETWORK_INTERFACE_ID')};
 		$tt .= $self->build_existing_route_box($hr);
 	}
 

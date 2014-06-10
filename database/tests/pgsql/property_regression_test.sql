@@ -1,3 +1,18 @@
+-- Copyright (c) 2014 Todd Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -37,6 +52,7 @@ DECLARE
 	v_svc_env_id		Property.service_env_collection_id%TYPE;
 	v_site_code				Property.site_code%TYPE;
 	v_account_id			Property.account_id%TYPE;
+	v_account_realm_id		account_realm.account_realm_id%TYPE;
 	v_account_collection_id				Property.account_collection_id%TYPE;
 	v_account_collection_id2			Property.account_collection_id%TYPE;
 	v_net_coll_Id			Property.property_value_nblk_coll_id%TYPE;
@@ -115,6 +131,7 @@ BEGIN
 		Permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
@@ -129,6 +146,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -145,6 +163,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Singlevalue',
@@ -159,6 +178,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -175,6 +195,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
@@ -189,6 +210,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -205,6 +227,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'AnotherProperty',
@@ -219,6 +242,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -235,6 +259,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Allowed',
@@ -249,6 +274,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -265,6 +291,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Required',
@@ -272,6 +299,7 @@ BEGIN
 		'N',
 		NULL,
 		'string',
+		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
@@ -295,6 +323,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'RestrictAccount_Collection',
@@ -309,6 +338,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -326,6 +356,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'boolean',
@@ -340,6 +371,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -357,6 +389,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'company_id',
@@ -371,6 +404,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -388,6 +422,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'dns_domain_id',
@@ -402,6 +437,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -419,6 +455,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'netblock_collection_id',
@@ -433,6 +470,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -449,6 +487,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'sw_package_id',
@@ -463,6 +502,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -480,6 +520,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'none',
@@ -494,6 +535,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -511,6 +553,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'number',
@@ -525,6 +568,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -542,6 +586,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'password_type',
@@ -556,6 +601,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -573,6 +619,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'string',
@@ -587,6 +634,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -604,6 +652,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'timestamp',
@@ -618,6 +667,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -635,6 +685,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'token_collection_id',
@@ -649,6 +700,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -666,6 +718,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'account_collection_id',
@@ -680,6 +733,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -697,6 +751,7 @@ BEGIN
 		permit_service_env_collection,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_id
 	) VALUES (
 		'list',
@@ -704,6 +759,7 @@ BEGIN
 		'N',
 		NULL,
 		'list',
+		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -744,6 +800,8 @@ BEGIN
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection 
 		WHERE Account_Collection_Type = 'per-user' LIMIT 1;
+	SELECT Account_Realm_Id INTO v_account_realm_id FROM Account_realm 
+		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection 
 		WHERE Account_Collection_Type <> 'per-user' LIMIT 1; 
 	SELECT Netblock_Collection_id INTO v_net_coll_Id FROM Netblock_Collection
@@ -762,6 +820,7 @@ BEGIN
 	RAISE NOTICE 'v_svc_env_id is %', v_svc_env_id;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
 	RAISE NOTICE 'v_account_Id is %', v_account_Id;
+	RAISE NOTICE 'v_account_realm_id is %', v_account_realm_id;
 	RAISE NOTICE 'v_account_collection_id is %', v_account_collection_id;
 	RAISE NOTICE 'v_account_collection_id2 is %', v_account_collection_id2;
 	RAISE NOTICE 'v_net_coll_Id is %', v_net_coll_Id;
@@ -896,6 +955,7 @@ BEGIN
 			service_env_collection_id,
 			Site_Code,
 			Account_Id,
+			Account_Realm_Id,
 			Account_Collection_id
 			) VALUES (
 			'Allowed', 'test', 'test',
@@ -906,6 +966,7 @@ BEGIN
 			v_svc_env_id,
 			v_site_code,
 			v_account_id,
+			v_account_realm_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
@@ -926,6 +987,7 @@ BEGIN
 			service_env_collection_id,
 			Site_Code,
 			Account_Id,
+			account_realm_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -936,6 +998,7 @@ BEGIN
 			v_svc_env_id,
 			v_site_code,
 			v_account_id,
+			v_account_realm_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
@@ -1171,6 +1234,38 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
+			v_dns_domain_id,
+			v_operating_system_id,
+			v_svc_env_id,
+			v_site_code,
+			v_account_id,
+			NULL
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Omitting Account_Realm_Id from property with REQUIRED Account_Realm_Id lhs field';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value,
+			Company_ID,
+			Device_Collection_ID,
+			Account_Collection_ID,
+			DNS_Domain_ID,
+			Operating_System_ID,
+			service_env_collection_id,
+			Site_Code,
+			account_id,
+			Account_Realm_Id
+			) VALUES (
+			'Required', 'test', 'test',
+			v_company_id,
+			v_device_collection_id,
+			v_account_collection_id,
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
@@ -1447,6 +1542,36 @@ BEGIN
 			NULL,
 			NULL,
 			v_account_collection_id
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Adding account_realm_id to property with PROHIBITED account_realm_id lhs field';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value,
+			Company_ID,
+			Device_Collection_ID,
+			DNS_Domain_ID,
+			Operating_System_ID,
+			service_env_collection_id,
+			Site_Code,
+			account_id,
+			account_realm_id
+			) VALUES (
+			'Prohibited', 'test', 'test',
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			v_account_realm_id
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;

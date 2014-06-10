@@ -44,6 +44,11 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \i ddl/schema/pgsql/create_device_type_triggers.sql
 \i ddl/schema/pgsql/create_auto_account_coll_triggers.sql
 \i ddl/schema/pgsql/create_device_power_triggers.sql
+\i ddl/schema/pgsql/create_device_coll_hier_triggers.sql
+\i ddl/schema/pgsql/create_account_coll_hier_triggers.sql
+\i ddl/schema/pgsql/create_netblock_coll_hier_triggers.sql
+\i ddl/schema/pgsql/create_token_coll_hier_triggers.sql
+\i ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
 
 -- This could be done for backwards compatibility but is not.
 -- \i compat/pgsql/create_location_compatibility_view.sql

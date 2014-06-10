@@ -30,7 +30,6 @@ grant create session to device_tool_dev_role;
 
 grant execute 				on jazzhands.ip_manip to device_tool_dev_role;
 grant select				on jazzhands.netblock to device_tool_dev_role;
-grant select				on jazzhands.secondary_netblock to device_tool_dev_role;
 grant select				on jazzhands.dns_record to device_tool_dev_role;
 grant select				on jazzhands.dns_domain to device_tool_dev_role;
 grant select				on jazzhands.partner to device_tool_dev_role;
@@ -66,7 +65,6 @@ grant select				on jazzhands.device_power_connection to device_tool_dev_role;
 grant select				on jazzhands.device_power_interface to device_tool_dev_role;
 
 grant select				on jazzhands.aud$netblock to device_tool_dev_role;
-grant select				on jazzhands.aud$secondary_netblock to device_tool_dev_role;
 grant select				on jazzhands.aud$dns_record to device_tool_dev_role;
 grant select				on jazzhands.aud$dns_domain to device_tool_dev_role;
 grant select				on jazzhands.aud$partner to device_tool_dev_role;
@@ -115,7 +113,6 @@ create user &&developer identified by &passwd
 
  create synonym &&developer.ip_manip for jazzhands.ip_manip;
  create synonym &&developer.netblock for jazzhands.netblock;
- create synonym &&developer.secondary_netblock for jazzhands.secondary_netblock;
  create synonym &&developer.dns_record for jazzhands.dns_record;
  create synonym &&developer.dns_domain for jazzhands.dns_domain;
  create synonym &&developer.site for jazzhands.site;

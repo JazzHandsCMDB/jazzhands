@@ -24,16 +24,45 @@
  * $Id$
  */
 
-DROP SCHEMA IF EXISTS netblock_utils CASCADE;
-CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
+ --
+-- Name: id_tag(); Type: FUNCTION; Schema: netblock_utils; Owner: jazzhands
+--
+
+
+-- Create schema if it does not exist, do nothing otherwise.
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'netblock_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS netblock_utils;
+                CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
+        END IF;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION netblock_utils.id_tag() RETURNS character varying
+	LANGUAGE plpgsql
+	AS $_$
+BEGIN
+	RETURN('<-- $Id -->');
+END;
+$_$;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress jazzhands.netblock.ip_address%type,
-	in_Netmask_Bits jazzhands.netblock.netmask_bits%type DEFAULT NULL,
+	in_Netmask_Bits integer DEFAULT NULL,
 	in_netblock_type jazzhands.netblock.netblock_type%type DEFAULT 'default',
 	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
 	in_is_single_address jazzhands.netblock.is_single_address%type DEFAULT 'N',
-	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL
+	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL,
+	in_fuzzy_can_subnet boolean DEFAULT false,
+	can_fix_can_subnet boolean DEFAULT false
 ) RETURNS jazzhands.netblock.netblock_id%type AS $$
 DECLARE
 	par_nbid	jazzhands.netblock.netblock_id%type;
@@ -44,28 +73,61 @@ BEGIN
 
 	select  Netblock_Id
 	  into	par_nbid
-	  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
-		    from jazzhands.netblock
+	  from  ( select Netblock_Id, Ip_Address
+		    from netblock
 		   where
 		   	in_IpAddress <<= ip_address
 		    and is_single_address = 'N'
 			and netblock_type = in_netblock_type
 			and ip_universe_id = in_ip_universe_id
 		    and (
-				(in_is_single_address = 'N' AND netmask_bits < in_Netmask_Bits)
+				(in_is_single_address = 'N' AND 
+					masklen(ip_address) < masklen(In_IpAddress))
 				OR
 				(in_is_single_address = 'Y' AND can_subnet = 'N' AND
-					(in_Netmask_Bits IS NULL OR netmask_bits = in_Netmask_Bits))
+					(in_Netmask_Bits IS NULL 
+						OR masklen(Ip_Address) = in_Netmask_Bits))
 			)
 			and (in_netblock_id IS NULL OR
 				netblock_id != in_netblock_id)
-		order by netmask_bits desc
+		order by masklen(ip_address) desc
 	) subq LIMIT 1;
+
+	IF par_nbid IS NULL AND in_is_single_address = 'Y' AND in_fuzzy_can_subnet THEN
+		RAISE NOTICE 'oh, yeah...';
+		select  Netblock_Id
+		  into	par_nbid
+		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
+			    from netblock
+			   where
+			   	in_IpAddress <<= ip_address
+			    and is_single_address = 'N'
+				and netblock_type = in_netblock_type
+				and ip_universe_id = in_ip_universe_id
+			    and 
+					(in_is_single_address = 'Y' AND can_subnet = 'Y' AND
+						(in_Netmask_Bits IS NULL 
+							OR masklen(Ip_Address) = in_Netmask_Bits))
+				and (in_netblock_id IS NULL OR
+					netblock_id != in_netblock_id)
+				and netblock_id not IN (
+					select parent_netblock_id from netblock 
+						where is_single_address = 'N'
+						and parent_netblock_id is not null
+				)
+			order by masklen(ip_address) desc
+		) subq LIMIT 1;
+
+		IF can_fix_can_subnet AND par_nbd IS NOT NULL THEN
+			UPDATE netblock SET can_subnet = 'N' where netblock_id = par_nbid;
+		END IF;
+	END IF;
+
 
 	return par_nbid;
 END;
 $$ 
--- SET search_path=jazzhands
+SET search_path=jazzhands
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
@@ -79,7 +141,7 @@ BEGIN
 
 	RETURN netblock_utils.find_best_parent_id(
 		nbrec.ip_address,
-		nbrec.netmask_bits,
+		masklen(nbrec.ip_address),
 		nbrec.netblock_type,
 		nbrec.ip_universe_id,
 		nbrec.is_single_address,
@@ -364,6 +426,3 @@ BEGIN
 	RETURN;
 END;
 $$ LANGUAGE 'plpgsql';
-
-GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO PUBLIC;

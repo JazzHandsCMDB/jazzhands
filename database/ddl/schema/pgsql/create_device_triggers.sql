@@ -165,7 +165,8 @@ DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
 CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
 ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
 
-
+/*
+ * XXX - I THINK THIS NEEDS TO BE REDONE IN SOME WAY.
 -- A before trigger will exist such that if you update device_type_id,
 -- it will go and update location.device_type_id because that would be
 -- super annoying to have to remember if its not a device-in-a-device.
@@ -189,5 +190,5 @@ DROP TRIGGER IF EXISTS trigger_device_update_location_fix ON device;
 CREATE TRIGGER trigger_device_update_location_fix
 	BEFORE UPDATE OF DEVICE_TYPE_ID
 	ON device FOR EACH ROW EXECUTE PROCEDURE device_update_location_fix();
-
+ */
 

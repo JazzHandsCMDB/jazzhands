@@ -241,11 +241,11 @@ sub add_netblock {
 	};
 
 	for my $f (
-		'is_single_address', 'netblock_type',
-		'can_subnet',        'parent_netblock_id',
-		'netblock_status',   'nic_id',
-		'nic_company_id',    'ip_universe_id',
-		'description',       'reservation_ticket_number',
+		'is_single_address',
+		'can_subnet',      'parent_netblock_id',
+		'netblock_status', 'nic_id',
+		'nic_company_id',  'ip_universe_id',
+		'description',     'reservation_ticket_number',
 	  )
 	{
 		if ( exists( $opts->{$f} ) ) {
@@ -1684,7 +1684,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$desc         = $reservation;
 		$editabledesc = 0;
 	} elsif ( defined($hr) ) {
-		$id      = $hr->{ _dbx('NETBLOCK_ID') };
+		$id   = $hr->{ _dbx('NETBLOCK_ID') };
 		$devid   = $hr->{ _dbx('DEVICE_ID') };
 		$name    = $hr->{ _dbx('DNS_NAME') };
 		$dom     = $hr->{ _dbx('SOA_NAME') };

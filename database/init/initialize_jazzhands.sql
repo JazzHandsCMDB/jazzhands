@@ -83,8 +83,18 @@ INSERT INTO VAL_Image_Type(Image_Type) VALUES ('png');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('tiff');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('pnm');
 
-INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
-	VALUES ('per-user', 'Account_Collection that contain a single user for assigning individual users to objects that only accept Account_Collection assignments');
+insert into val_account_collection_type 
+	(account_collection_type, 
+	description,
+	max_num_members, can_have_hierarchy
+	) 
+values 
+	('per-user', 
+	 'Account_Collection that contain a single user for assigning individual users to objects that only accept Account_Collection assignments',
+	1, 'N'
+	);
+
+
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('systems', 'Account_Collection that can be assigned to system-type objects to control access to system and network resources');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
@@ -216,21 +226,16 @@ INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
 INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
 	VALUES ('DBType', 'tds');
 
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
-		Can_Have_Account_Collection)
-	VALUES ('mclass', 'Y');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
-		Can_Have_Account_Collection)
-	VALUES ('adhoc', 'N');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
-		Can_Have_Account_Collection)
-	VALUES ('appgroup', 'N');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
-		Can_Have_Account_Collection)
-	VALUES ('applicense', 'N');
-INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type,
-		Can_Have_Account_Collection)
-	VALUES ('undefined', 'N');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
+	VALUES ('mclass');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
+	VALUES ('adhoc');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
+	VALUES ('appgroup');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
+	VALUES ('applicense');
+INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
+	VALUES ('undefined');
 
 INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
 	VALUES ('star');
@@ -965,12 +970,17 @@ insert into val_ip_group_protocol
 insert into val_ip_group_protocol
 	(ip_group_protocol) values ('bgp');
 
-insert into val_layer2_encapsulation_type
-	(layer2_encapsulation_type) values ('trunk');
-insert into val_layer2_encapsulation_type
-	(layer2_encapsulation_type) values ('access');
-insert into val_layer2_encapsulation_type
-	(layer2_encapsulation_type) values ('native');
+insert into val_encapsulation_type
+	(encapsulation_type) values ('802.1q');
+insert into val_encapsulation_type
+	(encapsulation_type) values ('MPLS');
+
+insert into val_encapsulation_mode
+	(encapsulation_mode, encapsulation_type) values ('trunk', '802.1q');
+insert into val_encapsulation_mode
+	(encapsulation_mode, encapsulation_type) values ('access', '802.1q');
+insert into val_encapsulation_mode
+	(encapsulation_mode, encapsulation_type) values ('native', '802.1q');
 
 -- add port speed, port mediumm port protocaol (look at dropped things from
 --	interface type above)
@@ -1031,9 +1041,13 @@ insert into val_port_protocol_speed (port_protocol, port_speed)
 	values ('Ethernet', '100G');
 
 insert into val_device_collection_type 
-	(device_collection_type, can_have_account_collection) 
+	(device_collection_type,
+	max_num_members, can_have_hierarchy
+	) 
 values 
-	('per-device', 'N');
+	('per-device', 
+	1, 'N'
+	);
 
 --- stab stuff
 insert into val_property_type (property_type, description, is_multivalue)

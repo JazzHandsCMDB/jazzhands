@@ -92,30 +92,14 @@ BEGIN
 
 	RAISE NOTICE 'Testing netblock triggers';
 
---	RAISE NOTICE '    Inserting a netblock with NULL netblock_bits';
---	BEGIN
---		INSERT INTO netblock 
---			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
---			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
---			 ip_universe_id)
---		VALUES
---			('172.31.0.0/16', NULL, 'JHTEST-freeforall', 'Y', 'N', 'Y', NULL,
---				'Allocated', a_ip_universe[0]);
---		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
---			ERRCODE = 'error_in_assignment';
---	EXCEPTION
---		WHEN not_null_violation THEN
---			RAISE NOTICE '        ... Failed correctly';
---	END;
-
 	RAISE NOTICE '    Inserting a netblock with can_subnet=Y and is_single_address=Y';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.1/16', 16, 'JHTEST-freeforall', 'Y', 'Y', 'Y', NULL,
+			('172.31.0.1/16', 'JHTEST-freeforall', 'Y', 'Y', NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
@@ -127,11 +111,11 @@ BEGIN
 	RAISE NOTICE '    Inserting a netblock with is_single_address=N with set non-network bits';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.1/16', 16, 'JHTEST-freeforall', 'Y', 'N', 'N', NULL,
+			('172.31.0.1/16', 'JHTEST-freeforall', 'N', 'N', NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
@@ -148,11 +132,11 @@ BEGIN
 --
 	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 16, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-auto', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[0] = v_netblock_id;
@@ -160,11 +144,11 @@ BEGIN
 	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16 to test unique constraint';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.0/16', 16, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
+			('172.31.0.0/16', 'JHTEST-auto', 'N', 'Y', NULL,
 				'Allocated', a_ip_universe[0]);
 	EXCEPTION
 		WHEN unique_violation THEN
@@ -173,11 +157,11 @@ BEGIN
 
 	RAISE NOTICE '    Inserting JHTEST-auto2 top 172.31.0.0/16';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 16, 'JHTEST-auto2', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-auto2', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[6] = v_netblock_id;
@@ -185,44 +169,44 @@ BEGIN
 
 	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16 in different ip_universe';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 16, 'JHTEST-auto2', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-auto2', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[1])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[7] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-manual top 172.31.0.0/16';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 16, 'JHTEST-manual', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-manual', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[1] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-manual top 172.31.0.0/16 universe 1';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 16, 'JHTEST-manual', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-manual', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[1])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[8] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-freeforall top 172.31.0.0/16';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 16, 'JHTEST-freeforall', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-freeforall', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[2] = v_netblock_id;
@@ -238,88 +222,88 @@ BEGIN
 	RAISE NOTICE 'Inserting hierarchy to test validation trigger';
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.128.0/17', 17, 'JHTEST-manual', 'Y', 'N', 'Y',
+		('172.31.128.0/17', 'JHTEST-manual', 'N', 'Y',
 			a_netblock_list[1],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[10] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.128.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+		('172.31.128.0/24', 'JHTEST-manual', 'N', 'Y',
 			a_netblock_list[10],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[11] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-	('172.31.129.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'N',
+	('172.31.129.0/24', 'JHTEST-manual', 'N', 'N',
 			a_netblock_list[10],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[12] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.129.1/24', 24, 'JHTEST-manual', 'Y', 'Y', 'N',
+		('172.31.129.1/24', 'JHTEST-manual', 'Y', 'N',
 			a_netblock_list[12],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[13] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/17', 17, 'JHTEST-manual', 'Y', 'N', 'Y',
+		('172.31.0.0/17', 'JHTEST-manual', 'N', 'Y',
 			a_netblock_list[1],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[14] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'N',
+		('172.31.0.0/24', 'JHTEST-manual', 'N', 'N',
 			a_netblock_list[14],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[15] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'N',
+		('172.31.1.0/24', 'JHTEST-manual', 'N', 'N',
 			a_netblock_list[14],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[16] = v_netblock_id;
 
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.128/24', 24, 'JHTEST-manual', 'Y', 'Y', 'N',
+		('172.31.0.128/24', 'JHTEST-manual', 'Y', 'N',
 			a_netblock_list[15],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -337,11 +321,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block with a mismatched parent type';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.8.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.8.0/24', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[2],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -354,11 +338,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block with a mismatched ip_universe';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.8.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.8.0/24', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[2],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -371,11 +355,11 @@ BEGIN
 	RAISE NOTICE '    Insert a single block with a NULL parent';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.4.129/24', 24, 'JHTEST-manual', 'Y', 'Y', 'N',
+			('172.31.4.129/24', 'JHTEST-manual', 'Y', 'N',
 				NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -388,11 +372,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block with a NULL parent that should be in the hierarchy';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.4.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.4.0/24', 'JHTEST-manual', 'N', 'Y',
 				NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -406,11 +390,11 @@ BEGIN
 	BEGIN
 		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.30.0.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.30.0.0/24', 'JHTEST-manual', 'N', 'Y',
 				NULL,
 				'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -427,11 +411,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block in the wrong place (parent not a parent)';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.2.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.2.0/24', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[1],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -444,11 +428,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block in the wrong place (better parent)';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.1.128/28', 28, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.1.128/28', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[14],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -462,11 +446,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block in the wrong place (parent not a parent)';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.2.0/24', 24, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.2.0/24', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[1],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -480,11 +464,11 @@ BEGIN
 	RAISE NOTICE '    Insert a single block with a parent with a different netmask';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.1.1/28', 28, 'JHTEST-manual', 'Y', 'Y', 'N',
+			('172.31.1.1/28', 'JHTEST-manual', 'Y', 'N',
 				a_netblock_list[16],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -497,11 +481,11 @@ BEGIN
 	RAISE NOTICE '    Insert a non-single block with a parent that has single blocks';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.64/28', 28, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.0.64/28', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[15],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -515,11 +499,11 @@ BEGIN
 	RAISE NOTICE '    Insert a block into the middle of a hierarchy without rehoming the children';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.0/20', 20, 'JHTEST-manual', 'Y', 'N', 'Y',
+			('172.31.0.0/20', 'JHTEST-manual', 'N', 'Y',
 				a_netblock_list[14],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -597,8 +581,7 @@ BEGIN
 
 	RAISE NOTICE '    Update a single block so it does not have the same netmask as its parent';
 	BEGIN
-		UPDATE netblock SET ip_address = set_masklen(ip_address, 28),
-			netmask_bits = 28
+		UPDATE netblock SET ip_address = set_masklen(ip_address, 28)
 			WHERE netblock_id = a_netblock_list[17];
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
@@ -609,8 +592,7 @@ BEGIN
 
 	RAISE NOTICE '    Update a parent block so it does not have the same netmask as its children';
 	BEGIN
-		UPDATE netblock SET ip_address = set_masklen(ip_address, 25),
-			netmask_bits = 25
+		UPDATE netblock SET ip_address = set_masklen(ip_address, 25)
 			WHERE netblock_id = a_netblock_list[15];
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
@@ -633,11 +615,11 @@ BEGIN
 	RAISE NOTICE 'Validating parentage management...';
 	RAISE NOTICE '    Inserting 172.31.1.0/24';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.0/24', 24, 'JHTEST-auto', 'Y', 'N', 'N', NULL,
+		('172.31.1.0/24', 'JHTEST-auto', 'N', 'N', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -650,11 +632,11 @@ BEGIN
 
 	RAISE NOTICE '    Inserting 172.31.18.0/25';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.18.0/25', 25, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
+		('172.31.18.0/25', 'JHTEST-auto', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -668,11 +650,11 @@ BEGIN
 
 	RAISE NOTICE '    Inserting 172.31.0.0/22 between two netblocks';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/22', 22, 'JHTEST-auto', 'Y', 'N', 'Y', NULL,
+		('172.31.0.0/22', 'JHTEST-auto', 'N', 'Y', NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -721,11 +703,11 @@ BEGIN
 	RAISE NOTICE '    Inserting 172.31.16.1/24 that is a single address which will not have a matching parent';
 	BEGIN
 		INSERT INTO netblock 
-			(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+			(ip_address, netblock_type, 
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.16.1/24', 22, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
+			('172.31.16.1/24', 'JHTEST-auto', 'Y', 'N', NULL,
 				'Allocated', a_ip_universe[0]);
 		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
 		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
@@ -743,11 +725,11 @@ BEGIN
 
 	RAISE NOTICE '    Inserting 172.31.1.1/24 that is a single address which will have a matching parent';
 	INSERT INTO netblock 
-		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+		(ip_address, netblock_type, 
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.1/24', 24, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
+		('172.31.1.1/24', 'JHTEST-auto', 'Y', 'N', NULL,
 			'Allocated', a_ip_universe[0])
 	RETURNING * INTO netblock_rec;
 	a_netblock_list[18] = netblock_rec.netblock_id;
@@ -773,7 +755,7 @@ BEGIN
 --
 
 	RAISE NOTICE '    Changing netmask of 172.31.0.0/22 to 172.31.0.0/19 to ensure children change correctly';
-	UPDATE netblock SET ip_address = set_masklen(ip_address, 19), netmask_bits = 19 WHERE
+	UPDATE netblock SET ip_address = set_masklen(ip_address, 19) WHERE
 		netblock_id = a_netblock_list[5];
 
 	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
@@ -808,7 +790,7 @@ BEGIN
 
 
 	RAISE NOTICE '    Changing netmask of 172.31.0.0/19 back to 172.31.0.0/22 to ensure children change correctly';
-	UPDATE netblock SET ip_address = set_masklen(ip_address, 22), netmask_bits = 22 WHERE
+	UPDATE netblock SET ip_address = set_masklen(ip_address, 22) WHERE
 		netblock_id = a_netblock_list[5];
 
 
@@ -847,7 +829,7 @@ BEGIN
 --
 
 	RAISE NOTICE '    Changing IP address of 172.31.0.0/19 to 172.31.16.0/22 to ensure children change correctly';
-	UPDATE netblock SET ip_address = '172.31.16.0/22', netmask_bits = 22 WHERE
+	UPDATE netblock SET ip_address = '172.31.16.0/22' WHERE
 		netblock_id = a_netblock_list[5];
 
 
@@ -911,18 +893,17 @@ BEGIN
 
 --	RAISE NOTICE '    Inserting 172.31.1.16/24 that is a single address';
 --	INSERT INTO netblock 
---		(ip_address, netmask_bits, netblock_type, is_ipv4_address,
+--		(ip_address, netblock_type, 
 --		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 --		 ip_universe_id)
 --	VALUES
---		('172.31.1.16/24', 24, 'JHTEST-auto', 'Y', 'Y', 'N', NULL,
+--		('172.31.1.16/24', 'JHTEST-auto', 'Y', 'N', NULL,
 --			'Allocated', a_ip_universe[0])
 --	RETURNING * INTO netblock_rec;
 --	a_netblock_list[19] = netblock_rec.netblock_id;
 --
 --	RAISE NOTICE '    Changing netmask for 172.31.1.0/24 to /26 to validate children mask changes';
---	UPDATE netblock SET ip_address = set_masklen(ip_address, 26),
---		netmask_bits = NULL
+--	UPDATE netblock SET ip_address = set_masklen(ip_address, 26)
 --	WHERE
 --		netblock_id = netblock_rec.parent_netblock_id;
 --
@@ -942,8 +923,7 @@ BEGIN
 --	RAISE NOTICE '    Readdressing netblock to be too small for its children';
 --
 --	BEGIN
---		UPDATE netblock SET ip_address = set_masklen(ip_address, 29),
---			netmask_bits = NULL
+--		UPDATE netblock SET ip_address = set_masklen(ip_address, 29)
 --		WHERE
 --			netblock_id = netblock_rec.parent_netblock_id;
 --		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
