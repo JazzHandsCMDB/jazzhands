@@ -176,7 +176,7 @@ sub do_domain_add {
 	}
 
 	if ( !defined($type) ) {
-		if ( $soaname =~ /.in-addr.arpa$/ ) {
+		if ( $soaname =~ /\.(ip6|in-addr)\.arpa$/ ) {
 			$type = 'reverse';
 		} else {
 			$stab->error_return("You must specify a Domain Type");

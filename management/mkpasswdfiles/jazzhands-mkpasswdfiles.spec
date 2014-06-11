@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.57.9
+Version:    0.58.1
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,6 +46,8 @@ else
 fi
 
 %changelog
+* Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.1
+- add support for per-device collection ssh keys
 * Fri Mar 28 2014 Todd Kover <kovert@omniscient.com> 0.57.9
 - add PermitUIDOverride and PermitGIDOverride global properties
 * Fri Mar 28 2014 Todd Kover <kovert@omniscient.com> 0.57.6

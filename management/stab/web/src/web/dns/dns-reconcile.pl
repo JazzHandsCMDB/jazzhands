@@ -87,7 +87,7 @@ sub process_zone {
 
 	my $xferzone = $zone;
 	my $do_16    = undef;
-	if ( $zone =~ /(\d+)\.112.10.in-addr.arpa/ ) {
+	if ( 0 && $zone =~ /(\d+)\.112.10.in-addr.arpa/ ) {
 		$do_16    = $1;
 		$xferzone = '112.10.in-addr.arpa';
 	}

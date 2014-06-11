@@ -1,3 +1,18 @@
+-- Copyright (c) 2013-2014, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 -- Copyright (c) 2012-2014 Matthew Ragan
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
@@ -94,7 +109,6 @@ BEGIN
 	) subq LIMIT 1;
 
 	IF par_nbid IS NULL AND in_is_single_address = 'Y' AND in_fuzzy_can_subnet THEN
-		RAISE NOTICE 'oh, yeah...';
 		select  Netblock_Id
 		  into	par_nbid
 		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
@@ -118,7 +132,7 @@ BEGIN
 			order by masklen(ip_address) desc
 		) subq LIMIT 1;
 
-		IF can_fix_can_subnet AND par_nbd IS NOT NULL THEN
+		IF can_fix_can_subnet AND par_nbid IS NOT NULL THEN
 			UPDATE netblock SET can_subnet = 'N' where netblock_id = par_nbid;
 		END IF;
 	END IF;

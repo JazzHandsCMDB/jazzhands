@@ -407,7 +407,7 @@ sub do_db_dns_compare {
 
 	my $ns = $stab->cgi_parse_param('zone') || find_best_ns( $stab, $zone );
 
-	if ( $zone =~ /in-addr.arpa/ ) {
+	if ( $zone =~ /in-addr.arpa$/ || $zone =~ /ip6.arpa$/) {
 		$stab->error_return("This only works with Forward Zones");
 	}
 

@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.57.10
+Version:        0.58.1
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -176,6 +176,11 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.1
+- support showing inferred PTRs in ip6.addr zones
+- comment out some questionable legacy defaults
+- improve finding best parent netblock logic to deal with blocks that meant
+  to be broadcast domains, probably 
 * Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.10
 - small random bug fixes
 - if its an in-addr zone, make the type reverse automatically

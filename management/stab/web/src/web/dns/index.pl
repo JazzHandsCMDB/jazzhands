@@ -32,12 +32,13 @@ use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
 use JazzHands::Common qw(_dbx);
+use Net::IP;
 
 do_dns_toplevel();
 
 sub do_dns_toplevel {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
-	my $cgi  = $stab->cgi          || die "Could not create cgi";
+	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
 	my $dnsid = $stab->cgi_parse_param('dnsdomainid');
 
@@ -471,37 +472,38 @@ sub zone_fwd_records {
 }
 
 sub zone_rvs_records {
-	my ( $stab, $dnsdomainid ) = @_;
+	my ( $stab, $dnsdomainid, $domain ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $q = qq{
-		select  distinct nb.ip_address,
-			net_manip.inet_dbtop(nb.ip_address) as ip,
+		select  host(nb.ip_address) as ip,
 			dns.dns_name,
-			dns.is_enabled,
 			dom.soa_name,
-			host(network(nb.ip_address)) as ip_base,
-			ni.device_id
+			dns.dns_ttl,
+			network(nb.ip_address) as ip_base,
+			dns.is_enabled,
+			root.netblock_id as root_netblock_id,
+			nb.netblock_id as netblock_id
 		  from  netblock nb
 				inner join dns_record dns
 					on nb.netblock_id = dns.netblock_id
 				inner join dns_domain dom
 					on dns.dns_domain_id =
-						dom.dns_domain_id
-				left join network_interface ni
-					on ni.netblock_id = nb.netblock_id,
+						dom.dns_domain_id,
 			netblock root
 				inner join dns_record rootd
 					on rootd.netblock_id = root.netblock_id
 					and rootd.dns_type =
 						'REVERSE_ZONE_BLOCK_PTR'
-		 where  dns.should_generate_ptr = 'Y'
-		   and  dns.dns_class = 'IN' and dns.dns_type = 'A'
-		   and  net_manip.inet_base(nb.ip_address, 
-				masklen(root.ip_address)) =
-					net_manip.inet_base(root.ip_address,
-					masklen(root.ip_address) )
+		 where
+				dns.should_generate_ptr = 'Y'
+		   and  family(root.ip_address) = family(nb.ip_address)
+		   and  dns.dns_class = 'IN'
+			and ( ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
+					AND     set_masklen(nb.ip_address, masklen(root.ip_address))
+							<<= root.ip_address
+				)
 		   and  rootd.dns_domain_id = ?
 		order by nb.ip_address
 	};
@@ -510,7 +512,14 @@ sub zone_rvs_records {
 
 	$stab->textfield_sizing(0);
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $lastoctet = ( split( /\./, $hr->{ _dbx('IP') } ) )[3];
+		my $ip = $hr->{ _dbx('IP') };
+		my $ipobj = new Net::IP ($ip);
+		my $rec = $ipobj->reverse_ip();
+		if( $rec =~ /^$domain\.?$/) {
+			$rec = 0;
+		} else {
+			$rec =~ s/\.$domain\.?$//i;
+		}
 
 		# only print the shortname if it is actually set.
 		my $name = (
@@ -526,7 +535,7 @@ sub zone_rvs_records {
 		  $stab->b_textfield( $hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
 		if (       $hr
 			&& $hr->{ _dbx('DNS_TYPE') }
-			&& $hr->{ _dbx('DNS_TYPE') } eq 'A' )
+			&& $hr->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/)
 		{
 			$value =
 			  $stab->b_textfield( $hr, 'IP', 'DNS_RECORD_ID' );
@@ -587,7 +596,7 @@ sub zone_rvs_records {
 		print $cgi->Tr(
 			$cgi->td(
 				[
-					$enablebox, $lastoctet, $ttl,
+					$enablebox, $rec, $ttl,
 					$class,     $type,      $name,
 					$button,
 				]
@@ -728,10 +737,12 @@ sub dump_zone {
 	);
 
 	print build_fwd_zone_Tr($stab);
-	zone_dns_records( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') } );
-
-	zone_fwd_records( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') } );
-	zone_rvs_records( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') } );
+	zone_dns_records( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') },
+		$hr->{ _dbx('SOA_NAME') });
+	zone_fwd_records( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') },
+		$hr->{ _dbx('SOA_NAME') });
+	zone_rvs_records( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') },
+		$hr->{ _dbx('SOA_NAME') });
 
 	print $cgi->end_table;
 	print $cgi->submit(
