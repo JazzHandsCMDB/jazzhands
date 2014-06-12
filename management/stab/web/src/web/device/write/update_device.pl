@@ -577,7 +577,7 @@ sub reconcile_dev_functions {
 sub update_location {
 	my ( $stab, $devid ) = @_;
 
-	my $locid = $stab->cgi_get_ids('LOCATION_ID');
+	my $locid = $stab->cgi_get_ids('RACK_LOCATION_ID');
 
 	my $numchanges = 0;
 	my $rackid = $stab->cgi_parse_param( 'LOCATION_RACK_ID', $locid );
@@ -587,8 +587,6 @@ sub update_location {
 
 	my $ru   = $stab->cgi_parse_param( 'LOCATION_RU_OFFSET', $locid );
 	my $side = $stab->cgi_parse_param( 'LOCATION_RACK_SIDE', $locid );
-	my $interoff =
-	  $stab->cgi_parse_param( 'LOCATION_INTER_DEV_OFFSET', $locid );
 
 	my $curloc = $stab->get_location_from_devid( $devid, 1 );
 
@@ -608,28 +606,22 @@ sub update_location {
 		$curloc = undef;
 	}
 
-	$interoff = 0 if ( !$interoff );
-
 	if ( !defined($ru) || $ru !~ /^-?\d+$/ ) {
 		$stab->error_return('U Offset must be a number.');
 	}
-	if ( $interoff !~ /^\d+$/ ) {
-		$stab->error_return('inter device offset must be a number.');
-	}
 
 	my %newloc = (
-		LOCATION_ID                 => $locid,
+		RACK_LOCATION_ID            => $locid,
 		RACK_ID                     => $rackid,
 		RACK_U_OFFSET_OF_DEVICE_TOP => $ru,
 		RACK_SIDE                   => $side,
-		INTER_DEVICE_OFFSET         => $interoff,
 	);
 	my $newloc = \%newloc;
 
 	#
 	# no location previously existed, lets set a new one!
 	#
-	if ( !$curloc || !defined( $curloc->{ _dbx('LOCATION_ID') } ) ) {
+	if ( !$curloc || !defined( $curloc->{ _dbx('RACK_LOCATION_ID') } ) ) {
 		return $stab->add_location_to_dev( $devid, $newloc );
 	}
 
@@ -640,7 +632,7 @@ sub update_location {
 	if (
 		$tally
 		&& !$stab->run_update_from_hash(
-			"LOCATION", "LOCATION_ID", $locid, $diffs
+			"RACK_LOCATION", "RACK_LOCATION_ID", $locid, $diffs
 		)
 	  )
 	{

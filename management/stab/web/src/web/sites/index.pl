@@ -135,7 +135,7 @@ sub build_site_racks {
 
 	my $q = qq{
 		select	rack_row, rack
-		  from	location
+		  from	rack_location
 		 where	site_code = ?
 		   AND	room = ?
 		   AND	sub_room = ?
@@ -173,7 +173,7 @@ sub get_room_list {
 
 	my $q = qq{
 		select	room, sub_room
-		  from	location
+		  from	rack_location
 		 where	site_code = ?
 		 order by room, sub_room
 	};

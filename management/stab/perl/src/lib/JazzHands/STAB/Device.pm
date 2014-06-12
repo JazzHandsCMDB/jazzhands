@@ -2281,11 +2281,11 @@ sub device_location_print {
 
 	my $hidden = '';
 	if ($hr) {
-		my $locid = "LOCATION_ID_" . $hr->{ _dbx('LOCATION_ID') };
+		my $locid = "RACK_LOCATION_ID_" . $hr->{ _dbx('RACK_LOCATION_ID') };
 		$hidden = $cgi->hidden(
 			-name  => $locid,
 			-id    => $locid,
-			-value => $hr->{ _dbx('LOCATION_ID') }
+			-value => $hr->{ _dbx('RACK_LOCATION_ID') }
 		);
 	}
 
@@ -2316,24 +2316,23 @@ sub device_location_print {
 						  "stab_location_$rackid",
 						-href => $root
 						  . "/sites/rack/?RACK_ID="
-						  . $hr->{ _dbx(
-'LOCATION_RACK_ID'
+						  . $hr->{ _dbx( 'LOCATION_RACK_ID'
 						  ) }
 					},
 					$rackname,
 				)
 			)
 		);
-		$rackdivid  = "rack_div_" . $hr->{ _dbx('LOCATION_ID') };
-		$racksiteid = "RACK_SITE_CODE_" . $hr->{ _dbx('LOCATION_ID') };
+		$rackdivid  = "rack_div_" . $hr->{ _dbx('RACK_LOCATION_ID') };
+		$racksiteid = "RACK_SITE_CODE_" . $hr->{ _dbx('RACK_LOCATION_ID') };
 	} else {
 		$rackdivid  = "rack_div";
 		$racksiteid = "RACK_SITE_CODE";
 	}
 
 	my $locid =
-	  ( $hr && $hr->{ _dbx('LOCATION_ID') } )
-	  ? $hr->{ _dbx('LOCATION_ID') }
+	  ( $hr && $hr->{ _dbx('RACK_LOCATION_ID') } )
+	  ? $hr->{ _dbx('RACK_LOCATION_ID') }
 	  : undef;
 
 	my $rv = $cgi->table(
@@ -2348,7 +2347,7 @@ sub device_location_print {
 			"b_dropdown",
 			"Site",
 			'RACK_SITE_CODE',
-			'LOCATION_ID'
+			'RACK_LOCATION_ID'
 		),
 		$self->build_tr(
 			{ -divWrap => $rackdivid, -dolinkUpdate => 'rack' },
@@ -2356,22 +2355,17 @@ sub device_location_print {
 			"b_dropdown",
 			"Rack",
 			'LOCATION_RACK_ID',
-			'LOCATION_ID'
+			'RACK_LOCATION_ID'
 		),
 		$self->build_tr(
 			$hr,                    "b_textfield",
 			"U Offset of Top Left", 'LOCATION_RU_OFFSET',
-			'LOCATION_ID'
+			'RACK_LOCATION_ID'
 		),
 		$self->build_tr(
 			$hr,         "b_nondbdropdown",
 			"Rack Side", 'LOCATION_RACK_SIDE',
-			'LOCATION_ID'
-		),
-		$self->build_tr(
-			{ -mark => 'optional' }, $hr,
-			"b_textfield",               "Horizontal Offset",
-			'LOCATION_INTER_DEV_OFFSET', 'LOCATION_ID'
+			'RACK_LOCATION_ID'
 		),
 		$racklink
 	);

@@ -400,15 +400,14 @@ sub get_location_from_devid {
 
 	my $q = qq{
 		select
-			l.LOCATION_ID,
+			l.RACK_LOCATION_ID,
 			l.RACK_ID as LOCATION_RACK_ID,
 			l.RACK_U_OFFSET_OF_DEVICE_TOP as LOCATION_RU_OFFSET,
 			l.RACK_SIDE as LOCATION_RACK_SIDE,
-			l.INTER_DEVICE_OFFSET as LOCATION_INTER_DEV_OFFSET,
 			r.SITE_CODE as RACK_SITE_CODE
-		  from  location l
-			inner join device d on
-				d.location_id = l.location_id
+		  from  rack_location l
+			inner join device d
+				using (rack_location_id)
 			inner join rack r on
 				r.rack_id = l.rack_id
 		 where  d.device_id = ?
@@ -610,7 +609,6 @@ sub add_location_to_dev {
 		rack_u_offset_of_device_top =>
 		  $loc->{ _dbx('RACK_U_OFFSET_OF_DEVICE_TOP') },
 		rack_side           => $loc->{ _dbx('RACK_SIDE') },
-		inter_device_offset => $loc->{ _dbx('INTER_DEVICE_OFFSET') },
 	};
 
 	my $numchanges = 0;
@@ -618,7 +616,7 @@ sub add_location_to_dev {
 	if (
 		!(
 			$numchanges += $self->DBInsert(
-				table  => 'location',
+				table  => 'rack_location',
 				hash   => $new,
 				errors => \@errs
 			)
@@ -628,11 +626,11 @@ sub add_location_to_dev {
 		$self->error_return( join( " ", @errs ) );
 	}
 
-	my $locid = $new->{ _dbx('LOCATION_ID') };
+	my $locid = $new->{ _dbx('RACK_LOCATION_ID') };
 
 	my ($dq) = qq{
 		update	device
-		   set	location_id = :locid
+		   set	rack_location_id = :locid
 		  where	device_id = :devid
 	};
 	my $dsth = $self->prepare($dq) || $self->return_db_err();

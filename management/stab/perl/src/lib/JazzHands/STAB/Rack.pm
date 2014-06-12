@@ -75,8 +75,8 @@ sub build_rack {
 			d.device_status,
 			c.company_name
 		FROM		device d
-			inner join location l
-				on l.location_id = d.location_id
+			inner join rack_location l
+				using (rack_location_id)
 			inner join device_type dt
 				on d.device_type_id = dt.device_type_id
 			left join company c
@@ -124,6 +124,8 @@ sub build_rack {
 		= $sth->fetchrow_array
 	  )
 	{
+
+		$offset = 0 if (!defined($offset));
 
 		# print header
 		# almost certainly need to mark this as a stub somehow; this is
@@ -279,12 +281,12 @@ sub show_row {
 	my($rack);  # a temporry variable
 
 	my ($sql)=qq{
-		SELECT	DISTINCT rack
-		FROM	location
-		WHERE 	location.site_code='$input{site}'
-		AND	location.rack_row='$input{row}'
-		AND	location.room='$input{room}'
-		ORDER BY location.rack
+		SELECT	DISTINCT rl.rack
+		FROM	rack_location rl
+		WHERE 	rl.site_code='$input{site}'
+		AND	rl.rack_row='$input{row}'
+		AND	rl.room='$input{room}'
+		ORDER BY rl.rack
 	};
 	my($sth)=$dbh->prepare($sql);
 	if ($dbh->errstr) {
@@ -328,23 +330,23 @@ print "Query: <PRE>$sql</PRE>\n";
 			SELECT	device.device_name,
 				device_type.model,
 				device_type.rack_units,
-				location.rack_u_offset_of_device_top,
-				location.rack_side,
+				rl.rack_u_offset_of_device_top,
+				rl.rack_side,
 				device.device_id,
 				company.company_name
 			FROM	device,
 				device_type,
-				location,
+				location rl,
 				company
 			WHERE 	device.device_type_id=device_type.device_type_id
-			AND	device.location_id=location.location_id
-			AND	location.site_code='$input{site}'
-			AND	location.rack='$rack'
-			AND	location.rack_row='$input{row}'
-			AND	location.room='$input{room}'
+			AND	device.rack_location_id=rl.rack_location_id
+			AND	rl.site_code='$input{site}'
+			AND	rl.rack='$rack'
+			AND	rl.rack_row='$input{row}'
+			AND	rl.room='$input{room}'
 			AND	device.status != 'removed'
 			AND	device_type.company_id=company.comany_id
-			ORDER BY location.rack_u_offset_of_device_top
+			ORDER BY rl.rack_u_offset_of_device_top
 		};
 		$sth=$dbh->prepare($sql);
 		if ($dbh->errstr) {
@@ -508,8 +510,8 @@ sub show_site {
 
 	my ($sql)=qq{
 		SELECT	DISTINCT rack_row, room
-		FROM	location
-		WHERE 	location.site_code='$input{site}'
+		FROM	rack_location rl
+		WHERE 	rl.site_code='$input{site}'
 		ORDER BY room, rack_row
 	};
 	my($sth)=$dbh->prepare($sql);
@@ -553,19 +555,19 @@ sub disp_device {
 			device_type.rack_units,
 			device_type.processor_architecture,
 			device.serial_number,
-			location.site_code,
-			location.room,
-			location.rack_row,
-			location.rack,
-			location.rack_u_offset_of_device_top
+			rl.site_code,
+			rl.room,
+			rl.rack_row,
+			rl.rack,
+			rl.rack_u_offset_of_device_top
 		FROM	device,
 			device_type,
 			company,
-			location
+			rack_location rl
 		WHERE	device.device_type_id=device_type.device_type_id
 		AND	company.company_id = device_type.company_id
 		AND	device.device_id=$did
-		AND	device.location_id=location.location_id
+		AND	device.rack_location_id=location.rack_location_id
 	};
 	my $sth=$dbh->prepare($sql);
 	if ($sth) {
@@ -619,7 +621,7 @@ sub disp_device {
 
 sub lookup_spot {
 	local(*input)=@_;
-	# find location_id for location row that maps to the above
+	# find rack_location_id for location row that maps to the above
 	# slot.  what if there are multiple hits???
 	# how to deal with multiple-u devices?  search for device_type
 	# and then rack-u ?
@@ -630,22 +632,22 @@ sub lookup_spot {
 	#
 	my ($sql)=qq{
 		SELECT	device.device_id,
-			location.rack_side
+			rl.rack_side
 		FROM	device,
 			device_type,
-			location
-		WHERE	device.location_id=location.location_id
+			rack_location rl
+		WHERE	device.rack_location_id=rack_location.location_id
 		AND     device.device_type_id=device_type.device_type_id
-		AND	location.site_code='$input{site}'
-		AND	location.rack='$input{rack}'
-		AND	location.rack_row='$input{row}'
-		AND	location.room='$input{room}'
-        	AND     location.rack_u_offset_of_device_top +device_type.rack_units-1>=$input{offset}
-                AND     location.rack_u_offset_of_device_top <=$input{offset}
+		AND	rl.site_code='$input{site}'
+		AND	rl.rack='$input{rack}'
+		AND	rl.rack_row='$input{row}'
+		AND	rl.room='$input{room}'
+        	AND     rl.rack_u_offset_of_device_top +device_type.rack_units-1>=$input{offset}
+                AND     rl.rack_u_offset_of_device_top <=$input{offset}
 		AND	device.status != 'removed'
 	};
 # instead of exact match, look for other devices that may occupy this spot but are
-# defined at another location_id
+# defined at another rack_location_id
 #		AND	location.rack_u_offset_of_device_top=$input{offset}
 	my $sth=$dbh->prepare($sql);
 print "Query: <PRE>$sql</PRE>\n";

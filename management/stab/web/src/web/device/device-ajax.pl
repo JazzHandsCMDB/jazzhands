@@ -55,7 +55,7 @@ sub do_show_serial {
 	my $parent   = $stab->cgi_parse_param('parent')               || undef;
 	my $osid     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID')  || undef;
 	my $site     = $stab->cgi_parse_param('SITE_CODE')            || undef;
-	my $locid    = $stab->cgi_parse_param('LOCATION_ID')          || undef;
+	my $locid    = $stab->cgi_parse_param('RACK_LOCATION_ID')     || undef;
 	my $dropid   = $stab->cgi_parse_param('dropid')               || undef;
 	my $uniqid   = $stab->cgi_parse_param('uniqid');
 
@@ -212,16 +212,16 @@ sub do_show_serial {
 		my $p;
 		if ( $locid || $site ) {
 			$p = {};
-			$p->{LOCATION_ID}        = $locid if ($locid);
+			$p->{RACK_LOCATION_ID}        = $locid if ($locid);
 			$p->{LOCATION_SITE_CODE} = $site  if ($site);
 		}
 		if ( $type && $type eq 'dev' ) {
 			print $stab->b_dropdown(
 				{ -site => $site, -dolinkUpdate => 'rack' },
-				$p, 'LOCATION_RACK_ID', 'LOCATION_ID', 1 );
+				$p, 'LOCATION_RACK_ID', 'RACK_LOCATION_ID', 1 );
 		} else {
 			print $stab->b_dropdown( { -site => $site },
-				$p, 'RACK_ID', 'LOCATION_ID', 1 );
+				$p, 'RACK_ID', 'RACK_LOCATION_ID', 1 );
 		}
 	} elsif ( $what eq 'interfacedns' ) {
 		my $sth = $stab->prepare(

@@ -46,7 +46,7 @@ function site_to_rack(siteid, rackdivid, where, locid) {
 	}
 	url += ";SITE_CODE=" + sitebox.value;
 	if(locid != null) {
-		url += ";LOCATION_ID=" + locid;
+		url += ";RACK_LOCATION_ID=" + locid;
 	}
 	ajaxrequest = createRequest();
 	ajaxrequest.open("GET", url, true);
