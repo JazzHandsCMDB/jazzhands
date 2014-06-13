@@ -382,7 +382,14 @@ BEGIN
 	BEGIN
 		DELETE FROM RACK where rack_id = _in_rack_id;
 	EXCEPTION WHEN foreign_key_violation THEN
-		return false;
+		UPDATE rack SET
+			room = NULL,
+			sub_room = NULL,
+			rack_row = NULL,
+			rack_name = 'none',
+			description = 'retired'
+		WHERE	rack_id = _in_rack_id;
+
 	END;
 	RETURN true;
 END;
