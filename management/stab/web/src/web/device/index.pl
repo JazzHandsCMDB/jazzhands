@@ -115,9 +115,19 @@ print $cgi->Tr(
   "\n";
 print $cgi->Tr(
 	$cgi->td(
+		{ -colspan => 2, align => 'center' }, 
+          	$stab->build_checkbox( undef, "Include Removed devices", 
+			'INCLUDE_REMOVED', undef, 0 ),
+	),
+  ),
+  "\n";
+print $cgi->Tr(
+	$cgi->td(
 		{ -colspan => 2, align => 'center' }, $cgi->submit("Search")
 	)
 );
+
+
 
 print $cgi->end_table;
 print $cgi->end_form, "\n";

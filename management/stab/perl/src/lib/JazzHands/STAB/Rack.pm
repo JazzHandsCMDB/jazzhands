@@ -72,11 +72,14 @@ sub build_rack {
 			dt.rack_units,
 			l.rack_u_offset_of_device_top,
 			l.rack_side,
+			r.site_code,
 			d.device_status,
 			c.company_name
 		FROM		device d
 			inner join rack_location l
 				using (rack_location_id)
+			inner join rack r
+				using (rack_id)
 			inner join device_type dt
 				on d.device_type_id = dt.device_type_id
 			left join company c
@@ -85,7 +88,12 @@ sub build_rack {
 				on d.parent_device_id = pard.device_id
 		WHERE 
 			l.rack_id = ?
-		ORDER BY l.rack_u_offset_of_device_top
+		AND d.device_id NOT in (
+				select manager_device_id from device_management_controller
+				where device_mgmt_control_type = 'bmc'
+			)
+		ORDER BY l.rack_u_offset_of_device_top,
+				d.physical_label, c.company_name, dt.model
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err;
 
@@ -96,19 +104,28 @@ sub build_rack {
 	my %offsets    = ();    # key=starting offset, value=length
 	my ($flipflop) = 0;     # boolean, also index into @BGCOLORS;
 
+	my $missing = [];
+
 	$rv .= $cgi->start_table(
 		{ -class => 'rackit', -border => 2, -align => 'center' } );
+
+	my $room = $rack->{ _dbx('ROOM') }|| '';
+	my $row = $rack->{ _dbx('RACK_ROW') }|| '';
+	my $rname = $rack->{ _dbx('RACK_NAME') }|| '';
+
+	my $fullname = join( "-",
+					$room,
+					$row,
+					$rname,
+				);
+	$fullname =~ s/--/-/g;
+	$fullname =~ s/^-+//g;
+	$fullname =~ s/-+$//g;
 
 	$rv .= $cgi->Tr(
 		$cgi->th(
 			[
-				"u",
-				join( " ",
-					$rack->{ _dbx('SITE_CODE') },
-					$rack->{ _dbx('ROOM') },
-					$rack->{ _dbx('RACK_ROW') },
-					$rack->{ _dbx('RACK_NAME') },
-				)
+				"u", $rack->{ _dbx('SITE_CODE') }.": $fullname",
 			]
 		)
 	);
@@ -119,11 +136,15 @@ sub build_rack {
 		my (
 			$did,   $name,   $pardid, $parname, $label,
 			$model, $height, $offset, $side,    $site,
-			$room,  $row,    $rack,   $status,  $vendor
+			$status,  $vendor
 		)
 		= $sth->fetchrow_array
 	  )
 	{
+		if(!$name) {
+			$name = "Unnamed $vendor $model";
+		}
+		$label = $name if(!$label);
 
 		$offset = 0 if (!defined($offset));
 
@@ -157,9 +178,13 @@ sub build_rack {
 			} else {    # need to make smarter...
 				$linkto = $cgi->escapeHTML($linkto);
 			}
-			$field = $self->vendor_logo($vendor)
-			  . $cgi->a(
+			$field = "";
+			if($offset) {
+				$field = $self->vendor_logo($vendor)
+			}
+			$field .= $cgi->a(
 				{
+					-title => $label,
 					-href =>
 					  "$root/device/device.pl?devid=$did"
 				},
@@ -180,14 +205,19 @@ sub build_rack {
 	      # warn, error condition
 	      # XXX not necessarily true, as 2 devices could be in one location,
 	      # front and back
-			$thisrack{$offset} =
-			  $cgi->b("OVERLAP: $thisrack{$offset}, $field");
+			$thisrack{$offset}  =
+			  $cgi->b("$thisrack{$offset}, $field");
 
 	    # this is ugly, screws up table formatting.  need to fix this later.
 
 		} else {
 			$thisrack{$offset} = $field;
 		}
+
+		if($offset == 0) {
+			push(@{$missing}, $field);
+		}
+		$field = $thisrack{$offset};
 
 		# if $height is a fraction, round up.
 		# this doesn't feel right but can't think
@@ -266,8 +296,16 @@ sub build_rack {
 		}
 	}
 
-	$rv = $cgi->table( $cgi->Tr( $lhs, $cgi->td($rv), $rhs ) );
+	my $tbl = $cgi->table( $cgi->Tr( $lhs, $cgi->td($rv), $rhs ) );
 
+	$rv =  "";
+	if($#{$missing} >= 0) {
+		$rv .= "Devices not assigned a u but in rack:".
+			$cgi->div({-class=>'racknou'},
+				$cgi->ul({-class=>'racknoru'}, $cgi->li( \@{$missing} )));
+	}
+
+	$rv .= $tbl;
 	$rv;
 }
 

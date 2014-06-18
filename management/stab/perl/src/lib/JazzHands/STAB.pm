@@ -333,6 +333,11 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
+					-src =>
+"$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
 					-src => "$stabroot/javascript/racks.js"
 				},
 				{

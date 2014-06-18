@@ -70,7 +70,11 @@ sub do_rack_chooser {
 			-javascript => 'rack',
 		}
 	);
-	print $cgi->start_form( { -method => 'GET', -action => './' } );
+
+	print $cgi->start_form( { 
+		-method => 'GET', 
+		-action => './' 
+	} );
 	print $cgi->h3( { -align => 'center' }, 'Pick a site:' );
 	print $cgi->div(
 		{ -align => 'center' },
@@ -141,6 +145,25 @@ sub do_one_rack {
 			"Height in U", "RACK_HEIGHT_IN_U",
 			"RACK_ID"
 		),
+		$cgi->Tr(
+			$cgi->td($cgi->b("Remove Rack")),
+			$cgi->td($cgi->checkbox(
+				-name => 'REMOVE_RACK_'.$hr->{_dbx('RACK_ID')},
+				-id => 'REMOVE_RACK_'.$hr->{_dbx('RACK_ID')},
+				-label=> '',
+				-class => 'scaryrm rmrack',
+			))
+		),
+		$cgi->Tr({
+				-title => 'Equivalent of unchecking Is Monitored on every device listed in the rack',
+			}, $cgi->td($cgi->b("Unmonitor devices in rack")),
+			$cgi->td($cgi->checkbox(
+				-name => 'DEMONITOR_RACK_'.$hr->{_dbx('RACK_ID')},
+				-id => 'DEMONITOR_RACK_'.$hr->{_dbx('RACK_ID')},
+				-label=> '',
+				-class => 'scaryrm demonitor',
+			))
+		),
 
 		# [XXX]Display from Bottom
 		$cgi->Tr( $cgi->td( { -colspan => 2 }, $cgi->submit() ) ),
@@ -155,9 +178,14 @@ sub do_one_rack {
 			-javascript => 'rack',
 		}
 	);
+        print $cgi->div( { -id => 'verifybox', -style => 'display: none' },
+                "" );
 
-	print $cgi->start_form(
-		{ -method => 'GET', -action => 'updaterack.pl' } );
+	print $cgi->start_form({
+		 -method => 'GET', 
+		-action => 'updaterack.pl',
+		-onSubmit => "return(verify_rack_submission(this))",
+	});
 	print $cgi->hidden(
 		-name    => 'RACK_ID_' . $hr->{ _dbx('RACK_ID') },
 		-default => $hr->{ _dbx('RACK_ID') },

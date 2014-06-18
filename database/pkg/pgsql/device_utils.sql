@@ -240,7 +240,7 @@ BEGIN
 	_purgedev := false;
 
 	BEGIN
-		PERFORM local_hooks.device_retire_early(in_Device_Id);
+		PERFORM local_hooks.device_retire_early(in_Device_Id, false);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
@@ -283,11 +283,6 @@ BEGIN
 		RAISE EXCEPTION 'Retiring modules is not supported yet.';
 	END IF;
 
-	SELECT count(*)
-	INTO tally
-	FROM device_note
-	WHERE device_id = in_Device_id;
-
 	SELECT	manager_device_id
 	INTO	_mgrid
 	 FROM	device_management_controller
@@ -305,10 +300,15 @@ BEGIN
 	END IF;
 
 	BEGIN
-		PERFORM local_hooks.device_retire_late(in_Device_Id);
+		PERFORM local_hooks.device_retire_late(in_Device_Id, false);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
+
+	SELECT count(*)
+	INTO tally
+	FROM device_note
+	WHERE device_id = in_Device_id;
 
 	--
 	-- If there is no notes or serial number its save to remove
@@ -359,7 +359,7 @@ DECLARE
 BEGIN
 
 	BEGIN
-		PERFORM local_hooks.rack_retire_early(_in_rack_id);
+		PERFORM local_hooks.rack_retire_early(_in_rack_id, false);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
@@ -374,13 +374,14 @@ BEGIN
 	END LOOP;
 
 	BEGIN
-		PERFORM local_hooks.racK_retire_late(_in_rack_id);
+		PERFORM local_hooks.racK_retire_late(_in_rack_id, false);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
 
 	BEGIN
 		DELETE FROM RACK where rack_id = _in_rack_id;
+		RETURN false;
 	EXCEPTION WHEN foreign_key_violation THEN
 		UPDATE rack SET
 			room = NULL,
@@ -389,11 +390,49 @@ BEGIN
 			rack_name = 'none',
 			description = 'retired'
 		WHERE	rack_id = _in_rack_id;
-
 	END;
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
 --end of retire_rack
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+--begin device_utils.monitoring_off_in_rack
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION device_utils.monitoring_off_in_rack (
+	_in_rack_id	rack.rack_id%type
+) RETURNS boolean AS $$
+BEGIN
+	BEGIN
+		PERFORM local_hooks.monitoring_off_in_rack_early(
+			_in_rack_id, false);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		PERFORM 1;
+	END;
+
+	UPDATE device
+	  SET	is_monitored = 'N'
+	 WHERE	is_monitored = 'Y'
+	 AND	device_id in (
+	 		SELECT device_id
+			 FROM	device
+			 	INNER JOIN rack_location 
+					USING (rack_location_id)
+			WHERE	rack_id = 67
+	);
+
+	BEGIN
+		PERFORM local_hooks.monitoring_off_in_rack_late(
+			_in_rack_id, false);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		PERFORM 1;
+	END;
+
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+-------------------------------------------------------------------
+--end device_utils.monitoring_off_in_rack
 -------------------------------------------------------------------

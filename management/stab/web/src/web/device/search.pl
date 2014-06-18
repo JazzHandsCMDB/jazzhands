@@ -33,7 +33,7 @@ use Net::IP;
 do_device_search();
 
 sub find_devices {
-	my ( $stab, $name, $ipblock, $type, $os, $mac, $serial ) = @_;
+	my ( $stab, $name, $ipblock, $type, $os, $mac, $serial, $dormd ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
@@ -77,6 +77,11 @@ sub find_devices {
 	if ( defined($os) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .= " d.operating_system_id = :os ";
+	}
+
+	if ( !$dormd || $dormd eq 'Y' ) {
+		$criteria .= " and " if ( length($criteria) );
+		$criteria .= "(device_name is null or device_status = 'removed')";
 	}
 
 	# switch /32 lookups to be simple ip_address = X
@@ -163,6 +168,9 @@ sub do_device_search {
 	my $byos     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
 	my $Search   = $stab->cgi_parse_param('Search');
 
+	my $dormd   = $stab->cgi_parse_param('INCLUDE_REMOVED');
+	$dormd = $stab->mk_chk_yn($dormd);
+
 	$cgi->delete('devlist');
 
 	#
@@ -182,7 +190,7 @@ sub do_device_search {
 
 	my @searchresults =
 	  find_devices( $stab, $byname, $byip, $bytype, $byos, $bymac,
-		$byserial );
+		$byserial, $dormd );
 
 	#
 	# exactly one search result, so redirect to that result.  If Search is

@@ -25,6 +25,59 @@
 // $Id$
 //
 
+function verify_rack_submission(form) {
+	var nogo = new Array();
+
+	$("input.scaryrm:checked").each(function() { 
+		if( $(this).hasClass('rmrack') ) {
+			nogo.push("You have selected to retire the rack.  This will remove all devices in the rack and the rack from the database.  This should only be done if the rack and devices are behing physically removed.");
+		}
+		if( $(this).hasClass('demonitor') ) {
+			nogo.push("You have chosen to take all the devices in this rack out of monitoring");
+		}
+
+	});
+
+	if(!nogo.length) {
+		return true;
+	}
+
+	nogo[nogo.length] = '<p>';
+	nogo[nogo.length] = "<b>Are you sure you want to do this?</b>"
+
+	verifybox = $('#verifybox');
+	$(verifybox).css('visibility', 'visible');
+	$(verifybox).show();
+	
+	for(var i =0; i < nogo.length; i++) {
+		var li = $("<li/>");
+		$(li).append( nogo[i]);
+		$(verifybox).append(li);
+	}
+
+	var span = $("</p>");
+	$(verifybox).append(span);
+
+	var yes = $("<input/>", {
+		type: 'button',
+		value: 'Yes',
+	}).click( function() { form.submit(); });
+	$(span).append(yes);
+
+	var no = $("<input/>", {
+		type: 'button',
+		value: 'No',
+	}).click(
+		function() { 
+			$(verifybox).hide(); 
+			$(verifybox).empty(); 
+		}
+	);
+	$(span).append(no);
+	form.dontSubmit = false;
+	return false;
+}
+
 function site_to_rack(siteid, rackdivid, where, locid) {
 	var sitebox, rackdiv;
 	var url, ajaxrequest;
