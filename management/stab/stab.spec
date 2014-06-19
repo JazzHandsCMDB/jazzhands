@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.58.1
+Version:        0.58.2
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -176,6 +176,9 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.2
+- overhaul device/rack retirement to be in database
+- improve rack elevations
 * Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.1
 - support showing inferred PTRs in ip6.addr zones
 - comment out some questionable legacy defaults
