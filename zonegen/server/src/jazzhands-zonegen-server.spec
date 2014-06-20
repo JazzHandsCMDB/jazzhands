@@ -4,7 +4,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.57.10.1
+Version:    0.58.3
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -54,6 +54,10 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Fri Jun 20 2014 Todd Kover <kovert@omniscient.com> 0.58.30
+- generate the allzone_hostfile smartly, update docs
+- update docs wit detail of other changes that went in recently
+- make the mtime of a zone the same as the db's last generated date
 * Mon Jun  9 2014 Todd Kover <kovert@omniscient.com> 0.57.10
 - migrate zonegen to Net::IP from Net::Netmask
 - convert to postgresql native inetbaseness for ipv4
