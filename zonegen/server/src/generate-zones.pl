@@ -159,7 +159,7 @@ sub get_db_default {
 
 	my $q = qq {
 		select	property_value
-		  from	property
+		  from	v_property
 		 where	property_type = 'Defaults'
 		   and	property_name = ?
 	};
