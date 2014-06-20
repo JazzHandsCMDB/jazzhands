@@ -1062,3 +1062,16 @@ insert into val_property (
 	'REQUIRED'
 );
 
+
+-- DNS zone generation
+insert into val_property_type (property_type, description, is_multivalue) 
+values ('DNSZonegen', 'properties for defining dns zone generation', 'Y');
+
+insert into val_property 
+	(property_name, property_type, 
+	 description, is_multivalue, 
+	 property_data_type, permit_device_collection_id, permit_site_code) 
+values (
+	'DNSDistHosts', 'DNSZonegen', 
+	'indicates hosts that should get dns zones', 'Y', 
+	'none', 'REQUIRED', 'ALLOWED');
