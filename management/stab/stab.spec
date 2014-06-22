@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.58.2
+Version:        0.58.3
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -176,6 +176,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Sun Jun 22 2014 Todd Kover <kovert@omniscient.com> 0.58.3
+- make it so add_netblock inputs can set netblock_type (bug fix)
 * Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.2
 - overhaul device/rack retirement to be in database
 - improve rack elevations
