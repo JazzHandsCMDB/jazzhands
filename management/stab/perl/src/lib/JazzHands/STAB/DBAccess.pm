@@ -308,7 +308,7 @@ sub add_netblock {
 	};
 
 	for my $f (
-		'is_single_address',
+		'is_single_address', 'netblock_type',
 		'can_subnet',      'parent_netblock_id',
 		'netblock_status', 'nic_id',
 		'nic_company_id',  'ip_universe_id',
