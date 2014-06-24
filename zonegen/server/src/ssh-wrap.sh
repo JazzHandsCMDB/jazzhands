@@ -25,4 +25,12 @@
 # $Id$
 #
 
-exec /usr/local/bin/ssh -o 'StrictHostKeyChecking no' "$@"
+SSH=ssh
+for dir in /usr/local/bin /usr/bin /bin ; do
+	if [ -x $dir/ssh ] ; then
+		SSH="$dir/ssh"
+		break;
+	fi
+done
+
+exec $SSH -o 'StrictHostKeyChecking no' "$@"

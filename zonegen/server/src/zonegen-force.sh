@@ -24,13 +24,13 @@
 #
 # $Id$
 #
-# simple wrapper around do-zone-generation.  Could be more complex
+# simple wrapper around generate-and-sync.  Could be more complex
 #
 
 PATH=/usr/local/bin:/usr/bin:/bin
 export PATH
 
-RUNME=/prod/zonegen/libexec/do-zone-generation
+RUNME=/prod/zonegen/libexec/generate-and-sync
 
 if [ -x /usr/ucb/whoami ] ; then
 	me=`/usr/ucb/whoami`

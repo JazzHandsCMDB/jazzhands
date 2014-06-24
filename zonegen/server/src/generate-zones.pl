@@ -1766,7 +1766,7 @@ generate-zones [ options ] [ zone1 zone2 zone3 ... ]
 The generate-zones command is used to generate zone files, as well
 as configuration files and zone file hierarchies that can be copied to
 dns servers for inclusion in their DNS configuration files.  This script
-is generally invoked by the do-zone-generation script which takes care of
+is generally invoked by the generate-and-sync script which takes care of
 distribution.  An end-user may invoke zonegen-force to invoke the entire
 process for a given zone.
 
@@ -1791,7 +1791,7 @@ Anytime the SOA record changes, change records are removed from the
 dns_change_record changes so subsequent runs will not retrigger generation
 of the zone.  The --nosoa option will ensure this does not happen.
 
-If invoked from the do-zone-generation wrapper script that also
+If invoked from the generate-and-sync wrapper script that also
 takes care of syncing (the normal invocation), the lock file
 /var/lib/zonegen/run/zonegen.lock will also prevent a run from happening
 if the lock file is newer than three hours.
