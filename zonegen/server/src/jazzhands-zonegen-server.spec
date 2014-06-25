@@ -4,7 +4,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.58.4.1
+Version:    0.58.4.2
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -54,6 +54,8 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Wed Jun 25 2014 Todd Kover <kovert@omniscient.com> 0.58.4.2
+- fix path to spec file
 * Wed Jun 25 2014 Todd Kover <kovert@omniscient.com> 0.58.4.1
 - remove extra my that unfortunately change of a variable
 * Tue Jun 24 2014 Todd Kover <kovert@omniscient.com> 0.58.4
