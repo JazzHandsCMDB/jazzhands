@@ -1416,7 +1416,7 @@ if ( $mysite && $mysite eq 'none' ) {
 }
 
 if ( !$mysite ) {
-	my $mysite = get_my_site_code( $dbh, $me );
+	$mysite = get_my_site_code( $dbh, $me );
 } elsif ( $mysite eq 'none' ) {
 	$mysite = undef;
 }
