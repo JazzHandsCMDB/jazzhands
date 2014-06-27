@@ -596,6 +596,7 @@ sub generate_passwd_files($) {
 
 	#
 	# NOTE:  Need to come up with a smarter way of getting user properties.
+	# NOTE:  Inner ssh key query is so the output is always ordered the same
 	$q = qq{
 	select distinct c.device_collection_id, a.account_id, 
 			   c.device_collection_name mclass,
@@ -640,31 +641,35 @@ sub generate_passwd_files($) {
 		left join (
 			select device_collection_id, account_id,
 				array_agg(ssh_public_key) as ssh_public_key
-			FROM (
-			select  device_collection_id,
-				account_id,
-				ssh_public_key
-			from    device_collection_ssh_key dcssh
-				inner join ssh_key using (ssh_key_id)
-				inner join v_acct_coll_acct_expanded ac 
-					using (account_collection_id)
-				inner join account a using (account_id)
+			FROM ( SELECT * FROM (
+				SELECT  dchd.device_collection_id,
+						account_id,
+						ssh_public_key
+	    		FROM    device_collection_ssh_key dcssh
+						INNER JOIN ssh_key USING (ssh_key_id)
+						INNER JOIN v_acct_coll_acct_expanded ac
+		    				USING (account_collection_id)
+						INNER JOIN account a USING (account_id)
+						INNER JOIN v_device_coll_hier_detail dchd ON
+							dchd.parent_device_collection_id =
+							dcssh.device_collection_id
 			UNION
-			       select  NULL as device_collection_id,
+			       SELECT  NULL as device_collection_id,
 					account_id,
 					ssh_public_key
-				    from    account_ssh_key ask
-				    inner join ssh_key skey using (ssh_key_id)
-			) x
-			group by device_collection_id, account_id
-			order by account_id, device_collection_id, ssh_public_key
+				    FROM    account_ssh_key ask
+				    INNER JOIN ssh_key skey using (ssh_key_id)
+			) keylist 
+				ORDER BY account_id, coalesce(device_collection_id, 0), 
+					ssh_public_key ) keylisto
+			GROUP BY device_collection_id, account_id
 		) ssh on a.account_id = ssh.account_id  AND
 			(ssh.device_collection_id is NULL or ssh.device_collection_id =
 				c.device_collection_id )
 	where is_disabled = 'N'
 	and c.device_collection_type = 'mclass'
-	-- and ac.account_collection_type in ('systems', 'per-user')
     };
+	# -- and ac.account_collection_type in ('systems', 'per-user')
 
 	if ($q_mclass_ids) {
 		$q .= "and cce.device_collection_id in $q_mclass_ids";
@@ -2163,7 +2168,7 @@ sub create_json_manifest {
 sub main {
 	my $dir;
 
-	chdir("/");
+	chdir("/") if (!-r ".");
 
 	GetOptions(
 		'random-sleep=i' => \$o_random,
