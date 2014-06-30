@@ -176,7 +176,7 @@ RETURNS TRIGGER AS $$
 BEGIN
 	IF OLD.DEVICE_TYPE_ID != NEW.DEVICE_TYPE_ID THEN
 		IF NEW.location_id IS NOT NULL THEN
-			UPDATE location SET devivce_type_id = NEW.device_type_id
+			UPDATE location SET device_type_id = NEW.device_type_id
 			WHERE location_id = NEW.location_id;
 		END IF;
 	END IF;

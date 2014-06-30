@@ -180,13 +180,13 @@ set.
 ---------------------------------------------------------------------------
 
 ------------------------
-DEVICE  ERRORS (JH3xx)
+DEVICE ERRORS (JH3xx)
 ------------------------
 ---------------------------------------------------------------------------
 
 JH360	-	Power Connection Plugs must match
 
-The power_interface_connection row must be between itwo 
+The power_interface_connection row must be between two
 power_interface_ports where the plug styles match.
 
 ---------------------------------------------------------------------------
@@ -194,21 +194,37 @@ power_interface_ports where the plug styles match.
 JH361	-	Power Connections must be between a power consumer and provider
 
 The power_interface_connection row must be between power_interface_ports where
-providers_power is complementary.
+provides_power is complementary.
 
 ---------------------------------------------------------------------------
 
 
-JH362	-	RPCs must provde power
+JH362	-	RPCs must provide power
 
-power_interface_port for the rpc_* side of a power_interface_conncetion must
+power_interface_port for the rpc_* side of a power_interface_connection must
 have provides_power set to 'Y'
 
 ---------------------------------------------------------------------------
 
-JH363	-	Power Cosumers must not provide power
+JH363	-	Power Consumers must not provide power
 
-power_interface_port for the non rpc_* side of a power_interface_conncetion 
+power_interface_port for the non rpc_* side of a power_interface_connection 
 must have provides_power set to 'N'
 
 ---------------------------------------------------------------------------
+
+
+------------------------
+NETWORK ERRORS (JH4xx)
+------------------------
+
+---------------------------------------------------------------------------
+
+JH401	-	Device must have an encapsulation domain and it must match the layer2_network to apply it to a device
+
+In order to apply a layer2_network to a device, the device must be a member
+of a device_encapsulation_domain, and the layer2_network must also be
+a member of that domain
+
+---------------------------------------------------------------------------
+

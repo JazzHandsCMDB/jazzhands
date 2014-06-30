@@ -91,7 +91,7 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 DECLARE
 	netblock_rec	RECORD;
 BEGIN
-	SELECT netblock_manip.allocate_netblock(
+	SELECT * into netblock_rec FROM netblock_manip.allocate_netblock(
 		parent_netblock_list := ARRAY[parent_netblock_id],
 		netmask_bits := netmask_bits,
 		address_type := address_type,
@@ -99,7 +99,7 @@ BEGIN
 		allocate_from_bottom := allocate_from_bottom,
 		description := description,
 		netblock_status := netblock_status
-	) into netblock_rec;
+	);
 	RETURN netblock_rec;
 END;
 $$ LANGUAGE plpgsql;
