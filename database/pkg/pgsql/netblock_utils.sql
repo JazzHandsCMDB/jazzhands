@@ -458,12 +458,12 @@ DECLARE
 	idx				integer;
 BEGIN
 	IF netblock_id IS NOT NULL THEN
-		SELECT * INTO netblock_rec FROM netblock n WHERE n.netbock_id = 
+		SELECT * INTO netblock_rec FROM netblock n WHERE n.netblock_id = 
 			list_unallocated_netblocks.netblock_id;
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'netblock_id % not found', netblock_id;
 		END IF;
-		IF netblock_rec.is_single_address = 'N' THEN
+		IF netblock_rec.is_single_address = 'Y' THEN
 			RETURN;
 		END IF;
 		ip_address := netblock_rec.ip_address;
