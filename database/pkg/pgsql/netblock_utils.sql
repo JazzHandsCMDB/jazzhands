@@ -440,3 +440,151 @@ BEGIN
 	RETURN;
 END;
 $$ LANGUAGE 'plpgsql';
+
+
+CREATE OR REPLACE FUNCTION netblock_utils.list_unallocated_netblocks(
+	netblock_id		jazzhands.netblock.netblock_id%TYPE DEFAULT NULL,
+	ip_address		inet DEFAULT NULL,
+	ip_universe_id	integer DEFAULT 0,
+	netblock_type	text DEFAULT 'default'
+) RETURNS TABLE (
+	ip_addr			inet
+) AS $$
+DECLARE
+	ip_array		inet[];
+	netblock_rec	RECORD;
+	parent_nbid		jazzhands.netblock.netblock_id%TYPE;
+	family_bits		integer;
+	idx				integer;
+BEGIN
+	IF netblock_id IS NOT NULL THEN
+		SELECT * INTO netblock_rec FROM netblock n WHERE n.netbock_id = 
+			list_unallocated_netblocks.netblock_id;
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'netblock_id % not found', netblock_id;
+		END IF;
+		IF netblock_rec.is_single_address = 'N' THEN
+			RETURN;
+		END IF;
+		ip_address := netblock_rec.ip_address;
+		ip_universe_id := netblock_rec.ip_universe_id;
+		netblock_type := netblock_rec.netblock_type;
+	ELSIF ip_address IS NULL THEN
+		RAISE EXCEPTION 'netblock_id or ip_address must be passed';
+	END IF;
+	SELECT ARRAY(
+		SELECT 
+			n.ip_address
+		FROM
+			netblock n
+		WHERE
+			n.ip_address <<= list_unallocated_netblocks.ip_address AND
+			n.ip_universe_id = list_unallocated_netblocks.ip_universe_id AND
+			n.netblock_type = list_unallocated_netblocks.netblock_type AND
+			is_single_address = 'N' AND
+			can_subnet = 'N'
+		ORDER BY
+			n.ip_address
+	) INTO ip_array;
+
+	IF array_length(ip_array, 1) IS NULL THEN
+		ip_addr := ip_address;
+		RETURN NEXT;
+		RETURN;
+	END IF;
+
+	ip_array := array_prepend(
+		list_unallocated_netblocks.ip_address - 1, 
+		array_append(
+			ip_array, 
+			broadcast(list_unallocated_netblocks.ip_address) + 1
+			));
+
+	idx := 1;
+	WHILE idx < array_length(ip_array, 1) LOOP
+		RETURN QUERY SELECT cin.ip_addr FROM
+			netblock_utils.calculate_intermediate_netblocks(ip_array[idx], ip_array[idx + 1]) cin;
+		idx := idx + 1;
+	END LOOP;
+
+	RETURN;
+END;
+$$ LANGUAGE 'plpgsql';
+
+CREATE OR REPLACE FUNCTION netblock_utils.calculate_intermediate_netblocks(
+	ip_block_1		inet DEFAULT NULL,
+	ip_block_2		inet DEFAULT NULL
+) RETURNS TABLE (
+	ip_addr			inet
+) AS $$
+DECLARE
+	current_nb		inet;
+	new_nb			inet;
+	min_addr		inet;
+	max_addr		inet;
+BEGIN
+	IF ip_block_1 IS NULL OR ip_block_2 IS NULL THEN
+		RAISE EXCEPTION 'Must specify both ip_block_1 and ip_block_2';
+	END IF;
+
+	IF family(ip_block_1) != family(ip_block_2) THEN
+		RAISE EXCEPTION 'families of ip_block_1 and ip_block_2 must match';
+	END IF;
+
+	-- Make sure these are network blocks
+	ip_block_1 := network(ip_block_1);
+	ip_block_2 := network(ip_block_2);
+
+	-- If the blocks are subsets of each other, then error
+
+	IF ip_block_1 <<= ip_block_2 OR ip_block_2 <<= ip_block_1 THEN
+		RAISE EXCEPTION 'netblocks intersect each other';
+	END IF;
+
+	-- Order the blocks correctly
+
+	IF ip_block_1 > ip_block_2 THEN
+		new_nb := ip_block_1;
+		ip_block_1 := ip_block_2;
+		ip_block_2 := new_nb;
+	END IF;
+
+	current_nb := ip_block_1;
+	max_addr := broadcast(ip_block_1);
+
+	-- Loop through bumping the netmask up and seeing if the destination block is in the new block
+	LOOP
+		new_nb := network(set_masklen(current_nb, masklen(current_nb) - 1));
+
+		-- If the block is in our new larger netblock, then exit this loop
+		IF (new_nb >>= ip_block_2) THEN
+			current_nb := broadcast(current_nb) + 1;
+			EXIT;
+		END IF;
+	
+		-- If the max address of the new netblock is larger than the last one, then it's empty
+		IF set_masklen(broadcast(new_nb), 32) > set_masklen(max_addr, 32) THEN
+			ip_addr := set_masklen(max_addr + 1, masklen(current_nb));
+			RETURN NEXT;
+			max_addr := broadcast(new_nb);
+		END IF;
+		current_nb := new_nb;
+	END LOOP;
+
+	-- Now loop through there to find the unused blocks at the front
+
+	LOOP
+		IF host(current_nb) = host(ip_block_2) THEN
+			RETURN;
+		END IF;
+		current_nb := set_masklen(current_nb, masklen(current_nb) + 1);
+		IF NOT (current_nb >>= ip_block_2) THEN
+			ip_addr := current_nb;
+			RETURN NEXT;
+			current_nb := broadcast(current_nb) + 1;
+			CONTINUE;
+		END IF;
+	END LOOP;
+	RETURN;
+END;
+$$ LANGUAGE plpgsql;
