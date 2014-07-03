@@ -256,7 +256,7 @@ BEGIN
 			USING ERRCODE = 'JH110';
 		END IF;
 
-		RAISE NOTICE 'ip_address is %', inet_rec.ip_address;
+		RAISE DEBUG 'ip_address is %', inet_rec.ip_address;
 
 		INSERT INTO netblock (
 			ip_address,
