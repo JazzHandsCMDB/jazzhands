@@ -278,12 +278,12 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(
 	ip_universe_id	jazzhands.netblock.ip_universe_id%TYPE
 ) AS $$
 BEGIN
-	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
-		parent_netblock_id := parent_netblock_id,
-		netmask_bits := netmask_bits,
-		single_address := single_address,
-		allocate_from_bottom := allocate_from_bottom,
-		max_addresses := 1);
+	RETURN QUERY SELECT * FROM netblock_utils.find_free_netblocks(
+			parent_netblock_id := parent_netblock_id,
+			netmask_bits := netmask_bits,
+			single_address := single_address,
+			allocate_from_bottom := allocate_from_bottom,
+			max_addresses := 1);
 END;
 $$ LANGUAGE plpgsql;
 
@@ -299,7 +299,7 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
 	ip_universe_id	jazzhands.netblock.ip_universe_id%TYPE
 ) AS $$
 BEGIN
-	RETURN QUERY SELECT netblock_utils.find_free_netblocks(
+	RETURN QUERY SELECT * FROM netblock_utils.find_free_netblocks(
 		parent_netblock_list := ARRAY[parent_netblock_id],
 		netmask_bits := netmask_bits,
 		single_address := single_address,
@@ -322,7 +322,6 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
 DECLARE
 	parent_nbid		jazzhands.netblock.netblock_id%TYPE;
 	step			integer;
-	nb_size			integer;
 	offset			integer;
 	netblock_rec	jazzhands.netblock%ROWTYPE;
 	current_ip		inet;
@@ -374,15 +373,13 @@ BEGIN
 		-- It would be nice to be able to use generate_series here, but
 		-- that could get really huge
 
-		nb_size := 1 << ( family_bits - netmask_bits );
 		min_ip := netblock_rec.ip_address;
-		max_ip := min_ip + (1 << (family_bits - masklen(min_ip)));
+		max_ip := broadcast(min_ip) + 1;
 
 		IF allocate_from_bottom THEN
 			current_ip := set_masklen(netblock_rec.ip_address, netmask_bits);
 		ELSE
-			current_ip := set_masklen(max_ip, netmask_bits) - nb_size;
-			nb_size := -nb_size;
+			current_ip := network(set_masklen(max_ip - 1, netmask_bits));
 		END IF;
 
 		RAISE DEBUG 'Searching netblock % (%)',
@@ -391,20 +388,28 @@ BEGIN
 
 		-- For single addresses, make the netmask match the netblock of the
 		-- containing block, and skip the network and broadcast addresses
+		-- We shouldn't need to skip for IPv6 addresses, but some things
+		-- apparently suck
 
 		IF single_address THEN
-			current_ip := set_masklen(current_ip, masklen(netblock_rec.ip_address));
-			IF family(netblock_rec.ip_address) = 4 AND
-					masklen(netblock_rec.ip_address) < 31 THEN
-				current_ip := current_ip + nb_size;
-				min_ip := min_ip - 1;
+			current_ip := set_masklen(current_ip, 
+				masklen(netblock_rec.ip_address));
+			--
+			-- If we're not allocating a single /31 or /32 for IPv4 or
+			-- /127 or /128 for IPv6, then we want to skip the all-zeros
+			-- and all-ones addresses
+			--
+			IF masklen(netblock_rec.ip_address) < (family_bits - 1) THEN
+				current_ip := current_ip + 
+					CASE WHEN allocate_from_bottom THEN 1 ELSE -1 END;
+				min_ip := min_ip + 1;
 				max_ip := max_ip - 1;
 			END IF;
 		END IF;
 
-		RAISE DEBUG 'Starting with IP address % with step of %',
+		RAISE DEBUG 'Starting with IP address % with step masklen of %',
 			current_ip,
-			nb_size;
+			netmask_bits;
 
 		WHILE (
 				current_ip >= min_ip AND
@@ -434,7 +439,18 @@ BEGIN
 				matches := matches + 1;
 			END IF;
 
-			current_ip := current_ip + nb_size;
+			current_ip := 
+				CASE WHEN single_address THEN
+					current_ip + 
+					CASE WHEN allocate_from_bottom THEN 1 ELSE -1 END
+				ELSE
+					CASE WHEN allocate_from_bottom THEN 
+						network(broadcast(current_ip) + 1)
+					ELSE 
+						network(current_ip - 1)
+					END
+				END;
+
 		END LOOP;
 	END LOOP;
 	RETURN;
