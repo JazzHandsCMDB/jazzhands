@@ -46,6 +46,9 @@ else
 fi
 
 %changelog
+* Fri Jun 27 2014 Todd Kover <kovert@omniscient.com> 0.58.5
+- fix ssh ordering
+- only chown if . is not readable
 * Fri Jun 27 2014 Todd Kover <kovert@omniscient.com> 0.58.4
 - make device collection ssh key overrides properly deal with recursion
 - only chdir if . is not writeable
