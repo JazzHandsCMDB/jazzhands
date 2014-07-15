@@ -83,10 +83,14 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	address_type			text DEFAULT 'netblock',
 	-- alternatvies: 'single', 'loopback'
 	can_subnet				boolean DEFAULT true,
-	allocate_from_bottom	boolean DEFAULT true,
+	allocation_method		text DEFAULT NULL,
+	-- alternatives: 'top', 'bottom', 'random',
+	rnd_masklen_threshold	integer DEFAULT 110,
+	rnd_max_count			integer DEFAULT 1024,
+	ip_address				jazzhands.netblock.ip_address%TYPE DEFAULT NULL,
 	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
 	netblock_status			jazzhands.netblock.netblock_status%TYPE
-								DEFAULT NULL
+								DEFAULT 'Allocated'
 ) RETURNS jazzhands.netblock AS $$
 DECLARE
 	netblock_rec	RECORD;
@@ -96,8 +100,11 @@ BEGIN
 		netmask_bits := netmask_bits,
 		address_type := address_type,
 		can_subnet := can_subnet,
-		allocate_from_bottom := allocate_from_bottom,
 		description := description,
+		allocation_method := allocation_method,
+		ip_address := ip_address,
+		rnd_masklen_threshold := rnd_masklen_threshold,
+		rnd_max_count := rnd_max_count,
 		netblock_status := netblock_status
 	);
 	RETURN netblock_rec;
@@ -111,10 +118,14 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	address_type			text DEFAULT 'netblock',
 	-- alternatvies: 'single', 'loopback'
 	can_subnet				boolean DEFAULT true,
-	allocate_from_bottom	boolean DEFAULT true,
+	allocation_method		text DEFAULT NULL,
+	-- alternatives: 'top', 'bottom', 'random',
+	rnd_masklen_threshold	integer DEFAULT 110,
+	rnd_max_count			integer DEFAULT 1024,
+	ip_address				jazzhands.netblock.ip_address%TYPE DEFAULT NULL,
 	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
 	netblock_status			jazzhands.netblock.netblock_status%TYPE
-								DEFAULT NULL
+								DEFAULT 'Allocated'
 ) RETURNS jazzhands.netblock AS $$
 DECLARE
 	parent_rec		RECORD;
@@ -132,7 +143,7 @@ BEGIN
 		RAISE 'address_type must be one of netblock, single, or loopback'
 		USING ERRCODE = 'invalid_parameter_value';
 	END IF;
-		
+
 	IF netmask_bits IS NULL AND address_type = 'netblock' THEN
 		RAISE EXCEPTION
 			'You must specify a netmask when address_type is netblock'
@@ -193,7 +204,8 @@ BEGIN
 			parent_netblock_list := parent_netblock_list,
 			netmask_bits := loopback_bits,
 			single_address := false,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
+			desired_ip_address := ip_address,
 			max_addresses := 1
 			);
 
@@ -247,7 +259,10 @@ BEGIN
 		SELECT * INTO inet_rec FROM netblock_utils.find_free_netblocks(
 			parent_netblock_list := parent_netblock_list,
 			single_address := true,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
+			desired_ip_address := ip_address,
+			rnd_masklen_threshold := rnd_masklen_threshold,
+			rnd_max_count := rnd_max_count,
 			max_addresses := 1
 			);
 
@@ -283,7 +298,8 @@ BEGIN
 			parent_netblock_list := parent_netblock_list,
 			netmask_bits := netmask_bits,
 			single_address := false,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
+			desired_ip_address := ip_address,
 			max_addresses := 1);
 
 		IF NOT FOUND THEN
