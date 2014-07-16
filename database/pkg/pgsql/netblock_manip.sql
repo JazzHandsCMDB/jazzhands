@@ -153,7 +153,7 @@ BEGIN
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
 
-	FOR parent_rec IN SELECT * FROM netblock WHERE netblock_id = 
+	FOR parent_rec IN SELECT * FROM jazzhands.netblock WHERE netblock_id = 
 			ANY(allocate_netblock.parent_netblock_list) FOR UPDATE LOOP
 
 		IF parent_rec.is_single_address = 'Y' THEN
@@ -214,7 +214,7 @@ BEGIN
 			USING ERRCODE = 'JH110';
 		END IF;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -233,7 +233,7 @@ BEGIN
 			allocate_netblock.netblock_status
 		) RETURNING * INTO parent_rec;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -273,7 +273,7 @@ BEGIN
 
 		RAISE DEBUG 'ip_address is %', inet_rec.ip_address;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -307,7 +307,7 @@ BEGIN
 			USING ERRCODE = 'JH110';
 		END IF;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
