@@ -43,8 +43,8 @@
 -- Name: id_tag(); Type: FUNCTION; Schema: netblock_utils; Owner: jazzhands
 --
 
-drop schema if exists netblock_manip cascade;
-create schema netblock_manip authorization jazzhands;
+drop schema if exists netblock_utils cascade;
+create schema netblock_utils authorization jazzhands;
 
 -- Create schema if it does not exist, do nothing otherwise.
 DO $$
