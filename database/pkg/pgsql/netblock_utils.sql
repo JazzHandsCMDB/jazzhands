@@ -82,7 +82,7 @@ BEGIN
 	select  Netblock_Id
 	  into	par_nbid
 	  from  ( select Netblock_Id, Ip_Address
-		    from netblock
+		    from jazzhands.netblock
 		   where
 		   	in_IpAddress <<= ip_address
 		    and is_single_address = 'N'
@@ -105,7 +105,7 @@ BEGIN
 		select  Netblock_Id
 		  into	par_nbid
 		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
-			    from netblock
+			    from jazzhands.netblock
 			   where
 			   	in_IpAddress <<= ip_address
 			    and is_single_address = 'N'
@@ -118,7 +118,7 @@ BEGIN
 				and (in_netblock_id IS NULL OR
 					netblock_id != in_netblock_id)
 				and netblock_id not IN (
-					select parent_netblock_id from netblock 
+					select parent_netblock_id from jazzhands.netblock 
 						where is_single_address = 'N'
 						and parent_netblock_id is not null
 				)
@@ -541,7 +541,7 @@ BEGIN
 		) LOOP
 			RAISE DEBUG '   Checking netblock %', current_ip;
 
-			PERFORM * FROM netblock n WHERE
+			PERFORM * FROM jazzhands.netblock n WHERE
 				n.ip_universe_id = netblock_rec.ip_universe_id AND
 				n.netblock_type = netblock_rec.netblock_type AND
 				-- A block with the parent either contains or is contained
@@ -611,7 +611,7 @@ DECLARE
 	idx				integer;
 BEGIN
 	IF netblock_id IS NOT NULL THEN
-		SELECT * INTO netblock_rec FROM netblock n WHERE n.netblock_id = 
+		SELECT * INTO netblock_rec FROM jazzhands.netblock n WHERE n.netblock_id = 
 			list_unallocated_netblocks.netblock_id;
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'netblock_id % not found', netblock_id;
