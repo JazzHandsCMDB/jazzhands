@@ -210,7 +210,7 @@ BEGIN
 			);
 
 		IF NOT FOUND THEN
-			RETURN;
+			RETURN NULL;
 		END IF;
 
 		INSERT INTO jazzhands.netblock (
@@ -266,7 +266,7 @@ BEGIN
 			);
 
 		IF NOT FOUND THEN
-			RETURN;
+			RETURN NULL;
 		END IF;
 
 		RAISE DEBUG 'ip_address is %', inet_rec.ip_address;
@@ -301,7 +301,7 @@ BEGIN
 			max_addresses := 1);
 
 		IF NOT FOUND THEN
-			RETURN;
+			RETURN NULL;
 		END IF;
 
 		INSERT INTO jazzhands.netblock (
