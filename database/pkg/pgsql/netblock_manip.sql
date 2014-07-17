@@ -210,8 +210,7 @@ BEGIN
 			);
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'No valid netblocks found to allocate'
-			USING ERRCODE = 'JH110';
+			RETURN;
 		END IF;
 
 		INSERT INTO jazzhands.netblock (
@@ -267,8 +266,7 @@ BEGIN
 			);
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'No valid netblocks found to allocate'
-			USING ERRCODE = 'JH110';
+			RETURN;
 		END IF;
 
 		RAISE DEBUG 'ip_address is %', inet_rec.ip_address;
@@ -303,8 +301,7 @@ BEGIN
 			max_addresses := 1);
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'No valid netblocks found to allocate'
-			USING ERRCODE = 'JH110';
+			RETURN;
 		END IF;
 
 		INSERT INTO jazzhands.netblock (
