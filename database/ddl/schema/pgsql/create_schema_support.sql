@@ -619,6 +619,10 @@ END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
+-- NEED:  something to drop an object (view or function), save grants and deal with dependencies
+--
+
+--
 -- Saves relations dependant on an object for reply.
 --
 CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(

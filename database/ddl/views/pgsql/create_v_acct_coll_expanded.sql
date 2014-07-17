@@ -4,6 +4,7 @@ WITH RECURSIVE acct_coll_recurse (
 	root_account_collection_id,
 	account_collection_id,
 	array_path,
+	rvs_array_path,
 	cycle
 ) AS (
 		SELECT
@@ -11,6 +12,7 @@ WITH RECURSIVE acct_coll_recurse (
 			ac.account_collection_id as root_account_collection_id,
 			ac.account_collection_id as account_collection_id,
 			ARRAY[ac.account_collection_id] as array_path,
+			ARRAY[ac.account_collection_id] as rvs_array_path,
 			false
 		FROM
 			account_collection ac
@@ -20,6 +22,8 @@ WITH RECURSIVE acct_coll_recurse (
 			x.root_account_collection_id as root_account_collection_id,
 			ach.account_collection_id as account_collection_id,
 			x.array_path || ach.account_collection_id as array_path,
+			ach.account_collection_id || x.rvs_array_path 
+				as rvs_array_path,
 			ach.account_collection_id = ANY(array_path) as cycle
 		FROM
 			acct_coll_recurse x JOIN account_collection_hier ach ON
@@ -31,7 +35,7 @@ WITH RECURSIVE acct_coll_recurse (
 		account_collection_id,
 		root_account_collection_id,
 		array_to_string(array_path, '/') as text_path,
-		array_path
+		array_path,
+		rvs_array_path
 	FROM
 		acct_coll_recurse;
-
