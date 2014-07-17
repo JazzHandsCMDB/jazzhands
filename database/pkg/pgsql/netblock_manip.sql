@@ -163,7 +163,8 @@ BEGIN
 
 		IF inet_family IS NULL THEN
 			inet_family := family(parent_rec.ip_address);
-		ELSIF inet_family != family(parent_rec.ip_address) THEN
+		ELSIF inet_family != family(parent_rec.ip_address) 
+				AND ip_address IS NULL THEN
 			RAISE EXCEPTION 'Allocation may not mix IPv4 and IPv6 addresses'
 			USING ERRCODE = 'JH10F';
 		END IF;
