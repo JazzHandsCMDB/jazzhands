@@ -402,6 +402,14 @@ BEGIN
 		-- irrelevant
 
 		IF desired_ip_address IS NOT NULL THEN
+			--
+			-- If the IP address is not the same family as the parent block,
+			-- we aren't going to find it
+			--
+			IF family(desired_ip_address) != 
+					family(netblock_rec.ip_address) THEN
+				CONTINUE;
+			END IF;
 			allocation_method := 'bottom';
 		END IF;
 
