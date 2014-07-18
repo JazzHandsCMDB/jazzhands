@@ -193,8 +193,7 @@ BEGIN
 	END LOOP;
 
  	IF NOT FOUND THEN
- 		RAISE EXCEPTION 'parent_netblock_list is not valid'
- 			USING ERRCODE = 'invalid_parameter_value';
+ 		RETURN NULL;
  	END IF;
 
 	IF address_type = 'loopback' THEN
