@@ -28,7 +28,7 @@ use base 'Net::LDAP';
 use JazzHands::AppAuthAL;
 use AN::DNS;
 
-use Carp 'confess';
+use Carp qw(confess croak);
 
 #TODO
 # pod to describe json file format

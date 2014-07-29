@@ -620,6 +620,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- NEED:  something to drop an object (view or function), save grants and deal with dependencies
+-- probably want a restore everything function too
 --
 
 --
@@ -628,7 +629,8 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
 	schema varchar,
 	object varchar,
-	dropit boolean DEFAULT true
+	dropit boolean DEFAULT true,
+	doobjectdeps boolean DEFAULT false,
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -671,6 +673,10 @@ BEGIN
 			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit);
 		END IF;
 	END LOOP;
+	IF doobjectdeps THEN
+		PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
+		PERFORM schema_support.save_constraint_for_replay('jazzhands', 'table');
+	END IF;
 END;
 $$ 
 SET search_path=schema_support
@@ -868,7 +874,7 @@ schema_support.end_maintenance
 These will save an object for replay, including presering grants
 automatically:
 
-SELECT schema_support.save_function_for_replayjazzhands', 'fncname');
+SELECT schema_support.save_function_for_replay('jazzhands', 'fncname');
 	- saves all function of a given name
 
 SELECT schema_support.save_view_for_replay('jazzhands',  'mytableorview');
