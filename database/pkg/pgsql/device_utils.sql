@@ -257,10 +257,18 @@ BEGIN
 	PERFORM device_utils.purge_physical_ports( in_Device_id);
 	PERFORM device_utils.purge_power_ports( in_Device_id);
 
+	delete from property where device_collection_id in (
+		SELECT	dc.device_collection_id 
+		  FROM	device_collection dc
+				INNER JOIN device_collection_device dcd
+		 			USING (device_collection_id)
+		WHERE	dc.device_collection_type = 'per-device'
+		  AND	dcd.device_id = in_Device_id
+	);
+
 	delete from device_collection_device where device_id = in_Device_id;
 	delete from snmp_commstr where device_id = in_Device_id;
 
-	delete from property where device_collection_id = in_Device_id;
 		
 	IF _d.rack_location_id IS NOT NULL  THEN
 		UPDATE device SET rack_location_id = NULL 
