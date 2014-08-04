@@ -94,3 +94,46 @@ which you do as follows.
                 extended properties and place it in the "Personal" store
                 (which should be checked)
 
+Also --
+
+In order to allow password changes and other user attributes on Active
+Directory to work from a feed, this process needs to be followed:
+
+Create security group for sync user and add user to group
+
+on user OU grant the following permissions to sync security group (jazzhands_sg):
+	Create/Delete InetOrgPerson objects
+	Create/Delete msWMI-Som objects
+	Create/Delete Group objects
+	Create/Delete User objects
+
+to account for Domain/Enterprise admins:
+	locate the CN=AdminSDHolder container in the ou=System
+	grant the security group above:
+	List Contents
+	Read All Properties
+	Write All Properties
+
+then using the command line grant password reset access:
+	dsacls "CN=AdminSDHolder,CN=System,DC=ad,DC=example,DC=com" /G "AD\jazzhands_sg:CA"
+
+to push out changes to CN=AdminSDHolder immiedately you need to
+have access to run a special ldapmodify against the root DN Navigate
+to the root container using ADSI and add your user account to the
+container granting Run Protected Admin Group Tasks on the object
+and all decendents
+
+use ldp.exe to connect to the ldap and run a modify against the root. leave dn blank
+attribute: RunProtectAdminGroupsTask
+value: 1
+uncheck syncronise run
+click enter
+click run
+this will queue up the action, go to pending. excute the queued query
+
+or do this:
+dn:
+changetype: modify
+add: runProtectAdminGroupsTask
+runProtectAdminGroupsTask: 1
+
