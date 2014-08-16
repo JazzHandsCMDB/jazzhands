@@ -152,7 +152,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- This needs to be expanded to properly deal with the person already being there
 -- and what not.
 --
-CREATE OR REPLACE FUNCTION person_manip.add_account(
+CREATE OR REPLACE FUNCTION person_manip.add_user(
 	company_id INTEGER,
 	person_company_relation VARCHAR,
 	login VARCHAR DEFAULT NULL,
@@ -274,7 +274,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
--- THIS IS DEPRECATED.  Call add_account instead.
+-- THIS IS DEPRECATED.  Call add_user instead.
 --
 CREATE OR REPLACE FUNCTION person_manip.add_person(
 	__person_id INTEGER,
@@ -314,7 +314,7 @@ BEGIN
 		_person_id,
 		_account_collection_id,
 		_account_id
-	FROM	person_manip.add_account (
+	FROM	person_manip.add_user (
 			person_id := __person_id,
 			first_name := first_name,
 			middle_name := middle_name,
@@ -344,7 +344,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --
 -- THIS FUNCTION IS DEPRECATED AND WILL GO AWAY.  Call add_person instead
 --
-CREATE OR REPLACE FUNCTION person_manip.add_account_non_person(
+CREATE OR REPLACE FUNCTION person_manip.add_user_non_person(
 	_company_id integer, 
 	_account_status character varying, 
 	_login character varying, 
@@ -357,7 +357,7 @@ DECLARE
 BEGIN
     SELECT account_id
      INTO  __account_id
-     FROM  person_manip.add_account(
+     FROM  person_manip.add_user(
         company_id := _company_id,
         person_company_relation := 'pseudouser',
         login := _login,
