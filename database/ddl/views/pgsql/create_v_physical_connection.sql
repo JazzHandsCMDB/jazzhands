@@ -1,4 +1,4 @@
--- Copyright (c) 2013, Todd M. Kover
+-- Copyright (c) 2013-2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +28,9 @@ with recursive var_recurse (
 	layer1_physical_port1_id,
 	layer1_physical_port2_id,
 	physical_port1_id,
-	physical_port2_id
+	physical_port2_id,
+	array_path,
+	cycle
 ) as (
 	       select 	0,
 			l1.layer1_connection_id,
@@ -36,7 +38,9 @@ with recursive var_recurse (
 	                l1.physical_port1_id	as layer1_physical_port1_id,
 	                l1.physical_port2_id	as layer1_physical_port2_id,
 	                pc.physical_port1_id,
-	                pc.physical_port2_id
+	                pc.physical_port2_id,
+			ARRAY[physical_port1_id] as array_path,
+			false			 as cycle
 	          from  layer1_connection l1
 	        	inner join physical_connection pc
 				using (physical_port1_id)
@@ -47,7 +51,9 @@ UNION ALL
                 x.physical_port1_id 	as layer1_physical_port1_id,
                 x.physical_port2_id 	as layer1_physical_port2_id,
                 pc.physical_port1_id,
-                pc.physical_port2_id
+                pc.physical_port2_id,
+		pc.physical_port1_id || x.array_path as array_path,
+		pc.physical_port1_id = ANY(x.array_path) as cycle
 	FROM    var_recurse x
 	        inner join physical_connection pc
 	                on x.physical_port2_id = pc.physical_port1_id

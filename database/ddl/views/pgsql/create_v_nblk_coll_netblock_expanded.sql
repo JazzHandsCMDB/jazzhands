@@ -1,4 +1,4 @@
--- Copyright (c) 2011, Todd M. Kover
+-- Copyright (c) 2011-2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,32 +22,34 @@ WITH RECURSIVE var_recurse (
 	root_collection_id,
 	netblock_collection_id,
 	child_netblock_collection_id,
-	netblock_id
+	array_path,
+	cycle
 ) as (
 	SELECT	
 		0				as level,
 		u.netblock_collection_id		as root_collection_id, 
 		u.netblock_collection_id		as netblock_collection_id, 
 		u.netblock_collection_id		as child_netblock_collection_id,
-		ua.netblock_Id			as netblock_id
+		ARRAY[u.netblock_collection_id]	as array_path,
+		false							as cycle
 	  FROM	netblock_collection u
-		inner join netblock_collection_netblock ua
-			on u.netblock_collection_id =
-				ua.netblock_collection_id
 UNION ALL
 	SELECT	
 		x.level + 1			as level,
 		x.netblock_collection_id		as root_netblock_collection_id, 
 		uch.netblock_collection_id		as netblock_collection_id, 
 		uch.child_netblock_collection_id	as child_netblock_collection_id,
-		ua.netblock_Id			as netblock_id
+		uch.child_netblock_collection_id ||
+			x.array_path				as array_path,
+		uch.child_netblock_collection_id =
+			ANY(x.array_path)			as cycle
+		
 	  FROM	var_recurse x
 		inner join netblock_collection_hier uch
 			on x.child_netblock_collection_id =
 				uch.netblock_collection_id
-		inner join netblock_collection_netblock ua
-			on uch.child_netblock_collection_id =
-				ua.netblock_collection_id
+	WHERE	NOT x.cycle
 ) SELECT	distinct root_collection_id as netblock_collection_id,
 		netblock_id as netblock_id
-  from 		var_recurse;
+  from 		var_recurse
+	join netblock_collection_netblock using (netblock_collection_id);

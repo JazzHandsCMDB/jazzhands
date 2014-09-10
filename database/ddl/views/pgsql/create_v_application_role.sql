@@ -1,4 +1,4 @@
--- Copyright (c) 2011, Todd M. Kover
+-- Copyright (c) 2011-2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,9 @@ WITH RECURSIVE var_recurse(
 	root_role_name,
 	role_name,
 	role_path,
-	role_is_leaf
+	role_is_leaf,
+	array_path,
+	cycle
 ) as (
 	SELECT	
 		0					as role_level,
@@ -35,7 +37,9 @@ WITH RECURSIVE var_recurse(
 		device_collection_name			as root_role_name,
 		device_collection_name			as role_name,
 		'/'||device_collection_name		as role_path,
-		'N'					as role_is_leaf
+		'N'								as role_is_leaf,
+		ARRAY[device_collection_id]		as array_path,
+		false							as cycle
 	FROM
 		device_collection
 	WHERE
@@ -54,7 +58,9 @@ UNION ALL
 		case WHEN lchk.parent_device_collection_id IS NULL
 			THEN 'Y'
 			ELSE 'N'
-			END 					as role_is_leaf
+			END 					as role_is_leaf,
+		dch.parent_device_collection_id || x.array_path	as array_path,
+		dch.parent_device_collection_id = ANY(x.array_path)	as cycle
 	FROM	var_recurse x
 		inner join device_collection_hier dch
 			on x.role_id = dch.parent_device_collection_id
@@ -63,6 +69,7 @@ UNION ALL
 		left join device_collection_hier lchk
 			on dch.device_collection_id 
 				= lchk.parent_device_collection_id
+	WHERE NOT x.cycle
 ) SELECT distinct * FROM var_recurse;
 
 -- consider adding order by root_role_id, role_level, length(role_path)
