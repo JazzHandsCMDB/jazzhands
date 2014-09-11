@@ -1354,6 +1354,7 @@ my $forceall    = 0;
 my $nosoa       = 0;
 my $help	= 0;
 my $norsynclist = 0;
+my $nogen 	= 0;
 
 my $mysite;
 
@@ -1363,6 +1364,7 @@ GetOptions(
 	'help'	  => \$help,	   # duh.
 	'verbose|v'     => \$verbose,	# duh.
 	'debug'	 => \$debug,	  # even more verbosity.
+	'nogen'      => \$nogen,	 # do not generate any zones
 	'genall|a'      => \$genall,	 # generate all, not just new
 	'forcegen|f'    => \$forcegen,       # force generation of zones
 	'force|f'       => \$forceall,       # force everything
@@ -1375,6 +1377,11 @@ GetOptions(
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
+
+if($nogen) {
+	warn "--nogen specified; exiting\n" if($verbose);
+	exit 0;
+}
 
 if ($dumpzone) {
 	if ( $#ARGV > 0 ) {
@@ -1640,6 +1647,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 	process_domain( $dbh, $zoneroot, $domid, $dom, undef, $last, $bumpsoa );
 
 }
+warn "Done Generating Zones\n" if($verbose);
 
 my $docommit = 0;
 
@@ -1658,7 +1666,9 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		$docommit++;
 	}
 }
+warn "Done bumping SOAs\n" if($debug);
 
+warn "Purging processed DNS_CHANGE_RECORD records\n" if($verbose); 
 #
 # purge dns change records that were processed
 #
@@ -1693,18 +1703,22 @@ if ( !$nosoa ) {
 	}
 }
 
+warn "Generating acl file\n" if($verbose); 
 generate_named_acl_file( $dbh, $output_root . "/etc", "sitecodeacl.conf" );
 
 if ( !$norsynclist ) {
+	warn "Generating rsync list\n" if($verbose); 
 	generate_rsync_list( $dbh, $output_root, "rsynchostlist.txt", $mysite );
 }
 
 #
 # Final cleanup
 #
+warn "Generating configuration files and whatnot..." if($debug); 
 process_perserver( $dbh, "../zones", $persvrroot, $generate );
 generate_complete_files( $dbh, $zoneroot, $generate );
 
+warn "Done file generation, about to commit\n" if($verbose); 
 if ($docommit) {
 	$dbh->commit;
 } else {
@@ -1758,6 +1772,7 @@ generate-zones [ options ] [ zone1 zone2 zone3 ... ]
 
 =item B<--no-rsynclist> do not generate a node list
 
+=item B<--nogen> exit without doing anything
 
 =back
 
@@ -1915,6 +1930,10 @@ site, in which case, all devices with that property set, regardless of site
 will have the zones generated.   It should generally be alright if this
 happens because every host that generates zones should have the same zone
 files with the same dates.
+
+The B<--nogen> option is used to cause the script to exit. This is useful
+for wrapper scripts that will rsync if there is a bug in this such that
+generation hangs and zones needs to be pushed out anyway.
 
 =head1 ENVIRONMENT
 
