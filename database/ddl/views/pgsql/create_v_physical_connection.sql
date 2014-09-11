@@ -52,8 +52,8 @@ UNION ALL
                 x.physical_port2_id 	as layer1_physical_port2_id,
                 pc.physical_port1_id,
                 pc.physical_port2_id,
-		pc.physical_port1_id || x.array_path as array_path,
-		pc.physical_port1_id = ANY(x.array_path) as cycle
+		pc.physical_port2_id || x.array_path as array_path,
+		pc.physical_port2_id = ANY(x.array_path) as cycle
 	FROM    var_recurse x
 	        inner join physical_connection pc
 	                on x.physical_port2_id = pc.physical_port1_id
