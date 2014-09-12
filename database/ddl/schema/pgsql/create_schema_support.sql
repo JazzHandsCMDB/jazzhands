@@ -859,6 +859,249 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
+------------------------------------------------------------------------------
+-- BEGIN functions to undo audit rows
+--
+-- schema_support.undo_audit_row is the function that does all the work here;
+-- the rest just are support routines
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.get_pk_columns(
+	_schema		text,
+	_table		text
+) RETURNS text[] AS $$
+DECLARE
+	cols		text[];
+	_r			RECORD;
+BEGIN
+	for _r IN SELECT a.attname
+  			FROM pg_class c
+				INNER JOIN pg_namespace n on n.oid = c.relnamespace
+				INNER JOIN pg_index i ON i.indrelid = c.oid
+				INNER JOIN pg_attribute  a ON   a.attrelid = c.oid AND
+								a.attnum = any(i.indkey)
+			WHERE	c.relname = _table
+			AND		n.nspname = _schema
+			AND		indisprimary
+	LOOP
+		SELECT array_append(cols, _r.attname::text) INTO cols;
+	END LOOP;
+	RETURN cols;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.get_columns(
+	_schema		text,
+	_table		text
+) RETURNS text[] AS $$
+DECLARE
+	cols		text[];
+	_r			record;
+BEGIN
+	FOR _r IN SELECT  a.attname as colname,
+            pg_catalog.format_type(a.atttypid, a.atttypmod) as coltype,
+            a.attnotnull, a.attnum
+        FROM    pg_catalog.pg_attribute a
+				INNER JOIN pg_class c on a.attrelid = c.oid
+				INNER JOIN pg_namespace n on n.oid = c.relnamespace
+        WHERE   c.relname = _table
+		  AND	n.nspname = _schema
+          AND   a.attnum > 0
+          AND   NOT a.attisdropped
+		  AND	lower(a.attname) not like 'data_%'
+        ORDER BY a.attnum
+	LOOP
+		SELECT array_append(cols, _r.colname::text) INTO cols;
+	END LOOP;
+	RETURN cols;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.quote_ident_array(
+	_input		text[]
+) RETURNS text[] AS $$
+DECLARE
+	_rv		text[];
+	x		text;
+BEGIN
+	FOREACH x IN ARRAY _input
+	LOOP
+		SELECT array_append(_rv, quote_ident(x)) INTO _rv;
+	END LOOP;
+	RETURN _rv;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+-- Given a schema and table and (and and audit schema)
+-- and some audit characteristics, undo the effects of the record
+-- Note that this does not consider foreign keys, so the reply may fail
+--
+-- note also that the values are AND'd together, not OR'd
+-- 
+CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(
+	in_table		text,
+	in_audit_schema	text DEFAULT 'audit',
+	in_schema		text DEFAULT 'jazzhands',
+	in_start_time	timestamp DEFAULT NULL,
+	in_end_time		timestamp DEFAULT NULL,
+	in_aud_user		text DEFAULT NULL,
+	in_audit_ids	integer[] DEFAULT NULL
+) RETURNS INTEGER AS $$
+DECLARE
+	tally	integer;
+	pks		text[];
+	cols	text[];
+	q		text;
+	val		text;
+	x		text;
+	_whcl	text;
+	_eq		text;
+	setstr	text;
+	_r		record;
+	_c		record;
+	_br		record;
+	_vals	text[];
+BEGIN
+	tally := 0;
+	pks := schema_support.get_pk_columns(in_schema, in_table);
+	cols := schema_support.get_columns(in_schema, in_table);
+	q = '';
+	IF in_start_time is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#timestamp') || ' >= ' || quote_literal(in_start_time);
+	END IF;
+	IF in_end_time is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#timestamp') || ' <= ' || quote_literal(in_end_time);
+	END IF;
+	IF in_aud_user is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#user') || ' = ' || quote_literal(in_aud_user);
+	END IF;
+	IF in_audit_ids is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#seq') || ' IN ( ' ||
+			array_to_string(in_audit_ids, ',') || ')';
+	END IF;
+
+	-- Iterate over all the rows that need to be replayed
+	q := 'SELECT * from ' || quote_ident(in_audit_schema) || '.' ||
+			quote_ident(in_table) || ' ' || q || ' ORDER BY "aud#seq" desc';
+	FOR _r IN EXECUTE q
+	LOOP
+		IF _r."aud#action" = 'DEL' THEN
+			-- Build up a list of rows that need to be inserted
+			_vals = NULL;
+			FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+			LOOP
+				IF _c.key !~ 'data|aud' THEN
+					IF _c.value IS NULL THEN
+						SELECT array_append(_vals, 'NULL') INTO _vals;
+					ELSE
+						SELECT array_append(_vals, quote_literal(_c.value)) INTO _vals;
+					END IF;
+				END IF;
+			END LOOP;
+			_eq := 'INSERT INTO ' || quote_ident(in_schema) || '.' ||
+				quote_ident(in_table) || ' ( ' ||
+				array_to_string(
+					schema_support.quote_ident_array(cols), ',') || 
+					') VALUES (' ||  array_to_string(_vals, ',', NULL) || ')';
+		ELSIF _r."aud#action" in ('INS', 'UPD') THEN
+			-- Build up a where clause for this table to get a unique row
+			-- based on the primary key
+			FOREACH x IN ARRAY pks
+			LOOP
+				_whcl := '';
+				FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+				LOOP
+					IF _c.key = x THEN
+						IF _whcl != '' THEN
+							_whcl := _whcl || ', ';
+						END IF;
+						IF _c.value IS NULL THEN
+							_whcl = _whcl || quote_ident(_c.key) || ' = NULL ';
+						ELSE
+							_whcl = _whcl || quote_ident(_c.key) || ' =  ' ||
+								quote_nullable(_c.value);
+						END IF;
+					END IF;
+				END LOOP;
+			END LOOP;
+
+			IF _r."aud#action" = 'INS' THEN
+				_eq := 'DELETE FROM ' || quote_ident(in_schema) || '.' ||
+					quote_ident(in_table) || ' WHERE ' || _whcl;
+			ELSIF _r."aud#action" = 'UPD' THEN
+				-- figure out what rows have changed and do an update if
+				-- they have.  NOTE:  This may result in no change being
+				-- replayed if a row did not actually change
+				setstr = '';
+				FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+				LOOP
+					--
+					-- Iterate over all the columns and if they have changed,
+					-- then build an update statement
+					--
+					IF _c.key !~ 'aud#|data_(ins|upd)_(user|date)' THEN
+						EXECUTE 'SELECT ' || _c.key || ' FROM ' ||
+							quote_ident(in_schema) || '.' ||
+								quote_ident(in_table)  ||
+							' WHERE ' || _whcl
+							INTO val;
+						IF ( _c.value IS NULL  AND val IS NOT NULL) OR
+							( _c.value IS NOT NULL AND val IS NULL) OR
+							(_c.value::text NOT SIMILAR TO val::text) THEN
+							IF char_length(setstr) > 0 THEN
+								setstr = setstr || ',
+								';
+							END IF;
+							IF _c.value IS NOT  NULL THEN
+								setstr = setstr || _c.key || ' = ' ||  
+									quote_nullable(_c.value) || ' ' ;
+							ELSE
+								setstr = setstr || _c.key || ' = ' ||  
+									' NULL ' ;
+							END IF;
+						END IF;
+					END IF;
+				END LOOP;
+				IF char_length(setstr) > 0 THEN
+					_eq := 'UPDATE ' || quote_ident(in_schema) || '.' ||
+						quote_ident(in_table) || 
+						' SET ' || setstr || ' WHERE ' || _whcl;
+				END IF;
+			END IF;
+		END IF;
+		IF _eq IS NOT NULL THEN
+			tally := tally + 1;
+			RAISE NOTICE '%', _eq;
+			EXECUTE _eq;
+		END IF;
+	END LOOP;
+	RETURN tally;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+------------------------------------------------------------------------------
+-- DONE functions to undo audit rows
+------------------------------------------------------------------------------
+
+
 /**************************************************************
  *  FUNCTIONS
 
@@ -919,6 +1162,15 @@ THESE:
 
 will replay object creations and grants on them respectively.  They should
 be called in that order at the end of a maintenance script
+
+THIS:
+	schema_support.undo_audit_row()
+
+will build and execute a statement to undo changes made in an audit table
+against the current state.  It executes the queries in reverse order from
+execution so in theory can undo every operation on a table if called without
+restriction.  It does not cascade or otherwise do anything with foreign keys.
+	
 
 -------------------------------------------------------------------------------
 -- select schema_support.rebuild_stamp_triggers();
