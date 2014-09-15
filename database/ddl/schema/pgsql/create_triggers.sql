@@ -1168,7 +1168,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_svcenv_collection_hier_loop 
-	ON svcenv_collection_hier;
+	ON service_environment_coll_hier;
 CREATE TRIGGER trigger_check_svcenv_collection_hier_loop 
 AFTER INSERT OR UPDATE ON service_environment_coll_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_svcenv_colllection_hier_loop();
