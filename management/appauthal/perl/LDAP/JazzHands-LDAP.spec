@@ -20,7 +20,7 @@ packager:  K Z Win <kwin@appnexus.com>
 license:   Apache
 url:       http://www.jazzhands.net
 Source0:   %{name}-%{version}.tar.gz
-BuildRequires: perl-ExtUtils-MakeMaker
+BuildRequires: perl-ExtUtils-MakeMaker, perl-JazzHands-AppAuthAL, perl-LDAP
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
 prefix:    %(echo %{_prefix})
@@ -48,9 +48,10 @@ grep -v '.bak$' |xargs --no-run-if-empty \
 CFLAGS="$RPM_OPT_FLAGS"
 %{__perl} Makefile.PL `%{__perl} -MExtUtils::MakeMaker -e ' print qq|PREFIX=%{buildroot}%{_prefix}| if \$ExtUtils::MakeMaker::VERSION =~ /5\.9[1-6]|6\.0[0-5]/ '`
 %{__make} 
-%if %maketest
-%{__make} test
-%endif
+echo 1>&2 Skipping tests...
+#%if %maketest
+#%{__make} test
+#%endif
 
 %install
 [ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
