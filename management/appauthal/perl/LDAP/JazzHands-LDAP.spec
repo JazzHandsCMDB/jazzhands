@@ -20,6 +20,7 @@ packager:  K Z Win <kwin@appnexus.com>
 license:   Apache
 url:       http://www.jazzhands.net
 Source0:   %{name}-%{version}.tar.gz
+BuildRequires: perl-ExtUtils-MakeMaker
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
 prefix:    %(echo %{_prefix})
