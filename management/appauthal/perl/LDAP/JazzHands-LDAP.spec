@@ -13,8 +13,8 @@
 
 name:      perl-JazzHands-LDAP
 summary:   JazzHands-LDAP - Perl module
-version:   0.10
-release:   9
+version:   0.58.6
+release:   0
 vendor:    K Z Win <kwin@appnexus.com>
 packager:  K Z Win <kwin@appnexus.com>
 license:   Apache
