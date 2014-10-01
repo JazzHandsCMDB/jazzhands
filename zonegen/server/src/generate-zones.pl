@@ -462,16 +462,34 @@ sub generate_named_acl_file($$$) {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select	site_code, ip_address, description
-	 	  from	site_netblock
-				join netblock using (netblock_id)
-		 order by site_code, ip_address
+			SELECT * FROM (
+				SELECT '!' AS inclusion, psnb.site_code, nb.ip_address,
+					snb.site_code AS child_site_code,
+					pnb.ip_address AS parent_ip,
+					nb.description
+				  FROM  site_netblock snb
+						JOIN netblock nb using (netblock_id),
+					site_netblock psnb
+						JOIN netblock pnb using (netblock_id)
+				WHERE   psnb.site_code != snb.site_code
+				AND     pnb.ip_address >>= nb.ip_address
+			UNION
+				SELECT  NULL AS inclusion, site_code, ip_address, 
+						NULL AS child_site_code ,NULL AS parent_ip,
+						description
+				  FROM  site_netblock
+					JOIN netblock USING (netblock_id)
+			) subq
+			ORDER BY site_code, 
+				coalesce(parent_ip, ip_address), inclusion, 
+				masklen(ip_address) DESC
+
 	}
 	) || die $dbh->errstr;
 
 	$sth->execute || die $sth->errstr;
 	my $lastsite = undef;
-	while ( my ( $sc, $ip, $desc ) = $sth->fetchrow_array ) {
+	while ( my ( $inc, $sc, $ip, $ksc, $pip, $desc ) = $sth->fetchrow_array ) {
 		$sc =~ tr/A-Z/a-z/;
 		if ( defined($lastsite) && $sc ne $lastsite ) {
 			$out->print("};\n\n");
@@ -481,7 +499,12 @@ sub generate_named_acl_file($$$) {
 			$out->print("acl $sc\n{\n");
 		}
 		$lastsite = $sc;
-		$out->print( "\t$ip;", ($desc) ? "\t// $desc" : "", "\n" );
+		if($inc) {
+			my $desc = "[$ksc is not in $pip] ".(($desc)?$desc:"");
+		} else {
+			$inc = "";
+		}
+		$out->printf("\t%-35s\t// %s\n", "$inc$ip;", ($desc)?$desc:"" );
 	}
 	if ( defined($lastsite) ) {
 		$out->print("};\n\n");
