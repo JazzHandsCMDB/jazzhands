@@ -460,6 +460,37 @@ sub generate_named_acl_file($$$) {
 
 	$out->print("\n\n");
 
+	# generate explicitly defined acls
+	{
+	my $sth = $dbh->prepare_cached(qq{
+		SELECT	p.property_value AS acl_name, nb.ip_address, nb.description
+		FROM 	v_nblk_coll_netblock_expanded nbe
+				INNER JOIN property p USING (netblock_collection_id)
+				INNER JOIN netblock nb USING (netblock_id)
+		WHERE property_name = 'DNSACLs' and property_type = 'DNSZonegen'
+		ORDER BY 1,2;
+	}) || die $dbh->errstr;
+
+	$sth->execute || die $sth->errstr;
+	my $lastacl = undef;
+	while ( my ( $acl, $ip, $desc ) = $sth->fetchrow_array ) {
+		if ( defined($lastacl) && $acl ne $lastacl ) {
+			$out->print("};\n\n");
+			$lastacl = undef;
+		}
+		if ( !defined($lastacl) ) {
+			$out->print("acl $acl\n{\n");
+		}
+		$lastacl = $acl;
+		$out->printf("\t%-35s\t// %s\n", "$ip;", ($desc)?$desc:"" );
+	}
+	if ( defined($lastacl) ) {
+		$out->print("};\n\n");
+	}
+	}
+
+	# generate per site blocks
+	{
 	my $sth = $dbh->prepare_cached(
 		qq{
 			SELECT * FROM (
@@ -509,6 +540,8 @@ sub generate_named_acl_file($$$) {
 	if ( defined($lastsite) ) {
 		$out->print("};\n\n");
 	}
+	}
+
 	$out->close;
 
 	safe_mv_if_changed( $tmpfn, $fn );
