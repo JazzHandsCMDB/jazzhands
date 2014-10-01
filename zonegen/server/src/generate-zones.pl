@@ -500,7 +500,7 @@ sub generate_named_acl_file($$$) {
 		}
 		$lastsite = $sc;
 		if($inc) {
-			my $desc = "[$ksc is not in $pip] ".(($desc)?$desc:"");
+			$desc = "[$ksc vs $pip] ".(($desc)?$desc:"");
 		} else {
 			$inc = "";
 		}
