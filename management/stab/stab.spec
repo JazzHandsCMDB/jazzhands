@@ -158,6 +158,10 @@ rm -rf %{buildroot}
 %{prefix}/netblock/write/doadd.pl
 %{prefix}/netblock/write/addnetblock.pl
 %{prefix}/netblock/write/edit_netblock.pl
+%{prefix}/netblock/collection/
+%{prefix}/netblock/collection//index.pl
+%{prefix}/netblock/collection//netcol-ajax.pl
+%{prefix}/netblock/collection//update_nb.pl
 %{prefix}/dns/addazone.pl
 %{prefix}/dns/dns-reconcile.pl
 %{prefix}/dns/search.pl
