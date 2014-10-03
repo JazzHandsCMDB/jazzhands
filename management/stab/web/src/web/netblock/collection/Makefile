@@ -1,4 +1,20 @@
 #
+# Copyright (c) 2014, Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -24,24 +40,25 @@
 # $Id$
 #
 
-STAB_DIR=/prod/www/stab/docs/netblock
+STAB_DIR=/prod/www/stab/docs/netblock/collection
 
-SUBDIRS=write ipalloc collection
+SUBDIRS=
 
-SCRIPTS= index.pl  search.pl networkrange.pl
+SCRIPTS= index.pl netcol-ajax.pl update_nb.pl
 
 all:
-	@for subdir in $(SUBDIRS) ; do \
-		( cd $$subdir && $(MAKE) -e $(MFLAGS) all)  ;\
-	done
+	@echo nothing to do
+	@#for subdir in $(SUBDIRS) ; do \
+	@#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all) 
+	@#done
 
 install:
 	install -d -o root -g bin -m 755 $(DESTDIR)/$(STAB_DIR)
-	@for subdir in $(SUBDIRS) ; do \
-		here=`pwd` ;\
-		cd $$subdir && $(MAKE) -e $(MFLAGS) install ;\
-		cd $$here ;\
-	done
+	@#for subdir in $(SUBDIRS) ; do \
+	@#	here=`pwd` ;\
+	@#	cd $$subdir && $(MAKE) -e $(MFLAGS) install ;\
+	@#	cd $$here ;\
+	@#done
 	for script in $(SCRIPTS) ; do \
 		echo 1>&2 installing $$script into $(DESTDIR)/$(STAB_DIR) ;\
 		install -o root -g bin -m 755 $$script $(DESTDIR)/$(STAB_DIR)/$$script ;\

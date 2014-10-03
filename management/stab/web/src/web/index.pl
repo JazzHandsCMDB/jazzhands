@@ -88,6 +88,10 @@ print $cgi->ul(
 					{ href => "netblock/networkrange.pl" },
 					"Network Ranges (VPN/DHCP/etc)"
 				),
+				$cgi->a(
+					{ href => "netblock/collection/" },
+					"Netblock Collections"
+				),
 			]
 		)
 	),

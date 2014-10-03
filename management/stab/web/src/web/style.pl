@@ -293,6 +293,10 @@ input.srvnum {
 	visibility: hidden;
 }
 
+ul.collection {
+	list-style-type: lower-roman;		/* should be none */
+}
+
 span.netblocksite {
 	width: 8ex;
 	float: left;
@@ -346,6 +350,12 @@ table.interfacetable tr {
 
 #verifybox li {
 	list-style-type: none;
+}
+
+div.ncmanip {
+	text-align: center;
+	width: 100%;
+	display: inline-block;
 }
 
 END

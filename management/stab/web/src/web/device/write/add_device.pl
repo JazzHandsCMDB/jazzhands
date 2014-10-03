@@ -157,8 +157,32 @@ sub do_device_add {
 	$cfgfetch    = $stab->mk_chk_yn($cfgfetch);
 	$virtdev     = $stab->mk_chk_yn($virtdev);
 
-	my $new = {
+	my $numchanges = 0;
+	my (@errs);
+
+	my $newasset = {
+		PART_NUMBER           => $partno,
+		SERIAL_NUMBER         => $serialno,
+		OWNERSHIP_STATUS      => $owner,
+	};
+	if (
+		!(
+			$numchanges += $stab->DBInsert(
+				table  => 'asset',
+				hash   => $newasset,
+				errors => \@errs
+			)
+		)
+	  )
+	{
+		$stab->error_return( join( " ", @errs ) );
+	}
+
+	my $assetid = $newasset->{ _dbx('ASSET_ID') };
+
+	my $newdev = {
 		DEVICE_TYPE_ID        => $devtypeid,
+		ASSET_ID	      => $assetid,
 		DEVICE_NAME           => $device_name,
 		PART_NUMBER           => $partno,
 		SERIAL_NUMBER         => $serialno,
@@ -176,15 +200,24 @@ sub do_device_add {
 		VOE_SYMBOLIC_TRACK_ID => $voetrax,
 	};
 
-	my $devid;
+	#
+	# These columns are going away
+	#
+	if(! $stab->device_has_asset() {
+		delete( $newdev->{ _dbx('PART_NUMBER') } );
+		delete( $newdev->{ _dbx('SERIAL_NUMBER') } );
+		delete( $newdev->{ _dbx('ASSET_TAG') } );
+		delete( $newdev->{ _dbx('OWNERSHIP_STATUS') } );
+		delete( $newdev->{ _dbx('LEASE_EXPIRATION_DATE') } );
+	}
 
-	my @errs;
-	my $numchanges = 0;
+
+	$numchanges = 0;
 	if (
 		!(
 			$numchanges += $stab->DBInsert(
 				table  => 'device',
-				hash   => $new,
+				hash   => $newdev,
 				errors => \@errs
 			)
 		)
@@ -193,7 +226,7 @@ sub do_device_add {
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	$devid = $new->{ _dbx('DEVICE_ID') };
+	my $devid = $newdev->{ _dbx('DEVICE_ID') };
 
 	if ( defined($commstr) ) {
 		my $q = qq{

@@ -539,13 +539,18 @@ sub get_netblock_from_ip {
 	my $self = shift(@_);
 	my $opts = _options(@_);
 
+
 	my @errors;
 	my $args = {
-		ip_address    => $opts->{ip_address},
 		netblock_type => 'default',
-		single        => 'first',
-		errors        => \@errors,
 	};
+
+	if($opts->{ip_address} !~ m,/,) {
+		$args->{'host(ip_address)'} = $opts->{ip_address};
+		
+	} else {
+		$args->{ip_address} = $opts->{ip_address};
+	}
 
 	if ( $opts->{'is_single_address'} ) {
 		$args->{'is_single_address'} = 'Y';
@@ -555,7 +560,15 @@ sub get_netblock_from_ip {
 		$args->{'netblock_type'} = $opts->{'netblock_type'};
 	}
 
-	my $netblock = $self->GetNetblock($args);
+
+warn Dumper($args);
+	my $netblock = $self->DBFetch(
+		table => 'netblock',
+		result_set_size        => 'first',
+		errors        => \@errors,
+		match		=> $args,
+		order		=> 'masklen(ip_address) desc'
+	);
 
 	if ( !$netblock ) {
 		if (@errors) {
@@ -566,15 +579,14 @@ sub get_netblock_from_ip {
 		return undef;
 	}
 
-	my $h = $netblock->hash;
-	if ( !$h ) {
+	if ( !$netblock ) {
 		if (@errors) {
 			$self->error_return( "Netblock has hash issue: "
 				  . join( ';', @errors ) );
 		}
 		return undef;
 	}
-	$h;
+	$netblock;
 }
 
 sub get_dev_from_devid {
@@ -582,8 +594,8 @@ sub get_dev_from_devid {
 
 	my $q = qq{
 		select  *
-		  from  device
-		 where  device_id = :devid
+		  from  device d
+		 where  d.device_id = :devid
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->bind_param( ':devid', $devid ) || $self->return_db_err($sth);
@@ -596,7 +608,51 @@ sub get_dev_from_devid {
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
+	$self->fill_asset_details_with_device($hr);
+}
+
+sub get_asset_from_asset_id {
+	my ( $self, $assid ) = @_;
+
+	my $q = qq{
+		select  *
+		  from  asset
+		 where  asset_id = :assid
+	};
+	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	$sth->bind_param( ':assid', $assid ) || $self->return_db_err($sth);
+	$sth->execute || $self->return_db_err($sth);
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
 	$hr;
+}
+
+sub fill_asset_details_with_device($$) {
+	my ($self, $dev) = @_;
+
+	return undef if(!$dev);
+
+	if($dev->{ _dbx('ASSET_ID') }) {
+		my $ass = $self->get_asset_from_asset_id($dev->{ _dbx('ASSET_ID' )});
+
+		foreach my $c (qw(ASSET_ID SERIAL_NUMBER PART_NUMBER ASSET_TAG OWNERSHIP_STATUS LEASE_EXPIRATION_DATE)) {
+			$dev->{ _dbx($c) } = $ass-> { _dbx($c) };
+		}
+	}
+	$dev;
+}
+
+sub device_has_asset($) {
+	my ($self) = shift @_;
+
+	if(my $dbh = $self->dbh) {
+		my $sth = $dbh->column_info(undef, undef, 'device', 'serial_number');
+		my $colinfo = $sth->fetchrow_hashref;
+		$sth->finish;
+		return $colinfo;
+	}
+	undef;
 }
 
 sub add_location_to_dev {
@@ -647,15 +703,15 @@ sub get_dev_from_name {
 
 	my $q = qq{
 		select  *
-		  from  device
-		 where  device_name = ?
+		  from  device d
+		 where  d.device_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($name) || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$hr;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_dev_from_serial {
@@ -663,15 +719,18 @@ sub get_dev_from_serial {
 
 	my $q = qq{
 		select  *
-		  from  device
-		 where  lower(serial_number) = lower(?)
+		  from  device d
+		  		left join asset a using  (asset_id)
+		 where  lower(d.serial_number) = lower(?)
+		  or   lower(a.serial_number) = lower(?)
+		LIMIT 1
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($serno) || $self->return_db_err($sth);
+	$sth->execute($serno, $serno) || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$hr;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_snmpcommstr_from_id {
@@ -916,16 +975,20 @@ sub get_package_release {
 sub get_device_from_id {
 	my ( $self, $id ) = @_;
 
+	# This can go back to just * when the asset columns are dropped
+	# from device
 	my $q = qq{
-		select * from device where device_id = ?
+		select  *
+		  from device d
+		where device_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
 
-	my $dt = $sth->fetchrow_hashref;
+	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$dt;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_device_type_from_id {
@@ -950,9 +1013,9 @@ sub get_device_type_from_id {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
 
-	my $dt = $sth->fetchrow_hashref;
+	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$dt;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_device_type_from_name {
@@ -977,9 +1040,9 @@ sub get_device_type_from_name {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute( $companyid, $model ) || $self->return_db_err($sth);
 
-	my $dt = $sth->fetchrow_hashref;
+	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$dt;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_packages_for_voe {
@@ -1362,6 +1425,26 @@ sub get_device_collections_for_device {
 	@rv;
 }
 
+#
+# given an id, return the netblock_collection record
+#
+sub get_netblock_collection($$) {
+	my($self, $id) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	*
+		  from	netblock_collection
+		 where	netblock_collection_id = ?
+	}
+	) || die $self->return_db_err;
+
+	$sth->execute($id) || $self->return_db_err($sth);
+	my $nc = $sth->fetchrow_hashref;
+	$sth->finish;
+	$nc;
+}
+
 sub get_system_user {
 	my ( $self, $suid ) = @_;
 
@@ -1556,8 +1639,9 @@ sub resync_physical_ports {
 		  from	device_type_phys_port_templt
 		 where	device_type_id = :dtid
 		   $typeadd
-		   and	port_name not in
-				(select port_name from physical_port
+		   and	(port_name,port_type) not in
+				(select port_name,port_type
+					 from physical_port
 					where device_id = :devid
 				)
 	}

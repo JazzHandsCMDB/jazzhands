@@ -156,8 +156,11 @@ sub clear_same_physical_port_params {
 				next
 				  if (
 					!$p2portid && defined(
-						$l1c->{ _dbx('PHYSICAL_PORT2_ID'
-						) }
+						$l1c->{
+							_dbx(
+'PHYSICAL_PORT2_ID'
+							)
+						}
 					)
 					|| $l1c->{ _dbx('PHYSICAL_PORT2_ID') }
 					!= $p2portid
@@ -167,8 +170,11 @@ sub clear_same_physical_port_params {
 				next
 				  if (
 					!$p2portid && defined(
-						$l1c->{ _dxb('PHYSICAL_PORT1_ID'
-						) }
+						$l1c->{
+							_dxb(
+'PHYSICAL_PORT1_ID'
+							)
+						}
 					)
 					|| $l1c->{ _dbx('PHYSICAL_PORT1_ID') }
 					!= $p2portid
@@ -344,6 +350,7 @@ sub do_update_device {
 
 	if ($retire_device) {
 		return retire_device( $stab, $devid );
+
 		# this does not return.
 	}
 
@@ -360,6 +367,44 @@ sub do_update_device {
 	#- $numchanges += process_licenses($stab, $devid);
 
 	$numchanges += process_interfaces( $stab, $devid );
+
+	my $x = $stab->device_has_asset();
+
+	my $assetid = $dbdevice->{ _dbx('ASSET_ID') };
+	if ($assetid) {
+		my $dbasset =
+		  $stab->get_asset_from_asset_id(
+			$dbdevice->{ _dbx('ASSET_ID') } );
+		if ( !$dbasset ) {
+			return $stab->error_return(
+				"Unable to obtain asset info.  Seek help");
+		}
+
+		my $newasset = {
+			ASSET_ID      => $dbasset->{ _dbx('ASSET_ID') },
+			SERIAL_NUMBER => $serialno,
+			PART_NUMBER   => $partno,
+			ASSET_TAG     => $assettag,
+			OWNERSHIP_STATUS => $owner,
+		};
+
+		my $diffs = $stab->hash_table_diff( $dbasset, _dbx($newasset) );
+		my $tally   += keys %$diffs;
+		$numchanges += $tally;
+
+		if (
+			$tally 
+			&& !$stab->run_update_from_hash(
+				"ASSET", "ASSET_ID", $assetid, $diffs
+			)
+		  )
+		{
+			$stab->rollback;
+			my $url = "../device.pl";
+			return $stab->return_db_err;
+		}
+
+	}
 
 	my $newdevice = {
 		DEVICE_ID      => $devid,
@@ -2002,8 +2047,9 @@ sub process_interfaces {
 			$dbsr->{ _dbx('NETWORK_INTERFACE_DST_ID') } )
 		{
 			if (
-				!$stab->check_ip_on_local_nets( $devid,
-					$destip )
+				!$stab->check_ip_on_local_nets(
+					$devid, $destip
+				)
 			  )
 			{
 				$stab->error_return(
@@ -2484,18 +2530,20 @@ sub delete_device_power {
 sub retire_device {
 	my ( $stab, $devid ) = @_;
 
-	my $sth = $stab->prepare(qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	device_utils.retire_device(
 				in_device_id := ?
 			);
-	}) || die $stab->return_db_err($stab);
+	}
+	) || die $stab->return_db_err($stab);
 
 	$sth->execute($devid) || $stab->return_db_err($sth);
-	my ($stillhere) = ($sth->fetchrow_array);
+	my ($stillhere) = ( $sth->fetchrow_array );
 	$sth->finish;
 
 	my ( $url, $msg );
-	if (! $stillhere) {
+	if ( !$stillhere ) {
 		$url = "../";
 		$msg = "Device Removed";
 	} else {

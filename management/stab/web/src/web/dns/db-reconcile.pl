@@ -339,25 +339,14 @@ sub compare_record {
 }
 
 #
-# This needs to go away once the version in the perl module
+# This needs to go away once the version in the perl module ... ?
 #
 sub device_from_name {
 	my ( $stab, $name ) = @_;
 	my $dbh = $stab->dbh;
 
 	my $q = qq{
-		select  device_id, device_name,
-			device_type_id, serial_number, 
-			asset_tag, operating_system_id,
-			status, production_state,
-			ownership_status,
-			is_monitored,
-			is_locally_managed,
-			identifying_dns_record_id,
-			SHOULD_FETCH_CONFIG,
-			PARENT_DEVICE_ID,
-			IS_VIRTUAL_DEVICE,
-			AUTO_MGMT_PROTOCOL
+		select  *
 		  from  device
 		 where  device_name = :1
 	};

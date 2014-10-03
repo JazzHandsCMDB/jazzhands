@@ -263,6 +263,31 @@ sub start_html {
 				},
 			);
 		}
+		if ( $opts->{javascript} eq 'netblock_collection' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src =>
+"$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$root/javascript-common/common.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/netblock-collection.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/ajax-utils.js"
+				}
+			);
+		}
 		if ( $opts->{javascript} eq 'netblock' ) {
 			push(
 				@{ $args{-script} },
@@ -1552,6 +1577,18 @@ sub b_dropdown {
 			select	rack_type, description
 			  from	val_racK_type;
 		};
+	} elsif ( $selectfield eq 'NETBLOCK_COLLECTION_TYPE' ) {
+		my $d = 'netblock_collection_type';
+		if(defined($params->{-desc}) && $params->{-desc} eq 'expand') {
+			$d = q{
+					netblock_collection_type || ' (' || description || ')' as
+						description
+			};
+		}
+		$q = qq{
+			select	netblock_collection_type,  $d
+			  from	val_netblock_collection_type;
+		};
 	} else {
 		return "-XX-";
 	}
@@ -2536,7 +2573,7 @@ sub add_physical_ports {
 			port_plug_style, port_medium, port_protocol, port_speed,
 			port_purpose, tcp_port
 		) values (
-			:typeid, :name, :type,
+			:typeid, :name, :porttype,
 			:plug, :medium, :protocol, :speed,
 			:purpose, :tcpport
 		)
@@ -2554,7 +2591,7 @@ sub add_physical_ports {
 			  || $self->return_db_err($dbh);
 			$sth->bind_param( ':name', $portname )
 			  || $self->return_db_err($dbh);
-			$sth->bind_param( ':type', $type )
+			$sth->bind_param( ':porttype', $type )
 			  || $self->return_db_err($dbh);
 			$sth->bind_param( ':plug', $plug )
 			  || $self->return_db_err($dbh);
@@ -2579,8 +2616,33 @@ sub add_physical_ports {
 			$total++;
 		}
 	} else {
-		$sth->execute( $devtypid, $prefix, $type )
+		my $portname = $prefix;
+		$sth->bind_param( ':typeid', $devtypid )
 		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':name', $portname )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':porttype', $type )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':plug', $plug )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':medium', $medium )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':protocol', $protocol )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':speed', $speed )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':purpose', $purpose )
+		  || $self->return_db_err($dbh);
+
+		if ($tcp) {
+			$sth->bind_param( ':tcpport',
+				$tcp )
+			  || $self->return_db_err($dbh);
+		} else {
+			$sth->bind_param( ':tcpport', undef )
+			  || $self->return_db_err($dbh);
+		}
+		$sth->execute || $self->return_db_err($dbh);
 		$total++;
 	}
 	$total;

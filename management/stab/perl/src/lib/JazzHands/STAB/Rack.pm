@@ -585,32 +585,35 @@ sub disp_device {
 	my($did)=@_;
 
 	my ($sql)=qq{
-		SELECT	device.device_name,
-			device.status,
-			device.production_state,
-			device_type.model,
-			company.company_name,
-			device_type.rack_units,
-			device_type.processor_architecture,
-			device.serial_number,
+		SELECT	d.device_name,
+			d.status,
+			d.production_state,
+			d.model,
+			c.company_name,
+			dt.rack_units,
+			dt.processor_architecture,
+			coalesce(a.serial_number, d.serial_number) as serial_number,
 			rl.site_code,
 			rl.room,
 			rl.rack_row,
 			rl.rack,
 			rl.rack_u_offset_of_device_top
-		FROM	device,
-			device_type,
-			company,
-			rack_location rl
-		WHERE	device.device_type_id=device_type.device_type_id
-		AND	company.company_id = device_type.company_id
-		AND	device.device_id=$did
-		AND	device.rack_location_id=location.rack_location_id
+		FROM	device d
+			INNER JOIN device_type dt
+				USING (device_type_id)
+			INNER JOIN company c
+				ON c.company_id = dt.company_id
+			INNER JOIN rack_location rl
+				USING (rack_location_id)
+			LEFT JOIN asset a
+				USING (asset_id)
+		WHERE	
+			device.device_id= ?
 	};
 	my $sth=$dbh->prepare($sql);
 	if ($sth) {
 		my ($name,$status,$prodstat,$model,$vendor,$height,$arch,$serial,$site,$room,$row,$rack,$offset);
-		$sth->execute();
+		$sth->execute( $dtid ) || $self->return_db_err;
 
 
 		print "<UL BGCOLOR=\"\#B0B0FF\">\n";

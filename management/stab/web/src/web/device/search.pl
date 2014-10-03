@@ -40,9 +40,9 @@ sub find_devices {
 
 	my ( $ip, $bits );
 	if ( defined($ipblock) ) {
-		my $nb = new2 Net::IP($ipblock);
+		my $nb = new Net::IP($ipblock);
 		if ( defined($nb) ) {
-			( $ip, $bits ) = ( $nb->base, $nb->bits );
+			( $ip, $bits ) = ( $nb->short, $nb->prefixlen );
 		} else {
 			$stab->error_return("That is an invalid IP address");
 		}
@@ -61,6 +61,7 @@ sub find_devices {
 	if ( defined($serial) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .= " (lower(d.serial_number) like lower(:serial)";
+		$criteria .= " (lower(a.serial_number) like lower(:serial)";
 		$criteria .= "  OR lower(d.host_id) like lower(:serial))";
 	}
 
@@ -110,6 +111,8 @@ sub find_devices {
 				on nb.netblock_id = ni.netblock_id
 			left join dns_record dns
 				on dns.netblock_id = nb.netblock_id
+			left join asset a
+				on a.asset_id = d.asset_id
 		 where	
 			$criteria
 		 order by d.device_name
