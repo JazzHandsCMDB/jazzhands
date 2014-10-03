@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.58.3
+Version:        0.58.7
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -176,6 +176,16 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Fri Oct  3 2014 Todd Kover <kovert@omniscient.com> 0.58.7
+- Migrate serial numbers, etc to asset table
+  - support having data in both for now, favor asset
+- Manage Netblock Collections
+- adjust reset port query to handle same name, different type
+- type -> porttype when inserting port types on device types.  for some reas
+  centos 6.5 did not like type but newer stuff did
+- fix else clause on device types to insert one port type.
+- fix Net::IP usage in stab device search
+- make perl module depend on regular package (same version)
 * Sun Jun 22 2014 Todd Kover <kovert@omniscient.com> 0.58.3
 - make it so add_netblock inputs can set netblock_type (bug fix)
 * Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.2
