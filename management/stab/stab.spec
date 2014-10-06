@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.58.7
+Version:        0.58.8
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -181,6 +181,9 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Mon Oct  6 2014 Todd Kover <kovert@omniscient.com> 0.58.8
+- adjust devive search to check for asset columns to pick the right query
+  to run
 * Fri Oct  3 2014 Todd Kover <kovert@omniscient.com> 0.58.7
 - Migrate serial numbers, etc to asset table
   - support having data in both for now, favor asset
