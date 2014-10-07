@@ -13,13 +13,11 @@
 
 name:      perl-JazzHands-Krb5
 summary:   JazzHands-Krb5 - Perl module
-version:   0.01
+version:   0.10.0
 release:   6
-vendor:    K Z Win <kwin@appnexus.com>
-packager:  K Z Win <kwin@appnexus.com>
 license:   Artistic
-group:     Applications/AppNexus
-url:       http://www.appnexus.com
+Group:      System/Management
+Url:        http://www.jazzhands.net/
 Source0:   %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
@@ -126,5 +124,7 @@ find %{buildroot}%{_prefix}             \
 %defattr(-,root,root)
 
 %changelog
-* Thu Aug 9 2012 kwin@09.kwin-sand.nym1.appnexus.net
+* Tue Oct 7 2014 kovert@omniscient.com
+- split out to its own thing
+* Thu Aug 9 2012 kwin@appnexus.com
 - Initial build.
