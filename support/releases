@@ -26,6 +26,7 @@ management/mgmt/perl/jazzhands-perl-mgmt.spec
 management/mkpasswdfiles/jazzhands-mkpasswdfiles.spec
 management/stab/stab.spec
 management/util/perl/jazzhands-perl-common.spec
+management/util/perl-Krb5/JazzHands-Krb5.spec
 zonegen/server/src/jazzhands-zonegen-server.spec
 
 
