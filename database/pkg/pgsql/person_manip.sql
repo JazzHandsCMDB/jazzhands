@@ -60,10 +60,15 @@ DECLARE
 	_login			varchar;
 	_trylogin		varchar;
     id				account.account_id%TYPE;
+	fn		text;
+	ln		text;
 BEGIN
+	-- remove special characters
+	fn = regexp_replace(lower(in_first_name), '[^a-z]', '', 'g');
+	ln = regexp_replace(lower(in_last_name), '[^a-z]', '', 'g');
 	_acctrealmid := in_account_realm_id;
 	-- Try first initial, last name
-	_login = lpad(lower(in_first_name), 1) || lower(in_last_name);
+	_login = lpad(lower(fn), 1) || lower(ln);
 	SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 		AND login = _login;
 
@@ -73,7 +78,7 @@ BEGIN
 
 	-- Try first initial, middle initial, last name
 	if in_middle_name IS NOT NULL THEN
-		_login = lpad(lower(in_first_name), 1) || lpad(lower(in_middle_name), 1) || lower(in_last_name);
+		_login = lpad(lower(fn), 1) || lpad(lower(in_middle_name), 1) || lower(ln);
 		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 			AND login = _login;
 		IF id IS NULL THEN
@@ -82,7 +87,7 @@ BEGIN
 	END IF;
 
 	-- if length of first+last is <= 10 then try that.
-	_login = lower(in_first_name) || lower(in_last_name);
+	_login = lower(fn) || lower(ln);
 	IF char_length(_login) < 10 THEN
 		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 			AND login = _login;
@@ -92,7 +97,7 @@ BEGIN
 	END IF;
 
 	-- ok, keep trying to add a number to first initial, last
-	_login = lpad(lower(in_first_name), 1) || lower(in_last_name);
+	_login = lpad(lower(fn), 1) || lower(ln);
 	FOR i in 1..500 LOOP
 		_trylogin := _login || i;
 		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
