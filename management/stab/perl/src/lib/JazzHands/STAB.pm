@@ -1587,7 +1587,8 @@ sub b_dropdown {
 		}
 		$q = qq{
 			select	netblock_collection_type,  $d
-			  from	val_netblock_collection_type;
+			  from	val_netblock_collection_type
+			order by netblock_collection_type
 		};
 	} else {
 		return "-XX-";
