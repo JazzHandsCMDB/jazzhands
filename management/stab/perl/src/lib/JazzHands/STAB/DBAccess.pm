@@ -225,6 +225,23 @@ sub get_interface_from_ip {
 
 }
 
+sub get_interface_from_netblock {
+	my ( $self, $ip ) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	ni.*
+		  from	network_interface ni
+		 where	netblock_id = ?
+	}
+	);
+	$sth->execute($ip) || $self->return_db_err($sth);
+	my $rv = $sth->fetchrow_hashref;
+	$sth->finish;
+	$rv;
+
+}
+
 #
 # returns non-zero if a given IP address is on an interface for a device or
 # not.  Primarily used for setting up static routes on hosts
