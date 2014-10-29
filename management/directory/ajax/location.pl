@@ -68,7 +68,7 @@ sub check_admin {
 }
 
 sub do_work {
-	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
+	my $dbh = JazzHands::DBI->connect('directory_rw', {AutoCommit => 0}) ||
 		die $JazzHands::DBI::errstr;
 
 	my $cgi = new CGI;

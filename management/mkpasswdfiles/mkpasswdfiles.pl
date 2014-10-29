@@ -2237,6 +2237,10 @@ sub main {
 	## Adjust the symlinks
 
 	create_host_symlinks( "$o_output_dir/hosts", @ARGV );
+
+	## create any per-host files
+	create_host_files( "$o_output_dir/hosts", @ARGV );
+
 	$dbh->disconnect;
 
 	## Create the manifest
