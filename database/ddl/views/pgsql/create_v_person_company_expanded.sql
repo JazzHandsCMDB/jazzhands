@@ -37,7 +37,7 @@ WITH RECURSIVE var_recurse (
 UNION ALL
 	SELECT	
 		x.level + 1			as level,
-		x.company_id			as root_company_id,
+		x.root_company_id		as root_company_id,
 		c.company_id			as company_id,
 		pc.person_id			as person_id,
 		c.company_id || x.array_path	as array_path,
@@ -49,7 +49,7 @@ UNION ALL
 			on c.company_id = pc.company_id
 	WHERE	NOT x.cycle
 ) SELECT	distinct root_company_id as company_id, person_id
-  from 		var_recurse;
+FROM var_recurse; 
 
 
 
