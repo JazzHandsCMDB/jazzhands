@@ -47,12 +47,8 @@ UNION ALL
 			on c.parent_company_id = x.company_id
 		inner join person_company pc
 			on c.company_id = pc.company_id
+			and x.person_id = pc.person_id
 	WHERE	NOT x.cycle
-) SELECT	distinct root_company_id as company_id, person_id
-FROM var_recurse; 
-
-
-
-
-
-
+) SELECT	root_company_id as company_id, person_id
+FROM var_recurse 
+;
