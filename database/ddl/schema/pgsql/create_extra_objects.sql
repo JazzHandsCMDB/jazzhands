@@ -28,3 +28,6 @@ WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
 	ELSE NULL::bigint
 END));
 
+create index idx_netblock_host_ip_address  ON netblock
+USING btree (host(ip_address));
+
