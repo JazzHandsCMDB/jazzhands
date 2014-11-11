@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.58.5
+Version:    0.58.9
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,6 +46,8 @@ else
 fi
 
 %changelog
+* Tue Nov 11 2014 Todd Kover <kovert@omniscient.com> 0.58.9
+- do not include the gid in the passwd file output
 * Fri Jun 27 2014 Todd Kover <kovert@omniscient.com> 0.58.5
 - fix ssh ordering
 - only chown if . is not readable
