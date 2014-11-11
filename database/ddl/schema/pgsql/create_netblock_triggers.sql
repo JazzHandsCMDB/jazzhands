@@ -133,7 +133,9 @@ DROP TRIGGER IF EXISTS tb_a_validate_netblock ON netblock;
 
 /* This should be lexicographically the first trigger to fire */
 
-CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR UPDATE ON
+CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR 
+	UPDATE OF netblock_id, ip_address, netblock_type, is_single_address,
+		can_subnet, parent_netblock_id, ip_universe_id ON
 	netblock FOR EACH ROW EXECUTE PROCEDURE
 	validate_netblock();
 
@@ -233,8 +235,9 @@ DROP TRIGGER IF EXISTS trigger_manipulate_netblock_parentage ON netblock;
 DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON netblock;
 
 CREATE TRIGGER tb_manipulate_netblock_parentage
-	BEFORE INSERT OR UPDATE OF
-		ip_address, netmask_bits, netblock_type, ip_universe_id
+	BEFORE INSERT OR UPDATE OF 
+		netblock_id, ip_address, netblock_type, is_single_address,
+		can_subnet, parent_netblock_id, ip_universe_id
 	ON netblock
 	FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_before();
 
@@ -610,6 +613,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage
-	AFTER INSERT OR UPDATE ON netblock DEFERRABLE INITIALLY DEFERRED
+	AFTER INSERT OR UPDATE OF 
+		netblock_id, ip_address, netblock_type, is_single_address,
+		can_subnet, parent_netblock_id, ip_universe_id ON netblock
+	DEFERRABLE INITIALLY DEFERRED 
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
 
