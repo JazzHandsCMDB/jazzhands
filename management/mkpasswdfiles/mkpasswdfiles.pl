@@ -746,7 +746,6 @@ sub generate_passwd_files($) {
 			'login'	 => $pwd[0],
 			'password_hash' => $pwd[1],
 			'uid'	   => int($pwd[2]),
-			'gid'	   => int($pwd[3]),
 			'gecos'	 => $pwd[4],
 			'home'	  => $pwd[5],
 			'shell'	 => $pwd[6],
@@ -2237,10 +2236,6 @@ sub main {
 	## Adjust the symlinks
 
 	create_host_symlinks( "$o_output_dir/hosts", @ARGV );
-
-	## create any per-host files
-	create_host_files( "$o_output_dir/hosts", @ARGV );
-
 	$dbh->disconnect;
 
 	## Create the manifest
