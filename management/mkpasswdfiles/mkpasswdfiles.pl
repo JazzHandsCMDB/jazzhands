@@ -2003,10 +2003,8 @@ sub create_host_symlinks($@) {
 			my $n = "$entry.$$";
 			mkdir($n, 0750);
 			if($target =~ /^\./) {
-				warn "../$target -> $n/mclass";
 				symlink("../$target", "$n/mclass");
 			} else {
-				warn "$target -> $n/mclass";
 				symlink("$target", "$n/mclass");
 			}
 			unlink ($entry);
@@ -2076,7 +2074,6 @@ sub create_host_symlinks($@) {
 				$old{$device} )
 			{
 				unlink("$dir/$device/mclass");
-warn "symlink $device";
 				symlink(
 "../../mclass/$new->{$device}{_dbx('MCLASS')}",
 					"$dir/$device/mclass"
