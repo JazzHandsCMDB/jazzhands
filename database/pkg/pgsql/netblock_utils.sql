@@ -104,7 +104,7 @@ BEGIN
 	IF par_nbid IS NULL AND in_is_single_address = 'Y' AND in_fuzzy_can_subnet THEN
 		select  Netblock_Id
 		  into	par_nbid
-		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
+		  from  ( select Netblock_Id, Ip_Address
 			    from jazzhands.netblock
 			   where
 			   	in_IpAddress <<= ip_address
