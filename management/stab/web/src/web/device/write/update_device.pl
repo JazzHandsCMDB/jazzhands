@@ -1,4 +1,20 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2010-2014 Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -208,10 +224,10 @@ sub do_update_device {
 	my $site      = $stab->cgi_parse_param( 'SITE_CODE', $devid );
 	my $status    = $stab->cgi_parse_param( 'DEVICE_STATUS', $devid );
 	my $owner     = $stab->cgi_parse_param( 'OWNERSHIP_STATUS', $devid );
-	my $svcenv    = $stab->cgi_parse_param( 'SERVICE_ENVIRONMENT', $devid );
-	my $assettag  = $stab->cgi_parse_param( 'ASSET_TAG', $devid );
-	my $osid      = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID', $devid );
-	my $voeid     = $stab->cgi_parse_param( 'VOE_ID', $devid );
+	my $svcenv = $stab->cgi_parse_param( 'SERVICE_ENVIRONMENT_ID', $devid );
+	my $assettag = $stab->cgi_parse_param( 'ASSET_TAG', $devid );
+	my $osid     = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID', $devid );
+	my $voeid    = $stab->cgi_parse_param( 'VOE_ID', $devid );
 	my $ismonitored = $stab->cgi_parse_param( 'chk_IS_MONITORED', $devid );
 	my $baselined   = $stab->cgi_parse_param( 'chk_IS_BASELINED', $devid );
 	my $parentid    = $stab->cgi_parse_param( 'PARENT_DEVICE_ID', $devid );
@@ -381,10 +397,10 @@ sub do_update_device {
 		}
 
 		my $newasset = {
-			ASSET_ID      => $dbasset->{ _dbx('ASSET_ID') },
-			SERIAL_NUMBER => $serialno,
-			PART_NUMBER   => $partno,
-			ASSET_TAG     => $assettag,
+			ASSET_ID         => $dbasset->{ _dbx('ASSET_ID') },
+			SERIAL_NUMBER    => $serialno,
+			PART_NUMBER      => $partno,
+			ASSET_TAG        => $assettag,
 			OWNERSHIP_STATUS => $owner,
 		};
 
@@ -393,7 +409,7 @@ sub do_update_device {
 		$numchanges += $tally;
 
 		if (
-			$tally 
+			$tally
 			&& !$stab->run_update_from_hash(
 				"ASSET", "ASSET_ID", $assetid, $diffs
 			)
@@ -415,9 +431,6 @@ sub do_update_device {
 		PHYSICAL_LABEL => $physlabel,
 
 		#- DEVICE_STATUS		=> $status,
-		OWNERSHIP_STATUS    => $owner,
-		SERVICE_ENVIRONMENT => $svcenv,
-		ASSET_TAG           => $assettag,
 
 		#- OPERATING_SYSTEM_ID	=> $osid,
 		#- VOE_ID			=> $voeid,

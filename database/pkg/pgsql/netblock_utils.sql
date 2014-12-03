@@ -43,8 +43,21 @@
 -- Name: id_tag(); Type: FUNCTION; Schema: netblock_utils; Owner: jazzhands
 --
 
-drop schema if exists netblock_utils cascade;
-create schema netblock_utils authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'netblock_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS netblock_utils;
+                CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
+        END IF;
+END;
+$$;
+
 
 -- Create schema if it does not exist, do nothing otherwise.
 DO $$
