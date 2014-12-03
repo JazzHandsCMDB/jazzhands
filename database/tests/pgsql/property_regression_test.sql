@@ -49,7 +49,8 @@ DECLARE
 	v_device_collection_id	Property.device_collection_id%TYPE;
 	v_dns_domain_id			Property.dns_domain_id%TYPE;
 	v_operating_system_id	Property.operating_system_id%TYPE;
-	v_svc_env_id		Property.service_env_collection_id%TYPE;
+	v_svc_env_id			Property.service_env_collection_id%TYPE;
+	v_prop_coll_id			Property.property_collection_id%TYPE;
 	v_site_code				Property.site_code%TYPE;
 	v_account_id			Property.account_id%TYPE;
 	v_account_realm_id		account_realm.account_realm_id%TYPE;
@@ -75,6 +76,11 @@ BEGIN
 	DELETE FROM VAL_Property_Type WHERE Property_Type IN
 		('test', 'multivaluetest');
 
+	DELETE FROM property_collection where
+		property_collection_type like 'JHTEST%';
+	DELETE FROM val_property_collection_type where
+		property_collection_type like 'JHTEST%';
+
 --
 -- Set up VAL_Property_Data_Type for test data
 --
@@ -99,6 +105,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		Permit_service_env_collection,
+		Permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		Permit_Account_Collection_Id
@@ -108,6 +115,7 @@ BEGIN
 		'N',
 		NULL,
 		'string',
+		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -129,6 +137,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		Permit_service_env_collection,
+		Permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -147,6 +156,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -161,6 +171,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -179,6 +190,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -193,6 +205,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -211,6 +224,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -225,6 +239,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -243,6 +258,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -257,6 +273,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -275,6 +292,7 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -289,6 +307,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -299,6 +318,7 @@ BEGIN
 		'N',
 		NULL,
 		'string',
+		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
@@ -321,6 +341,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -339,6 +360,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -354,6 +376,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -372,6 +395,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -387,6 +411,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -405,6 +430,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -420,6 +446,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -438,6 +465,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -453,6 +481,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -471,6 +500,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -485,6 +515,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -503,6 +534,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -518,6 +550,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -536,6 +569,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -551,6 +585,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -569,6 +604,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -584,6 +620,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -602,6 +639,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -617,6 +655,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -635,6 +674,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -650,6 +690,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -668,6 +709,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -683,6 +725,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -701,6 +744,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -716,6 +760,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -734,6 +779,7 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -749,6 +795,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -759,6 +806,7 @@ BEGIN
 		'N',
 		NULL,
 		'list',
+		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -780,6 +828,12 @@ BEGIN
 		'value'
 	);
 
+	INSERT INTO val_property_collection_type (
+		property_collection_type ) values ( 'JHTEST-PCT');
+	INSERT INTO property_collection (
+		property_collection_name, property_collection_type ) 
+		values ('JHTEST', 'JHTEST-PCT');
+
 	--
 	-- Get some valid data to work with
 	--
@@ -793,6 +847,9 @@ BEGIN
 	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System 
 		LIMIT 1;
 	SELECT service_env_collection_id INTO v_svc_env_id FROM service_environment_collection
+		LIMIT 1;
+	SELECT property_collection_id INTO v_prop_coll_id 
+		FROM property_collection
 		LIMIT 1;
 	SELECT Site_Code INTO v_site_code FROM Site 
 		LIMIT 1;
@@ -818,6 +875,7 @@ BEGIN
 	RAISE NOTICE 'v_dns_domain_id is %', v_dns_domain_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
 	RAISE NOTICE 'v_svc_env_id is %', v_svc_env_id;
+	RAISE NOTICE 'v_prop_coll_id is %', v_prop_coll_id;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
 	RAISE NOTICE 'v_account_Id is %', v_account_Id;
 	RAISE NOTICE 'v_account_realm_id is %', v_account_realm_id;
@@ -953,6 +1011,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			Account_Id,
 			Account_Realm_Id,
@@ -964,6 +1023,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_realm_id,
@@ -985,6 +1045,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			Account_Id,
 			account_realm_id,
@@ -996,6 +1057,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_realm_id,
@@ -1017,6 +1079,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1027,6 +1090,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1047,6 +1111,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1057,6 +1122,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1077,6 +1143,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1087,6 +1154,7 @@ BEGIN
 			NULL,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1107,6 +1175,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1117,6 +1186,7 @@ BEGIN
 			v_dns_domain_id,
 			NULL,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1167,6 +1237,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1177,6 +1248,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			NULL,
 			v_account_id,
 			v_account_collection_id
@@ -1197,6 +1269,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1207,6 +1280,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			NULL,
 			v_account_collection_id
@@ -1227,6 +1301,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1237,6 +1312,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			NULL
@@ -1258,6 +1334,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Realm_Id
@@ -1269,6 +1346,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			NULL
@@ -1439,6 +1517,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1449,6 +1528,39 @@ BEGIN
 			NULL,
 			NULL,
 			v_svc_env_id,
+			NULL,
+			NULL,
+			NULL,
+			NULL
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Adding property_collection_id to property with PROHIBITED property_collection_id lhs field';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value,
+			Company_ID,
+			Device_Collection_ID,
+			DNS_Domain_ID,
+			Operating_System_ID,
+			service_env_collection_id,
+			property_collection_id,
+			Site_Code,
+			account_id,
+			Account_Collection_id
+			) VALUES (
+			'Prohibited', 'test', 'test',
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			v_prop_coll_id,
 			NULL,
 			NULL,
 			NULL
@@ -1469,11 +1581,13 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
+			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -3074,6 +3188,12 @@ BEGIN
 		('test', 'multivaluetest');
 	DELETE FROM VAL_Property_Type WHERE Property_Type IN
 		('test', 'multivaluetest');
+
+	DELETE FROM property_collection where
+		property_collection_type like 'JHTEST%';
+	DELETE FROM val_property_collection_type where
+		property_collection_type like 'JHTEST%';
+
 
 	RETURN true;
 END;

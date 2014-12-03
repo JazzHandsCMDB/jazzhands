@@ -89,7 +89,7 @@ BEGIN
 		  from svc_environment_coll_svc_env
 		  		inner join service_environment_collection 
 					USING (service_env_collection_id)
-		  where service_environment = NEW.service_environment
+		  where service_environment_id = NEW.service_environment_id
 		  and	service_env_collection_type = 
 					svcenvt.service_env_collection_type;
 		IF tally > svcenvt.MAX_NUM_COLLECTIONS THEN

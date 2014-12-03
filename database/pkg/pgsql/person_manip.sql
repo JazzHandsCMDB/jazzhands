@@ -498,6 +498,8 @@ CREATE OR REPLACE FUNCTION person_manip.purge_account(
 		in_account_id	account.account_id%TYPE
 ) RETURNS void AS $$
 BEGIN
+	-- note the per-user account collection is removed in triggers
+
 	DELETE FROM account_assignd_cert where ACCOUNT_ID = in_account_id;
 	DELETE FROM account_token where ACCOUNT_ID = in_account_id;
 	DELETE FROM account_unix_info where ACCOUNT_ID = in_account_id;
@@ -505,9 +507,10 @@ BEGIN
 	DELETE FROM property where ACCOUNT_ID = in_account_id;
 	DELETE FROM account_password where ACCOUNT_ID = in_account_id;
 	DELETE FROM unix_group where account_collection_id in
-		(select account_collection_id from account_collection where account_collection_name in
-			(select login from account where account_id = in_account_id)
-			and account_collection_type in ('unix-group')
+		(select account_collection_id from account_collection 
+			where account_collection_name in
+				(select login from account where account_id = in_account_id)
+				and account_collection_type in ('unix-group')
 		);
 	DELETE FROM account_collection_account where ACCOUNT_ID = in_account_id;
 
@@ -518,6 +521,32 @@ BEGIN
 	DELETE FROM account where ACCOUNT_ID = in_account_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Purge a person from the system.  This will also purge their accounts
+-- It will fail if the person has shown up in too many plces (i.e, was in
+-- use).    The typical way to get rid of a person is to just mark them as
+-- deleted, buf if they were inserted by msitake, this is useful.
+CREATE OR REPLACE FUNCTION person_manip.purge_person(
+		in_person_id	person.person_id%TYPE
+) RETURNS void AS $$
+DECLARE
+	aid	INTEGER;
+BEGIN
+	FOR aid IN select account_id 
+			FROM account 
+			WHERE person_id = in_person_id
+	LOOP
+		PERFORM person_manip.purge_account ( aid );
+	END LOOP; 
+
+	DELETE FROM person_contact WHERE person_id = in_person_id;
+	DELETE FROM person_location WHERE person_id = in_person_id;
+	DELETE FROM person_company WHERE person_id = in_person_id;
+	DELETE FROM person_account_realm_company WHERE person_id = in_person_id;
+	DELETE FROM person WHERE person_id = in_person_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 \i merge_accounts.sql
 \i change_company.sql

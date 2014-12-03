@@ -1,8 +1,14 @@
-insert into device (device_type_id, device_name, device_status, service_environment, operating_system_id, ownership_status,
-	is_locally_managed, is_monitored, is_virtual_device, should_Fetch_config, is_baselined)
+insert into device (device_type_id, device_name, device_status, 
+	service_environment_id, 
+	operating_system_id, 
+	is_locally_managed, is_monitored, is_virtual_device, 
+	should_Fetch_config)
 values
-	(1, 'guinness.omniscient.com', 'up', 'production', 0, 'owned',
-	'Y', 'Y', 'N', 'Y', 'Y')
+	(1, 'guinness.omniscient.com', 'up', 
+	(select service_environment_id from service_environment where
+		service_environment_name = 'production'),
+	0, 
+	'Y', 'Y', 'N', 'Y')
 ;
 
 insert into dns_domain

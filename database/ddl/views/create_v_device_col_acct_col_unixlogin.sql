@@ -31,7 +31,7 @@
 -- view back to the account_collection table, and select only certain account_collection
 -- types (such as 'system' and 'per-user') to be expanded.
 
-CREATE OR REPLACE VIEW v_device_col_acct_col_expanded AS
+CREATE OR REPLACE VIEW v_device_col_acct_col_unixlogin AS
 SELECT DISTINCT dchd.device_collection_id, dcu.account_collection_id, 
 	vuue.account_id
 FROM v_device_coll_hier_detail dchd
@@ -39,5 +39,5 @@ JOIN v_property dcu ON dcu.device_collection_id =
 	dchd.parent_device_collection_id
 JOIN v_acct_coll_acct_expanded vuue 
 	on vuue.account_collection_id = dcu.account_collection_id
-WHERE dcu.property_name in ('UnixLogin' )
+WHERE dcu.property_name in ('UnixLogin')
 and dcu.property_type = 'MclassUnixProp';

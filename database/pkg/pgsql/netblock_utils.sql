@@ -227,13 +227,9 @@ DECLARE
 	v_lhsip	jazzhands.netblock.ip_address%type;
 	v_rhsip	jazzhands.netblock.ip_address%type;
 	nb_match CURSOR ( in_nb_id jazzhands.netblock.netblock_id%type) FOR
-		-- The query used to include this in the where clause, but
-		-- oracle was uber slow 
-		--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
-		--		net_manip.inet_base(root.ip_address, root.netmask_bits) 
 		select  rootd.dns_domain_id,
-				 net_manip.inet_base(nb.ip_address, root.netmask_bits),
-				 net_manip.inet_base(root.ip_address, root.netmask_bits)
+				 network(set_masklen(nb.ip_address, masklen(root.ip_address))),
+				 network(root.ip_address)
 		  from  jazzhands.netblock nb,
 			jazzhands.netblock root
 				inner join jazzhands.dns_record rootd

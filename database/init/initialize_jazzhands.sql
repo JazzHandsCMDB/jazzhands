@@ -137,19 +137,19 @@ insert into val_production_state (production_state)
 insert into val_service_env_coll_type
 	( service_env_collection_type ) values ('per-environment');
 
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('unspecified', 'unspecified');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('unallocated', 'unallocated');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('production', 'production');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('development', 'development');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('qa', 'test');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('staging', 'test');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('test', 'test');
 
 INSERT INTO VAL_Ownership_Status (Ownership_Status)
@@ -652,7 +652,7 @@ insert into val_property
 	permit_account_collection_id, permit_device_collection_id, 
 	property_data_type
 ) values (
-	'UnixGroupMemberOverride', 'MclassUnixProp', 'N', 
+	'UnixGroupMemberOverride', 'MclassUnixProp', 'Y', 
 	'REQUIRED', 'REQUIRED', 
 	'account_collection_id'
 );
@@ -730,6 +730,11 @@ insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 
 values
 ('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'N', 'company_id',	      'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'PROHIBITED', 'PROHIBITED', 'PROHIBITED');
+
+insert into val_property
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_ACCOUNT_REALM_ID)
+values
+('_root_account_realm_id', 'Defaults', 'define the corporate root identity default', 'N', 'none', 'REQUIRED');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE)

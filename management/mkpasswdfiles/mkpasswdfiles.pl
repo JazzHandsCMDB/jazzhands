@@ -132,7 +132,7 @@ my $o_output_dir = "/var/lib/jazzhands/creds-mgmt-server/out";
 my $o_verbose;
 my $o_random;
 
-my ( $q_mclass_ids, $dbh, $g_prop, $passwd_grp, %mclass_file );
+my ( $q_mclass_ids, $dbh, $passwd_grp, %mclass_file );
 my (
 	%sudo_defaults,  %sudo_cmnd_aliases, %sudo_uclasses,
 	%sudo_user_spec, %sudo_expand_uclass
@@ -168,230 +168,6 @@ sub get_support_email($) {
 	$sth->finish;
 	$addr = 'support@example.com' if ( !$addr );
 	$addr;
-}
-
-###############################################################################
-#
-# usage: @pwdline = get_passwd_line($mp, $up, $gp, $u);
-#
-# Applies various properties and overrides to a raw passwd file line
-# record $u. The record is pulled from tables and views SYSTEM_USER,
-# USER_UNIX_INFO, UNIX_GROUP, V_DEVICE_COL_UCLASS_EXPANDED,
-# DEVICE_COLLECTION, and SYSTEM_PASSWORD with a minimal preprocessing.
-# The function returns an array of 8 elements. The first 7 elements
-# can be written directly to the passwd file, the 8th element is the
-# name of the primary Unix group of the user.
-#
-# $u is a reference to a hash with the following elements:
-#
-#   DEVICE_COLLECTION_ID
-#   SYSTEM_USER_ID
-#   MCLASS
-#   LOGIN
-#   MD5_PASSWORD,
-#   DES_PASSWORD
-#   UNIX_UID
-#   GROUP_NAME
-#   UNIX_GID
-#   FIRST_NAME
-#   MIDDLE_NAME
-#   LAST_NAME
-#   DEFAULT_HOME
-#   SHELL
-#
-# $mp is a reference to a hash with the following elements. They are
-# pulled from the MCLASS_UNIX_PROP table.
-#
-#   MCLASS_UNIX_PW_TYPE
-#   HOME_PLACE
-#   MCLASS_UNIX_HOME_TYPE
-#
-# $up is a reference to a hash with the following elements. They are
-# pulled from the PROPERTY table.
-#
-#   ForceCrypt
-#   ForceUserUID
-#   ForceUserGroup
-#   ForceHome
-#   ForceShell
-#   ForceStdShell
-#
-# $gp is a reference to a hash whose first level key is a Unix group
-# name, the second level key is FORCE_GID and the value is the GID for
-# this group. This hash reflects the content of the
-# UNIX_GROUP_PROPERTY table.
-#
-# Any and all properties described above can be missing, and $mp, $up,
-# and $gp can be completely undefined as appropriate for the MCLASS in
-# question.
-#
-###############################################################################
-
-sub get_passwd_line($$$$) {
-	my ( $mp, $up, $gp, $u ) = @_;
-	my ( $login, $crypt, $uid, $gname, $gid, $full_name, $home, $shell );
-
-	## Default values
-
-	$login = $u->{ _dbx('LOGIN') };
-	$crypt = '*';
-	$uid   = $u->{ _dbx('UNIX_UID') };
-	$gid   = $u->{ _dbx('UNIX_GID') };
-	$home  = $u->{ _dbx('DEFAULT_HOME') };
-	$shell = $u->{ _dbx('SHELL') };
-
-	## Determine the password
-
-	if ( defined( $up->{'ForceCrypt'} ) ) {
-		$crypt = $up->{ForceCrypt};
-	} else {
-		if ( defined( $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') } ) ) {
-			my $ptype = $mp->{ _dbx('MCLASS_UNIX_PW_TYPE') };
-			if ( defined( $u->{$ptype} ) ) {
-				$crypt = $u->{$ptype};
-			}
-		} else {
-			if ( $u->{ _dbx('MD5_PASSWORD') } ) {
-				$crypt = $u->{ _dbx('MD5_PASSWORD') };
-			} elsif ( $u->{ _dbx('DES_PASSWORD') } ) {
-				$crypt = $u->{ _dbx('DES_PASSWORD') };
-			}
-		}
-	}
-
-	$crypt = '*' if ( !$crypt );
-
-	## Determine UID
-
-	$uid = defined( $up->{ForceUserUID} ) ? $up->{ForceUserUID} : $uid;
-
-	## Determine GID
-
-	if ( defined( $up->{ForceUserGroup} ) ) {
-		$gname = $up->{ForceUserGroup}{ _dbx('GROUP_NAME') };
-		$gid =
-		  defined( $gp->{$gname} )
-		  ? $gp->{$gname}{ _dbx('FORCE_GID') }
-		  : $up->{ForceUserGroup}{ _dbx('UNIX_GID') };
-	}
-
-	else {
-		$gname = $u->{ _dbx('GROUP_NAME') };
-		$gid =
-		  defined( $gp->{$gname} ) ? $gp->{$gname}{_dbx('FORCE_GID')} : $gid;
-	}
-
-	## Determine full name
-
-	if ( defined( $u->{ _dbx('DESCRIPTION') } ) ) {
-		$full_name = $u->{ _dbx('DESCRIPTION') };
-	} else {
-		$full_name = join(
-			' ',
-			grep( defined($_),
-				$u->{ _dbx('FIRST_NAME') },
-				$u->{ _dbx('MIDDLE_NAME') },
-				$u->{ _dbx('LAST_NAME') } )
-		);
-	}
-
-	## Determine home directory
-
-	my $hp =
-	  defined( $mp->{ _dbx('HOME_PLACE') } )
-	  ? $mp->{ _dbx('HOME_PLACE') }
-	  : '/home';
-	if ($home) {
-		$home =~ m!/([^/]+)$!;
-		if ( defined($1) ) {
-			$home = "$hp/$1";
-		}
-	}
-
-	#  home of last resort
-	$home = "$hp/$login" if ( !defined($home) );
-
-	if ( ( $mp->{ _dbx('MCLASS_UNIX_HOME_TYPE') } || '' ) eq 'generic' ) {
-		$home = "$hp/generic";
-	}
-
-	if ( defined( $up->{ForceHome} ) ) {
-		$home = $up->{ForceHome};
-		$home .= $login if ( $up->{ForceHome} =~ m!/$! );
-	}
-
-	## Determine the login shell
-
-	if ( defined( $up->{ForceShell} ) && !defined( $up->{ForceStdShell} ) )
-	{
-		$shell = $up->{ForceShell};
-	}
-
-	return ( $login, $crypt, $uid, $gid, $full_name, $home, $shell,
-		$gname );
-}
-
-###############################################################################
-#
-# usage: $u_prop = get_uclass_properties();
-#
-# Retrieves PROPERTYs for all MCLASSes and all enabled
-# users. Uses the V_DEV_COL_USER_PROP_EXPANDED view to expand UCLASSes
-# all the way down to individual users, take inheritance into account,
-# and resolve conflicting properties. Returns a reference to a hash.
-# The first level key is DEVICE_COLLECTION_ID, the second level key is
-# SYSTEM_USER_ID, the third level key is PROPERTY_NAME, and the
-# value is PROPERTY_VALUE. If PROPERTY_NAME is ForceUserGroup,
-# there are two fourth level keys GROUP_NAME and UNIX_GID, and the
-# values are the group name and the GID of the group.
-#
-###############################################################################
-
-sub get_uclass_properties() {
-	my ( $q, $sth, $mu_prop, @r );
-
-	# XXX - need to port this.  Its not clear that a group name
-	#	is the right way to go about this
-	# return  undef;
-
-	$q = q{
-	select device_collection_id, account_id,
-	       property_name, property_value
-	from v_dev_col_user_prop_expanded pe
-			join account a using(account_id)
-			join val_person_status vps
-				on vps.person_status = a.account_status
-	where vps.is_disabled = 'N'
-	and property_type = 'UnixPasswdFileValue'
-	and device_collection_id is not null
-    };
-
-	if ($q_mclass_ids) {
-		$q .= "and device_collection_id in $q_mclass_ids";
-	}
-
-	$sth = $dbh->prepare($q);
-	$sth->execute;
-
-	## If there are lines with duplicate device_collection_id,
-	## system_user_id, property_name, the first line is what counts.
-
-	while ( @r = $sth->fetchrow_array ) {
-		my ( $dcid, $suid, $upn, $pv, $gid ) = @r;
-
-		unless ( exists $mu_prop->{$dcid}{$suid}{$upn} ) {
-			if ( $upn eq 'ForceUserGroup' ) {
-				$mu_prop->{$dcid}{$suid}{$upn} = {
-					GROUP_NAME => $pv,
-					UNIX_GID   => $gid
-				};
-			} else {
-				$mu_prop->{$dcid}{$suid}{$upn} = $pv;
-			}
-		}
-	}
-
-	return $mu_prop;
 }
 
 ###############################################################################
@@ -478,61 +254,6 @@ sub get_mclass_properties {
 
 ###############################################################################
 #
-# usage: $g_prop = get_group_properties();
-#
-# Retrieves UNIX_GROUP_PROPERTY values for all MCLASSes and all
-# UNIX_GROUPs. Takes inheritance into account, and resolves conflicts
-# between properties at different levels in the inheritance
-# tree. Returns a reference to a hash. The first level key is the
-# DEVICE_COLLECTION_ID, the second level key is the group name, the
-# third level key is one of DEVICE_COLLECTION_ID, GROUP_NAME, or
-# FORCE_GID, and the value is the value of the corresponding
-# attribute.
-#
-###############################################################################
-
-sub get_group_properties() {
-	my ( $q, $sth, $g_prop, $r );
-
-	$q = q{
-	select device_collection_id, 
-		ac.account_collection_name as group_name, force_gid
-	from unix_group g
-	join (
-	  select row_number()
-	    over (partition by hd.device_collection_id, gp.account_collection_id
-		  order by device_collection_level,
-			hd.parent_device_collection_id) r,
-	    hd.device_collection_id, account_collection_id, 
-	    property_value AS force_gid
-	  from v_device_coll_hier_detail hd
-	  join v_property gp
-	  on hd.parent_device_collection_id = gp.device_collection_id
-	  where gp.property_name = 'ForceGroupGID'
-	  	and gp.property_type = 'UnixGroupFileProperty') y
-	join account_collection ac
-		using (account_collection_id)
-	on g.account_collection_id = y.account_collection_id
-	where r = 1
-    };
-
-	if ($q_mclass_ids) {
-		$q .= "and device_collection_id in $q_mclass_ids";
-	}
-
-	$sth = $dbh->prepare($q);
-	$sth->execute;
-
-	while ( $r = $sth->fetchrow_hashref ) {
-		$g_prop->{ $r->{ _dbx('DEVICE_COLLECTION_ID') } }
-		  { $r->{ _dbx('GROUP_NAME') } } = $r;
-	}
-
-	return $g_prop;
-}
-
-###############################################################################
-#
 # usage: $fh = new_mclass_file($dir, $mclass, $fh, $filename);
 #
 # Closes the filehandle $fh if $fh is defined. Creates the directory
@@ -572,110 +293,134 @@ sub _by_uid($$) {
 
 ###############################################################################
 #
-# usage: generate_passwd_files($dir);
+# usage: generate_passwd_files($dir, $style);
 #
 # Creates passwd files for all specified MCLASSes in the directory $dir.
 #
 ###############################################################################
+sub get_setting_value($$$) {
+	my($array, $setting, $default) = @_;
 
-sub generate_passwd_files($) {
-	my $dir = shift;
-	my ( $q, $sth, $m_prop, $u_prop, $r, $last_dcid, $fh, @pwdlines );
 
-	$u_prop = get_uclass_properties();
-	$m_prop = get_mclass_properties();
+	if($array) {
+		for(my $i = 0; $i < scalar(@{$array}); $i += 2) {
+			if($array->[$i] eq $setting) {
+				return $array->[$i+1];
+			}
+		}
+	}
+	$default;
+}
 
-	## The following query returns the passwd file lines for all MCLASSes
-	## but without the overrides. Overrides are applied later.
+sub build_userhash($$) {
+	my($r, $pwdlines) = @_;
 
-	my $dys = "90";    # XXX - oracle, need to be smarter
-	$dys = "interval '90 days'";
-
-	my $now = "sysdate";    # XXX - oracle, need to be smarter
-	$now = "current_timestamp";
-
-	#
-	# NOTE:  Need to come up with a smarter way of getting user properties.
-	# NOTE:  Inner ssh key query is so the output is always ordered the same
-	$q = qq{
-	select distinct c.device_collection_id, a.account_id, 
-			   c.device_collection_name mclass,
-	       login,
-	       case when login = 'root'
-		      or coalesce(p1.expire_time, p1.change_time + $dys) > $now
-		    then p1.password else null end md5_password,
-	       case when login = 'root'
-		      or coalesce(p2.expire_time, p2.change_time + $dys) > $now
-		    then p2.password else null end des_password,
-	       unix_uid, ugac.account_collection_name as group_name, 
-			   unix_gid, first_name, 
-	       case when length(middle_name) = 1
-		    then middle_name || '.' else middle_name end middle_name,
-	       last_name, default_home, shell, ssh.ssh_public_key,
-		a.description
-	from account a
-			join person p
-				on (p.person_id = a.person_id)
-	     join account_unix_info ui
-		on (a.account_id = ui.account_id)
-	     join unix_group ug
-		on (ui.unix_group_acct_collection_id 
-					= ug.account_collection_id)
-			 join account_collection ugac
-		on (ugac.account_collection_id 
-					= ug.account_collection_id)
-	     join v_device_col_acct_col_expanded cce
-		on (a.account_id = cce.account_id)
-	     join device_collection c
-		on (cce.device_collection_id = c.device_collection_id)
-	     join account_collection ac on 
-				(cce.account_collection_id = ac.account_collection_id)
-			 join val_person_status vps
-				on a.account_status = vps.person_status
-	     left join account_password p1
-		on (a.account_id = p1.account_id
-		    and p1.password_type = 'md5')
-	     left join account_password p2
-		on (a.account_id = p2.account_id
-		    and p2.password_type = 'des')
-		left join (
-			select device_collection_id, account_id,
-				array_agg(ssh_public_key) as ssh_public_key
-			FROM ( SELECT * FROM (
-				SELECT  dchd.device_collection_id,
-						account_id,
-						ssh_public_key
-	    		FROM    device_collection_ssh_key dcssh
-						INNER JOIN ssh_key USING (ssh_key_id)
-						INNER JOIN v_acct_coll_acct_expanded ac
-		    				USING (account_collection_id)
-						INNER JOIN account a USING (account_id)
-						INNER JOIN v_device_coll_hier_detail dchd ON
-							dchd.parent_device_collection_id =
-							dcssh.device_collection_id
-			UNION
-			       SELECT  NULL as device_collection_id,
-					account_id,
-					ssh_public_key
-				    FROM    account_ssh_key ask
-				    INNER JOIN ssh_key skey using (ssh_key_id)
-			) keylist 
-				ORDER BY account_id, coalesce(device_collection_id, 0), 
-					ssh_public_key ) keylisto
-			GROUP BY device_collection_id, account_id
-		) ssh on a.account_id = ssh.account_id  AND
-			(ssh.device_collection_id is NULL or ssh.device_collection_id =
-				c.device_collection_id )
-	where is_disabled = 'N'
-	and c.device_collection_type = 'mclass'
-    };
-	# -- and ac.account_collection_type in ('systems', 'per-user')
-
-	if ($q_mclass_ids) {
-		$q .= "and cce.device_collection_id in $q_mclass_ids";
+	### Check to see if the login already exists in the array.  In
+	### which case, the first one is favored, except for ssh keys which
+	### are added to the existing record.  This is really the only
+	## legitimate reason for the same login showing up twice
+	##
+	## It may be possible to do something clever with unnest
+	## in v_device_collection_account_ssh_key to make this
+	## go away
+	if( $r->{ _dbx('SSH_PUBLIC_KEY') } ) {
+		my $login = $r->{ _dbx('LOGIN') };
+		my @uh = grep($_->{login} eq $login, @$pwdlines);
+		if(scalar @uh ) {
+			my $uh = pop(@uh);
+			foreach my $k (@{ $r->{ _dbx('SSH_PUBLIC_KEY') } }) {
+				push(@ {$uh->{ssh_public_key}}, $k);
+			}
+			next;  # one dude!
+		}
 	}
 
-	$q .= " order by device_collection_id, unix_uid";
+	## We need to store the mapping from DEVICE_COLLECTION_ID and
+	## LOGIN to GROUP_NAME and GID. We will need it later to
+	## generate the group files. We keep the information in the
+	## global variable $passwd_grp which is a hash reference.
+
+	my $userhash = {
+		'account_id'    => $r->{ _dbx('ACCOUNT_ID') },
+		'login'	 => $r->{ _dbx('LOGIN') },
+		'password_hash' => $r->{ _dbx('CRYPT') },
+		'uid'	   => int( $r->{ _dbx('UNIX_UID') } ),
+		'gecos'	 => $r->{ _dbx('GECOS') },
+		'home'	  => $r->{ _dbx('HOME') },
+		'shell'	 => $r->{ _dbx('SHELL') },
+		'group_name'    => $r->{ _dbx('UNIX_GROUP_NAME') },
+		'PreferLocal'   => get_setting_value(
+			$r->{ _dbx('setting') },
+			'PreferLocal', 'N'
+		),
+		'PreferLocalSSHAuthorizedKeys' => get_setting_value(
+			$r->{ _dbx('setting') },
+			'PreferLocalSSHAuthorizedKeys', 'N'
+		),
+	};
+
+	if ( defined $r->{ _dbx('EXTRA_GROUPS') } ) {
+		$userhash->{'extra_groups'} =
+		  $r->{ _dbx('EXTRA_GROUPS') };
+	}
+
+	if ( defined $r->{ _dbx('SSH_PUBLIC_KEY') } ) {
+		$userhash->{'ssh_public_key'} =
+		  $r->{ _dbx('SSH_PUBLIC_KEY') };
+	}
+	$userhash;
+}
+
+sub generate_passwd_files($$) {
+	my $dir = shift;
+	my $style = shift;
+	my ( $q, $sth, $r, $last_dcid, $fh, @pwdlines );
+
+	print "Processing passwd files\n" if ($o_verbose);
+
+	## The following query returns the passwd file lines for all MCLASSes,
+	## including overrides.
+
+	my $outclass = 'passwd';
+	if($style eq 'mclass') {
+		my $and = "";
+		if ($q_mclass_ids) {
+			$and .= "and device_collection_id in $q_mclass_ids";
+		}
+
+		$q = qq{
+			SELECT	device_collection_name, map.* 
+			FROM	v_unix_passwd_mappings map
+					INNER JOIN device_collection USING (device_collection_id)
+			WHERE	device_collection_type = 'mclass'
+					$and
+			ORDER BY device_collection_name, unix_uid
+		};
+	} elsif($style eq 'per-host') {
+		$outclass = 'hostpasswd';
+		my $and = "";
+		if ($q_mclass_ids) {
+			$and .= qq{and device_id in (
+				select device_id
+				FROM	device_collection_device
+						INNER JOIN device_collection USING (device_collection_id)
+				WHERE	device_collection_id IN $q_mclass_ids
+				)
+			};
+		}
+	
+		$q = qq{
+			SELECT	d.device_name, map.* 
+			FROM	v_unix_passwd_mappings map
+					INNER JOIN device_collection USING (device_collection_id)
+					INNER JOIN device_collection_device 
+							USING (device_collection_id)
+					INNER JOIN device d USING (device_id)
+			WHERE	device_collection_type = 'per-device'
+					$and
+			ORDER BY device_name, unix_uid
+		};
+	}
 
 	$sth = $dbh->prepare($q);
 	$sth->execute;
@@ -690,85 +435,25 @@ sub generate_passwd_files($) {
 		## If we switched to a new MCLASS, write the passwd file
 		## and empty @pwdlines
 
+		my $outname = ($style eq 'mclass')?$r->{ _dbx('DEVICE_COLLECTION_NAME') }:
+			$r->{ _dbx('DEVICE_NAME') };
 		if ( defined($last_dcid) ) {
 			if ( $last_dcid != $dcid ) {
 				my $json = JSON::PP->new->ascii;
 				print $fh $json->pretty->encode( \@pwdlines );
 				$fh =
-				  new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
-					$fh, 'passwd' );
+				  new_mclass_file( $dir, $outname, $fh, $outclass );
 				$last_dcid = $dcid;
 				undef(@pwdlines);
 			}
 		} else {
-			$fh = new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
-				$fh, 'passwd' );
+			$fh = new_mclass_file( $dir, $outname, $fh, $outclass );
 			$last_dcid = $dcid;
 		}
-
-		## Apply all overrides to the passwd file line $r
-
-		@pwd =
-		  get_passwd_line( $m_prop->{$dcid}, $u_prop->{$dcid}{$suid},
-			$g_prop->{$dcid}, $r );
-
-		## Check to see if the login already exists in the array.  In
-		## which case, the first one is favored, except for ssh keys which
-		## are added to the existing record.  This is really the only
-		## legitimate reason for the same login showing up twice
-		if( $r->{ _dbx('SSH_PUBLIC_KEY') } ) {
-			my @uh = grep($_->{login} eq $pwd[0], @pwdlines);
-			if(scalar @uh ) {
-				my $uh = pop(@uh);
-				foreach my $k (@{ $r->{ _dbx('SSH_PUBLIC_KEY') } }) {
-					push(@ {$uh->{ssh_public_key}}, $k);
-				}
-				next;  # one dude!
-			}
-		}
-
-		## We need to store the mapping from DEVICE_COLLECTION_ID and
-		## LOGIN to GROUP_NAME and GID. We will need it later to
-		## generate the group files. We keep the information in the
-		## global variable $passwd_grp which is a hash reference.
-
-		$login		       = $pwd[0];
-		$gid			 = $pwd[3];
-		$gname		       = $pwd[7];
-		$passwd_grp->{$dcid}{$login} = {
-			GROUP_NAME => $gname,
-			GID	=> $gid
-		};
-
-		my $up       = $u_prop->{$dcid}{$suid};
-		my $userhash = {
-			'account_id'    => $r->{ _dbx('ACCOUNT_ID') },
-			'login'	 => $pwd[0],
-			'password_hash' => $pwd[1],
-			'uid'	   => int($pwd[2]),
-			'gecos'	 => $pwd[4],
-			'home'	  => $pwd[5],
-			'shell'	 => $pwd[6],
-			'group_name'    => $pwd[7],
-			'PreferLocal'   => (
-				     $up->{'PreferLocal'}
-				  && $up->{'PreferLocal'} eq 'Y'
-			  ) ? 'Y' : 'N',
-			'PreferLocalSSHAuthorizedKeys' => (
-				     $up->{'PreferLocalSSHAuthorizedKeys'}
-				  && $up->{'PreferLocalSSHAuthorizedKeys'} eq
-				  'Y'
-			) ? 'Y' : 'N',
-		};
-
-		if ( defined $r->{ _dbx('SSH_PUBLIC_KEY') } ) {
-			$userhash->{'ssh_public_key'} =
-			  $r->{ _dbx('SSH_PUBLIC_KEY') };
-		}
+		my $userhash = build_userhash($r, \@pwdlines);
 
 		## Accumulate all passwd file lines in @pwdlines.
 		## $pwd[7] is the group name. We don't need it anymore.
-
 		push( @pwdlines, $userhash );
 	}
 
@@ -799,281 +484,112 @@ sub generate_passwd_files($) {
 #
 ###############################################################################
 
-sub generate_group_files($) {
+sub generate_group_files($$) {
 	my $dir = shift;
+	my $style = shift;
+
 	my (
-		$q,	 $sth,   $r,      $fh,
-		$mclass,    %group, %member, %m_member,
-		%gn_member, %gn_m_member
+		$q,	 $sth,   $fh,
 	);
 
-	## The following query determines which unix groups are assigned
-	## to which MCLASSes taking device collection inheritance
-	## into account. The query also determines the group password and
-	## the default GID which the group would have without any overrides.
-	$q = q{
-	select distinct dchd.device_collection_id, 
-			   dc.device_collection_name mclass, 
-	       ug.account_collection_id, 
-			   ugu.account_collection_name as group_name, 
-	       ug.unix_gid, 
-	       ug.group_password	-- XXX needs to be a property
-	from v_device_coll_hier_detail dchd
-	join device_collection dc
-		on dchd.device_collection_id = dc.device_collection_id
-	join v_property p
-		on p.device_collection_id = dchd.parent_device_collection_id
-	join unix_group ug on 
-			p.account_collection_id = ug.account_collection_id
-		join account_collection ugu on 
-			ugu.account_collection_id = ug.account_collection_id 
-	where dc.device_collection_type = 'mclass'
-		and p.property_type = 'MclassUnixProp'
-	and p.property_name = 'UnixGroup'
-    };
+	print "Processing group files\n" if ($o_verbose);
 
+	my $and = "";
 	if ($q_mclass_ids) {
-		$q .= "and dchd.device_collection_id in $q_mclass_ids";
+		$and .= "and device_collection_id in $q_mclass_ids";
 	}
+
+	my $outclass = 'group';
+	if($style eq 'mclass') {
+		my $and = "";
+		if ($q_mclass_ids) {
+			$and .= "and device_collection_id in $q_mclass_ids";
+		}
+
+		$q = qq{
+			SELECT	device_collection_name, map.* 
+			FROM	v_unix_group_mappings map
+					INNER JOIN device_collection USING (device_collection_id)
+			WHERE	device_collection_type = 'mclass'
+					$and
+			ORDER BY device_collection_name, unix_gid
+		};
+	} elsif($style eq 'per-host') {
+		$outclass = 'hostgroup';
+		my $and = "";
+		if ($q_mclass_ids) {
+			$and .= qq{and device_id in (
+				select device_id
+				FROM	device_collection_device
+						INNER JOIN device_collection USING (device_collection_id)
+				WHERE   device_collection_id IN $q_mclass_ids
+				)
+			};
+		}
+
+		$q = qq{
+			SELECT  d.device_name, map.*
+			FROM	v_unix_group_mappings map
+					INNER JOIN device_collection USING (device_collection_id)
+					INNER JOIN device_collection_device
+							USING (device_collection_id)
+					INNER JOIN device d USING (device_id)
+			WHERE   device_collection_type = 'per-device'
+					$and
+			ORDER BY device_name, unix_gid
+		};
+	}
+
 
 	$sth = $dbh->prepare($q);
 	$sth->execute;
 
-	## We store the results in the hash %group which has the
-	## DEVICE_COLLECTION_ID and ACCOUNT_COLLECTION_ID as it's keys.
-
-	while ( $r = $sth->fetchrow_hashref ) {
+	my @grplines;
+	my $last_dcid;
+	while ( my $r = $sth->fetchrow_hashref ) {
 		my $dcid = $r->{ _dbx('DEVICE_COLLECTION_ID') };
-		my $ugid = $r->{ _dbx('ACCOUNT_COLLECTION_ID') };
-
-		$group{$dcid}{$ugid} = $r;
-	}
-
-	## This is an auxiliary query which maps MCLASS IDs to MCLASS names
-
-	$q = q{
-	select device_collection_id, device_collection_name mclass 
-		from device_collection
-	where device_collection_type = 'mclass'
-    };
-
-	$mclass = $dbh->selectall_hashref( $q, _dbx('DEVICE_COLLECTION_ID') );
-
-	## The following query determines Unix Group membership on a specific
-	## mclass (device collection).  It does not handle 'user is a member of
-	## this group everywhere' which is handled in a later query.
-
-	## The following query determines Unix group membership. It maps
-	## Unix groups to logins that belong to each particular group for
-	## entries in ACCOUNT_COLLECTION_ACCOUNT that have a property
-	## of UnixGroup set for the given DEVICE_COLLECTION_ID
-
-	## property:
-	## -- lhs: mclass device_collection_id, unix group account_collection_id
-	## -- rhs: account collection that gets membership
-
-	$q = q{
-		select	distinct dc.device_collection_id, 
-				ug.account_collection_id, 
-				grp_ac.account_collection_name as group_name, 
-				a.login
-		from v_device_coll_hier_detail dc
-		    inner join v_property p on
-				p.device_collection_id = dc.parent_device_collection_id
-		    inner join account_collection grp_ac using (account_collection_id)
-		    inner join unix_group ug using (account_collection_id)
-		    inner join v_acct_coll_acct_expanded mac
-				on mac.account_collection_id = p.property_value_account_coll_id
-		    inner join account a
-				on mac.account_id = a.account_id
-		    inner join val_person_status vps
-				on vps.person_status = a.account_status
-		where
-				p.property_name = 'UnixGroupMemberOverride'
-			and p.property_type = 'MclassUnixProp'
-			and vps.is_disabled = 'N'
-    };
-
-	if ($q_mclass_ids) {
-		$q .= "and dc.device_collection_id in $q_mclass_ids";
-	}
-
-	$sth = $dbh->prepare($q);
-	$sth->execute;
-
-	## We store the results in two hashes, $m_member and $gn_m_member.
-	## The first level key is the DEVICE_COLLECTION_ID for both. The
-	## second level key of $m_member is the ACCOUNT_COLLECTION_ID.
-	## The second level key of $gn_m_member is the group name. The value
-	## for both hashes is a reference to the list of the group members.
-
-	while ( $r = $sth->fetchrow_hashref ) {
-		my $dcid  = $r->{ _dbx('DEVICE_COLLECTION_ID') };
-		my $ugid  = $r->{ _dbx('ACCOUNT_COLLECTION_ID') };
 		my $gname = $r->{ _dbx('GROUP_NAME') };
+		my $gid = $r->{ _dbx('UNIX_GID') };
+		my $gpwd = $r->{ _dbx('GROUP_PASSWORD') };
+		my $peeps = $r->{ _dbx('MEMBERS') };
 
-		push( @{ $m_member{$dcid}{$ugid} },     $r->{ _dbx('LOGIN') } );
-		push( @{ $gn_m_member{$dcid}{$gname} }, $r->{ _dbx('LOGIN') } );
-	}
-
-	## The following query determines Unix group membership everywhere.
-	## It basically just shows account collection membership, recursively.
-	## This could probably be combined with the above query with a UNION,
-	## but earlier# iterations under Oracle just could not handle it.
-	## Each query separately takes a few seconds, but once they were combined,
-	## it never finishes.  Lots has changed since then.
-
-	$q = q{
-		select  ug.account_collection_id,
-				gac.account_collection_name as group_name,
-				a.login
-		 from   unix_group ug
-			inner join account_collection gac using (account_collection_id)
-			inner join v_acct_coll_acct_expanded vacae 
-			    using (account_collection_id)
-			inner join account a
-			    using (account_id)
-			inner join val_person_status vps
-			    on vps.person_status = a.account_status
-		where   is_disabled = 'N'
-    };
-
-	$sth = $dbh->prepare($q);
-	$sth->execute;
-
-	## We store the results in two hashes, $member and $gn_member.
-	## The first level key is the DEVICE_COLLECTION_ID for both. The
-	## second level key of $member is the ACCOUNT_COLLECTION_ID. The second
-	## level key of $gn_member is the group name. The value for both
-	## hashes is a reference to the list of the group members.
-
-	while ( $r = $sth->fetchrow_hashref ) {
-		my $ugid  = $r->{ _dbx('ACCOUNT_COLLECTION_ID') };
-		my $gname = $r->{ _dbx('GROUP_NAME') };
-
-		push( @{ $member{$ugid} },     $r->{ _dbx('LOGIN') } );
-		push( @{ $gn_member{$gname} }, $r->{ _dbx('LOGIN') } );
-	}
-
-	## The $passwd_grp hash is built during generation of passwd
-	## files. The first level key is the DEVICE_COLLECTION_ID, the
-	## second level key is LOGIN, the third level keys are
-	## 'GROUP_NAME' and 'GID'. The hash stores the primary Unix group
-	## information for all users on all MCLASSes. Let's iterate over
-	## all MCLASSes that have any users in the passwd file then.
-
-	foreach my $dcid ( keys %$passwd_grp ) {
-		my $gdc = $group{$dcid};
-		my $gp  = $g_prop->{$dcid};
-		my $gm;
-
-		#- next if(!$gdc);
-		## $gm will store group member information for this MCLASS.
-		## The first level key is the group name. The second level
-		## keys are 'gid', 'password', and 'members'.
-
-		## First add to $gm all groups that are assigned this MCLASS
-
-		foreach my $ugid ( keys %$gdc ) {
-			my $g     = $gdc->{$ugid};
-			my $gpass = $g->{ _dbx('GROUP_PASSWORD') } || '*';
-			my $gname = $g->{ _dbx('GROUP_NAME') };
-			my $gid =
-			    $gp && defined( $gp->{$gname} )
-			  ? $gp->{$gname}{ _dbx('FORCE_GID') }
-			  : $g->{ _dbx('UNIX_GID') };
-
-			$gm->{$gname}{gid}      = $gid;
-			$gm->{$gname}{password} = $gpass;
-
-			## Add members that this group has everywhere
-
-			push( @{ $gm->{$gname}{members} }, @{ $member{$ugid} } )
-			  if ( defined $member{$ugid} );
-
-			## Add members that are specific to this MCLASS
-
-
-			push(
-				@{ $gm->{$gname}{members} },
-				@{ $m_member{$dcid}{$ugid} }
-			) if ( defined $m_member{$dcid}{$ugid} );
+		my $outname = ($style eq 'mclass')?
+			$r->{ _dbx('DEVICE_COLLECTION_NAME') }:
+			$r->{ _dbx('DEVICE_NAME') };
+		if ( defined($last_dcid) ) {
+			if ( $last_dcid != $dcid ) {
+				my $json = JSON::PP->new->ascii;
+				print $fh $json->pretty->encode( \@grplines );
+				$fh =
+				  new_mclass_file( $dir, $outname, $fh, $outclass );
+				$last_dcid = $dcid;
+				undef(@grplines);
+			}
+		} else {
+			$fh = new_mclass_file( $dir, $outname, $fh, $outclass );
+			$last_dcid = $dcid;
 		}
 
-		## Now add default groups for users on this MCLASS. We take
-		## the group information from $passwd_grp which stores the
-		## primary group information from the passwd file.
 
-		foreach my $login ( sort keys %{ $passwd_grp->{$dcid} } ) {
-			my $gname = $passwd_grp->{$dcid}{$login}{GROUP_NAME};
-			my $gid   = $passwd_grp->{$dcid}{$login}{GID};
+		# sometimes an undef shows up, so strip it out
+		my @peeps = grep ( defined($_), @$peeps);
 
-			$gm->{$gname}{gid} ||= $gid;
-			$gm->{$gname}{password} ||= '*';
-
-			## Add members that this group has everywhere
-
-			push(
-				@{ $gm->{$gname}{members} },
-				@{ $gn_member{$gname} }
-			) if ( defined $gn_member{$gname} );
-
-			## Add members that are specific to this MCLASS
-
-			push(
-				@{ $gm->{$gname}{members} },
-				@{ $gn_m_member{$dcid}{$gname} }
-			) if ( defined $gn_m_member{$dcid}{$gname} );
-		}
-
-		## And now write all the groups to the group file
-
-		$fh = new_mclass_file( $dir, $mclass->{$dcid}{ _dbx('MCLASS') },
-			$fh, 'group' );
-
-		my @allgrp;
-		foreach my $gname (
-			sort    ## by GID
+		push(
+			@grplines,
 			{
-				$gm->{$a}{gid} <=> $gm->{$b}{gid}
-			} keys %$gm
-		  )
-		{
-			my $gpass = $gm->{$gname}{password};
-			my $gid   = $gm->{$gname}{gid};
-			my ( @m, %is_mem );
-
-			## Some Unix groups are actually empty in JazzHands, that's why
-			## we need the if statement here.
-
-			@m = @{ $gm->{$gname}{members} }
-			  if ( defined $gm->{$gname}{members} );
-
-			## Remove duplicate members from @m
-
-			map { $is_mem{$_} = 1 } @m;
-			@m = keys(%is_mem);
-
-			## Remove users who are not in the passwd file
-
-			@m = grep( defined( $passwd_grp->{$dcid}{$_} ), @m );
-
-			#print $fh "$gname:*:$gid:"
-			#  . join( ',', sort { $a cmp $b } @m ) . "\n";
-			@m = sort(@m);
-			push(
-				@allgrp,
-				{
-					'group_name'     => $gname,
-					'group_password' => '*',
-					'gid'	    => int($gid),
-					'members'	=> \@m
-				}
-			);
-		}
-		my $json = JSON::PP->new->ascii;
-		print $fh $json->pretty->encode( \@allgrp );
+				'group_name'     => $gname,
+				'group_password' => '*',
+				'gid'	    => int($gid),
+				'members'	=> \@peeps
+			}
+		);
 	}
+
+	## Let's not forget to write the passwd file for the last MCLASS
+	my $json = JSON::PP->new->ascii;
+	print $fh $json->pretty->encode( \@grplines ) if ($fh);
+	$fh->close if ( defined $fh );
+
 }
 
 ###############################################################################
@@ -2075,7 +1591,7 @@ sub create_host_symlinks($@) {
 			{
 				unlink("$dir/$device/mclass");
 				symlink(
-"../../mclass/$new->{$device}{_dbx('MCLASS')}",
+					"../../mclass/$new->{$device}{_dbx('MCLASS')}",
 					"$dir/$device/mclass"
 				);
 			}
@@ -2235,12 +1751,10 @@ sub main {
 	## generate_group_files. That's why we store them in a global
 	## variable.
 
-	$g_prop = get_group_properties();
-
 	## Generate all the files
 
-	generate_passwd_files($dir);
-	generate_group_files($dir);
+	generate_passwd_files($dir, 'mclass');
+	generate_group_files($dir, 'mclass');
 	retrieve_sudo_data();
 	generate_sudoers_files($dir);
 
@@ -2259,6 +1773,11 @@ sub main {
 	## Adjust the symlinks
 
 	create_host_symlinks( "$o_output_dir/hosts", @ARGV );
+
+	## create any per-host files
+	generate_passwd_files("$o_output_dir/hosts", 'per-host');
+	generate_group_files("$o_output_dir/hosts", 'per-host');
+
 	$dbh->disconnect;
 
 	## Create the manifest

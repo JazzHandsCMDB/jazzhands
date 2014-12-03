@@ -295,6 +295,102 @@ CREATE TRIGGER trigger_dns_rec_prevent_dups
 	ON dns_record 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE dns_rec_prevent_dups();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_record_cname_checker()
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;	
+	_dom	TEXT;
+BEGIN
+	_tally := 0;
+	IF TG_OP = 'INSERT' OR NEW.DNS_TYPE != OLD.DNS_TYPE THEN
+		IF NEW.DNS_TYPE = 'CNAME' THEN
+			IF TG_OP = 'UPDATE' THEN
+			SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE	
+				 		NEW.dns_domain_id = x.dns_domain_id
+				 AND	OLD.dns_record_id != x.dns_record_id
+				 AND	(
+				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+							or
+							NEW.dns_name = x.DNS_NAME
+						)
+				;
+			ELSE
+				-- only difference between above and this is the use of OLD
+				SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE	
+				 		NEW.dns_domain_id = x.dns_domain_id
+				 AND	(
+				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+							or
+							NEW.dns_name = x.DNS_NAME
+						)
+				;
+			END IF;
+		-- this clause is basically the same as above except = 'CANME'
+		ELSIF NEW.DNS_TYPE != 'CNAME' THEN
+			IF TG_OP = 'UPDATE' THEN
+				SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE	x.dns_type = 'CNAME'
+				 AND	NEW.dns_domain_id = x.dns_domain_id
+				 AND	OLD.dns_record_id != x.dns_record_id
+				 AND	(
+				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+							or
+							NEW.dns_name = x.DNS_NAME
+						)
+				;
+			ELSE
+				-- only difference between above and this is the use of OLD
+				SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE	x.dns_type = 'CNAME'
+				 AND	NEW.dns_domain_id = x.dns_domain_id
+				 AND	(
+				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+							or
+							NEW.dns_name = x.DNS_NAME
+						)
+				;
+			END IF;
+		END IF;
+	END IF;
+
+	IF _tally > 0 THEN
+		SELECT soa_name INTO _dom FROM dns_domain
+		WHERE dns_domain_id = NEW.dns_domain_id ;
+
+		if NEW.DNS_NAME IS NULL THEN
+			RAISE EXCEPTION '% may not have CNAME and other records (%)', 
+				_dom, _tally
+				USING ERRCODE = 'unique_violation';
+		ELSE
+			RAISE EXCEPTION '%.% may not have CNAME and other records (%)', 
+				NEW.dns_name, _dom, _tally
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_record_cname_checker ON dns_record;
+CREATE TRIGGER trigger_dns_record_cname_checker 
+	BEFORE INSERT OR UPDATE OF dns_type
+	ON dns_record 
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_record_cname_checker();
+
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_domain_trigger_change()
 RETURNS TRIGGER AS $$

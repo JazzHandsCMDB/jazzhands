@@ -535,7 +535,7 @@ BEGIN
 		    EXECUTE _r.regrant; 
 		    DELETE from __regrants where id = _r.id;
 	    END LOOP;
-    
+
 	    SELECT count(*) INTO _tally from __regrants;
 	    IF _tally > 0 THEN
 		    RAISE EXCEPTION 'Grant extractions were run while replaying grants - %.', _tally;
@@ -630,7 +630,7 @@ CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
 	schema varchar,
 	object varchar,
 	dropit boolean DEFAULT true,
-	doobjectdeps boolean DEFAULT false,
+	doobjectdeps boolean DEFAULT false
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -1101,6 +1101,51 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- DONE functions to undo audit rows
 ------------------------------------------------------------------------------
 
+------------------------------------------------------------------------------
+-- START  schema_support.retrieve_functions
+--
+-- function that returns, and optionally drops all functions of a given
+-- name in a schema, regardless of arguments.  The return array can be used
+-- to operate on the objects if needed (enough to uniquely id the function)
+--
+--
+CREATE OR REPLACE FUNCTION schema_support.retrieve_functions(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT false
+) RETURNS TEXT[] AS $$
+DECLARE
+	_r		RECORD;
+	_fn		TEXT;
+	_cmd	TEXT;
+	_rv		TEXT[];
+BEGIN
+	FOR _r IN SELECT n.nspname, p.proname, 
+				coalesce(u.usename, 'public') as owner,
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		_fn = _r.nspname || '.' || _r.proname || '(' || _r.idargs || ')';
+		_rv = _rv || _fn;
+
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _fn || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+	RETURN _rv;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+-- DONE  schema_support.retrieve_functions
+------------------------------------------------------------------------------
+
 
 /**************************************************************
  *  FUNCTIONS
@@ -1170,7 +1215,7 @@ will build and execute a statement to undo changes made in an audit table
 against the current state.  It executes the queries in reverse order from
 execution so in theory can undo every operation on a table if called without
 restriction.  It does not cascade or otherwise do anything with foreign keys.
-	
+
 
 -------------------------------------------------------------------------------
 -- select schema_support.rebuild_stamp_triggers();

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2013 Matthew Ragan
- * Copyright (c) 2012-2013 Todd Kover
+ * Copyright (c) 2012-2014 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@
  */
 
 /*==============================================================*/
-/* triggers and such for JazzHands PostgreSQL 9.1               */
+/* triggers and such for JazzHands PostgreSQL 9.1	       */
 /*==============================================================*/
 
 
@@ -140,10 +140,10 @@ DECLARE
 BEGIN
 	level := 0;
     BEGIN
-        SELECT nestlevel INTO level FROM "IntegrityPackageVariables";
+	SELECT nestlevel INTO level FROM "IntegrityPackageVariables";
     EXCEPTION
-        WHEN OTHERS THEN
-            NULL;
+	WHEN OTHERS THEN
+	    NULL;
     END;
     RETURN (level);
 END;
@@ -158,9 +158,9 @@ DECLARE
 BEGIN
 	level := 0;
     BEGIN
-        SELECT nestlevel INTO level FROM "IntegrityPackageVariables";
+	SELECT nestlevel INTO level FROM "IntegrityPackageVariables";
     EXCEPTION
-        WHEN OTHERS THEN
+	WHEN OTHERS THEN
 			RETURN (level);
     END;
 	level := level + 1;
@@ -178,9 +178,9 @@ DECLARE
 BEGIN
 	level := 0;
     BEGIN
-        SELECT nestlevel INTO level FROM "IntegrityPackageVariables";
+	SELECT nestlevel INTO level FROM "IntegrityPackageVariables";
     EXCEPTION
-        WHEN OTHERS THEN
+	WHEN OTHERS THEN
 			RETURN (level);
     END;
 	IF level > 0 THEN
@@ -342,9 +342,11 @@ BEGIN
 			((layer3_network_id IS NULL AND NEW.layer3_network_id IS NULL) OR
 				(layer3_network_id = NEW.layer3_network_id)) AND
 			((person_id IS NULL AND NEW.Person_id IS NULL) OR
-				(Person_Id = NEW.person_id))
+				(Person_Id = NEW.person_id)) AND
+			((property_collection_id IS NULL AND NEW.property_collection_id IS NULL) OR
+				(property_collection_id = NEW.property_collection_id))
 			;
-			
+
 		IF FOUND THEN
 			RAISE EXCEPTION 
 				'Property of type % already exists for given LHS and property is not multivalue',
@@ -389,7 +391,10 @@ BEGIN
 			((layer3_network_id IS NULL AND NEW.layer3_network_id IS NULL) OR
 				(layer3_network_id = NEW.layer3_network_id)) AND
 			((netblock_collection_Id IS NULL AND NEW.netblock_collection_Id IS NULL) OR
-				(netblock_collection_Id = NEW.netblock_collection_Id));
+				(netblock_collection_Id = NEW.netblock_collection_Id)) AND
+			((property_collection_Id IS NULL AND NEW.property_collection_Id IS NULL) OR
+				(property_collection_Id = NEW.property_collection_Id))
+		;
 
 		IF FOUND THEN
 			RAISE EXCEPTION 
@@ -728,6 +733,18 @@ BEGIN
 			END IF;
 	END IF;
 
+	IF v_prop.Permit_property_collection_Id = 'REQUIRED' THEN
+			IF NEW.property_collection_Id IS NULL THEN
+				RAISE 'property_collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_property_collection_Id = 'PROHIBITED' THEN
+			IF NEW.property_collection_Id IS NOT NULL THEN
+				RAISE 'property_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
 	IF v_prop.Permit_Person_Id = 'REQUIRED' THEN
 			IF NEW.Person_Id IS NULL THEN
 				RAISE 'Person_Id is required.'
@@ -778,23 +795,22 @@ BEGIN
 	IF TG_OP = 'DELETE' THEN
 		SELECT	account_realm_id
 		  INTO	def_acct_rlm
-		  FROM	account_realm_company
-		 WHERE	company_id IN
-		 		(select property_value_company_id
-				   from property
-				  where	property_name = '_rootcompanyid'
-				    and	property_type = 'Defaults'
-				);
+		  FROM	property
+		 WHERE	property_name = '_root_account_realm_id'
+		    and	property_type = 'Defaults';
+
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm THEN
-				SELECT	account_collection_id 
-				  FROM	account_collection
+				SELECT	account_collection_id
 				  INTO	acid
-				 WHERE	account_collection_name = OLD.login
-				   AND	account_collection_type = 'per-user';
-	
+				  FROM	account_collection ac
+						INNER JOIN account_collection_account aca
+							USING (account_collection_id)
+				 WHERE	aca.account_id = OLD.account_Id
+				   AND	ac.account_collection_type = 'per-user';
+
 				 DELETE from account_collection_account
 				  where account_collection_id = acid;
-	
+
 				 DELETE from account_collection
 				  where account_collection_id = acid;
 		END IF;
@@ -809,8 +825,7 @@ DROP TRIGGER IF EXISTS trigger_delete_peruser_account_collection ON Account;
 CREATE TRIGGER trigger_delete_peruser_account_collection BEFORE DELETE
 	ON Account FOR EACH ROW EXECUTE PROCEDURE delete_peruser_account_collection();
 
-
--- on insertys/updates ensure the per-user account is updated properly
+-- on inserts/updates ensure the per-user account is updated properly
 CREATE OR REPLACE FUNCTION update_peruser_account_collection() RETURNS TRIGGER AS $$
 DECLARE
 	def_acct_rlm	account_realm.account_realm_id%TYPE;
@@ -818,13 +833,10 @@ DECLARE
 BEGIN
 	SELECT	account_realm_id
 	  INTO	def_acct_rlm
-	  FROM	account_realm_company
-	 WHERE	company_id IN
-	 		(select property_value_company_id
-			   from property
-			  where	property_name = '_rootcompanyid'
-			    and	property_type = 'Defaults'
-			);
+	  FROM	property
+	 WHERE	property_name = '_root_account_realm_id'
+	    and	property_type = 'Defaults';
+
 	IF def_acct_rlm is not NULL AND NEW.account_realm_id = def_acct_rlm THEN
 		if TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND OLD.account_realm_id != NEW.account_realm_id) THEN
 			insert into account_collection 
@@ -851,11 +863,19 @@ BEGIN
 	-- remove the per-user entry if the new account realm is not the default
 	IF TG_OP = 'UPDATE'  THEN
 		IF def_acct_rlm is not NULL AND OLD.account_realm_id = def_acct_rlm AND NEW.account_realm_id != OLD.account_realm_id THEN
-			SELECT	account_collection_id
-		      FROM	account_collection
-			  INTO	acid
-			 WHERE	account_collection_name = OLD.login
-			   AND	account_collection_type = 'per-user';
+		    SELECT  account_collection_id
+		INTO    acid
+		FROM    account_collection ac
+			INNER JOIN account_collection_account aca
+					USING (account_collection_id)
+		WHERE  aca.account_id = NEW.account_Id
+		AND     ac.account_collection_type = 'per-user';
+
+			DELETE from account_collection_account
+				WHERE account_collection_id = acid;
+
+			DELETE from account_collection
+				WHERE account_collection_id = acid;
 		END IF;
 	END IF;
 	RETURN NEW;
@@ -1034,9 +1054,9 @@ CREATE TRIGGER trigger_update_company_account_collection AFTER INSERT OR UPDATE
 CREATE OR REPLACE FUNCTION propagate_person_status_to_account()
 	RETURNS TRIGGER AS $$
 DECLARE
-	should_propagate 	val_person_status.propagate_from_person%type;
+	should_propagate	val_person_status.propagate_from_person%type;
 BEGIN
-	
+
 	IF OLD.person_company_status != NEW.person_company_status THEN
 		select propagate_from_person
 		  into should_propagate
@@ -1158,7 +1178,7 @@ AFTER INSERT OR UPDATE ON token_collection_hier
 CREATE OR REPLACE FUNCTION check_svcenv_colllection_hier_loop()
 	RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.service_env_collection_idw = 
+	IF NEW.service_env_collection_id = 
 		NEW.child_service_env_coll_id THEN
 			RAISE EXCEPTION 'svcenv Collection Loops Not Pernitted '
 			USING ERRCODE = 20704;	/* XXX */
@@ -1188,14 +1208,14 @@ DECLARE
 	tally	INTEGER;
 BEGIN
 	select  vpiu.is_multivalue, count(*)
- 	  into	ismv, tally
+	  into	ismv, tally
 	  from  person_image pi
 		inner join person_image_usage piu
 			using (person_image_id)
 		inner join val_person_image_usage vpiu
 			using (person_image_usage)
 	 where	pi.person_id in
-	 	(select person_id from person_image
+		(select person_id from person_image
 		 where person_image_id = NEW.person_image_id
 		)
 	  and	person_image_usage = NEW.person_image_usage

@@ -30,8 +30,8 @@ DECLARE
 	_sc_onecol2		service_environment_collection%ROWTYPE;
 	_sc_onemem		service_environment_collection%ROWTYPE;
 	_hsc			service_environment_collection%ROWTYPE;
-	_svcenv1			service_environment%ROWTYPE;
-	_svcenv2			service_environment%ROWTYPE;
+	_svcenv1		service_environment%ROWTYPE;
+	_svcenv2		service_environment%ROWTYPE;
 BEGIN
 	RAISE NOTICE 'Service EnvCollHier: Cleanup Records from Previous Tests';
 
@@ -45,7 +45,8 @@ BEGIN
 	delete from val_service_env_coll_type where 
 		service_env_collection_type like
 		'JHTEST%';
-	delete from service_environment where service_environment like 'JHTEST%';
+	delete from service_environment 
+	where service_environment_name like 'JHTEST%';
 
 	RAISE NOTICE '++ Inserting testing data';
 	INSERT INTO val_service_env_coll_type (
@@ -91,9 +92,9 @@ BEGIN
 	------ Beginning of Collection specific stuff
 	RAISE NOTICE 'Inserting collection specific records'; 
 
-	insert into service_environment (service_environment,production_state) 
+	insert into service_environment (service_environment_name,production_state) 
 		values('JHTEST01', 'production') RETURNING * into _svcenv1;
-	insert into service_environment (service_environment,production_state) 
+	insert into service_environment (service_environment_name,production_state) 
 		values('JHTEST02', 'production') RETURNING * into _svcenv2;
 	RAISE NOTICE 'Starting tests...';
 
@@ -110,23 +111,23 @@ BEGIN
 	END;
 
 	INSERT INTO svc_environment_coll_svc_env (
-		service_env_collection_id, service_environment
+		service_env_collection_id, service_environment_id
 	) VALUES (
-		_sc_onemem.service_env_collection_id, _svcenv1.service_environment
+		_sc_onemem.service_env_collection_id, _svcenv1.service_environment_id
 	);
 
 	INSERT INTO svc_environment_coll_svc_env (
-		service_env_collection_id, service_environment
+		service_env_collection_id, service_environment_id
 	) VALUES (
-		_hsc.service_env_collection_id, _svcenv2.service_environment
+		_hsc.service_env_collection_id, _svcenv2.service_environment_id
 	);
 
 	RAISE NOTICE 'Testing to see if max_num_members works... ';
 	BEGIN
 		INSERT INTO svc_environment_coll_svc_env (
-			service_env_collection_id, service_environment
+			service_env_collection_id, service_environment_id
 		) VALUES (
-			_sc_onemem.service_env_collection_id, _svcenv1.service_environment
+			_sc_onemem.service_env_collection_id, _svcenv1.service_environment_id
 		);
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
@@ -134,17 +135,17 @@ BEGIN
 	END;
 
 	INSERT INTO svc_environment_coll_svc_env (
-		service_env_collection_id, service_environment
+		service_env_collection_id, service_environment_id
 	) VALUES (
-		_sc_onecol1.service_env_collection_id, _svcenv1.service_environment
+		_sc_onecol1.service_env_collection_id, _svcenv1.service_environment_id
 	);
 
 	RAISE NOTICE 'Testing to see if max_num_collections works... ';
 	BEGIN
 		INSERT INTO svc_environment_coll_svc_env (
-			service_env_collection_id, service_environment
+			service_env_collection_id, service_environment_id
 		) VALUES (
-			_sc_onecol2.service_env_collection_id, _svcenv1.service_environment
+			_sc_onecol2.service_env_collection_id, _svcenv1.service_environment_id
 		);
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
