@@ -116,7 +116,7 @@ SELECT	o.device_collection_id,
 				case WHEN middle_name is NOT NULL AND
 					length(middle_name) = 1 THEN concat(middle_name,'.')
 				ELSE middle_name END, ' ',
-				coalesce(preferred_last_name, last_name), ' ')
+				coalesce(preferred_last_name, last_name))
 			END as gecos,
 		coalesce(setting[(select i + 1
 			from generate_subscripts(setting, 1) as i
