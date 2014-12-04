@@ -1,5 +1,5 @@
 Name:   	jazzhands-perl-mgmt
-Version:        0.53
+Version:        0.59
 Release:        1%{?dist}
 Summary:        JazzHands Management Perl Libraries
 Group:  	System Environment/Libraries
@@ -41,6 +41,8 @@ find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;
 
 
 %changelog
+* Thu Dec  4 2014 Todd Kover <kovert@omniscient.com> 0.59.1-1
+  - deal with netmask_bits going away..
 * Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52.2-1
   - fix issue with inheritance from JazzHands::Common
 * Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-1
