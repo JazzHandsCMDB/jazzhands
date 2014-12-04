@@ -1,5 +1,5 @@
 Name:   	jazzhands-perl-mgmt
-Version:        0.59
+Version:        0.59.1
 Release:        1%{?dist}
 Summary:        JazzHands Management Perl Libraries
 Group:  	System Environment/Libraries
