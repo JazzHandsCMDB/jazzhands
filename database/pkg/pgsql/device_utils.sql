@@ -321,7 +321,7 @@ BEGIN
 	--
 	-- If there is no notes or serial number its save to remove
 	-- 
-	IF tally = 0 AND _d.SERIAL_NUMBER is NULL THEN
+	IF tally = 0 AND _d.ASSET_ID is NULL THEN
 		_purgedev := true;
 	END IF;
 
@@ -340,7 +340,9 @@ BEGIN
 
 	UPDATE device SET 
 		device_name =NULL,
-		service_environment = 'unallocated',
+		service_environment_id = (
+			select service_environment_id from service_environment
+			where service_environment_name = 'unallocated'),
 		device_status = 'removed',
 		voe_symbolic_track_id = NULL,
 		is_monitored = 'N',

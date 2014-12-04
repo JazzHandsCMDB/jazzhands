@@ -261,7 +261,7 @@ sub build_device_box {
 	}
 	$right_table .=
 	  $stab->build_tr( $values, "b_dropdown", "Service Environment",
-		"SERVICE_ENVIRONMENT", 'DEVICE_ID' );
+		"SERVICE_ENVIRONMENT_ID", 'DEVICE_ID' );
 	$right_table .= $stab->build_tr( $values, "b_dropdown", "Mgmt Protocol",
 		"AUTO_MGMT_PROTOCOL", 'DEVICE_ID' );
 

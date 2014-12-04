@@ -69,7 +69,7 @@ sub do_device_add {
 	my $status      = $stab->cgi_parse_param('STATUS');
 	my $owner       = $stab->cgi_parse_param('OWNERSHIP_STATUS');
 	my $sitecode    = $stab->cgi_parse_param('SITE_CODE');
-	my $svcenv      = $stab->cgi_parse_param('SERVICE_ENVIRONMENT');
+	my $svcenv      = $stab->cgi_parse_param('SERVICE_ENVIRONMENT_ID');
 	my $osid        = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
 	my $voeid       = $stab->cgi_parse_param('VOE_ID');
 	my $commstr     = $stab->cgi_parse_param('SNMP_COMMSTR');
@@ -181,36 +181,21 @@ sub do_device_add {
 	my $assetid = $newasset->{ _dbx('ASSET_ID') };
 
 	my $newdev = {
-		DEVICE_TYPE_ID        => $devtypeid,
-		ASSET_ID	      => $assetid,
-		DEVICE_NAME           => $device_name,
-		PART_NUMBER           => $partno,
-		SERIAL_NUMBER         => $serialno,
-		DEVICE_STATUS         => $status,
-		SERVICE_ENVIRONMENT   => $svcenv,
-		OPERATING_SYSTEM_ID   => $osid,
-		VOE_ID                => $voeid,
-		OWNERSHIP_STATUS      => $owner,
-		SITE_CODE             => $sitecode,
-		IS_MONITORED          => $ismonitored,
-		IS_LOCALLY_MANAGED    => $localmgd,
-		SHOULD_FETCH_CONFIG   => $cfgfetch,
-		IS_VIRTUAL_DEVICE     => $virtdev,
-		AUTO_MGMT_PROTOCOL    => $mgmtprot,
-		VOE_SYMBOLIC_TRACK_ID => $voetrax,
+		DEVICE_TYPE_ID         => $devtypeid,
+		ASSET_ID               => $assetid,
+		DEVICE_NAME            => $device_name,
+		DEVICE_STATUS          => $status,
+		SERVICE_ENVIRONMENT_ID => $svcenv,
+		OPERATING_SYSTEM_ID    => $osid,
+		VOE_ID                 => $voeid,
+		SITE_CODE              => $sitecode,
+		IS_MONITORED           => $ismonitored,
+		IS_LOCALLY_MANAGED     => $localmgd,
+		SHOULD_FETCH_CONFIG    => $cfgfetch,
+		IS_VIRTUAL_DEVICE      => $virtdev,
+		AUTO_MGMT_PROTOCOL     => $mgmtprot,
+		VOE_SYMBOLIC_TRACK_ID  => $voetrax,
 	};
-
-	#
-	# These columns are going away
-	#
-	if(! $stab->device_has_asset() {
-		delete( $newdev->{ _dbx('PART_NUMBER') } );
-		delete( $newdev->{ _dbx('SERIAL_NUMBER') } );
-		delete( $newdev->{ _dbx('ASSET_TAG') } );
-		delete( $newdev->{ _dbx('OWNERSHIP_STATUS') } );
-		delete( $newdev->{ _dbx('LEASE_EXPIRATION_DATE') } );
-	}
-
 
 	$numchanges = 0;
 	if (

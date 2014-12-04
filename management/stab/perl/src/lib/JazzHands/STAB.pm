@@ -1236,15 +1236,15 @@ sub b_dropdown {
 			  from	val_production_state
 			order by description, production_state
 		};
-	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT' ) {
+	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT_ID' ) {
 		$q = qq{
-			select	service_environment, 
+			select	service_environment_id,
 				coalesce(description,
-					concat(service_environment,
+					concat(service_environment_name,
 						' (', production_state, ')'))
 						as description
 			  from	service_environment
-			order by description, service_environment
+			order by description, service_environment_name
 		};
 	} elsif ( $selectfield eq 'NETWORK_INTERFACE_TYPE' ) {
 		$q = qq{

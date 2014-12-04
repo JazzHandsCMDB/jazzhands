@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.58.8
+Version:        0.59.1
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -181,6 +181,10 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Thu Dec  4 2014 Todd Kover <kovert@omniscient.com> 0.59.1
+- minor device/snmp/index.pl fix
+* Wed Dec  3 2014 Todd Kover <kovert@omniscient.com> 0.59.0
+- changes required for 0.59 of schema
 * Mon Oct  6 2014 Todd Kover <kovert@omniscient.com> 0.58.8
 - adjust devive search to check for asset columns to pick the right query
   to run
