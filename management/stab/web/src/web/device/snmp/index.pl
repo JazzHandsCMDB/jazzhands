@@ -63,7 +63,7 @@ sub do_device_snmp_page {
 			wr_string,
 			purpose
 		  from	snmp_commstr
-		 where	device_id = :1
+		 where	device_id = ?
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
