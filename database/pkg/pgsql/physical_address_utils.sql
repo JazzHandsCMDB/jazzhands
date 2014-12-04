@@ -59,3 +59,6 @@ BEGIN
 END; $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
+
+GRANT USAGE ON SCHEMA physical_address_utils TO public;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA physical_address_utils TO ro_role;
