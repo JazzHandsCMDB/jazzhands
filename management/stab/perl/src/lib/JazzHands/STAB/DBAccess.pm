@@ -721,21 +721,9 @@ sub get_dev_from_serial {
 		select  *
 		  from  device d
 		  		left join asset a using  (asset_id)
-		 where  lower(d.serial_number) = lower(:serno)
-		  or   lower(a.serial_number) = lower(:serno)
+	 	where  lower(a.serial_number) = lower(:serno)
 		LIMIT 1
 	};
-
-	if(! $self->device_has_assset() ) {
-		$q = qq{
-			select  *
-			  from  device d
-			  		left join asset a using  (asset_id)
-		 where  lower(:serno)
-			  or   lower(a.serial_number) = lower(:serno)
-			LIMIT 1
-		};
-	}
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->bind_param(':serno', $serno) || $self->return_db_err();
