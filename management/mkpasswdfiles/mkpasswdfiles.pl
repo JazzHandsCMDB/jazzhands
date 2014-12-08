@@ -1608,9 +1608,12 @@ sub create_host_symlinks($@) {
 			## for a few MCLASSes as opposed to all of them and links
 			## need to be repointed.
 			unlink("$dir/$device");
-			symlink( "../../mclass/$new->{$device}{_dbx('MCLASS')}",
-				"$dir/$device/mclass" );
 		}
+		if(! -f "$dir/$device") {
+			mkdir("$dir/$device", 0750);
+		}
+		symlink( "../../mclass/$new->{$device}{_dbx('MCLASS')}",
+			"$dir/$device/mclass" );
 	}
 }
 

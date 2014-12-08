@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.59.2
+Version:    0.59.3
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,6 +46,9 @@ else
 fi
 
 %changelog
+* Mon Dec  8 2014 Todd Kover <kovert@omniscient.com> 0.59.3
+- next -> return
+- add missing mkdirs for new hosts
 * Mon Dec  8 2014 Todd Kover <kovert@omniscient.com> 0.59.2
 - use database views to extracting files, not glued together in script
 - switch to having a hostname/mclass directory instead of hostname symlinks
