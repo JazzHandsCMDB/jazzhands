@@ -331,7 +331,7 @@ sub build_userhash($$) {
 			foreach my $k (@{ $r->{ _dbx('SSH_PUBLIC_KEY') } }) {
 				push(@ {$uh->{ssh_public_key}}, $k);
 			}
-			next;  # one dude!
+			return;  # one dude!
 		}
 	}
 
