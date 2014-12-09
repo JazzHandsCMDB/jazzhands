@@ -3041,6 +3041,12 @@ ALTER TABLE ACCOUNT_COLLECTION_HIER
  * Table: ACCOUNT_PASSWORD
  ***********************************************/
 
+COMMENT ON COLUMN ACCOUNT_PASSWORD.CHANGE_TIME IS 'The last thie this password was changed';
+
+COMMENT ON COLUMN ACCOUNT_PASSWORD.EXPIRE_TIME IS 'The time this password expires, if different from the default';
+
+COMMENT ON COLUMN ACCOUNT_PASSWORD.UNLOCK_TIME IS 'indicates the time that the password is unlocked and can thus be changed; NULL means the password can be changed.  This is application enforced.';
+
 ALTER TABLE ACCOUNT_PASSWORD
 	ADD CONSTRAINT  PK_SYSTEM_PASSWORD PRIMARY KEY (ACCOUNT_ID,PASSWORD_TYPE)  NOT DEFERRABLE  INITIALLY IMMEDIATE   USING INDEX   ENABLE  VALIDATE;
 

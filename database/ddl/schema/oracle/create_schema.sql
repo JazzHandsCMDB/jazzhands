@@ -762,11 +762,18 @@ CREATE TABLE ACCOUNT_PASSWORD
 			  NOT DEFERRABLE  INITIALLY IMMEDIATE  ENABLE  VALIDATE,
 	CHANGE_TIME          DATE NULL ,
 	EXPIRE_TIME          DATE NULL ,
+	UNLOCK_TIME          DATE NULL ,
 	DATA_INS_USER        VARCHAR2(30 BYTE) NULL ,
 	DATA_INS_DATE        DATE NULL ,
 	DATA_UPD_USER        VARCHAR2(30 BYTE) NULL ,
 	DATA_UPD_DATE        DATE NULL 
 );
+
+COMMENT ON COLUMN ACCOUNT_PASSWORD.CHANGE_TIME IS 'The last thie this password was changed';
+
+COMMENT ON COLUMN ACCOUNT_PASSWORD.EXPIRE_TIME IS 'The time this password expires, if different from the default';
+
+COMMENT ON COLUMN ACCOUNT_PASSWORD.UNLOCK_TIME IS 'indicates the time that the password is unlocked and can thus be changed; NULL means the password can be changed.  This is application enforced.';
 
 CREATE UNIQUE INDEX PK_ACCOUNT_PASSWORD ON ACCOUNT_PASSWORD
 (ACCOUNT_ID   ASC,PASSWORD_TYPE   ASC);
