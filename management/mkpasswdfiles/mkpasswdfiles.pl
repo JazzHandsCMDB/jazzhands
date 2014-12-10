@@ -1536,7 +1536,8 @@ sub create_host_symlinks($@) {
 		my ( $device, $mclass );
 
 		## Determine the device name from the symbolic link
-		if($target) {
+		$target = readlink("$entry/mclass");
+		if($entry && $target) {
 			if ( $entry =~ m|.*/([^/]*)$| ) {
 				$device = $1;
 			} else {
@@ -1583,9 +1584,6 @@ sub create_host_symlinks($@) {
 
 	foreach my $device ( keys %old ) {
 		if ( exists $new->{$device} ) {
-			if(! -f "$dir/$device") {
-				mkdir("$dir/$device", 0750);
-			}
 			if ( $new->{$device}{ _dbx('MCLASS') } ne
 				$old{$device} )
 			{
@@ -1603,17 +1601,18 @@ sub create_host_symlinks($@) {
 	}
 
 	foreach my $device ( keys %$new ) {
+		my $linkdst = "$dir/$device/mclass";
 		unless ( exists $old{$device} ) {
 			## The following unlink is useful when we run this script
 			## for a few MCLASSes as opposed to all of them and links
 			## need to be repointed.
-			unlink("$dir/$device");
+			unlink( $linkdst );
 		}
 		if(! -f "$dir/$device") {
 			mkdir("$dir/$device", 0750);
 		}
 		symlink( "../../mclass/$new->{$device}{_dbx('MCLASS')}",
-			"$dir/$device/mclass" );
+			"$linkdst" );
 	}
 }
 
