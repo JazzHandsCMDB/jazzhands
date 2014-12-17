@@ -37,8 +37,8 @@ BEGIN
 				concat_ws(' ', address_street, address_housename)
 			END,
 			address_pobox,
-			address_neighborhood,
 			address_building,
+			address_neighborhood,
 			CASE WHEN iso_country_code IN ('US', 'CA', 'UK') THEN 
 				concat_ws(', ', address_city, 
 					concat_ws(' ', address_region, postal_code))
@@ -56,6 +56,33 @@ BEGIN
 		pa.physical_address_id = 
 			localized_physical_address.physical_address_id;
 	RETURN address;
+END; $$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION physical_address_utils.localized_street_address(
+	address_housename text DEFAULT NULL,
+	address_street text DEFAULT NULL,
+	address_building text DEFAULT NULL,
+	address_pobox text DEFAULT NULL,
+	iso_country_code text DEFAULT NULL,
+	line_separator text DEFAULT ', '
+) RETURNS text AS $$
+BEGIN
+	RETURN concat_ws(line_separator,
+			CASE WHEN iso_country_code IN 
+					('SG', 'US', 'CA', 'UK', 'GB', 'FR', 'AU') THEN 
+				concat_ws(' ', address_housename, address_street)
+			WHEN iso_country_code IN ('IL') THEN
+				concat_ws(', ', address_housename, address_street)
+			WHEN iso_country_code IN ('ES') THEN
+				concat_ws(', ', address_street, address_housename)
+			ELSE
+				concat_ws(' ', address_street, address_housename)
+			END,
+			address_pobox,
+			address_building
+		);
 END; $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
