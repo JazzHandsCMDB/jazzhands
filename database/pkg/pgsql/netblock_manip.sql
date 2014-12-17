@@ -116,7 +116,7 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	parent_netblock_list	integer[],
 	netmask_bits			integer DEFAULT NULL,
 	address_type			text DEFAULT 'netblock',
-	-- alternatvies: 'single', 'loopback'
+	-- alternatives: 'single', 'loopback'
 	can_subnet				boolean DEFAULT true,
 	allocation_method		text DEFAULT NULL,
 	-- alternatives: 'top', 'bottom', 'random',
@@ -223,7 +223,6 @@ BEGIN
 			netblock_status
 		) VALUES (
 			inet_rec.ip_address,
-			loopback_bits,
 			inet_rec.netblock_type,
 			'N',
 			'N',
@@ -241,12 +240,11 @@ BEGIN
 			description,
 			netblock_status
 		) VALUES (
-			inet_rec,
-			masklen(inet_rec),
+			inet_rec.ip_address,
 			parent_rec.netblock_type,
 			'Y',
 			'N',
-			parent_rec.ip_universe_id,
+			inet_rec.ip_universe_id,
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;

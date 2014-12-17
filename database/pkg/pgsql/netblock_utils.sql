@@ -639,7 +639,10 @@ BEGIN
 		ip_address := netblock_rec.ip_address;
 		ip_universe_id := netblock_rec.ip_universe_id;
 		netblock_type := netblock_rec.netblock_type;
-	ELSIF ip_address IS NULL THEN
+	ELSIF ip_address IS NOT NULL THEN
+		ip_universe_id := 0;
+		netblock_type := 'default';
+	ELSE
 		RAISE EXCEPTION 'netblock_id or ip_address must be passed';
 	END IF;
 	SELECT ARRAY(
@@ -683,7 +686,9 @@ $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION netblock_utils.calculate_intermediate_netblocks(
 	ip_block_1		inet DEFAULT NULL,
-	ip_block_2		inet DEFAULT NULL
+	ip_block_2		inet DEFAULT NULL,
+	netblock_type	text DEFAULT 'default',
+	ip_universe_id	integer DEFAULT 0
 ) RETURNS TABLE (
 	ip_addr			inet
 ) AS $$
@@ -735,7 +740,22 @@ BEGIN
 		-- If the max address of the new netblock is larger than the last one, then it's empty
 		IF set_masklen(broadcast(new_nb), 32) > set_masklen(max_addr, 32) THEN
 			ip_addr := set_masklen(max_addr + 1, masklen(current_nb));
-			RETURN NEXT;
+			-- Validate that this isn't an empty can_subnet='Y' block already
+			-- If it is, split it in half and return both halves
+			PERFORM * FROM netblock n WHERE
+				n.ip_address = ip_addr AND
+				n.ip_universe_id =
+					calculate_intermediate_netblocks.ip_universe_id AND
+				n.netblock_type =
+					calculate_intermediate_netblocks.netblock_type;
+			IF FOUND THEN
+				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
+				RETURN NEXT;
+				ip_addr := broadcast(ip_addr) + 1;
+				RETURN NEXT;
+			ELSE
+				RETURN NEXT;
+			END IF;
 			max_addr := broadcast(new_nb);
 		END IF;
 		current_nb := new_nb;
@@ -750,6 +770,22 @@ BEGIN
 		current_nb := set_masklen(current_nb, masklen(current_nb) + 1);
 		IF NOT (current_nb >>= ip_block_2) THEN
 			ip_addr := current_nb;
+			-- Validate that this isn't an empty can_subnet='Y' block already
+			-- If it is, split it in half and return both halves
+			PERFORM * FROM netblock n WHERE
+				n.ip_address = ip_addr AND
+				n.ip_universe_id =
+					calculate_intermediate_netblocks.ip_universe_id AND
+				n.netblock_type =
+					calculate_intermediate_netblocks.netblock_type;
+			IF FOUND THEN
+				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
+				RETURN NEXT;
+				ip_addr := broadcast(ip_addr) + 1;
+				RETURN NEXT;
+			ELSE
+				RETURN NEXT;
+			END IF;
 			RETURN NEXT;
 			current_nb := broadcast(current_nb) + 1;
 			CONTINUE;
