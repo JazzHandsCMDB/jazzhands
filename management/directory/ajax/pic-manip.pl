@@ -160,14 +160,6 @@ sub add_pic {
 		$picid = $oldid;
 	}
 
-	if(! person_has_pic_usage($dbh, $personid, 'corpdirectory')) {
-		add_pic_usage($dbh, $picid, 'corpdirectory');
-	}
-
-	if(! person_has_pic_usage($dbh, $personid, 'yearbook')) {
-		add_pic_usage($dbh, $picid, 'yearbook');
-	}
-
 	$picid;
 }
 
@@ -353,6 +345,7 @@ sub do_pic_manip {
 		}
 	}
 
+	my $newpicid;
 	# add any new paramters
 	foreach my $param ($cgi->param) {
 		if($param =~ /^newpic_file_(\d+)/) {
@@ -372,8 +365,8 @@ sub do_pic_manip {
 				#  	from	person_image_usage
 				# 	where	person_image_id = ?
 				#});
+				$newpicid = $picid;
 			}
-
 		} elsif($param =~ /^person_image_usage_(\d+)/) {
 			my $picid = $1;
 			my $oldusg = get_pic_usage($dbh, $picid);
@@ -385,6 +378,16 @@ sub do_pic_manip {
 				}
 			}
 
+		}
+	}
+
+	if($newpicid) {
+		if(! person_has_pic_usage($dbh, $personid, 'corpdirectory')) {
+			add_pic_usage($dbh, $newpicid, 'corpdirectory');
+		}
+
+		if(! person_has_pic_usage($dbh, $personid, 'yearbook')) {
+			add_pic_usage($dbh, $newpicid, 'yearbook');
 		}
 	}
 
