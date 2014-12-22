@@ -1,4 +1,4 @@
-<?php 
+<?php
 include "personlib.php" ;
 
 $dbconn = dbauth::connect('directory', null, $_SERVER['REMOTE_USER']) or die("Could not connect: " . pg_last_error() );
@@ -14,25 +14,25 @@ if($address) {
 }
 
 $query ="
-	WITH perlimit AS (	
+	WITH perlimit AS (
 		SELECT	person_id, account_collection_name as restrict
 		FROM	v_corp_family_account
 				INNER JOIN account_collection_account USING (account_id)
 				INNER JOIN account_collection USING (account_collection_id)
 		WHERE	account_collection_type = 'system'
-		AND		account_collection_name IN 
+		AND		account_collection_name IN
 				('noeventsbirthday', 'noeventsanniversary')
-	), events AS ( 
+	), events AS (
 		select	p.person_id,
 			coalesce(p.preferred_first_name, p.first_name) as first_name,
 			coalesce(p.preferred_last_name, p.last_name) as last_name,
 			date_part('epoch', pc.hire_date) as whence,
 			pc.hire_date as whence_human,
-			'Hire Date' as event, 
+			'Hire Date' as event,
             CASE WHEN pc.hire_date IS NOT NULL THEN
-	    	round(extract('epoch' FROM (select
-            		date_trunc('year',now()) - date_trunc('year',pc.hire_date) 
-				))/86400/365) ELSE NULL END AS duration
+			round(extract('epoch' FROM (select
+					date_trunc('year',now()) - date_trunc('year',pc.hire_date)
+			))/86400/365) ELSE NULL END AS duration
 	 	from	person p
 		inner join (
 			select * from person_company
@@ -40,7 +40,7 @@ $query ="
 		) pc using(person_id)
 		WHERE	pc.hire_date is not null
 		AND person_id NOT IN (
-			SELECT person_id 
+			SELECT person_id
 			FROM perlimit
 			WHERE restrict = 'noeventsanniversary'
 		) UNION
@@ -51,10 +51,10 @@ $query ="
 			p.birth_date as whence_human,
 			'Birthday' as event,
 			NULL as duration
-	 	from	person p
+		FROM	person p
 		WHERE	p.birth_date is not null
 		AND person_id NOT IN (
-			SELECT person_id 
+			SELECT person_id
 			FROM perlimit
 			WHERE restrict = 'noeventsbirthday'
 		)
@@ -68,7 +68,7 @@ $query ="
 				pl.seat_number
 	    from   person_location pl
 				inner join physical_address pa
-		    		USING (physical_address_id)
+					USING (physical_address_id)
 	    where   pl.person_location_type = 'office'
 	    order by site_rank
 	) SELECT events.*, officemap.display_label as office_location
@@ -79,7 +79,7 @@ $query ="
 		) pc USING (person_id)
 		INNER JOIN v_person_company_expanded vpc USING(person_id)
 		INNER JOIN val_person_status vps
-			ON ( vps.person_status = 
+			ON ( vps.person_status =
 					pc.person_company_status
 			 AND    vps.is_disabled = 'N'
 			)
@@ -89,7 +89,7 @@ $query ="
 			  from  property
 		 where  property_name = '_rootcompanyid'
 			   and  property_type = 'Defaults'
-		) 
+		)
 	AND	pc.person_company_relation = 'employee'
     $addrsubq
 	ORDER BY date_part('month', whence_human),
@@ -130,8 +130,8 @@ while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 	}
 	$office = ($row['office_location'])?$row['office_location']:'';
 	echo "<tr>
-		<td> $name </td> 
-		<td> $printable </td> 
+		<td> $name </td>
+		<td> $printable </td>
 		<td> $event </td>
 		<td> $duration </td>
 		<td> $office </td>

@@ -16,7 +16,7 @@ sub get_login {
 	my($dbh, $personid) = @_;
 
 	my $sth = $dbh->prepare_cached(qq{
-	       select  a.login
+	       select  lower(a.login) as login
 		 from   v_corp_family_account a
 			inner join v_person_company_expanded pc
 				using (person_id)
@@ -51,7 +51,7 @@ sub check_admin {
 				on ae.account_id = a.account_id
 		 where  p.property_name = 'PhoneDirectoryAdmin'
 		  and   p.property_type = 'PhoneDirectoryAttributes'
-		  and   a.login = ?
+		  and   lower(a.login) = lower(?)
 	}) || die $dbh->errstr;
 
 	$sth->execute($login) || die $sth->errstr;
