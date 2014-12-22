@@ -10,17 +10,27 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 	$params = build_qs(array(), 'offset', null);
 	$rv = "";
 
-	if($content == 'both' || $content == 'default') {
-		$arr = array(
-			'byname' => "By Name",
-			'bydept' => "By Dept",
-			'byoffice' => "By Office",
-			'hier' => "By Org",
-			'random' => "Random"
-		);
+	if($content == 'both' || $content == 'default' || $content == 'locations') {
+		if($content == 'locations') {
+			$arr = array(
+				'byname' => "Global",
+			);
+		 } else {
+			$arr = array(
+				'byname' => "By Name",
+				'bydept' => "By Dept",
+				'byoffice' => "By Office",
+				'hier' => "By Org",
+				'random' => "Random"
+			);
+		};
 
 		foreach ($arr as $k => $v) {
-			$url = build_url(build_qs($params, 'index', $k), "./");
+			if($content == 'default') {
+				$url = build_url(build_qs($params, 'index', $k), "./");
+			} else {
+				$url = build_url(build_qs($params, 'index', $k));
+			}
 			$lab = $arr[$k];
 			if(strlen($rv)) {
 				$rv = "$rv ";
@@ -33,7 +43,7 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 			$rv = "$rv | <a class=\"$class filteroption\" href=\"$url\"> $lab </a> ";
 		}
 		$rv .= " |";
-	}
+	} 
 
 	$sitelimit = "";
 	if($content == 'both' || $content == 'locations') {

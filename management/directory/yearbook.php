@@ -73,8 +73,7 @@ if(strlen($wherextra) >  0) {
 
 echo build_header("Yearbook", null, "Yearbook");
 
-echo locations_limit($dbconn);
-
+echo browsingMenu($dbconn, null, 'locations');
 
 $first = 0;
 while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
