@@ -171,6 +171,8 @@ sub do_domain_add {
 	# $soaname = '70.50.10.in-addr.arpa';
 	# $gen = 'Y';
 
+	$soaname =~ s/\.+$//g;
+
 	if ( !defined($soaname) ) {
 		$stab->error_return("You must specify a Domain Name");
 	}
