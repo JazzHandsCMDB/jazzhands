@@ -132,6 +132,7 @@ sub add_pic {
 
 	my $oldid = get_image_by_checksum($dbh, $personid, $shasum);
 
+	my $picid;
 	if(!$oldid) {
 		my $sth = $dbh->prepare_cached(qq{
 			insert into person_image (
@@ -152,12 +153,40 @@ sub add_pic {
 			$label, 
 			$shasum, 
 			$description) || die $sth->errstr;
-		my$picid = $sth->fetch()->[0];
+		$picid = $sth->fetch()->[0];
 		$sth->finish;
 		$picid
 	} else {
-		$oldid;
+		$picid = $oldid;
 	}
+
+	if(! person_has_pic_usage($dbh, $personid, 'corpdirectory')) {
+		add_pic_usage($dbh, $picid, 'corpdirectory');
+	}
+
+	if(! person_has_pic_usage($dbh, $personid, 'yearbook')) {
+		add_pic_usage($dbh, $picid, 'yearbook');
+	}
+
+	$picid;
+}
+
+sub person_has_pic_usage {
+	my($dbh, $personid, $usage) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		select	count(*)
+		  from	person_image_usage
+				inner join person_image USING (person_image_id)
+		 where	person_id = ?
+		   and	person_image_usage = ?
+	}) || die $dbh->errstr;
+
+	$sth->execute($personid, $usage) || die $sth->errstr;
+
+	my $tally = ($sth->fetchrow_array)[0];
+	$sth->finish;
+	$tally;
 }
 
 sub has_pic_usage {
