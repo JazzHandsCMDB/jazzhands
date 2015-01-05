@@ -780,13 +780,13 @@ BEGIN
 					calculate_intermediate_netblocks.netblock_type;
 			IF FOUND THEN
 				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
+				RAISE NOTICE 'IP is %', ip_addr;
 				RETURN NEXT;
 				ip_addr := broadcast(ip_addr) + 1;
 				RETURN NEXT;
 			ELSE
 				RETURN NEXT;
 			END IF;
-			RETURN NEXT;
 			current_nb := broadcast(current_nb) + 1;
 			CONTINUE;
 		END IF;
