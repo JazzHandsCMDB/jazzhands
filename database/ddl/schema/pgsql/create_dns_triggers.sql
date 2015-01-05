@@ -382,6 +382,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
+SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_cname_checker ON dns_record;
