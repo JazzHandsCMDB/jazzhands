@@ -54,7 +54,7 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
-* Thu Sep 11 2014 Todd Kover <kovert@omniscient.com> 0.58.7
+* Wed Jan 12 2015 Todd Kover <kovert@omniscient.com> 0.59.7
 - add support for generating additional acls independent of sites
 * Thu Sep 11 2014 Todd Kover <kovert@omniscient.com> 0.58.6
 - better handle exclusions for child subnets assigned to different sites
