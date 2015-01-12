@@ -76,7 +76,6 @@ sub do_style_dump {
 
 BODY { 
 	background: url($root/images/development-background.png ); 
-	Font-Family: Verdana, Arial, Helvetica, MS Sans Serif;
 }
 a { color: blue }
 a:visited { color: purple }
@@ -85,6 +84,10 @@ END
 	}
 
 	print <<END;
+
+BODY {
+	Font-Family: Verdana, Arial, Helvetica, MS Sans Serif;
+}
 
 div.introblurb {
 	margin-left: auto;
