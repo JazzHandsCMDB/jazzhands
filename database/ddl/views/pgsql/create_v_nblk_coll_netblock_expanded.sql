@@ -37,7 +37,7 @@ UNION ALL
 	SELECT	
 		x.level + 1			as level,
 		x.netblock_collection_id		as root_netblock_collection_id, 
-		uch.netblock_collection_id		as netblock_collection_id, 
+		uch.child_netblock_collection_id		as netblock_collection_id, 
 		uch.child_netblock_collection_id	as child_netblock_collection_id,
 		uch.child_netblock_collection_id ||
 			x.array_path				as array_path,
