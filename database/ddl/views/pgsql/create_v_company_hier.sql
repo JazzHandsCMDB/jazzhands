@@ -21,7 +21,6 @@ WITH RECURSIVE var_recurse (
 	level,
 	root_company_id,
 	company_id,
-	person_id,
 	array_path,
 	cycle
 ) as (
@@ -29,24 +28,19 @@ WITH RECURSIVE var_recurse (
 		0				as level,
 		c.company_id			as root_company_id,
 		c.company_id			as company_id,
-		pc.person_id			as person_id,
 		ARRAY[c.company_id]		as array_path,
 		false				as cycle
 	  FROM	company c
-		inner join person_company pc USING (company_id)
 UNION ALL
 	SELECT	
 		x.level + 1			as level,
 		x.company_id			as root_company_id,
 		c.company_id			as company_id,
-		pc.person_id			as person_id,
 		c.company_id || x.array_path	as array_path,
 		c.company_id = ANY(x.array_path) as cycle
 	  FROM	var_recurse x
 		inner join company c
 			on c.parent_company_id = x.company_id
-		inner join person_company pc
-			on c.company_id = pc.company_id
 	WHERE	NOT x.cycle
 ) SELECT	distinct root_company_id as root_company_id, company_id
   from 		var_recurse;
