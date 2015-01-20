@@ -17,15 +17,7 @@ sub get_login {
 	my $sth = $dbh->prepare_cached(qq{
 	       select  lower(a.login) as login
 		 from   v_corp_family_account a
-			inner join v_person_company_expanded pc
-				using (person_id)
 		where   person_id = ?
-		and     pc.company_id in (
-				select  property_value_company_id
-				  from  property
-				 where  property_name = '_rootcompanyid'
-				   and  property_type = 'Defaults'
-			)
 	}) || die $dbh->errstr;
 	$sth->execute($personid) || die $sth->errstr;
 	my $login = ($sth->fetchrow_array)[0];
