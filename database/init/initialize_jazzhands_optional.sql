@@ -147,11 +147,13 @@ INSERT INTO Device_Type (
 
 INSERT INTO Operating_System (
 	Operating_System_Name,
+	Major_Version,
 	Version,
 	Company_ID,
 	PROCESSOR_ARCHITECTURE
 ) VALUES(
 	'Solaris',
+	'10',
 	'10',
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'amd64'
@@ -159,11 +161,13 @@ INSERT INTO Operating_System (
 
 INSERT INTO Operating_System (
 	Operating_System_Name,
+	Major_Version,
 	Version,
 	Company_ID,
 	PROCESSOR_ARCHITECTURE
 ) VALUES(
 	'Solaris',
+	'10',
 	'10',
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'sparc'

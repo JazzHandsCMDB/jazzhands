@@ -89,8 +89,8 @@ insert into val_account_collection_type
 	max_num_members, can_have_hierarchy
 	) 
 values 
-	('per-user', 
-	 'Account_Collection that contain a single user for assigning individual users to objects that only accept Account_Collection assignments',
+	('per-account', 
+	 'Account_Collection that contain a single account for assigning individual accounts to objects that only accept Account_Collection assignments',
 	1, 'N'
 	);
 
@@ -105,10 +105,6 @@ INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('department', 'Account_Collection for Corporate Departments');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('property', 'Account_Collection for storing global property values');
-INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
-	VALUES ('company', 'automatic Account_Collectiones defined by company membership');
-INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
-	VALUES ('usertype', 'automatic Account_Collectiones defined by user type');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('site', 'automatic Account_Collectiones defined by user site');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
@@ -660,12 +656,12 @@ insert into val_property
 insert into val_property_value (
 	property_name, property_type, valid_property_value, description
 ) values 
-	('UnixHomeType','MclassUnixProp','standard','per-user home directories'); 
+	('UnixHomeType','MclassUnixProp','standard','per-account home directories'); 
 
 insert into val_property_value (
 	property_name, property_type, valid_property_value, description
 ) values 
-	('UnixHomeType','MclassUnixProp','generic','per-user home directories'); 
+	('UnixHomeType','MclassUnixProp','generic','per-account home directories'); 
 
 --- Various properities that define how account management works
 insert into val_property (
@@ -846,49 +842,12 @@ INSERT INTO Account (
 	'pseudouser'
 );
 
-insert into Account_Collection 
-	(Account_Collection_name, Account_Collection_type)
-values 
-	('root', 'unix-group');
-
-INSERT INTO Unix_Group (
-	Account_Collection_id,
-	Unix_GID,
-	Group_Password
-) VALUES (
-	(select Account_Collection_id 
-	   from Account_Collection 
-	   where Account_Collection_Name = 'root' 
-		and Account_Collection_type = 'unix-group'),
-	0,
-	'*'
+SELECT person_manip.setup_unix_account(
+	in_account_id := (select account_id from account where login = 'root'),
+	in_account_type := 'pseudouser',
+	in_uid := '0'
 );
-
-insert into Account_Collection (Account_Collection_Name, Account_Collection_Type)
-	values ('root', 'per-user');
-
-insert into Account_Collection_Account (Account_Collection_Id, Account_Id)
-select u.Account_Collection_id, a.account_id
-from    Account_Collection u, account a
-where u.Account_Collection_type in ('unix-group', 'per-user')
-and u.Account_Collection_name = 'root'
-and a.login in ('root');
-
-INSERT INTO Account_Unix_Info (
-	Account_Id,
-	Unix_UID,
-	UNIX_GROUP_Acct_Collection_Id,
-	Shell,
-	Default_Home
-) VALUES (
-	(select account_id from account where login = 'root'),
-	0,
-	(select Account_Collection_Id from Account_Collection 
-		where Account_Collection_name = 'root' 
-		and Account_Collection_Type = 'unix-group'),
-	'/bin/sh',
-	'/'
-);
+	
 
 INSERT INTO Account_Password (
 	Account_Id,
@@ -949,10 +908,12 @@ INSERT INTO Device_Type (
 INSERT INTO Operating_System (
 	Operating_System_ID,
 	Operating_System_Name,
+	Major_Version,
 	Version,
 	Company_ID, processor_architecture
 ) VALUES (
 	0,
+	'unknown',
 	'unknown',
 	'unknown',
 	0, 'noarch'
@@ -1086,3 +1047,227 @@ values (
 	'DNSACLs', 'DNSZonegen',
 	'indicates netblocks that should be in a named acl', 'Y',
 	'string', 'REQUIRED');
+
+-------------------------------------------------------------------------
+-- BEGIN automated account collection infrastructure (tied to properties)
+
+insert into val_property_type (
+	property_type, is_multivalue,
+	description
+) values (
+	'auto_acct_coll', 'Y',
+	'properties that define how people are added to account collections automatically based on column changes'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'exempt', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'non_exempt', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'male', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'female', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'unspecified_gender', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'management', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'non_management', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'full_time', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'non_full_time', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'account_type', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'list',
+	'N'
+);
+
+insert into val_property_value (
+	property_name, property_type, valid_property_value
+) values (
+	'account_type', 'auto_acct_coll', 'person'
+);
+
+insert into val_property_value (
+	property_name, property_type, valid_property_value
+) values (
+	'account_type', 'auto_acct_coll', 'pseudouser'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'site', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'REQUIRED',
+	'none',
+	'N'
+);
+
+-- END automated account collection infrastructure (tied to properties)
+-------------------------------------------------------------------------

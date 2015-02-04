@@ -54,23 +54,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS netblock_utils;
                 CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
-        END IF;
-END;
-$$;
-
-
--- Create schema if it does not exist, do nothing otherwise.
-DO $$
-DECLARE
-        _tal INTEGER;
-BEGIN
-        select count(*)
-        from pg_catalog.pg_namespace
-        into _tal
-        where nspname = 'netblock_utils';
-        IF _tal = 0 THEN
-                DROP SCHEMA IF EXISTS netblock_utils;
-                CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA netblock_utils IS 'part of jazzhands';
         END IF;
 END;
 $$;

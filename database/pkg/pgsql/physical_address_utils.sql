@@ -14,8 +14,23 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-drop schema if exists physical_address_utils cascade;
-create schema physical_address_utils authorization jazzhands;
+
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'physical_address_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS physical_address_utils;
+                CREATE SCHEMA physical_address_utils AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA physical_address_utils IS 'part of jazzhands';
+        END IF;
+END;
+$$;
+
 
 CREATE OR REPLACE FUNCTION physical_address_utils.localized_physical_address(
 	physical_address_id integer,

@@ -350,7 +350,7 @@ BEGIN
 		'RestrictAccount_Collection',
 		'test',
 		'N',
-		'per-user',
+		'per-account',
 		'string',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -856,11 +856,11 @@ BEGIN
 	SELECT Account_Id INTO v_account_Id FROM account 
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection 
-		WHERE Account_Collection_Type = 'per-user' LIMIT 1;
+		WHERE Account_Collection_Type = 'per-account' LIMIT 1;
 	SELECT Account_Realm_Id INTO v_account_realm_id FROM Account_realm 
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection 
-		WHERE Account_Collection_Type <> 'per-user' LIMIT 1; 
+		WHERE Account_Collection_Type <> 'per-account' LIMIT 1; 
 	SELECT Netblock_Collection_id INTO v_net_coll_Id FROM Netblock_Collection
 		LIMIT 1;
 	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type 

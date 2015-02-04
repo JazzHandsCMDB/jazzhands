@@ -45,6 +45,7 @@
 
 drop schema if exists port_utils cascade;
 create schema port_utils authorization jazzhands;
+COMMENT ON SCHEMA port_utils IS 'part of jazzhands';
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM

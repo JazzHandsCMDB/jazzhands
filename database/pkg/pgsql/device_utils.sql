@@ -53,6 +53,8 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS device_utils;
 		CREATE SCHEMA device_utils AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA device_utils IS 'part of jazzhands';
+
 	END IF;
 END;
 $$;

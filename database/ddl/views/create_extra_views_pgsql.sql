@@ -84,6 +84,8 @@
 \i create_v_device_col_acct_col_expanded.sql
 \i create_v_corp_family_account.sql
 
+\i pgsql/create_v_person_company_hier.sql
+
 -- possibly to replace v_device_col_acct_col_expanded
 \i create_v_device_col_acct_col_unixlogin.sql
 \i create_v_device_col_acct_col_unixgroup.sql

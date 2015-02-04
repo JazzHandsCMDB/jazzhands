@@ -51,6 +51,8 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS schema_support;
 		CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA schema_support IS 'part of jazzhands';
+
 	END IF;
 END;
 $$;
