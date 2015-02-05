@@ -196,7 +196,7 @@ BEGIN
 	LOOP
 		RAISE NOTICE '%', _r;
 	END LOOP;
-*/
+ */
 
 	--
 	-- Remove rows from the temporary table that are in "remove" but not in
@@ -278,8 +278,6 @@ BEGIN
 	END IF;
 
 
-	RAISE NOTICE 'Here!';
-
 	--
 	-- based on the old and new values, check for account collections that
 	-- may need to be changed based on data.  Note that this may end up being
@@ -348,10 +346,12 @@ BEGIN
 				);
 	END IF;
 
+/*
 	FOR _r IN SELECT * from __automated_ac__
 	LOOP
 		RAISE NOTICE '%', _r;
 	END LOOP;
+ */
 
 	--
 	-- Remove rows from the temporary table that are in "remove" but not in
