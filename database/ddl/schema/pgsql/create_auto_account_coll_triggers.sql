@@ -436,8 +436,7 @@ BEGIN
 			INNER JOIN account a 
 				ON a.account_realm_id = arc.account_realm_id
 				AND a.company_id = arc.company_id
-		WHERE	arc.company_id = NEW.company_id
-		AND     (p.company_id is NULL or arc.company_id = p.company_id)
+		WHERE     (p.company_id is NULL or arc.company_id = p.company_id)
 			AND	a.person_id = NEW.person_id
 			AND     property_type = 'auto_acct_coll'
 			AND     (
@@ -456,8 +455,7 @@ BEGIN
 			INNER JOIN account a 
 				ON a.account_realm_id = arc.account_realm_id
 				AND a.company_id = arc.company_id
-		WHERE	arc.company_id = OLD.company_id
-		AND     (p.company_id is NULL or arc.company_id = p.company_id)
+		WHERE     (p.company_id is NULL or arc.company_id = p.company_id)
 			AND	a.person_id = OLD.person_id
 			AND     property_type = 'auto_acct_coll'
 			AND     (
