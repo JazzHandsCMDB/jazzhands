@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2015 Matthew Ragan
+-- Copyright (c) 2015 Matthew Ragan, Todd M. Kover
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,8 +41,8 @@ SELECT
 	s2.slot_name as other_port_name,
 	NULL as other_port_purpose,
 	NULL::integer as baud,
-	NULL::varchar as data_bits,
-	NULL::varchar as stop_bits,
+	NULL::integer as data_bits,
+	NULL::integer as stop_bits,
 	NULL::varchar as parity,
 	NULL::varchar as flow_control
 FROM
@@ -62,8 +62,8 @@ SELECT
 	s1.slot_name as other_port_name,
 	NULL as other_port_purpose,
 	NULL::integer as baud,
-	NULL::varchar as data_bits,
-	NULL::varchar as stop_bits,
+	NULL::integer as data_bits,
+	NULL::integer as stop_bits,
 	NULL::varchar as parity,
 	NULL::varchar as flow_control
 FROM
@@ -83,8 +83,8 @@ SELECT
 	NULL as other_port_name,
 	NULL as other_port_purpose,
 	NULL::integer as baud,
-	NULL::varchar as data_bits,
-	NULL::varchar as stop_bits,
+	NULL::integer as data_bits,
+	NULL::integer as stop_bits,
 	NULL::varchar as parity,
 	NULL::varchar as flow_control
 FROM
