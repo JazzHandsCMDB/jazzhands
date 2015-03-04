@@ -67,26 +67,7 @@ CREATE OR REPLACE FUNCTION port_utils.setup_device_power (
 DECLARE
 	dt_id	device.device_type_id%type;
 BEGIN
-	if( port_support.has_power_ports(in_device_id) ) then
-		return;
-	end if;
-
-	select  device_type_id
-	  into	dt_id
-	  from  device
-	 where	device_id = in_device_id;
-
-	 insert into device_power_interface (
-		device_id, power_interface_port, 
-		 power_plug_style,
-		 voltage, max_amperage, provides_power
-		)
-		select in_device_id, power_interface_port,
-		 	power_plug_style,
-		 	voltage, max_amperage, provides_power
-		  from device_type_power_port_templt
-		 where device_type_id = dt_id;
-
+	return;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
