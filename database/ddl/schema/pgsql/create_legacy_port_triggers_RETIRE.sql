@@ -20,16 +20,14 @@ AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO inter_component_connection (
-			inter_component_connection_id,
 			slot1_id,
 			slot2_id,
 			circuit_id
 		) VALUES (
-			NEW.layer1_connection_id,
 			NEW.physical_port1_id,
 			NEW.physical_port2_id,
 			NEW.circuit_id
-		);
+		) RETURNING inter_component_connection_id INTO NEW.layer1_connection_id;
 		RETURN NEW;
 	ELSIF TG_OP = 'UPDATE' THEN
 		IF (NEW.layer1_connection_id IS DISTINCT FROM

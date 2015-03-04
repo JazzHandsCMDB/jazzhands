@@ -989,7 +989,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_create_device_component ON device;
 CREATE TRIGGER trigger_create_device_component 
-	BEFORE INSERT
+	BEFORE INSERT OR UPDATE OF device_type_id
 	ON device
 	FOR EACH ROW EXECUTE PROCEDURE
 		jazzhands.create_device_component_by_trigger();
