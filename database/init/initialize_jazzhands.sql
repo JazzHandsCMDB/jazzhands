@@ -303,6 +303,7 @@ insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 	values ('sparc', 64);
 
+/*
 insert into val_power_plug_style (power_plug_style) values ('DC');
 insert into val_power_plug_style (power_plug_style) values ('Hubbell CS8365C');
 insert into val_power_plug_style (power_plug_style) values ('IEC-60320-C13');
@@ -325,31 +326,7 @@ insert into val_power_plug_style (power_plug_style) values ('NEMA L5-30P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-15P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-20P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-30P');
-
-insert into val_port_type (port_type) values ('network');
-insert into val_port_type (port_type) values ('patchpanel');
-insert into val_port_type (port_type) values ('serial');
-insert into val_port_type (port_type) values ('switch');
-
-insert into val_baud (baud) values (110);
-insert into val_baud (baud) values (300);
-insert into val_baud (baud) values (1200);
-insert into val_baud (baud) values (2400);
-insert into val_baud (baud) values (4800);
-insert into val_baud (baud) values (9600);
-insert into val_baud (baud) values (19200);
-insert into val_baud (baud) values (38400);
-insert into val_baud (baud) values (57600);
-insert into val_baud (baud) values (115200);
-
-insert into val_flow_control (flow_control, description)
-	values ('ctsrts', 'CTS/RTS');
-insert into val_flow_control (flow_control, description)
-	values ('dsrdte', 'Xon/Xoff');
-insert into val_flow_control (flow_control, description)
-	values ('dtrdce', 'DSR/DTE');
-insert into val_flow_control (flow_control, description)
-	values ('xonxoff', 'DTR/DCE');
+ */
 
 insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
 	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
@@ -360,21 +337,6 @@ insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
 	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
 values
 	('telnet', 23, 'standard telnet');
-
--- these probably need to just be check constraints.  oops.
-insert into val_stop_bits (stop_bits) values (7);
-insert into val_stop_bits (stop_bits) values (1);
-insert into val_stop_bits (stop_bits) values (2);
-insert into val_stop_bits (stop_bits,description) values (15, '1.5');
-
-insert into val_data_bits (data_bits) values (7);
-insert into val_data_bits (data_bits) values (8);
-
-insert into val_parity (parity) values ('none');
-insert into val_parity (parity) values ('even');
-insert into val_parity (parity) values ('odd');
-insert into val_parity (parity) values ('mark');
-insert into val_parity (parity) values ('space');
 
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('straight');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('rollover');
@@ -451,6 +413,8 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('timestamp');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('company_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('dns_domain_id');
+insert into val_property_data_type (PROPERTY_DATA_TYPE) 
+	values ('device_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) 
 	values ('netblock_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
@@ -849,20 +813,6 @@ SELECT person_manip.setup_unix_account(
 );
 	
 
-INSERT INTO Account_Password (
-	Account_Id,
-	Password_type,
-	Password,
-	Change_Time
-) VALUES (
-	(select account_Id from account where login = 'root'),
-	'des',
-	'T6r7sdlVHpZH2',
-	now()
-);
-
-
-
 INSERT INTO
 	Device_Collection (Device_Collection_Name, Device_Collection_Type)
 VALUES (
@@ -889,20 +839,10 @@ insert into val_company_type(company_type) values  ('software provider');
 --- XXX these may be optional
 INSERT INTO Device_Type (
 	Company_Id,
-	Model,
-	Has_802_3_Interface,
-	Has_802_11_Interface,
-	SNMP_Capable,
-	is_chassis,
-	rack_units
+	Device_type_Name
 ) VALUES (
 	0,
-	'unknown',
-	'N',
-	'N',
-	'N',
-	'N',
-	0
+	'unknown'
 );
 
 INSERT INTO Operating_System (
@@ -948,61 +888,6 @@ insert into val_encapsulation_mode
 -- add port speed, port mediumm port protocaol (look at dropped things from
 --	interface type above)
 
-insert into val_port_protocol (port_protocol) values ( 'Ethernet' );
-insert into val_port_protocol (port_protocol) values ( 'DS1' );
-insert into val_port_protocol (port_protocol) values ( 'DS3' );
-insert into val_port_protocol (port_protocol) values ( 'E1' );
-insert into val_port_protocol (port_protocol) values ( 'E3' );
-insert into val_port_protocol (port_protocol) values ( 'OC3' );
-insert into val_port_protocol (port_protocol) values ( 'OC12' );
-insert into val_port_protocol (port_protocol) values ( 'OC48' );
-insert into val_port_protocol (port_protocol) values ( 'OC192' );
-insert into val_port_protocol (port_protocol) values ( 'OC768' );
-insert into val_port_protocol (port_protocol) values ( 'serial' );
-
-insert into val_port_plug_style (port_plug_style) values ('db9');
-insert into val_port_plug_style (port_plug_style) values ('rj45');
-insert into val_port_plug_style (port_plug_style) values ('SFP');
-insert into val_port_plug_style (port_plug_style) values ('SFP+');
-insert into val_port_plug_style (port_plug_style) values ('QSFP+');
-insert into val_port_plug_style (port_plug_style) values ('GBIC');
-insert into val_port_plug_style (port_plug_style) values ('XENPAK');
-
--- need to do sr, lr, cat6, cat5, twinax, etc
-insert into val_port_medium (port_medium,port_plug_style) values
-	('serial', 'db9');
-insert into val_port_medium (port_medium,port_plug_style) values
-	('serial', 'rj45');
-insert into val_port_medium (port_medium,port_plug_style) values
-	('TwinAx', 'SFP+');
-
-
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('10Mb', 10000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('100Mb', 1000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('1G', 1000000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('10G', 10000000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('40G', 40000000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('100G', 100000000000);
-
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '10Mb');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '100Mb');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '1G');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '10G');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '40G');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '100G');
-
 insert into val_device_collection_type 
 	(device_collection_type,
 	max_num_members, can_have_hierarchy
@@ -1047,6 +932,161 @@ values (
 	'DNSACLs', 'DNSZonegen',
 	'indicates netblocks that should be in a named acl', 'Y',
 	'string', 'REQUIRED');
+
+-------------------------------------------------------------------------
+-- BEGIN legacy port related stuff used by layer1_connection and elsewhere
+
+insert into val_component_property_type (component_property_type, description)
+values ('serial-connection', 'characteristics of serial connections');
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'baud', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'baud', 'serial-connection',
+	unnest(ARRAY[110,300,1200,2400,4800,9600,19200,38400,57600,115200]);
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'flow-control', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, 
+	valid_property_value,
+	description
+) SELECT 'flow-control', 'serial-connection',
+	unnest(ARRAY['ctsrts',	'dsrdte',	'dtrdce',	'xonxoff']),
+	unnest(ARRAY['CTS/RTS', 'DSR/DTE',	'DTE/DCE',	'Xon/Xoff'])
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'stop-bits', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'stop-bits', 'serial-connection',
+	unnest(ARRAY['1','2','1.5'])
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'data-bits', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'data-bits', 'serial-connection',
+	unnest(ARRAY[7,8])
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'parity', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'parity', 'serial-connection',
+	unnest(ARRAY['none', 'even', 'odd', 'mark', 'space'])
+;
+
+
+insert into val_component_property_type (component_property_type, description)
+values ('tcpsrv-connections', 'rtty tcpsrv connection properties');
+
+-- probably want to limit to component types that are devices but that appears
+-- to be hard
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id, permit_component_id
+) values (
+	'tcpsrv_device_id', 'tcpsrv-connections', 'N',
+	'none', 'REQUIRED', 'REQUIRED')
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'tcpsrv_enabled', 'tcpsrv-connections', 'N',
+	'boolean', 'REQUIRED')
+;
+
+
+/*****************************************************************************
+
+=== Things used to be directly support that are not directly supported. ====
+
+These concepts really are connection properties, not port --
+
+insert into val_port_protocol (port_protocol) values ( 'Ethernet' );
+insert into val_port_protocol (port_protocol) values ( 'DS1' );
+insert into val_port_protocol (port_protocol) values ( 'DS3' );
+insert into val_port_protocol (port_protocol) values ( 'E1' );
+insert into val_port_protocol (port_protocol) values ( 'E3' );
+insert into val_port_protocol (port_protocol) values ( 'OC3' );
+insert into val_port_protocol (port_protocol) values ( 'OC12' );
+insert into val_port_protocol (port_protocol) values ( 'OC48' );
+insert into val_port_protocol (port_protocol) values ( 'OC192' );
+insert into val_port_protocol (port_protocol) values ( 'OC768' );
+insert into val_port_protocol (port_protocol) values ( 'serial' );
+
+insert into val_port_plug_style (port_plug_style) values ('GBIC');
+insert into val_port_plug_style (port_plug_style) values ('XENPAK');
+
+-- need to do sr, lr, cat6, cat5, twinax, etc
+insert into val_port_medium (port_medium,port_plug_style) values
+	('serial', 'db9');
+insert into val_port_medium (port_medium,port_plug_style) values
+	('serial', 'rj45');
+insert into val_port_medium (port_medium,port_plug_style) values
+	('TwinAx', 'SFP+');
+
+These concepts are likely component_functions or inferred from slot_type
+
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('10Mb', 10000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('100Mb', 1000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('1G', 1000000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('10G', 10000000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('40G', 40000000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('100G', 100000000000);
+
+These concepts are likely component_functions
+
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '10Mb');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '100Mb');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '1G');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '10G');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '40G');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '100G');
+
+*****************************************************************************/
+
+-- END legacy port related stuff used by layer1_connection and elsewhere
+-------------------------------------------------------------------------
 
 -------------------------------------------------------------------------
 -- BEGIN automated account collection infrastructure (tied to properties)

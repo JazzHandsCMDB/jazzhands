@@ -53,7 +53,16 @@
 
 -- XXX - not sure if this is still needed.  Leaving out until it is.
 -- \i create_v_limited_users.sql
+
+\i create_v_device_slots.sql
+\i create_v_device_components.sql
+
+\i create_physical_port.sql
+\i create_layer1_connection.sql
 \i create_v_l1_all_physical_ports.sql
+
+\i create_device_power_connection.sql
+\i create_device_power_interface.sql
 
 -- XXX these need to be ported
 -- \i create_v_joined_acct_collection_user_detail.sql

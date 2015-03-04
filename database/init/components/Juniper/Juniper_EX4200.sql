@@ -143,7 +143,7 @@ BEGIN
 		size_units
 	) VALUES (
 		'Juniper EX4200-48T',
-		stid,
+		stack_stid,
 		'EX4200-48T',
 		'750-033063',
 		cid,

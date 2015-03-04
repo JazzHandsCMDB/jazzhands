@@ -249,6 +249,9 @@ BEGIN
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
 
+		PERFORM dns_utils.add_domains_from_netblock(
+			netblock_id := netblock_rec.netblock_id);
+
 		RETURN netblock_rec;
 	END IF;
 
@@ -319,6 +322,9 @@ BEGIN
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
+
+		PERFORM dns_utils.add_domains_from_netblock(
+			netblock_id := netblock_rec.netblock_id);
 
 		RETURN netblock_rec;
 	END IF;

@@ -112,11 +112,16 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_update_peraccount_account_collection ON Property;
-CREATE TRIGGER trigger_update_peraccount_account_collection AFTER INSERT OR UPDATE
-	ON Account FOR EACH ROW EXECUTE PROCEDURE update_peraccount_account_collection();
+DROP TRIGGER IF EXISTS trigger_update_peraccount_account_collection 
+	ON account;
+CREATE TRIGGER trigger_update_peraccount_account_collection
+	AFTER INSERT OR UPDATE
+	ON Account FOR 
+	EACH ROW EXECUTE 
+	PROCEDURE update_peraccount_account_collection();
 
 --- end of per-account manipulations
+-------------------------------------------------------------------------------
 
 /*
  * Deal with propagating person status down to accounts, if appropriate
@@ -152,4 +157,42 @@ DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account
 CREATE TRIGGER trigger_propagate_person_status_to_account 
 AFTER UPDATE ON person_company
 	FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
+
+-------------------------------------------------------------------------------
+
+/*
+ * Deal with propagating person status down to accounts, if appropriate
+ *
+ * XXX - this needs to be reimplemented in oracle
+ */
+CREATE OR REPLACE FUNCTION pull_password_account_realm_from_account()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		IF NEW.account_realm_id IS NULL THEN
+			SELECT account_realm_id
+			INTO	NEW.account_realm_id
+			FROM	account
+			WHERE	account_id = NEW.account_id;
+		END IF;
+	ELSIF NEW.account_realm_id = OLD.account_realm_id THEN
+		IF NEW.account_realm_id IS NULL THEN
+			SELECT account_realm_id
+			INTO	NEW.account_realm_id
+			FROM	account
+			WHERE	account_id = NEW.account_id;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_pull_password_account_realm_from_account 
+	ON account_password;
+CREATE TRIGGER trigger_pull_password_account_realm_from_account 
+BEFORE INSERT OR UPDATE of ACCOUNT_ID
+	ON account_password
+	FOR EACH ROW EXECUTE PROCEDURE pull_password_account_realm_from_account();
 

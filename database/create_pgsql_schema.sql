@@ -47,9 +47,9 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \i ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
 \i ddl/schema/pgsql/create_dns_triggers.sql
 \i ddl/schema/pgsql/create_network_interface_triggers.sql
+\i ddl/schema/pgsql/create_network_interface_triggers_RETIRE.sql
 \i ddl/schema/pgsql/create_device_type_triggers.sql
 \i ddl/schema/pgsql/create_auto_account_coll_triggers.sql
-\i ddl/schema/pgsql/create_device_power_triggers.sql
 \i ddl/schema/pgsql/create_device_coll_hier_triggers.sql
 \i ddl/schema/pgsql/create_property_coll_hier_triggers.sql
 \i ddl/schema/pgsql/create_account_coll_hier_triggers.sql
@@ -58,6 +58,9 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \i ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
 \i ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
 \i ddl/schema/pgsql/create_component_triggers.sql
+\i ddl/schema/pgsql/create_legacy_port_triggers_RETIRE.sql
+\i ddl/schema/pgsql/create_physical_conection_triggers.sql
+\i ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
 
 -- This could be done for backwards compatibility but is not.
 -- \i compat/pgsql/create_location_compatibility_view.sql

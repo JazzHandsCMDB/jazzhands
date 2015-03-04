@@ -49,7 +49,7 @@ BEGIN
 		'Dell C6100 chassis',
 		NULL,
 		'PowerEdge C6100 chassis',
-		(SELECT company_id FROM jazzhands.company WHERE company_name = 'Dell'),
+		cid,
 		'Y',
 		'Y',
 		2
@@ -185,19 +185,25 @@ BEGIN
 	WHERE
 		slot_type = 'PCIEx16' and slot_function = 'PCI';
 
--- 	INSERT INTO component_type_slot_tmplt (
--- 		component_type_id,
--- 		slot_type_id,
--- 		slot_name_template,
--- 		slot_index
--- 	) SELECT
--- 		ctid,
--- 		slot_type_id,
--- 		'PCI-E x8 mezzanine',
--- 		x'82'::int
--- 	FROM
--- 		slot_type st
--- 	WHERE
--- 		slot_type = 'PCIEx8half' and slot_function = 'PCI';
+	--
+	-- Disk slots (This really needs to be attached to the
+	-- RAID card, but I'm doing this quick and dirty for now)
+	--
+
+	INSERT INTO component_type_slot_tmplt (
+		component_type_id,
+		slot_type_id,
+		slot_name_template,
+		slot_index
+	) SELECT
+		ctid,
+		slot_type_id,
+		'252:' || x.slot,
+		x.slot
+	FROM
+		slot_type st,
+		generate_series(0,5) x(slot)
+	WHERE
+		slot_type = 'SAS' and slot_function = 'disk';
 END;
 $$ LANGUAGE plpgsql;

@@ -54,7 +54,7 @@ BEGIN
 	FROM
 		component
 	WHERE
-		component_id = NEW.component.id;
+		component_id = NEW.component_id;
 	
 	IF NOT FOUND OR ctid IS DISTINCT FROM dt_ctid THEN
 		RAISE EXCEPTION 'Component type of component_id % does not match component_type for device_type_id % (%)',
@@ -89,7 +89,7 @@ DECLARE
 BEGIN
 	-- If no component_id is set, then we're done
 
-	IF component_id IS NULL THEN
+	IF NEW.component_id IS NULL THEN
 		RETURN NEW;
 	END IF;
 
@@ -118,7 +118,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_asset_component_assignment
 	AFTER INSERT OR UPDATE OF component_id
 	ON asset
 	DEFERRABLE INITIALLY IMMEDIATE
-	FOR EACH ROW EXECUTE PROCEDURE validate_asset_component_assignment();
+	FOR EACH ROW EXECUTE PROCEDURE jazzhands.validate_asset_component_assignment();
 
 /*
  * Trigger to ensure that the component type of the component being added to
@@ -138,9 +138,10 @@ BEGIN
 		*
 	FROM
 		slot s JOIN
-		slot_type_prmt_comp_slot_type stpcst USING (slot_type_id)
+		slot_type_prmt_comp_slot_type stpcst USING (slot_type_id) JOIN
+		component_type ct ON (stpcst.component_slot_type_id = ct.slot_type_id)
 	WHERE
-		stpcst.component_slot_type_id = NEW.slot_type_id AND
+		ct.component_type_id = NEW.component_type_id AND
 		s.slot_id = NEW.parent_slot_id;
 	
 	IF NOT FOUND THEN
@@ -163,7 +164,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_component_parent_slot_id
 	ON component
 	DEFERRABLE INITIALLY IMMEDIATE
 	FOR EACH ROW
-	EXECUTE PROCEDURE validate_component_parent_slot_id();
+	EXECUTE PROCEDURE jazzhands.validate_component_parent_slot_id();
 
 /*
  * Trigger to ensure that an external slot connection (e.g. network connection,
@@ -187,17 +188,19 @@ BEGIN
 	--
 
 	SELECT
-		slot1_id
+		slot1_id,
 		slot2_id
 	INTO
 		csid_rec
 	FROM
 		inter_component_connection icc
 	WHERE
-		icc.slot1_id = NEW.slot1_id OR
-		icc.slot1_id = NEW.slot2_id OR
-		icc.slot2_id = NEW.slot1_id OR
-		icc.slot2_id = NEW.slot2_id
+		icc.inter_component_connection_id != NEW.inter_component_connection_id
+			AND
+		(icc.slot1_id = NEW.slot1_id OR
+		 icc.slot1_id = NEW.slot2_id OR
+		 icc.slot2_id = NEW.slot1_id OR
+		 icc.slot2_id = NEW.slot2_id )
 	LIMIT 1;
 
 	IF FOUND THEN
@@ -231,15 +234,15 @@ BEGIN
 		(slot cs2 JOIN slot_type st2 USING (slot_type_id)) slot2,
 		slot_type_prmt_rem_slot_type pst
 	WHERE
-		cs1.slot_id = NEW.slot1_id AND
-		cs2.slot_id = NEW.slot2_id AND
+		slot1.slot_id = NEW.slot1_id AND
+		slot2.slot_id = NEW.slot2_id AND
 		-- Remove next line if we ever decide to allow cross-function
 		-- connections
-		cs1.slot_function = cs2.slot_function AND
-		((cs1.slot_type_id = pst.slot_type_id AND
-				cs2.slot_type_id = pst.remote_slot_type_id) OR
-			(cs2.slot_type_id = pst.slot_type_id AND
-				cs1.slot_type_id = pst.remote_slot_type_id));
+		slot1.slot_function = slot2.slot_function AND
+		((slot1.slot_type_id = pst.slot_type_id AND
+				slot2.slot_type_id = pst.remote_slot_type_id) OR
+			(slot2.slot_type_id = pst.slot_type_id AND
+				slot1.slot_type_id = pst.remote_slot_type_id));
 	
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Slot types are not allowed to be connected'
@@ -259,7 +262,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_inter_component_connection
 	ON inter_component_connection
 	DEFERRABLE INITIALLY IMMEDIATE
 	FOR EACH ROW
-	EXECUTE PROCEDURE validate_inter_component_connection();
+	EXECUTE PROCEDURE jazzhands.validate_inter_component_connection();
 
 CREATE OR REPLACE FUNCTION validate_component_rack_location()
 RETURNS TRIGGER AS $$
@@ -299,7 +302,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_component_rack_location
 	ON component
 	DEFERRABLE INITIALLY IMMEDIATE
 	FOR EACH ROW
-	EXECUTE PROCEDURE validate_component_rack_location();
+	EXECUTE PROCEDURE jazzhands.validate_component_rack_location();
 
 /*
  * Trigger to validate component_property
@@ -479,6 +482,18 @@ BEGIN
 	ELSIF v_comp_prop.permit_component_id = 'PROHIBITED' THEN
 		IF NEW.component_id IS NOT NULL THEN
 			RAISE 'component_id is prohibited.'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF v_comp_prop.permit_intcomp_conn_id = 'REQUIRED' THEN
+		IF NEW.inter_component_connection_id IS NULL THEN
+			RAISE 'inter_component_connection_id is required.'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	ELSIF v_comp_prop.permit_intcomp_conn_id = 'PROHIBITED' THEN
+		IF NEW.inter_component_connection_id IS NOT NULL THEN
+			RAISE 'inter_component_connection_id is prohibited.'
 				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -690,16 +705,292 @@ CREATE CONSTRAINT TRIGGER trigger_validate_component_property
 	AFTER INSERT OR UPDATE
 	ON component_property
 	DEFERRABLE INITIALLY IMMEDIATE
-	FOR EACH ROW EXECUTE PROCEDURE validate_component_property();
+	FOR EACH ROW EXECUTE PROCEDURE jazzhands.validate_component_property();
 
-CREATE OR REPLACE FUNCTION jazzhands.create_component_slots_on_insert()
+CREATE OR REPLACE FUNCTION jazzhands.create_component_slots_by_trigger()
 RETURNS TRIGGER
 AS $$
 BEGIN
-	PERFORM component_utils.create_component_slots(
+	PERFORM component_utils.create_component_template_slots(
 		component_id := NEW.component_id);
 	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_create_component_template_slots ON component;
+
+CREATE TRIGGER trigger_create_component_template_slots
+	AFTER INSERT OR UPDATE OF component_type_id
+	ON component
+	FOR EACH ROW EXECUTE PROCEDURE
+		jazzhands.create_component_slots_by_trigger();
+
+CREATE OR REPLACE FUNCTION jazzhands.set_slot_names_by_trigger()
+RETURNS TRIGGER
+AS $$
+BEGIN
+	PERFORM component_utils.set_slot_names(
+		slot_id_list := ARRAY(
+				SELECT slot_id FROM slot WHERE component_id = NEW.component_id
+			)
+	);
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- This trigger needs to run after the trigger_create_component_slots one
+--
+DROP TRIGGER IF EXISTS trigger_zzz_generate_slot_names ON component;
+CREATE TRIGGER trigger_zzz_generate_slot_names
+	AFTER INSERT OR UPDATE OF parent_slot_id
+	ON component
+	FOR EACH ROW EXECUTE PROCEDURE
+		jazzhands.set_slot_names_by_trigger();
+
+--
+-- Create components for new devices from device templates based on device_id
+--
+CREATE OR REPLACE FUNCTION jazzhands.create_device_component_by_trigger()
+RETURNS TRIGGER
+AS $$
+DECLARE
+	devtype		RECORD;
+	cid			integer;
+	scarr       integer[];
+	dcarr       integer[];
+	server_ver	integer;
+BEGIN
+
+	--
+	-- If component_id is already set, then assume that it's correct
+	--
+	IF NEW.component_id THEN
+		RETURN NEW;
+	END IF;
+
+	SELECT
+		dt.device_type_id,
+		dt.component_type_id,
+		dt.template_device_id,
+		d.component_id
+	INTO
+		devtype
+	FROM
+		device_type dt LEFT JOIN
+		device d ON (dt.template_device_id = d.device_id)
+	WHERE
+		dt.device_type_id = NEW.device_type_id;
+
+	--
+	-- If template_device_id doesn't exist, then create an instance of
+	-- the component_id if it exists 
+	--
+	IF devtype.component_id IS NULL THEN
+		--
+		-- If the component_id doesn't exist, then we're done
+		--
+		IF devtype.component_type_id IS NULL THEN
+			RETURN NEW;
+		END IF;
+		--
+		-- Insert a component of the given type and tie it to the device
+		--
+		INSERT INTO component (component_type_id)
+			VALUES (devtype.component_type_id)
+			RETURNING component_id INTO cid;
+
+		NEW.component_id := cid;
+		RETURN NEW;
+	ELSE
+		SELECT setting INTO server_ver FROM pg_catalog.pg_settings
+			WHERE name = 'server_version_num';
+
+		IF (server_ver < 90400) THEN
+			--
+			-- This is pretty nasty; welcome to SQL
+			--
+			--
+			-- This returns data into a temporary table (ugh) that's used as a
+			-- key/value store to map each template component to the 
+			-- newly-created one
+			--
+			CREATE TEMPORARY TABLE trig_comp_ins AS
+			WITH comp_ins AS (
+				INSERT INTO component (
+					component_type_id
+				) SELECT
+					c.component_type_id
+				FROM
+					device_type dt JOIN 
+					v_device_components dc ON
+						(dc.device_id = dt.template_device_id) JOIN
+					component c USING (component_id)
+				WHERE
+					device_type_id = NEW.device_type_id
+				ORDER BY
+					level, c.component_type_id
+				RETURNING component_id
+			)
+			SELECT 
+				src_comp.component_id as src_component_id,
+				dst_comp.component_id as dst_component_id,
+				src_comp.level as level
+			FROM
+				(SELECT
+					c.component_id,
+					level,
+					row_number() OVER (ORDER BY level, c.component_type_id)
+						AS rownum
+				 FROM
+					device_type dt JOIN 
+					v_device_components dc ON
+						(dc.device_id = dt.template_device_id) JOIN
+					component c USING (component_id)
+				 WHERE
+					device_type_id = NEW.device_type_id
+				) src_comp,
+				(SELECT
+					component_id,
+					row_number() OVER () AS rownum
+				 FROM
+					comp_ins
+				) dst_comp
+			WHERE
+				src_comp.rownum = dst_comp.rownum;
+
+			/* 
+				 Now take the mapping of components that were inserted above,
+				 and tie the new components to the appropriate slot on the
+				 parent.
+				 The logic below is:
+					- Take the template component, and locate its parent slot
+					- Find the correct slot on the corresponding new parent 
+					  component by locating one with the same slot_name and
+					  slot_type_id on the mapped parent component_id
+					- Update the parent_slot_id of the component with the
+					  mapped component_id to this slot_id 
+				 
+				 This works even if the top-level component is attached to some
+				 other device, since there will not be a mapping for those in
+				 the table to locate.
+			*/
+					  
+			UPDATE
+				component dc
+			SET
+				parent_slot_id = ds.slot_id
+			FROM
+				trig_comp_ins tt,
+				trig_comp_ins ptt,
+				component sc,
+				slot ss,
+				slot ds
+			WHERE
+				tt.src_component_id = sc.component_id AND
+				tt.dst_component_id = dc.component_id AND
+				ss.slot_id = sc.parent_slot_id AND
+				ss.component_id = ptt.src_component_id AND
+				ds.component_id = ptt.dst_component_id AND
+				ss.slot_type_id = ds.slot_type_id AND
+				ss.slot_name = ds.slot_name;
+
+			SELECT dst_component_id INTO cid FROM trig_comp_ins WHERE
+				level = 1;
+
+			NEW.component_id := cid;
+
+			DROP TABLE trig_comp_ins;
+
+			RETURN NEW;
+		ELSE
+			WITH dev_comps AS (
+				SELECT
+					c.component_id,
+					c.component_type_id,
+					level,
+					row_number() OVER (ORDER BY level, c.component_type_id) AS
+						rownum
+				FROM
+					device_type dt JOIN 
+					v_device_components dc ON
+						(dc.device_id = dt.template_device_id) JOIN
+					component c USING (component_id)
+				WHERE
+					device_type_id = NEW.device_type_id
+			),
+			comp_ins AS (
+				INSERT INTO component (
+					component_type_id
+				) SELECT
+					component_type_id
+				FROM
+					dev_comps
+				ORDER BY
+					rownum
+				RETURNING component_id, component_type_id
+			),
+			comp_ins_arr AS (
+				SELECT
+					array_agg(component_id) AS dst_arr
+				FROM
+					comp_ins
+			),
+			dev_comps_arr AS (
+				SELECT
+					array_agg(component_id) as src_arr
+				FROM
+					dev_comps
+			)
+			SELECT src_arr, dst_arr INTO scarr, dcarr FROM
+				dev_comps_arr, comp_ins_arr;
+
+			UPDATE
+				component dc
+			SET
+				parent_slot_id = ds.slot_id
+			FROM
+				unnest(scarr, dcarr) AS 
+					tt(src_component_id, dst_component_id),
+				unnest(scarr, dcarr) AS 
+					ptt(src_component_id, dst_component_id),
+				component sc,
+				slot ss,
+				slot ds
+			WHERE
+				tt.src_component_id = sc.component_id AND
+				tt.dst_component_id = dc.component_id AND
+				ss.slot_id = sc.parent_slot_id AND
+				ss.component_id = ptt.src_component_id AND
+				ds.component_id = ptt.dst_component_id AND
+				ss.slot_type_id = ds.slot_type_id AND
+				ss.slot_name = ds.slot_name;
+
+			SELECT 
+				component_id INTO NEW.component_id
+			FROM 
+				component c
+			WHERE
+				component_id = ANY(dcarr) AND
+				parent_slot_id IS NULL;
+
+			RETURN NEW;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_create_device_component ON device;
+CREATE TRIGGER trigger_create_device_component 
+	BEFORE INSERT
+	ON device
+	FOR EACH ROW EXECUTE PROCEDURE
+		jazzhands.create_device_component_by_trigger();
+

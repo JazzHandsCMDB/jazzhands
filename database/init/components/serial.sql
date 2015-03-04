@@ -31,8 +31,10 @@ BEGIN
 		SELECT
 			unnest(ARRAY[
 				'RJ45',
-				'DB9',
-				'DB25',
+				'DB9-M',
+				'DB9-F',
+				'DB25-M',
+				'DB25-F',
 				'virtual'
 			]),
 			'serial';
@@ -42,8 +44,10 @@ BEGIN
 			 description, remote_slot_permitted)
 		VALUES
 			('RJ45 serial', 'RJ45', 'serial', 'RJ45 serial port', 'Y'),
-			('DB9 serial', 'DB9', 'serial', 'DB9 serial port', 'Y'),
-			('DB25 serial', 'DB25', 'serial', 'RJ45 serial port', 'Y'),
-			('virtual serial', 'DB25', 'serial', 'virtual serial port', 'Y');
+			('DB9-F serial', 'DB9-F', 'serial', 'DB9 serial port', 'Y'),
+			('DB9-M serial', 'DB9-M', 'serial', 'DB9 serial port', 'Y'),
+			('DB25-F serial', 'DB25-F', 'serial', 'RJ45 serial port', 'Y'),
+			('DB25-M serial', 'DB25-M', 'serial', 'RJ45 serial port', 'Y'),
+			('virtual serial', 'virtual', 'serial', 'virtual serial port', 'Y');
 	END IF;
 END $$ language plpgsql

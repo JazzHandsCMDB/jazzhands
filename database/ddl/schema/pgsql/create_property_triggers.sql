@@ -22,6 +22,7 @@ DECLARE
 	v_prop			VAL_Property%ROWTYPE;
 	v_proptype		VAL_Property_Type%ROWTYPE;
 	v_account_collection	account_collection%ROWTYPE;
+	v_device_collection		device_collection%ROWTYPE;
 	v_netblock_collection	netblock_collection%ROWTYPE;
 	v_num			integer;
 	v_listvalue		Property.Property_Value%TYPE;
@@ -219,10 +220,18 @@ BEGIN
 		END IF;
 	END IF;
 	IF NEW.Property_Value_Person_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'Person_Id' THEN
+		IF v_prop.Property_Data_Type = 'person_id' THEN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be Person_Id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Device_Coll_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'device_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be Device_Collection_Id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -311,6 +320,29 @@ BEGIN
 				THEN
 					RAISE 'Property_Value_nblk_Coll_Id must be of type %',
 					v_prop.prop_val_acct_coll_type_rstrct
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a device_collection_id, check to see if it must be a
+	-- specific type and verify that if so
+	IF NEW.Property_Value_Device_Coll_Id IS NOT NULL THEN
+		IF v_prop.prop_val_dev_coll_type_rstrct IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_device_collection 
+					FROM device_collection WHERE
+					device_collection_id = NEW.Property_Value_Device_Coll_Id;
+				IF v_device_collection.device_collection_type != 
+					v_prop.prop_val_dev_coll_type_rstrct
+				THEN
+					RAISE 'Property_Value_Device_Coll_Id must be of type %',
+					v_prop.prop_val_dev_coll_type_rstrct
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION

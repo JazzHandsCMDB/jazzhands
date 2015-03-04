@@ -23,12 +23,20 @@ DECLARE
 	d		text[];
 	s		integer;
 BEGIN
+	--
+	-- Insert the chassis slot type
+	--
 	INSERT INTO slot_type
 		(slot_type, slot_physical_interface_type, slot_function, description,
 		 remote_slot_permitted)
-	 VALUES
-		 ('C6220node', 'sled', 'chassis_slot', 'C6220 node', 'N');
+	VALUES
+		 ('C6220node', 'sled', 'chassis_slot', 'C6220 node', 'N')
+	RETURNING
+		slot_type_id INTO stid;
 
+	--
+	-- Insert the chassis component type
+	--
 	INSERT INTO component_type (
 		description,
 		slot_type_id,
@@ -55,9 +63,9 @@ BEGIN
 		'chassis'
 	);
 
-	SELECT slot_type_id INTO stid FROM slot_type WHERE
-		slot_type = 'C6220node' and slot_function = 'chassis_slot';
-
+	--
+	-- Create the chassis slot template
+	--
 	INSERT INTO component_type_slot_tmplt (
 		component_type_id,
 		slot_type_id,
@@ -77,6 +85,11 @@ BEGIN
 	FROM
 		generate_series(0,3) x(idx);
 
+	--
+	-- There's no real difference that we care about between the C6220 and the
+	-- C6220 II, except that they probe differently.  Insert a 1U and a 2U
+	-- version
+	--
 	FOREACH d SLICE 1 IN ARRAY ARRAY[
 			['PowerEdge C6220', '0TTH1R'],
 			['PowerEdge C6220 II', '09N44V']

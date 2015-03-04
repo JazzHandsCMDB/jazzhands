@@ -45,6 +45,8 @@ BEGIN
 			('MaxAmperage', 'PDU', 'Max Outlet Amperage', 'N', 'number',
 				'PDU', 'REQUIRED'),
 			('Wattage', 'power_supply', 'Power Supply Wattage', 'N', 'number',
+				'power_supply', 'REQUIRED'),
+			('Provides', 'power_supply', 'Provides power', 'N', 'boolean',
 				'power_supply', 'REQUIRED');
 
 		INSERT INTO val_slot_function (slot_function, description) VALUES

@@ -292,3 +292,24 @@ insert into token_collection (
 	'test',
 	'default'
 );
+
+
+--
+insert into account_realm_password_type (
+	account_realm_id, password_type)
+values (
+	0, 'des'
+);
+
+INSERT INTO Account_Password (
+	Account_Id,
+	Password_type,
+	Password,
+	Change_Time
+) VALUES (
+	(select account_Id from account where login = 'root'),
+	'des',
+	'T6r7sdlVHpZH2',
+	now()
+);
+

@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2015 Matthew Ragan
+-- Copyright (c) 2015 Matthew Ragan, Todd Kover
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +21,13 @@
 \ir components/PCI.sql
 \ir components/network.sql
 \ir components/serial.sql
+\ir components/patchpanel.sql
 \ir components/power.sql
+\ir components/disks/disks.sql
 
 \ir components/Juniper/Juniper.sql
 \ir components/Arista/Arista.sql
 
 \ir components/Dell/Dell.sql
+
+\ir components/OpenGear/OpenGear.sql

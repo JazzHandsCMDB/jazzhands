@@ -46,6 +46,7 @@
 -- \i dns_gen_utils.sql
 --++  \i voe_manip_util.sql
 --++ \i voe_track_manip.sql
+\i dns_utils.sql
 \i port_support.sql
 \i port_util.sql
 \i device_utils.sql
@@ -56,3 +57,4 @@
 -- \i appgroup_util.sql
 -- \i property_verify.sql
 \i physical_address_utils.sql
+\i component_utils.sql

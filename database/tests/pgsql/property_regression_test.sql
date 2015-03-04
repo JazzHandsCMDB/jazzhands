@@ -57,6 +57,7 @@ DECLARE
 	v_account_collection_id				Property.account_collection_id%TYPE;
 	v_account_collection_id2			Property.account_collection_id%TYPE;
 	v_net_coll_Id			Property.property_value_nblk_coll_id%TYPE;
+	v_dev_coll_Id			Property.property_value_nblk_coll_id%TYPE;
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
 	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
 	v_token_collection_id	Property.Property_Value_Token_Col_ID%TYPE;
@@ -492,6 +493,40 @@ BEGIN
 		'N',
 		NULL,
 		'netblock_collection_id',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED'
+	);
+
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		Prop_Val_Acct_Coll_Type_Rstrct,
+		Property_Data_Type,
+		Permit_Company_Id,
+		Permit_Device_Collection_Id,
+		Permit_DNS_Domain_Id,
+		Permit_Operating_System_Id,
+		permit_service_env_collection,
+		permit_property_collection_id,
+		Permit_Site_Code,
+		Permit_Account_Id,
+		permit_account_realm_id,
+		Permit_Account_Collection_Id
+	) VALUES (
+		'device_collection_id',
+		'test',
+		'N',
+		NULL,
+		'device_collection_id',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -1764,6 +1799,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_collection_Id value into string property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'string', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -1904,6 +1954,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_id value into timestamp property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'timestamp', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2036,6 +2101,21 @@ BEGIN
 			) VALUES (
 			'company_id', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into company_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'company_id', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2185,6 +2265,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into dns_domain_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'dns_domain_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into dns_domain_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2325,6 +2420,21 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into Netblock_Collection_Id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_device_coll_id
+			) VALUES (
+			'netblock_collection_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2456,6 +2566,21 @@ BEGIN
 			) VALUES (
 			'password_type', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into password_type property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'password_type', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2596,6 +2721,21 @@ BEGIN
 			) VALUES (
 			'sw_package_id', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into sw_package_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'sw_package_id', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2745,6 +2885,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into token_collection_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'token_collection_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2885,6 +3040,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into account_collection_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'account_collection_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -3017,6 +3187,21 @@ BEGIN
 			) VALUES (
 			'none', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into none property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'none', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;

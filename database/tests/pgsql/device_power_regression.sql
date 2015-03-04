@@ -18,6 +18,8 @@
 
 \set ON_ERROR_STOP
 
+/*
+
 \t on
 
 -- 
@@ -254,5 +256,7 @@ $$ LANGUAGE plpgsql;
 SELECT device_power_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION device_power_regression();
+
+*/
 
 \t off

@@ -51,6 +51,8 @@ grant create on database jazzhands_new to jazzhands;
 
 \i init/initialize_country_codes.sql
 \i init/initialize_jazzhands.sql
+\i init/initialize_component.sql
+
 \i init/initialize_jazzhands_optional.sql
 -- \i init/insert_blacklist.sql
 -- \i init/oracle/submit_scheduler.sql
@@ -67,7 +69,8 @@ begin;
 -- example insertions with some real life looking test data
 \i tests/init/insert_records.sql
 \i tests/init/insert_devices.sql
-\i tests/init/insert_records_later.sql
+-- deprecated
+-- \i tests/init/insert_records_later.sql
 \i tests/init/test_netblock_collection.sql
 \i tests/pgsql/location_regression_test.sql
 \i tests/pgsql/netblock_regression_test.sql
