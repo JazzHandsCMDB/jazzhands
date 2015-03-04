@@ -155,7 +155,7 @@ sub get_support_email($) {
 
 	my $sth = $dbh->prepare_cached(
 		q{
-    	SELECT	property_value
+	SELECT	property_value
 	  FROM	v_property
 	 WHERE	property_name = '_supportemail'
 	  AND   property_type = 'Defaults'
@@ -202,11 +202,11 @@ sub get_mclass_properties {
 		p.property_value
 	  from	v_property p
 		join v_device_coll_hier_detail d
-			on p.device_collection_id = 
+			on p.device_collection_id =
 				d.parent_device_collection_id
 	 where p.property_type in ( 'MclassUnixProp' )
 		and p.property_name != 'UnixLogin'
-    	};
+	};
 
 	if ($q_mclass_ids) {
 		$q .= "and d.device_collection_id in $q_mclass_ids";
@@ -389,7 +389,7 @@ sub generate_passwd_files($$) {
 		}
 
 		$q = qq{
-			SELECT	device_collection_name, map.* 
+			SELECT	device_collection_name, map.*
 			FROM	v_unix_passwd_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 			WHERE	device_collection_type = 'mclass'
@@ -408,12 +408,12 @@ sub generate_passwd_files($$) {
 				)
 			};
 		}
-	
+
 		$q = qq{
-			SELECT	d.device_name, map.* 
+			SELECT	d.device_name, map.*
 			FROM	v_unix_passwd_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
-					INNER JOIN device_collection_device 
+					INNER JOIN device_collection_device
 							USING (device_collection_id)
 					INNER JOIN device d USING (device_id)
 			WHERE	device_collection_type = 'per-device'
@@ -507,7 +507,7 @@ sub generate_group_files($$) {
 		}
 
 		$q = qq{
-			SELECT	device_collection_name, map.* 
+			SELECT	device_collection_name, map.*
 			FROM	v_unix_group_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 			WHERE	device_collection_type = 'mclass'
@@ -694,12 +694,12 @@ sub retrieve_sudo_data() {
 	## uclasses
 
 	$q = q{
-	select distinct c1.device_collection_id, 'U', 
+	select distinct c1.device_collection_id, 'U',
 		u1.account_collection_id, u1.account_collection_name
 	from sudo_acct_col_device_collectio c1, account_collection u1
 	where c1.account_collection_id = u1.account_collection_id
 	union
-	select distinct c2.device_collection_id, 'R', 
+	select distinct c2.device_collection_id, 'R',
 	       c2.run_as_account_collection_id, u2.account_collection_name
 	from sudo_acct_col_device_collectio c2, account_collection u2
 	where c2.run_as_account_collection_id = u2.account_collection_id
@@ -737,7 +737,7 @@ sub retrieve_sudo_data() {
 	where account_id in (
 	  select account_id from sudo_acct_col_device_collectio
 	  union
-	  select run_as_account_collection_id from 
+	  select run_as_account_collection_id from
 			sudo_acct_col_device_collectio
 	)
 	and account_status in ('enabled', 'onleave-enable')
@@ -1052,26 +1052,52 @@ sub generate_sudoers_files($) {
 	my ( $q, $sth, $r, $fh );
 
 	$q = q{
-	select device_collection_id, device_collection_name mclass 
-	  from device_collection
-		join v_property using (device_collection_id)
-	where property_name = 'generate-sudoers'
-	 and  property_type = 'sudoers'
-    };
+	WITH sudoers AS ( select * FROM (
+		select *, rank() over (partition by mclass
+			ORDER BY device_collection_level) as rnk
+		from (
+		SELECT DISTINCT dc.device_collection_id,
+			device_collection_name mclass,
+			p.property_value,device_collection_level
+		FROM v_device_coll_hier_detail v
+			JOIN device_collection dc
+				USING (device_collection_id)
+			JOIN v_property p ON p.device_collection_id =
+				v.parent_device_collection_id
+		WHERE property_name = 'generate-sudoers'
+		AND  property_type = 'sudoers'
+		AND  device_collection_type = 'mclass'
+	) x ) y where rnk = 1 and property_value = 'Y'
+	), x AS (
+	select sudoers.mclass, property_value
+	FROM sudoers
+	UNION
+	select device_collection_name, 'N'
+	FROM device_collection
+	WHERE device_collection_type = 'mclass'
+	AND device_collection_id NOT IN (select device_collection_id FROM
+		sudoers)
+	) select * from x
+	};
 
 	if ($q_mclass_ids) {
-		$q .= "and device_collection_id in $q_mclass_ids";
+		$q .= "WHERE device_collection_id in $q_mclass_ids";
 	}
 
 	$sth = $dbh->prepare($q);
 	$sth->execute;
 
 	while ( $r = $sth->fetchrow_hashref ) {
-		$fh = new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
-			$fh, 'sudoers' );
-		print $fh get_sudoers_file(
-			$r->{ _dbx('DEVICE_COLLECTION_ID') } );
-		$fh->close;
+		my $fn = join("/", $dir, $r->{ _dbx('MCLASS') }, "sudoers");
+		if($r->{_dbx('PROPERTY_VALUE')} ne 'Y') {
+			unlink($fn);
+		} else {
+			$fh = new_mclass_file( $dir, $r->{ _dbx('MCLASS') },
+				$fh, 'sudoers' );
+			print $fh get_sudoers_file(
+				$r->{ _dbx('DEVICE_COLLECTION_ID') } );
+			$fh->close;
+		}
 	}
 
 	$sth->finish;
@@ -1099,7 +1125,7 @@ sub generate_appaal_files($) {
 			p.app_key,
 			p.app_value
 		 from	appaal_instance i
-		 	inner join appaal_instance_property p
+			inner join appaal_instance_property p
 				on i.appaal_instance_id = p.appaal_instance_id
 			inner join appaal a
 				on i.appaal_id = a.appaal_id
@@ -1260,7 +1286,7 @@ sub generate_k5login_root_files($) {
 	join klogin k on km2.klogin_id = k.klogin_id
 	join kerberos_realm kr on k.krb_realm_id = kr.krb_realm_id
 	join account a on a.account_id = k.account_id
-	where k.dest_account_Id = 
+	where k.dest_account_Id =
 	(select account_id from account where login = 'root')
 	and a.account_status in ('enabled', 'onleave-enable')
 	and c.device_collection_type = 'mclass'
@@ -1326,15 +1352,15 @@ sub generate_wwwgroup_files($) {
 
 	$q = q{
 	select distinct c.device_collection_name mclass,
-	       coalesce(p.property_value, u.account_collection_name) wwwgroup, 
+	       coalesce(p.property_value, u.account_collection_name) wwwgroup,
 	       a.login
 	from device_collection c
 	join v_device_col_acct_col_expanded dcue
 		on c.device_collection_id = dcue.device_collection_id
 	join account a on dcue.account_id = a.account_id
-	join account_collection u on 
+	join account_collection u on
 		dcue.account_collection_id = u.account_collection_id
-	left join v_property p on 
+	left join v_property p on
 		(u.account_collection_id = p.account_collection_id
 	and p.property_type = 'wwwgroup'
 	and p.property_name = 'WWWGroupName')
@@ -1402,7 +1428,7 @@ sub generate_config_files {
 			   pv.property_value,
 			   dc.device_collection_name
 		FROM (
-				SELECT device_collection_id, 
+				SELECT device_collection_id,
 					property_name, property_type,
 					property_value, rank()
 				OVER (PARTITION BY device_collection_id ,
@@ -1568,7 +1594,7 @@ sub create_host_symlinks($@) {
 	$q = q{
 	select device_name, device_collection_name mclass
 	from device_collection
-	join device_collection_device using (device_collection_id) 
+	join device_collection_device using (device_collection_id)
 	join device using (device_id)
 	where device_collection_type = 'mclass' and device_name is not null
     };

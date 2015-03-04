@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.59.6
+Version:    0.60.0
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,6 +46,8 @@ else
 fi
 
 %changelog
+* Wed Mar  4 2015 Todd Kover <kovert@omniscient.com> 0.60.0
+- fix sudoers flags to be recursive and actually work when set to N.
 * Wed Dec 10 2014 Todd Kover <kovert@omniscient.com> 0.59.6
 - fix hosts symlink generation when a host is moved
 * Mon Dec  8 2014 Todd Kover <kovert@omniscient.com> 0.59.3
