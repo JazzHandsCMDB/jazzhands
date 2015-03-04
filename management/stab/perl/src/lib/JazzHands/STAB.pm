@@ -1285,9 +1285,15 @@ sub b_dropdown {
 	} elsif (  $selectfield eq 'COMPANY_ID'
 		|| $selectfield =~ /_COMPANY_ID$/ )
 	{
+		my $ct = ($params->{'-company_type'})?
+			q{
+			inner join company_type using (company_id)
+			where company_type = :company_type
+			}:"";
 		$q = qq{
 			select	company_id, company_name
 			  from	company
+				$ct
 			order by lower(company_name)
 		};
 		$pickone = "Choose";
@@ -1621,6 +1627,10 @@ sub b_dropdown {
 
 	if ( defined($dnsdomaintype) ) {
 		$sth->bind_param( ':dnsdomaintype', $dnsdomaintype );
+	}
+
+	if ( defined($params->{'-company_type'}) ) {
+		$sth->bind_param( ':company_type', $params->{'-company_type'} );
 	}
 
 	$sth->execute || $self->return_db_err($sth);

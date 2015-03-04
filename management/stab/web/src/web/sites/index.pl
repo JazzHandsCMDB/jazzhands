@@ -68,13 +68,14 @@ sub dump_all_sites {
 	my $q = qq{
 		select 	s.site_code,
 		 	c.company_name,
-			-- p.address, XXX
-			s.npanxx,
+			physical_address_utils.localized_physical_address(p.physical_address_id),
 			s.site_status,
 			s.description
 		  from	site s
 			left join company c
 				on c.company_id = s.colo_company_id
+			left join physical_address p
+				USING (physical_address_id)
 		order by s.site_code
 	};
 
@@ -85,18 +86,17 @@ sub dump_all_sites {
 
 	print $cgi->Tr(
 		$cgi->th('Site Code'), $cgi->th('Colo Provider'),
-		$cgi->th('Address'),   $cgi->th('NPANXX'),
+		$cgi->th('Address'),   
 		$cgi->th('Status'),    $cgi->th('Description'),
 	);
 
-	while ( my ( $sitecode, $name, $addr, $npanxx, $status, $desc ) =
+	while ( my ( $sitecode, $name, $addr, $status, $desc ) =
 		$sth->fetchrow_array )
 	{
 		print $cgi->Tr(
 			$cgi->td( make_url( $stab, $sitecode ) ),
 			$cgi->td($name),
 			$cgi->td($addr),
-			$cgi->td($npanxx),
 			$cgi->td($status),
 			$cgi->td($desc)
 		);
