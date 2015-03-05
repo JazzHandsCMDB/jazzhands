@@ -953,7 +953,9 @@ sub get_sudoers_file {
 	## and build the data structures that will be used later
 
 	foreach my $mid (@ids) {
-		my $d = $sudo_defaults{$mclass_id}->[0];
+		next if(!$mid);
+		next if(!exists($sudo_defaults{$mid}));
+		my $d = $sudo_defaults{$mid}->[0];
 		my %u = get_sudo_uclasses_for_mclass($mid);
 		my %c = @{ $sudo_cmnd_aliases{$mid} }
 		  if ( defined( $sudo_cmnd_aliases{$mid} ) );
@@ -1069,10 +1071,10 @@ sub generate_sudoers_files($) {
 		AND  device_collection_type = 'mclass'
 	) x ) y where rnk = 1 and property_value = 'Y'
 	), x AS (
-	select sudoers.mclass, property_value
+	select sudoers.device_collection_Id, sudoers.mclass, property_value
 	FROM sudoers
 	UNION
-	select device_collection_name, 'N'
+	select device_collection_id, device_collection_name, 'N'
 	FROM device_collection
 	WHERE device_collection_type = 'mclass'
 	AND device_collection_id NOT IN (select device_collection_id FROM
