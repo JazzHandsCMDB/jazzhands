@@ -1517,31 +1517,7 @@ if ($maxid) {
 	#
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select distinct *
-		from (
-		select  chg.dns_change_record_id, n.dns_domain_id,
-			n.should_generate, n.last_generated,
-			n.soa_name, chg.ip_address
-	 	from   dns_change_record chg
-			left join (
-				select * from
-					dns_record dns
-					inner join dns_domain dom using (dns_domain_id)
-					inner join netblock n using (netblock_id)
-				where dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-			) n
-		   		on	family(chg.ip_address) = family(n.ip_address) AND
-					set_masklen(chg.ip_address, masklen(n.ip_address))
-				 		<<= n.ip_address
-			where chg.ip_address is not null
-		UNION
-		select	chg.dns_change_record_id, d.dns_domain_id,
-			d.should_generate, d.last_generated,
-			d.soa_name, NULL
-	  	from	dns_change_record chg
-			inner join dns_domain d using (dns_domain_id)
-	 	WHERE	dns_domain_id is not null
-		) x
+			SELECT * FROM v_dns_changes_pending
 	}
 	) || die $dbh->errstr;
 

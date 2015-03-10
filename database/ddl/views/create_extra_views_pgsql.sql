@@ -111,3 +111,6 @@
 \i pgsql/create_v_unix_group_overrides.sql
 \i pgsql/create_v_device_col_account_col_cart.sql
 \i pgsql/create_v_unix_group_mappings.sql
+
+-- dns
+\i create_v_dns_changes_pending.sql
