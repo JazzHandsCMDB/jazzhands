@@ -44,6 +44,7 @@ sub do_trunk_group_toplevel {
 	} else {
 		dump_tg( $stab, $tgid );
 	}
+	undef $stab;
 }
 
 sub tg_search {

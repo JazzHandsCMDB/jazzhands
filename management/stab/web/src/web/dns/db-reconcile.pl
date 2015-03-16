@@ -38,24 +38,26 @@ use Data::Dumper;
 do_db_dns_compare();
 
 sub find_best_ns {
-	my($stab, $zone) = @_;
+	my ( $stab, $zone ) = @_;
 
 	my $lastns;
 
 	my $res = Net::DNS::Resolver->new;
-	my $query = $res->query($zone, "NS");
+	my $query = $res->query( $zone, "NS" );
 
-	if(!$query || !$query->answer) {
-		$stab->error_return("Unable to find the registered nameserver for this host");
+	if ( !$query || !$query->answer ) {
+		$stab->error_return(
+			"Unable to find the registered nameserver for this host"
+		);
 	}
-	foreach my $rr (grep {$_->type eq 'NS'} $query->answer) {
-		if(defined($rr->nsdname)) {
+	foreach my $rr ( grep { $_->type eq 'NS' } $query->answer ) {
+		if ( defined( $rr->nsdname ) ) {
 			my $nsdname = $rr->nsdname;
 			$nsdname =~ tr/A-Z/a-z/;
-			if($nsdname eq 'intauth00.EXAMPLE.COM') {
-				return('intauth00.EXAMPLE.COM');
-			} elsif($nsdname eq 'auth00.EXAMPLE.COM') {
-				return('auth00.EXAMPLE.COM');
+			if ( $nsdname eq 'intauth00.EXAMPLE.COM' ) {
+				return ('intauth00.EXAMPLE.COM');
+			} elsif ( $nsdname eq 'auth00.EXAMPLE.COM' ) {
+				return ('auth00.EXAMPLE.COM');
 			}
 			$lastns = $rr->nsdname;
 		}
@@ -64,15 +66,15 @@ sub find_best_ns {
 }
 
 sub by_name {
-	if($a->name =~ /^\d+$/ && $b->name =~ /^\d+$/) {
-		return($a->name <=> $b->name);
+	if ( $a->name =~ /^\d+$/ && $b->name =~ /^\d+$/ ) {
+		return ( $a->name <=> $b->name );
 	} else {
-		return($a->name cmp $b->name);
+		return ( $a->name cmp $b->name );
 	}
 }
 
 sub process_db_zone {
-	my($stab, $ns, $domid, $zone) = @_;
+	my ( $stab, $ns, $domid, $zone ) = @_;
 	my $dbh = $stab->dbh || die "no dbh!";
 	my $cgi = $stab->cgi || die "no cgi!";
 
@@ -85,7 +87,8 @@ sub process_db_zone {
 	#
 	# need to better deal with the reference dns record with a coalesce
 	# column [XXX].  I've now changed it quite a bit.
-	my $sth = $dbh->prepare_cached(qq{
+	my $sth = $dbh->prepare_cached(
+		qq{
 		select  distinct
 			d.dns_record_id, d.dns_name, d.dns_ttl, d.dns_class,
 			d.dns_type, d.dns_value, d.dns_priority,
@@ -114,123 +117,129 @@ sub process_db_zone {
 		   and	d.is_enabled = 'Y'	--- XXX
 		order by discerned_name, d.dns_type, 
 			ip_manip.v4_octet_from_int(ni.ip_address)
-	}) || $stab->error_return("Unable to extract zone"); 
+	}
+	) || $stab->error_return("Unable to extract zone");
 
 	$sth->execute($domid) || $stab->error_return($sth);
 
-	my ($lastrec, $lasttype) = ("", "");
+	my ( $lastrec, $lasttype ) = ( "", "" );
 
 	#
 	# Build up all records of the same type for the comparision, then
 	# compare the hell out of them.
 	#
 	my @dbrec;
-	while(my $hr = $sth->fetchrow_hashref) {
-		# build the name of this record.  JazzHands is closer to a zone format,
-		# so you can have the actual name in another record, which is weirdish
+	while ( my $hr = $sth->fetchrow_hashref ) {
+
+	 # build the name of this record.  JazzHands is closer to a zone format,
+	 # so you can have the actual name in another record, which is weirdish
 		my $rec;
-		if($hr->{DISCERNED_NAME}) {
-			$rec = join(".", $hr->{DISCERNED_NAME}, $zone);
+		if ( $hr->{DISCERNED_NAME} ) {
+			$rec = join( ".", $hr->{DISCERNED_NAME}, $zone );
 		} else {
 			$rec = $zone;
 		}
 
 		# 4right now, we only grok IN records
-		if($hr->{DNS_CLASS} ne 'IN') {
-			$msg .= $cgi->li("Can't process class ", $hr->{DNS_CLASS}, 
-				"for ", $hr->{DISCERNED_NAME});
+		if ( $hr->{DNS_CLASS} ne 'IN' ) {
+			$msg .= $cgi->li( "Can't process class ",
+				$hr->{DNS_CLASS},
+				"for ", $hr->{DISCERNED_NAME} );
 			next;
 		}
 
-		if($hr->{DNS_TYPE} =~ /^(NS|MX|CNAME)$/) {
-			if($hr->{DNS_VALUE} =~ /\.$/) {
+		if ( $hr->{DNS_TYPE} =~ /^(NS|MX|CNAME)$/ ) {
+			if ( $hr->{DNS_VALUE} =~ /\.$/ ) {
 				$hr->{PROCESSED_VALUE} = $hr->{DNS_VALUE};
 			} else {
-				$hr->{PROCESSED_VALUE} = $hr->{DNS_VALUE}.".$zone";
+				$hr->{PROCESSED_VALUE} =
+				  $hr->{DNS_VALUE} . ".$zone";
 			}
-		} elsif($hr->{DNS_TYPE} eq 'A') {
+		} elsif ( $hr->{DNS_TYPE} eq 'A' ) {
 			$hr->{PROCESSED_VALUE} = $hr->{IP};
 		} else {
 			$hr->{PROCESSED_VALUE} = $hr->{DNS_VALUE};
 		}
 		$hr->{PROCESSED_VALUE} =~ s/\.$//;
 
-		# these get processed on the second iteration (and after the while
-		# loop for the last one), so this is a bit kooky.
-		if($lastrec eq $lasttype && $lastrec eq "") {
-			push(@dbrec, $hr);
-		} elsif($lastrec eq $rec && $lasttype eq $hr->{DNS_TYPE}) {
-			push(@dbrec, $hr);
+	      # these get processed on the second iteration (and after the while
+	      # loop for the last one), so this is a bit kooky.
+		if ( $lastrec eq $lasttype && $lastrec eq "" ) {
+			push( @dbrec, $hr );
+		} elsif ( $lastrec eq $rec && $lasttype eq $hr->{DNS_TYPE} ) {
+			push( @dbrec, $hr );
 		} else {
-			$msg .= compare_record_fromdb($stab, $lastrec, $ns, \@dbrec);
-			undef @dbrec ;
-			push(@dbrec, $hr);
+			$msg .= compare_record_fromdb( $stab, $lastrec, $ns,
+				\@dbrec );
+			undef @dbrec;
+			push( @dbrec, $hr );
 		}
-		$lastrec = $rec;
+		$lastrec  = $rec;
 		$lasttype = $hr->{DNS_TYPE};
-			
 
 	}
-	$msg .= compare_record_fromdb($stab, $lastrec, $ns, \@dbrec);
+	$msg .= compare_record_fromdb( $stab, $lastrec, $ns, \@dbrec );
 
 	return $msg;
 }
 
 sub compare_record_fromdb {
-	my($stab, $rec, $ns, $dbrec) = @_;
+	my ( $stab, $rec, $ns, $dbrec ) = @_;
 	my $cgi = $stab->cgi || die "no cgi!";
 
 	my $msg = "";
 
 	my $res = new Net::DNS::Resolver;
-	$res->nameservers( $ns );
+	$res->nameservers($ns);
 
 	my $type = $dbrec->[0]->{DNS_TYPE};
 
-	my(@zonerec);
+	my (@zonerec);
 
 	my $lookuprec = $rec;
-	if($type eq 'SRV') {
-		if($dbrec->[0]->{DNS_SRV_SERVICE}) {
-			$lookuprec = join(".",
-				$dbrec->[0]->{DNS_SRV_SERVICE}, "_".
-				$dbrec->[0]->{DNS_SRV_PROTOCOL},
-				$lookuprec);
+	if ( $type eq 'SRV' ) {
+		if ( $dbrec->[0]->{DNS_SRV_SERVICE} ) {
+			$lookuprec = join( ".",
+				$dbrec->[0]->{DNS_SRV_SERVICE},
+				"_" . $dbrec->[0]->{DNS_SRV_PROTOCOL},
+				$lookuprec );
 		}
 	}
 
-	my $q = $res->query($lookuprec, $dbrec->[0]->{DNS_TYPE});
-	if($q) {
-		foreach my $rr ($q->answer) {
-			if($rr->type eq $type) {
-				push(@zonerec, $rr);
+	my $q = $res->query( $lookuprec, $dbrec->[0]->{DNS_TYPE} );
+	if ($q) {
+		foreach my $rr ( $q->answer ) {
+			if ( $rr->type eq $type ) {
+				push( @zonerec, $rr );
 			} else {
 				;
 			}
 		}
 	}
 
-	if($#zonerec >= 0) {
-		$msg .= compare_record($stab, $type, $rec, $ns, $dbrec, \@zonerec);
+	if ( $#zonerec >= 0 ) {
+		$msg .=
+		  compare_record( $stab, $type, $rec, $ns, $dbrec, \@zonerec );
 	} else {
-		if($type eq 'SRV') {
-			$msg .= $cgi->pre(Dumper($dbrec, \@zonerec));
+		if ( $type eq 'SRV' ) {
+			$msg .= $cgi->pre( Dumper( $dbrec, \@zonerec ) );
 		}
 		my @dbval;
 		foreach my $r (@$dbrec) {
-			if(defined($r->{IP_ADDRESS})) {
-				push(@dbval, $r->{IP});
-			} elsif(defined($r->{DNS_VALUE})) {
-				push(@dbval, $r->{DNS_VALUE});
+			if ( defined( $r->{IP_ADDRESS} ) ) {
+				push( @dbval, $r->{IP} );
+			} elsif ( defined( $r->{DNS_VALUE} ) ) {
+				push( @dbval, $r->{DNS_VALUE} );
 			} else {
-				push(@dbval, $cgi->b("No Value Set"));
+				push( @dbval, $cgi->b("No Value Set") );
 			}
 		}
 		my $dbval = "";
-		$dbval = " (". join(",", @dbval). ")" if($#dbval >= 0);
-		my $m = $cgi->li("$rec of type $type$dbval is in the DB, not in DNS");
-		if($type !~ /^(A|NS|CNAME|SRV|TXT)$/) {
-			$msg = $cgi->li($cgi->b($m));
+		$dbval = " (" . join( ",", @dbval ) . ")" if ( $#dbval >= 0 );
+		my $m =
+		  $cgi->li("$rec of type $type$dbval is in the DB, not in DNS");
+		if ( $type !~ /^(A|NS|CNAME|SRV|TXT)$/ ) {
+			$msg = $cgi->li( $cgi->b($m) );
 		} else {
 			$msg .= $cgi->li($m);
 		}
@@ -245,7 +254,7 @@ sub compare_record_fromdb {
 # dns-reconcile.pl.  That needs to be folded into here.  [XXX]
 #
 sub compare_record {
-	my($stab, $type, $rec, $ns, $dbrec, $zonerec) = @_;
+	my ( $stab, $type, $rec, $ns, $dbrec, $zonerec ) = @_;
 	my $cgi = $stab->cgi;
 
 	my $msg = "";
@@ -257,46 +266,53 @@ sub compare_record {
 		my $nosup = 0;
 		my $found = 0;
 		foreach my $zr (@$zonerec) {
-			if($zr->type eq 'NS') {
-				if($zr->nsdname eq $dbr->{PROCESSED_VALUE}) {
+			if ( $zr->type eq 'NS' ) {
+				if ( $zr->nsdname eq $dbr->{PROCESSED_VALUE} ) {
 					$found = 1;
 					last;
 				}
-			} elsif($zr->type eq 'A') {
-				if($zr->address eq $dbr->{PROCESSED_VALUE}) {
+			} elsif ( $zr->type eq 'A' ) {
+				if ( $zr->address eq $dbr->{PROCESSED_VALUE} ) {
 					$found = 1;
 					last;
 				}
-			} elsif($zr->type eq 'CNAME') {
-				if($zr->cname eq $dbr->{PROCESSED_VALUE}) {
+			} elsif ( $zr->type eq 'CNAME' ) {
+				if ( $zr->cname eq $dbr->{PROCESSED_VALUE} ) {
 					$found = 1;
 					last;
 				}
-			} elsif($zr->type eq 'SRV') {
-				# first we check the case where the SRV record is slapped
-				# into the DNS_VALUE.
-				my($pri,$srv,$proto,$weight,$port,$target);
-				if(!defined($dbr->{DNS_SRV_SERVICE})) {
-					($pri,$weight,$port,$target) = split(/\s+/, 
-						$dbr->{PROCESSED_VALUE});
+			} elsif ( $zr->type eq 'SRV' ) {
+
+		       # first we check the case where the SRV record is slapped
+		       # into the DNS_VALUE.
+				my (
+					$pri,    $srv,  $proto,
+					$weight, $port, $target
+				);
+				if ( !defined( $dbr->{DNS_SRV_SERVICE} ) ) {
+					( $pri, $weight, $port, $target ) =
+					  split( /\s+/,
+						$dbr->{PROCESSED_VALUE} );
 				} else {
-					($pri,$weight,$port,$target) = (
+					( $pri, $weight, $port, $target ) = (
 						$dbr->{DNS_PRIORITY},
 						$dbr->{DNS_SRV_WEIGHT},
 						$dbr->{DNS_SRV_PORT},
-						$dbr->{PROCESSED_VALUE});
+						$dbr->{PROCESSED_VALUE}
+					);
 				}
-				if ( $pri == $zr->priority &&
-					 $weight == $zr->weight &&
-					 $port == $zr->port &&
-					 $target == $zr->target) {
-						$found = 1;
-						last;
-				} 
-			} elsif($zr->type eq 'TXT') {
+				if (       $pri == $zr->priority
+					&& $weight == $zr->weight
+					&& $port == $zr->port
+					&& $target == $zr->target )
+				{
+					$found = 1;
+					last;
+				}
+			} elsif ( $zr->type eq 'TXT' ) {
 				$dbr->{PROCESSED_VALUE} =~ s/^"//;
 				$dbr->{PROCESSED_VALUE} =~ s/"$//;
-				if($dbr->{PROCESSED_VALUE} eq $zr->txtdata) {
+				if ( $dbr->{PROCESSED_VALUE} eq $zr->txtdata ) {
 					$found = 1;
 					last;
 				}
@@ -304,10 +320,18 @@ sub compare_record {
 				$nosup = 1;
 			}
 		}
-		if($nosup) {
-			$msg .= $cgi->li($cgi->b("JazzHands rec $rec ($type) not supported"));
-		} elsif(!$found) {
-			$msg .= $cgi->li("JazzHands record $rec ($type) value ", $dbr->{PROCESSED_VALUE}, " is not in the Zone.");
+		if ($nosup) {
+			$msg .= $cgi->li(
+				$cgi->b(
+"JazzHands rec $rec ($type) not supported"
+				)
+			);
+		} elsif ( !$found ) {
+			$msg .= $cgi->li(
+				"JazzHands record $rec ($type) value ",
+				$dbr->{PROCESSED_VALUE},
+				" is not in the Zone."
+			);
 		}
 	}
 
@@ -315,28 +339,17 @@ sub compare_record {
 }
 
 #
-# This needs to go away once the version in the perl module 
+# This needs to go away once the version in the perl module ... ?
 #
-sub device_from_name { 
-	my($stab, $name) = @_; 
+sub device_from_name {
+	my ( $stab, $name ) = @_;
 	my $dbh = $stab->dbh;
 
 	my $q = qq{
-		select  device_id, device_name,
-			device_type_id, serial_number, 
-			asset_tag, operating_system_id,
-			status, production_state,
-			ownership_status,
-			is_monitored,
-			is_locally_managed,
-			identifying_dns_record_id,
-			SHOULD_FETCH_CONFIG,
-			PARENT_DEVICE_ID,
-			IS_VIRTUAL_DEVICE,
-			AUTO_MGMT_PROTOCOL
+		select  *
 		  from  device
 		 where  device_name = :1
-	};       
+	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($name) || $stab->return_db_err($sth);
 
@@ -344,19 +357,26 @@ sub device_from_name {
 }
 
 sub device_link {
-	my($stab, $name, $altname) = @_;
+	my ( $stab, $name, $altname ) = @_;
 
-	$altname = $name if(!$altname);
+	$altname = $name if ( !$altname );
 
 	my $cgi = $stab->cgi || die "no cgi!";
 
-	my $dev = device_from_name($stab, $name);
+	my $dev = device_from_name( $stab, $name );
 
-	if(!$dev) {
-		return($name);
+	if ( !$dev ) {
+		return ($name);
 	} else {
-		return($cgi->a({-href=>"../device/device.pl?devid=".$dev->{'DEVICE_ID'}},
-			$altname));
+		return (
+			$cgi->a(
+				{
+					-href => "../device/device.pl?devid="
+					  . $dev->{'DEVICE_ID'}
+				},
+				$altname
+			)
+		);
 	}
 
 }
@@ -365,30 +385,34 @@ sub device_link {
 
 sub do_db_dns_compare {
 	my $stab = new JazzHands::STAB || die "no stab!";
-	my $cgi = $stab->cgi || die "no cgi!";
+	my $cgi  = $stab->cgi          || die "no cgi!";
 
-	my $domid = $stab->cgi_parse_param("DNS_DOMAIN_ID") || $stab->error_return("you must specify a domain");
+	my $domid = $stab->cgi_parse_param("DNS_DOMAIN_ID")
+	  || $stab->error_return("you must specify a domain");
 
-	my $domain = $stab->get_dns_domain_from_id($domid) || $stab->error_return("unknown domain id $domid");
+	my $domain = $stab->get_dns_domain_from_id($domid)
+	  || $stab->error_return("unknown domain id $domid");
 	my $zone = $domain->{'SOA_NAME'};
 
-	my $ns = $stab->cgi_parse_param('zone') || find_best_ns($stab, $zone);
+	my $ns = $stab->cgi_parse_param('zone') || find_best_ns( $stab, $zone );
 
-	if($zone =~ /in-addr.arpa/) {
+	if ( $zone =~ /in-addr.arpa$/ || $zone =~ /ip6.arpa$/) {
 		$stab->error_return("This only works with Forward Zones");
 	}
 
-	my $msg = process_db_zone($stab, $ns, $domid, $zone);
+	my $msg = process_db_zone( $stab, $ns, $domid, $zone );
 	print $cgi->header;
-	print $stab->start_html({-title=>"Reconcilation issues with db for $zone"});
+	print $stab->start_html(
+		{ -title => "Reconcilation issues with db for $zone" } );
 	print $cgi->center("Note:  JazzHands == STAB");
-	print $cgi->div({-align=>'center'}, 
-		$cgi->a({-href=>"../dns/?dnsdomainid=$domid"}, $zone));
-	print $cgi->div({-align=>'center'}, "Compare to $ns");
+	print $cgi->div( { -align => 'center' },
+		$cgi->a( { -href => "../dns/?dnsdomainid=$domid" }, $zone ) );
+	print $cgi->div( { -align => 'center' }, "Compare to $ns" );
 	print $cgi->ul($msg);
 	$msg = undef;
 
 	print $cgi->end_html;
 
 	$stab->rollback;
+	undef $stab;
 }

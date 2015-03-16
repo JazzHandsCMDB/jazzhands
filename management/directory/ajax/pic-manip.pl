@@ -27,11 +27,11 @@ sub check_admin {
 			inner join v_acct_coll_acct_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
-			inner join account a
+			inner join v_corp_family_account a
 				on ae.account_id = a.account_id
 		 where  p.property_name = 'PhoneDirectoryAdmin'
 		  and   p.property_type = 'PhoneDirectoryAttributes'
-		  and   a.login = ?
+		  and   lower(a.login) = lower(?)
 	}) || die $dbh->errstr;
 
 	$sth->execute($login) || die $sth->errstr;
@@ -49,17 +49,9 @@ sub get_login {
 	my($dbh, $personid) = @_;
 
 	my $sth = $dbh->prepare_cached(qq{
-	       select  a.login
-		 from   account a
-			inner join v_person_company_expanded pc
-				using (person_id)
+	       select  lower(a.login) as login
+		 from   v_corp_family_account a
 		where   person_id = ?
-		and     pc.company_id in (
-				select  property_value_company_id
-				  from  property
-				 where  property_name = '_rootcompanyid'
-				   and  property_type = 'Defaults'
-			)
 	}) || die $dbh->errstr;
 	$sth->execute($personid) || die $sth->errstr;
 	my $login = ($sth->fetchrow_array)[0];
@@ -70,7 +62,7 @@ sub get_login {
 sub do_work {
 	my $cgi = new CGI;
 
-	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
+	my $dbh = JazzHands::DBI->connect('directory_rw', {AutoCommit => 0}) ||
 		die $JazzHands::DBI::errstr;
 
 
@@ -132,6 +124,7 @@ sub add_pic {
 
 	my $oldid = get_image_by_checksum($dbh, $personid, $shasum);
 
+	my $picid;
 	if(!$oldid) {
 		my $sth = $dbh->prepare_cached(qq{
 			insert into person_image (
@@ -152,12 +145,32 @@ sub add_pic {
 			$label, 
 			$shasum, 
 			$description) || die $sth->errstr;
-		my$picid = $sth->fetch()->[0];
+		$picid = $sth->fetch()->[0];
 		$sth->finish;
 		$picid
 	} else {
-		$oldid;
+		$picid = $oldid;
 	}
+
+	$picid;
+}
+
+sub person_has_pic_usage {
+	my($dbh, $personid, $usage) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		select	count(*)
+		  from	person_image_usage
+				inner join person_image USING (person_image_id)
+		 where	person_id = ?
+		   and	person_image_usage = ?
+	}) || die $dbh->errstr;
+
+	$sth->execute($personid, $usage) || die $sth->errstr;
+
+	my $tally = ($sth->fetchrow_array)[0];
+	$sth->finish;
+	$tally;
 }
 
 sub has_pic_usage {
@@ -324,6 +337,7 @@ sub do_pic_manip {
 		}
 	}
 
+	my $newpicid;
 	# add any new paramters
 	foreach my $param ($cgi->param) {
 		if($param =~ /^newpic_file_(\d+)/) {
@@ -343,8 +357,8 @@ sub do_pic_manip {
 				#  	from	person_image_usage
 				# 	where	person_image_id = ?
 				#});
+				$newpicid = $picid;
 			}
-
 		} elsif($param =~ /^person_image_usage_(\d+)/) {
 			my $picid = $1;
 			my $oldusg = get_pic_usage($dbh, $picid);
@@ -356,6 +370,16 @@ sub do_pic_manip {
 				}
 			}
 
+		}
+	}
+
+	if($newpicid) {
+		if(! person_has_pic_usage($dbh, $personid, 'corpdirectory')) {
+			add_pic_usage($dbh, $newpicid, 'corpdirectory');
+		}
+
+		if(! person_has_pic_usage($dbh, $personid, 'yearbook')) {
+			add_pic_usage($dbh, $newpicid, 'yearbook');
 		}
 	}
 

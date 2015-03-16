@@ -47,13 +47,13 @@ sub do_voe_compare {
 
 	print $cgi->header('text/html');
 	print $stab->start_html(
-		{ -title => "JazzHands Operating Environment Comparisions" }
-	  ),
+		{ -title => "JazzHands Operating Environment Comparisions" } ),
 	  "\n";
 
 	print $stab->voe_compare_form;
 
 	print $cgi->end_html;
+	undef $stab;
 }
 
 sub compare_voees {

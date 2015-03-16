@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 #
-# Copyright (c) 2013 Matthew Ragan
+# Copyright (c) 2010-2014 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#
+# Copyright (c) 2013 Matthew Ragan
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
@@ -53,6 +68,7 @@ sub do_style_dump {
 	print $cgi->header( { -type => 'text/css' } ), "\n";
 
 	my $root = $stab->guess_stab_root;
+
 	# this could be smarter.  It also apperas in STAB.pm for
 	# the title bar
 	if ( $root !~ m,://stab.[^/]+/?$, && $root !~ /dev/ ) {
@@ -60,7 +76,6 @@ sub do_style_dump {
 
 BODY { 
 	background: url($root/images/development-background.png ); 
-	Font-Family: Verdana, Arial, Helvetica, MS Sans Serif;
 }
 a { color: blue }
 a:visited { color: purple }
@@ -69,6 +84,10 @@ END
 	}
 
 	print <<END;
+
+BODY {
+	Font-Family: Verdana, Arial, Helvetica, MS Sans Serif;
+}
 
 div.introblurb {
 	margin-left: auto;
@@ -277,9 +296,18 @@ input.srvnum {
 	visibility: hidden;
 }
 
-span.netblocklink {
+ul.collection {
+	list-style-type: lower-roman;		/* should be none */
+}
+
+span.netblocksite {
+	width: 8ex;
 	float: left;
+}
+
+span.netblocklink {
 	min-width: 30ex;
+	float: left;
 }
 
 #SOA_MNAME, #SOA_RNAME {
@@ -314,7 +342,7 @@ table.intmoretable {
 }
 
 table.interfacetable {
-	display; inline;
+	display: inline;
 	margin: auto;
 	text-align: center;
 }
@@ -323,6 +351,16 @@ table.interfacetable tr {
 	outline: 1px solid;
 }
 
-END
+#verifybox li {
+	list-style-type: none;
+}
 
+div.ncmanip {
+	text-align: center;
+	width: 100%;
+	display: inline-block;
+}
+
+END
+	undef $stab;
 }

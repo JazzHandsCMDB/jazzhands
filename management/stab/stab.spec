@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.57.8
+Version:        0.60.0
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -12,7 +12,7 @@ Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 BuildRequires:  perl-ExtUtils-MakeMaker
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab, jazzhands-javascript-common 
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common 
 
 %description
 
@@ -21,7 +21,7 @@ System Tools for Administrative Baselining
 %package -n jazzhands-perl-stab
 group: System Environment/Libraries
 Summary: Perl library for STAB
-Requires: perl-Net-IP, perl-Net-Netmask, perl-Net-DNS, perl-NetAddr-IP
+Requires: perl-Net-IP, perl-Net-DNS, perl-NetAddr-IP
 
 
 %description -n jazzhands-perl-stab
@@ -108,6 +108,7 @@ rm -rf %{buildroot}
 %{prefix}/javascript/ajaxsearch.js
 %{prefix}/javascript/racks.js
 %{prefix}/javascript/netblock.js
+%{prefix}/javascript/netblock-collection.js
 %{prefix}/javascript/device-utils.js
 %{prefix}/javascript/stab-common.js
 %{prefix}/circuit/index.pl
@@ -153,11 +154,15 @@ rm -rf %{buildroot}
 %{prefix}/netblock/ipalloc/allocate_ip.pl
 %{prefix}/netblock/search.pl
 %{prefix}/netblock/index.pl
-%{prefix}/netblock/dhcprange.pl
+%{prefix}/netblock/networkrange.pl
 %{prefix}/netblock/write/rmnetblock.pl
 %{prefix}/netblock/write/doadd.pl
 %{prefix}/netblock/write/addnetblock.pl
 %{prefix}/netblock/write/edit_netblock.pl
+%{prefix}/netblock/collection/
+%{prefix}/netblock/collection//index.pl
+%{prefix}/netblock/collection//netcol-ajax.pl
+%{prefix}/netblock/collection//update_nb.pl
 %{prefix}/dns/addazone.pl
 %{prefix}/dns/dns-reconcile.pl
 %{prefix}/dns/search.pl
@@ -176,9 +181,54 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
-* Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.8 
-- fix search by cidr on netblock page
-- make db disconnects work correctly 
+* Wed Mar  4 2015 Todd Kover <kovert@omniscient.com> 0.60.0
+- shrink device type management down to post-component universe
+- limit companies in drop down to hardware providers
+- no longer display npanxx on site
+* Thu Dec  4 2014 Todd Kover <kovert@omniscient.com> 0.59.1
+- minor device/snmp/index.pl fix
+* Wed Dec  3 2014 Todd Kover <kovert@omniscient.com> 0.59.0
+- changes required for 0.59 of schema
+* Mon Oct  6 2014 Todd Kover <kovert@omniscient.com> 0.58.8
+- adjust devive search to check for asset columns to pick the right query
+  to run
+* Fri Oct  3 2014 Todd Kover <kovert@omniscient.com> 0.58.7
+- Migrate serial numbers, etc to asset table
+  - support having data in both for now, favor asset
+- Manage Netblock Collections
+- adjust reset port query to handle same name, different type
+- type -> porttype when inserting port types on device types.  for some reas
+  centos 6.5 did not like type but newer stuff did
+- fix else clause on device types to insert one port type.
+- fix Net::IP usage in stab device search
+- make perl module depend on regular package (same version)
+* Sun Jun 22 2014 Todd Kover <kovert@omniscient.com> 0.58.3
+- make it so add_netblock inputs can set netblock_type (bug fix)
+* Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.2
+- overhaul device/rack retirement to be in database
+- improve rack elevations
+* Wed Jun 11 2014 Todd Kover <kovert@omniscient.com> 0.58.1
+- support showing inferred PTRs in ip6.addr zones
+- comment out some questionable legacy defaults
+- improve finding best parent netblock logic to deal with blocks that meant
+  to be broadcast domains, probably 
+* Fri May  2 2014 Todd Kover <kovert@omniscient.com> 0.57.10
+- small random bug fixes
+- if its an in-addr zone, make the type reverse automatically
+- make disabling dns record work again
+- make ipv6 work on device page
+- rip out secondary_netblock references
+- make manipulation of v6 and v4 addresses work in dns section
+- make ipv6 dns manipulation work from netblock page.
+- make netblock gap manipipulation work again
+- use netblock gaps for large ipv4 blocks (>= /23)
+- allow editdesc/editdns magic to be be rerun without creating havoc
+- migrate to Net::IP completely (remove Net::Netmask)
+- remove references to is_ipv4_address, netmask_bits
+- get dbh via functino rather than (obsoleted) variable.
+- explitly undefine $stab to make memory definitely go away
+- remove some debugging warnings
+- perltidy
 * Mon Mar 17 2014 Todd Kover <kovert@omniscient.com> 0.57.1 
 - when adding a new ip address for a loopback to a network interface, use the
   single address

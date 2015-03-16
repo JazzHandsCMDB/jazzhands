@@ -39,4 +39,5 @@ JOIN v_property dcu ON dcu.device_collection_id =
 	dchd.parent_device_collection_id
 JOIN v_acct_coll_acct_expanded vuue 
 	on vuue.account_collection_id = dcu.account_collection_id
-WHERE dcu.property_name = 'UnixLogin' and dcu.property_type = 'MclassUnixProp';
+WHERE dcu.property_name in ('UnixLogin' )
+and dcu.property_type = 'MclassUnixProp';

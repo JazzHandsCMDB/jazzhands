@@ -76,3 +76,5 @@ print $cgi->end_html, "\n";
 
 $dbh->rollback;
 $dbh->disconnect;
+
+undef $stab;

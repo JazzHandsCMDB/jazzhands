@@ -25,6 +25,8 @@
 
 drop schema if exists time_util cascade;
 create schema time_util authorization jazzhands;
+COMMENT ON SCHEMA time_util IS 'part of jazzhands';
+
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM

@@ -37,6 +37,8 @@ BEGIN
 	RAISE NOTICE '++ Cleaning up records';
 	delete from chassis_location where chassis_device_id in (
 		select device_id from device where device_name like 'JHTEST%');
+	delete from device_type_module_device_type where description
+		like 'JHTEST%';
 	delete from device where device_name like 'JHTEST%';
 	delete from rack_location where rack_id in
 		(select rack_id from rack where rack_name like 'JHTEST%');
@@ -87,13 +89,14 @@ BEGIN
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment, operating_system_id,
-		ownership_status, is_monitored,
+		service_environment_id, 
+		operating_system_id, is_monitored,
 		rack_location_id
 	) values (
 		_chassis_dt.device_type_id, 'JHTEST chassis', 'up', 'JHTEST01',
-		'production', 0,
-		'owned', 'Y',
+		(select service_environment_id from service_environment
+		 where service_environment_name = 'production'),
+		0, 'Y',
 		_chassisloc.rack_location_id
 	) RETURNING * into _chassis;
 	RAISE NOTICE '++ Done inserting Test Data';
@@ -161,6 +164,30 @@ BEGIN
 		RAISE NOTICE '... It did';
 	END;
 
+	RAISE NOTICE 'Testing to see if a chassis/module mismatch fails as expected...';
+
+	BEGIN
+		INSERT INTO chassis_location (
+			chassis_device_type_id, device_type_module_name,
+			chassis_device_id, module_device_type_id
+		) values (
+			_chassis_dt.device_type_id, _sled_module.device_type_module_name,
+			_chassis.device_id, _sled_dt.device_type_id
+		) RETURNING * into _sledloc;
+		RAISE EXCEPTION '... IT DID NOT!';
+	EXCEPTION WHEN foreign_key_violation THEN
+		RAISE NOTICE '... It did';
+	END;
+
+	RAISE NOTICE 'Inserting into device_type_module_device_type ...';
+	INSERT INTO device_type_module_device_type (
+		device_type_id, device_type_module_name,
+		module_device_type_id, description
+	) values (
+		_chassis_dt.device_type_id, _sled_module.device_type_module_name,
+		_sled_dt.device_type_id, 'JHTEST-MAP'
+	);
+
 	RAISE NOTICE 'Inserting into chassis_location...';
 	INSERT INTO chassis_location (
 		chassis_device_type_id, device_type_module_name,
@@ -175,13 +202,14 @@ BEGIN
 	BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
-			service_environment, operating_system_id,
-			ownership_status, is_monitored,
+			service_environment_id, 
+			operating_system_id, is_monitored,
 			chassis_location_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
-			'production', 0,
-			'owned', 'Y',
+			(select service_environment_id from service_environment
+		 	where service_environment_name = 'production'),
+			0, 'Y',
 			_sledloc.chassis_location_id
 		) RETURNING * into _sled;
 		RAISE EXCEPTION '... IT DID NOT.';
@@ -193,13 +221,15 @@ BEGIN
 	BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
-			service_environment, operating_system_id,
-			ownership_status, is_monitored, parent_device_id,
+			service_environment_id, operating_system_id,
+			is_monitored, parent_device_id,
 			rack_location_id, chassis_location_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
-			'production', 0,
-			'owned', 'Y', _chassis.device_Id,
+			(select service_environment_id from service_environment
+		 	where service_environment_name = 'production'),
+			0,
+			'Y', _chassis.device_Id,
 			_chassisloc.rack_location_id, _sledloc.chassis_location_id
 		) RETURNING * into _sled;
 		RAISE EXCEPTION '... IT DID NOT.';
@@ -210,13 +240,15 @@ BEGIN
 	RAISE NOTICE 'Inserting sled device; this should work...';
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment, operating_system_id,
-		ownership_status, is_monitored, parent_device_id,
+		service_environment_id, operating_system_id,
+		is_monitored, parent_device_id,
 		chassis_location_id
 	) values (
 		_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
-		'production', 0,
-		'owned', 'Y', _chassis.device_id,
+		(select service_environment_id from service_environment
+			where service_environment_name = 'production'),
+		0,
+		'Y', _chassis.device_id,
 		_sledloc.chassis_location_id
 	) RETURNING * into _sled;
 
@@ -236,6 +268,8 @@ BEGIN
         SET CONSTRAINTS fk_dev_chass_loc_id_mod_enfc DEFERRED;
 	delete from chassis_location where chassis_device_id in (
 		select device_id from device where device_name like 'JHTEST%');
+	delete from device_type_module_device_type where description
+		like 'JHTEST%';
 	delete from device where device_name like 'JHTEST%';
 	delete from rack_location where rack_id in
 		(select rack_id from rack where rack_name like 'JHTEST%');

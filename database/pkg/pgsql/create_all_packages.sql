@@ -36,7 +36,7 @@
 
 -- \i system_user_util.sql
 \i person_manip.sql
-\i acct_coll_manip.sql
+\i company_manip.sql
 -- \i unix_util.sql
 -- \i dept_member_verify.sql
 -- \i netblock_verify.sql
@@ -46,6 +46,7 @@
 -- \i dns_gen_utils.sql
 --++  \i voe_manip_util.sql
 --++ \i voe_track_manip.sql
+\i dns_utils.sql
 \i port_support.sql
 \i port_util.sql
 \i device_utils.sql
@@ -55,3 +56,5 @@
 -- \i dbms_job_util.sql
 -- \i appgroup_util.sql
 -- \i property_verify.sql
+\i physical_address_utils.sql
+\i component_utils.sql

@@ -19,13 +19,14 @@ javascript/jazzhands-javascript-common.spec
 # in yum, in prod?
 management/appauthal/perl/AppAuthAL/JazzHands-AppAuthAL.spec
 # This fails to test correctly because of external depends, so not building
-# management/appauthal/perl/LDAP/JazzHands-LDAP.spec
+management/appauthal/perl/LDAP/JazzHands-LDAP.spec
 management/appauthal/perl/DBI/perl-JazzHands-DBI.spec
 management/appauthal/php/jazzhands-php-appauthal.spec
 management/mgmt/perl/jazzhands-perl-mgmt.spec
 management/mkpasswdfiles/jazzhands-mkpasswdfiles.spec
 management/stab/stab.spec
 management/util/perl/jazzhands-perl-common.spec
+management/util/perl-Krb5/JazzHands-Krb5.spec
 zonegen/server/src/jazzhands-zonegen-server.spec
 
 

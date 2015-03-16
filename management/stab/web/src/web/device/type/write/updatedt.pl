@@ -145,20 +145,22 @@ sub process_physical_port_updates($$$) {
 
 	my $changes = 0;
 
-	my $key = join( "_", $devtypid, $type);
+	my $key = join( "_", $devtypid, $type );
 	foreach my $port ( $stab->cgi_get_ids("PORT_NAME_$key") ) {
 		my $rowkey = "${key}_$port";
-		my $rmme  = $stab->cgi_parse_param( "rm_PORT_NAME",    $rowkey );
-		my $name  = $stab->cgi_parse_param( "PORT_NAME",       $rowkey );
-		my $desc  = $stab->cgi_parse_param( "DESCRIPTION",     $rowkey );
-		my $label = $stab->cgi_parse_param( "PHYSICAL_LABEL",  $rowkey );
-		my $plug  = $stab->cgi_parse_param( "PORT_PLUG_STYLE", $rowkey );
-		my $speed = $stab->cgi_parse_param( "PORT_SPEED",      $rowkey );
-		my $protocol = $stab->cgi_parse_param( "PORT_PROTOCOL", $rowkey );
-		my $medium   = $stab->cgi_parse_param( "PORT_MEDIUM",   $rowkey );
-		my $purpose  = $stab->cgi_parse_param( "PORT_PURPOSE",  $rowkey );
-		my $tcp      = $stab->cgi_parse_param( "TCP_PORT",      $rowkey );
-		my $isopt = $stab->cgi_parse_param( "chk_IS_OPTIONAL", $rowkey );
+		my $rmme   = $stab->cgi_parse_param( "rm_PORT_NAME", $rowkey );
+		my $name   = $stab->cgi_parse_param( "PORT_NAME", $rowkey );
+		my $desc   = $stab->cgi_parse_param( "DESCRIPTION", $rowkey );
+		my $label = $stab->cgi_parse_param( "PHYSICAL_LABEL", $rowkey );
+		my $plug = $stab->cgi_parse_param( "PORT_PLUG_STYLE", $rowkey );
+		my $speed = $stab->cgi_parse_param( "PORT_SPEED", $rowkey );
+		my $protocol =
+		  $stab->cgi_parse_param( "PORT_PROTOCOL", $rowkey );
+		my $medium  = $stab->cgi_parse_param( "PORT_MEDIUM",  $rowkey );
+		my $purpose = $stab->cgi_parse_param( "PORT_PURPOSE", $rowkey );
+		my $tcp     = $stab->cgi_parse_param( "TCP_PORT",     $rowkey );
+		my $isopt =
+		  $stab->cgi_parse_param( "chk_IS_OPTIONAL", $rowkey );
 
 		$isopt = $stab->mk_chk_yn($isopt);
 
@@ -393,6 +395,7 @@ sub do_device_type_update {
 	}
 
 	$dbh->rollback;
+	undef $stab;
 }
 
 1;

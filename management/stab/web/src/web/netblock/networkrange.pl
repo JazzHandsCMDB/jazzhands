@@ -1,4 +1,21 @@
 #!/usr/bin/env perl
+
+#
+# Copyright (c) 2014 Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -29,8 +46,9 @@ use strict;
 use warnings;
 use Net::Netmask;
 use JazzHands::STAB;
+use JazzHands::Common qw(_dbx);
 
-do_dump_dhcp_range();
+do_dump_network_range();
 
 ############################################################################3
 #
@@ -38,39 +56,30 @@ do_dump_dhcp_range();
 #
 ############################################################################3
 
-sub do_dump_dhcp_range {
+sub do_dump_network_range {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi;
 	my $dbh  = $stab->dbh;
 
-	print $cgi->header, $stab->start_html("All DHCP Ranges");
+	print $cgi->header, $stab->start_html("All Network Ranges");
 
 	my $q = qq{
 		select	
-			dhcp.dhcp_range_id,
-			ni.network_interface_id,
-			ni.name as network_interface_name,
-			ni.device_id,
-			d.device_name,
-			ip_manip.v4_octet_from_int(nb.ip_address) as ip,
-			nb.netmask_bits,
-			ip_manip.v4_octet_from_int(lhs.ip_address) as start_ip,
-			ip_manip.v4_octet_from_int(rhs.ip_address) as stop_ip,
-			dhcp.start_netblock_id,
-			dhcp.stop_netblock_id,
-			dhcp.lease_time
-		  from	dhcp_range dhcp
-				inner join network_interface ni
-					on dhcp.network_interface_id = ni.network_interface_id
-				inner join netblock nb
-					on nb.netblock_id = ni.netblock_id
-				inner join device d
-					on d.device_id = ni.device_id
+			nr.network_range_id,
+			net_manip.inet_dbtop(lhs.ip_address) as start_ip,
+			net_manip.inet_dbtop(rhs.ip_address) as stop_ip,
+			nr.start_netblock_id,
+			nr.stop_netblock_id,
+			nr.lease_time,
+			nr.dns_prefix,
+			dom.soa_name
+		  from	network_range nr
+				inner join dns_domain dom using (dns_domain_id)
 				inner join netblock lhs
-					on lhs.netblock_id = dhcp.start_netblock_id
+					on lhs.netblock_id = nr.start_netblock_id
 				inner join netblock rhs
-					on rhs.netblock_id = dhcp.stop_netblock_id
-		order by nb.ip_address
+					on rhs.netblock_id = nr.stop_netblock_id
+		order by lhs.ip_address
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
 	$sth->execute || $stab->return_db_err($stab);
@@ -79,29 +88,27 @@ sub do_dump_dhcp_range {
 
 	print $cgi->th(
 		[
-			'Router',  'Interface', 'Netblock', 'Start IP',
-			'Stop IP', 'Lease Time'
+			'Start IP',
+			'End IP',
+			'Lease Time',
+			'DNS Prefix',
+			'DNS Domain'
 		]
 	);
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $nb =
-		  new Net::Netmask( $hr->{'IP'} . "/" . $hr->{'NETMASK_BITS'} );
-
-		my $link = "../device/device.pl?devid=" . $hr->{'DEVICE_ID'};
 		print $cgi->Tr(
-			$cgi->hidden( 'DHCP_RANGE_ID', $hr->{'DHCP_RANGE_ID'} ),
+			$cgi->hidden(
+				'NETWORK_RANGE_ID',
+				$hr->{ _dbx('network_RANGE_ID') }
+			),
 			$cgi->td(
 				[
-					$cgi->a(
-						{ -href => $link },
-						$hr->{'DEVICE_NAME'}
-					),
-					$hr->{'NETWORK_INTERFACE_NAME'},
-					$nb->base() . "/" . $nb->bits(),
-					$hr->{'START_IP'},
-					$hr->{'STOP_IP'},
-					$hr->{'LEASE_TIME'}
+					$hr->{ _dbx('START_IP') },
+					$hr->{ _dbx('STOP_IP') },
+					$hr->{ _dbx('LEASE_TIME') },
+					$hr->{ _dbx('DNS_PREFIX') },
+					$hr->{ _dbx('SOA_NAME') },
 				]
 			)
 		);
@@ -109,4 +116,5 @@ sub do_dump_dhcp_range {
 
 	print $cgi->end_table;
 	print $cgi->end_html;
+	undef $stab;
 }

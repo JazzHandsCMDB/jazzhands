@@ -28,6 +28,7 @@
 
 drop schema if exists port_support cascade;
 create schema port_support authorization jazzhands;
+COMMENT ON SCHEMA port_support IS 'part of jazzhands';
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -84,7 +85,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION port_support.has_physical_ports (
 	in_Device_id device.device_id%type,
-	in_port_type val_port_type.port_type%type DEFAULT NULL
+	in_port_type slot_type.slot_function%type DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
 DECLARE
 	tally integer;

@@ -21,6 +21,10 @@
 // Set up handlers for things
 
 $(function() {
+	jazzhands_common_init();
+});
+
+function jazzhands_common_init() {
 
 	// make all divs with a class of 'editabletext' be able to click to
 	// edit the text
@@ -32,19 +36,30 @@ $(function() {
 		// Get the text value of the div as initial value, then clear
 		// it
 
-		var text = $(el).html();
-		text = text.trim();
 		var id = $(el).attr('id');
-		$(el).text('');
+		//
+		// see if it has already been done for this element
+		var inid = "ED_"+id;
+		// ... ipv6
+		inid = inid.replace(/:/g, "_C_");
+		var x = $(this).find("input#"+inid);
+		var ll = $(x).length;
+		var ss = $(x).size();
+		if ( $(x).length ) {
+			return;
+		}
 
-		// possibly unnecessary
 		// save the original value of the element
 		// el.orig_value = textbox;
+		var text = $(el).html();
+		text = text.trim();
+		$(el).text('');
 
 		// Create a new hidden input box with the value of the text
 		// element
 
 		textbox = $("<input/>", {
+			id: inid,
 			name: id,
 			type: "text",
 			"class": "editabletext",
@@ -99,5 +114,5 @@ $(function() {
 		);
 
 	});
-});
+}
 

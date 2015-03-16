@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Todd Kover
+ * Copyright (c) 2014-2015 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,95 +17,6 @@
 
 
 -- These next two triggers go away with device.location_id does.
-
---
--- This trigger enforces that new inserts only set one of location_id or
--- rack_location_id
---
--- It also enforces that if something updates rack_location_id that  it does
--- not also update location_id.
-CREATE OR REPLACE FUNCTION aaa_device_location_migration_2() 
-RETURNS TRIGGER AS $$
-DECLARE
-BEGIN
-	IF TG_OP = 'INSERT' THEN
-		IF NEW.rack_location_id is not null and NEW.location_id is NOT NULL THEN
-			RAISE EXCEPTION 'Only rack_location_id should be set.  Location_Id is going away.'
-				USING ERRCODE = 'JH0FF';
-		ELSIF NEW.rack_location_id IS NOT NULL OR NEW.location_Id IS NOT NULL THEN
-			IF NEW.rack_location_id IS NULL THEN
-				NEW.rack_location_id = NEW.location_id;
-			ELSIF NEW.location_id IS NULL THEN
-				NEW.location_id = NEW.rack_location_id;
-			ELSE
-				RAISE EXCEPTION 'This shold never happen';
-			END IF;
-		END IF;
-	ELSIF TG_OP = 'UPDATE' THEN
-		if OLD.RACK_LOCATION_ID != NEW.RACK_LOCATION_ID THEN
-			IF NEW.LOCATION_ID != OLD.LOCATION_ID THEN
-				RAISE EXCEPTION 'Only rack_location_id should be set.  Location_Id is going away.'
-					USING ERRCODE = 'JH0FF';
-			END IF;
-			NEW.RACK_LOCATION_ID := NEW.LOCATION_ID;
-		END IF;
-	END IF;
-
-	RETURN NEW;
-END;
-$$ 
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_aaa_device_location_migration_2 ON device;
-CREATE TRIGGER trigger_aaa_device_location_migration_2 
-	BEFORE INSERT OR UPDATE of RACK_LOCATION_ID
-	ON device 
-	FOR EACH ROW
-	EXECUTE PROCEDURE aaa_device_location_migration_2();
-
-
--- This ensures that if someone is updating location_id that they are not
--- also updating rack_location_id.  It runs before the previous trigger, but it
--- provides a similar sanity chek as the update clause of there.
-CREATE OR REPLACE FUNCTION aaa_device_location_migration_1() 
-RETURNS TRIGGER AS $$
-DECLARE
-BEGIN
-	-- If location_id did not really change, then there is nothing to do here,
-	-- although it is fishy
-	if OLD.LOCATION_ID != NEW.LOCATION_ID THEN
-		IF NEW.LOCATION_ID = NEW.RACK_LOCATION_ID THEN
-			RAISE EXCEPTION 'Only rack_location_id should be set.  Location_Id is going away.'
-				USING ERRCODE = 'JH0FF';
-		END IF;
-		NEW.RACK_LOCATION_ID := NEW.LOCATION_ID;
-	else
-		RAISE NOTICE 'aaa_device_location_migration_1 called for no apparent reason. This is fishy';
-	END IF;
-	return NEW;
-END;
-$$ 
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_aaa_device_location_migration_1 ON device;
-CREATE TRIGGER trigger_aaa_device_location_migration_1 
-	BEFORE UPDATE of LOCATION_ID
-	ON device 
-	FOR EACH ROW
-	EXECUTE PROCEDURE aaa_device_location_migration_1();
-
-
-----------------------------------------------------------------------------
-----------------------------------------------------------------------------
-----------------------------------------------------------------------------
--- 
--- column retirement triggers above, below, not so much.
---
-----------------------------------------------------------------------------
-----------------------------------------------------------------------------
-----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION device_one_location_validate() 
 RETURNS TRIGGER AS $$
@@ -231,3 +142,58 @@ CREATE TRIGGER trigger_device_type_module_chassis_check
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_module_chassis_check();
 
+-------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------
+-- deal with model going away and being replaced with device_name
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION device_type_model_to_name() 
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF TG_OP = 'UPDATE' AND  (NEW.model IS DISTINCT FROM OLD.model AND
+			NEW.device_type_name IS DISTINCT FROM OLD.device_type_name) THEN
+		RAISE EXCEPTION 'Only device_type_name should be updated.'
+			USING ERRCODE = 'integrity_constraint_violation';
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.model IS NOT NULL AND NEW.device_type_name IS NOT NULL THEN
+			RAISE EXCEPTION 'Only model should be set.'
+				USING ERRCODE = 'integrity_constraint_violation';
+		END IF;
+	 
+	END IF;
+
+	IF TG_OP = 'UPDATE' THEN
+		IF OLD.model IS DISTINCT FROM NEW.model THEN
+			NEW.device_type_name = NEW.model;
+		ELSIF OLD.device_type_name IS DISTINCT FROM NEW.device_type_name THEN
+			NEW.model = NEW.device_type_name;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.model IS NOT NULL THEN
+			NEW.device_type_name = NEW.model;
+		ELSIF NEW.device_type_name IS NOT NULL THEN
+			NEW.model = NEW.device_type_name;
+		END IF;
+	ELSE
+	END IF;
+
+	-- company_id is going away
+	IF NEW.company_id IS NULL THEN
+		NEW.company_id := 0;
+	END IF;
+
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_type_model_to_name 
+	ON device_type;
+CREATE TRIGGER trigger_device_type_model_to_name 
+	BEFORE INSERT OR UPDATE OF device_type_name, model
+	ON device_type 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE device_type_model_to_name();

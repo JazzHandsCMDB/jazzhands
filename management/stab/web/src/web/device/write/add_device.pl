@@ -69,7 +69,7 @@ sub do_device_add {
 	my $status      = $stab->cgi_parse_param('STATUS');
 	my $owner       = $stab->cgi_parse_param('OWNERSHIP_STATUS');
 	my $sitecode    = $stab->cgi_parse_param('SITE_CODE');
-	my $svcenv      = $stab->cgi_parse_param('SERVICE_ENVIRONMENT');
+	my $svcenv      = $stab->cgi_parse_param('SERVICE_ENVIRONMENT_ID');
 	my $osid        = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
 	my $voeid       = $stab->cgi_parse_param('VOE_ID');
 	my $commstr     = $stab->cgi_parse_param('SNMP_COMMSTR');
@@ -157,34 +157,19 @@ sub do_device_add {
 	$cfgfetch    = $stab->mk_chk_yn($cfgfetch);
 	$virtdev     = $stab->mk_chk_yn($virtdev);
 
-	my $new = {
-		DEVICE_TYPE_ID        => $devtypeid,
-		DEVICE_NAME           => $device_name,
+	my $numchanges = 0;
+	my (@errs);
+
+	my $newasset = {
 		PART_NUMBER           => $partno,
 		SERIAL_NUMBER         => $serialno,
-		DEVICE_STATUS         => $status,
-		SERVICE_ENVIRONMENT   => $svcenv,
-		OPERATING_SYSTEM_ID   => $osid,
-		VOE_ID                => $voeid,
 		OWNERSHIP_STATUS      => $owner,
-		SITE_CODE	      => $sitecode,
-		IS_MONITORED          => $ismonitored,
-		IS_LOCALLY_MANAGED    => $localmgd,
-		SHOULD_FETCH_CONFIG   => $cfgfetch,
-		IS_VIRTUAL_DEVICE     => $virtdev,
-		AUTO_MGMT_PROTOCOL    => $mgmtprot,
-		VOE_SYMBOLIC_TRACK_ID => $voetrax,
 	};
-
-	my $devid;
-
-	my @errs;
-	my $numchanges = 0;
 	if (
 		!(
 			$numchanges += $stab->DBInsert(
-				table  => 'device',
-				hash   => $new,
+				table  => 'asset',
+				hash   => $newasset,
 				errors => \@errs
 			)
 		)
@@ -193,7 +178,40 @@ sub do_device_add {
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	$devid = $new->{ _dbx('DEVICE_ID') };
+	my $assetid = $newasset->{ _dbx('ASSET_ID') };
+
+	my $newdev = {
+		DEVICE_TYPE_ID         => $devtypeid,
+		ASSET_ID               => $assetid,
+		DEVICE_NAME            => $device_name,
+		DEVICE_STATUS          => $status,
+		SERVICE_ENVIRONMENT_ID => $svcenv,
+		OPERATING_SYSTEM_ID    => $osid,
+		VOE_ID                 => $voeid,
+		SITE_CODE              => $sitecode,
+		IS_MONITORED           => $ismonitored,
+		IS_LOCALLY_MANAGED     => $localmgd,
+		SHOULD_FETCH_CONFIG    => $cfgfetch,
+		IS_VIRTUAL_DEVICE      => $virtdev,
+		AUTO_MGMT_PROTOCOL     => $mgmtprot,
+		VOE_SYMBOLIC_TRACK_ID  => $voetrax,
+	};
+
+	$numchanges = 0;
+	if (
+		!(
+			$numchanges += $stab->DBInsert(
+				table  => 'device',
+				hash   => $newdev,
+				errors => \@errs
+			)
+		)
+	  )
+	{
+		$stab->error_return( join( " ", @errs ) );
+	}
+
+	my $devid = $newdev->{ _dbx('DEVICE_ID') };
 
 	if ( defined($commstr) ) {
 		my $q = qq{
@@ -210,23 +228,23 @@ sub do_device_add {
 		$sth->finish;
 	}
 
-#	if ( $#appgroups > -1 ) {
-#	     # note that appgroup_util.add_role validates the device collection
-#	     # id to ensure that its of the right type, so that does not need to
-#	     # happen here.
-#		my $sth = $stab->prepare(
-#			qq{
-#			begin
-#				appgroup_util.add_role(:1, :2);
-#			end;
-#		}
-#		) || die $stab->return_db_err;
-#
-#		foreach my $dcid (@appgroups) {
-#			$sth->execute( $devid, $dcid )
-#			  || die $stab->return_db_err;
-#		}
-#	}
+      #	if ( $#appgroups > -1 ) {
+      #	     # note that appgroup_util.add_role validates the device collection
+      #	     # id to ensure that its of the right type, so that does not need to
+      #	     # happen here.
+      #		my $sth = $stab->prepare(
+      #			qq{
+      #			begin
+      #				appgroup_util.add_role(:1, :2);
+      #			end;
+      #		}
+      #		) || die $stab->return_db_err;
+      #
+      #		foreach my $dcid (@appgroups) {
+      #			$sth->execute( $devid, $dcid )
+      #			  || die $stab->return_db_err;
+      #		}
+      #	}
 
 	$stab->setup_device_power($devid);
 	$stab->setup_device_physical_ports($devid);
@@ -235,4 +253,5 @@ sub do_device_add {
 
 	my $url = "../device.pl?devid=$devid";
 	$stab->msg_return( "Device Added Successfully.", $url );
+	undef $stab;
 }

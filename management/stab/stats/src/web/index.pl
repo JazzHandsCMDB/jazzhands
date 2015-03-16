@@ -23,7 +23,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use CGI;
 use vars qw($cgi);
 

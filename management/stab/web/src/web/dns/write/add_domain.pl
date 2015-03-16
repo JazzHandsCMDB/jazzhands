@@ -53,51 +53,52 @@ sub link_inaddr_zone($$$) {
 	my $bits;
 
 	$name =~ s/\.in-addr\.arpa$//;
-	my $bits;
 	my @ip = reverse split( /\./, $name );
 	my $nbip;
+
 	# NOTE:  /16s do NOT get linkage although this should probably be
 	# configurable...  It makes for a mighty big in-addr zone..
 	if ( $#ip == 1 ) {
-		$nbip = join( ".", @ip[0..1]). ".0.0";
+		$nbip = join( ".", @ip[ 0 .. 1 ] ) . ".0.0";
 		$bits = 16;
 		return 0;
 	} elsif ( $#ip == 2 ) {
-		$nbip = join( ".", @ip[0..2]). ".0";
+		$nbip = join( ".", @ip[ 0 .. 2 ] ) . ".0";
 		$bits = 24;
 	} else {
-		$stab->error_return("Unable to handle anything but IPv4 /24 or /16.  $inname is problematic");
+		$stab->error_return(
+"Unable to handle anything but IPv4 /24 or /16.  $inname is problematic"
+		);
 	}
 
 	my $nbid;
 	my $nb = $stab->get_netblock_from_ip(
-		ip_address   => $nbip,
-		netmask_bits => $bits,
+		ip_address   => "$nbip/$bits",
 		netmask_type => 'dns',
 	);
 	if ( !$nb ) {
 		my $h = {
-			ip_address        => $nbip,
-			netmask_bits      => $bits,
+			ip_address        => "$nbip/$bits",
 			netblock_type     => 'dns',
 			is_single_address => 'N',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
 			ip_universe_id    => 0,
-			is_ipv4_address   => ( $nbip =~ /:/ ) ? 'N' : 'Y',
 		};
 
-		$nbid = $stab->add_netblock( $h ) || die $stab->return_db_err;
+		$nbid = $stab->add_netblock($h) || die $stab->return_db_err;
 	} else {
 		$nbid = $nb->{ _dbx('NETBLOCK_ID') };
 	}
+
+	my $x = $stab->get_netblock_from_id($nbid);
 
 	$stab->add_dns_record(
 		{
 			dns_domain_id => $dnsdomid,
 			dns_class     => 'IN',
 			dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
-			dns_value   => $nbid	# XXX
+			dns_value     => $nbid                       # XXX
 		}
 	);
 	return 1;
@@ -170,12 +171,18 @@ sub do_domain_add {
 	# $soaname = '70.50.10.in-addr.arpa';
 	# $gen = 'Y';
 
+	$soaname =~ s/\.+$//g;
+
 	if ( !defined($soaname) ) {
 		$stab->error_return("You must specify a Domain Name");
 	}
 
 	if ( !defined($type) ) {
-		$stab->error_return("You must specify a Domain Type");
+		if ( $soaname =~ /\.(ip6|in-addr)\.arpa$/ ) {
+			$type = 'reverse';
+		} else {
+			$stab->error_return("You must specify a Domain Type");
+		}
 	}
 
 	if ( defined($soaname) ) {
@@ -263,6 +270,7 @@ sub do_domain_add {
 	}
 	$stab->rollback;
 	$stab->msg_return("Nothing to do.");
+	undef $stab;
 }
 
 sub guess_best_parent_dns_domain_from_domain {

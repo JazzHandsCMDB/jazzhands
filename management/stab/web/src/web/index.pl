@@ -23,7 +23,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use JazzHands::STAB;
 use vars qw($cgi);
 use vars qw($stab);
@@ -57,26 +56,45 @@ print $cgi->ul(
 				"NIC vs JazzHands"
 			)
 		),
-#		$cgi->li(
-#			$cgi->a(
-#				{ -href => "dns/dns-debug.pl" },
-#				"DNS Namespace Debugging"
-#			)
-#		),
+
+		#		$cgi->li(
+		#			$cgi->a(
+		#				{ -href => "dns/dns-debug.pl" },
+		#				"DNS Namespace Debugging"
+		#			)
+		#		),
 	),
 	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
 	  . "\n",
-	$cgi->li([
-		$cgi->a(
-			{ -href => "device/type/" }, "Device Type Management"
-		),
-#		$cgi->a(
-#			{ -href => "device/apps/" }, "Application Management"
-#		),
-	  ])
+	$cgi->li(
+		[
+			$cgi->a(
+				{ -href => "device/type/" },
+				"Device Type Management"
+			),
+
+		       #		$cgi->a(
+		       #			{ -href => "device/apps/" }, "Application Management"
+		       #		),
+		]
+	  )
 	  . "\n",
 	$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
 	  . "\n",
+	$cgi->ul(
+		$cgi->li(
+			[
+				$cgi->a(
+					{ href => "netblock/networkrange.pl" },
+					"Network Ranges (VPN/DHCP/etc)"
+				),
+				$cgi->a(
+					{ href => "netblock/collection/" },
+					"Netblock Collections"
+				),
+			]
+		)
+	),
 	$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
 	$cgi->ul(
 		$cgi->li(
@@ -89,10 +107,12 @@ print $cgi->ul(
 			$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
 		)
 	),
-#	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) . 
+
+	#	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) .
 	"\n",
 );
 
 print $cgi->end_html, "\n";
 
+undef $stab;
 exit;

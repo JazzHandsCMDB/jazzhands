@@ -50,6 +50,7 @@ use JazzHands::Mgmt;
 use URI;
 use Carp;
 use Math::BigInt;
+use Net::IP;
 
 use Apache2::Log;
 use Apache2::Const -compile => qw(OK :log);
@@ -107,30 +108,101 @@ sub guess_parent_netblock_id {
 	#
 	# parse_netblock_search wants this to be Y
 	#
-	$sing = 'N' if(!$sing);
+	$sing = 'Y' if ( !$sing );
+
+	if ( $in_bits && $in_ip !~ m,/, ) {
+		$in_ip   = "$in_ip/$in_bits";
+		$in_bits = undef;
+	}
 
 	# select is needed for postgres 9.1 to optimize right.
-	my $q = qq {
+	my $q1 = qq {
 		select  Netblock_Id,
-			net_manip.inet_dbtop(ip_address) as IP,
-			ip_address
+			host(ip_address) as IP,
+			ip_address, masklen(ip_address) as netmask_bits,
+			family(ip_address) as ip_family
 		  from  netblock
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
-				in_IpAddress := net_manip.inet_ptodb(:ip), 
+				in_IpAddress := :ip, 
 				in_ip_universe_id := 0,
 				in_netblock_type := 'default', 
 				in_is_single_address := :sing)
 			)
 	};
+	my $q2 = qq {
+		select  Netblock_Id,
+			host(ip_address) as IP,
+			ip_address, masklen(ip_address) as netmask_bits,
+			family(ip_address) as ip_family
+		  from  netblock
+		  where	netblock_id in (
+			SELECT netblock_utils.find_best_parent_id(
+				in_IpAddress := :ip, 
+				in_ip_universe_id := 0,
+				in_netblock_type := 'default', 
+				in_is_single_address := :sing,
+				in_fuzzy_can_subnet := true )
+			)
+	};
+	my $q3 = qq {
+		select  Netblock_Id,
+			host(ip_address) as IP,
+			ip_address, masklen(ip_address) as netmask_bits,
+			family(ip_address) as ip_family
+		  from  netblock
+		  where	netblock_id in (
+			SELECT netblock_utils.find_best_parent_id(
+				in_IpAddress := :ip, 
+				in_ip_universe_id := 0,
+				in_netblock_type := 'default', 
+				in_is_single_address := :sing,
+				in_fuzzy_can_subnet := true,
+				can_fix_can_subnet := true)
+			)
+	};
 
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->bind_param( ':ip',   $in_ip )   || die $sth->errstr;
-	$sth->bind_param( ':bits', $in_bits ) || die $sth->errstr;
-	$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
+	# Logic is - check for a parent..   if found, return.
+	# If not found, check for a parent and do not care about
+	# can_subnet.  If found, and its an ipv6 block >= /64 or its an
+	# ipv4 block >= /24, then it the routine is called again, switching
+	# the network to not be subnetable.  note I'm using the > literally
+	# not in terms of "bigger" or "smaller" block.  ugh.
+
+	my $sth = $self->prepare($q1) || $self->return_db_err($self);
+	$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
+	$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
 	$sth->execute || $self->return_db_err($sth);
 	my $rv = $sth->fetchrow_hashref;
 	$sth->finish;
+
+	if(!$rv) {
+		$sth = $self->prepare($q2) || $self->return_db_err($self);
+		$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
+		$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
+		$sth->execute || $self->return_db_err($sth);
+		$rv = $sth->fetchrow_hashref;
+		$sth->finish;
+		my $bits = $rv->{ _dbx('netmask_bits') };
+		if($rv->{ _dbx('ip_family')} eq '6') {
+			if( $bits < 64) {
+				return undef;
+			}
+		} elsif($rv->{ _dbx('ip_family')} eq '4') {
+			if($bits < 24) {
+				return undef;
+			}
+		}
+		if($rv) {
+			$sth = $self->prepare($q3) || $self->return_db_err($self);
+			$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
+			$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
+			$sth->execute || $self->return_db_err($sth);
+			$rv = $sth->fetchrow_hashref;
+			$sth->finish;
+		}
+	}
+
 	$rv;
 }
 
@@ -198,7 +270,8 @@ sub get_netblock_from_id {
 
 	my $q = qq{
 		select  netblock.*,
-			net_manip.inet_dbtop(ip_address) as ip
+			net_manip.inet_dbtop(ip_address) as ip,
+			family(ip_address) as family
 		 from   netblock
 		where   netblock_id = :nblkid
 			$morewhere
@@ -235,7 +308,7 @@ sub add_netblock {
 	};
 
 	for my $f (
-		'is_single_address',
+		'is_single_address', 'netblock_type',
 		'can_subnet',      'parent_netblock_id',
 		'netblock_status', 'nic_id',
 		'nic_company_id',  'ip_universe_id',
@@ -327,15 +400,14 @@ sub get_location_from_devid {
 
 	my $q = qq{
 		select
-			l.LOCATION_ID,
+			l.RACK_LOCATION_ID,
 			l.RACK_ID as LOCATION_RACK_ID,
 			l.RACK_U_OFFSET_OF_DEVICE_TOP as LOCATION_RU_OFFSET,
 			l.RACK_SIDE as LOCATION_RACK_SIDE,
-			l.INTER_DEVICE_OFFSET as LOCATION_INTER_DEV_OFFSET,
 			r.SITE_CODE as RACK_SITE_CODE
-		  from  location l
-			inner join device d on
-				d.location_id = l.location_id
+		  from  rack_location l
+			inner join device d
+				using (rack_location_id)
 			inner join rack r on
 				r.rack_id = l.rack_id
 		 where  d.device_id = ?
@@ -467,13 +539,18 @@ sub get_netblock_from_ip {
 	my $self = shift(@_);
 	my $opts = _options(@_);
 
+
 	my @errors;
 	my $args = {
-		ip_address    => $opts->{ip_address},
 		netblock_type => 'default',
-		single        => 'first',
-		errors        => \@errors,
 	};
+
+	if($opts->{ip_address} !~ m,/,) {
+		$args->{'host(ip_address)'} = $opts->{ip_address};
+		
+	} else {
+		$args->{ip_address} = $opts->{ip_address};
+	}
 
 	if ( $opts->{'is_single_address'} ) {
 		$args->{'is_single_address'} = 'Y';
@@ -483,7 +560,15 @@ sub get_netblock_from_ip {
 		$args->{'netblock_type'} = $opts->{'netblock_type'};
 	}
 
-	my $netblock = $self->GetNetblock($args);
+
+warn Dumper($args);
+	my $netblock = $self->DBFetch(
+		table => 'netblock',
+		result_set_size        => 'first',
+		errors        => \@errors,
+		match		=> $args,
+		order		=> 'masklen(ip_address) desc'
+	);
 
 	if ( !$netblock ) {
 		if (@errors) {
@@ -494,15 +579,14 @@ sub get_netblock_from_ip {
 		return undef;
 	}
 
-	my $h = $netblock->hash;
-	if ( !$h ) {
+	if ( !$netblock ) {
 		if (@errors) {
 			$self->error_return( "Netblock has hash issue: "
 				  . join( ';', @errors ) );
 		}
 		return undef;
 	}
-	$h;
+	$netblock;
 }
 
 sub get_dev_from_devid {
@@ -510,8 +594,8 @@ sub get_dev_from_devid {
 
 	my $q = qq{
 		select  *
-		  from  device
-		 where  device_id = :devid
+		  from  device d
+		 where  d.device_id = :devid
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->bind_param( ':devid', $devid ) || $self->return_db_err($sth);
@@ -524,7 +608,51 @@ sub get_dev_from_devid {
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
+	$self->fill_asset_details_with_device($hr);
+}
+
+sub get_asset_from_asset_id {
+	my ( $self, $assid ) = @_;
+
+	my $q = qq{
+		select  *
+		  from  asset
+		 where  asset_id = :assid
+	};
+	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	$sth->bind_param( ':assid', $assid ) || $self->return_db_err($sth);
+	$sth->execute || $self->return_db_err($sth);
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
 	$hr;
+}
+
+sub fill_asset_details_with_device($$) {
+	my ($self, $dev) = @_;
+
+	return undef if(!$dev);
+
+	if($dev->{ _dbx('ASSET_ID') }) {
+		my $ass = $self->get_asset_from_asset_id($dev->{ _dbx('ASSET_ID' )});
+
+		foreach my $c (qw(ASSET_ID SERIAL_NUMBER PART_NUMBER ASSET_TAG OWNERSHIP_STATUS LEASE_EXPIRATION_DATE)) {
+			$dev->{ _dbx($c) } = $ass-> { _dbx($c) };
+		}
+	}
+	$dev;
+}
+
+sub device_has_asset($) {
+	my ($self) = shift @_;
+
+	if(my $dbh = $self->dbh) {
+		my $sth = $dbh->column_info(undef, undef, 'device', 'serial_number');
+		my $colinfo = $sth->fetchrow_hashref;
+		$sth->finish;
+		return $colinfo;
+	}
+	undef;
 }
 
 sub add_location_to_dev {
@@ -537,7 +665,6 @@ sub add_location_to_dev {
 		rack_u_offset_of_device_top =>
 		  $loc->{ _dbx('RACK_U_OFFSET_OF_DEVICE_TOP') },
 		rack_side           => $loc->{ _dbx('RACK_SIDE') },
-		inter_device_offset => $loc->{ _dbx('INTER_DEVICE_OFFSET') },
 	};
 
 	my $numchanges = 0;
@@ -545,7 +672,7 @@ sub add_location_to_dev {
 	if (
 		!(
 			$numchanges += $self->DBInsert(
-				table  => 'location',
+				table  => 'rack_location',
 				hash   => $new,
 				errors => \@errs
 			)
@@ -555,11 +682,11 @@ sub add_location_to_dev {
 		$self->error_return( join( " ", @errs ) );
 	}
 
-	my $locid = $new->{ _dbx('LOCATION_ID') };
+	my $locid = $new->{ _dbx('RACK_LOCATION_ID') };
 
 	my ($dq) = qq{
 		update	device
-		   set	location_id = :locid
+		   set	rack_location_id = :locid
 		  where	device_id = :devid
 	};
 	my $dsth = $self->prepare($dq) || $self->return_db_err();
@@ -576,15 +703,15 @@ sub get_dev_from_name {
 
 	my $q = qq{
 		select  *
-		  from  device
-		 where  device_name = ?
+		  from  device d
+		 where  d.device_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($name) || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$hr;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_dev_from_serial {
@@ -592,15 +719,19 @@ sub get_dev_from_serial {
 
 	my $q = qq{
 		select  *
-		  from  device
-		 where  lower(serial_number) = lower(?)
+		  from  device d
+		  		left join asset a using  (asset_id)
+	 	where  lower(a.serial_number) = lower(:serno)
+		LIMIT 1
 	};
+
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($serno) || $self->return_db_err($sth);
+	$sth->bind_param(':serno', $serno) || $self->return_db_err();
+	$sth->execute|| $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$hr;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_snmpcommstr_from_id {
@@ -727,7 +858,7 @@ sub configure_allocated_netblock {
 
 	my $parnb;
 	if ( !defined($nblk) ) {
-		$parnb = $self->guess_parent_netblock_id( $ip, 32 );
+		$parnb = $self->guess_parent_netblock_id( $ip, undef, 'Y' );
 
 		# if the ip addres is 0/0 (or 0/anything), then it should
 		# be considered unset
@@ -757,7 +888,7 @@ sub configure_allocated_netblock {
 		my $h = {
 			ip_address        => $ip,
 			is_single_address => 'Y',
-			netblock_type	  => 'default',
+			netblock_type     => 'default',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
 		};
@@ -845,16 +976,20 @@ sub get_package_release {
 sub get_device_from_id {
 	my ( $self, $id ) = @_;
 
+	# This can go back to just * when the asset columns are dropped
+	# from device
 	my $q = qq{
-		select * from device where device_id = ?
+		select  *
+		  from device d
+		where device_id = ?
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
 
-	my $dt = $sth->fetchrow_hashref;
+	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$dt;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_device_type_from_id {
@@ -879,9 +1014,9 @@ sub get_device_type_from_id {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute($id) || $self->return_db_err($sth);
 
-	my $dt = $sth->fetchrow_hashref;
+	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$dt;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_device_type_from_name {
@@ -906,9 +1041,9 @@ sub get_device_type_from_name {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute( $companyid, $model ) || $self->return_db_err($sth);
 
-	my $dt = $sth->fetchrow_hashref;
+	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	$dt;
+	$self->fill_asset_details_with_device($hr);
 }
 
 sub get_packages_for_voe {
@@ -1291,6 +1426,26 @@ sub get_device_collections_for_device {
 	@rv;
 }
 
+#
+# given an id, return the netblock_collection record
+#
+sub get_netblock_collection($$) {
+	my($self, $id) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	*
+		  from	netblock_collection
+		 where	netblock_collection_id = ?
+	}
+	) || die $self->return_db_err;
+
+	$sth->execute($id) || $self->return_db_err($sth);
+	my $nc = $sth->fetchrow_hashref;
+	$sth->finish;
+	$nc;
+}
+
 sub get_system_user {
 	my ( $self, $suid ) = @_;
 
@@ -1485,8 +1640,9 @@ sub resync_physical_ports {
 		  from	device_type_phys_port_templt
 		 where	device_type_id = :dtid
 		   $typeadd
-		   and	port_name not in
-				(select port_name from physical_port
+		   and	(port_name,port_type) not in
+				(select port_name,port_type
+					 from physical_port
 					where device_id = :devid
 				)
 	}
@@ -1592,6 +1748,10 @@ sub get_x509_cert_by_id {
 	$hr;
 }
 
+#
+# NOTE:  This is called via an ajax call in device-ajax.pl +
+# netblock/index.pl
+#
 sub build_netblock_ip_row {
 	my ( $self, $params, $blk, $hr, $ip, $reservation ) = @_;
 
@@ -1638,15 +1798,16 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 	my $showtr = 1;
 
-	my ( $id, $bits, $devid, $name, $dom, $status, $desc, $atix, $atixsys );
+	my ( $id, $devid, $name, $dom, $status, $desc, $atix, $atixsys );
 
 	$status = "";
 	$name   = "";
 	$dom    = "";
 
-	my $editabledesc = 0;
+	my $editabledesc = 1;
 
 	my $uniqid = $ip;
+	$uniqid =~ s,/\d+$,, if ($uniqid);
 	if ( defined( $params->{-uniqid} ) ) {
 		$uniqid = "new_" . $params->{-uniqid};
 	} elsif ( !defined($uniqid) ) {
@@ -1664,6 +1825,7 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		);
 	} else {
 		$printip = $ip;
+		$ip =~ s,/\d+$,,;
 	}
 
 	my $fqhn = "";
@@ -1681,9 +1843,12 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 		$atix    = $hr->{ _dbx('APPROVAL_REF_NUM') };
 		$atixsys = $hr->{ _dbx('APPROVAL_TYPE') };
 
-		# $editabledesc =  1;
+		if ( $status ne 'Reserved' && $status ne 'Legacy' ) {
+			$editabledesc = 0;
+		}
 
-		$printip = "$ip/$bits";
+		# $printip = $ip;
+		# $ip =~ s,/\d+$,,;
 
 		if ( defined($name) ) {
 			$fqhn = $name . ( defined($dom) ? ".$dom" : "" );
@@ -1707,7 +1872,8 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 				{ -href => "../device/device.pl?devid=$devid" },
 				$name
 			);
-			$desc = $fqhn;
+
+			# $desc = $fqhn;
 		}
 	} else {
 		$editabledesc = 1;
@@ -1773,11 +1939,13 @@ qq{AddIpSpace(this, "$rowid", "$gapnoid");},
 
 	my $tds = $cgi->td( [ $printip, $status, $fqhn, $desc, $atix, ] );
 
+	my $rv;
 	if ($showtr) {
-		$cgi->Tr( { -id => $trid }, $tds );
+		$rv = $cgi->Tr( { -id => $trid }, $tds );
 	} else {
-		$tds;
+		$rv = $tds;
 	}
+	return $rv;
 }
 
 #
@@ -1797,11 +1965,11 @@ sub get_dns_a_record_for_ptr {
 			'ip_universe_id'    => 0,
 			'host(ip_address)'  => $ip
 		},
-		errors          => \@errs
+		errors => \@errs
 	);
 	my $nblk = undef;
 	foreach my $n (@$rows) {
-		next if ($n->{netblock_type} !~ /^(dns|default)$/);
+		next if ( $n->{netblock_type} !~ /^(dns|default)$/ );
 		$nblk = $n;
 		last;
 	}
@@ -1813,7 +1981,7 @@ sub get_dns_a_record_for_ptr {
 			netblock_id         => $nblk->{netblock_id},
 			should_generate_ptr => 'Y',
 		},
-		errors          => \@errs
+		errors => \@errs
 	);
 	return undef if !$dns;
 
@@ -1826,11 +1994,13 @@ sub process_and_insert_dns_record {
 
 	$opts = _dbx( $opts, 'lower' );
 
-	if ( $opts->{dns_type} eq 'A' ) {
-		if ( $opts->{dns_value} !~ /^(\d+\.){3}\d+/ ) {
-			$self->error_return( $opts->{dns_value}
-				  . " is not a valid IP address" );
-		}
+	if ( $opts->{dns_type} =~ /^A(AAA)?/ ) {
+		my $i = new Net::IP( $opts->{dns_value} )
+		  || $self->error_return( $opts->{dns_value}
+			  . " is not a valid IP address ("
+			  . Net::IP::Error()
+			  . ")" );
+
 		my $block = $self->get_netblock_from_ip(
 			ip_address => $opts->{dns_value} );
 		if ( !$block ) {
@@ -1840,16 +2010,16 @@ sub process_and_insert_dns_record {
 			);
 		}
 
-		# now figure out what to do if ptr is set.  If it is set, 
+		# now figure out what to do if ptr is set.  If it is set,
 		# then we unconditionally make other records not have the PTR.
 		# If it is not set, we set it for the user if the IP address
 		# is showing up for the first time
 
-		if ( exists( $opts->{ 'should_generate_ptr'} )
-			&& $opts->{ 'should_generate_ptr' } eq 'Y' )
+		if ( exists( $opts->{'should_generate_ptr'} )
+			&& $opts->{'should_generate_ptr'} eq 'Y' )
 		{
-	        	# set all other dns_records but this one to have 
-			# ptr = 'N'. More than one should never happen, but 
+			# set all other dns_records but this one to have
+			# ptr = 'N'. More than one should never happen, but
 			# this is a while loop just in case.
 			while (
 				my $recid = $self->get_dns_a_record_for_ptr(
@@ -1929,12 +2099,14 @@ sub delete_netblock {
 		};
 		$sth = $self->prepare($q) || die $self->return_db_err();
 
-	#- $sth->bind_param(':id', $nblkid) || die $self->return_db_err();
+	      #- $sth->bind_param(':id', $nblkid) || die $self->return_db_err();
 	} else {
-		$sth = $self->prepare(qq{
+		$sth = $self->prepare(
+			qq{
 			delete from netblock where netblock_id = :id
-		}) || die $self->return_db_err();
-		$sth->bind_param(':id', $nblkid);
+		}
+		) || die $self->return_db_err();
+		$sth->bind_param( ':id', $nblkid );
 	}
 
 	$sth->execute || die $self->return_db_err($sth);

@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
@@ -81,5 +80,5 @@ sub do_show_serial {
 		);
 	}
 	$sth->finish;
-
+	undef $stab;
 }

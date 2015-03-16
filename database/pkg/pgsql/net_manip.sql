@@ -18,6 +18,7 @@
 
 DROP SCHEMA IF EXISTS net_manip CASCADE;
 CREATE SCHEMA net_manip AUTHORIZATION jazzhands;
+COMMENT ON SCHEMA net_manip IS 'part of jazzhands';
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM

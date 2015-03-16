@@ -25,6 +25,8 @@
 
 drop schema if exists network_strings cascade;
 create schema network_strings authorization jazzhands;
+COMMENT ON SCHEMA network_strings IS 'part of jazzhands';
+
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM

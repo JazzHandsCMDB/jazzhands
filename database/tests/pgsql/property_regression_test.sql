@@ -1,3 +1,18 @@
+-- Copyright (c) 2014 Todd Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -34,12 +49,15 @@ DECLARE
 	v_device_collection_id	Property.device_collection_id%TYPE;
 	v_dns_domain_id			Property.dns_domain_id%TYPE;
 	v_operating_system_id	Property.operating_system_id%TYPE;
-	v_svc_env_id		Property.service_env_collection_id%TYPE;
+	v_svc_env_id			Property.service_env_collection_id%TYPE;
+	v_prop_coll_id			Property.property_collection_id%TYPE;
 	v_site_code				Property.site_code%TYPE;
 	v_account_id			Property.account_id%TYPE;
+	v_account_realm_id		account_realm.account_realm_id%TYPE;
 	v_account_collection_id				Property.account_collection_id%TYPE;
 	v_account_collection_id2			Property.account_collection_id%TYPE;
 	v_net_coll_Id			Property.property_value_nblk_coll_id%TYPE;
+	v_dev_coll_Id			Property.property_value_nblk_coll_id%TYPE;
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
 	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
 	v_token_collection_id	Property.Property_Value_Token_Col_ID%TYPE;
@@ -58,6 +76,11 @@ BEGIN
 		('test', 'multivaluetest');
 	DELETE FROM VAL_Property_Type WHERE Property_Type IN
 		('test', 'multivaluetest');
+
+	DELETE FROM property_collection where
+		property_collection_type like 'JHTEST%';
+	DELETE FROM val_property_collection_type where
+		property_collection_type like 'JHTEST%';
 
 --
 -- Set up VAL_Property_Data_Type for test data
@@ -83,6 +106,7 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		Permit_service_env_collection,
+		Permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		Permit_Account_Collection_Id
@@ -92,6 +116,7 @@ BEGIN
 		'N',
 		NULL,
 		'string',
+		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -113,8 +138,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		Permit_service_env_collection,
+		Permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
@@ -129,6 +156,8 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -143,8 +172,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Singlevalue',
@@ -159,6 +190,8 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -173,8 +206,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Multivalue',
@@ -189,6 +224,8 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -203,8 +240,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'AnotherProperty',
@@ -219,6 +258,8 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -233,8 +274,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Allowed',
@@ -249,6 +292,8 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
+		'ALLOWED',
+		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -263,8 +308,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Required',
@@ -272,6 +319,8 @@ BEGIN
 		'N',
 		NULL,
 		'string',
+		'REQUIRED',
+		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
@@ -293,14 +342,16 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'RestrictAccount_Collection',
 		'test',
 		'N',
-		'per-user',
+		'per-account',
 		'string',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -309,6 +360,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -324,8 +377,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'boolean',
@@ -340,6 +395,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -355,8 +412,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'company_id',
@@ -371,6 +430,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -386,8 +447,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'dns_domain_id',
@@ -402,6 +465,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -417,8 +482,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'netblock_collection_id',
@@ -433,6 +500,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -447,8 +516,44 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
+		Permit_Account_Collection_Id
+	) VALUES (
+		'device_collection_id',
+		'test',
+		'N',
+		NULL,
+		'device_collection_id',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED'
+	);
+
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		Prop_Val_Acct_Coll_Type_Rstrct,
+		Property_Data_Type,
+		Permit_Company_Id,
+		Permit_Device_Collection_Id,
+		Permit_DNS_Domain_Id,
+		Permit_Operating_System_Id,
+		permit_service_env_collection,
+		permit_property_collection_id,
+		Permit_Site_Code,
+		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'sw_package_id',
@@ -463,6 +568,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -478,8 +585,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'none',
@@ -494,6 +603,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -509,8 +620,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'number',
@@ -525,6 +638,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -540,8 +655,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'password_type',
@@ -556,6 +673,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -571,8 +690,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'string',
@@ -587,6 +708,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -602,8 +725,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'timestamp',
@@ -618,6 +743,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -633,8 +760,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'token_collection_id',
@@ -649,6 +778,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -664,8 +795,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'account_collection_id',
@@ -680,6 +813,8 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -695,8 +830,10 @@ BEGIN
 		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
+		permit_property_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
+		permit_account_realm_id,
 		Permit_Account_Collection_id
 	) VALUES (
 		'list',
@@ -704,6 +841,8 @@ BEGIN
 		'N',
 		NULL,
 		'list',
+		'PROHIBITED',
+		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -724,6 +863,12 @@ BEGIN
 		'value'
 	);
 
+	INSERT INTO val_property_collection_type (
+		property_collection_type ) values ( 'JHTEST-PCT');
+	INSERT INTO property_collection (
+		property_collection_name, property_collection_type ) 
+		values ('JHTEST', 'JHTEST-PCT');
+
 	--
 	-- Get some valid data to work with
 	--
@@ -738,14 +883,19 @@ BEGIN
 		LIMIT 1;
 	SELECT service_env_collection_id INTO v_svc_env_id FROM service_environment_collection
 		LIMIT 1;
+	SELECT property_collection_id INTO v_prop_coll_id 
+		FROM property_collection
+		LIMIT 1;
 	SELECT Site_Code INTO v_site_code FROM Site 
 		LIMIT 1;
 	SELECT Account_Id INTO v_account_Id FROM account 
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection 
-		WHERE Account_Collection_Type = 'per-user' LIMIT 1;
+		WHERE Account_Collection_Type = 'per-account' LIMIT 1;
+	SELECT Account_Realm_Id INTO v_account_realm_id FROM Account_realm 
+		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection 
-		WHERE Account_Collection_Type <> 'per-user' LIMIT 1; 
+		WHERE Account_Collection_Type <> 'per-account' LIMIT 1; 
 	SELECT Netblock_Collection_id INTO v_net_coll_Id FROM Netblock_Collection
 		LIMIT 1;
 	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type 
@@ -760,8 +910,10 @@ BEGIN
 	RAISE NOTICE 'v_dns_domain_id is %', v_dns_domain_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
 	RAISE NOTICE 'v_svc_env_id is %', v_svc_env_id;
+	RAISE NOTICE 'v_prop_coll_id is %', v_prop_coll_id;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
 	RAISE NOTICE 'v_account_Id is %', v_account_Id;
+	RAISE NOTICE 'v_account_realm_id is %', v_account_realm_id;
 	RAISE NOTICE 'v_account_collection_id is %', v_account_collection_id;
 	RAISE NOTICE 'v_account_collection_id2 is %', v_account_collection_id2;
 	RAISE NOTICE 'v_net_coll_Id is %', v_net_coll_Id;
@@ -894,8 +1046,10 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			Account_Id,
+			Account_Realm_Id,
 			Account_Collection_id
 			) VALUES (
 			'Allowed', 'test', 'test',
@@ -904,8 +1058,10 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
+			v_account_realm_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
@@ -924,8 +1080,10 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			Account_Id,
+			account_realm_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
@@ -934,8 +1092,10 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
+			v_account_realm_id,
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Succeeded';
@@ -954,6 +1114,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -964,6 +1125,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -984,6 +1146,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -994,6 +1157,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1014,6 +1178,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1024,6 +1189,7 @@ BEGIN
 			NULL,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1044,6 +1210,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1054,6 +1221,7 @@ BEGIN
 			v_dns_domain_id,
 			NULL,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1104,6 +1272,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1114,6 +1283,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			NULL,
 			v_account_id,
 			v_account_collection_id
@@ -1134,6 +1304,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1144,6 +1315,7 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			NULL,
 			v_account_collection_id
@@ -1164,6 +1336,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1174,6 +1347,41 @@ BEGIN
 			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
+			v_prop_coll_id,
+			v_site_code,
+			v_account_id,
+			NULL
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Omitting Account_Realm_Id from property with REQUIRED Account_Realm_Id lhs field';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value,
+			Company_ID,
+			Device_Collection_ID,
+			Account_Collection_ID,
+			DNS_Domain_ID,
+			Operating_System_ID,
+			service_env_collection_id,
+			property_collection_id,
+			Site_Code,
+			account_id,
+			Account_Realm_Id
+			) VALUES (
+			'Required', 'test', 'test',
+			v_company_id,
+			v_device_collection_id,
+			v_account_collection_id,
+			v_dns_domain_id,
+			v_operating_system_id,
+			v_svc_env_id,
+			v_prop_coll_id,
 			v_site_code,
 			v_account_id,
 			NULL
@@ -1344,6 +1552,7 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1354,6 +1563,39 @@ BEGIN
 			NULL,
 			NULL,
 			v_svc_env_id,
+			NULL,
+			NULL,
+			NULL,
+			NULL
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Adding property_collection_id to property with PROHIBITED property_collection_id lhs field';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value,
+			Company_ID,
+			Device_Collection_ID,
+			DNS_Domain_ID,
+			Operating_System_ID,
+			service_env_collection_id,
+			property_collection_id,
+			Site_Code,
+			account_id,
+			Account_Collection_id
+			) VALUES (
+			'Prohibited', 'test', 'test',
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			v_prop_coll_id,
 			NULL,
 			NULL,
 			NULL
@@ -1374,11 +1616,13 @@ BEGIN
 			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
+			property_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
+			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1455,6 +1699,36 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Adding account_realm_id to property with PROHIBITED account_realm_id lhs field';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value,
+			Company_ID,
+			Device_Collection_ID,
+			DNS_Domain_ID,
+			Operating_System_ID,
+			service_env_collection_id,
+			Site_Code,
+			account_id,
+			account_realm_id
+			) VALUES (
+			'Prohibited', 'test', 'test',
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+			v_account_realm_id
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 
 
   --
@@ -1517,6 +1791,21 @@ BEGIN
 			) VALUES (
 			'string', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_collection_Id value into string property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'string', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1665,6 +1954,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_id value into timestamp property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'timestamp', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -1797,6 +2101,21 @@ BEGIN
 			) VALUES (
 			'company_id', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into company_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'company_id', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1946,6 +2265,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into dns_domain_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'dns_domain_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into dns_domain_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2086,6 +2420,21 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into Netblock_Collection_Id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_device_coll_id
+			) VALUES (
+			'netblock_collection_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2217,6 +2566,21 @@ BEGIN
 			) VALUES (
 			'password_type', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into password_type property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'password_type', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2357,6 +2721,21 @@ BEGIN
 			) VALUES (
 			'sw_package_id', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into sw_package_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'sw_package_id', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2506,6 +2885,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into token_collection_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'token_collection_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2646,6 +3040,21 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting Device_Collection_Id value into account_collection_id property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'account_collection_id', 'test',
+			v_device_collection_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting Password_Type value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2778,6 +3187,21 @@ BEGIN
 			) VALUES (
 			'none', 'test',
 			v_net_coll_Id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting Device_Collection_Id value into none property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			property_value_device_coll_id
+			) VALUES (
+			'none', 'test',
+			v_device_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2949,6 +3373,12 @@ BEGIN
 		('test', 'multivaluetest');
 	DELETE FROM VAL_Property_Type WHERE Property_Type IN
 		('test', 'multivaluetest');
+
+	DELETE FROM property_collection where
+		property_collection_type like 'JHTEST%';
+	DELETE FROM val_property_collection_type where
+		property_collection_type like 'JHTEST%';
+
 
 	RETURN true;
 END;

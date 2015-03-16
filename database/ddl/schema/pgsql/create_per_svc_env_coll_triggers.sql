@@ -38,7 +38,7 @@ BEGIN
 	   AND	service_env_collection_id in
 		(select service_env_collection_id
 		 from svc_environment_coll_svc_env
-		where service_environment = OLD.service_environment
+		where service_environment_id = OLD.service_environment_id
 		)
 	ORDER BY service_env_collection_id
 	LIMIT 1;
@@ -57,7 +57,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection ON service_environment;
+DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection 
+	ON service_environment;
 CREATE TRIGGER trigger_delete_per_svc_env_svc_env_collection
 	BEFORE DELETE
 	ON service_environment
@@ -77,21 +78,22 @@ BEGIN
 		insert into service_environment_collection
 			(service_env_collection_name, service_env_collection_type)
 		values
-			(NEW.service_environment, 'per-environment')
+			(NEW.service_environment_name, 'per-environment')
 		RETURNING service_env_collection_id INTO secid;
 		insert into svc_environment_coll_svc_env
-			(service_env_collection_id, service_environment)
+			(service_env_collection_id, service_environment_id)
 		VALUES
-			(secid, NEW.service_environment);
-	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment != NEW.service_environment THEN
+			(secid, NEW.service_environment_id);
+	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment_id != NEW.service_environment_id THEN
 		UPDATE	service_environment_collection
-		   SET	service_env_collection_name = NEW.service_environment
-		 WHERE	service_env_collection_name != NEW.service_environment
+		   SET	service_env_collection_name = NEW.service_environment_name
+		 WHERE	service_env_collection_name != NEW.service_environment_name
 		   AND	service_env_collection_type = 'per-environment'
-		   AND	service_environment in (
-			SELECT	service_environment
+		   AND	service_environment_id in (
+			SELECT	service_environment_id
 			  FROM	svc_environment_coll_svc_env
-			 WHERE	service_environment = NEW.service_environment
+			 WHERE	service_environment_id = 
+				NEW.service_environment_id
 			);
 	END IF;
 	RETURN NEW;

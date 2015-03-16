@@ -1,3 +1,27 @@
+-- Copyright (c) 2013, Matthew Ragan
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+
+-- NOTE: direct_account_collection_parent_id is a better name for
+-- root_account_collection_id
+--
+-- account_collection_id ends up being the one that is the ultimate parent
+-- and what someone just looking at the view may think of the root ("all the
+-- accounts that are part of this account collection")
+--
+-- the nomenclature probably comes from oracle's connect by root
 CREATE OR REPLACE VIEW v_acct_coll_acct_expanded_detail AS
 WITH RECURSIVE var_recurse(
 	account_collection_id,
@@ -44,17 +68,26 @@ WITH RECURSIVE var_recurse(
 			ELSE x.dept_level
 		END,
 		CASE
-			WHEN ac.account_collection_type::text = 'department'::text THEN 'AccountAssignedToChildDepartment'::text
-			WHEN x.dept_level > 1 AND x.acct_coll_level > 0 THEN 'ParentDepartmentAssignedToParentAccountCollection'::text
-			WHEN x.dept_level > 1 THEN 'ParentDepartmentAssignedToAccountCollection'::text
-			WHEN x.dept_level = 1 AND x.acct_coll_level > 0 THEN 'DepartmentAssignedToParentAccountCollection'::text
-			WHEN x.dept_level = 1 THEN 'DepartmentAssignedToAccountCollection'::text
+			WHEN ac.account_collection_type::text = 'department'::text 
+				THEN 'AccountAssignedToChildDepartment'::text
+			WHEN x.dept_level > 1 AND x.acct_coll_level > 0 
+				THEN 'ParentDepartmentAssignedToParentAccountCollection'::text
+			WHEN x.dept_level > 1 
+				THEN 'ParentDepartmentAssignedToAccountCollection'::text
+			WHEN x.dept_level = 1 AND x.acct_coll_level > 0 
+				THEN 'DepartmentAssignedToParentAccountCollection'::text
+			WHEN x.dept_level = 1 
+				THEN 'DepartmentAssignedToAccountCollection'::text
 			ELSE 'AccountAssignedToParentAccountCollection'::text
-		END AS assign_method, x.array_path || ach.account_collection_id AS array_path, ach.account_collection_id = ANY (x.array_path)
+		END AS assign_method, 
+		x.array_path || ach.account_collection_id AS array_path, 
+		ach.account_collection_id = ANY (x.array_path)
 	FROM
-		var_recurse x JOIN
-		account_collection_hier ach ON x.account_collection_id = ach.child_account_collection_id JOIN
-		account_collection ac ON ach.account_collection_id = ac.account_collection_id
+		var_recurse x 
+		JOIN account_collection_hier ach 
+			ON x.account_collection_id = ach.child_account_collection_id JOIN
+		account_collection ac 
+			ON ach.account_collection_id = ac.account_collection_id
 	WHERE
 		NOT x.cycle
 ) SELECT 

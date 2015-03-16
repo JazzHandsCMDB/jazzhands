@@ -25,10 +25,8 @@
 # $Id$
 #
 
-
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -41,30 +39,36 @@ sub do_operating_system_report {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	print $cgi->header('text/html');
-	print $stab->start_html({-title=>"Operating System Breakdown"}), "\n";
+	print $stab->start_html( { -title => "Operating System Breakdown" } ),
+	  "\n";
 
-	print $cgi->div({-style => 'text-align: center'}, qq{
+	print $cgi->div(
+		{ -style => 'text-align: center' }, qq{
 		NOTE:  This does not include hosts that do not have an application
 		role set in the database.
-	});
+	}
+	);
 
-	print $cgi->h3({-style=>'text-align: center'}, 'OS by Version/Arch');
+	print $cgi->h3( { -style => 'text-align: center' },
+		'OS by Version/Arch' );
 	print version_arch($stab);
-	print $cgi->h3({-style=>'text-align: center'}, 'OS by Version');
+	print $cgi->h3( { -style => 'text-align: center' }, 'OS by Version' );
 	print by_version($stab);
-	print $cgi->h3({-style=>'text-align: center'}, 'OS by Name/Arch');
+	print $cgi->h3( { -style => 'text-align: center' }, 'OS by Name/Arch' );
 	print name_arch_only($stab);
-	print $cgi->h3({-style=>'text-align: center'}, 'OS by Name');
+	print $cgi->h3( { -style => 'text-align: center' }, 'OS by Name' );
 	print name_only($stab);
 
-	print $cgi->h3({-style=>'text-align: center'}, 'OS by Processor Arch');
+	print $cgi->h3( { -style => 'text-align: center' },
+		'OS by Processor Arch' );
 	print by_arch($stab);
 
 	print $cgi->end_html;
+	undef $stab;
 }
 
 sub version_arch {
-	my $stab  = shift @_;
+	my $stab = shift @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
@@ -102,14 +106,13 @@ sub version_arch {
 	$sth->execute || return $stab->return_db_error($sth);
 
 	my $rv = "";
-	$rv .= $cgi->start_table({-border=>1, align=>'center'});
-	$rv .= $cgi->th(['Name', 'Version', 'Architecture', 'Number of Systems']);
-	while( my($name, $version, $arch, $tally) = $sth->fetchrow_array) {
+	$rv .= $cgi->start_table( { -border => 1, align => 'center' } );
+	$rv .= $cgi->th(
+		[ 'Name', 'Version', 'Architecture', 'Number of Systems' ] );
+	while ( my ( $name, $version, $arch, $tally ) = $sth->fetchrow_array ) {
 		$rv .= $cgi->Tr(
-			$cgi->td($name),
-			$cgi->td($arch),
-			$cgi->td($version),
-			$cgi->td($tally),
+			$cgi->td($name),    $cgi->td($arch),
+			$cgi->td($version), $cgi->td($tally),
 		);
 	}
 	$rv .= $cgi->end_table;
@@ -118,7 +121,7 @@ sub version_arch {
 }
 
 sub by_version {
-	my $stab  = shift @_;
+	my $stab = shift @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
@@ -155,23 +158,20 @@ sub by_version {
 	$sth->execute || return $stab->return_db_error($sth);
 
 	my $rv = "";
-	$rv .= $cgi->start_table({-border=>1, align=>'center'});
-	$rv .= $cgi->th(['Name', 'Version', 'Number of Systems']);
-	while( my($name, $version, $tally) = $sth->fetchrow_array) {
-		$rv .= $cgi->Tr(
-			$cgi->td($name),
-			$cgi->td($version),
-			$cgi->td($tally),
-		);
+	$rv .= $cgi->start_table( { -border => 1, align => 'center' } );
+	$rv .= $cgi->th( [ 'Name', 'Version', 'Number of Systems' ] );
+	while ( my ( $name, $version, $tally ) = $sth->fetchrow_array ) {
+		$rv .=
+		  $cgi->Tr( $cgi->td($name), $cgi->td($version),
+			$cgi->td($tally), );
 	}
 	$rv .= $cgi->end_table;
 	$sth->finish;
 	$rv;
 }
 
-
 sub name_arch_only {
-	my $stab  = shift @_;
+	my $stab = shift @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
@@ -201,14 +201,12 @@ sub name_arch_only {
 	$sth->execute || return $stab->return_db_error($sth);
 
 	my $rv = "";
-	$rv .= $cgi->start_table({-border=>1, align=>'center'});
-	$rv .= $cgi->th(['Name', 'Architecture', 'Number of Systems']);
-	while( my($name, $arch, $tally) = $sth->fetchrow_array) {
-		$rv .= $cgi->Tr(
-			$cgi->td($name),
-			$cgi->td($arch),
-			$cgi->td($tally),
-		);
+	$rv .= $cgi->start_table( { -border => 1, align => 'center' } );
+	$rv .= $cgi->th( [ 'Name', 'Architecture', 'Number of Systems' ] );
+	while ( my ( $name, $arch, $tally ) = $sth->fetchrow_array ) {
+		$rv .=
+		  $cgi->Tr( $cgi->td($name), $cgi->td($arch),
+			$cgi->td($tally), );
 	}
 	$rv .= $cgi->end_table;
 	$sth->finish;
@@ -216,7 +214,7 @@ sub name_arch_only {
 }
 
 sub name_only {
-	my $stab  = shift @_;
+	my $stab = shift @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
@@ -251,13 +249,10 @@ sub name_only {
 	$sth->execute || return $stab->return_db_error($sth);
 
 	my $rv = "";
-	$rv .= $cgi->start_table({-border=>1, align=>'center'});
-	$rv .= $cgi->th(['Name', 'Number of Systems']);
-	while( my($name, $tally) = $sth->fetchrow_array) {
-		$rv .= $cgi->Tr(
-			$cgi->td($name),
-			$cgi->td($tally),
-		);
+	$rv .= $cgi->start_table( { -border => 1, align => 'center' } );
+	$rv .= $cgi->th( [ 'Name', 'Number of Systems' ] );
+	while ( my ( $name, $tally ) = $sth->fetchrow_array ) {
+		$rv .= $cgi->Tr( $cgi->td($name), $cgi->td($tally), );
 	}
 	$rv .= $cgi->end_table;
 	$sth->finish;
@@ -265,7 +260,7 @@ sub name_only {
 }
 
 sub by_arch {
-	my $stab  = shift @_;
+	my $stab = shift @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
 	my $cgi = $stab->cgi || die "Could not create cgi";
@@ -300,13 +295,10 @@ sub by_arch {
 	$sth->execute || return $stab->return_db_error($sth);
 
 	my $rv = "";
-	$rv .= $cgi->start_table({-border=>1, align=>'center'});
-	$rv .= $cgi->th(['Arch', 'Number of Systems']);
-	while( my($arch, $tally) = $sth->fetchrow_array) {
-		$rv .= $cgi->Tr(
-			$cgi->td($arch),
-			$cgi->td($tally),
-		);
+	$rv .= $cgi->start_table( { -border => 1, align => 'center' } );
+	$rv .= $cgi->th( [ 'Arch', 'Number of Systems' ] );
+	while ( my ( $arch, $tally ) = $sth->fetchrow_array ) {
+		$rv .= $cgi->Tr( $cgi->td($arch), $cgi->td($tally), );
 	}
 	$rv .= $cgi->end_table;
 	$sth->finish;

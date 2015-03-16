@@ -75,6 +75,7 @@ sub retire_site {
 		$stab->rollback;
 		$stab->msg_return("Nothing to change");
 	}
+	undef $stab;
 }
 
 sub check_site_validity {
@@ -100,8 +101,8 @@ sub check_for_devices {
 		qq{
 		select	count(*)
 		  from	device d
-				left join location l
-					on l.location_id = d.location_id
+				left join rack_location l
+					using (rack_location_id)
 		 where	
 			(l.site_code = :1
 		   	or regexp_like(lower(d.device_name), :2)

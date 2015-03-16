@@ -6,24 +6,23 @@
 #   For more information on cpan2rpm please visit: http://perl.arix.com/
 #
 
+%define rpmbase perl-JazzHands-Krb5
 %define pkgname JazzHands-Krb5
 %define filelist %{pkgname}-%{version}-filelist
 %define NVR %{pkgname}-%{version}-%{release}
-%define maketest 1
+%define maketest 0
 
 name:      perl-JazzHands-Krb5
 summary:   JazzHands-Krb5 - Perl module
-version:   0.01
-release:   6
-vendor:    K Z Win <kwin@appnexus.com>
-packager:  K Z Win <kwin@appnexus.com>
+version:   0.58.9
+release:   0
 license:   Artistic
-group:     Applications/AppNexus
-url:       http://www.appnexus.com
-Source0:   %{name}-%{version}.tar.gz
+Group:      System/Management
+Url:        http://www.jazzhands.net/
+Source0:   %{rpmbase}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
-prefix:    %(echo %{_prefix})
+BuildRequires: perl-ExtUtils-MakeMaker
 provides:  perl(JazzHands::Krb5)
 provides:  perl(JazzHands::Krb5::Tool)
 requires:  perl(JazzHands::AppAuthAL)
@@ -40,25 +39,18 @@ None.
 #
 
 %prep
-%setup -q -n %{name}-%{version}
-chmod -R u+w %{_builddir}/%{name}-%{version}
+%setup -q -n %{rpmbase}-%{version}
 
-%build
-echo "++--> "; pwd
-grep -rsl '^#!.*perl' . |
-grep -v '.bak$' |xargs --no-run-if-empty \
-%__perl -MExtUtils::MakeMaker -e 'MY->fixin(@ARGV)'
-CFLAGS="$RPM_OPT_FLAGS"
-%{__perl} Makefile.PL `%{__perl} -MExtUtils::MakeMaker -e ' print qq|PREFIX=%{buildroot}%{_prefix}| if \$ExtUtils::MakeMaker::VERSION =~ /5\.9[1-6]|6\.0[0-5]/ '`
-%{__make} 
-%if %maketest
-%{__make} test
-%endif
+%{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
+
 
 %install
 [ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
 
-%{makeinstall} `%{__perl} -MExtUtils::MakeMaker -e ' print \$ExtUtils::MakeMaker::VERSION <= 6.05 ? qq|PREFIX=%{buildroot}%{_prefix}| : qq|DESTDIR=%{buildroot}| '`
+make pure_install
+
+find %{buildroot} -type f -name .packlist -exec rm -f {} \;
+find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;
 
 cmd=/usr/share/spec-helper/compress_files
 [ -x $cmd ] || cmd=/usr/lib/rpm/brp-compress
@@ -126,5 +118,8 @@ find %{buildroot}%{_prefix}             \
 %defattr(-,root,root)
 
 %changelog
-* Thu Aug 9 2012 kwin@09.kwin-sand.nym1.appnexus.net
-- Initial build.
+* Tue Oct 7 2014 kovert@omniscient.com 0.58.9
+  - split out to its own thing
+* Thu Aug 9 2012 kwin@appnexus.com 0.01
+  - Initial build.
+

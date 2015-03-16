@@ -39,7 +39,6 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA port_utils TO app_stab;
 
 GRANT SELECT,UPDATE,INSERT,DELETE	ON netblock TO app_stab;
 GRANT SELECT,UPDATE			ON netblock_netblock_id_seq TO app_stab;
-GRANT SELECT,UPDATE,INSERT,DELETE	ON secondary_netblock TO app_stab;
 GRANT SELECT,UPDATE,INSERT,DELETE	ON dns_record TO app_stab;
 GRANT SELECT,UPDATE			ON dns_record_dns_domain_id_seq TO app_stab;
 GRANT SELECT,UPDATE,INSERT		ON dns_domain TO app_stab;

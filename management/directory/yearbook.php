@@ -34,7 +34,7 @@ $query = "
 			using (person_id)
 	   	inner join company c
 			using (company_id)
-		inner join account a
+		inner join v_corp_family_account a
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
@@ -73,8 +73,7 @@ if(strlen($wherextra) >  0) {
 
 echo build_header("Yearbook", null, "Yearbook");
 
-echo locations_limit($dbconn);
-
+echo browsingMenu($dbconn, null, 'locations');
 
 $first = 0;
 while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {

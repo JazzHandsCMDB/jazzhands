@@ -18,6 +18,8 @@
 
 \set ON_ERROR_STOP
 
+/*
+
 \t on
 
 -- 
@@ -79,12 +81,12 @@ BEGIN
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment, operating_system_id,
-		ownership_status, is_monitored
+		service_environment_id, operating_system_id, is_monitored
 	) values (
 		_rpcdt.device_type_id, 'JHTEST rpc', 'up', 'JHTEST01',
-		'production', 0,
-		'owned', 'Y'
+		(select service_environment_id from service_environment
+		where service_environment_name = 'production'),
+		0, 'Y'
 	) RETURNING * into _rpc;
 
 	RAISE NOTICE ' ... test dev';
@@ -105,12 +107,12 @@ BEGIN
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment, operating_system_id,
-		ownership_status, is_monitored
+		service_environment_id, operating_system_id, is_monitored
 	) values (
 		_devdt.device_type_id, 'JHTEST device', 'up', 'JHTEST01',
-		'production', 0,
-		'owned', 'Y'
+		(select service_environment_id from service_environment
+		where service_environment_name = 'production'),
+		0, 'Y'
 	) RETURNING * into _dev;
 
 	RAISE NOTICE '++ Beginning tests of device_power...';
@@ -229,6 +231,22 @@ BEGIN
 	END;
 
 	RAISE NOTICE '++ Done tests of device_power...';
+	RAISE NOTICE 'Cleanup Test Records';
+	delete from device_power_connection
+		where rpc_device_id in
+			(select device_id from device where site_code like 'JHTEST%')
+		or device_id in
+			(select device_id from device where site_code like 'JHTEST%');
+	delete from device_power_interface where device_id in
+			(select device_id from device where site_code = 'JHTEST01');
+	delete from device_type_power_port_templt where device_type_id in
+			(select device_type_id from device_type 
+				where model like 'JHTEST%');
+	delete from device where site_code like 'JHTEST%' 
+		or device_name like 'JHTEST%';
+	delete from device_type where model like 'JHTEST%';
+	delete from rack where site_code = 'JHTEST01';
+	delete from site where site_code = 'JHTEST01';
 
 	RETURN true;
 END;
@@ -238,5 +256,7 @@ $$ LANGUAGE plpgsql;
 SELECT device_power_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION device_power_regression();
+
+*/
 
 \t off

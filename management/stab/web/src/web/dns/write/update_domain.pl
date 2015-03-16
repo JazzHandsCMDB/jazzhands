@@ -68,17 +68,21 @@ sub toggle_domain_autogen {
 	my ( $stab, $domid, $direction ) = @_;
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	my $sth = $stab->prepare_cached(qq{
+	my $sth = $stab->prepare_cached(
+		qq{
 		update dns_domain
 		   set	should_generate = :direction
 		 where	dns_domain_id = :dom
-	}) || $stab->return_db_err($dbh);
-	$sth->bind_param(':dom', $domid) || $stab->return_db_err($dbh);
-	$sth->bind_param(':direction', $direction) || $stab->return_db_err($dbh);
+	}
+	) || $stab->return_db_err($dbh);
+	$sth->bind_param( ':dom', $domid ) || $stab->return_db_err($dbh);
+	$sth->bind_param( ':direction', $direction )
+	  || $stab->return_db_err($dbh);
 	$sth->execute || $stab->return_db_err($dbh);
 
 	$dbh->commit;
 	$stab->msg_return( "Auto Generation Configuration Changed", undef, 1 );
+	undef $stab;
 }
 
 sub process_domain_soa_changes {

@@ -13,19 +13,29 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- Copyright (c) 2014 Todd Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 CREATE OR REPLACE FUNCTION validate_netblock()
 RETURNS TRIGGER AS $$
 DECLARE
 	nbtype				RECORD;
 	v_netblock_id		netblock.netblock_id%TYPE;
 	parent_netblock		RECORD;
+	netmask_bits		integer;
 BEGIN
-	/*
-	 * Force netmask_bits to be authoritative.  If netblock_bits is NULL
-	 * and this is a validated hierarchy, then set things to match the best
-	 * parent
-	 */
-
 	IF NEW.ip_address IS NULL THEN
 		RAISE EXCEPTION 'Column ip_address may not be null'
 			USING ERRCODE = 'not_null_violation';
@@ -52,21 +62,11 @@ BEGIN
 					USING ERRCODE = 'JH105';
 			END IF;
 
-			SELECT masklen(ip_address) INTO NEW.netmask_bits FROM
+			SELECT masklen(ip_address) INTO netmask_bits FROM
 				netblock WHERE netblock_id = v_netblock_id;
+
+			NEW.ip_address := set_masklen(NEW.ip_address, netmask_bits);
 		END IF;
-	END IF;
-
-	IF NEW.netmask_bits IS NULL THEN
-		NEW.netmask_bits := masklen(NEW.ip_address);
-	ELSIF TG_OP = 'UPDATE' AND NEW.netmask_bits = OLD.netmask_bits AND
-			masklen(NEW.ip_address) != masklen(OLD.ip_address) THEN
-
-		/* masklen changes, but netmask_bits doesn't, so prefer masklen */
-		NEW.netmask_bits := masklen(NEW.ip_address);
-	ELSE
-		/* If none of the above cases pass, then netmask_bits wins.  For now */
-		NEW.ip_address = set_masklen(NEW.ip_address, NEW.netmask_bits);
 	END IF;
 
 	/* Done with handling of netmasks */
@@ -133,7 +133,9 @@ DROP TRIGGER IF EXISTS tb_a_validate_netblock ON netblock;
 
 /* This should be lexicographically the first trigger to fire */
 
-CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR UPDATE ON
+CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR 
+	UPDATE OF netblock_id, ip_address, netblock_type, is_single_address,
+		can_subnet, parent_netblock_id, ip_universe_id ON
 	netblock FOR EACH ROW EXECUTE PROCEDURE
 	validate_netblock();
 
@@ -165,7 +167,7 @@ BEGIN
 	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
 	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
 		NEW.ip_address,
-		NEW.netmask_bits,
+		NULL,
 		NEW.netblock_type,
 		NEW.ip_universe_id,
 		NEW.is_single_address,
@@ -232,9 +234,14 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manipulate_netblock_parentage ON netblock;
 DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON netblock;
 
+/* XXX if parent_netblock_id is in the list, then it causes the tests to fail.
+ * this should probably be understood.
+ */
 CREATE TRIGGER tb_manipulate_netblock_parentage
-	BEFORE INSERT OR UPDATE OF
-		ip_address, netmask_bits, netblock_type, ip_universe_id
+	BEFORE INSERT OR UPDATE
+	OF
+		ip_address, netblock_type, ip_universe_id,
+		netblock_id, can_subnet, is_single_address
 	ON netblock
 	FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_before();
 
@@ -424,7 +431,7 @@ BEGIN
 		 */
 		parent_nbid := netblock_utils.find_best_parent_id(
 			realnew.ip_address,
-			masklen(realnew.ip_address),
+			NULL,
 			realnew.netblock_type,
 			realnew.ip_universe_id,
 			realnew.is_single_address,
@@ -492,7 +499,7 @@ BEGIN
 		ELSE
 			parent_nbid := netblock_utils.find_best_parent_id(
 				realnew.ip_address,
-				masklen(realnew.ip_address),
+				NULL,
 				realnew.netblock_type,
 				realnew.ip_universe_id,
 				realnew.is_single_address,
@@ -520,8 +527,9 @@ BEGIN
 				END IF;
 				IF (masklen(realnew.ip_address) != 
 						masklen(nbrec.ip_address)) THEN
-					RAISE 'Parent netblock % does not have same netmask as single-address child % (% vs %)',
-						parent_nbid, realnew.netblock_id, masklen(ipaddr),
+					RAISE 'Parent netblock % does not have the same netmask as single-address child % (% vs %)',
+						parent_nbid, realnew.netblock_id,
+						masklen(nbrec.ip_address),
 						masklen(realnew.ip_address)
 						USING ERRCODE = 'JH105';
 				END IF;
@@ -608,8 +616,46 @@ LANGUAGE plpgsql SECURITY DEFINER;
  * other triggers
  */
 
+
 DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage
-	AFTER INSERT OR UPDATE ON netblock DEFERRABLE INITIALLY DEFERRED
+	AFTER INSERT OR UPDATE OF 
+	netblock_id, ip_address, netblock_type, is_single_address,
+	can_subnet, parent_netblock_id, ip_universe_id 
+	ON netblock
+	DEFERRABLE INITIALLY DEFERRED 
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
+
+
+-----------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION netblock_single_address_ni() 
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF (NEW.is_single_address = 'N' AND OLD.is_single_address = 'Y') OR
+		(NEW.netblock_type != 'default' AND OLD.netblock_type = 'default')
+			THEN
+		select count(*)
+		INTO _tally
+		FROM network_interface
+		WHERE netblock_id = NEW.netblock_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'network interfaces must refer to single ip addresses of type default address (%,%)', NEW.ip_address, NEW.netblock_id
+				USING errcode = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_netblock_single_address_ni ON netblock;
+CREATE TRIGGER trigger_netblock_single_address_ni 
+	BEFORE UPDATE OF is_single_address, netblock_type
+	ON netblock 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE netblock_single_address_ni();
 

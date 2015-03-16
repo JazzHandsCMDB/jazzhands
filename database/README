@@ -41,8 +41,13 @@ Much of this needs to be written.
 Everything is in one database, but there are many schemas.  The main schema
 is jazzhands.  [ flesh out flesh out ]
 
-custom variable classes are used throughout for auditing.  For before postgresql
-	9.2, you need to  put: 
+To initialize the database:
+
+	createdb jazzhands
+	psql -d jazzhands -f create_pgsql_schema.sql
+
+custom variable classes are used throughout for auditing.  For before 
+postgresql 9.2, you need to  put: 
 		custom_variable_classes='jazzhands' in postgresql.conf 
 	(generally towards the end)
 

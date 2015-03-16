@@ -80,7 +80,6 @@ sub link_inaddr {
 		return 0;
 	}
 
-	my($ip, $bits) = split(m,/,, $block,2);
 	my $nblk = $c->DBFetch(
 		table           => 'netblock',
 		match           => { ip_address => $block, netblock_type => 'dns' },
@@ -91,14 +90,12 @@ sub link_inaddr {
 
 	if(!$nblk) {
 		$nblk = {
-			ip_address        => $ip,
-			netmask_bits	  => $bits,
+			ip_address        => $block,
 			netblock_type     => 'dns',
 			is_single_address => 'N',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
 			ip_universe_id    => 0,
-			is_ipv4_address   => ( $block =~ /:/ )?'N':'Y',
 		};
 		$c->DBInsert(
 			table => 'netblock',
@@ -487,9 +484,6 @@ sub refresh_dns_record {
 				can_subnet        => 'N',
 				netblock_status   => 'Allocated',
 				ip_universe_id    => 0,
-				is_ipv4_address   => ( $opt->{dns_type} eq 'A' )
-				? 'Y'
-				: 'N',
 			};
 			$c->dbh->do("SAVEPOINT biteme");
 			my $x = $c->DBInsert(
@@ -509,7 +503,6 @@ sub refresh_dns_record {
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
-						$nb->{netmask_bits}  = 32;
 						my $x = $c->DBInsert(
 							table => 'netblock',
 							hash  => $nb,

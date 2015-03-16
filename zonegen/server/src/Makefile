@@ -24,7 +24,7 @@
 # $Id$
 #
 
-SHSCRIPTS=do-zone-generation ssh-wrap
+SHSCRIPTS=generate-and-sync ssh-wrap
 PLSCRIPTS=generate-zones
 
 USER_DIR=/usr/local/sbin

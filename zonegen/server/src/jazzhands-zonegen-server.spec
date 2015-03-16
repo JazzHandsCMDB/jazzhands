@@ -4,7 +4,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.57.7
+Version:    0.59.7
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -13,7 +13,7 @@ BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
-Requires:   jazzhands-perl-common, perl-JazzHands-DBI, bind
+Requires:   jazzhands-perl-common, perl-JazzHands-DBI, perl-Net-IP, bind
 # bind is there for named-checkzone
 
 
@@ -27,7 +27,7 @@ Generates zone and configuration from JazzHands database
 
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/%{prefix}/%{zgroot}
-for file in do-zone-generation.sh generate-zones.pl ; do
+for file in generate-and-sync.sh generate-zones.pl ; do
 	newfn=`echo $file | sed 's/\..*$//'`
 	install -m 555  $file %{buildroot}/%{prefix}/%{zgroot}/$newfn
 done
@@ -39,7 +39,7 @@ rm -rf %{buildroot}
 %files
 %defattr(755,root,root,-)
 
-%{prefix}/%{zgroot}/do-zone-generation
+%{prefix}/%{zgroot}/generate-and-sync
 %{prefix}/%{zgroot}/generate-zones
 
 %post
@@ -54,6 +54,27 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
+* Wed Jan 12 2015 Todd Kover <kovert@omniscient.com> 0.59.7
+- add support for generating additional acls independent of sites
+* Thu Sep 11 2014 Todd Kover <kovert@omniscient.com> 0.58.6
+- better handle exclusions for child subnets assigned to different sites
+* Thu Sep 11 2014 Todd Kover <kovert@omniscient.com> 0.58.5
+- add --nogen option and more verbosity/debug
+* Wed Jun 25 2014 Todd Kover <kovert@omniscient.com> 0.58.4.2
+- fix path to spec file
+* Wed Jun 25 2014 Todd Kover <kovert@omniscient.com> 0.58.4.1
+- remove extra my that unfortunately change of a variable
+* Tue Jun 24 2014 Todd Kover <kovert@omniscient.com> 0.58.4
+- migrate to generate-and-sync from do-zone-generation
+* Fri Jun 20 2014 Todd Kover <kovert@omniscient.com> 0.58.3
+- generate the allzone_hostfile smartly, update docs
+- update docs wit detail of other changes that went in recently
+- make the mtime of a zone the same as the db's last generated date
+* Mon Jun  9 2014 Todd Kover <kovert@omniscient.com> 0.57.10
+- migrate zonegen to Net::IP from Net::Netmask
+- convert to postgresql native inetbaseness for ipv4
+- make in-addr generation work for ipv6
+- put ip6.arpa zones in their own directory
 * Wed Apr 30 2014 Todd Kover <kovert@omniscient.com> 0.57.7
 - make the acl root dir exist before creating file
 - sort pool records so they always end up in the same order

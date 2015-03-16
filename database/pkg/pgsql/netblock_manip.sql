@@ -83,23 +83,30 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	address_type			text DEFAULT 'netblock',
 	-- alternatvies: 'single', 'loopback'
 	can_subnet				boolean DEFAULT true,
-	allocate_from_bottom	boolean DEFAULT true,
+	allocation_method		text DEFAULT NULL,
+	-- alternatives: 'top', 'bottom', 'random',
+	rnd_masklen_threshold	integer DEFAULT 110,
+	rnd_max_count			integer DEFAULT 1024,
+	ip_address				jazzhands.netblock.ip_address%TYPE DEFAULT NULL,
 	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
 	netblock_status			jazzhands.netblock.netblock_status%TYPE
-								DEFAULT NULL
+								DEFAULT 'Allocated'
 ) RETURNS jazzhands.netblock AS $$
 DECLARE
 	netblock_rec	RECORD;
 BEGIN
-	SELECT netblock_manip.allocate_netblock(
+	SELECT * into netblock_rec FROM netblock_manip.allocate_netblock(
 		parent_netblock_list := ARRAY[parent_netblock_id],
 		netmask_bits := netmask_bits,
 		address_type := address_type,
 		can_subnet := can_subnet,
-		allocate_from_bottom := allocate_from_bottom,
 		description := description,
+		allocation_method := allocation_method,
+		ip_address := ip_address,
+		rnd_masklen_threshold := rnd_masklen_threshold,
+		rnd_max_count := rnd_max_count,
 		netblock_status := netblock_status
-	) into netblock_rec;
+	);
 	RETURN netblock_rec;
 END;
 $$ LANGUAGE plpgsql;
@@ -109,12 +116,16 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	parent_netblock_list	integer[],
 	netmask_bits			integer DEFAULT NULL,
 	address_type			text DEFAULT 'netblock',
-	-- alternatvies: 'single', 'loopback'
+	-- alternatives: 'single', 'loopback'
 	can_subnet				boolean DEFAULT true,
-	allocate_from_bottom	boolean DEFAULT true,
+	allocation_method		text DEFAULT NULL,
+	-- alternatives: 'top', 'bottom', 'random',
+	rnd_masklen_threshold	integer DEFAULT 110,
+	rnd_max_count			integer DEFAULT 1024,
+	ip_address				jazzhands.netblock.ip_address%TYPE DEFAULT NULL,
 	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
 	netblock_status			jazzhands.netblock.netblock_status%TYPE
-								DEFAULT NULL
+								DEFAULT 'Allocated'
 ) RETURNS jazzhands.netblock AS $$
 DECLARE
 	parent_rec		RECORD;
@@ -132,7 +143,7 @@ BEGIN
 		RAISE 'address_type must be one of netblock, single, or loopback'
 		USING ERRCODE = 'invalid_parameter_value';
 	END IF;
-		
+
 	IF netmask_bits IS NULL AND address_type = 'netblock' THEN
 		RAISE EXCEPTION
 			'You must specify a netmask when address_type is netblock'
@@ -142,7 +153,7 @@ BEGIN
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
 
-	FOR parent_rec IN SELECT * FROM netblock WHERE netblock_id = 
+	FOR parent_rec IN SELECT * FROM jazzhands.netblock WHERE netblock_id = 
 			ANY(allocate_netblock.parent_netblock_list) FOR UPDATE LOOP
 
 		IF parent_rec.is_single_address = 'Y' THEN
@@ -152,7 +163,8 @@ BEGIN
 
 		IF inet_family IS NULL THEN
 			inet_family := family(parent_rec.ip_address);
-		ELSIF inet_family != family(parent_rec.ip_address) THEN
+		ELSIF inet_family != family(parent_rec.ip_address) 
+				AND ip_address IS NULL THEN
 			RAISE EXCEPTION 'Allocation may not mix IPv4 and IPv6 addresses'
 			USING ERRCODE = 'JH10F';
 		END IF;
@@ -181,8 +193,7 @@ BEGIN
 	END LOOP;
 
  	IF NOT FOUND THEN
- 		RAISE EXCEPTION 'parent_netblock_list is not valid'
- 			USING ERRCODE = 'invalid_parameter_value';
+ 		RETURN NULL;
  	END IF;
 
 	IF address_type = 'loopback' THEN
@@ -193,16 +204,16 @@ BEGIN
 			parent_netblock_list := parent_netblock_list,
 			netmask_bits := loopback_bits,
 			single_address := false,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
+			desired_ip_address := ip_address,
 			max_addresses := 1
 			);
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'No valid netblocks found to allocate'
-			USING ERRCODE = 'JH110';
+			RETURN NULL;
 		END IF;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -212,7 +223,6 @@ BEGIN
 			netblock_status
 		) VALUES (
 			inet_rec.ip_address,
-			loopback_bits,
 			inet_rec.netblock_type,
 			'N',
 			'N',
@@ -221,7 +231,7 @@ BEGIN
 			allocate_netblock.netblock_status
 		) RETURNING * INTO parent_rec;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -230,15 +240,17 @@ BEGIN
 			description,
 			netblock_status
 		) VALUES (
-			inet_rec,
-			masklen(inet_rec),
+			inet_rec.ip_address,
 			parent_rec.netblock_type,
 			'Y',
 			'N',
-			parent_rec.ip_universe_id,
+			inet_rec.ip_universe_id,
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
+
+		PERFORM dns_utils.add_domains_from_netblock(
+			netblock_id := netblock_rec.netblock_id);
 
 		RETURN netblock_rec;
 	END IF;
@@ -247,18 +259,20 @@ BEGIN
 		SELECT * INTO inet_rec FROM netblock_utils.find_free_netblocks(
 			parent_netblock_list := parent_netblock_list,
 			single_address := true,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
+			desired_ip_address := ip_address,
+			rnd_masklen_threshold := rnd_masklen_threshold,
+			rnd_max_count := rnd_max_count,
 			max_addresses := 1
 			);
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'No valid netblocks found to allocate'
-			USING ERRCODE = 'JH110';
+			RETURN NULL;
 		END IF;
 
-		RAISE NOTICE 'ip_address is %', inet_rec.ip_address;
+		RAISE DEBUG 'ip_address is %', inet_rec.ip_address;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -283,15 +297,15 @@ BEGIN
 			parent_netblock_list := parent_netblock_list,
 			netmask_bits := netmask_bits,
 			single_address := false,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
+			desired_ip_address := ip_address,
 			max_addresses := 1);
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'No valid netblocks found to allocate'
-			USING ERRCODE = 'JH110';
+			RETURN NULL;
 		END IF;
 
-		INSERT INTO netblock (
+		INSERT INTO jazzhands.netblock (
 			ip_address,
 			netblock_type,
 			is_single_address,
@@ -308,6 +322,9 @@ BEGIN
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
+
+		PERFORM dns_utils.add_domains_from_netblock(
+			netblock_id := netblock_rec.netblock_id);
 
 		RETURN netblock_rec;
 	END IF;

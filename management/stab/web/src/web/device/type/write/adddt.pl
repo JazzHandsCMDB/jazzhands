@@ -168,6 +168,7 @@ sub do_device_type_add {
 	}
 	$stab->rollback;
 	$stab->msg_return( "Nothing to do", undef, 1 );
+	undef $stab;
 }
 
 sub process_physical_portage {

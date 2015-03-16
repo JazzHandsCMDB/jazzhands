@@ -39,7 +39,7 @@ print $stab->start_html( { -title => "Netblock and IP Allocation" } ), "\n";
 my $persiteq = qq{
 	select	nb.netblock_id,
 		net_manip.inet_dbtop(nb.ip_address) as ip,
-		nb.netmask_bits,
+		masklen(nb.ip_address) as masklen,
 		nb.description
 	  from	netblock nb
 		inner join site_netblock snb
@@ -53,7 +53,6 @@ my $q = qq{
 	select 	s.site_code,
 	 	c.company_name,
 		-- p.address, XXX
-		s.npanxx,
 		s.site_status,
 		s.description
 	  from	site s
@@ -72,7 +71,7 @@ print $cgi->h2( { -align => 'center' }, "IP Network Allocation" ), "\n";
 
 my $curperrow = -1;
 my $rowtxt    = "";
-while ( my ( $sitecode, $name, $addr, $npanxx, $status, $desc ) =
+while ( my ( $sitecode, $name, $addr, $status, $desc ) =
 	$sth->fetchrow_array )
 {
 	if ( ++$curperrow == $maxperrow ) {
@@ -94,8 +93,10 @@ while ( my ( $sitecode, $name, $addr, $npanxx, $status, $desc ) =
 		) . "\n";
 	}
 
-	my $sitelink = $cgi->a({-href=>"./?SITE_CODE=$sitecode"}, $sitecode);
+	my $sitelink =
+	  $cgi->a( { -href => "./?SITE_CODE=$sitecode" }, $sitecode );
 	my $entry =
+
 	  #$cgi->table({-border => 1, -width=>'100%', -align=>'top'},
 	  $cgi->table(
 		{ -width => '100%', -align => 'top' },
@@ -135,6 +136,8 @@ print $cgi->end_html, "\n";
 $dbh->rollback;
 $dbh->disconnect;
 $dbh = undef;
+
+undef $stab;
 
 END {
 	if ( defined($dbh) ) {

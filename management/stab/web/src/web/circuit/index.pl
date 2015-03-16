@@ -44,6 +44,7 @@ sub do_circuit_toplevel {
 	} else {
 		dump_circuit( $stab, $circid );
 	}
+	undef $stab;
 }
 
 sub circuit_search {

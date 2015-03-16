@@ -1,4 +1,4 @@
--- Copyright (c) 2011, Todd M. Kover
+-- Copyright (c) 2011-2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,26 +21,33 @@ WITH RECURSIVE var_recurse (
 	level,
 	root_company_id,
 	company_id,
-	account_collection_id
+	account_collection_id,
+	array_path,
+	cycle
 ) as (
 	SELECT	
 		0				as level,
 		c.company_id			as root_company_id,
 		c.company_id			as company_id,
-		d.account_collection_id		as account_collection_id
+		d.account_collection_id		as account_collection_id,
+		ARRAY[c.company_id]		as array_path,
+		false
 	  FROM	company c
-		inner join department d
-			on c.company_id = d.company_id
+		inner join department d USING (company_id)
 UNION ALL
 	SELECT	
 		x.level + 1			as level,
 		x.company_id			as root_company_id,
 		c.company_id			as company_id,
-		d.account_collection_id		as account_collection_id
+		d.account_collection_id		as account_collection_id,
+		c.company_id || x.array_path	as array_path,
+		c.company_id = ANY (x.array_path)	as cycle
 	  FROM	var_recurse x
 		inner join company c
 			on c.parent_company_id = x.company_id
 		inner join department d
 			on c.company_id = d.company_id
+	WHERE
+		NOT x.cycle
 ) SELECT	distinct root_company_id as company_id, account_collection_id
   from 		var_recurse;

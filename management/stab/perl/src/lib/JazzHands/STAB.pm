@@ -51,6 +51,7 @@ use JazzHands::STAB::Device;
 use JazzHands::STAB::Rack;
 use JazzHands::DBI;
 use JazzHands::Common qw(:all);
+use Net::IP;
 
 use CGI;    #qw(-no_xhtml);
 use CGI::Pretty;
@@ -122,12 +123,11 @@ sub new {
 
 	#	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
-
 	$self->textfield_sizing(1);
 	bless $self, $class;
 
-	if(!exists($opt->{nocheck_perms})) {
-		if(! $self->check_permissions() ) {
+	if ( !exists( $opt->{nocheck_perms} ) ) {
+		if ( !$self->check_permissions() ) {
 			$self->return_permission_denied();
 		}
 	}
@@ -138,17 +138,17 @@ sub new {
 sub return_permission_denied {
 	my $self = shift @_;
 
-	my $cgi = $self->cgi;
-	my $refurl = $cgi->referer;
+	my $cgi      = $self->cgi;
+	my $refurl   = $cgi->referer;
 	my $stabroot = $self->guess_stab_root();
 
-	if($refurl && $refurl =~ m,^$stabroot,) {
+	if ( $refurl && $refurl =~ m,^$stabroot, ) {
 		$self->error_return("Permission Denied");
 	}
 
-	print $cgi->header(
-		-status => 403
-	);
+	print $cgi->header( -status => 403 );
+	$self->rollback;
+	$self->disconnect;
 	exit 0;
 }
 
@@ -164,7 +164,7 @@ sub cgi {
 #
 sub support_email {
 	my $self = shift @_;
-	my $email = $self->fetch_property('Defaults', '_supportemail');
+	my $email = $self->fetch_property( 'Defaults', '_supportemail' );
 	$email || '-- email support address not set --';
 }
 
@@ -172,7 +172,7 @@ sub check_permissions {
 	my $self = shift;
 	my $role = shift;
 
-	$role = 'StabAccess' if(!$role);
+	$role = 'StabAccess' if ( !$role );
 
 	my $q = qq{
 		select	count(*)
@@ -188,7 +188,7 @@ sub check_permissions {
 
 	my $sth = $self->prepare($q) || $self->return_db_err;
 
-	$sth->execute($self->{_username}, $role) || die $self->return_db_err;
+	$sth->execute( $self->{_username}, $role ) || die $self->return_db_err;
 
 	my ($count) = $sth->fetchrow_array;
 	$sth->finish;
@@ -263,6 +263,31 @@ sub start_html {
 				},
 			);
 		}
+		if ( $opts->{javascript} eq 'netblock_collection' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src =>
+"$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$root/javascript-common/common.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/netblock-collection.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/ajax-utils.js"
+				}
+			);
+		}
 		if ( $opts->{javascript} eq 'netblock' ) {
 			push(
 				@{ $args{-script} },
@@ -331,6 +356,11 @@ sub start_html {
 		if ( $opts->{javascript} eq 'rack' ) {
 			push(
 				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src =>
+"$root/javascript-common/external/jQuery/jquery.js",
+				},
 				{
 					-language => 'JavaScript',
 					-src => "$stabroot/javascript/racks.js"
@@ -640,6 +670,8 @@ sub error_return {
 
 	my $dbh = $self->dbh;
 	$dbh->rollback;
+	$dbh->ping;
+	$dbh->disconnect;
 	exit;
 }
 
@@ -660,6 +692,8 @@ sub msg_return {
 
 	my $dbh = $self->dbh;
 	$dbh->rollback;
+	$dbh->ping;
+	$dbh->disconnect;
 	exit;
 }
 
@@ -1202,15 +1236,15 @@ sub b_dropdown {
 			  from	val_production_state
 			order by description, production_state
 		};
-	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT' ) {
+	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT_ID' ) {
 		$q = qq{
-			select	service_environment, 
+			select	service_environment_id,
 				coalesce(description,
-					concat(service_environment,
+					concat(service_environment_name,
 						' (', production_state, ')'))
 						as description
 			  from	service_environment
-			order by description, service_environment
+			order by description, service_environment_name
 		};
 	} elsif ( $selectfield eq 'NETWORK_INTERFACE_TYPE' ) {
 		$q = qq{
@@ -1251,9 +1285,15 @@ sub b_dropdown {
 	} elsif (  $selectfield eq 'COMPANY_ID'
 		|| $selectfield =~ /_COMPANY_ID$/ )
 	{
+		my $ct = ($params->{'-company_type'})?
+			q{
+			inner join company_type using (company_id)
+			where company_type = :company_type
+			}:"";
 		$q = qq{
 			select	company_id, company_name
 			  from	company
+				$ct
 			order by lower(company_name)
 		};
 		$pickone = "Choose";
@@ -1543,6 +1583,18 @@ sub b_dropdown {
 			select	rack_type, description
 			  from	val_racK_type;
 		};
+	} elsif ( $selectfield eq 'NETBLOCK_COLLECTION_TYPE' ) {
+		my $d = 'netblock_collection_type';
+		if(defined($params->{-desc}) && $params->{-desc} eq 'expand') {
+			$d = q{
+					netblock_collection_type || ' (' || description || ')' as
+						description
+			};
+		}
+		$q = qq{
+			select	netblock_collection_type,  $d
+			  from	val_netblock_collection_type;
+		};
 	} else {
 		return "-XX-";
 	}
@@ -1575,6 +1627,10 @@ sub b_dropdown {
 
 	if ( defined($dnsdomaintype) ) {
 		$sth->bind_param( ':dnsdomaintype', $dnsdomaintype );
+	}
+
+	if ( defined($params->{'-company_type'}) ) {
+		$sth->bind_param( ':company_type', $params->{'-company_type'} );
 	}
 
 	$sth->execute || $self->return_db_err($sth);
@@ -1680,7 +1736,7 @@ sub b_dropdown {
 			);
 		}
 		if ( $params->{'-dolinkUpdate'} eq 'rack' ) {
-			my $root = $self->guess_stab_root() . "/sites/rack/";
+			my $root    = $self->guess_stab_root() . "/sites/rack/";
 			my $redirid = "rack_link" . $id;
 			$onchange =
 			  "setRackLinkRedir(\"$id\", \"$redirid\", \"$root\")";
@@ -1851,7 +1907,7 @@ sub b_textfield {
 	if ( !defined($size) && $self->textfield_sizing ) {
 		$size =
 		  ( defined($allf) && length($allf) > 60 ) ? length($allf) : 60;
-		$size = 30  if ( $field eq 'LEASE_EXPIRATION_DATE' );
+		$size = 30 if ( $field eq 'LEASE_EXPIRATION_DATE' );
 
 		$size = 7  if ( $field =~ /APPROVAL_REF_NUM\b/ );
 		$size = 20 if ( $field eq 'SNMP_COMMSTR' );
@@ -1974,16 +2030,20 @@ sub build_tr {
 		$f = $values->{$field} || "";
 	}
 
+	my $args = {};
+	if ( exists( $params->{-noaligntr} ) ) {
+		1;
+	} elsif ( exists( $params->{-align} ) ) {
+		$args->{-align} = $params->{-align};
+	} else {
+		$args = { -align => 'right', -valign => 'bottom' };
+	}
+
 	my $postpend = $params->{'-postpend_html'} || "";
 	$f .= $postpend;
 
-	my $rv = $cgi->Tr(
-		$cgi->td(
-			{ -align => 'right', -valign => 'bottom' },
-			$cgi->b($header)
-		),
-		$cgi->td($f)
-	) . "\n";
+	my $rv =
+	  $cgi->Tr( $cgi->td( $args, $cgi->b($header) ), $cgi->td($f) ) . "\n";
 
 	$rv;
 }
@@ -2120,7 +2180,7 @@ sub parse_netblock_search {
 		return $self->error_return("You specified an invalid address");
 	}
 
-	my $parent = $self->guess_parent_netblock_id($bycidr, undef, 'Y');
+	my $parent = $self->guess_parent_netblock_id( $bycidr, undef, 'Y' );
 
 	# zero is 0/0, which is also considered "not found"
 	if ( !$parent ) {
@@ -2155,13 +2215,13 @@ sub parse_netblock_description_search {
 }
 
 sub guess_stab_root {
-	my ($self, $abs) = @_;
+	my ( $self, $abs ) = @_;
 
 	my $cgi = $self->cgi;
 
 	my $root = $cgi->url( { -full => 1 } );
 	if ( $root =~ /~.*stab/ || $root =~ m,/stab/, ) {
-			$root =~ s,(stab).*$,$1,;
+		$root =~ s,(stab).*$,$1,;
 	} else {
 		$root = $cgi->url( { -base => 1 } );
 	}
@@ -2460,7 +2520,8 @@ sub add_power_ports {
 		if ( defined($prefix) ) {
 			$portname = "$prefix$i";
 		}
-		$sth->execute( $devtypid, $portname, $pstyl, $volt, $maxamp, $dopwr, $isopt )
+		$sth->execute( $devtypid, $portname, $pstyl, $volt, $maxamp,
+			$dopwr, $isopt )
 		  || $self->return_db_err($dbh);
 		$total++;
 	}
@@ -2476,16 +2537,15 @@ sub add_physical_ports {
 	my $cgi = $self->cgi || die "Could not create cgi";
 	my $dbh = $self->dbh || die "Could not create dbh";
 
-	my $prefix = $self->cgi_parse_param("${captype}_PORT_PREFIX");
-	my $start  = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
-	my $count  = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
-	my $tcp  = $self->cgi_parse_param("${captype}_TCP_PORT_START");
-    my $purpose  = $self->cgi_parse_param("${captype}_PORT_PURPOSE");
-    my $speed  = $self->cgi_parse_param("${captype}_PORT_SPEED");
-    my $protocol  = $self->cgi_parse_param("${captype}_PORT_PROTOCOL");
-    my $medium  = $self->cgi_parse_param("${captype}_PORT_MEDIUM");
-    my $plug  = $self->cgi_parse_param("${captype}_PORT_PLUG_STYLE");
-
+	my $prefix  = $self->cgi_parse_param("${captype}_PORT_PREFIX");
+	my $start   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
+	my $count   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
+	my $tcp     = $self->cgi_parse_param("${captype}_TCP_PORT_START");
+	my $purpose = $self->cgi_parse_param("${captype}_PORT_PURPOSE");
+	my $speed   = $self->cgi_parse_param("${captype}_PORT_SPEED");
+	my $protocol = $self->cgi_parse_param("${captype}_PORT_PROTOCOL");
+	my $medium   = $self->cgi_parse_param("${captype}_PORT_MEDIUM");
+	my $plug     = $self->cgi_parse_param("${captype}_PORT_PLUG_STYLE");
 
 	if ( !defined($count) ) {
 		$self->error_return(
@@ -2523,7 +2583,7 @@ sub add_physical_ports {
 			port_plug_style, port_medium, port_protocol, port_speed,
 			port_purpose, tcp_port
 		) values (
-			:typeid, :name, :type,
+			:typeid, :name, :porttype,
 			:plug, :medium, :protocol, :speed,
 			:purpose, :tcpport
 		)
@@ -2537,25 +2597,62 @@ sub add_physical_ports {
 			if ( defined($prefix) ) {
 				$portname = "$prefix$i";
 			}
-			$sth->bind_param(':typeid', $devtypid) || $self->return_db_err($dbh);
-			$sth->bind_param(':name', $portname) || $self->return_db_err($dbh);
-			$sth->bind_param(':type', $type) || $self->return_db_err($dbh);
-			$sth->bind_param(':plug', $plug) || $self->return_db_err($dbh);
-			$sth->bind_param(':medium', $medium) || $self->return_db_err($dbh);
-			$sth->bind_param(':protocol', $protocol) || $self->return_db_err($dbh);
-			$sth->bind_param(':speed', $speed) || $self->return_db_err($dbh);
-			$sth->bind_param(':purpose', $purpose) || $self->return_db_err($dbh);
-			if($tcp) {
-				$sth->bind_param(':tcpport', $tcp + ($i-$start) ) || $self->return_db_err($dbh);
+			$sth->bind_param( ':typeid', $devtypid )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':name', $portname )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':porttype', $type )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':plug', $plug )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':medium', $medium )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':protocol', $protocol )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':speed', $speed )
+			  || $self->return_db_err($dbh);
+			$sth->bind_param( ':purpose', $purpose )
+			  || $self->return_db_err($dbh);
+
+			if ($tcp) {
+				$sth->bind_param( ':tcpport',
+					$tcp + ( $i - $start ) )
+				  || $self->return_db_err($dbh);
 			} else {
-				$sth->bind_param(':tcpport',  undef ) || $self->return_db_err($dbh);
+				$sth->bind_param( ':tcpport', undef )
+				  || $self->return_db_err($dbh);
 			}
 			$sth->execute || $self->return_db_err($dbh);
 			$total++;
 		}
 	} else {
-		$sth->execute( $devtypid, $prefix, $type )
+		my $portname = $prefix;
+		$sth->bind_param( ':typeid', $devtypid )
 		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':name', $portname )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':porttype', $type )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':plug', $plug )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':medium', $medium )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':protocol', $protocol )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':speed', $speed )
+		  || $self->return_db_err($dbh);
+		$sth->bind_param( ':purpose', $purpose )
+		  || $self->return_db_err($dbh);
+
+		if ($tcp) {
+			$sth->bind_param( ':tcpport',
+				$tcp )
+			  || $self->return_db_err($dbh);
+		} else {
+			$sth->bind_param( ':tcpport', undef )
+			  || $self->return_db_err($dbh);
+		}
+		$sth->execute || $self->return_db_err($dbh);
 		$total++;
 	}
 	$total;
@@ -2564,15 +2661,8 @@ sub add_physical_ports {
 sub validate_ip {
 	my ( $self, $ip ) = @_;
 
-	my (@octets) = split( /\./, $ip );
-	return 0 if ( $#octets != 3 );
-
-	for ( my $i = 0 ; $i <= $#octets ; $i++ ) {
-		return 0 if ( !length($i) );
-		return 0 if ( $i !~ /^\d+$/ );
-		return 0 if ( $i > 255 );
-	}
-	return 1;
+	my $i = new Net::IP($ip) || return 0;
+	return $i->version();
 }
 
 #
@@ -2634,6 +2724,7 @@ sub DESTROY {
 	}
 	if ( defined($dbh) ) {
 		$dbh->rollback;
+		$dbh->ping;
 		$dbh->disconnect;
 		$self->{dbh} = undef;
 	}

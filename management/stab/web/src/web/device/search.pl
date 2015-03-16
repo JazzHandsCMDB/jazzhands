@@ -28,21 +28,21 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use Net::Netmask;
+use Net::IP;
 
 do_device_search();
 
 sub find_devices {
-	my ( $stab, $name, $ipblock, $type, $os, $mac, $serial ) = @_;
+	my ( $stab, $name, $ipblock, $type, $os, $mac, $serial, $dormd ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my ( $ip, $bits );
 	if ( defined($ipblock) ) {
-		my $nb = new2 Net::Netmask($ipblock);
+		my $nb = new Net::IP($ipblock);
 		if ( defined($nb) ) {
-			( $ip, $bits ) = ( $nb->base, $nb->bits );
+			( $ip, $bits ) = ( $nb->short, $nb->prefixlen );
 		} else {
 			$stab->error_return("That is an invalid IP address");
 		}
@@ -54,13 +54,13 @@ sub find_devices {
 	if ( defined($name) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .=
-			" (lower(d.device_name) like lower(:name) or lower(dns.dns_name) like lower(:name) or lower(d.physical_label) like lower(:name))";
+" (lower(d.device_name) like lower(:name) or lower(dns.dns_name) like lower(:name) or lower(d.physical_label) like lower(:name))";
 
 	}
 
 	if ( defined($serial) ) {
 		$criteria .= " and " if ( length($criteria) );
-		$criteria .= " (lower(d.serial_number) like lower(:serial)";
+		$criteria .= " (lower(a.serial_number) like lower(:serial)";
 		$criteria .= "  OR lower(d.host_id) like lower(:serial))";
 	}
 
@@ -77,6 +77,11 @@ sub find_devices {
 	if ( defined($os) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .= " d.operating_system_id = :os ";
+	}
+
+	if ( !$dormd || $dormd eq 'Y' ) {
+		$criteria .= " and " if ( length($criteria) );
+		$criteria .= "(device_name is null or device_status = 'removed')";
 	}
 
 	# switch /32 lookups to be simple ip_address = X
@@ -105,6 +110,8 @@ sub find_devices {
 				on nb.netblock_id = ni.netblock_id
 			left join dns_record dns
 				on dns.netblock_id = nb.netblock_id
+			left join asset a
+				on a.asset_id = d.asset_id
 		 where	
 			$criteria
 		 order by d.device_name
@@ -134,6 +141,7 @@ sub find_devices {
 		  || $stab->return_db_err($sth);
 	}
 	if ( defined($mac) ) {
+
 		# XXX
 		# my $intmac = $stab->int_mac_from_text($mac);
 		$sth->bind_param( ":mac", $mac )
@@ -162,6 +170,9 @@ sub do_device_search {
 	my $byos     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
 	my $Search   = $stab->cgi_parse_param('Search');
 
+	my $dormd   = $stab->cgi_parse_param('INCLUDE_REMOVED');
+	$dormd = $stab->mk_chk_yn($dormd);
+
 	$cgi->delete('devlist');
 
 	#
@@ -181,7 +192,7 @@ sub do_device_search {
 
 	my @searchresults =
 	  find_devices( $stab, $byname, $byip, $bytype, $byos, $bymac,
-		$byserial );
+		$byserial, $dormd );
 
 	#
 	# exactly one search result, so redirect to that result.  If Search is
@@ -195,7 +206,8 @@ sub do_device_search {
 	} elsif ( $#searchresults > 0 ) {
 		if ( $#searchresults > 500 ) {
 			$stab->error_return(
-				"Too many matches ($#searchresults).  Please limit your query");
+"Too many matches ($#searchresults).  Please limit your query"
+			);
 		}
 		my $devlist = join( ",", @searchresults );
 		my $url = $stab->build_passback_url( devlist => $devlist );
@@ -205,5 +217,6 @@ sub do_device_search {
 
 	$stab->msg_return("No devices found matching that criteria");
 
+	undef $stab;
 	exit 0;
 }

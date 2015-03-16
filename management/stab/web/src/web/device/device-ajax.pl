@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use CGI;
 use JazzHands::Common::Util qw(_dbx);
@@ -52,14 +51,13 @@ sub do_show_serial {
 	my $side     = $stab->cgi_parse_param('side')                 || undef;
 	my $passedin = $stab->cgi_parse_param('passedin')             || undef;
 	my $xml      = $stab->cgi_parse_param('xml')                  || 'no';
-	my $json      = $stab->cgi_parse_param('json')                || 'no';
+	my $json     = $stab->cgi_parse_param('json')                 || 'no';
 	my $parent   = $stab->cgi_parse_param('parent')               || undef;
 	my $osid     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID')  || undef;
 	my $site     = $stab->cgi_parse_param('SITE_CODE')            || undef;
-	my $locid    = $stab->cgi_parse_param('LOCATION_ID')          || undef;
-	my $dropid = $stab->cgi_parse_param('dropid') || undef;
-	my $uniqid = $stab->cgi_parse_param('uniqid');
-  
+	my $locid    = $stab->cgi_parse_param('RACK_LOCATION_ID')     || undef;
+	my $dropid   = $stab->cgi_parse_param('dropid')               || undef;
+	my $uniqid   = $stab->cgi_parse_param('uniqid');
 
 	if ( $what eq 'serial' ) {
 		$what = 'Serial';
@@ -94,9 +92,9 @@ sub do_show_serial {
 	if ( $xml eq 'yes' ) {
 		print $cgi->header("text/xml");
 		print "<response>\n";
-	} elsif( $json eq 'yes') {
+	} elsif ( $json eq 'yes' ) {
 		print $cgi->header("text/json");
-	} elsif( $xml eq 'no') {
+	} elsif ( $xml eq 'no' ) {
 		print $cgi->header("text/html");
 	}
 
@@ -136,18 +134,21 @@ sub do_show_serial {
 				$values{"P1_PHYSICAL_PORT_ID"} = $pportid;
 			}
 		}
-		print $stab->b_dropdown( $args, _dbx(\%values),
+		print $stab->b_dropdown( $args, _dbx( \%values ),
 			"P${side}_PHYSICAL_PORT_ID", 'P1_PHYSICAL_PORT_ID' );
 	} elsif ( $what eq 'PowerPorts' ) {
 		my %values;
 		$values{'P1_DEVICE_ID'}            = $devid;
 		$values{'P1_POWER_INTERFACE_PORT'} = $piport;
 		if ( $devid && $devid =~ /^\d+/ ) {
-			print $stab->b_dropdown( { -deviceid => $devid },
-				_dbx(\%values), 'P2_POWER_INTERFACE_PORT',
-				'P1_POWER_INTERFACE_PORT' );
+			print $stab->b_dropdown(
+				{ -deviceid => $devid },
+				_dbx( \%values ),
+				'P2_POWER_INTERFACE_PORT',
+				'P1_POWER_INTERFACE_PORT'
+			);
 		} else {
-			print $stab->b_dropdown( undef, _dbx(\%values),
+			print $stab->b_dropdown( undef, _dbx( \%values ),
 				'P2_POWER_INTERFACE_PORT',
 				'P1_POWER_INTERFACE_PORT' );
 		}
@@ -185,7 +186,7 @@ sub do_show_serial {
 		print $stab->device_switch_port( $devid, $parent );
 	} elsif ( $what eq 'PatchPanel' ) {
 		print $stab->device_patch_ports($devid);
-	} elsif($what eq 'Licenses') {
+	} elsif ( $what eq 'Licenses' ) {
 		print $stab->device_license_tab($devid);
 	} elsif ( $what eq 'PhysicalConnection' ) {
 		if ($row) {
@@ -195,36 +196,36 @@ sub do_show_serial {
 			print $stab->device_physical_connection( $devid,
 				$pportid );
 		}
-	} elsif($what eq 'IpRow') {
+	} elsif ( $what eq 'IpRow' ) {
+
 		# params, blk, hr, ip, reservation
-		print $stab->build_netblock_ip_row(
-			{-uniqid => $uniqid},
-		);
-	} elsif($what eq 'LicenseDrop') {
+		print $stab->build_netblock_ip_row( { -uniqid => $uniqid }, );
+	} elsif ( $what eq 'LicenseDrop' ) {
 		my $values = undef;
-		my $args = {};
+		my $args   = {};
 		$args->{-deviceCollectionType} = 'applicense';
-		$args->{-id} = $dropid;
-		$args->{-name} = $dropid;
-		print $stab->b_dropdown($args, $values,
-			'DEVICE_COLLECTION_ID', 'DEVICE_ID');
+		$args->{-id}                   = $dropid;
+		$args->{-name}                 = $dropid;
+		print $stab->b_dropdown( $args, $values,
+			'DEVICE_COLLECTION_ID', 'DEVICE_ID' );
 	} elsif ( $what eq 'SiteRacks' ) {
 		my $p;
 		if ( $locid || $site ) {
 			$p = {};
-			$p->{LOCATION_ID}        = $locid if ($locid);
+			$p->{RACK_LOCATION_ID}        = $locid if ($locid);
 			$p->{LOCATION_SITE_CODE} = $site  if ($site);
 		}
 		if ( $type && $type eq 'dev' ) {
 			print $stab->b_dropdown(
 				{ -site => $site, -dolinkUpdate => 'rack' },
-				$p, 'LOCATION_RACK_ID', 'LOCATION_ID', 1 );
+				$p, 'LOCATION_RACK_ID', 'RACK_LOCATION_ID', 1 );
 		} else {
 			print $stab->b_dropdown( { -site => $site },
-				$p, 'RACK_ID', 'LOCATION_ID', 1 );
+				$p, 'RACK_ID', 'RACK_LOCATION_ID', 1 );
 		}
 	} elsif ( $what eq 'interfacedns' ) {
-		my $sth = $stab->prepare(qq{
+		my $sth = $stab->prepare(
+			qq{
 			select	dns.dns_record_id,
 					dns.dns_domain_id,
 					dom.soa_name,
@@ -236,34 +237,36 @@ sub do_show_serial {
 			 where	ni.network_interface_id= ?
 			 order by dns.should_generate_ptr desc, dns.dns_record_id
 			 limit 1
-		}) || $stab->return_db_err();
+		}
+		) || $stab->return_db_err();
 		$sth->execute($niid) || die $sth->errstr;
 		my $row = $sth->fetchrow_hashref;
 		$sth->finish;
 		my $doms = "";
-		if($row) {
-			$doms = $stab->build_dns_drop( 
-				$row->{ _dbx('DNS_DOMAIN_ID')},
-				$type );
+		if ($row) {
+			$doms =
+			  $stab->build_dns_drop(
+				$row->{ _dbx('DNS_DOMAIN_ID') }, $type );
 		}
 		my $j = JSON::PP->new->utf8;
-		my $r = { 
+		my $r = {
 			'NETWORK_INTERFACE_ID' => $niid,
-			'domains' => $doms,
-			'DNS_NAME' => {
+			'domains'              => $doms,
+			'DNS_NAME'             => {
 				'name' => "DNS_NAME_$niid",
-				'id' => "DNS_NAME_$niid",
+				'id'   => "DNS_NAME_$niid",
 				'type' => 'text',
 			},
 			'DNS_DOMAIN' => {
 				'name' => "DNS_DOMAIN_ID_$niid",
-				'id' => "DNS_DOMAIN_ID_$niid",
+				'id'   => "DNS_DOMAIN_ID_$niid",
 				'type' => 'input',
 			}
 		};
-		if($row) {
-			if(exists($row->{_dbx('DNS_NAME')})) {
-				$r->{"DNS_NAME"}->{'value'} = $row->{_dbx('DNS_NAME')};
+		if ($row) {
+			if ( exists( $row->{ _dbx('DNS_NAME') } ) ) {
+				$r->{"DNS_NAME"}->{'value'} =
+				  $row->{ _dbx('DNS_NAME') };
 			}
 		}
 		print $j->encode($r);
@@ -283,4 +286,5 @@ sub do_show_serial {
 	if ( $dbh && $dbh->{'Active'} ) {
 		$dbh->commit;
 	}
+	undef $stab;
 }

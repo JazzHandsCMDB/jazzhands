@@ -42,4 +42,5 @@ sub do_domain_search {
 	my $id  = $stab->cgi_parse_param('DNS_DOMAIN_ID');
 	my $url = "index.pl?dnsdomainid=$id";
 	$cgi->redirect($url);
+	undef $stab;
 }

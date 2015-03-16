@@ -15,17 +15,9 @@ sub get_login {
 	my($dbh, $personid) = @_;
 
 	my $sth = $dbh->prepare_cached(qq{
-	       select  a.login
-		 from   account a
-			inner join v_person_company_expanded pc
-				using (person_id)
+	       select  lower(a.login) as login
+		 from   v_corp_family_account a
 		where   person_id = ?
-		and     pc.company_id in (
-				select  property_value_company_id
-				  from  property
-				 where  property_name = '_rootcompanyid'
-				   and  property_type = 'Defaults'
-			)
 	}) || die $dbh->errstr;
 	$sth->execute($personid) || die $sth->errstr;
 	my $login = ($sth->fetchrow_array)[0];
@@ -46,11 +38,11 @@ sub check_admin {
 			inner join v_acct_coll_acct_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
-			inner join account a
+			inner join v_corp_family_account a
 				on ae.account_id = a.account_id
 		 where  p.property_name = 'PhoneDirectoryAdmin'
 		  and   p.property_type = 'PhoneDirectoryAttributes'
-		  and   a.login = ?
+		  and   lower(a.login) = lower(?)
 	}) || die $dbh->errstr;
 
 	$sth->execute($login) || die $sth->errstr;
@@ -82,7 +74,7 @@ sub get_pic_owner {
 sub do_work {
 	my $cgi = new CGI;
 
-	my $dbh = JazzHands::DBI->connect('directory', {AutoCommit => 0}) ||
+	my $dbh = JazzHands::DBI->connect('directory_rw', {AutoCommit => 0}) ||
 		die $JazzHands::DBI::errstr;
 
 

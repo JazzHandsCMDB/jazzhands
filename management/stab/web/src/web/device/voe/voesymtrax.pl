@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -64,6 +63,7 @@ sub do_operating_system {
 	print $cgi->end_form;
 
 	print $cgi->end_html;
+	undef $stab;
 }
 
 sub manip_voe_trax {

@@ -229,7 +229,6 @@ img.removex {
 
 /* kooky inline div and 50%/-50% is to keep it centered */
 div#resultsparents {
-	margin-top: -2ex; /* need to figure out why this is needed */
 	position:absolute; 
 	left:50%;
 }

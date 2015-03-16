@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
@@ -53,14 +52,14 @@ sub do_netblock_search {
 	}
 
 	if ( defined($bycidr) ) {
-		my $blk = $stab->parse_netblock_search($bycidr);
+		my $blk = $stab->parse_netblock_search( $bycidr, undef, 'Y' );
 
 		if ( !defined($blk) ) {
 			$cgi->delete('orig_return');
 			$stab->error_return(
 				"Could not locate a netblock $bycidr");
 		}
-		my $blkid = $blk->{_dbx('NETBLOCK_ID')};
+		my $blkid = $blk->{ _dbx('NETBLOCK_ID') };
 
 		my $url = "index.pl?nblkid=$blkid";
 		$cgi->redirect($url);
@@ -82,13 +81,13 @@ sub do_netblock_search {
 
 			my $x = "";
 			foreach my $id ( sort numerically keys(%$blks) ) {
-				my $blk = $blks->{$id};
-				my $mask =
-				  $blk->{_dbx('IP')} . "/" . $blk->{_dbx('NETMASK_BITS')};
-				my $desc = $blk->{_dbx('DESCRIPTION')};
-				my $tix  = $blk->{_dbx('RESERVATION_TICKET_NUMBER')};
-				my $pid  = $blk->{_dbx('PARENT_NETBLOCK_ID')};
-				my $stat = $blk->{_dbx('NETBLOCK_STATUS')};
+				my $blk  = $blks->{$id};
+				my $mask = $blk->{ _dbx('IP_ADDRESS') };
+				my $desc = $blk->{ _dbx('DESCRIPTION') };
+				my $tix =
+				  $blk->{ _dbx('RESERVATION_TICKET_NUMBER') };
+				my $pid  = $blk->{ _dbx('PARENT_NETBLOCK_ID') };
+				my $stat = $blk->{ _dbx('NETBLOCK_STATUS') };
 
 				$desc = ( defined($desc) ? $desc : "" );
 				$tix  = ( defined($tix)  ? $tix  : "" );
@@ -141,7 +140,7 @@ sub do_netblock_search {
 				$x
 			);
 			print $cgi->end_html;
-			$dbh->rollback;
+			undef $stab;
 			exit;
 		}
 	}

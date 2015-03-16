@@ -1,4 +1,4 @@
--- Copyright (c) 2011, Todd M. Kover
+-- Copyright (c) 2011-2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,36 +17,38 @@
 --
 
 CREATE OR REPLACE VIEW v_person_company_expanded AS
-WITH RECURSIVE var_recurse (
+WITH RECURSIVE var_recurse(
 	level,
 	root_company_id,
 	company_id,
-	person_id
-) as (
-	SELECT	
-		0				as level,
-		c.company_id			as root_company_id,
-		c.company_id			as company_id,
-		pc.person_id			as person_id
-	  FROM	company c
-		inner join person_company pc
-			on c.company_id = pc.company_id
+	parent_company_id,
+	person_id,
+	array_path,
+	 cycle
+) AS (
+	SELECT 
+		0				AS level,
+		c.company_id			AS root_company_id,
+		c.company_id			AS company_id,
+		c.parent_company_id		AS parent_company_id,
+		pc.person_id			AS person_id,
+		ARRAY[c.company_id]		AS array_path,
+		false 				AS cycle
+	FROM company c
+		INNER JOIN person_company pc USING (company_id)
 UNION ALL
-	SELECT	
-		x.level + 1			as level,
-		x.company_id			as root_company_id,
-		c.company_id			as company_id,
-		pc.person_id			as person_id
-	  FROM	var_recurse x
-		inner join company c
-			on c.parent_company_id = x.company_id
-		inner join person_company pc
-			on c.company_id = pc.company_id
-) SELECT	distinct root_company_id as company_id, person_id
-  from 		var_recurse;
-
-
-
-
-
+	SELECT
+		x.level + 1			AS level,
+		x.root_company_id		AS root_company_id,
+		c.company_id			AS company_id,
+		c.parent_company_id		AS parent_company_id,
+		x.person_id			AS person_id,
+		c.company_id || x.array_path	AS array_path,
+		c.company_id = ANY (x.array_path) AS cycle
+	FROM var_recurse x
+		INNER JOIN company c ON x.parent_company_id = c.company_id
+	WHERE NOT x.cycle
+)
+SELECT var_recurse.company_id, var_recurse.person_id
+FROM var_recurse;
 

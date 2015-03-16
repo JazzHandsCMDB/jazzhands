@@ -67,15 +67,18 @@ sub do_add_a_zone {
 			)
 		)
 	);
-	print $stab->build_tr(
-		undef, 
-		'b_dropdown', 
-		'Domain Type',
-		'DNS_DOMAIN_TYPE',
-		'DNS_DOMAIN_TYPE',
-	);
 
 	print $cgi->Tr(
+		{ -align => 'center' },
+		$cgi->td(
+			$cgi->b("Domain Type: ")
+			  . $stab->b_dropdown(
+				undef, undef,
+				'DNS_DOMAIN_TYPE', 'DNS_DOMAIN_TYPE', 1
+			  ),
+		),
+	  ),
+	  $cgi->Tr(
 		{ -align => 'center' },
 		$cgi->td(
 			$stab->build_checkbox(
@@ -106,5 +109,5 @@ sub do_add_a_zone {
 	print $cgi->end_table;
 
 	print $cgi->end_form;
-
+	undef $stab;
 }

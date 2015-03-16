@@ -39,7 +39,7 @@ function check_admin($dbconn, $login) {
 			inner join v_acct_coll_acct_expanded ae
 				on ae.account_collection_id =
 					ac.account_collection_id
-			inner join account a
+			inner join v_corp_family_account a
 				on ae.account_id = a.account_id
 
 		 where	p.property_name = 'PhoneDirectoryAdmin'
@@ -160,12 +160,10 @@ pg_query($dbconn, "begin");
 
 $personid = (isset($_GET['person_id']))? $_GET['person_id']:null;
 
-// the order by is used to get the non-NULL ones pushed to the top.  THis is
-// due to the left join matching account_collection_account
-// and account_collection when a person is part of more than one.  That should
-// probably be a sub-select, but I am feeling lazy.
+// the order by is used to get the non-NULL ones pushed to the top , tho now
+// there should be only one row
 $query = "
-	select  distinct p.person_id,
+	select  p.person_id,
 		coalesce(p.preferred_first_name, p.first_name) as first_name,
 		coalesce(p.preferred_last_name, p.last_name) as last_name,
 		coalesce(pc.nickname, p.nickname) as nickname,
@@ -191,19 +189,21 @@ $query = "
 		ofc.section,
 		ofc.seat_number
 	   from person p
-	   	inner join person_company pc
-			using (person_id)
-	   	inner join company c
-			using (company_id)
-		inner join account a
+	   	inner join (
+			select * from person_company
+			where hire_date is null or hire_date <= now()
+		) pc using (person_id)
+		inner join company c using (company_id)
+		inner join v_corp_family_account a
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
-		left join account_collection_account aca
-			on aca.account_id = a.account_id
-		left join account_collection ac
-			on ac.account_collection_id = aca.account_collection_id
-			and ac.account_collection_type = 'department'
+		left join ( select ac.*, account_id
+					FROM account_collection ac
+						INNER JOIN account_collection_account
+						USING (account_collection_id)
+					WHERE account_collection_type = 'department'
+		) ac USING (account_id)
 		left join (     
         	select  pi.*, piu.person_image_usage
        		  from	person_image pi
@@ -228,8 +228,7 @@ $query = "
 				pl.seat_number
 			from   person_location pl
 				inner join physical_address pa
-					on pl.physical_address_id =
-						pa.physical_address_id
+					USING (physical_address_id)
 			where   pl.person_location_type = 'office'
 			order by site_rank
 		) ofc on ofc.person_id = p.person_id
@@ -281,15 +280,22 @@ if(isset($title)) {
 	echo build_tr("Title", $title);
 }
 
-/* Was $deptc at the end, which includes the company */
-echo build_tr("Department", hierlink('department', $row['account_collection_id'],
+if(isset($row['account_collection_id'])) {
+	/* Was $deptc at the end, which includes the company */
+	echo build_tr("Department", hierlink('department', $row['account_collection_id'],
                 $row['account_collection_name']));
-
-$email = get_email( $dbconn, $row{'person_id'} );
-if( $email == null) {
-	$email = $row['login']."@". get_default_domain($dbconn);
+} else {
+	echo build_tr("Department", 'NONE');
 }
 
+	$email = get_email( $dbconn, $row{'person_id'} );
+if(isset($email) || isset($row['login'])) {
+	if( $email == null) {
+		$email = $row['login']."@". get_default_domain($dbconn);
+	}
+} else {
+	$email = "<b> NONE </b>";
+}
 echo build_tr("Email", $email);
 
 if(isset($manager)) {
@@ -371,7 +377,7 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 	<b> <center> Phone Qualifiers </center> </b>
 	PRIVATE: Not to be shared outside company.  
 	<br>
-	HIDDEN:  Visible to person, their managers and administrators.
+	HIDDEN:  Visible only to person, their managers and administrators.
 	</td>
 </tr>
 <?php

@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
@@ -47,38 +46,43 @@ exit do_apps();
 # javascript relies on some of these classnames.
 #
 sub build_hier {
-	my ($stab, $tier, $depth) = @_;
+	my ( $stab, $tier, $depth ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $root = $stab->guess_stab_root;
 
 	my $t;
-	while(my $item = shift( @{$tier->{keys}} )) {
+	while ( my $item = shift( @{ $tier->{keys} } ) ) {
 		my $x = $item;
 		my $y = "";
-		if(exists( $tier->{kids}->{$item} ) ) {
-			$y = build_hier($stab,  $tier->{kids}->{$item}, $depth + 1 ) || "";
-			
+		if ( exists( $tier->{kids}->{$item} ) ) {
+			$y = build_hier( $stab, $tier->{kids}->{$item},
+				$depth + 1 )
+			  || "";
+
 		}
 
 		my $canadd = 0;
-		if( $tier->{hr}->{$item} && 
-			(!$tier->{hr}->{$item}->{_dbx('NUM_DEVICES')} || 
-				$tier->{hr}->{$item}->{_dbx('NUM_KIDS')}) ) {
-					$canadd = 1;
+		if (
+			$tier->{hr}->{$item}
+			&& (      !$tier->{hr}->{$item}->{ _dbx('NUM_DEVICES') }
+				|| $tier->{hr}->{$item}->{ _dbx('NUM_KIDS') } )
+		  )
+		{
+			$canadd = 1;
 		}
 
-	 	# FOR NOW - no add functionality written, so that needs to be written
-		# before this can be flipped on...
-  		$canadd = 0;
+	   # FOR NOW - no add functionality written, so that needs to be written
+	   # before this can be flipped on...
+		$canadd = 0;
 
 		my $style1 = "";
 		my $style2 = "";
-		$style1 .= "margin-left: " . ($depth * 20) . "px;";
+		$style1 .= "margin-left: " . ( $depth * 20 ) . "px;";
 
-		my $id1 = $item."_depth";
+		my $id1   = $item . "_depth";
 		my $class = "approle_depth";
-		if(!$y) {
-			if($canadd) {
+		if ( !$y ) {
+			if ($canadd) {
 				$class = 'approle_undecided';
 			} else {
 				$class = 'approle_leaf';
@@ -88,41 +92,60 @@ sub build_hier {
 		}
 
 		my $img = "collapse.jpg";
-		if($depth == 0) {
+		if ( $depth == 0 ) {
 			$class = "approle_root";
-			$id1 = $item."_root";
-			# 20 is hard coded in AddAppChild in app-utils.js, so would
-			# need to be changed there, too.
-			$style2 .= "margin-left: " . ($depth * 20 + 5) . "px;";
+			$id1   = $item . "_root";
+
+		     # 20 is hard coded in AddAppChild in app-utils.js, so would
+		     # need to be changed there, too.
+			$style2 .=
+			  "margin-left: " . ( $depth * 20 + 5 ) . "px;";
 			$style2 .= " display: none;";
 			$img = "expand.jpg";
 		}
 
-		my $id = $item;
+		my $id    = $item;
 		my $imgid = $item . "_arrow";
-		my $a = $cgi->a({-href=>'javascript:void(null)',
-					-onClick => qq{AppTreeManip("$id", "$imgid");},
-				}, 
-				$cgi->img({-id=>$imgid, -src => "$root/stabcons/$img"})
-				#"-+>"
+		my $a     = $cgi->a(
+			{
+				-href    => 'javascript:void(null)',
+				-onClick => qq{AppTreeManip("$id", "$imgid");},
+			},
+			$cgi->img(
+				{
+					-id  => $imgid,
+					-src => "$root/stabcons/$img"
+				}
+			  )
+
+			  #"-+>"
 		);
 
-		$a = "" if (!$y || !length($y));
+		$a = "" if ( !$y || !length($y) );
 
 		my $addkids = "";
-		if($canadd) {
+		if ($canadd) {
 			$addkids = $cgi->a(
-				{-href=>"javascript:void(null);",
-					-class => 'approle_addchild',
+				{
+					-href    => "javascript:void(null);",
+					-class   => 'approle_addchild',
 					-onClick => qq{AddAppChild("$id1");},
-				}, "(add)");
+				},
+				"(add)"
+			);
 		}
 
 		if ($y) {
-			$y = $cgi->div({-style => $style2, -id=>$id }, $y );
+			$y = $cgi->div( { -style => $style2, -id => $id }, $y );
 		}
-		$t .= $cgi->div({-style => $style1, -class => $class,
-			-id => $id1 }, $a, $x, $addkids, $y);
+		$t .= $cgi->div(
+			{
+				-style => $style1,
+				-class => $class,
+				-id    => $id1
+			},
+			$a, $x, $addkids, $y
+		);
 
 		$style1 = $style2 = $class = undef;
 	}
@@ -137,13 +160,17 @@ sub do_apps {
 	# my $devtypid = $stab->cgi_parse_param('DEVICE_TYPE_ID');
 
 	print $cgi->header('text/html');
-	print $stab->start_html({-title=>"Application Roles",
-		-javascript => 'apps',
-		});
+	print $stab->start_html(
+		{
+			-title      => "Application Roles",
+			-javascript => 'apps',
+		}
+	);
 
 	my $cl = {};
 
-	my $sth = $stab->prepare(qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	x.*,
 				coalesce(devs.tally, 0) as num_devices,
 				coalesce(kids.tally, 0) as num_kids
@@ -169,7 +196,8 @@ sub do_apps {
 					  group by parent_device_collection_id
 				) kids on kids.device_collection_id = x.role_id
 		order by x.root_role_id, length(role_path), role_level
-	});
+	}
+	);
 	$sth->execute || $stab->return_db_err($sth);
 
 	# setup appgroup styles named after each path, and muck with disable
@@ -184,34 +212,35 @@ sub do_apps {
 	my $tier = {};
 	$tier->{kids} = {};
 	my $lastroot = "";
-	while(my $hr = $sth->fetchrow_hashref) {
+	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $cur = $tier->{kids};
-		my $bo = $tier;
-		my $fullp = $hr->{_dbx('ROLE_PATH')} . "/" . $hr->{_dbx('ROLE_NAME')};
+		my $bo  = $tier;
+		my $fullp =
+		  $hr->{ _dbx('ROLE_PATH') } . "/" . $hr->{ _dbx('ROLE_NAME') };
 
-		# in oracle, ROLE_PATH was just /, did not include the curent one.
-		# This may make more sense, but the postgresql version does it so the
-		# path is fully qualified.  Need to rethink.  XXX
-		my $splitem = $hr->{_dbx('ROLE_PATH')};
-		my $rn = $hr->{_dbx('ROLE_NAME')};
+	   # in oracle, ROLE_PATH was just /, did not include the curent one.
+	   # This may make more sense, but the postgresql version does it so the
+	   # path is fully qualified.  Need to rethink.  XXX
+		my $splitem = $hr->{ _dbx('ROLE_PATH') };
+		my $rn      = $hr->{ _dbx('ROLE_NAME') };
 		$splitem =~ s,$rn$,,;
-		foreach my $elem (split('/', $splitem)) {
-			next if($elem eq '');
-			if(!exists($cur->{$elem})) {
+		foreach my $elem ( split( '/', $splitem ) ) {
+			next if ( $elem eq '' );
+			if ( !exists( $cur->{$elem} ) ) {
 				$cur->{$elem} = {};
 				$cur->{$elem}->{kids} = {};
 			}
-			$bo = $cur->{$elem};
+			$bo  = $cur->{$elem};
 			$cur = $cur->{$elem}->{kids};
 		}
 
-		if(!exists($bo->{keys})) {
+		if ( !exists( $bo->{keys} ) ) {
 			$bo->{keys} = [];
-			$bo->{hr} = {};
+			$bo->{hr}   = {};
 		}
-		push( @{$bo->{keys}}, $hr->{_dbx('ROLE_NAME')});
+		push( @{ $bo->{keys} }, $hr->{ _dbx('ROLE_NAME') } );
 
-		$bo->{hr}->{ $hr->{_dbx('ROLE_NAME')} } = $hr;
+		$bo->{hr}->{ $hr->{ _dbx('ROLE_NAME') } } = $hr;
 	}
 
 	# print $cgi->pre(Dumper ( $tier ) );
@@ -222,30 +251,52 @@ sub do_apps {
 
 	# recurision is icky, but I'm lazy.  My AP Computer Science Teacher
 	# would be uber happy.
-	my $x = build_hier($stab, $tier, 0);
+	my $x = build_hier( $stab, $tier, 0 );
 
-	print $cgi->div({-style => 'text-align: center;', -align=>'center',
-		-class => 'approle'}, 
-			qq{
+	print $cgi->div(
+		{
+			-style => 'text-align: center;',
+			-align => 'center',
+			-class => 'approle'
+		},
+		qq{
 				Note that those items in green can be
 				assigned to devices, and they will automatically be
 				assigned everything in the "tree" above them (the elements
 				in black).  Device can be (and often are) assigned 
 				multiple roles.
 			},
-  	$cgi->div({-class => 'approle_inside'},
-		$cgi->span(
-			$cgi->a({-href=> "javascript:void(null);",
-				-onClick => 'BalanceTree("collapse")'}, "collapse all"), '//',
-			$cgi->a({-href=> "javascript:void(null);",
-				-onClick => 'BalanceTree("expand")'}, "expand all"),
-		),
-		$cgi->div({-style => 'text-align: left;'},  $x )
-	));
+		$cgi->div(
+			{ -class => 'approle_inside' },
+			$cgi->span(
+				$cgi->a(
+					{
+						-href =>
+						  "javascript:void(null);",
+						-onClick =>
+						  'BalanceTree("collapse")'
+					},
+					"collapse all"
+				),
+				'//',
+				$cgi->a(
+					{
+						-href =>
+						  "javascript:void(null);",
+						-onClick =>
+						  'BalanceTree("expand")'
+					},
+					"expand all"
+				),
+			),
+			$cgi->div( { -style => 'text-align: left;' }, $x )
+		)
+	);
 
 	print $cgi->end_html;
 
-	$x = undef;
+	$x    = undef;
 	$tier = undef;
+	undef $stab;
 	1;
 }

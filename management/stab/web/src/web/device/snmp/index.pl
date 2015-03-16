@@ -27,7 +27,6 @@
 
 use strict;
 use warnings;
-use Net::Netmask;
 use FileHandle;
 use JazzHands::STAB;
 
@@ -64,7 +63,7 @@ sub do_device_snmp_page {
 			wr_string,
 			purpose
 		  from	snmp_commstr
-		 where	device_id = :1
+		 where	device_id = ?
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
@@ -111,6 +110,7 @@ sub do_device_snmp_page {
 
 	$dbh->rollback;
 	$dbh->disconnect;
+	undef $stab;
 }
 
 sub build_snmp_row {

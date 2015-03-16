@@ -1,4 +1,4 @@
--- Copyright (c) 2013, Todd M. Kover
+-- Copyright (c) 2013-2015, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,46 +17,57 @@
 --
 
 --
--- The layer1_connection get the physical_port1/2 columns to make joining
+-- The inter_component_connection get the slot1/2 columns to make joining
 -- a little easier.  I waffled.  -kovert
 --
 CREATE OR REPLACE VIEW v_physical_connection AS
 with recursive var_recurse (
 	level,
-	layer1_connection_id,
+	inter_component_connection_id,
 	PHYSICAL_CONNECTION_ID,
-	layer1_physical_port1_id,
-	layer1_physical_port2_id,
-	physical_port1_id,
-	physical_port2_id
+	inter_dev_conn_slot1_id,
+	inter_dev_conn_slot2_id,
+	slot1_id,
+	slot2_id,
+	array_path,
+	cycle
 ) as (
 	       select 	0,
-			l1.layer1_connection_id,
+			l1.inter_component_connection_id,
 			pc.PHYSICAL_CONNECTION_ID,
-	                l1.physical_port1_id	as layer1_physical_port1_id,
-	                l1.physical_port2_id	as layer1_physical_port2_id,
-	                pc.physical_port1_id,
-	                pc.physical_port2_id
-	          from  layer1_connection l1
+	                l1.slot1_id	as inter_dev_conn_slot1_id,
+	                l1.slot2_id	as inter_dev_conn_slot2_id,
+	                pc.slot1_id,
+	                pc.slot2_id,
+			ARRAY[slot1_id] as array_path,
+			false			 as cycle
+	          from  inter_component_connection l1
 	        	inner join physical_connection pc
-				using (physical_port1_id)
+				using (slot1_id)
 UNION ALL
        select 	x.level + 1,
-		x.layer1_connection_id,
+		x.inter_component_connection_id,
 		pc.PHYSICAL_CONNECTION_ID,
-                x.physical_port1_id 	as layer1_physical_port1_id,
-                x.physical_port2_id 	as layer1_physical_port2_id,
-                pc.physical_port1_id,
-                pc.physical_port2_id
+                x.slot1_id 	as inter_dev_conn_slot1_id,
+                x.slot2_id 	as inter_dev_conn_slot2_id,
+                pc.slot1_id,
+                pc.slot2_id,
+		pc.slot2_id || x.array_path as array_path,
+		pc.slot2_id = ANY(x.array_path) as cycle
 	FROM    var_recurse x
 	        inner join physical_connection pc
-	                on x.physical_port2_id = pc.physical_port1_id
+	                on x.slot2_id = pc.slot1_id
 ) select
 	level,
-	layer1_connection_id,
+	inter_component_connection_id,
+	inter_component_connection_id as layer1_connection_id,
 	PHYSICAL_CONNECTION_ID,
-	layer1_physical_port1_id,
-	layer1_physical_port2_id,
-	physical_port1_id,
-	physical_port2_id
+	inter_dev_conn_slot1_id,
+	inter_dev_conn_slot2_id,
+	inter_dev_conn_slot1_id as layer1_physical_port1_id,
+	inter_dev_conn_slot2_id as layer1_physical_port2_id,
+	slot1_id,
+	slot2_id,
+	slot1_id as physical_port1_id,
+	slot2_id as physical_port2_id
 from var_recurse;

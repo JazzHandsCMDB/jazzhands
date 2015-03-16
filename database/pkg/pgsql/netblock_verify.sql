@@ -51,7 +51,6 @@ $$ LANGUAGE plpgsql;
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION count_matching_rows(
 	in_ip_address	netblock.ip_address%type,
-	in_bits		netblock.netmask_bits%type
 ) RETURNS integer AS $$
 DECLARE
 	v_return	boolean := false;
@@ -61,7 +60,6 @@ begin
 	  into v_count
 	  from netblock
 	 where ip_address = in_ip_address
-	   and netmask_bits = in_bits;
 
 	 return(v_count); 
 exception when NO_DATA_FOUND then
@@ -73,6 +71,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- given a netblock id, fills in parent address and bits
+--
+-- This is only used by oracle and should be retired
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION get_netblock_ip_and_bits (
 	in_netblock_id		in     netblock.netblock_id%type,
@@ -80,7 +80,7 @@ CREATE OR REPLACE FUNCTION get_netblock_ip_and_bits (
 	in_parent_bits		out     netblock.netmask_bits%type
 ) RETURNS void AS $$
 begin
-	select	ip_address, netmask_bits
+	select	ip_address, family(ip_address) as netmask_bits
 	  into	in_parent_ipaddress, in_parent_bits
 	  from	NETBLOCK
 	 where	netblock_id = in_netblock_id;
