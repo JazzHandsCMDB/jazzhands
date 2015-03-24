@@ -257,7 +257,7 @@ BEGIN
 	delete from network_interface where device_id = in_Device_id;
 
 	PERFORM device_utils.purge_physical_ports( in_Device_id);
-	PERFORM device_utils.purge_power_ports( in_Device_id);
+--	PERFORM device_utils.purge_power_ports( in_Device_id);
 
 	delete from property where device_collection_id in (
 		SELECT	dc.device_collection_id 
