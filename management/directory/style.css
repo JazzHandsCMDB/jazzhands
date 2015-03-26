@@ -23,13 +23,13 @@ img {
 	color: inherit;
 }
 
-div.deptlist {
+div.teamlist {
 	text-align: center;
 	display: inline;
 	margin: 20%;
 }
 
-div.deptlist ul {
+div.teamlist ul {
 	margin: auto;
 	text-align: left;
 	margin-left: 30%;

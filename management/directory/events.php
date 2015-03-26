@@ -22,13 +22,33 @@ $query ="
 		WHERE	account_collection_type = 'system'
 		AND		account_collection_name IN
 				('noeventsbirthday', 'noeventsanniversary')
-	), events AS (
+	), birthdaycompanyok AS (
+		SELECT	s.site_code, company_id
+		FROM	site s
+				INNER JOIN property p on s.colo_company_id = p.company_id
+		WHERE	p.property_name = 'ShowBirthday'
+		AND		p.property_type = 'PhoneDirectoryAttributes'
+	), officemap AS (
+	    select  pa.physical_address_id,
+				pl.person_id,
+				pa.display_label,
+				pa.company_id,
+				pl.building,
+				pl.floor,
+				pl.section,
+				pl.seat_number
+	    from   person_location pl
+				inner join physical_address pa
+					USING (physical_address_id)
+	    where   pl.person_location_type = 'office'
+	    order by site_rank
+	), anniversary AS (
 		select	p.person_id,
 			coalesce(p.preferred_first_name, p.first_name) as first_name,
 			coalesce(p.preferred_last_name, p.last_name) as last_name,
 			date_part('epoch', pc.hire_date) as whence,
 			pc.hire_date as whence_human,
-			'Hire Date' as event,
+			'Hire Date'::text as event,
             CASE WHEN pc.hire_date IS NOT NULL THEN
 			round(extract('epoch' FROM (select
 					date_trunc('year',now()) - date_trunc('year',pc.hire_date)
@@ -43,54 +63,40 @@ $query ="
 			SELECT person_id
 			FROM perlimit
 			WHERE restrict = 'noeventsanniversary'
-		) UNION
+		)
+	), birthdays AS (
 		select p.person_Id,
 			coalesce(p.preferred_first_name, p.first_name) as first_name,
 			coalesce(p.preferred_last_name, p.last_name) as last_name,
 			date_part('epoch', p.birth_date) as whence,
 			p.birth_date as whence_human,
-			'Birthday' as event,
-			NULL as duration
+			'Birthday'::text as event,
+			NULL::numeric as duration
 		FROM	person p
+			INNER JOIN officemap USING (person_id)
+			INNER JOIN birthdaycompanyok USING (company_id)
 		WHERE	p.birth_date is not null
 		AND person_id NOT IN (
 			SELECT person_id
 			FROM perlimit
 			WHERE restrict = 'noeventsbirthday'
 		)
-	), officemap AS (
-	    select  pa.physical_address_id,
-				pl.person_id,
-				pa.display_label,
-				pl.building,
-				pl.floor,
-				pl.section,
-				pl.seat_number
-	    from   person_location pl
-				inner join physical_address pa
-					USING (physical_address_id)
-	    where   pl.person_location_type = 'office'
-	    order by site_rank
+	), events AS (
+		SELECT * FROM anniversary UNION SELECT * FROM birthdays
 	) SELECT events.*, officemap.display_label as office_location
 		FROM events
 		INNER JOIN (
 			SELECT * from person_company
 			WHERE hire_date is null or hire_date <= now()
 		) pc USING (person_id)
-		INNER JOIN v_person_company_expanded vpc USING(person_id)
+		INNER JOIN v_corp_family_account USING (person_id, company_id)
 		INNER JOIN val_person_status vps
-			ON ( vps.person_status =
-					pc.person_company_status
+			ON ( vps.person_status = pc.person_company_status
 			 AND    vps.is_disabled = 'N'
 			)
 		LEFT JOIN officemap USING (person_id)
-	WHERE   vpc.company_id in (
-			select  property_value_company_id
-			  from  property
-		 where  property_name = '_rootcompanyid'
-			   and  property_type = 'Defaults'
-		)
-	AND	pc.person_company_relation = 'employee'
+	WHERE   
+	pc.person_company_relation = 'employee'
     $addrsubq
 	ORDER BY date_part('month', whence_human),
 		date_part('day', whence_human),

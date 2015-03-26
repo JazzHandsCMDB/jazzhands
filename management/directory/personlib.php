@@ -18,7 +18,7 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 		 } else {
 			$arr = array(
 				'byname' => "By Name",
-				'bydept' => "By Dept",
+				'bydept' => "By Team",
 				'byoffice' => "By Office",
 				'hier' => "By Org",
 				'random' => "Random"
@@ -147,8 +147,8 @@ function yearbooklink($personid, $text) {
 function hierlink($index, $id, $text) {
 	if($index == 'reports') {
 		$link = "./?index=$index&person_id=".$id;
-	} elseif($index == 'department') {
-		$link = "./?index=$index&department_id=".$id;
+	} elseif($index == 'team') {
+		$link = "./?index=$index&team_id=".$id;
 	} else {
 		$link = $_SERVER['PHP_SELF'];
 	}
