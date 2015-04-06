@@ -265,6 +265,7 @@ insert into val_property_type (
 insert into val_property (
         property_name,
         property_type,
+        permit_account_collection_id,
         property_data_type,
         description
 ) values (
