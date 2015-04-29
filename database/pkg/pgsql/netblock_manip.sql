@@ -13,8 +13,21 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-drop schema if exists netblock_manip cascade;
-create schema netblock_manip authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'netblock_manip';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS netblock_manip;
+                CREATE SCHEMA netblock_manip AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA netblock_manip IS 'part of jazzhands';
+        END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION netblock_manip.delete_netblock(
 	in_netblock_id	jazzhands.netblock.netblock_id%type

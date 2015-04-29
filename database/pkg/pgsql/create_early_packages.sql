@@ -57,3 +57,4 @@
 \i net_manip.sql
 \i network_strings.sql
 \i time_util.sql
+\i dns_utils.sql

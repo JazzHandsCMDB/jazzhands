@@ -23,9 +23,21 @@
  * $Id$
  */
 
-drop schema if exists network_strings cascade;
-create schema network_strings authorization jazzhands;
-COMMENT ON SCHEMA network_strings IS 'part of jazzhands';
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'network_strings';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS network_strings;
+                CREATE SCHEMA network_strings AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA network_strings IS 'part of jazzhands';
+        END IF;
+END;
+$$;
 
 
 -------------------------------------------------------------------
