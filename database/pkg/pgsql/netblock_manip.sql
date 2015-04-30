@@ -133,6 +133,7 @@ DECLARE
 	inet_rec		RECORD;
 	loopback_bits	integer;
 	inet_family		integer;
+	ip_addr			ALIAS FOR ip_address;
 BEGIN
 	IF parent_netblock_list IS NULL THEN
 		RAISE 'parent_netblock_list must be specified'
@@ -150,11 +151,30 @@ BEGIN
 			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
+	IF ip_address IS NOT NULL THEN
+		SELECT 
+			array_agg(netblock_id)
+		INTO
+			parent_netblock_list
+		FROM
+			netblock n
+		WHERE
+			ip_addr <<= n.ip_address AND
+			netblock_id = ANY(parent_netblock_list);
+
+		IF parent_netblock_list IS NULL THEN
+			RAISE 'IP address % is not in any parent netblock passed',
+				ip_address
+			USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
 
 	FOR parent_rec IN SELECT * FROM jazzhands.netblock WHERE netblock_id = 
-			ANY(allocate_netblock.parent_netblock_list) FOR UPDATE LOOP
+			ANY(allocate_netblock.parent_netblock_list) ORDER BY netblock_id
+			FOR UPDATE LOOP
 
 		IF parent_rec.is_single_address = 'Y' THEN
 			RAISE EXCEPTION 'parent_netblock_id refers to a single_address netblock'
