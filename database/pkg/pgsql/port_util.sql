@@ -43,9 +43,22 @@
  * $Id$
  */
 
-drop schema if exists port_utils cascade;
-create schema port_utils authorization jazzhands;
-COMMENT ON SCHEMA port_utils IS 'part of jazzhands';
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'port_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS port_utils;
+                CREATE SCHEMA port_utils AUTHORIZATION jazzhands;
+                COMMENT ON SCHEMA port_utils IS 'part of jazzhands';
+        END IF;
+END;
+$$;
+
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM

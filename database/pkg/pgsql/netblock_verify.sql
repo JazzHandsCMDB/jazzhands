@@ -23,8 +23,21 @@
  * $Id$
  */
 
-drop schema netblock_verify cascade;
-create schema netblock_verify authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'netblock_verify';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS netblock_verify;
+                CREATE SCHEMA netblock_verify AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA netblock_verify IS 'part of jazzhands';
+        END IF;
+END;
+$$;
 
 
 /* XXX
