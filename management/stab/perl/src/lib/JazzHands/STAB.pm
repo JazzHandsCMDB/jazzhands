@@ -123,8 +123,8 @@ sub new {
 
 	#	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
-	$self->textfield_sizing(1);
 	bless $self, $class;
+	$self->textfield_sizing(1);
 
 	if ( !exists( $opt->{nocheck_perms} ) ) {
 		if ( !$self->check_permissions() ) {

@@ -369,7 +369,7 @@ sub get_rackid_from_params {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 	$sth->execute( $site, $room, $row, $rack )
 	  || $self->return_db_err($sth);
-	my $id = $sth->fetchrow_arry;
+	my $id = $sth->fetchrow_array;
 	$sth->finish;
 	$id;
 }
