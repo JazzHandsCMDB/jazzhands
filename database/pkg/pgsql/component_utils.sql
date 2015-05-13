@@ -84,82 +84,82 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_utils.migrate_component_template_slots(
-	component_id			jazzhands.component.component_id%TYPE,
-	old_component_type_id	jazzhands.component_type.component_type_id%TYPE,
-	new_component_type_id	jazzhands.component_type.component_type_id%TYPE
-) RETURNS SETOF jazzhands.slot
-AS $$
-DECLARE
-	ctid	jazzhands.component_type.component_type_id%TYPE;
-	s		jazzhands.slot%ROWTYPE;
-	cid 	ALIAS FOR component_id;
-BEGIN
-	-- Ensure all of the new slots have appropriate names
-
-	PERFORM component_utils.set_slot_names(
-		slot_id_list := ARRAY(
-				SELECT slot_id FROM slot WHERE component_id = cid
-			)
-	);
-
-	-- Move all connections from slots with the same name and function
-	-- from the old component type to the new one
-
-	CREATE TEMPORARY TABLE t_mcts_map AS
-	WITH slot_map AS (
-		SELECT
-			os.slot_id AS old_slot_id,
-			ns.slot_id AS new_slot_id
-		FROM
-			slot os JOIN
-			slot_type ost ON (os.slot_type_id = ost.slot_type_id) JOIN
-			component_type_slot_tmplt ocst ON (os.component_type_slot_tmplt_id =
-				ocst.component_type_slot_tmplt_id),
-			slot ns JOIN
-			slot_type nst ON (ns.slot_type_id = nst.slot_type_id) JOIN
-			component_type_slot_tmplt ncst ON (ns.component_type_slot_tmplt_id =
-				ncst.component_type_slot_tmplt_id)
-		WHERE
-			os.component_id = cid AND
-			ns.component_id = cid AND
-			ost.component_type_id = old_component_type_id AND
-			nst.component_type_id = new_component_type_id AND
-			os.slot_name = ns.slot_name AND
-			ost.slot_function = nst.slot_function
-	), slot1_upd AS (
-		UPDATE
-			inter_component_connection ic
-		SET
-			slot1_id = slot_map.new_slot_id
-		FROM
-			slot_map
-		WHERE
-			slot1_id = slot_map.old_slot_id
-	), slot2_upd AS (
-		UPDATE
-			inter_component_connection ic
-		SET
-			slot1_id = slot_map.new_slot_id
-		FROM
-			slot_map
-		WHERE
-			slot1_id = slot_map.old_slot_id
-	)
-	UPDATE
-		component c
-	SET
-		parent_slot_id = slot_map.new_slot_id
-	FROM
-		slot_map
-	WHERE
-		parent_slot_id = slot_map.old_slot_id;
-
-
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql;
+-- CREATE OR REPLACE FUNCTION component_utils.migrate_component_template_slots(
+-- 	component_id			jazzhands.component.component_id%TYPE,
+-- 	old_component_type_id	jazzhands.component_type.component_type_id%TYPE,
+-- 	new_component_type_id	jazzhands.component_type.component_type_id%TYPE
+-- ) RETURNS SETOF jazzhands.slot
+-- AS $$
+-- DECLARE
+-- 	ctid	jazzhands.component_type.component_type_id%TYPE;
+-- 	s		jazzhands.slot%ROWTYPE;
+-- 	cid 	ALIAS FOR component_id;
+-- BEGIN
+-- 	-- Ensure all of the new slots have appropriate names
+-- 
+-- 	PERFORM component_utils.set_slot_names(
+-- 		slot_id_list := ARRAY(
+-- 				SELECT slot_id FROM slot WHERE component_id = cid
+-- 			)
+-- 	);
+-- 
+-- 	-- Move all connections from slots with the same name and function
+-- 	-- from the old component type to the new one
+-- 
+-- 	CREATE TEMPORARY TABLE t_mcts_map AS
+-- 	WITH slot_map AS (
+-- 		SELECT
+-- 			os.slot_id AS old_slot_id,
+-- 			ns.slot_id AS new_slot_id
+-- 		FROM
+-- 			slot os JOIN
+-- 			slot_type ost ON (os.slot_type_id = ost.slot_type_id) JOIN
+-- 			component_type_slot_tmplt ocst ON (os.component_type_slot_tmplt_id =
+-- 				ocst.component_type_slot_tmplt_id),
+-- 			slot ns JOIN
+-- 			slot_type nst ON (ns.slot_type_id = nst.slot_type_id) JOIN
+-- 			component_type_slot_tmplt ncst ON (ns.component_type_slot_tmplt_id =
+-- 				ncst.component_type_slot_tmplt_id)
+-- 		WHERE
+-- 			os.component_id = cid AND
+-- 			ns.component_id = cid AND
+-- 			ost.component_type_id = old_component_type_id AND
+-- 			nst.component_type_id = new_component_type_id AND
+-- 			os.slot_name = ns.slot_name AND
+-- 			ost.slot_function = nst.slot_function
+-- 	), slot1_upd AS (
+-- 		UPDATE
+-- 			inter_component_connection ic
+-- 		SET
+-- 			slot1_id = slot_map.new_slot_id
+-- 		FROM
+-- 			slot_map
+-- 		WHERE
+-- 			slot1_id = slot_map.old_slot_id
+-- 	), slot2_upd AS (
+-- 		UPDATE
+-- 			inter_component_connection ic
+-- 		SET
+-- 			slot1_id = slot_map.new_slot_id
+-- 		FROM
+-- 			slot_map
+-- 		WHERE
+-- 			slot1_id = slot_map.old_slot_id
+-- 	)
+-- 	UPDATE
+-- 		component c
+-- 	SET
+-- 		parent_slot_id = slot_map.new_slot_id
+-- 	FROM
+-- 		slot_map
+-- 	WHERE
+-- 		parent_slot_id = slot_map.old_slot_id;
+-- 
+-- 
+-- END;
+-- $$
+-- SET search_path=jazzhands
+-- LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.set_slot_names(
 	slot_id_list	integer[] DEFAULT NULL
@@ -212,6 +212,71 @@ BEGIN
 			sn;
 		UPDATE slot SET slot_name = sn WHERE slot_id = slot_rec.slot_id;
 	END LOOP;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION component_utils.delete_component_hier(
+	component_id	jazzhands.component.component_id%TYPE
+) RETURNS BOOLEAN
+AS $$
+DECLARE
+	slot_list		integer[];
+	component_list	integer[];
+	cid				integer;
+BEGIN
+	cid := component_id;
+
+	
+	SELECT ARRAY(
+		SELECT
+			slot_id
+		FROM
+			v_component_hier h JOIN
+			slot s ON (h.child_component_id = s.component_id)
+		WHERE
+			h.component_id = cid)
+	INTO slot_list;
+
+	SELECT ARRAY(
+		SELECT
+			child_component_id
+		FROM
+			v_component_hier h
+		WHERE
+			h.component_id = cid)
+	INTO component_list;
+
+	DELETE FROM
+		inter_component_connection
+	WHERE
+		slot1_id = ANY (slot_list) OR
+		slot2_id = ANY (slot_list);
+
+	UPDATE
+		component c
+	SET
+		parent_slot_id = NULL
+	WHERE
+		c.component_id = ANY (component_list) AND
+		parent_slot_id IS NOT NULL;
+
+	DELETE FROM component_property cp WHERE
+		cp.component_id = ANY (component_list) OR
+		slot_id = ANY (slot_list);
+		
+	DELETE FROM
+		slot
+	WHERE
+		slot_id = ANY (slot_list);
+		
+	DELETE FROM
+		component c
+	WHERE
+		c.component_id = ANY (component_list);
+
+	RETURN true;
 END;
 $$
 SET search_path=jazzhands

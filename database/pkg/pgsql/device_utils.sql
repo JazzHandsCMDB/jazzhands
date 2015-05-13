@@ -130,7 +130,7 @@ BEGIN
 				ON p2.physical_port_id = pc.physical_port2_id
 			INNER JOIN device d2
 				ON d2.device_id = p2.device_id
-		WHERE   vpc.layer1_connection_id = _in_l1c
+		WHERE   vpc.inter_component_connection_id = _in_l1c
 		ORDER BY level
 	LOOP
 		DELETE from physical_connecion where physical_connection_id =
