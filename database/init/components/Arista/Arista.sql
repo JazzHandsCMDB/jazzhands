@@ -14,6 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-\ir Arista_7050ST-FR.sql
+\ir Arista_7050.sql
+\ir Arista_7050X.sql
 \ir Arista_7050Q-FR.sql
 \ir Arista_7500.sql
