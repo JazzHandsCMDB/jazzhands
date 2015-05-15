@@ -18,6 +18,9 @@ CREATE OR REPLACE VIEW jazzhands.v_lv_hier (
 	physicalish_volume_id,
 	volume_group_id,
 	logical_volume_id,
+	child_pv_id,
+	child_vg_id,
+	child_lv_id,
 	pv_path,
 	vg_path,
 	lv_path
@@ -36,9 +39,9 @@ WITH RECURSIVE lv_hier (
 		pv.logical_volume_id,
 		vg.volume_group_id,
 		lv.logical_volume_id,
-				ARRAY[pv.physicalish_volume_id]::integer[],
-				ARRAY[vg.volume_group_id]::integer[],
-				ARRAY[lv.logical_volume_id]::integer[]
+		ARRAY[pv.physicalish_volume_id]::integer[],
+		ARRAY[vg.volume_group_id]::integer[],
+		ARRAY[lv.logical_volume_id]::integer[]
 	FROM
 		physicalish_volume pv LEFT JOIN
 		volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
@@ -57,9 +60,9 @@ WITH RECURSIVE lv_hier (
 		pv.logical_volume_id,
 		vg.volume_group_id,
 		lv.logical_volume_id,
-				array_prepend(pv.physicalish_volume_id, lh.pv_path),
-				array_prepend(vg.volume_group_id, lh.vg_path),
-				array_prepend(lv.logical_volume_id, lh.lv_path)
+		array_prepend(pv.physicalish_volume_id, lh.pv_path),
+		array_prepend(vg.volume_group_id, lh.vg_path),
+		array_prepend(lv.logical_volume_id, lh.lv_path)
 	FROM
 		physicalish_volume pv LEFT JOIN
 		volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
@@ -67,10 +70,13 @@ WITH RECURSIVE lv_hier (
 		logical_volume lv USING (volume_group_id) JOIN
 		lv_hier lh ON (lv.logical_volume_id = lh.pv_logical_volume_id)
 )
-SELECT
+SELECT DISTINCT
 	physicalish_volume_id,
 	volume_group_id,
 	logical_volume_id,
+	unnest(pv_path),
+	unnest(vg_path),
+	unnest(lv_path),
 	pv_path,
 	vg_path,
 	lv_path
