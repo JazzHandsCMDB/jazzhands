@@ -64,10 +64,10 @@ BEGIN
 		major_version := substring(os_version, '^[^.]+');
 
 		INSERT INTO operating_system (
-			operating_system_name, 
-			company_id, 
-			major_version, 
-			version, 
+			operating_system_name,
+			company_id,
+			major_version,
+			version,
 			operating_system_family
 		) VALUES (
 			os_name,
@@ -78,8 +78,8 @@ BEGIN
 		) RETURNING * INTO osid;
 
 		INSERT INTO property (
-			property_type, 
-			property_name, 
+			property_type,
+			property_name,
 			operating_system_id,
 			property_value
 		) VALUES (
@@ -91,28 +91,28 @@ BEGIN
 	END IF;
 
 	INSERT INTO operating_system_snapshot (
-		operating_system_snapshot_name, 
-		operating_system_snapshot_type, 
+		operating_system_snapshot_name,
+		operating_system_snapshot_type,
 		operating_system_id
 	) VALUES (
-		snapshot_name, 
-		snapshot_type, 
+		snapshot_name,
+		snapshot_type,
 		osid
 	) RETURNING * INTO snapid;
 
 	INSERT INTO device_collection (
-		device_collection_name, 
-		device_collection_type, 
+		device_collection_name,
+		device_collection_type,
 		description
 	) VALUES (
 		CONCAT(os_name, '-', os_version, '-', snapshot_name),
-		'os-snapshot', 
+		'os-snapshot',
 		NULL
 	) RETURNING * INTO dcid;
 
 	INSERT INTO property (
-		property_type, 
-		property_name, 
+		property_type,
+		property_name,
 		device_collection_id,
 		operating_system_snapshot_id,
 		property_value
@@ -177,14 +177,14 @@ BEGIN
 	END IF;
 
 	INSERT INTO property (
-		property_type, 
-		property_name, 
-		operating_system_id, 
+		property_type,
+		property_name,
+		operating_system_id,
 		operating_system_snapshot_id
 	) VALUES (
-		'OperatingSystem', 
-		'DefaultSnapshot', 
-		osrec.operating_system_id, 
+		'OperatingSystem',
+		'DefaultSnapshot',
+		osrec.operating_system_id,
 		osrec.operating_system_snapshot_id
 	);
 END;
@@ -218,7 +218,6 @@ BEGIN
 
 	IF previous_osid IS NOT NULL THEN
 		IF osid = previous_osid THEN
-			RAISE NOTICE 'samey same';
 			RETURN;
 		END IF;
 
@@ -229,13 +228,15 @@ BEGIN
 	END IF;
 
 	INSERT INTO property (
-		property_type, 
-		property_name, 
-		operating_system_id
+		property_type,
+		property_name,
+		operating_system_id,
+		property_value
 	) VALUES (
-		'OperatingSystem', 
-		'DefaultVersion', 
-		osid
+		'OperatingSystem',
+		'DefaultVersion',
+		osid,
+		os_name
 	);
 END;
 $$
@@ -279,6 +280,71 @@ BEGIN
 	DELETE FROM property WHERE operating_system_snapshot_id = snapid;
 	DELETE FROM device_collection WHERE device_collection_name = CONCAT(os_name, '-', os_version, '-', snapshot_name);
 	DELETE FROM operating_system_snapshot WHERE operating_system_snapshot_id = snapid;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION snapshot_manip.set_device_snapshot(
+	input_device  device.device_id%type,
+	os_name       operating_system.operating_system_name%type,
+	os_version    operating_system.version%type,
+	snapshot_name operating_system_snapshot.operating_system_snapshot_name%type
+) RETURNS void AS $$
+
+DECLARE
+	snapid        operating_system_snapshot.operating_system_snapshot_id%type;
+	previous_dcid device_collection.device_collection_id%type;
+	new_dcid      device_collection.device_collection_id%type;
+
+BEGIN
+	IF snapshot_name = 'default' THEN
+		SELECT oss.operating_system_snapshot_id INTO snapid FROM operating_system_snapshot oss
+			INNER JOIN operating_system os USING (operating_system_id)
+			INNER JOIN property p USING (operating_system_snapshot_id)
+			WHERE os.version = os_version
+			AND os.operating_system_name = os_name
+			AND p.property_type = 'OperatingSystem'
+			AND p.property_name = 'DefaultSnapshot';
+	ELSE
+		SELECT oss.operating_system_snapshot_id INTO snapid FROM operating_system_snapshot oss
+			INNER JOIN operating_system os USING(operating_system_id)
+			WHERE os.operating_system_name = os_name
+			AND os.version = os_version
+			AND oss.operating_system_snapshot_name = snapshot_name;
+	END IF;
+
+	IF NOT FOUND THEN
+		RAISE 'Operating system snapshot not found';
+	END IF;
+
+	SELECT property.device_collection_id INTO new_dcid FROM property
+		WHERE operating_system_snapshot_id = snapid
+		AND property_type = 'OperatingSystem'
+		AND property_name = 'DeviceCollection';
+
+	SELECT device_collection_id INTO previous_dcid FROM device_collection_device
+		INNER JOIN device_collection USING(device_collection_id)
+		WHERE device_id = input_device
+		AND device_collection_type = 'os-snapshot';
+
+	IF FOUND THEN
+		IF new_dcid = previous_dcid THEN
+			RETURN;
+		END IF;
+
+		DELETE FROM device_collection_device
+			WHERE device_id = input_device
+			AND device_collection_id = previous_dcid;
+	END IF;
+
+	INSERT INTO device_collection_device (
+		device_id,
+		device_collection_id
+	) VALUES (
+		input_device,
+		new_dcid
+	);
 END;
 $$
 SET search_path=jazzhands
