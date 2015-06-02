@@ -4,7 +4,7 @@
 Summary:    jazzhands-zonegen-server - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-zonegen-server
-Version:    0.59.7
+Version:    0.62.0
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -54,7 +54,7 @@ if [ ! -d /var/lib/zonegen ] ; then
 fi
 
 %changelog
-* Wed Jan 12 2015 Todd Kover <kovert@omniscient.com> 0.59.7
+* Tue Jun  2 2015 Todd Kover <kovert@omniscient.com> 0.62.0
 - add support for generating additional acls independent of sites
 * Thu Sep 11 2014 Todd Kover <kovert@omniscient.com> 0.58.6
 - better handle exclusions for child subnets assigned to different sites
