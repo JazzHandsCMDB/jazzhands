@@ -110,7 +110,10 @@ SELECT	o.device_collection_id,
 		coalesce(setting[(select i + 1
 			from generate_subscripts(setting, 1) as i
 			where setting[i] = 'ForceUserUID')]::integer, unix_uid) as unix_uid,
-		ugac.account_collection_name as unix_group_name,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceUserGroup')]::varchar(255), 
+				ugac.account_collection_name) AS unix_group_name,
 		CASE WHEN a.description IS NOT NULL THEN a.description
 			ELSE concat(coalesce(preferred_first_name, first_name), ' ',
 				case WHEN middle_name is NOT NULL AND

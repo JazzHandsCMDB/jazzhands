@@ -31,6 +31,12 @@ BEGIN
 END;
 $$;
 
+------------------------------------------------------------------------------
+--
+-- Add default NS records to a domain
+--
+------------------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION dns_utils.add_ns_records(
 	dns_domain_id	dns_domain.dns_domain_id%type
 ) RETURNS void AS
@@ -49,6 +55,107 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+
+------------------------------------------------------------------------------
+--
+-- Given a cidr block, returns a list of all in-addr zones for that block.
+-- Note that for ip6, it just makes it a /64.  This may or may not be correct.
+--
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_utils.get_all_domains_for_cidr(
+	block		netblock.ip_address%TYPE
+) returns text[]
+AS
+$$
+DECLARE
+	cur			inet;
+	rv			text[];
+BEGIN
+	IF family(block) = 4 THEN
+		FOR cur IN SELECT set_masklen((block + o), 24) 
+					FROM generate_series(0, (256 * (2 ^ (24 - 
+						masklen(block))) - 1)::integer, 256) as x(o)
+		LOOP
+			rv = rv || dns_utils.get_domain_from_cidr(block);
+			rv = rv || dns_utils.get_domain_from_cidr(cur);
+		END LOOP;
+	ELSIF family(block) = 6 THEN
+			-- note sure if we should do this or not, but we are..
+			cur := set_masklen(block, 64);
+			rv = rv || dns_utils.get_domain_from_cidr(cur);
+	ELSE
+		RAISE EXCEPTION 'Not IPv% aware.', family(block);
+	END IF;
+    return rv;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
+
+
+------------------------------------------------------------------------------
+--
+-- Given a cidr block, return its dns domain
+--
+-- Does /24 for v4 and /64 for v6.  (this happens in a called function)
+--
+-- Works for both v4 and v6
+--
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_utils.get_domain_from_cidr(
+	block		inet
+) returns text
+AS
+$$
+DECLARE
+	ipaddr		text;
+	ipnodes		text[];
+	domain		text;
+	j			text;
+BEGIN
+	IF family(block) != 4 THEN
+		j := '';
+		-- this needs to be tweaked to expand ::, which postgresql does
+		-- not easily do.  This requires more thinking than I was up for today.
+		ipaddr := net_manip.expand_ipv6_address(block);
+		ipaddr := regexp_replace(ipaddr, ':', '', 'g');
+		ipaddr := lpad(ipaddr, masklen(block)/4, '0');
+	ELSE
+		j := '\.';
+		ipaddr := host(block);
+	END IF;
+
+	EXECUTE 'select array_agg(member order by rn desc)
+		from (
+        select
+			row_number() over () as rn, *
+			from
+			unnest(regexp_split_to_array($1, $2)) as member
+		) x
+	' INTO ipnodes USING ipaddr, j;
+
+	IF family(block) = 4 THEN
+		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
+			|| '.in-addr.arpa';
+	ELSE
+		domain := array_to_string(ipnodes, '.') 
+			|| '.ip6.arpa';
+	END IF;
+
+	RETURN domain;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
+
+------------------------------------------------------------------------------
+--
+-- If the host is an in-addr block, figure out the netblock and setup linkage
+-- for it.  This just works on one zone
+--
+------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.get_or_create_rvs_netblock_link(
 	soa_name		dns_domain.soa_name%type,
 	dns_domain_id	dns_domain.dns_domain_id%type
@@ -67,8 +174,6 @@ BEGIN
 		j := '.';
 	ELSE
 		j := ':';
-		-- The only thing missing is mapping the number of octets to bits
-		RAISE EXCEPTION 'Do not properly handle ipv6 addresses yet.';
 	END IF;
 
 	EXECUTE 'select array_agg(member order by rn desc), $2
@@ -83,6 +188,9 @@ BEGIN
 	IF brk[2] = 'in-addr' THEN
 		IF array_length(ipmember, 1) > 4 THEN
 			RAISE EXCEPTION 'Unable to work with anything smaller than a /24';
+		ELSIF array_length(ipmember, 1) != 3 THEN
+			-- If this is not a /24, then do not add any rvs association
+			RETURN NULL;
 		END IF;
 		WHILE array_length(ipmember, 1) < 4
 		LOOP
@@ -90,7 +198,10 @@ BEGIN
 		END LOOP;
 		ip := concat(array_to_string(ipmember, j),'/24')::inet;
 	ELSE
-		ip := concat(array_to_string(ipmember, j),'::')::inet;
+		ip := concat(
+			regexp_replace(
+				array_to_string(ipmember, ''), '(....)', '\1:', 'g'),
+			':/64')::inet;
 	END IF;
 
 	SELECT netblock_id
@@ -128,9 +239,15 @@ SET search_path=jazzhands
 LANGUAGE plpgsql;
 
 
+------------------------------------------------------------------------------
+--
+-- given a dns domain, type and boolean, add the domain with that type and
+-- optionally (tho defaulting to true) at default nameservers
+--
+------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.add_dns_domain(
-	soa_name		dns_domain.soa_name%type,
-	dns_domain_type	dns_domain.dns_domain_type%type DEFAULT NULL,
+	soa_name			dns_domain.soa_name%type,
+	dns_domain_type		dns_domain.dns_domain_type%type DEFAULT NULL,
 	add_nameservers		boolean DEFAULT true
 ) RETURNS dns_domain.dns_domain_id%type AS $$
 DECLARE
@@ -213,6 +330,14 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+
+------------------------------------------------------------------------------
+--
+-- Given a cidr block, add a dns domain for it, which will take care of linkage
+-- to an in-addr record for ipv4 addresses or ipv6 addresses as appropriate.
+--
+--
+------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.add_domain_from_cidr(
 	block		inet
 ) returns dns_domain.dns_domain_id%TYPE
@@ -258,7 +383,7 @@ BEGIN
 
 	SELECT dns_domain_id INTO domain_id FROM dns_domain where soa_name = domain;
 	IF NOT FOUND THEN
-		domain_id := dns_utils.add_dns_domain(domain);
+		-- domain_id := dns_utils.add_dns_domain(domain);
 	END IF;
 
 	RETURN domain_id;
@@ -267,7 +392,17 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
-
+------------------------------------------------------------------------------
+--
+-- Given a netblock, add all the dns domains so in-addr lookups work,
+-- including the A<>PTR association magic.
+--
+-- Works for both v4 and v6
+--
+-- This is called from the routines that add netblocks to automatically setup
+-- DNS
+--
+------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.add_domains_from_netblock(
 	netblock_id		netblock.netblock_id%TYPE
 ) returns void
@@ -275,27 +410,23 @@ AS
 $$
 DECLARE
 	block		inet;
-	cur			inet;
+	domain		text;
+	domain_id	dns_domain.dns_domain_id%TYPE;
 BEGIN
 	EXECUTE 'SELECT ip_address FROM netblock WHERE netblock_id = $1'
 		INTO block
 		USING netblock_id;
 
-	IF family(block) = 4 THEN
-		FOR cur IN SELECT set_masklen((block + o), 24) 
-					FROM generate_series(0, (256 * (2 ^ (24 - 
-						masklen(block))) - 1)::integer, 256) as x(o)
-		LOOP
-			PERFORM * FROM dns_utils.add_domain_from_cidr(cur);
-		END LOOP;
-	ELSIF family(block) = 6 THEN
-			cur := set_masklen(block, 64);
-			PERFORM * FROM dns_utils.add_domain_from_cidr(cur);
-	ELSE
-		RAISE EXCEPTION 'Not IPv% aware.', family(block);
-	END IF;
+	FOREACH domain in ARRAY dns_utils.get_all_domains_for_cidr(block)
+	LOOP
+		SELECT dns_domain_id INTO domain_id 
+			FROM dns_domain where soa_name = domain;
+
+		IF NOT FOUND THEN
+			domain_id := dns_utils.add_dns_domain(domain);
+		END IF;
+	END LOOP;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
-

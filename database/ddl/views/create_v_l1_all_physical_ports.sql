@@ -89,6 +89,7 @@ SELECT
 	NULL::varchar as flow_control
 FROM
 	pp s1 LEFT JOIN
-	inter_component_connection icc ON (s1.slot_id = icc.slot1_id)
+	inter_component_connection icc ON (s1.slot_id = icc.slot1_id OR
+		s1.slot_id = icc.slot2_id)
 WHERE
 	inter_component_connection_id IS NULL;

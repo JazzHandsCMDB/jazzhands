@@ -250,7 +250,7 @@ if($row['login'] == $_SERVER['REMOTE_USER'] || check_admin($dbconn, $_SERVER['RE
 $name = $row['first_name']. " " . $row['last_name'];
 
 $title = $row['position_title'] ;
-$deptc = " (" . $row['company_name']. ")" ;
+$teamc = " (" . $row['company_name']. ")" ;
 if(isset($row['mgr_last_name'])) {
 	$manager = $row['mgr_first_name']. " " . $row['mgr_last_name'];
 }
@@ -281,11 +281,11 @@ if(isset($title)) {
 }
 
 if(isset($row['account_collection_id'])) {
-	/* Was $deptc at the end, which includes the company */
-	echo build_tr("Department", hierlink('department', $row['account_collection_id'],
+	/* Was $teamc at the end, which includes the company */
+	echo build_tr("Functional Team", hierlink('team', $row['account_collection_id'],
                 $row['account_collection_name']));
 } else {
-	echo build_tr("Department", 'NONE');
+	echo build_tr("Functional Team", 'NONE');
 }
 
 	$email = get_email( $dbconn, $row{'person_id'} );
@@ -308,9 +308,12 @@ if(isset($row['hire_date'])) {
 	$hd = preg_replace("/\s.*$/", "", $row['hire_date']);
 	echo build_tr("Hire Date", $hd);
 }
+/*
+ * Not legal in some countries
 if(isset($row['birth_date_epoch'])) {
 	echo build_tr("Birthday", date("F j", $row['birth_date_epoch']));
 }
+ */
 
 echo build_tr("Status", $row['person_company_relation']);
 

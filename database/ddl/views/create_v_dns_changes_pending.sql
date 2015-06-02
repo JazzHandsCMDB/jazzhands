@@ -22,28 +22,25 @@
 --
 
 CREATE OR REPLACE VIEW v_dns_changes_pending AS
-SELECT DISTINCT *
+WITH chg AS (
+	SELECT dns_change_record_id, dns_domain_id,
+		case WHEN family(ip_address)  = 4 THEN set_masklen(ip_address, 24)
+			ELSE set_masklen(ip_address, 64) END as ip_address,
+		dns_utils.get_domain_from_cidr(ip_address) as cidrdns
+	FROM dns_change_record
+	WHERE ip_address is not null
+) SELECT DISTINCT *
 FROM (
-SELECT  chg.dns_change_record_id, n.dns_domain_id,
-	n.should_generate, n.last_generated,
-	n.soa_name, chg.ip_address
-	FROM   dns_change_record chg
-	LEFT JOIN (
-		SELECT * fROM
-			dns_record dns
-			INNER JOIN dns_domain dom USING (dns_domain_id)
-			iNNER JOIN netblock n USING (netblock_id)
-		WHERE dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-	) n
-   		ON	family(chg.ip_address) = family(n.ip_address) AND
-			set_masklen(chg.ip_address, masklen(n.ip_address))
-		 		<<= n.ip_address
-	WHERE chg.ip_address IS NOT NULL
-UNION
-SELECT	chg.dns_change_record_id, d.dns_domain_id,
-	d.should_generate, d.last_generated,
-	d.soa_name, NULL
- FROM	dns_change_record chg
-	INNER JOIN dns_domain d USING (dns_domain_id)
-	WHERE	dns_domain_id IS NOT NULL
+	SELECT	chg.dns_change_record_id, n.dns_domain_id,
+		n.should_generate, n.last_generated,
+		n.soa_name, chg.ip_address
+	FROM   chg
+		INNER JOIN dns_domain n on chg.cidrdns = n.soa_name
+	UNION
+	SELECT  chg.dns_change_record_id, d.dns_domain_id,
+		d.should_generate, d.last_generated,
+		d.soa_name, NULL
+	FROM	dns_change_record chg
+		INNER JOIN dns_domain d USING (dns_domain_id)
+	WHERE   dns_domain_id IS NOT NULL
 ) x

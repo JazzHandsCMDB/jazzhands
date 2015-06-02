@@ -4,7 +4,7 @@
 Summary:    jazzhands-mkpasswdfiles - generates and pushes out zones
 Vendor:     JazzHands
 Name:       jazzhands-mkpasswdfiles
-Version:    0.61.0
+Version:    0.61.1
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -46,6 +46,8 @@ else
 fi
 
 %changelog
+* Thu Mar 19 2015 Todd Kover <kovert@omniscient.com> 0.61.1
+- fix issue with empty hashes being inserted into passwd file
 * Thu Mar  5 2015 Todd Kover <kovert@omniscient.com> 0.61.0
 - more sudoers tweaks
 * Wed Mar  4 2015 Todd Kover <kovert@omniscient.com> 0.60.0

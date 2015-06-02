@@ -331,7 +331,7 @@ sub build_userhash($$) {
 			foreach my $k (@{ $r->{ _dbx('SSH_PUBLIC_KEY') } }) {
 				push(@ {$uh->{ssh_public_key}}, $k);
 			}
-			return;  # one dude!
+			return undef;  # one dude!
 		}
 	}
 
@@ -454,7 +454,12 @@ sub generate_passwd_files($$) {
 
 		## Accumulate all passwd file lines in @pwdlines.
 		## $pwd[7] is the group name. We don't need it anymore.
-		push( @pwdlines, $userhash );
+		##
+		## usehash can not be set if for some reason build_userhash
+		## manipulated an existing user.
+		if($userhash) {
+			push( @pwdlines, $userhash );
+		}
 	}
 
 	## Let's not forget to write the passwd file for the last MCLASS
