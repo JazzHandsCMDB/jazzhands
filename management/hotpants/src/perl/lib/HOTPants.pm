@@ -321,39 +321,68 @@ sub fetch_token {
 	my $token;
 	my ( $ret, $tokendata );
 
+	#
+	# bail if there is no db connection
+	#
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_token: no connection to database");
+		return undef;
+	}
+
 	# clear errors
 	$self->Error(undef);
 
 	if ( !$tokenid ) {
-		$self->Error("fetch_token: Token id not passed");
+		$self->Error("fetch_token: user id not passed");
 		return undef;
 	}
 
-	#
-	# bail if the database environment or token database are not defined
-	#
-	$self->Error(undef);
-	if ( !$self->{Env} || !$self->{TokenDB} ) {
+	# views in the db not here: time_skew, last_updated expire_time
+	# things in the bdb file that are not in the db:
+	# last_login token_locked unlock_time bad_logins
+	# sequence_changed token_changed lock_status_changed
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+			SELECT
+					token_id
+					token_type
+					token_status
+					token_serial
+					token_key
+					sequence
+					zero_time
+					time_modulo
+					skew_sequence
+					token_pin
+			FROM	token
+			WHERE	token_id = ?
+
+	});
+
+	# XXX - syncradius.pl also does stuff with radius_app.
+
+	if ( !$sth ) {
 		$self->Error(
-			"fetch_token: database environment is not defined");
+			"fetch_token: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
-	if ( $ret =
-		$self->{TokenDB}->db_get( pack( 'N', $tokenid ), $tokendata ) )
-	{
-		if ( $ret !~ /^DB_NOTFOUND/ ) {
-			$self->Error( sprintf "Error retrieving token %d: %s",
-				$token, $BerkeleyDB::Error );
-		}
-		return undef;
-	}
-	if ( !( $token = deserialize_token($tokendata) ) ) {
-		$self->Error("Error deserializing token");
+	if ( !( $sth->execute($tokenid) ) ) {
+		$self->Error( "fetch_token: execute failed: " . $dbh->errstr );
 		return undef;
 	}
 
-	return $token;
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	if ( !$hr ) {
+		return undef;
+	}
+
+	# XXX - other attributes listed above are not included.  some grew
+	# token_ prefixes.
+	return $hr;
 }
 
 sub fetch_user {
