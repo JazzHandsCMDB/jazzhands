@@ -23,49 +23,78 @@
 -- $Id$
 --
 
+-- Copyright (c) 2015, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+
 -- This view maps users to device collections and lists properties
 -- assigned to the users in order of their priorities.
 
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dev_col_user_prop_expanded');
+
+DROP VIEW v_dev_col_user_prop_expanded;
 CREATE OR REPLACE VIEW v_dev_col_user_prop_expanded AS
-SELECT dchd.device_collection_id,
-  s.account_id, s.login, s.account_status,
-  upo.property_type property_type,
-  upo.property_name property_name, 
-  upo.property_value,
-   CASE WHEN upn.is_multivalue = 'N' THEN 0
-	ELSE 1 END is_multievalue,
-  CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
-FROM v_acct_coll_acct_expanded_detail uued
-JOIN Account_Collection u ON uued.Account_Collection_id = u.Account_Collection_id
-JOIN v_property upo ON upo.Account_Collection_id = u.Account_Collection_id
- AND upo.property_type in (
-  'CCAForceCreation', 'CCARight', 'ConsoleACL', 'RADIUS', 'TokenMgmt',
-  'UnixPasswdFileValue', 'UserMgmt', 'cca', 'feed-attributes',
-  'proteus-tm', 'wwwgroup')
-JOIN val_property upn
-  ON upo.property_name = upn.property_name
- AND upo.property_type = upn.property_type
-JOIN val_property_data_type pdt
-  ON upn.property_data_type = pdt.property_data_type
-LEFT JOIN v_device_coll_hier_detail dchd
-  ON (dchd.parent_device_collection_id = upo.device_collection_id)
-JOIN account s ON uued.account_id = s.account_id
+SELECT	dchd.device_collection_id,
+	a.account_id, a.login, a.account_status,
+	ar.account_realm_id, ar.account_realm_name,
+	CASE WHEN vps.is_disabled = 'N' THEN 'Y' ELSE 'N' END as is_enabled,
+	upo.property_type property_type,
+	upo.property_name property_name, 
+	coalesce(Property_Value_Password_Type, Property_Value) AS property_value,
+	CASE WHEN upn.is_multivalue = 'N' THEN 0
+		ELSE 1 END is_multivalue,
+	CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
+FROM	v_acct_coll_acct_expanded_detail uued
+	INNER JOIN Account_Collection u 
+		USING (account_collection_id)
+	INNER JOIN v_property upo ON 
+		upo.Account_Collection_id = u.Account_Collection_id
+		AND upo.property_type in (
+			'CCAForceCreation', 'CCARight', 'ConsoleACL', 'RADIUS', 
+			'TokenMgmt', 'UnixPasswdFileValue', 'UserMgmt', 'cca', 
+			'feed-attributes', 'wwwgroup')
+	INNER JOIN val_property upn
+		ON upo.property_name = upn.property_name
+		AND upo.property_type = upn.property_type
+	INNER JOIN val_property_data_type pdt
+		ON upn.property_data_type = pdt.property_data_type
+	INNER JOIN account a ON uued.account_id = a.account_id
+	INNER JOIN account_realm ar ON a.account_realm_id = ar.account_realm_id
+	INNER JOIN val_person_status vps
+		ON vps.person_status = a.account_status
+	LEFT JOIN v_device_coll_hier_detail dchd
+  		ON (dchd.parent_device_collection_id = upo.device_collection_id)
 ORDER BY device_collection_level,
-   CASE WHEN u.Account_Collection_type = 'per-user' THEN 0
-   	WHEN u.Account_Collection_type = 'property' THEN 1
-   	WHEN u.Account_Collection_type = 'systems' THEN 2
+   CASE WHEN u.Account_Collection_type = 'per-account' THEN 0
+	WHEN u.Account_Collection_type = 'property' THEN 1
+	WHEN u.Account_Collection_type = 'systems' THEN 2
 	ELSE 3 END,
   CASE WHEN uued.assign_method = 'Account_CollectionAssignedToPerson' THEN 0
-  	WHEN uued.assign_method = 'Account_CollectionAssignedToDept' THEN 1
-  	WHEN uued.assign_method = 
+	WHEN uued.assign_method = 'Account_CollectionAssignedToDept' THEN 1
+	WHEN uued.assign_method = 
 	'ParentAccount_CollectionOfAccount_CollectionAssignedToPerson' THEN 2
-  	WHEN uued.assign_method = 
+	WHEN uued.assign_method = 
 	'ParentAccount_CollectionOfAccount_CollectionAssignedToDept' THEN 2
-  	WHEN uued.assign_method = 
+	WHEN uued.assign_method = 
 	'Account_CollectionAssignedToParentDept' THEN 3
-  	WHEN uued.assign_method = 
+	WHEN uued.assign_method = 
 	'ParentAccount_CollectionOfAccount_CollectionAssignedToParentDep' 
 			THEN 3
         ELSE 6 END,
   uued.dept_level, uued.acct_coll_level, dchd.device_collection_id, 
   u.Account_Collection_id;
+
+SELECT schema_support.replay_saved_grants();
+
