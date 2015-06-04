@@ -115,7 +115,7 @@ sub authorize {
 
 	my $hp = new HOTPants( path => $__DBPATH );
 	if ( $err = $hp->opendb ) {
-		radiusd::radlog( 4, $err );
+		radiusd::radlog( 4, "biteme: ".$err );
 		exit RLM_MODULE_FAIL;
 	}
 
@@ -173,9 +173,10 @@ sub authenticate {
 		return RLM_MODULE_FAIL;
 	}
 
-	if ( $RAD_REQUEST{"NAS-IP-Address"} eq "127.0.0.1" ) {
-		$RAD_REQUEST{"NAS-IP-Address"} = "10.111.200.78";
-	}
+	#if ( $RAD_REQUEST{"NAS-IP-Address"} eq "127.0.0.1" ) {
+	#	fake localhost...
+	#	$RAD_REQUEST{"NAS-IP-Address"} = "fake ip address";
+	#}
 	my $source = $RAD_REQUEST{"JH-Application-Name"}
 	  || $RAD_REQUEST{"NAS-IP-Address"};
 

@@ -1,3 +1,4 @@
+
 #
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
@@ -21,6 +22,23 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#
+# Copyright (c) 2015, Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 # $Id$
 #
 package HOTPants;
@@ -35,6 +53,7 @@ use Digest::SHA qw(sha1 sha1_base64);
 use Digest::HMAC qw(hmac);
 use MIME::Base64;
 use Data::Dumper;
+use JazzHands::DBI;
 
 my %__HOTPANTS_DB_NAME = (
 	UserDB        => "user.db",
@@ -55,8 +74,8 @@ my %__HOTPANTS_SERIALIZE_VERSION = (
 );
 
 my %__HOTPANTS_CONFIG_PARAMS = (
-	TimeSequenceSkew		=> 2,	# sequence skew allowed for time-based
-									# tokens
+	TimeSequenceSkew      => 2,     # sequence skew allowed for time-based
+	                                # tokens
 	SequenceSkew          => 7,     # Normal amount of sequence skew allowed
 	ResyncSequenceSkew    => 100,   # Amount of sequence skew allowed for
 	                                # unassisted resync (i.e. two successive
@@ -67,7 +86,7 @@ my %__HOTPANTS_CONFIG_PARAMS = (
 	     # unlocked)
 	DefaultAuthMech    => undef,   # Default to denying authentication if an
 	                               # authentication mechanism is not defined
-	PasswordExpiration => 90       # Number of days for password expiration
+	PasswordExpiration => 365       # Number of days for password expiration
 );
 
 our ( $VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS );
@@ -199,12 +218,14 @@ sub new {
 	my $class = ref($proto) || $proto;
 	my $opt   = &_options;
 
-	return undef if ( !$opt->{path} );
+	# return undef if ( !$opt->{path} );
 
 	my $self = {};
-	$self->{dbpath} = $opt->{path};
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 	bless( $self, $class );
+	$self->opendb();
+	
+	$self;
 }
 
 sub SetDebug {
@@ -260,87 +281,35 @@ sub opendb {
 	my $self = shift;
 	my $opt  = &_options;
 
-	if ( $self->{Env} ) {
+	if ( $self->{dbh} ) {
 		$self->closedb();
 	}
 
-	my $env;
+	my $dbh;
 	if (
 		!(
-			$env = new BerkeleyDB::Env
-			-Home    => $self->{dbpath},
-			-ErrFile => $self->{dbpath} . "/db_error.log",
-			-Flags   => DB_CREATE | DB_INIT_MPOOL | DB_INIT_LOCK |
-			DB_INIT_LOG | DB_INIT_TXN | DB_REGISTER | DB_RECOVER
+			$dbh = JazzHands::DBI->connect(
+				'hotpants', { AutoCommit => 0 }
+			)
 		)
 	  )
 	{
-		undef $env;
+		undef $dbh;
 		return "Unable to create environment";
 	}
 
-	$env->set_verbose(
-		DB_VERB_REGISTER | DB_VERB_DEADLOCK | DB_VERB_RECOVERY |
-		  DB_VERB_REPLICATION | DB_VERB_WAITSFOR,
-		1
-	);
-
-	$env->set_flags( DB_LOG_AUTOREMOVE, 1 );
-
-	#
-	# Open all of the databases into the environment
-	#
-	my $txn = $env->txn_begin();
-
-	foreach my $db ( keys %__HOTPANTS_DB_NAME ) {
-		my $dbhandle;
-		if (
-			!(
-				$dbhandle = new BerkeleyDB::Hash
-				-Env      => $env,
-				-Filename => $__HOTPANTS_DB_NAME{$db},
-				-Flags    => DB_CREATE,
-				-Txn      => $txn
-			)
-		  )
-		{
-
-		 #
-		 # If the open failed, close any databases we did manage to open
-		 #
-			foreach my $dbclose ( keys %__HOTPANTS_DB_NAME ) {
-				if ( defined( $self->{$dbclose} ) ) {
-					$self->{$dbclose}->db_close;
-					delete $self->{$dbclose};
-				}
-			}
-			$txn->txn_abort();
-			$env->close;
-			undef $env;
-			$self->Error(
-				"Unable to open $db: $!" . $BerkeleyDB::Error );
-			return "Unable to open $db: $!" . $BerkeleyDB::Error;
-		}
-		$self->{$db} = $dbhandle;
-	}
-	$txn->txn_commit();
-	$self->{Env} = $env;
-
+	$self->{dbh} = $dbh;
 	return 0;
 }
 
 sub closedb {
 	my $self = shift;
 	return if !$self;
-	return if !$self->{Env};
-	foreach my $dbclose ( keys %__HOTPANTS_DB_NAME ) {
-		if ( defined( $self->{$dbclose} ) ) {
-			$self->{$dbclose}->db_close;
-			delete $self->{$dbclose};
-		}
-	}
-	$self->{Env}->close;
-	delete $self->{Env};
+	return if !$self->{dbh};
+
+	$self->{dbh}->rollback();
+	$self->{dbh}->disconnect();
+	delete $self->{dbh};
 	return 0;
 }
 
@@ -421,34 +390,58 @@ sub fetch_user {
 	my ( $ret, $userdata );
 	my $userptr;
 
-	if ( !$login ) {
-		$self->Error("fetch_user: login not provided");
-		return undef;
-	}
-
 	#
-	# bail if the database environment or user database are not defined
+	# bail if there is no db connection
 	#
-	if ( !$self->{Env} || !$self->{UserDB} ) {
-		$self->Error("fetch_user: database environment is not defined");
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_user: no connection to database");
 		return undef;
 	}
 
 	# clear errors
 	$self->Error(undef);
 
-	if ( $ret = $self->{UserDB}->db_get( $login, $userdata ) ) {
-		if ( $ret !~ /^DB_NOTFOUND/ ) {
-			$self->Error( sprintf "Error retrieving user %s: %s",
-				$login, $BerkeleyDB::Error );
-		}
-		return undef;
-	}
-	if ( !( $userptr = deserialize_user($userdata) ) ) {
+	if ( !$login ) {
+		$self->Error("fetch_user: user id not passed");
 		return undef;
 	}
 
-	return $userptr;
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT	LOGIN, account_status
+		FROM	v_corp_family_account
+		WHERE	is_enabled = 'Y'
+		AND		login = ?
+
+	}
+	);
+
+	# XXX - syncradius.pl also does stuff with radius_app.
+
+	if ( !$sth ) {
+		$self->Error(
+			"fetch_user: unable to prepare sth: " . $dbh->errstr );
+		return undef;
+	}
+
+	if ( !( $sth->execute($login) ) ) {
+		$self->Error( "fetch_user: execute failed: " . $dbh->errstr );
+		return undef;
+	}
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	if ( !$hr ) {
+		return undef;
+	}
+
+	# XXX - numerous other attributes, including token ids here
+	return {
+		login  => $hr->{login},
+		status => $hr->{account_status},
+	};
 }
 
 sub fetch_all_users {
@@ -485,11 +478,10 @@ sub fetch_client {
 	my $client;
 
 	#
-	# bail if the database environment or client database are not defined
+	# bail if there is no db connection
 	#
-	if ( !$self->{Env} || !$self->{ClientDB} ) {
-		$self->Error(
-			"fetch_client: database environment is not defined");
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_client: no connection to database");
 		return undef;
 	}
 
@@ -501,24 +493,60 @@ sub fetch_client {
 		return undef;
 	}
 
-	if ( $ret = $self->{ClientDB}->db_get( $clientid, $clientdata ) ) {
-		if ( $ret !~ /^DB_NOTFOUND/ ) {
-			$self->Error(
-				sprintf
-				  "Error retrieving client data for %s: %s",
-				$client, $BerkeleyDB::Error
-			);
-		}
-		return undef;
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+				SELECT DISTINCT
+	                Device_Id,
+	                Device_Name,
+	                Device_Collection_Id,
+	                Device_Collection_Name,
+	                Device_Collection_Type,
+	                host(IP_Address) as IP_address
+	        FROM	Device_Collection
+	                INNER JOIN device_collection_device
+	                        USING (Device_Collection_ID) 
+	                INNER JOIN Device USING (Device_Id) 
+	                INNER JOIN Network_Interface NI USING (Device_ID) 
+	                INNER JOIN Netblock NB USING (Netblock_id)
+	        WHERE
+	                Device_Collection_Type = 'mclass'
+	        AND     Device_Name IS NOT NULL
+	        AND     Device_Name IS NOT NULL
+				AND		host(ip_address) = ?
 	}
-	if ( !( $client = deserialize_client($clientdata) ) ) {
-		return undef;
-	}
-	$client->{client_id} = $clientid;
+	);
 
-	return $client;
+	# XXX - syncradius.pl also does stuff with radius_app.
+
+	if ( !$sth ) {
+		$self->Error( "fetch_client: unable to prepare sth: "
+			  . $dbh->errstr );
+		return undef;
+	}
+
+	if ( !( $sth->execute($clientid) ) ) {
+		$self->Error( "fetch_client: execute failed: " . $dbh->errstr );
+		return undef;
+	}
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	if ( !$hr ) {
+		return undef;
+	}
+
+	return {
+		client_id    => $clientid,
+		name         => $hr->{device_name},
+		devcoll_id   => $hr->{device_collection_id},
+		devcoll_name => $hr->{device_collection_name},
+		devcoll_type => $hr->{device_collection_type},
+	};
 }
 
+# XXX - may no longer be necessary
 sub fetch_all_clients {
 	my $self = shift;
 	my ( $ret, $cursor, $clientid, $clientdata );
@@ -554,41 +582,58 @@ sub fetch_devcollprop {
 	my ( $ret, $devcollpropdata );
 	my $devcollprop;
 
-      #
-      # bail if the database environment or devcollprop database are not defined
-      #
-	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
-		$self->Error(
-			"fetch_devcollprop: database environment is not defined"
-		);
-		return undef;
-	}
-
-	if ( !$devcollid ) {
-		$self->Error("fetch_devcollprop: devcollid not passed");
+	#
+	# bail if there is no db connection
+	#
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_devcollprop: no connection to database");
 		return undef;
 	}
 
 	# clear errors
 	$self->Error(undef);
 
-	if ( $ret =
-		$self->{DevCollPropDB}->db_get( $devcollid, $devcollpropdata ) )
-	{
-		if ( $ret !~ /^DB_NOTFOUND/ ) {
-			$self->Error(
-				sprintf
-"Error retrieving property data for devcoll %s: %s",
-				$devcollid, $BerkeleyDB::Error
-			);
-		}
-		return undef;
-	}
-	if ( !( $devcollprop = deserialize_devcollprop($devcollpropdata) ) ) {
+	if ( !$devcollid ) {
+		$self->Error("fetch_devcollprop: devcollid not passed");
 		return undef;
 	}
 
-	return $devcollprop;
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT	device_collection_id, Property_Value_Password_Type
+		FROM	property
+		WHERE	Property_Name = 'UnixPwType'
+		AND		Property_Type = 'MclassUnixProp'
+		AND		device_collection_id = ?
+	}
+	);
+
+	# XXX - syncradius.pl also does stuff with radius_app.
+
+	if ( !$sth ) {
+		$self->Error(
+			"fetch_devcollprop: unable to prepare sth: " . $dbh->errstr );
+		return undef;
+	}
+
+	if ( !( $sth->execute($devcollid) ) ) {
+		$self->Error( "fetch_devcollprop: execute failed: " . $dbh->errstr );
+		return undef;
+	}
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	if ( !$hr ) {
+		return undef;
+	}
+
+	my $r= {
+		devcoll_id => $hr->{device_collection_id},
+		pwtype => $hr->{password_type}
+	};
+	$r;
 }
 
 sub fetch_all_devcollprops {
@@ -597,7 +642,7 @@ sub fetch_all_devcollprops {
 
 	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
 		$self->Error(
-"fetch_all_devcollprops: database environment is not defined"
+			"fetch_all_devcollprops: database environment is not defined"
 		);
 		return undef;
 	}
@@ -625,41 +670,73 @@ sub fetch_passwd {
 	my $opt  = &_options;
 
 	my $login = $opt->{login};
-	my ( $ret, $passwddata );
-	my $passwd;
 
 	#
-	# bail if the database environment or passwd database are not defined
+	# bail if there is no db connection
 	#
-	if ( !$self->{Env} || !$self->{PasswdDB} ) {
-		$self->Error(
-			"fetch_passwd: database environment is not defined");
-		return undef;
-	}
-	if ( !$login ) {
-		$self->Error("fetch_passwd: login not passwd");
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_passwd: no connection to database");
 		return undef;
 	}
 
 	# clear errors
 	$self->Error(undef);
 
-	if ( $ret = $self->{PasswdDB}->db_get( $login, $passwddata ) ) {
-		if ( $ret !~ /^DB_NOTFOUND/ ) {
-			$self->Error(
-				sprintf
-				  "Error retrieving passwd data for %s: %s",
-				$login, $BerkeleyDB::Error
-			);
-		}
-		return undef;
-	}
-	if ( !( $passwd = deserialize_passwd($passwddata) ) ) {
+	# clear errors
+	$self->Error(undef);
+
+	if ( !$login ) {
+		$self->Error("fetch_passwd: login not passed");
 		return undef;
 	}
 
-	return $passwd;
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT	ap.account_id,
+				ap.account_realm_id,
+				ap.password_type,
+				ap.password,
+				extract(epoch from ap.change_time)::integer as change_time,
+				extract(epoch from ap.expire_time)::integer as expire_time,
+				extract(epoch from ap.unlock_time)::integer as unlock_time
+		FROM	account_password ap
+				inner join v_corp_family_account a
+					USING (account_id)
+		WHERE	login = ?
+	}
+	);
+
+	# XXX - syncradius.pl also does stuff with radius_app.
+
+	if ( !$sth ) {
+		$self->Error(
+			"fetch_passwd: unable to prepare sth: " . $dbh->errstr );
+		return undef;
+	}
+
+	if ( !( $sth->execute($login) ) ) {
+		$self->Error( "fetch_passwd: execute failed: " . $dbh->errstr );
+		return undef;
+	}
+
+	my $rv = {};
+	while( my $hr = $sth->fetchrow_hashref() ) {
+		$rv->{ $hr->{password_type} } = {
+			passwd => $hr->{password},
+			change_time => $hr->{change_time},
+			expire_time => $hr->{expire_time},
+		};
+	}
+
+
+	if ( ! keys %{$rv} ) {
+		return undef;
+	}
+
+	return $rv;
 }
+
 
 sub fetch_all_passwds {
 	my $self = shift;
@@ -695,43 +772,81 @@ sub fetch_attributes {
 	my $attribute;
 
 	#
-	# bail if the database environment or attribute database are not defined
+	# bail if there is no db connection
 	#
-	if ( !$self->{Env} || !$self->{AttrDB} ) {
-		$self->Error(
-			"fetch_attributes: database environment is not defined"
-		);
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_attributes: no connection to database");
 		return undef;
 	}
-	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
-		$self->Error(
-"fetch_attributes: key or login and devcollid must be passed"
-		);
-		return undef;
-	}
-	my $attributeid = $opt->{key}
-	  || pack( "Z*N", $opt->{login}, $opt->{devcoll_id} );
 
 	# clear errors
 	$self->Error(undef);
 
-	if ( $ret = $self->{AttrDB}->db_get( $attributeid, $attributedata ) ) {
-		if ( $ret !~ /^DB_NOTFOUND/ ) {
-			$self->Error(
-				sprintf
-"Error retrieving attribute data for login %s, devcoll %d: %s",
-				unpack( "Z*N", $attributeid ),
-				$BerkeleyDB::Error
-			);
-		}
-		return undef;
-	}
-	if ( !( $attribute = deserialize_attributes($attributedata) ) ) {
+	my $login = $opt->{login};
+	my $dcid = $opt->{devcoll_id};
+
+	if ( !$login || !$dcid) {
+		$self->Error("fetch_attributes: must specify both a account and device collection");
 		return undef;
 	}
 
-	return $attribute;
+	# XXX - V_Dev_Col_User_Prop_Expanded needs to have mutlivalue fixed and
+	#	have the multivalue logic pulled from teh syncer
+	# view also needs account.is_enabled and  possibly v_corp_family_account
+
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+	       SELECT
+	                Login,
+	                Property_Name,
+	                Property_Type,
+					property_value,
+	                Is_Boolean,
+	                Device_Collection_ID
+	        FROM
+	                V_Dev_Col_User_Prop_Expanded JOIN
+	                Device_Collection USING (Device_Collection_ID)
+	        WHERE
+					is_enabled = 'Y'
+	        AND     (Device_Collection_Type = 'radius_app' OR
+	                	Property_Type = 'RADIUS')
+			AND		login = ?
+			AND		device_collection_id = ?
+	}
+	);
+
+	if ( !$sth ) {
+		$self->Error(
+			"fetch_attributes: unable to prepare sth: " . $dbh->errstr );
+		return undef;
+	}
+
+	if ( !( $sth->execute($login, $dcid) ) ) {
+		$self->Error( "fetch_attributes: execute failed: " . $dbh->errstr );
+		return undef;
+	}
+	my $count = 0;
+	my $attr = {};
+	# XXX need to properly support multivalue
+	while(my $hr = $sth->fetchrow_hashref) {
+		$attr-> { $hr->{property_type} }->{ $hr->{property_name} }=
+			{
+				name => $hr->{property_name},
+				value => $hr->{property_value},
+				multivalue => 'N',
+			};
+		$count++;
+	}
+	$sth->finish;
+
+	if ( !$count ) {
+		return undef;
+	}
+
+	return $attr;
 }
+
 
 sub fetch_all_attributes {
 	my $self = shift;
@@ -739,7 +854,7 @@ sub fetch_all_attributes {
 
 	if ( !$self->{Env} || !$self->{AttrDB} ) {
 		$self->Error(
-"fetch_all_attributes: database environment is not defined"
+			"fetch_all_attributes: database environment is not defined"
 		);
 		return undef;
 	}
@@ -1015,9 +1130,9 @@ sub put_devcollprop {
 	my $devcollprop = shift;
 	my ( $ret, $devcollpropdata );
 
-      #
-      # bail if the database environment or devcollprop database are not defined
-      #
+	#
+	# bail if the database environment or devcollprop database are not defined
+	#
 	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
 		$self->Error(
 			"put_devcollprop: database environment is not defined");
@@ -1063,12 +1178,12 @@ sub delete_devcollprop {
 	my $devcoll_id = shift;
 	my $ret;
 
-      #
-      # bail if the database environment or devcollprop database are not defined
-      #
+	#
+	# bail if the database environment or devcollprop database are not defined
+	#
 	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
 		$self->Error(
-"delete_devcollprop: database environment is not defined"
+			"delete_devcollprop: database environment is not defined"
 		);
 		return undef;
 	}
@@ -1187,9 +1302,9 @@ sub put_attributes {
 	my $attributes = $opt->{attrs};
 	my ( $ret, $attributesdata );
 
-       #
-       # bail if the database environment or attributes database are not defined
-       #
+	#
+	# bail if the database environment or attributes database are not defined
+	#
 	if ( !$self->{Env} || !$self->{AttrDB} ) {
 		$self->Error(
 			"put_attributes: database environment is not defined");
@@ -1197,7 +1312,7 @@ sub put_attributes {
 	}
 	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
 		$self->Error(
-"put_attributes: key or login and devcollid must be passed"
+			"put_attributes: key or login and devcollid must be passed"
 		);
 		return undef;
 	}
@@ -1239,9 +1354,9 @@ sub delete_attributes {
 	my $ret;
 	my $opt = &_options(@_);
 
-       #
-       # bail if the database environment or attributes database are not defined
-       #
+	#
+	# bail if the database environment or attributes database are not defined
+	#
 	if ( !$self->{Env} || !$self->{AttrDB} ) {
 		$self->Error(
 			"delete_attributes: database environment is not defined"
@@ -1251,7 +1366,7 @@ sub delete_attributes {
 
 	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
 		$self->Error(
-"put_attributes: key or login and devcollid must be passed"
+			"put_attributes: key or login and devcollid must be passed"
 		);
 		return undef;
 	}
@@ -1705,7 +1820,7 @@ Tokens:         %s
 		',',
 		sort {
 			$a <=> $b
-		  } @{ $user->{tokens} }
+		} @{ $user->{tokens} }
 	  );
 }
 
@@ -1806,7 +1921,7 @@ sub HOTPAuthenticate {
 		if ( length($otp) < $otplen ) {
 			$self->_Debug(
 				2,
-"OTP given less than minimal possible length for token %d",
+				"OTP given less than minimal possible length for token %d",
 				$tokenid
 			);
 			next;
@@ -1828,7 +1943,7 @@ sub HOTPAuthenticate {
 		} else {
 			$self->_Debug(
 				2,
-"PIN is incorrect for token %d, expected %s, got %s",
+				"PIN is incorrect for token %d, expected %s, got %s",
 				$tokenid,
 				$token->{pin},
 				$crypt
@@ -1918,7 +2033,7 @@ sub HOTPAuthenticate {
 		if ( !defined($checkprn) ) {
 			$self->Error(
 				sprintf(
-"Unknown error generating OTP for token %d",
+					"Unknown error generating OTP for token %d",
 					$token->{token_id} )
 			);
 			return undef;
@@ -1938,30 +2053,30 @@ sub HOTPAuthenticate {
 
 	my $initialseq;
 	my $maxskew;
-	if ($token->{time_modulo}) {
-		$initialseq = time() % $token->{time_modulo}) - 
-			$__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
+	if ( $token->{time_modulo} ) {
+		$initialseq = time() % $token->{time_modulo} -
+		  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
 		#
 		# If we already have an auth from this sequence, don't
 		# allow replays
 		#
-		if ($token->{sequence} >= $initialseq) {
+		if ( $token->{sequence} >= $initialseq ) {
 			$initialseq = $token->{sequence} + 1;
 		}
 		$maxskew = $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
 	} else {
 		$initialseq = $token->{sequence} + 1;
-		$maxskew = $__HOTPANTS_CONFIG_PARAMS{SequenceSkew};
+		$maxskew    = $__HOTPANTS_CONFIG_PARAMS{SequenceSkew};
 	}
-		
+
 	#
 	# Either the token is not skewed, or the skew reset failed.  Perform
 	# normal authentication
 	#
 	for (
-		$sequence = $initialseq;
+		$sequence = $initialseq ;
 		$sequence <= $token->{sequence} +
-			$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
+		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
 		$sequence++
 	  )
 	{
@@ -1975,7 +2090,7 @@ sub HOTPAuthenticate {
 		if ( !defined($checkprn) ) {
 			$self->Error(
 				sprintf(
-"Unknown error generating OTP for token %d",
+					"Unknown error generating OTP for token %d",
 					$token->{token_id} )
 			);
 			return undef;
@@ -1992,7 +2107,7 @@ sub HOTPAuthenticate {
 		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
 	{
 		$errstr = sprintf(
-"OTP given does not match a valid sequence for token %d",
+			"OTP given does not match a valid sequence for token %d",
 			$token->{token_id} );
 		goto HOTPAuthDone;
 	}
@@ -2003,14 +2118,10 @@ sub HOTPAuthenticate {
 	#
 	if ( $sequence > $maxskew ) {
 		$errstr = sprintf(
-"OTP sequence %d for token %d outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
-			$sequence,
-			$token->{token_id},
-			$login,
-			$maxskew
-		);
+			"OTP sequence %d for token %d outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
+			$sequence, $token->{token_id}, $login, $maxskew );
 		$self->UserError(
-"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
+			"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
 		);
 		$token->{skew_sequence} = $sequence;
 		goto HOTPAuthDone;
@@ -2029,7 +2140,7 @@ sub HOTPAuthenticate {
 		$token->{lock_status_changed} = time;
 		$self->Status(
 			sprintf(
-"user %s successfully authenticated with token %d",
+				"user %s successfully authenticated with token %d",
 				$login, $token->{token_id}
 			)
 		);
@@ -2052,7 +2163,8 @@ sub HOTPAuthenticate {
 				  )
 				{
 					$token->{unlock_time} = time +
-					  $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
+					  $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}
+					  ;
 				} else {
 					$token->{unlock_time} = 0;
 				}
@@ -2130,13 +2242,15 @@ sub AuthenticateUser {
 	$self->Status(undef);
 
 	#
-	# bail if the database environment or token database are not defined
+	# bail if there is no db connection
 	#
-
-	if ( !$self->{Env} || !$self->{TokenDB} ) {
-		$self->Error("database environment not initialized");
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_user: no connection to database");
 		return undef;
 	}
+
+	# clear errors
+	$self->Error(undef);
 
 	my $login = $opt->{login};
 	my $user  = $opt->{user};
@@ -2237,11 +2351,11 @@ sub AuthenticateUser {
 		}
 	}
 
-	if ( defined( $attrs->{__HOTPANTS_INTERNAL}->{PWType} ) ) {
-		$authmech = $attrs->{__HOTPANTS_INTERNAL}->{PWType}->{value};
+	if ( defined( $attrs->{RADIUS}->{PWType} ) ) {
+		$authmech = $attrs->{RADIUS}->{PWType}->{value};
 		$self->_Debug(
 			2,
-"Setting password type for user %s on client %s to (%s)",
+			"Setting password type for user %s on client %s to (%s)",
 			$login,
 			$client->{name},
 			$authmech || "undefined"
@@ -2251,10 +2365,10 @@ sub AuthenticateUser {
 	#
 	# See if the user has access to log in here
 	#
-	if ( !( $attrs->{__HOTPANTS_INTERNAL}->{GrantAccess} ) ) {
+	if ( !( $attrs->{RADIUS}->{GrantAccess} ) ) {
 		$self->Error(
 			sprintf(
-"user %s does not have permission to log in to %s (%s)",
+				"user %s does not have permission to log in to %s (%s)",
 				$login, $source, $client->{name}
 			)
 		);
@@ -2264,7 +2378,7 @@ sub AuthenticateUser {
 	if ( !defined($authmech) || $authmech eq 'star' ) {
 		$self->Error(
 			sprintf(
-"no password mechanisms defined to auth user %s on client %s (%s)",
+				"no password mechanisms defined to auth user %s on client %s (%s)",
 				$login, $client->{name}, $source
 			)
 		);
@@ -2295,7 +2409,7 @@ sub AuthenticateUser {
 		if ( !$self->Error ) {
 			$self->Error(
 				sprintf(
-"user must use %s to authenticate, but has no set passwords",
+					"user must use %s to authenticate, but has no set passwords",
 					$authmech )
 			);
 		}
@@ -2305,7 +2419,7 @@ sub AuthenticateUser {
 	if ( !defined( $passwd->{$authmech} ) ) {
 		$self->Error(
 			sprintf(
-"user must use %s to authenticate, but does not have a password of that type",
+				"user must use %s to authenticate, but does not have a password of that type",
 				$authmech )
 		);
 		return undef;
@@ -2350,348 +2464,347 @@ sub AuthenticateUser {
 		|| ( $authmech eq 'networkdevice' ) )
 	{
 		$checkpass = crypt( $password, $p->{passwd} );
-	}
-	elsif ( $authmech eq 'sha1_nosalt' )  {
-		  $checkpass = sha1_base64($password);
-	  } else {
-		  $self->Error(
-			  sprintf(
-"unsupported authentication mechanism %s authenticating user %s for client %s",
-				  $authmech, $login, $client->{name}
-			  )
-		  );
-		  return undef;
+	} elsif ( $authmech eq 'sha1_nosalt' ) {
+		$checkpass = sha1_base64($password);
+	} else {
+		$self->Error(
+			sprintf(
+				"unsupported authentication mechanism %s authenticating user %s for client %s",
+				$authmech, $login, $client->{name}
+			)
+		);
+		return undef;
 	}
 
 	$self->_Debug( 2, "Authenticating user %s on client %s with %s",
-		  $login, $client->{name}, $authmech );
-	if (         $p->{passwd} eq $checkpass
-		  || $p->{passwd} eq ( $checkpass . "=" ) )
-	  {
-		  $authsucceeded = 1;
+		$login, $client->{name}, $authmech );
+	if (       $p->{passwd} eq $checkpass
+		|| $p->{passwd} eq ( $checkpass . "=" ) )
+	{
+		$authsucceeded = 1;
 	} else {
-		  $self->_Debug(
-			  2,
-"User %s failed authentication on client %s with %s: expected %s, got %s",
-			  $login,
-			  $client->{name},
-			  $authmech,
-			  $checkpass,
-			  $p->{passwd}
-		  );
+		$self->_Debug(
+			2,
+			"User %s failed authentication on client %s with %s: expected %s, got %s",
+			$login,
+			$client->{name},
+			$authmech,
+			$checkpass,
+			$p->{passwd}
+		);
 	}
 
       UserAuthDone:
 	if ($authsucceeded) {
-		  if ( !$self->Status ) {
-			  $self->Status(
-				  sprintf(
-"user %s successfully authenticated using %s for client %s",
-					  $login, $authmech,
-					  $client->{name}
-				  )
-			  );
-		  }
-		  $user->{bad_logins}          = 0;
-		  $user->{lock_status_changed} = time;
-		  $user->{last_login}          = time;
+		if ( !$self->Status ) {
+			$self->Status(
+				sprintf(
+					"user %s successfully authenticated using %s for client %s",
+					$login, $authmech, $client->{name}
+				)
+			);
+		}
+		$user->{bad_logins}          = 0;
+		$user->{lock_status_changed} = time;
+		$user->{last_login}          = time;
 	} else {
-		  if ( !$self->Error ) {
-			  $self->Error(
-				  sprintf(
-"user %s unsuccessfully authenticated using %s for client %s",
-					  $login, $authmech,
-					  $client->{name}
-				  )
-			  );
-			  $self->_Debug( 2, $self->Error );
-		  }
-		  $user->{bad_logins} += 1;
-		  $user->{lock_status_changed} = time;
-		  if ( $user->{bad_logins} >=
-			  $__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
-		  {
-			  $self->_Debug( 2, "Locking user %s", $login );
-			  $self->Error( $self->Error . " - locking user" );
-			  $user->{user_locked} = 1;
-			  if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-				  $user->{unlock_time} = time +
-				    $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
-			  } else {
-				  $user->{unlock_time} = 0;
-			  }
-		  }
+		if ( !$self->Error ) {
+			$self->Error(
+				sprintf(
+					"user %s unsuccessfully authenticated using %s for client %s",
+					$login, $authmech, $client->{name}
+				)
+			);
+			$self->_Debug( 2, $self->Error );
+		}
+		$user->{bad_logins} += 1;
+		$user->{lock_status_changed} = time;
+		if ( $user->{bad_logins} >=
+			$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
+		{
+			$self->_Debug( 2, "Locking user %s", $login );
+			$self->Error( $self->Error . " - locking user" );
+			$user->{user_locked} = 1;
+			if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
+				$user->{unlock_time} = time +
+				  $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
+			} else {
+				$user->{unlock_time} = 0;
+			}
+		}
 	}
 
 	$err = $self->Error;
 	if ( !( $self->put_user($user) ) ) {
-		  $self->Error( "Error updating user %s: %s",
-			  $login, $self->Error );
-		  $self->Status(undef);
-		  return undef;
+		$self->Error( "Error updating user %s: %s",
+			$login, $self->Error );
+		$self->Status(undef);
+		return undef;
 	}
 	if ($err) {
-		  $self->Error($err);
+		$self->Error($err);
 	}
 	return $authsucceeded;
 }
 
 sub VerifyUser {
-	  my $self = shift;
-	  my $opt  = &_options;
+	my $self = shift;
+	my $opt  = &_options;
 
-	  $self->Error(undef);
+	$self->Error(undef);
 
-	  #
-	  # bail if the database environment or token database are not defined
-	  #
+	#
+	# bail if there is no db connection
+	#
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_user: no connection to database");
+		return undef;
+	}
 
-	  if ( !$self->{Env} || !$self->{TokenDB} ) {
-		  $self->Error("database environment not initialized");
-		  return undef;
-	  }
+	# clear errors
+	$self->Error(undef);
 
-	  my $login = $opt->{login};
-	  my $user  = $opt->{user};
+	my $login = $opt->{login};
+	my $user  = $opt->{user};
 
-	  if ( !$login && !$user ) {
-		  $self->Error(
-			  "login or user options required but not provided");
-		  return undef;
-	  }
+	if ( !$login && !$user ) {
+		$self->Error("login or user options required but not provided");
+		return undef;
+	}
 
-	  if ( !$user ) {
-		  if ( !( $user = $self->fetch_user( login => $login ) ) ) {
-			  if ( !$self->Error ) {
-				  $self->Error("unknown user");
-				  return undef;
-			  }
-		  }
-	  }
-	  $login = $user->{login};
+	if ( !$user ) {
+		if ( !( $user = $self->fetch_user( login => $login ) ) ) {
+			if ( !$self->Error ) {
+				$self->Error("unknown user");
+				return undef;
+			}
+		}
+	}
+	$login = $user->{login};
 
-	  #
-	  # Check if the user is locked
-	  #
-	  if ( $user->{user_locked} ) {
-		  if ( $user->{unlock_time} && $user->{unlock_time} <= time() )
-		  {
-			  $user->{user_locked}         = 0;
-			  $user->{unlock_time}         = 0;
-			  $user->{lock_status_changed} = time();
-			  $self->_Debug( 2, "Unlocking user %s", $login );
-			  if ( !( $self->put_user($user) ) ) {
-				  $self->Error( "Error unlocking user %s: %s",
-					  $login, $self->Error );
-				  return undef;
-			  }
-		  } else {
-			  my $errstr = sprintf( "user %s is locked.", $login );
-			  if ( $user->{unlock_time} ) {
-				  $errstr .= sprintf(
-					  "  User will unlock at %s",
-					  scalar(
-						  localtime(
-							  $user->{unlock_time}
-						  )
-					  )
-				  );
-			  } else {
-				  $errstr .=
-				    "  User must be administratively unlocked.";
-			  }
-			  $self->Error($errstr);
-			  return undef;
-		  }
-	  }
-	  $self->_Debug( 2, "user %s is valid", $login );
-	  return 1;
+	return 1;
+
+	# XXX
+
+	#
+	# Check if the user is locked
+	#
+	if ( $user->{user_locked} ) {
+		if ( $user->{unlock_time} && $user->{unlock_time} <= time() ) {
+			$user->{user_locked}         = 0;
+			$user->{unlock_time}         = 0;
+			$user->{lock_status_changed} = time();
+			$self->_Debug( 2, "Unlocking user %s", $login );
+			if ( !( $self->put_user($user) ) ) {
+				$self->Error( "Error unlocking user %s: %s",
+					$login, $self->Error );
+				return undef;
+			}
+		} else {
+			my $errstr = sprintf( "user %s is locked.", $login );
+			if ( $user->{unlock_time} ) {
+				$errstr .= sprintf(
+					"  User will unlock at %s",
+					scalar(
+						localtime(
+							$user->{unlock_time}
+						)
+					)
+				);
+			} else {
+				$errstr .=
+				  "  User must be administratively unlocked.";
+			}
+			$self->Error($errstr);
+			return undef;
+		}
+	}
+	$self->_Debug( 2, "user %s is valid", $login );
+	return 1;
 }
 
 sub AuthorizeUser {
-	  my $self = shift;
-	  my $opt  = &_options;
-	  my ($ret);
+	my $self = shift;
+	my $opt  = &_options;
+	my ($ret);
 
-	  # Generic user error, clear status
-	  $self->UserError("Login incorrect");
-	  $self->Status(undef);
+	# Generic user error, clear status
+	$self->UserError("Login incorrect");
+	$self->Status(undef);
 
-	  #
-	  # bail if the database environment or token database are not defined
-	  #
+	#
+	# bail if there is no db connection
+	#
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_user: no connection to database");
+		return undef;
+	}
 
-	  if ( !$self->{Env} || !$self->{TokenDB} ) {
-		  $self->Error("database environment not initialized");
-		  return undef;
-	  }
+	# clear errors
+	$self->Error(undef);
 
-	  my $login = $opt->{login};
-	  my $user  = $opt->{user};
+	my $login = $opt->{login};
+	my $user  = $opt->{user};
 
-	  if ( !$login && !$user ) {
-		  $self->Error(
-			  "login or user options required but not provided");
-		  return undef;
-	  }
+	if ( !$login && !$user ) {
+		$self->Error("login or user options required but not provided");
+		return undef;
+	}
 
-	  if ( !$user ) {
-		  if ( !( $user = $self->fetch_user( login => $login ) ) ) {
-			  if ( !$self->Error ) {
-				  $self->Error("unknown user");
-				  $self->UserError("Login incorrect");
-				  return undef;
-			  }
-		  }
-	  }
-	  $login = $user->{login};
+	if ( !$user ) {
+		if ( !( $user = $self->fetch_user( login => $login ) ) ) {
+			if ( !$self->Error ) {
+				$self->Error("unknown user");
+				$self->UserError("Login incorrect");
+				return undef;
+			}
+		}
+	}
+	$login = $user->{login};
 
-	  my $source;
-	  if ( !( $source = $opt->{source} ) ) {
-		  $self->Error("source option required but not provided");
-		  return undef;
-	  }
+	my $source;
+	if ( !( $source = $opt->{source} ) ) {
+		$self->Error("source option required but not provided");
+		return undef;
+	}
 
-	  if ( !$self->VerifyUser( user => $user ) ) {
-		  return undef;
-	  }
+	if ( !$self->VerifyUser( user => $user ) ) {
+		return undef;
+	}
 
-	  #
-	  # Fetch the client for the source (IP address or application name)
-	  # Return undef if the client does not exist.
-	  #
-	  my $client;
-	  if ( !( $client = $self->fetch_client( client_id => $source ) ) ) {
-		  if ( !$self->Error ) {
-			  $self->Error(
-				  sprintf( "Client %s not found", $source ) );
-		  }
-		  return undef;
-	  }
+	#
+	# Fetch the client for the source (IP address or application name)
+	# Return undef if the client does not exist.
+	#
+	my $client;
+	if ( !( $client = $self->fetch_client( client_id => $source ) ) ) {
+		if ( !$self->Error ) {
+			$self->Error(
+				sprintf( "Client %s not found", $source ) );
+		}
+		return undef;
+	}
 
-	  #
-	  # Fetch client parameters for the device class.
-	  #
-	  my $devcollprop;
+	#
+	# Fetch client parameters for the device class.
+	#
+	my $devcollprop;
 
-	  if (
-		  !(
-			  $devcollprop = $self->fetch_devcollprop(
-				  devcoll_id => $client->{devcoll_id}
-			  )
-		  )
-	    )
-	  {
-		  if ( $self->Error ) {
-			  return undef;
-		  }
-	  }
+	if (
+		!(
+			$devcollprop = $self->fetch_devcollprop(
+				devcoll_id => $client->{devcoll_id}
+			)
+		)
+	  )
+	{
+		if ( $self->Error ) {
+			return undef;
+		}
+	}
 
-	  #
-	  # If we don't have a device password method, use our default
-	  #
-	  my $authmech = $devcollprop->{pwtype};
+	#
+	# If we don't have a device password method, use our default
+	#
+	my $authmech = $devcollprop->{pwtype};
 
-	  if ( defined($authmech) ) {
-		  $self->_Debug( 2, "Setting password type for client %s to %s",
-			  $client->{name}, $authmech );
-	  } else {
-		  $authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		  $self->_Debug(
-			  2,
-			  "Setting password type for client %s to default (%s)",
-			  $client->{name},
-			  $authmech || "undefined"
-		  );
-	  }
+	if ( defined($authmech) ) {
+		$self->_Debug( 2, "Setting password type for client %s to %s",
+			$client->{name}, $authmech );
+	} else {
+		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
+		$self->_Debug( 2,
+			"Setting password type for client %s to default (%s)",
+			$client->{name}, $authmech || "undefined" );
+	}
 
-	  #
-	  # See if the user has a password type override
-	  #
+	#
+	# See if the user has a password type override
+	#
 
-	  my $attrs;
-	  if (
-		  !(
-			  $attrs = $self->fetch_attributes(
-				  login      => $login,
-				  devcoll_id => $client->{devcoll_id}
-			  )
-		  )
-	    )
-	  {
-		  if ( $self->Error ) {
-			  return undef;
-		  }
-	  }
+	my $attrs;
+	if (
+		!(
+			$attrs = $self->fetch_attributes(
+				login      => $login,
+				devcoll_id => $client->{devcoll_id}
+			)
+		)
+	  )
+	{
+		if ( $self->Error ) {
+			return undef;
+		}
+	}
 
-	  if ( defined( $attrs->{__HOTPANTS_INTERNAL}->{PWType} ) ) {
-		  $authmech = $attrs->{__HOTPANTS_INTERNAL}->{PWType}->{value};
-		  $self->_Debug(
-			  2,
-"Setting password type for user %s on client %s to (%s)",
-			  $login,
-			  $client->{name},
-			  $authmech || "undefined"
-		  );
-	  }
+	if ( defined( $attrs->{RADIUS}->{PWType} ) ) {
+		$authmech = $attrs->{RADIUS}->{PWType}->{value};
+		$self->_Debug(
+			2,
+			"Setting password type for user %s on client %s to (%s)",
+			$login,
+			$client->{name},
+			$authmech || "undefined"
+		);
+	}
 
-	  #
-	  # See if the user has access to log in here
-	  #
-	  if ( !( $attrs->{__HOTPANTS_INTERNAL}->{GrantAccess} ) ) {
-		  $self->Error(
-			  sprintf(
-"User %s does not have access to log in to %s (%s)",
-				  $login, $source, $client->{name}
-			  )
-		  );
-		  return undef;
-	  }
+	#
+	# See if the user has access to log in here
+	#
+	if ( !( $attrs->{RADIUS}->{GrantAccess} ) ) {
+		$self->Error(
+			sprintf(
+				"User %s does not have access to log in to %s (%s)",
+				$login, $source, $client->{name}
+			)
+		);
+		return undef;
+	}
 
-	  if ( !defined($authmech) || $authmech eq 'star' ) {
-		  $self->Error(
-			  sprintf(
-"No password mechanisms defined to auth user %s on client %s (%s)",
-				  $login, $client->{name}, $source
-			  )
-		  );
-		  return undef;
-	  }
+	if ( !defined($authmech) || $authmech eq 'star' ) {
+		$self->Error(
+			sprintf(
+				"No password mechanisms defined to auth user %s on client %s (%s)",
+				$login, $client->{name}, $source
+			)
+		);
+		return undef;
+	}
 
-	  if ( $authmech eq 'token' || $authmech eq 'oath' ) {
-		  $self->_Debug( 2,
-			  "Authenticating user %s on client %s with HOTP",
-			  $login, $client->{name} );
+	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
+		$self->_Debug( 2,
+			"Authenticating user %s on client %s with HOTP",
+			$login, $client->{name} );
 
-		  if ( !@{ $user->{tokens} } ) {
-			  $self->Error( "No tokens assigned to " . $login );
-			  return undef;
-		  }
-		  return 1;
-	  }
+		if ( !@{ $user->{tokens} } ) {
+			$self->Error( "No tokens assigned to " . $login );
+			return undef;
+		}
+		return 1;
+	}
 
-	  my $passwd;
-	  if ( !( $passwd = $self->fetch_passwd( login => $login ) ) ) {
-		  if ( !$self->Error ) {
-			  $self->Error(
-				  sprintf(
-"User must use %s to authenticate, but has no set passwords",
-					  $authmech )
-			  );
-		  }
-		  return undef;
-	  }
+	my $passwd;
+	if ( !( $passwd = $self->fetch_passwd( login => $login ) ) ) {
+		if ( !$self->Error ) {
+			$self->Error(
+				sprintf(
+					"User must use %s to authenticate, but has no set passwords",
+					$authmech )
+			);
+		}
+		return undef;
+	}
 
-	  if ( !defined( $passwd->{$authmech} ) ) {
-		  $self->Error(
-			  sprintf(
-"User must use %s to authenticate, but does not have a password of that type",
-				  $authmech )
-		  );
-		  return undef;
-	  }
+	if ( !defined( $passwd->{$authmech} ) ) {
+		$self->Error(
+			sprintf(
+				"User must use %s to authenticate, but does not have a password of that type",
+				$authmech )
+		);
+		return undef;
+	}
 
-	  return 1;
+	return 1;
 }
 
 1;
