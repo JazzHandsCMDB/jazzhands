@@ -282,5 +282,262 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION component_utils.insert_pci_component(
+	pci_vendor_id	integer,
+	pci_device_id	integer,
+	pci_sub_vendor_id	integer DEFAULT NULL,
+	pci_subsystem_id	integer DEFAULT NULL,
+	pci_vendor_name		text DEFAULT NULL,
+	pci_device_name		text DEFAULT NULL,
+	pci_sub_vendor_name		text DEFAULT NULL,
+	pci_sub_device_name		text DEFAULT NULL,
+	component_function_list	text[] DEFAULT NULL,
+	slot_type			text DEFAULT 'unknown'
+) RETURNS jazzhands.component
+AS $$
+DECLARE
+	ctid		integer;
+	comp_id		integer;
+	sub_comp_id	integer;
+	stid		integer;
+	vendor_name	text;
+	sub_vendor_name	text;
+	model_name	text;
+	c			RECORD;
+BEGIN
+	IF (pci_sub_vendor_id IS NULL AND pci_subsystem_id IS NOT NULL) OR
+			(pci_sub_vendor_id IS NOT NULL AND pci_subsystem_id IS NULL) THEN
+		RAISE EXCEPTION
+			'pci_sub_vendor_id and pci_subsystem_id must be set together';
+	END IF;
+
+	--
+	-- See if we have this component type in the database already
+	--
+	SELECT
+		vid.component_type_id INTO ctid
+	FROM
+		component_property vid JOIN
+		component_property did ON (
+			vid.component_property_name = 'PCIVendorID' AND
+			vid.component_property_type = 'PCI' AND
+			did.component_property_name = 'PCIDeviceID' AND
+			did.component_property_type = 'PCI' AND
+			vid.component_type_id = did.component_type_id ) LEFT JOIN
+		component_property svid ON (
+			svid.component_property_name = 'PCISubsystemVendorID' AND
+			svid.component_property_type = 'PCI' AND
+			svid.component_type_id = did.component_type_id ) LEFT JOIN
+		component_property sid ON (
+			sid.component_property_name = 'PCISubsystemID' AND
+			sid.component_property_type = 'PCI' AND
+			sid.component_type_id = did.component_type_id )
+	WHERE
+		vid.property_value = pci_vendor_id::varchar AND
+		did.property_value = pci_device_id::varchar AND
+		svid.property_value IS NOT DISTINCT FROM pci_sub_vendor_id::varchar AND
+		sid.property_value IS NOT DISTINCT FROM pci_subsystem_id::varchar;
+
+	IF FOUND THEN
+		INSERT INTO jazzhands.component (
+			component_type_id
+		) VALUES (
+			ctid
+		) RETURNING * INTO c;
+		RETURN c;
+	END IF;
+
+	--
+	-- The device type doesn't exist, so attempt to insert it
+	--
+
+	
+	IF pci_device_name IS NULL OR component_function_list IS NULL THEN
+		RAISE EXCEPTION 'component_id not found and pci_device_name or component_function_list was not passed' USING ERRCODE = 'JH501';
+	END IF;
+
+	--
+	-- Ensure that there's a company linkage for the PCI (subsystem)vendor
+	--
+	SELECT
+		company_id, company_name INTO comp_id, vendor_name
+	FROM
+		property p JOIN
+		company c USING (company_id)
+	WHERE
+		property_type = 'DeviceProvisioning' AND
+		property_name = 'PCIVendorID' AND
+		company_id = pci_vendor_id;
+	
+	IF NOT FOUND THEN
+		IF pci_vendor_name IS NULL THEN
+			RAISE EXCEPTION 'PCI vendor id mapping not found and pci_vendor_name was not passed' USING ERRCODE = 'JH501';
+		END IF;
+		SELECT company_id INTO comp_id FROM company
+		WHERE company_name = pci_vendor_name;
+	
+		IF NOT FOUND THEN
+			INSERT INTO company (company_name, description)
+			VALUES (pci_vendor_name, 'PCI vendor auto-insert')
+			RETURNING company_id INTO comp_id;
+		END IF;
+
+		INSERT INTO property (
+			property_name,
+			property_type,
+			property_value,
+			company_id
+		) VALUES (
+			'PCIVendorID',
+			'DeviceProvisioning',
+			pci_vendor_id,
+			comp_id
+		);
+		vendor_name := pci_vendor_name;
+	END IF;
+
+	SELECT
+		company_id, company_name INTO sub_comp_id, sub_vendor_name
+	FROM
+		property JOIN
+		company c USING (company_id)
+	WHERE
+		property_type = 'DeviceProvisioning' AND
+		property_name = 'PCIVendorID' AND
+		company_id = pci_sub_vendor_id;
+	
+	IF NOT FOUND THEN
+		IF pci_sub_vendor_name IS NULL THEN
+			RAISE EXCEPTION 'PCI subsystem vendor id mapping not found and pci_sub_vendor_name was not passed' USING ERRCODE = 'JH501';
+		END IF;
+		SELECT company_id INTO sub_comp_id FROM company
+		WHERE company_name = pci_sub_vendor_name;
+	
+		IF NOT FOUND THEN
+			INSERT INTO company (company_name, description)
+			VALUES (pci_sub_vendor_name, 'PCI vendor auto-insert')
+			RETURNING company_id INTO sub_comp_id;
+		END IF;
+
+		INSERT INTO property (
+			property_name,
+			property_type,
+			property_value,
+			company_id
+		) VALUES (
+			'PCIVendorID',
+			'DeviceProvisioning',
+			pci_sub_vendor_id,
+			sub_comp_id
+		);
+		sub_vendor_name := pci_sub_vendor_name;
+	END IF;
+
+	--
+	-- Fetch the slot type
+	--
+
+	SELECT 
+		slot_type_id INTO stid
+	FROM
+		slot_type st
+	WHERE
+		st.slot_type = insert_pci_component.slot_type AND
+		slot_function = 'PCI';
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'slot type not found adding component_type'
+			USING ERRCODE = 'JH501';
+	END IF;
+
+	--
+	-- Figure out the best name/description to insert this component with
+	--
+	IF pci_sub_device_name IS NOT NULL AND pci_sub_device_name != 'Device' THEN
+		model_name = concat_ws(' ', 
+			sub_vendor_name, pci_sub_device_name,
+			'(' || vendor_name, pci_device_name || ')');
+	ELSIF pci_sub_device_name = 'Device' THEN
+		model_name = concat_ws(' ', 
+			vendor_name, '(' || sub_vendor_name || ')', pci_device_name);
+	ELSE
+		model_name = concat_ws(' ', vendor_name, pci_device_name);
+	END IF;
+	INSERT INTO component_type (
+		company_id,
+		model,
+		slot_type_id,
+		description
+	) VALUES (
+		CASE WHEN 
+			sub_comp_id IS NULL OR
+			pci_sub_device_name IS NULL OR
+			pci_sub_device_name = 'Device'
+		THEN
+			comp_id
+		ELSE
+			sub_comp_id
+		END,
+		CASE WHEN
+			pci_sub_device_name IS NULL OR
+			pci_sub_device_name = 'Device'
+		THEN
+			pci_device_name
+		ELSE
+			pci_sub_device_name
+		END,
+		stid,
+		model_name
+	) RETURNING component_type_id INTO ctid;
+	--
+	-- Insert properties for the PCI vendor/device IDs
+	--
+	INSERT INTO component_property (
+		component_property_name,
+		component_property_type,
+		component_type_id,
+		property_value
+	) VALUES 
+		('PCIVendorID', 'PCI', ctid, pci_vendor_id),
+		('PCIDeviceID', 'PCI', ctid, pci_device_id);
+	
+	IF (pci_subsystem_id IS NOT NULL) THEN
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES 
+			('PCISubsystemVendorID', 'PCI', ctid, pci_sub_vendor_id),
+			('PCISubsystemID', 'PCI', ctid, pci_subsystem_id);
+	END IF;
+
+	--
+	-- Insert the component functions
+	--
+
+	INSERT INTO component_type_component_func (
+		component_type_id,
+		component_function
+	) SELECT DISTINCT
+		ctid,
+		cf
+	FROM
+		unnest(array_append(component_function_list, 'PCI')) x(cf);
+
+	--
+	-- We have a component_type_id now, so insert the component and return
+	--
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+	RETURN c;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
 GRANT USAGE ON SCHEMA component_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO ro_role;
