@@ -246,7 +246,15 @@ sub _Debug {
 sub Error {
 	my $self = shift;
 
-	if (@_) { $self->{_error} = shift; }
+
+	if (@_) { 
+		my $fmt = shift;
+		if (@_) {
+			$self->{_error} = sprintf($fmt, @_);
+		} else {
+			$self->{_error} = $fmt;
+		}
+	}
 	return $self->{_error};
 }
 
@@ -341,21 +349,29 @@ sub fetch_token {
 	# things in the bdb file that are not in the db:
 	# last_login token_locked unlock_time bad_logins
 	# sequence_changed token_changed lock_status_changed
+	# skew_sequence,
+	# XXX - does not gracefully handle when an account is assigned to multiple
+	# users!
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
 			SELECT
-					token_id
-					token_type
-					token_status
-					token_serial
-					token_key
-					sequence
-					zero_time
-					time_modulo
-					skew_sequence
-					token_pin
-			FROM	token
+					token_id,
+					token_type,
+					token_status,
+					token_serial,
+					token_key,
+					zero_time,
+					time_modulo,
+					token_pin,
+					is_user_token_locked,
+					token_unlock_time as lock_status_changed,
+					bad_logins,
+					token_sequence,
+					ts.last_updated as sequence_changed
+			FROM	token t
+					INNER JOIN account_token at USING (token_id)
+					INNER JOIN token_sequence ts USING (token_id)
 			WHERE	token_id = ?
 
 	});
@@ -412,10 +428,13 @@ sub fetch_user {
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	LOGIN, account_status
+		SELECT	LOGIN, account_status, 
+				array_agg(token_id ORDER BY token_id)  as tokens
 		FROM	v_corp_family_account
+				LEFT JOIN account_token USING (account_id)
 		WHERE	is_enabled = 'Y'
 		AND		login = ?
+		GROUP BY LOGIN, account_status
 
 	}
 	);
@@ -444,6 +463,7 @@ sub fetch_user {
 	return {
 		login  => $hr->{login},
 		status => $hr->{account_status},
+		tokens => $hr->{tokens},
 	};
 }
 
