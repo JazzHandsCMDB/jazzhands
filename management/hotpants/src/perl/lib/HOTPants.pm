@@ -858,11 +858,15 @@ sub put_user {
 	my $user = shift;
 	my ( $ret, $userdata );
 
+	# XXX
+	return 1;
+
 	#
-	# bail if the database environment or user database are not defined
+	# bail if the database environment or token database are not defined
 	#
-	if ( !$self->{Env} || !$self->{UserDB} ) {
-		$self->Error("put_user: database environment is not defined");
+	if ( !$self->{Env} || !$self->{TokenDB} ) {
+		$self->Error(
+			"delete_token: database environment is not defined");
 		return undef;
 	}
 	if ( !$user || !$user->{login} ) {
@@ -873,25 +877,41 @@ sub put_user {
 	# clear errors
 	$self->Error(undef);
 
-	if ( !( $userdata = serialize_user($user) ) ) {
+	# XXX - should be tweaked to use the generic only update changed columns
+	# code
+	my $dbh = $self->{dbh};
+	my $sth = $dbh->prepare_cached(
+		qq{
+			UPDATE account
+			SET	status = :status,
+				last_login = :last_login,
+				bad_logins = :last_login,
+	       SELECT
+	                Login,
+	                Property_Name,
+	                Property_Type,
+					property_value,
+	                Is_Boolean,
+	                Device_Collection_ID
+	        FROM
+	                V_Dev_Col_User_Prop_Expanded JOIN
+	                Device_Collection USING (Device_Collection_ID)
+	        WHERE
+					is_enabled = 'Y'
+	        AND     (Device_Collection_Type = 'radius_app' OR
+	                	Property_Type = 'RADIUS')
+			AND		login = ?
+			AND		device_collection_id = ?
+	}
+	);
+
+	if ( !$sth ) {
+		$self->Error(
+			"fetch_attributes: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		$self->Error("Could not begin transaction");
-		return undef;
-	}
-	$self->{UserDB}->Txn($txn);
-	if ( $ret = $self->{UserDB}->db_put( $user->{login}, $userdata ) ) {
-		$txn->txn_abort;
-		$self->{UserDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{UserDB}->Txn(undef);
+
 	return 1;
 }
 
@@ -1368,16 +1388,18 @@ sub HOTPAuthenticate {
 	my ($ret);
 
 	#
-	# bail if the database environment or token database are not defined
+	# bail if there is no db connection 
 	#
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_token: no connection to database");
+		return undef;
+	}
 
 	# Generic user error
 	$self->UserError("Login incorrect");
 
-	if ( !$self->{Env} || !$self->{TokenDB} ) {
-		$self->Error("database environment not initialized");
-		return undef;
-	}
+	# clear errors
+	$self->Error(undef);
 
 	my $login = $opt->{login};
 	my $user  = $opt->{user};
@@ -1424,7 +1446,7 @@ sub HOTPAuthenticate {
 			next;
 		}
 
-		if ( !$token->{pin} ) {
+		if ( !$token->{token_pin} ) {
 			$self->_Debug( 2,
 				"PIN not set for token %d.  Skipping.",
 				$tokenid );
@@ -1440,13 +1462,15 @@ sub HOTPAuthenticate {
 		# Figure out what is the PIN and what is the OTP
 		#
 
-		if ( !$token->{type} || $token->{type} >= TT_TOKMAX ) {
+		if ( !$token->{token_type} || $token->{token_type} >= TT_TOKMAX ) {
 			$self->_Debug( 1, "Invalid token type for token %d: %d",
-				$tokenid, $token->{type} );
+				$tokenid, $token->{token_type} );
 			next;
 		}
 
-		$otplen = $TokenType{ $token->{type} }->{digits};
+		# $otplen = $TokenType{ $token->{token_type} }->{digits};
+		# XXX
+		$otplen = 6;
 		$self->_Debug( 2, "Number of OTP digits for token %d is %d",
 			$tokenid, $otplen );
 		if ( !$otplen ) {
@@ -1471,8 +1495,8 @@ sub HOTPAuthenticate {
 		#
 		# Check the PIN
 		#
-		my $crypt = bcrypt( $pin, $token->{pin} );
-		if ( $token->{pin} eq bcrypt( $pin, $token->{pin} ) ) {
+		my $crypt = bcrypt( $pin, $token->{token_pin} );
+		if ( $token->{token_pin} eq bcrypt( $pin, $token->{token_pin} ) ) {
 
 			$pinfound = 1;
 			$self->_Debug( 2, "PIN is correct for token %d",
@@ -1483,7 +1507,7 @@ sub HOTPAuthenticate {
 				2,
 				"PIN is incorrect for token %d, expected %s, got %s",
 				$tokenid,
-				$token->{pin},
+				$token->{token_pin},
 				$crypt
 			);
 			next;
@@ -1501,24 +1525,24 @@ sub HOTPAuthenticate {
 	#
 	# Verify that the token is enabled
 	#
-	if ( $token->{status} != TS_ENABLED ) {
-		$self->Error(
-			sprintf( "token %d is marked as %s",
-				$TokenStatus{ $token->{status} } )
-		);
-		return undef;
-	}
+#	if ( $token->{token_status} != TS_ENABLED ) {
+#		$self->Error(
+#			sprintf( "token %d is marked as %s", $tokenid,
+#				$TokenStatus{ $token->{token_status} } )
+#		);
+#		return undef;
+#	}
 
 	#
 	# Check if the token is locked
 	#
-	if ( $token->{token_locked} ) {
+	if ( !$token->{is_user_token_locked} || $token->{is_user_token_locked} eq 'Y') {
 		if ( $token->{unlock_time} && $token->{unlock_time} <= time() )
 		{
-			$token->{token_locked}        = 0;
-			$token->{unlock_time}         = 0;
-			$token->{bad_logins}          = 0;
-			$token->{lock_status_changed} = time();
+			$token->{is_user_token_locked}        = 'N';
+			$token->{token_unlock_time}         = 0;
+			$token->{token_bad_logins}          = 0;
+			$token->{last_updated} = time();
 			$self->_Debug( 2, "Unlocking token %d",
 				$token->{token_id} );
 			if ( !( $self->put_token( token => $token ) ) ) {
@@ -1529,12 +1553,12 @@ sub HOTPAuthenticate {
 		} else {
 			$errstr =
 			  sprintf( "token %d is locked.", $token->{token_id} );
-			if ( $token->{unlock_time} ) {
+			if ( $token->{token_unlock_time} ) {
 				$errstr .= sprintf(
 					"  Token will unlock at %s",
 					scalar(
 						localtime(
-							$token->{unlock_time}
+							$token->{token_unlock_time}
 						)
 					)
 				);
@@ -1557,13 +1581,13 @@ sub HOTPAuthenticate {
 	# resynchronize the token
 	#
 	my $sequence;
-	if ( $token->{skew_sequence} ) {
-		$sequence = $token->{skew_sequence} + 1;
+	if ( $token->{time_skew} ) {
+		$sequence = $token->{time_skew} + 1;
 		$self->_Debug( 2,
 			"Expecting next token sequence %d for token %d",
 			$sequence, $token->{token_id} );
 		my $checkprn = GenerateHOTP(
-			key      => $token->{key},
+			key      => $token->{token_key},
 			sequence => $sequence,
 			digits   => $otplen,
 			keytype  => 'base64'
@@ -1598,12 +1622,12 @@ sub HOTPAuthenticate {
 		# If we already have an auth from this sequence, don't
 		# allow replays
 		#
-		if ( $token->{sequence} >= $initialseq ) {
-			$initialseq = $token->{sequence} + 1;
+		if ( $token->{token_sequence} >= $initialseq ) {
+			$initialseq = $token->{token_sequence} + 1;
 		}
 		$maxskew = $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
 	} else {
-		$initialseq = $token->{sequence} + 1;
+		$initialseq = $token->{token_sequence} + 1;
 		$maxskew    = $__HOTPANTS_CONFIG_PARAMS{SequenceSkew};
 	}
 
@@ -1613,14 +1637,14 @@ sub HOTPAuthenticate {
 	#
 	for (
 		$sequence = $initialseq ;
-		$sequence <= $token->{sequence} +
+		$sequence <= $token->{token_sequence} +
 		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
 		$sequence++
 	  )
 	{
 
 		my $checkprn = GenerateHOTP(
-			key      => $token->{key},
+			key      => $token->{token_key},
 			sequence => $sequence,
 			digits   => $otplen,
 			keytype  => 'base64'
@@ -1641,7 +1665,7 @@ sub HOTPAuthenticate {
 	#
 	# If we don't get to it in ResyncSequenceSkew sequences, bail
 	#
-	if ( $sequence > $token->{sequence} +
+	if ( $sequence > $token->{token_sequence} +
 		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
 	{
 		$errstr = sprintf(
@@ -1652,16 +1676,19 @@ sub HOTPAuthenticate {
 
 	#
 	# If we find the sequence, but it's between SequenceSkew and
-	# ResyncSequenceSkew, but the token into next OTP mode
+	# ResyncSequenceSkew, put the token into next OTP mode
 	#
-	if ( $sequence > $maxskew ) {
+	# XXX - need to reinvestigate how all this works
+	#
+	if ( $sequence > ($initialseq + $maxskew) ) {
 		$errstr = sprintf(
-			"OTP sequence %d for token %d outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
+			"OTP sequence %d for token %d (%s) outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
 			$sequence, $token->{token_id}, $login, $maxskew );
+		warn $errstr;
 		$self->UserError(
 			"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
 		);
-		$token->{skew_sequence} = $sequence;
+		$token->{time_skew} = $sequence;
 		goto HOTPAuthDone;
 	}
 
@@ -1672,9 +1699,9 @@ sub HOTPAuthenticate {
 
       HOTPAuthDone:
 	if ($authok) {
-		$token->{skew_sequence}       = 0;
+		$token->{time_skew}       = 0;
 		$token->{bad_logins}          = 0;
-		$token->{sequence}            = $sequence;
+		$token->{token_sequence}            = $sequence;
 		$token->{lock_status_changed} = time;
 		$self->Status(
 			sprintf(
@@ -1688,7 +1715,7 @@ sub HOTPAuthenticate {
 			$token->{bad_logins} += 1;
 			$self->_Debug( 2, "Bad logins for token %d now %d",
 				$token->{token_id}, $token->{bad_logins} );
-			$token->{lock_status_changed} = time;
+			$token->{last_updated} = time;
 			if ( $token->{bad_logins} >=
 				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout}
 			  )

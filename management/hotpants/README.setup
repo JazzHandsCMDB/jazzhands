@@ -132,3 +132,64 @@ test:
 User-Name= username
 User-Password= password
 EOF
+
+with idev as (
+	insert into device (device_name, device_type_id, device_status,
+		service_environment_id, is_monitored
+	) values ('localhost', 0, 'up', 1, 'Y'
+	) RETURNING *
+), inb AS (
+
+), ni as (
+	INSERT into network_interface
+		(device_id, network_interface_type, should_monitor, netblock_id)
+	SELECT device_id, 'broadcast', 'Y' from idev, inb
+), x as ( INSERT into device_collection_device
+	(device_collection_id, device_id)
+SELECT device_collection_id, device_id
+from	device_collection, idev
+where	device_collection_type = 'mclass'
+and	device_collection_name = 'cloud'
+RETURNING *
+) select * from x;
+
+insert into property (device_collection_id, Property_Value_Password_Type,property_type,property_name) values (19913, 'blowfish', 'MclassUnixProp', 'UnixPwType');
+
+insert into property (property_name, property_type, account_collection_id,
+	property_value, device_collection_id)
+select 'GrantAccess', 'RADIUS', account_collection_id, 'Y',
+	19913
+from account_collection
+where account_collection_type = 'per-account'
+and account_collection_name = 'kovert';
+
+
+insert into property (property_name, property_type, account_collection_id,
+	property_value, device_collection_id)
+select 'GrantAccess', 'RADIUS', account_collection_id, 'Y',
+	19913
+from account_collection
+where account_collection_type = 'per-account'
+and account_collection_name = 'kovert';
+
+
+insert into property (property_name, property_type, account_collection_id,
+	Property_Value_Password_Type, device_collection_id)
+select 'PWType', 'RADIUS', account_collection_id, 'blowfish',
+	19913
+from account_collection
+where account_collection_type = 'per-account'
+and account_collection_name = 'kovert';
+	
+update val_property set property_data_type = 'password_type' where
+	property_type = 'RADIUS' and property_name = 'PWType';
+
+with foo as ( insert into token (
+	token_type, token_status, token_key, token_pin, last_updated)
+values ( 'soft_seq', 'enabled', 'VAiGIrpRERXujUanb3432lJnJw80BkiqOn3lbBPik1/jKt0GFYtRtvvsOVMQPQwHjwRFEF1q4Fl12tL+4TtmhDq4U/anlt6MxyCQU4kPZ0ukG+6xAWBh5tvYA+UBnDQo4pi3stAidCu2AlfuXATLHzR9nE9qBxTYgflWbM2d1FtTDolMkDKKsaF/iXDXsk32mSQ6bLTyGi40bROUhMjGSQ==', '$2a$07$J5T/Vg/fOhY9c/H89jruuulGJK9lKMV2HTUoRLs7dIEBaHvBXKRRS', now()) RETURNING * ) select token_id from foo;
+
+insert into account_token (
+	account_id, token_id, issued_date, is_user_token_locked, last_updated)
+values ( 2, 1, now(), 'N', now());
+
+
