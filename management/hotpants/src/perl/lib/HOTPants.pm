@@ -134,13 +134,13 @@ BEGIN {
 	eval 'sub TT_SOFT_SEQ () {0x1;}' unless defined(&TT_SOFT_SEQ);
 	$TokenType{&TT_SOFT_SEQ} = {
 		displayname => "Sequence-based soft token",
-		digits      => 8
+		digits      => 6
 	};
 
 	eval 'sub TT_SOFT_TIME () {0x2;}' unless defined(&TT_SOFT_TIME);
 	$TokenType{&TT_SOFT_TIME} = {
 		displayname => "Time-based soft token",
-		digits      => 8
+		digits      => 6
 	};
 
 	eval 'sub TT_ETOKEN_OTP32 () {0x3;}' unless defined(&TT_ETOKEN_OTP32);

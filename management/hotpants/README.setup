@@ -153,16 +153,9 @@ and	device_collection_name = 'cloud'
 RETURNING *
 ) select * from x;
 
-insert into property (device_collection_id, Property_Value_Password_Type,property_type,property_name) values (19913, 'blowfish', 'MclassUnixProp', 'UnixPwType');
-
-insert into property (property_name, property_type, account_collection_id,
-	property_value, device_collection_id)
-select 'GrantAccess', 'RADIUS', account_collection_id, 'Y',
-	19913
-from account_collection
-where account_collection_type = 'per-account'
-and account_collection_name = 'kovert';
-
+insert into property (device_collection_id, Property_Value_Password_Type,
+property_type,property_name) values (
+19913, 'blowfixh', 'MclassUnixProp', 'UnixPwType');
 
 insert into property (property_name, property_type, account_collection_id,
 	property_value, device_collection_id)
@@ -175,7 +168,7 @@ and account_collection_name = 'kovert';
 
 insert into property (property_name, property_type, account_collection_id,
 	Property_Value_Password_Type, device_collection_id)
-select 'PWType', 'RADIUS', account_collection_id, 'blowfish',
+select 'PWType', 'RADIUS', account_collection_id, 'token',
 	19913
 from account_collection
 where account_collection_type = 'per-account'
