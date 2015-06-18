@@ -176,9 +176,7 @@ BEGIN
 			netblock_id = ANY(parent_netblock_list);
 
 		IF parent_netblock_list IS NULL THEN
-			RAISE 'IP address % is not in any parent netblock passed',
-				ip_address
-			USING ERRCODE = 'invalid_parameter_value';
+			RETURN NULL;
 		END IF;
 	END IF;
 

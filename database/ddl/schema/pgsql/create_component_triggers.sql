@@ -418,8 +418,8 @@ BEGIN
 			BEGIN
 				SELECT valid_property_value INTO STRICT v_listvalue FROM 
 					val_component_property_value WHERE
-						property_name = NEW.property_name AND
-						property_type = NEW.property_type AND
+						component_property_name = NEW.component_property_name AND
+						component_property_type = NEW.component_property_type AND
 						valid_property_value = NEW.property_value;
 			EXCEPTION
 				WHEN NO_DATA_FOUND THEN
@@ -711,9 +711,23 @@ CREATE OR REPLACE FUNCTION jazzhands.create_component_slots_by_trigger()
 RETURNS TRIGGER
 AS $$
 BEGIN
-	PERFORM component_utils.create_component_template_slots(
-		component_id := NEW.component_id);
-	RETURN NEW;
+	-- For inserts, just do a simple slot creation, for updates, things
+	-- get more complicated, so try to migrate slots
+
+	IF (TG_OP == 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
+	THEN
+		PERFORM component_utils.create_component_template_slots(
+			component_id := NEW.component_id);
+	END IF;
+	IF (TG_OP == 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
+	THEN
+		PERFORM component_utils.migrate_component_template_slots(
+			component_id := NEW.component_id,
+			old_component_type_id := OLD.component_type_id,
+			new_component_type_id := NEW.component_type_id
+			);
+		RETURN NEW;
+	END IF;
 END;
 $$
 SET search_path=jazzhands
