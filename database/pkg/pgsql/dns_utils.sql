@@ -429,4 +429,4 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY definer;
