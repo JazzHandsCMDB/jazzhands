@@ -313,7 +313,7 @@ DECLARE
 	tally				INTEGER;
 	v_comp_prop			RECORD;
 	v_comp_prop_type	RECORD;
-	v_num				INTEGER;
+	v_num				bigint;
 	v_listvalue			TEXT;
 	component_attrs		RECORD;
 BEGIN
@@ -714,20 +714,20 @@ BEGIN
 	-- For inserts, just do a simple slot creation, for updates, things
 	-- get more complicated, so try to migrate slots
 
-	IF (TG_OP == 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
+	IF (TG_OP = 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
 	THEN
 		PERFORM component_utils.create_component_template_slots(
 			component_id := NEW.component_id);
 	END IF;
-	IF (TG_OP == 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
+	IF (TG_OP = 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
 	THEN
 		PERFORM component_utils.migrate_component_template_slots(
 			component_id := NEW.component_id,
 			old_component_type_id := OLD.component_type_id,
 			new_component_type_id := NEW.component_type_id
 			);
-		RETURN NEW;
 	END IF;
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
