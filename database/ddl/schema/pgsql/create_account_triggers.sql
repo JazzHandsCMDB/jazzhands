@@ -196,3 +196,124 @@ BEFORE INSERT OR UPDATE of ACCOUNT_ID
 	ON account_password
 	FOR EACH ROW EXECUTE PROCEDURE pull_password_account_realm_from_account();
 
+
+-------------------------------------------------------------------------------
+
+/*
+ * Enforce that is_enabled should match whatever val_person_status has for it.
+ *
+ * XXX - this needs to be reimplemented in oracle
+ */
+CREATE OR REPLACE FUNCTION account_enforce_is_enabled()
+	RETURNS TRIGGER AS $$
+DECLARE
+	correctval	char(1);
+BEGIN
+	SELECT is_enabled INTO correctval
+	FROM val_person_status 
+	WHERE person_status = NEW.account_status;
+
+	IF TG_OP = 'INSERT' THEN
+		IF NEW.is_enabled is NULL THEN
+			NEW.is_enabled = correctval;
+		ELSIF NEW.account_status != correctval THEN
+			RAISE EXCEPTION 'May not set IS_ENABLED to an invalid value for given account_status: %', NEW.account_status
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_status != OLD.account_status THEN
+			IF NEW.is_enabled != correctval THEN
+				NEW.is_enabled := correctval;
+			END IF;
+		ELSIF NEW.is_enabled != correctval THEN
+			RAISE EXCEPTION 'May not update IS_ENABLED to an invalid value for given account_status: %', NEW.account_status
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_account_enforce_is_enabled 
+	ON account;
+CREATE TRIGGER trigger_account_enforce_is_enabled 
+BEFORE INSERT OR UPDATE of account_status,is_enabled
+	ON account
+	FOR EACH ROW EXECUTE PROCEDURE account_enforce_is_enabled();
+
+
+-------------------------------------------------------------------------------
+
+/*
+ * migrate val_person_status.is_disabled to is_enabled
+ *
+ * This should go away when is_disabled does.
+ */
+CREATE OR REPLACE FUNCTION val_person_status_enabled_migration_enforce()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		IF ( NEW.is_disabled IS NOT NULL AND NEW.is_enabled IS NOT NULL ) THEN
+			RAISE EXCEPTION 'May not set both IS_ENABLED and IS_DISABLED.  Set IS_ENABLED only.'
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
+
+		IF NEW.is_enabled IS NOT NULL THEN
+			IF NEW.is_enabled = 'Y' THEN
+				NEW.is_disabled := 'N';
+			ELSE
+				NEW.is_disabled := 'Y';
+			END IF;
+		ELSIF NEW.is_disabled IS NOT NULL THEN
+			IF NEW.is_disabled = 'Y' THEN
+				NEW.is_enabled := 'N';
+			ELSE
+				NEW.is_enabled := 'Y';
+			END IF;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF ( OLD.is_disabled != NEW.is_disabled AND
+				OLD.is_enabled != NEW.is_enabled ) THEN
+			RAISE EXCEPTION 'May not update both IS_ENABLED and IS_DISABLED.  Update IS_ENABLED only.'
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
+
+		IF OLD.is_enabled != NEW.is_enabled THEN
+			IF NEW.is_enabled = 'Y' THEN
+				NEW.is_disabled := 'N';
+			ELSE
+				NEW.is_disabled := 'Y';
+			END IF;
+		ELSIF OLD.is_disabled != NEW.is_disabled THEN
+			IF NEW.is_disabled = 'Y' THEN
+				NEW.is_enabled := 'N';
+			ELSE
+				NEW.is_enabled := 'Y';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.is_enabled = NEW.is_disabled THEN
+		RAISE NOTICE 'is_enabled=is_disabled.  This should never happen' 
+			USING  errcode = 'integrity_constraint_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_val_person_status_enabled_migration_enforce 
+	ON account;
+CREATE TRIGGER trigger_val_person_status_enabled_migration_enforce 
+BEFORE INSERT OR UPDATE of is_disabled, is_enabled
+	ON val_person_status
+	FOR EACH ROW EXECUTE 
+	PROCEDURE val_person_status_enabled_migration_enforce();
+
+
+-------------------------------------------------------------------------------

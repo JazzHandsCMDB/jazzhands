@@ -27,13 +27,12 @@ SELECT	a.account_id,
 	a.account_role,
 	a.account_type,
 	a.description,
-	CASE WHEN vps.is_disabled = 'N' THEN 'Y' ELSE 'N' END as is_enabled,
+	a.is_enabled,
 	a.data_ins_user,
 	a.data_ins_date,
 	a.data_upd_user,
 	a.data_upd_date
   FROM	account  a
-	INNER JOIN val_person_status vps ON a.account_status = vps.person_status
  WHERE	a.account_realm_id in (
 	SELECT	account_realm_id
 	 FROM	property

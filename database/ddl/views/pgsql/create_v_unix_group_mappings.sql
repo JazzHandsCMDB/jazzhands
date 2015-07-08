@@ -30,9 +30,7 @@ WITH accts AS (
 		SELECT a.* 
 		FROM account a
 			INNER JOIN account_unix_info using (account_id)
-			INNER JOIN val_person_status vps 
-				ON a.account_status = vps.person_status
-			WHERE vps.is_disabled = 'N'
+			WHERE a.is_enabled = 'Y'
 ), ugmap AS (
 	SELECT dch.device_collection_id, vace.account_collection_id
 		FROM v_property  p

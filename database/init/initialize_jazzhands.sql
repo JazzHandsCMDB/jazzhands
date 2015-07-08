@@ -36,29 +36,29 @@ INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced,
 	VALUES ('blacklist', 'N', 'N', 'login name blacklist');
 
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('enabled', 'Enabled', 
-		'N', 'Y');
+		'Y', 'Y');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('disabled', 'Disabled',
 		'N', 'N');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('forcedisabled', 'User Forced to Disabled status',
-		'Y', 'N');
+		'N', 'N');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('terminated', 'User has been terminated',
-		'Y', 'N');
+		'N', 'N');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('autoterminated', 'User has been terminated by auto process',
-		'Y', 'Y');
+		'N', 'Y');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('onleave', 'User is disabled due to being on leave',
-		'Y', 'Y');
+		'N', 'Y');
 
 INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
 	VALUES ('employee', 'Employee');
@@ -1306,6 +1306,34 @@ insert into val_property (
 	'ALLOWED',
 	'REQUIRED',
 	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_id,
+	permit_account_realm_id,
+	property_data_type,
+	is_multivalue
+) values (
+	'AutomatedDirectsAC', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'account_collection_id',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_id,
+	permit_account_realm_id,
+	property_data_type,
+	is_multivalue
+) values (
+	'AutomatedRollupsAC', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'account_collection_id',
 	'N'
 );
 

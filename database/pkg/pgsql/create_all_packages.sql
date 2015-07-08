@@ -36,6 +36,7 @@
 
 -- \i system_user_util.sql
 \i person_manip.sql
+\i auto_ac_manip.sql
 \i company_manip.sql
 -- \i unix_util.sql
 -- \i dept_member_verify.sql
@@ -58,3 +59,4 @@
 \i physical_address_utils.sql
 \i component_utils.sql
 \i snapshot_manip.sql
+\i lv_manip.sql

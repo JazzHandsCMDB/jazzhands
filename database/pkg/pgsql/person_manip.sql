@@ -680,3 +680,5 @@ BEGIN
 	set constraints fk_account_company_person IMMEDIATE;
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands, pg_temp;
+
+--------------------------------------------------------------------------------
