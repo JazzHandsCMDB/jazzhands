@@ -312,6 +312,11 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+--
+-- These need to all call a generic component/component_type insertion
+-- function, rather than all of the specific types, but that's thinking
+--
+
 CREATE OR REPLACE FUNCTION component_utils.insert_pci_component(
 	pci_vendor_id	integer,
 	pci_device_id	integer,
@@ -763,6 +768,343 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION component_utils.insert_memory_component(
+	model				text,
+	memory_size			bigint,
+	memory_speed		bigint,
+	memory_type			text DEFAULT 'DDR3',
+	vendor_name			text DEFAULT NULL,
+	serial_number		text DEFAULT NULL
+) RETURNS jazzhands.component
+AS $$
+DECLARE
+	m			ALIAS FOR model;
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	stid		integer;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF vendor_name IS NOT NULL THEN	
+		SELECT 
+			company_id INTO cid
+		FROM
+			company c LEFT JOIN
+			property p USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'VendorMemoryProbeString' AND
+			property_value = vendor_name;
+	END IF;
+
+	--
+	-- See if we have this component type in the database already.
+	--
+	SELECT DISTINCT
+		component_type_id INTO ctid
+	FROM
+		component_type ct JOIN
+		component_type_component_func ctcf USING (component_type_id)
+	WHERE
+		component_function = 'memory' AND
+		ct.model = m AND
+		CASE WHEN cid IS NOT NULL THEN
+			(company_id = cid)
+		ELSE
+			true
+		END;
+
+	--
+	-- If the type isn't found, then we need to insert it
+	--
+	IF NOT FOUND THEN
+		--
+		-- Fetch the slot type
+		--
+		SELECT 
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = memory_type AND
+			slot_function = 'memory';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type not found adding component_type'
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company
+			WHERE
+				company_name = 'unknown';
+
+			IF NOT FOUND THEN
+				IF NOT FOUND THEN
+					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
+						USING ERRCODE = 'JH501';
+				END IF;
+			END IF;
+		END IF;
+
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description
+		) VALUES (
+			cid,
+			model,
+			stid,
+			'Y',
+			concat_ws(' ', vendor_name, model, (memory_size || 'MB'), 'memory')
+		) RETURNING component_type_id INTO ctid;
+
+		--
+		-- Insert component properties for the memory
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES 
+			('MemorySize', 'memory', ctid, memory_size),
+			('MemorySpeed', 'memory', ctid, memory_speed);
+		
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_func (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ctid,
+			cf
+		FROM
+			unnest(ARRAY['memory']) x(cf);
+	END IF;
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT 
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION component_utils.insert_cpu_component(
+	model				text,
+	processor_speed		bigint,
+	processor_cores		bigint,
+	socket_type			text,
+	vendor_name			text DEFAULT NULL,
+	serial_number		text DEFAULT NULL
+) RETURNS jazzhands.component
+AS $$
+DECLARE
+	m			ALIAS FOR model;
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	stid		integer;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF vendor_name IS NOT NULL THEN	
+		SELECT 
+			company_id INTO cid
+		FROM
+			company c LEFT JOIN
+			property p USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'VendorCPUProbeString' AND
+			property_value = vendor_name;
+	END IF;
+
+	--
+	-- See if we have this component type in the database already.
+	--
+	SELECT DISTINCT
+		component_type_id INTO ctid
+	FROM
+		component_type ct JOIN
+		component_type_component_func ctcf USING (component_type_id)
+	WHERE
+		component_function = 'CPU' AND
+		ct.model = m AND
+		CASE WHEN cid IS NOT NULL THEN
+			(company_id = cid)
+		ELSE
+			true
+		END;
+
+	--
+	-- If the type isn't found, then we need to insert it
+	--
+	IF NOT FOUND THEN
+		--
+		-- Fetch the slot type
+		--
+		SELECT 
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = socket_type AND
+			slot_function = 'CPU';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type %, function % not found adding component_type',
+				socket_type,
+				'CPU'
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company
+			WHERE
+				company_name = 'unknown';
+
+			IF NOT FOUND THEN
+				IF NOT FOUND THEN
+					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
+						USING ERRCODE = 'JH501';
+				END IF;
+			END IF;
+		END IF;
+
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description
+		) VALUES (
+			cid,
+			model,
+			stid,
+			'Y',
+			model
+		) RETURNING component_type_id INTO ctid;
+
+		--
+		-- Insert component properties for the CPU
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES 
+			('ProcessorCores', 'CPU', ctid, processor_cores),
+			('ProcessorSpeed', 'CPU', ctid, processor_speed);
+		
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_func (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ctid,
+			cf
+		FROM
+			unnest(ARRAY['CPU']) x(cf);
+	END IF;
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT 
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION component_utils.insert_component_into_parent_slot(
 	parent_component_id	integer,
 	component_id	integer,
@@ -807,7 +1149,9 @@ BEGIN
 			slot_type.slot_function = sf;
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'slot type not found adding component_type'
+			RAISE EXCEPTION 'slot type %, function % not found adding component_type',
+				st,
+				sf
 				USING ERRCODE = 'JH501';
 		END IF;
 
