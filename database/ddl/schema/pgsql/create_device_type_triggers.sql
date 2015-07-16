@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Todd Kover
+ * Copyright (c) 2014-2015 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,3 +142,58 @@ CREATE TRIGGER trigger_device_type_module_chassis_check
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_module_chassis_check();
 
+-------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------
+-- deal with model going away and being replaced with device_name
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION device_type_model_to_name() 
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF TG_OP = 'UPDATE' AND  (NEW.model IS DISTINCT FROM OLD.model AND
+			NEW.device_type_name IS DISTINCT FROM OLD.device_type_name) THEN
+		RAISE EXCEPTION 'Only device_type_name should be updated.'
+			USING ERRCODE = 'integrity_constraint_violation';
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.model IS NOT NULL AND NEW.device_type_name IS NOT NULL THEN
+			RAISE EXCEPTION 'Only model should be set.'
+				USING ERRCODE = 'integrity_constraint_violation';
+		END IF;
+	 
+	END IF;
+
+	IF TG_OP = 'UPDATE' THEN
+		IF OLD.model IS DISTINCT FROM NEW.model THEN
+			NEW.device_type_name = NEW.model;
+		ELSIF OLD.device_type_name IS DISTINCT FROM NEW.device_type_name THEN
+			NEW.model = NEW.device_type_name;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.model IS NOT NULL THEN
+			NEW.device_type_name = NEW.model;
+		ELSIF NEW.device_type_name IS NOT NULL THEN
+			NEW.model = NEW.device_type_name;
+		END IF;
+	ELSE
+	END IF;
+
+	-- company_id is going away
+	IF NEW.company_id IS NULL THEN
+		NEW.company_id := 0;
+	END IF;
+
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_type_model_to_name 
+	ON device_type;
+CREATE TRIGGER trigger_device_type_model_to_name 
+	BEFORE INSERT OR UPDATE OF device_type_name, model
+	ON device_type 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE device_type_model_to_name();

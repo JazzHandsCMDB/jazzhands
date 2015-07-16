@@ -57,6 +57,16 @@ insert into property (
 	(select company_id from company where company_name = 'Omniscient Technologies')
  );
 
+insert into property (
+	property_name, property_type, 
+	account_realm_id
+) VALUES  (
+	'_root_account_realm_id', 'Defaults',
+	(select account_realm_id 
+	from account_realm where account_realm_name = 'Omniscient')
+);
+
+
 insert into account_realm_company (
 	account_realm_id, 
 	company_id
@@ -282,3 +292,24 @@ insert into token_collection (
 	'test',
 	'default'
 );
+
+
+--
+insert into account_realm_password_type (
+	account_realm_id, password_type)
+values (
+	0, 'des'
+);
+
+INSERT INTO Account_Password (
+	Account_Id,
+	Password_type,
+	Password,
+	Change_Time
+) VALUES (
+	(select account_Id from account where login = 'root'),
+	'des',
+	'T6r7sdlVHpZH2',
+	now()
+);
+

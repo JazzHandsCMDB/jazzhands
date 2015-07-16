@@ -92,22 +92,22 @@ BEGIN
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment, operating_system_id,
-		ownership_status, is_monitored
+		service_environment_id, operating_system_id, is_monitored
 	) values (
 		1, 'JHTEST one', 'up', 'JHTEST01',
-		'production', 0,
-		'owned', 'Y'
+		(select service_environment_id from service_environment
+		where service_environment_name = 'production'),
+		0, 'Y'
 	) RETURNING * into _dev1;
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment, operating_system_id,
-		ownership_status, is_monitored
+		service_environment_id, operating_system_id, is_monitored
 	) values (
 		1, 'JHTEST two', 'up', 'JHTEST01',
-		'production', 0,
-		'owned', 'Y'
+		(select service_environment_id from service_environment
+		where service_environment_name = 'production'),
+		0, 'Y'
 	) RETURNING * into _dev2;
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';

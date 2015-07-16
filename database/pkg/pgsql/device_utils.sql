@@ -53,6 +53,8 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS device_utils;
 		CREATE SCHEMA device_utils AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA device_utils IS 'part of jazzhands';
+
 	END IF;
 END;
 $$;
@@ -128,7 +130,7 @@ BEGIN
 				ON p2.physical_port_id = pc.physical_port2_id
 			INNER JOIN device d2
 				ON d2.device_id = p2.device_id
-		WHERE   vpc.layer1_connection_id = _in_l1c
+		WHERE   vpc.inter_component_connection_id = _in_l1c
 		ORDER BY level
 	LOOP
 		DELETE from physical_connecion where physical_connection_id =
@@ -255,7 +257,7 @@ BEGIN
 	delete from network_interface where device_id = in_Device_id;
 
 	PERFORM device_utils.purge_physical_ports( in_Device_id);
-	PERFORM device_utils.purge_power_ports( in_Device_id);
+--	PERFORM device_utils.purge_power_ports( in_Device_id);
 
 	delete from property where device_collection_id in (
 		SELECT	dc.device_collection_id 
@@ -321,7 +323,7 @@ BEGIN
 	--
 	-- If there is no notes or serial number its save to remove
 	-- 
-	IF tally = 0 AND _d.SERIAL_NUMBER is NULL THEN
+	IF tally = 0 AND _d.ASSET_ID is NULL THEN
 		_purgedev := true;
 	END IF;
 
@@ -340,7 +342,9 @@ BEGIN
 
 	UPDATE device SET 
 		device_name =NULL,
-		service_environment = 'unallocated',
+		service_environment_id = (
+			select service_environment_id from service_environment
+			where service_environment_name = 'unallocated'),
 		device_status = 'removed',
 		voe_symbolic_track_id = NULL,
 		is_monitored = 'N',

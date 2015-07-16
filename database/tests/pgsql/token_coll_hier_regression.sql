@@ -91,7 +91,7 @@ BEGIN
 	------ Beginning of Collection specific stuff
 	RAISE NOTICE 'Inserting collection specific records'; 
 
-	insert into val_token_type (token_type) values ('JHTEST');
+	insert into val_token_type (token_type, TOKEN_DIGIT_COUNT) values ('JHTEST', 6);
 
 	insert into token (token_serial,token_type,last_updated) 
 		values('JHTEST01', 'JHTEST', now()) RETURNING * into _tok1;

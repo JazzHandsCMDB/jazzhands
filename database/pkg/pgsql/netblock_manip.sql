@@ -13,8 +13,21 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-drop schema if exists netblock_manip cascade;
-create schema netblock_manip authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'netblock_manip';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS netblock_manip;
+                CREATE SCHEMA netblock_manip AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA netblock_manip IS 'part of jazzhands';
+        END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION netblock_manip.delete_netblock(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -116,7 +129,7 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	parent_netblock_list	integer[],
 	netmask_bits			integer DEFAULT NULL,
 	address_type			text DEFAULT 'netblock',
-	-- alternatvies: 'single', 'loopback'
+	-- alternatives: 'single', 'loopback'
 	can_subnet				boolean DEFAULT true,
 	allocation_method		text DEFAULT NULL,
 	-- alternatives: 'top', 'bottom', 'random',
@@ -133,6 +146,7 @@ DECLARE
 	inet_rec		RECORD;
 	loopback_bits	integer;
 	inet_family		integer;
+	ip_addr			ALIAS FOR ip_address;
 BEGIN
 	IF parent_netblock_list IS NULL THEN
 		RAISE 'parent_netblock_list must be specified'
@@ -150,11 +164,28 @@ BEGIN
 			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
+	IF ip_address IS NOT NULL THEN
+		SELECT 
+			array_agg(netblock_id)
+		INTO
+			parent_netblock_list
+		FROM
+			netblock n
+		WHERE
+			ip_addr <<= n.ip_address AND
+			netblock_id = ANY(parent_netblock_list);
+
+		IF parent_netblock_list IS NULL THEN
+			RETURN NULL;
+		END IF;
+	END IF;
+
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
 
 	FOR parent_rec IN SELECT * FROM jazzhands.netblock WHERE netblock_id = 
-			ANY(allocate_netblock.parent_netblock_list) FOR UPDATE LOOP
+			ANY(allocate_netblock.parent_netblock_list) ORDER BY netblock_id
+			FOR UPDATE LOOP
 
 		IF parent_rec.is_single_address = 'Y' THEN
 			RAISE EXCEPTION 'parent_netblock_id refers to a single_address netblock'
@@ -223,7 +254,6 @@ BEGIN
 			netblock_status
 		) VALUES (
 			inet_rec.ip_address,
-			loopback_bits,
 			inet_rec.netblock_type,
 			'N',
 			'N',
@@ -241,15 +271,17 @@ BEGIN
 			description,
 			netblock_status
 		) VALUES (
-			inet_rec,
-			masklen(inet_rec),
+			inet_rec.ip_address,
 			parent_rec.netblock_type,
 			'Y',
 			'N',
-			parent_rec.ip_universe_id,
+			inet_rec.ip_universe_id,
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
+
+		PERFORM dns_utils.add_domains_from_netblock(
+			netblock_id := netblock_rec.netblock_id);
 
 		RETURN netblock_rec;
 	END IF;
@@ -321,6 +353,9 @@ BEGIN
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
+
+		PERFORM dns_utils.add_domains_from_netblock(
+			netblock_id := netblock_rec.netblock_id);
 
 		RETURN netblock_rec;
 	END IF;

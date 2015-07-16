@@ -1252,8 +1252,6 @@ sub build_physical_port_query {
 	# ORACLE/PGSQL -- regexp_like (o)  vs regexp_matches (p)
 	my $parentq = "";
 	if ($parent) {
-
-		# $parentq .= qq{and regexp_matches(l1.port_name, ?)};
 		$parentq .= qq{and l1.port_name ~ ?};
 	}
 
@@ -1280,10 +1278,11 @@ sub build_physical_port_query {
 		  from v_l1_all_physical_ports l1
 			left join device d
 				on l1.other_device_id = d.device_id
+			join slot s on (l1.physical_port_id = s.slot_id)
 		  where	l1.device_id = ?
 			and l1.port_type = ?
 			$parentq
-	     -- XXX order by NETWORK_STRINGS.NUMERIC_INTERFACE(l1.p1_port_name)
+	     order by s.component_id, s.slot_index
 	};
 
 	$q;

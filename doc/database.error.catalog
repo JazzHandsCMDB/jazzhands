@@ -228,3 +228,19 @@ a member of that domain
 
 ---------------------------------------------------------------------------
 
+------------------------
+COMPONENT ERRORS (JH5xx)
+------------------------
+
+JH501 - Not enough information was provided to automatically create a PCI component type for a component
+
+When creating a component with component_utils.insert_pci_component, only
+pci_vendor_id and pci_device_id (and possibly pci_sub_vendor_id and
+pci_subsystem_id if the PCI component type requires those as well) are
+necessary if the component_type already exists in the database.  If a
+mapping exists in the properties table to tie the PCI vendor ID (and/or
+subsystem vendor ID) to a company, then if pci_device_name and
+component_function_list is passed, then the component_type can be automatically
+inserted.  Additionally, if pci_vendor_name and/or pci_sub_vendor_name is
+passed, the company and PCI vendor id mapping can be created.  If these
+parameters are not passed and they are required, then this exception is raised.

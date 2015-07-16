@@ -31,6 +31,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS person_manip;
 		CREATE SCHEMA person_manip AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA person_manip IS 'part of jazzhands';
 	END IF;
 END;
 $$;
@@ -498,6 +499,8 @@ CREATE OR REPLACE FUNCTION person_manip.purge_account(
 		in_account_id	account.account_id%TYPE
 ) RETURNS void AS $$
 BEGIN
+	-- note the per-account account collection is removed in triggers
+
 	DELETE FROM account_assignd_cert where ACCOUNT_ID = in_account_id;
 	DELETE FROM account_token where ACCOUNT_ID = in_account_id;
 	DELETE FROM account_unix_info where ACCOUNT_ID = in_account_id;
@@ -505,19 +508,177 @@ BEGIN
 	DELETE FROM property where ACCOUNT_ID = in_account_id;
 	DELETE FROM account_password where ACCOUNT_ID = in_account_id;
 	DELETE FROM unix_group where account_collection_id in
-		(select account_collection_id from account_collection where account_collection_name in
-			(select login from account where account_id = in_account_id)
-			and account_collection_type in ('unix-group')
+		(select account_collection_id from account_collection 
+			where account_collection_name in
+				(select login from account where account_id = in_account_id)
+				and account_collection_type in ('unix-group')
 		);
 	DELETE FROM account_collection_account where ACCOUNT_ID = in_account_id;
 
 	DELETE FROM account_collection where account_collection_name in
 		(select login from account where account_id = in_account_id)
-		and account_collection_type in ('per-user', 'unix-group');
+		and account_collection_type in ('per-account', 'unix-group');
 
 	DELETE FROM account where ACCOUNT_ID = in_account_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-\i merge_accounts.sql
-\i change_company.sql
+-- Purge a person from the system.  This will also purge their accounts
+-- It will fail if the person has shown up in too many plces (i.e, was in
+-- use).    The typical way to get rid of a person is to just mark them as
+-- deleted, buf if they were inserted by msitake, this is useful.
+CREATE OR REPLACE FUNCTION person_manip.purge_person(
+		in_person_id	person.person_id%TYPE
+) RETURNS void AS $$
+DECLARE
+	aid	INTEGER;
+BEGIN
+	FOR aid IN select account_id 
+			FROM account 
+			WHERE person_id = in_person_id
+	LOOP
+		PERFORM person_manip.purge_account ( aid );
+	END LOOP; 
+
+	DELETE FROM person_contact WHERE person_id = in_person_id;
+	DELETE FROM person_location WHERE person_id = in_person_id;
+	DELETE FROM person_company WHERE person_id = in_person_id;
+	DELETE FROM person_account_realm_company WHERE person_id = in_person_id;
+	DELETE FROM person WHERE person_id = in_person_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
+	merge_from_account_id	account.account_Id%TYPE,
+	merge_to_account_id	account.account_Id%TYPE
+) RETURNS INTEGER AS $$
+DECLARE
+	fpc		person_company%ROWTYPE;
+	tpc		person_company%ROWTYPE;
+	_account_realm_id INTEGER;
+BEGIN
+	select	*
+	  into	fpc
+	  from	person_company
+	 where	(person_id, company_id) in
+		(select person_id, company_id 
+		   from account where account_id = merge_from_account_id);
+
+	select	*
+	  into	tpc
+	  from	person_company
+	 where	(person_id, company_id) in
+		(select person_id, company_id 
+		   from account where account_id = merge_to_account_id);
+
+	IF (fpc.company_id != tpc.company_id) THEN
+		RAISE EXCEPTION 'Accounts are in different companies';
+	END IF;
+
+	IF (fpc.person_company_relation != tpc.person_company_relation) THEN
+		RAISE EXCEPTION 'People have different relationships';
+	END IF;
+
+	IF(tpc.external_hr_id is NOT NULL AND fpc.external_hr_id IS NULL) THEN
+		RAISE EXCEPTION 'Destination account has an external HR ID and origin account has none';
+	END IF;
+
+	-- move any account collections over that are
+	-- not infrastructure ones, and the new person is
+	-- not in
+	UPDATE	account_collection_account
+	   SET	ACCOUNT_ID = merge_to_account_id
+	 WHERE	ACCOUNT_ID = merge_from_account_id
+	  AND	ACCOUNT_COLLECTION_ID IN (
+			SELECT ACCOUNT_COLLECTION_ID
+			  FROM	ACCOUNT_COLLECTION
+				INNER JOIN VAL_ACCOUNT_COLLECTION_TYPE
+					USING (ACCOUNT_COLLECTION_TYPE)
+			 WHERE	IS_INFRASTRUCTURE_TYPE = 'N'
+		)
+	  AND	account_collection_id not in (
+			SELECT	account_collection_id
+			  FROM	account_collection_account
+			 WHERE	account_id = merge_to_account_id
+	);
+
+
+	-- Now begin removing the old account
+	PERFORM person_manip.purge_account( merge_from_account_id );
+
+	-- Switch person_ids
+	DELETE FROM person_account_realm_company WHERE person_id = fpc.person_id AND company_id = tpc.company_id;
+	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = tpc.company_id;
+	INSERT INTO person_account_realm_company (person_id, company_id, account_realm_id) VALUES ( fpc.person_id , tpc.company_id, _account_realm_id);
+	UPDATE account SET account_realm_id = _account_realm_id, person_id = fpc.person_id WHERE person_id = tpc.person_id AND company_id = fpc.company_id;
+	DELETE FROM person_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
+	DELETE FROM person_account_realm_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
+	UPDATE person_image SET person_id = fpc.person_id WHERE person_id = tpc.person_id;
+	-- if there are other relations that may exist, do not delete the person.
+	BEGIN
+		delete from person where person_id = tpc.person_id;
+	EXCEPTION WHEN foreign_key_violation THEN
+		NULL;
+	END;
+
+	return merge_to_account_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION person_manip.change_company(
+	final_company_id 	integer, 
+	_person_id		integer, 
+	initial_company_id 	integer,
+	_account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL
+)  RETURNS VOID AS $_$
+DECLARE
+	initial_person_company  person_company%ROWTYPE;
+	_arid			account_realm.account_realm_id%TYPE;
+BEGIN
+	IF _account_realm_id IS NULL THEN
+		SELECT	account_realm_id
+		INTO	_arid
+		FROM	property
+		WHERE	property_type = 'Defaults'
+		AND	property_name = '_root_account_realm_id';
+	ELSE
+		_arid := _account_realm_id;
+	END IF;
+	set constraints fk_ac_ac_rlm_cpy_act_rlm_cpy DEFERRED;
+	set constraints fk_account_prsn_cmpy_acct DEFERRED;
+	set constraints fk_account_company_person DEFERRED;
+
+	UPDATE person_account_realm_company
+		SET company_id = final_company_id
+	WHERE person_id = _person_id
+	AND company_id = initial_company_id
+	AND account_realm_id = _arid;
+
+	SELECT * 
+	INTO initial_person_company 
+	FROM person_company 
+	WHERE person_id = _person_id 
+	AND company_id = initial_company_id;
+
+	UPDATE person_company
+	SET company_id = final_company_id
+	WHERE company_id = initial_company_id
+	AND person_id = _person_id;
+
+	UPDATE account 
+	SET company_id = final_company_id 
+	WHERE company_id = initial_company_id 
+	AND person_id = _person_id
+	AND account_realm_id = _arid;
+
+	set constraints fk_ac_ac_rlm_cpy_act_rlm_cpy IMMEDIATE;
+	set constraints fk_account_prsn_cmpy_acct IMMEDIATE;
+	set constraints fk_account_company_person IMMEDIATE;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands, pg_temp;
+
+--------------------------------------------------------------------------------

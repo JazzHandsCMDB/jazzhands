@@ -50,7 +50,7 @@ sub do_device_type {
 
 	# $devtypid = 47;
 	if ( defined($devtypid) && $devtypid ) {
-		do_device_type_power( $stab, $devtypid );
+		do_device_type_edit( $stab, $devtypid );
 		return;
 	}
 
@@ -74,14 +74,14 @@ sub do_device_type {
 
 	print $cgi->hr;
 	print $cgi->h2( { -align => 'center' }, "Add a New Device Type" );
-	device_type_power_form($stab);
+	device_type_edit_form($stab);
 
 	print $cgi->end_html;
 	undef $stab;
 	0;
 }
 
-sub do_device_type_power {
+sub do_device_type_edit {
 	my ( $stab, $devtypid ) = @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
@@ -123,12 +123,12 @@ sub do_device_type_power {
 	  ),
 	  "\n";
 
-	device_type_power_form( $stab, $devtypid, $dt );
+	device_type_edit_form( $stab, $devtypid, $dt );
 
 	print $cgi->end_html;
 }
 
-sub device_type_power_form {
+sub device_type_edit_form {
 	my ( $stab, $devtypid, $dt ) = @_;
 
 	my $dbh = $stab->dbh || die "Could not create dbh";
@@ -136,6 +136,7 @@ sub device_type_power_form {
 
 	my $leftbox = $cgi->table(
 		$stab->build_tr(
+			{-company_type => 'hardware provider'},
 			$dt,      "b_dropdown",
 			"Vendor", 'COMPANY_ID',
 			'DEVICE_TYPE_ID'
@@ -192,15 +193,17 @@ sub device_type_power_form {
 		),
 	);
 
-	my $powerbox = build_power_box( $stab, $devtypid );
-	my $serialbox  = build_physical_port_box( $stab, $devtypid, 'serial' );
-	my $networkbox = build_physical_port_box( $stab, $devtypid, 'network' );
+	my($powerbox,$serialbox, $networkbox);
+	#my $powerbox = build_power_box( $stab, $devtypid );
+	#my $serialbox  = build_physical_port_box( $stab, $devtypid, 'serial' );
+	#my $networkbox = build_physical_port_box( $stab, $devtypid, 'network' );
 
-	my $poweraddbox = build_power_add_box( $stab, $devtypid );
-	my $serialaddbox =
-	  build_physical_port_add_box( $stab, $devtypid, 'serial' );
-	my $networkaddbox =
-	  build_physical_port_add_box( $stab, $devtypid, 'network' );
+	my($poweraddbox,$serialaddbox, $networkaddbox);
+	#my $poweraddbox = build_power_add_box( $stab, $devtypid );
+	#my $serialaddbox =
+	#  build_physical_port_add_box( $stab, $devtypid, 'serial' );
+	#my $networkaddbox =
+	#  build_physical_port_add_box( $stab, $devtypid, 'network' );
 
 	my $offparams = { -align => 'center' };
 

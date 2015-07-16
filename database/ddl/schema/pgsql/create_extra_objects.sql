@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Todd Kover
+ * Copyright (c) 2013-2015 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,4 +27,12 @@ CASE
 WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
 	ELSE NULL::bigint
 END));
+
+create index idx_netblock_host_ip_address  ON netblock
+USING btree (host(ip_address));
+
+
+-- need to sort this out better
+drop trigger IF EXISTS trig_userlog_token_sequence on token_sequence;
+drop trigger IF EXISTS trigger_audit_token_sequence on token_sequence;
 

@@ -43,10 +43,6 @@
 -- Name: id_tag(); Type: FUNCTION; Schema: netblock_utils; Owner: jazzhands
 --
 
-drop schema if exists netblock_utils cascade;
-create schema netblock_utils authorization jazzhands;
-
--- Create schema if it does not exist, do nothing otherwise.
 DO $$
 DECLARE
         _tal INTEGER;
@@ -58,6 +54,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS netblock_utils;
                 CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA netblock_utils IS 'part of jazzhands';
         END IF;
 END;
 $$;
@@ -104,7 +101,7 @@ BEGIN
 	IF par_nbid IS NULL AND in_is_single_address = 'Y' AND in_fuzzy_can_subnet THEN
 		select  Netblock_Id
 		  into	par_nbid
-		  from  ( select Netblock_Id, Ip_Address, Netmask_Bits
+		  from  ( select Netblock_Id, Ip_Address
 			    from jazzhands.netblock
 			   where
 			   	in_IpAddress <<= ip_address
@@ -227,13 +224,9 @@ DECLARE
 	v_lhsip	jazzhands.netblock.ip_address%type;
 	v_rhsip	jazzhands.netblock.ip_address%type;
 	nb_match CURSOR ( in_nb_id jazzhands.netblock.netblock_id%type) FOR
-		-- The query used to include this in the where clause, but
-		-- oracle was uber slow 
-		--	net_manip.inet_base(nb.ip_address, root.netmask_bits) =  
-		--		net_manip.inet_base(root.ip_address, root.netmask_bits) 
 		select  rootd.dns_domain_id,
-				 net_manip.inet_base(nb.ip_address, root.netmask_bits),
-				 net_manip.inet_base(root.ip_address, root.netmask_bits)
+				 network(set_masklen(nb.ip_address, masklen(root.ip_address))),
+				 network(root.ip_address)
 		  from  jazzhands.netblock nb,
 			jazzhands.netblock root
 				inner join jazzhands.dns_record rootd
@@ -630,7 +623,10 @@ BEGIN
 		ip_address := netblock_rec.ip_address;
 		ip_universe_id := netblock_rec.ip_universe_id;
 		netblock_type := netblock_rec.netblock_type;
-	ELSIF ip_address IS NULL THEN
+	ELSIF ip_address IS NOT NULL THEN
+		ip_universe_id := 0;
+		netblock_type := 'default';
+	ELSE
 		RAISE EXCEPTION 'netblock_id or ip_address must be passed';
 	END IF;
 	SELECT ARRAY(
@@ -674,7 +670,9 @@ $$ LANGUAGE 'plpgsql';
 
 CREATE OR REPLACE FUNCTION netblock_utils.calculate_intermediate_netblocks(
 	ip_block_1		inet DEFAULT NULL,
-	ip_block_2		inet DEFAULT NULL
+	ip_block_2		inet DEFAULT NULL,
+	netblock_type	text DEFAULT 'default',
+	ip_universe_id	integer DEFAULT 0
 ) RETURNS TABLE (
 	ip_addr			inet
 ) AS $$
@@ -726,7 +724,22 @@ BEGIN
 		-- If the max address of the new netblock is larger than the last one, then it's empty
 		IF set_masklen(broadcast(new_nb), 32) > set_masklen(max_addr, 32) THEN
 			ip_addr := set_masklen(max_addr + 1, masklen(current_nb));
-			RETURN NEXT;
+			-- Validate that this isn't an empty can_subnet='Y' block already
+			-- If it is, split it in half and return both halves
+			PERFORM * FROM netblock n WHERE
+				n.ip_address = ip_addr AND
+				n.ip_universe_id =
+					calculate_intermediate_netblocks.ip_universe_id AND
+				n.netblock_type =
+					calculate_intermediate_netblocks.netblock_type;
+			IF FOUND THEN
+				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
+				RETURN NEXT;
+				ip_addr := broadcast(ip_addr) + 1;
+				RETURN NEXT;
+			ELSE
+				RETURN NEXT;
+			END IF;
 			max_addr := broadcast(new_nb);
 		END IF;
 		current_nb := new_nb;
@@ -741,7 +754,23 @@ BEGIN
 		current_nb := set_masklen(current_nb, masklen(current_nb) + 1);
 		IF NOT (current_nb >>= ip_block_2) THEN
 			ip_addr := current_nb;
-			RETURN NEXT;
+			-- Validate that this isn't an empty can_subnet='Y' block already
+			-- If it is, split it in half and return both halves
+			PERFORM * FROM netblock n WHERE
+				n.ip_address = ip_addr AND
+				n.ip_universe_id =
+					calculate_intermediate_netblocks.ip_universe_id AND
+				n.netblock_type =
+					calculate_intermediate_netblocks.netblock_type;
+			IF FOUND THEN
+				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
+				RAISE NOTICE 'IP is %', ip_addr;
+				RETURN NEXT;
+				ip_addr := broadcast(ip_addr) + 1;
+				RETURN NEXT;
+			ELSE
+				RETURN NEXT;
+			END IF;
 			current_nb := broadcast(current_nb) + 1;
 			CONTINUE;
 		END IF;

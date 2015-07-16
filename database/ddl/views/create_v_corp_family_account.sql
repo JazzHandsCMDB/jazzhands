@@ -1,4 +1,4 @@
--- Copyright (c) 2013, Todd M. Kover
+-- Copyright (c) 2013-2014, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,20 +16,27 @@
 -- $Id$
 --
 
-create view v_corp_family_account
+create or replace view v_corp_family_account
 AS
-SELECT	*
-  FROM	account 
- WHERE	account_realm_id in
-	(
-	 SELECT account_realm_id
-	  FROM	account_realm_company
-	 WHERE	company_id IN (
-		SELECT	property_value_company_id
-		 FROM	property
-		WHERE	property_name = '_rootcompanyid'
-		 AND	property_type = 'Defaults'
-		)
-	);
-
-
+SELECT	a.account_id,
+	a.login,
+	a.person_id,
+	a.company_id,
+	a.account_realm_id,
+	a.account_status,
+	a.account_role,
+	a.account_type,
+	a.description,
+	a.is_enabled,
+	a.data_ins_user,
+	a.data_ins_date,
+	a.data_upd_user,
+	a.data_upd_date
+  FROM	account  a
+ WHERE	a.account_realm_id in (
+	SELECT	account_realm_id
+	 FROM	property
+	WHERE	property_name = '_root_account_realm_id'
+	 AND	property_type = 'Defaults'
+)
+;

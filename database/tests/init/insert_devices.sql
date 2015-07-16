@@ -1,8 +1,14 @@
-insert into device (device_type_id, device_name, device_status, service_environment, operating_system_id, ownership_status,
-	is_locally_managed, is_monitored, is_virtual_device, should_Fetch_config, is_baselined)
+insert into device (device_type_id, device_name, device_status, 
+	service_environment_id, 
+	operating_system_id, 
+	is_locally_managed, is_monitored, is_virtual_device, 
+	should_Fetch_config)
 values
-	(1, 'guinness.omniscient.com', 'up', 'production', 0, 'owned',
-	'Y', 'Y', 'N', 'Y', 'Y')
+	(1, 'guinness.omniscient.com', 'up', 
+	(select service_environment_id from service_environment where
+		service_environment_name = 'production'),
+	0, 
+	'Y', 'Y', 'N', 'Y')
 ;
 
 insert into dns_domain
@@ -22,11 +28,6 @@ values
 	('jazzhands.net', 'hostmaster.omniscient.com', 'Y', 'service')
 ;
 
-insert into physical_port
-	(device_id, port_name, port_type)
-select	device_id, 'bge0', 'network'
-  from	device where device_name = 'guinness.omniscient.com';
-
 insert into netblock
 	(ip_address, is_single_address,
 		can_subnet, parent_netblock_id, netblock_status,
@@ -39,23 +40,21 @@ insert into netblock
 ;
 
 insert into network_interface
-	(device_id, network_interface_name, physical_port_id, 
+	(device_id, network_interface_name, 
 		network_interface_type,
 		is_interface_up, mac_addr, 
 		should_monitor, provides_nat, should_manage, 
 		provides_dhcp,
 		netblock_id
 	)
-	select device_id, 'bge0', physical_port_id, 'broadcast',
+	select device_id, 'bge0', 'broadcast',
 		'Y', 'aa:bb:cc:dd:ee:ff',
 		'Y', 'N', 'Y',
 		'N', 
 		(select netblock_id from netblock where
 			ip_address = '198.18.9.5/26')
-	from physical_port 
-	where port_name = 'bge0'
-	and device_id in (select device_id from device
-		where device_name = 'guinness.omniscient.com')
+	from device 
+	where device_name = 'guinness.omniscient.com'
 ;
 
 insert into dns_record

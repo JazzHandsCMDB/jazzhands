@@ -428,7 +428,7 @@ sub safe_mv_if_changed($$;$) {
 				if ( !rename( $new, $final ) ) {
 					rename( $oldfn, $final )
 					  || die
-"Unable to put $final back from $oldfn after fail to rename\n";
+					  "Unable to put $final back from $oldfn after fail to rename\n";
 				}
 				unlink($oldfn);
 			} else {
@@ -462,37 +462,40 @@ sub generate_named_acl_file($$$) {
 
 	# generate explicitly defined acls
 	{
-	my $sth = $dbh->prepare_cached(qq{
+		my $sth = $dbh->prepare_cached(
+			qq{
 		SELECT	p.property_value AS acl_name, nb.ip_address, nb.description
 		FROM 	v_nblk_coll_netblock_expanded nbe
 				INNER JOIN property p USING (netblock_collection_id)
 				INNER JOIN netblock nb USING (netblock_id)
 		WHERE property_name = 'DNSACLs' and property_type = 'DNSZonegen'
 		ORDER BY 1,2;
-	}) || die $dbh->errstr;
+	}
+		) || die $dbh->errstr;
 
-	$sth->execute || die $sth->errstr;
-	my $lastacl = undef;
-	while ( my ( $acl, $ip, $desc ) = $sth->fetchrow_array ) {
-		if ( defined($lastacl) && $acl ne $lastacl ) {
+		$sth->execute || die $sth->errstr;
+		my $lastacl = undef;
+		while ( my ( $acl, $ip, $desc ) = $sth->fetchrow_array ) {
+			if ( defined($lastacl) && $acl ne $lastacl ) {
+				$out->print("};\n\n");
+				$lastacl = undef;
+			}
+			if ( !defined($lastacl) ) {
+				$out->print("acl $acl\n{\n");
+			}
+			$lastacl = $acl;
+			$out->printf( "\t%-35s\t// %s\n",
+				"$ip;", ($desc) ? $desc : "" );
+		}
+		if ( defined($lastacl) ) {
 			$out->print("};\n\n");
-			$lastacl = undef;
 		}
-		if ( !defined($lastacl) ) {
-			$out->print("acl $acl\n{\n");
-		}
-		$lastacl = $acl;
-		$out->printf("\t%-35s\t// %s\n", "$ip;", ($desc)?$desc:"" );
-	}
-	if ( defined($lastacl) ) {
-		$out->print("};\n\n");
-	}
 	}
 
 	# generate per site blocks
 	{
-	my $sth = $dbh->prepare_cached(
-		qq{
+		my $sth = $dbh->prepare_cached(
+			qq{
 			SELECT * FROM (
 				SELECT '!' AS inclusion, psnb.site_code, nb.ip_address,
 					snb.site_code AS child_site_code,
@@ -516,30 +519,34 @@ sub generate_named_acl_file($$$) {
 				masklen(ip_address) DESC
 
 	}
-	) || die $dbh->errstr;
+		) || die $dbh->errstr;
 
-	$sth->execute || die $sth->errstr;
-	my $lastsite = undef;
-	while ( my ( $inc, $sc, $ip, $ksc, $pip, $desc ) = $sth->fetchrow_array ) {
-		$sc =~ tr/A-Z/a-z/;
-		if ( defined($lastsite) && $sc ne $lastsite ) {
+		$sth->execute || die $sth->errstr;
+		my $lastsite = undef;
+		while ( my ( $inc, $sc, $ip, $ksc, $pip, $desc ) =
+			$sth->fetchrow_array )
+		{
+			$sc =~ tr/A-Z/a-z/;
+			if ( defined($lastsite) && $sc ne $lastsite ) {
+				$out->print("};\n\n");
+				$lastsite = undef;
+			}
+			if ( !defined($lastsite) ) {
+				$out->print("acl $sc\n{\n");
+			}
+			$lastsite = $sc;
+			if ($inc) {
+				$desc =
+				  "[$ksc vs $pip] " . ( ($desc) ? $desc : "" );
+			} else {
+				$inc = "";
+			}
+			$out->printf( "\t%-35s\t// %s\n",
+				"$inc$ip;", ($desc) ? $desc : "" );
+		}
+		if ( defined($lastsite) ) {
 			$out->print("};\n\n");
-			$lastsite = undef;
 		}
-		if ( !defined($lastsite) ) {
-			$out->print("acl $sc\n{\n");
-		}
-		$lastsite = $sc;
-		if($inc) {
-			$desc = "[$ksc vs $pip] ".(($desc)?$desc:"");
-		} else {
-			$inc = "";
-		}
-		$out->printf("\t%-35s\t// %s\n", "$inc$ip;", ($desc)?$desc:"" );
-	}
-	if ( defined($lastsite) ) {
-		$out->print("};\n\n");
-	}
 	}
 
 	$out->close;
@@ -658,7 +665,7 @@ sub process_rvs_range {
 	$sth->finish;
 	return if ( !defined($ip) );
 
-	my $nb	 = new Net::IP("$ip") || return;
+	my $nb         = new Net::IP("$ip") || return;
 	my $low_block  = $nb->intip();
 	my $high_block = $nb->last_int();
 
@@ -700,7 +707,7 @@ sub process_rvs_range {
 
 		for ( my $i = $start ; $i <= $stop ; $i++ ) {
 			my $real_int_ip = pack( 'N', $i );
-			my $ip	  = inet_ntoa($real_int_ip);
+			my $ip          = inet_ntoa($real_int_ip);
 			my $lastoctet   = ( split( /\./, $ip ) )[3];
 
 			if ( !exists( $block->{$i} ) ) {
@@ -883,7 +890,7 @@ sub process_fwd_records {
 			}
 			$name = ".$name" if ( $srvproto && length($name) );
 			$name = "$srvproto$name" if ($srvproto);
-			$name = ".$name"	 if ( $srv && length($name) );
+			$name = ".$name"         if ( $srv && length($name) );
 			$name = "$srv$name"      if ($srv);
 
 			$value = "$pri $srvweight $srvport $value";
@@ -1007,12 +1014,12 @@ sub process_soa {
 	$exp    = 2419200 if ( !defined($exp) );
 	$min    = 3600    if ( !defined($min) );
 
-       #
-       # This happens in order to allow updates to the dns_domain rows to happen
-       # all at once, right before commit, to minimize the amount of time a row
-       # is locked due to an update.  Both the "last_generated" and "soa_serial"
-       # columns are updated to match this.
-       #
+	#
+	# This happens in order to allow updates to the dns_domain rows to happen
+	# all at once, right before commit, to minimize the amount of time a row
+	# is locked due to an update.  Both the "last_generated" and "soa_serial"
+	# columns are updated to match this.
+	#
 	$serial += 1 if ($bumpsoa);
 
 	$rname = get_db_default( $dbh, '_dnsrname', 'hostmaster.example.com' )
@@ -1152,7 +1159,7 @@ sub generate_complete_files {
 			$fn = "ip6/$zone";
 		}
 		$cfgf->print(
-"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/$fn\";\n};\n\n"
+			"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/$fn\";\n};\n\n"
 		);
 	}
 	$cfgf->close;
@@ -1269,12 +1276,12 @@ sub process_perserver {
 			}
 		}
 
-	       #
-	       # create a symlink in the "perserver" directory for zones
-	       # the server servers as well as creating a named.conf
-	       # file to be included.  A file that lists all the zones that
-	       # are auto-generated that were changed on this run is also saved.
-	       #
+		#
+		# create a symlink in the "perserver" directory for zones
+		# the server servers as well as creating a named.conf
+		# file to be included.  A file that lists all the zones that
+		# are auto-generated that were changed on this run is also saved.
+		#
 		mkdir_p("$cfgdir");
 		my $cfgfn    = "$cfgdir/named.conf.auto-gen";
 		my $tmpcfgfn = "$cfgfn.tmp.$$";
@@ -1330,20 +1337,20 @@ sub process_perserver {
 			}
 			if ( !-r $fqn ) {
 				warn
-"$zone does not exist for $server (see $fqn); possibly needs to be forced before a regular run\n";
+				  "$zone does not exist for $server (see $fqn); possibly needs to be forced before a regular run\n";
 			}
 
 			if ( $zone =~ /in-addr.arpa$/ ) {
 				$cfgf->print(
-"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/inaddr/$zone\";\n};\n\n"
+					"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/inaddr/$zone\";\n};\n\n"
 				);
 			} elsif ( $zone =~ /ip6.arpa$/ ) {
 				$cfgf->print(
-"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/ip6/$zone\";\n};\n\n"
+					"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/ip6/$zone\";\n};\n\n"
 				);
 			} else {
 				$cfgf->print(
-"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/$zone\";\n};\n\n"
+					"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/$zone\";\n};\n\n"
 				);
 			}
 
@@ -1408,34 +1415,34 @@ my $forcegen    = 0;
 my $forcesoa    = 0;
 my $forceall    = 0;
 my $nosoa       = 0;
-my $help	= 0;
+my $help        = 0;
 my $norsynclist = 0;
-my $nogen 	= 0;
+my $nogen       = 0;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'help'	  => \$help,	   # duh.
-	'verbose|v'     => \$verbose,	# duh.
-	'debug'	 => \$debug,	  # even more verbosity.
-	'nogen'      => \$nogen,	 # do not generate any zones
-	'genall|a'      => \$genall,	 # generate all, not just new
+	'help'          => \$help,           # duh.
+	'verbose|v'     => \$verbose,        # duh.
+	'debug'         => \$debug,          # even more verbosity.
+	'nogen'         => \$nogen,          # do not generate any zones
+	'genall|a'      => \$genall,         # generate all, not just new
 	'forcegen|f'    => \$forcegen,       # force generation of zones
 	'force|f'       => \$forceall,       # force everything
 	'forcesoa|s'    => \$forcesoa,       # force bump of SOA record
-	'nosoa'	 => \$nosoa,	  # never bump soa record
+	'nosoa'         => \$nosoa,          # never bump soa record
 	'dumpzone'      => \$dumpzone,       # dump a zone to stdout
-	'site=s'	=> \$mysite,	 # indicate what local machines site
+	'site=s'        => \$mysite,         # indicate what local machines site
 	'no-rsync-list' => \$norsynclist,    # generate rsync list
 	'outdir|o=s'    => \$output_root     # output directory
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
 
-if($nogen) {
-	warn "--nogen specified; exiting\n" if($verbose);
+if ($nogen) {
+	warn "--nogen specified; exiting\n" if ($verbose);
 	exit 0;
 }
 
@@ -1491,7 +1498,7 @@ my $zoneroot   = "$output_root/zones";
 my $persvrroot = "$output_root/perserver";
 
 mkdir_p($output_root)       if ( !-d "$output_root" );
-mkdir_p($zoneroot)	  if ( !-d "$zoneroot" );
+mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
 mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 
@@ -1510,40 +1517,16 @@ if ($maxid) {
 	#
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select distinct *
-		from (
-		select  chg.dns_change_record_id, n.dns_domain_id,
-			n.should_generate, n.last_generated,
-			n.soa_name, chg.ip_address
-	 	from   dns_change_record chg
-			left join (
-				select * from
-					dns_record dns
-					inner join dns_domain dom using (dns_domain_id)
-					inner join netblock n using (netblock_id)
-				where dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-			) n
-		   		on	family(chg.ip_address) = family(n.ip_address) AND
-					set_masklen(chg.ip_address, masklen(n.ip_address))
-				 		<<= n.ip_address
-			where chg.ip_address is not null
-		UNION
-		select	chg.dns_change_record_id, d.dns_domain_id,
-			d.should_generate, d.last_generated,
-			d.soa_name, NULL
-	  	from	dns_change_record chg
-			inner join dns_domain d using (dns_domain_id)
-	 	WHERE	dns_domain_id is not null
-		) x
+			SELECT * FROM v_dns_changes_pending
 	}
 	) || die $dbh->errstr;
 
 	$sth->execute || die $sth->errstr;
 
-      #
-      # build up generate to be a ahsh of zones to regenerate with a hash of the
-      # change ids that need to later be zapped.
-      #
+	#
+	# build up generate to be a ahsh of zones to regenerate with a hash of the
+	# change ids that need to later be zapped.
+	#
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $dom = $hr->{ _dbx('SOA_NAME') };
 		if ( $#ARGV >= 0 ) {
@@ -1558,7 +1541,7 @@ if ($maxid) {
 				}
 			} else {
 				warn
-"Odd but not a crisis -- this code shuld not be reached for ",
+				  "Odd but not a crisis -- this code shuld not be reached for ",
 				  Dumper($hr);
 			}
 		}
@@ -1703,7 +1686,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 	process_domain( $dbh, $zoneroot, $domid, $dom, undef, $last, $bumpsoa );
 
 }
-warn "Done Generating Zones\n" if($verbose);
+warn "Done Generating Zones\n" if ($verbose);
 
 my $docommit = 0;
 
@@ -1722,9 +1705,9 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		$docommit++;
 	}
 }
-warn "Done bumping SOAs\n" if($debug);
+warn "Done bumping SOAs\n" if ($debug);
 
-warn "Purging processed DNS_CHANGE_RECORD records\n" if($verbose); 
+warn "Purging processed DNS_CHANGE_RECORD records\n" if ($verbose);
 #
 # purge dns change records that were processed
 #
@@ -1743,8 +1726,8 @@ if ( !$nosoa ) {
 			foreach my $hr ( @{ $generate->{$dom}->{rec} } ) {
 				my $id = $hr->{ _dbx('DNS_CHANGE_RECORD_ID') };
 
-		 # for if something was forced from the command line but did not
-		 # have recorded changes
+				# for if something was forced from the command line but did not
+				# have recorded changes
 				next if ( !$id );
 				if ( !exists( $seen->{$id} ) ) {
 					warn "deleting change record $id\n"
@@ -1759,22 +1742,22 @@ if ( !$nosoa ) {
 	}
 }
 
-warn "Generating acl file\n" if($verbose); 
+warn "Generating acl file\n" if ($verbose);
 generate_named_acl_file( $dbh, $output_root . "/etc", "sitecodeacl.conf" );
 
 if ( !$norsynclist ) {
-	warn "Generating rsync list\n" if($verbose); 
+	warn "Generating rsync list\n" if ($verbose);
 	generate_rsync_list( $dbh, $output_root, "rsynchostlist.txt", $mysite );
 }
 
 #
 # Final cleanup
 #
-warn "Generating configuration files and whatnot..." if($debug); 
+warn "Generating configuration files and whatnot..." if ($debug);
 process_perserver( $dbh, "../zones", $persvrroot, $generate );
 generate_complete_files( $dbh, $zoneroot, $generate );
 
-warn "Done file generation, about to commit\n" if($verbose); 
+warn "Done file generation, about to commit\n" if ($verbose);
 if ($docommit) {
 	$dbh->commit;
 } else {

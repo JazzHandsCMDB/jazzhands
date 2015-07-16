@@ -147,11 +147,13 @@ INSERT INTO Device_Type (
 
 INSERT INTO Operating_System (
 	Operating_System_Name,
+	Major_Version,
 	Version,
 	Company_ID,
 	PROCESSOR_ARCHITECTURE
 ) VALUES(
 	'Solaris',
+	'10',
 	'10',
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'amd64'
@@ -159,11 +161,13 @@ INSERT INTO Operating_System (
 
 INSERT INTO Operating_System (
 	Operating_System_Name,
+	Major_Version,
 	Version,
 	Company_ID,
 	PROCESSOR_ARCHITECTURE
 ) VALUES(
 	'Solaris',
+	'10',
 	'10',
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems'),
 	'sparc'
@@ -249,3 +253,41 @@ insert into  netblock (ip_address, is_single_address, netblock_status,
         description, netblock_type, parent_netblock_id, can_subnet) values
 ('FF00::/8', 'N', 'Allocated',
         'IPv6 Multicast', 'default', null, 'Y');
+
+insert into val_property_type (
+	property_type,
+	description
+) values (
+	'PhoneDirectoryAttributes',
+	'attributes for user directory'
+);
+
+insert into val_property (
+        property_name,
+        property_type,
+        permit_account_collection_id,
+        property_data_type,
+        description
+) values (
+        'PhoneDirectoryAdmin',
+        'PhoneDirectoryAttributes',
+        'REQUIRED',
+        'account_collection_id',
+        'Administrators'
+);
+
+
+insert into val_property (
+        property_name,
+        property_type,
+        permit_company_id,
+        property_data_type,
+        description
+) values (
+        'ShowBirthday',
+        'PhoneDirectoryAttributes',
+        'REQUIRED',
+        'none',
+        'accounts associated with this company will have their birthday shown'
+);
+

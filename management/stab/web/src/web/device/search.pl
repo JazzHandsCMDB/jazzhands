@@ -60,7 +60,6 @@ sub find_devices {
 
 	if ( defined($serial) ) {
 		$criteria .= " and " if ( length($criteria) );
-		$criteria .= " (lower(d.serial_number) like lower(:serial)";
 		$criteria .= " (lower(a.serial_number) like lower(:serial)";
 		$criteria .= "  OR lower(d.host_id) like lower(:serial))";
 	}

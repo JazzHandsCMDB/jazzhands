@@ -123,8 +123,8 @@ sub new {
 
 	#	$self->_initdb() if ( !defined( $self->{dbh} ) );
 
-	$self->textfield_sizing(1);
 	bless $self, $class;
+	$self->textfield_sizing(1);
 
 	if ( !exists( $opt->{nocheck_perms} ) ) {
 		if ( !$self->check_permissions() ) {
@@ -1236,15 +1236,15 @@ sub b_dropdown {
 			  from	val_production_state
 			order by description, production_state
 		};
-	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT' ) {
+	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT_ID' ) {
 		$q = qq{
-			select	service_environment, 
+			select	service_environment_id,
 				coalesce(description,
-					concat(service_environment,
+					concat(service_environment_name,
 						' (', production_state, ')'))
 						as description
 			  from	service_environment
-			order by description, service_environment
+			order by description, service_environment_name
 		};
 	} elsif ( $selectfield eq 'NETWORK_INTERFACE_TYPE' ) {
 		$q = qq{
@@ -1285,9 +1285,15 @@ sub b_dropdown {
 	} elsif (  $selectfield eq 'COMPANY_ID'
 		|| $selectfield =~ /_COMPANY_ID$/ )
 	{
+		my $ct = ($params->{'-company_type'})?
+			q{
+			inner join company_type using (company_id)
+			where company_type = :company_type
+			}:"";
 		$q = qq{
 			select	company_id, company_name
 			  from	company
+				$ct
 			order by lower(company_name)
 		};
 		$pickone = "Choose";
@@ -1622,6 +1628,10 @@ sub b_dropdown {
 
 	if ( defined($dnsdomaintype) ) {
 		$sth->bind_param( ':dnsdomaintype', $dnsdomaintype );
+	}
+
+	if ( defined($params->{'-company_type'}) ) {
+		$sth->bind_param( ':company_type', $params->{'-company_type'} );
 	}
 
 	$sth->execute || $self->return_db_err($sth);

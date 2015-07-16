@@ -23,8 +23,22 @@
 -- $Id$
 --
 
-drop schema if exists time_util cascade;
-create schema time_util authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'time_util';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS time_util;
+                CREATE SCHEMA time_util AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA time_util IS 'part of jazzhands';
+        END IF;
+END;
+$$;
+
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM

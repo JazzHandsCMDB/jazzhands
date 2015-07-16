@@ -43,8 +43,22 @@
  * $Id$
  */
 
-drop schema if exists port_utils cascade;
-create schema port_utils authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'port_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS port_utils;
+                CREATE SCHEMA port_utils AUTHORIZATION jazzhands;
+                COMMENT ON SCHEMA port_utils IS 'part of jazzhands';
+        END IF;
+END;
+$$;
+
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -66,26 +80,7 @@ CREATE OR REPLACE FUNCTION port_utils.setup_device_power (
 DECLARE
 	dt_id	device.device_type_id%type;
 BEGIN
-	if( port_support.has_power_ports(in_device_id) ) then
-		return;
-	end if;
-
-	select  device_type_id
-	  into	dt_id
-	  from  device
-	 where	device_id = in_device_id;
-
-	 insert into device_power_interface (
-		device_id, power_interface_port, 
-		 power_plug_style,
-		 voltage, max_amperage, provides_power
-		)
-		select in_device_id, power_interface_port,
-		 	power_plug_style,
-		 	voltage, max_amperage, provides_power
-		  from device_type_power_port_templt
-		 where device_type_id = dt_id;
-
+	return;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -110,43 +105,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION port_utils.setup_device_physical_ports (
 	in_Device_id device.device_id%type,
-	in_port_type val_port_type.port_type%type DEFAULT NULL
+	in_port_type val_slot_function.slot_function%type DEFAULT NULL
 ) RETURNS VOID AS $$
-DECLARE
-	v_dt_id	device.device_type_id%type;
-	v_pt	val_port_type.port_type%type;
-	ptypes	RECORD;
 BEGIN
-	select  device_type_id
-	  into	v_dt_id
-	  from  device
-	 where	device_id = in_device_id;
-
-
-	FOR ptypes IN select port_type from val_port_type 
-	LOOP
-		v_pt := ptypes.port_type;
-		if(in_port_type is NULL or v_pt = in_port_type) THEN
-			if( NOT port_support.has_physical_ports(in_device_id,v_pt) ) then
-				insert into physical_port
-					(device_id, port_name, port_type, description,
-					 port_plug_style,
-					 port_medium, port_protocol, port_speed,
-					 physical_label, port_purpose, tcp_port, is_hardwired
-					)
-					select	in_device_id, port_name, port_type, description,
-					 		port_plug_style,
-					 		port_medium, port_protocol, port_speed,
-					 		physical_label, port_purpose, tcp_port,
-							is_hardwired
-					  from	device_type_phys_port_templt
-					 where  device_type_id = v_dt_id
-					  and	port_type = v_pt
-					  and	is_optional = 'N'
-				;
-			end if;
-		end if;
-	END LOOP;
+	-- this has been replaced by the slot/component stuff
+	RETURN;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -158,12 +121,12 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect (
 	physportid1	physical_port.physical_port_id%type,
 	physportid2	physical_port.physical_port_id%type,
-	baud		layer1_connection.baud%type			DEFAULT -99,
-	data_bits	layer1_connection.data_bits%type	DEFAULT -99,
-	stop_bits	layer1_connection.stop_bits%type	DEFAULT -99,
-	parity     	layer1_connection.parity%type		DEFAULT '__unknown__',
-	flw_cntrl	layer1_connection.flow_control%type DEFAULT '__unknown__',
-	circuit_id   	layer1_connection.circuit_id%type DEFAULT -99
+	baud		integer			DEFAULT -99,
+	data_bits	integer	DEFAULT -99,
+	stop_bits	integer	DEFAULT -99,
+	parity     	text		DEFAULT '__unknown__',
+	flw_cntrl	text DEFAULT '__unknown__',
+	circuit_id   	integer DEFAULT -99
 ) RETURNS INTEGER AS $$
 DECLARE
 	tally		integer;

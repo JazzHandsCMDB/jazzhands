@@ -42,6 +42,8 @@ BEGIN
 	delete from netblock where description like 'JHTEST%';
 	delete from dns_change_record;
 	delete from dns_domain where soa_name = 'jhtest.example.com';
+	delete from val_dns_srv_service 
+		where (dns_srv_service) IN ('_bar', '_foo');
 
 	RAISE NOTICE 'skip tests of dns_rec_before because it is going away';
 	RAISE NOTICE 'skip tests of update_dns_zone because it is going away';
@@ -420,7 +422,146 @@ BEGIN
 		RAISE NOTICE '... It did not';
 	END;
 
+	RAISE NOTICE 'Checking CNAME and other records on domain...';
+	RAISE NOTICE 'Checking NS+CNAME works...';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value
+	) VALUES (
+		NULL, _dnsdomid, 'NS', '01.foo.com.'
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			NULL, _dnsdomid, 'CNAME', 'jh-test.example.com.'
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking CNAME+NS works...';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value
+	) VALUES (
+		NULL, _dnsdomid, 'CNAME', 'cn.example.com.'
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			NULL, _dnsdomid, 'NS', 'jhns1.example.com.'
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking CNAME and other records on records...';
+	RAISE NOTICE 'Checking NS+CNAME works...';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value
+	) VALUES (
+		'jhtestme', _dnsdomid, 'NS', '01.foo.com.'
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'jhtestme', _dnsdomid, 'CNAME', 'jh-test.example.com.'
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking CNAME+NS works...';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value
+	) VALUES (
+		'jhtestme', _dnsdomid, 'CNAME', 'cn.example.com.'
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'jhtestme', _dnsdomid, 'NS', 'jhns1.example.com.'
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking CNAME and A records not on zone...';
+	RAISE NOTICE 'Checking A+CNAME works...';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, netblock_id
+	) VALUES (
+		'jhtestme', _dnsdomid, 'A', _ip1id
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'jhtestme', _dnsdomid, 'CNAME', 'jh-test.example.com.'
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking CNAME+NS works...';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value
+	) VALUES (
+		'jhtestme', _dnsdomid, 'CNAME', 'cn.example.com.'
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking two CNAMEs';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value
+	) VALUES (
+		'jhtestme', _dnsdomid, 'CNAME', 'cn1.example.com.'
+	) RETURNING * INTO _dnsrec1;
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'jhtestme', _dnsdomid, 'CNAME', 'cn2.example.com.'
+		) RETURNING * INTO _dnsrec1;
+		RAISE EXCEPTION '... It DID(!)';
+	EXCEPTION  WHEN unique_violation THEN
+		RAISE NOTICE '... It did not';
+	END;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
+	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Done CNAME and other check tests';
+
 	RAISE NOTICE 'Cleaning Up....';
+	delete from dns_record where dns_domain_id = _dnsdomid;
 	delete from dns_record where dns_name like 'JHTEST%' 
 		or dns_value like 'JHTEST%';
 	delete from netblock where description like 'JHTEST%' 
@@ -428,6 +569,9 @@ BEGIN
 	delete from netblock where description like 'JHTEST%';
 	delete from dns_change_record;
 	delete from dns_domain where soa_name = 'jhtest.example.com';
+	delete from dns_domain where dns_domain_id = _dnsdomid;
+	delete from val_dns_srv_service 
+		where (dns_srv_service) IN ('_bar', '_foo');
 
 	RAISE NOTICE 'skip tests of dns_rec_before because it is going away';
 	RAISE NOTICE 'skip tests of update_dns_zone because it is going away';

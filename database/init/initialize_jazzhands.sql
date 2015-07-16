@@ -36,29 +36,29 @@ INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced,
 	VALUES ('blacklist', 'N', 'N', 'login name blacklist');
 
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('enabled', 'Enabled', 
-		'N', 'Y');
+		'Y', 'Y');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('disabled', 'Disabled',
 		'N', 'N');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('forcedisabled', 'User Forced to Disabled status',
-		'Y', 'N');
+		'N', 'N');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('terminated', 'User has been terminated',
-		'Y', 'N');
+		'N', 'N');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('autoterminated', 'User has been terminated by auto process',
-		'Y', 'Y');
+		'N', 'Y');
 INSERT INTO VAL_Person_Status(Person_Status, Description,
-		is_disabled, propagate_from_person)
+		is_enabled, propagate_from_person)
 	VALUES ('onleave', 'User is disabled due to being on leave',
-		'Y', 'Y');
+		'N', 'Y');
 
 INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
 	VALUES ('employee', 'Employee');
@@ -89,8 +89,8 @@ insert into val_account_collection_type
 	max_num_members, can_have_hierarchy
 	) 
 values 
-	('per-user', 
-	 'Account_Collection that contain a single user for assigning individual users to objects that only accept Account_Collection assignments',
+	('per-account', 
+	 'Account_Collection that contain a single account for assigning individual accounts to objects that only accept Account_Collection assignments',
 	1, 'N'
 	);
 
@@ -105,10 +105,6 @@ INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('department', 'Account_Collection for Corporate Departments');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('property', 'Account_Collection for storing global property values');
-INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
-	VALUES ('company', 'automatic Account_Collectiones defined by company membership');
-INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
-	VALUES ('usertype', 'automatic Account_Collectiones defined by user type');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('site', 'automatic Account_Collectiones defined by user site');
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
@@ -137,19 +133,19 @@ insert into val_production_state (production_state)
 insert into val_service_env_coll_type
 	( service_env_collection_type ) values ('per-environment');
 
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('unspecified', 'unspecified');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('unallocated', 'unallocated');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('production', 'production');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('development', 'development');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('qa', 'test');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('staging', 'test');
-INSERT INTO service_environment (service_environment, production_state)
+INSERT INTO service_environment (service_environment_name, production_state)
 	VALUES ('test', 'test');
 
 INSERT INTO VAL_Ownership_Status (Ownership_Status)
@@ -307,6 +303,7 @@ insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 	values ('sparc', 64);
 
+/*
 insert into val_power_plug_style (power_plug_style) values ('DC');
 insert into val_power_plug_style (power_plug_style) values ('Hubbell CS8365C');
 insert into val_power_plug_style (power_plug_style) values ('IEC-60320-C13');
@@ -329,31 +326,7 @@ insert into val_power_plug_style (power_plug_style) values ('NEMA L5-30P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-15P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-20P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-30P');
-
-insert into val_port_type (port_type) values ('network');
-insert into val_port_type (port_type) values ('patchpanel');
-insert into val_port_type (port_type) values ('serial');
-insert into val_port_type (port_type) values ('switch');
-
-insert into val_baud (baud) values (110);
-insert into val_baud (baud) values (300);
-insert into val_baud (baud) values (1200);
-insert into val_baud (baud) values (2400);
-insert into val_baud (baud) values (4800);
-insert into val_baud (baud) values (9600);
-insert into val_baud (baud) values (19200);
-insert into val_baud (baud) values (38400);
-insert into val_baud (baud) values (57600);
-insert into val_baud (baud) values (115200);
-
-insert into val_flow_control (flow_control, description)
-	values ('ctsrts', 'CTS/RTS');
-insert into val_flow_control (flow_control, description)
-	values ('dsrdte', 'Xon/Xoff');
-insert into val_flow_control (flow_control, description)
-	values ('dtrdce', 'DSR/DTE');
-insert into val_flow_control (flow_control, description)
-	values ('xonxoff', 'DTR/DCE');
+ */
 
 insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
 	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
@@ -364,21 +337,6 @@ insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
 	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
 values
 	('telnet', 23, 'standard telnet');
-
--- these probably need to just be check constraints.  oops.
-insert into val_stop_bits (stop_bits) values (7);
-insert into val_stop_bits (stop_bits) values (1);
-insert into val_stop_bits (stop_bits) values (2);
-insert into val_stop_bits (stop_bits,description) values (15, '1.5');
-
-insert into val_data_bits (data_bits) values (7);
-insert into val_data_bits (data_bits) values (8);
-
-insert into val_parity (parity) values ('none');
-insert into val_parity (parity) values ('even');
-insert into val_parity (parity) values ('odd');
-insert into val_parity (parity) values ('mark');
-insert into val_parity (parity) values ('space');
 
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('straight');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('rollover');
@@ -455,6 +413,8 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('timestamp');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('company_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
 	values ('dns_domain_id');
+insert into val_property_data_type (PROPERTY_DATA_TYPE) 
+	values ('device_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) 
 	values ('netblock_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE)
@@ -550,9 +510,6 @@ insert into val_property
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceHome',			'UnixPasswdFileValue',  'Sets the users Home directory to something other than the default',	   'N',	    'string',	      'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
-insert into val_property
-(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
-('ForceMD5',			'UnixPasswdFileValue',  'Sets the users MD5 to something other than the default (OS depenent)',	'N',	    'string',	      'PROHIBITED',  'ALLOWED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('ForceShell',			'UnixPasswdFileValue',  'Sets the users Shell to something other than the default',		    'N',	    'string',	      'PROHIBITED',  'ALLOWED',     'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
@@ -655,7 +612,7 @@ insert into val_property
 	permit_account_collection_id, permit_device_collection_id, 
 	property_data_type
 ) values (
-	'UnixGroupMemberOverride', 'MclassUnixProp', 'N', 
+	'UnixGroupMemberOverride', 'MclassUnixProp', 'Y', 
 	'REQUIRED', 'REQUIRED', 
 	'account_collection_id'
 );
@@ -663,12 +620,12 @@ insert into val_property
 insert into val_property_value (
 	property_name, property_type, valid_property_value, description
 ) values 
-	('UnixHomeType','MclassUnixProp','standard','per-user home directories'); 
+	('UnixHomeType','MclassUnixProp','standard','per-account home directories'); 
 
 insert into val_property_value (
 	property_name, property_type, valid_property_value, description
 ) values 
-	('UnixHomeType','MclassUnixProp','generic','per-user home directories'); 
+	('UnixHomeType','MclassUnixProp','generic','per-account home directories'); 
 
 --- Various properities that define how account management works
 insert into val_property (
@@ -733,6 +690,11 @@ insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 
 values
 ('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'N', 'company_id',	      'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'PROHIBITED', 'PROHIBITED', 'PROHIBITED');
+
+insert into val_property
+(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_ACCOUNT_REALM_ID)
+values
+('_root_account_realm_id', 'Defaults', 'define the corporate root identity default', 'N', 'none', 'REQUIRED');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE)
@@ -844,63 +806,12 @@ INSERT INTO Account (
 	'pseudouser'
 );
 
-insert into Account_Collection 
-	(Account_Collection_name, Account_Collection_type)
-values 
-	('root', 'unix-group');
-
-INSERT INTO Unix_Group (
-	Account_Collection_id,
-	Unix_GID,
-	Group_Password
-) VALUES (
-	(select Account_Collection_id 
-	   from Account_Collection 
-	   where Account_Collection_Name = 'root' 
-		and Account_Collection_type = 'unix-group'),
-	0,
-	'*'
+SELECT person_manip.setup_unix_account(
+	in_account_id := (select account_id from account where login = 'root'),
+	in_account_type := 'pseudouser',
+	in_uid := '0'
 );
-
-insert into Account_Collection (Account_Collection_Name, Account_Collection_Type)
-	values ('root', 'per-user');
-
-insert into Account_Collection_Account (Account_Collection_Id, Account_Id)
-select u.Account_Collection_id, a.account_id
-from    Account_Collection u, account a
-where u.Account_Collection_type in ('unix-group', 'per-user')
-and u.Account_Collection_name = 'root'
-and a.login in ('root');
-
-INSERT INTO Account_Unix_Info (
-	Account_Id,
-	Unix_UID,
-	UNIX_GROUP_Acct_Collection_Id,
-	Shell,
-	Default_Home
-) VALUES (
-	(select account_id from account where login = 'root'),
-	0,
-	(select Account_Collection_Id from Account_Collection 
-		where Account_Collection_name = 'root' 
-		and Account_Collection_Type = 'unix-group'),
-	'/bin/sh',
-	'/'
-);
-
-INSERT INTO Account_Password (
-	Account_Id,
-	Password_type,
-	Password,
-	Change_Time
-) VALUES (
-	(select account_Id from account where login = 'root'),
-	'des',
-	'T6r7sdlVHpZH2',
-	now()
-);
-
-
+	
 
 INSERT INTO
 	Device_Collection (Device_Collection_Name, Device_Collection_Type)
@@ -928,29 +839,21 @@ insert into val_company_type(company_type) values  ('software provider');
 --- XXX these may be optional
 INSERT INTO Device_Type (
 	Company_Id,
-	Model,
-	Has_802_3_Interface,
-	Has_802_11_Interface,
-	SNMP_Capable,
-	is_chassis,
-	rack_units
+	Device_type_Name
 ) VALUES (
 	0,
-	'unknown',
-	'N',
-	'N',
-	'N',
-	'N',
-	0
+	'unknown'
 );
 
 INSERT INTO Operating_System (
 	Operating_System_ID,
 	Operating_System_Name,
+	Major_Version,
 	Version,
 	Company_ID, processor_architecture
 ) VALUES (
 	0,
+	'unknown',
 	'unknown',
 	'unknown',
 	0, 'noarch'
@@ -984,61 +887,6 @@ insert into val_encapsulation_mode
 
 -- add port speed, port mediumm port protocaol (look at dropped things from
 --	interface type above)
-
-insert into val_port_protocol (port_protocol) values ( 'Ethernet' );
-insert into val_port_protocol (port_protocol) values ( 'DS1' );
-insert into val_port_protocol (port_protocol) values ( 'DS3' );
-insert into val_port_protocol (port_protocol) values ( 'E1' );
-insert into val_port_protocol (port_protocol) values ( 'E3' );
-insert into val_port_protocol (port_protocol) values ( 'OC3' );
-insert into val_port_protocol (port_protocol) values ( 'OC12' );
-insert into val_port_protocol (port_protocol) values ( 'OC48' );
-insert into val_port_protocol (port_protocol) values ( 'OC192' );
-insert into val_port_protocol (port_protocol) values ( 'OC768' );
-insert into val_port_protocol (port_protocol) values ( 'serial' );
-
-insert into val_port_plug_style (port_plug_style) values ('db9');
-insert into val_port_plug_style (port_plug_style) values ('rj45');
-insert into val_port_plug_style (port_plug_style) values ('SFP');
-insert into val_port_plug_style (port_plug_style) values ('SFP+');
-insert into val_port_plug_style (port_plug_style) values ('QSFP+');
-insert into val_port_plug_style (port_plug_style) values ('GBIC');
-insert into val_port_plug_style (port_plug_style) values ('XENPAK');
-
--- need to do sr, lr, cat6, cat5, twinax, etc
-insert into val_port_medium (port_medium,port_plug_style) values
-	('serial', 'db9');
-insert into val_port_medium (port_medium,port_plug_style) values
-	('serial', 'rj45');
-insert into val_port_medium (port_medium,port_plug_style) values
-	('TwinAx', 'SFP+');
-
-
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('10Mb', 10000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('100Mb', 1000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('1G', 1000000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('10G', 10000000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('40G', 40000000000);
-insert into val_port_speed (port_speed, port_speed_bps) values
-	('100G', 100000000000);
-
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '10Mb');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '100Mb');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '1G');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '10G');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '40G');
-insert into val_port_protocol_speed (port_protocol, port_speed)
-	values ('Ethernet', '100G');
 
 insert into val_device_collection_type 
 	(device_collection_type,
@@ -1084,3 +932,485 @@ values (
 	'DNSACLs', 'DNSZonegen',
 	'indicates netblocks that should be in a named acl', 'Y',
 	'string', 'REQUIRED');
+
+-------------------------------------------------------------------------
+-- BEGIN legacy port related stuff used by layer1_connection and elsewhere
+
+insert into val_component_property_type (component_property_type, description)
+values ('serial-connection', 'characteristics of serial connections');
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'baud', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'baud', 'serial-connection',
+	unnest(ARRAY[110,300,1200,2400,4800,9600,19200,38400,57600,115200]);
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'flow-control', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, 
+	valid_property_value,
+	description
+) SELECT 'flow-control', 'serial-connection',
+	unnest(ARRAY['ctsrts',	'dsrdte',	'dtrdce',	'xonxoff']),
+	unnest(ARRAY['CTS/RTS', 'DSR/DTE',	'DTE/DCE',	'Xon/Xoff'])
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'stop-bits', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'stop-bits', 'serial-connection',
+	unnest(ARRAY['1','2','1.5'])
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'data-bits', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'data-bits', 'serial-connection',
+	unnest(ARRAY[7,8])
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'parity', 'serial-connection', 'N',
+	'list', 'REQUIRED');
+insert into val_component_property_value (
+	component_property_name, component_property_type, valid_property_value
+) SELECT 'parity', 'serial-connection',
+	unnest(ARRAY['none', 'even', 'odd', 'mark', 'space'])
+;
+
+
+insert into val_component_property_type (component_property_type, description)
+values ('tcpsrv-connections', 'rtty tcpsrv connection properties');
+
+-- probably want to limit to component types that are devices but that appears
+-- to be hard
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id, permit_component_id
+) values (
+	'tcpsrv_device_id', 'tcpsrv-connections', 'N',
+	'none', 'REQUIRED', 'REQUIRED')
+;
+
+insert into val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	property_data_type, permit_intcomp_conn_id
+) values (
+	'tcpsrv_enabled', 'tcpsrv-connections', 'N',
+	'boolean', 'REQUIRED')
+;
+
+
+/*****************************************************************************
+
+=== Things used to be directly support that are not directly supported. ====
+
+These concepts really are connection properties, not port --
+
+insert into val_port_protocol (port_protocol) values ( 'Ethernet' );
+insert into val_port_protocol (port_protocol) values ( 'DS1' );
+insert into val_port_protocol (port_protocol) values ( 'DS3' );
+insert into val_port_protocol (port_protocol) values ( 'E1' );
+insert into val_port_protocol (port_protocol) values ( 'E3' );
+insert into val_port_protocol (port_protocol) values ( 'OC3' );
+insert into val_port_protocol (port_protocol) values ( 'OC12' );
+insert into val_port_protocol (port_protocol) values ( 'OC48' );
+insert into val_port_protocol (port_protocol) values ( 'OC192' );
+insert into val_port_protocol (port_protocol) values ( 'OC768' );
+insert into val_port_protocol (port_protocol) values ( 'serial' );
+
+insert into val_port_plug_style (port_plug_style) values ('GBIC');
+insert into val_port_plug_style (port_plug_style) values ('XENPAK');
+
+-- need to do sr, lr, cat6, cat5, twinax, etc
+insert into val_port_medium (port_medium,port_plug_style) values
+	('serial', 'db9');
+insert into val_port_medium (port_medium,port_plug_style) values
+	('serial', 'rj45');
+insert into val_port_medium (port_medium,port_plug_style) values
+	('TwinAx', 'SFP+');
+
+These concepts are likely component_functions or inferred from slot_type
+
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('10Mb', 10000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('100Mb', 1000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('1G', 1000000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('10G', 10000000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('40G', 40000000000);
+insert into val_port_speed (port_speed, port_speed_bps) values
+	('100G', 100000000000);
+
+These concepts are likely component_functions
+
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '10Mb');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '100Mb');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '1G');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '10G');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '40G');
+insert into val_port_protocol_speed (port_protocol, port_speed)
+	values ('Ethernet', '100G');
+
+*****************************************************************************/
+
+-- END legacy port related stuff used by layer1_connection and elsewhere
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- BEGIN automated account collection infrastructure (tied to properties)
+
+insert into val_property_type (
+	property_type, is_multivalue,
+	description
+) values (
+	'auto_acct_coll', 'Y',
+	'properties that define how people are added to account collections automatically based on column changes'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'exempt', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'non_exempt', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'male', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'female', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'unspecified_gender', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'management', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'non_management', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'full_time', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'non_full_time', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'account_type', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'list',
+	'N'
+);
+
+insert into val_property_value (
+	property_name, property_type, valid_property_value
+) values (
+	'account_type', 'auto_acct_coll', 'person'
+);
+
+insert into val_property_value (
+	property_name, property_type, valid_property_value
+) values (
+	'account_type', 'auto_acct_coll', 'pseudouser'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'site', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'REQUIRED',
+	'none',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_id,
+	permit_account_realm_id,
+	property_data_type,
+	is_multivalue
+) values (
+	'AutomatedDirectsAC', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'account_collection_id',
+	'N'
+);
+
+insert into val_property (
+	property_name, property_type,
+	permit_account_id,
+	permit_account_realm_id,
+	property_data_type,
+	is_multivalue
+) values (
+	'AutomatedRollupsAC', 'auto_acct_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'account_collection_id',
+	'N'
+);
+
+-- END automated account collection infrastructure (tied to properties)
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- BEGIN certificate
+
+insert into val_x509_certificate_file_fmt
+	(x509_file_format, description)
+values	 
+	('pem', 'human readable rsa certificate'),
+	('der', 'binary representation'),
+	('keytool', 'Java keystore .jks'),
+	('pkcs12', 'PKCS12 .p12 file')
+;
+
+insert into val_x509_key_usage
+	(x509_key_usg, description, is_extended)
+values
+	('digitalSignature',	'verifying digital signatures other than other certs/CRLs,  such as those used in an entity authentication service, a data origin authentication service, and/or an integrity service', 'N'),
+	('nonRepudiation',	'verifying digital signatures other than other certs/CRLs, to provide a non-repudiation service that protects against the signing entity falsely denying some action.  Also known as contentCommitment', 'N'),
+	('keyEncipherment',	'key is used for enciphering private or secret keys', 'N'),
+	('dataEncipherment',	'key is used for directly enciphering raw user data without the use of an intermediate symmetric cipher', 'N'),
+	('keyAgreement',	NULL, 'N'),
+	('keyCertSign',		'key signs other certificates; must be set with ca bit', 'N'),
+	('cRLSign',		'key is for verifying signatures on certificate revocation lists', 'N'),
+	('encipherOnly',	'with keyAgreement bit, key used for enciphering data while performing key agreement', 'N'),
+	('decipherOnly',	'with keyAgreement bit, key used for deciphering data while performing key agreement', 'N'),
+	('serverAuth',		'SSL/TLS Web Server Authentication', 'Y'),
+	('clientAuth',		'SSL/TLS Web Client Authentication', 'Y'),
+	('codeSigning',		'Code signing', 'Y'),
+	('emailProtection',	'E-mail Protection (S/MIME)', 'Y'),
+	('timeStamping',	'Trusted Timestamping', 'Y'),
+	('OCSPSigning',		'Signing OCSP Responses', 'Y')
+;
+
+insert into val_x509_key_usage_category
+	(x509_key_usg_cat, description)
+values
+	('ca', 'used to identify a certificate authority'),
+	('revocation', 'Used to identify entity that signs crl/ocsp responses'),
+	('service', 'used to identify a service on the netowrk'),
+	('server', 'used to identify a server as a client'),
+	('application', 'cross-authenticate applications'),
+	('account', 'used to identify an account/user/person')
+;
+
+insert into x509_key_usage_categorization
+	(x509_key_usg_cat, x509_key_usg)
+values
+	('ca',  'keyCertSign'),
+	('revocation',  'cRLSign'),
+	('revocation',  'OCSPSigning'),
+	('service',  'digitalSignature'),
+	('service',  'keyEncipherment'),
+	('service',  'serverAuth'),
+	('application',  'digitalSignature'),
+	('application',  'keyEncipherment'),
+	('application',  'serverAuth')
+;
+
+INSERT INTO val_x509_revocation_reason
+	(x509_revocation_reason)
+values 
+	('unspecified'),
+	('keyCompromise'),
+	('CACompromise'),
+	('affiliationChanged'),
+	('superseded'),
+	('cessationOfOperation'),
+	('certificateHold'),
+	('removeFromCRL'),
+	('privilegeWithdrawn'),
+	('AACompromise')
+;
+	
+-- END certificate
+-------------------------------------------------------------------------

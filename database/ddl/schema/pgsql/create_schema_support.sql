@@ -51,6 +51,8 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS schema_support;
 		CREATE SCHEMA schema_support AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA schema_support IS 'part of jazzhands';
+
 	END IF;
 END;
 $$;
@@ -535,7 +537,7 @@ BEGIN
 		    EXECUTE _r.regrant; 
 		    DELETE from __regrants where id = _r.id;
 	    END LOOP;
-    
+
 	    SELECT count(*) INTO _tally from __regrants;
 	    IF _tally > 0 THEN
 		    RAISE EXCEPTION 'Grant extractions were run while replaying grants - %.', _tally;
@@ -630,7 +632,7 @@ CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
 	schema varchar,
 	object varchar,
 	dropit boolean DEFAULT true,
-	doobjectdeps boolean DEFAULT false,
+	doobjectdeps boolean DEFAULT false
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -889,6 +891,44 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
+--
+-- given two relations, returns an array columns they have in common
+--
+CREATE OR REPLACE FUNCTION schema_support.get_common_columns(
+    _schema     text,
+    _table1      text,
+    _table2      text
+) RETURNS text[] AS $$
+DECLARE
+	_q			text;
+    cols        text[];
+BEGIN
+    _q := 'WITH cols AS (
+        SELECT  n.nspname as schema, c.relname as relation, a.attname as colname,
+		a.attnum
+            FROM    pg_catalog.pg_attribute a
+                INNER JOIN pg_catalog.pg_class c
+                    on a.attrelid = c.oid
+                INNER JOIN pg_catalog.pg_namespace n
+                    on c.relnamespace = n.oid
+            WHERE   a.attnum > 0
+            AND   NOT a.attisdropped
+            ORDER BY a.attnum
+       ) SELECT array_agg(colname ORDER BY o.attnum) as cols
+        FROM cols  o
+            INNER JOIN cols n USING (schema, colname)
+		WHERE
+			o.schema = $1 
+		and o.relation = $2
+		and n.relation =$3
+	';
+	EXECUTE _q INTO cols USING _schema, _table1, _table2;
+	RETURN cols;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+------------------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION schema_support.get_columns(
 	_schema		text,
 	_table		text
@@ -1101,6 +1141,184 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- DONE functions to undo audit rows
 ------------------------------------------------------------------------------
 
+------------------------------------------------------------------------------
+-- START  schema_support.retrieve_functions
+--
+-- function that returns, and optionally drops all functions of a given
+-- name in a schema, regardless of arguments.  The return array can be used
+-- to operate on the objects if needed (enough to uniquely id the function)
+--
+--
+CREATE OR REPLACE FUNCTION schema_support.retrieve_functions(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT false
+) RETURNS TEXT[] AS $$
+DECLARE
+	_r		RECORD;
+	_fn		TEXT;
+	_cmd	TEXT;
+	_rv		TEXT[];
+BEGIN
+	FOR _r IN SELECT n.nspname, p.proname, 
+				coalesce(u.usename, 'public') as owner,
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		_fn = _r.nspname || '.' || _r.proname || '(' || _r.idargs || ')';
+		_rv = _rv || _fn;
+
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _fn || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+	RETURN _rv;
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+-- DONE  schema_support.retrieve_functions
+------------------------------------------------------------------------------
+
+
+----------------------------------------------------------------------------
+--
+-- returns true if all common colloms match between two simple relations
+-- (define as containing common column that can be auto-converted to text)
+--
+-- returns false if not.  RAISE NOTICE all problems
+--
+-- Can raise an exception if desired.
+--
+-- Usage:
+-- SELECT schema_support.relation_diff(
+--	schema				- schema name of both objects
+--	old_rel				- old relation name
+--	new_rel				- new relation name
+--	key_relation		- relation to extract pks from 
+--							- if not set, then defaults to old_rel
+--							- will eventually be set to the one that's a table
+--	prikeys				- which keys should be considered pks.  can be grabbed
+--							based on key_relation; this one always wins
+--	raise_exception		- raise an exception on mismatch
+
+
+create or replace function schema_support.relation_diff(
+	schema			text,
+	old_rel			text,
+	new_rel 		text,
+	key_relation	text DEFAULT NULL,
+	prikeys			text[] DEFAULT NULL,
+	raise_exception boolean DEFAULT true
+) returns boolean AS
+$$
+DECLARE
+	_or	RECORD;
+	_nr	RECORD;
+	_t1	integer;
+	_t2	integer;
+	_cols TEXT[];
+	_q TEXT;
+	_f TEXT;
+	_c RECORD;
+	_w TEXT[];
+	_ctl TEXT[];
+	_rv	boolean;
+BEGIN
+	-- do a simple row count
+	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || old_rel || '"' INTO _t1;
+	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || new_rel || '"' INTO _t2;
+
+	_rv := true;
+
+	IF _t1 IS NULL THEN
+		RAISE NOTICE 'table %.% does not seem to exist', schema, old_rel;
+		_rv := false;
+	END IF;
+	IF _t2 IS NULL THEN
+		RAISE NOTICE 'table %.% does not seem to exist', schema, new_rel;
+		_rv := false;
+	END IF;
+
+	IF _t1 != _t2 THEN
+		RAISE NOTICE 'table % has % rows; table % has % rows', old_rel, _t1, new_rel, _t2;
+		_rv := false;
+	END IF;
+
+	IF NOT _rv THEN
+		IF raise_exception THEN
+			RAISE EXCEPTION 'Relations do not match';
+		END IF;
+		RETURN false;
+	END IF;
+
+	IF prikeys IS NULL THEN
+		-- read into prikeys the primary key for the table
+		IF key_relation IS NULL THEN
+			key_relation := old_rel;
+		END IF;
+		prikeys := schema_support.get_pk_columns(schema, key_relation);
+	END IF;
+
+	-- read into _cols the column list in common between old_rel and new_rel 
+	_cols := schema_support.get_common_columns(schema, old_rel, new_rel);
+
+	FOREACH _f IN ARRAY _cols
+	LOOP
+		SELECT array_append(_ctl, 
+			quote_ident(_f) || '::text') INTO _ctl;
+	END LOOP;
+
+	_cols := _ctl;
+
+	_q := 'SELECT '|| array_to_string(_cols,',') ||' FROM ' || quote_ident(schema) || '.' ||
+		quote_ident(old_rel);
+
+	FOR _or IN EXECUTE _q
+	LOOP
+		_w = NULL;
+		FOREACH _f IN ARRAY prikeys
+		LOOP
+			FOR _c IN SELECT * FROM json_each_text( row_to_json(_or) )
+			LOOP
+				IF _c.key = _f THEN
+					SELECT array_append(_w, 
+						quote_ident(_f) || '::text = ' || quote_literal(_c.value))
+					INTO _w;
+				END IF;
+			END LOOP;
+		END LOOP;
+		_q := 'SELECT ' || array_to_string(_cols,',') || 
+			' FROM ' || quote_ident(schema) || '.' ||
+			quote_ident(new_rel) || ' WHERE ' ||
+			array_to_string(_w, ' AND ' );
+		EXECUTE _q INTO _nr;
+
+		IF _or != _nr THEN
+			RAISE NOTICE 'mismatched row:';
+			RAISE NOTICE 'OLD: %', row_to_json(_or);
+			RAISE NOTICE 'NEW: %', row_to_json(_nr);
+			_rv := false;
+		END IF;
+
+	END LOOP;
+
+	IF NOT _rv AND raise_exception THEN
+		RAISE EXCEPTION 'Relations do not match';
+	END IF;
+	return _rv;
+END;
+$$ LANGUAGE plpgsql;
+
+----------------------------------------------------------------------------
+
+
 
 /**************************************************************
  *  FUNCTIONS
@@ -1170,7 +1388,7 @@ will build and execute a statement to undo changes made in an audit table
 against the current state.  It executes the queries in reverse order from
 execution so in theory can undo every operation on a table if called without
 restriction.  It does not cascade or otherwise do anything with foreign keys.
-	
+
 
 -------------------------------------------------------------------------------
 -- select schema_support.rebuild_stamp_triggers();

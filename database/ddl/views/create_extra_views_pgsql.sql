@@ -53,7 +53,16 @@
 
 -- XXX - not sure if this is still needed.  Leaving out until it is.
 -- \i create_v_limited_users.sql
+
+\i create_v_device_slots.sql
+\i create_v_device_components.sql
+
+\i create_physical_port.sql
+\i create_layer1_connection.sql
 \i create_v_l1_all_physical_ports.sql
+
+\i create_device_power_connection.sql
+\i create_device_power_interface.sql
 
 -- XXX these need to be ported
 -- \i create_v_joined_acct_collection_user_detail.sql
@@ -84,3 +93,28 @@
 \i create_v_device_col_acct_col_expanded.sql
 \i create_v_corp_family_account.sql
 
+\i pgsql/create_v_person_company_hier.sql
+
+-- possibly to replace v_device_col_acct_col_expanded
+\i create_v_device_col_acct_col_unixlogin.sql
+\i create_v_device_col_acct_col_unixgroup.sql
+
+-- passwd file generation
+\i pgsql/create_v_device_collection_account_ssh_key.sql
+\i pgsql/create_v_unix_mclass_settings.sql
+
+\i pgsql/create_v_unix_account_overrides.sql
+\i pgsql/create_v_device_col_account_cart.sql
+\i pgsql/create_v_unix_passwd_mappings.sql
+
+-- group file generation
+\i pgsql/create_v_unix_group_overrides.sql
+\i pgsql/create_v_device_col_account_col_cart.sql
+\i pgsql/create_v_unix_group_mappings.sql
+
+-- dns
+\i create_v_dns_changes_pending.sql
+
+-- logical volumes
+\i pgsql/create_v_lv_hier.sql
+\i pgsql/create_v_component_hier.sql

@@ -36,11 +36,13 @@ $query_tables = "
 			on p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
-		inner join account_collection_account uc
-			on uc.account_id = a.account_id
-		inner join account_collection u
-			on u.account_collection_id = uc.account_collection_id
-			and u.account_collection_type = 'department'
+		inner join (
+			select ac.*, account_id
+			FROM account_collection ac
+				INNER JOIN account_collection_account a
+					USING (account_collection_id)
+			WHERE account_collection_type = 'department'
+		) u USING (account_id)
 		inner join val_person_status vps
 			on ( vps.person_status = pc.person_company_status
 			 and	vps.is_disabled = 'N'
@@ -120,8 +122,8 @@ switch($index) {
 			or die('Query failed: ' . pg_last_error());
 		break;
 
-	case 'department':
-		$dept = $_GET['department_id'];
+	case 'team':
+		$team = $_GET['team_id'];
 		$query = "
 		  $query_firstpart
 		  where (
@@ -132,7 +134,7 @@ switch($index) {
 		    and pc.person_company_status = 'enabled'
 		  $orderby
 		";
-		$result = pg_query_params($query, array($dept)) 
+		$result = pg_query_params($query, array($team)) 
 			or die('Query failed: ' . pg_last_error());
 		break;
 
@@ -195,7 +197,8 @@ switch($index) {
 		break;
 
 	case 'bydept':
-		$style = 'departmentlist';
+	case 'byteam':
+		$style = 'teamlist';
 		$query = "
 			select	distinct
 					account_collection_name,
@@ -231,7 +234,7 @@ if($style == 'peoplelist') {
 	<td> Title </td> 
 	<td> Company </td> 
 	<td> Manager </td> 
-	<td> Department </td> 
+	<td> Functional Team </td> 
 	<td> Location </td> 
 	</tr>
 
@@ -268,7 +271,7 @@ if($style == 'peoplelist') {
 			echo "<td></td>";
 		}
 
-		echo "<td>" . hierlink('department', $row['account_collection_id'],
+		echo "<td>" . hierlink('team', $row['account_collection_id'],
 			$row['account_collection_name']). "</td>\n";
 		echo "<td> ". $row['office_location'] . "</td>\n";
 	    echo "\t</tr>\n";
@@ -296,10 +299,10 @@ if($style == 'peoplelist') {
 	}
 } else {
 	echo browsingMenu($dbconn, $index);
-	echo "<h3> Browse by Department </h3>\n";
-	echo "<div class=deptlist><ul>\n";
+	echo "<h3> Browse by Functional Team </h3>\n";
+	echo "<div class=teamlist><ul>\n";
 	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
-		echo "<li>" . hierlink('department', $row['account_collection_id'],
+		echo "<li>" . hierlink('team', $row['account_collection_id'],
 			$row['account_collection_name']). "</li>\n";
 		
 	}

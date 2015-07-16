@@ -53,7 +53,6 @@ my $q = qq{
 	select 	s.site_code,
 	 	c.company_name,
 		-- p.address, XXX
-		s.npanxx,
 		s.site_status,
 		s.description
 	  from	site s
@@ -72,7 +71,7 @@ print $cgi->h2( { -align => 'center' }, "IP Network Allocation" ), "\n";
 
 my $curperrow = -1;
 my $rowtxt    = "";
-while ( my ( $sitecode, $name, $addr, $npanxx, $status, $desc ) =
+while ( my ( $sitecode, $name, $addr, $status, $desc ) =
 	$sth->fetchrow_array )
 {
 	if ( ++$curperrow == $maxperrow ) {

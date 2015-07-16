@@ -26,8 +26,21 @@
  * interface so generally should not be granted.
  */
 
-drop schema if exists port_support cascade;
-create schema port_support authorization jazzhands;
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'port_support';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS port_support;
+                CREATE SCHEMA port_support AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA port_support IS 'part of jazzhands';
+        END IF;
+END;
+$$;
 
 -------------------------------------------------------------------
 -- returns the Id tag for CM
@@ -84,7 +97,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION port_support.has_physical_ports (
 	in_Device_id device.device_id%type,
-	in_port_type val_port_type.port_type%type DEFAULT NULL
+	in_port_type slot_type.slot_function%type DEFAULT NULL
 ) RETURNS BOOLEAN AS $$
 DECLARE
 	tally integer;
