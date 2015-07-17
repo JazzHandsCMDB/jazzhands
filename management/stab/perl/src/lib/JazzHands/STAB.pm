@@ -54,7 +54,7 @@ use JazzHands::Common qw(:all);
 use Net::IP;
 
 use CGI;    #qw(-no_xhtml);
-use CGI::Pretty;
+# use CGI::Pretty;
 use URI;
 use Carp qw(cluck);
 use Data::Dumper;
@@ -193,6 +193,27 @@ sub check_permissions {
 	my ($count) = $sth->fetchrow_array;
 	$sth->finish;
 	$count;
+}
+
+sub get_account_id {
+	my $self = shift;
+
+	my $who = shift || $self->{_username};
+
+	my $sth = $self->prepare(qq{
+		select	account_id
+		from	v_corp_family_account
+		where	login = ?
+	}) || die $self->return_db_err;
+
+	$sth->execute($who) || die $self->return_db_err;
+
+	my ($id) = $sth->fetchrow_array;
+	$sth->finish;
+	if(!$id) {
+		$self->error_return("Unable to find '$who' in the database.  This should not happen.");
+	}
+	$id;
 }
 
 #
@@ -2120,13 +2141,17 @@ sub build_checkbox {
 		$name = $name . $params->{-suffix};
 	}
 	my $args = {
-		-name    => $name,
-		-checked => $checked,
+		-name    => $name || '',
 		-value   => 'on',
-		-label   => $label,
+		-label   => $label || '',
 	};
 
-	if ( $params->{-class} ) {
+	if(defined($checked)) {
+		$args->{-checked} = $checked;
+	}
+
+
+	if ( defined($params->{-class}) ) {
 		$args->{-class} = $params->{-class};
 	}
 

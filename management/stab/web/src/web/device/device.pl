@@ -28,9 +28,13 @@
 use strict;
 use warnings;
 use FileHandle;
+use Carp;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
 use Data::Dumper;
+
+# causes stack traces on warnings
+# local $SIG{__WARN__} = \&Carp::cluck;
 
 do_device_page();
 
