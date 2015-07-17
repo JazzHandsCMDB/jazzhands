@@ -361,6 +361,21 @@ div.ncmanip {
 	display: inline-block;
 }
 
+table.attest {
+	border: 2px solid;
+	text-align: center;
+	display: inline-block;
+}
+
+table.attest tbody tr.odd {
+	background: lightgrey;
+	border: 1px solid;
+}
+	
+table.attest tbody tr.even {
+}
+	
+
 END
 	undef $stab;
 }

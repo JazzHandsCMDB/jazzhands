@@ -338,6 +338,27 @@ sub start_html {
 				},
 			);
 		}
+		if ( $opts->{javascript} eq 'attest' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src =>
+						"$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$stabroot/javascript/attest.js"
+				},
+			);
+		}
+
 		if ( $opts->{javascript} eq 'devicetype' ) {
 			push(
 				@{ $args{-script} },
