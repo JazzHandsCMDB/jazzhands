@@ -654,26 +654,28 @@ BEGIN
 				ON a.account_realm_id = p.account_realm_id
 		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
 		    AND     property_type = ''auto_acct_coll''
-		    AND     (
-			    property_name =
-				CASE WHEN a.is_exempt = ''N''
-				    THEN ''non_exempt''
-				    ELSE ''exempt'' END
-			OR
-			    property_name =
-				CASE WHEN a.is_management = ''N''
-				    THEN ''non_management''
-				    ELSE ''management'' END
-			OR
-			    property_name =
-				CASE WHEN a.is_full_time = ''N''
-				    THEN ''non_full_time''
-				    ELSE ''full_time'' END
-			OR
-			    property_name =
-				CASE WHEN a.gender = ''M'' THEN ''male''
-				    WHEN a.gender = ''F'' THEN ''female''
-				    ELSE ''unspecified_gender'' END
+			AND	( a.account_type = ''person'' AND (
+		    	(
+			    	property_name =
+					CASE WHEN a.is_exempt = ''N''
+				    	THEN ''non_exempt''
+				    	ELSE ''exempt'' END
+				OR
+			    	property_name =
+					CASE WHEN a.is_management = ''N''
+				    	THEN ''non_management''
+				    	ELSE ''management'' END
+				OR
+			    	property_name =
+					CASE WHEN a.is_full_time = ''N''
+				    	THEN ''non_full_time''
+				    	ELSE ''full_time'' END
+				OR
+			    	property_name =
+					CASE WHEN a.gender = ''M'' THEN ''male''
+				    	WHEN a.gender = ''F'' THEN ''female''
+				    	ELSE ''unspecified_gender'' END
+			) )
 			OR (
 			    property_name = ''account_type''
 			    AND property_value = a.account_type
