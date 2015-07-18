@@ -722,10 +722,8 @@ BEGIN
 	IF (TG_OP = 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
 	THEN
 		PERFORM component_utils.migrate_component_template_slots(
-			component_id := NEW.component_id,
-			old_component_type_id := OLD.component_type_id,
-			new_component_type_id := NEW.component_type_id
-			);
+			component_id := NEW.component_id
+		);
 	END IF;
 	RETURN NEW;
 END;
@@ -783,7 +781,7 @@ BEGIN
 	--
 	-- If component_id is already set, then assume that it's correct
 	--
-	IF NEW.component_id THEN
+	IF NEW.component_id IS NOT NULL THEN
 		RETURN NEW;
 	END IF;
 
