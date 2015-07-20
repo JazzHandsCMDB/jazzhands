@@ -441,8 +441,8 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.create_report_account_collections(
 	account_id 	account.account_id%TYPE,
-	account_realm_id	account.account_realm_id%TYPE,
-	login				account.login%TYPE,
+	account_realm_id	account.account_realm_id%TYPE DEFAULT NULL,
+	login				account.login%TYPE DEFAULT NULL,
 	numrpt				integer DEFAULT NULL,
 	numrlup				integer DEFAULT NULL
 )  RETURNS VOID AS $_$
@@ -451,6 +451,13 @@ DECLARE
 	_directac	account_collection.account_collection_id%TYPE;
 	_rollupac	account_collection.account_collection_id%TYPE;
 BEGIN
+	IF ( login is NULL or account_realm_id IS NULL ) THEN
+		EXECUTE '
+		SELECT account_realm_id, login
+		FROM	account
+		WHERE	account_id = $1
+		' INTO account_realm_id, login USING account_id;
+	END IF;
 	IF numrpt IS NULL THEN
 		numrpt := auto_ac_manip.get_num_direct_reports(account_id, account_realm_id);
 	END IF;
@@ -599,6 +606,13 @@ DECLARE
 	_numrpt	INTEGER;
 	_numrlup INTEGER;
 BEGIN
+	IF account_realm_id IS NULL OR login IS NULL THEN
+		EXECUTE '
+			SELECT account_realm_id, login
+			FROM	account
+			WHERE	account_id = $1
+		' INTO account_realm_id, login USING account_id;
+	END IF;
 	_numrpt := auto_ac_manip.get_num_direct_reports(account_id, account_realm_id);
 	_numrlup := auto_ac_manip.get_num_reports_with_reports(account_id, account_realm_id);
 	PERFORM auto_ac_manip.destroy_report_account_collections(account_id, account_realm_id, _numrpt, _numrlup);

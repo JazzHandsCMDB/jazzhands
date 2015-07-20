@@ -130,7 +130,7 @@ DECLARE
 	_r		RECORD;
 BEGIN
 	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-		SELECT	auto_ac_manip.make_person_acs_right(account_id)
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_location USING (person_id)
 		WHERE	account_role = 'primary'
@@ -139,7 +139,7 @@ BEGIN
 	END IF;
 
 	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
-		SELECT	auto_ac_manip.make_person_acs_right(account_id)
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_location USING (person_id)
 		WHERE	account_role = 'primary'
@@ -175,7 +175,7 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-		SELECT	auto_ac_manip.make_person_acs_right(account_id)
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_location USING (person_id)
 		WHERE	account_role = 'primary'
@@ -183,7 +183,7 @@ BEGIN
 	END IF;
 
 	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
-		SELECT	auto_ac_manip.make_person_acs_right(account_id)
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_location USING (person_id)
 		WHERE	account_role = 'primary'
