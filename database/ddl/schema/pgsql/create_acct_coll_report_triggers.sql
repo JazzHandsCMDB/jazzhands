@@ -148,7 +148,8 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
 CREATE TRIGGER trigger_automated_ac_on_person_company 
-	AFTER UPDATE OF manager_person_id, person_company_status
+	AFTER UPDATE OF manager_person_id, person_company_status,
+		person_company_relation
 	ON person_company 
 	FOR EACH ROW EXECUTE PROCEDURE 
 	automated_ac_on_person_company();
