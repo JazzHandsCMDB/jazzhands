@@ -607,8 +607,214 @@ END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 
+
+--------------------------------------------------------------------------------
+--
+-- fix all the fields that come from person_company.  This would be
+-- called from a trigger.
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_personal_acs_right(
+	account_id	account.account_id%TYPE
+) RETURNS integer AS $_$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	EXECUTE '
+	WITH ac AS (
+		SELECT DISTINCT ac.*
+		FROM	account_collection ac
+				INNER JOIN property p USING (account_collection_id)
+		WHERE	property_type = ''auto_acct_coll''
+		AND		property_name in (''non_exempt'', ''exempt'',
+					''management'', ''non_management'', ''full_time'',
+					''non_full_time'', ''male'', ''female'', ''unspecified_gender'',
+					''account_type'', ''person_company_relation'')
+	), acct AS (
+		    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
+			    pc.is_management, pc.is_full_time, pc.is_exempt,
+			    p.gender, pc.person_company_relation
+		     FROM   account a
+			    INNER JOIN person_account_realm_company parc
+				    USING (person_id, company_id, account_realm_id)
+			    INNER JOIN person_company pc USING (person_id,company_id)
+			    INNER JOIN person p USING (person_id)
+			WHERE a.is_enabled = ''Y''
+			AND a.account_role = ''primary''
+		),
+	list AS (
+		SELECT  p.account_collection_id, a.account_id, a.account_type,
+			a.account_role,
+			a.person_id, a.company_id,
+			ac.account_collection_name, ac.account_collection_type,
+			p.property_name, p.property_type, p.property_value, p.property_id
+		FROM    property p
+			INNER JOIN ac USING (account_collection_id)
+		    INNER JOIN acct a
+				ON a.account_realm_id = p.account_realm_id
+		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		    AND     property_type = ''auto_acct_coll''
+			AND	( a.account_type = ''person'' 
+				AND a.person_company_relation = ''employee''
+				AND (
+		    	(
+			    	property_name =
+					CASE WHEN a.is_exempt = ''N''
+				    	THEN ''non_exempt''
+				    	ELSE ''exempt'' END
+				OR
+			    	property_name =
+					CASE WHEN a.is_management = ''N''
+				    	THEN ''non_management''
+				    	ELSE ''management'' END
+				OR
+			    	property_name =
+					CASE WHEN a.is_full_time = ''N''
+				    	THEN ''non_full_time''
+				    	ELSE ''full_time'' END
+				OR
+			    	property_name =
+					CASE WHEN a.gender = ''M'' THEN ''male''
+				    	WHEN a.gender = ''F'' THEN ''female''
+				    	ELSE ''unspecified_gender'' END
+			) )
+			OR (
+			    property_name = ''account_type''
+			    AND property_value = a.account_type
+			    )
+			OR (
+			    property_name = ''person_company_relation''
+			    AND property_value = a.person_company_relation
+			    )
+			)
+	), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT 	account_collection_id, account_id
+			FROM	 list
+			WHERE	 (account_collection_id, account_id) NOT IN
+				 	(SELECT account_collection_id, account_id FROM
+						account_collection_account 
+					JOIN ac USING (account_collection_id) )
+			AND account_id = $1
+		RETURNING *
+	), del AS (
+		DELETE
+		FROM	 account_collection_account
+		WHERE	 (account_collection_id, account_id) NOT IN
+				 (SELECT account_collection_id, account_id FROM
+					list JOIN ac USING (account_collection_id))
+		AND	 	(account_collection_id, account_id) IN
+				(SELECT account_collection_id,account_id from ac)
+		AND account_id = $1 RETURNING *
+	), combo AS (
+		SELECT * from ins UNION select * FROM del
+	) SELECT count(*) 
+		FROM combo 
+		JOIN account_collection USING (account_collection_id);
+	' INTO _tally USING account_id;
+	RETURN _tally;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+--------------------------------------------------------------------------------
+--
+-- fix the person's site code based on their location.  This is largely meant
+-- to be called by the person_location trigger.
+-- called from a trigger.
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_site_acs_right(
+	account_id	account.account_id%TYPE
+) RETURNS integer AS $_$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	EXECUTE '
+	WITH ac AS (
+		SELECT DISTINCT ac.*
+		FROM	account_collection ac
+				INNER JOIN property p USING (account_collection_id)
+		WHERE	property_type = ''auto_acct_coll''
+		AND		property_name in (''site'')
+	), acct AS (
+		    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
+			    pc.is_management, pc.is_full_time, pc.is_exempt,
+			    p.gender, pc.person_company_relation
+		     FROM   account a
+			    INNER JOIN person_account_realm_company parc
+				    USING (person_id, company_id, account_realm_id)
+			    INNER JOIN person_company pc USING (person_id,company_id)
+			    INNER JOIN person p USING (person_id)
+			WHERE a.is_enabled = ''Y''
+			AND a.account_role = ''primary''
+	), list AS (
+		SELECT  p.account_collection_id, a.account_id, a.account_type,
+			a.account_role,
+			a.person_id, a.company_id,
+			ac.account_collection_name, ac.account_collection_type,
+			p.property_name, p.property_type, p.property_value, p.property_id
+		FROM    property p
+			INNER JOIN ac USING (account_collection_id)
+		    INNER JOIN acct a
+				ON a.account_realm_id = p.account_realm_id
+			INNER JOIN person_location pl on a.person_id = pl.person_id
+		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		AND		a.person_company_relation = ''employee''
+		AND		property_type = ''auto_acct_coll''
+		AND		p.site_code = pl.site_code
+		AND		property_name = ''site''
+	), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT 	account_collection_id, account_id
+			FROM	 list
+			WHERE	 (account_collection_id, account_id) NOT IN
+				 	(SELECT account_collection_id, account_id FROM
+						account_collection_account 
+					JOIN ac USING (account_collection_id) )
+			AND account_id = $1
+		RETURNING *
+	), del AS (
+		DELETE
+		FROM	 account_collection_account
+		WHERE	 (account_collection_id, account_id) NOT IN
+				 (SELECT account_collection_id, account_id FROM
+					list JOIN ac USING (account_collection_id))
+		AND	 	(account_collection_id, account_id) IN
+				(SELECT account_collection_id,account_id from ac)
+		AND account_id = $1 RETURNING *
+	), combo AS (
+		SELECT * from ins UNION select * FROM del
+	) SELECT count(*) 
+		FROM combo 
+		JOIN account_collection USING (account_collection_id);
+	' INTO _tally USING account_id;
+	RETURN _tally;
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+
+--------------------------------------------------------------------------------
+--
+-- one routine that just fixes all auto acs
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_all_auto_acs_right(
+	account_id 			account.account_id%TYPE,
+	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
+	login				account.login%TYPE DEFAULT NULL
+)  RETURNS VOID AS $_$
+BEGIN
+	PERFORM auto_ac_manip.make_auto_report_acs_right(account_id, account_realm_id, login);
+	PERFORM auto_ac_manip.make_site_acs_right(account_id);
+	PERFORM auto_ac_manip.make_personal_acs_right(account_id);
+END;
+$_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+
+
 grant usage on schema auto_ac_manip to iud_role;
 revoke all on schema auto_ac_manip from public;
 revoke all on  all functions in schema auto_ac_manip from public;
 grant execute on all functions in schema auto_ac_manip to iud_role;
-
