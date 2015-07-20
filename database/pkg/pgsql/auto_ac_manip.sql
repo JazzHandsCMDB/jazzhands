@@ -654,7 +654,9 @@ BEGIN
 				ON a.account_realm_id = p.account_realm_id
 		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
 		    AND     property_type = ''auto_acct_coll''
-			AND	( a.account_type = ''person'' AND (
+			AND	( a.account_type = ''person'' 
+				AND a.person_company_relation = ''employee''
+				AND (
 		    	(
 			    	property_name =
 					CASE WHEN a.is_exempt = ''N''
@@ -758,6 +760,7 @@ BEGIN
 				ON a.account_realm_id = p.account_realm_id
 			INNER JOIN person_location pl on a.person_id = pl.person_id
 		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		AND		a.person_company_relation = ''employee''
 		AND		property_type = ''auto_acct_coll''
 		AND		p.site_code = pl.site_code
 		AND		property_name = ''site''
