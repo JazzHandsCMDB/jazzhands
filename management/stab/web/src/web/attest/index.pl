@@ -58,6 +58,7 @@ sub do_my_attest {
 	my $acctid = $stab->get_account_id($actas);
 
 	# XXX - need to make it so you can only act as people who work for you!
+	# XXX - also need to apply this to the thing that applies the attestation
 
 	my $sth = $stab->prepare(qq{
 		SELECT approver_account_id, aisi.*, aii.*
@@ -75,7 +76,8 @@ sub do_my_attest {
 
 	$sth->execute($acctid) || return $stab->return_db_err($sth);
 
-	print $cgi->start_form( { -action => "attest.pl" } );
+	print $cgi->start_form( {-id=>'attest', -action => "attest.pl" } );
+	print $cgi->hidden({-name => 'accting_as_account', -default=>$acctid});
 	print $cgi->start_table( { -class => 'attest' } );
 
     my $checky = $cgi->checkbox({
@@ -92,7 +94,7 @@ sub do_my_attest {
 	$checkn = 'N';
 
 	print $cgi->th([
-		$checky, $checkn, 'What', "Who", "Value",
+		$checky, $checkn, 'What', "Who", "Value", "Correction"
 	]);
 
 	my $lastlhs;
@@ -125,14 +127,21 @@ sub do_my_attest {
 						-label => ''}),
 					$cgi->checkbox({
 						-class => 'attesttoggle disapprove', 
-						-name => 'dis'.$hr->{_dbx('approval_instance_item_id')},
+						-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
 						-label => ''}),
 					$hr->{approved_label} || '',
 					$hr->{approved_lhs} || '',
-					$hr->{approved_rhs} || ''
+					$hr->{approved_rhs} || '',
+					$cgi->div({-class=>'correction', -id =>
+						$hr->{_dbx('approval_instance_item_id')}}),
 				]
 			)
 		);
 	}
+	print $cgi->end_table, "\n";
+	print $cgi->br, "\n";
+	print $cgi->span({-class => 'attestsubmit'}, 
+		$cgi->submit({-class=>'attestsubmit'})), "\n";
+	print $cgi->end_form, "\n";
 	print $cgi->end_html, "\n";
 }

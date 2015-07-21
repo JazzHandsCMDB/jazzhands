@@ -374,7 +374,11 @@ table.attest tbody tr.odd {
 	
 table.attest tbody tr.even {
 }
-	
+
+.error {
+	background-color: red;
+	color: white;
+}
 
 END
 	undef $stab;

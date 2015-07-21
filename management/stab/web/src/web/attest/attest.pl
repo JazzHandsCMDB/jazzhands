@@ -30,19 +30,63 @@ use JazzHands::STAB;
 use JazzHands::Common qw(_dbx);
 use Net::IP;
 
-do_attest_toplevel();
+return process_attestment();
 
 sub process_attestment {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
-	my $actas = $stab->cgi_parse_param('actas');
+	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
-	foreach my $link ( $stab->get_cgi_ids('app_')) {
+	# XXX - need to validate that this is ok.
+	my $acctid = $stab->cgi_parse_param('accting_as_account');
+
+	my $myacctid = $stab->get_account_id() || die $stab->error_return("I was not able to determine who you are. This should not happen.");
+
+	#
+	#
+	# NOTE:  THis query is shared with index.pl.  May want to do something
+	# about that...
+	my $sth = $stab->prepare(qq{
+		SELECT approver_account_id, aisi.*, aii.*
+		FROM	approval_instance ai
+				INNER JOIN approval_instance_step ais
+					USING (approval_instance_id)
+				INNER JOIN approval_instance_step_item aisi
+					USING (approval_instance_step_id)
+				INNER JOIN approval_instance_item aii 
+					USING (approval_instance_item_id)
+				INNER JOIN approval_instance_link ail 
+					USING (approval_instance_link_id)
+		WHERE	approver_account_id = ?
+	}) || return $stab->return_db_err;
+
+	$sth->execute($acctid) || return $stab->return_db_err($sth);
+
+	print $cgi->header, $cgi->start_html, $cgi->Dump;
+	while(my $hr = $sth->fetchrow_hashref) {
+		my $id = $hr->{_dbx('approval_instance_item_id')};
+
+		my $yes = $cgi->param("app_$id");
+		my $no = $cgi->param("dis_$id");
+		
+		# Javascript prevents this from happening.
+		if($yes && $no) {
+			$stab->error_return("All users must have Y or N checked, not both");
+		} elsif(!$yes && !$no) {
+			$stab->error_return("All users must have Y or N checked, not none");
+		} elsif($yes) {
+			print $cgi->li("yes to $id");
+		} elsif($no) {
+			my $fix = $cgi->param("fix_$id");
+			if(!$fix) {
+				$stab->error_return("All rejected users must have a correction");
+			}
+			print $cgi->li("no to $id, fix is $fix");
+		}
 	}
 
-	foreach my $link ( $stab->get_cgi_ids('dis_')) {
-	}
-
+	print $cgi->end_html; exit;
 	undef $stab;
+	0;
 }

@@ -20,6 +20,13 @@
 //
 
 $(document).ready(function(){
+	// on load (or reload), uncheck all the boxes
+	$('input.attesttoggle,input.approveall').each(
+		function(iter, obj) {
+			$(obj).prop('checked', false);
+		}
+	);
+
 	// if the y button is checked, uncheck the button
 	$("table.attest").on('click', ".attesttoggle", function(event) {
 		var other;
@@ -37,9 +44,19 @@ $(document).ready(function(){
 		}
 
 		if(dodis) {
-			alert('dis');
-		}
+			var dis = $(event.target).closest('tr').find('div.correction').first();
+			var id = $(dis).attr('id');
+			var newid = "fix_"+id;
 
+			if( ! $("input#"+newid).length ) {
+				var box = $("<input />", { 
+					name: newid,
+					id: newid,
+					class: 'correction'
+				});
+				$(box).insertAfter(dis);
+			}
+		}
 
 	});
 
@@ -49,7 +66,40 @@ $(document).ready(function(){
 		$(event.target).closest('table.attest').find('input.approve').each( function(iter, obj) {
 			$(obj).prop('checked', makeem);
 		});
+	});
 
+	$('#attest').submit( function(event) {
+		var s = { dosubmit: true };
+
+		// check for unset values
+		$('form#attest').find('input.correction').each(function(i, obj) {
+			if($(obj).val().length == 0) {
+				s.dosubmit = false;
+				$(obj).closest('td').addClass('error');
+			} else {
+				$(obj).closest('td').removeClass('error');
+			}
+		});
+
+		// check for unset values
+		$('form#attest').find('input.approve').each(function(i, obj) {
+			var other = $(obj).closest('tr').find('input.disapprove');
+			if( (!$(obj).is(':checked') && !$(other).is(':checked')) ||
+					( $(obj).is(':checked') && $(other).is(':checked')) ) {
+				s.dosubmit = false;
+				$(obj).closest("td").addClass('error');
+				$(other).closest("td").addClass('error');
+			} else {
+				$(obj).closest("td").removeClass('error');
+				$(other).closest("td").removeClass('error');
+			}
+		});
+
+		if( s.dosubmit == false ) {
+			alert("You must specify approve or disapprove and enter a corrected value for each disapproval.");
+			event.preventDefault();
+		}
+		return s.dosubmit;
 	});
 
 });
