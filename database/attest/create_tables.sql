@@ -1,0 +1,237 @@
+-- XXX not dealing with pending
+
+DROP VIEW IF EXISTS v_account_collection_approval_process;
+drop view if exists v_approval_matrix;
+DROP VIEW IF EXISTS v_account_collection_audit_results;
+drop VIEW if exists v_person_company_audit_map;
+drop VIEW if exists v_account_collection_account_audit_map;
+drop VIEW if exists v_account_manager_map;
+
+
+drop table if exists approval_process;
+create table approval_process (
+	approval_process_id		serial,
+	approval_process_name		text not null,
+	approval_process_type		text not null,
+	first_approval_process_chain_id	integer,
+	property_collection_id		integer
+);
+
+drop table if exists approval_process_chain;
+create table approval_process_chain (
+	approval_process_chain_id	serial,
+	approving_entity		text,
+	accept_approval_process_chain_id	integer,
+	reject_approval_process_chain_id	integer
+);
+
+-- XXX attestation properties?
+drop table if exists approval_instance;
+create table approval_instance (
+	approval_instance_id		serial not null,
+	approval_process_id		integer not null,
+	first_approval_instance_step_id		integer,
+	approval_start			timestamp  DEFAULT now() not null,
+	approval_end			timestamp
+);
+
+--
+-- Its possible that this just needs to die and item and step get folded
+-- together.  The distinction exists today to show all the different items
+-- that need to be approved/attested to by a given account.
+--
+drop table if exists approval_instance_step;
+create table approval_instance_step (
+	approval_instance_step_id	serial not null,
+	approval_instance_id		integer,						-- goes, I think
+	approval_process_chain_id	integer not null,
+	approval_instance_step_start	timestamp DEFAULT now() not null,
+	approval_instance_step_end	timestamp,
+	approver_account_id		integer not null,
+	actual_approver_account_id	integer,
+	is_approved			char(1),
+	next_approval_instance_step_id	integer
+);
+
+-- These items may want to be folded into approval_instance_item
+drop table if exists approval_instance_link;
+create table approval_instance_link (
+	approval_instance_link_id	serial not null,
+	property_seq_id			integer,
+	acct_collection_acct_seq_id	integer
+);
+
+drop table if exists approval_instance_item;
+create table approval_instance_item (
+	approval_instance_item_id	serial not null,
+	approval_instance_link_id	integer not null,
+	next_approval_instance_item_id	integer,
+	approved_label			text,
+	approved_lhs			text,
+	approved_rhs			text,
+	is_approved			char(1),
+	is_completed			char(1),
+	approved_account_id		integer,
+	approved_device_id		integer
+);
+
+drop table if exists approval_instance_step_item;
+create table approval_instance_step_item (
+	approval_instance_step_id	integer NOT NULL,
+	approval_instance_item_id	integer NOT NULL
+);
+
+create view v_approval_matrix AS
+SELECT	ap.approval_process_id, ap.first_approval_process_chain_id,
+		ap.approval_process_name,
+		p.property_id, p.property_name, 
+		p.property_type, p.property_value,
+		split_part(p.property_value, ':', 1) as property_val_lhs,
+		split_part(p.property_value, ':', 2) as property_val_rhs,
+		c.approval_process_chain_id, c.approving_entity
+from	approval_process ap
+		INNER JOIN property_collection pc USING (property_collection_id)
+		INNER JOIN property_collection_property pcp USING (property_collection_id)
+		INNER JOIN property p USING (property_name, property_type)
+		LEFT JOIN approval_process_chain c
+			ON c.approval_process_chain_id = ap.first_approval_process_chain_id
+where	ap.approval_process_name = 'ReportingAttest'
+and		ap.approval_process_type = 'attestation'
+;
+
+CREATE VIEW v_account_manager_map AS
+WITH dude_base AS (
+	SELECT a.login, a.account_id, person_id, a.company_id,
+	    coalesce(p.preferred_first_name, p.first_name) as first_name,
+	    coalesce(p.preferred_last_name, p.last_name) as last_name,
+	    pc.manager_person_id
+	FROM    account a
+		INNER JOIN person_company pc USING (person_id,company_id)
+		INNER JOIN person p USING (person_id)
+	WHERE   a.is_enabled = 'Y'
+	AND     a.account_role = 'primary' and a.account_type = 'person'
+), dude AS (
+	SELECT *,
+		concat(first_name, ' ', last_name, ' (', login, ')') as human_readable
+	FROM dude_base
+) SELECT a.*, mp.account_id as manager_account_id, mp.login as manager_login
+FROM dude a
+	INNER JOIN dude mp ON mp.person_id = a.manager_person_id
+;
+
+---------------------------- audit table maps 
+
+CREATE VIEW v_account_collection_account_audit_map AS
+WITH all_audrecs AS (
+    select acaa.*,
+	row_number() OVER
+	    (partition BY account_collection_id,account_id ORDER BY
+	    "aud#timestamp" desc) as rownum
+    from    account_collection_account aca
+	join audit.account_collection_account acaa
+	    using (account_collection_id, account_id)
+    where "aud#action" in ('UPD', 'INS')
+) SELECT "aud#seq" as audit_seq_id, * from all_audrecs WHERE rownum = 1;
+
+CREATE VIEW v_person_company_audit_map AS
+WITH all_audrecs AS (
+    select pca.*,
+	row_number() OVER
+	    (partition BY person_id,company_id ORDER BY
+	    "aud#timestamp" desc) as rownum
+    from    person_company pc
+	join audit.person_company pca
+	    using (person_id, company_id)
+    where "aud#action" in ('UPD', 'INS')
+) SELECT "aud#seq" as audit_seq_id, * from all_audrecs WHERE rownum = 1;
+
+---------------------------- things that use the maps
+
+CREATE VIEW v_account_collection_audit_results AS
+WITH membermap AS (
+    SELECT  aca.audit_seq_id,
+	ac.account_collection_id,
+	ac.account_collection_name, ac.account_collection_type,
+	a.*
+    FROM    v_account_manager_map a
+	INNER JOIN v_account_collection_account_audit_map aca 
+		USING (account_id)
+	INNER JOIN account_collection ac USING (account_collection_id)
+	WHERE a.account_id != a.manager_account_id
+    ORDER BY manager_login, a.last_name, a.first_name, a.account_id
+) select * from membermap ;
+
+
+-- Now need to figure out how to present this correctly.
+-- 
+-- The union of these three queries is basically everything to attest, but
+-- the presentation will be somewhat clumsy.
+
+-- The p.account_id != mm.account_id gets around some weird hoop jumping
+-- because a manager is in his own directs account collection.  Generally
+-- means someone does not validate themselves being there, which is fine.
+-- (manifests itself as dups)
+
+CREATE VIEW v_account_collection_approval_process AS
+WITH combo AS (
+WITH foo AS (
+	SELECT mm.*, mx.*
+            FROM v_account_collection_audit_results mm
+                INNER JOIN v_approval_matrix mx ON
+                    mx.property_val_lhs = mm.account_collection_type
+        ORDER BY manager_account_id, account_id
+) SELECT  login,
+		account_id,
+		manager_account_id,
+		manager_login,
+		audit_seq_id,
+		approval_process_id,
+		approval_process_chain_id,
+		approving_entity,
+		account_collection_type as approval_label,
+		human_readable AS approval_lhs,
+		account_collection_name as approval_rhs
+FROM foo
+UNION
+SELECT  mm.login,
+		mm.account_id,
+		mm.manager_account_id,
+		mm.manager_login,
+		mm.audit_seq_id,
+		approval_process_id,
+		approval_process_chain_id,
+		approving_entity,
+		approval_process_name as approval_label,
+		mm.human_readable AS approval_lhs,
+		NULL AS approval_rhs	
+FROM v_approval_matrix mx
+	INNER JOIN property p ON
+		p.property_name = mx.property_val_rhs AND
+		p.property_type = mx.property_val_lhs
+	INNER JOIN v_account_collection_audit_results mm ON
+		mm.account_collection_id=p.property_value_account_coll_id
+	WHERE p.account_id != mm.account_id
+UNION
+SELECT  login,
+		account_id,
+		manager_account_id,
+		manager_login,
+		audit_seq_id,
+		approval_process_id,
+		approval_process_chain_id,
+		approving_entity,
+		property_val_rhs as approval_label,
+		human_readable AS approval_lhs,
+		CASE 
+			WHEN property_val_rhs = 'position_title' THEN pcm.position_title
+		END as approval_rhs
+FROM	v_account_manager_map mm
+		INNER JOIN v_person_company_audit_map pcm
+			USING (person_id,company_id)
+		INNER JOIN v_approval_matrix am
+			ON property_val_lhs = 'person_company'
+			AND property_val_rhs = 'position_title'
+) select * from combo 
+where manager_account_id != account_id
+order by manager_login, account_id, approval_label
+;

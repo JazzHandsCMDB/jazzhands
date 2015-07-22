@@ -1,0 +1,80 @@
+SELECT	ais.approver_account_id, aii.approved_lhs, aii.approved_rhs
+FROM	approval_instance_step ais
+		INNER JOIN approval_instance_step_item aisi
+			USING (approval_instance_step_id)
+		INNER JOIN approval_instance_item aii
+			USING (approval_instance_item_id)
+WHERE	ais.approver_account_id = 25;
+
+
+
+/*
+^^ figuring out how to start things
+
+vv figure out how to generate list of what to approve.
+
+WITH dude AS (
+		SELECT a.login, a.account_id, person_id,
+			coalesce(p.preferred_first_name, p.first_name) as first_name,
+			coalesce(p.preferred_last_name, p.last_name) as last_name,
+			pc.position_title
+		FROM	account a
+				INNER JOIN person_company pc USING (person_id,company_id)
+				INNER JOIN person p USING (person_id)
+		WHERE	a.is_enabled = 'Y'
+) SELECT	mp.login, mp.last_name, mp.first_name,
+		a.login, a.last_name, a.first_name, a.position_title
+FROM	dude a
+		INNER JOIN account_collection_account aca USING (account_id)
+		INNER JOIN property p ON
+			aca.account_collection_id = p.property_value_account_coll_id
+		INNER JOIN dude mp ON p.account_id = mp.account_id
+WHERE	property_name in ('AutomatedDirectsAC')
+AND		property_type in ('auto_acct_coll')
+AND		mp.account_id != a.account_id
+ORDER BY mp.last_name, mp.first_name, mp.account_id, 
+	a.last_name, a.first_name, a.account_id
+;
+
+vv thinking more about what to approve; put into a stored procedure; further
+	development there
+
+WITH dude AS (
+		SELECT a.login, a.account_id, person_id,
+			coalesce(p.preferred_first_name, p.first_name) as first_name,
+			coalesce(p.preferred_last_name, p.last_name) as last_name,
+			pc.position_title
+		FROM	account a
+				INNER JOIN person_company pc USING (person_id,company_id)
+				INNER JOIN person p USING (person_id)
+		WHERE	a.is_enabled = 'Y'
+), allaudrecs AS (
+	select acaa.*, 
+			row_number() OVER 
+				(partition BY account_collection_id,account_id ORDER BY
+				 "aud#timestamp" desc) as rownum
+	from	account_collection_account aca
+			join audit.account_collection_account acaa
+				using (account_collection_id, account_id)
+	where "aud#action" in ('UPD', 'INS')
+), audrecs AS (
+	SELECT * from allaudrecs WHERE rownum = 1
+), reportmap AS (
+	SELECT	aca."aud#seq" aca_aud_seq, mp.account_id, mp.login, 
+			p.property_name, p.property_type,
+			a.*
+	FROM	dude a
+			INNER JOIN audrecs aca USING (account_id)
+			INNER JOIN property p ON
+				aca.account_collection_id = p.property_value_account_coll_id
+			INNER JOIN dude mp ON p.account_id = mp.account_id
+	WHERE		mp.account_id != a.account_id
+	ORDER BY mp.last_name, mp.first_name, mp.account_id, 
+		a.last_name, a.first_name, a.account_id
+) SELECT rm.*, mx.*
+	FROM reportmap rm
+		INNER JOIN v_approval_matrix mx ON
+			rm.property_name = mx.property_val_rhs AND
+			rm.property_type = mx.property_val_lhs
+	WHERE		mx.approving_entity = 'manager'  
+*/

@@ -1,0 +1,55 @@
+https://photos.google.com/photo/AF1QipNKDXRFplNEFQcA34bPpkGSMV48Nj7clp-DeO5l
+
+approval and attestation are two sides of the same coin
+ - what do you do if something expires, particularly attestation
+ - how often does the attestation need to happen (annual,quarter,month,week)
+conceptual 
+
+approval_process
+ - thing to approve
+	property collections most likely
+	other db fields, optional
+ - pointer to a chain
+ - how do we deal with pending, particularly for <whatever> additions?
+	account_collection_account?
+
+approval_chain
+ - conceptual who (possible concept of overrides)
+ - how long do they have to do it?
+ - how to escalate when they don't.
+ - next step -- accept/reject separately?
+ 	- who next (pointer to another chain?)
+
+approval instance
+ - start
+ - end
+ - id of first step
+- possible attestation properties
+
+approval step
+  - approval_instance_id
+  - id of the chain
+  - start, end dates
+  - who actually did this step
+  - ptr to next step
+
+approved item
+ - property link, or maybe just a copy of properties
+ - potentially refer to an audit log record instead of a live record
+ - the result (approve/disaprove)
+ - whether or not its considered done
+
+approval step and approved item will have a m-m table that associates each
+step with each item.
+
+approval step will basically be everything that is attested to/approved for
+a given item
+
+===
+
+the rollup from item to step should be done by trigger, and jira tickets only
+opened when the entire set is done (to minimize the number of jira tickets).
+
+triggers should complete prevented attestations from being added to once they
+are marked as completed (new and update rows in approval_instance_step_item)
+
