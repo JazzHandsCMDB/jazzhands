@@ -1,3 +1,18 @@
+-- Copyright (c) 2015, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 -- XXX not dealing with pending
 
 DROP VIEW IF EXISTS v_account_collection_approval_process;
@@ -7,7 +22,14 @@ drop VIEW if exists v_person_company_audit_map;
 drop VIEW if exists v_account_collection_account_audit_map;
 drop VIEW if exists v_account_manager_map;
 
-
+-- This describes some sort of "how to approve".  This would be the
+-- starting point for something and we would like to these in places to
+-- do automatic approval.  It likely also needs attestation properties like
+-- 'attest on the nTH day of the quarter or some such..  It points to a
+-- property collection that makes up the differnet things that would figure
+-- out what needs to be approved/attested.
+--
+-- 
 drop table if exists approval_process;
 create table approval_process (
 	approval_process_id		serial,
@@ -17,6 +39,15 @@ create table approval_process (
 	property_collection_id		integer
 );
 
+--
+-- This is the approval chain.  Right now it is either manager or jira-hr.
+-- manager menas the manager of the person or the mangaer of the last
+-- approver.  jira-hr just says its handled by an external script that
+-- deals with the interaction with Jira.  Things are then closed and
+-- it returns to the process
+--
+-- Likely I'm missing a chain that says 'return to previous'
+--
 drop table if exists approval_process_chain;
 create table approval_process_chain (
 	approval_process_chain_id	serial,
@@ -25,7 +56,14 @@ create table approval_process_chain (
 	reject_approval_process_chain_id	integer
 );
 
--- XXX attestation properties?
+-- XXX missing attestation properties?
+--
+-- This is an instance of a process.  For attestation, this means once
+-- a quarter a bunch of these will come into existinace for a given
+-- process.   (one per approving manager). 
+--
+-- This is built from v_account_collection_approval_process
+--
 drop table if exists approval_instance;
 create table approval_instance (
 	approval_instance_id		serial not null,
@@ -40,10 +78,23 @@ create table approval_instance (
 -- together.  The distinction exists today to show all the different items
 -- that need to be approved/attested to by a given account.
 --
+-- This is a group of things that are approved together in one instance.
+-- (in attestation, there would be one row per manager).
+--
+-- When one cycle is done, if its handed off to someone else, anotehr step
+-- would come into existance..
+--
+-- not clear that "next step" belongs here because each item can be approved
+-- or rejected and go to a different path.  Without that, its possible that
+-- all this gets folded into the above.
+--
+-- I need to reconcile "show me all the stuff outstanding for ME, though.
+-- which is gleaned from here
+--
 drop table if exists approval_instance_step;
 create table approval_instance_step (
 	approval_instance_step_id	serial not null,
-	approval_instance_id		integer,						-- goes, I think
+	approval_instance_id		integer,				-- goes, I think
 	approval_process_chain_id	integer not null,
 	approval_instance_step_start	timestamp DEFAULT now() not null,
 	approval_instance_step_end	timestamp,
@@ -54,6 +105,10 @@ create table approval_instance_step (
 );
 
 -- These items may want to be folded into approval_instance_item
+--
+-- These are just fk's to all the audit table rows that are related to a
+-- given item"
+--
 drop table if exists approval_instance_link;
 create table approval_instance_link (
 	approval_instance_link_id	serial not null,
@@ -61,25 +116,36 @@ create table approval_instance_link (
 	acct_collection_acct_seq_id	integer
 );
 
+--
+-- This is where each approved item actually lives and is what is actually
+-- presented to users to check off.  what to do next comes from the the
+-- process chain
+--
 drop table if exists approval_instance_item;
 create table approval_instance_item (
 	approval_instance_item_id	serial not null,
 	approval_instance_link_id	integer not null,
 	next_approval_instance_item_id	integer,
+	approval_type			text,
 	approved_label			text,
 	approved_lhs			text,
 	approved_rhs			text,
 	is_approved			char(1),
 	is_completed			char(1),
 	approved_account_id		integer,
-	approved_device_id		integer
+	approved_device_id		integer		- where the approval came from
 );
 
+--
+-- This allows items to be linked to steps.
+--
 drop table if exists approval_instance_step_item;
 create table approval_instance_step_item (
 	approval_instance_step_id	integer NOT NULL,
 	approval_instance_item_id	integer NOT NULL
 );
+
+--------------------------------- views -----------------------------------
 
 create view v_approval_matrix AS
 SELECT	ap.approval_process_id, ap.first_approval_process_chain_id,
