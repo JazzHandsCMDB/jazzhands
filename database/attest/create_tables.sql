@@ -133,7 +133,7 @@ create table approval_instance_item (
 	is_approved			char(1),
 	is_completed			char(1),
 	approved_account_id		integer,
-	approved_device_id		integer		- where the approval came from
+	approved_device_id		integer	-- where the approval came from
 );
 
 --

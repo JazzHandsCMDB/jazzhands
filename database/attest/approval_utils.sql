@@ -204,7 +204,7 @@ BEGIN
 		END IF;
 	ELSIF approved = 'Y' THEN
 		IF _r.accept_approval_process_chain_id IS NOT NULL THEN
-			_chid := _r.accept_approval_process_chain_id	
+			_chid := _r.accept_approval_process_chain_id;
 		END IF;
 	ELSE
 		RAISE EXCEPTION 'Approved must be Y or N';
