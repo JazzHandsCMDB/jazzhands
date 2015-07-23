@@ -93,7 +93,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(
-	approval_intance_item_id
+	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
 	approval_process_chain_id		
 						approval_process_chain.approval_process_chain_id%TYPE,
@@ -115,7 +115,7 @@ BEGIN
 		WHERE approval_process_chain_id=$1
 	' INTO _apc USING approval_process_chain_id;
 
-	IF NOT FOUND THEN
+	IF _apc.approval_process_chain_id is NULL THEN
 		RAISE EXCEPTION 'Unable to follow this chain. It should be here';
 	END IF;
 
@@ -132,16 +132,18 @@ BEGIN
 		SELECT * 
 		FROM approval_instance_item 
 		WHERE approval_instance_item_id=$1
-	' INTO _apc USING approval_instance_item_id;
+	' INTO _aii USING approval_instance_item_id;
 
 	EXECUTE '
 		INSERT INTO approval_instance_item
 			(approval_instance_link_id, approval_type, approved_label,
 				approved_lhs, approved_rhs
-			) SELECT approval_instance_link_id, $1, approved_label,
-				approved_lhs, $2
-			) RETURNING *
-	' INTO _new USING apptype, new_value;
+			) SELECT approval_instance_link_id, $2, approved_label,
+				approved_lhs, $3
+			FROM approval_instance_item
+			WHERE approval_instance_item_id = $1
+			RETURNING *
+	' INTO _new USING approval_instance_item_id, apptype, new_value;
 
 	RETURN _new.approval_instance_item_id;
 END;
@@ -219,7 +221,7 @@ BEGIN
 			UPDATE approval_instance_item
 			SET next_approval_instance_item_id = $2
 			WHERE approval_instance_item_id = $1
-		' USING approval_instance_item_id, _chid;
+		' USING approval_instance_item_id, _new;
 	END IF;
 
 	RETURN true;
