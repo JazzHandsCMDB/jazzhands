@@ -67,7 +67,8 @@ BEGIN
 				'MPO',
 				'LC',
 				'SC',
-				'10GSFP+Cu'
+				'10GSFP+Cu',
+				'MXP'
 			]),
 			'network'
 		;
@@ -89,7 +90,8 @@ BEGIN
 			('1GSFPEthernet', 'SFP', 'network', '1Gbps SFP Ethernet', 'N'),
 			('10GSFP+Ethernet', 'SFP+', 'network', '10Gbps SFP+ Ethernet', 'N'),
 			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', 'N'),
-			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', 'N');
+			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', 'N'),
+			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N');
 
 
 		--

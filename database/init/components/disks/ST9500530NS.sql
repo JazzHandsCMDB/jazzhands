@@ -66,5 +66,13 @@ BEGIN
 		) VALUES
 			('DiskSize', 'disk', ctid, x'3a280000'::integer);
 
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES
+			('MediaType', 'disk', ctid, 'Rotational');
+
 	END IF;
 END; $$ language plpgsql;

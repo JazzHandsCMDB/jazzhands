@@ -45,6 +45,48 @@ BEGIN
 			('DiskSize', 'disk', 'Disk Size (sectors)', 'N', 'number',
 				'disk', 'REQUIRED');
 
+		INSERT INTO val_component_property (
+			component_property_name,
+			component_property_type,
+			description,
+			is_multivalue,
+			property_data_type,
+			required_component_function,
+			permit_component_type_id
+		) VALUES 
+			('MediaType', 'disk', 'Disk Media Type', 'N', 'list',
+				'disk', 'REQUIRED');
+
+		INSERT INTO val_component_property_value (
+			component_property_name,
+			component_property_type,
+			valid_property_value,
+			description
+		) VALUES 
+			('MediaType', 'disk', 'Rotational', 'Rotational hard disk drive'),
+			('MediaType', 'disk', 'Solid State', 'Solid state disk drive');
+
+		INSERT INTO val_component_property (
+			component_property_name,
+			component_property_type,
+			description,
+			is_multivalue,
+			property_data_type,
+			required_component_function,
+			permit_component_type_id
+		) VALUES 
+			('DiskProtocol', 'disk', 'Disk Protocol', 'N', 'list',
+				'disk', 'REQUIRED');
+
+		INSERT INTO val_component_property_value (
+			component_property_name,
+			component_property_type,
+			valid_property_value,
+			description
+		) VALUES 
+			('DiskProtocol', 'disk', 'SATA', 'Serial ATA'),
+			('DiskProtocol', 'disk', 'SAS', 'Serial Attached SCSI');
+
 		--
 		-- Slot functions are also somewhat arbitrary, and exist for associating
 		-- valid component_properties, for displaying UI components, and for
