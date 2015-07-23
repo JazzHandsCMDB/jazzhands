@@ -48,14 +48,12 @@ sub process_attestment {
 	# NOTE:  THis query is shared with index.pl.  May want to do something
 	# about that...
 	my $sth = $stab->prepare(qq{
-		SELECT approver_account_id, aisi.*, aii.*
+		SELECT approver_account_id, aii.*
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)
-				INNER JOIN approval_instance_step_item aisi
-					USING (approval_instance_step_id)
 				INNER JOIN approval_instance_item aii 
-					USING (approval_instance_item_id)
+					USING (approval_instance_step_id)
 				INNER JOIN approval_instance_link ail 
 					USING (approval_instance_link_id)
 		WHERE	approver_account_id = ?

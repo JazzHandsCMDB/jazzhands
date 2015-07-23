@@ -1,4 +1,4 @@
-https://photos.google.com/photo/AF1QipNKDXRFplNEFQcA34bPpkGSMV48Nj7clp-DeO5l
+	https://photos.google.com/photo/AF1QipNKDXRFplNEFQcA34bPpkGSMV48Nj7clp-DeO5l
 
 approval and attestation are two sides of the same coin
  - what do you do if something expires, particularly attestation
@@ -53,3 +53,25 @@ opened when the entire set is done (to minimize the number of jira tickets).
 triggers should complete prevented attestations from being added to once they
 are marked as completed (new and update rows in approval_instance_step_item)
 
+
+=== notes on 2015-07-23
+
+label, lhs, rhs
+
+instance and step get rolled into one, in which case we lose the ability
+	to have an entity that is "all this stuff a given manager must
+	approve" (it can be inferred)
+
+step can get an iteration number
+
+instance - per group of things that needs to be approved (currently manager)
+ step -  per manager/approver
+ item - per thing attested
+
+
+changes:
+instance needs to become "once per quarter"
+cluster thing on attestation page by steps
+approval_instance_step_item m-m goes away step goes into item.
+
+=== notes 

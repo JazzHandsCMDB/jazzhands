@@ -100,8 +100,7 @@ create table approval_instance_step (
 	approval_instance_step_end	timestamp,
 	approver_account_id		integer not null,
 	actual_approver_account_id	integer,
-	is_approved			char(1),
-	next_approval_instance_step_id	integer
+	is_approved			char(1)
 );
 
 -- These items may want to be folded into approval_instance_item
@@ -125,6 +124,7 @@ drop table if exists approval_instance_item;
 create table approval_instance_item (
 	approval_instance_item_id	serial not null,
 	approval_instance_link_id	integer not null,
+	approval_instance_step_id	integer not null,
 	next_approval_instance_item_id	integer,
 	approval_type			text,
 	approved_label			text,
@@ -134,15 +134,6 @@ create table approval_instance_item (
 	is_completed			char(1),
 	approved_account_id		integer,
 	approved_device_id		integer	-- where the approval came from
-);
-
---
--- This allows items to be linked to steps.
---
-drop table if exists approval_instance_step_item;
-create table approval_instance_step_item (
-	approval_instance_step_id	integer NOT NULL,
-	approval_instance_item_id	integer NOT NULL
 );
 
 --------------------------------- views -----------------------------------

@@ -44,44 +44,51 @@ DECLARE
 	tally		INTEGER;
 BEGIN
 	tally := 0;
+
 	FOR _r IN SELECT * FROM v_account_collection_approval_process
 	LOOP
 		IF _r.approving_entity != 'manager' THEN
 			RAISE NOTICE 'Do not know how to process approving entity %',
 				_r.approving_entity;
 		END IF;
+
+		IF (ai.approval_process_id IS NULL OR
+				ai.approval_process_id != _r.approval_process_id) THEN
+			INSERT INTO approval_instance ( 
+				approval_process_id 
+			) VALUES ( 
+				_r.approval_process_id 
+			) RETURNING * INTO ai;
+		END IF;
+
 		IF ais.approver_account_id IS NULL OR
 				ais.approver_account_id != _r.manager_account_id THEN
 
 			INSERT INTO approval_instance_step (
-				approval_process_chain_id, approver_account_id
+				approval_process_chain_id, approver_account_id,
+				approval_instance_id
 			) VALUES (
-				_r.approval_process_chain_id, _r.manager_account_id
+				_r.approval_process_chain_id, _r.manager_account_id,
+				ai.approval_process_id
 			) RETURNING * INTO ais;
-
-			INSERT INTO approval_instance (
-				approval_process_id, first_approval_instance_step_id)
-			VALUES (
-				_r.approval_process_id, ais.approval_instance_step_id
-			) RETURNING * INTO ai;
 		END IF;
 		
 		INSERT INTO approval_instance_link ( acct_collection_acct_seq_id
 			) VALUES ( _r.audit_seq_id ) RETURNING * INTO ail;
 
-		INSERT INTO approval_instance_item (
-			approval_instance_link_id, approval_type,
-			approved_label, approved_lhs, approved_rhs
-		) VALUES ( 
-			ail.approval_instance_link_id, 'account',
-			_r.approval_label, _r.approval_lhs, _r.approval_rhs
-		) RETURNING * INTO aii;
+		--
+		-- need to create or find the correct step to insert someone into;
+		-- probably need a val table that says if every approver's stuff should
+		-- be aggregated into one step or ifs a step per underling.
+		--
 
-		INSERT INTO approval_instance_step_item (
-			approval_instance_step_id, approval_instance_item_id
-		) VALUES (
-			ais.approval_instance_step_id, aii.approval_instance_item_id
-		);
+		INSERT INTO approval_instance_item (
+			approval_instance_link_id, approval_instance_step_id,
+			approval_type, approved_label, approved_lhs, approved_rhs
+		) VALUES ( 
+			ail.approval_instance_link_id, ais.approval_instance_step_id,
+			'account', _r.approval_label, _r.approval_lhs, _r.approval_rhs
+		) RETURNING * INTO aii;
 
 		UPDATE approval_instance_step 
 		SET approval_instance_id = ai.approval_instance_id
@@ -175,10 +182,8 @@ BEGIN
    	     FROM    approval_instance ai
    	             INNER JOIN approval_instance_step ais
    	                 USING (approval_instance_id)
-   	             INNER JOIN approval_instance_step_item aisi
-   	                 USING (approval_instance_step_id)
    	             INNER JOIN approval_instance_item aii
-   	                 USING (approval_instance_item_id)
+   	                 USING (approval_instance_step_id)
    	             INNER JOIN approval_instance_link ail
    	                 USING (approval_instance_link_id)
 			INNER JOIN approval_process_chain aic
