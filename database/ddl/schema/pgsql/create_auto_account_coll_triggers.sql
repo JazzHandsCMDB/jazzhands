@@ -81,155 +81,16 @@ BEGIN
 	END IF;
 
 
-	SELECT  count(*)
-	  INTO  _tally
-	  FROM  pg_catalog.pg_class
-	 WHERE  relname = '__automated_ac__'
-	   AND  relpersistence = 't';
-
-	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __automated_ac__ (account_collection_id integer, account_id integer, direction text);
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE'  THEN
+		PERFORM auto_ac_manip.make_site_acs_right(NEW.account_id);
+		PERFORM auto_ac_manip.make_personal_acs_right(NEW.account_id);
 	END IF;
 
-
-	--
-	-- based on the old and new values, check for account collections that
-	-- may need to be changed based on data.  Note that this may end up being
-	-- a no-op.
-	-- 
-	IF TG_OP = 'INSERT' or TG_OP = 'UPDATE' THEN
-		WITH acct AS (
-			    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
-				    pc.is_management, pc.is_full_time, pc.is_exempt,
-				    p.gender
-			     FROM   account a
-				    INNER JOIN person_account_realm_company parc
-					    USING (person_id, company_id, account_realm_id)
-				    INNER JOIN person_company pc USING (person_id,company_id)
-				    INNER JOIN person p USING (person_id)
-			),
-		list AS (
-			SELECT  p.account_collection_id, a.account_id, a.account_type,
-				a.account_role,
-				a.person_id, a.company_id
-			FROM    property p
-			    INNER JOIN acct a
-				ON a.account_realm_id = p.account_realm_id
-			WHERE   (p.company_id is NULL or a.company_id = p.company_id)
-			    AND     property_type = 'auto_acct_coll'
-			    AND     (
-				    property_name =
-					CASE WHEN a.is_exempt = 'N'
-					    THEN 'non_exempt'
-					    ELSE 'exempt' END
-				OR
-				    property_name =
-					CASE WHEN a.is_management = 'N'
-					    THEN 'non_management'
-					    ELSE 'management' END
-				OR
-				    property_name =
-					CASE WHEN a.is_full_time = 'N'
-					    THEN 'non_full_time'
-					    ELSE 'full_time' END
-				OR
-				    property_name =
-					CASE WHEN a.gender = 'M' THEN 'male'
-					    WHEN a.gender = 'F' THEN 'female'
-					    ELSE 'unspecified_gender' END
-				OR (
-				    property_name = 'account_type'
-				    AND property_value = a.account_type
-				    )
-				)
-		) 
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		) select account_collection_id, account_id, 'add'
-		FROM list 
-		WHERE account_id = NEW.account_id
-		AND NEW.account_role = 'primary'
-		;
-	END IF;
-	IF TG_OP = 'UPDATE' or TG_OP = 'DELETE' THEN
-		WITH acct AS (
-			    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
-				    pc.is_management, pc.is_full_time, pc.is_exempt,
-				    p.gender
-			     FROM   account a
-				    INNER JOIN person_account_realm_company parc
-					    USING (person_id, company_id, account_realm_id)
-				    INNER JOIN person_company pc USING (person_id,company_id)
-				    INNER JOIN person p USING (person_id)
-			),
-		list AS (
-			SELECT  p.account_collection_id, a.account_id, a.account_type,
-				a.account_role,
-				a.person_id, a.company_id
-			FROM    property p
-			    INNER JOIN acct a
-				ON a.account_realm_id = p.account_realm_id
-			WHERE   (p.company_id is NULL or a.company_id = p.company_id)
-			    AND     property_type = 'auto_acct_coll'
-				AND (
-					( account_role != 'primary' AND
-						property_name in ('non_exempt', 'exempt',
-						'management', 'non_management', 'full_time',
-						'non_full_time', 'male', 'female', 'unspecified_gender')
-				) OR (
-					account_role != 'primary'
-				    AND property_name = 'account_type'
-				    AND property_value = a.account_type
-				    )
-				)
-		) 
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		) select account_collection_id, account_id, 'remove'
-		FROM list 
-		WHERE account_id = OLD.account_id
-		;
+	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE'  THEN
+		PERFORM auto_ac_manip.make_site_acs_right(OLD.account_id);
+		PERFORM auto_ac_manip.make_personal_acs_right(OLD.account_id);
 	END IF;
 
-/*
-	FOR _r IN SELECT * from __automated_ac__
-	LOOP
-		RAISE NOTICE '%', _r;
-	END LOOP;
- */
-
-	--
-	-- Remove rows from the temporary table that are in "remove" but not in
-	-- "add".
-	--
-	DELETE FROM account_collection_account
-	WHERE (account_collection_id, account_id) IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-		)
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'add'
-	)
-	;
-	--
-	-- Add rows from the temporary table that are in 'add" but not "remove"
-	-- "add".
-	--
-	INSERT INTO account_collection_account (
-		account_collection_id, account_id)
-	SELECT account_collection_id, account_id 
-	FROM __automated_ac__
-	WHERE direction = 'add'
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-	)
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM account_collection_account)
-	;
-
-	DROP TABLE IF EXISTS __automated_ac__;
 
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
@@ -243,7 +104,8 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_add_automated_ac_on_account ON account;
 CREATE TRIGGER trig_add_automated_ac_on_account 
-	AFTER INSERT OR UPDATE OF account_type, account_role
+	AFTER INSERT 
+	OR UPDATE OF account_type, account_role, account_status
 	ON account 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE automated_ac_on_account();
@@ -267,122 +129,23 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
-	SELECT  count(*)
-	  INTO  _tally
-	  FROM  pg_catalog.pg_class
-	 WHERE  relname = '__automated_ac__'
-	   AND  relpersistence = 't';
-
-	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __automated_ac__ (account_collection_id integer, account_id integer, direction text);
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_location USING (person_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
 	END IF;
 
-
-	--
-	-- based on the old and new values, check for account collections that
-	-- may need to be changed based on data.  Note that this may end up being
-	-- a no-op.
-	-- 
-	IF TG_OP = 'INSERT' or TG_OP = 'UPDATE' THEN
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		)
-		SELECT	p.account_collection_id, a.account_id, 'add'
-		FROM    property p
-			INNER JOIN account_realm_company arc USING (account_realm_id)
-			INNER JOIN account a 
-				ON a.account_realm_id = arc.account_realm_id
-				AND a.company_id = arc.company_id
-		WHERE	arc.company_id = NEW.company_id
-		AND     (p.company_id is NULL or arc.company_id = p.company_id)
-			AND	a.person_id = NEW.person_id
-			AND     property_type = 'auto_acct_coll'
-			AND     (
-				    property_name =
-				    CASE WHEN NEW.is_exempt = 'N'
-					THEN 'non_exempt'
-					ELSE 'exempt' END
-				OR
-				    property_name =
-				    CASE WHEN NEW.is_management = 'N'
-					THEN 'non_management'
-					ELSE 'management' END
-				OR
-				    property_name =
-				    CASE WHEN NEW.is_full_time = 'N'
-					THEN 'non_full_time'
-					ELSE 'full_time' END
-				);
+	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_location USING (person_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = OLD.person_id
+		AND		company_id = OLD.company_id;
 	END IF;
-	IF TG_OP = 'UPDATE' or TG_OP = 'DELETE' THEN
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		)
-		SELECT	p.account_collection_id, a.account_id, 'remove'
-		FROM    property p
-			INNER JOIN account_realm_company arc USING (account_realm_id)
-			INNER JOIN account a 
-				ON a.account_realm_id = arc.account_realm_id
-				AND a.company_id = arc.company_id
-		WHERE	arc.company_id = OLD.company_id
-		AND     (p.company_id is NULL or arc.company_id = p.company_id)
-			AND	a.person_id = OLD.person_id
-			AND     property_type = 'auto_acct_coll'
-			AND     (
-				    property_name =
-				    CASE WHEN OLD.is_exempt = 'N'
-					THEN 'non_exempt'
-					ELSE 'exempt' END
-				OR
-				    property_name =
-				    CASE WHEN OLD.is_management = 'N'
-					THEN 'non_management'
-					ELSE 'management' END
-				OR
-				    property_name =
-				    CASE WHEN OLD.is_full_time = 'N'
-					THEN 'non_full_time'
-					ELSE 'full_time' END
-				);
-	END IF;
-
-/*
-	FOR _r IN SELECT * from __automated_ac__
-	LOOP
-		RAISE NOTICE '%', _r;
-	END LOOP;
- */
-
-	--
-	-- Remove rows from the temporary table that are in "remove" but not in
-	-- "add".
-	--
-	DELETE FROM account_collection_account
-	WHERE (account_collection_id, account_id) IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-		)
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'add'
-	);
-
-	--
-	-- Add rows from the temporary table that are in 'add" but not "remove"
-	-- "add".
-	--
-	INSERT INTO account_collection_account (
-		account_collection_id, account_id)
-	SELECT account_collection_id, account_id 
-	FROM __automated_ac__
-	WHERE direction = 'add'
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-	);
-
-	DROP TABLE IF EXISTS __automated_ac__;
-
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
@@ -392,6 +155,7 @@ END;
 $_$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
 CREATE TRIGGER trigger_automated_ac_on_person_company 
 	AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id,company_id
@@ -410,92 +174,21 @@ RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
 BEGIN
-	SELECT  count(*)
-	  INTO  _tally
-	  FROM  pg_catalog.pg_class
-	 WHERE  relname = '__automated_ac__'
-	   AND  relpersistence = 't';
-
-	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __automated_ac__ (account_collection_id integer, account_id integer, direction text);
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_location USING (person_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id;
 	END IF;
 
-
-	--
-	-- based on the old and new values, check for account collections that
-	-- may need to be changed based on data.  Note that this may end up being
-	-- a no-op.
-	-- 
-	IF TG_OP = 'UPDATE' THEN
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		)
-		SELECT	p.account_collection_id, a.account_id, 'add'
-		FROM    property p
-			INNER JOIN account_realm_company arc USING (account_realm_id)
-			INNER JOIN account a 
-				ON a.account_realm_id = arc.account_realm_id
-				AND a.company_id = arc.company_id
-		WHERE     (p.company_id is NULL or arc.company_id = p.company_id)
-			AND	a.person_id = NEW.person_id
-			AND     property_type = 'auto_acct_coll'
-			AND     (
-				    property_name =
-				    	CASE WHEN NEW.gender = 'M' THEN 'male'
-				    		WHEN NEW.gender = 'F' THEN 'female'
-							ELSE 'unspecified_gender' END
-					);
-
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		)
-		SELECT	p.account_collection_id, a.account_id, 'remove'
-		FROM    property p
-			INNER JOIN account_realm_company arc USING (account_realm_id)
-			INNER JOIN account a 
-				ON a.account_realm_id = arc.account_realm_id
-				AND a.company_id = arc.company_id
-		WHERE     (p.company_id is NULL or arc.company_id = p.company_id)
-			AND	a.person_id = OLD.person_id
-			AND     property_type = 'auto_acct_coll'
-			AND     (
-				    property_name =
-				    	CASE WHEN OLD.gender = 'M' THEN 'male'
-				    	WHEN OLD.gender = 'F' THEN 'female'
-						ELSE 'unspecified_gender' END
-				);
+	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_location USING (person_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = OLD.person_id;
 	END IF;
-
-	--
-	-- Remove rows from the temporary table that are in "remove" but not in
-	-- "add".
-	--
-	DELETE FROM account_collection_account
-	WHERE (account_collection_id, account_id) IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-		)
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'add'
-	);
-
-	--
-	-- Add rows from the temporary table that are in 'add" but not "remove"
-	-- "add".
-	--
-	INSERT INTO account_collection_account (
-		account_collection_id, account_id)
-	SELECT account_collection_id, account_id 
-	FROM __automated_ac__
-	WHERE direction = 'add'
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-	);
-
-	DROP TABLE IF EXISTS __automated_ac__;
-
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
@@ -506,107 +199,38 @@ END;
 $_$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
-DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
-CREATE TRIGGER trigger_automated_ac_on_person 
-	AFTER UPDATE OF gender ON person 
-	FOR EACH ROW 
-	EXECUTE PROCEDURE automated_ac_on_person();
 
 --------------------------------------------------------------------------
-
 --
 -- If someone moves location, update the site if something appropriate exists
+--
 --
 CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl() 
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
 BEGIN
-	SELECT  count(*)
-	  INTO  _tally
-	  FROM  pg_catalog.pg_class
-	 WHERE  relname = '__automated_ac__'
-	   AND  relpersistence = 't';
-
-	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __automated_ac__ (account_collection_id integer, account_id integer, direction text);
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		PERFORM	auto_ac_manip.make_site_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_location USING (person_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id;
 	END IF;
 
-	--
-	-- based on the old and new values, check for account collections that
-	-- may need to be changed based on data.  Note that this may end up being
-	-- a no-op.
-	-- 
-	IF TG_OP = 'INSERT' or TG_OP = 'UPDATE' THEN
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		)
-		SELECT	p.account_collection_id, a.account_id, 'add'
-		FROM    property p
-			INNER JOIN account_realm_company arc USING (account_realm_id)
-			INNER JOIN account a 
-				ON a.account_realm_id = arc.account_realm_id
-				AND a.company_id = arc.company_id
-		WHERE   (p.company_id is NULL or arc.company_id = p.company_id)
-			AND	a.person_id = NEW.person_id
-			AND		p.site_code = NEW.site_code
-			AND     property_type = 'auto_acct_coll'
-			AND     property_name = 'site'
-		;
+	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
+		PERFORM	auto_ac_manip.make_site_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_location USING (person_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = OLD.person_id;
 	END IF;
-	IF TG_OP = 'UPDATE' or TG_OP = 'DELETE' THEN
-		INSERT INTO __automated_ac__ (
-			account_collection_id, account_id, direction
-		)
-		SELECT	p.account_collection_id, a.account_id, 'remove'
-		FROM    property p
-			INNER JOIN account_realm_company arc USING (account_realm_id)
-			INNER JOIN account a 
-				ON a.account_realm_id = arc.account_realm_id
-				AND a.company_id = arc.company_id
-		WHERE   (p.company_id is NULL or arc.company_id = p.company_id)
-			AND	a.person_id = OLD.person_id
-			AND		p.site_code = OLD.site_code
-			AND     property_type = 'auto_acct_coll'
-			AND     property_name = 'site'
-		;
-	END IF;
-	--
-	-- Remove rows from the temporary table that are in "remove" but not in
-	-- "add".
-	--
-	DELETE FROM account_collection_account
-	WHERE (account_collection_id, account_id) IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-		)
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'add'
-	);
-
-	--
-	-- Add rows from the temporary table that are in 'add" but not "remove"
-	-- "add".
-	--
-	INSERT INTO account_collection_account (
-		account_collection_id, account_id)
-	SELECT account_collection_id, account_id 
-	FROM __automated_ac__
-	WHERE direction = 'add'
-	AND (account_collection_id, account_id) NOT IN
-		(select account_collection_id, account_id FROM __automated_ac__
-			WHERE direction = 'remove'
-	);
-
-	DROP TABLE IF EXISTS __automated_ac__;
 
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
 		RETURN NEW;
 	END IF;
-
 END;
 $_$
 SET search_path=jazzhands
