@@ -66,6 +66,11 @@ $(document).ready(function(){
 		$(event.target).closest('table.attest').find('input.approve').each( function(iter, obj) {
 			$(obj).prop('checked', makeem);
 		});
+		if(makem = true) {
+			$(event.target).closest('table.attest').find('input.disapprove').each( function(iter, obj) {
+				$(obj).prop('checked', false);
+			});
+		}
 	});
 
 	$('#attest').submit( function(event) {
