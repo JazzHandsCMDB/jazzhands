@@ -93,12 +93,14 @@ create table approval_instance (
 drop table if exists approval_instance_step;
 create table approval_instance_step (
 	approval_instance_step_id	serial not null,
-	approval_instance_id		integer,				-- goes, I think
+	approval_instance_id		integer not null,
 	approval_process_chain_id	integer not null,
+	approval_type				text not null,
 	approval_instance_step_start	timestamp DEFAULT now() not null,
 	approval_instance_step_end	timestamp,
 	approver_account_id		integer not null,
 	actual_approver_account_id	integer,
+	external_reference_name	text,
 	is_approved			char(1)
 );
 
@@ -125,7 +127,6 @@ create table approval_instance_item (
 	approval_instance_link_id	integer not null,
 	approval_instance_step_id	integer not null,
 	next_approval_instance_item_id	integer,
-	approval_type			text,
 	approved_label			text,
 	approved_lhs			text,
 	approved_rhs			text,
@@ -259,7 +260,7 @@ SELECT  mm.login,
 		approving_entity,
 		approval_process_name as approval_label,
 		mm.human_readable AS approval_lhs,
-		NULL AS approval_rhs	
+		concat ('Reports to ',mm.manager_login) AS approval_rhs	
 FROM v_approval_matrix mx
 	INNER JOIN property p ON
 		p.property_name = mx.property_val_rhs AND
@@ -291,3 +292,6 @@ FROM	v_account_manager_map mm
 where manager_account_id != account_id
 order by manager_login, account_id, approval_label
 ;
+
+grant select on all tables in schema jazzhands to ro_role;
+grant insert,update,delete on all tables in schema jazzhands to iud_role;

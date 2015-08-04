@@ -66,10 +66,10 @@ BEGIN
 
 			INSERT INTO approval_instance_step (
 				approval_process_chain_id, approver_account_id,
-				approval_instance_id
+				approval_instance_id, approval_type
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
-				ai.approval_process_id
+				ai.approval_process_id, 'account'
 			) RETURNING * INTO ais;
 		END IF;
 		
@@ -78,16 +78,16 @@ BEGIN
 
 		--
 		-- need to create or find the correct step to insert someone into;
-		-- probably need a val table that says if every approver's stuff should
+		-- probably need a val table that says if every approvers stuff should
 		-- be aggregated into one step or ifs a step per underling.
 		--
 
 		INSERT INTO approval_instance_item (
 			approval_instance_link_id, approval_instance_step_id,
-			approval_type, approved_label, approved_lhs, approved_rhs
+			approved_label, approved_lhs, approved_rhs
 		) VALUES ( 
 			ail.approval_instance_link_id, ais.approval_instance_step_id,
-			'account', _r.approval_label, _r.approval_lhs, _r.approval_rhs
+			_r.approval_label, _r.approval_lhs, _r.approval_rhs
 		) RETURNING * INTO aii;
 
 		UPDATE approval_instance_step 
@@ -99,11 +99,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
+--
+-- returns new approval_instance_item based on how an existing one is
+-- approved.  returns NULL if there is no next step
+--
 CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
 	approval_process_chain_id		
 						approval_process_chain.approval_process_chain_id%TYPE,
+	approval_instance_id
+				approval_instance.approval_instance_id%TYPE,
 	approved				char(1),
 	approving_account_id	account.account_id%TYPE,
 	new_value				text DEFAULT NULL
@@ -111,9 +117,9 @@ CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(
 DECLARE
 	_r		RECORD;
 	_apc	approval_process_chain%ROWTYPE;	
-	_aii	approval_instance_item%ROWTYPE;	
 	_new	approval_instance_item%ROWTYPE;	
 	_acid	account.account_id%TYPE;
+	_step	approval_instance_step.approval_instance_step_id%TYPE;
 	apptype	text;
 BEGIN
 	EXECUTE '
@@ -123,34 +129,81 @@ BEGIN
 	' INTO _apc USING approval_process_chain_id;
 
 	IF _apc.approval_process_chain_id is NULL THEN
-		RAISE EXCEPTION 'Unable to follow this chain. It should be here';
+		RAISE EXCEPTION 'Unable to follow this chain: %',
+			approval_process_chain_id;
 	END IF;
+
+	EXECUTE '
+		SELECT aii.*, ais.approver_account_id
+		FROM approval_instance_item  aii
+			INNER JOIN approval_instance_step ais
+				USING (approval_instance_step_id)
+		WHERE approval_instance_item_id=$1
+	' INTO _r USING approval_instance_item_id;
 
 	IF _apc.approving_entity = 'manager' THEN
 		apptype := 'account';
+		_acid := NULL;
+		EXECUTE '
+			SELECT manager_account_id
+			FROM	v_account_manager_map
+			WHERE	account_id = $1
+		' INTO _acid USING approving_account_id;
+		--
+		-- return NULL because there is no manager for the person
+		--
+		IF _acid IS NULL THEN
+			RETURN NULL;
+		END IF;
 	ELSIF _apc.approving_entity = 'jira-hr' THEN
 		apptype := 'jira-hr';
+		_acid :=  _r.approver_account_id;
 	ELSE
 		RAISE EXCEPTION 'Can not handle approving entity %',
 			_apc.appriving_entity;
 	END IF;
 
+	IF new_value IS NULL THEN
+		new_value := _r.approved_rhs;
+	END IF;
+
+	-- XXX need to contemplate completed here.
 	EXECUTE '
-		SELECT * 
-		FROM approval_instance_item 
-		WHERE approval_instance_item_id=$1
-	' INTO _aii USING approval_instance_item_id;
+		SELECT	approval_instance_step_id
+		FROM	approval_instance_step
+		WHERE	approval_process_chain_id = $1
+		AND		approval_instance_id = $2
+		AND		approver_account_id = $3
+	' INTO _step USING approval_process_chain_id,
+		approval_instance_id, _acid;
+
+	RAISE NOTICE 'step is - % % %',
+		approval_process_chain_id, approval_instance_id, _acid;
+
+	IF _step IS NULL THEN
+		EXECUTE '
+			INSERT INTO approval_instance_step (
+				approval_instance_id, approval_process_chain_id,
+				approver_account_id, approval_type
+			) VALUES (
+				$1, $2, $3, $4
+			) RETURNING approval_instance_step_id
+		' INTO _step USING approval_instance_id, approval_process_chain_id,
+			_acid, apptype;
+	END IF;
 
 	EXECUTE '
 		INSERT INTO approval_instance_item
-			(approval_instance_link_id, approval_type, approved_label,
-				approved_lhs, approved_rhs
-			) SELECT approval_instance_link_id, $2, approved_label,
-				approved_lhs, $3
+			(approval_instance_link_id, approved_label,
+				approved_lhs, approved_rhs, approval_instance_step_id
+			) SELECT approval_instance_link_id, approved_label,
+				approved_lhs, $2, $3
 			FROM approval_instance_item
 			WHERE approval_instance_item_id = $1
 			RETURNING *
-	' INTO _new USING approval_instance_item_id, apptype, new_value;
+	' INTO _new USING approval_instance_item_id, new_value, _step;
+
+	RAISE NOTICE '_new is %', _new;
 
 	RETURN _new.approval_instance_item_id;
 END;
@@ -175,6 +228,8 @@ BEGIN
 	EXECUTE '
 		SELECT 	aii.approval_instance_item_id,
 			ais.approval_instance_step_id,
+			ais.approval_instance_id,
+			ais.approver_account_id,
 			aii.is_approved,
 			aii.is_completed,
 			aic.accept_approval_process_chain_id,
@@ -190,6 +245,11 @@ BEGIN
 				USING (approval_process_chain_id)
 		WHERE approval_instance_item_id = $1
 	' USING approval_instance_item_id INTO 	_r;
+
+	IF _r.approval_instance_item_id IS NULL THEN
+		RAISE EXCEPTION 'Unknown approval_instance_item_id %',
+			approval_instance_item_id;
+	END IF;
 
 	IF _r.is_completed = 'Y' THEN
 		RAISE EXCEPTION 'Approval is already completed.';
@@ -219,7 +279,8 @@ BEGIN
 
 	IF _chid IS NOT NULL THEN
 		_new := approval_utils.build_next_approval_item(
-			approval_instance_item_id, _chid, approved,
+			approval_instance_item_id, _chid,
+			_r.approval_instance_id, approved,
 			approving_account_id, new_value);
 
 		EXECUTE '

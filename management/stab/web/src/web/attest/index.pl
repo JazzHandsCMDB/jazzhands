@@ -70,13 +70,17 @@ sub do_my_attest {
 				INNER JOIN approval_instance_link ail 
 					USING (approval_instance_link_id)
 		WHERE	approver_account_id = ?
+		ORDER BY approval_instance_step_id, approved_lhs, approved_label
 	}) || return $stab->return_db_err;
 
 	$sth->execute($acctid) || return $stab->return_db_err($sth);
 
 	print $cgi->start_form( {-id=>'attest', -action => "attest.pl" } );
 	print $cgi->hidden({-name => 'accting_as_account', -default=>$acctid});
-	print $cgi->start_table( { -class => 'attest' } );
+
+	my $newt = "";
+
+	$newt .= $cgi->start_table( { -class => 'attest' } );
 
     my $checky = $cgi->checkbox({
         -class => 'approveall',
@@ -91,14 +95,25 @@ sub do_my_attest {
 	});
 	$checkn = 'N';
 
-	print $cgi->th([
+	$newt .= $cgi->th([
 		$checky, $checkn, 'What', "Who", "Value", "Correction"
 	]);
 
+	my $t = $newt;
+
 	my $lastlhs;
 	my $classnote = 0;
+	my $laststep;
 	while(my $hr = $sth->fetchrow_hashref) {
-
+		if($laststep) {
+			if($hr->{_dbx('approval_instance_step_id')} != $laststep) {
+				$laststep = $hr->{_dbx('approval_instance_step_id')};
+				print $t, $cgi->end_table, "\n\n";
+				$t = $newt;
+			}
+		} else {
+			$laststep = $hr->{_dbx('approval_instance_step_id')};
+		}
 		if($lastlhs) {
 			if($lastlhs ne $hr->{_dbx('approved_lhs')}) {
 				$lastlhs = $hr->{_dbx('approved_lhs')};
@@ -115,7 +130,7 @@ sub do_my_attest {
 			$myclass = 'odd';
 		}
 
-		print $cgi->Tr(
+		$t .= $cgi->Tr(
 			{ -align => 'center', -class => $myclass },
 			$cgi->td(
 				[
@@ -136,7 +151,9 @@ sub do_my_attest {
 			)
 		);
 	}
-	print $cgi->end_table, "\n";
+	print $t, $cgi->end_table, "\n\n";
+	undef $t;
+
 	print $cgi->br, "\n";
 	print $cgi->span({-class => 'attestsubmit'}, 
 		$cgi->submit({-class=>'attestsubmit'})), "\n";
