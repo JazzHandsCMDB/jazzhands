@@ -68,7 +68,6 @@ drop table if exists approval_instance;
 create table approval_instance (
 	approval_instance_id		serial not null,
 	approval_process_id		integer not null,
-	first_approval_instance_step_id		integer,
 	approval_start			timestamp  DEFAULT now() not null,
 	approval_end			timestamp
 );
