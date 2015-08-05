@@ -225,7 +225,7 @@ sub get_interface_from_ip {
 
 }
 
-sub get_interface_from_netblock {
+sub get_interface_from_netblock_id {
 	my ( $self, $ip ) = @_;
 
 	my $sth = $self->prepare(
@@ -883,7 +883,14 @@ sub configure_allocated_netblock {
 			$self->error_return("Unable to find network for $ip");
 		}
 	} elsif ( $nblk->{ _dbx('NETBLOCK_STATUS') } eq 'Allocated' ) {
-		$self->error_return("Address ($ip) is already allocated.");
+		my $nbid = $nblk->{ _dbx('NETBLOCK_ID') };
+		if( $self->get_interface_from_netblock_id($nbid)) {
+			return $self->error_return("$ip is in use on a device");
+		} else {
+			# nothing to change about the block; returning.
+			return $nblk;
+		}
+
 	}
 
 	# if netblock is reserved, switch it to allocated
