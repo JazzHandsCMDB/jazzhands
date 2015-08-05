@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.60.0
+Version:        0.63.0
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -181,6 +181,9 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Wed Aug  5 2015 Todd Kover <kovert@omniscient.com> 0.63.0
+- allow ips not associated with devices to be added to a device rather than
+  just relying on Allocated to matter
 * Wed Mar  4 2015 Todd Kover <kovert@omniscient.com> 0.60.0
 - shrink device type management down to post-component universe
 - limit companies in drop down to hardware providers
