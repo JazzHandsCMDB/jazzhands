@@ -48,7 +48,7 @@ BEGIN
 	FOR _r IN SELECT * FROM v_account_collection_approval_process
 	LOOP
 		IF _r.approving_entity != 'manager' THEN
-			RAISE NOTICE 'Do not know how to process approving entity %',
+			RAISE EXCEPTION 'Do not know how to process approving entity %',
 				_r.approving_entity;
 		END IF;
 
@@ -177,9 +177,6 @@ BEGIN
 	' INTO _step USING approval_process_chain_id,
 		approval_instance_id, _acid;
 
-	RAISE NOTICE 'step is - % % %',
-		approval_process_chain_id, approval_instance_id, _acid;
-
 	IF _step IS NULL THEN
 		EXECUTE '
 			INSERT INTO approval_instance_step (
@@ -202,8 +199,6 @@ BEGIN
 			WHERE approval_instance_item_id = $1
 			RETURNING *
 	' INTO _new USING approval_instance_item_id, new_value, _step;
-
-	RAISE NOTICE '_new is %', _new;
 
 	RETURN _new.approval_instance_item_id;
 END;

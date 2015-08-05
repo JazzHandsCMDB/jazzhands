@@ -56,13 +56,16 @@ sub process_attestment {
 					USING (approval_instance_step_id)
 				INNER JOIN approval_instance_link ail 
 					USING (approval_instance_link_id)
-		WHERE	approver_account_id = ?
+		WHERE   approver_account_id = ?
+		AND     approval_type = 'account'
+		AND     ais.is_completed = 'N'
+		AND		aii.is_approved IS NULL
 	}) || return $stab->return_db_err;
 
 	$sth->execute($acctid) || return $stab->return_db_err($sth);
 
 	my $wsth = $stab->prepare(qq{
-		PERFORM approval_utils.approve(
+		SELECT approval_utils.approve(
 			approval_instance_item_id := ?,
 			approved := ?,
 			approving_account_id := ?,
@@ -86,13 +89,11 @@ sub process_attestment {
 			$stab->error_return("All users must have Y or N checked, not none");
 		} elsif($yes) {
 			$approved = 'Y';
-			print $cgi->li("yes to $id");
 		} elsif($no) {
 			$fix = $cgi->param("fix_$id");
 			if(!$fix) {
 				$stab->error_return("All rejected users must have a correction");
 			}
-			print $cgi->li("no to $id, fix is $fix");
 			$approved = 'N';
 		}
 
