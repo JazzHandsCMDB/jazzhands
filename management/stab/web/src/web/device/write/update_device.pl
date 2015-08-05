@@ -744,7 +744,7 @@ sub configure_nb_if_ok {
 			# jut absorb the IP.  This allows devices to be added to DNS but
 			# later attached to devices.  Less than ideal, but at least its
 			# cleanup.
-			my $nbdid = $newnetblock->{_dbx('NETBLOCK_ID')};
+			my $nbid = $newblock->{_dbx('NETBLOCK_ID')};
 			if( $stab->get_interface_from_netblock_id($nbid)) {
 				return $stab->error_return("$ip is in use on a device");
 			}
