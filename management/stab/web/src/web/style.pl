@@ -380,6 +380,12 @@ table.attest tbody tr.even {
 	color: white;
 }
 
+.disabled  {
+	pointer-events: none;
+	color: #AAA;
+	opacity: .5;
+}
+
 END
 	undef $stab;
 }

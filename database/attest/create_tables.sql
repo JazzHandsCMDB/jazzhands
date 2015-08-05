@@ -101,7 +101,7 @@ create table approval_instance_step (
 	approver_account_id		integer not null,
 	actual_approver_account_id	integer,
 	external_reference_name	text,
-	is_approved			char(1)
+	is_completed			char(1) DEFAULT 'N' not null
 );
 
 -- These items may want to be folded into approval_instance_item
@@ -130,8 +130,7 @@ create table approval_instance_item (
 	approved_label			text,
 	approved_lhs			text,
 	approved_rhs			text,
-	is_approved			char(1),
-	is_completed			char(1),
+	is_approved				char(1),
 	approved_account_id		integer,
 	approved_device_id		integer	-- where the approval came from
 );

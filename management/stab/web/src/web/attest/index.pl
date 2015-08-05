@@ -61,7 +61,7 @@ sub do_my_attest {
 	# XXX - also need to apply this to the thing that applies the attestation
 
 	my $sth = $stab->prepare(qq{
-		SELECT approver_account_id, aii.*
+		SELECT approver_account_id, aii.*, ais.is_completed
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)
@@ -70,6 +70,8 @@ sub do_my_attest {
 				INNER JOIN approval_instance_link ail 
 					USING (approval_instance_link_id)
 		WHERE	approver_account_id = ?
+		AND		approval_type = 'account'
+		AND		ais.is_completed = 'N'
 		ORDER BY approval_instance_step_id, approved_lhs, approved_label
 	}) || return $stab->return_db_err;
 
@@ -130,18 +132,28 @@ sub do_my_attest {
 			$myclass = 'odd';
 		}
 
+		my $yesbox = "";
+		my $nobox = "";
+		if($hr->{_dbx('IS_APPROVED')} ) {
+			$myclass .= " disabled";
+		} else {
+			$yesbox = $cgi->checkbox({
+				-class => 'attesttoggle approve', 
+				-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
+				-label => ''}),
+			$nobox = $cgi->checkbox({
+				-class => 'attesttoggle disapprove', 
+				-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
+				-label => ''}),
+		}
+
+
 		$t .= $cgi->Tr(
 			{ -align => 'center', -class => $myclass },
 			$cgi->td(
 				[
-					$cgi->checkbox({
-						-class => 'attesttoggle approve', 
-						-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
-						-label => ''}),
-					$cgi->checkbox({
-						-class => 'attesttoggle disapprove', 
-						-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
-						-label => ''}),
+					$yesbox,
+					$nobox,
 					$hr->{approved_label} || '',
 					$hr->{approved_lhs} || '',
 					$hr->{approved_rhs} || '',

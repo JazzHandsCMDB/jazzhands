@@ -209,7 +209,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
-CREATE OR REPLACE FUNCTION approval_utils.do_approve(
+CREATE OR REPLACE FUNCTION approval_utils.approve(
 	approval_instance_item_id	
 					approval_instance_item.approval_instance_item_id%TYPE,
 	approved				char(1),
@@ -231,7 +231,7 @@ BEGIN
 			ais.approval_instance_id,
 			ais.approver_account_id,
 			aii.is_approved,
-			aii.is_completed,
+			ais.is_completed,
 			aic.accept_approval_process_chain_id,
 			aic.reject_approval_process_chain_id
    	     FROM    approval_instance ai
@@ -251,7 +251,7 @@ BEGIN
 			approval_instance_item_id;
 	END IF;
 
-	IF _r.is_completed = 'Y' THEN
+	IF _r.is_approved IS NOT NULL THEN
 		RAISE EXCEPTION 'Approval is already completed.';
 	END IF;
 
@@ -260,10 +260,9 @@ BEGIN
 	EXECUTE '
 		UPDATE approval_instance_item
 		SET is_approved = $2,
-			is_completed = $3,
-		approved_account_id = $4
+		approved_account_id = $3
 		WHERE approval_instance_item_id = $1
-	' USING approval_instance_item_id, approved, 'Y', approving_account_id;
+	' USING approval_instance_item_id, approved, approving_account_id;
 
 	IF approved = 'N' THEN
 		IF _r.reject_approval_process_chain_id IS NOT NULL THEN

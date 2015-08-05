@@ -61,30 +61,47 @@ sub process_attestment {
 
 	$sth->execute($acctid) || return $stab->return_db_err($sth);
 
-	print $cgi->header, $cgi->start_html, $cgi->Dump;
+	my $wsth = $stab->prepare(qq{
+		PERFORM approval_utils.approve(
+			approval_instance_item_id := ?,
+			approved := ?,
+			approving_account_id := ?,
+			new_value := ?
+		);
+	}) || return $stab->return_db_err;
+
+	my $count = 0;
 	while(my $hr = $sth->fetchrow_hashref) {
 		my $id = $hr->{_dbx('approval_instance_item_id')};
 
 		my $yes = $cgi->param("app_$id");
 		my $no = $cgi->param("dis_$id");
 		
+		my $fix;
+		my $approved;
 		# Javascript prevents this from happening.
 		if($yes && $no) {
 			$stab->error_return("All users must have Y or N checked, not both");
 		} elsif(!$yes && !$no) {
 			$stab->error_return("All users must have Y or N checked, not none");
 		} elsif($yes) {
+			$approved = 'Y';
 			print $cgi->li("yes to $id");
 		} elsif($no) {
-			my $fix = $cgi->param("fix_$id");
+			$fix = $cgi->param("fix_$id");
 			if(!$fix) {
 				$stab->error_return("All rejected users must have a correction");
 			}
 			print $cgi->li("no to $id, fix is $fix");
+			$approved = 'N';
 		}
+
+		$wsth->execute($id, $approved, $myacctid, $fix) || return $stab->return_db_err;
+		$wsth->finish;
+		$count++;
 	}
 
-	print $cgi->end_html; exit;
-	undef $stab;
+	$stab->commit;
+	$stab->msg_return("Submitted $count items Succesfully.");
 	0;
 }
