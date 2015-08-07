@@ -380,8 +380,8 @@ BEGIN
 		END IF;
 	END IF;
 
-	RAISE NOTICE 'step is %', _step;
-	RAISE NOTICE 'acid is %', _acid;
+	-- RAISE NOTICE 'step is %', _step;
+	-- RAISE NOTICE 'acid is %', _acid;
 
 	EXECUTE '
 		INSERT INTO approval_instance_item
@@ -397,7 +397,7 @@ BEGIN
 		_new.approved_lhs, _new.approved_rhs,
 		_step;
 
-	RAISE NOTICE 'returning %', _new.approval_instance_item_id;
+	-- RAISE NOTICE 'returning %', _new.approval_instance_item_id;
 	RETURN _new.approval_instance_item_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;

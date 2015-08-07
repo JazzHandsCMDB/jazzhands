@@ -16,4 +16,6 @@
 
 - triggers
 
+- remove all debugging RAISE NOTICE, even those that are commented out
+
 - reports
