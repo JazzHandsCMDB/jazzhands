@@ -60,9 +60,18 @@ WITH newptype AS (
 	) SELECT property_collection_id, property_name, property_type
 	FROM newpc, newprops
 	RETURNING *
-), rejchain as (
-	INSERT INTO approval_process_chain ( approving_entity
-	) VALUES ('jira-hr') 
+), backtrackchain as (
+	INSERT INTO approval_process_chain ( approving_entity, refresh_all_data
+	) VALUES ('recertify', 'Y') 
+	RETURNING *
+), jirachain as (
+	INSERT into approval_process_chain (
+		approving_entity, 
+		accept_approval_process_chain_id,
+		reject_approval_process_chain_id )
+	SELECT 'jira-hr', c.approval_process_chain_id,
+		r.approval_process_chain_id
+	FROM backtrackchain c, backtrackchain r
 	RETURNING *
 ), chain2 as (
 	INSERT into approval_process_chain ( approving_entity 
@@ -74,7 +83,7 @@ WITH newptype AS (
 		reject_approval_process_chain_id )
 	SELECT 'manager', c.approval_process_chain_id,
 		r.approval_process_chain_id
-	FROM chain2 c, rejchain r
+	FROM chain2 c, jirachain r
 	RETURNING *
 ), process as  (
 	INSERT INTO approval_process (

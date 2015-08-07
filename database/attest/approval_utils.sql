@@ -33,6 +33,139 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION 
+		approval_utils.get_or_create_correct_approval_instance_link(
+	approval_instance_item_id
+					approval_instance_item.approval_instance_item_id%TYPE,
+	approval_instance_link_id	
+					approval_instance_link.approval_instance_link_id%TYPE
+) RETURNS approval_instance_link.approval_instance_link_id%TYPE AS $$
+DECLARE
+	_v			v_account_collection_approval_process%ROWTYPE;
+	_l			approval_instance_link%ROWTYPE;
+	_acaid		INTEGER;
+	_pcid		INTEGER;
+BEGIN
+	EXECUTE 'SELECT * FROM approval_instance_link WHERE
+		approval_instance_link_id = $1
+	' INTO _l USING approval_instance_link_id;
+
+	_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
+
+	IF _v.audit_table = 'account_collection_account' THEN
+		IF _v.audit_seq_id IS NOT 
+					DISTINCT FROM  _l.acct_collection_acct_seq_id THEN
+			_acaid := _v.audit_seq_id;
+			_pcid := NULL;
+		END IF;
+	ELSIF _v.audit_table = 'person_company' THEN
+		_acaid := NULL;
+		_pcid := _v.audit_seq_id;
+		IF _v.audit_seq_id IS NOT DISTINCT FROM  _l.person_company_seq_id THEN
+			_acaid := NULL;
+			_pcid := _v.audit_seq_id;
+		END IF;
+	ELSE
+		RAISE EXCEPTION 'Unable to handle audit table %', _v.audit_table;
+	END IF;
+
+	IF _acaid IS NOT NULL or _pcid IS NOT NULL THEN
+		EXECUTE '
+			INSERT INTO approval_instance_link (
+				acct_collection_acct_seq_id, person_company_seq_id
+			) VALUES ($1, $2) RETURNING *
+		' INTO _l USING _acaid, _pcid;
+		RETURN _l.approval_instance_link_id;
+	ELSE
+		RETURN approval_instance_link_id;
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+
+CREATE OR REPLACE FUNCTION approval_utils.refresh_approval_instance_item(
+	approval_instance_item_id
+					approval_instance_item.approval_instance_item_id%TYPE
+) RETURNS v_account_collection_approval_process AS $$
+DECLARE
+	_i	approval_instance_item.approval_instance_item_id%TYPE;
+	_r	v_account_collection_approval_process%ROWTYPE;
+BEGIN
+	--
+	-- XXX p comes out of one of the three clauses in 
+	-- v_account_collection_approval_process .  It is likely that that view
+	-- needs to be broken into 2 or 3 views joined together so there is no
+	-- code redundancy
+	EXECUTE '
+		WITH p AS (
+		SELECT  login,
+		        account_id,
+		        person_id,
+		        company_id,
+		        manager_account_id,
+		        manager_login,
+		        ''person_company''::text as audit_table,
+		        audit_seq_id,
+		        approval_process_id,
+		        approval_process_chain_id,
+		        approving_entity,
+		        property_val_rhs as approval_label,
+		        human_readable AS approval_lhs,
+		        CASE
+		            WHEN property_val_rhs = ''position_title'' THEN pcm.position_title
+		        END as approval_rhs
+		FROM    v_account_manager_map mm
+		        INNER JOIN v_person_company_audit_map pcm
+		            USING (person_id,company_id)
+		        INNER JOIN v_approval_matrix am
+		            ON property_val_lhs = ''person_company''
+		            AND property_val_rhs = ''position_title''
+		), x AS ( select i.approval_instance_item_id, p.*
+		from	approval_instance_item i
+			inner join approval_instance_step s
+				using (approval_instance_step_id)
+			inner join approval_instance_link l
+				using (approval_instance_link_id)
+			inner join audit.account_collection_account res
+				on res."aud#seq" = l.acct_collection_acct_seq_id
+			 inner join v_account_collection_approval_process p
+				on i.approved_label = p.approval_label
+				and res.account_id = p.account_id
+		UNION
+		select i.approval_instance_item_id, p.*
+		from	approval_instance_item i
+			inner join approval_instance_step s
+				using (approval_instance_step_id)
+			inner join approval_instance_link l
+				using (approval_instance_link_id)
+			inner join audit.person_company res
+				on res."aud#seq" = l.person_company_seq_id
+			 inner join p
+				on i.approved_label = p.approval_label
+				and res.person_id = p.person_id
+				and res.company_id = p.company_id
+		) SELECT 
+			login,
+			account_id,
+			person_id,
+			company_id,
+			manager_account_id,
+			manager_login,
+			audit_table,
+			audit_seq_id,
+			approval_process_id,
+			approval_process_chain_id,
+			approving_entity,
+			approval_label,
+			approval_lhs,
+			approval_rhs
+		FROM x where	approval_instance_item_id = $1
+	' INTO _r USING approval_instance_item_id;
+	RETURN _r;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+	
+
 CREATE OR REPLACE FUNCTION approval_utils.build_attest()
 RETURNS integer AS $$
 DECLARE
@@ -42,6 +175,8 @@ DECLARE
 	ais			approval_instance_step%ROWTYPE;
 	aii			approval_instance_item%ROWTYPE;
 	tally		INTEGER;
+	_acaid		INTEGER;
+	_pcid		INTEGER;
 BEGIN
 	tally := 0;
 
@@ -72,9 +207,20 @@ BEGIN
 				ai.approval_process_id, 'account'
 			) RETURNING * INTO ais;
 		END IF;
-		
-		INSERT INTO approval_instance_link ( acct_collection_acct_seq_id
-			) VALUES ( _r.audit_seq_id ) RETURNING * INTO ail;
+
+		IF _r.audit_table = 'account_collection_account' THEN
+			_acaid := _r.audit_seq_id;
+			_pcid := NULL;
+		ELSIF _R.audit_table = 'person_company' THEN
+			_acaid := NULL;
+			_pcid := _r.audit_seq_id;
+		END IF;
+
+		INSERT INTO approval_instance_link ( 
+			acct_collection_acct_seq_id, person_company_seq_id
+		) VALUES ( 
+			_acaid, _pcid
+		) RETURNING * INTO ail;
 
 		--
 		-- need to create or find the correct step to insert someone into;
@@ -103,6 +249,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 -- returns new approval_instance_item based on how an existing one is
 -- approved.  returns NULL if there is no next step
 --
+-- XXX - I suspect build_attest needs to call this.  There is redundancy
+-- between the two of them.
+--
 CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
@@ -120,7 +269,9 @@ DECLARE
 	_new	approval_instance_item%ROWTYPE;	
 	_acid	account.account_id%TYPE;
 	_step	approval_instance_step.approval_instance_step_id%TYPE;
+	_l		approval_instance_link.approval_instance_link_id%TYPE;
 	apptype	text;
+	_v			v_account_collection_approval_process%ROWTYPE;
 BEGIN
 	EXECUTE '
 		SELECT * 
@@ -158,13 +309,26 @@ BEGIN
 	ELSIF _apc.approving_entity = 'jira-hr' THEN
 		apptype := 'jira-hr';
 		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'recertify' THEN
+		apptype := 'account';
+		EXECUTE '
+			SELECT approver_account_id
+			FROM approval_instance_item  aii
+				INNER JOIN approval_instance_step ais
+					USING (approval_instance_step_id)
+			WHERE approval_instance_item_id IN (
+				SELECT	approval_instance_item_id
+				FROM	approval_instance_item
+				WHERE	next_approval_instance_item_id = $1
+			)
+		' INTO _acid USING approval_instance_item_id;
 	ELSE
 		RAISE EXCEPTION 'Can not handle approving entity %',
-			_apc.appriving_entity;
+			_apc.approving_entity;
 	END IF;
 
-	IF new_value IS NULL THEN
-		new_value := _r.approved_rhs;
+	IF _acid IS NULL THEN
+		RAISE EXCEPTION 'This whould not happen:  Unable to discern approving account.';
 	END IF;
 
 	-- XXX need to contemplate completed here.
@@ -176,6 +340,11 @@ BEGIN
 		AND		approver_account_id = $3
 	' INTO _step USING approval_process_chain_id,
 		approval_instance_id, _acid;
+
+	--
+	-- _new gets built out for all the fields that should get inserted,
+	-- and then at the end is stomped on by what actually gets inserted.
+	--
 
 	IF _step IS NULL THEN
 		EXECUTE '
@@ -189,17 +358,46 @@ BEGIN
 			_acid, apptype;
 	END IF;
 
+	IF _apc.refresh_all_data = 'Y' THEN
+		-- this is called twice, should rethink how to not
+		_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
+		_l := approval_utils.get_or_create_correct_approval_instance_link(
+			approval_instance_item_id,
+			_r.approval_instance_link_id
+		);
+		_new.approval_instance_link_id := _l;
+		_new.approved_label := _v.approval_label;
+		_new.approved_lhs := _v.approval_lhs;
+		_new.approved_rhs := _v.approval_rhs;
+	ELSE
+		_new.approval_instance_link_id := _r.approval_instance_link_id;
+		_new.approved_label := _r.approved_label;
+		_new.approved_lhs := _r.approved_lhs;
+		IF new_value IS NULL THEN
+			_new.approved_rhs := _r.approved_rhs;
+		ELSE
+			_new.approved_rhs := new_value;
+		END IF;
+	END IF;
+
+	RAISE NOTICE 'step is %', _step;
+	RAISE NOTICE 'acid is %', _acid;
+
 	EXECUTE '
 		INSERT INTO approval_instance_item
 			(approval_instance_link_id, approved_label,
 				approved_lhs, approved_rhs, approval_instance_step_id
-			) SELECT approval_instance_link_id, approved_label,
-				approved_lhs, $2, $3
+			) SELECT $2, $3,
+				$4, $5, $6
 			FROM approval_instance_item
 			WHERE approval_instance_item_id = $1
 			RETURNING *
-	' INTO _new USING approval_instance_item_id, new_value, _step;
+	' INTO _new USING approval_instance_item_id, 
+		_new.approval_instance_link_id, _new.approved_label,
+		_new.approved_lhs, _new.approved_rhs,
+		_step;
 
+	RAISE NOTICE 'returning %', _new.approval_instance_item_id;
 	RETURN _new.approval_instance_item_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;

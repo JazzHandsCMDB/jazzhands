@@ -30,14 +30,16 @@ drop VIEW if exists v_account_manager_map;
 -- out what needs to be approved/attested.
 --
 -- 
-drop table if exists approval_process;
+drop table if exists approval_process cascade;
 create table approval_process (
 	approval_process_id		serial,
 	approval_process_name		text not null,
 	approval_process_type		text not null,
 	first_approval_process_chain_id	integer,
-	property_collection_id		integer
+	property_collection_id		integer,
+	primary key (approval_process_id)
 );
+
 
 --
 -- This is the approval chain.  Right now it is either manager or jira-hr.
@@ -48,13 +50,25 @@ create table approval_process (
 --
 -- Likely I'm missing a chain that says 'return to previous'
 --
-drop table if exists approval_process_chain;
+drop table if exists approval_process_chain cascade;
 create table approval_process_chain (
 	approval_process_chain_id	serial,
 	approving_entity		text,
+	refresh_all_data		char(1) DEFAULT 'N' NOT NULL,
 	accept_approval_process_chain_id	integer,
-	reject_approval_process_chain_id	integer
+	reject_approval_process_chain_id	integer,
+	primary key (approval_process_chain_id)
 );
+
+alter table approval_process_chain
+	add constraint fk_accept_approval_process_chain_id 
+	foreign key (accept_approval_process_chain_id)
+	references approval_process_chain(approval_process_chain_id);
+
+alter table approval_process_chain
+	add constraint fk_reject_approval_process_chain_id 
+	foreign key (reject_approval_process_chain_id)
+	references approval_process_chain(approval_process_chain_id);
 
 -- XXX missing attestation properties?
 --
@@ -64,13 +78,19 @@ create table approval_process_chain (
 --
 -- This is built from v_account_collection_approval_process
 --
-drop table if exists approval_instance;
+drop table if exists approval_instance cascade;
 create table approval_instance (
 	approval_instance_id		serial not null,
 	approval_process_id		integer not null,
 	approval_start			timestamp  DEFAULT now() not null,
-	approval_end			timestamp
+	approval_end			timestamp,
+	primary key (approval_instance_id)
 );
+
+alter table approval_instance
+	add constraint fk_approval_process_id 
+	foreign key (approval_process_id)
+	references approval_process(approval_process_id);
 
 --
 -- Its possible that this just needs to die and item and step get folded
@@ -90,7 +110,7 @@ create table approval_instance (
 -- I need to reconcile "show me all the stuff outstanding for ME, though.
 -- which is gleaned from here
 --
-drop table if exists approval_instance_step;
+drop table if exists approval_instance_step cascade;
 create table approval_instance_step (
 	approval_instance_step_id	serial not null,
 	approval_instance_id		integer not null,
@@ -101,19 +121,44 @@ create table approval_instance_step (
 	approver_account_id		integer not null,
 	actual_approver_account_id	integer,
 	external_reference_name	text,
-	is_completed			char(1) DEFAULT 'N' not null
+	is_completed			char(1) DEFAULT 'N' not null,
+	primary key (approval_instance_step_id)
 );
+
+alter table approval_instance_step
+	add constraint fk_approval_instance_id 
+	foreign key (approval_instance_id)
+	references approval_instance(approval_instance_id);
+
+alter table approval_instance_step
+	add constraint fk_approval_process_chain_id 
+	foreign key (approval_process_chain_id)
+	references approval_process_chain(approval_process_chain_id);
+
+create index on approval_instance_step(approval_type);
+
+alter table approval_instance_step
+	add constraint fk_approver_account_id 
+	foreign key (approver_account_id)
+	references account(account_id);
+
+alter table approval_instance_step
+	add constraint fk_actual_approver_account_id 
+	foreign key (actual_approver_account_id)
+	references account(account_id);
 
 -- These items may want to be folded into approval_instance_item
 --
 -- These are just fk's to all the audit table rows that are related to a
 -- given item"
 --
-drop table if exists approval_instance_link;
+drop table if exists approval_instance_link cascade;
 create table approval_instance_link (
 	approval_instance_link_id	serial not null,
+	acct_collection_acct_seq_id	integer,
+	person_company_seq_id	integer,
 	property_seq_id			integer,
-	acct_collection_acct_seq_id	integer
+	primary key (approval_instance_link_id)
 );
 
 --
@@ -121,7 +166,7 @@ create table approval_instance_link (
 -- presented to users to check off.  what to do next comes from the the
 -- process chain
 --
-drop table if exists approval_instance_item;
+drop table if exists approval_instance_item cascade;
 create table approval_instance_item (
 	approval_instance_item_id	serial not null,
 	approval_instance_link_id	integer not null,
@@ -132,8 +177,24 @@ create table approval_instance_item (
 	approved_rhs			text,
 	is_approved				char(1),
 	approved_account_id		integer,
-	approved_device_id		integer	-- where the approval came from
+	approved_device_id		integer,	-- where the approval came from
+	primary key (approval_instance_item_id)
 );
+
+alter table approval_instance_item
+	add constraint fk_approval_instance_link_id 
+	foreign key (approval_instance_link_id)
+	references approval_instance_link(approval_instance_link_id);
+
+alter table approval_instance_item
+	add constraint fk_approval_instance_step_id 
+	foreign key (approval_instance_step_id)
+	references approval_instance_step(approval_instance_step_id);
+
+alter table approval_instance_item
+	add constraint fk_approved_account_id 
+	foreign key (approved_account_id)
+	references account(account_id);
 
 --------------------------------- views -----------------------------------
 
@@ -162,7 +223,7 @@ WITH dude_base AS (
 	    coalesce(p.preferred_last_name, p.last_name) as last_name,
 	    pc.manager_person_id
 	FROM    account a
-		INNER JOIN person_company pc USING (person_id,company_id)
+		INNER JOIN person_company pc USING (company_id,person_id)
 		INNER JOIN person p USING (person_id)
 	WHERE   a.is_enabled = 'Y'
 	AND     a.account_role = 'primary' and a.account_type = 'person'
@@ -238,8 +299,11 @@ WITH foo AS (
         ORDER BY manager_account_id, account_id
 ) SELECT  login,
 		account_id,
+		person_id,
+		company_id,
 		manager_account_id,
 		manager_login,
+		'account_collection_account'::text as audit_table,
 		audit_seq_id,
 		approval_process_id,
 		approval_process_chain_id,
@@ -251,8 +315,11 @@ FROM foo
 UNION
 SELECT  mm.login,
 		mm.account_id,
+		mm.person_id,
+		mm.company_id,
 		mm.manager_account_id,
 		mm.manager_login,
+		'account_collection_account'::text as audit_table,
 		mm.audit_seq_id,
 		approval_process_id,
 		approval_process_chain_id,
@@ -270,8 +337,11 @@ FROM v_approval_matrix mx
 UNION
 SELECT  login,
 		account_id,
+		person_id,
+		company_id,
 		manager_account_id,
 		manager_login,
+		'person_company'::text as audit_table,
 		audit_seq_id,
 		approval_process_id,
 		approval_process_chain_id,
@@ -291,6 +361,10 @@ FROM	v_account_manager_map mm
 where manager_account_id != account_id
 order by manager_login, account_id, approval_label
 ;
+
+-- XXX trigger that says when the last item is closed, complete the step
+-- XXX trigger that does not allow you to add items if the step is complete
+-- XXX triggers should also consider locking other tables
 
 grant select on all tables in schema jazzhands to ro_role;
 grant insert,update,delete on all tables in schema jazzhands to iud_role;

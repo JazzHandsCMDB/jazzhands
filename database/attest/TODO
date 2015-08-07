@@ -1,0 +1,19 @@
+ - numerous XXX's
+ - approval vs approved case, consider syncing
+ - recertify chain reject needs to go back to jira-hr
+   this will create a loop, which is likely fine EXCEPT...
+   	it should ALWAYS go to a new step, and not to an existing one.
+	not sure if this should be inferred or approve should say "do it"
+
+	This may not be practical because of the current implementation
+	but if items are approved individually and not all are done, then
+	it can attach something to a new step.
+
+	the issue is when the approval_process_chain_id is the same, which
+	it would be for a new jira-hr and a new recertify unless they are
+	completed.  This should not happen with jira-hr, but could happen
+	with a partial recertify.
+
+- triggers
+
+- reports

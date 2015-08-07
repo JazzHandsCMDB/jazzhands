@@ -116,7 +116,7 @@ sub open_jira_issue($$$;$) {
 	}
 }
 
-sub jira_req($$$) {
+sub jira_req($$;$) {
 	my ( $what, $action, $body ) = @_;
 
 	$action = 'GET' if ( !$action );
@@ -148,82 +148,132 @@ sub jira_req($$$) {
 
 my $dbh = JazzHands::DBI->connect($service, {AutoCommit => 0}) || die $JazzHands::DBI::errstr;
 
-#
-# Build $map up to have a list of dcs and a human readable list of names that
-# should have access
-#
-my $map = {};
-my $sth = $dbh->prepare_cached(qq{
-       SELECT approver_account_id, aii.*, ais.is_completed, a.login
-        FROM    approval_instance ai
-                INNER JOIN approval_instance_step ais
-                    USING (approval_instance_id)
-                INNER JOIN approval_instance_item aii
-                    USING (approval_instance_step_id)
-                INNER JOIN approval_instance_link ail
-                    USING (approval_instance_link_id)
-		INNER JOIN account a ON
-			a.account_id = ais.approver_account_id
-        Where     approval_type = 'jira-hr'
-        AND     ais.is_completed = 'N'
-		AND		ais.external_reference_name IS NULL
-        ORDER BY approval_instance_step_id, approved_lhs, approved_label
+sub open_new_issues {
+	#
+	# Build $map up to have a list of dcs and a human readable list of names that
+	# should have access
+	#
+	my $map = {};
+	my $sth = $dbh->prepare_cached(qq{
+	       SELECT approver_account_id, aii.*, ais.is_completed, a.login
+	        FROM    approval_instance ai
+	                INNER JOIN approval_instance_step ais
+	                    USING (approval_instance_id)
+	                INNER JOIN approval_instance_item aii
+	                    USING (approval_instance_step_id)
+	                INNER JOIN approval_instance_link ail
+	                    USING (approval_instance_link_id)
+			INNER JOIN account a ON
+				a.account_id = ais.approver_account_id
+	        Where     approval_type = 'jira-hr'
+	        AND     ais.is_completed = 'N'
+			AND		ais.external_reference_name IS NULL
+	        ORDER BY approval_instance_step_id, approved_lhs, approved_label
+	}
+	) || die $dbh->errstr;
 
+	$sth->execute || die $sth->errstr;
 
-}
-) || die $dbh->errstr;
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		my $step = $hr->{approval_instance_step_id};
+		my $lhs = $hr->{approved_lhs};
 
-$sth->execute || die $sth->errstr;
+		if(!defined( $map->{$step}->{ $lhs })) {
+			$map->{$step}->{login} = $hr->{login};
+			$map->{$step}->{approval_instance_step_id} = $step;
+		}
 
-while ( my $hr = $sth->fetchrow_hashref ) {
-	my $step = $hr->{approval_instance_step_id};
-	my $lhs = $hr->{approved_lhs};
+		$map->{$step}->{changes}->{$lhs}->{ $hr->{approved_label} } =
+				$hr->{approved_rhs};
 
-	if(!defined( $map->{$step}->{ $lhs })) {
-		$map->{$step}->{login} = $hr->{login};
-		$map->{$step}->{approval_instance_step_id} = $step;
+		#push(@ {$map->{$step}->{changes}->{$lhs}},
+		#			{ $hr->{approved_label} => $hr->{approved_rhs} }
+		#);
+
 	}
 
-	$map->{$step}->{changes}->{$lhs}->{ $hr->{approved_label} } =
-			$hr->{approved_rhs};
+	$sth->finish;
 
-	#push(@ {$map->{$step}->{changes}->{$lhs}},
-	#			{ $hr->{approved_label} => $hr->{approved_rhs} }
-	#);
-	
-}
+	my $header = qq{
+		During the regular audit of ADP information, the following changes
+		needed to be made.  Please update ADP, accordingly.
+	};
 
-$sth->finish;
+	my $wsth = $dbh->prepare_cached(qq{
+		UPDATE approval_instance_step
+		SET external_reference_name = :name
+		WHERE approval_instance_step_id = :id
+	}) || die $dbh->errstr;
 
-my $header = qq{
-	During the regular audit of ADP information, the following changes
-	needed to be made.  Please update ADP, accordingly.
-};
-
-my $wsth = $dbh->prepare_cached(qq{
-	UPDATE approval_instance_step
-	SET external_reference_name = :name
-	WHERE approval_instance_step_id = :id
-}) || die $dbh->errstr;
-
-foreach my $step ( sort keys( %{$map} ) ) {
-	my $msg = "$header\n";
-	my $login = $map->{$step}->{login};
-	foreach my $dude ( sort keys %{$map->{$step}->{changes}} ) {
-		$msg .= "\nChanges for $dude:\n";
-		my $x = $map->{$step}->{changes}->{$dude};
-		$msg .= join("\n", map{ "* $_ becomes '".$x->{$_}."'"
-				} keys %{$x})."\n";
+	foreach my $step ( sort keys( %{$map} ) ) {
+		my $msg = "$header\n";
+		my $login = $map->{$step}->{login};
+		foreach my $dude ( sort keys %{$map->{$step}->{changes}} ) {
+			$msg .= "\nChanges for $dude:\n";
+			my $x = $map->{$step}->{changes}->{$dude};
+			$msg .= join("\n", map{ "* $_ becomes '".$x->{$_}."'"
+					} keys %{$x})."\n";
+		}
+		$msg =~ s/^\t{1,3}//mg;
+		my $summary = "Organizational Corrections for $login";
+		my $jresp = open_jira_issue( $login, $msg, $summary, $dryrun );
+		my $jid = $jresp->{key};
+		$wsth->bind_param(':name', $jid) || die $sth->errstr;
+		$wsth->bind_param(':id', $step) || die $sth->errstr;
+		$wsth->execute || die $sth->errstr;
+		$wsth->finish;
 	}
-	$msg =~ s/^\t{1,3}//mg;
-	my $summary = "Organizational Corrections for $login";
-	my $jresp = open_jira_issue( $login, $msg, $summary, $dryrun );
-	my $jid = $jresp->{key};
-	$wsth->bind_param(':name', $jid) || die $sth->errstr;
-	$wsth->bind_param(':id', $step) || die $sth->errstr;
-	$wsth->execute || die $sth->errstr;
-	$wsth->finish;
 }
+
+sub check_pending_issues {
+	my $sth = $dbh->prepare_cached(qq{
+	       SELECT approver_account_id, aii.*, ais.is_completed, a.login,
+					ais.external_reference_name
+	        FROM    approval_instance ai
+	                INNER JOIN approval_instance_step ais
+	                    USING (approval_instance_id)
+	                INNER JOIN approval_instance_item aii
+	                    USING (approval_instance_step_id)
+	                INNER JOIN approval_instance_link ail
+	                    USING (approval_instance_link_id)
+			INNER JOIN account a ON
+				a.account_id = ais.approver_account_id
+	        Where     approval_type = 'jira-hr'
+	        AND     ais.is_completed = 'N'
+			AND		ais.external_reference_name IS NOT NULL
+	        ORDER BY approval_instance_step_id, approved_lhs, approved_label
+	}
+	) || die $dbh->errstr;
+
+	$sth->execute || die $sth->errstr;
+
+	my $cache  = {};
+	while(my $hr = $sth->fetchrow_hashref) {
+		my $key = $hr->{external_reference_name};
+
+		my $status;
+		if(exists( $cache->{$key} )) {
+			$status = $cache->{$key};
+		} else {
+			my $r = jira_req("issue/$key", 'GET');
+
+
+			if($r->{fields} && $r->{fields}->{status}) {
+				my $stat = $r->{fields}->{status};
+				if($stat->{name} eq 'Closed') {
+					$status = $cache->{$key} = $stat->{name};
+				}
+			}
+		}
+		warn "status is $status";
+	}
+
+	$sth->finish;
+}
+
+check_pending_issues();
+open_new_issues();
+
 
 $dbh->commit;
 
