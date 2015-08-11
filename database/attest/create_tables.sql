@@ -362,6 +362,87 @@ where manager_account_id != account_id
 order by manager_login, account_id, approval_label
 ;
 
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION approval_instance_step_auto_complete()
+RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		SELECT	count(*)
+		INTO	_tally
+		FROM	approval_instance_step
+		WHERE	approval_instance_step_id = NEW.approval_instance_step_id
+		AND		is_completed = 'Y';
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'Completed attestation cycles may not have items added';
+		END IF;
+	RETURN NEW;
+	END IF;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS approval_instance_step_auto_complete ON
+	approval_instance_item;
+CREATE TRIGGER trigger_approval_instance_step_auto_complete 
+	BEFORE INSERT 
+        ON approval_instance_item
+        FOR EACH ROW
+        EXECUTE PROCEDURE approval_instance_step_auto_complete();
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION approval_instance_step_completed_immutable()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF ( OLD.is_completed ='Y' AND NEW.is_completed 'N' ) THEN
+		RAISE EXCEPTION 'Approval completion may not be reverted';
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS approval_instance_step_completed_immutable ON
+	approval_instance_step;
+CREATE TRIGGER trigger_approval_instance_step_completed_immutable 
+	BEFORE UPDATE OF is_completed 
+        ON approval_instance_step
+        FOR EACH ROW
+        EXECUTE PROCEDURE approval_instance_step_completed_immutable();
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION approval_instance_item_approved_immutable()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF OLD.is_approved != NEW.is_approved THEN
+		RAISE EXCEPTION 'Approval may not be changed';
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS approval_instance_item_approved_immutable ON
+	approval_instance_item;
+CREATE TRIGGER trigger_approval_instance_item_approved_immutable 
+	BEFORE UPDATE OF is_approved 
+        ON approval_instance_item
+        FOR EACH ROW
+        EXECUTE PROCEDURE approval_instance_item_approved_immutable();
+
+-------------------------------------------------------------------------------
+
+
 -- XXX trigger that says when the last item is closed, complete the step
 -- XXX trigger that does not allow you to add items if the step is complete
 -- XXX triggers should also consider locking other tables

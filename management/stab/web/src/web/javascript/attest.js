@@ -31,6 +31,7 @@ $(document).ready(function(){
 	$("table.attest").on('click', ".attesttoggle", function(event) {
 		var other;
 		var dodis = false;
+
 		if( $(event.target).hasClass('approve') ) {
 			other = $(event.target).closest('tr').find('.disapprove');
 		} else {
@@ -47,15 +48,26 @@ $(document).ready(function(){
 			var dis = $(event.target).closest('tr').find('div.correction').first();
 			var id = $(dis).attr('id');
 			var newid = "fix_"+id;
+			var iput = "input#"+newid;
 
-			if( ! $("input#"+newid).length ) {
+			if( ! $(iput).length ) {
 				var box = $("<input />", { 
 					name: newid,
 					id: newid,
 					class: 'correction'
 				});
 				$(box).insertAfter(dis);
+			} else {
+				$(iput).prop("disabled", false);
+				$(iput).removeClass('irrelevant');
 			}
+		} else {
+			$(event.target).closest('tr').find('input.correction').each(
+				function(iter, obj) {
+					$(obj).prop("disabled", true);
+					$(obj).addClass('irrelevant');
+				}
+			);
 		}
 
 	});
@@ -70,6 +82,12 @@ $(document).ready(function(){
 			$(event.target).closest('table.attest').find('input.disapprove').each( function(iter, obj) {
 				$(obj).prop('checked', false);
 			});
+			$(event.target).closest('table.attest').find('input.correction').each(
+				function(iter, obj) {
+					$(obj).prop("disabled", true);
+					$(obj).addClass('irrelevant');
+				}
+			);
 		}
 	});
 

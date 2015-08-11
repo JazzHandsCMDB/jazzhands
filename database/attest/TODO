@@ -13,6 +13,7 @@
 	it would be for a new jira-hr and a new recertify unless they are
 	completed.  This should not happen with jira-hr, but could happen
 	with a partial recertify.
+- EXCEPTION error codes
 
 - triggers
 

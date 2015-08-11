@@ -15,7 +15,7 @@
 
 \set ON_ERROR_STOP
 
-drop schema approval_utils cascade;
+drop schema IF EXISTS approval_utils cascade;
 
 \i create_tables.sql
 \i pseudo_data.sql
