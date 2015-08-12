@@ -232,6 +232,7 @@ WITH dude_base AS (
 		INNER JOIN person_company pc USING (company_id,person_id)
 		INNER JOIN person p USING (person_id)
 	WHERE   a.is_enabled = 'Y'
+	AND		pc.person_company_relation = 'employee'
 	AND     a.account_role = 'primary' and a.account_type = 'person'
 ), dude AS (
 	SELECT *,
