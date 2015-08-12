@@ -88,6 +88,8 @@ sub dump_attest_loop($$;$$) {
 
 	my $t = $newt;
 
+	my $count =0;
+
 	my $lastap = undef;
 	my $lastapc = undef;
 
@@ -95,7 +97,7 @@ sub dump_attest_loop($$;$$) {
 	my $classnote = 0;
 	my $laststep;
 	while(my $hr = $sth->fetchrow_hashref) {
-
+		$count++;
 		if($laststep) {
 			if($hr->{_dbx('approval_instance_step_id')} != $laststep) {
 				$laststep = $hr->{_dbx('approval_instance_step_id')};
@@ -213,12 +215,16 @@ sub dump_attest_loop($$;$$) {
 			$cgi->td($linkfwd),
 		);
 	}
-	print $t, $cgi->end_table, "\n\n";
-	undef $t;
+	if($count) {
+		print $t, $cgi->end_table, "\n\n";
+		undef $t;
 
-	print $cgi->br, "\n";
-	print $cgi->span({-class => 'attestsubmit'}, 
-		$cgi->submit({-class=>'attestsubmit'})), "\n";
+		print $cgi->br, "\n";
+		print $cgi->span({-class => 'attestsubmit'}, 
+			$cgi->submit({-class=>'attestsubmit'})), "\n";
+	} else {
+		print "There are no outstanding issues";
+	}
 	print $cgi->end_form, "\n";
 	print $cgi->end_html, "\n";
 }
@@ -234,6 +240,13 @@ sub do_my_attest {
 	print $cgi->h4( { -align => 'center' }, "Outstanding Attestations" );
 
 	my $acctid = $stab->get_account_id($actas);
+
+	print $cgi->div({-class=>'directions'},
+		q{For each table, please approve (Y) or deny (N) each item.
+			For items that are (N) you must enter a correction in the last
+			column before submitting.
+		}
+	);
 
 	# XXX - need to make it so you can only act as people who work for you!
 	# XXX - also need to apply this to the thing that applies the attestation

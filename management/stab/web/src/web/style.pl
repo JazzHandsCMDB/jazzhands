@@ -392,6 +392,13 @@ div.description {
 	
 }
 
+div.directions {
+	text-align: center;
+	margin: auto;
+	width: 60%;
+	
+}
+
 div.process { background: orange; }
 div.chain { background: lightgrey; }
 
