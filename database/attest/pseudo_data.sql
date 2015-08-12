@@ -61,27 +61,37 @@ WITH newptype AS (
 	FROM newpc, newprops
 	RETURNING *
 ), backtrackchain as (
-	INSERT INTO approval_process_chain ( approving_entity, refresh_all_data
-	) VALUES ('recertify', 'Y') 
+	INSERT INTO approval_process_chain ( approving_entity, description,
+		refresh_all_data
+	) VALUES ('recertify', 'Changes sent to Jira',
+	'Y')
 	RETURNING *
 ), jirachain as (
 	INSERT into approval_process_chain (
 		approving_entity, 
+		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 'jira-hr', c.approval_process_chain_id,
+	SELECT 'jira-hr', 
+		'Changes sent to Jira ',
+		c.approval_process_chain_id,
 		r.approval_process_chain_id
 	FROM backtrackchain c, backtrackchain r
 	RETURNING *
 ), chain2 as (
-	INSERT into approval_process_chain ( approving_entity 
-	) values ('manager') RETURNING *
+	INSERT into approval_process_chain ( approving_entity, description
+	) values ('manager',
+		'Approve organizational info approved by your direct report'
+	) RETURNING *
 ), chain as (
 	INSERT into approval_process_chain (
 		approving_entity, 
+		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 'manager', c.approval_process_chain_id,
+	SELECT 'manager', 
+		'Approve your direct reports, their title and functional team',
+		c.approval_process_chain_id,
 		r.approval_process_chain_id
 	FROM chain2 c, jirachain r
 	RETURNING *
@@ -90,10 +100,12 @@ WITH newptype AS (
 		first_approval_process_chain_id,
 		approval_process_name,
 		approval_process_type,
+		description,
 		property_collection_id
 	) SELECT approval_process_chain_id, 
 		'ReportingAttest',
 		'attestation',
+		'Company Wide Quarterly certification direct reports and thier information',
 		property_collection_id
 		FROM newpc, chain
 	RETURNING *

@@ -35,6 +35,7 @@ create table approval_process (
 	approval_process_id		serial,
 	approval_process_name		text not null,
 	approval_process_type		text not null,
+	description					text,
 	first_approval_process_chain_id	integer,
 	property_collection_id		integer,
 	primary key (approval_process_id)
@@ -53,6 +54,7 @@ create table approval_process (
 drop table if exists approval_process_chain cascade;
 create table approval_process_chain (
 	approval_process_chain_id	serial,
+	description					text,
 	approving_entity		text,
 	refresh_all_data		char(1) DEFAULT 'N' NOT NULL,
 	accept_approval_process_chain_id	integer,
@@ -82,6 +84,7 @@ drop table if exists approval_instance cascade;
 create table approval_instance (
 	approval_instance_id		serial not null,
 	approval_process_id		integer not null,
+	description				text,
 	approval_start			timestamp  DEFAULT now() not null,
 	approval_end			timestamp,
 	primary key (approval_instance_id)
@@ -115,6 +118,7 @@ create table approval_instance_step (
 	approval_instance_step_id	serial not null,
 	approval_instance_id		integer not null,
 	approval_process_chain_id	integer not null,
+	description				text,
 	approval_type				text not null,
 	approval_instance_step_start	timestamp DEFAULT now() not null,
 	approval_instance_step_end	timestamp,
@@ -205,7 +209,9 @@ SELECT	ap.approval_process_id, ap.first_approval_process_chain_id,
 		p.property_type, p.property_value,
 		split_part(p.property_value, ':', 1) as property_val_lhs,
 		split_part(p.property_value, ':', 2) as property_val_rhs,
-		c.approval_process_chain_id, c.approving_entity
+		c.approval_process_chain_id, c.approving_entity,
+		ap.description as approval_process_description,
+		c.description as approval_chain_description
 from	approval_process ap
 		INNER JOIN property_collection pc USING (property_collection_id)
 		INNER JOIN property_collection_property pcp USING (property_collection_id)
@@ -308,6 +314,8 @@ WITH foo AS (
 		approval_process_id,
 		approval_process_chain_id,
 		approving_entity,
+		approval_process_description,
+		approval_chain_description,
 		account_collection_type as approval_label,
 		human_readable AS approval_lhs,
 		account_collection_name as approval_rhs
@@ -324,6 +332,8 @@ SELECT  mm.login,
 		approval_process_id,
 		approval_process_chain_id,
 		approving_entity,
+		approval_process_description,
+		approval_chain_description,
 		approval_process_name as approval_label,
 		mm.human_readable AS approval_lhs,
 		concat ('Reports to ',mm.manager_login) AS approval_rhs	
@@ -346,6 +356,8 @@ SELECT  login,
 		approval_process_id,
 		approval_process_chain_id,
 		approving_entity,
+		approval_process_description,
+		approval_chain_description,
 		property_val_rhs as approval_label,
 		human_readable AS approval_lhs,
 		CASE 

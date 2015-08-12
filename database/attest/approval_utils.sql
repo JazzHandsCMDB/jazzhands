@@ -190,9 +190,10 @@ BEGIN
 		IF (ai.approval_process_id IS NULL OR
 				ai.approval_process_id != _r.approval_process_id) THEN
 			INSERT INTO approval_instance ( 
-				approval_process_id 
+				approval_process_id, description
 			) VALUES ( 
-				_r.approval_process_id 
+				_r.approval_process_id, 
+				_r.approval_process_description || ' ' || now()::text
 			) RETURNING * INTO ai;
 		END IF;
 
@@ -200,11 +201,13 @@ BEGIN
 				ais.approver_account_id != _r.manager_account_id THEN
 
 			INSERT INTO approval_instance_step (
-				approval_process_chain_id, approver_account_id,
-				approval_instance_id, approval_type
+				approval_process_chain_id, approver_account_id, 
+				approval_instance_id, approval_type, 
+				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
-				ai.approval_process_id, 'account'
+				ai.approval_process_id, 'account',
+				concat(_r.approval_chain_description, ' - ', _r.manager_login)
 			) RETURNING * INTO ais;
 		END IF;
 
@@ -350,12 +353,14 @@ BEGIN
 		EXECUTE '
 			INSERT INTO approval_instance_step (
 				approval_instance_id, approval_process_chain_id,
-				approver_account_id, approval_type
+				approver_account_id, approval_type, description
 			) VALUES (
-				$1, $2, $3, $4
+				$1, $2, $3, $4, $5
 			) RETURNING approval_instance_step_id
 		' INTO _step USING approval_instance_id, approval_process_chain_id,
-			_acid, apptype;
+			_acid, apptype, 
+			concat(_apc.description, ' for ', _r.approver_account_id, ' by ',
+			approving_account_id);
 	END IF;
 
 	IF _apc.refresh_all_data = 'Y' THEN

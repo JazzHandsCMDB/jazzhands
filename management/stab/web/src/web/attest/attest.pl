@@ -36,7 +36,7 @@ sub process_attestment {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
-	print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	# XXX - need to validate that this is ok.
 	my $acctid = $stab->cgi_parse_param('accting_as_account');
@@ -103,6 +103,6 @@ sub process_attestment {
 	}
 
 	$stab->commit;
-	$stab->msg_return("Submitted $count items Succesfully.");
+	$stab->msg_return("Submitted $count items Succesfully.", undef, 1);
 	0;
 }

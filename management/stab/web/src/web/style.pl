@@ -363,8 +363,7 @@ div.ncmanip {
 
 table.attest {
 	border: 2px solid;
-	text-align: center;
-	display: inline-block;
+	margin: auto;
 }
 
 table.attest tbody tr.odd {
@@ -381,10 +380,20 @@ table.attest tbody tr.even {
 }
 
 .disabled  {
-	pointer-events: none;
-	color: #AAA;
-	opacity: .5;
+	/*pointer-events: none;*/
+	opacity: .9;
+	text-decoration: line-through;
 }
+
+div.description {
+	border: 3px solid;
+	text-align: center;
+	margin: auto;
+	
+}
+
+div.process { background: orange; }
+div.chain { background: lightgrey; }
 
 END
 	undef $stab;
