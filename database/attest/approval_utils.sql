@@ -496,3 +496,5 @@ revoke all on schema approval_utils from public;
 revoke all on  all functions in schema approval_utils from public;
 grant execute on all functions in schema approval_utils to iud_role;
 
+grant usage on schema approval_utils to stab_role;
+grant execute on all functions in schema approval_utils to stab_role;
