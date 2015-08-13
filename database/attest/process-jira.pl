@@ -27,6 +27,7 @@ use Net::SSLeay;
 use Pod::Usage;
 use Getopt::Long;
 use JazzHands::AppAuthAL;
+use IO::Select;
 
 =head1 NAME
 
@@ -265,7 +266,7 @@ sub check_pending_issues {
 				}
 			}
 		}
-		warn "status is $status";
+		warn "$key -- status is ", (defined($status))?$status:"unset", "\n";
 	}
 
 	$sth->finish;
@@ -273,9 +274,57 @@ sub check_pending_issues {
 
 check_pending_issues();
 open_new_issues();
-
-
 $dbh->commit;
+
+$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
+
+my $pgsock = $dbh->{pg_socket};
+
+my $timeout = shift(@ARGV) || 60;
+
+# NOTE: AutoCommit must be set (or some similar behavior) while waiting on the
+# socket, otherwise the notifies never come through.
+
+my $s = IO::Select->new();
+$s->add($pgsock);
+$dbh->{AutoCommit} = 1;
+do {
+	# warn "waiting for IO::Select\n";
+	my @ready = $s->can_read($timeout);
+	warn "wake up - ", $#ready, "\n";
+
+	check_pending_issues();
+
+	$dbh->{AutoCommit} = 0;
+	foreach my $fh (@ready) {
+		if($fh == $pgsock) {
+			my $tally = 0;
+			while(my $notify = $dbh->pg_notifies) {
+				$tally++;
+				my ($name, $pid, $payload) = @{$notify};
+				print "notify received: $name / $pid / $payload";
+			}
+			warn "received $tally notifies\n";
+			open_new_issues();
+		} else {
+			warn "received fh $fh, which was unexpected.\n";
+		}
+			
+
+		if(0 && !$dbh->ping()) {
+			$dbh->disconnect;
+			$dbh = undef;
+			$dbh = reconnect();
+			$s->remove($pgsock);
+			$pgsock = $dbh->{pg_socket};
+			$s->add($pgsock);
+		}
+	}
+	$dbh->commit;
+	$dbh->{AutoCommit} = 1;
+	$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
+} while(1);
+
 
 END {
 	if ($dbh) {

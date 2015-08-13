@@ -401,7 +401,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS approval_instance_step_auto_complete ON
+DROP TRIGGER IF EXISTS trigger_approval_instance_step_auto_complete ON
 	approval_instance_item;
 CREATE TRIGGER trigger_approval_instance_step_auto_complete 
 	BEFORE INSERT 
@@ -423,7 +423,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS approval_instance_step_completed_immutable ON
+DROP TRIGGER IF EXISTS trigger_approval_instance_step_completed_immutable ON
 	approval_instance_step;
 CREATE TRIGGER trigger_approval_instance_step_completed_immutable 
 	BEFORE UPDATE OF is_completed 
@@ -445,7 +445,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS approval_instance_item_approved_immutable ON
+DROP TRIGGER IF EXISTS trigger_approval_instance_item_approved_immutable ON
 	approval_instance_item;
 CREATE TRIGGER trigger_approval_instance_item_approved_immutable 
 	BEFORE UPDATE OF is_approved 
@@ -453,6 +453,28 @@ CREATE TRIGGER trigger_approval_instance_item_approved_immutable
         FOR EACH ROW
         EXECUTE PROCEDURE approval_instance_item_approved_immutable();
 
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION approval_instance_item_approval_notify()
+RETURNS TRIGGER AS $$
+BEGIN
+	NOTIFY approval_instance_item_approval_change;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_approval_instance_item_approval_notify ON
+	approval_instance_item;
+CREATE TRIGGER trigger_approval_instance_item_approval_notify 
+	AFTER INSERT OR  UPDATE OF is_approved 
+        ON approval_instance_item
+        EXECUTE PROCEDURE approval_instance_item_approval_notify();
+
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 
 

@@ -172,6 +172,7 @@ sub dump_attest_loop($$;$$) {
 				my ($url) = $sth->fetchrow_array;
 				$sth->finish;
 				if($url) {
+					$url =~ s,/$,,;
 					$ref = $cgi->a({-href=>"$url/browse/$ref",
 							-target => "stab-$ref"}, $ref);
 				}
