@@ -93,6 +93,22 @@ $ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
 $ENV{'HTTPS_DEBUG'}                  = 0;
 my $jiraapiroot = "$jiraroot/rest/api/2";
 
+sub get_account_id($$) {
+	my($dbh, $login) = @_;
+
+	my $sth = $dbh->prepare_cached(qq{
+		select	account_id
+		from	v_corp_family_account
+		where	login = ?
+		LIMIT 1
+	}) || die $dbh->errstr;
+
+	$sth->execute($login) || die $sth->errstr;
+	my($id) = $sth->fetchrow_array;
+	$sth->finish;
+	$id;
+}
+
 sub open_jira_issue($$$;$) {
 	my ( $login, $msg, $summary, $dryrun ) = @_;
 
@@ -248,28 +264,43 @@ sub check_pending_issues {
 
 	$sth->execute || die $sth->errstr;
 
+	my $wsth = $dbh->prepare_cached(qq{
+		SELECT approval_utils.approve(
+			approval_instance_item_id := ?,
+			approved := ?,
+			approving_account_id := ?
+		);
+	}) || die $dbh->errstr; 
+
 	my $cache  = {};
 	while(my $hr = $sth->fetchrow_hashref) {
+		my $aii_id = $hr->{approval_instance_item_id};
 		my $key = $hr->{external_reference_name};
 
-		my $status;
-		if(exists( $cache->{$key} )) {
-			$status = $cache->{$key};
-		} else {
+		if(! exists( $cache->{$key} )) {
 			my $r = jira_req("issue/$key", 'GET');
-
 
 			if($r->{fields} && $r->{fields}->{status}) {
 				my $stat = $r->{fields}->{status};
-				if($stat->{name} eq 'Closed') {
-					$status = $cache->{$key} = $stat->{name};
+				if($stat->{name} =~ /^(Closed|Resolved)/) {
+					$cache->{$key}->{status} = $stat->{name};
+					$cache->{$key}->{approved} = 'Y'
 				}
 			}
+			if($r->{fields} && $r->{fields}->{assignee}) {
+				my $owner = $r->{fields}->{assignee};
+				$cache->{$key}->{assignee} = $owner->{name};
+				$cache->{$key}->{acctid} = get_account_id($dbh, $owner->{name});
+			}
+			# $r->{fields}->{reporter}
 		}
-		warn "$key -- status is ", (defined($status))?$status:"unset", "\n";
+		if(defined($cache->{$key}->{approved})) {
+			warn "resolving $aii_id\n";
+			$wsth->execute($aii_id, $cache->{$key}->{approved}, $cache->{$key}->{acctid}) || die $wsth->errstr;
+		}
 	}
-
 	$sth->finish;
+	$wsth->finish;
 }
 
 check_pending_issues();

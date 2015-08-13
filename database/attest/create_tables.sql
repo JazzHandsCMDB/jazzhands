@@ -384,6 +384,11 @@ RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
 BEGIN
+	--
+	-- on insert, if the parent was already marked as completed, fail.
+	-- arguably, this should happen on updates as well
+	--	possibnly should move this to a before trigger
+	--
 	IF TG_OP = 'INSERT' THEN
 		SELECT	count(*)
 		INTO	_tally
@@ -394,8 +399,23 @@ BEGIN
 		IF _tally > 0 THEN
 			RAISE EXCEPTION 'Completed attestation cycles may not have items added';
 		END IF;
-	RETURN NEW;
 	END IF;
+
+	IF NEW.is_approved IS NOT NULL THEN
+		SELECT	count(*)
+		INTO	_tally
+		FROM	approval_instance_item
+		WHERE	approval_instance_step_id = NEW.approval_instance_step_id
+		AND		approval_instance_item_id != NEW.approval_instance_item_id;
+
+		IF _tally = 0 THEN
+			UPDATE	approval_instance_step
+			SET		is_completed = 'Y'
+			WHERE	approval_instance_step_id = NEW.approval_instance_step_id;
+		END IF;
+		
+	END IF;
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -404,7 +424,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_approval_instance_step_auto_complete ON
 	approval_instance_item;
 CREATE TRIGGER trigger_approval_instance_step_auto_complete 
-	BEFORE INSERT 
+	AFTER INSERT OR UPDATE OF is_approved
         ON approval_instance_item
         FOR EACH ROW
         EXECUTE PROCEDURE approval_instance_step_auto_complete();
@@ -414,7 +434,7 @@ CREATE TRIGGER trigger_approval_instance_step_auto_complete
 CREATE OR REPLACE FUNCTION approval_instance_step_completed_immutable()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF ( OLD.is_completed ='Y' AND NEW.is_completed 'N' ) THEN
+	IF ( OLD.is_completed ='Y' AND NEW.is_completed = 'N' ) THEN
 		RAISE EXCEPTION 'Approval completion may not be reverted';
 	END IF;
 	RETURN NEW;
@@ -484,17 +504,3 @@ CREATE TRIGGER trigger_approval_instance_item_approval_notify
 
 grant select on all tables in schema jazzhands to ro_role;
 grant insert,update,delete on all tables in schema jazzhands to iud_role;
-
-grant select on approval_process to app_stab;
-grant select on approval_process_chain to app_stab;
-grant select on approval_instance to app_stab;
-grant select on approval_instance_step to app_stab;
-grant select on approval_instance_link to app_stab;
-grant select on approval_instance_item to app_stab;
-grant select on v_approval_matrix to app_stab;
-grant select on v_account_manager_map to app_stab;
-grant select on v_account_collection_account_audit_map to app_stab;
-grant select on v_person_company_audit_map to app_stab;
-grant select on v_account_collection_audit_results to app_stab;
-grant select on v_account_collection_approval_process to app_stab;
-

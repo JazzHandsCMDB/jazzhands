@@ -38,7 +38,7 @@ sub do_attest_toplevel {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
-	my $actas = $stab->cgi_parse_param('actas');
+	my $actas = $stab->cgi_parse_param('actas') || $stab->username();
 
 	my $stepid = $stab->cgi_parse_param('APPROVAL_INSTANCE_STEP_ID');
 
@@ -238,7 +238,7 @@ sub do_my_attest {
 	print $stab->start_html(
 		{ -title => "Attesting", -javascript => 'attest' } ), "\n";
 
-	print $cgi->h4( { -align => 'center' }, "Outstanding Attestations" );
+	print $cgi->h4( { -align => 'center' }, "Outstanding Attestations for $actas" );
 
 	my $acctid = $stab->get_account_id($actas);
 

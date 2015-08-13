@@ -195,6 +195,12 @@ sub check_permissions {
 	$count;
 }
 
+sub username {
+	my ($self) = @_;
+
+	$self->{_username};
+}
+
 sub get_account_id {
 	my $self = shift;
 

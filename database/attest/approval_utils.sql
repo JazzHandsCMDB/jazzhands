@@ -109,6 +109,8 @@ BEGIN
 		        approval_process_id,
 		        approval_process_chain_id,
 		        approving_entity,
+				approval_process_description,
+				approval_chain_description,
 		        property_val_rhs as approval_label,
 		        human_readable AS approval_lhs,
 		        CASE
