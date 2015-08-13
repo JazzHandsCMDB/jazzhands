@@ -1910,6 +1910,45 @@ sub update_interface {
 		}
 	}
 
+	$numchanges += manipulate_network_interface_purpose($stab, $netintid, $devid);
+
+	$numchanges;
+}
+
+sub manipulate_network_interface_purpose {
+	my ($stab, $netintid, $devid) = @_;
+
+	my $cgi = $stab->cgi || die "Could not create cgi";
+	my @newpurp = $cgi->param('NETWORK_INTERFACE_PURPOSE_'.$netintid);
+
+	my $oldpurp = $stab->get_network_int_purpose($netintid);
+
+	my $rmsth = $stab->prepare(qq{
+		delete from network_interface_purpose
+		where	network_interface_id = ?
+		and		network_interface_purpose = ?
+	}) || return $stab->return_db_err;
+
+	my $addsth = $stab->prepare(qq{
+		INSERT INTO network_interface_purpose (
+			device_id, network_interface_id, network_interface_purpose
+		) VALUES (
+			?, ?, ?
+		);
+	}) || return $stab->return_db_err;
+
+	my $numchanges = 0;
+	foreach my $purp (@{$oldpurp}) {
+		if( ! grep($_ eq $purp, @newpurp)) {
+			$numchanges += $rmsth->execute($netintid, $purp) || return $stab->return_db_err();
+		}
+	}
+
+	foreach my $purp (@newpurp) {
+		if( ! grep($_ eq $purp, @${oldpurp})) {
+			$numchanges += $addsth->execute($devid, $netintid, $purp) || return $stab->return_db_err();
+		}
+	}
 	$numchanges;
 }
 

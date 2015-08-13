@@ -206,6 +206,24 @@ sub guess_parent_netblock_id {
 	$rv;
 }
 
+sub get_network_int_purpose {
+	my ($self, $netintid) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	network_interface_purpose
+		  from	network_interface_purpose
+		 where	network_interface_id = ?
+	}
+	);
+	$sth->execute($netintid) || $self->return_db_err($sth);
+	my (@rv);
+	while(my $id = $sth->fetchrow_array) {
+		push(@rv, $id);
+	}
+	\@rv;
+}
+
 sub get_interface_from_ip {
 	my ( $self, $ip ) = @_;
 

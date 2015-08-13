@@ -1853,6 +1853,53 @@ sub dump_interfaces {
 	$rv;
 }
 
+#
+# passed a $values (network_interface row ++) and a deviceid , print the
+# purposes for that network interface (probably does not need device id)
+#
+# likely needs to become b_list or some such.
+#
+sub build_network_interface_purpose_table($$) {
+	my ($self, $values, $devid) = @_;
+
+	my $name = 'NETWORK_INTERFACE_PURPOSE';
+
+	if(defined($values->{_dbx('network_interface_id')})) {
+		$name .= "_".$values->{_dbx('network_interface_id')};
+	}
+
+	my $cgi = $self->cgi || die "Could not create cgi";
+
+	my $sth = $self->prepare(qq{
+		WITH x AS (
+			SELECT  network_interface_purpose, network_interface_id
+			FROM    network_interface_purpose nip
+			WHERE   network_interface_id = ?
+		) SELECT network_interface_purpose, description, network_interface_id
+			FROM val_network_interface_purpose
+			LEFT JOIN x USING (network_interface_purpose)
+			ORDER BY    network_interface_purpose
+	}) || return $self->return_db_err();
+
+	$sth->execute( $values->{_dbx('network_interface_id')}) || return $self->return_db_err($sth);
+
+	my(@options, @set, %labels);
+	while(my ($val, $desc, $set) = $sth->fetchrow_array) {
+		push(@options, $val);
+		push(@set, $val) if ($set);
+		$labels{$val} = $desc || $val;
+	}
+
+	my $thing = $cgi->scrolling_list(
+		-name     => $name,
+		-values   => \@options,
+		-default  => \@set,
+		-labels   => \%labels,
+		-size     => 3,
+		-multiple => 'true'
+	);
+}
+
 sub build_collapsed_if_box {
 	my ( $self, $values, $devid ) = @_;
 
@@ -1934,6 +1981,8 @@ sub build_collapsed_if_box {
 		  . $self->b_dropdown( $values, "DNS_DOMAIN_ID", $pk );
 	}
 
+	my $netintpurp = $self->build_network_interface_purpose_table($values, $devid);
+
 	# Build a table for Extras
 	my $xbox = $cgi->table(
 		{ -class => "intmoretable $showxtraclass" },
@@ -2007,6 +2056,7 @@ sub build_collapsed_if_box {
 			)
 		  )
 		: "",
+		$cgi->Tr($cgi->td($cgi->b("Purpose:"), $netintpurp)),
 	);
 
 	# Make the extras something that can be clicked on and expanded
