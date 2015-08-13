@@ -324,17 +324,17 @@ do {
 	# warn "waiting for IO::Select\n";
 	my @ready = $s->can_read($timeout);
 	warn "wake up - ", $#ready, "\n";
+	$dbh->{AutoCommit} = 0;
 
 	check_pending_issues();
 
-	$dbh->{AutoCommit} = 0;
 	foreach my $fh (@ready) {
 		if($fh == $pgsock) {
 			my $tally = 0;
 			while(my $notify = $dbh->pg_notifies) {
 				$tally++;
 				my ($name, $pid, $payload) = @{$notify};
-				print "notify received: $name / $pid / $payload";
+				print "notify received: $name / $pid / $payload\n";
 			}
 			warn "received $tally notifies\n";
 			open_new_issues();

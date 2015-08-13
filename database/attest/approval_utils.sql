@@ -95,7 +95,8 @@ BEGIN
 	-- XXX p comes out of one of the three clauses in 
 	-- v_account_collection_approval_process .  It is likely that that view
 	-- needs to be broken into 2 or 3 views joined together so there is no
-	-- code redundancy
+	-- code redundancy.  This is almost certainly true because it is a pain
+	-- to keep column lists in syn everywhere
 	EXECUTE '
 		WITH p AS (
 		SELECT  login,
@@ -158,6 +159,8 @@ BEGIN
 			approval_process_id,
 			approval_process_chain_id,
 			approving_entity,
+			approval_process_description,
+			approval_chain_description,
 			approval_label,
 			approval_lhs,
 			approval_rhs
@@ -372,6 +375,7 @@ BEGIN
 			approval_instance_item_id,
 			_r.approval_instance_link_id
 		);
+		RAISE NOTICE 'refresh: % ... %', _v, _l;
 		_new.approval_instance_link_id := _l;
 		_new.approved_label := _v.approval_label;
 		_new.approved_lhs := _v.approval_lhs;
