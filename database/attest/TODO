@@ -19,4 +19,59 @@
 
 - remove all debugging RAISE NOTICE, even those that are commented out
 
+- is it ok to approve without approve_account_id ?  If so, jira handler needs
+  to handle the case of unassigned users.o
+- UX changes:
+	row Chris
+		[correct |incorrect] Chris -> move it to the right!
+
+		dealing with how people read
+
+	default everything to correcct?
+
+	one button per person.  if I click
+		incorrect, then get into details of what is/is not correct
+		if correct, leave blank, if not 
+
+	more prominent submit button (green button) [ once per page ]
+
+	leading page?
+
+	maybe sliding  thing for the future to force reading?
+
+	
+		secondary button grey
 - reports
+
+email itself: why its important
+	should only take five minutes (really easy)
+	explicit  due date!
+
+	photos of reports?
+
+	placeholder text in correction box
+		start with full drop down, type and it fixes it
+
+		https://harvesthq.github.io/chosen/
+
+		grouping things (parentage?)
+
+	overdue on single sign on?
+
+
+	console guide - she'll 
+
+	http://styleguide.devnxs.net/ <-
+
+	tabs?
+
+	http://styleguide.devnxs.net/examples/notifications/banners/
+		colors - blue/yellow/red/
+
+	close to deadline banner?
+
+	success page should show what happened, SLAs, etc.
+
+	last modified date? tooltip? (tiny text with light grey?)
+
+	sort on last modified?
