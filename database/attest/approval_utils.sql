@@ -375,7 +375,6 @@ BEGIN
 			approval_instance_item_id,
 			_r.approval_instance_link_id
 		);
-		RAISE NOTICE 'refresh: % ... %', _v, _l;
 		_new.approval_instance_link_id := _l;
 		_new.approved_label := _v.approval_label;
 		_new.approved_lhs := _v.approval_lhs;
