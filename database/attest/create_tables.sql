@@ -506,3 +506,17 @@ CREATE TRIGGER trigger_approval_instance_item_approval_notify
 
 grant select on all tables in schema jazzhands to ro_role;
 grant insert,update,delete on all tables in schema jazzhands to iud_role;
+
+grant select on approval_process to app_stab;
+grant select on approval_process_chain to app_stab;
+grant select on approval_instance to app_stab;
+grant select on approval_instance_step to app_stab;
+grant select on approval_instance_link to app_stab;
+grant select on approval_instance_item to app_stab;
+grant select on v_approval_matrix to app_stab;
+grant select on v_account_manager_map to app_stab;
+grant select on v_account_collection_account_audit_map to app_stab;
+grant select on v_person_company_audit_map to app_stab;
+grant select on v_account_collection_audit_results to app_stab;
+grant select on v_account_collection_approval_process to app_stab;
+
