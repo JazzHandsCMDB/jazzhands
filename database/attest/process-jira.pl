@@ -184,6 +184,7 @@ sub open_new_issues {
 				a.account_id = ais.approver_account_id
 	        Where     approval_type = 'jira-hr'
 	        AND     ais.is_completed = 'N'
+			AND		aii.is_approved IS NULL
 			AND		ais.external_reference_name IS NULL
 	        ORDER BY approval_instance_step_id, approved_lhs, approved_label
 	}
