@@ -30,21 +30,24 @@ $(document).ready(function(){
 	// if the y button is checked, uncheck the button
 	$("table.attest").on('click', ".attesttoggle", function(event) {
 		var other;
-		var dodis = false;
+		var approve = false;
+
+		var val = $(event.target).closest('td').find('.approve_value');
 
 		if( $(event.target).hasClass('approve') ) {
 			other = $(event.target).closest('tr').find('.disapprove');
+			$(val).val('approve');
+			approve = true;
 		} else {
 			other = $(event.target).closest('tr').find('.approve');
-			if( $(event.target).is(':checked') ) {
-				dodis = true;
-			}
-		}
-		if( $(event.target).is(':checked') ) {
-			$(other).attr('checked', false);
+			$(val).val('reject');
+			approve = false;
 		}
 
-		if(dodis) {
+		$(other).removeClass('buttonon');
+		$(event.target).addClass('buttonon');
+
+		if(! approve) {
 			var dis = $(event.target).closest('tr').find('div.correction').first();
 			var id = $(dis).attr('id');
 			var newid = "fix_"+id;
@@ -93,6 +96,8 @@ $(document).ready(function(){
 
 	$('#attest').submit( function(event) {
 		var s = { dosubmit: true };
+
+		return true;
 
 		// check for unset values
 		$('form#attest').find('input.correction').each(function(i, obj) {

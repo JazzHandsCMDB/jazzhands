@@ -65,25 +65,20 @@ sub dump_attest_loop($$;$$) {
 
 	$newt .= $cgi->start_table( { -class => 'attest' } );
 
+	my $appall = "";
+
     my $checky = $cgi->checkbox({
         -class => 'approveall',
         -name => 'selectall',
         -label => 'Y'
 	});
 
-    my $checkn = $cgi->checkbox({
-        -class => 'disproveall',
-        -name => 'selectall',
-        -label => 'N'
-	});
-	$checkn = 'N';
-
 	if($ro) {
-		$checky = $checkn = "";
+		$appall = "";
 	}
 
 	$newt .= $cgi->th([
-		"", $checky, $checkn, 'What', "Who", "Value", "Correction", ""
+		"", 'Who', 'What', "Value", "Approval $appall", 'Correction', ""
 	]);
 
 	my $t = $newt;
@@ -145,19 +140,30 @@ sub dump_attest_loop($$;$$) {
 			$mytrclass = 'odd';
 		}
 
-		my $yesbox = "";
+		my $approvsw = "";
 		my $nobox = "";
 		if($hr->{_dbx('IS_APPROVED')} ) {
 			$myclass .= " disabled";
 		} elsif(!$ro) {
-			$yesbox = $cgi->checkbox({
-				-class => 'attesttoggle approve', 
-				-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
-				-label => ''}),
-			$nobox = $cgi->checkbox({
-				-class => 'attesttoggle disapprove', 
-				-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
-				-label => ''}),
+			#$approvsw = $cgi->checkbox({
+			#	-class => 'attesttoggle approve', 
+			#	-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
+			#	-label => ''}),
+			$approvsw = $cgi->div({-class=>'attestbox'},
+				$cgi->hidden({
+					-class => 'approve_value',
+					-name => 'ap_'.$hr->{_dbx('approval_instance_item_id')},
+					value => ''
+				}),
+				$cgi->button({-class => 'attesttoggle approve buttonoff', 
+					-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
+					-type=>'button', 
+					-value => 'approve'}),
+				$cgi->button({-class => 'attesttoggle disapprove buttonoff', 
+					-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
+					-type=>'button', 
+					-value => 'correct'}),
+			);
 		}
 
 		if($hr->{ _dbx('EXTERNAL_REFERENCE_NAME') }) {
@@ -205,11 +211,10 @@ sub dump_attest_loop($$;$$) {
 			$cgi->td($linkback),
 			$cgi->td({-class=>$myclass},
 				[
-					$yesbox,
-					$nobox,
-					$hr->{approved_label} || '',
 					$hr->{approved_lhs} || '',
+					$hr->{approved_label} || '',
 					$hr->{approved_rhs} || '',
+					$approvsw,
 					$correction,
 				]
 			),
@@ -222,7 +227,7 @@ sub dump_attest_loop($$;$$) {
 
 		print $cgi->br, "\n";
 		print $cgi->span({-class => 'attestsubmit'}, 
-			$cgi->submit({-class=>'attestsubmit'})), "\n";
+			$cgi->submit({-class=>'attestsubmit'}, "Submit Results")), "\n";
 	} else {
 		print "There are no outstanding issues";
 	}

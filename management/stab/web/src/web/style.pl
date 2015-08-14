@@ -402,6 +402,27 @@ div.directions {
 div.process { background: orange; }
 div.chain { background: lightgrey; }
 
+input.attestsubmit { 
+	background-color: green;
+	color: white;
+	border-radius: 20px;
+	margin: auto;
+	font-size: 130%;
+	
+}
+
+.attesttoggle {
+	border: 1px solid;
+	border-radius: 20px;
+	margin: 2px;
+	background: lightyellow;
+}
+
+
+.buttonon {
+	background: lightblue;
+}
+
 END
 	undef $stab;
 }
