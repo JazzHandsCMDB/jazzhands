@@ -86,6 +86,8 @@ sub dump_attest_loop($$;$$) {
 	my $lastap = undef;
 	my $lastapc = undef;
 
+	my $lastdude;
+
 	my $lastlhs;
 	my $classnote = 0;
 	my $laststep;
@@ -205,11 +207,18 @@ sub dump_attest_loop($$;$$) {
 			}
 		}
 
+		my $lhs = $hr->{approved_lhs} || '';
+		if($lastdude && $lastdude eq $hr->{approved_lhs}) {
+			$lhs = '';
+		} else {
+			$lastdude = $hr->{approved_lhs};
+		}
+
 		$t .= $cgi->Tr({ -class => $mytrclass },
 			$cgi->td($linkback),
 			$cgi->td({-class=>$myclass},
 				[
-					$hr->{approved_lhs} || '',
+					$lhs,
 					$hr->{approved_label} || '',
 					$hr->{approved_rhs} || '',
 					$approvsw,
