@@ -65,12 +65,10 @@ sub dump_attest_loop($$;$$) {
 
 	$newt .= $cgi->start_table( { -class => 'attest' } );
 
-	my $appall = "";
-
-    my $checky = $cgi->checkbox({
-        -class => 'approveall',
-        -name => 'selectall',
-        -label => 'Y'
+	my $appall = $cgi->button({
+		-class => 'approveall',
+		-name => 'selectall',
+		-value => 'approve all',
 	});
 
 	if($ro) {

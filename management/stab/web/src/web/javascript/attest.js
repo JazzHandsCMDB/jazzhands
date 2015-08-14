@@ -76,22 +76,20 @@ $(document).ready(function(){
 	});
 
 	$("table.attest").on('click', "input.approveall", function(event) {
-		var makeem = $(event.target).is(':checked');
 
-		$(event.target).closest('table.attest').find('input.approve').each( function(iter, obj) {
-			$(obj).prop('checked', makeem);
-		});
-		if(makem = true) {
-			$(event.target).closest('table.attest').find('input.disapprove').each( function(iter, obj) {
-				$(obj).prop('checked', false);
-			});
-			$(event.target).closest('table.attest').find('input.correction').each(
-				function(iter, obj) {
-					$(obj).prop("disabled", true);
-					$(obj).addClass('irrelevant');
-				}
-			);
-		}
+		$(event.target).closest('table.attest').find('input.approve').each( 
+			function(iter, obj) {
+				$(obj).addClass('buttonon');
+				$(obj).closest('td').find('.disapprove').removeClass('buttonon');
+				$(obj).closest('td').find('.approve_value').val('approve');
+				$(event.target).closest('table.attest').find('.correction').each(
+					function(iter, obj) {
+						$(obj).prop("disabled", true);
+						$(obj).addClass('irrelevant');
+					}
+				);
+			}
+		);
 	});
 
 	$('#attest').submit( function(event) {

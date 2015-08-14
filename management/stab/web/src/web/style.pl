@@ -411,6 +411,13 @@ input.attestsubmit {
 	
 }
 
+.approveall {
+	border: 1px solid;
+	border-radius: 20px;
+	margin: 2px;
+	background: lightyellow;
+}
+
 .attesttoggle {
 	border: 1px solid;
 	border-radius: 20px;
