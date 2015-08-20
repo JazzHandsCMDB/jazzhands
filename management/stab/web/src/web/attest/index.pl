@@ -110,6 +110,7 @@ sub dump_attest_loop($$;$$) {
 		print $cgi->div({-class => 'description chain'},
 			$shr->{ _dbx('chain_description') }) . "\n$t";
 
+		my $numpending = 0;
 		my $t = "";
 		foreach my $lhs (sort keys %{$map->{$step}->{lhs}}) {
 			my $numitems = scalar $map->{$step}->{lhs}->{$lhs};
@@ -179,6 +180,7 @@ sub dump_attest_loop($$;$$) {
 				if($hr->{_dbx('IS_APPROVED')} ) {
 					$myclass .= " disabled";
 				} elsif(!$ro) {
+					$numpending++;
 					#$approvsw = $cgi->checkbox({
 					#	-class => 'attesttoggle approve', 
 					#	-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
@@ -199,8 +201,6 @@ sub dump_attest_loop($$;$$) {
 							-value => 'correct'}),
 					);
 				}
-		
-
 
 				$t .= $cgi->Tr({ -class => $mytrclass },
 					$cgi->td($linkback),
@@ -216,12 +216,17 @@ sub dump_attest_loop($$;$$) {
 					$cgi->td($linkfwd),
 				);
 			}
-
 		}
 		print $cgi->start_table( { -class => 'attest' } );
-		print $cgi->th([
-			"", 'Who', 'What', "Value", "Approval $appall", 'Correction', ""
-		]);
+		if($numpending) {
+			print $cgi->th([
+				"", 'Who', 'What', "Value", "Approval $appall", 'Correction', ""
+			]);
+		} else {
+			print $cgi->th([
+				"", 'Who', 'What', "Value", "", "", ""
+			]);
+		}
 		print $t, $cgi->end_table, "\n\n";
 		undef $t;
 		
