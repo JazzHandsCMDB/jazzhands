@@ -401,8 +401,6 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- XXX temporarily off!
-	RETURN NEW;
 	IF NEW.is_approved IS NOT NULL THEN
 		SELECT	count(*)
 		INTO	_tally

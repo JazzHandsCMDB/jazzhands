@@ -56,14 +56,7 @@ sub dump_attest_loop($$;$$) {
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	print $cgi->start_form( {-id=>'attest', -action => "attest.pl" } );
-	if($acctid) {
-		print $cgi->hidden({-name => 'accting_as_account', -default=>$acctid});
-	}
-
 	my $newt = "";
-
-	$newt .= $cgi->start_table( { -class => 'attest' } );
 
 	my $appall = $cgi->button({
 		-class => 'approveall',
@@ -75,169 +68,191 @@ sub dump_attest_loop($$;$$) {
 		$appall = "";
 	}
 
-	$newt .= $cgi->th([
-		"", 'Who', 'What', "Value", "Approval $appall", 'Correction', ""
-	]);
-
 	my $t = $newt;
 
 	my $count =0;
 
-	my $lastap = undef;
-	my $lastapc = undef;
-
-	my $lastdude;
-
-	my $lastlhs;
-	my $classnote = 0;
-	my $laststep;
+	my $map = {};
 	while(my $hr = $sth->fetchrow_hashref) {
-		$count++;
-		if($laststep) {
-			if($hr->{_dbx('approval_instance_step_id')} != $laststep) {
-				$laststep = $hr->{_dbx('approval_instance_step_id')};
-				print $t, $cgi->end_table, "\n\n";
-				$t = $newt;
-			}
-		} else {
-			$laststep = $hr->{_dbx('approval_instance_step_id')};
-		}
-		if($lastlhs) {
-			if($lastlhs ne $hr->{_dbx('approved_lhs')}) {
-				$lastlhs = $hr->{_dbx('approved_lhs')};
-				$classnote = 1 - $classnote;
-			}
-		} else {
-			$lastlhs = $hr->{_dbx('approved_lhs')};
-		}
+		my $step = $hr->{ _dbx('approval_instance_step_id') };
+		my $item = $hr->{ _dbx('approval_instance_item_id') };
 
-		#
-		# note that inserts before the table
-		#
-		if(!$lastapc || $lastapc ne $hr->{_dbx('approval_process_chain_id')}) {
-			$lastapc = $hr->{_dbx('approval_process_chain_id')};
-			if( $hr->{ _dbx('chain_description')} ) {
-				$t = $cgi->div({-class => 'description chain'},
-						$hr->{ _dbx('chain_description') }) . "\n$t";
-			}
-		}
-		if(!$lastap || $lastap ne $hr->{_dbx('approval_process_id')}) {
-			$lastap = $hr->{_dbx('approval_process_id')};
-			if( $hr->{ _dbx('process_description')} ) {
-				$t = $cgi->div({-class => 'description process'},
-					$hr->{ _dbx('process_description') }) . "\n$t";
-			}
-		}
+		my $label = $hr->{ _dbx('apprved_label') };
+		my $lhs = $hr->{ _dbx('approved_lhs') };
+		my $rhs = $hr->{ _dbx('approved_rhs') };
 
-		my $correction = $cgi->div({-class=>'correction', -id =>
-				$hr->{_dbx('approval_instance_item_id')}}),
+		$map->{$step}->{lhs}->{$lhs}->{$item}->{ label } = $label;
+		$map->{$step}->{lhs}->{$lhs}->{$item}->{ rhs } = $rhs;
+		$map->{$step}->{lhs}->{$lhs}->{$item}->{ item } = $item;
+		$map->{$step}->{lhs}->{$lhs}->{$item}->{ hr } = $hr;
 
-		my $myclass = "";
-		my $mytrclass;
-		if($classnote % 2) {
-			$mytrclass = 'even';
-		} else {
-			$mytrclass = 'odd';
-		}
-
-		my $approvsw = "";
-		my $nobox = "";
-		if($hr->{_dbx('IS_APPROVED')} ) {
-			$myclass .= " disabled";
-		} elsif(!$ro) {
-			#$approvsw = $cgi->checkbox({
-			#	-class => 'attesttoggle approve', 
-			#	-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
-			#	-label => ''}),
-			$approvsw = $cgi->div({-class=>'attestbox'},
-				$cgi->hidden({
-					-class => 'approve_value',
-					-name => 'ap_'.$hr->{_dbx('approval_instance_item_id')},
-					value => ''
-				}),
-				$cgi->button({-class => 'attesttoggle approve buttonoff', 
-					-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
-					-type=>'button', 
-					-value => 'approve'}),
-				$cgi->button({-class => 'attesttoggle disapprove buttonoff', 
-					-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
-					-type=>'button', 
-					-value => 'correct'}),
-			);
-		}
-
-		if($hr->{ _dbx('EXTERNAL_REFERENCE_NAME') }) {
-			my $ref = $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') };
-			if($hr->{_dbx('APPROVAL_TYPE')} eq 'jira-hr') {
-				my $sth = $stab->prepare(qq{
-					select property_value from property
-					where property_name = '_jira_url'
-					and property_type = 'Defaults'
-				}) || return $stab->return_db_err();
-				$sth->execute || return $stab->return_db_err($sth);
-				my ($url) = $sth->fetchrow_array;
-				$sth->finish;
-				if($url) {
-					$url =~ s,/$,,;
-					$ref = $cgi->a({-href=>"$url/browse/$ref",
-							-target => "stab-$ref"}, $ref);
-				}
-			}
-			my $ x = (!$hr->{_dbx('IS_APPROVED')} )?"(pending)":"";
-			$correction = "$x $ref";
-		}
-
-		my $linkback = "";
-		my $linkfwd = "";
-		if($hr->{ _dbx('LHS_STEP_ID') }) {
-			my $url = $cgi->url();
-			if($url) {
-				$url = "?APPROVAL_INSTANCE_STEP_ID=".  $hr->{_dbx('LHS_STEP_ID')};
-				$linkback = $cgi->a({-class=>'notreallydisabled',
-					-href=>$url}, "<<");
-			}
-		}
-		if($hr->{ _dbx('RHS_STEP_ID') }) {
-			my $url = $cgi->url();
-			if($url) {
-				my $app = ($hr->{_dbx('IS_APPROVED')})?$hr->{_dbx('IS_APPROVED')}:"";
-				$url .= "?APPROVAL_INSTANCE_STEP_ID=".  $hr->{_dbx('RHS_STEP_ID')};
-				$linkfwd = $cgi->a({-class=>'notreallydisabled',
-					-href=>$url}, "$app >>");
-			}
-		}
-
-		my $lhs = $hr->{approved_lhs} || '';
-		if($lastdude && $lastdude eq $hr->{approved_lhs}) {
-			$lhs = '';
-		} else {
-			$lastdude = $hr->{approved_lhs};
-		}
-
-		$t .= $cgi->Tr({ -class => $mytrclass },
-			$cgi->td($linkback),
-			$cgi->td({-class=>$myclass},
-				[
-					$lhs,
-					$hr->{approved_label} || '',
-					$hr->{approved_rhs} || '',
-					$approvsw,
-					$correction,
-				]
-			),
-			$cgi->td($linkfwd),
-		);
+		$map->{$step}->{hr} = $hr;
 	}
-	if($count) {
+
+	# print $cgi->pre ( Dumper($map) );
+	
+	#- my $lastlhs;
+	my $classnote = 0;
+	#- my $laststep;
+	foreach my $step (sort keys %{$map}) {
+		my $shr = $map->{$step}->{hr};
+
+		# XXX - directions (probably becomes tab name?  maybe not)
+		print $cgi->div({-class => 'description process'},
+			$shr->{ _dbx('process_description') }) . "\n$t";
+		print $cgi->start_form( {-id=>'attest', -action => "attest.pl" } );
+		if($acctid) {
+			print $cgi->hidden({-name => 'accting_as_account', 
+				-default=>$acctid});
+		}
+
+		# XXX - chain
+		print $cgi->div({-class => 'description chain'},
+			$shr->{ _dbx('chain_description') }) . "\n$t";
+
+		my $t = "";
+		foreach my $lhs (sort keys %{$map->{$step}->{lhs}}) {
+			my $numitems = scalar $map->{$step}->{lhs}->{$lhs};
+
+			my $perdudetally = 0;
+			foreach my $item (sort keys %{$map->{$step}->{lhs}->{$lhs}}) {
+				$perdudetally++;
+
+				my $hr = $map->{$step}->{lhs}->{$lhs}->{$item}->{hr};
+				my $linkback = "";
+				my $linkfwd = "";
+				if($hr->{ _dbx('LHS_STEP_ID') }) {
+					my $url = $cgi->url();
+					if($url) {
+						$url = "?APPROVAL_INSTANCE_STEP_ID=".  $hr->{_dbx('LHS_STEP_ID')};
+						$linkback = $cgi->a({-class=>'notreallydisabled',
+							-href=>$url}, "<<");
+					}
+				}
+				if($hr->{ _dbx('RHS_STEP_ID') }) {
+					my $url = $cgi->url();
+					if($url) {
+						my $app = ($hr->{_dbx('IS_APPROVED')})?$hr->{_dbx('IS_APPROVED')}:"";
+						$url .= "?APPROVAL_INSTANCE_STEP_ID=".  $hr->{_dbx('RHS_STEP_ID')};
+						$linkfwd = $cgi->a({-class=>'notreallydisabled',
+							-href=>$url}, "$app >>");
+					}
+				}
+				my $correction = $cgi->div({-class=>'correction', -id =>
+						$hr->{_dbx('approval_instance_item_id')}}),
+		
+				my $myclass = "";
+				my $mytrclass;
+				if($classnote % 2) {
+					$mytrclass = 'even';
+				} else {
+					$mytrclass = 'odd';
+				}
+		
+				if($hr->{ _dbx('EXTERNAL_REFERENCE_NAME') }) {
+					my $ref = $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') };
+					if($hr->{_dbx('APPROVAL_TYPE')} eq 'jira-hr') {
+						my $sth = $stab->prepare(qq{
+							select property_value from property
+							where property_name = '_jira_url'
+							and property_type = 'Defaults'
+						}) || return $stab->return_db_err();
+						$sth->execute || return $stab->return_db_err($sth);
+						my ($url) = $sth->fetchrow_array;
+						$sth->finish;
+						if($url) {
+							$url =~ s,/$,,;
+							$ref = $cgi->a({-href=>"$url/browse/$ref",
+									-target => "stab-$ref"}, $ref);
+						}
+					}
+					my $ x = (!$hr->{_dbx('IS_APPROVED')} )?"(pending)":"";
+					$correction = "$x $ref";
+				}
+		
+				my $whocol = '';
+				if($perdudetally  == 1 ) {
+					$whocol = $hr->{approved_lhs} || '';
+				} 
+		
+				my $approvsw = "";
+				if($hr->{_dbx('IS_APPROVED')} ) {
+					$myclass .= " disabled";
+				} elsif(!$ro) {
+					#$approvsw = $cgi->checkbox({
+					#	-class => 'attesttoggle approve', 
+					#	-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
+					#	-label => ''}),
+					$approvsw = $cgi->div({-class=>'attestbox'},
+						$cgi->hidden({
+							-class => 'approve_value',
+							-name => 'ap_'.$hr->{_dbx('approval_instance_item_id')},
+							value => ''
+						}),
+						$cgi->button({-class => 'attesttoggle approve buttonoff', 
+							-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
+							-type=>'button', 
+							-value => 'approve'}),
+						$cgi->button({-class => 'attesttoggle disapprove buttonoff', 
+							-name => 'dis_'.$hr->{_dbx('approval_instance_item_id')},
+							-type=>'button', 
+							-value => 'correct'}),
+					);
+				}
+		
+
+
+				$t .= $cgi->Tr({ -class => $mytrclass },
+					$cgi->td($linkback),
+					$cgi->td({-class=>$myclass},
+						[
+							$whocol,
+							$hr->{approved_label} || '',
+							$hr->{approved_rhs} || '',
+							$approvsw,
+							$correction,
+						]
+					),
+					$cgi->td($linkfwd),
+				);
+			}
+
+		}
+		print $cgi->start_table( { -class => 'attest' } );
+		print $cgi->th([
+			"", 'Who', 'What', "Value", "Approval $appall", 'Correction', ""
+		]);
 		print $t, $cgi->end_table, "\n\n";
 		undef $t;
-
+		
+		#} else {
+		#	print "There are no outstanding issues";
+		#}
 		print $cgi->br, "\n";
 		print $cgi->span({-class => 'attestsubmit'}, 
 			$cgi->submit({-class=>'attestsubmit'}, "Submit Results")), "\n";
-	} else {
-		print "There are no outstanding issues";
 	}
+
+#	while(my $hr = $sth->fetchrow_hashref) {
+#		$count++;
+#		if($laststep) {
+#			if($hr->{_dbx('approval_instance_step_id')} != $laststep) {
+#				$laststep = $hr->{_dbx('approval_instance_step_id')};
+#				print $t, $cgi->end_table, "\n\n";
+#				$t = $newt;
+#			}
+#		} else {
+#			$laststep = $hr->{_dbx('approval_instance_step_id')};
+#		}
+#		if($lastlhs) {
+#			if($lastlhs ne $hr->{_dbx('approved_lhs')}) {
+#				$lastlhs = $hr->{_dbx('approved_lhs')};
+#				$classnote = 1 - $classnote;
+#			}
+#		} else {
+#			$lastlhs = $hr->{_dbx('approved_lhs')};
+#		}
+
 	print $cgi->end_form, "\n";
 	print $cgi->end_html, "\n";
 }

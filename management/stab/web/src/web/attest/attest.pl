@@ -36,7 +36,7 @@ sub process_attestment {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
-	print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	# XXX - need to validate that this is ok.
 	my $acctid = $stab->cgi_parse_param('accting_as_account');
@@ -77,24 +77,21 @@ sub process_attestment {
 	while(my $hr = $sth->fetchrow_hashref) {
 		my $id = $hr->{_dbx('approval_instance_item_id')};
 
-		my $yes = $cgi->param("app_$id");
-		my $no = $cgi->param("dis_$id");
-		
+		my $action = $cgi->param("ap_$id");
+
 		my $fix;
 		my $approved;
-		# Javascript prevents this from happening.
-		if($yes && $no) {
-			$stab->error_return("All users must have Y or N checked, not both");
-		} elsif(!$yes && !$no) {
-			$stab->error_return("All users must have Y or N checked, not none");
-		} elsif($yes) {
+		if($action eq 'approve') {
 			$approved = 'Y';
-		} elsif($no) {
+		} elsif($action eq 'reject') {
+			$approved = 'N';
 			$fix = $cgi->param("fix_$id");
 			if(!$fix) {
 				$stab->error_return("All rejected users must have a correction");
 			}
 			$approved = 'N';
+		} else {
+			$stab->error_return("$action is not a valid action for $id");
 		}
 
 		$wsth->execute($id, $approved, $myacctid, $fix) || return $stab->return_db_err;
