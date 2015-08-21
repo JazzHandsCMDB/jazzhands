@@ -541,7 +541,8 @@ BEGIN
 			slot_function = 'PCI';
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'slot type not found adding component_type'
+			RAISE EXCEPTION 'slot type % with function PCI not found adding component_type',
+				insert_pci_component.slot_type
 				USING ERRCODE = 'JH501';
 		END IF;
 
@@ -730,7 +731,8 @@ BEGIN
 			slot_function = 'disk';
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'slot type not found adding component_type'
+			RAISE EXCEPTION 'slot type % with function disk not found adding component_type',
+				protocol
 				USING ERRCODE = 'JH501';
 		END IF;
 
@@ -899,7 +901,8 @@ BEGIN
 			slot_function = 'memory';
 
 		IF NOT FOUND THEN
-			RAISE EXCEPTION 'slot type not found adding component_type'
+			RAISE EXCEPTION 'slot type % with function memory not found adding component_type',
+				memory_type
 				USING ERRCODE = 'JH501';
 		END IF;
 

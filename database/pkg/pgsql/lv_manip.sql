@@ -109,6 +109,8 @@ BEGIN
 			AND child_lv_id IS NOT NULL
 	) INTO lv_list;
 
+	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
@@ -192,6 +194,8 @@ BEGIN
 			AND child_lv_id IS NOT NULL
 	) INTO lv_list;
 
+	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
@@ -326,6 +330,16 @@ BEGIN
 	WHERE
 		vg.volume_group_id = ANY(volume_group_list);
 
+	DELETE FROM
+		logical_volume_property
+	WHERE
+		logical_volume_id = ANY(lvids);
+
+	DELETE FROM
+		logical_volume_purpose
+	WHERE
+		logical_volume_id = ANY(lvids);
+	
 	DELETE FROM
 		logical_volume
 	WHERE

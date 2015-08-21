@@ -772,18 +772,12 @@ RETURNS TRIGGER
 AS $$
 DECLARE
 	devtype		RECORD;
+	ctid		integer;
 	cid			integer;
 	scarr       integer[];
 	dcarr       integer[];
 	server_ver	integer;
 BEGIN
-
-	--
-	-- If component_id is already set, then assume that it's correct
-	--
-	IF NEW.component_id IS NOT NULL THEN
-		RETURN NEW;
-	END IF;
 
 	SELECT
 		dt.device_type_id,
@@ -797,6 +791,28 @@ BEGIN
 		device d ON (dt.template_device_id = d.device_id)
 	WHERE
 		dt.device_type_id = NEW.device_type_id;
+
+	IF NEW.component_id IS NOT NULL THEN
+		IF devtype.component_type_id IS NOT NULL THEN
+			SELECT
+				component_type_id INTO ctid
+			FROM
+				component c
+			WHERE
+				c.component_id = NEW.component_id;
+
+			IF ctid != devtype.component_type_id THEN
+				UPDATE
+					component
+				SET
+					component_type_id = devtype.component_type_id
+				WHERE
+					component_id = NEW.component_id;
+			END IF;
+		END IF;
+			
+		RETURN NEW;
+	END IF;
 
 	--
 	-- If template_device_id doesn't exist, then create an instance of
