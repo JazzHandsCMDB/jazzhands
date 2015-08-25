@@ -90,7 +90,7 @@ sub dump_attest_loop($$;$$) {
 	}
 
 	# print $cgi->pre ( Dumper($map) );
-	
+
 	#- my $lastlhs;
 	my $classnote = 0;
 	#- my $laststep;
@@ -113,7 +113,7 @@ sub dump_attest_loop($$;$$) {
 		my $numpending = 0;
 		my $t = "";
 		foreach my $lhs (sort keys %{$map->{$step}->{lhs}}) {
-			my $numitems = scalar $map->{$step}->{lhs}->{$lhs};
+			my $numitems = scalar keys %{$map->{$step}->{lhs}->{$lhs}};
 
 			my $perdudetally = 0;
 			foreach my $item (sort keys %{$map->{$step}->{lhs}->{$lhs}}) {
@@ -141,7 +141,7 @@ sub dump_attest_loop($$;$$) {
 				}
 				my $correction = $cgi->div({-class=>'correction', -id =>
 						$hr->{_dbx('approval_instance_item_id')}}),
-		
+
 				my $myclass = "";
 				my $mytrclass;
 				if($classnote % 2) {
@@ -149,7 +149,7 @@ sub dump_attest_loop($$;$$) {
 				} else {
 					$mytrclass = 'odd';
 				}
-		
+
 				if($hr->{ _dbx('EXTERNAL_REFERENCE_NAME') }) {
 					my $ref = $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') };
 					if($hr->{_dbx('APPROVAL_TYPE')} eq 'jira-hr') {
@@ -170,12 +170,15 @@ sub dump_attest_loop($$;$$) {
 					my $ x = (!$hr->{_dbx('IS_APPROVED')} )?"(pending)":"";
 					$correction = "$x $ref";
 				}
-		
+
 				my $whocol = '';
 				if($perdudetally  == 1 ) {
-					$whocol = $hr->{approved_lhs} || '';
+					# $whocol = $hr->{approved_lhs} || '';
+					$whocol =  $cgi->td({-class => $myclass, 
+						-rowspan => $numitems },
+						$hr->{approved_lhs} || '');
 				} 
-		
+
 				my $approvsw = "";
 				if($hr->{_dbx('IS_APPROVED')} ) {
 					$myclass .= " disabled";
@@ -202,11 +205,12 @@ sub dump_attest_loop($$;$$) {
 					);
 				}
 
-				$t .= $cgi->Tr({ -class => $mytrclass },
+				$t .= $cgi->Tr(
+					{ -class => $mytrclass },
 					$cgi->td($linkback),
+					$whocol,
 					$cgi->td({-class=>$myclass},
 						[
-							$whocol,
 							$hr->{approved_label} || '',
 							$hr->{approved_rhs} || '',
 							$approvsw,
@@ -229,7 +233,7 @@ sub dump_attest_loop($$;$$) {
 		}
 		print $t, $cgi->end_table, "\n\n";
 		undef $t;
-		
+
 		#} else {
 		#	print "There are no outstanding issues";
 		#}
