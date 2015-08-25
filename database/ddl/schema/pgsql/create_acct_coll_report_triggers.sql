@@ -58,10 +58,16 @@ BEGIN
 		PERFORM auto_ac_manip.rename_automated_report_acs(
 			NEW.account_id, OLD.login, NEW.login, NEW.account_realm_id);
 	ELSIF TG_OP = 'DELETE' THEN
-		PERFORM auto_ac_manip.destroy_report_account_collections(
-			account_id := OLD.account_id,
-			account_realm_id := OLD.account_realm_id
+		DELETE FROM account_collection_account WHERE account_id
+			= OLD.account_id
+		AND account_collection_id IN ( select account_collection_id
+			FROM account_collection where account_collection_type
+			= 'automated'
 		);
+		-- PERFORM auto_ac_manip.destroy_report_account_collections(
+		-- 	account_id := OLD.account_id,
+		-- 	account_realm_id := OLD.account_realm_id
+		-- );
 	END IF;
 
 	IF TG_OP = 'DELETE' THEN
