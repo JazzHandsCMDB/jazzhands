@@ -53,11 +53,13 @@ BEGIN
 		 WHERE	aca.account_id = OLD.account_Id
 		   AND	ac.account_collection_type = 'per-account';
 
-		 DELETE from account_collection_account
-		  where account_collection_id = acid;
+		IF acid is NOT NULL THEN
+			DELETE from account_collection_account
+			where account_collection_id = acid;
 
-		 DELETE from account_collection
-		  where account_collection_id = acid;
+			DELETE from account_collection
+			where account_collection_id = acid;
+		END IF;
 	END IF;
 	RETURN OLD;
 END;
