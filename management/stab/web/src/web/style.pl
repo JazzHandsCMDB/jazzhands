@@ -195,19 +195,6 @@ input#submitdevice { font-size: 60%;}
 
 /***************** START OF GENERIC JQUERY TABS ****************************/
 
-div.stabtab_off {
-	padding-top: 10px;
-}
-
-stabtab_off {
-	color: lightgrey
-}
-
-div.stabtab_off {
-	display: none;
-	visibility: hidden;
-}
-
 div.stabtabcontent {
 	background: #DDE;
 	border: 1px solid black;
@@ -216,7 +203,11 @@ div.stabtabcontent {
 	margin:auto;
 }
 
-stabtab { padding: 5px 0; }
+div.stabtab { 
+	padding: 5px 0;
+	display: none;
+	visibility: hidden;
+}
 
 a.stabtab {
 	margin-top: 10px;
@@ -225,23 +216,27 @@ a.stabtab {
 	border: 2px solid black;
 	text-decoration: none;
 	border-radius: 20px 20px 0px 0px;
+	background: #AAB;
+	border-bottom-width: 1px;
+	color: lightgrey
+	padding-top: 10px;
+}
+
+.stabtabbar a:hover.stabtab_off {
+	background: lightblue;
+	color: black;
+	border-bottom: 5px;
+}
+
+div.stabtab_on { 
+	display: block;
+	visibility: visible;
 }
 
 a.stabtab_on {
 	padding-bottom: 4px;
 	background: #DDE;
 	border-bottom-width: 0px;
-}
-
-a.stabtab_off {
-	background: #AAB;
-	border-bottom-width: 1px;
-}
-
-a:hover.stabtab_off {
-	background: lightblue;
-	color: black;
-	border-bottom: 5px;
 }
 
 /******************************* END OF NEW TABS **************************/
