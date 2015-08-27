@@ -406,7 +406,8 @@ BEGIN
 		INTO	_tally
 		FROM	approval_instance_item
 		WHERE	approval_instance_step_id = NEW.approval_instance_step_id
-		AND		approval_instance_item_id != NEW.approval_instance_item_id;
+		AND		approval_instance_item_id != NEW.approval_instance_item_id
+		AND		is_approved IS NOT NULL;
 
 		IF _tally = 0 THEN
 			UPDATE	approval_instance_step

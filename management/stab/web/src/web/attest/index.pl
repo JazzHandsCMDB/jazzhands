@@ -67,8 +67,6 @@ sub dump_attest_loop($$;$$) {
 		$appall = "";
 	}
 
-	my $count = 0;
-
 	my $map = {};
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $step = $hr->{ _dbx('approval_instance_step_id') };
@@ -89,11 +87,7 @@ sub dump_attest_loop($$;$$) {
 	# print $cgi->pre ( Dumper($map) );
 
 	my (@tabs);
-
-	#- my $lastlhs;
 	my $classnote = 0;
-
-	#- my $laststep;
 	foreach my $step ( sort keys %{$map} ) {
 		my $shr = $map->{$step}->{hr};
 
@@ -298,26 +292,6 @@ sub dump_attest_loop($$;$$) {
 		#}
 	}
 
-	#	while(my $hr = $sth->fetchrow_hashref) {
-	#		$count++;
-	#		if($laststep) {
-	#			if($hr->{_dbx('approval_instance_step_id')} != $laststep) {
-	#				$laststep = $hr->{_dbx('approval_instance_step_id')};
-	#				print $t, $cgi->end_table, "\n\n";
-	#				$t = $newt;
-	#			}
-	#		} else {
-	#			$laststep = $hr->{_dbx('approval_instance_step_id')};
-	#		}
-	#		if($lastlhs) {
-	#			if($lastlhs ne $hr->{_dbx('approved_lhs')}) {
-	#				$lastlhs = $hr->{_dbx('approved_lhs')};
-	#				$classnote = 1 - $classnote;
-	#			}
-	#		} else {
-	#			$lastlhs = $hr->{_dbx('approved_lhs')};
-	#		}
-
 	my $form = $cgi->start_form( { -id => 'attest', -action => "attest.pl" } );
 	if ($acctid) {
 		$form .= $cgi->hidden(
@@ -357,7 +331,7 @@ sub dump_attest_loop($$;$$) {
 	#
 	# build html for the actual tabs in $tabcontent
 	#
-	my $count = 0;
+	$count = 0;
 	my $tabcontent = "";
 	for my $h (@tabs) {
 		my $name = $h->{name};
@@ -368,9 +342,9 @@ sub dump_attest_loop($$;$$) {
 		}
 		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$name"}, 
 			$cgi->div({ -class => 'directions' },
-				q{For each table, please approve (Y) or deny (N) each item.
-					For items that are (N) you must enter a correction in the last
-					column before submitting.
+				q{
+					Please verify each item and either approve or use the
+					correct button, then enter the correction.
 				}),
 			$h->{content}
 	);
@@ -381,9 +355,13 @@ sub dump_attest_loop($$;$$) {
 		$cgi->div( {-class=>'stabtabcontent'}, $tabcontent),
 	);
 
-	print $cgi->span( { -class => 'attestsubmit' },
-		$cgi->submit( { -class => 'attestsubmit' }, "Submit Results" ) ),
-	  "\n";
+	if($#tabs >= 0) {
+		print $cgi->div( { -class => 'attestsubmit' },
+			$cgi->submit( { -class => 'attestsubmit' }, "Submit Results" ) ),
+	  	"\n";
+	} else {
+		print "There is nothing outstanding for you to do. Thank you for checking";
+	}
 	print $cgi->end_form, "\n",;
 }
 
@@ -432,7 +410,7 @@ sub do_my_attest {
 					fwd.lhs_item_id = aii.approval_instance_item_id
 		WHERE	approver_account_id = ?
 		AND		approval_type = 'account'
-		-- AND		ais.is_completed = 'N'
+		AND		ais.is_completed = 'N'
 		ORDER BY approval_process_id, approval_process_chain_id,
 				approval_instance_step_id, approved_lhs, approved_label
 	}
@@ -448,10 +426,9 @@ sub do_my_attest {
 	print $cgi->h4( { -align => 'center' },
 		"Outstanding Attestations for $actas" );
 
+	dump_attest_loop( $stab, $sth, $acctid );
 
 	print "\n\n", $cgi->end_html, "\n";
-
-	dump_attest_loop( $stab, $sth, $acctid );
 }
 
 sub show_step_attest {

@@ -461,6 +461,11 @@ div.directions {
 div.process { background: orange; }
 div.chain { background: lightgrey; }
 
+div.attestsubmit {
+	width: 100%;
+	text-align: center;
+}
+
 input.attestsubmit { 
 	background-color: green;
 	color: white;
