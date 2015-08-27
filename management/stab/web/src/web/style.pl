@@ -203,35 +203,39 @@ stabtab_off {
 	color: lightgrey
 }
 
+div.stabtab_off {
+	display: none;
+	visibility: hidden;
+}
+
 div.stabtabcontent {
-	border: 3px solid black;
 	background: #DDE;
+	border: 1px solid black;
 	border-radius: 10px;
+	width: 100%;
+	margin:auto;
 }
 
 stabtab { padding: 5px 0; }
 
-a.stabtab_on {
+a.stabtab {
 	margin-top: 10px;
 	padding: 3px 0.5em;
-	padding-bottom: 4px;
 	margin-left: 3px;
-	border: 1px solid black;
-	border-bottom-width: 0px;
-	background: #DDE;
+	border: 2px solid black;
 	text-decoration: none;
 	border-radius: 20px 20px 0px 0px;
 }
 
+a.stabtab_on {
+	padding-bottom: 4px;
+	background: #DDE;
+	border-bottom-width: 0px;
+}
+
 a.stabtab_off {
-	margin-top: 10px;
-	padding: 3px 0.5em;
-	margin-left: 3px;
-	border: 1px solid black;
-	border-bottom-width: 1px;
 	background: #AAB;
-	text-decoration: none;
-	border-radius: 20px 20px 0px 0px;
+	border-bottom-width: 1px;
 }
 
 a:hover.stabtab_off {
@@ -483,8 +487,6 @@ input.attestsubmit {
 .buttonon {
 	background: lightblue;
 }
-
-.
 
 END
 	undef $stab;

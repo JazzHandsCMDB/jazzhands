@@ -20,6 +20,11 @@
 //
 
 $(document).ready(function(){
+	//
+	// enable all appropriate tabs
+	//
+	enable_stab_tabs();
+
 	// on load (or reload), uncheck all the boxes
 	$('input.attesttoggle,input.approveall').each(
 		function(iter, obj) {
@@ -95,7 +100,9 @@ $(document).ready(function(){
 	$('#attest').submit( function(event) {
 		var s = { dosubmit: true };
 
-		return true;
+		if(1 == 1) {
+			return true;
+		}
 
 		// check for unset values
 		$('form#attest').find('input.correction').each(function(i, obj) {

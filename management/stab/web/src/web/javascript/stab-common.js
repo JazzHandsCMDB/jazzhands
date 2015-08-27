@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Todd M. Kover
+ * Copyright (c) 2013-2015, Todd M. Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,3 +26,29 @@ function toggleon_text(but) {
 	
 }
 
+//
+// called in a ready() function to enable tabs on a given page
+//
+function enable_stab_tabs() {
+	$('div.stabtabbar').on('click', 'a.stabtab', function(event) {
+		// clicking the open tab (stabtab_on) is off.
+		if($(event.target).hasClass('stabtab_off')) {
+			$(event.target).closest('.stabtabset').find('.stabtab_on').each(
+				function(iter, obj) {
+					$(obj).removeClass('stabtab_on');
+					$(obj).addClass('stabtab_off');
+				}
+			);
+			$(event.target).removeClass('stabtab_off');
+			$(event.target).addClass('stabtab_on');
+
+			var id = $(event.target).attr('id');
+			$(event.target).closest('.stabtabset').find('div.stabtabcontent').find('div.stabtab#'+id).each(
+				function(iter, obj) {
+					$(obj).removeClass('stabtab_off');
+					$(obj).addClass('stabtab_on');
+				}
+			);
+		}
+	});
+}

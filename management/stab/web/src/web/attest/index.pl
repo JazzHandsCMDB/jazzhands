@@ -277,9 +277,7 @@ sub dump_attest_loop($$;$$) {
 			$hdr = $cgi->th( [ "", 'Who', 'What', "Value", "", "", "" ] );
 		}
 
-		my $tab = $cgi->div(
-			{ -id => 'tabthis', class => 'tabgroup_pending' },
-
+		my $tab = join("\n",
 			$cgi->div(
 				{ -class => 'description process' },
 				$shr->{ _dbx('process_description') }
@@ -289,7 +287,7 @@ sub dump_attest_loop($$;$$) {
 				{ -class => 'description chain' },
 				$shr->{ _dbx('chain_description') }
 			),
-			$cgi->table( { -class => 'attest' }, $hdr, $t ),
+			$cgi->table( { -class => 'attest' }, $hdr, $t )
 		);
 		push( @tabs, { name => "An Item $step", content => $tab } );
 		undef $t;
@@ -331,7 +329,12 @@ sub dump_attest_loop($$;$$) {
 	}
 	print $form;
 
+
+	#
+	# build html for the tab bar into $tabbar
+	#
 	my $count = 0;
+	my $tabbar = "";
 	for my $h (@tabs) {
 		my $class = 'stabtab';
 		if($count++ == 0) {
@@ -341,7 +344,7 @@ sub dump_attest_loop($$;$$) {
 		}
 		my $name = $h->{name};
 		$name =~ s/\s+//g;
-		print $cgi->a(
+		$tabbar .= $cgi->a(
 			{
 				-class => $class,
 				-id => "tab$name",
@@ -350,7 +353,12 @@ sub dump_attest_loop($$;$$) {
 		);
 	}
 
-	my $x = "";
+
+	#
+	# build html for the actual tabs in $tabcontent
+	#
+	my $count = 0;
+	my $tabcontent = "";
 	for my $h (@tabs) {
 		my $name = $h->{name};
 		$name =~ s/\s+//g;
@@ -360,10 +368,20 @@ sub dump_attest_loop($$;$$) {
 		} else {
 			$class .= ' stabtab_off';
 		}
-		$x .= $cgi->div({-class=>$class, id=>"tab$name"}, $h->{content});
+		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$name"}, 
+			$cgi->div({ -class => 'directions' },
+				q{For each table, please approve (Y) or deny (N) each item.
+					For items that are (N) you must enter a correction in the last
+					column before submitting.
+				}),
+			$h->{content}
+	);
 	}
 
-	print $cgi->div({-class=>'stabtabcontent'}, $x);
+	print $cgi->div({-class => 'stabtabset'},
+		$cgi->div( {-class=>'stabtabbar'}, $tabbar),
+		$cgi->div( {-class=>'stabtabcontent'}, $tabcontent),
+	);
 
 	print $cgi->span( { -class => 'attestsubmit' },
 		$cgi->submit( { -class => 'attestsubmit' }, "Submit Results" ) ),
@@ -375,25 +393,9 @@ sub do_my_attest {
 	my ( $stab, $actas ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html(
-		{ -title => "Attesting", -javascript => 'attest' } ), "\n";
-
-	print $cgi->h4( { -align => 'center' },
-		"Outstanding Attestations for $actas" );
-
-	my $acctid = $stab->get_account_id($actas);
-
-	print $cgi->div(
-		{ -class => 'directions' },
-		q{For each table, please approve (Y) or deny (N) each item.
-			For items that are (N) you must enter a correction in the last
-			column before submitting.
-		}
-	);
-
 	# XXX - need to make it so you can only act as people who work for you!
 	# XXX - also need to apply this to the thing that applies the attestation
+	my $acctid = $stab->get_account_id($actas);
 
 	my $sth = $stab->prepare(
 		qq{
@@ -440,9 +442,18 @@ sub do_my_attest {
 
 	$sth->execute($acctid) || return $stab->return_db_err($sth);
 
-	dump_attest_loop( $stab, $sth, $acctid );
+
+	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $stab->start_html(
+		{ -title => "Attesting", -javascript => 'attest' } ), "\n";
+
+	print $cgi->h4( { -align => 'center' },
+		"Outstanding Attestations for $actas" );
+
 
 	print "\n\n", $cgi->end_html, "\n";
+
+	dump_attest_loop( $stab, $sth, $acctid );
 }
 
 sub show_step_attest {
