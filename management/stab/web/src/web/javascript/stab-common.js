@@ -36,7 +36,6 @@ function enable_stab_tabs() {
 			$(event.target).closest('.stabtabset').find('.stabtab_on').each(
 				function(iter, obj) {
 					$(obj).removeClass('stabtab_on');
-					// this is only necessary in the tab bar
 					$(obj).addClass('stabtab_off');
 				}
 			);
@@ -46,6 +45,7 @@ function enable_stab_tabs() {
 			var id = $(event.target).attr('id');
 			$(event.target).closest('.stabtabset').find('div.stabtabcontent').find('div.stabtab#'+id).each(
 				function(iter, obj) {
+					$(obj).removeClass('stabtab_off');
 					$(obj).addClass('stabtab_on');
 				}
 			);

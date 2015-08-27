@@ -365,8 +365,6 @@ sub dump_attest_loop($$;$$) {
 		my $class = 'stabtab';
 		if($count++ == 0) {
 			$class .= ' stabtab_on';
-		} else {
-			$class .= ' stabtab_off';
 		}
 		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$name"}, 
 			$cgi->div({ -class => 'directions' },

@@ -195,6 +195,12 @@ input#submitdevice { font-size: 60%;}
 
 /***************** START OF GENERIC JQUERY TABS ****************************/
 
+/*
+ * tabs default to 'off', but the tab bar item needs class stabbar_off set
+ * because of the hover bits
+ *
+ * to to
+ */
 div.stabtabcontent {
 	background: #DDE;
 	border: 1px solid black;
@@ -222,6 +228,12 @@ a.stabtab {
 	padding-top: 10px;
 }
 
+a.stabtab_on {
+	padding-bottom: 4px;
+	background: #DDE;
+	border-bottom-width: 0px;
+}
+
 .stabtabbar a:hover.stabtab_off {
 	background: lightblue;
 	color: black;
@@ -231,12 +243,6 @@ a.stabtab {
 div.stabtab_on { 
 	display: block;
 	visibility: visible;
-}
-
-a.stabtab_on {
-	padding-bottom: 4px;
-	background: #DDE;
-	border-bottom-width: 0px;
 }
 
 /******************************* END OF NEW TABS **************************/
