@@ -144,10 +144,15 @@ div.maindiv {
 	padding: 3px;
 }
 
+/* #tabthis is the "please select a tab" content */
 div#tabthis {
 	border: 1px solid black;
 	padding-top: 10px;
 	margin-top: 3px;
+	background: #DDE;
+}
+
+div.tabthis {
 	background: #DDE;
 }
 
@@ -156,10 +161,6 @@ tabgroup_pending {
 }
 
 tabgrouptab { padding: 5px 0; }
-
-div.tabthis {
-	background: #DDE;
-}
 
 a.tabgroupactive {
 	margin-top: 10px;
@@ -170,6 +171,7 @@ a.tabgroupactive {
 	border-bottom-width: 0px;
 	background: #DDE;
 	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
 }
 
 a.tabgrouptab {
@@ -180,6 +182,7 @@ a.tabgrouptab {
 	border-bottom-width: 1px;
 	background: #AAB;
 	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
 }
 
 a:hover.tabgrouptab {
@@ -189,6 +192,55 @@ a:hover.tabgrouptab {
 }
 
 input#submitdevice { font-size: 60%;}
+
+/***************** START OF GENERIC JQUERY TABS ****************************/
+
+div.stabtab_off {
+	padding-top: 10px;
+}
+
+stabtab_off {
+	color: lightgrey
+}
+
+div.stabtabcontent {
+	border: 3px solid black;
+	background: #DDE;
+	border-radius: 10px;
+}
+
+stabtab { padding: 5px 0; }
+
+a.stabtab_on {
+	margin-top: 10px;
+	padding: 3px 0.5em;
+	padding-bottom: 4px;
+	margin-left: 3px;
+	border: 1px solid black;
+	border-bottom-width: 0px;
+	background: #DDE;
+	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
+}
+
+a.stabtab_off {
+	margin-top: 10px;
+	padding: 3px 0.5em;
+	margin-left: 3px;
+	border: 1px solid black;
+	border-bottom-width: 1px;
+	background: #AAB;
+	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
+}
+
+a:hover.stabtab_off {
+	background: lightblue;
+	color: black;
+	border-bottom: 5px;
+}
+
+/******************************* END OF NEW TABS **************************/
 
 
 /* 	Rack display */
@@ -372,6 +424,7 @@ table.attest tbody tr.odd {
 }
 	
 table.attest tbody tr.even {
+	background: white;
 }
 
 .error {
@@ -389,6 +442,7 @@ div.description {
 	border: 3px solid;
 	text-align: center;
 	margin: auto;
+	width: 75%;
 	
 }
 
@@ -429,6 +483,8 @@ input.attestsubmit {
 .buttonon {
 	background: lightblue;
 }
+
+.
 
 END
 	undef $stab;
