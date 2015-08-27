@@ -335,6 +335,10 @@ if(strlen($loc)) {
 	echo build_tr("Desk", $loc);
 }
 
+echo "<tr><td>VCARD</td><td>";
+echo "<a href=\"vcard.php?person_id=$personid\"><img src=\"images/1440788695_vcard_add.png\" alt=\"[VCARD]\"></a>";
+echo "</td></tr>";
+
 
 echo "<p>\n";
 
