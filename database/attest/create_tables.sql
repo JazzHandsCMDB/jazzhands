@@ -38,6 +38,8 @@ create table approval_process (
 	description					text,
 	first_approval_process_chain_id	integer,
 	property_collection_id		integer,
+	attestation_frequency		text,
+	attestation_offset			integer,
 	primary key (approval_process_id)
 );
 
@@ -387,7 +389,7 @@ BEGIN
 	--
 	-- on insert, if the parent was already marked as completed, fail.
 	-- arguably, this should happen on updates as well
-	--	possibnly should move this to a before trigger
+	--	possibly should move this to a before trigger
 	--
 	IF TG_OP = 'INSERT' THEN
 		SELECT	count(*)
@@ -411,7 +413,8 @@ BEGIN
 
 		IF _tally = 0 THEN
 			UPDATE	approval_instance_step
-			SET		is_completed = 'Y'
+			SET		is_completed = 'Y',
+					approval_instance_step_end = now()
 			WHERE	approval_instance_step_id = NEW.approval_instance_step_id;
 		END IF;
 		
