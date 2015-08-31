@@ -132,6 +132,8 @@ if(isset($email) || isset($row['login'])) {
 $fn = $row['first_name'];
 $sn = $row['last_name'];
 
+$title = $row['position_title'];
+
 echo "BEGIN:VCARD\n";
 echo "VERSION:3.0\n";
 echo "N:$sn;$fn;\n";
@@ -182,6 +184,8 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 	$tech = strtoupper($tech);
 	if($tech == 'PHONE') {
 		$tech = 'VOICE';
+	} else if($tech == 'MOBILE') {
+		$tech = 'CELL,MOBILE,VOICE';
 	}
 
 	echo "TEL;TYPE=$type,$tech:$pn\n";
@@ -190,7 +194,8 @@ while($pc = pg_fetch_array($r, null, PGSQL_ASSOC)) {
 if(isset($email) || $email != null) {
 	echo "EMAIL;TYPE=PREF,INTERNET:$email\n";
 }
-echo "ORG:".$row['account_collection_name']."\n";
+#- echo "ORG:".$row['account_collection_name']."\n";
+echo "ADR;TYPE=WORK:;;".$row['display_label']."\n";
 $now = time();
 echo "REV:".date("Y-m-d", $now)."T".date("h:i:s", $now)."Z\n";
 echo "END:VCARD\n";
