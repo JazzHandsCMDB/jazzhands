@@ -182,6 +182,7 @@ DECLARE
 	tally		INTEGER;
 	_acaid		INTEGER;
 	_pcid		INTEGER;
+	_freq		TEXT;
 BEGIN
 	tally := 0;
 
@@ -194,11 +195,27 @@ BEGIN
 
 		IF (ai.approval_process_id IS NULL OR
 				ai.approval_process_id != _r.approval_process_id) THEN
+			IF _r.attestation_frequency = 'quarterly' THEN
+				_freq := concat(
+					to_char(now(), 'YYYY'), 
+					'q', 
+					to_char(now(), 'Q')
+				);
+			ELSIF _r.attestation_frequency = 'monthly' THEN
+				_freq := to_char(now(), 'YYYY-MM');
+			ELSIF _r.attestation_frequency = 'weekly' THEN
+				_freq := concast('week ',
+					to_char(now(), 'WW'),
+					' - ',
+					to_char(now(), 'YYY-MM-DD')
+				);
+			END IF;
+
 			INSERT INTO approval_instance ( 
-				approval_process_id, description
+				approval_process_id, description, approval_instance_name
 			) VALUES ( 
 				_r.approval_process_id, 
-				_r.approval_process_description || ' ' || now()::text
+				_r.approval_process_description || ' ' || now()::text, _freq
 			) RETURNING * INTO ai;
 		END IF;
 
@@ -207,11 +224,13 @@ BEGIN
 
 			INSERT INTO approval_instance_step (
 				approval_process_chain_id, approver_account_id, 
-				approval_instance_id, approval_type, 
+				approval_instance_id, approval_type,  
+				approval_instance_step_name,
 				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
 				ai.approval_process_id, 'account',
+				_r.approval_process_chain_name,
 				concat(_r.approval_chain_description, ' - ', _r.manager_login)
 			) RETURNING * INTO ais;
 		END IF;
@@ -358,11 +377,13 @@ BEGIN
 		EXECUTE '
 			INSERT INTO approval_instance_step (
 				approval_instance_id, approval_process_chain_id,
+				approval_instance_step_name,
 				approver_account_id, approval_type, description
 			) VALUES (
-				$1, $2, $3, $4, $5
+				$1, $2, $3, $4, $5, $6
 			) RETURNING approval_instance_step_id
 		' INTO _step USING approval_instance_id, approval_process_chain_id,
+			_apc.approval_process_chain_name,
 			_acid, apptype, 
 			concat(_apc.description, ' for ', _r.approver_account_id, ' by ',
 			approving_account_id);

@@ -61,35 +61,45 @@ WITH newptype AS (
 	FROM newpc, newprops
 	RETURNING *
 ), backtrackchain as (
-	INSERT INTO approval_process_chain ( approving_entity, description,
-		refresh_all_data
-	) VALUES ('recertify', 'Changes sent to Jira',
-	'Y')
+	INSERT INTO approval_process_chain ( 
+		approval_process_chain_name, approving_entity, description, 
+			refresh_all_data
+	) VALUES (
+		'Recertification', 'recertify', 'Changes sent to Jira', 'Y')
 	RETURNING *
 ), jirachain as (
 	INSERT into approval_process_chain (
+		approval_process_chain_name,
 		approving_entity, 
 		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 'jira-hr', 
+	SELECT 
+		'Jira HR Project',
+		'jira-hr', 
 		'Changes sent to Jira ',
 		c.approval_process_chain_id,
 		r.approval_process_chain_id
 	FROM backtrackchain c, backtrackchain r
 	RETURNING *
 ), chain2 as (
-	INSERT into approval_process_chain ( approving_entity, description
-	) values ('manager',
+	INSERT into approval_process_chain ( 
+		approval_process_chain_name, approving_entity, description
+	) values (
+		'Manager Approval',
+		'manager',
 		'Approve organizational info approved by your direct report'
 	) RETURNING *
 ), chain as (
 	INSERT into approval_process_chain (
+		approval_process_chain_name,
 		approving_entity, 
 		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 'manager', 
+	SELECT 
+		'Reporting Attestation',
+		'manager',
 		'Approve your direct reports, their title and functional team',
 		c.approval_process_chain_id,
 		r.approval_process_chain_id
@@ -100,11 +110,19 @@ WITH newptype AS (
 		first_approval_process_chain_id,
 		approval_process_name,
 		approval_process_type,
+		approval_response_period,
+		approval_expiration_action,
+		attestation_frequency,
+		attestation_offset,
 		description,
 		property_collection_id
 	) SELECT approval_process_chain_id, 
 		'ReportingAttest',
 		'attestation',
+		'1 week',
+		'pester',
+		'quarterly',
+		0,
 		'Company Wide Quarterly certification direct reports and thier information',
 		property_collection_id
 		FROM newpc, chain

@@ -224,7 +224,7 @@ a.stabtab {
 	border-radius: 20px 20px 0px 0px;
 	background: #AAB;
 	border-bottom-width: 1px;
-	color: lightgrey
+	color: white;
 	padding-top: 10px;
 }
 
@@ -232,6 +232,7 @@ a.stabtab_on {
 	padding-bottom: 4px;
 	background: #DDE;
 	border-bottom-width: 0px;
+	color: blue;
 }
 
 .stabtabbar a:hover.stabtab_off {

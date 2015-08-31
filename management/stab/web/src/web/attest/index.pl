@@ -283,7 +283,13 @@ sub dump_attest_loop($$;$$) {
 			),
 			$cgi->table( { -class => 'attest' }, $hdr, $t )
 		);
-		push( @tabs, { name => "An Item $step", content => $tab } );
+		# hrn = human readnable, id = for web forms
+		my $id = join("_",$shr->{_dbx('APPROVAL_INSTANCE_STEP_ID')},
+				$shr->{_dbx('APPROVAL_INSTANCE_NAME')});
+		$id =~ s/\s+//g;
+		my $hrn = join(" ", $shr->{_dbx('APPROVAL_INSTANCE_NAME')},
+				$shr->{_dbx('APPROVAL_INSTANCE_STEP_NAME')});
+		push( @tabs, { id => $id, name => $hrn, content => $tab } );
 		undef $t;
 		undef $tab;
 
@@ -316,12 +322,11 @@ sub dump_attest_loop($$;$$) {
 		} else {
 			$class .= ' stabtab_off';
 		}
-		my $name = $h->{name};
-		$name =~ s/\s+//g;
+		my $id = $h->{id};
 		$tabbar .= $cgi->a(
 			{
 				-class => $class,
-				-id => "tab$name",
+				-id => "tab$id",
 			},
 			$h->{name}
 		);
@@ -334,13 +339,12 @@ sub dump_attest_loop($$;$$) {
 	$count = 0;
 	my $tabcontent = "";
 	for my $h (@tabs) {
-		my $name = $h->{name};
-		$name =~ s/\s+//g;
+		my $id = $h->{id};
 		my $class = 'stabtab';
 		if($count++ == 0) {
 			$class .= ' stabtab_on';
 		}
-		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$name"}, 
+		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$id"}, 
 			$cgi->div({ -class => 'directions' },
 				q{
 					Please verify each item and either approve or use the
@@ -389,8 +393,10 @@ sub do_my_attest {
 					fwd.rhs_step_id as rhs_step_id,
 					ais.external_reference_name,
 					ais.approval_type,
+					ais.approval_instance_step_name,
 					ap.approval_process_id,
 					apc.approval_process_chain_id,
+					ai.approval_instance_name,
 					ai.description as process_description,
 					ais.description as chain_description
 		FROM	approval_instance ai

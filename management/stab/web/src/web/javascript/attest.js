@@ -32,6 +32,19 @@ $(document).ready(function(){
 		}
 	);
 
+	$("table").on('focus', ".hint", function(event) {
+		$(event.target).removeClass('hint');
+		event.target.preservedHint = $(event.target).val();
+		$(event.target).val('');
+	});
+	// this causes the grey'd out hint to come backw ith an empty field
+	$("table").on('blur', ".correction", function(event) {
+		if( $(event.target).val() == '' && event.target.preservedHint ) {
+			$(event.target).addClass('hint');
+			$(event.target).val( event.target.preservedHint );
+		}
+	});
+
 	// if the y button is checked, uncheck the button
 	$("table.attest").on('click', ".attesttoggle", function(event) {
 		var other;
@@ -62,7 +75,8 @@ $(document).ready(function(){
 				var box = $("<input />", { 
 					name: newid,
 					id: newid,
-					class: 'correction'
+					class: 'correction hint',
+					value: 'enter correction',
 				});
 				$(box).insertAfter(dis);
 			} else {
