@@ -38,6 +38,8 @@ create table approval_process (
 	description					text,
 	first_approval_process_chain_id	integer,
 	property_collection_id		integer,
+	approval_period				text,
+	approval_expiration_action	text,
 	attestation_frequency		text,
 	attestation_offset			integer,
 	primary key (approval_process_id)
@@ -86,6 +88,7 @@ drop table if exists approval_instance cascade;
 create table approval_instance (
 	approval_instance_id		serial not null,
 	approval_process_id		integer not null,
+	approval_instance_name	text not null,
 	description				text,
 	approval_start			timestamp  DEFAULT now() not null,
 	approval_end			timestamp,
