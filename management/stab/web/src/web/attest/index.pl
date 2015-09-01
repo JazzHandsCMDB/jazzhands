@@ -271,6 +271,16 @@ sub dump_attest_loop($$;$$) {
 			$hdr = $cgi->th( [ "", 'Who', 'What', "Value", "", "", "" ] );
 		}
 
+		my $dueclass = 'approvaldue';
+		my $due = "Due: End of Day ".$shr->{_dbx('APPROVAL_INSTANCE_STEP_DUE')};
+		if($shr->{_dbx('DUE_SECONDS')} < 0) {
+			$dueclass .= " overdue";
+			$due = "OVERDUE: $due";
+		} elsif($shr->{_dbx('DUE_SECONDS')} < 86400) {
+			$dueclass .= " duesoon";
+			$due = "DUE SOON: $due";
+		}
+
 		my $tab = join("\n",
 			$cgi->div(
 				{ -class => 'description process' },
@@ -281,7 +291,8 @@ sub dump_attest_loop($$;$$) {
 				{ -class => 'description chain' },
 				$shr->{ _dbx('chain_description') }
 			),
-			$cgi->table( { -class => 'attest' }, $hdr, $t )
+			$cgi->table( { -class => 'attest' }, $hdr, $t ),
+			$cgi->div( {-class=>$dueclass}, $due ),
 		);
 		# hrn = human readnable, id = for web forms
 		my $id = join("_",$shr->{_dbx('APPROVAL_INSTANCE_STEP_ID')},
@@ -397,6 +408,10 @@ sub do_my_attest {
 					ap.approval_process_id,
 					apc.approval_process_chain_id,
 					ai.approval_instance_name,
+					approval_instance_step_due::date
+						as approval_instance_step_due,
+					extract(epoch from approval_instance_step_due- now() )
+						as due_seconds,
 					ai.description as process_description,
 					ais.description as chain_description
 		FROM	approval_instance ai
@@ -427,10 +442,15 @@ sub do_my_attest {
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html(
-		{ -title => "Attesting", -javascript => 'attest' } ), "\n";
+		{ -title => "Approvals", -javascript => 'attest' } ), "\n";
+
+	my $for = "";
+	if($acctid != $stab->get_account_id() ) {
+		$for = " for $actas";
+	}
 
 	print $cgi->h4( { -align => 'center' },
-		"Outstanding Attestations for $actas" );
+		"Outstanding Approvals $for" );
 
 	dump_attest_loop( $stab, $sth, $acctid );
 

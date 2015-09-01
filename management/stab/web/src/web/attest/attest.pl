@@ -73,6 +73,8 @@ sub process_attestment {
 		);
 	}) || return $stab->return_db_err;
 
+	my $bad = 0;
+
 	my $count = 0;
 	while(my $hr = $sth->fetchrow_hashref) {
 		my $id = $hr->{_dbx('approval_instance_item_id')};
@@ -90,6 +92,7 @@ sub process_attestment {
 				$stab->error_return("All rejected users must have a correction");
 			}
 			$approved = 'N';
+			$bad++;
 		} else {
 			$stab->error_return("$action is not a valid action for $id");
 		}
@@ -100,6 +103,11 @@ sub process_attestment {
 	}
 
 	$stab->commit;
-	$stab->msg_return("Submitted $count items Succesfully.", undef, 1);
+	my $msg = "Submitted $count items Succesfully.";
+	if($bad > 0) {
+		$msg .= qq{$bad entries will have a ticket opened and you will be asked to certify the changes after they are entered.  You may also be asked more questions via e-mail};
+	}
+	
+	$stab->msg_return($msg,undef, 1);
 	0;
 }

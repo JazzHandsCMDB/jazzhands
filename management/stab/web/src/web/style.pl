@@ -490,6 +490,20 @@ input.attestsubmit {
 	background: lightyellow;
 }
 
+.approvaldue {
+	margin: auto;
+	text-align: center;
+}
+
+.duesoon {
+	background: yellow;
+	foregound: white;
+}
+
+.overdue {
+	background: red;
+	foregound: white;
+}
 
 .buttonon {
 	background: lightblue;

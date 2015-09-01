@@ -28,6 +28,9 @@ delete from property where property_type = 'attestation';
 delete from val_property where property_type = 'attestation';
 delete from val_property_type where property_type = 'attestation';
 
+/*
+ * does something a bit more elaborate
+
 WITH newptype AS (
 	INSERT INTO val_property_type (
 		property_type, description
@@ -120,6 +123,102 @@ WITH newptype AS (
 		'ReportingAttest',
 		'attestation',
 		'1 week',
+		'pester',
+		'quarterly',
+		0,
+		'Company Wide Quarterly certification direct reports and thier information',
+		property_collection_id
+		FROM newpc, chain
+	RETURNING *
+) select * FROM process
+;
+
+*/
+
+-- simple approval and possible jira integration
+
+WITH newptype AS (
+	INSERT INTO val_property_type (
+		property_type, description
+	) VALUES (
+		'attestation', 'properties related to regular attestation process'
+	) RETURNING *
+), newprops AS (
+	INSERT INTO val_property (
+		property_name, property_type, property_data_type
+	) SELECT unnest(ARRAY['ReportAttest', 'FieldAttest', 
+'account_collection_membership']),
+		property_type, 'string'
+	FROM newptype
+	RETURNING *
+), newpct AS (
+	INSERT INTO val_property_collection_type (
+		property_collection_type, description
+	) VALUES (
+		'attestation', 'define elements of regular attestation process'
+	) RETURNING *
+), newpc AS (
+	INSERT INTO property_collection (
+		property_collection_name, property_collection_type
+	) SELECT 'ReportingAttestation', property_collection_type
+	FROM newpct
+	RETURNING *
+), propcollprop AS (
+	INSERT INTO property_collection_property (
+		property_collection_id, property_name, property_type
+	) SELECT property_collection_id, property_name, property_type
+	FROM newpc, newprops
+	RETURNING *
+), backtrackchain as (
+	INSERT INTO approval_process_chain ( 
+		approval_process_chain_name, approving_entity, description, 
+			refresh_all_data
+	) VALUES (
+		'Recertification', 'recertify', 'Changes sent to Jira', 'Y')
+	RETURNING *
+), jirachain as (
+	INSERT into approval_process_chain (
+		approval_process_chain_name,
+		approving_entity, 
+		description,
+		accept_approval_process_chain_id,
+		reject_approval_process_chain_id )
+	SELECT 
+		'Jira HR Project',
+		'jira-hr', 
+		'Changes sent to Jira ',
+		c.approval_process_chain_id,
+		r.approval_process_chain_id
+	FROM backtrackchain c, backtrackchain r
+	RETURNING *
+), chain as (
+	INSERT into approval_process_chain (
+		approval_process_chain_name,
+		approving_entity, 
+		description,
+		accept_approval_process_chain_id,
+		reject_approval_process_chain_id )
+	SELECT 
+		'Reporting Attestation',
+		'manager',
+		'Approve your direct reports, their title and functional team',
+		NULL,
+		r.approval_process_chain_id
+	FROM jirachain r
+	RETURNING *
+), process as  (
+	INSERT INTO approval_process (
+		first_approval_process_chain_id,
+		approval_process_name,
+		approval_process_type,
+		approval_expiration_action,
+		attestation_frequency,
+		attestation_offset,
+		description,
+		property_collection_id
+	) SELECT approval_process_chain_id, 
+		'ReportingAttest',
+		'attestation',
 		'pester',
 		'quarterly',
 		0,

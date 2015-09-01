@@ -33,6 +33,23 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION approval_utils.calculate_due_date(
+	response_period	interval,
+	from_when	timestamp DEFAULT now()
+) RETURNS timestamp AS $$
+DECLARE
+BEGIN
+	RETURN date_trunc('day', (CASE 
+		WHEN to_char(from_when + response_period::interval, 'D') = '1'
+			THEN from_when + response_period::interval + '1 day'::interval
+		WHEN to_char(from_when + response_period::interval, 'D') = '7'
+			THEN from_when + response_period::interval + '2 days'::interval
+		ELSE from_when + response_period::interval END)::timestamp) + 
+			'1 day'::interval - '1 second'::interval
+	;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
 CREATE OR REPLACE FUNCTION 
 		approval_utils.get_or_create_correct_approval_instance_link(
 	approval_instance_item_id
@@ -226,11 +243,13 @@ BEGIN
 				approval_process_chain_id, approver_account_id, 
 				approval_instance_id, approval_type,  
 				approval_instance_step_name,
+				approval_instance_step_due, 
 				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
 				ai.approval_process_id, 'account',
 				_r.approval_process_chain_name,
+				approval_utils.calculate_due_date(_r.approval_response_period::interval),
 				concat(_r.approval_chain_description, ' - ', _r.manager_login)
 			) RETURNING * INTO ais;
 		END IF;
@@ -301,8 +320,8 @@ DECLARE
 	_v			v_account_collection_approval_process%ROWTYPE;
 BEGIN
 	EXECUTE '
-		SELECT * 
-		FROM approval_process_chain 
+		SELECT apc.*
+		FROM approval_process_chain apc
 		WHERE approval_process_chain_id=$1
 	' INTO _apc USING approval_process_chain_id;
 
@@ -378,13 +397,16 @@ BEGIN
 			INSERT INTO approval_instance_step (
 				approval_instance_id, approval_process_chain_id,
 				approval_instance_step_name,
-				approver_account_id, approval_type, description
+				approver_account_id, approval_type, 
+				approval_instance_step_due,
+				description
 			) VALUES (
-				$1, $2, $3, $4, $5, $6
+				$1, $2, $3, $4, $5, approval_utils.calculate_due_date($6), $7
 			) RETURNING approval_instance_step_id
 		' INTO _step USING approval_instance_id, approval_process_chain_id,
 			_apc.approval_process_chain_name,
 			_acid, apptype, 
+			_apc.approval_chain_response_period::interval,
 			concat(_apc.description, ' for ', _r.approver_account_id, ' by ',
 			approving_account_id);
 	END IF;
