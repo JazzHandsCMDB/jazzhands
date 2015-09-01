@@ -103,7 +103,7 @@ WITH newptype AS (
 	SELECT 
 		'Reporting Attestation',
 		'manager',
-		'Approve your direct reports, their title and functional team',
+		'Approve your direct reports, thier title and functional team',
 		c.approval_process_chain_id,
 		r.approval_process_chain_id
 	FROM chain2 c, jirachain r
