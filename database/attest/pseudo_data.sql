@@ -238,7 +238,7 @@ WITH newptype AS (
 		'pester',
 		'quarterly',
 		0,
-		'Quarterly Company Wide certification direct reports and thier information',
+		'Quarterly company-wide certification of direct reports and thier information',
 		property_collection_id
 		FROM newpc, chain
 	RETURNING *
