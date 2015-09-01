@@ -103,7 +103,7 @@ WITH newptype AS (
 	SELECT 
 		'Reporting Attestation',
 		'manager',
-		'Approve your direct reports, thier title and functional team',
+		'Approve your direct reports, their title and functional team',
 		c.approval_process_chain_id,
 		r.approval_process_chain_id
 	FROM chain2 c, jirachain r
@@ -126,7 +126,7 @@ WITH newptype AS (
 		'pester',
 		'quarterly',
 		0,
-		'Company Wide Quarterly certification direct reports and thier information',
+		'Company Wide Quarterly certification direct reports and their information',
 		property_collection_id
 		FROM newpc, chain
 	RETURNING *
@@ -238,7 +238,7 @@ WITH newptype AS (
 		'pester',
 		'quarterly',
 		0,
-		'Quarterly company-wide certification of direct reports and thier information',
+		'Quarterly company-wide certification of direct reports and their information',
 		property_collection_id
 		FROM newpc, chain
 	RETURNING *
