@@ -285,13 +285,19 @@ sub dump_attest_loop($$;$$) {
 			$cgi->div(
 				{ -class => 'description process' },
 				$shr->{ _dbx('process_description') }
-			),
+			), $cgi->hr,
 
 			$cgi->div(
 				{ -class => 'description chain' },
-				$shr->{ _dbx('chain_description') }
+				$shr->{ _dbx('chain_description') },
+				$cgi->hr,
+				$cgi->div({ -class => 'directions' },
+					q{
+						Please verify each item and either approve or use the
+						correct button, then enter the correction.
+					}),
+				$cgi->table( { -class => 'attest' }, $hdr, $t ),
 			),
-			$cgi->table( { -class => 'attest' }, $hdr, $t ),
 			$cgi->div( {-class=>$dueclass}, $due ),
 		);
 		# hrn = human readnable, id = for web forms
@@ -356,11 +362,7 @@ sub dump_attest_loop($$;$$) {
 			$class .= ' stabtab_on';
 		}
 		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$id"}, 
-			$cgi->div({ -class => 'directions' },
-				q{
-					Please verify each item and either approve or use the
-					correct button, then enter the correction.
-				}),
+
 			$h->{content}
 	);
 	}
@@ -372,7 +374,7 @@ sub dump_attest_loop($$;$$) {
 
 	if($#tabs >= 0) {
 		print $cgi->div( { -class => 'attestsubmit' },
-			$cgi->submit( { -class => 'attestsubmit' }, "Submit Results" ) ),
+			$cgi->submit( { -class => 'attestsubmit', -label=>"Submit Approval"} ) ),
 	  	"\n";
 	} else {
 		print "There is nothing outstanding for you to do. Thank you for checking";
@@ -413,7 +415,7 @@ sub do_my_attest {
 					extract(epoch from approval_instance_step_due- now() )
 						as due_seconds,
 					ai.description as process_description,
-					ais.description as chain_description
+					apc.message as chain_description
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)

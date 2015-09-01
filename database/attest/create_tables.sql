@@ -60,6 +60,7 @@ create table approval_process_chain (
 	approval_process_chain_name	text not null,
 	approval_chain_response_period	text DEFAULT '1 week',
 	description					text,
+	message					text,
 	approving_entity		text,
 	refresh_all_data		char(1) DEFAULT 'N' NOT NULL,
 	accept_approval_process_chain_id	integer,

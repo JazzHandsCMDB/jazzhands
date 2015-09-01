@@ -172,10 +172,11 @@ WITH newptype AS (
 ), backtrackchain as (
 	INSERT INTO approval_process_chain ( 
 		approval_process_chain_name, approving_entity, description, 
-			refresh_all_data
+			refresh_all_data,message
 	) VALUES (
-		'Recertification', 'recertify', 'Changes sent to Jira', 'Y')
-	RETURNING *
+		'Recertification', 'recertify', 'Changes sent to Jira', 'Y',
+		'The organizational changes you have requsted have been completed.  Please take a minute to review them and confirm that they are correct'
+	) RETURNING *
 ), jirachain as (
 	INSERT into approval_process_chain (
 		approval_process_chain_name,
@@ -196,12 +197,22 @@ WITH newptype AS (
 		approval_process_chain_name,
 		approving_entity, 
 		description,
+		message,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
 	SELECT 
 		'Reporting Attestation',
 		'manager',
 		'Approve your direct reports, their title and functional team',
+		'At AppNexus, we use organizational data to drive many automated
+		 processes, such as access to resources (servers, databases, file
+		 shares, wiki pages, etc), accounting approvals, and more.  In
+		 order to ensure we are relying on this data, we ask each manager
+		 to certify their employees manager, title and functional team
+		 on a quarterly basis.  As a manager, we ask that you confirm
+		 your employees'' information.  This should
+		 take a maximum of five minutes, most likely less.
+		',
 		NULL,
 		r.approval_process_chain_id
 	FROM jirachain r
@@ -222,7 +233,7 @@ WITH newptype AS (
 		'pester',
 		'quarterly',
 		0,
-		'Company Wide Quarterly certification direct reports and thier information',
+		'Quarterly Company Wide certification direct reports and thier information',
 		property_collection_id
 		FROM newpc, chain
 	RETURNING *

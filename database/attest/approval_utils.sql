@@ -232,7 +232,7 @@ BEGIN
 				approval_process_id, description, approval_instance_name
 			) VALUES ( 
 				_r.approval_process_id, 
-				_r.approval_process_description || ' ' || now()::text, _freq
+				_r.approval_process_description, _freq
 			) RETURNING * INTO ai;
 		END IF;
 
