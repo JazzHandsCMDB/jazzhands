@@ -235,7 +235,7 @@ sub dump_attest_loop($$;$$) {
 								-name  => 'dis_'
 								  . $hr->{ _dbx('approval_instance_item_id') },
 								-type  => 'button',
-								-value => 'make change'
+								-value => 'request change'
 							}
 						),
 					);
@@ -294,7 +294,7 @@ sub dump_attest_loop($$;$$) {
 				$cgi->div({ -class => 'directions' },
 					q{
 						Please verify each item and either approve or request
-						changes from this page.  The "approva all" button can 
+						changes from this page.  The "approve all" button can 
 						be used to approve all items.
 					}),
 				$cgi->table( { -class => 'attest' }, $hdr, $t ),
