@@ -25,6 +25,12 @@ $(document).ready(function(){
 	//
 	enable_stab_tabs();
 
+	// clear value on all hidden form entries.  This can be confusing on
+	// page reloads.
+	$('form#attest').find('input.approve_value').each(function(i, obj) {
+		$(obj).val('');
+	});
+
 	// on load (or reload), uncheck all the boxes
 	$('input.attesttoggle,input.approveall').each(
 		function(iter, obj) {
@@ -34,6 +40,7 @@ $(document).ready(function(){
 
 	$("table").on('focus', ".hint", function(event) {
 		$(event.target).removeClass('hint');
+		$(event.target).closest('td').removeClass('error');
 		event.target.preservedHint = $(event.target).val();
 		$(event.target).val('');
 	});
@@ -53,9 +60,9 @@ $(document).ready(function(){
 		var val = $(event.target).closest('td').find('.approve_value');
 
 		if( $(event.target).hasClass('approve') ) {
-			other = $(event.target).closest('tr').find('.disapprove');
-			$(val).val('approve');
-			approve = true;
+				other = $(event.target).closest('tr').find('.disapprove');
+				$(val).val('approve');
+				approve = true;
 		} else {
 			other = $(event.target).closest('tr').find('.approve');
 			$(val).val('reject');
@@ -64,8 +71,9 @@ $(document).ready(function(){
 
 		$(other).removeClass('buttonon');
 		$(event.target).addClass('buttonon');
+		$(event.target).closest('td').removeClass('error');
 
-		if(! approve) {
+		if( ! approve ) {
 			var dis = $(event.target).closest('tr').find('div.correction').first();
 			var id = $(dis).attr('id');
 			var newid = "fix_"+id;
@@ -88,6 +96,7 @@ $(document).ready(function(){
 				function(iter, obj) {
 					$(obj).prop("disabled", true);
 					$(obj).addClass('irrelevant');
+					$(obj).closest('td').removeClass('error');
 				}
 			);
 		}
@@ -105,8 +114,10 @@ $(document).ready(function(){
 					function(iter, obj) {
 						$(obj).prop("disabled", true);
 						$(obj).addClass('irrelevant');
+						$(obj).closest('td').removeClass('error');
 					}
 				);
+				$(obj).closest('td').removeClass('error');
 			}
 		);
 	});
@@ -114,13 +125,9 @@ $(document).ready(function(){
 	$('#attest').submit( function(event) {
 		var s = { dosubmit: true };
 
-		if(1 == 1) {
-			return true;
-		}
-
 		// check for unset values
 		$('form#attest').find('input.correction').each(function(i, obj) {
-			if($(obj).val().length == 0) {
+			if( $(obj).hasClass('hint') || $(obj).val().length == 0) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
 			} else {
@@ -129,16 +136,12 @@ $(document).ready(function(){
 		});
 
 		// check for unset values
-		$('form#attest').find('input.approve').each(function(i, obj) {
-			var other = $(obj).closest('tr').find('input.disapprove');
-			if( (!$(obj).is(':checked') && !$(other).is(':checked')) ||
-					( $(obj).is(':checked') && $(other).is(':checked')) ) {
+		$('form#attest').find('input.approve_value').each(function(i, obj) {
+			if( $(obj).val() == '' ) {
+				$(obj).closest('td').addClass('error');
 				s.dosubmit = false;
-				$(obj).closest("td").addClass('error');
-				$(other).closest("td").addClass('error');
-			} else {
-				$(obj).closest("td").removeClass('error');
-				$(other).closest("td").removeClass('error');
+			} else { 
+				$(obj).closest('td').removeClass('error');
 			}
 		});
 

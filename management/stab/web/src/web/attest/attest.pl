@@ -36,7 +36,7 @@ sub process_attestment {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi	  || die "Could not create cgi";
 
-	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	# XXX - need to validate that this is ok.
 	my $acctid = $stab->cgi_parse_param('accting_as_account');
@@ -93,6 +93,8 @@ sub process_attestment {
 			}
 			$approved = 'N';
 			$bad++;
+		} elsif(!defined($action) || $action eq '') {
+			$stab->error_return("All users must be approved or a change requested");
 		} else {
 			$stab->error_return("$action is not a valid action for $id");
 		}

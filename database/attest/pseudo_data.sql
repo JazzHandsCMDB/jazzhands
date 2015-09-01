@@ -205,13 +205,18 @@ WITH newptype AS (
 		'manager',
 		'Approve your direct reports, their title and functional team',
 		'At AppNexus, we use organizational data to drive many automated
-		 processes, such as access to resources (servers, databases, file
-		 shares, wiki pages, etc), accounting approvals, and more.  In
-		 order to ensure we are relying on this data, we ask each manager
-		 to certify their employees manager, title and functional team
-		 on a quarterly basis.  As a manager, we ask that you confirm
-		 your employees'' information.  This should
-		 take a maximum of five minutes, most likely less.
+		processes, such as access to resources (servers,
+		databases, file shares, wiki pages, etc), accounting
+		approvals, and more.  In order to ensure we are relying
+		on correct data, we ask that each manager certify the
+		accuracy of their team''s information in HR on a quarterly
+		basis.  Specifically, we ask that you confirm that you
+		are still the manager for all of the people listed as reporting
+		to you, as well as the title and functional team for each.
+		This process is important for corporate security and is
+		a key control that is verified in many audits.
+		This review should take a maximum of five minutes, most 
+		likely less than a minute.
 		',
 		NULL,
 		r.approval_process_chain_id

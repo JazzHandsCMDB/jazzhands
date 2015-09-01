@@ -497,12 +497,11 @@ input.attestsubmit {
 
 .duesoon {
 	background: yellow;
-	foregound: white;
 }
 
 .overdue {
 	background: red;
-	foregound: white;
+	color: white;
 }
 
 .buttonon {
