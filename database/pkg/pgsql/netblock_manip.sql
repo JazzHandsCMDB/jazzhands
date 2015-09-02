@@ -57,7 +57,7 @@ BEGIN
 	 */
 	DELETE FROM jazzhands.netblock WHERE netblock_id = in_netblock_id;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_manip.recalculate_parentage(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -88,7 +88,7 @@ BEGIN
 	END LOOP;
 	RETURN nbid;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	parent_netblock_id		jazzhands.netblock.netblock_id%TYPE,
@@ -122,7 +122,7 @@ BEGIN
 	);
 	RETURN netblock_rec;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 
 CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
@@ -360,7 +360,7 @@ BEGIN
 		RETURN netblock_rec;
 	END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 GRANT USAGE ON SCHEMA netblock_manip TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_manip TO iud_role;
