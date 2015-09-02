@@ -45,7 +45,7 @@ sub process_attestment {
 
 	#
 	#
-	# NOTE:  THis query is shared with index.pl.  May want to do something
+	# NOTE:  This query is shared with index.pl.  May want to do something
 	# about that...
 	my $sth = $stab->prepare(qq{
 		SELECT approver_account_id, aii.*
