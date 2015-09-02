@@ -96,6 +96,12 @@ div.introblurb {
 	width: 60%;
 }
 
+div.navbar {
+	margin: auto;
+	font-size: 75%;
+	text-align: center;
+}
+
 /* device box pretty */
 
 TABLE.dev_checkboxes { background-color: lightyellow; border: 1px solid;}

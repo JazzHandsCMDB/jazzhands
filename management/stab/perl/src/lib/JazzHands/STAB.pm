@@ -126,9 +126,32 @@ sub new {
 	bless $self, $class;
 	$self->textfield_sizing(1);
 
+	#
+	# These are used for permissions.
+	#
+	$self->{_permmap} = {
+		'Approval' => '/approve' ,
+		'Attest' => '/attest' ,
+		'Device' => '/device' ,
+		'DNS' => '/dns/',
+		'Netblock' => '/netblock/',
+		'Sites', => '/sites/rack/',
+		'StabAccess' => '/',
+	};
+
+	$self->{_urlpermmap} = {map { $self->{_permmap}->{$_} => $_ } keys %{$self->{_permmap}}};
+
 	if ( !exists( $opt->{nocheck_perms} ) ) {
-		if ( !$self->check_permissions('StabAccess') ) {
-			$self->return_permission_denied();
+		my $stabroot = $self->guess_stab_root();
+		my $thisurl = $cgi->url( { -full => 1 } );
+		foreach my $u (sort { length($a) <=> length($b) }
+				keys %{$self->{_urlpermmap}} ) {
+			if( $thisurl =~ /^$stabroot$u/) {
+				warn "Checking $thisurl vs $stabroot$u";
+				if ( !$self->check_permissions( $self->{_urlpermmap}->{$u} ) ) {
+					$self->return_permission_denied();
+				}
+			}
 		}
 	}
 
@@ -174,7 +197,7 @@ sub check_permissions {
 
 	if(!exists($self->{_roles})) {
 		my $q = qq{
-			select	distinct property_name
+			select	property_value
 			  from	v_property p
 					inner join v_acct_coll_acct_expanded ae
 							using (account_collection_id)
@@ -182,7 +205,7 @@ sub check_permissions {
 							on ae.account_id = a.account_id
 			where	a.login = ?
 			 and	p.property_type = 'StabRole'
-			order by property_name
+			 and	p.property_name = 'PermitStabSection'
 		} || die $self->return_db_err();
 
 		my $sth = $self->prepare($q) || $self->return_db_err;
@@ -196,6 +219,12 @@ sub check_permissions {
 
 	my @r = grep($_ eq $role, @{$self->{_roles}} );
 	($#r >= 0)?1:0;
+}
+
+sub username {
+	my $self = shift;
+
+	$self->{_username};
 }
 
 sub get_account_id {
@@ -510,31 +539,28 @@ sub start_html {
 
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
 		my $map = {
-			'Device' => { perm => 'Device', url => '/device' },
-			'DNS' => { perm => 'DNS', url => '/dns/'},
-			'Netblock' => { perm => 'Netblock', url => '/netblock/'},
-			'Racks' => { perm => 'Sites', url => '/sites/rack/'},
-			'STAB' => { perm => 'StabAccess', url => '/'},
+			'Device' => 'Device',
+			'DNS' => 'DNS',
+			'Netblock' => 'Netblock',
+			'Racks' => 'Sites',
+			'STAB' => 'StabAccess',
 		};
 
 		my $navbar = "";
 		foreach my $p (sort keys %{$map}) {
-			if($self->check_permissions($map->{$p}->{perm} )) {
+			if($self->check_permissions($map->{$p}) ) {
 				if(length($navbar)) {
 					$navbar .= " - ";
 				}
 				$navbar .= $cgi->a({
-					-href => "$stabroot/".$map->{$p}->{url}
+					-href => "$stabroot/".$self->{_permmap}->{ $map->{$p} },
 				}, $p);
 			}
 		}
 
-		my $inline_title = "";
 		if(length($navbar)) {
 			$inline_title .=
-		  	$cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
-				"[ $navbar ] " )
-		  	. "\n";
+		  		$cgi->div( { -class => 'navbar' }, "[ $navbar ] " ) . "\n";
 		}
 	}
 

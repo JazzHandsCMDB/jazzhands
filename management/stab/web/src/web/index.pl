@@ -37,13 +37,13 @@ my $email = $stab->support_email();
 
 my $mailto = $cgi->a( { -href => $email }, $email );
 
-print qq{
+print $cgi->div({-class => 'description'},qq{
 	STAB is a web front-end to JazzHands.
 	STAB is used to manage network elements, and related information,
 	ranging from device properties, to network topology to DNS
 	information.  If you have
 	any issues with STAB, please contact  $mailto.
-};
+});
 
 print $cgi->h2( { -align => 'center' }, "STAB Network Element Management" );
 
@@ -80,7 +80,7 @@ if($stab->check_permissions('Device')) {
 					{ -href => "device/type/" },
 					"Device Type Management"
 				),
-	
+
 		       	#		$cgi->a(
 		       	#			{ -href => "device/apps/" }, "Application Management"
 		       	#		),
@@ -109,7 +109,7 @@ if($stab->check_permissions('Netblock')) {
 			)
 		),
 	));
-
+}
 
 if($stab->check_permissions('Sites')) {
 	push(@things, join("",
@@ -127,9 +127,9 @@ if($stab->check_permissions('Sites')) {
 		),
 	));
 }
-	
+
 #	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) .
-	
+
 print $cgi->ul(@things);
 print $cgi->end_html, "\n";
 
