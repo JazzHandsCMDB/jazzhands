@@ -252,7 +252,8 @@ WITH dude_base AS (
 	SELECT *,
 		concat(first_name, ' ', last_name, ' (', login, ')') as human_readable
 	FROM dude_base
-) SELECT a.*, mp.account_id as manager_account_id, mp.login as manager_login
+) SELECT a.*, mp.account_id as manager_account_id, mp.login as manager_login,
+	concat(mp.first_name, ' ', mp.last_name, ' (', mp.login, ')') as manager_human_readable
 FROM dude a
 	INNER JOIN dude mp ON mp.person_id = a.manager_person_id
 ;
@@ -336,7 +337,7 @@ WITH foo AS (
 		attestation_frequency,
 		attestation_offset,
 		approval_process_chain_name,
-		account_collection_type as approval_label,
+		concat('Verify ',account_collection_type) as approval_label,
 		human_readable AS approval_lhs,
 		account_collection_name as approval_rhs
 FROM foo
@@ -359,9 +360,9 @@ SELECT  mm.login,
 		attestation_frequency,
 		attestation_offset,
 		approval_process_chain_name,
-		approval_process_name as approval_label,
+		'Verify Manager' as approval_label,
 		mm.human_readable AS approval_lhs,
-		concat ('Reports to ',mm.manager_login) AS approval_rhs	
+		concat ('Reports to ',mm.manager_human_readable) AS approval_rhs	
 FROM v_approval_matrix mx
 	INNER JOIN property p ON
 		p.property_name = mx.property_val_rhs AND
@@ -388,7 +389,10 @@ SELECT  login,
 		attestation_frequency,
 		attestation_offset,
 		approval_process_chain_name,
-		property_val_rhs as approval_label,
+		CASE 
+			WHEN property_val_rhs = 'position_title' 
+				THEN 'Verify Position Title'
+		END as aproval_label,
 		human_readable AS approval_lhs,
 		CASE 
 			WHEN property_val_rhs = 'position_title' THEN pcm.position_title

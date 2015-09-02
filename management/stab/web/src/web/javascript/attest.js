@@ -127,7 +127,8 @@ $(document).ready(function(){
 
 		// check for unset values
 		$('form#attest').find('input.correction').each(function(i, obj) {
-			if( $(obj).hasClass('hint') || $(obj).val().length == 0) {
+			if( !($obj).hasClass('irrelevant') && 
+					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
 			} else {
@@ -137,7 +138,7 @@ $(document).ready(function(){
 
 		// check for unset values
 		$('form#attest').find('input.approve_value').each(function(i, obj) {
-			if( $(obj).val() == '' ) {
+			if( $(obj).val() == '' && $(obj).hasClass('irrelevant')) {
 				$(obj).closest('td').addClass('error');
 				s.dosubmit = false;
 			} else { 
@@ -146,7 +147,7 @@ $(document).ready(function(){
 		});
 
 		if( s.dosubmit == false ) {
-			alert("You must specify approve or disapprove and enter a corrected value for each disapproval.");
+			alert("You must specify approve or request changes for each item.");
 			event.preventDefault();
 		}
 		return s.dosubmit;

@@ -467,6 +467,10 @@ div.attestsubmit {
 	text-align: center;
 }
 
+td.correction {
+	min-width: 15ex;
+}
+
 input.attestsubmit { 
 	background-color: green;
 	color: white;

@@ -241,6 +241,9 @@ sub dump_attest_loop($$;$$) {
 					);
 				}
 
+				$correction = $cgi->td({-class=>"$myclass correction"},
+					$correction);
+
 				$t .= $cgi->Tr(
 					{ -class => $mytrclass },
 					$cgi->td($linkback),
@@ -251,9 +254,9 @@ sub dump_attest_loop($$;$$) {
 							$hr->{approved_label} || '',
 							$hr->{approved_rhs}   || '',
 							$approvsw,
-							$correction,
 						]
 					),
+					$correction,
 					$cgi->td($linkfwd),
 				);
 			}
