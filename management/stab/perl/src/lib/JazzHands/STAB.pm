@@ -127,7 +127,7 @@ sub new {
 	$self->textfield_sizing(1);
 
 	if ( !exists( $opt->{nocheck_perms} ) ) {
-		if ( !$self->check_permissions() ) {
+		if ( !$self->check_permissions('StabAccess') ) {
 			$self->return_permission_denied();
 		}
 	}
@@ -172,33 +172,30 @@ sub check_permissions {
 	my $self = shift;
 	my $role = shift;
 
-	$role = 'StabAccess' if ( !$role );
+	if(!exists($self->{_roles})) {
+		my $q = qq{
+			select	distinct property_name
+			  from	v_property p
+					inner join v_acct_coll_acct_expanded ae
+							using (account_collection_id)
+					inner join v_corp_family_account a
+							on ae.account_id = a.account_id
+			where	a.login = ?
+			 and	p.property_type = 'StabRole'
+			order by property_name
+		} || die $self->return_db_err();
 
-	my $q = qq{
-		select	count(*)
-		  from	v_property p
-				inner join v_acct_coll_acct_expanded ae
-						using (account_collection_id)
-				inner join v_corp_family_account a
-						on ae.account_id = a.account_id
-		where	a.login = ?
-		 and	p.property_type = 'StabRole'
-		and		p.property_name = ?
-	} || die $self->return_db_err();
+		my $sth = $self->prepare($q) || $self->return_db_err;
 
-	my $sth = $self->prepare($q) || $self->return_db_err;
+		$sth->execute( $self->{_username}) || die $self->return_db_err;
+		while(my ($r) = $sth->fetchrow_array() ) {
+			push(@{$self->{_roles}}, $r);
+		}
+		$sth->finish;
+	}
 
-	$sth->execute( $self->{_username}, $role ) || die $self->return_db_err;
-
-	my ($count) = $sth->fetchrow_array;
-	$sth->finish;
-	$count;
-}
-
-sub username {
-	my ($self) = @_;
-
-	$self->{_username};
+	my @r = grep($_ eq $role, @{$self->{_roles}} );
+	($#r >= 0)?1:0;
 }
 
 sub get_account_id {
@@ -365,26 +362,27 @@ sub start_html {
 				},
 			);
 		}
-		if ( $opts->{javascript} eq 'attest' ) {
-			push(
-				@{ $args{-script} },
-				{
-					-language => 'JavaScript',
-					-src =>
-						"$root/javascript-common/external/jQuery/jquery.js",
-				},
-				{
-					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/stab-common.js"
-				},
-				{
-					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/attest.js"
-				},
-			);
-		}
+	if ( $opts->{javascript} eq 'attest' ) {
+		push(
+			@{ $args{-script} },
+			{
+				-language => 'JavaScript',
+				-src =>
+					"$root/javascript-common/external/jQuery/jquery.js",
+			},
+			{
+				-language => 'JavaScript',
+				-src =>
+				  "$stabroot/javascript/stab-common.js"
+			},
+			{
+				-language => 'JavaScript',
+				-src =>
+				  "$stabroot/javascript/attest.js"
+			},
+		);
+	}
+
 
 		if ( $opts->{javascript} eq 'devicetype' ) {
 			push(
@@ -458,7 +456,7 @@ sub start_html {
 	}
 
 	$args{'-meta'} = {
-		'id'        => '$Id$',
+		'id'	=> '$Id$',
 		'Generator' => "STAB!  STAB!  STAB!"
 	};
 
@@ -511,24 +509,33 @@ sub start_html {
 	}
 
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
-		my $navbar = ""
+		my $map = {
+			'Device' => { perm => 'Device', url => '/device' },
+			'DNS' => { perm => 'DNS', url => '/dns/'},
+			'Netblock' => { perm => 'Netblock', url => '/netblock/'},
+			'Racks' => { perm => 'Sites', url => '/sites/rack/'},
+			'STAB' => { perm => 'StabAccess', url => '/'},
+		};
 
-		  . $cgi->a( { -href => "$stabroot/device/" }, "Device" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/dns" },       "DNS" ) . " - "
-		  . $cgi->a( { -href => "$stabroot/netblock/" }, "Netblock" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/sites/blockmgr.pl" },
-			"Site IPs" )
-		  . " - "
+		my $navbar = "";
+		foreach my $p (sort keys %{$map}) {
+			if($self->check_permissions($map->{$p}->{perm} )) {
+				if(length($navbar)) {
+					$navbar .= " - ";
+				}
+				$navbar .= $cgi->a({
+					-href => "$stabroot/".$map->{$p}->{url}
+				}, $p);
+			}
+		}
 
-		  . $cgi->a( { -href => "$stabroot/sites/rack/" }, "Racks" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
-		$inline_title .=
-		  $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
-			"[ $navbar ] " )
-		  . "\n";
+		my $inline_title = "";
+		if(length($navbar)) {
+			$inline_title .=
+		  	$cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
+				"[ $navbar ] " )
+		  	. "\n";
+		}
 	}
 
 	if ( ( !defined( $opts->{'noinlinemsgs'} ) ) ) {
@@ -561,10 +568,10 @@ sub build_passback_url {
 	my $self = shift @_;
 	my $opts = &_options(@_);
 
-	my $errmsg         = $opts->{'errmsg'};
-	my $notemsg        = $opts->{'notemsg'};
-	my $refurl         = $opts->{'refurl'};
-	my $devlist        = $opts->{'devlist'};
+	my $errmsg	 = $opts->{'errmsg'};
+	my $notemsg	= $opts->{'notemsg'};
+	my $refurl	 = $opts->{'refurl'};
+	my $devlist	= $opts->{'devlist'};
 	my $nopreserveargs = $opts->{'nopreserveargs'};
 
 	my $cgi     = $self->cgi;
@@ -639,7 +646,7 @@ sub build_passback_url {
 			my $stabroot = $self->guess_stab_root;
 			$uri = new URI("$stabroot/error.pl");
 			$uri->query($qs) if ( defined($qs) && length($qs) );
-			$ref            = new CGI("");
+			$ref	    = new CGI("");
 			$nopreserveargs = 1;
 			last;
 		} else {
@@ -705,8 +712,8 @@ sub error_return {
 
 	my $cgi = $self->cgi;
 	$url = $self->build_passback_url(
-		errmsg         => $errmsg,
-		refurl         => $url,
+		errmsg	 => $errmsg,
+		refurl	 => $url,
 		nopreserveargs => $success
 	);
 
@@ -732,8 +739,8 @@ sub msg_return {
 
 	my $cgi = $self->cgi;
 	$url = $self->build_passback_url(
-		notemsg        => $note,
-		refurl         => $url,
+		notemsg	=> $note,
+		refurl	 => $url,
 		nopreserveargs => $success
 	);
 	print $cgi->redirect($url);
@@ -1013,8 +1020,8 @@ sub b_nondbdropdown {
 	} elsif ( $selectfield eq 'TIX_SYSTEM' ) {
 		@list = ( "NSI-RT", "PPM" );
 		foreach my $l (@list) { $list{$l} = $l }
-		$default        = "__unknown__";
-		$pickone        = "Pick System";
+		$default	= "__unknown__";
+		$pickone	= "Pick System";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
 	} elsif ( $selectfield =~ /APPROVAL_TYPE$/ ) {
@@ -1023,14 +1030,14 @@ sub b_nondbdropdown {
 		# a Y/N column in the db indicating that is a user
 		# selectable value or some such.
 		%list = (
-			'rt'          => 'RT',
-			'ppm'         => 'PPM',
+			'rt'	  => 'RT',
+			'ppm'	 => 'PPM',
 			'servicedesk' => 'ServiceDesk',
-			'jira'        => 'Jira',
+			'jira'	=> 'Jira',
 		);
 		foreach my $l ( sort keys %list ) { push( @list, $l ); }
-		$default        = "__unknown__";
-		$pickone        = "Pick System";
+		$default	= "__unknown__";
+		$pickone	= "Pick System";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
 	} elsif ( $selectfield eq 'DNS_SRV_PROTOCOL' ) {
@@ -1039,8 +1046,8 @@ sub b_nondbdropdown {
 			'udp' => '_udp',
 		);
 		foreach my $l ( sort keys %list ) { push( @list, $l ); }
-		$default        = "__unknown__";
-		$pickone        = "Pick";
+		$default	= "__unknown__";
+		$pickone	= "Pick";
 		$list{$default} = $pickone;
 		unshift( @list, $default );
 	} elsif ( $selectfield eq 'LOCATION_RACK_SIDE' ) {
@@ -1815,7 +1822,7 @@ sub b_dropdown {
 	$popupargs->{-onChange}   = $onchange if ( defined($onchange) );
 	$popupargs->{-class}      = $class if ( defined($class) );
 	$popupargs->{-attributes} = \%attr;
-	$popupargs->{-id}         = $id if ( defined($id) );
+	$popupargs->{-id}	 = $id if ( defined($id) );
 
 	my $x = $cgi->popup_menu(
 		$popupargs
@@ -2194,7 +2201,7 @@ sub build_checkbox {
 sub check_if_sure {
 	my ( $self, $msg ) = @_;
 
-	my $cgi          = $self->cgi;
+	my $cgi	  = $self->cgi;
 	my $areyousure   = $cgi->param('areyousure') || undef;
 	my $orig_referer = $cgi->param('orig_referer') || undef;
 
@@ -2726,15 +2733,15 @@ sub vendor_logo {
 	my $cgi = $self->cgi || die "Could not create cgi";
 
 	my %ICOMAP = (
-		'Dot Hill',         'dothill.ico',
-		'Cisco',            'cisco.ico',
-		'Foundry',          'foundry.ico',
-		'Dell',             'dell.ico',
+		'Dot Hill',	 'dothill.ico',
+		'Cisco',	    'cisco.ico',
+		'Foundry',	  'foundry.ico',
+		'Dell',	     'dell.ico',
 		'Force10 Networks', 'force10.ico',
-		'IBM',              'ibm.ico',
-		'HP',               'hp.ico',
+		'IBM',	      'ibm.ico',
+		'HP',	       'hp.ico',
 		'Sun Microsystems', 'sun.ico',
-		'Juniper',          'juniper.ico',
+		'Juniper',	  'juniper.ico',
 	);
 
 	my $root = $self->guess_stab_root;

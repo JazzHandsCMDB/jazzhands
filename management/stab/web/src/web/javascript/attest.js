@@ -89,13 +89,13 @@ $(document).ready(function(){
 				$(box).insertAfter(dis);
 			} else {
 				$(iput).prop("disabled", false);
-				$(iput).removeClass('irrelevant');
 			}
+			$(iput).closest('td').removeClass('irrelevant');
 		} else {
 			$(event.target).closest('tr').find('input.correction').each(
 				function(iter, obj) {
 					$(obj).prop("disabled", true);
-					$(obj).addClass('irrelevant');
+					$(obj).closest('td').addClass('irrelevant');
 					$(obj).closest('td').removeClass('error');
 				}
 			);
@@ -113,8 +113,8 @@ $(document).ready(function(){
 				$(event.target).closest('table.attest').find('.correction').each(
 					function(iter, obj) {
 						$(obj).prop("disabled", true);
-						$(obj).addClass('irrelevant');
 						$(obj).closest('td').removeClass('error');
+						$(obj).closest('td').addClass('irrelevant');
 					}
 				);
 				$(obj).closest('td').removeClass('error');
