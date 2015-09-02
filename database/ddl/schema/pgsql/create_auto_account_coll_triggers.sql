@@ -86,11 +86,13 @@ BEGIN
 		PERFORM auto_ac_manip.make_personal_acs_right(NEW.account_id);
 	END IF;
 
-	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE'  THEN
+	IF TG_OP = 'UPDATE'  THEN
 		PERFORM auto_ac_manip.make_site_acs_right(OLD.account_id);
 		PERFORM auto_ac_manip.make_personal_acs_right(OLD.account_id);
 	END IF;
 
+	-- when deleting, do nothing rather than calling the above, same as
+	-- update; pointless because account is getting deleted anyway.
 
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
