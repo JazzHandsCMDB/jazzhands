@@ -131,7 +131,6 @@ sub new {
 	#
 	$self->{_permmap} = {
 		'Approval' => '/approve' ,
-		'Attest' => '/attest' ,
 		'Device' => '/device' ,
 		'DNS' => '/dns/',
 		'Netblock' => '/netblock/',
@@ -147,7 +146,6 @@ sub new {
 		foreach my $u (sort { length($a) <=> length($b) }
 				keys %{$self->{_urlpermmap}} ) {
 			if( $thisurl =~ /^$stabroot$u/) {
-				warn "Checking $thisurl vs $stabroot$u";
 				if ( !$self->check_permissions( $self->{_urlpermmap}->{$u} ) ) {
 					$self->return_permission_denied();
 				}
