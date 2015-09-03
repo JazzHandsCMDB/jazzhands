@@ -76,7 +76,7 @@ use JazzHands::Common qw(_options SetError);
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
 
-$VERSION = '0.51';
+$VERSION = '0.52';
 
 @ISA       = qw(DBI Exporter);
 @EXPORT_OK = qw(set_session_user);
