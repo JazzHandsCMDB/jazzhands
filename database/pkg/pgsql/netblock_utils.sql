@@ -152,7 +152,7 @@ BEGIN
 		in_netblock_id
 	);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.delete_netblock(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -182,7 +182,7 @@ BEGIN
 	 */
 	DELETE FROM jazzhands.netblock WHERE netblock_id = in_netblock_id;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -213,7 +213,7 @@ BEGIN
 	END LOOP;
 	RETURN nbid;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -251,7 +251,7 @@ BEGIN
 	CLOSE nb_match;
 	return v_rv;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblock(
 	parent_netblock_id		jazzhands.netblock.netblock_id%TYPE,
@@ -275,7 +275,7 @@ BEGIN
 			desired_ip_address := desired_ip_address,
 			max_addresses := 1);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
 	parent_netblock_id		jazzhands.netblock.netblock_id%TYPE,
@@ -300,7 +300,7 @@ BEGIN
 		desired_ip_address := desired_ip_address,
 		max_addresses := max_addresses);
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
 	parent_netblock_list	integer[],
@@ -777,7 +777,7 @@ BEGIN
 	END LOOP;
 	RETURN;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO ro_role;

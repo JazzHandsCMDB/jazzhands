@@ -76,7 +76,7 @@ use JazzHands::Common qw(_options SetError);
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
 
-$VERSION = '0.51';
+$VERSION = '0.54';
 
 @ISA       = qw(DBI Exporter);
 @EXPORT_OK = qw(set_session_user);
@@ -237,7 +237,7 @@ sub do_database_connect {
 			next;
 		}
 	
-		my $dbstr = "dbi:${dbd}:". join(";", @vals);
+		my $dbstr = "dbi:${dbd}:". join(";", sort @vals);
 		my $dbh;
 		if ($opt->{cached}) {
 			$dbh = DBI->connect_cached($dbstr, $user, $pass, $dbiflags);
@@ -289,6 +289,10 @@ sub optional_set_session_user {
 
 sub set_session_user {
 	my($dbh, $dude) = @_;
+
+	if (!defined($dbh)) {
+		return undef;
+	}
 
 	# XXX oracle untested
 	if($dbh->{Driver}->{Name} eq 'oracle') {
