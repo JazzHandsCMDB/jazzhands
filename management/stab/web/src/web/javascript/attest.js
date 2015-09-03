@@ -104,6 +104,13 @@ $(document).ready(function(){
 					$(obj).closest('td').removeClass('error');
 				}
 			);
+			$(event.target).closest('tr').find('select.correction').each(
+				function(iter, obj) {
+					$(obj).prop("disabled", true);
+					$(obj).closest('td').addClass('hidecorrection');
+					$(obj).closest('td').removeClass('error');
+				}
+			);
 		}
 
 	});
