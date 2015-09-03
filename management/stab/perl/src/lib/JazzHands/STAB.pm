@@ -400,6 +400,16 @@ sub start_html {
 			{
 				-language => 'JavaScript',
 				-src =>
+					"$root/javascript-common/external/chosen/chosen.jquery.js",
+			},
+		#	{
+		#		-language => 'JavaScript',
+		#		-src =>
+		#			"$root/javascript-common/external/chosen/docsupport/prism.js",
+		#	},
+			{
+				-language => 'JavaScript',
+				-src =>
 				  "$stabroot/javascript/stab-common.js"
 			},
 			{
@@ -522,8 +532,17 @@ sub start_html {
 			$args{'-style'}->{'SRC'} = "$stabroot/style.pl";
 		}
 	} else {
-		$args{'-style'} = { 'SRC' => "$stabroot/style.pl" };
+		$args{'-style'} = { 'SRC' => [ 
+			#"$root/javascript-common/external/chosen/docsupport/style.css",
+			#"$root/javascript-common/external/chosen/docsupport/prism.css",
+			"$root/javascript-common/external/chosen/chosen.css",
+			"$stabroot/style.pl", 
+		]};
 	}
+
+	# XXX need to handle multiple styles, and figure out how to do chosen only
+	# on attestation
+
 
 	my $inline_title = "";
 	if ( ( !defined( $opts->{'noinlinetitle'} ) ) ) {
@@ -568,12 +587,10 @@ sub start_html {
 		$cgi->param( '__errmsg__',  undef );
 		$cgi->param( '__notemsg__', undef );
 		$inline_title .=
-		  $cgi->p( { -style => 'color: red', -align => 'center' },
-			$errmsg )
+		  $cgi->div( { -class => 'errmsg' }, $errmsg )
 		  if ( defined($errmsg) );
 		$inline_title .=
-		  $cgi->p( { -style => 'color: green', -align => 'center' },
-			$notemsg )
+		  $cgi->div( { -class => 'notemsg' }, $notemsg )
 		  if ( defined($notemsg) );
 	}
 

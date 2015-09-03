@@ -102,6 +102,18 @@ div.navbar {
 	text-align: center;
 }
 
+div.errmsg {
+	margin: auto;
+	color: red;
+	text-align: center;
+}
+
+div.notemsg {
+	margin: auto;
+	color: green;
+	text-align: center;
+}
+
 /* device box pretty */
 
 TABLE.dev_checkboxes { background-color: lightyellow; border: 1px solid;}
@@ -348,11 +360,19 @@ label {
 }
 
 input.editabletext {
-	width: 200px;
+	min-width: 200px;
 }
 
 input.srvnum {
 	width: 5em;
+}
+
+/*
+	 this exists for approval because display: none confuses the chosen
+	jquery plugin
+ */
+.hidecorrection {
+	visibility: hidden;
 }
 
 .irrelevant {
@@ -474,7 +494,11 @@ div.attestsubmit {
 }
 
 td.correction {
-	min-width: 15ex;
+	min-width: 30ex;
+}
+
+td.correction input { 
+	width: 100%;
 }
 
 input.attestsubmit { 

@@ -185,6 +185,7 @@ create table approval_instance_item (
 	approval_instance_link_id	integer not null,
 	approval_instance_step_id	integer not null,
 	next_approval_instance_item_id	integer,
+	approved_category		text,
 	approved_label			text,
 	approved_lhs			text,
 	approved_rhs			text,
@@ -337,6 +338,7 @@ WITH foo AS (
 		attestation_frequency,
 		attestation_offset,
 		approval_process_chain_name,
+		account_collection_type as approval_category,
 		concat('Verify ',account_collection_type) as approval_label,
 		human_readable AS approval_lhs,
 		account_collection_name as approval_rhs
@@ -360,6 +362,7 @@ SELECT  mm.login,
 		attestation_frequency,
 		attestation_offset,
 		approval_process_chain_name,
+		approval_process_name as approval_category,
 		'Verify Manager' as approval_label,
 		mm.human_readable AS approval_lhs,
 		concat ('Reports to ',mm.manager_human_readable) AS approval_rhs	
@@ -389,6 +392,7 @@ SELECT  login,
 		attestation_frequency,
 		attestation_offset,
 		approval_process_chain_name,
+		property_val_rhs as approval_category,
 		CASE 
 			WHEN property_val_rhs = 'position_title' 
 				THEN 'Verify Position Title'

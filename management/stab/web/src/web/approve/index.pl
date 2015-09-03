@@ -50,6 +50,74 @@ sub do_attest_toplevel {
 	undef $stab;
 }
 
+sub build_correction($$) {
+	my($stab, $hr) = @_;
+
+	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $id = $hr->{_dbx('APPROVAL_INSTANCE_ITEM_ID')};
+	my $cat = $hr->{_dbx('approved_category')};
+
+	my $newid = "fix_$id";
+
+	if($cat =~  /^department|ReportingAttest$/) {
+		my $sth;
+		my $ph = "";
+		if($cat eq 'department') {
+			$ph = 'Please Select department';
+			$sth = $stab->prepare_cached(qq{
+				select  account_collection_name
+				from  account_collection
+				where   account_collection_type = 'department'
+				order by account_collection_name
+			}) || return $stab->return_db_err();
+		} elsif($cat eq 'ReportingAttest') {
+			$ph = 'Please Select Manager';
+			$sth = $stab->prepare_cached(qq{
+				WITH x as (
+					select person_id,
+						coalesce(preferred_first_name,first_name) as first_name,
+						coalesce(preferred_last_name,last_name) as last_name,
+						login
+					from person
+						inner join person_company USING (person_id)
+						inner join v_corp_family_account USING (person_id,company_id)
+					where  account_type = 'person'
+					and	account_role = 'primary'
+					and is_management = 'Y'
+				) select concat(first_name, ' ', last_name, ' (',login,')')
+					as who
+				from  x
+				order by last_name, first_name, login
+			}) || return $stab->return_db_err();
+		}
+
+		my(@list);
+		push(@list, '');
+		$sth->execute || $stab->return_db_err();
+		while(my ($name) = $sth->fetchrow_array) {
+			push(@list, $name);
+		}
+		my $rv = $cgi->popup_menu({
+			-name =>  $newid,
+			-id => $newid,
+			-values => \@list,
+			"-data-placeholder" => $ph,
+			-class => "chosen-select correction",
+			-tabindex => 2,
+		});
+		warn $rv;
+		return $rv;
+	} else {
+		return $cgi->textfield({
+			-name =>  $newid,
+			-id => $newid,
+			-class => 'correction hint',
+			-value => 'enter correction'
+		});
+	}
+	return "";
+}
+
 sub dump_attest_loop($$;$$) {
 	my ( $stab, $sth, $acctid, $ro ) = @_;
 
@@ -140,14 +208,9 @@ sub dump_attest_loop($$;$$) {
 						);
 					}
 				}
-				my $correction = $cgi->div(
-					{
-						-class => 'correction',
-						-id    => $hr->{ _dbx('approval_instance_item_id') }
-					}
-				  ),
 
-				  my $myclass = "";
+				my $correction = "";
+				my $myclass = "";
 				my $mytrclass;
 				if ( $classnote % 2 ) {
 					$mytrclass = 'even';
@@ -185,7 +248,19 @@ sub dump_attest_loop($$;$$) {
 					  ? "(pending)"
 					  : "";
 					$correction = "$x $ref";
+				} else {
+					$correction = $cgi->div(
+						{
+							-class => 'correction',
+							-id    => $hr->{ _dbx('approval_instance_item_id') }
+						},
+						build_correction($stab, $hr),
+				  	);
 				}
+
+				$correction = $cgi->td(
+					{-class=>"$myclass hidecorrection correction"},
+					$correction);
 
 				my $whocol = '';
 				if ( $perdudetally == 1 ) {
@@ -241,11 +316,11 @@ sub dump_attest_loop($$;$$) {
 					);
 				}
 
-				$correction = $cgi->td({-class=>"$myclass correction"},
-					$correction);
 
 				$t .= $cgi->Tr(
 					{ -class => $mytrclass },
+					$cgi->hidden(-id=>'approval_category',
+							-value=> $hr->{approved_category}),
 					$cgi->td($linkback),
 					$whocol,
 					$cgi->td(
@@ -297,7 +372,7 @@ sub dump_attest_loop($$;$$) {
 				$cgi->div({ -class => 'directions' },
 					q{
 						Please verify each item and either approve or request
-						changes from this page.  The "approve all" button can 
+						changes from this page.  The "approve all" button can
 						be used to approve all items.
 					}),
 				$cgi->table( { -class => 'attest' }, $hdr, $t ),
@@ -319,7 +394,7 @@ sub dump_attest_loop($$;$$) {
 		#}
 	}
 
-	my $form = $cgi->start_form( { -id => 'attest', -action => "attest.pl" } );
+	my $form = $cgi->start_form( { -id => 'attest', -action => "approve.pl" } );
 	if ($acctid) {
 		$form .= $cgi->hidden(
 			{
@@ -365,7 +440,7 @@ sub dump_attest_loop($$;$$) {
 		if($count++ == 0) {
 			$class .= ' stabtab_on';
 		}
-		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$id"}, 
+		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$id"},
 
 			$h->{content}
 	);
@@ -403,7 +478,7 @@ sub do_my_attest {
 						n.approval_instance_step_id as rhs_step_id
 			from		approval_instance_item i
 						inner join approval_instance_item n
-							on i.next_approval_instance_item_id = 
+							on i.next_approval_instance_item_id =
 								n.approval_instance_item_id
 		) SELECT approver_account_id, aii.*, ais.is_completed,
 					back.lhs_step_id as lhs_step_id,
@@ -423,9 +498,9 @@ sub do_my_attest {
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)
-				INNER JOIN approval_instance_item aii 
+				INNER JOIN approval_instance_item aii
 					USING (approval_instance_step_id)
-				INNER JOIN approval_instance_link ail 
+				INNER JOIN approval_instance_link ail
 					USING (approval_instance_link_id)
 				INNER JOIN approval_process_chain apc
 					USING (approval_process_chain_id)
@@ -482,7 +557,7 @@ sub show_step_attest {
 						n.approval_instance_step_id as rhs_step_id
 			from		approval_instance_item i
 						inner join approval_instance_item n
-							on i.next_approval_instance_item_id = 
+							on i.next_approval_instance_item_id =
 								n.approval_instance_item_id
 		) SELECT approver_account_id, aii.*, ais.is_completed,
 					back.lhs_step_id as lhs_step_id,
@@ -496,9 +571,9 @@ sub show_step_attest {
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)
-				INNER JOIN approval_instance_item aii 
+				INNER JOIN approval_instance_item aii
 					USING (approval_instance_step_id)
-				INNER JOIN approval_instance_link ail 
+				INNER JOIN approval_instance_link ail
 					USING (approval_instance_link_id)
 				INNER JOIN approval_process_chain apc
 					USING (approval_process_chain_id)

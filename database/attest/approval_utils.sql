@@ -276,10 +276,10 @@ BEGIN
 
 		INSERT INTO approval_instance_item (
 			approval_instance_link_id, approval_instance_step_id,
-			approved_label, approved_lhs, approved_rhs
+			approved_category, approved_label, approved_lhs, approved_rhs
 		) VALUES ( 
 			ail.approval_instance_link_id, ais.approval_instance_step_id,
-			_r.approval_label, _r.approval_lhs, _r.approval_rhs
+			_r.approval_category, _r.approval_label, _r.approval_lhs, _r.approval_rhs
 		) RETURNING * INTO aii;
 
 		UPDATE approval_instance_step 
@@ -420,11 +420,13 @@ BEGIN
 		);
 		_new.approval_instance_link_id := _l;
 		_new.approved_label := _v.approval_label;
+		_new.approved_category := _v.approval_category;
 		_new.approved_lhs := _v.approval_lhs;
 		_new.approved_rhs := _v.approval_rhs;
 	ELSE
 		_new.approval_instance_link_id := _r.approval_instance_link_id;
 		_new.approved_label := _r.approved_label;
+		_new.approved_category := _r.approved_category;
 		_new.approved_lhs := _r.approved_lhs;
 		IF new_value IS NULL THEN
 			_new.approved_rhs := _r.approved_rhs;
@@ -438,15 +440,15 @@ BEGIN
 
 	EXECUTE '
 		INSERT INTO approval_instance_item
-			(approval_instance_link_id, approved_label,
+			(approval_instance_link_id, approved_label, approved_category,
 				approved_lhs, approved_rhs, approval_instance_step_id
-			) SELECT $2, $3,
-				$4, $5, $6
+			) SELECT $2, $3, $4
+				$5, $6, $7
 			FROM approval_instance_item
 			WHERE approval_instance_item_id = $1
 			RETURNING *
 	' INTO _new USING approval_instance_item_id, 
-		_new.approval_instance_link_id, _new.approved_label,
+		_new.approval_instance_link_id, _new.approved_label, _new.approved_category,
 		_new.approved_lhs, _new.approved_rhs,
 		_step;
 

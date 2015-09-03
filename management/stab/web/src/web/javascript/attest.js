@@ -31,6 +31,19 @@ $(document).ready(function(){
 		$(obj).val('');
 	});
 
+	// setup all the chosen boxes
+    var config = {
+      '.chosen-select'           : {},
+      '.chosen-select-deselect'  : {allow_single_deselect:true},
+      '.chosen-select-no-single' : {disable_search_threshold:10},
+      '.chosen-select-no-results': {no_results_text:'Oops, nothing found!'},
+      '.chosen-select-width'     : {width:"95%"}
+    }
+    for (var selector in config) {
+      $(selector).chosen(config[selector]);
+    }
+
+
 	// on load (or reload), uncheck all the boxes
 	$('input.attesttoggle,input.approveall').each(
 		function(iter, obj) {
@@ -77,25 +90,17 @@ $(document).ready(function(){
 			var dis = $(event.target).closest('tr').find('div.correction').first();
 			var id = $(dis).attr('id');
 			var newid = "fix_"+id;
-			var iput = "input#"+newid;
+			var iput = "#"+newid;
 
-			if( ! $(iput).length ) {
-				var box = $("<input />", { 
-					name: newid,
-					id: newid,
-					class: 'correction hint',
-					value: 'enter correction',
-				});
-				$(box).insertAfter(dis);
-			} else {
-				$(iput).prop("disabled", false);
-			}
-			$(iput).closest('td').removeClass('irrelevant');
+			var category = $(event.target).closest('tr').find('#approval_category').val();
+
+			$(dis).find(iput).prop("disabled", false);
+			$(dis).find(iput).closest('td').removeClass('hidecorrection');
 		} else {
 			$(event.target).closest('tr').find('input.correction').each(
 				function(iter, obj) {
 					$(obj).prop("disabled", true);
-					$(obj).closest('td').addClass('irrelevant');
+					$(obj).closest('td').addClass('hidecorrection');
 					$(obj).closest('td').removeClass('error');
 				}
 			);
@@ -114,7 +119,7 @@ $(document).ready(function(){
 					function(iter, obj) {
 						$(obj).prop("disabled", true);
 						$(obj).closest('td').removeClass('error');
-						$(obj).closest('td').addClass('irrelevant');
+						$(obj).closest('td').addClass('hidecorrection');
 					}
 				);
 				$(obj).closest('td').removeClass('error');
@@ -125,9 +130,9 @@ $(document).ready(function(){
 	$('#attest').submit( function(event) {
 		var s = { dosubmit: true };
 
-		// check for unset values
+		// check for corrections that were not filled in
 		$('form#attest').find('input.correction').each(function(i, obj) {
-			if( !($obj).hasClass('irrelevant') && 
+			if( !$(obj).closest('td').hasClass('hidecorrection') && 
 					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
@@ -136,9 +141,20 @@ $(document).ready(function(){
 			}
 		});
 
-		// check for unset values
+		// check for chosen selects that were not filled in
+		$('form#attest').find('select.correction').each(function(i, obj) {
+			if( !$(obj).closest('td').hasClass('hidecorrection') && 
+					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
+				s.dosubmit = false;
+				$(obj).closest('td').addClass('error');
+			} else {
+				$(obj).closest('td').removeClass('error');
+			}
+		});
+
+		// check for unchecked rows
 		$('form#attest').find('input.approve_value').each(function(i, obj) {
-			if( $(obj).val() == '' && $(obj).hasClass('irrelevant')) {
+			if( $(obj).val() == '' && !$(obj).closest('td').hasClass('hidecorrection')) {
 				$(obj).closest('td').addClass('error');
 				s.dosubmit = false;
 			} else { 
@@ -154,3 +170,13 @@ $(document).ready(function(){
 	});
 
 });
+
+function build_approve_correct(resp, newid) {
+	var box = $("<input />", { 
+		name: newid,
+		id: newid,
+		class: 'correction hint',
+		value: 'enter correction',
+	});
+	return box;
+}
