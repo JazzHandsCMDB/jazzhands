@@ -442,7 +442,7 @@ BEGIN
 		INSERT INTO approval_instance_item
 			(approval_instance_link_id, approved_label, approved_category,
 				approved_lhs, approved_rhs, approval_instance_step_id
-			) SELECT $2, $3, $4
+			) SELECT $2, $3, $4,
 				$5, $6, $7
 			FROM approval_instance_item
 			WHERE approval_instance_item_id = $1
