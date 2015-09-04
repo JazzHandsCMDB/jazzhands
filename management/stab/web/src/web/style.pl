@@ -448,6 +448,7 @@ div.ncmanip {
 
 div.attestbox {
 	min-width: 20ex;
+	text-align: center;
 }
 
 
