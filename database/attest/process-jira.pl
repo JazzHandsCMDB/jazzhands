@@ -29,6 +29,23 @@ use Getopt::Long;
 use JazzHands::AppAuthAL;
 use IO::Select;
 
+### Defaults
+my $project   = 'HR';
+my $priority  = 'Critical';
+my $issuetype = 'Task';
+my @labels;
+my $oneemail;
+my $dryrun;
+my $service = "jira-attestation";
+my ($jiraroot, $jirauser, $jirapass);
+
+# This script basically makes a post like this:
+# curl --insecure -D- -u 'user:pw' -X POST --data @json.txt -H "Content-Type: application/json" https://jira.example.com/rest/api/2/issue/
+
+$ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
+$ENV{'HTTPS_DEBUG'}                  = 0;
+my $jiraapiroot = "$jiraroot/rest/api/2";
+
 =head1 NAME
 
 process-jira - 
@@ -44,54 +61,9 @@ Todd M. Kover <kovert@omniscient.com>
 
 =cut 
 
-my $project   = 'CSI';
-my $priority  = 'Critical';
-my $issuetype = 'Task';
-my @labels;
-my $oneemail;
-my $dryrun;
-my $service = "jira-attestation";
-my ($jiraroot, $jirauser, $jirapass);
+exit do_work();
 
-#
-# Setup defaults that can be overridden on the command line
-#
-my $appauth = JazzHands::AppAuthAL::find_and_parse_auth($service, undef, 'web');
-if($appauth) {
-	if ( ref($appauth) eq 'ARRAY' ) {
-		$appauth = $appauth->[0];
-	}
-	$jiraroot = $appauth->{'URL'};
-	$jirauser = $appauth->{'Username'};
-	$jirapass = $appauth->{'Password'};
-}
-
-GetOptions(
-	"dry-run|n"       => \$dryrun,
-	"jira-root=s"     => \$jiraroot,
-	"jira-user=s"     => \$jirauser,
-	"jira-password=s" => \$jirapass,
-	"project=s"       => \$project,
-	"label=s"        => \@labels,
-	"priority=s"      => \$priority,
-	"issue-type=s"    => \$issuetype,
-	"one-email"       => \$oneemail,
-) || die pod2usage();
-
-#if ( !scalar @labels ) {
-#	push( @labels, 'physical-access-verify' );
-#}
-
-die "Must have a jira root" if (! $jiraroot);
-die "Must have a jira username" if (! $jirauser);
-die "Must have a jira password" if (! $jirapass);
-
-# This script basically makes a post like this:
-# curl --insecure -D- -u 'user:pw' -X POST --data @json.txt -H "Content-Type: application/json" https://jira.example.com/rest/api/2/issue/
-
-$ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
-$ENV{'HTTPS_DEBUG'}                  = 0;
-my $jiraapiroot = "$jiraroot/rest/api/2";
+#############################################################################
 
 sub get_account_id($$) {
 	my($dbh, $login) = @_;
@@ -163,9 +135,8 @@ sub jira_req($$;$) {
 	die $url, ": ", $res->status_line, "\n";
 }
 
-my $dbh = JazzHands::DBI->connect($service, {AutoCommit => 0}) || die $JazzHands::DBI::errstr;
-
 sub open_new_issues {
+	my($dbh) = @_;
 	#
 	# Build $map up to have a list of dcs and a human readable list of names that
 	# should have access
@@ -185,11 +156,17 @@ sub open_new_issues {
 	        Where     approval_type = 'jira-hr'
 	        AND     ais.is_completed = 'N'
 			AND		ais.external_reference_name IS NULL
-	        ORDER BY approval_instance_step_id, approved_lhs, approved_label
+	        ORDER BY approval_instance_step_id, approved_lhs, approved_category
 	}
 	) || die $dbh->errstr;
 
 	$sth->execute || die $sth->errstr;
+
+	my $catmap = {
+		'ReportingAttest' => 'Manager',
+		'department' => 'Department',
+		'position_title' => 'Title',
+	};
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $step = $hr->{approval_instance_step_id};
@@ -200,11 +177,17 @@ sub open_new_issues {
 			$map->{$step}->{approval_instance_step_id} = $step;
 		}
 
-		$map->{$step}->{changes}->{$lhs}->{ $hr->{approved_label} } =
+		my $category = $hr->{approved_category} || $hr->{approved_label};
+
+		if($catmap->{$category}) {
+			$category = $catmap->{$category};
+		}
+
+		$map->{$step}->{changes}->{$lhs}->{ $category } =
 				$hr->{approved_rhs};
 
 		#push(@ {$map->{$step}->{changes}->{$lhs}},
-		#			{ $hr->{approved_label} => $hr->{approved_rhs} }
+		#			{ $category => $hr->{approved_rhs} }
 		#);
 
 	}
@@ -243,6 +226,7 @@ sub open_new_issues {
 }
 
 sub check_pending_issues {
+	my($dbh) = @_;
 	my $sth = $dbh->prepare_cached(qq{
 	       SELECT approver_account_id, aii.*, ais.is_completed, a.login,
 					ais.external_reference_name
@@ -259,7 +243,7 @@ sub check_pending_issues {
 	        AND     ais.is_completed = 'N'
 			AND		aii.is_approved IS NULL
 			AND		ais.external_reference_name IS NOT NULL
-	        ORDER BY approval_instance_step_id, approved_lhs, approved_label
+	        ORDER BY approval_instance_step_id, approved_lhs, approved_category
 	}
 	) || die $dbh->errstr;
 
@@ -304,59 +288,99 @@ sub check_pending_issues {
 	$wsth->finish;
 }
 
-check_pending_issues();
-open_new_issues();
-$dbh->commit;
+############################################################################
 
-$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
+my $dbh;
 
-my $pgsock = $dbh->{pg_socket};
+sub do_work {
+	$dbh = JazzHands::DBI->connect($service, {AutoCommit => 0}) || die $JazzHands::DBI::errstr;
 
-my $timeout = shift(@ARGV) || 60;
-
-# NOTE: AutoCommit must be set (or some similar behavior) while waiting on the
-# socket, otherwise the notifies never come through.
-
-my $s = IO::Select->new();
-$s->add($pgsock);
-$dbh->{AutoCommit} = 1;
-do {
-	# warn "waiting for IO::Select\n";
-	my @ready = $s->can_read($timeout);
-	warn "wake up - ", $#ready, "\n";
-	$dbh->{AutoCommit} = 0;
-
-	check_pending_issues();
-
-	foreach my $fh (@ready) {
-		if($fh == $pgsock) {
-			my $tally = 0;
-			while(my $notify = $dbh->pg_notifies) {
-				$tally++;
-				my ($name, $pid, $payload) = @{$notify};
-				print "notify received: $name / $pid / $payload\n";
-			}
-			warn "received $tally notifies\n";
-			open_new_issues();
-		} else {
-			warn "received fh $fh, which was unexpected.\n";
+	#
+	# Setup defaults that can be overridden on the command line
+	#
+	my $appauth = JazzHands::AppAuthAL::find_and_parse_auth($service, undef, 'web');
+	if($appauth) {
+		if ( ref($appauth) eq 'ARRAY' ) {
+			$appauth = $appauth->[0];
 		}
-			
-
-		if(0 && !$dbh->ping()) {
-			$dbh->disconnect;
-			$dbh = undef;
-			$dbh = reconnect();
-			$s->remove($pgsock);
-			$pgsock = $dbh->{pg_socket};
-			$s->add($pgsock);
-		}
+		$jiraroot = $appauth->{'URL'};
+		$jirauser = $appauth->{'Username'};
+		$jirapass = $appauth->{'Password'};
 	}
-	$dbh->commit;
-	$dbh->{AutoCommit} = 1;
-	$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
-} while(1);
 
+	GetOptions(
+		"dry-run|n"       => \$dryrun,
+		"jira-root=s"     => \$jiraroot,
+		"jira-user=s"     => \$jirauser,
+		"jira-password=s" => \$jirapass,
+		"project=s"       => \$project,
+		"label=s"        => \@labels,
+		"priority=s"      => \$priority,
+		"issue-type=s"    => \$issuetype,
+		"one-email"       => \$oneemail,
+	) || die pod2usage();
+
+	#if ( !scalar @labels ) {	push( @labels, 'physical-access-verify' );}
+
+	die "Must have a jira root" if (! $jiraroot);
+	die "Must have a jira username" if (! $jirauser);
+	die "Must have a jira password" if (! $jirapass);
+
+	check_pending_issues($dbh);
+	open_new_issues($dbh);
+	$dbh->commit;
+
+	$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
+
+	my $pgsock = $dbh->{pg_socket};
+
+	my $timeout = shift(@ARGV) || 60;
+
+	# NOTE: AutoCommit must be set (or some similar behavior) while waiting on the
+	# socket, otherwise the notifies never come through.
+
+	my $s = IO::Select->new();
+	$s->add($pgsock);
+	$dbh->{AutoCommit} = 1;
+	do {
+		# warn "waiting for IO::Select\n";
+		my @ready = $s->can_read($timeout);
+		warn "wake up - ", $#ready, "\n";
+		$dbh->{AutoCommit} = 0;
+
+		check_pending_issues();
+
+		foreach my $fh (@ready) {
+			if($fh == $pgsock) {
+				my $tally = 0;
+				while(my $notify = $dbh->pg_notifies) {
+					$tally++;
+					my ($name, $pid, $payload) = @{$notify};
+					print "notify received: $name / $pid / $payload\n";
+				}
+				warn "received $tally notifies\n";
+				open_new_issues();
+			} else {
+				warn "received fh $fh, which was unexpected.\n";
+			}
+
+
+			if(0 && !$dbh->ping()) {
+				$dbh->disconnect;
+				$dbh = undef;
+				$dbh = reconnect();
+				$s->remove($pgsock);
+				$pgsock = $dbh->{pg_socket};
+				$s->add($pgsock);
+			}
+		}
+		$dbh->commit;
+		$dbh->{AutoCommit} = 1;
+		$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
+	} while(1);
+
+	return(0);
+}
 
 END {
 	if ($dbh) {

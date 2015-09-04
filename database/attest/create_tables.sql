@@ -160,6 +160,23 @@ alter table approval_instance_step
 	foreign key (actual_approver_account_id)
 	references account(account_id);
 
+--
+-- Used to track when users were notified and other such events
+--
+drop table if exists approval_instance_step_notify;
+create table approval_instance_step_notify (
+	approval_instance_step_notify_id	serial not null,
+	approval_instance_step_id		integer,
+	approval_notify_type		text,
+	approval_notify_whence	timestamp,
+	primary key (approval_instance_step_notify_id)
+);
+
+alter table approval_instance_step_notify
+	add constraint fk_approval_instance_step_notify_id 
+	foreign key (approval_instance_step_id)
+	references approval_instance_step(approval_instance_step_id);
+
 -- These items may want to be folded into approval_instance_item
 --
 -- These are just fk's to all the audit table rows that are related to a
