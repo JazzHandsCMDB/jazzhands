@@ -95,19 +95,19 @@ $(document).ready(function(){
 			var category = $(event.target).closest('tr').find('#approval_category').val();
 
 			$(dis).find(iput).prop("disabled", false);
-			$(dis).find(iput).closest('td').removeClass('hidecorrection');
+			$(dis).find(iput).closest('div.correction').removeClass('hidecorrection');
 		} else {
 			$(event.target).closest('tr').find('input.correction').each(
 				function(iter, obj) {
 					$(obj).prop("disabled", true);
-					$(obj).closest('td').addClass('hidecorrection');
+					$(obj).closest('div.correction').addClass('hidecorrection');
 					$(obj).closest('td').removeClass('error');
 				}
 			);
 			$(event.target).closest('tr').find('select.correction').each(
 				function(iter, obj) {
 					$(obj).prop("disabled", true);
-					$(obj).closest('td').addClass('hidecorrection');
+					$(obj).closest('div.correction').addClass('hidecorrection');
 					$(obj).closest('td').removeClass('error');
 				}
 			);
@@ -126,7 +126,7 @@ $(document).ready(function(){
 					function(iter, obj) {
 						$(obj).prop("disabled", true);
 						$(obj).closest('td').removeClass('error');
-						$(obj).closest('td').addClass('hidecorrection');
+						$(obj).closest('div.correction').addClass('hidecorrection');
 					}
 				);
 				$(obj).closest('td').removeClass('error');
@@ -139,7 +139,7 @@ $(document).ready(function(){
 
 		// check for corrections that were not filled in
 		$('form#attest').find('input.correction').each(function(i, obj) {
-			if( !$(obj).closest('td').hasClass('hidecorrection') && 
+			if( !$(obj).closest('div.correction').hasClass('hidecorrection') && 
 					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
@@ -150,7 +150,7 @@ $(document).ready(function(){
 
 		// check for chosen selects that were not filled in
 		$('form#attest').find('select.correction').each(function(i, obj) {
-			if( !$(obj).closest('td').hasClass('hidecorrection') && 
+			if( !$(obj).closest('div.correction').hasClass('hidecorrection') && 
 					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
@@ -161,7 +161,7 @@ $(document).ready(function(){
 
 		// check for unchecked rows
 		$('form#attest').find('input.approve_value').each(function(i, obj) {
-			if( $(obj).val() == '' && !$(obj).closest('td').hasClass('hidecorrection')) {
+			if( $(obj).val() == '' && !$(obj).closest('div.correction').hasClass('hidecorrection')) {
 				$(obj).closest('td').addClass('error');
 				s.dosubmit = false;
 			} else { 

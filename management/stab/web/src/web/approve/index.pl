@@ -251,7 +251,7 @@ sub dump_attest_loop($$;$$) {
 				} else {
 					$correction = $cgi->div(
 						{
-							-class => 'correction',
+							-class => 'correction hidecorrection',
 							-id    => $hr->{ _dbx('approval_instance_item_id') }
 						},
 						build_correction($stab, $hr),
@@ -259,7 +259,7 @@ sub dump_attest_loop($$;$$) {
 				}
 
 				$correction = $cgi->td(
-					{-class=>"$myclass hidecorrection correction"},
+					{-class=>"$myclass correction"},
 					$correction);
 
 				my $whocol = '';
