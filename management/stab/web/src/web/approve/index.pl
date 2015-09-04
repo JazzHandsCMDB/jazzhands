@@ -321,7 +321,7 @@ sub dump_attest_loop($$;$$) {
 					{ -class => $mytrclass },
 					$cgi->hidden(-id=>'approval_category',
 							-value=> $hr->{approved_category}),
-					$cgi->td($linkback),
+					# $cgi->td($linkback),
 					$whocol,
 					$cgi->td(
 						{ -class => $myclass },
@@ -332,7 +332,7 @@ sub dump_attest_loop($$;$$) {
 						]
 					),
 					$correction,
-					$cgi->td($linkfwd),
+					# $cgi->td($linkfwd),
 				);
 			}
 		}
@@ -341,8 +341,8 @@ sub dump_attest_loop($$;$$) {
 		if ($numpending) {
 			$hdr = $cgi->th(
 				[
-					"", 'Who', 'What', "Value", "Approval $appall",
-					'Correction', ""
+					'Who', 'What', "Value", "Approval $appall",
+					'Correction', 
 				]
 			);
 		} else {

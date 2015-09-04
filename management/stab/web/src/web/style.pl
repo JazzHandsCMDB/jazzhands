@@ -225,6 +225,7 @@ div.stabtabcontent {
 	border-radius: 10px;
 	width: 100%;
 	margin:auto;
+	min-width: 100ex;
 }
 
 div.stabtab { 
@@ -445,18 +446,43 @@ div.ncmanip {
 	display: inline-block;
 }
 
+div.attestbox {
+	min-width: 20ex;
+}
+
+
 table.attest {
 	border: 2px solid;
 	margin: auto;
+	background: grey;
 }
 
 table.attest tbody tr.odd {
 	background: lightgrey;
 	border: 1px solid;
 }
+
+table.attest td {
+	background: grey;
+}
+
+table.attest tbody th {
+	background: lightgrey;
+}
 	
 table.attest tbody tr.even {
 	background: white;
+}
+	
+table.attest tbody tr.even {
+	background: white;
+}
+
+table.attest tbody tr.even td {
+	background-color: white;
+}
+table.attest tbody tr.odd td {
+	background-color: lightgrey;
 }
 
 .error {
@@ -474,7 +500,7 @@ div.description {
 	border: 3px solid;
 	text-align: center;
 	margin: auto;
-	width: 75%;
+	min-width: 75%;
 	
 }
 
@@ -520,7 +546,9 @@ input.attestsubmit {
 .attesttoggle {
 	border: 1px solid;
 	border-radius: 20px;
-	margin: 2px;
+	margin: 0px;
+	margin: 0px;
+	text-decoration: bold;
 	background: lightyellow;
 }
 
