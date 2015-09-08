@@ -906,8 +906,28 @@ insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	permit_account_collection_id
 ) values (
-	'StabAccess', 'StabRole', 'N', 'boolean',
-	'REQUIRED'
+	'StabAccess', 'StabRole', 'N', 'boolean', 'REQUIRED'
+	'PermitStabSection', 'StabRole', 'Y', 'list', 'REQUIRED'
+);
+
+insert into val_property_value (
+	property_name, property_type, valid_property_value
+) values (
+	'PermitStabSection', 'StabRole', 'Device'
+	'PermitStabSection', 'StabRole', 'DNS'
+	'PermitStabSection', 'StabRole', 'Netblock'
+	'PermitStabSection', 'StabRole', 'Sites'
+	'PermitStabSection', 'StabRole', 'StabAccess'
+	'PermitStabSection', 'StabRole', 'Attest'
+	'PermitStabSection', 'StabRole', 'Approval'
+);
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) values (
+	'_stab_root', 'Defaults', 'N', 'string',
+	'root of url for stab, if apps need to direct people'
 );
 
 

@@ -66,6 +66,12 @@ insert into property (
 	from account_realm where account_realm_name = 'Omniscient')
 );
 
+insert into property (
+	property_name, property_type, property_value
+) VALUES  (
+	'_stab_root', 'Defaults', 'https://stab.example.com/'
+);
+
 
 insert into account_realm_company (
 	account_realm_id, 
