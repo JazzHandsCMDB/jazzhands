@@ -326,9 +326,9 @@ BEGIN
 		vgpv.volume_group_id = ANY(volume_group_list);
 	
 	DELETE FROM
-		volume_group vg
+		volume_group_purpose vgp
 	WHERE
-		vg.volume_group_id = ANY(volume_group_list);
+		vgp.volume_group_id = ANY(volume_group_list);
 
 	DELETE FROM
 		logical_volume_property
