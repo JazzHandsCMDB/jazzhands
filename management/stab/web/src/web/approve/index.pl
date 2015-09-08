@@ -465,9 +465,10 @@ sub do_my_attest {
 	my ( $stab, $actas ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	# XXX - need to make it so you can only act as people who work for you!
-	# XXX - also need to apply this to the thing that applies the attestation
 	my $acctid = $stab->get_account_id($actas);
+	if(! $stab->check_management_chain($acctid) && ! $stab->check_admin() ) {
+		$stab->error_return("You are not permitted to approve on behalf of this person");
+	}
 
 	my $sth = $stab->prepare(
 		qq{

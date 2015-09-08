@@ -38,10 +38,13 @@ sub process_attestment {
 
 	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
-	# XXX - need to validate that this is ok.
 	my $acctid = $stab->cgi_parse_param('accting_as_account');
 
-	my $myacctid = $stab->get_account_id() || die $stab->error_return("I was not able to determine who you are. This should not happen.");
+	if(! $stab->check_management_chain($acctid) && ! $stab->check_admin() ) {
+		$stab->error_return("You are not permitted to attest to this person's accounts");
+	}
+
+	my $myacctid = $stab->get_account_id() || die $stab->error_return("I was not able to determine who you are trying to validate. This should not happen.");
 
 	#
 	#
