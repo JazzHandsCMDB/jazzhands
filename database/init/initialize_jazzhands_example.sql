@@ -72,6 +72,18 @@ insert into property (
 	'_stab_root', 'Defaults', 'https://stab.example.com/'
 );
 
+insert into property (
+	property_name, property_type, property_value
+) VALUES  (
+	'_approval_email_sender', 'Defaults', 'noreply@example.com'
+);
+
+insert into property (
+	property_name, property_type, property_value
+) VALUES  (
+	'_approval_email_signer', 'Defaults', 'HR Department'
+);
+
 
 insert into account_realm_company (
 	account_realm_id, 

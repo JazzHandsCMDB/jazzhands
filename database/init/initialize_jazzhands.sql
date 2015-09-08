@@ -953,6 +953,24 @@ values (
 	'indicates netblocks that should be in a named acl', 'Y',
 	'string', 'REQUIRED');
 
+--- approval stuff
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) values (
+	'_approval_email_sender', 'Defaults', 'N', 'string',
+	'Email address to send approvals from '
+);
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) values (
+	'_approval_email_signer', 'Defaults', 'N', 'string',
+	'Email address to sign aproval emails from (in body)'
+);
+
 -------------------------------------------------------------------------
 -- BEGIN legacy port related stuff used by layer1_connection and elsewhere
 
