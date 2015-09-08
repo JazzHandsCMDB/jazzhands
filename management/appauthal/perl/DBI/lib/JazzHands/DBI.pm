@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2011, 2012 Todd M. Kover, Matthew Ragan
+# Copyright (c) 2011-2015 Todd M. Kover, Matthew Ragan
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,22 @@ my $dbh = JazzHands::DBI->connect($app, [ $instance, ] [ $flags ], [$user]);
 Instance and flags are optional, but if you want to set user, you need to pass
 an undef for instance.
 
+Alternatively:
+
+use JazzHands::DBI;
+my $jhdbi = JazzHands::DBI->new;
+my $dbh = $jhdbi->connect(
+	application => $app,
+	instance => $instance,
+	dbiflags => {},
+	appuser => $appuser,
+	errors => \@errors
+);
+
+When calling using the OO interface, only application is required.
+
 DBI::set_session_user($dbh, $user)
+$jhdbi->set_session_user($user)
 
 Sets the session user based on what is appropriate for the underlying database
 
@@ -294,6 +309,10 @@ sub set_session_user {
 		return undef;
 	}
 
+	if (!exists($dbh->{Driver}) && exists($dbh->{_DBHandle})) {
+		$dbh = $dbh->{_DBHandle};
+	}
+
 	# XXX oracle untested
 	if($dbh->{Driver}->{Name} eq 'oracle') {
 		$dbh->do(qq{
@@ -312,13 +331,13 @@ sub set_session_user {
 }
 
 #
-# Our implementation of connect.  In order to accomadate the instance being an
+# Our implementation of connect.  In order to accomodate the instance being an
 # optionalish thing, this will accept flags instead of an instance and DTRT.
 #
 sub connect {
-	my $class = shift;
+	my $self = shift;
 	my $dbh;
-	if (ref($class)) {
+	if (ref($self)) {
 		$dbh = do_database_connect(@_);
 	} else {
 		my $app = shift;
@@ -346,13 +365,16 @@ sub connect {
 				override => $override);
 		}
 	}
+	if (ref($self)) {
+		$self->{_DBHandle} = $dbh;
+	}
 	$dbh;
 }
 
 sub connect_cached {
-	my $class = shift;
+	my $self = shift;
 	my $dbh;
-	if (ref($class)) {
+	if (ref($self)) {
 		$dbh = do_database_connect(@_, cached => 1);
 	} else {
 		my $app = shift;
@@ -382,6 +404,9 @@ sub connect_cached {
 				override => $override,
 				cached => 1);
 		}
+	}
+	if (ref($self)) {
+		$self->{_DBHandle} = $dbh;
 	}
 	$dbh;
 }
