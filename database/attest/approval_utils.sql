@@ -386,7 +386,6 @@ BEGIN
 		RAISE EXCEPTION 'This whould not happen:  Unable to discern approving account.';
 	END IF;
 
-	-- XXX need to contemplate completed here.
 	EXECUTE '
 		SELECT	approval_instance_step_id
 		FROM	approval_instance_step
@@ -478,10 +477,8 @@ DECLARE
 	_aii	approval_instance_item%ROWTYPE;	
 	_new	approval_instance_item.approval_instance_item_id%TYPE;	
 	_chid	approval_process_chain.approval_process_chain_id%TYPE;
+	_tally	INTEGER;
 BEGIN
-	-- XXX - need to check to see if this account is permitted to approve
-	-- or not
-
 	EXECUTE '
 		SELECT 	aii.approval_instance_item_id,
 			ais.approval_instance_step_id,
@@ -503,6 +500,34 @@ BEGIN
 		WHERE approval_instance_item_id = $1
 	' USING approval_instance_item_id INTO 	_r;
 
+
+	--
+	-- Ensure that only the person or their management chain can approve
+	-- others
+	IF _r.approver_account_id != approving_account_id THEN
+		EXECUTE '
+			WITH RECURSIVE rec (
+				root_account_id,
+				account_id,
+				manager_account_id
+			) as (
+					SELECT  account_id as root_account_id,
+							account_id, manager_account_id
+					FROM	v_account_manager_map
+				UNION ALL
+					SELECT a.root_account_id, m.account_id, m.manager_account_id
+					FROM rec a join v_account_manager_map m
+						ON a.manager_account_id = m.account_id
+			) SELECT count(*) from rec where root_account_id = $1
+				and manager_account_id = $2
+		' INTO _tally USING _r.approver_account_id, approving_account_id;
+
+		IF _tally = 0 THEN
+			RAISE EXCEPTION 'Only a person and their management chain may approve others';
+		END IF;
+
+	END IF;
+
 	IF _r.approval_instance_item_id IS NULL THEN
 		RAISE EXCEPTION 'Unknown approval_instance_item_id %',
 			approval_instance_item_id;
@@ -512,8 +537,6 @@ BEGIN
 		RAISE EXCEPTION 'Approval is already completed.';
 	END IF;
 
-	-- XXX is_completed set here?  Is that used to notify the requestor
-	-- that it was not aprpoved or does that roll up to an instance?
 	EXECUTE '
 		UPDATE approval_instance_item
 		SET is_approved = $2,
