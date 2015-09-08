@@ -215,8 +215,18 @@ sub check_permissions {
 		$sth->finish;
 	}
 
+
 	my @r = grep($_ eq $role, @{$self->{_roles}} );
 	($#r >= 0)?1:0;
+}
+
+#
+# returns 1 if a user is an admin
+#
+sub check_admin() {
+	my $self = shift;
+
+	$self->check_permissions('FullAdmin');
 }
 
 sub username {
