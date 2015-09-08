@@ -30,7 +30,7 @@ use JazzHands::AppAuthAL;
 use IO::Select;
 
 ### Defaults
-my $project   = 'HR';
+my $project   = 'PEEPS';
 my $priority  = 'Critical';
 my $issuetype = 'Task';
 my @labels;
@@ -44,7 +44,6 @@ my ($jiraroot, $jirauser, $jirapass);
 
 $ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
 $ENV{'HTTPS_DEBUG'}                  = 0;
-my $jiraapiroot = "$jiraroot/rest/api/2";
 
 =head1 NAME
 
@@ -81,8 +80,8 @@ sub get_account_id($$) {
 	$id;
 }
 
-sub open_jira_issue($$$;$) {
-	my ( $login, $msg, $summary, $dryrun ) = @_;
+sub open_jira_issue($$$$;$) {
+	my ( $jiraapiroot, $login, $msg, $summary, $dryrun ) = @_;
 
 	my $jira = {
 		'fields' => {
@@ -98,15 +97,15 @@ sub open_jira_issue($$$;$) {
 	my $j = new JSON::PP;
 	my $p = $j->pretty->encode($jira);
 	if ( !$dryrun ) {
-		my $n = jira_req( "issue/", 'POST', $p );
+		my $n = jira_req($jiraapiroot,  "issue/", 'POST', $p );
 		return $n;
 	} else {
 		print "posting: $p";
 	}
 }
 
-sub jira_req($$;$) {
-	my ( $what, $action, $body ) = @_;
+sub jira_req($$$;$) {
+	my ( $jiraapiroot, $what, $action, $body ) = @_;
 
 	$action = 'GET' if ( !$action );
 
@@ -135,8 +134,8 @@ sub jira_req($$;$) {
 	die $url, ": ", $res->status_line, "\n";
 }
 
-sub open_new_issues {
-	my($dbh) = @_;
+sub open_new_issues($$) {
+	my($dbh,$jiraapiroot) = @_;
 	#
 	# Build $map up to have a list of dcs and a human readable list of names that
 	# should have access
@@ -216,7 +215,7 @@ sub open_new_issues {
 		}
 		$msg =~ s/^\t{1,3}//mg;
 		my $summary = "Organizational Corrections for $login";
-		my $jresp = open_jira_issue( $login, $msg, $summary, $dryrun );
+		my $jresp = open_jira_issue( $jiraapiroot, $login, $msg, $summary, $dryrun );
 		my $jid = $jresp->{key};
 		$wsth->bind_param(':name', $jid) || die $sth->errstr;
 		$wsth->bind_param(':id', $step) || die $sth->errstr;
@@ -225,8 +224,8 @@ sub open_new_issues {
 	}
 }
 
-sub check_pending_issues {
-	my($dbh) = @_;
+sub check_pending_issues($$) {
+	my($dbh, $jiraapiroot) = @_;
 	my $sth = $dbh->prepare_cached(qq{
 	       SELECT approver_account_id, aii.*, ais.is_completed, a.login,
 					ais.external_reference_name
@@ -263,11 +262,11 @@ sub check_pending_issues {
 		my $key = $hr->{external_reference_name};
 
 		if(! exists( $cache->{$key} )) {
-			my $r = jira_req("issue/$key", 'GET');
+			my $r = jira_req($jiraapiroot, "issue/$key", 'GET');
 
 			if($r->{fields} && $r->{fields}->{status}) {
 				my $stat = $r->{fields}->{status};
-				if($stat->{name} =~ /^(Closed|Resolved)/) {
+				if($stat->{name} =~ /^(Closed|Resolved|Done)/) {
 					$cache->{$key}->{status} = $stat->{name};
 					$cache->{$key}->{approved} = 'Y'
 				}
@@ -308,6 +307,7 @@ sub do_work {
 		$jirapass = $appauth->{'Password'};
 	}
 
+
 	GetOptions(
 		"dry-run|n"       => \$dryrun,
 		"jira-root=s"     => \$jiraroot,
@@ -326,8 +326,10 @@ sub do_work {
 	die "Must have a jira username" if (! $jirauser);
 	die "Must have a jira password" if (! $jirapass);
 
-	check_pending_issues($dbh);
-	open_new_issues($dbh);
+	my $jiraapiroot = "$jiraroot/rest/api/2";
+
+	check_pending_issues($dbh, $jiraapiroot);
+	open_new_issues($dbh, $jiraapiroot);
 	$dbh->commit;
 
 	$dbh->do("LISTEN approval_instance_item_approval_change;") || die $dbh->errstr;
@@ -348,7 +350,7 @@ sub do_work {
 		warn "wake up - ", $#ready, "\n";
 		$dbh->{AutoCommit} = 0;
 
-		check_pending_issues();
+		check_pending_issues($dbh, $jiraapiroot);
 
 		foreach my $fh (@ready) {
 			if($fh == $pgsock) {
@@ -359,7 +361,7 @@ sub do_work {
 					print "notify received: $name / $pid / $payload\n";
 				}
 				warn "received $tally notifies\n";
-				open_new_issues();
+				open_new_issues($dbh, $jiraapiroot);
 			} else {
 				warn "received fh $fh, which was unexpected.\n";
 			}

@@ -129,7 +129,16 @@ BEGIN
 		        approving_entity,
 				approval_process_description,
 				approval_chain_description,
-		        property_val_rhs as approval_label,
+				approval_response_period,
+				approval_expiration_action,
+				attestation_frequency,
+				attestation_offset,
+				approval_process_chain_name,
+				property_val_rhs AS approval_category,
+				CASE
+					WHEN property_val_rhs = ''position_title''
+						THEN ''Verify Position Title''
+					END as approval_label,
 		        human_readable AS approval_lhs,
 		        CASE
 		            WHEN property_val_rhs = ''position_title'' THEN pcm.position_title
