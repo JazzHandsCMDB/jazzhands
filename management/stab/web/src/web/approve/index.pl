@@ -105,7 +105,6 @@ sub build_correction($$) {
 			-class => "chosen-select correction",
 			-tabindex => 2,
 		});
-		warn $rv;
 		return $rv;
 	} else {
 		return $cgi->textfield({

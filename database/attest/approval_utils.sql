@@ -514,7 +514,19 @@ BEGIN
 		' INTO _tally USING _r.approver_account_id, approving_account_id;
 
 		IF _tally = 0 THEN
-			RAISE EXCEPTION 'Only a person and their management chain may approve others';
+			EXECUTE '
+				SELECT	count(*)
+				FROM	property
+						INNER JOIN v_acct_coll_acct_expanded e
+						USING (account_collection_id)
+				WHERE	property_type = ''Defaults''
+				AND		property_name = ''_can_approve_all''
+				AND		e.account_id = $1
+			' INTO _tally USING approving_account_id;
+
+			IF _tally = 0 THEN
+				RAISE EXCEPTION 'Only a person and their management chain may approve others';
+			END IF;
 		END IF;
 
 	END IF;

@@ -921,16 +921,16 @@ values
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	permit_account_collection_id
-) values (
-	'StabAccess', 'StabRole', 'N', 'boolean', 'REQUIRED'
-	'PermitStabSection', 'StabRole', 'Y', 'list', 'REQUIRED'
-);
+) values 
+	('StabAccess', 'StabRole', 'N', 'boolean', 'REQUIRED'),
+	('PermitStabSection', 'StabRole', 'Y', 'list', 'REQUIRED')
+;
 
 insert into val_property_value (
 	property_name, property_type, valid_property_value
 ) values
 	('PermitStabSection', 'StabRole', 'Device'),
-	('PermitStabSection', 'StabRole', 'DNS),
+	('PermitStabSection', 'StabRole', 'DNS'),
 	('PermitStabSection', 'StabRole', 'Netblock'),
 	('PermitStabSection', 'StabRole', 'Sites'),
 	('PermitStabSection', 'StabRole', 'StabAccess'),
@@ -986,6 +986,15 @@ insert into val_property (
 ) values (
 	'_approval_email_signer', 'Defaults', 'N', 'string',
 	'Email address to sign aproval emails from (in body)'
+);
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description, permit_account_collection_id
+) values (
+	'_can_approve_all', 'Defaults', 'N', 'string',
+	'Email address to sign aproval emails from (in body)',
+	'REQUIRED'
 );
 
 -------------------------------------------------------------------------
