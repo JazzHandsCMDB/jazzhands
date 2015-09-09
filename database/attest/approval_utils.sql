@@ -132,6 +132,7 @@ BEGIN
 				approval_response_period,
 				approval_expiration_action,
 				attestation_frequency,
+				current_attestation_name,
 				attestation_offset,
 				approval_process_chain_name,
 				property_val_rhs AS approval_category,
@@ -208,11 +209,16 @@ DECLARE
 	tally		INTEGER;
 	_acaid		INTEGER;
 	_pcid		INTEGER;
-	_freq		TEXT;
 BEGIN
 	tally := 0;
 
-	FOR _r IN SELECT * FROM v_account_collection_approval_process
+	-- XXX need to add magic for entering after the right day of the period.
+	FOR _r IN SELECT * 
+				FROM v_account_collection_approval_process
+				WHERE (approval_process_id, current_attestation_name) NOT IN
+					(SELECT approval_process_id, approval_instance_name 
+					 FROM approval_instance
+					)
 	LOOP
 		IF _r.approving_entity != 'manager' THEN
 			RAISE EXCEPTION 'Do not know how to process approving entity %',
@@ -221,27 +227,12 @@ BEGIN
 
 		IF (ai.approval_process_id IS NULL OR
 				ai.approval_process_id != _r.approval_process_id) THEN
-			IF _r.attestation_frequency = 'quarterly' THEN
-				_freq := concat(
-					to_char(now(), 'YYYY'), 
-					'q', 
-					to_char(now(), 'Q')
-				);
-			ELSIF _r.attestation_frequency = 'monthly' THEN
-				_freq := to_char(now(), 'YYYY-MM');
-			ELSIF _r.attestation_frequency = 'weekly' THEN
-				_freq := concast('week ',
-					to_char(now(), 'WW'),
-					' - ',
-					to_char(now(), 'YYY-MM-DD')
-				);
-			END IF;
 
 			INSERT INTO approval_instance ( 
 				approval_process_id, description, approval_instance_name
 			) VALUES ( 
 				_r.approval_process_id, 
-				_r.approval_process_description, _freq
+				_r.approval_process_description, _r.current_attestation_name
 			) RETURNING * INTO ai;
 		END IF;
 

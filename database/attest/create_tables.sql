@@ -236,6 +236,15 @@ SELECT	ap.approval_process_id, ap.first_approval_process_chain_id,
 		ap.approval_expiration_action,
 		ap.attestation_frequency,
 		ap.attestation_offset,
+		CASE WHEN ap.attestation_frequency = 'monthly' THEN
+				to_char(now(), 'YYYY-MM')
+			WHEN ap.attestation_frequency = 'weekly' THEN
+				concat('week ', to_char(now(), 'WW'), ' - ', 
+						to_char(now(), 'YYY-MM-DD'))	
+			WHEN ap.attestation_frequency = 'quarterly' THEN
+				concat( to_char(now(), 'YYYY'), 'q', to_char(now(), 'Q'))
+			ELSE 'unknown'
+			END as current_attestation_name,
 		p.property_id, p.property_name, 
 		p.property_type, p.property_value,
 		split_part(p.property_value, ':', 1) as property_val_lhs,
@@ -353,6 +362,7 @@ WITH foo AS (
 		approval_response_period,
 		approval_expiration_action,
 		attestation_frequency,
+		current_attestation_name,
 		attestation_offset,
 		approval_process_chain_name,
 		account_collection_type as approval_category,
@@ -377,6 +387,7 @@ SELECT  mm.login,
 		approval_response_period,
 		approval_expiration_action,
 		attestation_frequency,
+		current_attestation_name,
 		attestation_offset,
 		approval_process_chain_name,
 		approval_process_name as approval_category,
@@ -407,6 +418,7 @@ SELECT  login,
 		approval_response_period,
 		approval_expiration_action,
 		attestation_frequency,
+		current_attestation_name,
 		attestation_offset,
 		approval_process_chain_name,
 		property_val_rhs as approval_category,
