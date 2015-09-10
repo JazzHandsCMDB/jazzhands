@@ -188,6 +188,13 @@ BEGIN
 			approving_entity,
 			approval_process_description,
 			approval_chain_description,
+			approval_response_period,
+			approval_expiration_action,
+			attestation_frequency,
+			current_attestation_name,
+			attestation_offset,
+			approval_process_chain_name,
+			approval_category,
 			approval_label,
 			approval_lhs,
 			approval_rhs
@@ -402,7 +409,8 @@ BEGIN
 			) VALUES (
 				$1, $2, $3, $4, $5, approval_utils.calculate_due_date($6), $7
 			) RETURNING approval_instance_step_id
-		' INTO _step USING approval_instance_id, approval_process_chain_id,
+		' INTO _step USING 
+			approval_instance_id, approval_process_chain_id,
 			_apc.approval_process_chain_name,
 			_acid, apptype, 
 			_apc.approval_chain_response_period::interval,

@@ -18,7 +18,7 @@ delete from property_collection_property where property_collection_id IN
 	 where property_collection_type = 'attestation'
 	);
 
-delete from property_collection 
+delete from property_collection
 	 where property_collection_type = 'attestation';
 
 delete from val_property_collection_type
@@ -40,7 +40,7 @@ WITH newptype AS (
 ), newprops AS (
 	INSERT INTO val_property (
 		property_name, property_type, property_data_type
-	) SELECT unnest(ARRAY['ReportAttest', 'FieldAttest', 
+	) SELECT unnest(ARRAY['ReportAttest', 'FieldAttest',
 'account_collection_membership']),
 		property_type, 'string'
 	FROM newptype
@@ -64,8 +64,8 @@ WITH newptype AS (
 	FROM newpc, newprops
 	RETURNING *
 ), backtrackchain as (
-	INSERT INTO approval_process_chain ( 
-		approval_process_chain_name, approving_entity, description, 
+	INSERT INTO approval_process_chain (
+		approval_process_chain_name, approving_entity, description,
 			refresh_all_data
 	) VALUES (
 		'Recertification', 'recertify', 'Changes sent to Jira', 'Y')
@@ -73,20 +73,20 @@ WITH newptype AS (
 ), jirachain as (
 	INSERT into approval_process_chain (
 		approval_process_chain_name,
-		approving_entity, 
+		approving_entity,
 		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 
+	SELECT
 		'Jira HR Project',
-		'jira-hr', 
+		'jira-hr',
 		'Changes sent to Jira ',
 		c.approval_process_chain_id,
 		r.approval_process_chain_id
 	FROM backtrackchain c, backtrackchain r
 	RETURNING *
 ), chain2 as (
-	INSERT into approval_process_chain ( 
+	INSERT into approval_process_chain (
 		approval_process_chain_name, approving_entity, description
 	) values (
 		'Manager Approval',
@@ -96,11 +96,11 @@ WITH newptype AS (
 ), chain as (
 	INSERT into approval_process_chain (
 		approval_process_chain_name,
-		approving_entity, 
+		approving_entity,
 		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 
+	SELECT
 		'Reporting Attestation',
 		'manager',
 		'Approve your direct reports, their title and functional team',
@@ -119,7 +119,7 @@ WITH newptype AS (
 		attestation_offset,
 		description,
 		property_collection_id
-	) SELECT approval_process_chain_id, 
+	) SELECT approval_process_chain_id,
 		'ReportingAttest',
 		'attestation',
 		'1 week',
@@ -146,7 +146,7 @@ WITH newptype AS (
 ), newprops AS (
 	INSERT INTO val_property (
 		property_name, property_type, property_data_type
-	) SELECT unnest(ARRAY['ReportAttest', 'FieldAttest', 
+	) SELECT unnest(ARRAY['ReportAttest', 'FieldAttest',
 'account_collection_membership']),
 		property_type, 'string'
 	FROM newptype
@@ -170,8 +170,8 @@ WITH newptype AS (
 	FROM newpc, newprops
 	RETURNING *
 ), backtrackchain as (
-	INSERT INTO approval_process_chain ( 
-		approval_process_chain_name, approving_entity, description, 
+	INSERT INTO approval_process_chain (
+		approval_process_chain_name, approving_entity, description,
 			refresh_all_data,message
 	) VALUES (
 		'Recertification', 'recertify', 'Changes sent to Jira', 'Y',
@@ -180,13 +180,13 @@ WITH newptype AS (
 ), jirachain as (
 	INSERT into approval_process_chain (
 		approval_process_chain_name,
-		approving_entity, 
+		approving_entity,
 		description,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 
+	SELECT
 		'Jira HR Project',
-		'jira-hr', 
+		'jira-hr',
 		'Changes sent to Jira ',
 		c.approval_process_chain_id,
 		r.approval_process_chain_id
@@ -195,12 +195,12 @@ WITH newptype AS (
 ), chain as (
 	INSERT into approval_process_chain (
 		approval_process_chain_name,
-		approving_entity, 
+		approving_entity,
 		description,
 		message,
 		accept_approval_process_chain_id,
 		reject_approval_process_chain_id )
-	SELECT 
+	SELECT
 		'Reporting Attestation',
 		'manager',
 		'Approve your direct reports, their title and functional team',
@@ -209,13 +209,14 @@ WITH newptype AS (
 		databases, file shares, wiki pages, etc), accounting
 		approvals, and more.  In order to ensure we are relying
 		on correct data, we ask that each manager certify the
-		accuracy of their team''s information in HR on a quarterly
+		accuracy of their team''s information in HR''s database of
+		record on a quarterly
 		basis.  Specifically, we ask that you confirm that you
 		are still the manager for all of the people listed as reporting
 		to you, as well as the title and functional team for each.
 		This process is important for corporate security and is
 		a key control that is verified in many audits.
-		This review should take a maximum of five minutes, most 
+		This review should take a maximum of five minutes, most
 		likely less than a minute.
 		',
 		NULL,
@@ -232,7 +233,7 @@ WITH newptype AS (
 		attestation_offset,
 		description,
 		property_collection_id
-	) SELECT approval_process_chain_id, 
+	) SELECT approval_process_chain_id,
 		'ReportingAttest',
 		'attestation',
 		'pester',
