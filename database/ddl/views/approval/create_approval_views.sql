@@ -13,6 +13,24 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- this is also in the approval_utils "pkg"
+
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'approval_utils';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS approval_utils;
+                CREATE SCHEMA approval_utils AUTHORIZATION jazzhands;
+                COMMENT ON SCHEMA approval_utils IS 'part of jazzhands';
+        END IF;
+END;
+$$;
+
 \ir create_v_approval_matrix.sql;
 \ir create_audit_views.sql;
 \ir create_v_account_collection_audit_results.sql;

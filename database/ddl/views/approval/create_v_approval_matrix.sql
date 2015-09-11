@@ -1,4 +1,4 @@
--- Copyright (c) 2015, Todd M. Kover
+	-- Copyright (c) 2015, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE OR REPLACE VIEW v_approval_matrix AS
+CREATE OR REPLACE VIEW approval_utils.v_approval_matrix AS
 SELECT	ap.approval_process_id, ap.first_apprvl_process_chain_id,
 		ap.approval_process_name,
 		c.approval_chain_response_period as approval_response_period,

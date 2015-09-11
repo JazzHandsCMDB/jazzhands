@@ -14,14 +14,14 @@
 -- limitations under the License.
 
 
-CREATE OR REPLACE VIEW v_account_collection_audit_results AS
+CREATE OR REPLACE VIEW approval_utils.v_account_collection_audit_results AS
 WITH membermap AS (
     SELECT  aca.audit_seq_id,
 	ac.account_collection_id,
 	ac.account_collection_name, ac.account_collection_type,
 	a.*
     FROM    v_account_manager_map a
-	INNER JOIN v_account_collection_account_audit_map aca 
+	INNER JOIN approval_utils.v_account_collection_account_audit_map aca 
 		USING (account_id)
 	INNER JOIN account_collection ac USING (account_collection_id)
 	WHERE a.account_id != a.manager_account_id

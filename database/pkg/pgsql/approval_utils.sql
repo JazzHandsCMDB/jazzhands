@@ -15,8 +15,6 @@
 
 \set ON_ERROR_STOP
 
-DROP schema IF EXISTS approval_utils CASCADE;
-
 DO $$
 DECLARE
 	_tal INTEGER;
@@ -58,7 +56,7 @@ CREATE OR REPLACE FUNCTION
 					approval_instance_link.approval_instance_link_id%TYPE
 ) RETURNS approval_instance_link.approval_instance_link_id%TYPE AS $$
 DECLARE
-	_v			v_account_collection_approval_process%ROWTYPE;
+	_v			approval_utils.v_account_collection_approval_process%ROWTYPE;
 	_l			approval_instance_link%ROWTYPE;
 	_acaid		INTEGER;
 	_pcid		INTEGER;
@@ -103,10 +101,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 CREATE OR REPLACE FUNCTION approval_utils.refresh_approval_instance_item(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE
-) RETURNS v_account_collection_approval_process AS $$
+) RETURNS approval_utils.v_account_collection_approval_process AS $$
 DECLARE
 	_i	approval_instance_item.approval_instance_item_id%TYPE;
-	_r	v_account_collection_approval_process%ROWTYPE;
+	_r	approval_utils.v_account_collection_approval_process%ROWTYPE;
 BEGIN
 	--
 	-- XXX p comes out of one of the three clauses in 
@@ -324,7 +322,7 @@ DECLARE
 	_step	approval_instance_step.approval_instance_step_id%TYPE;
 	_l		approval_instance_link.approval_instance_link_id%TYPE;
 	apptype	text;
-	_v			v_account_collection_approval_process%ROWTYPE;
+	_v			approval_utils.v_account_collection_approval_process%ROWTYPE;
 BEGIN
 	EXECUTE '
 		SELECT apc.*

@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 
-CREATE OR REPLACE VIEW v_account_collection_account_audit_map AS
+CREATE OR REPLACE VIEW approval_utils.v_account_collection_account_audit_map AS
 WITH all_audrecs AS (
     select acaa.*,
 	row_number() OVER
@@ -26,7 +26,7 @@ WITH all_audrecs AS (
     where "aud#action" in ('UPD', 'INS')
 ) SELECT "aud#seq" as audit_seq_id, * from all_audrecs WHERE rownum = 1;
 
-CREATE OR REPLACE VIEW v_person_company_audit_map AS
+CREATE OR REPLACE VIEW approval_utils.v_person_company_audit_map AS
 WITH all_audrecs AS (
     select pca.*,
 	row_number() OVER
