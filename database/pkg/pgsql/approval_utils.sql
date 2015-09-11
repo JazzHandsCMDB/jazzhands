@@ -48,7 +48,7 @@ BEGIN
 			'1 day'::interval - '1 second'::interval
 	;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 CREATE OR REPLACE FUNCTION 
 		approval_utils.get_or_create_correct_approval_instance_link(
@@ -97,7 +97,7 @@ BEGIN
 		RETURN approval_instance_link_id;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 
 CREATE OR REPLACE FUNCTION approval_utils.refresh_approval_instance_item(
@@ -202,7 +202,7 @@ BEGIN
 	' INTO _r USING approval_instance_item_id;
 	RETURN _r;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 	
 
 CREATE OR REPLACE FUNCTION approval_utils.build_attest()
@@ -296,7 +296,7 @@ BEGIN
 	END LOOP;
 	RETURN tally;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 --
 -- returns new approval_instance_item based on how an existing one is
@@ -462,7 +462,7 @@ BEGIN
 	-- RAISE NOTICE 'returning %', _new.approval_instance_item_id;
 	RETURN _new.approval_instance_item_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 CREATE OR REPLACE FUNCTION approval_utils.approve(
 	approval_instance_item_id	
@@ -582,7 +582,7 @@ BEGIN
 
 	RETURN true;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 grant usage on schema approval_utils to iud_role;
 revoke all on schema approval_utils from public;

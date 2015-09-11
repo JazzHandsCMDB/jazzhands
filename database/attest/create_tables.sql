@@ -36,7 +36,7 @@ create table approval_process (
 	approval_process_name		text not null,
 	approval_process_type		text not null,
 	description					text,
-	first_approval_process_chain_id	integer,
+	first_apprvl_process_chain_id_id	integer,
 	property_collection_id		integer,
 	approval_expiration_action	text,
 	attestation_frequency		text,
@@ -230,7 +230,7 @@ alter table approval_instance_item
 --------------------------------- views -----------------------------------
 
 create view v_approval_matrix AS
-SELECT	ap.approval_process_id, ap.first_approval_process_chain_id,
+SELECT	ap.approval_process_id, ap.first_apprvl_process_chain_id_id,
 		ap.approval_process_name,
 		c.approval_chain_response_period as approval_response_period,
 		ap.approval_expiration_action,
@@ -258,7 +258,7 @@ from	approval_process ap
 		INNER JOIN property_collection_property pcp USING (property_collection_id)
 		INNER JOIN property p USING (property_name, property_type)
 		LEFT JOIN approval_process_chain c
-			ON c.approval_process_chain_id = ap.first_approval_process_chain_id
+			ON c.approval_process_chain_id = ap.first_apprvl_process_chain_id_id
 where	ap.approval_process_name = 'ReportingAttest'
 and		ap.approval_process_type = 'attestation'
 ;

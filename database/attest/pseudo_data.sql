@@ -110,7 +110,7 @@ WITH newptype AS (
 	RETURNING *
 ), process as  (
 	INSERT INTO approval_process (
-		first_approval_process_chain_id,
+		first_apprvl_process_chain_id_id,
 		approval_process_name,
 		approval_process_type,
 		approval_response_period,
@@ -225,7 +225,7 @@ WITH newptype AS (
 	RETURNING *
 ), process as  (
 	INSERT INTO approval_process (
-		first_approval_process_chain_id,
+		first_apprvl_process_chain_id_id,
 		approval_process_name,
 		approval_process_type,
 		approval_expiration_action,
