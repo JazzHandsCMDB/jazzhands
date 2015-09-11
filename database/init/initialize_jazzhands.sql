@@ -699,8 +699,8 @@ insert into val_property (
 );
 
 -- system wide defaults concepts used by various tools
-insert into val_property_type (property_type, description,is_multivalue)
-	values ( 'Defaults', 'System Wide Defaults', 'N');
+insert into val_property_type (property_type, description)
+	values ( 'Defaults', 'System Wide Defaults');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 
