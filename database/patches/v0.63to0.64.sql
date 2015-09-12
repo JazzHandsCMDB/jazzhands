@@ -23,6 +23,11 @@ Invoked:
 	approval_utils.v_approval_matrix
 	approval_utils.v_account_collection_audit_results
 	approval_utils.v_account_collection_approval_process
+	account_automated_reporting_ac
+	automated_ac_on_person_company
+	create_component_slots_by_trigger
+	create_device_component_by_trigger
+	delete_peraccount_account_collection
 */
 
 \set ON_ERROR_STOP
@@ -4517,6 +4522,538 @@ alter function netblock_manip.allocate_netblock(parent_netblock_list integer[], 
 alter function netblock_manip.delete_netblock(integer) set search_path=jazzhands;
 alter function netblock_manip.recalculate_parentage(integer) set search_path=jazzhands;
 
+
+--------------------------------------------------------------------
+-- DEALING WITH proc account_automated_reporting_ac -> account_automated_reporting_ac 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'account_automated_reporting_ac', 'account_automated_reporting_ac');
+
+-- DROP OLD FUNCTION
+-- triggers on this function (if applicable)
+DROP TRIGGER IF EXISTS trig_rm_account_automated_reporting_ac ON jazzhands.account;
+DROP TRIGGER IF EXISTS trig_add_account_automated_reporting_ac ON jazzhands.account;
+-- consider old oid 1354640
+DROP FUNCTION IF EXISTS account_automated_reporting_ac();
+
+-- RECREATE FUNCTION
+
+-- DROP OLD FUNCTION (in case type changed)
+-- consider NEW oid 1335770
+CREATE OR REPLACE FUNCTION jazzhands.account_automated_reporting_ac()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_numrpt	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.account_role != 'primary' THEN
+			RETURN OLD;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_role != 'primary' AND OLD.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	-- XXX check account realm to see if we should be inserting for this
+	-- XXX account realm
+
+	IF TG_OP = 'INSERT' THEN
+		PERFORM auto_ac_manip.create_report_account_collections(
+			account_id := NEW.account_id, 
+			account_realm_id := NEW.account_realm_id,
+			login := NEW.login
+		);
+	ELSIF TG_OP = 'UPDATE' THEN
+		PERFORM auto_ac_manip.rename_automated_report_acs(
+			NEW.account_id, OLD.login, NEW.login, NEW.account_realm_id);
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM account_collection_account WHERE account_id
+			= OLD.account_id
+		AND account_collection_id IN ( select account_collection_id
+			FROM account_collection where account_collection_type
+			= 'automated'
+		);
+		-- PERFORM auto_ac_manip.destroy_report_account_collections(
+		-- 	account_id := OLD.account_id,
+		-- 	account_realm_id := OLD.account_realm_id
+		-- );
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+-- triggers on this function (if applicable)
+CREATE TRIGGER trig_rm_account_automated_reporting_ac BEFORE DELETE ON account FOR EACH ROW EXECUTE PROCEDURE account_automated_reporting_ac();
+CREATE TRIGGER trig_add_account_automated_reporting_ac AFTER INSERT OR UPDATE OF login, account_status ON account FOR EACH ROW EXECUTE PROCEDURE account_automated_reporting_ac();
+
+-- DONE WITH proc account_automated_reporting_ac -> account_automated_reporting_ac 
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH proc automated_ac_on_person_company -> automated_ac_on_person_company 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'automated_ac_on_person_company', 'automated_ac_on_person_company');
+
+-- DROP OLD FUNCTION
+-- triggers on this function (if applicable)
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON jazzhands.person_company;
+-- consider old oid 1354634
+DROP FUNCTION IF EXISTS automated_ac_on_person_company();
+
+-- RECREATE FUNCTION
+
+-- DROP OLD FUNCTION (in case type changed)
+-- consider NEW oid 1335765
+CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person_company()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_acc	account%ROWTYPE;
+BEGIN
+	SELECT * INTO _acc 
+	FROM account
+	WHERE person_id = NEW.person_id
+	AND account_role = 'primary'
+	AND account_realm_id IN (
+		SELECT account_realm_id FROM property 
+		WHERE property_name = '_root_account_realm_id'
+		AND property_type = 'Defaults'
+	);
+
+	IF NOT FOUND THEN
+		RETURN NEW;
+	END IF;
+
+	SELECT * INTO _acc 
+	FROM account
+	WHERE person_id = OLD.manager_person_id
+	AND account_role = 'primary'
+	AND account_realm_id IN (
+		SELECT account_realm_id FROM property 
+		WHERE property_name = '_root_account_realm_id'
+		AND property_type = 'Defaults'
+	);
+	IF FOUND THEN
+		PERFORM auto_ac_manip.make_auto_report_acs_right(_acc.account_id, _acc.account_realm_id, _acc.login);
+	END IF;
+
+	SELECT * INTO _acc 
+	FROM account
+	WHERE person_id = NEW.manager_person_id
+	AND account_role = 'primary'
+	AND account_realm_id IN (
+		SELECT account_realm_id FROM property 
+		WHERE property_name = '_root_account_realm_id'
+		AND property_type = 'Defaults'
+	);
+	IF FOUND THEN
+		PERFORM auto_ac_manip.make_auto_report_acs_right(_acc.account_id, _acc.account_realm_id, _acc.login);
+	END IF;
+
+
+	RETURN NEW;
+END;
+$function$
+;
+-- triggers on this function (if applicable)
+CREATE TRIGGER trigger_automated_ac_on_person_company AFTER UPDATE OF manager_person_id, person_company_status, person_company_relation ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
+
+-- DONE WITH proc automated_ac_on_person_company -> automated_ac_on_person_company 
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH proc create_component_slots_by_trigger -> create_component_slots_by_trigger 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'create_component_slots_by_trigger', 'create_component_slots_by_trigger');
+
+-- DROP OLD FUNCTION
+-- triggers on this function (if applicable)
+DROP TRIGGER IF EXISTS trigger_create_component_template_slots ON jazzhands.component;
+-- consider old oid 1354705
+DROP FUNCTION IF EXISTS create_component_slots_by_trigger();
+
+-- RECREATE FUNCTION
+
+-- DROP OLD FUNCTION (in case type changed)
+-- consider NEW oid 1335835
+CREATE OR REPLACE FUNCTION jazzhands.create_component_slots_by_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	-- For inserts, just do a simple slot creation, for updates, things
+	-- get more complicated, so try to migrate slots
+
+	IF (TG_OP = 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
+	THEN
+		PERFORM component_utils.create_component_template_slots(
+			component_id := NEW.component_id);
+	END IF;
+	IF (TG_OP = 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
+	THEN
+		PERFORM component_utils.migrate_component_template_slots(
+			component_id := NEW.component_id
+		);
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+-- triggers on this function (if applicable)
+CREATE TRIGGER trigger_create_component_template_slots AFTER INSERT OR UPDATE OF component_type_id ON component FOR EACH ROW EXECUTE PROCEDURE create_component_slots_by_trigger();
+
+-- DONE WITH proc create_component_slots_by_trigger -> create_component_slots_by_trigger 
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH proc create_device_component_by_trigger -> create_device_component_by_trigger 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'create_device_component_by_trigger', 'create_device_component_by_trigger');
+
+-- DROP OLD FUNCTION
+-- triggers on this function (if applicable)
+DROP TRIGGER IF EXISTS trigger_create_device_component ON jazzhands.device;
+-- consider old oid 1354709
+DROP FUNCTION IF EXISTS create_device_component_by_trigger();
+
+-- RECREATE FUNCTION
+
+-- DROP OLD FUNCTION (in case type changed)
+-- consider NEW oid 1335839
+CREATE OR REPLACE FUNCTION jazzhands.create_device_component_by_trigger()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	devtype		RECORD;
+	ctid		integer;
+	cid			integer;
+	scarr       integer[];
+	dcarr       integer[];
+	server_ver	integer;
+BEGIN
+
+	SELECT
+		dt.device_type_id,
+		dt.component_type_id,
+		dt.template_device_id,
+		d.component_id
+	INTO
+		devtype
+	FROM
+		device_type dt LEFT JOIN
+		device d ON (dt.template_device_id = d.device_id)
+	WHERE
+		dt.device_type_id = NEW.device_type_id;
+
+	IF NEW.component_id IS NOT NULL THEN
+		IF devtype.component_type_id IS NOT NULL THEN
+			SELECT
+				component_type_id INTO ctid
+			FROM
+				component c
+			WHERE
+				c.component_id = NEW.component_id;
+
+			IF ctid != devtype.component_type_id THEN
+				UPDATE
+					component
+				SET
+					component_type_id = devtype.component_type_id
+				WHERE
+					component_id = NEW.component_id;
+			END IF;
+		END IF;
+			
+		RETURN NEW;
+	END IF;
+
+	--
+	-- If template_device_id doesn't exist, then create an instance of
+	-- the component_id if it exists 
+	--
+	IF devtype.component_id IS NULL THEN
+		--
+		-- If the component_id doesn't exist, then we're done
+		--
+		IF devtype.component_type_id IS NULL THEN
+			RETURN NEW;
+		END IF;
+		--
+		-- Insert a component of the given type and tie it to the device
+		--
+		INSERT INTO component (component_type_id)
+			VALUES (devtype.component_type_id)
+			RETURNING component_id INTO cid;
+
+		NEW.component_id := cid;
+		RETURN NEW;
+	ELSE
+		SELECT setting INTO server_ver FROM pg_catalog.pg_settings
+			WHERE name = 'server_version_num';
+
+		IF (server_ver < 90400) THEN
+			--
+			-- This is pretty nasty; welcome to SQL
+			--
+			--
+			-- This returns data into a temporary table (ugh) that's used as a
+			-- key/value store to map each template component to the 
+			-- newly-created one
+			--
+			CREATE TEMPORARY TABLE trig_comp_ins AS
+			WITH comp_ins AS (
+				INSERT INTO component (
+					component_type_id
+				) SELECT
+					c.component_type_id
+				FROM
+					device_type dt JOIN 
+					v_device_components dc ON
+						(dc.device_id = dt.template_device_id) JOIN
+					component c USING (component_id)
+				WHERE
+					device_type_id = NEW.device_type_id
+				ORDER BY
+					level, c.component_type_id
+				RETURNING component_id
+			)
+			SELECT 
+				src_comp.component_id as src_component_id,
+				dst_comp.component_id as dst_component_id,
+				src_comp.level as level
+			FROM
+				(SELECT
+					c.component_id,
+					level,
+					row_number() OVER (ORDER BY level, c.component_type_id)
+						AS rownum
+				 FROM
+					device_type dt JOIN 
+					v_device_components dc ON
+						(dc.device_id = dt.template_device_id) JOIN
+					component c USING (component_id)
+				 WHERE
+					device_type_id = NEW.device_type_id
+				) src_comp,
+				(SELECT
+					component_id,
+					row_number() OVER () AS rownum
+				 FROM
+					comp_ins
+				) dst_comp
+			WHERE
+				src_comp.rownum = dst_comp.rownum;
+
+			/* 
+				 Now take the mapping of components that were inserted above,
+				 and tie the new components to the appropriate slot on the
+				 parent.
+				 The logic below is:
+					- Take the template component, and locate its parent slot
+					- Find the correct slot on the corresponding new parent 
+					  component by locating one with the same slot_name and
+					  slot_type_id on the mapped parent component_id
+					- Update the parent_slot_id of the component with the
+					  mapped component_id to this slot_id 
+				 
+				 This works even if the top-level component is attached to some
+				 other device, since there will not be a mapping for those in
+				 the table to locate.
+			*/
+					  
+			UPDATE
+				component dc
+			SET
+				parent_slot_id = ds.slot_id
+			FROM
+				trig_comp_ins tt,
+				trig_comp_ins ptt,
+				component sc,
+				slot ss,
+				slot ds
+			WHERE
+				tt.src_component_id = sc.component_id AND
+				tt.dst_component_id = dc.component_id AND
+				ss.slot_id = sc.parent_slot_id AND
+				ss.component_id = ptt.src_component_id AND
+				ds.component_id = ptt.dst_component_id AND
+				ss.slot_type_id = ds.slot_type_id AND
+				ss.slot_name = ds.slot_name;
+
+			SELECT dst_component_id INTO cid FROM trig_comp_ins WHERE
+				level = 1;
+
+			NEW.component_id := cid;
+
+			DROP TABLE trig_comp_ins;
+
+			RETURN NEW;
+		ELSE
+			WITH dev_comps AS (
+				SELECT
+					c.component_id,
+					c.component_type_id,
+					level,
+					row_number() OVER (ORDER BY level, c.component_type_id) AS
+						rownum
+				FROM
+					device_type dt JOIN 
+					v_device_components dc ON
+						(dc.device_id = dt.template_device_id) JOIN
+					component c USING (component_id)
+				WHERE
+					device_type_id = NEW.device_type_id
+			),
+			comp_ins AS (
+				INSERT INTO component (
+					component_type_id
+				) SELECT
+					component_type_id
+				FROM
+					dev_comps
+				ORDER BY
+					rownum
+				RETURNING component_id, component_type_id
+			),
+			comp_ins_arr AS (
+				SELECT
+					array_agg(component_id) AS dst_arr
+				FROM
+					comp_ins
+			),
+			dev_comps_arr AS (
+				SELECT
+					array_agg(component_id) as src_arr
+				FROM
+					dev_comps
+			)
+			SELECT src_arr, dst_arr INTO scarr, dcarr FROM
+				dev_comps_arr, comp_ins_arr;
+
+			UPDATE
+				component dc
+			SET
+				parent_slot_id = ds.slot_id
+			FROM
+				unnest(scarr, dcarr) AS 
+					tt(src_component_id, dst_component_id),
+				unnest(scarr, dcarr) AS 
+					ptt(src_component_id, dst_component_id),
+				component sc,
+				slot ss,
+				slot ds
+			WHERE
+				tt.src_component_id = sc.component_id AND
+				tt.dst_component_id = dc.component_id AND
+				ss.slot_id = sc.parent_slot_id AND
+				ss.component_id = ptt.src_component_id AND
+				ds.component_id = ptt.dst_component_id AND
+				ss.slot_type_id = ds.slot_type_id AND
+				ss.slot_name = ds.slot_name;
+
+			SELECT 
+				component_id INTO NEW.component_id
+			FROM 
+				component c
+			WHERE
+				component_id = ANY(dcarr) AND
+				parent_slot_id IS NULL;
+
+			RETURN NEW;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+-- triggers on this function (if applicable)
+CREATE TRIGGER trigger_create_device_component BEFORE INSERT OR UPDATE OF device_type_id ON device FOR EACH ROW EXECUTE PROCEDURE create_device_component_by_trigger();
+
+-- DONE WITH proc create_device_component_by_trigger -> create_device_component_by_trigger 
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+-- DEALING WITH proc delete_peraccount_account_collection -> delete_peraccount_account_collection 
+
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'delete_peraccount_account_collection', 'delete_peraccount_account_collection');
+
+-- DROP OLD FUNCTION
+-- triggers on this function (if applicable)
+DROP TRIGGER IF EXISTS trigger_delete_peraccount_account_collection ON jazzhands.account;
+-- consider old oid 1354556
+DROP FUNCTION IF EXISTS delete_peraccount_account_collection();
+
+-- RECREATE FUNCTION
+
+-- DROP OLD FUNCTION (in case type changed)
+-- consider NEW oid 1335687
+CREATE OR REPLACE FUNCTION jazzhands.delete_peraccount_account_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	acid			account_collection.account_collection_id%TYPE;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		SELECT	account_collection_id
+		  INTO	acid
+		  FROM	account_collection ac
+				INNER JOIN account_collection_account aca
+					USING (account_collection_id)
+		 WHERE	aca.account_id = OLD.account_Id
+		   AND	ac.account_collection_type = 'per-account';
+
+		IF acid is NOT NULL THEN
+			DELETE from account_collection_account
+			where account_collection_id = acid;
+
+			DELETE from account_collection
+			where account_collection_id = acid;
+		END IF;
+	END IF;
+	RETURN OLD;
+END;
+$function$
+;
+-- triggers on this function (if applicable)
+CREATE TRIGGER trigger_delete_peraccount_account_collection BEFORE DELETE ON account FOR EACH ROW EXECUTE PROCEDURE delete_peraccount_account_collection();
+
+-- DONE WITH proc delete_peraccount_account_collection -> delete_peraccount_account_collection 
+--------------------------------------------------------------------
 
 -- Clean Up
 SELECT schema_support.replay_object_recreates();
