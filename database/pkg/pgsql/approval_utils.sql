@@ -252,7 +252,7 @@ BEGIN
 				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
-				ai.approval_process_id, 'account',
+				ai.approval_instance_id, 'account',
 				_r.approval_process_chain_name,
 				approval_utils.calculate_due_date(_r.approval_response_period::interval),
 				concat(_r.approval_chain_description, ' - ', _r.manager_login)
@@ -582,10 +582,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
+grant select on all tables in schema approval_utils to iud_role;
 grant usage on schema approval_utils to iud_role;
 revoke all on schema approval_utils from public;
 revoke all on  all functions in schema approval_utils from public;
 grant execute on all functions in schema approval_utils to iud_role;
 
-grant usage on schema approval_utils to stab_role;
-grant execute on all functions in schema approval_utils to stab_role;

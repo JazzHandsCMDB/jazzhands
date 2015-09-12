@@ -134,6 +134,7 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_approval_
 CREATE TABLE approval_instance
 (
 	approval_instance_id	integer NOT NULL,
+	approval_process_id	integer  NULL,
 	approval_instance_name	varchar(50) NOT NULL,
 	description	varchar(255)  NULL,
 	approval_start	timestamp with time zone NOT NULL,
@@ -156,6 +157,7 @@ ALTER TABLE approval_instance ADD CONSTRAINT pk_approval_instance PRIMARY KEY (a
 
 -- Table/Column Comments
 -- INDEXES
+CREATE INDEX xif1approval_instance ON approval_instance USING btree (approval_process_id);
 
 -- CHECK CONSTRAINTS
 
@@ -168,13 +170,19 @@ ALTER TABLE approval_instance ADD CONSTRAINT pk_approval_instance PRIMARY KEY (a
 
 
 -- FOREIGN KEYS TO
+-- consider FK approval_instance and approval_process
+-- Skipping this FK since table does not exist yet
+--ALTER TABLE approval_instance
+--	ADD CONSTRAINT r_724
+--	FOREIGN KEY (approval_process_id) REFERENCES approval_process(approval_process_id);
+
 
 -- TRIGGERS
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'approval_instance');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'approval_instance');
 ALTER SEQUENCE approval_instance_approval_instance_id_seq
 	 OWNED BY approval_instance.approval_instance_id;
--- DONE DEALING WITH TABLE approval_instance [1274357]
+-- DONE DEALING WITH TABLE approval_instance [1390939]
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE approval_instance_item
@@ -185,10 +193,10 @@ CREATE TABLE approval_instance_item
 	approval_instance_step_id	integer NOT NULL,
 	next_approval_instance_item_id	integer  NULL,
 	approved_category	varchar(50) NOT NULL,
-	approved_label	character(18)  NULL,
-	approved_lhs	character(18)  NULL,
-	approved_rhs	character(18)  NULL,
-	is_approved	character(1) NOT NULL,
+	approved_label	varchar(50)  NULL,
+	approved_lhs	varchar(50)  NULL,
+	approved_rhs	varchar(50)  NULL,
+	is_approved	character(1)  NULL,
 	approved_account_id	integer  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -205,9 +213,9 @@ ALTER TABLE approval_instance_item ADD CONSTRAINT pk_approval_instance_item PRIM
 
 -- Table/Column Comments
 -- INDEXES
-CREATE INDEX xif1approval_instance_item ON approval_instance_item USING btree (approval_instance_step_id);
-CREATE INDEX xif4approval_instance_item ON approval_instance_item USING btree (approved_account_id);
 CREATE INDEX xif3approval_instance_item ON approval_instance_item USING btree (next_approval_instance_item_id);
+CREATE INDEX xif4approval_instance_item ON approval_instance_item USING btree (approved_account_id);
+CREATE INDEX xif1approval_instance_item ON approval_instance_item USING btree (approval_instance_step_id);
 CREATE INDEX xif2approval_instance_item ON approval_instance_item USING btree (approval_instance_link_id);
 
 -- CHECK CONSTRAINTS
@@ -217,18 +225,6 @@ ALTER TABLE approval_instance_item ADD CONSTRAINT check_yes_no_1349410716
 -- FOREIGN KEYS FROM
 
 -- FOREIGN KEYS TO
--- consider FK approval_instance_item and approval_instance_step
--- Skipping this FK since table does not exist yet
---ALTER TABLE approval_instance_item
---	ADD CONSTRAINT fk_appinstitem_appinststep
---	FOREIGN KEY (approval_instance_step_id) REFERENCES approval_instance_step(approval_instance_step_id);
-
--- consider FK approval_instance_item and approval_instance_link
--- Skipping this FK since table does not exist yet
---ALTER TABLE approval_instance_item
---	ADD CONSTRAINT fk_app_inst_item_appinstlinkid
---	FOREIGN KEY (approval_instance_link_id) REFERENCES approval_instance_link(approval_instance_link_id);
-
 -- consider FK approval_instance_item and approval_instance_item
 ALTER TABLE approval_instance_item
 	ADD CONSTRAINT fk_appinstitmid_nextapiiid
@@ -237,13 +233,25 @@ ALTER TABLE approval_instance_item
 ALTER TABLE approval_instance_item
 	ADD CONSTRAINT fk_appinstitm_app_acctid
 	FOREIGN KEY (approved_account_id) REFERENCES account(account_id);
+-- consider FK approval_instance_item and approval_instance_link
+-- Skipping this FK since table does not exist yet
+--ALTER TABLE approval_instance_item
+--	ADD CONSTRAINT fk_app_inst_item_appinstlinkid
+--	FOREIGN KEY (approval_instance_link_id) REFERENCES approval_instance_link(approval_instance_link_id);
+
+-- consider FK approval_instance_item and approval_instance_step
+-- Skipping this FK since table does not exist yet
+--ALTER TABLE approval_instance_item
+--	ADD CONSTRAINT fk_appinstitem_appinststep
+--	FOREIGN KEY (approval_instance_step_id) REFERENCES approval_instance_step(approval_instance_step_id);
+
 
 -- TRIGGERS
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'approval_instance_item');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'approval_instance_item');
 ALTER SEQUENCE approval_instance_item_approval_instance_item_id_seq
 	 OWNED BY approval_instance_item.approval_instance_item_id;
--- DONE DEALING WITH TABLE approval_instance_item [1274369]
+-- DONE DEALING WITH TABLE approval_instance_item [1546493]
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE approval_process
@@ -282,6 +290,11 @@ CREATE INDEX xif2approval_process ON approval_process USING btree (approval_proc
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
+
+ALTER TABLE ONLY approval_instance
+	ADD CONSTRAINT fk_approval_proc_inst_aproc_id FOREIGN KEY 
+	(approval_process_id) REFERENCES approval_process(approval_process_id);
+
 
 -- FOREIGN KEYS TO
 -- consider FK approval_process and val_approval_expiration_action
@@ -392,8 +405,8 @@ CREATE TABLE approval_instance_link
 (
 	approval_instance_link_id	integer NOT NULL,
 	acct_collection_acct_seq_id	integer  NULL,
-	person_company_seq_id	character(18)  NULL,
-	property_seq_id	character(18)  NULL,
+	person_company_seq_id	integer  NULL,
+	property_seq_id	integer  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
 	data_upd_user	varchar(255)  NULL,
@@ -425,7 +438,7 @@ SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'approval_instance_link
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'approval_instance_link');
 ALTER SEQUENCE approval_instance_link_approval_instance_link_id_seq
 	 OWNED BY approval_instance_link.approval_instance_link_id;
--- DONE DEALING WITH TABLE approval_instance_link [1274392]
+-- DONE DEALING WITH TABLE approval_instance_link [1546509]
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE val_approval_chain_resp_prd
@@ -475,10 +488,10 @@ CREATE TABLE approval_instance_step
 	approval_type	varchar(50) NOT NULL,
 	description	varchar(255)  NULL,
 	approval_instance_step_start	timestamp with time zone NOT NULL,
-	approval_instance_step_end	character(18)  NULL,
+	approval_instance_step_end	timestamp with time zone  NULL,
 	approver_account_id	integer NOT NULL,
 	actual_approver_account_id	integer  NULL,
-	external_reference_name	varchar(50) NOT NULL,
+	external_reference_name	varchar(50)  NULL,
 	is_completed	character(1) NOT NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -501,60 +514,60 @@ ALTER TABLE approval_instance_step ADD CONSTRAINT pk_approval_instance_step PRIM
 
 -- Table/Column Comments
 -- INDEXES
+CREATE INDEX xif5approval_instance_step ON approval_instance_step USING btree (approval_process_chain_id);
 CREATE INDEX xif4approval_instance_step ON approval_instance_step USING btree (approval_type);
+CREATE INDEX xif2approval_instance_step ON approval_instance_step USING btree (approver_account_id);
 CREATE INDEX xif1approval_instance_step ON approval_instance_step USING btree (approval_instance_id);
 CREATE INDEX xif3approval_instance_step ON approval_instance_step USING btree (actual_approver_account_id);
-CREATE INDEX xif5approval_instance_step ON approval_instance_step USING btree (approval_process_chain_id);
-CREATE INDEX xif2approval_instance_step ON approval_instance_step USING btree (approver_account_id);
 
 -- CHECK CONSTRAINTS
 ALTER TABLE approval_instance_step ADD CONSTRAINT check_yes_no_1099280524
 	CHECK (is_completed = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
 
 -- FOREIGN KEYS FROM
+-- consider FK approval_instance_step and approval_instance_item
+ALTER TABLE approval_instance_item
+	ADD CONSTRAINT fk_appinstitem_appinststep
+	FOREIGN KEY (approval_instance_step_id) REFERENCES approval_instance_step(approval_instance_step_id);
 -- consider FK approval_instance_step and approval_instance_step_notify
 -- Skipping this FK since table does not exist yet
 --ALTER TABLE approval_instance_step_notify
 --	ADD CONSTRAINT fk_appinststep_appinstprocid
 --	FOREIGN KEY (approval_instance_step_id) REFERENCES approval_instance_step(approval_instance_step_id);
 
--- consider FK approval_instance_step and approval_instance_item
-ALTER TABLE approval_instance_item
-	ADD CONSTRAINT fk_appinstitem_appinststep
-	FOREIGN KEY (approval_instance_step_id) REFERENCES approval_instance_step(approval_instance_step_id);
 
 -- FOREIGN KEYS TO
 -- consider FK approval_instance_step and account
 ALTER TABLE approval_instance_step
 	ADD CONSTRAINT fk_apstep_actual_app_acctid
 	FOREIGN KEY (actual_approver_account_id) REFERENCES account(account_id);
--- consider FK approval_instance_step and account
-ALTER TABLE approval_instance_step
-	ADD CONSTRAINT fk_appinststep_app_acct_id
-	FOREIGN KEY (approver_account_id) REFERENCES account(account_id);
--- consider FK approval_instance_step and approval_instance
-ALTER TABLE approval_instance_step
-	ADD CONSTRAINT fk_app_inst_step_apinstid
-	FOREIGN KEY (approval_instance_id) REFERENCES approval_instance(approval_instance_id);
 -- consider FK approval_instance_step and approval_process_chain
 -- Skipping this FK since table does not exist yet
 --ALTER TABLE approval_instance_step
 --	ADD CONSTRAINT fk_appinststep_app_prcchnid
 --	FOREIGN KEY (approval_process_chain_id) REFERENCES approval_process_chain(approval_process_chain_id);
 
+-- consider FK approval_instance_step and account
+ALTER TABLE approval_instance_step
+	ADD CONSTRAINT fk_appinststep_app_acct_id
+	FOREIGN KEY (approver_account_id) REFERENCES account(account_id);
 -- consider FK approval_instance_step and val_approval_type
 -- Skipping this FK since table does not exist yet
 --ALTER TABLE approval_instance_step
 --	ADD CONSTRAINT fk_appinststep_app_type
 --	FOREIGN KEY (approval_type) REFERENCES val_approval_type(approval_type);
 
+-- consider FK approval_instance_step and approval_instance
+ALTER TABLE approval_instance_step
+	ADD CONSTRAINT fk_app_inst_step_apinstid
+	FOREIGN KEY (approval_instance_id) REFERENCES approval_instance(approval_instance_id);
 
 -- TRIGGERS
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'approval_instance_step');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'approval_instance_step');
 ALTER SEQUENCE approval_instance_step_approval_instance_step_id_seq
 	 OWNED BY approval_instance_step.approval_instance_step_id;
--- DONE DEALING WITH TABLE approval_instance_step [1274403]
+-- DONE DEALING WITH TABLE approval_instance_step [1546520]
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE approval_process_chain
@@ -1106,6 +1119,7 @@ CREATE VIEW approval_utils.v_account_collection_approval_process AS
 -- triggers
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
 
+------------------------------------------------------------------------------
 
 -- Copyright (c) 2015, Todd M. Kover
 -- All rights reserved.
@@ -1123,6 +1137,22 @@ DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
 -- limitations under the License.
 
 \set ON_ERROR_STOP
+
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	select count(*)
+	from pg_catalog.pg_namespace
+	into _tal
+	where nspname = 'approval_utils';
+	IF _tal = 0 THEN
+		DROP SCHEMA IF EXISTS approval_utils;
+		CREATE SCHEMA approval_utils AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA approval_utils IS 'part of jazzhands';
+	END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION approval_utils.calculate_due_date(
 	response_period	interval,
@@ -1345,7 +1375,7 @@ BEGIN
 				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
-				ai.approval_process_id, 'account',
+				ai.approval_instance_id, 'account',
 				_r.approval_process_chain_name,
 				approval_utils.calculate_due_date(_r.approval_response_period::interval),
 				concat(_r.approval_chain_description, ' - ', _r.manager_login)
@@ -1675,13 +1705,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
+grant select on all tables in schema approval_utils to iud_role;
 grant usage on schema approval_utils to iud_role;
 revoke all on schema approval_utils from public;
 revoke all on  all functions in schema approval_utils from public;
 grant execute on all functions in schema approval_utils to iud_role;
 
-grant usage on schema approval_utils to stab_role;
-grant execute on all functions in schema approval_utils to stab_role;
+------------------------------------------------------------------------------
 
 /*
  * Copyright (c) 2015 Todd Kover
