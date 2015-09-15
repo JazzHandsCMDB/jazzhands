@@ -46,7 +46,7 @@
 email itself: why its important
 	should only take five minutes (really easy)
 
-	placeholder text in correction box
+	placeholder text in correction box [DONE]
 		start with full drop down, type and it fixes it
 
 		https://harvesthq.github.io/chosen/
@@ -58,15 +58,12 @@ email itself: why its important
 	http://styleguide.devnxs.net/examples/notifications/banners/
 		colors - blue/yellow/red/
 
-	close to deadline banner?
+	close to deadline banner? [ DONE ]
 
 	success page should show what happened, SLAs, etc.
 
-	last modified date? tooltip? (tiny text with light grey?)
-
-	sort on last modified?
-
 LATER:
-	photos of reports?
-
-	overdue on single sign on?
+	- photos of reports?
+	- overdue on single sign on?
+	- last modified date? tooltip? (tiny text with light grey?)
+	- sort on last modified?
