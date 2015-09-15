@@ -483,8 +483,8 @@ BEGIN
 			ais.approver_account_id,
 			aii.is_approved,
 			ais.is_completed,
-			aic.accept_approval_process_chain_id,
-			aic.reject_approval_process_chain_id
+			aic.accept_app_process_chain_id,
+			aic.reject_app_process_chain_id
    	     FROM    approval_instance ai
    	             INNER JOIN approval_instance_step ais
    	                 USING (approval_instance_id)
@@ -554,12 +554,12 @@ BEGIN
 	' USING approval_instance_item_id, approved, approving_account_id;
 
 	IF approved = 'N' THEN
-		IF _r.reject_approval_process_chain_id IS NOT NULL THEN
-			_chid := _r.reject_approval_process_chain_id;	
+		IF _r.reject_app_process_chain_id IS NOT NULL THEN
+			_chid := _r.reject_app_process_chain_id;	
 		END IF;
 	ELSIF approved = 'Y' THEN
-		IF _r.accept_approval_process_chain_id IS NOT NULL THEN
-			_chid := _r.accept_approval_process_chain_id;
+		IF _r.accept_app_process_chain_id IS NOT NULL THEN
+			_chid := _r.accept_app_process_chain_id;
 		END IF;
 	ELSE
 		RAISE EXCEPTION 'Approved must be Y or N';

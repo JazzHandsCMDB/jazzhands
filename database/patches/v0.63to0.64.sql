@@ -192,10 +192,10 @@ CREATE TABLE approval_instance_item
 	approval_instance_link_id	integer NOT NULL,
 	approval_instance_step_id	integer NOT NULL,
 	next_approval_instance_item_id	integer  NULL,
-	approved_category	varchar(50) NOT NULL,
-	approved_label	varchar(50)  NULL,
-	approved_lhs	varchar(50)  NULL,
-	approved_rhs	varchar(50)  NULL,
+	approved_category	varchar(255) NOT NULL,
+	approved_label	varchar(255)  NULL,
+	approved_lhs	varchar(255)  NULL,
+	approved_rhs	varchar(255)  NULL,
 	is_approved	character(1)  NULL,
 	approved_account_id	integer  NULL,
 	data_ins_user	varchar(255)  NULL,
@@ -491,7 +491,7 @@ CREATE TABLE approval_instance_step
 	approval_instance_step_end	timestamp with time zone  NULL,
 	approver_account_id	integer NOT NULL,
 	actual_approver_account_id	integer  NULL,
-	external_reference_name	varchar(50)  NULL,
+	external_reference_name	varchar(255)  NULL,
 	is_completed	character(1) NOT NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -578,6 +578,9 @@ CREATE TABLE approval_process_chain
 	approval_chain_response_period	varchar(50)  NULL,
 	description	varchar(255)  NULL,
 	message	varchar(4096)  NULL,
+	email_message        varchar(4096) NULL ,
+	email_subject_prefix varchar(50) NULL ,
+	email_subject_suffix varchar(50) NULL ,
 	approving_entity	varchar(50)  NULL,
 	refresh_all_data	character(1) NOT NULL,
 	accept_app_process_chain_id	integer  NULL,
@@ -1120,6 +1123,8 @@ CREATE VIEW approval_utils.v_account_collection_approval_process AS
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person ON person;
 
 ------------------------------------------------------------------------------
+-- DEALING WITH automated_tools
+------------------------------------------------------------------------------
 
 -- Copyright (c) 2015, Todd M. Kover
 -- All rights reserved.
@@ -1606,8 +1611,8 @@ BEGIN
 			ais.approver_account_id,
 			aii.is_approved,
 			ais.is_completed,
-			aic.accept_approval_process_chain_id,
-			aic.reject_approval_process_chain_id
+			aic.accept_app_process_chain_id,
+			aic.reject_app_process_chain_id
    	     FROM    approval_instance ai
    	             INNER JOIN approval_instance_step ais
    	                 USING (approval_instance_id)
@@ -1677,12 +1682,12 @@ BEGIN
 	' USING approval_instance_item_id, approved, approving_account_id;
 
 	IF approved = 'N' THEN
-		IF _r.reject_approval_process_chain_id IS NOT NULL THEN
-			_chid := _r.reject_approval_process_chain_id;	
+		IF _r.reject_app_process_chain_id IS NOT NULL THEN
+			_chid := _r.reject_app_process_chain_id;	
 		END IF;
 	ELSIF approved = 'Y' THEN
-		IF _r.accept_approval_process_chain_id IS NOT NULL THEN
-			_chid := _r.accept_approval_process_chain_id;
+		IF _r.accept_app_process_chain_id IS NOT NULL THEN
+			_chid := _r.accept_app_process_chain_id;
 		END IF;
 	ELSE
 		RAISE EXCEPTION 'Approved must be Y or N';
@@ -1711,6 +1716,8 @@ revoke all on schema approval_utils from public;
 revoke all on  all functions in schema approval_utils from public;
 grant execute on all functions in schema approval_utils to iud_role;
 
+------------------------------------------------------------------------------
+-- DONE DEALING WITH automated_tools
 ------------------------------------------------------------------------------
 
 /*
