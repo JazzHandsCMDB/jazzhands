@@ -992,8 +992,8 @@ insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description, permit_account_collection_id
 ) values (
-	'_can_approve_all', 'Defaults', 'N', 'string',
-	'Email address to sign aproval emails from (in body)',
+	'_can_approve_all', 'Defaults', 'Y', 'string',
+	''Stored Procedures will allow these people to execute any approval.  Assign sparingly, if at all.'
 	'REQUIRED'
 );
 

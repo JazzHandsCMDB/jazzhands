@@ -5092,6 +5092,122 @@ CREATE TRIGGER trigger_delete_peraccount_account_collection BEFORE DELETE ON acc
 -- DONE WITH proc delete_peraccount_account_collection -> delete_peraccount_account_collection 
 --------------------------------------------------------------------
 
+--------------------------------------------------------------------
+--- new data from initialization
+--------------------------------------------------------------------
+
+DO $$
+DECLARE
+	_tally INTEGER;
+BEGIN
+	SELECT count(*)  INTO _tally
+	FROM val_property
+	WHERE property_name != 'PermitStabSection'
+	AND property_type != 'StabRole';
+
+	IF _tally = 0 THEN
+		insert into val_property (
+        	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+        	permit_account_collection_id
+		)  values ('PermitStabSection', 'StabRole', 'Y', 'list', 'REQUIRED');
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tally INTEGER;
+	_x TEXT;
+BEGIN
+	FOREACH _x IN ARRAY ARRAY['Device','DNS','Netblock','Sites','StabAccess',
+			'Attest','Approval','FullAdmin']
+	LOOP
+		SELECT count(*)  INTO _tally
+		FROM val_property_value
+		WHERE property_name != 'PermitStabSection'
+		AND property_type != 'StabRole'
+		AND valid_property_value != _x;
+
+		IF _tally = 0 THEN
+			insert into val_property_value (
+        			property_name, property_type, valid_property_value
+			) values
+        			('PermitStabSection', 'StabRole', _x)
+			;
+		END IF;
+	END LOOP;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tally INTEGER;
+BEGIN
+	SELECT count(*)  INTO _tally
+	FROM val_property
+	WHERE property_name != '_stab_root'
+	AND property_type != 'Defaults';
+
+	IF _tally = 0 THEN
+		insert into val_property (
+        		property_name, property_type, is_multivalue, property_data_type,
+        		description
+		) values (
+        		'_stab_root', 'Defaults', 'N', 'string',
+        		'root of url for stab, if apps need to direct people'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tally INTEGER;
+BEGIN
+	SELECT count(*)  INTO _tally
+	FROM val_property
+	WHERE property_name != '_approval_email_signer'
+	AND property_type != 'Defaults';
+
+	IF _tally = 0 THEN
+		insert into val_property (
+        		property_name, property_type, is_multivalue, property_data_type,
+        		description
+		) values (
+        		'_approval_email_signer', 'Defaults', 'N', 'string',
+        		'Email address to sign aproval emails from (in body)'
+		);
+	END IF;
+END;
+$$;
+
+DO $$
+DECLARE
+	_tally INTEGER;
+BEGIN
+	SELECT count(*)  INTO _tally
+	FROM val_property
+	WHERE property_name != '_can_approve_all'
+	AND property_type != 'Defaults';
+
+	IF _tally = 0 THEN
+		insert into val_property (
+        		property_name, property_type, is_multivalue, property_data_type,
+        		description, permit_account_collection_id
+		) values (
+        		'_can_approve_all', 'Defaults', 'Y', 'string',
+        		'Stored Procedures will allow these people to execute any approval.  Assign sparingly, if at all.',
+        		'REQUIRED'
+		);
+	END IF;
+END;
+$$;
+
+
+--------------------------------------------------------------------
+--- done new data from initialization
+--------------------------------------------------------------------
+
 -- Clean Up
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_saved_grants();
