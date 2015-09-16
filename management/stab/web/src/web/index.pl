@@ -37,81 +37,100 @@ my $email = $stab->support_email();
 
 my $mailto = $cgi->a( { -href => $email }, $email );
 
-print qq{
+print $cgi->div({-class => 'description'},qq{
 	STAB is a web front-end to JazzHands.
 	STAB is used to manage network elements, and related information,
 	ranging from device properties, to network topology to DNS
 	information.  If you have
 	any issues with STAB, please contact  $mailto.
-};
+});
 
 print $cgi->h2( { -align => 'center' }, "STAB Network Element Management" );
 
-print $cgi->ul(
-	$cgi->li( $cgi->a( { -href => "dns/" }, "DNS" ) ) . "\n",
-	$cgi->ul(
-		$cgi->li(
-			$cgi->a(
-				{ -href => "dns/soacheck.pl" },
-				"NIC vs JazzHands"
-			)
+my @things;
+
+if($stab->check_permissions('DNS')) {
+	push(@things, join("",
+		$cgi->li( $cgi->a( { -href => "dns/" }, "DNS" ) ) . "\n",
+			$cgi->ul(
+				$cgi->li(
+					$cgi->a(
+						{ -href => "dns/soacheck.pl" },
+						"NIC vs JazzHands"
+					)
+				),
+
+			#		$cgi->li(
+			#			$cgi->a(
+			#				{ -href => "dns/dns-debug.pl" },
+			#				"DNS Namespace Debugging"
+			#			)
+			#		),
 		),
+	));
+}
 
-		#		$cgi->li(
-		#			$cgi->a(
-		#				{ -href => "dns/dns-debug.pl" },
-		#				"DNS Namespace Debugging"
-		#			)
-		#		),
-	),
-	$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
-	  . "\n",
-	$cgi->li(
-		[
-			$cgi->a(
-				{ -href => "device/type/" },
-				"Device Type Management"
-			),
-
-		       #		$cgi->a(
-		       #			{ -href => "device/apps/" }, "Application Management"
-		       #		),
-		]
-	  )
-	  . "\n",
-	$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
-	  . "\n",
-	$cgi->ul(
+if($stab->check_permissions('Device')) {
+	push(@things, join("",
+		$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
+	  	. "\n",
 		$cgi->li(
 			[
 				$cgi->a(
-					{ href => "netblock/networkrange.pl" },
-					"Network Ranges (VPN/DHCP/etc)"
+					{ -href => "device/type/" },
+					"Device Type Management"
 				),
-				$cgi->a(
-					{ href => "netblock/collection/" },
-					"Netblock Collections"
-				),
+
+		       	#		$cgi->a(
+		       	#			{ -href => "device/apps/" }, "Application Management"
+		       	#		),
 			]
-		)
-	),
-	$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
-	$cgi->ul(
-		$cgi->li(
-			$cgi->a(
-				{ -href => "sites/blockmgr.pl" },
-				"IP Space Management by Site"
+	  	)
+	  	. "\n",
+	));
+}
+
+if($stab->check_permissions('Netblock')) {
+	push(@things, join("",
+		$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
+	  	. "\n",
+		$cgi->ul(
+			$cgi->li(
+				[
+					$cgi->a(
+						{ href => "netblock/networkrange.pl" },
+						"Network Ranges (VPN/DHCP/etc)"
+					),
+					$cgi->a(
+						{ href => "netblock/collection/" },
+						"Netblock Collections"
+					),
+				]
 			)
 		),
-		$cgi->li(
-			$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
-		)
-	),
+	));
+}
 
-	#	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) .
-	"\n",
-);
+if($stab->check_permissions('Sites')) {
+	push(@things, join("",
+		$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
+		$cgi->ul(
+			$cgi->li(
+				$cgi->a(
+					{ -href => "sites/blockmgr.pl" },
+					"IP Space Management by Site"
+				)
+			),
+			$cgi->li(
+				$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
+			)
+		),
+	));
+}
 
+#	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) .
+
+print $cgi->ul(@things);
 print $cgi->end_html, "\n";
 
 undef $stab;

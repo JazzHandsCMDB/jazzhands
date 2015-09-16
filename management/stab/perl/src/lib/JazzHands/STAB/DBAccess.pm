@@ -2190,6 +2190,36 @@ sub build_dns_drop {
 	$r;
 }
 
+#
+# check to see if account is in another's managment chain
+#
+sub check_management_chain($$;$) {
+	my $self = shift @_;
+	my $bottom_acct = shift @_;
+	my $top_acct = shift @_ || $self->get_account_id();
+
+	return 1 if($top_acct == $bottom_acct);
+
+	my $sth = $self->prepare(q{
+		SELECT	manager_account_id
+		FROM	v_account_manager_map
+		WHERE	account_id = ?
+	}) || die $self->return_db_err;
+
+	my $acct = $bottom_acct;
+	do {
+		$sth->execute($acct) || $self->return_db_err($sth);
+		my ($mid) = $sth->fetchrow_array();
+		$sth->finish;
+		if($mid && $mid == $top_acct) {
+			return 1;
+		}
+		$acct = $mid
+	} while($acct);
+
+	0;
+}
+
 1;
 __END__
 

@@ -118,3 +118,6 @@
 -- logical volumes
 \i pgsql/create_v_lv_hier.sql
 \i pgsql/create_v_component_hier.sql
+
+\i create_v_account_manager_map.sql
+\i approval/create_approval_views.sql

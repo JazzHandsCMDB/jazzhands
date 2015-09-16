@@ -75,7 +75,7 @@ sub do_netcol_ajax {
 				netblock_collection_name, description
 			  from  netblock_collection
 			where	netblock_collection_type = ?
-			order by netblock_collection_name,
+			order by netblock_collection_name, 
 				netblock_collection_type,
 				netblock_collection_id
 		}

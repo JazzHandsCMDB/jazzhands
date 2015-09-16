@@ -60,3 +60,4 @@
 \i component_utils.sql
 \i snapshot_manip.sql
 \i lv_manip.sql
+\i approval_utils.sql

@@ -20,6 +20,22 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+-- Copyright (c) 2010-2015, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+
 --
 -- $Id$
 --
@@ -683,8 +699,8 @@ insert into val_property (
 );
 
 -- system wide defaults concepts used by various tools
-insert into val_property_type (property_type, description,is_multivalue)
-	values ( 'Defaults', 'System Wide Defaults', 'N');
+insert into val_property_type (property_type, description)
+	values ( 'Defaults', 'System Wide Defaults');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 
@@ -905,9 +921,30 @@ values
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	permit_account_collection_id
+) values 
+	('StabAccess', 'StabRole', 'N', 'boolean', 'REQUIRED'),
+	('PermitStabSection', 'StabRole', 'Y', 'list', 'REQUIRED')
+;
+
+insert into val_property_value (
+	property_name, property_type, valid_property_value
+) values
+	('PermitStabSection', 'StabRole', 'Device'),
+	('PermitStabSection', 'StabRole', 'DNS'),
+	('PermitStabSection', 'StabRole', 'Netblock'),
+	('PermitStabSection', 'StabRole', 'Sites'),
+	('PermitStabSection', 'StabRole', 'StabAccess'),
+	('PermitStabSection', 'StabRole', 'Attest'),
+	('PermitStabSection', 'StabRole', 'Approval'),
+	('PermitStabSection', 'StabRole', 'FullAdmin')
+;
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
 ) values (
-	'StabAccess', 'StabRole', 'N', 'boolean',
-	'REQUIRED'
+	'_stab_root', 'Defaults', 'N', 'string',
+	'root of url for stab, if apps need to direct people'
 );
 
 
@@ -932,6 +969,33 @@ values (
 	'DNSACLs', 'DNSZonegen',
 	'indicates netblocks that should be in a named acl', 'Y',
 	'string', 'REQUIRED');
+
+--- approval stuff
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) values (
+	'_approval_email_sender', 'Defaults', 'N', 'string',
+	'Email address to send approvals from '
+);
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) values (
+	'_approval_email_signer', 'Defaults', 'N', 'string',
+	'Email address to sign aproval emails from (in body)'
+);
+
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description, permit_account_collection_id
+) values (
+	'_can_approve_all', 'Defaults', 'Y', 'string',
+	''Stored Procedures will allow these people to execute any approval.  Assign sparingly, if at all.'
+	'REQUIRED'
+);
 
 -------------------------------------------------------------------------
 -- BEGIN legacy port related stuff used by layer1_connection and elsewhere
