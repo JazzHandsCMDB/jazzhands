@@ -1,4 +1,21 @@
 
+--
+-- Copyright (c) 2010-2015 Todd Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+--
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -21,23 +38,6 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
-
---
--- Copyright (c) 2010-2014 Todd Kover
--- All rights reserved.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---      http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
-
 
 
 --
@@ -135,6 +135,48 @@ DROP TRIGGER TUB_APPAAL_INSTANCE_DEVICE_COL;
 DROP TRIGGER C_TIUBR_APPAAL_INSTANCE_PROPER;
 
 DROP TRIGGER TUB_APPAAL_INSTANCE_PROPERTY;
+
+DROP TRIGGER C_TIUBR_APPROVAL_INSTANCE;
+
+DROP TRIGGER TIB_APPROVAL_INSTANCE;
+
+DROP TRIGGER TUB_APPROVAL_INSTANCE;
+
+DROP TRIGGER C_TIUBR_APPROVAL_INSTANCE_ITEM;
+
+DROP TRIGGER TIB_APPROVAL_INSTANCE_ITEM;
+
+DROP TRIGGER TUB_APPROVAL_INSTANCE_ITEM;
+
+DROP TRIGGER C_TIUBR_APPROVAL_INSTANCE_LINK;
+
+DROP TRIGGER TIB_APPROVAL_INSTANCE_LINK;
+
+DROP TRIGGER TUB_APPROVAL_INSTANCE_LINK;
+
+DROP TRIGGER C_TUBR_APPROVAL_INSTANCE_STEP;
+
+DROP TRIGGER TIB_APPROVAL_INSTANCE_STEP;
+
+DROP TRIGGER TUB_APPROVAL_INSTANCE_STEP;
+
+DROP TRIGGER C_TIUBR_APPROVAL_INSTANCE_STEP;
+
+DROP TRIGGER TIB_APPROVAL_INSTANCE_STEP_NOT;
+
+DROP TRIGGER TUB_APPROVAL_INSTANCE_STEP_NOT;
+
+DROP TRIGGER C_TIUBR_APPROVAL_PROCESS;
+
+DROP TRIGGER TIB_APPROVAL_PROCESS;
+
+DROP TRIGGER TUB_APPROVAL_PROCESS;
+
+DROP TRIGGER C_TIUBR_APPROVAL_PROCESS_CHAIN;
+
+DROP TRIGGER TIB_APPROVAL_PROCES_CHAIN;
+
+DROP TRIGGER TUB_APPROVAL_PROCES_CHAIN;
 
 DROP TRIGGER C_TIUBR_ASSET;
 
@@ -769,6 +811,30 @@ DROP TRIGGER TUB_VAL_APP_KEY;
 DROP TRIGGER C_TIUBR_VAL_APP_KEY_VALUES;
 
 DROP TRIGGER TUB_VAL_APP_KEY_VALUES;
+
+DROP TRIGGER C_TIUBR_APPROVAL_CHAIN_RESP_PR;
+
+DROP TRIGGER TUB_APPROVAL_CHAIN_RESP_PRD;
+
+DROP TRIGGER C_TIUBR_VAL_APPROVAL_EXPIRATIO;
+
+DROP TRIGGER TUB_VAL_APPROVAL_EXPIRATION_AC;
+
+DROP TRIGGER C_TIUBR_VAL_APROVAL_NOTIFY_TYP;
+
+DROP TRIGGER TUB_VAL_APPROVAL_NOTIFY_TYPE;
+
+DROP TRIGGER C_TIUBR_APPROVAL_PROCESS_TYPE;
+
+DROP TRIGGER TUB_VAL_APPROVAL_PROCESS_TYPE;
+
+DROP TRIGGER C_TIUBR_VAL_APPROVAL_TYPE;
+
+DROP TRIGGER TUB_VAL_APPROVAL_TYPE;
+
+DROP TRIGGER C_TIUBR_VAL_ATTESTATION_FREQUE;
+
+DROP TRIGGER TUB_VAL_ATTESTATION_FREQUNCY;
 
 DROP TRIGGER C_TIUBR_VAL_AUTH_QUESTION;
 
