@@ -993,7 +993,7 @@ insert into val_property (
 	description, permit_account_collection_id
 ) values (
 	'_can_approve_all', 'Defaults', 'Y', 'string',
-	''Stored Procedures will allow these people to execute any approval.  Assign sparingly, if at all.'
+	'Stored Procedures will allow these people to execute any approval.  Assign sparingly, if at all.',
 	'REQUIRED'
 );
 
