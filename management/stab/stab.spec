@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.63.2
+Version:        0.64.0
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -181,6 +181,10 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Thu Sep 17 2015 Todd Kover <kovert@omniscient.com> 0.64.0
+- add better access control
+- add approval section
+- add chosen
 * Thu Aug 13 2015 Todd Kover <kovert@omniscient.com> 0.63.2
 - add updates for network_inteface_purpose
 * Wed Aug  5 2015 Todd Kover <kovert@omniscient.com> 0.63.1
