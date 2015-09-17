@@ -49,7 +49,7 @@ BEGIN
 	-- XXX account realm
 
 	IF TG_OP = 'INSERT' THEN
-		PERFORM auto_ac_manip.create_report_account_collections(
+		PERFORM auto_ac_manip.make_all_auto_acs_right(
 			account_id := NEW.account_id, 
 			account_realm_id := NEW.account_realm_id,
 			login := NEW.login
