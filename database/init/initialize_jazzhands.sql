@@ -723,6 +723,14 @@ values
 ('_supportemail', 'Defaults', 'defines support email used by tools', 'N', 
 'string');
 
+INSERT INTO val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) VALUES (
+	'_max_default_login_length', 'Defaults', 'N', 'number',
+	'Maximum length of generated login names, defaults to 15'
+);
+
 insert into val_property(
 	property_name, property_type, description, is_multivalue,
 	property_data_type, permit_account_collection_id,
