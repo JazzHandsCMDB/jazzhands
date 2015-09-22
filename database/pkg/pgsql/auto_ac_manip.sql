@@ -583,7 +583,7 @@ BEGIN
 		PERFORM auto_ac_manip.purge_report_account_collection(
 			account_id := account_id, 
 			account_realm_id := account_realm_id,
-			ac_type := 'AutomatedDirectsAC');
+			ac_type := 'AutomatedRollupsAC');
 		RETURN;
 	END IF;
 

@@ -84,6 +84,24 @@ BEGIN
 	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE'  THEN
 		PERFORM auto_ac_manip.make_site_acs_right(NEW.account_id);
 		PERFORM auto_ac_manip.make_personal_acs_right(NEW.account_id);
+
+		-- update the person's manager to match
+		WITH RECURSIVE map AS (
+			SELECT account_id as root_account_id,
+				account_id, login, manager_account_id, manager_login
+			FROM v_account_manager_map
+			UNION
+			SELECT map.root_account_id, m.account_id, m.login,
+				m.manager_account_id, m.manager_login 
+				from v_account_manager_map m
+					join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+					account_id := manager_account_id,
+					account_realm_id := NEW.account_realm_id,
+					login := manager_login)
+				FROM map
+				WHERE root_account_id = NEW.account_id
+			) SELECT count(*) INTO _tally FROM x;
 	END IF;
 
 	IF TG_OP = 'UPDATE'  THEN
@@ -131,19 +149,52 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
-	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
-				INNER JOIN person_location USING (person_id)
+				INNER JOIN person_company USING (person_id,company_id)
 		WHERE	account_role = 'primary'
 		AND		person_id = NEW.person_id
 		AND		company_id = NEW.company_id;
+
+		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND 
+				NEW.manager_person_id != OLD.manager_person_id ) 
+		) THEN
+			-- update the person's manager to match
+			WITH RECURSIVE map As (
+				SELECT account_id as root_account_id,
+					account_id, login, manager_account_id, manager_login
+				FROM v_account_manager_map
+				UNION
+				SELECT map.root_account_id, m.account_id, m.login,
+					m.manager_account_id, m.manager_login 
+					from v_account_manager_map m
+						join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+						account_id := manager_account_id,
+						account_realm_id := account_realm_id,
+						login := manager_login)
+					FROM map m
+							join v_corp_family_account a ON
+								a.account_id = m.root_account_id
+					WHERE a.person_id = NEW.person_id
+					AND a.company_id = NEW.company_id
+			) SELECT count(*) into _tally from x;
+			IF TG_OP = 'UPDATE' THEN
+				PERFORM auto_ac_manip.make_auto_report_acs_right(
+							account_id := account_id)
+				FROM    v_corp_family_account
+				WHERE   account_role = 'primary'
+				AND     is_enabled = 'Y'
+				AND     person_id = OLD.manager_person_id;
+			END IF;
+		END IF;
 	END IF;
 
-	IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
+	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
-				INNER JOIN person_location USING (person_id)
+				INNER JOIN person_company USING (person_id,company_id)
 		WHERE	account_role = 'primary'
 		AND		person_id = OLD.person_id
 		AND		company_id = OLD.company_id;
@@ -160,7 +211,8 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
 CREATE TRIGGER trigger_automated_ac_on_person_company 
-	AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id,company_id
+	AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id,company_id,
+		manager_person_id
 	ON person_company 
 	FOR EACH ROW EXECUTE PROCEDURE 
 	automated_ac_on_person_company();

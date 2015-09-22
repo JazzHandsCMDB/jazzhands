@@ -222,8 +222,6 @@ sub DBUpdate {
 		}
 	}
 	my $ret;
-	warn $sth->{Statement};
-	warn $sth->errstr if($sth->errstr);
 	if (!($ret = $sth->execute)) {
 		SetError($opt->{errors}, 
 			sprintf("DBUpdate: Error executing update: %s",
