@@ -15,5 +15,7 @@
 -- limitations under the License.
 --
 
+\ir Juniper_EX_Virtual_Stack.sql
 \ir Juniper_EX2200.sql
 \ir Juniper_EX4200.sql
+\ir Juniper_EX4500.sql

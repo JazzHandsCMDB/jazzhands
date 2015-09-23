@@ -35,22 +35,6 @@ BEGIN
 			RETURNING company_id INTO cid;
 	END IF;
 
---
--- Juniper EX VCP
---
-
-	PERFORM * FROM val_slot_physical_interface WHERE
-		slot_physical_interface_type = 'Juniper EX VCP' AND
-		slot_function = 'inter_component_link';
-
-	SELECT company_id INTO cid FROM jazzhands.company WHERE
-		company_name = 'Juniper';
-
-	IF NOT FOUND THEN
-		INSERT INTO company (company_name) VALUES ('Juniper')
-			RETURNING company_id INTO cid;
-	END IF;
-
 	SELECT slot_type_id INTO vcp_stid FROM slot_type WHERE
 		slot_type = 'Juniper EX VCP' AND
 		slot_function = 'inter_component_link';
@@ -63,16 +47,14 @@ BEGIN
 		description,
 		slot_type_id,
 		model,
-		part_number,
 		company_id,
 		asset_permitted,
 		is_rack_mountable,
 		size_units
 	) VALUES (
-		'Juniper EX4200-48T',
+		'Juniper EX4500-40F',
 		stack_stid,
-		'EX4200-48T',
-		'750-033063',
+		'EX4500-40F',
 		cid,
 		'Y',
 		'Y',
@@ -135,51 +117,7 @@ BEGIN
 		'FRONT'
 	FROM
 		slot_type st,
-		generate_series(0,47) x(idx)
-	WHERE
-		slot_type = '1000BaseTEthernet' and slot_function = 'network';
-
-	INSERT INTO component_type_slot_tmplt (
-		component_type_id,
-		slot_type_id,
-		slot_name_template,
-		physical_label,
-		slot_index,
-		slot_x_offset,
-		slot_side
-	) SELECT
-		ctid,
-		slot_type_id,
-		'ge-%{parent_slot_index}/1/' || (x.idx * 2 + 1),
-		(x.idx * 2 + 1),
-		(x.idx * 2 + 1),
-		(x.idx * 2 + 1),
-		'FRONT'
-	FROM
-		slot_type st,
-		generate_series(0,1) x(idx)
-	WHERE
-		slot_type = '1GSFPEthernet' and slot_function = 'network';
-
-	INSERT INTO component_type_slot_tmplt (
-		component_type_id,
-		slot_type_id,
-		slot_name_template,
-		physical_label,
-		slot_index,
-		slot_x_offset,
-		slot_side
-	) SELECT
-		ctid,
-		slot_type_id,
-		'xe-%{parent_slot_index}/1/' || (x.idx * 2),
-		(x.idx * 2),
-		(x.idx * 2),
-		(x.idx * 2),
-		'FRONT'
-	FROM
-		slot_type st,
-		generate_series(0,1) x(idx)
+		generate_series(0,39) x(idx)
 	WHERE
 		slot_type = '10GSFP+Ethernet' and slot_function = 'network';
 
@@ -199,7 +137,7 @@ BEGIN
 		'vme',
 		'MGMT',
 		1,
-		'BACK'
+		'FRONT'
 	FROM
 		slot_type st
 	WHERE
@@ -221,7 +159,7 @@ BEGIN
 		'VCP-' || x.idx,
 		'VCP-' || x.idx,
 		x.idx,
-		'BACK'
+		'FRONT'
 	FROM
 		generate_series(0,1) x(idx);
 
