@@ -24,7 +24,7 @@ rm -rf %{buildroot}
 
 mkdir -p %{buildroot}/%{prefix}
 
-tar cf - `find . -name \*.js` | (cd %{buildroot}/%{prefix} ; tar xpf -)
+tar cf - `find . -name \*.js ` external/chosen/* | (cd %{buildroot}/%{prefix} ; tar xpf -)
 
 %clean
 rm -rf %{buildroot}
