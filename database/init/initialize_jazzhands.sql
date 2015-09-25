@@ -1005,6 +1005,14 @@ insert into val_property (
 	'REQUIRED'
 );
 
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description
+) values (
+	'_approval_faq_site', 'Defaults', 'N', 'string',
+	'URL to include in emails that tell people where to find more info'
+);
+
 -------------------------------------------------------------------------
 -- BEGIN legacy port related stuff used by layer1_connection and elsewhere
 

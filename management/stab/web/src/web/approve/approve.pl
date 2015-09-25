@@ -110,7 +110,7 @@ sub process_attestment {
 	$stab->commit;
 	my $msg = "Submitted $count items succesfully.";
 	if($bad > 0) {
-		$msg .= qq{$bad entries will have a ticket opened on your behalf and when resolved, you will be asked, via another email, to certify the changes after they are entered.  You may also be asked more questions based on the ticket via e-mail.};
+		$msg .= qq{Ticket(s) will be opened on your behalf for the $bad changes and when resolved, you will be asked, via another email, to certify the changes after they are entered.  You may also be asked more questions based on the ticket via e-mail.};
 	}
 	
 	$stab->msg_return($msg,undef, 1);

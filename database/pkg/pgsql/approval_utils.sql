@@ -115,16 +115,16 @@ BEGIN
 	EXECUTE '
 		WITH p AS (
 		SELECT  login,
-		        account_id,
-		        person_id,
-		        company_id,
-		        manager_account_id,
-		        manager_login,
-		        ''person_company''::text as audit_table,
-		        audit_seq_id,
-		        approval_process_id,
-		        approval_process_chain_id,
-		        approving_entity,
+			account_id,
+			person_id,
+			company_id,
+			manager_account_id,
+			manager_login,
+			''person_company''::text as audit_table,
+			audit_seq_id,
+			approval_process_id,
+			approval_process_chain_id,
+			approving_entity,
 				approval_process_description,
 				approval_chain_description,
 				approval_response_period,
@@ -138,16 +138,16 @@ BEGIN
 					WHEN property_val_rhs = ''position_title''
 						THEN ''Verify Position Title''
 					END as approval_label,
-		        human_readable AS approval_lhs,
-		        CASE
-		            WHEN property_val_rhs = ''position_title'' THEN pcm.position_title
-		        END as approval_rhs
+			human_readable AS approval_lhs,
+			CASE
+			    WHEN property_val_rhs = ''position_title'' THEN pcm.position_title
+			END as approval_rhs
 		FROM    v_account_manager_map mm
-		        INNER JOIN v_person_company_audit_map pcm
-		            USING (person_id,company_id)
-		        INNER JOIN v_approval_matrix am
-		            ON property_val_lhs = ''person_company''
-		            AND property_val_rhs = ''position_title''
+			INNER JOIN v_person_company_audit_map pcm
+			    USING (person_id,company_id)
+			INNER JOIN v_approval_matrix am
+			    ON property_val_lhs = ''person_company''
+			    AND property_val_rhs = ''position_title''
 		), x AS ( select i.approval_instance_item_id, p.*
 		from	approval_instance_item i
 			inner join approval_instance_step s
@@ -360,6 +360,9 @@ BEGIN
 	ELSIF _apc.approving_entity = 'jira-hr' THEN
 		apptype := 'jira-hr';
 		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'rt-hr' THEN
+		apptype := 'rt-hr';
+		_acid :=  _r.approver_account_id;
 	ELSIF _apc.approving_entity = 'recertify' THEN
 		apptype := 'account';
 		EXECUTE '
@@ -388,6 +391,7 @@ BEGIN
 		WHERE	approval_process_chain_id = $1
 		AND		approval_instance_id = $2
 		AND		approver_account_id = $3
+		AND		is_completed = ''N''
 	' INTO _step USING approval_process_chain_id,
 		approval_instance_id, _acid;
 
@@ -481,40 +485,45 @@ BEGIN
 			ais.approval_instance_step_id,
 			ais.approval_instance_id,
 			ais.approver_account_id,
+			ais.approval_type,
 			aii.is_approved,
 			ais.is_completed,
 			aic.accept_app_process_chain_id,
 			aic.reject_app_process_chain_id
    	     FROM    approval_instance ai
-   	             INNER JOIN approval_instance_step ais
-   	                 USING (approval_instance_id)
-   	             INNER JOIN approval_instance_item aii
-   	                 USING (approval_instance_step_id)
-   	             INNER JOIN approval_instance_link ail
-   	                 USING (approval_instance_link_id)
+   		     INNER JOIN approval_instance_step ais
+   			 USING (approval_instance_id)
+   		     INNER JOIN approval_instance_item aii
+   			 USING (approval_instance_step_id)
+   		     INNER JOIN approval_instance_link ail
+   			 USING (approval_instance_link_id)
 			INNER JOIN approval_process_chain aic
 				USING (approval_process_chain_id)
 		WHERE approval_instance_item_id = $1
 	' USING approval_instance_item_id INTO 	_r;
 
-
 	--
 	-- Ensure that only the person or their management chain can approve
-	-- others
-	IF _r.approver_account_id != approving_account_id THEN
+	-- others; this may want to be a property on val_approval_type rather
+	-- than hard coded on account...
+	IF (_r.approval_type = 'account' AND _r.approver_account_id != approving_account_id ) THEN
 		EXECUTE '
 			WITH RECURSIVE rec (
-				root_account_id,
-				account_id,
-				manager_account_id
-			) as (
-					SELECT  account_id as root_account_id,
-							account_id, manager_account_id
-					FROM	v_account_manager_map
-				UNION ALL
-					SELECT a.root_account_id, m.account_id, m.manager_account_id
-					FROM rec a join v_account_manager_map m
+					root_account_id,
+					account_id,
+					manager_account_id,
+					apath, cycle
+	    			) as (
+		    			SELECT  account_id as root_account_id,
+			    			account_id, manager_account_id,
+			    			ARRAY[account_id] as apath, false as cycle
+		    			FROM    v_account_manager_map
+					UNION ALL
+		    			SELECT a.root_account_id, m.account_id, m.manager_account_id,
+						a.apath || m.account_id, m.account_id=ANY(a.apath)
+		    			FROM rec a join v_account_manager_map m
 						ON a.manager_account_id = m.account_id
+		    			WHERE not a.cycle
 			) SELECT count(*) from rec where root_account_id = $1
 				and manager_account_id = $2
 		' INTO _tally USING _r.approver_account_id, approving_account_id;
@@ -582,9 +591,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
+CREATE OR REPLACE FUNCTION approval_utils.message_replace(
+	message 	text,
+	start_time	timestamp DEFAULT NULL,
+	due_time	timestamp DEFAULT NULL
+) RETURNS text AS
+$$
+DECLARE
+	rv	text;
+BEGIN
+	rv := message;
+	rv := regexp_replace(rv, '%\{effective_date\}', start_time::date::text, 'g');
+	rv := regexp_replace(rv, '%\{due_date\}', due_time::date::text, 'g');
+
+	return rv;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
+
 grant select on all tables in schema approval_utils to iud_role;
 grant usage on schema approval_utils to iud_role;
 revoke all on schema approval_utils from public;
 revoke all on  all functions in schema approval_utils from public;
 grant execute on all functions in schema approval_utils to iud_role;
-

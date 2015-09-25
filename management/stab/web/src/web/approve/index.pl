@@ -358,6 +358,8 @@ sub dump_attest_loop($$;$$) {
 			$due = "DUE SOON: $due";
 		}
 
+		my $msg = $shr->{ _dbx('chain_description') };
+
 		my $tab = join("\n",
 			$cgi->div(
 				{ -class => 'description process' },
@@ -366,7 +368,7 @@ sub dump_attest_loop($$;$$) {
 
 			$cgi->div(
 				{ -class => 'description chain' },
-				$shr->{ _dbx('chain_description') },
+				$msg,
 				$cgi->hr,
 				$cgi->div({ -class => 'directions' },
 					q{
@@ -494,7 +496,10 @@ sub do_my_attest {
 					extract(epoch from approval_instance_step_due- now() )
 						as due_seconds,
 					ai.description as process_description,
-					apc.message as chain_description
+					approval_utils.message_replace(message::text,
+								ais.approval_instance_step_start::timestamp, 
+								ais.approval_instance_step_due::timestamp)
+									as chain_description
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)
