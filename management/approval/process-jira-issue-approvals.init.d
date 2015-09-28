@@ -9,10 +9,15 @@
 # Source function library.
 . /etc/init.d/functions
 PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin
-PROG=/usr/libexec/jazzhands/approval/process-jira
-PIDFILE=/var/run/process-jira.pid
+PROG=/usr/libexec/jazzhands/approval/process-jira-issue-approvals
+PIDFILE=/var/run/process-jira-issue-approvals.pid
 
+PROCESS_JIRA_ARGS=""
 SHORTPROG=`basename $PROG`
+
+# Source networking configuration.
+[ -f /etc/sysconfig/${SHORTPROG} ] &&  . /etc/sysconfig/${SHORTPROG}
+SHORTPROG_ARGS="$PROCESS_JIRA_ARGS"
 
 RETVAL=0
 
@@ -26,11 +31,11 @@ start() {
     fi
 
     if [ "$1" == "debug" ]; then
-        daemon $PROG --debug
+        daemon $PROG --debug $SHORTPROG_SARGS
     elif [ "$1" == "nodaemon" ]; then
-        daemon $PROG --nodaemon
+        daemon $PROG --nodaemon $SHORTPROG_ARGS
     else
-        daemon $PROG
+        daemon $PROG $SHORTPROG_ARGS
     fi
 
     RETVAL=$?

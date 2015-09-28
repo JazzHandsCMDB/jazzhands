@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.64.1
+Version:        0.64.4
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -12,7 +12,7 @@ Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 BuildRequires:  perl-ExtUtils-MakeMaker
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common 
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common  >= 0.64.3
 
 %description
 
@@ -183,6 +183,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Tue Sep 29 2015 Todd Kover <kovert@omniscient.com> 0.64.4
+- fix javascript dependency
 * Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.1
 - fix messaging to include replacable patterns
 * Thu Sep 17 2015 Todd Kover <kovert@omniscient.com> 0.64.0

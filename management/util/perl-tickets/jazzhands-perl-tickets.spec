@@ -39,10 +39,10 @@ rm -rf %{buildroot}
 %{perl_vendorlib}/JazzHands/Tickets.pm
 #%{perl_vendorlib}x86_64-linux-thread-multi/auto/JazzHands/Common/.packlist
 %{_mandir}/man3/JazzHands::Tickets.3pm.gz
-%{_mandir}/man3/JazzHands::Tickets::RT.3pm.gz
-%{_mandir}/man3/JazzHands::Tickets::JIRA.3pm.gz
+#- %{_mandir}/man3/JazzHands::Tickets::RT.3pm.gz
+#- %{_mandir}/man3/JazzHands::Tickets::JIRA.3pm.gz
 
 
 %changelog
-* Mon Sep 28 2015 Todd Kover <kovert@omniscient.com> 0.64.2-1
+* Mon Sep 28 2015 Todd Kover <kovert@omniscient.com> 0.64.4-1
   - initial release

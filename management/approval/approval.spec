@@ -2,7 +2,7 @@
 %define prefix	/usr/libexec/jazzhands/approval
 %define release 0
 Name:   	jazzhands-approval
-Version:        0.64.2
+Version:        0.64.4
 Release:        0%{?dist}
 Summary:        JazzHands Front Ends for Interaction with Approval System
 Group:  	System Environment/Libraries
@@ -21,10 +21,7 @@ System Tools for Administrative Baselining
 
 %prep
 %setup -q -n %{name}-%{version}
-
-echo Nothing to do for web site
-# There will be modules
-# echo Building perl modules
+echo Building perl modules
 cd lib && %{__perl} Makefile.PL INSTALLDIRS=vendor --default
 
 %install
@@ -32,13 +29,13 @@ rm -rf $RPM_BUILD_ROOT
 
 mkdir -p  $RPM_BUILD_ROOT/etc/init.d/
 
-cp -p jira-issues-approval-init.d $RPM_BUILD_ROOT/etc/init.d/jira-issues-approval
-cp -p rt-queue-approval-init.d $RPM_BUILD_ROOT/etc/init.d/rt-queue-approval
+cp -p process-jira-issue-approvals.init.d $RPM_BUILD_ROOT/etc/init.d/process-jira-issue-approvals
+cp -p process-rt-queue-approvals.init.d $RPM_BUILD_ROOT/etc/init.d/process-rt-queue-approvals
 
 mkdir -p $RPM_BUILD_ROOT/%{prefix}
 cp -p approval-email.pl $RPM_BUILD_ROOT/%{prefix}/approval-email
-cp -p process-rt.pl $RPM_BUILD_ROOT/%{prefix}/process-rt
-cp -p process-jira.pl $RPM_BUILD_ROOT/%{prefix}/process-jira
+cp -p process-rt-queue-approvals.pl $RPM_BUILD_ROOT/%{prefix}/process-rt-queue-approvals
+cp -p process-jira-issue-approvals.pl $RPM_BUILD_ROOT/%{prefix}/process-jira-issue-approvals
 
 # module stuff
 cd lib && make pure_install PERL_INSTALL_ROOT=$RPM_BUILD_ROOT
@@ -50,27 +47,31 @@ find %{buildroot} -name Makefile -print |xargs rm -f
 rm -rf %{buildroot}
 
 %post
-/etc/init.d/jira-issues-approval status | grep "is running" >/dev/null
+/etc/init.d/process-jira-issue-approvals status | grep "is running" >/dev/null
 if [ $? -eq 0 ]; then
-    /etc/init.d/jira-issues-approval restart
+    /etc/init.d/process-jira-issue-approvals restart
 fi
 
-/etc/init.d/rt-queue-approval status | grep "is running" >/dev/null
+/etc/init.d/process-rt-queue-approvals status | grep "is running" >/dev/null
 if [ $? -eq 0 ]; then
-    /etc/init.d/rt-queue-approval restart
+    /etc/init.d/process-rt-queue-approvals restart
 fi
 
 
 %files
 %defattr(755,root,root,-)
+/etc/init.d/process-jira-issue-approvals
+/etc/init.d/process-rt-queue-approvals
 %{prefix}/approval-email
-%{prefix}/process-rt
-%{prefix}/process-jira
+%{prefix}/process-rt-queue-approvals
+%{prefix}/process-jira-issue-approvals
 %{perl_vendorlib}/JazzHands/Approvals.pm
 %{_mandir}/man3/JazzHands::Approvals.3pm.gz
 
 
 %changelog
+* Tue Sep 29 2015 Todd Kover <kovert@omniscient.com> 0.64.4
+- add rt and jira management
 * Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.2
 - initial release
 

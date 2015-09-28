@@ -28,8 +28,9 @@ use Pod::Usage;
 use Getopt::Long;
 use JazzHands::AppAuthAL;
 use IO::Select;
+use File::Basename;
 use JazzHands::Approvals;
-use JazzHands::Tickets::JIRA;
+use JazzHands::Tickets::RT;
 
 my $service = 'rt-attestation';
 
@@ -57,23 +58,25 @@ exit do_work();
 
 sub do_work {
 	my ( $dryrun, $verbose, $debug );
-	my ( $jiraroot, $jirauser, $jirapass, $priority, $issuetype );
-	my ( $project, $forceassign, $daemonize, $onetime );
+	my ( $rtroot, $rtuser, $rtpass, $priority, $issuetype );
+	my ( $queue, $forceassign, $daemonize, $onetime );
+
+	my $command = basename($0);
 
 	#
 	# hidden-type can be used to override this, but probably not smart.
 	#
-	my $type = 'jira-hr';
+	my $type = 'rt-hr';
 
 	$daemonize = 1;
 
 	GetOptions(
 		"dry-run|n"      => \$dryrun,
 		"daemonize!"     => \$daemonize,
-		"webroot=s"      => \$jiraroot,
-		"user=s"         => \$jirauser,
-		"password=s"     => \$jirapass,
-		"project=s"        => \$project,
+		"webroot=s"      => \$rtroot,
+		"user=s"         => \$rtuser,
+		"password=s"     => \$rtpass,
+		"queue=s"        => \$queue,
 		"force-assign=s" => \$forceassign,
 		"priority=s"     => \$priority,
 		"issue-type=s"   => \$issuetype,
@@ -83,20 +86,20 @@ sub do_work {
 		"debug"          => \$debug,
 	) || die pod2usage();
 
-	my $jira = new JazzHands::Tickets::JIRA(
+	my $rt = new JazzHands::Tickets::RT(
 		service => $service,
-		project   => $project,
-	) || die $JazzHands::Tickets::JIRA::Errstr;
+		queue   => $queue,
+	) || die $JazzHands::Tickets::RT::Errstr;
 
-	$jira->set( 'webroot',     $jiraroot )    if ($jiraroot);
-	$jira->set( 'username',    $jirauser )    if ($jirauser);
-	$jira->set( 'password',    $jirapass )    if ($jirapass);
-	$jira->set( 'priority',    $priority )    if ($priority);
-	$jira->set( 'issuetype',   $issuetype )   if ($issuetype);
-	$jira->set( 'forceassign', $forceassign ) if ($forceassign);
+	$rt->set( 'webroot',     $rtroot )      if ($rtroot);
+	$rt->set( 'username',    $rtuser )      if ($rtuser);
+	$rt->set( 'password',    $rtpass )      if ($rtpass);
+	$rt->set( 'priority',    $priority )    if ($priority);
+	$rt->set( 'issuetype',   $issuetype )   if ($issuetype);
+	$rt->set( 'forceassign', $forceassign ) if ($forceassign);
 
-	$jira->set( 'verbose', $verbose ) if ($verbose);
-	$jira->dryrun($dryrun);
+	$rt->set( 'verbose', $verbose ) if ($verbose);
+	$rt->dryrun($dryrun);
 
 	my $app = new JazzHands::Approvals(
 		daemonize => $daemonize,
@@ -104,14 +107,15 @@ sub do_work {
 		type      => $type,
 		verbose   => $verbose,
 		debug     => $debug,
+		myname	  => $command,
 	) || die $JazzHands::Approvals::Errstr;
 
 	$app->dryrun($dryrun);
 
 	if ($onetime) {
-		$app->onetime($jira) || die $app->errstr;
+		$app->onetime($rt) || die $app->errstr;
 	} else {
-		$app->mainloop($jira) || die $app->errstr;
+		$app->mainloop($rt) || die $app->errstr;
 	}
 
 	0;

@@ -23,6 +23,7 @@ use JSON::PP;
 use JazzHands::DBI;
 use IO::Select;
 use POSIX;
+use Sys::Syslog;
 
 =head1 NAME
 
@@ -102,6 +103,7 @@ sub new {
 	$self->{_service} = $args{service};
 	$self->{_apptype} = $args{type};
 	$self->{_verbose} = $args{verbose};
+	$self->{_myname} = $args{myname};
 	if ( $args{debug} ) {
 		$self->{_debug} = $self->{_verbose} = $args{debug};
 	}
@@ -125,6 +127,12 @@ sub new {
 	if ( $args{daemonize} ) {
 		$self->daemonize() || return undef;
 		$self->{_dbh} = $self->{_dbh}->clone();
+
+		$sself->{_daemon} = 1;
+		$sself->{_shouldsyslog} = 1;
+
+		my $name = $self->{_myname} || 'approval-app';
+		openlog($name, 'ndelay,nofatal', 'daemon');
 	}
 
 	$self;
@@ -425,7 +433,12 @@ sub log {
 		}
 	}
 
-	warn join( " ", @_ ), "\n";
+	if($self->{_shouldsyslog}) {
+		$pri = 'notice' if(!$pri);
+		syslog($pri, join(" ", @_));
+	} else {
+		warn join( " ", @_ ), "\n";
+	}
 }
 
 sub DESTROY {
