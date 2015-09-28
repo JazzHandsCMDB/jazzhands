@@ -24,9 +24,9 @@ management/appauthal/perl/DBI/perl-JazzHands-DBI.spec
 management/appauthal/php/jazzhands-php-appauthal.spec
 management/mgmt/perl/jazzhands-perl-mgmt.spec
 management/mkpasswdfiles/jazzhands-mkpasswdfiles.spec
+management/approval/approval.spec
 management/stab/stab.spec
 management/util/perl/jazzhands-perl-common.spec
 management/util/perl-Krb5/JazzHands-Krb5.spec
 zonegen/server/src/jazzhands-zonegen-server.spec
-
-
+management/util/perl-tickets/jazzhands-perl-tickets.spec

@@ -102,6 +102,7 @@ sub new {
 	$self->{cgi} = $cgi;
 
 	$self->{_username} = $cgi->remote_user;
+	$self->{_username} =~ tr/A-Z/a-z/;
 
 	foreach my $something ( 'ajax', 'debug' ) {
 		$self->{$something} = $opt->{$something};
