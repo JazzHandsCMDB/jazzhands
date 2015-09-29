@@ -128,8 +128,8 @@ sub new {
 		$self->daemonize() || return undef;
 		$self->{_dbh} = $self->{_dbh}->clone();
 
-		$sself->{_daemon} = 1;
-		$sself->{_shouldsyslog} = 1;
+		$self->{_daemon} = 1;
+		$self->{_shouldsyslog} = 1;
 
 		my $name = $self->{_myname} || 'approval-app';
 		openlog($name, 'ndelay,nofatal', 'daemon');
@@ -160,6 +160,7 @@ sub get_account_id($$) {
 
 sub open_new_issues($$) {
 	my ( $self, $tix ) = @_;
+
 
 	my $dbh = $self->{_dbh};
 	#
@@ -354,8 +355,11 @@ sub check_pending_issues($$) {
 sub onetime {
 	my ( $self, $tix ) = @_;
 
-	$self->check_pending_issues($tix) && $self->open_new_issues($tix) && return 1;
-	undef;
+	my $rv;
+	$rv = $self->check_pending_issues($tix) || return undef;
+	$rv = $self->open_new_issues($tix) || return undef;
+	$self->{_dbh}->commit;
+	1;
 }
 
 sub mainloop {
