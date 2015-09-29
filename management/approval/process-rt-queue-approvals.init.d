@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# chkconfig: 2345 70 80
+# chkconfig: 2345 90 80
 # jira-issues daemon
 # description: Monitor RT tickets for Approval System
 #
