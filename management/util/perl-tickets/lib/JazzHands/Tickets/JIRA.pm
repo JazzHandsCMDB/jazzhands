@@ -68,7 +68,7 @@ sub new {
 		if ( ref($appauth) eq 'ARRAY' ) {
 			$appauth = $appauth->[0];
 		}
-		$self->{_webroot} = $appauth->{'URL'};
+		$self->{_webroot}  = $appauth->{'URL'};
 		$self->{_username} = $appauth->{'Username'};
 		$self->{_password} = $appauth->{'Password'};
 	}

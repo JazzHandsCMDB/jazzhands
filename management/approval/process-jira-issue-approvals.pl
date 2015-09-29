@@ -57,9 +57,9 @@ exit do_work();
 #############################################################################
 
 sub do_work {
-	my ( $dryrun, $verbose, $debug );
-	my ( $jiraroot, $jirauser, $jirapass, $priority, $issuetype );
-	my ( $project, $forceassign, $daemonize, $onetime );
+	my ( $dryrun,   $verbose,     $debug );
+	my ( $jiraroot, $jirauser,    $jirapass, $priority, $issuetype );
+	my ( $project,  $forceassign, $daemonize, $onetime, $delay );
 
 	my $command = basename($0);
 
@@ -71,24 +71,25 @@ sub do_work {
 	$daemonize = 1;
 
 	GetOptions(
-		"dry-run|n"      => \$dryrun,
-		"daemonize!"     => \$daemonize,
-		"webroot=s"      => \$jiraroot,
-		"user=s"         => \$jirauser,
-		"password=s"     => \$jirapass,
-		"project=s"        => \$project,
-		"force-assign=s" => \$forceassign,
-		"priority=s"     => \$priority,
-		"issue-type=s"   => \$issuetype,
-		"hidden-type=s"  => \$type,
-		"verbose"        => \$verbose,
-		"once"           => \$onetime,
-		"debug"          => \$debug,
+		"dry-run|n"          => \$dryrun,
+		"daemonize!"         => \$daemonize,
+		"webroot=s"          => \$jiraroot,
+		"user=s"             => \$jirauser,
+		"password=s"         => \$jirapass,
+		"project=s"          => \$project,
+		"force-assign=s"     => \$forceassign,
+		"priority=s"         => \$priority,
+		"issue-type=s"       => \$issuetype,
+		"resolution-delay=i" => \$delay,
+		"hidden-type=s"      => \$type,
+		"verbose"            => \$verbose,
+		"once"               => \$onetime,
+		"debug"              => \$debug,
 	) || die pod2usage();
 
 	my $jira = new JazzHands::Tickets::JIRA(
 		service => $service,
-		project   => $project,
+		project => $project,
 	) || die $JazzHands::Tickets::JIRA::Errstr;
 
 	$jira->set( 'webroot',     $jiraroot )    if ($jiraroot);
@@ -97,6 +98,7 @@ sub do_work {
 	$jira->set( 'priority',    $priority )    if ($priority);
 	$jira->set( 'issuetype',   $issuetype )   if ($issuetype);
 	$jira->set( 'forceassign', $forceassign ) if ($forceassign);
+	$jira->set( 'delay',       $delay )       if ($delay);
 
 	$jira->set( 'verbose', $verbose ) if ($verbose);
 	$jira->dryrun($dryrun);
@@ -107,7 +109,7 @@ sub do_work {
 		type      => $type,
 		verbose   => $verbose,
 		debug     => $debug,
-		myname	  => $command,
+		myname    => $command,
 	) || die $JazzHands::Approvals::Errstr;
 
 	$app->dryrun($dryrun);

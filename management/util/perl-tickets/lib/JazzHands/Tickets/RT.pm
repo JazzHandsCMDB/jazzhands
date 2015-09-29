@@ -44,7 +44,7 @@ sub new {
 
 	my %args = @_;
 
-	$self->{_service}   = $args{service};
+	$self->{_service} = $args{service};
 	$self->{_queue}   = $args{queue};
 
 	if ( !$self->{_service} ) {
@@ -67,7 +67,7 @@ sub new {
 		if ( ref($appauth) eq 'ARRAY' ) {
 			$appauth = $appauth->[0];
 		}
-		$self->{_webroot} = $appauth->{'URL'};
+		$self->{_webroot}  = $appauth->{'URL'};
 		$self->{_username} = $appauth->{'Username'};
 		$self->{_password} = $appauth->{'Password'};
 	}
@@ -102,12 +102,12 @@ sub _rt_req($$$) {
 	$ua->agent('jazzhands_tickets/1.0');
 
 	my $req;
-	if($action eq 'POST') {
-		$body = join("\n", map {"$_: ". $body->{$_}} keys %{$body})."\n";
+	if ( $action eq 'POST' ) {
+		$body = join( "\n", map { "$_: " . $body->{$_} } keys %{$body} ) . "\n";
 		$body = [ content => [ undef, "", Content => $body ] ];
-		$req = POST($url, $body, Content_type => 'form-data');
-		} else {
-			$req = HTTP::Request->new( $action => $url );
+		$req = POST( $url, $body, Content_type => 'form-data' );
+	} else {
+		$req = HTTP::Request->new( $action => $url );
 
 		if ($body) {
 			$req->content($body);
@@ -153,27 +153,27 @@ sub open {
 		return undef;
 	}
 
-#	my $content = "id: ticket/new\n"
-#		.	"Queue: " .$self->{_queue}."\n"
-#		.	"Requestor: $login\n"
-#		.	"Subject: $summary\n"
-#		. 	"Text: $msg";
-#
-#	$content = [ content => [ undef, "", Content => $content ] ];
+	#	my $content = "id: ticket/new\n"
+	#		.	"Queue: " .$self->{_queue}."\n"
+	#		.	"Requestor: $login\n"
+	#		.	"Subject: $summary\n"
+	#		. 	"Text: $msg";
+	#
+	#	$content = [ content => [ undef, "", Content => $content ] ];
 
 	my $six_spaces = ' ' x 6;
 	$six_spaces = "\n" . $six_spaces;
-	$msg = join $six_spaces, split(/\n/, $msg);
+	$msg = join $six_spaces, split( /\n/, $msg );
 
 	my $args = {
-		id => 'ticket/new',
-		Queue => $self->{_queue},
+		id        => 'ticket/new',
+		Queue     => $self->{_queue},
 		Requestor => $login,
-		Subject => $summary,
-		Text => $msg
+		Subject   => $summary,
+		Text      => $msg
 	};
 
-	if(my $dude = $self->{_forceassign}) {
+	if ( my $dude = $self->{_forceassign} ) {
 		$args->{Requestor} = $dude;
 	}
 
@@ -191,29 +191,32 @@ sub get($$) {
 	my $r = $self->_rt_req( "ticket/$key", 'GET' );
 
 	my $rv = {};
-	foreach my $l (split(/\n/, $r)) {
+	foreach my $l ( split( /\n/, $r ) ) {
 		chomp($l);
-		my($k, $v) = split(/:/, $l, 2);
-		next if(!$k || !$v);
+		my ( $k, $v ) = split( /:/, $l, 2 );
+		next if ( !$k || !$v );
 		$v =~ s/^\s*//;
 		$v =~ s/\s*$//;
 
-		if($k eq 'Status') {
+		if ( $k eq 'Status' ) {
 			$rv->{status} = $v;
-		} elsif($k eq 'Resolved' && $v ne 'Not set') {
+		} elsif ( $k eq 'Resolved' && $v ne 'Not set' ) {
 			my $s = DateTime::Format::Strptime->new(
-				pattern => '%a %b %d %H:%M:%S %Y',
-				locale => 'en_US',
+				pattern   => '%a %b %d %H:%M:%S %Y',
+				locale    => 'en_US',
 				time_zone => 'UTC'
 			);
-			if($s) {
+			if ($s) {
 				my $dt = $s->parse_datetime($v);
-				if($dt) {
+				if ($dt) {
 					$s->pattern('%Y-%m-%m %H:%M:%s');
 					$rv->{resolutiondate} = $s->format_datetime($dt);
+
+					$s->pattern('%s');
+					$rv->{resolutionepoch} = $s->format_datetime($dt);
 				}
 			}
-		} elsif($k eq 'Owner') {
+		} elsif ( $k eq 'Owner' ) {
 			$rv->{owner} = $v;
 		}
 	}

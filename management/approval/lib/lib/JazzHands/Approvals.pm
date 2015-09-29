@@ -25,6 +25,8 @@ use IO::Select;
 use POSIX;
 use Sys::Syslog;
 
+use constant RESOLUTION_DELAY => 60 * 60;
+
 =head1 NAME
 
 Approvals - 
@@ -103,7 +105,8 @@ sub new {
 	$self->{_service} = $args{service};
 	$self->{_apptype} = $args{type};
 	$self->{_verbose} = $args{verbose};
-	$self->{_myname} = $args{myname};
+	$self->{_myname}  = $args{myname};
+	$self->{_delay}   = $args{delay} || RESOLUTION_DELAY;
 	if ( $args{debug} ) {
 		$self->{_debug} = $self->{_verbose} = $args{debug};
 	}
@@ -128,11 +131,11 @@ sub new {
 		$self->daemonize() || return undef;
 		$self->{_dbh} = $self->{_dbh}->clone();
 
-		$self->{_daemon} = 1;
+		$self->{_daemon}       = 1;
 		$self->{_shouldsyslog} = 1;
 
 		my $name = $self->{_myname} || 'approval-app';
-		openlog($name, 'ndelay,nofatal', 'daemon');
+		openlog( $name, 'ndelay,nofatal', 'daemon' );
 	}
 
 	$self;
@@ -160,7 +163,6 @@ sub get_account_id($$) {
 
 sub open_new_issues($$) {
 	my ( $self, $tix ) = @_;
-
 
 	my $dbh = $self->{_dbh};
 	#
@@ -312,6 +314,8 @@ sub check_pending_issues($$) {
 	}
 	) || die $dbh->errstr;
 
+	my $now = time();
+
 	my $cache = {};
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $aii_id = $hr->{approval_instance_item_id};
@@ -320,8 +324,10 @@ sub check_pending_issues($$) {
 		if ( !exists( $cache->{$key} ) ) {
 			my $r = $tix->get($key);
 			if ( $r->{resolutiondate} ) {
-				$cache->{$key}->{status}   = 'resolved';
-				$cache->{$key}->{approved} = 'Y';
+				$cache->{$key}->{status}          = 'resolved';
+				$cache->{$key}->{resolutiondate}  = $r->{resolutiondate};
+				$cache->{$key}->{resolutionepoch} = $r->{resolutionepoch};
+				$cache->{$key}->{approved}        = 'Y';
 			}
 
 			if ( $r->{owner} ) {
@@ -331,18 +337,26 @@ sub check_pending_issues($$) {
 			}
 		}
 		if ( defined( $cache->{$key}->{approved} ) ) {
-			if ( $self->{_dryrun} ) {
-				$self->log( 'debug',
-					"For $key, resolving $aii_id (not really)\n" );
+			my $howlong = $now - $cache->{$key}->{resolutionepoch};
+			if ( $howlong < $self->{_delay} ) {
+				$self->log( undef,
+					"skipping $key/$aii_id resolution to wait for feeds -",
+					RESOLUTION_DELAY );
 				next;
+			} else {
+				if ( $self->{_dryrun} ) {
+					$self->log( 'debug',
+						"For $key, resolving $aii_id (not really)\n" );
+					next;
+				}
+				$self->log( undef, "For $key, resolving $aii_id\n" );
+				$wsth->execute(
+					$aii_id,
+					$cache->{$key}->{approved},
+					$cache->{$key}->{acctid}
+				) || die $wsth->errstr;
+				$self->log( 'debug', "updated db" );
 			}
-			$self->log( undef, "For $key, resolving $aii_id\n" );
-			$wsth->execute(
-				$aii_id,
-				$cache->{$key}->{approved},
-				$cache->{$key}->{acctid}
-			) || die $wsth->errstr;
-			$self->log( 'debug', "updated db" );
 		}
 	}
 	$sth->finish;
@@ -357,7 +371,7 @@ sub onetime {
 
 	my $rv;
 	$rv = $self->check_pending_issues($tix) || return undef;
-	$rv = $self->open_new_issues($tix) || return undef;
+	$rv = $self->open_new_issues($tix)      || return undef;
 	$self->{_dbh}->commit;
 	1;
 }
@@ -375,7 +389,7 @@ sub mainloop {
 
 	my $pgsock = $dbh->{pg_socket};
 
-	my $timeout = $self->{_timeout} || 60;
+	my $timeout = $self->{_timeout} || 600;
 
 	# NOTE: AutoCommit must be set (or some similar behavior) while waiting
 	# on the socket, otherwise the notifies never come through.
@@ -437,9 +451,9 @@ sub log {
 		}
 	}
 
-	if($self->{_shouldsyslog}) {
-		$pri = 'notice' if(!$pri);
-		syslog($pri, join(" ", @_));
+	if ( $self->{_shouldsyslog} ) {
+		$pri = 'notice' if ( !$pri );
+		syslog( $pri, join( " ", @_ ) );
 	} else {
 		warn join( " ", @_ ), "\n";
 	}

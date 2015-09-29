@@ -107,7 +107,7 @@ sub do_work {
 		type      => $type,
 		verbose   => $verbose,
 		debug     => $debug,
-		myname	  => $command,
+		myname    => $command,
 	) || die $JazzHands::Approvals::Errstr;
 
 	$app->dryrun($dryrun);
