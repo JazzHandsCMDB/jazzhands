@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.64.4
+Version:        0.64.5
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -53,6 +53,7 @@ rm -rf %{buildroot}
 %files
 %defattr(755,root,root,-)
 %{prefix}/approve/approve.pl
+%{prefix}/approve/reporting/index.pl
 %{prefix}/approve/index.pl
 %{prefix}/circuit/index.pl
 %{prefix}/circuit/trunkgroup/index.pl
@@ -183,6 +184,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Wed Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.5
+- add basic approval reporting
 * Tue Sep 29 2015 Todd Kover <kovert@omniscient.com> 0.64.4
 - fix javascript dependency
 * Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.1

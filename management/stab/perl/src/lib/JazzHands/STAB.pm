@@ -1703,6 +1703,12 @@ sub b_dropdown {
 			  from	val_netblock_collection_type
 			order by netblock_collection_type
 		};
+	} elsif ($selectfield eq 'APPROVAL_INSTANCE_ID') {
+		$q = qq{
+			select approval_instance_id, approval_instance_name
+			from approval_instance
+			order by approval_start desc
+		};
 	} else {
 		return "-XX-";
 	}

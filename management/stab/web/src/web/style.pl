@@ -571,6 +571,26 @@ input.attestsubmit {
 	background: lightblue;
 }
 
+div.reporting {
+	width: 100%;
+	margin: auto;
+}
+
+table.reporting {
+	border: 1px solid;
+	margin: auto;
+	text-align:center;
+}
+
+table.reporting >tbody{
+	text-align:left;
+}
+
+table.reporting > tbody td {
+	border: 1px solid;
+	border-color: grey;
+}
+
 END
 	undef $stab;
 }

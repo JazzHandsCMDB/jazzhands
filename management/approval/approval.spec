@@ -2,7 +2,7 @@
 %define prefix	/usr/libexec/jazzhands/approval
 %define release 0
 Name:   	jazzhands-approval
-Version:        0.64.4
+Version:        0.64.5
 Release:        0%{?dist}
 Summary:        JazzHands Front Ends for Interaction with Approval System
 Group:  	System Environment/Libraries
@@ -70,6 +70,8 @@ fi
 
 
 %changelog
+* Tue Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.5
+- add delay towards doing resubmissions
 * Tue Sep 29 2015 Todd Kover <kovert@omniscient.com> 0.64.4
 - add rt and jira management
 * Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.2
