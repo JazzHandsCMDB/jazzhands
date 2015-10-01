@@ -3,7 +3,7 @@
 Summary:    Javascript used by all JazzHands systems
 Vendor:     JazzHands
 Name:       jazzhands-javascript-common
-Version:    0.64.5
+Version:    0.64.6
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -51,7 +51,7 @@ rm -rf %{buildroot}
 %{prefix}/external/datatables-1.10.9/jquery.dataTables.min.js
 
 %changelog
-* Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.5
+* Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.6
 - add datatables from https://www.datatables.net/
 * Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.3
 - add chosen
