@@ -430,6 +430,31 @@ sub start_html {
 			},
 		);
 	}
+	if ( $opts->{javascript} eq 'reporting' ) {
+		push(
+			@{ $args{-script} },
+			{
+				-language => 'JavaScript',
+				-src =>
+					"$root/javascript-common/external/jQuery/jquery.js",
+			},
+			{
+				-language => 'JavaScript',
+				-src =>
+					"$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
+			},
+			{
+				-language => 'JavaScript',
+				-src =>
+				  "$stabroot/javascript/stab-common.js"
+			},
+			{
+				-language => 'JavaScript',
+				-src =>
+				  "$stabroot/javascript/reporting.js"
+			},
+		);
+	}
 
 
 		if ( $opts->{javascript} eq 'devicetype' ) {
@@ -547,6 +572,7 @@ sub start_html {
 			#"$root/javascript-common/external/chosen/docsupport/style.css",
 			#"$root/javascript-common/external/chosen/docsupport/prism.css",
 			"$root/javascript-common/external/chosen/chosen.css",
+			"$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.css",
 			"$stabroot/style.pl", 
 		]};
 	}

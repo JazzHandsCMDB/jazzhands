@@ -12,7 +12,7 @@ Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 BuildRequires:  perl-ExtUtils-MakeMaker
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common  >= 0.64.3
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common  >= 0.64.6
 
 %description
 
@@ -147,6 +147,7 @@ rm -rf %{buildroot}
 %{prefix}/javascript/netblock-collection.js
 %{prefix}/javascript/netblock.js
 %{prefix}/javascript/racks.js
+%{prefix}/javascript/reporting.js
 %{prefix}/javascript/stab-common.js
 %{prefix}/javascript/table-manip.js
 %{prefix}/javascript/tickets.js

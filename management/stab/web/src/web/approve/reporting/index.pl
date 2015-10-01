@@ -41,19 +41,20 @@ sub do_attest_reporting {
 	my $instid = $stab->cgi_parse_param('APPROVAL_INSTANCE_ID');
 
 	if ($instid) {
-		show_approval_instance($stab, $instid);
+		show_approval_instance( $stab, $instid );
 	} else {
-		show_all_approvals( $stab );
+		show_all_approvals($stab);
 	}
 
 	undef $stab;
 }
 
 sub dump_header {
-	my($stab, $instid) = @_;
+	my ( $stab, $instid ) = @_;
 	my $cgi = $stab->cgi() || die "could not create cgi";
 
-	my $sth = $stab->prepare(qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT approval_process_chain_name, aps.is_completed, count(*) as tally
 		FROM	approval_instance_step aps
 			join approval_process_chain 
@@ -61,29 +62,41 @@ sub dump_header {
 		WHERE	approval_instance_id = ?
 		GROUP by approval_process_chain_name, aps.is_completed
 		order by 1,2
-	}) || $stab->return_db_err;
+	}
+	) || $stab->return_db_err;
 
 	$sth->execute($instid) || die $stab->return_db_err($sth);
 
 	my $t = "";
-	while(my ($ch,$done,$tally) = $sth->fetchrow_array) {
-		$t .= $cgi->Tr($cgi->td([$ch, $done, $tally]));
+	while ( my @foo = $sth->fetchrow_array ) {
+		for ( my $i = 0 ; $i <= $#foo ; $i++ ) {
+			$foo[$i] = '' if ( !defined( $foo[$i] ) );
+		}
+		$t .= $cgi->Tr( $cgi->td( [@foo] ) );
 	}
 
-	print $cgi->div({-class=>'reporting'}, $cgi->table({-class=>"reporting"}, 
-		$cgi->th(['Chain', 'Completed', 'Total']),
-		$t
-	));
+	print $cgi->div(
+		{ -class => 'reporting' },
+		$cgi->table(
+			{ -class => "reporting" },
+			$cgi->caption('Overall Step Completion Statistics'),
+			$cgi->thead( $cgi->th( [ 'Chain', 'Completed', 'Total' ] ) ),
+			$t
+		)
+	);
 
 	$t = "";
 }
 
 sub dump_steps {
-	my($stab, $instid) = @_;
+	my ( $stab, $instid ) = @_;
 	my $cgi = $stab->cgi() || die "could not create cgi";
 
-	my $sth = $stab->prepare(qq{
-		SELECT approval_instance_step_name, approval_type, is_completed,
+	my $sth = $stab->prepare(
+		qq{
+		SELECT 	approval_instance_step_name,
+				coalesce(vat.description,approval_type) as approval_type, 
+				is_completed,
 				approval_instance_step_start::date || '' as start, 
 				approval_instance_step_end::date || '' as end,
 				concat (
@@ -92,72 +105,120 @@ sub dump_steps {
 					a.login, ')') as name,
 				external_reference_name,
 				case when is_completed = 'Y' THEN
-					(approval_instance_step_end - approval_instance_step_start)::interval::text
+					age(date_trunc('second',approval_instance_step_end),
+						date_trunc('second',approval_instance_step_start))::text
 					ELSE '' END AS duration
 		FROM	approval_instance_step aps
+				INNER JOIN approval_process_chain apc
+					USING (approval_process_chain_id)
 				INNER JOIN approval_instance USING (approval_instance_id)
 				INNER JOIN account a ON 
 					aps.approver_account_id = a.account_id
 				INNER JOIN person p USING (person_id)
+				INNER JOIN val_approval_type vat USING (approval_type)
 		WHERE	approval_instance_id = ?
 		order by approval_type, is_completed, last_name, first_name, login
 
-	}) || $stab->return_db_err;
+	}
+	) || $stab->return_db_err;
 
 	$sth->execute($instid) || die $stab->return_db_err($sth);
 
 	my $t = "";
-	while(my @foo = $sth->fetchrow_array) {
-		$t .= $cgi->Tr($cgi->td([@foo]));
+	while ( my @foo = $sth->fetchrow_array ) {
+		for ( my $i = 0 ; $i <= $#foo ; $i++ ) {
+			$foo[$i] = '' if ( !defined( $foo[$i] ) );
+		}
+		$t .= $cgi->Tr( $cgi->td( [@foo] ) );
 	}
 
-	print $cgi->div({-class=>'reporting'}, $cgi->table({-class=>"reporting"}, 
-		$cgi->th([qw(
-			Name
-			Type
-			Completed
-			Start
-			End
-			Who
-			Reference
-			Duration
-		)]),
-		$t
-	));
+	print $cgi->div(
+		{ -class => 'reporting' },
+		$cgi->table(
+			{ -class => "reporting", -id => 'approvalreport' },
+			$cgi->caption('Detailed Completion Information'),
+			$cgi->thead(
+				$cgi->th(
+					[
+						"Step Name",
+						"Approval Type",
+						qw(Completed
+						  Start
+						  End
+						  ), "Relevant User", "Reference ID", "Duration Open"
+					]
+				)
+			),
+			$t,
+		)
+	);
 
 	$t = "";
 }
 
-
 sub show_approval_instance {
-	my($stab, $instid) = @_;
+	my ( $stab, $instid ) = @_;
 
 	my $cgi = $stab->cgi() || die "could not create cgi";
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html(
-		{ -title => "Approval Reporting", -javascript => 'attest' } ), "\n";
+	my $sth = $stab->prepare(
+		qq{
+		SELECT  *,
+				date_trunc('seconds', approval_start) as start,
+				date_trunc('seconds', approval_end) as end
+		FROM	approval_instance
+		WHERE	approval_instance_id = ?
+	}
+	) || return $stab->return_db_err();
 
-	dump_header($stab, $instid);
-	dump_steps($stab, $instid);
+	$sth->execute($instid) || return $stab->return_db_err();
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	my $title = "Approval Reporting";
+
+	if ($hr) {
+		$title = $hr->{ _dbx('APPROVAL_INSTANCE_NAME') } . " "
+		  . $hr->{ _dbx('DESCRIPTION') };
+	}
+
+	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $stab->start_html( { -title => $title, -javascript => 'reporting' } ),
+	  "\n";
+
+	if ($hr) {
+		print $cgi->div(
+			$cgi->table(
+				{ -class => 'reporting' },
+				$cgi->caption("Time Frames"),
+				$cgi->Tr( $cgi->td( [ 'Start', $hr->{ _dbx('START') } ] ) ),
+				$cgi->Tr( $cgi->td( [ 'End', $hr->{ _dbx('END') } || '' ] ) ),
+			)
+		);
+	}
+
+	dump_header( $stab, $instid );
+	dump_steps( $stab, $instid );
 
 	print "\n\n", $cgi->end_html, "\n";
 }
 
 sub show_all_approvals {
-	my($stab) = @_;
+	my ($stab) = @_;
 
 	my $cgi = $stab->cgi() || die "could not create cgi";
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html(
-		{ -title => "Approval Instances", -javascript => 'attest' } ), "\n";
+		{ -title => "Approval Instances", -javascript => 'reporting' } ), "\n";
 
-	print $cgi->div({-class=>'reporting'},
-		$cgi->start_form({-class=>'center_form'}),
-		$stab->b_dropdown(undef, undef, 'APPROVAL_INSTANCE_ID'),
+	print $cgi->div(
+		{ -class => 'reporting' },
+		$cgi->start_form( { -class => 'center_form', -method => 'GET' } ),
+		$stab->b_dropdown( undef, undef, 'APPROVAL_INSTANCE_ID' ),
 		$cgi->br(),
-		$cgi->submit({class=>'attestsubmit'}),
+		$cgi->submit( { class => 'attestsubmit' } ),
 		$cgi->end_form,
 	);
 
