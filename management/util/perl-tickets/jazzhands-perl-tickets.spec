@@ -1,7 +1,7 @@
 Summary:    jazzhands-perl-tickets - JazzHands perl common utility modules
 Vendor:     JazzHands
 Name:       jazzhands-perl-tickets
-Version:    0.64.4
+Version:    0.64.5
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -44,5 +44,7 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Oct  6 2015 Todd Kover <kovert@omniscient.com> 0.64.5-1
+- add resolutionepoch to RT
 * Mon Sep 28 2015 Todd Kover <kovert@omniscient.com> 0.64.4-1
   - initial release
