@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.64.6
+Version:        0.64.7
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -185,6 +185,9 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Wed Oct  7 2015 Todd Kover <kovert@omniscient.com> 0.64.7
+- furthur reporting improvements - change how tables are generated
+- add table that shows each outstanding step and its state
 * Wed Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.6
 - improve approval reporting (dynamic tables)
 * Wed Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.5
