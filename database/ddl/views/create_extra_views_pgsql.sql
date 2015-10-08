@@ -121,3 +121,5 @@
 
 \i create_v_account_manager_map.sql
 \i approval/create_approval_views.sql
+-- not clear if this belongs in the approval views or not.  probably?
+\i create_v_approval_instance_step_expanded.sql
