@@ -48,18 +48,29 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 	$sitelimit = "";
 	if($content == 'both' || $content == 'locations') {
 		$query = "
-			select physical_address_id, display_label
-			from	physical_address
-			where	company_id in (
-				select company_id from v_company_hier
-				where root_company_id IN
-					(select property_value_company_id
-	                                   from property
-	                                  where property_name = '_rootcompanyid'
-	                                    and property_type = 'Defaults'
-	                                )
-					
-				) order by display_label
+			WITH occupied_offices AS (
+			    SELECT DISTINCT
+			        physical_address_id
+			    FROM
+			        person_location
+			    INNER JOIN
+			        v_corp_family_account
+			    USING
+			        (person_id)
+			    WHERE
+			        is_enabled = 'Y'
+			)
+			SELECT
+			    physical_address_id,
+			    display_label
+			FROM
+			    physical_address
+			INNER JOIN
+			    occupied_offices
+			USING
+			    (physical_address_id)
+			ORDER BY 
+			    display_label
 		";
 		$result = pg_query($dbconn, $query) or die('Query failed: ' . pg_last_error());
 	

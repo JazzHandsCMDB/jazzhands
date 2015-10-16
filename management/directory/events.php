@@ -89,14 +89,11 @@ $query ="
 			SELECT * from person_company
 			WHERE hire_date is null or hire_date <= now()
 		) pc USING (person_id)
-		INNER JOIN v_corp_family_account USING (person_id, company_id)
-		INNER JOIN val_person_status vps
-			ON ( vps.person_status = pc.person_company_status
-			 AND    vps.is_disabled = 'N'
-			)
+		INNER JOIN v_corp_family_account vcfa USING (person_id, company_id)
 		LEFT JOIN officemap USING (person_id)
 	WHERE   
 	pc.person_company_relation = 'employee'
+	AND vcfa.is_enabled = 'Y'
     $addrsubq
 	ORDER BY date_part('month', whence_human),
 		date_part('day', whence_human),
