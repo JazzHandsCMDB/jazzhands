@@ -1,0 +1,4 @@
+MANIFEST
+MANIFEST.SKIP
+Makefile.PL
+lib/JazzHands/Approvals.pm

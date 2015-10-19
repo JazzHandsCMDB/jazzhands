@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.60.0
+Version:        0.64.7
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -12,7 +12,7 @@ Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
 BuildRequires:  perl-ExtUtils-MakeMaker
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common 
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.56.3, jazzhands-perl-stab = %{version} , jazzhands-javascript-common  >= 0.64.6
 
 %description
 
@@ -52,128 +52,132 @@ rm -rf %{buildroot}
 
 %files
 %defattr(755,root,root,-)
-%{prefix}/sites.pl
-%{prefix}/style.pl
-%{prefix}/error.pl
-%{prefix}/images/electric/l6-30p.png
-%{prefix}/images/electric/l5-20p.png
-%{prefix}/images/electric/6-20p.png
-%{prefix}/images/electric/l5-15p.png
-%{prefix}/images/electric/5-15p.png
-%{prefix}/images/electric/cs8365c.png
-%{prefix}/images/electric/iec-60320-c14.png
-%{prefix}/images/electric/5-50p.png
-%{prefix}/images/electric/9p54u2.png
-%{prefix}/images/electric/l21-30p.png
-%{prefix}/images/electric/6-15p.png
-%{prefix}/images/electric/5-30p.png
-%{prefix}/images/electric/iec-60320-c20.png
-%{prefix}/images/electric/6-50p.png
-%{prefix}/images/electric/l15-30p.png
-%{prefix}/images/electric/cs8364.png
-%{prefix}/images/electric/l6-20p.png
-%{prefix}/images/electric/l5-30p.png
-%{prefix}/images/electric/l6-15p.png
-%{prefix}/images/electric/6-30p.png
-%{prefix}/images/electric/5-20p.png
-%{prefix}/images/electric/unknown.png
-%{prefix}/images/electric/iec-60320-c13.png
-%{prefix}/images/electric/dc.png
-%{prefix}/images/electric/iec-60320-c19.png
-%{prefix}/images/electric/l14-30p.png
-%{prefix}/images/development-background.png
-%{prefix}/images/vendors/dell.ico
-%{prefix}/images/vendors/target.gif
-%{prefix}/images/vendors/starred.gif
-%{prefix}/images/vendors/google.ico
-%{prefix}/images/vendors/juniper.ico
-%{prefix}/images/vendors/emc.ico
-%{prefix}/images/vendors/hp.ico
-%{prefix}/images/vendors/netapp.ico
-%{prefix}/images/vendors/sun.ico
-%{prefix}/images/vendors/stargold.gif
-%{prefix}/images/vendors/force10.ico
-%{prefix}/images/vendors/dothill.ico
-%{prefix}/images/vendors/cisco.ico
-%{prefix}/images/vendors/ibm.ico
-%{prefix}/images/vendors/avaya.ico
-%{prefix}/images/vendors/foundry.ico
-%{prefix}/index.pl
-%{prefix}/javascript/dns-utils.js
-%{prefix}/javascript/app-utils.js
-%{prefix}/javascript/ajax-utils.js
-%{prefix}/javascript/table-manip.js
-%{prefix}/javascript/devicetype.js
-%{prefix}/javascript/tickets.js
-%{prefix}/javascript/ajaxsearch.js
-%{prefix}/javascript/racks.js
-%{prefix}/javascript/netblock.js
-%{prefix}/javascript/netblock-collection.js
-%{prefix}/javascript/device-utils.js
-%{prefix}/javascript/stab-common.js
+%{prefix}/approve/approve.pl
+%{prefix}/approve/reporting/index.pl
+%{prefix}/approve/index.pl
 %{prefix}/circuit/index.pl
 %{prefix}/circuit/trunkgroup/index.pl
-%{prefix}/stabcons/stab.png
+%{prefix}/device/ajax-devsearch.pl
+%{prefix}/device/apps/index.pl
+%{prefix}/device/certs/index.pl
+%{prefix}/device/device-ajax.pl
+%{prefix}/device/device.pl
+%{prefix}/device/index.pl
+%{prefix}/device/os/index.pl
+%{prefix}/device/os/report.pl
+%{prefix}/device/os/search.pl
+%{prefix}/device/os/write/updateos.pl
+%{prefix}/device/search.pl
+%{prefix}/device/snmp/commit_change.pl
+%{prefix}/device/snmp/index.pl
+%{prefix}/device/type/dtsearch.pl
+%{prefix}/device/type/index.pl
+%{prefix}/device/type/write/adddt.pl
+%{prefix}/device/type/write/updatedt.pl
+%{prefix}/device/voe/index.pl
+%{prefix}/device/voe/pkg.pl
+%{prefix}/device/voe/search.pl
+%{prefix}/device/voe/voecompare.pl
+%{prefix}/device/voe/voesymtrax.pl
+%{prefix}/device/write/add_device.pl
+%{prefix}/device/write/update_device.pl
+%{prefix}/dns/addazone.pl
+%{prefix}/dns/db-reconcile.pl
+%{prefix}/dns/dns-ajax.pl
+%{prefix}/dns/dns-debug.pl
+%{prefix}/dns/dns-reconcile.pl
+%{prefix}/dns/index.pl
+%{prefix}/dns/search.pl
+%{prefix}/dns/soacheck.pl
+%{prefix}/dns/update_dns.pl
+%{prefix}/dns/write/add_domain.pl
+%{prefix}/dns/write/update_domain.pl
+%{prefix}/error.pl
+%{prefix}/images/development-background.png
+%{prefix}/images/electric/5-15p.png
+%{prefix}/images/electric/5-20p.png
+%{prefix}/images/electric/5-30p.png
+%{prefix}/images/electric/5-50p.png
+%{prefix}/images/electric/6-15p.png
+%{prefix}/images/electric/6-20p.png
+%{prefix}/images/electric/6-30p.png
+%{prefix}/images/electric/6-50p.png
+%{prefix}/images/electric/9p54u2.png
+%{prefix}/images/electric/cs8364.png
+%{prefix}/images/electric/cs8365c.png
+%{prefix}/images/electric/dc.png
+%{prefix}/images/electric/iec-60320-c13.png
+%{prefix}/images/electric/iec-60320-c14.png
+%{prefix}/images/electric/iec-60320-c19.png
+%{prefix}/images/electric/iec-60320-c20.png
+%{prefix}/images/electric/l14-30p.png
+%{prefix}/images/electric/l15-30p.png
+%{prefix}/images/electric/l21-30p.png
+%{prefix}/images/electric/l5-15p.png
+%{prefix}/images/electric/l5-20p.png
+%{prefix}/images/electric/l5-30p.png
+%{prefix}/images/electric/l6-15p.png
+%{prefix}/images/electric/l6-20p.png
+%{prefix}/images/electric/l6-30p.png
+%{prefix}/images/electric/unknown.png
+%{prefix}/images/vendors/avaya.ico
+%{prefix}/images/vendors/cisco.ico
+%{prefix}/images/vendors/dell.ico
+%{prefix}/images/vendors/dothill.ico
+%{prefix}/images/vendors/emc.ico
+%{prefix}/images/vendors/force10.ico
+%{prefix}/images/vendors/foundry.ico
+%{prefix}/images/vendors/google.ico
+%{prefix}/images/vendors/hp.ico
+%{prefix}/images/vendors/ibm.ico
+%{prefix}/images/vendors/juniper.ico
+%{prefix}/images/vendors/netapp.ico
+%{prefix}/images/vendors/stargold.gif
+%{prefix}/images/vendors/starred.gif
+%{prefix}/images/vendors/sun.ico
+%{prefix}/images/vendors/target.gif
+%{prefix}/index.pl
+%{prefix}/javascript/ajax-utils.js
+%{prefix}/javascript/ajaxsearch.js
+%{prefix}/javascript/app-utils.js
+%{prefix}/javascript/attest.js
+%{prefix}/javascript/device-utils.js
+%{prefix}/javascript/devicetype.js
+%{prefix}/javascript/dns-utils.js
+%{prefix}/javascript/netblock-collection.js
+%{prefix}/javascript/netblock.js
+%{prefix}/javascript/racks.js
+%{prefix}/javascript/reporting.js
+%{prefix}/javascript/stab-common.js
+%{prefix}/javascript/table-manip.js
+%{prefix}/javascript/tickets.js
+%{prefix}/netblock/collection/index.pl
+%{prefix}/netblock/collection/netcol-ajax.pl
+%{prefix}/netblock/collection/update_nb.pl
+%{prefix}/netblock/index.pl
+%{prefix}/netblock/ipalloc/allocate_ip.pl
+%{prefix}/netblock/networkrange.pl
+%{prefix}/netblock/search.pl
+%{prefix}/netblock/write/addnetblock.pl
+%{prefix}/netblock/write/doadd.pl
+%{prefix}/netblock/write/edit_netblock.pl
+%{prefix}/netblock/write/rmnetblock.pl
+%{prefix}/sites.pl
+%{prefix}/sites/blockmgr.pl
+%{prefix}/sites/index.pl
+%{prefix}/sites/rack/index.pl
+%{prefix}/sites/rack/updaterack.pl
+%{prefix}/sites/rackit.pl
+%{prefix}/sites/write/retire_site.pl
+%{prefix}/stabcons/Axe_001.svg
+%{prefix}/stabcons/Octagon_delete.svg
 %{prefix}/stabcons/collapse.jpg
+%{prefix}/stabcons/e.gif
 %{prefix}/stabcons/expand.jpg
 %{prefix}/stabcons/progress.gif
 %{prefix}/stabcons/round_red_x_sign_4229.jpg
-%{prefix}/stabcons/Axe_001.svg
-%{prefix}/stabcons/Octagon_delete.svg
-%{prefix}/stabcons/e.gif
-%{prefix}/device/type/index.pl
-%{prefix}/device/type/dtsearch.pl
-%{prefix}/device/type/write/updatedt.pl
-%{prefix}/device/type/write/adddt.pl
-%{prefix}/device/os/search.pl
-%{prefix}/device/os/report.pl
-%{prefix}/device/os/index.pl
-%{prefix}/device/os/write/updateos.pl
-%{prefix}/device/ajax-devsearch.pl
-%{prefix}/device/device.pl
-%{prefix}/device/search.pl
-%{prefix}/device/voe/voecompare.pl
-%{prefix}/device/voe/pkg.pl
-%{prefix}/device/voe/search.pl
-%{prefix}/device/voe/voesymtrax.pl
-%{prefix}/device/voe/index.pl
-%{prefix}/device/apps/index.pl
-%{prefix}/device/index.pl
-%{prefix}/device/snmp/index.pl
-%{prefix}/device/snmp/commit_change.pl
-%{prefix}/device/device-ajax.pl
-%{prefix}/device/certs/index.pl
-%{prefix}/device/write/update_device.pl
-%{prefix}/device/write/add_device.pl
-%{prefix}/sites/rack/index.pl
-%{prefix}/sites/rack/updaterack.pl
-%{prefix}/sites/index.pl
-%{prefix}/sites/rackit.pl
-%{prefix}/sites/write/retire_site.pl
-%{prefix}/sites/blockmgr.pl
-%{prefix}/netblock/ipalloc/allocate_ip.pl
-%{prefix}/netblock/search.pl
-%{prefix}/netblock/index.pl
-%{prefix}/netblock/networkrange.pl
-%{prefix}/netblock/write/rmnetblock.pl
-%{prefix}/netblock/write/doadd.pl
-%{prefix}/netblock/write/addnetblock.pl
-%{prefix}/netblock/write/edit_netblock.pl
-%{prefix}/netblock/collection/
-%{prefix}/netblock/collection//index.pl
-%{prefix}/netblock/collection//netcol-ajax.pl
-%{prefix}/netblock/collection//update_nb.pl
-%{prefix}/dns/addazone.pl
-%{prefix}/dns/dns-reconcile.pl
-%{prefix}/dns/search.pl
-%{prefix}/dns/index.pl
-%{prefix}/dns/update_dns.pl
-%{prefix}/dns/db-reconcile.pl
-%{prefix}/dns/dns-debug.pl
-%{prefix}/dns/write/add_domain.pl
-%{prefix}/dns/write/update_domain.pl
-%{prefix}/dns/soacheck.pl
-%{prefix}/dns/dns-ajax.pl
+%{prefix}/stabcons/stab.png
+%{prefix}/style.pl
 
 %files -n jazzhands-perl-stab
 ##  %doc Changes README
@@ -181,6 +185,28 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Wed Oct  7 2015 Todd Kover <kovert@omniscient.com> 0.64.7
+- furthur reporting improvements - change how tables are generated
+- add table that shows each outstanding step and its state
+* Wed Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.6
+- improve approval reporting (dynamic tables)
+* Wed Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.5
+- add basic approval reporting
+* Tue Sep 29 2015 Todd Kover <kovert@omniscient.com> 0.64.4
+- fix javascript dependency
+* Fri Sep 25 2015 Todd Kover <kovert@omniscient.com> 0.64.1
+- fix messaging to include replacable patterns
+* Thu Sep 17 2015 Todd Kover <kovert@omniscient.com> 0.64.0
+- add better access control
+- add approval section
+- add chosen
+* Thu Aug 13 2015 Todd Kover <kovert@omniscient.com> 0.63.2
+- add updates for network_inteface_purpose
+* Wed Aug  5 2015 Todd Kover <kovert@omniscient.com> 0.63.1
+- previous ip allocation change not fulling tested; deal with that
+* Wed Aug  5 2015 Todd Kover <kovert@omniscient.com> 0.63.0
+- allow ips not associated with devices to be added to a device rather than
+  just relying on Allocated to matter
 * Wed Mar  4 2015 Todd Kover <kovert@omniscient.com> 0.60.0
 - shrink device type management down to post-component universe
 - limit companies in drop down to hardware providers

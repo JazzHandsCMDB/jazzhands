@@ -52,9 +52,11 @@ use JazzHands::STAB::Rack;
 use JazzHands::DBI;
 use JazzHands::Common qw(:all);
 use Net::IP;
+use Storable qw(dclone);
 
 use CGI;    #qw(-no_xhtml);
-use CGI::Pretty;
+
+# use CGI::Pretty;
 use URI;
 use Carp qw(cluck);
 use Data::Dumper;
@@ -86,7 +88,7 @@ sub new {
 	#
 	if ( $opt->{dbh} ) {
 		cluck
-"WARNING: dbh parameter to JazzHands::STAB::new() is deprecated\n";
+		  "WARNING: dbh parameter to JazzHands::STAB::new() is deprecated\n";
 		push( @_, 'dbhandle', $opt->{dbh} );
 	}
 	if ( !$opt->{application} ) {
@@ -102,6 +104,7 @@ sub new {
 	$self->{cgi} = $cgi;
 
 	$self->{_username} = $cgi->remote_user;
+	$self->{_username} =~ tr/A-Z/a-z/;
 
 	foreach my $something ( 'ajax', 'debug' ) {
 		$self->{$something} = $opt->{$something};
@@ -126,9 +129,34 @@ sub new {
 	bless $self, $class;
 	$self->textfield_sizing(1);
 
+	#
+	# These are used for permissions.
+	#
+	$self->{_permmap} = {
+		'Approval'   => '/approve',
+		'Device'     => '/device',
+		'DNS'        => '/dns/',
+		'Netblock'   => '/netblock/',
+		'Sites',     => '/sites/rack/',
+		'StabAccess' => '/',
+	};
+
+	$self->{_urlpermmap} =
+	  { map { $self->{_permmap}->{$_} => $_ } keys %{ $self->{_permmap} } };
+
 	if ( !exists( $opt->{nocheck_perms} ) ) {
-		if ( !$self->check_permissions() ) {
-			$self->return_permission_denied();
+		my $stabroot = $self->guess_stab_root();
+		my $thisurl = $cgi->url( { -full => 1 } );
+		foreach my $u (
+			sort { length($a) <=> length($b) }
+			keys %{ $self->{_urlpermmap} }
+		  )
+		{
+			if ( $thisurl =~ /^$stabroot$u/ ) {
+				if ( !$self->check_permissions( $self->{_urlpermmap}->{$u} ) ) {
+					$self->return_permission_denied();
+				}
+			}
 		}
 	}
 
@@ -172,27 +200,69 @@ sub check_permissions {
 	my $self = shift;
 	my $role = shift;
 
-	$role = 'StabAccess' if ( !$role );
+	if ( !exists( $self->{_roles} ) ) {
+		my $q = qq{
+			select	property_value
+			  from	v_property p
+					inner join v_acct_coll_acct_expanded ae
+							using (account_collection_id)
+					inner join v_corp_family_account a
+							on ae.account_id = a.account_id
+			where	a.login = ?
+			 and	p.property_type = 'StabRole'
+			 and	p.property_name = 'PermitStabSection'
+		} || die $self->return_db_err();
 
-	my $q = qq{
-		select	count(*)
-		  from	v_property p
-				inner join v_acct_coll_acct_expanded ae
-						using (account_collection_id)
-				inner join v_corp_family_account a
-						on ae.account_id = a.account_id
-		where	a.login = ?
-		 and	p.property_type = 'StabRole'
-		and		p.property_name = ?
-	} || die $self->return_db_err();
+		my $sth = $self->prepare($q) || $self->return_db_err;
 
-	my $sth = $self->prepare($q) || $self->return_db_err;
+		$sth->execute( $self->{_username} ) || die $self->return_db_err;
+		while ( my ($r) = $sth->fetchrow_array() ) {
+			push( @{ $self->{_roles} }, $r );
+		}
+		$sth->finish;
+	}
 
-	$sth->execute( $self->{_username}, $role ) || die $self->return_db_err;
+	my @r = grep( $_ eq $role, @{ $self->{_roles} } );
+	( $#r >= 0 ) ? 1 : 0;
+}
 
-	my ($count) = $sth->fetchrow_array;
+#
+# returns 1 if a user is an admin
+#
+sub check_admin() {
+	my $self = shift;
+
+	$self->check_permissions('FullAdmin');
+}
+
+sub username {
+	my $self = shift;
+
+	$self->{_username};
+}
+
+sub get_account_id {
+	my $self = shift;
+
+	my $who = shift || $self->{_username};
+
+	my $sth = $self->prepare(
+		qq{
+		select	account_id
+		from	v_corp_family_account
+		where	login = ?
+	}
+	) || die $self->return_db_err;
+
+	$sth->execute($who) || die $self->return_db_err;
+
+	my ($id) = $sth->fetchrow_array;
 	$sth->finish;
-	$count;
+	if ( !$id ) {
+		$self->error_return(
+			"Unable to find '$who' in the database.  This should not happen.");
+	}
+	$id;
 }
 
 #
@@ -229,37 +299,31 @@ sub start_html {
 				@{ $args{'-script'} },
 				{
 					-language => 'JavaScript',
-					-src =>
-"$root/javascript-common/external/jQuery/jquery.js",
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/ajaxsearch.js"
+					-src      => "$stabroot/javascript/ajaxsearch.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/table-manip.js"
+					-src      => "$stabroot/javascript/table-manip.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/stab-common.js"
+					-src      => "$stabroot/javascript/stab-common.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/device-utils.js"
+					-src      => "$stabroot/javascript/device-utils.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/racks.js"
+					-src      => "$stabroot/javascript/racks.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/ajax-utils.js"
+					-src      => "$stabroot/javascript/ajax-utils.js"
 				},
 			);
 		}
@@ -268,23 +332,19 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src =>
-"$root/javascript-common/external/jQuery/jquery.js",
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$root/javascript-common/common.js",
+					-src      => "$root/javascript-common/common.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/netblock-collection.js"
+					-src      => "$stabroot/javascript/netblock-collection.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/ajax-utils.js"
+					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -293,28 +353,23 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src =>
-"$root/javascript-common/external/jQuery/jquery.js",
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$root/javascript-common/common.js",
+					-src      => "$root/javascript-common/common.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/tickets.js"
+					-src      => "$stabroot/javascript/tickets.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/netblock.js"
+					-src      => "$stabroot/javascript/netblock.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/ajax-utils.js"
+					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -323,33 +378,79 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src =>
-"$root/javascript-common/external/jQuery/jquery.js",
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/stab-common.js"
+					-src      => "$stabroot/javascript/stab-common.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/dns-utils.js"
+					-src      => "$stabroot/javascript/dns-utils.js"
 				},
 			);
 		}
+		if ( $opts->{javascript} eq 'attest' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$root/javascript-common/external/chosen/chosen.jquery.js",
+				},
+
+				#	{
+				#		-language => 'JavaScript',
+				#		-src =>
+				#			"$root/javascript-common/external/chosen/docsupport/prism.js",
+				#	},
+				{
+					-language => 'JavaScript',
+					-src      => "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src      => "$stabroot/javascript/attest.js"
+				},
+			);
+		}
+		if ( $opts->{javascript} eq 'reporting' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src      => "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'JavaScript',
+					-src      => "$stabroot/javascript/reporting.js"
+				},
+			);
+		}
+
 		if ( $opts->{javascript} eq 'devicetype' ) {
 			push(
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src =>
-"$root/javascript-common/external/jQuery/jquery.js",
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/devicetype.js"
+					-src      => "$stabroot/javascript/devicetype.js"
 				}
 			);
 		}
@@ -358,17 +459,15 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src =>
-"$root/javascript-common/external/jQuery/jquery.js",
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
 					-language => 'JavaScript',
-					-src => "$stabroot/javascript/racks.js"
+					-src      => "$stabroot/javascript/racks.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/ajax-utils.js"
+					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -377,13 +476,11 @@ sub start_html {
 				@{ $args{-script} },
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/app-utils.js"
+					-src      => "$stabroot/javascript/app-utils.js"
 				},
 				{
 					-language => 'JavaScript',
-					-src =>
-					  "$stabroot/javascript/ajax-utils.js"
+					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
 		}
@@ -449,8 +546,20 @@ sub start_html {
 			$args{'-style'}->{'SRC'} = "$stabroot/style.pl";
 		}
 	} else {
-		$args{'-style'} = { 'SRC' => "$stabroot/style.pl" };
+		$args{'-style'} = {
+			'SRC' => [
+
+				#"$root/javascript-common/external/chosen/docsupport/style.css",
+				#"$root/javascript-common/external/chosen/docsupport/prism.css",
+				"$root/javascript-common/external/chosen/chosen.css",
+				"$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.css",
+				"$stabroot/style.pl",
+			]
+		};
 	}
+
+	# XXX need to handle multiple styles, and figure out how to do chosen only
+	# on attestation
 
 	my $inline_title = "";
 	if ( ( !defined( $opts->{'noinlinetitle'} ) ) ) {
@@ -463,24 +572,34 @@ sub start_html {
 	}
 
 	if ( ( !defined( $opts->{'noinlinenavbar'} ) ) ) {
-		my $navbar = ""
+		my $map = {
+			'Device'   => 'Device',
+			'DNS'      => 'DNS',
+			'Netblock' => 'Netblock',
+			'Racks'    => 'Sites',
+			'STAB'     => 'StabAccess',
+		};
 
-		  . $cgi->a( { -href => "$stabroot/device/" }, "Device" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/dns" },       "DNS" ) . " - "
-		  . $cgi->a( { -href => "$stabroot/netblock/" }, "Netblock" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/sites/blockmgr.pl" },
-			"Site IPs" )
-		  . " - "
+		my $navbar = "";
+		foreach my $p ( sort keys %{$map} ) {
+			if ( $self->check_permissions( $map->{$p} ) ) {
+				if ( length($navbar) ) {
+					$navbar .= " - ";
+				}
+				$navbar .= $cgi->a(
+					{
+						-href => "$stabroot/"
+						  . $self->{_permmap}->{ $map->{$p} },
+					},
+					$p
+				);
+			}
+		}
 
-		  . $cgi->a( { -href => "$stabroot/sites/rack/" }, "Racks" )
-		  . " - "
-		  . $cgi->a( { -href => "$stabroot/" }, "STAB" );
-		$inline_title .=
-		  $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
-			"[ $navbar ] " )
-		  . "\n";
+		if ( length($navbar) ) {
+			$inline_title .=
+			  $cgi->div( { -class => 'navbar' }, "[ $navbar ] " ) . "\n";
+		}
 	}
 
 	if ( ( !defined( $opts->{'noinlinemsgs'} ) ) ) {
@@ -488,13 +607,9 @@ sub start_html {
 		my $notemsg = $cgi->param('__notemsg__') || undef;
 		$cgi->param( '__errmsg__',  undef );
 		$cgi->param( '__notemsg__', undef );
-		$inline_title .=
-		  $cgi->p( { -style => 'color: red', -align => 'center' },
-			$errmsg )
+		$inline_title .= $cgi->div( { -class => 'errmsg' }, $errmsg )
 		  if ( defined($errmsg) );
-		$inline_title .=
-		  $cgi->p( { -style => 'color: green', -align => 'center' },
-			$notemsg )
+		$inline_title .= $cgi->div( { -class => 'notemsg' }, $notemsg )
 		  if ( defined($notemsg) );
 	}
 
@@ -558,10 +673,10 @@ sub build_passback_url {
 	my $attempts = 0;
 	while ( $attempts++ < 2 ) {
 
-	    #
-	    # don't want to double-pass messages, so remove the ones that aren't
-	    # set, and set the ones that are.
-	    #
+		#
+		# don't want to double-pass messages, so remove the ones that aren't
+		# set, and set the ones that are.
+		#
 		if ( !defined($errmsg) ) {
 			$ref->delete("__errmsg__");
 		} else {
@@ -621,10 +736,10 @@ sub return_db_err {
 				$errmsg = "Package Repository is not open";
 			} elsif ( $dbobj->err == 20602 ) {
 				$errmsg =
-"Device OS and VOE have different Software Package Repositories";
+				  "Device OS and VOE have different Software Package Repositories";
 			} elsif ( $dbobj->err == 20603 ) {
 				$errmsg =
-"Device and VOE Track have different Software Package Repositories";
+				  "Device and VOE Track have different Software Package Repositories";
 			}
 			$genmsg = "" if ( length($errmsg) );
 		}
@@ -778,7 +893,7 @@ sub mk_chk_yn {
 		if ( !defined($value) ) {
 			return undef;
 		}
-		if (       $value =~ /^y/i
+		if (   $value =~ /^y/i
 			|| $value =~ /on/i
 			|| $value =~ /checked/i )
 		{
@@ -797,8 +912,7 @@ sub mk_chk_yn {
 }
 
 sub remove_other_flagged {
-	my ( $self, $oldblk, $newblk, $table, $pkey, $reckey, $field, $human )
-	  = @_;
+	my ( $self, $oldblk, $newblk, $table, $pkey, $reckey, $field, $human ) = @_;
 
 	my $dbh = $self->dbh;
 
@@ -948,14 +1062,11 @@ sub b_nondbdropdown {
 		@list = ( 300, 1200, 2400, 4800, 9600, 115200 );
 	} elsif ( $selectfield eq 'SERIAL_PARAMS' ) {
 		@list = (
-			'8-N-1',   '7-N-1',   '8-N-2',   '7-N-2',
-			'8-N-1.5', '7-N-1.5', '8-E-1',   '7-E-1',
-			'8-E-2',   '7-E-2',   '8-E-1.5', '7-E-1.5',
-			'8-O-1',   '7-O-1',   '8-O-2',   '7-O-2',
-			'8-O-1.5', '7-O-1.5', '8-S-1',   '7-S-1',
-			'8-S-2',   '7-S-2',   '8-S-1.5', '7-S-1.5',
-			'8-M-1',   '7-M-1',   '8-M-2',   '7-M-2',
-			'8-M-1.5', '7-M-1.5'
+			'8-N-1', '7-N-1', '8-N-2', '7-N-2', '8-N-1.5', '7-N-1.5',
+			'8-E-1', '7-E-1', '8-E-2', '7-E-2', '8-E-1.5', '7-E-1.5',
+			'8-O-1', '7-O-1', '8-O-2', '7-O-2', '8-O-1.5', '7-O-1.5',
+			'8-S-1', '7-S-1', '8-S-2', '7-S-2', '8-S-1.5', '7-S-1.5',
+			'8-M-1', '7-M-1', '8-M-2', '7-M-2', '8-M-1.5', '7-M-1.5'
 		);
 		foreach my $l (@list) { $list{$l} = $l }
 		my $df = '__unknown__';
@@ -998,7 +1109,7 @@ sub b_nondbdropdown {
 	} elsif ( $selectfield eq 'LOCATION_RACK_SIDE' ) {
 		@list = ( 'FRONT', 'BACK' );
 		my $df = 'FRONT';
-	} elsif (  $selectfield =~ '(PC_)?P[12]_PHYSICAL_PORT_ID'
+	} elsif ( $selectfield =~ '(PC_)?P[12]_PHYSICAL_PORT_ID'
 		|| $selectfield eq 'P2_POWER_INTERFACE_PORT' )
 	{
 		$default = '__unknown__';
@@ -1023,8 +1134,7 @@ sub b_nondbdropdown {
 	#
 	if ( !defined($values) ) {
 		my @value =
-		  grep( /unknown/
-			  || ( defined( $list{$_} ) && $list{$_} =~ /unknown/ ),
+		  grep( /unknown/ || ( defined( $list{$_} ) && $list{$_} =~ /unknown/ ),
 			@list );
 		if ( !defined($noguessunknown) && $#value >= 0 ) {
 			$default = $value[0];
@@ -1262,11 +1372,10 @@ sub b_dropdown {
 		my $list = q{  ('ID', 'NON-ID') };
 		if ($showhidden) {
 
-		# XXX when db constraint on val_dns_type.id_type is updated to
-		# include HIDDEN, the or clause can go away.  This should happen
-		# with 3.1.
-			$list =
-			  q{  ('ID', 'NON-ID', 'HIDDEN') or dns_type = 'SOA' };
+			# XXX when db constraint on val_dns_type.id_type is updated to
+			# include HIDDEN, the or clause can go away.  This should happen
+			# with 3.1.
+			$list = q{  ('ID', 'NON-ID', 'HIDDEN') or dns_type = 'SOA' };
 		}
 		$q = qq{
 			select	dns_type, description
@@ -1282,14 +1391,15 @@ sub b_dropdown {
 			order by description, dns_class
 		};
 		$pickone = "Choose";
-	} elsif (  $selectfield eq 'COMPANY_ID'
+	} elsif ( $selectfield eq 'COMPANY_ID'
 		|| $selectfield =~ /_COMPANY_ID$/ )
 	{
-		my $ct = ($params->{'-company_type'})?
-			q{
+		my $ct = ( $params->{'-company_type'} )
+		  ? q{
 			inner join company_type using (company_id)
 			where company_type = :company_type
-			}:"";
+			}
+		  : "";
 		$q = qq{
 			select	company_id, company_name
 			  from	company
@@ -1336,10 +1446,7 @@ sub b_dropdown {
 		$devidmap = $params->{'-deviceid'};
 		if ( !$devidmap ) {
 			return (
-				$self->b_nondbdropdown(
-					$params, $values,
-					$field,  $pkeyfield
-				)
+				$self->b_nondbdropdown( $params, $values, $field, $pkeyfield )
 			);
 		}
 		$argone_grey = 1;
@@ -1426,10 +1533,7 @@ sub b_dropdown {
 		$devidmap = $params->{'-deviceid'};
 		if ( !$devidmap ) {
 			return (
-				$self->b_nondbdropdown(
-					$params, $values,
-					$field,  $pkeyfield
-				)
+				$self->b_nondbdropdown( $params, $values, $field, $pkeyfield )
 			);
 		}
 		$argone_grey = 1;
@@ -1485,7 +1589,7 @@ sub b_dropdown {
 			  from  val_flow_control
 			order by description, flow_control
 		};
-	} elsif (  $selectfield eq 'SITE_CODE'
+	} elsif ( $selectfield eq 'SITE_CODE'
 		|| $selectfield eq 'RACK_SITE_CODE' )
 	{
 
@@ -1497,7 +1601,7 @@ sub b_dropdown {
 			order by site_code
 		};
 		$default = 'none' if ( !defined($default) );
-	} elsif (  $selectfield eq 'RACK_ID'
+	} elsif ( $selectfield eq 'RACK_ID'
 		|| $selectfield eq 'LOCATION_RACK_ID' )
 	{
 		my $siteclause = "";
@@ -1585,7 +1689,7 @@ sub b_dropdown {
 		};
 	} elsif ( $selectfield eq 'NETBLOCK_COLLECTION_TYPE' ) {
 		my $d = 'netblock_collection_type';
-		if(defined($params->{-desc}) && $params->{-desc} eq 'expand') {
+		if ( defined( $params->{-desc} ) && $params->{-desc} eq 'expand' ) {
 			$d = q{
 					netblock_collection_type || ' (' || description || ')' as
 						description
@@ -1593,7 +1697,14 @@ sub b_dropdown {
 		}
 		$q = qq{
 			select	netblock_collection_type,  $d
-			  from	val_netblock_collection_type;
+			  from	val_netblock_collection_type
+			order by netblock_collection_type
+		};
+	} elsif ( $selectfield eq 'APPROVAL_INSTANCE_ID' ) {
+		$q = qq{
+			select approval_instance_id, approval_instance_name
+			from approval_instance
+			order by approval_start desc
 		};
 	} else {
 		return "-XX-";
@@ -1629,7 +1740,7 @@ sub b_dropdown {
 		$sth->bind_param( ':dnsdomaintype', $dnsdomaintype );
 	}
 
-	if ( defined($params->{'-company_type'}) ) {
+	if ( defined( $params->{'-company_type'} ) ) {
 		$sth->bind_param( ':company_type', $params->{'-company_type'} );
 	}
 
@@ -1686,8 +1797,7 @@ sub b_dropdown {
 	#
 	if ( !defined($values) ) {
 		my @value =
-		  grep( /unknown/
-			  || ( defined( $list{$_} ) && $list{$_} =~ /unknown/ ),
+		  grep( /unknown/ || ( defined( $list{$_} ) && $list{$_} =~ /unknown/ ),
 			@list );
 		if ( !defined($noguessunknown) && $#value >= 0 ) {
 			$default = $value[0];
@@ -1738,8 +1848,7 @@ sub b_dropdown {
 		if ( $params->{'-dolinkUpdate'} eq 'rack' ) {
 			my $root    = $self->guess_stab_root() . "/sites/rack/";
 			my $redirid = "rack_link" . $id;
-			$onchange =
-			  "setRackLinkRedir(\"$id\", \"$redirid\", \"$root\")";
+			$onchange = "setRackLinkRedir(\"$id\", \"$redirid\", \"$root\")";
 			my $devlink = "javascript:void(null);";
 			if ( $default && $default ne '__unknown__' ) {
 				$devlink = "$root?RACK_ID=$default";
@@ -1938,7 +2047,7 @@ sub b_textfield {
 	}
 
 	my ( $button, $disabled ) = ( "", undef );
-	if (       $values
+	if (   $values
 		&& defined($field)
 		&& $editoff =~ /^(yes|always)$/i )
 	{
@@ -1954,8 +2063,7 @@ sub b_textfield {
 					-id    => $buttonid,
 					-class => 'stabeditbutton',
 					-href  => '#',
-					-style =>
-					  'border: 1px solid; font-size: 50%'
+					-style => 'border: 1px solid; font-size: 50%'
 				},
 				"EDIT"
 			);
@@ -1972,8 +2080,7 @@ sub b_textfield {
 					-id    => $buttonid,
 					-class => 'stabeditbutton',
 					-href  => '#',
-					-style =>
-					  'border: 1px solid; font-size: 50%'
+					-style => 'border: 1px solid; font-size: 50%'
 				},
 				"EDIT"
 			);
@@ -1994,10 +2101,8 @@ sub b_textfield {
 
 	my $optional = "";
 	if ( $params->{-mark} ) {
-		$optional = $cgi->em(
-			{ -style => 'font-size: 70%;' },
-			"(" . $params->{-mark} . ")"
-		);
+		$optional = $cgi->em( { -style => 'font-size: 70%;' },
+			"(" . $params->{-mark} . ")" );
 	}
 
 	$cgi->textfield($args) . $button . $optional;
@@ -2119,13 +2224,16 @@ sub build_checkbox {
 		$name = $name . $params->{-suffix};
 	}
 	my $args = {
-		-name    => $name,
-		-checked => $checked,
-		-value   => 'on',
-		-label   => $label,
+		-name => $name || '',
+		-value => 'on',
+		-label => $label || '',
 	};
 
-	if ( $params->{-class} ) {
+	if ( defined($checked) ) {
+		$args->{-checked} = $checked;
+	}
+
+	if ( defined( $params->{-class} ) ) {
 		$args->{-class} = $params->{-class};
 	}
 
@@ -2136,6 +2244,54 @@ sub build_checkbox {
 	} else {
 		return $cb;
 	}
+}
+
+sub build_table_from_query {
+	my $self = shift @_;
+
+	my $opt = &_options(@_);
+
+	my $cgi = $self->cgi;
+	my $sth = $self->prepare( $opt->{query} ) || return $self->return_db_err();
+
+	if ( !$opt->{bind} ) {
+		$sth->execute || return $self->return_db_err($sth);
+	} elsif ( ref( $opt->{bind} ) eq 'ARRAY' ) {
+		$sth->execute( @{ $opt->{bind} } ) || return $self->return_db_err($sth);
+	} elsif ( ref $opt->{bind} eq 'HASH' ) {
+		return $self->error_return("HASH binding not implemented");
+	} else {
+		return $self->error_return("Unable to handle this type of args");
+	}
+
+	my $t = "";
+	while ( my @foo = $sth->fetchrow_array ) {
+		for ( my $i = 0 ; $i <= $#foo ; $i++ ) {
+			$foo[$i] = '' if ( !defined( $foo[$i] ) );
+		}
+		$t .= $cgi->Tr( $cgi->td( [@foo] ) );
+	}
+
+	my $args;
+	$args->{class} = $opt->{class} if ( exists( $opt->{class} ) );
+
+	$args = "" if ( !$args );
+
+	my $caption = "";
+	if ( exists( $opt->{caption} ) ) {
+		$caption = $cgi->caption( $opt->{caption} );
+	}
+
+	my $thead = $cgi->thead( $cgi->th( [ @{ $sth->{NAME} } ] ) );
+
+	my $divargs   = dclone($args);
+	my $tableargs = dclone($args);
+
+	if ( $opt->{tableid} ) {
+		$tableargs->{id} = $opt->{tableid};
+	}
+
+	$cgi->div( $divargs, $cgi->table( $tableargs, $caption, $thead, $t ) );
 }
 
 sub check_if_sure {
@@ -2353,14 +2509,8 @@ sub voe_compare_form {
 	$rv .= $cgi->div(
 		{ -align => 'center' },
 		$cgi->h3( { -align => 'center' }, 'Compare two VOEs:' ),
-		$self->b_dropdown(
-			{ -name => 'voe1' },
-			undef, 'VOE_ID', undef, 1
-		),
-		$self->b_dropdown(
-			{ -name => 'voe2' },
-			undef, 'VOE_ID', undef, 1
-		),
+		$self->b_dropdown( { -name => 'voe1' }, undef, 'VOE_ID', undef, 1 ),
+		$self->b_dropdown( { -name => 'voe2' }, undef, 'VOE_ID', undef, 1 ),
 		$cgi->submit
 	);
 	$rv .= $cgi->end_form;
@@ -2376,12 +2526,10 @@ sub zone_header {
 	my $dbh = $self->dbh || die "Could not create dbh";
 
 	$self->textfield_sizing(0);
-	my $serial =
-	  $self->b_textfield( $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID', 0 );
+	my $serial = $self->b_textfield( $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID', 0 );
 	my $refresh =
 	  $self->b_textfield( $hr, 'SOA_REFRESH', 'DNS_DOMAIN_ID', 21600 );
-	my $retry =
-	  $self->b_textfield( $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID', 7200 );
+	my $retry = $self->b_textfield( $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID', 7200 );
 	my $expire =
 	  $self->b_textfield( $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
 	my $minimum =
@@ -2408,7 +2556,7 @@ sub zone_header {
 		{ -id => 'soa_table', -style => $style, -class => 'soatable' },
 		( $change_type ne 'update' )
 		? $cgi->caption(
-"These fields will be filled in automatically, you need not enter them.",
+			"These fields will be filled in automatically, you need not enter them.",
 			$cgi->hr
 		  )
 		: "",
@@ -2417,24 +2565,12 @@ sub zone_header {
 			$cgi->td($mname),
 			$cgi->td( $rname, "(" ),
 		),
-		$cgi->Tr(
-			$cgi->td(""), $cgi->td($serial),
-			$cgi->td("; serial")
-		),
-		$cgi->Tr(
-			$cgi->td(""), $cgi->td($refresh),
-			$cgi->td("; refresh")
-		),
-		$cgi->Tr( $cgi->td(""), $cgi->td($retry), $cgi->td("; retry") ),
-		$cgi->Tr(
-			$cgi->td(""), $cgi->td($expire),
-			$cgi->td("; expire")
-		),
-		$cgi->Tr(
-			$cgi->td(""), $cgi->td($minimum),
-			$cgi->td("; minimum")
-		),
-		$cgi->Tr( $cgi->td(")"), $cgi->td(""), $cgi->td("") )
+		$cgi->Tr( $cgi->td(""),  $cgi->td($serial),  $cgi->td("; serial") ),
+		$cgi->Tr( $cgi->td(""),  $cgi->td($refresh), $cgi->td("; refresh") ),
+		$cgi->Tr( $cgi->td(""),  $cgi->td($retry),   $cgi->td("; retry") ),
+		$cgi->Tr( $cgi->td(""),  $cgi->td($expire),  $cgi->td("; expire") ),
+		$cgi->Tr( $cgi->td(""),  $cgi->td($minimum), $cgi->td("; minimum") ),
+		$cgi->Tr( $cgi->td(")"), $cgi->td(""),       $cgi->td("") )
 	);
 
 	$t;
@@ -2461,15 +2597,13 @@ sub add_power_ports {
 	if ( !defined($start) ) {
 		$self->error_return("You must specify the first port");
 	} elsif ( $start !~ /^\d/ ) {
-		$self->error_return(
-			"Power port start must be a positive number.");
+		$self->error_return("Power port start must be a positive number.");
 	}
 
 	if ( !defined($count) ) {
 		$self->error_return("You must specify the number of ports");
 	} elsif ( $count !~ /^\d/ || $count <= 0 ) {
-		$self->error_return(
-			"Power port count must be a positive number.");
+		$self->error_return("Power port count must be a positive number.");
 	}
 	if ( !defined($pstyl) ) {
 		$self->error_return("You must specify the power plug style");
@@ -2493,8 +2627,7 @@ sub add_power_ports {
 	}
 
 	if ( $prefix && length($prefix) > 60 ) {
-		$self->error_return(
-			"Serial prefix must be no more than 60 characters");
+		$self->error_return("Serial prefix must be no more than 60 characters");
 
 	}
 
@@ -2537,44 +2670,38 @@ sub add_physical_ports {
 	my $cgi = $self->cgi || die "Could not create cgi";
 	my $dbh = $self->dbh || die "Could not create dbh";
 
-	my $prefix  = $self->cgi_parse_param("${captype}_PORT_PREFIX");
-	my $start   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
-	my $count   = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
-	my $tcp     = $self->cgi_parse_param("${captype}_TCP_PORT_START");
-	my $purpose = $self->cgi_parse_param("${captype}_PORT_PURPOSE");
-	my $speed   = $self->cgi_parse_param("${captype}_PORT_SPEED");
+	my $prefix   = $self->cgi_parse_param("${captype}_PORT_PREFIX");
+	my $start    = $self->cgi_parse_param("${captype}_INTERFACE_PORT_START");
+	my $count    = $self->cgi_parse_param("${captype}_INTERFACE_PORT_COUNT");
+	my $tcp      = $self->cgi_parse_param("${captype}_TCP_PORT_START");
+	my $purpose  = $self->cgi_parse_param("${captype}_PORT_PURPOSE");
+	my $speed    = $self->cgi_parse_param("${captype}_PORT_SPEED");
 	my $protocol = $self->cgi_parse_param("${captype}_PORT_PROTOCOL");
 	my $medium   = $self->cgi_parse_param("${captype}_PORT_MEDIUM");
 	my $plug     = $self->cgi_parse_param("${captype}_PORT_PLUG_STYLE");
 
 	if ( !defined($count) ) {
-		$self->error_return(
-			"You must specify the number of $type ports");
+		$self->error_return("You must specify the number of $type ports");
 	}
 
 	if ( !defined($start) && $count ne 1 ) {
 		$self->error_return(
-			"You must specify one $type port or a starting number"
-		);
+			"You must specify one $type port or a starting number");
 	}
 
 	if ( defined($start) && ( $start !~ /^\d+$/ || $start < 0 ) ) {
-		$self->error_return(
-			"Starting $type port must be a positive number");
+		$self->error_return("Starting $type port must be a positive number");
 	}
 	if ( $count !~ /^\d+$/ || $count <= 0 ) {
-		$self->error_return(
-			"$type Port count must be a positive number");
+		$self->error_return("$type Port count must be a positive number");
 	}
 
 	if ( $prefix && length($prefix) > 50 ) {
-		$self->error_return(
-			"$type prefix must be no more than 180 characters");
+		$self->error_return("$type prefix must be no more than 180 characters");
 	}
 
 	if ( $purpose && length($purpose) > 50 ) {
-		$self->error_return(
-			"$type prefix must be no more than 180 characters");
+		$self->error_return("$type prefix must be no more than 180 characters");
 	}
 
 	my $q = qq{
@@ -2615,8 +2742,7 @@ sub add_physical_ports {
 			  || $self->return_db_err($dbh);
 
 			if ($tcp) {
-				$sth->bind_param( ':tcpport',
-					$tcp + ( $i - $start ) )
+				$sth->bind_param( ':tcpport', $tcp + ( $i - $start ) )
 				  || $self->return_db_err($dbh);
 			} else {
 				$sth->bind_param( ':tcpport', undef )
@@ -2645,8 +2771,7 @@ sub add_physical_ports {
 		  || $self->return_db_err($dbh);
 
 		if ($tcp) {
-			$sth->bind_param( ':tcpport',
-				$tcp )
+			$sth->bind_param( ':tcpport', $tcp )
 			  || $self->return_db_err($dbh);
 		} else {
 			$sth->bind_param( ':tcpport', undef )
@@ -2673,14 +2798,10 @@ sub vendor_logo {
 	my $cgi = $self->cgi || die "Could not create cgi";
 
 	my %ICOMAP = (
-		'Dot Hill',         'dothill.ico',
-		'Cisco',            'cisco.ico',
-		'Foundry',          'foundry.ico',
-		'Dell',             'dell.ico',
-		'Force10 Networks', 'force10.ico',
-		'IBM',              'ibm.ico',
-		'HP',               'hp.ico',
-		'Sun Microsystems', 'sun.ico',
+		'Dot Hill',         'dothill.ico', 'Cisco',            'cisco.ico',
+		'Foundry',          'foundry.ico', 'Dell',             'dell.ico',
+		'Force10 Networks', 'force10.ico', 'IBM',              'ibm.ico',
+		'HP',               'hp.ico',      'Sun Microsystems', 'sun.ico',
 		'Juniper',          'juniper.ico',
 	);
 
@@ -2692,9 +2813,7 @@ sub vendor_logo {
 			{
 				-alt   => $vendor,
 				-align => 'left',
-				-src   => $root
-				  . '/images/vendors/'
-				  . $ICOMAP{$vendor}
+				-src   => $root . '/images/vendors/' . $ICOMAP{$vendor}
 			}
 		);
 	}

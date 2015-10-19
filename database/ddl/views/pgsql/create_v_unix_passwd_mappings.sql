@@ -49,9 +49,7 @@ WITH  passtype AS (
 		aui.shell, aui.default_home
 	FROM account a
 		INNER JOIN account_unix_info aui using (account_id)
-		INNER JOIN val_person_status vps
-			ON a.account_status = vps.person_status
-	WHERE vps.is_disabled = 'N'
+	WHERE a.is_enabled = 'Y'
 ), extra_groups AS (
 	SELECT	device_collection_id, acae.account_id,
 			array_agg(ac.account_collection_name) as group_names

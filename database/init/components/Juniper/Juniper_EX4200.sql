@@ -43,94 +43,21 @@ BEGIN
 		slot_physical_interface_type = 'Juniper EX VCP' AND
 		slot_function = 'inter_component_link';
 
-	--
-	-- Assume if the stuff above exists, that none of the rest of this needs
-	-- to be done
-	--
+	SELECT company_id INTO cid FROM jazzhands.company WHERE
+		company_name = 'Juniper';
+
 	IF NOT FOUND THEN
-		INSERT INTO val_slot_physical_interface
-			(slot_physical_interface_type, slot_function)
-		VALUES
-			( 'Juniper EX VCP', 'inter_component_link');
-
-		INSERT INTO slot_type 
-			(slot_type, slot_physical_interface_type, slot_function,
-			 description, remote_slot_permitted)
-		VALUES
-			('Juniper EX VCP', 'Juniper EX VCP', 'inter_component_link',
-			'Juniper Virtual Chassis port', 'Y')
-		RETURNING
-			slot_type_id INTO vcp_stid;
-
-		--
-		-- Insert the VCP-VCP connection
-		-- 
-		INSERT INTO slot_type_prmt_rem_slot_type (
-			slot_type_id,
-			remote_slot_type_id
-		) VALUES 
-			(vcp_stid, vcp_stid);
-
-		--
-		-- Chassis slot types
-		--
-		INSERT INTO val_slot_physical_interface
-			(slot_physical_interface_type, slot_function)
-		VALUES
-			('JuniperEXStack', 'chassis_slot');
-
-		INSERT INTO slot_type 
-			(slot_type, slot_physical_interface_type, slot_function,
-			 description, remote_slot_permitted)
-		VALUES
-			('JuniperEXStack', 'JuniperEXStack', 'chassis_slot',
-			 'Juniper EX stack', 'N')
-		RETURNING
-			slot_type_id INTO stack_stid;
-
-		INSERT INTO slot_type_prmt_comp_slot_type (
-			slot_type_id,
-			component_slot_type_id
-		) VALUES
-			(stack_stid, stack_stid);
+		INSERT INTO company (company_name) VALUES ('Juniper')
+			RETURNING company_id INTO cid;
 	END IF;
 
-	INSERT INTO component_type (
-		description,
-		slot_type_id,
-		model,
-		company_id,
-		asset_permitted,
-		is_rack_mountable
-	) VALUES (
-		'Juniper EX4xxx virtual chassis',
-		NULL,
-		'Juniper EX4xxx virtual chassis',
-		cid,
-		'Y',
-		'N'
-	) RETURNING component_type_id INTO ctid;
+	SELECT slot_type_id INTO vcp_stid FROM slot_type WHERE
+		slot_type = 'Juniper EX VCP' AND
+		slot_function = 'inter_component_link';
 
-	INSERT INTO component_type_component_func (
-		component_type_id,
-		component_function
-	) VALUES (
-		ctid,
-		'chassis'
-	);
-
-	INSERT INTO component_type_slot_tmplt (
-		component_type_id,
-		slot_type_id,
-		slot_name_template,
-		slot_index
-	) SELECT
-		ctid,
-		stack_stid,
-		'VC' || x.idx,
-		x.idx
-	FROM
-		generate_series(0,9) x(idx);
+	SELECT  slot_type_id INTO stack_stid FROM slot_type WHERE
+		slot_type = 'JuniperEXStack' AND
+		slot_function = 'chassis_slot';
 
 	INSERT INTO component_type (
 		description,

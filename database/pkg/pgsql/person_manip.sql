@@ -60,16 +60,32 @@ DECLARE
 	_acctrealmid	integer;
 	_login			varchar;
 	_trylogin		varchar;
+	_trunclen		integer;
     id				account.account_id%TYPE;
 	fn		text;
 	ln		text;
 BEGIN
+	SELECT	property_value::int
+	INTO	_trunclen
+	FROM	property
+	WHERE	property_type = 'Defaults'
+	AND	 	property_name = '_max_default_login_length';
+
+	IF NOT FOUND THEN
+		_trunclen := 15;
+	END IF;
+
 	-- remove special characters
 	fn = regexp_replace(lower(in_first_name), '[^a-z]', '', 'g');
 	ln = regexp_replace(lower(in_last_name), '[^a-z]', '', 'g');
 	_acctrealmid := in_account_realm_id;
 	-- Try first initial, last name
 	_login = lpad(lower(fn), 1) || lower(ln);
+
+	IF _trunclen IS NOT NULL AND _trunclen > 0 THEN
+		_login := left(_login, _trunclen);
+	END IF;
+
 	SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 		AND login = _login;
 
@@ -80,6 +96,10 @@ BEGIN
 	-- Try first initial, middle initial, last name
 	if in_middle_name IS NOT NULL THEN
 		_login = lpad(lower(fn), 1) || lpad(lower(in_middle_name), 1) || lower(ln);
+
+		IF _trunclen IS NOT NULL AND _trunclen > 0 THEN
+			_login := left(_login, _trunclen);
+		END IF;
 		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 			AND login = _login;
 		IF id IS NULL THEN
@@ -89,6 +109,9 @@ BEGIN
 
 	-- if length of first+last is <= 10 then try that.
 	_login = lower(fn) || lower(ln);
+	IF _trunclen IS NOT NULL AND _trunclen > 0 THEN
+		_login := left(_login, _trunclen);
+	END IF;
 	IF char_length(_login) < 10 THEN
 		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 			AND login = _login;
@@ -100,6 +123,9 @@ BEGIN
 	-- ok, keep trying to add a number to first initial, last
 	_login = lpad(lower(fn), 1) || lower(ln);
 	FOR i in 1..500 LOOP
+		IF _trunclen IS NOT NULL AND _trunclen > 0 THEN
+			_login := left(_login, _trunclen - 2);
+		END IF;
 		_trylogin := _login || i;
 		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
 			AND login = _trylogin;
@@ -680,3 +706,5 @@ BEGIN
 	set constraints fk_account_company_person IMMEDIATE;
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands, pg_temp;
+
+--------------------------------------------------------------------------------

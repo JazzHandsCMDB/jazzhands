@@ -42,14 +42,12 @@
 -- This view maps users to device collections and lists properties
 -- assigned to the users in order of their priorities.
 
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dev_col_user_prop_expanded');
-
 DROP VIEW v_dev_col_user_prop_expanded;
 CREATE OR REPLACE VIEW v_dev_col_user_prop_expanded AS
 SELECT	dchd.device_collection_id,
 	a.account_id, a.login, a.account_status,
 	ar.account_realm_id, ar.account_realm_name,
-	CASE WHEN vps.is_disabled = 'N' THEN 'Y' ELSE 'N' END as is_enabled,
+	a.is_enabled,
 	upo.property_type property_type,
 	upo.property_name property_name, 
 	coalesce(Property_Value_Password_Type, Property_Value) AS property_value,
@@ -72,8 +70,6 @@ FROM	v_acct_coll_acct_expanded_detail uued
 		ON upn.property_data_type = pdt.property_data_type
 	INNER JOIN account a ON uued.account_id = a.account_id
 	INNER JOIN account_realm ar ON a.account_realm_id = ar.account_realm_id
-	INNER JOIN val_person_status vps
-		ON vps.person_status = a.account_status
 	LEFT JOIN v_device_coll_hier_detail dchd
   		ON (dchd.parent_device_collection_id = upo.device_collection_id)
 ORDER BY device_collection_level,
@@ -95,6 +91,3 @@ ORDER BY device_collection_level,
         ELSE 6 END,
   uued.dept_level, uued.acct_coll_level, dchd.device_collection_id, 
   u.Account_Collection_id;
-
-SELECT schema_support.replay_saved_grants();
-

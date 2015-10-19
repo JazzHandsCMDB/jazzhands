@@ -206,6 +206,24 @@ sub guess_parent_netblock_id {
 	$rv;
 }
 
+sub get_network_int_purpose {
+	my ($self, $netintid) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	network_interface_purpose
+		  from	network_interface_purpose
+		 where	network_interface_id = ?
+	}
+	);
+	$sth->execute($netintid) || $self->return_db_err($sth);
+	my (@rv);
+	while(my $id = $sth->fetchrow_array) {
+		push(@rv, $id);
+	}
+	\@rv;
+}
+
 sub get_interface_from_ip {
 	my ( $self, $ip ) = @_;
 
@@ -216,6 +234,23 @@ sub get_interface_from_ip {
 		 		inner join netblock nb
 					on nb.netblock_id = ni.netblock_id
 		 where	net_manip.inet_ptodb(?) = nb.ip_address
+	}
+	);
+	$sth->execute($ip) || $self->return_db_err($sth);
+	my $rv = $sth->fetchrow_hashref;
+	$sth->finish;
+	$rv;
+
+}
+
+sub get_interface_from_netblock_id {
+	my ( $self, $ip ) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	ni.*
+		  from	network_interface ni
+		 where	netblock_id = ?
 	}
 	);
 	$sth->execute($ip) || $self->return_db_err($sth);
@@ -866,7 +901,14 @@ sub configure_allocated_netblock {
 			$self->error_return("Unable to find network for $ip");
 		}
 	} elsif ( $nblk->{ _dbx('NETBLOCK_STATUS') } eq 'Allocated' ) {
-		$self->error_return("Address ($ip) is already allocated.");
+		my $nbid = $nblk->{ _dbx('NETBLOCK_ID') };
+		if( $self->get_interface_from_netblock_id($nbid)) {
+			return $self->error_return("$ip is in use on a device");
+		} else {
+			# nothing to change about the block; returning.
+			return $nblk;
+		}
+
 	}
 
 	# if netblock is reserved, switch it to allocated
@@ -2146,6 +2188,36 @@ sub build_dns_drop {
 	}
 	$sth->finish;
 	$r;
+}
+
+#
+# check to see if account is in another's managment chain
+#
+sub check_management_chain($$;$) {
+	my $self = shift @_;
+	my $bottom_acct = shift @_;
+	my $top_acct = shift @_ || $self->get_account_id();
+
+	return 1 if($top_acct == $bottom_acct);
+
+	my $sth = $self->prepare(q{
+		SELECT	manager_account_id
+		FROM	v_account_manager_map
+		WHERE	account_id = ?
+	}) || die $self->return_db_err;
+
+	my $acct = $bottom_acct;
+	do {
+		$sth->execute($acct) || $self->return_db_err($sth);
+		my ($mid) = $sth->fetchrow_array();
+		$sth->finish;
+		if($mid && $mid == $top_acct) {
+			return 1;
+		}
+		$acct = $mid
+	} while($acct);
+
+	0;
 }
 
 1;

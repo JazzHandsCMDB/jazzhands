@@ -313,7 +313,7 @@ DECLARE
 	tally				INTEGER;
 	v_comp_prop			RECORD;
 	v_comp_prop_type	RECORD;
-	v_num				INTEGER;
+	v_num				bigint;
 	v_listvalue			TEXT;
 	component_attrs		RECORD;
 BEGIN
@@ -714,20 +714,18 @@ BEGIN
 	-- For inserts, just do a simple slot creation, for updates, things
 	-- get more complicated, so try to migrate slots
 
-	IF (TG_OP == 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
+	IF (TG_OP = 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
 	THEN
 		PERFORM component_utils.create_component_template_slots(
 			component_id := NEW.component_id);
 	END IF;
-	IF (TG_OP == 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
+	IF (TG_OP = 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
 	THEN
 		PERFORM component_utils.migrate_component_template_slots(
-			component_id := NEW.component_id,
-			old_component_type_id := OLD.component_type_id,
-			new_component_type_id := NEW.component_type_id
-			);
-		RETURN NEW;
+			component_id := NEW.component_id
+		);
 	END IF;
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -774,18 +772,12 @@ RETURNS TRIGGER
 AS $$
 DECLARE
 	devtype		RECORD;
+	ctid		integer;
 	cid			integer;
 	scarr       integer[];
 	dcarr       integer[];
 	server_ver	integer;
 BEGIN
-
-	--
-	-- If component_id is already set, then assume that it's correct
-	--
-	IF NEW.component_id THEN
-		RETURN NEW;
-	END IF;
 
 	SELECT
 		dt.device_type_id,
@@ -799,6 +791,28 @@ BEGIN
 		device d ON (dt.template_device_id = d.device_id)
 	WHERE
 		dt.device_type_id = NEW.device_type_id;
+
+	IF NEW.component_id IS NOT NULL THEN
+		IF devtype.component_type_id IS NOT NULL THEN
+			SELECT
+				component_type_id INTO ctid
+			FROM
+				component c
+			WHERE
+				c.component_id = NEW.component_id;
+
+			IF ctid != devtype.component_type_id THEN
+				UPDATE
+					component
+				SET
+					component_type_id = devtype.component_type_id
+				WHERE
+					component_id = NEW.component_id;
+			END IF;
+		END IF;
+			
+		RETURN NEW;
+	END IF;
 
 	--
 	-- If template_device_id doesn't exist, then create an instance of

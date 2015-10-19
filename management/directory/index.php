@@ -33,9 +33,10 @@ $query_tables = "
 	   	inner join company c
 			using (company_id)
 		inner join v_corp_family_account a
-			on p.person_id = a.person_id
+			on ( p.person_id = a.person_id
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
+			and a.is_enabled = 'Y' )
 		inner join (
 			select ac.*, account_id
 			FROM account_collection ac
@@ -43,10 +44,6 @@ $query_tables = "
 					USING (account_collection_id)
 			WHERE account_collection_type = 'department'
 		) u USING (account_id)
-		inner join val_person_status vps
-			on ( vps.person_status = pc.person_company_status
-			 and	vps.is_disabled = 'N'
-			)
 		left join (
 			select	pi.*, piu.person_image_usage
 			 from	person_image pi
@@ -206,12 +203,12 @@ switch($index) {
 			 from	account_collection
 			 		inner join account_collection_account
 							using(account_collection_id)
-					inner join v_corp_family_account
+					inner join v_corp_family_account a
 							using(account_id)
 					inner join val_person_status vps
 							on vps.person_status = account_status
 			where	account_collection_type = 'department'
-			 and	vps.is_disabled = 'N'
+			 and	a.is_enabled = 'Y'
 				
 			order by account_collection_name
 		";

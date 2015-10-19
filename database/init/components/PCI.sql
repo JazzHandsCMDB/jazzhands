@@ -74,6 +74,7 @@ BEGIN
 			(slot_physical_interface_type, slot_function)
 		SELECT
 			unnest(ARRAY[
+				'unknown',
 				'PCIEx1',
 				'PCIEx2',
 				'PCIEx4',
@@ -88,6 +89,7 @@ BEGIN
 			(slot_type, slot_physical_interface_type, slot_function, description,
 			 remote_slot_permitted)
 		VALUES
+			('unknown', 'unknown', 'PCI', 'Unknown PCI type', 'N'),
 			('PCIEx1', 'PCIEx1', 'PCI', 'PCI-E x1', 'N'),
 			('PCIEx1half', 'PCIEx1', 'PCI', 'PCI-E x1 half-length', 'N'),
 			('PCIEx2', 'PCIEx2', 'PCI', 'PCI-E x2', 'N'),
@@ -117,30 +119,33 @@ BEGIN
 		WHERE
 			st.slot_function = 'PCI' AND cst.slot_function = 'PCI' AND (
 			(st.slot_type = 'PCIEx1' AND
-				cst.slot_physical_interface_type IN ('PCIEx1')) OR
+				cst.slot_physical_interface_type IN ('PCIEx1','unknown')) OR
 			(st.slot_type = 'PCIEx2' AND
-				cst.slot_physical_interface_type IN ('PCIEx1','PCIEx2')) OR
+				cst.slot_physical_interface_type IN ('PCIEx1','PCIEx2','unknown')) OR
 			(st.slot_type = 'PCIEx4' AND
 				cst.slot_physical_interface_type IN
-				('PCIEx1','PCIEx2','PCIEx4')) OR
+				('PCIEx1','PCIEx2','PCIEx4','unknown')) OR
 			(st.slot_type = 'PCIEx8' AND
 				cst.slot_physical_interface_type IN
-				('PCIEx1','PCIEx2','PCIEx4','PCIEx8')) OR
+				('PCIEx1','PCIEx2','PCIEx4','PCIEx8','unknown')) OR
 			(st.slot_type = 'PCIEx16' AND
-				cst.slot_type IN
-				('PCIEx1half','PCIEx2half','PCIEx4half','PCIEx8half','PCIEx16half')) OR
+				cst.slot_physical_interface_type IN
+				('PCIEx1','PCIEx2','PCIEx4','PCIEx8','PCIEx16','unknown')) OR
+			(st.slot_type = 'unknown' AND
+				cst.slot_physical_interface_type IN
+				('PCIEx1','PCIEx2','PCIEx4','PCIEx8','PCIEx16','unknown')) OR
 			(st.slot_type = 'PCIEx1half' AND
-				cst.slot_type IN ('PCIEx1half')) OR
+				cst.slot_type IN ('PCIEx1half','unknown')) OR
 			(st.slot_type = 'PCIEx2half' AND
-				cst.slot_type IN ('PCIEx1half','PCIEx2half')) OR
+				cst.slot_type IN ('PCIEx1half','PCIEx2half','unknown')) OR
 			(st.slot_type = 'PCIEx4half' AND
-				cst.slot_type IN ('PCIEx1half','PCIEx2half','PCIEx4half')) OR
+				cst.slot_type IN ('PCIEx1half','PCIEx2half','PCIEx4half','unknown')) OR
 			(st.slot_type = 'PCIEx8half' AND
 				cst.slot_type IN
-				('PCIEx1half','PCIEx2half','PCIEx4half','PCIEx8half')) OR
+				('PCIEx1half','PCIEx2half','PCIEx4half','PCIEx8half','unknown')) OR
 			(st.slot_type = 'PCIEx16half' AND
 				cst.slot_type IN ('PCIEx1half','PCIEx2half',
-				'PCIEx4half','PCIEx8half','PCIEx16half'))
+				'PCIEx4half','PCIEx8half','PCIEx16half','unknown'))
 			);
 	END IF;
 END; $$ language plpgsql;

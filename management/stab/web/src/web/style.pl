@@ -96,6 +96,24 @@ div.introblurb {
 	width: 60%;
 }
 
+div.navbar {
+	margin: auto;
+	font-size: 75%;
+	text-align: center;
+}
+
+div.errmsg {
+	margin: auto;
+	color: red;
+	text-align: center;
+}
+
+div.notemsg {
+	margin: auto;
+	color: green;
+	text-align: center;
+}
+
 /* device box pretty */
 
 TABLE.dev_checkboxes { background-color: lightyellow; border: 1px solid;}
@@ -144,10 +162,15 @@ div.maindiv {
 	padding: 3px;
 }
 
+/* #tabthis is the "please select a tab" content */
 div#tabthis {
 	border: 1px solid black;
 	padding-top: 10px;
 	margin-top: 3px;
+	background: #DDE;
+}
+
+div.tabthis {
 	background: #DDE;
 }
 
@@ -156,10 +179,6 @@ tabgroup_pending {
 }
 
 tabgrouptab { padding: 5px 0; }
-
-div.tabthis {
-	background: #DDE;
-}
 
 a.tabgroupactive {
 	margin-top: 10px;
@@ -170,6 +189,7 @@ a.tabgroupactive {
 	border-bottom-width: 0px;
 	background: #DDE;
 	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
 }
 
 a.tabgrouptab {
@@ -180,6 +200,7 @@ a.tabgrouptab {
 	border-bottom-width: 1px;
 	background: #AAB;
 	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
 }
 
 a:hover.tabgrouptab {
@@ -189,6 +210,62 @@ a:hover.tabgrouptab {
 }
 
 input#submitdevice { font-size: 60%;}
+
+/***************** START OF GENERIC JQUERY TABS ****************************/
+
+/*
+ * tabs default to 'off', but the tab bar item needs class stabbar_off set
+ * because of the hover bits
+ *
+ * to to
+ */
+div.stabtabcontent {
+	background: #DDE;
+	border: 1px solid black;
+	border-radius: 10px;
+	width: 100%;
+	margin:auto;
+	min-width: 100ex;
+}
+
+div.stabtab { 
+	padding: 5px 0;
+	display: none;
+	visibility: hidden;
+}
+
+a.stabtab {
+	margin-top: 10px;
+	padding: 3px 0.5em;
+	margin-left: 3px;
+	border: 2px solid black;
+	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
+	background: #AAB;
+	border-bottom-width: 1px;
+	color: white;
+	padding-top: 10px;
+}
+
+a.stabtab_on {
+	padding-bottom: 4px;
+	background: #DDE;
+	border-bottom-width: 0px;
+	color: blue;
+}
+
+.stabtabbar a:hover.stabtab_off {
+	background: lightblue;
+	color: black;
+	border-bottom: 5px;
+}
+
+div.stabtab_on { 
+	display: block;
+	visibility: visible;
+}
+
+/******************************* END OF NEW TABS **************************/
 
 
 /* 	Rack display */
@@ -284,11 +361,19 @@ label {
 }
 
 input.editabletext {
-	width: 200px;
+	min-width: 200px;
 }
 
 input.srvnum {
 	width: 5em;
+}
+
+/*
+	 this exists for approval because display: none confuses the chosen
+	jquery plugin
+ */
+.hidecorrection {
+	visibility: hidden;
 }
 
 .irrelevant {
@@ -359,6 +444,151 @@ div.ncmanip {
 	text-align: center;
 	width: 100%;
 	display: inline-block;
+}
+
+div.attestbox {
+	min-width: 20ex;
+	text-align: center;
+}
+
+
+table.attest {
+	border: 2px solid;
+	margin: auto;
+	background: grey;
+}
+
+table.attest tbody tr.odd {
+	background: lightgrey;
+	border: 1px solid;
+}
+
+table.attest td {
+	background: grey;
+}
+
+table.attest tbody th {
+	background: lightgrey;
+}
+	
+table.attest tbody tr.even {
+	background: white;
+}
+	
+table.attest tbody tr.even {
+	background: white;
+}
+
+table.attest tbody tr.even td {
+	background-color: white;
+}
+table.attest tbody tr.odd td {
+	background-color: lightgrey;
+}
+
+.error {
+	background-color: red;
+	color: white;
+}
+
+.disabled  {
+	/*pointer-events: none;*/
+	opacity: .9;
+	text-decoration: line-through;
+}
+
+div.description {
+	border: 3px solid;
+	text-align: center;
+	margin: auto;
+	min-width: 75%;
+	
+}
+
+div.directions {
+	text-align: center;
+	margin: auto;
+	width: 60%;
+	
+}
+
+div.process { background: orange; }
+div.chain { background: lightgrey; }
+
+div.attestsubmit {
+	width: 100%;
+	text-align: center;
+}
+
+td.correction {
+	min-width: 30ex;
+}
+
+td.correction input { 
+	width: 100%;
+}
+
+input.attestsubmit { 
+	background-color: green;
+	color: white;
+	border-radius: 20px;
+	margin: auto;
+	font-size: 130%;
+	
+}
+
+.approveall {
+	border: 1px solid;
+	border-radius: 20px;
+	margin: 2px;
+	background: lightyellow;
+}
+
+.attesttoggle {
+	border: 1px solid;
+	border-radius: 20px;
+	margin: 0px;
+	margin: 0px;
+	text-decoration: bold;
+	background: lightyellow;
+}
+
+.approvaldue {
+	margin: auto;
+	text-align: center;
+}
+
+.duesoon {
+	background: yellow;
+}
+
+.overdue {
+	background: red;
+	color: white;
+}
+
+.buttonon {
+	background: lightblue;
+}
+
+div.reporting {
+	width: 100%;
+	margin: auto;
+}
+
+table.reporting {
+	border: 1px solid;
+	margin: auto;
+	text-align:center;
+}
+
+table.reporting >tbody{
+	text-align:left;
+}
+
+table.reporting > tbody td {
+	border: 1px solid;
+	border-color: grey;
 }
 
 END

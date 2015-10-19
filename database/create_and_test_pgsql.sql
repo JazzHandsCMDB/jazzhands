@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 Todd Kover
+ * Copyright (c) 2013-2015 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,6 +86,7 @@ begin;
 \i tests/pgsql/netblock_coll_hier_regression.sql
 \i tests/pgsql/token_coll_hier_regression.sql
 \i tests/pgsql/svcenv_coll_hier_regression.sql
+\i tests/pgsql/account_enabled_test.sql
 -- \i tests/pgsql/v_corp_family_account_trigger.sql
 
 rollback;
