@@ -123,6 +123,8 @@ sub do_work {
 
 	my ($faqurl);
 
+	my $escalationgap = 1;
+
 	GetOptions(
 		"dry-run|n" => \$dryrun,
 		"updatedb"  => \$updatedb,
@@ -157,7 +159,23 @@ sub do_work {
 
 	my $sth = $dbh->prepare_cached(
 		q{
-		WITH all_email as (
+		WITH RECURSIVE rec (
+				root_account_id,
+				account_id,
+				manager_account_id,
+				apath, cycle
+    			) as (
+	    			SELECT  account_id as root_account_id,
+		    			account_id, manager_account_id,
+		    			ARRAY[account_id] as apath, false as cycle
+	    			FROM    v_account_manager_map
+				UNION ALL
+	    			SELECT a.root_account_id, m.account_id, m.manager_account_id,
+					a.apath || m.account_id, m.account_id=ANY(a.apath)
+	    			FROM rec a join v_account_manager_map m
+					ON a.manager_account_id = m.account_id
+	    			WHERE not a.cycle
+		), all_email as (
 			SELECT	person_id, person_contact_account_name as email_address,
 					rank() OVER (partition by person_id 
 							ORDER BY person_contact_order) as tier
@@ -172,6 +190,29 @@ sub do_work {
 			where property_name = '_defaultdomain'
 			and property_type = 'Defaults' 
 			order by property_id LIMIT 1 
+		), hier_email AS (
+			SELECT	r.root_account_id as account_id,
+					coalesce(p.preferred_last_name, p.last_name) as last_name,
+					coalesce(p.preferred_first_name, p.first_name) as first_name,
+					concat(
+						coalesce(p.preferred_first_name, p.first_name), ' ',
+						coalesce(p.preferred_last_name, p.last_name))
+								as name,
+					coalesce(email_address, concat(login, '@', default_domain))
+							as email,
+					apath
+			FROM	rec r
+					INNER JOIN account a ON a.account_id = r.manager_account_id
+					INNER JOIN person p USING (person_id)
+					LEFT JOIN email e USING (person_id),
+					defaultdomain
+		), agg_email AS (
+			SELECT account_id, array_agg(name ORDER BY account_id,apath) 
+						AS hier_name_tier, 
+					array_agg(email ORDER BY account_id,apath) 
+						AS hier_email_tier
+			FROM	hier_email
+			GROUP BY account_id
 		), notifications AS (
 			SELECT approval_instance_step_id, approval_notify_type,
 					approval_notify_whence,
@@ -201,7 +242,9 @@ sub do_work {
 				extract(epoch from now() - approval_notify_whence )
 					as since_last_pester, 
 				apc.email_subject_prefix,
-				apc.email_subject_suffix
+				apc.email_subject_suffix,
+				ae.hier_name_tier,
+				ae.hier_email_tier
 		FROM	approval_instance ai
 				INNER JOIN approval_instance_step ais
 					USING (approval_instance_id)
@@ -214,9 +257,10 @@ sub do_work {
 				INNER JOIN person p USING (person_id)
 				LEFT JOIN email USING (person_id)
 				LEFT JOIN lastnotify USING (approval_instance_step_id)
+				LEFT JOIN agg_email ae USING (account_id)
 			,defaultdomain
 		WHERE   approval_type = 'account'
-		AND  ais.is_completed = 'N'
+		AND  ais.is_completed = 'N' 
 		ORDER BY email_address
 		;
 	}
@@ -241,6 +285,9 @@ sub do_work {
 
 		my $prefix    = $hr->{email_subject_prefix};
 		my $suffix    = $hr->{email_subject_suffix};
+
+		my $escname	= $hr->{hier_name_tier};
+		my $escemail= $hr->{hier_email_tier};
 
 		next if($login && $hr->{login} ne $login);
 
