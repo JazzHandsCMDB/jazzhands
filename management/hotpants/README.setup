@@ -179,10 +179,20 @@ update val_property set property_data_type = 'password_type' where
 
 with foo as ( insert into token (
 	token_type, token_status, token_key, token_pin, last_updated)
-values ( 'soft_seq', 'enabled', 'VAiGIrpRERXujUanb3432lJnJw80BkiqOn3lbBPik1/jKt0GFYtRtvvsOVMQPQwHjwRFEF1q4Fl12tL+4TtmhDq4U/anlt6MxyCQU4kPZ0ukG+6xAWBh5tvYA+UBnDQo4pi3stAidCu2AlfuXATLHzR9nE9qBxTYgflWbM2d1FtTDolMkDKKsaF/iXDXsk32mSQ6bLTyGi40bROUhMjGSQ==', '$2a$07$J5T/Vg/fOhY9c/H89jruuulGJK9lKMV2HTUoRLs7dIEBaHvBXKRRS', now()) RETURNING * ) select token_id from foo;
+values ( 'soft_seq', 'enabled', 
+	'VAiGIrpRERXujUanb3432lJnJw80BkiqOn3lbBPik1/jKt0GFYtRtvvsOVMQPQwHjwRFEF1q4Fl12tL+4TtmhDq4U/anlt6MxyCQU4kPZ0ukG+6xAWBh5tvYA+UBnDQo4pi3stAidCu2AlfuXATLHzR9nE9qBxTYgflWbM2d1FtTDolMkDKKsaF/iXDXsk32mSQ6bLTyGi40bROUhMjGSQ==', 
+	'$2a$07$J5T/Vg/fOhY9c/H89jruuulGJK9lKMV2HTUoRLs7dIEBaHvBXKRRS', now()) RETURNING * 
+), at AS (INSERT into account_token ( account_id, token_id, issued_date, is_user_token_locked, last_updated)
+	SELECT 2, token_id, now(), 'N', now() from foo RETURNING *
+) select * from at;
 
-insert into account_token (
-	account_id, token_id, issued_date, is_user_token_locked, last_updated)
-values ( 2, 1, now(), 'N', now());
+with foo as ( insert into token (
+	token_type, token_status, token_key, token_pin, last_updated)
+values ( 'soft_time', 'enabled', 
+	'tuaki33gh9sdNNXVIwM2YFukSbuNaw9JzjsbZQcI4HlcjWfpw/DHVAw0gSv0hQE+kweMS5yw8uesExerP48B/yiPKksuMn7eLki0Wg8fNOtnMDh0Z68bnK28CguMLsB5Mmw4/fzZFMUIHUHa2M5sayNJPAF/BMmtms/qKth8YOKlCDEflhPXZf9pFbP0IFc6DonDpA2/qOEn2ernWnW3cw==', 
+	'$2a$07$J5T/Vg/fOhY9c/H89jruuulGJK9lKMV2HTUoRLs7dIEBaHvBXKRRS', now()) RETURNING * 
+), at AS (INSERT into account_token ( account_id, token_id, issued_date, is_user_token_locked, last_updated)
+	SELECT 2, token_id, now(), 'N', now() from foo RETURNING *
+) select * from at;
 
 

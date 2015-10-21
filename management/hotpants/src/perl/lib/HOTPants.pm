@@ -770,12 +770,13 @@ sub put_token {
 	my ( $ret, $tokendata );
 
 	#
-	# bail if the database environment or token database are not defined
+	# bail if there is no db connection
 	#
-	if ( !$self->{Env} || !$self->{AttrDB} ) {
-		$self->Error("put_token: database environment is not defined");
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_token: no connection to database");
 		return undef;
 	}
+	my $dbh = $self->{dbh};
 
 	if ( !$token || !$token->{token_id} ) {
 		$self->Error("put_token: token invalid or not passed");
@@ -785,29 +786,73 @@ sub put_token {
 	# clear errors
 	$self->Error(undef);
 
-	if ( !( $tokendata = serialize_token($token) ) ) {
-		return undef;
+	if($token->{time_skew}) {
+		my $sth = $dbh->prepare-cached(qq{
+			UPDATE token set	time_skew = :skew
+			WHERE	token_id = :tokenid
+			AND		time_skew != :skew
+		});
+
+		if ( !$sth ) {
+			$self->Error(
+				"fetch_token: unable to prepare sth: " . $dbh->errstr );
+			return undef;
+		}
+
+		if(!$sth->bind_param(':tokenid', $token->{token_id})) {
+			$self->Error(
+				"put_token: unable to bind tokenid" . $sth->errstr );
+			return undef;
+		}
+
+		if(!$sth->bind_param(':skew', $token->{time_skew})) {
+			$self->Error(
+				"put_token: unable to bind time_skew" . $sth->errstr );
+			return undef;
+		}
+
+		if( !$sth->execute ) {
+			$self->Error(
+				"put_token: unable to execute token update" . $sth->errstr );
+			return undef;
+		}
 	}
 
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		return undef;
+	if($token->{token_sequence}) {
+		my $sth = $dbh->prepare_cached(qq{
+			UPDATE token_sequence set token_sequence = :seq, last_updated = now()
+			WHERE	token_id = :tokenid
+			AND		token_sequence < :seq
+		});
+
+		if ( !$sth ) {
+			$self->Error(
+				"fetch_token: unable to prepare sth: " . $dbh->errstr );
+			return undef;
+		}
+
+		if(!$sth->bind_param(':tokenid', $token->{token_id})) {
+			$self->Error(
+				"put_token: unable to bind tokenid" . $sth->errstr );
+			return undef;
+		}
+
+		if(!$sth->bind_param(':seq', $token->{token_sequence})) {
+			$self->Error(
+				"put_token: unable to bind time_skew" . $sth->errstr );
+			return undef;
+		}
+
+		if(!($sth->execute())) {
+			if( !$sth->execute ) {
+				$self->Error(
+					"put_token: unable to execute token_seq update" . $sth->errstr );
+				return undef;
+			}
+		}
 	}
-	$self->{TokenDB}->Txn($txn);
-	if ( $ret =
-		$self->{TokenDB}
-		->db_put( pack( 'N', $token->{token_id} ), $tokendata ) )
-	{
-		$txn->txn_abort;
-		$self->{TokenDB}->Txn(undef);
-		undef $txn;
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{TokenDB}->Txn(undef);
-	undef $txn;
+
+	# XXX - need to deal with token disable locally
 
 	return 1;
 }
@@ -1462,7 +1507,8 @@ sub HOTPAuthenticate {
 		# Figure out what is the PIN and what is the OTP
 		#
 
-		if ( !$token->{token_type} || $token->{token_type} >= TT_TOKMAX ) {
+		# XXX - need to check to see if its a valid/understood type
+		if ( !$token->{token_type} ) {
 			$self->_Debug( 1, "Invalid token type for token %d: %d",
 				$tokenid, $token->{token_type} );
 			next;
@@ -1616,8 +1662,8 @@ sub HOTPAuthenticate {
 	my $initialseq;
 	my $maxskew;
 	if ( $token->{time_modulo} ) {
-		$initialseq = time() % $token->{time_modulo} -
-		  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
+		$initialseq = int(time() / $token->{time_modulo} -
+		  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew});
 		#
 		# If we already have an auth from this sequence, don't
 		# allow replays
@@ -1637,7 +1683,7 @@ sub HOTPAuthenticate {
 	#
 	for (
 		$sequence = $initialseq ;
-		$sequence <= $token->{token_sequence} +
+		$sequence <= $initialseq +
 		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
 		$sequence++
 	  )
@@ -1659,18 +1705,22 @@ sub HOTPAuthenticate {
 		}
 		$self->_Debug( 2, "Given PRN is %s.  PRN for sequence %d is %s",
 			$prn, $sequence, $checkprn );
-		last if ( $prn eq $checkprn );
+		if ( $prn eq $checkprn ) {
+			$self->_Debug( 2, "Found a match - $checkprn");
+			last;
+		}
 	}
 
 	#
 	# If we don't get to it in ResyncSequenceSkew sequences, bail
 	#
-	if ( $sequence > $token->{token_sequence} +
+	if ( $sequence > $initialseq +
 		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
 	{
 		$errstr = sprintf(
-			"OTP given does not match a valid sequence for token %d",
+			"OTP given does not match a permitted sequence for token %d",
 			$token->{token_id} );
+		warn "XXX $errstr";
 		goto HOTPAuthDone;
 	}
 
@@ -1678,13 +1728,12 @@ sub HOTPAuthenticate {
 	# If we find the sequence, but it's between SequenceSkew and
 	# ResyncSequenceSkew, put the token into next OTP mode
 	#
-	# XXX - need to reinvestigate how all this works
 	#
 	if ( $sequence > ($initialseq + $maxskew) ) {
 		$errstr = sprintf(
 			"OTP sequence %d for token %d (%s) outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
 			$sequence, $token->{token_id}, $login, $maxskew );
-		warn $errstr;
+		warn "XXX $errstr";
 		$self->UserError(
 			"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
 		);
@@ -1778,6 +1827,7 @@ sub GenerateHOTP {
 	return undef if ref $opt->{sequence} ne "Math::BigInt";
 	return undef if $opt->{digits} < 6 and $opt->{digits} > 10;
 
+	# zero pad, remove the 0x.
 	( my $hex = $opt->{sequence}->as_hex ) =~
 	  s/^0x(.*)/"0"x(16 - length $1).$1/e;
 	my $bin = join '', map chr hex,
@@ -1965,7 +2015,7 @@ sub AuthenticateUser {
 			$authsucceeded = 1;
 		}
 		$err = $self->Error;
-		return undef if ( $err =~ /^No tokens assigned/ );
+		return undef if ( $err && $err =~ /^No tokens assigned/ );
 		goto UserAuthDone;
 	}
 
