@@ -38,7 +38,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # $Id$
 #
 package HOTPants;
@@ -54,6 +53,8 @@ use Digest::HMAC qw(hmac);
 use MIME::Base64;
 use Data::Dumper;
 use JazzHands::DBI;
+use Crypt::CBC;
+use Digest::SHA qw(sha256);
 
 my %__HOTPANTS_DB_NAME = (
 	UserDB        => "user.db",
@@ -74,19 +75,19 @@ my %__HOTPANTS_SERIALIZE_VERSION = (
 );
 
 my %__HOTPANTS_CONFIG_PARAMS = (
-	TimeSequenceSkew      => 2,     # sequence skew allowed for time-based
-	                                # tokens
-	SequenceSkew          => 7,     # Normal amount of sequence skew allowed
-	ResyncSequenceSkew    => 100,   # Amount of sequence skew allowed for
-	                                # unassisted resync (i.e. two successive
-	                                # auths)
-	BadAuthsBeforeLockout => 6,     # Lock out user/token after attempts
-	BadAuthLockoutTime    => 1800,  # Lock out time after bad attempts, in
-	     # seconds (0 means must be administratively
-	     # unlocked)
-	DefaultAuthMech    => undef,   # Default to denying authentication if an
-	                               # authentication mechanism is not defined
-	PasswordExpiration => 365       # Number of days for password expiration
+	TimeSequenceSkew      => 2,      # sequence skew allowed for time-based
+	                                 # tokens
+	SequenceSkew          => 7,      # Normal amount of sequence skew allowed
+	ResyncSequenceSkew    => 100,    # Amount of sequence skew allowed for
+	                                 # unassisted resync (i.e. two successive
+	                                 # auths)
+	BadAuthsBeforeLockout => 6,      # Lock out user/token after attempts
+	BadAuthLockoutTime    => 1800,   # Lock out time after bad attempts, in
+	                                 # seconds (0 means must be administratively
+	                                 # unlocked)
+	DefaultAuthMech       => undef,  # Default to denying authentication if an
+	                                 # authentication mechanism is not defined
+	PasswordExpiration    => 365     # Number of days for password expiration
 );
 
 our ( $VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS );
@@ -224,7 +225,11 @@ sub new {
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 	bless( $self, $class );
 	$self->opendb();
-	
+
+	if ( exists( $opt->{encryptionmap} ) ) {
+		$self->{_encryptionmap} = $opt->{encryptionmap};
+	}
+
 	$self;
 }
 
@@ -246,11 +251,10 @@ sub _Debug {
 sub Error {
 	my $self = shift;
 
-
-	if (@_) { 
+	if (@_) {
 		my $fmt = shift;
 		if (@_) {
-			$self->{_error} = sprintf($fmt, @_);
+			$self->{_error} = sprintf( $fmt, @_ );
 		} else {
 			$self->{_error} = $fmt;
 		}
@@ -275,6 +279,35 @@ sub UserError {
 	return $self->{_usererror};
 }
 
+#
+# takes a key encrypted from the db and a base64 encrypted key, and returns a
+# base64 encrypted version of the unencrypted string.
+#
+# This probably wants to be in a common library
+#
+sub _decryptkey {
+	my ( $self, $text, $pw ) = @_;
+	my $key = sha256($pw);
+
+	my $ciphertext = decode_base64($text);
+	my $iv         = substr( $ciphertext, 0, 16 );
+	my $c_text     = substr( $ciphertext, 16 );
+
+	my $cipher = Crypt::CBC->new(
+		-key         => $key,
+		-cipher      => 'Rijndael',
+		-iv          => $iv,
+		-header      => 'none',
+		-literal_key => 1,
+	);
+	my $unenc = $cipher->decrypt($c_text) || die $_;
+	if ($unenc) {
+		return encode_base64($unenc);
+	} else {
+		$self->_Debug( 1, "Unable to decrypt" );
+	}
+}
+
 sub Config {
 	my $self = shift;
 
@@ -295,12 +328,7 @@ sub opendb {
 
 	my $dbh;
 	if (
-		!(
-			$dbh = JazzHands::DBI->connect(
-				'hotpants', { AutoCommit => 0 }
-			)
-		)
-	  )
+		!( $dbh = JazzHands::DBI->connect( 'hotpants', { AutoCommit => 0 } ) ) )
 	{
 		undef $dbh;
 		return "Unable to create environment";
@@ -368,19 +396,24 @@ sub fetch_token {
 					token_unlock_time as lock_status_changed,
 					bad_logins,
 					token_sequence,
-					ts.last_updated as sequence_changed
+					ts.last_updated as sequence_changed,
+					en.encryption_key_db_value,
+					en.encryption_key_purpose,
+					en.encryption_key_purpose_version,
+					en.encryption_method
 			FROM	token t
 					INNER JOIN account_token at USING (token_id)
 					INNER JOIN token_sequence ts USING (token_id)
+					LEFT JOIN encryption_key en USING (encryption_key_id)
 			WHERE	token_id = ?
 
-	});
+	}
+	);
 
 	# XXX - syncradius.pl also does stuff with radius_app.
 
 	if ( !$sth ) {
-		$self->Error(
-			"fetch_token: unable to prepare sth: " . $dbh->errstr );
+		$self->Error( "fetch_token: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
@@ -393,11 +426,37 @@ sub fetch_token {
 	$sth->finish;
 
 	if ( !$hr ) {
+		$self->_Debug( 1,
+			"fetch_token: No token in database: " . $dbh->errstr );
 		return undef;
 	}
 
 	# XXX - other attributes listed above are not included.  some grew
 	# token_ prefixes.
+
+	if ( !exists( $self->{_encryptionmap} ) && $hr->{encryption_key_db_value} )
+	{
+		$self->_Debug( 1, "fetch_token: Token can not be decrypted" );
+		return undef;
+	} elsif ( $hr->{encryption_key_purpose} ) {
+		#
+		# XXX should probably make sure about encryption purpose and method
+		#
+		my $emap = $self->{_encryptionmap};
+
+		if ( !exists( $emap->{ $hr->{encryption_key_purpose_version} } ) ) {
+			$self->_Debug( 1,
+				"fetch_token: Token not be decrypted due to encryption version"
+			);
+			return undef;
+		}
+
+		my $fullkey = $emap->{ $hr->{encryption_key_purpose_version} }
+		  . $hr->{encryption_key_db_value};
+
+		$hr->{token_key} = $self->_decryptkey( $hr->{token_key}, $fullkey );
+	}
+
 	return $hr;
 }
 
@@ -442,8 +501,7 @@ sub fetch_user {
 	# XXX - syncradius.pl also does stuff with radius_app.
 
 	if ( !$sth ) {
-		$self->Error(
-			"fetch_user: unable to prepare sth: " . $dbh->errstr );
+		$self->Error( "fetch_user: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
@@ -518,8 +576,7 @@ sub fetch_client {
 	# XXX - syncradius.pl also does stuff with radius_app.
 
 	if ( !$sth ) {
-		$self->Error( "fetch_client: unable to prepare sth: "
-			  . $dbh->errstr );
+		$self->Error( "fetch_client: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
@@ -599,9 +656,9 @@ sub fetch_devcollprop {
 		return undef;
 	}
 
-	my $r= {
+	my $r = {
 		devcoll_id => $hr->{device_collection_id},
-		pwtype => $hr->{password_type}
+		pwtype     => $hr->{password_type}
 	};
 	$r;
 }
@@ -651,8 +708,7 @@ sub fetch_passwd {
 	# XXX - syncradius.pl also does stuff with radius_app.
 
 	if ( !$sth ) {
-		$self->Error(
-			"fetch_passwd: unable to prepare sth: " . $dbh->errstr );
+		$self->Error( "fetch_passwd: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
@@ -662,22 +718,20 @@ sub fetch_passwd {
 	}
 
 	my $rv = {};
-	while( my $hr = $sth->fetchrow_hashref() ) {
+	while ( my $hr = $sth->fetchrow_hashref() ) {
 		$rv->{ $hr->{password_type} } = {
-			passwd => $hr->{password},
+			passwd      => $hr->{password},
 			change_time => $hr->{change_time},
 			expire_time => $hr->{expire_time},
 		};
 	}
 
-
-	if ( ! keys %{$rv} ) {
+	if ( !keys %{$rv} ) {
 		return undef;
 	}
 
 	return $rv;
 }
-
 
 sub fetch_attributes {
 	my $self = shift;
@@ -698,10 +752,12 @@ sub fetch_attributes {
 	$self->Error(undef);
 
 	my $login = $opt->{login};
-	my $dcid = $opt->{devcoll_id};
+	my $dcid  = $opt->{devcoll_id};
 
-	if ( !$login || !$dcid) {
-		$self->Error("fetch_attributes: must specify both a account and device collection");
+	if ( !$login || !$dcid ) {
+		$self->Error(
+			"fetch_attributes: must specify both a account and device collection"
+		);
 		return undef;
 	}
 
@@ -737,20 +793,20 @@ sub fetch_attributes {
 		return undef;
 	}
 
-	if ( !( $sth->execute($login, $dcid) ) ) {
+	if ( !( $sth->execute( $login, $dcid ) ) ) {
 		$self->Error( "fetch_attributes: execute failed: " . $dbh->errstr );
 		return undef;
 	}
 	my $count = 0;
-	my $attr = {};
+	my $attr  = {};
+
 	# XXX need to properly support multivalue
-	while(my $hr = $sth->fetchrow_hashref) {
-		$attr-> { $hr->{property_type} }->{ $hr->{property_name} }=
-			{
-				name => $hr->{property_name},
-				value => $hr->{property_value},
-				multivalue => 'N',
-			};
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		$attr->{ $hr->{property_type} }->{ $hr->{property_name} } = {
+			name       => $hr->{property_name},
+			value      => $hr->{property_value},
+			multivalue => 'N',
+		};
 		$count++;
 	}
 	$sth->finish;
@@ -761,7 +817,6 @@ sub fetch_attributes {
 
 	return $attr;
 }
-
 
 sub put_token {
 	my $self  = shift;
@@ -786,12 +841,14 @@ sub put_token {
 	# clear errors
 	$self->Error(undef);
 
-	if($token->{time_skew}) {
-		my $sth = $dbh->prepare-cached(qq{
+	if ( $token->{time_skew} ) {
+		my $sth = $dbh->prepare - cached(
+			qq{
 			UPDATE token set	time_skew = :skew
 			WHERE	token_id = :tokenid
 			AND		time_skew != :skew
-		});
+		}
+		);
 
 		if ( !$sth ) {
 			$self->Error(
@@ -799,31 +856,32 @@ sub put_token {
 			return undef;
 		}
 
-		if(!$sth->bind_param(':tokenid', $token->{token_id})) {
-			$self->Error(
-				"put_token: unable to bind tokenid" . $sth->errstr );
+		if ( !$sth->bind_param( ':tokenid', $token->{token_id} ) ) {
+			$self->Error( "put_token: unable to bind tokenid" . $sth->errstr );
 			return undef;
 		}
 
-		if(!$sth->bind_param(':skew', $token->{time_skew})) {
+		if ( !$sth->bind_param( ':skew', $token->{time_skew} ) ) {
 			$self->Error(
 				"put_token: unable to bind time_skew" . $sth->errstr );
 			return undef;
 		}
 
-		if( !$sth->execute ) {
+		if ( !$sth->execute ) {
 			$self->Error(
 				"put_token: unable to execute token update" . $sth->errstr );
 			return undef;
 		}
 	}
 
-	if($token->{token_sequence}) {
-		my $sth = $dbh->prepare_cached(qq{
+	if ( $token->{token_sequence} ) {
+		my $sth = $dbh->prepare_cached(
+			qq{
 			UPDATE token_sequence set token_sequence = :seq, last_updated = now()
 			WHERE	token_id = :tokenid
 			AND		token_sequence < :seq
-		});
+		}
+		);
 
 		if ( !$sth ) {
 			$self->Error(
@@ -831,22 +889,22 @@ sub put_token {
 			return undef;
 		}
 
-		if(!$sth->bind_param(':tokenid', $token->{token_id})) {
-			$self->Error(
-				"put_token: unable to bind tokenid" . $sth->errstr );
+		if ( !$sth->bind_param( ':tokenid', $token->{token_id} ) ) {
+			$self->Error( "put_token: unable to bind tokenid" . $sth->errstr );
 			return undef;
 		}
 
-		if(!$sth->bind_param(':seq', $token->{token_sequence})) {
+		if ( !$sth->bind_param( ':seq', $token->{token_sequence} ) ) {
 			$self->Error(
 				"put_token: unable to bind time_skew" . $sth->errstr );
 			return undef;
 		}
 
-		if(!($sth->execute())) {
-			if( !$sth->execute ) {
+		if ( !( $sth->execute() ) ) {
+			if ( !$sth->execute ) {
 				$self->Error(
-					"put_token: unable to execute token_seq update" . $sth->errstr );
+					"put_token: unable to execute token_seq update"
+					  . $sth->errstr );
 				return undef;
 			}
 		}
@@ -867,8 +925,7 @@ sub delete_token {
 	# bail if the database environment or token database are not defined
 	#
 	if ( !$self->{Env} || !$self->{TokenDB} ) {
-		$self->Error(
-			"delete_token: database environment is not defined");
+		$self->Error("delete_token: database environment is not defined");
 		return undef;
 	}
 	if ( !$token_id ) {
@@ -910,8 +967,7 @@ sub put_user {
 	# bail if the database environment or token database are not defined
 	#
 	if ( !$self->{Env} || !$self->{TokenDB} ) {
-		$self->Error(
-			"delete_token: database environment is not defined");
+		$self->Error("delete_token: database environment is not defined");
 		return undef;
 	}
 	if ( !$user || !$user->{login} ) {
@@ -956,7 +1012,6 @@ sub put_user {
 		return undef;
 	}
 
-
 	return 1;
 }
 
@@ -969,8 +1024,7 @@ sub delete_user {
 	# bail if the database environment or user database are not defined
 	#
 	if ( !$self->{Env} || !$self->{UserDB} ) {
-		$self->Error(
-			"delete_user: database environment is not defined");
+		$self->Error("delete_user: database environment is not defined");
 		return undef;
 	}
 	if ( !$login ) {
@@ -1028,8 +1082,7 @@ sub put_client {
 		return undef;
 	}
 	$self->{ClientDB}->Txn($txn);
-	if ( $ret =
-		$self->{ClientDB}->db_put( $client->{client_id}, $clientdata ) )
+	if ( $ret = $self->{ClientDB}->db_put( $client->{client_id}, $clientdata ) )
 	{
 		$txn->txn_abort;
 		$self->{ClientDB}->Txn(undef);
@@ -1050,8 +1103,7 @@ sub delete_client {
 	# bail if the database environment or client database are not defined
 	#
 	if ( !$self->{Env} || !$self->{ClientDB} ) {
-		$self->Error(
-			"delete_client: database environment is not defined");
+		$self->Error("delete_client: database environment is not defined");
 		return undef;
 	}
 	if ( !$client_id ) {
@@ -1088,14 +1140,11 @@ sub put_devcollprop {
 	# bail if the database environment or devcollprop database are not defined
 	#
 	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
-		$self->Error(
-			"put_devcollprop: database environment is not defined");
+		$self->Error("put_devcollprop: database environment is not defined");
 		return undef;
 	}
 	if ( !$devcollprop || !$devcollprop->{devcoll_id} ) {
-		$self->Error(
-			"put_devcollprop: devcollprop is invalid or not passed"
-		);
+		$self->Error("put_devcollprop: devcollprop is invalid or not passed");
 		return undef;
 	}
 
@@ -1136,9 +1185,7 @@ sub delete_devcollprop {
 	# bail if the database environment or devcollprop database are not defined
 	#
 	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
-		$self->Error(
-			"delete_devcollprop: database environment is not defined"
-		);
+		$self->Error("delete_devcollprop: database environment is not defined");
 		return undef;
 	}
 	if ( !$devcoll_id ) {
@@ -1221,8 +1268,7 @@ sub delete_passwd {
 	# bail if the database environment or passwd database are not defined
 	#
 	if ( !$self->{Env} || !$self->{PasswdDB} ) {
-		$self->Error(
-			"delete_passwd: database environment is not defined");
+		$self->Error("delete_passwd: database environment is not defined");
 		return undef;
 	}
 	if ( !$login ) {
@@ -1260,14 +1306,12 @@ sub put_attributes {
 	# bail if the database environment or attributes database are not defined
 	#
 	if ( !$self->{Env} || !$self->{AttrDB} ) {
-		$self->Error(
-			"put_attributes: database environment is not defined");
+		$self->Error("put_attributes: database environment is not defined");
 		return undef;
 	}
 	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
 		$self->Error(
-			"put_attributes: key or login and devcollid must be passed"
-		);
+			"put_attributes: key or login and devcollid must be passed");
 		return undef;
 	}
 	my $attributeid = $opt->{key}
@@ -1312,16 +1356,13 @@ sub delete_attributes {
 	# bail if the database environment or attributes database are not defined
 	#
 	if ( !$self->{Env} || !$self->{AttrDB} ) {
-		$self->Error(
-			"delete_attributes: database environment is not defined"
-		);
+		$self->Error("delete_attributes: database environment is not defined");
 		return undef;
 	}
 
 	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
 		$self->Error(
-			"put_attributes: key or login and devcollid must be passed"
-		);
+			"put_attributes: key or login and devcollid must be passed");
 		return undef;
 	}
 	my $attributeid = $opt->{key}
@@ -1433,7 +1474,7 @@ sub HOTPAuthenticate {
 	my ($ret);
 
 	#
-	# bail if there is no db connection 
+	# bail if there is no db connection
 	#
 	if ( !$self->{dbh} ) {
 		$self->Error("fetch_token: no connection to database");
@@ -1481,19 +1522,15 @@ sub HOTPAuthenticate {
 	my ( $pin, $prn, $otplen );
 
 	foreach $tokenid ( @{ $user->{tokens} } ) {
-		$self->_Debug( 1, "Trying token %d for user %s",
-			$tokenid, $login );
-		if ( !( $token = $self->fetch_token( token_id => $tokenid ) ) )
-		{
-			$self->_Debug( 2,
-				"Token %d assigned to %s not actually there",
+		$self->_Debug( 1, "Trying token %d for user %s", $tokenid, $login );
+		if ( !( $token = $self->fetch_token( token_id => $tokenid ) ) ) {
+			$self->_Debug( 2, "Token %d assigned to %s not actually there",
 				$tokenid, $login );
 			next;
 		}
 
 		if ( !$token->{token_pin} ) {
-			$self->_Debug( 2,
-				"PIN not set for token %d.  Skipping.",
+			$self->_Debug( 2, "PIN not set for token %d.  Skipping.",
 				$tokenid );
 			next;
 		}
@@ -1520,18 +1557,15 @@ sub HOTPAuthenticate {
 		$self->_Debug( 2, "Number of OTP digits for token %d is %d",
 			$tokenid, $otplen );
 		if ( !$otplen ) {
-			$self->_Debug( 1,
-				"Invalid OTP digits defined for token %d",
+			$self->_Debug( 1, "Invalid OTP digits defined for token %d",
 				$tokenid );
 			next;
 		}
 
 		if ( length($otp) < $otplen ) {
-			$self->_Debug(
-				2,
+			$self->_Debug( 2,
 				"OTP given less than minimal possible length for token %d",
-				$tokenid
-			);
+				$tokenid );
 			next;
 		}
 
@@ -1545,17 +1579,12 @@ sub HOTPAuthenticate {
 		if ( $token->{token_pin} eq bcrypt( $pin, $token->{token_pin} ) ) {
 
 			$pinfound = 1;
-			$self->_Debug( 2, "PIN is correct for token %d",
-				$tokenid );
+			$self->_Debug( 2, "PIN is correct for token %d", $tokenid );
 			last;
 		} else {
-			$self->_Debug(
-				2,
+			$self->_Debug( 2,
 				"PIN is incorrect for token %d, expected %s, got %s",
-				$tokenid,
-				$token->{token_pin},
-				$crypt
-			);
+				$tokenid, $token->{token_pin}, $crypt );
 			next;
 		}
 	}
@@ -1571,46 +1600,38 @@ sub HOTPAuthenticate {
 	#
 	# Verify that the token is enabled
 	#
-#	if ( $token->{token_status} != TS_ENABLED ) {
-#		$self->Error(
-#			sprintf( "token %d is marked as %s", $tokenid,
-#				$TokenStatus{ $token->{token_status} } )
-#		);
-#		return undef;
-#	}
+	#	if ( $token->{token_status} != TS_ENABLED ) {
+	#		$self->Error(
+	#			sprintf( "token %d is marked as %s", $tokenid,
+	#				$TokenStatus{ $token->{token_status} } )
+	#		);
+	#		return undef;
+	#	}
 
 	#
 	# Check if the token is locked
 	#
-	if ( !$token->{is_user_token_locked} || $token->{is_user_token_locked} eq 'Y') {
-		if ( $token->{unlock_time} && $token->{unlock_time} <= time() )
-		{
-			$token->{is_user_token_locked}        = 'N';
-			$token->{token_unlock_time}         = 0;
-			$token->{token_bad_logins}          = 0;
-			$token->{last_updated} = time();
-			$self->_Debug( 2, "Unlocking token %d",
-				$token->{token_id} );
+	if (  !$token->{is_user_token_locked}
+		|| $token->{is_user_token_locked} eq 'Y' )
+	{
+		if ( $token->{unlock_time} && $token->{unlock_time} <= time() ) {
+			$token->{is_user_token_locked} = 'N';
+			$token->{token_unlock_time}    = 0;
+			$token->{token_bad_logins}     = 0;
+			$token->{last_updated}         = time();
+			$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
 			if ( !( $self->put_token( token => $token ) ) ) {
 				$self->Error( "Error unlocking token %d: %s",
 					$token->{token_id}, $self->Error );
 				return undef;
 			}
 		} else {
-			$errstr =
-			  sprintf( "token %d is locked.", $token->{token_id} );
+			$errstr = sprintf( "token %d is locked.", $token->{token_id} );
 			if ( $token->{token_unlock_time} ) {
-				$errstr .= sprintf(
-					"  Token will unlock at %s",
-					scalar(
-						localtime(
-							$token->{token_unlock_time}
-						)
-					)
-				);
+				$errstr .= sprintf( "  Token will unlock at %s",
+					scalar( localtime( $token->{token_unlock_time} ) ) );
 			} else {
-				$errstr .=
-				  "  Token must be administratively unlocked";
+				$errstr .= "  Token must be administratively unlocked";
 			}
 			$self->Error($errstr);
 			return undef;
@@ -1629,8 +1650,7 @@ sub HOTPAuthenticate {
 	my $sequence;
 	if ( $token->{time_skew} ) {
 		$sequence = $token->{time_skew} + 1;
-		$self->_Debug( 2,
-			"Expecting next token sequence %d for token %d",
+		$self->_Debug( 2, "Expecting next token sequence %d for token %d",
 			$sequence, $token->{token_id} );
 		my $checkprn = GenerateHOTP(
 			key      => $token->{token_key},
@@ -1640,8 +1660,7 @@ sub HOTPAuthenticate {
 		);
 		if ( !defined($checkprn) ) {
 			$self->Error(
-				sprintf(
-					"Unknown error generating OTP for token %d",
+				sprintf( "Unknown error generating OTP for token %d",
 					$token->{token_id} )
 			);
 			return undef;
@@ -1649,21 +1668,21 @@ sub HOTPAuthenticate {
 		if ( $prn eq $checkprn ) {
 			$authok = 1;
 			goto HOTPAuthDone;
-			$self->_Debug( 2,
-				"Received token sequence %d for token %d",
+			$self->_Debug( 2, "Received token sequence %d for token %d",
 				$sequence, $token->{token_id} );
 			goto HOTPAuthDone;
 		}
-		$self->_Debug( 2,
-			"Did not receive token sequence %d for token %d",
+		$self->_Debug( 2, "Did not receive token sequence %d for token %d",
 			$sequence, $token->{token_id} );
 	}
 
 	my $initialseq;
 	my $maxskew;
 	if ( $token->{time_modulo} ) {
-		$initialseq = int(time() / $token->{time_modulo} -
-		  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew});
+		$initialseq =
+		  int(
+			time() / $token->{time_modulo} -
+			  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew} );
 		#
 		# If we already have an auth from this sequence, don't
 		# allow replays
@@ -1683,8 +1702,8 @@ sub HOTPAuthenticate {
 	#
 	for (
 		$sequence = $initialseq ;
-		$sequence <= $initialseq +
-		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
+		$sequence <=
+		$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
 		$sequence++
 	  )
 	{
@@ -1697,8 +1716,7 @@ sub HOTPAuthenticate {
 		);
 		if ( !defined($checkprn) ) {
 			$self->Error(
-				sprintf(
-					"Unknown error generating OTP for token %d",
+				sprintf( "Unknown error generating OTP for token %d",
 					$token->{token_id} )
 			);
 			return undef;
@@ -1706,7 +1724,7 @@ sub HOTPAuthenticate {
 		$self->_Debug( 2, "Given PRN is %s.  PRN for sequence %d is %s",
 			$prn, $sequence, $checkprn );
 		if ( $prn eq $checkprn ) {
-			$self->_Debug( 2, "Found a match - $checkprn");
+			$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
 			last;
 		}
 	}
@@ -1714,11 +1732,11 @@ sub HOTPAuthenticate {
 	#
 	# If we don't get to it in ResyncSequenceSkew sequences, bail
 	#
-	if ( $sequence > $initialseq +
-		$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
+	if ( $sequence >
+		$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
 	{
-		$errstr = sprintf(
-			"OTP given does not match a permitted sequence for token %d",
+		$errstr =
+		  sprintf( "OTP given does not match a permitted sequence for token %d",
 			$token->{token_id} );
 		warn "XXX $errstr";
 		goto HOTPAuthDone;
@@ -1729,7 +1747,7 @@ sub HOTPAuthenticate {
 	# ResyncSequenceSkew, put the token into next OTP mode
 	#
 	#
-	if ( $sequence > ($initialseq + $maxskew) ) {
+	if ( $sequence > ( $initialseq + $maxskew ) ) {
 		$errstr = sprintf(
 			"OTP sequence %d for token %d (%s) outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
 			$sequence, $token->{token_id}, $login, $maxskew );
@@ -1746,11 +1764,11 @@ sub HOTPAuthenticate {
 	#
 	$authok = 1;
 
-      HOTPAuthDone:
+  HOTPAuthDone:
 	if ($authok) {
-		$token->{time_skew}       = 0;
+		$token->{time_skew}           = 0;
 		$token->{bad_logins}          = 0;
-		$token->{token_sequence}            = $sequence;
+		$token->{token_sequence}      = $sequence;
 		$token->{lock_status_changed} = time;
 		$self->Status(
 			sprintf(
@@ -1766,19 +1784,13 @@ sub HOTPAuthenticate {
 				$token->{token_id}, $token->{bad_logins} );
 			$token->{last_updated} = time;
 			if ( $token->{bad_logins} >=
-				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout}
-			  )
+				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
 			{
-				$self->_Debug( 2, "Locking token %d",
-					$token->{token_id} );
+				$self->_Debug( 2, "Locking token %d", $token->{token_id} );
 				$token->{token_locked} = 1;
-				if (
-					$__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}
-				  )
-				{
-					$token->{unlock_time} = time +
-					  $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}
-					  ;
+				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
+					$token->{unlock_time} =
+					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
 				} else {
 					$token->{unlock_time} = 0;
 				}
@@ -1807,7 +1819,7 @@ sub HOTPAuthenticate {
 
 sub GenerateHOTP {
 	my $opt = &_options(@_);
-	if (       !defined( $opt->{key} )
+	if (   !defined( $opt->{key} )
 		|| !defined( $opt->{sequence} )
 		|| !$opt->{digits} )
 	{
@@ -1823,19 +1835,18 @@ sub GenerateHOTP {
 		$opt->{key} = decode_base64( $opt->{key} );
 	}
 
-	return undef if length $opt->{key} < 16;               # 128-bit minimum
+	return undef if length $opt->{key} < 16;                   # 128-bit minimum
 	return undef if ref $opt->{sequence} ne "Math::BigInt";
 	return undef if $opt->{digits} < 6 and $opt->{digits} > 10;
 
 	# zero pad, remove the 0x.
 	( my $hex = $opt->{sequence}->as_hex ) =~
 	  s/^0x(.*)/"0"x(16 - length $1).$1/e;
-	my $bin = join '', map chr hex,
-	  $hex =~ /(..)/g;    # pack 64-bit big endian
+	my $bin = join '', map chr hex, $hex =~ /(..)/g;    # pack 64-bit big endian
 	my $hash = hmac $bin, $opt->{key}, \&sha1;
 	my $offset = hex substr unpack( "H*" => $hash ), -1;
 	my $dt = unpack "N" => substr $hash, $offset, 4;
-	$dt &= 0x7fffffff;    # 31-bit
+	$dt &= 0x7fffffff;                                  # 31-bit
 	my $otp = substr( sprintf( "%010d", $dt ), 0 - $opt->{digits} );
 
 	return $otp;
@@ -1942,8 +1953,7 @@ sub AuthenticateUser {
 			$client->{name}, $authmech );
 	} else {
 		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		$self->_Debug( 2,
-			"Setting password type for client %s to default (%s)",
+		$self->_Debug( 2, "Setting password type for client %s to default (%s)",
 			$client->{name}, $authmech || "undefined" );
 	}
 
@@ -1968,13 +1978,9 @@ sub AuthenticateUser {
 
 	if ( defined( $attrs->{RADIUS}->{PWType} ) ) {
 		$authmech = $attrs->{RADIUS}->{PWType}->{value};
-		$self->_Debug(
-			2,
+		$self->_Debug( 2,
 			"Setting password type for user %s on client %s to (%s)",
-			$login,
-			$client->{name},
-			$authmech || "undefined"
-		);
+			$login, $client->{name}, $authmech || "undefined" );
 	}
 
 	#
@@ -2001,8 +2007,7 @@ sub AuthenticateUser {
 	}
 
 	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
-		$self->_Debug( 2,
-			"Authenticating user %s on client %s with HOTP",
+		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
 			$login, $client->{name} );
 
 		if (
@@ -2045,16 +2050,14 @@ sub AuthenticateUser {
 		$self->Error(
 			sprintf(
 				"%s password for %s expired %s",
-				$authmech, $login,
-				scalar( $p->{expire_time} )
+				$authmech, $login, scalar( $p->{expire_time} )
 			)
 		);
 		$self->UserError("Your password is expired");
 		return undef;
-	} elsif (  $p->{change_time}
+	} elsif ( $p->{change_time}
 		&& $p->{change_time} +
-		( 86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration} ) <
-		time )
+		( 86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration} ) < time )
 	{
 		$self->Error(
 			sprintf(
@@ -2062,8 +2065,8 @@ sub AuthenticateUser {
 				$authmech,
 				$login,
 				scalar(
-					$p->{change_time} + 86400 *
-					  $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration}
+					$p->{change_time} +
+					  86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration}
 				)
 			)
 		);
@@ -2074,7 +2077,7 @@ sub AuthenticateUser {
 	my $checkpass = undef;
 	if ( $authmech eq 'blowfish' ) {
 		$checkpass = bcrypt( $password, $p->{passwd} );
-	} elsif (  ( $authmech eq 'des' )
+	} elsif ( ( $authmech eq 'des' )
 		|| ( $authmech eq 'md5' )
 		|| ( $authmech eq 'networkdevice' ) )
 	{
@@ -2093,7 +2096,7 @@ sub AuthenticateUser {
 
 	$self->_Debug( 2, "Authenticating user %s on client %s with %s",
 		$login, $client->{name}, $authmech );
-	if (       $p->{passwd} eq $checkpass
+	if (   $p->{passwd} eq $checkpass
 		|| $p->{passwd} eq ( $checkpass . "=" ) )
 	{
 		$authsucceeded = 1;
@@ -2109,7 +2112,7 @@ sub AuthenticateUser {
 		);
 	}
 
-      UserAuthDone:
+  UserAuthDone:
 	if ($authsucceeded) {
 		if ( !$self->Status ) {
 			$self->Status(
@@ -2141,8 +2144,8 @@ sub AuthenticateUser {
 			$self->Error( $self->Error . " - locking user" );
 			$user->{user_locked} = 1;
 			if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-				$user->{unlock_time} = time +
-				  $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
+				$user->{unlock_time} =
+				  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
 			} else {
 				$user->{unlock_time} = 0;
 			}
@@ -2151,8 +2154,7 @@ sub AuthenticateUser {
 
 	$err = $self->Error;
 	if ( !( $self->put_user($user) ) ) {
-		$self->Error( "Error updating user %s: %s",
-			$login, $self->Error );
+		$self->Error( "Error updating user %s: %s", $login, $self->Error );
 		$self->Status(undef);
 		return undef;
 	}
@@ -2218,17 +2220,10 @@ sub VerifyUser {
 		} else {
 			my $errstr = sprintf( "user %s is locked.", $login );
 			if ( $user->{unlock_time} ) {
-				$errstr .= sprintf(
-					"  User will unlock at %s",
-					scalar(
-						localtime(
-							$user->{unlock_time}
-						)
-					)
-				);
+				$errstr .= sprintf( "  User will unlock at %s",
+					scalar( localtime( $user->{unlock_time} ) ) );
 			} else {
-				$errstr .=
-				  "  User must be administratively unlocked.";
+				$errstr .= "  User must be administratively unlocked.";
 			}
 			$self->Error($errstr);
 			return undef;
@@ -2294,8 +2289,7 @@ sub AuthorizeUser {
 	my $client;
 	if ( !( $client = $self->fetch_client( client_id => $source ) ) ) {
 		if ( !$self->Error ) {
-			$self->Error(
-				sprintf( "Client %s not found", $source ) );
+			$self->Error( sprintf( "Client %s not found", $source ) );
 		}
 		return undef;
 	}
@@ -2328,8 +2322,7 @@ sub AuthorizeUser {
 			$client->{name}, $authmech );
 	} else {
 		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		$self->_Debug( 2,
-			"Setting password type for client %s to default (%s)",
+		$self->_Debug( 2, "Setting password type for client %s to default (%s)",
 			$client->{name}, $authmech || "undefined" );
 	}
 
@@ -2354,13 +2347,9 @@ sub AuthorizeUser {
 
 	if ( defined( $attrs->{RADIUS}->{PWType} ) ) {
 		$authmech = $attrs->{RADIUS}->{PWType}->{value};
-		$self->_Debug(
-			2,
+		$self->_Debug( 2,
 			"Setting password type for user %s on client %s to (%s)",
-			$login,
-			$client->{name},
-			$authmech || "undefined"
-		);
+			$login, $client->{name}, $authmech || "undefined" );
 	}
 
 	#
@@ -2387,8 +2376,7 @@ sub AuthorizeUser {
 	}
 
 	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
-		$self->_Debug( 2,
-			"Authenticating user %s on client %s with HOTP",
+		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
 			$login, $client->{name} );
 
 		if ( !@{ $user->{tokens} } ) {
