@@ -1,4 +1,3 @@
-
 #
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
@@ -52,9 +51,11 @@ use Digest::SHA qw(sha1 sha1_base64);
 use Digest::HMAC qw(hmac);
 use MIME::Base64;
 use Data::Dumper;
+use JazzHands::Common qw(:all);		# not clear that we want all
 use JazzHands::DBI;
 use Crypt::CBC;
 use Digest::SHA qw(sha256);
+use POSIX;
 
 my %__HOTPANTS_DB_NAME = (
 	UserDB        => "user.db",
@@ -206,14 +207,6 @@ BEGIN {
 
 }
 
-sub _options {
-	my %ret = @_;
-	for my $v ( grep { /^-/ } keys %ret ) {
-		$ret{ substr( $v, 1 ) } = $ret{$v};
-	}
-	\%ret;
-}
-
 sub new {
 	my $proto = shift;
 	my $class = ref($proto) || $proto;
@@ -343,7 +336,7 @@ sub closedb {
 	return if !$self;
 	return if !$self->{dbh};
 
-	$self->{dbh}->rollback();
+	$self->{dbh}->commit();
 	$self->{dbh}->disconnect();
 	delete $self->{dbh};
 	return 0;
@@ -393,10 +386,11 @@ sub fetch_token {
 					time_modulo,
 					token_pin,
 					is_user_token_locked,
-					token_unlock_time as lock_status_changed,
+					extract(epoch from token_unlock_time)::int as token_unlock_time,
 					bad_logins,
 					token_sequence,
 					ts.last_updated as sequence_changed,
+					at.last_updated,
 					en.encryption_key_db_value,
 					en.encryption_key_purpose,
 					en.encryption_key_purpose_version,
@@ -822,13 +816,12 @@ sub put_token {
 	my $self  = shift;
 	my $opt   = &_options;
 	my $token = $opt->{token};
-	my ( $ret, $tokendata );
 
 	#
 	# bail if there is no db connection
 	#
 	if ( !$self->{dbh} ) {
-		$self->Error("fetch_token: no connection to database");
+		$self->Error("put_token: no connection to database");
 		return undef;
 	}
 	my $dbh = $self->{dbh};
@@ -852,7 +845,7 @@ sub put_token {
 
 		if ( !$sth ) {
 			$self->Error(
-				"fetch_token: unable to prepare sth: " . $dbh->errstr );
+				"put_token: unable to prepare sth: " . $dbh->errstr );
 			return undef;
 		}
 
@@ -885,7 +878,7 @@ sub put_token {
 
 		if ( !$sth ) {
 			$self->Error(
-				"fetch_token: unable to prepare sth: " . $dbh->errstr );
+				"put_token: unable to prepare sth: " . $dbh->errstr );
 			return undef;
 		}
 
@@ -911,9 +904,171 @@ sub put_token {
 	}
 
 	# XXX - need to deal with token disable locally
+	# XXX deal with me locking the token more recently than the db says it was
+	# locked..
+	if ( $token->{is_user_token_locked} ) {
+		my $dbtok = $self->fetch_token( token_id => $token->{token_id} );
+		if(!  $dbtok ) {
+			$self->Error(
+				"put_token: token can not be fetched from db " . $dbh->errstr );
+			return undef;
+		}
+
+		my $islocked = $token->{is_user_token_locked} && $token->{is_user_token_locked} ne 'N';
+		my $unlocktime;
+		if ( $islocked ) {
+			$islocked = 'Y';
+			$unlocktime = strftime( "%F %T", gmtime( $token->{token_unlock_time} ) );
+		} else {
+			$islocked = 'N';
+		}
+		my $lastupdate = strftime( "%F %T", gmtime() );
+
+		my $new = {
+			token_id => $token->{token_id},
+			token_unlock_time => $unlocktime,
+			bad_logins => $token->{bad_logins},
+			last_updated => $lastupdate,
+			is_user_token_locked => $islocked
+		};
+		my $diff = $self->hash_table_diff($dbtok, $new);
+
+		if ( scalar $diff ) {
+			my $set = join(", ", map { "$_ = :$_" } keys %{$diff});
+			my $sth = $dbh->prepare_cached(
+				qq{
+				UPDATE	account_token SET $set
+				WHERE	token_id = :token_id
+				AND		last_updated <= :last_updated
+			}
+			);
+
+			if ( !$sth ) {
+				$self->Error(
+					"put_token: unable to prepare sth: " . $dbh->errstr );
+				return undef;
+			}
+
+			$diff->{token_id} = $new->{token_id};
+			foreach my $key (keys %{$diff}) {
+				if ( !$sth->bind_param( ":$key", $diff->{$key} ) ) {
+					$self->Error( "put_token: unable to bind $key" . $sth->errstr );
+					return undef;
+				}
+			}
+
+			if ( !( $sth->execute() ) ) {
+				$self->Error(
+					"put_token: unable to execute token_seq update"
+				  	. $sth->errstr );
+				return undef;
+			}
+		}
+	}
 
 	return 1;
 }
+
+sub put_user {
+	my $self  = shift;
+	my $acct  = shift;
+	my ( $ret);
+
+	#
+	# bail if there is no db connection
+	#
+	if ( !$self->{dbh} ) {
+		$self->Error("put_user: no connection to database");
+		return undef;
+	}
+	my $dbh = $self->{dbh};
+
+	if ( !$acct || !$acct->{login} ) {
+		$self->Error("put_user: account invalid or not passed");
+		return undef;
+	}
+
+	# clear errors
+	$self->Error(undef);
+
+	# XXX - need to deal with token disable locally
+	# XXX deal with me locking the token more recently than the db says it was
+	# locked..
+	# XXX - need to deal with account realms!!
+	if ( $acct->{user_locked} ) {
+		#
+		# likely want to only update badlogins if its < our badlogins
+		#
+		my $sth = $dbh->prepare_cached(
+			qq{
+			UPDATE	account_token
+			SET		token_unlock_time = :unlock,
+					bad_logins = :badlogins,
+					last_updated = now(),
+					is_user_token_locked = :islocked
+			WHERE	is_user_token_locked != :islocked
+			AND		last_updated <= :lastupdate
+			AND		account_id IN (
+						SELECT account_id from account where login = :login
+					)
+		}
+		);
+
+		my $islocked = $acct->{user_locked};
+		my $unlocktime;
+		if ( $islocked eq 'Y' ) {
+			$unlocktime = strftime( "%F %T", gmtime( $acct->{unlock_time} ) );
+		}
+		my $lastupdate = strftime( "%F %T", gmtime() );
+
+		if ( !$sth ) {
+			$self->Error(
+				"fetch_user: unable to prepare sth: " . $dbh->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':unlock', $unlocktime ) ) {
+			$self->Error(
+				"put_user: unable to bind unlocktime" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':badlogins', $acct->{bad_logins} ) ) {
+			$self->Error(
+				"put_user: unable to bind unlocktime" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':islocked', $islocked ) ) {
+			$self->Error( "put_user: unable to bind islocked" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':lastupdate', $lastupdate ) ) {
+			$self->Error(
+				"put_user: unable to bind lastupdate" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':login', $acct->{login} ) ) {
+			$self->Error(
+				"put_user: unable to bind login" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !( $sth->execute() ) ) {
+			if ( !$sth->execute ) {
+				$self->Error(
+					"put_user: unable to execute put_user.account_token update"
+					  . $sth->errstr );
+				return undef;
+			}
+		}
+	}
+
+	return 1;
+}
+
 
 sub delete_token {
 	my $self = shift;
@@ -950,438 +1105,6 @@ sub delete_token {
 	}
 	$txn->txn_commit;
 	$self->{TokenDB}->Txn(undef);
-	undef $txn;
-
-	return 1;
-}
-
-sub put_user {
-	my $self = shift;
-	my $user = shift;
-	my ( $ret, $userdata );
-
-	# XXX
-	return 1;
-
-	#
-	# bail if the database environment or token database are not defined
-	#
-	if ( !$self->{Env} || !$self->{TokenDB} ) {
-		$self->Error("delete_token: database environment is not defined");
-		return undef;
-	}
-	if ( !$user || !$user->{login} ) {
-		$self->Error("put_user: user invalid or not passed");
-		return undef;
-	}
-
-	# clear errors
-	$self->Error(undef);
-
-	# XXX - should be tweaked to use the generic only update changed columns
-	# code
-	my $dbh = $self->{dbh};
-	my $sth = $dbh->prepare_cached(
-		qq{
-			UPDATE account
-			SET	status = :status,
-				last_login = :last_login,
-				bad_logins = :last_login,
-	       SELECT
-	                Login,
-	                Property_Name,
-	                Property_Type,
-					property_value,
-	                Is_Boolean,
-	                Device_Collection_ID
-	        FROM
-	                V_Dev_Col_User_Prop_Expanded JOIN
-	                Device_Collection USING (Device_Collection_ID)
-	        WHERE
-					is_enabled = 'Y'
-	        AND     (Device_Collection_Type = 'radius_app' OR
-	                	Property_Type = 'RADIUS')
-			AND		login = ?
-			AND		device_collection_id = ?
-	}
-	);
-
-	if ( !$sth ) {
-		$self->Error(
-			"fetch_attributes: unable to prepare sth: " . $dbh->errstr );
-		return undef;
-	}
-
-	return 1;
-}
-
-sub delete_user {
-	my $self  = shift;
-	my $login = shift;
-	my $ret;
-
-	#
-	# bail if the database environment or user database are not defined
-	#
-	if ( !$self->{Env} || !$self->{UserDB} ) {
-		$self->Error("delete_user: database environment is not defined");
-		return undef;
-	}
-	if ( !$login ) {
-		$self->Error("delete_user: login not passed");
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		return undef;
-	}
-	$self->{UserDB}->Txn($txn);
-	if ( $ret = $self->{UserDB}->db_del($login) ) {
-		$txn->txn_abort;
-		$self->{UserDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{UserDB}->Txn(undef);
-	undef $txn;
-
-	return 1;
-}
-
-sub put_client {
-	my $self   = shift;
-	my $client = shift;
-	my ( $ret, $clientdata );
-
-	#
-	# bail if the database environment or client database are not defined
-	#
-	if ( !$self->{Env} || !$self->{ClientDB} ) {
-		$self->Error("put_client: database environment is not defined");
-		return undef;
-	}
-	if ( !$client || !$client->{client_id} ) {
-		$self->Error("put_client: client invalid or not passed");
-		return undef;
-	}
-
-	# clear errors
-	$self->Error(undef);
-
-	if ( !( $clientdata = serialize_client($client) ) ) {
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		$self->Error("Could not begin transaction");
-		return undef;
-	}
-	$self->{ClientDB}->Txn($txn);
-	if ( $ret = $self->{ClientDB}->db_put( $client->{client_id}, $clientdata ) )
-	{
-		$txn->txn_abort;
-		$self->{ClientDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{ClientDB}->Txn(undef);
-	return 1;
-}
-
-sub delete_client {
-	my $self      = shift;
-	my $client_id = shift;
-	my $ret;
-
-	#
-	# bail if the database environment or client database are not defined
-	#
-	if ( !$self->{Env} || !$self->{ClientDB} ) {
-		$self->Error("delete_client: database environment is not defined");
-		return undef;
-	}
-	if ( !$client_id ) {
-		$self->Error("delete_client: client_id not passed");
-		return undef;
-	}
-	return undef if !$client_id;
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		return -1;
-	}
-	$self->{ClientDB}->Txn($txn);
-	if ( $ret = $self->{ClientDB}->db_del($client_id) ) {
-		$txn->txn_abort;
-		$self->{ClientDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{ClientDB}->Txn(undef);
-	undef $txn;
-
-	return 1;
-}
-
-sub put_devcollprop {
-	my $self        = shift;
-	my $devcollprop = shift;
-	my ( $ret, $devcollpropdata );
-
-	#
-	# bail if the database environment or devcollprop database are not defined
-	#
-	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
-		$self->Error("put_devcollprop: database environment is not defined");
-		return undef;
-	}
-	if ( !$devcollprop || !$devcollprop->{devcoll_id} ) {
-		$self->Error("put_devcollprop: devcollprop is invalid or not passed");
-		return undef;
-	}
-
-	# clear errors
-	$self->Error(undef);
-
-	if ( !( $devcollpropdata = serialize_devcollprop($devcollprop) ) ) {
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		$self->Error("Could not begin transaction");
-		return undef;
-	}
-	$self->{DevCollPropDB}->Txn($txn);
-	if ( $ret =
-		$self->{DevCollPropDB}
-		->db_put( $devcollprop->{devcoll_id}, $devcollpropdata ) )
-	{
-		$txn->txn_abort;
-		$self->{DevCollPropDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{DevCollPropDB}->Txn(undef);
-	return 1;
-}
-
-sub delete_devcollprop {
-	my $self       = shift;
-	my $devcoll_id = shift;
-	my $ret;
-
-	#
-	# bail if the database environment or devcollprop database are not defined
-	#
-	if ( !$self->{Env} || !$self->{DevCollPropDB} ) {
-		$self->Error("delete_devcollprop: database environment is not defined");
-		return undef;
-	}
-	if ( !$devcoll_id ) {
-		$self->Error("delete_devcollprop: devcoll_id not passed");
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		return -1;
-	}
-	$self->{DevCollPropDB}->Txn($txn);
-	if ( $ret = $self->{DevCollPropDB}->db_del($devcoll_id) ) {
-		$txn->txn_abort;
-		$self->{DevCollPropDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{DevCollPropDB}->Txn(undef);
-	undef $txn;
-
-	return 1;
-}
-
-sub put_passwd {
-	my $self   = shift;
-	my $login  = shift;
-	my $passwd = shift;
-	my ( $ret, $passwddata );
-
-	#
-	# bail if the database environment or passwd database are not defined
-	#
-	if ( !$self->{Env} || !$self->{PasswdDB} ) {
-		$self->Error("put_passwd: database environment is not defined");
-		return undef;
-	}
-	if ( !$login ) {
-		$self->Error("put_passwd: login not passed");
-		return undef;
-	}
-	if ( !$passwd ) {
-		$self->Error("put_passwd: passwd hash not passed");
-		return undef;
-	}
-
-	# clear errors
-	$self->Error(undef);
-
-	if ( !( $passwddata = serialize_passwd($passwd) ) ) {
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		$self->Error("Could not begin transaction");
-		return undef;
-	}
-	$self->{PasswdDB}->Txn($txn);
-	if ( $ret = $self->{PasswdDB}->db_put( $login, $passwddata ) ) {
-		$txn->txn_abort;
-		$self->{PasswdDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{PasswdDB}->Txn(undef);
-	return 1;
-}
-
-sub delete_passwd {
-	my $self  = shift;
-	my $login = shift;
-	my $ret;
-
-	#
-	# bail if the database environment or passwd database are not defined
-	#
-	if ( !$self->{Env} || !$self->{PasswdDB} ) {
-		$self->Error("delete_passwd: database environment is not defined");
-		return undef;
-	}
-	if ( !$login ) {
-		$self->Error("delete_passwd: login not passed");
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		return -1;
-	}
-	$self->{PasswdDB}->Txn($txn);
-	if ( $ret = $self->{PasswdDB}->db_del($login) ) {
-		$txn->txn_abort;
-		$self->{PasswdDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{PasswdDB}->Txn(undef);
-	undef $txn;
-
-	return 1;
-}
-
-sub put_attributes {
-	my $self = shift;
-	my $opt  = &_options(@_);
-
-	my $attributes = $opt->{attrs};
-	my ( $ret, $attributesdata );
-
-	#
-	# bail if the database environment or attributes database are not defined
-	#
-	if ( !$self->{Env} || !$self->{AttrDB} ) {
-		$self->Error("put_attributes: database environment is not defined");
-		return undef;
-	}
-	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
-		$self->Error(
-			"put_attributes: key or login and devcollid must be passed");
-		return undef;
-	}
-	my $attributeid = $opt->{key}
-	  || pack( "Z*N", $opt->{login}, $opt->{devcoll_id} );
-
-	if ( !$attributes ) {
-		$self->Error("put_attributes: attribute hash not passed");
-		return undef;
-	}
-
-	# clear errors
-	$self->Error(undef);
-
-	if ( !( $attributesdata = serialize_attributes($attributes) ) ) {
-		return undef;
-	}
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		$self->Error("Could not begin transaction");
-		return undef;
-	}
-	$self->{AttrDB}->Txn($txn);
-	if ( $ret = $self->{AttrDB}->db_put( $attributeid, $attributesdata ) ) {
-		$txn->txn_abort;
-		$self->{AttrDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{AttrDB}->Txn(undef);
-	return 1;
-}
-
-sub delete_attributes {
-	my $self = shift;
-	my $ret;
-	my $opt = &_options(@_);
-
-	#
-	# bail if the database environment or attributes database are not defined
-	#
-	if ( !$self->{Env} || !$self->{AttrDB} ) {
-		$self->Error("delete_attributes: database environment is not defined");
-		return undef;
-	}
-
-	if ( !$opt->{key} && !( $opt->{login} && $opt->{devcoll_id} ) ) {
-		$self->Error(
-			"put_attributes: key or login and devcollid must be passed");
-		return undef;
-	}
-	my $attributeid = $opt->{key}
-	  || pack( "Z*N", $opt->{login}, $opt->{devcoll_id} );
-
-	my $txn;
-	$txn = $self->{Env}->txn_begin();
-	if ( !$txn ) {
-		return -1;
-	}
-	$self->{AttrDB}->Txn($txn);
-	if ( $ret = $self->{AttrDB}->db_del($attributeid) ) {
-		$txn->txn_abort;
-		$self->{AttrDB}->Txn(undef);
-		$self->Error($ret);
-		return undef;
-	}
-	$txn->txn_commit;
-	$self->{AttrDB}->Txn(undef);
 	undef $txn;
 
 	return 1;
@@ -1430,8 +1153,8 @@ Lock Status Changed:  %s
 	  scalar( gmtime( $token->{zero_time} || 0 ) ),
 	  $token->{time_modulo}   || 0,
 	  $token->{skew_sequence} || 0,
-	  $token->{token_locked}  || 0,
-	  $token->{unlock_time}   || 0,
+	  $token->{is_user_token_locked}  || 0,
+	  $token->{token_unlock_time}   || 0,
 	  $token->{bad_logins}    || 0,
 	  scalar( gmtime( $token->{last_login}          || 0 ) ),
 	  scalar( gmtime( $token->{sequence_changed}    || 0 ) ),
@@ -1477,7 +1200,7 @@ sub HOTPAuthenticate {
 	# bail if there is no db connection
 	#
 	if ( !$self->{dbh} ) {
-		$self->Error("fetch_token: no connection to database");
+		$self->Error("HOTPAuthenticate: no connection to database");
 		return undef;
 	}
 
@@ -1614,10 +1337,10 @@ sub HOTPAuthenticate {
 	if (  !$token->{is_user_token_locked}
 		|| $token->{is_user_token_locked} eq 'Y' )
 	{
-		if ( $token->{unlock_time} && $token->{unlock_time} <= time() ) {
+		if ( $token->{token_unlock_time} && $token->{token_unlock_time} <= time() ) {
 			$token->{is_user_token_locked} = 'N';
 			$token->{token_unlock_time}    = 0;
-			$token->{token_bad_logins}     = 0;
+			$token->{bad_logins}     = 0;
 			$token->{last_updated}         = time();
 			$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
 			if ( !( $self->put_token( token => $token ) ) ) {
@@ -1738,7 +1461,6 @@ sub HOTPAuthenticate {
 		$errstr =
 		  sprintf( "OTP given does not match a permitted sequence for token %d",
 			$token->{token_id} );
-		warn "XXX $errstr";
 		goto HOTPAuthDone;
 	}
 
@@ -1751,7 +1473,6 @@ sub HOTPAuthenticate {
 		$errstr = sprintf(
 			"OTP sequence %d for token %d (%s) outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
 			$sequence, $token->{token_id}, $login, $maxskew );
-		warn "XXX $errstr";
 		$self->UserError(
 			"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
 		);
@@ -1787,18 +1508,17 @@ sub HOTPAuthenticate {
 				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
 			{
 				$self->_Debug( 2, "Locking token %d", $token->{token_id} );
-				$token->{token_locked} = 1;
+				$token->{is_user_token_locked} = 1;
 				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-					$token->{unlock_time} =
+					$token->{token_unlock_time} =
 					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
 				} else {
-					$token->{unlock_time} = 0;
+					$token->{token_unlock_time} = undef;
 				}
 			}
 		}
 
 	}
-
 	#
 	# Write token back to database
 	#
@@ -2135,6 +1855,8 @@ sub AuthenticateUser {
 			);
 			$self->_Debug( 2, $self->Error );
 		}
+
+		# XXX likely need to make this go away because tis token only.
 		$user->{bad_logins} += 1;
 		$user->{lock_status_changed} = time;
 		if ( $user->{bad_logins} >=
@@ -2144,10 +1866,10 @@ sub AuthenticateUser {
 			$self->Error( $self->Error . " - locking user" );
 			$user->{user_locked} = 1;
 			if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-				$user->{unlock_time} =
+				$user->{token_unlock_time} =
 				  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
 			} else {
-				$user->{unlock_time} = 0;
+				$user->{token_unlock_time} = undef;
 			}
 		}
 	}
@@ -2164,11 +1886,17 @@ sub AuthenticateUser {
 	return $authsucceeded;
 }
 
+#
+# This is currently a noop, but could be used for checking to see if a user is
+# globally locked or some such .   There are no provisions in all this for
+# globally locking someone
+#
 sub VerifyUser {
 	my $self = shift;
 	my $opt  = &_options;
 
 	$self->Error(undef);
+	return 1;
 
 	#
 	# bail if there is no db connection
@@ -2199,36 +1927,8 @@ sub VerifyUser {
 	}
 	$login = $user->{login};
 
-	return 1;
-
-	# XXX
-
-	#
-	# Check if the user is locked
-	#
-	if ( $user->{user_locked} ) {
-		if ( $user->{unlock_time} && $user->{unlock_time} <= time() ) {
-			$user->{user_locked}         = 0;
-			$user->{unlock_time}         = 0;
-			$user->{lock_status_changed} = time();
-			$self->_Debug( 2, "Unlocking user %s", $login );
-			if ( !( $self->put_user($user) ) ) {
-				$self->Error( "Error unlocking user %s: %s",
-					$login, $self->Error );
-				return undef;
-			}
-		} else {
-			my $errstr = sprintf( "user %s is locked.", $login );
-			if ( $user->{unlock_time} ) {
-				$errstr .= sprintf( "  User will unlock at %s",
-					scalar( localtime( $user->{unlock_time} ) ) );
-			} else {
-				$errstr .= "  User must be administratively unlocked.";
-			}
-			$self->Error($errstr);
-			return undef;
-		}
-	}
+	# Additional checks on a user, such as if the user has been locked or
+	# disabled could be done here, otherwise, this is largely a noop.
 	$self->_Debug( 2, "user %s is valid", $login );
 	return 1;
 }

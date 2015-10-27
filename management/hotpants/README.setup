@@ -196,3 +196,54 @@ values ( 'soft_time', 'enabled',
 ) select * from at;
 
 
+
+====== notes on sync
+
+radiussync is used to sync berkeley db  and the db
+
+mdr - The only things that should be synced back are current sequence (needed for TOTP as well to prevent replay) and the lockout counts and/or timers
+
+this was serialized into a token
+
+            token_id            => token
+            type                => token
+            status              => token
+            serial              => token
+            key                 => token
+            sequence            => token_sequence
+            zero_time           => token
+            time_modulo         => Etoken
+            skew_sequence       => token
+            pin                 => token
+            last_login          => 				ONLY sqlite
+            token_locked        => account_token
+            unlock_time         => account_token
+            bad_logins          => account_token
+            sequence_changed    => 				ONLY sqlite
+            token_changed       => 				ONLY sqlite
+            lock_status_changed => token
+
+TODO:
+	*** integrate account realms somehow? ***
+
+	need to deal with account_token having multiple entries per token
+	look at all the device collection / db interaction
+		figure out how to convert radius over easily
+
+	extra objects for sync in sqlite
+	better deal with encryption
+	figure out what to do with qr code
+	sync radius properties
+	pull encryption out to JazzHands::Common, as well as options, debug?
+	consider a stronger crypt to get $2y$
+	consider making RADIUS attributes truely radius-only
+	global password expiration lifetime
+
+	move hotpants config to database with defaults?
+	consider how token/account locaking works
+	consider moving some of account_token to token.
+
+	a bunch of the token logic should be in both the postgres db and
+	a local sqlite db
+
+	user -> account (put_user -> put_account)
