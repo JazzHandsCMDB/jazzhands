@@ -31,6 +31,8 @@ END));
 create index idx_netblock_host_ip_address  ON netblock
 USING btree (host(ip_address));
 
+CREATE INDEX idx_dns_record_lower_dns_name ON dns_record USING btree
+	(lower(dns_name));
 
 -- need to sort this out better
 drop trigger IF EXISTS trig_userlog_token_sequence on token_sequence;
