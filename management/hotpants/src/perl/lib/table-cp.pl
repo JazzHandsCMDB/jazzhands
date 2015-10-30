@@ -92,7 +92,9 @@ sub fetch_table($$$) {
 	while(my $hr = $sth->fetchrow_hashref) {
 		my $k;
 		if(ref($pk) eq 'ARRAY') {
-			$k = join(",", map { $hr->{$_} } @{$pk});
+			$k = join(",", map { 
+					(defined($hr->{$_}))?$hr->{$_}:""
+					} @{$pk});
 		} else {
 			$k = $hr->{$pk};
 		}
@@ -286,6 +288,12 @@ sub copy_table($$$;$) {
 	#
 	my ($ins,$upd,$del)= (0,0,0);
 	foreach my $k (keys %{$fromt}) {
+		my $dbk = $k;
+		if(ref($pk) eq 'ARRAY') {
+			$dbk = join(",", map { 
+				(defined($fromt->{$_}))?$fromt->{$_}:""
+				} @{$pk});
+		}
 		if(!defined($downt->{$k})) {
 			# warn "insert $k";
 			$ins++;
@@ -348,7 +356,17 @@ my $tablemap = {
 	'account_token' => undef,
 	'account_collection_account' => undef,
 	'encryption_key' => undef,
+#	'device' => undef,
+	'device_collection' => undef,
+#	'device_collection_device' => undef,
+#	'network_interface' => undef,
+#	'netblock' => undef,
+	'property' => undef,
+	'account_password' => undef,
 	'v_corp_family_account' => 'account_id',
+	'v_hotpants_device_collection' => ['device_collection_id','device_id'],
+	'v_dev_col_user_prop_expanded' => ['device_collection_id','account_id', 'property_name','property_type','property_value'],
+	'v_hotpants_token' => ['token_id','account_token_id'],
 
 
 };
