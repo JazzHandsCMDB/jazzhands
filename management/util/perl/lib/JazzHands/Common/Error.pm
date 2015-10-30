@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2012-2013 Matthew Ragan
-# Copyright (c) 2012-2013 Todd Kover
+# Copyright (c) 2012-2015 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,27 +24,65 @@ use Exporter 'import';
 
 our $VERSION = '1.0';
 
-our @ISA = qw(Exporter);
+our @ISA       = qw(Exporter);
 our @EXPORT_OK = qw(SetError );
 
-our %EXPORT_TAGS = 
-(
-        'all' => [qw(SetError)],
-);
+our %EXPORT_TAGS = ( 'all' => [qw(SetError)], );
 
-
+#
+# This is used external to JazzHands and thus can't really change
+# It is used internally to these libraries in a few places to handle cases
+# where calls are bath both inside and not inside this library
+#
 sub SetError {
 	my $error = shift;
 
-	if (ref($error) eq "ARRAY") {
+	if ( ref($error) eq "ARRAY" ) {
 		push @{$error}, @_;
 		return;
 	}
 
-	if (ref($error) eq "SCALAR") {
+	if ( ref($error) eq "SCALAR" ) {
 		$$error = shift;
 		return;
 	}
+}
+
+#
+# everything after this is not exported but part of the module
+#
+
+#
+# tacks all arguments on to the end of the internal error array
+#
+sub Error {
+	my $self = shift @_;
+
+	SetError( $self->{_errors}, @_ );
+	if(wantarray) {
+		return @{$self->{_errors}};
+	} else {
+		return join("\n", @{$self->{_errors}});
+	}
+}
+
+#
+# passes arguments through sprintf, and tacks them onto the end of the internal
+# error system
+#
+sub ErrorF { 
+	my $self = shift;
+
+	my $str;
+	if (@_) {
+		my $fmt = shift;
+		if (@_) {
+			$str = sprintf( $fmt, @_ );
+		} else {
+			$str = $fmt;
+		}
+	}
+	return $self->Error($str);
 }
 
 1;

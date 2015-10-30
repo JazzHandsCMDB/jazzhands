@@ -100,6 +100,16 @@ sub DBUpdate {
 	$dbh = $opt->{dbhandle} || $opt->{dbh};
 
 	#
+	# this is so the routines can be called outside the OO framework
+	#
+	my $errsave;
+	if($opt->{errors}) {
+		$errsave = $opt->{errors};
+	} elsif($self) {
+		$errsave = \$self->{_errors};
+	}
+
+	#
 	# Check the object for a valid database handle if one wasn't passed
 	#
 	if (!$dbh) {
@@ -107,22 +117,22 @@ sub DBUpdate {
 	}
 
 	if(!$dbh) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass dbhandle parameter to DBUpdate");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass table parameter to DBUpdate");
 		return undef;
 	}
 	if (!($dbkey = $opt->{dbkey})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass dbkey parameter to DBUpdate");
 		return undef;
 	}
 	if (!($hash = $opt->{hash})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass hash parameter to DBUpdate");
 		return undef;
 	}
@@ -148,7 +158,7 @@ sub DBUpdate {
 	} elsif(ref($dbkey) eq 'ARRAY') {
 		$update_whereclause = "";
 		if( (scalar @$dbkey) != (scalar @$keyval) ) {
-			SetError($opt->{errors},
+			SetError($$errsave,
 				"DBUpdate: must be same number of values as keys");
 			return undef;
 		}
@@ -174,7 +184,7 @@ sub DBUpdate {
 
 	my $sth;
 	if (!($sth = $dbh->prepare_cached($q))) {
-		SetError($opt->{errors}, 
+		SetError($$errsave,
 			sprintf("DBUpdate: Error preparing database statement %s",
 				$dbh->errstr));
 		return undef;
@@ -186,7 +196,7 @@ sub DBUpdate {
 	#
 	if(!ref($dbkey)) {
 		if (!($sth->bind_param(":pk__$dbkey", $keyval))) {
-			SetError($opt->{errors}, 
+			SetError($$errsave, 
 				sprinf("DBUpdate: Unable to bind key for %s: %s",
 					$dbkey, $sth->errstr));
 			return undef;
@@ -197,7 +207,7 @@ sub DBUpdate {
 			my $tkey = $$dbkey[$i];
 			my $tval = $$keyval[$i];
 			if (!($sth->bind_param(":pk__$tkey", $tval))) {
-				SetError($opt->{errors}, 
+				SetError($$errsave, 
 					sprintf("DBUpdate: Unable to bind key for %s: %s",
 						$tkey, $sth->errstr));
 				return undef;
@@ -206,7 +216,7 @@ sub DBUpdate {
 	} else {
 		foreach my $key (keys %$dbkey) {
 			if (!($sth->bind_param(":pk__".$key, $dbkey->{$key}))) {
-				SetError($opt->{errors}, 
+				SetError($$errsave, 
 					sprintf("DBUpdate: Unable to bind key for %s: %s",
 						$key, $sth->errstr));
 				return undef;
@@ -215,7 +225,7 @@ sub DBUpdate {
 	}
 	foreach my $key (keys %$hash) {
 		if (!($sth->bind_param(":$key", $hash->{$key}))) {
-			SetError($opt->{errors}, 
+			SetError($$errsave, 
 				sprintf("DBUpdate: Unable to bind value for %s: %s",
 					$key, $sth->errstr));
 			return undef;
@@ -223,7 +233,7 @@ sub DBUpdate {
 	}
 	my $ret;
 	if (!($ret = $sth->execute)) {
-		SetError($opt->{errors}, 
+		SetError($$errsave, 
 			sprintf("DBUpdate: Error executing update: %s",
 				$sth->errstr));
 		return undef;
@@ -242,6 +252,13 @@ sub DBInsert {
 	# accept either because STAB uses dbh
 	$dbh = $opt->{dbhandle} || $opt->{dbh};
 
+	my $errsave;
+	if($opt->{errors}) {
+		$errsave = $opt->{errors};
+	} elsif($self) {
+		$errsave = $self->{_errors};
+	}
+
 	#
 	# Check the object for a valid database handle if one wasn't passed
 	#
@@ -250,17 +267,17 @@ sub DBInsert {
 	}
 
 	if(!$dbh) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass dbhandle parameter to DBInsert");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass table parameter to DBInsert");
 		return undef;
 	}
 	if (!($hash = $opt->{hash})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass hash parameter to DBInsert");
 		return undef;
 	}
@@ -286,14 +303,14 @@ sub DBInsert {
 
     my $sth; 
     if (!($sth = $dbh->prepare_cached($q))) { 
-        SetError($opt->{errors},
+        SetError($errsave,
             sprintf("DBInsert: Error preparing database statement %s",
 				$dbh->errstr));
         return undef;
     }
 	foreach my $key (keys %$hash) {
 		if (!($sth->bind_param(":$key", $hash->{$key}))) {
-			SetError($opt->{errors}, 
+			SetError($errsave, 
 				sprintf("DBInsert: Unable to bind value for %s: %s",
 					$key, $sth->errstr));
 			return undef;
@@ -301,7 +318,7 @@ sub DBInsert {
 	}
 	my $ret;
 	if (!($ret = $sth->execute)) {
-		SetError($opt->{errors}, 
+		SetError($errsave, 
 			sprintf("DBInsert: Error executing insert: %s",
 				$sth->errstr));
 		return undef;
@@ -332,23 +349,33 @@ sub DBDelete {
 	$dbh = $opt->{dbhandle} || $opt->{dbh};
 
 	#
+	# this is so the routines can be called outside the OO framework
+	#
+	my $errsave;
+	if($opt->{errors}) {
+		$errsave = $opt->{errors};
+	} elsif($self) {
+		$errsave = \$self->{_errors};
+	}
+
+	#
 	# Check the object for a valid database handle if one wasn't passed
 	#
 	if (!$dbh) {
 		eval { $dbh = $self->DBHandle };
 	}
 	if(!$dbh) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass dbhandle parameter to DBDelete");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass table parameter to DBDelete");
 		return undef;
 	}
 	if (!($dbkey = $opt->{dbkey})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass dbkey parameter to DBDelete");
 		return undef;
 	}
@@ -365,7 +392,7 @@ sub DBDelete {
 	} elsif(ref($dbkey) eq 'ARRAY') {
 		$update_whereclause = "";
 		if( (scalar @$dbkey) != (scalar @$keyval) ) {
-			SetError($opt->{errors},
+			SetError($errsave,
 				"DBDelete: must be same number of values as keys");
 			return undef;
 		}
@@ -397,7 +424,7 @@ sub DBDelete {
 	# This is just for safety
 	#
 	if ($multikey > 1) {
-		SetError($opt->{errors}, 'only one multivalue key may be passed to DBDelete');
+		SetError($errsave, 'only one multivalue key may be passed to DBDelete');
 		return undef;
 	}
 	my $q = qq{
@@ -407,7 +434,7 @@ sub DBDelete {
 
 	my $sth;
 	if (!($sth = $dbh->prepare_cached($q))) {
-		SetError($opt->{errors}, 
+		SetError($errsave, 
 			sprintf("DBDelete: Error preparing database statement %s",
 				$dbh->errstr));
 		return undef;
@@ -419,7 +446,7 @@ sub DBDelete {
 
 	if(!ref($dbkey)) {
 		if (!($sth->bind_param(":pk__$dbkey", $keyval))) {
-			SetError($opt->{errors}, 
+			SetError($errsave, 
 				sprinf("DBDelete: Unable to bind key for %s: %s",
 					$dbkey, $sth->errstr));
 			return undef;
@@ -430,7 +457,7 @@ sub DBDelete {
 			my $tkey = $$dbkey[$i];
 			my $tval = $$keyval[$i];
 			if (!($sth->bind_param(":pk__$tkey", $tval))) {
-				SetError($opt->{errors}, 
+				SetError($errsave, 
 					sprintf("DBDelete: Unable to bind key for %s: %s",
 						$tkey, $sth->errstr));
 				return undef;
@@ -439,7 +466,7 @@ sub DBDelete {
 	} else {
 		foreach my $key (keys %$dbkey) {
 			if (!($sth->bind_param(":pk__".$key, $dbkey->{$key}))) {
-				SetError($opt->{errors}, 
+				SetError($errsave, 
 					sprintf("DBDelete: Unable to bind key for %s: %s",
 						$key, $sth->errstr));
 				return undef;
@@ -449,7 +476,7 @@ sub DBDelete {
 
 	my $ret;
 	if (!($ret = $sth->execute)) {
-		SetError($opt->{errors}, 
+		SetError($errsave, 
 			sprintf("DBDelete: Error executing update: %s",
 				$sth->errstr));
 		return undef;
@@ -469,18 +496,28 @@ sub DBFetch {
 	$dbh = $opt->{dbhandle} || $opt->{dbh};
 
 	#
+	# this is so the routines can be called outside the OO framework
+	#
+	my $errsave;
+	if($opt->{errors}) {
+		$errsave = $opt->{errors};
+	} elsif($self) {
+		$errsave = \$self->{_errors};
+	}
+
+	#
 	# Check the object for a valid database handle if one wasn't passed
 	#
 	if (!$dbh) {
 		eval { $dbh = $self->DBHandle };
 	}
 	if(!$dbh) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass dbhandle parameter to DBFetch");
 		return undef;
 	}
 	if (!($table = $opt->{table})) {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"must pass table parameter to DBFetch");
 		return undef;
 	}
@@ -508,7 +545,7 @@ sub DBFetch {
 			$opt->{match} = \@match;
 		}
 	} else {
-		SetError($opt->{errors},
+		SetError($errsave,
 			"Match must be a reference to a hash or an array"
 			);
 		return undef;
@@ -524,7 +561,7 @@ sub DBFetch {
 		} elsif (ref($opt->{order}) eq 'ARRAY') {
 			$q .= join ',', @{$opt->{order}};
 		} else {
-			SetError($opt->{errors},
+			SetError($errsave,
 				"Value for 'order' parameter must be scalar or array reference"
 				);
 			return undef;
@@ -534,14 +571,14 @@ sub DBFetch {
 	SetError($opt->{debug}, "Params: " . join(',', @{$params}));
 	my $sth;
 	if (!($sth = $dbh->prepare_cached($q))) {
-		SetError($opt->{errors}, 
+		SetError($errsave, 
 			sprintf("DBFetch: Error preparing database statement %s",
 				$dbh->errstr));
 		return undef;
 	}
 
 	if (!($sth->execute(@{$params}))) {
-		SetError($opt->{errors}, 
+		SetError($errsave, 
 			sprintf("DBFetch: Error executing update: %s",
 				$sth->errstr));
 		return undef;
@@ -561,10 +598,10 @@ sub DBFetch {
 			}
 		} elsif ($opt->{result_set_size} eq 'exactlyone') {
 			if (!@{$rows}) {
-				SetError($opt->{errors}, "No rows returned");
+				SetError($errsave, "No rows returned");
 				return undef;
 			} elsif ($#$rows > 0) {
-				SetError($opt->{errors}, "Multiple rows returned");
+				SetError($errsave, "Multiple rows returned");
 				return undef;
 			}
 			return $rows->[0];

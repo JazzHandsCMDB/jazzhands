@@ -82,11 +82,18 @@ sub import {
 	$Exporter::ExportLevel = $save;
 }
 
+#
+# can be called from a child classs, sets everything up that may be used by
+# the routines under this hierarchy
+#
 sub new {
 	my $proto = shift;
 	my $class = ref($proto) || $proto;
 	my $self = {};
 	bless $self, $class;
+
+	$self->{_errors} = [];
+	$self;
 }
 
 1;
