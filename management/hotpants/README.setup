@@ -153,6 +153,8 @@ and	device_collection_name = 'cloud'
 RETURNING *
 ) select * from x;
 
+==== ABOVE DOES NOT WORK ====
+
 insert into property (device_collection_id, Property_Value_Password_Type,
 property_type,property_name) values (
 19913, 'blowfish', 'MclassUnixProp', 'UnixPwType');
@@ -176,6 +178,8 @@ and account_collection_name = 'kovert';
 	
 update val_property set property_data_type = 'password_type' where
 	property_type = 'RADIUS' and property_name = 'PWType';
+
+================================= NOT BELOW HERE ==========================
 
 with foo as ( insert into token (
 	token_type, token_status, token_key, token_pin, last_updated)
@@ -248,3 +252,9 @@ TODO:
 	a local sqlite db
 
 	user -> account (put_user -> put_account)
+
+	check logging (particularly debugging) when someone does not have any
+	token assigned
+
+	token name needs something unique to avoid google authenticator
+	replacing it (phone, motox, etc?)
