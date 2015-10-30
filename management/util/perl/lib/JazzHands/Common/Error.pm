@@ -55,8 +55,16 @@ sub SetError {
 #
 # tacks all arguments on to the end of the internal error array
 #
+# pass undef as the first argument and it clears out all existing errors
+#
 sub Error {
 	my $self = shift @_;
+
+	if($#_ >= 0 && !defined($_[0]) ) {
+		delete $self->{_errors};
+		$self->{_errors} = [];
+		return;
+	}
 
 	SetError( $self->{_errors}, @_ );
 	if(wantarray) {
@@ -84,6 +92,23 @@ sub ErrorF {
 	}
 	return $self->Error($str);
 }
+
+
+sub SetDebug {
+	my $self = shift;
+	if (@_) { $self->{_debug} = shift; }
+	return $self->{_debug};
+}
+
+sub _Debug {
+	my $self  = shift;
+	my $level = shift;
+
+	if ( $self->{_debug} >= $level ) {
+		if (@_) { printf STDERR @_; print STDERR "\n"; }
+	}
+}
+
 
 1;
 
