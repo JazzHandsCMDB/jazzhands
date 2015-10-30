@@ -277,4 +277,8 @@ TODO:
 
 	remove some of the unneded tables from sync (due to views)
 
+	make it possible to update with stored procedures when pushing back
+		I think v_hotpants_token can go away once the locking columns
+		move to token
+
 	make sync long-transaction friendly.
