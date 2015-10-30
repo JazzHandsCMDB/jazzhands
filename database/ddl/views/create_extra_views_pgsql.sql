@@ -123,3 +123,7 @@
 \i approval/create_approval_views.sql
 -- not clear if this belongs in the approval views or not.  probably?
 \i create_v_approval_instance_step_expanded.sql
+
+-- hotpants
+\i create_v_hotpants_device_collection.sql
+\i create_v_hotpants_token.sql
