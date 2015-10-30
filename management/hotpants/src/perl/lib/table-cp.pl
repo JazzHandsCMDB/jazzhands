@@ -90,29 +90,6 @@ sub fetch_table($$$) {
 	$rv;
 }
 
-
-# 
-# This can probably go away
-#
-#sub sqlite_from_pg {
-#	my @rv;
-#	foreach my $c (@_) {
-#		my $type;
-#		if($c->{coltype} =~ /char varying|timestamp/) {
-#			$type = 'text';
-#		} elsif($c->{coltype} =~ /character/) {
-#			$type = 'text';
-#		} elsif($c->{coltype} =~ /integer/) {
-#			$type = $c->{coltype};
-#		} else {
-#			die "unknown type $c->{coltype}";
-#		}
-#		push(@rv, { colname => $c->{colname}, coltype => $type });
-#	}
-#
-#	@rv;
-#}
-
 sub get_cols {
 	my ( $self, $table ) = @_;
 
