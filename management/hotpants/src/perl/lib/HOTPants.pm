@@ -54,6 +54,7 @@ use JazzHands::Common qw(:all);		# not clear that we want all
 use JazzHands::DBI;
 use Crypt::CBC;
 use Digest::SHA qw(sha256);
+use DateTime::Format::Strptime;		# could also put epochs in views
 use POSIX;
 
 use parent 'JazzHands::Common';
@@ -274,7 +275,7 @@ sub opendb {
 
 	my $dbh;
 	if (
-		!( $dbh = JazzHands::DBI->connect( 'hotpants', { AutoCommit => 0 } ) ) )
+		!( $dbh = JazzHands::DBI->connect( 'hotpants-local', { AutoCommit => 0 } ) ) )
 	{
 		undef $dbh;
 		return "Unable to create environment";
@@ -329,31 +330,9 @@ sub fetch_token {
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
-			SELECT
-					token_id,
-					token_type,
-					token_status,
-					token_serial,
-					token_key,
-					zero_time,
-					time_modulo,
-					token_pin,
-					is_user_token_locked,
-					extract(epoch from token_unlock_time)::int as token_unlock_time,
-					bad_logins,
-					token_sequence,
-					ts.last_updated as sequence_changed,
-					at.last_updated,
-					en.encryption_key_db_value,
-					en.encryption_key_purpose,
-					en.encryption_key_purpose_version,
-					en.encryption_method
-			FROM	token t
-					INNER JOIN account_token at USING (token_id)
-					INNER JOIN token_sequence ts USING (token_id)
-					LEFT JOIN encryption_key en USING (encryption_key_id)
+			SELECT	*
+			FROM	v_hotpants_token
 			WHERE	token_id = ?
-
 	}
 	);
 
@@ -434,13 +413,12 @@ sub fetch_user {
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	LOGIN, account_status, 
-				array_agg(token_id ORDER BY token_id)  as tokens
+		SELECT	LOGIN, account_status,  token_id
 		FROM	v_corp_family_account
 				LEFT JOIN account_token USING (account_id)
 		WHERE	is_enabled = 'Y'
 		AND		login = ?
-		GROUP BY LOGIN, account_status
+		ORDER BY LOGIN, account_status, token_id
 
 	}
 	);
@@ -457,19 +435,19 @@ sub fetch_user {
 		return undef;
 	}
 
-	my $hr = $sth->fetchrow_hashref;
-	$sth->finish;
-
-	if ( !$hr ) {
-		return undef;
+	my $rv;
+	while( my $hr = $sth->fetchrow_hashref  ) {
+		if(!$rv) {
+			$rv = {
+				login => $hr->{login},
+				status => $hr->{account_status},
+				tokens => [ $hr->{token_id} ],
+			};
+		} else {
+			push(@{$rv->{tokens}}, $hr->{token_id});
+		}
 	}
-
-	# XXX - numerous other attributes, including token ids here
-	return {
-		login  => $hr->{login},
-		status => $hr->{account_status},
-		tokens => $hr->{tokens},
-	};
+	return $rv;
 }
 
 sub fetch_client {
@@ -499,24 +477,9 @@ sub fetch_client {
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
-				SELECT DISTINCT
-	                Device_Id,
-	                Device_Name,
-	                Device_Collection_Id,
-	                Device_Collection_Name,
-	                Device_Collection_Type,
-	                host(IP_Address) as IP_address
-	        FROM	Device_Collection
-	                INNER JOIN device_collection_device
-	                        USING (Device_Collection_ID) 
-	                INNER JOIN Device USING (Device_Id) 
-	                INNER JOIN Network_Interface NI USING (Device_ID) 
-	                INNER JOIN Netblock NB USING (Netblock_id)
-	        WHERE
-	                Device_Collection_Type = 'mclass'
-	        AND     Device_Name IS NOT NULL
-	        AND     Device_Name IS NOT NULL
-				AND		host(ip_address) = ?
+			SELECT *
+	        FROM	v_hotpants_device_collection
+	        WHERE	ip_address = ?
 	}
 	);
 
@@ -709,7 +672,7 @@ sub fetch_attributes {
 	}
 
 	# XXX - V_Dev_Col_User_Prop_Expanded needs to have mutlivalue fixed and
-	#	have the multivalue logic pulled from teh syncer
+	#	have the multivalue logic pulled from the syncer
 	# view also needs account.is_enabled and  possibly v_corp_family_account
 
 	my $dbh = $self->{dbh};
@@ -787,10 +750,12 @@ sub put_token {
 	# clear errors
 	$self->Error(undef);
 
+	my $now = strftime( "%F %T", gmtime() );
+
 	if ( $token->{time_skew} ) {
 		my $sth = $dbh->prepare - cached(
 			qq{
-			UPDATE token set	time_skew = :skew
+			UPDATE v_hotpants_token set	time_skew = :skew
 			WHERE	token_id = :tokenid
 			AND		time_skew != :skew
 		}
@@ -823,7 +788,7 @@ sub put_token {
 	if ( $token->{token_sequence} ) {
 		my $sth = $dbh->prepare_cached(
 			qq{
-			UPDATE token_sequence set token_sequence = :seq, last_updated = now()
+			UPDATE v_hotpants_token set token_sequence = :seq, last_updated = :now
 			WHERE	token_id = :tokenid
 			AND		token_sequence < :seq
 		}
@@ -843,6 +808,12 @@ sub put_token {
 		if ( !$sth->bind_param( ':seq', $token->{token_sequence} ) ) {
 			$self->Error(
 				"put_token: unable to bind time_skew" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':now', $now ) ) {
+			$self->Error(
+				"put_user: unable to bind now" . $sth->errstr );
 			return undef;
 		}
 
@@ -890,7 +861,7 @@ sub put_token {
 			my $set = join(", ", map { "$_ = :$_" } keys %{$diff});
 			my $sth = $dbh->prepare_cached(
 				qq{
-				UPDATE	account_token SET $set
+				UPDATE	v_hotpants_token SET $set
 				WHERE	token_id = :token_id
 				AND		last_updated <= :last_updated
 			}
@@ -957,7 +928,7 @@ sub put_user {
 			UPDATE	account_token
 			SET		token_unlock_time = :unlock,
 					bad_logins = :badlogins,
-					last_updated = now(),
+					last_updated = :now,
 					is_user_token_locked = :islocked
 			WHERE	is_user_token_locked != :islocked
 			AND		last_updated <= :lastupdate
@@ -973,10 +944,17 @@ sub put_user {
 			$unlocktime = strftime( "%F %T", gmtime( $acct->{unlock_time} ) );
 		}
 		my $lastupdate = strftime( "%F %T", gmtime() );
+		my $now = $lastupdate;
 
 		if ( !$sth ) {
 			$self->Error(
 				"fetch_user: unable to prepare sth: " . $dbh->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':now', $now ) ) {
+			$self->Error(
+				"put_user: unable to bind now" . $sth->errstr );
 			return undef;
 		}
 
@@ -1290,9 +1268,24 @@ sub HOTPAuthenticate {
 	if (  !$token->{is_user_token_locked}
 		|| $token->{is_user_token_locked} eq 'Y' )
 	{
-		if ( $token->{token_unlock_time} && $token->{token_unlock_time} <= time() ) {
+		my $unlockwhence;
+		eval {
+			my $Strp = DateTime::Format::Strptime->new(
+				pattern => '%F %T',
+				locale => 'en_US.UTF8',
+				time_zone => 'UTC',
+			);
+			my $dt = $Strp->parse_datetime($token->{token_unlock_time}) || die;
+			$unlockwhence = $dt->epoch;
+		};
+		if($@) {
+			$self->ErrorF("Unable to convert %s to epoch", $token->{token_unlock_time});
+			return undef;
+		}
+
+		if ( $unlockwhence && $unlockwhence <= time() ) {
 			$token->{is_user_token_locked} = 'N';
-			$token->{token_unlock_time}    = 0;
+			$token->{token_unlock_time}    = undef;
 			$token->{bad_logins}     = 0;
 			$token->{last_updated}         = time();
 			$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
@@ -1305,7 +1298,7 @@ sub HOTPAuthenticate {
 			$errstr = sprintf( "token %d is locked.", $token->{token_id} );
 			if ( $token->{token_unlock_time} ) {
 				$errstr .= sprintf( "  Token will unlock at %s",
-					scalar( localtime( $token->{token_unlock_time} ) ) );
+					$token->{token_unlock_time} );
 			} else {
 				$errstr .= "  Token must be administratively unlocked";
 			}
