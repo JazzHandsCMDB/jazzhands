@@ -41,10 +41,9 @@
 #
 package HOTPants;
 
-use 5.006;
+use 5.010;
 use strict;
 use warnings;
-use BerkeleyDB;
 use Crypt::Eksblowfish::Bcrypt qw(bcrypt en_base64);
 use Math::BigInt;
 use Digest::SHA qw(sha1 sha1_base64);
@@ -57,23 +56,7 @@ use Crypt::CBC;
 use Digest::SHA qw(sha256);
 use POSIX;
 
-my %__HOTPANTS_DB_NAME = (
-	UserDB        => "user.db",
-	TokenDB       => "token.db",
-	AttrDB        => "attributes.db",
-	ClientDB      => "client.db",
-	DevCollPropDB => "devcoll_prop.db",
-	PasswdDB      => "passwd.db",
-);
-
-my %__HOTPANTS_SERIALIZE_VERSION = (
-	TOKEN       => 1,
-	USER        => 2,
-	ATTRIBUTES  => 1,
-	CLIENT      => 1,
-	DEVCOLLPROP => 1,
-	PASSWD      => 1,
-);
+use parent 'JazzHands::Common';
 
 my %__HOTPANTS_CONFIG_PARAMS = (
 	TimeSequenceSkew      => 2,      # sequence skew allowed for time-based
@@ -99,7 +82,8 @@ BEGIN {
 	our ( $VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS );
 
 	$VERSION = '1.0';
-	@ISA     = qw(Exporter);
+	# redundant with use parent, and all this can likely go away.  maybe.
+	@ISA     = qw(JazzHands::Common Exporter);
 	@EXPORT  = qw(
 	  TT_UNDEF
 	  TT_SOFT_SEQ
@@ -212,11 +196,9 @@ sub new {
 	my $class = ref($proto) || $proto;
 	my $opt   = &_options;
 
-	# return undef if ( !$opt->{path} );
+	my $self = $class->SUPER::new(@_);
 
-	my $self = {};
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
-	bless( $self, $class );
 	$self->opendb();
 
 	if ( exists( $opt->{encryptionmap} ) ) {
@@ -224,35 +206,6 @@ sub new {
 	}
 
 	$self;
-}
-
-sub SetDebug {
-	my $self = shift;
-	if (@_) { $self->{_debug} = shift; }
-	return $self->{_debug};
-}
-
-sub _Debug {
-	my $self  = shift;
-	my $level = shift;
-
-	if ( $self->{_debug} >= $level ) {
-		if (@_) { printf STDERR @_; print STDERR "\n"; }
-	}
-}
-
-sub Error {
-	my $self = shift;
-
-	if (@_) {
-		my $fmt = shift;
-		if (@_) {
-			$self->{_error} = sprintf( $fmt, @_ );
-		} else {
-			$self->{_error} = $fmt;
-		}
-	}
-	return $self->{_error};
 }
 
 sub Status {
@@ -1344,7 +1297,7 @@ sub HOTPAuthenticate {
 			$token->{last_updated}         = time();
 			$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
 			if ( !( $self->put_token( token => $token ) ) ) {
-				$self->Error( "Error unlocking token %d: %s",
+				$self->ErrorF( "Error unlocking token %d: %s",
 					$token->{token_id}, $self->Error );
 				return undef;
 			}
@@ -1524,7 +1477,7 @@ sub HOTPAuthenticate {
 	#
 	if ($pinfound) {
 		if ( !( $self->put_token( token => $token ) ) ) {
-			$self->Error( "Error updating token %d: %s",
+			$self->ErrorF( "Error updating token %d: %s",
 				$token->{token_id}, $self->Error );
 			return undef;
 		}
@@ -1876,7 +1829,7 @@ sub AuthenticateUser {
 
 	$err = $self->Error;
 	if ( !( $self->put_user($user) ) ) {
-		$self->Error( "Error updating user %s: %s", $login, $self->Error );
+		$self->ErrorF( "Error updating user %s: %s", $login, $self->Error );
 		$self->Status(undef);
 		return undef;
 	}
@@ -1989,7 +1942,7 @@ sub AuthorizeUser {
 	my $client;
 	if ( !( $client = $self->fetch_client( client_id => $source ) ) ) {
 		if ( !$self->Error ) {
-			$self->Error( sprintf( "Client %s not found", $source ) );
+			$self->ErrorF( sprintf( "Client %s not found", $source ) );
 		}
 		return undef;
 	}
