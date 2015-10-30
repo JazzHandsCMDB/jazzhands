@@ -69,12 +69,24 @@ sub fetch_table($$$) {
 
 	my $dbh = $self->DBHandle();
 
+	my $pkstr = "";
+	if(!defined($pk)) {
+		# required because the return hash is sorted on this
+		return undef;
+	} elsif(ref($pk) eq 'ARRAY') {
+		$pkstr = join(",", @{$pk});
+	} else {
+		$pkstr = $pk;
+	}
+
 	my $sth = $dbh->prepare_cached(qq{
 		SELECT	*
 		FROM	$table
+		ORDER BY $pkstr
 	}) || die dbh->errstr;
 
 	$sth->execute || die $sth->errstr;
+
 
 	my $rv = {};
 	while(my $hr = $sth->fetchrow_hashref) {
@@ -142,7 +154,7 @@ sub get_primary_key {
 
 	my (@rv);
 	foreach my $schema ($self->get_search_path() ) {
-		my $sth = $dbh->primary_key_info(undef, $schema, $table);
+		my $sth = $dbh->primary_key_info(undef, $schema, $table) || next;
 
 		my $found;
 		while(my $hr = $sth->fetchrow_hashref) {
@@ -231,7 +243,7 @@ sub mktable {
 
 	my $sth = $new->prepare(qq{
 		$q;
-	}) || die $new->errstr;
+	}) || die "$q: ", $new->errstr;
 	$sth->execute || die $sth->{Statement}, ":", $sth->errstr;
 	
 }
@@ -268,7 +280,6 @@ sub copy_table($$$;$) {
 	#
 	my $fromt = $fromh->fetch_table($table, $pk);
 	my $downt = $self->fetch_table($table, $pk);
-
 
 	#
 	# go through everything upstream and make sure everything downstream is there 
@@ -331,16 +342,20 @@ my $down = new DBThing(service => 'hotpants-local') || die $DBThing::errstr;
 
 
 my $tablemap = {
-	'token' => 'token_id',
-	'account' => 'account_id',
-	'token_sequence' => 'token_sequence',
-	'account_token' => 'account_id',
-	'account_collection_account' => 'account_id',
+	'token' => undef,
+	'account' => undef,
+	'token_sequence' => undef,
+	'account_token' => undef,
+	'account_collection_account' => undef,
+	'encryption_key' => undef,
+	'v_corp_family_account' => 'account_id',
+
+
 };
 
 foreach my $table (keys(%{$tablemap})) {
 	warn "sync $table...\n";
-	$down->copy_table($up, $table);
+	$down->copy_table($up, $table, $tablemap->{$table});
 }
 
 
