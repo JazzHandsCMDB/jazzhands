@@ -16,6 +16,8 @@ use warnings;
 use JazzHands::Common qw(:all);
 use Data::Dumper;
 
+use parent 'JazzHands::Common';
+
 our $errstr;
 
 sub errstr {
@@ -45,8 +47,10 @@ sub new {
 		return undef;
 	}
 
-	my $self = {};
-	bless($self, $class );
+	my $self = $class->SUPER::new(@_);
+
+	#my $self = {};
+	#bless($self, $class );
 
 	$self->{_dbh}  = $dbh;
 	$self;
@@ -232,13 +236,21 @@ sub mktable {
 
 	my @cols = $fromh->get_cols($table);
 
+	my @pk = $fromh->get_primary_key($table);
+
+	my $pkstr = "";
+	if($#pk >= 0) {
+		$pkstr = join(" ", 
+			", PRIMARY KEY (", 
+			join(",", @pk), 
+			")");
+	}
+
 	my $q = qq{CREATE TABLE $table (\n\t }.
 		join(",\n\t", map { 
 				join(" ", $_->{colname},$_->{coltype}) 
-			} @cols).
-		q{
-		) 
-		};
+			} @cols).$pkstr.")";
+		;
 
 	my $sth = $new->prepare(qq{
 		$q;
@@ -247,6 +259,11 @@ sub mktable {
 	
 }
 
+#
+# copies a table identified as $table from $fromh into $self.
+#
+# $pk is only needed if it can not be discerned (such as views)
+#
 sub copy_table($$$;$) {
 	my($self, $fromh, $table, $pk) = @_;
 
@@ -279,7 +296,6 @@ sub copy_table($$$;$) {
 	#
 	# go through everything upstream and make sure everything downstream is there 
 	#
-	my @errs;
 	my ($ins,$upd,$del)= (0,0,0);
 	foreach my $k (keys %{$fromt}) {
 		if(!defined($downt->{$k})) {
@@ -288,9 +304,8 @@ sub copy_table($$$;$) {
 			if(!($self->DBInsert(
 						table => $table,
 						hash => $fromt->{$k},
-						errs => \@errs,
 					))) {
-				die join(" ", @errs);
+				die join(" ", $self->Error() );
 			}
 		} else {
 			my $diff = $self->hash_table_diff($downt->{$k}, $fromt->{$k});
@@ -302,9 +317,8 @@ sub copy_table($$$;$) {
 							dbkey => $pk,
 							keyval => $k,
 							hash => $diff,
-							errs => \@errs,
 						))) {
-					die join(" ", @errs);
+					die join(" ", $self->Error() );
 				}
 			}
 		}
@@ -320,9 +334,8 @@ sub copy_table($$$;$) {
 							table => $table,
 							dbkey => $pk,
 							keyval => $k,
-							errs => \@errs,
 						))) {
-					die join(" ", @errs);
+					die join(" ", $self->Error() );
 				}
 		}
 	}

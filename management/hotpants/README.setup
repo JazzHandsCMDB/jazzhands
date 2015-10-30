@@ -224,6 +224,7 @@ this was serialized into a token
             lock_status_changed => token
 
 TODO:
+	deal with dies spread through perl module
 	*** integrate account realms somehow? ***
 
 	need to deal with account_token having multiple entries per token
