@@ -151,6 +151,8 @@ sub do_work {
 		myname    => $command,
 	) || die $JazzHands::Approvals::Errstr;
 
+	$app->dryrun($dryrun);
+
 	if ($onetime) {
 		$app->onetime($rt) || die $app->errstr;
 	} else {
