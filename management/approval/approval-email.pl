@@ -136,14 +136,15 @@ sub do_work {
 	my $escalationgap = 0;
 
 	GetOptions(
-		"dry-run|n"        => \$dryrun,
-		"updatedb"         => \$updatedb,
 		"debug"            => \$debug,
-		"stabroot=s"       => \$stabroot,
-		"mailsender=s"     => \$mailfrom,
-		"signatory=s"      => \$signer,
+		"dry-run|n"        => \$dryrun,
 		"escalation-gap=i" => \$escalationgap,
 		"login=s"          => \$login,
+		"mailsender=s"     => \$mailfrom,
+		"random-sleep=i"   => \$escalationgap,
+		"signatory=s"      => \$signer,
+		"stabroot=s"       => \$stabroot,
+		"updatedb"         => \$updatedb,
 	) || die pod2usage();
 
 	if ( !$updatedb && !$dryrun ) {
