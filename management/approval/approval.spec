@@ -2,7 +2,7 @@
 %define prefix	/usr/libexec/jazzhands/approval
 %define release 0
 Name:   	jazzhands-approval
-Version:        0.64.6
+Version:        0.64.7
 Release:        0%{?dist}
 Summary:        JazzHands Front Ends for Interaction with Approval System
 Group:  	System Environment/Libraries
@@ -70,6 +70,9 @@ fi
 
 
 %changelog
+* Mon Nov  2 2015 Todd Kover <kovert@omniscient.com> 0.64.7
+- add docs to rt, jira
+- add random-sleep argument everywhere
 * Mon Oct 19 2015 Todd Kover <kovert@omniscient.com> 0.64.6
 - add optional automated-escalation
 * Tue Sep 30 2015 Todd Kover <kovert@omniscient.com> 0.64.5

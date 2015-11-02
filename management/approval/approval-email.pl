@@ -28,14 +28,14 @@ use Email::Date::Format qw(email_date);
 use FileHandle;
 use POSIX;
 
-my $service  = "approval-notify";
+my $service = "approval-notify";
 
 =head1 NAME
 
 process-jira - 
 =head1 SYNOPSIS
 
-approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ]
+approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ] [ --random-sleep=# ]
 
 
 =head1 DESCRIPTION
@@ -75,6 +75,9 @@ command line, it will just not be included
 layer of management on overdue reminders.  That is, if its set to 2, every 2
 days, the next layer of management will be copied until there are no more
 managers to add.  The default is zero, which turns of esclations.
+
+The --random-sleep option tells the script to sleep for a random time up to the
+argument number.  The default is not to sleep
 
 =head1 BUILDING THE EMAIL
 
@@ -126,20 +129,21 @@ sub do_work {
 	  || die $JazzHands::DBI::errstr;
 
 	my ( $stabroot, $debug, $dryrun, $updatedb, $mailfrom, $signer, $login );
+	my ($sleep);
 
 	my ($faqurl);
 
-	my $escalationgap =0;
+	my $escalationgap = 0;
 
 	GetOptions(
-		"dry-run|n" => \$dryrun,
-		"updatedb"  => \$updatedb,
-		"debug"  => \$debug,
-		"stabroot=s"  => \$stabroot,
-		"mailsender=s"  => \$mailfrom,
-		"signatory=s"  => \$signer,
-		"escalation-gap=i"  => \$escalationgap,
-		"login=s"  => \$login,
+		"dry-run|n"        => \$dryrun,
+		"updatedb"         => \$updatedb,
+		"debug"            => \$debug,
+		"stabroot=s"       => \$stabroot,
+		"mailsender=s"     => \$mailfrom,
+		"signatory=s"      => \$signer,
+		"escalation-gap=i" => \$escalationgap,
+		"login=s"          => \$login,
 	) || die pod2usage();
 
 	if ( !$updatedb && !$dryrun ) {
@@ -164,6 +168,12 @@ sub do_work {
 
 	die "There is no stab root set by the command line or in the database\n"
 	  if ( !$stabroot );
+
+	if ($sleep) {
+		my $delay = int( rand($sleep) );
+		warn "Sleeping $delay seconds\n" if ($debug);
+		sleep($delay);
+	}
 
 	my $sth = $dbh->prepare_cached(
 		q{
@@ -289,18 +299,18 @@ sub do_work {
 	) || die $dbh->errstr;
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $email  = $hr->{email_address};
-		my $action = $hr->{approval_expiration_action};
-		my $due    = $hr->{due_seconds};
-		my $due_epoch    = $hr->{due_epoch};
+		my $email     = $hr->{email_address};
+		my $action    = $hr->{approval_expiration_action};
+		my $due       = $hr->{due_seconds};
+		my $due_epoch = $hr->{due_epoch};
 
-		my $prefix    = $hr->{email_subject_prefix};
-		my $suffix    = $hr->{email_subject_suffix};
+		my $prefix = $hr->{email_subject_prefix};
+		my $suffix = $hr->{email_subject_suffix};
 
-		my $escname	= $hr->{hier_name_tier};
-		my $escemail= $hr->{hier_email_tier};
+		my $escname  = $hr->{hier_name_tier};
+		my $escemail = $hr->{hier_email_tier};
 
-		next if($login && $hr->{login} ne $login);
+		next if ( $login && $hr->{login} ne $login );
 
 		#
 		# An email has been sent and it is not overdue yet, so do nothing.
@@ -332,37 +342,38 @@ sub do_work {
 		my $subj = $hr->{approval_instance_name} . " "
 		  . $hr->{approval_instance_step_name};
 
-		if($prefix) {
-			$subj ="$prefix $subj";
+		if ($prefix) {
+			$subj = "$prefix $subj";
 		}
-		if($suffix) {
-			$subj ="$subj $suffix";
+		if ($suffix) {
+			$subj = "$subj $suffix";
 		}
 
 		my $rcpt = $email;
 
-		my ($copy,$threat);
-		if($overdue && $escalationgap) {
-			my $daysover = abs(int($hr->{due_seconds} / 86400));
-			my $numdudes = int($daysover / $escalationgap);
+		my ( $copy, $threat );
+		if ( $overdue && $escalationgap ) {
+			my $daysover = abs( int( $hr->{due_seconds} / 86400 ) );
+			my $numdudes = int( $daysover / $escalationgap );
 			my @escalate;
-			for(my $i = 0; $i <= $#{$escemail} && $i < $numdudes; $i++) {
-				push(@escalate, $escemail->[$i]);
+			for ( my $i = 0 ; $i <= $#{$escemail} && $i < $numdudes ; $i++ ) {
+				push( @escalate, $escemail->[$i] );
 			}
 			my $next;
-			if( $#{$escname} >= $numdudes ) {
+			if ( $#{$escname} >= $numdudes ) {
 				$next = $escname->[$numdudes];
 			}
-			my $escupwhen = $due_epoch + (($numdudes+1) *86400* $escalationgap);
-			my $duehuman = strftime("%F", localtime($escupwhen));
+			my $escupwhen =
+			  $due_epoch + ( ( $numdudes + 1 ) * 86400 * $escalationgap );
+			my $duehuman = strftime( "%F", localtime($escupwhen) );
 
-			$copy = join (", ", @escalate);
-			$rcpt .= " ".join(" ", @escalate);
-			if($next) {
-				$threat = "On $duehuman, if this has not been processed, $next will be copied on the next reminder.";
+			$copy = join( ", ", @escalate );
+			$rcpt .= " " . join( " ", @escalate );
+			if ($next) {
+				$threat =
+				  "On $duehuman, if this has not been processed, $next will be copied on the next reminder.";
 			}
 		}
-
 
 		my $nr = 0;
 		if ($updatedb) {
@@ -372,43 +383,45 @@ sub do_work {
 		my $sm;
 		if ($dryrun) {
 			$sm = IO::Handle->new() || die "IO::Handle->new: $!";
-			$sm->fdopen(fileno(STDOUT), "w") || die "dup stdout: $!";
+			$sm->fdopen( fileno(STDOUT), "w" ) || die "dup stdout: $!";
 		} else {
 			my $f = "";
-			$f = "-f$mailfrom" if($mailfrom);
-			$sm = new FileHandle(
-				"| /usr/sbin/sendmail $f $rcpt")
+			$f = "-f$mailfrom" if ($mailfrom);
+			$sm = new FileHandle("| /usr/sbin/sendmail $f $rcpt")
 			  || die "$!";
 		}
-		$sm->print( "Escalation Path:", Dumper($escemail,$escname), "\n" ) if($dryrun && $debug);
+		$sm->print( "Escalation Path:", Dumper( $escemail, $escname ), "\n" )
+		  if ( $dryrun && $debug );
 
 		my $msg = $hr->{message};
 
-		if($dryrun) {
+		if ($dryrun) {
 			$sm->print("+RCPT: $rcpt\n");
 		}
 
-		$sm->print("To: $email\n") if($email);
-		$sm->print("Cc: $copy\n") if($copy);
-		$sm->print("Subject: $subj\n") if($subj);
-		$sm->print("From: $mailfrom\n") if($mailfrom);
+		$sm->print("To: $email\n")      if ($email);
+		$sm->print("Cc: $copy\n")       if ($copy);
+		$sm->print("Subject: $subj\n")  if ($subj);
+		$sm->print("From: $mailfrom\n") if ($mailfrom);
 		$sm->print( "Date: " . email_date() . "\n" );
 
-		$sm->print( "\nDear ", $hr->{first_name}, ",\n");
+		$sm->print( "\nDear ", $hr->{first_name}, ",\n" );
 
 		$sm->print( "\n", $msg, "\n\n" );
 		$sm->print("Visit ${stabroot}/approve/ to complete this process.\n\n");
 
-		if($faqurl) {
-			$sm->print("Please visit $faqurl for more information, if you have questions or problems.\n\n");
+		if ($faqurl) {
+			$sm->print(
+				"Please visit $faqurl for more information, if you have questions or problems.\n\n"
+			);
 		}
 		$sm->print( "Please complete this process by end of day ",
 			$hr->{approval_instance_step_due}, ".\n" );
 
-		$sm->print( "\n$threat\n" ) if($threat);
+		$sm->print("\n$threat\n") if ($threat);
 
-		if($signer) {
-			$sm->print( "\n\n-- $signer\n");
+		if ($signer) {
+			$sm->print("\n\n-- $signer\n");
 		}
 		$sm->close();
 
