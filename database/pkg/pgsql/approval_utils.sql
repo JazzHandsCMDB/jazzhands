@@ -171,7 +171,6 @@ BEGIN
 			 inner join p
 				on i.approved_label = p.approval_label
 				and res.person_id = p.person_id
-				and res.company_id = p.company_id
 		) SELECT 
 			login,
 			account_id,
