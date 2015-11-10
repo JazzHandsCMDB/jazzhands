@@ -35,7 +35,7 @@ my $service = "approval-notify";
 process-jira - 
 =head1 SYNOPSIS
 
-approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ] [ --random-sleep=# ]
+approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ]  --escalation-level=# [ --random-sleep=# ]
 
 
 =head1 DESCRIPTION
@@ -75,6 +75,11 @@ command line, it will just not be included
 layer of management on overdue reminders.  That is, if its set to 2, every 2
 days, the next layer of management will be copied until there are no more
 managers to add.  The default is zero, which turns of esclations.
+
+--escalation-level can be set to a number of tiers above the manager to be
+escalated to.  That is, if it set to zero, the escalation-gap option is useless.
+If it is set to one, one level of manager will be escalated to, and so on.
+The default is to not set this, and thus keep escalating.
 
 The --random-sleep option tells the script to sleep for a random time up to the
 argument number.  The default is not to sleep
@@ -134,11 +139,13 @@ sub do_work {
 	my ($faqurl);
 
 	my $escalationgap = 0;
+	my $escalationlevel;
 
 	GetOptions(
 		"debug"            => \$debug,
 		"dry-run|n"        => \$dryrun,
 		"escalation-gap=i" => \$escalationgap,
+		"escalation-level=i" => \$escalationlevel,
 		"login=s"          => \$login,
 		"mailsender=s"     => \$mailfrom,
 		"random-sleep=i"   => \$escalationgap,
@@ -332,7 +339,7 @@ sub do_work {
 		# if its overdue, and some pestering was not done in the past day
 		# pester again.
 		#
-		my $overdue = ( $hr->{due_seconds} < 0 ) ? 1 : 0;
+		my $overdue = ( $hr->{due_seconds} < 0 ) ? abs($hr->{due_seconds}/86400) : 0;
 		if ( $overdue
 			&& ( !$hr->{since_last_pester} || $hr->{since_last_pester} < 86400 )
 		  )
@@ -356,23 +363,53 @@ sub do_work {
 		if ( $overdue && $escalationgap ) {
 			my $daysover = abs( int( $hr->{due_seconds} / 86400 ) );
 			my $numdudes = int( $daysover / $escalationgap );
+
+			#
+			# If escalationlevel is set, then cap how high it goes.
+			#
+			my $included = $numdudes;
+			if(defined($escalationlevel)) {
+				$included = $escalationlevel - 1;
+			}
 			my @escalate;
-			for ( my $i = 0 ; $i <= $#{$escemail} && $i < $numdudes ; $i++ ) {
+			for ( my $i = 0 ; $i <= $#{$escemail} && $i <= $included ; $i++ ) {
 				push( @escalate, $escemail->[$i] );
 			}
 			my $next;
-			if ( $#{$escname} >= $numdudes ) {
-				$next = $escname->[$numdudes];
+
+			#
+			# determine if escalations should happen after this one.
+			#
+			my $moreescalate = 0;
+			if(defined($escalationgap)) {
+				#
+				# there's a gap but no level cap, so keep on going.
+				#
+				if(!defined($escalationlevel)) {
+					$moreescalate = 1;
+				} else {
+					# we only go up $escalationlevel number of people
+					if($numdudes < $escalationlevel) {
+						$moreescalate = 1;
+					}
+				}
 			}
-			my $escupwhen =
-			  $due_epoch + ( ( $numdudes + 1 ) * 86400 * $escalationgap );
-			my $duehuman = strftime( "%F", localtime($escupwhen) );
 
 			$copy = join( ", ", @escalate );
 			$rcpt .= " " . join( " ", @escalate );
-			if ($next) {
-				$threat =
-				  "On $duehuman, if this has not been processed, $next will be copied on the next reminder.";
+
+			if($moreescalate) {
+				if ( $#{$escname} >= $numdudes ) {
+					$next = $escname->[$numdudes];
+				}
+				my $escupwhen =
+			  	$due_epoch + ( ( $numdudes + 1 ) * 86400 * $escalationgap );
+				my $duehuman = strftime( "%F", localtime($escupwhen) );
+
+				if ($next) {
+					$threat =
+				  	"On $duehuman, if this has not been processed, $next will begin to be copied on the reminders.";
+				}
 			}
 		}
 
@@ -416,8 +453,15 @@ sub do_work {
 				"Please visit $faqurl for more information, if you have questions or problems.\n\n"
 			);
 		}
-		$sm->print( "Please complete this process by end of day ",
-			$hr->{approval_instance_step_due}, ".\n" );
+		if($overdue) {
+			$sm->printf( "PLEASE COMPLETE AS SOON AS POSSIBLE.  It was due on %s and is now %d %s overdue.",
+				$hr->{approval_instance_step_due}, $overdue,
+				($overdue == 1)?"day":"days"
+			);
+		} else {
+			$sm->print( "Please complete this process by end of day ",
+				$hr->{approval_instance_step_due}, ".\n" );
+		}
 
 		$sm->print("\n$threat\n") if ($threat);
 
