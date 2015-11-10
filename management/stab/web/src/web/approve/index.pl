@@ -250,7 +250,7 @@ sub dump_attest_loop($$;$$) {
 				} else {
 					$correction = $cgi->div(
 						{
-							-class => 'correction hidecorrection',
+							-class => 'correction hidecorrection chosen-workaround',
 							-id    => $hr->{ _dbx('approval_instance_item_id') }
 						},
 						build_correction($stab, $hr),

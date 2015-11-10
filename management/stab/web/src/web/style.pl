@@ -381,6 +381,10 @@ input.srvnum {
 	visibility: hidden;
 }
 
+div.chosen-workaround {
+	width: 100% !important;
+}
+
 ul.collection {
 	list-style-type: lower-roman;		/* should be none */
 }
