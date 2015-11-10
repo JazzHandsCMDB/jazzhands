@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.64.7
+Version:        0.64.8
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -185,6 +185,8 @@ rm -rf %{buildroot}
 %{_mandir}/man3/*
 
 %changelog
+* Tue Nov  9 2015 Todd Kover <kovert@omniscient.com> 0.64.8
+- fix bug with chosen and multiple tabs on outstanding approval page
 * Wed Oct  7 2015 Todd Kover <kovert@omniscient.com> 0.64.7
 - furthur reporting improvements - change how tables are generated
 - add table that shows each outstanding step and its state
