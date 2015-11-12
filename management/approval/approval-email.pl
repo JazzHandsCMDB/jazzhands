@@ -448,19 +448,22 @@ sub do_work {
 		$sm->print( "\n", $msg, "\n\n" );
 		$sm->print("Visit ${stabroot}/approve/ to complete this process.\n\n");
 
-		if ($faqurl) {
-			$sm->print(
-				"Please visit $faqurl for more information, if you have questions or problems.\n\n"
-			);
-		}
 		if($overdue) {
 			$sm->printf( "PLEASE COMPLETE AS SOON AS POSSIBLE.  It was due on %s and is now %d %s overdue.",
 				$hr->{approval_instance_step_due}, $overdue,
 				($overdue == 1)?"day":"days"
 			);
 		} else {
+			$m->printf( "Please complete your review by end of day %s. If this has not been processed in a timely manner, your manager will automatically be copied on reminder notifications until completed.\n", 
+				$hr->{approval_instance_step_due});
+		}
 			$sm->print( "Please complete this process by end of day ",
-				$hr->{approval_instance_step_due}, ".\n" );
+		}
+
+		if ($faqurl) {
+			$sm->print(
+				"Please visit $faqurl for more information, if you have questions or problems.\n\n"
+			);
 		}
 
 		$sm->print("\n$threat\n") if ($threat);

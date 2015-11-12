@@ -76,6 +76,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \i ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
 \i ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
 \i ddl/schema/pgsql/create_component_triggers.sql
+\i ddl/schema/pgsql/create_approval_triggers.sql
 \i ddl/schema/pgsql/create_legacy_port_triggers_RETIRE.sql
 \i ddl/schema/pgsql/create_physical_conection_triggers.sql
 \i ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
