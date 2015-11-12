@@ -2,7 +2,7 @@
 %define prefix	/usr/libexec/jazzhands/approval
 %define release 0
 Name:   	jazzhands-approval
-Version:        0.64.8
+Version:        0.64.9
 Release:        0%{?dist}
 Summary:        JazzHands Front Ends for Interaction with Approval System
 Group:  	System Environment/Libraries
@@ -70,6 +70,9 @@ fi
 
 
 %changelog
+* Thu Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.9
+- add reminder-gap
+- move much to the database for approval messages 
 * Tue Nov 10 2015 Todd Kover <kovert@omniscient.com> 0.64.8
 - add max escalation level support to approval utils
 * Mon Nov  2 2015 Todd Kover <kovert@omniscient.com> 0.64.7
