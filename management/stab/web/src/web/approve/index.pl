@@ -51,28 +51,31 @@ sub do_attest_toplevel {
 }
 
 sub build_correction($$) {
-	my($stab, $hr) = @_;
+	my ( $stab, $hr ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $id = $hr->{_dbx('APPROVAL_INSTANCE_ITEM_ID')};
-	my $cat = $hr->{_dbx('approved_category')};
+	my $id  = $hr->{ _dbx('APPROVAL_INSTANCE_ITEM_ID') };
+	my $cat = $hr->{ _dbx('approved_category') };
 
 	my $newid = "fix_$id";
 
-	if($cat =~  /^department|ReportingAttest$/) {
+	if ( $cat =~ /^department|ReportingAttest$/ ) {
 		my $sth;
 		my $ph = "";
-		if($cat eq 'department') {
-			$ph = 'Please Select department';
-			$sth = $stab->prepare_cached(qq{
+		if ( $cat eq 'department' ) {
+			$ph  = 'Please Select department';
+			$sth = $stab->prepare_cached(
+				qq{
 				select  account_collection_name
 				from  account_collection
 				where   account_collection_type = 'department'
 				order by account_collection_name
-			}) || return $stab->return_db_err();
-		} elsif($cat eq 'ReportingAttest') {
-			$ph = 'Please Select Manager';
-			$sth = $stab->prepare_cached(qq{
+			}
+			) || return $stab->return_db_err();
+		} elsif ( $cat eq 'ReportingAttest' ) {
+			$ph  = 'Please Select Manager';
+			$sth = $stab->prepare_cached(
+				qq{
 				WITH x as (
 					select person_id,
 						coalesce(preferred_first_name,first_name) as first_name,
@@ -88,31 +91,36 @@ sub build_correction($$) {
 					as who
 				from  x
 				order by last_name, first_name, login
-			}) || return $stab->return_db_err();
+			}
+			) || return $stab->return_db_err();
 		}
 
-		my(@list);
-		push(@list, '');
+		my (@list);
+		push( @list, '' );
 		$sth->execute || $stab->return_db_err();
-		while(my ($name) = $sth->fetchrow_array) {
-			push(@list, $name);
+		while ( my ($name) = $sth->fetchrow_array ) {
+			push( @list, $name );
 		}
-		my $rv = $cgi->popup_menu({
-			-name =>  $newid,
-			-id => $newid,
-			-values => \@list,
-			"-data-placeholder" => $ph,
-			-class => "chosen-select correction",
-			-tabindex => 2,
-		});
+		my $rv = $cgi->popup_menu(
+			{
+				-name               => $newid,
+				-id                 => $newid,
+				-values             => \@list,
+				"-data-placeholder" => $ph,
+				-class              => "chosen-select correction",
+				-tabindex           => 2,
+			}
+		);
 		return $rv;
 	} else {
-		return $cgi->textfield({
-			-name =>  $newid,
-			-id => $newid,
-			-class => 'correction hint',
-			-value => 'enter correction'
-		});
+		return $cgi->textfield(
+			{
+				-name  => $newid,
+				-id    => $newid,
+				-class => 'correction hint',
+				-value => 'enter correction'
+			}
+		);
 	}
 	return "";
 }
@@ -209,7 +217,7 @@ sub dump_attest_loop($$;$$) {
 				}
 
 				my $correction = "";
-				my $myclass = "";
+				my $myclass    = "";
 				my $mytrclass;
 				if ( $classnote % 2 ) {
 					$mytrclass = 'even';
@@ -250,16 +258,16 @@ sub dump_attest_loop($$;$$) {
 				} else {
 					$correction = $cgi->div(
 						{
-							-class => 'correction hidecorrection chosen-workaround',
-							-id    => $hr->{ _dbx('approval_instance_item_id') }
+							-class =>
+							  'correction hidecorrection chosen-workaround',
+							-id => $hr->{ _dbx('approval_instance_item_id') }
 						},
-						build_correction($stab, $hr),
-				  	);
+						build_correction( $stab, $hr ),
+					);
 				}
 
-				$correction = $cgi->td(
-					{-class=>"$myclass correction"},
-					$correction);
+				$correction =
+				  $cgi->td( { -class => "$myclass correction" }, $correction );
 
 				my $whocol = '';
 				if ( $perdudetally == 1 ) {
@@ -315,11 +323,13 @@ sub dump_attest_loop($$;$$) {
 					);
 				}
 
-
 				$t .= $cgi->Tr(
 					{ -class => $mytrclass },
-					$cgi->hidden(-id=>'approval_category',
-							-value=> $hr->{approved_category}),
+					$cgi->hidden(
+						-id    => 'approval_category',
+						-value => $hr->{approved_category}
+					),
+
 					# $cgi->td($linkback),
 					$whocol,
 					$cgi->td(
@@ -331,6 +341,7 @@ sub dump_attest_loop($$;$$) {
 						]
 					),
 					$correction,
+
 					# $cgi->td($linkfwd),
 				);
 			}
@@ -339,53 +350,58 @@ sub dump_attest_loop($$;$$) {
 		my $hdr = "";
 		if ($numpending) {
 			$hdr = $cgi->th(
-				[
-					'Who', 'What', "Value", "Approval $appall",
-					'Correction', 
-				]
-			);
+				[ 'Who', 'What', "Value", "Approval $appall", 'Correction', ] );
 		} else {
 			$hdr = $cgi->th( [ "", 'Who', 'What', "Value", "", "", "" ] );
 		}
 
 		my $dueclass = 'approvaldue';
-		my $due = "Due: End of Day ".$shr->{_dbx('APPROVAL_INSTANCE_STEP_DUE')};
-		if($shr->{_dbx('DUE_SECONDS')} < 0) {
+		my $due =
+		  "Due: End of Day " . $shr->{ _dbx('APPROVAL_INSTANCE_STEP_DUE') };
+		if ( $shr->{ _dbx('DUE_SECONDS') } < 0 ) {
+			my $n = int( abs( $shr->{ _dbx('DUE_SECONDS') } ) / 86400 );
 			$dueclass .= " overdue";
-			$due = "OVERDUE: $due";
-		} elsif($shr->{_dbx('DUE_SECONDS')} < 86400) {
+			$due = "OVERDUE $n days: $due";
+		} elsif ( $shr->{ _dbx('DUE_SECONDS') } < 86400 ) {
 			$dueclass .= " duesoon";
 			$due = "DUE SOON: $due";
 		}
 
 		my $msg = $shr->{ _dbx('chain_description') };
 
-		my $tab = join("\n",
+		my $tab = join(
+			"\n",
 			$cgi->div(
 				{ -class => 'description process' },
 				$shr->{ _dbx('process_description') }
-			), $cgi->hr,
+			),
+			$cgi->hr,
 
 			$cgi->div(
 				{ -class => 'description chain' },
 				$msg,
 				$cgi->hr,
-				$cgi->div({ -class => 'directions' },
+				$cgi->div(
+					{ -class => 'directions' },
 					q{
 						Please verify each item and either approve or request
 						changes from this page.  The "approve all" button can
 						be used to approve all items.
-					}),
+					}
+				),
 				$cgi->table( { -class => 'attest' }, $hdr, $t ),
 			),
-			$cgi->div( {-class=>$dueclass}, $due ),
+			$cgi->div( { -class => $dueclass }, $due ),
 		);
+
 		# hrn = human readnable, id = for web forms
-		my $id = join("_",$shr->{_dbx('APPROVAL_INSTANCE_STEP_ID')},
-				$shr->{_dbx('APPROVAL_INSTANCE_NAME')});
+		my $id = join( "_",
+			$shr->{ _dbx('APPROVAL_INSTANCE_STEP_ID') },
+			$shr->{ _dbx('APPROVAL_INSTANCE_NAME') } );
 		$id =~ s/\s+//g;
-		my $hrn = join(" ", $shr->{_dbx('APPROVAL_INSTANCE_NAME')},
-				$shr->{_dbx('APPROVAL_INSTANCE_STEP_NAME')});
+		my $hrn = join( " ",
+			$shr->{ _dbx('APPROVAL_INSTANCE_NAME') },
+			$shr->{ _dbx('APPROVAL_INSTANCE_STEP_NAME') } );
 		push( @tabs, { id => $id, name => $hrn, content => $tab } );
 		undef $t;
 		undef $tab;
@@ -406,15 +422,14 @@ sub dump_attest_loop($$;$$) {
 	}
 	print $form;
 
-
 	#
 	# build html for the tab bar into $tabbar
 	#
-	my $count = 0;
+	my $count  = 0;
 	my $tabbar = "";
 	for my $h (@tabs) {
 		my $class = 'stabtab';
-		if($count++ == 0) {
+		if ( $count++ == 0 ) {
 			$class .= ' stabtab_on';
 		} else {
 			$class .= ' stabtab_off';
@@ -423,12 +438,11 @@ sub dump_attest_loop($$;$$) {
 		$tabbar .= $cgi->a(
 			{
 				-class => $class,
-				-id => "tab$id",
+				-id    => "tab$id",
 			},
 			$h->{name}
 		);
 	}
-
 
 	#
 	# build html for the actual tabs in $tabcontent
@@ -436,28 +450,35 @@ sub dump_attest_loop($$;$$) {
 	$count = 0;
 	my $tabcontent = "";
 	for my $h (@tabs) {
-		my $id = $h->{id};
+		my $id    = $h->{id};
 		my $class = 'stabtab';
-		if($count++ == 0) {
+		if ( $count++ == 0 ) {
 			$class .= ' stabtab_on';
 		}
-		$tabcontent .= $cgi->div({-class=>$class, id=>"tab$id"},
+		$tabcontent .= $cgi->div(
+			{ -class => $class, id => "tab$id" },
 
 			$h->{content}
-	);
+		);
 	}
 
-	print $cgi->div({-class => 'stabtabset'},
-		$cgi->div( {-class=>'stabtabbar'}, $tabbar),
-		$cgi->div( {-class=>'stabtabcontent'}, $tabcontent),
+	print $cgi->div(
+		{ -class => 'stabtabset' },
+		$cgi->div( { -class => 'stabtabbar' },     $tabbar ),
+		$cgi->div( { -class => 'stabtabcontent' }, $tabcontent ),
 	);
 
-	if($#tabs >= 0) {
-		print $cgi->div( { -class => 'attestsubmit' },
-			$cgi->submit( { -class => 'attestsubmit', -label=>"Submit Approval"} ) ),
-	  	"\n";
+	if ( $#tabs >= 0 ) {
+		print $cgi->div(
+			{ -class => 'attestsubmit' },
+			$cgi->submit(
+				{ -class => 'attestsubmit', -label => "Submit Approval" }
+			)
+		  ),
+		  "\n";
 	} else {
-		print "There is nothing outstanding for you to do. Thank you for checking";
+		print
+		  "There is nothing outstanding for you to do. Thank you for checking";
 	}
 	print $cgi->end_form, "\n",;
 }
@@ -467,8 +488,9 @@ sub do_my_attest {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $acctid = $stab->get_account_id($actas);
-	if(! $stab->check_management_chain($acctid) && ! $stab->check_admin() ) {
-		$stab->error_return("You are not permitted to approve on behalf of this person");
+	if ( !$stab->check_management_chain($acctid) && !$stab->check_admin() ) {
+		$stab->error_return(
+			"You are not permitted to approve on behalf of this person");
 	}
 
 	my $sth = $stab->prepare(
@@ -525,18 +547,16 @@ sub do_my_attest {
 
 	$sth->execute($acctid) || return $stab->return_db_err($sth);
 
-
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html(
 		{ -title => "Approvals", -javascript => 'attest' } ), "\n";
 
 	my $for = "";
-	if($acctid != $stab->get_account_id() ) {
+	if ( $acctid != $stab->get_account_id() ) {
 		$for = " for $actas";
 	}
 
-	print $cgi->h4( { -align => 'center' },
-		"Outstanding Approvals $for" );
+	print $cgi->h4( { -align => 'center' }, "Outstanding Approvals $for" );
 
 	dump_attest_loop( $stab, $sth, $acctid );
 

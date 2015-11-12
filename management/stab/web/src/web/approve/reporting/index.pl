@@ -152,7 +152,8 @@ sub dump_steps {
 					case when is_completed = 'Y' THEN
 						age(date_trunc('second',approval_instance_step_end),
 							date_trunc('second',approval_instance_step_start))::text
-						ELSE '' END AS "Duration Open"
+						ELSE '' END AS "Duration Open",
+					a.login
 			FROM	approval_instance_step aps
 					INNER JOIN approval_process_chain apc
 						USING (approval_process_chain_id)
@@ -167,7 +168,9 @@ sub dump_steps {
 		bind    => [$instid],
 		caption => 'Detailed Completion Information',
 		class   => 'reporting',
-		tableid => 'approvalreport'
+		tableid => 'approvalreport',
+		urlmap	=> { 'Relevant User' => '../?actas=%{login}' },
+		hidden	=> [ 'login' ],
 	);
 }
 
@@ -190,6 +193,7 @@ sub dump_peruser {
 				FROM a
 			) SELECT 
 				human_name as "Approving User",
+				login,
 				s.approval_instance_step_name as "Outstanding Steps", 
 				count(*) as "# Items"
 			FROM  v_approval_instance_step_expanded x 
@@ -202,12 +206,14 @@ sub dump_peruser {
 			where s.is_completed = 'N'
 			and is_approved is null
 			and rs.approval_instance_id = ?
-			group by human_name, s.approval_instance_step_name
+			group by human_name, login, s.approval_instance_step_name
 			order by 1, 2
 		},
 		bind    => [$instid],
 		caption => 'State of Each Outstanding Recertification by User',
 		class   => 'reporting',
+		urlmap	=> { 'Approving User' => '../?actas=%{login}' },
+		hidden	=> [ 'login' ],
 		tableid => 'approvalperuser'
 	);
 }
