@@ -26,7 +26,7 @@ SELECT	ap.approval_process_id, ap.first_apprvl_process_chain_id,
 				concat('week ', to_char(now(), 'WW'), ' - ', 
 						to_char(now(), 'YYY-MM-DD'))	
 			WHEN ap.attestation_frequency = 'quarterly' THEN
-				concat( to_char(now(), 'YYYY'), 'q', to_char(now(), 'Q'))
+				concat( to_char(now(), 'YYYY'), ' q', to_char(now(), 'Q'))
 			ELSE 'unknown'
 			END as current_attestation_name,
 		p.property_id, p.property_name, 

@@ -598,10 +598,32 @@ CREATE OR REPLACE FUNCTION approval_utils.message_replace(
 $$
 DECLARE
 	rv	text;
+	stabroot	text;
+	faqurl	text;
 BEGIN
+	SELECT property_value
+	INTO stabroot
+	FROM property
+	WHERE property_name = '_stab_root'
+	AND property_type = 'Defaults'
+	ORDER BY property_id
+	LIMIT 1;
+
+	SELECT property_value
+	INTO faqurl
+	FROM property
+	WHERE property_name = '_approval_faq_site'
+	AND property_type = 'Defaults'
+	ORDER BY property_id
+	LIMIT 1;
+
 	rv := message;
 	rv := regexp_replace(rv, '%\{effective_date\}', start_time::date::text, 'g');
 	rv := regexp_replace(rv, '%\{due_date\}', due_time::date::text, 'g');
+	rv := regexp_replace(rv, '%\{stab_url\}', stabroot, 'g');
+	rv := regexp_replace(rv, '%\{faq_url\}', faqurl, 'g');
+
+	-- There is also due_threat, which is processed in approval-email.pl
 
 	return rv;
 END;
