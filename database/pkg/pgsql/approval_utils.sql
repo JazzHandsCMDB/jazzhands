@@ -200,10 +200,10 @@ BEGIN
 	RETURN _r;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
-	
 
-CREATE OR REPLACE FUNCTION approval_utils.build_attest()
-RETURNS integer AS $$
+CREATE OR REPLACE FUNCTION approval_utils.build_attest(
+	nowish		timestamp DEFAULT now()
+) RETURNS integer AS $$
 DECLARE
 	_r			RECORD;
 	ai			approval_instance%ROWTYPE;
@@ -223,6 +223,7 @@ BEGIN
 					(SELECT approval_process_id, approval_instance_name 
 					 FROM approval_instance
 					)
+				AND current_attestation_begins < nowish
 	LOOP
 		IF _r.approving_entity != 'manager' THEN
 			RAISE EXCEPTION 'Do not know how to process approving entity %',

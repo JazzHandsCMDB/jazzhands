@@ -33,7 +33,7 @@ my $service = "approval-notify";
 
 =head1 NAME
 
-process-jira - 
+approve-email - 
 =head1 SYNOPSIS
 
 approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ]  --escalation-level=# [ --random-sleep=# ] [ --reminder-gap=# ]

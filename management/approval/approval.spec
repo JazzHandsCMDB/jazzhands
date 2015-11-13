@@ -2,7 +2,7 @@
 %define prefix	/usr/libexec/jazzhands/approval
 %define release 0
 Name:   	jazzhands-approval
-Version:        0.64.9
+Version:        0.64.10
 Release:        0%{?dist}
 Summary:        JazzHands Front Ends for Interaction with Approval System
 Group:  	System Environment/Libraries
@@ -34,6 +34,7 @@ cp -p process-rt-queue-approvals.init.d $RPM_BUILD_ROOT/etc/init.d/process-rt-qu
 
 mkdir -p $RPM_BUILD_ROOT/%{prefix}
 cp -p approval-email.pl $RPM_BUILD_ROOT/%{prefix}/approval-email
+cp -p build-approvals.pl $RPM_BUILD_ROOT/%{prefix}/build-approvals
 cp -p process-rt-queue-approvals.pl $RPM_BUILD_ROOT/%{prefix}/process-rt-queue-approvals
 cp -p process-jira-issue-approvals.pl $RPM_BUILD_ROOT/%{prefix}/process-jira-issue-approvals
 
@@ -63,6 +64,7 @@ fi
 /etc/init.d/process-jira-issue-approvals
 /etc/init.d/process-rt-queue-approvals
 %{prefix}/approval-email
+%{prefix}/build-approvals
 %{prefix}/process-rt-queue-approvals
 %{prefix}/process-jira-issue-approvals
 %{perl_vendorlib}/JazzHands/Approvals.pm
@@ -70,6 +72,8 @@ fi
 
 
 %changelog
+* Thu Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.10
+- add build-approvals script
 * Thu Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.9
 - add reminder-gap
 - move much to the database for approval messages 
