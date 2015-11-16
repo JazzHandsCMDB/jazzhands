@@ -117,7 +117,7 @@ BEGIN
 		SELECT  login,
 			account_id,
 			person_id,
-			company_id,
+			mm.company_id,
 			manager_account_id,
 			manager_login,
 			''person_company''::text as audit_table,
@@ -145,7 +145,7 @@ BEGIN
 			END as approval_rhs
 		FROM    v_account_manager_map mm
 			INNER JOIN v_person_company_audit_map pcm
-			    USING (person_id,company_id)
+			    USING (person_id)
 			INNER JOIN v_approval_matrix am
 			    ON property_val_lhs = ''person_company''
 			    AND property_val_rhs = ''position_title''
@@ -176,32 +176,32 @@ BEGIN
 			login,
 			account_id,
 			person_id,
-			company_id,
-			manager_account_id,
-			manager_login,
-			audit_table,
-			audit_seq_id,
-			approval_process_id,
-			approval_process_chain_id,
-			approving_entity,
-			approval_process_description,
-			approval_chain_description,
-			approval_response_period,
-			approval_expiration_action,
-			attestation_frequency,
-			current_attestation_name,
-			current_attestation_begins,
-			attestation_offset,
-			approval_process_chain_name,
-			approval_category,
-			approval_label,
-			approval_lhs,
-			approval_rhs
-		FROM x where	approval_instance_item_id = $1
-	' INTO _r USING approval_instance_item_id;
-	RETURN _r;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
+					company_id,
+					manager_account_id,
+					manager_login,
+					audit_table,
+					audit_seq_id,
+					approval_process_id,
+					approval_process_chain_id,
+					approving_entity,
+					approval_process_description,
+					approval_chain_description,
+					approval_response_period,
+					approval_expiration_action,
+					attestation_frequency,
+					current_attestation_name,
+					current_attestation_begins,
+					attestation_offset,
+					approval_process_chain_name,
+					approval_category,
+					approval_label,
+					approval_lhs,
+					approval_rhs
+				FROM x where	approval_instance_item_id = $1
+			' INTO _r USING approval_instance_item_id;
+			RETURN _r;
+		END;
+		$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 CREATE OR REPLACE FUNCTION approval_utils.build_attest(
 	nowish		timestamp DEFAULT now()

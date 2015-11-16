@@ -211,6 +211,7 @@ sub do_work {
 			}
 		}
 	} else {
+		$binddbnow = $argnow || strftime("%F %T", localtime(time));
 		$dbnow = 'now()';
 		$now   = time();
 	}
