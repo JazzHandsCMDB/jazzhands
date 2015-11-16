@@ -74,6 +74,7 @@ fi
 %changelog
 * Mon Nov 16 2015 Todd Kover <kovert@omniscient.com> 0.64.12
 - fix bug with --random-sleep
+- remove extra link to FAQ
 * Mon Nov 16 2015 Todd Kover <kovert@omniscient.com> 0.64.11
 - fix whence on approval-email call when no date is passed in
 * Thu Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.10

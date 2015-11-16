@@ -519,12 +519,6 @@ sub do_work {
 
 		$sm->print( "\n", $msg, "\n\n" );
 
-		if ($faqurl) {
-			$sm->print(
-				"Please visit $faqurl for more information, if you have questions or problems.\n\n"
-			);
-		}
-
 		if ($signer) {
 			$sm->print("\n\n-- $signer\n");
 		}
