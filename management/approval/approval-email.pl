@@ -153,7 +153,7 @@ sub do_work {
 		"login=s"            => \$login,
 		"mailsender=s"       => \$mailfrom,
 		"now=s"              => \$argnow,
-		"random-sleep=i"     => \$escalationgap,
+		"random-sleep=i"     => \$sleep,
 		"reminder-gap=s"     => \$remindergap,
 		"signatory=s"        => \$signer,
 		"updatedb"           => \$updatedb,
@@ -194,7 +194,7 @@ sub do_work {
 	my ( $binddbnow, $dbnow, $now );
 	if ($argnow) {
 		$binddbnow = $argnow;
-		$dbnow = "'$argnow'::timestamp";
+		$dbnow     = "'$argnow'::timestamp";
 
 		my $s = DateTime::Format::Strptime->new(
 			pattern   => '%F %T',
@@ -211,9 +211,9 @@ sub do_work {
 			}
 		}
 	} else {
-		$binddbnow = $argnow || strftime("%F %T", localtime(time));
-		$dbnow = 'now()';
-		$now   = time();
+		$binddbnow = $argnow || strftime( "%F %T", localtime(time) );
+		$dbnow     = 'now()';
+		$now       = time();
 	}
 
 	# $now = "'2015-11-20'::interval";

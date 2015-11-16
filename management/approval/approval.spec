@@ -2,7 +2,7 @@
 %define prefix	/usr/libexec/jazzhands/approval
 %define release 0
 Name:   	jazzhands-approval
-Version:        0.64.11
+Version:        0.64.12
 Release:        0%{?dist}
 Summary:        JazzHands Front Ends for Interaction with Approval System
 Group:  	System Environment/Libraries
@@ -72,6 +72,8 @@ fi
 
 
 %changelog
+* Mon Nov 16 2015 Todd Kover <kovert@omniscient.com> 0.64.12
+- fix bug with --random-sleep
 * Mon Nov 16 2015 Todd Kover <kovert@omniscient.com> 0.64.11
 - fix whence on approval-email call when no date is passed in
 * Thu Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.10
