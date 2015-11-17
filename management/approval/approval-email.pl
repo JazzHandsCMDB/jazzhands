@@ -364,7 +364,9 @@ sub do_work {
 		if ( $remindergap && $hr->{due_seconds} > 0 ) {
 			my $reminderdays = 86400 * $remindergap;
 
-			if ( $hr->{approval_notify_whence} + $reminderdays > $now ) {
+			
+			if ( $hr->{approval_notify_whence} &&
+					$hr->{approval_notify_whence} + $reminderdays > $now ) {
 				next;
 			}
 
@@ -384,8 +386,12 @@ sub do_work {
 		# if its overdue, and some pestering was not done in the past day
 		# pester again.
 		#
-		my $overdue =
-		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0;
+		my $overdue = ceil (
+		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0
+		);
+		my $overdueprint = floor (
+		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0
+		);
 		if ( $overdue
 			&& ( $hr->{since_last_pester} && $hr->{since_last_pester} < 86400 )
 		  )
@@ -410,15 +416,23 @@ sub do_work {
 		if ( $overdue && $escalationgap ) {
 			my $daysover = abs( int( $hr->{due_seconds} / 86400 ) );
 
-			my $numdudes = int( $daysover / $escalationgap );
+			my $numdudes = int( $daysover / $escalationgap ) -1;
+			my $nextdude = int( $daysover / $escalationgap );
+
 
 			#
 			# If escalationlevel is set, then cap how high it goes.
 			#
 			my $included = $numdudes;
-			if ( defined($escalationlevel) ) {
+			if ( defined($escalationlevel) && 
+					$included > $escalationlevel - 1) {
 				$included = $escalationlevel - 1;
 			}
+
+			#
+			# Build an array into @escalate of everyone who needs to be
+			# copied on the email.
+			#
 			my @escalate;
 			for ( my $i = 0 ; $i <= $#{$escemail} && $i <= $included ; $i++ ) {
 				push( @escalate, $escemail->[$i] );
@@ -435,9 +449,8 @@ sub do_work {
 			if ( !defined($escalationlevel) ) {
 				$moreescalate = 1;
 			} else {
-
 				# we only go up $escalationlevel number of people
-				if ( $numdudes < $escalationlevel ) {
+				if ( $nextdude < $escalationlevel ) {
 					$moreescalate = 1;
 				}
 			}
@@ -445,12 +458,13 @@ sub do_work {
 			$copy = join( ", ", @escalate );
 			$rcpt .= " " . join( " ", @escalate );
 
+
 			if ($moreescalate) {
-				if ( $#{$escname} >= $numdudes ) {
-					$next = $escname->[$numdudes];
+				if ( $#{$escname} >= $nextdude ) {
+					$next = $escname->[$nextdude];
 				}
 				my $escupwhen =
-				  $due_epoch + ( ( $numdudes + 1 ) * 86400 * $escalationgap );
+				  $due_epoch + ( ( $nextdude + 1 ) * 86400 * $escalationgap );
 				my $duehuman = strftime( "%F", localtime($escupwhen) );
 
 				if ($next) {
@@ -469,8 +483,8 @@ sub do_work {
 			$duewords = sprintf(
 				"PLEASE COMPLETE AS SOON AS POSSIBLE.  It was due on %s and is now %d %s overdue. $threat",
 				$hr->{approval_instance_step_due},
-				$overdue + 1,
-				( $overdue == 0 ) ? "day" : "days"
+				$overdueprint + 1,
+				(( $overdueprint == 0 ) ? "day" : "days")
 			);
 		} else {
 			my $threat = "";
