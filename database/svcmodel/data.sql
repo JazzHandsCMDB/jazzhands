@@ -1,0 +1,48 @@
+
+DO $$
+BEGIN
+	INSERT INTO service_sla (
+		service_sla_name, availability, service_role, service_scope
+	) VALUES (
+		'always', 100, 'master', 'internal'
+	);
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
+
+DO $$
+BEGIN
+	INSERT INTO val_sw_package_type (sw_package_type) values ('rpm');
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
+
+DO $$
+DECLARE
+	_tal	integer;
+BEGIN
+WITH repo AS (
+	INSERT INTO software_repository (
+		software_repository_name, software_repositroy_type
+	) values (
+		'common', 'default'
+	) RETURNING *
+), repoloc AS (
+	INSERT INTO software_repository_location
+		(software_repository_id, software_repository_location_type,
+		repository_location
+	) SELECT software_repository_id,
+		unnest(ARRAY['obs', 'yum', 'apt']),
+		unnest(ARRAY['common', 'https:/yum.example.com/blahblah', 
+			'https://apt.example.com/blahblah'])
+	FROM repo
+	RETURNING *
+) SELECT count(*) INTO _tal FROM repoloc;
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
+
+
