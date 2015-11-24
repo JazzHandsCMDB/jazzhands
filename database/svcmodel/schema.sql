@@ -68,7 +68,7 @@ DROP TABLE IF EXISTS software_repository cascade;
 CREATE TABLE software_repository (
 	software_repository_id		serial	NOT NULL,
 	software_repository_name	text	NOT NULL,
-	software_repositroy_type	text	NOT NULL,
+	software_repository_type	text	NOT NULL,
 	PRIMARY KEY (software_repository_id)
 );
 
@@ -113,13 +113,19 @@ CREATE TABLE service_depend (
 
 /*
 
-	Things not figured out yet:
-		version/feature advertisement
-		gslb/lb tie in
-		os versioning
-		os snapshots
-		licensing
-		appaal tiein
-		x509_certificate tie in
+Things not figured out yet:
+	version/feature advertisement
+	gslb/lb tie in
+	os versioning
+	os snapshots
+	licensing
+	appaal tiein
+	x509_certificate tie in
+	tie into property
+	foreign keys
+	val tables
+	non-network services
+	triggers
+	netblock vs l2 vs l3 collections
 
  */
