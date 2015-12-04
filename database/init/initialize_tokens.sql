@@ -17,8 +17,3 @@ insert into val_encryption_key_purpose (
 	'tokenkey', 1, 'Passwords for Token Keys'
 );
 
-
-Given PRN is 279174.  PRN for sequence 47812854 is 543263
-Given PRN is 279174.  PRN for sequence 47812855 is 404021
-
-
