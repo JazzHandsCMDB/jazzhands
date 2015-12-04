@@ -167,6 +167,7 @@ RETURNING *
 ) select * from x;
 
 
+
 insert into property (device_collection_id, Property_Value_Password_Type,
 property_type,property_name) values (
 19632, 'blowfish', 'MclassUnixProp', 'UnixPwType');
@@ -174,7 +175,7 @@ property_type,property_name) values (
 insert into property (property_name, property_type, account_collection_id,
 	property_value, device_collection_id)
 select 'GrantAccess', 'RADIUS', account_collection_id, 'Y',
-	19913
+	unnest(ARRAY[19913,19632])
 from account_collection
 where account_collection_type = 'per-account'
 and account_collection_name = 'kovert';
@@ -183,7 +184,7 @@ and account_collection_name = 'kovert';
 insert into property (property_name, property_type, account_collection_id,
 	Property_Value_Password_Type, device_collection_id)
 select 'PWType', 'RADIUS', account_collection_id, 'token',
-	19913
+	unnest(ARRAY[19913,19632])
 from account_collection
 where account_collection_type = 'per-account'
 and account_collection_name = 'kovert';

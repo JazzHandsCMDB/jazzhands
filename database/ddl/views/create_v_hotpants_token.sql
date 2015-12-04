@@ -16,25 +16,22 @@
 CREATE OR REPLACE VIEW v_hotpants_token AS
 SELECT
 	token_id,
-	account_token_id,
 	token_type,
 	token_status,
 	token_serial,
 	token_key,
 	zero_time,
 	time_modulo,
-	token_pin,
-	is_user_token_locked,
+	token_password,
+	is_token_locked,
 	token_unlock_time,
 	bad_logins,
 	token_sequence,
-	ts.last_updated as sequence_changed,
-	at.last_updated,
+	ts.last_updated as last_updated,
 	en.encryption_key_db_value,
 	en.encryption_key_purpose,
 	en.encryption_key_purpose_version,
 	en.encryption_method
 FROM	token t
-	INNER JOIN account_token at USING (token_id)
 	INNER JOIN token_sequence ts USING (token_id)
 	LEFT JOIN encryption_key en USING (encryption_key_id)

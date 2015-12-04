@@ -275,7 +275,7 @@ sub opendb {
 
 	my $dbh;
 	if (
-		!( $dbh = JazzHands::DBI->connect( 'hotpants-local', { AutoCommit => 0 } ) ) )
+		!( $dbh = JazzHands::DBI->connect( 'hotpants', { AutoCommit => 0 } ) ) )
 	{
 		undef $dbh;
 		return "Unable to create environment";
@@ -755,7 +755,7 @@ sub put_token {
 	if ( $token->{time_skew} ) {
 		my $sth = $dbh->prepare - cached(
 			qq{
-			UPDATE v_hotpants_token set	time_skew = :skew
+			UPDATE token set	time_skew = :skew
 			WHERE	token_id = :tokenid
 			AND		time_skew != :skew
 		}
@@ -788,7 +788,8 @@ sub put_token {
 	if ( $token->{token_sequence} ) {
 		my $sth = $dbh->prepare_cached(
 			qq{
-			UPDATE v_hotpants_token set token_sequence = :seq, last_updated = :now
+			UPDATE token_sequence 
+					set token_sequence = :seq, last_updated = :now
 			WHERE	token_id = :tokenid
 			AND		token_sequence < :seq
 		}
@@ -830,7 +831,7 @@ sub put_token {
 	# XXX - need to deal with token disable locally
 	# XXX deal with me locking the token more recently than the db says it was
 	# locked..
-	if ( $token->{is_user_token_locked} ) {
+	if ( $token->{is_token_locked} ) {
 		my $dbtok = $self->fetch_token( token_id => $token->{token_id} );
 		if(!  $dbtok ) {
 			$self->Error(
@@ -838,7 +839,7 @@ sub put_token {
 			return undef;
 		}
 
-		my $islocked = $token->{is_user_token_locked} && $token->{is_user_token_locked} ne 'N';
+		my $islocked = $token->{is_token_locked} && $token->{is_token_locked} ne 'N';
 		my $unlocktime;
 		if ( $islocked ) {
 			$islocked = 'Y';
@@ -853,7 +854,7 @@ sub put_token {
 			token_unlock_time => $unlocktime,
 			bad_logins => $token->{bad_logins},
 			last_updated => $lastupdate,
-			is_user_token_locked => $islocked
+			is_token_locked => $islocked
 		};
 		my $diff = $self->hash_table_diff($dbtok, $new);
 
@@ -861,7 +862,7 @@ sub put_token {
 			my $set = join(", ", map { "$_ = :$_" } keys %{$diff});
 			my $sth = $dbh->prepare_cached(
 				qq{
-				UPDATE	v_hotpants_token SET $set
+				UPDATE	token SET $set
 				WHERE	token_id = :token_id
 				AND		last_updated <= :last_updated
 			}
@@ -929,8 +930,8 @@ sub put_user {
 			SET		token_unlock_time = :unlock,
 					bad_logins = :badlogins,
 					last_updated = :now,
-					is_user_token_locked = :islocked
-			WHERE	is_user_token_locked != :islocked
+					is_token_locked = :islocked
+			WHERE	is_token_locked != :islocked
 			AND		last_updated <= :lastupdate
 			AND		account_id IN (
 						SELECT account_id from account where login = :login
@@ -1084,7 +1085,7 @@ Lock Status Changed:  %s
 	  scalar( gmtime( $token->{zero_time} || 0 ) ),
 	  $token->{time_modulo}   || 0,
 	  $token->{skew_sequence} || 0,
-	  $token->{is_user_token_locked}  || 0,
+	  $token->{is_token_locked}  || 0,
 	  $token->{token_unlock_time}   || 0,
 	  $token->{bad_logins}    || 0,
 	  scalar( gmtime( $token->{last_login}          || 0 ) ),
@@ -1183,7 +1184,7 @@ sub HOTPAuthenticate {
 			next;
 		}
 
-		if ( !$token->{token_pin} ) {
+		if ( !$token->{token_password} ) {
 			$self->_Debug( 2, "PIN not set for token %d.  Skipping.",
 				$tokenid );
 			next;
@@ -1229,8 +1230,8 @@ sub HOTPAuthenticate {
 		#
 		# Check the PIN
 		#
-		my $crypt = bcrypt( $pin, $token->{token_pin} );
-		if ( $token->{token_pin} eq bcrypt( $pin, $token->{token_pin} ) ) {
+		my $crypt = bcrypt( $pin, $token->{token_password} );
+		if ( $token->{token_password} eq bcrypt( $pin, $token->{token_password} ) ) {
 
 			$pinfound = 1;
 			$self->_Debug( 2, "PIN is correct for token %d", $tokenid );
@@ -1238,7 +1239,7 @@ sub HOTPAuthenticate {
 		} else {
 			$self->_Debug( 2,
 				"PIN is incorrect for token %d, expected %s, got %s",
-				$tokenid, $token->{token_pin}, $crypt );
+				$tokenid, $token->{token_password}, $crypt );
 			next;
 		}
 	}
@@ -1265,8 +1266,8 @@ sub HOTPAuthenticate {
 	#
 	# Check if the token is locked
 	#
-	if (  !$token->{is_user_token_locked}
-		|| $token->{is_user_token_locked} eq 'Y' )
+	if (  !$token->{is_token_locked}
+		|| $token->{is_token_locked} eq 'Y' )
 	{
 		my $unlockwhence;
 		eval {
@@ -1284,7 +1285,7 @@ sub HOTPAuthenticate {
 		}
 
 		if ( $unlockwhence && $unlockwhence <= time() ) {
-			$token->{is_user_token_locked} = 'N';
+			$token->{is_token_locked} = 'N';
 			$token->{token_unlock_time}    = undef;
 			$token->{bad_logins}     = 0;
 			$token->{last_updated}         = time();
@@ -1390,7 +1391,7 @@ sub HOTPAuthenticate {
 			);
 			return undef;
 		}
-		$self->_Debug( 2, "Given PRN is %s.  PRN for sequence %d is %s",
+		$self->_Debug( 3, "Given PRN is %s.  PRN for sequence %d is %s",
 			$prn, $sequence, $checkprn );
 		if ( $prn eq $checkprn ) {
 			$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
@@ -1454,7 +1455,7 @@ sub HOTPAuthenticate {
 				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
 			{
 				$self->_Debug( 2, "Locking token %d", $token->{token_id} );
-				$token->{is_user_token_locked} = 1;
+				$token->{is_token_locked} = 1;
 				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
 					$token->{token_unlock_time} =
 					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
