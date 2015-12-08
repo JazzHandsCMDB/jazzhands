@@ -65,7 +65,21 @@ use constant RLM_MODULE_UPDATED  => 8;    # OK (pairs modified)
 use constant RLM_MODULE_NUMCODES => 9;    # How many return codes there are
 
 my $err;
-my $__DBPATH = "/prod/hotpants/db";
+
+#
+# called throughout; meant to work around encryption map and what not
+#
+sub connect_hp {
+	my $hp = new HOTPants( 
+        	dbuser => 'hotpants',
+        	encryptionmap => {
+                	1 => 'i9aiGhoo8zu8iey@ieb',
+        	},
+        	debug => 2
+	);
+	return $hp;
+}
+
 
 sub hp_reopen {
 	my $hp = shift;
@@ -74,7 +88,13 @@ sub hp_reopen {
 	if ($$hp) {
 		$$hp->dbclose;
 	}
-	$$hp = new HOTPants( path => $__DBPATH );
+	$$hp = connect_hp();
+
+	if ( ! $$hp ) {
+		&radiusd::radlog( 4, "Unable to initialize HOTPants" );
+		return RLM_MODULE_FAIL;
+	}
+
 	if ( $err = $$hp->opendb ) {
 		&radiusd::radlog( 4, $err );
 		return RLM_MODULE_FAIL;
@@ -82,8 +102,34 @@ sub hp_reopen {
 	return RLM_MODULE_OK;
 }
 
+sub find_client {
+	my $client = $RAD_REQUEST{"Packet-Src-IP-Address"};
+	if(!$client) {
+		radiusd::radlog( 4, "Unable to find callers IP");
+		return RLM_MODULE_FAIL;
+	}
+
+	if($client) {
+		$RAD_REPLY{'FreeRADIUS-Client-IP-Address'} = $client;
+		$RAD_REPLY{'FreeRADIUS-Client-Shortname'} = 'fromdb';
+		$RAD_REPLY{'FreeRADIUS-Client-Secret'} = 'jazzyjazz';
+		$RAD_REPLY{'FreeRADIUS-Client-NAS-Type'} = 'other';
+		$RAD_REPLY{'FreeRADIUS-Client-Virtual-Server'} = 'hotpants';
+		return RLM_MODULE_OK;
+	}
+	$RAD_REPLY{"Reply-Message"} = "Unknown Client";
+	return RLM_MODULE_REJECT;
+
+}
+
 # Function to handle authorize
 sub authorize {
+	# This call is used to authorize the host.  Basically return the
+	# correct shared secret
+	if ( $RAD_REQUEST{"Packet-Src-IP-Address"} ) {
+		return find_client();
+	}
+	
 	if (       !$RAD_REQUEST{"JH-Application-Name"}
 		&& !$RAD_REQUEST{"NAS-IP-Address"} )
 	{
@@ -113,7 +159,7 @@ sub authorize {
 		  " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
 	}
 
-	my $hp = new HOTPants( path => $__DBPATH );
+	my $hp = connect_hp();
 	if ( $err = $hp->opendb ) {
 		radiusd::radlog( 4, "biteme: ".$err );
 		exit RLM_MODULE_FAIL;
@@ -196,7 +242,7 @@ sub authenticate {
 		  " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
 	}
 
-	my $hp = new HOTPants( path => $__DBPATH );
+	my $hp = connect_hp();
 	if ( $err = $hp->opendb ) {
 		print STDERR $err . "\n";
 		exit RLM_MODULE_FAIL;

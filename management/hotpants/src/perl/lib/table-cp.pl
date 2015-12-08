@@ -366,7 +366,8 @@ my $tablemap = {
 	'v_corp_family_account' => 'account_id',
 	'v_hotpants_device_collection' => ['device_collection_id','device_id'],
 	'v_dev_col_user_prop_expanded' => ['device_collection_id','account_id', 'property_name','property_type','property_value'],
-	'v_hotpants_token' => ['token_id','account_token_id'],
+	'v_hotpants_token' => ['token_id'],
+	'account_token' => ['account_token_id'],
 
 
 };
