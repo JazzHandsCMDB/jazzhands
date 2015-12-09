@@ -26,9 +26,20 @@ SELECT	ap.approval_process_id, ap.first_apprvl_process_chain_id,
 				concat('week ', to_char(now(), 'WW'), ' - ', 
 						to_char(now(), 'YYY-MM-DD'))	
 			WHEN ap.attestation_frequency = 'quarterly' THEN
-				concat( to_char(now(), 'YYYY'), 'q', to_char(now(), 'Q'))
+				concat( to_char(now(), 'YYYY'), ' q', to_char(now(), 'Q'))
 			ELSE 'unknown'
 			END as current_attestation_name,
+		CASE WHEN ap.attestation_frequency = 'monthly' THEN
+				date_trunc('month', now())::timestamp
+					+ (ap.attestation_offset||'days')::interval
+			WHEN ap.attestation_frequency = 'weekly' THEN
+				date_trunc('week', now())::timestamp
+					+ (ap.attestation_offset||'days')::interval
+			WHEN ap.attestation_frequency = 'quarterly' THEN
+				date_trunc('quarter', now())::timestamp
+					+ (ap.attestation_offset||'days')::interval
+			ELSE '-infinity'
+			END as current_attestation_begins,
 		p.property_id, p.property_name, 
 		p.property_type, p.property_value,
 		split_part(p.property_value, ':', 1) as property_val_lhs,
@@ -46,4 +57,3 @@ from	approval_process ap
 where	ap.approval_process_name = 'ReportingAttest'
 and		ap.approval_process_type = 'attestation'
 ;
-

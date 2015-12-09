@@ -31,10 +31,10 @@ BEGIN
 	FROM	val_property_collection_type
 	WHERE	property_collection_type =
 		(select property_collection_type from property_collection
-			where property_collection_id = NEW.parent_property_collection_id);
+			where property_collection_id = NEW.property_collection_id);
 
 	IF pct.can_have_hierarchy = 'N' THEN
-		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',
+		RAISE EXCEPTION 'Property Collections of type % may not be hierarcical',
 			pct.property_collection_type
 			USING ERRCODE= 'unique_violation';
 	END IF;
@@ -86,10 +86,10 @@ BEGIN
 		  		inner join property_collection using (property_collection_id)
 		  where	
 				property_name = NEW.property_name
-		  and	property_type = NEW.property_typw
+		  and	property_type = NEW.property_type
 		  and	property_collection_type = pct.property_collection_type;
 		IF tally > pct.MAX_NUM_COLLECTIONS THEN
-			RAISE EXCEPTION 'Device may not be a member of more than % collections of type %',
+			RAISE EXCEPTION 'Property may not be a member of more than % collections of type %',
 				pct.MAX_NUM_COLLECTIONS, pct.property_collection_type
 				USING ERRCODE = 'unique_violation';
 		END IF;

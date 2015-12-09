@@ -117,7 +117,7 @@ BEGIN
 		SELECT  login,
 			account_id,
 			person_id,
-			company_id,
+			mm.company_id,
 			manager_account_id,
 			manager_login,
 			''person_company''::text as audit_table,
@@ -131,6 +131,7 @@ BEGIN
 				approval_expiration_action,
 				attestation_frequency,
 				current_attestation_name,
+				current_attestation_begins,
 				attestation_offset,
 				approval_process_chain_name,
 				property_val_rhs AS approval_category,
@@ -144,7 +145,7 @@ BEGIN
 			END as approval_rhs
 		FROM    v_account_manager_map mm
 			INNER JOIN v_person_company_audit_map pcm
-			    USING (person_id,company_id)
+			    USING (person_id)
 			INNER JOIN v_approval_matrix am
 			    ON property_val_lhs = ''person_company''
 			    AND property_val_rhs = ''position_title''
@@ -171,40 +172,40 @@ BEGIN
 			 inner join p
 				on i.approved_label = p.approval_label
 				and res.person_id = p.person_id
-				and res.company_id = p.company_id
 		) SELECT 
 			login,
 			account_id,
 			person_id,
-			company_id,
-			manager_account_id,
-			manager_login,
-			audit_table,
-			audit_seq_id,
-			approval_process_id,
-			approval_process_chain_id,
-			approving_entity,
-			approval_process_description,
-			approval_chain_description,
-			approval_response_period,
-			approval_expiration_action,
-			attestation_frequency,
-			current_attestation_name,
-			attestation_offset,
-			approval_process_chain_name,
-			approval_category,
-			approval_label,
-			approval_lhs,
-			approval_rhs
-		FROM x where	approval_instance_item_id = $1
-	' INTO _r USING approval_instance_item_id;
-	RETURN _r;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
-	
+					company_id,
+					manager_account_id,
+					manager_login,
+					audit_table,
+					audit_seq_id,
+					approval_process_id,
+					approval_process_chain_id,
+					approving_entity,
+					approval_process_description,
+					approval_chain_description,
+					approval_response_period,
+					approval_expiration_action,
+					attestation_frequency,
+					current_attestation_name,
+					current_attestation_begins,
+					attestation_offset,
+					approval_process_chain_name,
+					approval_category,
+					approval_label,
+					approval_lhs,
+					approval_rhs
+				FROM x where	approval_instance_item_id = $1
+			' INTO _r USING approval_instance_item_id;
+			RETURN _r;
+		END;
+		$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
-CREATE OR REPLACE FUNCTION approval_utils.build_attest()
-RETURNS integer AS $$
+CREATE OR REPLACE FUNCTION approval_utils.build_attest(
+	nowish		timestamp DEFAULT now()
+) RETURNS integer AS $$
 DECLARE
 	_r			RECORD;
 	ai			approval_instance%ROWTYPE;
@@ -224,6 +225,7 @@ BEGIN
 					(SELECT approval_process_id, approval_instance_name 
 					 FROM approval_instance
 					)
+				AND current_attestation_begins < nowish
 	LOOP
 		IF _r.approving_entity != 'manager' THEN
 			RAISE EXCEPTION 'Do not know how to process approving entity %',
@@ -599,10 +601,32 @@ CREATE OR REPLACE FUNCTION approval_utils.message_replace(
 $$
 DECLARE
 	rv	text;
+	stabroot	text;
+	faqurl	text;
 BEGIN
+	SELECT property_value
+	INTO stabroot
+	FROM property
+	WHERE property_name = '_stab_root'
+	AND property_type = 'Defaults'
+	ORDER BY property_id
+	LIMIT 1;
+
+	SELECT property_value
+	INTO faqurl
+	FROM property
+	WHERE property_name = '_approval_faq_site'
+	AND property_type = 'Defaults'
+	ORDER BY property_id
+	LIMIT 1;
+
 	rv := message;
 	rv := regexp_replace(rv, '%\{effective_date\}', start_time::date::text, 'g');
 	rv := regexp_replace(rv, '%\{due_date\}', due_time::date::text, 'g');
+	rv := regexp_replace(rv, '%\{stab_url\}', stabroot, 'g');
+	rv := regexp_replace(rv, '%\{faq_url\}', faqurl, 'g');
+
+	-- There is also due_threat, which is processed in approval-email.pl
 
 	return rv;
 END;

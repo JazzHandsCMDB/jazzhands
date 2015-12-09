@@ -34,7 +34,7 @@ BEGIN
 			where token_collection_id = NEW.token_collection_id);
 
 	IF tct.can_have_hierarchy = 'N' THEN
-		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',
+		RAISE EXCEPTION 'Token Collections of type % may not be hierarcical',
 			tct.token_collection_type
 			USING ERRCODE= 'unique_violation';
 	END IF;
@@ -87,7 +87,7 @@ BEGIN
 		  where token_id = NEW.token_id
 		  and	token_collection_type = tct.token_collection_type;
 		IF tally > tct.MAX_NUM_COLLECTIONS THEN
-			RAISE EXCEPTION 'Device may not be a member of more than % collections of type %',
+			RAISE EXCEPTION 'Token may not be a member of more than % collections of type %',
 				tct.MAX_NUM_COLLECTIONS, tct.token_collection_type
 				USING ERRCODE = 'unique_violation';
 		END IF;

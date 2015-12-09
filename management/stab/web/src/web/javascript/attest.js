@@ -32,16 +32,18 @@ $(document).ready(function(){
 	});
 
 	// setup all the chosen boxes
-    var config = {
-      '.chosen-select'           : {},
-      '.chosen-select-deselect'  : {allow_single_deselect:true},
-      '.chosen-select-no-single' : {disable_search_threshold:10},
-      '.chosen-select-no-results': {no_results_text:'Oops, nothing found!'},
-      '.chosen-select-width'     : {width:"95%"}
-    }
-    for (var selector in config) {
-      $(selector).chosen(config[selector]);
-    }
+	// The width needs to be there for hidden fields:
+	// https://github.com/harvesthq/chosen/issues/92#issuecomment-18163306
+	var config = {
+		'.chosen-select'           : {width: '100%'},
+		'.chosen-select-deselect'  : {allow_single_deselect:true},
+		'.chosen-select-no-single' : {disable_search_threshold:10},
+		'.chosen-select-no-results': {no_results_text:'Oops, nothing found!'},
+		'.chosen-select-width'     : {width:"95%"}
+	}
+	for (var selector in config) {
+		$(selector).chosen(config[selector]);
+	}
 
 
 	// on load (or reload), uncheck all the boxes
@@ -57,7 +59,7 @@ $(document).ready(function(){
 		event.target.preservedHint = $(event.target).val();
 		$(event.target).val('');
 	});
-	// this causes the grey'd out hint to come backw ith an empty field
+	// this causes the grey'd out hint to come back with an empty field
 	$("table").on('blur', ".correction", function(event) {
 		if( $(event.target).val() == '' && event.target.preservedHint ) {
 			$(event.target).addClass('hint');

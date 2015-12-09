@@ -36,7 +36,7 @@ BEGIN
 				NEW.service_env_collection_id);
 
 	IF svcenvt.can_have_hierarchy = 'N' THEN
-		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',
+		RAISE EXCEPTION 'Service Environment Collections of type % may not be hierarcical',
 			svcenvt.service_env_collection_type
 			USING ERRCODE= 'unique_violation';
 	END IF;
@@ -93,7 +93,7 @@ BEGIN
 		  and	service_env_collection_type = 
 					svcenvt.service_env_collection_type;
 		IF tally > svcenvt.MAX_NUM_COLLECTIONS THEN
-			RAISE EXCEPTION 'Device may not be a member of more than % collections of type %',
+			RAISE EXCEPTION 'Service Environment may not be a member of more than % collections of type %',
 				svcenvt.MAX_NUM_COLLECTIONS, svcenvt.service_env_collection_type
 				USING ERRCODE = 'unique_violation';
 		END IF;

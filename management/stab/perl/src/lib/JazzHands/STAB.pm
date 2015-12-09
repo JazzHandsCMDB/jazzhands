@@ -2264,8 +2264,36 @@ sub build_table_from_query {
 		return $self->error_return("Unable to handle this type of args");
 	}
 
+	my $showcols = $sth->{NAME};
+	if ( defined( $opt->{hidden} ) ) {
+		my %c = map { $_ => 1 } @{ $opt->{hidden} };
+		my @x = grep( defined($_) && $_,
+			map { ( !defined( $c{$_} ) ) ? $_ : undef } @{$showcols} );
+		$showcols = \@x;
+
+	}
+	my $thead = $cgi->thead( $cgi->th( [ @{$showcols} ] ) );
+
 	my $t = "";
-	while ( my @foo = $sth->fetchrow_array ) {
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		my @foo;
+		foreach my $k ( @{$showcols} ) {
+
+			#
+			# if there is an entry in urlmap for this column, transform
+			# it into a url and do replacements for all the columns in the
+			# query
+			#
+			if ( $opt->{urlmap} && exists( $opt->{urlmap}->{$k} ) ) {
+				my $url = $opt->{urlmap}->{$k};
+				foreach my $qcol ( @{ $sth->{NAME} } ) {
+					$url =~ s,\%\{$qcol\},$hr->{$qcol},;
+				}
+				push( @foo, $cgi->a( { -href => $url }, $hr->{$k} ) );
+			} else {
+				push( @foo, $hr->{$k} );
+			}
+		}
 		for ( my $i = 0 ; $i <= $#foo ; $i++ ) {
 			$foo[$i] = '' if ( !defined( $foo[$i] ) );
 		}
@@ -2281,8 +2309,6 @@ sub build_table_from_query {
 	if ( exists( $opt->{caption} ) ) {
 		$caption = $cgi->caption( $opt->{caption} );
 	}
-
-	my $thead = $cgi->thead( $cgi->th( [ @{ $sth->{NAME} } ] ) );
 
 	my $divargs   = dclone($args);
 	my $tableargs = dclone($args);

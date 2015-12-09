@@ -68,9 +68,11 @@ sub FindCompanyByID {
 	# query to get all access
 	#
 	$sql = qq(
-		SELECT company_id, company_name, company_code, description, is_corporate_family
+		SELECT company_id, company_name, company_code, description
 		FROM company
+			INNER JOIN company_type using (company_id)
 		WHERE company_id = $company_id
+		AND company_type = 'corporate family'
 	);
 	if ( !( $sth = $dbh->prepare_cached($sql) ) ) {
 		$JazzHands::Management::Errmsg =

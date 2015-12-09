@@ -166,3 +166,36 @@ CREATE TRIGGER trigger_approval_instance_item_approval_notify
 -------------------------------------------------------------------------------
 
 
+
+-------------------------------------------------------------------------------
+--
+-- This is just meant to work until such time as the approval bits are modified
+-- to deal with account being there.
+
+CREATE OR REPLACE FUNCTION legacy_approval_instance_step_notify_account()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.account_id IS NULL THEN
+		SELECT	approver_account_id
+		INTO	NEW.account_id
+		FROM	legacy_approval_instance_step
+		WHERE	legacy_approval_instance_step_id = NEW.legacy_approval_instance_step_id;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_legacy_approval_instance_step_notify_account ON
+	approval_instance_step_notify;
+CREATE TRIGGER trigger_legacy_approval_instance_step_notify_account 
+	BEFORE INSERT OR  UPDATE OF account_id
+        ON approval_instance_step_notify
+        EXECUTE PROCEDURE legacy_approval_instance_step_notify_account();
+
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+

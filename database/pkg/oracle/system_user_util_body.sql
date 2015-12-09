@@ -164,8 +164,11 @@ BEGIN
 	IF p_company_id IS NOT NULL
 	THEN
 		BEGIN
-			SELECT Account_Prefix INTO v_prefix FROM Company 
-				WHERE Company_ID = p_company_id AND Is_Corporate_Family = 'N';
+			SELECT Account_Prefix INTO v_prefix 
+			FROM Company 
+				 inner join company_type using (company_id)
+				WHERE Company_ID = p_company_id 
+				AND company_type = 'corporate family'
 		EXCEPTION
 			WHEN NO_DATA_FOUND THEN
 				v_prefix := NULL;
@@ -1398,7 +1401,6 @@ BEGIN
 		SELECT company_id,
 			company_name,
 			company_code,
-			is_corporate_family,
 			description,
 			account_prefix
 		FROM company;
@@ -1888,7 +1890,6 @@ BEGIN
 			c.company_name,
 			c.company_code,
 			c.description company_description,
-			c.is_corporate_family,
 			d.parent_dept_id,
 			d.manager_system_user_id dept_manager_system_user_id,
 			d.company_id dept_company_id,
@@ -2820,7 +2821,6 @@ BEGIN
 			c.company_name,
 			c.company_code,
 			c.description "COMPANY_DESCRIPTION",
-			c.is_corporate_family,
 			i.data_upd_user,
 			i.data_upd_date,
 			i.data_ins_user,
@@ -2869,7 +2869,6 @@ PROCEDURE company_insert
 	p_company_name			IN	COMPANY.COMPANY_NAME % TYPE,
 	p_company_code			IN	COMPANY.COMPANY_CODE % TYPE,
 	p_description			IN	COMPANY.DESCRIPTION % TYPE,
-	p_is_corporate_family		IN	COMPANY.IS_CORPORATE_FAMILY % TYPE
 )
 IS
 v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.company_insert';
@@ -2882,7 +2881,6 @@ BEGIN
 		company_name,
 		company_code,
 		description,
-		is_corporate_family
 	)
 	VALUES
 	(
@@ -2890,7 +2888,6 @@ BEGIN
 		p_company_name,
 		p_company_code,
 		p_description,
-		p_is_corporate_family
 	);
 
 EXCEPTION
@@ -2909,7 +2906,6 @@ PROCEDURE company_update
 	p_company_name			IN	COMPANY.COMPANY_NAME % TYPE,
 	p_company_code			IN	COMPANY.COMPANY_CODE % TYPE,
 	p_description			IN	COMPANY.DESCRIPTION % TYPE,
-	p_is_corporate_family		IN	COMPANY.IS_CORPORATE_FAMILY % TYPE
 )
 IS
 v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.company_update';
@@ -2931,7 +2927,6 @@ BEGIN
 	dsql_update_term(v_sql, 'company_name', p_company_name);
 	dsql_update_term(v_sql, 'company_code', p_company_code);
 	dsql_update_term(v_sql, 'description', p_description);
-	dsql_update_term(v_sql, 'is_corporate_family', p_is_corporate_family);
 
 	--
 	-- better make sure they actually want something

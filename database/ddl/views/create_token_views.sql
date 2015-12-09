@@ -20,10 +20,26 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
+
+-- Copyright (c) 2015, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
 --
 --
 -- $Id$
 --
+
 CREATE OR REPLACE VIEW 
 	V_Token
 AS 
@@ -34,18 +50,19 @@ AS
 		Token_Serial,
 		Token_Sequence,
 		Account_ID,
-		coalesce(Token_PIN, 'set', NULL) Token_PIN,
+		coalesce(Token_Password, 'set', NULL) Token_Password,
 		Zero_Time,
 		Time_Modulo,
 		Time_Skew,
-		Is_User_Token_Locked,
+		Is_Token_Locked,
 		Token_Unlock_Time,
 		Bad_Logins,
 		Issued_Date,
 		T.Last_Updated AS Token_Last_Updated,
 		TS.Last_Updated AS Token_Sequence_Last_Updated,
-		SUT.Last_Updated AS Lock_Status_Last_Updated
+		T.Last_Updated AS Lock_Status_Last_Updated
 	FROM
-		Token T LEFT OUTER JOIN Token_Sequence TS USING (Token_ID)
-		LEFT OUTER JOIN Account_Token SUT USING (Token_ID)
+		Token T 
+		LEFT OUTER JOIN Token_Sequence TS USING (Token_ID)
+		LEFT OUTER JOIN account_token TA USING (token_id)
 ;

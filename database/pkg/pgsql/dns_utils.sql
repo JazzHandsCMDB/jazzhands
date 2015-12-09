@@ -72,13 +72,16 @@ DECLARE
 	rv			text[];
 BEGIN
 	IF family(block) = 4 THEN
-		FOR cur IN SELECT set_masklen((block + o), 24) 
-					FROM generate_series(0, (256 * (2 ^ (24 - 
-						masklen(block))) - 1)::integer, 256) as x(o)
-		LOOP
-			rv = rv || dns_utils.get_domain_from_cidr(block);
-			rv = rv || dns_utils.get_domain_from_cidr(cur);
-		END LOOP;
+		IF (masklen(block) >= 24) THEN
+			rv = rv || dns_utils.get_domain_from_cidr(set_masklen(block, 24));
+		ELSE
+			FOR cur IN SELECT set_masklen((block + o), 24) 
+						FROM generate_series(0, (256 * (2 ^ (24 - 
+							masklen(block))) - 1)::integer, 256) as x(o)
+			LOOP
+				rv = rv || dns_utils.get_domain_from_cidr(cur);
+			END LOOP;
+		END IF;
 	ELSIF family(block) = 6 THEN
 			-- note sure if we should do this or not, but we are..
 			cur := set_masklen(block, 64);
@@ -87,6 +90,56 @@ BEGIN
 		RAISE EXCEPTION 'Not IPv% aware.', family(block);
 	END IF;
     return rv;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
+------------------------------------------------------------------------------
+-- The same as above, but return as rows, rather than an array
+--
+-- Given a cidr block, returns a list of all in-addr zones for that block.
+-- Note that for ip6, it just makes it a /64.  This may or may not be correct.
+--
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_utils.get_all_domain_rows_for_cidr(
+	block		netblock.ip_address%TYPE
+) returns TABLE (
+	soa_name	text
+)
+AS
+$$
+DECLARE
+	cur			inet;
+BEGIN
+	IF family(block) = 4 THEN
+		IF (masklen(block) >= 24) THEN
+			soa_name := dns_utils.get_domain_from_cidr(set_masklen(block, 24));
+			RETURN NEXT;
+		ELSE
+			FOR cur IN 
+				SELECT 
+					set_masklen((block + o), 24) 
+				FROM
+					generate_series(
+						0, 
+						(256 * (2 ^ (24 - masklen(block))) - 1)::integer,
+						256)
+					AS x(o)
+			LOOP
+				soa_name := dns_utils.get_domain_from_cidr(cur);
+				RETURN NEXT;
+			END LOOP;
+		END IF;
+	ELSIF family(block) = 6 THEN
+			-- note sure if we should do this or not, but we are..
+			cur := set_masklen(block, 64);
+			soa_name := dns_utils.get_domain_from_cidr(cur);
+			RETURN NEXT;
+	ELSE
+		RAISE EXCEPTION 'Not IPv% aware.', family(block);
+	END IF;
+    return;
 END;
 $$
 SET search_path=jazzhands
@@ -259,6 +312,9 @@ DECLARE
 	sofar			text;
 	rvs_nblk_id		netblock.netblock_id%type;
 BEGIN
+	IF soa_name IS NULL THEN
+		RETURN NULL;
+	END IF;
 	elements := regexp_split_to_array(soa_name, '\.');
 	sofar := '';
 	FOREACH elem in ARRAY elements
@@ -403,29 +459,37 @@ LANGUAGE plpgsql;
 -- DNS
 --
 ------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS dns_utils.add_domains_from_netblock ( integer );
 CREATE OR REPLACE FUNCTION dns_utils.add_domains_from_netblock(
 	netblock_id		netblock.netblock_id%TYPE
-) returns void
+) returns TABLE(
+	dns_domain_id	jazzhands.dns_domain.dns_domain_id%TYPE,
+	soa_name		text
+)
 AS
 $$
 DECLARE
 	block		inet;
 	domain		text;
 	domain_id	dns_domain.dns_domain_id%TYPE;
+	nid			ALIAS FOR netblock_id;
 BEGIN
-	EXECUTE 'SELECT ip_address FROM netblock WHERE netblock_id = $1'
-		INTO block
-		USING netblock_id;
+	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid; 
 
-	FOREACH domain in ARRAY dns_utils.get_all_domains_for_cidr(block)
-	LOOP
-		SELECT dns_domain_id INTO domain_id 
-			FROM dns_domain where soa_name = domain;
+	RAISE DEBUG 'Createing inverse DNS zones for %s', block;
 
-		IF NOT FOUND THEN
-			domain_id := dns_utils.add_dns_domain(domain);
-		END IF;
-	END LOOP;
+	RETURN QUERY SELECT
+		dns_utils.add_dns_domain(
+			soa_name := x.soa_name,
+			dns_domain_type := 'reverse'
+			),
+		x.soa_name::text
+	FROM
+		dns_utils.get_all_domain_rows_for_cidr(block) x LEFT JOIN
+		dns_domain d USING (soa_name)
+	WHERE
+		d.dns_domain_id IS NULL;
+
 END;
 $$
 SET search_path=jazzhands

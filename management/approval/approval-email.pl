@@ -25,16 +25,18 @@ use Pod::Usage;
 use Getopt::Long;
 use JazzHands::AppAuthAL;
 use Email::Date::Format qw(email_date);
+use DateTime::Format::Strptime;
 use FileHandle;
+use POSIX;
 
-my $service  = "approval-notify";
+my $service = "approval-notify";
 
 =head1 NAME
 
-process-jira - 
+approve-email - 
 =head1 SYNOPSIS
 
-approval-email [ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ]
+approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ]  --escalation-level=# [ --random-sleep=# ] [ --reminder-gap=# ]
 
 
 =head1 DESCRIPTION
@@ -69,6 +71,22 @@ set in the db via the property Defaults:_approval_email_signer or set on the
 command line, it will just not be included
 
 --login can be used to only send email to one particular account.
+
+--escalation-gap can be set to a number of days to begin copying the next
+layer of management on overdue reminders.  That is, if its set to 2, every 2
+days, the next layer of management will be copied until there are no more
+managers to add.  The default is zero, which turns of esclations.
+
+--escalation-level can be set to a number of tiers above the manager to be
+escalated to.  That is, if it set to zero, the escalation-gap option is useless.
+If it is set to one, one level of manager will be escalated to, and so on.
+The default is to not set this, and thus keep escalating.
+
+--reminder-gap is used to specify how many days after the initial email for a
+step that a reminder email is sent.  Only one reminder will be sent.
+
+The --random-sleep option tells the script to sleep for a random time up to the
+argument number.  The default is not to sleep
 
 =head1 BUILDING THE EMAIL
 
@@ -119,19 +137,26 @@ sub do_work {
 	$dbh = JazzHands::DBI->connect( $service, { AutoCommit => 0 } )
 	  || die $JazzHands::DBI::errstr;
 
-	my ( $stabroot, $dryrun, $updatedb, $mailfrom, $signer, $login );
+	my ( $stabroot, $debug, $dryrun, $updatedb, $mailfrom, $signer, $login );
+	my ( $sleep, $argnow, $remindergap );
 
 	my ($faqurl);
 
-	my $escalationgap = 1;
+	my $escalationgap = 0;
+	my $escalationlevel;
 
 	GetOptions(
-		"dry-run|n" => \$dryrun,
-		"updatedb"  => \$updatedb,
-		"stabroot=s"  => \$stabroot,
-		"mailsender=s"  => \$mailfrom,
-		"signatory=s"  => \$signer,
-		"login=s"  => \$login,
+		"debug"              => \$debug,
+		"dry-run|n"          => \$dryrun,
+		"escalation-gap=i"   => \$escalationgap,
+		"escalation-level=i" => \$escalationlevel,
+		"login=s"            => \$login,
+		"mailsender=s"       => \$mailfrom,
+		"now=s"              => \$argnow,
+		"random-sleep=i"     => \$sleep,
+		"reminder-gap=s"     => \$remindergap,
+		"signatory=s"        => \$signer,
+		"updatedb"           => \$updatedb,
 	) || die pod2usage();
 
 	if ( !$updatedb && !$dryrun ) {
@@ -157,8 +182,44 @@ sub do_work {
 	die "There is no stab root set by the command line or in the database\n"
 	  if ( !$stabroot );
 
+	if ($sleep) {
+		my $delay = int( rand($sleep) );
+		warn "Sleeping $delay seconds\n" if ($debug);
+		sleep($delay);
+	}
+
+	#
+	# This is used for debugging
+	#
+	my ( $binddbnow, $dbnow, $now );
+	if ($argnow) {
+		$binddbnow = $argnow;
+		$dbnow     = "'$argnow'::timestamp";
+
+		my $s = DateTime::Format::Strptime->new(
+			pattern   => '%F %T',
+			locale    => 'en_US',
+			time_zone => 'UTC'
+		) || die "Unable to figure out time";
+		if ($s) {
+			my $dt = $s->parse_datetime($argnow);
+			if ($dt) {
+				$s->pattern('%s');
+				$now = $s->format_datetime($dt);
+			} else {
+				die "specified date must be YYYY-MM-DD HH:mm:SS\n";
+			}
+		}
+	} else {
+		$binddbnow = $argnow || strftime( "%F %T", localtime(time) );
+		$dbnow     = 'now()';
+		$now       = time();
+	}
+
+	# $now = "'2015-11-20'::interval";
+
 	my $sth = $dbh->prepare_cached(
-		q{
+		qq{
 		WITH RECURSIVE rec (
 				root_account_id,
 				account_id,
@@ -198,7 +259,7 @@ sub do_work {
 						coalesce(p.preferred_first_name, p.first_name), ' ',
 						coalesce(p.preferred_last_name, p.last_name))
 								as name,
-					coalesce(email_address, concat(login, '@', default_domain))
+					coalesce(email_address, concat(login, '\@', default_domain))
 							as email,
 					apath
 			FROM	rec r
@@ -226,20 +287,23 @@ sub do_work {
 				approval_instance_step_id,
 				coalesce(p.preferred_last_name, p.last_name) as last_name,
 				coalesce(p.preferred_first_name, p.first_name) as first_name,
-				coalesce(email_address, concat(login, '@', default_domain))
+				coalesce(email_address, concat(login, '\@', default_domain))
 					as email_address,
-				approval_utils.message_replace(apc.message, 
+				approval_utils.message_replace(
+						coalesce(apc.email_message, apc.message), 
 						approval_instance_step_start::timestamp,
 						approval_instance_step_due::timestamp) as message,
 				ap.approval_expiration_action,
 				ais.approval_instance_step_name,
 				ai.approval_instance_name,
 				approval_instance_step_due::date,
-				extract(epoch from approval_instance_step_due- now() )
+				extract(epoch from approval_instance_step_due)
+					as due_epoch,
+				extract(epoch from (approval_instance_step_due- $dbnow ))
 					as due_seconds,
 				approval_notify_type,
 				extract(epoch from approval_notify_whence) as approval_notify_whence,
-				extract(epoch from now() - approval_notify_whence )
+				extract(epoch from ($dbnow - approval_notify_whence) )
 					as since_last_pester, 
 				apc.email_subject_prefix,
 				apc.email_subject_suffix,
@@ -273,28 +337,40 @@ sub do_work {
 		INSERT INTO approval_instance_step_notify (
 			approval_instance_step_id, approval_notify_type, approval_notify_whence
 		) VALUES (
-			?, 'email', now()
+			?, 'email', ?
 		)
 	}
 	) || die $dbh->errstr;
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $email  = $hr->{email_address};
-		my $action = $hr->{approval_expiration_action};
-		my $due    = $hr->{due_seconds};
+		my $email     = $hr->{email_address};
+		my $action    = $hr->{approval_expiration_action};
+		my $due       = $hr->{due_seconds};
+		my $due_epoch = $hr->{due_epoch};
 
-		my $prefix    = $hr->{email_subject_prefix};
-		my $suffix    = $hr->{email_subject_suffix};
+		my $prefix = $hr->{email_subject_prefix};
+		my $suffix = $hr->{email_subject_suffix};
 
-		my $escname	= $hr->{hier_name_tier};
-		my $escemail= $hr->{hier_email_tier};
+		my $escname  = $hr->{hier_name_tier};
+		my $escemail = $hr->{hier_email_tier};
 
-		next if($login && $hr->{login} ne $login);
+		next if ( $login && $hr->{login} ne $login );
 
 		#
 		# An email has been sent and it is not overdue yet, so do nothing.
+		# Unless we are due for a reminder, remindergap after the lastt
+		# email, in which case, an email is sent.
 		#
-		if ( $hr->{due_seconds} > 0 && $hr->{approval_notify_whence} ) {
+		if ( $remindergap && $hr->{due_seconds} > 0 ) {
+			my $reminderdays = 86400 * $remindergap;
+
+			
+			if ( $hr->{approval_notify_whence} &&
+					$hr->{approval_notify_whence} + $reminderdays > $now ) {
+				next;
+			}
+
+		} elsif ( $hr->{due_seconds} > 0 && $hr->{approval_notify_whence} ) {
 			next;
 		}
 
@@ -310,9 +386,14 @@ sub do_work {
 		# if its overdue, and some pestering was not done in the past day
 		# pester again.
 		#
-		my $overdue = ( $hr->{due_seconds} < 0 ) ? 1 : 0;
+		my $overdue = ceil (
+		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0
+		);
+		my $overdueprint = floor (
+		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0
+		);
 		if ( $overdue
-			&& ( !$hr->{since_last_pester} || $hr->{since_last_pester} < 86400 )
+			&& ( $hr->{since_last_pester} && $hr->{since_last_pester} < 86400 )
 		  )
 		{
 			next;
@@ -321,50 +402,139 @@ sub do_work {
 		my $subj = $hr->{approval_instance_name} . " "
 		  . $hr->{approval_instance_step_name};
 
-		if($prefix) {
-			$subj ="$prefix $subj";
+		if ($prefix) {
+			$subj = "$prefix $subj";
 		}
-		if($suffix) {
-			$subj ="$subj $suffix";
+		if ($suffix) {
+			$subj = "$subj $suffix";
 		}
+
+		my $rcpt = $email;
+
+		my ( $copy, $threat );
+		$threat = "";
+		if ( $overdue && $escalationgap ) {
+			my $daysover = abs( int( $hr->{due_seconds} / 86400 ) );
+
+			my $numdudes = int( $daysover / $escalationgap ) -1;
+			my $nextdude = int( $daysover / $escalationgap );
+
+
+			#
+			# If escalationlevel is set, then cap how high it goes.
+			#
+			my $included = $numdudes;
+			if ( defined($escalationlevel) && 
+					$included > $escalationlevel - 1) {
+				$included = $escalationlevel - 1;
+			}
+
+			#
+			# Build an array into @escalate of everyone who needs to be
+			# copied on the email.
+			#
+			my @escalate;
+			for ( my $i = 0 ; $i <= $#{$escemail} && $i <= $included ; $i++ ) {
+				push( @escalate, $escemail->[$i] );
+			}
+			my $next;
+
+			#
+			# determine if escalations should happen after this one.
+			#
+			my $moreescalate = 0;
+			#
+			# there's a gap but no level cap, so keep on going.
+			#
+			if ( !defined($escalationlevel) ) {
+				$moreescalate = 1;
+			} else {
+				# we only go up $escalationlevel number of people
+				if ( $nextdude < $escalationlevel ) {
+					$moreescalate = 1;
+				}
+			}
+
+			$copy = join( ", ", @escalate );
+			$rcpt .= " " . join( " ", @escalate );
+
+
+			if ($moreescalate) {
+				if ( $#{$escname} >= $nextdude ) {
+					$next = $escname->[$nextdude];
+				}
+				my $escupwhen =
+				  $due_epoch + ( ( $nextdude + 1 ) * 86400 * $escalationgap );
+				my $duehuman = strftime( "%F", localtime($escupwhen) );
+
+				if ($next) {
+					$threat =
+					  "After $duehuman, if this has not been processed, $next will begin to be copied on the reminders.";
+				}
+			}
+			if ( $dryrun && $debug ) {
+				warn "Escalation Path($numdudes):",
+				  Dumper( $escemail, $escname ), "\n";
+			}
+		}
+
+		my $duewords;
+		if ($overdue) {
+			$duewords = sprintf(
+				"PLEASE COMPLETE AS SOON AS POSSIBLE.  It was due on %s and is now %d %s overdue. $threat",
+				$hr->{approval_instance_step_due},
+				$overdueprint + 1,
+				(( $overdueprint == 0 ) ? "day" : "days")
+			);
+		} else {
+			my $threat = "";
+			if ($escalationgap) {
+				$threat = sprintf(
+					"  If this has not been processed in a timely manner, your %s will automatically be copied on reminder notifications until completed.",
+					( $escalationlevel && $escalationlevel == 1 )
+					? "manager"
+					: "management" );
+			}
+			$duewords =
+			  sprintf( "Please complete your review by end of day %s.%s",
+				$hr->{approval_instance_step_due}, $threat );
+		}
+
+		my $msg = $hr->{message};
+		$msg =~ s/%\{due_threat}/$duewords/;
 
 		my $nr = 0;
 		if ($updatedb) {
-			$nr = $wsth->execute( $hr->{approval_instance_step_id} )
+			$nr = $wsth->execute( $hr->{approval_instance_step_id}, $binddbnow )
 			  || die $wsth->errstr;
 		}
 		my $sm;
 		if ($dryrun) {
 			$sm = IO::Handle->new() || die "IO::Handle->new: $!";
-			$sm->fdopen(fileno(STDOUT), "w") || die "dup stdout: $!";
+			$sm->fdopen( fileno(STDOUT), "w" ) || die "dup stdout: $!";
 		} else {
 			my $f = "";
-			$f = "-f$mailfrom" if($mailfrom);
-			$sm = new FileHandle(
-				"| /usr/sbin/sendmail $f $email")
+			$f = "-f$mailfrom" if ($mailfrom);
+			$sm = new FileHandle("| /usr/sbin/sendmail $f $rcpt")
 			  || die "$!";
 		}
 
-		my $msg = $hr->{message};
+		if ($dryrun) {
+			$sm->print("+RCPT: $rcpt\n");
+		}
 
-		$sm->print("To: $email\n") if($email);
-		$sm->print("Subject: $subj\n") if($subj);
-		$sm->print("From: $mailfrom\n") if($mailfrom);
+		$sm->print("To: $email\n")      if ($email);
+		$sm->print("Cc: $copy\n")       if ($copy);
+		$sm->print("Subject: $subj\n")  if ($subj);
+		$sm->print("From: $mailfrom\n") if ($mailfrom);
 		$sm->print( "Date: " . email_date() . "\n" );
 
-		$sm->print( "\nDear ", $hr->{first_name}, ",\n");
+		$sm->print( "\nDear ", $hr->{first_name}, ",\n" );
 
 		$sm->print( "\n", $msg, "\n\n" );
-		$sm->print("Visit ${stabroot}/approve/ to complete this process.\n\n");
 
-		if($faqurl) {
-			$sm->print("Please visit $faqurl for more information, if you have questions or problems.\n\n");
-		}
-		$sm->print( "Please complete this process by end of day ",
-			$hr->{approval_instance_step_due}, ".\n\n" );
-
-		if($signer) {
-			$sm->print( "-- $signer\n");
+		if ($signer) {
+			$sm->print("\n\n-- $signer\n");
 		}
 		$sm->close();
 

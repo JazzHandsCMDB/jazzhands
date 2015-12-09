@@ -356,8 +356,7 @@ PROCEDURE company_insert
 	p_company_id			OUT	COMPANY.COMPANY_ID % TYPE,
 	p_company_name			IN	COMPANY.COMPANY_NAME % TYPE,
 	p_company_code			IN	COMPANY.COMPANY_CODE % TYPE,
-	p_description			IN	COMPANY.DESCRIPTION % TYPE,
-	p_is_corporate_family		IN	COMPANY.IS_CORPORATE_FAMILY % TYPE
+	p_description			IN	COMPANY.DESCRIPTION % TYPE
 );
 
 PROCEDURE company_update
@@ -365,8 +364,7 @@ PROCEDURE company_update
 	p_company_id			IN	COMPANY.COMPANY_ID % TYPE,
 	p_company_name			IN	COMPANY.COMPANY_NAME % TYPE,
 	p_company_code			IN	COMPANY.COMPANY_CODE % TYPE,
-	p_description			IN	COMPANY.DESCRIPTION % TYPE,
-	p_is_corporate_family		IN	COMPANY.IS_CORPORATE_FAMILY % TYPE
+	p_description			IN	COMPANY.DESCRIPTION % TYPE
 );
 
 PROCEDURE department_insert

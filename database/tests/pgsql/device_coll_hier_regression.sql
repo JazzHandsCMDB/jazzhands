@@ -33,7 +33,7 @@ DECLARE
 	_dev1			device%ROWTYPE;
 	_dev2			device%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'DevCollHier: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'device_coll_hier_regression: Cleanup Records from Previous Tests';
 	delete from device_collection_device where
 		device_collection_id in (
 			select device_collection_id from device_collection
@@ -172,7 +172,7 @@ BEGIN
 		device_collection_Type like 'JHTEST-%';
 	delete from site where site_code like 'JHTEST%';
 
-	RAISE NOTICE 'DevCollHier: DONE';
+	RAISE NOTICE 'device_coll_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;

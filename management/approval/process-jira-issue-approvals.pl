@@ -32,19 +32,54 @@ use JazzHands::Approvals;
 use JazzHands::Tickets::JIRA;
 use File::Basename;
 
-my $service = 'rt-attestation';
+my $service = 'jira-attestation';
 
 $ENV{'PERL_LWP_SSL_VERIFY_HOSTNAME'} = 0;
 $ENV{'HTTPS_DEBUG'}                  = 0;
 
 =head1 NAME
 
-process-ticekts - 
+process-jira-issue-approvals
+
 =head1 SYNOPSIS
 
-process-rt [ --dry-run | -n ] 
+process-jira-ticket-approvals [ --dry-run | -n ]  [ --verbose ] [ --daemonize ] [ --debug ] [ --random-sleep=# ] [ --webroot=URL ] [ --user=username ] [ --password=password ] [ --force-assign=login ] [ --issue-type=type ] [ --once ] [ --resolution-delay=# ] --project projectname
 
 =head1 DESCRIPTION
+
+This script looks through open Jira Issues associated with approval steps and
+closes the approval steps if applicable.  It also looks for open approval
+steps associated with the jira-hr type (or the --type argument) and opens a new
+issue in the project specified by the --project argument.  In all liklihood, most
+environments will have the --project argument, and possibly the --type and
+--random-sleep arguments and nothing else.
+
+The --type option specifies which approval instance step type to look for, and
+defaults to jira-hr.
+
+The --random-sleep argument tells the script to sleep a random amount of time
+when starting.   This is probably not necessary.
+
+The -n (or --dry-run) argumenets causes no issues created or approval steps to
+be managed, it just says what would happen if the -n option was not there.
+
+The --verbose and --debug optiosn produce varying degrees of verbosity.  These
+do not influence each other and likely debug means that verbose should also be
+specified.
+
+--webroot, --user and --password all describe how to talk to RT.  These are
+typically pulled from the AppAuth Layer application jira-attestation.
+
+The --force-assign indicates that new issues should have login setup as the
+requestor.  The default behavior is to have the user on whose behalf it is being
+opened as the target.  This is primarily for debugging.
+
+--resolution-delay specifies how long to treat an issue resolved in Jira before
+the step is marked as resolved.  This is to allow time for feeds to run.  It
+defaults to an hour.
+
+--no-daemonize can be used to tell it not to fork as a daemon.  --daemonize
+is redundant.
 
 =head1 AUTHORS
 
@@ -60,6 +95,7 @@ sub do_work {
 	my ( $dryrun,   $verbose,     $debug );
 	my ( $jiraroot, $jirauser,    $jirapass, $priority, $issuetype );
 	my ( $project,  $forceassign, $daemonize, $onetime, $delay );
+	my ($sleep);
 
 	my $command = basename($0);
 
@@ -85,6 +121,7 @@ sub do_work {
 		"verbose"            => \$verbose,
 		"once"               => \$onetime,
 		"debug"              => \$debug,
+		"random-sleep=i"     => \$sleep,
 	) || die pod2usage();
 
 	my $jira = new JazzHands::Tickets::JIRA(
@@ -102,6 +139,12 @@ sub do_work {
 
 	$jira->set( 'verbose', $verbose ) if ($verbose);
 	$jira->dryrun($dryrun);
+
+	if ($sleep) {
+		my $delay = int( rand($sleep) );
+		warn "Sleeping $delay seconds\n" if ($verbose);
+		sleep($delay);
+	}
 
 	my $app = new JazzHands::Approvals(
 		daemonize => $daemonize,

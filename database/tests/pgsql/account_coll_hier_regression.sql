@@ -37,7 +37,7 @@ DECLARE
 	_pers1			person%ROWTYPE;
 	_pers2			person%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'AcctCollHier: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'account_coll_hier_regression: Cleanup Records from Previous Tests';
 	delete from account_unix_info where
 		account_id in (
 			select account_id from account
@@ -114,10 +114,9 @@ BEGIN
 		'JHTEST-nohier', 'JHTEST-HIER'
 	) RETURNING * into _hac;
 
-	INSERT INTO company ( company_name, company_short_name,
-		is_corporate_family )
-		VALUES ('JHTEST, Inc', 'jhtest',
-		'Y') RETURNING * into _com;
+	INSERT INTO company ( company_name, company_short_name
+		) VALUES ('JHTEST, Inc', 'jhtest'
+		) RETURNING * into _com;
 
 	INSERT INTO account_realm_company (
 		account_realm_id, company_id) values (
@@ -256,7 +255,7 @@ BEGIN
 	delete from company where company_name like 'JHTEST%';
 	delete from account_realm where account_realm_name like 'JHTEST%';
 
-	RAISE NOTICE 'AcctCollHier: DONE';
+	RAISE NOTICE 'account_coll_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;

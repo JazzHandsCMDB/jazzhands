@@ -13,7 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-
 CREATE OR REPLACE VIEW approval_utils.v_account_collection_approval_process AS
 WITH combo AS (
 WITH foo AS (
@@ -39,6 +38,7 @@ WITH foo AS (
 		approval_expiration_action,
 		attestation_frequency,
 		current_attestation_name,
+		current_attestation_begins,
 		attestation_offset,
 		approval_process_chain_name,
 		account_collection_type as approval_category,
@@ -64,6 +64,7 @@ SELECT  mm.login,
 		approval_expiration_action,
 		attestation_frequency,
 		current_attestation_name,
+		current_attestation_begins,
 		attestation_offset,
 		approval_process_chain_name,
 		approval_process_name as approval_category,
@@ -95,6 +96,7 @@ SELECT  login,
 		approval_expiration_action,
 		attestation_frequency,
 		current_attestation_name,
+		current_attestation_begins,
 		attestation_offset,
 		approval_process_chain_name,
 		property_val_rhs as approval_category,

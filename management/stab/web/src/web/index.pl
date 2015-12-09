@@ -128,6 +128,13 @@ if($stab->check_permissions('Sites')) {
 	));
 }
 
+if($stab->check_permissions('Approval')) {
+	push(@things, join("",
+		$cgi->li( $cgi->a( { -href => "approve/" }, "Outstanding Approvals" ) ) . "\n",
+				)
+	);
+}
+
 #	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) .
 
 print $cgi->ul(@things);

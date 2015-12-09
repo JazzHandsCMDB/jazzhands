@@ -34,7 +34,7 @@ BEGIN
 			where account_collection_id = NEW.account_collection_id);
 
 	IF act.can_have_hierarchy = 'N' THEN
-		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',
+		RAISE EXCEPTION 'Account Collections of type % may not be hierarcical',
 			act.account_collection_type
 			USING ERRCODE= 'unique_violation';
 	END IF;
@@ -87,7 +87,7 @@ BEGIN
 		  where account_id = NEW.account_id
 		  and	account_collection_type = act.account_collection_type;
 		IF tally > act.MAX_NUM_COLLECTIONS THEN
-			RAISE EXCEPTION 'Device may not be a member of more than % collections of type %',
+			RAISE EXCEPTION 'Account may not be a member of more than % collections of type %',
 				act.MAX_NUM_COLLECTIONS, act.account_collection_type
 				USING ERRCODE = 'unique_violation';
 		END IF;

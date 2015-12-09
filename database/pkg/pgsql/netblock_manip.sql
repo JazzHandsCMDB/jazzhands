@@ -353,6 +353,10 @@ BEGIN
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
+		
+		RAISE DEBUG 'Allocated netblock_id % for %',
+			netblock_rec.netblock_id,
+			netblock_re.ip_address;
 
 		PERFORM dns_utils.add_domains_from_netblock(
 			netblock_id := netblock_rec.netblock_id);

@@ -54,10 +54,7 @@ BEGIN
 		END IF;
 		_mkdom := true;
 
-		IF (OLD.DNS_NAME is NULL and NEW.DNS_NAME is not NULL )
-				OR (OLD.DNS_NAME IS NOT NULL and NEW.DNS_NAME is NULL)
-				OR (OLD.DNS_NAME IS NOT NULL and NEW.DNS_NAME IS NOT NULL
-					AND OLD.DNS_NAME != NEW.DNS_NAME) THEN
+		IF OLD.dns_name IS DISTINCT FROM NEW.dns_name THEN
 			_mknew := true;
 			IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
 				IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
@@ -71,10 +68,7 @@ BEGIN
 			_mkip := true;
 		END IF;
 
-		IF (OLD.NETBLOCK_ID is NULL and NEW.NETBLOCK_ID is not NULL )
-				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID is NULL)
-				OR (OLD.NETBLOCK_ID IS NOT NULL and NEW.NETBLOCK_ID IS NOT NULL
-					AND OLD.NETBLOCK_ID != NEW.NETBLOCK_ID) THEN
+		IF (OLD.netblock_id IS DISTINCT FROM NEW.netblock_id) THEN
 			_mkold := true;
 			_mknew := true;
 			_mkip := true;
@@ -226,8 +220,8 @@ BEGIN
 	  INTO	_tally
 	  FROM	dns_record
 	  WHERE
-	  		( dns_name = NEW.dns_name OR 
-				(DNS_name IS NULL AND NEW.dns_name is NULL)
+	  		( lower(dns_name) = lower(NEW.dns_name) OR 
+				(dns_name IS NULL AND NEW.dns_name is NULL)
 			)
 		AND
 	  		( dns_domain_id = NEW.dns_domain_id )
@@ -314,9 +308,9 @@ BEGIN
 				 		NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+				 			NEW.dns_name IS NULL and x.dns_name is NULL
 							or
-							NEW.dns_name = x.DNS_NAME
+							lower(NEW.dns_name) = lower(x.dns_name)
 						)
 				;
 			ELSE
@@ -327,9 +321,9 @@ BEGIN
 				 WHERE	
 				 		NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+				 			NEW.dns_name IS NULL and x.dns_name is NULL
 							or
-							NEW.dns_name = x.DNS_NAME
+							lower(NEW.dns_name) = lower(x.dns_name)
 						)
 				;
 			END IF;
@@ -343,9 +337,9 @@ BEGIN
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+				 			NEW.dns_name IS NULL and x.dns_name is NULL
 							or
-							NEW.dns_name = x.DNS_NAME
+							lower(NEW.dns_name) = lower(x.dns_name)
 						)
 				;
 			ELSE
@@ -356,9 +350,9 @@ BEGIN
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.DNS_NAME is NULL
+				 			NEW.dns_name IS NULL and x.dns_name is NULL
 							or
-							NEW.dns_name = x.DNS_NAME
+							lower(NEW.dns_name) = lower(x.dns_name)
 						)
 				;
 			END IF;
@@ -369,7 +363,7 @@ BEGIN
 		SELECT soa_name INTO _dom FROM dns_domain
 		WHERE dns_domain_id = NEW.dns_domain_id ;
 
-		if NEW.DNS_NAME IS NULL THEN
+		if NEW.dns_name IS NULL THEN
 			RAISE EXCEPTION '% may not have CNAME and other records (%)', 
 				_dom, _tally
 				USING ERRCODE = 'unique_violation';

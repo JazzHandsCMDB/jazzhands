@@ -41,8 +41,8 @@ BEGIN
 	INSERT INTO person (first_name, last_name)
 		VALUES ('JH', 'TEST') RETURNING person_id INTO _personid;
 
-	INSERT INTO company (company_name, is_corporate_family)
-		VALUES ('JHTEST, Inc', 'Y') RETURNING company_id into _companyid;
+	INSERT INTO company (company_name)
+		VALUES ('JHTEST, Inc') RETURNING company_id into _companyid;
 
 	SELECT account_realm_id
 	INTO	_acc_realm_id
