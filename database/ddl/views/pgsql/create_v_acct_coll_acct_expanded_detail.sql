@@ -53,7 +53,7 @@ WITH RECURSIVE var_recurse(
 		false
 	FROM
 		account_collection ac JOIN
-		account_collection_account aca USING (account_collection_id)
+		v_account_collection_account aca USING (account_collection_id)
 	UNION ALL 
 	SELECT
 		ach.account_collection_id,
