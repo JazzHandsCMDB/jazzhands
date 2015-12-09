@@ -30,34 +30,34 @@
 -- The ones starting with --++ may not need to be ported since they're also
 -- commented out in the oracle part of things..
 
--- \i global_errors.sql
--- \i global_types.sql
--- \i global_util.sql
+-- \ir global_errors.sql
+-- \ir global_types.sql
+-- \ir global_util.sql
 
--- \i system_user_util.sql
-\i person_manip.sql
-\i auto_ac_manip.sql
-\i company_manip.sql
--- \i unix_util.sql
--- \i dept_member_verify.sql
--- \i netblock_verify.sql
---++ \i fqdn_util.sql
--- \i token_util.sql
--- \i time_util.sql
--- \i dns_gen_utils.sql
---++  \i voe_manip_util.sql
---++ \i voe_track_manip.sql
-\i port_support.sql
-\i port_util.sql
-\i device_utils.sql
-\i netblock_utils.sql
-\i netblock_manip.sql
--- \i key_crypto.sql
--- \i dbms_job_util.sql
--- \i appgroup_util.sql
--- \i property_verify.sql
-\i physical_address_utils.sql
-\i component_utils.sql
-\i snapshot_manip.sql
-\i lv_manip.sql
-\i approval_utils.sql
+-- \ir system_user_util.sql
+\ir person_manip.sql
+\ir auto_ac_manip.sql
+\ir company_manip.sql
+-- \ir unix_util.sql
+-- \ir dept_member_verify.sql
+-- \ir netblock_verify.sql
+--++ \ir fqdn_util.sql
+-- \ir token_util.sql
+-- \ir time_util.sql
+-- \ir dns_gen_utils.sql
+--++  \ir voe_manip_util.sql
+--++ \ir voe_track_manip.sql
+\ir port_support.sql
+\ir port_util.sql
+\ir device_utils.sql
+\ir netblock_utils.sql
+\ir netblock_manip.sql
+-- \ir key_crypto.sql
+-- \ir dbms_job_util.sql
+-- \ir appgroup_util.sql
+-- \ir property_verify.sql
+\ir physical_address_utils.sql
+\ir component_utils.sql
+\ir snapshot_manip.sql
+\ir lv_manip.sql
+\ir approval_utils.sql

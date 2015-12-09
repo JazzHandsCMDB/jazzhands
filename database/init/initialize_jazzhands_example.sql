@@ -42,28 +42,24 @@
 -- Example Items that may be used for a real life instantiation of the system
 -- You probably do NOT want to 
 
-insert into account_realm(account_realm_name) values ('Omniscient');
+INSERT INTO account_realm(account_realm_name) values ('Omniscient');
 
-insert into company (company_name, is_corporate_family)
-	values ('Omniscient Technologies', 'Y');
-
-insert into company (company_name, is_corporate_family, parent_company_id)
-	select 'Sucksless Industries', 'Y', company_id
-	from company
-	where company_name = 'Omniscient Technologies'
+WITH o AS (
+	INSERT INTO company (company_name)
+		values ('Omniscient Technologies')
+	RETURNING *
+), sl AS (
+	INSERT INTO company (company_name, parent_company_id)
+		values (
+		'Sucksless Industries', (select company_id
+			from company
+			where company_name = 'Omniscient Technologies' limit 1)
+	) RETURNING *
+) INSERT INTO company_type (company_id, company_type)
+SELECT company_id, 'corporate family' FROM o
+UNION
+SELECT company_id, 'corporate family' FROM sl
 ;
-
-insert into company_type (company_id, company_type)
-select company_id, 'corporate family'
-  from company
-where	company_name = 'Omniscient'
-  and	is_corporate_family = 'Y';
-
-insert into company_type (company_id, company_type)
-select company_id, 'corporate family'
-  from company
-where	company_name = 'Sucksless Industries'
-  and	is_corporate_family = 'Y';
 
 insert into property (
 	property_name, property_type, 
@@ -81,8 +77,6 @@ insert into property (
 	(select account_realm_id 
 	from account_realm where account_realm_name = 'Omniscient')
 );
-
-SELECT * FROM property where property_name = '_stab_root';
 
 insert into property (
 	property_name, property_type, property_value

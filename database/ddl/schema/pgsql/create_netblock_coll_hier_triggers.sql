@@ -34,7 +34,7 @@ BEGIN
 			where netblock_collection_id = NEW.netblock_collection_id);
 
 	IF nct.can_have_hierarchy = 'N' THEN
-		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',
+		RAISE EXCEPTION 'Netblock Collections of type % may not be hierarcical',
 			nct.netblock_collection_type
 			USING ERRCODE= 'unique_violation';
 	END IF;
@@ -87,7 +87,7 @@ BEGIN
 		  where netblock_id = NEW.netblock_id
 		  and	netblock_collection_type = nct.netblock_collection_type;
 		IF tally > nct.MAX_NUM_COLLECTIONS THEN
-			RAISE EXCEPTION 'Device may not be a member of more than % collections of type %',
+			RAISE EXCEPTION 'Netblock may not be a member of more than % collections of type %',
 				nct.MAX_NUM_COLLECTIONS, nct.netblock_collection_type
 				USING ERRCODE = 'unique_violation';
 		END IF;

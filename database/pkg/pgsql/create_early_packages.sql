@@ -35,7 +35,7 @@
 -- its not clear that any of the types need to survive and the oracle
 -- types should be rethought, so this is nonexistant until needed.
 --
--- \i global_types.sql
+-- \ir global_types.sql
 --
 -- This includes all the error types, however it looks like pgsql does not
 -- support defining constants in a similar fashion (did not research
@@ -45,16 +45,16 @@
 -- use under oracle, so they haven't been ported to postgresql.  That should
 -- be reconciled.
 --
--- \i global_errors.sql
+-- \ir global_errors.sql
 --
 -- This has some handy utilities that were never really used in oracle
 -- space, so not porting them to postgresql.  Like the global_errors
 -- package, this may need to be rethought.
 -- 
--- \i global_util.sql
+-- \ir global_util.sql
 -- 
 
-\i net_manip.sql
-\i network_strings.sql
-\i time_util.sql
-\i dns_utils.sql
+\ir net_manip.sql
+\ir network_strings.sql
+\ir time_util.sql
+\ir dns_utils.sql

@@ -203,40 +203,41 @@ INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
 INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
 	VALUES ('office');
 
-insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
-	('DBType', 'Database Type');
-insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
-	('Method', 'Method for Authentication');
-insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
-	('Password', 'Password or equivalent');
-insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
-	('ServiceName', 
-	'Service Name used for certain methods (DB methods, notably)');
-insert into VAL_APP_KEY (APP_KEY, DESCRIPTION) values
-	('Username', 'Username or equivalent');
-
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('Method', 'password');
-
 --INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
 --	VALUES ('office');
 --INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
 --	VALUES ('home');
 
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'ftp');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'ldap');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'mysql');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'oracle');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'postgres');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'sqlrelay');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, APP_VALUE)
-	VALUES ('DBType', 'tds');
+-- Database AppAuthAL methods
+
+INSERT INTO val_appaal_group_name (appaal_group_name, description) VALUES
+	('database', 'keys related to database connections');
+
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('DBType', 'database', 'Database Type');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Method', 'database', 'Method for Authentication');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Password', 'database', 'Password or equivalent');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('ServiceName',  'database',
+	'Service Name used for certain methods (DB methods, notably)');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Username', 'database', 'Username or equivalent');
+
+INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+	VALUES ('Method', 'database', 'password');
+
+INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+	VALUES ('DBType', 'database', 'mysql');
+INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+	VALUES ('DBType', 'database', 'oracle');
+INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+	VALUES ('DBType', 'database', 'postgres');
+INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+	VALUES ('DBType', 'database', 'sqlrelay');
+INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+	VALUES ('DBType', 'database', 'tds');
 
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('mclass');
@@ -248,6 +249,35 @@ INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('applicense');
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 	VALUES ('undefined');
+
+-- LDAP AppAuthAL
+
+INSERT INTO val_appaal_group_name (appaal_group_name, description) VALUES
+	('ldap', 'keys related to ldap connections');
+
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('ServerName', 'ldap', 'Server to Connect to');
+
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Username', 'ldap', 'Username to connect as');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Password', 'ldap', 'Password to connect with');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Domain', 'ldap', 'Domain to connect as');
+
+-- LDAP AppAuthAL
+
+INSERT INTO val_appaal_group_name (appaal_group_name, description) VALUES
+	('web', 'keys related to http(s) connections');
+
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('URL', 'web', 'URL to connect to');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Username', 'web', 'Username to connect as');
+insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+	('Password', 'web', 'Password to connect with');
+
+--- password types
 
 INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
 	VALUES ('star');
@@ -421,28 +451,29 @@ insert into val_network_interface_purpose
 
 insert into val_property_data_type (PROPERTY_DATA_TYPE, DESCRIPTION)
 	values ('none', 'No value should be set');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('boolean');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('number');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('string');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('list');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('timestamp');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values ('company_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE)
-	values ('dns_domain_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) 
-	values ('device_collection_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) 
-	values ('netblock_collection_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE)
-	values ('password_type');
-insert into val_property_data_type (PROPERTY_DATA_TYPE)
-	values ('person_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE)
-	values ('token_collection_id');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values 
-	('account_collection_id');
-insert into val_property_data_type (PROPERTY_DATA_TYPE)
-	values ('sw_package_id');
+	('boolean'),
+	('number'),
+	('string'),
+	('list'),
+	('timestamp'),
+	('company_id'),
+	('dns_domain_id'),
+	('device_collection_id'),
+	('netblock_collection_id'),
+	('password_type'),
+	('person_id'),
+	('token_collection_id'),
+	('account_collection_id'),
+	('sw_package_id');
+
+insert into val_person_company_attr_dtype (person_company_attr_data_type) values 
+	('boolean'),
+	('number'),
+	('string'),
+	('list'),
+	('timestamp'),
+	('person_id');
 
 insert into val_property_type (property_type, description,is_multivalue) 
 	values (
@@ -787,9 +818,18 @@ VALUES (
 	'REQUIRED'
 );
 
+insert into val_company_collection_type 
+	(company_collection_type,
+	max_num_members, can_have_hierarchy
+	) 
+values 
+	('per-company', 
+	1, 'N'
+	);
+
 -- XXX need to auto-create a Account_Collection all_company_XX
-INSERT INTO Company(Company_ID, Company_Name, Is_Corporate_Family)
-	VALUES (0, 'none', 'N');
+INSERT INTO Company(Company_ID, Company_Name)
+	VALUES (0, 'none');
 
 INSERT INTO Person(Person_Id, first_name, last_name)
 	VALUES (0, 'Non', 'Person');
@@ -854,11 +894,29 @@ insert into val_diet (diet) values ( 'Pescatarian');
 
 --  XXX - need to insert these for the default companies!!
 -- consider renaming to company_relation
+
+insert into val_company_type_purpose (company_type_purpose) values ('default');
+
 insert into val_company_type(company_type) values  ('corporate family');
 insert into val_company_type(company_type) values  ('vendor');
 insert into val_company_type(company_type) values  ('consultant provider');
 insert into val_company_type(company_type) values  ('hardware provider');
 insert into val_company_type(company_type) values  ('software provider');
+
+insert into val_physical_address_type
+	(physical_address_type, description)
+values
+	('location', 'physical location');
+
+insert into val_physical_address_type
+	(physical_address_type, description)
+values
+	('mailing', 'physical location');
+
+insert into val_physical_address_type
+	(physical_address_type, description)
+values
+	('legal', 'physical location');
 
 --- XXX these may be optional
 INSERT INTO Device_Type (
@@ -1494,3 +1552,16 @@ values
 	
 -- END certificate
 -------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- logical volumes
+
+INSERT INTO val_logical_volume_type (
+	logical_volume_type, description
+) VALUES (
+	'legacy', 'data that predates existance of this table'
+);
+
+-- END logical volumes
+-------------------------------------------------------------------------
+-- logical volumes

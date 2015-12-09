@@ -184,7 +184,6 @@ rm -rf %{buildroot}
 %{perl_vendorlib}/*
 %{_mandir}/man3/*
 
-%changelog
 * Mon Nov 16 2015 Todd Kover <kovert@omniscient.com> 0.64.12
 - put an approvals link on the main stab page
 * Tue Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.9

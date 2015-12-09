@@ -24,7 +24,6 @@ CREATE OR REPLACE VIEW v_acct_coll_prop_expanded AS
 		property_value_timestamp,
 		property_value_company_id,
 		property_value_account_coll_id,
-		property_value_dns_domain_id,
 		property_value_nblk_coll_id,
 		property_value_password_type,
 		property_value_person_id,
@@ -33,7 +32,7 @@ CREATE OR REPLACE VIEW v_acct_coll_prop_expanded AS
 		property_rank,
 		CASE is_multivalue WHEN 'N' THEN false WHEN 'Y' THEN true END 
 			is_multivalue,
-		CASE account_collection_type
+		CASE ac.account_collection_type
 			WHEN 'per-user' THEN 0
 			ELSE CASE assign_method
 				WHEN 'DirectAccountCollectionAssignment' THEN 10
