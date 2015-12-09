@@ -66,6 +66,8 @@
 
 -- XXX these need to be ported
 -- \ir create_v_joined_acct_collection_user_detail.sql
+-- this needs to be rethought...
+\ir create_v_device_coll_device_expanded.sql
 \ir pgsql/create_v_device_coll_hier_detail.sql
 -- \ir create_v_device_col_acct_collection_expanded.sql
 -- \ir create_mv_account_last_auth.sql
