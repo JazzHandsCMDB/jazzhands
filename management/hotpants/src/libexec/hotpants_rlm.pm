@@ -80,28 +80,6 @@ sub connect_hp {
 	return $hp;
 }
 
-
-sub hp_reopen {
-	my $hp = shift;
-
-	radiusd::radlog( 1, "In hp_reopen()." );
-	if ($$hp) {
-		$$hp->dbclose;
-	}
-	$$hp = connect_hp();
-
-	if ( ! $$hp ) {
-		&radiusd::radlog( 4, "Unable to initialize HOTPants" );
-		return RLM_MODULE_FAIL;
-	}
-
-	if ( $err = $$hp->opendb ) {
-		&radiusd::radlog( 4, $err );
-		return RLM_MODULE_FAIL;
-	}
-	return RLM_MODULE_OK;
-}
-
 sub find_client {
 	my $client = $RAD_REQUEST{"Packet-Src-IP-Address"};
 	if(!$client) {
@@ -110,13 +88,16 @@ sub find_client {
 	}
 
 	# XXX - need to make this be a DB lookup
+	my $hp = connect_hp();
 
-	if($client) {
+	if($client && (my $rec = $hp->GetSharedSecret($client)) ) {
+		my $short = $rec->{hostname};
+		$short =~ s/\./_/g;
 		$RAD_REPLY{'FreeRADIUS-Client-IP-Address'} = $client;
-		$RAD_REPLY{'FreeRADIUS-Client-Shortname'} = 'fromdb';
-		$RAD_REPLY{'FreeRADIUS-Client-Secret'} = 'jazzyjazz';
-		$RAD_REPLY{'FreeRADIUS-Client-NAS-Type'} = 'other';
-		$RAD_REPLY{'FreeRADIUS-Client-Virtual-Server'} = 'hotpants';
+		$RAD_REPLY{'FreeRADIUS-Client-Shortname'} = $short;
+		$RAD_REPLY{'FreeRADIUS-Client-Secret'} = $rec->{'secret'};
+		# $RAD_REPLY{'FreeRADIUS-Client-NAS-Type'} = 'other';
+		$RAD_REPLY{'FreeRADIUS-Client-Virtual-Server'} = 'HOTPants';
 		return RLM_MODULE_OK;
 	}
 	$RAD_REPLY{"Reply-Message"} = "Unknown Client";

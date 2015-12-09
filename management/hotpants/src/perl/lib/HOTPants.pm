@@ -217,6 +217,63 @@ sub Status {
 }
 
 #
+# gets the shared secret for a device with a given IP
+#
+sub GetSharedSecret {
+	my $self = shift;
+	my $ip = shift;
+
+	#
+	# bail if there is no db connection
+	#
+	if ( !$self->{dbh} ) {
+		$self->Error("fetch_token: no connection to database");
+		return undef;
+	}
+
+	my $dbh = $self->{dbh};
+
+	# clear errors
+	$self->Error(undef);
+
+	my $sth = $dbh->prepare_cached(
+		qq{
+			SELECT	p.property_value, d.device_name
+			FROM	property p
+					INNER JOIN v_device_coll_device_expanded dc
+						USING (device_collection_id)
+					INNER JOIN device d USING (device_id)
+					INNER JOIN network_interface ni USING (device_id)
+					INNER JOIN netblock USING (netblock_id)
+			WHERE	host(ip_address) = ?
+			AND		property_name = 'RadiusSharedSecret'
+			AND		property_type = 'RADIUS'
+	}
+	);
+
+	if ( !$sth ) {
+		$self->Error( "GetSharedSecret: unable to prepare sth: " . $dbh->errstr );
+		return undef;
+	}
+
+	if ( !( $sth->execute($ip) ) ) {
+		$self->Error( "fetch_token: execute failed: " . $dbh->errstr );
+		return undef;
+	}
+
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+	if($hr) {
+		return {
+			secret => $hr->{property_value},
+			hostname => $hr->{device_name},
+		};
+	}
+	$dbh->rollback;
+	return undef;
+}
+
+#
 # Sets the error to display to a remote user
 #
 sub UserError {
