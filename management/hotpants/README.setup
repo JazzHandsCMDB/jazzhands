@@ -12,6 +12,15 @@ run:
 
 	freeradius-utils (fro radclient amoung others)
 
+ubuntu (sql version)
+	libcrypt-eksblowfish-perl
+	libdigest-hmac-perl
+	libcrypt-cbc-perl
+	libdatetime-format-strptime-perl
+	jazzhands-dbi
+	jazzhands-common
+
+
 configure:
 
 need /etc/freeradius/users.hotpants:
