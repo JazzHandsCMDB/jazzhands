@@ -109,6 +109,8 @@ sub find_client {
 		return RLM_MODULE_FAIL;
 	}
 
+	# XXX - need to make this be a DB lookup
+
 	if($client) {
 		$RAD_REPLY{'FreeRADIUS-Client-IP-Address'} = $client;
 		$RAD_REPLY{'FreeRADIUS-Client-Shortname'} = 'fromdb';
