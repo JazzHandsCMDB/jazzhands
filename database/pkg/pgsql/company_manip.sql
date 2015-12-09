@@ -276,10 +276,10 @@ BEGIN
 	END IF;
 
 	INSERT INTO company (
-		company_name, company_short_name, is_corporate_family,
+		company_name, company_short_name,
 		parent_company_id, description
 	) VALUES (
-		_company_name, _short, _isfam,
+		_company_name, _short,
 		_parent_company_id, _description
 	) RETURNING company_id INTO _cmpid;
 

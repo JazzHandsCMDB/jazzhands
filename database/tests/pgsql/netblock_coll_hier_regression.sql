@@ -33,7 +33,7 @@ DECLARE
 	_nb1			netblock%ROWTYPE;
 	_nb2			netblock%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'Netblock CollHier: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'netblock_coll_hier_regression: Cleanup Records from Previous Tests';
 
 	delete from netblock_collection_netblock where netblock_collection_id
 		IN (select netblock_collection_id FROM
@@ -169,7 +169,7 @@ BEGIN
 		netblock_collection_type like
 		'JHTEST%';
 	delete from netblock where description like 'JHTEST%';
-	RAISE NOTICE 'Netblock CollHier: DONE';
+	RAISE NOTICE 'netblock_coll_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;

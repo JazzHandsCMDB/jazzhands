@@ -68,10 +68,9 @@ BEGIN
 		RETURNING * into _ar;
 
 
-	INSERT INTO company ( company_name, company_short_name,
-		is_corporate_family )
-		VALUES ('JHTEST, Inc', 'jhtest',
-		'Y') RETURNING * into _com;
+	INSERT INTO company ( company_name, company_short_name)
+		VALUES ('JHTEST, Inc', 'jhtest' )
+		RETURNING * into _com;
 
 	INSERT INTO account_realm_company (
 		account_realm_id, company_id) values (

@@ -33,7 +33,7 @@ DECLARE
 	_tok1			token%ROWTYPE;
 	_tok2			token%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'TokenCollHier: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'token_coll_hier_regression: Cleanup Records from Previous Tests';
 
 	delete from token_collection_token where token_collection_id
 		IN (select token_collection_id FROM
@@ -93,10 +93,10 @@ BEGIN
 
 	insert into val_token_type (token_type, TOKEN_DIGIT_COUNT) values ('JHTEST', 6);
 
-	insert into token (token_serial,token_type,last_updated) 
-		values('JHTEST01', 'JHTEST', now()) RETURNING * into _tok1;
-	insert into token (token_serial,token_type,last_updated) 
-		values('JHTEST01', 'JHTEST', now()) RETURNING * into _tok2;
+	insert into token (token_serial,token_type,is_token_locked,last_updated) 
+		values('JHTEST01', 'JHTEST', 'Y', now()) RETURNING * into _tok1;
+	insert into token (token_serial,token_type,is_token_locked,last_updated) 
+		values('JHTEST01', 'JHTEST', 'Y', now()) RETURNING * into _tok2;
 	RAISE NOTICE 'Starting tests...';
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
@@ -164,7 +164,7 @@ BEGIN
 		token_collection_type like
 		'JHTEST%';
 	delete from token where token_type like 'JHTEST%';
-	RAISE NOTICE 'TokenCollHier: DONE';
+	RAISE NOTICE 'token_coll_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;

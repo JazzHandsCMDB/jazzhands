@@ -436,40 +436,6 @@ BEGIN
 	);
 
 
-	INSERT INTO VAL_Property (
-		Property_Name,
-		Property_Type,
-		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
-		Property_Data_Type,
-		Permit_Company_Id,
-		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
-		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
-		Permit_Site_Code,
-		Permit_Account_Id,
-		permit_account_realm_id,
-		Permit_Account_Collection_Id
-	) VALUES (
-		'dns_domain_id',
-		'test',
-		'N',
-		NULL,
-		'dns_domain_id',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED'
-	);
-
 
 	INSERT INTO VAL_Property (
 		Property_Name,
@@ -920,6 +886,23 @@ BEGIN
 	RAISE NOTICE 'v_password_type is %', v_password_type;
 	RAISE NOTICE 'v_token_collection_id is %', v_token_collection_id;
 
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		account_collection_type,
+		Property_Data_Type,
+		Permit_Account_Collection_id
+	) VALUES (
+		'actype',
+		'test',
+		'Y',
+		(select account_collection_type from account_collection
+			where account_collection_id = v_account_collection_id),
+		'string',
+		'REQUIRED'
+	);
+
 	--
 	-- Check for multivalue stuff
 	--
@@ -991,6 +974,21 @@ BEGIN
 			RAISE NOTICE '... Failed.  THIS IS A PROBLEM';
 			raise error_in_assignment;
 	END;
+
+	RAISE NOTICE 'Inserting an identical multi-valued property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Company_Id, Account_Collection_Id, Property_Value
+			) VALUES (
+			'Multivalue', 'test', v_company_id, v_account_collection_id, 'test'
+			);
+		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN unique_violation THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 
 	--
 	-- Insert two different properties for a property type that is 
@@ -1101,7 +1099,7 @@ BEGIN
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
 		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed.  THIS IS A PROBLEM';
+			RAISE NOTICE '... Failed.  THIS IS A PROBLEM (%)', SQLERRM;
 			raise error_in_assignment;
 	END;
 
@@ -1769,21 +1767,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into string property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'string', 'test',
-			v_dns_domain_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_collection_Id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -1916,21 +1899,6 @@ BEGIN
 			) VALUES (
 			'timestamp', 'test',
 			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into timestamp property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'timestamp', 'test',
-			v_dns_domain_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2079,21 +2047,6 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into company_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'company_id', 'test',
-			v_dns_domain_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into company_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2184,162 +2137,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-
-	--
-	-- DNS_Domain_ID
-	--
-
-	RAISE NOTICE 'Inserting string value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value
-			) VALUES (
-			'dns_domain_id', 'test',
-			'test'
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting timestamp value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Timestamp
-			) VALUES (
-			'dns_domain_id', 'test',
-			now()
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Company_ID value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting dns_domain_id value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_dns_domain_id
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_dns_domain_id
-			) RETURNING Property_ID INTO v_property_id;
-		RAISE NOTICE '... Success';
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed';
-			raise error_in_assignment;
-	END;
-	DELETE FROM Property where Property_ID = v_property_id;
-
-	RAISE NOTICE 'Inserting Netblock_Collection_Id value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_net_coll_Id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Device_Collection_Id value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_device_collection_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Password_Type value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Password_Type
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_password_type
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting SW_Package_ID value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_sw_package_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Token_Collection_ID value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_token_collection_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Account_Collection_id value into dns_domain_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
-			) VALUES (
-			'dns_domain_id', 'test',
-			v_account_collection_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	--
 	-- Netblock_Collection_Id
 	--
@@ -2381,21 +2178,6 @@ BEGIN
 			) VALUES (
 			'netblock_collection_id', 'test',
 			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into Netblock_Collection_Id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'netblock_collection_id', 'test',
-			v_dns_domain_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2544,21 +2326,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into password_type property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'password_type', 'test',
-			v_dns_domain_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2691,21 +2458,6 @@ BEGIN
 			) VALUES (
 			'sw_package_id', 'test',
 			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'sw_package_id', 'test',
-			v_dns_domain_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2855,21 +2607,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into token_collection_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'token_collection_id', 'test',
-			v_dns_domain_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -3010,21 +2747,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into account_collection_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'account_collection_id', 'test',
-			v_dns_domain_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -3157,21 +2879,6 @@ BEGIN
 			) VALUES (
 			'none', 'test',
 			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting DNS_Domain_ID value into none property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_DNS_Domain_ID
-			) VALUES (
-			'none', 'test',
-			v_dns_domain_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -3359,6 +3066,44 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+	RAISE NOTICE 'Checking for account_collection_type mismatch';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value, account_collection_id
+			) VALUES (
+			'actype', 'test',
+			'Vv', v_account_collection_id2
+			) RETURNING Property_ID INTO v_property_id;
+		RAISE NOTICE '... Success.  THIS IS A PROBLEM % %', 
+			v_account_collection_id, v_account_collection_id2;
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+	RAISE NOTICE 'Checking for account_collection_type match';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value, account_collection_id
+			) VALUES (
+			'actype', 'test',
+			'Vv', v_account_collection_id2
+			) RETURNING Property_ID INTO v_property_id;
+		RAISE NOTICE '... Success.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+
+	--
+	-- Checking to see if a property value restricted account_collection
+	-- 
 
 	RAISE NOTICE 'ALL TESTS PASSED';
 	--

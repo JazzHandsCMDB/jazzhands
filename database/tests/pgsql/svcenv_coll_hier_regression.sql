@@ -33,7 +33,7 @@ DECLARE
 	_svcenv1		service_environment%ROWTYPE;
 	_svcenv2		service_environment%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'Service EnvCollHier: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'service_env_coll_hier_regression: Cleanup Records from Previous Tests';
 
 	delete from svc_environment_coll_svc_env where service_env_collection_id
 		IN (select service_env_collection_id FROM
@@ -154,7 +154,7 @@ BEGIN
 
 	RAISE NOTICE 'Cleaning up...';
 
-	RAISE NOTICE 'Service EnvCollHier: DONE';
+	RAISE NOTICE 'service_env_coll_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;
