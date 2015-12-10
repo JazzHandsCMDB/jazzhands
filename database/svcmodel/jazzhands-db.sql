@@ -17,7 +17,7 @@ WITH endpoint AS (
 	RETURNING *
 ), svc AS (
 	INSERT INTO service (service_name, software_repo)
-	VALUES ('stab', 'git@github.com:JazzHandsCMDB/jazzhands')
+	VALUES ('jazzhands-db', 'git@github.com:JazzHandsCMDB/jazzhands')
 	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version 
