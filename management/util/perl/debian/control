@@ -1,0 +1,14 @@
+Source: jazzhands-perl-common
+Section: unknown
+Priority: extra
+Maintainer: kovert@omniscient.com
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+Homepage: https://git.corp.appnexus.com/cgit/internal-pkg/appnexus-ca.git/
+Version: 0.65.0
+
+Package: jazzhands-perl-common
+Architecture: any
+Pre-Depends: libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
+Description: 
+ Common perl modules used throughout jazzhands
