@@ -25,7 +25,7 @@ DECLARE
 BEGIN
 WITH repo AS (
 	INSERT INTO software_repository (
-		software_repository_name, software_repositroy_type
+		software_repository_name, software_repository_type
 	) values (
 		'common', 'default'
 	) RETURNING *
