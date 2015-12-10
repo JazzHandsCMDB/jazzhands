@@ -1,0 +1,24 @@
+notes from 2015-12-10 --
+
+Goals:
+1) acls
+2) puppet variables et al
+3) config files
+4) gslb/lb/etc
+
+other stuff I did not write down
+
+ - we do not track internal-to-endpoint items ("subsystems" version?)
+   think about an api endpoint that devices that farms out to other
+   devices
+ - need a way to represent open to all (internet?  internal?  etc?)
+ - make sure we can represent owners/approvers/other roles
+ - how to if the end point is working? (feeds into gslb etc)
+   capture request string/search string stuff?
+ - how do we deal with things coming in or going out that meet slas?
+ - an endpoint may provide multiple services?
+ - how to handle two services colocated on the same endpoint host?
+ - hoe to translate scope to availability
+ - "show me all the things that could be part of this" vs endpoints
+ - endpoints for services vs 33 different DNS endpoints
+ - capacity of a group particualrly shared endpoints
