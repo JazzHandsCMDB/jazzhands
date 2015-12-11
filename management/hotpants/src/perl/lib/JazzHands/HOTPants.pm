@@ -39,7 +39,7 @@
 
 # $Id$
 #
-package HOTPants;
+package JazzHands::HOTPants;
 
 use 5.010;
 use strict;

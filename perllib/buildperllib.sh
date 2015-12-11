@@ -12,6 +12,7 @@ for i in \
 	../poll/lib \
 	../management/stab/perl/src/lib \
 	../management/appauthal/perl/*/lib \
+	../management/hotpants/src/perl/lib \
 	../management/util/perl-tickets/lib \
 	../management/approval/lib/lib \
     ; do
