@@ -44,7 +44,7 @@ BEGIN {
 }
 
 use strict;
-use HOTPants;
+use JazzHands::HOTPants;
 
 use vars qw(%RAD_REQUEST %RAD_REPLY %RAD_CHECK);
 use Data::Dumper;
@@ -70,7 +70,7 @@ my $err;
 # called throughout; meant to work around encryption map and what not
 #
 sub connect_hp {
-	my $hp = new HOTPants( 
+	my $hp = new JazzHands::HOTPants(
         	dbuser => 'hotpants',
         	encryptionmap => {
                 	1 => 'i9aiGhoo8zu8iey@ieb',
@@ -81,7 +81,7 @@ sub connect_hp {
 }
 
 sub find_client {
-	my $client = $RAD_REQUEST{"Packet-Src-IP-Address"};
+	my $client = $RAD_REQUEST{"Packet-Src-IP-Address"} || $RAD_REQUEST{'Tmp-IP-Address-0'};
 	if(!$client) {
 		radiusd::radlog( 4, "Unable to find callers IP");
 		return RLM_MODULE_FAIL;
@@ -109,10 +109,10 @@ sub find_client {
 sub authorize {
 	# This call is used to authorize the host.  Basically return the
 	# correct shared secret
-	if ( $RAD_REQUEST{"Packet-Src-IP-Address"} ) {
+	if ( $RAD_REQUEST{"Packet-Src-IP-Address"} || $RAD_REQUEST{'Tmp-IP-Address-0'} ) {
 		return find_client();
 	}
-	
+
 	if (       !$RAD_REQUEST{"JH-Application-Name"}
 		&& !$RAD_REQUEST{"NAS-IP-Address"} )
 	{
