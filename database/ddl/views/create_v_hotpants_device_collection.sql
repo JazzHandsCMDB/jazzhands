@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE VIEW v_hotpants_device_collection AS
+CREATE OR REPLACE VIEW v_hotpants_device_collection AS
 SELECT DISTINCT
                 Device_Id,
                 Device_Name,
@@ -28,6 +28,5 @@ SELECT DISTINCT
                 INNER JOIN Network_Interface NI USING (Device_ID) 
                 INNER JOIN Netblock NB USING (Netblock_id)
         WHERE
-                Device_Collection_Type = 'mclass'
-        AND     Device_Name IS NOT NULL
+        	Device_Name IS NOT NULL
         AND     Device_Name IS NOT NULL
