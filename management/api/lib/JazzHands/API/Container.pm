@@ -174,13 +174,6 @@ sub handler {
 
 	my $user = $ENV{REMOTE_USER} || '';
 
-	##
-	## Remove this before production stuffs
-	##
-	if (!$user && ($client_ip eq '127.0.0.1' || $client_ip eq '::1')) {
-		$user = 'mdr';
-	}
-
 	#
 	# We need to check for valid authentication realms here, but things
 	# are not completely set up for that at this point.  Also, this should
