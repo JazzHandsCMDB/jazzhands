@@ -518,10 +518,10 @@ BEGIN
 		RAISE EXCEPTION '% is not a valid DNS name', fqdn;
 	END IF;
 
-	RETURN SELECT 
-		regexp_replace(fqdn, '.' || soa_name || '$', '');
-		dd.dns_domain_id,
-		dd.soa_name 
+	RETURN QUERY SELECT 
+		regexp_replace(fqdn, '.' || dd.soa_name || '$', '')::text,
+		dd.soa_name::text,
+		dd.dns_domain_id
 	FROM
 		dns_domain dd
 	WHERE
