@@ -1,4 +1,4 @@
-package JazzHands::API::Container;
+package JazzHands::Apache::API::Container;
 use strict;
 
 use Apache2::RequestRec ();
@@ -11,7 +11,7 @@ use APR::Table;
 use APR::Const -compile => qw(:error SUCCESS);
 
 use JazzHands::Common qw(:all);
-use JazzHands::API::Common qw(:all);
+use JazzHands::Apache::API::Common qw(:all);
 use JazzHands::DBI;
 use JazzHands::AppAuthAL;
 use NetAddr::IP;

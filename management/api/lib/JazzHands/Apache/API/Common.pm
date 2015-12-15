@@ -1,15 +1,17 @@
-package JazzHands::API::Common;
+package JazzHands::Apache::API::Common;
 use strict;
 
 use Exporter 'import';
 use JazzHands::Common qw(:all);
 use Time::HiRes qw(gettimeofday tv_interval);
 
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $VERSION);
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw(runquery FindHashChild );
 our %EXPORT_TAGS = (all => [ qw(runquery FindHashChild) ] );
+
+$VERSION = '0.65.0';
 
 sub runquery {
 	my $opt = &_options(@_);
