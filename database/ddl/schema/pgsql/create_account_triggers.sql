@@ -73,6 +73,7 @@ CREATE TRIGGER trigger_delete_peraccount_account_collection BEFORE DELETE
 	FOR EACH ROW 
 	EXECUTE PROCEDURE delete_peraccount_account_collection();
 
+----------------------------------------------------------------------------
 -- on inserts/updates ensure the per-account account is updated properly
 CREATE OR REPLACE FUNCTION update_peraccount_account_collection() 
 RETURNS TRIGGER AS $$
@@ -245,6 +246,37 @@ CREATE TRIGGER trigger_account_enforce_is_enabled
 BEFORE INSERT OR UPDATE of account_status,is_enabled
 	ON account
 	FOR EACH ROW EXECUTE PROCEDURE account_enforce_is_enabled();
+
+-------------------------------------------------------------------------------
+
+/*
+ * ensure that a login is only made up of legal characters
+ *
+ * XXX - this needs to be reimplemented in oracle
+ */
+CREATE OR REPLACE FUNCTION account_validate_login()
+	RETURNS TRIGGER AS $$
+DECLARE
+	correctval	char(1);
+BEGIN
+
+	IF NEW.login  ~ '[^-/@a-z0-9_]+' THEN
+		RAISE EXCEPTION 'May not update IS_ENABLED to an invalid value for given account_status: %', NEW.account_status
+			USING errcode = 'integrity_constraint_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_account_validate_login 
+	ON account;
+CREATE TRIGGER trigger_account_validate_login 
+BEFORE INSERT OR UPDATE of login
+	ON account
+	FOR EACH ROW EXECUTE PROCEDURE account_validate_login();
 
 
 -------------------------------------------------------------------------------

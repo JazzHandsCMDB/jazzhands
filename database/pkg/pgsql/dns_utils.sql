@@ -476,7 +476,7 @@ DECLARE
 BEGIN
 	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid; 
 
-	RAISE DEBUG 'Createing inverse DNS zones for %s', block;
+	RAISE DEBUG 'Creating inverse DNS zones for %s', block;
 
 	RETURN QUERY SELECT
 		dns_utils.add_dns_domain(
@@ -494,3 +494,45 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY definer;
+
+------------------------------------------------------------------------------
+--
+-- Given a DNS name, return the host part, the domain part, and the
+-- dns_domain_id if it exists
+--
+-- If no domain is found that matches, then no rows are returned
+--
+------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS dns_utils.find_dns_domain ( text );
+CREATE OR REPLACE FUNCTION dns_utils.find_dns_domain(
+	fqdn	text
+) returns TABLE(
+	dns_name		text,
+	soa_name		text,
+	dns_domain_id	jazzhands.dns_domain.dns_domain_id%TYPE
+)
+AS
+$$
+BEGIN
+	IF fqdn !~ '^[^.][a-zA-Z0-9_.-]+[^.]$' THEN
+		RAISE EXCEPTION '% is not a valid DNS name', fqdn;
+	END IF;
+
+	RETURN QUERY SELECT 
+		regexp_replace(fqdn, '.' || dd.soa_name || '$', '')::text,
+		dd.soa_name::text,
+		dd.dns_domain_id
+	FROM
+		dns_domain dd
+	WHERE
+		fqdn LIKE ('%.' || dd.soa_name)
+	ORDER BY
+		length(dd.soa_name) DESC
+	LIMIT 1;
+
+	RETURN;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
