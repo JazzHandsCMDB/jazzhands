@@ -178,8 +178,9 @@ BEGIN
 	IF NEW.account_id IS NULL THEN
 		SELECT	approver_account_id
 		INTO	NEW.account_id
-		FROM	legacy_approval_instance_step
-		WHERE	legacy_approval_instance_step_id = NEW.legacy_approval_instance_step_id;
+		FROM	approval_instance_step
+		WHERE	approval_instance_step_id =
+				NEW.approval_instance_step_id;
 	END IF;
 	RETURN NEW;
 END;
@@ -192,6 +193,7 @@ DROP TRIGGER IF EXISTS trigger_legacy_approval_instance_step_notify_account ON
 CREATE TRIGGER trigger_legacy_approval_instance_step_notify_account 
 	BEFORE INSERT OR  UPDATE OF account_id
         ON approval_instance_step_notify
+	FOR EACH ROW
         EXECUTE PROCEDURE legacy_approval_instance_step_notify_account();
 
 
