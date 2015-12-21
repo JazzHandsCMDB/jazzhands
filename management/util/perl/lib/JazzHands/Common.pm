@@ -19,9 +19,9 @@ package JazzHands::Common;
 use strict;
 use warnings;
 use JazzHands::Common::Util qw(:all);
-use JazzHands::Common::Error qw(:all);
+use JazzHands::Common::Error qw(:internal);
 
-# use vars qw(@ISA %EXPORT_TAGS @EXPORT);
+use vars qw(@ISA %EXPORT_TAGS @EXPORT);
 
 use Exporter;# 'import';
 
@@ -80,6 +80,7 @@ sub import {
 	$Exporter::ExportLevel = 1;
 	Exporter::import(@_);
 	$Exporter::ExportLevel = $save;
+
 }
 
 #

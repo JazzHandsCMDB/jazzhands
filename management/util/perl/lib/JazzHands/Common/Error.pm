@@ -20,14 +20,20 @@ package JazzHands::Common::Error;
 use strict;
 use warnings;
 
+our $errstr;
+
 use Exporter 'import';
 
 our $VERSION = '1.0';
 
-our @ISA       = qw(Exporter);
-our @EXPORT_OK = qw(SetError );
+our @ISA       = qw(Exporter );
+# note:  exporting variables is bad, but this allows for a common errstr
+# throughout all the JazzHands::Common family.
+our @EXPORT_OK = qw(SetError $errstr );
 
-our %EXPORT_TAGS = ( 'all' => [qw(SetError)], );
+our %EXPORT_TAGS = ( 
+	'all' => [qw(SetError)], 
+	'internal' => [qw(SetError $errstr)] );
 
 #
 # This is used external to JazzHands and thus can't really change
@@ -70,7 +76,8 @@ sub Error {
 	if(wantarray) {
 		return @{$self->{_errors}};
 	} else {
-		return join("\n", @{$self->{_errors}});
+		$errstr = join("\n", @{$self->{_errors}});
+		return $errstr;
 	}
 }
 

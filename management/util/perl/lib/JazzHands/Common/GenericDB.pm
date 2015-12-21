@@ -22,14 +22,15 @@ package JazzHands::Common::GenericDB;
 use strict;
 use Exporter;
 use JazzHands::Common::Util qw(:all);
-use JazzHands::Common::Error qw(:all);
+use JazzHands::Common::Error qw(:internal);
 use DBI::Const::GetInfoType;
 use Data::Dumper;
 use Carp qw(cluck);
 
+
 our $VERSION   = '1.0';
 
-our @ISA	   = qw(Exporter);
+our @ISA	   = qw(Exporter );
 
 our %EXPORT_TAGS = 
 (
@@ -76,6 +77,38 @@ sub run_update_from_hash {
 		hash => $hash
 	);
 }
+
+#
+# sets up a connection to the db
+#
+sub Connect {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	#
+	# This is here because JazzHands::DBI requires Common, which ends up
+	# being circular.  Since Nothing is imported back up into the namespace,
+	# this is probably ok.
+	#
+	require JazzHands::DBI;
+
+	my $service = $opt->{service};
+	my $svcargs= $opt->{svcargs} || {
+			AutoCommit => 0,
+			RaiseError => 0,
+		};
+
+	my $dbh;
+	if (
+		!( $dbh = JazzHands::DBI->connect( $service, $svcargs ) ) )
+	{
+		undef $dbh;
+		$errstr = $JazzHands::DBI::errstr;
+		return "Unable to create environment";
+	}
+	$self->DBHandle($dbh);
+}
+
 
 sub DBHandle {
 	my $self = shift;
@@ -679,7 +712,17 @@ sub disconnect {
 	my $self = shift;
 
 	if ( my $dbh = $self->DBHandle ) {
-		return $dbh->disconnect;
+		my $rv = $dbh->disconnect;
+		$self->{_dbh} = undef;
+		return $rv;
+	}
+}
+
+sub END {
+	my $self = shift;
+	if($self) {
+		$self->rollback;
+		$self->disconnect;
 	}
 }
 
