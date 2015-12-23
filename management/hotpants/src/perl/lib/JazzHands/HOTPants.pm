@@ -247,7 +247,7 @@ sub GetSharedSecret {
 					INNER JOIN netblock USING (netblock_id)
 			WHERE	host(ip_address) = ?
 			AND		property_name = 'RadiusSharedSecret'
-			AND		property_type = 'RADIUS'
+			AND		property_type = 'HOTPants'
 	}
 	);
 
@@ -532,15 +532,26 @@ sub fetch_client {
 	}
 
 	my $dbh = $self->{dbh};
-	my $sth = $dbh->prepare_cached(
-		qq{
-			SELECT *
-	        FROM	v_hotpants_device_collection
-	        WHERE	ip_address = ?
+	my $sth;
+	if($clientid =~ /^[\.:0-9a-f]+$/) {
+		$sth = $dbh->prepare_cached(
+			qq{
+				SELECT *
+	        	FROM	v_hotpants_device_collection
+	        	WHERE	ip_address = ?
+				AND		device_collection_type IN ('mclass', 'HOTPants')
+		}
+		);
+	} else {
+		$sth = $dbh->prepare_cached(
+			qq{
+				SELECT *
+	        	FROM	device_collection
+	        	WHERE	device_collection_name = ?
+				AND		device_collection_type = 'HOTPants-app'
+		}
+		);
 	}
-	);
-
-	# XXX - syncradius.pl also does stuff with radius_app.
 
 	if ( !$sth ) {
 		$self->Error( "fetch_client: unable to prepare sth: " . $dbh->errstr );
@@ -553,6 +564,7 @@ sub fetch_client {
 	}
 
 	my $hr = $sth->fetchrow_hashref;
+	$hr->{name} = $hr->{device_collection_name};	# XXX
 	$sth->finish;
 
 	if ( !$hr ) {
@@ -747,8 +759,8 @@ sub fetch_attributes {
 	                Device_Collection USING (Device_Collection_ID)
 	        WHERE
 					is_enabled = 'Y'
-	        AND     (Device_Collection_Type = 'radius_app' OR
-	                	Property_Type = 'RADIUS')
+	        AND     (Device_Collection_Type = 'HOTPants-app' OR
+	                	Property_Type IN ('RADIUS', 'HOTPants') )
 			AND		login = ?
 			AND		device_collection_id = ?
 	}
@@ -1644,7 +1656,7 @@ sub AuthenticateUser {
 	my $client;
 	if ( !( $client = $self->fetch_client( client_id => $source ) ) ) {
 		if ( !$self->Error ) {
-			$self->Error( sprintf( "unknown client", $source ) );
+			$self->Error( sprintf( "unknown client: %s", $source ) );
 		}
 		return undef;
 	}
@@ -1674,11 +1686,11 @@ sub AuthenticateUser {
 
 	if ( defined($authmech) ) {
 		$self->_Debug( 2, "Setting password type for client %s to %s",
-			$client->{name}, $authmech );
+			$client->{devcoll_name}, $authmech );
 	} else {
 		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
 		$self->_Debug( 2, "Setting password type for client %s to default (%s)",
-			$client->{name}, $authmech || "undefined" );
+			$client->{devcoll_name}, $authmech || "undefined" );
 	}
 
 	#
@@ -1704,7 +1716,7 @@ sub AuthenticateUser {
 		$authmech = $attrs->{RADIUS}->{PWType}->{value};
 		$self->_Debug( 2,
 			"Setting password type for user %s on client %s to (%s)",
-			$login, $client->{name}, $authmech || "undefined" );
+			$login, $client->{devcoll_name}, $authmech || "undefined" );
 	}
 
 	#
@@ -1714,7 +1726,7 @@ sub AuthenticateUser {
 		$self->Error(
 			sprintf(
 				"user %s does not have permission to log in to %s (%s)",
-				$login, $source, $client->{name}
+				$login, $source, $client->{devcoll_name}
 			)
 		);
 		return undef;
@@ -1723,8 +1735,8 @@ sub AuthenticateUser {
 	if ( !defined($authmech) || $authmech eq 'star' ) {
 		$self->Error(
 			sprintf(
-				"no password mechanisms defined to auth user %s on client %s (%s)",
-				$login, $client->{name}, $source
+				"no password mechanisms defined to auth user %s on client '%s' (%s)",
+				$login||'', $client->{devcoll_name}||'', $source||''
 			)
 		);
 		return undef;
@@ -1732,7 +1744,7 @@ sub AuthenticateUser {
 
 	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
 		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
-			$login, $client->{name} );
+			$login, $client->{devcoll_name} );
 
 		if (
 			$self->HOTPAuthenticate(
@@ -1812,14 +1824,14 @@ sub AuthenticateUser {
 		$self->Error(
 			sprintf(
 				"unsupported authentication mechanism %s authenticating user %s for client %s",
-				$authmech, $login, $client->{name}
+				$authmech, $login, $client->{devcoll_name}
 			)
 		);
 		return undef;
 	}
 
 	$self->_Debug( 2, "Authenticating user %s on client %s with %s",
-		$login, $client->{name}, $authmech );
+		$login, $client->{devcoll_name}, $authmech );
 	if (   $p->{passwd} eq $checkpass
 		|| $p->{passwd} eq ( $checkpass . "=" ) )
 	{
@@ -1829,7 +1841,7 @@ sub AuthenticateUser {
 			2,
 			"User %s failed authentication on client %s with %s: expected %s, got %s",
 			$login,
-			$client->{name},
+			$client->{devcoll_name},
 			$authmech,
 			$checkpass,
 			$p->{passwd}
@@ -1842,7 +1854,7 @@ sub AuthenticateUser {
 			$self->Status(
 				sprintf(
 					"user %s successfully authenticated using %s for client %s",
-					$login, $authmech, $client->{name}
+					$login, $authmech, $client->{devcoll_name}
 				)
 			);
 		}
@@ -1854,7 +1866,7 @@ sub AuthenticateUser {
 			$self->Error(
 				sprintf(
 					"user %s unsuccessfully authenticated using %s for client %s",
-					$login, $authmech, $client->{name}
+					$login, $authmech, $client->{devcoll_name}
 				)
 			);
 			$self->_Debug( 2, $self->Error );
@@ -2023,11 +2035,11 @@ sub AuthorizeUser {
 
 	if ( defined($authmech) ) {
 		$self->_Debug( 2, "Setting password type for client %s to %s",
-			$client->{name}, $authmech );
+			$client->{devcoll_name}, $authmech );
 	} else {
 		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
 		$self->_Debug( 2, "Setting password type for client %s to default (%s)",
-			$client->{name}, $authmech || "undefined" );
+			$client->{devcoll_name}, $authmech || "undefined" );
 	}
 
 	#
@@ -2053,7 +2065,7 @@ sub AuthorizeUser {
 		$authmech = $attrs->{RADIUS}->{PWType}->{value};
 		$self->_Debug( 2,
 			"Setting password type for user %s on client %s to (%s)",
-			$login, $client->{name}, $authmech || "undefined" );
+			$login, $client->{devcoll_name}, $authmech || "undefined" );
 	}
 
 	#
@@ -2063,7 +2075,7 @@ sub AuthorizeUser {
 		$self->Error(
 			sprintf(
 				"User %s does not have access to log in to %s (%s)",
-				$login, $source, $client->{name}
+				$login, $source, $client->{devcoll_name}
 			)
 		);
 		return undef;
@@ -2073,7 +2085,7 @@ sub AuthorizeUser {
 		$self->Error(
 			sprintf(
 				"No password mechanisms defined to auth user %s on client %s (%s)",
-				$login, $client->{name}, $source
+				$login, $client->{devcoll_name}, $source
 			)
 		);
 		return undef;
@@ -2081,7 +2093,7 @@ sub AuthorizeUser {
 
 	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
 		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
-			$login, $client->{name} );
+			$login, $client->{devcoll_name} );
 
 		if ( !@{ $user->{tokens} } ) {
 			$self->Error( "No tokens assigned to " . $login );
@@ -2112,6 +2124,12 @@ sub AuthorizeUser {
 	}
 
 	return 1;
+}
+
+sub DESTROY {
+	my $self = shift @_;
+
+	$self->closedb();
 }
 
 1;

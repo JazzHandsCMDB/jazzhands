@@ -109,7 +109,14 @@ sub issuer($;$) {
 sub label($;$) {
 	my $self = shift @_;
 	if (@_) { $self->{_label} = shift; }
-	return $self->{_label} || 'JazzHands-'.$self->{_type};
+	my $t = $self->{_type};
+	$t =~ s/^soft_//;
+	return $self->{_label} || "JazzHands-$t";
+}
+
+sub key32($) {
+	my $self = shift;
+	$self->{key32};
 }
 
 sub encrypt {
@@ -202,6 +209,30 @@ sub add_encryption_id($;$$$) {
 	};
 }
 
+sub rm_token($$) {
+	my $self = shift;
+	my $tokenid = shift;
+	my $login = shift;
+
+	my $dbh = $self->dbh;
+	my $sth = $dbh->prepare_cached(qq{
+		DELETE FROM account_token
+		WHERE token_id = ?
+		AND account_id IN (select account_id
+			FROM v_corp_family_account
+			WHERE login = ?
+		)
+	}
+	) || return undef;
+
+	my $nr;
+	if(! ($nr = $sth->execute( $tokenid, $login )) ) {
+		$errstr = $sth->errstr;
+		return undef;
+	}
+	$nr;
+}
+
 sub add_token($$$) {
 	my $self = shift;
 	my $type = shift;
@@ -209,7 +240,7 @@ sub add_token($$$) {
 
 	my $dbh = $self->dbh;
 
-	$self->{_type} = 'type';
+	$self->{_type} = $type;
 
 	my $modulo;
 	if ( $type eq 'soft_time' ) {
@@ -296,16 +327,42 @@ sub add_token($$$) {
 	}
 
 	if( defined($seq) ) {
-		$self->set_sequence( $tokid, $seq );
+		$self->set_sequence( $seq );
 	}
 
 	$tokid;
 }
 
-sub set_sequence($$;$) {
+sub assign_token($$;$$) {
 	my $self = shift @_;
-	my $tokid = shift @_;
+	my $login = shift @_;
+	my $desc = shift @_;
+	my $tokid = shift @_ || $self->{token_id};
+
+
+	my $dbh = $self->dbh;
+	my $sth = $dbh->prepare_cached(
+		qq{
+		INSERT INTO account_token (
+			account_id, token_id, issued_date, description
+		) SELECT account_id, ?, now(), ?
+			FROM v_corp_family_account
+			WHERE login = ?
+			ORDER BY account_id
+			LIMIT 1
+		RETURNING *
+	}
+	) || die $dbh->errstr;
+
+	$sth->execute($tokid, $desc, $login) || die $sth->errstr;
+	$sth->finish;
+
+}
+
+sub set_sequence($;$$) {
+	my $self = shift @_;
 	my $seq = shift @_ || 5;
+	my $tokid = shift @_ || $self->{token_id};
 
 	my $dbh = $self->dbh;
 	my $sth = $dbh->prepare_cached(

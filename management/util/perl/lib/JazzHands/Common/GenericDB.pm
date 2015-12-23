@@ -718,9 +718,9 @@ sub disconnect {
 	}
 }
 
-sub END {
+sub DESTROY {
 	my $self = shift;
-	if($self) {
+	if($self && ref($self)) {
 		$self->rollback;
 		$self->disconnect;
 	}
