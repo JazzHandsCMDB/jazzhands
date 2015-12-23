@@ -557,13 +557,6 @@ BEGIN
 		RAISE EXCEPTION 'Approval is already completed.';
 	END IF;
 
-	EXECUTE '
-		UPDATE approval_instance_item
-		SET is_approved = $2,
-		approved_account_id = $3
-		WHERE approval_instance_item_id = $1
-	' USING approval_instance_item_id, approved, approving_account_id;
-
 	IF approved = 'N' THEN
 		IF _r.reject_app_process_chain_id IS NOT NULL THEN
 			_chid := _r.reject_app_process_chain_id;	
@@ -588,6 +581,18 @@ BEGIN
 			WHERE approval_instance_item_id = $1
 		' USING approval_instance_item_id, _new;
 	END IF;
+
+	--
+	-- This needs to happen after the next steps are created
+	-- or the entire process gets marked as done on the second to last
+	-- update instead of the list.
+
+	EXECUTE '
+		UPDATE approval_instance_item
+		SET is_approved = $2,
+		approved_account_id = $3
+		WHERE approval_instance_item_id = $1
+	' USING approval_instance_item_id, approved, approving_account_id;
 
 	RETURN true;
 END;
