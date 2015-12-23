@@ -2,7 +2,7 @@
 %define prefix	/var/www/stab
 %define release 0
 Name:   	jazzhands-stab
-Version:        0.64.12
+Version:        0.66.0
 Release:        0%{?dist}
 Summary:        JazzHands STAB Web Front End
 Group:  	System Environment/Libraries
@@ -162,6 +162,7 @@ rm -rf %{buildroot}
 %{prefix}/netblock/write/doadd.pl
 %{prefix}/netblock/write/edit_netblock.pl
 %{prefix}/netblock/write/rmnetblock.pl
+%{prefix}/x509/index.pl
 %{prefix}/sites.pl
 %{prefix}/sites/blockmgr.pl
 %{prefix}/sites/index.pl
@@ -184,6 +185,8 @@ rm -rf %{buildroot}
 %{perl_vendorlib}/*
 %{_mandir}/man3/*
 
+* Wed Dec 23 2015 Todd Kover <kovert@omniscient.com> 0.66.0
+- add primitive x509 certificate navigation
 * Mon Nov 16 2015 Todd Kover <kovert@omniscient.com> 0.64.12
 - put an approvals link on the main stab page
 * Tue Nov 12 2015 Todd Kover <kovert@omniscient.com> 0.64.9

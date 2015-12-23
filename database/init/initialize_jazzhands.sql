@@ -1002,6 +1002,7 @@ insert into val_property_value (
 	('PermitStabSection', 'StabRole', 'StabAccess'),
 	('PermitStabSection', 'StabRole', 'Attest'),
 	('PermitStabSection', 'StabRole', 'Approval'),
+	('PermitStabSection', 'StabRole', 'X509'),
 	('PermitStabSection', 'StabRole', 'FullAdmin')
 ;
 
