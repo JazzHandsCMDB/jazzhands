@@ -1,0 +1,13 @@
+Source: jazzhands-perl-common
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-perl-common
+Architecture: any
+Pre-Depends: libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
+Description: 
+ Common perl modules used throughout jazzhands
