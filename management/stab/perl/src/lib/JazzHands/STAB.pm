@@ -138,6 +138,7 @@ sub new {
 		'DNS'        => '/dns/',
 		'Netblock'   => '/netblock/',
 		'Sites',     => '/sites/rack/',
+		'X509',      => '/x509/',
 		'StabAccess' => '/',
 	};
 
@@ -402,12 +403,6 @@ sub start_html {
 					-src =>
 					  "$root/javascript-common/external/chosen/chosen.jquery.js",
 				},
-
-				#	{
-				#		-language => 'JavaScript',
-				#		-src =>
-				#			"$root/javascript-common/external/chosen/docsupport/prism.js",
-				#	},
 				{
 					-language => 'JavaScript',
 					-src      => "$stabroot/javascript/stab-common.js"
@@ -437,6 +432,24 @@ sub start_html {
 				{
 					-language => 'JavaScript',
 					-src      => "$stabroot/javascript/reporting.js"
+				},
+			);
+		}
+		if ( $opts->{javascript} eq 'x509' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'JavaScript',
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src =>
+					  "$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
+				},
+				{
+					-language => 'JavaScript',
+					-src      => "$stabroot/javascript/stab-common.js"
 				},
 			);
 		}
@@ -2287,7 +2300,8 @@ sub build_table_from_query {
 			if ( $opt->{urlmap} && exists( $opt->{urlmap}->{$k} ) ) {
 				my $url = $opt->{urlmap}->{$k};
 				foreach my $qcol ( @{ $sth->{NAME} } ) {
-					$url =~ s,\%\{$qcol\},$hr->{$qcol},;
+					my $v = $hr->{$qcol} || '';
+					$url =~ s,\%\{$qcol\},$v,;
 				}
 				push( @foo, $cgi->a( { -href => $url }, $hr->{$k} ) );
 			} else {

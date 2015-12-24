@@ -128,9 +128,9 @@ if($stab->check_permissions('Sites')) {
 	));
 }
 
-if($stab->check_permissions('Approval')) {
+if($stab->check_permissions('X509')) {
 	push(@things, join("",
-		$cgi->li( $cgi->a( { -href => "approve/" }, "Outstanding Approvals" ) ) . "\n",
+		$cgi->li( $cgi->a( { -href => "x509/" }, "X509 Certificates" ) ) . "\n",
 				)
 	);
 }
