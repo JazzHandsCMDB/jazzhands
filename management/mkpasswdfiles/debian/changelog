@@ -1,0 +1,131 @@
+jazzhands-mkpasswdfiles (0.66.1) trusty; urgency=medium
+
+  * add debian bits; make that the default for release generation
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:05 +0000
+
+jazzhands-mkpasswdfiles (0.61.1) unstable; urgency=low
+
+  * fix issue with empty hashes being inserted into passwd file
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 19 Mar 2015 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.61.0) unstable; urgency=low
+
+  * more sudoers tweaks
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 05 Mar 2015 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.60.0) unstable; urgency=low
+
+  * fix sudoers flags to be recursive and actually work when set to N.
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 04 Mar 2015 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.59.6) unstable; urgency=low
+
+  * fix hosts symlink generation when a host is moved
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 10 Dec 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.59.3) unstable; urgency=low
+
+  * next -> return
+  * add missing mkdirs for new hosts
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 08 Dec 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.59.2) unstable; urgency=low
+
+  * use database views to extracting files, not glued together in script
+  * switch to having a hostname/mclass directory instead of hostname symlinks
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 08 Dec 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.58.9) unstable; urgency=low
+
+  * do not include the gid in the passwd file output
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 11 Nov 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.58.5) unstable; urgency=low
+
+  * fix ssh ordering
+  * only chown if . is not readable
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 27 Jun 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.58.4) unstable; urgency=low
+
+  * make device collection ssh key overrides properly deal with recursion
+  * only chdir if . is not writeable
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 27 Jun 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.58.1) unstable; urgency=low
+
+  * add support for per-device collection ssh keys
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 11 Jun 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.57.9) unstable; urgency=low
+
+  * add PermitUIDOverride and PermitGIDOverride global properties
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 28 Mar 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.57.6) unstable; urgency=low
+
+  * actually selected out description from an account as a gecos override
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 28 Mar 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.57.5) unstable; urgency=low
+
+  * force uids and gids to integers
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 28 Mar 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.57.4) unstable; urgency=low
+
+  * fix gid overrides to work
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 27 Mar 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.57.2) unstable; urgency=low
+
+  * add PreferLocalSSHAuthorizedKeys per-user attribute
+  * migrate PreferLocal to be a UnixPasswdFileValue
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 25 Mar 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.56.9) unstable; urgency=low
+
+  * add PrerferLocal flag to users...
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 27 Jan 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.56.8) unstable; urgency=low
+
+  * add -random-sleep argument
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 24 Jan 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.56.7) unstable; urgency=low
+
+  * make group management work properly
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 24 Jan 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.56.1) unstable; urgency=low
+
+  * add a %post
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 22 Jan 2014 00:00:00 +0000
+
+jazzhands-mkpasswdfiles (0.56.0) unstable; urgency=low
+
+  * initial release
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 20 Dec 2013 00:00:00 +0000
+

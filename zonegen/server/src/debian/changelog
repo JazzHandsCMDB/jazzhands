@@ -1,0 +1,158 @@
+jazzhands-zonegen-server (0.66.1) trusty; urgency=medium
+
+  * add debian bits; make that the default for release generation
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:07 +0000
+
+jazzhands-zonegen-server (0.62.0) unstable; urgency=low
+
+  * add support for generating additional acls independent of sites
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 02 Jun 2015 00:00:00 +0000
+
+jazzhands-zonegen-server (0.58.6) unstable; urgency=low
+
+  * better handle exclusions for child subnets assigned to different sites
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 11 Sep 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.58.5) unstable; urgency=low
+
+  * add --nogen option and more verbosity/debug
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 11 Sep 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.58.4.2) unstable; urgency=low
+
+  * fix path to spec file
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 25 Jun 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.58.4.1) unstable; urgency=low
+
+  * remove extra my that unfortunately change of a variable
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 25 Jun 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.58.4) unstable; urgency=low
+
+  * migrate to generate-and-sync from do-zone-generation
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 24 Jun 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.58.3) unstable; urgency=low
+
+  * generate the allzone_hostfile smartly, update docs
+  * update docs wit detail of other changes that went in recently
+  * make the mtime of a zone the same as the db's last generated date
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 20 Jun 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.57.10) unstable; urgency=low
+
+  * migrate zonegen to Net::IP from Net::Netmask
+  * convert to postgresql native inetbaseness for ipv4
+  * make in-addr generation work for ipv6
+  * put ip6.arpa zones in their own directory
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 09 Jun 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.57.7) unstable; urgency=low
+
+  * make the acl root dir exist before creating file
+  * sort pool records so they always end up in the same order
+  * Update zonegen to use new dns_change-record table. 
+  * Generate a site netblocks acl file
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 30 Apr 2014 00:00:00 +0000
+
+jazzhands-zonegen-server (0.55.0) unstable; urgency=low
+
+  * dhcp_range -> network_range
+  * network range: dhcp prefix, dns_domain
+  * Use A record ttl in PTR
+  * perltidy
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 17 Oct 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.54.1) unstable; urgency=low
+
+  * pull TTL for NS records from actual child NS records when setting up delegations
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 16 Oct 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.54.0) unstable; urgency=low
+
+  * deal with v0.54 and moving v4_netblock_id to netblock_id
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 25 Sep 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.6.2-1) unstable; urgency=low
+
+  * commit for each zone update
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 26 Jul 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.6.1-1) unstable; urgency=low
+
+  * fix perl syntax error
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 28 May 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.6.1-1) unstable; urgency=low
+
+  * fix perl syntax error
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 28 May 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.6-1) unstable; urgency=low
+
+  * only run rndc reload/reconfig when zones change
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 28 May 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.5-1) unstable; urgency=low
+
+  * order by dns_type after other entries
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 18 Apr 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.4-1) unstable; urgency=low
+
+  * improve generation of SRV records
+  * make dumpzone not regenerate every zone
+  * fully qualify ns records with domain if appropriate
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 18 Apr 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.3-1) unstable; urgency=low
+
+  * fix use of minimum and ttl in generated zones
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 18 Apr 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.2-1) unstable; urgency=low
+
+  * fix signal handling in do-zone-generation
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 17 Apr 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52.1-1) unstable; urgency=low
+
+  * print debugging to stderr when not invoked vi a tty.  silence is tty normal
+  * unlink allzone file when generated, do not otherwise
+  * print more info on steps when invoked from a tty
+  * make extractions have correct soa serial number before db is updated to minimize the amount of time between update of dns_domain and commit
+  * generate zones without an soabump if the file is not there
+  * deal properly with no last date being set in zone generation
+  * use script invocation time as time for new zones
+  * properly regenerate zones that are not there for initial deployment
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 17 Apr 2013 00:00:00 +0000
+
+jazzhands-zonegen-server (0.52-1) unstable; urgency=low
+
+  * initial release
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 07 Mar 2013 00:00:00 +0000
+

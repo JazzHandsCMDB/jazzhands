@@ -1,6 +1,8 @@
 Changes
 Makefile.PL
+Makefile.jazzhands
 MANIFEST
+MANIFEST.SKIP
 README
 t/JazzHands-LDAP.t
 lib/JazzHands/LDAP.pm

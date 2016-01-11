@@ -1,0 +1,14 @@
+Source: jazzhands-perl-tickets
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-perl-tickets
+Section: unknown
+Architecture: any
+Pre-Depends: libjson-perl, libwww-perl, liburi-perl, libdatetime-format-strptime-perl, perl-jazzhands-dbi
+Description: 
+ DBI shim for JazzHands to support database authentication abstraction

@@ -1,10 +1,20 @@
 #
-# Generate release tarballs -- The eventual goal is to pass a command line
-# argument to this script, have it match a tag and it will go and generate
-# tarballs for release.  For now, it just pulls data out of spec files to
-# generate tarballs for release
+# config file for generating release.   This is fed into build-releases.
+# The eventual goal is to pass a command line # argument to this script, 
+# have it match a tag and it will go and generate tarballs for release.
 #
+# For now, it just pulls version information out of the debian/changelog
+# file in each directory.  A .spec file is generated based on those files plus
+# a ocnverted version of the changelog
 #
+# to add things, crib a  debian directory from somewhere, and a spec file and
+# make it work.
+#
+# from inside the source tree, 'dpkg-buildpackage -tc' will build a deb from
+# scratch
+#
+# to build rpms, run ./build-release and them rpmbuild -ta whatever.tar.gz
+
 
 # No support for this yet
 # database jazzhands-database
@@ -12,21 +22,19 @@
 
 # This needs to be pulled out into its own thing, there are sources lying
 # around
-# aaa/acct-mgmt/src/lib/lib/JazzHands/JazzHands-Krb5.spec
+# aaa/acct-mgmt/src/lib/lib/JazzHands	# /JazzHands-Krb5.spec
 
-javascript/jazzhands-javascript-common.spec
-
-# in yum, in prod?
-management/appauthal/perl/AppAuthAL/JazzHands-AppAuthAL.spec
-# This fails to test correctly because of external depends, so not building
-management/appauthal/perl/LDAP/JazzHands-LDAP.spec
-management/appauthal/perl/DBI/perl-JazzHands-DBI.spec
-management/appauthal/php/jazzhands-php-appauthal.spec
-management/mgmt/perl/jazzhands-perl-mgmt.spec
-management/mkpasswdfiles/jazzhands-mkpasswdfiles.spec
-management/approval/approval.spec
-management/stab/stab.spec
-management/util/perl/jazzhands-perl-common.spec
-management/util/perl-Krb5/JazzHands-Krb5.spec
-zonegen/server/src/jazzhands-zonegen-server.spec
-management/util/perl-tickets/jazzhands-perl-tickets.spec
+javascript
+management/appauthal/perl/AppAuthAL
+management/appauthal/perl/LDAP
+management/appauthal/perl/DBI
+management/appauthal/php
+management/mgmt/perl
+management/mkpasswdfiles
+management/approval
+management/stab
+management/util/perl	# jazzhands-perl-common
+management/util/perl-Krb5
+zonegen/server/src
+management/util/perl-tickets
+management/api

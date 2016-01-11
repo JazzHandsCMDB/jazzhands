@@ -1,13 +1,23 @@
+%define pkgname perl-jazzhands-dbi
+
 Summary:    JazzHands-DBI - database authentication abstraction for Perl
 Vendor:     JazzHands
 Name:       perl-JazzHands-DBI
-Version:    0.53
+Version:    __VERSION__
 Release:    1
 License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
-Source0:    %{name}-%{version}.tar.gz
+Source0:    %{pkgname}-%{version}.tar.gz
+%if 0%{?suse_version}
+BuildRequires: perl(JazzHands::AppAuthAL)
+%else
+%if 0%{?rhel} < 6
+BuildRequires: perl(ExtUtils::MakeMaker)
+%else
 BuildRequires: perl-ExtUtils-MakeMaker
+%endif
+%endif
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
 
@@ -15,20 +25,16 @@ BuildArch:  noarch
 DBI shim for JazzHands to support database authentication abstraction
 
 %prep
-%setup -q -n %{name}-%{version}
-
-%{__perl} Makefile.PL INSTALLDIRS=vendor --default
-%{__make}
+%setup -q -n %{pkgname}-%{version}
+make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-
-%{__make} pure_install PERL_INSTALL_ROOT=%{buildroot}
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} clean
 
-rm -rf %{buildroot}
 
 %files
 %attr (-, root, bin) %{perl_vendorlib}/JazzHands/DBI.pm
-%attr (-, root, bin) %{perl_vendorarch}/auto/JazzHands/DBI/.packlist
-%attr (-, root, bin) %{_mandir}/*/* 
+%attr (-, root, bin) %{_mandir}/*/*m*

@@ -1,0 +1,44 @@
+The release process is still fuzzy, basically generate a database tarball,
+and .tar.gzs for each of the apps.  From there its possible to build debs or
+rpms.
+
+debs are tested on Ubuntu and rpms are tested on CentOS, and sometimes OpenSUSE.
+
+A database release is built by hand, and needs to be fleshed out.
+
+For building apps, each app has a 'debian' directory for building debs and
+a spec file for rpms.  There is typically a Makefile.jazzhands called by both
+that does all the building/installing/etc.  The changelog, version, etc are
+pulled from the debian directory into a generated spec file, so the debian
+files "win".  There is some redundancy between both that could probably be better
+sync'd.
+
+Generating a release MUST be done from something with dpkg-parsechangelog
+installed (dpkg-dev deb).  This is so that build-release.sh can get the NAME
+and VERSION out of the controll file and changelog.  This could probably be
+scripted to remove things appropriately, but time and stuff..
+
+NOTE:  Be very careful if doing this in an existing source tree.  No attempt is
+made to not include detrius from a build environment.
+
+In the support directory, there is a file named "releases" that contains all
+the release to generate.
+
+To generate:
+
+	cd support
+	# optionally rm -f *.tar.gz
+	./build-releases.sh
+
+At this point there are a bunch of new .tar.gz files to build.
+
+./build-debs.sh takes them all and builds them in /tmp into debs.  This needs to
+run on a debian-based host.  The debs end up in a directory printed out
+
+./build-rpms.sh does the same with rpms though it puts it in wherever rpmbuild
+puts them (~/rpmbuild, I think).
+
+The tar building process uses support/xchangelog to convert from a debian
+changelog to an rpm one in building up the tar ball.
+
+In theory, the rpms and debs are releasable.

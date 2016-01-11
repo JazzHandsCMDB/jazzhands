@@ -1,3 +1,5 @@
 lib/JazzHands/DBI.pm
 Makefile.PL
+Makefile.jazzhands
 MANIFEST
+MANIFEST.SKIP

@@ -1,0 +1,13 @@
+Source: php-jazzhands-appauthal
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: php-jazzhands-appauthal
+Architecture: any
+Description: 
+ Rudimentary AppAuthAL database auth module for jazzhands
+

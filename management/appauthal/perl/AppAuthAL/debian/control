@@ -1,0 +1,15 @@
+Source: perl-jazzhands-appauthal
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: perl-jazzhands-appauthal
+Section: unknown
+Architecture: any
+Pre-Depends: libjson-perl
+Depends: jazzhands-perl-common
+Description: 
+ JazzHands-AppAuthAL - generic auth abstraction layer routines

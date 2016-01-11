@@ -1,0 +1,7 @@
+#!/bin/sh
+
+if [ ! -d /var/lib/jazzhands/creds-mgmt-server/out ]  ;then
+        mkdir -p /var/lib/jazzhands/creds-mgmt-server/out || true
+else
+        true
+fi

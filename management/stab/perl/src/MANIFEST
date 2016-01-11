@@ -7,4 +7,3 @@ lib/JazzHands/STAB.pm
 lib/JazzHands/STAB/DBAccess.pm
 lib/JazzHands/STAB/Device.pm
 lib/JazzHands/STAB/Rack.pm
-lib/JazzHands/STAB/AuthZHandler.pm

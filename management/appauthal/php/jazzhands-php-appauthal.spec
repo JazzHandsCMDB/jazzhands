@@ -1,7 +1,7 @@
 %define prefix	/usr/share/php
 
 Name:   	php-jazzhands-appauthal
-Version:        0.2.7.1
+Version:        __VERSION__
 Release:        1%{?dist}
 Summary:        JazzHands App Authorization Abstraction Layer for php
 Group:  	System Environment/Libraries
@@ -19,27 +19,14 @@ Rudimentary AppAuthAL database auth module for jazzhands
 
 %prep
 %setup -q -n %{name}-%{version}
-
-%build
-echo Nothing to do
+make -f Makefile.jazzhands
 
 %install
-mkdir -p $RPM_BUILD_ROOT/%{prefix}/jazzhands
-
-cp dbauth.php $RPM_BUILD_ROOT/%{prefix}/jazzhands/dbauth.php
-
-
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} PREFIX=%{prefix} install
 
 %clean
-rm -rf %{buildroot}
+make -f Makefile.jazzhands clean
 
 %files
 %defattr(755,root,root,-)
 %{prefix}/jazzhands/dbauth.php
-
-%changelog
-* Mon Aug 27 2012 Todd Kover <kovert@omniscient.com> 0.2.7.0-1
- - add basic support for mysql
-* Mon Aug 27 2012 Todd Kover <kovert@omniscient.com> 0.2.7.0-1
- - initial release
-

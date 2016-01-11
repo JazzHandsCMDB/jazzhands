@@ -1,0 +1,306 @@
+jazzhands-stab (0.66.1) trusty; urgency=medium
+
+  * add debian bits; make that the default for release generation
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:04 +0000
+
+jazzhands-stab (0.66.0) unstable; urgency=low
+
+  * add primitive x509 certificate navigation
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 23 Dec 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.12) unstable; urgency=low
+
+  * put an approvals link on the main stab page
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 16 Nov 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.9) unstable; urgency=low
+
+  * overhaul way that approval email message is done
+  * fix query->table generation bits so that they can have links and hidden fields
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 12 Nov 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.8) unstable; urgency=low
+
+  * fix bug with chosen and multiple tabs on outstanding approval page
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 09 Nov 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.7) unstable; urgency=low
+
+  * furthur reporting improvements - change how tables are generated
+  * add table that shows each outstanding step and its state
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 07 Oct 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.6) unstable; urgency=low
+
+  * improve approval reporting (dynamic tables)
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 30 Sep 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.5) unstable; urgency=low
+
+  * add basic approval reporting
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 30 Sep 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.4) unstable; urgency=low
+
+  * fix javascript dependency
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 29 Sep 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.1) unstable; urgency=low
+
+  * fix messaging to include replacable patterns
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 25 Sep 2015 00:00:00 +0000
+
+jazzhands-stab (0.64.0) unstable; urgency=low
+
+  * add better access control
+  * add approval section
+  * add chosen
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 17 Sep 2015 00:00:00 +0000
+
+jazzhands-stab (0.63.2) unstable; urgency=low
+
+  * add updates for network_inteface_purpose
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 13 Aug 2015 00:00:00 +0000
+
+jazzhands-stab (0.63.1) unstable; urgency=low
+
+  * previous ip allocation change not fulling tested; deal with that
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 05 Aug 2015 00:00:00 +0000
+
+jazzhands-stab (0.63.0) unstable; urgency=low
+
+  * allow ips not associated with devices to be added to a device rather than just relying on Allocated to matter
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 05 Aug 2015 00:00:00 +0000
+
+jazzhands-stab (0.60.0) unstable; urgency=low
+
+  * shrink device type management down to post-component universe
+  * limit companies in drop down to hardware providers
+  * no longer display npanxx on site
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 04 Mar 2015 00:00:00 +0000
+
+jazzhands-stab (0.59.1) unstable; urgency=low
+
+  * minor device/snmp/index.pl fix
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 04 Dec 2014 00:00:00 +0000
+
+jazzhands-stab (0.59.0) unstable; urgency=low
+
+  * changes required for 0.59 of schema
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 03 Dec 2014 00:00:00 +0000
+
+jazzhands-stab (0.58.8) unstable; urgency=low
+
+  * adjust devive search to check for asset columns to pick the right query to run
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 06 Oct 2014 00:00:00 +0000
+
+jazzhands-stab (0.58.7) unstable; urgency=low
+
+  * Migrate serial numbers, etc to asset table
+  * support having data in both for now, favor asset
+  * Manage Netblock Collections
+  * adjust reset port query to handle same name, different type
+  * type -> porttype when inserting port types on device types.  for some reas centos 6.5 did not like type but newer stuff did
+  * fix else clause on device types to insert one port type.
+  * fix Net::IP usage in stab device search
+  * make perl module depend on regular package (same version)
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 03 Oct 2014 00:00:00 +0000
+
+jazzhands-stab (0.58.3) unstable; urgency=low
+
+  * make it so add_netblock inputs can set netblock_type (bug fix)
+
+ -- Todd Kover <kovert@omniscient.com>  Sun, 22 Jun 2014 00:00:00 +0000
+
+jazzhands-stab (0.58.2) unstable; urgency=low
+
+  * overhaul device/rack retirement to be in database
+  * improve rack elevations
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 11 Jun 2014 00:00:00 +0000
+
+jazzhands-stab (0.58.1) unstable; urgency=low
+
+  * support showing inferred PTRs in ip6.addr zones
+  * comment out some questionable legacy defaults
+  * improve finding best parent netblock logic to deal with blocks that meant to be broadcast domains, probably 
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 11 Jun 2014 00:00:00 +0000
+
+jazzhands-stab (0.57.10) unstable; urgency=low
+
+  * small random bug fixes
+  * if its an in-addr zone, make the type reverse automatically
+  * make disabling dns record work again
+  * make ipv6 work on device page
+  * rip out secondary_netblock references
+  * make manipulation of v6 and v4 addresses work in dns section
+  * make ipv6 dns manipulation work from netblock page.
+  * make netblock gap manipipulation work again
+  * use netblock gaps for large ipv4 blocks (>= /23)
+  * allow editdesc/editdns magic to be be rerun without creating havoc
+  * migrate to Net::IP completely (remove Net::Netmask)
+  * remove references to is_ipv4_address, netmask_bits
+  * get dbh via functino rather than (obsoleted) variable.
+  * explitly undefine $stab to make memory definitely go away
+  * remove some debugging warnings
+  * perltidy * Mon Mar 17 2014 Todd Kover <kovert@omniscient.com> 0.57.1 
+  * when adding a new ip address for a loopback to a network interface, use the single address
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 02 May 2014 00:00:00 +0000
+
+jazzhands-stab (0.56.6-1) unstable; urgency=low
+
+  * on retiring device delete from network purpose & device collection
+  * fix site code updates on device tab
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 13 Jan 2014 00:00:00 +0000
+
+jazzhands-stab (0.56.5-1) unstable; urgency=low
+
+  * rpm depend fix
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 17 Dec 2013 00:00:00 +0000
+
+jazzhands-stab (0.56.4-1) unstable; urgency=low
+
+  * minor tweaks
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 17 Dec 2013 00:00:00 +0000
+
+jazzhands-stab (0.56.2-1) unstable; urgency=low
+
+  * port device, rack, etc sections to postgresql, NWO
+  * add basic permissions model
+  * support email from db
+  * device shows child record
+  * comment out bits that are not in use right now (voe, etc)
+  * remove htaccess files
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 17 Dec 2013 00:00:00 +0000
+
+jazzhands-stab (0.54.4-1) unstable; urgency=low
+
+  * move /usr/local/bin/perl reference to STFU rpm
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 17 Oct 2013 00:00:00 +0000
+
+jazzhands-stab (0.54.3-1) unstable; urgency=low
+
+  * overhaul netblock presentation to be better for subnets and hierarchies
+  * allow setting (but not manipulation) of dns from netblock page
+  * fix bug around updating dns ttls
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 15 Oct 2013 00:00:00 +0000
+
+jazzhands-stab (0.54.2-1) unstable; urgency=low
+
+  * reset netblock management  back to "old" behavior that is more hierarchy friendly, hits the db more, and only allows descriptions on reserved addresses
+  * misc fixes
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 04 Oct 2013 00:00:00 +0000
+
+jazzhands-stab (0.54.1-1) unstable; urgency=low
+
+  * use jquery more
+  * fix b_nondbdropdown to work in postgresql world
+  * migrate edit button to jquery implementation
+  * manage should_generate_ptr from dns tab
+  * fix a record changing
+  * overhaul SRV record management
+  * NOTE: deleting the last ptr record does NOT move the PTR record..
+  * give error back to user if it happened on commit
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 27 Sep 2013 00:00:00 +0000
+
+jazzhands-stab (0.54-1) unstable; urgency=low
+
+  * migrate network_interface.v4_netblock_id to netblock_id
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 25 Sep 2013 00:00:00 +0000
+
+jazzhands-stab (0.52.7-1) unstable; urgency=low
+
+  * dns: improve add/update of netblocks of type dns
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 06 May 2013 00:00:00 +0000
+
+jazzhands-stab (0.52.6-1) unstable; urgency=low
+
+  * dns-reconcile: improve SRV checks
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 06 May 2013 00:00:00 +0000
+
+jazzhands-stab (0.52.5-1) unstable; urgency=low
+
+  * dns-reconcile: improve SRV checks
+  * dns-reconcile: do not compare A records to ipv6 records
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 06 May 2013 00:00:00 +0000
+
+jazzhands-stab (0.52.4-1) unstable; urgency=low
+
+  * remove debug statements that leaked in
+  * sort dns records in drop downs with in-addr after others
+  * fix dns changes to actaully clear params and have minimal url
+  * handle DNS that points to things that are not normal blocks
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 03 May 2013 00:00:00 +0000
+
+jazzhands-stab (0.52.3-1) unstable; urgency=low
+
+  * imporve dns reconciliation for mx and ns records
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 19 Apr 2013 00:00:00 +0000
+
+jazzhands-stab (0.52.2-1) unstable; urgency=low
+
+  * minor dns and netblock fixes
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 19 Apr 2013 00:00:00 +0000
+
+jazzhands-stab (0.52-1) unstable; urgency=low
+
+  * fix mx/srv records when they are assigned to work on zone
+  * much more liberal use of JH::Common::Util
+  * many improvements to dns,netblocks
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 07 Mar 2013 00:00:00 +0000
+
+jazzhands-stab (0.2.7.1-1) unstable; urgency=low
+
+  * fix site syntax errors when looking at an individual site
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 06 Mar 2013 00:00:00 +0000
+
+jazzhands-stab (0.2.7.0-1) unstable; urgency=low
+
+  * add basic support for mysql
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 27 Aug 2012 00:00:00 +0000
+
+jazzhands-stab (0.2.7.0-1) unstable; urgency=low
+
+  * initial release
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 27 Aug 2012 00:00:00 +0000
+

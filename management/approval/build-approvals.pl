@@ -78,7 +78,7 @@ sub do_work {
 	GetOptions(
 		"debug"              => \$debug,
 		"dry-run|n"          => \$dryrun,
-		"random-sleep=i"     => \$escalationgap,
+		"random-sleep=i"     => \$sleep,
 	) || die pod2usage();
 
 	if ($sleep) {

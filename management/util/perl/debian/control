@@ -1,10 +1,10 @@
 Source: jazzhands-perl-common
 Section: unknown
 Priority: extra
-Maintainer: kovert@omniscient.com
-Build-Depends: debhelper (>= 8.0.0)
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
 Standards-Version: 3.9.4
-Homepage: https://git.corp.appnexus.com/cgit/internal-pkg/appnexus-ca.git/
+Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-common
 Architecture: any
