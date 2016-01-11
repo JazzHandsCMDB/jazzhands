@@ -1,5 +1,36 @@
-jazzhands-perl-common (0.65.99) unstable; urgency=low
+jazzhands-perl-common (0.66.1) unstable; urgency=medium
 
-  * Initial Release.
+  * add debian bits; make that the default for release generation
 
- -- Todd Kover <kovert@omniscient.com>  Wed,  9 Dec 2015 17:41:02 -0400
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:03 +0000
+
+jazzhands-perl-common (0.56.3-1) unstable; urgency=low
+
+  * make _dbx handle references to arrays instead of returning undef
+  * remove warn that made it out accidentally
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 17 Dec 2013 00:00:00 +0000
+
+jazzhands-perl-common (0.55-1) unstable; urgency=low
+
+  * make _dbx handle references to arrays instead of returning undef
+  * remove warn that made it out accidentally
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 03 Dec 2013 00:00:00 +0000
+
+jazzhands-perl-common (0.52-2) unstable; urgency=low
+
+  * allow match option to DBetch to take a simple hash
+  * warnings fixes
+  * migrate DBHandle/commont/rollback/disconnct from JH::Mgmt
+  * other DB improvements
+  * allow _options to take a hash
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 07 Mar 2013 00:00:00 +0000
+
+jazzhands-perl-common (0.51.1-2) unstable; urgency=low
+
+  * make work
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 20 Feb 2013 00:00:00 +0000
+

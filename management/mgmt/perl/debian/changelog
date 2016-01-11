@@ -1,0 +1,38 @@
+jazzhands-perl-mgmt (0.66.1) trusty; urgency=medium
+
+  * add debian bits; make that the default for release generation
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:05 +0000
+
+jazzhands-perl-mgmt (0.59.1) unstable; urgency=low
+
+  * deal with netmask_bits going away..
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 04 Dec 2014 00:00:00 +0000
+
+jazzhands-perl-mgmt (0.52.2) unstable; urgency=low
+
+  * fix issue with inheritance from JazzHands::Common
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 07 Mar 2013 00:00:00 +0000
+
+jazzhands-perl-mgmt (0.52) unstable; urgency=low
+
+  * migrate commit/rollback/etc to JH:Common
+  * improvements to orering in DBFetch
+  * better support for dealing with one and only one style nets
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 07 Mar 2013 00:00:00 +0000
+
+jazzhands-perl-mgmt (0.51.1) unstable; urgency=low
+
+  * netblock collection improvements
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 20 Feb 2013 00:00:00 +0000
+
+jazzhands-perl-mgmt (0.51.1) unstable; urgency=low
+
+  * initial release with netblocks and netblock collections
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 07 Feb 2013 00:00:00 +0000
+

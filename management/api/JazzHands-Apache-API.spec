@@ -1,13 +1,22 @@
+%define pkgname jazzhands-apache-api
+%define prefix /usr/libexec/jazzhands/api/
 Summary:    JazzHands-Apache-API - JazzHands API service
 Vendor:     JazzHands
 Name:       JazzHands-Apache-API
-Version:    0.65.0
+Version:    __VERSION__
 Release:    1
 License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
-Source0:    %{name}-%{version}.tar.gz
+Source0:    %{pkgname}-%{version}.tar.gz
+%if 0%{?suse_version}
+%else
+%if 0%{?rhel} < 6
+BuildRequires: perl(ExtUtils::MakeMaker)
+%else
 BuildRequires: perl-ExtUtils-MakeMaker
+%endif
+%endif
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
 
@@ -15,18 +24,15 @@ BuildArch:  noarch
 Apache-based JazzHands API service
 
 %prep
-%setup -q -n %{name}-%{version}
-
-%{__make}
-
-%build
+%setup -q -n %{pkgname}-%{version}
+make -f Makefile.jazzhands
 
 %install
-%{__make} DESTDIR=%{buildroot} install
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} PREFIX=%{prefix} install
 
 %clean
+make -f Makefile.jazzhands clean
 
-rm -rf %{buildroot}
 
 %files
 %attr (-, root, bin) /usr/libexec/jazzhands/api/JazzHands/Apache/API/Common.pm

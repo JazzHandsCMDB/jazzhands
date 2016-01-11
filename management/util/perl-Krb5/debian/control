@@ -1,0 +1,14 @@
+Source: perl-jazzhands-krb5
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: perl-jazzhands-krb5
+Section: unknown
+Architecture: any
+Pre-Depends: perl-jazzhands-appauthal, libauthen-krb5-admin-perl, libauthen-krb5-perl
+Description: 
+ JazzHands Internal Interface to using Kerberos

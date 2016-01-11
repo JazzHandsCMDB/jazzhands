@@ -2,4 +2,6 @@ lib/JazzHands/Mgmt/Collection.pm
 lib/JazzHands/Mgmt/Netblock.pm
 lib/JazzHands/Mgmt.pm
 Makefile.PL
+Makefile.jazzhands
 MANIFEST
+MANIFEST.SKIP

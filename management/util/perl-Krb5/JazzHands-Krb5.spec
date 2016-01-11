@@ -6,15 +6,15 @@
 #   For more information on cpan2rpm please visit: http://perl.arix.com/
 #
 
-%define rpmbase perl-JazzHands-Krb5
+%define rpmbase perl-jazzhands-krb5
 %define pkgname JazzHands-Krb5
 %define filelist %{pkgname}-%{version}-filelist
 %define NVR %{pkgname}-%{version}-%{release}
 %define maketest 0
 
-name:      perl-JazzHands-Krb5
+Name:      perl-JazzHands-Krb5
 summary:   JazzHands-Krb5 - Perl module
-version:   0.58.9
+Version:   __VERSION__
 release:   0
 license:   Artistic
 Group:      System/Management
@@ -22,7 +22,14 @@ Url:        http://www.jazzhands.net/
 Source0:   %{rpmbase}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 buildarch: noarch
+%if 0%{?suse_version}
+%else
+%if 0%{?rhel} < 6
+BuildRequires: perl(ExtUtils::MakeMaker)
+%else
 BuildRequires: perl-ExtUtils-MakeMaker
+%endif
+%endif
 provides:  perl(JazzHands::Krb5)
 provides:  perl(JazzHands::Krb5::Tool)
 requires:  perl(JazzHands::AppAuthAL)
@@ -30,7 +37,7 @@ requires:  perl-Authen-Krb5-Admin
 requires:  perl-Authen-Krb5
 
 %description
-None.
+JazzHands Internal Interface to using Kerberos
 
 #
 # This package was generated automatically with the cpan2rpm
@@ -41,85 +48,17 @@ None.
 %prep
 %setup -q -n %{rpmbase}-%{version}
 
-%{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
-
+make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
-
-make pure_install
-
-find %{buildroot} -type f -name .packlist -exec rm -f {} \;
-find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;
-
-cmd=/usr/share/spec-helper/compress_files
-[ -x $cmd ] || cmd=/usr/lib/rpm/brp-compress
-[ -x $cmd ] && $cmd
-
-# SuSE Linux
-if [ -e /etc/SuSE-release -o -e /etc/UnitedLinux-release ]
-then
-    %{__mkdir_p} %{buildroot}/var/adm/perl-modules
-    %{__cat} `find %{buildroot} -name "perllocal.pod"`  \
-        | %{__sed} -e s+%{buildroot}++g                 \
-        > %{buildroot}/var/adm/perl-modules/%{name}
-fi
-
-# remove special files
-find %{buildroot} -name "perllocal.pod" \
-    -o -name ".packlist"                \
-    -o -name "*.bs"                     \
-    |xargs -i rm -f {}
-
-# no empty directories
-find %{buildroot}%{_prefix}             \
-    -type d -depth                      \
-    -exec rmdir {} \; 2>/dev/null
-
-%{__perl} -MFile::Find -le '
-    find({ wanted => \&wanted, no_chdir => 1}, "%{buildroot}");
-    print "%doc  Changes README";
-    for my $x (sort @dirs, @files) {
-        push @ret, $x unless indirs($x);
-        }
-    print join "\n", sort @ret;
-
-    sub wanted {
-        return if /auto$/;
-
-        local $_ = $File::Find::name;
-        my $f = $_; s|^\Q%{buildroot}\E||;
-        return unless length;
-        return $files[@files] = $_ if -f $f;
-
-        $d = $_;
-        /\Q$d\E/ && return for reverse sort @INC;
-        $d =~ /\Q$_\E/ && return
-            for qw|/etc %_prefix/man %_prefix/bin %_prefix/share|;
-
-        $dirs[@dirs] = $_;
-        }
-
-    sub indirs {
-        my $x = shift;
-        $x =~ /^\Q$_\E\// && $x ne $_ && return 1 for @dirs;
-        }
-    ' > %filelist
-
-[ -z %filelist ] && {
-    echo "ERROR: empty %files listing"
-    exit -1
-    }
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
-[ "%{buildroot}" != "/" ] && rm -rf %{buildroot}
+make -f Makefile.jazzhands clean
 
-%files -f %filelist
+%files
 %defattr(-,root,root)
-
-%changelog
-* Tue Oct 7 2014 kovert@omniscient.com 0.58.9
-  - split out to its own thing
-* Thu Aug 9 2012 kwin@appnexus.com 0.01
-  - Initial build.
+##  %doc Changes README
+%{perl_vendorlib}/*
+# %{_mandir}/man3/*
 

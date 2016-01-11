@@ -1,6 +1,7 @@
 MANIFEST
 MANIFEST.SKIP
 Makefile.PL
+Makefile.jazzhands
 lib/JazzHands/Tickets/JIRA.pm
 lib/JazzHands/Tickets/RT.pm
 lib/JazzHands/Tickets.pm

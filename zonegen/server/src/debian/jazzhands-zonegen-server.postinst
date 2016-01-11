@@ -1,0 +1,10 @@
+#!/bin/sh
+
+if [ ! -d /var/lib/zonegen ] ; then
+	mkdir  -p /var/lib/zonegen/run
+	mkdir  -p /var/lib/zonegen/auto-gen/perserver
+	mkdir  -p /var/lib/zonegen/auto-gen/zones
+	mkdir  -p /var/lib/zonegen/auto-gen/etc
+	chown -R zonegen:zonegen /var/lib/zonegen/run
+	chown -R zonegen:zonegen /var/lib/zonegen/auto-gen
+fi

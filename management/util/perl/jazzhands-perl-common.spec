@@ -1,7 +1,7 @@
 Summary:    jazzhands-perl-common - JazzHands perl common utility modules
 Vendor:     JazzHands
 Name:       jazzhands-perl-common
-Version:    0.65.99
+Version:    __VERSION__
 Release:    1
 License:    Unknown
 Group:      System/Management
@@ -9,7 +9,14 @@ Url:        http://www.jazzhands.net/
 BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+%if 0%{?suse_version}
+%else
+%if 0%{?rhel} < 6
+BuildRequires: perl(ExtUtils::MakeMaker)
+%else
 BuildRequires: perl-ExtUtils-MakeMaker
+%endif
+%endif
 BuildArch:  noarch
 
 %description
@@ -17,23 +24,19 @@ Common utility modules used by JazzHands scripts.
 
 %prep
 %setup -q -n %{name}-%{version}
-
-%{__perl} Makefile.PL INSTALLDIRS=vendor PREFIX="%{buildroot}%{_prefix}"  && %{__make}
+make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-
-rm -rf %{buildroot}
-make pure_install 
-
-find %{buildroot} -type f -name .packlist -exec rm -f {} \;
-find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
-rm -rf %{buildroot}
+make -f Makefile.jazzhands clean
 
 
 %files
 %defattr(755,root,root,-)
+%dir %{perl_vendorlib}/JazzHands
+%dir %{perl_vendorlib}/JazzHands/Common
 %{perl_vendorlib}/JazzHands/Common/Error.pm
 %{perl_vendorlib}/JazzHands/Common/GenericDB.pm
 %{perl_vendorlib}/JazzHands/Common/Util.pm
@@ -44,19 +47,3 @@ rm -rf %{buildroot}
 %{_mandir}/man3/JazzHands::Common::GenericDB.3pm.gz
 %{_mandir}/man3/JazzHands::Common::Util.3pm.gz
 
-
-%changelog
-* Tue Dec 17 2013 Todd Kover <kovert@omniscient.com> 0.56.3-1
-  - make _dbx handle references to arrays instead of returning undef
-  - remove warn that made it out accidentally
-* Tue Dec  3 2013 Todd Kover <kovert@omniscient.com> 0.55-1
-  - make _dbx handle references to arrays instead of returning undef
-  - remove warn that made it out accidentally
-* Thu Mar  7 2013 Todd Kover <kovert@omniscient.com> 0.52-2
-  - allow match option to DBetch to take a simple hash
-  - warnings fixes
-  - migrate DBHandle/commont/rollback/disconnct from JH::Mgmt
-  - other DB improvements
-  - allow _options to take a hash
-* Thu Feb 20 2013 Todd Kover <kovert@omniscient.com> 0.51.1-2
-  - make work

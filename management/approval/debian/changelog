@@ -1,0 +1,69 @@
+jazzhands-approval (0.66.1) trusty; urgency=medium
+
+  * add debian bits; make that the default for release generation
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:07 +0000
+
+jazzhands-approval (0.64.12) unstable; urgency=low
+
+  * fix bug with --random-sleep
+  * remove extra link to FAQ
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 16 Nov 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.11) unstable; urgency=low
+
+  * fix whence on approval-email call when no date is passed in
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 16 Nov 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.10) unstable; urgency=low
+
+  * add build-approvals script
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 12 Nov 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.9) unstable; urgency=low
+
+  * add reminder-gap
+  * move much to the database for approval messages 
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 12 Nov 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.8) unstable; urgency=low
+
+  * add max escalation level support to approval utils
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 10 Nov 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.7) unstable; urgency=low
+
+  * add docs to rt, jira
+  * add random-sleep argument everywhere
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 02 Nov 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.6) unstable; urgency=low
+
+  * add optional automated-escalation
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 19 Oct 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.5) unstable; urgency=low
+
+  * add delay towards doing resubmissions
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 30 Sep 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.4) unstable; urgency=low
+
+  * add rt and jira management
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 29 Sep 2015 00:00:00 +0000
+
+jazzhands-approval (0.64.2) unstable; urgency=low
+
+  * initial release
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 25 Sep 2015 00:00:00 +0000
+

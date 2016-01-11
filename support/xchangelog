@@ -1,0 +1,244 @@
+#!/usr/bin/env perl
+#
+# Copyright (c) 2016, Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+use strict;
+use warnings;
+use FileHandle;
+use Data::Dumper;
+use DateTime::Format::Strptime;
+use POSIX;
+use Getopt::Long;
+use Pod::Usage;
+
+=head1 NAME
+
+xchangelog
+
+=head1 SYNOPSIS
+
+xchangelog [ --pkg pkgname ] [ --output fmt ] file
+
+=head1 DESCRIPTION
+
+xchangelog takes either a spec file or debian style changelog and spits out
+either format.  The input format is auto-sensed.
+
+The output format defaults to the opposite of the type that was input.  The
+--output option can be used to change this.
+
+--pkg can be used to specify the package name.  If its not specified, it is
+attempted to be pulled from the input.  It is fatal if this ends up not
+being set.
+
+This is largely used by the release process to generate spec files from the
+raw debian files.
+
+=head1 AUTHORS
+
+Todd M. Kover <kovert@omniscient.com>
+
+=cut
+
+sub parsedeb($$) {
+	my $fh = shift @_;
+	my $line = shift @_ || $fh->getline();
+
+	my @verchg;
+	my @chg;
+	my $version;
+	my $pkg;
+	do {
+		chomp($line);
+		if ( $line !~ /^\s*$/ ) {
+			if ( $line =~
+				/^([-a-z0-9]+)\s+\(([^\)]+)\).+\s*;\s+(urgency=.*)\s*$/ )
+			{
+				$pkg     = $1;
+				$version = $2;
+			} elsif ( $line =~ /^\s*--\s+(.+)\s+(\w+,.*$)\s*$/ ) {
+				my ( $who, $whence ) = ( $1, $2 );
+				my $strp = DateTime::Format::Strptime->new(
+					pattern   => '%a, %d %b %Y %T %z',
+					locale    => 'en_US',
+					time_zone => 'UTC',
+				) || die "bad date $whence";
+				my $dt = $strp->parse_datetime($whence);
+				if ($dt) {
+					$strp->pattern("%s");
+					$whence = $strp->format_datetime($dt);
+				}
+				my @x = @verchg;
+				push(
+					@chg,
+					{
+						pkg     => $pkg,
+						version => $version,
+						date    => $whence,
+						who     => $who,
+						changes => \@x
+					}
+				);
+				undef @verchg;
+			} elsif ( $line =~ /^\s*\*\s*(.+)$/ ) {
+				push( @verchg, $1 );
+			} else {
+				if ( !@verchg ) {
+					die "bad changelog line: $line";
+				} else {
+					$line =~ s/^\s*/ /;
+					$verchg[$#verchg] .= $line;
+				}
+			}
+		}
+	} while ( $line = $fh->getline() );
+	return @chg;
+}
+
+sub parsespec($) {
+	my $fh = shift @_;
+
+	my @chg;
+	my @verchg;
+	my ( $whence, $who, $version );
+	while ( my $line = $fh->getline ) {
+		chomp($line);
+		next if ( $line =~ /^\s*$/ );
+		# just in case %changelog is not last
+		last if ( $line =~ /^%[a-z]+/);
+		if ( $line =~ /^\*\s+(\w+\s+\w+\s+\d+\s+\d+)\s+(.+)\s(\S+)$/ ) {
+			my @x = @verchg;
+			if ($version) {
+				push(
+					@chg,
+					{
+						version => $version,
+						date    => $whence,
+						who     => $who,
+						changes => \@x
+					}
+				);
+			}
+			( $whence, $who, $version ) = ( $1, $2, $3 );
+			my $strp = DateTime::Format::Strptime->new(
+				pattern   => '%a %b %d %Y',
+				locale    => 'en_US',
+				time_zone => 'UTC',
+				on_error  => 'croak'
+			) || die "bad date $whence";
+			my $dt = $strp->parse_datetime($whence) || die "$!";
+			if ($dt) {
+				$strp->pattern("%s");
+				$whence = $strp->format_datetime($dt);
+			}
+			undef @verchg;
+		} elsif ( $line =~ /^\s*\-\s+(.+)$/ ) {
+			push( @verchg, $1 );
+		} else {
+			if ( !@verchg ) {
+				die "bad changelog line: $line";
+			} else {
+				$line =~ s/^\s*/ /;
+				$verchg[$#verchg] .= $line;
+			}
+		}
+	}
+	if ($version) {
+		push(
+			@chg,
+			{
+				version => $version,
+				date    => $whence,
+				who     => $who,
+				changes => \@verchg
+			}
+		);
+	}
+	return @chg;
+}
+
+sub spitdeb($@) {
+	my $pkg = shift @_;
+	my @l   = @_;
+	while ( my ($rec) = shift @l ) {
+		last if !( $rec->{date} );
+		my $whence = strftime( "%a, %d %b %Y %T %z", gmtime( $rec->{date} ) );
+		print "$pkg (", $rec->{version}, ") unstable; urgency=low\n\n";
+		print join( "\n", map { "  * $_" } @{ $rec->{changes} } );
+		print "\n\n -- ", $rec->{who}, "  $whence\n\n";
+
+	}
+}
+
+sub spitrpm($@) {
+	my $pkg = shift @_;
+	my @l   = @_;
+	while ( my ($rec) = shift @l ) {
+		last if !( $rec->{date} );
+		my $whence = strftime( "%a %b %d %Y", gmtime( $rec->{date} ) );
+		print "* $whence ", $rec->{who}, " ", $rec->{version}, "\n";
+		print join( "\n", map { "- $_" } @{ $rec->{changes} } ), "\n";
+
+	}
+}
+
+# -----------------------------------------------------------------------------
+
+my $fmt;
+my $pkg;
+
+GetOptions(
+	"output=s" => \$fmt,
+	"pkg=s"    => \$pkg,
+) || die pod2usage();
+
+my $fn = shift(@ARGV) || die "give changelog";
+
+if ( $fmt && $fmt !~ /^(debian|rpm)$/ ) {
+	die "only debian and rpm formats are supported";
+}
+
+if ($fn) {
+	my $fh = new FileHandle($fn) || "$fn: $!";
+
+	my @cl;
+	while ( my $line = $fh->getline ) {
+		if ( $line =~ /^Name:\s+(.+)\s*$/ ) {
+			$pkg = $1;
+		} elsif ( $line =~ /%changelog/ ) {
+			@cl = parsespec($fh);
+			$fmt = 'debian' if ( !defined($fmt) );
+		} elsif ( $line =~ /^[-a-z0-9]+\s+.*;\s+urgency/ ) {
+			@cl = parsedeb( $fh, $line );
+			$fmt = 'rpm' if ( !defined($fmt) );
+			$pkg = $cl[0]->{pkg};
+		}
+	}
+	$fh->close;
+
+	if ( !$pkg ) {
+		die "Could not guess package name.  Please specify.\n";
+	}
+
+	if ( $fmt eq 'rpm' ) {
+		spitrpm( $pkg, @cl );
+	} elsif ( $fmt eq 'debian' ) {
+		spitdeb( $pkg, @cl );
+	} else {
+		die "Unknown format '$fmt'\n";
+	}
+}

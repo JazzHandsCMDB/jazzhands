@@ -1,0 +1,6 @@
+lib/JazzHands/Krb5/Tools.pm
+lib/JazzHands/Krb5.pm
+Makefile.PL
+Makefile.jazzhands
+MANIFEST
+MANIFEST.SKIP

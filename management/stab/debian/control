@@ -1,0 +1,19 @@
+Source: jazzhands-stab
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-perl-stab
+Architecture: any
+Pre-Depends: perl-Net-IP, perl-Net-DNS, perl-NetAddr-IP
+Description: 
+ Perl libraries for STAB
+
+Package: jazzhands-stab
+Architecture: any
+Pre-Depends: jazzhands-perl-mgmt, jazzhands-perl-common (>= 0.56.3), jazzhands-perl-stab , jazzhands-javascript-common  (>= 0.64.6)
+Description: 
+ JazzHands STAB Web Front End
