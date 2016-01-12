@@ -462,7 +462,7 @@ BEGIN
 		WHERE
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
-			company_id = pci_vendor_id;
+			property_value = pci_vendor_id;
 		
 		IF NOT FOUND THEN
 			IF pci_vendor_name IS NULL THEN
