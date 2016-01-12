@@ -19,7 +19,6 @@ package JazzHands::Common::Util;
 
 use strict;
 use warnings;
-use Carp qw(cluck);
 
 use Exporter 'import';
 

@@ -8,19 +8,19 @@ Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-hotpants
 Architecture: any
-Pre-Depends: perl, jazzhands-perl-common (>= 0.66.1), perl-jazzhands-dbi, libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
+Pre-Depends: jazzhands-perl-common (>= 0.66.1)
+Pre-Depends: perl, perl-jazzhands-dbi (>= 0.66.1), libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
 Description: 
  JazzHands HOTPants perl libraries
 
 Package: jazzhands-hotpants-perl-rlm
 Architecture: any
-Pre-Depends: jazzhands-perl-hotpants
+Pre-Depends: jazzhands-perl-hotpants (>= 0.66.1)
 Description: 
  FreeRadius module for JazzHands HOTPants
 
 Package: jazzhands-hotpants
 Architecture: any
 Depends: jazzhands-perl-hotpants
-Pre-Depends: jazzhands-perl-common (>= 0.66.1)
 Description: 
  JazzHands HOTPants clients
