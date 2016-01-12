@@ -462,7 +462,7 @@ BEGIN
 		WHERE
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
-			company_id = pci_vendor_id;
+			property_value = pci_vendor_id::text;
 		
 		IF NOT FOUND THEN
 			IF pci_vendor_name IS NULL THEN
@@ -499,7 +499,7 @@ BEGIN
 		WHERE
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
-			company_id = pci_sub_vendor_id;
+			property_value = pci_sub_vendor_id::text;
 		
 		IF NOT FOUND THEN
 			IF pci_sub_vendor_name IS NULL THEN
