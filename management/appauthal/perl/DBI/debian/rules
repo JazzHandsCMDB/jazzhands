@@ -82,7 +82,7 @@ install: build
 	# Add here commands to install the package into debian/tmp
 	#- $(MAKE) pure_install PERL_INSTALL_ROOT=$(CURDIR)/debian/tmp
 	# Move all files in their corresponding package
-	$(MAKE) -f Makefile.jazzhands install INSTALLROOT=$(CURDIR)/debian/tmp BUILDPERL=$(__perl) prefix=/var/www/stab
+	$(MAKE) -f Makefile.jazzhands install INSTALLROOT=$(CURDIR)/debian/tmp BUILDPERL=$(__perl) 
 	dh_install --list-missing -s --sourcedir=debian/tmp
 
 # Build architecture-independent files here.
