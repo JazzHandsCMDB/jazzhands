@@ -55,6 +55,10 @@ make -f Makefile.jazzhands clean
 %files -f debian/jazzhands-hotpants.install
 %defattr(755,root,root,-)
 
-%files -n jazzhands-perl-hotpants -f debian/jazzhands-perl-hotpants.install
+# diverged enough between older redhat/suse and debian...
+# -f debian/jazzhands-perl-hotpants.install
+%files -n jazzhands-perl-hotpants 
+%{perl_vendorlib}/*
+%{_mandir}/man3/*
 
 %files -n jazzhands-hotpants-perl-rlm -f debian/jazzhands-hotpants-perl-rlm.install

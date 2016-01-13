@@ -20,6 +20,6 @@ Description:
 
 Package: jazzhands-hotpants
 Architecture: any
-Depends: jazzhands-perl-hotpants
+Pre-Depends: jazzhands-perl-hotpants
 Description: 
  JazzHands HOTPants clients
