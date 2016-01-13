@@ -44,7 +44,7 @@ FreeRadius module for JazzHands HOTPants
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands BUILDPERL=%{_-perl}
+make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
 make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
@@ -57,4 +57,4 @@ make -f Makefile.jazzhands clean
 
 %files -n jazzhands-perl-hotpants -f debian/jazzhands-perl-hotpants.install
 
-%files -n jazzhands-hotpants_perl-rlm -f debian/jazzhands-hotpants_perl-rlm.install
+%files -n jazzhands-hotpants-perl-rlm -f debian/jazzhands-hotpants-perl-rlm.install

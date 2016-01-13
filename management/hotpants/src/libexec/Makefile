@@ -24,7 +24,7 @@ all:
 
 install:
 	install -d $(DESTDIR)/$(PREFIX)/libexec/jazzhands/freeradius
-	install -g bin -o root -m 555 $(PWD)/hotpants_rlm.pm $(DESTDIR)/$(PREFIX)/libexec/jazzhands/freeradius/hotpants_rlm.pm
+	install $(PWD)/hotpants_rlm.pm $(DESTDIR)/$(PREFIX)/libexec/jazzhands/freeradius/hotpants_rlm.pm
 
 clean:
 	@echo nothing to do
