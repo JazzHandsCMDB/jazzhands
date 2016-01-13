@@ -25,7 +25,7 @@ buildarch: noarch
 prefix:    %(echo %{_prefix})
 provides:  perl(JazzHands::AppAuthAL)
 requires:  perl-JSON
-requires:  jazzhands-perl-common
+requires:  jazzhands-perl-common >= 0.66.1
 
 %description
 I totally need to write this.
