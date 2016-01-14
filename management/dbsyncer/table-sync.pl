@@ -112,8 +112,8 @@ sub get_cols {
 	my (@rv);
 	foreach my $schema ($self->get_search_path() ) {
 		my $sth = $dbh->column_info( undef, $schema, $table, '%' )
-	  	|| die $dbh->errstr;
-	
+			|| die $dbh->errstr;
+
 		my $found;
 		while ( my $hr = $sth->fetchrow_hashref() ) {
 			next if ( $hr->{'TABLE_NAME'} ne $table );
@@ -139,8 +139,10 @@ sub get_search_path($) {
 	if($dbh->{Driver}->{Name} eq 'Pg') {
 		my $sth = $dbh->prepare("show search_path") || die $dbh->errstr;
 		$sth->execute || die $sth->errstr;
-		while(my ($s) = $sth->fetchrow_array) {
-			push(@search, $s);
+		while(my ($e) = $sth->fetchrow_array) {
+			foreach my $s (split(/,/, $e)) {
+				push(@search, $s);
+			}
 		}
 	} elsif($dbh->{Driver}->{Name} eq 'SQLite') {
 		push(@search, 'main');
@@ -344,7 +346,7 @@ sub copy_table($$$;$) {
 package main;
 
 my $up = new DBThing(service => 'hotpants') || die $DBThing::errstr;
-my $down = new DBThing(service => 'hotpants-local') || die $DBThing::errstr;
+my $down = new DBThing(service => 'hotpants-sync') || die $DBThing::errstr;
 
 # $down->begin_work() || die $down->errstr;
 
@@ -372,7 +374,7 @@ my $tablemap = {
 
 };
 
-foreach my $table (keys(%{$tablemap})) {
+foreach my $table (sort keys(%{$tablemap})) {
 	warn "sync $table...\n";
 	$down->copy_table($up, $table, $tablemap->{$table});
 }
