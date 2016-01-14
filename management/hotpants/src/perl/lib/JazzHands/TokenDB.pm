@@ -31,6 +31,7 @@ use Crypt::CBC qw(random_bytes);
 use Crypt::Eksblowfish::Bcrypt qw(bcrypt en_base64);
 use JazzHands::Common qw(:all);
 use Data::Dumper;
+use JSON::PP;
 
 use parent 'JazzHands::Common';
 
@@ -39,36 +40,57 @@ our $errstr;
 sub new {
 	my $proto = shift;
 	my $class = ref($proto) || $proto;
-	my $opt = &_options;
+	my $opt   = &_options;
 
 	my $self = $class->SUPER::new(@_);
 
 	my $svc = $opt->{service};
 
-	$self->Connect(service => $opt->{'service'} ) || return undef;
+	$self->Connect( service => $opt->{'service'} ) || return undef;
 
-	if($opt->{keymap}) {
-		$self->{_keymap} = $opt->{keymap};
+	if ( $opt->{keymap} ) {
+		if ( ref $opt->{keymap} eq 'HASH' ) {
+			$self->{_keymap} = $opt->{keymap};
+		} elsif ( ref $opt->{keymap} eq '' ) {
+			my $fh = new FileHandle( $opt->{keymap} );
+			if ( !$fh ) {
+				$errstr = "keymap(" . $opt->{keymap} . "): $!";
+				return undef;
+			}
+			my $x = join( "\n", $fh->getlines() );
+			$fh->close;
+			my $km = decode_json($x);
+			if ( !$km || !exists( $km->{keymap} ) ) {
+				$errstr = "keymap(" . $opt->{keymap} . "): No keymap";
+				return undef;
+			}
+			$self->{_keymap} = $km->{keymap};
+		}
 	}
 
 	$self->{_ekpurpose} = $opt->{encryption_key_purpose} || 'tokenkey';
 	$self->{_ekversion} = $opt->{encryption_key_purpose};
-	if( (!$self->{_ekversion}) && $self->{_ekpurpose} && $self->{_keymap} ) {
+	if ( ( !$self->{_ekversion} ) && $self->{_ekpurpose} && $self->{_keymap} ) {
 		#
 		# go through the list, find the highest number we have and pick that
 		# as a default, if one is not set.
 		#
-		if(my $dbh = $self->DBHandle() ) {
-			if(my $sth = $dbh->prepare_cached(qq{
+		if ( my $dbh = $self->DBHandle() ) {
+			if (
+				my $sth = $dbh->prepare_cached(
+					qq{
 						SELECT	encryption_key_purpose_version
 						FROM	val_encryption_key_purpose
 						WHERE	encryption_key_purpose = ?
 						ORDER BY encryption_key_purpose_version DESC;
-					})) {
-				if( $sth->execute( $self->{_ekpurpose} ) ) {
+					}
+				)
+			  )
+			{
+				if ( $sth->execute( $self->{_ekpurpose} ) ) {
 					my $km = $self->{_keymap};
-					while(my ($v)  = $sth->fetchrow_array) {
-						if(defined($km->{$v})) {
+					while ( my ($v) = $sth->fetchrow_array ) {
+						if ( defined( $km->{$v} ) ) {
 							$self->{_ekversion} = $v;
 							last;
 						}
@@ -162,16 +184,16 @@ sub decrypt {
 }
 
 sub add_encryption_id($;$$$) {
-	my $self = shift;
-	my $dbkey = shift;
+	my $self      = shift;
+	my $dbkey     = shift;
 	my $ekpurpose = shift || $self->ekpurpose;
 	my $ekversion = shift || $self->ekversion;
 
 	my $dbh = $self->dbh;
 
-	if(!$dbkey) {
+	if ( !$dbkey ) {
 		$dbkey = substr( encode_base64( Crypt::CBC->random_bytes(20) ), 0, 20 );
-	};
+	}
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -191,7 +213,8 @@ sub add_encryption_id($;$$$) {
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute( $dbkey, $ekpurpose, $ekversion, 'aes256-cbc-hmac-sha256-base64' )
+	$sth->execute( $dbkey, $ekpurpose, $ekversion,
+		'aes256-cbc-hmac-sha256-base64' )
 	  || die $sth->errstr;
 
 	my $encid;
@@ -202,20 +225,21 @@ sub add_encryption_id($;$$$) {
 	}
 	$sth->finish;
 	return {
-		encrpytion_key_id => $encid,
-		encryption_key_purpose => $ekpurpose,
+		encrpytion_key_id              => $encid,
+		encryption_key_purpose         => $ekpurpose,
 		encryption_key_purpose_version => $ekversion,
-		dbkey => $dbkey,
+		dbkey                          => $dbkey,
 	};
 }
 
 sub rm_token($$) {
-	my $self = shift;
+	my $self    = shift;
 	my $tokenid = shift;
-	my $login = shift;
+	my $login   = shift;
 
 	my $dbh = $self->dbh;
-	my $sth = $dbh->prepare_cached(qq{
+	my $sth = $dbh->prepare_cached(
+		qq{
 		DELETE FROM account_token
 		WHERE token_id = ?
 		AND account_id IN (select account_id
@@ -226,7 +250,7 @@ sub rm_token($$) {
 	) || return undef;
 
 	my $nr;
-	if(! ($nr = $sth->execute( $tokenid, $login )) ) {
+	if ( !( $nr = $sth->execute( $tokenid, $login ) ) ) {
 		$errstr = $sth->errstr;
 		return undef;
 	}
@@ -234,8 +258,8 @@ sub rm_token($$) {
 }
 
 sub add_token($$$) {
-	my $self = shift;
-	my $type = shift;
+	my $self   = shift;
+	my $type   = shift;
 	my $passwd = shift;
 
 	my $dbh = $self->dbh;
@@ -252,15 +276,15 @@ sub add_token($$$) {
 	my $enc = $self->add_encryption_id();
 
 	my $nondbkey = '';
-	if($enc && $self->{_keymap}) {
+	if ( $enc && $self->{_keymap} ) {
 	}
 
 	$tokenkey = Crypt::CBC->random_bytes(20);
-	if( !$self->{unencrypted}) {
-		my $fullkey = "$nondbkey".$enc->{dbkey};
+	if ( !$self->{unencrypted} ) {
+		my $fullkey = "$nondbkey" . $enc->{dbkey};
 		$enckey = $self->encrypt( $tokenkey, $fullkey );
 		my $dekey = encode_base64( $self->decrypt( $enckey, $fullkey ) );
-		$key32 = MIME::Base32::encode($tokenkey);
+		$key32    = MIME::Base32::encode($tokenkey);
 		$tokenkey = encode_base64($tokenkey);
 	} else {
 		$enckey = encode_base64($tokenkey);
@@ -306,7 +330,9 @@ sub add_token($$$) {
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute( $type, $modulo, $enc->{dbkey}, $enc->{encryption_key_id}, $passwd ) || die $sth->errstr;
+	$sth->execute( $type, $modulo, $enc->{dbkey}, $enc->{encryption_key_id},
+		$passwd )
+	  || die $sth->errstr;
 	if ( my $hr = $sth->fetchrow_hashref ) {
 		$tokid = $hr->{token_id};
 	} else {
@@ -320,25 +346,24 @@ sub add_token($$$) {
 	# this should probably be smarter.
 	#
 	my $seq;
-	if ($type eq 'soft_time') {
-		$seq = int rand(50);
-	} elsif($type eq 'soft_seq') {
+	if ( $type eq 'soft_time' ) {
 		$seq = ( time() / $modulo ) - 1;
+	} elsif ( $type eq 'soft_seq' ) {
+		$seq = int rand(50);
 	}
 
-	if( defined($seq) ) {
-		$self->set_sequence( $seq );
+	if ( defined($seq) ) {
+		$self->set_sequence($seq);
 	}
 
 	$tokid;
 }
 
 sub assign_token($$;$$) {
-	my $self = shift @_;
+	my $self  = shift @_;
 	my $login = shift @_;
-	my $desc = shift @_;
+	my $desc  = shift @_;
 	my $tokid = shift @_ || $self->{token_id};
-
 
 	my $dbh = $self->dbh;
 	my $sth = $dbh->prepare_cached(
@@ -354,14 +379,14 @@ sub assign_token($$;$$) {
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute($tokid, $desc, $login) || die $sth->errstr;
+	$sth->execute( $tokid, $desc, $login ) || die $sth->errstr;
 	$sth->finish;
 
 }
 
 sub set_sequence($;$$) {
-	my $self = shift @_;
-	my $seq = shift @_ || 5;
+	my $self  = shift @_;
+	my $seq   = shift @_ || 5;
 	my $tokid = shift @_ || $self->{token_id};
 
 	my $dbh = $self->dbh;
@@ -381,7 +406,7 @@ sub set_sequence($;$$) {
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute($tokid, $seq) || die $sth->errstr;
+	$sth->execute( $tokid, $seq ) || die $sth->errstr;
 	$sth->finish;
 
 	$self->{_sequence} = $seq;
@@ -393,18 +418,18 @@ sub url($) {
 	my $label = $self->label;
 
 	my $svc = 'hotp';
-	if($self->{_type} eq 'soft_time') {
+	if ( $self->{_type} eq 'soft_time' ) {
 		$svc = 'totp';
 	}
 
-	my $key32 = $self->{key32};
+	my $key32  = $self->{key32};
 	my $issuer = $self->issuer;
 
 	my $rv = "otpauth://$svc/$label?secret=${key32}&issuer=$issuer";
 
-	if($svc eq 'hotp') {
+	if ( $svc eq 'hotp' ) {
 		my $counter = $self->{_sequence} + 1;
-		$rv .= "&counter=".$counter;
+		$rv .= "&counter=" . $counter;
 	}
 
 	return $rv;
@@ -413,11 +438,10 @@ sub url($) {
 DESTROY {
 	my $self = shift @_;
 
-	if($self) {
+	if ($self) {
 		$self->rollback;
 		$self->disconnect;
 	}
 }
-
 
 1;

@@ -72,9 +72,7 @@ my $err;
 sub connect_hp {
 	my $hp = new JazzHands::HOTPants(
         	dbuser => 'hotpants',
-        	encryptionmap => {
-                	1 => 'i9aiGhoo8zu8iey@ieb',
-        	},
+		encryptionmap => { '/etc/tokenmap.json' },
         	debug => 2
 	);
 	return $hp;

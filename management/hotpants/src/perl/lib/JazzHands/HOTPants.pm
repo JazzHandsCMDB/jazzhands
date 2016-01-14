@@ -50,11 +50,11 @@ use Digest::SHA qw(sha1 sha1_base64);
 use Digest::HMAC qw(hmac);
 use MIME::Base64;
 use Data::Dumper;
-use JazzHands::Common qw(:all);		# not clear that we want all
+use JazzHands::Common qw(:all);    # not clear that we want all
 use JazzHands::DBI;
 use Crypt::CBC;
 use Digest::SHA qw(sha256);
-use DateTime::Format::Strptime;		# could also put epochs in views
+use DateTime::Format::Strptime;    # could also put epochs in views
 use POSIX;
 
 use parent 'JazzHands::Common';
@@ -83,9 +83,10 @@ BEGIN {
 	our ( $VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS );
 
 	$VERSION = '1.0';
+
 	# redundant with use parent, and all this can likely go away.  maybe.
-	@ISA     = qw(JazzHands::Common Exporter);
-	@EXPORT  = qw(
+	@ISA    = qw(JazzHands::Common Exporter);
+	@EXPORT = qw(
 	  TT_UNDEF
 	  TT_SOFT_SEQ
 	  TT_SOFT_TIME
@@ -203,7 +204,24 @@ sub new {
 	$self->opendb();
 
 	if ( exists( $opt->{encryptionmap} ) ) {
-		$self->{_encryptionmap} = $opt->{encryptionmap};
+	if ( $opt->{encryptionmap} ) {
+		if ( ref $opt->{encryptionmap} eq 'HASH' ) {
+			$self->{_encryptionmap} = $opt->{encryptionmap};
+		} elsif ( ref $opt->{encryptionmap} eq '' ) {
+			my $fh = new FileHandle( $opt->{encryptionmap} );
+			if ( !$fh ) {
+				$errstr = "encryptionmap(" . $opt->{encryptionmap} . "): $!";
+				return undef;
+			}
+			my $x = join( "\n", $fh->getlines() );
+			$fh->close;
+			my $km = decode_json($x);
+			if ( !$km || !exists( $km->{encryptionmap} ) ) {
+				$errstr = "encryptionmap(" . $opt->{encryptionmap} . "): No encryptionmap";
+				return undef;
+			}
+			$self->{_encryptionmap} = $km->{encryptionmap};
+		}
 	}
 
 	$self;
@@ -221,7 +239,7 @@ sub Status {
 #
 sub GetSharedSecret {
 	my $self = shift;
-	my $ip = shift;
+	my $ip   = shift;
 
 	#
 	# bail if there is no db connection
@@ -252,7 +270,8 @@ sub GetSharedSecret {
 	);
 
 	if ( !$sth ) {
-		$self->Error( "GetSharedSecret: unable to prepare sth: " . $dbh->errstr );
+		$self->Error(
+			"GetSharedSecret: unable to prepare sth: " . $dbh->errstr );
 		return undef;
 	}
 
@@ -263,9 +282,9 @@ sub GetSharedSecret {
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
-	if($hr) {
+	if ($hr) {
 		return {
-			secret => $hr->{property_value},
+			secret   => $hr->{property_value},
 			hostname => $hr->{device_name},
 		};
 	}
@@ -493,15 +512,15 @@ sub fetch_user {
 	}
 
 	my $rv;
-	while( my $hr = $sth->fetchrow_hashref  ) {
-		if(!$rv) {
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		if ( !$rv ) {
 			$rv = {
-				login => $hr->{login},
+				login  => $hr->{login},
 				status => $hr->{account_status},
 				tokens => [ $hr->{token_id} ],
 			};
 		} else {
-			push(@{$rv->{tokens}}, $hr->{token_id});
+			push( @{ $rv->{tokens} }, $hr->{token_id} );
 		}
 	}
 	return $rv;
@@ -533,7 +552,7 @@ sub fetch_client {
 
 	my $dbh = $self->{dbh};
 	my $sth;
-	if($clientid =~ /^[\.:0-9a-f]+$/) {
+	if ( $clientid =~ /^[\.:0-9a-f]+$/ ) {
 		$sth = $dbh->prepare_cached(
 			qq{
 				SELECT *
@@ -564,7 +583,7 @@ sub fetch_client {
 	}
 
 	my $hr = $sth->fetchrow_hashref;
-	$hr->{name} = $hr->{device_collection_name};	# XXX
+	$hr->{name} = $hr->{device_collection_name};    # XXX
 	$sth->finish;
 
 	if ( !$hr ) {
@@ -609,8 +628,8 @@ sub fetch_devcollprop {
 		qq{
 		SELECT	device_collection_id, Property_Value_Password_Type
 		FROM	property
-		WHERE	Property_Name = 'UnixPwType'
-		AND		Property_Type = 'MclassUnixProp'
+		WHERE	Property_Name = 'PwType'
+		AND		Property_Type = 'HOTPants'
 		AND		device_collection_id = ?
 	}
 	);
@@ -831,8 +850,7 @@ sub put_token {
 		);
 
 		if ( !$sth ) {
-			$self->Error(
-				"put_token: unable to prepare sth: " . $dbh->errstr );
+			$self->Error( "put_token: unable to prepare sth: " . $dbh->errstr );
 			return undef;
 		}
 
@@ -865,8 +883,7 @@ sub put_token {
 		);
 
 		if ( !$sth ) {
-			$self->Error(
-				"put_token: unable to prepare sth: " . $dbh->errstr );
+			$self->Error( "put_token: unable to prepare sth: " . $dbh->errstr );
 			return undef;
 		}
 
@@ -882,8 +899,7 @@ sub put_token {
 		}
 
 		if ( !$sth->bind_param( ':now', $now ) ) {
-			$self->Error(
-				"put_user: unable to bind now" . $sth->errstr );
+			$self->Error( "put_user: unable to bind now" . $sth->errstr );
 			return undef;
 		}
 
@@ -902,33 +918,35 @@ sub put_token {
 	# locked..
 	if ( $token->{is_token_locked} ) {
 		my $dbtok = $self->fetch_token( token_id => $token->{token_id} );
-		if(!  $dbtok ) {
+		if ( !$dbtok ) {
 			$self->Error(
 				"put_token: token can not be fetched from db " . $dbh->errstr );
 			return undef;
 		}
 
-		my $islocked = $token->{is_token_locked} && $token->{is_token_locked} ne 'N';
+		my $islocked =
+		  $token->{is_token_locked} && $token->{is_token_locked} ne 'N';
 		my $unlocktime;
-		if ( $islocked ) {
+		if ($islocked) {
 			$islocked = 'Y';
-			$unlocktime = strftime( "%F %T", gmtime( $token->{token_unlock_time} ) );
+			$unlocktime =
+			  strftime( "%F %T", gmtime( $token->{token_unlock_time} ) );
 		} else {
 			$islocked = 'N';
 		}
 		my $lastupdate = strftime( "%F %T", gmtime() );
 
 		my $new = {
-			token_id => $token->{token_id},
+			token_id          => $token->{token_id},
 			token_unlock_time => $unlocktime,
-			bad_logins => $token->{bad_logins},
-			last_updated => $lastupdate,
-			is_token_locked => $islocked
+			bad_logins        => $token->{bad_logins},
+			last_updated      => $lastupdate,
+			is_token_locked   => $islocked
 		};
-		my $diff = $self->hash_table_diff($dbtok, $new);
+		my $diff = $self->hash_table_diff( $dbtok, $new );
 
 		if ( scalar $diff ) {
-			my $set = join(", ", map { "$_ = :$_" } keys %{$diff});
+			my $set = join( ", ", map { "$_ = :$_" } keys %{$diff} );
 			my $sth = $dbh->prepare_cached(
 				qq{
 				UPDATE	token SET $set
@@ -944,9 +962,10 @@ sub put_token {
 			}
 
 			$diff->{token_id} = $new->{token_id};
-			foreach my $key (keys %{$diff}) {
+			foreach my $key ( keys %{$diff} ) {
 				if ( !$sth->bind_param( ":$key", $diff->{$key} ) ) {
-					$self->Error( "put_token: unable to bind $key" . $sth->errstr );
+					$self->Error(
+						"put_token: unable to bind $key" . $sth->errstr );
 					return undef;
 				}
 			}
@@ -954,7 +973,7 @@ sub put_token {
 			if ( !( $sth->execute() ) ) {
 				$self->Error(
 					"put_token: unable to execute token_seq update"
-				  	. $sth->errstr );
+					  . $sth->errstr );
 				return undef;
 			}
 		}
@@ -964,9 +983,9 @@ sub put_token {
 }
 
 sub put_user {
-	my $self  = shift;
-	my $acct  = shift;
-	my ( $ret);
+	my $self = shift;
+	my $acct = shift;
+	my ($ret);
 
 	#
 	# bail if there is no db connection
@@ -1023,8 +1042,7 @@ sub put_user {
 		}
 
 		if ( !$sth->bind_param( ':now', $now ) ) {
-			$self->Error(
-				"put_user: unable to bind now" . $sth->errstr );
+			$self->Error( "put_user: unable to bind now" . $sth->errstr );
 			return undef;
 		}
 
@@ -1052,8 +1070,7 @@ sub put_user {
 		}
 
 		if ( !$sth->bind_param( ':login', $acct->{login} ) ) {
-			$self->Error(
-				"put_user: unable to bind login" . $sth->errstr );
+			$self->Error( "put_user: unable to bind login" . $sth->errstr );
 			return undef;
 		}
 
@@ -1069,7 +1086,6 @@ sub put_user {
 
 	return 1;
 }
-
 
 sub delete_token {
 	my $self = shift;
@@ -1152,11 +1168,11 @@ Lock Status Changed:  %s
 	  : "Not Set",
 	  $token->{sequence} || 0,
 	  scalar( gmtime( $token->{zero_time} || 0 ) ),
-	  $token->{time_modulo}   || 0,
-	  $token->{skew_sequence} || 0,
-	  $token->{is_token_locked}  || 0,
-	  $token->{token_unlock_time}   || 0,
-	  $token->{bad_logins}    || 0,
+	  $token->{time_modulo}       || 0,
+	  $token->{skew_sequence}     || 0,
+	  $token->{is_token_locked}   || 0,
+	  $token->{token_unlock_time} || 0,
+	  $token->{bad_logins}        || 0,
 	  scalar( gmtime( $token->{last_login}          || 0 ) ),
 	  scalar( gmtime( $token->{sequence_changed}    || 0 ) ),
 	  scalar( gmtime( $token->{token_changed}       || 0 ) ),
@@ -1300,7 +1316,9 @@ sub HOTPAuthenticate {
 		# Check the PIN
 		#
 		my $crypt = bcrypt( $pin, $token->{token_password} );
-		if ( $token->{token_password} eq bcrypt( $pin, $token->{token_password} ) ) {
+		if ( $token->{token_password} eq
+			bcrypt( $pin, $token->{token_password} ) )
+		{
 
 			$pinfound = 1;
 			$self->_Debug( 2, "PIN is correct for token %d", $tokenid );
@@ -1341,23 +1359,25 @@ sub HOTPAuthenticate {
 		my $unlockwhence;
 		eval {
 			my $Strp = DateTime::Format::Strptime->new(
-				pattern => '%F %T',
-				locale => 'en_US.UTF8',
+				pattern   => '%F %T',
+				locale    => 'en_US.UTF8',
 				time_zone => 'UTC',
 			);
-			my $dt = $Strp->parse_datetime($token->{token_unlock_time}) || die;
+			my $dt = $Strp->parse_datetime( $token->{token_unlock_time} )
+			  || die;
 			$unlockwhence = $dt->epoch;
 		};
-		if($@) {
-			$self->ErrorF("Unable to convert %s to epoch", $token->{token_unlock_time});
+		if ($@) {
+			$self->ErrorF( "Unable to convert %s to epoch",
+				$token->{token_unlock_time} );
 			return undef;
 		}
 
 		if ( $unlockwhence && $unlockwhence <= time() ) {
-			$token->{is_token_locked} = 'N';
-			$token->{token_unlock_time}    = undef;
-			$token->{bad_logins}     = 0;
-			$token->{last_updated}         = time();
+			$token->{is_token_locked}   = 'N';
+			$token->{token_unlock_time} = undef;
+			$token->{bad_logins}        = 0;
+			$token->{last_updated}      = time();
 			$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
 			if ( !( $self->put_token( token => $token ) ) ) {
 				$self->ErrorF( "Error unlocking token %d: %s",
@@ -1685,12 +1705,19 @@ sub AuthenticateUser {
 	my $authmech = $devcollprop->{pwtype};
 
 	if ( defined($authmech) ) {
-		$self->_Debug( 2, "Setting password type for client %s to %s",
-			$client->{devcoll_name}, $authmech );
+		$self->_Debug(
+			2,
+			"Setting password type for client %s to %s",
+			$client->{devcoll_name}, $authmech
+		);
 	} else {
 		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		$self->_Debug( 2, "Setting password type for client %s to default (%s)",
-			$client->{devcoll_name}, $authmech || "undefined" );
+		$self->_Debug(
+			2,
+			"Setting password type for client %s to default (%s)",
+			$client->{devcoll_name},
+			$authmech || "undefined"
+		);
 	}
 
 	#
@@ -1712,17 +1739,20 @@ sub AuthenticateUser {
 		}
 	}
 
-	if ( defined( $attrs->{RADIUS}->{PWType} ) ) {
-		$authmech = $attrs->{RADIUS}->{PWType}->{value};
-		$self->_Debug( 2,
-			"Setting password type for user %s on client %s to (%s)",
-			$login, $client->{devcoll_name}, $authmech || "undefined" );
+	if ( defined( $attrs->{HOTPants}->{PWType} ) ) {
+		$authmech = $attrs->{HOTPants}->{PWType}->{value};
+		$self->_Debug(
+			2, "Setting password type for user %s on client %s to (%s)",
+			$login,
+			$client->{devcoll_name},
+			$authmech || "undefined"
+		);
 	}
 
 	#
 	# See if the user has access to log in here
 	#
-	if ( !( $attrs->{RADIUS}->{GrantAccess} ) ) {
+	if ( !( $attrs->{HOTPants}->{GrantAccess} ) ) {
 		$self->Error(
 			sprintf(
 				"user %s does not have permission to log in to %s (%s)",
@@ -1736,7 +1766,9 @@ sub AuthenticateUser {
 		$self->Error(
 			sprintf(
 				"no password mechanisms defined to auth user %s on client '%s' (%s)",
-				$login||'', $client->{devcoll_name}||'', $source||''
+				$login                  || '',
+				$client->{devcoll_name} || '',
+				$source                 || ''
 			)
 		);
 		return undef;
@@ -2034,12 +2066,19 @@ sub AuthorizeUser {
 	my $authmech = $devcollprop->{pwtype};
 
 	if ( defined($authmech) ) {
-		$self->_Debug( 2, "Setting password type for client %s to %s",
-			$client->{devcoll_name}, $authmech );
+		$self->_Debug(
+			2,
+			"Setting password type for client %s to %s",
+			$client->{devcoll_name}, $authmech
+		);
 	} else {
 		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		$self->_Debug( 2, "Setting password type for client %s to default (%s)",
-			$client->{devcoll_name}, $authmech || "undefined" );
+		$self->_Debug(
+			2,
+			"Setting password type for client %s to default (%s)",
+			$client->{devcoll_name},
+			$authmech || "undefined"
+		);
 	}
 
 	#
@@ -2061,17 +2100,20 @@ sub AuthorizeUser {
 		}
 	}
 
-	if ( defined( $attrs->{RADIUS}->{PWType} ) ) {
-		$authmech = $attrs->{RADIUS}->{PWType}->{value};
-		$self->_Debug( 2,
-			"Setting password type for user %s on client %s to (%s)",
-			$login, $client->{devcoll_name}, $authmech || "undefined" );
+	if ( defined( $attrs->{HOTPants}->{PWType} ) ) {
+		$authmech = $attrs->{HOTPants}->{PWType}->{value};
+		$self->_Debug(
+			2, "Setting password type for user %s on client %s to (%s)",
+			$login,
+			$client->{devcoll_name},
+			$authmech || "undefined"
+		);
 	}
 
 	#
 	# See if the user has access to log in here
 	#
-	if ( !( $attrs->{RADIUS}->{GrantAccess} ) ) {
+	if ( !( $attrs->{HOTPants}->{GrantAccess} ) ) {
 		$self->Error(
 			sprintf(
 				"User %s does not have access to log in to %s (%s)",

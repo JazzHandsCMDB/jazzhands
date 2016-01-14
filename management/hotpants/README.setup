@@ -203,18 +203,6 @@ select 'PWType', 'RADIUS', account_collection_id, 'token',
 from account_collection
 where account_collection_type = 'per-account'
 and account_collection_name = 'kovert';
-	
-update val_property set property_data_type = 'password_type' where
-	property_type = 'RADIUS' and property_name = 'PWType';
-
-insert into val_property (property_name, property_type,
-	permit_device_collection_id,  permit_account_collection_id,
-	property_data_type, description
-) values (
-	'Group', 'RADIUS',
-	'REQUIRED', 'REQUIRED',
-	'string', 'group used by radius client'
-);
 
 ================================= NOT BELOW HERE ==========================
 

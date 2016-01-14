@@ -21,9 +21,8 @@ die "no type!" if ( !$type );
 die "no pin!"  if ( !$pin );
 
 my $tok = new JazzHands::TokenDB(service => 'stab',
-	'keymap' => {
-		1 => 'i9aiGhoo8zu8iey@ieb'
-	}) || die $JazzHands::TokenDB::errstr;
+	'keymap' => '/etc/tokenmap.json',
+) || die $JazzHands::TokenDB::errstr;
 
 $tok->add_token($type, $pin);
 
