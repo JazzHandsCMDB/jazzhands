@@ -11,6 +11,25 @@ insert into val_property (property_name, property_type,
         'REQUIRED', 'string', 'RADIUS share secret consumed by HOTPants'
 );
 
+UPDATE val_property
+SET property_type = 'HOTPants'
+WHERE property_type = 'RADIUS'
+AND property_name IN ('GrantAccess');
+
+update val_property 
+SET property_data_type = 'password_type', property_type = 'HOTPants'
+WHERE property_type = 'RADIUS' and property_name = 'PWType';
+
+insert into val_property (property_name, property_type,
+        permit_device_collection_id,  permit_account_collection_id,
+        property_data_type, description
+) values (
+        'Group', 'RADIUS',
+        'REQUIRED', 'REQUIRED',
+        'string', 'group used by radius client'
+);
+
+
 insert into val_token_status (token_status)
 values
 	('disabled'),
