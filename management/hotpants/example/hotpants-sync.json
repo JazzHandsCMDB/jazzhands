@@ -1,0 +1,59 @@
+{
+	"from": "hotpants-sync-remote",
+	"to": "hotpants-sync-local",
+	"tablemap": {
+		"encryption_key": null,
+		"v_corp_family_account": {
+			"pk": [
+				"account_id"
+			]
+		},
+		"account_token": {
+			"pk": [
+				"account_token_id"
+			]
+		},
+		"token_sequence": null,
+		"account_password": null,
+		"v_hotpants_device_collection": {
+			"pk": [
+				"device_collection_id",
+				"device_id"
+			]
+		},
+		"netblock": null,
+		"device_collection": null,
+		"v_hotpants_token": {
+			"pushback": {
+				"token_sequence": "SELECT token_utils.set_sequence(%{token_id},%{token_sequence},%{last_updated});"
+			},
+			"pk": [
+				"token_id"
+			]
+		},
+		"v_device_coll_device_expanded": {
+			"pk": [
+				"device_collection_id",
+				"device_id"
+			]
+		},
+		"account": null,
+		"device": null,
+		"token": null,
+		"network_interface": null,
+		"property": null,
+		"v_dev_col_user_prop_expanded": {
+			"pk": [
+				"device_collection_id",
+				"account_id",
+				"property_name",
+				"property_type",
+				"property_value"
+			]
+		},
+		"account_collection_account": null
+	},
+	"postschema": [
+		"grant select on all tables in schema public to hotpants"
+	]
+}
