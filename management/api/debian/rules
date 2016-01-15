@@ -81,7 +81,7 @@ install: build
 	dh_installdirs
 	# Add here commands to install the package into debian/tmp
 	$(MAKE) -f Makefile.jazzhands install INSTALLROOT=$(CURDIR)/debian/tmp BUILDPERL=$(__perl) PREFIX=/usr/libexec/jazzhands/api
-	dh_install --list-missing -s --sourcedir=debian/tmp
+	dh_install --fail-missing -s --sourcedir=debian/tmp
 
 # Build architecture-independent files here.
 binary-indep: build install
