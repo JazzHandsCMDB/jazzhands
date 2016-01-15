@@ -24,6 +24,9 @@ install:
 	install -d $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/dbsyncer
 	install table-sync.pl $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/dbsyncer/table-sync
 
+	install -d $(INSTALROOT)/etc/init.d/
+	install dbsyncer.init.d $(INSTALLROOT)/etc/init.d/dbsyncer
+
 clean:
 	@echo Nothing clean build...
 
