@@ -314,6 +314,10 @@ sub copy_table($$$;$) {
 	}
 
 	$self->_Debug( 2, "Copying table %s", $table );
+	#
+	# Arguably, this can all be smarter about transactions, since the
+	# current approach blocks the db for the entire sync cycle on
+	# impacted rows.
 	if ( !$self->table_identical( $fromh, $table ) ) {
 		if ( $self->table_exists($table) ) {
 			$self->drop_table($table);

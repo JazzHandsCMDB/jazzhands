@@ -39,3 +39,4 @@ zonegen/server/src
 management/util/perl-tickets
 management/api
 management/hotpants
+management/dbsyncer
