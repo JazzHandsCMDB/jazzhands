@@ -17,7 +17,7 @@ BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
 Requires: jazzhands-perl-common >= 0.66.2
-Requries: perl-jazzhands-dbi (>= 0.66.1)
+Requires: perl-jazzhands-dbi >= 0.66.1
 
 %description
 
@@ -25,14 +25,16 @@ JazzHands Database Sync Software
 
 
 %prep
+rm -rf %{buildroot}
 %setup -q -n %{name}-%{version}
 make -f Makefile.jazzhands 
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} install
+make -f Makefile.jazzhands INSTALLROOT=%{buildroot} install
 
 %clean
 make -f Makefile.jazzhands clean
+rm -rf %{buildroot}
 
 
 %files

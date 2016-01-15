@@ -21,8 +21,8 @@ all:
 	@echo Nothing to build...
 
 install:
-	install -d $(INSTALLROOT)/$(PREFIX)/libexec/dbsync
-	install table-sync.pl $(INSTALLROOT)/$(PREFIX)/table-sync
+	install -d $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/dbsyncer
+	install table-sync.pl $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/dbsyncer/table-sync
 
 clean:
 	@echo Nothing clean build...
