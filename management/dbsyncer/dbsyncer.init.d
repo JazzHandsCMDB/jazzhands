@@ -23,6 +23,7 @@ SHORTPROG=`basename $PROG`
 
 # Source networking configuration.
 [ -f /etc/sysconfig/${SHORTPROG} ] &&  . /etc/sysconfig/${SHORTPROG}
+[ -f /etc/default/${SHORTPROG} ] &&  . /etc/default/${SHORTPROG}
 
 SHORTPROG_ARGS="$PROCESS_DBSYNCER_ARGS"
 
@@ -39,40 +40,34 @@ start() {
     (cd ${DBSYNCERDIR} && ls -1 *.json) | while read json ; do
         root=`echo $json | sed 's/.json$//'`
         PIDFILE="${PIDROOT}/$root".pid
-        if [ -s "$PIDFILE" -e /proc/`cat ${PIFILE}` ] ; then
+        if [ -s "$PIDFILE" -a -e /proc/`cat ${PIFILE}` ] ; then
             running=`expr $running + 1`
             continue;
 	    fi
 
-	    if [ "$1" == "debug" ]; then
-		    daemon $PROG --config "$DBSYNCERDIR/$json" --debug ${SHORTPROG_ARGS}
-	    elif [ "$1" == "nodaemon" ]; then
-		    daemon $PROG --config "$DBSYNCERDIR/$json" --no-daemonize ${SHORTPROG_ARGS}
-	    else
-		    daemon $PROG --config "$DBSYNCERDIR/$json" ${SHORTPROG_ARGS}
-	    fi
+	    $PROG --config "$DBSYNCERDIR/$json" ${SHORTPROG_ARGS}
 	    RETVAL=$?
         if [ -z "$ALL_RETVAL" -o $RETVAL -gt 0 ] ; then
             ALL_RETVAL=$RETVAL
         fi
 	    sleep 1
-	    pgrep -f $PROG > $PIDFILE
+	    pgrep -f "$PROG.*$root" > $PIDFILE
         started=`expr $started + 1`
     done
 
     if [ "$running" -gt 0 -a "$started" -gt 0 ] ; then
         echo -n $"some run, some not"
-        failure $"some run, some not"
+        echo $"some run, some not"
         echo
         return $ALL_RETVAL
     elif [ "$running" -gt 0 -a "$started" -eq 0 ] ; then
 		echo -n $"already running.";
-		failure $"already running.";
+		echo $"already running.";
 		echo
 		return 1
     elif [ "$running" -eq 0 -a "$started" -eq 0 ] ; then
 		echo -n $"failed.";
-		failure $"failed.";
+		echo $"failed.";
 		echo
 		return 1
     fi
@@ -102,7 +97,7 @@ stop() {
         stopped=`expr $stopped + 1`
     done
 
-	[ $ALL_RETVAL -eq 0 ] && success "Stopped ${SHORTPROG}: "
+	[ $ALL_RETVAL -eq 0 ] && echo "Stopped ${SHORTPROG}: "
 	echo
 	return $ALL_RETVAL
 }
