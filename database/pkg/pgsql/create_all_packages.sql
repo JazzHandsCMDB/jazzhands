@@ -42,7 +42,7 @@
 -- \ir dept_member_verify.sql
 -- \ir netblock_verify.sql
 --++ \ir fqdn_util.sql
--- \ir token_util.sql
+\ir token_util.sql
 -- \ir time_util.sql
 -- \ir dns_gen_utils.sql
 --++  \ir voe_manip_util.sql
