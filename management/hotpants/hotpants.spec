@@ -59,6 +59,6 @@ make -f Makefile.jazzhands clean
 # -f debian/jazzhands-perl-hotpants.install
 %files -n jazzhands-perl-hotpants 
 %{perl_vendorlib}/*
-%{_mandir}/man3/*
+# %{_mandir}/man3/*
 
 %files -n jazzhands-hotpants-perl-rlm -f debian/jazzhands-hotpants-perl-rlm.install
