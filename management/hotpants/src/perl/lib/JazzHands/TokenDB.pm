@@ -347,7 +347,7 @@ sub add_token($$$) {
 	#
 	my $seq;
 	if ( $type eq 'soft_time' ) {
-		$seq = ( time() / $modulo ) - 1;
+		$seq = int ( time() / $modulo ) - 1;
 	} elsif ( $type eq 'soft_seq' ) {
 		$seq = int rand(50);
 	}

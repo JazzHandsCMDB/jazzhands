@@ -6,6 +6,8 @@
 #
 # $Revision: 1.0 $
 
+# THIS SERIOUSLY NEEDS TO BE REWRITTEN
+
 # Source function library.
 [ -r /etc/init.d/functions ] && . /etc/init.d/functions
 
@@ -29,21 +31,33 @@ RETVAL=0
 [ -z "${DBSYNCERDIR}" -o ! -d "${DBSYNCERDIR}" ]  && exit 0
 [ -z "`ls ${DBSYNCERDIR}/*.json 2>/dev/null`" ] && exit 0
 
+status() {
+    for PID in `cat $PIDROOT*` ;do
+        if [ ! -e /proc/$PID ] ; then
+            return 1
+        fi
+    done
+    return 0
+}
+
 start() {
     running=0
     started=0
     echo -n $"Starting ${SHORTPROG}: "
     ALL_RETVAL=0
-    (cd ${DBSYNCERDIR} && ls -1 *.json) | while read json ; do
-        root=`echo $json | sed 's/.json$//'`
+    #(cd ${DBSYNCERDIR} && ls -1 *.json) | while read json ; do
+    for json in ${DBSYNCERDIR}/* ; do
+	json=`basename $json`
+        root=`basename $json | sed 's/.json$//'`
         PIDFILE="${PIDROOT}$root".pid
-	pid=`head -1 ${PIDFILE}`
-        if [ -s "$PIDFILE" -a -e /proc/$pid ] ; then
-            running=`expr $running + 1`
-            continue;
+	if [ -s "$PIDFILE" ] ; then
+		pid=`head -1 ${PIDFILE}`
+                if [ -s "$PIDFILE" -a -e /proc/$pid ] ; then
+                   running=`expr $running + 1`
+                   continue;
+		fi
 	fi
 
-	echo starting $json
 	$PROG --config "$DBSYNCERDIR/$json" ${SHORTPROG_ARGS}
 	RETVAL=$?
         if [ -z "$ALL_RETVAL" -o $RETVAL -gt 0 ] ; then
