@@ -59,6 +59,8 @@ use POSIX;
 
 use parent 'JazzHands::Common';
 
+our $errstr;
+
 my %__HOTPANTS_CONFIG_PARAMS = (
 	TimeSequenceSkew      => 2,      # sequence skew allowed for time-based
 	                                 # tokens
@@ -203,7 +205,6 @@ sub new {
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 	$self->opendb();
 
-	if ( exists( $opt->{encryptionmap} ) ) {
 	if ( $opt->{encryptionmap} ) {
 		if ( ref $opt->{encryptionmap} eq 'HASH' ) {
 			$self->{_encryptionmap} = $opt->{encryptionmap};
