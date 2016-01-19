@@ -39,7 +39,7 @@ rm -rf %{buildroot}
 
 %files
 %defattr(755,root,root,-)
-# /etc/init.d
+/etc/init.d/dbsyncer
 /usr/libexec/jazzhands/dbsyncer/table-sync
 
 
