@@ -1,4 +1,21 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2016, Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 
 use strict;
 use warnings;
@@ -8,6 +25,10 @@ use Getopt::Long;
 use JSON::PP;
 use Pod::Usage;
 use FileHandle;
+#use Carp;
+#
+#local $SIG{__WARN__} = \&Carp::cluck;
+
 
 ###############################################################################
 
@@ -16,6 +37,7 @@ use strict;
 use warnings;
 use JazzHands::Common qw(:all);
 use Data::Dumper;
+use Carp;
 
 use parent 'JazzHands::Common';
 
@@ -63,9 +85,8 @@ sub new {
 sub DESTROY {
 	my $self = shift @_;
 
-	$self->{_dbh}->rollback;
-	$self->{_dbh}->disconnect;
-	$self->{_dbh} = undef;
+	$self->rollback;
+	$self->disconnect;
 }
 
 sub fetch_table($$$) {
@@ -580,6 +601,8 @@ $fh->close;
 my $up   = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
 my $down = new DBThing( service => $config->{to} )   || die $DBThing::errstr;
 
+$up->disconnect;
+
 if ( !defined($debug) && $daemonize ) {
 	$debug = 0;
 } else {
@@ -590,10 +613,11 @@ $down->SetDebug($debug);
 if ($daemonize) {
 	$loop = 300 if ( !$loop );
 
-	$down->daemonize();
+	$down->daemonize() || die "failed to daemonize";
 
-	$up->DBHandle( $up->DBHandle()->clone() );
 }
+
+$up   = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
 
 do {
 	$down->sync_dbs( $config, $up, @ARGV );

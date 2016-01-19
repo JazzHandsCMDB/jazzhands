@@ -12,11 +12,8 @@
 PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin
 PROG=/usr//libexec/jazzhands/dbsyncer/table-sync
 
-#PIDROOT=/var/run/dbsyncer.
-#DBSYNCERDIR=/etc/jazzhands/dbsyncer/
-
-PIDROOT=/tmp/etc/run/dbsyncer
-DBSYNCERDIR=/tmp/etc/foo/
+PIDROOT=/var/run/dbsyncer.
+DBSYNCERDIR=/etc/jazzhands/dbsyncer/
 
 PROCESS_DBSYNCER_ARGS=""
 SHORTPROG=`basename $PROG`
@@ -35,23 +32,25 @@ RETVAL=0
 start() {
     running=0
     started=0
-	echo -n $"Starting ${SHORTPROG}: "
+    echo -n $"Starting ${SHORTPROG}: "
     ALL_RETVAL=0
     (cd ${DBSYNCERDIR} && ls -1 *.json) | while read json ; do
         root=`echo $json | sed 's/.json$//'`
-        PIDFILE="${PIDROOT}/$root".pid
-        if [ -s "$PIDFILE" -a -e /proc/`cat ${PIFILE}` ] ; then
+        PIDFILE="${PIDROOT}$root".pid
+	pid=`head -1 ${PIDFILE}`
+        if [ -s "$PIDFILE" -a -e /proc/$pid ] ; then
             running=`expr $running + 1`
             continue;
-	    fi
+	fi
 
-	    $PROG --config "$DBSYNCERDIR/$json" ${SHORTPROG_ARGS}
-	    RETVAL=$?
+	echo starting $json
+	$PROG --config "$DBSYNCERDIR/$json" ${SHORTPROG_ARGS}
+	RETVAL=$?
         if [ -z "$ALL_RETVAL" -o $RETVAL -gt 0 ] ; then
             ALL_RETVAL=$RETVAL
         fi
-	    sleep 1
-	    pgrep -f "$PROG.*$root" > $PIDFILE
+	sleep 1
+	pgrep -f "$PROG.*$root" > $PIDFILE
         started=`expr $started + 1`
     done
 
@@ -62,27 +61,28 @@ start() {
         return $ALL_RETVAL
     elif [ "$running" -gt 0 -a "$started" -eq 0 ] ; then
 		echo -n $"already running.";
-		echo $"already running.";
+		#echo $"already running.";
 		echo
 		return 1
     elif [ "$running" -eq 0 -a "$started" -eq 0 ] ; then
 		echo -n $"failed.";
-		echo $"failed.";
+		#echo $"failed.";
 		echo
 		return 1
     fi
 
-	[ $ALL_RETVAL -eq 0 ] && echo -n "Started ${SHORTPROG}: "
-	echo
-	return $ALL_RETVAL
+    [ $ALL_RETVAL -eq 0 ] && echo -n "Started ${SHORTPROG}: "
+    echo
+    return $ALL_RETVAL
 }
 
 stop() {
 	echo -n $"Stopping ${SHORTPROG}: "
     stopped=0
+    ALL_RETVAL=0
     (cd ${DBSYNCERDIR} && ls -1 *.json) | while read json ; do
         root=`echo $json | sed 's/.json$//'`
-        PIDFILE="${PIDROOT}/$root".pid
+        PIDFILE="${PIDROOT}$root".pid
 	    if [ -f $PIDFILE ]; then
 		    PID=`cat $PIDFILE`
 		    if [ "$PID" ]; then
@@ -90,16 +90,16 @@ stop() {
 		    fi
 	    fi
 	    RETVAL=$?
-        if [ -z "$ALL_RETVAL" -o RETVAL -gt 0 ] ; then
+        if [ -z "$ALL_RETVAL" -o $RETVAL -gt 0 ] ; then
             ALL_RETVAL=$RETVAL
         fi
-	    [ $RETVAL -eq 0 ] && rm -f $PIDFILE
+	[ $RETVAL -eq 0 ] && rm -f $PIDFILE
         stopped=`expr $stopped + 1`
     done
 
-	[ $ALL_RETVAL -eq 0 ] && echo "Stopped ${SHORTPROG}: "
-	echo
-	return $ALL_RETVAL
+    [ $ALL_RETVAL -eq 0 ] && echo "Stopped ${SHORTPROG}: "
+    echo
+    return $ALL_RETVAL
 }
 
 restart() {
