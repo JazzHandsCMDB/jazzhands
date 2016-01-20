@@ -225,7 +225,7 @@ sub add_encryption_id($;$$$) {
 	}
 	$sth->finish;
 	return {
-		encrpytion_key_id              => $encid,
+		encryption_key_id              => $encid,
 		encryption_key_purpose         => $ekpurpose,
 		encryption_key_purpose_version => $ekversion,
 		dbkey                          => $dbkey,
@@ -277,6 +277,7 @@ sub add_token($$$) {
 
 	my $nondbkey = '';
 	if ( $enc && $self->{_keymap} ) {
+		$nondbkey = $self->{_keymap}->{ $enc->{encryption_key_purpose_version} };
 	}
 
 	$tokenkey = Crypt::CBC->random_bytes(20);
@@ -290,6 +291,7 @@ sub add_token($$$) {
 		$enckey = encode_base64($tokenkey);
 		$key32  = MIME::Base32::encode($tokenkey);
 	}
+
 
 	$self->{key32} = $key32;
 	$self->{key64} = $tokenkey;
@@ -330,8 +332,8 @@ sub add_token($$$) {
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute( $type, $modulo, $enc->{dbkey}, $enc->{encryption_key_id},
-		$passwd )
+	$sth->execute( $type, $modulo, $enckey,
+		$enc->{encryption_key_id}, $passwd )
 	  || die $sth->errstr;
 	if ( my $hr = $sth->fetchrow_hashref ) {
 		$tokid = $hr->{token_id};

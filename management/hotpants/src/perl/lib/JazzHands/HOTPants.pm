@@ -56,6 +56,8 @@ use Crypt::CBC;
 use Digest::SHA qw(sha256);
 use DateTime::Format::Strptime;    # could also put epochs in views
 use POSIX;
+use JSON::PP;
+use FileHandle;
 
 use parent 'JazzHands::Common';
 
@@ -217,11 +219,11 @@ sub new {
 			my $x = join( "\n", $fh->getlines() );
 			$fh->close;
 			my $km = decode_json($x);
-			if ( !$km || !exists( $km->{encryptionmap} ) ) {
-				$errstr = "encryptionmap(" . $opt->{encryptionmap} . "): No encryptionmap";
+			if ( !$km || !exists( $km->{keymap} ) ) {
+				$errstr = "encryptionmap(" . $opt->{encryptionmap} . "): No encryptionmap in file";
 				return undef;
 			}
-			$self->{_encryptionmap} = $km->{encryptionmap};
+			$self->{_encryptionmap} = $km->{keymap};
 		}
 	}
 
@@ -442,6 +444,9 @@ sub fetch_token {
 		$self->_Debug( 1, "fetch_token: Token can not be decrypted" );
 		return undef;
 	} elsif ( $hr->{encryption_key_purpose} ) {
+			$self->_Debug( 10,
+				"fetch_token: decrypting token"
+			);
 		#
 		# XXX should probably make sure about encryption purpose and method
 		#
@@ -459,6 +464,7 @@ sub fetch_token {
 
 		$hr->{token_key} = $self->_decryptkey( $hr->{token_key}, $fullkey );
 	}
+
 
 	return $hr;
 }
@@ -559,7 +565,7 @@ sub fetch_client {
 				SELECT *
 	        	FROM	v_hotpants_device_collection
 	        	WHERE	ip_address = ?
-				AND		device_collection_type IN ('mclass', 'HOTPants')
+				AND		device_collection_type IN ('HOTPants')
 		}
 		);
 	} else {
@@ -629,8 +635,9 @@ sub fetch_devcollprop {
 		qq{
 		SELECT	device_collection_id, Property_Value_Password_Type
 		FROM	property
-		WHERE	Property_Name = 'PwType'
+		WHERE	Property_Name = 'PWType'
 		AND		Property_Type = 'HOTPants'
+		AND		account_collection_id IS NULL
 		AND		device_collection_id = ?
 	}
 	);
@@ -657,7 +664,7 @@ sub fetch_devcollprop {
 
 	my $r = {
 		devcoll_id => $hr->{device_collection_id},
-		pwtype     => $hr->{password_type}
+		pwtype     => $hr->{property_value_password_type}
 	};
 	$r;
 }
@@ -1420,8 +1427,8 @@ sub HOTPAuthenticate {
 		);
 		if ( !defined($checkprn) ) {
 			$self->Error(
-				sprintf( "Unknown error generating OTP for token %d",
-					$token->{token_id} )
+				sprintf( "Unknown error generating OTP for token %d (seq %d)",
+					$token->{token_id}, $sequence )
 			);
 			return undef;
 		}
@@ -1476,12 +1483,12 @@ sub HOTPAuthenticate {
 		);
 		if ( !defined($checkprn) ) {
 			$self->Error(
-				sprintf( "Unknown error generating OTP for token %d",
-					$token->{token_id} )
+				sprintf( "Unknown error generating OTP for token %d - seq %d",
+					$token->{token_id}, $sequence )
 			);
 			return undef;
 		}
-		$self->_Debug( 3, "Given PRN is %s.  PRN for sequence %d is %s",
+		$self->_Debug( 50, "Given PRN is %s.  PRN for sequence %d is %s",
 			$prn, $sequence, $checkprn );
 		if ( $prn eq $checkprn ) {
 			$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
