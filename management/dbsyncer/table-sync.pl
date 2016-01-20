@@ -440,12 +440,17 @@ sub copy_table($$$;$) {
 	foreach my $k ( keys %{$downt} ) {
 		if ( !defined( $fromt->{$k} ) ) {
 			$del++;
+			my $dbkey = $k;
+			if ( ref $pk eq 'ARRAY' ) {
+				my @dbkey = split( /,/, $dbkey );
+				$dbkey = \@dbkey;
+			}
 			if (
 				!(
 					$self->DBDelete(
 						table  => $table,
-						dbkey  => $pk,
-						keyval => $k,
+						dbkey    => $pk,
+						keyval   => $dbkey,
 					)
 				)
 			  )
