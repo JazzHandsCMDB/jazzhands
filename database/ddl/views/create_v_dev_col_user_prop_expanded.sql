@@ -43,7 +43,9 @@
 -- assigned to the users in order of their priorities.
 
 CREATE OR REPLACE VIEW v_dev_col_user_prop_expanded AS
-SELECT	dchd.device_collection_id,
+SELECT	
+	property_id,
+	dchd.device_collection_id,
 	a.account_id, a.login, a.account_status,
 	ar.account_realm_id, ar.account_realm_name,
 	a.is_enabled,
