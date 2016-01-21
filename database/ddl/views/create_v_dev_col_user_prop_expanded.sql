@@ -42,7 +42,6 @@
 -- This view maps users to device collections and lists properties
 -- assigned to the users in order of their priorities.
 
-DROP VIEW v_dev_col_user_prop_expanded;
 CREATE OR REPLACE VIEW v_dev_col_user_prop_expanded AS
 SELECT	dchd.device_collection_id,
 	a.account_id, a.login, a.account_status,
@@ -62,7 +61,7 @@ FROM	v_acct_coll_acct_expanded_detail uued
 		AND upo.property_type in (
 			'CCAForceCreation', 'CCARight', 'ConsoleACL', 'RADIUS', 
 			'TokenMgmt', 'UnixPasswdFileValue', 'UserMgmt', 'cca', 
-			'feed-attributes', 'wwwgroup')
+			'feed-attributes', 'wwwgroup', 'HOTPants')
 	INNER JOIN val_property upn
 		ON upo.property_name = upn.property_name
 		AND upo.property_type = upn.property_type
