@@ -22,11 +22,12 @@ SELECT DISTINCT
                 Device_Collection_Type,
                 host(IP_Address) as IP_address
         FROM	Device_Collection
+		INNER JOIN property p USING (device_collection_id)
                 INNER JOIN device_collection_device
                         USING (Device_Collection_ID) 
                 INNER JOIN Device USING (Device_Id) 
                 INNER JOIN Network_Interface NI USING (Device_ID) 
                 INNER JOIN Netblock NB USING (Netblock_id)
-        WHERE
-        	Device_Name IS NOT NULL
-        AND     Device_Name IS NOT NULL
+	WHERE
+		property_type IN ('HOTPants', 'HOTPants-app')
+;
