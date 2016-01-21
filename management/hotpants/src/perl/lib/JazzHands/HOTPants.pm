@@ -259,16 +259,9 @@ sub GetSharedSecret {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-			SELECT	p.property_value, d.device_name
-			FROM	property p
-					INNER JOIN v_device_coll_device_expanded dc
-						USING (device_collection_id)
-					INNER JOIN device d USING (device_id)
-					INNER JOIN network_interface ni USING (device_id)
-					INNER JOIN netblock USING (netblock_id)
+			SELECT	*
+			FROM	v_hotpants_client
 			WHERE	host(ip_address) = ?
-			AND		property_name = 'RadiusSharedSecret'
-			AND		property_type = 'HOTPants'
 	}
 	);
 
@@ -287,7 +280,7 @@ sub GetSharedSecret {
 	$sth->finish;
 	if ($hr) {
 		return {
-			secret   => $hr->{property_value},
+			secret   => $hr->{radius_secret},
 			hostname => $hr->{device_name},
 		};
 	}
@@ -572,7 +565,7 @@ sub fetch_client {
 		$sth = $dbh->prepare_cached(
 			qq{
 				SELECT *
-	        	FROM	device_collection
+	        	FROM	v_hotpants_device_collection
 	        	WHERE	device_collection_name = ?
 				AND		device_collection_type = 'HOTPants-app'
 		}
@@ -634,10 +627,10 @@ sub fetch_devcollprop {
 	my $sth = $dbh->prepare_cached(
 		qq{
 		SELECT	device_collection_id, Property_Value_Password_Type
-		FROM	property
+		FROM	v_hotpants_attribute
 		WHERE	Property_Name = 'PWType'
 		AND		Property_Type = 'HOTPants'
-		AND		account_collection_id IS NULL
+		AND		attribute_style = 'device'
 		AND		device_collection_id = ?
 	}
 	);
@@ -781,14 +774,9 @@ sub fetch_attributes {
 					property_value,
 	                Is_Boolean,
 	                Device_Collection_ID
-	        FROM
-	                V_Dev_Col_User_Prop_Expanded JOIN
-	                Device_Collection USING (Device_Collection_ID)
-	        WHERE
-					is_enabled = 'Y'
-	        AND     (Device_Collection_Type = 'HOTPants-app' OR
-	                	Property_Type IN ('RADIUS', 'HOTPants') )
-			AND		login = ?
+	        FROM	v_hotpants_attribute
+			WHERE	attribute_style = 'account'
+	        AND		login = ?
 			AND		device_collection_id = ?
 	}
 	);
