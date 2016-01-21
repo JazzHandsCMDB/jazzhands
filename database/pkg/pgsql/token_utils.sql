@@ -113,6 +113,44 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+--
+-- set_lock_status changes the lock status of the token.  
+--
+CREATE OR REPLACE FUNCTION token_utils.set_lock_status(
+	p_token_id	token.token_id % TYPE,
+	p_lock_status	token.is_token_locked % TYPE,
+	p_unlock_time	token.token_unlock_time % TYPE,
+	p_bad_logins	token.bad_logins % TYPE,
+	p_last_updated	token.bad_logins % TYPE
+) RETURNS void AS $$
+DECLARE
+	_cur		token%ROWTYPE;
+BEGIN
+
+	IF p_token_id IS NULL THEN
+		RAISE EXCEPTION 'Invalid token %', p_token_id
+			USING ERRCODE = invalid_parameter_value;
+	END IF;
+
+	EXECUTE '
+		SELECT *
+		FROM token
+		WHERE token_id = $1
+	' INTO _cur USING p_token_id;
+
+	IF _cur.last_updated < p_last_updated THEN
+		UPDATE token SET
+		is_token_locked = p_lock_status,
+			token_unlock_time = p_unlock_time,
+			bad_logins = p_bad_logins,
+			last_updated = v_last_updated
+		WHERE
+			Token_ID = p_token_id;
+	END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 /************************************************************************
  *
  * everthing after this needs ot be ported (maybe)
@@ -272,52 +310,6 @@ EXCEPTION
 		global_errors.log_error(G_err_num, v_std_object_name, G_err_msg);
 
 END set_status;
-
---
--- set_lock_status changes the lock status of the token.  
---
-PROCEDURE set_lock_status
-(
-	p_token_id		IN	System_User_Token.Token_ID % TYPE,
-	p_lock_status	IN	System_User_Token.Is_User_Token_Locked % TYPE,
-	p_unlock_time	IN	System_User_Token.Token_Unlock_Time % TYPE,
-	p_bad_logins	IN	System_User_Token.Bad_Logins % TYPE,
-	p_last_updated	IN	System_User_Token.Last_Updated % TYPE
-)
-IS
-v_std_object_name	VARCHAR2(60) := GC_pkg_name || '.set_lock_status';
-v_last_updated		System_User_Token.Last_Updated % TYPE;
-
-BEGIN
-
-	IF p_token_id IS NULL
-	THEN
-		RAISE VALUE_ERROR;
-	END IF;
-
-	v_last_updated := p_last_updated;
-	IF v_last_updated IS NULL
-	THEN
-		v_last_updated := SYSDATE;
-	END IF;
-
-	UPDATE System_User_Token SET
-		Is_User_Token_Locked = p_lock_status,
-		Token_Unlock_Time = p_unlock_time,
-		Bad_Logins = p_bad_logins,
-		Last_Updated = v_last_updated
-	WHERE
-		Token_ID = p_token_id;
-
-EXCEPTION
-	WHEN OTHERS THEN
-		G_err_num := SQLCODE;
-		G_err_msg := substr(SQLERRM, 1, 150);
-		global_util.debug_msg(v_std_object_name || ':(' || G_err_num || ') "' || G_err_msg || '"');
-		global_errors.log_error(G_err_num, v_std_object_name, G_err_msg);
-
-END set_lock_status;
-
 --
 -- assign_token associates a given token with a user
 --
