@@ -132,4 +132,5 @@
 \i create_v_hotpants_device_collection.sql
 \i create_v_hotpants_token.sql
 \i create_v_hotpants_client.sql
-\i create_v_hotpants_attribute.sql
+\i create_v_hotpants_account_attribute.sql
+\i create_v_hotpants_device_attribute.sql
