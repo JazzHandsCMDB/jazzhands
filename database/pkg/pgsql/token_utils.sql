@@ -121,7 +121,7 @@ CREATE OR REPLACE FUNCTION token_utils.set_lock_status(
 	p_lock_status	token.is_token_locked % TYPE,
 	p_unlock_time	token.token_unlock_time % TYPE,
 	p_bad_logins	token.bad_logins % TYPE,
-	p_last_updated	token.bad_logins % TYPE
+	p_last_updated	token.last_updated % TYPE
 ) RETURNS void AS $$
 DECLARE
 	_cur		token%ROWTYPE;
