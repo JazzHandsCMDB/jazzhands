@@ -476,26 +476,15 @@ insert into val_person_company_attr_dtype (person_company_attr_data_type) values
 	('person_id');
 
 insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'TokenMgmt', 'Allow administrators to manage OTP tokens', 'Y');
-insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'UserMgmt', 'Allow administrators to manage users', 'Y');
-insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'feed-attributes','configurable attributes on user feeds', 'Y');
-insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'RADIUS','RADIUS properties', 'Y');
-insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'ConsoleACL','console access control properties', 'Y');
-insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'UnixPasswdFileValue','override value set in the Unix passwd file','Y');
-insert into val_property_type (property_type, description,is_multivalue) 
-	values (
-	'wwwgroup','WWW Group properties','Y');
+	values 
+	('TokenMgmt', 'Allow administrators to manage OTP tokens', 'Y'),
+	('UserMgmt', 'Allow administrators to manage users', 'Y'),
+	('feed-attributes','configurable attributes on user feeds', 'Y'),
+	('HOTPants','define HOTPants behavior', 'Y'),
+	('RADIUS','RADIUS properties', 'Y'),
+	('ConsoleACL','console access control properties', 'Y'),
+	('UnixPasswdFileValue','override value set in the Unix passwd file','Y'),
+	('wwwgroup','WWW Group properties','Y');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
@@ -512,7 +501,7 @@ insert into val_property
 insert into val_property (
 	property_name, property_type, property_data_type,
 	description,
-	property_data_type, permit_device_collection_id
+	permit_account_collection_id, permit_device_collection_id
 ) VALUES (
 	'GrantAccess', 'HOTPants', 'boolean',
 	'Permit user access to device',
@@ -522,10 +511,10 @@ insert into val_property (
 INSERT INTO val_property (
 	property_name, property_type, property_data_type,
 	description,
-	property_data_type, permit_device_collection_id
+	permit_account_collection_id, permit_device_collection_id
 VALUES (
 	'PWType', 'HOTPants', 'password_type',
-	'Force password verification type for this Account_Collection',
+	'Set password verification type for this Device and maybe account collection',
 	'ALLOWED',     'REQUIRED'
 );
 
@@ -1606,4 +1595,29 @@ INSERT INTO val_logical_volume_type (
 
 -- END logical volumes
 -------------------------------------------------------------------------
--- logical volumes
+
+-------------------------------------------------------------------------
+-- tokens
+
+INSERT INTO val_token_status (token_status)
+VALUES
+        ('disabled'),
+        ('enabled'),
+        ('lost'),
+        ('destored'),
+        ('stolen');
+
+INSERT INTO val_token_type (token_type, description, token_digit_count)
+VALUES
+        ('soft_seq', 'sequence based soft token', 6),
+        ('soft_time', 'time-based soft token', 6);
+
+INSERT INTO val_encryption_key_purpose (
+        encryption_key_purpose, encryption_key_purpose_version, description
+) VALUES (
+        'tokenkey', 1, 'Passwords for Token Keys'
+);
+
+
+-- END tokens
+-------------------------------------------------------------------------

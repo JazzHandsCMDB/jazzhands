@@ -143,7 +143,7 @@ BEGIN
 		is_token_locked = p_lock_status,
 			token_unlock_time = p_unlock_time,
 			bad_logins = p_bad_logins,
-			last_updated = v_last_updated
+			last_updated = p_last_updated
 		WHERE
 			Token_ID = p_token_id;
 	END IF;
