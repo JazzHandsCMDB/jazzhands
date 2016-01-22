@@ -220,7 +220,10 @@ sub new {
 			$fh->close;
 			my $km = decode_json($x);
 			if ( !$km || !exists( $km->{keymap} ) ) {
-				$errstr = "encryptionmap(" . $opt->{encryptionmap} . "): No encryptionmap in file";
+				$errstr =
+				    "encryptionmap("
+				  . $opt->{encryptionmap}
+				  . "): No encryptionmap in file";
 				return undef;
 			}
 			$self->{_encryptionmap} = $km->{keymap};
@@ -437,9 +440,7 @@ sub fetch_token {
 		$self->_Debug( 1, "fetch_token: Token can not be decrypted" );
 		return undef;
 	} elsif ( $hr->{encryption_key_purpose} ) {
-			$self->_Debug( 10,
-				"fetch_token: decrypting token"
-			);
+		$self->_Debug( 10, "fetch_token: decrypting token" );
 		#
 		# XXX should probably make sure about encryption purpose and method
 		#
@@ -457,7 +458,6 @@ sub fetch_token {
 
 		$hr->{token_key} = $self->_decryptkey( $hr->{token_key}, $fullkey );
 	}
-
 
 	return $hr;
 }
@@ -1413,8 +1413,10 @@ sub HOTPAuthenticate {
 		);
 		if ( !defined($checkprn) ) {
 			$self->Error(
-				sprintf( "Unknown error generating OTP for token %d (seq %d)",
-					$token->{token_id}, $sequence )
+				sprintf(
+					"Unknown error generating OTP for token %d (seq %d)",
+					$token->{token_id}, $sequence
+				)
 			);
 			return undef;
 		}
@@ -1469,8 +1471,10 @@ sub HOTPAuthenticate {
 		);
 		if ( !defined($checkprn) ) {
 			$self->Error(
-				sprintf( "Unknown error generating OTP for token %d - seq %d",
-					$token->{token_id}, $sequence )
+				sprintf(
+					"Unknown error generating OTP for token %d - seq %d",
+					$token->{token_id}, $sequence
+				)
 			);
 			return undef;
 		}

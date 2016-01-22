@@ -20,11 +20,12 @@ GetOptions(
 die "no type!" if ( !$type );
 die "no pin!"  if ( !$pin );
 
-my $tok = new JazzHands::TokenDB(service => 'stab',
+my $tok = new JazzHands::TokenDB(
+	service  => 'stab',
 	'keymap' => '/etc/tokenmap.json',
 ) || die $JazzHands::TokenDB::errstr;
 
-$tok->add_token($type, $pin);
+$tok->add_token( $type, $pin );
 
 print $tok->url(), "\n";
 

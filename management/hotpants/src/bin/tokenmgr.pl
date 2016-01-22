@@ -74,7 +74,7 @@ foreach my $tok (@$tokenlist) {
 		exit 1;
 	}
 	printf
-"TokenID: %s\n\tType: %s\n\tStatus: %s\n\tSerial: %s\n\tSequence: %s\n\tPIN: %s\n\n",
+	  "TokenID: %s\n\tType: %s\n\tStatus: %s\n\tSerial: %s\n\tSequence: %s\n\tPIN: %s\n\n",
 	  $token->{token_id}, $token->{type}, $token->{status},
 	  $token->{serial}, $token->{sequence}, $token->{pin} || '';
 }

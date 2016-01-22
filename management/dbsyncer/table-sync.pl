@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-
 use strict;
 use warnings;
 use JazzHands::DBI;
@@ -25,10 +24,10 @@ use Getopt::Long;
 use JSON::PP;
 use Pod::Usage;
 use FileHandle;
+
 #use Carp;
 #
 #local $SIG{__WARN__} = \&Carp::cluck;
-
 
 ###############################################################################
 
@@ -449,8 +448,8 @@ sub copy_table($$$;$) {
 				!(
 					$self->DBDelete(
 						table  => $table,
-						dbkey    => $pk,
-						keyval   => $dbkey,
+						dbkey  => $pk,
+						keyval => $dbkey,
 					)
 				)
 			  )
@@ -622,7 +621,7 @@ if ($daemonize) {
 
 }
 
-$up   = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
+$up = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
 
 do {
 	$down->sync_dbs( $config, $up, @ARGV );

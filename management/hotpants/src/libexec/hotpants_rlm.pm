@@ -37,7 +37,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # $Id$
 #
 
@@ -88,34 +87,37 @@ my $err;
 #
 sub connect_hp {
 	my $hp = new JazzHands::HOTPants(
-        	dbuser => 'hotpants',
+		dbuser        => 'hotpants',
 		encryptionmap => '/etc/tokenmap.json',
-        	debug => 2
+		debug         => 2
 	);
 	return $hp;
 }
 
 sub find_client {
-	my $client = $RAD_REQUEST{"Packet-Src-IP-Address"} || $RAD_REQUEST{'Tmp-IP-Address-0'};
-	if(!$client) {
-		radiusd::radlog( 4, "Unable to find callers IP");
+	my $client =
+	  $RAD_REQUEST{"Packet-Src-IP-Address"} || $RAD_REQUEST{'Tmp-IP-Address-0'};
+	if ( !$client ) {
+		radiusd::radlog( 4, "Unable to find callers IP" );
 		return RLM_MODULE_FAIL;
 	}
 
 	# XXX - need to make this be a DB lookup
 	my $hp = connect_hp();
 
-	if(!$hp) {
-		radiusd::radlog( 4, "Unable to connect". $JazzHands::HOTPants::errstr);
+	if ( !$hp ) {
+		radiusd::radlog( 4,
+			"Unable to connect" . $JazzHands::HOTPants::errstr );
 		return RLM_MODULE_FAIL;
 	}
 
-	if($client && (my $rec = $hp->GetSharedSecret($client)) ) {
+	if ( $client && ( my $rec = $hp->GetSharedSecret($client) ) ) {
 		my $short = $rec->{hostname};
 		$short =~ s/\./_/g;
 		$RAD_REPLY{'FreeRADIUS-Client-IP-Address'} = $client;
-		$RAD_REPLY{'FreeRADIUS-Client-Shortname'} = $short;
-		$RAD_REPLY{'FreeRADIUS-Client-Secret'} = $rec->{'secret'};
+		$RAD_REPLY{'FreeRADIUS-Client-Shortname'}  = $short;
+		$RAD_REPLY{'FreeRADIUS-Client-Secret'}     = $rec->{'secret'};
+
 		# $RAD_REPLY{'FreeRADIUS-Client-NAS-Type'} = 'other';
 		$RAD_REPLY{'FreeRADIUS-Client-Virtual-Server'} = 'HOTPants';
 		return RLM_MODULE_OK;
@@ -127,17 +129,20 @@ sub find_client {
 
 # Function to handle authorize
 sub authorize {
+
 	# This call is used to authorize the host.  Basically return the
 	# correct shared secret
-	if ( $RAD_REQUEST{"Packet-Src-IP-Address"} || $RAD_REQUEST{'Tmp-IP-Address-0'} ) {
+	if (   $RAD_REQUEST{"Packet-Src-IP-Address"}
+		|| $RAD_REQUEST{'Tmp-IP-Address-0'} )
+	{
 		return find_client();
 	}
 
-	if (       !$RAD_REQUEST{"JH-Application-Name"}
+	if (   !$RAD_REQUEST{"JH-Application-Name"}
 		&& !$RAD_REQUEST{"NAS-IP-Address"} )
 	{
 		radiusd::radlog( 4,
-"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded"
+			"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded"
 		);
 		return RLM_MODULE_FAIL;
 	}
@@ -158,13 +163,12 @@ sub authorize {
 		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
 	}
 	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
-		$authreqstr .=
-		  " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
+		$authreqstr .= " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
 	}
 
 	my $hp = connect_hp();
 	if ( $err = $hp->opendb ) {
-		radiusd::radlog( 4, "biteme: ".$err );
+		radiusd::radlog( 4, "biteme: " . $err );
 		exit RLM_MODULE_FAIL;
 	}
 
@@ -175,8 +179,7 @@ sub authorize {
 			$hp->closedb;
 			return RLM_MODULE_FAIL;
 		} else {
-			radiusd::radlog( 2,
-				sprintf( "%s: unknown client", $authreqstr ) );
+			radiusd::radlog( 2, sprintf( "%s: unknown client", $authreqstr ) );
 			$hp->closedb;
 			return RLM_MODULE_REJECT;
 		}
@@ -185,8 +188,7 @@ sub authorize {
 	my $user;
 	if ( !( $user = $hp->fetch_user( login => $login ) ) ) {
 		if ( !$hp->Error ) {
-			radiusd::radlog( 2,
-				sprintf( "%s: unknown user", $authreqstr ) );
+			radiusd::radlog( 2, sprintf( "%s: unknown user", $authreqstr ) );
 			$RAD_REPLY{"Reply-Message"} = "Login incorrect";
 			return RLM_MODULE_REJECT;
 		} else {
@@ -213,11 +215,11 @@ sub authorize {
 
 # Function to handle authenticate
 sub authenticate {
-	if (       !$RAD_REQUEST{"JH-Application-Name"}
+	if (   !$RAD_REQUEST{"JH-Application-Name"}
 		&& !$RAD_REQUEST{"NAS-IP-Address"} )
 	{
 		radiusd::radlog( 4,
-"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded"
+			"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded"
 		);
 		return RLM_MODULE_FAIL;
 	}
@@ -241,8 +243,7 @@ sub authenticate {
 		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
 	}
 	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
-		$authreqstr .=
-		  " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
+		$authreqstr .= " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
 	}
 
 	my $hp = connect_hp();
@@ -264,8 +265,7 @@ sub authenticate {
 			$hp->closedb;
 			return RLM_MODULE_FAIL;
 		} else {
-			radiusd::radlog( 2,
-				sprintf( "%s: unknown client", $authreqstr ) );
+			radiusd::radlog( 2, sprintf( "%s: unknown client", $authreqstr ) );
 			$hp->closedb;
 			return RLM_MODULE_REJECT;
 		}
@@ -274,8 +274,7 @@ sub authenticate {
 	my $user;
 	if ( !( $user = $hp->fetch_user( login => $login ) ) ) {
 		if ( !$hp->Error ) {
-			radiusd::radlog( 2,
-				sprintf( "unknown user", $authreqstr ) );
+			radiusd::radlog( 2, sprintf( "unknown user", $authreqstr ) );
 			$hp->closedb;
 			return RLM_MODULE_REJECT;
 		} else {
@@ -287,8 +286,7 @@ sub authenticate {
 
 	if ( !$hp->VerifyUser( user => $user ) ) {
 		if ( $hp->Error ) {
-			radiusd::radlog( 2,
-				sprintf( "%s: %s", $authreqstr, $hp->Error ) );
+			radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $hp->Error ) );
 		}
 		$hp->closedb;
 		return RLM_MODULE_REJECT;
@@ -312,9 +310,7 @@ sub authenticate {
 		if ( !$success ) {
 			my $err = $hp->Error;
 			if ($err) {
-				radiusd::radlog( 2,
-					sprintf( "%s: %s", $authreqstr, $err )
-				);
+				radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $err ) );
 			}
 			$err = $hp->UserError;
 			if ($err) {
@@ -325,8 +321,7 @@ sub authenticate {
 		}
 		my $status = $hp->Status;
 		if ($status) {
-			radiusd::radlog( 2,
-				sprintf( "%s: %s", $authreqstr, $status ) );
+			radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $status ) );
 		}
 	}
 

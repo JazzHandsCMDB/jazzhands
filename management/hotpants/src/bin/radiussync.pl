@@ -121,10 +121,10 @@ if ($synctokens) {
 				next;
 			}
 
-		   #
-		   # If there was not an error and we didn't fetch a token, then
-		   # it must be a new token.  Write it.
-		   #
+			#
+			# If there was not an error and we didn't fetch a token, then
+			# it must be a new token.  Write it.
+			#
 			if ( $verbose > 1 ) {
 				printf STDERR
 				  "Writing new token %08x to local DB.\n",
@@ -132,7 +132,7 @@ if ($synctokens) {
 			}
 			if ( !( $hp->put_token( token => $token ) ) ) {
 				printf STDERR
-"Error writing token %08x to HP database: %s\n",
+				  "Error writing token %08x to HP database: %s\n",
 				  $token->{token_id}, $hp->Error;
 			}
 			next;
@@ -140,38 +140,34 @@ if ($synctokens) {
 		my $token_changed   = 0;
 		my $hptoken_changed = 0;
 
-	  #
-	  # The sequence_changed timestamp (probably really should be
-	  # sequence_reset_timestamp) is only updated when it is changed
-	  # administratively, usually when the token is reloaded and it is reset
-	  # to zero, although it can also happen if the sequence gets out of
-	  # whack and needs to jump way ahead.  Otherwise, believe whatever the
-	  # largest sequence number is.
-	  #
+		#
+		# The sequence_changed timestamp (probably really should be
+		# sequence_reset_timestamp) is only updated when it is changed
+		# administratively, usually when the token is reloaded and it is reset
+		# to zero, although it can also happen if the sequence gets out of
+		# whack and needs to jump way ahead.  Otherwise, believe whatever the
+		# largest sequence number is.
+		#
 
-		if (
-			( $token->{sequence} > $hptoken->{sequence} )
-			|| ( $token->{sequence_changed} >
-				$hptoken->{sequence_changed} )
-		  )
+		if (   ( $token->{sequence} > $hptoken->{sequence} )
+			|| ( $token->{sequence_changed} > $hptoken->{sequence_changed} ) )
 		{
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Updating token %08x from sequence %d to %d\n",
+				  "Updating token %08x from sequence %d to %d\n",
 				  $hptoken->{token_id}, $hptoken->{sequence},
 				  $token->{sequence};
 			}
 
 			# Make sure the key is the same
-			$hptoken->{key}      = $token->{key};
-			$hptoken->{sequence} = $token->{sequence};
-			$hptoken->{sequence_changed} =
-			  $token->{sequence_changed};
+			$hptoken->{key}              = $token->{key};
+			$hptoken->{sequence}         = $token->{sequence};
+			$hptoken->{sequence_changed} = $token->{sequence_changed};
 			$hptoken_changed++;
 		} elsif ( $token->{sequence} < $hptoken->{sequence} ) {
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Updating token %08x from sequence %d to %d in database\n",
+				  "Updating token %08x from sequence %d to %d in database\n",
 				  $token->{token_id}, $token->{sequence},
 				  $hptoken->{sequence};
 			}
@@ -194,9 +190,9 @@ if ($synctokens) {
 		# Check the various lock parameters
 		#
 
-	       #
-	       # If the token is no longer assigned, then reset the local status
-	       #
+		#
+		# If the token is no longer assigned, then reset the local status
+		#
 		if ( !$token->{user_id} && $hptoken->{lock_status_changed} ) {
 			$hptoken->{token_locked}        = 0;
 			$hptoken->{bad_logins}          = 0;
@@ -205,15 +201,15 @@ if ($synctokens) {
 			$hptoken_changed++;
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Resetting lock parameters for unassigned token %08x in local db.\n",
+				  "Resetting lock parameters for unassigned token %08x in local db.\n",
 				  $token->{token_id};
 			}
-		} elsif ( $token->{lock_status_changed} <
-			$hptoken->{lock_status_changed} )
+		} elsif (
+			$token->{lock_status_changed} < $hptoken->{lock_status_changed} )
 		{
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Updating lock parameters for token %08x in JazzHands: locked %s -> %d, bad logins: %d -> %d, unlock_time: %d -> %d\n",
+				  "Updating lock parameters for token %08x in JazzHands: locked %s -> %d, bad logins: %d -> %d, unlock_time: %d -> %d\n",
 				  $token->{token_id},
 				  $token->{token_locked},
 				  $hptoken->{token_locked},
@@ -224,12 +220,11 @@ if ($synctokens) {
 			if (
 				JazzHands::Management::Token::SetTokenLockStatus(
 					$dbh,
-					token_id    => $hptoken->{token_id},
-					locked      => $hptoken->{token_locked},
-					bad_logins  => $hptoken->{bad_logins},
-					unlock_time => $hptoken->{unlock_time},
-					lock_status_changed =>
-					  $hptoken->{lock_status_changed}
+					token_id            => $hptoken->{token_id},
+					locked              => $hptoken->{token_locked},
+					bad_logins          => $hptoken->{bad_logins},
+					unlock_time         => $hptoken->{unlock_time},
+					lock_status_changed => $hptoken->{lock_status_changed}
 				)
 			  )
 			{
@@ -237,18 +232,17 @@ if ($synctokens) {
 				  "Error setting token lock parameters: %s\n",
 				  $JazzHands::Management::Errmsg;
 			}
-		} elsif ( $token->{lock_status_changed} >
-			$hptoken->{lock_status_changed} )
+		} elsif (
+			$token->{lock_status_changed} > $hptoken->{lock_status_changed} )
 		{
-			$hptoken->{token_locked} = $token->{token_locked};
-			$hptoken->{bad_logins}   = $token->{bad_logins};
-			$hptoken->{unlock_time}  = $token->{unlock_time};
-			$hptoken->{lock_status_changed} =
-			  $token->{lock_status_changed};
+			$hptoken->{token_locked}        = $token->{token_locked};
+			$hptoken->{bad_logins}          = $token->{bad_logins};
+			$hptoken->{unlock_time}         = $token->{unlock_time};
+			$hptoken->{lock_status_changed} = $token->{lock_status_changed};
 			$hptoken_changed++;
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Updating lock parameters for token %08x in local db: locked %d -> %s, bad logins: %d -> %d, unlock_time: %s -> %s\n",
+				  "Updating lock parameters for token %08x in local db: locked %d -> %s, bad logins: %d -> %d, unlock_time: %s -> %s\n",
 				  $token->{token_id},
 				  $hptoken->{token_locked},
 				  $token->{token_locked},
@@ -257,47 +251,44 @@ if ($synctokens) {
 				  ? scalar( localtime( $token->{unlock_time} ) )
 				  : "Never",
 				  $token->{unlock_time}
-				  ? scalar(
-					localtime( $hptoken->{unlock_time} ) )
+				  ? scalar( localtime( $hptoken->{unlock_time} ) )
 				  : "Never";
 			}
 		}
 
-	 #
-	 # All of the other token parameters are only pulled from the database,
-	 # and are essentially read-only.
-	 #
-	 # Time skew is not handled properly right now.  There needs to be a
-	 # 'skew_last_updated' parameter added at some point.  Turns out,
-	 # that isn't now, since we really don't handle time-based tokens, well,
-	 # at all.
-	 #
+		#
+		# All of the other token parameters are only pulled from the database,
+		# and are essentially read-only.
+		#
+		# Time skew is not handled properly right now.  There needs to be a
+		# 'skew_last_updated' parameter added at some point.  Turns out,
+		# that isn't now, since we really don't handle time-based tokens, well,
+		# at all.
+		#
 
 		if ( $token->{token_changed} > $hptoken->{token_changed} ) {
 			if ( $hptoken->{type} != $token->{type} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from type %d to %d\n",
+					  "Updating token %08x from type %d to %d\n",
 					  $hptoken->{token_id},
 					  $hptoken->{type}, $token->{type};
 				}
 				$hptoken->{type} = $token->{type};
 			}
-			if ( $token->{pin} && $hptoken->{pin} ne $token->{pin} )
-			{
+			if ( $token->{pin} && $hptoken->{pin} ne $token->{pin} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from PIN %s to %s\n",
+					  "Updating token %08x from PIN %s to %s\n",
 					  $hptoken->{token_id}, $hptoken->{pin},
 					  $token->{pin};
 				}
 				$hptoken->{pin} = $token->{pin};
 			}
-			if ( $token->{key} && $hptoken->{key} ne $token->{key} )
-			{
+			if ( $token->{key} && $hptoken->{key} ne $token->{key} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x key <omitted> to <omitted>\n",
+					  "Updating token %08x key <omitted> to <omitted>\n",
 					  $hptoken->{token_id};
 				}
 				$hptoken->{pin} = $token->{pin};
@@ -305,7 +296,7 @@ if ($synctokens) {
 			if ( $hptoken->{status} != $token->{status} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from status %d to %d\n",
+					  "Updating token %08x from status %d to %d\n",
 					  $hptoken->{token_id},
 					  $hptoken->{status},
 					  $token->{status};
@@ -315,7 +306,7 @@ if ($synctokens) {
 			if ( $hptoken->{serial} ne $token->{serial} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from serial %s to %s\n",
+					  "Updating token %08x from serial %s to %s\n",
 					  $hptoken->{token_id},
 					  $hptoken->{serial},
 					  $token->{serial};
@@ -325,29 +316,27 @@ if ($synctokens) {
 			if ( $hptoken->{zero_time} != $token->{zero_time} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from zero_time %d to %d\n",
+					  "Updating token %08x from zero_time %d to %d\n",
 					  $hptoken->{token_id},
 					  $hptoken->{zero_time},
 					  $token->{zero_time};
 				}
 				$hptoken->{zero_time} = $token->{zero_time};
 			}
-			if ( $hptoken->{time_modulo} != $token->{time_modulo} )
-			{
+			if ( $hptoken->{time_modulo} != $token->{time_modulo} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from time_modulo %d to %d\n",
+					  "Updating token %08x from time_modulo %d to %d\n",
 					  $hptoken->{token_id},
 					  $hptoken->{time_modulo},
 					  $token->{time_modulo};
 				}
 				$hptoken->{time_modulo} = $token->{time_modulo};
 			}
-			if ( $hptoken->{skew_sequence} != $token->{time_skew} )
-			{
+			if ( $hptoken->{skew_sequence} != $token->{time_skew} ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating token %08x from skew_sequence %d to %d\n",
+					  "Updating token %08x from skew_sequence %d to %d\n",
 					  $hptoken->{token_id},
 					  $hptoken->{skew_sequence},
 					  $token->{time_skew};
@@ -361,7 +350,7 @@ if ($synctokens) {
 		if ($token_changed) {
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Committing changes to token %08x to JazzHands\n",
+				  "Committing changes to token %08x to JazzHands\n",
 				  $token->{token_id};
 			}
 			$dbh->commit;
@@ -369,25 +358,25 @@ if ($synctokens) {
 		if ($hptoken_changed) {
 			if ( $verbose > 1 ) {
 				printf STDERR
-"Committing changes to token %08x to local database\n",
+				  "Committing changes to token %08x to local database\n",
 				  $hptoken->{token_id};
 			}
 			if ( !( $hp->put_token( token => $token ) ) ) {
 				printf STDERR
-"Error writing token %08x to HP database: %s\n",
+				  "Error writing token %08x to HP database: %s\n",
 				  $token->{token_id}, $hp->Error;
 			}
 		}
 	}
 
-      #
-      # At this point, we've pushed all changes from JazzHands down, but now we
-      # need to determine if any tokens need to be deleted.  We don't worry
-      # at this point if the token is assigned to a user, since that will get
-      # cleaned up below.  If the user does try to authenticate with a token
-      # between here and below, things will fail correctly, as the token doesn't
-      # actually exist.
-      #
+	#
+	# At this point, we've pushed all changes from JazzHands down, but now we
+	# need to determine if any tokens need to be deleted.  We don't worry
+	# at this point if the token is assigned to a user, since that will get
+	# cleaned up below.  If the user does try to authenticate with a token
+	# between here and below, things will fail correctly, as the token doesn't
+	# actually exist.
+	#
 
 	my $hptokens;
 	if ( !defined( $hptokens = $hp->fetch_all_tokens ) ) {
@@ -397,8 +386,7 @@ if ($synctokens) {
 
 	foreach my $tokenid ( keys %$hptokens ) {
 		if ( !$tokens->{$tokenid} ) {
-			printf STDERR
-			  "Deleting token %08x from local database\n", $tokenid
+			printf STDERR "Deleting token %08x from local database\n", $tokenid
 			  if $verbose > 1;
 			$hp->delete_token( tokenid => $tokenid );
 		}
@@ -410,8 +398,7 @@ if ($synctokens) {
 #
 
 if ($syncusers) {
-	my $usertokens =
-	  JazzHands::Management::Token::GetAllTokenAssignments($dbh);
+	my $usertokens = JazzHands::Management::Token::GetAllTokenAssignments($dbh);
 	if ( !defined($usertokens) ) {
 		print STDERR $JazzHands::Management::Errmsg . "\n";
 		exit 1;
@@ -433,13 +420,11 @@ if ($syncusers) {
 		)
 	  )
 	{
-		printf STDERR "Error preparing database query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error preparing database query: %s\n", $dbh->errstr;
 		exit -1;
 	}
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing user query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error executing user query: %s\n", $dbh->errstr;
 		exit -1;
 	}
 
@@ -480,8 +465,7 @@ if ($syncusers) {
 		exit -1;
 	}
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing database query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error executing database query: %s\n", $dbh->errstr;
 		exit -1;
 	}
 
@@ -514,13 +498,11 @@ if ($syncusers) {
 		)
 	  )
 	{
-		printf STDERR "Error preparing database query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error preparing database query: %s\n", $dbh->errstr;
 		exit -1;
 	}
 
-	printf STDERR "Updating %d users.\n",
-	  scalar( keys %{ $jhuser->{byuid} } )
+	printf STDERR "Updating %d users.\n", scalar( keys %{ $jhuser->{byuid} } )
 	  if $verbose;
 	foreach my $userid ( keys %{ $jhuser->{byuid} } ) {
 
@@ -538,8 +520,7 @@ if ($syncusers) {
 		}
 
 		my $hpuser;
-		if ( !( $hpuser = $hp->fetch_user( login => $user->{login} ) ) )
-		{
+		if ( !( $hpuser = $hp->fetch_user( login => $user->{login} ) ) ) {
 			my $err = $hp->Error;
 			if ($err) {
 				printf STDERR
@@ -565,7 +546,7 @@ if ($syncusers) {
 				push @{ $hpuser->{tokens} }, $token->{token_id};
 			}
 			printf STDERR
-"Inserting user %s into local database, tokenids: %s\n",
+			  "Inserting user %s into local database, tokenids: %s\n",
 			  $hpuser->{login}, ( join ",", @{ $hpuser->{tokens} } )
 			  if $verbose > 1;
 			if ( !( $hp->put_user($hpuser) ) ) {
@@ -576,15 +557,15 @@ if ($syncusers) {
 			}
 		} else {
 
-		#
-		# Update user parameters, if needed.  All user parameters except
-		# last login are only updated downstream.
-		#
+			#
+			# Update user parameters, if needed.  All user parameters except
+			# last login are only updated downstream.
+			#
 			my $hpuser_updated = 0;
 			if ( $hpuser->{status} != $status ) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating user %s from status %d to %d\n",
+					  "Updating user %s from status %d to %d\n",
 					  $hpuser->{login}, $hpuser->{status},
 					  $status;
 				}
@@ -593,13 +574,9 @@ if ($syncusers) {
 			}
 
 			if (
-				(
-					  !$user->{last_login}
-					&& $hpuser->{last_login}
-				)
-				|| (       $hpuser->{last_login}
-					&& $hpuser->{last_login} >
-					$user->{last_login} )
+				( !$user->{last_login} && $hpuser->{last_login} )
+				|| (   $hpuser->{last_login}
+					&& $hpuser->{last_login} > $user->{last_login} )
 			  )
 			{
 				my ( $sec, $min, $hour, $mday, $mon, $year ) =
@@ -611,7 +588,7 @@ if ($syncusers) {
 				);
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Updating user last login for %s to %s\n",
+					  "Updating user last login for %s to %s\n",
 					  $hpuser->{login}, $lastlog;
 				}
 				$sth->bind_param( ':userid',   $userid );
@@ -619,7 +596,7 @@ if ($syncusers) {
 				$sth->bind_param( ':lastlog',  $lastlog );
 				if ( !( $sth->execute ) ) {
 					printf STDERR
-"Error executing database query: %s\n",
+					  "Error executing database query: %s\n",
 					  $dbh->errstr;
 					exit -1;
 				}
@@ -633,13 +610,12 @@ if ($syncusers) {
 			my @tokenlist;
 			if ( $usertokens->{$userid} ) {
 				@tokenlist =
-				  map { $_->{token_id} }
-				  @{ $usertokens->{$userid} };
+				  map { $_->{token_id} } @{ $usertokens->{$userid} };
 			}
 
-	    #
-	    # If we don't have the same number of tokens, they obviously differ.
-	    #
+			#
+			# If we don't have the same number of tokens, they obviously differ.
+			#
 			if ( @tokenlist == @{ $hpuser->{tokens} } ) {
 				my @tokarray1 = sort @tokenlist;
 				my @tokarray2 = sort @{ $hpuser->{tokens} };
@@ -657,37 +633,37 @@ if ($syncusers) {
 			if ($changed) {
 				if ( $verbose > 1 ) {
 					printf STDERR
-"Tokens for user %s changed from (%s) to (%s)\n",
+					  "Tokens for user %s changed from (%s) to (%s)\n",
 					  $hpuser->{login},
 					  join( ",", @{ $hpuser->{tokens} } ),
 					  join( ",", @tokenlist );
 				}
 
-		 #
-		 # Note, this just changes the reference.  You really don't want
-		 # to modify $user->{tokens} after this.  Just sayin'.
-		 #
+				#
+				# Note, this just changes the reference.  You really don't want
+				# to modify $user->{tokens} after this.  Just sayin'.
+				#
 				$hpuser->{tokens} = \@tokenlist;
 				$hpuser_updated++;
 			}
 
 			if ($hpuser_updated) {
 				printf STDERR
-"Updating user %s into local database, tokenids: %s\n",
+				  "Updating user %s into local database, tokenids: %s\n",
 				  $user->{login}, ( join ",", @tokenlist )
 				  if $verbose > 1;
 				if ( !( $hp->put_user($hpuser) ) ) {
 					printf STDERR
-"Error writing user %s to local database: %s",
+					  "Error writing user %s to local database: %s",
 					  $user->{login}, $hp->Error;
 				}
 			}
 		}
 	}
 
-    # At this point, every user who is in JazzHands has been synchronized, but
-    # we need to make a pass through to ensure that we don't have any users in
-    # the database who aren't in JazzHands because they were purged or whatever.
+	# At this point, every user who is in JazzHands has been synchronized, but
+	# we need to make a pass through to ensure that we don't have any users in
+	# the database who aren't in JazzHands because they were purged or whatever.
 
 	my $hpusers;
 	if ( !defined( $hpusers = $hp->fetch_all_users() ) ) {
@@ -698,8 +674,7 @@ if ($syncusers) {
 
 	foreach my $login ( keys %$hpusers ) {
 		if ( !$jhuser->{bylogin}->{$login} ) {
-			printf STDERR "Deleting user %s from local database.\n",
-			  $login
+			printf STDERR "Deleting user %s from local database.\n", $login
 			  if $verbose > 1;
 			$hp->delete_user($login);
 		}
@@ -735,25 +710,19 @@ if ($syncclients) {
 	};
 
 	if ( !( $sth = $dbh->prepare($q) ) ) {
-		printf STDERR "Error preparing IP-to-devcoll query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error preparing IP-to-devcoll query: %s\n", $dbh->errstr;
 		exit 1;
 	}
 
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing IP-to-devcoll query: %s\n",
-		  $sth->errstr;
+		printf STDERR "Error executing IP-to-devcoll query: %s\n", $sth->errstr;
 		exit 1;
 	}
 
 	my $clients = {};
 	while (
-		my (
-			$devid,       $devname,     $devcollid,
-			$devcollname, $devcolltype, $ip
-		)
-		= $sth->fetchrow_array
-	  )
+		my ( $devid, $devname, $devcollid, $devcollname, $devcolltype, $ip ) =
+		$sth->fetchrow_array )
 	{
 
 		#
@@ -833,17 +802,11 @@ if ($syncclients) {
 		}
 
 		my $hpclient;
-		if (
-			!(
-				$hpclient =
-				$hp->fetch_client( client_id => $client_id )
-			)
-		  )
-		{
+		if ( !( $hpclient = $hp->fetch_client( client_id => $client_id ) ) ) {
 			my $err = $hp->Error;
 			if ($err) {
 				printf STDERR
-"Error fetching client %s from database: %s\n",
+				  "Error fetching client %s from database: %s\n",
 				  $client_id, $err;
 				exit 1;
 			}
@@ -856,7 +819,7 @@ if ($syncclients) {
 			  if $verbose > 1;
 			if ( !( $hp->put_client($client) ) ) {
 				printf STDERR
-"Error writing client %s (%s) to local database: %s\n",
+				  "Error writing client %s (%s) to local database: %s\n",
 				  $client_id,
 				  $client->{name},
 				  $hp->Error;
@@ -866,14 +829,13 @@ if ($syncclients) {
 
 		my $changed = 0;
 
-		foreach my $field ( "name", "devcoll_id", "devcoll_name",
-			"devcoll_type" )
+		foreach
+		  my $field ( "name", "devcoll_id", "devcoll_name", "devcoll_type" )
 		{
 			if ( $hpclient->{$field} ne $client->{$field} ) {
 				printf STDERR
 				  "Client %s changed %s from %s to %s\n",
-				  $client_id,
-				  $field, $hpclient->{$field}, $client->{$field}
+				  $client_id, $field, $hpclient->{$field}, $client->{$field}
 				  if $verbose > 1;
 				$changed++;
 			}
@@ -885,7 +847,7 @@ if ($syncclients) {
 			  if $verbose > 1;
 			if ( !( $hp->put_client($client) ) ) {
 				printf STDERR
-"Error writing client %s (%s) to local database: %s\n",
+				  "Error writing client %s (%s) to local database: %s\n",
 				  $client_id,
 				  $client->{name},
 				  $hp->Error;
@@ -932,14 +894,12 @@ if ($syncdevcollprops) {
 	};
 
 	if ( !( $sth = $dbh->prepare($q) ) ) {
-		printf STDERR "Error preparing devcoll prop query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error preparing devcoll prop query: %s\n", $dbh->errstr;
 		exit 1;
 	}
 
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing devcoll prop query: %s\n",
-		  $sth->errstr;
+		printf STDERR "Error executing devcoll prop query: %s\n", $sth->errstr;
 		exit 1;
 	}
 
@@ -969,19 +929,17 @@ if ($syncdevcollprops) {
 			my $err = $hp->Error;
 			if ($err) {
 				printf STDERR
-"Error fetching devcollprop for %d from database: %s\n",
+				  "Error fetching devcollprop for %d from database: %s\n",
 				  $devcollid, $err;
 				exit 1;
 			}
 
 			printf STDERR
-			  "Inserting devcollprop for %d into local database\n",
-			  $devcollid
+			  "Inserting devcollprop for %d into local database\n", $devcollid
 			  if $verbose > 1;
-			if ( !( $hp->put_devcollprop( $props->{$devcollid} ) ) )
-			{
+			if ( !( $hp->put_devcollprop( $props->{$devcollid} ) ) ) {
 				printf STDERR
-"Error writing devcollprop for %d to local database: %s\n",
+				  "Error writing devcollprop for %d to local database: %s\n",
 				  $devcollid,
 				  $hp->Error;
 			}
@@ -994,20 +952,18 @@ if ($syncdevcollprops) {
 			if ( $hpprop->{$field} ne $prop->{$field} ) {
 				printf STDERR
 				  "%d: property changed %s from %s to %s\n",
-				  $devcollid,
-				  $field, $hpprop->{$field}, $prop->{$field}
+				  $devcollid, $field, $hpprop->{$field}, $prop->{$field}
 				  if $verbose > 1;
 				$changed++;
 			}
 		}
 
 		if ($changed) {
-			printf STDERR "Updating properties for devcoll %d\n",
-			  $devcollid
+			printf STDERR "Updating properties for devcoll %d\n", $devcollid
 			  if $verbose > 1;
 			if ( !( $hp->put_devcollprop($prop) ) ) {
 				printf STDERR
-"Error writing devcollprop for %d to local database: %s\n",
+				  "Error writing devcollprop for %d to local database: %s\n",
 				  $devcollid,
 				  $hp->Error;
 			}
@@ -1028,8 +984,7 @@ if ($syncdevcollprops) {
 	foreach my $devcollid ( keys %$hpprops ) {
 		if ( !$props->{$devcollid} ) {
 			printf STDERR
-			  "Deleting devcoll %d from local database.\n",
-			  $devcollid
+			  "Deleting devcoll %d from local database.\n", $devcollid
 			  if $verbose > 1;
 			$hp->delete_devcollprop($devcollid);
 		}
@@ -1055,14 +1010,12 @@ if ($syncpasswds) {
 	};
 
 	if ( !( $sth = $dbh->prepare($q) ) ) {
-		printf STDERR "Error preparing passwd query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error preparing passwd query: %s\n", $dbh->errstr;
 		exit 1;
 	}
 
 	if ( !( $sth->execute ) ) {
-		print STDERR "Error executing passwd query: %s",
-		  $sth->errstr;
+		print STDERR "Error executing passwd query: %s", $sth->errstr;
 		exit 1;
 	}
 
@@ -1081,8 +1034,7 @@ if ($syncpasswds) {
 	}
 	$sth->finish;
 
-	printf STDERR "Updating passwords for %d users.\n",
-	  scalar( keys %$passwds )
+	printf STDERR "Updating passwords for %d users.\n", scalar( keys %$passwds )
 	  if $verbose;
 
 	foreach my $login ( keys %{$passwds} ) {
@@ -1094,18 +1046,17 @@ if ($syncpasswds) {
 			my $err = $hp->Error;
 			if ($err) {
 				printf STDERR
-"Error fetching passwd for %s from database: %s\n",
+				  "Error fetching passwd for %s from database: %s\n",
 				  $login, $err;
 				exit 1;
 			}
 
 			printf STDERR
-			  "Inserting passwd for %s into local database\n",
-			  $login
+			  "Inserting passwd for %s into local database\n", $login
 			  if $verbose > 1;
 			if ( !( $hp->put_passwd( $login, $passwd ) ) ) {
 				printf STDERR
-"Error writing passwd for %s to local database: %s\n",
+				  "Error writing passwd for %s to local database: %s\n",
 				  $login,
 				  $hp->Error;
 			}
@@ -1122,39 +1073,31 @@ if ($syncpasswds) {
 		if ( keys %$hppasswd == keys %$passwd ) {
 			foreach my $type ( keys %$passwd ) {
 				if ( $hppasswd->{$type} ) {
-					foreach
-					  my $field ( "passwd", "change_time",
-						"expire_time" )
+					foreach my $field ( "passwd", "change_time", "expire_time" )
 					{
-						if ( $hppasswd->{$type}
-							->{$field} ne
-							$passwd->{$type}
-							->{$field} )
+						if ( $hppasswd->{$type}->{$field} ne
+							$passwd->{$type}->{$field} )
 						{
 							printf STDERR
-"passwd type %s for user %s changed %s from %s to %s\n",
+							  "passwd type %s for user %s changed %s from %s to %s\n",
 							  $type,
 							  $login,
 							  $field,
-							  $hppasswd->{$type}
-							  ->{$field},
-							  $passwd->{$type}
-							  ->{$field}
+							  $hppasswd->{$type}->{$field},
+							  $passwd->{$type}->{$field}
 							  if $verbose > 1;
 							$changed++;
 						}
 					}
 				} else {
 					printf STDERR
-					  "New password type %s for %s.\n",
-					  $type, $login
+					  "New password type %s for %s.\n", $type, $login
 					  if $verbose > 1;
 					$changed++;
 				}
 			}
 		} else {
-			printf STDERR
-			  "Different number of password types for %s.\n", $login
+			printf STDERR "Different number of password types for %s.\n", $login
 			  if $verbose > 1;
 			$changed++;
 		}
@@ -1164,7 +1107,7 @@ if ($syncpasswds) {
 			  if $verbose > 1;
 			if ( !( $hp->put_passwd( $login, $passwd ) ) ) {
 				printf STDERR
-"Error writing passwd for %s to local database: %s\n",
+				  "Error writing passwd for %s to local database: %s\n",
 				  $login,
 				  $hp->Error;
 			}
@@ -1183,8 +1126,7 @@ if ($syncpasswds) {
 	foreach my $login ( keys %$hppasswds ) {
 		if ( !defined( $passwds->{$login} ) ) {
 			printf STDERR
-			  "Deleting passwd for %s from local database.\n",
-			  $login
+			  "Deleting passwd for %s from local database.\n", $login
 			  if $verbose > 1;
 			$hp->delete_passwd($login);
 		}
@@ -1215,28 +1157,26 @@ if ($syncattrs) {
 			Property_Type = 'RADIUS')
 	};
 
-       #
-       # The way the attribute view works is this:
-       #
-       # Rows are ordered so that the first attribute in a user/uclass/name/type
-       # tuple takes precendence.  If the attribute is single-valued, then
-       # the first attribute is the daddy.  If it is multi-valued, then all
-       # values for the tuple are put into an array, elmininating duplicates.
-       #
-       # Since the view expands all uclass, department, and device_collection
-       # hierarchies, there can be a *lot* of values.  We are reducing this
-       # somewhat by only caring about attributes given to 'radius_app' type
-       # device collections, or specific RADIUS attributes.
-       #
+	#
+	# The way the attribute view works is this:
+	#
+	# Rows are ordered so that the first attribute in a user/uclass/name/type
+	# tuple takes precendence.  If the attribute is single-valued, then
+	# the first attribute is the daddy.  If it is multi-valued, then all
+	# values for the tuple are put into an array, elmininating duplicates.
+	#
+	# Since the view expands all uclass, department, and device_collection
+	# hierarchies, there can be a *lot* of values.  We are reducing this
+	# somewhat by only caring about attributes given to 'radius_app' type
+	# device collections, or specific RADIUS attributes.
+	#
 	if ( !( $sth = $dbh->prepare($q) ) ) {
-		printf STDERR "Error preparing attribute query: %s\n",
-		  $dbh->errstr;
+		printf STDERR "Error preparing attribute query: %s\n", $dbh->errstr;
 		exit 1;
 	}
 
 	if ( !( $sth->execute ) ) {
-		printf STDERR "Error executing attribute query: %s\n",
-		  $sth->errstr;
+		printf STDERR "Error executing attribute query: %s\n", $sth->errstr;
 		exit 1;
 	}
 
@@ -1261,9 +1201,9 @@ if ($syncattrs) {
 			$proptype = '__HOTPANTS_INTERNAL';
 		}
 
-	      # process things that are completely stupid, like the
-	      # cisco-avpair-shell attribute, which is itself an attribute-value
-	      # pair
+		# process things that are completely stupid, like the
+		# cisco-avpair-shell attribute, which is itself an attribute-value
+		# pair
 
 		if ( $proptype eq 'RADIUS'
 			&& ( ( my $i = index( $propname, '=' ) ) >= 0 ) )
@@ -1293,19 +1233,17 @@ if ($syncattrs) {
 			}
 		}
 
-	     # Skip this if we already have an attribute and it's not multivalue
+		# Skip this if we already have an attribute and it's not multivalue
 
 		if ( defined( $attribute->{value} ) ) {
 			if ( !$multivalue ) {
 				printf STDERR
-"Skipping attr %s, type %s for devcoll %d for user %s because it is already assigned and not multivalue",
+				  "Skipping attr %s, type %s for devcoll %d for user %s because it is already assigned and not multivalue",
 				  $propname, $proptype, $devcollid, $login
 				  if $verbose > 2;
 				next;
 			} else {
-				if ( !grep { $_ eq $propval }
-					@{ $attribute->{value} } )
-				{
+				if ( !grep { $_ eq $propval } @{ $attribute->{value} } ) {
 					push @{ $attribute->{value} }, $propval;
 				}
 				next;
@@ -1336,13 +1274,13 @@ if ($syncattrs) {
 			my $err = $hp->Error;
 			if ($err) {
 				printf STDERR
-"Error fetching attributes for %s, devcoll %d from database: %s\n",
+				  "Error fetching attributes for %s, devcoll %d from database: %s\n",
 				  $login, $devcollid, $err;
 				exit 1;
 			}
 
 			printf STDERR
-"Inserting attributes for %s, devcoll %d into local database\n",
+			  "Inserting attributes for %s, devcoll %d into local database\n",
 			  $login, $devcollid
 			  if $verbose > 1;
 			if (
@@ -1355,7 +1293,7 @@ if ($syncattrs) {
 			  )
 			{
 				printf STDERR
-"Error writing attrbutes for %s, devcoll %d to local database: %s\n",
+				  "Error writing attrbutes for %s, devcoll %d to local database: %s\n",
 				  $login,
 				  $devcollid,
 				  $hp->Error;
@@ -1374,99 +1312,56 @@ if ($syncattrs) {
 			foreach my $type ( keys %$attr ) {
 				if ( $hpattr->{$type} ) {
 					if (
-						keys %{ $hpattr->{$type} } !=
-						keys %{ $attr->{$type} } )
+						keys %{ $hpattr->{$type} } != keys %{ $attr->{$type} } )
 					{
 						printf STDERR
-"Different number of attributes of type %s for %s, devcoll %d\n",
+						  "Different number of attributes of type %s for %s, devcoll %d\n",
 						  $type,
 						  $login,
 						  $devcollid;
 						$changed++;
 						last;
 					}
-					foreach my $attrname (
-						keys %{ $attr->{$type} } )
-					{
-						if (
-							!defined(
-								$hpattr->{$type}
-								  ->{$attrname}
-							)
-						  )
-						{
+					foreach my $attrname ( keys %{ $attr->{$type} } ) {
+						if ( !defined( $hpattr->{$type}->{$attrname} ) ) {
 							printf STDERR
-"New attribute %s for %s, devcoll %d.\n",
-							  $attrname,
-							  $login, $devcollid
+							  "New attribute %s for %s, devcoll %d.\n",
+							  $attrname, $login, $devcollid
 							  if $verbose > 1;
 							$changed++;
 							last;
 						}
-						if ( $attr->{$type}->{$attrname}
-							->{multivalue} )
-						{
-							if ( !$hpattr->{$type}
-								->{$attrname}
-								->{multivalue} )
+						if ( $attr->{$type}->{$attrname}->{multivalue} ) {
+							if ( !$hpattr->{$type}->{$attrname}->{multivalue} )
 							{
 								$changed++;
 								last;
 							}
-							my $vals =
-							  $attr->{$type}
-							  ->{$attrname}
-							  ->{value};
-							my $hpvals =
-							  $hpattr->{$type}
-							  ->{$attrname}
-							  ->{value};
-							if ( @{$vals} !=
-								@{$hpvals} )
-							{
+							my $vals   = $attr->{$type}->{$attrname}->{value};
+							my $hpvals = $hpattr->{$type}->{$attrname}->{value};
+							if ( @{$vals} != @{$hpvals} ) {
 								$changed++;
 								last;
 							}
-							foreach
-							  my $val ( @{$vals} )
-							{
-								if (
-									!(
-										grep
-										$val,
-										@{
-											$hpvals
-										}
-									)
-								  )
-								{
+							foreach my $val ( @{$vals} ) {
+								if ( !( grep $val, @{ $hpvals } ) ) {
 									$changed++;
 									last;
 								}
 							}
 							last if $changed;
 						} else {
-							if ( $hpattr->{$type}
-								->{$attrname}
-								->{value} ne
-								$attr->{$type}
-								->{$attrname}
-								->{value} )
+							if ( $hpattr->{$type}->{$attrname}->{value} ne
+								$attr->{$type}->{$attrname}->{value} )
 							{
 								printf STDERR
-"%s: attr %s of type %s changed from %s to %s\n",
+								  "%s: attr %s of type %s changed from %s to %s\n",
 								  $login,
 								  $attrname,
 								  $type,
-								  $hpattr
-								  ->{$type}
-								  ->{$attrname}
-								  ->{value},
-								  $attr->{$type}
-								  ->{$attrname}
-								  ->{value}
-								  if $verbose >
-									  1;
+								  $hpattr->{$type}->{$attrname}->{value},
+								  $attr->{$type}->{$attrname}->{value}
+								  if $verbose > 1;
 								$changed++;
 								last;
 							}
@@ -1474,8 +1369,7 @@ if ($syncattrs) {
 					}
 				} else {
 					printf STDERR
-					  "New attribute type %s for %s.\n",
-					  $type, $login
+					  "New attribute type %s for %s.\n", $type, $login
 					  if $verbose > 1;
 					$changed++;
 					last;
@@ -1483,8 +1377,7 @@ if ($syncattrs) {
 			}
 		} else {
 			printf STDERR
-			  "Different number of attribute types for %s.\n",
-			  $login
+			  "Different number of attribute types for %s.\n", $login
 			  if $verbose > 1;
 			$changed++;
 		}
@@ -1502,7 +1395,7 @@ if ($syncattrs) {
 			  )
 			{
 				printf STDERR
-"Error writing attrbute for %s devcoll %d to local database: %s\n",
+				  "Error writing attrbute for %s devcoll %d to local database: %s\n",
 				  $login,
 				  $devcollid,
 				  $hp->Error;
@@ -1523,7 +1416,7 @@ if ($syncattrs) {
 	foreach my $key ( keys %$hpattrs ) {
 		if ( !$attributes->{$key} ) {
 			printf STDERR
-"Deleting attribute for %s devcoll %d from local database.\n",
+			  "Deleting attribute for %s devcoll %d from local database.\n",
 			  unpack( "Z*N", $key )
 			  if $verbose > 1;
 			$hp->delete_attributes( key => $key );
