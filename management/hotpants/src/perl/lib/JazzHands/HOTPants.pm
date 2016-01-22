@@ -626,11 +626,10 @@ sub fetch_devcollprop {
 	my $dbh = $self->{dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	device_collection_id, Property_Value_Password_Type
-		FROM	v_hotpants_attribute
+		SELECT	device_collection_id, property_value
+		FROM	v_hotpants_dc_attribute
 		WHERE	Property_Name = 'PWType'
 		AND		Property_Type = 'HOTPants'
-		AND		attribute_style = 'device'
 		AND		device_collection_id = ?
 	}
 	);
@@ -657,7 +656,7 @@ sub fetch_devcollprop {
 
 	my $r = {
 		devcoll_id => $hr->{device_collection_id},
-		pwtype     => $hr->{property_value_password_type}
+		pwtype     => $hr->{property_value}
 	};
 	$r;
 }
@@ -774,9 +773,8 @@ sub fetch_attributes {
 					property_value,
 	                Is_Boolean,
 	                Device_Collection_ID
-	        FROM	v_hotpants_attribute
-			WHERE	attribute_style = 'account'
-	        AND		login = ?
+	        FROM	v_hotpants_account_attribute
+	        WHERE	login = ?
 			AND		device_collection_id = ?
 	}
 	);
@@ -871,7 +869,7 @@ sub put_token {
 	if ( $token->{token_sequence} ) {
 		my $sth = $dbh->prepare_cached(
 			qq{
-			UPDATE token_sequence 
+			UPDATE v_hotpants_token 
 					set token_sequence = :seq, last_updated = :now
 			WHERE	token_id = :tokenid
 			AND		token_sequence < :seq
@@ -945,7 +943,7 @@ sub put_token {
 			my $set = join( ", ", map { "$_ = :$_" } keys %{$diff} );
 			my $sth = $dbh->prepare_cached(
 				qq{
-				UPDATE	token SET $set
+				UPDATE	v_hotpants_token SET $set
 				WHERE	token_id = :token_id
 				AND		last_updated <= :last_updated
 			}
