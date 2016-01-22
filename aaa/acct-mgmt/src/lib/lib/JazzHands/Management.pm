@@ -104,7 +104,7 @@ sub OpenJHDBConnection {
 		}
 	}
 
-	{
+	if( 0 ) {	# this is oracle 
 		my $q = qq{
 			begin
    				dbms_session.set_identifier ('$dude');

@@ -1,0 +1,25 @@
+Source: jazzhands-hotpants
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-perl-hotpants
+Architecture: any
+Pre-Depends: jazzhands-perl-common (>= 0.66.2), perl, perl-jazzhands-dbi (>= 0.66.1), libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
+Description: 
+ JazzHands HOTPants perl libraries
+
+Package: jazzhands-hotpants-perl-rlm
+Architecture: any
+Pre-Depends: jazzhands-perl-hotpants (>= 0.66.1)
+Description: 
+ FreeRadius module for JazzHands HOTPants
+
+Package: jazzhands-hotpants
+Architecture: any
+Pre-Depends: jazzhands-perl-hotpants
+Description: 
+ JazzHands HOTPants clients

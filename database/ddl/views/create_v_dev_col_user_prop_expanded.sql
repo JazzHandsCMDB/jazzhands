@@ -43,7 +43,9 @@
 -- assigned to the users in order of their priorities.
 
 CREATE OR REPLACE VIEW v_dev_col_user_prop_expanded AS
-SELECT	dchd.device_collection_id,
+SELECT	
+	property_id,
+	dchd.device_collection_id,
 	a.account_id, a.login, a.account_status,
 	ar.account_realm_id, ar.account_realm_name,
 	a.is_enabled,
@@ -61,7 +63,7 @@ FROM	v_acct_coll_acct_expanded_detail uued
 		AND upo.property_type in (
 			'CCAForceCreation', 'CCARight', 'ConsoleACL', 'RADIUS', 
 			'TokenMgmt', 'UnixPasswdFileValue', 'UserMgmt', 'cca', 
-			'feed-attributes', 'wwwgroup')
+			'feed-attributes', 'wwwgroup', 'HOTPants')
 	INNER JOIN val_property upn
 		ON upo.property_name = upn.property_name
 		AND upo.property_type = upn.property_type
@@ -90,4 +92,3 @@ ORDER BY device_collection_level,
         ELSE 6 END,
   uued.dept_level, uued.acct_coll_level, dchd.device_collection_id, 
   u.Account_Collection_id;
-

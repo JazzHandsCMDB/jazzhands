@@ -38,3 +38,5 @@ management/util/perl-Krb5
 zonegen/server/src
 management/util/perl-tickets
 management/api
+management/hotpants
+management/dbsyncer

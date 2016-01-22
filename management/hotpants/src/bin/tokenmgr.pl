@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl -w
+#!/usr/bin/env perl -w
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -45,81 +45,52 @@ BEGIN {
 }
 
 use strict;
-use HOTPants;
-use Getopt::Std;
-
-my $dbpath = "/prod/hotpants/db";
-
-my (%opt);
-getopts( 'vnhd:u:t:', \%opt );
-
-if ( $opt{h} ) {
-	usage();
-}
-
-if ( $opt{d} ) {
-	$dbpath = $opt{d};
-}
-
-my $login;
-my $tokenid;
-
-if ( $opt{t} ) {
-	$tokenid = $opt{t};
-}
-
-if ( $opt{u} ) {
-	if ($tokenid) {
-		usage();
-	}
-	$login = $opt{u};
-}
-
-if ( !$login && !$tokenid ) {
-	usage();
-}
+use JazzHands::Management;
 
 my $err;
-my $hp = new HOTPants( path => $dbpath );
-if ( !$hp ) {
-	printf STDERR "Unable to get HOTPants handle\n";
+
+my $dbh = OpenJHDBConnection("tokenmgmt") || die $DBI::errstr;
+$dbh->{AutoCommit} = 0;
+
+my $token;
+my $ret;
+
+my $tokenlist = JazzHands::Management::Token::GetTokenList($dbh);
+if ( !defined($tokenlist) ) {
+	print STDERR $JazzHands::Management::Errmsg . "\n";
 	exit 1;
 }
 
-if ( $err = $hp->opendb ) {
-	printf STDERR $err . "\n";
-	exit 1;
-}
-
-if ($tokenid) {
-	my ( $ret, $token );
-	$ret = $hp->fetch_token( $tokenid, \$token );
-	if ( $ret && $ret !~ /^DB_NOTFOUND/ ) {
-		print STDERR "Error fetching token from HP database: $ret\n";
+foreach my $tok (@$tokenlist) {
+	if (
+		!defined(
+			$token = JazzHands::Management::Token::GetToken(
+				$dbh, token_id => $tok,
+			)
+		)
+	  )
+	{
+		print STDERR $JazzHands::Management::Errmsg . "\n";
 		exit 1;
 	}
-	HOTPants::dump_token( token => $token );
+	printf
+	  "TokenID: %s\n\tType: %s\n\tStatus: %s\n\tSerial: %s\n\tSequence: %s\n\tPIN: %s\n\n",
+	  $token->{token_id}, $token->{type}, $token->{status},
+	  $token->{serial}, $token->{sequence}, $token->{pin} || '';
 }
 
-if ($login) {
-	my ( $ret, $user );
-	$ret = $hp->fetch_user( $login, \$user );
-	if ( $ret && $ret !~ /^DB_NOTFOUND/ ) {
-		print STDERR "Error fetching user from HP database: $ret\n";
-		exit 1;
-	}
-	HOTPants::dump_user( user => $user );
-}
+#if (JazzHands::Management::Token::RevokeTokenFromUser($dbh,
+#		user_id => 21,
+#		token_id => 1)) {
+#	printf "Error unassigning token: %s\n", $JazzHands::Management::Errmsg;
+#}
+#
+#if (JazzHands::Management::Token::AssignTokenToUser($dbh,
+#		user_id => 21,
+#		token_id => 1)) {
+#	printf "Error assigning token: %s\n", $JazzHands::Management::Errmsg;
+#}
 
 END {
-	$hp->closedb if $hp;
-}
-
-sub usage {
-	getopts( 'vnhd:u:t:', \%opt );
-	print STDERR "Usage:\n";
-	print STDERR "    $0 -h\n";
-	print STDERR "    $0 [-d <directory>] -u user\n";
-	print STDERR "    $0 [-d <directory>] -t tokenid\n";
-	exit 0;
+	$dbh->disconnect if $dbh;
 }

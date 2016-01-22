@@ -66,6 +66,8 @@
 
 -- XXX these need to be ported
 -- \ir create_v_joined_acct_collection_user_detail.sql
+-- this needs to be rethought...
+\ir pgsql/create_v_device_coll_device_expanded.sql
 \ir pgsql/create_v_device_coll_hier_detail.sql
 -- \ir create_v_device_col_acct_collection_expanded.sql
 -- \ir create_mv_account_last_auth.sql
@@ -81,6 +83,8 @@
 \ir pgsql/create_v_acct_coll_acct_expanded_detail.sql
 \ir create_v_dev_col_user_prop_expanded.sql
 \ir pgsql/create_v_acct_coll_prop_expanded.sql
+
+\ir pgsql/create_v_device_coll_device_expanded.sql
 
 \ir pgsql/create_v_account_collection_expanded.sql
 
@@ -123,3 +127,10 @@
 \ir approval/create_approval_views.sql
 -- not clear if this belongs in the approval views or not.  probably?
 \ir pgsql/create_v_approval_instance_step_expanded.sql
+
+-- hotpants
+\ir create_v_hotpants_device_collection.sql
+\ir create_v_hotpants_token.sql
+\ir create_v_hotpants_client.sql
+\ir create_v_hotpants_account_attribute.sql
+\ir create_v_hotpants_dc_attribute.sql

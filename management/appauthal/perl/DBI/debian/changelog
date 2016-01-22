@@ -10,7 +10,6 @@ perl-jazzhands-dbi (0.66.1.1) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 12 Jan 2016 23:02:06 +0000
 
-
 perl-jazzhands-dbi (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation

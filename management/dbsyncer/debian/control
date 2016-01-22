@@ -1,0 +1,13 @@
+Source: jazzhands-dbsyncer
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 9.0.0)
+Standards-Version: 3.9.5
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-dbsyncer
+Architecture: any
+Pre-Depends: jazzhands-perl-common (>= 0.66.2), perl-jazzhands-dbi (>= 0.66.1)
+Description: 
+ Database Synchronization Software

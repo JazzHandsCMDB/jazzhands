@@ -1,0 +1,297 @@
+on Ubuntu8.04.4 -
+
+compile:
+	libdb4.6-dev
+
+run:
+	install freeradius (2.1.0+)
+	libcrypt-eksblowfish-perl
+	libdigest-hmac-perl
+	libberkeleydb-perl (0.27)
+	libdb4.6
+
+	freeradius-utils (fro radclient amoung others)
+
+ubuntu (sql version)
+	libcrypt-eksblowfish-perl
+	libdigest-hmac-perl
+	libcrypt-cbc-perl
+	libdatetime-format-strptime-perl
+	jazzhands-dbi
+	jazzhands-common
+
+
+configure:
+
+need /etc/freeradius/users.hotpants:
+DEFAULT Auth-Type = HOTPants
+        Fall-Through = 1
+
+
+===SNIP=== /etc/freeradius/radiusd.conf
+prefix=/usr
+raddbdir = /var/log/radius
+logdir = ${raddbdir}/log
+radacctdir = ${logdir}/radacct
+client 10.0.0.0/8 {
+	shortname	= 10net
+	secret		= testing123
+	# virtual_server  = default
+}
+max_request_time = 30
+delete_blocked_requests = no
+cleanup_delay = 5
+max_requests = 1024
+security {
+        max_attributes = 200
+        reject_delay = 1
+        status_server = yes
+}
+
+hostname_lookups = no
+allow_core_dumps = no
+regular_expressions     = yes
+extended_expressions    = yes
+log {
+        destination = syslog
+        syslog_facility = local5
+        stripped_names = no
+        auth = yes
+        auth_badpass = no
+        auth_goodpass = no
+}
+
+modules {
+        preprocess {
+                huntgroups = /dev/null
+                hints = /dev/null
+        }
+
+        perl hotpants_rlm {
+                module = ...aaa/hotpants/src/libexec/hotpants_rlm.pm
+        }
+
+        files {
+                usersfile = ${confdir}/users.hotpants
+                acctusersfile = /dev/null
+                preproxy_usersfile = /dev/null
+                compat = no
+        }
+        detail {
+                detailfile = ${radacctdir}/%{Client-IP-Address}/detail-%Y%m%d
+                detailperm = 0600
+        }
+}
+
+server default {
+	listen {
+		ipaddr = 127.0.0.1
+		port = 1812
+		type = auth
+	}
+	client 127.0.0.1 {
+		shortname	= example-client
+		secret		= testing123
+	}
+
+	authorize {
+		preprocess
+		files
+		hotpants_rlm
+	}
+
+	authenticate {
+                Auth-Type HOTPants {
+                        hotpants_rlm
+                }
+	}
+
+	post-auth {
+	}
+	accounting {
+		detail
+	}
+
+}
+===SNIP===
+
+siliness:
+	LD_PRELOAD=/usr/lib/libperl.so.5.8.8 /usr/sbin/freeradius -X
+
+not sure wtf, but its not worth digging that deeply just yet.
+
+set default to password type 'blowfish' similar to:
+
+insert into property(property_type, property_name, 
+	device_collection_id, property_value_password_type)
+VALUES ('MclassUnixProp', 'UnixPwType', 1, 'blowfish');
+
+give 'peeps' radius access on default
+insert into property(property_type, property_name, account_collection_id,
+	device_collection_id, property_value)
+SELECT 'RADIUS', 'GrantAccess', account_collection_id, 1, 'Y'
+FROM account_collection
+where account_collection_name = 'kovert'
+and account_collection_type = 'per-account'
+;
+
+
+
+(peeps is just a uclass with 'username' below in it) 
+
+	mkdir /prod/hotpants /prod/hotpants/db
+	aaa/hotpants/src/bin/bin/radiussync.pl
+
+test:
+	radclient -x conje auth testing123 <<EOF
+User-Name= username
+User-Password= password
+EOF
+
+with idev as (
+	insert into device (device_name, device_type_id, device_status,
+		service_environment_id, is_monitored
+	) values ('localhost', 0, 'up', 1, 'Y') RETURNING *
+), insubnet AS (
+	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
+		can_subnet, netblock_status)
+	VALUES ('127.0.0.0/8', 'default', 'N', 'N', 'Allocated' ) RETURNING *
+), inb AS (
+	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
+		can_subnet, netblock_status, parent_netblock_id)
+	SELECT '127.0.0.1/8', 'default', 'Y', 
+		'N', 'Allocated', netblock_id
+	FROM insubnet RETURNING *
+), ni as (
+	INSERT into network_interface
+		(device_id, network_interface_type, should_monitor, netblock_id)
+	SELECT device_id, 'broadcast', 'Y', netblock_id from idev, inb
+), x as ( INSERT into device_collection_device
+		(device_collection_id, device_id)
+	SELECT device_collection_id, device_id
+	FROM idev, device_collection
+	WHERE	device_collection_type = 'mclass'
+	AND	device_collection_name = 'cloud'
+	RETURNING *
+), secret AS (
+	INSERT into property (
+		device_collection_id, property_name, property_type, property_value
+	) SELECT device_collection_id, 'RadiusSharedSecret', 'HOTPants', 
+		'shareThis!'
+	FROM x
+) select * from x;
+
+
+
+insert into property (device_collection_id, Property_Value_Password_Type,
+property_type,property_name) values (
+19632, 'blowfish', 'MclassUnixProp', 'UnixPwType');
+
+insert into property (property_name, property_type, account_collection_id,
+	property_value, device_collection_id)
+select 'GrantAccess', 'RADIUS', account_collection_id, 'Y',
+	unnest(ARRAY[19913,19632])
+from account_collection
+where account_collection_type = 'per-account'
+and account_collection_name = 'kovert';
+
+
+insert into property (property_name, property_type, account_collection_id,
+	Property_Value_Password_Type, device_collection_id)
+select 'PWType', 'RADIUS', account_collection_id, 'token',
+	unnest(ARRAY[19913,19632])
+from account_collection
+where account_collection_type = 'per-account'
+and account_collection_name = 'kovert';
+
+================================= NOT BELOW HERE ==========================
+
+with foo as ( insert into token (
+	token_type, token_status, token_key, token_pin, last_updated)
+values ( 'soft_seq', 'enabled', 
+	'VAiGIrpRERXujUanb3432lJnJw80BkiqOn3lbBPik1/jKt0GFYtRtvvsOVMQPQwHjwRFEF1q4Fl12tL+4TtmhDq4U/anlt6MxyCQU4kPZ0ukG+6xAWBh5tvYA+UBnDQo4pi3stAidCu2AlfuXATLHzR9nE9qBxTYgflWbM2d1FtTDolMkDKKsaF/iXDXsk32mSQ6bLTyGi40bROUhMjGSQ==', 
+	'$2a$07$J5T/Vg/fOhY9c/H89jruuulGJK9lKMV2HTUoRLs7dIEBaHvBXKRRS', now()) RETURNING * 
+), at AS (INSERT into account_token ( account_id, token_id, issued_date, is_user_token_locked, last_updated)
+	SELECT 2, token_id, now(), 'N', now() from foo RETURNING *
+) select * from at;
+
+with foo as ( insert into token (
+	token_type, token_status, token_key, token_pin, last_updated)
+values ( 'soft_time', 'enabled', 
+	'tuaki33gh9sdNNXVIwM2YFukSbuNaw9JzjsbZQcI4HlcjWfpw/DHVAw0gSv0hQE+kweMS5yw8uesExerP48B/yiPKksuMn7eLki0Wg8fNOtnMDh0Z68bnK28CguMLsB5Mmw4/fzZFMUIHUHa2M5sayNJPAF/BMmtms/qKth8YOKlCDEflhPXZf9pFbP0IFc6DonDpA2/qOEn2ernWnW3cw==', 
+	'$2a$07$J5T/Vg/fOhY9c/H89jruuulGJK9lKMV2HTUoRLs7dIEBaHvBXKRRS', now()) RETURNING * 
+), at AS (INSERT into account_token ( account_id, token_id, issued_date, is_user_token_locked, last_updated)
+	SELECT 2, token_id, now(), 'N', now() from foo RETURNING *
+) select * from at;
+
+
+
+====== notes on sync
+
+radiussync is used to sync berkeley db  and the db
+
+mdr - The only things that should be synced back are current sequence (needed for TOTP as well to prevent replay) and the lockout counts and/or timers
+
+this was serialized into a token
+
+            token_id            => token
+            type                => token
+            status              => token
+            serial              => token
+            key                 => token
+            sequence            => token_sequence
+            zero_time           => token
+            time_modulo         => Etoken
+            skew_sequence       => token
+            pin                 => token
+            last_login          => 				ONLY sqlite
+            token_locked        => account_token
+            unlock_time         => account_token
+            bad_logins          => account_token
+            sequence_changed    => 				ONLY sqlite
+            token_changed       => 				ONLY sqlite
+            lock_status_changed => token
+
+TODO:
+	deal with dies spread through perl module
+	*** integrate account realms somehow? ***
+
+	need to deal with account_token having multiple entries per token
+	look at all the device collection / db interaction
+		figure out how to convert radius over easily
+
+	extra objects for sync in sqlite
+	better deal with encryption
+	figure out what to do with qr code
+	sync radius properties
+	pull encryption out to JazzHands::Common, as well as options, debug?
+	consider a stronger crypt to get $2y$
+	consider making RADIUS attributes truely radius-only
+	global password expiration lifetime
+
+	move hotpants config to database with defaults?
+	consider how token/account locaking works
+	consider moving some of account_token to token.
+
+	a bunch of the token logic should be in both the postgres db and
+	a local sqlite db
+
+	user -> account (put_user -> put_account)
+
+	check logging (particularly debugging) when someone does not have any
+	token assigned
+
+	token name needs something unique to avoid google authenticator
+	replacing it (phone, motox, etc?)
+
+	table sync should probably be whacked to have a with clause for the upstream
+	consider making the v_hotpants views generic and renaming them.
+		seriously look at V_Dev_Col_User_Prop_Expanded
+
+	remove some of the unneded tables from sync (due to views)
+
+	make it possible to update with stored procedures when pushing back
+		I think v_hotpants_token can go away once the locking columns
+		move to token
+
+	make sync long-transaction friendly.

@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2012 Matthew Ragan
-# Copyright (c) 2011-2013 Todd Kover
+# Copyright (c) 2011-2016 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@ package JazzHands::Common::Util;
 
 use strict;
 use warnings;
+use POSIX;	# setsid()
+use JazzHands::Common::Error qw(:internal);
 
 use Exporter 'import';
 
@@ -27,19 +29,17 @@ use vars qw(@ISA %EXPORT_TAGS @EXPORT);
 our $VERSION = '1.0';
 
 our @ISA = qw(
-	Exporter
+  Exporter
 );
 our @EXPORT_OK = qw(_options _dbx hash_table_diff member_hash_diff );
 
-%EXPORT_TAGS = 
-(
-	'all' => [qw(_options _dbx hash_table_diff member_hash_diff )],
-);
+%EXPORT_TAGS =
+  ( 'all' => [qw(_options _dbx hash_table_diff member_hash_diff )], );
 
 our $direction = 'lower';
 
 sub _options {
-	if(ref $_[0] eq 'HASH') {
+	if ( ref $_[0] eq 'HASH' ) {
 		return $_[0];
 	}
 	my %ret = @_;
@@ -49,41 +49,39 @@ sub _options {
 	\%ret;
 }
 
-
 ###############################################################################
 
 sub _dbx {
+
 	# XXX if oracle, return upper case, otherwise lower case
-	my $x = shift;
+	my $x     = shift;
 	my $indir = shift;
 
 	# XXX should validate upper or lower
-	my $dir = ($indir)?$indir:$direction;
+	my $dir = ($indir) ? $indir : $direction;
 
-	if(ref($x)) { 
-		if(ref($x) eq 'HASH') {
+	if ( ref($x) ) {
+		if ( ref($x) eq 'HASH' ) {
 			my $r = {};
-			foreach my $k (keys %$x) {
-				if($direction eq 'lower') {
+			foreach my $k ( keys %$x ) {
+				if ( $direction eq 'lower' ) {
 					$r->{ lc($k) } = $x->{$k};
 				} else {
 					$r->{ uc($k) } = $x->{$k};
 				}
 			}
 			return $r;
-		} elsif(ref($x) eq 'ARRAY') {
+		} elsif ( ref($x) eq 'ARRAY' ) {
 			my $new = ();
 			foreach my $k (@$x) {
-				push(@$new, 
-					($direction eq 'lower')?lc($k):uc($k)
-				);
+				push( @$new, ( $direction eq 'lower' ) ? lc($k) : uc($k) );
 			}
-			return($new);
+			return ($new);
 		} else {
 			return undef;
 		}
 	} else {
-		if($direction eq 'lower') {
+		if ( $direction eq 'lower' ) {
 			return lc($x);
 		} else {
 			return uc($x);
@@ -109,21 +107,26 @@ sub _dbx {
 #       it will be included
 # - if its defined and both, and they differ, it will be included
 sub hash_table_diff {
-	shift if ($#_ eq 2);
-	my($hash1, $hash2) = @_;
+	shift if ( $#_ eq 2 );
+	my ( $hash1, $hash2 ) = @_;
 
 	my %rv;
-	if(!defined($hash2)) {
+	if ( !defined($hash2) ) {
 		%rv = %$hash1;
 	} else {
-		foreach my $key (keys %$hash1) {
-			next if(!exists($hash2->{$key}));
+		foreach my $key ( keys %$hash1 ) {
+			next if ( !exists( $hash2->{$key} ) );
+
 			#- warn "comparing $hash1->{$key} && $hash2->{$key}\n";
-			if(!defined($hash1->{$key}) && !defined($hash2->{$key})) {
+			if ( !defined( $hash1->{$key} ) && !defined( $hash2->{$key} ) ) {
 				next;
-			} elsif(defined($hash1->{$key}) && !defined($hash2->{$key})) {
+			} elsif ( defined( $hash1->{$key} ) && !defined( $hash2->{$key} ) )
+			{
 				$rv{$key} = undef;
-			} elsif((!defined($hash1->{$key})&&defined($hash2->{$key})) || $hash1->{$key} ne $hash2->{$key}) {
+			} elsif (
+				( !defined( $hash1->{$key} ) && defined( $hash2->{$key} ) )
+				|| $hash1->{$key} ne $hash2->{$key} )
+			{
 				#- warn "no match, adding $key";
 				$rv{$key} = $hash2->{$key};
 			}
@@ -140,25 +143,62 @@ sub hash_table_diff {
 # key existence.
 #
 sub member_hash_diff {
-	shift if ($#_ eq 2);
-	my($hash1, $hash2) = @_;
+	shift if ( $#_ eq 2 );
+	my ( $hash1, $hash2 ) = @_;
 
-	my $rv = { 
+	my $rv = {
 		additions => [],
 		deletions => [],
 	};
-	if(!defined($hash2)) {
+	if ( !defined($hash2) ) {
 		$rv->{additions} = [ keys %$hash1 ];
 	} else {
-		foreach my $key (keys %$hash1) {
-			push(@{$rv->{deletions}}, $key) if (!exists($hash2->{$key}));
+		foreach my $key ( keys %$hash1 ) {
+			push( @{ $rv->{deletions} }, $key )
+			  if ( !exists( $hash2->{$key} ) );
 		}
-		foreach my $key (keys %$hash2) {
-			push(@{$rv->{additions}}, $key) if (!exists($hash1->{$key}));
+		foreach my $key ( keys %$hash2 ) {
+			push( @{ $rv->{additions} }, $key )
+			  if ( !exists( $hash1->{$key} ) );
 		}
 	}
 	$rv;
 }
+###############################################################################
+
+sub daemonize {
+	my $self = shift @_;
+	if ( !( open STDOUT, '>', '/dev/null' ) ) {
+		$errstr = "unable to redirect stdout: $!";
+		if ($self) { $self->errstr($errstr); }
+		return undef;
+	}
+
+	if ( !( open STDIN, '<', '/dev/null' ) ) {
+		$errstr = "unable to redirect stdin : $!";
+		if ($self) { $self->errstr($errstr); }
+		return undef;
+	}
+	if ( !( defined( my $pid = fork ) ) ) {
+		$errstr = "fork(): $!";
+		if ($self) { $self->errstr($errstr); }
+		return undef;
+	} else {
+		exit if $pid;
+	}
+	setsid();
+
+	#
+	# This uses intimate knowledge of JazzHands::Common; should probably
+	# inspect to see if DBHandle() is there, and use it.
+	if($self->{_dbh}) {
+		$self->{_dbh} = $self->{_dbh}->clone();
+	}
+
+	# open STDERR, '>&STDOUT';
+	1;
+}
+
 1;
 
 __END__
