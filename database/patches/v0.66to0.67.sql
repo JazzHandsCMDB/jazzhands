@@ -1187,5 +1187,5 @@ GRANT select on all sequences in schema jazzhands to ro_role;
 GRANT usage on all sequences in schema jazzhands to iud_role;
 GRANT select on all tables in schema audit to ro_role;
 GRANT select on all sequences in schema audit to ro_role;
--- SELECT schema_support.end_maintenance();
+SELECT schema_support.end_maintenance();
 select timeofday(), now();
