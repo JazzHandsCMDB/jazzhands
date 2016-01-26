@@ -75,7 +75,7 @@ BEGIN
 			NEW.attribute_value_timestamp IS NOT NULL) THEN
 		RAISE EXCEPTION 'only one attribute_value may be set'
 			USING ERRCODE = 'integrity_constraint_violation';
-	ELSIF NEW.ttribute_value_person_id IS NOT NULL AND
+	ELSIF NEW.attribute_value_person_id IS NOT NULL AND
 			(NEW.attribute_value IS NOT NULL OR
 			NEW.attribute_value_timestamp IS NOT NULL) THEN
 		RAISE EXCEPTION 'only one attribute_value may be set'
