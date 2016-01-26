@@ -157,6 +157,15 @@ sub authorize {
 		return RLM_MODULE_REJECT;
 	}
 
+	if (ref($source) eq 'ARRAY') {
+		my $newsource = $source->[0];
+		radiusd::radlog( 2,
+			sprintf("NAS-IP-Address is an array, picking out first (%s) of %s",
+				$newsource, join(",", @{$source}))
+		);
+		$source = $newsource;
+	}
+
 	my $authreqstr =
 	  sprintf( "Authorization request for %s from %s", $login, $source );
 	if ( $RAD_REQUEST{'JH-Application-Name'} ) {
