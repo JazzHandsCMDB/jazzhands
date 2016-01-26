@@ -1,3 +1,12 @@
+jazzhands-perl-common (0.67.0) unstable; urgency=medium
+
+  * add Error module for all the common error bits
+  * make Error bits object friendly, if appropriate
+  * add Connect module for GenericDB to use with objects.
+  * add daemonize() call to JazzHands::Common
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 25 Jan 2016 10:40:00 -0500
+
 jazzhands-perl-common (0.66.2) unstable; urgency=medium
 
   * add Error module for all the common error bits
@@ -6,6 +15,7 @@ jazzhands-perl-common (0.66.2) unstable; urgency=medium
   * add daemonize() call to JazzHands::Common
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 12 Jan 2016 17:12:06 -0500
+
 
 jazzhands-perl-common (0.66.1) unstable; urgency=medium
 

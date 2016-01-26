@@ -16,8 +16,8 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
-Requires: jazzhands-perl-common >= 0.66.2
-Requires: perl-jazzhands-dbi >= 0.66.1
+Requires: jazzhands-perl-common >= 0.67.0
+Requires: perl-jazzhands-dbi >= 0.66.1.2
 
 %description
 

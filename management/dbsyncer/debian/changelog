@@ -1,6 +1,6 @@
-jazzhands-dbsyncer (0.66.2) trusty; urgency=medium
+jazzhands-dbsyncer (0.67.0) trusty; urgency=medium
 
   * initial release
 
- -- Todd M. Kover <kovert@omniscient.com>  Fri, 15 Jan 2016 14:55:57 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 25 Jan 2016 10:40:00 -0500
 
