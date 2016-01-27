@@ -1,6 +1,13 @@
+jazzhands-hotpants (0.67.2) unstable; urgency=medium
+
+  * fix issue with array of ips passed in  for authentication
+  * print calling station id when bad requests come in
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 27 Jan 2016 14:47:00 -0500
+
 jazzhands-hotpants (0.67.1) unstable; urgency=medium
 
-  * fix issue with array of ips passed in 
+  * fix issue with array of ips passed in for authorization
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 26 Jan 2016 17:32:00 -0500
 

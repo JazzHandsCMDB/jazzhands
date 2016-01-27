@@ -138,11 +138,17 @@ sub authorize {
 		return find_client();
 	}
 
+	my $callingid = "";
+	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
+		$callingid = $RAD_REQUEST{"Calling-Station-Id"};
+	}
+
 	if (   !$RAD_REQUEST{"JH-Application-Name"}
 		&& !$RAD_REQUEST{"NAS-IP-Address"} )
 	{
-		radiusd::radlog( 4,
-			"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded"
+		radiusd::radlog( 4, sprintf(
+			"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded (calling station %s)",
+			$callingid)
 		);
 		return RLM_MODULE_FAIL;
 	}
@@ -244,6 +250,15 @@ sub authenticate {
 	if ( !( $login = $RAD_REQUEST{"User-Name"} ) ) {
 		radiusd::radlog( 4, "No User-Name in the request" );
 		return RLM_MODULE_REJECT;
+	}
+
+	if (ref($source) eq 'ARRAY') {
+		my $newsource = $source->[0];
+		radiusd::radlog( 2,
+			sprintf("NAS-IP-Address is an array, picking out first (%s) of %s",
+				$newsource, join(",", @{$source}))
+		);
+		$source = $newsource;
 	}
 
 	my $authreqstr =
