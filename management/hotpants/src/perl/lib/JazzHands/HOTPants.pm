@@ -453,7 +453,8 @@ sub fetch_token {
 			return undef;
 		}
 
-		my $fullkey = $emap->{ $hr->{encryption_key_purpose_version} }
+		my $fullkey =
+		    $emap->{ $hr->{encryption_key_purpose_version} }
 		  . $hr->{encryption_key_db_value};
 
 		$hr->{token_key} = $self->_decryptkey( $hr->{token_key}, $fullkey );
@@ -1679,6 +1680,11 @@ sub AuthenticateUser {
 		return undef;
 	}
 
+	if ( !$client->{devcoll_id} ) {
+		$self->ErrorF( "Authenticate: No collection for %s", $source );
+		return undef;
+	}
+
 	#
 	# Fetch client parameters for the device class.
 	#
@@ -1686,9 +1692,8 @@ sub AuthenticateUser {
 
 	if (
 		!(
-			$devcollprop = $self->fetch_devcollprop(
-				devcoll_id => $client->{devcoll_id}
-			)
+			$devcollprop =
+			$self->fetch_devcollprop( devcoll_id => $client->{devcoll_id} )
 		)
 	  )
 	{
@@ -2045,11 +2050,15 @@ sub AuthorizeUser {
 	#
 	my $devcollprop;
 
+	if ( !$client->{devcoll_id} ) {
+		$self->ErrorF( "Authorize: No collection for %s", $source );
+		return undef;
+	}
+
 	if (
 		!(
-			$devcollprop = $self->fetch_devcollprop(
-				devcoll_id => $client->{devcoll_id}
-			)
+			$devcollprop =
+			$self->fetch_devcollprop( devcoll_id => $client->{devcoll_id} )
 		)
 	  )
 	{

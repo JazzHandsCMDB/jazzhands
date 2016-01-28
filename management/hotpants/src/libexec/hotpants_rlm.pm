@@ -94,6 +94,41 @@ sub connect_hp {
 	return $hp;
 }
 
+#
+# figures out the source, and its an app, returns the appname as well
+#
+sub get_source {
+	my @validsrc = qw(JH-Application-Name NAS-Identifier NAS-IP-Address);
+	my $source;
+	foreach my $s (@validsrc) {
+		if ( $RAD_REQUEST{$s} ) {
+			$source = $RAD_REQUEST{$s};
+			last;
+		}
+	}
+
+	if ( ref($source) eq 'ARRAY' ) {
+		my $newsource = $source->[0];
+		radiusd::radlog(
+			2,
+			sprintf(
+				"NAS-IP-Address is an array, picking out first (%s) of %s",
+				$newsource, join( ",", @{$source} )
+			)
+		);
+		$source = $newsource;
+	}
+
+	# may not be set
+	my $appname = $RAD_REQUEST{'JH-Application-Name'}
+	  || $RAD_REQUEST{'NAS-Identifier'};
+
+	#radiusd::radlog( 2,
+	#	sprintf("get_source(): returning %s %s", $source, $appname));
+
+	return ( $source, $appname );
+}
+
 sub find_client {
 	my $client =
 	  $RAD_REQUEST{"Packet-Src-IP-Address"} || $RAD_REQUEST{'Tmp-IP-Address-0'};
@@ -143,18 +178,26 @@ sub authorize {
 		$callingid = $RAD_REQUEST{"Calling-Station-Id"};
 	}
 
-	if (   !$RAD_REQUEST{"JH-Application-Name"}
-		&& !$RAD_REQUEST{"NAS-IP-Address"} )
-	{
-		radiusd::radlog( 4, sprintf(
-			"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded (calling station %s)",
-			$callingid)
+	my ( $source, $appname ) = get_source();
+
+	if ( !$source ) {
+		my $msg = join(
+			", ",
+			map {
+				"$_ => "
+				  . ( ( $_ !~ /Password/i ) ? $RAD_REQUEST{$_} : "BLANKED" )
+			  }
+			  keys %RAD_REQUEST
+		);
+		radiusd::radlog(
+			4,
+			sprintf(
+				"authorize: Unable to discern source from %s: %s",
+				$callingid, $msg
+			)
 		);
 		return RLM_MODULE_FAIL;
 	}
-
-	my $source = $RAD_REQUEST{'JH-Application-Name'}
-	  || $RAD_REQUEST{"NAS-IP-Address"};
 
 	my $login;
 
@@ -163,18 +206,9 @@ sub authorize {
 		return RLM_MODULE_REJECT;
 	}
 
-	if (ref($source) eq 'ARRAY') {
-		my $newsource = $source->[0];
-		radiusd::radlog( 2,
-			sprintf("NAS-IP-Address is an array, picking out first (%s) of %s",
-				$newsource, join(",", @{$source}))
-		);
-		$source = $newsource;
-	}
-
 	my $authreqstr =
 	  sprintf( "Authorization request for %s from %s", $login, $source );
-	if ( $RAD_REQUEST{'JH-Application-Name'} ) {
+	if ($appname) {
 		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
 	}
 	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
@@ -230,11 +264,27 @@ sub authorize {
 
 # Function to handle authenticate
 sub authenticate {
-	if (   !$RAD_REQUEST{"JH-Application-Name"}
-		&& !$RAD_REQUEST{"NAS-IP-Address"} )
-	{
-		radiusd::radlog( 4,
-			"No JH-Application-Name or NAS-IP-Address in the request.  Make sure preprocess module and dictionary.jazzhands are loaded"
+	my ( $source, $appname ) = get_source();
+
+	my $callingid = "";
+	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
+		$callingid = $RAD_REQUEST{"Calling-Station-Id"};
+	}
+	if ( !$source ) {
+		my $msg = join(
+			", ",
+			map {
+				"$_ => "
+				  . ( ( $_ !~ /Password/i ) ? $RAD_REQUEST{$_} : "BLANKED" )
+			  }
+			  keys %RAD_REQUEST
+		);
+		radiusd::radlog(
+			4,
+			sprintf(
+				"authenticate: Unable to discern source from %s: %s",
+				$callingid, $msg
+			)
 		);
 		return RLM_MODULE_FAIL;
 	}
@@ -243,8 +293,6 @@ sub authenticate {
 	#	fake localhost...
 	#	$RAD_REQUEST{"NAS-IP-Address"} = "fake ip address";
 	#}
-	my $source = $RAD_REQUEST{"JH-Application-Name"}
-	  || $RAD_REQUEST{"NAS-IP-Address"};
 
 	my $login;
 	if ( !( $login = $RAD_REQUEST{"User-Name"} ) ) {
@@ -252,18 +300,9 @@ sub authenticate {
 		return RLM_MODULE_REJECT;
 	}
 
-	if (ref($source) eq 'ARRAY') {
-		my $newsource = $source->[0];
-		radiusd::radlog( 2,
-			sprintf("NAS-IP-Address is an array, picking out first (%s) of %s",
-				$newsource, join(",", @{$source}))
-		);
-		$source = $newsource;
-	}
-
 	my $authreqstr =
 	  sprintf( "Authentication request for %s from %s", $login, $source );
-	if ( $RAD_REQUEST{'JH-Application-Name'} ) {
+	if ($appname) {
 		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
 	}
 	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
@@ -386,19 +425,19 @@ sub authenticate {
 	# see if any of the ACLs match
 	#
 
-	if ( $RAD_REQUEST{"JH-Application-Name"} ) {
+	if ($appname) {
 		my @attr = sort keys %{ $attrs->{$source} };
 		if (@attr) {
-			$RAD_REPLY{"JH-Application-ACL"} = \@attr;
+			$RAD_REPLY{$appname} = \@attr;
 		}
-		if ( $RAD_REQUEST{"JH-Application-ACL"} ) {
+		if ( $RAD_REQUEST{$appname} ) {
 
 			# Clear the success flag unless we match an ACL
 			$success = 0;
 			foreach my $a (
-				ref( $RAD_REQUEST{"JH-Application-ACL"} )
-				? @{ $RAD_REQUEST{"JH-Application-ACL"} }
-				: $RAD_REQUEST{"JH-Application-ACL"}
+				ref( $RAD_REQUEST{$appname} )
+				? @{ $RAD_REQUEST{$appname} }
+				: $RAD_REQUEST{$appname}
 			  )
 			{
 				if ( grep { lc($_) eq lc($a) } @attr ) {
