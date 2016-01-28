@@ -21,15 +21,14 @@ SELECT DISTINCT
                 dc.Device_Collection_Name,
                 dc.Device_Collection_Type,
                 host(IP_Address) as IP_address
-        FROM	property p
-		INNER JOIN device_collection dc USING (device_collection_id)
-		INNER JOIN v_device_coll_hier_detail dcr ON
-			p.device_collection_id = dcr.parent_device_collection_id
-                INNER JOIN device_collection_device dcd ON
+	FROM	device_collection dc
+		LEFT JOIN v_device_coll_hier_detail dcr ON
+			dc.device_collection_id = dcr.parent_device_collection_id
+                LEFT JOIN device_collection_device dcd ON
                         dcd.device_collection_id = dcr.device_collection_id
-                INNER JOIN Device USING (Device_Id) 
-                INNER JOIN Network_Interface NI USING (Device_ID) 
-                INNER JOIN Netblock NB USING (Netblock_id)
+                LEFT JOIN Device USING (Device_Id) 
+                LEFT JOIN Network_Interface NI USING (Device_ID) 
+                LEFT JOIN Netblock NB USING (Netblock_id)
 	WHERE
-		property_type IN ('HOTPants', 'HOTPants-app')
+		device_collection_type IN ('HOTPants', 'HOTPants-app')
 ;
