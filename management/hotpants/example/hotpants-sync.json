@@ -2,7 +2,6 @@
 	"from": "hotpants-sync-remote",
 	"to": "hotpants-sync-local",
 	"tablemap": {
-		"encryption_key": null,
 		"v_corp_family_account": {
 			"pk": [
 				"account_id"
@@ -13,47 +12,51 @@
 				"account_token_id"
 			]
 		},
-		"token_sequence": null,
+		"v_hotpants_client": {
+			"pk": [
+				"device_id",
+				"ip_address"
+			]
+		},
 		"account_password": null,
 		"v_hotpants_device_collection": {
 			"pk": [
 				"device_collection_id",
-				"device_id"
+				"device_id",
+				"ip_address"
 			]
 		},
-		"netblock": null,
-		"device_collection": null,
 		"v_hotpants_token": {
 			"pushback": {
-				"token_sequence": "SELECT token_utils.set_sequence(%{token_id},%{token_sequence},%{last_updated});"
+				"token_sequence": "SELECT token_utils.set_sequence(%{token_id},%{token_sequence},%{last_updated});",
+				"bad_logins": "SELECT token_utils.set_lock_status(%{token_id},%{is_token_locked},%{token_unlock_time},%{bad_logins}, %{last_updated});"
 			},
 			"pk": [
 				"token_id"
 			]
 		},
-		"v_device_coll_device_expanded": {
+		"v_hotpants_dc_attribute": {
 			"pk": [
+				"property_id",
 				"device_collection_id",
-				"device_id"
+				"property_name",
+				"property_type",
+				"property_value"
 			]
 		},
-		"account": null,
-		"device": null,
-		"token": null,
-		"network_interface": null,
-		"property": null,
-		"v_dev_col_user_prop_expanded": {
+		"v_hotpants_account_attribute": {
 			"pk": [
+				"property_id",
 				"device_collection_id",
 				"account_id",
 				"property_name",
 				"property_type",
 				"property_value"
 			]
-		},
-		"account_collection_account": null
+		}
 	},
 	"postschema": [
-		"grant select on all tables in schema public to hotpants"
+		"grant select on all tables in schema public to hotpants",
+		"grant update on v_hotpants_token to hotpants"
 	]
 }

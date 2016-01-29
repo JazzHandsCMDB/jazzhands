@@ -88,6 +88,8 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \i ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
 \i ddl/schema/pgsql/create_person_company_attr_triggers.sql
 
+\i ddl/schema/pgsql/create_hotpants_view_triggers.sql
+
 -- This could be done for backwards compatibility but is not.
 -- \i compat/pgsql/create_location_compatibility_view.sql
 select now();

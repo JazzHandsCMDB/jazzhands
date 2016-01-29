@@ -1878,8 +1878,8 @@ sub AuthenticateUser {
 			$login,
 			$client->{devcoll_name},
 			$authmech,
+			$p->{passwd},
 			$checkpass,
-			$p->{passwd}
 		);
 	}
 
