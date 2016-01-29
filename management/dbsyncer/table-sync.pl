@@ -392,6 +392,19 @@ sub copy_table($$$;$) {
 					my @dbkey = split( /,/, $dbkey );
 					$dbkey = \@dbkey;
 				}
+
+				# this happens if one of the keys is NULL.  Should probably be
+				# rethink
+				if ( scalar $dbkey > scalar $pk ) {
+					warn sprintf "dbkey is too big for $k, skipping (%s,%s\n",
+					  join( ",", @{$dbkey} ),
+					  join( ",", @{$pk} );
+				} elsif ( scalar $dbkey < scalar $pk ) {
+					for ( my $i = $#{$dbkey} ; $i < $#{$pk} ; $i++ ) {
+						push( @{$dbkey}, undef );
+					}
+				}
+
 				if ( $tbcfg->{pushback} ) {
 					foreach my $col ( keys(%$diff) ) {
 						if (
@@ -444,6 +457,19 @@ sub copy_table($$$;$) {
 				my @dbkey = split( /,/, $dbkey );
 				$dbkey = \@dbkey;
 			}
+
+			# this happens if one of the keys is NULL.  Should probably be
+			# rethink
+			if ( scalar $dbkey > scalar $pk ) {
+				warn sprintf "dbkey is too big for $k, skipping (%s,%s\n",
+				  join( ",", @{$dbkey} ),
+				  join( ",", @{$pk} );
+			} elsif ( scalar $dbkey < scalar $pk ) {
+				for ( my $i = $#{$dbkey} ; $i < $#{$pk} ; $i++ ) {
+					push( @{$dbkey}, undef );
+				}
+			}
+
 			if (
 				!(
 					$self->DBDelete(
