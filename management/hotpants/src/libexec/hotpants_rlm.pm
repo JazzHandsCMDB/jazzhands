@@ -98,11 +98,19 @@ sub connect_hp {
 # figures out the source, and its an app, returns the appname as well
 #
 sub get_source {
-	my @validsrc = qw(JH-Application-Name NAS-Identifier NAS-IP-Address);
+	my @validsrc = qw(JH-Application-Name NAS-IP-Address);
 	my $source;
 	foreach my $s (@validsrc) {
 		if ( $RAD_REQUEST{$s} ) {
-			$source = $RAD_REQUEST{$s};
+			my $v = $RAD_REQUEST{$s};
+			# This was just gross, but leaving here in case
+			# it becomes necessary to resurrect
+			#if ($s eq 'NAS-Identifier') {
+			#	if ($v !~ s/^jazzhands-hotpants://) {
+			#		next;
+			#	}
+			#}
+			$source = $v;
 			last;
 		}
 	}

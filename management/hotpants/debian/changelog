@@ -1,3 +1,9 @@
+jazzhands-hotpants (0.67.4) unstable; urgency=medium
+
+  * back out NAS-Identifier support; this causes problems
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 10:36:00 -0500
+
 jazzhands-hotpants (0.67.3) unstable; urgency=medium
 
   * add support for NAS-Identifier for app lookup
