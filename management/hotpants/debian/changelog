@@ -1,8 +1,15 @@
+jazzhands-hotpants (0.67.6) unstable; urgency=medium
+
+  * fix error message that was confusing
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 20:28:00 -0500
+
 jazzhands-hotpants (0.67.5) unstable; urgency=medium
 
   * fix error message that was confusing
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 17:26:00 -0500
+
 
 jazzhands-hotpants (0.67.4) unstable; urgency=medium
 

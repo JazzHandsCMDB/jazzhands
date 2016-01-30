@@ -28,7 +28,7 @@ JazzHands HOTPants clients
 %package -n jazzhands-perl-hotpants
 group: System Environment/Libraries
 Summary: JazzHands HOTPants perl libraries
-Requires: perl-Net-IP, perl-Net-DNS, perl-NetAddr-IP, jazzhands-perl-common >= 0.67.0
+Requires: perl-Net-IP, perl-Net-DNS, perl-NetAddr-IP, jazzhands-perl-common >= 0.67.0, perl-Crypt-Rijndael, perl-Crypt-Eksblowfish, perl-Digest-HMAC, perl-Crypt-CBC, perl-DateTime-Format-Strptime
 
 %package -n jazzhands-hotpants-perl-rlm
 group: System Environment/Libraries
