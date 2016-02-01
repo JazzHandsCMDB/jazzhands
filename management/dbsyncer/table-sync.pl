@@ -395,11 +395,13 @@ sub copy_table($$$;$) {
 
 				# this happens if one of the keys is NULL.  Should probably be
 				# rethink
-				if ( scalar $dbkey > scalar $pk ) {
-					warn sprintf "dbkey is too big for $k, skipping (%s,%s\n",
-					  join( ",", @{$dbkey} ),
-					  join( ",", @{$pk} );
-				} elsif ( scalar $dbkey < scalar $pk ) {
+				if ( $#{$dbkey} > $#{$pk} ) {
+					warn sprintf
+					  "dbkey is too big for %s, skipping (%s vs %s) [%d vs %d]\n",
+					  $k, join( ",", @{$dbkey} ),
+					  join( ",", @{$pk} ),
+					  scalar $dbkey, scalar $pk;
+				} elsif ( $#{$dbkey} < $#{$pk} ) {
 					for ( my $i = $#{$dbkey} ; $i < $#{$pk} ; $i++ ) {
 						push( @{$dbkey}, undef );
 					}
@@ -460,11 +462,13 @@ sub copy_table($$$;$) {
 
 			# this happens if one of the keys is NULL.  Should probably be
 			# rethink
-			if ( scalar $dbkey > scalar $pk ) {
-				warn sprintf "dbkey is too big for $k, skipping (%s,%s\n",
-				  join( ",", @{$dbkey} ),
-				  join( ",", @{$pk} );
-			} elsif ( scalar $dbkey < scalar $pk ) {
+			if ( $#{$dbkey} > $#{$pk} ) {
+				warn sprintf
+				  "dbkey is too big for %s, skipping (%s vs %s) [%d vs %d]\n",
+				  $k, join( ",", @{$dbkey} ),
+				  join( ",", @{$pk} ),
+				  scalar $dbkey, scalar $pk;
+			} elsif ( $#{$dbkey} < $#{$pk} ) {
 				for ( my $i = $#{$dbkey} ; $i < $#{$pk} ; $i++ ) {
 					push( @{$dbkey}, undef );
 				}
