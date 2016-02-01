@@ -22,7 +22,8 @@ use Data::Dumper;
 
 my $handler_map = {
 	add_container => \&add_container,
-	remove_container => \&remove_container
+	remove_container => \&remove_container,
+	assign_container_netblock => \&assign_container_netblock
 };
 
 sub handler {
@@ -600,10 +601,11 @@ sub add_container {
 		request => $r,
 		debug => $meta->{debug},
 		dbh => $dbh,
-		allrows => 1,
+		return_type => 'hashref',
 		query => q {
 			SELECT
-				netblock_id
+				netblock_id,
+				netblock_status
 			FROM
 				netblock n
 			WHERE
@@ -619,7 +621,7 @@ sub add_container {
 		return undef;
 	}
 
-	if (@$ret) {
+	if (%$ret && $ret->{netblock_status} ne 'Reserved') {
 		$response->{status} = 'reject';
 		$response->{message} =
 			sprintf('IP address %s already exists',
@@ -644,23 +646,23 @@ sub add_container {
 	}
 
 	#
-	# Validate that the IP address passed is free
+	# If the netblock exists, then we want to set it to Allocated, otherwise
+	# insert a new one
 	#
-
-	if (!defined($ret = runquery(
-		description => 'inserting container device',
-		request => $r,
-		debug => $meta->{debug},
-		dbh => $dbh,
-		return_type => 'hashref',
-		query => q {
-			WITH vals AS (
-				SELECT
-					?::text AS device_name,
-					?::integer AS parent_device_id,
-					?::inet AS ip_address,
-					?::text AS container_type
-			), nb_ins AS (
+	my $netblock_handling = %$ret ? 
+		q {
+				UPDATE
+					netblock n
+				SET
+					netblock_status = 'Allocated'
+				FROM
+					vals
+				WHERE
+					(n.ip_address, netblock_type, ip_universe_id) = 
+						(vals.ip_address, 'default', 0)
+				RETURNING *
+		} :
+		q {
 				INSERT INTO netblock (
 					ip_address,
 					netblock_type,
@@ -678,7 +680,24 @@ sub add_container {
 				FROM
 					vals
 				RETURNING *
-			), dev_ins AS (
+		};
+
+
+	if (!defined($ret = runquery(
+		description => 'inserting container device',
+		request => $r,
+		debug => $meta->{debug},
+		dbh => $dbh,
+		return_type => 'hashref',
+		query => sprintf(q {
+			WITH vals AS (
+				SELECT
+					?::text AS device_name,
+					?::integer AS parent_device_id,
+					?::inet AS ip_address,
+					?::text AS container_type
+			), nb_ins AS (%s),
+			dev_ins AS (
 				INSERT INTO device (
 					device_type_id,
 					device_name,
@@ -746,7 +765,7 @@ sub add_container {
 				dev_ins JOIN
 				service_environment se USING (service_environment_id) JOIN
 				device p ON (p.device_id = dev_ins.parent_device_id)
-		},
+		}, $netblock_handling),
 		args => [
 			$request->{device_name},
 			$request->{parent_device_id},
@@ -885,9 +904,23 @@ sub remove_container {
 	## If we get here, everything should be okay to delete
 	##
 
-	if (!$request->{container_type}) {
-		$request->{container_type} = 'Docker container';
-	}
+	my $netblock_handling = $request->{remove_netblock} ? 
+		q {
+				DELETE FROM
+					netblock
+				WHERE
+					netblock_id IN (SELECT netblock_id FROM nb_ids)
+		} :
+		q{
+				UPDATE
+					netblock n
+				SET
+					netblock_status = 'Reserved'
+				FROM
+					nb_ids
+				WHERE
+					n.netblock_id = nb_ids.netblock_id
+		} ;
 
 	if (!defined($ret = runquery(
 		description => 'deleting container device',
@@ -895,7 +928,7 @@ sub remove_container {
 		debug => $meta->{debug},
 		dbh => $dbh,
 		return_type => 'hashref',
-		query => q {
+		query => sprintf(q {
 			WITH vals AS (
 				SELECT
 					?::integer AS device_id
@@ -910,12 +943,8 @@ sub remove_container {
 					dns_record
 				WHERE
 					netblock_id IN (SELECT netblock_id FROM nb_ids)
-			), nb_del AS (
-				DELETE FROM
-					netblock
-				WHERE
-					netblock_id IN (SELECT netblock_id FROM nb_ids)
-			), ni_del AS (
+			), nb_del AS (%s),
+			ni_del AS (
 				DELETE FROM
 					network_interface
 				WHERE
@@ -940,7 +969,7 @@ sub remove_container {
 			WHERE
 				device_collection_id = 
 					(SELECT device_collection_id FROM dc)
-		},
+		}, $netblock_handling),
 		args => [
 			$request->{device_id},
 		]
@@ -999,5 +1028,242 @@ sub remove_container {
 
 	return Apache2::Const::OK;
 }
+
+sub list_container_netblocks {
+	my $opt = &_options(@_);
+
+	my $dbh = $opt->{dbh};
+	my $request = $opt->{request}->{data};
+	my $r = $opt->{request}->{handle};
+	my $response = $opt->{response};
+	my $meta = $opt->{request}->{meta};
+
+	my $error;
+	##
+	## Validate that the request is okay
+	##
+	if (!$request->{assignment_status}) {
+		$request->{assignment_status} = 'assigned';
+	}
+	my $valid_status = [ qw(assigned available pools) ];
+	if (!(grep { $_ eq $request->{assignment_status} } 
+			@$valid_status)) {
+		$response->{status} = 'reject';
+		$response->{message} = 
+			"assignment_status must be one of " . join(',',
+			sort @$valid_status);
+
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_ERR,
+			APR::Const::SUCCESS,
+			'Bad Request: ' . $response->{message}
+		);
+		return undef;
+	}
+
+	if ($request->{assignment_status} ne 'assigned' && $request->{device_id}) {
+
+		$response->{status} = 'reject';
+		$response->{message} = 
+			"assignment_status must be 'assigned' if device_id is set";
+
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_ERR,
+			APR::Const::SUCCESS,
+			'Bad Request: ' . $response->{message}
+		);
+		return undef;
+	}
+	if (
+		$request->{device_id} && $request->{device_id} !~ /^\d+$/
+	) {
+		$response->{status} = 'reject';
+		$response->{message} = "device_id must be numeric";
+
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_ERR,
+			APR::Const::SUCCESS,
+			'Bad Request: ' . $response->{message}
+		);
+		return undef;
+	}
+
+
+	return Apache2::Const::OK;
+}
+
+sub assign_container_netblock {
+	my $opt = &_options(@_);
+
+	my $dbh = $opt->{dbh};
+	my $request = $opt->{request}->{data};
+	my $r = $opt->{request}->{handle};
+	my $response = $opt->{response};
+	my $meta = $opt->{request}->{meta};
+
+	my $error;
+	##
+	## Validate that the request is okay
+	##
+	if (
+		!$request->{device_id} ||
+		!$request->{netblock_address}
+	) {
+		$response->{status} = 'reject';
+		$response->{message} = "request must include device_id and netblock_address";
+
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_ERR,
+			APR::Const::SUCCESS,
+			'Bad Request: ' . $response->{message}
+		);
+		return undef;
+	}
+
+	if (
+		$request->{device_id} !~ /^\d+$/
+	) {
+		$response->{status} = 'reject';
+		$response->{message} = "device_id must be numeric";
+
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_ERR,
+			APR::Const::SUCCESS,
+			'Bad Request: ' . $response->{message}
+		);
+		return undef;
+	}
+	
+	my $netblock_address;
+	eval {
+		$netblock_address = NetAddr::IP->new($request->{netblock_address});
+	};
+
+	if (!$netblock_address) {
+		$response->{status} = 'reject';
+		$response->{message} = sprintf("netblock_address %s is not valid",
+			$request->{netblock_address});
+
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_ERR,
+			APR::Const::SUCCESS,
+			'Bad Request: ' . $response->{message}
+		);
+		return undef;
+	}
+
+	my $ret;
+	##
+	## This is a temporary hack until we do device_type_collections or the like
+	##
+
+	#
+	# Validate that the device_id is a physical server
+	#
+	if (!defined($ret = runquery(
+		description => 'validating parent device',
+		request => $r,
+		debug => $meta->{debug},
+		dbh => $dbh,
+		allrows => 1,
+		query => q {
+			SELECT
+				device_id
+			FROM
+				device_collection dc JOIN
+				device_collection_device dcd USING (device_collection_id) JOIN
+				device d USING (device_id)
+			WHERE
+				device_collection_type = 'device-function' AND
+				device_collection_name = 'server' AND
+				device_id = ?
+		},
+		args => [
+			$request->{device_id}
+		]
+	))) {
+		$response->{status} = 'failure';
+		return undef;
+	}
+
+	if (!@$ret) {
+		$response->{status} = 'reject';
+		$response->{message} =
+			sprintf('device_id %d may not be used as a container host',
+				$request->{device_id});
+		$r->log_error(
+			sprintf(
+				'Rejecting %s request from %s: %s',
+				$request->{command},
+				$meta->{client_ip},
+				$response->{message}
+			)
+		);
+		undef;
+	}
+
+	#
+	# Validate that the netblock passed is valid to be used to house containers
+	#
+	if (!defined($ret = runquery(
+		description => 'validating container netblock status',
+		request => $r,
+		debug => $meta->{debug},
+		dbh => $dbh,
+		allrows => 1,
+		query => q {
+			SELECT
+				netblock_id
+			FROM
+				layer3_network_collection l3c JOIN
+				l3_network_coll_l3_network l3ncn USING
+					(layer3_network_collection_id) JOIN
+				layer3_network l3n USING (layer3_network_id) JOIN
+				netblock USING (netblock_id)
+			WHERE
+				(layer3_network_collection_name, 
+					layer3_network_collection_type) = 
+					('ValidLayer3Networks', 'ContainerManagement') AND
+				ip_address >> ?::inet
+		},
+		args => [
+			$netblock_address
+		]
+	))) {
+		$response->{status} = 'failure';
+		return undef;
+	}
+
+	if (!@$ret) {
+		$response->{status} = 'reject';
+		$response->{message} =
+			sprintf('%s is not part of a container manageable network',
+				$netblock_address);
+		$r->log_error(
+			sprintf(
+				'Rejecting %s request from %s: %s',
+				$request->{command},
+				$meta->{client_ip},
+				$response->{message}
+			)
+		);
+		return undef;
+	}
+
+	#
+	# Validate that all of the netblocks in the address block given either
+	# are already allocated to a network_range for this device, they are
+	# Reserved and not assigned to any other device, or don't exist
+	#
+	
+	return Apache2::Const::OK;
+}
+
 1;
 
