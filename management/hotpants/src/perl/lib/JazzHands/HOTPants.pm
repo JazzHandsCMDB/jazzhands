@@ -204,6 +204,8 @@ sub new {
 
 	my $self = $class->SUPER::new(@_);
 
+	$self->{_dbuser} = $opt->{dbuser} || 'hotpants';
+
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 	$self->opendb();
 
@@ -350,7 +352,7 @@ sub opendb {
 
 	my $dbh;
 	if (
-		!( $dbh = JazzHands::DBI->connect( 'hotpants', { AutoCommit => 0 } ) ) )
+		!( $dbh = JazzHands::DBI->connect( $self->{_dbuser}, { AutoCommit => 0 } ) ) )
 	{
 		undef $dbh;
 		return "Unable to create environment";
