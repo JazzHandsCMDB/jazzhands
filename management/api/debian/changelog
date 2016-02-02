@@ -1,3 +1,9 @@
+jazzhands-apache-api (0.67.5) trusty; urgency=medium
+
+  * minor changes for handling pre-allocated netblocks
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 02 Feb 2016 00:23:46 -0600
+
 jazzhands-apache-api (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation
