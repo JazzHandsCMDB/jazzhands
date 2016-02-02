@@ -1,4 +1,4 @@
-jazzhands-apache-api (0.67.5) trusty; urgency=medium
+jazzhands-apache-api (0.67.8) trusty; urgency=medium
 
   * minor changes for handling pre-allocated netblocks
 
