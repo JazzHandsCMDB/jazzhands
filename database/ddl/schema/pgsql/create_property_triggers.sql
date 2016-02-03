@@ -74,6 +74,7 @@ BEGIN
 			layer3_network_collection_id IS NOT DISTINCT FROM
 				NEW.layer3_network_collection_id AND
 			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
+			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
@@ -112,6 +113,7 @@ BEGIN
 			layer3_network_collection_id IS NOT DISTINCT FROM
 				NEW.layer3_network_collection_id AND
 			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
+			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
@@ -176,6 +178,7 @@ BEGIN
 			layer3_network_collection_id IS NOT DISTINCT FROM
 				NEW.layer3_network_collection_id AND
 			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
+			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
@@ -764,6 +767,18 @@ BEGIN
 	ELSIF v_prop.Permit_netblock_collection_Id = 'PROHIBITED' THEN
 			IF NEW.netblock_collection_Id IS NOT NULL THEN
 				RAISE 'netblock_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_network_range_id = 'REQUIRED' THEN
+			IF NEW.network_range_id IS NULL THEN
+				RAISE 'network_range_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_network_range_id = 'PROHIBITED' THEN
+			IF NEW.network_range_id IS NOT NULL THEN
+				RAISE 'network_range_id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
