@@ -797,11 +797,25 @@ sub fetch_attributes {
 
 	# XXX need to properly support multivalue
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		$attr->{ $hr->{property_type} }->{ $hr->{property_name} } = {
-			name       => $hr->{property_name},
-			value      => $hr->{property_value},
-			multivalue => 'N',
-		};
+		if(exists($attr->{ $hr->{property_type} }->{ $hr->{property_name}} )) {
+			my $x = $attr->{$hr->{property_type}}->{ $hr->{property_name}};
+			warn "++ Processing ", Dumper($hr, $x);
+			if (ref($x->{value}) eq 'ARRAY') {
+				push(@{$x->{value}}, $hr->{property_value});
+			} else {
+				my @arr;
+				push(@arr, $x->{value});
+				push(@arr, $hr->{property_value});
+				$x->{value} = \@arr;
+				$x->{multivalue} = 'Y';
+			}
+		} else {
+			$attr->{ $hr->{property_type} }->{ $hr->{property_name} } = {
+				name       => $hr->{property_name},
+				value      => $hr->{property_value},
+				multivalue => 'N',
+			};
+		}
 		$count++;
 	}
 	$sth->finish;

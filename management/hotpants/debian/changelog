@@ -1,8 +1,15 @@
+jazzhands-hotpants (0.68.0) unstable; urgency=medium
+
+  * Handle multi-value groups (probably stil needs work)
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  3 Feb 2016 14:49:00 -0500
+
 jazzhands-hotpants (0.67.7) unstable; urgency=medium
 
   * allow dbuser to be changed in new calls
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon,  1 Feb 2016 12:13:00 -0500
+
 
 jazzhands-hotpants (0.67.6) unstable; urgency=medium
 
