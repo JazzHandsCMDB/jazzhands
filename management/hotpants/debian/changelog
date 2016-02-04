@@ -1,8 +1,15 @@
+jazzhands-hotpants (0.68.1) unstable; urgency=medium
+
+  * make login lookups case insensitive
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu,  4 Feb 2016 09:20:00 -0500
+
 jazzhands-hotpants (0.68.0) unstable; urgency=medium
 
   * Handle multi-value groups (probably stil needs work)
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  3 Feb 2016 14:49:00 -0500
+
 
 jazzhands-hotpants (0.67.7) unstable; urgency=medium
 

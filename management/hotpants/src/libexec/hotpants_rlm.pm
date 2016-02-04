@@ -103,6 +103,7 @@ sub get_source {
 	foreach my $s (@validsrc) {
 		if ( $RAD_REQUEST{$s} ) {
 			my $v = $RAD_REQUEST{$s};
+
 			# This was just gross, but leaving here in case
 			# it becomes necessary to resurrect
 			#if ($s eq 'NAS-Identifier') {
@@ -214,8 +215,12 @@ sub authorize {
 		return RLM_MODULE_REJECT;
 	}
 
-	my $authreqstr =
-	  sprintf( "Authorization request for %s from %s", $login, $source );
+	# convert to lower case for lookup
+	my $origlogin = $login;
+	$login =~ tr/A-Z/a-z/;
+
+	my $authreqstr = sprintf( "Authorization request for %s (%s) from %s",
+		$login, $origlogin, $source );
 	if ($appname) {
 		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
 	}
@@ -308,8 +313,12 @@ sub authenticate {
 		return RLM_MODULE_REJECT;
 	}
 
-	my $authreqstr =
-	  sprintf( "Authentication request for %s from %s", $login, $source );
+	# convert to lower case for lookup
+	my $origlogin = $login;
+	$login =~ tr/A-Z/a-z/;
+
+	my $authreqstr = sprintf( "Authentication request for %s (%s) from %s",
+		$login, $origlogin, $source );
 	if ($appname) {
 		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
 	}
