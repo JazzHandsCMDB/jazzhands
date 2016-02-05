@@ -182,85 +182,23 @@ sub authorize {
 		return find_client();
 	}
 
-	my $callingid = "";
-	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
-		$callingid = $RAD_REQUEST{"Calling-Station-Id"};
+	my $rv = validate_credentials();
+
+	if ( ref($rv) ne 'HASH' ) {
+		return $rv;
 	}
 
-	my ( $source, $appname ) = get_source();
+	my $appname    = $rv->{appname};
+	my $authreqstr = $rv->{authreqstr};
+	my $client     = $rv->{client};
+	my $hp         = $rv->{hp};
+	my $login      = $rv->{login};
+	my $source     = $rv->{source};
+	my $user       = $rv->{user};
+	my $rank       = $rv->{rank};
 
-	if ( !$source ) {
-		my $msg = join(
-			", ",
-			map {
-				"$_ => "
-				  . ( ( $_ !~ /Password/i ) ? $RAD_REQUEST{$_} : "BLANKED" )
-			  }
-			  keys %RAD_REQUEST
-		);
-		radiusd::radlog(
-			4,
-			sprintf(
-				"authorize: Unable to discern source from %s: %s",
-				$callingid, $msg
-			)
-		);
-		return RLM_MODULE_FAIL;
-	}
-
-	my $login;
-
-	if ( !( $login = $RAD_REQUEST{'User-Name'} ) ) {
-		radiusd::radlog( 4, "No User-Name in the request" );
-		return RLM_MODULE_REJECT;
-	}
-
-	# convert to lower case for lookup
-	my $origlogin = $login;
-	$login =~ tr/A-Z/a-z/;
-
-	my $authreqstr = sprintf( "Authorization request for %s (%s) from %s",
-		$login, $origlogin, $source );
-	if ($appname) {
-		$authreqstr .= ' (' . $RAD_REQUEST{'NAS-IP-Address'} . ')';
-	}
-	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
-		$authreqstr .= " connecting from " . $RAD_REQUEST{"Calling-Station-Id"};
-	}
-
-	my $hp = connect_hp();
-	if ( $err = $hp->opendb ) {
-		radiusd::radlog( 4, "biteme: " . $err );
-		exit RLM_MODULE_FAIL;
-	}
-
-	my $client;
-	if ( !( $client = $hp->fetch_client( client_id => $source ) ) ) {
-		if ( $hp->Error ) {
-			radiusd::radlog( 4, $hp->Error );
-			$hp->closedb;
-			return RLM_MODULE_FAIL;
-		} else {
-			radiusd::radlog( 2, sprintf( "%s: unknown client", $authreqstr ) );
-			$hp->closedb;
-			return RLM_MODULE_REJECT;
-		}
-	}
-
-	my $user;
-	if ( !( $user = $hp->fetch_user( login => $login ) ) ) {
-		if ( !$hp->Error ) {
-			radiusd::radlog( 2, sprintf( "%s: unknown user", $authreqstr ) );
-			$RAD_REPLY{"Reply-Message"} = "Login incorrect";
-			return RLM_MODULE_REJECT;
-		} else {
-			radiusd::radlog( 4, "fetch_user: " . $hp->Error );
-			$hp->closedb;
-			return RLM_MODULE_FAIL;
-		}
-	}
-
-	my $success = $hp->AuthorizeUser( login => $login, source => $source );
+	my $success =
+	  $hp->AuthorizeUser( login => $login, source => $source, rank => $rank );
 	if ( !$success ) {
 		my $err = $hp->Error;
 		radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $err ) );
@@ -275,9 +213,21 @@ sub authorize {
 	return RLM_MODULE_OK;
 }
 
-# Function to handle authenticate
-sub authenticate {
+sub validate_credentials {
 	my ( $source, $appname ) = get_source();
+
+	#
+	# The PWType rank is used for chaining, if set, then this is just passed
+	# up to figure out where things are
+	#
+	my $rank;
+	if ( ( my $state = $RAD_REQUEST{'State'} ) ) {
+		if ( $state =~ s/^0x// ) {
+			$state = map { chr("0x$_") } substr( $state, 2 );
+			$state =~ s/^jazzhands-hotpants-//;
+		}
+		$rank = int($state);
+	}
 
 	my $callingid = "";
 	if ( $RAD_REQUEST{'Calling-Station-Id'} ) {
@@ -364,6 +314,35 @@ sub authenticate {
 		}
 	}
 
+	return {
+		appname    => $appname,
+		authreqstr => $authreqstr,
+		client     => $client,
+		hp         => $hp,
+		login      => $login,
+		source     => $source,
+		user       => $user,
+		rank       => $rank,
+	};
+}
+
+# Function to handle authenticate
+sub authenticate {
+	my $rv = validate_credentials();
+
+	if ( ref($rv) ne 'HASH' ) {
+		return $rv;
+	}
+
+	my $appname    = $rv->{appname};
+	my $authreqstr = $rv->{authreqstr};
+	my $client     = $rv->{client};
+	my $hp         = $rv->{hp};
+	my $login      = $rv->{login};
+	my $source     = $rv->{source};
+	my $user       = $rv->{user};
+	my $rank       = $rv->{rank};
+
 	if ( !$hp->VerifyUser( user => $user ) ) {
 		if ( $hp->Error ) {
 			radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $hp->Error ) );
@@ -385,7 +364,8 @@ sub authenticate {
 		$success = $hp->AuthenticateUser(
 			login  => $login,
 			passwd => $passwd,
-			source => $source
+			source => $source,
+			rank   => $rank
 		);
 		if ( !$success ) {
 			my $err = $hp->Error;
@@ -405,69 +385,77 @@ sub authenticate {
 		}
 	}
 
-	#
-	# If we get here, the user is okay.  Fetch any attributes and put them
-	# in the RAD_REPLY hash.  If any of the dictionary items are not known,
-	# they won't get sent back and an error will get logged by rlm_perl
-	#
+	if ( $success->{result} eq 'accept' ) {
+		#
+		# If we get here, the user is okay.  Fetch any attributes and put them
+		# in the RAD_REPLY hash.  If any of the dictionary items are not known,
+		# they won't get sent back and an error will get logged by rlm_perl
+		#
 
-	my $attrs;
-	if (
-		!(
-			$attrs = $hp->fetch_attributes(
-				login      => $login,
-				devcoll_id => $client->{devcoll_id}
+		my $attrs;
+		if (
+			!(
+				$attrs = $hp->fetch_attributes(
+					login      => $login,
+					devcoll_id => $client->{devcoll_id}
+				)
 			)
-		)
-	  )
-	{
-		if ( $hp->Error ) {
-			radiusd::radlog( 4, $hp->Error );
-			$hp->closedb;
-			return RLM_MODULE_FAIL;
+		  )
+		{
+			if ( $hp->Error ) {
+				radiusd::radlog( 4, $hp->Error );
+				$hp->closedb;
+				return RLM_MODULE_FAIL;
+			}
 		}
-	}
 
-	#
-	# Copy all of the attribute/value pairs.  Where $source is radius,
-	# JH-Application-ACL is handled differently below.  This probably
-	# needs to be rethought.
-	#
-	map { $RAD_REPLY{$_} = $attrs->{RADIUS}->{$_}->{value} }
-	  sort keys %{ $attrs->{RADIUS} };
+		#
+		# Copy all of the attribute/value pairs.  Where $source is radius,
+		# JH-Application-ACL is handled differently below.  This probably
+		# needs to be rethought.
+		#
+		map { $RAD_REPLY{$_} = $attrs->{RADIUS}->{$_}->{value} }
+		  sort keys %{ $attrs->{RADIUS} };
 
-	#
-	# If we have JH-Application-Name set, return all of the attributes
-	# for that application type.  If JH-Application-ACL was set, then
-	# see if any of the ACLs match
-	#
+		#
+		# If we have JH-Application-Name set, return all of the attributes
+		# for that application type.  If JH-Application-ACL was set, then
+		# see if any of the ACLs match
+		#
 
-	if ($appname) {
-		my @attr = sort keys %{ $attrs->{$source} };
-		if (@attr) {
-			$RAD_REPLY{$appname} = \@attr;
-		}
-		if ( $RAD_REQUEST{$appname} ) {
+		if ($appname) {
+			my @attr = sort keys %{ $attrs->{$source} };
+			if (@attr) {
+				$RAD_REPLY{$appname} = \@attr;
+			}
+			if ( $RAD_REQUEST{$appname} ) {
 
-			# Clear the success flag unless we match an ACL
-			$success = 0;
-			foreach my $a (
-				ref( $RAD_REQUEST{$appname} )
-				? @{ $RAD_REQUEST{$appname} }
-				: $RAD_REQUEST{$appname}
-			  )
-			{
-				if ( grep { lc($_) eq lc($a) } @attr ) {
-					$success = 1;
-					last;
+				# Clear the success flag unless we match an ACL
+				$success = 0;
+				foreach my $a (
+					ref( $RAD_REQUEST{$appname} )
+					? @{ $RAD_REQUEST{$appname} }
+					: $RAD_REQUEST{$appname}
+				  )
+				{
+					if ( grep { lc($_) eq lc($a) } @attr ) {
+						$success = 1;
+						last;
+					}
 				}
 			}
 		}
+	} elsif ( $success->{result} eq 'challenge' ) {
+		$RAD_REPLY{'State'}         = "jazzhands-hotpants-" . $success->{next};
+		$RAD_REPLY{'Reply-Message'} = $success->{message};
+		$RAD_CHECK{'Response-Packet-Type'} = 'Access-Challenge';
 	}
 
 	$hp->closedb;
-	if ($success) {
+	if ( $success->{result} == 'accept' ) {
 		return RLM_MODULE_OK;
+	} elsif ( $success->{result} == 'challenge' ) {
+		return RLM_MODULE_HANDLED;
 	} else {
 		return RLM_MODULE_REJECT;
 	}

@@ -170,8 +170,8 @@ with idev as (
 		(device_collection_id, device_id)
 	SELECT device_collection_id, device_id
 	FROM idev, device_collection
-	WHERE	device_collection_type = 'mclass'
-	AND	device_collection_name = 'cloud'
+	WHERE	device_collection_type = 'HOTPants'
+	AND	device_collection_name = 'vpn'
 	RETURNING *
 ), secret AS (
 	INSERT into property (

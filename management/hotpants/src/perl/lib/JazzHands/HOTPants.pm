@@ -63,6 +63,9 @@ use parent 'JazzHands::Common';
 
 our $errstr;
 
+#
+# These need to be configurable as properties for overrrides.
+#
 my %__HOTPANTS_CONFIG_PARAMS = (
 	TimeSequenceSkew      => 2,      # sequence skew allowed for time-based
 	                                 # tokens
@@ -89,7 +92,10 @@ BEGIN {
 	$VERSION = '1.0';
 
 	# redundant with use parent, and all this can likely go away.  maybe.
-	@ISA    = qw(JazzHands::Common Exporter);
+	@ISA = qw(JazzHands::Common Exporter);
+
+	# TT,TS,US_ can all go away; no longer used.  There's other bdb droppings
+	# around that need to be purged.
 	@EXPORT = qw(
 	  TT_UNDEF
 	  TT_SOFT_SEQ
@@ -235,6 +241,104 @@ sub new {
 	$self;
 }
 
+#
+# return the acccounts's mechanism and next one if that should they be tiered.
+#
+sub get_authmechs($$$$$$) {
+	my $self = shift @_;
+	my ($attrs, $login, $client, $devcollprop, $rank) = @_;
+
+
+	my ($authmech, $nexttype);
+	if ( defined( $attrs->{HOTPants}->{PWType} ) ) {
+		if ($rank) {
+			if ( ref( $attrs->{HOTPants}->{PWType}->{value} ) ne 'ARRAY' ) {
+				$self->ErrorF(
+					"Challenge sent (%s) for an unchallenging account", $rank );
+				return undef;
+			}
+			my @a = @{ $attrs->{HOTPants}->{PWType}->{value} };
+			if ( $rank > $#a ) {
+				$self->ErrorF( "Challenge sent (%s) is to high for account",
+					$rank );
+				return undef;
+			} elsif ( $rank < $#a ) {
+				$nexttype =
+				  $attrs->{HOTPants}->{PWType}->{value}->[ $rank + 1 ];
+			}
+			$authmech = $attrs->{HOTPants}->{PWType}->{value}->[$rank];
+		} else {
+			if ( ref( $attrs->{HOTPants}->{PWType}->{value} ) eq 'ARRAY' ) {
+				warn "+++ setting up next";
+				$nexttype =
+				  $attrs->{HOTPants}->{PWType}->{value}->[1];
+				$authmech =
+				  $attrs->{HOTPants}->{PWType}->{value}->[0];
+			} else {
+				$authmech = $attrs->{HOTPants}->{PWType}->{value};
+			}
+		}
+		$self->_Debug(
+			2, "Setting password type for user %s on client %s to (%s)",
+			$login,
+			$client->{devcoll_name},
+			$authmech || "undefined"
+		);
+	} else {
+		#
+		# If there is no default password method for the account, figure out
+		# the default for the collection.
+		# This is a similar dance to the previous case, where there can be
+		# tiers and the array needs to be plucked out.
+		#
+		if($rank) {
+			if(ref($devcollprop->{pwtype}) ne 'ARRAY') {
+				$self->ErrorF(
+					"Challenge sent (%s) for an unchallenging account", $rank );
+				return undef;
+			}
+			my @a = @{ $devcollprop->{pwtype} };
+			if ( $rank > $#a ) {
+				$self->ErrorF( "Challenge sent (%s) is to high for account",
+					$rank );
+				return undef;
+			} elsif ( $rank < $#a ) {
+				$nexttype = $devcollprop->{pwtype}->[$rank + 1];
+			}
+			$authmech = $devcollprop->{pwtype}->[$rank];
+		} else {
+			if(ref($devcollprop->{pwtype}) eq 'ARRAY') {
+				$authmech = $devcollprop->{pwtype}->[0];
+				$nexttype = $devcollprop->{pwtype}->[1];
+			} else {
+				$authmech = $devcollprop->{pwtype};
+			}
+		}
+
+		if ( defined($authmech) ) {
+			$self->_Debug(
+				2,
+				"Setting password type for client %s to %s%s",
+				$client->{devcoll_name}, $authmech,
+				($nexttype)?" [$nexttype]":""
+			);
+		} else {
+			$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
+			$self->_Debug(
+				2,
+				"Setting password type for client %s to default (%s)",
+				$client->{devcoll_name},
+				$authmech || "undefined"
+			);
+		}
+	}
+
+	return {
+		authmech => $authmech,
+		nexttype => $nexttype
+	};
+}
+
 sub Status {
 	my $self = shift;
 
@@ -352,7 +456,11 @@ sub opendb {
 
 	my $dbh;
 	if (
-		!( $dbh = JazzHands::DBI->connect( $self->{_dbuser}, { AutoCommit => 0 } ) ) )
+		!(
+			$dbh =
+			JazzHands::DBI->connect( $self->{_dbuser}, { AutoCommit => 0 } )
+		)
+	  )
 	{
 		undef $dbh;
 		return "Unable to create environment";
@@ -634,6 +742,7 @@ sub fetch_devcollprop {
 		WHERE	Property_Name = 'PWType'
 		AND		Property_Type = 'HOTPants'
 		AND		device_collection_id = ?
+		ORDER BY property_type, property_name, property_rank
 	}
 	);
 
@@ -650,17 +759,31 @@ sub fetch_devcollprop {
 		return undef;
 	}
 
-	my $hr = $sth->fetchrow_hashref;
+	my $r;
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		if ( !$r ) {
+			$r = {
+				devcoll_id => $hr->{device_collection_id},
+				pwtype     => $hr->{property_value}
+			};
+		} else {
+			if ( ref( $r->{pwtype} ) eq 'ARRAY' ) {
+				push( @{ $r->{pwtype} }, $hr->{property_value} );
+			} else {
+				my @a;
+				push( @a, $r->{pwtype} );
+				push( @a, $hr->{property_value} );
+				$r->{pwtype} = \@a;
+			}
+		}
+	}
+
 	$sth->finish;
 
-	if ( !$hr ) {
+	if ( !$r ) {
 		return undef;
 	}
 
-	my $r = {
-		devcoll_id => $hr->{device_collection_id},
-		pwtype     => $hr->{property_value}
-	};
 	$r;
 }
 
@@ -779,6 +902,7 @@ sub fetch_attributes {
 	        FROM	v_hotpants_account_attribute
 	        WHERE	login = ?
 			AND		device_collection_id = ?
+			ORDER BY property_type, property_name, property_rank
 	}
 	);
 
@@ -797,16 +921,18 @@ sub fetch_attributes {
 
 	# XXX need to properly support multivalue
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		if(exists($attr->{ $hr->{property_type} }->{ $hr->{property_name}} )) {
-			my $x = $attr->{$hr->{property_type}}->{ $hr->{property_name}};
-			warn "++ Processing ", Dumper($hr, $x);
-			if (ref($x->{value}) eq 'ARRAY') {
-				push(@{$x->{value}}, $hr->{property_value});
+		if (
+			exists( $attr->{ $hr->{property_type} }->{ $hr->{property_name} } )
+		  )
+		{
+			my $x = $attr->{ $hr->{property_type} }->{ $hr->{property_name} };
+			if ( ref( $x->{value} ) eq 'ARRAY' ) {
+				push( @{ $x->{value} }, $hr->{property_value} );
 			} else {
 				my @arr;
-				push(@arr, $x->{value});
-				push(@arr, $hr->{property_value});
-				$x->{value} = \@arr;
+				push( @arr, $x->{value} );
+				push( @arr, $hr->{property_value} );
+				$x->{value}      = \@arr;
 				$x->{multivalue} = 'Y';
 			}
 		} else {
@@ -1632,7 +1758,7 @@ sub AuthenticateUser {
 	#
 	# Keep track of success or failure for locking the user
 	#
-	my $authsucceeded = 0;
+	my $authsucceeded = undef;
 
 	# Generic user error, clear status
 	$self->UserError("Login incorrect");
@@ -1651,6 +1777,7 @@ sub AuthenticateUser {
 
 	my $login = $opt->{login};
 	my $user  = $opt->{user};
+	my $rank  = $opt->{rank};
 
 	if ( !$login && !$user ) {
 		$self->Error("login or user options required but not provided");
@@ -1719,27 +1846,6 @@ sub AuthenticateUser {
 	}
 
 	#
-	# If we don't have a device password method, use our default
-	#
-	my $authmech = $devcollprop->{pwtype};
-
-	if ( defined($authmech) ) {
-		$self->_Debug(
-			2,
-			"Setting password type for client %s to %s",
-			$client->{devcoll_name}, $authmech
-		);
-	} else {
-		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		$self->_Debug(
-			2,
-			"Setting password type for client %s to default (%s)",
-			$client->{devcoll_name},
-			$authmech || "undefined"
-		);
-	}
-
-	#
 	# See if the user has a password type override
 	#
 
@@ -1758,14 +1864,12 @@ sub AuthenticateUser {
 		}
 	}
 
-	if ( defined( $attrs->{HOTPants}->{PWType} ) ) {
-		$authmech = $attrs->{HOTPants}->{PWType}->{value};
-		$self->_Debug(
-			2, "Setting password type for user %s on client %s to (%s)",
-			$login,
-			$client->{devcoll_name},
-			$authmech || "undefined"
-		);
+	my($authmech, $nexttype);
+	if(my $am = $self->get_authmechs($attrs, $login, $client, $devcollprop, $rank)) {
+		$authmech = $am->{authmech};
+		$nexttype = $am->{nexttype};
+	} else {
+		return undef;
 	}
 
 	#
@@ -1804,7 +1908,7 @@ sub AuthenticateUser {
 			)
 		  )
 		{
-			$authsucceeded = 1;
+			$authsucceeded = { result => 'accept' };
 		}
 		$err = $self->Error;
 		return undef if ( $err && $err =~ /^No tokens assigned/ );
@@ -1886,7 +1990,7 @@ sub AuthenticateUser {
 	if (   $p->{passwd} eq $checkpass
 		|| $p->{passwd} eq ( $checkpass . "=" ) )
 	{
-		$authsucceeded = 1;
+		$authsucceeded = { result => 'accept' };
 	} else {
 		$self->_Debug(
 			2,
@@ -1901,6 +2005,35 @@ sub AuthenticateUser {
 
   UserAuthDone:
 	if ($authsucceeded) {
+		my $extralogmsg = "";
+		if ($nexttype) {
+			my $challengeresponse = $rank + 1;
+			$extralogmsg = sprintf( "[challenging to %d]", $challengeresponse );
+			my $msg = "Please enter the code for the next stage";
+			if ($nexttype) {
+				if ( $nexttype eq 'token' || $nexttype eq 'oath' ) {
+					$msg = "Please enter your token and PIC";
+				} elsif ( $nexttype eq 'blowfish' ) {
+					$msg = "Please enter your password";
+				}
+			}
+			$authsucceeded = {
+				result  => 'challenge',
+				next    => $challengeresponse,
+				message => $msg
+			};
+
+		}
+		if ( !$self->Status ) {
+			$self->Status(
+				sprintf(
+					"user %s successfully authenticated using %s for client %s (%s)",
+					$login,                  $authmech,
+					$client->{devcoll_name}, $extralogmsg
+				)
+			);
+		}
+
 		if ( !$self->Status ) {
 			$self->Status(
 				sprintf(
@@ -1923,7 +2056,7 @@ sub AuthenticateUser {
 			$self->_Debug( 2, $self->Error );
 		}
 
-		# XXX likely need to make this go away because tis token only.
+		# XXX likely need to make this go away because its token only.
 		$user->{bad_logins} += 1;
 		$user->{lock_status_changed} = time;
 		if ( $user->{bad_logins} >=
@@ -2022,6 +2155,7 @@ sub AuthorizeUser {
 
 	my $login = $opt->{login};
 	my $user  = $opt->{user};
+	my $rank  = $opt->{rank};
 
 	if ( !$login && !$user ) {
 		$self->Error("login or user options required but not provided");
@@ -2084,27 +2218,6 @@ sub AuthorizeUser {
 	}
 
 	#
-	# If we don't have a device password method, use our default
-	#
-	my $authmech = $devcollprop->{pwtype};
-
-	if ( defined($authmech) ) {
-		$self->_Debug(
-			2,
-			"Setting password type for client %s to %s",
-			$client->{devcoll_name}, $authmech
-		);
-	} else {
-		$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
-		$self->_Debug(
-			2,
-			"Setting password type for client %s to default (%s)",
-			$client->{devcoll_name},
-			$authmech || "undefined"
-		);
-	}
-
-	#
 	# See if the user has a password type override
 	#
 
@@ -2123,14 +2236,12 @@ sub AuthorizeUser {
 		}
 	}
 
-	if ( defined( $attrs->{HOTPants}->{PWType} ) ) {
-		$authmech = $attrs->{HOTPants}->{PWType}->{value};
-		$self->_Debug(
-			2, "Setting password type for user %s on client %s to (%s)",
-			$login,
-			$client->{devcoll_name},
-			$authmech || "undefined"
-		);
+	my($authmech, $nexttype);
+	if(my $am = $self->get_authmechs($attrs, $login, $client, $devcollprop, $rank)) {
+		$authmech = $am->{authmech};
+		$nexttype = $am->{nexttype};
+	} else {
+		return undef;
 	}
 
 	#
