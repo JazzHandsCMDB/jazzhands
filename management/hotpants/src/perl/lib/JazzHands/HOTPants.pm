@@ -22,7 +22,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Copyright (c) 2015, Todd M. Kover
+# Copyright (c) 2015-2016, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -246,10 +246,9 @@ sub new {
 #
 sub get_authmechs($$$$$$) {
 	my $self = shift @_;
-	my ($attrs, $login, $client, $devcollprop, $rank) = @_;
+	my ( $attrs, $login, $client, $devcollprop, $rank ) = @_;
 
-
-	my ($authmech, $nexttype);
+	my ( $authmech, $nexttype );
 	if ( defined( $attrs->{HOTPants}->{PWType} ) ) {
 		if ($rank) {
 			if ( ref( $attrs->{HOTPants}->{PWType}->{value} ) ne 'ARRAY' ) {
@@ -291,8 +290,8 @@ sub get_authmechs($$$$$$) {
 		# This is a similar dance to the previous case, where there can be
 		# tiers and the array needs to be plucked out.
 		#
-		if($rank) {
-			if(ref($devcollprop->{pwtype}) ne 'ARRAY') {
+		if ($rank) {
+			if ( ref( $devcollprop->{pwtype} ) ne 'ARRAY' ) {
 				$self->ErrorF(
 					"Challenge sent (%s) for an unchallenging account", $rank );
 				return undef;
@@ -303,11 +302,11 @@ sub get_authmechs($$$$$$) {
 					$rank );
 				return undef;
 			} elsif ( $rank < $#a ) {
-				$nexttype = $devcollprop->{pwtype}->[$rank + 1];
+				$nexttype = $devcollprop->{pwtype}->[ $rank + 1 ];
 			}
 			$authmech = $devcollprop->{pwtype}->[$rank];
 		} else {
-			if(ref($devcollprop->{pwtype}) eq 'ARRAY') {
+			if ( ref( $devcollprop->{pwtype} ) eq 'ARRAY' ) {
 				$authmech = $devcollprop->{pwtype}->[0];
 				$nexttype = $devcollprop->{pwtype}->[1];
 			} else {
@@ -319,8 +318,8 @@ sub get_authmechs($$$$$$) {
 			$self->_Debug(
 				2,
 				"Setting password type for client %s to %s%s",
-				$client->{devcoll_name}, $authmech,
-				($nexttype)?" [$nexttype]":""
+				$client->{devcoll_name},
+				$authmech, ($nexttype) ? " [$nexttype]" : ""
 			);
 		} else {
 			$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
@@ -1364,8 +1363,9 @@ sub HOTPAuthenticate {
 	# clear errors
 	$self->Error(undef);
 
-	my $login = $opt->{login};
-	my $user  = $opt->{user};
+	my $login  = $opt->{login};
+	my $user   = $opt->{user};
+	my $method = $opt->{method};
 
 	if ( !$login && !$user ) {
 		$self->Error("login or user options required but not provided");
@@ -1398,6 +1398,13 @@ sub HOTPAuthenticate {
 	my ( $token, $tokenid );
 	my ( $pin, $prn, $otplen );
 
+	# keep track of any tokens that need to be marked as out of sync to
+	# force a resync
+	my (@badotp);
+
+	my (@badtokens);
+
+	my $sequence;
 	foreach $tokenid ( @{ $user->{tokens} } ) {
 		$self->_Debug( 1, "Trying token %d for user %s", $tokenid, $login );
 		if ( !( $token = $self->fetch_token( token_id => $tokenid ) ) ) {
@@ -1406,10 +1413,12 @@ sub HOTPAuthenticate {
 			next;
 		}
 
-		if ( !$token->{token_password} ) {
-			$self->_Debug( 2, "PIN not set for token %d.  Skipping.",
-				$tokenid );
-			next;
+		if ( !$method || $method ne 'oath-only' ) {
+			if ( !$token->{token_password} ) {
+				$self->_Debug( 2, "PIN not set for token %d.  Skipping.",
+					$tokenid );
+				next;
+			}
 		}
 
 		#
@@ -1452,218 +1461,235 @@ sub HOTPAuthenticate {
 		#
 		# Check the PIN
 		#
-		my $crypt = bcrypt( $pin, $token->{token_password} );
-		if ( $token->{token_password} eq
-			bcrypt( $pin, $token->{token_password} ) )
-		{
+		if ( !$method || $method ne 'oath-only' ) {
+			my $crypt = bcrypt( $pin, $token->{token_password} );
+			if ( $token->{token_password} eq
+				bcrypt( $pin, $token->{token_password} ) )
+			{
 
-			$pinfound = 1;
-			$self->_Debug( 2, "PIN is correct for token %d", $tokenid );
-			last;
-		} else {
-			$self->_Debug( 2,
-				"PIN is incorrect for token %d, expected %s, got %s",
-				$tokenid, $token->{token_password}, $crypt );
+				$pinfound = 1;
+				$self->_Debug( 2, "PIN is correct for token %d", $tokenid );
+			} else {
+				$self->_Debug( 2,
+					"PIN is incorrect for token %d, expected %s, got %s",
+					$tokenid, $token->{token_password}, $crypt );
+				next;
+			}
+		}
+
+		# before having passwordless token, the for loop ended here and the
+		# loop ended with $token pointing to a valdi toke
+
+		if ( !$validtoken ) {
 			next;
 		}
+		if ( !$method || $method ne 'oath-only' ) {
+			if ( !$pinfound ) {
+				next;
+			}
+		}
+
+		#
+		# Verify that the token is enabled - XXX
+		#
+		#	if ( $token->{token_status} != TS_ENABLED ) {
+		#		$self->Error(
+		#			sprintf( "token %d is marked as %s", $tokenid,
+		#				$TokenStatus{ $token->{token_status} } )
+		#		);
+		#		return undef;
+		#	}
+
+		#
+		# Check if the token is locked
+		#
+		if ( !$token->{is_token_locked} || $token->{is_token_locked} eq 'Y' ) {
+			my $unlockwhence;
+			eval {
+				my $Strp = DateTime::Format::Strptime->new(
+					pattern   => '%F %T',
+					locale    => 'en_US.UTF8',
+					time_zone => 'UTC',
+				);
+				my $dt = $Strp->parse_datetime( $token->{token_unlock_time} )
+				  || die;
+				$unlockwhence = $dt->epoch;
+			};
+			if ($@) {
+				$self->ErrorF(
+					"Unable to convert %s to epoch",
+					$token->{token_unlock_time}
+				);
+				return undef;
+			}
+
+			if ( $unlockwhence && $unlockwhence <= time() ) {
+				$token->{is_token_locked}   = 'N';
+				$token->{token_unlock_time} = undef;
+				$token->{bad_logins}        = 0;
+				$token->{last_updated}      = time();
+				$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
+				if ( !( $self->put_token( token => $token ) ) ) {
+					$self->ErrorF( "Error unlocking token %d: %s",
+						$token->{token_id}, $self->Error );
+					return undef;
+				}
+			} else {
+				$errstr = sprintf( "token %d is locked.", $token->{token_id} );
+				if ( $token->{token_unlock_time} ) {
+					$errstr .= sprintf( "  Token will unlock at %s",
+						$token->{token_unlock_time} );
+				} else {
+					$errstr .= "  Token must be administratively unlocked";
+				}
+				$self->Error($errstr);
+
+				# not returning here in case another unlocked token is valid.
+				next;
+			}
+		}
+
+		#
+		# At this point, the user and the token are both fine and can be
+		# authenticated
+		#
+
+		#
+		# Check to see if we're looking for a specific sequence first to
+		# resynchronize the token
+		#
+		$sequence = undef;
+		if ( $token->{time_skew} ) {
+			$sequence = $token->{time_skew} + 1;
+			$self->_Debug( 2, "Expecting next token sequence %d for token %d",
+				$sequence, $token->{token_id} );
+			my $checkprn = GenerateHOTP(
+				key      => $token->{token_key},
+				sequence => $sequence,
+				digits   => $otplen,
+				keytype  => 'base64'
+			);
+			if ( !defined($checkprn) ) {
+				$self->Error(
+					sprintf(
+						"Unknown error generating OTP for token %d (seq %d)",
+						$token->{token_id}, $sequence
+					)
+				);
+				return undef;
+			}
+			if ( $prn eq $checkprn ) {
+				$authok = 1;
+				last;
+				$self->_Debug( 2, "Received token sequence %d for token %d",
+					$sequence, $token->{token_id} );
+				last;
+			}
+			$self->_Debug( 2, "Did not receive token sequence %d for token %d",
+				$sequence, $token->{token_id} );
+		}
+
+		my $initialseq;
+		my $maxskew;
+		if ( $token->{time_modulo} ) {
+			$initialseq =
+			  int(
+				time() / $token->{time_modulo} -
+				  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew} );
+			#
+			# If we already have an auth from this sequence, don't
+			# allow replays
+			#
+			if ( $token->{token_sequence} >= $initialseq ) {
+				$initialseq = $token->{token_sequence} + 1;
+			}
+			$maxskew = $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
+		} else {
+			$initialseq = $token->{token_sequence} + 1;
+			$maxskew    = $__HOTPANTS_CONFIG_PARAMS{SequenceSkew};
+		}
+
+		#
+		# Either the token is not skewed, or the skew reset failed.  Perform
+		# normal authentication
+		#
+		for (
+			$sequence = $initialseq ;
+			$sequence <=
+			$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
+			$sequence++
+		  )
+		{
+
+			my $checkprn = GenerateHOTP(
+				key      => $token->{token_key},
+				sequence => $sequence,
+				digits   => $otplen,
+				keytype  => 'base64'
+			);
+			if ( !defined($checkprn) ) {
+				$self->Error(
+					sprintf(
+						"Unknown error generating OTP for token %d - seq %d",
+						$token->{token_id}, $sequence
+					)
+				);
+				return undef;
+			}
+			$self->_Debug( 50, "Given PRN is %s.  PRN for sequence %d is %s",
+				$prn, $sequence, $checkprn );
+			if ( $prn eq $checkprn ) {
+				$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
+				last;
+			}
+		}
+
+		#
+		# If we don't get to it in ResyncSequenceSkew sequences, bail
+		#
+		if ( $sequence >
+			$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
+		{
+			push( @badtokens, $token );
+			next;
+		}
+
+		#
+		# If we find the sequence, but it's between SequenceSkew and
+		# ResyncSequenceSkew, put the token into next OTP mode
+		#
+		#
+		if ( $sequence > ( $initialseq + $maxskew ) ) {
+			push( @badotp, $token );
+			$token->{maxskew}   = $maxskew;
+			$token->{time_skew} = $sequence;
+			next;
+		}
+
+		#
+		# If we got here, it worked
+		#
+		$authok = 1;
 	}
+
 	if ( !$validtoken ) {
 		$errstr = "no valid tokens found for user";
 		goto HOTPAuthDone;
 	}
-	if ( !$pinfound ) {
-		$errstr = "PIN incorrect for all assigned tokens";
-		goto HOTPAuthDone;
-	}
-
-	#
-	# Verify that the token is enabled
-	#
-	#	if ( $token->{token_status} != TS_ENABLED ) {
-	#		$self->Error(
-	#			sprintf( "token %d is marked as %s", $tokenid,
-	#				$TokenStatus{ $token->{token_status} } )
-	#		);
-	#		return undef;
-	#	}
-
-	#
-	# Check if the token is locked
-	#
-	if (  !$token->{is_token_locked}
-		|| $token->{is_token_locked} eq 'Y' )
-	{
-		my $unlockwhence;
-		eval {
-			my $Strp = DateTime::Format::Strptime->new(
-				pattern   => '%F %T',
-				locale    => 'en_US.UTF8',
-				time_zone => 'UTC',
-			);
-			my $dt = $Strp->parse_datetime( $token->{token_unlock_time} )
-			  || die;
-			$unlockwhence = $dt->epoch;
-		};
-		if ($@) {
-			$self->ErrorF( "Unable to convert %s to epoch",
-				$token->{token_unlock_time} );
-			return undef;
-		}
-
-		if ( $unlockwhence && $unlockwhence <= time() ) {
-			$token->{is_token_locked}   = 'N';
-			$token->{token_unlock_time} = undef;
-			$token->{bad_logins}        = 0;
-			$token->{last_updated}      = time();
-			$self->_Debug( 2, "Unlocking token %d", $token->{token_id} );
-			if ( !( $self->put_token( token => $token ) ) ) {
-				$self->ErrorF( "Error unlocking token %d: %s",
-					$token->{token_id}, $self->Error );
-				return undef;
-			}
-		} else {
-			$errstr = sprintf( "token %d is locked.", $token->{token_id} );
-			if ( $token->{token_unlock_time} ) {
-				$errstr .= sprintf( "  Token will unlock at %s",
-					$token->{token_unlock_time} );
-			} else {
-				$errstr .= "  Token must be administratively unlocked";
-			}
-			$self->Error($errstr);
-			return undef;
-		}
-	}
-
-	#
-	# At this point, the user and the token are both fine and can be
-	# authenticated
-	#
-
-	#
-	# Check to see if we're looking for a specific sequence first to
-	# resynchronize the token
-	#
-	my $sequence;
-	if ( $token->{time_skew} ) {
-		$sequence = $token->{time_skew} + 1;
-		$self->_Debug( 2, "Expecting next token sequence %d for token %d",
-			$sequence, $token->{token_id} );
-		my $checkprn = GenerateHOTP(
-			key      => $token->{token_key},
-			sequence => $sequence,
-			digits   => $otplen,
-			keytype  => 'base64'
-		);
-		if ( !defined($checkprn) ) {
-			$self->Error(
-				sprintf(
-					"Unknown error generating OTP for token %d (seq %d)",
-					$token->{token_id}, $sequence
-				)
-			);
-			return undef;
-		}
-		if ( $prn eq $checkprn ) {
-			$authok = 1;
-			goto HOTPAuthDone;
-			$self->_Debug( 2, "Received token sequence %d for token %d",
-				$sequence, $token->{token_id} );
+	if ( !$method || $method ne 'oath-only' ) {
+		if ( !$pinfound ) {
+			$errstr = "PIN incorrect for all assigned tokens";
 			goto HOTPAuthDone;
 		}
-		$self->_Debug( 2, "Did not receive token sequence %d for token %d",
-			$sequence, $token->{token_id} );
 	}
-
-	my $initialseq;
-	my $maxskew;
-	if ( $token->{time_modulo} ) {
-		$initialseq =
-		  int(
-			time() / $token->{time_modulo} -
-			  $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew} );
-		#
-		# If we already have an auth from this sequence, don't
-		# allow replays
-		#
-		if ( $token->{token_sequence} >= $initialseq ) {
-			$initialseq = $token->{token_sequence} + 1;
-		}
-		$maxskew = $__HOTPANTS_CONFIG_PARAMS{TimeSequenceSkew};
-	} else {
-		$initialseq = $token->{token_sequence} + 1;
-		$maxskew    = $__HOTPANTS_CONFIG_PARAMS{SequenceSkew};
-	}
-
-	#
-	# Either the token is not skewed, or the skew reset failed.  Perform
-	# normal authentication
-	#
-	for (
-		$sequence = $initialseq ;
-		$sequence <=
-		$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
-		$sequence++
-	  )
-	{
-
-		my $checkprn = GenerateHOTP(
-			key      => $token->{token_key},
-			sequence => $sequence,
-			digits   => $otplen,
-			keytype  => 'base64'
-		);
-		if ( !defined($checkprn) ) {
-			$self->Error(
-				sprintf(
-					"Unknown error generating OTP for token %d - seq %d",
-					$token->{token_id}, $sequence
-				)
-			);
-			return undef;
-		}
-		$self->_Debug( 50, "Given PRN is %s.  PRN for sequence %d is %s",
-			$prn, $sequence, $checkprn );
-		if ( $prn eq $checkprn ) {
-			$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
-			last;
-		}
-	}
-
-	#
-	# If we don't get to it in ResyncSequenceSkew sequences, bail
-	#
-	if ( $sequence >
-		$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
-	{
-		$errstr =
-		  sprintf( "OTP given does not match a permitted sequence for token %d",
-			$token->{token_id} );
-		goto HOTPAuthDone;
-	}
-
-	#
-	# If we find the sequence, but it's between SequenceSkew and
-	# ResyncSequenceSkew, put the token into next OTP mode
-	#
-	#
-	if ( $sequence > ( $initialseq + $maxskew ) ) {
-		$errstr = sprintf(
-			"OTP sequence %d for token %d (%s) outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
-			$sequence, $token->{token_id}, $login, $maxskew );
-		$self->UserError(
-			"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
-		);
-		$token->{time_skew} = $sequence;
-		goto HOTPAuthDone;
-	}
-
-	#
-	# If we got here, it worked
-	#
-	$authok = 1;
 
   HOTPAuthDone:
 	if ($authok) {
+		#
+		# clear errors in case something was set above
+		#
+		$self->Error(undef);
+
 		$token->{time_skew}           = 0;
 		$token->{bad_logins}          = 0;
 		$token->{token_sequence}      = $sequence;
@@ -1674,37 +1700,66 @@ sub HOTPAuthenticate {
 				$login, $token->{token_id}
 			)
 		);
+		$errstr = undef;
 		$self->Error(undef);
-	} else {
-		if ($pinfound) {
-			$token->{bad_logins} += 1;
-			$self->_Debug( 2, "Bad logins for token %d now %d",
-				$token->{token_id}, $token->{bad_logins} );
-			$token->{last_updated} = time;
-			if ( $token->{bad_logins} >=
-				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
-			{
-				$self->_Debug( 2, "Locking token %d", $token->{token_id} );
-				$token->{is_token_locked} = 1;
-				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-					$token->{token_unlock_time} =
-					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
-				} else {
-					$token->{token_unlock_time} = undef;
-				}
-			}
-		}
-
-	}
-	#
-	# Write token back to database
-	#
-	if ($pinfound) {
+		#
+		# Write token back to database
+		#
 		if ( !( $self->put_token( token => $token ) ) ) {
 			$self->ErrorF( "Error updating token %d: %s",
 				$token->{token_id}, $self->Error );
 			return undef;
 		}
+	} else {
+		$errstr =
+		  sprintf( "OTP given does not match a permitted sequence for token %s",
+			join( ",", map { $_->{token_id} } @badtokens ) );
+		if ( $#badotp >= 0 ) {
+			foreach my $tok (@badotp) {
+				#
+				# for a user with multiple tokens, this may generate a false
+				# negative, so likely need to flag this as a "come back to XXX
+				#
+				$errstr = sprintf(
+					"OTP sequence %d for token %d (%s) outside of normal skew (expected less than %d).  Setting NEXT_OTP mode.",
+					$sequence, $tok->{token_id}, $login, $tok->{maxskew} );
+				$self->UserError(
+					"One-time password out of range.  Log in again with the next numbers displayed to resynchronize your token"
+				);
+			}
+		}
+		#
+		# go through all the tokens marked as bad and update their bad logins
+		# and possibly lock them.
+		#
+		foreach my $tok (@badtokens) {
+			$tok->{bad_logins} += 1;
+			$self->_Debug( 2, "Bad logins for token %d now %d",
+				$tok->{token_id}, $tok->{bad_logins} );
+			$tok->{last_updated} = time;
+			if ( $tok->{bad_logins} >=
+				$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
+			{
+				$self->_Debug( 2, "Locking token %d", $tok->{token_id} );
+				$tok->{is_token_locked} = 1;
+				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
+					$tok->{token_unlock_time} =
+					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
+				} else {
+					$tok->{token_unlock_time} = undef;
+				}
+			}
+			#
+			# these only happen if the user failed to login, so if it fails
+			# this does not prevent a user from logging in.
+			#
+			if ( !( $self->put_token( token => $tok ) ) ) {
+				$self->ErrorF( "Error updating token %d: %s",
+					$tok->{token_id}, $self->Error );
+				return undef;
+			}
+		}
+
 	}
 	$self->Error($errstr);
 	if ($authok) {
@@ -1864,8 +1919,10 @@ sub AuthenticateUser {
 		}
 	}
 
-	my($authmech, $nexttype);
-	if(my $am = $self->get_authmechs($attrs, $login, $client, $devcollprop, $rank)) {
+	my ( $authmech, $nexttype );
+	if ( my $am =
+		$self->get_authmechs( $attrs, $login, $client, $devcollprop, $rank ) )
+	{
 		$authmech = $am->{authmech};
 		$nexttype = $am->{nexttype};
 	} else {
@@ -1897,14 +1954,19 @@ sub AuthenticateUser {
 		return undef;
 	}
 
-	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
+	if (   $authmech eq 'oath-only'
+		|| $authmech eq 'oath+passwd'
+		|| $authmech eq 'token'
+		|| $authmech eq 'oath' )
+	{
 		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
 			$login, $client->{devcoll_name} );
 
 		if (
 			$self->HOTPAuthenticate(
-				user => $user,
-				otp  => $password
+				user   => $user,
+				otp    => $password,
+				method => $authmech,
 			)
 		  )
 		{
@@ -2011,8 +2073,13 @@ sub AuthenticateUser {
 			$extralogmsg = sprintf( "[challenging to %d]", $challengeresponse );
 			my $msg = "Please enter the code for the next stage";
 			if ($nexttype) {
-				if ( $nexttype eq 'token' || $nexttype eq 'oath' ) {
-					$msg = "Please enter your token and PIC";
+				if ( $nexttype eq 'oath-only' ) {
+					$msg = "Please enter your OATH Token sequence";
+				} elsif ( $nexttype eq 'oath+passwd'
+					|| $nexttype eq 'token'
+					|| $nexttype eq 'oath' )
+				{
+					$msg = "Please enter your PIC and OATH Token sequence";
 				} elsif ( $nexttype eq 'blowfish' ) {
 					$msg = "Please enter your password";
 				}
@@ -2236,8 +2303,10 @@ sub AuthorizeUser {
 		}
 	}
 
-	my($authmech, $nexttype);
-	if(my $am = $self->get_authmechs($attrs, $login, $client, $devcollprop, $rank)) {
+	my ( $authmech, $nexttype );
+	if ( my $am =
+		$self->get_authmechs( $attrs, $login, $client, $devcollprop, $rank ) )
+	{
 		$authmech = $am->{authmech};
 		$nexttype = $am->{nexttype};
 	} else {
@@ -2267,7 +2336,11 @@ sub AuthorizeUser {
 		return undef;
 	}
 
-	if ( $authmech eq 'token' || $authmech eq 'oath' ) {
+	if (   $authmech eq 'oath+passwd'
+		|| $authmech eq 'oath-only'
+		|| $authmech eq 'token'
+		|| $authmech eq 'oath' )
+	{
 		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
 			$login, $client->{devcoll_name} );
 

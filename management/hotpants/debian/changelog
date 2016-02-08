@@ -1,8 +1,19 @@
+jazzhands-hotpants (0.69.0) unstable; urgency=medium
+
+ * add support for tokens having the same PIC
+ * add support for using tokens without PICs
+ * retire token/oath methods in favor of oath-only, and oath+passwd
+ * make (token and oath are aliases for oath+passwd
+ * add suppport for radius challenges for multiple password types
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon,  8 Feb 2016 18:55:00 -0500
+
 jazzhands-hotpants (0.68.1) unstable; urgency=medium
 
   * make login lookups case insensitive
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu,  4 Feb 2016 09:20:00 -0500
+
 
 jazzhands-hotpants (0.68.0) unstable; urgency=medium
 
