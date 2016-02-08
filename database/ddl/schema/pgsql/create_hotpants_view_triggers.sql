@@ -20,27 +20,28 @@ RETURNS TRIGGER AS $$
 DECLARE
 	acct_realm_id	account_realm.account_realm_id%TYPE;
 BEGIN
-	IF OLD.token_sequence != NEW.token_sequence THEN
+	IF OLD.token_sequence IS DISTINCT FROM NEW.token_sequence THEN
 		PERFORM token_utils.set_sequence(
 			p_token_id := NEW.token_id,
 			p_token_sequence := NEW.token_sequence,
-			p_reset_time := NEW.last_updated
+			p_reset_time := NEW.last_updated::timestamp
 		);
 	END IF;
 
-	IF OLD.bad_logins != NEW.bad_logins THEN
+	IF OLD.bad_logins IS DISTINCT FROM NEW.bad_logins THEN
 		PERFORM token_utils.set_lock_status(
 			p_token_id := NEW.token_id,
 			p_lock_status := NEW.is_token_locked,
 			p_unlock_time := NEW.token_unlock_time,
 			p_bad_logins := NEW.bad_logins,
-			p_last_updated :=NEW.last_updated
+			p_last_updated :=NEW.last_updated::timestamp
 		);
 	END IF;
-
+	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_upd_v_hotpants_token ON v_hotpants_token;
 CREATE TRIGGER trigger_upd_v_hotpants_token
 INSTEAD OF UPDATE ON v_hotpants_token
 FOR EACH ROW EXECUTE PROCEDURE upd_v_hotpants_token();

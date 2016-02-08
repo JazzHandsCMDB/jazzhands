@@ -21,8 +21,9 @@ SELECT  property_id,
 	device_collection_id,
 	property_name,
 	property_type,
+	property_rank,
 	Property_Value_Password_Type	as property_value
-        FROM    property
+        FROM    v_property
         WHERE   Property_Name = 'PWType'
         AND     Property_Type = 'HOTPants'
         AND     account_collection_id IS NULL

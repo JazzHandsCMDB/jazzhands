@@ -80,7 +80,6 @@ BEGIN
 	' INTO _cur USING p_token_id;
 
 	IF _cur.token_id IS NULL THEN
-		raise notice 'insert';
 		EXECUTE '
 			INSERT INTO token_sequence (
 				token_id, token_sequence, last_updated
@@ -91,18 +90,16 @@ BEGIN
 	ELSE
 		IF p_reset_time IS NULL THEN
 			-- Using this code path, do not reset the sequence back, ever
-			raise notice 'update without date';
 			UPDATE Token_Sequence SET
 				Token_Sequence = p_token_sequence,
 				last_updated = now()
 			WHERE
 				Token_ID = p_token_id
-				AND Token_Sequence < p_token_sequence;
+				AND (token_sequence is NULL OR Token_Sequence < p_token_sequence);
 		ELSE
 			--
 			-- Only reset the sequence back if its newer than what's in the
 			-- db
-			raise notice 'update with date';
 			UPDATE Token_Sequence SET
 				Token_Sequence = p_token_sequence,
 				Last_Updated = p_reset_time
@@ -138,7 +135,7 @@ BEGIN
 		WHERE token_id = $1
 	' INTO _cur USING p_token_id;
 
-	IF _cur.last_updated < p_last_updated THEN
+	IF _cur.last_updated <= p_last_updated THEN
 		UPDATE token SET
 		is_token_locked = p_lock_status,
 			token_unlock_time = p_unlock_time,

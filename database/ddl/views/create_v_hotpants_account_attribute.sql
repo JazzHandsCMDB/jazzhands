@@ -24,6 +24,7 @@ SELECT	property_id,
 	property_name,
 	property_type,
 	property_value,
+	property_rank,
 	is_boolean
 FROM	v_dev_col_user_prop_expanded 
 	INNER JOIN Device_Collection USING (Device_Collection_ID)

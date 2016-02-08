@@ -51,6 +51,7 @@ SELECT
 	a.is_enabled,
 	upo.property_type property_type,
 	upo.property_name property_name, 
+	upo.property_rank property_rank, 
 	coalesce(Property_Value_Password_Type, Property_Value) AS property_value,
 	CASE WHEN upn.is_multivalue = 'N' THEN 0
 		ELSE 1 END is_multivalue,
