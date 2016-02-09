@@ -452,9 +452,9 @@ sub authenticate {
 	}
 
 	$hp->closedb;
-	if ( $success->{result} == 'accept' ) {
+	if ( $success->{result} eq 'accept' ) {
 		return RLM_MODULE_OK;
-	} elsif ( $success->{result} == 'challenge' ) {
+	} elsif ( $success->{result} eq 'challenge' ) {
 		return RLM_MODULE_HANDLED;
 	} else {
 		return RLM_MODULE_REJECT;
