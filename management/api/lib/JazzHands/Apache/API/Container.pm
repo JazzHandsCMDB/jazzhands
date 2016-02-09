@@ -649,6 +649,19 @@ sub add_container {
 	# If the netblock exists, then we want to set it to Allocated, otherwise
 	# insert a new one
 	#
+	if (%$ret) {
+		$r->log_rerror(
+			Apache2::Log::LOG_MARK,
+			Apache2::Const::LOG_DEBUG,
+			APR::Const::SUCCESS,
+			sprintf("IP address %s was found with %s netblock %d",
+				$ip_address->addr,
+				$ret->{netblock_status},
+				$ret->{netblock_id}
+			)
+		);
+
+	}
 	my $netblock_handling = %$ret ? 
 		q {
 				UPDATE
@@ -658,8 +671,9 @@ sub add_container {
 				FROM
 					vals
 				WHERE
-					(n.ip_address, netblock_type, ip_universe_id) = 
-						(vals.ip_address, 'default', 0)
+					host(n.ip_address) = host(vals.ip_address) AND
+					netblock_type = 'default' AND
+					ip_universe_id = 0
 				RETURNING *
 		} :
 		q {

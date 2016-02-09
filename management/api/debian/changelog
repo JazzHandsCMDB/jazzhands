@@ -1,3 +1,10 @@
+jazzhands-apache-api (0.68.1) trusty; urgency=medium
+
+  * Fix issue where netblocks for pre-allocated blocks were not getting
+    selected correctly
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 09 Feb 2016 04:21:21 -0600
+
 jazzhands-apache-api (0.67.8) trusty; urgency=medium
 
   * minor changes for handling pre-allocated netblocks
