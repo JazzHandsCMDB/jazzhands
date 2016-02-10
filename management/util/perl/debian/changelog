@@ -1,3 +1,9 @@
+jazzhands-perl-common (0.69.0) unstable; urgency=medium
+
+  * add concept of debug callback rather than sending to STDERR only.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue,  9 Feb 2016 08:25:00 -0500
+
 jazzhands-perl-common (0.67.0) unstable; urgency=medium
 
   * add Error module for all the common error bits

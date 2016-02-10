@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2012-2013 Matthew Ragan
-# Copyright (c) 2012-2015 Todd Kover
+# Copyright (c) 2012-2016 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ package JazzHands::Common::Error;
 
 use strict;
 use warnings;
+use Data::Dumper;
 
 our $errstr;
 
@@ -111,8 +112,14 @@ sub _Debug {
 	my $self  = shift;
 	my $level = shift;
 
-	if ( $self->{_debug} >= $level ) {
-		if (@_) { printf STDERR @_; print STDERR "\n"; }
+	if ( $self->{_debug} >= $level && @_ ) {
+		if($self->{_debug_callback}) {
+			my $fmt = shift @_;
+			my $str = sprintf ($fmt, @_);
+			&{$self->{_debug_callback}}($level, $str);
+		} else {
+			printf STDERR @_; print STDERR "\n";
+		}
 	}
 }
 

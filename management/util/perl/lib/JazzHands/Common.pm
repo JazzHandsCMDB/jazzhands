@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Todd Kover
+# Copyright (c) 2013-2016 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@ use strict;
 use warnings;
 use JazzHands::Common::Util qw(:all);
 use JazzHands::Common::Error qw(:internal);
+use Data::Dumper;
 
 use vars qw(@ISA %EXPORT_TAGS @EXPORT);
 
@@ -90,8 +91,15 @@ sub import {
 sub new {
 	my $proto = shift;
 	my $class = ref($proto) || $proto;
+	my $opt   = &_options;
+
 	my $self = {};
 	bless $self, $class;
+
+
+	if($opt->{debug_callback}) {
+		$self->{_debug_callback} = $opt->{debug_callback};
+	}
 
 	$self->{_errors} = [];
 	$self;
