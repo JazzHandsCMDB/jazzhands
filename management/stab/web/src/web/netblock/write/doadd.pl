@@ -163,7 +163,6 @@ sub do_netblock_addition {
 	}
 
 	$me->commit;
-	$stab->disconnect;
 
 	my $refurl = "../";
 	if ( $me->hash->{ _dbx('parent_netblock_id') } ) {

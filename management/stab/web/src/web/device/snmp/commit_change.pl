@@ -53,12 +53,10 @@ sub do_snmp_update {
 
 	if ($numchanges) {
 		$dbh->commit;
-		$dbh->disconnect;
 		$stab->msg_return( "Processed $numchanges changes", $refurl,
 			1 );
 	} else {
 		$dbh->rollback;
-		$dbh->disconnect;
 		$stab->msg_return( "No changes", $refurl, 1 );
 	}
 	undef $stab;

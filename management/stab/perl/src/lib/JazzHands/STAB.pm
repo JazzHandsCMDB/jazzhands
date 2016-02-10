@@ -797,9 +797,11 @@ sub error_return {
 	}
 
 	my $dbh = $self->dbh;
-	$dbh->rollback;
-	$dbh->ping;
-	$dbh->disconnect;
+	if($dbh) {
+		$dbh->rollback;
+		$dbh->ping;
+		$dbh->disconnect;
+	}
 	exit;
 }
 
@@ -819,9 +821,11 @@ sub msg_return {
 	print $cgi->redirect($url);
 
 	my $dbh = $self->dbh;
-	$dbh->rollback;
-	$dbh->ping;
-	$dbh->disconnect;
+	if($dbh) {
+		$dbh->rollback;
+		$dbh->ping;
+		$dbh->disconnect;
+	}
 	exit;
 }
 
