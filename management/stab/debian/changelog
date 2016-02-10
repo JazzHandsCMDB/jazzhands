@@ -2,14 +2,13 @@ jazzhands-stab (0.69.1) trusty; urgency=medium
 
   * fix a few disconnects that were happening before db calls were done
 
- -- Todd M. Kover <kovert@omniscient.com>  Tue, 10 Feb 2016 16:44:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 10 Feb 2016 16:44:00 -0500
 
 jazzhands-stab (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:04 +0000
-
 
 jazzhands-stab (0.66.0) unstable; urgency=low
 
