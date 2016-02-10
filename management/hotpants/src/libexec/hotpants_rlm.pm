@@ -37,6 +37,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#
+# NOTE, radius log levels are weird:
+#       1 - Debug
+#       2 - Auth
+#       3 - Info
+#       4 - Error
+#       5 - Proxy
+#       6 - Acct
+#
+
+
 # $Id$
 #
 
@@ -82,6 +93,12 @@ use constant RLM_MODULE_NUMCODES => 9;    # How many return codes there are
 
 my $err;
 
+sub debug_callback {
+	my $hplevel = shift @_;
+	radiusd::radlog(1, @_);
+}
+
+
 #
 # called throughout; meant to work around encryption map and what not
 #
@@ -89,7 +106,8 @@ sub connect_hp {
 	my $hp = new JazzHands::HOTPants(
 		dbuser        => 'hotpants',
 		encryptionmap => '/etc/tokenmap.json',
-		debug         => 2
+		debug         => 3,
+		debug_callback => \&debug_callback,
 	);
 	return $hp;
 }
@@ -119,7 +137,7 @@ sub get_source {
 	if ( ref($source) eq 'ARRAY' ) {
 		my $newsource = $source->[0];
 		radiusd::radlog(
-			2,
+			3,
 			sprintf(
 				"NAS-IP-Address is an array, picking out first (%s) of %s",
 				$newsource, join( ",", @{$source} )
@@ -132,7 +150,7 @@ sub get_source {
 	my $appname = $RAD_REQUEST{'JH-Application-Name'}
 	  || $RAD_REQUEST{'NAS-Identifier'};
 
-	#radiusd::radlog( 2,
+	#radiusd::radlog( 1,
 	#	sprintf("get_source(): returning %s %s", $source, $appname));
 
 	return ( $source, $appname );
@@ -295,7 +313,7 @@ sub validate_credentials {
 			$hp->closedb;
 			return RLM_MODULE_FAIL;
 		} else {
-			radiusd::radlog( 2, sprintf( "%s: unknown client", $authreqstr ) );
+			radiusd::radlog( 4, sprintf( "%s: unknown client", $authreqstr ) );
 			$hp->closedb;
 			return RLM_MODULE_REJECT;
 		}
@@ -304,7 +322,7 @@ sub validate_credentials {
 	my $user;
 	if ( !( $user = $hp->fetch_user( login => $login ) ) ) {
 		if ( !$hp->Error ) {
-			radiusd::radlog( 2, sprintf( "unknown user", $authreqstr ) );
+			radiusd::radlog( 4, sprintf( "unknown user", $authreqstr ) );
 			$hp->closedb;
 			return RLM_MODULE_REJECT;
 		} else {

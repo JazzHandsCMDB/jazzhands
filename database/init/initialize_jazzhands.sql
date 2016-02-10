@@ -279,18 +279,15 @@ insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
 
 --- password types
 
-INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
-	VALUES ('star');
-INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
-	VALUES ('des');
-INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
-	VALUES ('md5');
-INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
-	VALUES ('sha1');
-INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
-	VALUES ('blowfish');
-INSERT INTO VAL_Password_Type (PASSWORD_TYPE)
-	VALUES ('token');
+INSERT INTO val_password_type (password_type, description)
+	VALUES 
+		('star', 'No Password'),
+		('des', 'Unix Style DES Crypt, deprecated'),
+		('md5', 'Unix style MD5 Crypt'),
+		('sha1', 'Unix style sha1 Crypt'),
+		('blowfish', 'Unix style blowfish Ctypt'),
+		('oath-only', 'OATH HOTP token sequence numner'),
+		('oath+passwd', 'OATH HTOP per-token password+token sequence');
 
 -- XXX VAL_MClass_Unix_Home_Type
 
@@ -511,11 +508,13 @@ insert into val_property (
 INSERT INTO val_property (
 	property_name, property_type, property_data_type,
 	description,
-	permit_account_collection_id, permit_device_collection_id
+	permit_account_collection_id, permit_device_collection_id,
+	permit_property_rank
 ) VALUES (
 	'PWType', 'HOTPants', 'password_type',
 	'Set password verification type for this Device and maybe account collection',
-	'ALLOWED',     'REQUIRED'
+	'ALLOWED',     'REQUIRED',
+	'ALLOWED'
 );
 
 INSERT INTO val_property (

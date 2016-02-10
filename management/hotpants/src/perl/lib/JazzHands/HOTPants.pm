@@ -41,6 +41,18 @@
 #
 package JazzHands::HOTPants;
 
+#
+# NOTE:  Debug levels try to be:
+# 1 - extra info on unexpected errors
+# 2 - extra info useful for hard errors
+# 3 - supporting docs that trigger supported failure
+# 4 - debugging that is likely interested to "looks like it works right"
+# 5 - less likely to be interesting than 4.
+# > 5, internal debugging of the HOTP tokens and other very specific chatter
+#
+#
+#
+
 use 5.010;
 use strict;
 use warnings;
@@ -268,7 +280,6 @@ sub get_authmechs($$$$$$) {
 			$authmech = $attrs->{HOTPants}->{PWType}->{value}->[$rank];
 		} else {
 			if ( ref( $attrs->{HOTPants}->{PWType}->{value} ) eq 'ARRAY' ) {
-				warn "+++ setting up next";
 				$nexttype =
 				  $attrs->{HOTPants}->{PWType}->{value}->[1];
 				$authmech =
@@ -278,7 +289,7 @@ sub get_authmechs($$$$$$) {
 			}
 		}
 		$self->_Debug(
-			2, "Setting password type for user %s on client %s to (%s)",
+			5, "Setting password type for user %s on client %s to (%s)",
 			$login,
 			$client->{devcoll_name},
 			$authmech || "undefined"
@@ -316,7 +327,7 @@ sub get_authmechs($$$$$$) {
 
 		if ( defined($authmech) ) {
 			$self->_Debug(
-				2,
+				5,
 				"Setting password type for client %s to %s%s",
 				$client->{devcoll_name},
 				$authmech, ($nexttype) ? " [$nexttype]" : ""
@@ -324,7 +335,7 @@ sub get_authmechs($$$$$$) {
 		} else {
 			$authmech = $__HOTPANTS_CONFIG_PARAMS{DefaultAuthMech};
 			$self->_Debug(
-				2,
+				5,
 				"Setting password type for client %s to default (%s)",
 				$client->{devcoll_name},
 				$authmech || "undefined"
@@ -1012,7 +1023,8 @@ sub put_token {
 		my $sth = $dbh->prepare_cached(
 			qq{
 			UPDATE v_hotpants_token 
-					set token_sequence = :seq, last_updated = :now
+					set token_sequence = :seq, last_updated = :now,
+						bad_logins = :badlogins
 			WHERE	token_id = :tokenid
 			AND		token_sequence < :seq
 		}
@@ -1029,6 +1041,12 @@ sub put_token {
 		}
 
 		if ( !$sth->bind_param( ':seq', $token->{token_sequence} ) ) {
+			$self->Error(
+				"put_token: unable to bind time_skew" . $sth->errstr );
+			return undef;
+		}
+
+		if ( !$sth->bind_param( ':badlogins', $token->{bad_logins} ) ) {
 			$self->Error(
 				"put_token: unable to bind time_skew" . $sth->errstr );
 			return undef;
@@ -1062,11 +1080,8 @@ sub put_token {
 
 		my $islocked =
 		  $token->{is_token_locked} && $token->{is_token_locked} ne 'N';
-		my $unlocktime;
 		if ($islocked) {
 			$islocked = 'Y';
-			$unlocktime =
-			  strftime( "%F %T", gmtime( $token->{token_unlock_time} ) );
 		} else {
 			$islocked = 'N';
 		}
@@ -1074,7 +1089,7 @@ sub put_token {
 
 		my $new = {
 			token_id          => $token->{token_id},
-			token_unlock_time => $unlocktime,
+			token_unlock_time => $token->{token_unlock_time},
 			bad_logins        => $token->{bad_logins},
 			last_updated      => $lastupdate,
 			is_token_locked   => $islocked
@@ -1144,6 +1159,8 @@ sub put_user {
 	# XXX deal with me locking the token more recently than the db says it was
 	# locked..
 	# XXX - need to deal with account realms!!
+	#
+	# NOTE: NOTHING EVER SETS THIS IN HOTPants.pm.
 	if ( $acct->{user_locked} ) {
 		#
 		# likely want to only update badlogins if its < our badlogins
@@ -1388,7 +1405,7 @@ sub HOTPAuthenticate {
 		return undef;
 	}
 
-	$self->_Debug( 1, "Beginning HOTP authentication for %s", $login );
+	$self->_Debug( 5, "Beginning HOTP authentication for %s", $login );
 
 	my $authok = 0;
 	my $errstr;
@@ -1406,7 +1423,7 @@ sub HOTPAuthenticate {
 
 	my $sequence;
 	foreach $tokenid ( @{ $user->{tokens} } ) {
-		$self->_Debug( 1, "Trying token %d for user %s", $tokenid, $login );
+		$self->_Debug( 5, "Trying token %d for user %s", $tokenid, $login );
 		if ( !( $token = $self->fetch_token( token_id => $tokenid ) ) ) {
 			$self->_Debug( 2, "Token %d assigned to %s not actually there",
 				$tokenid, $login );
@@ -1440,7 +1457,7 @@ sub HOTPAuthenticate {
 		# $otplen = $TokenType{ $token->{token_type} }->{digits};
 		# XXX
 		$otplen = 6;
-		$self->_Debug( 2, "Number of OTP digits for token %d is %d",
+		$self->_Debug( 5, "Number of OTP digits for token %d is %d",
 			$tokenid, $otplen );
 		if ( !$otplen ) {
 			$self->_Debug( 1, "Invalid OTP digits defined for token %d",
@@ -1561,7 +1578,7 @@ sub HOTPAuthenticate {
 		$sequence = undef;
 		if ( $token->{time_skew} ) {
 			$sequence = $token->{time_skew} + 1;
-			$self->_Debug( 2, "Expecting next token sequence %d for token %d",
+			$self->_Debug( 5, "Expecting next token sequence %d for token %d",
 				$sequence, $token->{token_id} );
 			my $checkprn = GenerateHOTP(
 				key      => $token->{token_key},
@@ -1580,12 +1597,11 @@ sub HOTPAuthenticate {
 			}
 			if ( $prn eq $checkprn ) {
 				$authok = 1;
-				last;
-				$self->_Debug( 2, "Received token sequence %d for token %d",
+				$self->_Debug( 5, "Received token sequence %d for token %d",
 					$sequence, $token->{token_id} );
 				last;
 			}
-			$self->_Debug( 2, "Did not receive token sequence %d for token %d",
+			$self->_Debug( 3, "Did not receive token sequence %d for token %d",
 				$sequence, $token->{token_id} );
 		}
 
@@ -1670,6 +1686,8 @@ sub HOTPAuthenticate {
 		# If we got here, it worked
 		#
 		$authok = 1;
+
+		last if($authok);
 	}
 
 	if ( !$validtoken ) {
@@ -1734,7 +1752,7 @@ sub HOTPAuthenticate {
 		#
 		foreach my $tok (@badtokens) {
 			$tok->{bad_logins} += 1;
-			$self->_Debug( 2, "Bad logins for token %d now %d",
+			$self->_Debug( 4, "Bad logins for token %d now %d",
 				$tok->{token_id}, $tok->{bad_logins} );
 			$tok->{last_updated} = time;
 			if ( $tok->{bad_logins} >=
@@ -1744,7 +1762,8 @@ sub HOTPAuthenticate {
 				$tok->{is_token_locked} = 1;
 				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
 					$tok->{token_unlock_time} =
-					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
+			  		strftime( "%F %T", gmtime(
+					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}));
 				} else {
 					$tok->{token_unlock_time} = undef;
 				}
@@ -1832,7 +1851,7 @@ sub AuthenticateUser {
 
 	my $login = $opt->{login};
 	my $user  = $opt->{user};
-	my $rank  = $opt->{rank};
+	my $rank  = $opt->{rank} || 0;
 
 	if ( !$login && !$user ) {
 		$self->Error("login or user options required but not provided");
@@ -1959,7 +1978,7 @@ sub AuthenticateUser {
 		|| $authmech eq 'token'
 		|| $authmech eq 'oath' )
 	{
-		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
+		$self->_Debug( 3, "Authenticating user %s on client %s with HOTP",
 			$login, $client->{devcoll_name} );
 
 		if (
@@ -2047,7 +2066,7 @@ sub AuthenticateUser {
 		return undef;
 	}
 
-	$self->_Debug( 2, "Authenticating user %s on client %s with %s",
+	$self->_Debug( 3, "Authenticating user %s on client %s with %s",
 		$login, $client->{devcoll_name}, $authmech );
 	if (   $p->{passwd} eq $checkpass
 		|| $p->{passwd} eq ( $checkpass . "=" ) )
@@ -2120,25 +2139,26 @@ sub AuthenticateUser {
 					$login, $authmech, $client->{devcoll_name}
 				)
 			);
-			$self->_Debug( 2, $self->Error );
+			$self->_Debug( 1, $self->Error );
 		}
 
 		# XXX likely need to make this go away because its token only.
-		$user->{bad_logins} += 1;
-		$user->{lock_status_changed} = time;
-		if ( $user->{bad_logins} >=
-			$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
-		{
-			$self->_Debug( 2, "Locking user %s", $login );
-			$self->Error( $self->Error . " - locking user" );
-			$user->{user_locked} = 1;
-			if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-				$user->{token_unlock_time} =
-				  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime};
-			} else {
-				$user->{token_unlock_time} = undef;
-			}
-		}
+		#$user->{bad_logins} += 1;
+		#$user->{lock_status_changed} = time;
+		#if ( $user->{bad_logins} >=
+		#	$__HOTPANTS_CONFIG_PARAMS{BadAuthsBeforeLockout} )
+		#{
+		#	$self->_Debug( 2, "Locking user %s", $login );
+		#	$self->Error( $self->Error . " - locking user" );
+		#	$user->{user_locked} = 1;
+		#	if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
+		#		$user->{token_unlock_time} =
+		#	  		strftime( "%F %T", gmtime(
+		#			  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}));
+		#	} else {
+		#		$user->{token_unlock_time} = undef;
+		#	}
+		#}
 	}
 
 	$err = $self->Error;
@@ -2196,7 +2216,7 @@ sub VerifyUser {
 
 	# Additional checks on a user, such as if the user has been locked or
 	# disabled could be done here, otherwise, this is largely a noop.
-	$self->_Debug( 2, "user %s is valid", $login );
+	$self->_Debug( 5, "user %s is valid", $login );
 	return 1;
 }
 
@@ -2341,7 +2361,7 @@ sub AuthorizeUser {
 		|| $authmech eq 'token'
 		|| $authmech eq 'oath' )
 	{
-		$self->_Debug( 2, "Authenticating user %s on client %s with HOTP",
+		$self->_Debug( 4, "Authenticating user %s on client %s with HOTP",
 			$login, $client->{devcoll_name} );
 
 		if ( !@{ $user->{tokens} } ) {

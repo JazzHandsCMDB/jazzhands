@@ -8,7 +8,7 @@ Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-hotpants
 Architecture: any
-Pre-Depends: jazzhands-perl-common (>= 0.67.0), perl, perl-jazzhands-dbi (>= 0.66.1.2), libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
+Pre-Depends: jazzhands-perl-common (>= 0.69.0), perl, perl-jazzhands-dbi (>= 0.66.1.2), libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
 Description: 
  JazzHands HOTPants perl libraries
 
