@@ -69,7 +69,9 @@ sub show_pending_certs {
 					x.is_certificate_authority AS "CA",
 					x.valid_from as "Valid From",
 					x.valid_to as "Valid To",
-					x.valid_to - now() as "Lifetime",
+					case WHEN x.valid_to = 'infinity' THEN 'infinity'::text
+						WHEN x.valid_to IS NULL THEN 'unknown'
+						ELSE (x.valid_to - now())::text END as "Lifetime",
 					coalesce(ca.friendly_name, '') as "Sign"
 			FROM	x509_certificate x
 					LEFT JOIN x509_certificate ca ON

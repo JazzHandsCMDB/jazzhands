@@ -1,8 +1,15 @@
+jazzhands-stab (0.69.2) trusty; urgency=medium
+
+  * fix issue with x509 certificates and valid_to = 'infinity'
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 12 Feb 2016 11:48:00 -0500
+
 jazzhands-stab (0.69.1) trusty; urgency=medium
 
   * fix a few disconnects that were happening before db calls were done
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 10 Feb 2016 16:44:00 -0500
+
 
 jazzhands-stab (0.66.1) trusty; urgency=medium
 
