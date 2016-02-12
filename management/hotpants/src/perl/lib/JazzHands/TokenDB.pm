@@ -130,8 +130,10 @@ sub issuer($;$) {
 
 sub label($;$) {
 	my $self = shift @_;
-	if (@_) { $self->{_label} = shift; }
-	my $t = $self->{_type};
+	if (@_) {
+		$self->{_label} = shift;
+	}
+	my $t = $self->{_type} || '';
 	$t =~ s/^soft_//;
 	return $self->{_label} || "JazzHands-$t";
 }
@@ -296,15 +298,17 @@ sub add_token($$$) {
 	$self->{key32} = $key32;
 	$self->{key64} = $tokenkey;
 
-	$passwd = bcrypt(
-		$passwd,
-		'$2a$07$'
-		  . en_base64(
-			pack( "LLLL",
-				rand(0xffffffff), rand(0xffffffff),
-				rand(0xffffffff), rand(0xffffffff) )
-		  )
-	);
+	if ($passwd) {
+		$passwd = bcrypt(
+			$passwd,
+			'$2a$07$'
+			  . en_base64(
+				pack( "LLLL",
+					rand(0xffffffff), rand(0xffffffff),
+					rand(0xffffffff), rand(0xffffffff) )
+			  )
+		);
+	}
 
 	my $sth = $dbh->prepare_cached(
 		qq{

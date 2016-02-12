@@ -1,3 +1,9 @@
+jazzhands-hotpants (0.69.3) unstable; urgency=medium
+
+  * make password optional on creation of tokens
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 12 Feb 2016 18:55:00 -0500
+
 jazzhands-hotpants (0.69.0) unstable; urgency=medium
 
   * add support for tokens having the same PIC
@@ -7,6 +13,7 @@ jazzhands-hotpants (0.69.0) unstable; urgency=medium
   * add suppport for radius challenges for multiple password types
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon,  8 Feb 2016 18:55:00 -0500
+
 
 jazzhands-hotpants (0.68.1) unstable; urgency=medium
 
