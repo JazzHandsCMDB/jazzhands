@@ -199,6 +199,15 @@ BEGIN
 		AND		person_id = OLD.person_id
 		AND		company_id = OLD.company_id;
 	END IF;
+	IF ( TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+	END IF;
+
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
