@@ -661,6 +661,29 @@ sub add_container {
 			)
 		);
 
+		#
+		# Validate that the IP address passed is free
+		#
+
+		if (!defined(runquery(
+			description => 'validating IP address',
+			request => $r,
+			debug => $meta->{debug},
+			dbh => $dbh,
+			return_type => 'hashref',
+			query => q {
+				DELETE FROM
+					dns_record
+				WHERE
+					netblock_id = ?
+			},
+			args => [
+				$ret->{netblock_id}
+			]
+		))) {
+			$response->{status} = 'failure';
+			return undef;
+		}
 	}
 	my $netblock_handling = %$ret ? 
 		q {

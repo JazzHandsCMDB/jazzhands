@@ -6,13 +6,13 @@ all:
 	@echo Nothing to build
 
 install:
-	mkdir -p $(INSTALLROOT)/$(PREFIX)
+	mkdir -p $(DESTDIR)/$(PREFIX)
 	for f in $(SOURCES); do \
-		install -m 0755 -d $(INSTALLROOT)/$(PREFIX)/`dirname $$f` ; \
-		install -m 0755 -c lib/$$f $(INSTALLROOT)/$(PREFIX)/`dirname $$f` ; \
+		install -m 0755 -d $(DESTDIR)/$(PREFIX)/`dirname $$f` ; \
+		install -m 0755 -c lib/$$f $(DESTDIR)/$(PREFIX)/`dirname $$f` ; \
 	done
 
 clean:
-	rm -rf $(INSTALLROOT)
+	rm -rf $(DESTDIR)
 
 distclean: clean

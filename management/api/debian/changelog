@@ -1,3 +1,9 @@
+jazzhands-apache-api (0.69.2) trusty; urgency=medium
+
+  * Repackaging previous build
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 11 Feb 2016 17:50:34 -0600
+
 jazzhands-apache-api (0.68.1) trusty; urgency=medium
 
   * Fix issue where netblocks for pre-allocated blocks were not getting
