@@ -2093,12 +2093,12 @@ sub AuthenticateUser {
 			my $msg = "Please enter the code for the next stage";
 			if ($nexttype) {
 				if ( $nexttype eq 'oath-only' ) {
-					$msg = "Please enter your OATH Token sequence";
+					$msg = "Please enter your 2FA Token (OATH) sequence number";
 				} elsif ( $nexttype eq 'oath+passwd'
 					|| $nexttype eq 'token'
 					|| $nexttype eq 'oath' )
 				{
-					$msg = "Please enter your PIC and OATH Token sequence";
+					$msg = "Please enter your PIC and 2FA Token (OATH) sequence number";
 				} elsif ( $nexttype eq 'blowfish' ) {
 					$msg = "Please enter your password";
 				}

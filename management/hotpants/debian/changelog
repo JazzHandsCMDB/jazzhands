@@ -1,8 +1,15 @@
+jazzhands-hotpants (0.69.5) unstable; urgency=medium
+
+  * adjust wording in 2FA responses
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 22 Feb 2016 12:36:00 -0500
+
 jazzhands-hotpants (0.69.3) unstable; urgency=medium
 
   * make password optional on creation of tokens
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 12 Feb 2016 18:55:00 -0500
+
 
 jazzhands-hotpants (0.69.0) unstable; urgency=medium
 
