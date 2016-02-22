@@ -430,7 +430,7 @@ sub url($) {
 	my $key32  = $self->{key32};
 	my $issuer = $self->issuer;
 
-	my $rv = "otpauth://$svc/$label?secret=${key32}&issuer=$issuer";
+	my $rv = "otpauth://$svc/$issuer%3A$label?secret=${key32}&issuer=$issuer";
 
 	if ( $svc eq 'hotp' ) {
 		my $counter = $self->{_sequence} + 1;
