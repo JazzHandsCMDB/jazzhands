@@ -32,6 +32,7 @@ use Crypt::Eksblowfish::Bcrypt qw(bcrypt en_base64);
 use JazzHands::Common qw(:all);
 use Data::Dumper;
 use JSON::PP;
+use URI::Escape qw(uri_escape);
 
 use parent 'JazzHands::Common';
 
@@ -462,6 +463,9 @@ sub url($) {
 
 	my $key32  = $self->{key32};
 	my $issuer = $self->issuer;
+
+	$issuer = uri_escape($issuer);
+	$label = uri_escape($label);
 
 	my $rv = "otpauth://$svc/$issuer%3A$label?secret=${key32}&issuer=$issuer";
 
