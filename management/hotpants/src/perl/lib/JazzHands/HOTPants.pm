@@ -1384,6 +1384,12 @@ sub HOTPAuthenticate {
 	my $user   = $opt->{user};
 	my $method = $opt->{method};
 
+	#
+	# This is generally used for verification of soft tokens before they
+	# are put in service, and allows a specific token to be authenticated
+	# against, but requires it to be associated with the user.
+	my $wanttoken = $opt->{token_id};
+
 	if ( !$login && !$user ) {
 		$self->Error("login or user options required but not provided");
 		return undef;
@@ -1424,10 +1430,23 @@ sub HOTPAuthenticate {
 	my $sequence;
 	foreach $tokenid ( @{ $user->{tokens} } ) {
 		$self->_Debug( 5, "Trying token %d for user %s", $tokenid, $login );
+		if ( $wanttoken && $tokenid != $wanttoken ) {
+			$self->_Debug( 5, "Skipping %d for %s because it is not %d",
+				$tokenid, $login, $wanttoken );
+			next;
+		}
 		if ( !( $token = $self->fetch_token( token_id => $tokenid ) ) ) {
 			$self->_Debug( 2, "Token %d assigned to %s not actually there",
 				$tokenid, $login );
 			next;
+		}
+
+		if ( !$wanttoken ) {
+			if ( $token->{token_status} ne 'enabled' ) {
+				$self->_Debug( 5,
+					"Skipping token %d because it is not enabled for %s",
+					$tokenid, $login );
+			}
 		}
 
 		if ( !$method || $method ne 'oath-only' ) {
@@ -1687,7 +1706,7 @@ sub HOTPAuthenticate {
 		#
 		$authok = 1;
 
-		last if($authok);
+		last if ($authok);
 	}
 
 	if ( !$validtoken ) {
@@ -1761,9 +1780,12 @@ sub HOTPAuthenticate {
 				$self->_Debug( 2, "Locking token %d", $tok->{token_id} );
 				$tok->{is_token_locked} = 1;
 				if ( $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime} ) {
-					$tok->{token_unlock_time} =
-			  		strftime( "%F %T", gmtime(
-					  time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}));
+					$tok->{token_unlock_time} = strftime(
+						"%F %T",
+						gmtime(
+							time + $__HOTPANTS_CONFIG_PARAMS{BadAuthLockoutTime}
+						)
+					);
 				} else {
 					$tok->{token_unlock_time} = undef;
 				}
@@ -2098,7 +2120,8 @@ sub AuthenticateUser {
 					|| $nexttype eq 'token'
 					|| $nexttype eq 'oath' )
 				{
-					$msg = "Please enter your PIC and 2FA Token (OATH) sequence number";
+					$msg =
+					  "Please enter your PIC and 2FA Token (OATH) sequence number";
 				} elsif ( $nexttype eq 'blowfish' ) {
 					$msg = "Please enter your password";
 				}

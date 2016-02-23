@@ -1598,13 +1598,15 @@ INSERT INTO val_logical_volume_type (
 -------------------------------------------------------------------------
 -- tokens
 
-INSERT INTO val_token_status (token_status)
+INSERT INTO val_token_status (token_status, description)
 VALUES
-        ('disabled'),
-        ('enabled'),
-        ('lost'),
-        ('destored'),
-        ('stolen');
+        ('disabled', NULL),
+        ('enabled', NULL),
+        ('lost', NULL),
+        ('destored', NULL),
+        ('stolen', NULL),
+        ('pending', 'pending confirmation')
+;
 
 INSERT INTO val_token_type 
 	(token_type, description, token_digit_count)

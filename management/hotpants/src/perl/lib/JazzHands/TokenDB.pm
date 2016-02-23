@@ -234,6 +234,35 @@ sub add_encryption_id($;$$$) {
 	};
 }
 
+sub update_status($$) {
+	my $self    = shift;
+	my $tokenid = shift;
+	my $login   = shift;
+	my $status  = shift;
+
+	my $dbh = $self->dbh;
+	my $sth = $dbh->prepare_cached(
+		qq{
+		UPDATE token t
+		SET token_status = ?
+		FROM account_token at
+		WHERE at.token_id = t.token_id
+		AND account_id IN (select account_id
+			FROM v_corp_family_account
+			WHERE login = ?
+		)
+		AND t.token_id = ?
+	}
+	) || return undef;
+
+	my $nr;
+	if ( !( $nr = $sth->execute( $status, $login, $tokenid ) ) ) {
+		$errstr = $sth->errstr;
+		return undef;
+	}
+	$nr;
+}
+
 sub rm_token($$) {
 	my $self    = shift;
 	my $tokenid = shift;
@@ -263,10 +292,13 @@ sub add_token($$$) {
 	my $self   = shift;
 	my $type   = shift;
 	my $passwd = shift;
+	my $status = shift;
 
 	my $dbh = $self->dbh;
 
 	$self->{_type} = $type;
+
+	$status = 'enabled' if ( !$status );
 
 	my $modulo;
 	if ( $type eq 'soft_time' ) {
@@ -324,7 +356,7 @@ sub add_token($$$) {
 				last_updated
 			) VALUES (
 				?,
-				'enabled',
+				?,
 				?,
 				?,
 				?,
@@ -336,7 +368,8 @@ sub add_token($$$) {
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute( $type, $modulo, $enckey, $enc->{encryption_key_id}, $passwd )
+	$sth->execute( $type, $status, $modulo, $enckey, $enc->{encryption_key_id},
+		$passwd )
 	  || die $sth->errstr;
 	if ( my $hr = $sth->fetchrow_hashref ) {
 		$tokid = $hr->{token_id};

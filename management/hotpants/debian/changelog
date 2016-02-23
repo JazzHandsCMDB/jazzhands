@@ -1,8 +1,19 @@
+jazzhands-hotpants (0.69.6) unstable; urgency=medium
+
+  * add ability to create new tokens with different status
+  * add ability to promote statuses (pending->enabled)
+  * add pending status
+  * make possible to specify a token to authenticate with
+  * by default, only auth on enabled tokens.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 23 Feb 2016 17:09:00 -0500
+
 jazzhands-hotpants (0.69.5) unstable; urgency=medium
 
   * adjust wording in 2FA responses
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 22 Feb 2016 12:36:00 -0500
+
 
 jazzhands-hotpants (0.69.3) unstable; urgency=medium
 
