@@ -47,7 +47,7 @@ BEGIN
 			NEW.network_range_type
 			USING ERRCODE = 'not_null_violation';
 	END IF;
-
+	RETURN NEW;
 END; $$
 SET search_path=jazzhands
 LANGUAGE plpgsql
@@ -91,7 +91,7 @@ BEGIN
 				USING ERRCODE = 'not_null_violation';
 		END IF;
 	END IF;
-
+	RETURN NEW;
 END; $$
 SET search_path=jazzhands
 LANGUAGE plpgsql
