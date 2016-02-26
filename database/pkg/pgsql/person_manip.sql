@@ -677,6 +677,7 @@ BEGIN
 	set constraints fk_ac_ac_rlm_cpy_act_rlm_cpy DEFERRED;
 	set constraints fk_account_prsn_cmpy_acct DEFERRED;
 	set constraints fk_account_company_person DEFERRED;
+	set constraints fk_account_company_person DEFERRED;
 
 	UPDATE person_account_realm_company
 		SET company_id = final_company_id
@@ -695,6 +696,11 @@ BEGIN
 	WHERE company_id = initial_company_id
 	AND person_id = _person_id;
 
+	UPDATE person_company_attr
+	SET company_id = final_company_id
+	WHERE company_id = initial_company_id
+	AND person_id = _person_id;
+
 	UPDATE account 
 	SET company_id = final_company_id 
 	WHERE company_id = initial_company_id 
@@ -704,6 +710,7 @@ BEGIN
 	set constraints fk_ac_ac_rlm_cpy_act_rlm_cpy IMMEDIATE;
 	set constraints fk_account_prsn_cmpy_acct IMMEDIATE;
 	set constraints fk_account_company_person IMMEDIATE;
+	set constraints fk_pers_comp_attr_person_comp_ IMMEDIATE;
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands, pg_temp;
 
