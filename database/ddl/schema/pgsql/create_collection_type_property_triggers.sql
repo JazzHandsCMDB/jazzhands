@@ -35,7 +35,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -69,7 +69,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -103,7 +103,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;	
 END;
 $$
 SET search_path=jazzhands
@@ -138,7 +138,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;	
 END;
 $$
 SET search_path=jazzhands
@@ -173,7 +173,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;	
 END;
 $$
 SET search_path=jazzhands
@@ -208,7 +208,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;	
 END;
 $$
 SET search_path=jazzhands
@@ -243,7 +243,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;	
 END;
 $$
 SET search_path=jazzhands
@@ -278,7 +278,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -313,7 +313,7 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	
+	RETURN NEW;	
 END;
 $$
 SET search_path=jazzhands

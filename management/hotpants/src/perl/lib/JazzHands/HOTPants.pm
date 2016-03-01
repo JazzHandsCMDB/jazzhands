@@ -79,7 +79,7 @@ our $errstr;
 # These need to be configurable as properties for overrrides.
 #
 my %__HOTPANTS_CONFIG_PARAMS = (
-	TimeSequenceSkew      => 2,      # sequence skew allowed for time-based
+	TimeSequenceSkew      => 6,      # sequence skew allowed for time-based
 	                                 # tokens
 	SequenceSkew          => 7,      # Normal amount of sequence skew allowed
 	ResyncSequenceSkew    => 100,    # Amount of sequence skew allowed for

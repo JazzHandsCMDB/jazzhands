@@ -94,8 +94,8 @@ BEGIN
 				INNER JOIN property_collection pc
 					USING (property_collection_id)
 				INNER JOIN val_property vp USING (property_name,property_type)
-				WHERE property_collection_type = 'auto_ac_assignment'
-				AND property_collection_name = _company_type
+				WHERE pc.property_collection_type = 'auto_ac_assignment'
+				AND pc.property_collection_name = _company_type
 				AND property_name != 'site'
 	LOOP
 		IF _r.property_name = 'account_type' THEN
@@ -273,6 +273,8 @@ BEGIN
 						'', 'gi'),
 					E'[,\\.\\$#@]', '', 'mg'),
 				E'\\s+', '_', 'gi'));
+	ELSE
+		_short := _company_short_name;
 	END IF;
 
 	INSERT INTO company (
@@ -300,6 +302,46 @@ END;
 $$ 
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- purge the company from the database.  essentailly undoes add_company
+-- and will fail if fk's have grown to it nd raise_exception is set to true
+--
+CREATE OR REPLACE FUNCTION company_manip.remove_company(
+	_company_id	company.company_id%type,
+	raise_exception	boolean DEFAULT true
+) RETURNS boolean AS
+$$
+BEGIN
+	IF raise_exception THEN
+		DELETE FROM company_type
+		WHERE company_id = _company_id;
+
+		DELETE FROM account_realm_company
+		WHERE company_id = _company_id;
+
+		DELETE FROM company
+		WHERE company_id = _company_id;
+	ELSE
+		BEGIN
+			DELETE FROM company_type
+			WHERE company_id = _company_id;
+
+			DELETE FROM account_realm_company
+			WHERE company_id = _company_id;
+
+			DELETE FROM company
+			WHERE company_id = _company_id;
+		EXCEPTION WHEN foreign_key_violation THEN
+			RETURN false;
+		END;
+	END IF;
+	RETURN true;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
 
 ------------------------------------------------------------------------------
 --
@@ -337,3 +379,10 @@ END;
 $$ 
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+grant select on all tables in schema company_manip to iud_role;
+grant usage on schema company_manip to iud_role;
+revoke all on schema company_manip from public;
+revoke all on  all functions in schema company_manip from public;
+grant execute on all functions in schema company_manip to iud_role;
+

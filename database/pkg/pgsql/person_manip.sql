@@ -677,7 +677,7 @@ BEGIN
 	set constraints fk_ac_ac_rlm_cpy_act_rlm_cpy DEFERRED;
 	set constraints fk_account_prsn_cmpy_acct DEFERRED;
 	set constraints fk_account_company_person DEFERRED;
-	set constraints fk_account_company_person DEFERRED;
+	set constraints fk_pers_comp_attr_person_comp_ DEFERRED;
 
 	UPDATE person_account_realm_company
 		SET company_id = final_company_id
@@ -713,5 +713,59 @@ BEGIN
 	set constraints fk_pers_comp_attr_person_comp_ IMMEDIATE;
 END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands, pg_temp;
+
+--------------------------------------------------------------------------------
+
+--
+-- given some data, attempt to figure out if the same person exists already.
+-- This is imperfect
+--
+CREATE OR REPLACE FUNCTION person_manip.guess_person_id(
+	first_name 	text, 
+	last_name	text, 
+	login 		text,
+	company_id	company.company_id%TYPE DEFAULT NULL
+)  RETURNS person.person_id%TYPE AS $_$
+DECLARE
+	pid		person.person_id%TYPE;
+	_l		text;
+BEGIN
+	-- see if that login name is alradeady associated with someone with the
+	-- same first and last name
+	EXECUTE '
+		SELECT person_id
+		FROM	person
+				JOIN account USING (person_id,$2)
+		WHERE	login = $1
+		AND		first_name = $3
+		AND		last_name = $4
+	' INTO pid USING login, company_id, first_name, last_name;
+
+	IF pid IS NOT NULL THEN
+		RETURN pid;
+	END IF;
+
+	_l = regexp_replace(login, '@.*$', '');
+
+	IF _l != login THEN
+		EXECUTE '
+			SELECT person_id
+			FROM	person
+					JOIN account USING (person_id,$2)
+			WHERE	login = $1
+			AND		first_name = $3
+			AND		last_name = $4
+		' INTO pid USING _l, company_id, first_name, last_name;
+	
+		IF pid IS NOT NULL THEN
+			RETURN pid;
+		END IF;
+	END IF;
+
+	RETURN NULL;
+END;
+$_$ 
+LANGUAGE plpgsql SECURITY DEFINER 
+SET search_path = jazzhands, pg_temp;
 
 --------------------------------------------------------------------------------

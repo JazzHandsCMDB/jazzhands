@@ -191,7 +191,9 @@ BEGIN
 	END IF;
 	RETURN NEW;	
 END;
-$$ LANGUAGE plpgsql SECURITY INVOKER;
+$$ LANGUAGE plpgsql 
+SET search_path=jazzhands
+SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_create_new_unix_account ON account;
 CREATE TRIGGER trigger_create_new_unix_account 

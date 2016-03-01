@@ -22,10 +22,10 @@ update_account_type_account_collection updates ac's of type usertype.
 based on account_type.   It does not properly deal with account realms
 and should just die.  I want to make sure the case is handled by automated_ac
 
-update_company_account_collection likely needs to just die 
+update_company_account_collection likely needs to just die
 (its commented out) but its need should be double checked, particularly
 looking at what automated_ac does.
-	
+
 
  */
 
@@ -35,11 +35,11 @@ looking at what automated_ac does.
 -- implementaion time.
 -- XXX need automated test case
 
--- before an account is deleted, remove the per-account account collections, 
+-- before an account is deleted, remove the per-account account collections,
 -- if appropriate.
 --
 -- NOTE: this runs on DELETE only
-CREATE OR REPLACE FUNCTION delete_peraccount_account_collection() 
+CREATE OR REPLACE FUNCTION delete_peraccount_account_collection()
 RETURNS TRIGGER AS $$
 DECLARE
 	acid			account_collection.account_collection_id%TYPE;
@@ -63,19 +63,19 @@ BEGIN
 	END IF;
 	RETURN OLD;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_delete_peraccount_account_collection ON Account;
 CREATE TRIGGER trigger_delete_peraccount_account_collection BEFORE DELETE
-	ON account 
-	FOR EACH ROW 
+	ON account
+	FOR EACH ROW
 	EXECUTE PROCEDURE delete_peraccount_account_collection();
 
 ----------------------------------------------------------------------------
 -- on inserts/updates ensure the per-account account is updated properly
-CREATE OR REPLACE FUNCTION update_peraccount_account_collection() 
+CREATE OR REPLACE FUNCTION update_peraccount_account_collection()
 RETURNS TRIGGER AS $$
 DECLARE
 	def_acct_rlm	account_realm.account_realm_id%TYPE;
@@ -85,12 +85,12 @@ DECLARE
 BEGIN
 	newname = concat(NEW.login, '_', NEW.account_id);
 	if TG_OP = 'INSERT' THEN
-		insert into account_collection 
+		insert into account_collection
 			(account_collection_name, account_collection_type)
 		values
 			(newname, 'per-account')
 		RETURNING account_collection_id INTO acid;
-		insert into account_collection_account 
+		insert into account_collection_account
 			(account_collection_id, account_id)
 		VALUES
 			(acid, NEW.account_id);
@@ -111,16 +111,16 @@ BEGIN
 	END IF;
 	return NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_update_peraccount_account_collection 
+DROP TRIGGER IF EXISTS trigger_update_peraccount_account_collection
 	ON account;
 CREATE TRIGGER trigger_update_peraccount_account_collection
 	AFTER INSERT OR UPDATE
-	ON Account FOR 
-	EACH ROW EXECUTE 
+	ON Account FOR
+	EACH ROW EXECUTE
 	PROCEDURE update_peraccount_account_collection();
 
 --- end of per-account manipulations
@@ -151,13 +151,13 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account 
+DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account
 	ON person_company;
-CREATE TRIGGER trigger_propagate_person_status_to_account 
+CREATE TRIGGER trigger_propagate_person_status_to_account
 AFTER UPDATE ON person_company
 	FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
 
@@ -188,13 +188,13 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_pull_password_account_realm_from_account 
+DROP TRIGGER IF EXISTS trigger_pull_password_account_realm_from_account
 	ON account_password;
-CREATE TRIGGER trigger_pull_password_account_realm_from_account 
+CREATE TRIGGER trigger_pull_password_account_realm_from_account
 BEFORE INSERT OR UPDATE of ACCOUNT_ID
 	ON account_password
 	FOR EACH ROW EXECUTE PROCEDURE pull_password_account_realm_from_account();
@@ -213,14 +213,14 @@ DECLARE
 	correctval	char(1);
 BEGIN
 	SELECT is_enabled INTO correctval
-	FROM val_person_status 
+	FROM val_person_status
 	WHERE person_status = NEW.account_status;
 
 	IF TG_OP = 'INSERT' THEN
 		IF NEW.is_enabled is NULL THEN
 			NEW.is_enabled = correctval;
-		ELSIF NEW.account_status != correctval THEN
-			RAISE EXCEPTION 'May not set IS_ENABLED to an invalid value for given account_status: %', NEW.account_status
+		ELSIF NEW.is_enabled != correctval THEN
+			RAISE EXCEPTION 'May not set IS_ENABLED to an invalid value (%) for given account_status: %', NEW.is_enabled, NEW.account_status
 				USING errcode = 'integrity_constraint_violation';
 		END IF;
 	ELSIF TG_OP = 'UPDATE' THEN
@@ -229,20 +229,20 @@ BEGIN
 				NEW.is_enabled := correctval;
 			END IF;
 		ELSIF NEW.is_enabled != correctval THEN
-			RAISE EXCEPTION 'May not update IS_ENABLED to an invalid value for given account_status: %', NEW.account_status
-				USING errcode = 'integrity_constraint_violation';
+			RAISE EXCEPTION 'May not update IS_ENABLED to an invalid value (%->%) for given account_status: %', OLD.account_status, NEW.account_status, NEW.is_enabled
+			USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
 	END IF;
 
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_account_enforce_is_enabled 
+DROP TRIGGER IF EXISTS trigger_account_enforce_is_enabled
 	ON account;
-CREATE TRIGGER trigger_account_enforce_is_enabled 
+CREATE TRIGGER trigger_account_enforce_is_enabled
 BEFORE INSERT OR UPDATE of account_status,is_enabled
 	ON account
 	FOR EACH ROW EXECUTE PROCEDURE account_enforce_is_enabled();
@@ -257,23 +257,33 @@ BEFORE INSERT OR UPDATE of account_status,is_enabled
 CREATE OR REPLACE FUNCTION account_validate_login()
 	RETURNS TRIGGER AS $$
 DECLARE
+	regexp		text;
 	correctval	char(1);
 BEGIN
+	SELECT property_value
+	INTO   regexp
+	FROM	property
+	WHERE	account_realm_id = NEW.account_realm_id
+	AND		property_name = 'login_restriction'
+	AND		property_type = 'Defaults';
 
-	IF NEW.login  ~ '[^-/@a-z0-9_]+' THEN
-		RAISE EXCEPTION 'May not update IS_ENABLED to an invalid value for given account_status: %', NEW.account_status
-			USING errcode = 'integrity_constraint_violation';
+	IF FOUND THEN
+		-- ~ '[^-/@a-z0-9_]+' THEN
+		IF NEW.login  ~ regexp THEN
+			RAISE EXCEPTION 'May not set login to an invalid value (%)', NEW.login
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
 	END IF;
 
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_account_validate_login 
+DROP TRIGGER IF EXISTS trigger_account_validate_login
 	ON account;
-CREATE TRIGGER trigger_account_validate_login 
+CREATE TRIGGER trigger_account_validate_login
 BEFORE INSERT OR UPDATE of login
 	ON account
 	FOR EACH ROW EXECUTE PROCEDURE account_validate_login();
@@ -331,22 +341,22 @@ BEGIN
 	END IF;
 
 	IF NEW.is_enabled = NEW.is_disabled THEN
-		RAISE NOTICE 'is_enabled=is_disabled.  This should never happen' 
+		RAISE NOTICE 'is_enabled=is_disabled.  This should never happen'
 			USING  errcode = 'integrity_constraint_violation';
 	END IF;
 
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_val_person_status_enabled_migration_enforce 
-	ON account;
-CREATE TRIGGER trigger_val_person_status_enabled_migration_enforce 
+DROP TRIGGER IF EXISTS trigger_val_person_status_enabled_migration_enforce
+	ON val_person_status;
+CREATE TRIGGER trigger_val_person_status_enabled_migration_enforce
 BEFORE INSERT OR UPDATE of is_disabled, is_enabled
 	ON val_person_status
-	FOR EACH ROW EXECUTE 
+	FOR EACH ROW EXECUTE
 	PROCEDURE val_person_status_enabled_migration_enforce();
 
 
