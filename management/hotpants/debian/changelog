@@ -1,3 +1,10 @@
+jazzhands-hotpants (0.69.7) unstable; urgency=medium
+
+  * change skew to 6 sequences in either direction
+  * escape characters in comments when building otp URL
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Mar 2016 09:27:00 -0500
+
 jazzhands-hotpants (0.69.6) unstable; urgency=medium
 
   * add ability to create new tokens with different status
