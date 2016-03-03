@@ -174,7 +174,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-
 --
 -- Creates a user.  To add a pseudouser (all maps to the same person),
 -- make person_company_relation 'pseudouser'

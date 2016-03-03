@@ -36,6 +36,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_ins_v_corp_family_account
+        ON v_corp_family_account;
 CREATE TRIGGER trigger_ins_v_corp_family_account
 INSTEAD OF INSERT ON v_corp_family_account
 FOR EACH ROW EXECUTE PROCEDURE ins_v_corp_family_account();
@@ -62,6 +64,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_del_v_corp_family_account
+        ON v_corp_family_account;
 CREATE TRIGGER trigger_del_v_corp_family_account
 INSTEAD OF DELETE ON v_corp_family_account
 FOR EACH ROW EXECUTE PROCEDURE del_v_corp_family_account();
@@ -126,6 +130,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_upd_v_corp_family_account
+        ON v_corp_family_account;
 CREATE TRIGGER trigger_upd_v_corp_family_account
 INSTEAD OF UPDATE ON v_corp_family_account
 FOR EACH ROW EXECUTE PROCEDURE upd_v_corp_family_account();
