@@ -65,7 +65,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 
 DROP TRIGGER IF EXISTS trigger_populate_vendor_default_term ON person;
@@ -152,7 +154,9 @@ BEGIN
 	END;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY INVOKER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
 
 
 DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image;

@@ -34,7 +34,8 @@ BEGIN
 	INSERT INTO account VALUES (NEW.*);
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_ins_v_corp_family_account
         ON v_corp_family_account;
@@ -62,7 +63,8 @@ BEGIN
 
 	DELETE FROM account where account_id = OLD.account_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_del_v_corp_family_account
         ON v_corp_family_account;
@@ -128,7 +130,8 @@ BEGIN
 	RETURN NEW;
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_upd_v_corp_family_account
         ON v_corp_family_account;

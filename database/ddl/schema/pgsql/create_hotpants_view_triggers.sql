@@ -39,7 +39,8 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_upd_v_hotpants_token ON v_hotpants_token;
 CREATE TRIGGER trigger_upd_v_hotpants_token

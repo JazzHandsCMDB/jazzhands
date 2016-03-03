@@ -30,7 +30,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_account_collection_hier_loop 
 	ON account_collection_hier;
@@ -52,7 +54,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_netblock_collection_hier_loop 
 	ON netblock_collection_hier;
@@ -74,7 +78,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_device_collection_hier_loop 
 	ON device_collection_hier;
@@ -96,7 +102,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_token_collection_hier_loop 
 	ON token_collection_hier;
@@ -120,7 +128,9 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_svcenv_collection_hier_loop 
 	ON service_environment_coll_hier;

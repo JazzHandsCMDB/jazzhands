@@ -43,6 +43,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
+SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_coll_hier_enforce
@@ -102,6 +103,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
+SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_collection_member_enforce

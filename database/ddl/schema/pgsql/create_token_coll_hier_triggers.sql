@@ -41,6 +41,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
+SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_token_collection_hier_enforce
@@ -96,6 +97,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
+SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_token_collection_member_enforce
