@@ -320,11 +320,17 @@ BEGIN
 		DELETE FROM account_realm_company
 		WHERE company_id = _company_id;
 
+		DELETE FROM account_realm_company
+		WHERE company_id = _company_id;
+
 		DELETE FROM company
 		WHERE company_id = _company_id;
 	ELSE
 		BEGIN
 			DELETE FROM company_type
+			WHERE company_id = _company_id;
+
+			DELETE FROM account_realm_company
 			WHERE company_id = _company_id;
 
 			DELETE FROM account_realm_company
