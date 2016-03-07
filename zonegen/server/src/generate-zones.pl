@@ -193,12 +193,13 @@ sub lock_db_changes($) {
 	) || die $dbh->errstr;
 	$sth->execute || die $sth->errstr;
 
-	my $high;
+	my @list;
+
 	while ( my ($id) = $sth->fetchrow_array ) {
-		$high = $id;
+		push(@list, $id);
 	}
 	$sth->finish;
-	$high;
+	(@list);
 }
 
 sub get_change_tally($) {
@@ -1502,16 +1503,16 @@ mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
 mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 
-my $maxid = lock_db_changes($dbh);
+my @changeids = lock_db_changes($dbh);
 
 if ($debug) {
-	warn "Maximum ID to process is ", ( defined($maxid) ? $maxid : "NULL" );
+	warn "Got ", scalar @changeids, " change ids to deal with";
 	warn "Number of change records, ", get_change_tally($dbh), "\n";
 }
 
 # $generate contains all of the objects that are to be regenerated
 my $generate = {};
-if ($maxid) {
+if (scalar @changeids) {
 	#
 	# Now get all zones eligible for regeneration and save them.
 	#
@@ -1729,6 +1730,17 @@ if ( !$nosoa ) {
 				# for if something was forced from the command line but did not
 				# have recorded changes
 				next if ( !$id );
+
+				#
+				# only remove ids that were found before processing started.
+				# This allows for transactions commited during the run to get
+				# a chance to regenerate
+				#
+				if(!grep($_ == $id, @changeids)) {
+					warn "skipping change record $id, not in initial set\n"
+					  if ($debug);
+					next;
+				}
 				if ( !exists( $seen->{$id} ) ) {
 					warn "deleting change record $id\n"
 					  if ($debug);

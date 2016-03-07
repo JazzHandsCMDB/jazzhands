@@ -1,3 +1,9 @@
+jazzhands-zonegen-server (0.69.8) trusty; urgency=medium
+
+  * only mark dns change records that were there to start as done
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon,  7 Mar 2016 17:08:03 +0000
+
 jazzhands-zonegen-server (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation
