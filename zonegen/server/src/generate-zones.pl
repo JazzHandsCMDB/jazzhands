@@ -196,7 +196,7 @@ sub lock_db_changes($) {
 	my @list;
 
 	while ( my ($id) = $sth->fetchrow_array ) {
-		push(@list, $id);
+		push( @list, $id );
 	}
 	$sth->finish;
 	(@list);
@@ -485,8 +485,7 @@ sub generate_named_acl_file($$$) {
 				$out->print("acl $acl\n{\n");
 			}
 			$lastacl = $acl;
-			$out->printf( "\t%-35s\t// %s\n",
-				"$ip;", ($desc) ? $desc : "" );
+			$out->printf( "\t%-35s\t// %s\n", "$ip;", ($desc) ? $desc : "" );
 		}
 		if ( defined($lastacl) ) {
 			$out->print("};\n\n");
@@ -537,8 +536,7 @@ sub generate_named_acl_file($$$) {
 			}
 			$lastsite = $sc;
 			if ($inc) {
-				$desc =
-				  "[$ksc vs $pip] " . ( ($desc) ? $desc : "" );
+				$desc = "[$ksc vs $pip] " . ( ($desc) ? $desc : "" );
 			} else {
 				$inc = "";
 			}
@@ -685,11 +683,8 @@ sub process_rvs_range {
 
 		if (
 			!(
-				(
-					   $start >= $low_block
-					&& $start <= $high_block
-				)
-				|| (       $stop >= $low_block
+				( $start >= $low_block && $start <= $high_block )
+				|| (   $stop >= $low_block
 					&& $stop <= $high_block )
 			)
 		  )
@@ -831,11 +826,10 @@ sub process_fwd_records {
 	my $lastso = 0;
 	while (
 		my (
-			$id,       $name,      $ttl,     $class,
-			$type,     $val,       $pri,     $ip,
-			$rid,      $rname,,    $srv,
-			$srvproto, $srvweight, $srvport, $enable,
-			$valname,  $valdomain, $valval,  $valip,
+			$id,     $name,    $ttl,       $class,     $type,
+			$val,    $pri,     $ip,        $rid,       $rname,
+			,        $srv,     $srvproto,  $srvweight, $srvport,
+			$enable, $valname, $valdomain, $valval,    $valip,
 			$so
 		)
 		= $sth->fetchrow_array
@@ -889,7 +883,7 @@ sub process_fwd_records {
 			if ( $srvproto && $srvproto !~ /^_/ ) {
 				$srvproto = "_$srvproto";
 			}
-			$name = ".$name" if ( $srvproto && length($name) );
+			$name = ".$name"         if ( $srvproto && length($name) );
 			$name = "$srvproto$name" if ($srvproto);
 			$name = ".$name"         if ( $srv && length($name) );
 			$name = "$srv$name"      if ($srv);
@@ -1001,10 +995,8 @@ sub process_soa {
 
 	$sth->execute($domid) || die $sth->errstr;
 
-	my (
-		$dom, $class, $ttl, $serial, $ref,
-		$ret, $exp,   $min, $mname,  $rname
-	) = $sth->fetchrow_array;
+	my ( $dom, $class, $ttl, $serial, $ref, $ret, $exp, $min, $mname, $rname )
+	  = $sth->fetchrow_array;
 	$sth->finish;
 
 	$class  = 'IN'    if ( !defined($class) );
@@ -1049,8 +1041,7 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) =
-	  @_;
+	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -1093,10 +1084,8 @@ sub process_domain {
 		my ( $y, $m, $d, $h, $min, $s ) =
 		  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
 		if ($y) {
-			my $whence =
-			  mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
-			utime( $whence, $whence, $tmpfn )
-			  ;    # If it does not work, then Vv
+			my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
+			utime( $whence, $whence, $tmpfn );    # If it does not work, then Vv
 		} else {
 			warn "difficulting breaking apart $last";
 		}
@@ -1286,7 +1275,7 @@ sub process_perserver {
 		mkdir_p("$cfgdir");
 		my $cfgfn    = "$cfgdir/named.conf.auto-gen";
 		my $tmpcfgfn = "$cfgfn.tmp.$$";
-		my $cfgf = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
+		my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
 
 		print_comments( $dbh, $cfgf, '#' );
 
@@ -1355,11 +1344,10 @@ sub process_perserver {
 				);
 			}
 
-			if (       defined($zonesgend)
+			if (   defined($zonesgend)
 				&& defined( $zonesgend->{$zone} ) )
 			{
-				$zcf->print(
-					"rndc reload $zone || rndc reload\n");
+				$zcf->print("rndc reload $zone || rndc reload\n");
 				$tally++;
 			}
 		}
@@ -1395,8 +1383,7 @@ sub print_rndc_header {
 	#
 	$zcf->print("#!/bin/sh\n");
 	$zcf->print("\n");
-	$zcf->print(
-		'PATH=$PATH:/usr/local/sbin:/usr/sbin:/usr/local/bin:/usr/bin');
+	$zcf->print('PATH=$PATH:/usr/local/sbin:/usr/sbin:/usr/local/bin:/usr/bin');
 	$zcf->print("\n");
 	$zcf->print('export PATH');
 	$zcf->print("\n\n");
@@ -1419,25 +1406,27 @@ my $nosoa       = 0;
 my $help        = 0;
 my $norsynclist = 0;
 my $nogen       = 0;
+my $sleep;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'help'          => \$help,           # duh.
-	'verbose|v'     => \$verbose,        # duh.
-	'debug'         => \$debug,          # even more verbosity.
-	'nogen'         => \$nogen,          # do not generate any zones
-	'genall|a'      => \$genall,         # generate all, not just new
-	'forcegen|f'    => \$forcegen,       # force generation of zones
-	'force|f'       => \$forceall,       # force everything
-	'forcesoa|s'    => \$forcesoa,       # force bump of SOA record
-	'nosoa'         => \$nosoa,          # never bump soa record
-	'dumpzone'      => \$dumpzone,       # dump a zone to stdout
-	'site=s'        => \$mysite,         # indicate what local machines site
-	'no-rsync-list' => \$norsynclist,    # generate rsync list
-	'outdir|o=s'    => \$output_root     # output directory
+	'help'           => \$help,           # duh.
+	'verbose|v'      => \$verbose,        # duh.
+	'debug'          => \$debug,          # even more verbosity.
+	'nogen'          => \$nogen,          # do not generate any zones
+	'genall|a'       => \$genall,         # generate all, not just new
+	'forcegen|f'     => \$forcegen,       # force generation of zones
+	'force|f'        => \$forceall,       # force everything
+	'forcesoa|s'     => \$forcesoa,       # force bump of SOA record
+	'nosoa'          => \$nosoa,          # never bump soa record
+	'dumpzone'       => \$dumpzone,       # dump a zone to stdout
+	'site=s'         => \$mysite,         # indicate what local machines site
+	'no-rsync-list'  => \$norsynclist,    # generate rsync list
+	'outdir|o=s'     => \$output_root,    # output directory
+	'random-sleep=i' => \$sleep           # how long to sleep up unto;
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1468,6 +1457,12 @@ if ( $nosoa && $forcesoa ) {
 }
 
 my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
+
+if ($sleep) {
+	my $delay = int( rand($sleep) );
+	warn "Sleeping $delay seconds\n" if ($debug);
+	sleep($delay);
+}
 
 $network_range_table = build_network_range_table($dbh);
 
@@ -1512,7 +1507,7 @@ if ($debug) {
 
 # $generate contains all of the objects that are to be regenerated
 my $generate = {};
-if (scalar @changeids) {
+if ( scalar @changeids ) {
 	#
 	# Now get all zones eligible for regeneration and save them.
 	#
@@ -1736,7 +1731,7 @@ if ( !$nosoa ) {
 				# This allows for transactions commited during the run to get
 				# a chance to regenerate
 				#
-				if(!grep($_ == $id, @changeids)) {
+				if ( !grep( $_ == $id, @changeids ) ) {
 					warn "skipping change record $id, not in initial set\n"
 					  if ($debug);
 					next;
