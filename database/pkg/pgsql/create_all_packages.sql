@@ -62,3 +62,4 @@
 \ir lv_manip.sql
 \ir approval_utils.sql
 \ir account_collection_manip.sql
+\ir script_hooks.sql
