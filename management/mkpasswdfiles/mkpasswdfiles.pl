@@ -21,7 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Copyright (c) 2013, Todd Kover
+# Copyright (c) 2013-2016, Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -1764,6 +1764,8 @@ sub main {
 		die "mkpwdfiles: ", $dbh->errstr;
 	}
 
+	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
+
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
 
 	# umask(027);
@@ -1812,6 +1814,8 @@ sub main {
 	## create any per-host files
 	generate_passwd_files("$o_output_dir/hosts", 'per-host');
 	generate_group_files("$o_output_dir/hosts", 'per-host');
+
+	$dbh->do("SELECT script_hooks.mkpasswdfiles_post()");
 
 	$dbh->disconnect;
 

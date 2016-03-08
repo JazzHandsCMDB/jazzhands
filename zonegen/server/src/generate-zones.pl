@@ -1458,6 +1458,8 @@ if ( $nosoa && $forcesoa ) {
 
 my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
 
+$dbh->do("SELECT script_hooks.zonegen_pre()");
+
 if ($sleep) {
 	my $delay = int( rand($sleep) );
 	warn "Sleeping $delay seconds\n" if ($debug);
@@ -1764,6 +1766,8 @@ warn "Generating configuration files and whatnot..." if ($debug);
 process_perserver( $dbh, "../zones", $persvrroot, $generate );
 generate_complete_files( $dbh, $zoneroot, $generate );
 
+$dbh->do("SELECT script_hooks.zonegen_post()");
+
 warn "Done file generation, about to commit\n" if ($verbose);
 if ($docommit) {
 	$dbh->commit;
@@ -1819,6 +1823,8 @@ generate-zones [ options ] [ zone1 zone2 zone3 ... ]
 =item B<--no-rsynclist> do not generate a node list
 
 =item B<--nogen> exit without doing anything
+
+=item B<--random-sleep #> on startup, sleep random seconds up to #
 
 =back
 
