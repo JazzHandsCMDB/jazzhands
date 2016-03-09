@@ -47,55 +47,55 @@ grant create on database jazzhands_new to jazzhands;
 
 \c jazzhands_new jazzhands;
 
-\i create_pgsql_schema.sql
+\ir create_pgsql_schema.sql
 
-\i init/initialize_country_codes.sql
-\i init/initialize_jazzhands.sql
-\i init/initialize_component.sql
+\ir init/initialize_country_codes.sql
+\ir init/initialize_jazzhands.sql
+\ir init/initialize_component.sql
 
-\i init/initialize_jazzhands_optional.sql
--- \i init/insert_blacklist.sql
--- \i init/oracle/submit_scheduler.sql
+\ir init/initialize_jazzhands_optional.sql
+-- \ir init/insert_blacklist.sql
+-- \ir init/oracle/submit_scheduler.sql
 
 -- Things that are only done in migrations
--- \i compat/pgsql/create_location_compatibility_view.sql
+-- \ir compat/pgsql/create_location_compatibility_view.sql
 
 -- Example Data is used by the tests
 
 begin;
 
 -- set search_path=public;
-\i init/initialize_jazzhands_example.sql
+\ir init/initialize_jazzhands_example.sql
 -- example insertions with some real life looking test data
-\i tests/init/insert_records.sql
-\i tests/init/insert_devices.sql
+\ir tests/init/insert_records.sql
+\ir tests/init/insert_devices.sql
 -- deprecated
--- \i tests/init/insert_records_later.sql
-\i tests/init/test_netblock_collection.sql
-\i tests/pgsql/location_regression_test.sql
-\i tests/pgsql/netblock_regression_test.sql
--- \i tests/pgsql/netblock_regression_test-RETIRE.sql
-\i tests/pgsql/dns_record_regression_test.sql
+-- \ir tests/init/insert_records_later.sql
+\ir tests/init/test_netblock_collection.sql
+\ir tests/pgsql/location_regression_test.sql
+\ir tests/pgsql/netblock_regression_test.sql
+-- \ir tests/pgsql/netblock_regression_test-RETIRE.sql
+\ir tests/pgsql/dns_record_regression_test.sql
 -- will be in a point release
--- \i tests/pgsql/network_interface_regression_test.sql
-\i tests/pgsql/property_regression_test.sql
-\i tests/pgsql/device_ticket_regression.sql
-\i tests/pgsql/device_power_regression.sql
+-- \ir tests/pgsql/network_interface_regression_test.sql
+\ir tests/pgsql/property_regression_test.sql
+\ir tests/pgsql/device_ticket_regression.sql
+\ir tests/pgsql/device_power_regression.sql
 
 
-\i tests/pgsql/account_coll_hier_regression.sql
-\i tests/pgsql/company_coll_hier_regression.sql
-\i tests/pgsql/device_coll_hier_regression.sql
-\i tests/pgsql/dns_domain_coll_hier_regression.sql
-\i tests/pgsql/layer2_network_coll_hier_regression.sql
-\i tests/pgsql/layer3_network_coll_hier_regression.sql
-\i tests/pgsql/netblock_coll_hier_regression.sql
-\i tests/pgsql/property_coll_hier_regression.sql
-\i tests/pgsql/svcenv_coll_hier_regression.sql
-\i tests/pgsql/token_coll_hier_regression.sql
+\ir tests/pgsql/account_coll_hier_regression.sql
+\ir tests/pgsql/company_coll_hier_regression.sql
+\ir tests/pgsql/device_coll_hier_regression.sql
+\ir tests/pgsql/dns_domain_coll_hier_regression.sql
+\ir tests/pgsql/layer2_network_coll_hier_regression.sql
+\ir tests/pgsql/layer3_network_coll_hier_regression.sql
+\ir tests/pgsql/netblock_coll_hier_regression.sql
+\ir tests/pgsql/property_coll_hier_regression.sql
+\ir tests/pgsql/svcenv_coll_hier_regression.sql
+\ir tests/pgsql/token_coll_hier_regression.sql
 
-\i tests/pgsql/account_enabled_test.sql
--- \i tests/pgsql/v_corp_family_account_trigger.sql
+\ir tests/pgsql/account_enabled_test.sql
+-- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
 rollback;
 -- RAISE EXCEPTION 'need to put transactions back in testing';

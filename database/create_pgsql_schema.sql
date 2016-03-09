@@ -23,16 +23,16 @@
 -- set serveroutput on
 select now();
 
-\i ddl/schema/pgsql/create_schema_support.sql
+\ir ddl/schema/pgsql/create_schema_support.sql
 
-\i ddl/schema/pgsql/create_schema_pgsql.sql
+\ir ddl/schema/pgsql/create_schema_pgsql.sql
 
 CREATE SCHEMA audit;
 COMMENT ON SCHEMA audit IS 'part of jazzhands project';
 
 
--- \i ddl/schema/pgsql/build_audit_tables.sql
--- \i ddl/schema/pgsql/build_ins_upd_triggers.sql
+-- \ir ddl/schema/pgsql/build_audit_tables.sql
+-- \ir ddl/schema/pgsql/build_ins_upd_triggers.sql
 
 SELECT schema_support.rebuild_stamp_triggers('jazzhands');
 SELECT schema_support.build_audit_tables('audit', 'jazzhands');
@@ -43,53 +43,53 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 -- NEED TO PORT: @@ddl/schema/plpgsql/create_audit_indexes.sql
 
-\i ddl/schema/pgsql/create_extra_objects.sql
+\ir ddl/schema/pgsql/create_extra_objects.sql
 
 \ir pkg/pgsql/create_all_packages.sql
 
-\i ddl/schema/pgsql/create_account_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_account_triggers.sql
-\i ddl/schema/pgsql/create_acct_coll_report_triggers.sql
-\i ddl/schema/pgsql/create_approval_triggers.sql
-\i ddl/schema/pgsql/create_auto_account_coll_triggers.sql
-\i ddl/schema/pgsql/create_collection_loop_triggers.sql
-\i ddl/schema/pgsql/create_collection_type_property_triggers.sql
-\i ddl/schema/pgsql/create_company_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_company_triggers.sql
-\i ddl/schema/pgsql/create_component_triggers.sql
-\i ddl/schema/pgsql/create_device_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_device_triggers.sql
-\i ddl/schema/pgsql/create_device_type_triggers.sql
-\i ddl/schema/pgsql/create_device_type_triggers.sql
-\i ddl/schema/pgsql/create_dns_domain_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_dns_triggers.sql
-\i ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_legacy_port_triggers_RETIRE.sql
-\i ddl/schema/pgsql/create_netblock_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_netblock_triggers.sql
--- \i ddl/schema/pgsql/create_netblock_triggers-RETIRE.sql
-\i ddl/schema/pgsql/create_network_interface_triggers.sql
-\i ddl/schema/pgsql/create_network_interface_triggers_RETIRE.sql
-\i ddl/schema/pgsql/create_network_range_triggers.sql
-\i ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
-\i ddl/schema/pgsql/create_physical_conection_triggers.sql
-\i ddl/schema/pgsql/create_property_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_property_triggers.sql
-\i ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_token_coll_hier_triggers.sql
-\i ddl/schema/pgsql/create_triggers.sql
-\i ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
+\ir ddl/schema/pgsql/create_account_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_account_triggers.sql
+\ir ddl/schema/pgsql/create_acct_coll_report_triggers.sql
+\ir ddl/schema/pgsql/create_approval_triggers.sql
+\ir ddl/schema/pgsql/create_auto_account_coll_triggers.sql
+\ir ddl/schema/pgsql/create_collection_loop_triggers.sql
+\ir ddl/schema/pgsql/create_collection_type_property_triggers.sql
+\ir ddl/schema/pgsql/create_company_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_company_triggers.sql
+\ir ddl/schema/pgsql/create_component_triggers.sql
+\ir ddl/schema/pgsql/create_device_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_device_triggers.sql
+\ir ddl/schema/pgsql/create_device_type_triggers.sql
+\ir ddl/schema/pgsql/create_device_type_triggers.sql
+\ir ddl/schema/pgsql/create_dns_domain_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_dns_triggers.sql
+\ir ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_legacy_port_triggers_RETIRE.sql
+\ir ddl/schema/pgsql/create_netblock_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_netblock_triggers.sql
+-- \ir ddl/schema/pgsql/create_netblock_triggers-RETIRE.sql
+\ir ddl/schema/pgsql/create_network_interface_triggers.sql
+\ir ddl/schema/pgsql/create_network_interface_triggers_RETIRE.sql
+\ir ddl/schema/pgsql/create_network_range_triggers.sql
+\ir ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
+\ir ddl/schema/pgsql/create_physical_conection_triggers.sql
+\ir ddl/schema/pgsql/create_property_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_property_triggers.sql
+\ir ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_token_coll_hier_triggers.sql
+\ir ddl/schema/pgsql/create_triggers.sql
+\ir ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
 
-\i ddl/schema/pgsql/create_network_range_triggers.sql
+\ir ddl/schema/pgsql/create_network_range_triggers.sql
 
-\i ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
-\i ddl/schema/pgsql/create_person_company_attr_triggers.sql
+\ir ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
+\ir ddl/schema/pgsql/create_person_company_attr_triggers.sql
 
-\i ddl/schema/pgsql/create_hotpants_view_triggers.sql
+\ir ddl/schema/pgsql/create_hotpants_view_triggers.sql
 
 -- This could be done for backwards compatibility but is not.
--- \i compat/pgsql/create_location_compatibility_view.sql
+-- \ir compat/pgsql/create_location_compatibility_view.sql
 select now();
