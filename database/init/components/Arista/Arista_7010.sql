@@ -161,7 +161,5 @@ BEGIN
 		slot_type st
 	WHERE
 		slot_type = '1000BaseTEthernet' and slot_function = 'network';
-END LOOP;
-END LOOP;
 END;
 $$ LANGUAGE plpgsql;
