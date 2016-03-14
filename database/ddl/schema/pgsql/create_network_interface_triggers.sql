@@ -65,11 +65,11 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_net_int_netblock_to_nbn_compat_before
 ON network_interface;
---CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_before
---	BEFORE DELETE
---	ON network_interface 
---	FOR EACH ROW 
---	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_before();
+CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_before
+	BEFORE DELETE
+	ON network_interface 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_before();
 
 CREATE OR REPLACE FUNCTION net_int_netblock_to_nbn_compat_after() 
 RETURNS TRIGGER AS $$
@@ -182,11 +182,11 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_net_int_netblock_to_nbn_compat_after
 ON network_interface;
 
---CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_after
---	AFTER DELETE OR INSERT OR UPDATE OF network_interface_id, netblock_id
---	ON network_interface 
---	FOR EACH ROW 
---	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_after();
+CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_after
+	AFTER DELETE OR INSERT OR UPDATE OF network_interface_id, netblock_id
+	ON network_interface 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_after();
 
 ---- network_interface_netblock -> network_interface
 -- note that the triggers above could fired
@@ -275,11 +275,11 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_network_interface_netblock_to_ni
 ON network_interface_netblock;
---CREATE TRIGGER trigger_network_interface_netblock_to_ni
---	AFTER INSERT OR UPDATE OR DELETE
---	ON network_interface_netblock
---	FOR EACH ROW 
---	EXECUTE PROCEDURE network_interface_netblock_to_ni();
+CREATE TRIGGER trigger_network_interface_netblock_to_ni
+	AFTER INSERT OR UPDATE OR DELETE
+	ON network_interface_netblock
+	FOR EACH ROW 
+	EXECUTE PROCEDURE network_interface_netblock_to_ni();
 
 CREATE OR REPLACE FUNCTION network_interface_drop_tt() 
 RETURNS TRIGGER AS $$
@@ -311,17 +311,17 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_network_interface_drop_tt_netint_nb
 ON network_interface_netblock;
---CREATE TRIGGER trigger_network_interface_drop_tt_netint_nb
---	AFTER INSERT OR UPDATE OR DELETE
---	ON network_interface_netblock
---	EXECUTE PROCEDURE network_interface_drop_tt();
+CREATE TRIGGER trigger_network_interface_drop_tt_netint_nb
+	AFTER INSERT OR UPDATE OR DELETE
+	ON network_interface_netblock
+	EXECUTE PROCEDURE network_interface_drop_tt();
 
 DROP TRIGGER IF EXISTS trigger_network_interface_drop_tt_netint_ni
 ON network_interface;
---CREATE TRIGGER trigger_network_interface_drop_tt_netint_ni
---	AFTER INSERT OR UPDATE OR DELETE
---	ON network_interface
---	EXECUTE PROCEDURE network_interface_drop_tt();
+CREATE TRIGGER trigger_network_interface_drop_tt_netint_ni
+	AFTER INSERT OR UPDATE OR DELETE
+	ON network_interface
+	EXECUTE PROCEDURE network_interface_drop_tt();
 
 ---------------------------------------------------------------------------
 -- End of transition triggers
