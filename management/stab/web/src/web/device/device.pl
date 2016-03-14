@@ -258,7 +258,7 @@ sub build_device_box {
 	$left_table  .= $voetr;
 	$right_table .= $stab->build_tr( $values, "b_dropdown", "Ownership",
 		"OWNERSHIP_STATUS", 'DEVICE_ID' );
-	if ( !$values || $values->{ _dbx('OWNERSHIP_STATUS') } eq 'leased' ) {
+	if ( !$values || (exists($values->{ _dbx('OWNERSHIP_STATUS') }) && $values->{ _dbx('OWNERSHIP_STATUS') } eq 'leased' ) ) {
 		$right_table .=
 		  $stab->build_tr( $values, "b_textfield", "Lease Expires",
 			"LEASE_EXPIRATION_DATE", 'DEVICE_ID' );

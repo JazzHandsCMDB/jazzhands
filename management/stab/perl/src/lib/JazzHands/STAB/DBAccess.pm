@@ -596,7 +596,6 @@ sub get_netblock_from_ip {
 	}
 
 
-warn Dumper($args);
 	my $netblock = $self->DBFetch(
 		table => 'netblock',
 		result_set_size        => 'first',
