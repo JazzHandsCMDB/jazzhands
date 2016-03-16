@@ -93,6 +93,7 @@ begin;
 \ir tests/pgsql/property_coll_hier_regression.sql
 \ir tests/pgsql/svcenv_coll_hier_regression.sql
 \ir tests/pgsql/token_coll_hier_regression.sql
+\ir tests/pgsql/account_coll_realm_regression.sql
 
 \ir tests/pgsql/account_enabled_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql

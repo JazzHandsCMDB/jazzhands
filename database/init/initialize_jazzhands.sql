@@ -1043,6 +1043,16 @@ insert into val_property (
 	'root of url for stab, if apps need to direct people'
 );
 
+insert into val_property (
+	property_name, property_type, is_multivalue, property_data_type,
+	description, 
+	permit_account_realm_id
+) values (
+	'login_restriction', 'Defaults', 'N', 'string',
+	'per-account realm validation of login names',
+	'REQUIRED'
+);
+
 
 -- DNS zone generation
 insert into val_property_type (property_type, description, is_multivalue) 

@@ -82,6 +82,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_token_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_triggers.sql
 \ir ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
+\ir ddl/schema/pgsql/create_account_coll_realm_triggers.sql
 
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
 

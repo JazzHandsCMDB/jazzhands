@@ -393,6 +393,8 @@ BEGIN
 		newname := _object;
 	END IF;
 	PERFORM schema_support.prepare_for_grant_replay();
+
+	-- Handle table wide grants
 	FOR _tabs IN SELECT  n.nspname as schema,
 			c.relname as name,
 			CASE c.relkind
@@ -403,7 +405,7 @@ BEGIN
 				END as "Type",
 			c.relacl as privs
 		FROM    pg_catalog.pg_class c
-			LEFT JOIN pg_catalog.pg_namespace n
+			INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'v', 'S', 'f')
 		  AND c.relname = _object
@@ -436,6 +438,57 @@ BEGIN
 			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
 		END LOOP;
 	END LOOP;
+
+	-- Handle column specific wide grants
+	FOR _tabs IN SELECT  n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
+				WHEN 'r' THEN 'table'
+				WHEN 'v' THEN 'view'
+				WHEN 'S' THEN 'sequence'
+				WHEN 'f' THEN 'foreign table'
+				END as "Type",
+			a.attname as col,
+			a.attacl as privs
+		FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
+				ON n.oid = c.relnamespace
+			INNER JOIN pg_attribute a
+                ON a.attrelid = c.oid
+		WHERE c.relkind IN ('r', 'v', 'S', 'f')
+		  AND a.attacl IS NOT NULL
+		  AND c.relname = _object
+		  AND n.nspname = _schema
+		ORDER BY 1, 2
+	LOOP
+		-- NOTE:  We lose who granted it.  Oh Well.
+		FOR _perm IN SELECT * FROM pg_catalog.aclexplode(acl := _tabs.privs)
+		LOOP
+			--  grantor | grantee | privilege_type | is_grantable 
+			IF _perm.is_grantable THEN
+				_grant = ' WITH GRANT OPTION';
+			ELSE
+				_grant = '';
+			END IF;
+			IF _perm.grantee = 0 THEN
+				_role := 'PUBLIC';
+			ELSE
+				_role := pg_get_userbyid(_perm.grantee);
+			END IF;
+			_fullgrant := 'GRANT ' || 
+				_perm.privilege_type || '(' || _tabs.col || ')'
+				' on ' ||
+				_schema || '.' ||
+				newname || ' to ' ||
+				_role || _grant;
+			IF _fullgrant IS NULL THEN
+				RAISE EXCEPTION 'built up grant for %.% (%) is NULL',
+					schema, object, newname;
+	    END IF;
+			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
+		END LOOP;
+	END LOOP;
+
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
@@ -575,7 +628,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Saves view definition for replay later.  This is to allow for dropping
--- dependant views and having a migration script recreate them.
+-- dependent views and having a migration script recreate them.
 --
 CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
 	schema varchar,
@@ -626,7 +679,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 --
 
 --
--- Saves relations dependant on an object for reply.
+-- legacy spelling to be killed after 0.70! XXX
 --
 CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
 	schema varchar,
@@ -634,6 +687,22 @@ CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
 	dropit boolean DEFAULT true,
 	doobjectdeps boolean DEFAULT false
 ) RETURNS VOID AS $$
+BEGIN
+	PERFORM schema_support.save_dependent_objects_for_replay(
+		schema, object, dropit, doobjectdeps);
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+--
+-- Saves relations dependent on an object for reply.
+--
+CREATE OR REPLACE FUNCTION schema_support.save_dependent_objects_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true,
+	doobjectdeps boolean DEFAULT false
+) RETURNS VOID AS $$
+
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
@@ -652,7 +721,7 @@ BEGIN
 	LOOP
 		RAISE NOTICE '1 dealing with  %.%', _r.nspname, _r.proname;
 		PERFORM schema_support.save_constraint_for_replay(_r.nspname, _r.proname, dropit);
-		PERFORM schema_support.save_dependant_objects_for_replay(_r.nspname, _r.proname, dropit);
+		PERFORM schema_support.save_dependent_objects_for_replay(_r.nspname, _r.proname, dropit);
 		PERFORM schema_support.save_function_for_replay(_r.nspname, _r.proname, dropit);
 	END LOOP;
 
@@ -671,7 +740,7 @@ BEGIN
 	LOOP
 		IF _r.relkind = 'v' THEN
 			RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
-			PERFORM * FROM save_dependant_objects_for_replay(_r.nspname, _r.relname, dropit);
+			PERFORM * FROM save_dependent_objects_for_replay(_r.nspname, _r.relname, dropit);
 			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit);
 		END IF;
 	END LOOP;
@@ -770,7 +839,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 --
 -- Saves view definition for replay later.  This is to allow for dropping
--- dependant functions and having a migration script recreate them.
+-- dependent functions and having a migration script recreate them.
 --
 -- Note this will drop and recreate all functions of the name.  This sh
 --
@@ -1347,7 +1416,7 @@ SELECT schema_support.save_constraint_for_replay('jazzhands', 'table');
 SELECT schema_support.save_trigger_for_replay('jazzhands', 'relation');
 	- save triggers poinging to an object for replay
 
-SELECT schema_support.save_dependant_objects_for_replay(schema, object)
+SELECT schema_support.save_dependent_objects_for_replay(schema, object)
 
 This will take an option (relation[table/view] or procedure) and figure
 out what depends on it, and save the ddl to recreate tehm.
