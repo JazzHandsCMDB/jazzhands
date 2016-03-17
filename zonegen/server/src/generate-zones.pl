@@ -183,15 +183,22 @@ sub get_db_default {
 sub lock_db_changes($) {
 	my $dbh = shift;
 
+	my $old = $dbh->{PrintError};
+	$dbh->{PrintError} = 0;
 	my $sth = $dbh->prepare_cached(
 		qq{
 		select	dns_change_record_id
 		  from	dns_change_record
 		order by dns_change_record_id
-		FOR UPDATE
+		FOR UPDATE NOWAIT
 	}
 	) || die $dbh->errstr;
-	$sth->execute || die $sth->errstr;
+	if(!($sth->execute)) {
+		if($sth->state eq '55P03') {
+			return undef;
+		}
+		die $sth->errstr;
+	}
 
 	my @list;
 
@@ -199,7 +206,8 @@ sub lock_db_changes($) {
 		push( @list, $id );
 	}
 	$sth->finish;
-	(@list);
+	$dbh->{PrintError} = 1;
+	\@list;
 }
 
 sub get_change_tally($) {
@@ -1500,7 +1508,17 @@ mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
 mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 
-my @changeids = lock_db_changes($dbh);
+#
+# if this returns  an empty list, then exit 1
+# This signals to the caller that it should cease.
+#
+my $changeids = lock_db_changes($dbh);
+
+if(!defined($changeids)) {
+	exit 1;
+}
+
+my @changeids = @{$changeids};
 
 if ($debug) {
 	warn "Got ", scalar @changeids, " change ids to deal with";

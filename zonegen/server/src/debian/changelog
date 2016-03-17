@@ -1,10 +1,11 @@
-jazzhands-zonegen-server (0.69.8) trusty; urgency=medium
+jazzhands-zonegen-server (0.70.0) trusty; urgency=medium
 
   * only mark dns change records that were there to start as done
   * add random-sleep argument
   * call script_hooks modules in zonegen
+  * do not block on SELECT FOR UPDATE, just exit gracefully.
 
- -- Todd M. Kover <kovert@omniscient.com>  Mon,  7 Mar 2016 17:08:03 +0000
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 17 Mar 2016 14:15:42 -0500
 
 jazzhands-zonegen-server (0.66.1) trusty; urgency=medium
 
