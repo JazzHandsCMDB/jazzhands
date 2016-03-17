@@ -1,3 +1,9 @@
+jazzhands-zonegen-server (0.70.1) trusty; urgency=medium
+
+  * remove lockfile upon unsuccesful exit of generation script
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 17 Mar 2016 16:13:42 -0500
+
 jazzhands-zonegen-server (0.70.0) trusty; urgency=medium
 
   * only mark dns change records that were there to start as done
@@ -6,6 +12,7 @@ jazzhands-zonegen-server (0.70.0) trusty; urgency=medium
   * do not block on SELECT FOR UPDATE, just exit gracefully.
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 17 Mar 2016 14:15:42 -0500
+
 
 jazzhands-zonegen-server (0.66.1) trusty; urgency=medium
 
