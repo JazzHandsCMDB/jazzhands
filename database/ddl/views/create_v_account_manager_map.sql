@@ -13,9 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE VIEW v_account_manager_map AS
+CREATE OR REPLACE VIEW v_account_manager_map AS
 WITH dude_base AS (
 	SELECT a.login, a.account_id, person_id, a.company_id,
+		a.account_realm_id,
 	    coalesce(p.preferred_first_name, p.first_name) as first_name,
 	    coalesce(p.preferred_last_name, p.last_name) as last_name,
 	    pc.manager_person_id
@@ -33,5 +34,5 @@ WITH dude_base AS (
 	concat(mp.first_name, ' ', mp.last_name, ' (', mp.login, ')') as manager_human_readable
 FROM dude a
 	INNER JOIN dude mp ON mp.person_id = a.manager_person_id
+		and mp.account_realm_id = a.account_realm_id
 ;
-
