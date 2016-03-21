@@ -190,7 +190,7 @@ sub lock_db_changes($) {
 		select	dns_change_record_id
 		  from	dns_change_record
 		order by dns_change_record_id
-		FOR UPDATE NOWAIT
+		FOR UPDATE 
 	}
 	) || die $dbh->errstr;
 	if(!($sth->execute)) {
