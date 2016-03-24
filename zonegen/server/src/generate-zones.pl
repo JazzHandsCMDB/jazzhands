@@ -180,8 +180,14 @@ sub get_db_default {
 # lock all the dns_change_record columns and return the max one
 # found.  This assumes they are assigned in order, which is fine...
 #
-sub lock_db_changes($) {
-	my $dbh = shift;
+sub lock_db_changes($;$) {
+	my $dbh  = shift;
+	my $wait = shift;
+
+	my $nowait = "NOWAIT";
+	if ($wait) {
+		$nowait = '';
+	}
 
 	my $old = $dbh->{PrintError};
 	$dbh->{PrintError} = 0;
@@ -190,11 +196,11 @@ sub lock_db_changes($) {
 		select	dns_change_record_id
 		  from	dns_change_record
 		order by dns_change_record_id
-		FOR UPDATE 
+		FOR UPDATE  $nowait
 	}
 	) || die $dbh->errstr;
-	if(!($sth->execute)) {
-		if($sth->state eq '55P03') {
+	if ( !( $sth->execute ) ) {
+		if ( $sth->state eq '55P03' ) {
 			return undef;
 		}
 		die $sth->errstr;
@@ -1415,26 +1421,28 @@ my $help        = 0;
 my $norsynclist = 0;
 my $nogen       = 0;
 my $sleep;
+my $wait;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'help'           => \$help,           # duh.
-	'verbose|v'      => \$verbose,        # duh.
 	'debug'          => \$debug,          # even more verbosity.
-	'nogen'          => \$nogen,          # do not generate any zones
-	'genall|a'       => \$genall,         # generate all, not just new
-	'forcegen|f'     => \$forcegen,       # force generation of zones
-	'force|f'        => \$forceall,       # force everything
-	'forcesoa|s'     => \$forcesoa,       # force bump of SOA record
-	'nosoa'          => \$nosoa,          # never bump soa record
 	'dumpzone'       => \$dumpzone,       # dump a zone to stdout
-	'site=s'         => \$mysite,         # indicate what local machines site
+	'forcegen|f'     => \$forcegen,       # force generation of zones
+	'forcesoa|s'     => \$forcesoa,       # force bump of SOA record
+	'force|f'        => \$forceall,       # force everything
+	'genall|a'       => \$genall,         # generate all, not just new
+	'help'           => \$help,           # duh.
 	'no-rsync-list'  => \$norsynclist,    # generate rsync list
+	'nogen'          => \$nogen,          # do not generate any zones
+	'nosoa'          => \$nosoa,          # never bump soa record
 	'outdir|o=s'     => \$output_root,    # output directory
-	'random-sleep=i' => \$sleep           # how long to sleep up unto;
+	'random-sleep=i' => \$sleep,          # how long to sleep up unto;
+	'site=s'         => \$mysite,         # indicate what local machines site
+	'verbose|v'      => \$verbose,        # duh.
+	'wait!'          => \$wait            # wait on lock in db
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1512,9 +1520,9 @@ mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 # if this returns  an empty list, then exit 1
 # This signals to the caller that it should cease.
 #
-my $changeids = lock_db_changes($dbh);
+my $changeids = lock_db_changes( $dbh, $wait );
 
-if(!defined($changeids)) {
+if ( !defined($changeids) ) {
 	exit 1;
 }
 
