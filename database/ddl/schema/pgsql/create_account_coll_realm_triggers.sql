@@ -189,10 +189,12 @@ BEGIN
 			JOIN account_collection USING (account_collection_id)
 			JOIN val_account_collection_type vt USING (account_collection_type)
 	WHERE	vt.account_realm_id IS NOT NULL
-	AND		vt.account_realm_id != NEW.account_realm_id;
+	AND		vt.account_realm_id != NEW.account_realm_id
+	AND		account_id = NEW.account_id;
 	
 	IF _tally > 0 THEN
-		RAISE EXCEPTION 'New account realm is part of % account collections with a type restriction',
+		RAISE EXCEPTION 'New account realm (%) is part of % account collections with a type restriction',
+			NEW.account_realm_id,
 			_tally
 			USING ERRCODE = 'integrity_constraint_violation';
 	END IF;
