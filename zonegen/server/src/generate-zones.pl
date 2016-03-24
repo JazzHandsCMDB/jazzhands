@@ -1420,8 +1420,8 @@ my $nosoa       = 0;
 my $help        = 0;
 my $norsynclist = 0;
 my $nogen       = 0;
-my $sleep;
-my $wait;
+my $sleep       = 0;
+my $wait        = 1;
 
 my $mysite;
 
@@ -1850,6 +1850,8 @@ generate-zones [ options ] [ zone1 zone2 zone3 ... ]
 
 =item B<--nogen> exit without doing anything
 
+=item B<--nowait> do not block on database lock on startup
+
 =item B<--random-sleep #> on startup, sleep random seconds up to #
 
 =back
@@ -2012,6 +2014,10 @@ files with the same dates.
 The B<--nogen> option is used to cause the script to exit. This is useful
 for wrapper scripts that will rsync if there is a bug in this such that
 generation hangs and zones needs to be pushed out anyway.
+
+The B<--nowait> option is used to cause the script to immediately return if
+another zonegen instance is running and has the dns_change_record table locked.
+This will cause the script to exit non-zero.
 
 =head1 ENVIRONMENT
 
