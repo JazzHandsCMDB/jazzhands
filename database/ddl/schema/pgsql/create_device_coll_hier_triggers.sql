@@ -41,7 +41,8 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-LANGUAGE plpgsql SECURITY DEFINER;
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=jazzhands;
 
 DROP TRIGGER IF EXISTS trigger_device_collection_hier_enforce
 	 ON device_collection_hier;
@@ -96,7 +97,8 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-LANGUAGE plpgsql SECURITY DEFINER;
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=jazzhands;
 
 DROP TRIGGER IF EXISTS trigger_device_collection_member_enforce
 	 ON device_collection_device;
