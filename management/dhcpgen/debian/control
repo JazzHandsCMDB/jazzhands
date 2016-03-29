@@ -1,0 +1,11 @@
+Source: jazzhands-dhcpgen
+Section: System/Management
+Priority: optional
+Maintainer: Matthew Ragan <mdr@sucksless.net>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+
+Package: jazzhands-dhcpgen
+Architecture: all
+Depends: apache2-bin, libdbd-pg-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, libdbi-perl, libnet-stomp-perl, liblog-log4perl-perl, libnetaddr-ip-perl
+Description: JazzHands configuration generation for ISC dhcpd
