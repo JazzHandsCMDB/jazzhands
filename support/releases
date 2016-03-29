@@ -25,18 +25,19 @@
 # aaa/acct-mgmt/src/lib/lib/JazzHands	# /JazzHands-Krb5.spec
 
 javascript
+management/api
 management/appauthal/perl/AppAuthAL
-management/appauthal/perl/LDAP
 management/appauthal/perl/DBI
+management/appauthal/perl/LDAP
 management/appauthal/php
+management/approval
+management/dbsyncer
+management/dhcpgen
+management/hotpants
 management/mgmt/perl
 management/mkpasswdfiles
-management/approval
 management/stab
 management/util/perl	# jazzhands-perl-common
 management/util/perl-Krb5
-zonegen/server/src
 management/util/perl-tickets
-management/api
-management/hotpants
-management/dbsyncer
+zonegen/server/src
