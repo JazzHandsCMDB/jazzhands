@@ -53,12 +53,9 @@ $query ="
 			round(extract('epoch' FROM (select
 					date_trunc('year',now()) - date_trunc('year',pc.hire_date)
 			))/86400/365) ELSE NULL END AS duration
-	 	from	person p
-		inner join (
-			select * from person_company
-			where hire_date is null or hire_date <= now()
-		) pc using(person_id)
-		WHERE	pc.hire_date is not null
+	 	from	person_company pc
+		join    person p using (person_id)
+		where   pc.hire_date is not null and pc.hire_date <= now()
 		AND person_id NOT IN (
 			SELECT person_id
 			FROM perlimit
