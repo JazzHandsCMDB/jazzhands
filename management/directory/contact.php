@@ -163,7 +163,7 @@ $personid = (isset($_GET['person_id']))? $_GET['person_id']:null;
 // the order by is used to get the non-NULL ones pushed to the top , tho now
 // there should be only one row
 $query = "
-	select  p.person_id,
+	SELECT  p.person_id,
 		coalesce(p.preferred_first_name, p.first_name) as first_name,
 		coalesce(p.preferred_last_name, p.last_name) as last_name,
 		coalesce(pc.nickname, p.nickname) as nickname,
@@ -188,52 +188,49 @@ $query = "
 		ofc.floor,
 		ofc.section,
 		ofc.seat_number
-	   from person p
-	   	inner join (
-			select * from person_company
-			where hire_date is null or hire_date <= now()
-		) pc using (person_id)
-		inner join company c using (company_id)
-		inner join v_corp_family_account a
-			on p.person_id = a.person_id
-			and pc.company_id = a.company_id
-			and a.account_role = 'primary'
-		left join ( select ac.*, account_id
-					FROM account_collection ac
-						INNER JOIN account_collection_account
-						USING (account_collection_id)
-					WHERE account_collection_type = 'department'
+	FROM v_corp_family_account a
+		INNER JOIN person p using (person_id)
+		INNER JOIN company c using (company_id)
+		INNER JOIN person_company pc using (person_id,company_id)
+		LEFT JOIN ( select ac.*, account_id
+			    FROM account_collection ac
+				INNER JOIN account_collection_account
+				USING (account_collection_id)
+			    WHERE account_collection_type = 'department'
 		) ac USING (account_id)
-		left join (     
-        	select  pi.*, piu.person_image_usage
-       		  from	person_image pi
-        			inner join person_image_usage piu
-        				on pi.person_image_id = piu.person_image_id
-        				and piu.person_image_usage = 'corpdirectory'
-        	) pi on p.person_id = pi.person_id
-		left join person mgrp
-			on pc.manager_person_id = mgrp.person_id
-		left join ( -- this probably needs to be smarter
-			   select manager_person_id as person_id, count(*)  as tally
-			     from person_company
-			     where person_company_status = 'enabled'
-			     group by manager_person_id
-		) numreports on p.person_id = numreports.person_id
-		left join (
-			select	pl.person_id, 
-				pa.display_label,
-				pl.building,
-				pl.floor,
-				pl.section,
-				pl.seat_number
-			from   person_location pl
-				inner join physical_address pa
-					USING (physical_address_id)
-			where   pl.person_location_type = 'office'
-			order by site_rank
-		) ofc on ofc.person_id = p.person_id
-	where p.person_id = $1
-	order by ac.account_collection_name
+		LEFT JOIN (
+		    select  pi.*, piu.person_image_usage
+		      from  person_image pi
+			    inner join person_image_usage piu
+				on pi.person_image_id = piu.person_image_id
+				and piu.person_image_usage = 'corpdirectory'
+		    ) pi USING (person_id)
+		LEFT JOIN (
+		       select manager_person_id as person_id, count(*)  as tally
+			 from person_company
+			 where person_company_status = 'enabled'
+			 group by manager_person_id
+		) numreports USING (person_id)
+		LEFT JOIN (
+		    select  pl.person_id,
+			pa.display_label,
+			pl.building,
+			pl.floor,
+			pl.section,
+			pl.seat_number
+		    from   person_location pl
+			inner join physical_address pa
+			    USING (physical_address_id)
+		    where   pl.person_location_type = 'office'
+		    order by site_rank
+		) ofc USING (person_id)
+		LEFT JOIN person mgrp
+		    on pc.manager_person_id = mgrp.person_id
+	WHERE p.person_id = $1 
+	AND (pc.hire_date is null or pc.hire_date <= now())
+	AND a.account_role = 'primary'
+	ORDER BY ac.account_collection_name
+;
 ";
 
 $result = pg_query_params($dbconn, $query, array($personid)) 
