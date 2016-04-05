@@ -97,7 +97,7 @@ my $option_map = {
 
 	},
 	DomainSearch => {
-		option => 'domain-search',
+		option => 'option domain-search',
 		type => 'quoted_string_list'
 	},
 	BootFile =>  {
@@ -1035,8 +1035,8 @@ EOF
 					@{$l2_net->{dhcp_assignments}}) {
 				printf $l2fh 
 					qq!
-# %s (%s) device_id %d
-host %s-%d {
+# %s (%s) device_id %d, network_interface %d, netblock %d
+host %s-%d-%d-%d {
 	hardware ethernet %s;
 	fixed-address %s;
 	option host-name = "%s";
@@ -1044,9 +1044,13 @@ host %s-%d {
 					($host->{device_name} || 'unnamed device'),
 					($host->{physical_label} || 'unlabeled device'),
 					$host->{device_id},
+					$host->{network_interface_id},
+					$host->{netblock_id},
 					$host->{device_name} || $host->{physical_label} || 
 						'device',
 					$host->{device_id},
+					$host->{network_interface_id},
+					$host->{netblock_id},
 					$host->{mac_addr},
 					$host->{ip_address}->addr,
 					$host->{device_name} || $host->{physical_label} || 
@@ -1063,6 +1067,7 @@ host %s-%d {
 						}
 					}
 				}
+				print $l2fh "}\n";
 			}
 		}
 
