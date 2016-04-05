@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.70.3.1) trusty; urgency=medium
+
+  * Change priority for host-name option to be physical_label rather than device_name
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 05 Apr 2016 11:20:50 -0500
+
 jazzhands-dhcpgen (0.70.3) trusty; urgency=medium
 
   * Initial release
