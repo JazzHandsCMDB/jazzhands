@@ -1111,6 +1111,14 @@ insert into val_property (
 	'URL to include in emails that tell people where to find more info'
 );
 
+insert into val_property (
+	property_name,property_type,property_data_type,
+	description
+) values (
+	'_2fa_docurl', 'Defaults', 'string',
+	'Used as the URL for enrollment in 2FA'
+);
+
 -------------------------------------------------------------------------
 -- BEGIN legacy port related stuff used by layer1_connection and elsewhere
 
