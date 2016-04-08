@@ -35,7 +35,8 @@ while read dirname pkg ; do
 	spec=`(cd $ROOT/$dirname ; find . -name \*.spec -print |head -1 | sed 's,^\./,,')`
 
 	mkdir $RELEASEDIR/$rootname
-	(cd $ROOT/$dirname ; tar cf - . ) | (cd $RELEASEDIR/$rootname ; tar xpf  - )
+
+	(cd $ROOT ; git archive HEAD:${dirname} --format tar ) | (cd $RELEASEDIR/$rootname ; tar xpf  - )
 
 	if [ ! -z "$pkg" ] ; then
 		PKGARG="-e \"s/__PKG__/$PKG\""
