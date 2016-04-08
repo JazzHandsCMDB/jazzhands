@@ -61,9 +61,9 @@ sub check_admin {
 sub do_work {
 	my $cgi = new CGI;
 
-	my $dbh = JazzHands::DBI->connect('directory_rw', {AutoCommit => 0}) ||
-		die $JazzHands::DBI::errstr;
-
+	my $c = new JazzHands::Common();
+	$c->Connect(service => 'directory_rw');
+	my $dbh = $c->DBHandle();
 
 	# figure out if person is an admin or editing themselves
 	my $personid = $cgi->param('person_id');
@@ -77,7 +77,7 @@ sub do_work {
 		$r->{error} = "You are not permitted to manipulate this user.";
 		$commit = 0;
 	} else {
-		$r = do_db_manip($dbh, $cgi);
+		$r = do_db_manip($c, $cgi);
 		$commit = 1;
 	}
 
@@ -93,10 +93,10 @@ sub do_work {
 }
 
 sub do_db_manip {
-	my $dbh = shift @_;
+	my $c = shift @_;
 	my $cgi = shift @_;
 
-	my $c = new JazzHands::Common;
+	my $dbh = $c->DBHandle();
 
 	my $r = {};
 

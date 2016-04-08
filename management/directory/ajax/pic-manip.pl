@@ -62,9 +62,9 @@ sub get_login {
 sub do_work {
 	my $cgi = new CGI;
 
-	my $dbh = JazzHands::DBI->connect('directory_rw', {AutoCommit => 0}) ||
-		die $JazzHands::DBI::errstr;
-
+	my $c = new JazzHands::Common;
+	$c->Connect(service => 'directory_rw');
+	my $dbh = $c->DBHandle();
 
 	# figure out if person is an admin or editing themselves
 	my $personid = $cgi->param('person_id');
@@ -80,13 +80,11 @@ sub do_work {
 		print $cgi->header( -type => 'application/json', -charset => 'utf-8');
 		print encode_json ( $r );
 	} else {
-		do_pic_manip($dbh, $cgi);
+		do_pic_manip($c, $cgi);
 		$commit = 1;
 	}
-
-
 	if($commit) {
-		$dbh->commit;
+		$dbh->commit || die $dbh->errstr;
 	} else {
 		$dbh->rollback;
 	}
@@ -137,7 +135,7 @@ sub add_pic {
 				?, ?, ?
 			) returning person_image_id
 		}) || die $dbh->errstr;
-		$sth->execute(
+		my $nr = $sth->execute(
 			$personid, 
 			$format, 
 			$oid, 
@@ -147,11 +145,11 @@ sub add_pic {
 			$description) || die $sth->errstr;
 		$picid = $sth->fetch()->[0];
 		$sth->finish;
-		$picid
 	} else {
 		$picid = $oldid;
 	}
 
+			$dbh->commit || die "wtf", $dbh->errstr;;
 	$picid;
 }
 
@@ -275,15 +273,14 @@ sub get_max_order {
 }
 
 sub do_pic_manip {
-	my($dbh, $cgi) = @_;
+	my($c, $cgi) = @_;
 
 	# print $cgi->header, $cgi->start_html;
 	# print $cgi->Dump, $cgi->end_html;  exit;
 
-	my $c = new JazzHands::Common;
-	$c->DBHandle($dbh);
-
 	my $personid = $cgi->param("person_id");
+
+	my $dbh = $c->DBHandle();
 
 	my @errs;
 	foreach my $row (@{$c->DBFetch(
@@ -295,6 +292,7 @@ sub do_pic_manip {
 		# objects with no person image usage at all will not show up as params,
 		# so need to look at the db and see if usage is still set.
 		my $oldusg = get_pic_usage($dbh, $picid);
+		# XXX - this should be multi_param.
 		my @newusg = $cgi->param("person_image_usage_$picid");
 
 		foreach my $usg (@$oldusg) {
@@ -352,11 +350,6 @@ sub do_pic_manip {
 				foreach my $usg (@usg) {
 					add_pic_usage($dbh, $picid, $usg);
 				}
-				#my $sth = $dbh->prepare_cached(qq{
-				#	select	person_image_usage
-				#  	from	person_image_usage
-				# 	where	person_image_id = ?
-				#});
 				$newpicid = $picid;
 			}
 		} elsif($param =~ /^person_image_usage_(\d+)/) {
@@ -382,8 +375,6 @@ sub do_pic_manip {
 			add_pic_usage($dbh, $newpicid, 'yearbook');
 		}
 	}
-
-	# now go over the old ones and fix things that have changed.
 	1;
 }
 
