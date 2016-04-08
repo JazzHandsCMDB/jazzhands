@@ -28,6 +28,7 @@ mkdir $RELEASEDIR
 
 cat releases | sed 's/#.*$//' | grep '^[a-z]' | sed 's/^ *//' | 
 while read dirname pkg ; do
+	tty -s || echo 1>&2 processing $pkg from $dirname
 	NAME=`(cd $ROOT/$dirname ; dpkg-parsechangelog | grep ^Source | head | awk '{print $NF}')`
 	VERSION=`(cd $ROOT/$dirname ; dpkg-parsechangelog | grep ^Version | head | awk '{print $NF}')`
 	rootname=${NAME}-${VERSION}
