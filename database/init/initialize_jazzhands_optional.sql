@@ -271,7 +271,7 @@ insert into val_property (
 ) values (
         'PhoneDirectoryAdmin',
         'PhoneDirectoryAttributes',
-        'REQUIRED',
+        'PROHIBITED',
         'account_collection_id',
         'Administrators'
 );
