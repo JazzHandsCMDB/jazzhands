@@ -1523,6 +1523,27 @@ insert into val_property (
 	'N'
 );
 
+INSERT INTO val_property_collection_type (
+	property_collection_type, description
+) VALUES (
+	'auto_ac_assignment',
+	'defines which properties to setup for a company by default'
+);
+
+WITH i AS (
+	INSERT INTO property_collection (
+		property_collection_name, property_collection_type
+	) VALUES (
+		'corporate family', 'auto_ac_assignment'
+	) RETURNING *
+)  INSERT INTO property_collection_property
+	(property_collection_id, property_name, property_type)
+SELECT i.property_collection_id, p.property_name, p.property_type
+FROM i, val_property p
+WHERE p.property_type = 'auto_acct_coll'
+AND p.property_data_type = 'none';
+;
+
 -- END automated account collection infrastructure (tied to properties)
 -------------------------------------------------------------------------
 
@@ -1683,3 +1704,4 @@ insert into val_property (
 
 -- END Phone Directory
 -------------------------------------------------------------------------
+
