@@ -678,6 +678,24 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- probably want a restore everything function too
 --
 
+--
+-- legacy spelling to be killed after 0.70! XXX
+--
+CREATE OR REPLACE FUNCTION schema_support.save_dependant_objects_for_replay(
+	schema varchar,
+	object varchar,
+	dropit boolean DEFAULT true,
+	doobjectdeps boolean DEFAULT false
+) RETURNS VOID AS $$
+BEGIN
+	PERFORM schema_support.save_dependent_objects_for_replay(
+		schema, object, dropit, doobjectdeps);
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
+
+--
+-- Saves relations dependent on an object for reply.
+--
 CREATE OR REPLACE FUNCTION schema_support.save_dependent_objects_for_replay(
 	schema varchar,
 	object varchar,

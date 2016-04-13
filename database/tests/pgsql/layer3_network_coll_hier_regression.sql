@@ -31,8 +31,6 @@ DECLARE
 	_hnc			layer3_network_collection%ROWTYPE;
 	_c1			layer3_network%ROWTYPE;
 	_c2			layer3_network%ROWTYPE;
-	_nb1			netblock%ROWTYPE;
-	_nb2			netblock%ROWTYPE;
 BEGIN
 	RAISE NOTICE 'layer3_network_coll_hier_regression: Cleanup Records from Previous Tests';
 
@@ -48,23 +46,6 @@ BEGIN
 	delete from layer3_network where description like 'JHTEST%';
 
 	RAISE NOTICE '++ Inserting testing data';
-
-	INSERT INTO netblock (
-		ip_address, is_single_address, can_subnet, netblock_status,
-		netblock_type, description
-	) values (
-		'10.42.42.1/26', 'Y', 'N', 'Allocated',
-		'dns', 'JHTEST netblock'
-	) RETURNING * into _nb1;
-
-	INSERT INTO netblock (
-		ip_address, is_single_address, can_subnet, netblock_status,
-		netblock_type, description
-	) values (
-		'10.42.43.1/26', 'Y', 'N', 'Allocated',
-		'dns', 'JHTEST netblock'
-	) RETURNING * into _nb2;
-
 	INSERT INTO val_layer3_network_coll_type (
 		layer3_network_collection_type, max_num_members
 	) VALUES (
@@ -109,15 +90,15 @@ BEGIN
 	RAISE NOTICE 'Inserting collection specific records'; 
 
 	INSERT INTO layer3_network (
-		netblock_id, description
+		description
 	) values (
-		_nb1.netblock_id, 'JHTEST01'
+		'JHTEST01'
 	) RETURNING * into _c1;
 
 	INSERT INTO layer3_network (
-		netblock_id, description
+		description
 	) values (
-		_nb2.netblock_id, 'JHTEST02'
+		'JHTEST02'
 	) RETURNING * into _c2;
 
 	RAISE NOTICE 'Starting tests...';
