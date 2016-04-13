@@ -57,6 +57,7 @@ DECLARE
 BEGIN
 	SET CONSTRAINTS FK_NETINT_NB_NETINT_ID DEFERRED;
 	SET CONSTRAINTS FK_NETINT_NB_NBLK_ID DEFERRED;
+
 	RETURN OLD;
 END;
 $$ 
@@ -87,6 +88,7 @@ BEGIN
 			network_interface_id INTEGER, netblock_id INTEGER
 		);
 	END IF;
+
 	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
 		SELECT count(*) INTO _tally FROM __network_interface_netblocks
 		WHERE network_interface_id = NEW.network_interface_id
@@ -161,16 +163,12 @@ BEGIN
 				;
 			END IF;
 		END IF;
-		SET CONSTRAINTS FK_NETINT_NB_NETINT_ID IMMEDIATE;
-		SET CONSTRAINTS FK_NETINT_NB_NBLK_ID IMMEDIATE;
 	ELSIF TG_OP = 'DELETE' THEN
 		IF OLD.netblock_id IS NOT NULL THEN
 			DELETE from network_interface_netblock
 				WHERE network_interface_id = OLD.network_interface_id
 				AND netblock_id = OLD.netblock_id;
 		END IF;
-		SET CONSTRAINTS FK_NETINT_NB_NETINT_ID IMMEDIATE;
-		SET CONSTRAINTS FK_NETINT_NB_NBLK_ID IMMEDIATE;
 		RETURN OLD;
 	END IF;
 	RETURN NEW;
@@ -292,12 +290,12 @@ BEGIN
 	 WHERE  relname = '__network_interface_netblocks'
 	   AND  relpersistence = 't';
 
+	SET CONSTRAINTS FK_NETINT_NB_NETINT_ID IMMEDIATE;
+	SET CONSTRAINTS FK_NETINT_NB_NBLK_ID IMMEDIATE;
+
 	IF _tally > 0 THEN
 		DROP TABLE IF EXISTS __network_interface_netblocks;
 	END IF;
-
-	SET CONSTRAINTS FK_NETINT_NB_NETINT_ID IMMEDIATE;
-	SET CONSTRAINTS FK_NETINT_NB_NBLK_ID IMMEDIATE;
 
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;

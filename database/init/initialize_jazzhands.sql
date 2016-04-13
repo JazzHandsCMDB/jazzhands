@@ -1111,6 +1111,14 @@ insert into val_property (
 	'URL to include in emails that tell people where to find more info'
 );
 
+insert into val_property (
+	property_name,property_type,property_data_type,
+	description
+) values (
+	'_2fa_docurl', 'Defaults', 'string',
+	'Used as the URL for enrollment in 2FA'
+);
+
 -------------------------------------------------------------------------
 -- BEGIN legacy port related stuff used by layer1_connection and elsewhere
 
@@ -1515,6 +1523,27 @@ insert into val_property (
 	'N'
 );
 
+INSERT INTO val_property_collection_type (
+	property_collection_type, description
+) VALUES (
+	'auto_ac_assignment',
+	'defines which properties to setup for a company by default'
+);
+
+WITH i AS (
+	INSERT INTO property_collection (
+		property_collection_name, property_collection_type
+	) VALUES (
+		'corporate family', 'auto_ac_assignment'
+	) RETURNING *
+)  INSERT INTO property_collection_property
+	(property_collection_id, property_name, property_type)
+SELECT i.property_collection_id, p.property_name, p.property_type
+FROM i, val_property p
+WHERE p.property_type = 'auto_acct_coll'
+AND p.property_data_type = 'none';
+;
+
 -- END automated account collection infrastructure (tied to properties)
 -------------------------------------------------------------------------
 
@@ -1633,3 +1662,46 @@ INSERT INTO val_encryption_key_purpose (
 
 -- END tokens
 -------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- BEGIN Phone Directory
+insert into val_property_type (
+	property_type,
+	description
+) values (
+	'PhoneDirectoryAttributes',
+	'attributes for user directory'
+);
+
+insert into val_property (
+        property_name,
+        property_type,
+        permit_account_collection_id,
+        property_data_type,
+        description
+) values (
+        'PhoneDirectoryAdmin',
+        'PhoneDirectoryAttributes',
+        'PROHIBITED',
+        'account_collection_id',
+        'Administrators'
+);
+
+
+insert into val_property (
+        property_name,
+        property_type,
+        permit_company_id,
+        property_data_type,
+        description
+) values (
+        'ShowBirthday',
+        'PhoneDirectoryAttributes',
+        'REQUIRED',
+        'none',
+        'accounts associated with this company will have their birthday shown'
+);
+
+-- END Phone Directory
+-------------------------------------------------------------------------
+

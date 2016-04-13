@@ -79,8 +79,7 @@ sub parsedeb($$) {
 				) || die "bad date $whence";
 				my $dt = $strp->parse_datetime($whence);
 				if ($dt) {
-					$strp->pattern("%s");
-					$whence = $strp->format_datetime($dt);
+					$whence = $dt->epoch();
 				}
 				my @x = @verchg;
 				push(
@@ -142,8 +141,7 @@ sub parsespec($) {
 			) || die "bad date $whence";
 			my $dt = $strp->parse_datetime($whence) || die "$!";
 			if ($dt) {
-				$strp->pattern("%s");
-				$whence = $strp->format_datetime($dt);
+				$whence = $dt->epoch();
 			}
 			undef @verchg;
 		} elsif ( $line =~ /^\s*\-\s+(.+)$/ ) {

@@ -112,7 +112,7 @@ sub new {
 	}
 
 	if ( !$self->{_service} ) {
-		$Errstr = "Must specify Databse service name";
+		$Errstr = "Must specify Database service name";
 		return undef;
 	}
 	if ( !$self->{_apptype} ) {

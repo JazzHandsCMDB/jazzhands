@@ -254,7 +254,15 @@ BEGIN
 	);
 
 	delete from network_interface_purpose where device_id = in_Device_id;
-	delete from network_interface where device_id = in_Device_id;
+
+	WITH ni AS  (
+		delete from network_interface where device_id = in_Device_id
+		RETURNING *
+	) delete from network_interface_netblock where network_interface_id 
+		IN (
+			SELECT network_interface_id
+		 	FROM ni
+		); 
 
 	PERFORM device_utils.purge_physical_ports( in_Device_id);
 --	PERFORM device_utils.purge_power_ports( in_Device_id);
