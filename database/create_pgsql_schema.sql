@@ -83,9 +83,18 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_triggers.sql
 \ir ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
 \ir ddl/schema/pgsql/create_account_coll_realm_triggers.sql
-\ir ddl/schema/pgsql/create_device_coll_hook_triggers.sql
-\ir ddl/schema/pgsql/create_layer2_network_coll_hook_triggers.sql
 
+-- look hook after triggers
+\ir ddl/schema/pgsql/create_account_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_company_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_device_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_dns_domain_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_layer2_network_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_layer3_network_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_netblock_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_property_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_svcenv_coll_hook_triggers.sql
+\ir ddl/schema/pgsql/create_token_coll_hook_triggers.sql
 
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
 
