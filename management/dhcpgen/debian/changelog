@@ -1,4 +1,4 @@
-jazzhands-dhcpgen (0.70.3.1) trusty; urgency=medium
+jazzhands-dhcpgen (0.70.3.2) trusty; urgency=medium
 
   * Change priority for host-name option to be physical_label rather than device_name
 
