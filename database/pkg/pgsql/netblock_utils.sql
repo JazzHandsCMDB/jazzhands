@@ -319,6 +319,7 @@ CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(
 DECLARE
 	parent_nbid		jazzhands.netblock.netblock_id%TYPE;
 	netblock_rec	jazzhands.netblock%ROWTYPE;
+	netrange_rec	RECORD;
 	inet_list		inet[];
 	current_ip		inet;
 	saved_method	text;
@@ -542,6 +543,45 @@ BEGIN
 		) LOOP
 			RAISE DEBUG '   Checking netblock %', current_ip;
 
+			IF single_address THEN
+				--
+				-- Check to see if netblock is in a network_range, and if it is,
+				-- then set the value to the top or bottom of the range, or
+				-- another random value as appropriate
+				--
+				SELECT 
+					network_range_id,
+					start_nb.ip_address AS start_ip_address,
+					stop_nb.ip_address AS stop_ip_address
+				INTO netrange_rec
+				FROM
+					jazzhands.network_range nr,
+					jazzhands.netblock start_nb,
+					jazzhands.netblock stop_nb
+				WHERE
+					nr.start_netblock_id = start_nb.netblock_id AND
+					nr.stop_netblock_id = stop_nb.netblock_id AND
+					nr.parent_netblock_id = netblock_rec.netblock_id AND
+					start_nb.ip_address <= current_ip AND
+					stop_nb.ip_address >= current_ip;
+
+				IF FOUND THEN
+					current_ip := CASE 
+						WHEN allocation_method = 'bottom' THEN
+							netrange_rec.stop_ip_address + 1
+						WHEN allocation_method = 'top' THEN
+							netrange_rec.start_ip_address - 1
+						ELSE min_ip + ((
+							((random() * x'7fffffff'::bigint)::bigint << 32) 
+							+ 
+							(random() * x'ffffffff'::bigint)::bigint + 1
+							) % max_rnd_value) + 1 
+					END;
+					CONTINUE;
+				END IF;
+			END IF;
+							
+				
 			PERFORM * FROM jazzhands.netblock n WHERE
 				n.ip_universe_id = netblock_rec.ip_universe_id AND
 				n.netblock_type = netblock_rec.netblock_type AND
@@ -610,7 +650,9 @@ DECLARE
 	parent_nbid		jazzhands.netblock.netblock_id%TYPE;
 	family_bits		integer;
 	idx				integer;
+	subnettable		boolean;
 BEGIN
+	subnettable := true;
 	IF netblock_id IS NOT NULL THEN
 		SELECT * INTO netblock_rec FROM jazzhands.netblock n WHERE n.netblock_id = 
 			list_unallocated_netblocks.netblock_id;
@@ -623,26 +665,48 @@ BEGIN
 		ip_address := netblock_rec.ip_address;
 		ip_universe_id := netblock_rec.ip_universe_id;
 		netblock_type := netblock_rec.netblock_type;
+		subnettable := CASE WHEN netblock_rec.can_subnet = 'N' 
+			THEN false ELSE true
+			END;
 	ELSIF ip_address IS NOT NULL THEN
 		ip_universe_id := 0;
 		netblock_type := 'default';
 	ELSE
 		RAISE EXCEPTION 'netblock_id or ip_address must be passed';
 	END IF;
-	SELECT ARRAY(
-		SELECT 
-			n.ip_address
-		FROM
-			netblock n
-		WHERE
-			n.ip_address <<= list_unallocated_netblocks.ip_address AND
-			n.ip_universe_id = list_unallocated_netblocks.ip_universe_id AND
-			n.netblock_type = list_unallocated_netblocks.netblock_type AND
-			is_single_address = 'N' AND
-			can_subnet = 'N'
-		ORDER BY
-			n.ip_address
-	) INTO ip_array;
+	IF (subnettable) THEN
+		SELECT ARRAY(
+			SELECT 
+				n.ip_address
+			FROM
+				netblock n
+			WHERE
+				n.ip_address <<= list_unallocated_netblocks.ip_address AND
+				n.ip_universe_id = list_unallocated_netblocks.ip_universe_id AND
+				n.netblock_type = list_unallocated_netblocks.netblock_type AND
+				is_single_address = 'N' AND
+				can_subnet = 'N'
+			ORDER BY
+				n.ip_address
+		) INTO ip_array;
+	ELSE
+		SELECT ARRAY(
+			SELECT 
+				set_masklen(n.ip_address, 
+					CASE WHEN family(n.ip_address) = 4 THEN 32
+					ELSE 128
+					END)
+			FROM
+				netblock n
+			WHERE
+				n.ip_address <<= list_unallocated_netblocks.ip_address AND
+				n.ip_address != list_unallocated_netblocks.ip_address AND
+				n.ip_universe_id = list_unallocated_netblocks.ip_universe_id AND
+				n.netblock_type = list_unallocated_netblocks.netblock_type
+			ORDER BY
+				n.ip_address
+		) INTO ip_array;
+	END IF;
 
 	IF array_length(ip_array, 1) IS NULL THEN
 		ip_addr := ip_address;
