@@ -1130,7 +1130,7 @@ sub FormatOption {
 		sprintf(qq{%s %s;},
 			$type->{option},
 			join (', ', (map { qq{"$_"} }
-				ref($val) ?  @$val : ( $val ))));
+				ref($val) eq 'ARRAY' ?  @$val : ( $val ))));
 	} elsif ($type->{type} eq 
 			'ip_address') {
 		sprintf(qq{%s %s;},
@@ -1141,6 +1141,6 @@ sub FormatOption {
 		sprintf(qq{%s %s;},
 			$type->{option},
 			join (', ', (map { $_->addr } 
-				ref($val) ?  @$val : ( $val ))));
+				ref($val) eq 'ARRAY' ?  @$val : ( $val ))));
 	}
 }
