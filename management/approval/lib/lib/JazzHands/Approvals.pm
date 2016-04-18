@@ -25,7 +25,7 @@ use IO::Select;
 use POSIX;
 use Sys::Syslog;
 
-use constant RESOLUTION_DELAY => 60 * 60;
+use constant RESOLUTION_DELAY => 60 * 60 * 3;
 
 =head1 NAME
 
