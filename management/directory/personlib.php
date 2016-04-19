@@ -69,6 +69,8 @@ function browsingMenu($dbconn, $current, $content = 'default') {
 			    occupied_offices
 			USING
 			    (physical_address_id)
+			WHERE
+			    physical_address_type = 'location'
 			ORDER BY 
 			    display_label
 		";
