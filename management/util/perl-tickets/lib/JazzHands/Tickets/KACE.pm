@@ -234,6 +234,7 @@ sub get {
 	unless ( @r ) {
 		return {};
 	}
+	$sth->finish;
 	my $s = DateTime::Format::Strptime->new(
 		pattern   => '%F %T',
 		locale    => 'en_US',

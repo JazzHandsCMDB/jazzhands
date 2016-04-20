@@ -48,14 +48,21 @@ if [ $? -eq 0 ]; then
     /etc/init.d/process-rt-queue-approvals restart
 fi
 
+/etc/init.d/process-kace-queue-approvals status | grep "is running" >/dev/null
+if [ $? -eq 0 ]; then
+    /etc/init.d/process-kace-queue-approvals restart
+fi
+
 
 %files
 %defattr(755,root,root,-)
 /etc/init.d/process-jira-issue-approvals
+/etc/init.d/process-kace-queue-approvals
 /etc/init.d/process-rt-queue-approvals
 %{prefix}/approval-email
 %{prefix}/build-approvals
 %{prefix}/process-rt-queue-approvals
+%{prefix}/process-kace-queue-approvals
 %{prefix}/process-jira-issue-approvals
 %{perl_vendorlib}/JazzHands/Approvals.pm
 %{_mandir}/man3/JazzHands::Approvals.3pm.gz

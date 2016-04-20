@@ -43,9 +43,11 @@ rm -rf %{buildroot}
 %defattr(755,root,root,-)
 %{perl_vendorlib}/JazzHands/Tickets/RT.pm
 %{perl_vendorlib}/JazzHands/Tickets/JIRA.pm
+%{perl_vendorlib}/JazzHands/Tickets/KACE.pm
 %{perl_vendorlib}/JazzHands/Tickets.pm
 #%{perl_vendorlib}x86_64-linux-thread-multi/auto/JazzHands/Common/.packlist
 %{_mandir}/man3/JazzHands::Tickets.3pm.gz
 #- %{_mandir}/man3/JazzHands::Tickets::RT.3pm.gz
 #- %{_mandir}/man3/JazzHands::Tickets::JIRA.3pm.gz
+#- %{_mandir}/man3/JazzHands::Tickets::KACE.3pm.gz
 

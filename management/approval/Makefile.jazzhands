@@ -25,6 +25,7 @@ install:
 
 	install process-jira-issue-approvals.init.d $(INSTALLROOT)/etc/init.d/process-jira-issue-approvals
 	install process-rt-queue-approvals.init.d $(INSTALLROOT)/etc/init.d/process-rt-queue-approvals
+	install process-kace-queue-approvals.init.d $(INSTALLROOT)/etc/init.d/process-kace-queue-approvals
 
 	install -d $(INSTALLROOT)/$(PREFIX)
 
@@ -32,6 +33,7 @@ install:
 	install build-approvals.pl $(INSTALLROOT)/$(PREFIX)/build-approvals
 	install process-rt-queue-approvals.pl $(INSTALLROOT)/$(PREFIX)/process-rt-queue-approvals
 	install process-jira-issue-approvals.pl $(INSTALLROOT)/$(PREFIX)/process-jira-issue-approvals
+	install process-kace-queue-approvals.pl $(INSTALLROOT)/$(PREFIX)/process-kace-queue-approvals
 
 	# module stuff
 	cd lib && make pure_install PERL_INSTALL_ROOT=$(INSTALLROOT)
