@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Matthew Ragan
+-- Copyright (c) 2014, 2015, 2016 Matthew Ragan
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -363,6 +363,222 @@ BEGIN
 
 		RETURN netblock_rec;
 	END IF;
+END;
+$$ LANGUAGE plpgsql SET search_path = jazzhands;
+
+CREATE OR REPLACE FUNCTION netblock_manip.create_network_range(
+	start_ip_address	inet,
+	stop_ip_address		inet,
+	network_range_type	jazzhands.val_network_range_type.network_range_type%TYPE,
+	parent_netblock_id	jazzhands.netblock.netblock_id%TYPE DEFAULT NULL,
+	description			jazzhands.network_range.description%TYPE DEFAULT NULL,
+	allow_assigned		boolean DEFAULT false
+) RETURNS jazzhands.network_range AS $$
+DECLARE
+	par_netblock	RECORD;
+	start_netblock	RECORD;
+	stop_netblock	RECORD;
+	netrange		RECORD;
+	nrtype			ALIAS FOR network_range_type;
+	pnbid			ALIAS FOR parent_netblock_id;
+BEGIN
+	--
+	-- If the network range already exists, then just return it, even if the
+	--
+	SELECT 
+		nr.* INTO netrange
+	FROM
+		network_range nr JOIN
+		netblock startnb ON (nr.start_netblock_id = startnb.netblock_id) JOIN
+		netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+	WHERE
+		nr.network_range_type = nrtype AND
+		host(startnb.ip_address) = host(start_ip_address) AND
+		host(stopnb.ip_address) = host(stop_ip_address) AND
+		CASE WHEN pnbid IS NOT NULL THEN 
+			(pnbid = nr.parent_netblock_id)
+		ELSE
+			true
+		END;
+
+	IF FOUND THEN
+		RETURN netrange;
+	END IF;
+
+	--
+	-- If any other network ranges exist that overlap this, then error
+	--
+	PERFORM 
+		*
+	FROM
+		network_range nr JOIN
+		netblock startnb ON (nr.start_netblock_id = startnb.netblock_id) JOIN
+		netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+	WHERE
+		nr.network_range_type = nrtype AND ((
+			host(startnb.ip_address)::inet <= host(start_ip_address)::inet AND
+			host(stopnb.ip_address)::inet >= host(start_ip_address)::inet
+		) OR (
+			host(startnb.ip_address)::inet <= host(stop_ip_address)::inet AND
+			host(stopnb.ip_address)::inet >= host(stop_ip_address)::inet
+		));
+
+	IF FOUND THEN
+		RAISE 'create_network_range: a network_range of type % already exists that has addresses between % and %',
+			nrtype, start_ip_address, stop_ip_address
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF parent_netblock_id IS NOT NULL THEN
+		SELECT * INTO par_netblock WHERE netblock_id = parent_netblock_id;
+		IF NOT FOUND THEN
+			RAISE 'create_network_range: parent_netblock_id % does not exist',
+				parent_netblock_id USING ERRCODE = 'foreign_key_violation';
+		END IF;
+		IF par_netblock.can_subnet != 'N' OR 
+				par_netblock.is_single_address != 'N' THEN
+			RAISE 'create_network_range: parent netblock % must not be subnettable or a single address',
+				par_netblock.netblock_id USING ERRCODE = 'check_violation';
+		END IF;
+	ELSE
+		SELECT * INTO par_netblock FROM netblock WHERE netblock_id = (
+			SELECT 
+				*
+			FROM
+				netblock_utils.find_best_parent_id(
+					in_ipaddress := start_ip_address
+				)
+		);
+
+		IF NOT FOUND THEN
+			RAISE 'create_network_range: valid parent netblock for start_ip_address % does not exist',
+				start_ip_address USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+	
+	IF NOT (start_ip_address <<= par_netblock.ip_address) THEN
+		RAISE 'create_network_range: start_ip_address % is not contained by parent netblock % (%)',
+			start_ip_address, par_netblock.ip_address,
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (stop_ip_address <<= par_netblock.ip_address) THEN
+		RAISE 'create_network_range: stop_ip_address % is not contained by parent netblock % (%)',
+			stop_ip_address, par_netblock.ip_address,
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (start_ip_address <= stop_ip_address) THEN
+		RAISE 'create_network_range: start_ip_address % is not lower than stop_ip_address %',
+			start_ip_address, stop_ip_address
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	--
+	-- Validate that there are not currently any addresses assigned in the
+	-- range, unless allow_assigned is set
+	--
+	IF NOT allow_assigned THEN
+		PERFORM 
+			*
+		FROM
+			netblock n
+		WHERE
+			n.parent_netblock_id = par_netblock.netblock_id AND
+			host(n.ip_address)::inet > host(start_ip_address)::inet AND
+			host(n.ip_address)::inet < host(stop_ip_address)::inet;
+
+		IF FOUND THEN
+			RAISE 'create_network_range: netblocks are already present for parent netblock % betweeen % and %',
+			par_netblock.netblock_id,
+			start_ip_address, stop_ip_address
+			USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	--
+	-- Ok, well, we should be able to insert things now
+	--
+
+	SELECT
+		*
+	FROM
+		netblock n
+	INTO
+		start_netblock
+	WHERE
+		host(n.ip_address)::inet = start_ip_address AND
+		n.netblock_type = 'adhoc' AND
+		n.can_subnet = 'N' AND
+		n.is_single_address = 'Y' AND
+		n.ip_universe_id = par_netblock.ip_universe_id;
+
+	IF NOT FOUND THEN
+		INSERT INTO netblock (
+			ip_address,
+			netblock_type,
+			is_single_address,
+			can_subnet,
+			netblock_status,
+			ip_universe_id
+		) VALUES (
+			host(start_ip_address)::inet,
+			'adhoc',
+			'Y',
+			'N',
+			'Allocated',
+			par_netblock.ip_universe_id
+		) RETURNING * INTO start_netblock;
+	END IF;
+
+	SELECT
+		*
+	FROM
+		netblock n
+	INTO
+		stop_netblock
+	WHERE
+		host(n.ip_address)::inet = stop_ip_address AND
+		n.netblock_type = 'adhoc' AND
+		n.can_subnet = 'N' AND
+		n.is_single_address = 'Y' AND
+		n.ip_universe_id = par_netblock.ip_universe_id;
+
+	IF NOT FOUND THEN
+		INSERT INTO netblock (
+			ip_address,
+			netblock_type,
+			is_single_address,
+			can_subnet,
+			netblock_status,
+			ip_universe_id
+		) VALUES (
+			host(stop_ip_address)::inet,
+			'adhoc',
+			'Y',
+			'N',
+			'Allocated',
+			par_netblock.ip_universe_id
+		) RETURNING * INTO stop_netblock;
+	END IF;
+
+	INSERT INTO network_range (
+		network_range_type,
+		description,
+		parent_netblock_id,
+		start_netblock_id,
+		stop_netblock_id
+	) VALUES (
+		nrtype,
+		description,
+		par_netblock.netblock_id,
+		start_netblock.netblock_id,
+		stop_netblock.netblock_id
+	) RETURNING * INTO netrange;
+
+	RETURN netrange;
+
+	RETURN NULL;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
 
