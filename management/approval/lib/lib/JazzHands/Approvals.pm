@@ -6,7 +6,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
+#	  http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -102,17 +102,18 @@ sub new {
 
 	my %args = @_;
 
-	$self->{_service} = $args{service};
-	$self->{_apptype} = $args{type};
-	$self->{_verbose} = $args{verbose};
-	$self->{_myname}  = $args{myname};
-	$self->{_delay}   = $args{delay} || RESOLUTION_DELAY;
+	$self->{_service}			= $args{service};
+	$self->{_apptype}			= $args{type};
+	$self->{_verbose}			= $args{verbose};
+	$self->{_myname}			= $args{myname};
+	$self->{_commit_on_open}	= $args{commit_on_open};
+	$self->{_delay}				= $args{delay} || RESOLUTION_DELAY;
 	if ( $args{debug} ) {
 		$self->{_debug} = $self->{_verbose} = $args{debug};
 	}
 
 	if ( !$self->{_service} ) {
-		$Errstr = "Must specify Database service name";
+		$Errstr = "Must specify Databse service name";
 		return undef;
 	}
 	if ( !$self->{_apptype} ) {
@@ -131,7 +132,7 @@ sub new {
 		$self->daemonize() || return undef;
 		$self->{_dbh} = $self->{_dbh}->clone();
 
-		$self->{_daemon}       = 1;
+		$self->{_daemon}	   = 1;
 		$self->{_shouldsyslog} = 1;
 
 		my $name = $self->{_myname} || 'approval-app';
@@ -148,9 +149,9 @@ sub get_account_id($$) {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select	account_id
-		from	v_corp_family_account
-		where	login = ?
+		SELECT	account_id
+		FROM	v_corp_family_account
+		WHERE	login = ?
 		LIMIT 1
 	}
 	) || die $dbh->errstr;
@@ -163,6 +164,7 @@ sub get_account_id($$) {
 
 sub open_new_issues($$) {
 	my ( $self, $tix ) = @_;
+	my $commit_now = $self->{_commit_on_open};
 
 	my $dbh = $self->{_dbh};
 	#
@@ -172,22 +174,22 @@ sub open_new_issues($$) {
 	my $map = {};
 	my $sth = $dbh->prepare_cached(
 		qq{
-	       SELECT approver_account_id, aii.*, ais.is_completed, a.login,
+		   SELECT approver_account_id, aii.*, ais.is_completed, a.login,
 					coalesce(p.preferred_first_name,  p.first_name) as manager_first_name,
 					coalesce(p.preferred_last_name,  p.last_name) as manager_last_name
-		FROM    approval_instance ai
+		FROM	approval_instance ai
 			INNER JOIN approval_instance_step ais
-			    USING (approval_instance_id)
+				USING (approval_instance_id)
 			INNER JOIN approval_instance_item aii
-			    USING (approval_instance_step_id)
+				USING (approval_instance_step_id)
 			INNER JOIN approval_instance_link ail
-			    USING (approval_instance_link_id)
+				USING (approval_instance_link_id)
 			INNER JOIN account a ON
 				a.account_id = ais.approver_account_id
 			INNER JOIN person p USING (person_id)
-		Where     approval_type = ?
-		AND     ais.is_completed = 'N'
-			AND		ais.external_reference_name IS NULL
+		Where	approval_type = ?
+		AND  ais.is_completed = 'N'
+			AND  ais.external_reference_name IS NULL
 		ORDER BY approval_instance_step_id, approved_lhs, approved_category
 	}
 	) || die $dbh->errstr;
@@ -196,7 +198,7 @@ sub open_new_issues($$) {
 
 	my $catmap = {
 		'ReportingAttest' => 'Manager',
-		'department'      => 'Department',
+		'department'	  => 'Department',
 		'position_title'  => 'Title',
 	};
 
@@ -205,9 +207,9 @@ sub open_new_issues($$) {
 		my $lhs  = $hr->{approved_lhs};
 
 		if ( !defined( $map->{$step}->{$lhs} ) ) {
-			$map->{$step}->{login}                     = $hr->{login};
-			$map->{$step}->{hr}                        = $hr;
-			$map->{$step}->{approval_instance_step_id} = $step;
+			$map->{$step}->{login}						= $hr->{login};
+			$map->{$step}->{hr}							= $hr;
+			$map->{$step}->{approval_instance_step_id}	= $step;
 		}
 
 		my $category = $hr->{approved_category} || $hr->{approved_label};
@@ -237,7 +239,7 @@ sub open_new_issues($$) {
 		UPDATE approval_instance_step
 		SET external_reference_name = :name
 		WHERE approval_instance_step_id = :id
-	}
+		}
 	) || die $dbh->errstr;
 
 	foreach my $step ( sort keys( %{$map} ) ) {
@@ -259,7 +261,7 @@ sub open_new_issues($$) {
 		if ( !$self->{_dryrun} ) {
 			my $tid = $tix->open(
 				requestor => $login,
-				body      => $msg,
+				body	  => $msg,
 				summary   => $summary
 			);
 
@@ -268,6 +270,7 @@ sub open_new_issues($$) {
 			$wsth->bind_param( ':id',   $step ) || die $sth->errstr;
 			$wsth->execute || die $sth->errstr;
 			$wsth->finish;
+			$dbh->commit if $commit_now;
 
 			$self->log( 'verbose', "Opened $tid for $step" );
 		} else {
@@ -283,21 +286,21 @@ sub check_pending_issues($$) {
 	my $dbh = $self->{_dbh};
 	my $sth = $dbh->prepare_cached(
 		qq{
-	       SELECT approver_account_id, aii.*, ais.is_completed, a.login,
+		   SELECT approver_account_id, aii.*, ais.is_completed, a.login,
 					ais.external_reference_name
-		FROM    approval_instance ai
+		FROM	approval_instance ai
 			INNER JOIN approval_instance_step ais
-			    USING (approval_instance_id)
+				USING (approval_instance_id)
 			INNER JOIN approval_instance_item aii
-			    USING (approval_instance_step_id)
+				USING (approval_instance_step_id)
 			INNER JOIN approval_instance_link ail
-			    USING (approval_instance_link_id)
+				USING (approval_instance_link_id)
 			INNER JOIN account a ON
 				a.account_id = ais.approver_account_id
-		Where     approval_type = ?
-		AND     ais.is_completed = 'N'
-			AND		aii.is_approved IS NULL
-			AND		ais.external_reference_name IS NOT NULL
+		Where	approval_type = ?
+		AND  ais.is_completed = 'N'
+			AND  aii.is_approved IS NULL
+			AND  ais.external_reference_name IS NOT NULL
 		ORDER BY approval_instance_step_id, approved_lhs, approved_category
 	}
 	) || die $dbh->errstr;
@@ -318,21 +321,21 @@ sub check_pending_issues($$) {
 
 	my $cache = {};
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $aii_id = $hr->{approval_instance_item_id};
-		my $key    = $hr->{external_reference_name};
+		my $aii_id	= $hr->{approval_instance_item_id};
+		my $key		= $hr->{external_reference_name};
 
 		if ( !exists( $cache->{$key} ) ) {
 			my $r = $tix->get($key);
 			if ( $r->{resolutiondate} ) {
-				$cache->{$key}->{status}          = 'resolved';
-				$cache->{$key}->{resolutiondate}  = $r->{resolutiondate};
-				$cache->{$key}->{resolutionepoch} = $r->{resolutionepoch};
-				$cache->{$key}->{approved}        = 'Y';
+				$cache->{$key}->{status}		 	= 'resolved';
+				$cache->{$key}->{resolutiondate}	= $r->{resolutiondate};
+				$cache->{$key}->{resolutionepoch}	= $r->{resolutionepoch};
+				$cache->{$key}->{approved}			= 'Y';
 			}
 
 			if ( $r->{owner} ) {
-				$cache->{$key}->{assignee} = $r->{owner};
-				$cache->{$key}->{acctid} =
+				$cache->{$key}->{assignee} 	= $r->{owner};
+				$cache->{$key}->{acctid} 	=
 				  $self->get_account_id( $r->{owner} );
 			}
 		}
@@ -371,7 +374,7 @@ sub onetime {
 
 	my $rv;
 	$rv = $self->check_pending_issues($tix) || return undef;
-	$rv = $self->open_new_issues($tix)      || return undef;
+	$rv = $self->open_new_issues($tix)	|| return undef;
 	$self->{_dbh}->commit;
 	1;
 }
