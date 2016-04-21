@@ -1,16 +1,16 @@
 #!/bin/bash
 #
 # chkconfig: 2345 90 80
-# kace-issues daemon
-# description: Monitor KACE Issues for Approval
+# kace-queue daemon
+# description: Monitor KACE queue for Approval
 #
 # $Revision: 1.0 $
 
 # Source function library.
 . /etc/init.d/functions
 PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin
-PROG=/usr/libexec/jazzhands/approval/process-kace-issue-approvals
-PIDFILE=/var/run/process-kace-issue-approvals.pid
+PROG=/usr/libexec/jazzhands/approval/process-kace-queue-approvals
+PIDFILE=/var/run/process-kace-queue-approvals.pid
 
 PROCESS_KACE_ARGS=""
 SHORTPROG=`basename $PROG`
