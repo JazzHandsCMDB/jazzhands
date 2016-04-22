@@ -19,7 +19,7 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
-Requires:      	perl-JazzHands-DBI,perl-JazzHands-AppAuthAL,jazzhands-perl-tickets
+Requires:      	perl-JazzHands-DBI,perl-JazzHands-AppAuthAL,jazzhands-perl-tickets >= 0.70.5
 
 %description
 

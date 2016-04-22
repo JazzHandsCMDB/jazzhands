@@ -8,6 +8,6 @@ Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-approval
 Architecture: any
-Pre-Depends: perl-jazzhands-dbi, jazzhands-perl-tickets, libjson-perl, libwww-perl, libdatetime-format-strptime-perl, libemail-date-format-perl
+Pre-Depends: perl-jazzhands-dbi, jazzhands-perl-tickets (>= 0.70.5), libjson-perl, libwww-perl, libdatetime-format-strptime-perl, libemail-date-format-perl
 Description: 
  JazzHands Front Ends for Interaction with Approval System
