@@ -181,7 +181,15 @@ DROP TRIGGER IF EXISTS trigger_net_int_netblock_to_nbn_compat_after
 ON network_interface;
 
 CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_after
-	AFTER DELETE OR INSERT OR UPDATE OF network_interface_id, netblock_id
+	AFTER INSERT OR UPDATE OF network_interface_id, netblock_id
+	ON network_interface 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_after();
+
+DROP TRIGGER IF EXISTS trigger_net_int_netblock_to_nbn_compat_before_del
+ON network_interface;
+CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_before_del
+	BEFORE DELETE
 	ON network_interface 
 	FOR EACH ROW 
 	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_after();
