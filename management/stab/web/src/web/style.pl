@@ -595,6 +595,13 @@ table.reporting > tbody td {
 	border-color: grey;
 }
 
+table.major {
+	text-align: center;
+	border: 1px double;
+	text-align: center;
+	margin: auto;
+}
+
 END
 	undef $stab;
 }

@@ -1906,6 +1906,229 @@ sub b_dropdown {
 	$x;
 }
 
+#
+# This is lifted from b_dropdown but has been simplifed, although there is
+# probably room for more sharing, simplification.
+#
+sub b_prop_list {
+	my $self = shift(@_);
+	my ( $params, $values, $field, $pkeyfield, $noguessunknown ) = @_;
+
+	my $ptype = $params->{'-type'};
+
+	# XXX probably should do this elsewhere, but...
+	#- $field     = _dbx($field)     if ( defined($field) );
+	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
+
+	my $dbh      = $self->dbh;
+	my $cgi      = $self->cgi;
+	my $onchange = $params->{'-onChange'};
+	my $class    = $params->{'-class'};
+	my $prefix   = $params->{'-prefix'} || "";
+	my $suffix   = $params->{'-suffix'} || "";
+
+	# [XXX] need to consider making id/name always the same?
+	my $id = $params->{'-id'};
+
+	my $showhidden = $params->{'-showHidden'};
+
+	my $pkn = "";
+	if ( defined($pkeyfield) && defined($values) ) {
+		if ( ref $pkeyfield eq 'ARRAY' ) {
+			foreach my $k (@$pkeyfield) {
+				$pkn .= "_"
+				  . (
+					( defined( $values->{$k} ) )
+					? $values->{$k}
+					: ""
+				  );
+			}
+		} else {
+			if ( defined( $values->{$pkeyfield} ) ) {
+				$pkn = "_" . $values->{$pkeyfield};
+			}
+		}
+	}
+
+	my $site = $params->{-site} || undef;
+
+	my $pickone = "Please Select";
+
+	#
+	# set these if they need to be bound.
+	#
+	my $devidmap;
+	my $devfuncmap;
+	my ( $voetraxmap, $bindos );
+
+	my $withlevel = 0;
+	my $default;
+	my $portrestrict;
+	my $devcoltype;
+	my $dnsdomaintype;
+
+	my $argone_grey;
+
+	# oracle/pgsqlism
+	my $selectfield = $field;
+	$selectfield =~ tr/a-z/A-Z/;
+
+	my $q;
+
+	my $sth = $self->prepare(qq{
+		SELECT	valid_property_value
+		FROM	val_property_value
+		WHERE	property_name = ?
+		AND	property_type = ?
+		ORDER BY valid_property_value
+	}) || $self->return_db_err();
+
+	$sth->execute($field, $ptype) || $self->return_db_err($sth);
+
+	my (%attr);
+
+	my (%list);
+	my (@list);
+
+	# override default if the value is actually set in the db.
+	if ( defined($values) ) {
+		$default =
+		  ( defined( $values->{$field} ) ) ? $values->{$field} : undef;
+	}
+	while ( my (@stuff) = $sth->fetchrow_array ) {
+		my $grey;
+		$grey = shift(@stuff) if ($argone_grey);
+		my $header = "";
+		if ($withlevel) {
+			my $level = shift(@stuff);
+			for ( my $i = 0 ; $i < $level ; $i++ ) {
+				$header .= "--";
+			}
+		}
+
+		# [XXX] $lid (perhaps) should be $id(?)  maybe bug, maybe not
+		my $lid   = shift(@stuff);
+		my $stuff = $header;
+		if ( (@stuff) && $#stuff > -1 && defined( $stuff[0] ) ) {
+			foreach my $x (@stuff) {
+				$stuff .= join( " ", $x ) . " " if ($x);
+			}
+			$stuff = 'Unknown' if ( $stuff =~ /unknownunknown/ );
+			$stuff =~ s/^\s+//;
+			$stuff =~ s/\s+$//;
+			$list{$lid} = $stuff;
+		} else {
+			$list{$lid} = $lid;
+		}
+		push( @list, $lid );
+		if ( $argone_grey && $grey ) {
+			$attr{$lid} = { -style => 'color: grey;' };
+		}
+	}
+
+	$sth->finish;
+
+	#
+	# here we take the hackish method of looking for a field with
+	# unknown in it, and if it's not found and there's no default, then
+	# saying "please pick one from list."  There's probably a better way
+	# to do this.
+	#
+	if ( !defined($values) ) {
+		my @value =
+		  grep( /unknown/ || ( defined( $list{$_} ) && $list{$_} =~ /unknown/ ),
+			@list );
+		if ( !defined($noguessunknown) && $#value >= 0 ) {
+			$default = $value[0];
+		} else {
+			$default = "__unknown__";
+			unshift( @list, $default );
+			$list{$default} = $pickone;
+		}
+	} elsif ( !defined($default) ) {
+		$default = "__unknown__";
+		unshift( @list, $default );
+		$list{$default} = "--Unset--";
+	}
+
+	my $nfield = $field;
+	$nfield =~ tr/a-z/A-Z/;
+
+	my $name = "$nfield$pkn";
+	if ( defined($params) && exists( $params->{-name} ) ) {
+		$name = $params->{-name};
+	}
+
+	$name = "$prefix$name$suffix";
+
+	if ( !defined($id) ) {
+		$id = $name;
+	}
+
+	my $redir = "";
+	if ( !$onchange && $params->{-dolinkUpdate} ) {
+		if ( $params->{'-dolinkUpdate'} eq 'device_type' ) {
+			my $redirid = "ptr_" . $id;
+			$onchange = "setDevLinkRedir($id, $redirid)";
+			my $devlink = "javascript:void(null);";
+			if ($default) {
+				$devlink = "./type/?DEVICE_TYPE_ID=$default";
+			}
+			$redir = $cgi->a(
+				{
+					-style  => 'font-size: 30%;',
+					-target => 'TOP',
+					-id     => $redirid,
+					-href   => $devlink
+				},
+				">>"
+			);
+		}
+		if ( $params->{'-dolinkUpdate'} eq 'rack' ) {
+			my $root    = $self->guess_stab_root() . "/sites/rack/";
+			my $redirid = "rack_link" . $id;
+			$onchange = "setRackLinkRedir(\"$id\", \"$redirid\", \"$root\")";
+			my $devlink = "javascript:void(null);";
+			if ( $default && $default ne '__unknown__' ) {
+				$devlink = "$root?RACK_ID=$default";
+			}
+			$redir = $cgi->a(
+				{
+					-style  => 'font-size: 30%;',
+					-target => 'TOP',
+					-id     => $redirid,
+					-href   => $devlink
+				},
+				">>"
+			);
+		}
+
+	}
+
+	my $popupargs = {};
+	$popupargs->{-valign}     = 'TOP';
+	$popupargs->{-name}       = $name;
+	$popupargs->{-values}     = \@list if ( $#list >= 0 );
+	$popupargs->{-labels}     = \%list if ( $#list >= 0 );
+	$popupargs->{-default}    = $default;
+	$popupargs->{-onChange}   = $onchange if ( defined($onchange) );
+	$popupargs->{-class}      = $class if ( defined($class) );
+	$popupargs->{-attributes} = \%attr;
+	$popupargs->{-id}         = $id if ( defined($id) );
+
+	my $x = $cgi->popup_menu(
+		$popupargs
+
+	) . $redir;
+
+	if ( $params->{-divWrap} ) {
+		$x = $cgi->div( { -id => $params->{-divWrap} }, $x );
+	}
+
+	$x;
+}
+
+
 sub textfield_sizing {
 	my $self = shift;
 
@@ -2193,7 +2416,9 @@ sub build_checkbox {
 	}
 
 	# XXX probably should do this elsewhere, but...
-	$field     = _dbx($field)     if ( defined($field) );
+	if(!$params->{'-nodbx'}) {
+		$field     = _dbx($field)     if ( defined($field) );
+	}
 	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $cgi = $self->cgi;
