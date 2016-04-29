@@ -34,10 +34,11 @@ management/approval
 management/dbsyncer
 management/dhcpgen
 management/hotpants
-management/netdev-mgmt/perl
 management/mgmt/perl
 management/mkpasswdfiles
+management/netdev-mgmt/perl
 management/stab
+management/sync-prefix-lists
 management/util/perl	# jazzhands-perl-common
 management/util/perl-Krb5
 management/util/perl-tickets
