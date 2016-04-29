@@ -1,0 +1,11 @@
+Source: jazzhands-perl-netdev-mgmt
+Section: System/Management
+Priority: optional
+Maintainer: Matthew Ragan <mdr@sucksless.net>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+
+Package: jazzhands-perl-netdev-mgmt
+Architecture: all
+Depends: ${perl:Depends}, libdbd-pg-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, libdbi-perl, libjson-xs-perl, libjson-perl
+Description: external network device management perl library for JazzHands

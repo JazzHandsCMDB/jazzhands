@@ -34,6 +34,7 @@ management/approval
 management/dbsyncer
 management/dhcpgen
 management/hotpants
+management/netdev-mgmt/perl
 management/mgmt/perl
 management/mkpasswdfiles
 management/stab
