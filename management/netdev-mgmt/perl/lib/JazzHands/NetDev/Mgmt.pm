@@ -1,4 +1,4 @@
-package JazzHands::NetDev::Mgmt 0.71.7;
+package JazzHands::NetDev::Mgmt;
 
 use strict;
 use warnings;
@@ -7,6 +7,9 @@ use Socket;
 use JazzHands::Common::Util qw(_options);
 use JazzHands::Common::Error qw(:all);
 use JSON::XS;
+
+my $VERSION;
+$VERSION = '0.70.7.1';
 
 sub new {
 	my $proto = shift;

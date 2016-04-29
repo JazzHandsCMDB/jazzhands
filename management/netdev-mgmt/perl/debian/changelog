@@ -1,5 +1,11 @@
+jazzhands-perl-netdev-mgmt (0.70.7.1) unstable; urgency=low
+
+  * Bump package version because RedHat sucks
+
+ -- Matthew Ragan <mdr@appnexus.com>  Fri, 29 Apr 2016 01:36:30 -0500
+
 jazzhands-perl-netdev-mgmt (0.70.7) unstable; urgency=low
 
   * Initial release
 
- -- Matthew Ragan <mdr@sucksless.net>  Tue, 15 Dec 2015 17:04:39 -0600
+ -- Matthew Ragan <mdr@appnexus.com>  Thu, 28 Apr 2016 11:25:38 -0500
