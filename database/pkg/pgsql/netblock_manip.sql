@@ -435,11 +435,6 @@ BEGIN
 			RAISE 'create_network_range: parent_netblock_id % does not exist',
 				parent_netblock_id USING ERRCODE = 'foreign_key_violation';
 		END IF;
-		IF par_netblock.can_subnet != 'N' OR 
-				par_netblock.is_single_address != 'N' THEN
-			RAISE 'create_network_range: parent netblock % must not be subnettable or a single address',
-				par_netblock.netblock_id USING ERRCODE = 'check_violation';
-		END IF;
 	ELSE
 		SELECT * INTO par_netblock FROM netblock WHERE netblock_id = (
 			SELECT 
@@ -455,7 +450,13 @@ BEGIN
 				start_ip_address USING ERRCODE = 'check_violation';
 		END IF;
 	END IF;
-	
+
+	IF par_netblock.can_subnet != 'N' OR 
+			par_netblock.is_single_address != 'N' THEN
+		RAISE 'create_network_range: parent netblock % must not be subnettable or a single address',
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
 	IF NOT (start_ip_address <<= par_netblock.ip_address) THEN
 		RAISE 'create_network_range: start_ip_address % is not contained by parent netblock % (%)',
 			start_ip_address, par_netblock.ip_address,
@@ -508,7 +509,7 @@ BEGIN
 		start_netblock
 	WHERE
 		host(n.ip_address)::inet = start_ip_address AND
-		n.netblock_type = 'adhoc' AND
+		n.netblock_type = 'network_range' AND
 		n.can_subnet = 'N' AND
 		n.is_single_address = 'Y' AND
 		n.ip_universe_id = par_netblock.ip_universe_id;
@@ -523,7 +524,7 @@ BEGIN
 			ip_universe_id
 		) VALUES (
 			host(start_ip_address)::inet,
-			'adhoc',
+			'network_range',
 			'Y',
 			'N',
 			'Allocated',
@@ -539,7 +540,7 @@ BEGIN
 		stop_netblock
 	WHERE
 		host(n.ip_address)::inet = stop_ip_address AND
-		n.netblock_type = 'adhoc' AND
+		n.netblock_type = 'network_range' AND
 		n.can_subnet = 'N' AND
 		n.is_single_address = 'Y' AND
 		n.ip_universe_id = par_netblock.ip_universe_id;
@@ -554,7 +555,7 @@ BEGIN
 			ip_universe_id
 		) VALUES (
 			host(stop_ip_address)::inet,
-			'adhoc',
+			'network_range',
 			'Y',
 			'N',
 			'Allocated',
