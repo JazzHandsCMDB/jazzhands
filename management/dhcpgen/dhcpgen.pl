@@ -368,7 +368,7 @@ sub generate_dhcp_configs {
 
 	my $jh;
 	if (!($jh = JazzHands::DBI->new->connect(
-			application => 'dhcpgen',
+			application => $authapp,
 			cached => 1,
 			))) {
 		SetError($err,
