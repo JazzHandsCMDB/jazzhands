@@ -1,4 +1,4 @@
-package JazzHands::NetDev::Mgmt::juniper;
+package JazzHands::NetDev::Mgmt::__devtype::juniper;
 
 use strict;
 use warnings;

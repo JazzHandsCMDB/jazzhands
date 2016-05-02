@@ -2,6 +2,8 @@
 
 use FindBin qw($RealBin);
 
+use lib "$RealBin/../../perllib";
+
 use JazzHands::Common;
 use JazzHands::NetDev::Mgmt;
 use JazzHands::DBI;
@@ -141,6 +143,212 @@ if (@ARGV) {
 	}
 }
 
+
+my $q = qq {
+	SELECT
+		netblock_collection_id,
+		netblock_collection_name,
+		netblock_id,
+		netblock_type,
+		ip_address,
+		CASE 
+			WHEN is_single_address = 'Y' THEN true
+			ELSE false
+		END AS is_single_address
+	FROM
+		netblock_collection nc LEFT JOIN
+		netblock_collection_netblock ncn USING (netblock_collection_id)
+			LEFT JOIN
+		netblock n USING (netblock_id)
+	WHERE
+		netblock_collection_type = 'prefix-list'
+};
+
+my $all_nc_sth;
+if (!($all_nc_sth = $jh->prepare_cached($q))) {
+	print STDERR "Unable to prepare netblock collection list query\n";
+	exit 1;
+}
+
+$q = qq {
+	SELECT
+		netblock_collection_id,
+		netblock_collection_name,
+		netblock_id,
+		netblock_type,
+		ip_address,
+		CASE 
+			WHEN is_single_address = 'Y' THEN true
+			ELSE false
+		END AS is_single_address
+	FROM
+		netblock_collection nc LEFT JOIN
+		netblock_collection_netblock ncn USING (netblock_collection_id)
+			LEFT JOIN
+		netblock n USING (netblock_id)
+	WHERE
+		netblock_collection_type = 'prefix-list' AND
+		netblock_collection_name = ANY(?)
+};
+
+my $nc_list_sth;
+if (!($nc_list_sth = $jh->prepare_cached($q))) {
+	print STDERR "Unable to prepare netblock collection list query\n";
+	exit 1;
+}
+
+$q = qq {
+	SELECT
+		netblock_collection_id,
+		netblock_id,
+		netblock_type,
+		ip_address,
+		CASE 
+			WHEN is_single_address = 'Y' THEN true
+			ELSE false
+		END AS is_single_address
+	FROM
+		netblock_collection nc LEFT JOIN
+		netblock_collection_netblock ncn USING (netblock_collection_id)
+			LEFT JOIN
+		netblock n USING (netblock_id)
+	WHERE
+		netblock_collection_type = 'prefix-list' AND
+		netblock_collection_name = ?
+};
+
+my $nc_sth;
+if (!($nc_sth = $jh->prepare_cached($q))) {
+	print STDERR "Unable to prepare netblock collection query\n";
+	exit 1;
+}
+
+$q = qq {
+	DELETE FROM
+		netblock_collection_netblock
+	WHERE
+		netblock_collection_id = ? AND
+		netblock_id = ANY(?)
+};
+
+my $member_del_sth;
+if (!($member_del_sth = $jh->prepare_cached($q))) {
+	print STDERR "Unable to prepare netblock collection member delete query\n";
+	exit 1;
+}
+
+$q = qq {
+	INSERT INTO netblock_collection_netblock (
+		netblock_collection_id,
+		netblock_id
+	) VALUES (
+		?, ?
+	)
+};
+
+my $member_ins_sth;
+if (!($member_ins_sth = $jh->prepare_cached($q))) {
+	print STDERR "Unable to prepare netblock collection member insert query\n";
+	exit 1;
+}
+
+$q = qq {
+	INSERT INTO netblock_collection (
+		netblock_collection_name,
+		netblock_collection_type
+	) VALUES (
+		?, 'prefix-list'
+	)
+	RETURNING *
+};
+
+my $nc_ins_sth;
+if (!($nc_ins_sth = $jh->prepare_cached($q))) {
+	loggit sprintf("Unable to prepare netblock collection insert query: %s",
+		$jh->errstr);
+	exit 1;
+}
+
+$q = qq {
+	SELECT 
+		netblock_collection_id
+	FROM
+		netblock_collection 
+	WHERE
+		netblock_collection_type = 'prefix-list' AND
+		netblock_collection_name = ?
+};
+
+my $nc_exist_sth;
+if (!($nc_exist_sth = $jh->prepare_cached($q))) {
+	loggit sprintf("Unable to prepare netblock collection existence query: %s",
+		$jh->errstr);
+	exit 1;
+}
+
+#
+# Find an appropriate netblock to use for the prefix-list.
+# This query prefers a default netblock_type first, followed by
+# a 'prefix-list' netblock_type.  For single addresses, it will match
+# either a netblock with an identical netmask or a /32 or /128.  Finally,
+# for blocks with potential multiple matches (e.g. loopback addresses),
+# prefer the single-address block over the non-single-address block.
+#
+$q = qq {
+	SELECT 
+		netblock_id,
+		ip_address,
+		netblock_type,
+		CASE
+			WHEN is_single_address = 'Y' THEN 0
+			ELSE 1
+		END AS single,
+		CASE
+			WHEN netblock_type = 'default' THEN 0
+			ELSE 1
+		END AS ordering
+
+	FROM
+		netblock
+	WHERE
+		netblock_type IN ('default', 'prefix-list') AND
+		ip_address = ? OR
+		(host(ip_address)::inet = ? and is_single_address = 'Y')
+	ORDER BY ordering, single
+	LIMIT 1
+};
+
+my $nb_sth;
+if (!($nb_sth = $jh->prepare_cached($q))) {
+	loggit sprintf("Unable to prepare netblock select query: %s",
+		$jh->errstr);
+	exit 1;
+}
+
+$q = qq {
+	INSERT INTO netblock (
+		ip_address,
+		netblock_type,
+		is_single_address,
+		can_subnet,
+		netblock_status
+	) VALUES (
+		?,
+		'prefix-list',
+		'N',
+		'N',
+		'Allocated'
+	)
+	RETURNING *
+};
+
+my $nb_ins_sth;
+if (!($nb_ins_sth = $jh->prepare_cached($q))) {
+	loggit sprintf("Unable to prepare netblock insert query: %s",
+		$jh->errstr);
+	exit 1;
+}
+
 foreach my $hostname (@hosts) {
 	printf "Host: %s\n", $hostname if $verbose;
 	my $dev;
@@ -168,212 +376,6 @@ foreach my $hostname (@hosts) {
 			(join "\n", @errors);
 		next;
 	}
-
-	my $q = qq {
-		SELECT
-			netblock_collection_id,
-			netblock_collection_name,
-			netblock_id,
-			netblock_type,
-			ip_address,
-			CASE 
-				WHEN is_single_address = 'Y' THEN true
-				ELSE false
-			END AS is_single_address
-		FROM
-			netblock_collection nc LEFT JOIN
-			netblock_collection_netblock ncn USING (netblock_collection_id)
-				LEFT JOIN
-			netblock n USING (netblock_id)
-		WHERE
-			netblock_collection_type = 'prefix-list'
-	};
-
-	my $all_nc_sth;
-	if (!($all_nc_sth = $jh->prepare_cached($q))) {
-		print STDERR "Unable to prepare netblock collection list query\n";
-		exit 1;
-	}
-
-	$q = qq {
-		SELECT
-			netblock_collection_id,
-			netblock_collection_name,
-			netblock_id,
-			netblock_type,
-			ip_address,
-			CASE 
-				WHEN is_single_address = 'Y' THEN true
-				ELSE false
-			END AS is_single_address
-		FROM
-			netblock_collection nc LEFT JOIN
-			netblock_collection_netblock ncn USING (netblock_collection_id)
-				LEFT JOIN
-			netblock n USING (netblock_id)
-		WHERE
-			netblock_collection_type = 'prefix-list' AND
-			netblock_collection_name = ANY(?)
-	};
-
-	my $nc_list_sth;
-	if (!($nc_list_sth = $jh->prepare_cached($q))) {
-		print STDERR "Unable to prepare netblock collection list query\n";
-		exit 1;
-	}
-
-	$q = qq {
-		SELECT
-			netblock_collection_id,
-			netblock_id,
-			netblock_type,
-			ip_address,
-			CASE 
-				WHEN is_single_address = 'Y' THEN true
-				ELSE false
-			END AS is_single_address
-		FROM
-			netblock_collection nc LEFT JOIN
-			netblock_collection_netblock ncn USING (netblock_collection_id)
-				LEFT JOIN
-			netblock n USING (netblock_id)
-		WHERE
-			netblock_collection_type = 'prefix-list' AND
-			netblock_collection_name = ?
-	};
-
-	my $nc_sth;
-	if (!($nc_sth = $jh->prepare_cached($q))) {
-		print STDERR "Unable to prepare netblock collection query\n";
-		exit 1;
-	}
-
-	$q = qq {
-		DELETE FROM
-			netblock_collection_netblock
-		WHERE
-			netblock_collection_id = ? AND
-			netblock_id = ANY(?)
-	};
-
-	my $member_del_sth;
-	if (!($member_del_sth = $jh->prepare_cached($q))) {
-		print STDERR "Unable to prepare netblock collection member delete query\n";
-		exit 1;
-	}
-
-	$q = qq {
-		INSERT INTO netblock_collection_netblock (
-			netblock_collection_id,
-			netblock_id
-		) VALUES (
-			?, ?
-		)
-	};
-
-	my $member_ins_sth;
-	if (!($member_ins_sth = $jh->prepare_cached($q))) {
-		print STDERR "Unable to prepare netblock collection member insert query\n";
-		exit 1;
-	}
-
-	$q = qq {
-		INSERT INTO netblock_collection (
-			netblock_collection_name,
-			netblock_collection_type
-		) VALUES (
-			?, 'prefix-list'
-		)
-		RETURNING *
-	};
-
-	my $nc_ins_sth;
-	if (!($nc_ins_sth = $jh->prepare_cached($q))) {
-		loggit sprintf("Unable to prepare netblock collection insert query: %s",
-			$jh->errstr);
-		exit 1;
-	}
-
-	$q = qq {
-		SELECT 
-			netblock_collection_id
-		FROM
-			netblock_collection 
-		WHERE
-			netblock_collection_type = 'prefix-list' AND
-			netblock_collection_name = ?
-	};
-
-	my $nc_exist_sth;
-	if (!($nc_exist_sth = $jh->prepare_cached($q))) {
-		loggit sprintf("Unable to prepare netblock collection existence query: %s",
-			$jh->errstr);
-		exit 1;
-	}
-
-	#
-	# Find an appropriate netblock to use for the prefix-list.
-	# This query prefers a default netblock_type first, followed by
-	# a 'prefix-list' netblock_type.  For single addresses, it will match
-	# either a netblock with an identical netmask or a /32 or /128.  Finally,
-	# for blocks with potential multiple matches (e.g. loopback addresses),
-	# prefer the single-address block over the non-single-address block.
-	#
-	$q = qq {
-		SELECT 
-			netblock_id,
-			ip_address,
-			netblock_type,
-			CASE
-				WHEN is_single_address = 'Y' THEN 0
-				ELSE 1
-			END AS single,
-			CASE
-				WHEN netblock_type = 'default' THEN 0
-				ELSE 1
-			END AS ordering
-
-		FROM
-			netblock
-		WHERE
-			netblock_type IN ('default', 'prefix-list') AND
-			ip_address = ? OR
-			(host(ip_address)::inet = ? and is_single_address = 'Y')
-		ORDER BY ordering, single
-		LIMIT 1
-	};
-
-	my $nb_sth;
-	if (!($nb_sth = $jh->prepare_cached($q))) {
-		loggit sprintf("Unable to prepare netblock select query: %s",
-			$jh->errstr);
-		exit 1;
-	}
-
-	$q = qq {
-		INSERT INTO netblock (
-			ip_address,
-			netblock_type,
-			is_single_address,
-			can_subnet,
-			netblock_status
-		) VALUES (
-			?,
-			'prefix-list',
-			'N',
-			'N',
-			'Allocated'
-		)
-		RETURNING *
-	};
-
-	my $nb_ins_sth;
-	if (!($nb_ins_sth = $jh->prepare_cached($q))) {
-		loggit sprintf("Unable to prepare netblock insert query: %s",
-			$jh->errstr);
-		exit 1;
-	}
-
 	if ($pull) {
 		print "    Syncing prefix-lists FROM device..." if $verbose > 1;
 		foreach my $pl (sort keys %$device_pls) {
@@ -541,6 +543,7 @@ foreach my $hostname (@hosts) {
 			push @{$prefixlists->{$val->{netblock_collection_name}}}, $val;
 		}
 		$sth->finish;
+		my $changes = 0;
 		foreach my $pl (sort keys %$prefixlists) {
 			printf "    Prefix-List: %s... ", $pl if $verbose > 1;
 			#
@@ -577,7 +580,8 @@ foreach my $hostname (@hosts) {
 			if ($changed) {
 				print "changed..." if $verbose > 2;
 				if (!$notreally) {
-					print "  Pushing new prefix-list\n" if $verbose > 2;
+					print "  Pushing new prefix-list" if $verbose > 2;
+					$changes = 1;
 					
 					if (!$dev->SetPrefixLists(
 						'prefix-lists' => {
@@ -587,7 +591,7 @@ foreach my $hostname (@hosts) {
 						},
 						errors => \@errors)
 					) {
-						printf "Error setting prefix list for %s: %s\n", $pl,
+						printf "Error setting prefix list for %s: %s", $pl,
 							(join "\n", @errors);
 						exit 1;
 					}
@@ -597,7 +601,20 @@ foreach my $hostname (@hosts) {
 				}
 				print "\n";
 			} else {
-				print "not changed\n" if $verbose > 2;
+				print "not changed" if $verbose > 2;
+			}
+			print "\n" if $verbose > 1;
+		}
+
+		if ($changes) {
+			if (!($dev->commit(errors => \@errors))) {
+				loggit(
+					sprintf(
+						"Error committing configurations to %s: %s",
+						$hostname,
+						(join "\n", @errors)
+					)
+				);
 			}
 		}
 	}

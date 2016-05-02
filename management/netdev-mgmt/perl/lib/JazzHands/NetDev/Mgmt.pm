@@ -67,7 +67,7 @@ sub connect {
 		return $self->{connection_cache}->{$hostname};
 	}
 
-	my $objtype = ref($self) . '::' . $device->{management_type};
+	my $objtype = ref($self) . '::__devtype::' . $device->{management_type};
 	eval "require $objtype";
 
 	if ($@) {
@@ -97,4 +97,43 @@ sub connect {
 	$self->{connection_cache}->{$hostname} = $devobj;
 	return $devobj;
 }
+
+sub commit {
+	my $self = shift;
+	if (!ref($self)) {
+		return undef;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+
+	my $rc = 1;
+	foreach my $device (values %{$self->{connection_cache}}) {
+		if (!($device->commit(errors => $err))) {
+			$rc = 0;
+		}
+	}
+	return $rc;
+}
+
+sub disconnect {
+	my $self = shift;
+	if (!ref($self)) {
+		return undef;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+
+	my $rc = 1;
+	foreach my $hostname (keys %{$self->{connection_cache}}) {
+		my $device = $self->{connection_cache}->{$hostname};
+		if (!($device->disconnect(errors => $err))) {
+			$rc = 0;
+		}
+		delete $self->{connection_cache}->{$hostname};
+	}
+	$rc;
+}
+
 1;

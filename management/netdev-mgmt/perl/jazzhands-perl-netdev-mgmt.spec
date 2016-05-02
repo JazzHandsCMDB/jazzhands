@@ -39,6 +39,8 @@ make -f Makefile.jazzhands clean
 %dir %{perl_vendorlib}/JazzHands
 %dir %{perl_vendorlib}/JazzHands/NetDev
 %dir %{perl_vendorlib}/JazzHands/NetDev/Mgmt
+%dir %{perl_vendorlib}/JazzHands/NetDev/Mgmt/__devtype
 %{perl_vendorlib}/JazzHands/NetDev/Mgmt.pm
-%{perl_vendorlib}/JazzHands/NetDev/Mgmt/arista.pm
-%{perl_vendorlib}/JazzHands/NetDev/Mgmt/juniper.pm
+%{perl_vendorlib}/JazzHands/NetDev/Mgmt/ACL.pm
+%{perl_vendorlib}/JazzHands/NetDev/Mgmt/__devtype/arista.pm
+%{perl_vendorlib}/JazzHands/NetDev/Mgmt/__devtype/juniper.pm

@@ -1,4 +1,4 @@
-package JazzHands::NetDev::Mgmt::arista;
+package JazzHands::NetDev::Mgmt::__devtype::arista;
 
 use strict;
 use warnings;
