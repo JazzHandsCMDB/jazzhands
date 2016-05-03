@@ -198,8 +198,6 @@ sub GetPortStatus {
 	}
 
 	my $result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => [ 
 			map { 'show interfaces ' . $_ } @$ports 
 		],
@@ -222,8 +220,6 @@ sub GetPortStatus {
 	#
 
 	$result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => [ 'show interfaces switchport' ],
 		format => 'text',
 		errors => $err
@@ -352,8 +348,6 @@ sub SetPortVLAN {
 	}
 	if ($commands) {
 		my $result = $self->SendCommand(
-			credentials => $credentials,
-			hostname => $device->{hostname},
 			commands => $commands,
 			errors => $errors
 		);
@@ -499,8 +493,6 @@ sub SetPortLACP {
 			printf STDERR "Commands:\n	%s\n", (join "\n", @$commands);
 		}
 		my $result = $self->SendCommand(
-			credentials => $credentials,
-			hostname => $device->{hostname},
 			commands => $commands,
 			errors => $errors
 		);
@@ -548,8 +540,6 @@ sub SetBGPPeerStatus {
 	];
 
 	my $result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => $commands,
 		format => 'text',
 		errors => $err
@@ -610,8 +600,6 @@ sub SetBGPPeerStatus {
 			# Get IP networks attached to the switch
 			#
 			my $result = $self->SendCommand(
-				credentials => $credentials,
-				hostname => $device->{hostname},
 				commands => [ 'show ip interface'],
 				errors => $err
 			);
@@ -650,8 +638,6 @@ sub SetBGPPeerStatus {
 	push @{$commands}, 'write memory';
 
 	$result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => $commands,
 		errors => $err
 	);
@@ -685,8 +671,6 @@ sub GetInterfaceConfig {
 
 	my @errors;
 	my $result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => [ 
 			'show ip interface' . 
 				($opt->{interface_name} ? ' ' . $opt->{interface_name} : '')
@@ -730,8 +714,6 @@ sub GetIPAddressInformation {
 	# sucks if one command returns an error
 	#
 	my $result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => [ 
 			'show ip interface'
 		],
@@ -745,8 +727,6 @@ sub GetIPAddressInformation {
 	my $ipv4ifaces = $result->[0]->{interfaces};
 
 	$result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => [ 
 			'show ipv6 interface'
 		],
@@ -817,8 +797,6 @@ sub TestRouteExistence {
 	# sucks if one command returns an error
 	#
 	my $result = $self->SendCommand(
-		credentials => $credentials,
-		hostname => $device->{hostname},
 		commands => [ 
 			'show ip route ' . $opt->{route} . ' longer-prefixes',
 		],
@@ -950,6 +928,48 @@ sub SetCiscoFormatACL {
 	}
 
 	unshift (@$converted_acl, sprintf("ip access-list %s", $aclname));
+
+	#
+	# Fetch the current ACL from the switch
+	#
+	my $result = $self->SendCommand(
+		commands => [
+			'show ip access-lists ' . $aclname
+		],
+		errors => $err
+	);
+
+	if (!defined($result)) {
+		return undef;
+	}
+
+	if (!exists($result->[0]->{aclList})) {
+		SetError($err, sprintf("No aclList entry returned from device %s",
+			$self->{hostname}
+		));
+	}
+
+	my $commands = [
+		'enable',
+		'configure',
+		'ip access-list ' . $aclname,
+		(
+			map {
+				'no ' . $_->{sequenceNumber}
+			} @{$result->[0]->{aclList}->[0]->{sequence}}
+		),
+		@$converted_acl,
+		'exit'
+	];
+
+	$result = $self->SendCommand(
+		commands => $commands,
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
 
 	return 1;
 }
