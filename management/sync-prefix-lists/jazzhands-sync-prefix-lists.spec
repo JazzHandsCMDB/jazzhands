@@ -11,6 +11,7 @@ Url:        http://www.jazzhands.net/
 Source0:    %{pkgname}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
+Requires:	jazzhands-perl-netdev-mgmt >= 0.70.0
 
 %description
 JazzHands management of network device prefix-lists
