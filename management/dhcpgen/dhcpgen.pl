@@ -167,7 +167,7 @@ if ($onetime) {
 	);
 } else {
 	my $record = JazzHands::AppAuthAL::find_and_parse_auth($authapp);
-	if (!$record || !$record->{network_device}) {
+	if (!$record || !$record->{stomp}) {
 		printf STDERR "Unable to find STOMP auth entry for %s\n",
 			 $authapp;
 		exit 1;

@@ -9,6 +9,7 @@ use JazzHands::Common::Util qw(_options);
 use JazzHands::Common::Error qw(:all);
 use JSON::XS;
 use NetAddr::IP qw(:lower);
+use LWP::UserAgent;
 
 sub new {
 	my $proto = shift;
@@ -898,313 +899,6 @@ sub GetPortList {
 	return \%ports;
 }
 
-sub ConvertCiscoACLLineToArista {
-	#
-	# This function is mostly a noop, because in most cases the formats
-	# are identical, however we need to break out addrlist and addrgroup
-	# entries
-	#
-	my $opt = &_options(@_);
-
-	my $error = $opt->{errors};
-	my $line = $opt->{line};
-	my $valid_ranges = $opt->{valid_ranges};
-	my $dbh = $opt->{dbh};
-
-	if (!$dbh) {
-		SetError($error, "dbh option must be passed");
-		return undef;
-	}
-
-	if (!$line || $line =~ /^\s*$/) {
-		return undef;
-	}
-
-	## Validate the valid_ranges option
-
-	if (defined $valid_ranges) {
-		unless (ref($valid_ranges) && ref($valid_ranges) eq 'ARRAY') {
-			SetError($error, "valid_ranges must be an array reference");
-			return undef;
-		}
-		
-		foreach my $r (@$valid_ranges) {
-			unless (ref($r) && ref($r) eq 'ARRAY') {
-				SetError($error, "valid_ranges must be a reference to an array of arrays");
-				return undef;
-			}
-
-			unless ($#$r == 1 && $r->[0] =~ /^\d+$/ && $r->[1] =~ /^\d+$/ ) {
-				SetError($error, "each item in valid_ranges must be an array of two numbers");
-				return undef;
-			}
-		}
-	}
-
-	$line =~ s/^\s+//;
-	my @tokens = split /\s+/, $line;
-	my $action = shift @tokens;
-
-	if ($action eq 'remark') {
-		return $line;
-	} elsif (!($action eq 'permit' || $action eq 'discard')) {
-		SetError($error, sprintf("Unknown action : %s", $action));
-		return undef;
-	}
-
-	my $proto = shift @tokens;
-	if (
-			$proto ne 'ip' &&
-			$proto ne 'tcp' &&
-			$proto ne 'udp' &&
-			$proto ne 'esp' &&
-			$proto ne 'ahp' &&
-			$proto ne 'icmp' &&
-			$proto ne 'gre') {
-		SetError($error, sprintf("unsupported protocol: %s", $proto));
-
-		return undef;
-	}
-
-	my $source = {};
-	my $dest = {};
-
-	foreach my $target ($source, $dest) {
-        my $addr = shift @tokens;
-        if ($addr eq 'any') {
-            $target->{addrlist} = undef;
-        } elsif ($addr eq 'host') {
-			$addr = shift @tokens;
-			my $ipaddr;
-			eval {
-				$ipaddr = NetAddr::IP->new($addr, 32);
-			}
-			if (!$ipaddr) {
-                SetError($error,
-                    sprintf("Address %s is not valid: '%s'", $addr, $line ));
-                return undef;
-			}
-            $target->{addrlist} = [ $ipaddr ];
-        } elsif ($addr eq 'addrlist') {
-            $target->{addrlist} = [ 
-				map {
-					my $ipaddr;
-					eval {
-						$ipaddr = NetAddr::IP->new($_);
-					}
-					if (!$ipaddr) {
-						SetError($error,
-							sprintf("Address %s is not valid: '%s'", $_, $line ));
-						return undef;
-					}
-					if ($ipaddr->version != 4) {
-						SetError($error,
-							sprintf("Address %s is not an IPv4 address: '%s'",
-								$_, $line ));
-						return undef;
-					}
-					$ipaddr;
-				} (split /,/, shift @tokens)
-			];
-        } elsif ($addr eq 'addrgroup') {
-			my $q = qq {
-				XXXXXXX
-				XXXXXXX
-				XXXXXXX
-			};
-			foreach my $group ( split /,/, shift @tokens ) {
-			}
-        } else {
-			#
-			# NOTE: Arista supports dicontiguous address masks, but we
-			# don't to maintain firewall filter  compatibility with JunOS
-			# equipment
-			#
-			# Also, consider using NetAddr::IP for this to simplify it,
-			# although because of the inverted mask (thanks, Cisco), this
-			# may actually be more convoluted
-			#
-            my $testaddr;
-            eval { 
-				$testaddr = inet_aton($addr); 
-				if ($testaddr) {
-					$testaddr = inet_ntoa($testaddr);
-				}
-			};
-            if (!$testaddr || ($testaddr ne $addr)) {
-                SetError($error,
-                    sprintf("Bad address format: %s", $addr));
-                return undef;
-            }
-            my $mask = shift @tokens;
-			my $testmask;
-            eval { 
-				$testmask = inet_aton($mask); 
-				if ($testmask) {
-					$testmask = inet_ntoa($testmask) ;
-				}
-			};
-            if (!$testmask || ($testmask ne $mask)) {
-                SetError($error,
-                    sprintf("Bad mask format: %s", $mask));
-                return undef;
-            }
-            my $maskval = unpack('N', inet_aton($mask));
-            $maskval = $maskval ^ 0xffffffff;
-            my $bitmask;
-            my $bits;
-			if ($maskval) {
-				foreach my $i (1..32) {
-					$bitmask |= (0x1 << (32 - $i));
-					if ($bitmask == $maskval) {
-						$bits = $i;
-						last;
-					}
-				}
-			} else {
-				$bits = 0;
-			}
-            if (!defined($bits)) {
-                SetError($error,
-                    sprintf("Bad mask format: %s", $mask));
-                return undef;
-            }
-			$testaddr = unpack('N', inet_aton($addr));
-            if (($testaddr & $bitmask) != $testaddr) {
-                SetError($error,
-                    sprintf("Mask %s is not valid for address %s",
-						$mask, $addr));
-                return undef;
-            }
-			#
-			# If bits is 0, then it's really "any"
-			#
-			if ($bits) {
-				$target->{addrlist} = [ NetAddr::IP->new($addr, $bits) ];
-			}
-        }
-		
-		next if ($proto eq 'icmp');
-		if (
-				@tokens && (
-				$tokens[0] eq 'eq' ||
-				$tokens[0] eq 'gt' ||
-				$tokens[0] eq 'lt' ||
-				$tokens[0] eq 'range' )) {
-			if (
-					$proto ne 'tcp' &&
-					$proto ne 'udp') {
-				SetError($error,
-					sprintf("Port not valid for protocol %s", $proto));
-				return undef;
-			}
-			$target->{portcmp} = shift @tokens;
-			my $portstring = shift @tokens;
-			if (!$portstring) {
-				SetError($error, 
-					sprintf("Port not specified after comparison operator"));
-				return undef;
-			}
-			$target->{port} = [];
-			if ($target->{portcmp} eq 'eq') {
-				foreach my $port (split /,/, $portstring) {
-					if ($CiscoACLPortMap->{lc($port)}) {
-						$port = $CiscoACLPortMap->{lc($port)};
-					}
-					my ($startport, $endport);
-					if ( ($startport, $endport) = $port =~ /^(\w+)-(\w+)$/) {
-						if ($CiscoACLPortMap->{lc($startport)}) {
-							$startport = $CiscoACLPortMap->{lc($startport)};
-						}
-						if ($startport !~ /^\d+$/ || 
-								$startport < 0 || $startport > 65535) {
-							SetError($error, sprintf("Bad port: %s", $port));
-							return undef;
-						}
-						if ($CiscoACLPortMap->{lc($endport)}) {
-							$endport = $CiscoACLPortMap->{lc($endport)};
-						}
-						if ($endport !~ /^\d+$/ || 
-								$endport < 0 || $endport > 65535) {
-							SetError($error, sprintf("Bad port: %s", $port));
-							return undef;
-						}
-						if ($startport >= $endport) {
-							SetError($error, 
-								sprintf("Start port greater than end port in port range '%s'",
-									 $port));
-							return undef;
-						}
-						$port = $startport . '-' . $endport;
-					} else {
-						if ($port !~ /^\d+$/ || 
-								$port < 0 || $port > 65535) {
-							SetError($error, sprintf("Bad port: %s", $port));
-						return undef;
-						}
-					}
-					push @{$target->{port}}, $port;
-				}
-				if ($#{$target->{port}} > 9 ) {
-					SetError($error, sprintf(
-						"A max of 10 ports may be specified in a port list: %s",
-						$line));
-					return undef;
-					
-				}
-			}
-			#
-			# Convert 'lt' and 'gt' to ranges
-			#
-
-			if ($target->{portcmp} eq 'lt' || $target->{portcmp} eq 'gt') {
-				if ($CiscoACLPortMap->{lc($portstring)}) {
-					$portstring = $CiscoACLPortMap->{lc($portstring)};
-				}
-				if ($portstring !~ /^\d+$/) {
-					SetError($error, sprintf("Bad port: %s:", $portstring,
-						$line));
-					return undef;
-				}
-				push @{$target->{port}}, $target->{portcmp} . " " $portstring;
-			} elsif ($target->{portcmp} eq 'range') {
-				my $endport = shift @tokens;
-				if ($CiscoACLPortMap->{lc($portstring)}) {
-					$portstring = $CiscoACLPortMap->{lc($portstring)};
-				}
-				if ($CiscoACLPortMap->{lc($endport)}) {
-					$endport = $CiscoACLPortMap->{lc($endport)};
-				}
-				if (!$endport) {
-					SetError($error, "Range must have two arguments");
-					return undef;
-				}
-				if (($portstring !~ /^\d+$/) || ($endport !~ /^\d+$/)) {
-					SetError($error, sprintf("Bad range: %s - %s", $portstring,
-						$endport));
-					return undef;
-				}
-				if (defined($valid_ranges)) {
-				        my $rangeok = 0;
-
-				        foreach my $r (@$valid_ranges) {
-					        $rangeok = 1 if ($r->[0] eq $portstring && $r->[1] eq $endport);
-				        }
-
-				        unless ($rangeok) {
-					        SetError($error, sprintf("Not a valid range: %s - %s",
-							 $portstring, $endport));
-					        return undef;
-				        }
-				}
-				push @{$target->{port}}, sprintf("range %d %d", $portstring,
-					$endport;
-			}
-		}
-	}
-
-}
-
 sub SetCiscoFormatACL {
 	my $self = shift;
 	my $opt = &_options(@_);
@@ -1220,83 +914,248 @@ sub SetCiscoFormatACL {
 
 	if (!$opt->{acl}) {
 		SetError($err,
-			"acl parameter must be passed to SetCiscoFormatACL");
+			sprintf("%s: acl parameter must be passed to SetCiscoFormatACL",
+				scalar(caller)));
 		return undef;
 	}
 	if (!ref($opt->{acl})) {
-		SetError($err, "acl parameter must be an ACL object");
+		SetError($err, sprintf("%s: acl parameter must be an ACL object",
+			scalar(caller)));
 		return undef;
 	}
 
-	my $jnx;
-	if (!($jnx = $self->{handle})) {
-		SetError($err, 
-			sprintf("No connection to device %s", $device->{hostname}));
+	if (!$opt->{name}) {
+		SetError($err, sprintf("%s: must pass ACL name", scalar(caller)));
 		return undef;
 	}
-
-	my $res;
 
 	my $acl = $opt->{acl};
-	my $filtername = $opt->{name} || sprintf("%s-VLAN%d-OUT",
-		$acl->{datacenter_id}, $acl->{vlan_id});
+	my $aclname = $opt->{name};
 
-	my $xml = qq {
-<configuration>
-	<firewall>
-		<family>
-			<inet>
-				<filter>
-					<name> </name>
-				</filter>
-			</inet>
-		</family>
-	</firewall>
-</configuration> };
-	my $parser = new XML::DOM::Parser;
-	my $doc = $parser->parsestring($xml);
-
-	my $filterlist;
 	my $acl_text;
 	if ($opt->{no_template}) {
 		$acl_text = $acl->{aces};
 	} else {
 		$acl_text = $acl->{full_acl};
 	}
-		
-	$doc = GenerateXMLforACL(
+
+	my $converted_acl = GenerateTextForACL(
 		errors => $err,
-		filtername => $filtername,
-		entries => $acl_text
+		entries => $acl_text,
+		dbh => $opt->{dbh}
 	);
 
-	if (!$doc) {
+	if (!defined($converted_acl)) {
 		return undef;
 	}
-	eval {
-		$res = $jnx->load_configuration(
-			format => 'xml',
-			action => 'replace',
-			configuration => $doc
-		);
-	};
-	if ($@) {
-		SetError($err, sprintf("Error setting firewall settings: %s", $@));
-		return undef;
-	}
-	if (!$res) {
-		SetError($err, sprintf("Unknown error setting firewall settings"));
-		return undef;
-	}
-	my $jnxerr = $res->getFirstError();
-	if ($jnxerr) {
-		SetError($err, sprintf("Error setting firewall: %s",
-			$jnxerr->{message}));
-		return undef;
-	};
-	$self->{state} = STATE_CONFIG_LOADED;
+
+	unshift (@$converted_acl, sprintf("ip access-list %s", $aclname));
 
 	return 1;
 }
 
+sub GenerateTextForACL {
+	my $opt = &_options(@_);
+	my $dbh = $opt->{dbh};
+
+	if (!$opt->{entries}) { return ""; };
+
+
+	my ($sth, $exist_sth);
+	if ($dbh) {
+		my $q = q {
+			SELECT
+				CASE 
+					WHEN is_single_address = 'Y' THEN host(ip_address) || '/32'
+					ELSE ip_address::text
+				END
+			FROM
+				jazzhands.netblock_collection nc JOIN
+				jazzhands.netblock_collection_netblock ncn USING 
+					(netblock_collection_id) JOIN
+				jazzhands.netblock USING (netblock_id)
+			WHERE
+				netblock_collection_type = 'prefix-list' AND
+				netblock_collection_name = ?
+		};
+
+		if (!($sth = $dbh->prepare_cached($q))) {
+			SetError($opt->{errors}, 
+				sprintf("%s::Validate: Unable to prepare netblock collection query: %s",
+					scalar(caller()),
+					$dbh->errstr
+				)
+			);
+			return undef;
+		}
+
+		$q = q {
+			SELECT
+				netblock_collection_id
+			FROM
+				jazzhands.netblock_collection
+			WHERE
+				netblock_collection_type = 'prefix-list' AND
+				netblock_collection_name = ?
+		};
+
+		if (!($exist_sth = $dbh->prepare_cached($q))) {
+			SetError($opt->{errors}, 
+				sprintf("%s::Validate: Unable to prepare netblock collection query: %s",
+					scalar(caller()),
+					$dbh->errstr
+				)
+			);
+			return undef;
+		}
+	}
+	my @entries = (split /\n/, $opt->{entries});
+	my $acl_entries = [];
+
+	LINELOOP: foreach my $i (0..$#entries) {
+		my $errstr;
+		my $entry = JazzHands::NetDev::Mgmt::ACL::ParseACLLine(
+			entry => $entries[$i],
+			errors => \$errstr
+		);
+		if (!defined($entry)) {
+			SetError($opt->{errors}, sprintf("Error on line %d: %s",
+				$i + 1,
+				$errstr || "unknown"
+			));
+			return undef;
+		}
+		next if (!$entry->{action});
+		if ($entry->{action} eq 'remark') {
+			push @$acl_entries, "remark " . $entry->{data};
+			next;
+		}
+		foreach my $target (qw(source dest)) {
+			my $x = $entry->{$target};
+			if( exists($x->{group})) {
+				if (!$dbh) {
+					SetError($opt->{errors}, sprintf("%s: Error on line %d: prefix-list reference but no database connection",
+						scalar(caller),
+						$i
+					));
+					return undef;
+				}
+				my $addresses = [];
+				foreach my $pl (@{$x->{group}}) {
+					if (!($exist_sth->execute($pl))) {
+						SetError($opt->{errors}, 
+							sprintf("%s::Validate: Unable to execute netblock collection query: %s",
+								scalar(caller()),
+								$exist_sth->errstr
+							)
+						);
+						return undef;
+					}
+					if (!$exist_sth->fetchrow_hashref) {
+						SetError($opt->{errors}, 
+							sprintf("%s::Validate: prefix-list %s referenced on line %d, but it does not exist in the database",
+								scalar(caller()),
+								$pl,
+								$i
+							)
+						);
+						$exist_sth->finish;
+						return undef;
+					}
+					$exist_sth->finish;
+
+					if (!($sth->execute($pl))) {
+						SetError($opt->{errors}, 
+							sprintf("%s::Validate: Unable to execute netblock collection member query: %s",
+								scalar(caller()),
+								$sth->errstr
+							)
+						);
+						return undef;
+					}
+					my $row;
+					while ($row = $sth->fetchrow_arrayref) {
+						push @$addresses, $row->[0];
+					}
+					$sth->finish;
+				}
+				if (!@$addresses) {
+					#
+					# If all of the prefix-lists expand to no addresses,
+					# skip this rule
+					#
+					next LINELOOP;
+				}
+				$x->{addrlist} = $addresses;
+			}
+			if (!exists($x->{addrlist}) || !@{$x->{addrlist}}) {
+				$x->{addrlist} = [ "any" ];
+			} else {
+				my $crap = [ map {
+						NetAddr::IP->new($_)
+					} @{$x->{addrlist}}
+				];
+				$x->{addrlist} = $crap;
+			}
+			$x->{textlines} = [ @{$x->{addrlist}} ];
+			if ($x->{portcmp}) {
+				my $newtextlines = [];
+				my @ranges = grep { (ref($_) eq 'ARRAY') } @{$x->{port}};
+				my @nonranges = grep { !(ref($_) eq 'ARRAY') } @{$x->{port}};
+				push @$newtextlines, map { 
+						my $a = $_;
+						map {
+							$_ . " range " . join (' ', @$a)
+						} @{$x->{textlines}}
+					} @ranges; 
+				#
+				# Group ports into 10
+				#
+				while (@nonranges) {
+					push @$newtextlines, 
+						map {
+							$_ . " eq " . join (' ', 
+								@nonranges[0.. ($#nonranges > 9 ? 9 : $#nonranges)])
+						} @{$x->{textlines}};
+					@nonranges = @nonranges[10 .. $#nonranges];
+				}
+				$x->{textlines} = $newtextlines;
+			}
+		}
+		map {
+			my $a = $_;
+			map {
+				if ($entry->{protocol} ne "icmp") {
+					push @$acl_entries, (sprintf("%s %s %s %s%s",
+						$entry->{action},
+						$entry->{protocol},
+						$_,
+						$a,
+						$entry->{tcp_established} ? " established" : ""
+					));
+				} else {
+					if (!($entry->{icmptypes})) {
+						push @$acl_entries, 
+							sprintf("%s %s %s %s",
+								$entry->{action},
+								$entry->{protocol},
+								$_,
+								$a
+							);
+					} else {
+						my $b = $_;
+						push @$acl_entries, map { sprintf("%s %s %s %s %s",
+								$entry->{action},
+								$entry->{protocol},
+								$b,
+								$a,
+								$_
+							) } @{$entry->{icmptypes}};
+					}
+				}
+			} @{$entry->{source}->{textlines}};
+		} @{$entry->{dest}->{textlines}};
+	}
+	return $acl_entries;
+}
 1;

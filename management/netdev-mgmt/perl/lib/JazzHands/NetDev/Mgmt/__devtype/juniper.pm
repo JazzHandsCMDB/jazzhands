@@ -137,6 +137,7 @@ sub disconnect {
 		};
 	}
 	undef %$self;
+	1;
 }
 
 sub SetPortVLAN {
@@ -1797,11 +1798,17 @@ sub SetCiscoFormatACL {
 
 	if (!$opt->{acl}) {
 		SetError($err,
-			"acl parameter must be passed to SetCiscoFormatACL");
+			sprintf("%s: acl parameter must be passed to SetCiscoFormatACL",
+				scalar(caller)));
 		return undef;
 	}
 	if (!ref($opt->{acl})) {
-		SetError($err, "acl parameter must be an ACL object");
+		SetError($err, sprintf("%s: acl parameter must be an ACL object",
+			 scalar(caller)));
+		return undef;
+	}
+	if (!$opt->{name}) {
+		SetError($err, sprintf("%s: must pass ACL name", scalar(caller)));
 		return undef;
 	}
 
@@ -1815,8 +1822,7 @@ sub SetCiscoFormatACL {
 	my $res;
 
 	my $acl = $opt->{acl};
-	my $filtername = $opt->{name} || sprintf("%s-VLAN%d-OUT",
-		$acl->{datacenter_id}, $acl->{vlan_id});
+	my $filtername = $opt->{name};
 
 	my $xml = qq {
 <configuration>
