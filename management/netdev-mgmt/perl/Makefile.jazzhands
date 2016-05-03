@@ -1,7 +1,8 @@
 SOURCES= \
 	JazzHands/NetDev/Mgmt.pm \
-	JazzHands/NetDev/Mgmt/arista.pm \
-	JazzHands/NetDev/Mgmt/juniper.pm
+	JazzHands/NetDev/Mgmt/ACL.pm \
+	JazzHands/NetDev/Mgmt/__devtype/arista.pm \
+	JazzHands/NetDev/Mgmt/__devtype/juniper.pm
 
 all:
 	@echo Nothing to build
