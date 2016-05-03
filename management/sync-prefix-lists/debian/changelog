@@ -1,3 +1,9 @@
+jazzhands-sync-prefix-lists (0.71.0) trusty; urgency=medium
+
+  * Fix issue with changes not being committed to the device
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 03 May 2016 16:04:53 -0500
+
 jazzhands-sync-prefix-lists (0.70.7) trusty; urgency=medium
 
   * Initial release

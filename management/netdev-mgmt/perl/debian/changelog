@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.71.0) unstable; urgency=low
+
+  * Completed support for Arista ACL management
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 03 May 2016 16:03:06 -0500
+
 jazzhands-perl-netdev-mgmt (0.70.7.1) unstable; urgency=low
 
   * Bump package version because RedHat sucks
