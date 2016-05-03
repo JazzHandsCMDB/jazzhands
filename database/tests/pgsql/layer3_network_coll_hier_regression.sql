@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Todd Kover
+-- Copyright (c) 2014-2016 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@
 \set ON_ERROR_STOP
 
 \t on
+SAVEPOINT l3nc_test;
+
 -- 
 -- Trigger tests
 --
@@ -31,6 +33,9 @@ DECLARE
 	_hnc			layer3_network_collection%ROWTYPE;
 	_c1			layer3_network%ROWTYPE;
 	_c2			layer3_network%ROWTYPE;
+	_nb1			netblock%ROWTYPE;
+	_nb2			netblock%ROWTYPE;
+	_nb6			netblock%ROWTYPE;
 BEGIN
 	RAISE NOTICE 'layer3_network_coll_hier_regression: Cleanup Records from Previous Tests';
 
@@ -44,8 +49,29 @@ BEGIN
 		layer3_network_collection_type like
 		'JHTEST%';
 	delete from layer3_network where description like 'JHTEST%';
+	delete from netblock where description like 'JHTEST%';
 
 	RAISE NOTICE '++ Inserting testing data';
+
+	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
+		can_subnet, netblock_status, description
+		) VALUES (
+			'172.31.26.0/26', 'default', 'N',
+			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb1;
+
+	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
+		can_subnet, netblock_status, description
+		) VALUES (
+			'172.31.192.0/26', 'default', 'N',
+			'Y', 'Allocated', 'JHTEST2') RETURNING * into _nb2;
+
+       INSERT INTO netblock (ip_address, netblock_type, is_single_address,
+                can_subnet, netblock_status, description
+                ) VALUES (
+                        'ff00:dead:f00d::/64', 'default', 'N',
+                        'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb6;
+
+
 	INSERT INTO val_layer3_network_coll_type (
 		layer3_network_collection_type, max_num_members
 	) VALUES (
@@ -62,27 +88,27 @@ BEGIN
 		'JHTEST-HIER', 'N'
 	);
 
-	INSERT into layer3_network_collection (
+	INSERT INTO layer3_network_collection (
 		layer3_network_collection_name, layer3_network_collection_type
-	) values (
+	) VALUES (
 		'JHTEST-cols-nc', 'JHTEST-COLS'
 	) RETURNING * into _nc_onecol1;
 
-	INSERT into layer3_network_collection (
+	INSERT INTO layer3_network_collection (
 		layer3_network_collection_name, layer3_network_collection_type
-	) values (
+	) VALUES (
 		'JHTEST-cols-nc-2', 'JHTEST-COLS'
 	) RETURNING * into _nc_onecol3;
 
-	INSERT into layer3_network_collection (
+	INSERT INTO layer3_network_collection (
 		layer3_network_collection_name, layer3_network_collection_type
-	) values (
+	) VALUES (
 		'JHTEST-mems-nc', 'JHTEST-MEMS'
 	) RETURNING * into _nc_onemem;
 
-	INSERT into layer3_network_collection (
+	INSERT INTO layer3_network_collection (
 		layer3_network_collection_name, layer3_network_collection_type
-	) values (
+	) VALUES (
 		'JHTEST-nohier', 'JHTEST-HIER'
 	) RETURNING * into _hnc;
 
@@ -90,15 +116,15 @@ BEGIN
 	RAISE NOTICE 'Inserting collection specific records'; 
 
 	INSERT INTO layer3_network (
-		description
-	) values (
-		'JHTEST01'
+		description, netblock_id
+	) VALUES (
+		'JHTEST01', _nb1.netblock_id
 	) RETURNING * into _c1;
 
 	INSERT INTO layer3_network (
-		description
-	) values (
-		'JHTEST02'
+		description, netblock_id
+	) VALUES (
+		'JHTEST02', _nb2.netblock_id
 	) RETURNING * into _c2;
 
 	RAISE NOTICE 'Starting tests...';
@@ -178,5 +204,7 @@ $$ LANGUAGE plpgsql;
 SELECT layer3_network_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION layer3_network_coll_hier_regression();
+
+ROLLBACK TO l3nc_test;
 
 \t off

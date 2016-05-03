@@ -1,3 +1,4 @@
+\ir init/initialize_currencies.sql
 \ir init/initialize_country_codes.sql
 \ir init/initialize_jazzhands.sql
 \ir init/initialize_jazzhands_optional.sql

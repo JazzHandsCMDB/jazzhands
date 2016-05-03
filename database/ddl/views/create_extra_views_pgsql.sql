@@ -134,3 +134,9 @@
 \ir create_v_hotpants_client.sql
 \ir create_v_hotpants_account_attribute.sql
 \ir create_v_hotpants_dc_attribute.sql
+
+\ir pgsql/create_v_l2_network_coll_expanded.sql
+\ir pgsql/create_v_l3_network_coll_expanded.sql
+
+\ir create_v_person.sql
+\ir create_v_person_company.sql
