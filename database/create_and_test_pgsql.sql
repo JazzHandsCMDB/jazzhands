@@ -49,6 +49,7 @@ grant create on database jazzhands_new to jazzhands;
 
 \ir create_pgsql_schema.sql
 
+\ir init/initialize_currencies.sql
 \ir init/initialize_country_codes.sql
 \ir init/initialize_jazzhands.sql
 \ir init/initialize_component.sql
@@ -94,6 +95,7 @@ begin;
 \ir tests/pgsql/svcenv_coll_hier_regression.sql
 \ir tests/pgsql/token_coll_hier_regression.sql
 \ir tests/pgsql/account_coll_realm_regression.sql
+\ir tests/pgsql/network_range_tests.sql
 
 \ir tests/pgsql/account_enabled_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql

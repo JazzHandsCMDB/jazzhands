@@ -1,3 +1,4 @@
+@@init/initialize_currencies.sql
 @@init/initialize_country_codes.sql
 @@init/initialize_jazzhands.sql
 @@init/initialize_jazzhands_optional.sql
