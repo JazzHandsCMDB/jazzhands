@@ -1,3 +1,10 @@
+jazzhands-perl-netdev-mgmt (0.71.2) unstable; urgency=low
+
+  * Update to add a longer timeout to the HTTP request for updating ACLs
+    on Arista switches, as the default does not handle large updates
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 04 May 2016 13:32:09 -0500
+
 jazzhands-perl-netdev-mgmt (0.71.1) unstable; urgency=low
 
   * Change a regular expression because RedHat sucks and uses ancient perl

@@ -964,6 +964,7 @@ sub SetCiscoFormatACL {
 
 	$result = $self->SendCommand(
 		commands => $commands,
+		timeout => 300,
 		errors => $err
 	);
 
