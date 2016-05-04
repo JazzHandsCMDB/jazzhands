@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.71.1) unstable; urgency=low
+
+  * Change a regular expression because RedHat sucks and uses ancient perl
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 04 May 2016 08:01:13 -0500
+
 jazzhands-perl-netdev-mgmt (0.71.0) unstable; urgency=low
 
   * Completed support for Arista ACL management

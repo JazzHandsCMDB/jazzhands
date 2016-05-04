@@ -116,7 +116,7 @@ sub ParseACLLine {
 
 	my $rule =  {};
 
-	if ($line =~ /^!\s*(\N*)/) {
+	if ($line =~ /^!\s*(.*)/) {
 		$rule->{action} = 'remark';
 		$rule->{data} = $1;
 		return $rule;
