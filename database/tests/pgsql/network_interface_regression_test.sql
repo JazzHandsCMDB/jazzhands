@@ -84,12 +84,10 @@ BEGIN
 	RAISE NOTICE 'Testing to see if is_single_address = Y works...';
 	INSERT INTO network_interface (
 		device_id, network_interface_name, network_interface_type,
-		description,
-		should_monitor, netblock_id
+		description, should_monitor, netblock_id
 	) VALUES (
-		_dev1.device_id, 'JHTEST0', 'broadcast', 'Y',
-		'JHTEST0',
-		_nb.netblock_id
+		_dev1.device_id, 'JHTEST0', 'broadcast', 
+		'JHTEST0', 'Y', _nb.netblock_id
 	) RETURNING * INTO _ni;
 	RAISE NOTICE '... it did!';
 
@@ -119,9 +117,9 @@ BEGIN
 			description,
 			should_monitor, netblock_id
 		) VALUES (
-			_dev1.device_id, 'JHTEST1', 'broadcast', 'Y',
+			_dev1.device_id, 'JHTEST1', 'broadcast', 
 			'JHTEST1',
-			_blk.netblock_id
+			'Y', _blk.netblock_id
 		) RETURNING * INTO _ni;
 		RAISE EXCEPTION '... it did not (!)';
 	EXCEPTION WHEN foreign_key_violation THEN
@@ -135,9 +133,9 @@ BEGIN
 			description,
 			should_monitor, netblock_id
 		) VALUES (
-			_dev1.device_id, 'JHTEST2', 'broadcast', 'Y',
+			_dev1.device_id, 'JHTEST2', 'broadcast', 
 			'JHTEST2',
-			_other.netblock_id
+			'Y', _other.netblock_id
 		) RETURNING * INTO _ni;
 		RAISE EXCEPTION '... it did not (!)';
 	EXCEPTION WHEN foreign_key_violation THEN
