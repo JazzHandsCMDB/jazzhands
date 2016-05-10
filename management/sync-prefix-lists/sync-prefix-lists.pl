@@ -30,6 +30,8 @@ my $user;
 my $merge = 0;
 my $pull = 0;
 my $push = 1;
+my $pushopt;
+my $pullopt;
 my $notreally = 0;
 my $verbose = 0;
 my $prefixlist = [];
@@ -48,8 +50,8 @@ GetOptions(
 	'authapp=s', $authapp,
 	'username=s', \$user,
 	'merge!', \$merge,
-	'pull!', \$pull,
-	'push!', \$push,
+	'pull!', \$pullopt,
+	'push!', \$pushopt,
 	'commit!', \$commit,
 	'verbose+', \$verbose,
 	'notreally!', \$notreally,
@@ -67,6 +69,14 @@ if (!($jh = JazzHands::DBI->new->connect(
 	printf STDERR "Unable to connect to database: %s\n",
 		$JazzHands::DBI::errstr;
 	exit 1;
+}
+
+if (defined($pullopt)) {
+	$pull = $pullopt;
+	$push = 0;
+}
+if (defined($pushopt)) {
+	$push = $pushopt;
 }
 
 my $password;
@@ -556,29 +566,35 @@ foreach my $hostname (@hosts) {
 			#
 			my $changed = 0;
 			if (!exists($device_pls->{$pl})) {
-				print "does not exist on device...\n" if $verbose > 2;
-				$changed = 1;
-			} elsif ($#{$device_pls->{$pl}} != $#{$prefixlists->{$pl}}) {
-				printf "Number of entries differs: %d vs %d\n",
-					$#{$device_pls->{$pl}} + 1, $#{$prefixlists->{$pl}} + 1
-					if $verbose > 2;
-					
+				print "does not exist on device..." if $verbose > 2;
 				$changed = 1;
 			} else {
 				my $devpl = $device_pls->{$pl};
-				foreach my $entry (@{$prefixlists->{$pl}}) {
+				my $dbpl = $prefixlists->{$pl};
+				foreach my $entry (sort 
+						{ $a->{ip_address} cmp $b->{ip_address} } @$dbpl
+					) {
 					if (!grep { $entry->{ip_address} eq $_ } @$devpl) {
-						printf "%s not found on device... ",
+						printf "\n        + %s",
 							$entry->{ip_address}
 							if $verbose > 2;
 					
 						$changed = 1;
-						last;
+					}
+				}
+				foreach my $entry (sort 
+						{ $a cmp $b } @$devpl
+					) {
+					if (!grep { $_->{ip_address} eq $entry } @$dbpl) {
+						printf "\n        - %s",
+							$entry
+							if $verbose > 2;
+					
+						$changed = 1;
 					}
 				}
 			}
 			if ($changed) {
-				print "changed..." if $verbose > 2;
 				if (!$notreally) {
 					print "  Pushing new prefix-list" if $verbose > 2;
 					$changes = 1;
@@ -595,13 +611,8 @@ foreach my $hostname (@hosts) {
 							(join "\n", @errors);
 						exit 1;
 					}
-				} else {
-					print "  Not pushing new prefix-list because of -n flag"
-						if $verbose > 1;
 				}
 				print "\n";
-			} else {
-				print "not changed" if $verbose > 2;
 			}
 			print "\n" if $verbose > 1;
 		}
@@ -645,4 +656,3 @@ sub AskPass {
 	}
 }
 
-#print Dumper($pl);
