@@ -1,11 +1,8 @@
 jazzhands-sync-prefix-lists (0.71.3) trusty; urgency=medium
 
-  * Change the options so that if you specify --pull, it does not push
-    unless you specified --push as well
+  * Change the options so that if you specify --pull, it does not push unless you specified --push as well
 
-  * Fix verbose output so that there is more detail about exactly which
-    netblocks are being added and removed from a prefix list when updating
-	a device
+  * Fix verbose output so that there is more detail about exactly which netblocks are being added and removed from a prefix list when updating a device
 
  -- Matthew Ragan <mdr@suckless.net>  Tue, 10 May 2016 16:06:01 -0400
 
