@@ -1,3 +1,9 @@
+jazzhands-sync-prefix-lists (0.71.4) trusty; urgency=medium
+
+  * Default to only sync to sites marked as ACTIVE
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 11 May 2016 13:21:22 -0400
+
 jazzhands-sync-prefix-lists (0.71.3) trusty; urgency=medium
 
   * Change the options so that if you specify --pull, it does not push unless you specified --push as well

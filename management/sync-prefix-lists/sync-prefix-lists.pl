@@ -126,7 +126,8 @@ if (@ARGV) {
 			device d JOIN
 			device_type dt USING (device_type_id) JOIN
 			device_collection_device dcd USING (device_id) JOIN
-			device_collection dc USING (device_collection_id)
+			device_collection dc USING (device_collection_id) JOIN
+			site s USING (site_code)
 		WHERE
 			device_status = 'up' AND
 			device_collection_type = 'device-function' AND
@@ -136,6 +137,8 @@ if (@ARGV) {
 	if (@$site) {
 		$q .= "			AND site_code = ANY(?)";
 		push @$args, $site;
+	} else {
+		$q .= "			AND site_status = 'ACTIVE'";
 	}
 	my $sth;
 	if (!($sth = $jh->prepare_cached($q))) {
