@@ -389,6 +389,13 @@ sub authenticate {
 			my $err = $hp->Error;
 			if ($err) {
 				radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $err ) );
+				my $list = $hp->_DeclineInfo();
+				if($list) {
+					foreach my $x (@{$list}) {
+						radiusd::radlog( 2, sprintf( "debug[%s]: %s",
+							$login, $x) );
+					}
+				}
 			}
 			$err = $hp->UserError;
 			if ($err) {

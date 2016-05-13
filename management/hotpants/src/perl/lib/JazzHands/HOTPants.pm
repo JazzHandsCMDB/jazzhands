@@ -253,6 +253,16 @@ sub new {
 	$self;
 }
 
+sub _DeclineInfo {
+	my $self = shift;
+
+	foreach (@_) {
+		push( @{$self->{_declineinfo}}, @_);
+	}
+
+	$self->{_declineinfo};
+}
+
 #
 # return the acccounts's mechanism and next one if that should they be tiered.
 #
@@ -1427,6 +1437,8 @@ sub HOTPAuthenticate {
 
 	my (@badtokens);
 
+
+	my @pertokerrs;
 	my $sequence;
 	foreach $tokenid ( @{ $user->{tokens} } ) {
 		$self->_Debug( 5, "Trying token %d for user %s", $tokenid, $login );
@@ -1649,9 +1661,9 @@ sub HOTPAuthenticate {
 		# normal authentication
 		#
 		for (
-			$sequence = $initialseq ;
+			$sequence = $initialseq - 500;
 			$sequence <=
-			$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} ;
+			$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} + 500;
 			$sequence++
 		  )
 		{
@@ -1674,8 +1686,14 @@ sub HOTPAuthenticate {
 			$self->_Debug( 50, "Given PRN is %s.  PRN for sequence %d is %s",
 				$prn, $sequence, $checkprn );
 			if ( $prn eq $checkprn ) {
-				$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
-				last;
+				if($sequence < $initialseq || $sequence > $initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew}) {
+					$self->_DeclineInfo( sprintf
+						"[tok#%s] Found out of range match on prn#%s start@%s found#%s", 
+						$tokenid, $checkprn, $initialseq, $sequence);
+				} else {
+					$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
+					last;
+				}
 			}
 		}
 
