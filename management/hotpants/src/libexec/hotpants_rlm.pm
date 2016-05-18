@@ -46,8 +46,6 @@
 #       5 - Proxy
 #       6 - Acct
 #
-
-
 # $Id$
 #
 
@@ -95,18 +93,17 @@ my $err;
 
 sub debug_callback {
 	my $hplevel = shift @_;
-	radiusd::radlog(1, @_);
+	radiusd::radlog( 1, @_ );
 }
-
 
 #
 # called throughout; meant to work around encryption map and what not
 #
 sub connect_hp {
 	my $hp = new JazzHands::HOTPants(
-		dbuser        => 'hotpants',
-		encryptionmap => '/etc/tokenmap.json',
-		debug         => 3,
+		dbuser         => 'hotpants',
+		encryptionmap  => '/etc/tokenmap.json',
+		debug          => 3,
 		debug_callback => \&debug_callback,
 	);
 	return $hp;
@@ -238,13 +235,22 @@ sub validate_credentials {
 	# The PWType rank is used for chaining, if set, then this is just passed
 	# up to figure out where things are
 	#
-	my $rank;
-	if ( ( my $state = $RAD_REQUEST{'State'} ) ) {
+	my ( $rank, $state );
+	if ( ( $state = $RAD_REQUEST{'State'} ) ) {
 		if ( $state =~ s/^0x// ) {
-			$state = map { chr("0x$_") } substr( $state, 2 );
-			$state =~ s/^jazzhands-hotpants-//;
+			$state = join( "", map { chr( hex $_ ) } ( $state =~ /(..)/g ) );
+
+			# decoded version
+			$rank = $state;
+			$rank =~ s/^jazzhands-hotpants-//;
+			if ( $rank =~ /^\d+$/ ) {
+				$rank = int($rank);
+			} else {
+				$rank = undef;
+			}
+		} elsif ( $state =~ /^\d+$/ ) {
+			$rank = int($state);
 		}
-		$rank = int($state);
 	}
 
 	my $callingid = "";
@@ -341,6 +347,7 @@ sub validate_credentials {
 		source     => $source,
 		user       => $user,
 		rank       => $rank,
+		state      => $state,
 	};
 }
 
@@ -360,6 +367,7 @@ sub authenticate {
 	my $source     = $rv->{source};
 	my $user       = $rv->{user};
 	my $rank       = $rv->{rank};
+	my $state      = $rv->{state};
 
 	if ( !$hp->VerifyUser( user => $user ) ) {
 		if ( $hp->Error ) {
@@ -369,31 +377,71 @@ sub authenticate {
 		return RLM_MODULE_REJECT;
 	}
 
+	#
+	# This is technically a violation of rfc5080/rfc2865; State is set in an
+	# unsolicited Access-Request packet, rather than in response to an
+	# Access-Challenge.  It is used in order to support returning radius
+	# attributes in response to a user authenticated by other means, such as
+	# Kerberos.
+	#
+	# In order to trigger this, the Service-Type must be set to Authorize-Only
+	# the HOTPants:State attribute must be set for the user of interest on the
+	# host of interest to match the passed in state, and the user's password
+	# must NOT be set.   So, technically, the server did not return the state,
+	# used by the client, but it has some validation that the client needs to
+	# know about (so reduced chance of information leak) and someone needs to
+	# do something to make it work, so in all liklihood only the most religious
+	# have a chance of ever caring about this, and they'd need to be pretty
+	# devout.   Having said that, someone will now tell me what I missed.
+	#
+	# note that state and rank should never both be set.
+	#
+	my ( $state, $authonly );
+	if ( defined( $RAD_REQUEST{"Service-Type"} )
+		&& $RAD_REQUEST{"Service-Type"} eq 'Authorize-Only' )
+	{
+		$state    = $rv->{state};
+		$authonly = 1;
+	}
+
 	my $passwd;
-	if ( !defined( $passwd = $RAD_REQUEST{"User-Password"} ) ) {
+	if ( !defined( $passwd = $RAD_REQUEST{"User-Password"} ) && !$authonly ) {
 		radiusd::radlog( 4, "No User-Password in the request" );
 		$hp->closedb;
 		return RLM_MODULE_REJECT;
 	}
-	my $success;
 
-	if ( defined($passwd) ) {
+	if ( $authonly && $passwd ) {
+		radiusd::radlog( 4, "User-Password in an Authorize-Only request" );
+		$hp->closedb;
+		return RLM_MODULE_REJECT;
+	}
+
+	if( $authonly && $state eq 'GrantAccess') {
+		radiusd::radlog( 4, "Auth-Only request for GrantAccess state forbidden." );
+		$hp->closedb;
+		return RLM_MODULE_REJECT;
+	}
+
+	my $success;
+	if ( $authonly || defined($passwd) ) {
 		$hp->SetDebug(2);
 		$success = $hp->AuthenticateUser(
-			login  => $login,
-			passwd => $passwd,
-			source => $source,
-			rank   => $rank
+			login          => $login,
+			passwd         => $passwd,
+			source         => $source,
+			rank           => $rank,
+			authorizetoken => $state,
 		);
 		if ( !$success ) {
 			my $err = $hp->Error;
 			if ($err) {
 				radiusd::radlog( 2, sprintf( "%s: %s", $authreqstr, $err ) );
 				my $list = $hp->_DeclineInfo();
-				if($list) {
-					foreach my $x (@{$list}) {
-						radiusd::radlog( 2, sprintf( "debug[%s]: %s",
-							$login, $x) );
+				if ($list) {
+					foreach my $x ( @{$list} ) {
+						radiusd::radlog( 2,
+							sprintf( "debug[%s]: %s", $login, $x ) );
 					}
 				}
 			}

@@ -1,8 +1,15 @@
+jazzhands-hotpants (0.71.4) unstable; urgency=medium
+
+  * add concept of authorize-only radius clients
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 19 May 2016 09:08:32 -0500
+
 jazzhands-hotpants (0.71.3) unstable; urgency=medium
 
   * add debugging logging when a sequence is found but invalid
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 13 May 2016 10:35:00 -0500
+
 
 jazzhands-hotpants (0.69.7) unstable; urgency=medium
 

@@ -257,7 +257,7 @@ sub _DeclineInfo {
 	my $self = shift;
 
 	foreach (@_) {
-		push( @{$self->{_declineinfo}}, @_);
+		push( @{ $self->{_declineinfo} }, @_ );
 	}
 
 	$self->{_declineinfo};
@@ -1437,7 +1437,6 @@ sub HOTPAuthenticate {
 
 	my (@badtokens);
 
-
 	my @pertokerrs;
 	my $sequence;
 	foreach $tokenid ( @{ $user->{tokens} } ) {
@@ -1661,9 +1660,9 @@ sub HOTPAuthenticate {
 		# normal authentication
 		#
 		for (
-			$sequence = $initialseq - 500;
+			$sequence = $initialseq - 500 ;
 			$sequence <=
-			$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} + 500;
+			$initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} + 500 ;
 			$sequence++
 		  )
 		{
@@ -1686,10 +1685,14 @@ sub HOTPAuthenticate {
 			$self->_Debug( 50, "Given PRN is %s.  PRN for sequence %d is %s",
 				$prn, $sequence, $checkprn );
 			if ( $prn eq $checkprn ) {
-				if($sequence < $initialseq || $sequence > $initialseq + $__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew}) {
-					$self->_DeclineInfo( sprintf
-						"[tok#%s] Found out of range match on prn#%s start@%s found#%s", 
-						$tokenid, $checkprn, $initialseq, $sequence);
+				if (   $sequence < $initialseq
+					|| $sequence > $initialseq +
+					$__HOTPANTS_CONFIG_PARAMS{ResyncSequenceSkew} )
+				{
+					$self->_DeclineInfo(
+						sprintf
+						  "[tok#%s] Found out of range match on prn#%s start@%s found#%s",
+						$tokenid, $checkprn, $initialseq, $sequence );
 				} else {
 					$self->_Debug( 2, "Found a match, PRN: %s ", $checkprn );
 					last;
@@ -1893,6 +1896,18 @@ sub AuthenticateUser {
 	my $user  = $opt->{user};
 	my $rank  = $opt->{rank} || 0;
 
+	#
+	# authorizetoken is set for Authorize-Only requests.  In that case, the
+	# password must NOT be set.  The property in authorizetoken is used instead
+	# of GrantAccess to determine if the person should be let in.
+	#
+	my $authorizetoken = $opt->{authorizetoken};
+
+	if ( $authorizetoken && $authorizetoken eq 'GrantAccess') {
+		$self->Error("Illegal authorize token GrantAccess");
+		return undef;
+	}
+
 	if ( !$login && !$user ) {
 		$self->Error("login or user options required but not provided");
 		return undef;
@@ -1909,15 +1924,25 @@ sub AuthenticateUser {
 	}
 	$login = $user->{login};
 
-	my $password;
-	if ( !( $password = $opt->{passwd} ) ) {
+	my $password = $opt->{passwd};
+	if ( !$authorizetoken && !$password ) {
 		$self->Error("passwd option required but not provided");
+		return undef;
+	}
+
+	if ( $authorizetoken && $password ) {
+		$self->Error("passwd included for Authorize-Only reqeust");
 		return undef;
 	}
 
 	my $source;
 	if ( !( $source = $opt->{source} ) ) {
 		$self->Error("source option required but not provided");
+		return undef;
+	}
+
+	if ( $rank && $authorizetoken ) {
+		$self->Error("may not set Authorize-Only and rank");
 		return undef;
 	}
 
@@ -1985,143 +2010,159 @@ sub AuthenticateUser {
 		$authmech = $am->{authmech};
 		$nexttype = $am->{nexttype};
 	} else {
-		return undef;
+		if ( !$authorizetoken ) {
+			return undef;
+		}
 	}
+
+	my $accessprop = $authorizetoken || 'GrantAccess';
 
 	#
 	# See if the user has access to log in here
 	#
-	if ( !( $attrs->{HOTPants}->{GrantAccess} ) ) {
+	if ( !( $attrs->{HOTPants}->{$accessprop} ) ) {
 		$self->Error(
 			sprintf(
-				"user %s does not have permission to log in to %s (%s)",
-				$login, $source, $client->{devcoll_name}
+				"user %s does not have permission to log in to %s (%s) via %s",
+				$login, $source, $client->{devcoll_name}, $accessprop
 			)
 		);
 		return undef;
 	}
 
-	if ( !defined($authmech) || $authmech eq 'star' ) {
-		$self->Error(
-			sprintf(
-				"no password mechanisms defined to auth user %s on client '%s' (%s)",
-				$login                  || '',
-				$client->{devcoll_name} || '',
-				$source                 || ''
-			)
-		);
-		return undef;
-	}
-
-	if (   $authmech eq 'oath-only'
-		|| $authmech eq 'oath+passwd'
-		|| $authmech eq 'token'
-		|| $authmech eq 'oath' )
-	{
-		$self->_Debug( 3, "Authenticating user %s on client %s with HOTP",
-			$login, $client->{devcoll_name} );
-
-		if (
-			$self->HOTPAuthenticate(
-				user   => $user,
-				otp    => $password,
-				method => $authmech,
-			)
-		  )
-		{
-			$authsucceeded = { result => 'accept' };
-		}
-		$err = $self->Error;
-		return undef if ( $err && $err =~ /^No tokens assigned/ );
-		goto UserAuthDone;
-	}
-
-	my $passwd;
-	if ( !( $passwd = $self->fetch_passwd( login => $login ) ) ) {
-		if ( !$self->Error ) {
+	if ( !$authorizetoken ) {
+		if ( !defined($authmech) || $authmech eq 'star' ) {
 			$self->Error(
 				sprintf(
-					"user must use %s to authenticate, but has no set passwords",
+					"no password mechanisms defined to auth user %s on client '%s' (%s)",
+					$login                  || '',
+					$client->{devcoll_name} || '',
+					$source                 || ''
+				)
+			);
+			return undef;
+		}
+
+		if (   $authmech eq 'oath-only'
+			|| $authmech eq 'oath+passwd'
+			|| $authmech eq 'token'
+			|| $authmech eq 'oath' )
+		{
+			$self->_Debug( 3, "Authenticating user %s on client %s with HOTP",
+				$login, $client->{devcoll_name} );
+
+			if (
+				$self->HOTPAuthenticate(
+					user   => $user,
+					otp    => $password,
+					method => $authmech,
+				)
+			  )
+			{
+				$authsucceeded = { result => 'accept' };
+			}
+			$err = $self->Error;
+			return undef if ( $err && $err =~ /^No tokens assigned/ );
+			goto UserAuthDone;
+		}
+
+		my $passwd;
+		if ( !( $passwd = $self->fetch_passwd( login => $login ) ) ) {
+			if ( !$self->Error ) {
+				$self->Error(
+					sprintf(
+						"user must use %s to authenticate, but has no set passwords",
+						$authmech )
+				);
+			}
+			return undef;
+		}
+
+		if ( !defined( $passwd->{$authmech} ) ) {
+			$self->Error(
+				sprintf(
+					"user must use %s to authenticate, but does not have a password of that type",
 					$authmech )
 			);
+			return undef;
 		}
-		return undef;
-	}
 
-	if ( !defined( $passwd->{$authmech} ) ) {
-		$self->Error(
-			sprintf(
-				"user must use %s to authenticate, but does not have a password of that type",
-				$authmech )
-		);
-		return undef;
-	}
-
-	my $p = $passwd->{$authmech};
-	if ( $p->{expire_time} && $p->{expire_time} < time ) {
-		$self->Error(
-			sprintf(
-				"%s password for %s expired %s",
-				$authmech, $login, scalar( $p->{expire_time} )
-			)
-		);
-		$self->UserError("Your password is expired");
-		return undef;
-	} elsif ( $p->{change_time}
-		&& $p->{change_time} +
-		( 86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration} ) < time )
-	{
-		$self->Error(
-			sprintf(
-				"%s password for %s expired %s",
-				$authmech,
-				$login,
-				scalar(
-					$p->{change_time} +
-					  86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration}
+		my $p = $passwd->{$authmech};
+		if ( $p->{expire_time} && $p->{expire_time} < time ) {
+			$self->Error(
+				sprintf(
+					"%s password for %s expired %s",
+					$authmech, $login, scalar( $p->{expire_time} )
 				)
-			)
-		);
-		$self->UserError("Your password is expired");
-		return undef;
-	}
+			);
+			$self->UserError("Your password is expired");
+			return undef;
+		} elsif ( $p->{change_time}
+			&& $p->{change_time} +
+			( 86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration} ) < time )
+		{
+			$self->Error(
+				sprintf(
+					"%s password for %s expired %s",
+					$authmech,
+					$login,
+					scalar(
+						$p->{change_time} +
+						  86400 * $__HOTPANTS_CONFIG_PARAMS{PasswordExpiration}
+					)
+				)
+			);
+			$self->UserError("Your password is expired");
+			return undef;
+		}
 
-	my $checkpass = undef;
-	if ( $authmech eq 'blowfish' ) {
-		$checkpass = bcrypt( $password, $p->{passwd} );
-	} elsif ( ( $authmech eq 'des' )
-		|| ( $authmech eq 'md5' )
-		|| ( $authmech eq 'networkdevice' ) )
-	{
-		$checkpass = crypt( $password, $p->{passwd} );
-	} elsif ( $authmech eq 'sha1_nosalt' ) {
-		$checkpass = sha1_base64($password);
-	} else {
-		$self->Error(
-			sprintf(
-				"unsupported authentication mechanism %s authenticating user %s for client %s",
-				$authmech, $login, $client->{devcoll_name}
-			)
-		);
-		return undef;
-	}
+		my $checkpass = undef;
+		if ( $authmech eq 'blowfish' ) {
+			$checkpass = bcrypt( $password, $p->{passwd} );
+		} elsif ( ( $authmech eq 'des' )
+			|| ( $authmech eq 'md5' )
+			|| ( $authmech eq 'networkdevice' ) )
+		{
+			$checkpass = crypt( $password, $p->{passwd} );
+		} elsif ( $authmech eq 'sha1_nosalt' ) {
+			$checkpass = sha1_base64($password);
+		} else {
+			$self->Error(
+				sprintf(
+					"unsupported authentication mechanism %s authenticating user %s for client %s",
+					$authmech, $login, $client->{devcoll_name}
+				)
+			);
+			return undef;
+		}
 
-	$self->_Debug( 3, "Authenticating user %s on client %s with %s",
-		$login, $client->{devcoll_name}, $authmech );
-	if (   $p->{passwd} eq $checkpass
-		|| $p->{passwd} eq ( $checkpass . "=" ) )
-	{
-		$authsucceeded = { result => 'accept' };
+		$self->_Debug( 3, "Authenticating user %s on client %s with %s",
+			$login, $client->{devcoll_name}, $authmech );
+		if (   $p->{passwd} eq $checkpass
+			|| $p->{passwd} eq ( $checkpass . "=" ) )
+		{
+			$authsucceeded = { result => 'accept' };
+		} else {
+			$self->_Debug(
+				2,
+				"User %s failed authentication on client %s with %s: expected %s, got %s",
+				$login,
+				$client->{devcoll_name},
+				$authmech,
+				$p->{passwd},
+				$checkpass,
+			);
+		}
 	} else {
 		$self->_Debug(
-			2,
-			"User %s failed authentication on client %s with %s: expected %s, got %s",
-			$login,
-			$client->{devcoll_name},
-			$authmech,
-			$p->{passwd},
-			$checkpass,
+			2, "User %s pseudoauthenticated on client %s with %s",
+			$login, $client->{devcoll_name},
+			$authorizetoken
 		);
+
+		# authorizetoken set, thu none of the authentication is actually done.
+		$authsucceeded = { result => 'accept' };
+		$authmech = "AuthorizeOnly:$authorizetoken";
 	}
 
   UserAuthDone:
