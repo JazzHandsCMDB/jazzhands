@@ -83,21 +83,18 @@ sub clear_same_physical_port_params {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	for my $pportid ( $stab->cgi_get_ids('P1_PHYSICAL_PORT_ID') ) {
-		my $p2devid =
-		  $stab->cgi_parse_param( 'P2_DEVICE_ID', $pportid );
+		my $p2devid = $stab->cgi_parse_param( 'P2_DEVICE_ID', $pportid );
 		my $p2portid =
 		  $stab->cgi_parse_param( 'P2_PHYSICAL_PORT_ID', $pportid );
-		my $baud     = $stab->cgi_parse_param( 'BAUD',      $pportid );
-		my $stopbits = $stab->cgi_parse_param( 'STOP_BITS', $pportid );
-		my $databits = $stab->cgi_parse_param( 'DATA_BITS', $pportid );
-		my $parity   = $stab->cgi_parse_param( 'PARITY',    $pportid );
-		my $serparam =
-		  $stab->cgi_parse_param( 'SERIAL_PARAMS', $pportid );
-		my $flow = $stab->cgi_parse_param( 'FLOW_CONTROL', $pportid );
+		my $baud     = $stab->cgi_parse_param( 'BAUD',          $pportid );
+		my $stopbits = $stab->cgi_parse_param( 'STOP_BITS',     $pportid );
+		my $databits = $stab->cgi_parse_param( 'DATA_BITS',     $pportid );
+		my $parity   = $stab->cgi_parse_param( 'PARITY',        $pportid );
+		my $serparam = $stab->cgi_parse_param( 'SERIAL_PARAMS', $pportid );
+		my $flow     = $stab->cgi_parse_param( 'FLOW_CONTROL',  $pportid );
 
 		if ($serparam) {
-			( $databits, $parity, $stopbits ) =
-			  serial_abbr_to_field($serparam);
+			( $databits, $parity, $stopbits ) = serial_abbr_to_field($serparam);
 			next if ( !$databits || !$parity || !$stopbits );
 		}
 
@@ -106,61 +103,58 @@ sub clear_same_physical_port_params {
 		next if ( !$l1c && $p2portid );
 
 		if ($l1c) {
-			if (       defined( $l1c->{ _dbx('BAUD') } )
+			if (   defined( $l1c->{ _dbx('BAUD') } )
 				&& defined($baud) )
 			{
 				next if ( $l1c->{ _dbx('BAUD') } ne $baud );
-			} elsif (  !defined( $l1c->{ _dbx('BAUD') } )
+			} elsif ( !defined( $l1c->{ _dbx('BAUD') } )
 				&& !defined($baud) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (       defined( $l1c->{ _dbx('STOP_BITS') } )
+			if (   defined( $l1c->{ _dbx('STOP_BITS') } )
 				&& defined($stopbits) )
 			{
 				next
-				  if ( $l1c->{ _dbx('STOP_BITS') } ne
-					$stopbits );
-			} elsif (  !defined( $l1c->{ _dbx('STOP_BITS') } )
+				  if ( $l1c->{ _dbx('STOP_BITS') } ne $stopbits );
+			} elsif ( !defined( $l1c->{ _dbx('STOP_BITS') } )
 				&& !defined($stopbits) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (       defined( $l1c->{ _dbx('DATA_BITS') } )
+			if (   defined( $l1c->{ _dbx('DATA_BITS') } )
 				&& defined($databits) )
 			{
 				next
-				  if ( $l1c->{ _dbx('DATA_BITS') } ne
-					$databits );
-			} elsif (  !defined( $l1c->{ _dbx('DATA_BITS') } )
+				  if ( $l1c->{ _dbx('DATA_BITS') } ne $databits );
+			} elsif ( !defined( $l1c->{ _dbx('DATA_BITS') } )
 				&& !defined($databits) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (       defined( $l1c->{ _dbx('PARITY') } )
+			if (   defined( $l1c->{ _dbx('PARITY') } )
 				&& defined($parity) )
 			{
 				next if ( $l1c->{ _dbx('PARITY') } ne $parity );
-			} elsif (  !defined( $l1c->{ _dbx('PARITY') } )
+			} elsif ( !defined( $l1c->{ _dbx('PARITY') } )
 				&& !defined($parity) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (       defined( $l1c->{ _dbx('FLOW_CONTROL') } )
+			if (   defined( $l1c->{ _dbx('FLOW_CONTROL') } )
 				&& defined($flow) )
 			{
 				next
-				  if ( $l1c->{ _dbx('FLOW_CONTROL') } ne
-					$flow );
-			} elsif (  !defined( $l1c->{ _dbx('FLOW_CONTROL') } )
+				  if ( $l1c->{ _dbx('FLOW_CONTROL') } ne $flow );
+			} elsif ( !defined( $l1c->{ _dbx('FLOW_CONTROL') } )
 				&& !defined($flow) )
 			{
 				;
@@ -170,35 +164,19 @@ sub clear_same_physical_port_params {
 
 			if ( $l1c->{ _dbx('PHYSICAL_PORT1_ID') } == $pportid ) {
 				next
-				  if (
-					!$p2portid && defined(
-						$l1c->{
-							_dbx(
-'PHYSICAL_PORT2_ID'
-							)
-						}
-					)
-					|| $l1c->{ _dbx('PHYSICAL_PORT2_ID') }
-					!= $p2portid
-				  );
+				  if ( !$p2portid
+					&& defined( $l1c->{ _dbx( 'PHYSICAL_PORT2_ID' ) } )
+					|| $l1c->{ _dbx('PHYSICAL_PORT2_ID') } != $p2portid );
 			}
 			if ( $l1c->{ _dbx('PHYSICAL_PORT2_ID') } == $pportid ) {
 				next
-				  if (
-					!$p2portid && defined(
-						$l1c->{
-							_dxb(
-'PHYSICAL_PORT1_ID'
-							)
-						}
-					)
-					|| $l1c->{ _dbx('PHYSICAL_PORT1_ID') }
-					!= $p2portid
-				  );
+				  if ( !$p2portid
+					&& defined( $l1c->{ _dxb( 'PHYSICAL_PORT1_ID' ) } )
+					|| $l1c->{ _dbx('PHYSICAL_PORT1_ID') } != $p2portid );
 			}
 		}
 
-		$cgi->delete( "P1_PHYSICAL_PORT_ID__" . $pportid );  # umm, wtf?
+		$cgi->delete( "P1_PHYSICAL_PORT_ID__" . $pportid );    # umm, wtf?
 		$cgi->delete( "P1_PHYSICAL_PORT_ID_" . $pportid );
 		$cgi->delete( "P2_PHYSICAL_PORT_ID_" . $pportid );
 		$cgi->delete( "P2_DEVICE_ID_" . $pportid );
@@ -224,30 +202,28 @@ sub do_update_device {
 	my $site      = $stab->cgi_parse_param( 'SITE_CODE', $devid );
 	my $status    = $stab->cgi_parse_param( 'DEVICE_STATUS', $devid );
 	my $owner     = $stab->cgi_parse_param( 'OWNERSHIP_STATUS', $devid );
-	my $svcenv = $stab->cgi_parse_param( 'SERVICE_ENVIRONMENT_ID', $devid );
-	my $assettag = $stab->cgi_parse_param( 'ASSET_TAG', $devid );
-	my $osid     = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID', $devid );
-	my $voeid    = $stab->cgi_parse_param( 'VOE_ID', $devid );
+	my $svcenv    = $stab->cgi_parse_param( 'SERVICE_ENVIRONMENT_ID', $devid );
+	my $assettag  = $stab->cgi_parse_param( 'ASSET_TAG', $devid );
+	my $osid      = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID', $devid );
+	my $voeid     = $stab->cgi_parse_param( 'VOE_ID', $devid );
 	my $ismonitored = $stab->cgi_parse_param( 'chk_IS_MONITORED', $devid );
 	my $baselined   = $stab->cgi_parse_param( 'chk_IS_BASELINED', $devid );
 	my $parentid    = $stab->cgi_parse_param( 'PARENT_DEVICE_ID', $devid );
-	my $localmgd =
-	  $stab->cgi_parse_param( 'chk_IS_LOCALLY_MANAGED', $devid );
-	my $cfgfetch =
-	  $stab->cgi_parse_param( 'chk_SHOULD_FETCH_CONFIG', $devid );
-	my $virtdev = $stab->cgi_parse_param( 'chk_IS_VIRTUAL_DEVICE', $devid );
+	my $localmgd = $stab->cgi_parse_param( 'chk_IS_LOCALLY_MANAGED', $devid );
+	my $cfgfetch = $stab->cgi_parse_param( 'chk_SHOULD_FETCH_CONFIG', $devid );
+	my $virtdev  = $stab->cgi_parse_param( 'chk_IS_VIRTUAL_DEVICE', $devid );
 	my $mgmtprot = $stab->cgi_parse_param( 'AUTO_MGMT_PROTOCOL', $devid );
-	my $voetrax = $stab->cgi_parse_param( 'VOE_SYMBOLIC_TRACK_ID', $devid );
-	my $appgtab = $stab->cgi_parse_param( 'has_appgroup_tab',      $devid );
+	my $voetrax  = $stab->cgi_parse_param( 'VOE_SYMBOLIC_TRACK_ID', $devid );
+	my $appgtab  = $stab->cgi_parse_param( 'has_appgroup_tab', $devid );
 	my @appgroup = $stab->cgi_parse_param( 'appgroup', $devid );
 
-       #-print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
-       # print $cgi->header, $cgi->start_html,
-       # my @x = $cgi->param('appgroup_'.$devid);
-       # print $cgi->p("appgroup is ", $cgi->ul(@appgroup), "totally");
-       # print $cgi->pre($cgi->b($cgi->ul(@x)));
-       # print $cgi->b($cgi->self_url);
-       # print $cgi->Dump, $cgi->end_html; exit;
+	#-print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	# print $cgi->header, $cgi->start_html,
+	# my @x = $cgi->param('appgroup_'.$devid);
+	# print $cgi->p("appgroup is ", $cgi->ul(@appgroup), "totally");
+	# print $cgi->pre($cgi->b($cgi->ul(@x)));
+	# print $cgi->b($cgi->self_url);
+	# print $cgi->Dump, $cgi->end_html; exit;
 
 	#
 	# name is special
@@ -258,11 +234,9 @@ sub do_update_device {
 	my $serial_reset  = $stab->cgi_parse_param('chk_dev_port_reset');
 	my $retire_device = $stab->cgi_parse_param('chk_dev_retire');
 
-	my $resyncpower = $stab->cgi_parse_param( 'power_port_resync', $devid );
-	my $resyncserial =
-	  $stab->cgi_parse_param( 'serial_port_resync', $devid );
-	my $resyncswitch =
-	  $stab->cgi_parse_param( 'switch_port_resync', $devid );
+	my $resyncpower  = $stab->cgi_parse_param( 'power_port_resync',  $devid );
+	my $resyncserial = $stab->cgi_parse_param( 'serial_port_resync', $devid );
+	my $resyncswitch = $stab->cgi_parse_param( 'switch_port_resync', $devid );
 
 	if ($devname) {
 		$devname =~ s/^\s+//;
@@ -276,7 +250,7 @@ sub do_update_device {
 
 	if ( defined($devname) && !length($devname) ) {
 		$stab->error_return(
-"To remove a device (blank the name) you must retire on the Advanced Tab"
+			"To remove a device (blank the name) you must retire on the Advanced Tab"
 		);
 	}
 
@@ -287,8 +261,7 @@ sub do_update_device {
 	$baselined   = $stab->mk_chk_yn($baselined);
 
 	if ( !defined($devid) ) {
-		$stab->error_return(
-			"You must actually specify a device to update.");
+		$stab->error_return("You must actually specify a device to update.");
 	}
 
 	#
@@ -308,11 +281,10 @@ sub do_update_device {
 	#
 	if ( defined($devname) ) {
 		my $existingdev = $stab->get_dev_from_name($devname);
-		if (       $existingdev
+		if (   $existingdev
 			&& $existingdev->{ _dbx('DEVICE_ID') } != $devid )
 		{
-			$stab->error_return(
-				"A device by that name already exists.");
+			$stab->error_return("A device by that name already exists.");
 		}
 	} else {
 
@@ -360,8 +332,7 @@ sub do_update_device {
 
 	if ( $serial_reset && $retire_device ) {
 		$stab->error_return(
-"You may not both reset serial ports and retire the box."
-		);
+			"You may not both reset serial ports and retire the box." );
 	}
 
 	if ($retire_device) {
@@ -389,11 +360,23 @@ sub do_update_device {
 	my $assetid = $dbdevice->{ _dbx('ASSET_ID') };
 	if ($assetid) {
 		my $dbasset =
-		  $stab->get_asset_from_asset_id(
-			$dbdevice->{ _dbx('ASSET_ID') } );
+		  $stab->get_asset_from_asset_id( $dbdevice->{ _dbx('ASSET_ID') } );
 		if ( !$dbasset ) {
 			return $stab->error_return(
 				"Unable to obtain asset info.  Seek help");
+		}
+
+		if (   $serialno
+			&& $dbasset->{ _dbx('SERIAL_NUMBER') }
+			&& $dbasset->{ _dbx('SERIAL_NUMBER') } ne $serialno )
+		{
+			my $sernodev = $stab->get_dev_from_serial($serialno);
+			if (   $sernodev
+				&& $serialno ne 'Not-Applicable'
+				&& $serialno !~ m,^n/a$,i )
+			{
+				$stab->error_return("That serial number is in use.");
+			}
 		}
 
 		my $newasset = {
@@ -426,7 +409,8 @@ sub do_update_device {
 		DEVICE_ID      => $devid,
 		DEVICE_NAME    => $devname,
 		DEVICE_TYPE_ID => $devtypeid,
-		SERIAL_NUMBER  => $serialno,
+
+		#- SERIAL_NUMBER  => $serialno,
 		PART_NUMBER    => $partno,
 		PHYSICAL_LABEL => $physlabel,
 
@@ -453,21 +437,6 @@ sub do_update_device {
 
 	my $diffs = $stab->hash_table_diff( $dbdevice, _dbx($newdevice) );
 
-	if (       $serialno
-		&& $dbdevice->{ _dbx('SERIAL_NUMBER') }
-		&& $dbdevice->{ _dbx('SERIAL_NUMBER') } ne $serialno )
-	{
-		my $sernodev = $stab->get_dev_from_serial($serialno);
-		if (       $sernodev
-			&& $serialno ne 'Not-Applicable'
-			&& $serialno !~ m,^n/a$,i )
-		{
-			undef $sernodev;
-			$stab->error_return("That serial number is in use.");
-		}
-		undef $sernodev;
-	}
-
 	my $tally   += keys %$diffs;
 	$numchanges += $tally;
 
@@ -489,11 +458,8 @@ sub do_update_device {
 		$stab->msg_return("Nothing changed.  No updates submitted.");
 		exit;
 	}
-	if (
-		$tally
-		&& !$stab->run_update_from_hash(
-			"DEVICE", "DEVICE_ID", $devid, $diffs
-		)
+	if ( $tally
+		&& !$stab->run_update_from_hash( "DEVICE", "DEVICE_ID", $devid, $diffs )
 	  )
 	{
 		$stab->rollback;
@@ -649,16 +615,15 @@ sub update_location {
 
 	if ( defined($locid) && $locid < 0 ) {
 
-	       # this means the record needs to be deleted from the db, location
-	       # set to null for the device, $curloc set to null, and the new
-	       # location added as though it was never there.
-	       #
-	       # NOTE that this never gets called if rack id is not set, so its
-	       # not possible to change just the site code.  This probably needs
-	       # to be revisited, but so does the entire location code.
+		# this means the record needs to be deleted from the db, location
+		# set to null for the device, $curloc set to null, and the new
+		# location added as though it was never there.
+		#
+		# NOTE that this never gets called if rack id is not set, so its
+		# not possible to change just the site code.  This probably needs
+		# to be revisited, but so does the entire location code.
 		if ( !$stab->cleanup_bogus_location( $devid, $locid ) ) {
-			$stab->error_return(
-				'Location does not match Value set on Device');
+			$stab->error_return('Location does not match Value set on Device');
 		}
 		$curloc = undef;
 	}
@@ -740,12 +705,13 @@ sub configure_nb_if_ok {
 		{
 			return $oldblock;
 		} else {
+
 			# If the netblock is on a device, consider that bad.  Otherwise
 			# jut absorb the IP.  This allows devices to be added to DNS but
 			# later attached to devices.  Less than ideal, but at least its
 			# cleanup.
-			my $nbid = $newblock->{_dbx('NETBLOCK_ID')};
-			if( $stab->get_interface_from_netblock_id($nbid)) {
+			my $nbid = $newblock->{ _dbx('NETBLOCK_ID') };
+			if ( $stab->get_interface_from_netblock_id($nbid) ) {
 				return $stab->error_return("$ip is in use on a device");
 			}
 		}
@@ -841,7 +807,7 @@ sub delete_interface {
 
 	if ( my $tally = number_interface_kids( $stab, $netintid ) ) {
 		$stab->error_return(
-"You can not remove parent interfaces when they still have child interfaces. ($netintid, # $tally)"
+			"You can not remove parent interfaces when they still have child interfaces. ($netintid, # $tally)"
 		);
 	}
 
@@ -940,8 +906,7 @@ sub local_delete_netblock {
 		$sth->execute($nblkid) || $stab->return_db_err($sth);
 	} else {
 		$stab->rollback;
-		$stab->error_return(
-			"Delete Failed.  Unknown IP Address Disposition");
+		$stab->error_return("Delete Failed.  Unknown IP Address Disposition");
 	}
 }
 
@@ -1008,9 +973,9 @@ sub process_ip {
 		$dnsrec = get_dns_record_from_netblock_id( $stab, $oldnbid );
 	}
 
-       #
-       # This happens when there is no dns domain passed in from the form, such
-       # as when it was not edited.  In that case, we just use the existing one.
+	#
+	# This happens when there is no dns domain passed in from the form, such
+	# as when it was not edited.  In that case, we just use the existing one.
 	if ( !$dnsdomid && ref $dnsrec ) {
 		$dnsdomid = $dnsrec->{ _dbx('DNS_DOMAIN_ID') };
 		$dns      = $dnsrec->{ _dbx('DNS_NAME') };
@@ -1028,8 +993,7 @@ sub process_ip {
 		my $diff = $stab->hash_table_diff( $dnsrec, _dbx($new_dns) );
 		if ( defined($diff) ) {
 			$numchanges += keys %$diff;
-			$stab->run_update_from_hash( 'dns_record',
-				'dns_record_id',
+			$stab->run_update_from_hash( 'dns_record', 'dns_record_id',
 				$dnsrec->{ _dbx('DNS_RECORD_ID') }, $diff );
 		}
 	} elsif ( defined($dns) && defined($dnsdomid) ) {
@@ -1171,8 +1135,7 @@ sub update_physical_ports {
 	}
 
 	for my $pportid ( $stab->cgi_get_ids('P1_PHYSICAL_PORT_ID') ) {
-		$numchanges +=
-		  update_physical_port( $stab, $pportid, $serial_reset );
+		$numchanges += update_physical_port( $stab, $pportid, $serial_reset );
 	}
 	$numchanges;
 }
@@ -1180,9 +1143,8 @@ sub update_physical_ports {
 sub update_physical_port {
 	my ( $stab, $pportid, $serial_reset ) = @_;
 
-	my $p2devid = $stab->cgi_parse_param( 'P2_DEVICE_ID', $pportid );
-	my $p2portid =
-	  $stab->cgi_parse_param( 'P2_PHYSICAL_PORT_ID', $pportid );
+	my $p2devid  = $stab->cgi_parse_param( 'P2_DEVICE_ID',        $pportid );
+	my $p2portid = $stab->cgi_parse_param( 'P2_PHYSICAL_PORT_ID', $pportid );
 
 	#
 	# these are all set only on serial ports.
@@ -1195,9 +1157,8 @@ sub update_physical_port {
 	my $flow     = $stab->cgi_parse_param( 'FLOW_CONTROL',  $pportid );
 
 	if ($serparam) {
-		( $databits, $parity, $stopbits ) =
-		  serial_abbr_to_field($serparam);
-		if (       !defined($databits)
+		( $databits, $parity, $stopbits ) = serial_abbr_to_field($serparam);
+		if (   !defined($databits)
 			|| !defined($parity)
 			|| !defined($stopbits) )
 		{
@@ -1230,8 +1191,7 @@ sub update_physical_port {
 		# if there is a path, it should be destroyed.
 		#
 		if ($path) {
-			purge_physical_connection_by_physical_port_id( $stab,
-				$path );
+			purge_physical_connection_by_physical_port_id( $stab, $path );
 		}
 		return 1;
 	}
@@ -1239,8 +1199,7 @@ sub update_physical_port {
 	if ( !$p2portid ) {
 		my $cgi = $stab->cgi;
 		$stab->error_return(
-"You must specify the port on the other end's serial device."
-		);
+			"You must specify the port on the other end's serial device." );
 	}
 
 	#
@@ -1290,8 +1249,7 @@ sub update_physical_port {
 	#
 	if ($l1c) {
 		$numchanges +=
-		  attempt_path_cleanup( $stab, $l1c, $path, $pportid,
-			$p2portid );
+		  attempt_path_cleanup( $stab, $l1c, $path, $pportid, $p2portid );
 	}
 	$numchanges;
 }
@@ -1309,71 +1267,57 @@ sub attempt_path_cleanup {
 	return $numchanges if ( !$path );
 
 	if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } == $pportid ) {
-		if ( $path->[ $#{@$path} ]
-			->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } != $p2portid )
-		{
-			my $q = qq{
-				update	physical_connection
-				   set	physical_port2_id = ?
-				 where	physical_connection_id = ?
-			};
-			my $stab =
-			  $stab->prepare($q) || $stab->return_db_err($stab);
-			$stab->execute(
-				$p2portid,
-				$path->[ $#{@$path} ]
-				  ->{ _dbx('PHYSICAL_CONNECTION_ID') },
-			);
-		}
-	} elsif ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } == $p2portid )
-	{
-		if ( $path->[ $#{@$path} ]
-			->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } != $pportid )
-		{
-			my $q = qq{
-				update	physical_connection
-				   set	physical_port2_id = ?
-				 where	physical_connection_id = ?
-			};
-			my $stab =
-			  $stab->prepare($q) || $stab->return_db_err($stab);
-			$stab->execute( $pportid,
-				$path->[ $#{@$path} ]
-				  ->{ _dbx('PHYSICAL_CONNECTION_ID') } );
-		}
-	} elsif ( $path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } ==
-		$pportid )
-	{
-		if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } !=
+		if ( $path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } !=
 			$p2portid )
 		{
 			my $q = qq{
 				update	physical_connection
-				   set	physical_port1_id = ?
+				   set	physical_port2_id = ?
 				 where	physical_connection_id = ?
 			};
-			my $stab =
-			  $stab->prepare($q) || $stab->return_db_err($stab);
+			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
 			$stab->execute( $p2portid,
-				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') }
+				$path->[ $#{@$path} ]->{ _dbx('PHYSICAL_CONNECTION_ID') },
 			);
 		}
-	} elsif ( $path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } ==
-		$p2portid )
-	{
-		if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } !=
+	} elsif ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } == $p2portid ) {
+		if ( $path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } !=
 			$pportid )
 		{
+			my $q = qq{
+				update	physical_connection
+				   set	physical_port2_id = ?
+				 where	physical_connection_id = ?
+			};
+			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
+			$stab->execute( $pportid,
+				$path->[ $#{@$path} ]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
+		}
+	} elsif (
+		$path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } == $pportid )
+	{
+		if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } != $p2portid ) {
 			my $q = qq{
 				update	physical_connection
 				   set	physical_port1_id = ?
 				 where	physical_connection_id = ?
 			};
-			my $stab =
-			  $stab->prepare($q) || $stab->return_db_err($stab);
+			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
+			$stab->execute( $p2portid,
+				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
+		}
+	} elsif (
+		$path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } == $p2portid )
+	{
+		if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } != $pportid ) {
+			my $q = qq{
+				update	physical_connection
+				   set	physical_port1_id = ?
+				 where	physical_connection_id = ?
+			};
+			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
 			$stab->execute( $pportid,
-				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') }
-			);
+				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
 		}
 	} else {
 		$numchanges +=
@@ -1437,18 +1381,15 @@ sub update_physical_connection {
 		my $rowname = $list[$i];
 		my $magic   = $stab->cgi_parse_param("${short}_$rowname");
 		my $side    = ($backwards) ? 1 : 2;
-		my $devid =
-		  $stab->cgi_parse_param( "PC_P${side}_DEVICE_ID", $magic );
-		my $devnm =
-		  $stab->cgi_parse_param( "PC_P${side}_DEVICE_NAME", $magic );
+		my $devid   = $stab->cgi_parse_param( "PC_P${side}_DEVICE_ID", $magic );
+		my $devnm = $stab->cgi_parse_param( "PC_P${side}_DEVICE_NAME", $magic );
 		my $oport =
-		  $stab->cgi_parse_param( "PC_P${side}_PHYSICAL_PORT_ID",
-			$magic );
+		  $stab->cgi_parse_param( "PC_P${side}_PHYSICAL_PORT_ID", $magic );
 		my $rm    = $stab->cgi_parse_param( "rm_PC",      $magic );
 		my $cable = $stab->cgi_parse_param( "CABLE_TYPE", $magic );
 
-	    # excluding these because it makes reordering them  in the backwards
-	    # case much easier
+		# excluding these because it makes reordering them  in the backwards
+		# case much easier
 		my %stuff = (
 
 			#reference => $rowname,
@@ -1463,14 +1404,13 @@ sub update_physical_connection {
 
 		if ( !$cable ) {
 			$stab->error_return(
-"Must specify a cable type on Patch Panel Connections"
-			);
+				"Must specify a cable type on Patch Panel Connections" );
 		}
 
 		# the last one does not have a port end, just a cable...
 		if ( !$oport && $i != $#list ) {
 			$stab->error_return(
-"Must specify the other end of an undeleted leg in a Patch Panel Connection"
+				"Must specify the other end of an undeleted leg in a Patch Panel Connection"
 			);
 		}
 
@@ -1528,14 +1468,12 @@ sub update_physical_connection {
 				next;
 			}
 
-			if ( $path->[$i]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') }
-				!= $rhspp )
-			{
+			if ( $path->[$i]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } != $rhspp ) {
 				$needtofix++;
 			}
 
-			if ( $newpath[$i]->{'cable'} ne
-				$path->[$i]->{ _dbx('CABLE_TYPE') } )
+			if (
+				$newpath[$i]->{'cable'} ne $path->[$i]->{ _dbx('CABLE_TYPE') } )
 			{
 				$needtofix++;
 			}
@@ -1588,8 +1526,7 @@ sub update_physical_connection {
 			$tl1c->{ _dbx('LAYER1_CONNECTION_ID') } );
 		next if ( !$tpath );
 		$numchanges +=
-		  purge_physical_connection_by_physical_port_id( $stab,
-			$tpath );
+		  purge_physical_connection_by_physical_port_id( $stab, $tpath );
 	}
 
 	#
@@ -1626,17 +1563,17 @@ sub update_physical_connection {
 		}
 	}
 
-# print $cgi->header, $cgi->start_html;
-# print "l1c is $l1c, backwards is $backwards\n";
-# print "old path: ", $cgi->pre(Dumper($path));
-# print "new path: ", $cgi->pre(Dumper(@newpath));
-# my $xpath = $stab->get_physical_path_from_l1conn($l1c->{_dbx('LAYER1_CONNECTION_ID')});
-# print "new SET path: ", $cgi->pre(Dumper($xpath));
-# print "layer 1 conn: ", $cgi->pre(Dumper($l1c));
-# print $cgi->Dump;
-# print $cgi->end_html;
-# $stab->rollback;
-# exit 0;
+	# print $cgi->header, $cgi->start_html;
+	# print "l1c is $l1c, backwards is $backwards\n";
+	# print "old path: ", $cgi->pre(Dumper($path));
+	# print "new path: ", $cgi->pre(Dumper(@newpath));
+	# my $xpath = $stab->get_physical_path_from_l1conn($l1c->{_dbx('LAYER1_CONNECTION_ID')});
+	# print "new SET path: ", $cgi->pre(Dumper($xpath));
+	# print "layer 1 conn: ", $cgi->pre(Dumper($l1c));
+	# print $cgi->Dump;
+	# print $cgi->end_html;
+	# $stab->rollback;
+	# exit 0;
 
 	#
 	# NOTE:  need to check to see if port on the other end of the layer1
@@ -1699,16 +1636,13 @@ sub update_all_interfaces {
 	my (@rmids);
 	$sth->execute($devid) || $stab->return_db_err($sth);
 	while ( my ($netintid) = $sth->fetchrow_array ) {
-		my $p =
-		  $stab->cgi_parse_param( 'NETWORK_INTERFACE_ID', $netintid );
+		my $p = $stab->cgi_parse_param( 'NETWORK_INTERFACE_ID', $netintid );
 
 		if ($p) {    # also look at chk_RM_NET_INT_PRESERVEIPS
 			my $rmint =
-			  $stab->cgi_parse_param( 'chk_RM_NETWORK_INTERFACE',
-				$netintid );
+			  $stab->cgi_parse_param( 'chk_RM_NETWORK_INTERFACE', $netintid );
 			if ( !defined($rmint) ) {
-				$numchanges +=
-				  update_interface( $stab, $devid, $netintid );
+				$numchanges += update_interface( $stab, $devid, $netintid );
 			} else {
 				push( @rmids, $netintid );
 			}
@@ -1719,11 +1653,9 @@ sub update_all_interfaces {
 	# process all the deletions
 	foreach my $netintid (@rmids) {
 		my $delit =
-		  $stab->cgi_parse_param( 'chk_RM_NETWORK_INTERFACE',
-			$netintid );
+		  $stab->cgi_parse_param( 'chk_RM_NETWORK_INTERFACE', $netintid );
 		my $preserveip =
-		  $stab->cgi_parse_param( 'chk_RM_NET_INT_PRESERVEIPS',
-			$netintid );
+		  $stab->cgi_parse_param( 'chk_RM_NET_INT_PRESERVEIPS', $netintid );
 
 		if ($delit) {
 			if ( defined($preserveip) ) {
@@ -1742,21 +1674,18 @@ sub update_interface {
 	my ( $stab, $devid, $netintid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $intname =
-	  $stab->cgi_parse_param( 'NETWORK_INTERFACE_NAME', $netintid );
-	my $macaddr  = $stab->cgi_parse_param( 'MAC_ADDR',      $netintid );
-	my $dns      = $stab->cgi_parse_param( 'DNS_NAME',      $netintid );
+	my $intname = $stab->cgi_parse_param( 'NETWORK_INTERFACE_NAME', $netintid );
+	my $macaddr = $stab->cgi_parse_param( 'MAC_ADDR',               $netintid );
+	my $dns     = $stab->cgi_parse_param( 'DNS_NAME',               $netintid );
 	my $dnsdomid = $stab->cgi_parse_param( 'DNS_DOMAIN_ID', $netintid );
 	my $desc     = $stab->cgi_parse_param( 'DESCRIPTION',   $netintid );
 	my $ip       = $stab->cgi_parse_param( 'IP',            $netintid );
-	my $nitype =
-	  $stab->cgi_parse_param( 'NETWORK_INTERFACE_TYPE', $netintid );
-	my $isintup =
-	  $stab->cgi_parse_param( 'chk_IS_INTERFACE_UP', $netintid );
-	my $isnatint = $stab->cgi_parse_param( 'chk_PROVIDES_NAT',  $netintid );
-	my $shldmng  = $stab->cgi_parse_param( 'chk_SHOULD_MANAGE', $netintid );
-	my $shldmon = $stab->cgi_parse_param( 'chk_SHOULD_MONITOR', $netintid );
-	my $dhcp    = $stab->cgi_parse_param( 'chk_PROVIDES_DHCP',  $netintid );
+	my $nitype  = $stab->cgi_parse_param( 'NETWORK_INTERFACE_TYPE', $netintid );
+	my $isintup = $stab->cgi_parse_param( 'chk_IS_INTERFACE_UP',    $netintid );
+	my $isnatint = $stab->cgi_parse_param( 'chk_PROVIDES_NAT',   $netintid );
+	my $shldmng  = $stab->cgi_parse_param( 'chk_SHOULD_MANAGE',  $netintid );
+	my $shldmon  = $stab->cgi_parse_param( 'chk_SHOULD_MONITOR', $netintid );
+	my $dhcp     = $stab->cgi_parse_param( 'chk_PROVIDES_DHCP',  $netintid );
 
 	$isintup  = $stab->mk_chk_yn($isintup);
 	$shldmng  = $stab->mk_chk_yn($shldmng);
@@ -1850,8 +1779,7 @@ sub update_interface {
 	my $newppid = $old_int->{ _dbx('PHYSICAL_PORT_ID') };
 	if ( $old_int->{ _dbx('NETWORK_INTERFACE_NAME') } ne $intname ) {
 		$newppid =
-		  rename_physical_port( $stab,
-			$old_int->{ _dbx('PHYSICAL_PORT_ID') },
+		  rename_physical_port( $stab, $old_int->{ _dbx('PHYSICAL_PORT_ID') },
 			$intname, $devid );
 		$numchanges++;
 	}
@@ -1861,7 +1789,7 @@ sub update_interface {
 	# something else, then delete the parent/child relationship
 	#
 	my $newparent = $old_int->{ _dbx('PARENT_NETWORK_INTERFACE_ID') };
-	if (       $old_int->{ _dbx('NETWORK_INTERFACE_TYPE') } ne $nitype
+	if (   $old_int->{ _dbx('NETWORK_INTERFACE_TYPE') } ne $nitype
 		&& $nitype ne 'virtual' )
 	{
 		if ($newparent) {
@@ -1873,8 +1801,7 @@ sub update_interface {
 	# now go and update the netblock itself.
 	#
 	my $new_int = {
-		NETWORK_INTERFACE_ID =>
-		  $old_int->{ _dbx('NETWORK_INTERFACE_ID') },
+		NETWORK_INTERFACE_ID   => $old_int->{ _dbx('NETWORK_INTERFACE_ID') },
 		NETWORK_INTERFACE_NAME => $intname,
 		NETWORK_INTERFACE_TYPE => $nitype,
 		IS_INTERFACE_UP        => $isintup,
@@ -1894,8 +1821,7 @@ sub update_interface {
 
 	my $diff = $stab->hash_table_diff( $old_int, _dbx($new_int) );
 	$numchanges += keys %$diff;
-	$stab->run_update_from_hash( 'network_interface',
-		'network_interface_id',
+	$stab->run_update_from_hash( 'network_interface', 'network_interface_id',
 		$old_int->{ _dbx('NETWORK_INTERFACE_ID') }, $diff );
 
 	#
@@ -1910,43 +1836,50 @@ sub update_interface {
 		}
 	}
 
-	$numchanges += manipulate_network_interface_purpose($stab, $netintid, $devid);
+	$numchanges +=
+	  manipulate_network_interface_purpose( $stab, $netintid, $devid );
 
 	$numchanges;
 }
 
 sub manipulate_network_interface_purpose {
-	my ($stab, $netintid, $devid) = @_;
+	my ( $stab, $netintid, $devid ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my @newpurp = $cgi->param('NETWORK_INTERFACE_PURPOSE_'.$netintid);
+	my @newpurp = $cgi->param( 'NETWORK_INTERFACE_PURPOSE_' . $netintid );
 
 	my $oldpurp = $stab->get_network_int_purpose($netintid);
 
-	my $rmsth = $stab->prepare(qq{
+	my $rmsth = $stab->prepare(
+		qq{
 		delete from network_interface_purpose
 		where	network_interface_id = ?
 		and		network_interface_purpose = ?
-	}) || return $stab->return_db_err;
+	}
+	) || return $stab->return_db_err;
 
-	my $addsth = $stab->prepare(qq{
+	my $addsth = $stab->prepare(
+		qq{
 		INSERT INTO network_interface_purpose (
 			device_id, network_interface_id, network_interface_purpose
 		) VALUES (
 			?, ?, ?
 		);
-	}) || return $stab->return_db_err;
+	}
+	) || return $stab->return_db_err;
 
 	my $numchanges = 0;
-	foreach my $purp (@{$oldpurp}) {
-		if( ! grep($_ eq $purp, @newpurp)) {
-			$numchanges += $rmsth->execute($netintid, $purp) || return $stab->return_db_err();
+	foreach my $purp ( @{$oldpurp} ) {
+		if ( !grep( $_ eq $purp, @newpurp ) ) {
+			$numchanges += $rmsth->execute( $netintid, $purp )
+			  || return $stab->return_db_err();
 		}
 	}
 
 	foreach my $purp (@newpurp) {
-		if( ! grep($_ eq $purp, @${oldpurp})) {
-			$numchanges += $addsth->execute($devid, $netintid, $purp) || return $stab->return_db_err();
+		if ( !grep( $_ eq $purp, @${oldpurp} ) ) {
+			$numchanges += $addsth->execute( $devid, $netintid, $purp )
+			  || return $stab->return_db_err();
 		}
 	}
 	$numchanges;
@@ -1955,8 +1888,7 @@ sub manipulate_network_interface_purpose {
 sub rename_physical_port {
 	my ( $stab, $id, $newname, $devid ) = @_;
 
-	my $newpp =
-	  $stab->get_physical_port_byport( $devid, $newname, 'network' );
+	my $newpp = $stab->get_physical_port_byport( $devid, $newname, 'network' );
 	if ($newpp) {
 		return $newpp->{ _dbx('PHYSICAL_PORT_ID') };
 	}
@@ -2008,34 +1940,30 @@ sub process_licenses {
 
 	for my $dcid ( $stab->cgi_get_ids('rm_Lic_DEVICE_COLLECTION') ) {
 
-      # my $checked	= $stab->cgi_parse_param("rm_Lic_DEVICE_COLLECTION", $dcid);
+		# my $checked	= $stab->cgi_parse_param("rm_Lic_DEVICE_COLLECTION", $dcid);
 		if ( $dcid !~ /^\d+$/ || !grep( $dcid == $_, @existingdc ) ) {
 
-# $stab->error_return("Device Collection ($dcid) is not assigned to this node.");
+			# $stab->error_return("Device Collection ($dcid) is not assigned to this node.");
 			next;
 		}
 		my $dc = $stab->get_device_collection($dcid);
 		if ( $dc->{ _dbx('DEVICE_COLLECTION_TYPE') } ne 'applicense' ) {
-			$stab->error_return(
-				"Invalid attempt to remove a non-license");
+			$stab->error_return("Invalid attempt to remove a non-license");
 		}
 		$numchanges +=
-		  $stab->remove_from_device_collection( $devid, $dcid,
-			'applicense' );
+		  $stab->remove_from_device_collection( $devid, $dcid, 'applicense' );
 	}
 
 	for my $offset ( $stab->cgi_get_ids("add_license_$devid") ) {
-		my $dcid =
-		  $stab->cgi_parse_param( "add_license_$devid", $offset );
+		my $dcid = $stab->cgi_parse_param( "add_license_$devid", $offset );
 		if ( $dcid !~ /^\d+$/ || grep( $dcid == $_, @existingdc ) ) {
 
-# $stab->error_return("Device Collection ($dcid) is already assigned to this node.");
+			# $stab->error_return("Device Collection ($dcid) is already assigned to this node.");
 			next;
 		}
 		my $dc = $stab->get_device_collection($dcid);
 		if ( $dc->{ _dbx('DEVICE_COLLECTION_TYPE') } ne 'applicense' ) {
-			$stab->error_return(
-				"Invalid attempt to remove a non-license");
+			$stab->error_return("Invalid attempt to remove a non-license");
 		}
 		$numchanges += $stab->add_to_device_collection( $devid, $dcid );
 	}
@@ -2060,10 +1988,8 @@ sub process_interfaces {
 		$numchanges += $stab->rm_static_route_from_device($srtid);
 	}
 
-	for my $srtid ( $stab->cgi_get_ids('chk_ADD_STATIC_ROUTE_TEMPLATE_ID') )
-	{
-		$numchanges +=
-		  $stab->add_static_route_from_template( $devid, $srtid );
+	for my $srtid ( $stab->cgi_get_ids('chk_ADD_STATIC_ROUTE_TEMPLATE_ID') ) {
+		$numchanges += $stab->add_static_route_from_template( $devid, $srtid );
 	}
 
 	#
@@ -2071,10 +1997,9 @@ sub process_interfaces {
 	#
 	foreach my $id ( $stab->cgi_get_ids('STATIC_ROUTE_ID') ) {
 		next if ( grep( $_ eq $id, @gone ) );
-		my $srcip = $stab->cgi_parse_param( 'ROUTE_SRC_IP', $id );
-		my $srcbits =
-		  $stab->cgi_parse_param( 'ROUTE_SRC_MASKLEN', $id );
-		my $destip = $stab->cgi_parse_param( 'ROUTE_DEST_IP', $id );
+		my $srcip   = $stab->cgi_parse_param( 'ROUTE_SRC_IP',      $id );
+		my $srcbits = $stab->cgi_parse_param( 'ROUTE_SRC_MASKLEN', $id );
+		my $destip  = $stab->cgi_parse_param( 'ROUTE_DEST_IP',     $id );
 
 		if ( $srcip && $srcip =~ /^default$/i ) {
 			$srcip = '0.0.0.0';
@@ -2087,7 +2012,7 @@ sub process_interfaces {
 
 		if ( !$nb && !$ni ) {
 			$stab->error_return(
-"Unable to look up existing entry for $srcip->$srcbits $destip update"
+				"Unable to look up existing entry for $srcip->$srcbits $destip update"
 			);
 		}
 
@@ -2105,14 +2030,9 @@ sub process_interfaces {
 		if ( $ni->{ _dbx('NETWORK_INTERFACE_ID') } !=
 			$dbsr->{ _dbx('NETWORK_INTERFACE_DST_ID') } )
 		{
-			if (
-				!$stab->check_ip_on_local_nets(
-					$devid, $destip
-				)
-			  )
-			{
+			if ( !$stab->check_ip_on_local_nets( $devid, $destip ) ) {
 				$stab->error_return(
-"$destip for static route is not reachable from an interface on this device."
+					"$destip for static route is not reachable from an interface on this device."
 				);
 			}
 			if (
@@ -2124,17 +2044,16 @@ sub process_interfaces {
 			  )
 			{
 				$stab->error_return(
-"Static Route $srcip/$srcbits->$destip is already on device"
+					"Static Route $srcip/$srcbits->$destip is already on device"
 				);
 			}
 		}
 
 		my $newsr = {
-			STATIC_ROUTE_ID => $id,
-			DEVICE_SRC_ID   => $devid,
-			NETWORK_INTERFACE_DST_ID =>
-			  $ni->{ _dbx('NETWORK_INTERFACE_ID') },
-			NETBLOCK_ID => $nb->{ _dbx('NETBLOCK_ID') },
+			STATIC_ROUTE_ID          => $id,
+			DEVICE_SRC_ID            => $devid,
+			NETWORK_INTERFACE_DST_ID => $ni->{ _dbx('NETWORK_INTERFACE_ID') },
+			NETBLOCK_ID              => $nb->{ _dbx('NETBLOCK_ID') },
 		};
 
 		my $diffs = $stab->hash_table_diff( $dbsr, _dbx($newsr) );
@@ -2145,8 +2064,7 @@ sub process_interfaces {
 		if (
 			$tally
 			&& !$stab->run_update_from_hash(
-				'STATIC_ROUTE', 'STATIC_ROUTE_ID',
-				$id,            $diffs
+				'STATIC_ROUTE', 'STATIC_ROUTE_ID', $id, $diffs
 			)
 		  )
 		{
@@ -2168,13 +2086,12 @@ sub process_interfaces {
 	}
 
 	# exits with an error if it does not validate
-	my ( $ni, $nb ) =
-	  $stab->validate_route_entry( $srcip, $srcbits, $destip );
+	my ( $ni, $nb ) = $stab->validate_route_entry( $srcip, $srcbits, $destip );
 
 	if ( $nb && $ni ) {
 		if ( !$stab->check_ip_on_local_nets( $devid, $destip ) ) {
 			$stab->error_return(
-"$destip for static route is not reachable from an interface on this device."
+				"$destip for static route is not reachable from an interface on this device."
 			);
 		}
 
@@ -2187,8 +2104,7 @@ sub process_interfaces {
 		  )
 		{
 			$stab->error_return(
-"Static Route $srcip/$srcbits->$destip is already on device"
-			);
+				"Static Route $srcip/$srcbits->$destip is already on device" );
 		}
 
 		my $sth = $stab->prepare(
@@ -2278,8 +2194,7 @@ sub add_interfaces {
 		#
 		$dnsdomid = $stab->guess_dns_domain_from_devid($device);
 		if ( !defined($dnsdomid) ) {
-			$stab->error_return(
-				"You must set a DNS domain with a DNS name");
+			$stab->error_return("You must set a DNS domain with a DNS name");
 		}
 	}
 
@@ -2298,12 +2213,11 @@ sub add_interfaces {
 	my $oldpris  = 0;
 	my $oldmgmts = 0;
 	if ( $ispriint eq 'Y' ) {
-		$oldpris =
-		  switch_all_ni_prop_to_n( $stab, $devid, 'IS_PRIMARY' );
+		$oldpris = switch_all_ni_prop_to_n( $stab, $devid, 'IS_PRIMARY' );
 	}
 	if ( $ismgmtip eq 'Y' ) {
-		$oldmgmts = switch_all_ni_prop_to_n( $stab, $devid,
-			'IS_MANAGEMENT_INTERFACE' );
+		$oldmgmts =
+		  switch_all_ni_prop_to_n( $stab, $devid, 'IS_MANAGEMENT_INTERFACE' );
 	}
 
 	#
@@ -2476,8 +2390,7 @@ sub delete_device_connections {
 			  $stab->get_physical_path_from_l1conn(
 				$l1c->{ _dbx('LAYER1_CONNECTION_ID') } );
 			if ($path) {
-				purge_physical_connection_by_physical_port_id(
-					$stab, $path );
+				purge_physical_connection_by_physical_port_id( $stab, $path );
 			}
 		}
 		$sth1->execute( $portid, $portid )
