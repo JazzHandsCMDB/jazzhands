@@ -505,6 +505,16 @@ insert into val_property (
 	'ALLOWED', 'REQUIRED'
 );
 
+insert into val_property (
+	property_name, property_type, property_data_type,
+	description,
+	permit_account_collection_id, permit_device_collection_id
+) VALUES (
+	'AuthorizePasswordlessAccess', 'HOTPants', 'boolean',
+	'Authorize via radius without a password',
+	'ALLOWED', 'REQUIRED'
+);
+
 INSERT INTO val_property (
 	property_name, property_type, property_data_type,
 	description,
