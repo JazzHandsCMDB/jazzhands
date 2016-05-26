@@ -6,5 +6,6 @@ begin;
 \i data.sql
 \i jazzhands-db.sql
 \i stab.sql
+\i obs-frontend.sql
 
 commit;
