@@ -82,7 +82,7 @@ WITH swpkg AS (
 	INSERT INTO service_property (
 		service_property_name, service_property_type, 
 			value_sw_package_id
-	) SELECT 'log_watcher', 'role', sw_package_id
+	) SELECT 'software', 'pkg', sw_package_id
 	FROM swpkg
 	RETURNING *
 ), svcprop AS ( 
