@@ -24,7 +24,19 @@ package JazzHands::TokenDB;
 use strict;
 use warnings;
 
-use MIME::Base32 qw(rfc);
+BEGIN {
+	eval {
+		# use MIME::Base32 qw(RFC);
+		use MIME::Base32;
+		local $SIG{__WARN__} = sub { };
+		MIME::Base32->import( qw(RFC) );
+	};
+	if ($@) {
+		# >= 1.3
+		use MIME::Base32;
+	}
+	
+}
 use MIME::Base64;
 use Digest::SHA qw(sha256);
 use Crypt::CBC qw(random_bytes);
