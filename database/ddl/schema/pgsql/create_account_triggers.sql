@@ -203,6 +203,41 @@ BEFORE INSERT OR UPDATE of ACCOUNT_ID
 -------------------------------------------------------------------------------
 
 /*
+ * Deal with propagating person status down to accounts, if appropriate
+ *
+ * XXX - this needs to be reimplemented in oracle
+ */
+CREATE OR REPLACE FUNCTION unrequire_password_change()
+	RETURNS TRIGGER AS $$
+BEGIN
+	DELETE FROM account_collection_account
+	WHERE (account_collection_id, account_id)
+	IN (
+		SELECT	a.account_collection_id, a.account_id
+		FROM	v_acct_coll_acct_expanded a
+				JOIN account_collection USING (account_collection_id)
+				JOIN property USING (account_collection_id)
+		WHERE	property_type = 'UserMgmt'
+		AND		property_name = 'NeedsPasswdChange'
+		AND	 	account_id = NEW.account_id
+	);
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_unrequire_password_change
+	ON account_password;
+CREATE TRIGGER trigger_unrequire_password_change
+BEFORE INSERT OR UPDATE of PASSWORD
+	ON account_password
+	FOR EACH ROW EXECUTE PROCEDURE unrequire_password_change();
+
+
+-------------------------------------------------------------------------------
+
+/*
  * Enforce that is_enabled should match whatever val_person_status has for it.
  *
  * XXX - this needs to be reimplemented in oracle
