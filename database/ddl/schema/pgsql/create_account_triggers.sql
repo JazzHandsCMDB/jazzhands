@@ -215,11 +215,11 @@ BEGIN
 	IN (
 		SELECT	a.account_collection_id, a.account_id
 		FROM	v_acct_coll_acct_expanded a
-				JOIN account_collection USING (account_collection_id)
-				JOIN property USING (account_collection_id)
-		WHERE	property_type = 'UserMgmt'
-		AND		property_name = 'NeedsPasswdChange'
-		AND	 	account_id = NEW.account_id
+				JOIN account_collection ac USING (account_collection_id)
+				JOIN property p USING (account_collection_id)
+		WHERE	p.property_type = 'UserMgmt'
+		AND		p.property_name = 'NeedsPasswdChange'
+		AND	 	a.account_id = NEW.account_id
 	);
 	RETURN NEW;
 END;
