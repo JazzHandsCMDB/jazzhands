@@ -23,7 +23,11 @@ use Data::Dumper;
 use Getopt::Long;
 use JSON::PP;
 use Pod::Usage;
+use IO::Select;
 use FileHandle;
+use File::Spec;
+use Carp qw(cluck);
+use Sys::Syslog qw(:standard :macros);
 
 #use Carp;
 #
@@ -37,6 +41,7 @@ use warnings;
 use JazzHands::Common qw(:all);
 use Data::Dumper;
 use Carp;
+use Sys::Syslog qw(:standard :macros);
 
 use parent 'JazzHands::Common';
 
@@ -83,13 +88,16 @@ sub new {
 
 sub DESTROY {
 	my $self = shift @_;
+	my $ac = $self->{_dbh}->{AutoCommit};
 
-	$self->rollback;
+	$self->rollback if(!$ac);
 	$self->disconnect;
 }
 
-sub fetch_table($$$) {
-	my ( $self, $table, $pk ) = @_;
+sub fetch_table($$$;$) {
+	my ( $self, $table, $pk, $limit ) = @_;
+
+	my ($limitkey, $limitval) = split(/=/, $limit, 2) if($limit);
 
 	my $dbh = $self->DBHandle();
 
@@ -104,13 +112,22 @@ sub fetch_table($$$) {
 		$pkstr = $pk;
 	}
 
+	my $where = "";
+	if($limit) {
+			$where ="\n\tWHERE $limitkey = :$limitkey";
+	}
+
 	my $sth = $dbh->prepare_cached(
 		qq{
 		SELECT	*
-		FROM	$table
+		FROM	$table $where
 		ORDER BY $pkstr
 	}
 	) || die dbh->errstr;
+
+	if($limit) {
+		$sth->bind_param(':'.$limitkey, $limitval) || die $sth->{Statement}, $sth->errstr;
+	}
 
 	$sth->execute || die $sth->{Statement}, ":", $sth->errstr;
 
@@ -169,13 +186,13 @@ sub get_cols {
 
 	my (@rv);
 	foreach my $schema ( $self->get_search_path() ) {
-		my $sth = $dbh->column_info( undef, $schema, $table, '%' )
+		my $sth = $dbh->column_info( undef, $schema, $table, undef )
 		  || die $dbh->errstr;
 
 		my $found;
 		while ( my $hr = $sth->fetchrow_hashref() ) {
 			next if ( $hr->{'TABLE_NAME'} ne $table );
-			$found = 1;
+			$found++;
 			push(
 				@rv,
 				{
@@ -199,6 +216,8 @@ sub get_search_path($) {
 		$sth->execute || die $sth->errstr;
 		while ( my ($e) = $sth->fetchrow_array ) {
 			foreach my $s ( split( /,/, $e ) ) {
+				$s =~ s/^\s*//;
+				$s =~ s/\s$//;
 				push( @search, $s );
 			}
 		}
@@ -232,13 +251,12 @@ sub get_primary_key {
 sub table_identical {
 	my ( $self, $fromh, $table ) = @_;
 
-	my $up   = $self->DBHandle();
-	my $down = $fromh->DBHandle();
+	my $down = $self->DBHandle();
+	my $up   = $fromh->DBHandle();
 
-	my $sth = $down->table_info( undef, 'main', $table );
+	my @dncols = $self->get_cols($table);
+	my @upcols = $fromh->get_cols($table);
 
-	my @upcols = $self->get_cols($table);
-	my @dncols = $fromh->get_cols($table);
 
 	if ( $#upcols != $#dncols ) {
 		return 0;
@@ -247,7 +265,7 @@ sub table_identical {
 	for ( my $i = 0 ; $i < $#upcols ; $i++ ) {
 		if ( $upcols[$i]->{'colname'} ne $dncols[$i]->{'colname'} ) {
 			$self->_Debug(
-				4,
+				1,
 				"colname mismatch on ",
 				Dumper( $upcols[$i], $dncols[$i] )
 			);
@@ -255,7 +273,7 @@ sub table_identical {
 		}
 		if ( $upcols[$i]->{'coltype'} ne $dncols[$i]->{'coltype'} ) {
 			$self->_Debug(
-				4,
+				1,
 				"coltype mismatch on ",
 				Dumper( $upcols[$i], $dncols[$i] )
 			);
@@ -323,7 +341,9 @@ sub mktable {
 # $pk is only needed if it can not be discerned (such as views)
 #
 sub copy_table($$$;$) {
-	my ( $self, $fromh, $table, $tbcfg ) = @_;
+	my ( $self, $fromh, $table, $tbcfg, $limit ) = @_;
+
+	my ($limitkey, $limitval) = split(/=/, $limit, 2) if($limit);
 
 	# my $down = $self->DBHandle();
 	# my $up = $fromh->DBHandle();
@@ -333,7 +353,7 @@ sub copy_table($$$;$) {
 		$pk = $tbcfg->{pk};
 	}
 
-	$self->_Debug( 2, "Copying table %s", $table );
+	$self->_Debug( 1, "Copying table %s", $table );
 	#
 	# Arguably, this can all be smarter about transactions, since the
 	# current approach blocks the db for the entire sync cycle on
@@ -353,11 +373,17 @@ sub copy_table($$$;$) {
 		$pk = \@pk;
 	}
 
+	if($limitkey && ! grep($_ eq $limitkey, @{$pk})) {
+		$self->_Debug(3, "Skipping $table due to missing $limitkey");
+		return;
+		
+	}
+
 	#
 	# needs to handle multi-column pks
 	#
-	my $fromt = $fromh->fetch_table( $table, $pk );
-	my $downt = $self->fetch_table( $table, $pk );
+	my $fromt = $fromh->fetch_table( $table, $pk, $limit );
+	my $downt = $self->fetch_table( $table, $pk, $limit );
 
 	#
 	# go through everything upstream and make sure everything downstream is there
@@ -490,6 +516,10 @@ sub copy_table($$$;$) {
 	}
 	$self->_Debug( 1, "\tStats: %d inserted; %d updated; %d deleted",
 		$ins, $upd, $del );
+	# Only log when things change
+	if($ins || $upd || $del) {
+		syslog(LOG_INFO, "$table: %d ins/%d upd/%d del", $ins, $upd, $del);
+	}
 
 }
 
@@ -497,14 +527,15 @@ sub sync_dbs {
 	my $self     = shift @_;
 	my $config   = shift @_;
 	my $upstream = shift @_;
+	my $key = shift @_;
 
 	my @tables = @_;
 
 	my $tablemap = $config->{tablemap};
 	foreach my $table ( sort keys( %{$tablemap} ) ) {
 		next if ( @tables && !grep( $_ eq $table, @tables ) );
-		$self->_Debug( 1, "Synchronizing table %s", $table );
-		$self->copy_table( $upstream, $table, $tablemap->{$table} );
+		$self->_Debug( 4, "Synchronizing table %s", $table );
+		$self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
 	}
 
 	if ( $config->{postsyn} ) {
@@ -614,9 +645,14 @@ Todd Kover
 
 package main;
 
-my ( $daemonize, $loop, $cfgname, $debug );
+if(my $bn = (File::Spec->splitpath($0))[2]) {
+	openlog($bn, 'pid', LOG_DAEMON);
+}
 
-$daemonize = 1;
+my ( $daemonize, $loop, $cfgname, $debug, @listen );
+
+# default to not loop
+$loop = 0;
 
 GetOptions(
 	"config=s"   => \$cfgname,
@@ -624,6 +660,28 @@ GetOptions(
 	"loop=i"     => \$loop,
 	"debug+"     => \$debug,
 ) || die pod2usage();
+
+#
+# if running one named after the script, then try to use that.  This assumes
+# that it should not be invoked a daemon unless explicitly said.
+#
+if( !$cfgname) {
+	my $bn = (File::Spec->splitpath($0))[2];
+	if(-r "/etc/jazzhands/dbsyncer/${bn}") {
+		$cfgname = "/etc/jazzhands/dbsyncer/${bn}";
+	} elsif(-r "/etc/jazzhands/dbsyncer/${bn}.json") {
+		$cfgname = "/etc/jazzhands/dbsyncer/${bn}.json";
+	}
+	if($cfgname)  {
+		if(!defined($daemonize)) {
+			$daemonize = 0;
+		}
+	}
+} else {
+	if(!defined($daemonize)) {
+		$daemonize = 1;
+	}
+}
 
 die "Must specify config option\n" if ( !$cfgname );
 
@@ -637,10 +695,12 @@ my $down = new DBThing( service => $config->{to} )   || die $DBThing::errstr;
 
 $up->disconnect;
 
-if ( !defined($debug) && $daemonize ) {
-	$debug = 0;
-} else {
-	$debug = 1;
+if ( !defined($debug) ) {
+	if ($daemonize) {
+		$debug = 0;
+	} else {
+		$debug = 1;
+	}
 }
 $down->SetDebug($debug);
 
@@ -651,11 +711,78 @@ if ($daemonize) {
 
 }
 
+if(exists($config->{pglisten}) && scalar(@{$config->{pglisten}})) {
+	@listen = @{$config->{pglisten}};
+}
+
 $up = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
+$up->SetDebug($debug);
+
+$up->{_dbh}->{AutoCommit} = 1;
+
+#
+# steup pgnotifies, if applicable
+#
+
+my $upsock;
+if(scalar @listen) {
+	$upsock = $up->{_dbh}->{pg_socket};
+}
+
+my $s = IO::Select->new();
+if($loop && $upsock) {
+	$s->add($upsock);
+}
+
+
 
 do {
-	$down->sync_dbs( $config, $up, @ARGV );
+	my $lastcheck = time();
+	$up->{_dbh}->{AutoCommit} = 0;
+	$down->sync_dbs( $config, $up, undef, @ARGV );
 	$down->commit || die $down->errstr;
 	$up->commit   || die $up->errstr;
-	sleep($loop) if ($loop);
+	$up->{_dbh}->{AutoCommit} = 1;
+
+	if(scalar @listen) {
+		foreach my $notif (@listen) {
+			$up->{_dbh}->do("LISTEN $notif");
+		}
+	}
+
+	my $sleeptime = $lastcheck - time() + $loop;
+
+	while($sleeptime > 0) {
+		my %n;
+		$up->_Debug(4, "++ sleeping %d", $sleeptime);
+		my @ready = $s->can_read($sleeptime);
+		$up->_Debug(4, "++ Wake %d", scalar @ready);
+		foreach my $fh (@ready) {
+			if($fh == $upsock) {
+				my %n;
+				while(my $notif = $up->{_dbh}->pg_notifies) {
+					my($name, $pid, $payload) = @{$notif};
+					$n{$payload}++;
+				}
+				$up->{_dbh}->{AutoCommit} = 0;
+				foreach my $pend (keys (%n) ) {
+					$up->_Debug(1, "Processing %s:%d ", $pend, $n{$pend});
+					$down->sync_dbs( $config, $up, $pend, @ARGV );
+				}
+				$down->commit || die $down->errstr;
+				$up->commit   || die $up->errstr;
+				$up->{_dbh}->{AutoCommit} = 1;
+			}
+		}
+		foreach my $notif (@listen) {
+			$up->{_dbh}->do("LISTEN $notif");
+		}
+		$sleeptime = $lastcheck - time() + $loop;
+	}
 } while ($loop);
+
+exit 0;
+
+END {
+	closelog();
+}

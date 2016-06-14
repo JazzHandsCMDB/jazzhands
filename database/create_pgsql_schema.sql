@@ -91,6 +91,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 \ir ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
 \ir ddl/schema/pgsql/create_person_company_attr_triggers.sql
+\ir ddl/schema/pgsql/create_account_pgnotify_trigger.sql
 
 \ir ddl/schema/pgsql/create_hotpants_view_triggers.sql
 
