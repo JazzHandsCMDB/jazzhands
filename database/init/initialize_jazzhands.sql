@@ -1550,10 +1550,11 @@ insert into val_property (
 
 INSERT INTO val_property_collection_type (
 	property_collection_type, description
-) VALUES (
-	'auto_ac_assignment',
-	'defines which properties to setup for a company by default'
-);
+) VALUES 
+	('auto_ac_assignment',
+		'defines which properties to setup for a company by default'),
+	('jazzhands-internal',
+		'internal jazzhands automations, in triggers/functions');
 
 WITH i AS (
 	INSERT INTO property_collection (

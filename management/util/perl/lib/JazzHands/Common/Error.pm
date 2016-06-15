@@ -112,7 +112,7 @@ sub _Debug {
 	my $self  = shift;
 	my $level = shift;
 
-	if ( $self->{_debug} >= $level && @_ ) {
+	if ( $level <= $self->{_debug} && @_ ) {
 		if($self->{_debug_callback}) {
 			my $fmt = shift @_;
 			my $str = sprintf ($fmt, @_);

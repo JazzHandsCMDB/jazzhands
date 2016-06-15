@@ -101,6 +101,7 @@ sub new {
 		$self->{_debug_callback} = $opt->{debug_callback};
 	}
 
+	$self->{_debug} = 0 if(!$self->{_debug});
 	$self->{_errors} = [];
 	$self;
 }

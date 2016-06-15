@@ -32,11 +32,16 @@ RETVAL=0
 [ -z "`ls ${DBSYNCERDIR}/*.json 2>/dev/null`" ] && exit 0
 
 status() {
-    for PID in `cat $PIDROOT*` ;do
-        if [ ! -e /proc/$PID ] ; then
-            return 1
-        fi
-    done
+    pidlist=`cat $PIDROOT* 2>/dev/null`
+    if [ -z "$pidlist" ] ; then
+        return 1
+    else
+        for PID in $pidlist ;do
+            if [ ! -e /proc/$PID ] ; then
+                return 1
+            fi
+        done
+    fi
     return 0
 }
 

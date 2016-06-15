@@ -1,8 +1,18 @@
+jazzhands-dbsyncer (0.71.5) trusty; urgency=medium
+
+  * add support for listening for pgnotifies to quickly update
+  * when invoked as a config file with no config, run as non-daemon with that
+  * syslog whenever things change
+  * minor bug fixes
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jul 2016 17:27:00 -0500
+
 jazzhands-dbsyncer (0.67.7) trusty; urgency=medium
 
   * change how # of columns comparisons are done to make sense
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon,  1 Feb 2016 12:16:00 -0500
+
 
 jazzhands-dbsyncer (0.67.4) trusty; urgency=medium
 
