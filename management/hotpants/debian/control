@@ -14,7 +14,7 @@ Description:
 
 Package: jazzhands-hotpants-perl-rlm
 Architecture: any
-Pre-Depends: jazzhands-perl-hotpants (>= 0.69.6)
+Pre-Depends: jazzhands-perl-hotpants (>= 0.71.4)
 Description: 
  FreeRadius module for JazzHands HOTPants
 

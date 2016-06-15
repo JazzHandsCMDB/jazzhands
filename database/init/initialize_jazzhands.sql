@@ -505,6 +505,16 @@ insert into val_property (
 	'ALLOWED', 'REQUIRED'
 );
 
+insert into val_property (
+	property_name, property_type, property_data_type,
+	description,
+	permit_account_collection_id, permit_device_collection_id
+) VALUES (
+	'AuthorizePasswordlessAccess', 'HOTPants', 'boolean',
+	'Authorize via radius without a password',
+	'ALLOWED', 'REQUIRED'
+);
+
 INSERT INTO val_property (
 	property_name, property_type, property_data_type,
 	description,
@@ -609,9 +619,19 @@ insert into val_property
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('PasswordAdminForAccount_Collection',	'UserMgmt',	     'User can reset passwords for the Account_Collection',				     'N',	    'boolean',	     'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
+
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
 ('TokenAdminForAccount_Collection',		'UserMgmt',	     'User can manage token assignments for any user in the Account_Collection',		'N',	    'token_collection_id', 'PROHIBITED',  'PROHIBITED',  'PROHIBITED',    'PROHIBITED',  'PROHIBITED',   'PROHIBITED',    'REQUIRED', 'PROHIBITED');
+
+INSERT into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, 
+		PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID) 
+VALUES 
+	('Needs2FAEnroll', 'UserMgmt', 'User needs Token Setup', 
+		'none', 'REQUIRED'),
+	('NeedsPasswdChange', 'UserMgmt', 'User needs Password Change', 
+		'none', 'REQUIRED');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID) values
@@ -782,6 +802,11 @@ insert into val_property
 values
 ('_supportemail', 'Defaults', 'defines support email used by tools', 'N', 
 'string');
+
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, PROPERTY_DATA_TYPE
+) VALUES 
+	('_Forced2FA', 'Defaults', '2FA is Mandatory','boolean');
 
 INSERT INTO val_property (
 	property_name, property_type, is_multivalue, property_data_type,

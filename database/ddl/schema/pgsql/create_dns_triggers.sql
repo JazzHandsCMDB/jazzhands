@@ -291,6 +291,32 @@ CREATE TRIGGER trigger_dns_rec_prevent_dups
 	EXECUTE PROCEDURE dns_rec_prevent_dups();
 
 ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION dns_record_check_name() 
+RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.DNS_NAME IS NOT NULL THEN
+		-- rfc rfc952
+		IF NEW.DNS_NAME !~ '[-a-zA-Z0-9\._]*' THEN
+			RAISE EXCEPTION 'Invalid DNS NAME %', 
+				NEW.DNS_NAME
+				USING ERRCODE = 'integrity_constraint_violation';
+		END IF
+	END IF;
+	RETURN NEW;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_record_check_name ON dns_record;
+CREATE TRIGGER trigger_dns_record_check_name 
+	BEFORE INSERT OR UPDATE OF DNS_NAME
+	ON dns_record 
+	FOR EACH ROW 
+	EXECUTE PROCEDURE dns_record_check_name();
+
+---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_record_cname_checker()
 RETURNS TRIGGER AS $$
 DECLARE
