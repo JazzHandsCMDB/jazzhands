@@ -85,22 +85,44 @@ CREATE TRIGGER trigger_pgnotify_account_password_changes
 CREATE OR REPLACE FUNCTION pgnotify_account_collection_account_token_changes()
 RETURNS TRIGGER AS $$
 BEGIN
+	IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+		PERFORM	*
+		FROM	property_collection
+				JOIN property_collection_property pcp 
+					USING (property_collection_id)
+				JOIN property p
+					USING (property_name, property_type)
+		WHERE	p.account_collection_id = OLD.account_collection_id
+		AND		property_collection_type = 'jazzhands-internal'
+		AND		property_collection_name = 'notify-account_collection_account'
+		;
 
-	PERFORM	*
-	FROM	property_collection
-			JOIN property_collection_property pcp 
-				USING (property_collection_id)
-			JOIN property p
-				USING (property_name, property_type)
-	WHERE	p.account_collection_id = NEW.account_collection_id
-	AND		property_collection_type = 'jazzhands-internal'
-	AND		property_collection_name = 'notify-account_collection_account'
-	;
-
-	IF FOUND THEN
-		PERFORM pg_notify('account_change', concat('account_id=', NEW.account_id));
+		IF FOUND THEN
+			PERFORM pg_notify('account_change', concat('account_id=', OLD.account_id));
+		END IF;
 	END IF;
-	RETURN NEW;
+	IF TG_OP = 'UPDATE' OR TG_OP = 'INSERT' THEN
+		PERFORM	*
+		FROM	property_collection
+				JOIN property_collection_property pcp 
+					USING (property_collection_id)
+				JOIN property p
+					USING (property_name, property_type)
+		WHERE	p.account_collection_id = NEW.account_collection_id
+		AND		property_collection_type = 'jazzhands-internal'
+		AND		property_collection_name = 'notify-account_collection_account'
+		;
+
+		IF FOUND THEN
+			PERFORM pg_notify('account_change', concat('account_id=', NEW.account_id));
+		END IF;
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
 END;
 $$
 SET search_path=jazzhands
@@ -109,7 +131,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_pgnotify_account_collection_account_token_changes
 	ON account_collection_account;
 CREATE TRIGGER trigger_pgnotify_account_collection_account_token_changes 
-	AFTER INSERT OR UPDATE
+	AFTER INSERT OR UPDATE OR DELETE
 	ON account_collection_account
 	FOR EACH ROW
 	EXECUTE PROCEDURE pgnotify_account_collection_account_token_changes();
