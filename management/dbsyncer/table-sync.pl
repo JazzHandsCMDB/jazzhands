@@ -645,6 +645,34 @@ Todd Kover
 
 package main;
 
+sub process_notifies($$$) {
+	my($config, $up, $down) = @_;
+
+	#
+	# this is a do { } while loop to ensure that there are none outstanding
+	# when it returns.  Extra careful so no notifies are lingering.
+	#
+	my $seensome;
+	do {
+		$seensome = 0;
+		my %n;
+		while(my $notif = $up->{_dbh}->pg_notifies) {
+			my($name, $pid, $payload) = @{$notif};
+			$n{$payload}++;
+			$seensome++;
+		}
+		$up->{_dbh}->{AutoCommit} = 0;
+		foreach my $pend (keys (%n) ) {
+			$up->_Debug(1, "Processing %s:%d ", $pend, $n{$pend});
+			$down->sync_dbs( $config, $up, $pend, @ARGV );
+		}
+		$down->commit || die $down->errstr;
+		$up->commit   || die $up->errstr;
+		$up->{_dbh}->{AutoCommit} = 1;
+	} while ($seensome);
+}
+
+
 if(my $bn = (File::Spec->splitpath($0))[2]) {
 	openlog($bn, 'pid', LOG_DAEMON);
 }
@@ -734,8 +762,6 @@ if($loop && $upsock) {
 	$s->add($upsock);
 }
 
-
-
 do {
 	my $lastcheck = time();
 	$up->{_dbh}->{AutoCommit} = 0;
@@ -750,6 +776,7 @@ do {
 		}
 	}
 
+	process_notifies($config, $up, $down);
 	my $sleeptime = $lastcheck - time() + $loop;
 
 	while($sleeptime > 0) {
@@ -759,19 +786,7 @@ do {
 		$up->_Debug(4, "++ Wake %d", scalar @ready);
 		foreach my $fh (@ready) {
 			if($fh == $upsock) {
-				my %n;
-				while(my $notif = $up->{_dbh}->pg_notifies) {
-					my($name, $pid, $payload) = @{$notif};
-					$n{$payload}++;
-				}
-				$up->{_dbh}->{AutoCommit} = 0;
-				foreach my $pend (keys (%n) ) {
-					$up->_Debug(1, "Processing %s:%d ", $pend, $n{$pend});
-					$down->sync_dbs( $config, $up, $pend, @ARGV );
-				}
-				$down->commit || die $down->errstr;
-				$up->commit   || die $up->errstr;
-				$up->{_dbh}->{AutoCommit} = 1;
+				process_notifies($config, $up, $down);
 			}
 		}
 		foreach my $notif (@listen) {
