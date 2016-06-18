@@ -140,3 +140,7 @@
 
 \ir create_v_person.sql
 \ir create_v_person_company.sql
+
+\ir create_v_dns_fwd.sql
+\ir create_v_dns_rvs.sql
+\ir create_v_dns.sql
