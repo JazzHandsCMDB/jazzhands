@@ -2604,4 +2604,51 @@ sub GetIPAddressInformation {
 	return $iface_info;
 }
 
+sub GetVirtualChassisInfo {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $jnx;
+	if (!($jnx = $self->{handle})) {
+		SetError($err, 
+			sprintf("No connection to device %s", $device->{hostname}));
+		return undef;
+	}
+
+	#
+	# Fuck you, Juniper, and your half-assed XML Perl implementation
+	#
+#	my $chassisxml = $jnx->get_virtual_chassis_information(detail=>1);
+	my $chassisxml = $jnx->get_virtual_chassis_information();
+	if (!ref($chassisxml)) {
+		SetError($err, "Error retrieving virtual chassis information");
+		return undef;
+	}
+
+	my $members = {};
+	foreach my $member ($chassisxml->getElementsByTagName('member')) {
+		my $slot = $member->getElementsByTagName('member-id')->[0]->
+			getFirstChild->getNodeValue;
+		my $serial = $member->getElementsByTagName('member-serial-number')->
+			[0]->getFirstChild->getNodeValue;
+		my $model = $member->getElementsByTagName('member-model')->
+			[0]->getFirstChild->getNodeValue;
+		$members->{$slot} = {
+			serial => $serial,
+			model => $model
+		}
+	}
+
+	return $members;
+}
+
 1;
