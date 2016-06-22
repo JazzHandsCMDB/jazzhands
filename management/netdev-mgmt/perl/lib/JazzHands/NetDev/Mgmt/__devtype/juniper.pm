@@ -2509,23 +2509,22 @@ sub GetIPAddressInformation {
 		return undef;
 	}
 
-	my $vrrpxml = $jnx->get_vrrp_information(brief=>1);
-
-	if (!ref($vrrpxml)) {
-		SetError($err, "Error retrieving vrrp config");
-		return undef;
-	}
-
+	my $vrrpxml;
 	my $vrrp_info = {};
-	foreach my $iface ($vrrpxml->getElementsByTagName('vrrp-interface')) {
-		my $ifacename = $iface->getElementsByTagName('interface')->[0]->
-			getFirstChild->getNodeValue;
-		if (!exists($vrrp_info->{$ifacename})) {
-			$vrrp_info->{$ifacename} = [];
+	
+	eval { $vrrpxml = $jnx->get_vrrp_information(brief=>1) };
+
+	if (ref($vrrpxml)) {
+		foreach my $iface ($vrrpxml->getElementsByTagName('vrrp-interface')) {
+			my $ifacename = $iface->getElementsByTagName('interface')->[0]->
+				getFirstChild->getNodeValue;
+			if (!exists($vrrp_info->{$ifacename})) {
+				$vrrp_info->{$ifacename} = [];
+			}
+			push @{$vrrp_info->{$ifacename}}, 
+				$iface->getElementsByTagName('virtual-ip-address')->[0]->
+				getFirstChild->getNodeValue;
 		}
-		push @{$vrrp_info->{$ifacename}}, 
-			$iface->getElementsByTagName('virtual-ip-address')->[0]->
-			getFirstChild->getNodeValue;
 	}
 
 	my $iface_info;
@@ -2644,7 +2643,7 @@ sub GetVirtualChassisInfo {
 			[0]->getFirstChild->getNodeValue;
 		$members->{$slot} = {
 			serial => $serial,
-			model => $model
+			model => uc($model)
 		}
 	}
 
