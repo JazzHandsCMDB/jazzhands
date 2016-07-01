@@ -231,6 +231,6 @@ BEGIN
 			'BACK'
 		FROM
 			generate_series(0,1) x(idx);
-	END;
+	END LOOP;
 END;
 $$ LANGUAGE plpgsql;
