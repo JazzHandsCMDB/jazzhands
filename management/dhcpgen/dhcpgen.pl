@@ -919,7 +919,10 @@ sub generate_dhcp_configs {
 		if ($row->{ip_address}) {
 			$row->{ip_address} = NetAddr::IP->new($row->{ip_address});
 		} 
-		$devices->{$row->{device_id}} = $row;
+		if (!($devices->{$row->{device_id}})) {
+			$devices->{$row->{device_id}} = [];
+		}
+		push @{$devices->{$row->{device_id}}}, $row;
 	}
 	$sth->finish;
 
