@@ -1,3 +1,10 @@
+jazzhands-dhcpgen (0.71.5) trusty; urgency=medium
+
+  * Change device hash to be an array of hashes instead of a single hash.  This isn't used at all
+    in dhcpgen, but may be used for lookups in _LocalHooks.pm
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 15 Jun 2016 18:14:00 -0400
+
 jazzhands-dhcpgen (0.70.3.2) trusty; urgency=medium
 
   * Change priority for host-name option to be physical_label rather than device_name

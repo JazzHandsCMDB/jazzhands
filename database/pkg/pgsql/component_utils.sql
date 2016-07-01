@@ -1317,5 +1317,65 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+
+CREATE OR REPLACE FUNCTION component_utils.fetch_component(
+	component_type_id	jazzhands.component_type.component_type_id%TYPE,
+	serial_number		text,
+	no_create			boolean DEFAULT false,
+	ownership_status	text DEFAULT 'unknown'
+) RETURNS jazzhands.component
+AS $$
+DECLARE
+	ctid		ALIAS FOR component_type_id;
+	sn			ALIAS FOR serial_number;
+	os			ALIAS FOR ownership_status;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF sn IS NOT NULL THEN
+		SELECT 
+			comp.* INTO c
+		FROM
+			component comp JOIN
+			asset a USING (component_id)
+		WHERE
+			comp.component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			return c;
+		END IF;
+	END IF;
+
+	IF no_create THEN
+		RETURN NULL;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			os
+		);
+	END IF;
+
+	RETURN c;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
+
 GRANT USAGE ON SCHEMA component_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO ro_role;
