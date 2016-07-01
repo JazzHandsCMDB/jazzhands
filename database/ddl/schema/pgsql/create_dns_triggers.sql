@@ -301,7 +301,7 @@ BEGIN
 			RAISE EXCEPTION 'Invalid DNS NAME %', 
 				NEW.DNS_NAME
 				USING ERRCODE = 'integrity_constraint_violation';
-		END IF
+		END IF;
 	END IF;
 	RETURN NEW;
 END;
