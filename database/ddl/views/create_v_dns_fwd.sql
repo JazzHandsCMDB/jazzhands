@@ -91,5 +91,34 @@ SELECT * FROM  (
 		    on dr.stop_netblock_id = nbstop.netblock_id
 		) range
 ) u
-	 where  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
+WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
+	UNION
+	SELECT
+		dns_record_id,
+		NULL AS network_range_id,
+		parent_dns_domain_id as dns_domain_id,
+		regexp_replace(soa_name, '\.' || pdom.parent_soa_name || '$', '') as dns_name,
+		dns_ttl,
+		dns_class,
+		dns_type,
+		dns_value,
+		dns_priority,
+		NULL AS ip,
+		NULL AS ref_record_id,
+		NULL AS ref_dns_name,
+		NULL AS dns_srv_service,
+		NULL AS dns_srv_protocol,
+		NULL AS dns_srv_weight,
+		NULL AS dns_srv_port,
+		is_enabled AS is_enabled,
+		NULL AS val_dns_name,
+		NULL AS val_domain,
+		NULL AS val_value,
+		NULL AS val_ip
+	FROM	dns_record join dns_domain using (dns_domain_id)
+		join (select dns_domain_id as parent_dns_domain_id,
+			soa_name as parent_soa_name from dns_domain)  pdom
+			USING(parent_dns_domain_id)
+	WHERE	dns_class = 'IN' AND dns_type = 'NS'
+	AND	parent_dns_domain_id is not NULL
 ;
