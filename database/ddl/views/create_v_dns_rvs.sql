@@ -26,10 +26,12 @@ SELECT 	NULL::integer	as dns_record_id,
 			ELSE regexp_replace(dns_utils.v6_inaddr(ip),
 				'.' || replace(dd.soa_name, '.ip6.arpa', '') || '$', '', 'i')
 			END as dns_name,
-		NULL::integer	as dns_ttl,
+		combo.dns_ttl as dns_ttl,
 		'IN'::text	as dns_class,
 		'PTR'::text	as dns_type,
-		concat(combo.dns_name, '.', combo.soa_name, '.') AS dns_value,
+		CASE WHEN combo.dns_NAME IS NULL THEN concat(combo.soa_name, '.')
+			ELSE concat(combo.dns_name, '.', combo.soa_name, '.') END
+			AS dns_value,
 		NULL::integer as dns_priority,
 		combo.ip,
 		NULL::integer as rdns_record_id,
@@ -38,7 +40,7 @@ SELECT 	NULL::integer	as dns_record_id,
 		NULL::text as dns_srv_protocol,
 		NULL::integer as dns_srv_weight,
 		NULL::integer as dns_srv_srv_port,
-		'Y'::text as is_enabled,
+		combo.is_enabled,
 		NULL::text as val_dns_name,
 		NULL::text as val_domain,
 		NULL::text as val_value,
@@ -62,6 +64,7 @@ from (
 		dns.should_generate_ptr = 'Y'
 	   and  dns.dns_class = 'IN'
 	   and ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
+	   and nb.is_single_address = 'Y'
 UNION
 	select host(ip)::inet as ip, 
 			network_range_id,

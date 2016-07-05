@@ -777,7 +777,7 @@ sub process_child_ns_records {
 
 }
 
-sub process_fwd_records {
+sub process_all_dns_records {
 	my ( $dbh, $out, $domid, $domain ) = @_;
 
 	#
@@ -792,68 +792,53 @@ sub process_fwd_records {
 	#
 	my $sth = getSth(
 		$dbh, qq {
-		select  distinct
-			d.dns_record_id, d.dns_name, d.dns_ttl, d.dns_class,
-			d.dns_type, d.dns_value,
-			d.dns_priority,
-			net_manip.inet_dbtop(ni.ip_address) as ip,
-			rdns.dns_record_Id,
-			rdns.dns_name,
-			d.dns_srv_service, d.dns_srv_protocol,
-			d.dns_srv_weight, d.dns_srv_port,
-			d.is_enabled,
-			dv.dns_name as val_dns_name,
-			dv.soa_name as val_domain,
-			dv.dns_value as val_value,
-			dv.ip as val_ip,
-			(CASE WHEN(d.dns_name is NULL and
-				   d.reference_dns_record_id is NULL)
-				THEN 0
-			 	ELSE 1
-			 END
-			) as sort_order
-		  from	dns_record d
-			left join netblock ni
-				on d.netblock_id = ni.netblock_id
-			left join dns_record rdns
-				on rdns.dns_record_id =
-					d.reference_dns_record_id
-			left join (
-				select	dr.dns_record_id, dr.dns_name,
-					dom.dns_domain_id, dom.soa_name,
-					dr.dns_value,
-					net_manip.inet_dbtop(dnb.ip_address) as ip
-				  from	dns_record dr
-				  	inner join dns_domain dom
-						using (dns_domain_id)
-					left join netblock dnb
-						using (netblock_id)
-			) dv on d.dns_value_record_id = dv.dns_record_id
-		 where	d.dns_domain_id = ?
-		   and	d.dns_type != 'REVERSE_ZONE_BLOCK_PTR'
-		order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
+		select  dns_record_id,
+			network_range_id,
+			-- dns_domain_id,
+			dns_name,
+			dns_ttl,
+			dns_class,
+			dns_type,
+			dns_value,
+			dns_priority,
+			host(ip) as ip,
+			ref_record_id,
+			ref_dns_name,
+			dns_srv_service,
+			dns_srv_protocol,
+			dns_srv_weight,
+			dns_srv_port,
+			is_enabled,
+			val_dns_name,
+			val_domain,
+			val_value,
+			val_ip
+		  from	v_dns
+		 where	dns_domain_id = ?
+		order by 
+			CASE WHEN DNS_NAME IS NULL THEN 0 ELSE 1 END,
+			CASE WHEN DNS_TYPE IN ('A','AAAA') THEN NULL
+			     WHEN DNS_TYPE = 'PTR' THEN lpad(dns_name, 10, '0')
+				ELSE  dns_name
+			END,
+			ip,
+			dns_type,
+			dns_value
 	}
 	);
+	# order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 
 	$sth->execute($domid) || die $sth->errstr;
 
-	my $lastso = 0;
 	while (
 		my (
-			$id,     $name,    $ttl,       $class,     $type,
+			$id,     $rangeid, $name,    $ttl,       $class,     $type,
 			$val,    $pri,     $ip,        $rid,       $rname,
-			,        $srv,     $srvproto,  $srvweight, $srvport,
-			$enable, $valname, $valdomain, $valval,    $valip,
-			$so
-		)
-		= $sth->fetchrow_array
-	  )
-	{
+			$srv,     $srvproto,  $srvweight, $srvport,
+			$enable, $valname, $valdomain, $valval, $valip
+		) = $sth->fetchrow_array
+	) {
 		my $com = ( $enable eq 'N' ) ? ";" : "";
-		if ( $lastso == 0 && $so == 1 ) {
-			$out->print("\n");
-		}
-		$lastso = $so;
 		$name   = "" if ( !defined($name) && !defined($rname) );
 		$name   = $rname if ( !defined($name) );
 		my $value = $val;
@@ -910,14 +895,12 @@ sub process_fwd_records {
 		# indented less
 		#
 		my $width = 25;
-		$width = 0 if ( $so == 0 );
+		$width = 0 if (! $name ); # zone records get indented less
 
 		$ttl = "" if ( !defined($ttl) );
 		$out->printf( "%s%-*s\t%s %s\t%s\t%s\n",
 			$com, $width, $name, $ttl, $class, $type, $value );
 	}
-	$out->print("\n");
-	process_fwd_range( $dbh, $out, $domid, $domain );
 	$out->print("\n");
 }
 
@@ -1084,12 +1067,8 @@ sub process_domain {
 
 	print STDERR "\tprocess SOA to $tmpfn\n" if ($debug);
 	process_soa( $dbh, $out, $domid, $bumpsoa );
-	print STDERR "\tprocess fwd\n" if ($debug);
-	process_fwd_records( $dbh, $out, $domid, $domain );
-	print STDERR "\tprocess child ns\n" if ($debug);
-	process_child_ns_records( $dbh, $out, $domid, $domain );
-	print STDERR "\tprocess rvs\n" if ($debug);
-	process_reverse( $dbh, $out, $domid, $domain );
+	print STDERR "\tprocess DNS Records to $tmpfn\n" if ($debug);
+	process_all_dns_records( $dbh, $out, $domid, $domain );
 	print STDERR "\tprocess_domain complete\n" if ($debug);
 	$out->close;
 
@@ -1422,6 +1401,7 @@ my $norsynclist = 0;
 my $nogen       = 0;
 my $sleep       = 0;
 my $wait        = 1;
+my $skipperserver        = 0;
 
 my $mysite;
 
@@ -1442,6 +1422,7 @@ GetOptions(
 	'random-sleep=i' => \$sleep,          # how long to sleep up unto;
 	'site=s'         => \$mysite,         # indicate what local machines site
 	'verbose|v'      => \$verbose,        # duh.
+	'skip-perserver'	=> \$skipperserver, # primarily for debugging; skip
 	'wait!'          => \$wait            # wait on lock in db
 ) || die pod2usage( -verbose => 1 );
 
@@ -1789,7 +1770,7 @@ if ( !$norsynclist ) {
 # Final cleanup
 #
 warn "Generating configuration files and whatnot..." if ($debug);
-process_perserver( $dbh, "../zones", $persvrroot, $generate );
+process_perserver( $dbh, "../zones", $persvrroot, $generate ) if(!$skipperserver);
 generate_complete_files( $dbh, $zoneroot, $generate );
 
 $dbh->do("SELECT script_hooks.zonegen_post()");
