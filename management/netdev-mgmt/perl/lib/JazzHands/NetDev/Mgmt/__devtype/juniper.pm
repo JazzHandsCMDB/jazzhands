@@ -27,20 +27,20 @@ sub new {
 	my $self = {};
 
 	if (!$opt->{credentials}) {
-		SetError($opt->{errors}, 
+		SetError($opt->{errors},
 			"credentials parameter must be passed to connect");
 		return undef;
 	}
 	if (!$opt->{device}) {
-		SetError($opt->{errors}, 
+		SetError($opt->{errors},
 			"device parameter must be passed to connect");
 		return undef;
-	}   
+	}
 	if (!ref($opt->{device})) {
-		SetError($opt->{errors}, 
+		SetError($opt->{errors},
 			"device parameter must be a device object");
 		return undef;
-	}   
+	}
 	my $device = $opt->{device};
 	
 	if (!$device->{hostname}) {
@@ -96,7 +96,7 @@ sub commit {
 	my $res = $jnx->commit_configuration();
 	my $jerr = $res->getFirstError();
 	if ($jerr) {
-		SetError($err, 
+		SetError($err,
 			sprintf("%s: commit error: %s", $hostname, $jerr->{message}));
 		SetError($opt->{errbyhost}->{$hostname},
 			sprintf("commit error: %s", $jerr->{message}));
@@ -131,7 +131,7 @@ sub disconnect {
 		eval { $jnx->unlock_configuration(); };
 	}
 	if ($state >= STATE_CONNECTED) {
-		eval { 
+		eval {
 			$jnx->request_end_session();
 			$jnx->disconnect();
 		};
@@ -175,7 +175,7 @@ sub SetPortVLAN {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -219,7 +219,7 @@ sub SetPortVLAN {
 		my $vlstatus;
 		$vlstatus = {
 			name => $vlname,
-			id => 
+			id =>
 				$vl->getElementsByTagName('vlan-tag')->[0]->
 				getFirstChild->getNodeValue,
 		};
@@ -234,7 +234,7 @@ sub SetPortVLAN {
 			detail => 1
 		);
 		if (!ref($res)) {
-			SetError($err, 
+			SetError($err,
 				sprintf("Error retrieving port status for port %s", $port));
 			return undef;
 		}
@@ -249,15 +249,15 @@ sub SetPortVLAN {
 		my $ifstatus;
 		$ifstatus = {
 			name => $ifname,
-			id => 
+			id =>
 				$interface->getElementsByTagName('interface-id')->[0]->
 				getFirstChild->getNodeValue,
-			portMode => 
+			portMode =>
 				$interface->getElementsByTagName('interface-port-mode')->[0]->
 				getFirstChild->getNodeValue,
 		};
 		if ($ifstatus->{portMode} eq 'Access') {
-			my $vlanInfo = 
+			my $vlanInfo =
 				$interface->getElementsByTagName('interface-vlan-member-list')->
 				[0]->getElementsByTagName('interface-vlan-member')->[0];
 			if (!$vlanInfo) {
@@ -326,7 +326,7 @@ sub SetPortVLAN {
 			my $parser = new XML::DOM::Parser;
 			my $doc = $parser->parsestring($xml);
 			if (!$doc) {
-				SetError($err, 
+				SetError($err,
 					"Bad XML string setting VLAN trunking.  This should not happen");
 				return undef;
 			}
@@ -453,7 +453,7 @@ sub GetPortLACP {
 	my $jnx;
 	my $device = $self->{device};
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -516,7 +516,7 @@ sub SetPortLACP {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -863,7 +863,7 @@ sub GetPrefixLists {
 	$opt->{name} = $opt->{'prefix-lists'};
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -895,7 +895,7 @@ sub GetPrefixLists {
 			$prefixlists->{$name} = [];
 			foreach my $element ($prefixlist->
 					getElementsByTagName('prefix-list-item')) {
-				push @{$prefixlists->{$name}}, 
+				push @{$prefixlists->{$name}},
 					NetAddr::IP->new(
 						$element->getElementsByTagName('name')->[0]->
 						getFirstChild->getNodeValue);
@@ -920,7 +920,7 @@ sub GetPrefixLists {
 				$prefixlists->{$name} = [];
 				foreach my $element ($prefixlist->
 						getElementsByTagName('prefix-list-item')) {
-					push @{$prefixlists->{$name}}, 
+					push @{$prefixlists->{$name}},
 						NetAddr::IP->new(
 							$element->getElementsByTagName('name')->[0]->
 							getFirstChild->getNodeValue);
@@ -952,7 +952,7 @@ sub SetPrefixLists {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -973,7 +973,7 @@ sub SetPrefixLists {
 		$newelement->appendChild($confdoc->createTextNode($prefixlist));
 		$plelement->appendChild($newelement);
 		$plelement->setAttribute('replace', 'replace');
-		foreach my $netblock 
+		foreach my $netblock
 			(@{$opt->{"prefix-lists"}->{$prefixlist}})
 		{
 			my $plielement = $confdoc->createElement('prefix-list-item');
@@ -994,7 +994,7 @@ sub SetPrefixLists {
 	};
 	$self->{state} = STATE_CONFIG_LOADED;
 	if ($@) {
-		SetError($err, 
+		SetError($err,
 			sprintf("Error setting prefix-list configurations: %s", $@));
 		return undef;
 	}
@@ -1033,7 +1033,7 @@ sub DeletePrefixLists {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -1101,7 +1101,7 @@ sub GetMSTPDigest {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -1140,7 +1140,7 @@ sub TestRouteExistence {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -1318,9 +1318,9 @@ sub ConvertCiscoACLLineToJunOS {
 		$element->appendChild($document->createTextNode(
 			sprintf("/* %s */", join(' ', @tokens))));
 		return $element;
-	} elsif ($action eq 'permit') { 
+	} elsif ($action eq 'permit') {
 		$action = 'accept';
-	} elsif ($action eq 'deny') { 
+	} elsif ($action eq 'deny') {
 		$action = 'discard';
 	} else {
 		SetError($error, sprintf("Unknown action : %s", $action));
@@ -1358,8 +1358,8 @@ sub ConvertCiscoACLLineToJunOS {
             $target->{addrlist} = [ split /,/, shift @tokens ];
         } else {
             my $testaddr;
-            eval { 
-				$testaddr = inet_aton($addr); 
+            eval {
+				$testaddr = inet_aton($addr);
 				if ($testaddr) {
 					$testaddr = inet_ntoa($testaddr);
 				}
@@ -1371,8 +1371,8 @@ sub ConvertCiscoACLLineToJunOS {
             }
             my $mask = shift @tokens;
 			my $testmask;
-            eval { 
-				$testmask = inet_aton($mask); 
+            eval {
+				$testmask = inet_aton($mask);
 				if ($testmask) {
 					$testmask = inet_ntoa($testmask) ;
 				}
@@ -1421,8 +1421,8 @@ sub ConvertCiscoACLLineToJunOS {
 			my ($xaddr, $xmask) = split m%/%, $addr;
 
             my $testaddr;
-            eval { 
-				$testaddr = inet_aton($xaddr); 
+            eval {
+				$testaddr = inet_aton($xaddr);
 				if ($testaddr) {
 					$testaddr = inet_ntoa($testaddr);
 				}
@@ -1465,7 +1465,7 @@ sub ConvertCiscoACLLineToJunOS {
 			$target->{portcmp} = shift @tokens;
 			my $portstring = shift @tokens;
 			if (!$portstring) {
-				SetError($error, 
+				SetError($error,
 					sprintf("Port not specified after comparison operator"));
 				return undef;
 			}
@@ -1480,7 +1480,7 @@ sub ConvertCiscoACLLineToJunOS {
 						if ($CiscoACLPortMap->{lc($startport)}) {
 							$startport = $CiscoACLPortMap->{lc($startport)};
 						}
-						if ($startport !~ /^\d+$/ || 
+						if ($startport !~ /^\d+$/ ||
 								$startport < 0 || $startport > 65535) {
 							SetError($error, sprintf("Bad port: %s", $port));
 							return undef;
@@ -1488,20 +1488,20 @@ sub ConvertCiscoACLLineToJunOS {
 						if ($CiscoACLPortMap->{lc($endport)}) {
 							$endport = $CiscoACLPortMap->{lc($endport)};
 						}
-						if ($endport !~ /^\d+$/ || 
+						if ($endport !~ /^\d+$/ ||
 								$endport < 0 || $endport > 65535) {
 							SetError($error, sprintf("Bad port: %s", $port));
 							return undef;
 						}
 						if ($startport >= $endport) {
-							SetError($error, 
+							SetError($error,
 								sprintf("Start port greater than end port in port range '%s'",
 									 $port));
 							return undef;
 						}
 						$port = $startport . '-' . $endport;
 					} else {
-						if ($port !~ /^\d+$/ || 
+						if ($port !~ /^\d+$/ ||
 								$port < 0 || $port > 65535) {
 							SetError($error, sprintf("Bad port: %s", $port));
 						return undef;
@@ -1729,7 +1729,7 @@ sub GenerateXMLforACL {
 	}
 
 	#
-	# Loop through all of the access list entries and convert them from 
+	# Loop through all of the access list entries and convert them from
 	# Cisco ACL format to Juniper firewall terms
 	#
 	my @entries;
@@ -1751,7 +1751,7 @@ sub GenerateXMLforACL {
 			errors => \@errstr
 		);
 		if (@errstr) {
-			SetError($opt->{errors}, 
+			SetError($opt->{errors},
 				sprintf("Error processing filter %s", $filtername),
 				sprintf("Error processing line: %s", $entries[$i]),
 				@errstr);
@@ -1814,7 +1814,7 @@ sub SetCiscoFormatACL {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -1905,14 +1905,14 @@ sub GetPortMACs {
 	while(1) {
 		my $macdata = $jnx->get_ethernet_switching_table_information(brief=>1);
 		if (!ref $macdata) {
-			SetError($errors, 
+			SetError($errors,
 				"Unknown error getting MAC table from switch");
 			return undef;
 		}
 		$err = $macdata->getFirstError();
 		if ($err) {
-			SetError($errors, 
-				sprintf("Error getting MAC table from switch: %s\n", 
+			SetError($errors,
+				sprintf("Error getting MAC table from switch: %s\n",
 				$err->{message}));
 			return undef;
 		}
@@ -1922,9 +1922,9 @@ sub GetPortMACs {
 		# the main switchports
 		#
 
-		foreach my $entry 
+		foreach my $entry
 				($macdata->getElementsByTagName('mac-table-entry')) {
-			my $port = 
+			my $port =
 				$entry->getElementsByTagName('mac-interfaces')->[0]->
 				getFirstChild->getNodeValue;
 			# Skip any of the uplink ports
@@ -1969,7 +1969,7 @@ sub GetPortVlan {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -2131,7 +2131,7 @@ sub SetBGPPeerStatus {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -2251,7 +2251,7 @@ sub SetBGPPeerStatus {
 			# We only want to allow peers on those networks to be managed
 			#
 			my $nexthop = $route->getElementsByTagName('via');
-			next if (!$nexthop || 
+			next if (!$nexthop ||
 				$nexthop->[0]->getFirstChild->getNodeValue !~ /^vlan/);
 
 			foreach my $netblock (
@@ -2266,7 +2266,7 @@ sub SetBGPPeerStatus {
 			}
 		}
 		if (!$networkfound) {
-			SetError($err, 
+			SetError($err,
 				sprintf("%s is not a valid address on switch %s",
 					$bgp_peer,
 					$device->{hostname}));
@@ -2348,7 +2348,7 @@ sub GetInterfaceConfig {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -2388,7 +2388,7 @@ sub GetInterfaceConfig {
 	my $iface_info = {};
 	foreach my $ae ($res->getElementsByTagName('address')) {
 		my $vrrp = undef;
-		my $address = 
+		my $address =
 			$ae->getElementsByTagName('name')->[0]
 				->getFirstChild->getNodeValue;
 		my $vrrp_element = $ae->getElementsByTagName('vrrp-group')->[0];
@@ -2430,7 +2430,7 @@ sub GetVLANs {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -2455,7 +2455,7 @@ sub GetVLANs {
 		return undef;
 	}
 
-	my $vlans = { 
+	my $vlans = {
 		names => {},
 		ids => {},
 		interfaces => {}
@@ -2498,7 +2498,7 @@ sub GetIPAddressInformation {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
@@ -2521,7 +2521,7 @@ sub GetIPAddressInformation {
 			if (!exists($vrrp_info->{$ifacename})) {
 				$vrrp_info->{$ifacename} = [];
 			}
-			push @{$vrrp_info->{$ifacename}}, 
+			push @{$vrrp_info->{$ifacename}},
 				$iface->getElementsByTagName('virtual-ip-address')->[0]->
 				getFirstChild->getNodeValue;
 		}
@@ -2539,9 +2539,9 @@ sub GetIPAddressInformation {
 				getFirstChild->getNodeValue;
 			next if !$af;
 			if ($af eq 'inet') {
-				my $ipv4 = [ 
+				my $ipv4 = [
 					map {
-						my $netxml = 
+						my $netxml =
 							$_->getElementsByTagName('ifa-destination');
 						my $net;
 						if (@$netxml) {
@@ -2554,7 +2554,7 @@ sub GetIPAddressInformation {
 							$_->getElementsByTagName('ifa-local')->[0]
 								->getFirstChild->getNodeValue, $net->masklen);
 						# Skip anything that's a VRRP service address
-						if (!(grep { $addr->addr() eq $_ } 
+						if (!(grep { $addr->addr() eq $_ }
 							@{$vrrp_info->{$ifacename}})) {
 							$addr
 						} else {
@@ -2567,9 +2567,9 @@ sub GetIPAddressInformation {
 			my $linklocal = NetAddr::IP->new('fe80::/64');
 			if ($af eq 'inet6') {
 				my $ipv6 = [];
-				foreach my $addrxml 
+				foreach my $addrxml
 						($afxml->getElementsByTagName('interface-address')) {
-					my $netxml = 
+					my $netxml =
 						$addrxml->getElementsByTagName('ifa-destination');
 					next if !@$netxml;
 					my $net;
@@ -2585,8 +2585,8 @@ sub GetIPAddressInformation {
 							->getFirstChild->getNodeValue, $net->masklen);
 					# Skip anything that's a VRRP service address or
 					# link local address
-					if (!($net eq $linklocal || (grep 
-							{ $addr->addr() eq $addrxml } 
+					if (!($net eq $linklocal || (grep
+							{ $addr->addr() eq $addrxml }
 							@{$vrrp_info->{$ifacename}}))) {
 						push @$ipv6, $addr;
 					}
@@ -2603,7 +2603,7 @@ sub GetIPAddressInformation {
 	return $iface_info;
 }
 
-sub GetVirtualChassisInfo {
+sub GetChassisInfo {
 	my $self = shift;
 	my $opt = &_options(@_);
 
@@ -2618,28 +2618,28 @@ sub GetVirtualChassisInfo {
 
 	my $jnx;
 	if (!($jnx = $self->{handle})) {
-		SetError($err, 
+		SetError($err,
 			sprintf("No connection to device %s", $device->{hostname}));
 		return undef;
 	}
-
-	#
-	# Fuck you, Juniper, and your half-assed XML Perl implementation
-	#
-#	my $chassisxml = $jnx->get_virtual_chassis_information(detail=>1);
-	my $chassisxml = $jnx->get_virtual_chassis_information();
+	my $chassisxml;
+	$chassisxml = $jnx->get_chassis_inventory();
 	if (!ref($chassisxml)) {
-		SetError($err, "Error retrieving virtual chassis information");
+		SetError($err, "Error retrieving chassis inventory");
 		return undef;
 	}
 
 	my $members = {};
-	foreach my $member ($chassisxml->getElementsByTagName('member')) {
-		my $slot = $member->getElementsByTagName('member-id')->[0]->
+	foreach my $member ($chassisxml->getElementsByTagName('chassis-module')) {
+		my $modname = $member->getElementsByTagName('name', 0)->[0]->
 			getFirstChild->getNodeValue;
-		my $serial = $member->getElementsByTagName('member-serial-number')->
+		my $slot;
+		($slot) = $modname =~ /^FPC (\d+)/;
+		next if (!defined($slot));
+
+		my $serial = $member->getElementsByTagName('serial-number', 0)->
 			[0]->getFirstChild->getNodeValue;
-		my $model = $member->getElementsByTagName('member-model')->
+		my $model = $member->getElementsByTagName('model-number', 0)->
 			[0]->getFirstChild->getNodeValue;
 		$members->{$slot} = {
 			serial => $serial,
@@ -2647,7 +2647,16 @@ sub GetVirtualChassisInfo {
 		}
 	}
 
-	return $members;
+	my $chassis = $chassisxml->getElementsByTagName('chassis')->[0];
+	my $inventory = {
+		model => $chassis->getElementsByTagName('description', 0)->[0]->
+			getFirstChild->getNodeValue,
+		serial => $chassis->getElementsByTagName('serial-number', 0)->[0]->
+			getFirstChild->getNodeValue,
+		members => $members
+	};
+
+	return $inventory;
 }
 
 1;
