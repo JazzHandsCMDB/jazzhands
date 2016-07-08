@@ -184,123 +184,147 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- and what not.
 --
 CREATE OR REPLACE FUNCTION person_manip.add_user(
-	company_id INTEGER,
-	person_company_relation VARCHAR,
-	login VARCHAR DEFAULT NULL,
-	first_name VARCHAR DEFAULT NULL,
-	middle_name VARCHAR DEFAULT NULL,
-	last_name VARCHAR DEFAULT NULL,
-	name_suffix VARCHAR DEFAULT NULL,
-	gender VARCHAR(1) DEFAULT NULL,
-	preferred_last_name VARCHAR DEFAULT NULL,
-	preferred_first_name VARCHAR DEFAULT NULL,
-	birth_date DATE DEFAULT NULL,
-	external_hr_id VARCHAR DEFAULT NULL,
-	person_company_status VARCHAR 			DEFAULT 'enabled',
-	is_manager VARCHAR(1) 				DEFAULT 'N',
-	is_exempt VARCHAR(1) 				DEFAULT 'Y',
-	is_full_time VARCHAR(1) 			DEFAULT 'Y',
-	employee_id TEXT 				DEFAULT NULL,
-	hire_date DATE DEFAULT NULL,
-	termination_date DATE DEFAULT NULL,
-	job_title VARCHAR DEFAULT NULL,
-	department_name VARCHAR DEFAULT NULL, 
-	description VARCHAR DEFAULT NULL,
-	unix_uid VARCHAR DEFAULT NULL,
-	INOUT person_id INTEGER DEFAULT NULL,
-	OUT dept_account_collection_id INTEGER,
-	OUT account_id INTEGER
+    company_id 						INTEGER,
+    person_company_relation 		VARCHAR,
+    login 							VARCHAR 	DEFAULT NULL,
+    first_name 						VARCHAR 	DEFAULT NULL,
+    middle_name 					VARCHAR 	DEFAULT NULL,
+    last_name 						VARCHAR 	DEFAULT NULL,
+    name_suffix 					VARCHAR 	DEFAULT NULL,
+    gender 							VARCHAR(1) 	DEFAULT NULL,
+    preferred_last_name 			VARCHAR 	DEFAULT NULL,
+    preferred_first_name 			VARCHAR 	DEFAULT NULL,
+    birth_date 						DATE 		DEFAULT NULL,
+    external_hr_id 					VARCHAR 	DEFAULT NULL,
+    person_company_status 			VARCHAR 	DEFAULT 'enabled',
+    is_management					VARCHAR(1)	DEFAULT 'N',
+    is_exempt 						VARCHAR(1)	DEFAULT 'Y',
+    is_full_time					VARCHAR(1)  DEFAULT 'Y',
+    employee_id 					TEXT		DEFAULT NULL,
+    hire_date 						DATE		DEFAULT NULL,
+    termination_date 				DATE		DEFAULT NULL,
+    position_title 					VARCHAR 	DEFAULT NULL,
+    department_name 				VARCHAR 	DEFAULT NULL, 
+    manager_person_id 				INTEGER 	DEFAULT NULL, 
+    site_code 						VARCHAR 	DEFAULT NULL, 
+    physical_address_id 			INTEGER 	DEFAULT NULL, 
+    person_location_type 			VARCHAR 	DEFAULT 'office', 
+    description 					VARCHAR 	DEFAULT NULL,
+    unix_uid 						VARCHAR 	DEFAULT NULL,
+    INOUT person_id 				INTEGER 	DEFAULT NULL,
+    OUT dept_account_collection_id 	INTEGER,
+    OUT account_id 					INTEGER
 )  RETURNS RECORD AS $$
 DECLARE
-	_account_realm_id INTEGER;
-	_account_type VARCHAR;
-	_uid INTEGER;
-	_uxaccountid INTEGER;
-	_companyid INTEGER;
-	_personid INTEGER;
-	_accountid INTEGER;
+    _account_realm_id INTEGER;
+    _account_type VARCHAR;
+    _uid INTEGER;
+    _uxaccountid INTEGER;
+    _companyid INTEGER;
+    _personid INTEGER;
+    _accountid INTEGER;
 BEGIN
-	IF company_id is NULL THEN
-		RAISE EXCEPTION 'Must specify company id';
-	END IF;
-	_companyid := company_id;
+    IF company_id is NULL THEN
+        RAISE EXCEPTION 'Must specify company id';
+    END IF;
+    _companyid := company_id;
 
-	SELECT arc.account_realm_id 
-	  INTO _account_realm_id 
-	  FROM account_realm_company arc
-	 WHERE arc.company_id = _companyid;
-	IF NOT FOUND THEN
-		RAISE EXCEPTION 'Cannot find account_realm_id with company id %', company_id;
-	END IF;
+    SELECT arc.account_realm_id 
+      INTO _account_realm_id 
+      FROM account_realm_company arc
+     WHERE arc.company_id = _companyid;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Cannot find account_realm_id with company id %', company_id;
+    END IF;
 
-	IF login is NULL THEN
-		IF first_name IS NULL or last_name IS NULL THEN 
-			RAISE EXCEPTION 'Must specify login name or first name+last name';
-		ELSE 
-			login := person_manip.pick_login(
-				in_account_realm_id	:= _account_realm_id,
-				in_first_name := coalesce(preferred_first_name, first_name),
-				in_middle_name := middle_name,
-				in_last_name := coalesce(preferred_last_name, last_name)
-			);
-		END IF;
-	END IF;
+    IF login is NULL THEN
+        IF first_name IS NULL or last_name IS NULL THEN 
+            RAISE EXCEPTION 'Must specify login name or first name+last name';
+        ELSE 
+            login := person_manip.pick_login(
+                in_account_realm_id := _account_realm_id,
+                in_first_name := coalesce(preferred_first_name, first_name),
+                in_middle_name := middle_name,
+                in_last_name := coalesce(preferred_last_name, last_name)
+            );
+        END IF;
+    END IF;
 
-	IF person_company_relation = 'pseudouser' THEN
-		person_id := 0;
-		_account_type := 'pseudouser';
-	ELSE
-		_account_type := 'person';
-		IF person_id IS NULL THEN
-			INSERT INTO person (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-				VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-			RETURNING person.person_id into _personid;
-			person_id = _personid;
-		ELSE
-			INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
-				VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date);
-		END IF;
-		INSERT INTO person_company
-			(person_id,company_id,external_hr_id,person_company_status,is_management, is_exempt, is_full_time, employee_id,hire_date,termination_date,person_company_relation, position_title)
-			VALUES
-			(person_id, company_id, external_hr_id, person_company_status, is_manager, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, job_title);
-		INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( person_id, company_id, _account_realm_id);
-	END IF;
+    IF person_company_relation = 'pseudouser' THEN
+        person_id := 0;
+        _account_type := 'pseudouser';
+    ELSE
+        _account_type := 'person';
+        IF person_id IS NULL THEN
+            INSERT INTO person (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+                VALUES (first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+            RETURNING person.person_id into _personid;
+            person_id = _personid;
+        ELSE
+            INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
+                VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date);
+        END IF;
+        INSERT INTO person_company
+            (person_id, company_id, external_hr_id, person_company_status, is_management, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, position_title, manager_person_id)
+            VALUES
+            (person_id, company_id, external_hr_id, person_company_status, is_management, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, position_title, manager_person_id);
+        INSERT INTO person_account_realm_company ( person_id, company_id, account_realm_id) VALUES ( person_id, company_id, _account_realm_id);
+    END IF;
 
-	INSERT INTO account ( login, person_id, company_id, account_realm_id, account_status, description, account_role, account_type)
-		VALUES (login, person_id, company_id, _account_realm_id, person_company_status, description, 'primary', _account_type)
-	RETURNING account.account_id INTO account_id;
+    INSERT INTO account ( login, person_id, company_id, account_realm_id, account_status, description, account_role, account_type)
+        VALUES (login, person_id, company_id, _account_realm_id, person_company_status, description, 'primary', _account_type)
+    RETURNING account.account_id INTO account_id;
 
-	IF department_name IS NOT NULL THEN
-		dept_account_collection_id = person_manip.get_account_collection_id(department_name, 'department');
-		INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( dept_account_collection_id, account_id);
-	END IF;
+    IF department_name IS NOT NULL THEN
+        dept_account_collection_id = person_manip.get_account_collection_id(department_name, 'department');
+        INSERT INTO account_collection_account (account_collection_id, account_id) VALUES ( dept_account_collection_id, account_id);
+    END IF;
 
-	IF unix_uid IS NOT NULL THEN
-		_accountid = account_id;
-		SELECT	aui.account_id
-		  INTO	_uxaccountid
-		  FROM	account_unix_info aui
-		 WHERE	aui.account_id = _accountid;
+    IF site_code IS NOT NULL AND physical_address_id IS NOT NULL THEN
+    	RAISE EXCEPTION 'You must provide either site_code or physical_address_id NOT both';
+    END IF;
 
-		--
-		-- This is creatd by trigger for non-pseudousers, which will
-		-- eventually change, so this is here once it goes away.
-		--
-		IF _uxaccountid IS NULL THEN
-			IF unix_uid = 'auto' THEN
-				_uid :=  person_manip.get_unix_uid(_account_type);
-			ELSE
-				_uid := unix_uid::int;
-			END IF;
+  	IF site_code IS NULL AND physical_address_id IS NOT NULL THEN
+  		site_code = person_manip.get_site_code_from_physical_address_id(physical_address_id);
+  	END IF;
 
-			PERFORM person_manip.setup_unix_account(
-				in_account_id := account_id,
-				in_account_type := _account_type,
-				in_uid := _uid
-			);
-		END IF;
-	END IF;
+  	IF physical_address_id IS NULL AND site_code IS NOT NULL THEN
+  		physical_address_id = person_manip.get_physical_address_from_site_code(site_code);
+  	END IF;
+
+  	IF physical_address_id IS NOT NULL AND site_code IS NOT NULL THEN
+  		INSERT INTO person_location 
+  			(person_id, person_location_type, site_code, physical_address_id)
+  		VALUES
+  			(person_id, person_location_type, site_code, physical_address_id);
+  	END IF;
+
+
+    IF unix_uid IS NOT NULL THEN
+        _accountid = account_id;
+        SELECT  aui.account_id
+          INTO  _uxaccountid
+          FROM  account_unix_info aui
+         WHERE  aui.account_id = _accountid;
+
+        --
+        -- This is creatd by trigger for non-pseudousers, which will
+        -- eventually change, so this is here once it goes away.
+        --
+        IF _uxaccountid IS NULL THEN
+            IF unix_uid = 'auto' THEN
+                _uid :=  person_manip.get_unix_uid(_account_type);
+            ELSE
+                _uid := unix_uid::int;
+            END IF;
+
+            PERFORM person_manip.setup_unix_account(
+                in_account_id := account_id,
+                in_account_type := _account_type,
+                in_uid := _uid
+            );
+        END IF;
+    END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -768,3 +792,84 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = jazzhands, pg_temp;
 
 --------------------------------------------------------------------------------
+-- two functions. they take either a physical_address_id or a site_code and
+-- return the matching site_code or physical_address_id
+--------------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS person_manip.get_physical_address_from_site_code(varchar);
+CREATE OR REPLACE FUNCTION person_manip.get_physical_address_from_site_code(_site_code VARCHAR) 
+	RETURNS INTEGER AS $$
+DECLARE
+	_physical_address_id INTEGER;
+BEGIN
+	SELECT physical_address_id INTO _physical_address_id
+		FROM physical_address
+		INNER JOIN site USING(physical_address_id)
+		WHERE site_code = _site_code;
+	RETURN _physical_address_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP FUNCTION IF EXISTS person_manip.get_site_code_from_physical_address_id(integer);
+CREATE OR REPLACE FUNCTION person_manip.get_site_code_from_physical_address_id(_physical_address_id INTEGER) 
+	RETURNS VARCHAR AS $$
+DECLARE
+	_site_code VARCHAR;
+BEGIN
+	SELECT site_code INTO _site_code
+		FROM physical_address
+		INNER JOIN site USING(physical_address_id)
+		WHERE physical_address_id = _physical_address_id;
+	RETURN _site_code;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--------------------------------------------------------------------------------
+-- function to change a persons location.  takes person_id AND either 
+-- phsyical_address_id OR site_code and sets the person_location entry for the
+-- for the given person_id
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION person_manip.set_location(
+	person_id 						INTEGER,
+	new_site_code					VARCHAR DEFAULT NULL,
+	new_physical_address_id		    INTEGER DEFAULT NULL,
+    person_location_type            VARCHAR DEFAULT 'office'
+) RETURNS VOID AS $$
+DECLARE
+    _person_id INTEGER;
+    _person_location_type VARCHAR;
+	_existing_person_location_id INTEGER;
+BEGIN
+    _person_id = person_id;
+    _person_location_type = person_location_type;
+
+	IF ( new_site_code IS NULL AND new_physical_address_id IS NULL )
+        OR ( new_site_code IS NOT NULL AND new_physical_address_id IS NOT NULL ) THEN
+			RAISE EXCEPTION 'Must specify either new_site_code or new_physical_address';
+	END IF;
+
+	IF new_site_code IS NOT NULL AND new_physical_address_id IS NULL THEN
+		new_physical_address_id = person_manip.get_physical_address_from_site_code(new_site_code);
+	END IF;
+
+	IF new_physical_address_id IS NOT NULL AND new_site_code IS NULL THEN
+		new_site_code = person_manip.get_site_code_from_physical_address_id(new_physical_address_id);
+	END IF;
+
+	SELECT person_location_id INTO _existing_person_location_id
+    FROM person_location pl
+	WHERE pl.person_id = _person_id AND pl.person_location_type = _person_location_type;
+
+    IF _existing_person_location_id IS NULL THEN
+        INSERT INTO person_location
+            (person_id, person_location_type, site_code, physical_address_id)
+        VALUES
+            (_person_id, _person_location_type, new_site_code, new_physical_address_id);
+    ELSE
+        UPDATE person_location
+        SET (site_code, physical_address_id, building, floor, section, seat_number)
+        = (new_site_code, new_physical_address_id, NULL, NULL, NULL, NULL)
+        WHERE person_location_id = _existing_person_location_id;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
