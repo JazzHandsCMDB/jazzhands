@@ -198,12 +198,14 @@ CREATE OR REPLACE FUNCTION person_manip.add_user(
     external_hr_id                  VARCHAR     DEFAULT NULL,
     person_company_status           VARCHAR     DEFAULT 'enabled',
     is_management                   VARCHAR(1)  DEFAULT 'N',
+    is_manager                      VARCHAR(1)  DEFAULT NULL,
     is_exempt                       VARCHAR(1)  DEFAULT 'Y',
     is_full_time                    VARCHAR(1)  DEFAULT 'Y',
     employee_id                     TEXT        DEFAULT NULL,
     hire_date                       DATE        DEFAULT NULL,
     termination_date                DATE        DEFAULT NULL,
     position_title                  VARCHAR     DEFAULT NULL,
+    job_title		                VARCHAR     DEFAULT NULL,
     department_name                 VARCHAR     DEFAULT NULL, 
     manager_person_id               INTEGER     DEFAULT NULL, 
     site_code                       VARCHAR     DEFAULT NULL, 
@@ -224,6 +226,14 @@ DECLARE
     _personid INTEGER;
     _accountid INTEGER;
 BEGIN
+	IF is_manager IS NOT NULL THEN
+		is_management := is_manager;
+	END IF;
+
+	IF job_title IS NOT NULL THEN
+		position_title := job_title;
+	END IF;
+
     IF company_id is NULL THEN
         RAISE EXCEPTION 'Must specify company id';
     END IF;
