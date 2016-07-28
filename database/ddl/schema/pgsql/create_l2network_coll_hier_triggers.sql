@@ -111,6 +111,75 @@ CREATE CONSTRAINT TRIGGER trigger_layer2_network_collection_member_enforce
         FOR EACH ROW
         EXECUTE PROCEDURE layer2_network_collection_member_enforce();
 
+
+CREATE OR REPLACE FUNCTION l2_net_coll_member_enforce_on_type_change()
+RETURNS TRIGGER AS $$
+DECLARE
+	l2ct		val_layer2_network_coll_type%ROWTYPE;
+	old_l2ct	val_layer2_network_coll_type%ROWTYPE;
+	tally integer;
+BEGIN
+	SELECT *
+	INTO	l2ct
+	FROM	val_layer2_network_coll_type
+	WHERE	layer2_network_collection_type = NEW.layer2_network_collection_type;
+
+	SELECT *
+	INTO	old_l2ct
+	FROM	val_layer2_network_coll_type
+	WHERE	layer2_network_collection_type = OLD.layer2_network_collection_type;
+
+	--
+	-- We only need to check this if we are enforcing now where we didn't used
+	-- to need to
+	--
+	IF l2ct.max_num_members IS NOT NULL AND 
+			l2ct.max_num_members IS DISTINCT FROM old_l2ct.max_num_members THEN
+		select count(*)
+		  into tally
+		  from l2_network_coll_l2_network
+		  where layer2_network_collection_id = NEW.layer2_network_collection_id;
+		IF tally > l2ct.max_num_members THEN
+			RAISE EXCEPTION 'Too many members'
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	IF l2ct.MAX_NUM_COLLECTIONS IS NOT NULL THEN
+		SELECT MAX(l2count) FROM (
+			SELECT
+				COUNT(*) AS l2count
+			FROM
+				l2_network_coll_l2_network JOIN
+				layer2_network_collection USING (layer2_network_collection_id)
+			WHERE
+				layer2_network_collection_type = NEW.layer2_network_collection_type
+			GROUP BY
+				layer2_network_id
+		) x INTO tally;
+
+		IF tally > l2ct.max_num_collections THEN
+			RAISE EXCEPTION 'Layer2 network may not be a member of more than % collections of type %',
+				l2ct.MAX_NUM_COLLECTIONS, l2ct.layer2_network_collection_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS l2_net_coll_member_enforce_on_type_change
+	 ON layer2_network_collection;
+CREATE CONSTRAINT TRIGGER l2_net_coll_member_enforce_on_type_change
+        AFTER UPDATE OF layer2_network_collection_type
+        ON layer2_network_collection
+		DEFERRABLE INITIALLY IMMEDIATE
+        FOR EACH ROW
+        EXECUTE PROCEDURE l2_net_coll_member_enforce_on_type_change();
+
 /*
 DO $$
 RAISE EXCEPTION 'Need to write tests cases and expand to other collections';
