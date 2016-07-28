@@ -57,8 +57,8 @@ BEGIN
 		component_id = NEW.component_id;
 	
 	IF NOT FOUND OR ctid IS DISTINCT FROM dt_ctid THEN
-		RAISE EXCEPTION 'Component type of component_id % does not match component_type for device_type_id % (%)',
-			ctid, dtid, dt_ctid
+		RAISE EXCEPTION 'Component type of component_id % (%s) does not match component_type for device_type_id % (%)',
+			NEW.component_id, ctid, dtid, dt_ctid
 		USING ERRCODE = 'foreign_key_violation';
 	END IF;
 
