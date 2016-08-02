@@ -184,13 +184,40 @@ sub lock_db_changes($;$) {
 	my $dbh  = shift;
 	my $wait = shift;
 
+	my $old = $dbh->{PrintError};
+	$dbh->{PrintError} = 0;
+
 	my $nowait = "NOWAIT";
 	if ($wait) {
 		$nowait = '';
+
+		# Use transaction-level advisory lock to allow the SELECT FOR
+		# UPDATE to clear backlogs more efficiently
+		my $sth = $dbh->prepare_cached(
+			qq{
+				select	pg_advisory_xact_lock(54321)
+			}
+		) || die $dbh->errstr;
+		if ( !( $sth->execute ) ) {
+			die $sth->errstr;
+		}
+	}
+	else {
+		# Use transaction-level advisory lock to allow the SELECT FOR
+		# UPDATE to clear backlogs more efficiently
+		my $sth = $dbh->prepare_cached(
+			qq{
+				select	pg_try_advisory_xact_lock(54321)
+			}
+		) || die $dbh->errstr;
+		if ( !( $sth->execute ) ) {
+			if ( $sth->state eq '55P03' ) {
+				return undef;
+			}
+			die $sth->errstr;
+		}
 	}
 
-	my $old = $dbh->{PrintError};
-	$dbh->{PrintError} = 0;
 	my $sth = $dbh->prepare_cached(
 		qq{
 		select	dns_change_record_id
