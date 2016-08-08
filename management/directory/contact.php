@@ -184,6 +184,7 @@ $query = "
 		a.login,
 		numreports.tally as num_reports,
 		ofc.display_label,
+		ofc.physical_address_id,
 		ofc.building,
 		ofc.floor,
 		ofc.section,
@@ -213,6 +214,7 @@ $query = "
 		) numreports USING (person_id)
 		LEFT JOIN (
 		    select  pl.person_id,
+			pa.physical_address_id,
 			pa.display_label,
 			pl.building,
 			pl.floor,
@@ -312,10 +314,11 @@ if(isset($row['birth_date_epoch'])) {
 }
  */
 
-echo build_tr("Status", $row['person_company_relation']);
+echo build_tr("Relation", $row['person_company_relation']);
 
 if(isset($row['display_label'])) {
-	echo build_tr("Location", $row['display_label']);
+	$a = '<a href="./?index=byoffice&physical_address_id='.$row['physical_address_id'].'">'.$row['display_label'].'</a>';
+	echo build_tr("Location", $a);
 }
 
 $loc = "";
