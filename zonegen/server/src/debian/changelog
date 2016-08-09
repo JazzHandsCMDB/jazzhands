@@ -1,9 +1,16 @@
-jazzhands-zonegen-server (0.70.3) trusty; urgency=medium
+jazzhands-zonegen-server (0.71.9) trusty; urgency=medium
 
-  * add --wait argument to allow it to block on select for update so it can
-    happen as needed.
+  * make pg advisory locking only run under postgres
+  * pg gets read repeatable tranasactions
+  * do not muck with change records when --nosoa is specified 
 
- -- Todd M. Kover <kovert@omniscient.com>  Thu, 24 Mar 2016 10:55:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Tue,  9 Aug 2016 17:46:00 +0200
+
+jazzhands-zonegen-server (0.71.7.1) trusty; urgency=medium
+
+  * add pg advisory locking
+
+ -- Kurt Adam <mage@arglebargle.com>  Mon, 01 Aug 2016 10:55:00 -0500
 
 jazzhands-zonegen-server (0.70.2) trusty; urgency=medium
 
@@ -11,7 +18,6 @@ jazzhands-zonegen-server (0.70.2) trusty; urgency=medium
     dns deployment delays.
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Mar 2016 13:05:00 -0500
-
 
 jazzhands-zonegen-server (0.70.1) trusty; urgency=medium
 
@@ -27,7 +33,6 @@ jazzhands-zonegen-server (0.70.0) trusty; urgency=medium
   * do not block on SELECT FOR UPDATE, just exit gracefully.
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 17 Mar 2016 14:15:42 -0500
-
 
 jazzhands-zonegen-server (0.66.1) trusty; urgency=medium
 
