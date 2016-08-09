@@ -201,6 +201,7 @@ sub lock_db_changes($;$) {
 		if ( !( $sth->execute ) ) {
 			die $sth->errstr;
 		}
+		$sth->finish;
 	}
 	else {
 		# Use transaction-level advisory lock to allow the SELECT FOR
@@ -216,6 +217,7 @@ sub lock_db_changes($;$) {
 			}
 			die $sth->errstr;
 		}
+		$sth->finish;
 	}
 
 	my $sth = $dbh->prepare_cached(
@@ -1543,17 +1545,26 @@ mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
 mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 
-#
-# if this returns  an empty list, then exit 1
-# This signals to the caller that it should cease.
-#
-my $changeids = lock_db_changes( $dbh, $wait );
+# Do not manipulate the change records if the SOA is not to be manipulated.
+# This is just used to make sure everything on disk is right.
+my @changeids;
+if($nosoa) {
+	# don't manipulate any changeids.
+	my @foo;
+	@changeids = @foo;
+} else {
+	#
+	# if this returns  an empty list, then exit 1
+	# This signals to the caller that it should cease.
+	#
+	my $changeids = lock_db_changes( $dbh, $wait );
 
-if ( !defined($changeids) ) {
-	exit 1;
+	if ( !defined($changeids) ) {
+		exit 1;
+	}
+
+	@changeids = @{$changeids};
 }
-
-my @changeids = @{$changeids};
 
 if ($debug) {
 	warn "Got ", scalar @changeids, " change ids to deal with";
