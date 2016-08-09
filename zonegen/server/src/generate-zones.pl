@@ -201,6 +201,7 @@ sub lock_db_changes($;$) {
 		if ( !( $sth->execute ) ) {
 			die $sth->errstr;
 		}
+		$sth->finish;
 	}
 	else {
 		# Use transaction-level advisory lock to allow the SELECT FOR
@@ -216,6 +217,7 @@ sub lock_db_changes($;$) {
 			}
 			die $sth->errstr;
 		}
+		$sth->finish;
 	}
 
 	my $sth = $dbh->prepare_cached(
