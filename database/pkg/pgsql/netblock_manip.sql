@@ -104,11 +104,12 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
 	netblock_status			jazzhands.netblock.netblock_status%TYPE
 								DEFAULT 'Allocated'
-) RETURNS jazzhands.netblock AS $$
+) RETURNS SETOF jazzhands.netblock AS $$
 DECLARE
 	netblock_rec	RECORD;
 BEGIN
-	SELECT * into netblock_rec FROM netblock_manip.allocate_netblock(
+	RETURN QUERY 
+		SELECT * into netblock_rec FROM netblock_manip.allocate_netblock(
 		parent_netblock_list := ARRAY[parent_netblock_id],
 		netmask_bits := netmask_bits,
 		address_type := address_type,
@@ -120,7 +121,6 @@ BEGIN
 		rnd_max_count := rnd_max_count,
 		netblock_status := netblock_status
 	);
-	RETURN netblock_rec;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
 
@@ -139,7 +139,7 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	description				jazzhands.netblock.description%TYPE DEFAULT NULL,
 	netblock_status			jazzhands.netblock.netblock_status%TYPE
 								DEFAULT 'Allocated'
-) RETURNS jazzhands.netblock AS $$
+) RETURNS SETOF jazzhands.netblock AS $$
 DECLARE
 	parent_rec		RECORD;
 	netblock_rec	RECORD;
@@ -176,7 +176,7 @@ BEGIN
 			netblock_id = ANY(parent_netblock_list);
 
 		IF parent_netblock_list IS NULL THEN
-			RETURN NULL;
+			RETURN;
 		END IF;
 	END IF;
 
@@ -224,7 +224,7 @@ BEGIN
 	END LOOP;
 
  	IF NOT FOUND THEN
- 		RETURN NULL;
+ 		RETURN;
  	END IF;
 
 	IF address_type = 'loopback' THEN
@@ -241,7 +241,7 @@ BEGIN
 			);
 
 		IF NOT FOUND THEN
-			RETURN NULL;
+			RETURN;
 		END IF;
 
 		INSERT INTO jazzhands.netblock (
@@ -283,7 +283,8 @@ BEGIN
 		PERFORM dns_utils.add_domains_from_netblock(
 			netblock_id := netblock_rec.netblock_id);
 
-		RETURN netblock_rec;
+		RETURN NEXT netblock_rec;
+		RETURN;
 	END IF;
 
 	IF address_type = 'single' THEN
@@ -298,7 +299,7 @@ BEGIN
 			);
 
 		IF NOT FOUND THEN
-			RETURN NULL;
+			RETURN;
 		END IF;
 
 		RAISE DEBUG 'ip_address is %', inet_rec.ip_address;
@@ -321,7 +322,8 @@ BEGIN
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
 
-		RETURN netblock_rec;
+		RETURN NEXT netblock_rec;
+		RETURN;
 	END IF;
 	IF address_type = 'netblock' THEN
 		SELECT * INTO inet_rec FROM netblock_utils.find_free_netblocks(
@@ -333,7 +335,7 @@ BEGIN
 			max_addresses := 1);
 
 		IF NOT FOUND THEN
-			RETURN NULL;
+			RETURN;
 		END IF;
 
 		INSERT INTO jazzhands.netblock (
@@ -361,7 +363,8 @@ BEGIN
 		PERFORM dns_utils.add_domains_from_netblock(
 			netblock_id := netblock_rec.netblock_id);
 
-		RETURN netblock_rec;
+		RETURN NEXT netblock_rec;
+		RETURN;
 	END IF;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
