@@ -14,6 +14,7 @@ $select_fields = "
 		c.company_id,
 		pi.person_image_id,
 		pc.manager_person_id,
+		pc.person_company_relation,
 		coalesce(mgrp.preferred_first_name, mgrp.first_name) as mgr_first_name,
 		coalesce(mgrp.preferred_last_name, mgrp.last_name) as mgr_last_name,
 		u.account_collection_id,
@@ -37,7 +38,7 @@ $query_tables = "
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
 			and a.is_enabled = 'Y' )
-		inner join (
+		left join (
 			select ac.*, account_id
 			FROM account_collection ac
 				INNER JOIN account_collection_account a
@@ -78,6 +79,7 @@ $query_firstpart = "
 
 $orderby = "
 	order by
+		person_company_relation desc,
 		coalesce(p.preferred_last_name, p.last_name),
 		coalesce(p.preferred_first_name, p.first_name),
 		p.person_id
@@ -238,7 +240,12 @@ if($style == 'peoplelist') {
 	<?php
 	while ($row = pg_fetch_array($result, null, PGSQL_ASSOC)) {
 		$name = $row['first_name']. " ". $row['last_name'];
-		echo "\t<tr>\n";
+		if($row['person_company_relation'] == 'employee') {
+			$class = "employee";
+		} else {
+			$class = "nonemployee";
+		}
+		echo "\t<tr class=$class>\n";
 		if(isset($row['person_image_id'])) {
 			$pic = img($row['person_id'], $row['person_image_id'], 'thumb');
 			echo "<td> $pic </td>";
@@ -252,6 +259,11 @@ if($style == 'peoplelist') {
 			echo "<br>(" .hierlink('reports', $row['person_id'], "team").")";
 		}
 		echo "</td>";
+
+		if($row['person_company_relation'] != 'employee' && 
+				!$row['position_title']) {
+			$row['position_title'] = 'CONSULTANT';
+		}
 
 		echo "<td> ". $row['position_title'] . "</td>\n";
 		echo "<td> ". $row['company_name'] . "</td>\n";
@@ -270,7 +282,13 @@ if($style == 'peoplelist') {
 
 		echo "<td>" . hierlink('team', $row['account_collection_id'],
 			$row['account_collection_name']). "</td>\n";
-		echo "<td> ". $row['office_location'] . "</td>\n";
+
+		$loc = "";
+		if($row['physical_address_id']) {
+			$loc = '<a href="./?index=byoffice&physical_address_id='.$row['physical_address_id'].'">'.$row['office_location'].'</a>';
+		}
+
+		echo "<td> $loc </td>\n";
 	    echo "\t</tr>\n";
 	}
 	echo "</table>\n";

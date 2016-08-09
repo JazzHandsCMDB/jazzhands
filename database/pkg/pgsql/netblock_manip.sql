@@ -383,14 +383,15 @@ DECLARE
 	pnbid			ALIAS FOR parent_netblock_id;
 BEGIN
 	--
-	-- If the network range already exists, then just return it, even if the
+	-- If the network range already exists, then just return it
 	--
 	SELECT 
 		nr.* INTO netrange
 	FROM
-		network_range nr JOIN
-		netblock startnb ON (nr.start_netblock_id = startnb.netblock_id) JOIN
-		netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+		jazzhands.network_range nr JOIN
+		jazzhands.netblock startnb ON (nr.start_netblock_id = 
+			startnb.netblock_id) JOIN
+		jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
 	WHERE
 		nr.network_range_type = nrtype AND
 		host(startnb.ip_address) = host(start_ip_address) AND
@@ -411,9 +412,10 @@ BEGIN
 	PERFORM 
 		*
 	FROM
-		network_range nr JOIN
-		netblock startnb ON (nr.start_netblock_id = startnb.netblock_id) JOIN
-		netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+		jazzhands.network_range nr JOIN
+		jazzhands.netblock startnb ON 
+			(nr.start_netblock_id = startnb.netblock_id) JOIN
+		jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
 	WHERE
 		nr.network_range_type = nrtype AND ((
 			host(startnb.ip_address)::inet <= host(start_ip_address)::inet AND
@@ -430,18 +432,20 @@ BEGIN
 	END IF;
 
 	IF parent_netblock_id IS NOT NULL THEN
-		SELECT * INTO par_netblock WHERE netblock_id = parent_netblock_id;
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE 
+			netblock_id = pnbid;
 		IF NOT FOUND THEN
 			RAISE 'create_network_range: parent_netblock_id % does not exist',
 				parent_netblock_id USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	ELSE
-		SELECT * INTO par_netblock FROM netblock WHERE netblock_id = (
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE netblock_id = (
 			SELECT 
 				*
 			FROM
 				netblock_utils.find_best_parent_id(
-					in_ipaddress := start_ip_address
+					in_ipaddress := start_ip_address,
+					in_is_single_address := 'Y'
 				)
 		);
 
@@ -483,7 +487,7 @@ BEGIN
 		PERFORM 
 			*
 		FROM
-			netblock n
+			jazzhands.netblock n
 		WHERE
 			n.parent_netblock_id = par_netblock.netblock_id AND
 			host(n.ip_address)::inet > host(start_ip_address)::inet AND
@@ -504,7 +508,7 @@ BEGIN
 	SELECT
 		*
 	FROM
-		netblock n
+		jazzhands.netblock n
 	INTO
 		start_netblock
 	WHERE
@@ -535,7 +539,7 @@ BEGIN
 	SELECT
 		*
 	FROM
-		netblock n
+		jazzhands.netblock n
 	INTO
 		stop_netblock
 	WHERE

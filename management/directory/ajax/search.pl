@@ -17,19 +17,15 @@ sub get_people($$) {
 	my $s = "$searchfor%";
 
 	my $sth = $dbh->prepare_cached(qq{
-		select	p.person_id,
+		select	DISTINCT p.person_id,
 				coalesce(p.preferred_first_name, p.first_name) as first_name,
 				coalesce(p.preferred_last_name, p.last_name) as last_name,
 				p.nickname
 		 from	person p
-		 		inner join (
-					select * from person_company
-					where hire_date is null or hire_date <= now()
-				) pc using (person_id)
 				inner join v_corp_family_account a
-					using (person_id, company_id)
+					using (person_id)
 	   where	( a.account_type = 'person' and a.account_role = 'primary' )
-		and	pc.person_company_status = 'enabled'
+		and a.is_enabeld = 'Y'
 		and	(
 				lower(p.first_name || ' ' || p.last_name) like :search
 			or

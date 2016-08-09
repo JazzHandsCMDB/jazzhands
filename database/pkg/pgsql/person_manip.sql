@@ -184,36 +184,38 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- and what not.
 --
 CREATE OR REPLACE FUNCTION person_manip.add_user(
-    company_id 						INTEGER,
-    person_company_relation 		VARCHAR,
-    login 							VARCHAR 	DEFAULT NULL,
-    first_name 						VARCHAR 	DEFAULT NULL,
-    middle_name 					VARCHAR 	DEFAULT NULL,
-    last_name 						VARCHAR 	DEFAULT NULL,
-    name_suffix 					VARCHAR 	DEFAULT NULL,
-    gender 							VARCHAR(1) 	DEFAULT NULL,
-    preferred_last_name 			VARCHAR 	DEFAULT NULL,
-    preferred_first_name 			VARCHAR 	DEFAULT NULL,
-    birth_date 						DATE 		DEFAULT NULL,
-    external_hr_id 					VARCHAR 	DEFAULT NULL,
-    person_company_status 			VARCHAR 	DEFAULT 'enabled',
-    is_management					VARCHAR(1)	DEFAULT 'N',
-    is_exempt 						VARCHAR(1)	DEFAULT 'Y',
-    is_full_time					VARCHAR(1)  DEFAULT 'Y',
-    employee_id 					TEXT		DEFAULT NULL,
-    hire_date 						DATE		DEFAULT NULL,
-    termination_date 				DATE		DEFAULT NULL,
-    position_title 					VARCHAR 	DEFAULT NULL,
-    department_name 				VARCHAR 	DEFAULT NULL, 
-    manager_person_id 				INTEGER 	DEFAULT NULL, 
-    site_code 						VARCHAR 	DEFAULT NULL, 
-    physical_address_id 			INTEGER 	DEFAULT NULL, 
-    person_location_type 			VARCHAR 	DEFAULT 'office', 
-    description 					VARCHAR 	DEFAULT NULL,
-    unix_uid 						VARCHAR 	DEFAULT NULL,
-    INOUT person_id 				INTEGER 	DEFAULT NULL,
-    OUT dept_account_collection_id 	INTEGER,
-    OUT account_id 					INTEGER
+    company_id                      INTEGER,
+    person_company_relation         VARCHAR,
+    login                           VARCHAR     DEFAULT NULL,
+    first_name                      VARCHAR     DEFAULT NULL,
+    middle_name                     VARCHAR     DEFAULT NULL,
+    last_name                       VARCHAR     DEFAULT NULL,
+    name_suffix                     VARCHAR     DEFAULT NULL,
+    gender                          VARCHAR(1)  DEFAULT NULL,
+    preferred_last_name             VARCHAR     DEFAULT NULL,
+    preferred_first_name            VARCHAR     DEFAULT NULL,
+    birth_date                      DATE        DEFAULT NULL,
+    external_hr_id                  VARCHAR     DEFAULT NULL,
+    person_company_status           VARCHAR     DEFAULT 'enabled',
+    is_management                   VARCHAR(1)  DEFAULT 'N',
+    is_manager                      VARCHAR(1)  DEFAULT NULL,
+    is_exempt                       VARCHAR(1)  DEFAULT 'Y',
+    is_full_time                    VARCHAR(1)  DEFAULT 'Y',
+    employee_id                     TEXT        DEFAULT NULL,
+    hire_date                       DATE        DEFAULT NULL,
+    termination_date                DATE        DEFAULT NULL,
+    position_title                  VARCHAR     DEFAULT NULL,
+    job_title		                VARCHAR     DEFAULT NULL,
+    department_name                 VARCHAR     DEFAULT NULL, 
+    manager_person_id               INTEGER     DEFAULT NULL, 
+    site_code                       VARCHAR     DEFAULT NULL, 
+    physical_address_id             INTEGER     DEFAULT NULL, 
+    person_location_type            VARCHAR     DEFAULT 'office', 
+    description                     VARCHAR     DEFAULT NULL,
+    unix_uid                        VARCHAR     DEFAULT NULL,
+    INOUT person_id                 INTEGER     DEFAULT NULL,
+    OUT dept_account_collection_id  INTEGER,
+    OUT account_id                  INTEGER
 )  RETURNS RECORD AS $$
 DECLARE
     _account_realm_id INTEGER;
@@ -224,6 +226,14 @@ DECLARE
     _personid INTEGER;
     _accountid INTEGER;
 BEGIN
+	IF is_manager IS NOT NULL THEN
+		is_management := is_manager;
+	END IF;
+
+	IF job_title IS NOT NULL THEN
+		position_title := job_title;
+	END IF;
+
     IF company_id is NULL THEN
         RAISE EXCEPTION 'Must specify company id';
     END IF;
@@ -281,23 +291,23 @@ BEGIN
     END IF;
 
     IF site_code IS NOT NULL AND physical_address_id IS NOT NULL THEN
-    	RAISE EXCEPTION 'You must provide either site_code or physical_address_id NOT both';
+        RAISE EXCEPTION 'You must provide either site_code or physical_address_id NOT both';
     END IF;
 
-  	IF site_code IS NULL AND physical_address_id IS NOT NULL THEN
-  		site_code = person_manip.get_site_code_from_physical_address_id(physical_address_id);
-  	END IF;
+    IF site_code IS NULL AND physical_address_id IS NOT NULL THEN
+        site_code = person_manip.get_site_code_from_physical_address_id(physical_address_id);
+    END IF;
 
-  	IF physical_address_id IS NULL AND site_code IS NOT NULL THEN
-  		physical_address_id = person_manip.get_physical_address_from_site_code(site_code);
-  	END IF;
+    IF physical_address_id IS NULL AND site_code IS NOT NULL THEN
+        physical_address_id = person_manip.get_physical_address_from_site_code(site_code);
+    END IF;
 
-  	IF physical_address_id IS NOT NULL AND site_code IS NOT NULL THEN
-  		INSERT INTO person_location 
-  			(person_id, person_location_type, site_code, physical_address_id)
-  		VALUES
-  			(person_id, person_location_type, site_code, physical_address_id);
-  	END IF;
+    IF physical_address_id IS NOT NULL AND site_code IS NOT NULL THEN
+        INSERT INTO person_location 
+            (person_id, person_location_type, site_code, physical_address_id)
+        VALUES
+            (person_id, person_location_type, site_code, physical_address_id);
+    END IF;
 
 
     IF unix_uid IS NOT NULL THEN
@@ -305,7 +315,7 @@ BEGIN
         SELECT  aui.account_id
           INTO  _uxaccountid
           FROM  account_unix_info aui
-         WHERE  aui.account_id = _accountid;
+        WHERE  aui.account_id = _accountid;
 
         --
         -- This is creatd by trigger for non-pseudousers, which will
@@ -833,18 +843,18 @@ CREATE OR REPLACE FUNCTION person_manip.set_location(
 	person_id 						INTEGER,
 	new_site_code					VARCHAR DEFAULT NULL,
 	new_physical_address_id		    INTEGER DEFAULT NULL,
-    person_location_type            VARCHAR DEFAULT 'office'
+	person_location_type            VARCHAR DEFAULT 'office'
 ) RETURNS VOID AS $$
 DECLARE
-    _person_id INTEGER;
-    _person_location_type VARCHAR;
+	_person_id INTEGER;
+	_person_location_type VARCHAR;
 	_existing_person_location_id INTEGER;
 BEGIN
-    _person_id = person_id;
-    _person_location_type = person_location_type;
+	_person_id = person_id;
+	_person_location_type = person_location_type;
 
 	IF ( new_site_code IS NULL AND new_physical_address_id IS NULL )
-        OR ( new_site_code IS NOT NULL AND new_physical_address_id IS NOT NULL ) THEN
+		OR ( new_site_code IS NOT NULL AND new_physical_address_id IS NOT NULL ) THEN
 			RAISE EXCEPTION 'Must specify either new_site_code or new_physical_address';
 	END IF;
 
@@ -857,19 +867,19 @@ BEGIN
 	END IF;
 
 	SELECT person_location_id INTO _existing_person_location_id
-    FROM person_location pl
+	FROM person_location pl
 	WHERE pl.person_id = _person_id AND pl.person_location_type = _person_location_type;
 
-    IF _existing_person_location_id IS NULL THEN
-        INSERT INTO person_location
-            (person_id, person_location_type, site_code, physical_address_id)
-        VALUES
-            (_person_id, _person_location_type, new_site_code, new_physical_address_id);
-    ELSE
-        UPDATE person_location
-        SET (site_code, physical_address_id, building, floor, section, seat_number)
-        = (new_site_code, new_physical_address_id, NULL, NULL, NULL, NULL)
-        WHERE person_location_id = _existing_person_location_id;
-    END IF;
+	IF _existing_person_location_id IS NULL THEN
+		INSERT INTO person_location
+			(person_id, person_location_type, site_code, physical_address_id)
+		VALUES
+			(_person_id, _person_location_type, new_site_code, new_physical_address_id);
+	ELSE
+		UPDATE person_location
+		SET (site_code, physical_address_id, building, floor, section, seat_number)
+		= (new_site_code, new_physical_address_id, NULL, NULL, NULL, NULL)
+		WHERE person_location_id = _existing_person_location_id;
+	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

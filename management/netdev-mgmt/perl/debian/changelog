@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.71.7) unstable; urgency=low
+
+  * Add GetChassisInfo method to juniper.pm
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 05 Jul 2016 14:28:30 -0500
+
 jazzhands-perl-netdev-mgmt (0.71.2) unstable; urgency=low
 
   * Update to add a longer timeout to the HTTP request for updating ACLs
