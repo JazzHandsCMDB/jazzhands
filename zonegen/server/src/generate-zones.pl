@@ -191,33 +191,38 @@ sub lock_db_changes($;$) {
 	if ($wait) {
 		$nowait = '';
 
-		# Use transaction-level advisory lock to allow the SELECT FOR
-		# UPDATE to clear backlogs more efficiently
-		my $sth = $dbh->prepare_cached(
-			qq{
-				select	pg_advisory_xact_lock(54321)
+		if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+
+			# Use transaction-level advisory lock to allow the SELECT FOR
+			# UPDATE to clear backlogs more efficiently
+			my $sth = $dbh->prepare_cached(
+				qq{
+					select	pg_advisory_xact_lock(54321)
+				}
+			) || die $dbh->errstr;
+			if ( !( $sth->execute ) ) {
+				die $sth->errstr;
 			}
-		) || die $dbh->errstr;
-		if ( !( $sth->execute ) ) {
-			die $sth->errstr;
+			$sth->finish;
 		}
-		$sth->finish;
-	}
-	else {
-		# Use transaction-level advisory lock to allow the SELECT FOR
-		# UPDATE to clear backlogs more efficiently
-		my $sth = $dbh->prepare_cached(
-			qq{
-				select	pg_try_advisory_xact_lock(54321)
+	} else {
+		if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+
+			# Use transaction-level advisory lock to allow the SELECT FOR
+			# UPDATE to clear backlogs more efficiently
+			my $sth = $dbh->prepare_cached(
+				qq{
+					select	pg_try_advisory_xact_lock(54321)
+				}
+			) || die $dbh->errstr;
+			if ( !( $sth->execute ) ) {
+				if ( $sth->state eq '55P03' ) {
+					return undef;
+				}
+				die $sth->errstr;
 			}
-		) || die $dbh->errstr;
-		if ( !( $sth->execute ) ) {
-			if ( $sth->state eq '55P03' ) {
-				return undef;
-			}
-			die $sth->errstr;
+			$sth->finish;
 		}
-		$sth->finish;
 	}
 
 	my $sth = $dbh->prepare_cached(
@@ -1272,7 +1277,6 @@ sub process_perserver {
 		my $zones   = $servers{$server};
 
 		if ( -d $zonedir ) {
-
 			#
 			# go through and remove zones that don't belong.
 			# This may leave excess in-addrs.  oh well.
@@ -1503,6 +1507,14 @@ if ( $nosoa && $forcesoa ) {
 
 my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
 
+#
+# This should probably move into script_hooks.zonegen_pre().
+#
+if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+	$dbh->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+	  || die $dbh->errstr;
+}
+
 $dbh->do("SELECT script_hooks.zonegen_pre()");
 
 if ($sleep) {
@@ -1548,8 +1560,10 @@ mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 # Do not manipulate the change records if the SOA is not to be manipulated.
 # This is just used to make sure everything on disk is right.
 my @changeids;
-if($nosoa) {
+if ($nosoa) {
+	#
 	# don't manipulate any changeids.
+	#
 	my @foo;
 	@changeids = @foo;
 } else {
