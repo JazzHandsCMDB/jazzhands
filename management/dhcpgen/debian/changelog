@@ -1,3 +1,10 @@
+jazzhands-dhcpgen (0.71.8) trusty; urgency=medium
+
+  * Fix issue where a subnet declaration consisting of a single, but invalid,
+    layer3_network would generate a bogus config stanza
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 09 Aug 2016 15:55:34 -0500
+
 jazzhands-dhcpgen (0.71.5) trusty; urgency=medium
 
   * Change device hash to be an array of hashes instead of a single hash.  This isn't used at all

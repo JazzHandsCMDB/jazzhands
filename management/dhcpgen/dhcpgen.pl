@@ -76,7 +76,6 @@ GetOptions(
 	'restart-dhcpd!'	=> \$conf->{restart_dhcpd},
 	'w|workdir=s'		=> \$conf->{workdir},
 	'rootdir=s'			=> \$conf->{rootdir},
-	'p|pxedir'			=> \$conf->{pxedir},
     defined(&_LocalHooks::local_getopts) ?
         _LocalHooks::local_getopts(
             $local_options
@@ -978,7 +977,8 @@ EOM
 			printf $l2fh "shared-network %s {\n", $l2_net->{layer2_unique_label};
 			$indent = "\t";
 		}
-		
+	
+		my $l3_count = 0;
 		foreach my $l3_net (@{$l2_net->{layer3_networks}}) {
 			next if ($l3_net->{netblock_address}->masklen <= 19 || 
 				$l3_net->{netblock_address}->masklen > 30);
@@ -1003,6 +1003,7 @@ EOF
 			}
 
 			printf $l2fh "%s}\n", ${indent} if $indent;
+			$l3_count += 1;
 		}
 
 		#
@@ -1037,7 +1038,7 @@ EOF
 				print $l2fh "\t}\n";
 			}
 		}
-		print $l2fh "}\n";
+		print $l2fh "}\n" if $l3_count;
 		#
 		# Spit out host assignments that are associated with this
 		# layer2 network, even though they are global declarations
