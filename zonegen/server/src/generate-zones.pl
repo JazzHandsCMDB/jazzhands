@@ -223,7 +223,6 @@ sub lock_db_changes($;$) {
 			}
 			$sth->finish;
 		}
-		$sth->finish;
 	}
 
 	my $sth = $dbh->prepare_cached(
