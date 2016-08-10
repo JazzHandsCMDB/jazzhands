@@ -226,7 +226,9 @@ BEGIN
 	LOOP
 		INSERT INTO company_type (company_id, company_type)
 			VALUES (_company_id, x);
-		PERFORM company_manip.add_auto_collections(_company_id, _account_realm_id, x);
+		IF _account_realm_id IS NOT NULL THEN
+			PERFORM company_manip.add_auto_collections(_company_id, _account_realm_id, x);
+		END IF;
 		count := count + 1;
 	END LOOP;
 	return count;

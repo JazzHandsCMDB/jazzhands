@@ -1,10 +1,16 @@
+jazzhands-zonegen-server (0.71.10) trusty; urgency=medium
+
+  * move random sleep to before any db interactions
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 10 Aug 2016 15:44:00 +0200
+
 jazzhands-zonegen-server (0.71.9) trusty; urgency=medium
 
   * make pg advisory locking only run under postgres
   * pg gets read repeatable tranasactions
   * do not muck with change records when --nosoa is specified 
 
- -- Todd M. Kover <kovert@omniscient.com>  Tue,  9 Aug 2016 17:46:00 +0200
+ -- Todd M. Kover <kovert@omniscient.com>  Tue,  9 Aug 2016 23:46:00 +0200
 
 jazzhands-zonegen-server (0.71.7.1) trusty; urgency=medium
 

@@ -1505,6 +1505,12 @@ if ( $nosoa && $forcesoa ) {
 	die "Can't both force an SOA serial bump and deny it.\n";
 }
 
+if ($sleep) {
+	my $delay = int( rand($sleep) );
+	warn "Sleeping $delay seconds\n" if ($debug);
+	sleep($delay);
+}
+
 my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
 
 #
@@ -1516,12 +1522,6 @@ if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
 }
 
 $dbh->do("SELECT script_hooks.zonegen_pre()");
-
-if ($sleep) {
-	my $delay = int( rand($sleep) );
-	warn "Sleeping $delay seconds\n" if ($debug);
-	sleep($delay);
-}
 
 $network_range_table = build_network_range_table($dbh);
 
