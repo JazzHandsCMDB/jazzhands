@@ -101,7 +101,9 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		dns_ttl,
 		dns_class,
 		dns_type,
-		dns_value,
+		CASE WHEN dns_value ~ '\.$' THEN dns_value
+			ELSE concat(dns_value, '.', soa_name, '.') END as 
+				dns_value,
 		dns_priority,
 		NULL::inet AS ip,
 		NULL::integer AS ref_record_id,
