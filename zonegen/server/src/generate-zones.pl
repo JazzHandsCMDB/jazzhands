@@ -191,31 +191,37 @@ sub lock_db_changes($;$) {
 	if ($wait) {
 		$nowait = '';
 
-		# Use transaction-level advisory lock to allow the SELECT FOR
-		# UPDATE to clear backlogs more efficiently
-		my $sth = $dbh->prepare_cached(
-			qq{
-				select	pg_advisory_xact_lock(54321)
+		if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+
+			# Use transaction-level advisory lock to allow the SELECT FOR
+			# UPDATE to clear backlogs more efficiently
+			my $sth = $dbh->prepare_cached(
+				qq{
+					select	pg_advisory_xact_lock(54321)
+				}
+			) || die $dbh->errstr;
+			if ( !( $sth->execute ) ) {
+				die $sth->errstr;
 			}
-		) || die $dbh->errstr;
-		if ( !( $sth->execute ) ) {
-			die $sth->errstr;
+			$sth->finish;
 		}
-		$sth->finish;
-	}
-	else {
-		# Use transaction-level advisory lock to allow the SELECT FOR
-		# UPDATE to clear backlogs more efficiently
-		my $sth = $dbh->prepare_cached(
-			qq{
-				select	pg_try_advisory_xact_lock(54321)
+	} else {
+		if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+
+			# Use transaction-level advisory lock to allow the SELECT FOR
+			# UPDATE to clear backlogs more efficiently
+			my $sth = $dbh->prepare_cached(
+				qq{
+					select	pg_try_advisory_xact_lock(54321)
+				}
+			) || die $dbh->errstr;
+			if ( !( $sth->execute ) ) {
+				if ( $sth->state eq '55P03' ) {
+					return undef;
+				}
+				die $sth->errstr;
 			}
-		) || die $dbh->errstr;
-		if ( !( $sth->execute ) ) {
-			if ( $sth->state eq '55P03' ) {
-				return undef;
-			}
-			die $sth->errstr;
+			$sth->finish;
 		}
 		$sth->finish;
 	}
@@ -855,21 +861,24 @@ sub process_all_dns_records {
 			dns_value
 	}
 	);
+
 	# order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 
 	$sth->execute($domid) || die $sth->errstr;
 
 	while (
 		my (
-			$id,     $rangeid, $name,    $ttl,       $class,     $type,
-			$val,    $pri,     $ip,        $rid,       $rname,
-			$srv,     $srvproto,  $srvweight, $srvport,
-			$enable, $valname, $valdomain, $valval, $valip
-		) = $sth->fetchrow_array
-	) {
+			$id,     $rangeid, $name,      $ttl,       $class,
+			$type,   $val,     $pri,       $ip,        $rid,
+			$rname,  $srv,     $srvproto,  $srvweight, $srvport,
+			$enable, $valname, $valdomain, $valval,    $valip
+		)
+		= $sth->fetchrow_array
+	  )
+	{
 		my $com = ( $enable eq 'N' ) ? ";" : "";
-		$name   = "" if ( !defined($name) && !defined($rname) );
-		$name   = $rname if ( !defined($name) );
+		$name = "" if ( !defined($name) && !defined($rname) );
+		$name = $rname if ( !defined($name) );
 		my $value = $val;
 		if ( $type eq 'A' || $type eq 'AAAA' ) {
 			$value = ($valip) ? $valip : $ip;
@@ -924,7 +933,7 @@ sub process_all_dns_records {
 		# indented less
 		#
 		my $width = 25;
-		$width = 0 if (! $name ); # zone records get indented less
+		$width = 0 if ( !$name );    # zone records get indented less
 
 		$ttl = "" if ( !defined($ttl) );
 		$out->printf( "%s%-*s\t%s %s\t%s\t%s\n",
@@ -1251,7 +1260,6 @@ sub process_perserver {
 		my $zones   = $servers{$server};
 
 		if ( -d $zonedir ) {
-
 			#
 			# go through and remove zones that don't belong.
 			# This may leave excess in-addrs.  oh well.
@@ -1419,40 +1427,40 @@ sub print_rndc_header {
 
 $ENV{'PATH'} = $ENV{'PATH'} . ":/usr/local/sbin:/usr/sbin";
 
-my $genall      = 0;
-my $dumpzone    = 0;
-my $forcegen    = 0;
-my $forcesoa    = 0;
-my $forceall    = 0;
-my $nosoa       = 0;
-my $help        = 0;
-my $norsynclist = 0;
-my $nogen       = 0;
-my $sleep       = 0;
-my $wait        = 1;
-my $skipperserver        = 0;
+my $genall        = 0;
+my $dumpzone      = 0;
+my $forcegen      = 0;
+my $forcesoa      = 0;
+my $forceall      = 0;
+my $nosoa         = 0;
+my $help          = 0;
+my $norsynclist   = 0;
+my $nogen         = 0;
+my $sleep         = 0;
+my $wait          = 1;
+my $skipperserver = 0;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'debug'          => \$debug,          # even more verbosity.
-	'dumpzone'       => \$dumpzone,       # dump a zone to stdout
-	'forcegen|f'     => \$forcegen,       # force generation of zones
-	'forcesoa|s'     => \$forcesoa,       # force bump of SOA record
-	'force|f'        => \$forceall,       # force everything
-	'genall|a'       => \$genall,         # generate all, not just new
-	'help'           => \$help,           # duh.
-	'no-rsync-list'  => \$norsynclist,    # generate rsync list
-	'nogen'          => \$nogen,          # do not generate any zones
-	'nosoa'          => \$nosoa,          # never bump soa record
-	'outdir|o=s'     => \$output_root,    # output directory
-	'random-sleep=i' => \$sleep,          # how long to sleep up unto;
-	'site=s'         => \$mysite,         # indicate what local machines site
-	'verbose|v'      => \$verbose,        # duh.
-	'skip-perserver'	=> \$skipperserver, # primarily for debugging; skip
-	'wait!'          => \$wait            # wait on lock in db
+	'debug'          => \$debug,            # even more verbosity.
+	'dumpzone'       => \$dumpzone,         # dump a zone to stdout
+	'forcegen|f'     => \$forcegen,         # force generation of zones
+	'forcesoa|s'     => \$forcesoa,         # force bump of SOA record
+	'force|f'        => \$forceall,         # force everything
+	'genall|a'       => \$genall,           # generate all, not just new
+	'help'           => \$help,             # duh.
+	'no-rsync-list'  => \$norsynclist,      # generate rsync list
+	'nogen'          => \$nogen,            # do not generate any zones
+	'nosoa'          => \$nosoa,            # never bump soa record
+	'outdir|o=s'     => \$output_root,      # output directory
+	'random-sleep=i' => \$sleep,            # how long to sleep up unto;
+	'site=s'         => \$mysite,           # indicate what local machines site
+	'verbose|v'      => \$verbose,          # duh.
+	'skip-perserver' => \$skipperserver,    # primarily for debugging; skip
+	'wait!'          => \$wait              # wait on lock in db
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1482,15 +1490,23 @@ if ( $nosoa && $forcesoa ) {
 	die "Can't both force an SOA serial bump and deny it.\n";
 }
 
-my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
-
-$dbh->do("SELECT script_hooks.zonegen_pre()");
-
 if ($sleep) {
 	my $delay = int( rand($sleep) );
 	warn "Sleeping $delay seconds\n" if ($debug);
 	sleep($delay);
 }
+
+my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
+
+#
+# This should probably move into script_hooks.zonegen_pre().
+#
+if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+	$dbh->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+	  || die $dbh->errstr;
+}
+
+$dbh->do("SELECT script_hooks.zonegen_pre()");
 
 $network_range_table = build_network_range_table($dbh);
 
@@ -1526,17 +1542,28 @@ mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
 mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
 mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 
-#
-# if this returns  an empty list, then exit 1
-# This signals to the caller that it should cease.
-#
-my $changeids = lock_db_changes( $dbh, $wait );
+# Do not manipulate the change records if the SOA is not to be manipulated.
+# This is just used to make sure everything on disk is right.
+my @changeids;
+if ($nosoa) {
+	#
+	# don't manipulate any changeids.
+	#
+	my @foo;
+	@changeids = @foo;
+} else {
+	#
+	# if this returns  an empty list, then exit 1
+	# This signals to the caller that it should cease.
+	#
+	my $changeids = lock_db_changes( $dbh, $wait );
 
-if ( !defined($changeids) ) {
-	exit 1;
+	if ( !defined($changeids) ) {
+		exit 1;
+	}
+
+	@changeids = @{$changeids};
 }
-
-my @changeids = @{$changeids};
 
 if ($debug) {
 	warn "Got ", scalar @changeids, " change ids to deal with";
@@ -1799,7 +1826,8 @@ if ( !$norsynclist ) {
 # Final cleanup
 #
 warn "Generating configuration files and whatnot..." if ($debug);
-process_perserver( $dbh, "../zones", $persvrroot, $generate ) if(!$skipperserver);
+process_perserver( $dbh, "../zones", $persvrroot, $generate )
+  if ( !$skipperserver );
 generate_complete_files( $dbh, $zoneroot, $generate );
 
 $dbh->do("SELECT script_hooks.zonegen_post()");
