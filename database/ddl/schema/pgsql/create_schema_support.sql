@@ -32,6 +32,7 @@
  * limitations under the License.
  */
 
+\set ON_ERROR_STOP
 
 --
 -- $HeadURL$
@@ -149,6 +150,134 @@ BEGIN
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
+)
+RETURNS VOID AS $FUNC$
+DECLARE
+	idx	 text[];
+	keys text[];
+	cols text[];
+	i	text;
+BEGIN
+	-- rename all the old indexes and constraints on the old audit table
+	SELECT	array_agg(c2.relname)
+		INTO	 idx
+		  FROM	pg_catalog.pg_index i
+			LEFT JOIN pg_catalog.pg_class c
+		   		ON c.oid = i.indrelid
+			LEFT JOIN pg_catalog.pg_class c2
+				ON i.indexrelid = c2.oid
+		  	LEFT JOIN pg_catalog.pg_namespace n
+				ON c2.relnamespace = n.oid
+			LEFT JOIN pg_catalog.pg_constraint con
+				ON (conrelid = i.indrelid
+				AND conindid = i.indexrelid
+				AND contype IN ('p','u','x'))
+		 WHERE n.nspname = quote_ident(aud_schema)
+		  AND	c.relname = quote_ident(table_name)
+		  AND	contype is NULL
+		GROUP BY c2.relname
+	;
+
+	FOREACH i IN ARRAY idx
+	LOOP
+		EXECUTE 'ALTER INDEX '
+			|| quote_ident(aud_schema) || '.'
+			|| quote_ident(i)
+			|| ' RENAME TO '
+			|| quote_ident(i || '__old__');
+
+	END LOOP;
+
+	SELECT array_agg(con.conname)
+	INTO	keys
+    FROM pg_catalog.pg_class c
+		INNER JOIN pg_namespace n
+			ON relnamespace = n.oid
+		INNER JOIN pg_catalog.pg_index i
+			ON c.oid = i.indrelid
+		INNER JOIN pg_catalog.pg_class c2
+			ON i.indexrelid = c2.oid
+		INNER JOIN pg_catalog.pg_constraint con ON
+			(con.conrelid = i.indrelid
+			AND con.conindid = i.indexrelid )
+	WHERE  	n.nspname = quote_ident(aud_schema)
+	AND		c.relname = quote_ident(table_name)
+	AND con.contype in ('p', 'u')
+	GROUP BY con.conname;
+
+	IF array_length(keys, 1) > 0 THEN
+		FOREACH i IN ARRAY keys
+		LOOP
+			EXECUTE 'ALTER TABLE '
+				|| quote_ident(aud_schema) || '.'
+				|| quote_ident(table_name)
+				|| ' RENAME CONSTRAINT '
+				|| quote_ident(i)
+				|| ' TO '
+				|| quote_ident(i || '__old__');
+		END LOOP;
+	END IF;
+
+	--
+	-- get columns
+	--
+	SELECT	array_agg(a.attname ORDER BY a.attnum)
+	INTO	cols
+	FROM	pg_catalog.pg_attribute a
+	INNER JOIN pg_catalog.pg_class c on a.attrelid = c.oid
+	INNER JOIN pg_catalog.pg_namespace n on n.oid = c.relnamespace
+	LEFT JOIN pg_catalog.pg_description d
+			on d.objoid = a.attrelid
+			and d.objsubid = a.attnum
+	WHERE  	n.nspname = quote_ident(aud_schema)
+	  AND	c.relname = quote_ident(table_name)
+	  AND 	a.attnum > 0
+	  AND 	NOT a.attisdropped
+	;
+
+	--
+	-- rename table
+	--
+	EXECUTE 'ALTER TABLE '
+		|| quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name)
+		|| ' RENAME TO '
+		|| quote_ident(table_name || '__old__');
+	
+
+	--
+	-- RENAME sequence
+	--
+	EXECUTE 'ALTER SEQUENCE '
+		|| quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name || '_seq')
+		|| ' RENAME TO '
+		|| quote_ident(table_name || '__old_seq');
+	
+
+	-- XXX - insert data from old table ordered by aud#seq
+	-- XXX drop old table
+
+	-- XXX possibly consider moving index generation after
+	-- XXX consider a "recreate all sequences".  Also consider
+		-- rejiggering create scripts to always optionally recreate.
+
+	--
+	-- create a new audit table
+	--
+	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
+	--
+	-- recreate audit trigger
+	--
+	PERFORM schema_support.rebuild_audit_trigger (
+		aud_schema, tbl_schema, table_name );
+
+END;
+$FUNC$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
 
@@ -337,7 +466,11 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- MAINTENANCE SUPPORT FUNCTIONS
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 --
 -- Check for ideal maintenance conditions.
