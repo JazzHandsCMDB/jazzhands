@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2013-2014, Todd M. Kover
+# Copyright (c) 2013-2016, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -180,9 +180,10 @@ sub get_db_default {
 # lock all the dns_change_record columns and return the max one
 # found.  This assumes they are assigned in order, which is fine...
 #
-sub lock_db_changes($;$) {
+sub lock_db_changes($;$$) {
 	my $dbh  = shift;
 	my $wait = shift;
+	my $agg  = shift;
 
 	my $old = $dbh->{PrintError};
 	$dbh->{PrintError} = 0;
@@ -191,7 +192,7 @@ sub lock_db_changes($;$) {
 	if ($wait) {
 		$nowait = '';
 
-		if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+		if ( $agg && $dbh->{Driver}->{Name} eq 'Pg' ) {
 
 			# Use transaction-level advisory lock to allow the SELECT FOR
 			# UPDATE to clear backlogs more efficiently
@@ -206,7 +207,7 @@ sub lock_db_changes($;$) {
 			$sth->finish;
 		}
 	} else {
-		if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+		if ( $agg && $dbh->{Driver}->{Name} eq 'Pg' ) {
 
 			# Use transaction-level advisory lock to allow the SELECT FOR
 			# UPDATE to clear backlogs more efficiently
@@ -1455,27 +1456,29 @@ my $norsynclist = 0;
 my $nogen       = 0;
 my $sleep       = 0;
 my $wait        = 1;
+my $agg         = 0;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'debug'          => \$debug,          # even more verbosity.
-	'dumpzone'       => \$dumpzone,       # dump a zone to stdout
-	'forcegen|f'     => \$forcegen,       # force generation of zones
-	'forcesoa|s'     => \$forcesoa,       # force bump of SOA record
-	'force|f'        => \$forceall,       # force everything
-	'genall|a'       => \$genall,         # generate all, not just new
-	'help'           => \$help,           # duh.
-	'no-rsync-list'  => \$norsynclist,    # generate rsync list
-	'nogen'          => \$nogen,          # do not generate any zones
-	'nosoa'          => \$nosoa,          # never bump soa record
-	'outdir|o=s'     => \$output_root,    # output directory
-	'random-sleep=i' => \$sleep,          # how long to sleep up unto;
-	'site=s'         => \$mysite,         # indicate what local machines site
-	'verbose|v'      => \$verbose,        # duh.
-	'wait!'          => \$wait            # wait on lock in db
+	'aggressive-lock' => \$agg,            # aggressively lock db
+	'debug'           => \$debug,          # even more verbosity.
+	'dumpzone'        => \$dumpzone,       # dump a zone to stdout
+	'forcegen|f'      => \$forcegen,       # force generation of zones
+	'forcesoa|s'      => \$forcesoa,       # force bump of SOA record
+	'force|f'         => \$forceall,       # force everything
+	'genall|a'        => \$genall,         # generate all, not just new
+	'help'            => \$help,           # duh.
+	'no-rsync-list'   => \$norsynclist,    # generate rsync list
+	'nogen'           => \$nogen,          # do not generate any zones
+	'nosoa'           => \$nosoa,          # never bump soa record
+	'outdir|o=s'      => \$output_root,    # output directory
+	'random-sleep=i'  => \$sleep,          # how long to sleep up unto;
+	'site=s'          => \$mysite,         # indicate what local machines site
+	'verbose|v'       => \$verbose,        # duh.
+	'wait!'           => \$wait            # wait on lock in db
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1516,7 +1519,7 @@ my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
 #
 # This should probably move into script_hooks.zonegen_pre().
 #
-if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
+if ( $agg && $dbh->{Driver}->{Name} eq 'Pg' ) {
 	$dbh->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
 	  || die $dbh->errstr;
 }
@@ -1571,7 +1574,7 @@ if ($nosoa) {
 	# if this returns  an empty list, then exit 1
 	# This signals to the caller that it should cease.
 	#
-	my $changeids = lock_db_changes( $dbh, $wait );
+	my $changeids = lock_db_changes( $dbh, $wait, $agg );
 
 	if ( !defined($changeids) ) {
 		exit 1;

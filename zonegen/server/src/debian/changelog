@@ -1,8 +1,16 @@
+jazzhands-zonegen-server (0.71.11) trusty; urgency=medium
+
+  * turn off advisory locking and repreatable read isolation level leaving an
+    option turn them back on
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 15 Aug 2016 12:44:22 -0400
+
 jazzhands-zonegen-server (0.71.10) trusty; urgency=medium
 
   * move random sleep to before any db interactions
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 10 Aug 2016 15:44:00 +0200
+
 
 jazzhands-zonegen-server (0.71.9) trusty; urgency=medium
 
