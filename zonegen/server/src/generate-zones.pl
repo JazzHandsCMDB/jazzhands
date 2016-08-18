@@ -1826,8 +1826,7 @@ if ( !$norsynclist ) {
 # Final cleanup
 #
 warn "Generating configuration files and whatnot..." if ($debug);
-process_perserver( $dbh, "../zones", $persvrroot, $generate )
-  if ( !$skipperserver );
+process_perserver( $dbh, "../zones", $persvrroot, $generate );
 generate_complete_files( $dbh, $zoneroot, $generate );
 
 $dbh->do("SELECT script_hooks.zonegen_post()");
