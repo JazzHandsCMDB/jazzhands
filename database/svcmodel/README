@@ -10,7 +10,8 @@ other stuff I did not write down
 
  - we do not track internal-to-endpoint items ("subsystems" version?)
    think about an api endpoint that devices that farms out to other
-   devices
+   devices in some behind the scenes way, although perhaps that is an
+   internal service<>service dependency..
  - need a way to represent open to all (internet?  internal?  etc?)
  - make sure we can represent owners/approvers/other roles
  - how to if the end point is working? (feeds into gslb etc)
@@ -22,3 +23,5 @@ other stuff I did not write down
  - "show me all the things that could be part of this" vs endpoints
  - endpoints for services vs 33 different DNS endpoints
  - capacity of a group particualrly shared endpoints
+
+ - sw package should lose the pkg type.
