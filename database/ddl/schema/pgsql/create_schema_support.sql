@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+\set ON_ERROR_STOP
+
 /*
  * Copyright (c) 2010 Matthew Ragan
  * All rights reserved.
@@ -92,17 +94,20 @@ BEGIN
 		IF TG_OP = 'DELETE' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
-		    VALUES ( OLD.*, 'DEL', now(), appuser );
+		    VALUES ( OLD.*, 'DEL', now(),
+		    	clock_timestamp(), txid_current(), appuser );
 		    RETURN OLD;
 		ELSIF TG_OP = 'UPDATE' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
-		    VALUES ( NEW.*, 'UPD', now(), appuser );
+		    VALUES ( NEW.*, 'UPD', now(),
+		    	clock_timestamp(), txid_current(), appuser );
 		    RETURN NEW;
 		ELSIF TG_OP = 'INSERT' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
-		    VALUES ( NEW.*, 'INS', now(), appuser );
+		    VALUES ( NEW.*, 'INS', now(),
+		    	clock_timestamp(), txid_current(), appuser );
 		    RETURN NEW;
 		END IF;
 		RETURN NULL;
@@ -289,6 +294,8 @@ CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
     first_time boolean DEFAULT true
 )
 RETURNS VOID AS $FUNC$
+DECLARE
+	keys	RECORD;
 BEGIN
     IF first_time THEN
 	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
@@ -298,6 +305,8 @@ BEGIN
     EXECUTE 'CREATE TABLE ' || quote_ident(aud_schema) || '.'
 	|| quote_ident(table_name) || ' AS '
 	|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
+	|| 'clock_timestamp() as "aud#realtime", '
+	|| 'txid_current() as "aud#txid", '
 	|| 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
 	|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name)
 	|| ' LIMIT 0';
@@ -314,9 +323,43 @@ BEGIN
 	|| ' ON ' || quote_ident(aud_schema) || '.'
 	|| quote_ident(table_name) || '("aud#timestamp")';
 
+	EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
+		|| quote_ident( table_name )
+		|| ' ADD PRIMARY KEY ("aud#seq")';
+
+	-- one day, I will want to construct the list of columns by hand rather
+	-- than use pg_get_constraintdef.  watch me...
+	FOR keys IN
+		SELECT con.conname, c2.relname as index_name,
+			pg_catalog.pg_get_constraintdef(con.oid, true) as condef,
+				regexp_replace(
+			pg_catalog.pg_get_constraintdef(con.oid, true),
+					'^.*(\([^\)]+\)).*$', '\1') as cols,
+			con.condeferrable,
+			con.condeferred
+		FROM pg_catalog.pg_class c
+			INNER JOIN pg_namespace n
+				ON relnamespace = n.oid
+			INNER JOIN pg_catalog.pg_index i
+				ON c.oid = i.indrelid
+			INNER JOIN pg_catalog.pg_class c2
+				ON i.indexrelid = c2.oid
+			INNER JOIN pg_catalog.pg_constraint con ON
+				(con.conrelid = i.indrelid
+				AND con.conindid = i.indexrelid )
+		WHERE c.relname =  table_name
+		AND     n.nspname = tbl_schema
+		AND con.contype in ('p', 'u')
+	LOOP
+		EXECUTE 'CREATE INDEX '
+			|| 'aud_' || quote_ident( table_name || '_' || keys.conname)
+			|| ' ON ' || quote_ident(aud_schema) || '.'
+			|| quote_ident(table_name) || keys.cols;
+	END LOOP;
+
     IF first_time THEN
-	PERFORM schema_support.rebuild_audit_trigger
-	    ( aud_schema, tbl_schema, table_name );
+		PERFORM schema_support.rebuild_audit_trigger
+	    	( aud_schema, tbl_schema, table_name );
     END IF;
 END;
 $FUNC$ LANGUAGE plpgsql;
