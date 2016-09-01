@@ -77,14 +77,25 @@ sub dump_header {
 				LEFT JOIN y USING (approval_instance_id, approval_process_chain_name)
 				LEFT JOIN n USING (approval_instance_id, approval_process_chain_name)
 				WHERE approval_instance_id = ?
-			) SELECT approval_process_chain_name as "Chain",
-				completed as "# Completed",
-				round((completed::decimal/total)*100.0, 2) ||'%' as "% Completed",
-				uncompleted as "# Outstanding", 
-				round((uncompleted::decimal/total)*100.0, 2) ||'%' as "% Outstanding",
+			), output AS ( SELECT approval_process_chain_name as chain,
+				completed,
+				round((completed::decimal/total)*100.0, 2) ||'%' as pctcompleted,
+				uncompleted,
+				round((uncompleted::decimal/total)*100.0, 2) ||'%' as pctuncompleted,
 				total
-			FROM q
-			order by 1,2 desc
+				FROM q
+				order by 1,2 desc
+			) select chain as "Chain",
+				coalesce(completed::text, 'none') as "# Completed",
+				case WHEN completed IS NULL THEN 'none' 
+					WHEN pctcompleted IS NULL THEN '100%'
+					ELSE pctcompleted END as "% Completed",
+				coalesce(uncompleted::text, 'none') as "# Oustanding",
+				case WHEN uncompleted IS NULL THEN 'none' 
+					WHEN pctuncompleted IS NULL THEN '100%'
+					ELSE pctuncompleted END as "% Outstanding",
+				coalesce(total, coalesce(completed,0)+coalesce(uncompleted,0)) as total
+			FROM output
 		},
 		bind    => [$instid],
 		caption => 'Overall Step Completion Statistics',
