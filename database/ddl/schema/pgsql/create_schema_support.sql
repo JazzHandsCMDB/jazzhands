@@ -44,8 +44,8 @@ DO $$
 DECLARE
 	_tal INTEGER;
 BEGIN
-	select count(*) 
-	from pg_catalog.pg_namespace 
+	select count(*)
+	from pg_catalog.pg_namespace
 	into _tal
 	where nspname = 'schema_support';
 	IF _tal = 0 THEN
@@ -90,7 +90,7 @@ BEGIN
     		appuser = substr(appuser, 1, 255);
 
 		IF TG_OP = 'DELETE' THEN
-		    INSERT INTO $ZZ$ || quote_ident(aud_schema) 
+		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( OLD.*, 'DEL', now(), appuser );
 		    RETURN OLD;
@@ -116,7 +116,7 @@ BEGIN
 
     EXECUTE 'CREATE TRIGGER ' || quote_ident('trigger_audit_' || table_name)
 	|| ' AFTER INSERT OR UPDATE OR DELETE ON ' || quote_ident(tbl_schema)
-	|| '.' || quote_ident(table_name) || ' FOR EACH ROW EXECUTE PROCEDURE ' 
+	|| '.' || quote_ident(table_name) || ' FOR EACH ROW EXECUTE PROCEDURE '
 	|| quote_ident(tbl_schema) || '.' || quote_ident('perform_audit_'
 	|| table_name) || '()';
 END;
@@ -243,7 +243,7 @@ BEGIN
 		|| quote_ident(table_name)
 		|| ' RENAME TO '
 		|| quote_ident('__old__' || table_name);
-	
+
 
 	--
 	-- RENAME sequence
@@ -266,7 +266,7 @@ BEGIN
 		|| array_to_string(cols, ',') || ' FROM '
 		|| quote_ident(aud_schema) || '.'
 		|| quote_ident('__old__' || table_name)
-		|| ' ORDER BY ' 
+		|| ' ORDER BY '
 		|| quote_ident('aud#seq');
 
 	EXECUTE 'DROP TABLE '
@@ -299,7 +299,7 @@ BEGIN
 	|| quote_ident(table_name) || ' AS '
 	|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
 	|| 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
-	|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name) 
+	|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name)
 	|| ' LIMIT 0';
 
     EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
@@ -309,7 +309,7 @@ BEGIN
 	|| quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
 	|| $$')$$;
 
-    EXECUTE 'CREATE INDEX ' 
+    EXECUTE 'CREATE INDEX '
 	|| quote_ident( table_name || '_aud#timestamp_idx')
 	|| ' ON ' || quote_ident(aud_schema) || '.'
 	|| quote_ident(table_name) || '("aud#timestamp")';
@@ -332,7 +332,7 @@ BEGIN
     FOR table_list IN
 	SELECT table_name FROM information_schema.tables
 	WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
-	AND NOT ( 
+	AND NOT (
 	    table_name IN (
 		SELECT table_name FROM information_schema.tables
 		WHERE table_schema = aud_schema
@@ -361,11 +361,11 @@ DECLARE
      table_list RECORD;
 BEGIN
     FOR table_list IN
-	SELECT b.table_name 
+	SELECT b.table_name
 	FROM information_schema.tables b
-		INNER JOIN information_schema.tables a 
+		INNER JOIN information_schema.tables a
 			USING (table_name,table_type)
-	WHERE table_type = 'BASE TABLE' 
+	WHERE table_type = 'BASE TABLE'
 	AND a.table_schema = aud_schema
 	AND b.table_schema = tbl_schema
 	ORDER BY table_name
@@ -450,7 +450,7 @@ BEGIN
     DECLARE
 	tab RECORD;
     BEGIN
-	FOR tab IN 
+	FOR tab IN
 	    SELECT table_name FROM information_schema.tables
 	    WHERE table_schema = tbl_schema AND table_type = 'BASE TABLE'
 	    AND table_name NOT LIKE 'aud$%'
@@ -477,7 +477,7 @@ CREATE OR REPLACE FUNCTION schema_support.begin_maintenance(
 	shouldbesuper boolean DEFAULT true
 )
 RETURNS BOOLEAN AS $$
-DECLARE 
+DECLARE
 	issuper	boolean;
 	_tally	integer;
 BEGIN
@@ -584,7 +584,7 @@ BEGIN
 		-- NOTE:  We lose who granted it.  Oh Well.
 		FOR _perm IN SELECT * FROM pg_catalog.aclexplode(acl := _tabs.privs)
 		LOOP
-			--  grantor | grantee | privilege_type | is_grantable 
+			--  grantor | grantee | privilege_type | is_grantable
 			IF _perm.is_grantable THEN
 				_grant = ' WITH GRANT OPTION';
 			ELSE
@@ -595,7 +595,7 @@ BEGIN
 			ELSE
 				_role := pg_get_userbyid(_perm.grantee);
 			END IF;
-			_fullgrant := 'GRANT ' || 
+			_fullgrant := 'GRANT ' ||
 				_perm.privilege_type || ' on ' ||
 				_schema || '.' ||
 				newname || ' to ' ||
@@ -633,7 +633,7 @@ BEGIN
 		-- NOTE:  We lose who granted it.  Oh Well.
 		FOR _perm IN SELECT * FROM pg_catalog.aclexplode(acl := _tabs.privs)
 		LOOP
-			--  grantor | grantee | privilege_type | is_grantable 
+			--  grantor | grantee | privilege_type | is_grantable
 			IF _perm.is_grantable THEN
 				_grant = ' WITH GRANT OPTION';
 			ELSE
@@ -644,7 +644,7 @@ BEGIN
 			ELSE
 				_role := pg_get_userbyid(_perm.grantee);
 			END IF;
-			_fullgrant := 'GRANT ' || 
+			_fullgrant := 'GRANT ' ||
 				_perm.privilege_type || '(' || _tabs.col || ')'
 				' on ' ||
 				_schema || '.' ||
@@ -696,7 +696,7 @@ BEGIN
 		-- NOTE:  We lose who granted it.  Oh Well.
 		FOR _perm IN SELECT * FROM pg_catalog.aclexplode(acl := _procs.privs)
 		LOOP
-			--  grantor | grantee | privilege_type | is_grantable 
+			--  grantor | grantee | privilege_type | is_grantable
 			IF _perm.is_grantable THEN
 				_grant = ' WITH GRANT OPTION';
 			ELSE
@@ -707,7 +707,7 @@ BEGIN
 			ELSE
 				_role := pg_get_userbyid(_perm.grantee);
 			END IF;
-			_fullgrant := 'GRANT ' || 
+			_fullgrant := 'GRANT ' ||
 				_perm.privilege_type || ' on FUNCTION ' ||
 				_schema || '.' ||
 				newname || '(' || _procs.args || ')  to ' ||
@@ -738,7 +738,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 --
 CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants(
 	beverbose	boolean DEFAULT false
-) 
+)
 RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -756,7 +756,7 @@ BEGIN
 		    IF beverbose THEN
 			    RAISE NOTICE 'Regrant Executing: %', _r.regrant;
 		    END IF;
-		    EXECUTE _r.regrant; 
+		    EXECUTE _r.regrant;
 		    DELETE from __regrants where id = _r.id;
 	    END LOOP;
 
@@ -905,13 +905,13 @@ BEGIN
 		PERFORM schema_support.save_constraint_for_replay('jazzhands', 'table');
 	END IF;
 END;
-$$ 
+$$
 SET search_path=schema_support
-LANGUAGE plpgsql 
+LANGUAGE plpgsql
 SECURITY INVOKER;
 
 --
--- given schema.object, save all triggers for replay 
+-- given schema.object, save all triggers for replay
 --
 CREATE OR REPLACE FUNCTION schema_support.save_trigger_for_replay(
 	schema varchar,
@@ -924,7 +924,7 @@ DECLARE
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
-	FOR _r in 	
+	FOR _r in
 		SELECT n.nspname, c.relname, trg.tgname,
 				pg_get_triggerdef(trg.oid, true) as def
 		FROM pg_trigger trg
@@ -968,7 +968,7 @@ BEGIN
 				(con.connamespace, con.conrelid)
 			INNER JOIN pg_namespace n on n.oid = c.relnamespace
 		WHERE con.confrelid in (
-			select c.oid 
+			select c.oid
 			from pg_class c
 				inner join pg_namespace n on n.oid = c.relnamespace
 			WHERE c.relname = object
@@ -985,7 +985,7 @@ BEGIN
 				_r.nspname, _r.relname, 'constraint', _ddl
 			);
 		IF dropit  THEN
-			_cmd = 'ALTER TABLE ' || _r.nspname || '.' || _r.relname || 
+			_cmd = 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
 				' DROP CONSTRAINT ' || _r.conname || ';';
 			EXECUTE _cmd;
 		END IF;
@@ -1012,7 +1012,7 @@ BEGIN
 
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object);
-	FOR _r IN SELECT n.nspname, p.proname, 
+	FOR _r IN SELECT n.nspname, p.proname,
 				coalesce(u.usename, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
 				pg_get_function_identity_arguments(p.oid) as idargs
@@ -1040,7 +1040,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 
 CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates(
 	beverbose	boolean DEFAULT false
-) 
+)
 RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -1058,7 +1058,7 @@ BEGIN
 			IF beverbose THEN
 				RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
 			END IF;
-			EXECUTE _r.ddl; 
+			EXECUTE _r.ddl;
 			IF _r.owner is not NULL THEN
 				IF _r.type = 'view' THEN
 					EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
@@ -1145,7 +1145,7 @@ BEGIN
         FROM cols  o
             INNER JOIN cols n USING (schema, colname)
 		WHERE
-			o.schema = $1 
+			o.schema = $1
 		and o.relation = $2
 		and n.relation =$3
 	';
@@ -1203,7 +1203,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- Note that this does not consider foreign keys, so the reply may fail
 --
 -- note also that the values are AND'd together, not OR'd
--- 
+--
 CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(
 	in_table		text,
 	in_audit_schema	text DEFAULT 'audit',
@@ -1287,7 +1287,7 @@ BEGIN
 			_eq := 'INSERT INTO ' || quote_ident(in_schema) || '.' ||
 				quote_ident(in_table) || ' ( ' ||
 				array_to_string(
-					schema_support.quote_ident_array(cols), ',') || 
+					schema_support.quote_ident_array(cols), ',') ||
 					') VALUES (' ||  array_to_string(_vals, ',', NULL) || ')';
 		ELSIF _r."aud#action" in ('INS', 'UPD') THEN
 			-- Build up a where clause for this table to get a unique row
@@ -1339,10 +1339,10 @@ BEGIN
 								';
 							END IF;
 							IF _c.value IS NOT  NULL THEN
-								setstr = setstr || _c.key || ' = ' ||  
+								setstr = setstr || _c.key || ' = ' ||
 									quote_nullable(_c.value) || ' ' ;
 							ELSE
-								setstr = setstr || _c.key || ' = ' ||  
+								setstr = setstr || _c.key || ' = ' ||
 									' NULL ' ;
 							END IF;
 						END IF;
@@ -1350,7 +1350,7 @@ BEGIN
 				END LOOP;
 				IF char_length(setstr) > 0 THEN
 					_eq := 'UPDATE ' || quote_ident(in_schema) || '.' ||
-						quote_ident(in_table) || 
+						quote_ident(in_table) ||
 						' SET ' || setstr || ' WHERE ' || _whcl;
 				END IF;
 			END IF;
@@ -1387,7 +1387,7 @@ DECLARE
 	_cmd	TEXT;
 	_rv		TEXT[];
 BEGIN
-	FOR _r IN SELECT n.nspname, p.proname, 
+	FOR _r IN SELECT n.nspname, p.proname,
 				coalesce(u.usename, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
 				pg_get_function_identity_arguments(p.oid) as idargs
@@ -1428,7 +1428,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 --	schema				- schema name of both objects
 --	old_rel				- old relation name
 --	new_rel				- new relation name
---	key_relation		- relation to extract pks from 
+--	key_relation		- relation to extract pks from
 --							- if not set, then defaults to old_rel
 --							- will eventually be set to the one that's a table
 --	prikeys				- which keys should be considered pks.  can be grabbed
@@ -1493,12 +1493,12 @@ BEGIN
 		prikeys := schema_support.get_pk_columns(schema, key_relation);
 	END IF;
 
-	-- read into _cols the column list in common between old_rel and new_rel 
+	-- read into _cols the column list in common between old_rel and new_rel
 	_cols := schema_support.get_common_columns(schema, old_rel, new_rel);
 
 	FOREACH _f IN ARRAY _cols
 	LOOP
-		SELECT array_append(_ctl, 
+		SELECT array_append(_ctl,
 			quote_ident(_f) || '::text') INTO _ctl;
 	END LOOP;
 
@@ -1515,13 +1515,13 @@ BEGIN
 			FOR _c IN SELECT * FROM json_each_text( row_to_json(_or) )
 			LOOP
 				IF _c.key = _f THEN
-					SELECT array_append(_w, 
+					SELECT array_append(_w,
 						quote_ident(_f) || '::text = ' || quote_literal(_c.value))
 					INTO _w;
 				END IF;
 			END LOOP;
 		END LOOP;
-		_q := 'SELECT ' || array_to_string(_cols,',') || 
+		_q := 'SELECT ' || array_to_string(_cols,',') ||
 			' FROM ' || quote_ident(schema) || '.' ||
 			quote_ident(new_rel) || ' WHERE ' ||
 			array_to_string(_w, ' AND ' );
@@ -1591,11 +1591,11 @@ the object shouldbe dropped after saveing grants and other info
 This will save grants for later relay on a relation (view, table) or proc:
 
 select schema_support.save_grants_for_replay('jazzhands', 'physical_port');
-select schema_support.save_grants_for_replay('port_support', 
+select schema_support.save_grants_for_replay('port_support',
 	'do_l1_connection_update');
 
 NOTE:  It saves the grants of stored procedures based on the arguments
-passed in, so if you change those, you need to update the definitions in 
+passed in, so if you change those, you need to update the definitions in
 __regrants (or __recreates)  before replying them.
 
 NOTE:  These procedures end up losing who did the grants originally
