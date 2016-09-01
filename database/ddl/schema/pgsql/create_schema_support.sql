@@ -163,10 +163,10 @@ BEGIN
 		INTO	 idx
 		  FROM	pg_catalog.pg_index i
 			LEFT JOIN pg_catalog.pg_class c
-		   		ON c.oid = i.indrelid
+				ON c.oid = i.indrelid
 			LEFT JOIN pg_catalog.pg_class c2
 				ON i.indexrelid = c2.oid
-		  	LEFT JOIN pg_catalog.pg_namespace n
+			LEFT JOIN pg_catalog.pg_namespace n
 				ON c2.relnamespace = n.oid
 			LEFT JOIN pg_catalog.pg_constraint con
 				ON (conrelid = i.indrelid
