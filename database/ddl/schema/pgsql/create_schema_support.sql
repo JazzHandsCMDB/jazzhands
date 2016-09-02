@@ -95,19 +95,19 @@ BEGIN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( OLD.*, 'DEL', now(),
-		    	clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser );
 		    RETURN OLD;
 		ELSIF TG_OP = 'UPDATE' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( NEW.*, 'UPD', now(),
-		    	clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser );
 		    RETURN NEW;
 		ELSIF TG_OP = 'INSERT' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( NEW.*, 'INS', now(),
-		    	clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser );
 		    RETURN NEW;
 		END IF;
 		RETURN NULL;
@@ -359,7 +359,7 @@ BEGIN
 
     IF first_time THEN
 		PERFORM schema_support.rebuild_audit_trigger
-	    	( aud_schema, tbl_schema, table_name );
+			( aud_schema, tbl_schema, table_name );
     END IF;
 END;
 $FUNC$ LANGUAGE plpgsql;
