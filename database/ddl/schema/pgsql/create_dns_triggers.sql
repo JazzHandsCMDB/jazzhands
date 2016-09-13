@@ -20,7 +20,7 @@
 -- This shall replace all the aforementioned triggers
 --
 
-CREATE OR REPLACE FUNCTION dns_record_update_nontime() 
+CREATE OR REPLACE FUNCTION dns_record_update_nontime()
 RETURNS TRIGGER AS $$
 DECLARE
 	_dnsdomainid	DNS_DOMAIN.DNS_DOMAIN_ID%type;
@@ -74,7 +74,7 @@ BEGIN
 			_mkip := true;
 		END IF;
 	END IF;
-				
+
 	if _mkold THEN
 		IF _mkdom THEN
 			_dnsdomainid := OLD.dns_domain_id;
@@ -82,9 +82,9 @@ BEGIN
 			_dnsdomainid := NULL;
 		END IF;
 		if _mkip and OLD.netblock_id is not NULL THEN
-			SELECT	ip_address 
-			  INTO	_ipaddr 
-			  FROM	netblock 
+			SELECT	ip_address
+			  INTO	_ipaddr
+			  FROM	netblock
 			 WHERE	netblock_id  = OLD.netblock_id;
 		ELSE
 			_ipaddr := NULL;
@@ -99,9 +99,9 @@ BEGIN
 			_dnsdomainid := NULL;
 		END IF;
 		if _mkip and NEW.netblock_id is not NULL THEN
-			SELECT	ip_address 
-			  INTO	_ipaddr 
-			  FROM	netblock 
+			SELECT	ip_address
+			  INTO	_ipaddr
+			  FROM	netblock
 			 WHERE	netblock_id  = NEW.netblock_id;
 		ELSE
 			_ipaddr := NULL;
@@ -114,15 +114,15 @@ BEGIN
 	END IF;
 	return NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_update_nontime ON dns_record;
-CREATE TRIGGER trigger_dns_record_update_nontime 
+CREATE TRIGGER trigger_dns_record_update_nontime
 	AFTER INSERT OR UPDATE OR DELETE
-	ON dns_record 
-	FOR EACH ROW 
+	ON dns_record
+	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_update_nontime();
 
 ---------------------------------------------------------------------------
@@ -130,6 +130,7 @@ CREATE TRIGGER trigger_dns_record_update_nontime
 CREATE OR REPLACE FUNCTION dns_a_rec_validation() RETURNS TRIGGER AS $$
 DECLARE
 	_ip		netblock.ip_address%type;
+	_sing	netblock.is_single_address%type;
 BEGIN
 	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
 		RAISE EXCEPTION 'Attempt to set % record without a Netblock',
@@ -137,7 +138,7 @@ BEGIN
 			USING ERRCODE = 'not_null_violation';
 	END IF;
 
-	IF NEW.netblock_Id is not NULL and 
+	IF NEW.netblock_Id is not NULL and
 			( NEW.dns_value IS NOT NULL OR NEW.dns_value_record_id IS NOT NULL ) THEN
 		RAISE EXCEPTION 'Both dns_value and netblock_id may not be set'
 			USING ERRCODE = 'JH001';
@@ -153,10 +154,10 @@ BEGIN
 			USING ERRCODE = 'JH001';
 	END IF;
 
-	-- XXX need to deal with changing a netblock type and breaking dns_record.. 
+	-- XXX need to deal with changing a netblock type and breaking dns_record..
 	IF NEW.netblock_id IS NOT NULL THEN
-		SELECT ip_address 
-		  INTO _ip 
+		SELECT ip_address, is_single_address
+		  INTO _ip, _sing
 		  FROM netblock
 		 WHERE netblock_id = NEW.netblock_id;
 
@@ -169,6 +170,12 @@ BEGIN
 			RAISE EXCEPTION 'AAAA records must be assigned to non-IPv6 records'
 				USING ERRCODE = 'JH200';
 		END IF;
+
+		IF _sing = 'N' AND NEW.dns_type IN ('A','AAAA') THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+
 	END IF;
 
 	RETURN NEW;
@@ -178,11 +185,73 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_a_rec_validation ON dns_record;
-CREATE TRIGGER trigger_dns_a_rec_validation 
-	BEFORE INSERT OR UPDATE 
-	ON dns_record 
-	FOR EACH ROW 
+CREATE TRIGGER trigger_dns_a_rec_validation
+	BEFORE INSERT OR UPDATE
+	ON dns_record
+	FOR EACH ROW
 	EXECUTE PROCEDURE dns_a_rec_validation();
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION nb_dns_a_rec_validation() RETURNS TRIGGER AS $$
+DECLARE
+	_tal	integer;
+BEGIN
+	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
+		IF family(NEW.ip_address) == 6 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type = 'A';
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+	END IF;
+
+	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
+		IF family(NEW.ip_address) == 4 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type = 'AAAA';
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.is_single_address = 'N' THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type IN ('A', 'AAAA');
+
+		IF _tal > 0 THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_nb_dns_a_rec_validation ON netblock;
+CREATE TRIGGER trigger_nb_dns_a_rec_validation
+	BEFORE UPDATE OF ip_address, is_single_address
+	ON netblock
+	FOR EACH ROW
+	EXECUTE PROCEDURE nb_dns_a_rec_validation();
+
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_non_a_rec_validation() RETURNS TRIGGER AS $$
@@ -202,15 +271,15 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_non_a_rec_validation ON dns_record;
-CREATE TRIGGER trigger_dns_non_a_rec_validation 
-	BEFORE INSERT OR UPDATE 
-	ON dns_record 
-	FOR EACH ROW 
+CREATE TRIGGER trigger_dns_non_a_rec_validation
+	BEFORE INSERT OR UPDATE
+	ON dns_record
+	FOR EACH ROW
 	EXECUTE PROCEDURE dns_non_a_rec_validation();
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION dns_rec_prevent_dups() 
+CREATE OR REPLACE FUNCTION dns_rec_prevent_dups()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -220,7 +289,7 @@ BEGIN
 	  INTO	_tally
 	  FROM	dns_record
 	  WHERE
-	  		( lower(dns_name) = lower(NEW.dns_name) OR 
+	  		( lower(dns_name) = lower(NEW.dns_name) OR
 				(dns_name IS NULL AND NEW.dns_name is NULL)
 			)
 		AND
@@ -229,24 +298,24 @@ BEGIN
 	  		( dns_class = NEW.dns_class )
 		AND
 	  		( dns_type = NEW.dns_type )
-		AND 
-	  		( dns_srv_service = NEW.dns_srv_service OR 
+		AND
+	  		( dns_srv_service = NEW.dns_srv_service OR
 				(dns_srv_service IS NULL and NEW.dns_srv_service is NULL)
 			)
-		AND 
-	  		( dns_srv_protocol = NEW.dns_srv_protocol OR 
+		AND
+	  		( dns_srv_protocol = NEW.dns_srv_protocol OR
 				(dns_srv_protocol IS NULL and NEW.dns_srv_protocol is NULL)
 			)
-		AND 
-	  		( dns_srv_port = NEW.dns_srv_port OR 
+		AND
+	  		( dns_srv_port = NEW.dns_srv_port OR
 				(dns_srv_port IS NULL and NEW.dns_srv_port is NULL)
 			)
-		AND 
-	  		( dns_value = NEW.dns_value OR 
+		AND
+	  		( dns_value = NEW.dns_value OR
 				(dns_value IS NULL and NEW.dns_value is NULL)
 			)
 		AND
-	  		( netblock_id = NEW.netblock_id OR 
+	  		( netblock_id = NEW.netblock_id OR
 				(netblock_id IS NULL AND NEW.netblock_id is NULL)
 			)
 		AND	is_enabled = 'Y'
@@ -263,13 +332,13 @@ BEGIN
 			SELECT	count(*)
 			 INTO	_tally
 			 FROM	dns_record
-			WHERE dns_class = 'IN' 
-			AND dns_type = 'A' 
+			WHERE dns_class = 'IN'
+			AND dns_type = 'A'
 			AND should_generate_ptr = 'Y'
 			AND is_enabled = 'Y'
 			AND netblock_id = NEW.NETBLOCK_ID
 			AND dns_record_id != NEW.DNS_RECORD_ID;
-	
+
 			IF _tally != 0 THEN
 				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same IP on netblock_id %', NEW.netblock_id
 					USING ERRCODE = 'JH201';
@@ -279,48 +348,48 @@ BEGIN
 
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_rec_prevent_dups ON dns_record;
-CREATE TRIGGER trigger_dns_rec_prevent_dups 
-	BEFORE INSERT OR UPDATE 
-	ON dns_record 
-	FOR EACH ROW 
+CREATE TRIGGER trigger_dns_rec_prevent_dups
+	BEFORE INSERT OR UPDATE
+	ON dns_record
+	FOR EACH ROW
 	EXECUTE PROCEDURE dns_rec_prevent_dups();
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION dns_record_check_name() 
+CREATE OR REPLACE FUNCTION dns_record_check_name()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.DNS_NAME IS NOT NULL THEN
 		-- rfc rfc952
 		IF NEW.DNS_NAME !~ '[-a-zA-Z0-9\._]*' THEN
-			RAISE EXCEPTION 'Invalid DNS NAME %', 
+			RAISE EXCEPTION 'Invalid DNS NAME %',
 				NEW.DNS_NAME
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_check_name ON dns_record;
-CREATE TRIGGER trigger_dns_record_check_name 
+CREATE TRIGGER trigger_dns_record_check_name
 	BEFORE INSERT OR UPDATE OF DNS_NAME
-	ON dns_record 
-	FOR EACH ROW 
+	ON dns_record
+	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_check_name();
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_record_cname_checker()
 RETURNS TRIGGER AS $$
 DECLARE
-	_tally	INTEGER;	
+	_tally	INTEGER;
 	_dom	TEXT;
 BEGIN
 	_tally := 0;
@@ -330,7 +399,7 @@ BEGIN
 			SELECT	COUNT(*)
 				  INTO	_tally
 				  FROM	dns_record x
-				 WHERE	
+				 WHERE
 				 		NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
@@ -344,7 +413,7 @@ BEGIN
 				SELECT	COUNT(*)
 				  INTO	_tally
 				  FROM	dns_record x
-				 WHERE	
+				 WHERE
 				 		NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
 				 			NEW.dns_name IS NULL and x.dns_name is NULL
@@ -390,11 +459,11 @@ BEGIN
 		WHERE dns_domain_id = NEW.dns_domain_id ;
 
 		if NEW.dns_name IS NULL THEN
-			RAISE EXCEPTION '% may not have CNAME and other records (%)', 
+			RAISE EXCEPTION '% may not have CNAME and other records (%)',
 				_dom, _tally
 				USING ERRCODE = 'unique_violation';
 		ELSE
-			RAISE EXCEPTION '%.% may not have CNAME and other records (%)', 
+			RAISE EXCEPTION '%.% may not have CNAME and other records (%)',
 				NEW.dns_name, _dom, _tally
 				USING ERRCODE = 'unique_violation';
 		END IF;
@@ -406,9 +475,9 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_cname_checker ON dns_record;
-CREATE TRIGGER trigger_dns_record_cname_checker 
+CREATE TRIGGER trigger_dns_record_cname_checker
 	BEFORE INSERT OR UPDATE OF dns_type
-	ON dns_record 
+	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_cname_checker();
 
@@ -419,18 +488,18 @@ BEGIN
 	IF new.SHOULD_GENERATE = 'Y' THEN
 		insert into DNS_CHANGE_RECORD
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
-	END IF;	
+	END IF;
 	RETURN NEW;
 END;
 $$
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
-CREATE TRIGGER trigger_dns_domain_trigger_change 
-	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl, 
+CREATE TRIGGER trigger_dns_domain_trigger_change
+	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl,
 		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
 		soa_rname, should_generate
-	ON dns_domain 
+	ON dns_domain
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_trigger_change();
 
@@ -445,7 +514,7 @@ $$
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_change_record_pgnotify ON dns_change_record;
-CREATE TRIGGER trigger_dns_change_record_pgnotify 
-	AFTER INSERT OR UPDATE 
-	ON dns_change_record 
+CREATE TRIGGER trigger_dns_change_record_pgnotify
+	AFTER INSERT OR UPDATE
+	ON dns_change_record
 	EXECUTE PROCEDURE dns_change_record_pgnotify();

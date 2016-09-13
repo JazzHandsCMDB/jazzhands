@@ -26,8 +26,10 @@ DECLARE
 BEGIN
 	SELECT company_id INTO cid FROM company WHERE company_name = 'Dell';
 	IF NOT FOUND THEN
-		INSERT INTO company (company_name) VALUEs ('Dell')
-			RETURNING company_id INTO cid;
+		SELECT company_manip.add_company(
+			_company_name := 'Dell',
+			_company_types := ARRAY['hardware provider']
+		) INTO cid;
 	END IF;
 
 	INSERT INTO slot_type

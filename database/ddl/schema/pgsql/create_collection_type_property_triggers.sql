@@ -16,7 +16,7 @@
  */
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_account_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_account_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -41,16 +41,16 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_account_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_account_collection_type_change
 	ON account_collection;
-CREATE TRIGGER trigger_validate_account_collection_type_change 
+CREATE TRIGGER trigger_validate_account_collection_type_change
 	BEFORE UPDATE OF account_collection_type
 	ON account_collection
 	FOR EACH ROW
 	EXECUTE PROCEDURE validate_account_collection_type_change();
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_company_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_company_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -75,16 +75,16 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_company_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_company_collection_type_change
 	ON company_collection;
-CREATE TRIGGER trigger_validate_company_collection_type_change 
+CREATE TRIGGER trigger_validate_company_collection_type_change
 	BEFORE UPDATE OF company_collection_type
 	ON company_collection
 	FOR EACH ROW
 	EXECUTE PROCEDURE validate_company_collection_type_change();
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_device_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_device_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -103,15 +103,15 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_device_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_device_collection_type_change
 	ON device_collection;
-CREATE TRIGGER trigger_validate_device_collection_type_change 
+CREATE TRIGGER trigger_validate_device_collection_type_change
 	BEFORE UPDATE OF device_collection_type
 	ON device_collection
 	FOR EACH ROW
@@ -119,7 +119,7 @@ CREATE TRIGGER trigger_validate_device_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_dns_domain_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_dns_domain_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -138,15 +138,15 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_dns_domain_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_dns_domain_collection_type_change
 	ON dns_domain_collection;
-CREATE TRIGGER trigger_validate_dns_domain_collection_type_change 
+CREATE TRIGGER trigger_validate_dns_domain_collection_type_change
 	BEFORE UPDATE OF dns_domain_collection_type
 	ON dns_domain_collection
 	FOR EACH ROW
@@ -154,7 +154,7 @@ CREATE TRIGGER trigger_validate_dns_domain_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_layer2_network_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_layer2_network_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -173,15 +173,15 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_layer2_network_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_layer2_network_collection_type_change
 	ON layer2_network_collection;
-CREATE TRIGGER trigger_validate_layer2_network_collection_type_change 
+CREATE TRIGGER trigger_validate_layer2_network_collection_type_change
 	BEFORE UPDATE OF layer2_network_collection_type
 	ON layer2_network_collection
 	FOR EACH ROW
@@ -189,7 +189,7 @@ CREATE TRIGGER trigger_validate_layer2_network_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_layer3_network_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_layer3_network_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -208,15 +208,15 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_layer3_network_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_layer3_network_collection_type_change
 	ON layer3_network_collection;
-CREATE TRIGGER trigger_validate_layer3_network_collection_type_change 
+CREATE TRIGGER trigger_validate_layer3_network_collection_type_change
 	BEFORE UPDATE OF layer3_network_collection_type
 	ON layer3_network_collection
 	FOR EACH ROW
@@ -224,7 +224,7 @@ CREATE TRIGGER trigger_validate_layer3_network_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_netblock_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_netblock_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -243,15 +243,15 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_netblock_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_netblock_collection_type_change
 	ON netblock_collection;
-CREATE TRIGGER trigger_validate_netblock_collection_type_change 
+CREATE TRIGGER trigger_validate_netblock_collection_type_change
 	BEFORE UPDATE OF netblock_collection_type
 	ON netblock_collection
 	FOR EACH ROW
@@ -259,7 +259,7 @@ CREATE TRIGGER trigger_validate_netblock_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_property_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_property_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -284,9 +284,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_property_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_property_collection_type_change
 	ON property_collection;
-CREATE TRIGGER trigger_validate_property_collection_type_change 
+CREATE TRIGGER trigger_validate_property_collection_type_change
 	BEFORE UPDATE OF property_collection_type
 	ON property_collection
 	FOR EACH ROW
@@ -294,7 +294,7 @@ CREATE TRIGGER trigger_validate_property_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_service_env_collection_type_change() 
+CREATE OR REPLACE FUNCTION validate_service_env_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
@@ -313,15 +313,15 @@ BEGIN
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_service_env_collection_type_change 
+DROP TRIGGER IF EXISTS trigger_validate_service_env_collection_type_change
 	ON service_environment_collection;
-CREATE TRIGGER trigger_validate_service_env_collection_type_change 
+CREATE TRIGGER trigger_validate_service_env_collection_type_change
 	BEFORE UPDATE OF service_env_collection_type
 	ON service_environment_collection
 	FOR EACH ROW

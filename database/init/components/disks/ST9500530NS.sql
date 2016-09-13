@@ -22,8 +22,10 @@ DECLARE
 BEGIN
 	SELECT company_id INTO cid FROM company WHERE company_name = 'Seagate';
 	IF NOT FOUND THEN
-		INSERT INTO company (company_name) VALUEs ('Seagate')
-			RETURNING company_id INTO cid;
+		SELECT company_manip.add_company(
+			_company_name := 'Seagate',
+			_company_types := ARRAY['hardware provider']
+		) INTO cid;
 	END IF;
 
 	PERFORM * FROM component_type WHERE company_id = cid AND 

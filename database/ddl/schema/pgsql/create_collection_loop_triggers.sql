@@ -34,9 +34,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_check_account_collection_hier_loop 
+DROP TRIGGER IF EXISTS trigger_check_account_collection_hier_loop
 	ON account_collection_hier;
-CREATE TRIGGER trigger_check_account_collection_hier_loop 
+CREATE TRIGGER trigger_check_account_collection_hier_loop
 AFTER INSERT OR UPDATE ON account_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_account_colllection_hier_loop();
 
@@ -58,9 +58,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_check_netblock_collection_hier_loop 
+DROP TRIGGER IF EXISTS trigger_check_netblock_collection_hier_loop
 	ON netblock_collection_hier;
-CREATE TRIGGER trigger_check_netblock_collection_hier_loop 
+CREATE TRIGGER trigger_check_netblock_collection_hier_loop
 AFTER INSERT OR UPDATE ON netblock_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_netblock_colllection_hier_loop();
 
@@ -82,9 +82,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_check_device_collection_hier_loop 
+DROP TRIGGER IF EXISTS trigger_check_device_collection_hier_loop
 	ON device_collection_hier;
-CREATE TRIGGER trigger_check_device_collection_hier_loop 
+CREATE TRIGGER trigger_check_device_collection_hier_loop
 AFTER INSERT OR UPDATE ON device_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_device_colllection_hier_loop();
 
@@ -106,9 +106,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_check_token_collection_hier_loop 
+DROP TRIGGER IF EXISTS trigger_check_token_collection_hier_loop
 	ON token_collection_hier;
-CREATE TRIGGER trigger_check_token_collection_hier_loop 
+CREATE TRIGGER trigger_check_token_collection_hier_loop
 AFTER INSERT OR UPDATE ON token_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_token_colllection_hier_loop();
 
@@ -121,7 +121,7 @@ AFTER INSERT OR UPDATE ON token_collection_hier
 CREATE OR REPLACE FUNCTION check_svcenv_colllection_hier_loop()
 	RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.service_env_collection_id = 
+	IF NEW.service_env_collection_id =
 		NEW.child_service_env_coll_id THEN
 			RAISE EXCEPTION 'svcenv Collection Loops Not Pernitted '
 			USING ERRCODE = 20704;	/* XXX */
@@ -132,9 +132,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_check_svcenv_collection_hier_loop 
+DROP TRIGGER IF EXISTS trigger_check_svcenv_collection_hier_loop
 	ON service_environment_coll_hier;
-CREATE TRIGGER trigger_check_svcenv_collection_hier_loop 
+CREATE TRIGGER trigger_check_svcenv_collection_hier_loop
 AFTER INSERT OR UPDATE ON service_environment_coll_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_svcenv_colllection_hier_loop();
 

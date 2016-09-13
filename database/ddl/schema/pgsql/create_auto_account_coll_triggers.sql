@@ -17,7 +17,7 @@
 
 /*************************************************************************
 
-This is how they used to work; this logic needs to be folded into 
+This is how they used to work; this logic needs to be folded into
 "add a comany" logic
 
 Here is how these work:
@@ -57,10 +57,10 @@ automated_realm_site_ac_pl()
 -- person, which deal with updates.  This covers the case of accounts coming
 -- into existance after the rows in person/person_company
 --
--- This currently does not move an account out of a "site" class when someone 
+-- This currently does not move an account out of a "site" class when someone
 -- moves around, which should probably be revisited.
 --
-CREATE OR REPLACE FUNCTION automated_ac_on_account() 
+CREATE OR REPLACE FUNCTION automated_ac_on_account()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
@@ -92,7 +92,7 @@ BEGIN
 			FROM v_account_manager_map
 			UNION
 			SELECT map.root_account_id, m.account_id, m.login,
-				m.manager_account_id, m.manager_login 
+				m.manager_account_id, m.manager_login
 				from v_account_manager_map m
 					join map on m.account_id = map.manager_account_id
 			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
@@ -123,18 +123,18 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_add_automated_ac_on_account ON account;
-CREATE TRIGGER trig_add_automated_ac_on_account 
-	AFTER INSERT 
+CREATE TRIGGER trig_add_automated_ac_on_account
+	AFTER INSERT
 	OR UPDATE OF account_type, account_role, account_status
-	ON account 
-	FOR EACH ROW 
+	ON account
+	FOR EACH ROW
 	EXECUTE PROCEDURE automated_ac_on_account();
 
 DROP TRIGGER IF EXISTS trig_rm_automated_ac_on_account ON account;
-CREATE TRIGGER trig_rm_automated_ac_on_account 
-	BEFORE DELETE 
-	ON account 
-	FOR EACH ROW 
+CREATE TRIGGER trig_rm_automated_ac_on_account
+	BEFORE DELETE
+	ON account
+	FOR EACH ROW
 	EXECUTE PROCEDURE automated_ac_on_account();
 
 --------------------------------------------------------------------------
@@ -143,7 +143,7 @@ CREATE TRIGGER trig_rm_automated_ac_on_account
 -- Using a temporary table, add/remove users based on account collections
 -- as defined in properties.
 --
-CREATE OR REPLACE FUNCTION automated_ac_on_person_company() 
+CREATE OR REPLACE FUNCTION automated_ac_on_person_company()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
@@ -157,8 +157,8 @@ BEGIN
 		AND		person_id = NEW.person_id
 		AND		company_id = NEW.company_id;
 
-		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND 
-				NEW.manager_person_id != OLD.manager_person_id ) 
+		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND
+				NEW.manager_person_id != OLD.manager_person_id )
 		) THEN
 			-- update the person's manager to match
 			WITH RECURSIVE map As (
@@ -167,7 +167,7 @@ BEGIN
 				FROM v_account_manager_map
 				UNION
 				SELECT map.root_account_id, m.account_id, m.login,
-					m.manager_account_id, m.manager_login 
+					m.manager_account_id, m.manager_login
 					from v_account_manager_map m
 						join map on m.account_id = map.manager_account_id
 			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
@@ -219,11 +219,11 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_automated_ac_on_person_company 
+CREATE TRIGGER trigger_automated_ac_on_person_company
 	AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id,company_id,
 		manager_person_id
-	ON person_company 
-	FOR EACH ROW EXECUTE PROCEDURE 
+	ON person_company
+	FOR EACH ROW EXECUTE PROCEDURE
 	automated_ac_on_person_company();
 
 --------------------------------------------------------------------------
@@ -232,7 +232,7 @@ CREATE TRIGGER trigger_automated_ac_on_person_company
 -- fires on changes to person that are relevant.  This does not fire on
 -- insert or delete because accounts do not exist in either of those cases.
 --
-CREATE OR REPLACE FUNCTION automated_ac_on_person() 
+CREATE OR REPLACE FUNCTION automated_ac_on_person()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
@@ -268,7 +268,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- If someone moves location, update the site if something appropriate exists
 --
 --
-CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl() 
+CREATE OR REPLACE FUNCTION automated_realm_site_ac_pl()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
@@ -300,8 +300,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_automated_realm_site_ac_pl ON person_location;
-CREATE TRIGGER trig_automated_realm_site_ac_pl 
+CREATE TRIGGER trig_automated_realm_site_ac_pl
 	AFTER DELETE OR INSERT OR UPDATE OF site_code, person_id
-	ON person_location 
-	FOR EACH ROW 
+	ON person_location
+	FOR EACH ROW
 	EXECUTE PROCEDURE automated_realm_site_ac_pl();

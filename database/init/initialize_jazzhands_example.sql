@@ -44,22 +44,25 @@
 
 INSERT INTO account_realm(account_realm_name) values ('Omniscient');
 
-WITH o AS (
-	INSERT INTO company (company_name)
-		values ('Omniscient Technologies')
-	RETURNING *
-), sl AS (
-	INSERT INTO company (company_name, parent_company_id)
-		values (
-		'Sucksless Industries', (select company_id
+
+SELECT company_manip.add_company(
+	_company_name := 'Omniscient Technologies',
+	_company_types := ARRAY['corporate family'],
+	_account_realm_id := 
+		(select account_realm_id 
+		from account_realm where account_realm_name = 'Omniscient')
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'Sucksless Industries',
+	_company_types := ARRAY['corporate family'],
+	_parent_company_id := (select company_id
 			from company
-			where company_name = 'Omniscient Technologies' limit 1)
-	) RETURNING *
-) INSERT INTO company_type (company_id, company_type)
-SELECT company_id, 'corporate family' FROM o
-UNION
-SELECT company_id, 'corporate family' FROM sl
-;
+			where company_name = 'Omniscient Technologies' limit 1),
+	_account_realm_id := 
+		(select account_realm_id 
+		from account_realm where account_realm_name = 'Omniscient')
+);
 
 insert into property (
 	property_name, property_type, 
@@ -96,26 +99,6 @@ insert into property (
 	'_approval_email_signer', 'Defaults', 'HR Department'
 );
 
-
-insert into account_realm_company (
-	account_realm_id, 
-	company_id
-) values (
-	(select account_realm_id from account_realm 
-		where account_realm_name = 'Omniscient'),
-	(select company_id from company 
-		where company_name = 'Omniscient Technologies')
-);
-
-insert into account_realm_company (
-	account_realm_id, 
-	company_id
-) values (
-	(select account_realm_id from account_realm 
-		where account_realm_name = 'Omniscient'),
-	(select company_id from company 
-		where company_name = 'Sucksless Industries')
-);
 
 /*   These now go in SITE
 

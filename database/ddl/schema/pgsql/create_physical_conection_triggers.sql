@@ -18,9 +18,9 @@
 
 CREATE OR REPLACE FUNCTION verify_physical_connection() RETURNS TRIGGER AS $$
 BEGIN
-	PERFORM 1 FROM 
-		physical_connection l1 
-		JOIN physical_connection l2 ON 
+	PERFORM 1 FROM
+		physical_connection l1
+		JOIN physical_connection l2 ON
 			l1.slot1_id = l2.slot2_id AND
 			l1.slot2_id = l2.slot1_id;
 	IF FOUND THEN
@@ -28,11 +28,11 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_verify_physical_connection ON physical_connection;
-CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE 
+CREATE TRIGGER trigger_verify_physical_connection AFTER INSERT OR UPDATE
 	ON physical_connection EXECUTE PROCEDURE verify_physical_connection();
 

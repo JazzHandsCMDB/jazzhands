@@ -19,7 +19,7 @@
 -- When putting an account into an account collection, check to see if
 -- it is permissionsable based on realm restrictions
 --
-CREATE OR REPLACE FUNCTION account_collection_account_realm() 
+CREATE OR REPLACE FUNCTION account_collection_account_realm()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_a	account%ROWTYPE;
@@ -41,9 +41,9 @@ BEGIN
 	IF TG_OP = 'INSERT' OR OLD.account_id != NEW.account_id THEN
 		SELECT	*
 		INTO	_a
-		FROM	account	
+		FROM	account
 		WHERE	account_id = NEW.account_id;
-		
+
 		IF _a.account_realm_id != _at.account_realm_id THEN
 			RAISE EXCEPTION 'account realm of % does not match account realm restriction on account_collection %',
 				NEW.account_id, NEW.account_collection_id
@@ -56,12 +56,12 @@ $_$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trig_account_collection_account_realm 
+DROP TRIGGER IF EXISTS trig_account_collection_account_realm
 	ON account_collection_account;
-CREATE TRIGGER trig_account_collection_account_realm 
+CREATE TRIGGER trig_account_collection_account_realm
 	AFTER INSERT OR UPDATE
-	ON account_collection_account 
-	FOR EACH ROW 
+	ON account_collection_account
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_collection_account_realm();
 
 ---------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ CREATE TRIGGER trig_account_collection_account_realm
 -- violate account_realm restrictions
 
 --
-CREATE OR REPLACE FUNCTION account_collection_hier_realm() 
+CREATE OR REPLACE FUNCTION account_collection_hier_realm()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_pat	val_account_collection_type%ROWTYPE;
@@ -101,12 +101,12 @@ $_$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trig_account_collection_hier_realm 
+DROP TRIGGER IF EXISTS trig_account_collection_hier_realm
 	ON account_collection_hier;
-CREATE TRIGGER trig_account_collection_hier_realm 
+CREATE TRIGGER trig_account_collection_hier_realm
 	AFTER INSERT OR UPDATE
-	ON account_collection_hier 
-	FOR EACH ROW 
+	ON account_collection_hier
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_collection_hier_realm();
 
 ---------------------------------------------------------------------------------
@@ -114,7 +114,7 @@ CREATE TRIGGER trig_account_collection_hier_realm
 -- When setting an account_realm restriction on an account collection, fail if
 -- any accounts or parent or children collections violate it.
 --
-CREATE OR REPLACE FUNCTION account_collection_type_realm() 
+CREATE OR REPLACE FUNCTION account_collection_type_realm()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	integer;
@@ -167,10 +167,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_account_collection_type_realm ON val_account_collection_type;
-CREATE TRIGGER trig_account_collection_type_realm 
+CREATE TRIGGER trig_account_collection_type_realm
 	AFTER UPDATE OF account_realm_id
-	ON val_account_collection_type 
-	FOR EACH ROW 
+	ON val_account_collection_type
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_collection_type_realm();
 
 ---------------------------------------------------------------------------------
@@ -178,7 +178,7 @@ CREATE TRIGGER trig_account_collection_type_realm
 -- When changing an account's account_realm_id (sounds like a bad idea), make
 -- sure that it does not violate any account colletion
 --
-CREATE OR REPLACE FUNCTION account_change_realm_aca_realm() 
+CREATE OR REPLACE FUNCTION account_change_realm_aca_realm()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	integer;
@@ -191,7 +191,7 @@ BEGIN
 	WHERE	vt.account_realm_id IS NOT NULL
 	AND		vt.account_realm_id != NEW.account_realm_id
 	AND		account_id = NEW.account_id;
-	
+
 	IF _tally > 0 THEN
 		RAISE EXCEPTION 'New account realm (%) is part of % account collections with a type restriction',
 			NEW.account_realm_id,
@@ -205,10 +205,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_account_change_realm_aca_realm ON account;
-CREATE TRIGGER trig_account_change_realm_aca_realm 
+CREATE TRIGGER trig_account_change_realm_aca_realm
 	BEFORE UPDATE OF account_realm_id
-	ON account 
-	FOR EACH ROW 
+	ON account
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_change_realm_aca_realm();
 
 
@@ -217,7 +217,7 @@ CREATE TRIGGER trig_account_change_realm_aca_realm
 -- when changing types, check to see if the new type has restrictions
 -- any accounts or parent or children collections violate it.
 --
-CREATE OR REPLACE FUNCTION account_collection_realm() 
+CREATE OR REPLACE FUNCTION account_collection_realm()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_at		val_account_collection_type%ROWTYPE;
@@ -267,9 +267,9 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_account_collection_realm ON account_collection;
-CREATE TRIGGER trig_account_collection_realm 
+CREATE TRIGGER trig_account_collection_realm
 	AFTER UPDATE OF account_collection_type
-	ON account_collection 
-	FOR EACH ROW 
+	ON account_collection
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_collection_realm();
 

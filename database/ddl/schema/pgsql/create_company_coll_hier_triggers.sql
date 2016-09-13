@@ -47,7 +47,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_company_collection_hier_enforce
 	 ON company_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_company_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON company_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -103,7 +103,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_company_collection_member_enforce
 	 ON company_collection_company;
 CREATE CONSTRAINT TRIGGER trigger_company_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON company_collection_company
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW

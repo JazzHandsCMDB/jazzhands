@@ -116,6 +116,10 @@
 \ir pgsql/create_v_device_col_account_col_cart.sql
 \ir pgsql/create_v_unix_group_mappings.sql
 
+-- creds mgmt materialized views
+\ir pgsql/create_mv_unix_passwd_mappings.sql
+\ir pgsql/create_mv_unix_group_mappings.sql
+
 -- dns
 \ir create_v_dns_changes_pending.sql
 
@@ -140,3 +144,6 @@
 
 \ir create_v_person.sql
 \ir create_v_person_company.sql
+
+-- too be retired
+\ir create_x509_certificate.sql

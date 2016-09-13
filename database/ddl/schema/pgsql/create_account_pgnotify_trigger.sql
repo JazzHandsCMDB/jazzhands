@@ -88,7 +88,7 @@ BEGIN
 	IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
 		PERFORM	*
 		FROM	property_collection
-				JOIN property_collection_property pcp 
+				JOIN property_collection_property pcp
 					USING (property_collection_id)
 				JOIN property p
 					USING (property_name, property_type)
@@ -104,7 +104,7 @@ BEGIN
 	IF TG_OP = 'UPDATE' OR TG_OP = 'INSERT' THEN
 		PERFORM	*
 		FROM	property_collection
-				JOIN property_collection_property pcp 
+				JOIN property_collection_property pcp
 					USING (property_collection_id)
 				JOIN property p
 					USING (property_name, property_type)
@@ -130,7 +130,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_pgnotify_account_collection_account_token_changes
 	ON account_collection_account;
-CREATE TRIGGER trigger_pgnotify_account_collection_account_token_changes 
+CREATE TRIGGER trigger_pgnotify_account_collection_account_token_changes
 	AFTER INSERT OR UPDATE OR DELETE
 	ON account_collection_account
 	FOR EACH ROW

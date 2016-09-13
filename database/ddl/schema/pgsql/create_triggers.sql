@@ -41,7 +41,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -50,7 +50,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 --
 
 DROP TRIGGER IF EXISTS trigger_verify_direct_dept_member ON dept_member;
-CREATE TRIGGER trigger_verify_direct_dept_member AFTER INSERT OR UPDATE 
+CREATE TRIGGER trigger_verify_direct_dept_member AFTER INSERT OR UPDATE
 	ON dept_member EXECUTE PROCEDURE verify_direct_dept_member();
 
 */
@@ -112,14 +112,14 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_person_image_usage_mv ON person_image_usage;
 CREATE TRIGGER trigger_check_person_image_usage_mv AFTER INSERT OR UPDATE
-    ON person_image_usage 
-    FOR EACH ROW 
+    ON person_image_usage
+    FOR EACH ROW
     EXECUTE PROCEDURE check_person_image_usage_mv();
 
 /*
@@ -137,7 +137,7 @@ DECLARE
    b	integer;
    str	varchar;
 BEGIN
-	b := NEW.image_blob; 
+	b := NEW.image_blob;
 	BEGIN
 		str := 'GRANT SELECT on LARGE OBJECT ' || b || ' to picture_image_ro';
 		EXECUTE str;
@@ -160,14 +160,14 @@ LANGUAGE plpgsql SECURITY INVOKER;
 
 
 DROP TRIGGER IF EXISTS trigger_fix_person_image_oid_ownership ON person_image;
-CREATE TRIGGER trigger_fix_person_image_oid_ownership 
-BEFORE INSERT 
+CREATE TRIGGER trigger_fix_person_image_oid_ownership
+BEFORE INSERT
     ON person_image
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE fix_person_image_oid_ownership();
 
 
-CREATE OR REPLACE FUNCTION create_new_unix_account() 
+CREATE OR REPLACE FUNCTION create_new_unix_account()
 RETURNS TRIGGER AS $$
 DECLARE
 	unix_id 		INTEGER;
@@ -193,48 +193,48 @@ BEGIN
 			);
 		END IF;
 	END IF;
-	RETURN NEW;	
+	RETURN NEW;
 END;
-$$ LANGUAGE plpgsql 
+$$ LANGUAGE plpgsql
 SET search_path=jazzhands
 SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_create_new_unix_account ON account;
-CREATE TRIGGER trigger_create_new_unix_account 
-AFTER INSERT 
+CREATE TRIGGER trigger_create_new_unix_account
+AFTER INSERT
     ON account
-    FOR EACH ROW 
+    FOR EACH ROW
     EXECUTE PROCEDURE create_new_unix_account();
 
 
 ----------------------------------------------------------------------------
 --
--- Enforce one and only one of logical_volume_id or component_id needing 
+-- Enforce one and only one of logical_volume_id or component_id needing
 -- to be set in physicalish_volume
 --
 
-CREATE OR REPLACE FUNCTION verify_physicalish_volume() 
+CREATE OR REPLACE FUNCTION verify_physicalish_volume()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.logical_volume_id IS NOT NULL AND NEW.component_Id IS NOT NULL THEN
 		RAISE EXCEPTION 'One and only one of logical_volume_id or component_id must be set'
-			USING ERRCODE = 'unique_violation'; 
+			USING ERRCODE = 'unique_violation';
 	END IF;
 	IF NEW.logical_volume_id IS NULL AND NEW.component_Id IS NULL THEN
 		RAISE EXCEPTION 'One and only one of logical_volume_id or component_id must be set'
-			USING ERRCODE = 'not_null_violation'; 
+			USING ERRCODE = 'not_null_violation';
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_verify_physicalish_volume
 	ON physicalish_volume;
-CREATE TRIGGER trigger_verify_physicalish_volume 
-	BEFORE INSERT OR UPDATE 
-	ON physicalish_volume 
+CREATE TRIGGER trigger_verify_physicalish_volume
+	BEFORE INSERT OR UPDATE
+	ON physicalish_volume
 	FOR EACH ROW
 	EXECUTE PROCEDURE verify_physicalish_volume();
 

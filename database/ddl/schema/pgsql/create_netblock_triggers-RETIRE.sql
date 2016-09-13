@@ -61,7 +61,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS zzzz_trigger_retire_netblock_columns ON netblock;
 CREATE TRIGGER zzzz_trigger_retire_netblock_columns
 	BEFORE INSERT OR UPDATE OF ip_address, netmask_bits, is_ipv4_address
-	ON netblock 
+	ON netblock
 	FOR EACH ROW EXECUTE PROCEDURE retire_netblock_columns();
 
 --
@@ -99,5 +99,5 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_netblock_complain_on_mismatch ON netblock;
 CREATE TRIGGER trigger_netblock_complain_on_mismatch
 	AFTER INSERT OR UPDATE OF ip_address, netmask_bits, is_ipv4_address
-	ON netblock 
+	ON netblock
 	FOR EACH ROW EXECUTE PROCEDURE netblock_complain_on_mismatch();

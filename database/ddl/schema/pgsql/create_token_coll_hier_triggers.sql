@@ -47,7 +47,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_token_collection_hier_enforce
 	 ON token_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_token_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON token_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -103,7 +103,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_token_collection_member_enforce
 	 ON token_collection_token;
 CREATE CONSTRAINT TRIGGER trigger_token_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON token_collection_token
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW

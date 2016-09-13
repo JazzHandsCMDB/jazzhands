@@ -19,12 +19,12 @@
 ---------------------------------------------------------------------------
 -- deal with physical_port_id -> slot_id
 ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION phys_conn_physical_id_to_slot_id_enforce() 
+CREATE OR REPLACE FUNCTION phys_conn_physical_id_to_slot_id_enforce()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
 BEGIN
-	IF TG_OP = 'UPDATE' AND 
+	IF TG_OP = 'UPDATE' AND
 		((NEW.slot1_id IS DISTINCT FROM OLD.slot1_ID AND
 			NEW.physical_port1_id IS DISTINCT FROM OLD.physical_port1_id) OR
 		(NEW.slot2_id IS DISTINCT FROM OLD.slot2_ID AND
@@ -39,7 +39,7 @@ BEGIN
 			RAISE EXCEPTION 'Only slot1_id OR slot2_id should be set.'
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
-	 
+
 	END IF;
 
 	IF TG_OP = 'UPDATE' THEN
@@ -68,15 +68,15 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_phys_conn_physical_id_to_slot_id_enforce 
+DROP TRIGGER IF EXISTS trigger_phys_conn_physical_id_to_slot_id_enforce
 	ON physical_connection;
-CREATE TRIGGER trigger_phys_conn_physical_id_to_slot_id_enforce 
+CREATE TRIGGER trigger_phys_conn_physical_id_to_slot_id_enforce
 	BEFORE INSERT OR UPDATE OF physical_port1_id, slot1_id, physical_port2_id,
 		slot2_id
-	ON physical_connection 
-	FOR EACH ROW 
+	ON physical_connection
+	FOR EACH ROW
 	EXECUTE PROCEDURE phys_conn_physical_id_to_slot_id_enforce();

@@ -133,7 +133,7 @@ DROP TRIGGER IF EXISTS tb_a_validate_netblock ON netblock;
 
 /* This should be lexicographically the first trigger to fire */
 
-CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR 
+CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR
 	UPDATE OF netblock_id, ip_address, netblock_type, is_single_address,
 		can_subnet, parent_netblock_id, ip_universe_id ON
 	netblock FOR EACH ROW EXECUTE PROCEDURE
@@ -525,7 +525,7 @@ BEGIN
 						realnew.ip_address
 						USING ERRCODE = 'JH10D';
 				END IF;
-				IF (masklen(realnew.ip_address) != 
+				IF (masklen(realnew.ip_address) !=
 						masklen(nbrec.ip_address)) THEN
 					RAISE 'Parent netblock % does not have the same netmask as single-address child % (% vs %)',
 						parent_nbid, realnew.netblock_id,
@@ -619,16 +619,16 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage
-	AFTER INSERT OR UPDATE OF 
+	AFTER INSERT OR UPDATE OF
 	netblock_id, ip_address, netblock_type, is_single_address,
-	can_subnet, parent_netblock_id, ip_universe_id 
+	can_subnet, parent_netblock_id, ip_universe_id
 	ON netblock
-	DEFERRABLE INITIALLY DEFERRED 
+	DEFERRABLE INITIALLY DEFERRED
 	FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
 
 
 -----------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION netblock_single_address_ni() 
+CREATE OR REPLACE FUNCTION netblock_single_address_ni()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -648,14 +648,14 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_netblock_single_address_ni ON netblock;
-CREATE TRIGGER trigger_netblock_single_address_ni 
+CREATE TRIGGER trigger_netblock_single_address_ni
 	BEFORE UPDATE OF is_single_address, netblock_type
-	ON netblock 
-	FOR EACH ROW 
+	ON netblock
+	FOR EACH ROW
 	EXECUTE PROCEDURE netblock_single_address_ni();
 

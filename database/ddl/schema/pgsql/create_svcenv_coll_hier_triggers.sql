@@ -30,9 +30,9 @@ BEGIN
 	INTO	svcenvt
 	FROM	val_service_env_coll_type
 	WHERE	service_env_collection_type =
-		(select service_env_collection_type 
+		(select service_env_collection_type
 			from service_environment_collection
-			where service_env_collection_id = 
+			where service_env_collection_id =
 				NEW.service_env_collection_id);
 
 	IF svcenvt.can_have_hierarchy = 'N' THEN
@@ -49,7 +49,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_service_environment_coll_hier_enforce
 	 ON service_environment_coll_hier;
 CREATE CONSTRAINT TRIGGER trigger_service_environment_coll_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON service_environment_coll_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -68,9 +68,9 @@ BEGIN
 	INTO	svcenvt
 	FROM	val_service_env_coll_type
 	WHERE	service_env_collection_type =
-		(select service_env_collection_type 
+		(select service_env_collection_type
 			from service_environment_collection
-			where service_env_collection_id = 
+			where service_env_collection_id =
 				NEW.service_env_collection_id);
 
 	IF svcenvt.MAX_NUM_MEMBERS IS NOT NULL THEN
@@ -88,10 +88,10 @@ BEGIN
 		select count(*)
 		  into tally
 		  from svc_environment_coll_svc_env
-		  		inner join service_environment_collection 
+		  		inner join service_environment_collection
 					USING (service_env_collection_id)
 		  where service_environment_id = NEW.service_environment_id
-		  and	service_env_collection_type = 
+		  and	service_env_collection_type =
 					svcenvt.service_env_collection_type;
 		IF tally > svcenvt.MAX_NUM_COLLECTIONS THEN
 			RAISE EXCEPTION 'Service Environment may not be a member of more than % collections of type %',
@@ -109,7 +109,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_service_environment_collection_member_enforce
 	 ON svc_environment_coll_svc_env;
 CREATE CONSTRAINT TRIGGER trigger_service_environment_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON svc_environment_coll_svc_env
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW

@@ -116,7 +116,7 @@ BEGIN
 	--
 	PERFORM
 	FROM	netblock
-	WHERE	( netblock_id = NEW.start_netblock_id 
+	WHERE	( netblock_id = NEW.start_netblock_id
 				OR netblock_id = NEW.stop_netblock_id
 			) AND is_single_address = 'N';
 
@@ -139,7 +139,7 @@ BEGIN
 	FROM	netblock parent
 			JOIN netblock start ON start.netblock_id = NEW.start_netblock_id
 			JOIN netblock stop ON stop.netblock_id = NEW.stop_netblock_id
-	WHERE	
+	WHERE
 			parent.netblock_id = NEW.parent_netblock_id
 			AND NOT ( host(start.ip_address)::inet <<= parent.ip_address
 				AND host(stop.ip_address)::inet <<= parent.ip_address
@@ -317,7 +317,7 @@ BEGIN
 			JOIN netblock start on start.netblock_id = nr.start_netblock_id
 			JOIN netblock stop on stop.netblock_id = nr.stop_netblock_id
 			JOIN val_network_range_type vnrt USING (network_range_type)
-	WHERE	( p.netblock_id = NEW.netblock_id 
+	WHERE	( p.netblock_id = NEW.netblock_id
 				OR start.netblock_id = NEW.netblock_id
 				OR stop.netblock_id = NEW.netblock_id
 			) AND (
@@ -329,7 +329,7 @@ BEGIN
 					AND host(stop.ip_address)::inet <<= p.ip_address
 				)
 				OR ( vnrt.netblock_type IS NOT NULL
-				OR NOT 
+				OR NOT
 					( start.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
 					AND	stop.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
 					)

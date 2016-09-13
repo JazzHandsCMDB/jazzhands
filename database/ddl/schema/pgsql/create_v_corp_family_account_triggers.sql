@@ -110,10 +110,10 @@ BEGIN
 					';
 				END IF;
 				IF _r.value IS NOT  NULL THEN
-					setstr = setstr || _r.key || ' = ' ||  
+					setstr = setstr || _r.key || ' = ' ||
 						quote_nullable(_r.value) || ' ' ;
 				ELSE
-					setstr = setstr || _r.key || ' = ' ||  
+					setstr = setstr || _r.key || ' = ' ||
 						' NULL ' ;
 				END IF;
 			END IF;

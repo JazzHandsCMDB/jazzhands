@@ -112,3 +112,33 @@ AFTER INSERT OR UPDATE
 ON company
 FOR EACH ROW EXECUTE PROCEDURE update_per_company_company_collection();
 
+
+------------------------------------------------------------------------------
+
+--
+-- Only allow insertions to company via stored procedure; this is easily
+-- worked around but is meant to serve as a reminder.
+--
+CREATE OR REPLACE FUNCTION company_insert_function_nudge()
+RETURNS TRIGGER AS $$
+BEGIN
+	BEGIN
+		IF current_setting('jazzhands.permit_company_insert') != 'permit' THEN
+			RAISE EXCEPTION  'You may not directly insert into company.'
+				USING ERRCODE = 'insufficient_privilege';
+		END IF;
+	EXCEPTION WHEN undefined_object THEN
+			RAISE EXCEPTION  'You may not directly insert into company'
+				USING ERRCODE = 'insufficient_privilege';
+	END;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_company_insert_function_nudge ON company;
+CREATE TRIGGER trigger_company_insert_function_nudge
+BEFORE INSERT
+ON company
+FOR EACH ROW EXECUTE PROCEDURE company_insert_function_nudge();

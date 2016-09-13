@@ -472,9 +472,11 @@ BEGIN
 			WHERE company_name = pci_vendor_name;
 		
 			IF NOT FOUND THEN
-				INSERT INTO company (company_name, description)
-				VALUES (pci_vendor_name, 'PCI vendor auto-insert')
-				RETURNING company_id INTO comp_id;
+				SELECT company_manip.add_company(
+					_company_name := pci_vendor_name,
+					_company_types := ARRAY['hardware provider'],
+					 _description := 'PCI vendor auto-insert'
+				) INTO comp_id;
 			END IF;
 
 			INSERT INTO property (
@@ -509,9 +511,11 @@ BEGIN
 			WHERE company_name = pci_sub_vendor_name;
 		
 			IF NOT FOUND THEN
-				INSERT INTO company (company_name, description)
-				VALUES (pci_sub_vendor_name, 'PCI vendor auto-insert')
-				RETURNING company_id INTO sub_comp_id;
+				SELECT company_manip.add_company(
+					_company_name := pci_sub_vendor_name,
+					_company_types := ARRAY['hardware provider'],
+					 _description := 'PCI vendor auto-insert'
+				) INTO comp_id;
 			END IF;
 
 			INSERT INTO property (

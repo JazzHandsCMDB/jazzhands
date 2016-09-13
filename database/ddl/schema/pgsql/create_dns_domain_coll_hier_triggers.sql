@@ -47,7 +47,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_dns_domain_collection_hier_enforce
 	 ON dns_domain_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_dns_domain_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON dns_domain_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -103,7 +103,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_dns_domain_collection_member_enforce
 	 ON dns_domain_collection_dns_dom;
 CREATE CONSTRAINT TRIGGER trigger_dns_domain_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON dns_domain_collection_dns_dom
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW

@@ -16,7 +16,7 @@
  */
 
 ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION net_int_nb_single_address() 
+CREATE OR REPLACE FUNCTION net_int_nb_single_address()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -36,21 +36,21 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_net_int_nb_single_address ON network_interface;
-CREATE TRIGGER trigger_net_int_nb_single_address 
+CREATE TRIGGER trigger_net_int_nb_single_address
 	BEFORE INSERT OR UPDATE OF netblock_id
-	ON network_interface 
-	FOR EACH ROW 
+	ON network_interface
+	FOR EACH ROW
 	EXECUTE PROCEDURE net_int_nb_single_address();
 
 ---------------------------------------------------------------------------
 -- Transition triggers
 ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION net_int_netblock_to_nbn_compat_before() 
+CREATE OR REPLACE FUNCTION net_int_netblock_to_nbn_compat_before()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -60,7 +60,7 @@ BEGIN
 
 	RETURN OLD;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -68,11 +68,11 @@ DROP TRIGGER IF EXISTS trigger_net_int_netblock_to_nbn_compat_before
 ON network_interface;
 CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_before
 	BEFORE DELETE
-	ON network_interface 
-	FOR EACH ROW 
+	ON network_interface
+	FOR EACH ROW
 	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_before();
 
-CREATE OR REPLACE FUNCTION net_int_netblock_to_nbn_compat_after() 
+CREATE OR REPLACE FUNCTION net_int_netblock_to_nbn_compat_after()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -173,7 +173,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -182,21 +182,21 @@ ON network_interface;
 
 CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_after
 	AFTER INSERT OR UPDATE OF network_interface_id, netblock_id
-	ON network_interface 
-	FOR EACH ROW 
+	ON network_interface
+	FOR EACH ROW
 	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_after();
 
 DROP TRIGGER IF EXISTS trigger_net_int_netblock_to_nbn_compat_before_del
 ON network_interface;
 CREATE TRIGGER trigger_net_int_netblock_to_nbn_compat_before_del
 	BEFORE DELETE
-	ON network_interface 
-	FOR EACH ROW 
+	ON network_interface
+	FOR EACH ROW
 	EXECUTE PROCEDURE net_int_netblock_to_nbn_compat_after();
 
 ---- network_interface_netblock -> network_interface
 -- note that the triggers above could fired
-CREATE OR REPLACE FUNCTION network_interface_netblock_to_ni() 
+CREATE OR REPLACE FUNCTION network_interface_netblock_to_ni()
 RETURNS TRIGGER AS $$
 DECLARE
 	_r		network_interface_netblock%ROWTYPE;
@@ -275,7 +275,7 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -284,10 +284,10 @@ ON network_interface_netblock;
 CREATE TRIGGER trigger_network_interface_netblock_to_ni
 	AFTER INSERT OR UPDATE OR DELETE
 	ON network_interface_netblock
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE network_interface_netblock_to_ni();
 
-CREATE OR REPLACE FUNCTION network_interface_drop_tt() 
+CREATE OR REPLACE FUNCTION network_interface_drop_tt()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally INTEGER;
@@ -311,7 +311,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
