@@ -534,6 +534,7 @@ BEGIN
 	ORDER BY table_name
     LOOP
 	PERFORM schema_support.save_dependent_objects_for_replay(aud_schema::varchar, table_list.table_name::varchar);
+	PERFORM schema_support.save_grants_for_replay(schema, object);
 	PERFORM schema_support.rebuild_audit_table
 	    ( aud_schema, tbl_schema, table_list.table_name );
 	PERFORM schema_support.replay_object_recreates();
