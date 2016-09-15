@@ -54,8 +54,11 @@
 -- XXX - not sure if this is still needed.  Leaving out until it is.
 -- \ir create_v_limited_users.sql
 
+-- components
+
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components.sql
+\ir pgsql/create_v_device_components_expanded.sql
 
 \ir create_physical_port.sql
 \ir create_layer1_connection.sql
@@ -149,5 +152,5 @@
 \ir create_v_dns_rvs.sql
 \ir create_v_dns.sql
 
--- too be retired
+-- to be retired
 \ir create_x509_certificate.sql
