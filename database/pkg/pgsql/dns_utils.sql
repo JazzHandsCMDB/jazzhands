@@ -536,3 +536,43 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION dns_utils.v6_inaddr(
+	ip_address inet
+) RETURNS TEXT
+AS
+$$
+BEGIN
+	return trim(trailing '.' from
+		regexp_replace(reverse(regexp_replace(
+			dns_utils.expand_v6(ip_address), ':', '', 
+			'g')), '(.)', '\1.', 'g'));
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION dns_utils.expand_v6(
+	ip_address inet
+) RETURNS TEXT
+AS
+$$
+BEGIN
+	RETURN array_to_string(array_agg(lpad(n, 4, '0')), ':') from 
+	unnest(regexp_split_to_array(
+	regexp_replace(
+	regexp_replace(host(ip_address)::text,
+		'::',
+		concat(':', repeat('0:',
+			6 -
+			(length(regexp_replace(host(ip_address)::text, '::', '')) - 
+				length(regexp_replace(
+					regexp_replace(host(ip_address)::text, '::', ''),
+					':',  '', 'g')))::integer
+			)) , 'i'),
+		':$', ':0'),
+	':')) as n;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+

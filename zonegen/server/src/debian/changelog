@@ -1,3 +1,9 @@
+jazzhands-zonegen-server (0.72.0) trusty; urgency=medium
+
+  * switch zonegen to dns views instead of individual queries.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 14 Sep 2016 22:02:15 -0400
+
 jazzhands-zonegen-server (0.71.11) trusty; urgency=medium
 
   * turn off advisory locking and repreatable read isolation level leaving an

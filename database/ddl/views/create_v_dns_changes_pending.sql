@@ -43,5 +43,5 @@ FROM (
 	FROM	dns_change_record chg
 		INNER JOIN dns_domain d USING (dns_domain_id)
 	WHERE   dns_domain_id IS NOT NULL
-) x;
-
+) x
+;
