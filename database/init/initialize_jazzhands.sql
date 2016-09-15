@@ -882,8 +882,21 @@ values
 	);
 
 -- XXX need to auto-create a Account_Collection all_company_XX
+
+-- consider renaming to company_relation
+insert into val_company_type_purpose (company_type_purpose) values ('default');
+
+insert into val_company_type(company_type) values  ('corporate family');
+insert into val_company_type(company_type) values  ('vendor');
+insert into val_company_type(company_type) values  ('consultant provider');
+insert into val_company_type(company_type) values  ('hardware provider');
+insert into val_company_type(company_type) values  ('software provider');
+
+-- consider switching this to company_manip.add_company.
+set jazzhands.permit_company_insert = 'permit';
 INSERT INTO Company(Company_ID, Company_Name)
 	VALUES (0, 'none');
+set jazzhands.permit_company_insert TO default;
 
 INSERT INTO Person(Person_Id, first_name, last_name)
 	VALUES (0, 'Non', 'Person');
@@ -945,17 +958,6 @@ insert into val_diet (diet) values ( 'Carnivore');
 insert into val_diet (diet) values ( 'Omnivore');
 insert into val_diet (diet) values ( 'Vegetarian');
 insert into val_diet (diet) values ( 'Pescatarian');
-
---  XXX - need to insert these for the default companies!!
--- consider renaming to company_relation
-
-insert into val_company_type_purpose (company_type_purpose) values ('default');
-
-insert into val_company_type(company_type) values  ('corporate family');
-insert into val_company_type(company_type) values  ('vendor');
-insert into val_company_type(company_type) values  ('consultant provider');
-insert into val_company_type(company_type) values  ('hardware provider');
-insert into val_company_type(company_type) values  ('software provider');
 
 insert into val_physical_address_type
 	(physical_address_type, description)
@@ -1644,6 +1646,29 @@ values
 	('privilegeWithdrawn'),
 	('AACompromise')
 ;
+
+INSERT INTO val_x509_certificate_type
+	(x509_certificate_type)
+values 
+	('default')
+;
+
+INSERT INTO val_pvt_key_encryption_type
+	(private_key_encryption_type)
+values 
+	('rsa'),
+	('dsa'),
+	('ecc')
+;
+	
+-- END certificate
+-------------------------------------------------------------------------
+	
+-- END certificate
+-------------------------------------------------------------------------
+	
+-- END certificate
+-------------------------------------------------------------------------
 	
 -- END certificate
 -------------------------------------------------------------------------

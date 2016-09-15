@@ -261,6 +261,7 @@ DECLARE
 	_cmpid	company.company_id%type;
 	_short	text;
 	_isfam	char(1);
+	_perm	text;
 BEGIN
 	IF _company_types @> ARRAY['corporate family'] THEN
 		_isfam := 'Y';
@@ -279,6 +280,14 @@ BEGIN
 		_short := _company_short_name;
 	END IF;
 
+	BEGIN
+		_perm := current_setting('jazzhands.permit_company_insert');
+	EXCEPTION WHEN undefined_object THEN
+		_perm := '';
+	END;
+
+	SET jazzhands.permit_company_insert = 'permit';
+
 	INSERT INTO company (
 		company_name, company_short_name,
 		parent_company_id, description
@@ -286,6 +295,8 @@ BEGIN
 		_company_name, _short,
 		_parent_company_id, _description
 	) RETURNING company_id INTO _cmpid;
+
+	SET jazzhands.permit_company_insert = _perm;
 
 	IF _account_realm_id IS NOT NULL THEN
 		INSERT INTO account_realm_company (

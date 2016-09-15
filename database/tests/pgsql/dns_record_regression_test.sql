@@ -27,7 +27,6 @@ DECLARE
 	_blkid			netblock.netblock_id%TYPE;
 	_ip1id			netblock.netblock_id%TYPE;
 	_ip2id			netblock.netblock_id%TYPE;
-	_ip3id			netblock.netblock_id%TYPE;
 	_ip6blk			netblock.netblock_id%TYPE;
 	_ip6id1			netblock.netblock_id%TYPE;
 	_dnsrec1		dns_record%ROWTYPE;
@@ -557,6 +556,18 @@ BEGIN
 	END;
 	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
 	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+
+	RAISE NOTICE 'Checking to see if non-single addresses can be assigned dns';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-fail', _dnsdomid, 'A', _blkid
+		) RETURNING * INTO _dnsrec1;
+		RAISE EXCEPTION '... It CAN(!)';
+	EXCEPTION  WHEN foreign_key_violation THEN
+		RAISE NOTICE '... It can not';
+	END;
 
 	RAISE NOTICE 'Done CNAME and other check tests';
 

@@ -47,7 +47,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_netblock_collection_hier_enforce
 	 ON netblock_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_netblock_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON netblock_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -103,7 +103,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_netblock_collection_member_enforce
 	 ON netblock_collection_netblock;
 CREATE CONSTRAINT TRIGGER trigger_netblock_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON netblock_collection_netblock
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW

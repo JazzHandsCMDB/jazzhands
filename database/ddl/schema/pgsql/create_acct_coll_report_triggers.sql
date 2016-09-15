@@ -21,10 +21,10 @@
 -- person, which deal with updates.  This covers the case of accounts coming
 -- into existance after the rows in person/person_company
 --
--- This currently does not move an account out of a "site" class when someone 
+-- This currently does not move an account out of a "site" class when someone
 -- moves around, which should probably be revisited.
 --
-CREATE OR REPLACE FUNCTION account_automated_reporting_ac() 
+CREATE OR REPLACE FUNCTION account_automated_reporting_ac()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_tally	INTEGER;
@@ -50,7 +50,7 @@ BEGIN
 
 	IF TG_OP = 'INSERT' THEN
 		PERFORM auto_ac_manip.make_all_auto_acs_right(
-			account_id := NEW.account_id, 
+			account_id := NEW.account_id,
 			account_realm_id := NEW.account_realm_id,
 			login := NEW.login
 		);
@@ -81,17 +81,17 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trig_add_account_automated_reporting_ac ON account;
-CREATE TRIGGER trig_add_account_automated_reporting_ac 
+CREATE TRIGGER trig_add_account_automated_reporting_ac
 	AFTER INSERT OR UPDATE OF login, account_status
-	ON account 
-	FOR EACH ROW 
+	ON account
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_automated_reporting_ac();
 
 DROP TRIGGER IF EXISTS trig_rm_account_automated_reporting_ac ON account;
-CREATE TRIGGER trig_rm_account_automated_reporting_ac 
-	BEFORE DELETE 
-	ON account 
-	FOR EACH ROW 
+CREATE TRIGGER trig_rm_account_automated_reporting_ac
+	BEFORE DELETE
+	ON account
+	FOR EACH ROW
 	EXECUTE PROCEDURE account_automated_reporting_ac();
 
 --------------------------------------------------------------------------
@@ -100,17 +100,17 @@ CREATE TRIGGER trig_rm_account_automated_reporting_ac
 -- If a person changes managers, and they are in the default account realm
 -- rearrange all the automated tiered account collections
 --
-CREATE OR REPLACE FUNCTION automated_ac_on_person_company() 
+CREATE OR REPLACE FUNCTION automated_ac_on_person_company()
 RETURNS TRIGGER AS $_$
 DECLARE
 	_acc	account%ROWTYPE;
 BEGIN
-	SELECT * INTO _acc 
+	SELECT * INTO _acc
 	FROM account
 	WHERE person_id = NEW.person_id
 	AND account_role = 'primary'
 	AND account_realm_id IN (
-		SELECT account_realm_id FROM property 
+		SELECT account_realm_id FROM property
 		WHERE property_name = '_root_account_realm_id'
 		AND property_type = 'Defaults'
 	);
@@ -119,12 +119,12 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	SELECT * INTO _acc 
+	SELECT * INTO _acc
 	FROM account
 	WHERE person_id = OLD.manager_person_id
 	AND account_role = 'primary'
 	AND account_realm_id IN (
-		SELECT account_realm_id FROM property 
+		SELECT account_realm_id FROM property
 		WHERE property_name = '_root_account_realm_id'
 		AND property_type = 'Defaults'
 	);
@@ -132,12 +132,12 @@ BEGIN
 		PERFORM auto_ac_manip.make_auto_report_acs_right(_acc.account_id, _acc.account_realm_id, _acc.login);
 	END IF;
 
-	SELECT * INTO _acc 
+	SELECT * INTO _acc
 	FROM account
 	WHERE person_id = NEW.manager_person_id
 	AND account_role = 'primary'
 	AND account_realm_id IN (
-		SELECT account_realm_id FROM property 
+		SELECT account_realm_id FROM property
 		WHERE property_name = '_root_account_realm_id'
 		AND property_type = 'Defaults'
 	);
@@ -153,11 +153,11 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_automated_ac_on_person_company 
+CREATE TRIGGER trigger_automated_ac_on_person_company
 	AFTER UPDATE OF manager_person_id, person_company_status,
 		person_company_relation
-	ON person_company 
-	FOR EACH ROW EXECUTE PROCEDURE 
+	ON person_company
+	FOR EACH ROW EXECUTE PROCEDURE
 	automated_ac_on_person_company();
 
 --------------------------------------------------------------------------

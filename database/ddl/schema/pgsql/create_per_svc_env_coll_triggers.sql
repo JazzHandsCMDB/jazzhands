@@ -57,7 +57,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection 
+DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection
 	ON service_environment;
 CREATE TRIGGER trigger_delete_per_svc_env_svc_env_collection
 	BEFORE DELETE
@@ -92,7 +92,7 @@ BEGIN
 		   AND	service_environment_id in (
 			SELECT	service_environment_id
 			  FROM	svc_environment_coll_svc_env
-			 WHERE	service_environment_id = 
+			 WHERE	service_environment_id =
 				NEW.service_environment_id
 			);
 	END IF;
@@ -102,7 +102,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_update_per_svc_env_svc_env_collection 
+DROP TRIGGER IF EXISTS trigger_update_per_svc_env_svc_env_collection
 	ON service_environment;
 CREATE TRIGGER trigger_update_per_svc_env_svc_env_collection
 	AFTER INSERT OR UPDATE

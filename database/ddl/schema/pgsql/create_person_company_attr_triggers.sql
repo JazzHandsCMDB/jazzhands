@@ -92,12 +92,12 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_pers_company_attr 
+DROP TRIGGER IF EXISTS trigger_validate_pers_company_attr
 	ON person_company_attr;
-CREATE TRIGGER trigger_validate_pers_company_attr 
-	BEFORE INSERT OR UPDATE 
-	ON person_company_attr 
-	FOR EACH ROW EXECUTE PROCEDURE 
+CREATE TRIGGER trigger_validate_pers_company_attr
+	BEFORE INSERT OR UPDATE
+	ON person_company_attr
+	FOR EACH ROW EXECUTE PROCEDURE
 	validate_pers_company_attr();
 
 
@@ -129,13 +129,13 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_pers_comp_attr_value 
+DROP TRIGGER IF EXISTS trigger_validate_pers_comp_attr_value
 	ON val_person_company_attr_value;
-CREATE TRIGGER trigger_validate_pers_comp_attr_value 
-	BEFORE DELETE OR 
+CREATE TRIGGER trigger_validate_pers_comp_attr_value
+	BEFORE DELETE OR
 		UPDATE OF person_company_attr_name, person_company_attr_value
-	ON val_person_company_attr_value 
-	FOR EACH ROW EXECUTE PROCEDURE 
+	ON val_person_company_attr_value
+	FOR EACH ROW EXECUTE PROCEDURE
 	validate_pers_comp_attr_value();
 
 

@@ -49,7 +49,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_layer2_network_collection_hier_enforce
 	 ON layer2_network_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_layer2_network_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON layer2_network_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -105,7 +105,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_layer2_network_collection_member_enforce
 	 ON l2_network_coll_l2_network;
 CREATE CONSTRAINT TRIGGER trigger_layer2_network_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON l2_network_coll_l2_network
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -133,7 +133,7 @@ BEGIN
 	-- We only need to check this if we are enforcing now where we didn't used
 	-- to need to
 	--
-	IF l2ct.max_num_members IS NOT NULL AND 
+	IF l2ct.max_num_members IS NOT NULL AND
 			l2ct.max_num_members IS DISTINCT FROM old_l2ct.max_num_members THEN
 		select count(*)
 		  into tally

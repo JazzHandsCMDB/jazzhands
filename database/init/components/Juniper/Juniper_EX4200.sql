@@ -32,8 +32,10 @@ BEGIN
 		company_name = 'Juniper';
 
 	IF NOT FOUND THEN
-		INSERT INTO company (company_name) VALUES ('Juniper')
-			RETURNING company_id INTO cid;
+		SELECT company_manip.add_company(
+			_company_name := 'Juniper',
+			_company_types := ARRAY['hardware provider']
+		) INTO cid;
 	END IF;
 
 --
@@ -48,8 +50,10 @@ BEGIN
 		company_name = 'Juniper';
 
 	IF NOT FOUND THEN
-		INSERT INTO company (company_name) VALUES ('Juniper')
-			RETURNING company_id INTO cid;
+		SELECT company_manip.add_company(
+			_company_name := 'Juniper',
+			_company_types := ARRAY['hardware provider']
+		) INTO cid;
 	END IF;
 
 	SELECT slot_type_id INTO vcp_stid FROM slot_type WHERE

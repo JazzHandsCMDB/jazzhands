@@ -26,8 +26,10 @@ DECLARE
 BEGIN
 	SELECT company_id INTO cid FROM company WHERE company_name = 'OpenGear';
 	IF NOT FOUND THEN
-		INSERT INTO company (company_name) VALUES ('OpenGear') RETURNING
-			company_id INTO cid;
+		SELECT company_manip.add_company(
+			_company_name := 'OpenGear',
+			_company_types := ARRAY['hardware provider']
+		) INTO cid;
 	END IF;
 
 	INSERT INTO component_type (

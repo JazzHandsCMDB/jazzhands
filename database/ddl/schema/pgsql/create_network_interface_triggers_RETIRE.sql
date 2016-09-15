@@ -18,7 +18,7 @@
 ---------------------------------------------------------------------------
 -- deal with physical_port_id -> slot_id
 ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION net_int_physical_id_to_slot_id_enforce() 
+CREATE OR REPLACE FUNCTION net_int_physical_id_to_slot_id_enforce()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -32,7 +32,7 @@ BEGIN
 			RAISE EXCEPTION 'Only slot_id should be set.'
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
-	 
+
 	END IF;
 
 	IF TG_OP = 'UPDATE' THEN
@@ -51,14 +51,14 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_net_int_physical_id_to_slot_id_enforce 
+DROP TRIGGER IF EXISTS trigger_net_int_physical_id_to_slot_id_enforce
 	ON network_interface;
-CREATE TRIGGER trigger_net_int_physical_id_to_slot_id_enforce 
+CREATE TRIGGER trigger_net_int_physical_id_to_slot_id_enforce
 	BEFORE INSERT OR UPDATE OF physical_port_id, slot_id
-	ON network_interface 
-	FOR EACH ROW 
+	ON network_interface
+	FOR EACH ROW
 	EXECUTE PROCEDURE net_int_physical_id_to_slot_id_enforce();

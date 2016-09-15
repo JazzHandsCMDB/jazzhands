@@ -30,20 +30,40 @@ insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
 insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
 	values ('Cricket', 'Used by the Cricket Application'); 
 
-INSERT INTO Company (Company_Name)
-	VALUES ('Sun Microsystemse');
-INSERT INTO Company (Company_Name)
-	VALUES ('Dell');
-INSERT INTO Company (Company_Name)
-	VALUES ('RedHat');
-INSERT INTO Company (Company_Name)
-	VALUES ('Debian');
-INSERT INTO Company (Company_Name)
-	VALUES ('HP');
-INSERT INTO Company (Company_Name)
-	VALUES ('Cyclades');
-INSERT INTO Company (Company_Name)
-	VALUES ('Xen');
+SELECT company_manip.add_company(
+	_company_name := 'Sun Microsystems',
+	_company_types := ARRAY['hardware provider']
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'Dell',
+	_company_types := ARRAY['hardware provider']
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'HP',
+	_company_types := ARRAY['hardware provider']
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'Cyclades',
+	_company_types := ARRAY['hardware provider']
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'RedHat',
+	_company_types := ARRAY['software provider']
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'Debian',
+	_company_types := ARRAY['software provider']
+);
+
+SELECT company_manip.add_company(
+	_company_name := 'Xen',
+	_company_types := ARRAY['software provider']
+);
 
 INSERT INTO Device_Type (
 	Company_Id,

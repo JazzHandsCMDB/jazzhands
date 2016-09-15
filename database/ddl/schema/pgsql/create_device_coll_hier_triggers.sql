@@ -47,7 +47,7 @@ SET search_path=jazzhands;
 DROP TRIGGER IF EXISTS trigger_device_collection_hier_enforce
 	 ON device_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_device_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON device_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -103,7 +103,7 @@ SET search_path=jazzhands;
 DROP TRIGGER IF EXISTS trigger_device_collection_member_enforce
 	 ON device_collection_device;
 CREATE CONSTRAINT TRIGGER trigger_device_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON device_collection_device
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW

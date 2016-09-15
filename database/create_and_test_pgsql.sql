@@ -83,6 +83,7 @@ begin;
 \ir tests/pgsql/device_ticket_regression.sql
 \ir tests/pgsql/device_power_regression.sql
 
+SET jazzhands.permit_company_insert = 'permit';
 
 \ir tests/pgsql/account_coll_hier_regression.sql
 \ir tests/pgsql/company_coll_hier_regression.sql
@@ -96,9 +97,12 @@ begin;
 \ir tests/pgsql/token_coll_hier_regression.sql
 \ir tests/pgsql/account_coll_realm_regression.sql
 \ir tests/pgsql/network_range_tests.sql
+\ir tests/pgsql/x509_tests.sql
 
 \ir tests/pgsql/account_enabled_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
+
+SET jazzhands.permit_company_insert TO default;
 
 rollback;
 -- RAISE EXCEPTION 'need to put transactions back in testing';

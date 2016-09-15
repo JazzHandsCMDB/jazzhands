@@ -1,13 +1,13 @@
 --
 -- Copyright (c) 2015 Matthew Ragan
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
+--
 --      http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -109,7 +109,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_physical_port_insteadof ON physical_port;
-CREATE TRIGGER trigger_physical_port_insteadof 
+CREATE TRIGGER trigger_physical_port_insteadof
 	INSTEAD OF INSERT OR UPDATE OR DELETE
 	ON physical_port
 	FOR EACH ROW EXECUTE PROCEDURE

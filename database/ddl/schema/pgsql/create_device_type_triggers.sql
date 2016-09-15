@@ -18,7 +18,7 @@
 
 -- These next two triggers go away with device.location_id does.
 
-CREATE OR REPLACE FUNCTION device_one_location_validate() 
+CREATE OR REPLACE FUNCTION device_one_location_validate()
 RETURNS TRIGGER AS $$
 DECLARE
 BEGIN
@@ -33,14 +33,14 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_device_one_location_validate ON device;
-CREATE TRIGGER trigger_device_one_location_validate 
+CREATE TRIGGER trigger_device_one_location_validate
 	BEFORE INSERT OR UPDATE -- OF RACK_LOCATION_ID, CHASSIS_LOCATION_ID, PARENT_DEVICE_ID
-	ON device 
+	ON device
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_one_location_validate();
 
@@ -50,7 +50,7 @@ CREATE TRIGGER trigger_device_one_location_validate
 -- Only one of device_type_module_z or device_type_side may be set.  If
 -- the former, it means the module is inside the device, if the latter, its
 -- visible outside of the device.
-CREATE OR REPLACE FUNCTION device_type_module_sanity_set() 
+CREATE OR REPLACE FUNCTION device_type_module_sanity_set()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.DEVICE_TYPE_Z_OFFSET IS NOT NULL AND NEW.DEVICE_TYPE_SIDE IS NOT NULL THEN
@@ -59,20 +59,20 @@ BEGIN
 	END IF;
 	RETURN NEW;
 END;
-$$ 
+$$
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_device_type_module_sanity_set 
+DROP TRIGGER IF EXISTS trigger_device_type_module_sanity_set
 	ON device_type_module;
-CREATE TRIGGER trigger_device_type_module_sanity_set 
-	BEFORE INSERT OR UPDATE ON device_type_module 
+CREATE TRIGGER trigger_device_type_module_sanity_set
+	BEFORE INSERT OR UPDATE ON device_type_module
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_module_sanity_set();
 
--- 
+--
 -- device types marked with is_chassis = 'Y' need to keep that if there
 -- are device_type_modules associated.
--- 
+--
 CREATE OR REPLACE FUNCTION device_type_chassis_check()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -100,9 +100,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_device_type_chassis_check 
+DROP TRIGGER IF EXISTS trigger_device_type_chassis_check
 	ON device_type;
-CREATE TRIGGER trigger_device_type_chassis_check 
+CREATE TRIGGER trigger_device_type_chassis_check
 	BEFORE UPDATE OF is_chassis
 	ON device_type
 	FOR EACH ROW
@@ -110,7 +110,7 @@ CREATE TRIGGER trigger_device_type_chassis_check
 
 --
 -- related to above.  device_type_module.device_type_id must have
--- 
+--
 --
 CREATE OR REPLACE FUNCTION device_type_module_chassis_check()
 RETURNS TRIGGER AS $$
@@ -134,11 +134,11 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_device_type_module_chassis_check 
+DROP TRIGGER IF EXISTS trigger_device_type_module_chassis_check
 	ON device_type_module;
-CREATE TRIGGER trigger_device_type_module_chassis_check 
+CREATE TRIGGER trigger_device_type_module_chassis_check
 	BEFORE INSERT OR UPDATE of DEVICE_TYPE_ID
-	ON device_type_module 
+	ON device_type_module
 	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_module_chassis_check();
 
@@ -147,7 +147,7 @@ CREATE TRIGGER trigger_device_type_module_chassis_check
 ---------------------------------------------------------------------------
 -- deal with model going away and being replaced with device_name
 ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION device_type_model_to_name() 
+CREATE OR REPLACE FUNCTION device_type_model_to_name()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
@@ -161,7 +161,7 @@ BEGIN
 			RAISE EXCEPTION 'Only model should be set.'
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
-	 
+
 	END IF;
 
 	IF TG_OP = 'UPDATE' THEN
@@ -186,14 +186,14 @@ BEGIN
 
 	RETURN NEW;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_device_type_model_to_name 
+DROP TRIGGER IF EXISTS trigger_device_type_model_to_name
 	ON device_type;
-CREATE TRIGGER trigger_device_type_model_to_name 
+CREATE TRIGGER trigger_device_type_model_to_name
 	BEFORE INSERT OR UPDATE OF device_type_name, model
-	ON device_type 
-	FOR EACH ROW 
+	ON device_type
+	FOR EACH ROW
 	EXECUTE PROCEDURE device_type_model_to_name();

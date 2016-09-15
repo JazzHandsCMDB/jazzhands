@@ -47,7 +47,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_property_collection_hier_enforce
 	 ON property_collection_hier;
 CREATE CONSTRAINT TRIGGER trigger_property_collection_hier_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON property_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
@@ -85,7 +85,7 @@ BEGIN
 		  into tally
 		  from property_collection_property
 		  		inner join property_collection using (property_collection_id)
-		  where	
+		  where
 				property_name = NEW.property_name
 		  and	property_type = NEW.property_type
 		  and	property_collection_type = pct.property_collection_type;
@@ -105,7 +105,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_property_collection_member_enforce
 	 ON property_collection_property;
 CREATE CONSTRAINT TRIGGER trigger_property_collection_member_enforce
-        AFTER INSERT OR UPDATE 
+        AFTER INSERT OR UPDATE
         ON property_collection_property
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
