@@ -1,3 +1,10 @@
+jazzhands-dbsyncer (0.73.0) trusty; urgency=medium
+
+  * add support for tracking changes and seeing if upstream objects have
+    changed
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 15 Sep 2016 17:21:00 -0500
+
 jazzhands-dbsyncer (0.71.6) trusty; urgency=medium
 
   * adjust pgnotify proessing so its less likely they will get missed
@@ -14,13 +21,11 @@ jazzhands-dbsyncer (0.71.5) trusty; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jun 2016 17:27:00 -0500
 
-
 jazzhands-dbsyncer (0.67.7) trusty; urgency=medium
 
   * change how # of columns comparisons are done to make sense
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon,  1 Feb 2016 12:16:00 -0500
-
 
 jazzhands-dbsyncer (0.67.4) trusty; urgency=medium
 
@@ -28,10 +33,8 @@ jazzhands-dbsyncer (0.67.4) trusty; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 10:34:00 -0500
 
-
 jazzhands-dbsyncer (0.67.0) trusty; urgency=medium
 
   * initial release
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 25 Jan 2016 10:40:00 -0500
-

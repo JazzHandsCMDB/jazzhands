@@ -88,16 +88,106 @@ sub new {
 
 sub DESTROY {
 	my $self = shift @_;
-	my $ac = $self->{_dbh}->{AutoCommit};
+	my $ac   = $self->{_dbh}->{AutoCommit};
 
-	$self->rollback if(!$ac);
+	$self->rollback if ( !$ac );
 	$self->disconnect;
+}
+
+#
+# gets the last time an object was changed, and if necessary sets up a table
+# to track things.
+#
+sub get_last_change {
+	my $self   = shift @_;
+	my $object = shift @_;
+
+	my $dbh = $self->DBHandle();
+	if ( !$self->table_exists('_last_refresh') ) {
+		$dbh->do(
+			q{
+			CREATE TABLE _last_refresh (
+				object	text,
+				whence	timestamp,
+				primary key (object)
+			)
+		}
+		) || die $dbh->errstr;
+	}
+
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT	extract('epoch' from whence)::int, whence
+		FROM _last_refresh 
+		WHERE object = ?
+	}
+	) || die $dbh->errstr;
+
+	$sth->execute($object) || die $errstr;
+	my ( $whence, $timestamp ) = $sth->fetchrow_array;
+	$sth->finish;
+	( $whence, $timestamp );
+}
+
+sub check_if_refresh_needed {
+	my $self     = shift @_;
+	my $object   = shift @_;
+	my $mywhence = shift @_;
+
+	my $dbh = $self->DBHandle();
+	my $sth = $dbh->prepare_cached(
+		qq{
+		WITH x as ( SELECT
+			backend_utils.relation_last_changed(?) as whence
+		) SELECT extract('epoch' from whence)::int, whence FROM x
+	}
+	) || die $dbh->errstr;
+
+
+	$sth->execute($object) || die $errstr;
+	my ( $whence, $timestamp ) = $sth->fetchrow_array;
+	$sth->finish;
+
+	if ( !$mywhence || $mywhence < $whence ) {
+		return $timestamp;
+	}
+	undef;
+}
+
+sub update_my_refresh {
+	my $self      = shift @_;
+	my $object    = shift @_;
+	my $timestamp = shift @_;
+
+	my $dbh = $self->DBHandle();
+	my $sth = $dbh->prepare_cached(
+		qq{
+		UPDATE _last_refresh SET whence = ? WHERE object = ?
+	}
+	) || die $dbh->errstr;
+
+	my $nr = $sth->execute( $timestamp, $object ) || die $sth->errstr;
+	$sth->finish;
+
+	if ( $nr < 1 ) {
+		my $isth = $dbh->prepare_cached(
+			qq{
+			INSERT INTO _last_refresh (
+				object, whence
+			) VALUES ( ?, ? )
+		}
+		) || die $dbh->errstr;
+
+		$isth->execute( $object, $timestamp ) || die $isth->errstr;
+		$isth->finish;
+	}
+
 }
 
 sub fetch_table($$$;$) {
 	my ( $self, $table, $pk, $limit ) = @_;
 
-	my ($limitkey, $limitval) = split(/=/, $limit, 2) if($limit);
+	my ( $limitkey, $limitval ) = split( /=/, $limit, 2 ) if ($limit);
 
 	my $dbh = $self->DBHandle();
 
@@ -113,8 +203,8 @@ sub fetch_table($$$;$) {
 	}
 
 	my $where = "";
-	if($limit) {
-			$where ="\n\tWHERE $limitkey = :$limitkey";
+	if ($limit) {
+		$where = "\n\tWHERE $limitkey = :$limitkey";
 	}
 
 	my $sth = $dbh->prepare_cached(
@@ -125,8 +215,9 @@ sub fetch_table($$$;$) {
 	}
 	) || die dbh->errstr;
 
-	if($limit) {
-		$sth->bind_param(':'.$limitkey, $limitval) || die $sth->{Statement}, $sth->errstr;
+	if ($limit) {
+		$sth->bind_param( ':' . $limitkey, $limitval ) || die $sth->{Statement},
+		  $sth->errstr;
 	}
 
 	$sth->execute || die $sth->{Statement}, ":", $sth->errstr;
@@ -257,7 +348,6 @@ sub table_identical {
 	my @dncols = $self->get_cols($table);
 	my @upcols = $fromh->get_cols($table);
 
-
 	if ( $#upcols != $#dncols ) {
 		return 0;
 	}
@@ -343,7 +433,7 @@ sub mktable {
 sub copy_table($$$;$) {
 	my ( $self, $fromh, $table, $tbcfg, $limit ) = @_;
 
-	my ($limitkey, $limitval) = split(/=/, $limit, 2) if($limit);
+	my ( $limitkey, $limitval ) = split( /=/, $limit, 2 ) if ($limit);
 
 	# my $down = $self->DBHandle();
 	# my $up = $fromh->DBHandle();
@@ -373,10 +463,10 @@ sub copy_table($$$;$) {
 		$pk = \@pk;
 	}
 
-	if($limitkey && ! grep($_ eq $limitkey, @{$pk})) {
-		$self->_Debug(3, "Skipping $table due to missing $limitkey");
+	if ( $limitkey && !grep( $_ eq $limitkey, @{$pk} ) ) {
+		$self->_Debug( 3, "Skipping $table due to missing $limitkey" );
 		return;
-		
+
 	}
 
 	#
@@ -516,9 +606,10 @@ sub copy_table($$$;$) {
 	}
 	$self->_Debug( 1, "\tStats: %d inserted; %d updated; %d deleted",
 		$ins, $upd, $del );
+
 	# Only log when things change
-	if($ins || $upd || $del) {
-		syslog(LOG_INFO, "$table: %d ins/%d upd/%d del", $ins, $upd, $del);
+	if ( $ins || $upd || $del ) {
+		syslog( LOG_INFO, "$table: %d ins/%d upd/%d del", $ins, $upd, $del );
 	}
 
 }
@@ -527,15 +618,32 @@ sub sync_dbs {
 	my $self     = shift @_;
 	my $config   = shift @_;
 	my $upstream = shift @_;
-	my $key = shift @_;
+	my $key      = shift @_;
 
 	my @tables = @_;
+
+	my $forcecompare = 0;
+	if(! $config->{objectdatecheck}) {
+		$forcecompare = 1;
+	}
 
 	my $tablemap = $config->{tablemap};
 	foreach my $table ( sort keys( %{$tablemap} ) ) {
 		next if ( @tables && !grep( $_ eq $table, @tables ) );
-		$self->_Debug( 4, "Synchronizing table %s", $table );
-		$self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
+		my ($upts, $force);
+		if($config->{objectdatecheck}) {
+			my ($mylastchange, $myts) = $self->get_last_change($table);
+			my $upts = $upstream->check_if_refresh_needed($table, $mylastchange);
+		}
+		if($upts || $forcecompare || defined($tablemap->{$table}->{pushback}) ) {
+			$self->_Debug( 4, "Synchronizing table %s", $table );
+			$self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
+			if($config->{objectdatecheck}) {
+				$self->update_my_refresh($table, $upts);
+			}	
+		} else {
+			$self->_Debug( 5, "Skipping table '%s': no change", $table);
+		}
 	}
 
 	if ( $config->{postsyn} ) {
@@ -646,7 +754,7 @@ Todd Kover
 package main;
 
 sub process_notifies($$$) {
-	my($config, $up, $down) = @_;
+	my ( $config, $up, $down ) = @_;
 
 	#
 	# this is a do { } while loop to ensure that there are none outstanding
@@ -656,14 +764,14 @@ sub process_notifies($$$) {
 	do {
 		$seensome = 0;
 		my %n;
-		while(my $notif = $up->{_dbh}->pg_notifies) {
-			my($name, $pid, $payload) = @{$notif};
+		while ( my $notif = $up->{_dbh}->pg_notifies ) {
+			my ( $name, $pid, $payload ) = @{$notif};
 			$n{$payload}++;
 			$seensome++;
 		}
 		$up->{_dbh}->{AutoCommit} = 0;
-		foreach my $pend (keys (%n) ) {
-			$up->_Debug(1, "Processing %s:%d ", $pend, $n{$pend});
+		foreach my $pend ( keys(%n) ) {
+			$up->_Debug( 1, "Processing %s:%d ", $pend, $n{$pend} );
 			$down->sync_dbs( $config, $up, $pend, @ARGV );
 		}
 		$down->commit || die $down->errstr;
@@ -672,9 +780,8 @@ sub process_notifies($$$) {
 	} while ($seensome);
 }
 
-
-if(my $bn = (File::Spec->splitpath($0))[2]) {
-	openlog($bn, 'pid', LOG_DAEMON);
+if ( my $bn = ( File::Spec->splitpath($0) )[2] ) {
+	openlog( $bn, 'pid', LOG_DAEMON );
 }
 
 my ( $daemonize, $loop, $cfgname, $debug, @listen );
@@ -693,20 +800,20 @@ GetOptions(
 # if running one named after the script, then try to use that.  This assumes
 # that it should not be invoked a daemon unless explicitly said.
 #
-if( !$cfgname) {
-	my $bn = (File::Spec->splitpath($0))[2];
-	if(-r "/etc/jazzhands/dbsyncer/${bn}") {
+if ( !$cfgname ) {
+	my $bn = ( File::Spec->splitpath($0) )[2];
+	if ( -r "/etc/jazzhands/dbsyncer/${bn}" ) {
 		$cfgname = "/etc/jazzhands/dbsyncer/${bn}";
-	} elsif(-r "/etc/jazzhands/dbsyncer/${bn}.json") {
+	} elsif ( -r "/etc/jazzhands/dbsyncer/${bn}.json" ) {
 		$cfgname = "/etc/jazzhands/dbsyncer/${bn}.json";
 	}
-	if($cfgname)  {
-		if(!defined($daemonize)) {
+	if ($cfgname) {
+		if ( !defined($daemonize) ) {
 			$daemonize = 0;
 		}
 	}
 } else {
-	if(!defined($daemonize)) {
+	if ( !defined($daemonize) ) {
 		$daemonize = 1;
 	}
 }
@@ -739,8 +846,8 @@ if ($daemonize) {
 
 }
 
-if(exists($config->{pglisten}) && scalar(@{$config->{pglisten}})) {
-	@listen = @{$config->{pglisten}};
+if ( exists( $config->{pglisten} ) && scalar( @{ $config->{pglisten} } ) ) {
+	@listen = @{ $config->{pglisten} };
 }
 
 $up = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
@@ -753,12 +860,12 @@ $up->{_dbh}->{AutoCommit} = 1;
 #
 
 my $upsock;
-if(scalar @listen) {
+if ( scalar @listen ) {
 	$upsock = $up->{_dbh}->{pg_socket};
 }
 
 my $s = IO::Select->new();
-if($loop && $upsock) {
+if ( $loop && $upsock ) {
 	$s->add($upsock);
 }
 
@@ -770,23 +877,23 @@ do {
 	$up->commit   || die $up->errstr;
 	$up->{_dbh}->{AutoCommit} = 1;
 
-	if(scalar @listen) {
+	if ( scalar @listen ) {
 		foreach my $notif (@listen) {
 			$up->{_dbh}->do("LISTEN $notif");
 		}
 	}
 
-	process_notifies($config, $up, $down);
+	process_notifies( $config, $up, $down );
 	my $sleeptime = $lastcheck - time() + $loop;
 
-	while($sleeptime > 0) {
+	while ( $sleeptime > 0 ) {
 		my %n;
-		$up->_Debug(4, "++ sleeping %d", $sleeptime);
+		$up->_Debug( 4, "++ sleeping %d", $sleeptime );
 		my @ready = $s->can_read($sleeptime);
-		$up->_Debug(4, "++ Wake %d", scalar @ready);
+		$up->_Debug( 4, "++ Wake %d", scalar @ready );
 		foreach my $fh (@ready) {
-			if($fh == $upsock) {
-				process_notifies($config, $up, $down);
+			if ( $fh == $upsock ) {
+				process_notifies( $config, $up, $down );
 			}
 		}
 		foreach my $notif (@listen) {
