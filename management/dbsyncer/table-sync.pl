@@ -143,7 +143,6 @@ sub check_if_refresh_needed {
 	}
 	) || die $dbh->errstr;
 
-
 	$sth->execute($object) || die $errstr;
 	my ( $whence, $timestamp ) = $sth->fetchrow_array;
 	$sth->finish;
@@ -633,12 +632,12 @@ sub sync_dbs {
 		my ($upts, $force);
 		if($config->{objectdatecheck}) {
 			my ($mylastchange, $myts) = $self->get_last_change($table);
-			my $upts = $upstream->check_if_refresh_needed($table, $mylastchange);
+			$upts = $upstream->check_if_refresh_needed($table, $mylastchange);
 		}
 		if($upts || $forcecompare || defined($tablemap->{$table}->{pushback}) ) {
-			$self->_Debug( 4, "Synchronizing table %s", $table );
+			$self->_Debug( 4, "Synchronizing table %s (%s)", $table, $upts || '' );
 			$self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
-			if($config->{objectdatecheck}) {
+			if($config->{objectdatecheck} && $upts) {
 				$self->update_my_refresh($table, $upts);
 			}	
 		} else {
