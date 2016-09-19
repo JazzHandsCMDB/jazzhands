@@ -3,7 +3,7 @@ jazzhands-dbsyncer (0.73.0) trusty; urgency=medium
   * add support for tracking changes and seeing if upstream objects have
     changed
 
- -- Todd M. Kover <kovert@omniscient.com>  Fri, 15 Sep 2016 17:21:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 16 Sep 2016 17:21:00 -0500
 
 jazzhands-dbsyncer (0.71.6) trusty; urgency=medium
 
