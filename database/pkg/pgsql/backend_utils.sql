@@ -55,7 +55,7 @@ BEGIN
 	FROM    pg_catalog.pg_class c
 		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 	WHERE   n.nspname = 'jazzhands'
-	AND     c.relname = relation_last_changed.relation;
+	AND     c.relname = object;
 
 	-- silently ignore things that are not materialized views
 	IF rk = 'm' THEN
