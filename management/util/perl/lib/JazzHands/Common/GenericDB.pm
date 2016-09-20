@@ -199,14 +199,14 @@ sub DBUpdate {
 			if(length($update_whereclause)) {
 				$update_whereclause .= " and ";
 			}
-			$update_whereclause .= $$dbkey[$i] . " = :pk__".$$dbkey[$i];
+			$update_whereclause .= $$dbkey[$i] . " IS NOT DISTINCT FROM :pk__".$$dbkey[$i];
 		}
 	} else {
 		foreach my $key (keys %$dbkey) {
 			if(length($update_whereclause)) {
 				$update_whereclause .= " and ";
 			}
-			$update_whereclause .= $key . " = :pk__".$key;
+			$update_whereclause .= $key . " IS NOT DISTINCT FROM :pk__".$key;
 		}
 	}
 	my $q = qq{
@@ -437,7 +437,7 @@ sub DBDelete {
 				$update_whereclause .= $$dbkey[$i] . "= ANY( :pk__".$$dbkey[$i] . ')';
 				$multikey++;
 			} else {
-				$update_whereclause .= $$dbkey[$i] . " = :pk__".$$dbkey[$i];
+				$update_whereclause .= $$dbkey[$i] . " IS NOT DISTINCT FROM :pk__".$$dbkey[$i];
 			}
 		}
 	} else {
@@ -449,7 +449,7 @@ sub DBDelete {
 				$update_whereclause .= $key . " = ANY( :pk__".$key .')';
 				$multikey++;
 			} else {
-				$update_whereclause .= $key . " = :pk__".$key;
+				$update_whereclause .= $key . " IS NOT DISTINCT FROM :pk__".$key;
 			}
 		}
 	}

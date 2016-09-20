@@ -1,9 +1,17 @@
+jazzhands-dbsyncer (0.73.2) trusty; urgency=medium
+
+  * vastly improve debugging
+  * add --force, -n
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 19 Sep 2016 17:21:00 -0500
+
 jazzhands-dbsyncer (0.73.1) trusty; urgency=medium
 
   * remove errant 'my" which makes previous change work
     changed
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 19 Sep 2016 17:21:00 -0500
+
 
 jazzhands-dbsyncer (0.73.0) trusty; urgency=medium
 

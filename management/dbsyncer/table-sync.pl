@@ -63,6 +63,8 @@ sub new {
 	my $opt   = &_options;
 
 	my $service = $opt->{service};
+	my $dryrun  = $opt->{dryrun};
+	my $force   = $opt->{force};
 	if ( !$service ) {
 		$errstr = "Must specify db service to connect to";
 		return undef;
@@ -81,9 +83,31 @@ sub new {
 	#bless($self, $class );
 
 	$self->{_schemachanges} = 0;
+	$self->{_dryrun}        = $dryrun;
+	$self->{_force}         = $force;
 
 	$self->{_dbh} = $dbh;
 	$self;
+}
+
+sub dryrun {
+	my $self = shift @_;
+	$self->{_dryrun} = shift;
+}
+
+sub force {
+	my $self = shift @_;
+	$self->{_force} = shift;
+}
+
+sub finish {
+	my $self = shift @_;
+
+	if ( $self->{_dryrun} ) {
+		$self->rollback;
+	} else {
+		$self->commit;
+	}
 }
 
 sub DESTROY {
@@ -147,6 +171,8 @@ sub check_if_refresh_needed {
 	my ( $whence, $timestamp ) = $sth->fetchrow_array;
 	$sth->finish;
 
+	$self->_Debug( 6, "+ %s: Compare %d %d [%s]",
+		$object, $mywhence, $whence, $timestamp );
 	if ( !$mywhence || $mywhence < $whence ) {
 		return $timestamp;
 	}
@@ -163,9 +189,20 @@ sub update_my_refresh {
 		qq{
 		UPDATE _last_refresh SET whence = ? WHERE object = ?
 	}
-	) || die $dbh->errstr;
+	);
 
-	my $nr = $sth->execute( $timestamp, $object ) || die $sth->errstr;
+	if ( !$sth ) {
+		$self->Debug( 1, "Unable to prepare update _last_refresh: %s",
+			$dbh->errstr );
+		return undef;
+	}
+
+	my $nr;
+	if ( !( $nr = $sth->execute( $timestamp, $object ) ) ) {
+		$self->Debug( 1, "Unable to update _last_refresh(%s,%s): %s",
+			, $timestamp, $object, $sth->errstr );
+		return undef;
+	}
 	$sth->finish;
 
 	if ( $nr < 1 ) {
@@ -175,9 +212,18 @@ sub update_my_refresh {
 				object, whence
 			) VALUES ( ?, ? )
 		}
-		) || die $dbh->errstr;
+		);
 
-		$isth->execute( $object, $timestamp ) || die $isth->errstr;
+		if ( !$isth ) {
+			$self->_Debug( 1, "Unable to prepare insert _last_refresh: %s",
+				$dbh->errstr );
+			return undef;
+		}
+
+		if ( !$isth->execute( $object, $timestamp ) ) {
+			$self->_Debug( 1, "Unable to update _last_refresh(%s,%s): %s",
+				, $timestamp, $object, $isth->errstr );
+		}
 		$isth->finish;
 	}
 
@@ -442,7 +488,7 @@ sub copy_table($$$;$) {
 		$pk = $tbcfg->{pk};
 	}
 
-	$self->_Debug( 1, "Copying table %s", $table );
+	$self->_Debug( 1, "Comparing table %s", $table );
 	#
 	# Arguably, this can all be smarter about transactions, since the
 	# current approach blocks the db for the entire sync cycle on
@@ -487,6 +533,7 @@ sub copy_table($$$;$) {
 		}
 		if ( !defined( $downt->{$k} ) ) {
 			$ins++;
+			$self->_Debug( 7, "inserting: %s", $dbk );
 			if (
 				!(
 					$self->DBInsert(
@@ -546,6 +593,13 @@ sub copy_table($$$;$) {
 			# nothing to update.
 			if ( scalar keys %{$diff} ) {
 				$upd++;
+				$self->_Debug(
+					7,
+					"update: %s",
+					( ref $dbkey eq 'ARRAY' )
+					? join( ", ", @{$dbkey} )
+					: $dbkey
+				);
 				if (
 					!(
 						$self->DBUpdate(
@@ -569,6 +623,8 @@ sub copy_table($$$;$) {
 	foreach my $k ( keys %{$downt} ) {
 		if ( !defined( $fromt->{$k} ) ) {
 			$del++;
+			$self->_Debug( 7, "delete: %s",
+				( ref $k eq 'ARRAY' ) ? join( ", ", @{$k} ) : $k );
 			my $dbkey = $k;
 			if ( ref $pk eq 'ARRAY' ) {
 				my @dbkey = split( /,/, $dbkey );
@@ -603,14 +659,18 @@ sub copy_table($$$;$) {
 			}
 		}
 	}
-	$self->_Debug( 1, "\tStats: %d inserted; %d updated; %d deleted",
+	my $dl = 4;
+	if ( $ins || $upd || $del ) {
+		$dl = 1;
+	}
+	$self->_Debug( $dl, "\tStats: %d inserted; %d updated; %d deleted",
 		$ins, $upd, $del );
 
 	# Only log when things change
 	if ( $ins || $upd || $del ) {
 		syslog( LOG_INFO, "$table: %d ins/%d upd/%d del", $ins, $upd, $del );
 	}
-
+	return $ins + $upd + $del;
 }
 
 sub sync_dbs {
@@ -621,27 +681,51 @@ sub sync_dbs {
 
 	my @tables = @_;
 
-	my $forcecompare = 0;
-	if(! $config->{objectdatecheck}) {
-		$forcecompare = 1;
+	my $forceupdate = 0;
+	if ( !$config->{objectdatecheck} ) {
+		$forceupdate = 1;
 	}
 
 	my $tablemap = $config->{tablemap};
 	foreach my $table ( sort keys( %{$tablemap} ) ) {
 		next if ( @tables && !grep( $_ eq $table, @tables ) );
-		my ($upts, $force);
-		if($config->{objectdatecheck}) {
-			my ($mylastchange, $myts) = $self->get_last_change($table);
-			$upts = $upstream->check_if_refresh_needed($table, $mylastchange);
+		my ( $upts, $force );
+		my $iwasforced = 0;
+		if ( $config->{objectdatecheck} ) {
+			my ( $mylastchange, $myts ) = $self->get_last_change($table);
+			$upts = $upstream->check_if_refresh_needed( $table, $mylastchange );
+			if ( !$upts && $self->{_force} ) {
+				$forceupdate = 1;
+				$iwasforced  = 1;
+				$self->_Debug( 2, "\t %s: forcing anyway [%s]", $table, $myts );
+			}
 		}
-		if($upts || $forcecompare || defined($tablemap->{$table}->{pushback}) ) {
-			$self->_Debug( 4, "Synchronizing table %s (%s)", $table, $upts || '' );
-			$self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
-			if($config->{objectdatecheck} && $upts) {
-				$self->update_my_refresh($table, $upts);
-			}	
+
+		# This should be smarter, but basically if set, then some fields
+		# are pushed back, so a straight compare is not enough. This causes
+		# a WARNING not to be logged when things break.
+		if ( defined( $tablemap->{$table}->{pushback} ) ) {
+			$iwasforced = undef;
+		}
+		if (   $upts
+			|| $forceupdate
+			|| defined( $tablemap->{$table}->{pushback} ) )
+		{
+			$self->_Debug( 4, "Synchronizing table %s (%s)",
+				$table, $upts || '' );
+			my $changes =
+			  $self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
+			if ($upts) {
+				$self->update_my_refresh( $table, $upts );
+			}
+			if ( $changes && $iwasforced ) {
+				$self->_Debug( 1,
+					"WARNING: %s should not have had changes but did!",
+					$table );
+			}
 		} else {
-			$self->_Debug( 5, "Skipping table '%s': no change", $table);
+			$self->_Debug( 5, "Skipping table '%s': no change (%s)",
+				$table, $upts || '' );
 		}
 	}
 
@@ -671,8 +755,8 @@ table-sync - Keeps a local database in sync with a remote one
 
 =head1 SYNOPSIS
 
-	table-sync [ --no-daemonize ] [ --loop ] [ --debug ... ] --config /path/to/config
-
+	table-sync [ --no-daemonize ] [ --dry-run ] [ --force ][ --loop ] [ --debug ... ] --config /path/to/config [ object ... ]
+ 
 =head1 DESCRIPTION
 
 Based on the contents of a config file, use JazzHands::DBI to connect to
@@ -694,9 +778,30 @@ Daemonize is on by default.  When a daemon, the script wakes up every loop
 seconds and repeats.  When not a deamon it runs once and exits unless loop
 is set. 
 
+The -n or --dry-run options will cause it to execute everything but rollback
+all transactions.
+
+If objectdatecheck is set in the configuration file, objects without a pushback
+directive will be checked using backend_utils.relation_last_changed() on the
+upstream server.  If --force is specified, this check will still run, but
+it will force a row-by-row comparision and log a warning if it found any
+updates when none were expected.  A debug level of 7 will log the rows.
+
 When not invoked as a daemon, level one of debugging is turned on. 
 
-This has been tested with sqlite and postgresql.
+The debugging option can be specified multiple times to increase the
+debugging level.  This means:
+
+1 - things interesting when run by hand
+2 - more noteworthy things about run
+3 - if local tables need to be dropped/recreated due to changes
+4 - more play-by-play implied by other messages
+5 - even more messages than 4.
+6 - date comparions used when determine of a row-by-row compare is in order
+7 - logs rows changed locally
+
+This has been tested with sqlite and postgresql although over time, sqlite has
+had less and less testing so it may need some love.
 
 =head1 EXAMPLE CONFIG
 {
@@ -724,6 +829,7 @@ This has been tested with sqlite and postgresql.
 	"postsync": [
 		"SELECT log_update();"
 	],
+	"objectdatecheck": true
 }
 
 This config connects to remote-db, and local-db and syncs v_account,
@@ -738,9 +844,15 @@ The postschema stanzas are run anytime there is a schema change.
 
 The postsync stanzas are run at the end of every sync.
 
+objectdatecheck indicates that the last update time of the object should be
+checked upstream with the backend_utils.relation_last_changed stored procedure
+to determine if a row-by-row comparision should be done.  The --force option
+can be used to force a row-by-row comparision but the check can not be
+disabled.
+
 =head1 BUGS
 
-There liekly are some.
+There likely are some.
 
 =head1 AUTHORS
 
@@ -773,8 +885,8 @@ sub process_notifies($$$) {
 			$up->_Debug( 1, "Processing %s:%d ", $pend, $n{$pend} );
 			$down->sync_dbs( $config, $up, $pend, @ARGV );
 		}
-		$down->commit || die $down->errstr;
-		$up->commit   || die $up->errstr;
+		$down->finish || die $down->errstr;
+		$up->finish   || die $up->errstr;
 		$up->{_dbh}->{AutoCommit} = 1;
 	} while ($seensome);
 }
@@ -783,7 +895,7 @@ if ( my $bn = ( File::Spec->splitpath($0) )[2] ) {
 	openlog( $bn, 'pid', LOG_DAEMON );
 }
 
-my ( $daemonize, $loop, $cfgname, $debug, @listen );
+my ( $daemonize, $loop, $cfgname, $debug, @listen, $dryrun, $force );
 
 # default to not loop
 $loop = 0;
@@ -791,6 +903,8 @@ $loop = 0;
 GetOptions(
 	"config=s"   => \$cfgname,
 	"daemonize!" => \$daemonize,
+	"force!"     => \$force,
+	"dry-run|n!" => \$dryrun,
 	"loop=i"     => \$loop,
 	"debug+"     => \$debug,
 ) || die pod2usage();
@@ -826,6 +940,11 @@ $fh->close;
 
 my $up   = new DBThing( service => $config->{from} ) || die $DBThing::errstr;
 my $down = new DBThing( service => $config->{to} )   || die $DBThing::errstr;
+
+$up->dryrun($dryrun)   if ($dryrun);
+$down->dryrun($dryrun) if ($dryrun);
+
+$down->force($force) if ($force);
 
 $up->disconnect;
 
@@ -872,8 +991,8 @@ do {
 	my $lastcheck = time();
 	$up->{_dbh}->{AutoCommit} = 0;
 	$down->sync_dbs( $config, $up, undef, @ARGV );
-	$down->commit || die $down->errstr;
-	$up->commit   || die $up->errstr;
+	$down->finish || die $down->errstr;
+	$up->finish   || die $up->errstr;
 	$up->{_dbh}->{AutoCommit} = 1;
 
 	if ( scalar @listen ) {
