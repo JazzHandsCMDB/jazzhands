@@ -1,3 +1,9 @@
+jazzhands-mkpasswdfiles (0.74.0) trusty; urgency=medium
+
+  * switch to materialized views, including code to auto-refresh
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 20 Sep 201 18:25:00 -0500
+
 jazzhands-mkpasswdfiles (0.69.8) trusty; urgency=medium
 
   * call script_hooks modules in mkpasswdfiles

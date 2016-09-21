@@ -145,6 +145,42 @@ exit(0);
 
 ###############################################################################
 #
+# Usage: prep_and_get_txid();
+#
+# connects to mkpwdfiles-master, and figures out the opque transaction id
+# to block on before generating things.  If something goes wrong, this
+# just silently fails.
+#
+sub prep_and_get_txid() {
+	$dbh =
+	  JazzHands::DBI->connect( 'mkpwdfiles-master',
+		{ RaiseError => 0, AutoCommit => 0 } );
+
+	if(!$dbh) {
+		warn "Unable to connect ot master db..", $JazzHands::DBI::errstr if ($o_verbose);
+		return undef;
+	}
+
+	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
+	my $sth = $dbh->prepare_cached("SELECT backend_utils.get_opaque_txid()") || die $dbh->errstr;
+	$sth->execute() || die $sth->errstr;
+	my ($id) = $sth->fetchrow_array();
+	$sth->finish;
+
+	$dbh->do(q{
+		SELECT backend_utils.refresh_if_needed( 'mv_unix_passwd_mappings'), 
+			backend_utils.refresh_if_needed('mv_unix_group_mappings')
+	}) || die $dbh->errstr;
+
+	$dbh->commit();
+	$dbh->disconnect();
+
+	$id;
+
+}
+
+###############################################################################
+#
 # Usage: $supportemail - get_support_email ($dbh)
 #
 # attempts to look up support email in db.  If its not there, uses an
@@ -328,7 +364,7 @@ sub build_userhash($$) {
 		my @uh = grep($_->{login} eq $login, @$pwdlines);
 		if(scalar @uh ) {
 			my $uh = pop(@uh);
-			foreach my $k (@{ $r->{ _dbx('SSH_PUBLIC_KEY') } }) {
+			foreach my $k (sort @{ $r->{ _dbx('SSH_PUBLIC_KEY') } }) {
 				push(@ {$uh->{ssh_public_key}}, $k);
 			}
 			return undef;  # one dude!
@@ -390,11 +426,11 @@ sub generate_passwd_files($$) {
 
 		$q = qq{
 			SELECT	device_collection_name, map.*
-			FROM	v_unix_passwd_mappings map
+			FROM	mv_unix_passwd_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 			WHERE	device_collection_type = 'mclass'
 					$and
-			ORDER BY device_collection_name, unix_uid
+			ORDER BY device_collection_name, unix_uid, ssh_public_key
 		};
 	} elsif($style eq 'per-host') {
 		$outclass = 'hostpasswd';
@@ -411,14 +447,14 @@ sub generate_passwd_files($$) {
 
 		$q = qq{
 			SELECT	d.device_name, map.*
-			FROM	v_unix_passwd_mappings map
+			FROM	mv_unix_passwd_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 					INNER JOIN device_collection_device
 							USING (device_collection_id)
 					INNER JOIN device d USING (device_id)
 			WHERE	device_collection_type = 'per-device'
 					$and
-			ORDER BY device_name, unix_uid
+			ORDER BY device_name, unix_uid, ssh_public_key
 		};
 	}
 
@@ -513,7 +549,7 @@ sub generate_group_files($$) {
 
 		$q = qq{
 			SELECT	device_collection_name, map.*
-			FROM	v_unix_group_mappings map
+			FROM	mv_unix_group_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 			WHERE	device_collection_type = 'mclass'
 					$and
@@ -534,7 +570,7 @@ sub generate_group_files($$) {
 
 		$q = qq{
 			SELECT  d.device_name, map.*
-			FROM	v_unix_group_mappings map
+			FROM	mv_unix_group_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 					INNER JOIN device_collection_device
 							USING (device_collection_id)
@@ -1755,7 +1791,10 @@ sub main {
 		sleep($delay);
 	}
 
-	warn "Connecting to DB..." if ($o_verbose);
+	warn "Connecting to master DB to setup..." if ($o_verbose);
+	my $id = prep_and_get_txid();
+
+	warn "Connecting to default DB..." if ($o_verbose);
 	$dbh =
 	  JazzHands::DBI->connect( 'mkpwdfiles',
 		{ RaiseError => 1, AutoCommit => 0 } );
@@ -1766,8 +1805,14 @@ sub main {
 
 	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
 
-	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
+	if($id) {
+		warn "Waiting for $id..." if ($o_verbose);
+		$dbh->do(q{SELECT backend_utils.block_for_opaque_txid(?)}, undef, ($id));
+		warn "Woke from id#$id..." if ($o_verbose);
+	};
 
+	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
+  
 	# umask(027);
 	umask(022);
 
