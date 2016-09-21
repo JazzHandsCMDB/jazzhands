@@ -1,30 +1,37 @@
+jazzhands-dbsyncer (0.74.1) trusty; urgency=medium
+
+  * syslog when check does not catch changes
+  * change definition of objectdatecheck to have an advistory mode
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 21 Sep 2016 16:36:29 -0400
+
 jazzhands-dbsyncer (0.73.2) trusty; urgency=medium
 
   * vastly improve debugging
   * add --force, -n
 
- -- Todd M. Kover <kovert@omniscient.com>  Mon, 19 Sep 2016 17:21:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 19 Sep 2016 17:21:00 -0400
 
 jazzhands-dbsyncer (0.73.1) trusty; urgency=medium
 
   * remove errant 'my" which makes previous change work
     changed
 
- -- Todd M. Kover <kovert@omniscient.com>  Mon, 19 Sep 2016 17:21:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 19 Sep 2016 17:21:00 -0400
 
 jazzhands-dbsyncer (0.73.0) trusty; urgency=medium
 
   * add support for tracking changes and seeing if upstream objects have
     changed
 
- -- Todd M. Kover <kovert@omniscient.com>  Fri, 16 Sep 2016 17:21:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 16 Sep 2016 17:21:00 -0400
 
 jazzhands-dbsyncer (0.71.6) trusty; urgency=medium
 
   * adjust pgnotify proessing so its less likely they will get missed
     during the periodic regular runs
 
- -- Todd M. Kover <kovert@omniscient.com>  Fri, 17 Jun 2016 19:58:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 17 Jun 2016 19:58:00 -0400
 
 jazzhands-dbsyncer (0.71.5) trusty; urgency=medium
 
@@ -33,7 +40,7 @@ jazzhands-dbsyncer (0.71.5) trusty; urgency=medium
   * syslog whenever things change
   * minor bug fixes
 
- -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jun 2016 17:27:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jun 2016 17:27:00 -0400
 
 jazzhands-dbsyncer (0.67.7) trusty; urgency=medium
 

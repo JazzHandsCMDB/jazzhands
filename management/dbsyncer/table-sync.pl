@@ -141,40 +141,46 @@ sub get_last_change {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	extract('epoch' from whence)::int, whence
+		SELECT	whence
 		FROM _last_refresh 
 		WHERE object = ?
 	}
 	) || die $dbh->errstr;
 
 	$sth->execute($object) || die $errstr;
-	my ( $whence, $timestamp ) = $sth->fetchrow_array;
+	my ( $whence ) = $sth->fetchrow_array;
 	$sth->finish;
-	( $whence, $timestamp );
+	$whence;
 }
 
 sub check_if_refresh_needed {
 	my $self     = shift @_;
 	my $object   = shift @_;
-	my $mywhence = shift @_;
+	my $upwhence = shift @_;
+
 
 	my $dbh = $self->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
 		WITH x as ( SELECT
-			backend_utils.relation_last_changed(?) as whence
-		) SELECT extract('epoch' from whence)::int, whence FROM x
+			backend_utils.relation_last_changed(:rel) as whence
+		) SELECT whence, whence > :ts as refresh FROM x
 	}
 	) || die $dbh->errstr;
 
-	$sth->execute($object) || die $errstr;
-	my ( $whence, $timestamp ) = $sth->fetchrow_array;
+	$sth->bind_param(':rel', $object) || die $sth->errstr;
+	$sth->bind_param(':ts', $upwhence) || die $sth->errstr;
+
+	$sth->execute || die $sth->errstr;
+
+	my ( $whence, $refresh ) = $sth->fetchrow_array;
 	$sth->finish;
 
-	$self->_Debug( 6, "+ %s: Compare %d %d [%s]",
-		$object, $mywhence, $whence, $timestamp );
-	if ( !$mywhence || $mywhence < $whence ) {
-		return $timestamp;
+
+	$self->_Debug( 6, "+ %s: Compare %s v %s [%d]",
+		$object, $whence, $upwhence, $refresh );
+	if ( $refresh ) {
+		return $whence;
 	}
 	undef;
 }
@@ -681,23 +687,38 @@ sub sync_dbs {
 
 	my @tables = @_;
 
+	# forcecheck forces checking timestamps against the upstream table
+	#	default is to not do it
+	# forceupdate causes it to always do a compare and update regardless of
+	#	what the check had.
+	#
+	# objectdatecheck can be missing (always do row-by-row compare only),
+	# 'advisory', which does both a row-by-row-compare and checks timestamps
+	# and anything else, which only does a row-by-row compare if the timestamps
+	# warrant it.
+
+	my $forcecheck = $self->{_force};
 	my $forceupdate = 0;
 	if ( !$config->{objectdatecheck} ) {
+		$forceupdate = 1;
+	} elsif($config->{objectdatecheck} eq 'advisory') {
+		$forcecheck = 1;
 		$forceupdate = 1;
 	}
 
 	my $tablemap = $config->{tablemap};
 	foreach my $table ( sort keys( %{$tablemap} ) ) {
 		next if ( @tables && !grep( $_ eq $table, @tables ) );
-		my ( $upts, $force );
+		my ( $upts );
 		my $iwasforced = 0;
-		if ( $config->{objectdatecheck} ) {
-			my ( $mylastchange, $myts ) = $self->get_last_change($table);
+		my $mylastchange;
+		if ( $forcecheck ) {
+			$mylastchange = $self->get_last_change($table);
 			$upts = $upstream->check_if_refresh_needed( $table, $mylastchange );
-			if ( !$upts && $self->{_force} ) {
+			if ( !$upts && $forceupdate ) {
 				$forceupdate = 1;
 				$iwasforced  = 1;
-				$self->_Debug( 2, "\t %s: forcing anyway [%s]", $table, $myts );
+				$self->_Debug( 2, "\t %s: forcing anyway [%s]", $table, $mylastchange );
 			}
 		}
 
@@ -722,6 +743,7 @@ sub sync_dbs {
 				$self->_Debug( 1,
 					"WARNING: %s should not have had changes but did!",
 					$table );
+				syslog( LOG_ERR, "WARNING: %s changed, but should not %s %s", $table, $mylastchange || '-',$upts || '-');
 			}
 		} else {
 			$self->_Debug( 5, "Skipping table '%s': no change (%s)",
@@ -781,11 +803,16 @@ is set.
 The -n or --dry-run options will cause it to execute everything but rollback
 all transactions.
 
-If objectdatecheck is set in the configuration file, objects without a pushback
-directive will be checked using backend_utils.relation_last_changed() on the
-upstream server.  If --force is specified, this check will still run, but
-it will force a row-by-row comparision and log a warning if it found any
-updates when none were expected.  A debug level of 7 will log the rows.
+If objectdatecheck is not set or set to false, then there will always be
+a row-by-row comparision.  If it is set to 'avisory', objectdatecheck
+is set in the configuration file, objects without a pushback directive
+will get a timestamp check using backend_utils.relation_last_changed()
+on the upstream server.  If it is set to anything else (say true), the
+row-by-row comparision will only be executed if the timestamp check
+indicates an update is warranted.  If --force is specified, this check 
+will still run, but it will force a row-by-row comparision and log a 
+warning if it found any updates when none were expected.  A debug level of 
+7 will log the rows.  Checks that are unexpected always log to syslog.
 
 When not invoked as a daemon, level one of debugging is turned on. 
 
