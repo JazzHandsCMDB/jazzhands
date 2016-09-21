@@ -92,9 +92,122 @@ select timeofday(), now();
 --
 -- Process middle (non-trigger) schema backend_utils
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('backend_utils', 'refresh_if_needed');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS backend_utils.refresh_if_needed ( object text );
+CREATE OR REPLACE FUNCTION backend_utils.refresh_if_needed(object text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	rk char;
+BEGIN
+	SELECT  relkind
+	INTO    rk
+	FROM    pg_catalog.pg_class c
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE   n.nspname = 'jazzhands'
+	AND     c.relname = object;
+
+	-- silently ignore things that are not materialized views
+	IF rk = 'm' THEN
+		PERFORM schema_support.refresh_mv_if_needed(object, 'jazzhands');
+	END IF;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION backend_utils.block_for_opaque_txid(opaqueid text, maxdelay integer DEFAULT NULL::integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO pg_catalog
+AS $function$
+DECLARE
+	count	integer;
+BEGIN
+	IF opaqueid IS NULL THEN
+		RETURN true;
+	END IF;
+	count := 0;
+	WHILE maxdelay IS NULL OR count < maxdelay 
+	LOOP
+		IF txid_visible_in_snapshot(opaqueid::bigint,txid_current_snapshot()) THEN
+			RETURN true;
+		END IF;
+		count := count + 1;
+		PERFORM pg_sleep(1);
+	END LOOP;
+	RETURN false;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION backend_utils.get_opaque_txid()
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	rv	text;
+BEGIN
+	SELECT txid_current()::text INTO rv;
+	RETURN rv;
+EXCEPTION WHEN read_only_sql_transaction THEN
+	RETURN NULL;
+END;
+$function$
+;
+
 -- Creating new sequences....
 
 
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_device_components_expanded
+DROP VIEW IF EXISTS jazzhands.v_device_components_expanded;
+CREATE VIEW jazzhands.v_device_components_expanded AS
+ WITH ctf AS (
+         SELECT ctcf.component_type_id,
+            array_agg(ctcf.component_function ORDER BY ctcf.component_function) AS functions
+           FROM component_type_component_func ctcf
+          GROUP BY ctcf.component_type_id
+        ), ds AS (
+         SELECT cp.component_type_id,
+            cp.property_value::bigint AS disk_size
+           FROM component_property cp
+          WHERE cp.component_property_name::text = 'DiskSize'::text AND cp.component_property_type::text = 'disk'::text
+        ), ms AS (
+         SELECT cp.component_type_id,
+            cp.property_value::bigint AS memory_size
+           FROM component_property cp
+          WHERE cp.component_property_name::text = 'MemorySize'::text AND cp.component_property_type::text = 'memory'::text
+        )
+ SELECT dc.device_id,
+    c.component_id,
+    s.slot_id,
+    ct.model,
+    a.serial_number,
+    ctf.functions,
+    s.slot_name,
+    ms.memory_size,
+    ds.disk_size
+   FROM v_device_components dc
+     JOIN component c ON dc.component_id = c.component_id
+     LEFT JOIN asset a ON c.component_id = a.component_id
+     JOIN component_type ct USING (component_type_id)
+     JOIN ctf USING (component_type_id)
+     LEFT JOIN ds USING (component_type_id)
+     LEFT JOIN ms USING (component_type_id)
+     LEFT JOIN slot s ON c.parent_slot_id = s.slot_id;
+
+-- DONE DEALING WITH TABLE v_device_components_expanded
+--------------------------------------------------------------------
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
@@ -187,6 +300,79 @@ SELECT schema_support.replay_object_recreates();
 --
 -- Process drops in backend_utils
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('backend_utils', 'refresh_if_needed');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS backend_utils.refresh_if_needed ( object text );
+CREATE OR REPLACE FUNCTION backend_utils.refresh_if_needed(object text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	rk char;
+BEGIN
+	SELECT  relkind
+	INTO    rk
+	FROM    pg_catalog.pg_class c
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE   n.nspname = 'jazzhands'
+	AND     c.relname = object;
+
+	-- silently ignore things that are not materialized views
+	IF rk = 'm' THEN
+		PERFORM schema_support.refresh_mv_if_needed(object, 'jazzhands');
+	END IF;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION backend_utils.block_for_opaque_txid(opaqueid text, maxdelay integer DEFAULT NULL::integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO pg_catalog
+AS $function$
+DECLARE
+	count	integer;
+BEGIN
+	IF opaqueid IS NULL THEN
+		RETURN true;
+	END IF;
+	count := 0;
+	WHILE maxdelay IS NULL OR count < maxdelay 
+	LOOP
+		IF txid_visible_in_snapshot(opaqueid::bigint,txid_current_snapshot()) THEN
+			RETURN true;
+		END IF;
+		count := count + 1;
+		PERFORM pg_sleep(1);
+	END LOOP;
+	RETURN false;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION backend_utils.get_opaque_txid()
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	rv	text;
+BEGIN
+	SELECT txid_current()::text INTO rv;
+	RETURN rv;
+EXCEPTION WHEN read_only_sql_transaction THEN
+	RETURN NULL;
+END;
+$function$
+;
+
 -- Dropping obsoleted sequences....
 
 
