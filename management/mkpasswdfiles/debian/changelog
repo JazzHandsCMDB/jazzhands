@@ -2,7 +2,7 @@ jazzhands-mkpasswdfiles (0.74.0) trusty; urgency=medium
 
   * switch to materialized views, including code to auto-refresh
 
- -- Todd M. Kover <kovert@omniscient.com>  Mon, 20 Sep 201 18:25:00 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 20 Sep 2016 18:25:00 -0500
 
 jazzhands-mkpasswdfiles (0.69.8) trusty; urgency=medium
 
@@ -15,7 +15,6 @@ jazzhands-mkpasswdfiles (0.66.1) trusty; urgency=medium
   * add debian bits; make that the default for release generation
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:05 +0000
-
 
 jazzhands-mkpasswdfiles (0.61.1) unstable; urgency=low
 
