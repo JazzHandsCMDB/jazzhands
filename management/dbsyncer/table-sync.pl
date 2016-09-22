@@ -148,7 +148,7 @@ sub get_last_change {
 	) || die $dbh->errstr;
 
 	$sth->execute($object) || die $errstr;
-	my ( $whence ) = $sth->fetchrow_array;
+	my ($whence) = $sth->fetchrow_array;
 	$sth->finish;
 	$whence;
 }
@@ -157,7 +157,7 @@ sub check_if_refresh_needed {
 	my $self     = shift @_;
 	my $object   = shift @_;
 	my $upwhence = shift @_;
-
+	my $save     = shift @_;
 
 	my $dbh = $self->DBHandle();
 	my $sth = $dbh->prepare_cached(
@@ -168,18 +168,21 @@ sub check_if_refresh_needed {
 	}
 	) || die $dbh->errstr;
 
-	$sth->bind_param(':rel', $object) || die $sth->errstr;
-	$sth->bind_param(':ts', $upwhence) || die $sth->errstr;
+	$sth->bind_param( ':rel', $object )   || die $sth->errstr;
+	$sth->bind_param( ':ts',  $upwhence ) || die $sth->errstr;
 
 	$sth->execute || die $sth->errstr;
 
 	my ( $whence, $refresh ) = $sth->fetchrow_array;
 	$sth->finish;
 
+	if ($save) {
+		$$save = $whence;
+	}
 
 	$self->_Debug( 6, "+ %s: Compare %s v %s [%d]",
 		$object, $whence, $upwhence, $refresh );
-	if ( $refresh ) {
+	if ($refresh) {
 		return $whence;
 	}
 	undef;
@@ -697,28 +700,34 @@ sub sync_dbs {
 	# and anything else, which only does a row-by-row compare if the timestamps
 	# warrant it.
 
-	my $forcecheck = $self->{_force};
+	my $forcecheck  = $self->{_force};
 	my $forceupdate = 0;
 	if ( !$config->{objectdatecheck} ) {
 		$forceupdate = 1;
-	} elsif($config->{objectdatecheck} eq 'advisory') {
-		$forcecheck = 1;
+	} elsif ( $config->{objectdatecheck} eq 'advisory' ) {
+		$forcecheck  = 1;
 		$forceupdate = 1;
+	}
+
+	if ($key) {
+		$self->_Debug( 1, "Syncing for key %s", $key );
 	}
 
 	my $tablemap = $config->{tablemap};
 	foreach my $table ( sort keys( %{$tablemap} ) ) {
 		next if ( @tables && !grep( $_ eq $table, @tables ) );
-		my ( $upts );
+		my ( $upts, $saveupts );
 		my $iwasforced = 0;
 		my $mylastchange;
-		if ( $forcecheck ) {
+		if ($forcecheck) {
 			$mylastchange = $self->get_last_change($table);
-			$upts = $upstream->check_if_refresh_needed( $table, $mylastchange );
+			$upts = $upstream->check_if_refresh_needed( $table, $mylastchange,
+				\$saveupts );
 			if ( !$upts && $forceupdate ) {
 				$forceupdate = 1;
 				$iwasforced  = 1;
-				$self->_Debug( 2, "\t %s: forcing anyway [%s]", $table, $mylastchange );
+				$self->_Debug( 2, "\t %s: forcing anyway [%s]",
+					$table, $mylastchange );
 			}
 		}
 
@@ -736,14 +745,24 @@ sub sync_dbs {
 				$table, $upts || '' );
 			my $changes =
 			  $self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
-			if ($upts) {
-				$self->update_my_refresh( $table, $upts );
-			}
-			if ( $changes && $iwasforced ) {
-				$self->_Debug( 1,
-					"WARNING: %s should not have had changes but did!",
-					$table );
-				syslog( LOG_ERR, "WARNING: %s changed, but should not %s %s", $table, $mylastchange || '-',$upts || '-');
+			#
+			# This only happens if its a full table sync.
+			#
+			if ( !$key ) {
+				if ( $upts || $changes ) {
+					$self->update_my_refresh( $table, $upts );
+				}
+				if ( $changes && $iwasforced ) {
+					$self->_Debug( 1,
+						"WARNING: %s should not have had changes but did!",
+						$table );
+					syslog( LOG_ERR,
+						"WARNING: %s changed, but should not %s %s",
+						$table,
+						$mylastchange || '-',
+						$saveupts || '-'
+					);
+				}
 			}
 		} else {
 			$self->_Debug( 5, "Skipping table '%s': no change (%s)",

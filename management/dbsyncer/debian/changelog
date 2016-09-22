@@ -1,7 +1,14 @@
+jazzhands-dbsyncer (0.74.2) trusty; urgency=medium
+
+  * only update local refresh tracker on full table syncs
+  * always log both upstream and local timestamp to determine ==/</>
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 22 Sep 2016 14:08:20 -0400
+
 jazzhands-dbsyncer (0.74.1) trusty; urgency=medium
 
   * syslog when check does not catch changes
-  * change definition of objectdatecheck to have an advistory mode
+  * change definition of objectdatecheck to have an advisory mode
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 21 Sep 2016 16:36:29 -0400
 
