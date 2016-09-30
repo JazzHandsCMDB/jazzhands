@@ -8,7 +8,7 @@ Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-stab
 Architecture: any
-Pre-Depends: perl-Net-IP, perl-Net-DNS, perl-NetAddr-IP
+Pre-Depends: libnet-ip-perl, libnet-dns-perl, libnetaddr-ip-perl
 Description: 
  Perl libraries for STAB
 
