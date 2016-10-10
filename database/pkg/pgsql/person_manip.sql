@@ -445,17 +445,32 @@ DECLARE
 BEGIN
 	SELECT login INTO _login FROM account WHERE account_id = in_account_id;
 
-	INSERT INTO account_collection (
-		account_collection_name, account_collection_type)
-	values (
-		_login, 'unix-group'
-	) RETURNING account_collection_id INTO acid;
+	SELECT account_collection_id
+	INTO	acid
+	FROM	account_collection
+	WHERE	account_collection_name = _login
+	AND	account_collection_type = 'unix-group';
 
-	insert into account_collection_account (
-		account_collection_id, account_id
-	) values (
-		acid, in_account_id
-	);
+	IF NOT FOUND THEN
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type)
+		values (
+			_login, 'unix-group'
+		) RETURNING account_collection_id INTO acid;
+	END IF;
+
+	PERFORM	*
+	FROM	account_collection_account
+	WHERE	account_collection_id = acid
+	AND	account_id = in_account_id;
+
+	IF NOT FOUND THEN
+		insert into account_collection_account (
+			account_collection_id, account_id
+		) values (
+			acid, in_account_id
+		);
+	END IF;
 
 	IF in_uid is NOT NULL THEN
 		new_uid := in_uid;
@@ -475,13 +490,20 @@ BEGIN
 		'bash'
 	);
 
-	INSERT INTO unix_group (
-		account_collection_id,
-		unix_gid
-	) values (
-		acid,
-		new_uid
-	);
+	PERFORM	*
+	FROM	unix_group
+	WHERE	account_collection_id = acid
+	AND	unix_gid = new_uid;
+
+	IF NOT FOUND THEN
+		INSERT INTO unix_group (
+			account_collection_id,
+			unix_gid
+		) values (
+			acid,
+			new_uid
+		);
+	END IF;
 	RETURN in_account_id;
 END;
 $$
