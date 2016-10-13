@@ -91,10 +91,10 @@ use Data::Dumper;
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
 
-$VERSION = '0.54';
+$VERSION = '0.55';
 
 @ISA       = qw(DBI Exporter);
-@EXPORT_OK = qw(set_session_user);
+@EXPORT_OK = qw(set_session_user set_transaction_type);
 
 my $appauth_config = $JazzHands::AppAuthAL::appauth_config;
 
@@ -328,6 +328,27 @@ sub set_session_user {
 		# unable to do it for this type, so silently let through.
 	}
 	$dbh;
+}
+
+sub set_transaction_type {
+        my($dbh, $type) = @_;
+
+        if (!defined($dbh)) {
+                return undef;
+        }
+
+        if (!exists($dbh->{Driver}) && exists($dbh->{_DBHandle})) {
+                $dbh = $dbh->{_DBHandle};
+        }
+
+        if($dbh->{Driver}->{Name} eq 'Pg') {
+                $dbh->do(qq{
+                                set transaction ISOLATION LEVEL '$type';
+                }); # XXX not fatal?
+        } else {
+                # unable to do it for this type, so silently let through.
+        }
+        $dbh;
 }
 
 #
