@@ -343,7 +343,7 @@ sub set_transaction_type {
 
         if($dbh->{Driver}->{Name} eq 'Pg') {
                 $dbh->do(qq{
-                                set transaction ISOLATION LEVEL '$type';
+                                set transaction ISOLATION LEVEL $type;
                 }); # XXX not fatal?
         } else {
                 # unable to do it for this type, so silently let through.
