@@ -159,7 +159,7 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 					if [ x"$host" != "x" ] ;then
 						echo 1>&3  "Rsyncing to $host (in $ns) ..."
 						rsync </dev/null -rLpt --delete-after $SRC_ROOT/$ns/ ${host}:$DST_ROOT
-						$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
+						cat $SRC_ROOT/$ns/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/ingest-zonegen-changes
 					fi
 				done
 			fi
@@ -172,7 +172,7 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 			if [ x"$host" != "x" ] ;then
 				echo 1>&3 ++ Rsyncing to $host
 				rsync </dev/null -rLpt --delete-after $SRC_ROOT/../zones $SRC_ROOT/../etc ${host}:$DST_ROOT
-				$RSYNC_RSH </dev/null >/dev/null $host sh $DST_ROOT/etc/zones-changed.rndc
+				cat $SRC_ROOT/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/ingest-zonegen-changes
 			fi
 		done
 	fi

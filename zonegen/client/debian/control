@@ -1,0 +1,13 @@
+Source: jazzhands-zonegen-client
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-zonegen-client
+Architecture: any
+Description: 
+ Deals with zonegen on nameservers that receive zones
+
