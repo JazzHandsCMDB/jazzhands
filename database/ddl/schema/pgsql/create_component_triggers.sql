@@ -433,8 +433,9 @@ BEGIN
 	END IF;
 
 	IF v_comp_prop.property_data_type != 'none' AND tally = 0 THEN
-		RAISE 'One of the property_value fields must be set.' USING
-			ERRCODE = 'invalid_parameter_value';
+		RAISE 'One of the property_value fields must be set: %',
+			NEW
+			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
 	IF tally > 1 THEN
