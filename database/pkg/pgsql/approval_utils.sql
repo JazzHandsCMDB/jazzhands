@@ -365,6 +365,9 @@ BEGIN
 	ELSIF _apc.approving_entity = 'rt-hr' THEN
 		apptype := 'rt-hr';
 		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'kace-hr' THEN
+		apptype := 'kace-hr';
+		_acid :=  _r.approver_account_id;
 	ELSIF _apc.approving_entity = 'recertify' THEN
 		apptype := 'account';
 		EXECUTE '
