@@ -34,13 +34,13 @@ tmpfile=/tmp/inzones.$$
 
 sed 's/#.*//' > $tmpfile
 
-if [ -x /usr/libexec/jazzhands/zonesgen/ingest-zones.local.replace ] ; then
-	cat $tmpfile | /usr/libexec/jazzhands/zonesgen/ingest-zones.local.replace "$@"
+if [ -x /usr/libexec/jazzhands/zonegen/ingest-zones.local.replace ] ; then
+	cat $tmpfile | /usr/libexec/jazzhands/zonegen/ingest-zones.local.replace "$@"
 	code=$?
 	rm -f $tmpfile
 	exit $code
-elif [ -x /usr/libexec/jazzhands/zonesgen/ingest-zones.pre ] ; then
-	cat $tmpfile | /usr/libexec/jazzhands/zonesgen/ingest-zones.pre "$@"
+elif [ -x /usr/libexec/jazzhands/zonegen/ingest-zones.pre ] ; then
+	cat $tmpfile | /usr/libexec/jazzhands/zonegen/ingest-zones.pre "$@"
 fi
 
 #
@@ -65,7 +65,6 @@ cat $tmpfile |
 		reconfig=1
 		$zones="$zones $zone"
 	done
-done
 
 if [ "$reconfig" = 1 ] ;then
 	rndc reconfig
@@ -77,8 +76,8 @@ done
 
 
 exit 0
-if [ -x /usr/libexec/jazzhands/zonesgen/ingest-zones.post ] ; then
-	cat $tmpfile | /usr/libexec/jazzhands/zonesgen/ingest-zones.post "$@"
+if [ -x /usr/libexec/jazzhands/zonegen/ingest-zones.post ] ; then
+	cat $tmpfile | /usr/libexec/jazzhands/zonegen/ingest-zones.post "$@"
 fi
 
 rm -f $tmpfile

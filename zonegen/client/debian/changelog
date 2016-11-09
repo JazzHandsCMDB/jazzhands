@@ -1,3 +1,9 @@
+jazzhands-zonegen-client (0.74.5.1) trusty; urgency=medium
+
+  * initial release
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  9 Nov 2016 12:46:00 -0400
+
 jazzhands-zonegen-client (0.74.5) trusty; urgency=medium
 
   * initial release
