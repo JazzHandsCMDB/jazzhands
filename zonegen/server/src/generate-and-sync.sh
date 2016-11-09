@@ -71,7 +71,7 @@ dorsync() {
 	host=$1
 	zoneroot=$2
 
-	rsync </dev/null -n -rLpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
+	rsync </dev/null -rLpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
 	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
 }
 
