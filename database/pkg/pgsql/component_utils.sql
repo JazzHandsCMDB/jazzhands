@@ -671,6 +671,11 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
+--
+-- These need to all call a generic component/component_type insertion
+-- function, rather than all of the specific types, but that's thinking
+--
+
 CREATE OR REPLACE FUNCTION component_utils.insert_disk_component(
 	model				text,
 	bytes				bigint,

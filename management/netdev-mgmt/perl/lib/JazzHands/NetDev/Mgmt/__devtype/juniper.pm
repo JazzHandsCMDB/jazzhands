@@ -2407,9 +2407,11 @@ sub GetInterfaceConfig {
 			my $nt = $f->getNodeType;
 			next if ($nt == TEXT_NODE);
 			my $filtertype = $f->getNodeName;
-			my $filtername = $f->getElementsByTagName('filter-name')->[0]->
-				getFirstChild->getNodeValue;
-			$iface_info->{filter}->{$filtertype} = $filtername;
+			my $filtername = $f->getElementsByTagName('filter-name')->[0];
+			if (ref($filtername)) {
+				$iface_info->{filter}->{$filtertype} = 
+					$filtername->getFirstChild->getNodeValue;
+			}
 		}
 	}
 	return $iface_info;
