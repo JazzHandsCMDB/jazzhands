@@ -49,6 +49,7 @@
 use strict;
 use warnings;
 use FileHandle;
+use File::Compare;
 use JazzHands::DBI;
 use JazzHands::Common::Util qw(_dbx);
 use Net::IP;
@@ -483,6 +484,7 @@ sub safe_mv_if_changed($$;$) {
 		my $cmd = qq{diff -w -i -I '^\\s*//' "$new" "$final"};
 		system("$cmd > /dev/null");
 		if ( $? >> 8 ) {
+			warn " ... diff!";
 			my $oldfn = "$final.old";
 			unlink($oldfn);
 			if ( rename( $final, $oldfn ) ) {
@@ -611,7 +613,6 @@ sub generate_named_acl_file($$$) {
 	$out->close;
 
 	safe_mv_if_changed( $tmpfn, $fn );
-
 }
 
 sub generate_rsync_list($$$$) {
@@ -1179,6 +1180,7 @@ sub generate_complete_files {
 		select	soa_name
 		  from	dns_domain
 		 where	should_generate = 'Y'
+		order by soa_name
 	}
 	);
 	$sth->execute || die $sth->errstr;
@@ -1195,8 +1197,7 @@ sub generate_complete_files {
 		);
 	}
 	$cfgf->close;
-	unlink($cfgfn);
-	rename( $tmpcfgfn, $cfgfn );
+	safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
 
 	my $zcfn    = "$cfgdir/zones-changed";
 	my $tmpzcfn = "$zcfn.tmp.$$";
@@ -1219,8 +1220,7 @@ sub generate_complete_files {
 	}
 
 	$zcf->close;
-	unlink($zcfn);
-	rename( $tmpzcfn, $zcfn );
+	safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
 
 }
 
@@ -1324,7 +1324,7 @@ sub process_perserver {
 		chmod( 0755, $tmpzcfn );
 		print_comments( $dbh, $zcf, '#' );
 
-		foreach my $zone (@$$zones) {
+		foreach my $zone (sort @$$zones) {
 			my $fqn = "$zonedir/$zone";
 			my $zr  = $zoneroot;
 			if ( $zr =~ /^\.\./ ) {
@@ -1390,12 +1390,11 @@ sub process_perserver {
 		}
 
 		$cfgf->close;
-		unlink($cfgfn);
-		rename( $tmpcfgfn, $cfgfn );
+		safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
 
 		$zcf->close;
 		unlink($zcfn);
-		rename( $tmpzcfn, $zcfn );
+		safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
 
 		#
 		# create a symlink to the acl file so it gets sync'd out right"
