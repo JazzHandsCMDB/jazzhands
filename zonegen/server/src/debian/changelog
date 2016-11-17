@@ -1,8 +1,16 @@
+jazzhands-zonegen-server (0.74.8) trusty; urgency=medium
+
+  * only move files if changed (except zones)
+  * generate config files in a consistent order
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 17 Nov 2016 09:52:00 -0400
+
 jazzhands-zonegen-server (0.74.6) trusty; urgency=medium
 
   * remove errant debugging -n from rsync.
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  9 Nov 2016 16:44:20 -0400
+
 
 jazzhands-zonegen-server (0.74.5) trusty; urgency=medium
 
