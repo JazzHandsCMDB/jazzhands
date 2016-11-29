@@ -1,4 +1,4 @@
-jazzhands-perl-netdev-mgmt (0.74.8) unstable; urgency=low
+jazzhands-perl-netdev-mgmt (0.74.9) unstable; urgency=low
 
   * Make SetBGPPeer require a bgp_peer_group parameter to be passed,
     rather than hardcoding
