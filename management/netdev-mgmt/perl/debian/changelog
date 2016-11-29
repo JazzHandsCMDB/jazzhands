@@ -1,3 +1,10 @@
+jazzhands-perl-netdev-mgmt (0.74.8) unstable; urgency=low
+
+  * Make SetBGPPeer require a bgp_peer_group parameter to be passed,
+    rather than hardcoding
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 29 Nov 2016 15:40:35 -0600
+
 jazzhands-perl-netdev-mgmt (0.74.7) unstable; urgency=low
 
   * Fix issue with GetInterfaceInfo crapping out because of XML handling

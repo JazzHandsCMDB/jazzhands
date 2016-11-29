@@ -513,6 +513,12 @@ sub SetBGPPeerStatus {
 		return undef;
 	}
 
+	if (!$opt->{bgp_peer_group}) {
+		SetError($err,
+			"bgp_peer_group parameter must be passed to SetBGPPeerStatus");
+		return undef;
+	}
+
 	if (!$opt->{state}) {
 		SetError($err, "state parameter must be passed to SetBGPPeerStatus");
 		return undef;
@@ -630,7 +636,7 @@ sub SetBGPPeerStatus {
 				return undef;
 			}
 			push @{$commands}, 'neighbor ' . $opt->{bgp_peer}->addr . 
-				' peer-group ADNEXUS-HOST';
+				' peer-group ' . $opt->{bgp_peer_group};
 		}
 		push @{$commands},
 			'no neighbor ' . $opt->{bgp_peer}->addr . ' shutdown';
