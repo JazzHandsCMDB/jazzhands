@@ -154,6 +154,8 @@
 \ir create_v_dns_fwd.sql
 \ir create_v_dns_rvs.sql
 \ir create_v_dns.sql
+\ir create_v_dns_sorted.sql
 
 -- to be retired
 \ir create_x509_certificate.sql
+\ir create_v_network_interface_trans.sql
