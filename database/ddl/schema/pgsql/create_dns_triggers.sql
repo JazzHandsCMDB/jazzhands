@@ -15,6 +15,13 @@
  * limitations under the License.
  */
 
+/*
+TODO:
+ - CNAME<>A/AAAA changes must check things pointing to them
+ - A record pointing to another record must be an A.
+ - reconsider A's point to netblock_id but CNAMEs point to dns_name
+*/
+
 ---------------------------------------------------------------------------
 --
 -- This shall replace all the aforementioned triggers
@@ -132,10 +139,29 @@ DECLARE
 	_ip		netblock.ip_address%type;
 	_sing	netblock.is_single_address%type;
 BEGIN
-	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
-		RAISE EXCEPTION 'Attempt to set % record without a Netblock',
-			NEW.dns_type
-			USING ERRCODE = 'not_null_violation';
+	IF NEW.dns_type in ('A', 'AAAA') THEN
+		IF ( NEW.netblock_id IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
+			RAISE EXCEPTION 'Attempt to set % record without netblocks',
+				NEW.dns_type
+				USING ERRCODE = 'not_null_violation';
+		ELSIF NEW.dns_value_record_id IS NOT NULL THEN
+			PERFORM *
+			FROM dns_record d
+			WHERE d.dns_record_id = NEW.dns_value_record_id
+			AND d.dns_type = NEW.dns_type
+			AND d.dns_class = NEW.dns_class;
+
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'Attempt to set % record without a netblock',
+					NEW.dns_type
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+		END IF;
+
+		IF ( NEW.should_generate_ptr = 'Y' AND NEW.dns_value_record_id IS NOT NULL ) THEN
+			RAISE EXCEPTION 'It is not permitted to set should_generate_ptr and use a dns_value_record_id'
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
 	END IF;
 
 	IF NEW.netblock_Id is not NULL and
@@ -146,11 +172,6 @@ BEGIN
 
 	IF NEW.dns_value IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
 		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set'
-			USING ERRCODE = 'JH001';
-	END IF;
-
-	IF NEW.netblock_id IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
-		RAISE EXCEPTION 'Both netblock_id and dns_value_record_id may not be set'
 			USING ERRCODE = 'JH001';
 	END IF;
 
@@ -177,6 +198,7 @@ BEGIN
 		END IF;
 
 	END IF;
+
 
 	RETURN NEW;
 END;
@@ -258,7 +280,8 @@ CREATE OR REPLACE FUNCTION dns_non_a_rec_validation() RETURNS TRIGGER AS $$
 DECLARE
 	_ip		netblock.ip_address%type;
 BEGIN
-	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND NEW.dns_value IS NULL THEN
+	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND
+			( NEW.dns_value IS NULL AND NEW.dns_value_record_id IS NULL ) 	THEN
 		RAISE EXCEPTION 'Attempt to set % record without a value',
 			NEW.dns_type
 			USING ERRCODE = 'not_null_violation';
