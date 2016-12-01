@@ -25,7 +25,11 @@ SELECT * FROM  (
 		NULL::integer as network_range_id,
 		d.dns_domain_id,
 		d.dns_name, d.dns_ttl, d.dns_class,
-	    d.dns_type, d.dns_value,
+	    d.dns_type,
+		CASE WHEN d.dns_value IS NOT NULL THEN d.dnS_value
+			WHEN d.dns_value_record_id IS NULL THEN d.dns_value
+			WHEN dv.dns_domain_id = d.dns_domain_id THEN dv.dns_name
+			ELSE concat(dv.dns_name, '.', dv.soa_name, '.') END AS dns_value,
 	    d.dns_priority,
 	    ni.ip_address as ip,
 	    rdns.dns_record_Id as ref_record_id,
@@ -33,10 +37,7 @@ SELECT * FROM  (
 	    d.dns_srv_service, d.dns_srv_protocol,
 	    d.dns_srv_weight, d.dns_srv_port,
 	    d.is_enabled,
-	    dv.dns_name as val_dns_name,
-	    dv.soa_name as val_domain,
-	    dv.dns_value as val_value,
-	    dv.ip as val_ip
+		d.dns_value_record_id
 	  FROM  dns_record d
 	    LEFT join netblock ni USING (netblock_id)
 	    left join dns_record rdns
@@ -44,14 +45,12 @@ SELECT * FROM  (
 		    d.reference_dns_record_id
 	    left join (
 		select  dr.dns_record_id, dr.dns_name,
-		    dom.dns_domain_id, dom.soa_name,
-		    dr.dns_value,
-		    dnb.ip_address as ip
+			dom.dns_domain_id, dom.soa_name,
+			dr.dns_value,
+			dnb.ip_address as ip
 		  from  dns_record dr
-		    inner join dns_domain dom
-			using (dns_domain_id)
-		    left join netblock dnb
-			using (netblock_id)
+		    inner join dns_domain dom using (dns_domain_id)
+		    left join netblock dnb using (netblock_id)
 	    ) dv on d.dns_value_record_id = dv.dns_record_id
 	UNION
        SELECT
@@ -65,17 +64,14 @@ SELECT * FROM  (
 			NULL as dns_value,
 			NULL as dns_prority,
 			ip::inet,
-	    NULL as ref_dns_record_Id,
-	    NULL as ref_dns_name,
+	    	NULL as ref_dns_record_Id,
+	    	NULL as ref_dns_name,
 			NULL as dns_srv_service,
 			NULL as dns_srv_protocol,
 			NULL as dns_srv_weight,
 			NULL as dns_srv_port,
 			'Y' as is_enabled,
-			NULL as val_dns_name,
-			NULL as val_domain,
-			NULL as val_value,
-	    NULL as val_ip
+			NULL as dns_value_record_id
 	FROM (
        select
 		network_range_id,
@@ -102,7 +98,7 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		dns_class,
 		dns_type,
 		CASE WHEN dns_value ~ '\.$' THEN dns_value
-			ELSE concat(dns_value, '.', soa_name, '.') END as 
+			ELSE concat(dns_value, '.', soa_name, '.') END as
 				dns_value,
 		dns_priority,
 		NULL::inet AS ip,
@@ -113,10 +109,7 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		NULL::integer AS dns_srv_weight,
 		NULL::integer AS dns_srv_port,
 		is_enabled AS is_enabled,
-		NULL AS val_dns_name,
-		NULL AS val_domain,
-		NULL AS val_value,
-		NULL::inet AS val_ip
+		NULL AS dns_value_record_id
 	FROM	dns_record join dns_domain using (dns_domain_id)
 		join (select dns_domain_id as parent_dns_domain_id,
 			soa_name as parent_soa_name from dns_domain)  pdom

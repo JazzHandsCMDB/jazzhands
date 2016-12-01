@@ -20,6 +20,8 @@
 
 \t on
 
+SAVEPOINT dns_trigger_test;
+
 CREATE OR REPLACE FUNCTION validate_dns_triggers() RETURNS BOOLEAN AS $$
 DECLARE
 	_tally			integer;
@@ -29,6 +31,7 @@ DECLARE
 	_ip2id			netblock.netblock_id%TYPE;
 	_ip6blk			netblock.netblock_id%TYPE;
 	_ip6id1			netblock.netblock_id%TYPE;
+	_dnscname		dns_record%ROWTYPE;
 	_dnsrec1		dns_record%ROWTYPE;
 	_dnsrec2		dns_record%ROWTYPE;
 	_dnsrec			dns_record%ROWTYPE;
@@ -134,7 +137,7 @@ BEGIN
 
 	-- This record is also used later.
 	RAISE NOTICE 'Ensuring DNS_RECORD.dns_class default works ...';
-	INSERT INTO DNS_RECORD (
+	INSERT INTO dns_record (
 		dns_name, dns_domain_id, dns_type, dns_value
 	) VALUES (
 		'JHTESTns1', _dnsdomid, 'NS', 'ns1'
@@ -145,7 +148,7 @@ BEGIN
 		RAISE NOTICE '.. It does';
 	END IF;
 
-	RAISE NOTICE 'Checking to see if non-netlock dns_change_record trigger does what it should';
+	RAISE NOTICE 'Checking to see if non-netblock dns_change_record trigger does what it should';
 	SELECT count(*) 
 	  INTO _tally
 	  FROM	dns_change_record
@@ -158,9 +161,10 @@ BEGIN
 		
 	END IF;
 	DELETE from dns_change_record;
+	RAISE NOTICE '.. It does';
 
-	RAISE NOTICE 'Checking to see if second non-netlock dns_records trigger';
-	INSERT INTO DNS_RECORD (
+	RAISE NOTICE 'Checking to see if second non-netblock dns_records trigger - %', _ip1id;
+	INSERT INTO dns_record (
 		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 		should_generate_ptr
 	) VALUES (
@@ -178,6 +182,7 @@ BEGIN
 		
 	END IF;
 	DELETE from dns_change_record;
+	RAISE NOTICE '.. It does';
 
 	-- Note this one is both used immediately and later for a dup test.
 	INSERT INTO DNS_RECORD (
@@ -245,6 +250,7 @@ BEGIN
 		RAISE NOTICE 'inserting a value and netblock id failed as expected';
 	END;
 
+	RAISE NOTICE 'Checking to see if a netblock  + value netblock_id fails';
 	BEGIN
 		INSERT INTO DNS_RECORD (
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id, dns_value_record_id
@@ -252,10 +258,11 @@ BEGIN
 			'JHTEST-A7', _dnsdomid, 'IN', 'A', _ip1id, _ip2id
 		) RETURNING * INTO _dnsrec; 
 		RAISE EXCEPTION 'inserting a netblock and value netblock_id did not fail';
-	EXCEPTION WHEN SQLSTATE 'JH001' THEN
+	EXCEPTION WHEN not_null_violation THEN
 		RAISE NOTICE 'inserting a netblock and value netblock_id failed as expected';
 	END;
 
+	RAISE NOTICE 'Checking to see fi A  + v6 netblock_id fails';
 	BEGIN
 		INSERT INTO DNS_RECORD (
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id
@@ -346,7 +353,7 @@ BEGIN
 		dns_name, dns_domain_id, dns_class, dns_type, dns_value
 	) VALUES (
 		'JHTEST-CNAME00', _dnsdomid, 'IN', 'CNAME', 'JHTEST-CNAMEVALUE'
-	) RETURNING DNS_RECORD_ID into _dnsrec1;
+	) RETURNING DNS_RECORD_ID into _dnscname;
 
 	BEGIN
 		INSERT INTO DNS_RECORD (
@@ -361,12 +368,12 @@ BEGIN
 	RAISE NOTICE 'Attempting to change a CNAME';
 	UPDATE dns_record
 	  SET	dns_value = 'JHTEST-CNAME2'
-	WHERE	dns_record_id = _dnsrec1.dns_record_id;
+	WHERE	dns_record_id = _dnscname.dns_record_id;
 	RAISE NOTICE 'Updating a dns_value and setting it to itself worked.';
 
 	UPDATE dns_record
 	  SET	dns_value = dns_value
-	WHERE	dns_record_id = _dnsrec1.dns_record_id;
+	WHERE	dns_record_id = _dnscname.dns_record_id;
 	RAISE NOTICE 'Updating a dns_value and setting it to itself worked.';
 
 	RAISE NOTICE '++ Ending test of dns_rec_prevent_dups....';
@@ -569,6 +576,53 @@ BEGIN
 		RAISE NOTICE '... It can not';
 	END;
 
+	RAISE NOTICE 'Checking to see if dns_value_record_id works with CNAMEs';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, netblock_id
+	) VALUES (
+		'jhtestme-a', _dnsdomid, 'A', _ip1id
+	) RETURNING * INTO _dnsrec1;
+
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value_record_id
+	) VALUES (
+		'jhtestme-cname', _dnsdomid, 'CNAME', _dnsrec1.dns_record_id
+	) RETURNING * INTO _dnscname;
+	DELETE FROM dns_record WHERE dns_record_id = _dnscname.dns_record_id;
+
+	RAISE NOTICE 'Checking to see if dns_value_record_id works with As';
+	INSERT INTO dns_record (
+		dns_name, dns_domain_id, dns_type, dns_value_record_id,
+		should_generate_ptr
+	) VALUES (
+		'jhtestme-a', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+		'N'
+	) RETURNING * INTO _dnsrec2;
+
+	RAISE NOTICE 'Checking to see if should_generate_ptr can not be Y in UPDATE...';
+	BEGIN
+		UPDATE dns_record
+		SET should_generate_ptr = 'Y'
+		WHERE dns_record_id = _dnsrec2.dns_record_id;
+		RAISE EXCEPTION '... It CAN!';
+	EXCEPTION  WHEN foreign_key_violation THEN
+		RAISE NOTICE '... It can not';
+	END;
+
+	RAISE NOTICE 'Checking to see if should_generate_ptr can not be Y in INSERT...';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+			'Y'
+		) RETURNING * INTO _dnsrec2;
+		RAISE EXCEPTION '... It CAN!';
+	EXCEPTION  WHEN foreign_key_violation THEN
+		RAISE NOTICE '... It can not';
+	END;
+
 	RAISE NOTICE 'Done CNAME and other check tests';
 
 	RAISE NOTICE 'Cleaning Up....';
@@ -599,5 +653,7 @@ $$ LANGUAGE plpgsql;
 SELECT jazzhands.validate_dns_triggers();
 -- set search_path=jazzhands;
 DROP FUNCTION validate_dns_triggers();
+
+ROLLBACK TO dns_trigger_test;
 
 \t off

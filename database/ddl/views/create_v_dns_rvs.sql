@@ -41,10 +41,7 @@ SELECT 	NULL::integer	as dns_record_id,
 		NULL::integer as dns_srv_weight,
 		NULL::integer as dns_srv_srv_port,
 		combo.is_enabled,
-		NULL::text as val_dns_name,
-		NULL::text as val_domain,
-		NULL::text as val_value,
-		NULL::inet as val_ip
+		NULL::integer AS dns_value_record_id
 from (
 	select  host(nb.ip_address)::inet as ip,
 		NULL::integer as network_range_id,
