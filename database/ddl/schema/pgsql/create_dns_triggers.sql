@@ -20,6 +20,8 @@ TODO:
  - CNAME<>A/AAAA changes must check things pointing to them
  - A record pointing to another record must be an A.
  - reconsider A's point to netblock_id but CNAMEs point to dns_name
+ - consider unique record test when one record points to another.
+ - ref_record_id fk should point to (dns_record_id, dns_domain_id)
 */
 
 ---------------------------------------------------------------------------
@@ -281,7 +283,7 @@ DECLARE
 	_ip		netblock.ip_address%type;
 BEGIN
 	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND
-			( NEW.dns_value IS NULL AND NEW.dns_value_record_id IS NULL ) 	THEN
+			( NEW.dns_value IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
 		RAISE EXCEPTION 'Attempt to set % record without a value',
 			NEW.dns_type
 			USING ERRCODE = 'not_null_violation';
@@ -312,41 +314,29 @@ BEGIN
 	  INTO	_tally
 	  FROM	dns_record
 	  WHERE
-	  		( lower(dns_name) = lower(NEW.dns_name) OR
+			( lower(dns_name) = lower(NEW.dns_name) OR
 				(dns_name IS NULL AND NEW.dns_name is NULL)
 			)
 		AND
-	  		( dns_domain_id = NEW.dns_domain_id )
+			( dns_domain_id = NEW.dns_domain_id )
 		AND
-	  		( dns_class = NEW.dns_class )
+			( dns_class = NEW.dns_class )
 		AND
-	  		( dns_type = NEW.dns_type )
-		AND
-	  		( dns_srv_service = NEW.dns_srv_service OR
-				(dns_srv_service IS NULL and NEW.dns_srv_service is NULL)
-			)
-		AND
-	  		( dns_srv_protocol = NEW.dns_srv_protocol OR
-				(dns_srv_protocol IS NULL and NEW.dns_srv_protocol is NULL)
-			)
-		AND
-	  		( dns_srv_port = NEW.dns_srv_port OR
-				(dns_srv_port IS NULL and NEW.dns_srv_port is NULL)
-			)
-		AND
-	  		( dns_value = NEW.dns_value OR
-				(dns_value IS NULL and NEW.dns_value is NULL)
-			)
-		AND
-	  		( netblock_id = NEW.netblock_id OR
-				(netblock_id IS NULL AND NEW.netblock_id is NULL)
-			)
+			( dns_type = NEW.dns_type )
+		AND dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+		AND dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+		AND dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND dns_value IS NOT DISTINCT FROM NEW.dns_value
+		AND dns_value_record_id IS NOT DISTINCT FROM NEW.dns_value_record_id
+		AND reference_dns_record_id
+			IS NOT DISTINCT FROM NEW.reference_dns_record_id
+		AND netblock_Id IS NOT DISTINCT FROM NEW.netblock_id
 		AND	is_enabled = 'Y'
 	    AND dns_record_id != NEW.dns_record_id
 	;
 
 	IF _tally != 0 THEN
-		RAISE EXCEPTION 'Attempt to insert the same dns record'
+		RAISE EXCEPTION 'Attempt to insert the same dns record - %', NEW
 			USING ERRCODE = 'unique_violation';
 	END IF;
 
@@ -423,10 +413,10 @@ BEGIN
 				  INTO	_tally
 				  FROM	dns_record x
 				 WHERE
-				 		NEW.dns_domain_id = x.dns_domain_id
+						NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -437,9 +427,9 @@ BEGIN
 				  INTO	_tally
 				  FROM	dns_record x
 				 WHERE
-				 		NEW.dns_domain_id = x.dns_domain_id
+						NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -455,7 +445,7 @@ BEGIN
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -468,7 +458,7 @@ BEGIN
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
