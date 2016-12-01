@@ -89,6 +89,8 @@
 
 \ir pgsql/create_v_device_coll_device_expanded.sql
 
+\ir create_v_dev_col_root.sql
+
 \ir pgsql/create_v_account_collection_expanded.sql
 
 \ir pgsql/create_v_application_role.sql
