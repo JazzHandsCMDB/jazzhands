@@ -313,10 +313,10 @@ sub print_comments {
 	my $email =
 	  get_db_default( $dbh, '_supportemail', 'jazzhands@example.com' );
 
-	my $wherestr = "";
+	my $wherestr  = "";
 	my $whencestr = "";
-	if($hostanddate) {
-		$wherestr = "It was generated on machine $where";
+	if ($hostanddate) {
+		$wherestr  = "It was generated on machine $where";
 		$whencestr = "It was generated at $whence";
 	}
 
@@ -484,7 +484,6 @@ sub safe_mv_if_changed($$;$) {
 		my $cmd = qq{diff -w -i -I '^\\s*//' "$new" "$final"};
 		system("$cmd > /dev/null");
 		if ( $? >> 8 ) {
-			warn " ... diff!";
 			my $oldfn = "$final.old";
 			unlink($oldfn);
 			if ( rename( $final, $oldfn ) ) {
@@ -839,9 +838,9 @@ sub process_all_dns_records {
 	#
 	my $sth = getSth(
 		$dbh, qq {
+		WITH dns AS (
 		select  dns_record_id,
 			network_range_id,
-			-- dns_domain_id,
 			dns_name,
 			dns_ttl,
 			dns_class,
@@ -850,24 +849,28 @@ sub process_all_dns_records {
 			dns_priority,
 			host(ip) as ip,
 			ref_record_id,
-			ref_dns_name,
 			dns_srv_service,
 			dns_srv_protocol,
 			dns_srv_weight,
 			dns_srv_port,
 			is_enabled,
-			val_dns_name,
-			val_domain,
-			val_value,
-			val_ip
+			CASE WHEN DNS_TYPE IN ('NS') THEN 3
+				WHEN DNS_TYPE IN ('A','AAAA') THEN 4
+				ELSE 10 END as sortorder,
+			dns_domain_id
 		  from	v_dns
 		 where	dns_domain_id = ?
+		) SELECT *, row_number()
+			OVER (partition by dns_name,dns_domain_id ORDER BY sortorder) as rn
+		FROM dns
 		order by 
-			CASE WHEN DNS_NAME IS NULL THEN 0 ELSE 1 END,
+			dns_domain_id,
+			CASE WHEN dns_name IS NULL THEN 0 ELSE 1 END,
 			CASE WHEN DNS_TYPE IN ('A','AAAA') THEN NULL
 			     WHEN DNS_TYPE = 'PTR' THEN lpad(dns_name, 10, '0')
 				ELSE  dns_name
 			END,
+			sortorder,
 			ip,
 			dns_type,
 			dns_value
@@ -880,20 +883,20 @@ sub process_all_dns_records {
 
 	while (
 		my (
-			$id,     $rangeid, $name,      $ttl,       $class,
-			$type,   $val,     $pri,       $ip,        $rid,
-			$rname,  $srv,     $srvproto,  $srvweight, $srvport,
-			$enable, $valname, $valdomain, $valval,    $valip
+			$id,   $rangeid,  $name,      $ttl,     $class,
+			$type, $val,      $pri,       $ip,      $rid,
+			$srv,  $srvproto, $srvweight, $srvport, $enable
 		)
 		= $sth->fetchrow_array
 	  )
 	{
 		my $com = ( $enable eq 'N' ) ? ";" : "";
-		$name = "" if ( !defined($name) && !defined($rname) );
-		$name = $rname if ( !defined($name) );
 		my $value = $val;
+
+		$name = "" if ( !defined($name) );
+
 		if ( $type eq 'A' || $type eq 'AAAA' ) {
-			$value = ($valip) ? $valip : $ip;
+			$value = $ip;
 		} elsif ( $type eq 'MX' ) {
 
 			# at the moment, STAB nudges people towards putting
@@ -909,25 +912,10 @@ sub process_all_dns_records {
 			}
 			$pri .= " " if ( defined($pri) );
 			$value = "$pri$value";
-			if ($valname) {
-				if ( $valdomain eq $domain ) {
-					$value = $valname;
-				} else {
-					$value = "$valname.$valdomain";
-				}
-			}
 		} elsif ( $type eq 'TXT' ) {
 			$value =~ s/^"//;
 			$value =~ s/"$//;
 			$value = "\"$value\"";
-		} elsif ( $type eq 'CNAME' || $type eq 'NS' ) {
-			if ($valname) {
-				if ( $valdomain eq $domain ) {
-					$value = $valname;
-				} else {
-					$value = "$valname.$valdomain";
-				}
-			}
 		} elsif ( $type eq 'SRV' ) {
 			if ( $srvproto && $srvproto !~ /^_/ ) {
 				$srvproto = "_$srvproto";
@@ -1324,7 +1312,7 @@ sub process_perserver {
 		chmod( 0755, $tmpzcfn );
 		print_comments( $dbh, $zcf, '#' );
 
-		foreach my $zone (sort @$$zones) {
+		foreach my $zone ( sort @$$zones ) {
 			my $fqn = "$zonedir/$zone";
 			my $zr  = $zoneroot;
 			if ( $zr =~ /^\.\./ ) {
