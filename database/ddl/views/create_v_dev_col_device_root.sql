@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE OR REPLACE VIEW jazzhands.v_dev_col_device_root2 AS
+CREATE OR REPLACE VIEW v_dev_col_device_root AS
 WITH x AS (
 	SELECT
 		dcd.device_id,
