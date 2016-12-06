@@ -515,7 +515,7 @@ BEGIN
 					_company_name := pci_sub_vendor_name,
 					_company_types := ARRAY['hardware provider'],
 					 _description := 'PCI vendor auto-insert'
-				) INTO comp_id;
+				) INTO sub_comp_id;
 			END IF;
 
 			INSERT INTO property (
