@@ -99,6 +99,13 @@ INSERT INTO VAL_Image_Type(Image_Type) VALUES ('png');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('tiff');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('pnm');
 
+insert into val_account_collection_relatio
+	(account_collection_relation, description
+	) 
+values 
+	('direct', 'Direct Assignment'
+	);
+
 insert into val_account_collection_type 
 	(account_collection_type, 
 	description,

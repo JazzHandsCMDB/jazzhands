@@ -393,16 +393,59 @@ END;
 $FUNC$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
-	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
-	first_time boolean DEFAULT true
+CREATE OR REPLACE FUNCTION schema_support.build_audit_table_pkak_indexes(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
 )
 RETURNS VOID AS $FUNC$
 DECLARE
 	keys	RECORD;
 	count	INTEGER;
 	name	TEXT;
+BEGIN
+	COUNT := 0;
+	-- one day, I will want to construct the list of columns by hand rather
+	-- than use pg_get_constraintdef.  watch me...
+	FOR keys IN
+		SELECT con.conname, c2.relname as index_name,
+			pg_catalog.pg_get_constraintdef(con.oid, true) as condef,
+				regexp_replace(
+			pg_catalog.pg_get_constraintdef(con.oid, true),
+					'^.*(\([^\)]+\)).*$', '\1') as cols,
+			con.condeferrable,
+			con.condeferred
+		FROM pg_catalog.pg_class c
+			INNER JOIN pg_namespace n
+				ON relnamespace = n.oid
+			INNER JOIN pg_catalog.pg_index i
+				ON c.oid = i.indrelid
+			INNER JOIN pg_catalog.pg_class c2
+				ON i.indexrelid = c2.oid
+			INNER JOIN pg_catalog.pg_constraint con ON
+				(con.conrelid = i.indrelid
+				AND con.conindid = i.indexrelid )
+		WHERE c.relname =  table_name
+		AND	 n.nspname = tbl_schema
+		AND con.contype in ('p', 'u')
+	LOOP
+		name := 'aud_' || quote_ident( table_name || '_' || keys.conname);
+		IF char_length(name) > 63 THEN
+			name := 'aud_' || count || quote_ident( table_name || '_' || keys.conname);
+			COUNT := COUNT + 1;
+		END IF;
+		EXECUTE 'CREATE INDEX ' || name
+			|| ' ON ' || quote_ident(aud_schema) || '.'
+			|| quote_ident(table_name) || keys.cols;
+	END LOOP;
+
+END;
+$FUNC$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
+	first_time boolean DEFAULT true
+)
+RETURNS VOID AS $FUNC$
 BEGIN
 	BEGIN
 	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
@@ -442,40 +485,8 @@ BEGIN
 		|| quote_ident( table_name )
 		|| ' ADD PRIMARY KEY ("aud#seq")';
 
-	COUNT := 0;
-	-- one day, I will want to construct the list of columns by hand rather
-	-- than use pg_get_constraintdef.  watch me...
-	FOR keys IN
-		SELECT con.conname, c2.relname as index_name,
-			pg_catalog.pg_get_constraintdef(con.oid, true) as condef,
-				regexp_replace(
-			pg_catalog.pg_get_constraintdef(con.oid, true),
-					'^.*(\([^\)]+\)).*$', '\1') as cols,
-			con.condeferrable,
-			con.condeferred
-		FROM pg_catalog.pg_class c
-			INNER JOIN pg_namespace n
-				ON relnamespace = n.oid
-			INNER JOIN pg_catalog.pg_index i
-				ON c.oid = i.indrelid
-			INNER JOIN pg_catalog.pg_class c2
-				ON i.indexrelid = c2.oid
-			INNER JOIN pg_catalog.pg_constraint con ON
-				(con.conrelid = i.indrelid
-				AND con.conindid = i.indexrelid )
-		WHERE c.relname =  table_name
-		AND	 n.nspname = tbl_schema
-		AND con.contype in ('p', 'u')
-	LOOP
-		name := 'aud_' || quote_ident( table_name || '_' || keys.conname);
-		IF char_length(name) > 63 THEN
-			name := 'aud_' || count || quote_ident( table_name || '_' || keys.conname);
-			COUNT := COUNT + 1;
-		END IF;
-		EXECUTE 'CREATE INDEX ' || name
-			|| ' ON ' || quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name) || keys.cols;
-	END LOOP;
+	PERFORM schema_support.build_audit_table_pkak_indexes(
+		aud_schema, tbl_schema, table_name);
 
 	IF first_time THEN
 		PERFORM schema_support.rebuild_audit_trigger
@@ -732,7 +743,8 @@ BEGIN
 			c.relname as name,
 			CASE c.relkind
 				WHEN 'r' THEN 'table'
-				WHEN 'v' THEN 'view'
+				WHEN 'm' THEN 'view'
+				WHEN 'v' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as "Type",
@@ -778,6 +790,7 @@ BEGIN
 			CASE c.relkind
 				WHEN 'r' THEN 'table'
 				WHEN 'v' THEN 'view'
+				WHEN 'mv' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as "Type",
@@ -974,6 +987,8 @@ DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
 	_ddl	TEXT;
+	_mat	TEXT;
+	_typ	TEXT;
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
@@ -984,24 +999,30 @@ BEGIN
 	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
 	FOR _r in SELECT n.nspname, c.relname, 'view',
 				coalesce(u.usename, 'public') as owner,
-				pg_get_viewdef(c.oid, true) as viewdef
+				pg_get_viewdef(c.oid, true) as viewdef, relkind
 		FROM pg_class c
 		INNER JOIN pg_namespace n on n.oid = c.relnamespace
 		LEFT JOIN pg_user u on u.usesysid = c.relowner
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
-		_ddl := 'CREATE OR REPLACE VIEW ' || _r.nspname || '.' || _r.relname ||
+		_mat = ' VIEW ';
+		_typ = 'view';
+		IF _r.relkind = 'm' THEN
+			_mat = ' MATERIALIZED VIEW ';
+			_typ = 'materialized view';
+		END IF;
+		_ddl := 'CREATE ' || _mat || _r.nspname || '.' || _r.relname ||
 			' AS ' || _r.viewdef;
 		IF _ddl is NULL THEN
 			RAISE EXCEPTION 'Unable to define view for %', _r;
 		END IF;
 		INSERT INTO __recreate (schema, object, owner, type, ddl )
 			VALUES (
-				_r.nspname, _r.relname, _r.owner, 'view', _ddl
+				_r.nspname, _r.relname, _r.owner, _typ, _ddl
 			);
 		IF dropit  THEN
-			_cmd = 'DROP VIEW ' || _r.nspname || '.' || _r.relname || ';';
+			_cmd = 'DROP ' || _mat || _r.nspname || '.' || _r.relname || ';';
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
@@ -1058,7 +1079,7 @@ BEGIN
 		WHERE dependent.relname = object
   		AND sn.nspname = schema
 	LOOP
-		IF _r.relkind = 'v' THEN
+		IF _r.relkind = 'v' OR _r.relkind = 'm' THEN
 			-- RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
 			PERFORM * FROM save_dependent_objects_for_replay(_r.nspname, _r.relname, dropit);
 			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit);
@@ -1224,14 +1245,14 @@ BEGIN
 			END IF;
 			EXECUTE _r.ddl;
 			IF _r.owner is not NULL THEN
-				IF _r.type = 'view' THEN
-					EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
+				IF _r.type = 'view' OR _r.type = 'materialized view' THEN
+					EXECUTE 'ALTER ' || _r.type || ' ' || _r.schema || '.' || _r.object ||
 						' OWNER TO ' || _r.owner || ';';
 				ELSIF _r.type = 'function' THEN
 					EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
 						'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
 				ELSE
-					RAISE EXCEPTION 'Unable to restore grant for %', _r;
+					RAISE EXCEPTION 'Unable to restore grant for % ', _r;
 				END IF;
 			END IF;
 			DELETE from __recreate where id = _r.id;
