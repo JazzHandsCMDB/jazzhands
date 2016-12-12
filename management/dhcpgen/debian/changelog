@@ -1,3 +1,10 @@
+jazzhands-dhcpgen (0.74.11) trusty; urgency=medium
+
+  * Fix issue where returning more than two netblocks in a collection would
+    cause things to be sucked into an array incorrectly
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 12 Dec 2016 10:36:21 -0500
+
 jazzhands-dhcpgen (0.71.8) trusty; urgency=medium
 
   * Fix issue where a subnet declaration consisting of a single, but invalid,
