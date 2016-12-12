@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.74.12.1) trusty; urgency=medium
+
+  * Remove debugging things
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 12 Dec 2016 16:27:41 -0500
+
 jazzhands-dhcpgen (0.74.12) trusty; urgency=medium
 
   * Fix issue fixing below issues because NetAddr::IP sucks
