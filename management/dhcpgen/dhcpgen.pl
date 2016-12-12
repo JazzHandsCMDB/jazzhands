@@ -488,8 +488,8 @@ sub generate_dhcp_configs {
 					{$row->{property_name}})) {
 				$l2_props->{$row->{layer2_network_collection_id}}->
 					{$row->{property_name}} = [
-						$l2_props->{$row->{layer2_network_collection_id}}->
-							{$row->{property_name}},
+						@{$l2_props->{$row->{layer2_network_collection_id}}->
+							{$row->{property_name}}},
 						$row->{property_value}
 					];
 			} else {
