@@ -486,12 +486,30 @@ sub generate_dhcp_configs {
 			#
 			if (exists($l2_props->{$row->{layer2_network_collection_id}}->
 					{$row->{property_name}})) {
-				$l2_props->{$row->{layer2_network_collection_id}}->
-					{$row->{property_name}} = [
-						@{$l2_props->{$row->{layer2_network_collection_id}}->
-							{$row->{property_name}}},
-						$row->{property_value}
+
+				printf "Current array: %s\n", Dumper(
+					$l2_props->{$row->{layer2_network_collection_id}}->
+						{$row->{property_name}});
+				printf "New row: %s (%s)\n", Dumper($row), 
+					$row->{property_value};
+
+				if (ref($l2_props->{$row->{layer2_network_collection_id}}->
+						{$row->{property_name}}) eq 'ARRAY') {
+					push @{$l2_props->{$row->{layer2_network_collection_id}}->
+								{$row->{property_name}}}, 
+							$row->{property_value};
+				} else {
+					$l2_props->{$row->{layer2_network_collection_id}}->
+							{$row->{property_name}} = [ 
+						$l2_props->{$row->{layer2_network_collection_id}}->
+							{$row->{property_name}},
+						$row->{property_value} 
 					];
+				}
+				printf "Now is: %s\n", Dumper(
+					$l2_props->{$row->{layer2_network_collection_id}}->
+						{$row->{property_name}});
+
 			} else {
 				$l2_props->{$row->{layer2_network_collection_id}}->
 					{$row->{property_name}} = $row->{property_value};
