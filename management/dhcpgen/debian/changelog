@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.74.12) trusty; urgency=medium
+
+  * Fix issue fixing below issues because NetAddr::IP sucks
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 12 Dec 2016 16:15:56 -0500
+
 jazzhands-dhcpgen (0.74.11) trusty; urgency=medium
 
   * Fix issue where returning more than two netblocks in a collection would
