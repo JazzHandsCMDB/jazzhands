@@ -19,11 +19,10 @@
 TODO:
  - consider unique record test when one record points to another.
     - value underway, need to do with reference
-	 - is_enabled can't be switched to 'N' if somethning points to it that is not N
- - pointers to pointers are not a thing.
- - make sure value, netblock_id and value ref id can't be set (think so)
- - make sure dns_rec_prevent_dups still makes sense with other tests.
-   Other tests seemed more complex than necessary. 
+
+ - one day:
+   - make sure dns_rec_prevent_dups still makes sense with other tests.
+      Other tests seemed more complex than necessary.
 */
 
 
@@ -343,10 +342,10 @@ BEGIN
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
 			db.dns_srv_weight, db.dns_srv_port,
 			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
-			db.reference_dns_record_id, db.dns_value_record_id, 
+			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
 		FROM dns_record db
-			LEFT JOIN dns_record val 
+			LEFT JOIN dns_record val
 				ON ( db.dns_value_record_id = val.dns_record_id )
 		WHERE db.dns_record_id != NEW.dns_record_id
 		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
@@ -361,13 +360,13 @@ BEGIN
 	) SELECT	count(*)
 		INTO	_tally
 		FROM dns
-			LEFT JOIN dns_record val 
+			LEFT JOIN dns_record val
 				ON ( NEW.dns_value_record_id = val.dns_record_id )
-		WHERE 
+		WHERE
 			dns.dns_value IS NOT DISTINCT FROM
 				coalesce(val.dns_value, NEW.dns_value)
 		AND
-			dns.netblock_id IS NOT DISTINCT FROM 
+			dns.netblock_id IS NOT DISTINCT FROM
 				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
@@ -529,6 +528,49 @@ CREATE TRIGGER trigger_dns_record_cname_checker
 	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_cname_checker();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_record_enabled_check()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF new.IS_ENABLED = 'N' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE dns_value_record_id = NEW.dns_record_id
+		OR reference_dns_record_id = NEW.dns_record_id;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not disabled records referred to by other enabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+	IF new.IS_ENABLED = 'Y' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE ( NEW.dns_value_record_id = dns_record_id
+				OR NEW.reference_dns_record_id = dns_record_id
+		) AND is_enabled = 'N';
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not enable records referencing disabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_record_enabled_check ON dns_record;
+CREATE TRIGGER trigger_dns_record_enabled_check
+	BEFORE INSERT OR UPDATE of is_enabled
+	ON dns_record
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_record_enabled_check();
+
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_domain_trigger_change()
