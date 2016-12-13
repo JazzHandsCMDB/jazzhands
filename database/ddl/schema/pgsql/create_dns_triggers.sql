@@ -17,12 +17,15 @@
 
 /*
 TODO:
- - CNAME<>A/AAAA changes must check things pointing to them
- - A record pointing to another record must be an A.
- - reconsider A's point to netblock_id but CNAMEs point to dns_name
  - consider unique record test when one record points to another.
- - ref_record_id fk should point to (dns_record_id, dns_domain_id)
+    - value underway, need to do with reference
+	 - is_enabled can't be switched to 'N' if somethning points to it that is not N
+ - pointers to pointers are not a thing.
+ - make sure value, netblock_id and value ref id can't be set (think so)
+ - make sure dns_rec_prevent_dups still makes sense with other tests.
+   Other tests seemed more complex than necessary. 
 */
+
 
 ---------------------------------------------------------------------------
 --
@@ -154,7 +157,7 @@ BEGIN
 			AND d.dns_class = NEW.dns_class;
 
 			IF NOT FOUND THEN
-				RAISE EXCEPTION 'Attempt to set % record without a netblock',
+				RAISE EXCEPTION 'Attempt to set % value record without the correct netblock',
 					NEW.dns_type
 					USING ERRCODE = 'not_null_violation';
 			END IF;
@@ -221,27 +224,50 @@ DECLARE
 	_tal	integer;
 BEGIN
 	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
-		IF family(NEW.ip_address) == 6 THEN
+		--
+		-- The dns_value_record_id check is not strictly needed since
+		-- the "dns_value_record_id" points to something of the same type
+		-- and the trigger would catch that, but its here in case some
+		-- assumption later changes and its good to test for..
+		IF family(NEW.ip_address) = 6 THEN
 			SELECT count(*)
 			INTO	_tal
 			FROM	dns_record
-			WHERE	netblock_id = NEW.netblock_id
-			AND		dns_type = 'A';
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'A'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'A'
+						)
+					);
 
 			IF _tal > 0 THEN
 				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
 					USING ERRCODE = 'JH200';
 			END IF;
 		END IF;
-	END IF;
 
-	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
-		IF family(NEW.ip_address) == 4 THEN
+		IF family(NEW.ip_address) = 4 THEN
 			SELECT count(*)
 			INTO	_tal
 			FROM	dns_record
-			WHERE	netblock_id = NEW.netblock_id
-			AND		dns_type = 'AAAA';
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'AAAA'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'AAAA'
+						)
+					);
 
 			IF _tal > 0 THEN
 				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
@@ -310,29 +336,39 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	SELECT	count(*)
-	  INTO	_tally
-	  FROM	dns_record
-	  WHERE
-			( lower(dns_name) = lower(NEW.dns_name) OR
-				(dns_name IS NULL AND NEW.dns_name is NULL)
-			)
+	WITH dns AS ( SELECT
+			db.dns_record_id, db.dns_name, db.dns_domain_id, db.dns_ttl,
+			db.dns_class, db.dns_type,
+			coalesce(val.dns_value, db.dns_value) AS dns_value,
+			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
+			db.dns_srv_weight, db.dns_srv_port,
+			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
+			db.reference_dns_record_id, db.dns_value_record_id, 
+			db.should_generate_ptr, db.is_enabled
+		FROM dns_record db
+			LEFT JOIN dns_record val 
+				ON ( db.dns_value_record_id = val.dns_record_id )
+		WHERE db.dns_record_id != NEW.dns_record_id
+		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+		AND ( db.dns_domain_id = NEW.dns_domain_id )
+		AND ( db.dns_class = NEW.dns_class )
+		AND ( db.dns_type = NEW.dns_type )
+    		AND db.dns_record_id != NEW.dns_record_id
+		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.is_enabled = 'Y'
+	) SELECT	count(*)
+		INTO	_tally
+		FROM dns
+			LEFT JOIN dns_record val 
+				ON ( NEW.dns_value_record_id = val.dns_record_id )
+		WHERE 
+			dns.dns_value IS NOT DISTINCT FROM
+				coalesce(val.dns_value, NEW.dns_value)
 		AND
-			( dns_domain_id = NEW.dns_domain_id )
-		AND
-			( dns_class = NEW.dns_class )
-		AND
-			( dns_type = NEW.dns_type )
-		AND dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
-		AND dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
-		AND dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
-		AND dns_value IS NOT DISTINCT FROM NEW.dns_value
-		AND dns_value_record_id IS NOT DISTINCT FROM NEW.dns_value_record_id
-		AND reference_dns_record_id
-			IS NOT DISTINCT FROM NEW.reference_dns_record_id
-		AND netblock_Id IS NOT DISTINCT FROM NEW.netblock_id
-		AND	is_enabled = 'Y'
-	    AND dns_record_id != NEW.dns_record_id
+			dns.netblock_id IS NOT DISTINCT FROM 
+				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
 	IF _tally != 0 THEN

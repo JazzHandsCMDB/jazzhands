@@ -20,6 +20,10 @@
 
 \t on
 
+-- tests this:
+\ir ../../ddl/schema/pgsql/create_dns_triggers.sql
+
+
 SAVEPOINT dns_trigger_test;
 
 CREATE OR REPLACE FUNCTION validate_dns_triggers() RETURNS BOOLEAN AS $$
@@ -160,49 +164,33 @@ BEGIN
 			_tally;
 		
 	END IF;
-	DELETE from dns_change_record;
 	RAISE NOTICE '.. It does';
 
 	RAISE NOTICE 'Checking to see if second non-netblock dns_records trigger - %', _ip1id;
-	INSERT INTO dns_record (
-		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
-		should_generate_ptr
-	) VALUES (
-		'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, 'Y'
-	) RETURNING dns_record_id INTO _dnsrec1; 
-
-	SELECT count(*) 
-	  INTO _tally
-	  FROM dns_change_record
-	 WHERE dns_domain_id = _dnsdomid
-	   AND ip_address = '172.31.30.1/24';
-	IF _tally != 1 THEN
-		RAISE EXCEPTION '% records with domain and ip set to 172.31.30.1/24.  This is a problem',
-			_tally;
-		
-	END IF;
-	DELETE from dns_change_record;
-	RAISE NOTICE '.. It does';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
+			should_generate_ptr
+		) VALUES (
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, 'Y'
+		) RETURNING dns_record_id INTO _dnsrec1; 
+		RAISE NOTICE '.. It does (BAD!)';
+	EXCEPTION WHEN unique_violation THEN
+		RAISE NOTICE '.. It does not';
+	END;
 
 	-- Note this one is both used immediately and later for a dup test.
-	INSERT INTO DNS_RECORD (
-		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
-		should_generate_ptr
-	) VALUES (
-		'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip2id, 'Y'
-	) RETURNING dns_record_id INTO _dnsrec1; 
-
-	SELECT count(*) 
-	  INTO _tally
-	  FROM dns_change_record
-	 WHERE dns_domain_id = _dnsdomid
-	   AND ip_address = '172.31.30.2/24';
-	IF _tally != 1 THEN
-		RAISE EXCEPTION '% records with domain and ip set to 172.31.30.2/24.  This is a problem',
-			_tally;
-		
-	END IF;
-	DELETE from dns_change_record;
+	BEGIN
+		INSERT INTO DNS_RECORD (
+			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
+			should_generate_ptr
+		) VALUES (
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip2id, 'Y'
+		) RETURNING dns_record_id INTO _dnsrec1; 
+		RAISE NOTICE '.. It does (BAD!)';
+	EXCEPTION WHEN unique_violation THEN
+		RAISE NOTICE '.. It does not';
+	END;
 
 	RAISE NOTICE 'Deleting excess';
 	delete from dns_record where netblock_id in (_ip1id, _ip2id);
@@ -328,11 +316,13 @@ BEGIN
 		'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id
 	) RETURNING dns_record_id INTO _dnsrec1; 
 
+	RAISE NOTICE 'CHECKING: Inserting the same A record failed as expected';
 	BEGIN
 		INSERT INTO DNS_RECORD (
-			dns_name, dns_domain_id, dns_class, dns_type, netblock_id
+			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
+			should_generate_ptr
 		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, 'N'
 		) RETURNING dns_record_id INTO _dnsrec1; 
 		RAISE EXCEPTION 'Inserting the same A record did not fail';
 	EXCEPTION WHEN unique_violation THEN
@@ -595,7 +585,7 @@ BEGIN
 		dns_name, dns_domain_id, dns_type, dns_value_record_id,
 		should_generate_ptr
 	) VALUES (
-		'jhtestme-a', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+		'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
 		'N'
 	) RETURNING * INTO _dnsrec2;
 
@@ -622,6 +612,210 @@ BEGIN
 	EXCEPTION  WHEN foreign_key_violation THEN
 		RAISE NOTICE '... It can not';
 	END;
+
+	DELETE FROM dns_record WHERE dns_record_id IN 
+		(_dnsrec1.dns_record_id, _dnsrec2.dns_record_id);
+
+	--
+	-- New style of doing tests to keep all the fluid stuff inside a
+	-- BEGIN/END so any droppings disappear.  Converting from the above is
+	-- work.
+	--
+
+	RAISE NOTICE 'Checking if changing the family of a referenced A record fails... ';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+
+		BEGIN
+			UPDATE netblock set ip_address = 'fc00::42/64'
+				WHERE netblock_id = _ip1id;
+		EXCEPTION WHEN SQLSTATE 'JH200' THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if UPDATING ipv4+A->AAAA fails... ';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+
+		BEGIN
+			UPDATE dns_record set dns_type = 'AAAA' WHERE
+				dns_record_id = _dnsrec1.dns_record_id;
+		EXCEPTION WHEN SQLSTATE 'JH200' THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if UPDATING ipv6+AAAA->A fails... ';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'AAAA', _ip6id1
+		) RETURNING * INTO _dnsrec1;
+
+		BEGIN
+			UPDATE dns_record set dns_type = 'A' WHERE
+				dns_record_id = _dnsrec1.dns_record_id;
+		EXCEPTION WHEN SQLSTATE 'JH200' THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if mismatching A/AAAA values fail on insert...';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'AAAA', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+	RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN not_null_violation THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if mismatching AAAA/A values fail on insert...';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'AAAA', _ip6id1
+		) RETURNING * INTO _dnsrec1;
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+	RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN not_null_violation THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if mismatching A/AAAA values fail on update...';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+
+		UPDATE dns_record set dns_type = 'AAAA'
+			WHERE dns_record_id = _dnsrec2.dns_record_id;
+	RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN not_null_violation THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if mismatching AAAA/A values fail on update...';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'AAAA', _ip6id1
+		) RETURNING * INTO _dnsrec1;
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'AAAA', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+
+		UPDATE dns_record set dns_type = 'A'
+			WHERE dns_record_id = _dnsrec2.dns_record_id;
+	RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN not_null_violation THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking unique record test on value record failure... ';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN unique_violation THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking unique record test on value record failure... ';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value_record_id,
+			should_generate_ptr
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
+			'N'
+		) RETURNING * INTO _dnsrec2;
+
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id
+		) VALUES (
+			'jhtestme-b', _dnsdomid, 'A', _ip1id
+		) RETURNING * INTO _dnsrec1;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN unique_violation THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+
 
 	RAISE NOTICE 'Done CNAME and other check tests';
 
