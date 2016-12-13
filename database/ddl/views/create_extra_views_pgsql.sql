@@ -159,3 +159,4 @@
 -- to be retired
 \ir create_x509_certificate.sql
 \ir create_v_network_interface_trans.sql
+\ir create_v_device_collection_hier_trans.sql
