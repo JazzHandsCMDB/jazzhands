@@ -20,6 +20,8 @@ Invoked:
 	--preschema
 	schema_support
 	--suffix=v75
+	--post
+	post
 */
 
 \set ON_ERROR_STOP
@@ -858,7 +860,7 @@ BEGIN
 			AND d.dns_class = NEW.dns_class;
 
 			IF NOT FOUND THEN
-				RAISE EXCEPTION 'Attempt to set % record without a netblock',
+				RAISE EXCEPTION 'Attempt to set % value record without the correct netblock',
 					NEW.dns_type
 					USING ERRCODE = 'not_null_violation';
 			END IF;
@@ -946,29 +948,39 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	SELECT	count(*)
-	  INTO	_tally
-	  FROM	dns_record
-	  WHERE
-			( lower(dns_name) = lower(NEW.dns_name) OR
-				(dns_name IS NULL AND NEW.dns_name is NULL)
-			)
+	WITH dns AS ( SELECT
+			db.dns_record_id, db.dns_name, db.dns_domain_id, db.dns_ttl,
+			db.dns_class, db.dns_type,
+			coalesce(val.dns_value, db.dns_value) AS dns_value,
+			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
+			db.dns_srv_weight, db.dns_srv_port,
+			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
+			db.reference_dns_record_id, db.dns_value_record_id, 
+			db.should_generate_ptr, db.is_enabled
+		FROM dns_record db
+			LEFT JOIN dns_record val 
+				ON ( db.dns_value_record_id = val.dns_record_id )
+		WHERE db.dns_record_id != NEW.dns_record_id
+		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+		AND ( db.dns_domain_id = NEW.dns_domain_id )
+		AND ( db.dns_class = NEW.dns_class )
+		AND ( db.dns_type = NEW.dns_type )
+    		AND db.dns_record_id != NEW.dns_record_id
+		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.is_enabled = 'Y'
+	) SELECT	count(*)
+		INTO	_tally
+		FROM dns
+			LEFT JOIN dns_record val 
+				ON ( NEW.dns_value_record_id = val.dns_record_id )
+		WHERE 
+			dns.dns_value IS NOT DISTINCT FROM
+				coalesce(val.dns_value, NEW.dns_value)
 		AND
-			( dns_domain_id = NEW.dns_domain_id )
-		AND
-			( dns_class = NEW.dns_class )
-		AND
-			( dns_type = NEW.dns_type )
-		AND dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
-		AND dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
-		AND dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
-		AND dns_value IS NOT DISTINCT FROM NEW.dns_value
-		AND dns_value_record_id IS NOT DISTINCT FROM NEW.dns_value_record_id
-		AND reference_dns_record_id
-			IS NOT DISTINCT FROM NEW.reference_dns_record_id
-		AND netblock_Id IS NOT DISTINCT FROM NEW.netblock_id
-		AND	is_enabled = 'Y'
-	    AND dns_record_id != NEW.dns_record_id
+			dns.netblock_id IS NOT DISTINCT FROM 
+				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
 	IF _tally != 0 THEN
@@ -1088,6 +1100,88 @@ BEGIN
 				USING ERRCODE = 'unique_violation';
 		END IF;
 	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('jazzhands', 'nb_dns_a_rec_validation');
+CREATE OR REPLACE FUNCTION jazzhands.nb_dns_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tal	integer;
+BEGIN
+	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
+		--
+		-- The dns_value_record_id check is not strictly needed since
+		-- the "dns_value_record_id" points to something of the same type
+		-- and the trigger would catch that, but its here in case some
+		-- assumption later changes and its good to test for..
+		IF family(NEW.ip_address) = 6 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'A'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'A'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+
+		IF family(NEW.ip_address) = 4 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'AAAA'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'AAAA'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.is_single_address = 'N' THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type IN ('A', 'AAAA');
+
+		IF _tal > 0 THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+
 	RETURN NEW;
 END;
 $function$
@@ -5106,6 +5200,20 @@ CREATE VIEW jazzhands.v_dns_sorted AS
 -- DONE DEALING WITH TABLE v_dns_sorted
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_device_collection_hier_trans
+DROP VIEW IF EXISTS jazzhands.v_device_collection_hier_trans;
+CREATE VIEW jazzhands.v_device_collection_hier_trans AS
+ SELECT device_collection_hier.parent_device_collection_id,
+    device_collection_hier.device_collection_id,
+    device_collection_hier.data_ins_user,
+    device_collection_hier.data_ins_date,
+    device_collection_hier.data_upd_user,
+    device_collection_hier.data_upd_date
+   FROM device_collection_hier;
+
+-- DONE DEALING WITH TABLE v_device_collection_hier_trans
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_dev_col_root
 DROP VIEW IF EXISTS jazzhands.v_dev_col_root;
 CREATE VIEW jazzhands.v_dev_col_root AS
@@ -5228,7 +5336,7 @@ BEGIN
 			AND d.dns_class = NEW.dns_class;
 
 			IF NOT FOUND THEN
-				RAISE EXCEPTION 'Attempt to set % record without a netblock',
+				RAISE EXCEPTION 'Attempt to set % value record without the correct netblock',
 					NEW.dns_type
 					USING ERRCODE = 'not_null_violation';
 			END IF;
@@ -5316,29 +5424,39 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	SELECT	count(*)
-	  INTO	_tally
-	  FROM	dns_record
-	  WHERE
-			( lower(dns_name) = lower(NEW.dns_name) OR
-				(dns_name IS NULL AND NEW.dns_name is NULL)
-			)
+	WITH dns AS ( SELECT
+			db.dns_record_id, db.dns_name, db.dns_domain_id, db.dns_ttl,
+			db.dns_class, db.dns_type,
+			coalesce(val.dns_value, db.dns_value) AS dns_value,
+			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
+			db.dns_srv_weight, db.dns_srv_port,
+			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
+			db.reference_dns_record_id, db.dns_value_record_id, 
+			db.should_generate_ptr, db.is_enabled
+		FROM dns_record db
+			LEFT JOIN dns_record val 
+				ON ( db.dns_value_record_id = val.dns_record_id )
+		WHERE db.dns_record_id != NEW.dns_record_id
+		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+		AND ( db.dns_domain_id = NEW.dns_domain_id )
+		AND ( db.dns_class = NEW.dns_class )
+		AND ( db.dns_type = NEW.dns_type )
+    		AND db.dns_record_id != NEW.dns_record_id
+		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.is_enabled = 'Y'
+	) SELECT	count(*)
+		INTO	_tally
+		FROM dns
+			LEFT JOIN dns_record val 
+				ON ( NEW.dns_value_record_id = val.dns_record_id )
+		WHERE 
+			dns.dns_value IS NOT DISTINCT FROM
+				coalesce(val.dns_value, NEW.dns_value)
 		AND
-			( dns_domain_id = NEW.dns_domain_id )
-		AND
-			( dns_class = NEW.dns_class )
-		AND
-			( dns_type = NEW.dns_type )
-		AND dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
-		AND dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
-		AND dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
-		AND dns_value IS NOT DISTINCT FROM NEW.dns_value
-		AND dns_value_record_id IS NOT DISTINCT FROM NEW.dns_value_record_id
-		AND reference_dns_record_id
-			IS NOT DISTINCT FROM NEW.reference_dns_record_id
-		AND netblock_Id IS NOT DISTINCT FROM NEW.netblock_id
-		AND	is_enabled = 'Y'
-	    AND dns_record_id != NEW.dns_record_id
+			dns.netblock_id IS NOT DISTINCT FROM 
+				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
 	IF _tally != 0 THEN
@@ -5458,6 +5576,88 @@ BEGIN
 				USING ERRCODE = 'unique_violation';
 		END IF;
 	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('jazzhands', 'nb_dns_a_rec_validation');
+CREATE OR REPLACE FUNCTION jazzhands.nb_dns_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tal	integer;
+BEGIN
+	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
+		--
+		-- The dns_value_record_id check is not strictly needed since
+		-- the "dns_value_record_id" points to something of the same type
+		-- and the trigger would catch that, but its here in case some
+		-- assumption later changes and its good to test for..
+		IF family(NEW.ip_address) = 6 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'A'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'A'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+
+		IF family(NEW.ip_address) = 4 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'AAAA'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'AAAA'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.is_single_address = 'N' THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type IN ('A', 'AAAA');
+
+		IF _tal > 0 THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+
 	RETURN NEW;
 END;
 $function$
@@ -7908,12 +8108,36 @@ BEGIN
 -- Processing tables with no structural changes
 -- Some of these may be redundant
 -- fk constraints
+ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS ak_dns_record_dnsrec_domainid;
+ALTER TABLE dns_record
+	ADD CONSTRAINT ak_dns_record_dnsrec_domainid
+	UNIQUE (dns_record_id, dns_domain_id);
+
+ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS fk_dnsrecord_dnsrecord;
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsrecord_dnsrecord
+	FOREIGN KEY (reference_dns_record_id, dns_domain_id) REFERENCES dns_record(dns_record_id, dns_domain_id);
+
 -- index
+DROP INDEX "jazzhands"."idx_dnsrec_refdnsrec";
+DROP INDEX IF EXISTS "jazzhands"."xif8dns_record";
+CREATE INDEX xif8dns_record ON dns_record USING btree (reference_dns_record_id, dns_domain_id);
+DROP INDEX IF EXISTS "jazzhands"."xi_volume_group_name";
+CREATE INDEX xi_volume_group_name ON volume_group USING btree (volume_group_name);
 -- triggers
 DROP TRIGGER IF EXISTS aaa_trigger_asset_component_id_fix ON asset;
 CREATE TRIGGER aaa_trigger_asset_component_id_fix AFTER INSERT OR UPDATE OF component_id, asset_id ON asset FOR EACH ROW EXECUTE PROCEDURE asset_component_id_fix();
 DROP TRIGGER IF EXISTS aaa_trigger_device_asset_id_fix ON device;
 CREATE TRIGGER aaa_trigger_device_asset_id_fix BEFORE INSERT OR UPDATE OF asset_id, component_id ON device FOR EACH ROW EXECUTE PROCEDURE device_asset_id_fix();
+
+
+-- BEGIN Misc that does not apply to above
+CREATE INDEX aud_dns_record_ak_dns_record_dnsrec_domainid 
+	ON audit.dns_record 
+	USING btree (dns_record_id, dns_domain_id);
+
+
+-- END Misc that does not apply to above
 
 
 -- Clean Up
