@@ -948,8 +948,15 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	WITH dns AS ( SELECT
-			db.dns_record_id, db.dns_name, db.dns_domain_id, db.dns_ttl,
+	WITH newref AS (
+		SELECT * FROM dns_record
+			WHERE NEW.reference_dns_record_id IS NOT NULL
+			AND NEW.reference_dns_record_id = dns_record_id
+			ORDER BY dns_record_id LIMIT 1
+	), dns AS ( SELECT
+			db.dns_record_id,
+			coalesce(ref.dns_name, db.dns_name) as dns_name,
+			db.dns_domain_id, db.dns_ttl,
 			db.dns_class, db.dns_type,
 			coalesce(val.dns_value, db.dns_value) AS dns_value,
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
@@ -958,10 +965,16 @@ BEGIN
 			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
 		FROM dns_record db
+			LEFT JOIN dns_record ref
+				ON ( db.reference_dns_record_id = ref.dns_record_id)
 			LEFT JOIN dns_record val
 				ON ( db.dns_value_record_id = val.dns_record_id )
+			LEFT JOIN newref
+				ON newref.dns_record_id = NEW.reference_dns_record_id
 		WHERE db.dns_record_id != NEW.dns_record_id
-		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+		AND (lower(coalesce(ref.dns_name, db.dns_name))
+					IS NOT DISTINCT FROM
+				lower(coalesce(newref.dns_name, NEW.dns_name)) )
 		AND ( db.dns_domain_id = NEW.dns_domain_id )
 		AND ( db.dns_class = NEW.dns_class )
 		AND ( db.dns_type = NEW.dns_type )
@@ -984,8 +997,8 @@ BEGIN
 	;
 
 	IF _tally != 0 THEN
-		RAISE EXCEPTION 'Attempt to insert the same dns record - %', NEW
-			USING ERRCODE = 'unique_violation';
+		RAISE EXCEPTION 'Attempt to insert the same dns record - % %', _tally,
+			NEW USING ERRCODE = 'unique_violation';
 	END IF;
 
 	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
@@ -5462,8 +5475,15 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	WITH dns AS ( SELECT
-			db.dns_record_id, db.dns_name, db.dns_domain_id, db.dns_ttl,
+	WITH newref AS (
+		SELECT * FROM dns_record
+			WHERE NEW.reference_dns_record_id IS NOT NULL
+			AND NEW.reference_dns_record_id = dns_record_id
+			ORDER BY dns_record_id LIMIT 1
+	), dns AS ( SELECT
+			db.dns_record_id,
+			coalesce(ref.dns_name, db.dns_name) as dns_name,
+			db.dns_domain_id, db.dns_ttl,
 			db.dns_class, db.dns_type,
 			coalesce(val.dns_value, db.dns_value) AS dns_value,
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
@@ -5472,10 +5492,16 @@ BEGIN
 			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
 		FROM dns_record db
+			LEFT JOIN dns_record ref
+				ON ( db.reference_dns_record_id = ref.dns_record_id)
 			LEFT JOIN dns_record val
 				ON ( db.dns_value_record_id = val.dns_record_id )
+			LEFT JOIN newref
+				ON newref.dns_record_id = NEW.reference_dns_record_id
 		WHERE db.dns_record_id != NEW.dns_record_id
-		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+		AND (lower(coalesce(ref.dns_name, db.dns_name))
+					IS NOT DISTINCT FROM
+				lower(coalesce(newref.dns_name, NEW.dns_name)) )
 		AND ( db.dns_domain_id = NEW.dns_domain_id )
 		AND ( db.dns_class = NEW.dns_class )
 		AND ( db.dns_type = NEW.dns_type )
@@ -5498,8 +5524,8 @@ BEGIN
 	;
 
 	IF _tally != 0 THEN
-		RAISE EXCEPTION 'Attempt to insert the same dns record - %', NEW
-			USING ERRCODE = 'unique_violation';
+		RAISE EXCEPTION 'Attempt to insert the same dns record - % %', _tally,
+			NEW USING ERRCODE = 'unique_violation';
 	END IF;
 
 	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN

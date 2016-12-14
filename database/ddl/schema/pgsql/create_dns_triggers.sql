@@ -355,8 +355,9 @@ BEGIN
 			LEFT JOIN dns_record ref
 				ON ( db.reference_dns_record_id = ref.dns_record_id)
 			LEFT JOIN dns_record val
-				ON ( db.dns_value_record_id = val.dns_record_id ),
-			newref
+				ON ( db.dns_value_record_id = val.dns_record_id )
+			LEFT JOIN newref
+				ON newref.dns_record_id = NEW.reference_dns_record_id
 		WHERE db.dns_record_id != NEW.dns_record_id
 		AND (lower(coalesce(ref.dns_name, db.dns_name))
 					IS NOT DISTINCT FROM

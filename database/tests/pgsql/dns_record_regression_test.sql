@@ -908,6 +908,31 @@ BEGIN
 		RAISE NOTICE '.... it did!';
 	END;
 
+	RAISE NOTICE 'Making sure dup references do not work... ';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, netblock_id, is_enabled
+		) VALUES (
+			'jhtestme-a', _dnsdomid, 'A', _ip1id, 'N'
+		) RETURNING * INTO _dnsrec1;
+
+		BEGIN
+			INSERT INTO dns_record (
+				reference_dns_record_id, dns_domain_id, dns_type, netblock_id,
+				should_generate_ptr, is_enabled
+			) VALUES (
+				_dnsrec1.dns_record_id, _dnsdomid, 'A', _ip2id,
+				'N', 'Y'
+			) RETURNING * INTO _dnsrec2;
+		EXCEPTION WHEN SQLSTATE 'JH001' THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+
 	RAISE NOTICE 'Done CNAME and other check tests';
 
 	RAISE NOTICE 'Cleaning Up....';
