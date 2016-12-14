@@ -955,10 +955,10 @@ BEGIN
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
 			db.dns_srv_weight, db.dns_srv_port,
 			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
-			db.reference_dns_record_id, db.dns_value_record_id, 
+			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
 		FROM dns_record db
-			LEFT JOIN dns_record val 
+			LEFT JOIN dns_record val
 				ON ( db.dns_value_record_id = val.dns_record_id )
 		WHERE db.dns_record_id != NEW.dns_record_id
 		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
@@ -973,13 +973,13 @@ BEGIN
 	) SELECT	count(*)
 		INTO	_tally
 		FROM dns
-			LEFT JOIN dns_record val 
+			LEFT JOIN dns_record val
 				ON ( NEW.dns_value_record_id = val.dns_record_id )
-		WHERE 
+		WHERE
 			dns.dns_value IS NOT DISTINCT FROM
 				coalesce(val.dns_value, NEW.dns_value)
 		AND
-			dns.netblock_id IS NOT DISTINCT FROM 
+			dns.netblock_id IS NOT DISTINCT FROM
 				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
@@ -2583,6 +2583,44 @@ BEGIN
 	-- SET	component_id = NEW.component_id
 	-- WHERE a.asset_id = NEW.asset_id
 	-- AND a.component_id IS DISTINCT FROM NEW.component_id;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_enabled_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+	IF new.IS_ENABLED = 'N' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE dns_value_record_id = NEW.dns_record_id
+		OR reference_dns_record_id = NEW.dns_record_id;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not disabled records referred to by other enabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+	IF new.IS_ENABLED = 'Y' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE ( NEW.dns_value_record_id = dns_record_id
+				OR NEW.reference_dns_record_id = dns_record_id
+		) AND is_enabled = 'N';
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not enable records referencing disabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
 
 	RETURN NEW;
 END;
@@ -5431,10 +5469,10 @@ BEGIN
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
 			db.dns_srv_weight, db.dns_srv_port,
 			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
-			db.reference_dns_record_id, db.dns_value_record_id, 
+			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
 		FROM dns_record db
-			LEFT JOIN dns_record val 
+			LEFT JOIN dns_record val
 				ON ( db.dns_value_record_id = val.dns_record_id )
 		WHERE db.dns_record_id != NEW.dns_record_id
 		AND lower(db.dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
@@ -5449,13 +5487,13 @@ BEGIN
 	) SELECT	count(*)
 		INTO	_tally
 		FROM dns
-			LEFT JOIN dns_record val 
+			LEFT JOIN dns_record val
 				ON ( NEW.dns_value_record_id = val.dns_record_id )
-		WHERE 
+		WHERE
 			dns.dns_value IS NOT DISTINCT FROM
 				coalesce(val.dns_value, NEW.dns_value)
 		AND
-			dns.netblock_id IS NOT DISTINCT FROM 
+			dns.netblock_id IS NOT DISTINCT FROM
 				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
@@ -7065,6 +7103,44 @@ END;
 $function$
 ;
 
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_enabled_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+	IF new.IS_ENABLED = 'N' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE dns_value_record_id = NEW.dns_record_id
+		OR reference_dns_record_id = NEW.dns_record_id;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not disabled records referred to by other enabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+	IF new.IS_ENABLED = 'Y' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE ( NEW.dns_value_record_id = dns_record_id
+				OR NEW.reference_dns_record_id = dns_record_id
+		) AND is_enabled = 'N';
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not enable records referencing disabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+
+	RETURN NEW;
+END;
+$function$
+;
+
 --
 -- Process drops in net_manip
 --
@@ -8129,6 +8205,8 @@ DROP TRIGGER IF EXISTS aaa_trigger_asset_component_id_fix ON asset;
 CREATE TRIGGER aaa_trigger_asset_component_id_fix AFTER INSERT OR UPDATE OF component_id, asset_id ON asset FOR EACH ROW EXECUTE PROCEDURE asset_component_id_fix();
 DROP TRIGGER IF EXISTS aaa_trigger_device_asset_id_fix ON device;
 CREATE TRIGGER aaa_trigger_device_asset_id_fix BEFORE INSERT OR UPDATE OF asset_id, component_id ON device FOR EACH ROW EXECUTE PROCEDURE device_asset_id_fix();
+DROP TRIGGER IF EXISTS trigger_dns_record_enabled_check ON dns_record;
+CREATE TRIGGER trigger_dns_record_enabled_check BEFORE INSERT OR UPDATE OF is_enabled ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_record_enabled_check();
 
 
 -- BEGIN Misc that does not apply to above
