@@ -3709,10 +3709,10 @@ COMMENT ON TABLE val_account_collection_relatio IS 'Defines type of relationship
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
--- consider FK between val_account_collection_relatio and account_collection
+-- consider FK between val_account_collection_relatio and account_collection_account
 -- Skipping this FK since column does not exist yet
---ALTER TABLE account_collection
---	ADD CONSTRAINT fk_actcoll_acctcoll_relation
+--ALTER TABLE account_collection_account
+--	ADD CONSTRAINT r_801
 --	FOREIGN KEY (account_collection_relation) REFERENCES val_account_collection_relatio(account_collection_relation);
 
 
@@ -3815,7 +3815,6 @@ DROP INDEX IF EXISTS "audit"."aud_val_property_pk_val_property";
 DROP INDEX IF EXISTS "audit"."val_property_aud#timestamp_idx";
 -- CHECK CONSTRAINTS, etc
 -- TRIGGERS, etc
-SELECT schema_support.save_dependent_objects_for_replay('audit', 'val_property');
 ---- DONE audit.val_property TEARDOWN
 
 
@@ -4366,117 +4365,105 @@ DROP TABLE IF EXISTS audit.val_property_v75;
 -- DONE DEALING WITH TABLE val_property
 --------------------------------------------------------------------
 --------------------------------------------------------------------
--- DEALING WITH TABLE account_collection
+-- DEALING WITH TABLE account_collection_account
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'account_collection', 'account_collection');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'account_collection_account', 'account_collection_account');
 
 -- FOREIGN KEYS FROM
-ALTER TABLE sudo_acct_col_device_collectio DROP CONSTRAINT IF EXISTS fk_acctcol_ref_sudoaccldcl_ra;
-ALTER TABLE account_collection_account DROP CONSTRAINT IF EXISTS fk_acctcol_usr_ucol_id;
-ALTER TABLE account_collection_hier DROP CONSTRAINT IF EXISTS fk_acctcolhier_acctcolid;
-ALTER TABLE account_collection_hier DROP CONSTRAINT IF EXISTS fk_acctcolhier_cldacctcolid;
-ALTER TABLE appaal_instance DROP CONSTRAINT IF EXISTS fk_appaal_inst_filgrpacctcolid;
-ALTER TABLE account_unix_info DROP CONSTRAINT IF EXISTS fk_auxifo_unxgrp_acctcolid;
-ALTER TABLE department DROP CONSTRAINT IF EXISTS fk_dept_usr_col_id;
-ALTER TABLE device_collection_ssh_key DROP CONSTRAINT IF EXISTS fk_dev_coll_ssh_key_acct_col;
-ALTER TABLE device_collection_assignd_cert DROP CONSTRAINT IF EXISTS fk_devcol_asscrt_acctcolid;
-ALTER TABLE klogin DROP CONSTRAINT IF EXISTS fk_klogin_ref_acct_col_id;
-ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_acct_col;
-ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_pval_acct_colid;
-ALTER TABLE sudo_acct_col_device_collectio DROP CONSTRAINT IF EXISTS fk_sudoaccoll_fk_sudo_u_actcl;
-ALTER TABLE unix_group DROP CONSTRAINT IF EXISTS fk_unxgrp_uclsid;
+ALTER TABLE account_unix_info DROP CONSTRAINT IF EXISTS fk_acct_unx_info_ac_acct;
 
 -- FOREIGN KEYS TO
-ALTER TABLE jazzhands.account_collection DROP CONSTRAINT IF EXISTS fk_acctcol_usrcoltyp;
+ALTER TABLE jazzhands.account_collection_account DROP CONSTRAINT IF EXISTS fk_acctcol_usr_ucol_id;
+ALTER TABLE jazzhands.account_collection_account DROP CONSTRAINT IF EXISTS fk_acol_account_id;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay('jazzhands', 'account_collection');
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'account_collection_account');
 
 -- PRIMARY and ALTERNATE KEYS
-ALTER TABLE jazzhands.account_collection DROP CONSTRAINT IF EXISTS pk_account_collection;
-ALTER TABLE jazzhands.account_collection DROP CONSTRAINT IF EXISTS uq_acct_collection_name;
+ALTER TABLE jazzhands.account_collection_account DROP CONSTRAINT IF EXISTS ak_acctcol_acct_rank;
+ALTER TABLE jazzhands.account_collection_account DROP CONSTRAINT IF EXISTS pk_account_collection_user;
 -- INDEXES
-DROP INDEX IF EXISTS "jazzhands"."idx_acctcol_acctcoltype";
 -- CHECK CONSTRAINTS, etc
 -- TRIGGERS, etc
-DROP TRIGGER IF EXISTS trig_account_collection_realm ON jazzhands.account_collection;
-DROP TRIGGER IF EXISTS trig_userlog_account_collection ON jazzhands.account_collection;
-DROP TRIGGER IF EXISTS trigger_audit_account_collection ON jazzhands.account_collection;
-DROP TRIGGER IF EXISTS trigger_validate_account_collection_type_change ON jazzhands.account_collection;
-SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'account_collection');
----- BEGIN audit.account_collection TEARDOWN
+DROP TRIGGER IF EXISTS trig_account_collection_account_realm ON jazzhands.account_collection_account;
+DROP TRIGGER IF EXISTS trig_userlog_account_collection_account ON jazzhands.account_collection_account;
+DROP TRIGGER IF EXISTS trigger_account_collection_member_enforce ON jazzhands.account_collection_account;
+DROP TRIGGER IF EXISTS trigger_audit_account_collection_account ON jazzhands.account_collection_account;
+DROP TRIGGER IF EXISTS trigger_pgnotify_account_collection_account_token_changes ON jazzhands.account_collection_account;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'account_collection_account');
+---- BEGIN audit.account_collection_account TEARDOWN
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('audit', 'account_collection', 'account_collection');
+SELECT schema_support.save_grants_for_replay('audit', 'account_collection_account', 'account_collection_account');
 
 -- FOREIGN KEYS FROM
 
 -- FOREIGN KEYS TO
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay('audit', 'account_collection');
+SELECT schema_support.save_constraint_for_replay('audit', 'account_collection_account');
 
 -- PRIMARY and ALTERNATE KEYS
-ALTER TABLE audit.account_collection DROP CONSTRAINT IF EXISTS account_collection_pkey;
+ALTER TABLE audit.account_collection_account DROP CONSTRAINT IF EXISTS account_collection_account_pkey;
 -- INDEXES
-DROP INDEX IF EXISTS "audit"."account_collection_aud#timestamp_idx";
-DROP INDEX IF EXISTS "audit"."aud_account_collection_pk_account_collection";
-DROP INDEX IF EXISTS "audit"."aud_account_collection_uq_acct_collection_name";
+DROP INDEX IF EXISTS "audit"."account_collection_account_aud#timestamp_idx";
+DROP INDEX IF EXISTS "audit"."aud_account_collection_account_ak_acctcol_acct_rank";
+DROP INDEX IF EXISTS "audit"."aud_account_collection_account_pk_account_collection_user";
 -- CHECK CONSTRAINTS, etc
 -- TRIGGERS, etc
-SELECT schema_support.save_dependent_objects_for_replay('audit', 'account_collection');
----- DONE audit.account_collection TEARDOWN
+---- DONE audit.account_collection_account TEARDOWN
 
 
-ALTER TABLE account_collection RENAME TO account_collection_v75;
-ALTER TABLE audit.account_collection RENAME TO account_collection_v75;
+ALTER TABLE account_collection_account RENAME TO account_collection_account_v75;
+ALTER TABLE audit.account_collection_account RENAME TO account_collection_account_v75;
 
-CREATE TABLE account_collection
+CREATE TABLE account_collection_account
 (
 	account_collection_id	integer NOT NULL,
-	account_collection_name	varchar(255) NOT NULL,
-	account_collection_type	varchar(50) NOT NULL,
-	account_collection_relation	varchar(50) NOT NULL,
-	description	varchar(255)  NULL,
+	account_id	integer NOT NULL,
+	account_collection_relation	varchar(50)  NULL,
+	account_id_rank	integer  NULL,
+	start_date	timestamp without time zone  NULL,
+	finish_date	timestamp without time zone  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
 	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
-SELECT schema_support.build_audit_table('audit', 'jazzhands', 'account_collection', false);
-ALTER TABLE account_collection
-	ALTER account_collection_id
-	SET DEFAULT nextval('account_collection_account_collection_id_seq'::regclass);
-ALTER TABLE account_collection
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'account_collection_account', false);
+ALTER TABLE account_collection_account
 	ALTER account_collection_relation
 	SET DEFAULT 'direct'::character varying;
-INSERT INTO account_collection (
+INSERT INTO account_collection_account (
 	account_collection_id,
-	account_collection_name,
-	account_collection_type,
+	account_id,
 	account_collection_relation,		-- new column (account_collection_relation)
-	description,
+	account_id_rank,
+	start_date,
+	finish_date,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
 ) SELECT
 	account_collection_id,
-	account_collection_name,
-	account_collection_type,
+	account_id,
 	'direct'::character varying,		-- new column (account_collection_relation)
-	description,
+	account_id_rank,
+	start_date,
+	finish_date,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM account_collection_v75;
+FROM account_collection_account_v75;
 
-INSERT INTO audit.account_collection (
+INSERT INTO audit.account_collection_account (
 	account_collection_id,
-	account_collection_name,
-	account_collection_type,
+	account_id,
 	account_collection_relation,		-- new column (account_collection_relation)
-	description,
+	account_id_rank,
+	start_date,
+	finish_date,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -4489,10 +4476,11 @@ INSERT INTO audit.account_collection (
 	"aud#seq"
 ) SELECT
 	account_collection_id,
-	account_collection_name,
-	account_collection_type,
+	account_id,
 	NULL,		-- new column (account_collection_relation)
-	description,
+	account_id_rank,
+	start_date,
+	finish_date,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -4503,191 +4491,196 @@ INSERT INTO audit.account_collection (
 	"aud#txid",
 	"aud#user",
 	"aud#seq"
-FROM audit.account_collection_v75;
+FROM audit.account_collection_account_v75;
 
-ALTER TABLE account_collection
-	ALTER account_collection_id
-	SET DEFAULT nextval('account_collection_account_collection_id_seq'::regclass);
-ALTER TABLE account_collection
+ALTER TABLE account_collection_account
 	ALTER account_collection_relation
 	SET DEFAULT 'direct'::character varying;
 
 -- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE account_collection ADD CONSTRAINT pk_account_collection PRIMARY KEY (account_collection_id);
-ALTER TABLE account_collection ADD CONSTRAINT uq_acct_collection_name UNIQUE (account_collection_name, account_collection_type);
+ALTER TABLE account_collection_account ADD CONSTRAINT ak_acctcol_acct_rank UNIQUE (account_collection_id, account_id_rank);
+ALTER TABLE account_collection_account ADD CONSTRAINT pk_account_collection_user PRIMARY KEY (account_collection_id, account_id);
 
 -- Table/Column Comments
 -- INDEXES
-CREATE INDEX xif_acctcol_acctcoltype ON account_collection USING btree (account_collection_type);
-CREATE INDEX xif_actcoll_acctcoll_relation ON account_collection USING btree (account_collection_relation);
+CREATE INDEX xif3account_collection_account ON account_collection_account USING btree (account_collection_relation);
 
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
--- consider FK between account_collection and sudo_acct_col_device_collectio
-ALTER TABLE sudo_acct_col_device_collectio
-	ADD CONSTRAINT fk_acctcol_ref_sudoaccldcl_ra
-	FOREIGN KEY (run_as_account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and account_collection_account
+-- consider FK between account_collection_account and account_unix_info
+ALTER TABLE account_unix_info
+	ADD CONSTRAINT fk_acct_unx_info_ac_acct
+	FOREIGN KEY (unix_group_acct_collection_id, account_id) REFERENCES account_collection_account(account_collection_id, account_id);
+
+-- FOREIGN KEYS TO
+-- consider FK account_collection_account and account_collection
 ALTER TABLE account_collection_account
 	ADD CONSTRAINT fk_acctcol_usr_ucol_id
 	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and account_collection_hier
-ALTER TABLE account_collection_hier
-	ADD CONSTRAINT fk_acctcolhier_acctcolid
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and account_collection_hier
-ALTER TABLE account_collection_hier
-	ADD CONSTRAINT fk_acctcolhier_cldacctcolid
-	FOREIGN KEY (child_account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and appaal_instance
-ALTER TABLE appaal_instance
-	ADD CONSTRAINT fk_appaal_inst_filgrpacctcolid
-	FOREIGN KEY (file_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and account_unix_info
-ALTER TABLE account_unix_info
-	ADD CONSTRAINT fk_auxifo_unxgrp_acctcolid
-	FOREIGN KEY (unix_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and department
-ALTER TABLE department
-	ADD CONSTRAINT fk_dept_usr_col_id
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and device_collection_ssh_key
-ALTER TABLE device_collection_ssh_key
-	ADD CONSTRAINT fk_dev_coll_ssh_key_acct_col
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and device_collection_assignd_cert
-ALTER TABLE device_collection_assignd_cert
-	ADD CONSTRAINT fk_devcol_asscrt_acctcolid
-	FOREIGN KEY (file_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and klogin
-ALTER TABLE klogin
-	ADD CONSTRAINT fk_klogin_ref_acct_col_id
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and property
-ALTER TABLE property
-	ADD CONSTRAINT fk_property_acct_col
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and property
-ALTER TABLE property
-	ADD CONSTRAINT fk_property_pval_acct_colid
-	FOREIGN KEY (property_value_account_coll_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and sudo_acct_col_device_collectio
-ALTER TABLE sudo_acct_col_device_collectio
-	ADD CONSTRAINT fk_sudoaccoll_fk_sudo_u_actcl
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
--- consider FK between account_collection and unix_group
-ALTER TABLE unix_group
-	ADD CONSTRAINT fk_unxgrp_uclsid
-	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
-
--- FOREIGN KEYS TO
--- consider FK account_collection and val_account_collection_type
-ALTER TABLE account_collection
-	ADD CONSTRAINT fk_acctcol_usrcoltyp
-	FOREIGN KEY (account_collection_type) REFERENCES val_account_collection_type(account_collection_type);
--- consider FK account_collection and val_account_collection_relatio
-ALTER TABLE account_collection
-	ADD CONSTRAINT fk_actcoll_acctcoll_relation
+-- consider FK account_collection_account and account
+ALTER TABLE account_collection_account
+	ADD CONSTRAINT fk_acol_account_id
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK account_collection_account and val_account_collection_relatio
+ALTER TABLE account_collection_account
+	ADD CONSTRAINT r_801
 	FOREIGN KEY (account_collection_relation) REFERENCES val_account_collection_relatio(account_collection_relation);
 
 -- TRIGGERS
--- consider NEW jazzhands.account_collection_realm
-CREATE OR REPLACE FUNCTION jazzhands.account_collection_realm()
+-- consider NEW jazzhands.account_collection_account_realm
+CREATE OR REPLACE FUNCTION jazzhands.account_collection_account_realm()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO jazzhands
 AS $function$
 DECLARE
-	_at		val_account_collection_type%ROWTYPE;
-	_tally	integer;
+	_a	account%ROWTYPE;
+	_at	val_account_collection_type%ROWTYPE;
 BEGIN
-	SELECT * INTO _at FROM val_account_collection_type
-	WHERE account_collection_type = NEW.account_collection_type;
+	SELECT *
+	INTO	_at
+	FROM	val_account_collection_type
+		JOIN account_collection USING (account_collection_type)
+	WHERE
+		account_collection_id = NEW.account_collection_id;
 
+	-- no restrictions, so do not care
 	IF _at.account_realm_id IS NULL THEN
 		RETURN NEW;
 	END IF;
 
-	SELECT	count(*)
-	INTO	_tally
-	FROM	account_collection_account
-			JOIN account a USING (account_id)
-	WHERE	account_collection_id = NEW.account_collection_id
-	AND		a.account_realm_id != _at.account_realm_id;
-	IF _tally > 0 THEN
-		RAISE EXCEPTION 'Unable to set account_realm restriction because there are accounts assigned that do not match it'
-			USING ERRCODE = 'integrity_constraint_violation';
-	END IF;
+	-- check to see if the account's account realm matches
+	IF TG_OP = 'INSERT' OR OLD.account_id != NEW.account_id THEN
+		SELECT	*
+		INTO	_a
+		FROM	account
+		WHERE	account_id = NEW.account_id;
 
-	SELECT	count(*)
-	INTO	_tally
-	FROM	account_collection_hier h
-			JOIN account_collection pac USING (account_collection_id)
-			JOIN val_account_collection_type pat USING (account_collection_type)
-			JOIN account_collection cac ON
-				h.child_account_collection_id = cac.account_collection_id
-			JOIN val_account_collection_type cat ON
-				cac.account_collection_type = cat.account_collection_type
-	WHERE	(
-				pac.account_collection_id = NEW.account_collection_id
-			OR		cac.account_collection_id = NEW.account_collection_id
-			)
-	AND		pat.account_realm_id IS DISTINCT FROM cat.account_realm_id
-	;
-	IF _tally > 0 THEN
-		RAISE EXCEPTION 'Unable to set account_realm restriction because there are account collections in the hierarchy that do not match'
-			USING ERRCODE = 'integrity_constraint_violation';
-	END IF;
-	RETURN NEW;
-END;
-$function$
-;
-CREATE TRIGGER trig_account_collection_realm AFTER UPDATE OF account_collection_type ON account_collection FOR EACH ROW EXECUTE PROCEDURE account_collection_realm();
-
--- XXX - may need to include trigger function
--- consider NEW jazzhands.validate_account_collection_type_change
-CREATE OR REPLACE FUNCTION jazzhands.validate_account_collection_type_change()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO jazzhands
-AS $function$
-DECLARE
-	_tally	integer;
-BEGIN
-	IF OLD.account_collection_type != NEW.account_collection_type THEN
-		SELECT	COUNT(*)
-		INTO	_tally
-		FROM	property p
-			join val_property vp USING (property_name,property_type)
-		WHERE	vp.account_collection_type = OLD.account_collection_type
-		AND	p.account_collection_id = NEW.account_collection_id;
-
-		IF _tally > 0 THEN
-			RAISE EXCEPTION 'account_collection % of type % is used by % restricted properties.',
-				NEW.account_collection_id, NEW.account_collection_type, _tally
-				USING ERRCODE = 'foreign_key_violation';
+		IF _a.account_realm_id != _at.account_realm_id THEN
+			RAISE EXCEPTION 'account realm of % does not match account realm restriction on account_collection %',
+				NEW.account_id, NEW.account_collection_id
+				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
 	END IF;
 	RETURN NEW;
 END;
 $function$
 ;
-CREATE TRIGGER trigger_validate_account_collection_type_change BEFORE UPDATE OF account_collection_type ON account_collection FOR EACH ROW EXECUTE PROCEDURE validate_account_collection_type_change();
+CREATE TRIGGER trig_account_collection_account_realm AFTER INSERT OR UPDATE ON account_collection_account FOR EACH ROW EXECUTE PROCEDURE account_collection_account_realm();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.account_collection_member_enforce
+CREATE OR REPLACE FUNCTION jazzhands.account_collection_member_enforce()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	act	val_account_collection_type%ROWTYPE;
+	tally integer;
+BEGIN
+	SELECT *
+	INTO	act
+	FROM	val_account_collection_type
+	WHERE	account_collection_type =
+		(select account_collection_type from account_collection
+			where account_collection_id = NEW.account_collection_id);
+
+	IF act.MAX_NUM_MEMBERS IS NOT NULL THEN
+		select count(*)
+		  into tally
+		  from account_collection_account
+		  where account_collection_id = NEW.account_collection_id;
+		IF tally > act.MAX_NUM_MEMBERS THEN
+			RAISE EXCEPTION 'Too many members'
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	IF act.MAX_NUM_COLLECTIONS IS NOT NULL THEN
+		select count(*)
+		  into tally
+		  from account_collection_account
+		  		inner join account_collection using (account_collection_id)
+		  where account_id = NEW.account_id
+		  and	account_collection_type = act.account_collection_type;
+		IF tally > act.MAX_NUM_COLLECTIONS THEN
+			RAISE EXCEPTION 'Account may not be a member of more than % collections of type %',
+				act.MAX_NUM_COLLECTIONS, act.account_collection_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER trigger_account_collection_member_enforce AFTER INSERT OR UPDATE ON account_collection_account DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE account_collection_member_enforce();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.pgnotify_account_collection_account_token_changes
+CREATE OR REPLACE FUNCTION jazzhands.pgnotify_account_collection_account_token_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
+		PERFORM	*
+		FROM	property_collection
+				JOIN property_collection_property pcp
+					USING (property_collection_id)
+				JOIN property p
+					USING (property_name, property_type)
+		WHERE	p.account_collection_id = OLD.account_collection_id
+		AND		property_collection_type = 'jazzhands-internal'
+		AND		property_collection_name = 'notify-account_collection_account'
+		;
+
+		IF FOUND THEN
+			PERFORM pg_notify('account_change', concat('account_id=', OLD.account_id));
+		END IF;
+	END IF;
+	IF TG_OP = 'UPDATE' OR TG_OP = 'INSERT' THEN
+		PERFORM	*
+		FROM	property_collection
+				JOIN property_collection_property pcp
+					USING (property_collection_id)
+				JOIN property p
+					USING (property_name, property_type)
+		WHERE	p.account_collection_id = NEW.account_collection_id
+		AND		property_collection_type = 'jazzhands-internal'
+		AND		property_collection_name = 'notify-account_collection_account'
+		;
+
+		IF FOUND THEN
+			PERFORM pg_notify('account_change', concat('account_id=', NEW.account_id));
+		END IF;
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trigger_pgnotify_account_collection_account_token_changes AFTER INSERT OR DELETE OR UPDATE ON account_collection_account FOR EACH ROW EXECUTE PROCEDURE pgnotify_account_collection_account_token_changes();
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
 SELECT schema_support.replay_object_recreates();
-SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'account_collection');
-SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'account_collection');
-SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'account_collection');
-ALTER SEQUENCE account_collection_account_collection_id_seq
-	 OWNED BY account_collection.account_collection_id;
-DROP TABLE IF EXISTS account_collection_v75;
-DROP TABLE IF EXISTS audit.account_collection_v75;
--- DONE DEALING WITH TABLE account_collection
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'account_collection_account');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'account_collection_account');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'account_collection_account');
+DROP TABLE IF EXISTS account_collection_account_v75;
+DROP TABLE IF EXISTS audit.account_collection_account_v75;
+-- DONE DEALING WITH TABLE account_collection_account
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE department
@@ -4736,7 +4729,6 @@ DROP INDEX IF EXISTS "audit"."aud_department_pk_deptid";
 DROP INDEX IF EXISTS "audit"."department_aud#timestamp_idx";
 -- CHECK CONSTRAINTS, etc
 -- TRIGGERS, etc
-SELECT schema_support.save_dependent_objects_for_replay('audit', 'department');
 ---- DONE audit.department TEARDOWN
 
 
@@ -5131,7 +5123,31 @@ delete from __recreate where type = 'view' and object = 'v_dns';
 -- DONE DEALING WITH TABLE v_dns
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_account_collection_account
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_account', 'v_account_collection_account');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_collection_account');
+DROP VIEW IF EXISTS jazzhands.v_account_collection_account;
+CREATE VIEW jazzhands.v_account_collection_account AS
+ SELECT account_collection_account.account_collection_id,
+    account_collection_account.account_id,
+    account_collection_account.account_collection_relation,
+    account_collection_account.account_id_rank,
+    account_collection_account.start_date,
+    account_collection_account.finish_date,
+    account_collection_account.data_ins_user,
+    account_collection_account.data_ins_date,
+    account_collection_account.data_upd_user,
+    account_collection_account.data_upd_date
+   FROM account_collection_account
+  WHERE account_collection_account.start_date IS NULL AND account_collection_account.finish_date IS NULL OR account_collection_account.start_date IS NULL AND now() <= account_collection_account.finish_date OR account_collection_account.start_date <= now() AND account_collection_account.finish_date IS NULL OR account_collection_account.start_date <= now() AND now() <= account_collection_account.finish_date;
+
+delete from __recreate where type = 'view' and object = 'v_account_collection_account';
+-- DONE DEALING WITH TABLE v_account_collection_account
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_network_interface_trans
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_network_interface_trans');
 DROP VIEW IF EXISTS jazzhands.v_network_interface_trans;
 CREATE VIEW jazzhands.v_network_interface_trans AS
  SELECT network_interface.network_interface_id,
@@ -5184,6 +5200,7 @@ UNION
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_dns_sorted
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_sorted');
 DROP VIEW IF EXISTS jazzhands.v_dns_sorted;
 CREATE VIEW jazzhands.v_dns_sorted AS
  SELECT dns.dns_record_id,
@@ -5252,6 +5269,7 @@ CREATE VIEW jazzhands.v_dns_sorted AS
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_device_collection_hier_trans
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_collection_hier_trans');
 DROP VIEW IF EXISTS jazzhands.v_device_collection_hier_trans;
 CREATE VIEW jazzhands.v_device_collection_hier_trans AS
  SELECT device_collection_hier.parent_device_collection_id,
@@ -5266,6 +5284,7 @@ CREATE VIEW jazzhands.v_device_collection_hier_trans AS
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_dev_col_root
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dev_col_root');
 DROP VIEW IF EXISTS jazzhands.v_dev_col_root;
 CREATE VIEW jazzhands.v_dev_col_root AS
  WITH x AS (
@@ -5301,6 +5320,7 @@ CREATE VIEW jazzhands.v_dev_col_root AS
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_dev_col_device_root
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dev_col_device_root');
 DROP VIEW IF EXISTS jazzhands.v_dev_col_device_root;
 CREATE VIEW jazzhands.v_dev_col_device_root AS
  WITH x AS (
@@ -5355,6 +5375,59 @@ SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_account_collection_account_audit_map
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_account_audit_map', 'v_account_collection_account_audit_map');
+SELECT schema_support.save_dependent_objects_for_replay('approval_utils', 'v_account_collection_account_audit_map');
+DROP VIEW IF EXISTS approval_utils.v_account_collection_account_audit_map;
+CREATE VIEW approval_utils.v_account_collection_account_audit_map AS
+ WITH all_audrecs AS (
+         SELECT acaa.account_collection_id,
+            acaa.account_id,
+            acaa.account_collection_relation,
+            acaa.account_id_rank,
+            acaa.start_date,
+            acaa.finish_date,
+            acaa.data_ins_user,
+            acaa.data_ins_date,
+            acaa.data_upd_user,
+            acaa.data_upd_date,
+            acaa."aud#action",
+            acaa."aud#timestamp",
+            acaa."aud#realtime",
+            acaa."aud#txid",
+            acaa."aud#user",
+            acaa."aud#seq",
+            row_number() OVER (PARTITION BY aca.account_collection_id, aca.account_id ORDER BY acaa."aud#timestamp" DESC) AS rownum
+           FROM account_collection_account aca
+             JOIN audit.account_collection_account acaa USING (account_collection_id, account_id)
+          WHERE acaa."aud#action" = ANY (ARRAY['UPD'::bpchar, 'INS'::bpchar])
+        )
+ SELECT all_audrecs."aud#seq" AS audit_seq_id,
+    all_audrecs.account_collection_id,
+    all_audrecs.account_id,
+    all_audrecs.account_collection_relation,
+    all_audrecs.account_id_rank,
+    all_audrecs.start_date,
+    all_audrecs.finish_date,
+    all_audrecs.data_ins_user,
+    all_audrecs.data_ins_date,
+    all_audrecs.data_upd_user,
+    all_audrecs.data_upd_date,
+    all_audrecs."aud#action",
+    all_audrecs."aud#timestamp",
+    all_audrecs."aud#realtime",
+    all_audrecs."aud#txid",
+    all_audrecs."aud#user",
+    all_audrecs."aud#seq",
+    all_audrecs.rownum
+   FROM all_audrecs
+  WHERE all_audrecs.rownum = 1;
+
+delete from __recreate where type = 'view' and object = 'v_account_collection_account_audit_map';
+-- DONE DEALING WITH TABLE v_account_collection_account_audit_map
+--------------------------------------------------------------------
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
@@ -8221,6 +8294,9 @@ ALTER TABLE dns_record
 	FOREIGN KEY (reference_dns_record_id, dns_domain_id) REFERENCES dns_record(dns_record_id, dns_domain_id);
 
 -- index
+DROP INDEX "jazzhands"."idx_acctcol_acctcoltype";
+DROP INDEX IF EXISTS "jazzhands"."xif_acctcol_acctcoltype";
+CREATE INDEX xif_acctcol_acctcoltype ON account_collection USING btree (account_collection_type);
 DROP INDEX "jazzhands"."idx_dnsrec_refdnsrec";
 DROP INDEX IF EXISTS "jazzhands"."xif8dns_record";
 CREATE INDEX xif8dns_record ON dns_record USING btree (reference_dns_record_id, dns_domain_id);
