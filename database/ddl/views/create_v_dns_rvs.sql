@@ -34,32 +34,31 @@ SELECT 	NULL::integer	as dns_record_id,
 			AS dns_value,
 		NULL::integer as dns_priority,
 		combo.ip,
+		combo.netblock_id,
 		NULL::integer as rdns_record_id,
-		NULL::text as rdns_dns_name,
 		NULL::text as dns_srv_service,
 		NULL::text as dns_srv_protocol,
 		NULL::integer as dns_srv_weight,
 		NULL::integer as dns_srv_srv_port,
 		combo.is_enabled,
-		NULL::text as val_dns_name,
-		NULL::text as val_domain,
-		NULL::text as val_value,
-		NULL::inet as val_ip
-from (
-	select  host(nb.ip_address)::inet as ip,
+		NULL::integer AS dns_value_record_id
+FROM (
+	SELECT  host(nb.ip_address)::inet as ip,
 		NULL::integer as network_range_id,
-	    dns.dns_name,
+	    coalesce(rdns.dns_name,dns.dns_name) as dns_name,
 	    dom.soa_name,
 	    dns.dns_ttl,
 	    network(nb.ip_address) as ip_base,
 	    dns.is_enabled,
 	    nb.netblock_id as netblock_id
-	  from  netblock nb
+	  FROM  netblock nb
 		inner join dns_record dns
 		    on nb.netblock_id = dns.netblock_id
 		inner join dns_domain dom
-		    on dns.dns_domain_id =
+			on dns.dns_domain_id =
 			dom.dns_domain_id
+		left join dns_record rdns
+			on rdns.dns_record_id = dns.reference_dns_record_id
 	 where
 		dns.should_generate_ptr = 'Y'
 	   and  dns.dns_class = 'IN'
