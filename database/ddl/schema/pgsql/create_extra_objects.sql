@@ -38,3 +38,9 @@ CREATE INDEX idx_dns_record_lower_dns_name ON dns_record USING btree
 drop trigger IF EXISTS trig_userlog_token_sequence on token_sequence;
 drop trigger IF EXISTS trigger_audit_token_sequence on token_sequence;
 
+
+-- indices on materialized view
+CREATE UNIQUE INDEX ON mv_dev_col_root (leaf_id);
+CREATE INDEX ON mv_dev_col_root (leaf_type);
+CREATE INDEX ON mv_dev_col_root (root_id);
+CREATE INDEX ON mv_dev_col_root (root_type);
