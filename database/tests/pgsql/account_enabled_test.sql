@@ -20,6 +20,10 @@
 
 \t on
 
+SAVEPOINT account_enabled_test;
+SET jazzhands.permit_company_insert = 'permit';
+
+
 -- 
 -- Trigger tests
 --
@@ -204,5 +208,8 @@ $$ LANGUAGE plpgsql;
 SELECT account_is_enabled_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION account_is_enabled_regression();
+
+SET jazzhands.permit_company_insert TO default;
+ROLLBACK TO account_enabled_test;
 
 \t off

@@ -18,6 +18,10 @@
 
 \set ON_ERROR_STOP
 
+SAVEPOINT company_coll_hier_regression;
+SET jazzhands.permit_company_insert = 'permit';
+
+
 \t on
 -- 
 -- Trigger tests
@@ -178,5 +182,8 @@ $$ LANGUAGE plpgsql;
 SELECT company_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION company_coll_hier_regression();
+
+SET jazzhands.permit_company_insert TO default;
+ROLLBACK TO company_coll_hier_regression;
 
 \t off
