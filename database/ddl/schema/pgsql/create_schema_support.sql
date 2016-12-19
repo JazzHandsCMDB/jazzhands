@@ -1879,28 +1879,30 @@ BEGIN
 
 	IF rk = 'v' OR rk = 'm' THEN
 		FOR obj,objaud IN WITH RECURSIVE recur AS (
-				SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
-				FROM pg_depend d
-        			JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-					JOIN pg_class c on rewrite.ev_class = c.oid
-					JOIN pg_namespace n on n.oid = c.relnamespace
-				WHERE c.relname = relation
-				AND n.nspname = relation_last_changed.schema
-				AND d.refobjsubid > 0
-			UNION ALL
-				SELECT recur.root_oid, d.refobjid as oid
-				FROM pg_depend d
-        			JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-				JOIN recur ON recur.oid = rewrite.ev_class
-				AND d.refobjsubid > 0
-			), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
-				FROM pg_class c
-					JOIN recur on recur.oid = c.oid
-					JOIN pg_namespace n on c.relnamespace = n.oid
-					JOIN schema_support.schema_audit_map m
-						ON m.schema = n.nspname
-				WHERE relkind = 'r'
-			) SELECT relname, audit_schema from list
+                SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                    JOIN pg_namespace n on n.oid = c.relnamespace
+                WHERE c.relname = relation
+                AND n.nspname = relation_last_changed.schema
+                AND d.refobjsubid > 0
+            UNION ALL
+                SELECT recur.root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                JOIN recur ON recur.oid = rewrite.ev_class
+                AND d.refobjsubid > 0
+		AND c.relkind != 'm'
+            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
+                FROM pg_class c
+                    JOIN recur on recur.oid = c.oid
+                    JOIN pg_namespace n on c.relnamespace = n.oid
+                    JOIN schema_support.schema_audit_map m
+                        ON m.schema = n.nspname
+                WHERE relkind = 'r'
+		) SELECT relname, audit_schema from list
 		LOOP
 			-- if there is no audit table, assume its kept current.  This is
 			-- likely some sort of cache table.  XXX - should probably be
