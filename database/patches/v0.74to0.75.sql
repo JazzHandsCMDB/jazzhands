@@ -89,6 +89,110 @@ $function$
 ;
 
 -- Changed function
+SELECT schema_support.save_grants_for_replay('schema_support', 'relation_last_changed');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.relation_last_changed ( relation text, schema text, debug boolean );
+CREATE OR REPLACE FUNCTION schema_support.relation_last_changed(relation text, schema text DEFAULT 'jazzhands'::text, debug boolean DEFAULT false)
+ RETURNS timestamp without time zone
+ LANGUAGE plpgsql
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	audsch	text;
+	rk	char;
+	rv	timestamp;
+	ts	timestamp;
+	obj	text;
+	objaud text;
+BEGIN
+	SELECT	audit_schema
+	INTO	audsch
+	FROM	schema_support.schema_audit_map m
+	WHERE	m.schema = relation_last_changed.schema;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Schema % not configured for this', schema;
+	END IF;
+
+	SELECT 	relkind
+	INTO	rk
+	FROM	pg_catalog.pg_class c
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE	n.nspname = relation_last_changed.schema
+	AND	c.relname = relation_last_changed.relation;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'No such object %.%', schema, relation;
+	END IF;
+
+	IF rk = 'r' THEN
+		EXECUTE '
+			SELECT	max("aud#timestamp")
+			FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+		INTO rv;
+
+		IF rv IS NULL THEN
+			RETURN '-infinity'::interval;
+		ELSE
+			RETURN rv;
+		END IF;
+	END IF;
+
+	IF rk = 'v' OR rk = 'm' THEN
+		FOR obj,objaud IN WITH RECURSIVE recur AS (
+                SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                    JOIN pg_namespace n on n.oid = c.relnamespace
+                WHERE c.relname = relation
+                AND n.nspname = relation_last_changed.schema
+                AND d.refobjsubid > 0
+            UNION ALL
+                SELECT recur.root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                JOIN recur ON recur.oid = rewrite.ev_class
+                AND d.refobjsubid > 0
+		AND c.relkind != 'm'
+            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
+                FROM pg_class c
+                    JOIN recur on recur.oid = c.oid
+                    JOIN pg_namespace n on c.relnamespace = n.oid
+                    JOIN schema_support.schema_audit_map m
+                        ON m.schema = n.nspname
+                WHERE relkind = 'r'
+		) SELECT relname, audit_schema from list
+		LOOP
+			-- if there is no audit table, assume its kept current.  This is
+			-- likely some sort of cache table.  XXX - should probably be
+			-- updated to use the materialized view update bits
+			BEGIN
+				EXECUTE 'SELECT max("aud#timestamp")
+					FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+					INTO ts;
+				IF debug THEN
+					RAISE NOTICE '%.% -> %', objaud, obj, ts;
+				END IF;
+				IF rv IS NULL OR ts > rv THEN
+					rv := ts;
+				END IF;
+			EXCEPTION WHEN undefined_table THEN
+				IF debug THEN
+					RAISE NOTICE 'skipping %.%', schema, obj;
+				END IF;
+			END;
+		END LOOP;
+		RETURN rv;
+	END IF;
+
+	RAISE EXCEPTION 'Unable to process relkind %', rk;
+END;
+$function$
+;
+
+-- Changed function
 SELECT schema_support.save_grants_for_replay('schema_support', 'replay_object_recreates');
 -- Dropped in case type changes.
 DROP FUNCTION IF EXISTS schema_support.replay_object_recreates ( beverbose boolean );
@@ -485,6 +589,110 @@ BEGIN
 		PERFORM schema_support.rebuild_audit_trigger
 			( aud_schema, tbl_schema, table_name );
 	END IF;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('schema_support', 'relation_last_changed');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.relation_last_changed ( relation text, schema text, debug boolean );
+CREATE OR REPLACE FUNCTION schema_support.relation_last_changed(relation text, schema text DEFAULT 'jazzhands'::text, debug boolean DEFAULT false)
+ RETURNS timestamp without time zone
+ LANGUAGE plpgsql
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	audsch	text;
+	rk	char;
+	rv	timestamp;
+	ts	timestamp;
+	obj	text;
+	objaud text;
+BEGIN
+	SELECT	audit_schema
+	INTO	audsch
+	FROM	schema_support.schema_audit_map m
+	WHERE	m.schema = relation_last_changed.schema;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Schema % not configured for this', schema;
+	END IF;
+
+	SELECT 	relkind
+	INTO	rk
+	FROM	pg_catalog.pg_class c
+		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+	WHERE	n.nspname = relation_last_changed.schema
+	AND	c.relname = relation_last_changed.relation;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'No such object %.%', schema, relation;
+	END IF;
+
+	IF rk = 'r' THEN
+		EXECUTE '
+			SELECT	max("aud#timestamp")
+			FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+		INTO rv;
+
+		IF rv IS NULL THEN
+			RETURN '-infinity'::interval;
+		ELSE
+			RETURN rv;
+		END IF;
+	END IF;
+
+	IF rk = 'v' OR rk = 'm' THEN
+		FOR obj,objaud IN WITH RECURSIVE recur AS (
+                SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                    JOIN pg_namespace n on n.oid = c.relnamespace
+                WHERE c.relname = relation
+                AND n.nspname = relation_last_changed.schema
+                AND d.refobjsubid > 0
+            UNION ALL
+                SELECT recur.root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                JOIN recur ON recur.oid = rewrite.ev_class
+                AND d.refobjsubid > 0
+		AND c.relkind != 'm'
+            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
+                FROM pg_class c
+                    JOIN recur on recur.oid = c.oid
+                    JOIN pg_namespace n on c.relnamespace = n.oid
+                    JOIN schema_support.schema_audit_map m
+                        ON m.schema = n.nspname
+                WHERE relkind = 'r'
+		) SELECT relname, audit_schema from list
+		LOOP
+			-- if there is no audit table, assume its kept current.  This is
+			-- likely some sort of cache table.  XXX - should probably be
+			-- updated to use the materialized view update bits
+			BEGIN
+				EXECUTE 'SELECT max("aud#timestamp")
+					FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+					INTO ts;
+				IF debug THEN
+					RAISE NOTICE '%.% -> %', objaud, obj, ts;
+				END IF;
+				IF rv IS NULL OR ts > rv THEN
+					rv := ts;
+				END IF;
+			EXCEPTION WHEN undefined_table THEN
+				IF debug THEN
+					RAISE NOTICE 'skipping %.%', schema, obj;
+				END IF;
+			END;
+		END LOOP;
+		RETURN rv;
+	END IF;
+
+	RAISE EXCEPTION 'Unable to process relkind %', rk;
 END;
 $function$
 ;
@@ -3184,6 +3392,355 @@ DROP TABLE IF EXISTS audit.department_v75;
 -- DONE DEALING WITH TABLE department
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_unix_passwd_mappings
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_unix_passwd_mappings', 'v_unix_passwd_mappings');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_unix_passwd_mappings');
+DROP VIEW IF EXISTS jazzhands.v_unix_passwd_mappings;
+CREATE VIEW jazzhands.v_unix_passwd_mappings AS
+ WITH passtype AS (
+         SELECT ap.account_id,
+            ap.password,
+            ap.expire_time,
+            ap.change_time,
+            subq.device_collection_id,
+            subq.password_type,
+            subq.ord
+           FROM ( SELECT dchd.device_collection_id,
+                    p.property_value_password_type AS password_type,
+                    row_number() OVER (PARTITION BY dchd.device_collection_id) AS ord
+                   FROM v_property p
+                     JOIN v_device_coll_hier_detail dchd ON dchd.parent_device_collection_id = p.device_collection_id
+                  WHERE p.property_name::text = 'UnixPwType'::text AND p.property_type::text = 'MclassUnixProp'::text) subq
+             JOIN account_password ap USING (password_type)
+             JOIN account_unix_info a USING (account_id)
+          WHERE subq.ord = 1
+        )
+ SELECT s.device_collection_id,
+    s.account_id,
+    s.login,
+    s.crypt,
+    s.unix_uid,
+    s.unix_group_name,
+    regexp_replace(s.gecos, ' +'::text, ' '::text, 'g'::text) AS gecos,
+    regexp_replace(
+        CASE
+            WHEN s.forcehome IS NOT NULL AND s.forcehome::text ~ '/$'::text THEN concat(s.forcehome, s.login)
+            WHEN s.home IS NOT NULL AND s.home::text ~ '^/'::text THEN s.home::text
+            WHEN s.hometype::text = 'generic'::text THEN concat(COALESCE(s.homeplace, '/home'::character varying), '/', 'generic')
+            WHEN s.home IS NOT NULL AND s.home::text ~ '/$'::text THEN concat(s.home, '/', s.login)
+            WHEN s.homeplace IS NOT NULL AND s.homeplace::text ~ '/$'::text THEN concat(s.homeplace, '/', s.login)
+            ELSE concat(COALESCE(s.homeplace, '/home'::character varying), '/', s.login)
+        END, '/+'::text, '/'::text, 'g'::text) AS home,
+    s.shell,
+    s.ssh_public_key,
+    s.setting,
+    s.mclass_setting,
+    s.group_names AS extra_groups
+   FROM ( SELECT o.device_collection_id,
+            a.account_id,
+            a.login,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceCrypt'::text)]::text,
+                CASE
+                    WHEN pwt.expire_time IS NOT NULL AND now() < pwt.expire_time OR (now() - pwt.change_time) < concat(COALESCE((( SELECT v_property.property_value
+                       FROM v_property
+                      WHERE v_property.property_type::text = 'Defaults'::text AND v_property.property_name::text = '_maxpasswdlife'::text))::text, 90::text), 'days')::interval THEN pwt.password
+                    ELSE NULL::character varying
+                END::text, '*'::text) AS crypt,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceUserUID'::text)]::integer, a.unix_uid) AS unix_uid,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceUserGroup'::text)]::character varying(255), ugac.account_collection_name) AS unix_group_name,
+                CASE
+                    WHEN a.description IS NOT NULL THEN a.description::text
+                    ELSE concat(COALESCE(p.preferred_first_name, p.first_name), ' ',
+                    CASE
+                        WHEN p.middle_name IS NOT NULL AND length(p.middle_name::text) = 1 THEN concat(p.middle_name, '.')::character varying
+                        ELSE p.middle_name
+                    END, ' ', COALESCE(p.preferred_last_name, p.last_name))
+                END AS gecos,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceHome'::text)], a.default_home) AS home,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceShell'::text)], a.shell) AS shell,
+            o.setting,
+            mcs.mclass_setting,
+            o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceHome'::text)] AS forcehome,
+            mcs.mclass_setting[( SELECT i.i + 1
+                   FROM generate_subscripts(mcs.mclass_setting, 1) i(i)
+                  WHERE mcs.mclass_setting[i.i]::text = 'HomePlace'::text)] AS homeplace,
+            mcs.mclass_setting[( SELECT i.i + 1
+                   FROM generate_subscripts(mcs.mclass_setting, 1) i(i)
+                  WHERE mcs.mclass_setting[i.i]::text = 'UnixHomeType'::text)] AS hometype,
+            ssh.ssh_public_key,
+            extra_groups.group_names
+           FROM ( SELECT a_1.account_id,
+                    a_1.login,
+                    a_1.person_id,
+                    a_1.company_id,
+                    a_1.is_enabled,
+                    a_1.account_realm_id,
+                    a_1.account_status,
+                    a_1.account_role,
+                    a_1.account_type,
+                    a_1.description,
+                    a_1.data_ins_user,
+                    a_1.data_ins_date,
+                    a_1.data_upd_user,
+                    a_1.data_upd_date,
+                    aui.unix_uid,
+                    aui.unix_group_acct_collection_id,
+                    aui.shell,
+                    aui.default_home
+                   FROM account a_1
+                     JOIN account_unix_info aui USING (account_id)
+                  WHERE a_1.is_enabled = 'Y'::bpchar) a
+             JOIN v_device_col_account_cart o USING (account_id)
+             JOIN device_collection dc USING (device_collection_id)
+             JOIN person p USING (person_id)
+             JOIN unix_group ug ON a.unix_group_acct_collection_id = ug.account_collection_id
+             JOIN account_collection ugac ON ugac.account_collection_id = ug.account_collection_id
+             LEFT JOIN ( SELECT p_1.device_collection_id,
+                    acae.account_id,
+                    array_agg(ac.account_collection_name) AS group_names
+                   FROM v_property p_1
+                     JOIN device_collection dc_1 USING (device_collection_id)
+                     JOIN account_collection ac USING (account_collection_id)
+                     JOIN account_collection pac ON pac.account_collection_id = p_1.property_value_account_coll_id
+                     JOIN v_acct_coll_acct_expanded acae ON pac.account_collection_id = acae.account_collection_id
+                  WHERE p_1.property_type::text = 'MclassUnixProp'::text AND p_1.property_name::text = 'UnixGroupMemberOverride'::text AND dc_1.device_collection_type::text <> 'mclass'::text
+                  GROUP BY p_1.device_collection_id, acae.account_id) extra_groups USING (device_collection_id, account_id)
+             LEFT JOIN v_device_collection_account_ssh_key ssh ON a.account_id = ssh.account_id AND (ssh.device_collection_id IS NULL OR ssh.device_collection_id = o.device_collection_id)
+             LEFT JOIN v_unix_mclass_settings mcs ON mcs.device_collection_id = dc.device_collection_id
+             LEFT JOIN passtype pwt ON o.device_collection_id = pwt.device_collection_id AND a.account_id = pwt.account_id) s
+  ORDER BY s.device_collection_id, s.account_id;
+
+delete from __recreate where type = 'view' and object = 'v_unix_passwd_mappings';
+-- DONE DEALING WITH TABLE v_unix_passwd_mappings
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_unix_group_mappings
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_unix_group_mappings', 'v_unix_group_mappings');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_unix_group_mappings');
+DROP VIEW IF EXISTS jazzhands.v_unix_group_mappings;
+CREATE VIEW jazzhands.v_unix_group_mappings AS
+ SELECT dc.device_collection_id,
+    ac.account_collection_id,
+    ac.account_collection_name AS group_name,
+    COALESCE(o.setting[( SELECT i.i + 1
+           FROM generate_subscripts(o.setting, 1) i(i)
+          WHERE o.setting[i.i]::text = 'ForceGroupGID'::text)]::integer, unix_group.unix_gid) AS unix_gid,
+    unix_group.group_password,
+    o.setting,
+    mcs.mclass_setting,
+    array_agg(DISTINCT a.login ORDER BY a.login) AS members
+   FROM device_collection dc
+     JOIN ( SELECT dch.device_collection_id,
+            vace.account_collection_id
+           FROM v_property p
+             JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
+             JOIN v_account_collection_expanded vace ON vace.root_account_collection_id = p.account_collection_id
+          WHERE p.property_name::text = 'UnixGroup'::text AND p.property_type::text = 'MclassUnixProp'::text
+        UNION
+         SELECT dch.device_collection_id,
+            uag.account_collection_id
+           FROM v_property p
+             JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
+             JOIN v_acct_coll_acct_expanded vace USING (account_collection_id)
+             JOIN ( SELECT a_2.account_id,
+                    a_2.login,
+                    a_2.person_id,
+                    a_2.company_id,
+                    a_2.is_enabled,
+                    a_2.account_realm_id,
+                    a_2.account_status,
+                    a_2.account_role,
+                    a_2.account_type,
+                    a_2.description,
+                    a_2.data_ins_user,
+                    a_2.data_ins_date,
+                    a_2.data_upd_user,
+                    a_2.data_upd_date
+                   FROM account a_2
+                     JOIN account_unix_info USING (account_id)
+                  WHERE a_2.is_enabled = 'Y'::bpchar) a_1 ON vace.account_id = a_1.account_id
+             JOIN account_unix_info aui ON a_1.account_id = aui.account_id
+             JOIN unix_group ug ON ug.account_collection_id = aui.unix_group_acct_collection_id
+             JOIN account_collection uag ON ug.account_collection_id = uag.account_collection_id
+          WHERE p.property_name::text = 'UnixLogin'::text AND p.property_type::text = 'MclassUnixProp'::text) ugmap USING (device_collection_id)
+     JOIN account_collection ac USING (account_collection_id)
+     JOIN unix_group USING (account_collection_id)
+     LEFT JOIN v_device_col_account_col_cart o USING (device_collection_id, account_collection_id)
+     LEFT JOIN ( SELECT g.account_id,
+            g.device_collection_id,
+            g.account_collection_id,
+            g.unix_uid,
+            g.unix_group_acct_collection_id,
+            g.shell,
+            g.default_home,
+            g.data_ins_user,
+            g.data_ins_date,
+            g.data_upd_user,
+            g.data_upd_date,
+            g.login,
+            g.person_id,
+            g.company_id,
+            g.is_enabled,
+            g.account_realm_id,
+            g.account_status,
+            g.account_role,
+            g.account_type,
+            g.description,
+            g.data_ins_user_1 AS data_ins_user,
+            g.data_ins_date_1 AS data_ins_date,
+            g.data_upd_user_1 AS data_upd_user,
+            g.data_upd_date_1 AS data_upd_date
+           FROM ( SELECT actoa.account_id,
+                    actoa.device_collection_id,
+                    actoa.account_collection_id,
+                    ui.unix_uid,
+                    ui.unix_group_acct_collection_id,
+                    ui.shell,
+                    ui.default_home,
+                    ui.data_ins_user,
+                    ui.data_ins_date,
+                    ui.data_upd_user,
+                    ui.data_upd_date,
+                    a_1.login,
+                    a_1.person_id,
+                    a_1.company_id,
+                    a_1.is_enabled,
+                    a_1.account_realm_id,
+                    a_1.account_status,
+                    a_1.account_role,
+                    a_1.account_type,
+                    a_1.description,
+                    a_1.data_ins_user,
+                    a_1.data_ins_date,
+                    a_1.data_upd_user,
+                    a_1.data_upd_date
+                   FROM ( SELECT dc_1.device_collection_id,
+                            ae.account_collection_id,
+                            ae.account_id
+                           FROM device_collection dc_1,
+                            v_acct_coll_acct_expanded ae
+                             JOIN unix_group unix_group_1 USING (account_collection_id)
+                             JOIN account_collection inac USING (account_collection_id)
+                          WHERE dc_1.device_collection_type::text = 'mclass'::text
+                        UNION
+                         SELECT dcugm.device_collection_id,
+                            dcugm.account_collection_id,
+                            dcugm.account_id
+                           FROM ( SELECT dch.device_collection_id,
+                                    p.account_collection_id,
+                                    aca.account_id
+                                   FROM v_property p
+                                     JOIN unix_group ug USING (account_collection_id)
+                                     JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
+                                     JOIN v_acct_coll_acct_expanded aca ON p.property_value_account_coll_id = aca.account_collection_id
+                                  WHERE p.property_name::text = 'UnixGroupMemberOverride'::text AND p.property_type::text = 'MclassUnixProp'::text) dcugm) actoa
+                     JOIN account_unix_info ui USING (account_id)
+                     JOIN ( SELECT a_2.account_id,
+                            a_2.login,
+                            a_2.person_id,
+                            a_2.company_id,
+                            a_2.is_enabled,
+                            a_2.account_realm_id,
+                            a_2.account_status,
+                            a_2.account_role,
+                            a_2.account_type,
+                            a_2.description,
+                            a_2.data_ins_user,
+                            a_2.data_ins_date,
+                            a_2.data_upd_user,
+                            a_2.data_upd_date
+                           FROM account a_2
+                             JOIN account_unix_info USING (account_id)
+                          WHERE a_2.is_enabled = 'Y'::bpchar) a_1 USING (account_id)) g(account_id, device_collection_id, account_collection_id, unix_uid, unix_group_acct_collection_id, shell, default_home, data_ins_user, data_ins_date, data_upd_user, data_upd_date, login, person_id, company_id, is_enabled, account_realm_id, account_status, account_role, account_type, description, data_ins_user_1, data_ins_date_1, data_upd_user_1, data_upd_date_1)
+             JOIN ( SELECT a_1.account_id,
+                    a_1.login,
+                    a_1.person_id,
+                    a_1.company_id,
+                    a_1.is_enabled,
+                    a_1.account_realm_id,
+                    a_1.account_status,
+                    a_1.account_role,
+                    a_1.account_type,
+                    a_1.description,
+                    a_1.data_ins_user,
+                    a_1.data_ins_date,
+                    a_1.data_upd_user,
+                    a_1.data_upd_date
+                   FROM account a_1
+                     JOIN account_unix_info USING (account_id)
+                  WHERE a_1.is_enabled = 'Y'::bpchar) accts USING (account_id)
+             JOIN v_unix_passwd_mappings USING (device_collection_id, account_id)) a(account_id, device_collection_id, account_collection_id, unix_uid, unix_group_acct_collection_id, shell, default_home, data_ins_user, data_ins_date, data_upd_user, data_upd_date, login, person_id, company_id, is_enabled, account_realm_id, account_status, account_role, account_type, description, data_ins_user_1, data_ins_date_1, data_upd_user_1, data_upd_date_1) USING (device_collection_id, account_collection_id)
+     LEFT JOIN v_unix_mclass_settings mcs ON mcs.device_collection_id = dc.device_collection_id
+  GROUP BY dc.device_collection_id, ac.account_collection_id, ac.account_collection_name, unix_group.unix_gid, unix_group.group_password, o.setting, mcs.mclass_setting
+  ORDER BY dc.device_collection_id, ac.account_collection_id;
+
+delete from __recreate where type = 'view' and object = 'v_unix_group_mappings';
+-- DONE DEALING WITH TABLE v_unix_group_mappings
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_unix_account_overrides
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_unix_account_overrides', 'v_unix_account_overrides');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_unix_account_overrides');
+DROP VIEW IF EXISTS jazzhands.v_unix_account_overrides;
+CREATE VIEW jazzhands.v_unix_account_overrides AS
+ SELECT property_list.device_collection_id,
+    property_list.account_id,
+    array_agg(property_list.setting ORDER BY property_list.rn) AS setting
+   FROM ( SELECT select_for_ordering.device_collection_id,
+            select_for_ordering.account_id,
+            select_for_ordering.setting,
+            row_number() OVER () AS rn
+           FROM ( SELECT dc_acct_prop_list.device_collection_id,
+                    dc_acct_prop_list.account_id,
+                    unnest(ARRAY[dc_acct_prop_list.property_name, dc_acct_prop_list.property_value]) AS setting
+                   FROM ( SELECT dchd.device_collection_id,
+                            acae.account_id,
+                            p.property_name,
+                            COALESCE(p.property_value, p.property_value_password_type) AS property_value,
+                            row_number() OVER (PARTITION BY dchd.device_collection_id, acae.account_id, acpe.property_name ORDER BY dchd.device_collection_level, acpe.assign_rank, acpe.property_id) AS ord
+                           FROM v_acct_coll_prop_expanded acpe
+                             JOIN v_acct_coll_acct_expanded acae USING (account_collection_id)
+                             JOIN v_property p USING (property_id)
+                             JOIN ( SELECT v_device_coll_hier_detail.device_collection_id,
+                                    v_device_coll_hier_detail.parent_device_collection_id,
+                                    v_device_coll_hier_detail.device_collection_level
+                                   FROM v_device_coll_hier_detail
+                                UNION
+                                 SELECT p_1.host_device_collection_id AS device_collection_id,
+                                    d.parent_device_collection_id,
+                                    d.device_collection_level
+                                   FROM ( SELECT hdc.device_collection_id AS host_device_collection_id,
+    mdc.device_collection_id AS mclass_device_collection_id,
+    hdcd.device_id
+   FROM device_collection hdc
+     JOIN device_collection_device hdcd USING (device_collection_id)
+     JOIN device_collection_device mdcd USING (device_id)
+     JOIN device_collection mdc ON mdcd.device_collection_id = mdc.device_collection_id
+  WHERE hdc.device_collection_type::text = 'per-device'::text AND mdc.device_collection_type::text = 'mclass'::text) p_1
+                                     JOIN v_device_coll_hier_detail d ON d.device_collection_id = p_1.mclass_device_collection_id) dchd ON dchd.parent_device_collection_id = p.device_collection_id
+                          WHERE (p.property_type::text = ANY (ARRAY['UnixPasswdFileValue'::character varying, 'UnixGroupFileProperty'::character varying, 'MclassUnixProp'::character varying]::text[])) AND (p.property_name::text <> ALL (ARRAY['UnixLogin'::character varying, 'UnixGroup'::character varying, 'UnixGroupMemberOverride'::character varying]::text[]))) dc_acct_prop_list
+                  WHERE dc_acct_prop_list.ord = 1) select_for_ordering) property_list
+  GROUP BY property_list.device_collection_id, property_list.account_id;
+
+delete from __recreate where type = 'view' and object = 'v_unix_account_overrides';
+-- DONE DEALING WITH TABLE v_unix_account_overrides
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_dns_rvs
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns_rvs', 'v_dns_rvs');
@@ -3428,6 +3985,88 @@ UNION
 
 delete from __recreate where type = 'view' and object = 'v_dns';
 -- DONE DEALING WITH TABLE v_dns
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_device_col_account_cart
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_device_col_account_cart', 'v_device_col_account_cart');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_col_account_cart');
+DROP VIEW IF EXISTS jazzhands.v_device_col_account_cart;
+CREATE VIEW jazzhands.v_device_col_account_cart AS
+ SELECT xx.device_collection_id,
+    xx.account_id,
+    xx.setting
+   FROM ( SELECT x.device_collection_id,
+            x.account_id,
+            x.setting,
+            row_number() OVER (PARTITION BY x.device_collection_id, x.account_id ORDER BY x.setting) AS rn
+           FROM ( SELECT v_device_col_acct_col_unixlogin.device_collection_id,
+                    v_device_col_acct_col_unixlogin.account_id,
+                    NULL::character varying[] AS setting
+                   FROM v_device_col_acct_col_unixlogin
+                     JOIN account USING (account_id)
+                     JOIN account_unix_info USING (account_id)
+                UNION
+                 SELECT v_unix_account_overrides.device_collection_id,
+                    v_unix_account_overrides.account_id,
+                    v_unix_account_overrides.setting
+                   FROM v_unix_account_overrides
+                     JOIN account USING (account_id)
+                     JOIN account_unix_info USING (account_id)
+                     JOIN v_device_col_acct_col_unixlogin USING (device_collection_id, account_id)) x) xx
+  WHERE xx.rn = 1;
+
+delete from __recreate where type = 'view' and object = 'v_device_col_account_cart';
+-- DONE DEALING WITH TABLE v_device_col_account_cart
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_acct_coll_prop_expanded
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_acct_coll_prop_expanded', 'v_acct_coll_prop_expanded');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_acct_coll_prop_expanded');
+DROP VIEW IF EXISTS jazzhands.v_acct_coll_prop_expanded;
+CREATE VIEW jazzhands.v_acct_coll_prop_expanded AS
+ SELECT v_acct_coll_expanded_detail.root_account_collection_id AS account_collection_id,
+    v_property.property_id,
+    v_property.property_name,
+    v_property.property_type,
+    v_property.property_value,
+    v_property.property_value_timestamp,
+    v_property.property_value_company_id,
+    v_property.property_value_account_coll_id,
+    v_property.property_value_nblk_coll_id,
+    v_property.property_value_password_type,
+    v_property.property_value_person_id,
+    v_property.property_value_sw_package_id,
+    v_property.property_value_token_col_id,
+    v_property.property_rank,
+        CASE val_property.is_multivalue
+            WHEN 'N'::bpchar THEN false
+            WHEN 'Y'::bpchar THEN true
+            ELSE NULL::boolean
+        END AS is_multivalue,
+        CASE ac.account_collection_type
+            WHEN 'per-account'::text THEN 0
+            ELSE
+            CASE v_acct_coll_expanded_detail.assign_method
+                WHEN 'DirectAccountCollectionAssignment'::text THEN 10
+                WHEN 'DirectDepartmentAssignment'::text THEN 200
+                WHEN 'DepartmentAssignedToAccountCollection'::text THEN 300 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'AccountAssignedToChildDepartment'::text THEN 400 + v_acct_coll_expanded_detail.dept_level
+                WHEN 'AccountAssignedToChildAccountCollection'::text THEN 500 + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'DepartmentAssignedToChildAccountCollection'::text THEN 600 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'ChildDepartmentAssignedToAccountCollection'::text THEN 700 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'ChildDepartmentAssignedToChildAccountCollection'::text THEN 800 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                ELSE 999
+            END
+        END AS assign_rank
+   FROM v_acct_coll_expanded_detail
+     JOIN account_collection ac USING (account_collection_id)
+     JOIN v_property USING (account_collection_id)
+     JOIN val_property USING (property_name, property_type);
+
+delete from __recreate where type = 'view' and object = 'v_acct_coll_prop_expanded';
+-- DONE DEALING WITH TABLE v_acct_coll_prop_expanded
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE v_account_collection_account
