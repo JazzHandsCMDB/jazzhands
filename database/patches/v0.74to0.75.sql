@@ -3665,6 +3665,20 @@ CREATE VIEW jazzhands.v_dev_col_device_root AS
 -- DONE DEALING WITH TABLE v_dev_col_device_root
 --------------------------------------------------------------------
 SELECT schema_support.replay_object_recreates();
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE mv_dev_col_root
+DROP MATERIALIZED VIEW IF EXISTS jazzhands.mv_dev_col_root;
+CREATE MATERIALIZED VIEW jazzhands.mv_dev_col_root AS
+ SELECT v_dev_col_root.root_id,
+    v_dev_col_root.root_name,
+    v_dev_col_root.root_type,
+    v_dev_col_root.leaf_id,
+    v_dev_col_root.leaf_name,
+    v_dev_col_root.leaf_type
+   FROM v_dev_col_root;
+
+-- DONE DEALING WITH TABLE mv_dev_col_root
+--------------------------------------------------------------------
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
@@ -5670,6 +5684,87 @@ $function$
 --
 -- Process drops in person_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('person_manip', 'setup_unix_account');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS person_manip.setup_unix_account ( in_account_id integer, in_account_type character varying, in_uid integer );
+CREATE OR REPLACE FUNCTION person_manip.setup_unix_account(in_account_id integer, in_account_type character varying, in_uid integer DEFAULT NULL::integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	acid			account_collection.account_collection_id%TYPE;
+	_login			account.login%TYPE;
+	new_uid			account_unix_info.unix_uid%TYPE	DEFAULT NULL;
+BEGIN
+	SELECT login INTO _login FROM account WHERE account_id = in_account_id;
+
+	SELECT account_collection_id
+	INTO	acid
+	FROM	account_collection
+	WHERE	account_collection_name = _login
+	AND	account_collection_type = 'unix-group';
+
+	IF NOT FOUND THEN
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type)
+		values (
+			_login, 'unix-group'
+		) RETURNING account_collection_id INTO acid;
+	END IF;
+
+	PERFORM	*
+	FROM	account_collection_account
+	WHERE	account_collection_id = acid
+	AND	account_id = in_account_id;
+
+	IF NOT FOUND THEN
+		insert into account_collection_account (
+			account_collection_id, account_id
+		) values (
+			acid, in_account_id
+		);
+	END IF;
+
+	IF in_uid is NOT NULL THEN
+		new_uid := in_uid;
+	ELSE
+		new_uid := person_manip.get_unix_uid(in_account_type);
+	END IF;
+
+	INSERT INTO account_unix_info (
+		account_id,
+		unix_uid,
+		unix_group_acct_collection_id,
+		shell
+	) values (
+		in_account_id,
+		new_uid,
+		acid,
+		'bash'
+	);
+
+	PERFORM	*
+	FROM	unix_group
+	WHERE	account_collection_id = acid
+	AND	unix_gid = new_uid;
+
+	IF NOT FOUND THEN
+		INSERT INTO unix_group (
+			account_collection_id,
+			unix_gid
+		) values (
+			acid,
+			new_uid
+		);
+	END IF;
+	RETURN in_account_id;
+END;
+$function$
+;
+
 --
 -- Process drops in auto_ac_manip
 --
@@ -5688,6 +5783,154 @@ $function$
 --
 -- Process drops in device_utils
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('device_utils', 'retire_device');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS device_utils.retire_device ( in_device_id integer, retire_modules boolean );
+CREATE OR REPLACE FUNCTION device_utils.retire_device(in_device_id integer, retire_modules boolean DEFAULT false)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	tally		INTEGER;
+	_r			RECORD;
+	_d			DEVICE%ROWTYPE;
+	_mgrid		DEVICE.DEVICE_ID%TYPE;
+	_purgedev	boolean;
+BEGIN
+	_purgedev := false;
+
+	BEGIN
+		PERFORM local_hooks.device_retire_early(in_Device_Id, false);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		PERFORM 1;
+	END;
+
+	SELECT * INTO _d FROM device WHERE device_id = in_Device_id;
+	delete from dns_record where netblock_id in (
+		select netblock_id 
+		from network_interface where device_id = in_Device_id
+	);
+
+	delete from network_interface_purpose where device_id = in_Device_id;
+
+	DELETE FROM network_interface_netblock
+	WHERE network_interface_id IN (
+			SELECT network_interface_id
+		 	FROM network_interface
+			WHERE device_id = in_Device_id
+	);
+
+	DELETE FROM network_interface WHERE device_id = in_Device_id;
+
+	PERFORM device_utils.purge_physical_ports( in_Device_id);
+--	PERFORM device_utils.purge_power_ports( in_Device_id);
+
+	delete from property where device_collection_id in (
+		SELECT	dc.device_collection_id 
+		  FROM	device_collection dc
+				INNER JOIN device_collection_device dcd
+		 			USING (device_collection_id)
+		WHERE	dc.device_collection_type = 'per-device'
+		  AND	dcd.device_id = in_Device_id
+	);
+
+	delete from device_collection_device where device_id = in_Device_id
+		AND device_collection_id NOT IN (
+			select device_collection_id
+			FROM device_collection
+			WHERE device_collection_type = 'per-device'
+		);
+	delete from snmp_commstr where device_id = in_Device_id;
+
+		
+	IF _d.rack_location_id IS NOT NULL  THEN
+		UPDATE device SET rack_location_id = NULL 
+		WHERE device_id = in_Device_id;
+
+		-- This should not be permitted based on constraints, but in case
+		-- that constraint had to be disabled...
+		SELECT	count(*)
+		  INTO	tally
+		  FROM	device
+		 WHERE	rack_location_id = _d.RACK_LOCATION_ID;
+
+		IF tally = 0 THEN
+			DELETE FROM rack_location 
+			WHERE rack_location_id = _d.RACK_LOCATION_ID;
+		END IF;
+	END IF;
+
+	IF _d.chassis_location_id IS NOT NULL THEN
+		RAISE EXCEPTION 'Retiring modules is not supported yet.';
+	END IF;
+
+	SELECT	manager_device_id
+	INTO	_mgrid
+	 FROM	device_management_controller
+	WHERE	device_id = in_Device_id AND device_mgmt_control_type = 'bmc'
+	LIMIT 1;
+
+	IF _mgrid IS NOT NULL THEN
+		DELETE FROM device_management_controller
+		WHERE	device_id = in_Device_id AND device_mgmt_control_type = 'bmc'
+			AND manager_device_id = _mgrid;
+
+		PERFORM device_utils.retire_device( manager_device_id)
+		  FROM	device_management_controller
+		WHERE	device_id = in_Device_id AND device_mgmt_control_type = 'bmc';
+	END IF;
+
+	BEGIN
+		PERFORM local_hooks.device_retire_late(in_Device_Id, false);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		PERFORM 1;
+	END;
+
+	SELECT count(*)
+	INTO tally
+	FROM device_note
+	WHERE device_id = in_Device_id;
+
+	--
+	-- If there is no notes or serial number its save to remove
+	-- 
+	IF tally = 0 AND _d.ASSET_ID is NULL THEN
+		_purgedev := true;
+	END IF;
+
+	IF _purgedev THEN
+		--
+		-- If there is an fk violation, we just preserve the record but
+		-- delete all the identifying characteristics
+		--
+		BEGIN
+			DELETE FROM device where device_id = in_Device_Id;
+			return false;
+		EXCEPTION WHEN foreign_key_violation THEN
+			PERFORM 1;
+		END;
+	END IF;
+
+	UPDATE device SET 
+		device_name =NULL,
+		service_environment_id = (
+			select service_environment_id from service_environment
+			where service_environment_name = 'unallocated'),
+		device_status = 'removed',
+		voe_symbolic_track_id = NULL,
+		is_monitored = 'N',
+		should_fetch_config = 'N',
+		description = NULL
+	WHERE device_id = in_Device_id;
+
+	return true;
+END;
+$function$
+;
+
 --
 -- Process drops in netblock_utils
 --
@@ -5700,15 +5943,757 @@ $function$
 --
 -- Process drops in component_utils
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('component_utils', 'insert_pci_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_utils.insert_pci_component ( pci_vendor_id integer, pci_device_id integer, pci_sub_vendor_id integer, pci_subsystem_id integer, pci_vendor_name text, pci_device_name text, pci_sub_vendor_name text, pci_sub_device_name text, component_function_list text[], slot_type text, serial_number text );
+CREATE OR REPLACE FUNCTION component_utils.insert_pci_component(pci_vendor_id integer, pci_device_id integer, pci_sub_vendor_id integer DEFAULT NULL::integer, pci_subsystem_id integer DEFAULT NULL::integer, pci_vendor_name text DEFAULT NULL::text, pci_device_name text DEFAULT NULL::text, pci_sub_vendor_name text DEFAULT NULL::text, pci_sub_device_name text DEFAULT NULL::text, component_function_list text[] DEFAULT NULL::text[], slot_type text DEFAULT 'unknown'::text, serial_number text DEFAULT NULL::text)
+ RETURNS component
+ LANGUAGE plpgsql
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	comp_id		integer;
+	sub_comp_id	integer;
+	stid		integer;
+	vendor_name	text;
+	sub_vendor_name	text;
+	model_name	text;
+	c			RECORD;
+BEGIN
+	IF (pci_sub_vendor_id IS NULL AND pci_subsystem_id IS NOT NULL) OR
+			(pci_sub_vendor_id IS NOT NULL AND pci_subsystem_id IS NULL) THEN
+		RAISE EXCEPTION
+			'pci_sub_vendor_id and pci_subsystem_id must be set together';
+	END IF;
+
+	--
+	-- See if we have this component type in the database already
+	--
+	SELECT
+		vid.component_type_id INTO ctid
+	FROM
+		component_property vid JOIN
+		component_property did ON (
+			vid.component_property_name = 'PCIVendorID' AND
+			vid.component_property_type = 'PCI' AND
+			did.component_property_name = 'PCIDeviceID' AND
+			did.component_property_type = 'PCI' AND
+			vid.component_type_id = did.component_type_id ) LEFT JOIN
+		component_property svid ON (
+			svid.component_property_name = 'PCISubsystemVendorID' AND
+			svid.component_property_type = 'PCI' AND
+			svid.component_type_id = did.component_type_id ) LEFT JOIN
+		component_property sid ON (
+			sid.component_property_name = 'PCISubsystemID' AND
+			sid.component_property_type = 'PCI' AND
+			sid.component_type_id = did.component_type_id )
+	WHERE
+		vid.property_value = pci_vendor_id::varchar AND
+		did.property_value = pci_device_id::varchar AND
+		svid.property_value IS NOT DISTINCT FROM pci_sub_vendor_id::varchar AND
+		sid.property_value IS NOT DISTINCT FROM pci_subsystem_id::varchar;
+
+	--
+	-- The device type doesn't exist, so attempt to insert it
+	--
+
+	IF NOT FOUND THEN	
+		IF pci_device_name IS NULL OR component_function_list IS NULL THEN
+			RAISE EXCEPTION 'component_id not found and pci_device_name or component_function_list was not passed' USING ERRCODE = 'JH501';
+		END IF;
+
+		--
+		-- Ensure that there's a company linkage for the PCI (subsystem)vendor
+		--
+		SELECT
+			company_id, company_name INTO comp_id, vendor_name
+		FROM
+			property p JOIN
+			company c USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'PCIVendorID' AND
+			property_value = pci_vendor_id::text;
+		
+		IF NOT FOUND THEN
+			IF pci_vendor_name IS NULL THEN
+				RAISE EXCEPTION 'PCI vendor id mapping not found and pci_vendor_name was not passed' USING ERRCODE = 'JH501';
+			END IF;
+			SELECT company_id INTO comp_id FROM company
+			WHERE company_name = pci_vendor_name;
+		
+			IF NOT FOUND THEN
+				SELECT company_manip.add_company(
+					_company_name := pci_vendor_name,
+					_company_types := ARRAY['hardware provider'],
+					 _description := 'PCI vendor auto-insert'
+				) INTO comp_id;
+			END IF;
+
+			INSERT INTO property (
+				property_name,
+				property_type,
+				property_value,
+				company_id
+			) VALUES (
+				'PCIVendorID',
+				'DeviceProvisioning',
+				pci_vendor_id,
+				comp_id
+			);
+			vendor_name := pci_vendor_name;
+		END IF;
+
+		SELECT
+			company_id, company_name INTO sub_comp_id, sub_vendor_name
+		FROM
+			property JOIN
+			company c USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'PCIVendorID' AND
+			property_value = pci_sub_vendor_id::text;
+		
+		IF NOT FOUND THEN
+			IF pci_sub_vendor_name IS NULL THEN
+				RAISE EXCEPTION 'PCI subsystem vendor id mapping not found and pci_sub_vendor_name was not passed' USING ERRCODE = 'JH501';
+			END IF;
+			SELECT company_id INTO sub_comp_id FROM company
+			WHERE company_name = pci_sub_vendor_name;
+		
+			IF NOT FOUND THEN
+				SELECT company_manip.add_company(
+					_company_name := pci_sub_vendor_name,
+					_company_types := ARRAY['hardware provider'],
+					 _description := 'PCI vendor auto-insert'
+				) INTO sub_comp_id;
+			END IF;
+
+			INSERT INTO property (
+				property_name,
+				property_type,
+				property_value,
+				company_id
+			) VALUES (
+				'PCIVendorID',
+				'DeviceProvisioning',
+				pci_sub_vendor_id,
+				sub_comp_id
+			);
+			sub_vendor_name := pci_sub_vendor_name;
+		END IF;
+
+		--
+		-- Fetch the slot type
+		--
+
+		SELECT 
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = insert_pci_component.slot_type AND
+			slot_function = 'PCI';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type % with function PCI not found adding component_type',
+				insert_pci_component.slot_type
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		--
+		-- Figure out the best name/description to insert this component with
+		--
+		IF pci_sub_device_name IS NOT NULL AND pci_sub_device_name != 'Device' THEN
+			model_name = concat_ws(' ', 
+				sub_vendor_name, pci_sub_device_name,
+				'(' || vendor_name, pci_device_name || ')');
+		ELSIF pci_sub_device_name = 'Device' THEN
+			model_name = concat_ws(' ', 
+				vendor_name, '(' || sub_vendor_name || ')', pci_device_name);
+		ELSE
+			model_name = concat_ws(' ', vendor_name, pci_device_name);
+		END IF;
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description
+		) VALUES (
+			CASE WHEN 
+				sub_comp_id IS NULL OR
+				pci_sub_device_name IS NULL OR
+				pci_sub_device_name = 'Device'
+			THEN
+				comp_id
+			ELSE
+				sub_comp_id
+			END,
+			CASE WHEN
+				pci_sub_device_name IS NULL OR
+				pci_sub_device_name = 'Device'
+			THEN
+				pci_device_name
+			ELSE
+				pci_sub_device_name
+			END,
+			stid,
+			'Y',
+			model_name
+		) RETURNING component_type_id INTO ctid;
+		--
+		-- Insert properties for the PCI vendor/device IDs
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES 
+			('PCIVendorID', 'PCI', ctid, pci_vendor_id),
+			('PCIDeviceID', 'PCI', ctid, pci_device_id);
+		
+		IF (pci_subsystem_id IS NOT NULL) THEN
+			INSERT INTO component_property (
+				component_property_name,
+				component_property_type,
+				component_type_id,
+				property_value
+			) VALUES 
+				('PCISubsystemVendorID', 'PCI', ctid, pci_sub_vendor_id),
+				('PCISubsystemID', 'PCI', ctid, pci_subsystem_id);
+		END IF;
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_func (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ctid,
+			cf
+		FROM
+			unnest(array_append(component_function_list, 'PCI')) x(cf);
+	END IF;
+
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT 
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+END;
+$function$
+;
+
 --
 -- Process drops in snapshot_manip
 --
 --
 -- Process drops in lv_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('lv_manip', 'delete_lv_hier');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS lv_manip.delete_lv_hier ( INOUT physicalish_volume_list integer[], INOUT volume_group_list integer[], INOUT logical_volume_list integer[] );
+CREATE OR REPLACE FUNCTION lv_manip.delete_lv_hier(INOUT physicalish_volume_list integer[] DEFAULT NULL::integer[], INOUT volume_group_list integer[] DEFAULT NULL::integer[], INOUT logical_volume_list integer[] DEFAULT NULL::integer[])
+ RETURNS record
+ LANGUAGE plpgsql
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	pv_list	integer[];
+	vg_list	integer[];
+	lv_list	integer[];
+BEGIN
+	SET CONSTRAINTS ALL DEFERRED;
+
+	SELECT ARRAY(
+		SELECT 
+			DISTINCT child_pv_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN physicalish_volume_list IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
+			END OR
+			CASE WHEN volume_group_list  IS NULL
+				THEN false
+				ELSE lh.volume_group_id = ANY (volume_group_list)
+			END OR
+			CASE WHEN logical_volume_list IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = ANY (logical_volume_list)
+			END)
+			AND child_pv_id IS NOT NULL
+	) INTO pv_list;
+
+	SELECT ARRAY(
+		SELECT 
+			DISTINCT child_vg_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pv_list IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
+			END OR
+			CASE WHEN vg_list IS NULL
+				THEN false
+				ELSE lh.volume_group_id = ANY (volume_group_list)
+			END OR
+			CASE WHEN lv_list IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = ANY (logical_volume_list)
+			END)
+			AND child_vg_id IS NOT NULL
+	) INTO vg_list;
+
+	SELECT ARRAY(
+		SELECT 
+			DISTINCT child_lv_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pv_list IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
+			END OR
+			CASE WHEN vg_list IS NULL
+				THEN false
+				ELSE lh.volume_group_id = ANY (volume_group_list)
+			END OR
+			CASE WHEN lv_list IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = ANY (logical_volume_list)
+			END)
+			AND child_lv_id IS NOT NULL
+	) INTO lv_list;
+
+	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM volume_group_physicalish_vol WHERE physicalish_volume_id = ANY(pv_list);
+	DELETE FROM volume_group_physicalish_vol WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
+
+	physicalish_volume_list := pv_list;
+	volume_group_list := vg_list;
+	logical_volume_list := lv_list;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('lv_manip', 'delete_lv_hier');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS lv_manip.delete_lv_hier ( physicalish_volume_id integer, volume_group_id integer, logical_volume_id integer, OUT pv_list integer[], OUT vg_list integer[], OUT lv_list integer[] );
+CREATE OR REPLACE FUNCTION lv_manip.delete_lv_hier(physicalish_volume_id integer DEFAULT NULL::integer, volume_group_id integer DEFAULT NULL::integer, logical_volume_id integer DEFAULT NULL::integer, OUT pv_list integer[], OUT vg_list integer[], OUT lv_list integer[])
+ RETURNS record
+ LANGUAGE plpgsql
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	pvid ALIAS FOR physicalish_volume_id;
+	vgid ALIAS FOR volume_group_id;
+	lvid ALIAS FOR logical_volume_id;
+BEGIN
+	SET CONSTRAINTS ALL DEFERRED;
+
+	SELECT ARRAY(
+		SELECT 
+			DISTINCT child_pv_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pvid IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = pvid
+			END OR
+			CASE WHEN vgid IS NULL
+				THEN false
+				ELSE lh.volume_group_id = vgid
+			END OR
+			CASE WHEN lvid IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = lvid
+			END)
+			AND child_pv_id IS NOT NULL
+	) INTO pv_list;
+
+	SELECT ARRAY(
+		SELECT 
+			DISTINCT child_vg_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pvid IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = pvid
+			END OR
+			CASE WHEN vgid IS NULL
+				THEN false
+				ELSE lh.volume_group_id = vgid
+			END OR
+			CASE WHEN lvid IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = lvid
+			END)
+			AND child_vg_id IS NOT NULL
+	) INTO vg_list;
+
+	SELECT ARRAY(
+		SELECT 
+			DISTINCT child_lv_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pvid IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = pvid
+			END OR
+			CASE WHEN vgid IS NULL
+				THEN false
+				ELSE lh.volume_group_id = vgid
+			END OR
+			CASE WHEN lvid IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = lvid
+			END)
+			AND child_lv_id IS NOT NULL
+	) INTO lv_list;
+
+	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM volume_group_purpose WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
+END;
+$function$
+;
+
 --
 -- Process drops in approval_utils
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('approval_utils', 'build_next_approval_item');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS approval_utils.build_next_approval_item ( approval_instance_item_id integer, approval_process_chain_id integer, approval_instance_id integer, approved character, approving_account_id integer, new_value text );
+CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(approval_instance_item_id integer, approval_process_chain_id integer, approval_instance_id integer, approved character, approving_account_id integer, new_value text DEFAULT NULL::text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO approval_utils, jazzhands
+AS $function$
+DECLARE
+	_r		RECORD;
+	_apc	approval_process_chain%ROWTYPE;	
+	_new	approval_instance_item%ROWTYPE;	
+	_acid	account.account_id%TYPE;
+	_step	approval_instance_step.approval_instance_step_id%TYPE;
+	_l		approval_instance_link.approval_instance_link_id%TYPE;
+	apptype	text;
+	_v			approval_utils.v_account_collection_approval_process%ROWTYPE;
+BEGIN
+	EXECUTE '
+		SELECT apc.*
+		FROM approval_process_chain apc
+		WHERE approval_process_chain_id=$1
+	' INTO _apc USING approval_process_chain_id;
+
+	IF _apc.approval_process_chain_id is NULL THEN
+		RAISE EXCEPTION 'Unable to follow this chain: %',
+			approval_process_chain_id;
+	END IF;
+
+	EXECUTE '
+		SELECT aii.*, ais.approver_account_id
+		FROM approval_instance_item  aii
+			INNER JOIN approval_instance_step ais
+				USING (approval_instance_step_id)
+		WHERE approval_instance_item_id=$1
+	' INTO _r USING approval_instance_item_id;
+
+	IF _apc.approving_entity = 'manager' THEN
+		apptype := 'account';
+		_acid := NULL;
+		EXECUTE '
+			SELECT manager_account_id
+			FROM	v_account_manager_map
+			WHERE	account_id = $1
+		' INTO _acid USING approving_account_id;
+		--
+		-- return NULL because there is no manager for the person
+		--
+		IF _acid IS NULL THEN
+			RETURN NULL;
+		END IF;
+	ELSIF _apc.approving_entity = 'jira-hr' THEN
+		apptype := 'jira-hr';
+		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'rt-hr' THEN
+		apptype := 'rt-hr';
+		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'kace-hr' THEN
+		apptype := 'kace-hr';
+		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'recertify' THEN
+		apptype := 'account';
+		EXECUTE '
+			SELECT approver_account_id
+			FROM approval_instance_item  aii
+				INNER JOIN approval_instance_step ais
+					USING (approval_instance_step_id)
+			WHERE approval_instance_item_id IN (
+				SELECT	approval_instance_item_id
+				FROM	approval_instance_item
+				WHERE	next_approval_instance_item_id = $1
+			)
+		' INTO _acid USING approval_instance_item_id;
+	ELSE
+		RAISE EXCEPTION 'Can not handle approving entity %',
+			_apc.approving_entity;
+	END IF;
+
+	IF _acid IS NULL THEN
+		RAISE EXCEPTION 'This whould not happen:  Unable to discern approving account.';
+	END IF;
+
+	EXECUTE '
+		SELECT	approval_instance_step_id
+		FROM	approval_instance_step
+		WHERE	approval_process_chain_id = $1
+		AND		approval_instance_id = $2
+		AND		approver_account_id = $3
+		AND		is_completed = ''N''
+	' INTO _step USING approval_process_chain_id,
+		approval_instance_id, _acid;
+
+	--
+	-- _new gets built out for all the fields that should get inserted,
+	-- and then at the end is stomped on by what actually gets inserted.
+	--
+
+	IF _step IS NULL THEN
+		EXECUTE '
+			INSERT INTO approval_instance_step (
+				approval_instance_id, approval_process_chain_id,
+				approval_instance_step_name,
+				approver_account_id, approval_type, 
+				approval_instance_step_due,
+				description
+			) VALUES (
+				$1, $2, $3, $4, $5, approval_utils.calculate_due_date($6), $7
+			) RETURNING approval_instance_step_id
+		' INTO _step USING 
+			approval_instance_id, approval_process_chain_id,
+			_apc.approval_process_chain_name,
+			_acid, apptype, 
+			_apc.approval_chain_response_period::interval,
+			concat(_apc.description, ' for ', _r.approver_account_id, ' by ',
+			approving_account_id);
+	END IF;
+
+	IF _apc.refresh_all_data = 'Y' THEN
+		-- this is called twice, should rethink how to not
+		_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
+		_l := approval_utils.get_or_create_correct_approval_instance_link(
+			approval_instance_item_id,
+			_r.approval_instance_link_id
+		);
+		_new.approval_instance_link_id := _l;
+		_new.approved_label := _v.approval_label;
+		_new.approved_category := _v.approval_category;
+		_new.approved_lhs := _v.approval_lhs;
+		_new.approved_rhs := _v.approval_rhs;
+	ELSE
+		_new.approval_instance_link_id := _r.approval_instance_link_id;
+		_new.approved_label := _r.approved_label;
+		_new.approved_category := _r.approved_category;
+		_new.approved_lhs := _r.approved_lhs;
+		IF new_value IS NULL THEN
+			_new.approved_rhs := _r.approved_rhs;
+		ELSE
+			_new.approved_rhs := new_value;
+		END IF;
+	END IF;
+
+	-- RAISE NOTICE 'step is %', _step;
+	-- RAISE NOTICE 'acid is %', _acid;
+
+	EXECUTE '
+		INSERT INTO approval_instance_item
+			(approval_instance_link_id, approved_label, approved_category,
+				approved_lhs, approved_rhs, approval_instance_step_id
+			) SELECT $2, $3, $4,
+				$5, $6, $7
+			FROM approval_instance_item
+			WHERE approval_instance_item_id = $1
+			RETURNING *
+	' INTO _new USING approval_instance_item_id, 
+		_new.approval_instance_link_id, _new.approved_label, _new.approved_category,
+		_new.approved_lhs, _new.approved_rhs,
+		_step;
+
+	-- RAISE NOTICE 'returning %', _new.approval_instance_item_id;
+	RETURN _new.approval_instance_item_id;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('approval_utils', 'refresh_approval_instance_item');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS approval_utils.refresh_approval_instance_item ( approval_instance_item_id integer );
+CREATE OR REPLACE FUNCTION approval_utils.refresh_approval_instance_item(approval_instance_item_id integer)
+ RETURNS approval_utils.v_account_collection_approval_process
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO approval_utils, jazzhands
+AS $function$
+DECLARE
+	_i	approval_instance_item.approval_instance_item_id%TYPE;
+	_r	approval_utils.v_account_collection_approval_process%ROWTYPE;
+BEGIN
+	--
+	-- XXX p comes out of one of the three clauses in 
+	-- v_account_collection_approval_process .  It is likely that that view
+	-- needs to be broken into 2 or 3 views joined together so there is no
+	-- code redundancy.  This is almost certainly true because it is a pain
+	-- to keep column lists in syn everywhere
+	EXECUTE '
+		WITH p AS (
+		SELECT  login,
+			account_id,
+			person_id,
+			mm.company_id,
+			manager_account_id,
+			manager_login,
+			''person_company''::text as audit_table,
+			audit_seq_id,
+			approval_process_id,
+			approval_process_chain_id,
+			approving_entity,
+				approval_process_description,
+				approval_chain_description,
+				approval_response_period,
+				approval_expiration_action,
+				attestation_frequency,
+				current_attestation_name,
+				current_attestation_begins,
+				attestation_offset,
+				approval_process_chain_name,
+				property_val_rhs AS approval_category,
+				CASE
+					WHEN property_val_rhs = ''position_title''
+						THEN ''Verify Position Title''
+					END as approval_label,
+			human_readable AS approval_lhs,
+			CASE
+			    WHEN property_val_rhs = ''position_title'' THEN pcm.position_title
+			END as approval_rhs
+		FROM    v_account_manager_map mm
+			INNER JOIN v_person_company_audit_map pcm
+			    USING (person_id, company_id)
+			INNER JOIN v_approval_matrix am
+			    ON property_val_lhs = ''person_company''
+			    AND property_val_rhs = ''position_title''
+		), x AS ( select i.approval_instance_item_id, p.*
+		from	approval_instance_item i
+			inner join approval_instance_step s
+				using (approval_instance_step_id)
+			inner join approval_instance_link l
+				using (approval_instance_link_id)
+			inner join audit.account_collection_account res
+				on res."aud#seq" = l.acct_collection_acct_seq_id
+			 inner join v_account_collection_approval_process p
+				on i.approved_label = p.approval_label
+				and res.account_id = p.account_id
+		UNION
+		select i.approval_instance_item_id, p.*
+		from	approval_instance_item i
+			inner join approval_instance_step s
+				using (approval_instance_step_id)
+			inner join approval_instance_link l
+				using (approval_instance_link_id)
+			inner join audit.person_company res
+				on res."aud#seq" = l.person_company_seq_id
+			 inner join p
+				on i.approved_label = p.approval_label
+				and res.person_id = p.person_id
+		) SELECT 
+			login,
+			account_id,
+			person_id,
+					company_id,
+					manager_account_id,
+					manager_login,
+					audit_table,
+					audit_seq_id,
+					approval_process_id,
+					approval_process_chain_id,
+					approving_entity,
+					approval_process_description,
+					approval_chain_description,
+					approval_response_period,
+					approval_expiration_action,
+					attestation_frequency,
+					current_attestation_name,
+					current_attestation_begins,
+					attestation_offset,
+					approval_process_chain_name,
+					approval_category,
+					approval_label,
+					approval_lhs,
+					approval_rhs
+				FROM x where	approval_instance_item_id = $1
+			' INTO _r USING approval_instance_item_id;
+			RETURN _r;
+		END;
+		$function$
+;
+
 --
 -- Process drops in account_collection_manip
 --
@@ -5765,6 +6750,15 @@ CREATE TRIGGER trigger_acct_coll_update_direct_before AFTER UPDATE OF account_co
 CREATE INDEX aud_dns_record_ak_dns_record_dnsrec_domainid 
 	ON audit.dns_record 
 	USING btree (dns_record_id, dns_domain_id);
+
+CREATE UNIQUE INDEX mv_dev_col_root_leaf_id_idx 
+	ON mv_dev_col_root USING btree (leaf_id);
+CREATE INDEX mv_dev_col_root_leaf_type_idx 
+	ON mv_dev_col_root USING btree (leaf_type);
+CREATE INDEX mv_dev_col_root_root_id_idx 
+	ON mv_dev_col_root USING btree (root_id);
+CREATE INDEX mv_dev_col_root_root_type_idx 
+	ON mv_dev_col_root USING btree (root_type);
 
 
 -- END Misc that does not apply to above
