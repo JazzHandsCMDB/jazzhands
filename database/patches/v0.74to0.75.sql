@@ -89,6 +89,72 @@ $function$
 ;
 
 -- Changed function
+SELECT schema_support.save_grants_for_replay('schema_support', 'mv_last_updated');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.mv_last_updated ( relation text, schema text, debug boolean );
+CREATE OR REPLACE FUNCTION schema_support.mv_last_updated(relation text, schema text DEFAULT 'jazzhands'::text, debug boolean DEFAULT false)
+ RETURNS timestamp without time zone
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	rv	timestamp;
+BEGIN
+	IF debug THEN
+		RAISE NOTICE 'schema_support.mv_last_updated(): selecting for update...';
+	END IF;
+
+	SELECT	refresh
+	INTO	rv
+	FROM	schema_support.mv_refresh r
+	WHERE	r.schema = mv_last_updated.schema
+	AND	r.view = relation
+	FOR UPDATE;
+
+	IF debug THEN
+		RAISE NOTICE 'schema_support.mv_last_updated(): returning %', rv;
+	END IF;
+
+	RETURN rv;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('schema_support', 'refresh_mv_if_needed');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.refresh_mv_if_needed ( relation text, schema text, debug boolean );
+CREATE OR REPLACE FUNCTION schema_support.refresh_mv_if_needed(relation text, schema text DEFAULT 'jazzhands'::text, debug boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	lastref	timestamp;
+	lastdat	timestamp;
+	whence	timestamp;
+BEGIN
+	SELECT coalesce(schema_support.mv_last_updated(relation, schema,debug),'-infinity') INTO lastref;
+	SELECT coalesce(schema_support.relation_last_changed(relation, schema,debug),'-infinity') INTO lastdat;
+	IF lastdat > lastref THEN
+		IF debug THEN
+			RAISE NOTICE 'schema_support.refresh_mv_if_needed(): refreshing %.%', schema, relation;
+		END IF;
+		EXECUTE 'REFRESH MATERIALIZED VIEW ' || quote_ident(schema)||'.'||quote_ident(relation);
+		--  This can happen with long running transactions.
+		whence := now();
+		IF lastref > whence THEN
+			whence := lastref;
+		END IF;
+		PERFORM schema_support.set_mv_last_updated(relation, schema, whence, debug);
+	END IF;
+	RETURN;
+END;
+$function$
+;
+
+-- Changed function
 SELECT schema_support.save_grants_for_replay('schema_support', 'relation_last_changed');
 -- Dropped in case type changes.
 DROP FUNCTION IF EXISTS schema_support.relation_last_changed ( relation text, schema text, debug boolean );
@@ -128,10 +194,15 @@ BEGIN
 	END IF;
 
 	IF rk = 'r' THEN
-		EXECUTE '
-			SELECT	max("aud#timestamp")
-			FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+		EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+			FROM '||quote_ident(audsch)||'.'|| quote_ident(relation)
 		INTO rv;
+		IF rv IS NULL THEN
+			EXECUTE '
+				SELECT	max("aud#timestamp")
+				FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+			INTO rv;
+		END IF;
 
 		IF rv IS NULL THEN
 			RETURN '-infinity'::interval;
@@ -187,14 +258,14 @@ BEGIN
 					RAISE NOTICE 'Unknown object kind % for %.%', objkind, objaud, obj;
 				END IF;
 				IF debug THEN
-					RAISE NOTICE '%.% -> %', objaud, obj, ts;
+					RAISE NOTICE 'schema_support.relation_last_changed(): %.% -> %', objaud, obj, ts;
 				END IF;
 				IF rv IS NULL OR ts > rv THEN
 					rv := ts;
 				END IF;
 			EXCEPTION WHEN undefined_table THEN
 				IF debug THEN
-					RAISE NOTICE 'skipping %.%', schema, obj;
+					RAISE NOTICE 'schema_support.relation_last_changed(): skipping %.%', schema, obj;
 				END IF;
 			END;
 		END LOOP;
@@ -545,6 +616,31 @@ BEGIN
 			|| quote_ident(table_name) || keys.cols;
 	END LOOP;
 
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION schema_support.set_mv_last_updated(relation text, schema text DEFAULT 'jazzhands'::text, whence timestamp without time zone DEFAULT now(), debug boolean DEFAULT false)
+ RETURNS timestamp without time zone
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	rv	timestamp;
+BEGIN
+	INSERT INTO schema_support.mv_refresh AS r (
+		schema, view, refresh
+	) VALUES (
+		set_mv_last_updated.schema, relation, whence
+	) ON CONFLICT ON CONSTRAINT mv_refresh_pkey DO UPDATE
+		SET		refresh = whence
+		WHERE	r.schema = set_mv_last_updated.schema
+		AND		r.view = relation
+	;
+
+	RETURN rv;
 END;
 $function$
 ;
@@ -608,6 +704,72 @@ $function$
 ;
 
 -- Changed function
+SELECT schema_support.save_grants_for_replay('schema_support', 'mv_last_updated');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.mv_last_updated ( relation text, schema text, debug boolean );
+CREATE OR REPLACE FUNCTION schema_support.mv_last_updated(relation text, schema text DEFAULT 'jazzhands'::text, debug boolean DEFAULT false)
+ RETURNS timestamp without time zone
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	rv	timestamp;
+BEGIN
+	IF debug THEN
+		RAISE NOTICE 'schema_support.mv_last_updated(): selecting for update...';
+	END IF;
+
+	SELECT	refresh
+	INTO	rv
+	FROM	schema_support.mv_refresh r
+	WHERE	r.schema = mv_last_updated.schema
+	AND	r.view = relation
+	FOR UPDATE;
+
+	IF debug THEN
+		RAISE NOTICE 'schema_support.mv_last_updated(): returning %', rv;
+	END IF;
+
+	RETURN rv;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('schema_support', 'refresh_mv_if_needed');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.refresh_mv_if_needed ( relation text, schema text, debug boolean );
+CREATE OR REPLACE FUNCTION schema_support.refresh_mv_if_needed(relation text, schema text DEFAULT 'jazzhands'::text, debug boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	lastref	timestamp;
+	lastdat	timestamp;
+	whence	timestamp;
+BEGIN
+	SELECT coalesce(schema_support.mv_last_updated(relation, schema,debug),'-infinity') INTO lastref;
+	SELECT coalesce(schema_support.relation_last_changed(relation, schema,debug),'-infinity') INTO lastdat;
+	IF lastdat > lastref THEN
+		IF debug THEN
+			RAISE NOTICE 'schema_support.refresh_mv_if_needed(): refreshing %.%', schema, relation;
+		END IF;
+		EXECUTE 'REFRESH MATERIALIZED VIEW ' || quote_ident(schema)||'.'||quote_ident(relation);
+		--  This can happen with long running transactions.
+		whence := now();
+		IF lastref > whence THEN
+			whence := lastref;
+		END IF;
+		PERFORM schema_support.set_mv_last_updated(relation, schema, whence, debug);
+	END IF;
+	RETURN;
+END;
+$function$
+;
+
+-- Changed function
 SELECT schema_support.save_grants_for_replay('schema_support', 'relation_last_changed');
 -- Dropped in case type changes.
 DROP FUNCTION IF EXISTS schema_support.relation_last_changed ( relation text, schema text, debug boolean );
@@ -647,10 +809,15 @@ BEGIN
 	END IF;
 
 	IF rk = 'r' THEN
-		EXECUTE '
-			SELECT	max("aud#timestamp")
-			FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+		EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+			FROM '||quote_ident(audsch)||'.'|| quote_ident(relation)
 		INTO rv;
+		IF rv IS NULL THEN
+			EXECUTE '
+				SELECT	max("aud#timestamp")
+				FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+			INTO rv;
+		END IF;
 
 		IF rv IS NULL THEN
 			RETURN '-infinity'::interval;
@@ -706,14 +873,14 @@ BEGIN
 					RAISE NOTICE 'Unknown object kind % for %.%', objkind, objaud, obj;
 				END IF;
 				IF debug THEN
-					RAISE NOTICE '%.% -> %', objaud, obj, ts;
+					RAISE NOTICE 'schema_support.relation_last_changed(): %.% -> %', objaud, obj, ts;
 				END IF;
 				IF rv IS NULL OR ts > rv THEN
 					rv := ts;
 				END IF;
 			EXCEPTION WHEN undefined_table THEN
 				IF debug THEN
-					RAISE NOTICE 'skipping %.%', schema, obj;
+					RAISE NOTICE 'schema_support.relation_last_changed(): skipping %.%', schema, obj;
 				END IF;
 			END;
 		END LOOP;
@@ -1019,6 +1186,7 @@ END;
 $function$
 ;
 
+DROP FUNCTION IF EXISTS schema_support.set_mv_last_updated ( relation text, schema text, debug boolean );
 -- New function
 CREATE OR REPLACE FUNCTION schema_support.build_audit_table_pkak_indexes(aud_schema character varying, tbl_schema character varying, table_name character varying)
  RETURNS void
@@ -1064,6 +1232,31 @@ BEGIN
 			|| quote_ident(table_name) || keys.cols;
 	END LOOP;
 
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION schema_support.set_mv_last_updated(relation text, schema text DEFAULT 'jazzhands'::text, whence timestamp without time zone DEFAULT now(), debug boolean DEFAULT false)
+ RETURNS timestamp without time zone
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO schema_support
+AS $function$
+DECLARE
+	rv	timestamp;
+BEGIN
+	INSERT INTO schema_support.mv_refresh AS r (
+		schema, view, refresh
+	) VALUES (
+		set_mv_last_updated.schema, relation, whence
+	) ON CONFLICT ON CONSTRAINT mv_refresh_pkey DO UPDATE
+		SET		refresh = whence
+		WHERE	r.schema = set_mv_last_updated.schema
+		AND		r.view = relation
+	;
+
+	RETURN rv;
 END;
 $function$
 ;

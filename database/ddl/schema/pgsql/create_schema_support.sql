@@ -1731,7 +1731,6 @@ $$ LANGUAGE plpgsql;
 ----------------------------------------------------------------------------
 -- BEGIN materialized view refresh automation support
 ----------------------------------------------------------------------------
-
 --
 -- These functions are used to better automate refreshing of materialized
 -- views.  They are meant to be called by the schema owners and not by
@@ -1778,7 +1777,7 @@ DECLARE
 	rv	timestamp;
 BEGIN
 	IF debug THEN
-		RAISE NOTICE 'selecting for update...';
+		RAISE NOTICE 'schema_support.mv_last_updated(): selecting for update...';
 	END IF;
 
 	SELECT	refresh
@@ -1789,7 +1788,7 @@ BEGIN
 	FOR UPDATE;
 
 	IF debug THEN
-		RAISE NOTICE 'returning %', rv;
+		RAISE NOTICE 'schema_support.mv_last_updated(): returning %', rv;
 	END IF;
 
 	RETURN rv;
@@ -1805,6 +1804,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION schema_support.set_mv_last_updated (
 	relation TEXT,
 	schema TEXT DEFAULT 'jazzhands',
+	whence timestamp DEFAULT now(),
 	debug boolean DEFAULT false
 ) RETURNS TIMESTAMP AS $$
 DECLARE
@@ -1813,9 +1813,9 @@ BEGIN
 	INSERT INTO schema_support.mv_refresh AS r (
 		schema, view, refresh
 	) VALUES (
-		set_mv_last_updated.schema, relation, now()
+		set_mv_last_updated.schema, relation, whence
 	) ON CONFLICT ON CONSTRAINT mv_refresh_pkey DO UPDATE
-		SET		refresh = now()
+		SET		refresh = whence
 		WHERE	r.schema = set_mv_last_updated.schema
 		AND		r.view = relation
 	;
@@ -1867,10 +1867,15 @@ BEGIN
 	END IF;
 
 	IF rk = 'r' THEN
-		EXECUTE '
-			SELECT	max("aud#timestamp")
-			FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+		EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+			FROM '||quote_ident(audsch)||'.'|| quote_ident(relation)
 		INTO rv;
+		IF rv IS NULL THEN
+			EXECUTE '
+				SELECT	max("aud#timestamp")
+				FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+			INTO rv;
+		END IF;
 
 		IF rv IS NULL THEN
 			RETURN '-infinity'::interval;
@@ -1926,14 +1931,14 @@ BEGIN
 					RAISE NOTICE 'Unknown object kind % for %.%', objkind, objaud, obj;
 				END IF;
 				IF debug THEN
-					RAISE NOTICE '%.% -> %', objaud, obj, ts;
+					RAISE NOTICE 'schema_support.relation_last_changed(): %.% -> %', objaud, obj, ts;
 				END IF;
 				IF rv IS NULL OR ts > rv THEN
 					rv := ts;
 				END IF;
 			EXCEPTION WHEN undefined_table THEN
 				IF debug THEN
-					RAISE NOTICE 'skipping %.%', schema, obj;
+					RAISE NOTICE 'schema_support.relation_last_changed(): skipping %.%', schema, obj;
 				END IF;
 			END;
 		END LOOP;
@@ -1954,12 +1959,21 @@ CREATE OR REPLACE FUNCTION schema_support.refresh_mv_if_needed (
 DECLARE
 	lastref	timestamp;
 	lastdat	timestamp;
+	whence	timestamp;
 BEGIN
 	SELECT coalesce(schema_support.mv_last_updated(relation, schema,debug),'-infinity') INTO lastref;
 	SELECT coalesce(schema_support.relation_last_changed(relation, schema,debug),'-infinity') INTO lastdat;
 	IF lastdat > lastref THEN
+		IF debug THEN
+			RAISE NOTICE 'schema_support.refresh_mv_if_needed(): refreshing %.%', schema, relation;
+		END IF;
 		EXECUTE 'REFRESH MATERIALIZED VIEW ' || quote_ident(schema)||'.'||quote_ident(relation);
-		PERFORM schema_support.set_mv_last_updated(relation, schema);
+		--  This can happen with long running transactions.
+		whence := now();
+		IF lastref > whence THEN
+			whence := lastref;
+		END IF;
+		PERFORM schema_support.set_mv_last_updated(relation, schema, whence, debug);
 	END IF;
 	RETURN;
 END;
