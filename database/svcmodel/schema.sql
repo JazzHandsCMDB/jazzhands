@@ -190,7 +190,7 @@ BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO service_collection_service (
 			service_collection_id, service_version_id
-		) SELECT servie_collection_id, NEW.service_version_id
+		) SELECT service_collection_id, NEW.service_version_id
 		FROM service_collection
 		WHERE service_collection_type = 'all-services'
 		AND service_collection_name IN (SELECT service_name
@@ -217,15 +217,15 @@ DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members
 	ON service_version;
 CREATE TRIGGER trigger_manip_all_svc_collection_members 
 	AFTER INSERT 
-    ON service_version
+	ON service_version
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_all_svc_collection_members();
 
-DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members 
+DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members_del
 	ON service_version;
 CREATE TRIGGER trigger_manip_all_svc_collection_members_del 
 	BEFORE DELETE 
-    ON service_version 
+	ON service_version 
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_all_svc_collection_members();
 
