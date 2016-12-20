@@ -44,5 +44,33 @@ EXCEPTION WHEN unique_violation THEN
 	NULL;
 END
 $$;
+DO $$
+BEGIN
+	--
+	-- groups of networks for launching hosts.  
+	--
+	INSERT INTO val_layer2_network_coll_type (
+		layer2_network_collection_type
+	) VALUES (
+		'service'
+	);
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
 
-
+DO $$
+BEGIN
+	INSERT INTO layer2_network_collection (
+		layer2_network_collection_name, layer2_network_collection_type,
+		description)
+	VALUES 
+		('internal-nets', 'service',
+		'places to launch internal facing hosts'),
+		('dmz-nets', 'service',
+		'places to launch dmzish hosts')
+	;
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;

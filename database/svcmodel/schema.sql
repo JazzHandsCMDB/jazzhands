@@ -2,8 +2,13 @@ DROP TABLE IF EXISTS service cascade;
 CREATE TABLE service (
 	service_id	serial		NOT NULL,
 	service_name	text		NOT NULL,
-	software_repo	text,
 	PRIMARY KEY (service_id)
+);
+
+CREATE TABLE service_source_repository (
+	service_id		integer,
+	source_repository	text,
+	PRIMARY KEY (service_id, source_repository)
 );
 
 DROP TABLE IF EXISTS service_version cascade;
@@ -87,7 +92,9 @@ CREATE TABLE service_property (
 	service_property_type		text		NOT NULL,-- not sure
 	value				text,
 	value_sw_package_id		integer,
-	value_network_collection_id	integer,
+	value_netblock_collection_id	integer,
+	value_layer2_network_collection_id	integer,
+	value_layer3_network_collection_id	integer,
 	value_account_collection_id	integer,
 	PRIMARY KEY (service_property_id)
 );

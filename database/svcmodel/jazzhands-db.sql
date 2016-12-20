@@ -16,8 +16,13 @@ WITH endpoint AS (
 	AND service_sla_name = 'always'
 	RETURNING *
 ), svc AS (
-	INSERT INTO service (service_name, software_repo)
-	VALUES ('jazzhands-db', 'git@github.com:JazzHandsCMDB/jazzhands')
+	INSERT INTO service (service_name)
+	VALUES ('jazzhands-db')
+	RETURNING *
+), src AS (
+	INSERT INTO service_source_repository (service_id, source_repository)
+	SELECT service_id, 'git@github.com:JazzHandsCMDB/jazzhands'
+	FROM svc
 	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version 
@@ -46,11 +51,11 @@ WITH endpoint AS (
 ), svcprop2 AS (
 	INSERT INTO service_property (
 		service_property_name, service_property_type, 
-			value_network_collection_id
-	) SELECT 'launch-nets', 'launch', netblock_collection_id
-	FROM netblock_collection
-	WHERE netblock_collection_name = 'rfc1918-nets'
-	AND netblock_collection_type = 'ad-hoc'
+			value_layer3_network_collection_id
+	) SELECT 'service-nets', 'launch', layer2_network_collection_id
+	FROM layer2_network_collection
+	WHERE layer2_network_collection_name = 'internal-nets'
+	AND layer2_network_collection_type = 'service'
 	RETURNING *
 ), svcprop3 AS (
 	INSERT INTO service_property (
