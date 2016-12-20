@@ -118,8 +118,122 @@ CREATE TABLE service_depend (
 	UNIQUE (service_version_id, service_id, service_sla_id)
 );
 
-/*
+DROP TABLE IF EXISTS service_collection cascade;
+CREATE TABLE service_collection (
+	service_collection_id	serial		NOT NULL,
+	service_collection_name	text		NOT NULL,
+	service_collection_type	text		NOT NULL,
+	PRIMARY KEY (service_collection_id)
+);
 
+DROP TABLE IF EXISTS service_collection_hier cascade;
+CREATE TABLE service_collection_hier (
+	service_collection_id		integer	NOT NULL,
+	child_service_collection_id	integer	NOT NULL,
+	PRIMARY KEY (service_collection_id, child_service_collection_id)
+);
+
+DROP TABLE IF EXISTS service_collection_service cascade;
+CREATE TABLE service_collection_service (
+	service_collection_id		integer	NOT NULL,
+	service_version_id		integer	NOT NULL,
+	PRIMARY KEY (service_collection_id, service_version_id)
+);
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION create_all_services_collection() 
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		INSERT INTO service_collection (
+			service_collection_name, service_collection_type
+		) VALUES (
+			NEW.service_name, 'all-services'
+		);
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE service_collection
+		SET service_collection_name = NEW.service_name
+		WHERE service_collection_type = 'all-services'
+		AND service_collection_name = OLD.service_name;
+	ELSIF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_create_all_services_collection 
+	ON service;
+CREATE TRIGGER trigger_create_all_services_collection 
+	AFTER INSERT OR UPDATE OF service_name
+	ON service 
+	FOR EACH ROW
+	EXECUTE PROCEDURE create_all_services_collection();
+
+DROP TRIGGER IF EXISTS trigger_create_all_services_collection_del 
+	ON service;
+CREATE TRIGGER trigger_create_all_services_collection_del
+	BEFORE DELETE
+	ON service 
+	FOR EACH ROW
+	EXECUTE PROCEDURE create_all_services_collection();
+
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION manip_all_svc_collection_members() 
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		INSERT INTO service_collection_service (
+			service_collection_id, service_version_id
+		) SELECT servie_collection_id, NEW.service_version_id
+		FROM service_collection
+		WHERE service_collection_type = 'all-services'
+		AND service_collection_name IN (SELECT service_name
+			FROM service
+			WHERE service_id = NEW.service_id
+		);
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM service_collection_service
+		WHERE service_collection_type = 'all-services'
+		AND service_version_id = OLD.service_version_id
+		AND service_collection_name IN (SELECT service_name
+			FROM service
+			WHERE service_id = OLD.service_id
+		);
+		RETURN OLD;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members 
+	ON service_version;
+CREATE TRIGGER trigger_manip_all_svc_collection_members 
+	AFTER INSERT 
+    ON service_version
+	FOR EACH ROW
+	EXECUTE PROCEDURE manip_all_svc_collection_members();
+
+DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members 
+	ON service_version;
+CREATE TRIGGER trigger_manip_all_svc_collection_members_del 
+	BEFORE DELETE 
+    ON service_version 
+	FOR EACH ROW
+	EXECUTE PROCEDURE manip_all_svc_collection_members();
+
+
+-------------------------------------------------------------------------------
+
+
+/*
 Things not figured out yet:
 	version/feature advertisement
 	gslb/lb tie in
