@@ -104,6 +104,8 @@ DECLARE
 	ts	timestamp;
 	obj	text;
 	objaud text;
+	objkind text;
+	objschema text;
 BEGIN
 	SELECT	audit_schema
 	INTO	audsch
@@ -139,7 +141,7 @@ BEGIN
 	END IF;
 
 	IF rk = 'v' OR rk = 'm' THEN
-		FOR obj,objaud IN WITH RECURSIVE recur AS (
+		FOR obj,objaud,objkind, objschema IN WITH RECURSIVE recur AS (
                 SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
                 FROM pg_depend d
                     JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
@@ -156,22 +158,34 @@ BEGIN
                 JOIN recur ON recur.oid = rewrite.ev_class
                 AND d.refobjsubid > 0
 		AND c.relkind != 'm'
-            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
+            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
                 FROM pg_class c
                     JOIN recur on recur.oid = c.oid
                     JOIN pg_namespace n on c.relnamespace = n.oid
                     JOIN schema_support.schema_audit_map m
                         ON m.schema = n.nspname
-                WHERE relkind = 'r'
-		) SELECT relname, audit_schema from list
+                WHERE relkind IN ('r', 'm')
+		) SELECT relname, audit_schema, relkind, relschema from list
 		LOOP
 			-- if there is no audit table, assume its kept current.  This is
 			-- likely some sort of cache table.  XXX - should probably be
 			-- updated to use the materialized view update bits
 			BEGIN
-				EXECUTE 'SELECT max("aud#timestamp")
-					FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
-					INTO ts;
+				IF objkind = 'r' THEN
+					EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+						INTO ts;
+					IF ts IS NULL THEN
+						EXECUTE 'SELECT max("aud#timestamp")
+							FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+							INTO ts;
+					END IF;
+				ELSIF objkind = 'm' THEN
+					SELECT refresh INTO ts FROM schema_support.mv_refresh m WHERE m.schema = objschema
+						AND m.view = obj;
+				ELSE
+					RAISE NOTICE 'Unknown object kind % for %.%', objkind, objaud, obj;
+				END IF;
 				IF debug THEN
 					RAISE NOTICE '%.% -> %', objaud, obj, ts;
 				END IF;
@@ -609,6 +623,8 @@ DECLARE
 	ts	timestamp;
 	obj	text;
 	objaud text;
+	objkind text;
+	objschema text;
 BEGIN
 	SELECT	audit_schema
 	INTO	audsch
@@ -644,7 +660,7 @@ BEGIN
 	END IF;
 
 	IF rk = 'v' OR rk = 'm' THEN
-		FOR obj,objaud IN WITH RECURSIVE recur AS (
+		FOR obj,objaud,objkind, objschema IN WITH RECURSIVE recur AS (
                 SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
                 FROM pg_depend d
                     JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
@@ -661,22 +677,34 @@ BEGIN
                 JOIN recur ON recur.oid = rewrite.ev_class
                 AND d.refobjsubid > 0
 		AND c.relkind != 'm'
-            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
+            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
                 FROM pg_class c
                     JOIN recur on recur.oid = c.oid
                     JOIN pg_namespace n on c.relnamespace = n.oid
                     JOIN schema_support.schema_audit_map m
                         ON m.schema = n.nspname
-                WHERE relkind = 'r'
-		) SELECT relname, audit_schema from list
+                WHERE relkind IN ('r', 'm')
+		) SELECT relname, audit_schema, relkind, relschema from list
 		LOOP
 			-- if there is no audit table, assume its kept current.  This is
 			-- likely some sort of cache table.  XXX - should probably be
 			-- updated to use the materialized view update bits
 			BEGIN
-				EXECUTE 'SELECT max("aud#timestamp")
-					FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
-					INTO ts;
+				IF objkind = 'r' THEN
+					EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+						INTO ts;
+					IF ts IS NULL THEN
+						EXECUTE 'SELECT max("aud#timestamp")
+							FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+							INTO ts;
+					END IF;
+				ELSIF objkind = 'm' THEN
+					SELECT refresh INTO ts FROM schema_support.mv_refresh m WHERE m.schema = objschema
+						AND m.view = obj;
+				ELSE
+					RAISE NOTICE 'Unknown object kind % for %.%', objkind, objaud, obj;
+				END IF;
 				IF debug THEN
 					RAISE NOTICE '%.% -> %', objaud, obj, ts;
 				END IF;
