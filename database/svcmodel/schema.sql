@@ -273,4 +273,24 @@ needed:
    ways, some way to inherit everything from the old one plus new stuff
  - determine how to purge old versions, there's service_version.is_enabled and
    there's outright purging old information.
+
+KUBERNETES:
+ - services are kubernetes services.  They may need a different "outside"
+			vs "inside" names since something like nginx is too general.
+			The inside name would be a property override
+ - pods are devices
+ - cluter ips are service endpoints and each kubernetes cluster has its own
+ 		ip universe.
+ - service versions are either a version tag, I think.
+ - most tags are properties
+ - container images are software packages.  sadly, their names are:
+ 	docker://sha256:c8c894ffc3010ca80e87226238d13cb99c7da857f3cecee43796624ea06ff781
+	or similar.
+
+DOCKER CONTAINERS:
+ - services are containers, similar inside/outside thing as kubernetes
+ - I am not sure if a container is a device. It probably should be if it 
+   consume its own IP
+ - endpoints are the exposed ip/ports of the containers
+ - container images are software packages as above, I think.
  */
