@@ -44,28 +44,22 @@ WHERE device_name = 'obs02.lax1.appnexus.com'
 AND service_endpoint.uri LIKE '%obs.corp%'
 AND service_version.version_name = '2.5.5.1';
 
-INSERT INTO service_property (service_property_name, service_property_type, value)
+WITH svccol AS (
+	SELECT * FROM service_collection WHERE service_collection_type = 'all-services' AND service_collection_name = 'obs-frontend'
+) INSERT INTO service_property (service_collection_id, service_property_name, service_property_type, value)
 VALUES
-('location', 'launch', 'baremetal'),
-('min_cpu', 'launch', '12'),
-('min_disk', 'launch', '1500gb'),
-('min_mem', 'launch', '64gb'),
-('manual', 'docs', 'http://doc.opensuse.org/');
+((SELECT service_collection_id FROM svccol),'location', 'launch', 'baremetal'),
+((SELECT service_collection_id FROM svccol),'min_cpu', 'launch', '12'),
+((SELECT service_collection_id FROM svccol),'min_disk', 'launch', '1500gb'),
+((SELECT service_collection_id FROM svccol),'min_mem', 'launch', '64gb'),
+((SELECT service_collection_id FROM svccol),'manual', 'docs', 'http://doc.opensuse.org/');
 
-INSERT INTO service_property (service_property_name, service_property_type, value_sw_package_id)
-SELECT 'software', 'pkg', sw_package_id
-FROM sw_package
+WITH svccol AS (
+	SELECT * FROM service_collection WHERE service_collection_type = 'all-services' AND service_collection_name = 'obs-frontend'
+) INSERT INTO service_property (service_collection_id, service_property_name, service_property_type, value_sw_package_id)
+SELECT service_collection_id, 'software', 'pkg', sw_package_id
+FROM sw_package, svccol
 WHERE sw_package_name = 'obs-api';
-
-WITH props AS (
-    SELECT service_property_id
-    FROM service_property
-    ORDER BY service_property_id DESC
-    LIMIT 6 )
-INSERT INTO service_version_service_property (service_version_id, service_property_id)
-SELECT service_version_id, props.service_property_id
-FROM service_version, props
-WHERE service_version.version_name = '2.5.5.1';
 
 INSERT INTO service_depend (service_version_id, service_id, service_sla_id)
 SELECT service_version.service_version_id, service.service_id, service_sla.service_sla_id

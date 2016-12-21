@@ -1,3 +1,6 @@
+INSERT INTO service (service_name) VALUES ('stab');
+
+
 WITH swpkg AS (
 	INSERT INTO sw_package (
 		sw_package_name, sw_package_type
@@ -22,9 +25,7 @@ WITH swpkg AS (
 	AND service_sla_name = 'always'
 	RETURNING *
 ), svc AS (
-	INSERT INTO service (service_name)
-	VALUES ('stab')
-	RETURNING *
+	SELECT * FROM service WHERE service_name = 'stab'
 ), src AS (
 	INSERT INTO service_source_repository (service_id, source_repository)
 	SELECT service_id, 'git@github.com:JazzHandsCMDB/jazzhands'
@@ -45,72 +46,64 @@ WITH swpkg AS (
 	FROM device, endpoint, svcv
 	WHERE device_name ~ '^\d+\.stab\..*$'
 	RETURNING *
+), svccol AS (
+	select sc.* 
+	FROM service_collection sc
+		JOIN svc s ON s.service_name = sc.service_collection_name
+	WHERE service_collection_type = 'all-services'
 ), svcprop1 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, value
+		service_collection_id, service_property_name, service_property_type, value
 	) values 
-		('location', 'launch', 'vm'),
-		('location', 'launch', 'baremetal'),
-		('min_cpu', 'launch', '4'),
-		('min_disk', 'launch', '20gb'),
-		('min_mem', 'launch', '4gb'),
-		('manual', 'docs', 'https://docs.example.com/?stab')
+		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'vm'),
+		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'baremetal'),
+		((SELECT service_collection_id FROM svccol), 'min_cpu', 'launch', '4'),
+		((SELECT service_collection_id FROM svccol), 'min_disk', 'launch', '20gb'),
+		((SELECT service_collection_id FROM svccol), 'min_mem', 'launch', '4gb'),
+		((SELECT service_collection_id FROM svccol), 'manual', 'docs', 'https://docs.example.com/?stab')
 	RETURNING *
 ), svcprop2 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_layer3_network_collection_id
-	) SELECT 'launch-nets', 'launch', netblock_collection_id
-	FROM netblock_collection
+	) SELECT service_collection_id, 'launch-nets', 'launch', netblock_collection_id
+	FROM netblock_collection,svccol
 	WHERE netblock_collection_name = 'rfc1918-nets'
 	AND netblock_collection_type = 'ad-hoc'
 	RETURNING *
 ), svcprop2a AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_layer3_network_collection_id
-	) SELECT 'service-nets', 'launch', layer2_network_collection_id
-	FROM layer2_network_collection
+	) SELECT service_collection_id, 'service-nets', 'launch', layer2_network_collection_id
+	FROM layer2_network_collection,svccol
 	WHERE layer2_network_collection_name = 'dmz-nets'
 	AND layer2_network_collection_type = 'service'
 	RETURNING *
 ), svcprop3 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_account_collection_id
-	) SELECT 'admin', 'role', account_collection_id
-	FROM account_collection
+	) SELECT service_collection_id, 'admin', 'role', account_collection_id
+	FROM account_collection,svccol
 	WHERE account_collection_name = 'stab_full_admin'
 	AND account_collection_type = 'systems'
 	RETURNING *
 ), svcprop4 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_account_collection_id
-	) SELECT 'log_watcher', 'role', account_collection_id
-	FROM account_collection
+	) SELECT service_collection_id, 'log_watcher', 'role', account_collection_id
+	FROM account_collection,svccol
 	WHERE account_collection_name = 'stab_all_access'
 	AND account_collection_type = 'systems'
 	RETURNING *
 ), svcprop5 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_sw_package_id
-	) SELECT 'software', 'pkg', sw_package_id
-	FROM swpkg
-	RETURNING *
-), svcprop AS ( 
-	select * from svcprop5 UNION 
-	select * from svcprop4 UNION 
-	select * from svcprop3 UNION
-	select * from svcprop2a UNION
-	select * from svcprop2 UNION
-	select * from svcprop1
-), svsp AS (
-	INSERT INTO service_version_service_property (
-		service_version_id, service_property_id
-	) SELECT service_version_id, service_property_id
-	FROM svcv, svcprop
+	) SELECT service_collection_id, 'software', 'pkg', sw_package_id
+	FROM swpkg,svccol
 	RETURNING *
 ), svcdep AS (
 	INSERT INTO service_depend (
@@ -120,5 +113,5 @@ WITH swpkg AS (
 	FROM svcv v, service s, service_sla a
 	WHERE s.service_name = 'jazzhands-db'
 	AND a.service_sla_name = 'always'
-) select * from svsp;
+) select * from svccol;
 

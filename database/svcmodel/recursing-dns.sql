@@ -1,3 +1,5 @@
+INSERT INTO service (service_name) VALUES ('dns-recurse');
+
 WITH swpkg AS (
 	INSERT INTO sw_package (
 		sw_package_name, sw_package_type
@@ -22,9 +24,7 @@ WITH swpkg AS (
 	AND service_sla_name = 'always'
 	RETURNING *
 ), svc AS (
-	INSERT INTO service (service_name)
-	VALUES ('dns-recurse')
-	RETURNING *
+	SELECT * FROM service WHERE service_name = 'dns-recurse'
 ), svcv AS (
 	INSERT INTO service_version 
 		(service_id, version_name)
@@ -39,43 +39,38 @@ WITH swpkg AS (
 	FROM device, endpoint, svcv
 	WHERE device_name ~ '^\d+\.(newdns|dns-recurse)\..*$'
 	RETURNING *
+), svccol AS (
+	select sc.* 
+	FROM service_collection sc
+		JOIN svc s ON s.service_name = sc.service_collection_name
+	WHERE service_collection_type = 'all-services'
 ), svcprop1 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, value
+		service_collection_id, service_property_name, service_property_type, value
 	) values 
-		('location', 'launch', 'vm'),
-		('location', 'launch', 'baremetal'),
-		('min_cpu', 'launch', '4'),
-		('min_disk', 'launch', '20gb'),
-		('min_mem', 'launch', '4gb'),
-		('manual', 'docs', 'https://docs.example.com/?stab')
+		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'vm'),
+		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'baremetal'),
+		((SELECT service_collection_id FROM svccol), 'min_cpu', 'launch', '4'),
+		((SELECT service_collection_id FROM svccol), 'min_disk', 'launch', '20gb'),
+		((SELECT service_collection_id FROM svccol), 'min_mem', 'launch', '4gb'),
+		((SELECT service_collection_id FROM svccol), 'manual', 'docs', 'https://docs.example.com/?stab')
 	RETURNING *
 ), svcprop2 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_layer3_network_collection_id
-	) SELECT 'launch-nets', 'launch', layer2_network_collection_id
-	FROM layer2_network_collection
+	) SELECT service_collection_id, 'launch-nets', 'launch', layer2_network_collection_id
+	FROM layer2_network_collection, svccol
 	WHERE layer2_network_collection_name = 'dmz-nets'
 	AND layer2_network_collection_type = 'service'
 	RETURNING *
 ), svcprop3 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_layer3_network_collection_id
-	) SELECT 'service-nets', 'launch', layer2_network_collection_id
-	FROM layer2_network_collection
+	) SELECT service_collection_id, 'service-nets', 'launch', layer2_network_collection_id
+	FROM layer2_network_collection, svccol
 	WHERE layer2_network_collection_name = 'dmz-nets'
 	AND layer2_network_collection_type = 'service'
 	RETURNING *
-), svcprop AS ( 
-	select * from svcprop3 UNION
-	select * from svcprop2 UNION
-	select * from svcprop1
-), svsp AS (
-	INSERT INTO service_version_service_property (
-		service_version_id, service_property_id
-	) SELECT service_version_id, service_property_id
-	FROM svcv, svcprop
-	RETURNING *
-) SELECT * from svsp;
+) SELECT * from svccol;

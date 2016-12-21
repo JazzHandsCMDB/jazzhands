@@ -85,27 +85,6 @@ CREATE TABLE software_repository_location (
 	PRIMARY KEY (software_repository_id, software_repository_location_type)
 );
 
-DROP TABLE IF EXISTS service_property;
-CREATE TABLE service_property (
-	service_property_id		serial		NOT NULL,
-	service_property_name		text		NOT NULL,
-	service_property_type		text		NOT NULL,-- not sure
-	value				text,
-	value_sw_package_id		integer,
-	value_netblock_collection_id	integer,
-	value_layer2_network_collection_id	integer,
-	value_layer3_network_collection_id	integer,
-	value_account_collection_id	integer,
-	PRIMARY KEY (service_property_id)
-);
-
-DROP TABLE IF EXISTS service_version_service_property;
-CREATE TABLE service_version_service_property (
-	service_version_id	integer,
-	service_property_id	integer,
-	PRIMARY KEY (service_version_id, service_property_id)
-);
-
 DROP TABLE IF EXISTS service_depend;
 CREATE TABLE service_depend (
 	service_depend_id	serial		NOT NULL,
@@ -138,6 +117,25 @@ CREATE TABLE service_collection_service (
 	service_collection_id		integer	NOT NULL,
 	service_version_id		integer	NOT NULL,
 	PRIMARY KEY (service_collection_id, service_version_id)
+);
+
+--
+-- THere is a reasonable chance that this will just become property with
+-- service_collection being added to the lhs (and possibly rhs).
+--
+DROP TABLE IF EXISTS service_property;
+CREATE TABLE service_property (
+	service_property_id		serial		NOT NULL,
+	service_collection_id		integer		NOT NULL,
+	service_property_name		text		NOT NULL,
+	service_property_type		text		NOT NULL,-- not sure
+	value				text,
+	value_sw_package_id		integer,
+	value_netblock_collection_id	integer,
+	value_layer2_network_collection_id	integer,
+	value_layer3_network_collection_id	integer,
+	value_account_collection_id	integer,
+	PRIMARY KEY (service_property_id)
 );
 
 -------------------------------------------------------------------------------

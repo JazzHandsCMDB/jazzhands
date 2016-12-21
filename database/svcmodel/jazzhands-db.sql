@@ -1,3 +1,5 @@
+INSERT INTO service (service_name) VALUES ('jazzhands-db');
+
 WITH endpoint AS (
 	INSERT INTO service_endpoint (
 		dns_record_id, uri
@@ -16,9 +18,7 @@ WITH endpoint AS (
 	AND service_sla_name = 'always'
 	RETURNING *
 ), svc AS (
-	INSERT INTO service (service_name)
-	VALUES ('jazzhands-db')
-	RETURNING *
+	SELECT * FROM service where service_name = 'jazzhands-db'
 ), src AS (
 	INSERT INTO service_source_repository (service_id, source_repository)
 	SELECT service_id, 'git@github.com:JazzHandsCMDB/jazzhands'
@@ -39,62 +39,46 @@ WITH endpoint AS (
 	FROM device, endpoint, svcv
 	WHERE device_name ~ '^\d+\.jazzhands-db\..*$'
 	RETURNING *
+), svccol AS (
+	select sc.* 
+	FROM service_collection sc
+		JOIN svc s ON s.service_name = sc.service_collection_name
+	WHERE service_collection_type = 'all-services'
 ), svcprop1 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, value
+		service_collection_id, service_property_name, service_property_type, value
 	) values 
-		('location', 'launch', 'baremetal'),
-		('min_cpu', 'launch', '4'),
-		('min_mem', 'launch', '32gb'),
-		('manual', 'docs', 'https://github.com/JazzHandsCMDB/jazzhands/tree/master/doc')
+		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'baremetal'),
+		((SELECT service_collection_id FROM svccol), 'min_cpu', 'launch', '4'),
+		((SELECT service_collection_id FROM svccol), 'min_mem', 'launch', '32gb'),
+		((SELECT service_collection_id FROM svccol), 'manual', 'docs', 'https://github.com/JazzHandsCMDB/jazzhands/tree/master/doc')
 	RETURNING *
 ), svcprop2 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_layer3_network_collection_id
-	) SELECT 'service-nets', 'launch', layer2_network_collection_id
-	FROM layer2_network_collection
+	) SELECT service_collection_id, 'service-nets', 'launch', layer2_network_collection_id
+	FROM layer2_network_collection, svccol
 	WHERE layer2_network_collection_name = 'internal-nets'
 	AND layer2_network_collection_type = 'service'
 	RETURNING *
 ), svcprop3 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_account_collection_id
-	) SELECT 'admin', 'role', account_collection_id
-	FROM account_collection
+	) SELECT service_collection_id, 'admin', 'role', account_collection_id
+	FROM account_collection, svccol
 	WHERE account_collection_name = 'drt_iud'
 	AND account_collection_type = 'dbole'
 	RETURNING *
 ), svcprop4 AS (
 	INSERT INTO service_property (
-		service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type, 
 			value_account_collection_id
-	) SELECT 'log_watcher', 'role', account_collection_id
-	FROM account_collection
-	WHERE account_collection_name = 'stab_all_access'
-	AND account_collection_type = 'systems'
-	RETURNING *
-), svcprop5 AS (
-	INSERT INTO service_property (
-		service_property_name, service_property_type, 
-			value_account_collection_id
-	) SELECT 'iud_role', 'role', account_collection_id
-	FROM account_collection
+	) SELECT service_collection_id, 'iud_role', 'role', account_collection_id
+	FROM account_collection,svccol
 	WHERE account_collection_name = 'drt_iud'
 	AND account_collection_type = 'dbrole'
 	RETURNING *
-), svcprop AS ( 
-	select * from svcprop5 UNION 
-	select * from svcprop4 UNION 
-	select * from svcprop3 UNION
-	select * from svcprop2 UNION
-	select * from svcprop1
-), svsp AS (
-	INSERT INTO service_version_service_property (
-		service_version_id, service_property_id
-	) SELECT service_version_id, service_property_id
-	FROM svcv, svcprop
-	RETURNING *
-) select * from svsp;
+) select * from svccol;
 
