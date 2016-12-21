@@ -80,7 +80,7 @@ WITH swpkg AS (
 	WHERE layer2_network_collection_name = 'dmz-nets'
 	AND layer2_network_collection_type = 'service'
 	RETURNING *
-), svcprop3 AS (
+), svcprop_admin AS (
 	INSERT INTO service_property (
 		service_collection_id, service_property_name, service_property_type, 
 			value_account_collection_id
@@ -89,6 +89,16 @@ WITH swpkg AS (
 	WHERE account_collection_name = 'stab_full_admin'
 	AND account_collection_type = 'systems'
 	RETURNING *
+), svcprop_owner AS (
+	INSERT INTO service_property (
+		service_collection_id, service_property_name, service_property_type, 
+			value_account_collection_id
+	) SELECT service_collection_id, 'owner', 'role', account_collection_id
+	FROM account_collection,svccol
+	WHERE account_collection_name ~ 'Core Sys Infr'
+	AND account_collection_type = 'department'
+	RETURNING *
+
 ), svcprop4 AS (
 	INSERT INTO service_property (
 		service_collection_id, service_property_name, service_property_type, 

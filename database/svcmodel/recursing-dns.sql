@@ -11,7 +11,7 @@ WITH swpkg AS (
 		dns_record_id, uri
 	) SELECT dns_record_id, concat('dns://', dns_name, '.',soa_name,'/')
 	FROM dns_record join dns_domain using (dns_domain_id)
-	where dns_name ~ 'newdns|dns-recurse' order by dns_domain_id limit 1
+	where dns_name ~ 'intdnsrecurse' order by dns_domain_id 
 	RETURNING *
 ), endsla AS (
 	INSERT INTO service_endpoint_service_sla (

@@ -233,18 +233,23 @@ CREATE TRIGGER trigger_manip_all_svc_collection_members_del
 
 /*
 Things not figured out yet:
-	version/feature advertisement
-	gslb/lb tie in
 	os versioning
 	os snapshots
-	licensing
+		- valid versions get added to property, I think
 	appaal tiein
-	x509_certificate tie in
+		- probably just adding service_collection_id to appaal
+	version/feature advertisement
+		- this may just be properties?
+	should service_instance possibly become a property?
+	non-network services
+needs cycles, perhaps not a lot of thought:
 	tie into property
 	foreign keys
 	val tables
-	non-network services
-	triggers
-	netblock vs l2 vs l3 collections
+	triggers - some done, more needed.  needs to be enumerated
+needs thought:
+	licensing
+	gslb/lb tie in
+	x509_certificate tie in (relate to above)
 
  */
