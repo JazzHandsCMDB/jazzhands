@@ -38,6 +38,7 @@ WITH swpkg AS (
 		device_id, service_endpoint_id, service_version_id
 	FROM device, endpoint, svcv
 	WHERE device_name ~ '^\d+\.(newdns|dns-recurse)\..*$'
+	AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))
 	RETURNING *
 ), svccol AS (
 	select sc.* 

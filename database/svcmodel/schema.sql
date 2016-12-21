@@ -48,6 +48,8 @@ CREATE TABLE service_endpoint (
 	service_endpoint_id	serial		NOT NULL,
 	dns_record_id		integer,
 	uri			text,
+	x509_signed_certificate_id	integer,
+	private_key_id			integer,
 	PRIMARY KEY (service_endpoint_id)
 );	
 
@@ -179,7 +181,6 @@ CREATE TRIGGER trigger_create_all_services_collection_del
 	FOR EACH ROW
 	EXECUTE PROCEDURE create_all_services_collection();
 
-
 -------------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION manip_all_svc_collection_members() 
@@ -227,7 +228,6 @@ CREATE TRIGGER trigger_manip_all_svc_collection_members_del
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_all_svc_collection_members();
 
-
 -------------------------------------------------------------------------------
 
 
@@ -235,21 +235,42 @@ CREATE TRIGGER trigger_manip_all_svc_collection_members_del
 Things not figured out yet:
 	os versioning
 	os snapshots
-		- valid versions get added to property, I think
+		- valid versions get added to property and linked to
+			service_collection_ids
 	appaal tiein
-		- probably just adding service_collection_id to appaal
+		- add service_collection_id to appaal?
+		- appaal_instance links to service_instance somehow?
 	version/feature advertisement
-		- this may just be properties?
-	should service_instance possibly become a property?
+		- this may just be properties?  more complicated?
+	should service_instance possibly become a property? 
+		- if not, should it point to a network interface + device and not just
+			a device and pull in lb_node-style information?  how does that fit
+			into geoip-encoded records
 	non-network services
+	lb tie in
+		- this is either service_endpoint or, more likely, is another table
+		  with service_endpoint as the pk/fk.  This essentially ends up with
+		  missing columns from lb_pool.  The difference is lb_ip becomes tied
+		  to a dns record and thus tied to an ip address rather than to an
+		  optional ip address
+	gslb tie in
+		- I think this means enhancing dns_record to handle geoip data.
+		  either a special record or a flag on existing records to say "this
+		  is a special gslb record" (or zone).
+	some way to tie service endpoints to service instances when they are
+		not through some sort of intermediary.  Should this be trigger
+		enforced?   probably.
 needs cycles, perhaps not a lot of thought:
-	tie into property
-	foreign keys
-	val tables
+	tie into property (likely service_collection_id merges into property r/lhs)
+	foreign keys (should be obvious)
+	val tables (should also be pretty obviou)
 	triggers - some done, more needed.  needs to be enumerated
 needs thought:
 	licensing
-	gslb/lb tie in
-	x509_certificate tie in (relate to above)
 
+needed:
+ - stored procedures to break off a service collections of versions in smart
+   ways, some way to inherit everything from the old one plus new stuff
+ - determine how to purge old versions, there's service_version.is_enabled and
+   there's outright purging old information.
  */
