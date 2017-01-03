@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2013, Todd M. Kover
+# Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,37 +22,79 @@
 
 use warnings;
 use strict;
+use Getopt::Long;
+
+package ZoneImportWorker;
+
 use Net::DNS;
 use JazzHands::DBI;
-use NetAddr::IP;
-use Getopt::Long;
+use Net::IP;    # Just for reverse DNS-type operations
+use NetAddr::IP qw(:lower);
 use Data::Dumper;
 use JazzHands::Common qw(:all);
 use Carp;
+use parent 'JazzHands::Common';
 
-exit do_zone_load();
+# local $SIG{__WARN__} = \&Carp::cluck;
+
+our $errstr;
+
+sub DESTROY {
+	my $self = shift @_;
+	my $ac   = $self->{_dbh}->{AutoCommit};
+
+	$self->rollback if ( !$ac );
+	$self->disconnect;
+}
+
+sub new {
+	my $proto = shift;
+	my $class = ref($proto) || $proto;
+	my $opt   = &_options;
+
+	my $self = $class->SUPER::new(@_);
+
+	$self->{_dbuser} = $opt->{dbuser} || 'zoneimport';
+
+	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
+
+	my $dbh = JazzHands::DBI->connect( $self->{_dbuser},
+		{ AutoCommit => 0, RaiseError => 1 } );
+	if ( !$dbh ) {
+		$errstr =
+		  "Unable to connect to $self->{_dbuser}: " . $JazzHands::DBI::errstr;
+		return undef;
+	}
+
+	$self->DBHandle($dbh);
+	$self;
+
+}
 
 sub check_and_add_service {
-	my($c, $service) = @_;
+	my ( $c, $service ) = @_;
 
-	my(@errs);
+	my (@errs);
 	my $dbrec;
-	if($dbrec = $c->DBFetch(
-		table           => 'val_dns_srv_service',
-		match           => {
-			dns_srv_service => $service,
-		},
-		result_set_size => 'first',
-		errors          => \@errs
-	)) {
+	if (
+		$dbrec = $c->DBFetch(
+			table => 'val_dns_srv_service',
+			match => {
+				dns_srv_service => $service,
+			},
+			result_set_size => 'first',
+			errors          => \@errs
+		)
+	  )
+	{
 		return 0;
 	}
 	$c->dbh->err && die join( " ", @errs );
 
-	if($dbrec) {
+	if ($dbrec) {
 		return;
 	}
-	if(!$c->{addservice}) {
+	if ( !$c->{addservice} ) {
 		die "$service not in DB, can not add record\n";
 	}
 	$c->DBInsert(
@@ -60,23 +102,26 @@ sub check_and_add_service {
 		hash  => {
 			dns_srv_service => $service
 		},
-		errs  => \@errs,
+		errs => \@errs,
 	) || die join( " ", @errs );
 }
 
 sub link_inaddr {
-	my($c, $domid, $block) = @_;
+	my ( $c, $domid, $block ) = @_;
 
-	my(@errs);
-	if(my $dbrec = $c->DBFetch(
-		table           => 'dns_record',
-		match           => {
-			dns_domain_id => $domid,
-			dns_type => 'REVERSE_ZONE_BLOCK_PTR'
-		},
-		result_set_size => 'first',
-		errors          => \@errs
-	)) {
+	my (@errs);
+	if (
+		my $dbrec = $c->DBFetch(
+			table => 'dns_record',
+			match => {
+				dns_domain_id => $domid,
+				dns_type      => 'REVERSE_ZONE_BLOCK_PTR'
+			},
+			result_set_size => 'first',
+			errors          => \@errs
+		)
+	  )
+	{
 		return 0;
 	}
 
@@ -88,31 +133,32 @@ sub link_inaddr {
 	);
 	$c->dbh->err && die join( " ", @errs );
 
-	if(!$nblk) {
+	if ( !$nblk ) {
 		$nblk = {
 			ip_address        => $block,
 			netblock_type     => 'dns',
 			is_single_address => 'N',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
-			ip_universe_id    => 0,
+			ip_universe_id    => $c->{ip_universe},
 		};
 		$c->DBInsert(
 			table => 'netblock',
 			hash  => $nblk,
 			errs  => \@errs,
 		) || die join( " ", @errs );
-	};
+	}
 
 	my $dns = {
-		dns_domain_id	=> $domid,
-		dns_class	=> 'IN',
-		dns_type	=> 'REVERSE_ZONE_BLOCK_PTR',
-		netblock_id	=> $nblk->{netblock_id},
+		dns_domain_id => $domid,
+		dns_class     => 'IN',
+		dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
+		netblock_id   => $nblk->{netblock_id},
 	};
 	$c->DBInsert(
 		table => 'dns_record',
-		hash => $dns,,,,
+		hash  => $dns,
+		,,,
 		errs => \@errs,
 	) || die join( " ", @errs );
 	1;
@@ -120,20 +166,21 @@ sub link_inaddr {
 
 #
 # given an IP, returns the forward record that defines that
-# PTR record
+# PTR record, traversing CNAMEs and what not.
 #
 sub get_ptr {
-	my($c, $ip) = @_;
+	my ( $c, $ip ) = @_;
 
-	my(@errs);
+	$c->_Debug( 2, "looking for PTR for $ip" );
+
+	my (@errs);
 	my $nblk = $c->DBFetch(
-		table           => 'netblock',
-		match           => {
-			'host(ip_address)' => $ip,
-			'is_single_address' => 'Y',
-			'netblock_type'     => 'default',
-			'ip_universe_id'    => 0,
-			'host(ip_address)'  => $ip
+		table => 'netblock',
+		match => {
+			'is_single_address'      => 'Y',
+			'netblock_type'          => 'default',
+			'ip_universe_id'         => $c->{ip_universe},
+			'host(ip_address)::inet' => $ip
 		},
 		result_set_size => 'first',
 		errors          => \@errs
@@ -141,9 +188,9 @@ sub get_ptr {
 	return undef if !$nblk;
 
 	my $dns = $c->DBFetch(
-		table	=>	'dns_record',
-		match	=>	{
-			netblock_id => $nblk->{netblock_id},
+		table => 'dns_record',
+		match => {
+			netblock_id         => $nblk->{netblock_id},
 			should_generate_ptr => 'Y',
 		},
 		result_set_size => 'first',
@@ -152,16 +199,16 @@ sub get_ptr {
 	return undef if !$dns;
 
 	my $dom = $c->DBFetch(
-		table	=>	'dns_domain',
-		match	=>	{
+		table => 'dns_domain',
+		match => {
 			dns_domain_id => $dns->{dns_domain_id},
 		},
 		result_set_size => 'exactlyone',
 		errors          => \@errs
-	) || die "$ip: ", join(",", @errs);
+	) || die "$ip: ", join( ",", @errs );
 
-	if(defined($dns->{dns_name})) {
-		return join(".", $dns->{dns_name}, $dom->{soa_name});
+	if ( defined( $dns->{dns_name} ) ) {
+		return join( ".", $dns->{dns_name}, $dom->{soa_name} );
 	} else {
 		return $dom->{soa_name};
 	}
@@ -169,18 +216,18 @@ sub get_ptr {
 }
 
 sub get_parent_domain {
-	my ($c, $zone) = @_;
+	my ( $c, $zone ) = @_;
 
-	print "processing zone is $zone\n";
+	# print "processing zone is $zone\n";
 	my (@errs);
-	while($zone =~ s/^[^\.]+\.//) {
+	while ( $zone =~ s/^[^\.]+\.// ) {
 		my $old = $c->DBFetch(
 			table           => 'dns_domain',
 			match           => { soa_name => $zone },
 			result_set_size => 'exactlyone',
 			errors          => \@errs
 		);
-		if($old) {
+		if ($old) {
 			return $old;
 		}
 	}
@@ -192,35 +239,63 @@ sub get_parent_domain {
 # says for it.
 #
 sub get_inaddr {
-	my $c = shift(@_);
+	my $c  = shift(@_);
 	my $ip = shift(@_);
 
-	my $i = new NetAddr::IP($ip) || die "Unable to parse invalid ip $ip\n";
+	$c->_Debug( 3, "get_inaddr($ip)..." );
 
-	my @ip;
-	if ( $i->version() == 4 ) {
-		@ip = reverse split( /\./, $ip );
-	} elsif ( $i->version() == 6 ) {
-		my $i = new NetAddr::IP($ip);
-		my $x = $i->full();
-		$x =~ s/://g;
-		@ip = reverse split( //, $x );
-	} else {
-		die "Unknown IP version ", $i->version();
+	my $ii = new Net::IP($ip) || die "Parse($ip): " . Net::IP::Error();
+	my $inaddr = $ii->reverse_ip();
+
+	my $res = new Net::DNS::Resolver;
+	#
+	# There is no guarantee that the auth server that hosts a fwd zone also
+	# hosts the in-addr zone, so this extra hoop jumping.
+	#
+	$res->nameserver( $c->{nameserver} ) if ( $c->{nameserver} );
+	my $a = $res->send( $inaddr, 'PTR' );
+
+	if ( !$a || !scalar $a->answer ) {
+
+		# reset with no nameserver
+		$res = new Net::DNS::Resolver;
+		$a = $res->send( $inaddr, 'PTR' );
 	}
 
-	my $inaddr = join( ".", @ip ) . ".in-addr.arpa";
-	my $res    = new Net::DNS::Resolver;
-	$res->nameserver( $c->{nameserver} ) if($c->{nameserver});
-	my $a      = $res->query( $inaddr, 'PTR' );
+	# deal with the case of there being a cname.
+	if ( !$a || !scalar $a->answer || grep { $_->type eq 'PTR' } $a->answer ) {
+
+		# to reset the nameservers, which is potentially needed to traverse
+		# CNAMEs, which the AUTH server may not actually  have.
+		my $res = new Net::DNS::Resolver;
+		my $qn  = $inaddr;
+		do {
+			$a = $res->send( $qn, 'CNAME' );
+			$c->_Debug( 4, "\t\tconsider $qn ..  ", scalar $a->answer );
+			if ($a) {
+				foreach my $rr ( grep { $_->type eq 'CNAME' } $a->answer ) {
+					$qn = $rr->cname;
+					last;
+				}
+			}
+		} while ( $a && scalar $a->answer );
+
+		$a = $res->send( $qn, 'PTR' );
+	}
 
 	# return the first one.  If there is more than one,
 	# we will consider that broken setup.  Perhaps
 	# a warning is in order here.  XXX
-	return undef if ( !$a );
+	if ( !$a || !scalar $a->answer ) {
+		$c->_Debug( 3, "no answer: %s", $res->errorstring );
+		return undef;
+	}
 	foreach my $rr ( grep { $_->type eq 'PTR' } $a->answer ) {
+		$c->_Debug( 3, "Returning: %s", $rr->ptrdname );
 		return $rr->ptrdname;
 	}
+	$c->_Debug( 3, "Returning nothing" );
+	undef;
 }
 
 sub by_name {
@@ -279,7 +354,7 @@ sub freshen_zone {
 		};
 
 		my $parent;
-		if($parent = get_parent_domain($c, $zone) ) {
+		if ( $parent = get_parent_domain( $c, $zone ) ) {
 			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
 		}
 
@@ -313,56 +388,72 @@ sub freshen_zone {
 		}
 
 		# If this is an in-addr zone, then do reverse linkage
-		if($zone =~ /in-addr.arpa$/) {
+		if ( $zone =~ /in-addr.arpa$/ ) {
+
 			# XXX needs to be combined with routine in gen_ptr
 			$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
-			if($1) {
+			if ($1) {
 				my $block;
-				my @digits = reverse split(/\./, $1);
-				my ($ip, $bit);
-				if($#digits <= 3) {
-					$ip = join(".", @digits);
+				my @digits = reverse split( /\./, $1 );
+				my ( $ip, $bit );
+				if ( $#digits <= 3 ) {
+					$ip = join( ".", @digits );
+
 					# ipv4, most likely...
-					if($#digits == 2) {
+					if ( $#digits == 2 ) {
 						$block = "$ip.0/24";
 					}
 				} else {
 					die "need to sort out ipv6\n";
 				}
-				die "Unable to discern block for $zone", if(!$block);
-				$numchanges += link_inaddr($c, $$dom->{dns_domain_id}, $block);
+				die "Unable to discern block for $zone", if ( !$block );
+				$numchanges +=
+				  link_inaddr( $c, $$dom->{dns_domain_id}, $block );
 			} else {
 				warn "Unable to make in-addr dns linkage\n";
 			}
 		}
 
-		if($parent) {
+		if ($parent) {
+
 			# In our parent, if there are any NS record for us, they
 			# should be deleted, because Zone Generaion will DTRT with
 			# delegation
 			my $shortname = $zone;
 			$shortname =~ s/.$parent->{soa_name}$//;
-			foreach my $z (@{$c->DBFetch(
-					table           => 'dns_record',
-					match           => { 
-										dns_domain_id => $parent->{dns_domain_id},
-										dns_type => 'NS',
-										dns_name => $shortname,
-									},
-					errors          => \@errs
-			)}) {
+			foreach my $z (
+				@{
+					$c->DBFetch(
+						table => 'dns_record',
+						match => {
+							dns_domain_id => $parent->{dns_domain_id},
+							dns_type      => 'NS',
+							dns_name      => $shortname,
+						},
+						errors => \@errs
+					)
+				}
+			  )
+			{
 				my $ret = 0;
-				if($c->{nodelete}) {
-					warn "Skipping NS record cleanup on ", $z->{dns_record_id}, "\n";
+				if ( $c->{nodelete} ) {
+					warn "Skipping NS record cleanup on ", $z->{dns_record_id},
+					  "\n";
 				} else {
 					warn "deleting ns record ", $z->{dns_record_id};
-					if(! ($ret = $c->DBDelete(
-						table	=> 'dns_record',
-						dbkey	=> 'dns_record_id',
-						keyval	=> $z->{dns_record_id},
-						errors	=> \@errs,
-					))) {
-						die "Error deleting record ", join(" ", @errs), ": ", Dumper($z);
+					if (
+						!(
+							$ret = $c->DBDelete(
+								table  => 'dns_record',
+								dbkey  => 'dns_record_id',
+								keyval => $z->{dns_record_id},
+								errors => \@errs,
+							)
+						)
+					  )
+					{
+						die "Error deleting record ", join( " ", @errs ), ": ",
+						  Dumper($z);
 					}
 				}
 				$numchanges += $ret;
@@ -371,28 +462,37 @@ sub freshen_zone {
 
 		my $lineage = $zone;
 		$lineage =~ s/^[^\.]+\././;
-		foreach my $z (@{$c->DBFetch(
+		foreach my $z (
+			@{
+				$c->DBFetch(
 					table => 'dns_domain',
 					match => [
-						{	key => 'soa_name',
-							value => $lineage,
+						{
+							key       => 'soa_name',
+							value     => $lineage,
 							matchtype => 'like',
 						}
 					],
-					errors	=> \@errs,
-				)}) {
-			if(!defined($z->{parent_dns_domain_id}) || $z->{parent_dns_domain_id} != $new->{dns_domain_id}) {
-				if($c->{verbose}) {
-					warn "updating ", $z->{soa_name}, " to have parent of ", $new->{soa_name}, "\n";
+					errors => \@errs,
+				)
+			}
+		  )
+		{
+			if ( !defined( $z->{parent_dns_domain_id} )
+				|| $z->{parent_dns_domain_id} != $new->{dns_domain_id} )
+			{
+				if ( $c->{verbose} ) {
+					warn "updating ", $z->{soa_name}, " to have parent of ",
+					  $new->{soa_name}, "\n";
 				}
 				$numchanges += $c->DBUpdate(
 					table  => 'dns_domain',
 					dbkey  => 'dns_domain_id',
 					keyval => $z->{dns_domain_id},
 					hash   => {
-							parent_dns_domain_id => $new->{dns_domain_id},
+						parent_dns_domain_id => $new->{dns_domain_id},
 					},
-					errs   => \@errs,
+					errs => \@errs,
 				) || die join( " ", @errs );
 			}
 		}
@@ -438,12 +538,12 @@ sub refresh_dns_record {
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
-		warn "Attempting to find $address... \n" if ( $c->{debug} );
+		$c->_Debug( 2, "Attempting to find $address... \n" );
 		my $match = {
-			'is_single_address' => 'Y',
-			'netblock_type'     => 'default',
-			'ip_universe_id'    => 0,
-			'host(ip_address)'  => $address
+			'is_single_address'      => 'Y',
+			'netblock_type'          => 'default',
+			'ip_universe_id'         => $c->{ip_universe},
+			'host(ip_address)::inet' => $address
 		};
 		$nb = $c->DBFetch(
 			table           => 'netblock',
@@ -467,14 +567,12 @@ sub refresh_dns_record {
 		}
 
 		if ( !$nb ) {
-			if ( defined( $c->{nbrule} ) && $c->{nbrule} eq 'skip' )
-			{
-				warn
-"$name ($address) - Netblock not found.  Skipping.\n";
+			my $errname = $name || "";
+			if ( defined( $c->{nbrule} ) && $c->{nbrule} eq 'skip' ) {
+				warn "$errname ($address) - Netblock not found.  Skipping.\n";
 				return 0;
 			} else {
-				warn
-"$name ($address) - Netblock not found.  Creating.\n";
+				warn "$errname ($address) - Netblock not found.  Creating.\n";
 			}
 
 			$nb = {
@@ -483,7 +581,7 @@ sub refresh_dns_record {
 				is_single_address => 'Y',
 				can_subnet        => 'N',
 				netblock_status   => 'Allocated',
-				ip_universe_id    => 0,
+				ip_universe_id    => $c->{ip_universe},
 			};
 			$c->dbh->do("SAVEPOINT biteme");
 			my $x = $c->DBInsert(
@@ -493,13 +591,11 @@ sub refresh_dns_record {
 			);
 			if ( !$x ) {
 				if ( $c->dbh->err == 7 ) {
-					$c->dbh->do(
-						"ROLLBACK TO SAVEPOINT biteme");
+					$c->dbh->do("ROLLBACK TO SAVEPOINT biteme");
 					if ( defined( $c->{nbrule} )
 						&& $c->{nbrule} eq 'iponly' )
 					{
-						warn "\tskipping ...",
-						  join( " ", @errs );
+						warn "\tskipping ...", join( " ", @errs );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
@@ -508,13 +604,11 @@ sub refresh_dns_record {
 							hash  => $nb,
 							errrs => \@errs,
 						  )
-						  || die "$address: [",
-						  $c->dbh->err, "] ",
+						  || die "$address: [", $c->dbh->err, "] ",
 						  join( " ", @errs );
 					}
 				} else {
-					die "$address: [", $c->dbh->err, "] ",
-					  join( " ", @errs );
+					die "$address: [", $c->dbh->err, "] ", join( " ", @errs );
 				}
 				$c->dbh->do("RELEASE SAVEPOINT biteme");
 			} else {
@@ -525,17 +619,17 @@ sub refresh_dns_record {
 	}
 
 	my $match = {
-		dns_name    => $name,
-		dns_value   => $value,
-		dns_type   => $opt->{dns_type},
-		dns_domain_id	=> $opt->{dns_domain_id},
-		netblock_id => ($nb) ? $nb->{netblock_id} : undef,
+		dns_name      => $name,
+		dns_value     => $value,
+		dns_type      => $opt->{dns_type},
+		dns_domain_id => $opt->{dns_domain_id},
+		netblock_id   => ($nb) ? $nb->{netblock_id} : undef,
 	};
-	if($srv_service) {
-		$match->{dns_srv_service} 	= $srv_service;
-		$match->{dns_srv_protocol} 	= $srv_protocol;
+	if ($srv_service) {
+		$match->{dns_srv_service}  = $srv_service;
+		$match->{dns_srv_protocol} = $srv_protocol;
 	}
-	
+
 	my $rows = $c->DBFetch(
 		table  => 'dns_record',
 		match  => $match,
@@ -565,6 +659,7 @@ sub refresh_dns_record {
 
 	my $dnsrecid;
 	if ($dnsrec) {
+
 		# Find if there is a dns record associated with this record
 		$dnsrecid = $dnsrec->{dns_record_id};
 		my $diff = $c->hash_table_diff( $dnsrec, $new );
@@ -576,16 +671,17 @@ sub refresh_dns_record {
 				hash   => $diff,
 				errs   => \@errs,
 			) || die join( " ", @errs );
-			warn " ++ refresh dns record ", $dnsrec->{dns_record_id}, "\n" if($c->{verbose});
+			warn " ++ refresh dns record ", $dnsrec->{dns_record_id}, "\n"
+			  if ( $c->{verbose} );
 		}
 	} else {
 		$numchanges += $c->DBInsert(
 			table => 'dns_record',
 			hash  => $new,
 			errrs => \@errs,
-		) || die join( " ", @errs );
+		) || die join( " ", Dumper($new), @errs );
 		$dnsrecid = $new->{dns_record_id};
-		warn " ++ inserted new dns record ", $new->{dns_record_id}, "\n" if($c->{verbose});
+		$c->_Debug( 4, "Inserted new record: %d", $new->{dns_record_id} );
 	}
 
 	$numchanges;
@@ -597,12 +693,12 @@ sub process_zone {
 	my $numchanges = 0;
 
 	my $dom;
-	my $r = freshen_zone( $c, $ns, $xferzone, \$dom );
-	if(defined($r)) {
+	my $r = $c->freshen_zone( $ns, $xferzone, \$dom );
+	if ( defined($r) ) {
 		$numchanges += $r;
 	}
 
-#return undef;
+	#return undef;
 
 	my $domid = $dom->{dns_domain_id};
 
@@ -611,16 +707,17 @@ sub process_zone {
 
 	my @zone = $res->axfr($xferzone);
 	if ( $#zone == -1 ) {
-		warn "No records returned in AXFR\n";
+		warn "No records returned in AXFR --", $res->errorstring;
 		return undef;
 	}
 
-#
-# XXX - First go through the zone and find things that are not there that should be
+	#
+	# XXX - First go through the zone and find things that are not there that should be
 	my $numrec = 0;
 	foreach my $rr ( sort by_name @zone ) {
-
-		# warn "CONSIDER ", $rr->string;
+		my $x = $rr->string;
+		$x =~ s/\s+/ /mg;
+		$c->_Debug( 1, "Processing record %s...", $x );
 		my $name = $rr->name;
 		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
@@ -636,41 +733,62 @@ sub process_zone {
 			dns_domain_id => $domid,
 			dns_type      => $rr->type,
 			dns_class     => $rr->class,
-			dns_ttl =>
-			  ( $rr->ttl == $dom->{soa_ttl} ? undef : $rr->ttl ),
-			genptr => 'N',
+			dns_ttl       => ( $rr->ttl == $dom->{soa_ttl} ? undef : $rr->ttl ),
+			genptr        => 'N',
 		};
 		if ( $rr->type eq 'PTR' ) {
+
 			# If this is a legitimate PTR record, check the
 			# forward record and see if it is there and genptr is
 			# set, and if so, skip, otherwise print a warning and
 			# insert as expected.
-			$rr->name =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
+			$rr->name =~ /^([a-f\d\.]+)\.(in-addr|ip6).arpa$/i;
+
+			#
+			# figure out what kind of record this is for by breaking up
+			# rr->name and figuring out if its v6, a normal class a, b or c
+			# or redirect off to something (either in-addr or otherwise,
+			# such as the btp colo stuff).
+			#
+
 			my $isip;
-			if($1) {
-				$isip = 1;
-				my @digits = reverse split(/\./, $1);
+			my ( $z, $t ) = ( $1, $2 );
+			$isip = 1;
+			if ($t) {
 				my $ip;
-				if($#digits == 3) {
-					$ip = join(".", @digits);
-				} else {
-					$ip = join("", @digits);
-					$ip =~ s/(....)/$1:/g;
+				warn "\t $t - $z\n";
+				if ( $z =~ /\./ ) {
+					my @digits = reverse split( /\./, $z );
+					if ( $#digits == 3 ) {
+						$ip = join( ".", @digits );
+					} else {
+						$ip = join( "", @digits );
+						$ip =~ s/(....)/$1:/g;
+						$ip =~ s/:$//;
+					}
+
+				} elsif ( $z =~ /:/ ) {
+					my @digits = reverse split( /:/, $z );
+					$ip = join( ":", @digits );
 					$ip =~ s/:$//;
 				}
-				if(my $dbrec = get_ptr($c, $ip)) {
-					if($dbrec ne $rr->ptrdname) {
-						warn "$ip has a PTR record that does not match DB (", $rr->ptrdname, "), skipping\n";
+
+				if ( my $dbrec = $c->get_ptr($ip) ) {
+					if ( $dbrec ne $rr->ptrdname ) {
+						warn
+						  "PTR: $ip has a PTR record that does not match DB (",
+						  $rr->ptrdname, "), skipping\n";
 					}
 					next;
 				} else {
-					warn "DB has no FWD record for $ip (", $rr->ptrdname, "), adding\n";
+					warn "PTR: DB has no FWD record for $ip (", $rr->ptrdname,
+					  "), adding\n";
 				}
 			}
 			$new->{value} = $rr->ptrdname;
-			$new->{value} .= "." if($isip);
+			$new->{value} .= "." if ($isip);
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
-			my $ptr = get_inaddr( $c, $rr->address );
+			my $ptr = $c->get_inaddr( $rr->address );
 
 			$new->{address} = $rr->address;
 			$new->{genptr} =
@@ -683,30 +801,31 @@ sub process_zone {
 		} elsif ( $rr->type eq 'DNAME' ) {
 			$new->{value} = $rr->dname;
 		} elsif ( $rr->type eq 'SRV' ) {
-			my($srv, $proto, $n) = split(/\./, $rr->name, 3);
-			if($n) {
+			my ( $srv, $proto, $n ) = split( /\./, $rr->name, 3 );
+			if ($n) {
 				$new->{srv_service} = $srv;
 				$proto =~ s/^_//;
 				$new->{srv_protocol} = $proto;
-				if($n eq $xferzone) {
-					$new->{name}  = undef;
+				if ( $n eq $xferzone ) {
+					$new->{name} = undef;
 				} else {
 					$n =~ s/\.$xferzone$//;
 					$new->{name} = $n;
 				}
 
-				check_and_add_service($c, $srv);
+				check_and_add_service( $c, $srv );
 			}
 			#
-			$new->{priority} = $rr->priority;
+			$new->{priority}   = $rr->priority;
 			$new->{srv_weight} = $rr->weight;
-			$new->{srv_port} = $rr->port;
-			$new->{value} = $rr->target;
+			$new->{srv_port}   = $rr->port;
+			$new->{value}      = $rr->target;
 		} elsif ( $rr->type eq 'TXT' || $rr->type eq 'SPF' ) {
 			$new->{value} = $rr->txtdata;
 		} elsif ( $rr->type eq 'NS' ) {
+
 			# XXX may want to consider this check to be optional.
-			if(defined($name) && length($name)) {
+			if ( defined($name) && length($name) ) {
 				my @errs;
 				my $count = $c->DBFetch(
 					table           => 'dns_domain',
@@ -714,8 +833,9 @@ sub process_zone {
 					result_set_size => 'exactlyone',
 					errors          => \@errs
 				);
-				if($count) {
-					warn "Skipping subzone NS records for $name (", $rr->nsdname, ")\n";
+				if ($count) {
+					warn "Skipping subzone NS records for $name (",
+					  $rr->nsdname, ")\n";
 					next;
 				}
 			}
@@ -728,13 +848,12 @@ sub process_zone {
 		} elsif ( $rr->type eq 'TLSA' ) {
 			warn "record type ", $rr->type, " unsupported\n";
 			next;
-		} elsif ( $rr->type =~
-			/^(APL|CAA|CERT|DHCID|HIP|IPSECKEY|LOC|NAPTR)/ )
+		} elsif ( $rr->type =~ /^(APL|CAA|CERT|DHCID|HIP|IPSECKEY|LOC|NAPTR)/ )
 		{
 			warn "record type ", $rr->type, " unsupported\n";
 			next;
 		} elsif ( $rr->type =~
-/^(CLV|DNAME|DNSKEY|DS|KEY|KX|NSEC|NSEC3.*|RRSIG|RP|SIG|TA|TKEY|TSIG)$/
+			/^(CLV|DNAME|DNSKEY|DS|KEY|KX|NSEC|NSEC3.*|RRSIG|RP|SIG|TA|TKEY|TSIG)$/
 		  )
 		{
 			warn "DNSSEC record type ", $rr->type, " unsupported\n";
@@ -746,10 +865,11 @@ sub process_zone {
 			  $rr->type, "\n";
 			next;
 		}
+
 		# for record that point elsewhere, make sure they are dot terminated
 		# should that be necessary.  Some are probably missing.
-		if($rr->type =~ /^(CNAME|SRV|NS|MX|DNAME)/) {
-			if($new->{value} !~ s/\.$xferzone$//) {
+		if ( $rr->type =~ /^(CNAME|SRV|NS|MX|DNAME)/ ) {
+			if ( $new->{value} !~ s/\.$xferzone$// ) {
 				$new->{value} .= ".";
 			}
 		}
@@ -758,9 +878,9 @@ sub process_zone {
 		}
 	}
 
-#
-# XXX - now go through the zone and find things that are there that should not be.
-#
+	#
+	# XXX - now go through the zone and find things that are there that should not be.
+	#
 	return $numchanges;
 }
 
@@ -778,83 +898,82 @@ sub process_db {
 	) || die join( " ", @errs );
 }
 
+1;
+
 #############################################################################
 
-my $dbh;
+package main;
+
+exit do_zone_load();
+
 sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
-	my ( $ns, $verbose, $addsvr, $nodelete, $debug );
+	my ( $ns, $verbose, $addsvr, $nodelete, $debug, $dryrun, $universe );
 
 	my $r = GetOptions(
-		"debug"               => \$debug,
+		"dry-run|n"           => \$dryrun,
+		"debug+"              => \$debug,
 		"verbose"             => \$verbose,
 		"dbapp=s"             => \$app,
 		"nameserver=s"        => \$ns,
 		"add-services"        => \$addsvr,
-		"no-delete"	      => \$nodelete,
+		"no-delete"           => \$nodelete,
+		"ip-universe"         => \$universe,
 		"unknown-netblocks=s" => \$nbrule,
 	) || die "Issues";
 
-	$verbose = 1 if($debug);
+	$verbose = 1 if ($debug);
 
 	if ( defined($nbrule) ) {
 		die "--unknown-netblocks can be skip, insert, iponly\n"
-		  if (     $nbrule ne 'skip'
+		  if ( $nbrule ne 'skip'
 			&& $nbrule ne 'insert'
 			&& $nbrule ne 'iponly' );
 	}
 
-	$dbh = JazzHands::DBI->connect( $app, { AutoCommit => 0 } )
-	  || die $JazzHands::DBI::errstr;
-	my $c = new JazzHands::Common;
-	$c->DBHandle($dbh);
+	my $c = new ZoneImportWorker(
+		dbuser => 'zoneimport',
+		debug  => $debug,
+	) || die $ZoneImportWorker::errstr;
 
-	$c->{nbrule}  = $nbrule;
-	$c->{verbose} = $verbose;
-	$c->{debug} = $debug;
-	$c->{addservice} = $addsvr;
-	$c->{nodelete} = $nodelete;
-	$c->{nameserver} = $ns if($ns);
+	$c->{nbrule}      = $nbrule;
+	$c->{verbose}     = $verbose;
+	$c->{addservice}  = $addsvr;
+	$c->{nodelete}    = $nodelete;
+	$c->{nameserver}  = $ns if ($ns);
+	$c->{ip_universe} = $universe || 0;
 
 	foreach my $zone (@ARGV) {
-		warn "Processing zone $zone...\n";
+		$c->_Debug( 1, "Processing zone %s", $zone );
 		if ($ns) {
-			process_zone( $c, $ns, $zone );
-			process_db( $c, $zone );
+			$c->process_zone( $ns, $zone );
+			$c->process_db($zone);
 		} else {
 			my $res = new Net::DNS::Resolver;
-			$res->nameservers($ns) if($ns);
+			$res->nameservers($ns) if ($ns);
 			my $resp = $res->query( $zone, 'NS' );
 			if ( !$resp ) {
-				die
-"Unable to find name servers for $zone.  Aborting.\n";
+				die "Unable to find name servers for $zone.  Aborting.\n";
 			}
-			foreach
-			  my $rr ( grep { $_->type eq 'NS' } $resp->answer )
-			{
+			foreach my $rr ( grep { $_->type eq 'NS' } $resp->answer ) {
 				my $ns = $rr->nsdname;
 				warn "consdering $ns\n";
-				my $numchanges = process_zone( $c, $ns, $zone );
+				my $numchanges = $c->process_zone( $ns, $zone );
 				if ( !defined($numchanges) ) {
 					next;
 				}
 				warn "updated $numchanges records\n";
-				process_db( $c, $zone );
+				$c->process_db($zone);
 				last;
 			}
 		}
 	}
 
-	$dbh->commit;
-	$dbh->disconnect;
-	$dbh = undef;
-	0;
-}
-
-END {
-	if($dbh) {
-		$dbh->rollback;
-		$dbh->disconnect;
+	if ($dryrun) {
+		$c->rollback;
+	} else {
+		$c->commit;
 	}
+	0;
 }
