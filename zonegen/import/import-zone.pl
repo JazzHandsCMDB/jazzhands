@@ -71,6 +71,79 @@ sub new {
 
 }
 
+#
+# should probably by looked into how to do DBFetch with >=
+#
+# NOTE: If multiple ip universes are specified, need to try really hard to
+# not mess it up.  If one is specified in the class (essentially via the command
+# line, and there's a dup, the one from the universe on the command line wins,
+# otherwise its not well defined; generally assumes the invoker knows WTF they
+# are doing.
+#
+sub pull_universes($) {
+	my ($c) = @_;
+
+	my $dbh = $c->DBHandle();
+
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT	ip_address, masklen(ip_address), ip_universe_id 
+		FROM	netblock 
+		WHERE	ip_universe_id > 0 
+		AND		netblock_type = 'default'
+		AND		parent_netblock_id is NULL
+	}
+	) || die $dbh->errstr;
+
+	$sth->execute || die $sth->errstr;
+
+	$c->{_universemap} = {};
+	while ( my ( $ip, $cidr, $u ) = $sth->fetchrow_hashref ) {
+		if ( exists( $c->{_universemap}->{$ip} ) && $c->{ip_universe} ) {
+			if ( $u != $c->{ip_universe} ) {
+				next;
+			}
+		}
+		$c->{_universemap}->{$ip}->{u}    = $u;
+		$c->{_universemap}->{$ip}->{cidr} = $cidr;
+	}
+	$c->{_universemap};
+}
+
+#
+# picks the best universe for the IP.  If its in the internet universe (0),
+# then favor that, otherwise rifle through the list fetched on creation and
+# find the right one.
+#
+sub get_universe($$) {
+	my ($c, $ip) = @_;
+
+	my $dbh->DBHandle();
+
+	{
+		my $sth = $dbh->prepare_cached(qq{
+			select netblock_utils.find_best_parent_id(
+				in_ipaddress := ?,
+				in_ip_universe_id := 0,
+				in_is_single_address := 'Y'
+			);
+		}) || die $dbh->errstr;
+
+		$sth->execute($ip) || die $sth->errstr;
+
+		my ($id) = $sth->fetchrow_array;
+		return 0 if($id);
+	}
+
+	foreach my $blk (sort { 
+				$c->{_universemap}->{$a}->{cidr} <=> 
+				$c->{universemap}->{$b}->{cidr}
+			} keys %{$c->{universemap}} ) {
+		warn $c->{universemap}->{$blk}->{cidr}
+	}
+	die;
+}
+
 sub check_and_add_service {
 	my ( $c, $service ) = @_;
 
@@ -173,13 +246,15 @@ sub get_ptr {
 
 	$c->_Debug( 2, "looking for PTR for $ip" );
 
+	my $universe = $c->get_universe($ip);
+
 	my (@errs);
 	my $nblk = $c->DBFetch(
 		table => 'netblock',
 		match => {
 			'is_single_address'      => 'Y',
 			'netblock_type'          => 'default',
-			'ip_universe_id'         => $c->{ip_universe},
+			'ip_universe_id'         => $universe,
 			'host(ip_address)::inet' => $ip
 		},
 		result_set_size => 'first',
@@ -535,14 +610,16 @@ sub refresh_dns_record {
 	my $srv_port     = $opt->{srv_port};
 	my $genptr       = $opt->{genptr};
 
+
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
 		$c->_Debug( 2, "Attempting to find $address... \n" );
+		my $universe = $c->get_universe($address);
 		my $match = {
 			'is_single_address'      => 'Y',
 			'netblock_type'          => 'default',
-			'ip_universe_id'         => $c->{ip_universe},
+			'ip_universe_id'         => $universe,
 			'host(ip_address)::inet' => $address
 		};
 		$nb = $c->DBFetch(
@@ -581,7 +658,7 @@ sub refresh_dns_record {
 				is_single_address => 'Y',
 				can_subnet        => 'N',
 				netblock_status   => 'Allocated',
-				ip_universe_id    => $c->{ip_universe},
+				ip_universe_id    => $universe,
 			};
 			$c->dbh->do("SAVEPOINT biteme");
 			my $x = $c->DBInsert(
@@ -909,7 +986,8 @@ exit do_zone_load();
 sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
-	my ( $ns, $verbose, $addsvr, $nodelete, $debug, $dryrun, $universe );
+	my ( $ns, $verbose, $addsvr, $nodelete, $debug, $dryrun, $universe,
+		$guessuniverse );
 
 	my $r = GetOptions(
 		"dry-run|n"           => \$dryrun,
@@ -920,6 +998,7 @@ sub do_zone_load {
 		"add-services"        => \$addsvr,
 		"no-delete"           => \$nodelete,
 		"ip-universe"         => \$universe,
+		"guess-universe"      => \$guessuniverse,
 		"unknown-netblocks=s" => \$nbrule,
 	) || die "Issues";
 
@@ -936,6 +1015,10 @@ sub do_zone_load {
 		dbuser => 'zoneimport',
 		debug  => $debug,
 	) || die $ZoneImportWorker::errstr;
+
+	if ($guessuniverse) {
+		$c->pull_universes();
+	}
 
 	$c->{nbrule}      = $nbrule;
 	$c->{verbose}     = $verbose;
