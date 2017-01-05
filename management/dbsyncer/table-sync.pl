@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2016, Todd M. Kover
+# Copyright (c) 2016-2017, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ use Sys::Syslog qw(:standard :macros);
 
 #use Carp;
 #
-#local $SIG{__WARN__} = \&Carp::cluck;
+local $SIG{__WARN__} = \&Carp::cluck;
 
 ###############################################################################
 
@@ -156,7 +156,7 @@ sub get_last_change {
 sub check_if_refresh_needed {
 	my $self     = shift @_;
 	my $object   = shift @_;
-	my $upwhence = shift @_;
+	my $upwhence = shift @_ || '1970-01-01 00:00:00';
 	my $save     = shift @_;
 
 	my $dbh = $self->DBHandle();
@@ -181,7 +181,7 @@ sub check_if_refresh_needed {
 	}
 
 	$self->_Debug( 6, "+ %s: Compare %s v %s [%d]",
-		$object, $whence, $upwhence, $refresh );
+		$object, ($whence)?$whence:"-", ($upwhence)?$upwhence:"-", $refresh );
 	if ($refresh) {
 		return $whence;
 	}
