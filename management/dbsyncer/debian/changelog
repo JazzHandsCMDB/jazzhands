@@ -1,9 +1,16 @@
+jazzhands-dbsyncer (0.74.13) trusty; urgency=medium
+
+  * bug fix with bootstrapping "check for changes" code
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu,  5 Jan 2017 15:59:00 -0400
+
 jazzhands-dbsyncer (0.74.2) trusty; urgency=medium
 
   * only update local refresh tracker on full table syncs
   * always log both upstream and local timestamp to determine ==/</>
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 22 Sep 2016 14:08:20 -0400
+
 
 jazzhands-dbsyncer (0.74.1) trusty; urgency=medium
 
