@@ -60,7 +60,7 @@ FROM (
 					SELECT device_collection_id, parent_device_collection_id,
 						device_collection_level
 						FROM v_device_coll_hier_detail
-					UNION
+					UNION ALL
 					SELECT  p.host_device_collection_id as device_collection_id,
 							d.parent_device_collection_id,
 							d.device_collection_level

@@ -58,7 +58,7 @@ SELECT * FROM  (
 		    	INNER JOIN dns_domain dom USING (dns_domain_id)
 		    	LEFT JOIN netblock dnb USING (netblock_id)
 	    ) dv ON d.dns_value_record_id = dv.dns_record_id
-	UNION
+	UNION ALL
        SELECT
 		NULL AS dns_record_id,
 		network_range_id,
@@ -94,7 +94,7 @@ SELECT * FROM  (
 		) range
 ) u
 WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
-	UNION
+	UNION ALL
 	SELECT
 		dns_record_id,
 		NULL::integer AS network_range_id,

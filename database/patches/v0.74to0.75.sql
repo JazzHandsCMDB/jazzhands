@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2016 Todd Kover
+-- Copyright (c) 2017 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -3771,7 +3771,7 @@ CREATE VIEW jazzhands.v_unix_group_mappings AS
              JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
              JOIN v_account_collection_expanded vace ON vace.root_account_collection_id = p.account_collection_id
           WHERE p.property_name::text = 'UnixGroup'::text AND p.property_type::text = 'MclassUnixProp'::text
-        UNION
+        UNION ALL
          SELECT dch.device_collection_id,
             uag.account_collection_id
            FROM v_property p
@@ -3857,7 +3857,7 @@ CREATE VIEW jazzhands.v_unix_group_mappings AS
                              JOIN unix_group unix_group_1 USING (account_collection_id)
                              JOIN account_collection inac USING (account_collection_id)
                           WHERE dc_1.device_collection_type::text = 'mclass'::text
-                        UNION
+                        UNION ALL
                          SELECT dcugm.device_collection_id,
                             dcugm.account_collection_id,
                             dcugm.account_id
@@ -3941,7 +3941,7 @@ CREATE VIEW jazzhands.v_unix_account_overrides AS
                                     v_device_coll_hier_detail.parent_device_collection_id,
                                     v_device_coll_hier_detail.device_collection_level
                                    FROM v_device_coll_hier_detail
-                                UNION
+                                UNION ALL
                                  SELECT p_1.host_device_collection_id AS device_collection_id,
                                     d.parent_device_collection_id,
                                     d.device_collection_level
@@ -4005,7 +4005,7 @@ CREATE VIEW jazzhands.v_dns_rvs AS
              JOIN dns_domain dom ON dns.dns_domain_id = dom.dns_domain_id
              LEFT JOIN dns_record rdns ON rdns.dns_record_id = dns.reference_dns_record_id
           WHERE dns.should_generate_ptr = 'Y'::bpchar AND dns.dns_class::text = 'IN'::text AND (dns.dns_type::text = 'A'::text OR dns.dns_type::text = 'AAAA'::text) AND nb.is_single_address = 'Y'::bpchar
-        UNION
+        UNION ALL
          SELECT host(range.ip)::inet AS ip,
             range.network_range_id,
             concat(COALESCE(range.dns_prefix, 'pool'::character varying), '-', replace(host(range.ip), '.'::text, '-'::text)) AS dns_name,
@@ -4095,7 +4095,7 @@ CREATE VIEW jazzhands.v_dns_fwd AS
                    FROM dns_record dr
                      JOIN dns_domain dom USING (dns_domain_id)
                      LEFT JOIN netblock dnb USING (netblock_id)) dv ON d.dns_value_record_id = dv.dns_record_id
-        UNION
+        UNION ALL
          SELECT NULL::integer AS dns_record_id,
             range.network_range_id,
             range.dns_domain_id,
@@ -4125,7 +4125,7 @@ CREATE VIEW jazzhands.v_dns_fwd AS
                      JOIN netblock nbstart ON dr.start_netblock_id = nbstart.netblock_id
                      JOIN netblock nbstop ON dr.stop_netblock_id = nbstop.netblock_id) range) u
   WHERE u.dns_type::text <> 'REVERSE_ZONE_BLOCK_PTR'::text
-UNION
+UNION ALL
  SELECT dns_record.dns_record_id,
     NULL::integer AS network_range_id,
     dns_domain.parent_dns_domain_id AS dns_domain_id,
@@ -4158,6 +4158,52 @@ delete from __recreate where type = 'view' and object = 'v_dns_fwd';
 -- DONE DEALING WITH TABLE v_dns_fwd
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_dns_changes_pending
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns_changes_pending', 'v_dns_changes_pending');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_changes_pending');
+DROP VIEW IF EXISTS jazzhands.v_dns_changes_pending;
+CREATE VIEW jazzhands.v_dns_changes_pending AS
+ WITH chg AS (
+         SELECT dns_change_record.dns_change_record_id,
+            dns_change_record.dns_domain_id,
+                CASE
+                    WHEN family(dns_change_record.ip_address) = 4 THEN set_masklen(dns_change_record.ip_address, 24)
+                    ELSE set_masklen(dns_change_record.ip_address, 64)
+                END AS ip_address,
+            dns_utils.get_domain_from_cidr(dns_change_record.ip_address) AS cidrdns
+           FROM dns_change_record
+          WHERE dns_change_record.ip_address IS NOT NULL
+        )
+ SELECT DISTINCT x.dns_change_record_id,
+    x.dns_domain_id,
+    x.should_generate,
+    x.last_generated,
+    x.soa_name,
+    x.ip_address
+   FROM ( SELECT chg.dns_change_record_id,
+            n.dns_domain_id,
+            n.should_generate,
+            n.last_generated,
+            n.soa_name,
+            chg.ip_address
+           FROM chg
+             JOIN dns_domain n ON chg.cidrdns = n.soa_name::text
+        UNION ALL
+         SELECT chg.dns_change_record_id,
+            d.dns_domain_id,
+            d.should_generate,
+            d.last_generated,
+            d.soa_name,
+            NULL::inet
+           FROM dns_change_record chg
+             JOIN dns_domain d USING (dns_domain_id)
+          WHERE chg.dns_domain_id IS NOT NULL) x;
+
+delete from __recreate where type = 'view' and object = 'v_dns_changes_pending';
+-- DONE DEALING WITH TABLE v_dns_changes_pending
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_dns
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns', 'v_dns');
@@ -4183,7 +4229,7 @@ CREATE VIEW jazzhands.v_dns AS
     v_dns_fwd.is_enabled,
     v_dns_fwd.dns_value_record_id
    FROM v_dns_fwd
-UNION
+UNION ALL
  SELECT v_dns_rvs.dns_record_id,
     v_dns_rvs.network_range_id,
     v_dns_rvs.dns_domain_id,
@@ -4227,7 +4273,7 @@ CREATE VIEW jazzhands.v_device_col_account_cart AS
                    FROM v_device_col_acct_col_unixlogin
                      JOIN account USING (account_id)
                      JOIN account_unix_info USING (account_id)
-                UNION
+                UNION ALL
                  SELECT v_unix_account_overrides.device_collection_id,
                     v_unix_account_overrides.account_id,
                     v_unix_account_overrides.setting

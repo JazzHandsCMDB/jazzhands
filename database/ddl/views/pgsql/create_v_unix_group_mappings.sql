@@ -48,7 +48,7 @@ FROM	device_collection dc
 							p.account_collection_id
 				WHERE property_name = 'UnixGroup'
 				AND property_type = 'MclassUnixProp'
-			UNION
+			UNION ALL
 			select dch.device_collection_id, uag.account_collection_id
 			from   v_property p
 					JOIN v_device_coll_hier_detail dch ON
@@ -84,7 +84,7 @@ FROM	device_collection dc
 		 						INNER JOIN account_collection inac using
 									(account_collection_id)
 		 			WHERE	dc.device_collection_type = 'mclass'
-		 			UNION
+		 			UNION ALL
 		 			SELECT * from (
 							SELECT  dch.device_collection_id, 
 									p.account_collection_id, aca.account_id

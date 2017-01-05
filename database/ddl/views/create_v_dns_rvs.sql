@@ -64,7 +64,7 @@ FROM (
 	   and  dns.dns_class = 'IN'
 	   and ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
 	   and nb.is_single_address = 'Y'
-UNION
+UNION ALL
 	select host(ip)::inet as ip, 
 			network_range_id,
 			concat(coalesce(dns_prefix, 'pool'), '-', 

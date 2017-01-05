@@ -41,7 +41,7 @@ FROM (
 		FROM	v_device_col_acct_col_unixlogin 
 				INNER JOIN account USING (account_id)
 				INNER JOIN account_unix_info USING (account_id)
-		UNION select device_collection_id, account_id, setting
+		UNION ALL select device_collection_id, account_id, setting
  			from v_unix_account_overrides
 				INNER JOIN account USING (account_id)
 				INNER JOIN account_unix_info USING (account_id)
