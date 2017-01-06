@@ -98,14 +98,14 @@ sub pull_universes($) {
 	$sth->execute || die $sth->errstr;
 
 	$c->{_universemap} = {};
-	while ( my ( $ip, $cidr, $u ) = $sth->fetchrow_hashref ) {
+	while ( my ( $ip, $cidr, $u ) = $sth->fetchrow_array ) {
 		if ( exists( $c->{_universemap}->{$ip} ) && $c->{ip_universe} ) {
 			if ( $u != $c->{ip_universe} ) {
 				next;
 			}
 		}
-		$c->{_universemap}->{$ip}->{u}    = $u;
-		$c->{_universemap}->{$ip}->{cidr} = $cidr;
+		$c->{_universemap}->{$ip}->{universeid} = $u;
+		$c->{_universemap}->{$ip}->{cidr}       = $cidr;
 	}
 	$c->{_universemap};
 }
@@ -116,32 +116,45 @@ sub pull_universes($) {
 # find the right one.
 #
 sub get_universe($$) {
-	my ($c, $ip) = @_;
+	my ( $c, $ip ) = @_;
 
-	my $dbh->DBHandle();
+	my $dbh = $c->DBHandle();
 
 	{
-		my $sth = $dbh->prepare_cached(qq{
+		my $sth = $dbh->prepare_cached(
+			qq{
 			select netblock_utils.find_best_parent_id(
 				in_ipaddress := ?,
 				in_ip_universe_id := 0,
 				in_is_single_address := 'Y'
 			);
-		}) || die $dbh->errstr;
+		}
+		) || die $dbh->errstr;
 
 		$sth->execute($ip) || die $sth->errstr;
 
 		my ($id) = $sth->fetchrow_array;
-		return 0 if($id);
+		$sth->finish;
+		return 0 if ($id);
 	}
 
-	foreach my $blk (sort { 
-				$c->{_universemap}->{$a}->{cidr} <=> 
-				$c->{universemap}->{$b}->{cidr}
-			} keys %{$c->{universemap}} ) {
-		warn $c->{universemap}->{$blk}->{cidr}
+	foreach my $blk (
+		sort {
+			$c->{_universemap}->{$b}->{cidr}
+			  <=> $c->{_universemap}->{$a}->{cidr}
+		} keys %{ $c->{_universemap} }
+	  )
+	{
+		my $n = $c->{_universemap}->{$blk}->{naddr};
+		if ( !$n ) {
+			$n = $c->{_universemap}->{$blk}->{naddr} = new NetAddr::IP($blk)
+			  || die;
+		}
+		my $nip = new NetAddr::IP($ip) || die;
+		if ( $n->contains($nip) ) {
+			return $c->{_universemap}->{$blk}->{universeid};
+		}
 	}
-	die;
 }
 
 sub check_and_add_service {
@@ -246,7 +259,7 @@ sub get_ptr {
 
 	$c->_Debug( 2, "looking for PTR for $ip" );
 
-	my $universe = $c->get_universe($ip);
+	my $universe = $c->get_universe($ip) || $c->{ip_universe};
 
 	my (@errs);
 	my $nblk = $c->DBFetch(
@@ -610,12 +623,11 @@ sub refresh_dns_record {
 	my $srv_port     = $opt->{srv_port};
 	my $genptr       = $opt->{genptr};
 
-
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
 		$c->_Debug( 2, "Attempting to find $address... \n" );
-		my $universe = $c->get_universe($address);
+		my $universe = $c->get_universe($address) || $c->{ip_universe};
 		my $match = {
 			'is_single_address'      => 'Y',
 			'netblock_type'          => 'default',
@@ -646,11 +658,18 @@ sub refresh_dns_record {
 		if ( !$nb ) {
 			my $errname = $name || "";
 			if ( defined( $c->{nbrule} ) && $c->{nbrule} eq 'skip' ) {
-				warn "$errname ($address) - Netblock not found.  Skipping.\n";
+				print STDERR
+				  "$errname ($address) - Netblock not found.  Skipping.\n";
 				return 0;
 			} else {
-				warn "$errname ($address) - Netblock not found.  Creating.\n";
+				print STDERR
+				  "$errname ($address) - Netblock not found.  Creating.\n";
 			}
+
+			my $pr = $c->dbh->{PrintError};
+			my $re = $c->dbh->{RaiseError};
+
+			$c->dbh->{PrintError} = $c->dbh->{RaiseError} = 0;
 
 			$nb = {
 				ip_address        => $address,
@@ -666,6 +685,9 @@ sub refresh_dns_record {
 				hash  => $nb,
 				errs  => \@errs,
 			);
+			$c->dbh->{PrintError} = $pr;
+			$c->dbh->{RaiseError} = $re;
+
 			if ( !$x ) {
 				if ( $c->dbh->err == 7 ) {
 					$c->dbh->do("ROLLBACK TO SAVEPOINT biteme");
