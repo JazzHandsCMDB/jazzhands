@@ -1,4 +1,4 @@
--- Copyright (c) 2014, Todd M. Kover
+-- Copyright (c) 2014-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,19 +25,19 @@
 -- device collection, account_collection mappings in property.  This may need
 -- to be reconsidered
 --
-create or replace view v_device_col_account_col_cart AS
-WITH x AS (
-	select	device_collection_id, account_collection_id, NULL as setting
-	FROM	v_device_col_acct_col_unixgroup 
-		INNER JOIN account_collection USING (account_collection_id)
-		INNER JOIN unix_group USING (account_collection_id)
-	UNION 
-	SELECT device_collection_id, account_collection_id, setting
- 		from v_unix_group_overrides
-) select device_collection_Id, account_collection_id, setting
+CREATE OR REPLACE VIEW v_device_col_account_col_cart AS
+SELECT device_collection_Id, account_collection_id, setting
 FROM (SELECT x.*,
 	row_number() OVER (partition by device_collection_id,
 		account_collection_id ORDER BY setting) AS rn
-FROM x
-) xx
+	FROM (
+		SELECT	device_collection_id, account_collection_id, NULL as setting
+		FROM	v_device_col_acct_col_unixgroup
+			INNER JOIN account_collection USING (account_collection_id)
+			INNER JOIN unix_group USING (account_collection_id)
+		UNION
+		SELECT device_collection_id, account_collection_id, setting
+ 			from v_unix_group_overrides
+		) x
+	) xx
 WHERE rn = 1;

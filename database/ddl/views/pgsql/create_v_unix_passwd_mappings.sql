@@ -1,4 +1,4 @@
--- Copyright (c) 2014, Todd M. Kover
+-- Copyright (c) 2014-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@
 -- just mclasses/accounts mapped through the UnixLogin property
 --
 --
-create or replace view v_unix_passwd_mappings AS
+CREATE OR REPLACE VIEW v_unix_passwd_mappings AS
 WITH  passtype AS (
 	SELECT ap.account_id, ap.password, ap.expire_time, ap.change_time,
 	subq.* FROM
