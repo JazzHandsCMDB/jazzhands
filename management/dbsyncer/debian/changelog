@@ -1,8 +1,15 @@
+jazzhands-dbsyncer (0.74.14) trusty; urgency=medium
+
+  * adjust defaults to do an upstream check and change --force semantics
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri,  6 Jan 2017 16:38:00 -0400
+
 jazzhands-dbsyncer (0.74.13) trusty; urgency=medium
 
   * bug fix with bootstrapping "check for changes" code
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu,  5 Jan 2017 15:59:00 -0400
+
 
 jazzhands-dbsyncer (0.74.2) trusty; urgency=medium
 

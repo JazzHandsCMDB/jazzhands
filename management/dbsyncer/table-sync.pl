@@ -31,7 +31,7 @@ use Sys::Syslog qw(:standard :macros);
 
 #use Carp;
 #
-local $SIG{__WARN__} = \&Carp::cluck;
+# local $SIG{__WARN__} = \&Carp::cluck;
 
 ###############################################################################
 
@@ -156,7 +156,7 @@ sub get_last_change {
 sub check_if_refresh_needed {
 	my $self     = shift @_;
 	my $object   = shift @_;
-	my $upwhence = shift @_ || '1970-01-01 00:00:00';
+	my $lcwhence = shift @_ || '1970-01-01 00:00:00';
 	my $save     = shift @_;
 
 	my $dbh = $self->DBHandle();
@@ -169,7 +169,7 @@ sub check_if_refresh_needed {
 	) || die $dbh->errstr;
 
 	$sth->bind_param( ':rel', $object )   || die $sth->errstr;
-	$sth->bind_param( ':ts',  $upwhence ) || die $sth->errstr;
+	$sth->bind_param( ':ts',  $lcwhence ) || die $sth->errstr;
 
 	$sth->execute || die $sth->errstr;
 
@@ -180,8 +180,12 @@ sub check_if_refresh_needed {
 		$$save = $whence;
 	}
 
-	$self->_Debug( 6, "+ %s: Compare %s v %s [%d]",
-		$object, ($whence)?$whence:"-", ($upwhence)?$upwhence:"-", $refresh );
+	$self->_Debug(
+		6, "+ %s: Compare up:%s v local:%s [%d]",
+		$object,
+		($whence)   ? $whence   : "-",
+		($lcwhence) ? $lcwhence : "-", $refresh
+	);
 	if ($refresh) {
 		return $whence;
 	}
@@ -691,7 +695,7 @@ sub sync_dbs {
 	my @tables = @_;
 
 	# forcecheck forces checking timestamps against the upstream table
-	#	default is to not do it
+	#	default is to do it
 	# forceupdate causes it to always do a compare and update regardless of
 	#	what the check had.
 	#
@@ -700,8 +704,8 @@ sub sync_dbs {
 	# and anything else, which only does a row-by-row compare if the timestamps
 	# warrant it.
 
-	my $forcecheck  = $self->{_force};
-	my $forceupdate = 0;
+	my $forceupdate = $self->{_force};
+	my $forcecheck  = 1;
 	if ( !$config->{objectdatecheck} ) {
 		$forceupdate = 1;
 	} elsif ( $config->{objectdatecheck} eq 'advisory' ) {
