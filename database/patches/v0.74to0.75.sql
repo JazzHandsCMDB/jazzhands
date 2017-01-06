@@ -4254,6 +4254,36 @@ delete from __recreate where type = 'view' and object = 'v_dns';
 -- DONE DEALING WITH TABLE v_dns
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_device_col_account_col_cart
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_device_col_account_col_cart', 'v_device_col_account_col_cart');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_col_account_col_cart');
+DROP VIEW IF EXISTS jazzhands.v_device_col_account_col_cart;
+CREATE VIEW jazzhands.v_device_col_account_col_cart AS
+ SELECT xx.device_collection_id,
+    xx.account_collection_id,
+    xx.setting
+   FROM ( SELECT x.device_collection_id,
+            x.account_collection_id,
+            x.setting,
+            row_number() OVER (PARTITION BY x.device_collection_id, x.account_collection_id ORDER BY x.setting) AS rn
+           FROM ( SELECT v_device_col_acct_col_unixgroup.device_collection_id,
+                    v_device_col_acct_col_unixgroup.account_collection_id,
+                    NULL::character varying[] AS setting
+                   FROM v_device_col_acct_col_unixgroup
+                     JOIN account_collection USING (account_collection_id)
+                     JOIN unix_group USING (account_collection_id)
+                UNION
+                 SELECT v_unix_group_overrides.device_collection_id,
+                    v_unix_group_overrides.account_collection_id,
+                    v_unix_group_overrides.setting
+                   FROM v_unix_group_overrides) x) xx
+  WHERE xx.rn = 1;
+
+delete from __recreate where type = 'view' and object = 'v_device_col_account_col_cart';
+-- DONE DEALING WITH TABLE v_device_col_account_col_cart
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_device_col_account_cart
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_device_col_account_cart', 'v_device_col_account_cart');
