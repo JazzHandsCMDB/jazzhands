@@ -315,9 +315,13 @@ insert into val_netblock_status (NETBLOCK_STATUS) values ('Reserved');
 
 INSERT INTO ip_universe (
 	ip_universe_id, ip_universe_name, description
-) VALUES (
-	0, 'default', 'default IP universe'    
-);
+) VALUES 
+	( 0, 'default', 'default IP universe'    );
+
+INSERT INTO ip_universe (
+	ip_universe_name, description
+) VALUES 
+	('private', 'RFC 1918 Space'    );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
