@@ -3173,7 +3173,7 @@ INSERT INTO audit.account_collection_account (
 ) SELECT
 	account_collection_id,
 	account_id,
-	NULL,		-- new column (account_collection_relation)
+	'direct',				-- new column (account_collection_relation)
 	account_id_rank,
 	start_date,
 	finish_date,
@@ -3611,6 +3611,820 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'department');
 DROP TABLE IF EXISTS department_v75;
 DROP TABLE IF EXISTS audit.department_v75;
 -- DONE DEALING WITH TABLE department
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE dns_record
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_record', 'dns_record');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE device DROP CONSTRAINT IF EXISTS fk_device_id_dnsrecord;
+ALTER TABLE dns_record_relation DROP CONSTRAINT IF EXISTS fk_dns_rec_ref_dns_rec_rltn;
+ALTER TABLE dns_record_relation DROP CONSTRAINT IF EXISTS fk_dnsrec_ref_dnsrecrltn_rl_id;
+ALTER TABLE network_service DROP CONSTRAINT IF EXISTS fk_netsvc_dnsid_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dns_record_vdnsclass;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dnsid_dnsdom_id;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dnsid_nblk_id;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dnsrec_ref_dns_ref_id;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dnsrec_vdnssrvsrvc;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dnsrecord_dnsrecord;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS fk_dnsrecord_vdnstype;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'dns_record');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS pk_dns_record;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."idx_dns_record_lower_dns_name";
+DROP INDEX IF EXISTS "jazzhands"."idx_dnsrec_dnsclass";
+DROP INDEX IF EXISTS "jazzhands"."idx_dnsrec_dnssrvservice";
+DROP INDEX IF EXISTS "jazzhands"."idx_dnsrec_dnstype";
+DROP INDEX IF EXISTS "jazzhands"."idx_dnsrec_refdnsrec";
+DROP INDEX IF EXISTS "jazzhands"."ix_dnsid_domid";
+DROP INDEX IF EXISTS "jazzhands"."ix_dnsid_netblock_id";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS ckc_dns_srv_protocol_dns_reco;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS ckc_is_enabled_dns_reco;
+ALTER TABLE jazzhands.dns_record DROP CONSTRAINT IF EXISTS ckc_should_generate_p_dns_reco;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_dns_record ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_audit_dns_record ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_a_rec_validation ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_non_a_rec_validation ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_rec_prevent_dups ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_record_check_name ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_record_cname_checker ON jazzhands.dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_record_update_nontime ON jazzhands.dns_record;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'dns_record');
+---- BEGIN audit.dns_record TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'dns_record', 'dns_record');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'dns_record');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.dns_record DROP CONSTRAINT IF EXISTS dns_record_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_dns_record_pk_dns_record";
+DROP INDEX IF EXISTS "audit"."dns_record_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.dns_record TEARDOWN
+
+
+ALTER TABLE dns_record RENAME TO dns_record_v75;
+ALTER TABLE audit.dns_record RENAME TO dns_record_v75;
+
+CREATE TABLE dns_record
+(
+	dns_record_id	integer NOT NULL,
+	dns_name	varchar(255)  NULL,
+	dns_domain_id	integer NOT NULL,
+	dns_ttl	integer  NULL,
+	dns_class	varchar(50) NOT NULL,
+	dns_type	varchar(50) NOT NULL,
+	dns_value	varchar(512)  NULL,
+	dns_priority	integer  NULL,
+	dns_srv_service	varchar(50)  NULL,
+	dns_srv_protocol	varchar(4)  NULL,
+	dns_srv_weight	integer  NULL,
+	dns_srv_port	integer  NULL,
+	netblock_id	integer  NULL,
+	ip_universe_id	integer NOT NULL,
+	reference_dns_record_id	integer  NULL,
+	dns_value_record_id	integer  NULL,
+	should_generate_ptr	character(1) NOT NULL,
+	is_enabled	character(1) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'dns_record', false);
+ALTER TABLE dns_record
+	ALTER dns_record_id
+	SET DEFAULT nextval('dns_record_dns_record_id_seq'::regclass);
+ALTER TABLE dns_record
+	ALTER dns_class
+	SET DEFAULT 'IN'::character varying;
+ALTER TABLE dns_record
+	ALTER ip_universe_id
+	SET DEFAULT 0;
+ALTER TABLE dns_record
+	ALTER should_generate_ptr
+	SET DEFAULT 'Y'::bpchar;
+ALTER TABLE dns_record
+	ALTER is_enabled
+	SET DEFAULT 'Y'::bpchar;
+INSERT INTO dns_record (
+	dns_record_id,
+	dns_name,
+	dns_domain_id,
+	dns_ttl,
+	dns_class,
+	dns_type,
+	dns_value,
+	dns_priority,
+	dns_srv_service,
+	dns_srv_protocol,
+	dns_srv_weight,
+	dns_srv_port,
+	netblock_id,
+	ip_universe_id,		-- new column (ip_universe_id)
+	reference_dns_record_id,
+	dns_value_record_id,
+	should_generate_ptr,
+	is_enabled,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	dns_record_id,
+	dns_name,
+	dns_domain_id,
+	dns_ttl,
+	dns_class,
+	dns_type,
+	dns_value,
+	dns_priority,
+	dns_srv_service,
+	dns_srv_protocol,
+	dns_srv_weight,
+	dns_srv_port,
+	netblock_id,
+	0,		-- new column (ip_universe_id)
+	reference_dns_record_id,
+	dns_value_record_id,
+	should_generate_ptr,
+	is_enabled,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM dns_record_v75;
+
+INSERT INTO audit.dns_record (
+	dns_record_id,
+	dns_name,
+	dns_domain_id,
+	dns_ttl,
+	dns_class,
+	dns_type,
+	dns_value,
+	dns_priority,
+	dns_srv_service,
+	dns_srv_protocol,
+	dns_srv_weight,
+	dns_srv_port,
+	netblock_id,
+	ip_universe_id,		-- new column (ip_universe_id)
+	reference_dns_record_id,
+	dns_value_record_id,
+	should_generate_ptr,
+	is_enabled,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	dns_record_id,
+	dns_name,
+	dns_domain_id,
+	dns_ttl,
+	dns_class,
+	dns_type,
+	dns_value,
+	dns_priority,
+	dns_srv_service,
+	dns_srv_protocol,
+	dns_srv_weight,
+	dns_srv_port,
+	netblock_id,
+	0,		-- new column (ip_universe_id)
+	reference_dns_record_id,
+	dns_value_record_id,
+	should_generate_ptr,
+	is_enabled,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.dns_record_v75;
+
+ALTER TABLE dns_record
+	ALTER dns_record_id
+	SET DEFAULT nextval('dns_record_dns_record_id_seq'::regclass);
+ALTER TABLE dns_record
+	ALTER dns_class
+	SET DEFAULT 'IN'::character varying;
+ALTER TABLE dns_record
+	ALTER ip_universe_id
+	SET DEFAULT 0;
+ALTER TABLE dns_record
+	ALTER should_generate_ptr
+	SET DEFAULT 'Y'::bpchar;
+ALTER TABLE dns_record
+	ALTER is_enabled
+	SET DEFAULT 'Y'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE dns_record ADD CONSTRAINT ak_dns_record_dnsrec_domainid UNIQUE (dns_record_id, dns_domain_id);
+ALTER TABLE dns_record ADD CONSTRAINT pk_dns_record PRIMARY KEY (dns_record_id);
+
+-- Table/Column Comments
+-- INDEXES
+CREATE INDEX idx_dns_record_lower_dns_name ON dns_record USING btree (lower(dns_name::text));
+CREATE INDEX idx_dnsrec_dnsclass ON dns_record USING btree (dns_class);
+CREATE INDEX idx_dnsrec_dnssrvservice ON dns_record USING btree (dns_srv_service);
+CREATE INDEX idx_dnsrec_dnstype ON dns_record USING btree (dns_type);
+CREATE INDEX ix_dnsid_domid ON dns_record USING btree (dns_domain_id);
+CREATE INDEX ix_dnsid_netblock_id ON dns_record USING btree (netblock_id);
+CREATE INDEX xif8dns_record ON dns_record USING btree (reference_dns_record_id, dns_domain_id);
+CREATE INDEX xif9dns_record ON dns_record USING btree (ip_universe_id);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE dns_record ADD CONSTRAINT ckc_dns_srv_protocol_dns_reco
+	CHECK ((dns_srv_protocol IS NULL) OR (((dns_srv_protocol)::text = ANY ((ARRAY['tcp'::character varying, 'udp'::character varying])::text[])) AND ((dns_srv_protocol)::text = lower((dns_srv_protocol)::text))));
+ALTER TABLE dns_record ADD CONSTRAINT ckc_is_enabled_dns_reco
+	CHECK ((is_enabled = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])) AND ((is_enabled)::text = upper((is_enabled)::text)));
+ALTER TABLE dns_record ADD CONSTRAINT ckc_should_generate_p_dns_reco
+	CHECK ((should_generate_ptr = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])) AND ((should_generate_ptr)::text = upper((should_generate_ptr)::text)));
+
+-- FOREIGN KEYS FROM
+-- consider FK between dns_record and device
+ALTER TABLE device
+	ADD CONSTRAINT fk_device_id_dnsrecord
+	FOREIGN KEY (identifying_dns_record_id) REFERENCES dns_record(dns_record_id) DEFERRABLE;
+-- consider FK between dns_record and dns_record_relation
+ALTER TABLE dns_record_relation
+	ADD CONSTRAINT fk_dns_rec_ref_dns_rec_rltn
+	FOREIGN KEY (dns_record_id) REFERENCES dns_record(dns_record_id);
+-- consider FK between dns_record and dns_record_relation
+ALTER TABLE dns_record_relation
+	ADD CONSTRAINT fk_dnsrec_ref_dnsrecrltn_rl_id
+	FOREIGN KEY (related_dns_record_id) REFERENCES dns_record(dns_record_id);
+-- consider FK between dns_record and network_service
+ALTER TABLE network_service
+	ADD CONSTRAINT fk_netsvc_dnsid_id
+	FOREIGN KEY (dns_record_id) REFERENCES dns_record(dns_record_id);
+
+-- FOREIGN KEYS TO
+-- consider FK dns_record and ip_universe
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dns_rec_ip_universe
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+-- consider FK dns_record and val_dns_class
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dns_record_vdnsclass
+	FOREIGN KEY (dns_class) REFERENCES val_dns_class(dns_class);
+-- consider FK dns_record and dns_domain
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsid_dnsdom_id
+	FOREIGN KEY (dns_domain_id) REFERENCES dns_domain(dns_domain_id);
+-- consider FK dns_record and netblock
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsid_nblk_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK dns_record and dns_record
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsrec_ref_dns_ref_id
+	FOREIGN KEY (dns_value_record_id) REFERENCES dns_record(dns_record_id);
+-- consider FK dns_record and val_dns_srv_service
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsrec_vdnssrvsrvc
+	FOREIGN KEY (dns_srv_service) REFERENCES val_dns_srv_service(dns_srv_service);
+-- consider FK dns_record and dns_record
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsrecord_dnsrecord
+	FOREIGN KEY (reference_dns_record_id, dns_domain_id) REFERENCES dns_record(dns_record_id, dns_domain_id);
+-- consider FK dns_record and val_dns_type
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsrecord_vdnstype
+	FOREIGN KEY (dns_type) REFERENCES val_dns_type(dns_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.check_ip_universe_dns_record
+CREATE OR REPLACE FUNCTION jazzhands.check_ip_universe_dns_record()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	nb	integer[];
+BEGIN
+	IF TG_OP = 'UPDATE' THEN
+		IF NEW.netblock_id != OLD.netblock_id THEN
+			nb = ARRAY[OLD.netblock_id, NEW.netblock_id];
+		ELSE
+			nb = ARRAY[NEW.netblock_id];
+		END IF;
+	ELSE
+		nb = ARRAY[NEW.netblock_id];
+	END IF;
+
+	PERFORM *
+	FROM netblock
+	WHERE netblock_id = ANY(nb)
+	AND ip_universe_id != NEW.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION
+			'IP Universes for dns_records must match dns records and netblocks'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER trigger_check_ip_universe_dns_record AFTER INSERT OR UPDATE OF dns_record_id, ip_universe_id ON dns_record DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE check_ip_universe_dns_record();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_a_rec_validation
+CREATE OR REPLACE FUNCTION jazzhands.dns_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ip		netblock.ip_address%type;
+	_sing	netblock.is_single_address%type;
+BEGIN
+	IF NEW.dns_type in ('A', 'AAAA') THEN
+		IF ( NEW.netblock_id IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
+			RAISE EXCEPTION 'Attempt to set % record without netblocks',
+				NEW.dns_type
+				USING ERRCODE = 'not_null_violation';
+		ELSIF NEW.dns_value_record_id IS NOT NULL THEN
+			PERFORM *
+			FROM dns_record d
+			WHERE d.dns_record_id = NEW.dns_value_record_id
+			AND d.dns_type = NEW.dns_type
+			AND d.dns_class = NEW.dns_class;
+
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'Attempt to set % value record without the correct netblock',
+					NEW.dns_type
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+		END IF;
+
+		IF ( NEW.should_generate_ptr = 'Y' AND NEW.dns_value_record_id IS NOT NULL ) THEN
+			RAISE EXCEPTION 'It is not permitted to set should_generate_ptr and use a dns_value_record_id'
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+
+	IF NEW.netblock_Id is not NULL and
+			( NEW.dns_value IS NOT NULL OR NEW.dns_value_record_id IS NOT NULL ) THEN
+		RAISE EXCEPTION 'Both dns_value and netblock_id may not be set'
+			USING ERRCODE = 'JH001';
+	END IF;
+
+	IF NEW.dns_value IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
+		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set'
+			USING ERRCODE = 'JH001';
+	END IF;
+
+	-- XXX need to deal with changing a netblock type and breaking dns_record..
+	IF NEW.netblock_id IS NOT NULL THEN
+		SELECT ip_address, is_single_address
+		  INTO _ip, _sing
+		  FROM netblock
+		 WHERE netblock_id = NEW.netblock_id;
+
+		IF NEW.dns_type = 'A' AND family(_ip) != '4' THEN
+			RAISE EXCEPTION 'A records must be assigned to non-IPv4 records'
+				USING ERRCODE = 'JH200';
+		END IF;
+
+		IF NEW.dns_type = 'AAAA' AND family(_ip) != '6' THEN
+			RAISE EXCEPTION 'AAAA records must be assigned to non-IPv6 records'
+				USING ERRCODE = 'JH200';
+		END IF;
+
+		IF _sing = 'N' AND NEW.dns_type IN ('A','AAAA') THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+
+	END IF;
+
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_a_rec_validation BEFORE INSERT OR UPDATE ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_a_rec_validation();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_non_a_rec_validation
+CREATE OR REPLACE FUNCTION jazzhands.dns_non_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ip		netblock.ip_address%type;
+BEGIN
+	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND
+			( NEW.dns_value IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
+		RAISE EXCEPTION 'Attempt to set % record without a value',
+			NEW.dns_type
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_non_a_rec_validation BEFORE INSERT OR UPDATE ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_non_a_rec_validation();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_rec_prevent_dups
+CREATE OR REPLACE FUNCTION jazzhands.dns_rec_prevent_dups()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	-- should not be able to insert the same record(s) twice
+	WITH newref AS (
+		SELECT * FROM dns_record
+			WHERE NEW.reference_dns_record_id IS NOT NULL
+			AND NEW.reference_dns_record_id = dns_record_id
+			ORDER BY dns_record_id LIMIT 1
+	), dns AS ( SELECT
+			db.dns_record_id,
+			coalesce(ref.dns_name, db.dns_name) as dns_name,
+			db.dns_domain_id, db.dns_ttl,
+			db.dns_class, db.dns_type,
+			coalesce(val.dns_value, db.dns_value) AS dns_value,
+			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
+			db.dns_srv_weight, db.dns_srv_port,
+			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
+			db.reference_dns_record_id, db.dns_value_record_id,
+			db.should_generate_ptr, db.is_enabled
+		FROM dns_record db
+			LEFT JOIN dns_record ref
+				ON ( db.reference_dns_record_id = ref.dns_record_id)
+			LEFT JOIN dns_record val
+				ON ( db.dns_value_record_id = val.dns_record_id )
+			LEFT JOIN newref
+				ON newref.dns_record_id = NEW.reference_dns_record_id
+		WHERE db.dns_record_id != NEW.dns_record_id
+		AND (lower(coalesce(ref.dns_name, db.dns_name))
+					IS NOT DISTINCT FROM
+				lower(coalesce(newref.dns_name, NEW.dns_name)) )
+		AND ( db.dns_domain_id = NEW.dns_domain_id )
+		AND ( db.dns_class = NEW.dns_class )
+		AND ( db.dns_type = NEW.dns_type )
+    		AND db.dns_record_id != NEW.dns_record_id
+		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.is_enabled = 'Y'
+	) SELECT	count(*)
+		INTO	_tally
+		FROM dns
+			LEFT JOIN dns_record val
+				ON ( NEW.dns_value_record_id = val.dns_record_id )
+		WHERE
+			dns.dns_value IS NOT DISTINCT FROM
+				coalesce(val.dns_value, NEW.dns_value)
+		AND
+			dns.netblock_id IS NOT DISTINCT FROM
+				coalesce(val.netblock_id, NEW.netblock_id)
+	;
+
+	IF _tally != 0 THEN
+		RAISE EXCEPTION 'Attempt to insert the same dns record - % %', _tally,
+			NEW USING ERRCODE = 'unique_violation';
+	END IF;
+
+	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
+		IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+			SELECT	count(*)
+			 INTO	_tally
+			 FROM	dns_record
+			WHERE dns_class = 'IN'
+			AND dns_type = 'A'
+			AND should_generate_ptr = 'Y'
+			AND is_enabled = 'Y'
+			AND netblock_id = NEW.NETBLOCK_ID
+			AND dns_record_id != NEW.DNS_RECORD_ID;
+
+			IF _tally != 0 THEN
+				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same IP on netblock_id %', NEW.netblock_id
+					USING ERRCODE = 'JH201';
+			END IF;
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_rec_prevent_dups BEFORE INSERT OR UPDATE ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_rec_prevent_dups();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_record_check_name
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_check_name()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	IF NEW.DNS_NAME IS NOT NULL THEN
+		-- rfc rfc952
+		IF NEW.DNS_NAME !~ '[-a-zA-Z0-9\._]*' THEN
+			RAISE EXCEPTION 'Invalid DNS NAME %',
+				NEW.DNS_NAME
+				USING ERRCODE = 'integrity_constraint_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_record_check_name BEFORE INSERT OR UPDATE OF dns_name ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_record_check_name();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_record_cname_checker
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_cname_checker()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_dom	TEXT;
+BEGIN
+	_tally := 0;
+	IF TG_OP = 'INSERT' OR NEW.DNS_TYPE != OLD.DNS_TYPE THEN
+		IF NEW.DNS_TYPE = 'CNAME' THEN
+			IF TG_OP = 'UPDATE' THEN
+			SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE
+						NEW.dns_domain_id = x.dns_domain_id
+				 AND	OLD.dns_record_id != x.dns_record_id
+				 AND	(
+							NEW.dns_name IS NULL and x.dns_name is NULL
+							or
+							lower(NEW.dns_name) = lower(x.dns_name)
+						)
+				;
+			ELSE
+				-- only difference between above and this is the use of OLD
+				SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE
+						NEW.dns_domain_id = x.dns_domain_id
+				 AND	(
+							NEW.dns_name IS NULL and x.dns_name is NULL
+							or
+							lower(NEW.dns_name) = lower(x.dns_name)
+						)
+				;
+			END IF;
+		-- this clause is basically the same as above except = 'CANME'
+		ELSIF NEW.DNS_TYPE != 'CNAME' THEN
+			IF TG_OP = 'UPDATE' THEN
+				SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE	x.dns_type = 'CNAME'
+				 AND	NEW.dns_domain_id = x.dns_domain_id
+				 AND	OLD.dns_record_id != x.dns_record_id
+				 AND	(
+							NEW.dns_name IS NULL and x.dns_name is NULL
+							or
+							lower(NEW.dns_name) = lower(x.dns_name)
+						)
+				;
+			ELSE
+				-- only difference between above and this is the use of OLD
+				SELECT	COUNT(*)
+				  INTO	_tally
+				  FROM	dns_record x
+				 WHERE	x.dns_type = 'CNAME'
+				 AND	NEW.dns_domain_id = x.dns_domain_id
+				 AND	(
+							NEW.dns_name IS NULL and x.dns_name is NULL
+							or
+							lower(NEW.dns_name) = lower(x.dns_name)
+						)
+				;
+			END IF;
+		END IF;
+	END IF;
+
+	IF _tally > 0 THEN
+		SELECT soa_name INTO _dom FROM dns_domain
+		WHERE dns_domain_id = NEW.dns_domain_id ;
+
+		if NEW.dns_name IS NULL THEN
+			RAISE EXCEPTION '% may not have CNAME and other records (%)',
+				_dom, _tally
+				USING ERRCODE = 'unique_violation';
+		ELSE
+			RAISE EXCEPTION '%.% may not have CNAME and other records (%)',
+				NEW.dns_name, _dom, _tally
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_record_cname_checker BEFORE INSERT OR UPDATE OF dns_type ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_record_cname_checker();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_record_enabled_check
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_enabled_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+	IF new.IS_ENABLED = 'N' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE dns_value_record_id = NEW.dns_record_id
+		OR reference_dns_record_id = NEW.dns_record_id;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not disabled records referred to by other enabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+	IF new.IS_ENABLED = 'Y' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE ( NEW.dns_value_record_id = dns_record_id
+				OR NEW.reference_dns_record_id = dns_record_id
+		) AND is_enabled = 'N';
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not enable records referencing disabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_record_enabled_check BEFORE INSERT OR UPDATE OF is_enabled ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_record_enabled_check();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.dns_record_update_nontime
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_update_nontime()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_dnsdomainid	DNS_DOMAIN.DNS_DOMAIN_ID%type;
+	_ipaddr			NETBLOCK.IP_ADDRESS%type;
+	_mkold			boolean;
+	_mknew			boolean;
+	_mkdom			boolean;
+	_mkip			boolean;
+BEGIN
+	_mkold = false;
+	_mkold = false;
+	_mknew = true;
+
+	IF TG_OP = 'DELETE' THEN
+		_mknew := false;
+		_mkold := true;
+		_mkdom := true;
+		if  OLD.netblock_id is not null  THEN
+			_mkip := true;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		_mkold := false;
+		_mkdom := true;
+		if  NEW.netblock_id is not null  THEN
+			_mkip := true;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF OLD.DNS_DOMAIN_ID != NEW.DNS_DOMAIN_ID THEN
+			_mkold := true;
+			_mkip := true;
+		END IF;
+		_mkdom := true;
+
+		IF OLD.dns_name IS DISTINCT FROM NEW.dns_name THEN
+			_mknew := true;
+			IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
+				IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+					_mkip := true;
+				END IF;
+			END IF;
+		END IF;
+
+		IF OLD.SHOULD_GENERATE_PTR != NEW.SHOULD_GENERATE_PTR THEN
+			_mkold := true;
+			_mkip := true;
+		END IF;
+
+		IF (OLD.netblock_id IS DISTINCT FROM NEW.netblock_id) THEN
+			_mkold := true;
+			_mknew := true;
+			_mkip := true;
+		END IF;
+	END IF;
+
+	if _mkold THEN
+		IF _mkdom THEN
+			_dnsdomainid := OLD.dns_domain_id;
+		ELSE
+			_dnsdomainid := NULL;
+		END IF;
+		if _mkip and OLD.netblock_id is not NULL THEN
+			SELECT	ip_address
+			  INTO	_ipaddr
+			  FROM	netblock
+			 WHERE	netblock_id  = OLD.netblock_id;
+		ELSE
+			_ipaddr := NULL;
+		END IF;
+		insert into DNS_CHANGE_RECORD
+			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
+	END IF;
+	if _mknew THEN
+		if _mkdom THEN
+			_dnsdomainid := NEW.dns_domain_id;
+		ELSE
+			_dnsdomainid := NULL;
+		END IF;
+		if _mkip and NEW.netblock_id is not NULL THEN
+			SELECT	ip_address
+			  INTO	_ipaddr
+			  FROM	netblock
+			 WHERE	netblock_id  = NEW.netblock_id;
+		ELSE
+			_ipaddr := NULL;
+		END IF;
+		insert into DNS_CHANGE_RECORD
+			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
+	END IF;
+	IF TG_OP = 'DELETE' THEN
+		return OLD;
+	END IF;
+	return NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_dns_record_update_nontime AFTER INSERT OR DELETE OR UPDATE ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_record_update_nontime();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_record');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_record');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_record');
+ALTER SEQUENCE dns_record_dns_record_id_seq
+	 OWNED BY dns_record.dns_record_id;
+DROP TABLE IF EXISTS dns_record_v75;
+DROP TABLE IF EXISTS audit.dns_record_v75;
+-- DONE DEALING WITH TABLE dns_record
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE v_unix_passwd_mappings
@@ -6512,6 +7326,64 @@ $function$
 ;
 
 -- New function
+CREATE OR REPLACE FUNCTION jazzhands.check_ip_universe_dns_record()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	nb	integer[];
+BEGIN
+	IF TG_OP = 'UPDATE' THEN
+		IF NEW.netblock_id != OLD.netblock_id THEN
+			nb = ARRAY[OLD.netblock_id, NEW.netblock_id];
+		ELSE
+			nb = ARRAY[NEW.netblock_id];
+		END IF;
+	ELSE
+		nb = ARRAY[NEW.netblock_id];
+	END IF;
+
+	PERFORM *
+	FROM netblock
+	WHERE netblock_id = ANY(nb)
+	AND ip_universe_id != NEW.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION
+			'IP Universes for dns_records must match dns records and netblocks'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.check_ip_universe_netblock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM *
+	FROM dns_record
+	WHERE netblock_id IN (NEW.netblock_id, OLD.netblock_id)
+	AND ip_universe_id != NEW.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION
+			'IP Universes for netblocks must match dns records and netblocks'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
 CREATE OR REPLACE FUNCTION jazzhands.device_asset_id_fix()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -7648,23 +8520,10 @@ BEGIN
 -- Processing tables with no structural changes
 -- Some of these may be redundant
 -- fk constraints
-ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS ak_dns_record_dnsrec_domainid;
-ALTER TABLE dns_record
-	ADD CONSTRAINT ak_dns_record_dnsrec_domainid
-	UNIQUE (dns_record_id, dns_domain_id);
-
-ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS fk_dnsrecord_dnsrecord;
-ALTER TABLE dns_record
-	ADD CONSTRAINT fk_dnsrecord_dnsrecord
-	FOREIGN KEY (reference_dns_record_id, dns_domain_id) REFERENCES dns_record(dns_record_id, dns_domain_id);
-
 -- index
 DROP INDEX "jazzhands"."idx_acctcol_acctcoltype";
 DROP INDEX IF EXISTS "jazzhands"."xif_acctcol_acctcoltype";
 CREATE INDEX xif_acctcol_acctcoltype ON account_collection USING btree (account_collection_type);
-DROP INDEX "jazzhands"."idx_dnsrec_refdnsrec";
-DROP INDEX IF EXISTS "jazzhands"."xif8dns_record";
-CREATE INDEX xif8dns_record ON dns_record USING btree (reference_dns_record_id, dns_domain_id);
 DROP INDEX IF EXISTS "jazzhands"."xi_volume_group_name";
 CREATE INDEX xi_volume_group_name ON volume_group USING btree (volume_group_name);
 -- triggers
@@ -7672,8 +8531,8 @@ DROP TRIGGER IF EXISTS aaa_trigger_asset_component_id_fix ON asset;
 CREATE TRIGGER aaa_trigger_asset_component_id_fix AFTER INSERT OR UPDATE OF component_id, asset_id ON asset FOR EACH ROW EXECUTE PROCEDURE asset_component_id_fix();
 DROP TRIGGER IF EXISTS aaa_trigger_device_asset_id_fix ON device;
 CREATE TRIGGER aaa_trigger_device_asset_id_fix BEFORE INSERT OR UPDATE OF asset_id, component_id ON device FOR EACH ROW EXECUTE PROCEDURE device_asset_id_fix();
-DROP TRIGGER IF EXISTS trigger_dns_record_enabled_check ON dns_record;
-CREATE TRIGGER trigger_dns_record_enabled_check BEFORE INSERT OR UPDATE OF is_enabled ON dns_record FOR EACH ROW EXECUTE PROCEDURE dns_record_enabled_check();
+DROP TRIGGER IF EXISTS trigger_check_ip_universe_netblock ON netblock;
+CREATE CONSTRAINT TRIGGER trigger_check_ip_universe_netblock AFTER UPDATE OF netblock_id, ip_universe_id ON netblock DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE check_ip_universe_netblock();
 DROP TRIGGER IF EXISTS trigger_acct_coll_insert_direct ON val_account_collection_type;
 CREATE TRIGGER trigger_acct_coll_insert_direct AFTER INSERT ON val_account_collection_type FOR EACH ROW EXECUTE PROCEDURE acct_coll_insert_direct();
 DROP TRIGGER IF EXISTS trigger_acct_coll_remove_direct ON val_account_collection_type;
@@ -7683,9 +8542,10 @@ CREATE TRIGGER trigger_acct_coll_update_direct_before AFTER UPDATE OF account_co
 
 
 -- BEGIN Misc that does not apply to above
-CREATE INDEX aud_dns_record_ak_dns_record_dnsrec_domainid 
-	ON audit.dns_record 
-	USING btree (dns_record_id, dns_domain_id);
+-- no longer needed due to rebuilding dns_record
+--CREATE INDEX aud_dns_record_ak_dns_record_dnsrec_domainid 
+--	ON audit.dns_record 
+--	USING btree (dns_record_id, dns_domain_id);
 
 CREATE UNIQUE INDEX mv_dev_col_root_leaf_id_idx 
 	ON mv_dev_col_root USING btree (leaf_id);
