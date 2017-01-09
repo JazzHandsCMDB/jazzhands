@@ -71,6 +71,33 @@ sub new {
 
 }
 
+sub find_universe {
+	my ( $c, $u ) = @_;
+
+	return 0 if ( !$u );
+
+	return $u if ( $u =~ /^\d+$/ );
+
+	my (@errs);
+	my $dbrec;
+	if (
+		$dbrec = $c->DBFetch(
+			table => 'ip_universe',
+			match => {
+				ip_universe_name => $u,
+			},
+			result_set_size => 'first',
+			errors          => \@errs
+		)
+	  )
+	{
+		return $dbrec->{ip_universe_id};
+	}
+	$c->dbh->err && die join( " ", @errs );
+
+	die "Unable to find universe $u";
+}
+
 #
 # should probably by looked into how to do DBFetch with >=
 #
@@ -155,6 +182,8 @@ sub get_universe($$) {
 			return $c->{_universemap}->{$blk}->{universeid};
 		}
 	}
+
+	$c->{ip_universe};
 }
 
 sub check_and_add_service {
@@ -195,13 +224,16 @@ sub check_and_add_service {
 sub link_inaddr {
 	my ( $c, $domid, $block ) = @_;
 
+	my $universe = $c->get_universe($block) || $c->{ip_universe};
+
 	my (@errs);
 	if (
 		my $dbrec = $c->DBFetch(
 			table => 'dns_record',
 			match => {
-				dns_domain_id => $domid,
-				dns_type      => 'REVERSE_ZONE_BLOCK_PTR'
+				dns_domain_id  => $domid,
+				dns_type       => 'REVERSE_ZONE_BLOCK_PTR',
+				ip_universe_id => $universe,
 			},
 			result_set_size => 'first',
 			errors          => \@errs
@@ -226,7 +258,7 @@ sub link_inaddr {
 			is_single_address => 'N',
 			can_subnet        => 'N',
 			netblock_status   => 'Allocated',
-			ip_universe_id    => $c->{ip_universe},
+			ip_universe_id    => $universe,
 		};
 		$c->DBInsert(
 			table => 'netblock',
@@ -236,10 +268,11 @@ sub link_inaddr {
 	}
 
 	my $dns = {
-		dns_domain_id => $domid,
-		dns_class     => 'IN',
-		dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
-		netblock_id   => $nblk->{netblock_id},
+		dns_domain_id  => $domid,
+		dns_class      => 'IN',
+		dns_type       => 'REVERSE_ZONE_BLOCK_PTR',
+		ip_universe_id => $universe,
+		netblock_id    => $nblk->{netblock_id},
 	};
 	$c->DBInsert(
 		table => 'dns_record',
@@ -260,6 +293,7 @@ sub get_ptr {
 	$c->_Debug( 2, "looking for PTR for $ip" );
 
 	my $universe = $c->get_universe($ip) || $c->{ip_universe};
+	$c->_Debug( 3, "Guessed Universe %d", $universe );
 
 	my (@errs);
 	my $nblk = $c->DBFetch(
@@ -351,10 +385,13 @@ sub get_inaddr {
 	}
 
 	# deal with the case of there being a cname.
-	if ( !$a || !scalar $a->answer || grep { $_->type eq 'PTR' } $a->answer ) {
+	if ( !$a || !scalar $a->answer || !grep { $_->type eq 'PTR' } $a->answer ) {
 
 		# to reset the nameservers, which is potentially needed to traverse
 		# CNAMEs, which the AUTH server may not actually  have.
+		# XXX - this will almost certainly have issue where switching BACK
+		# to the auth nameserver is required to deal with cases where its not
+		# 'internet resolvable'f rom the main host.
 		my $res = new Net::DNS::Resolver;
 		my $qn  = $inaddr;
 		do {
@@ -623,6 +660,8 @@ sub refresh_dns_record {
 	my $srv_port     = $opt->{srv_port};
 	my $genptr       = $opt->{genptr};
 
+	my $universe = $c->get_universe($address);
+
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
@@ -718,11 +757,12 @@ sub refresh_dns_record {
 	}
 
 	my $match = {
-		dns_name      => $name,
-		dns_value     => $value,
-		dns_type      => $opt->{dns_type},
-		dns_domain_id => $opt->{dns_domain_id},
-		netblock_id   => ($nb) ? $nb->{netblock_id} : undef,
+		dns_name       => $name,
+		dns_value      => $value,
+		dns_type       => $opt->{dns_type},
+		dns_domain_id  => $opt->{dns_domain_id},
+		netblock_id    => ($nb) ? $nb->{netblock_id} : undef,
+		ip_universe_id => $universe,
 	};
 	if ($srv_service) {
 		$match->{dns_srv_service}  = $srv_service;
@@ -749,6 +789,7 @@ sub refresh_dns_record {
 		'dns_srv_protocol'        => $srv_protocol,
 		'dns_srv_weight'          => $srv_weight,
 		'dns_srv_port'            => $srv_port,
+		'ip_universe_id'          => $universe,
 		'netblock_id'             => ($nb) ? $nb->{netblock_id} : undef,
 		'reference_dns_record_id' => $opt->{reference_dns_record_id},
 		'dns_value_record_id'     => $opt->{dns_value_record_id},
@@ -1019,7 +1060,7 @@ sub do_zone_load {
 		"nameserver=s"        => \$ns,
 		"add-services"        => \$addsvr,
 		"no-delete"           => \$nodelete,
-		"ip-universe"         => \$universe,
+		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
 		"unknown-netblocks=s" => \$nbrule,
 	) || die "Issues";
@@ -1047,7 +1088,7 @@ sub do_zone_load {
 	$c->{addservice}  = $addsvr;
 	$c->{nodelete}    = $nodelete;
 	$c->{nameserver}  = $ns if ($ns);
-	$c->{ip_universe} = $universe || 0;
+	$c->{ip_universe} = $c->find_universe($universe);
 
 	foreach my $zone (@ARGV) {
 		$c->_Debug( 1, "Processing zone %s", $zone );
@@ -1076,8 +1117,10 @@ sub do_zone_load {
 	}
 
 	if ($dryrun) {
+		warn "rolling back...\n";
 		$c->rollback;
 	} else {
+		warn "commit...\n";
 		$c->commit;
 	}
 	0;
