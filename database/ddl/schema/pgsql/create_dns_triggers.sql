@@ -347,7 +347,7 @@ BEGIN
 			db.dns_class, db.dns_type,
 			coalesce(val.dns_value, db.dns_value) AS dns_value,
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
-			db.dns_srv_weight, db.dns_srv_port,
+			db.dns_srv_weight, db.dns_srv_port, db.ip_universe_id,
 			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
 			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
@@ -365,10 +365,11 @@ BEGIN
 		AND ( db.dns_domain_id = NEW.dns_domain_id )
 		AND ( db.dns_class = NEW.dns_class )
 		AND ( db.dns_type = NEW.dns_type )
-    		AND db.dns_record_id != NEW.dns_record_id
+    	AND db.dns_record_id != NEW.dns_record_id
 		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
 		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
 		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.ip_universe_id IS NOT DISTINCT FROM NEW.ip_universe_id
 		AND db.is_enabled = 'Y'
 	) SELECT	count(*)
 		INTO	_tally
@@ -453,6 +454,7 @@ DECLARE
 	_tally	INTEGER;
 	_dom	TEXT;
 BEGIN
+	--- XXX - need to seriously think about ip_universes here.
 	_tally := 0;
 	IF TG_OP = 'INSERT' OR NEW.DNS_TYPE != OLD.DNS_TYPE THEN
 		IF NEW.DNS_TYPE = 'CNAME' THEN
@@ -462,6 +464,7 @@ BEGIN
 				  FROM	dns_record x
 				 WHERE
 						NEW.dns_domain_id = x.dns_domain_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
@@ -476,6 +479,7 @@ BEGIN
 				  FROM	dns_record x
 				 WHERE
 						NEW.dns_domain_id = x.dns_domain_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
@@ -492,6 +496,7 @@ BEGIN
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
@@ -505,6 +510,7 @@ BEGIN
 				  FROM	dns_record x
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
