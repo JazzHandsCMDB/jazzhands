@@ -22,11 +22,37 @@ Invoked:
 	--suffix=v75
 	--post
 	post
+	--pre
+	pre
 */
 
 \set ON_ERROR_STOP
 SELECT schema_support.begin_maintenance();
 select timeofday(), now();
+
+
+-- BEGIN Misc that does not apply to above
+WITH x AS (
+        SELECT d.device_id, c.component_id, a.asset_id
+        FROM    device d
+                JOIN component c USING (component_id)
+                JOIN asset a USING (asset_id)
+        WHERE   a.component_id IS DISTINCT FROM d.component_id
+        AND     device_id NOT IN (
+                SELECT  device_id
+                FROM    device d
+                        JOIN asset a USING (component_id)
+                WHERE   d.asset_id IS DISTINCT FROM a.asset_id
+        )
+)
+UPDATE asset a
+SET component_id = x.component_id
+FROM x
+WHERE x.asset_id = a.asset_id;
+
+
+
+-- END Misc that does not apply to above
 --
 -- Process pre-schema schema_support
 --
