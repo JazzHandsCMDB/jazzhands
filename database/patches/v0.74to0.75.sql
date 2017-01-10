@@ -3199,7 +3199,7 @@ INSERT INTO audit.account_collection_account (
 ) SELECT
 	account_collection_id,
 	account_id,
-	'direct',				-- new column (account_collection_relation)
+	'direct',		-- new column (account_collection_relation)
 	account_id_rank,
 	start_date,
 	finish_date,
@@ -5473,34 +5473,86 @@ SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_person_company_audit_map
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('approval_utils', 'v_person_company_audit_map', 'v_person_company_audit_map');
+SELECT schema_support.save_dependent_objects_for_replay('approval_utils', 'v_person_company_audit_map');
+DROP VIEW IF EXISTS approval_utils.v_person_company_audit_map;
+CREATE VIEW approval_utils.v_person_company_audit_map AS
+ SELECT all_audrecs."aud#seq" AS audit_seq_id,
+    all_audrecs.company_id,
+    all_audrecs.person_id,
+    all_audrecs.person_company_status,
+    all_audrecs.person_company_relation,
+    all_audrecs.is_exempt,
+    all_audrecs.is_management,
+    all_audrecs.is_full_time,
+    all_audrecs.description,
+    all_audrecs.employee_id,
+    all_audrecs.payroll_id,
+    all_audrecs.external_hr_id,
+    all_audrecs.position_title,
+    all_audrecs.badge_system_id,
+    all_audrecs.hire_date,
+    all_audrecs.termination_date,
+    all_audrecs.manager_person_id,
+    all_audrecs.supervisor_person_id,
+    all_audrecs.nickname,
+    all_audrecs.data_ins_user,
+    all_audrecs.data_ins_date,
+    all_audrecs.data_upd_user,
+    all_audrecs.data_upd_date,
+    all_audrecs."aud#action",
+    all_audrecs."aud#timestamp",
+    all_audrecs."aud#realtime",
+    all_audrecs."aud#txid",
+    all_audrecs."aud#user",
+    all_audrecs."aud#seq",
+    all_audrecs.rownum
+   FROM ( SELECT pca.company_id,
+            pca.person_id,
+            pca.person_company_status,
+            pca.person_company_relation,
+            pca.is_exempt,
+            pca.is_management,
+            pca.is_full_time,
+            pca.description,
+            pca.employee_id,
+            pca.payroll_id,
+            pca.external_hr_id,
+            pca.position_title,
+            pca.badge_system_id,
+            pca.hire_date,
+            pca.termination_date,
+            pca.manager_person_id,
+            pca.supervisor_person_id,
+            pca.nickname,
+            pca.data_ins_user,
+            pca.data_ins_date,
+            pca.data_upd_user,
+            pca.data_upd_date,
+            pca."aud#action",
+            pca."aud#timestamp",
+            pca."aud#realtime",
+            pca."aud#txid",
+            pca."aud#user",
+            pca."aud#seq",
+            row_number() OVER (PARTITION BY pc.person_id, pc.company_id ORDER BY pca."aud#seq" DESC) AS rownum
+           FROM person_company pc
+             JOIN audit.person_company pca USING (person_id, company_id)
+          WHERE pca."aud#action" = ANY (ARRAY['UPD'::bpchar, 'INS'::bpchar])) all_audrecs
+  WHERE all_audrecs.rownum = 1;
+
+delete from __recreate where type = 'view' and object = 'v_person_company_audit_map';
+-- DONE DEALING WITH TABLE v_person_company_audit_map
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_account_collection_account_audit_map
 -- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_account_audit_map', 'v_account_collection_account_audit_map');
+SELECT schema_support.save_grants_for_replay('approval_utils', 'v_account_collection_account_audit_map', 'v_account_collection_account_audit_map');
 SELECT schema_support.save_dependent_objects_for_replay('approval_utils', 'v_account_collection_account_audit_map');
 DROP VIEW IF EXISTS approval_utils.v_account_collection_account_audit_map;
 CREATE VIEW approval_utils.v_account_collection_account_audit_map AS
- WITH all_audrecs AS (
-         SELECT acaa.account_collection_id,
-            acaa.account_id,
-            acaa.account_collection_relation,
-            acaa.account_id_rank,
-            acaa.start_date,
-            acaa.finish_date,
-            acaa.data_ins_user,
-            acaa.data_ins_date,
-            acaa.data_upd_user,
-            acaa.data_upd_date,
-            acaa."aud#action",
-            acaa."aud#timestamp",
-            acaa."aud#realtime",
-            acaa."aud#txid",
-            acaa."aud#user",
-            acaa."aud#seq",
-            row_number() OVER (PARTITION BY aca.account_collection_id, aca.account_id ORDER BY acaa."aud#timestamp" DESC) AS rownum
-           FROM account_collection_account aca
-             JOIN audit.account_collection_account acaa USING (account_collection_id, account_id)
-          WHERE acaa."aud#action" = ANY (ARRAY['UPD'::bpchar, 'INS'::bpchar])
-        )
  SELECT all_audrecs."aud#seq" AS audit_seq_id,
     all_audrecs.account_collection_id,
     all_audrecs.account_id,
@@ -5519,7 +5571,26 @@ CREATE VIEW approval_utils.v_account_collection_account_audit_map AS
     all_audrecs."aud#user",
     all_audrecs."aud#seq",
     all_audrecs.rownum
-   FROM all_audrecs
+   FROM ( SELECT acaa.account_collection_id,
+            acaa.account_id,
+            acaa.account_collection_relation,
+            acaa.account_id_rank,
+            acaa.start_date,
+            acaa.finish_date,
+            acaa.data_ins_user,
+            acaa.data_ins_date,
+            acaa.data_upd_user,
+            acaa.data_upd_date,
+            acaa."aud#action",
+            acaa."aud#timestamp",
+            acaa."aud#realtime",
+            acaa."aud#txid",
+            acaa."aud#user",
+            acaa."aud#seq",
+            row_number() OVER (PARTITION BY aca.account_collection_id, aca.account_id ORDER BY acaa."aud#seq" DESC) AS rownum
+           FROM account_collection_account aca
+             JOIN audit.account_collection_account acaa USING (account_collection_id, account_id)
+          WHERE acaa."aud#action" = ANY (ARRAY['UPD'::bpchar, 'INS'::bpchar])) all_audrecs
   WHERE all_audrecs.rownum = 1;
 
 delete from __recreate where type = 'view' and object = 'v_account_collection_account_audit_map';
