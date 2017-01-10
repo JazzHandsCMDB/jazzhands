@@ -1,4 +1,4 @@
--- Copyright (c) 2014, Todd M. Kover
+-- Copyright (c) 2014-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,22 +30,23 @@
 -- here speeds things up but not enough to be worth the overhead
 --
 create or replace view v_device_col_account_cart AS
-WITH x AS (
-select	device_collection_id, account_id, NULL as setting
-FROM	v_device_col_acct_col_unixlogin 
-		INNER JOIN account USING (account_id)
-		INNER JOIN account_unix_info USING (account_id)
-UNION select device_collection_id, account_id, setting
- 	from v_unix_account_overrides
-		INNER JOIN account USING (account_id)
-		INNER JOIN account_unix_info USING (account_id)
-		INNER JOIN v_device_col_acct_col_unixlogin USING 
-			(device_collection_id, account_id)
-) SELECT device_collection_id, account_id, setting
+SELECT device_collection_id, account_id, setting
 FROM (
 	SELECT x.*,
 		row_number() OVER (partition by device_collection_id,
 			account_id ORDER BY setting) as rn
-	FROM x
+	FROM (
+
+		SELECT	device_collection_id, account_id, NULL as setting
+		FROM	v_device_col_acct_col_unixlogin 
+				INNER JOIN account USING (account_id)
+				INNER JOIN account_unix_info USING (account_id)
+		UNION ALL select device_collection_id, account_id, setting
+ 			from v_unix_account_overrides
+				INNER JOIN account USING (account_id)
+				INNER JOIN account_unix_info USING (account_id)
+				INNER JOIN v_device_col_acct_col_unixlogin USING 
+					(device_collection_id, account_id)
+	) x
 ) xx
 WHERE rn = 1;

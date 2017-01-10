@@ -15,6 +15,17 @@
  * limitations under the License.
  */
 
+/*
+TODO:
+ - consider unique record test when one record points to another.
+    - value underway, need to do with reference
+
+ - one day:
+   - make sure dns_rec_prevent_dups still makes sense with other tests.
+      Other tests seemed more complex than necessary.
+*/
+
+
 ---------------------------------------------------------------------------
 --
 -- This shall replace all the aforementioned triggers
@@ -132,10 +143,29 @@ DECLARE
 	_ip		netblock.ip_address%type;
 	_sing	netblock.is_single_address%type;
 BEGIN
-	IF NEW.dns_type in ('A', 'AAAA') AND NEW.netblock_id IS NULL THEN
-		RAISE EXCEPTION 'Attempt to set % record without a Netblock',
-			NEW.dns_type
-			USING ERRCODE = 'not_null_violation';
+	IF NEW.dns_type in ('A', 'AAAA') THEN
+		IF ( NEW.netblock_id IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
+			RAISE EXCEPTION 'Attempt to set % record without netblocks',
+				NEW.dns_type
+				USING ERRCODE = 'not_null_violation';
+		ELSIF NEW.dns_value_record_id IS NOT NULL THEN
+			PERFORM *
+			FROM dns_record d
+			WHERE d.dns_record_id = NEW.dns_value_record_id
+			AND d.dns_type = NEW.dns_type
+			AND d.dns_class = NEW.dns_class;
+
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'Attempt to set % value record without the correct netblock',
+					NEW.dns_type
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+		END IF;
+
+		IF ( NEW.should_generate_ptr = 'Y' AND NEW.dns_value_record_id IS NOT NULL ) THEN
+			RAISE EXCEPTION 'It is not permitted to set should_generate_ptr and use a dns_value_record_id'
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
 	END IF;
 
 	IF NEW.netblock_Id is not NULL and
@@ -146,11 +176,6 @@ BEGIN
 
 	IF NEW.dns_value IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
 		RAISE EXCEPTION 'Both dns_value and dns_value_record_id may not be set'
-			USING ERRCODE = 'JH001';
-	END IF;
-
-	IF NEW.netblock_id IS NOT NULL AND NEW.dns_value_record_id IS NOT NULL THEN
-		RAISE EXCEPTION 'Both netblock_id and dns_value_record_id may not be set'
 			USING ERRCODE = 'JH001';
 	END IF;
 
@@ -178,6 +203,7 @@ BEGIN
 
 	END IF;
 
+
 	RETURN NEW;
 END;
 $$
@@ -197,27 +223,50 @@ DECLARE
 	_tal	integer;
 BEGIN
 	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
-		IF family(NEW.ip_address) == 6 THEN
+		--
+		-- The dns_value_record_id check is not strictly needed since
+		-- the "dns_value_record_id" points to something of the same type
+		-- and the trigger would catch that, but its here in case some
+		-- assumption later changes and its good to test for..
+		IF family(NEW.ip_address) = 6 THEN
 			SELECT count(*)
 			INTO	_tal
 			FROM	dns_record
-			WHERE	netblock_id = NEW.netblock_id
-			AND		dns_type = 'A';
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'A'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'A'
+						)
+					);
 
 			IF _tal > 0 THEN
 				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
 					USING ERRCODE = 'JH200';
 			END IF;
 		END IF;
-	END IF;
 
-	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
-		IF family(NEW.ip_address) == 4 THEN
+		IF family(NEW.ip_address) = 4 THEN
 			SELECT count(*)
 			INTO	_tal
 			FROM	dns_record
-			WHERE	netblock_id = NEW.netblock_id
-			AND		dns_type = 'AAAA';
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'AAAA'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'AAAA'
+						)
+					);
 
 			IF _tal > 0 THEN
 				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
@@ -258,7 +307,8 @@ CREATE OR REPLACE FUNCTION dns_non_a_rec_validation() RETURNS TRIGGER AS $$
 DECLARE
 	_ip		netblock.ip_address%type;
 BEGIN
-	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND NEW.dns_value IS NULL THEN
+	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND
+			( NEW.dns_value IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
 		RAISE EXCEPTION 'Attempt to set % record without a value',
 			NEW.dns_type
 			USING ERRCODE = 'not_null_violation';
@@ -285,46 +335,57 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	SELECT	count(*)
-	  INTO	_tally
-	  FROM	dns_record
-	  WHERE
-	  		( lower(dns_name) = lower(NEW.dns_name) OR
-				(dns_name IS NULL AND NEW.dns_name is NULL)
-			)
+	WITH newref AS (
+		SELECT * FROM dns_record
+			WHERE NEW.reference_dns_record_id IS NOT NULL
+			AND NEW.reference_dns_record_id = dns_record_id
+			ORDER BY dns_record_id LIMIT 1
+	), dns AS ( SELECT
+			db.dns_record_id,
+			coalesce(ref.dns_name, db.dns_name) as dns_name,
+			db.dns_domain_id, db.dns_ttl,
+			db.dns_class, db.dns_type,
+			coalesce(val.dns_value, db.dns_value) AS dns_value,
+			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
+			db.dns_srv_weight, db.dns_srv_port,
+			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
+			db.reference_dns_record_id, db.dns_value_record_id,
+			db.should_generate_ptr, db.is_enabled
+		FROM dns_record db
+			LEFT JOIN dns_record ref
+				ON ( db.reference_dns_record_id = ref.dns_record_id)
+			LEFT JOIN dns_record val
+				ON ( db.dns_value_record_id = val.dns_record_id )
+			LEFT JOIN newref
+				ON newref.dns_record_id = NEW.reference_dns_record_id
+		WHERE db.dns_record_id != NEW.dns_record_id
+		AND (lower(coalesce(ref.dns_name, db.dns_name))
+					IS NOT DISTINCT FROM
+				lower(coalesce(newref.dns_name, NEW.dns_name)) )
+		AND ( db.dns_domain_id = NEW.dns_domain_id )
+		AND ( db.dns_class = NEW.dns_class )
+		AND ( db.dns_type = NEW.dns_type )
+    		AND db.dns_record_id != NEW.dns_record_id
+		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.is_enabled = 'Y'
+	) SELECT	count(*)
+		INTO	_tally
+		FROM dns
+			LEFT JOIN dns_record val
+				ON ( NEW.dns_value_record_id = val.dns_record_id )
+		WHERE
+			dns.dns_value IS NOT DISTINCT FROM
+				coalesce(val.dns_value, NEW.dns_value)
 		AND
-	  		( dns_domain_id = NEW.dns_domain_id )
-		AND
-	  		( dns_class = NEW.dns_class )
-		AND
-	  		( dns_type = NEW.dns_type )
-		AND
-	  		( dns_srv_service = NEW.dns_srv_service OR
-				(dns_srv_service IS NULL and NEW.dns_srv_service is NULL)
-			)
-		AND
-	  		( dns_srv_protocol = NEW.dns_srv_protocol OR
-				(dns_srv_protocol IS NULL and NEW.dns_srv_protocol is NULL)
-			)
-		AND
-	  		( dns_srv_port = NEW.dns_srv_port OR
-				(dns_srv_port IS NULL and NEW.dns_srv_port is NULL)
-			)
-		AND
-	  		( dns_value = NEW.dns_value OR
-				(dns_value IS NULL and NEW.dns_value is NULL)
-			)
-		AND
-	  		( netblock_id = NEW.netblock_id OR
-				(netblock_id IS NULL AND NEW.netblock_id is NULL)
-			)
-		AND	is_enabled = 'Y'
-	    AND dns_record_id != NEW.dns_record_id
+			dns.netblock_id IS NOT DISTINCT FROM
+				coalesce(val.netblock_id, NEW.netblock_id)
 	;
 
 	IF _tally != 0 THEN
-		RAISE EXCEPTION 'Attempt to insert the same dns record'
-			USING ERRCODE = 'unique_violation';
+		RAISE EXCEPTION 'Attempt to insert the same dns record - % %', _tally,
+			NEW USING ERRCODE = 'unique_violation';
 	END IF;
 
 	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
@@ -400,10 +461,10 @@ BEGIN
 				  INTO	_tally
 				  FROM	dns_record x
 				 WHERE
-				 		NEW.dns_domain_id = x.dns_domain_id
+						NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -414,9 +475,9 @@ BEGIN
 				  INTO	_tally
 				  FROM	dns_record x
 				 WHERE
-				 		NEW.dns_domain_id = x.dns_domain_id
+						NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -432,7 +493,7 @@ BEGIN
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -445,7 +506,7 @@ BEGIN
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	(
-				 			NEW.dns_name IS NULL and x.dns_name is NULL
+							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
 							lower(NEW.dns_name) = lower(x.dns_name)
 						)
@@ -480,6 +541,49 @@ CREATE TRIGGER trigger_dns_record_cname_checker
 	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_cname_checker();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_record_enabled_check()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF new.IS_ENABLED = 'N' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE dns_value_record_id = NEW.dns_record_id
+		OR reference_dns_record_id = NEW.dns_record_id;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not disabled records referred to by other enabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+	IF new.IS_ENABLED = 'Y' THEN
+		PERFORM *
+		FROM dns_record
+		WHERE ( NEW.dns_value_record_id = dns_record_id
+				OR NEW.reference_dns_record_id = dns_record_id
+		) AND is_enabled = 'N';
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Can not enable records referencing disabled records.'
+				USING ERRCODE = 'JH001';
+		END IF;
+	END IF;
+
+
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_record_enabled_check ON dns_record;
+CREATE TRIGGER trigger_dns_record_enabled_check
+	BEFORE INSERT OR UPDATE of is_enabled
+	ON dns_record
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_record_enabled_check();
+
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_domain_trigger_change()

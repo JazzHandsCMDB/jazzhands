@@ -36,7 +36,7 @@ FROM (
 		n.soa_name, chg.ip_address
 	FROM   chg
 		INNER JOIN dns_domain n on chg.cidrdns = n.soa_name
-	UNION
+	UNION ALL
 	SELECT  chg.dns_change_record_id, d.dns_domain_id,
 		d.should_generate, d.last_generated,
 		d.soa_name, NULL

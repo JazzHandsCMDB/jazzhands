@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Todd Kover
+-- Copyright (c) 2014-2017 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,10 @@
 
 
 \set ON_ERROR_STOP
+
+SAVEPOINT company_coll_hier_regression;
+SET jazzhands.permit_company_insert = 'permit';
+
 
 \t on
 -- 
@@ -178,5 +182,8 @@ $$ LANGUAGE plpgsql;
 SELECT company_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION company_coll_hier_regression();
+
+SET jazzhands.permit_company_insert TO default;
+ROLLBACK TO company_coll_hier_regression;
 
 \t off

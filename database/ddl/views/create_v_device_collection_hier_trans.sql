@@ -1,5 +1,4 @@
-
--- Copyright (c) 2016, Todd M. Kover
+-- Copyright (c) 2016, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,14 +12,6 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
---
---
--- $Id$
---
 
-CREATE OR REPLACE VIEW v_dns AS
-	SELECT * FROM v_dns_fwd
-UNION ALL
-	SELECT * FROM v_dns_rvs
-;
-
+CREATE OR REPLACE VIEW v_device_collection_hier_trans AS
+SELECT * FROM device_collection_hier;

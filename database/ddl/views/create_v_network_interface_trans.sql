@@ -18,9 +18,11 @@
 -- $Id$
 --
 
-CREATE OR REPLACE VIEW v_dns AS
-	SELECT * FROM v_dns_fwd
-UNION ALL
-	SELECT * FROM v_dns_rvs
+-- when columns are dropped from network_interface this will replicate the
+-- legacy behavior until other things can be cleaned up.
+CREATE OR REPLACE VIEW v_network_interface_trans AS
+	SELECT * FROM network_interface
+UNION
+	SELECT * FROM network_interface
 ;
 

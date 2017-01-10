@@ -87,7 +87,10 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_device_coll_hook_triggers.sql
 \ir ddl/schema/pgsql/create_layer2_network_coll_hook_triggers.sql
 \ir ddl/schema/pgsql/create_x509_triggers.sql
+\ir ddl/schema/pgsql/create_account_coll_relation_triggers.sql
 \ir ddl/schema/pgsql/create_x509_triggers-RETIRE.sql
+\ir ddl/schema/pgsql/create_asset_move_RETIRE.sql
+\ir ddl/schema/pgsql/create_ip_universe_valid_triggers.sql
 
 
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
