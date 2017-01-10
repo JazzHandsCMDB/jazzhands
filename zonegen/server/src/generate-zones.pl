@@ -93,6 +93,27 @@ sub getSth($$) {
 	$sth;
 }
 
+sub get_universe_map {
+	my ($dbh) = @_;
+
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT distinct dns_domain_id, ip_universe_name 
+		FROM v_dns  
+			JOIN ip_universe using (ip_universe_id)
+	}
+	) || confess $dbh->errstr;
+
+	my $rv = {};
+
+	$sth->execute || die $sth->errstr;
+
+	while ( my ( $dom, $u ) = $sth->fetchrow_array ) {
+		push( @{ $rv->{dom} }, $u );
+	}
+	$rv;
+}
+
 sub get_my_site_code($$) {
 	my ( $dbh, $hn ) = @_;
 
@@ -1086,68 +1107,84 @@ sub process_domain {
 	}
 
 	#
+	# This needs to move elsewhere
+	#
+	my $umap = get_universe_map($dbh);
+
+	#
 	# This generally happens only on dumping a zone to stdout...
 	if ( !$domid ) {
 		$domid = get_dns_domid( $dbh, $domain );
 		return 0 if ( !$domid );
 
 	}
-	my ( $fn, $tmpfn );
 
-	if ($zoneroot) {
-		$fn    = "$zoneroot/$inaddr$domain";
-		$tmpfn = "$fn.tmp.$$";
-	} else {
-		$tmpfn = "/dev/stdout";
+	my @univ = [  'default' ];
+	if (exists($umap->{$domid}) ) {
+		@univ = @{ $umap->{$domid} } ;
 	}
 
-	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
+	foreach my $u (@univ) {
+		my ( $fn, $tmpfn );
 
-	print STDERR "\tprocess SOA to $tmpfn\n" if ($debug);
-	process_soa( $dbh, $out, $domid, $bumpsoa );
-	print STDERR "\tprocess DNS Records to $tmpfn\n" if ($debug);
-	process_all_dns_records( $dbh, $out, $domid, $domain );
-	print STDERR "\tprocess_domain complete\n" if ($debug);
-	$out->close;
-
-	if ($last) {
-		$last =~ s/\..*$//;
-		my ( $y, $m, $d, $h, $min, $s ) =
-		  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
-		if ($y) {
-			my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
-			utime( $whence, $whence, $tmpfn );    # If it does not work, then Vv
+		if ($zoneroot) {
+			my $dir = "$zoneroot/$u/$inaddr";
+			mkdir_p($dir) if (! -d $dir);
+			$fn    = "$dir$domain";
+			$tmpfn = "$fn.tmp.$$";
 		} else {
-			warn "difficulting breaking apart $last";
+			$tmpfn = "/dev/stdout";
 		}
-	}
 
-	if ( !$zoneroot ) {
-		return 0;
-	}
+		my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
 
-	#
-	# run named-checkzone to see if its a valid or bump zone, and if it
-	# failed the test, then spit out an error message and return something
-	# indicating as such.
-	#
-	my $prog = "named-checkzone $domain $tmpfn";
-	print "running $prog\n" if ($debug);
-	my $output = `$prog`;
-	if ( ( $? >> 8 ) ) {
-		my $errmsg = "[not pushing out]";
-		if ($errcheck) {
-			$errmsg = "[WARNING: PUSHING OUT!]";
+		print STDERR "\tprocess SOA to $tmpfn\n" if ($debug);
+		process_soa( $dbh, $out, $domid, $bumpsoa );
+		print STDERR "\tprocess DNS Records to $tmpfn\n" if ($debug);
+		process_all_dns_records( $dbh, $out, $domid, $domain );
+		print STDERR "\tprocess_domain complete\n" if ($debug);
+		$out->close;
+
+		if ($last) {
+			$last =~ s/\..*$//;
+			my ( $y, $m, $d, $h, $min, $s ) =
+			  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
+			if ($y) {
+				my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
+				utime( $whence, $whence, $tmpfn )
+				  ;    # If it does not work, then Vv
+			} else {
+				warn "difficulting breaking apart $last";
+			}
 		}
-		$output = "" if ( !$output );
-		warn "$domain was generated with errors $errmsg ($output)\n";
-		if ( !$errcheck ) {
+
+		if ( !$zoneroot ) {
 			return 0;
 		}
-	}
 
-	unlink($fn);
-	rename( $tmpfn, $fn );
+		#
+		# run named-checkzone to see if its a valid or bump zone, and if it
+		# failed the test, then spit out an error message and return something
+		# indicating as such.
+		#
+		my $prog = "named-checkzone $domain $tmpfn";
+		print "running $prog\n" if ($debug);
+		my $output = `$prog`;
+		if ( ( $? >> 8 ) ) {
+			my $errmsg = "[not pushing out]";
+			if ($errcheck) {
+				$errmsg = "[WARNING: PUSHING OUT!]";
+			}
+			$output = "" if ( !$output );
+			warn "$domain was generated with errors $errmsg ($output)\n";
+			if ( !$errcheck ) {
+				return 0;
+			}
+		}
+
+		unlink($fn);
+		rename( $tmpfn, $fn );
+	}
 	return 1;
 }
 
@@ -1474,7 +1511,8 @@ if ($sleep) {
 	sleep($delay);
 }
 
-my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } ) || die;
+my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } )
+  || die $JazzHands::DBI::errstr;
 
 #
 # This should probably move into script_hooks.zonegen_pre().
@@ -1805,7 +1843,7 @@ if ( !$norsynclist ) {
 #
 warn "Generating configuration files and whatnot..." if ($debug);
 process_perserver( $dbh, "../zones", $persvrroot, $generate );
-generate_complete_files( $dbh, $zoneroot, $generate );
+# generate_complete_files( $dbh, $zoneroot, $generate );
 
 $dbh->do("SELECT script_hooks.zonegen_post()");
 
