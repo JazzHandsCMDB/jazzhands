@@ -88,6 +88,7 @@
 \ir pgsql/create_v_acct_coll_prop_expanded.sql
 
 \ir pgsql/create_v_device_coll_device_expanded.sql
+\ir pgsql/create_v_netblock_coll_expanded.sql
 
 \ir create_v_dev_col_root.sql
 \ir create_mv_dev_col_root.sql

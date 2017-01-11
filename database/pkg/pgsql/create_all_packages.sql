@@ -64,3 +64,4 @@
 \ir account_collection_manip.sql
 \ir script_hooks.sql
 \ir backend_utils.sql
+\ir rack_utils.sql
