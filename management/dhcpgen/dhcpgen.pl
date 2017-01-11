@@ -39,6 +39,7 @@ use NetAddr::IP qw(:lower);
 
 use POSIX qw(setsid uname);
 use File::Path;
+use Pod::Usage;
 
 eval {
 	require _LocalHooks;
@@ -542,8 +543,8 @@ sub generate_dhcp_configs {
 				family(ip_address) = 4) JOIN
 			val_property pt USING (property_name, property_type)
 		WHERE
-			property_type = 'DHCP' AND
-			network_range_type = 'dhcp_lease_pool'
+			p.property_type = 'DHCP' AND
+			nr.network_range_type = 'dhcp_lease_pool'
 		ORDER BY network_range_id, property_name, property_rank
 	};
 
