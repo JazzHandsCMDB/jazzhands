@@ -59,6 +59,9 @@ use POSIX;
 use Pod::Usage;
 use Data::Dumper;
 use Carp;
+use utf8;
+
+# local $SIG{__WARN__} = \&Carp::cluck;
 
 # This is required and the db is assumed to be returning UTC dates.
 $ENV{'TZ'} = 'UTC';
@@ -98,7 +101,7 @@ sub get_universe_map {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT distinct dns_domain_id, ip_universe_name 
+		SELECT distinct dns_domain_id, ip_universe_id, ip_universe_name
 		FROM v_dns  
 			JOIN ip_universe using (ip_universe_id)
 	}
@@ -108,8 +111,8 @@ sub get_universe_map {
 
 	$sth->execute || die $sth->errstr;
 
-	while ( my ( $dom, $u ) = $sth->fetchrow_array ) {
-		push( @{ $rv->{dom} }, $u );
+	while ( my ( $dom, $id, $name ) = $sth->fetchrow_array ) {
+		push( @{ $rv->{$dom} }, { id => $id, name => $name } );
 	}
 	$rv;
 }
@@ -539,6 +542,8 @@ sub generate_named_acl_file($$$) {
 
 	my $tmpfn = "$fn.$$.zonetmp";
 	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
+	# XXX probably not the best choice...
+	$out->binmode('encoding(utf8)');
 	print_comments( $dbh, $out, '//' );
 
 	$out->print("\n\n");
@@ -845,7 +850,12 @@ sub process_child_ns_records {
 }
 
 sub process_all_dns_records {
-	my ( $dbh, $out, $domid, $domain ) = @_;
+	my ( $dbh, $out, $domid, $domain, $universe) = @_;
+
+	my $uclause = "";
+	if(defined( $universe) ) {
+		$uclause = "AND ( ip_universe_id = :universe )";
+	}
 
 	#
 	# sort_order is arranged such that records for the domain itself
@@ -880,7 +890,7 @@ sub process_all_dns_records {
 				ELSE 10 END as sortorder,
 			dns_domain_id
 		  from	v_dns
-		 where	dns_domain_id = ?
+		 where	dns_domain_id = :domid $uclause
 		) SELECT *, row_number()
 			OVER (partition by dns_name,dns_domain_id ORDER BY sortorder) as rn
 		FROM dns
@@ -898,9 +908,15 @@ sub process_all_dns_records {
 	}
 	);
 
+
 	# order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 
-	$sth->execute($domid) || die $sth->errstr;
+	$sth->bind_param(':domid', $domid) || die $sth->errstr;
+	if(defined($universe)) {
+		$sth->bind_param(':universe', $universe) || die $sth->errstr;
+	}
+
+	$sth->execute || die $sth->errstr;
 
 	while (
 		my (
@@ -1119,16 +1135,22 @@ sub process_domain {
 
 	}
 
-	my @univ = [  'default' ];
+	my @univ = (  { id => 0, name => 'default' } );
 	if (exists($umap->{$domid}) ) {
 		@univ = @{ $umap->{$domid} } ;
 	}
 
-	foreach my $u (@univ) {
+
+	foreach my $universe (@univ) {
+		my $uid = $universe->{id};
+		my $uname = $universe->{name};
+
+		warn "\tprocessing universe $uname ($uid)...\n";
+
 		my ( $fn, $tmpfn );
 
 		if ($zoneroot) {
-			my $dir = "$zoneroot/$u/$inaddr";
+			my $dir = "$zoneroot/$uname/$inaddr";
 			mkdir_p($dir) if (! -d $dir);
 			$fn    = "$dir$domain";
 			$tmpfn = "$fn.tmp.$$";
@@ -1141,7 +1163,7 @@ sub process_domain {
 		print STDERR "\tprocess SOA to $tmpfn\n" if ($debug);
 		process_soa( $dbh, $out, $domid, $bumpsoa );
 		print STDERR "\tprocess DNS Records to $tmpfn\n" if ($debug);
-		process_all_dns_records( $dbh, $out, $domid, $domain );
+		process_all_dns_records( $dbh, $out, $domid, $domain, $uid );
 		print STDERR "\tprocess_domain complete\n" if ($debug);
 		$out->close;
 
@@ -1842,7 +1864,7 @@ if ( !$norsynclist ) {
 # Final cleanup
 #
 warn "Generating configuration files and whatnot..." if ($debug);
-process_perserver( $dbh, "../zones", $persvrroot, $generate );
+# XXX process_perserver( $dbh, "../zones", $persvrroot, $generate );
 # generate_complete_files( $dbh, $zoneroot, $generate );
 
 $dbh->do("SELECT script_hooks.zonegen_post()");

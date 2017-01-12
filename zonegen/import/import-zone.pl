@@ -1117,10 +1117,8 @@ sub do_zone_load {
 	}
 
 	if ($dryrun) {
-		warn "rolling back...\n";
 		$c->rollback;
 	} else {
-		warn "commit...\n";
 		$c->commit;
 	}
 	0;
