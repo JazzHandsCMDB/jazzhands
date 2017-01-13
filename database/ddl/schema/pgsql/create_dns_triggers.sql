@@ -25,7 +25,6 @@ TODO:
       Other tests seemed more complex than necessary.
 */
 
-
 ---------------------------------------------------------------------------
 --
 -- This shall replace all the aforementioned triggers
@@ -595,7 +594,11 @@ CREATE TRIGGER trigger_dns_record_enabled_check
 CREATE OR REPLACE FUNCTION dns_domain_trigger_change()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF new.SHOULD_GENERATE = 'Y' THEN
+	PERFORM *
+	FROM dns_domain_ip_universe
+	WHERE dns_domain_id = NEW.dns_domain_id
+	AND SHOULD_GENERATE = 'Y';
+	IF FOUND THEN
 		insert into DNS_CHANGE_RECORD
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
 	END IF;
@@ -606,12 +609,34 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change
-	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl,
-		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
-		soa_rname, should_generate
+	AFTER INSERT OR UPDATE OF soa_name
 	ON dns_domain
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_trigger_change();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_change()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.should_generate = 'Y' THEN
+		insert into DNS_CHANGE_RECORD
+			(dns_domain_id) VALUES (NEW.dns_domain_id);
+	END IF;
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_ip_universe_trigger_change 
+	ON dns_domain_ip_universe;
+CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change
+	AFTER INSERT OR UPDATE OF soa_class, soa_ttl,
+		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
+		soa_rname, should_generate
+	ON dns_domain_ip_universe
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_domain_ip_universe_trigger_change();
+
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_change_record_pgnotify()

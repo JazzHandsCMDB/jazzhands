@@ -297,10 +297,14 @@ LANGUAGE plpgsql;
 -- given a dns domain, type and boolean, add the domain with that type and
 -- optionally (tho defaulting to true) at default nameservers
 --
+-- XXX ip universes need to be folded in better, particularly with reverse
+-- and default nameservers
+--
 ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.add_dns_domain(
 	soa_name			dns_domain.soa_name%type,
 	dns_domain_type		dns_domain.dns_domain_type%type DEFAULT NULL,
+	ip_universes		integer[] DEFAULT NULL,
 	add_nameservers		boolean DEFAULT true
 ) RETURNS dns_domain.dns_domain_id%type AS $$
 DECLARE
@@ -311,6 +315,7 @@ DECLARE
 	elem			text;
 	sofar			text;
 	rvs_nblk_id		netblock.netblock_id%type;
+	univ			ip_universe.ip_universe_id%type;
 BEGIN
 	IF soa_name IS NULL THEN
 		RETURN NULL;
@@ -331,6 +336,13 @@ BEGIN
 		END IF;
 	END LOOP;
 
+	IF ip_universes IS NULL THEN
+		SELECT array_agg(ip_universe_id) 
+		INTO	ip_universes
+		FROM	ip_universe
+		WHERE	ip_universe_name = 'default';
+	END IF;
+
 	IF dns_domain_type IS NULL THEN
 		IF soa_name ~ '^.*(in-addr|ip6)\.arpa$' THEN
 			dns_domain_type := 'reverse';
@@ -345,31 +357,47 @@ BEGIN
 	EXECUTE '
 		INSERT INTO dns_domain (
 			soa_name,
-			soa_class,
-			soa_mname,
-			soa_rname,
 			parent_dns_domain_id,
-			should_generate,
 			dns_domain_type
 		) VALUES (
 			$1,
 			$2,
-			$3,
-			$4,
-			$5,
-			$6,
-			$7
+			$3
 		) RETURNING dns_domain_id' INTO domain_id 
 		USING soa_name, 
-			'IN',
-			(select property_value from property where property_type = 'Defaults'
-				and property_name = '_dnsmname'),
-			(select property_value from property where property_type = 'Defaults'
-				and property_name = '_dnsrname'),
 			parent_id,
-			'Y',
 			dns_domain_type
 	;
+
+	FOREACH univ IN ARRAY ip_universes
+	LOOP
+		EXECUTE '
+			INSERT INTO dns_domain_ip_universe (
+				dns_domain_id,
+				ip_universe_id,
+				soa_class,
+				soa_mname,
+				soa_rname,
+				should_generate
+			) VALUES (
+				$1,
+				$2,
+				$3,
+				$4,
+				$5,
+				$6
+			);'
+			USING domain_id, univ,
+				'IN',
+				(select property_value from property 
+					where property_type = 'Defaults'
+					and property_name = '_dnsmname' ORDER BY property_id LIMIT 1),
+				(select property_value from property 
+					where property_type = 'Defaults'
+					and property_name = '_dnsrname' ORDER BY property_id LIMIT 1),
+				'Y'
+		;
+	END LOOP;
 
 	IF dns_domain_type = 'reverse' THEN
 		rvs_nblk_id := dns_utils.get_or_create_rvs_netblock_link(

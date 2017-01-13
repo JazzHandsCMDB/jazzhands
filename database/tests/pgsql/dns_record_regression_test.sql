@@ -40,21 +40,11 @@ DECLARE
 	_dnsrec2		dns_record%ROWTYPE;
 	_dnsrec			dns_record%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'Cleanup Records from Previous Tests';
-	delete from dns_record where dns_name like 'JHTEST%'
-		or dns_value like 'JHTEST%';
-	delete from netblock where description like 'JHTEST%'
-		and is_single_address = 'Y';
-	delete from netblock where description like 'JHTEST%';
-	delete from dns_change_record;
-	delete from dns_domain where soa_name = 'jhtest.example.com';
-	delete from val_dns_srv_service
-		where (dns_srv_service) IN ('_bar', '_foo');
+	RAISE NOTICE '++ Beginning tests of dns_record_update_nontime...';
 
 	RAISE NOTICE 'skip tests of dns_rec_before because it is going away';
 	RAISE NOTICE 'skip tests of update_dns_zone because it is going away';
 
-	RAISE NOTICE '++ Beginning tests of dns_record_update_nontime...';
 	DELETE from dns_change_record;
 
 	SELECT	count(*)
@@ -69,14 +59,20 @@ BEGIN
 	RAISE NOTICE 'Inserting bootstrapping test records.';
 
 	INSERT INTO DNS_DOMAIN (
-		soa_name, soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
-		soa_expire, soa_minimum, soa_mname, soa_rname, should_generate,
-		dns_domain_type
+		soa_name, dns_domain_type
 	) values (
-		'jhtest.example.com', 'IN', 3600, 1, 600, 1800,
-		604800, 300, 'ns.example.com', 'hostmaster.example.com', 'Y',
-		'service'
+		'jhtest.example.com', 'service'
 	) RETURNING dns_domain_id INTO _dnsdomid;
+
+	INSERT INTO DNS_DOMAIN_IP_UNIVERSE (
+		dns_domain_id, ip_universe_id, should_generate,
+		soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
+		soa_expire, soa_minimum, soa_mname, soa_rname
+	) values (
+		_dnsdomid, 0, 'Y',
+		'IN', 3600, 1, 600, 1800,
+		604800, 300, 'ns.example.com', 'hostmaster.example.com'
+	);
 
 	RAISE NOTICE 'Checking to see if dns_domain insert updates dns_change_record trigger does what it should';
 	SELECT count(*)
@@ -936,22 +932,8 @@ BEGIN
 	RAISE NOTICE 'Done CNAME and other check tests';
 
 	RAISE NOTICE 'Cleaning Up....';
-	delete from dns_record where dns_domain_id = _dnsdomid;
-	delete from dns_record where dns_name like 'JHTEST%'
-		or dns_value like 'JHTEST%';
-	delete from netblock where description like 'JHTEST%'
-		and is_single_address = 'Y';
-	delete from netblock where description like 'JHTEST%';
-	delete from dns_change_record;
-	delete from dns_domain where soa_name = 'jhtest.example.com';
-	delete from dns_domain where dns_domain_id = _dnsdomid;
-	delete from val_dns_srv_service
-		where (dns_srv_service) IN ('_bar', '_foo');
 
-	RAISE NOTICE 'skip tests of dns_rec_before because it is going away';
-	RAISE NOTICE 'skip tests of update_dns_zone because it is going away';
-
-	RAISE NOTICE '++ Beginning tests of dns_record_update_nontime...';
+	RAISE NOTICE '++ End DNS tests...';
 	DELETE from dns_change_record;
 
 

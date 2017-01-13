@@ -396,6 +396,57 @@ insert into val_CABLE_TYPE (CABLE_TYPE) values ('straight');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('rollover');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('crossover');
 
+insert into val_network_interface_purpose
+	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+	values ('api', 'Interface used to manage device via API');
+insert into val_network_interface_purpose
+	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+	values ('radius', 'Interface used for radius');
+insert into val_network_interface_purpose
+	(NETWORK_INTERFACE_PURPOSE)
+	values ('login');
+
+insert into val_property_data_type (PROPERTY_DATA_TYPE, DESCRIPTION)
+	values ('none', 'No value should be set');
+insert into val_property_data_type (PROPERTY_DATA_TYPE) values 
+	('boolean'),
+	('number'),
+	('string'),
+	('list'),
+	('timestamp'),
+	('company_id'),
+	('dns_domain_id'),
+	('device_collection_id'),
+	('netblock_collection_id'),
+	('password_type'),
+	('person_id'),
+	('token_collection_id'),
+	('account_collection_id'),
+	('sw_package_id');
+
+insert into val_person_company_attr_dtype (person_company_attr_data_type) values 
+	('boolean'),
+	('number'),
+	('string'),
+	('list'),
+	('timestamp'),
+	('person_id');
+
+-- system wide defaults concepts used by various tools
+insert into val_property_type (property_type, description)
+	values ( 'Defaults', 'System Wide Defaults');
+
+----------------------- DNS 
+
+INSERT INTO val_property
+	(property_type, property_name, property_data_type,
+	 description)
+VALUES
+	('Defaults', '_dnsrname', 'string',
+		'Default Role Name (contact) for zone'),
+	('Defaults', '_dnsmname', 'string',
+		'Default Nameserver for zone');
+
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('retired');
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('vanity');
@@ -447,41 +498,7 @@ insert into val_dns_type (dns_type,id_type,description)
 	values ('REVERSE_ZONE_BLOCK_PTR', 'LINK',
 	'not really a type; in-addr backend link');
 
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
-	values ('api', 'Interface used to manage device via API');
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
-	values ('radius', 'Interface used for radius');
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE)
-	values ('login');
-
-insert into val_property_data_type (PROPERTY_DATA_TYPE, DESCRIPTION)
-	values ('none', 'No value should be set');
-insert into val_property_data_type (PROPERTY_DATA_TYPE) values 
-	('boolean'),
-	('number'),
-	('string'),
-	('list'),
-	('timestamp'),
-	('company_id'),
-	('dns_domain_id'),
-	('device_collection_id'),
-	('netblock_collection_id'),
-	('password_type'),
-	('person_id'),
-	('token_collection_id'),
-	('account_collection_id'),
-	('sw_package_id');
-
-insert into val_person_company_attr_dtype (person_company_attr_data_type) values 
-	('boolean'),
-	('number'),
-	('string'),
-	('list'),
-	('timestamp'),
-	('person_id');
+----------------------- Misc Property Types 
 
 insert into val_property_type (property_type, description,is_multivalue) 
 	VALUES 
@@ -788,10 +805,6 @@ insert into val_property (
 	'ForceGroupGID', 'UnixGroupFileProperty', 'N', 'none',
 	'REQUIRED', 'REQUIRED'
 );
-
--- system wide defaults concepts used by various tools
-insert into val_property_type (property_type, description)
-	values ( 'Defaults', 'System Wide Defaults');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_COMPANY_ID, PERMIT_DEVICE_COLLECTION_ID, PERMIT_DNS_DOMAIN_ID, PERMIT_SERVICE_ENV_COLLECTION, PERMIT_SITE_CODE, PERMIT_ACCOUNT_ID, PERMIT_Account_Collection_ID, PERMIT_OPERATING_SYSTEM_ID, PERMIT_NETBLOCK_COLLECTION_ID) 

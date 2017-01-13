@@ -11,22 +11,15 @@ values
 	'Y', 'Y', 'N', 'Y')
 ;
 
-insert into dns_domain
-	(soa_name, soa_rname, should_generate, dns_domain_type)
-values
-	('omniscient.com', 'hostmaster.omniscient.com', 'Y', 'service')
-;
+INSERT INTO property 
+	(property_name, property_type, property_value)
+VALUES
+	('_dnsrname', 'Defaults', 'hostmaster.omniscient.com'),
+	('_dnsmname', 'Defaults', 'auth00.omniscient.com');
 
-insert into dns_domain
-	(soa_name, soa_rname, should_generate, dns_domain_type)
-values
-	('kover.com', 'hostmaster.omniscient.com', 'Y', 'service')
-;
-insert into dns_domain
-	(soa_name, soa_rname, should_generate, dns_domain_type)
-values
-	('jazzhands.net', 'hostmaster.omniscient.com', 'Y', 'service')
-;
+SELECT dns_utils.add_dns_domain(soa_name := 'omniscient.com', dns_domain_type := 'service');
+SELECT dns_utils.add_dns_domain(soa_name := 'kover.com', dns_domain_type := 'service');
+SELECT dns_utils.add_dns_domain(soa_name := 'jazzhands.net', dns_domain_type := 'service');
 
 insert into netblock
 	(ip_address, is_single_address,
