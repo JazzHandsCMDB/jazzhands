@@ -396,7 +396,7 @@ sub get_inaddr {
 		my $qn  = $inaddr;
 		do {
 			$a = $res->send( $qn, 'CNAME' );
-			$c->_Debug( 4, "\t\tconsider $qn ..  ", scalar $a->answer );
+			$c->_Debug( 4, "\t\tconsider [%s] %s ..  ", $qn, scalar $a->answer );
 			if ($a) {
 				foreach my $rr ( grep { $_->type eq 'CNAME' } $a->answer ) {
 					$qn = $rr->cname;
@@ -448,39 +448,75 @@ sub freshen_zone {
 	foreach my $rr ( grep { $_->type eq 'SOA' } $answer->answer ) {
 		next if ( $rr->name ne $zone );
 		my @errs;
-		my $old = $c->DBFetch(
+		my $olddom = $c->DBFetch(
 			table           => 'dns_domain',
 			match           => { soa_name => $zone },
 			result_set_size => 'exactlyone',
 			errors          => \@errs
 		);
 
-		if ( !$old ) {
+		my $parent;
+		$parent = get_parent_domain( $c, $zone );
+
+		if ( !$olddom ) {
 			if ( $c->DBHandle->err ) {
 				die "$zone: ", join( " ", @errs );
 			}
+
+			my $new = {
+				soa_name        => $zone,
+				dns_domain_type => 'service',    # XXX
+			};
+			if ($parent) {
+				$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
+			}
+
+			$numchanges += $c->DBInsert(
+				table => 'dns_domain',
+				hash  => $new,
+				errrs => \@errs,
+			) || die join( " ", @errs );
+			$$dom = $new;
+		} else {
+			$$dom = $olddom;
 		}
 
-		my $domid = ($old) ? $old->{dns_domain_id} : undef;
+		my $domid = ${$dom}->{dns_domain_id};
 
 		# should only be one SOA record, but just in case...
-		my $new = {
+		my $newdom = {
 			dns_domain_id => $domid,
 			soa_name      => $zone,
-			soa_class     => $rr->class,
-			soa_ttl       => $rr->ttl,
-			soa_serial    => $rr->serial,
-			soa_refresh   => $rr->refresh,
-			soa_retry     => $rr->retry,
-			soa_expire    => $rr->expire,
-			soa_minimum   => $rr->minimum,
-			soa_mname     => $rr->mname,
-			soa_rname     => $rr->rname,
 		};
 
-		my $parent;
-		if ( $parent = get_parent_domain( $c, $zone ) ) {
-			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
+		my $newzone = {
+			dns_domain_id  => $domid,
+			ip_universe_id => $c->{ip_universe},
+			soa_class      => $rr->class,
+			soa_ttl        => $rr->ttl,
+			soa_serial     => $rr->serial,
+			soa_refresh    => $rr->refresh,
+			soa_retry      => $rr->retry,
+			soa_expire     => $rr->expire,
+			soa_minimum    => $rr->minimum,
+			soa_mname      => $rr->mname,
+			soa_rname      => $rr->rname,
+		};
+
+		my $oldzone = $c->DBFetch(
+			table => 'dns_domain_ip_universe',
+			match => {
+				'dns_domain_id'  => $domid,
+				'ip_universe_id' => $c->{ip_universe},
+			},
+			result_set_size => 'exactlyone',
+			errors          => \@errs
+		);
+
+		if ( !$oldzone ) {
+			if ( $c->DBHandle->err ) {
+				die "$zone: ", join( " ", @errs );
+			}
 		}
 
 		# XXX needs to be fixed!
@@ -488,28 +524,26 @@ sub freshen_zone {
 		#if ( $new->{soa_serial} > 2147483647 ) {
 		#	$new->{soa_serial} = 2147483646;
 		#}
-		if ($old) {
-			my $diff = $c->hash_table_diff( $old, $new );
+		if ($oldzone) {
+			my $diff = $c->hash_table_diff( $oldzone, $newzone );
 			if ( scalar %$diff ) {
 				$numchanges += $c->DBUpdate(
-					table  => 'dns_domain',
-					dbkey  => 'dns_domain_id',
+					table  => 'dns_domain_ip_universe',
+					dbkey  => ( 'dns_domain_id', 'ip_universe_id' ),
 					keyval => $domid,
 					hash   => $diff,
 					errs   => \@errs,
 				) || die join( " ", @errs );
 			}
-			$$dom = $new;
+			$dom->{soa_ttl} = $newzone->{soa_ttl};
 		} else {
-			delete( $new->{dns_domain_id} );
-			$new->{should_generate} = 'N';
-			$new->{dns_domain_type} = 'service';    # XXX
+			$newzone->{should_generate} = 'N';
 			$numchanges += $c->DBInsert(
-				table => 'dns_domain',
-				hash  => $new,
+				table => 'dns_domain_ip_universe',
+				hash  => $newzone,
 				errrs => \@errs,
 			) || die join( " ", @errs );
-			$$dom = $new;
+			${$dom}->{soa_ttl} = $newzone->{soa_ttl};
 		}
 
 		# If this is an in-addr zone, then do reverse linkage
@@ -604,18 +638,18 @@ sub freshen_zone {
 		  )
 		{
 			if ( !defined( $z->{parent_dns_domain_id} )
-				|| $z->{parent_dns_domain_id} != $new->{dns_domain_id} )
+				|| $z->{parent_dns_domain_id} != $newzone->{dns_domain_id} )
 			{
 				if ( $c->{verbose} ) {
 					warn "updating ", $z->{soa_name}, " to have parent of ",
-					  $new->{soa_name}, "\n";
+					  $dom->{soa_name}, "\n";
 				}
 				$numchanges += $c->DBUpdate(
 					table  => 'dns_domain',
 					dbkey  => 'dns_domain_id',
 					keyval => $z->{dns_domain_id},
 					hash   => {
-						parent_dns_domain_id => $new->{dns_domain_id},
+						parent_dns_domain_id => $dom->{dns_domain_id},
 					},
 					errs => \@errs,
 				) || die join( " ", @errs );
@@ -821,7 +855,7 @@ sub refresh_dns_record {
 			errrs => \@errs,
 		) || die join( " ", Dumper($new), @errs );
 		$dnsrecid = $new->{dns_record_id};
-		$c->_Debug( 4, "Inserted new record: %d", $new->{dns_record_id} );
+		$c->_Debug( 8, "Inserted new record: %d", $new->{dns_record_id} );
 	}
 
 	$numchanges;
