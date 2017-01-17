@@ -84,13 +84,23 @@ sub new {
 	my $opt   = &_options;
 
 	my $self = $class->SUPER::new(@_);
+	return undef if ( !$self );
 
 	$self->{_dbuser} = $opt->{dbuser} || 'zonegen';
 
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 
+	if ( !$opt->{output_root} ) {
+		$errstr = "Must specify output root";
+		return undef;
+	}
+
 	$self->{_output_root} = $opt->{output_root};
 	$self->{_hostanddate} = $opt->{hostanddate};
+
+	$self->{_zoneroot}  = $self->{_output_root} . "/zones";
+	$self->{_cfgroot}   = $self->{_output_root} . "/etc";
+	$self->{_perserver} = $self->{_output_root} . "/perserver";
 
 	my $dbh = JazzHands::DBI->connect( $self->{_dbuser},
 		{ AutoCommit => 0, RaiseError => 1 } );
@@ -102,6 +112,19 @@ sub new {
 
 	$self->DBHandle($dbh);
 	$self;
+}
+
+sub make_directories() {
+	my $self = shift @_;
+
+	my @list = (
+		$self->{output_root},          $self->{zoneroot},
+		$self->{zoneroot} . "/inaddr", $self->{zoneroot} . "/ip6",
+	);
+
+	foreach my $dir (@list) {
+		$self->mkdir_p($dir) if ( !-d $dir );
+	}
 }
 
 sub get_universe_map {
@@ -522,8 +545,11 @@ sub generate_named_acl_file($$$) {
 }
 
 sub generate_rsync_list($$$$) {
-	my ( $self, $root, $fn, $site ) = @_;
+	my ( $self, $fn, $site ) = @_;
 	my $dbh = $self->DBHandle();
+
+	my $root     = $self->{_output_root};
+	my $zoneroot = $self->{_zoneroot};
 
 	my $nameservers = $self->get_my_hosts($site);
 
@@ -733,8 +759,10 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $self, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
+	my ( $self, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
 	my $dbh = $self->DBHandle();
+
+	my $zoneroot = $self->{_zoneroot};
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -836,8 +864,10 @@ sub process_domain {
 }
 
 sub generate_complete_files {
-	my ( $self, $zoneroot, $zonesgend ) = @_;
+	my ( $self, $zonesgend ) = @_;
 	my $dbh = $self->DBHandle();
+
+	my $zoneroot = $self->{_zoneroot};
 
 	my $cfgdir = "$zoneroot/../etc";
 
@@ -898,8 +928,10 @@ sub generate_complete_files {
 }
 
 sub process_perserver {
-	my ( $self, $zoneroot, $persvrroot, $zonesgend ) = @_;
+	my ( $self, $zoneroot, $zonesgend ) = @_;
 	my $dbh = $self->DBHandle();
+
+	my $persvrroot = $self->{_perserver};
 
 	#
 	# we only create symlinks for zones that should be generated
@@ -1243,7 +1275,7 @@ $zg->DBHandle()->do("SELECT script_hooks.zonegen_pre()");
 
 if ($dumpzone) {
 	my $domain = shift @ARGV;
-	$zg->process_domain( undef, undef, $domain, undef, undef, undef );
+	$zg->process_domain( undef, $domain, undef, undef, undef );
 	exit(0);
 }
 
@@ -1262,16 +1294,7 @@ if ( !$mysite ) {
 	$mysite = undef;
 }
 
-#
-# note that these are assumed to be under $output_root later.
-#
-my $zoneroot   = "$output_root/zones";
-my $persvrroot = "$output_root/perserver";
-
-$zg->mkdir_p($output_root)       if ( !-d "$output_root" );
-$zg->mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
-$zg->mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
-$zg->mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
+$zg->make_directories();
 
 # Do not manipulate the change records if the SOA is not to be manipulated.
 # This is just used to make sure everything on disk is right.
@@ -1406,6 +1429,8 @@ if (1) {
 
 			# look for the existing file
 
+			my $zoneroot = $zg->{_zoneroot};
+
 			my $fn = "$zoneroot/$dom";
 			if ( $dom =~ /\.in-addr\.arpa$/ ) {
 				$fn = "$zoneroot/inaddr/$dom";
@@ -1477,7 +1502,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 	if ($bumpsoa) {
 		$last = $zg->get_now();
 	}
-	$zg->process_domain( $zoneroot, $domid, $dom, undef, $last, $bumpsoa );
+	$zg->process_domain( $domid, $dom, undef, $last, $bumpsoa );
 
 }
 warn "Done Generating Zones\n" if ($verbose);
@@ -1553,7 +1578,7 @@ $zg->generate_named_acl_file( $output_root . "/etc", "sitecodeacl.conf" );
 
 if ( !$norsynclist ) {
 	warn "Generating rsync list\n" if ($verbose);
-	$zg->generate_rsync_list( $output_root, "rsynchostlist.txt", $mysite );
+	$zg->generate_rsync_list( "rsynchostlist.txt", $mysite );
 }
 
 #
@@ -1561,8 +1586,8 @@ if ( !$norsynclist ) {
 #
 warn "Generating configuration files and whatnot..." if ($debug);
 
-$zg->process_perserver( "../zones", $persvrroot, $generate );
-$zg->generate_complete_files( $zoneroot, $generate );
+$zg->process_perserver( "../zones", $generate );
+$zg->generate_complete_files($generate);
 
 $zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
 
