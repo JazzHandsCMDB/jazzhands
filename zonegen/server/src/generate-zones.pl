@@ -70,7 +70,6 @@ my $output_root = "/var/lib/zonegen/auto-gen";
 
 my $hostanddate = 0;
 
-my $network_range_table;
 my $verbose = 0;
 my $debug   = 0;
 
@@ -191,7 +190,7 @@ sub get_db_default {
 		   and	property_name = ?
 	};
 
-	my $sth = getSth( $dbh, $q ) || die "$q: ", $dbh->errstr;
+	my $sth = $dbh->prepare_cached( $q ) || die "$q: ", $dbh->errstr;
 	$sth->execute($prop) || die $dbh->errstr;
 
 	my ($pv) = $sth->fetchrow_array;
@@ -381,17 +380,6 @@ sub mkdir_p {
 }
 
 #
-# convert an ip address sto an integer from text.
-#
-sub iptoint {
-	my ($ip) = @_;
-
-	my $intip = inet_aton($ip);
-	my $num = unpack( 'N', $intip );
-	$num;
-}
-
-#
 # record that a zone has been generated and bump the soa.
 #
 sub record_newgen {
@@ -409,89 +397,6 @@ sub record_newgen {
 	) || die dbhsth->errst;
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
 	$sth->execute || die $sth->errstr;
-}
-
-#
-# an exhaustive check for changes.  This is resource intensive  and is being
-# phased out.
-#
-sub check_for_changes {
-	my ( $dbh, $domid, $last ) = @_;
-
-	$last = "1970-01-01 00:00:00" if ( !defined($last) );
-
-	#
-	# check for forward dns and the domain itself
-	#
-	my $sth = getSth(
-		$dbh, qq{
-		select  count(*)
-		  from  dns_record d
-		    left join netblock nb
-			on d.netblock_id = nb.netblock_id
-		 where  d.dns_domain_id = :domid
-		   and  (
-				d.data_ins_date > :whence
-			   or   d.data_upd_date > :whence
-			   or   nb.data_ins_date > :whence
-			   or   nb.data_upd_date > :whence
-			)
-	}
-	);
-
-	$sth->bind_param( ':whence', $last )  || die $sth->errstr;
-	$sth->bind_param( ':domid',  $domid ) || die $sth->errstr;
-	$sth->execute || die $sth->errstr;
-	my $count = ( $sth->fetchrow_array )[0];
-	$sth->finish;
-	return $count if ($count);
-
-	#
-	# check for inverse dns
-	#
-	$sth = getSth(
-		$dbh, qq{
-		select count(*)
-		  from  netblock nb
-			inner join dns_record dns
-			    on nb.netblock_id = dns.netblock_id
-			inner join dns_domain dom
-			    on dns.dns_domain_id =
-				dom.dns_domain_id,
-		    netblock root
-			inner join dns_record rootd
-			    on rootd.netblock_id = root.netblock_id
-			    and rootd.dns_type =
-				'REVERSE_ZONE_BLOCK_PTR'
-		 where  dns.should_generate_ptr = 'Y'
-		   and  dns.dns_class = 'IN'
-		   and	( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
-		   and	family(nb.ip_addresss) = family(root.ip_address);
-		   and	set_masklen(nb.ip_address, masklen(root.ip_address))
-				 <<= root.ip_address
-		   and  rootd.dns_domain_id = :domid
-		   and  (
-				nb.data_ins_date > :whence
-			   or (nb.data_upd_date is not NULL and nb.data_upd_date > :whence)
-			   or dns.data_ins_date > :whence
-			   or (dns.data_upd_date is not NULL and dns.data_upd_date > :whence)
-			   or dom.data_ins_date > :whence
-			   or (dom.data_upd_date is not NULL and dom.data_upd_date > :whence)
-			   or root.data_ins_date > :whence
-			   or (root.data_upd_date is not NULL and root.data_upd_date > :whence )
-			   or rootd.data_ins_date > :whence
-			   or (rootd.data_upd_date is not NULL and rootd.data_upd_date > :whence)
-			)
-		order by nb.ip_address
-	}
-	);
-
-	$sth->bind_param( ':domid',  $domid ) || die $sth->errstr;
-	$sth->bind_param( ':whence', $last )  || die $sth->errstr;
-	$sth->execute || die $sth->errstr;
-	$count += ( $sth->fetchrow_array )[0];
-	return $count if ($count);
-	0;
 }
 
 #
@@ -658,196 +563,6 @@ sub generate_rsync_list($$$$) {
 	safe_mv_if_changed( $tmpfn, $fullfn, 1 );
 }
 
-#
-# used internally to figure out where we do network (dhcp) ranges rather than
-# hammer the db more than necessary.
-#
-sub build_network_range_table {
-	my ($dbh) = @_;
-
-	my $sth = getSth(
-		$dbh, qq{
-		select  dr.network_range_id,
-			dr.start_netblock_id,
-			dr.stop_netblock_id,
-			dr.dns_prefix,
-			net_manip.inet_dbton(nbstart.ip_address) as start_num_ip,
-			net_manip.inet_dbton(nbstop.ip_address) as stop_num_ip,
-			net_manip.inet_dbtop(nbstart.ip_address) as start_ip,
-			net_manip.inet_dbtop(nbstop.ip_address) as stop_ip,
-			dom.soa_name,
-			dr.data_ins_date as range_insert_date,
-			dr.data_upd_date as range_update_date,
-			nbstart.data_ins_date as start_insert_date,
-			nbstart.data_upd_date as start_update_date,
-			nbstop.data_ins_date as stop_insert_date,
-			nbstop.data_upd_date as stop_update_date
-		  from  network_range dr
-				inner join dns_domain dom
-						USING (dns_domain_id)
-				inner join netblock nbstart
-					on dr.start_netblock_id = nbstart.netblock_id
-				inner join netblock nbstop
-					on dr.stop_netblock_id = nbstop.netblock_id
-	}
-	);
-
-	$sth->execute || die $sth->errstr;
-
-	my $rv = $sth->fetchall_hashref( _dbx('network_range_ID') );
-	$sth->finish;
-	$rv;
-}
-
-sub process_fwd_range {
-	my ( $dbh, $out, $domid, $domain ) = @_;
-
-	foreach my $rangeid ( sort keys(%$network_range_table) ) {
-		my $rec = $network_range_table->{$rangeid};
-
-		my $soa_name = $rec->{ _dbx('SOA_NAME') };
-		next if ( $soa_name ne $domain );
-
-		my $start = $rec->{ _dbx('START_NUM_IP') };
-		my $stop  = $rec->{ _dbx('STOP_NUM_IP') };
-
-		my $pool = $rec->{ _dbx('DNS_PREFIX') } || 'pool';
-
-		for ( my $i = $start ; $i <= $stop ; $i++ ) {
-			my $real_int_ip = pack( 'N', $i );
-			my $ip = inet_ntoa($real_int_ip);
-
-			my $human = $ip;
-			$human =~ s/\./-/g;
-			$human = "${pool}-$human";
-			$out->print("$human\tIN\tA\t$ip\n");
-		}
-	}
-
-}
-
-#
-# XXX - this really only works for ipv4 and ASSUMES that its a /24-style zone.
-# That is, the lhs is the last octet.  This needs to be made ipv6 smart, as
-# does the forward range generation bits...  Incremental progress...
-#
-sub process_rvs_range {
-	my ( $dbh, $out, $domid, $block ) = @_;
-
-	my $sth = getSth(
-		$dbh, qq{
-		select  distinct ip_address
-		  from  netblock n
-			inner join dns_record d
-				on d.netblock_id = n.netblock_id
-		 where  d.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-		   and  d.dns_domain_id = ?
-	}
-	);
-	$sth->execute($domid) || die $sth->errstr;
-
-	my ($ip) = $sth->fetchrow_array;
-	$sth->finish;
-	return if ( !defined($ip) );
-
-	my $nb         = new Net::IP("$ip") || return;
-	my $low_block  = $nb->intip();
-	my $high_block = $nb->last_int();
-
-	foreach my $rangeid ( sort keys(%$network_range_table) ) {
-		my $rec = $network_range_table->{$rangeid};
-
-		my $soa_name = $rec->{ _dbx('SOA_NAME') };
-
-		my $start = $rec->{ _dbx('START_NUM_IP') };
-		my $stop  = $rec->{ _dbx('STOP_NUM_IP') };
-
-		my $start_ip = $rec->{ _dbx('START_IP') };
-		my $stop_ip  = $rec->{ _dbx('STOP_IP') };
-
-		my $pool = $rec->{ _dbx('DNS_PREFIX') } || 'pool';
-
-		if (
-			!(
-				( $start >= $low_block && $start <= $high_block )
-				|| (   $stop >= $low_block
-					&& $stop <= $high_block )
-			)
-		  )
-		{
-
-			next;
-		}
-
-		if ( $start < $low_block ) {
-			$start = $low_block;
-		}
-
-		if ( $stop > $high_block ) {
-			$stop = $high_block;
-		}
-
-		for ( my $i = $start ; $i <= $stop ; $i++ ) {
-			my $real_int_ip = pack( 'N', $i );
-			my $ip          = inet_ntoa($real_int_ip);
-			my $lastoctet   = ( split( /\./, $ip ) )[3];
-
-			if ( !exists( $block->{$i} ) ) {
-				$ip =~ s/\./-/g;
-				$ip = "${pool}-$ip";
-				$block->{$i} = {
-					lhs     => $lastoctet,
-					enabled => 'Y',
-					name    => "$ip.$soa_name."
-				};
-			}
-		}
-	}
-}
-
-sub process_child_ns_records {
-	my ( $dbh, $out, $domid, $parent_domain ) = @_;
-
-	my $sth = getSth(
-		$dbh, qq{
-		select	distinct
-			dom.soa_name,
-			dns.dns_ttl,
-			dns.dns_class,
-			dns.dns_type,
-			dns.dns_value,
-			dns.is_enabled
-		  from	dns_domain dom
-			inner join dns_record dns
-				on dns.dns_domain_id = dom.dns_domain_id
-		 where	dns.dns_name is NULL
-		  and	dns.dns_type = 'NS'
-		  and 	dom.parent_dns_domain_id = ?
-		order by dom.soa_name, dns.dns_value
-	}
-	);
-
-	$sth->execute($domid) || die $sth->errstr;
-
-	while ( my ( $dom, $ttl, $class, $type, $ns, $enable ) =
-		$sth->fetchrow_array )
-	{
-		my $com = ( $enable eq 'N' ) ? ";" : "";
-		if ( !defined($ttl) ) {
-			$ttl = '';
-		} else {
-			$ttl .= ' ';
-		}
-		$class = 'IN' if ( !defined($class) );
-		$type  = 'NS' if ( !defined($type) );
-		if ( $ns !~ /\.$/ ) {
-			$ns = "$ns.$dom.";
-		}
-		$dom =~ s/.$parent_domain$//;
-		$out->print("$com$dom\t$ttl$class\t$type\t$ns\n");
-	}
-
-}
 
 sub process_all_dns_records {
 	my ( $dbh, $out, $domid, $domain, $universe) = @_;
@@ -977,78 +692,6 @@ sub process_all_dns_records {
 			$com, $width, $name, $ttl, $class, $type, $value );
 	}
 	$out->print("\n");
-}
-
-sub process_reverse {
-	my ( $dbh, $out, $domid, $domain ) = @_;
-
-	$domain =~ tr/A-Z/a-z/;
-
-	# arguably, this should also have nb.is_single_address = 'Y' and
-	my $sth = getSth(
-		$dbh, qq{
-		select  host(nb.ip_address) as ip,
-			dns.dns_name,
-			dom.soa_name,
-			dns.dns_ttl,
-			network(nb.ip_address) as ip_base,
-			dns.is_enabled,
-			root.netblock_id as root_netblock_id,
-			nb.netblock_id as netblock_id
-		  from  netblock nb
-				inner join dns_record dns
-					on nb.netblock_id = dns.netblock_id
-				inner join dns_domain dom
-					on dns.dns_domain_id =
-						dom.dns_domain_id,
-			netblock root
-				inner join dns_record rootd
-					on rootd.netblock_id = root.netblock_id
-					and rootd.dns_type =
-						'REVERSE_ZONE_BLOCK_PTR'
-		 where
-				dns.should_generate_ptr = 'Y'
-		   and	family(root.ip_address) = family(nb.ip_address)
-		   and  dns.dns_class = 'IN'
-			and ( ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
-		   			AND	set_masklen(nb.ip_address, masklen(root.ip_address))
-				 			<<= root.ip_address
-				)
-		   and  rootd.dns_domain_id = ?
-		order by nb.ip_address
-	}
-	);
-
-	$sth->execute($domid) || die $sth->errstr;
-
-	my $block = {};
-	while ( my ( $ip, $sn, $dom, $ttl, $ipbase, $enable ) =
-		$sth->fetchrow_array )
-	{
-		my $ipobj = new Net::IP($ip);
-		my $rec   = $ipobj->reverse_ip();
-		if ( $rec =~ /^$domain\.?$/ ) {
-			$rec = 0;
-		} else {
-			$rec =~ s/\.$domain\.?$//;
-		}
-		$block->{ $ipobj->intip() } = {
-			'lhs'   => $rec,
-			'ttl'   => $ttl,
-			name    => ($sn) ? "$sn.$dom." : "$dom.",
-			enabled => $enable,
-		};
-	}
-	process_rvs_range( $dbh, $out, $domid, $block );
-
-	foreach my $intip ( sort { $a <=> $b } keys %{$block} ) {
-		my $r    = $block->{$intip};
-		my $lhs  = $r->{lhs};
-		my $com  = ( $r->{enabled} eq 'N' ) ? ";" : "";
-		my $ttl  = ( $r->{ttl} ) ? $r->{ttl} . " " : '';
-		my $name = $r->{name};
-		$out->print("$com${lhs}\t${ttl}IN\tPTR\t$name\n");
-	}
 }
 
 sub process_soa {
@@ -1545,8 +1188,6 @@ if ( $agg && $dbh->{Driver}->{Name} eq 'Pg' ) {
 }
 
 $dbh->do("SELECT script_hooks.zonegen_pre()");
-
-$network_range_table = build_network_range_table($dbh);
 
 if ($dumpzone) {
 	my $domain = shift @ARGV;
