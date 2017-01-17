@@ -75,26 +75,6 @@ my $debug   = 0;
 
 umask(022);
 
-#
-# returns a valid sth given a query.  This is used to minimize the amount
-# of reprocessing required for rerunning the same query.
-#
-my (%allsth);
-
-sub getSth($$) {
-	my ( $dbh, $q ) = @_;
-
-	my $sth;
-	if ( exists( $allsth{$q} ) ) {
-		$sth = $allsth{$q};
-		$sth->finish;
-	} else {
-		$sth = $dbh->prepare_cached($q) || confess $dbh->errstr;
-		$allsth{$q} = $sth;
-	}
-	$sth;
-}
-
 sub get_universe_map {
 	my ($dbh) = @_;
 
@@ -190,7 +170,7 @@ sub get_db_default {
 		   and	property_name = ?
 	};
 
-	my $sth = $dbh->prepare_cached( $q ) || die "$q: ", $dbh->errstr;
+	my $sth = $dbh->prepare_cached($q) || die "$q: ", $dbh->errstr;
 	$sth->execute($prop) || die $dbh->errstr;
 
 	my ($pv) = $sth->fetchrow_array;
@@ -447,6 +427,7 @@ sub generate_named_acl_file($$$) {
 
 	my $tmpfn = "$fn.$$.zonetmp";
 	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
+
 	# XXX probably not the best choice...
 	$out->binmode('encoding(utf8)');
 	print_comments( $dbh, $out, '//' );
@@ -563,12 +544,11 @@ sub generate_rsync_list($$$$) {
 	safe_mv_if_changed( $tmpfn, $fullfn, 1 );
 }
 
-
 sub process_all_dns_records {
-	my ( $dbh, $out, $domid, $domain, $universe) = @_;
+	my ( $dbh, $out, $domid, $domain, $universe ) = @_;
 
 	my $uclause = "";
-	if(defined( $universe) ) {
+	if ( defined($universe) ) {
 		$uclause = "AND ( ip_universe_id = :universe )";
 	}
 
@@ -582,8 +562,8 @@ sub process_all_dns_records {
 	# for NS, A, AAAA, MX and CNAMEs.  It almost certainly needs to be
 	# broken out better in the db.
 	#
-	my $sth = getSth(
-		$dbh, qq {
+	my $sth = $dbh->prepare_cached(
+		qq {
 		WITH dns AS (
 		select  dns_record_id,
 			network_range_id,
@@ -623,12 +603,11 @@ sub process_all_dns_records {
 	}
 	);
 
-
 	# order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 
-	$sth->bind_param(':domid', $domid) || die $sth->errstr;
-	if(defined($universe)) {
-		$sth->bind_param(':universe', $universe) || die $sth->errstr;
+	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	if ( defined($universe) ) {
+		$sth->bind_param( ':universe', $universe ) || die $sth->errstr;
 	}
 
 	$sth->execute || die $sth->errstr;
@@ -697,8 +676,8 @@ sub process_all_dns_records {
 sub process_soa {
 	my ( $dbh, $out, $domid, $bumpsoa ) = @_;
 
-	my $sth = getSth(
-		$dbh, qq{
+	my $sth = $dbh->prepare_cached(
+		qq{
 		select	soa_name, soa_class, soa_ttl,
 			soa_serial, soa_refresh, soa_retry,
 			soa_expire, soa_minimum,
@@ -778,14 +757,13 @@ sub process_domain {
 
 	}
 
-	my @univ = (  { id => 0, name => 'default' } );
-	if (exists($umap->{$domid}) ) {
-		@univ = @{ $umap->{$domid} } ;
+	my @univ = ( { id => 0, name => 'default' } );
+	if ( exists( $umap->{$domid} ) ) {
+		@univ = @{ $umap->{$domid} };
 	}
 
-
 	foreach my $universe (@univ) {
-		my $uid = $universe->{id};
+		my $uid   = $universe->{id};
 		my $uname = $universe->{name};
 
 		warn "\tprocessing universe $uname ($uid)...\n";
@@ -794,7 +772,7 @@ sub process_domain {
 
 		if ($zoneroot) {
 			my $dir = "$zoneroot/$uname/$inaddr";
-			mkdir_p($dir) if (! -d $dir);
+			mkdir_p($dir) if ( !-d $dir );
 			$fn    = "$dir$domain";
 			$tmpfn = "$fn.tmp.$$";
 		} else {
@@ -865,8 +843,8 @@ sub generate_complete_files {
 
 	print_comments( $dbh, $cfgf, '#' );
 
-	my $sth = getSth(
-		$dbh, qq{
+	my $sth = $dbh->prepare_cached(
+		qq{
 		select	soa_name
 		  from	dns_domain
 		 where	should_generate = 'Y'
@@ -920,8 +898,8 @@ sub process_perserver {
 	#
 	# we only create symlinks for zones that should be generated
 	#
-	my $sth = getSth(
-		$dbh, q{
+	my $sth = $dbh->prepare_cached(
+		q{
 		SELECT	DISTINCT
 			dom.dns_domain_id,
 			CASE WHEN dns.dns_value ~ '\.$' 
@@ -1505,6 +1483,7 @@ if ( !$norsynclist ) {
 # Final cleanup
 #
 warn "Generating configuration files and whatnot..." if ($debug);
+
 # XXX process_perserver( $dbh, "../zones", $persvrroot, $generate );
 # generate_complete_files( $dbh, $zoneroot, $generate );
 
