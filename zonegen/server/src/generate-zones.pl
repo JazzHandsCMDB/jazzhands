@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2013-2016, Todd M. Kover
+# Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,39 +44,70 @@
 # appropriate for disting to nameservers.  It's totally awesome.
 #
 
+use warnings;
+use strict;
+use Getopt::Long qw(:config no_ignore_case bundling);
+use JazzHands::Common::Util qw(_dbx);
+use Pod::Usage;
+
 ### XXX: SIGALRM that kills after one zone hasn't been processed for 20 mins?
+
+# local $SIG{__WARN__} = \&Carp::cluck;
+
+# This is required and the db is assumed to be returning UTC dates.
+$ENV{'TZ'}   = 'UTC';
+$ENV{'PATH'} = $ENV{'PATH'} . ":/usr/local/sbin:/usr/sbin";
+
+umask(022);
+
+##############################################################################
+
+package JazzHands::ZoneGeneration;
 
 use strict;
 use warnings;
 use FileHandle;
 use File::Compare;
 use JazzHands::DBI;
-use JazzHands::Common::Util qw(_dbx);
-use Net::IP;
-use Getopt::Long qw(:config no_ignore_case bundling);
-use Socket;
-use POSIX;
-use Pod::Usage;
+use JazzHands::Common qw(:all);
 use Data::Dumper;
+use POSIX;
 use Carp;
 use utf8;
+use parent 'JazzHands::Common';
 
-# local $SIG{__WARN__} = \&Carp::cluck;
+our $errstr;
 
-# This is required and the db is assumed to be returning UTC dates.
-$ENV{'TZ'} = 'UTC';
+sub new {
+	my $proto = shift;
+	my $class = ref($proto) || $proto;
+	my $opt   = &_options;
 
-my $output_root = "/var/lib/zonegen/auto-gen";
+	my $self = $class->SUPER::new(@_);
 
-my $hostanddate = 0;
+	$self->{_dbuser} = $opt->{dbuser} || 'zonegen';
 
-my $verbose = 0;
-my $debug   = 0;
+	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 
-umask(022);
+	$self->{_output_root} = $opt->{output_root};
+	$self->{_hostanddate} = $opt->{hostanddate};
+
+	my $dbh = JazzHands::DBI->connect( $self->{_dbuser},
+		{ AutoCommit => 0, RaiseError => 1 } );
+	if ( !$dbh ) {
+		$errstr =
+		  "Unable to connect to $self->{_dbuser}: " . $JazzHands::DBI::errstr;
+		return undef;
+	}
+
+	$self->DBHandle($dbh);
+	$self;
+}
 
 sub get_universe_map {
-	my ($dbh) = @_;
+	my ($self) = @_;
+
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -97,7 +128,8 @@ sub get_universe_map {
 }
 
 sub get_my_site_code($$) {
-	my ( $dbh, $hn ) = @_;
+	my ( $self, $hn ) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -113,7 +145,8 @@ sub get_my_site_code($$) {
 }
 
 sub get_my_hosts($$) {
-	my ( $dbh, $insite ) = @_;
+	my ( $self, $insite ) = @_;
+	my $dbh = $self->DBHandle();
 
 	$insite =~ tr/a-z/A-Z/ if ($insite);
 
@@ -147,7 +180,8 @@ sub get_my_hosts($$) {
 }
 
 sub get_now {
-	my ($dbh) = @_;
+	my ($self) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -161,7 +195,8 @@ sub get_now {
 }
 
 sub get_db_default {
-	my ( $dbh, $prop, $default ) = @_;
+	my ( $self, $prop, $default ) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $q = qq {
 		select	property_value
@@ -187,9 +222,11 @@ sub get_db_default {
 # found.  This assumes they are assigned in order, which is fine...
 #
 sub lock_db_changes($;$$) {
-	my $dbh  = shift;
+	my $self = shift;
 	my $wait = shift;
 	my $agg  = shift;
+
+	my $dbh = $self->DBHandle();
 
 	my $old = $dbh->{PrintError};
 	$dbh->{PrintError} = 0;
@@ -258,7 +295,9 @@ sub lock_db_changes($;$$) {
 }
 
 sub get_change_tally($) {
-	my $dbh = shift;
+	my $self = shift;
+
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -280,8 +319,10 @@ sub get_change_tally($) {
 # return true if a zone is in the db, false otherwise
 #
 sub get_dns_domid($$) {
-	my $dbh    = shift;
+	my $self   = shift;
 	my $domain = shift;
+
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -301,8 +342,11 @@ sub get_dns_domid($$) {
 # auto-generated and likely not hand maintained.
 #
 sub print_comments {
-	my ( $dbh, $fn, $commchr ) = @_;
+	my ( $self, $fn, $commchr ) = @_;
 
+	my $output_root = $self->{_output_root};
+
+	my $dbh = $self->DBHandle();
 	$commchr = '#' if ( !defined($commchr) );
 
 	my $where  = `hostname`;
@@ -314,11 +358,11 @@ sub print_comments {
 	my $idtag = '$Id$';
 
 	my $email =
-	  get_db_default( $dbh, '_supportemail', 'jazzhands@example.com' );
+	  $self->get_db_default( '_supportemail', 'jazzhands@example.com' );
 
 	my $wherestr  = "";
 	my $whencestr = "";
-	if ($hostanddate) {
+	if ( $self->{_hostanddate} ) {
 		$wherestr  = "It was generated on machine $where";
 		$whencestr = "It was generated at $whence";
 	}
@@ -343,27 +387,11 @@ $commchr Please contact $email if you require more info.
 }
 
 #
-# implement mkdir -p in perl
-#
-sub mkdir_p {
-	my ($dir) = @_;
-	my $mode = 0755;
-
-	my (@d) = split( m-/-, $dir );
-	my $ne = $#d + 1;
-	for ( my $i = 1 ; $i <= $ne ; $i++ ) {
-		my (@dir) = split( m-/-, $dir );
-		splice( @dir, $i );
-		my $thing = join( "/", @dir );
-		mkdir( $thing, $mode );
-	}
-}
-
-#
 # record that a zone has been generated and bump the soa.
 #
 sub record_newgen {
-	my ( $dbh, $domid ) = @_;
+	my ( $self, $domid ) = @_;
+	my $dbh = $self->DBHandle();
 
 	# This is for postgresql, oracle is to_date XXX
 	my $func = 'to_timestamp';
@@ -380,49 +408,16 @@ sub record_newgen {
 }
 
 #
-# mv's a file in place if it has changed.
-#
-sub safe_mv_if_changed($$;$) {
-	my ( $new, $final, $allowzero ) = @_;
-
-	# if the old file is there, diff, if not, just move into place
-	# if diff matches, delete the new file
-	if ( !-f $final ) {
-		rename( $new, $final );
-	} elsif ( -r $final && ( $allowzero || -s $new ) ) {
-		my $cmd = qq{diff -w -i -I '^\\s*//' "$new" "$final"};
-		system("$cmd > /dev/null");
-		if ( $? >> 8 ) {
-			my $oldfn = "$final.old";
-			unlink($oldfn);
-			if ( rename( $final, $oldfn ) ) {
-				if ( !rename( $new, $final ) ) {
-					rename( $oldfn, $final )
-					  || die
-					  "Unable to put $final back from $oldfn after fail to rename\n";
-				}
-				unlink($oldfn);
-			} else {
-				die "$final: Unable to rename to $final\n";
-			}
-		} else {
-			unlink($new);
-		}
-	} else {
-		die "$final: $! (can not open for compare)\n";
-	}
-}
-
-#
 #  generate an acl file for inclusion by named based on site_codes
 #
 sub generate_named_acl_file($$$) {
-	my ( $dbh, $zoneroot, $fn ) = @_;
+	my ( $self, $zoneroot, $fn ) = @_;
+	my $dbh = $self->DBHandle();
 
 	$fn = "$zoneroot/$fn";
 
 	if ( !-d $zoneroot ) {
-		mkdir_p($zoneroot);
+		$self->mkdir_p($zoneroot);
 	}
 
 	my $tmpfn = "$fn.$$.zonetmp";
@@ -430,7 +425,7 @@ sub generate_named_acl_file($$$) {
 
 	# XXX probably not the best choice...
 	$out->binmode('encoding(utf8)');
-	print_comments( $dbh, $out, '//' );
+	$self->print_comments( $out, '//' );
 
 	$out->print("\n\n");
 
@@ -523,13 +518,14 @@ sub generate_named_acl_file($$$) {
 
 	$out->close;
 
-	safe_mv_if_changed( $tmpfn, $fn );
+	$self->safe_mv_if_changed( $tmpfn, $fn );
 }
 
 sub generate_rsync_list($$$$) {
-	my ( $dbh, $root, $fn, $site ) = @_;
+	my ( $self, $root, $fn, $site ) = @_;
+	my $dbh = $self->DBHandle();
 
-	my $nameservers = get_my_hosts( $dbh, $site );
+	my $nameservers = $self->get_my_hosts($site);
 
 	my $fullfn = "$root/$fn";
 	my $tmpfn  = "$fullfn.$$.zonetmp";
@@ -541,11 +537,12 @@ sub generate_rsync_list($$$$) {
 	$fh->close || die "close($tmpfn): $!";
 
 	# may be possible if a site is beingr retired
-	safe_mv_if_changed( $tmpfn, $fullfn, 1 );
+	$self->safe_mv_if_changed( $tmpfn, $fullfn, 1 );
 }
 
 sub process_all_dns_records {
-	my ( $dbh, $out, $domid, $domain, $universe ) = @_;
+	my ( $self, $out, $domid, $domain, $universe ) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $uclause = "";
 	if ( defined($universe) ) {
@@ -674,7 +671,8 @@ sub process_all_dns_records {
 }
 
 sub process_soa {
-	my ( $dbh, $out, $domid, $bumpsoa ) = @_;
+	my ( $self, $out, $domid, $bumpsoa ) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -709,9 +707,9 @@ sub process_soa {
 	#
 	$serial += 1 if ($bumpsoa);
 
-	$rname = get_db_default( $dbh, '_dnsrname', 'hostmaster.example.com' )
+	$rname = $self->get_db_default( '_dnsrname', 'hostmaster.example.com' )
 	  if ( !defined($rname) );
-	$mname = get_db_default( $dbh, '_dnsmname', 'auth00.example.com' )
+	$mname = $self->get_db_default( '_dnsmname', 'auth00.example.com' )
 	  if ( !defined($mname) );
 
 	$mname =~ s/\@/./g;
@@ -719,7 +717,7 @@ sub process_soa {
 	$mname .= "." if ( $mname =~ /\./ );
 	$rname .= "." if ( $rname =~ /\./ );
 
-	print_comments( $dbh, $out, ';' );
+	$self->print_comments( $out, ';' );
 
 	$out->print( '$TTL', "\t$ttl\n" );
 	$out->print("@\t$ttl\t$class\tSOA $mname $rname (\n");
@@ -735,7 +733,8 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $dbh, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
+	my ( $self, $zoneroot, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $inaddr = "";
 	if ( $domain =~ /in-addr.arpa$/ ) {
@@ -747,32 +746,35 @@ sub process_domain {
 	#
 	# This needs to move elsewhere
 	#
-	my $umap = get_universe_map($dbh);
+	#- my $umap = $self->get_universe_map();
 
 	#
 	# This generally happens only on dumping a zone to stdout...
 	if ( !$domid ) {
-		$domid = get_dns_domid( $dbh, $domain );
+		$domid = $self->get_dns_domid($domain);
 		return 0 if ( !$domid );
 
 	}
 
 	my @univ = ( { id => 0, name => 'default' } );
-	if ( exists( $umap->{$domid} ) ) {
-		@univ = @{ $umap->{$domid} };
-	}
+
+	#-if ( exists( $umap->{$domid} ) ) {
+	#-	@univ = @{ $umap->{$domid} };
+	#-}
 
 	foreach my $universe (@univ) {
 		my $uid   = $universe->{id};
 		my $uname = $universe->{name};
 
-		warn "\tprocessing universe $uname ($uid)...\n";
+		$self->_Debug( 1, "processing universe %s (%s)...", $uname, $uid );
 
 		my ( $fn, $tmpfn );
 
 		if ($zoneroot) {
-			my $dir = "$zoneroot/$uname/$inaddr";
-			mkdir_p($dir) if ( !-d $dir );
+
+			#my $dir = "$zoneroot/$uname/$inaddr";
+			my $dir = "$zoneroot/$inaddr";
+			$self->mkdir_p($dir) if ( !-d $dir );
 			$fn    = "$dir$domain";
 			$tmpfn = "$fn.tmp.$$";
 		} else {
@@ -781,11 +783,13 @@ sub process_domain {
 
 		my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
 
-		print STDERR "\tprocess SOA to $tmpfn\n" if ($debug);
-		process_soa( $dbh, $out, $domid, $bumpsoa );
-		print STDERR "\tprocess DNS Records to $tmpfn\n" if ($debug);
-		process_all_dns_records( $dbh, $out, $domid, $domain, $uid );
-		print STDERR "\tprocess_domain complete\n" if ($debug);
+		$self->_Debug( 1, "process SOA to %s", $tmpfn );
+
+		$self->process_soa( $out, $domid, $bumpsoa );
+
+		$self->_Debug( 1, "process DNS Records to %s", $tmpfn );
+		$self->process_all_dns_records( $out, $domid, $domain );
+		$self->_Debug( 1, "process_domain complete" );
 		$out->close;
 
 		if ($last) {
@@ -811,7 +815,7 @@ sub process_domain {
 		# indicating as such.
 		#
 		my $prog = "named-checkzone $domain $tmpfn";
-		print "running $prog\n" if ($debug);
+		$self->_Debug( 1, "running '%s'", $prog );
 		my $output = `$prog`;
 		if ( ( $? >> 8 ) ) {
 			my $errmsg = "[not pushing out]";
@@ -832,16 +836,17 @@ sub process_domain {
 }
 
 sub generate_complete_files {
-	my ( $dbh, $zoneroot, $zonesgend ) = @_;
+	my ( $self, $zoneroot, $zonesgend ) = @_;
+	my $dbh = $self->DBHandle();
 
 	my $cfgdir = "$zoneroot/../etc";
 
-	mkdir_p("$cfgdir");
+	$self->mkdir_p("$cfgdir");
 	my $cfgfn    = "$cfgdir/named.conf.auto-gen";
 	my $tmpcfgfn = "$cfgfn.tmp.$$";
 	my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
 
-	print_comments( $dbh, $cfgf, '#' );
+	$self->print_comments( $cfgf, '#' );
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -865,14 +870,14 @@ sub generate_complete_files {
 		);
 	}
 	$cfgf->close;
-	safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
+	$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
 
 	my $zcfn    = "$cfgdir/zones-changed";
 	my $tmpzcfn = "$zcfn.tmp.$$";
 	my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
 	chmod( 0755, $tmpzcfn );
 
-	print_comments( $dbh, $zcf, '#' );
+	$self->print_comments( $zcf, '#' );
 
 	#
 	# XXX this really wants to be a variable set in the db to determine
@@ -888,12 +893,13 @@ sub generate_complete_files {
 	}
 
 	$zcf->close;
-	safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
+	$self->safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
 
 }
 
 sub process_perserver {
-	my ( $dbh, $zoneroot, $persvrroot, $zonesgend ) = @_;
+	my ( $self, $zoneroot, $persvrroot, $zonesgend ) = @_;
+	my $dbh = $self->DBHandle();
 
 	#
 	# we only create symlinks for zones that should be generated
@@ -950,7 +956,7 @@ sub process_perserver {
 			}
 			closedir(DIR);
 		} else {
-			mkdir_p($zonedir);
+			$self->mkdir_p($zonedir);
 		}
 
 		foreach my $dir ( "$zonedir/inaddr", "$zonedir/ip6" ) {
@@ -969,7 +975,7 @@ sub process_perserver {
 				}
 				closedir(DIR);
 			} else {
-				mkdir_p($dir);
+				$self->mkdir_p($dir);
 			}
 		}
 
@@ -979,18 +985,18 @@ sub process_perserver {
 		# file to be included.  A file that lists all the zones that
 		# are auto-generated that were changed on this run is also saved.
 		#
-		mkdir_p("$cfgdir");
+		$self->mkdir_p("$cfgdir");
 		my $cfgfn    = "$cfgdir/named.conf.auto-gen";
 		my $tmpcfgfn = "$cfgfn.tmp.$$";
 		my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
 
-		print_comments( $dbh, $cfgf, '#' );
+		$self->print_comments( $cfgf, '#' );
 
 		my $zcfn    = "$cfgdir/zones-changed";
 		my $tmpzcfn = "$zcfn.tmp.$$";
 		my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
 		chmod( 0755, $tmpzcfn );
-		print_comments( $dbh, $zcf, '#' );
+		$self->print_comments( $zcf, '#' );
 
 		foreach my $zone ( sort @$$zones ) {
 			my $fqn = "$zonedir/$zone";
@@ -1058,11 +1064,11 @@ sub process_perserver {
 		}
 
 		$cfgf->close;
-		safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
+		$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
 
 		$zcf->close;
 		unlink($zcfn);
-		safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
+		$self->safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
 
 		#
 		# create a symlink to the acl file so it gets sync'd out right"
@@ -1076,13 +1082,79 @@ sub process_perserver {
 	}
 }
 
+#
+# implement mkdir -p in perl
+#
+sub mkdir_p {
+	my $self = shift @_;
+
+	my ($dir) = @_;
+	my $mode = 0755;
+
+	my (@d) = split( m-/-, $dir );
+	my $ne = $#d + 1;
+	for ( my $i = 1 ; $i <= $ne ; $i++ ) {
+		my (@dir) = split( m-/-, $dir );
+		splice( @dir, $i );
+		my $thing = join( "/", @dir );
+		mkdir( $thing, $mode );
+	}
+}
+
+#
+# mv's a file in place if it has changed.
+#
+sub safe_mv_if_changed($$;$) {
+	my ( $self, $new, $final, $allowzero ) = @_;
+
+	# if the old file is there, diff, if not, just move into place
+	# if diff matches, delete the new file
+	if ( !-f $final ) {
+		rename( $new, $final );
+	} elsif ( -r $final && ( $allowzero || -s $new ) ) {
+		my $cmd = qq{diff -w -i -I '^\\s*//' "$new" "$final"};
+		system("$cmd > /dev/null");
+		if ( $? >> 8 ) {
+			my $oldfn = "$final.old";
+			unlink($oldfn);
+			if ( rename( $final, $oldfn ) ) {
+				if ( !rename( $new, $final ) ) {
+					rename( $oldfn, $final )
+					  || die
+					  "Unable to put $final back from $oldfn after fail to rename\n";
+				}
+				unlink($oldfn);
+			} else {
+				die "$final: Unable to rename to $final\n";
+			}
+		} else {
+			unlink($new);
+		}
+	} else {
+		die "$final: $! (can not open for compare)\n";
+	}
+}
+
+DESTROY {
+	my $self = shift;
+
+	$self->DBHandle()->disconnect;
+	$self->DBHandle(undef);
+	undef;
+}
+
+package main;
+
 #############################################################################
 #
 # main stuff starts here
 #
 #############################################################################
 
-$ENV{'PATH'} = $ENV{'PATH'} . ":/usr/local/sbin:/usr/sbin";
+my $output_root = "/var/lib/zonegen/auto-gen";
+my $hostanddate = 0;
+my $verbose     = 0;
+my $debug       = 0;
 
 my $genall      = 0;
 my $dumpzone    = 0;
@@ -1154,22 +1226,24 @@ if ($sleep) {
 	sleep($delay);
 }
 
-my $dbh = JazzHands::DBI->connect( 'zonegen', { AutoCommit => 0 } )
-  || die $JazzHands::DBI::errstr;
+my $zg = new JazzHands::ZoneGeneration(
+	output_root => $output_root,
+	hotanddate  => $hostanddate,
+) || die $JazzHands::ZoneGeneration::errstr;
 
 #
 # This should probably move into script_hooks.zonegen_pre().
 #
-if ( $agg && $dbh->{Driver}->{Name} eq 'Pg' ) {
-	$dbh->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-	  || die $dbh->errstr;
+if ( $agg && $zg->DBHandle()->{Driver}->{Name} eq 'Pg' ) {
+	$zg->DBHandle()->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+	  || die $zg->DBHandle()->errstr;
 }
 
-$dbh->do("SELECT script_hooks.zonegen_pre()");
+$zg->DBHandle()->do("SELECT script_hooks.zonegen_pre()");
 
 if ($dumpzone) {
 	my $domain = shift @ARGV;
-	process_domain( $dbh, undef, undef, $domain, undef, undef, undef );
+	$zg->process_domain( undef, undef, $domain, undef, undef, undef );
 	exit(0);
 }
 
@@ -1183,7 +1257,7 @@ if ( $mysite && $mysite eq 'none' ) {
 }
 
 if ( !$mysite ) {
-	$mysite = get_my_site_code( $dbh, $me );
+	$mysite = $zg->get_my_site_code($me);
 } elsif ( $mysite eq 'none' ) {
 	$mysite = undef;
 }
@@ -1194,10 +1268,10 @@ if ( !$mysite ) {
 my $zoneroot   = "$output_root/zones";
 my $persvrroot = "$output_root/perserver";
 
-mkdir_p($output_root)       if ( !-d "$output_root" );
-mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
-mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
-mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
+$zg->mkdir_p($output_root)       if ( !-d "$output_root" );
+$zg->mkdir_p($zoneroot)          if ( !-d "$zoneroot" );
+$zg->mkdir_p("$zoneroot/inaddr") if ( !-d "$zoneroot/inaddr" );
+$zg->mkdir_p("$zoneroot/ip6")    if ( !-d "$zoneroot/ip6" );
 
 # Do not manipulate the change records if the SOA is not to be manipulated.
 # This is just used to make sure everything on disk is right.
@@ -1213,7 +1287,7 @@ if ($nosoa) {
 	# if this returns  an empty list, then exit 1
 	# This signals to the caller that it should cease.
 	#
-	my $changeids = lock_db_changes( $dbh, $wait, $agg );
+	my $changeids = $zg->lock_db_changes( $wait, $agg );
 
 	if ( !defined($changeids) ) {
 		exit 1;
@@ -1224,7 +1298,7 @@ if ($nosoa) {
 
 if ($debug) {
 	warn "Got ", scalar @changeids, " change ids to deal with";
-	warn "Number of change records, ", get_change_tally($dbh), "\n";
+	warn "Number of change records, ", $zg->get_change_tally(), "\n";
 }
 
 # $generate contains all of the objects that are to be regenerated
@@ -1233,6 +1307,7 @@ if ( scalar @changeids ) {
 	#
 	# Now get all zones eligible for regeneration and save them.
 	#
+	my $dbh = $zg->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
 			SELECT * FROM v_dns_changes_pending
@@ -1290,6 +1365,7 @@ if ( scalar @changeids ) {
 # add some.
 #
 if (1) {
+	my $dbh = $zg->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
 		SELECT  dns_domain_id, should_generate, last_generated,
@@ -1371,7 +1447,7 @@ if (1) {
 #
 foreach my $dom (@ARGV) {
 	if ( !exists( $generate->{$dom} ) ) {
-		if ( !get_dns_domid( $dbh, $dom ) ) {
+		if ( !$zg->get_dns_domid($dom) ) {
 			die "$dom is not a valid zone\n";
 		}
 	}
@@ -1399,9 +1475,9 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 	print "$dom\n";
 	my $last = $generate->{$dom}->{rec}->[0]->{last_generated};
 	if ($bumpsoa) {
-		$last = get_now($dbh);
+		$last = $zg->get_now();
 	}
-	process_domain( $dbh, $zoneroot, $domid, $dom, undef, $last, $bumpsoa );
+	$zg->process_domain( $zoneroot, $domid, $dom, undef, $last, $bumpsoa );
 
 }
 warn "Done Generating Zones\n" if ($verbose);
@@ -1419,7 +1495,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		my $domid =
 		  $generate->{$dom}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
 		warn "bumping soa for $domid, $dom\n" if ($debug);
-		record_newgen( $dbh, $domid );
+		$zg->record_newgen($domid);
 		$docommit++;
 	}
 }
@@ -1434,6 +1510,7 @@ warn "Purging processed DNS_CHANGE_RECORD records\n" if ($verbose);
 if ( !$nosoa ) {
 	if ( scalar keys(%$generate) ) {
 		my $seen = {};
+		my $dbh  = $zg->DBHandle();
 		my $sth  = $dbh->prepare_cached(
 			qq{
 			delete from dns_change_record where dns_change_record_id = ?
@@ -1472,11 +1549,11 @@ if ( !$nosoa ) {
 }
 
 warn "Generating acl file\n" if ($verbose);
-generate_named_acl_file( $dbh, $output_root . "/etc", "sitecodeacl.conf" );
+$zg->generate_named_acl_file( $output_root . "/etc", "sitecodeacl.conf" );
 
 if ( !$norsynclist ) {
 	warn "Generating rsync list\n" if ($verbose);
-	generate_rsync_list( $dbh, $output_root, "rsynchostlist.txt", $mysite );
+	$zg->generate_rsync_list( $output_root, "rsynchostlist.txt", $mysite );
 }
 
 #
@@ -1484,32 +1561,21 @@ if ( !$norsynclist ) {
 #
 warn "Generating configuration files and whatnot..." if ($debug);
 
-# XXX process_perserver( $dbh, "../zones", $persvrroot, $generate );
-# generate_complete_files( $dbh, $zoneroot, $generate );
+$zg->process_perserver( "../zones", $persvrroot, $generate );
+$zg->generate_complete_files( $zoneroot, $generate );
 
-$dbh->do("SELECT script_hooks.zonegen_post()");
+$zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
 
 warn "Done file generation, about to commit\n" if ($verbose);
 if ($docommit) {
-	$dbh->commit;
+	$zg->commit;
 } else {
 
 	# no changes should have been made
-	$dbh->rollback;
+	$zg->rollback;
 }
-
-$dbh->disconnect;
-$dbh = undef;
 
 exit 0;
-
-END {
-	if ($dbh) {
-		$dbh->rollback;
-		$dbh->disconnect;
-	}
-	$dbh = undef;
-}
 
 __END__;
 
