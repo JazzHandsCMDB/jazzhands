@@ -434,8 +434,10 @@ sub record_newgen {
 #  generate an acl file for inclusion by named based on site_codes
 #
 sub generate_named_acl_file($$$) {
-	my ( $self, $zoneroot, $fn ) = @_;
+	my ( $self, $fn ) = @_;
 	my $dbh = $self->DBHandle();
+
+	my $zoneroot = $self->{_cfgroot};
 
 	$fn = "$zoneroot/$fn";
 
@@ -927,6 +929,13 @@ sub generate_complete_files {
 
 }
 
+#
+# zoneroot is passwd in so symlinks work.  Not fully qualified symlinks
+# for debugging purposes (since much of that is done in `pwd`).  This is
+# probably worth rethinking.
+#
+# The underlying rsync follows symlinks.
+#
 sub process_perserver {
 	my ( $self, $zoneroot, $zonesgend ) = @_;
 	my $dbh = $self->DBHandle();
@@ -935,6 +944,9 @@ sub process_perserver {
 
 	#
 	# we only create symlinks for zones that should be generated
+	#
+	# This does NOT use v_dns because its super slow for just these records
+	# of interest.
 	#
 	my $sth = $dbh->prepare_cached(
 		q{
@@ -1279,8 +1291,6 @@ if ($dumpzone) {
 	exit(0);
 }
 
-#
-#
 my $me = `hostname`;
 chomp($me);
 
@@ -1574,7 +1584,7 @@ if ( !$nosoa ) {
 }
 
 warn "Generating acl file\n" if ($verbose);
-$zg->generate_named_acl_file( $output_root . "/etc", "sitecodeacl.conf" );
+$zg->generate_named_acl_file("sitecodeacl.conf");
 
 if ( !$norsynclist ) {
 	warn "Generating rsync list\n" if ($verbose);
