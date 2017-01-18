@@ -159,19 +159,21 @@ if (@ARGV) {
 
 my $q = qq {
 	SELECT
-		netblock_collection_id,
-		netblock_collection_name,
-		netblock_id,
-		netblock_type,
-		ip_address,
+		nc.netblock_collection_id,
+		nc.netblock_collection_name,
+		n.netblock_id,
+		n.netblock_type,
+		n.ip_address,
 		CASE 
-			WHEN is_single_address = 'Y' THEN true
+			WHEN n.is_single_address = 'Y' THEN true
 			ELSE false
 		END AS is_single_address
 	FROM
-		netblock_collection nc LEFT JOIN
-		netblock_collection_netblock ncn USING (netblock_collection_id)
+		netblock_collection nc JOIN
+		v_netblock_coll_expanded nce USING (netblock_collection_id)
 			LEFT JOIN
+		netblock_collection_netblock ncn ON (nce.root_netblock_collection_id =
+			ncn.netblock_collection_id) JOIN
 		netblock n USING (netblock_id)
 	WHERE
 		netblock_collection_type = 'prefix-list'
@@ -185,19 +187,21 @@ if (!($all_nc_sth = $jh->prepare_cached($q))) {
 
 $q = qq {
 	SELECT
-		netblock_collection_id,
-		netblock_collection_name,
-		netblock_id,
-		netblock_type,
-		ip_address,
+		nc.netblock_collection_id,
+		nc.netblock_collection_name,
+		n.netblock_id,
+		n.netblock_type,
+		n.ip_address,
 		CASE 
-			WHEN is_single_address = 'Y' THEN true
+			WHEN n.is_single_address = 'Y' THEN true
 			ELSE false
 		END AS is_single_address
 	FROM
 		netblock_collection nc LEFT JOIN
-		netblock_collection_netblock ncn USING (netblock_collection_id)
+		v_netblock_coll_expanded nce USING (netblock_collection_id)
 			LEFT JOIN
+		netblock_collection_netblock ncn ON (nce.root_netblock_collection_id =
+			ncn.netblock_collection_id) JOIN
 		netblock n USING (netblock_id)
 	WHERE
 		netblock_collection_type = 'prefix-list' AND
@@ -212,18 +216,21 @@ if (!($nc_list_sth = $jh->prepare_cached($q))) {
 
 $q = qq {
 	SELECT
-		netblock_collection_id,
-		netblock_id,
-		netblock_type,
-		ip_address,
+		nc.netblock_collection_id,
+		nc.netblock_collection_name,
+		n.netblock_id,
+		n.netblock_type,
+		n.ip_address,
 		CASE 
-			WHEN is_single_address = 'Y' THEN true
+			WHEN n.is_single_address = 'Y' THEN true
 			ELSE false
 		END AS is_single_address
 	FROM
 		netblock_collection nc LEFT JOIN
-		netblock_collection_netblock ncn USING (netblock_collection_id)
+		v_netblock_coll_expanded nce USING (netblock_collection_id)
 			LEFT JOIN
+		netblock_collection_netblock ncn ON (nce.root_netblock_collection_id =
+			ncn.netblock_collection_id) JOIN
 		netblock n USING (netblock_id)
 	WHERE
 		netblock_collection_type = 'prefix-list' AND
