@@ -118,36 +118,15 @@ sub make_directories() {
 	my $self = shift @_;
 
 	my @list = (
-		$self->{output_root},          $self->{zoneroot},
-		$self->{zoneroot} . "/inaddr", $self->{zoneroot} . "/ip6",
+		$self->{_output_root},
+		$self->{_zoneroot},
+		$self->{_zoneroot} . "/inaddr",
+		$self->{_zoneroot} . "/ip6",
 	);
 
 	foreach my $dir (@list) {
 		$self->mkdir_p($dir) if ( !-d $dir );
 	}
-}
-
-sub get_universe_map {
-	my ($self) = @_;
-
-	my $dbh = $self->DBHandle();
-
-	my $sth = $dbh->prepare_cached(
-		qq{
-		SELECT distinct dns_domain_id, ip_universe_id, ip_universe_name
-		FROM v_dns  
-			JOIN ip_universe using (ip_universe_id)
-	}
-	) || confess $dbh->errstr;
-
-	my $rv = {};
-
-	$sth->execute || die $sth->errstr;
-
-	while ( my ( $dom, $id, $name ) = $sth->fetchrow_array ) {
-		push( @{ $rv->{$dom} }, { id => $id, name => $name } );
-	}
-	$rv;
 }
 
 sub get_my_site_code($$) {
@@ -501,14 +480,14 @@ sub generate_named_acl_file($$$) {
 				WHERE   psnb.site_code != snb.site_code
 				AND     pnb.ip_address >>= nb.ip_address
 			UNION
-				SELECT  NULL AS inclusion, site_code, ip_address, 
+				SELECT  NULL AS inclusion, site_code, ip_address,
 						NULL AS child_site_code ,NULL AS parent_ip,
 						description
 				  FROM  site_netblock
 					JOIN netblock USING (netblock_id)
 			) subq
-			ORDER BY site_code, 
-				coalesce(parent_ip, ip_address), inclusion, 
+			ORDER BY site_code,
+				coalesce(parent_ip, ip_address), inclusion,
 				masklen(ip_address) DESC
 
 	}
@@ -569,13 +548,8 @@ sub generate_rsync_list($$$$) {
 }
 
 sub process_all_dns_records {
-	my ( $self, $out, $domid, $domain, $universe ) = @_;
+	my ( $self, $out, $domid, $domain) = @_;
 	my $dbh = $self->DBHandle();
-
-	my $uclause = "";
-	if ( defined($universe) ) {
-		$uclause = "AND ( ip_universe_id = :universe )";
-	}
 
 	#
 	# sort_order is arranged such that records for the domain itself
@@ -610,11 +584,11 @@ sub process_all_dns_records {
 				ELSE 10 END as sortorder,
 			dns_domain_id
 		  from	v_dns
-		 where	dns_domain_id = :domid $uclause
+		 where	dns_domain_id = :domid
 		) SELECT *, row_number()
 			OVER (partition by dns_name,dns_domain_id ORDER BY sortorder) as rn
 		FROM dns
-		order by 
+		order by
 			dns_domain_id,
 			CASE WHEN dns_name IS NULL THEN 0 ELSE 1 END,
 			CASE WHEN DNS_TYPE IN ('A','AAAA') THEN NULL
@@ -631,9 +605,6 @@ sub process_all_dns_records {
 	# order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
-	if ( defined($universe) ) {
-		$sth->bind_param( ':universe', $universe ) || die $sth->errstr;
-	}
 
 	$sth->execute || die $sth->errstr;
 
@@ -774,11 +745,6 @@ sub process_domain {
 	}
 
 	#
-	# This needs to move elsewhere
-	#
-	#- my $umap = $self->get_universe_map();
-
-	#
 	# This generally happens only on dumping a zone to stdout...
 	if ( !$domid ) {
 		$domid = $self->get_dns_domid($domain);
@@ -786,82 +752,69 @@ sub process_domain {
 
 	}
 
-	my @univ = ( { id => 0, name => 'default' } );
+	my ( $fn, $tmpfn );
 
-	#-if ( exists( $umap->{$domid} ) ) {
-	#-	@univ = @{ $umap->{$domid} };
-	#-}
+	if ($zoneroot) {
 
-	foreach my $universe (@univ) {
-		my $uid   = $universe->{id};
-		my $uname = $universe->{name};
+		#my $dir = "$zoneroot/$uname/$inaddr";
+		my $dir = "$zoneroot/$inaddr";
+		$self->mkdir_p($dir) if ( !-d $dir );
+		$fn    = "$dir$domain";
+		$tmpfn = "$fn.tmp.$$";
+	} else {
+		$tmpfn = "/dev/stdout";
+	}
 
-		$self->_Debug( 1, "processing universe %s (%s)...", $uname, $uid );
+	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
 
-		my ( $fn, $tmpfn );
+	$self->_Debug( 1, "process SOA to %s", $tmpfn );
 
-		if ($zoneroot) {
+	$self->process_soa( $out, $domid, $bumpsoa );
 
-			#my $dir = "$zoneroot/$uname/$inaddr";
-			my $dir = "$zoneroot/$inaddr";
-			$self->mkdir_p($dir) if ( !-d $dir );
-			$fn    = "$dir$domain";
-			$tmpfn = "$fn.tmp.$$";
+	$self->_Debug( 1, "process DNS Records to %s", $tmpfn );
+	$self->process_all_dns_records( $out, $domid, $domain );
+	$self->_Debug( 1, "process_domain complete" );
+	$out->close;
+
+	if ($last) {
+		$last =~ s/\..*$//;
+		my ( $y, $m, $d, $h, $min, $s ) =
+		  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
+		if ($y) {
+			my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
+			utime( $whence, $whence, $tmpfn )
+			  ;    # If it does not work, then Vv
 		} else {
-			$tmpfn = "/dev/stdout";
+			warn "difficulting breaking apart $last";
 		}
+	}
 
-		my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
+	if ( !$zoneroot ) {
+		return 0;
+	}
 
-		$self->_Debug( 1, "process SOA to %s", $tmpfn );
-
-		$self->process_soa( $out, $domid, $bumpsoa );
-
-		$self->_Debug( 1, "process DNS Records to %s", $tmpfn );
-		$self->process_all_dns_records( $out, $domid, $domain );
-		$self->_Debug( 1, "process_domain complete" );
-		$out->close;
-
-		if ($last) {
-			$last =~ s/\..*$//;
-			my ( $y, $m, $d, $h, $min, $s ) =
-			  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
-			if ($y) {
-				my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
-				utime( $whence, $whence, $tmpfn )
-				  ;    # If it does not work, then Vv
-			} else {
-				warn "difficulting breaking apart $last";
-			}
+	#
+	# run named-checkzone to see if its a valid or bump zone, and if it
+	# failed the test, then spit out an error message and return something
+	# indicating as such.
+	#
+	my $prog = "named-checkzone $domain $tmpfn";
+	$self->_Debug( 1, "running '%s'", $prog );
+	my $output = `$prog`;
+	if ( ( $? >> 8 ) ) {
+		my $errmsg = "[not pushing out]";
+		if ($errcheck) {
+			$errmsg = "[WARNING: PUSHING OUT!]";
 		}
-
-		if ( !$zoneroot ) {
+		$output = "" if ( !$output );
+		warn "$domain was generated with errors $errmsg ($output)\n";
+		if ( !$errcheck ) {
 			return 0;
 		}
-
-		#
-		# run named-checkzone to see if its a valid or bump zone, and if it
-		# failed the test, then spit out an error message and return something
-		# indicating as such.
-		#
-		my $prog = "named-checkzone $domain $tmpfn";
-		$self->_Debug( 1, "running '%s'", $prog );
-		my $output = `$prog`;
-		if ( ( $? >> 8 ) ) {
-			my $errmsg = "[not pushing out]";
-			if ($errcheck) {
-				$errmsg = "[WARNING: PUSHING OUT!]";
-			}
-			$output = "" if ( !$output );
-			warn "$domain was generated with errors $errmsg ($output)\n";
-			if ( !$errcheck ) {
-				return 0;
-			}
-		}
-
-		unlink($fn);
-		rename( $tmpfn, $fn );
 	}
+
+	unlink($fn);
+	rename( $tmpfn, $fn );
 	return 1;
 }
 
@@ -952,7 +905,7 @@ sub process_perserver {
 		q{
 		SELECT	DISTINCT
 			dom.dns_domain_id,
-			CASE WHEN dns.dns_value ~ '\.$' 
+			CASE WHEN dns.dns_value ~ '\.$'
 				THEN regexp_replace(dns.dns_value, '\.$', '')
 				ELSE concat(dns.dns_value,'.',dom.soa_name)
 			END AS dns_value,
