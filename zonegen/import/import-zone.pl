@@ -147,6 +147,10 @@ sub pull_universes($) {
 sub get_universe($$) {
 	my ( $self, $ip ) = @_;
 
+	if(!$self->{_universemap}) {
+		return $self->{ip_universe};
+	}
+
 	my $dbh = $self->DBHandle();
 
 	{
