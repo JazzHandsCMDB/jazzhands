@@ -720,7 +720,9 @@ sub process_soa {
 	$mname = $self->get_db_default( '_dnsmname', 'auth00.example.com' )
 	  if ( !defined($mname) );
 
-	$mname =~ s/\@/./g;
+	# should do this - escaping of .'s in email addresses..
+	# $rname =~ s/[^\\]{0,1}\./\\./;
+	$rname =~ s/\@/./g;
 
 	$mname .= "." if ( $mname =~ /\./ );
 	$rname .= "." if ( $rname =~ /\./ );
