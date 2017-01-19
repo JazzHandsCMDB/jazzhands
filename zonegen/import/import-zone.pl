@@ -59,7 +59,7 @@ sub new {
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 
 	my $dbh = JazzHands::DBI->connect( $self->{_dbuser},
-		{ AutoCommit => 0, RaiseError => 1 } );
+		{ AutoCommit => 0, RaiseError => 0 } );
 	if ( !$dbh ) {
 		$errstr =
 		  "Unable to connect to $self->{_dbuser}: " . $JazzHands::DBI::errstr;
@@ -75,6 +75,8 @@ sub find_universe {
 	my ( $c, $u ) = @_;
 
 	return 0 if ( !$u );
+
+	return undef if ( $u eq 'none' );
 
 	return $u if ( $u =~ /^\d+$/ );
 
@@ -114,9 +116,9 @@ sub pull_universes($) {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	ip_address, masklen(ip_address), ip_universe_id 
-		FROM	netblock 
-		WHERE	ip_universe_id > 0 
+		SELECT	ip_address, masklen(ip_address), ip_universe_id
+		FROM	netblock
+		WHERE	ip_universe_id IS NOT NULL
 		AND		netblock_type = 'default'
 		AND		parent_netblock_id is NULL
 	}
@@ -154,14 +156,18 @@ sub get_universe($$) {
 				in_ipaddress := ?,
 				in_ip_universe_id := 0,
 				in_is_single_address := 'Y'
-			);
+			), family(?);
 		}
 		) || die $dbh->errstr;
 
-		$sth->execute($ip) || die $sth->errstr;
+		$sth->execute( $ip, $ip ) || die $sth->errstr;
 
-		my ($id) = $sth->fetchrow_array;
+		my ( $id, $fam ) = $sth->fetchrow_array;
 		$sth->finish;
+
+		if ( $fam == 6 && defined( $c->{v6_universe} ) ) {
+			return $c->{v6_universe};
+		}
 		return 0 if ($id);
 	}
 
@@ -172,6 +178,7 @@ sub get_universe($$) {
 		} keys %{ $c->{_universemap} }
 	  )
 	{
+		$c->_Debug( 10, "get_universe:  look in %s for %s", $blk, $ip );
 		my $n = $c->{_universemap}->{$blk}->{naddr};
 		if ( !$n ) {
 			$n = $c->{_universemap}->{$blk}->{naddr} = new NetAddr::IP($blk)
@@ -224,7 +231,10 @@ sub check_and_add_service {
 sub link_inaddr {
 	my ( $c, $domid, $block ) = @_;
 
-	my $universe = $c->get_universe($block) || $c->{ip_universe};
+	my $universe = $c->get_universe($block);
+	if ( !defined($universe) ) {
+		$universe = $c->{ip_universe};
+	}
 
 	my (@errs);
 	if (
@@ -292,7 +302,10 @@ sub get_ptr {
 
 	$c->_Debug( 2, "looking for PTR for $ip" );
 
-	my $universe = $c->get_universe($ip) || $c->{ip_universe};
+	my $universe = $c->get_universe($ip);
+	if ( !defined($universe) ) {
+		$universe = $c->{ip_universe};
+	}
 	$c->_Debug( 3, "Guessed Universe %d", $universe );
 
 	my (@errs);
@@ -369,13 +382,13 @@ sub get_inaddr {
 	my $ii = new Net::IP($ip) || die "Parse($ip): " . Net::IP::Error();
 	my $inaddr = $ii->reverse_ip();
 
-	my $res = new Net::DNS::Resolver;
+	my $res = new Net::DNS::Resolver();
 	#
 	# There is no guarantee that the auth server that hosts a fwd zone also
 	# hosts the in-addr zone, so this extra hoop jumping.
 	#
 	$res->nameserver( $c->{nameserver} ) if ( $c->{nameserver} );
-	my $a = $res->send( $inaddr, 'PTR' );
+	my $a = $res->send( $ip, 'PTR' );
 
 	if ( !$a || !scalar $a->answer ) {
 
@@ -396,7 +409,7 @@ sub get_inaddr {
 		my $qn  = $inaddr;
 		do {
 			$a = $res->send( $qn, 'CNAME' );
-			$c->_Debug( 4, "\t\tconsider [%s] %s ..  ", $qn, scalar $a->answer );
+			$c->_Debug( 4, "consider [%s] %s ..  ", $qn, scalar $a->answer );
 			if ($a) {
 				foreach my $rr ( grep { $_->type eq 'CNAME' } $a->answer ) {
 					$qn = $rr->cname;
@@ -535,7 +548,7 @@ sub freshen_zone {
 					errs   => \@errs,
 				) || die join( " ", @errs );
 			}
-			$dom->{soa_ttl} = $newzone->{soa_ttl};
+			${$dom}->{soa_ttl} = $newzone->{soa_ttl};
 		} else {
 			$newzone->{should_generate} = 'N';
 			$numchanges += $c->DBInsert(
@@ -694,13 +707,16 @@ sub refresh_dns_record {
 	my $srv_port     = $opt->{srv_port};
 	my $genptr       = $opt->{genptr};
 
-	my $universe = $c->get_universe($address);
+	my $universe = $c->{ip_universe};
 
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
-		$c->_Debug( 2, "Attempting to find $address... \n" );
-		my $universe = $c->get_universe($address) || $c->{ip_universe};
+		if ( defined( my $x = $c->get_universe($address) ) ) {
+			$universe = $x;
+		}
+		$c->_Debug( 2, "Attempting to find %s (universe %s)...",
+			$address, $universe );
 		my $match = {
 			'is_single_address'      => 'Y',
 			'netblock_type'          => 'default',
@@ -763,11 +779,15 @@ sub refresh_dns_record {
 
 			if ( !$x ) {
 				if ( $c->dbh->err == 7 ) {
+					my $errmsg = $c->dbh->errstr;
 					$c->dbh->do("ROLLBACK TO SAVEPOINT biteme");
 					if ( defined( $c->{nbrule} )
 						&& $c->{nbrule} eq 'iponly' )
 					{
-						warn "\tskipping ...", join( " ", @errs );
+						my $e = ( scalar @errs ) ? join( " ", @errs ) : $errmsg;
+						$e =~ s/\n/ /mg;
+						$c->_Debug( 1, "Skipping %s creation" );
+						$c->_Debug( 10, "... db said", $e );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
@@ -790,13 +810,18 @@ sub refresh_dns_record {
 
 	}
 
+	my $recuniverse = $universe;
+	if ( $opt->{dns_type} eq 'AAAA' && defined( $c->{v6_universe} ) ) {
+		$recuniverse = $c->{v6_universe};
+	}
+
 	my $match = {
 		dns_name       => $name,
 		dns_value      => $value,
 		dns_type       => $opt->{dns_type},
 		dns_domain_id  => $opt->{dns_domain_id},
 		netblock_id    => ($nb) ? $nb->{netblock_id} : undef,
-		ip_universe_id => $universe,
+		ip_universe_id => $recuniverse,
 	};
 	if ($srv_service) {
 		$match->{dns_srv_service}  = $srv_service;
@@ -891,7 +916,7 @@ sub process_zone {
 	foreach my $rr ( sort by_name @zone ) {
 		my $x = $rr->string;
 		$x =~ s/\s+/ /mg;
-		$c->_Debug( 1, "Processing record %s...", $x );
+		$c->_Debug( 1, ">> Processing record %s...", $x );
 		my $name = $rr->name;
 		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
@@ -1083,8 +1108,11 @@ exit do_zone_load();
 sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
-	my ( $ns, $verbose, $addsvr, $nodelete, $debug, $dryrun, $universe,
-		$guessuniverse );
+	my (
+		$ns,       $verbose,       $addsvr,
+		$nodelete, $debug,         $dryrun,
+		$universe, $guessuniverse, $v6universe
+	);
 
 	my $r = GetOptions(
 		"dry-run|n"           => \$dryrun,
@@ -1094,6 +1122,7 @@ sub do_zone_load {
 		"nameserver=s"        => \$ns,
 		"add-services"        => \$addsvr,
 		"no-delete"           => \$nodelete,
+		"v6-universe=s"       => \$v6universe,
 		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
 		"unknown-netblocks=s" => \$nbrule,
@@ -1117,12 +1146,24 @@ sub do_zone_load {
 		$c->pull_universes();
 	}
 
+	if ($ns) {
+		my $res  = new Net::DNS::Resolver;
+		my $resp = $res->query($ns);
+		foreach my $rr ( grep { $_->type =~ /^(A|AAAA$)/ } $resp->answer ) {
+			$ns = $rr->address;
+			last;
+		}
+	}
+
+	warn "NS Is $ns";
+
 	$c->{nbrule}      = $nbrule;
 	$c->{verbose}     = $verbose;
 	$c->{addservice}  = $addsvr;
 	$c->{nodelete}    = $nodelete;
 	$c->{nameserver}  = $ns if ($ns);
 	$c->{ip_universe} = $c->find_universe($universe);
+	$c->{v6_universe} = $c->find_universe($v6universe) if ($v6universe);
 
 	foreach my $zone (@ARGV) {
 		$c->_Debug( 1, "Processing zone %s", $zone );
