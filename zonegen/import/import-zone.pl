@@ -128,6 +128,11 @@ sub pull_universes($) {
 
 	$self->{_universemap} = {};
 	while ( my ( $ip, $cidr, $u ) = $sth->fetchrow_array ) {
+		if ( exists( $self->{alloweduniverses} ) ) {
+
+			# skip unallowed universes
+			next if !( grep { $u == $_ } @{ $self->{alloweduniverses} } );
+		}
 		if ( exists( $self->{_universemap}->{$ip} ) && $self->{ip_universe} ) {
 			if ( $u != $self->{ip_universe} ) {
 				next;
@@ -147,7 +152,7 @@ sub pull_universes($) {
 sub get_universe($$) {
 	my ( $self, $ip ) = @_;
 
-	if(!$self->{_universemap}) {
+	if ( !$self->{_universemap} ) {
 		return $self->{ip_universe};
 	}
 
@@ -378,8 +383,8 @@ sub get_parent_domain {
 # says for it.
 #
 sub get_inaddr {
-	my $self  = shift(@_);
-	my $ip = shift(@_);
+	my $self = shift(@_);
+	my $ip   = shift(@_);
 
 	$self->_Debug( 3, "get_inaddr($ip)..." );
 
@@ -546,8 +551,8 @@ sub freshen_zone {
 			if ( scalar %$diff ) {
 				$numchanges += $self->DBUpdate(
 					table  => 'dns_domain_ip_universe',
-					dbkey  => ( 'dns_domain_id', 'ip_universe_id' ),
-					keyval => $domid,
+					dbkey  => [ 'dns_domain_id', 'ip_universe_id' ],
+					keyval => [ $domid, $self->{ip_universe} ],
 					hash   => $diff,
 					errs   => \@errs,
 				) || die join( " ", @errs );
@@ -700,7 +705,7 @@ sub refresh_dns_record {
 
 	my $numchanges = 0E0;
 
-	my $self            = $opt->{handle};
+	my $self         = $opt->{handle};
 	my $name         = $opt->{name};
 	my $address      = $opt->{address};
 	my $value        = $opt->{value};
@@ -792,8 +797,8 @@ sub refresh_dns_record {
 					{
 						my $e = ( scalar @errs ) ? join( " ", @errs ) : $errmsg;
 						$e =~ s/\n/ /mg;
-						$self->_Debug( 1, "Skipping %s creation", $address);
-						$self->_Debug( 1, "... db said: %s", $e );
+						$self->_Debug( 1, "Skipping %s creation", $address );
+						$self->_Debug( 1, "... db said: %s",      $e );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
@@ -806,7 +811,8 @@ sub refresh_dns_record {
 						  join( " ", @errs );
 					}
 				} else {
-					die "$address: [", $self->dbh->err, "] ", join( " ", @errs );
+					die "$address: [", $self->dbh->err, "] ",
+					  join( " ", @errs );
 				}
 				$self->dbh->do("RELEASE SAVEPOINT biteme");
 			} else {
@@ -842,7 +848,7 @@ sub refresh_dns_record {
 	my $new = {
 		'dns_name'                => $name,
 		'dns_domain_id'           => $opt->{dns_domain_id},
-		'dns_ttl'                 => $opt->{ttl},
+		'dns_ttl'                 => $opt->{dns_ttl},
 		'dns_class'               => $opt->{dns_class},
 		'dns_type'                => $opt->{dns_type},
 		'dns_value'               => $value,
@@ -1112,9 +1118,10 @@ sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
 	my (
-		$ns,       $verbose,       $addsvr,
-		$nodelete, $debug,         $dryrun,
-		$universe, $guessuniverse, $v6universe, $shouldgenerate
+		$ns,             $verbose,       $addsvr,
+		$nodelete,       $debug,         $dryrun,
+		$universe,       $guessuniverse, $v6universe,
+		$shouldgenerate, @alloweduniverses
 	);
 
 	my $r = GetOptions(
@@ -1129,7 +1136,8 @@ sub do_zone_load {
 		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
 		"unknown-netblocks=s" => \$nbrule,
-		"should-generate" => \$shouldgenerate,
+		"should-generate"     => \$shouldgenerate,
+		"allowed-universe=s"  => \@alloweduniverses,
 	) || die "Issues";
 
 	$verbose = 1 if ($debug);
@@ -1159,14 +1167,21 @@ sub do_zone_load {
 		}
 	}
 
-	warn "NS Is $ns";
+	$ziw->{nbrule}     = $nbrule;
+	$ziw->{verbose}    = $verbose;
+	$ziw->{addservice} = $addsvr;
+	$ziw->{nodelete}   = $nodelete;
+	if ( scalar @alloweduniverses ) {
+		foreach my $u (@alloweduniverses) {
+			my $id = $ziw->find_universe($universe);
+			die "Unknown universe $u\n" if ( !$id );
+			push( @{ $ziw->{alloweduniverses} }, $id );
+		}
+	}
+	$ziw->{shouldgenerate} = ($shouldgenerate) ? 'Y' : 'N';
+	$ziw->{nameserver} = $ns if ($ns);
 
-	$ziw->{nbrule}      = $nbrule;
-	$ziw->{verbose}     = $verbose;
-	$ziw->{addservice}  = $addsvr;
-	$ziw->{nodelete}    = $nodelete;
-	$ziw->{shouldgenerate}    = ($shouldgenerate)?'Y':'N';
-	$ziw->{nameserver}  = $ns if ($ns);
+	# XXX need to error check
 	$ziw->{ip_universe} = $ziw->find_universe($universe);
 	$ziw->{v6_universe} = $ziw->find_universe($v6universe) if ($v6universe);
 
