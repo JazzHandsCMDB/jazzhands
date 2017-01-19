@@ -72,7 +72,7 @@ sub new {
 }
 
 sub find_universe {
-	my ( $c, $u ) = @_;
+	my ( $self, $u ) = @_;
 
 	return 0 if ( !$u );
 
@@ -83,7 +83,7 @@ sub find_universe {
 	my (@errs);
 	my $dbrec;
 	if (
-		$dbrec = $c->DBFetch(
+		$dbrec = $self->DBFetch(
 			table => 'ip_universe',
 			match => {
 				ip_universe_name => $u,
@@ -95,7 +95,7 @@ sub find_universe {
 	{
 		return $dbrec->{ip_universe_id};
 	}
-	$c->dbh->err && die join( " ", @errs );
+	$self->dbh->err && die join( " ", @errs );
 
 	die "Unable to find universe $u";
 }
@@ -110,9 +110,9 @@ sub find_universe {
 # are doing.
 #
 sub pull_universes($) {
-	my ($c) = @_;
+	my ($self) = @_;
 
-	my $dbh = $c->DBHandle();
+	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
@@ -126,17 +126,17 @@ sub pull_universes($) {
 
 	$sth->execute || die $sth->errstr;
 
-	$c->{_universemap} = {};
+	$self->{_universemap} = {};
 	while ( my ( $ip, $cidr, $u ) = $sth->fetchrow_array ) {
-		if ( exists( $c->{_universemap}->{$ip} ) && $c->{ip_universe} ) {
-			if ( $u != $c->{ip_universe} ) {
+		if ( exists( $self->{_universemap}->{$ip} ) && $self->{ip_universe} ) {
+			if ( $u != $self->{ip_universe} ) {
 				next;
 			}
 		}
-		$c->{_universemap}->{$ip}->{universeid} = $u;
-		$c->{_universemap}->{$ip}->{cidr}       = $cidr;
+		$self->{_universemap}->{$ip}->{universeid} = $u;
+		$self->{_universemap}->{$ip}->{cidr}       = $cidr;
 	}
-	$c->{_universemap};
+	$self->{_universemap};
 }
 
 #
@@ -145,9 +145,9 @@ sub pull_universes($) {
 # find the right one.
 #
 sub get_universe($$) {
-	my ( $c, $ip ) = @_;
+	my ( $self, $ip ) = @_;
 
-	my $dbh = $c->DBHandle();
+	my $dbh = $self->DBHandle();
 
 	{
 		my $sth = $dbh->prepare_cached(
@@ -165,41 +165,41 @@ sub get_universe($$) {
 		my ( $id, $fam ) = $sth->fetchrow_array;
 		$sth->finish;
 
-		if ( $fam == 6 && defined( $c->{v6_universe} ) ) {
-			return $c->{v6_universe};
+		if ( $fam == 6 && defined( $self->{v6_universe} ) ) {
+			return $self->{v6_universe};
 		}
 		return 0 if ($id);
 	}
 
 	foreach my $blk (
 		sort {
-			$c->{_universemap}->{$b}->{cidr}
-			  <=> $c->{_universemap}->{$a}->{cidr}
-		} keys %{ $c->{_universemap} }
+			$self->{_universemap}->{$b}->{cidr}
+			  <=> $self->{_universemap}->{$a}->{cidr}
+		} keys %{ $self->{_universemap} }
 	  )
 	{
-		$c->_Debug( 10, "get_universe:  look in %s for %s", $blk, $ip );
-		my $n = $c->{_universemap}->{$blk}->{naddr};
+		$self->_Debug( 10, "get_universe:  look in %s for %s", $blk, $ip );
+		my $n = $self->{_universemap}->{$blk}->{naddr};
 		if ( !$n ) {
-			$n = $c->{_universemap}->{$blk}->{naddr} = new NetAddr::IP($blk)
+			$n = $self->{_universemap}->{$blk}->{naddr} = new NetAddr::IP($blk)
 			  || die;
 		}
 		my $nip = new NetAddr::IP($ip) || die;
 		if ( $n->contains($nip) ) {
-			return $c->{_universemap}->{$blk}->{universeid};
+			return $self->{_universemap}->{$blk}->{universeid};
 		}
 	}
 
-	$c->{ip_universe};
+	$self->{ip_universe};
 }
 
 sub check_and_add_service {
-	my ( $c, $service ) = @_;
+	my ( $self, $service ) = @_;
 
 	my (@errs);
 	my $dbrec;
 	if (
-		$dbrec = $c->DBFetch(
+		$dbrec = $self->DBFetch(
 			table => 'val_dns_srv_service',
 			match => {
 				dns_srv_service => $service,
@@ -211,15 +211,15 @@ sub check_and_add_service {
 	{
 		return 0;
 	}
-	$c->dbh->err && die join( " ", @errs );
+	$self->dbh->err && die join( " ", @errs );
 
 	if ($dbrec) {
 		return;
 	}
-	if ( !$c->{addservice} ) {
+	if ( !$self->{addservice} ) {
 		die "$service not in DB, can not add record\n";
 	}
-	$c->DBInsert(
+	$self->DBInsert(
 		table => 'val_dns_srv_service',
 		hash  => {
 			dns_srv_service => $service
@@ -229,16 +229,16 @@ sub check_and_add_service {
 }
 
 sub link_inaddr {
-	my ( $c, $domid, $block ) = @_;
+	my ( $self, $domid, $block ) = @_;
 
-	my $universe = $c->get_universe($block);
+	my $universe = $self->get_universe($block);
 	if ( !defined($universe) ) {
-		$universe = $c->{ip_universe};
+		$universe = $self->{ip_universe};
 	}
 
 	my (@errs);
 	if (
-		my $dbrec = $c->DBFetch(
+		my $dbrec = $self->DBFetch(
 			table => 'dns_record',
 			match => {
 				dns_domain_id  => $domid,
@@ -253,13 +253,13 @@ sub link_inaddr {
 		return 0;
 	}
 
-	my $nblk = $c->DBFetch(
+	my $nblk = $self->DBFetch(
 		table           => 'netblock',
 		match           => { ip_address => $block, netblock_type => 'dns' },
 		errors          => \@errs,
 		result_set_size => 'first',
 	);
-	$c->dbh->err && die join( " ", @errs );
+	$self->dbh->err && die join( " ", @errs );
 
 	if ( !$nblk ) {
 		$nblk = {
@@ -270,7 +270,7 @@ sub link_inaddr {
 			netblock_status   => 'Allocated',
 			ip_universe_id    => $universe,
 		};
-		$c->DBInsert(
+		$self->DBInsert(
 			table => 'netblock',
 			hash  => $nblk,
 			errs  => \@errs,
@@ -284,7 +284,7 @@ sub link_inaddr {
 		ip_universe_id => $universe,
 		netblock_id    => $nblk->{netblock_id},
 	};
-	$c->DBInsert(
+	$self->DBInsert(
 		table => 'dns_record',
 		hash  => $dns,
 		,,,
@@ -298,18 +298,18 @@ sub link_inaddr {
 # PTR record, traversing CNAMEs and what not.
 #
 sub get_ptr {
-	my ( $c, $ip ) = @_;
+	my ( $self, $ip ) = @_;
 
-	$c->_Debug( 2, "looking for PTR for $ip" );
+	$self->_Debug( 2, "looking for PTR for $ip" );
 
-	my $universe = $c->get_universe($ip);
+	my $universe = $self->get_universe($ip);
 	if ( !defined($universe) ) {
-		$universe = $c->{ip_universe};
+		$universe = $self->{ip_universe};
 	}
-	$c->_Debug( 3, "Guessed Universe %d", $universe );
+	$self->_Debug( 3, "Guessed Universe %d", $universe );
 
 	my (@errs);
-	my $nblk = $c->DBFetch(
+	my $nblk = $self->DBFetch(
 		table => 'netblock',
 		match => {
 			'is_single_address'      => 'Y',
@@ -322,7 +322,7 @@ sub get_ptr {
 	);
 	return undef if !$nblk;
 
-	my $dns = $c->DBFetch(
+	my $dns = $self->DBFetch(
 		table => 'dns_record',
 		match => {
 			netblock_id         => $nblk->{netblock_id},
@@ -333,7 +333,7 @@ sub get_ptr {
 	);
 	return undef if !$dns;
 
-	my $dom = $c->DBFetch(
+	my $dom = $self->DBFetch(
 		table => 'dns_domain',
 		match => {
 			dns_domain_id => $dns->{dns_domain_id},
@@ -351,12 +351,12 @@ sub get_ptr {
 }
 
 sub get_parent_domain {
-	my ( $c, $zone ) = @_;
+	my ( $self, $zone ) = @_;
 
 	# print "processing zone is $zone\n";
 	my (@errs);
 	while ( $zone =~ s/^[^\.]+\.// ) {
-		my $old = $c->DBFetch(
+		my $old = $self->DBFetch(
 			table           => 'dns_domain',
 			match           => { soa_name => $zone },
 			result_set_size => 'exactlyone',
@@ -374,10 +374,10 @@ sub get_parent_domain {
 # says for it.
 #
 sub get_inaddr {
-	my $c  = shift(@_);
+	my $self  = shift(@_);
 	my $ip = shift(@_);
 
-	$c->_Debug( 3, "get_inaddr($ip)..." );
+	$self->_Debug( 3, "get_inaddr($ip)..." );
 
 	my $ii = new Net::IP($ip) || die "Parse($ip): " . Net::IP::Error();
 	my $inaddr = $ii->reverse_ip();
@@ -387,7 +387,7 @@ sub get_inaddr {
 	# There is no guarantee that the auth server that hosts a fwd zone also
 	# hosts the in-addr zone, so this extra hoop jumping.
 	#
-	$res->nameserver( $c->{nameserver} ) if ( $c->{nameserver} );
+	$res->nameserver( $self->{nameserver} ) if ( $self->{nameserver} );
 	my $a = $res->send( $ip, 'PTR' );
 
 	if ( !$a || !scalar $a->answer ) {
@@ -409,7 +409,7 @@ sub get_inaddr {
 		my $qn  = $inaddr;
 		do {
 			$a = $res->send( $qn, 'CNAME' );
-			$c->_Debug( 4, "consider [%s] %s ..  ", $qn, scalar $a->answer );
+			$self->_Debug( 4, "consider [%s] %s ..  ", $qn, scalar $a->answer );
 			if ($a) {
 				foreach my $rr ( grep { $_->type eq 'CNAME' } $a->answer ) {
 					$qn = $rr->cname;
@@ -425,14 +425,14 @@ sub get_inaddr {
 	# we will consider that broken setup.  Perhaps
 	# a warning is in order here.  XXX
 	if ( !$a || !scalar $a->answer ) {
-		$c->_Debug( 3, "no answer: %s", $res->errorstring );
+		$self->_Debug( 3, "no answer: %s", $res->errorstring );
 		return undef;
 	}
 	foreach my $rr ( grep { $_->type eq 'PTR' } $a->answer ) {
-		$c->_Debug( 3, "Returning: %s", $rr->ptrdname );
+		$self->_Debug( 3, "Returning: %s", $rr->ptrdname );
 		return $rr->ptrdname;
 	}
-	$c->_Debug( 3, "Returning nothing" );
+	$self->_Debug( 3, "Returning nothing" );
 	undef;
 }
 
@@ -449,7 +449,7 @@ sub by_name {
 # makes sure the database matches for all the SOA vaules
 #
 sub freshen_zone {
-	my ( $c, $ns, $zone, $dom ) = @_;
+	my ( $self, $ns, $zone, $dom ) = @_;
 
 	my $numchanges = 0;
 
@@ -461,7 +461,7 @@ sub freshen_zone {
 	foreach my $rr ( grep { $_->type eq 'SOA' } $answer->answer ) {
 		next if ( $rr->name ne $zone );
 		my @errs;
-		my $olddom = $c->DBFetch(
+		my $olddom = $self->DBFetch(
 			table           => 'dns_domain',
 			match           => { soa_name => $zone },
 			result_set_size => 'exactlyone',
@@ -469,10 +469,10 @@ sub freshen_zone {
 		);
 
 		my $parent;
-		$parent = get_parent_domain( $c, $zone );
+		$parent = get_parent_domain( $self, $zone );
 
 		if ( !$olddom ) {
-			if ( $c->DBHandle->err ) {
+			if ( $self->DBHandle->err ) {
 				die "$zone: ", join( " ", @errs );
 			}
 
@@ -484,7 +484,7 @@ sub freshen_zone {
 				$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
 			}
 
-			$numchanges += $c->DBInsert(
+			$numchanges += $self->DBInsert(
 				table => 'dns_domain',
 				hash  => $new,
 				errrs => \@errs,
@@ -504,7 +504,7 @@ sub freshen_zone {
 
 		my $newzone = {
 			dns_domain_id  => $domid,
-			ip_universe_id => $c->{ip_universe},
+			ip_universe_id => $self->{ip_universe},
 			soa_class      => $rr->class,
 			soa_ttl        => $rr->ttl,
 			soa_serial     => $rr->serial,
@@ -516,18 +516,18 @@ sub freshen_zone {
 			soa_rname      => $rr->rname,
 		};
 
-		my $oldzone = $c->DBFetch(
+		my $oldzone = $self->DBFetch(
 			table => 'dns_domain_ip_universe',
 			match => {
 				'dns_domain_id'  => $domid,
-				'ip_universe_id' => $c->{ip_universe},
+				'ip_universe_id' => $self->{ip_universe},
 			},
 			result_set_size => 'exactlyone',
 			errors          => \@errs
 		);
 
 		if ( !$oldzone ) {
-			if ( $c->DBHandle->err ) {
+			if ( $self->DBHandle->err ) {
 				die "$zone: ", join( " ", @errs );
 			}
 		}
@@ -538,9 +538,9 @@ sub freshen_zone {
 		#	$new->{soa_serial} = 2147483646;
 		#}
 		if ($oldzone) {
-			my $diff = $c->hash_table_diff( $oldzone, $newzone );
+			my $diff = $self->hash_table_diff( $oldzone, $newzone );
 			if ( scalar %$diff ) {
-				$numchanges += $c->DBUpdate(
+				$numchanges += $self->DBUpdate(
 					table  => 'dns_domain_ip_universe',
 					dbkey  => ( 'dns_domain_id', 'ip_universe_id' ),
 					keyval => $domid,
@@ -551,7 +551,7 @@ sub freshen_zone {
 			${$dom}->{soa_ttl} = $newzone->{soa_ttl};
 		} else {
 			$newzone->{should_generate} = 'N';
-			$numchanges += $c->DBInsert(
+			$numchanges += $self->DBInsert(
 				table => 'dns_domain_ip_universe',
 				hash  => $newzone,
 				errrs => \@errs,
@@ -580,7 +580,7 @@ sub freshen_zone {
 				}
 				die "Unable to discern block for $zone", if ( !$block );
 				$numchanges +=
-				  link_inaddr( $c, $$dom->{dns_domain_id}, $block );
+				  link_inaddr( $self, $$dom->{dns_domain_id}, $block );
 			} else {
 				warn "Unable to make in-addr dns linkage\n";
 			}
@@ -595,7 +595,7 @@ sub freshen_zone {
 			$shortname =~ s/.$parent->{soa_name}$//;
 			foreach my $z (
 				@{
-					$c->DBFetch(
+					$self->DBFetch(
 						table => 'dns_record',
 						match => {
 							dns_domain_id => $parent->{dns_domain_id},
@@ -608,14 +608,14 @@ sub freshen_zone {
 			  )
 			{
 				my $ret = 0;
-				if ( $c->{nodelete} ) {
+				if ( $self->{nodelete} ) {
 					warn "Skipping NS record cleanup on ", $z->{dns_record_id},
 					  "\n";
 				} else {
 					warn "deleting ns record ", $z->{dns_record_id};
 					if (
 						!(
-							$ret = $c->DBDelete(
+							$ret = $self->DBDelete(
 								table  => 'dns_record',
 								dbkey  => 'dns_record_id',
 								keyval => $z->{dns_record_id},
@@ -636,7 +636,7 @@ sub freshen_zone {
 		$lineage =~ s/^[^\.]+\././;
 		foreach my $z (
 			@{
-				$c->DBFetch(
+				$self->DBFetch(
 					table => 'dns_domain',
 					match => [
 						{
@@ -653,11 +653,11 @@ sub freshen_zone {
 			if ( !defined( $z->{parent_dns_domain_id} )
 				|| $z->{parent_dns_domain_id} != $newzone->{dns_domain_id} )
 			{
-				if ( $c->{verbose} ) {
+				if ( $self->{verbose} ) {
 					warn "updating ", $z->{soa_name}, " to have parent of ",
 					  $dom->{soa_name}, "\n";
 				}
-				$numchanges += $c->DBUpdate(
+				$numchanges += $self->DBUpdate(
 					table  => 'dns_domain',
 					dbkey  => 'dns_domain_id',
 					keyval => $z->{dns_domain_id},
@@ -696,7 +696,7 @@ sub refresh_dns_record {
 
 	my $numchanges = 0E0;
 
-	my $c            = $opt->{handle};
+	my $self            = $opt->{handle};
 	my $name         = $opt->{name};
 	my $address      = $opt->{address};
 	my $value        = $opt->{value};
@@ -707,15 +707,15 @@ sub refresh_dns_record {
 	my $srv_port     = $opt->{srv_port};
 	my $genptr       = $opt->{genptr};
 
-	my $universe = $c->{ip_universe};
+	my $universe = $self->{ip_universe};
 
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
-		if ( defined( my $x = $c->get_universe($address) ) ) {
+		if ( defined( my $x = $self->get_universe($address) ) ) {
 			$universe = $x;
 		}
-		$c->_Debug( 2, "Attempting to find %s (universe %s)...",
+		$self->_Debug( 2, "Attempting to find %s (universe %s)...",
 			$address, $universe );
 		my $match = {
 			'is_single_address'      => 'Y',
@@ -723,30 +723,30 @@ sub refresh_dns_record {
 			'ip_universe_id'         => $universe,
 			'host(ip_address)::inet' => $address
 		};
-		$nb = $c->DBFetch(
+		$nb = $self->DBFetch(
 			table           => 'netblock',
 			match           => $match,
 			errors          => \@errs,
 			result_set_size => 'first',
 		);
-		$c->dbh->err && die join( " ", @errs );
+		$self->dbh->err && die join( " ", @errs );
 
 		# If there was not a type default, check for one
 		# that is just there for DNS.
 		if ( !$nb ) {
 			$match->{netblock_type} = 'dns';
-			$nb = $c->DBFetch(
+			$nb = $self->DBFetch(
 				table           => 'netblock',
 				match           => $match,
 				errors          => \@errs,
 				result_set_size => 'first',
 			);
-			$c->dbh->err && die join( " ", @errs );
+			$self->dbh->err && die join( " ", @errs );
 		}
 
 		if ( !$nb ) {
 			my $errname = $name || "";
-			if ( defined( $c->{nbrule} ) && $c->{nbrule} eq 'skip' ) {
+			if ( defined( $self->{nbrule} ) && $self->{nbrule} eq 'skip' ) {
 				print STDERR
 				  "$errname ($address) - Netblock not found.  Skipping.\n";
 				return 0;
@@ -755,10 +755,10 @@ sub refresh_dns_record {
 				  "$errname ($address) - Netblock not found.  Creating.\n";
 			}
 
-			my $pr = $c->dbh->{PrintError};
-			my $re = $c->dbh->{RaiseError};
+			my $pr = $self->dbh->{PrintError};
+			my $re = $self->dbh->{RaiseError};
 
-			$c->dbh->{PrintError} = $c->dbh->{RaiseError} = 0;
+			$self->dbh->{PrintError} = $self->dbh->{RaiseError} = 0;
 
 			$nb = {
 				ip_address        => $address,
@@ -768,41 +768,41 @@ sub refresh_dns_record {
 				netblock_status   => 'Allocated',
 				ip_universe_id    => $universe,
 			};
-			$c->dbh->do("SAVEPOINT biteme");
-			my $x = $c->DBInsert(
+			$self->dbh->do("SAVEPOINT biteme");
+			my $x = $self->DBInsert(
 				table => 'netblock',
 				hash  => $nb,
 				errs  => \@errs,
 			);
-			$c->dbh->{PrintError} = $pr;
-			$c->dbh->{RaiseError} = $re;
+			$self->dbh->{PrintError} = $pr;
+			$self->dbh->{RaiseError} = $re;
 
 			if ( !$x ) {
-				if ( $c->dbh->err == 7 ) {
-					my $errmsg = $c->dbh->errstr;
-					$c->dbh->do("ROLLBACK TO SAVEPOINT biteme");
-					if ( defined( $c->{nbrule} )
-						&& $c->{nbrule} eq 'iponly' )
+				if ( $self->dbh->err == 7 ) {
+					my $errmsg = $self->dbh->errstr;
+					$self->dbh->do("ROLLBACK TO SAVEPOINT biteme");
+					if ( defined( $self->{nbrule} )
+						&& $self->{nbrule} eq 'iponly' )
 					{
 						my $e = ( scalar @errs ) ? join( " ", @errs ) : $errmsg;
 						$e =~ s/\n/ /mg;
-						$c->_Debug( 1, "Skipping %s creation" );
-						$c->_Debug( 10, "... db said", $e );
+						$self->_Debug( 1, "Skipping %s creation" );
+						$self->_Debug( 10, "... db said", $e );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
-						my $x = $c->DBInsert(
+						my $x = $self->DBInsert(
 							table => 'netblock',
 							hash  => $nb,
 							errrs => \@errs,
 						  )
-						  || die "$address: [", $c->dbh->err, "] ",
+						  || die "$address: [", $self->dbh->err, "] ",
 						  join( " ", @errs );
 					}
 				} else {
-					die "$address: [", $c->dbh->err, "] ", join( " ", @errs );
+					die "$address: [", $self->dbh->err, "] ", join( " ", @errs );
 				}
-				$c->dbh->do("RELEASE SAVEPOINT biteme");
+				$self->dbh->do("RELEASE SAVEPOINT biteme");
 			} else {
 				$numchanges += $x;
 			}
@@ -811,8 +811,8 @@ sub refresh_dns_record {
 	}
 
 	my $recuniverse = $universe;
-	if ( $opt->{dns_type} eq 'AAAA' && defined( $c->{v6_universe} ) ) {
-		$recuniverse = $c->{v6_universe};
+	if ( $opt->{dns_type} eq 'AAAA' && defined( $self->{v6_universe} ) ) {
+		$recuniverse = $self->{v6_universe};
 	}
 
 	my $match = {
@@ -828,7 +828,7 @@ sub refresh_dns_record {
 		$match->{dns_srv_protocol} = $srv_protocol;
 	}
 
-	my $rows = $c->DBFetch(
+	my $rows = $self->DBFetch(
 		table  => 'dns_record',
 		match  => $match,
 		errors => \@errs,
@@ -861,9 +861,9 @@ sub refresh_dns_record {
 
 		# Find if there is a dns record associated with this record
 		$dnsrecid = $dnsrec->{dns_record_id};
-		my $diff = $c->hash_table_diff( $dnsrec, $new );
+		my $diff = $self->hash_table_diff( $dnsrec, $new );
 		if ( scalar %$diff ) {
-			$numchanges += $c->DBUpdate(
+			$numchanges += $self->DBUpdate(
 				table  => 'dns_record',
 				dbkey  => 'dns_record_id',
 				keyval => $dnsrec->{dns_record_id},
@@ -871,28 +871,28 @@ sub refresh_dns_record {
 				errs   => \@errs,
 			) || die join( " ", @errs );
 			warn " ++ refresh dns record ", $dnsrec->{dns_record_id}, "\n"
-			  if ( $c->{verbose} );
+			  if ( $self->{verbose} );
 		}
 	} else {
-		$numchanges += $c->DBInsert(
+		$numchanges += $self->DBInsert(
 			table => 'dns_record',
 			hash  => $new,
 			errrs => \@errs,
 		) || die join( " ", Dumper($new), @errs );
 		$dnsrecid = $new->{dns_record_id};
-		$c->_Debug( 8, "Inserted new record: %d", $new->{dns_record_id} );
+		$self->_Debug( 8, "Inserted new record: %d", $new->{dns_record_id} );
 	}
 
 	$numchanges;
 }
 
 sub process_zone {
-	my ( $c, $ns, $xferzone ) = @_;
+	my ( $self, $ns, $xferzone ) = @_;
 
 	my $numchanges = 0;
 
 	my $dom;
-	my $r = $c->freshen_zone( $ns, $xferzone, \$dom );
+	my $r = $self->freshen_zone( $ns, $xferzone, \$dom );
 	if ( defined($r) ) {
 		$numchanges += $r;
 	}
@@ -916,7 +916,7 @@ sub process_zone {
 	foreach my $rr ( sort by_name @zone ) {
 		my $x = $rr->string;
 		$x =~ s/\s+/ /mg;
-		$c->_Debug( 1, ">> Processing record %s...", $x );
+		$self->_Debug( 1, ">> Processing record %s...", $x );
 		my $name = $rr->name;
 		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
@@ -926,7 +926,7 @@ sub process_zone {
 
 		$numrec++;
 		my $new = {
-			handle        => $c,
+			handle        => $self,
 			domain        => $xferzone,
 			name          => $name,
 			dns_domain_id => $domid,
@@ -972,7 +972,7 @@ sub process_zone {
 					$ip =~ s/:$//;
 				}
 
-				if ( my $dbrec = $c->get_ptr($ip) ) {
+				if ( my $dbrec = $self->get_ptr($ip) ) {
 					if ( $dbrec ne $rr->ptrdname ) {
 						warn
 						  "PTR: $ip has a PTR record that does not match DB (",
@@ -987,7 +987,7 @@ sub process_zone {
 			$new->{value} = $rr->ptrdname;
 			$new->{value} .= "." if ($isip);
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
-			my $ptr = $c->get_inaddr( $rr->address );
+			my $ptr = $self->get_inaddr( $rr->address );
 
 			$new->{address} = $rr->address;
 			$new->{genptr} =
@@ -1012,7 +1012,7 @@ sub process_zone {
 					$new->{name} = $n;
 				}
 
-				check_and_add_service( $c, $srv );
+				check_and_add_service( $self, $srv );
 			}
 			#
 			$new->{priority}   = $rr->priority;
@@ -1026,7 +1026,7 @@ sub process_zone {
 			# XXX may want to consider this check to be optional.
 			if ( defined($name) && length($name) ) {
 				my @errs;
-				my $count = $c->DBFetch(
+				my $count = $self->DBFetch(
 					table           => 'dns_domain',
 					match           => { soa_name => $rr->name },
 					result_set_size => 'exactlyone',
@@ -1084,12 +1084,12 @@ sub process_zone {
 }
 
 sub process_db {
-	my ( $c, $zone ) = @_;
+	my ( $self, $zone ) = @_;
 
 	return 0;
 
 	my @errs;
-	my $rows = $c->DBFetch(
+	my $rows = $self->DBFetch(
 		table           => 'dns_domain',
 		match           => { soa_name => $zone, },
 		result_set_size => 'first',
@@ -1137,13 +1137,13 @@ sub do_zone_load {
 			&& $nbrule ne 'iponly' );
 	}
 
-	my $c = new ZoneImportWorker(
+	my $ziw = new ZoneImportWorker(
 		dbuser => 'zoneimport',
 		debug  => $debug,
 	) || die $ZoneImportWorker::errstr;
 
 	if ($guessuniverse) {
-		$c->pull_universes();
+		$ziw->pull_universes();
 	}
 
 	if ($ns) {
@@ -1157,19 +1157,19 @@ sub do_zone_load {
 
 	warn "NS Is $ns";
 
-	$c->{nbrule}      = $nbrule;
-	$c->{verbose}     = $verbose;
-	$c->{addservice}  = $addsvr;
-	$c->{nodelete}    = $nodelete;
-	$c->{nameserver}  = $ns if ($ns);
-	$c->{ip_universe} = $c->find_universe($universe);
-	$c->{v6_universe} = $c->find_universe($v6universe) if ($v6universe);
+	$ziw->{nbrule}      = $nbrule;
+	$ziw->{verbose}     = $verbose;
+	$ziw->{addservice}  = $addsvr;
+	$ziw->{nodelete}    = $nodelete;
+	$ziw->{nameserver}  = $ns if ($ns);
+	$ziw->{ip_universe} = $ziw->find_universe($universe);
+	$ziw->{v6_universe} = $ziw->find_universe($v6universe) if ($v6universe);
 
 	foreach my $zone (@ARGV) {
-		$c->_Debug( 1, "Processing zone %s", $zone );
+		$ziw->_Debug( 1, "Processing zone %s", $zone );
 		if ($ns) {
-			$c->process_zone( $ns, $zone );
-			$c->process_db($zone);
+			$ziw->process_zone( $ns, $zone );
+			$ziw->process_db($zone);
 		} else {
 			my $res = new Net::DNS::Resolver;
 			$res->nameservers($ns) if ($ns);
@@ -1180,21 +1180,21 @@ sub do_zone_load {
 			foreach my $rr ( grep { $_->type eq 'NS' } $resp->answer ) {
 				my $ns = $rr->nsdname;
 				warn "consdering $ns\n";
-				my $numchanges = $c->process_zone( $ns, $zone );
+				my $numchanges = $ziw->process_zone( $ns, $zone );
 				if ( !defined($numchanges) ) {
 					next;
 				}
 				warn "updated $numchanges records\n";
-				$c->process_db($zone);
+				$ziw->process_db($zone);
 				last;
 			}
 		}
 	}
 
 	if ($dryrun) {
-		$c->rollback;
+		$ziw->rollback;
 	} else {
-		$c->commit;
+		$ziw->commit;
 	}
 	0;
 }
