@@ -554,7 +554,7 @@ sub freshen_zone {
 			}
 			${$dom}->{soa_ttl} = $newzone->{soa_ttl};
 		} else {
-			$newzone->{should_generate} = 'N';
+			$newzone->{should_generate} = $self->{shouldgenerate};
 			$numchanges += $self->DBInsert(
 				table => 'dns_domain_ip_universe',
 				hash  => $newzone,
@@ -716,7 +716,9 @@ sub refresh_dns_record {
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
-		if ( defined( my $x = $self->get_universe($address) ) ) {
+		if ( $opt->{dns_type} eq 'AAAA' && defined( $self->{v6_universe} ) ) {
+			$universe = $self->{v6_universe};
+		} elsif ( defined( my $x = $self->get_universe($address) ) ) {
 			$universe = $x;
 		}
 		$self->_Debug( 2, "Attempting to find %s (universe %s)...",
@@ -790,8 +792,8 @@ sub refresh_dns_record {
 					{
 						my $e = ( scalar @errs ) ? join( " ", @errs ) : $errmsg;
 						$e =~ s/\n/ /mg;
-						$self->_Debug( 1, "Skipping %s creation" );
-						$self->_Debug( 10, "... db said", $e );
+						$self->_Debug( 1, "Skipping %s creation", $address);
+						$self->_Debug( 1, "... db said: %s", $e );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
@@ -815,9 +817,6 @@ sub refresh_dns_record {
 	}
 
 	my $recuniverse = $universe;
-	if ( $opt->{dns_type} eq 'AAAA' && defined( $self->{v6_universe} ) ) {
-		$recuniverse = $self->{v6_universe};
-	}
 
 	my $match = {
 		dns_name       => $name,
@@ -1115,7 +1114,7 @@ sub do_zone_load {
 	my (
 		$ns,       $verbose,       $addsvr,
 		$nodelete, $debug,         $dryrun,
-		$universe, $guessuniverse, $v6universe
+		$universe, $guessuniverse, $v6universe, $shouldgenerate
 	);
 
 	my $r = GetOptions(
@@ -1130,6 +1129,7 @@ sub do_zone_load {
 		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
 		"unknown-netblocks=s" => \$nbrule,
+		"should-generate" => \$shouldgenerate,
 	) || die "Issues";
 
 	$verbose = 1 if ($debug);
@@ -1165,6 +1165,7 @@ sub do_zone_load {
 	$ziw->{verbose}     = $verbose;
 	$ziw->{addservice}  = $addsvr;
 	$ziw->{nodelete}    = $nodelete;
+	$ziw->{shouldgenerate}    = ($shouldgenerate)?'Y':'N';
 	$ziw->{nameserver}  = $ns if ($ns);
 	$ziw->{ip_universe} = $ziw->find_universe($universe);
 	$ziw->{v6_universe} = $ziw->find_universe($v6universe) if ($v6universe);
