@@ -646,7 +646,7 @@ sub process_all_dns_records {
 			}
 			$pri .= " " if ( defined($pri) );
 			$value = "$pri$value";
-		} elsif ( $type eq 'TXT' ) {
+		} elsif ( $type eq 'TXT' || $type eq 'SPF') {
 			$value =~ s/^"//;
 			$value =~ s/"$//;
 			$value = "\"$value\"";
