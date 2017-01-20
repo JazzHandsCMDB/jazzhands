@@ -1917,8 +1917,12 @@ BEGIN
 			BEGIN
 				IF objkind = 'r' THEN
 					EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
-						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
-						INTO ts;
+						INTO ts
+						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) ||' 
+						WHERE "aud#timestamp" > (
+								SELECT max("aud#timestamp") 
+								FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) || '
+							) - ''10 day''::interval';
 					IF ts IS NULL THEN
 						EXECUTE 'SELECT max("aud#timestamp")
 							FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
