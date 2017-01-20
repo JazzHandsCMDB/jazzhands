@@ -74,7 +74,8 @@ sub new {
 sub find_universe {
 	my ( $self, $u ) = @_;
 
-	return 0 if ( !$u );
+
+	return 0 if ( !defined($u) );
 
 	return undef if ( $u eq 'none' );
 
@@ -97,7 +98,7 @@ sub find_universe {
 	}
 	$self->dbh->err && die join( " ", @errs );
 
-	die "Unable to find universe $u";
+	return undef;
 }
 
 #
@@ -1173,8 +1174,8 @@ sub do_zone_load {
 	$ziw->{nodelete}   = $nodelete;
 	if ( scalar @alloweduniverses ) {
 		foreach my $u (@alloweduniverses) {
-			my $id = $ziw->find_universe($universe);
-			die "Unknown universe $u\n" if ( !$id );
+			my $id = $ziw->find_universe($u);
+			die "Unknown universe $u\n" if ( !defined($id) );
 			push( @{ $ziw->{alloweduniverses} }, $id );
 		}
 	}
