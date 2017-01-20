@@ -22,7 +22,5 @@
 -- legacy behavior until other things can be cleaned up.
 CREATE OR REPLACE VIEW v_network_interface_trans AS
 	SELECT * FROM network_interface
-UNION
-	SELECT * FROM network_interface
 ;
 
