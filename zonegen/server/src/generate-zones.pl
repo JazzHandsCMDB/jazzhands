@@ -1,5 +1,13 @@
 #!/usr/bin/env perl
 
+# TODO:
+# - deal with ordering, TXT records on zone were coming later sometimes
+# - pulling up child zones with ip universe bits
+# - trigger enforcement of various data across ip universes keeping in mind
+#	ip_universe_visibility
+# - zonegen deals with per-server in a sane fashion
+# - dns domain collection association for "put these zones anyway" on per-server
+
 # Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
 #
