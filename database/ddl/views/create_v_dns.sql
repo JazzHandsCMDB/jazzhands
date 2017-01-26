@@ -20,7 +20,7 @@
 
 CREATE OR REPLACE VIEW v_dns AS
 	SELECT * FROM v_dns_fwd
-UNION
+UNION ALL
 	SELECT * FROM v_dns_rvs
 ;
 

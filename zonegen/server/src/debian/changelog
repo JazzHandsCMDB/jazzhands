@@ -1,3 +1,35 @@
+jazzhands-zonegen-server (0.74.10) trusty; urgency=medium
+
+  * cleanup some debugging that leaked through
+  * assume v_dns views are correct for reference/value dns_reocrd_id
+  * above requires some sort order changes 
+  * perltidy
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 5 Dec 2016 13:30:00 -0400
+
+jazzhands-zonegen-server (0.74.8) trusty; urgency=medium
+
+  * only move files if changed (except zones)
+  * generate config files in a consistent order
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 17 Nov 2016 09:52:00 -0400
+
+
+jazzhands-zonegen-server (0.74.6) trusty; urgency=medium
+
+  * remove errant debugging -n from rsync.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  9 Nov 2016 16:44:20 -0400
+
+
+jazzhands-zonegen-server (0.74.5) trusty; urgency=medium
+
+  * switch to a zonegen client to do the rndc
+  * change per-server generation to properly handle unqualified NS records.
+  * remove dates/generation hosts from default but have option to include
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 14 Sep 2016 22:02:15 -0400
+
 jazzhands-zonegen-server (0.72.0) trusty; urgency=medium
 
   * switch zonegen to dns views instead of individual queries.
