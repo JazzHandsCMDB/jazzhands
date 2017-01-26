@@ -276,7 +276,12 @@ BEGIN
 		  AND	dcd.device_id = in_Device_id
 	);
 
-	delete from device_collection_device where device_id = in_Device_id;
+	delete from device_collection_device where device_id = in_Device_id
+		AND device_collection_id NOT IN (
+			select device_collection_id
+			FROM device_collection
+			WHERE device_collection_type = 'per-device'
+		);
 	delete from snmp_commstr where device_id = in_Device_id;
 
 		

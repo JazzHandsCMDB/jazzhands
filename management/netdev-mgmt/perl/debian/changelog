@@ -1,3 +1,17 @@
+jazzhands-perl-netdev-mgmt (0.74.9) unstable; urgency=low
+
+  * Make SetBGPPeer require a bgp_peer_group parameter to be passed,
+    rather than hardcoding
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 29 Nov 2016 15:40:35 -0600
+
+jazzhands-perl-netdev-mgmt (0.74.7) unstable; urgency=low
+
+  * Fix issue with GetInterfaceInfo crapping out because of XML handling
+    if no filters exist on the interface
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 16 Nov 2016 12:10:30 -0600
+
 jazzhands-perl-netdev-mgmt (0.71.7) unstable; urgency=low
 
   * Add GetChassisInfo method to juniper.pm

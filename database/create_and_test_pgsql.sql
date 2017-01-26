@@ -77,13 +77,12 @@ begin;
 \ir tests/pgsql/netblock_regression_test.sql
 -- \ir tests/pgsql/netblock_regression_test-RETIRE.sql
 \ir tests/pgsql/dns_record_regression_test.sql
+\ir tests/pgsql/ip_universe_validation_regression.sql
 -- will be in a point release
 \ir tests/pgsql/network_interface_regression_test.sql
 \ir tests/pgsql/property_regression_test.sql
 \ir tests/pgsql/device_ticket_regression.sql
 \ir tests/pgsql/device_power_regression.sql
-
-SET jazzhands.permit_company_insert = 'permit';
 
 \ir tests/pgsql/account_coll_hier_regression.sql
 \ir tests/pgsql/company_coll_hier_regression.sql
@@ -101,8 +100,6 @@ SET jazzhands.permit_company_insert = 'permit';
 
 \ir tests/pgsql/account_enabled_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
-
-SET jazzhands.permit_company_insert TO default;
 
 rollback;
 -- RAISE EXCEPTION 'need to put transactions back in testing';

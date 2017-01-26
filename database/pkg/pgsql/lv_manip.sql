@@ -56,7 +56,7 @@ BEGIN
 				THEN false
 				ELSE lh.physicalish_volume_id = pvid
 			END OR
-			CASE WHEN vgid  IS NULL
+			CASE WHEN vgid IS NULL
 				THEN false
 				ELSE lh.volume_group_id = vgid
 			END OR
@@ -77,7 +77,7 @@ BEGIN
 				THEN false
 				ELSE lh.physicalish_volume_id = pvid
 			END OR
-			CASE WHEN vgid  IS NULL
+			CASE WHEN vgid IS NULL
 				THEN false
 				ELSE lh.volume_group_id = vgid
 			END OR
@@ -98,7 +98,7 @@ BEGIN
 				THEN false
 				ELSE lh.physicalish_volume_id = pvid
 			END OR
-			CASE WHEN vgid  IS NULL
+			CASE WHEN vgid IS NULL
 				THEN false
 				ELSE lh.volume_group_id = vgid
 			END OR
@@ -140,7 +140,7 @@ BEGIN
 		WHERE
 			(CASE WHEN physicalish_volume_list IS NULL
 				THEN false
-				ELSE lh.physicalish_volume_id = ANY (physical_volume_list)
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
 			END OR
 			CASE WHEN volume_group_list  IS NULL
 				THEN false
@@ -163,11 +163,11 @@ BEGIN
 				THEN false
 				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
 			END OR
-			CASE WHEN vgid  IS NULL
+			CASE WHEN vg_list IS NULL
 				THEN false
 				ELSE lh.volume_group_id = ANY (volume_group_list)
 			END OR
-			CASE WHEN lvid IS NULL
+			CASE WHEN lv_list IS NULL
 				THEN false
 				ELSE lh.logical_volume_id = ANY (logical_volume_list)
 			END)
@@ -180,15 +180,15 @@ BEGIN
 		FROM
 			v_lv_hier lh
 		WHERE
-			(CASE WHEN pvid IS NULL
+			(CASE WHEN pv_list IS NULL
 				THEN false
 				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
 			END OR
-			CASE WHEN vgid  IS NULL
+			CASE WHEN vg_list IS NULL
 				THEN false
 				ELSE lh.volume_group_id = ANY (volume_group_list)
 			END OR
-			CASE WHEN lvid IS NULL
+			CASE WHEN lv_list IS NULL
 				THEN false
 				ELSE lh.logical_volume_id = ANY (logical_volume_list)
 			END)
@@ -198,6 +198,8 @@ BEGIN
 	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM volume_group_physicalish_vol WHERE physicalish_volume_id = ANY(pv_list);
+	DELETE FROM volume_group_physicalish_vol WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
 

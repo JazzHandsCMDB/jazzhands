@@ -54,8 +54,11 @@
 -- XXX - not sure if this is still needed.  Leaving out until it is.
 -- \ir create_v_limited_users.sql
 
+-- components
+
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components.sql
+\ir pgsql/create_v_device_components_expanded.sql
 
 \ir create_physical_port.sql
 \ir create_layer1_connection.sql
@@ -85,6 +88,11 @@
 \ir pgsql/create_v_acct_coll_prop_expanded.sql
 
 \ir pgsql/create_v_device_coll_device_expanded.sql
+\ir pgsql/create_v_netblock_coll_expanded.sql
+
+\ir create_v_dev_col_root.sql
+\ir create_mv_dev_col_root.sql
+\ir create_v_dev_col_device_root.sql
 
 \ir pgsql/create_v_account_collection_expanded.sql
 
@@ -148,6 +156,9 @@
 \ir create_v_dns_fwd.sql
 \ir create_v_dns_rvs.sql
 \ir create_v_dns.sql
+\ir create_v_dns_sorted.sql
 
--- too be retired
+-- to be retired
 \ir create_x509_certificate.sql
+\ir create_v_network_interface_trans.sql
+\ir create_v_device_collection_hier_trans.sql

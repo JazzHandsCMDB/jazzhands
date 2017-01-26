@@ -28,6 +28,7 @@ DECLARE
 	v_layer2_network_collection	layer2_network_collection%ROWTYPE;
 	v_layer3_network_collection	layer3_network_collection%ROWTYPE;
 	v_netblock_collection		netblock_collection%ROWTYPE;
+	v_network_range				network_range%ROWTYPE;
 	v_property_collection		property_collection%ROWTYPE;
 	v_service_env_collection	service_environment_collection%ROWTYPE;
 	v_num				integer;
@@ -341,7 +342,7 @@ BEGIN
 				IF v_account_collection.account_collection_Type != v_prop.account_collection_type
 				THEN
 					RAISE 'account_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.account_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -352,18 +353,18 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- If the LHS contains a account_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-account), and verify that if so
-	IF NEW.account_collection_id IS NOT NULL THEN
-		IF v_prop.account_collection_type IS NOT NULL THEN
+	-- If the LHS contains a company_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-company), and verify that if so
+	IF NEW.company_collection_id IS NOT NULL THEN
+		IF v_prop.company_collection_type IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_account_collection
-					FROM account_collection WHERE
-					account_collection_Id = NEW.account_collection_id;
-				IF v_account_collection.account_collection_Type != v_prop.account_collection_type
+				SELECT * INTO STRICT v_company_collection
+					FROM company_collection WHERE
+					company_collection_Id = NEW.company_collection_id;
+				IF v_company_collection.company_collection_Type != v_prop.company_collection_type
 				THEN
-					RAISE 'account_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					RAISE 'company_collection_id must be of type %',
+					v_prop.company_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -385,7 +386,7 @@ BEGIN
 				IF v_device_collection.device_collection_Type != v_prop.device_collection_type
 				THEN
 					RAISE 'device_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.device_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -407,7 +408,7 @@ BEGIN
 				IF v_dns_domain_collection.dns_domain_collection_Type != v_prop.dns_domain_collection_type
 				THEN
 					RAISE 'dns_domain_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.dns_domain_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -429,7 +430,7 @@ BEGIN
 				IF v_layer2_network_collection.layer2_network_collection_Type != v_prop.layer2_network_collection_type
 				THEN
 					RAISE 'layer2_network_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.layer2_network_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -451,7 +452,7 @@ BEGIN
 				IF v_layer3_network_collection.layer3_network_collection_Type != v_prop.layer3_network_collection_type
 				THEN
 					RAISE 'layer3_network_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.layer3_network_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -473,7 +474,29 @@ BEGIN
 				IF v_netblock_collection.netblock_collection_Type != v_prop.netblock_collection_type
 				THEN
 					RAISE 'netblock_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.netblock_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a network_range_id, check to see if it must 
+	-- be a specific type and verify that if so
+	IF NEW.netblock_collection_id IS NOT NULL THEN
+		IF v_prop.network_range_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_network_range
+					FROM network_range WHERE
+					network_range_id = NEW.network_range_id;
+				IF v_network_range.network_range_type != v_prop.network_range_type
+				THEN
+					RAISE 'network_range_id must be of type %',
+					v_prop.network_range_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -495,7 +518,7 @@ BEGIN
 				IF v_property_collection.property_collection_Type != v_prop.property_collection_type
 				THEN
 					RAISE 'property_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.property_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -517,7 +540,7 @@ BEGIN
 				IF v_service_env_collection.service_env_collection_Type != v_prop.service_env_collection_type
 				THEN
 					RAISE 'service_env_collection_id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					v_prop.service_env_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION

@@ -1,3 +1,30 @@
+jazzhands-dhcpgen (0.75.0) trusty; urgency=medium
+
+  * Deal with val_property getting a network_range_type column
+  * use Pod::Usage so help does not give a perl error
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 11 Jan 2017 10:41:42 -0500
+
+jazzhands-dhcpgen (0.74.12.1) trusty; urgency=medium
+
+  * Remove debugging things
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 12 Dec 2016 16:27:41 -0500
+
+
+jazzhands-dhcpgen (0.74.12) trusty; urgency=medium
+
+  * Fix issue fixing below issues because NetAddr::IP sucks
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 12 Dec 2016 16:15:56 -0500
+
+jazzhands-dhcpgen (0.74.11) trusty; urgency=medium
+
+  * Fix issue where returning more than two netblocks in a collection would
+    cause things to be sucked into an array incorrectly
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 12 Dec 2016 10:36:21 -0500
+
 jazzhands-dhcpgen (0.71.8) trusty; urgency=medium
 
   * Fix issue where a subnet declaration consisting of a single, but invalid,

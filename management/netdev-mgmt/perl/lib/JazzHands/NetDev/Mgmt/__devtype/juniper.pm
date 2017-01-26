@@ -2093,6 +2093,11 @@ sub SetBGPPeerStatus {
 			"bgp_peer parameter must be passed to SetBGPPeer");
 		return undef;
 	}
+	if (!$opt->{bgp_peer_group}) {
+		SetError($err,
+			"bgp_peer_group parameter must be passed to SetBGPPeer");
+		return undef;
+	}
 	my ($peerobj, $bgp_peer);
 	if (ref($opt->{bgp_peer})) {
 		$peerobj = $opt->{bgp_peer};
@@ -2140,7 +2145,7 @@ sub SetBGPPeerStatus {
 	my $confdoc;
 	my $res;
 	$res = $jnx->get_bgp_group_information(
-		group_name => 'ADNEXUS-HOST'
+		group_name => $opt->{bgp_peer_group}
 	);
 
 	if (!ref($res)) {
@@ -2184,7 +2189,7 @@ sub SetBGPPeerStatus {
 				<protocols>
 					<bgp>
 						<group>
-							<name>ADNEXUS-HOST</name>
+							<name>%s</name>
 							<neighbor delete="delete">
 								<name>%s</name>
 							</neighbor>
@@ -2194,7 +2199,7 @@ sub SetBGPPeerStatus {
 			</instance>
 		</routing-instances>
 	</configuration>
-			}, $bgp_peer);
+			}, $opt->{bgp_peer_group}, $bgp_peer);
 		my $parser = new XML::DOM::Parser;
 		my $doc = $parser->parsestring($xml);
 		if (!$doc) {
@@ -2281,7 +2286,7 @@ sub SetBGPPeerStatus {
 				<protocols>
 					<bgp>
 						<group>
-							<name>ADNEXUS-HOST</name>
+							<name>%s</name>
 							<neighbor>
 								<name>%s</name>
 							</neighbor>
@@ -2291,7 +2296,7 @@ sub SetBGPPeerStatus {
 			</instance>
 		</routing-instances>
 	</configuration>
-			}, $bgp_peer);
+			}, $opt->{bgp_peer_group}, $bgp_peer);
 		my $parser = new XML::DOM::Parser;
 		my $doc = $parser->parsestring($xml);
 		if (!$doc) {
@@ -2407,9 +2412,11 @@ sub GetInterfaceConfig {
 			my $nt = $f->getNodeType;
 			next if ($nt == TEXT_NODE);
 			my $filtertype = $f->getNodeName;
-			my $filtername = $f->getElementsByTagName('filter-name')->[0]->
-				getFirstChild->getNodeValue;
-			$iface_info->{filter}->{$filtertype} = $filtername;
+			my $filtername = $f->getElementsByTagName('filter-name')->[0];
+			if (ref($filtername)) {
+				$iface_info->{filter}->{$filtertype} = 
+					$filtername->getFirstChild->getNodeValue;
+			}
 		}
 	}
 	return $iface_info;

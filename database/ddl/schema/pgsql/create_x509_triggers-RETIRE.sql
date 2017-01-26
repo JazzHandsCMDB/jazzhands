@@ -50,7 +50,7 @@ BEGIN
 	END IF;
 
 	IF NEW.certificate_sign_req IS NOT NULL THEN
-		INSERT INTO certificate_sign_req (
+		INSERT INTO certificate_signing_request (
 			friendly_name,
 			subject,
 			certificate_signing_request,
@@ -208,7 +208,7 @@ BEGIN
 	upq := NULL;
 	IF crt.certificate_signing_request_id IS NULL AND NEW.certificate_sign_req IS NOT NULL THEN
 		WITH ins AS (
-			INSERT INTO certificate_sign_req (
+			INSERT INTO certificate_signing_request (
 				friendly_name,
 				subject,
 				certificate_signing_request,

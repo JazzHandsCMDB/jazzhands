@@ -1,8 +1,29 @@
+perl-jazzhands-dbi (0.74.4) unstable; urgency=medium
+
+  * patch from Yogi Saxena to fix transaction isolation level
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 13 Oct 2016 17:25:41 -0400
+
+perl-jazzhands-dbi (0.74.3) unstable; urgency=medium
+
+  * patch from Yogi Saxena to set transaction isolation level
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 13 Oct 2016 11:35:22 -0400
+
+
 perl-jazzhands-dbi (0.66.1.2) unstable; urgency=medium
 
   * fix issue where module did not get installed under debian. not sure wtf.
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 14 Jan 2016 23:02:06 +0000
+
+
+perl-jazzhands-dbi (0.66.1.2) unstable; urgency=medium
+
+  * fix issue where module did not get installed under debian. not sure wtf.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 14 Jan 2016 23:02:06 +0000
+
 
 perl-jazzhands-dbi (0.66.1.1) unstable; urgency=medium
 

@@ -329,7 +329,7 @@ BEGIN
 					AND host(stop.ip_address)::inet <<= p.ip_address
 				)
 				OR ( vnrt.netblock_type IS NOT NULL
-				OR NOT
+				AND NOT
 					( start.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
 					AND	stop.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
 					)

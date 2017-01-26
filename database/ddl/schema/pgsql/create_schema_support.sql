@@ -393,16 +393,59 @@ END;
 $FUNC$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
-	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
-	first_time boolean DEFAULT true
+CREATE OR REPLACE FUNCTION schema_support.build_audit_table_pkak_indexes(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
 )
 RETURNS VOID AS $FUNC$
 DECLARE
 	keys	RECORD;
 	count	INTEGER;
 	name	TEXT;
+BEGIN
+	COUNT := 0;
+	-- one day, I will want to construct the list of columns by hand rather
+	-- than use pg_get_constraintdef.  watch me...
+	FOR keys IN
+		SELECT con.conname, c2.relname as index_name,
+			pg_catalog.pg_get_constraintdef(con.oid, true) as condef,
+				regexp_replace(
+			pg_catalog.pg_get_constraintdef(con.oid, true),
+					'^.*(\([^\)]+\)).*$', '\1') as cols,
+			con.condeferrable,
+			con.condeferred
+		FROM pg_catalog.pg_class c
+			INNER JOIN pg_namespace n
+				ON relnamespace = n.oid
+			INNER JOIN pg_catalog.pg_index i
+				ON c.oid = i.indrelid
+			INNER JOIN pg_catalog.pg_class c2
+				ON i.indexrelid = c2.oid
+			INNER JOIN pg_catalog.pg_constraint con ON
+				(con.conrelid = i.indrelid
+				AND con.conindid = i.indexrelid )
+		WHERE c.relname =  table_name
+		AND	 n.nspname = tbl_schema
+		AND con.contype in ('p', 'u')
+	LOOP
+		name := 'aud_' || quote_ident( table_name || '_' || keys.conname);
+		IF char_length(name) > 63 THEN
+			name := 'aud_' || count || quote_ident( table_name || '_' || keys.conname);
+			COUNT := COUNT + 1;
+		END IF;
+		EXECUTE 'CREATE INDEX ' || name
+			|| ' ON ' || quote_ident(aud_schema) || '.'
+			|| quote_ident(table_name) || keys.cols;
+	END LOOP;
+
+END;
+$FUNC$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
+	first_time boolean DEFAULT true
+)
+RETURNS VOID AS $FUNC$
 BEGIN
 	BEGIN
 	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
@@ -442,40 +485,8 @@ BEGIN
 		|| quote_ident( table_name )
 		|| ' ADD PRIMARY KEY ("aud#seq")';
 
-	COUNT := 0;
-	-- one day, I will want to construct the list of columns by hand rather
-	-- than use pg_get_constraintdef.  watch me...
-	FOR keys IN
-		SELECT con.conname, c2.relname as index_name,
-			pg_catalog.pg_get_constraintdef(con.oid, true) as condef,
-				regexp_replace(
-			pg_catalog.pg_get_constraintdef(con.oid, true),
-					'^.*(\([^\)]+\)).*$', '\1') as cols,
-			con.condeferrable,
-			con.condeferred
-		FROM pg_catalog.pg_class c
-			INNER JOIN pg_namespace n
-				ON relnamespace = n.oid
-			INNER JOIN pg_catalog.pg_index i
-				ON c.oid = i.indrelid
-			INNER JOIN pg_catalog.pg_class c2
-				ON i.indexrelid = c2.oid
-			INNER JOIN pg_catalog.pg_constraint con ON
-				(con.conrelid = i.indrelid
-				AND con.conindid = i.indexrelid )
-		WHERE c.relname =  table_name
-		AND	 n.nspname = tbl_schema
-		AND con.contype in ('p', 'u')
-	LOOP
-		name := 'aud_' || quote_ident( table_name || '_' || keys.conname);
-		IF char_length(name) > 63 THEN
-			name := 'aud_' || count || quote_ident( table_name || '_' || keys.conname);
-			COUNT := COUNT + 1;
-		END IF;
-		EXECUTE 'CREATE INDEX ' || name
-			|| ' ON ' || quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name) || keys.cols;
-	END LOOP;
+	PERFORM schema_support.build_audit_table_pkak_indexes(
+		aud_schema, tbl_schema, table_name);
 
 	IF first_time THEN
 		PERFORM schema_support.rebuild_audit_trigger
@@ -732,7 +743,8 @@ BEGIN
 			c.relname as name,
 			CASE c.relkind
 				WHEN 'r' THEN 'table'
-				WHEN 'v' THEN 'view'
+				WHEN 'm' THEN 'view'
+				WHEN 'v' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as "Type",
@@ -778,6 +790,7 @@ BEGIN
 			CASE c.relkind
 				WHEN 'r' THEN 'table'
 				WHEN 'v' THEN 'view'
+				WHEN 'mv' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as "Type",
@@ -974,6 +987,8 @@ DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
 	_ddl	TEXT;
+	_mat	TEXT;
+	_typ	TEXT;
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
@@ -984,24 +999,30 @@ BEGIN
 	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
 	FOR _r in SELECT n.nspname, c.relname, 'view',
 				coalesce(u.usename, 'public') as owner,
-				pg_get_viewdef(c.oid, true) as viewdef
+				pg_get_viewdef(c.oid, true) as viewdef, relkind
 		FROM pg_class c
 		INNER JOIN pg_namespace n on n.oid = c.relnamespace
 		LEFT JOIN pg_user u on u.usesysid = c.relowner
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
-		_ddl := 'CREATE OR REPLACE VIEW ' || _r.nspname || '.' || _r.relname ||
+		_mat = ' VIEW ';
+		_typ = 'view';
+		IF _r.relkind = 'm' THEN
+			_mat = ' MATERIALIZED VIEW ';
+			_typ = 'materialized view';
+		END IF;
+		_ddl := 'CREATE ' || _mat || _r.nspname || '.' || _r.relname ||
 			' AS ' || _r.viewdef;
 		IF _ddl is NULL THEN
 			RAISE EXCEPTION 'Unable to define view for %', _r;
 		END IF;
 		INSERT INTO __recreate (schema, object, owner, type, ddl )
 			VALUES (
-				_r.nspname, _r.relname, _r.owner, 'view', _ddl
+				_r.nspname, _r.relname, _r.owner, _typ, _ddl
 			);
 		IF dropit  THEN
-			_cmd = 'DROP VIEW ' || _r.nspname || '.' || _r.relname || ';';
+			_cmd = 'DROP ' || _mat || _r.nspname || '.' || _r.relname || ';';
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
@@ -1058,7 +1079,7 @@ BEGIN
 		WHERE dependent.relname = object
   		AND sn.nspname = schema
 	LOOP
-		IF _r.relkind = 'v' THEN
+		IF _r.relkind = 'v' OR _r.relkind = 'm' THEN
 			-- RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
 			PERFORM * FROM save_dependent_objects_for_replay(_r.nspname, _r.relname, dropit);
 			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit);
@@ -1224,14 +1245,14 @@ BEGIN
 			END IF;
 			EXECUTE _r.ddl;
 			IF _r.owner is not NULL THEN
-				IF _r.type = 'view' THEN
-					EXECUTE 'ALTER VIEW ' || _r.schema || '.' || _r.object ||
+				IF _r.type = 'view' OR _r.type = 'materialized view' THEN
+					EXECUTE 'ALTER ' || _r.type || ' ' || _r.schema || '.' || _r.object ||
 						' OWNER TO ' || _r.owner || ';';
 				ELSIF _r.type = 'function' THEN
 					EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
 						'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
 				ELSE
-					RAISE EXCEPTION 'Unable to restore grant for %', _r;
+					RAISE EXCEPTION 'Unable to restore grant for % ', _r;
 				END IF;
 			END IF;
 			DELETE from __recreate where id = _r.id;
@@ -1710,7 +1731,6 @@ $$ LANGUAGE plpgsql;
 ----------------------------------------------------------------------------
 -- BEGIN materialized view refresh automation support
 ----------------------------------------------------------------------------
-
 --
 -- These functions are used to better automate refreshing of materialized
 -- views.  They are meant to be called by the schema owners and not by
@@ -1757,7 +1777,7 @@ DECLARE
 	rv	timestamp;
 BEGIN
 	IF debug THEN
-		RAISE NOTICE 'selecting for update...';
+		RAISE NOTICE 'schema_support.mv_last_updated(): selecting for update...';
 	END IF;
 
 	SELECT	refresh
@@ -1768,7 +1788,7 @@ BEGIN
 	FOR UPDATE;
 
 	IF debug THEN
-		RAISE NOTICE 'returning %', rv;
+		RAISE NOTICE 'schema_support.mv_last_updated(): returning %', rv;
 	END IF;
 
 	RETURN rv;
@@ -1784,6 +1804,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION schema_support.set_mv_last_updated (
 	relation TEXT,
 	schema TEXT DEFAULT 'jazzhands',
+	whence timestamp DEFAULT now(),
 	debug boolean DEFAULT false
 ) RETURNS TIMESTAMP AS $$
 DECLARE
@@ -1792,9 +1813,9 @@ BEGIN
 	INSERT INTO schema_support.mv_refresh AS r (
 		schema, view, refresh
 	) VALUES (
-		set_mv_last_updated.schema, relation, now()
+		set_mv_last_updated.schema, relation, whence
 	) ON CONFLICT ON CONSTRAINT mv_refresh_pkey DO UPDATE
-		SET		refresh = now()
+		SET		refresh = whence
 		WHERE	r.schema = set_mv_last_updated.schema
 		AND		r.view = relation
 	;
@@ -1822,6 +1843,8 @@ DECLARE
 	ts	timestamp;
 	obj	text;
 	objaud text;
+	objkind text;
+	objschema text;
 BEGIN
 	SELECT	audit_schema
 	INTO	audsch
@@ -1844,10 +1867,15 @@ BEGIN
 	END IF;
 
 	IF rk = 'r' THEN
-		EXECUTE '
-			SELECT	max("aud#timestamp")
-			FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+		EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+			FROM '||quote_ident(audsch)||'.'|| quote_ident(relation)
 		INTO rv;
+		IF rv IS NULL THEN
+			EXECUTE '
+				SELECT	max("aud#timestamp")
+				FROM	'||quote_ident(audsch)||'.'||quote_ident(relation)
+			INTO rv;
+		END IF;
 
 		IF rv IS NULL THEN
 			RETURN '-infinity'::interval;
@@ -1857,46 +1885,64 @@ BEGIN
 	END IF;
 
 	IF rk = 'v' OR rk = 'm' THEN
-		FOR obj,objaud IN WITH RECURSIVE recur AS (
-				SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
-				FROM pg_depend d
-        			JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-					JOIN pg_class c on rewrite.ev_class = c.oid
-					JOIN pg_namespace n on n.oid = c.relnamespace
-				WHERE c.relname = relation
-				AND n.nspname = relation_last_changed.schema
-				AND d.refobjsubid > 0
-			UNION ALL
-				SELECT recur.root_oid, d.refobjid as oid
-				FROM pg_depend d
-        			JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-				JOIN recur ON recur.oid = rewrite.ev_class
-				AND d.refobjsubid > 0
-			), list AS ( select distinct m.audit_schema, c.relname, c.relkind, recur.*
-				FROM pg_class c
-					JOIN recur on recur.oid = c.oid
-					JOIN pg_namespace n on c.relnamespace = n.oid
-					JOIN schema_support.schema_audit_map m
-						ON m.schema = n.nspname
-				WHERE relkind = 'r'
-			) SELECT relname, audit_schema from list
+		FOR obj,objaud,objkind, objschema IN WITH RECURSIVE recur AS (
+                SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                    JOIN pg_namespace n on n.oid = c.relnamespace
+                WHERE c.relname = relation
+                AND n.nspname = relation_last_changed.schema
+                AND d.refobjsubid > 0
+            UNION ALL
+                SELECT recur.root_oid, d.refobjid as oid
+                FROM pg_depend d
+                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+                    JOIN pg_class c on rewrite.ev_class = c.oid
+                JOIN recur ON recur.oid = rewrite.ev_class
+                AND d.refobjsubid > 0
+		AND c.relkind != 'm'
+            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
+                FROM pg_class c
+                    JOIN recur on recur.oid = c.oid
+                    JOIN pg_namespace n on c.relnamespace = n.oid
+                    JOIN schema_support.schema_audit_map m
+                        ON m.schema = n.nspname
+                WHERE relkind IN ('r', 'm')
+		) SELECT relname, audit_schema, relkind, relschema from list
 		LOOP
 			-- if there is no audit table, assume its kept current.  This is
 			-- likely some sort of cache table.  XXX - should probably be
 			-- updated to use the materialized view update bits
 			BEGIN
-				EXECUTE 'SELECT max("aud#timestamp")
-					FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
-					INTO ts;
+				IF objkind = 'r' THEN
+					EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
+						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) ||' 
+						WHERE "aud#timestamp" > (
+								SELECT max("aud#timestamp") 
+								FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) || '
+							) - ''10 day''::interval'
+						INTO ts;
+					IF ts IS NULL THEN
+						EXECUTE 'SELECT max("aud#timestamp")
+							FROM '||quote_ident(objaud)||'.'|| quote_ident(obj)
+							INTO ts;
+					END IF;
+				ELSIF objkind = 'm' THEN
+					SELECT refresh INTO ts FROM schema_support.mv_refresh m WHERE m.schema = objschema
+						AND m.view = obj;
+				ELSE
+					RAISE NOTICE 'Unknown object kind % for %.%', objkind, objaud, obj;
+				END IF;
 				IF debug THEN
-					RAISE NOTICE '%.% -> %', objaud, obj, ts;
+					RAISE NOTICE 'schema_support.relation_last_changed(): %.% -> %', objaud, obj, ts;
 				END IF;
 				IF rv IS NULL OR ts > rv THEN
 					rv := ts;
 				END IF;
 			EXCEPTION WHEN undefined_table THEN
 				IF debug THEN
-					RAISE NOTICE 'skipping %.%', schema, obj;
+					RAISE NOTICE 'schema_support.relation_last_changed(): skipping %.%', schema, obj;
 				END IF;
 			END;
 		END LOOP;
@@ -1917,12 +1963,21 @@ CREATE OR REPLACE FUNCTION schema_support.refresh_mv_if_needed (
 DECLARE
 	lastref	timestamp;
 	lastdat	timestamp;
+	whence	timestamp;
 BEGIN
 	SELECT coalesce(schema_support.mv_last_updated(relation, schema,debug),'-infinity') INTO lastref;
 	SELECT coalesce(schema_support.relation_last_changed(relation, schema,debug),'-infinity') INTO lastdat;
 	IF lastdat > lastref THEN
+		IF debug THEN
+			RAISE NOTICE 'schema_support.refresh_mv_if_needed(): refreshing %.%', schema, relation;
+		END IF;
 		EXECUTE 'REFRESH MATERIALIZED VIEW ' || quote_ident(schema)||'.'||quote_ident(relation);
-		PERFORM schema_support.set_mv_last_updated(relation, schema);
+		--  This can happen with long running transactions.
+		whence := now();
+		IF lastref > whence THEN
+			whence := lastref;
+		END IF;
+		PERFORM schema_support.set_mv_last_updated(relation, schema, whence, debug);
 	END IF;
 	RETURN;
 END;

@@ -515,7 +515,7 @@ BEGIN
 					_company_name := pci_sub_vendor_name,
 					_company_types := ARRAY['hardware provider'],
 					 _description := 'PCI vendor auto-insert'
-				) INTO comp_id;
+				) INTO sub_comp_id;
 			END IF;
 
 			INSERT INTO property (
@@ -670,6 +670,11 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
+
+--
+-- These need to all call a generic component/component_type insertion
+-- function, rather than all of the specific types, but that's thinking
+--
 
 CREATE OR REPLACE FUNCTION component_utils.insert_disk_component(
 	model				text,

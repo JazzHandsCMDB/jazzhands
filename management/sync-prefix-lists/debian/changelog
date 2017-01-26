@@ -1,3 +1,9 @@
+jazzhands-sync-prefix-lists (0.75.1) trusty; urgency=medium
+
+  * Handle hierarchical netblock_collections correctly
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 11 Jan 2017 11:52:16 -0600
+
 jazzhands-sync-prefix-lists (0.71.4) trusty; urgency=medium
 
   * Default to only sync to sites marked as ACTIVE

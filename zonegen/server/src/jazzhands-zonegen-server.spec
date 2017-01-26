@@ -25,10 +25,10 @@ Generates zone and configuration from JazzHands database
 make -f Makefile.jazzhands
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} PREFIX=%{prefix} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix}/%{zgroot} install
 
 %clean
-make -f Makefile.jazzhands INSTALROOT=%{buildroot} clean
+make -f Makefile.jazzhands DESTDIR=%{buildroot} clean
 
 
 %files

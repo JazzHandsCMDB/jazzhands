@@ -1,4 +1,4 @@
--- Copyright (c) 2014, Todd M. Kover
+-- Copyright (c) 2014-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@
 -- just mclasses/accounts mapped through the UnixLogin property
 --
 --
-create or replace view v_unix_passwd_mappings AS
+CREATE OR REPLACE VIEW v_unix_passwd_mappings AS
 WITH  passtype AS (
 	SELECT ap.account_id, ap.password, ap.expire_time, ap.change_time,
 	subq.* FROM
@@ -44,27 +44,6 @@ WITH  passtype AS (
 			INNER JOIN account_password ap USING (password_type)
 			INNER JOIN account_unix_info a USING (account_id)
 	WHERE ord = 1 
-), accts as (
-	SELECT a.*, aui.unix_uid, aui.unix_group_acct_collection_id,
-		aui.shell, aui.default_home
-	FROM account a
-		INNER JOIN account_unix_info aui using (account_id)
-	WHERE a.is_enabled = 'Y'
-), extra_groups AS (
-	SELECT	device_collection_id, acae.account_id,
-			array_agg(ac.account_collection_name) as group_names
-	FROM	v_property p
-			INNER JOIN device_collection dc USING (device_collection_id)
-			INNER JOIN account_collection ac USING (account_collection_id)
-			INNER JOIN account_collection pac ON
-				pac.account_collection_id = p.property_value_account_coll_id
-			INNER JOIN  v_acct_coll_acct_expanded acae ON
-				pac.account_collection_id = acae.account_collection_id
-	WHERE
-			p.property_type = 'MclassUnixProp'
-	AND		p.property_name = 'UnixGroupMemberOverride'
-	AND		dc.device_collection_type != 'mclass'
-	GROUP BY device_collection_id, acae.account_id
 )
 select
 	device_collection_id, account_id, login, crypt,
@@ -138,7 +117,14 @@ SELECT	o.device_collection_id,
 			where mcs.mclass_setting[i] = 'UnixHomeType')] as hometype,
 		ssh_public_key,
 		extra_groups.group_names
-FROM	accts a
+FROM
+		(
+			SELECT a.*, aui.unix_uid, aui.unix_group_acct_collection_id,
+						aui.shell, aui.default_home
+			FROM account a
+					INNER JOIN account_unix_info aui using (account_id)
+			WHERE a.is_enabled = 'Y'
+		) a
 			JOIN v_device_col_account_cart o using (account_id)
 			JOIN device_collection dc USING (device_collection_id)
 			JOIN person p USING (person_id)
@@ -146,7 +132,24 @@ FROM	accts a
 				= ug.account_collection_id)
 			JOIN account_collection ugac
 				on (ugac.account_collection_id = ug.account_collection_id)
-			LEFT JOIN extra_groups USING (device_collection_id, account_id)
+			LEFT JOIN (
+				SELECT	device_collection_id, acae.account_id,
+						array_agg(ac.account_collection_name) as group_names
+				FROM	v_property p
+						INNER JOIN device_collection dc 
+							USING (device_collection_id)
+						INNER JOIN account_collection ac 
+							USING (account_collection_id)
+						INNER JOIN account_collection pac ON
+							pac.account_collection_id = p.property_value_account_coll_id
+						INNER JOIN  v_acct_coll_acct_expanded acae ON
+							pac.account_collection_id = acae.account_collection_id
+				WHERE
+						p.property_type = 'MclassUnixProp'
+				AND		p.property_name = 'UnixGroupMemberOverride'
+				AND		dc.device_collection_type != 'mclass'
+				GROUP BY device_collection_id, acae.account_id
+				) extra_groups USING (device_collection_id, account_id)
 			LEFT JOIN v_device_collection_account_ssh_key ssh
 				ON (a.account_id = ssh.account_id  AND
 					(ssh.device_collection_id is NULL

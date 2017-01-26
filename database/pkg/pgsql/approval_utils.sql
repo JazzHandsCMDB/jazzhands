@@ -145,7 +145,7 @@ BEGIN
 			END as approval_rhs
 		FROM    v_account_manager_map mm
 			INNER JOIN v_person_company_audit_map pcm
-			    USING (person_id)
+			    USING (person_id, company_id)
 			INNER JOIN v_approval_matrix am
 			    ON property_val_lhs = ''person_company''
 			    AND property_val_rhs = ''position_title''
@@ -364,6 +364,9 @@ BEGIN
 		_acid :=  _r.approver_account_id;
 	ELSIF _apc.approving_entity = 'rt-hr' THEN
 		apptype := 'rt-hr';
+		_acid :=  _r.approver_account_id;
+	ELSIF _apc.approving_entity = 'kace-hr' THEN
+		apptype := 'kace-hr';
 		_acid :=  _r.approver_account_id;
 	ELSIF _apc.approving_entity = 'recertify' THEN
 		apptype := 'account';

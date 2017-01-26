@@ -43,3 +43,4 @@ management/util/perl	# jazzhands-perl-common
 management/util/perl-Krb5
 management/util/perl-tickets
 zonegen/server/src
+zonegen/client

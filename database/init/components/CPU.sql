@@ -45,7 +45,9 @@ BEGIN
 			('ProcessorSpeed', 'CPU', 'CPU Speed (MHz)', 'N', 'number',
 				'CPU', 'REQUIRED'),
 			('ProcessorCores', 'CPU', 'Number of CPU cores', 'N', 'number',
-				'CPU', 'REQUIRED');
+				'CPU', 'REQUIRED'),
+			('ProcessorGeneration', 'CPU', 'Generation/Family of Processor',
+				'N', 'string', 'CPU', 'REQUIRED');
 
 		--
 		-- Slot functions are also somewhat arbitrary, and exist for associating

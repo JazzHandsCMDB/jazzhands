@@ -55,7 +55,7 @@ BEGIN
 	FROM    pg_catalog.pg_class c
 		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 	WHERE   n.nspname = 'jazzhands'
-	AND     c.relname = relation_last_changed.relation;
+	AND     c.relname = object;
 
 	-- silently ignore things that are not materialized views
 	IF rk = 'm' THEN
@@ -66,6 +66,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
+------------------------------------------------------------------------------
 --
 -- returns the last time an object was changed, based on audit tables, either
 -- for the object itself in the case of tables, or dependent objects, in the
@@ -81,6 +82,67 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
+------------------------------------------------------------------------------
+--
+-- returns an opque identifier that can be passed to the next function
+--
+-- returns NULL if this is not possible, which means you're already connected
+-- to a ro slave.
+-- 
+--
+CREATE OR REPLACE FUNCTION backend_utils.get_opaque_txid()
+RETURNS text AS
+$$
+DECLARE
+	rv	text;
+BEGIN
+	SELECT txid_current()::text INTO rv;
+	RETURN rv;
+EXCEPTION WHEN read_only_sql_transaction THEN
+	RETURN NULL;
+END;
+$$ 
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+------------------------------------------------------------------------------
+--
+-- wait for the opaque id from previous call to show up on system.  If
+-- passed a NULL, returns immediately, otherwise returns when transaction
+-- id is available.  Will wait indefinitely unless second argument is
+-- passed.
+--
+-- returns false if it was definitely not applied, true if it was applied or
+-- if connected to ro slave.
+-- 
+--
+CREATE OR REPLACE FUNCTION backend_utils.block_for_opaque_txid(
+	opaqueid text,
+	maxdelay integer DEFAULT NULL
+) RETURNS boolean AS
+$$
+DECLARE
+	count	integer;
+BEGIN
+	IF opaqueid IS NULL THEN
+		RETURN true;
+	END IF;
+	count := 0;
+	WHILE maxdelay IS NULL OR count < maxdelay 
+	LOOP
+		IF txid_visible_in_snapshot(opaqueid::bigint,txid_current_snapshot()) THEN
+			RETURN true;
+		END IF;
+		count := count + 1;
+		PERFORM pg_sleep(1);
+	END LOOP;
+	RETURN false;
+END;
+$$ 
+SET search_path=pg_catalog
+LANGUAGE plpgsql SECURITY DEFINER;
+
+------------------------------------------------------------------------------
 grant select on all tables in schema backend_utils to iud_role;
 grant usage on schema backend_utils to iud_role;
 revoke all on schema backend_utils from public;

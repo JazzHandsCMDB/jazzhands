@@ -1,4 +1,4 @@
--- Copyright (c) 2016 Todd Kover
+-- Copyright (c) 2016-2017 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,8 @@
 
 \t on
 SAVEPOINT realm_test;
+SET jazzhands.permit_company_insert = 'permit';
+
 
 -- 
 -- Trigger tests
@@ -323,6 +325,7 @@ SELECT account_coll_realm_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION account_coll_realm_regression();
 
+SET jazzhands.permit_company_insert TO default;
 ROLLBACK TO realm_test;
 
 \t off

@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Todd Kover
+-- Copyright (c) 2014-2017 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,18 @@
 
 \t on
 
+SAVEPOINT acct_coll_regression_tests;
+
+\ir ../../ddl/schema/pgsql/create_account_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_account_coll_hook_triggers.sql
+\ir ../../ddl/schema/pgsql/create_account_coll_realm_triggers.sql
+\ir ../../ddl/schema/pgsql/create_account_coll_relation_triggers.sql
+\ir ../../ddl/schema/pgsql/create_acct_coll_report_triggers.sql
+\ir ../../ddl/schema/pgsql/create_auto_account_coll_triggers.sql
+\ir ../../ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
+
+SET jazzhands.permit_company_insert = 'permit';
+
 -- 
 -- Trigger tests
 --
@@ -30,45 +42,19 @@ DECLARE
 	_ac_onecol1		account_collection%ROWTYPE;
 	_ac_onecol2		account_collection%ROWTYPE;
 	__ac_onemem		account_collection%ROWTYPE;
+	_ac1			account_collection%ROWTYPE;
+	_ac2			account_collection%ROWTYPE;
+	_ac3			account_collection%ROWTYPE;
 	_hac			account_collection%ROWTYPE;
 	_acc1			account%ROWTYPE;
 	_acc2			account%ROWTYPE;
+	_acc3			account%ROWTYPE;
 	_com			company%ROWTYPE;
 	_pers1			person%ROWTYPE;
 	_pers2			person%ROWTYPE;
+	_pers3			person%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'account_coll_hier_regression: Cleanup Records from Previous Tests';
-	delete from account_unix_info where
-		account_id in (
-			select account_id from account
-			where login like 'jhtest%'
-		);
-	delete from account_collection_account where
-		account_id in (
-			select account_id from account
-			where login like 'jhtest%'
-		);
-	delete from unix_group where account_collection_id in (
-		select account_collection_id from account_collection where
-		account_collection_type like 'JHTEST%'
-		or account_collection_name like 'jhtest%');
-	delete from account_collection where
-		account_collection_type like 'JHTEST%'
-		or account_collection_name like 'jhtest%';
-	delete from val_account_collection_type where
-		account_collection_type like 'JHTEST-%';
-	delete from account where login like 'jhtest%';
-	delete from person_account_realm_company where person_id in (
-		select person_id 
-		from person where first_name like 'Jazzhands%');
-	delete from account_realm_company where company_id in (
-		select company_id from company where company_name like 'JHTEST%');
-	delete from person_company where person_id in (
-		select person_id 
-		from person where first_name like 'Jazzhands%');
-	delete from person where first_name like 'Jazzhands%';
-	delete from company where company_name like 'JHTEST%';
-	delete from account_realm where account_realm_name like 'JHTEST%';
+	RAISE NOTICE 'account_coll_hier_regression: Startup';
 
 	RAISE NOTICE '++ Inserting testing data';
 	INSERT INTO account_realm (account_realm_name) values('JHTESTREALM')
@@ -134,6 +120,12 @@ BEGIN
 		'Jazzhandseth', 'Testus'
 	) returning * into _pers2;
 
+	INSERT INTO person (
+		first_name, last_name 
+	) values (
+		'Jazzhandius', 'Testus'
+	) returning * into _pers3;
+
 	INSERT INTO person_company (
 		company_id, person_id, person_company_relation,
 		person_company_status
@@ -148,6 +140,13 @@ BEGIN
 		_com.company_id, _pers2.person_id, 'employee',
 		'enabled');
 
+	INSERT INTO person_company (
+		company_id, person_id, person_company_relation,
+		person_company_status
+	) values (
+		_com.company_id, _pers3.person_id, 'employee',
+		'enabled');
+
 	INSERT INTO person_account_realm_company (
 		person_id, company_Id, account_realm_id
 	) values (
@@ -158,8 +157,12 @@ BEGIN
 		person_id, company_Id, account_realm_id
 	) values (
 		_pers2.person_id, _com.company_id, _ar.account_realm_id);
-	
 
+	INSERT INTO person_account_realm_company (
+		person_id, company_Id, account_realm_id
+	) values (
+		_pers3.person_id, _com.company_id, _ar.account_realm_id);
+	
 	INSERT INTO account (login, person_id, company_id,
 		account_realm_id, account_status, account_role, account_type)
 	values (
@@ -173,6 +176,13 @@ BEGIN
 		'jhtest02', _pers2.person_id, _com.company_id,
 		_ar.account_realm_id, 'enabled', 'primary', 'person')
 		RETURNING * INTO _acc2;
+
+	INSERT INTO account (login, person_id, company_id,
+		account_realm_id, account_status, account_role, account_type)
+	values (
+		'jhtest03', _pers3.person_id, _com.company_id,
+		_ar.account_realm_id, 'enabled', 'primary', 'person')
+		RETURNING * INTO _acc3;
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
@@ -222,38 +232,77 @@ BEGIN
 		RAISE NOTICE '... It did';
 	END;
 
-	RAISE NOTICE 'Cleaning up...';
-	delete from account_unix_info where
-		account_id in (
-			select account_id from account
-			where login like 'jhtest%'
+	RAISE NOTICE 'Checking if relation member restictions fail as expected... ';
+	BEGIN
+		INSERT INTO val_account_collection_relatio (
+			account_collection_relation
+		) VALUES (
+			'indirect'
 		);
-	delete from account_collection_account where
-		account_id in (
-			select account_id from account
-			where login like 'jhtest%'
+
+		WITH type AS (
+			INSERT INTO val_account_collection_type (
+				account_collection_type
+			) VALUES (
+				'jhtesty'
+			) RETURNING *
+		) INSERT INTO account_coll_type_relation (
+				account_collection_type, account_collection_relation
+			) SELECT account_collection_type, 'indirect'
+		FROM type;
+
+		UPDATE account_coll_type_relation
+		SET max_num_members = 1
+		WHERE account_collection_relation = 'direct';
+
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type
+		) VALUES (
+			'jhtest-01', 'jhtesty'
+		) RETURNING * INTO _ac1;
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type
+		) VALUES (
+			'jhtest-02', 'jhtesty'
+		) RETURNING * INTO _ac2;
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type
+		) VALUES (
+			'jhtest-03', 'jhtesty'
+		) RETURNING * INTO _ac3;
+
+		INSERT INTO account_collection_account (
+			account_collection_id, account_collection_relation, account_id
+		) VALUES (
+			_ac1.account_collection_id, 'direct', _acc1.account_id
 		);
-	delete from unix_group where account_collection_id in (
-		select account_collection_id from account_collection where
-		account_collection_type like 'JHTEST%'
-		or account_collection_name like 'jhtest%');
-	delete from account_collection where
-		account_collection_type like 'JHTEST%'
-		or account_collection_name like 'jhtest%';
-	delete from val_account_collection_type where
-		account_collection_type like 'JHTEST-%';
-	delete from account where login like 'jhtest%';
-	delete from person_account_realm_company where person_id in (
-		select person_id 
-		from person where first_name like 'Jazzhands%');
-	delete from account_realm_company where company_id in (
-		select company_id from company where company_name like 'JHTEST%');
-	delete from person_company where person_id in (
-		select person_id 
-		from person where first_name like 'Jazzhands%');
-	delete from person where first_name like 'Jazzhands%';
-	delete from company where company_name like 'JHTEST%';
-	delete from account_realm where account_realm_name like 'JHTEST%';
+		INSERT INTO account_collection_account (
+			account_collection_id, account_collection_relation, account_id
+		) VALUES (
+			_ac2.account_collection_id, 'indirect', _acc1.account_id
+		);
+
+		BEGIN
+			INSERT INTO account_collection_account (
+				account_collection_id, account_collection_relation, account_id
+			) VALUES (
+				_ac3.account_collection_id, 'direct', _acc1.account_id
+			);
+			RAISE EXCEPTION 'direct num members check failed!';
+		EXCEPTION WHEN unique_violation THEN
+			RAISE NOTICE 'direct num members check passed';
+		END;
+
+		INSERT INTO account_collection_account (
+			account_collection_id, account_collection_relation, account_id
+		) VALUES (
+			_ac3.account_collection_id, 'indirect', _acc1.account_id
+		);
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
 
 	RAISE NOTICE 'account_coll_hier_regression: DONE';
 	RETURN true;
@@ -264,5 +313,9 @@ $$ LANGUAGE plpgsql;
 SELECT account_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION account_coll_hier_regression();
+
+SET jazzhands.permit_company_insert TO default;
+
+ROLLBACK TO acct_coll_regression_tests;
 
 \t off
