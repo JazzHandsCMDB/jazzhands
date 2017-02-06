@@ -23,6 +23,9 @@ TODO:
  - one day:
    - make sure dns_rec_prevent_dups still makes sense with other tests.
       Other tests seemed more complex than necessary.
+   - deal with a zone switching to "not generated" so records do not hang out
+      in dns_change_record in perpetuity.  This may just mean not adding
+      records and letting the pgnotify go out.
 */
 
 
