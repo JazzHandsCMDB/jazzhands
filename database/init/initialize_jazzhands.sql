@@ -1011,12 +1011,12 @@ insert into val_person_image_usage (
 	'corpdirectory', 'N'
 );
 
-insert into val_ip_group_protocol
-	(ip_group_protocol) values ('vrrp');
-insert into val_ip_group_protocol
-	(ip_group_protocol) values ('hsrp');
-insert into val_ip_group_protocol
-	(ip_group_protocol) values ('bgp');
+insert into val_shared_netblock_protocol
+	(shared_netblock_protocol) values ('vrrp');
+insert into val_shared_netblock_protocol
+	(shared_netblock_protocol) values ('hsrp');
+insert into val_shared_netblock_protocol
+	(shared_netblock_protocol) values ('bgp');
 
 insert into val_encapsulation_type
 	(encapsulation_type) values ('802.1q');
