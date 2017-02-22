@@ -28,7 +28,6 @@ TODO:
       records and letting the pgnotify go out.
 */
 
-
 ---------------------------------------------------------------------------
 --
 -- This shall replace all the aforementioned triggers
@@ -350,7 +349,7 @@ BEGIN
 			db.dns_class, db.dns_type,
 			coalesce(val.dns_value, db.dns_value) AS dns_value,
 			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
-			db.dns_srv_weight, db.dns_srv_port,
+			db.dns_srv_weight, db.dns_srv_port, db.ip_universe_id,
 			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
 			db.reference_dns_record_id, db.dns_value_record_id,
 			db.should_generate_ptr, db.is_enabled
@@ -368,10 +367,11 @@ BEGIN
 		AND ( db.dns_domain_id = NEW.dns_domain_id )
 		AND ( db.dns_class = NEW.dns_class )
 		AND ( db.dns_type = NEW.dns_type )
-    		AND db.dns_record_id != NEW.dns_record_id
+    	AND db.dns_record_id != NEW.dns_record_id
 		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
 		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
 		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+		AND db.ip_universe_id IS NOT DISTINCT FROM NEW.ip_universe_id
 		AND db.is_enabled = 'Y'
 	) SELECT	count(*)
 		INTO	_tally
@@ -456,6 +456,7 @@ DECLARE
 	_tally	INTEGER;
 	_dom	TEXT;
 BEGIN
+	--- XXX - need to seriously think about ip_universes here.
 	_tally := 0;
 	IF TG_OP = 'INSERT' OR NEW.DNS_TYPE != OLD.DNS_TYPE THEN
 		IF NEW.DNS_TYPE = 'CNAME' THEN
@@ -465,6 +466,7 @@ BEGIN
 				  FROM	dns_record x
 				 WHERE
 						NEW.dns_domain_id = x.dns_domain_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	OLD.dns_record_id != x.dns_record_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
@@ -479,6 +481,7 @@ BEGIN
 				  FROM	dns_record x
 				 WHERE
 						NEW.dns_domain_id = x.dns_domain_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
@@ -495,6 +498,7 @@ BEGIN
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
@@ -508,6 +512,7 @@ BEGIN
 				  FROM	dns_record x
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
+				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
 				 AND	(
 							NEW.dns_name IS NULL and x.dns_name is NULL
 							or
@@ -592,7 +597,11 @@ CREATE TRIGGER trigger_dns_record_enabled_check
 CREATE OR REPLACE FUNCTION dns_domain_trigger_change()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF new.SHOULD_GENERATE = 'Y' THEN
+	PERFORM *
+	FROM dns_domain_ip_universe
+	WHERE dns_domain_id = NEW.dns_domain_id
+	AND SHOULD_GENERATE = 'Y';
+	IF FOUND THEN
 		insert into DNS_CHANGE_RECORD
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
 	END IF;
@@ -603,12 +612,34 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change
-	AFTER INSERT OR UPDATE OF soa_name, soa_class, soa_ttl,
-		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
-		soa_rname, should_generate
+	AFTER INSERT OR UPDATE OF soa_name
 	ON dns_domain
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_trigger_change();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_change()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.should_generate = 'Y' THEN
+		insert into DNS_CHANGE_RECORD
+			(dns_domain_id) VALUES (NEW.dns_domain_id);
+	END IF;
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_ip_universe_trigger_change 
+	ON dns_domain_ip_universe;
+CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change
+	AFTER INSERT OR UPDATE OF soa_class, soa_ttl,
+		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
+		soa_rname, should_generate
+	ON dns_domain_ip_universe
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_domain_ip_universe_trigger_change();
+
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_change_record_pgnotify()

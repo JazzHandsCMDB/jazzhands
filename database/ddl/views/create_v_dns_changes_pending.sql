@@ -21,6 +21,9 @@
 -- This is used by the zonegen software
 --
 
+--
+-- XXX - This likely needs to be completely overhauled.
+--
 CREATE OR REPLACE VIEW v_dns_changes_pending AS
 WITH chg AS (
 	SELECT dns_change_record_id, dns_domain_id,
@@ -32,16 +35,19 @@ WITH chg AS (
 ) SELECT DISTINCT *
 FROM (
 	SELECT	chg.dns_change_record_id, n.dns_domain_id,
-		n.should_generate, n.last_generated,
+		du.should_generate, du.last_generated,
 		n.soa_name, chg.ip_address
 	FROM   chg
 		INNER JOIN dns_domain n on chg.cidrdns = n.soa_name
+		INNER JOIN dns_domain_ip_universe du ON
+			du.dns_domain_id = n.dns_domain_id
 	UNION ALL
 	SELECT  chg.dns_change_record_id, d.dns_domain_id,
-		d.should_generate, d.last_generated,
+		du.should_generate, du.last_generated,
 		d.soa_name, NULL
 	FROM	dns_change_record chg
 		INNER JOIN dns_domain d USING (dns_domain_id)
+		INNER JOIN dns_domain_ip_universe du USING (dns_domain_id)
 	WHERE   dns_domain_id IS NOT NULL
 ) x
 ;

@@ -41,14 +41,20 @@ BEGIN
 	RAISE NOTICE 'ip_universe_valid_regression: Startup';
 
 	INSERT INTO DNS_DOMAIN (
-		soa_name, soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
-		soa_expire, soa_minimum, soa_mname, soa_rname, should_generate,
-		dns_domain_type
+		soa_name, dns_domain_type
 	) values (
-		'jhtest.example.com', 'IN', 3600, 1, 600, 1800,
-		604800, 300, 'ns.example.com', 'hostmaster.example.com', 'Y',
-		'service'
+		'jhtest.example.com', 'service'
 	) RETURNING dns_domain_id INTO _dnsdomid;
+
+	INSERT INTO DNS_DOMAIN_IP_UNIVERSE (
+		dns_domain_id, ip_universe_id, should_generate,
+		soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
+		soa_expire, soa_minimum, soa_mname, soa_rname
+	) values (
+		_dnsdomid, 0, 'Y',
+		'IN', 3600, 1, 600, 1800,
+		604800, 300, 'ns.example.com', 'hostmaster.example.com'
+	);
 
 	INSERT INTO ip_universe (ip_universe_name) VALUES ('jhtest0')
 		RETURNING ip_universe_id INTO _u0;
