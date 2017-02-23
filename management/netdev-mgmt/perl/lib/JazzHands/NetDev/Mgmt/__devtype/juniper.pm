@@ -2183,21 +2183,16 @@ sub SetBGPPeerStatus {
 	
 		my $xml = sprintf(q{
 	<configuration>
-		<routing-instances>
-			<instance>
-				<name>PROD</name>
-				<protocols>
-					<bgp>
-						<group>
-							<name>%s</name>
-							<neighbor delete="delete">
-								<name>%s</name>
-							</neighbor>
-						</group>
-					</bgp>
-				</protocols>
-			</instance>
-		</routing-instances>
+		<protocols>
+			<bgp>
+				<group>
+					<name>%s</name>
+					<neighbor delete="delete">
+						<name>%s</name>
+					</neighbor>
+				</group>
+			</bgp>
+		</protocols>
 	</configuration>
 			}, $opt->{bgp_peer_group}, $bgp_peer);
 		my $parser = new XML::DOM::Parser;
@@ -2257,7 +2252,7 @@ sub SetBGPPeerStatus {
 			#
 			my $nexthop = $route->getElementsByTagName('via');
 			next if (!$nexthop ||
-				$nexthop->[0]->getFirstChild->getNodeValue !~ /^vlan/);
+				$nexthop->[0]->getFirstChild->getNodeValue !~ /^(vlan)|(irb)/);
 
 			foreach my $netblock (
 					$route->getElementsByTagName('rt-destination')) {
@@ -2280,21 +2275,16 @@ sub SetBGPPeerStatus {
 
 		my $xml = sprintf(q{
 	<configuration>
-		<routing-instances>
-			<instance>
-				<name>PROD</name>
-				<protocols>
-					<bgp>
-						<group>
-							<name>%s</name>
-							<neighbor>
-								<name>%s</name>
-							</neighbor>
-						</group>
-					</bgp>
-				</protocols>
-			</instance>
-		</routing-instances>
+		<protocols>
+			<bgp>
+				<group>
+					<name>%s</name>
+					<neighbor>
+						<name>%s</name>
+					</neighbor>
+				</group>
+			</bgp>
+		</protocols>
 	</configuration>
 			}, $opt->{bgp_peer_group}, $bgp_peer);
 		my $parser = new XML::DOM::Parser;
@@ -2519,7 +2509,8 @@ sub GetIPAddressInformation {
 	my $vrrpxml;
 	my $vrrp_info = {};
 	
-	eval { $vrrpxml = $jnx->get_vrrp_information(brief=>1) };
+	my $response;
+	($vrrpxml, $response) = $jnx->request('<rpc><get-vrrp-information/></rpc>');
 
 	if (ref($vrrpxml)) {
 		foreach my $iface ($vrrpxml->getElementsByTagName('vrrp-interface')) {
@@ -2529,8 +2520,15 @@ sub GetIPAddressInformation {
 				$vrrp_info->{$ifacename} = [];
 			}
 			push @{$vrrp_info->{$ifacename}},
-				$iface->getElementsByTagName('virtual-ip-address')->[0]->
-				getFirstChild->getNodeValue;
+				{
+					group => 
+						$iface->getElementsByTagName('group')->[0]->
+						getFirstChild->getNodeValue,
+					address => 
+						NetAddr::IP->new($iface->
+							getElementsByTagName('virtual-ip-address')->[0]->
+							getFirstChild->getNodeValue)
+				};
 		}
 	}
 
@@ -2545,6 +2543,9 @@ sub GetIPAddressInformation {
 			my $af = $afxml->getElementsByTagName('address-family-name')->[0]->
 				getFirstChild->getNodeValue;
 			next if !$af;
+			if (exists($vrrp_info->{$ifacename})) {
+				$self->{vrrp} = $vrrp_info->{$ifacename};
+			}
 			if ($af eq 'inet') {
 				my $ipv4 = [
 					map {
@@ -2561,7 +2562,7 @@ sub GetIPAddressInformation {
 							$_->getElementsByTagName('ifa-local')->[0]
 								->getFirstChild->getNodeValue, $net->masklen);
 						# Skip anything that's a VRRP service address
-						if (!(grep { $addr->addr() eq $_ }
+						if (!(grep { $addr->addr() eq $_->{address}->addr() }
 							@{$vrrp_info->{$ifacename}})) {
 							$addr
 						} else {
@@ -2576,27 +2577,26 @@ sub GetIPAddressInformation {
 				my $ipv6 = [];
 				foreach my $addrxml
 						($afxml->getElementsByTagName('interface-address')) {
+
 					my $netxml =
 						$addrxml->getElementsByTagName('ifa-destination');
 					next if !@$netxml;
 					my $net;
-					if (@$netxml)  {
-						$net = NetAddr::IP->new(
-							$netxml->[0]->getFirstChild->getNodeValue);
-						next if $net eq $linklocal;
-					} else {
-						$net = NetAddr::IP->new('::/128');
-					}
+					$net = NetAddr::IP->new(
+						$netxml->[0]->getFirstChild->getNodeValue);
+					next if $net eq $linklocal;
+
 					my $addr = NetAddr::IP->new(
 						$addrxml->getElementsByTagName('ifa-local')->[0]
 							->getFirstChild->getNodeValue, $net->masklen);
 					# Skip anything that's a VRRP service address or
 					# link local address
-					if (!($net eq $linklocal || (grep
-							{ $addr->addr() eq $addrxml }
-							@{$vrrp_info->{$ifacename}}))) {
-						push @$ipv6, $addr;
-					}
+					next if (
+						grep { $_->{address} eq $addr->addr() }
+							@{$vrrp_info->{$ifacename}}
+					);
+						
+					push @$ipv6, $addr;
 				}
 				$self->{ipv6} = $ipv6 if @$ipv6;
 			}
@@ -2656,12 +2656,17 @@ sub GetChassisInfo {
 
 	my $chassis = $chassisxml->getElementsByTagName('chassis')->[0];
 	my $inventory = {
+		manufacturer => 'Juniper Networks',
 		model => $chassis->getElementsByTagName('description', 0)->[0]->
 			getFirstChild->getNodeValue,
 		serial => $chassis->getElementsByTagName('serial-number', 0)->[0]->
 			getFirstChild->getNodeValue,
-		members => $members
+		modules => $members
 	};
+
+	if ($inventory->{model} eq 'Virtual Chassis') {
+		$inventory->{model} = 'Juniper EX4xxx virtual chassis';
+	}
 
 	return $inventory;
 }

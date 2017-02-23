@@ -601,36 +601,50 @@ sub generate_dhcp_configs {
 
 
 	$q = q {
-		SELECT
-			d.device_id,
+		SELECT 
+			device_id,
 			property_name,
 			is_multivalue,
 			property_rank,
-			COALESCE(property_value, td.device_name) AS
-				property_value,
+			property_value,
 			ip_address
-		FROM
-			device d JOIN
-			device_collection_device dcd USING (device_id) JOIN
-			device_collection dc USING (device_collection_id) JOIN
-			property p ON (dc.device_collection_id = p.device_collection_id)
-				LEFT JOIN
-			device_collection tdc ON (p.property_value_device_coll_id = 
-				tdc.device_collection_id) LEFT JOIN
-			device_collection_device tdcd ON (tdcd.device_collection_id = 
-				tdc.device_collection_id) LEFT JOIN
-			device td ON (tdcd.device_id = td.device_id) LEFT JOIN
-			netblock_collection nc ON (p.property_value_nblk_coll_id = 
-				nc.netblock_collection_id) LEFT JOIN
-			netblock_collection_netblock ncn ON (ncn.netblock_collection_id =
-				nc.netblock_collection_id) LEFT JOIN
-			netblock n ON (ncn.netblock_id = n.netblock_id AND 
-				family(ip_address) = 4) JOIN
-			val_property pt USING (property_name, property_type)
+		FROM (
+			SELECT
+				d.device_id,
+				property_id,
+				property_name,
+				is_multivalue,
+				device_collection_level,
+				MIN(device_collection_level) OVER (PARTITION BY property_name, d.device_id) AS min_dev_coll_level,
+				property_rank,
+				COALESCE(property_value, td.device_name) AS
+					property_value,
+				ip_address
+			FROM
+				device d JOIN
+				device_collection_device dcd USING (device_id) JOIN
+				v_device_coll_hier_detail dchd USING (device_collection_id) JOIN
+				device_collection dc USING (device_collection_id) JOIN
+				property p ON (dchd.parent_device_collection_id = p.device_collection_id)
+					LEFT JOIN
+				device_collection tdc ON (p.property_value_device_coll_id =
+					tdc.device_collection_id) LEFT JOIN
+				device_collection_device tdcd ON (tdcd.device_collection_id =
+					tdc.device_collection_id) LEFT JOIN
+				device td ON (tdcd.device_id = td.device_id) LEFT JOIN
+				netblock_collection nc ON (p.property_value_nblk_coll_id =
+					nc.netblock_collection_id) LEFT JOIN
+				netblock_collection_netblock ncn ON (ncn.netblock_collection_id =
+					nc.netblock_collection_id) LEFT JOIN
+				netblock n ON (ncn.netblock_id = n.netblock_id AND
+					family(ip_address) = 4) JOIN
+				val_property pt USING (property_name, property_type)
+			WHERE
+				property_type = 'DHCP' 
+		) x
 		WHERE
-			property_type = 'DHCP' AND
-			dc.device_collection_type = 'DHCP'
-		ORDER BY device_id, property_name, property_rank
+			device_collection_level = min_dev_coll_level
+        ORDER BY device_id, property_name, device_collection_level, property_rank, property_id
 	};
 
 	if (!($sth = $jh->prepare_cached($q))) {

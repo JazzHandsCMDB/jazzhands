@@ -1,3 +1,10 @@
+jazzhands-dhcpgen (0.76.1) trusty; urgency=medium
+
+  * Update dhcpgen to handle property inheritence for DHCP properties from
+    parent device_collections.
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 23 Feb 2017 03:29:26 -0600
+
 jazzhands-dhcpgen (0.75.0) trusty; urgency=medium
 
   * Deal with val_property getting a network_range_type column
