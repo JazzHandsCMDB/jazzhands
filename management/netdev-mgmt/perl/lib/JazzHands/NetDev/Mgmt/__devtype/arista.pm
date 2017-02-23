@@ -746,6 +746,34 @@ sub GetIPAddressInformation {
 		$ipv6ifaces = {};
 	}
 
+	$result = $self->SendCommand(
+		commands => [ 
+			'show vrrp'
+		],
+		errors => $err
+	);
+
+	my $vrrp;
+	if ($result && exists($result->[0]->{virtualRouters})) {
+		$vrrp = $result->[0]->{virtualRouters};
+	} else {
+		$vrrp = [];
+	}
+
+	$result = $self->SendCommand(
+		commands => [ 
+			'show ip virtual-router'
+		],
+		errors => $err
+	);
+
+	my $vr;
+	if ($result && exists($result->[0]->{virtualRouters})) {
+		$vr = $result->[0]->{virtualRouters};
+	} else {
+		$vr = [];
+	}
+
 	my $ifaceinfo;
 
 	foreach my $iface (values %$ipv4ifaces) {
@@ -755,7 +783,7 @@ sub GetIPAddressInformation {
 				map {
 					NetAddr::IP->new($_->{address}, $_->{maskLen})
 				} ($iface->{interfaceAddress}->{primaryIp},
-					@{$iface->{secondaryIpsOrderedList}})
+					@{$iface->{interfaceAddress}->{secondaryIpsOrderedList}})
 			]
 		};
 	}
@@ -773,6 +801,26 @@ sub GetIPAddressInformation {
 					)
 				} @{$iface->{addresses}}
 			];
+	}
+
+	foreach my $v (@$vrrp) {
+		next if !$v->{interface};
+		my $vrrpinfo = {
+			address => $v->{virtualIp},
+			group => $v->{groupId},
+		};
+	
+		if (exists($ifaceinfo->{$v->{interface}}->{vrrp})) {
+			push @{$ifaceinfo->{$v->{interface}}->{vrrp}}, $vrrpinfo;
+		} else {
+			$ifaceinfo->{$v->{interface}}->{vrrp} = [ $vrrpinfo ];
+		}
+	}
+
+	foreach my $v (@$vr) {
+		next if !$v->{interface};
+		$ifaceinfo->{$v->{interface}}->{virtual_router} = 
+			$v->{virtualIps};
 	}
 
 	return $ifaceinfo;
@@ -998,8 +1046,11 @@ sub GenerateTextForACL {
 				END
 			FROM
 				jazzhands.netblock_collection nc JOIN
-				jazzhands.netblock_collection_netblock ncn USING 
+				jazzhands.v_netblock_coll_expanded nce USING 
 					(netblock_collection_id) JOIN
+				jazzhands.netblock_collection_netblock ncn ON
+					(nce.root_netblock_collection_id = 
+						ncn.netblock_collection_id) JOIN
 				jazzhands.netblock USING (netblock_id)
 			WHERE
 				netblock_collection_type = 'prefix-list' AND
@@ -1185,4 +1236,107 @@ sub GenerateTextForACL {
 	}
 	return $acl_entries;
 }
+
+sub GetChassisInfo {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $result = $self->SendCommand(
+		commands => [ 
+			'show inventory'
+		],
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+	my $inventory = $result->[0];
+	my $chassis = {
+		model => $inventory->{systemInformation}->{name},
+		manufacturer => 'Arista Networks',
+		manufacture_date => $inventory->{systemInformation}->{mfgDate},
+		hardware_rev => $inventory->{systemInformation}->{hardwareRev},
+		serial => $inventory->{systemInformation}->{serialNum}
+	};
+	#
+	# If the cardSlots hash is populated, then we're a modular chassis
+	#
+	if (%{$inventory->{cardSlots}}) {
+		my $slots = $inventory->{cardSlots};
+		$chassis->{modules} = {
+			map {
+				if ($slots->{$_}->{modelName} ne "Not Inserted") {
+					$_,
+					{
+						model => $slots->{$_}->{name},
+						manufacture_date => $slots->{$_}->{mfgDate},
+						hardware_rev => $slots->{$_}->{hardwareRev},
+						serial => $slots->{$_}->{serialNum}
+					}
+				}
+			} keys %$slots
+		};
+	}
+	if (%{$inventory->{powerSupplySlots}}) {
+		my $slots = $inventory->{powerSupplySlots};
+		$chassis->{power_supplies} = {
+			map {
+				if ($slots->{$_}->{name} ne "Not Inserted") {
+					$_,
+					{
+						model => $slots->{$_}->{name},
+						serial => $slots->{$_}->{serialNum}
+					}
+				}
+			} keys %$slots
+		};
+	}
+	if (%{$inventory->{xcvrSlots}}) {
+		my $slots = $inventory->{xcvrSlots};
+		$chassis->{tranceivers} = {
+			map {
+				if ($slots->{$_}->{modelName} ne "Not Inserted") {
+					$_,
+					{
+						model => $slots->{$_}->{name},
+						manufacturer => $slots->{$_}->{mfgName},
+						hardware_rev => $slots->{$_}->{hardwareRev},
+						serial => $slots->{$_}->{serialNum}
+					}
+				}
+			} keys %$slots
+		};
+	}
+	if (%{$inventory->{fanTraySlots}}) {
+		my $slots = $inventory->{fanTraySlots};
+		$chassis->{fans} = {
+			map {
+				if ($slots->{$_}->{name} ne "Not Inserted") {
+					$_,
+					{
+						model => $slots->{$_}->{name},
+						serial => 
+							$slots->{$_}->{serialNum} eq 'N/A' ?
+							undef :
+							$slots->{$_}->{serialNum}
+					}
+				}
+			} keys %$slots
+		};
+	}
+	return $chassis;
+}
+
 1;

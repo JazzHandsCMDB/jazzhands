@@ -1012,11 +1012,13 @@ insert into val_person_image_usage (
 );
 
 insert into val_shared_netblock_protocol
-	(shared_netblock_protocol) values ('vrrp');
+	(shared_netblock_protocol) values ('BGP');
 insert into val_shared_netblock_protocol
-	(shared_netblock_protocol) values ('hsrp');
+	(shared_netblock_protocol) values ('HSRP');
 insert into val_shared_netblock_protocol
-	(shared_netblock_protocol) values ('bgp');
+	(shared_netblock_protocol) values ('VARP');
+insert into val_shared_netblock_protocol
+	(shared_netblock_protocol) values ('VRRP');
 
 insert into val_encapsulation_type
 	(encapsulation_type) values ('802.1q');
