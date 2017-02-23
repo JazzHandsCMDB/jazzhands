@@ -32,8 +32,8 @@ SELECT * FROM  (
 			WHEN dv.dns_domain_id = d.dns_domain_id THEN dv.dns_name
 			ELSE concat(dv.dns_name, '.', dv.soa_name, '.') END AS dns_value,
 	    d.dns_priority,
-	    coalesce(rdns.ip_address, ni.ip_address) AS ip,
-	    coalesce(rdns.netblock_id, ni.netblock_id) AS netblock_id,
+	    coalesce(dv.ip_address, ni.ip_address) AS ip,
+	    coalesce(dv.netblock_id, ni.netblock_id) AS netblock_id,
 		d.ip_universe_id,
 	    rdns.reference_dns_record_id AS ref_record_id,
 	    d.dns_srv_service, d.dns_srv_protocol,
@@ -54,7 +54,8 @@ SELECT * FROM  (
 			SELECT  dr.dns_record_id, dr.dns_name,
 				dom.dns_domain_id, dom.soa_name,
 				dr.dns_value,
-				dnb.ip_address AS ip
+				dnb.ip_address AS ip,
+				dnb.ip_address, dnb.netblock_id
 		  	from  dns_record dr
 		    	INNER JOIN dns_domain dom USING (dns_domain_id)
 		    	LEFT JOIN netblock dnb USING (netblock_id)
