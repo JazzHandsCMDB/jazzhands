@@ -1,8 +1,15 @@
+jazzhands-zonegen-server (0.76.2.1) trusty; urgency=medium
+
+  * fix dependency issue
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Feb 2017 14:30:00 -0400
+
 jazzhands-zonegen-server (0.76.2) trusty; urgency=medium
 
   * switch to using v_dns_domain_nouniverse
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Feb 2017 12:39:42 -0400
+
 
 jazzhands-zonegen-server (0.74.10) trusty; urgency=medium
 

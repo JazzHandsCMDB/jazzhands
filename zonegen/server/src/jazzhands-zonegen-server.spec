@@ -13,7 +13,7 @@ BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
-Requires:   jazzhands-perl-common, perl-JazzHands-DBI, perl-Net-IP, bind
+Requires:   jazzhands-perl-common >= 0.73.2, perl-JazzHands-DBI, perl-Net-IP, bind
 # bind is there for named-checkzone
 
 
