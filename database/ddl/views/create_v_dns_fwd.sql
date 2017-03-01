@@ -40,6 +40,7 @@ SELECT * FROM  (
 		CASE WHEN d.dns_value_record_id IS NOT NULL
 			AND dns_type IN ('A','AAAA') THEN	dv.netblock_id
 			ELSE ni.netblock_id END AS netblock_id,
+	    d.ip_universe_id,
 	    rdns.reference_dns_record_id AS ref_record_id,
 	    d.dns_srv_service, d.dns_srv_protocol,
 	    d.dns_srv_weight, d.dns_srv_port,
