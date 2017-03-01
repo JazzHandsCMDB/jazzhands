@@ -59,10 +59,11 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- UPDATE asset a
-	-- SET	component_id = NEW.component_id
-	-- WHERE a.asset_id = NEW.asset_id
-	-- AND a.component_id IS DISTINCT FROM NEW.component_id;
+	-- fix any assets that were not setup with a component_id.
+	UPDATE asset a
+	SET	component_id = NEW.component_id
+	WHERE a.asset_id = NEW.asset_id
+	AND a.component_id IS DISTINCT FROM NEW.component_id;
 
 	RETURN NEW;
 END;

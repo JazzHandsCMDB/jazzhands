@@ -202,6 +202,7 @@ DECLARE
 	_r		network_interface_netblock%ROWTYPE;
 	_rank	network_interface_netblock.network_interface_rank%TYPE;
 	_tally	INTEGER;
+	ni_rec	RECORD;
 BEGIN
 	SELECT  count(*)
 	  INTO  _tally
@@ -251,10 +252,33 @@ BEGIN
 	ELSIF TG_OP = 'DELETE'  THEN
 		-- if we started to disallow NULLs, just ignore this for now
 		BEGIN
-			UPDATE network_interface
-				SET netblock_id = NULL
-				WHERE network_interface_id = OLD.network_interface_id
-				AND netblock_id = OLD.netblock_id;
+			SELECT
+				* INTO ni_rec
+			FROM
+				network_interface
+			WHERE
+				network_interface_id = OLD.network_interface_id;
+
+			IF ni_rec.netblock_id = OLD.netblock_id THEN
+				UPDATE
+					network_interface ni
+				SET
+					netblock_id = nin.netblock_id
+				FROM
+					network_interface_netblock nin
+				WHERE
+					nin.network_interface_id = OLD.network_interface_id AND
+					ni.network_interface_id = OLD.network_interface_id AND
+					nin.network_interface_rank = (
+						SELECT
+							MIN(network_interface_rank)
+						FROM
+							network_interface_netblock nin2
+						WHERE
+							nin2.network_interface_id = 
+								OLD.network_interface_id
+					);
+			END IF;
 		EXCEPTION WHEN null_value_not_allowed THEN
 			RAISE DEBUG 'null_value_not_allowed';
 		END;

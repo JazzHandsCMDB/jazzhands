@@ -1,5 +1,5 @@
 
--- Copyright (c) 2016, Todd M. Kover
+-- Copyright (c) 2016-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,14 +27,19 @@ SELECT * FROM  (
 		coalesce(rdns.dns_name, d.dns_name) AS dns_name,
 		d.dns_ttl, d.dns_class,
 	    d.dns_type,
-		CASE WHEN d.dns_value IS NOT NULL THEN d.dnS_value
+		CASE WHEN d.dns_value IS NOT NULL THEN d.dns_value
+			WHEN d.dns_type IN ('A','AAAA') AND d.netblock_id IS NULL
+				AND d.dns_value_record_id IS NOT NULL THEN NULL
 			WHEN d.dns_value_record_id IS NULL THEN d.dns_value
 			WHEN dv.dns_domain_id = d.dns_domain_id THEN dv.dns_name
 			ELSE concat(dv.dns_name, '.', dv.soa_name, '.') END AS dns_value,
 	    d.dns_priority,
-	    coalesce(dv.ip_address, ni.ip_address) AS ip,
-	    coalesce(dv.netblock_id, ni.netblock_id) AS netblock_id,
-		d.ip_universe_id,
+		CASE WHEN d.dns_value_record_id IS NOT NULL
+			AND dns_type IN ('A','AAAA') THEN	dv.ip_address
+			ELSE ni.ip_address END AS ip,
+		CASE WHEN d.dns_value_record_id IS NOT NULL
+			AND dns_type IN ('A','AAAA') THEN	dv.netblock_id
+			ELSE ni.netblock_id END AS netblock_id,
 	    rdns.reference_dns_record_id AS ref_record_id,
 	    d.dns_srv_service, d.dns_srv_protocol,
 	    d.dns_srv_weight, d.dns_srv_port,
@@ -43,7 +48,7 @@ SELECT * FROM  (
 	  FROM  dns_record d
 	    LEFT join netblock ni USING (netblock_id)
 	    LEFT JOIN (
-			SELECT dns_record_id AS reference_dns_record_id, 
+			SELECT dns_record_id AS reference_dns_record_id,
 					dns_name,
 					netblock_id,
 					ip_address
@@ -85,7 +90,7 @@ SELECT * FROM  (
        SELECT
 		network_range_id,
 	    	dns_domain_id,
-	    	nbstart.ip_universe_id,
+		nbstart.ip_universe_id,
 	    	dns_prefix,
 		nbstart.ip_address +
 			generate_series(0, nbstop.ip_address - nbstart.ip_address)
@@ -100,7 +105,7 @@ SELECT * FROM  (
 WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 	UNION ALL
 	SELECT
-		dns_record_id,
+		NULL::integer AS dns_record_id,	 -- not editable.
 		NULL::integer AS network_range_id,
 		parent_dns_domain_id AS dns_domain_id,
 		regexp_replace(soa_name, '\.' || pdom.parent_soa_name || '$', '') AS dns_name,
