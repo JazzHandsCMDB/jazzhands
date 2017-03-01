@@ -1,3 +1,16 @@
+jazzhands-zonegen-server (0.76.2.1) trusty; urgency=medium
+
+  * fix dependency issue
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Feb 2017 14:30:00 -0400
+
+jazzhands-zonegen-server (0.76.2) trusty; urgency=medium
+
+  * switch to using v_dns_domain_nouniverse
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Feb 2017 12:39:42 -0400
+
+
 jazzhands-zonegen-server (0.74.10) trusty; urgency=medium
 
   * cleanup some debugging that leaked through
@@ -20,7 +33,6 @@ jazzhands-zonegen-server (0.74.6) trusty; urgency=medium
   * remove errant debugging -n from rsync.
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  9 Nov 2016 16:44:20 -0400
-
 
 jazzhands-zonegen-server (0.74.5) trusty; urgency=medium
 
@@ -48,7 +60,6 @@ jazzhands-zonegen-server (0.71.10) trusty; urgency=medium
   * move random sleep to before any db interactions
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 10 Aug 2016 15:44:00 +0200
-
 
 jazzhands-zonegen-server (0.71.9) trusty; urgency=medium
 
