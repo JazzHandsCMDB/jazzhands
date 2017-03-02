@@ -141,6 +141,13 @@ table.physPortTitle {
 	width: 600px;
 }
 
+div.dnsvalueref {
+	margin-left: auto;
+	margin-right: auto;
+	background: lightblue;
+	text-align: center;
+	border: 1px solid;
+}
 
 /* Tabs */
 
@@ -294,11 +301,32 @@ td.rackit_vertical {
 	background: lightgrey;
 }
 
-/* SOA display */
+/* DNS display */
+
+form.dnspage, form.dnspage table {
+	text-align: center;
+	margin: auto;
+}
+
+table.dnsgentable {
+	text-align: center;
+	margin: auto;
+	border: 2px solid;
+}
 
 table.soatable {
+	text-align: center;
+	margin: auto;
 	background: lightgrey;
 	border: 2px solid;
+}
+
+tr.even {
+	background: lightgrey;
+}
+
+tr.odd {
+	background: transparent;
 }
 
 /* App display */
@@ -344,6 +372,7 @@ div.approles {
 	text-align: center;
 	border: 1px solid;
 }
+
 div.approles > div {
 	text-align: left;
 }
@@ -385,6 +414,10 @@ div.chosen-workaround {
 	width: 100% !important;
 }
 
+div.ipdiv {
+	width: 100%;
+}
+
 ul.collection {
 	list-style-type: lower-roman;		/* should be none */
 }
@@ -403,12 +436,36 @@ span.netblocklink {
 	width: 35ex; 
 }
 
-tr.dnsadd {
-	background: lightgrey;
-}
-
 tr.intadd {
 	background: grey;
+}
+
+table.dnstable {
+	text-align: center;
+	margin: auto;
+	border: 1px solid;
+}
+
+table.dnstable tr.dnsrecord {
+	text-align: left;
+}
+
+table.dnstable input.dnsttl {
+	width: 6em;
+}
+
+table.dnstable input.dnsvalue {
+	width: 20em;
+}
+
+table.dnstable input.dnsname {
+	width: 10em;
+}
+
+.dnssubmit {
+	display: block;
+	margin: auto;
+	text-align: center;
 }
 
 /* netblock management (pre rewrite */
@@ -438,6 +495,12 @@ table.interfacetable {
 
 table.interfacetable tr {
 	outline: 1px solid;
+}
+
+table.interfacetable td {
+	vertical-align: top;
+	margin: auto;
+	text-align: center;
 }
 
 #verifybox li {
@@ -499,6 +562,24 @@ table.attest tbody tr.odd td {
 	/*pointer-events: none;*/
 	opacity: .9;
 	text-decoration: line-through;
+}
+
+.off  {
+	pointer-events: none;
+	opacity: .9;
+	background-color: lightgrey;
+}
+
+img.plusbutton {
+	height: 2ex;
+	border: 1px solid;
+	display: block;
+	text-align:center;
+}
+
+img.button {
+	height: 2ex;
+	vertical-align: middle;
 }
 
 div.description {
@@ -571,6 +652,17 @@ input.attestsubmit {
 	color: white;
 }
 
+tr.rowrm {
+	background: red;
+	text-decoration: line-through;
+}
+
+td.pendingrm * {
+	pointer-events: none;
+	opacity: .5;
+	text-decoration: line-through;
+}
+
 .buttonon {
 	background: lightblue;
 }
@@ -594,6 +686,28 @@ table.reporting > tbody td {
 	border: 1px solid;
 	border-color: grey;
 }
+
+
+div.centeredlist {
+	text-align: center;
+	margin: auto;
+}
+
+ul.nbhier {
+	padding-top: 0;
+}
+
+ul.nbhier > li.nbkids {
+	list-style-type: none;
+	margin-left: 0ex;
+}
+
+ul.nbhier > li.nbnokids {
+	list-style-type: none;
+	padding-left: 19px;
+	margin-left: 5ex;
+}
+
 
 END
 	undef $stab;

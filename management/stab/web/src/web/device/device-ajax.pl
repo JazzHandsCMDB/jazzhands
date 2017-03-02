@@ -1,4 +1,5 @@
 #!/usr/bin/env perl
+#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -22,6 +23,22 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
+# Copyright (c) 2010-2017 Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
 # $Id$
 #
 
@@ -40,23 +57,25 @@ sub do_show_serial {
 	my $stab = new JazzHands::STAB( ajax => 'yes' )
 	  || die "Could not create STAB";
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $devid    = $stab->cgi_parse_param('DEVICE_ID')            || undef;
-	my $devnam   = $stab->cgi_parse_param('DEVICE_NAME')          || undef;
-	my $pportid  = $stab->cgi_parse_param('PHYSICAL_PORT_ID')     || undef;
-	my $piport   = $stab->cgi_parse_param('POWER_INTERFACE_PORT') || undef;
-	my $niid     = $stab->cgi_parse_param('NETWORK_INTERFACE_ID') || undef;
-	my $what     = $stab->cgi_parse_param('what')                 || undef;
-	my $type     = $stab->cgi_parse_param('type')                 || undef;
-	my $row      = $stab->cgi_parse_param('row')                  || undef;
-	my $side     = $stab->cgi_parse_param('side')                 || undef;
-	my $passedin = $stab->cgi_parse_param('passedin')             || undef;
-	my $xml      = $stab->cgi_parse_param('xml')                  || 'no';
-	my $json     = $stab->cgi_parse_param('json')                 || 'no';
-	my $parent   = $stab->cgi_parse_param('parent')               || undef;
-	my $osid     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID')  || undef;
-	my $site     = $stab->cgi_parse_param('SITE_CODE')            || undef;
-	my $locid    = $stab->cgi_parse_param('RACK_LOCATION_ID')     || undef;
-	my $dropid   = $stab->cgi_parse_param('dropid')               || undef;
+	my $devid    = $stab->cgi_parse_param('DEVICE_ID')                || undef;
+	my $devnam   = $stab->cgi_parse_param('DEVICE_NAME')              || undef;
+	my $pportid  = $stab->cgi_parse_param('PHYSICAL_PORT_ID')         || undef;
+	my $piport   = $stab->cgi_parse_param('POWER_INTERFACE_PORT')     || undef;
+	my $niid     = $stab->cgi_parse_param('NETWORK_INTERFACE_ID')     || undef;
+	my $dnsid    = $stab->cgi_parse_param('DNS_RECORD_ID')            || undef;
+	my $rdnsid   = $stab->cgi_parse_param('REFERENCED_DNS_RECORD_ID') || undef;
+	my $what     = $stab->cgi_parse_param('what')                     || undef;
+	my $type     = $stab->cgi_parse_param('type')                     || undef;
+	my $row      = $stab->cgi_parse_param('row')                      || undef;
+	my $side     = $stab->cgi_parse_param('side')                     || undef;
+	my $passedin = $stab->cgi_parse_param('passedin')                 || undef;
+	my $xml      = $stab->cgi_parse_param('xml')                      || 'no';
+	my $json     = $stab->cgi_parse_param('json')                     || 'no';
+	my $parent   = $stab->cgi_parse_param('parent')                   || undef;
+	my $osid     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID')      || undef;
+	my $site     = $stab->cgi_parse_param('SITE_CODE')                || undef;
+	my $locid    = $stab->cgi_parse_param('RACK_LOCATION_ID')         || undef;
+	my $dropid   = $stab->cgi_parse_param('dropid')                   || undef;
 	my $uniqid   = $stab->cgi_parse_param('uniqid');
 
 	if ( $what eq 'serial' ) {
@@ -121,9 +140,8 @@ sub do_show_serial {
 		}
 		if ( defined($side) ) {
 
-	       # [XXX] <- this is such a hack.  need to overhaul all port stuff.
-			$args->{-name} =
-			  "PC_P${side}_PHYSICAL_PORT_ID_$pportid";
+			# [XXX] <- this is such a hack.  need to overhaul all port stuff.
+			$args->{-name} = "PC_P${side}_PHYSICAL_PORT_ID_$pportid";
 			if ($pportid) {
 				$values{"P${side}_PHYSICAL_PORT_ID"} = $pportid;
 			}
@@ -142,15 +160,12 @@ sub do_show_serial {
 		$values{'P1_POWER_INTERFACE_PORT'} = $piport;
 		if ( $devid && $devid =~ /^\d+/ ) {
 			print $stab->b_dropdown(
-				{ -deviceid => $devid },
-				_dbx( \%values ),
-				'P2_POWER_INTERFACE_PORT',
-				'P1_POWER_INTERFACE_PORT'
+				{ -deviceid => $devid }, _dbx( \%values ),
+				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT'
 			);
 		} else {
 			print $stab->b_dropdown( undef, _dbx( \%values ),
-				'P2_POWER_INTERFACE_PORT',
-				'P1_POWER_INTERFACE_PORT' );
+				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT' );
 		}
 	} elsif ( $what eq 'VOESymTrax' ) {
 		my $args = {};
@@ -193,8 +208,7 @@ sub do_show_serial {
 			print $stab->device_physical_connection( $devid,
 				$pportid, $row, $side );
 		} else {
-			print $stab->device_physical_connection( $devid,
-				$pportid );
+			print $stab->device_physical_connection( $devid, $pportid );
 		}
 	} elsif ( $what eq 'IpRow' ) {
 
@@ -212,7 +226,7 @@ sub do_show_serial {
 		my $p;
 		if ( $locid || $site ) {
 			$p = {};
-			$p->{RACK_LOCATION_ID}        = $locid if ($locid);
+			$p->{RACK_LOCATION_ID}   = $locid if ($locid);
 			$p->{LOCATION_SITE_CODE} = $site  if ($site);
 		}
 		if ( $type && $type eq 'dev' ) {
@@ -223,58 +237,33 @@ sub do_show_serial {
 			print $stab->b_dropdown( { -site => $site },
 				$p, 'RACK_ID', 'RACK_LOCATION_ID', 1 );
 		}
-	} elsif ( $what eq 'interfacedns' ) {
+	} elsif ( $what eq 'interfacednsref' ) {
+
+		# XXX - this should go away
 		my $sth = $stab->prepare(
 			qq{
 			select	dns.dns_record_id,
-					dns.dns_domain_id,
-					dom.soa_name,
 					dns.dns_name,
-					ni.network_interface_id
-			  from	network_interface ni
-					left join dns_record dns using (netblock_id)
+					dom.soa_name
+			  from	dns_record dns
 			  		left join dns_domain dom using (dns_domain_id)
-			 where	ni.network_interface_id= ?
-			 order by dns.should_generate_ptr desc, dns.dns_record_id
-			 limit 1
+			 where	dns.dns_value_record_id = ?
+			 order by dns_domain_id, dns_name
 		}
 		) || $stab->return_db_err();
-		$sth->execute($niid) || die $sth->errstr;
-		my $row = $sth->fetchrow_hashref;
-		$sth->finish;
-		my $doms = "";
-		if ($row) {
-			$doms =
-			  $stab->build_dns_drop(
-				$row->{ _dbx('DNS_DOMAIN_ID') }, $type );
+		$sth->execute($dnsid) || die $sth->errstr;
+		my $rv;
+
+		while ( my $hr = $sth->fetchrow_hashref ) {
+			push( @{$rv}, $hr );
 		}
 		my $j = JSON::PP->new->utf8;
-		my $r = {
-			'NETWORK_INTERFACE_ID' => $niid,
-			'domains'              => $doms,
-			'DNS_NAME'             => {
-				'name' => "DNS_NAME_$niid",
-				'id'   => "DNS_NAME_$niid",
-				'type' => 'text',
-			},
-			'DNS_DOMAIN' => {
-				'name' => "DNS_DOMAIN_ID_$niid",
-				'id'   => "DNS_DOMAIN_ID_$niid",
-				'type' => 'input',
-			}
-		};
-		if ($row) {
-			if ( exists( $row->{ _dbx('DNS_NAME') } ) ) {
-				$r->{"DNS_NAME"}->{'value'} =
-				  $row->{ _dbx('DNS_NAME') };
-			}
-		}
-		print $j->encode($r);
+		print $j->encode($rv);
+
 	} else {
 
 		# catch-all error condition
-		print $cgi->div(
-			{ -style => 'text-align: center; padding: 50px', },
+		print $cgi->div( { -style => 'text-align: center; padding: 50px', },
 			$cgi->em("not implemented yet.") );
 	}
 

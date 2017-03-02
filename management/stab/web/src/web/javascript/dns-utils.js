@@ -21,20 +21,20 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Copyright (c) 2013, Todd M. Kover					     
- * All rights reserved.							  
- *									       
- * Licensed under the Apache License, Version 2.0 (the "License");	       
- * you may not use this file except in compliance with the License.	      
- * You may obtain a copy of the License at				       
- *									       
- *       http://www.apache.org/licenses/LICENSE-2.0			      
- *									       
- * Unless required by applicable law or agreed to in writing, software	   
- * distributed under the License is distributed on an "AS IS" BASIS,	     
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      
- * See the License for the specific language governing permissions and	   
- * limitations under the License.						
+ * Copyright (c) 2013-2017, Todd M. Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 //
@@ -42,7 +42,7 @@
 //
 
 //
-// converts the query string to a 
+// converts the query string to a
 function QsToObj() {
     var vars = window.location.search.substring(1).split(';');
 	var rv = new Array();
@@ -103,6 +103,7 @@ function dns_debug_addns(button)
 	button.parentNode.appendChild(br);
 }
 
+
 //
 //  builds a drop down based on what was fetched from an ajax server.
 // Optionally takes a hash at the end that contains possible defaults
@@ -110,7 +111,7 @@ function dns_debug_addns(button)
 function build_dns_drop(in_sel, detail, queryparams, id, prefix) {
 	var sel = in_sel;
 	if(in_sel == null) {
-		sel = document.createElement("select");
+		sel = $('<select/>');
 	}
 	for(var field in detail) {
 		var f = field;
@@ -126,20 +127,23 @@ function build_dns_drop(in_sel, detail, queryparams, id, prefix) {
 		$(sel).addClass('hint');
 		for(var key in detail[field]) {
 			var val = (detail[field][key] == null)?key:detail[field][key];
-			var o = new Option(key, val);
+			var o = $('<option/>', {
+				text: key,
+				value: val
+			});
 			if(queryparams != null && field in queryparams) {
 				if(queryparams[field] == val) {
 					$(o).attr('selected', true);
 				}
 			}
-			sel.add(o);
+			$(sel).append(o);
 		}
 	}
 	return(sel);
 }
 
 //
-//  builds a drop down based on what was fetched from an ajax server.  
+//  builds a drop down based on what was fetched from an ajax server.
 // Optionally takes a hash at the end that contains possible defaults
 //
 function wtf_build_dns_drop(sel, detail, queryparams) {
@@ -245,8 +249,8 @@ function change_dns_record(obj) {
 			$(port).removeClass('irrelevant');
 			$(svc).removeClass('irrelevant');
 		} else {
-			var protos = document.createElement("select");
-			var services = document.createElement("select");
+			var protos = $('<select/>');
+			var services = $('<select/>');
 
 			$.getJSON('dns-ajax.pl',
 				'what=Protocols',
@@ -303,12 +307,104 @@ function change_dns_record(obj) {
 	}
 }
 
-$(document).ready(function(){
-	$("select.dnstype").change(
-		function(event) {
-			change_dns_record(event.target);
-		}
+
+function add_new_dns_row(button, resp) {
+	var offset = 1;
+	while ( $("input#new_DNS_NAME_"+offset).length ) {
+		offset += 1;
+	}
+
+	var types = $("<select />", {
+		name: 'new_DNS_TYPE_'+offset,
+		id: 'new_DNS_TYPE_'+offset,
+		class: 'dnstype',
+	});
+	for(var field in resp['types']) {
+		var o = $("<option/>",resp['types'][field]);
+		$(types).append(o);
+	}
+
+	var classes = $("<select />", {
+		name: 'new_DNS_CLASS_'+offset,
+		id: 'new_DNS_CLASS_'+offset,
+		class: 'dnsclass',
+	});
+	for(var field in resp['classes']) {
+		var o = $("<option/>",resp['classes'][field]);
+		$(classes).append(o);
+	}
+
+	var myclass ='dnsrecord dnsadd';
+	if(offset % 2) {
+		myclass += ' even';
+	} else {
+		myclass += ' odd';
+	}
+
+	$(button).closest('tr').after(
+		$("<tr/>", {class: myclass}).append(
+			$("<td>").append(
+				$("<a/>", { class: 'purgerow'}).
+					append( $("<img/>", {
+						class: 'rmdnsrow button',
+						src: '../stabcons/redx.jpg',
+					})),
+				$("<input/>", {
+					type: 'checkbox',
+					name: 'new_IS_ENABLED_'+offset,
+					checked: true,
+				})
+			),
+			$("<td>", { class: 'DNS_NAME' } ).append(
+				$("<input/>", {
+					type: 'text',
+					name: 'new_DNS_NAME_'+offset,
+					id: 'new_DNS_NAME_'+offset,
+					class: 'dnsname',
+				})
+			),
+			$("<td>").append(
+				$("<input/>", {
+					type: 'text',
+					name: 'new_DNS_TTL'+offset,
+					id: 'new_DNS_TTL'+offset,
+					class: 'dnsttl off',
+				}),
+				$("<a/>", {
+					href: '#',
+					class: 'stabeditbutton'
+				}).append(
+					$("<img/>", {
+						// class: 'stabeditbutton',
+						src: '../stabcons/e.png',
+						title: 'Edit'
+					})
+			)),
+			$("<td>").append(classes),
+			$("<td>").append(types),
+			$("<td>").append(
+				$("<input/>", {
+					type: 'text',
+					name: 'new_DNS_VALUE_'+offset,
+					id: 'new_DNS_VALUE_'+offset,
+				})
+			),
+			$("<td>").append(
+				$("<input/>", {
+					type: 'checkbox',
+					name: 'new_SHOULD_GENERATE_PTR_'+offset,
+					class: 'ptrbox irrelevant'
+				})
+			)
+		)
 	);
+
+}
+
+$(document).ready(function(){
+	$("table.dnstable").on('change', "select.dnstype", function(event) {
+		change_dns_record(event.target);
+	});
 	// If this was a reload, its possible for this object to be set to
 	// SRV or MX, in which case, those fields should be expanded.
 	var s = document.getElementById("DNS_TYPE");
@@ -331,7 +427,19 @@ $(document).ready(function(){
 	});
 
 	// this causes the EDIT button to show up where needed
-	$("table").on('click', ".stabeditbutton", function(event) {
+	$("table.dnstable").on('click', "a.stabeditbutton", function(event) {
 		toggleon_text(event.target);
 	});
+
+	// this causes a new dns record button to show up where needed.
+	$("table.dnstable").on('click', 'a.adddnsrec', function(event) {
+		url = 'json=yes;what=dnsaddrow';
+		$.getJSON('dns-ajax.pl', url, function (resp) {
+			add_new_dns_row(event.target, resp);
+		});
+		return(0);
+	});
+
+	create_dns_reference_jquery("table.dnstable");
+
 });

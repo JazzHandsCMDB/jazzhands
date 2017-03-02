@@ -1,3 +1,9 @@
+jazzhands-javascript-common (0.77.1) trusty; urgency=medium
+
+  * upgrade to jquery 3.1.1.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 02 Feb 2017 14:07:00 +0000
+
 jazzhands-javascript-common (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation
@@ -39,4 +45,3 @@ jazzhands-javascript-common (0.51.1-2) unstable; urgency=low
   * make work
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 20 Feb 2013 00:00:00 +0000
-

@@ -1,8 +1,22 @@
+jazzhands-stab (0.77.1) trusty; urgency=medium
+
+  * overhaul netblock hierarchy to make it collapsable.
+  * overhaul dns record manipulation, links to dns records
+  * implement CNAME/A records to values.
+  * make clear that you can search on dns names for devices
+  * change method to get to assets to be through components from device
+  * temporarily migrations to v_network_interface_trans
+  * rearrange asset bits on device page
+  * remove provides_dhcp and provides_nat from network_interface
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 02 Feb 2017 14:07:00 +0000
+
 jazzhands-stab (0.74.2) trusty; urgency=medium
 
   * fix debian dependencies
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 30 Sep 2016 22:51:22 -0400
+
 
 jazzhands-stab (0.69.2) trusty; urgency=medium
 

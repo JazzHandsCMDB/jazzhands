@@ -48,7 +48,7 @@ use Net::Netmask;
 use JazzHands::STAB;
 use JazzHands::Common qw(_dbx);
 
-do_dump_network_range();
+do_dump_network_ranges();
 
 ############################################################################3
 #
@@ -56,7 +56,7 @@ do_dump_network_range();
 #
 ############################################################################3
 
-sub do_dump_network_range {
+sub do_dump_network_ranges {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi;
 	my $dbh  = $stab->dbh;
@@ -74,7 +74,7 @@ sub do_dump_network_range {
 			nr.dns_prefix,
 			dom.soa_name
 		  from	network_range nr
-				inner join dns_domain dom using (dns_domain_id)
+				left join dns_domain dom using (dns_domain_id)
 				inner join netblock lhs
 					on lhs.netblock_id = nr.start_netblock_id
 				inner join netblock rhs
@@ -106,9 +106,9 @@ sub do_dump_network_range {
 				[
 					$hr->{ _dbx('START_IP') },
 					$hr->{ _dbx('STOP_IP') },
-					$hr->{ _dbx('LEASE_TIME') },
-					$hr->{ _dbx('DNS_PREFIX') },
-					$hr->{ _dbx('SOA_NAME') },
+					$hr->{ _dbx('LEASE_TIME') || '' },
+					$hr->{ _dbx('DNS_PREFIX') || '' },
+					$hr->{ _dbx('SOA_NAME') || '' },
 				]
 			)
 		);

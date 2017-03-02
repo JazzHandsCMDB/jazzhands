@@ -1,4 +1,20 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2017 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -39,8 +55,14 @@ sub do_domain_search {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $id  = $stab->cgi_parse_param('DNS_DOMAIN_ID');
-	my $url = "index.pl?dnsdomainid=$id";
+	my $id      = $stab->cgi_parse_param('DNS_DOMAIN_ID');
+	my $addonly = $stab->cgi_parse_param('addonly');
+	if ($addonly) {
+		$addonly = ';addonly=1';
+	} else {
+		$addonly = '';
+	}
+	my $url = "index.pl?dnsdomainid=$id$addonly";
 	$cgi->redirect($url);
 	undef $stab;
 }
