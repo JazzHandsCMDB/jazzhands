@@ -24,24 +24,6 @@
 // $Id$
 //
 
-// this is dup'd in device-utils.js, it needs to be only in one place
-// XXX
-function swaparrows(id, state) {
-        var img = document.getElementById( id );
-        if(img == null) {
-                return;
-        }
-
-        if(state == 'dance') {
-                img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/progress.jpg");
-        } else if(state == 'down') {
-                img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/collapse.jpg");
-        } else if(state == 'up') {
-                img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/expand.jpg");
-        }
-}
-
-
 function AppTreeManip(nodeid, imgid) {
 	var node;
 

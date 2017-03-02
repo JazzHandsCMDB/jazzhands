@@ -109,7 +109,7 @@ sub check_for_devices {
 			)
 		  or	d.device_id in (
 				select distinct device_Id 
-				  from network_interface 
+				  from v_network_interface_trans 
 				 where netblock_id in
 					(
 					select netblock_id from

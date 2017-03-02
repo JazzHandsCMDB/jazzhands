@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015, Todd M. Kover
+ * Copyright (c) 2013-2017, Todd M. Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,15 +15,48 @@
  * limitations under the License.
  */
 
+function swaparrows(id, state) {
+	img = document.getElementById( id );
+	if(img == null) {
+		return;
+	}
+
+	if(state == 'dance') {
+		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/progress.gif");
+	} else if(state == 'arrow') {
+		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/arrow.png");
+	} else if(state == 'down') {
+		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/collapse.jpg");
+	} else if(state == 'up') {
+		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/expand.jpg");
+	}
+}
+
+//
+// jqeuery version of the above.  They should be consolidated.
+//
+function swaparrows_jq(obj, state) {
+	if(obj == null) {
+		return;
+	}
+
+	var thing = $(obj).attr('src');
+	if(state == 'dance') {
+		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/progress.gif");
+	} else if(state == 'arrow') {
+		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/arrow.png");
+	} else if(state == 'down') {
+		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/collapse.jpg");
+	} else if(state == 'up') {
+		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/expand.jpg");
+	}
+
+	$(obj).attr('src', thing);
+}
 
 function toggleon_text(but) {
-	// var p = $(but).prev(":input").removeAttr('disabled');
-	// var d = $(but).previousSibling;
-	// $(but).filter(":parent").filter("input:disabled").removeAttr('disabled');
-
-	$(but).prev(":input").removeAttr('disabled');
+	$(but).parent('a').prev(":input").toggleClass('off');
 	$(but).addClass('irrelevant');
-	
 }
 
 //

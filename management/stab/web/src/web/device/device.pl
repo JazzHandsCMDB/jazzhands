@@ -1,4 +1,21 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2016-2017 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -56,12 +73,8 @@ sub do_device_page {
 	} else {
 		$title = "Update Device";
 
-		$subtitle = $cgi->p(
-			{ -align => 'center', -style => 'font-size: 8pt' },
-			"[ ",
-			$cgi->a( { -href => "device.pl" }, "Add A Device" ),
-			" ]"
-		);
+		$subtitle = $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
+			"[ ", $cgi->a( { -href => "device.pl" }, "Add A Device" ), " ]" );
 
 		my $values = $stab->get_dev_from_devid($devid);
 		if ( defined($values) ) {
@@ -74,8 +87,7 @@ sub do_device_page {
 					$title .= " ( $n )";
 				}
 			}
-			$page .= build_page( $stab, $values,
-				"write/update_device.pl" );
+			$page .= build_page( $stab, $values, "write/update_device.pl" );
 		}
 		undef $values;
 
@@ -84,9 +96,8 @@ sub do_device_page {
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html(
 		{
-			-title => $title,
-			-onLoad =>
-			  "forcedevtabload(\"__default_tab__\", $printdevid);",
+			-title      => $title,
+			-onLoad     => "forcedevtabload(\"__default_tab__\", $printdevid);",
 			-javascript => 'device',
 		}
 	  ),
@@ -158,13 +169,12 @@ sub build_device_box {
 	my $top_table;
 	if ( !defined($values) ) {
 		$top_table = $stab->build_tr(
-			$values,       "b_textfield",
-			"Device Name", "DEVICE_NAME",
+			$values, "b_textfield", "Device Name", "DEVICE_NAME",
 			'DEVICE_ID'
 		);
 	} else {
 		$top_table = $cgi->hidden(
-			-name => 'DEVICE_ID_' . $values->{ _dbx('DEVICE_ID') },
+			-name    => 'DEVICE_ID_' . $values->{ _dbx('DEVICE_ID') },
 			-default => $values->{ _dbx('DEVICE_ID') },
 		);
 		$top_table .=
@@ -176,24 +186,50 @@ sub build_device_box {
 		"Physical Label", "PHYSICAL_LABEL",
 		'DEVICE_ID'
 	);
+	$top_table .=
+	  $stab->build_tr( $values, "b_dropdown", "Site Code", "SITE_CODE",
+		'DEVICE_ID' );
 	$top_table .= $stab->build_tr( { -dolinkUpdate => 'device_type' },
 		$values, "b_dropdown", "Model", "DEVICE_TYPE_ID", 'DEVICE_ID' );
-	$top_table .= $stab->build_tr(
-		$values, "b_textfield", "Serial #", "SERIAL_NUMBER",
-		'DEVICE_ID'
-	);
-	$top_table .= $stab->build_tr(
-		$values, "b_textfield", "Asset Tag", "ASSET_TAG",
-		'DEVICE_ID'
-	);
-	$top_table .= $stab->build_tr(
-		$values, "b_textfield", "Part #", "PART_NUMBER",
-		'DEVICE_ID'
-	);
-	$top_table .= $stab->build_tr(
-		$values, "b_dropdown", "Site Code", "SITE_CODE",
-		'DEVICE_ID'
-	);
+
+	# only show this on new things to setup components
+	if ( !$values ) {
+		$top_table .= $stab->build_tr(
+			{ -class => 'componenttype' },
+			$values, "b_dropdown", "Hardware Type (if applicable)",
+			"COMPONENT_TYPE_ID", 'DEVICE_ID'
+		);
+	}
+
+	if ( !$values || $values->{ _dbx('COMPONENT_ID') } ) {
+		my $args = {};
+		if ( !$values ) {
+			$args->{'-class'} = 'off componentfields';
+		}
+		$top_table .=
+		  $stab->build_tr( $args,
+			$values, "b_textfield", "Serial #", "SERIAL_NUMBER", 'DEVICE_ID' );
+		$top_table .=
+		  $stab->build_tr( $args,
+			$values, "b_textfield", "Asset Tag", "ASSET_TAG", 'DEVICE_ID' );
+		$top_table .=
+		  $stab->build_tr( $args,
+			$values, "b_textfield", "Part #", "PART_NUMBER", 'DEVICE_ID' );
+
+		$top_table .=
+		  $stab->build_tr( $args, $values, "b_dropdown", "Ownership",
+			"OWNERSHIP_STATUS", 'DEVICE_ID' );
+		if (
+			!$values
+			|| ( exists( $values->{ _dbx('OWNERSHIP_STATUS') } )
+				&& $values->{ _dbx('OWNERSHIP_STATUS') } eq 'leased' )
+		  )
+		{
+			$top_table .=
+			  $stab->build_tr( $args, $values, "b_textfield", "Lease Expires",
+				"LEASE_EXPIRATION_DATE", 'DEVICE_ID' );
+		}
+	}
 
 	#$top_table .= $stab->build_tr($values, "b_textfield",
 	#	"Asset #", "ASSET_TAG", 'DEVICE_ID');
@@ -255,26 +291,15 @@ sub build_device_box {
 	#	$left_table .=
 	#	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
 	#		"OPERATING_SYSTEM_ID", 'DEVICE_ID' );
-	$left_table  .= $voetr;
-	$right_table .= $stab->build_tr( $values, "b_dropdown", "Ownership",
-		"OWNERSHIP_STATUS", 'DEVICE_ID' );
-	if ( !$values || (exists($values->{ _dbx('OWNERSHIP_STATUS') }) && $values->{ _dbx('OWNERSHIP_STATUS') } eq 'leased' ) ) {
-		$right_table .=
-		  $stab->build_tr( $values, "b_textfield", "Lease Expires",
-			"LEASE_EXPIRATION_DATE", 'DEVICE_ID' );
-	}
+	$left_table .= $voetr;
+
 	$right_table .=
 	  $stab->build_tr( $values, "b_dropdown", "Service Environment",
 		"SERVICE_ENVIRONMENT_ID", 'DEVICE_ID' );
-	$right_table .= $stab->build_tr( $values, "b_dropdown", "Mgmt Protocol",
-		"AUTO_MGMT_PROTOCOL", 'DEVICE_ID' );
 
 	if ($values) {
 		$left_table .= $cgi->Tr(
-			$cgi->td(
-				{ -align => 'right' },
-				$cgi->b("Parent Device")
-			),
+			$cgi->td( { -align => 'right' }, $cgi->b("Parent Device") ),
 			$cgi->td(
 				build_parent_device_box(
 					$stab,
@@ -287,14 +312,10 @@ sub build_device_box {
 
 		if ( $values->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'N' ) {
 			$left_table .= $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("Children Devices")
-				),
+				$cgi->td( { -align => 'right' }, $cgi->b("Children Devices") ),
 				$cgi->td(
 					build_children_device_list(
-						$stab,
-						$values->{ _dbx('DEVICE_ID') },
+						$stab, $values->{ _dbx('DEVICE_ID') },
 					)
 				)
 			);
@@ -303,21 +324,13 @@ sub build_device_box {
 
 	if ( defined($values) ) {
 		if ( $values->{ _dbx('HOST_ID') } ) {
-			$right_table .= $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("Host ID")
-				),
-				$cgi->td( $values->{ _dbx('HOST_ID') } )
-			);
+			$right_table .=
+			  $cgi->Tr( $cgi->td( { -align => 'right' }, $cgi->b("Host ID") ),
+				$cgi->td( $values->{ _dbx('HOST_ID') } ) );
 		} else {
-			$right_table .= $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("Host ID")
-				),
-				$cgi->td('not set')
-			);
+			$right_table .=
+			  $cgi->Tr( $cgi->td( { -align => 'right' }, $cgi->b("Host ID") ),
+				$cgi->td('not set') );
 		}
 
 		my $cnt =
@@ -328,18 +341,15 @@ sub build_device_box {
 				$cgi->a(
 					{
 						-href => "snmp/?DEVICE_ID="
-						  . $values->{ _dbx('DEVICE_ID')
-						  }
+						  . $values->{ _dbx('DEVICE_ID') }
 					},
-					"$cnt SNMP string"
-					  . ( ( $cnt == 1 ) ? '' : "s" )
+					"$cnt SNMP string" . ( ( $cnt == 1 ) ? '' : "s" )
 				)
 			)
 		);
 	} else {
 		$right_table .=
-		  $stab->build_tr( $values, "b_textfield", "SNMP Rd",
-			"SNMP_COMMSTR" );
+		  $stab->build_tr( $values, "b_textfield", "SNMP Rd", "SNMP_COMMSTR" );
 	}
 
 	$left_table  = $cgi->table($left_table);
@@ -398,14 +408,14 @@ sub build_page {
 			$numnotes = " ($numnotes)";
 		}
 
-	     #
-	     # comment things out here and the tabs just won't show up at all.
-	     # This maps the inside name (used by the javascript and ajax
-	     # scripts) to what its presented as in the tabs, as well as defines
-	     # which tabes are valid.  This is used in dev so tabs can get built
-	     # out but not made visible.  Note that someone clever could bring
-	     # up the tabs using web queries in this case, tho.
-	     #
+		#
+		# comment things out here and the tabs just won't show up at all.
+		# This maps the inside name (used by the javascript and ajax
+		# scripts) to what its presented as in the tabs, as well as defines
+		# which tabes are valid.  This is used in dev so tabs can get built
+		# out but not made visible.  Note that someone clever could bring
+		# up the tabs using web queries in this case, tho.
+		#
 
 		my $tablist = {
 			"PatchPanel" => "Patch Panel",
@@ -455,9 +465,7 @@ sub build_page {
 		if ( exists( $tablist->{PatchPanel} ) ) {
 			push( @tablist, "PatchPanel" );
 		} else {
-			push( @tablist,
-				qw{IP IPRoute Circuit Serial Power Switchport }
-			);
+			push( @tablist, qw{IP IPRoute Circuit Serial Power Switchport } );
 		}
 
 		push( @tablist, qw{Location Licenses Advanced} );
@@ -468,19 +476,18 @@ sub build_page {
 				my $tabp = $tablist->{$tab};
 				$intertab .= $cgi->a(
 					{
-						-class => 'tabgrouptab',
-						-id    => $tab,
-						-href =>
-						  'javascript:void(null);',
-						-onClick =>
-						  "ShowDevTab('$tab', $devid);"
+						-class   => 'tabgrouptab',
+						-id      => $tab,
+						-href    => 'javascript:void(null);',
+						-onClick => "ShowDevTab('$tab', $devid);"
 					},
 					$tabp
-				);
+				) . "\n\n";
 			}
 		}
 
-		$maindiv .= $cgi->div(
+		$maindiv .= "\n\n"
+		  . $cgi->div(
 			$cgi->div( { -class => 'tabgroup_pending' } ),
 			$cgi->hidden(
 				-name    => $opentabid,
@@ -495,7 +502,7 @@ sub build_page {
 					$cgi->em("please select a tab.")
 				)
 			)
-		);
+		  ) . "\n\n";
 	}
 
 	$maindiv .= $cgi->div(
@@ -518,8 +525,7 @@ sub build_page {
 		}
 	);
 	$page .=
-	  $cgi->div( { -id => 'verifybox', -style => 'visibility: hidden' },
-		"" );
+	  $cgi->div( { -id => 'verifybox', -style => 'visibility: hidden' }, "" );
 	$page .= $cgi->div( { -class => 'maindiv' }, $maindiv );
 	$page .= $cgi->end_form();
 
@@ -607,12 +613,11 @@ sub build_parent_device_box {
 				-id   => $pdnam,
 				-size => 50,
 				-onInput =>
-"inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
+				  "inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
 				-onKeydown =>
-"keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
-				-onBlur => "hidePopup_Search($pdnam)",
-				-onChange =>
-				  "updateDeviceParentLink($devid, $pdid
+				  "keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
+				-onBlur   => "hidePopup_Search($pdnam)",
+				-onChange => "updateDeviceParentLink($devid, $pdid
 )",
 				-default => $pname,
 			}

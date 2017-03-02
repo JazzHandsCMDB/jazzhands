@@ -22,6 +22,24 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
+# Copyright (c) 2016-2017 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+#
 # $Id$
 #
 
@@ -67,7 +85,7 @@ sub link_inaddr_zone($$$) {
 		$bits = 24;
 	} else {
 		$stab->error_return(
-"Unable to handle anything but IPv4 /24 or /16.  $inname is problematic"
+			"Unable to handle anything but IPv4 /24 or /16.  $inname is problematic"
 		);
 	}
 
@@ -139,7 +157,8 @@ sub add_default_ns_records($$) {
 			dns_type      => 'NS',
 			dns_value     => $row->{property_value}
 		};
-		$numchanges += $stab->add_dns_record($new);
+		$stab->add_dns_record($new);
+		$numchanges++;
 	}
 	$numchanges;
 }
@@ -195,8 +214,7 @@ sub do_domain_add {
 		$sth->execute($soaname) || $stab->return_db_err($sth);
 		my $hr = $sth->fetchrow_hashref;
 		if ( defined($hr) ) {
-			$stab->error_return(
-				"The zone $soaname already exists.");
+			$stab->error_return("The zone $soaname already exists.");
 		}
 	}
 
@@ -210,7 +228,7 @@ sub do_domain_add {
 		$mname = $stab->fetch_property( 'Defaults', '_dnsmname' );
 		if ( !$mname ) {
 			$stab->error_return(
-"There is no default mname configured.  You must enter one or set a default"
+				"There is no default mname configured.  You must enter one or set a default"
 			);
 		}
 	}
@@ -219,7 +237,7 @@ sub do_domain_add {
 		$rname = $stab->fetch_property( 'Defaults', '_dnsrname' );
 		if ( !$rname ) {
 			$stab->error_return(
-"There is no default rname configured.  You must set one or set a default."
+				"There is no default rname configured.  You must set one or set a default."
 			);
 		}
 	}
