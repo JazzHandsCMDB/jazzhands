@@ -123,6 +123,24 @@ BEGIN
 		insert into DNS_CHANGE_RECORD
 			(dns_domain_id, ip_address) VALUES (_dnsdomainid, _ipaddr);
 	END IF;
+
+	--
+	-- deal with records pointing to this one.  only values are done because
+	-- references are forced by ak to be in the same zone.
+	IF TG_OP = 'INSERT' THEN
+		INSERT INTO dns_change_record (dns_domain_id)
+			SELECT DISTINCT dns_domain_id
+			FROM dns_record
+			WHERE dns_value_record_id = NEW.dns_record_id
+			AND dns_domain_id != NEW.dns_domain_id;
+	ELSIF TG_OP = 'UPDATE' THEN
+		INSERT INTO dns_change_record (dns_domain_id)
+			SELECT DISTINCT dns_domain_id
+			FROM dns_record
+			WHERE dns_value_record_id = NEW.dns_record_id
+			AND dns_domain_id NOT IN (OLD.dns_domain_id, NEW.dns_domain_id);
+	END IF;
+
 	IF TG_OP = 'DELETE' THEN
 		return OLD;
 	END IF;
