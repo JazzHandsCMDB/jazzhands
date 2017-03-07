@@ -462,6 +462,15 @@ table.dnstable input.dnsname {
 	width: 10em;
 }
 
+
+.autocomplete-suggestions { border: 1px solid #999; background: lightyellow; overflow: auto; font-size: 80%;}
+.autocomplete-suggestion { padding: 2px 5px; white-space: nowrap; overflow: hidden; }
+.autocomplete-selected { background: #F0F0F0; }
+.autocomplete-suggestions strong { font-weight: normal; color: #3399FF; }
+.autocomplete-group { padding: 2px 5px; }
+.autocomplete-group strong { display: block; border-bottom: 1px solid #000; }
+
+
 .dnssubmit {
 	display: block;
 	margin: auto;

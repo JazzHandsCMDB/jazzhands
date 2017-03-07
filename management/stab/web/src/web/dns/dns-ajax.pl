@@ -37,6 +37,7 @@ sub do_dns_ajax {
 	my $what = $stab->cgi_parse_param('what')      || 'none';
 	my $dnsrecid = $stab->cgi_parse_param('DNS_RECORD_ID');
 	my $dnsdomid = $stab->cgi_parse_param('DNS_DOMAIN_ID');
+	my $query = $stab->cgi_parse_param('query');
 
 	#
 	# passedin contains all the arguments that were passed to the original
@@ -187,7 +188,34 @@ sub do_dns_ajax {
 		my $j = JSON::PP->new->utf8;
 		my $r = { 'domains' => $doms, };
 		print $j->encode($r);
+	} elsif ( $what eq 'cname-complete' ) {
+		my $r = {
+			query => 'unit',
+		};
 
+		my $sth = $stab->prepare(
+			qq{
+			select	dns.dns_record_id,
+					dom.soa_name,
+					dns.dns_name
+		  	from	dns_record dns 
+		  			inner join dns_domain dom using (dns_domain_id)
+		 	where	coalesce(dns_name, '.', soa_name) LIKE ?
+			and 	dns_type in ('A','AAAA','CNAME')
+			and		dns_value_record_id IS NULL
+			and		reference_dns_record_id IS NULL
+			order by dns_name, soa_name
+		 	limit 10
+		}
+		) || $stab->return_db_err();
+		$sth->execute($query."%") || die $sth->errstr;
+
+		while(my ($id,$soa,$dns) = $sth->fetchrow_array) {
+			push(@{ $r->{suggestions} },
+				{ value => join(".", $dns,$soa), data => $id });
+		}
+		my $j = JSON::PP->new->utf8;
+		print $j->encode($r);
 	} else {
 
 		# catch-all error condition

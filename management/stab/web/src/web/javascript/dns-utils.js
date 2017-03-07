@@ -440,6 +440,20 @@ $(document).ready(function(){
 		return(0);
 	});
 
+	// This handles making cnames destinations auto complete to othe		// records, if appropriate
+	$('input.dnscname').autocomplete({
+		noCache: false,
+		deferRequestBy: 250,
+		serviceUrl: 'dns-ajax.pl?what=cname-complete;',
+		onSelect: function (suggestion) {
+			alert('You selected: ' + suggestion.value + ', ' + suggestion.data);
+		},
+		beforeRender: function(container, suggestions) {
+			// just used to clear the dns value record.
+		}
+	});
+
+
 	create_dns_reference_jquery("table.dnstable");
 
 });
