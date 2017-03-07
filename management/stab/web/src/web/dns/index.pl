@@ -349,6 +349,9 @@ sub build_dns_rec_Tr {
 		}
 	} elsif ( $hr->{ _dbx('DNS_RECORD_ID') } ) {
 		$opts->{-class} = 'dnsvalue';
+		if( $hr->{_dbx('DNS_TYPE')} eq 'CNAME') {
+			$opts->{-class} .= ' dnscname';
+		}
 		$value = $stab->b_textfield( $opts, $hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
 		if ($dnsrecid) {
 			$value .= $cgi->a(

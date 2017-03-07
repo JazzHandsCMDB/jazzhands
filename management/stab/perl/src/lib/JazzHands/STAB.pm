@@ -53,7 +53,7 @@ use CGI;    #qw(-no_xhtml);
 use URI;
 use Carp qw(cluck);
 use Data::Dumper;
-use NetAddr::IP;
+use NetAddr::IP qw(:lower);
 use Net::IP;
 
 # Try to keep these later.
@@ -389,6 +389,10 @@ sub start_html {
 				{
 					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'javascript',
+					-src => "$root/javascript-common/external/jquery-Autocomplete/jquery.autocomplete.min.js",
 				},
 				{
 					-language => 'javascript',
@@ -3079,7 +3083,7 @@ sub process_and_update_dns_record {
 		{
 			$self->error_return(
 				"$opts->{'dns_value'} is not a valid IPv4 address");
-		} elsif ( $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/
+		} elsif ( $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/i
 			&& $opts->{'dns_type'} eq 'AAAA' )
 		{
 			$self->error_return(
