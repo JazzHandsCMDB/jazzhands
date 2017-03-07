@@ -37,6 +37,7 @@ select  dns_record_id,
 	dns_srv_weight,
 	dns_srv_port,
 	should_generate_ptr,
+	is_enabled,
 	dns_domain_id,
 	coalesce(ref_record_id, dns_value_record_id, dns_record_id) as anchor_record_id,
 	CASE WHEN ref_record_id is NOT NULL THEN 2
