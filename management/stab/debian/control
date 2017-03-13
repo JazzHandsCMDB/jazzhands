@@ -8,12 +8,12 @@ Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-stab
 Architecture: any
-Pre-Depends: libnet-ip-perl, libnet-dns-perl, libnetaddr-ip-perl
+Pre-Depends: libnet-ip-perl, libnet-dns-perl, libnetaddr-ip-perl, libcgi-pm-perl
 Description: 
  Perl libraries for STAB
 
 Package: jazzhands-stab
 Architecture: any
-Pre-Depends: jazzhands-perl-mgmt, jazzhands-perl-common (>= 0.69.0), jazzhands-perl-stab , jazzhands-javascript-common  (>= 0.64.6)
+Pre-Depends: jazzhands-perl-mgmt (>= 0.79.0), jazzhands-perl-common (>= 0.73.2), jazzhands-perl-stab (=${binary:Version}), jazzhands-javascript-common  (>= 0.79.0)
 Description: 
  JazzHands STAB Web Front End

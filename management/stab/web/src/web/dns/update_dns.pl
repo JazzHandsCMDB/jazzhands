@@ -103,11 +103,12 @@ sub clear_same_dns_params {
   DNS: for my $dnsid ( $stab->cgi_get_ids('DNS_RECORD_ID') ) {
 		next if ( $dnsid !~ /^\d+$/ );
 
-		my $in_name    = $stab->cgi_parse_param( 'DNS_NAME',       $dnsid );
-		my $in_class   = $stab->cgi_parse_param( 'DNS_CLASS',      $dnsid );
-		my $in_type    = $stab->cgi_parse_param( 'DNS_TYPE',       $dnsid );
-		my $in_ttl     = $cgi->param( 'DNS_TTL_' . $dnsid );
-		my $in_value   = $stab->cgi_parse_param( 'DNS_VALUE',      $dnsid );
+		my $in_name  = $stab->cgi_parse_param( 'DNS_NAME',            $dnsid );
+		my $in_class = $stab->cgi_parse_param( 'DNS_CLASS',           $dnsid );
+		my $in_type  = $stab->cgi_parse_param( 'DNS_TYPE',            $dnsid );
+		my $in_ttl   = $cgi->param( 'DNS_TTL_' . $dnsid );
+		my $in_value = $stab->cgi_parse_param( 'DNS_VALUE',           $dnsid );
+		my $in_valid = $stab->cgi_parse_param( 'DNS_VALUE_RECORD_ID', $dnsid );
 		my $in_ttlonly = $stab->cgi_parse_param( 'ttlonly',        $dnsid );
 		my $in_enabled = $stab->cgi_parse_param( 'chk_IS_ENABLED', $dnsid );
 
@@ -173,6 +174,7 @@ sub clear_same_dns_params {
 				DNS_TYPE            => $in_type,
 				DNS_VALUE           => $in_value,
 				DNS_TTL             => $in_ttl,
+				DNS_VALUE_RECORD_ID => $in_valid,
 				IS_ENABLED          => $in_enabled,
 				DNS_SRV_SERVICE     => $in_srv_svc,
 				DNS_SRV_PROTOCOL    => $in_srv_proto,
@@ -218,6 +220,7 @@ sub clear_same_dns_params {
 		$purge->{ 'DNS_SRV_WEIGHT_' . $dnsid }          = 1;
 		$purge->{ 'DNS_SRV_PORT_' . $dnsid }            = 1;
 		$purge->{ 'DNS_PRIORITY_' . $dnsid }            = 1;
+		$purge->{ 'DNS_VALUE_RECORD_ID_' . $dnsid }     = 1;
 		$purge->{ 'ttlonly_' . $dnsid }                 = 1;
 		$purge->{ 'chk_IS_ENABLED_' . $dnsid }          = 1;
 		$purge->{ 'chk_SHOULD_GENERATE_PTR_' . $dnsid } = 1;
@@ -245,11 +248,12 @@ sub process_dns_update {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $numchanges = 0;
 
-	my $name   = $stab->cgi_parse_param( 'DNS_NAME', $updateid );
-	my $ttl    = $cgi->param( 'DNS_TTL_' . $updateid );
-	my $class  = $stab->cgi_parse_param( 'DNS_CLASS', $updateid );
-	my $type   = $stab->cgi_parse_param( 'DNS_TYPE', $updateid );
-	my $value  = $stab->cgi_parse_param( 'DNS_VALUE', $updateid );
+	my $name     = $stab->cgi_parse_param( 'DNS_NAME', $updateid );
+	my $ttl      = $cgi->param( 'DNS_TTL_' . $updateid );
+	my $class    = $stab->cgi_parse_param( 'DNS_CLASS', $updateid );
+	my $type     = $stab->cgi_parse_param( 'DNS_TYPE', $updateid );
+	my $value    = $stab->cgi_parse_param( 'DNS_VALUE', $updateid );
+	my $valrecid = $stab->cgi_parse_param( 'DNS_VALUE_RECORD_ID', $updateid );
 	my $genptr = $stab->cgi_parse_param( 'chk_SHOULD_GENERATE_PTR', $updateid );
 	my $enabled = $stab->cgi_parse_param( 'chk_IS_ENABLED', $updateid );
 	my $ttlonly = $stab->cgi_parse_param( 'ttlonly', $updateid );
@@ -259,6 +263,20 @@ sub process_dns_update {
 	my $in_srv_weight = $stab->cgi_parse_param( "DNS_SRV_WEIGHT",   $updateid );
 	my $in_srv_port   = $stab->cgi_parse_param( "DNS_SRV_PORT",     $updateid );
 	my $in_priority   = $stab->cgi_parse_param( "DNS_PRIORITY",     $updateid );
+
+	#
+	# make ttl undset if its unset in the incoming form
+	#
+	if ( $ttl && !legnth($ttl) ) {
+		$ttl = undef;
+	}
+
+	#
+	# if there's a reference record id, ignore the value
+	#
+	if ($valrecid) {
+		$value = undef;
+	}
 
 	$enabled = $stab->mk_chk_yn($enabled);
 	$genptr  = $stab->mk_chk_yn($genptr);
@@ -282,7 +300,13 @@ sub process_dns_update {
 		$stab->error_return("SRV/MX Priority must be a number");
 	}
 
-	if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
+	if (   !defined($name)
+		&& !$ttl
+		&& !$class
+		&& !$type
+		&& !$value
+		&& !$valrecid )
+	{
 		return $numchanges;
 	}
 
@@ -294,16 +318,18 @@ sub process_dns_update {
 			$name =~ s/^\s+//;
 			$name =~ s/\s+$//;
 		}
-		if ( !$value ) {
+		if ( !$value && !$valrecid ) {
 			my $hint = $name || "";
 			$hint = "($hint id#$updateid)";
 			$stab->error_return("Records may not have empty values ($hint)");
 		}
-		$value =~ s/^\s+//;
-		$value =~ s/\s+$//;
+		if ($value) {
+			$value =~ s/^\s+//;
+			$value =~ s/\s+$//;
+		}
 	}
 
-	if ( $ttl && $ttl !~ /^\d+/ ) {
+	if ( $ttl && $ttl !~ /^\d+$/ ) {
 		$stab->error_return("TTLs must be numbers");
 	}
 
@@ -311,6 +337,11 @@ sub process_dns_update {
 	# out where quotes should go in the extraction.
 	if ( $name && $name =~ /\s/ ) {
 		$stab->error_return("DNS Records may not contain spaces");
+	}
+
+	# force to N.
+	if ($valrecid) {
+		$genptr = 'N';
 	}
 
 	my $new = {
@@ -321,6 +352,7 @@ sub process_dns_update {
 		dns_class           => $class,
 		dns_type            => $type,
 		dns_value           => $value,
+		dns_value_record_id => $valrecid,
 		dns_priority        => $in_priority,
 		dns_srv_service     => $in_srv_svc,
 		dns_srv_protocol    => $in_srv_proto,
@@ -349,6 +381,7 @@ sub process_dns_add {
 		my $class   = $stab->cgi_parse_param("new_DNS_CLASS_$newid");
 		my $type    = $stab->cgi_parse_param("new_DNS_TYPE_$newid");
 		my $value   = $stab->cgi_parse_param("new_DNS_VALUE_$newid");
+		my $valrcid = $stab->cgi_parse_param("new_DNS_VALUE_RECORD_ID_$newid");
 		my $enabled = $stab->cgi_parse_param( 'new_chk_IS_ENABLED', $newid );
 		my $genptr =
 		  $stab->cgi_parse_param( "new_chk_SHOULD_GENERATE_PTR", $newid );
@@ -384,7 +417,7 @@ sub process_dns_add {
 		if ( !defined($type) || !length($type) ) {
 			$stab->error_return("Must set a record type");
 		}
-		if ( !defined($value) || !length($value) ) {
+		if ( ( !defined($value) || !length($value) ) && !$valrcid ) {
 			$stab->error_return("Must set a value");
 		}
 		if ( defined($ttl) && $ttl !~ /^\d+$/ ) {
@@ -410,7 +443,13 @@ sub process_dns_add {
 			$stab->error_return("SRV/MX Priority must be a number");
 		}
 
-		if ( !defined($name) && !$ttl && !$class && !$type && !$value ) {
+		if (   !defined($name)
+			&& !$ttl
+			&& !$class
+			&& !$type
+			&& !$value
+			&& !$valrcid )
+		{
 			return $numchanges;
 		}
 
@@ -436,6 +475,11 @@ sub process_dns_add {
 				"CNAMEs are illegal when combined with an SOA record.");
 		}
 
+		# force to N.
+		if ($valrcid) {
+			$genptr = 'N';
+		}
+
 		my $new = {
 			dns_name            => $name,
 			dns_domain_id       => $domid,
@@ -448,6 +492,7 @@ sub process_dns_add {
 			dns_srv_protocol    => $in_srv_proto,
 			dns_srv_weight      => $in_srv_weight,
 			dns_srv_port        => $in_srv_port,
+			dns_value_record_id => $valrcid,
 			is_enabled          => 'Y',
 			should_generate_ptr => $genptr,
 		};
@@ -472,7 +517,7 @@ sub do_dns_update {
 
 	clear_same_dns_params( $stab, $domid );
 
-	#- print $cgi->header, $cgi->html($cgi->Dump); exit;
+	#- print $cgi->header, $cgi->html( $cgi->Dump ); exit;
 
 	my $genflip = $stab->cgi_parse_param('AutoGen');
 

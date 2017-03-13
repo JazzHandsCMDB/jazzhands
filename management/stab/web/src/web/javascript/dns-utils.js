@@ -171,14 +171,55 @@ function wtf_build_dns_drop(sel, detail, queryparams) {
 }
 
 //
+// changes editable field to a text field. 
+//
+function make_outref_editable(obj) {
+	if (!$(obj).length) {
+		return;
+	}
+	var id= $(obj).closest('tr').attr('id');
+	var td = $(obj).closest('td');
+	var v = $(td).find('a.dnsrefoutlink');
+	var nelem = $('<input/>', {
+		type: 'text',
+		class: 'dnsvalue dnsautocomplete',
+		name: 'DNS_VALUE_' + id,
+		value: $(v).first().text()
+	});
+	$(v).before( nelem );
+	configure_autocomplete( nelem );
+
+	$(obj).remove();
+	$(v).remove();
+}
+
+//
 // This deals with showing extra fields for SRV and MX records, and making
 // them go away the class changes.  There is a lot of repetition, so
 // it should probably be broken out into some supporting functions...
 //
-function change_dns_record(obj) {
+// note - old may not be set.
+//
+function change_dns_record(obj, old) {
 	var prms = QsToObj();
 	var nametr = $(obj).closest('tr').first();
 	var nametd = $(obj).closest('tr').find('td.DNS_NAME');
+
+
+	// this will just do nothing if it is not a dns reference. 
+	$(obj).closest('tr').find('a.dnsrefouteditbutton').each(
+		function(idx, elem) {
+			make_outref_editable(elem);
+			
+	});
+
+	if(obj.value == 'CNAME' || obj.value == 'A' || obj.value == 'AAAA') {
+		$(obj).closest('tr').find('input.dnsvalue').addClass('dnsautocomplete');
+		configure_autocomplete( $(obj).closest('tr').find('input.dnsvalue') );
+	} else {
+		$(obj).closest('tr').find('input.dnsvalue').removeClass('dnsautocomplete');
+		$(obj).closest('tr').find('input.dnsvalue').autocomplete('dispose');
+	}
 
 	// deal with showing/hiding the PTR box for A records
 	if(obj.value == 'A' || obj.value == 'AAAA') {
@@ -232,6 +273,7 @@ function change_dns_record(obj) {
 			$(box).insertBefore(value);
 		}
 	}
+
 
 	if(obj.value == 'SRV') {
 		var name = $(obj).closest('tr').find('input[name*="DNS_NAME"]');
@@ -383,8 +425,14 @@ function add_new_dns_row(button, resp) {
 			$("<td>").append(classes),
 			$("<td>").append(types),
 			$("<td>").append(
+				$('<input/>', {
+					type: 'hidden',
+					class: 'valdnsrecid',
+					name: 'new_DNS_VALUE_RECORD_ID_' + offset
+				}),
 				$("<input/>", {
 					type: 'text',
+					class: 'dnsvalue',
 					name: 'new_DNS_VALUE_'+offset,
 					id: 'new_DNS_VALUE_'+offset,
 				})
@@ -401,10 +449,50 @@ function add_new_dns_row(button, resp) {
 
 }
 
-$(document).ready(function(){
-	$("table.dnstable").on('change', "select.dnstype", function(event) {
-		change_dns_record(event.target);
+//
+// This is a separate function so it can be re-called when new rows are
+// created (or new dnsvalues are created).  This is an each() call in order
+// to pass along the type in the url for correct auto-completion.  This means
+// that every time the type select is chagned, the url needs to be changed
+// to match
+//
+function configure_autocomplete(selector) {
+	if(selector == null) {
+		selector = 'input.dnsautocomplete';
+	}
+
+	//
+	// Its done thsi way so that the URL can have the type in it.
+	//
+	$('html').find(selector).each(function(idx, elem) {
+		var type = $(elem).closest('tr').find('select.dnstype').val();
+		var url = 'dns-ajax.pl?what=autocomplete;DNS_TYPE='+ type +';'
+		$(elem).devbridgeAutocomplete({
+			noCache: false,
+			deferRequestBy: 200,
+			showNoSuggestionNotice: true,
+			noSuggestionNotice: 'No suggested matches.',
+			serviceUrl: url,
+			onSelect: function (suggestion) {
+				var id = $(this).closest('tr').attr('id');
+				var x = $(this).closest('td').find('.valdnsrecid');
+				$(x).val(suggestion.data);
+			},
+			onSearchStart: function(container, suggestion) {
+				$(this).closest('td').find('.valdnsrecid').val(null);
+			}
+		});
 	});
+}
+
+$(document).ready(function(){
+	$("table.dnstable").on('focus', "select.dnstype", function(event) {
+		$(this).data("oldValue", $(this).val() )
+	});
+	$("table.dnstable").on('change', "select.dnstype", function(event) {
+		change_dns_record(event.target, $(this).data('oldValue') );
+	});
+
 	// If this was a reload, its possible for this object to be set to
 	// SRV or MX, in which case, those fields should be expanded.
 	var s = document.getElementById("DNS_TYPE");
@@ -431,6 +519,12 @@ $(document).ready(function(){
 		toggleon_text(event.target);
 	});
 
+	// This casuses reference edits to change into the right kind of
+	// text box.
+	$("table.dnstable").on('click', "a.dnsrefouteditbutton", function(event) {
+		make_outref_editable(this);
+	});
+
 	// this causes a new dns record button to show up where needed.
 	$("table.dnstable").on('click', 'a.adddnsrec', function(event) {
 		url = 'json=yes;what=dnsaddrow';
@@ -440,18 +534,7 @@ $(document).ready(function(){
 		return(0);
 	});
 
-	// This handles making cnames destinations auto complete to othe		// records, if appropriate
-	$('input.dnscname').autocomplete({
-		noCache: false,
-		deferRequestBy: 250,
-		serviceUrl: 'dns-ajax.pl?what=cname-complete;',
-		onSelect: function (suggestion) {
-			alert('You selected: ' + suggestion.value + ', ' + suggestion.data);
-		},
-		beforeRender: function(container, suggestions) {
-			// just used to clear the dns value record.
-		}
-	});
+	configure_autocomplete();
 
 
 	create_dns_reference_jquery("table.dnstable");

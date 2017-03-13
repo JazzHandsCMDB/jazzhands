@@ -2049,7 +2049,9 @@ sub process_and_insert_dns_record {
 					"DNS_RECORD_ID", $recid, { should_generate_ptr => 'N' } );
 			}
 		} else {
-			if ( !$self->get_dns_a_record_for_ptr( $opts->{dns_value} ) ) {
+			if (   !$self->get_dns_a_record_for_ptr( $opts->{dns_value} )
+				&& !$opts->{dns_value_record_id} )
+			{
 				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'Y';
 			} else {
 				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
