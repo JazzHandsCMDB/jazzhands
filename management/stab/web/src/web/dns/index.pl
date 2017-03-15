@@ -341,16 +341,22 @@ sub build_dns_rec_Tr {
 		if ( !$hr->{ _dbx('NETBLOCK_ID') } ) {
 			my $link =
 			  "./?DNS_RECORD_ID=" . $hr->{ _dbx('DNS_VALUE_RECORD_ID') };
-			$value = $cgi->a( { -href => $link }, $hr->{ _dbx('DNS_VALUE') } );
+			$value = $cgi->a( { -class => 'dnsrefoutlink', -href => $link }, $hr->{ _dbx('DNS_VALUE') } );
 		} else {
 			my $link =
 			  "./?DNS_RECORD_ID=" . $hr->{ _dbx('DNS_VALUE_RECORD_ID') };
-			$value = $cgi->a( { -href => $link }, $hr->{ _dbx('IP') } );
+			$value = $cgi->a( { -class => 'dnsrefoutlink', -href => $link }, $hr->{ _dbx('IP') } );
 		}
+		$value .= $cgi->a(
+				{ -class => 'dnsrefouteditbutton', -href => '#' },
+				$cgi->img(
+					{ -class => 'button', -src => '../stabcons/e.png' }
+				)
+			  );
 	} elsif ( $hr->{ _dbx('DNS_RECORD_ID') } ) {
 		$opts->{-class} = 'dnsvalue';
-		if( $hr->{_dbx('DNS_TYPE')} eq 'CNAME') {
-			$opts->{-class} .= ' dnscname';
+		if ( $hr->{ _dbx('DNS_TYPE') } eq 'CNAME' ) {
+			$opts->{-class} .= ' dnsautocomplete';
 		}
 		$value = $stab->b_textfield( $opts, $hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
 		if ($dnsrecid) {
@@ -372,7 +378,7 @@ sub build_dns_rec_Tr {
 						-disabled => 1
 					}
 				),
-			);
+			  );
 		}
 		delete( $opts->{-class} );
 	}
@@ -390,6 +396,18 @@ sub build_dns_rec_Tr {
 	my $ptrbox    = "";
 	my $hidden    = "";
 	my $excess    = "";
+
+	{
+		my %args = (
+			-name  => "DNS_VALUE_RECORD_ID_" . $hr->{ _dbx('DNS_RECORD_ID') },
+			-label => '',
+			-class => 'valdnsrecid',
+		);
+		if ( $hr->{ _dbx('DNS_VALUE_RECORD_ID') } ) {
+			$args{-value} = $hr->{ _dbx('DNS_VALUE_RECORD_ID') },;
+		}
+		$value .= $cgi->hidden(%args);
+	}
 
 	if ($canedit) {
 		$opts->{-default} = 'Y';
@@ -633,11 +651,14 @@ sub dump_zone {
 			  : "unnamed zone";
 			$parlink = $cgi->a( { -href => $url }, $parent );
 		}
+		$parlink = "Parent: $parlink";
 
 		if ( $nblink && length($nblink) ) {
 			$nblink = $cgi->br($nblink);
 		}
 
+		print $cgi->hr;
+	} else {
 		$zonelink = $cgi->br(
 			$cgi->a(
 				{ -href => "./?dnsdomid=" . $dnsdomainid },
@@ -645,7 +666,6 @@ sub dump_zone {
 				$hr->{ _dbx('SOA_NAME') }
 			)
 		);
-		print $cgi->hr;
 	}
 
 	print $cgi->div( { -class => 'centeredlist' }, $parlink, $nblink,

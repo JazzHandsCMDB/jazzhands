@@ -9,10 +9,13 @@
 /var/www/jazzhands-javascript-common/external/scriptaculous/slider.js
 /var/www/jazzhands-javascript-common/external/jQuery/jquery.js
 /var/www/jazzhands-javascript-common/external/jQuery/jquery-1.9.0.js
+/var/www/jazzhands-javascript-common/external/jQuery/jquery-3.1.1.min.js
 /var/www/jazzhands-javascript-common/external/prototype/prototype.js
 /var/www/jazzhands-javascript-common/external/chosen/chosen-sprite.png
 /var/www/jazzhands-javascript-common/external/chosen/chosen.css
 /var/www/jazzhands-javascript-common/external/chosen/chosen.jquery.js
 /var/www/jazzhands-javascript-common/external/datatables-1.10.9/jquery.dataTables.min.css
 /var/www/jazzhands-javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js
-/var/www/jazzhands-javascript-common/external/jQuery/jquery-3.1.1.min.js
+/var/www/jazzhands-javascript-common/external/jquery-Autocomplete/jquery.autocomplete.js
+/var/www/jazzhands-javascript-common/external/jquery-Autocomplete/jquery.autocomplete.min.js
+/var/www/jazzhands-javascript-common/external/jquery-Autocomplete/license.txt

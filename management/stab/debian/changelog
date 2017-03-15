@@ -1,3 +1,10 @@
+jazzhands-stab (0.79.0) trusty; urgency=medium
+
+  * add forward reference record setting/changing for CNAME/A/AAAA records
+  * firm up debian port
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 13 Mar 2017 16:09:22 -0500
+
 jazzhands-stab (0.77.1) trusty; urgency=medium
 
   * overhaul netblock hierarchy to make it collapsable.
@@ -16,7 +23,6 @@ jazzhands-stab (0.74.2) trusty; urgency=medium
   * fix debian dependencies
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 30 Sep 2016 22:51:22 -0400
-
 
 jazzhands-stab (0.69.2) trusty; urgency=medium
 
