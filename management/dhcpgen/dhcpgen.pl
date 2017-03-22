@@ -580,12 +580,19 @@ sub generate_dhcp_configs {
 			#
 			if (exists($netrange_props->{$row->{network_range_id}}->
 					{$row->{property_name}})) {
-				$netrange_props->{$row->{network_range_id}}->
-					{$row->{property_name}} = [
-						$netrange_props->{$row->{network_range_id}}->
-							{$row->{property_name}},
-						$row->{property_value}
-					];
+				if (ref($netrange_props->{$row->{network_range_id}}->
+						{$row->{property_name}}) eq 'ARRAY') {
+					push @{$netrange_props->{$row->{network_range_id}}->
+							{$row->{property_name}}},
+						$row->{property_value};
+				} else {
+					$netrange_props->{$row->{network_range_id}}->
+						{$row->{property_name}} = [
+							$netrange_props->{$row->{network_range_id}}->
+								{$row->{property_name}},
+							$row->{property_value}
+						];
+				}
 			} else {
 				$netrange_props->{$row->{network_range_id}}->
 					{$row->{property_name}} = $row->{property_value};
@@ -679,12 +686,19 @@ sub generate_dhcp_configs {
 			#
 			if (exists($device_props->{$row->{device_id}}->
 					{$row->{property_name}})) {
-				$device_props->{$row->{device_id}}->
-					{$row->{property_name}} = [
-						$device_props->{$row->{device_id}}->
-							{$row->{property_name}},
-						$row->{property_value}
-					];
+				if (ref($device_props->{$row->{device_id}}->
+						{$row->{property_name}}) eq 'ARRAY') {
+					push @{$device_props->{$row->{device_id}}->
+							{$row->{property_name}}},
+						$row->{property_value};
+				} else {
+					$device_props->{$row->{device_id}}->
+						{$row->{property_name}} = [
+							$device_props->{$row->{device_id}}->
+								{$row->{property_name}},
+							$row->{property_value}
+						];
+				}
 			} else {
 				$device_props->{$row->{device_id}}->
 					{$row->{property_name}} = $row->{property_value};
