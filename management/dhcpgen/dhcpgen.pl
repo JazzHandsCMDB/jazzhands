@@ -92,6 +92,10 @@ my $option_map = {
 		option => 'option domain-name-servers',
 		type => 'ip_address_list'
 	},
+	NTPServers => {
+		option => 'option ntp-servers',
+		type => 'ip_address_list'
+	},
 	MaxLeaseTime => {
 		option => 'max-lease-time',
 		type => 'integer'
@@ -656,7 +660,7 @@ sub generate_dhcp_configs {
 
 	if (!($sth->execute)) {
 		SetError($err,
-			sprintf("Unable to execute DHCP network_range property query: %s",
+			sprintf("Unable to execute DHCP device property query: %s",
 			$sth->errstr));
 		return undef;
 	}
