@@ -1,3 +1,10 @@
+jazzhands-dhcpgen (0.79.1.1) trusty; urgency=medium
+
+  * Fix issue with multi-value properties on device_collections and
+    network_ranges
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 22 Mar 2017 13:56:40 -0500
+
 jazzhands-dhcpgen (0.79.1) trusty; urgency=medium
 
   * Add NTPServers as a property (for 'options ntp-servers')
