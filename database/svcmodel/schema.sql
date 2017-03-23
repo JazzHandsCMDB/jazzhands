@@ -5,6 +5,7 @@ CREATE TABLE service (
 	PRIMARY KEY (service_id)
 );
 
+DROP TABLE IF EXISTS service_source_repository;
 CREATE TABLE service_source_repository (
 	service_id		integer,
 	source_repository	text,
@@ -39,6 +40,84 @@ CREATE TABLE service_sla (
 );
 
 --
+-- used by port_range.    trigger enforces range_permitted and there's also
+-- a trigger tie to port_range.
+--
+DROP TABLE IF EXISTS val_port_range_type;
+CREATE TABLE val_port_range_type (
+	port_range_type		text		NOT NULL,
+	port_range_protocol	text		NOT NULL,
+	range_permitted		char(1) DEFAULT 'Y',
+	description		text,
+	PRIMARY KEY (port_range_type, port_range_protocol)
+);
+
+--
+-- defines port ranges or single ports mostly for use by service end points
+-- but can be used elsewhere.
+--
+-- is_singleton is maintained by trigger and is Y if start/end are the same.
+--
+-- protocol is in the /etc/protocols sense and also has a val table.
+--
+-- There will be a type, say 'services' with the contents of /etc/services,
+-- although no support for port nicknames here.  (if we wanted that, it would
+-- be another table, I think.
+--
+DROP TABLE IF EXISTS port_range;
+CREATE TABLE port_range (
+	port_range_id		serial		NOT NULL,
+	port_range_name		text		NOT NULL,
+	port_range_protocol	text		NOT NULL,
+	port_range_type		text		NOT NULL,
+	port_start		integer		NOT NULL,
+	port_end		integer		NOT NULL,
+	is_singleton		char(1)		NOT NULL,
+	PRIMARY KEY (port_range_id),
+	UNIQUE (port_range_name, port_range_protocol, port_range_type)
+);
+
+--
+-- defines various types -- nat providers, load balancers, direct connections
+-- this dictates what's possible
+--
+DROP TABLE IF EXISTS service_endpoint_provider_type;
+CREATE TABLE service_endpoint_provider_type (
+	service_endpoint_provider_type	text	NOT NULL,
+	maximum_members			integer	NOT NULL,
+	translates_addresses		char(1) DEFAULT 'N',
+	proxies_connections		char(1) DEFAULT 'Y',
+	PRIMARY KEY (service_endpoint_provider_type)
+);
+
+--
+-- This describes where the service actually terminates.  At the moment, this
+-- may be 1-1 with service_endpoint (not sure)
+--
+DROP TABLE IF EXISTS service_endpoint_provider ;
+CREATE TABLE service_endpoint_provider (
+	service_endpoint_provider_id	serial	NOT NULL,
+	service_endpoint_provider_name	text	NOT NULL,
+	service_endpoint_provider_type	text	NOT NULL,
+	service_endpoint_id		integer	NOT NULL,
+	device_id			integer	NOT NULL,
+	description			text,
+	PRIMARY KEY (service_endpoint_provider_id)
+);
+
+--
+-- This does mapping from a service_endpoint_provider to an actual device
+--
+DROP TABLE IF EXISTS service_endpoint_provider_member ;
+CREATE TABLE service_endpoint_provider_member (
+	service_endpoint_provider_id	integer	NOT NULL,
+	service_instance_id		integer NOT NULL,
+	port_range_id			integer NOT NULL,
+	PRIMARY KEY (service_endpoint_provider_id, service_instance_id,
+			port_range_id)
+);
+
+--
 -- possibly should have the device of the endpoint on it
 -- (lb, if appropriate?)  however, arguably there also needs to be
 -- a gslb overlay; have not entirely gotten my head around this
@@ -47,20 +126,15 @@ DROP TABLE IF EXISTS service_endpoint cascade;
 CREATE TABLE service_endpoint (
 	service_endpoint_id	serial		NOT NULL,
 	dns_record_id		integer,
+	port_range_id		integer,
 	uri			text,
 	x509_signed_certificate_id	integer,
 	private_key_id			integer,
 	PRIMARY KEY (service_endpoint_id)
 );	
 
-DROP TABLE IF EXISTS service_endpoint_service_sla cascade;
-CREATE TABLE service_endpoint_service_sla (
-	service_endpoint_id	integer		NOT NULL,
-	service_sla_id		integer		NOT NULL,
-	service_environment_id	integer		NOT NULL,
-	PRIMARY KEY (service_endpoint_id,service_sla_id,service_environment_id)
-);
-
+-- possibly also a link to netblock_id or just a link to that?  This would
+-- allow for chaining providers.
 DROP TABLE IF EXISTS service_instance cascade;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
@@ -69,6 +143,14 @@ CREATE TABLE service_instance (
 	service_version_id	integer		NOT NULL,
 	PRIMARY KEY (service_instance_id),
 	UNIQUE (device_id,service_endpoint_id,service_version_id)
+);
+
+DROP TABLE IF EXISTS service_endpoint_service_sla cascade;
+CREATE TABLE service_endpoint_service_sla (
+	service_endpoint_id	integer		NOT NULL,
+	service_sla_id		integer		NOT NULL,
+	service_environment_id	integer		NOT NULL,
+	PRIMARY KEY (service_endpoint_id,service_sla_id,service_environment_id)
 );
 
 DROP TABLE IF EXISTS software_repository cascade;
