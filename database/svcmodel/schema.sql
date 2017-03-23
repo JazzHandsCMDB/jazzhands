@@ -107,6 +107,7 @@ CREATE TABLE service_endpoint_provider (
 
 --
 -- This does mapping from a service_endpoint_provider to an actual device
+-- some sort of prioritization?
 --
 DROP TABLE IF EXISTS service_endpoint_provider_member ;
 CREATE TABLE service_endpoint_provider_member (
