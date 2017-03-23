@@ -141,6 +141,7 @@ CREATE TABLE service_instance (
 	device_id		integer		NOT NULL,
 	service_endpoint_id	integer		NOT NULL,
 	service_version_id	integer		NOT NULL,
+	port_range_id		integer		NOT NULL,
 	PRIMARY KEY (service_instance_id),
 	UNIQUE (device_id,service_endpoint_id,service_version_id)
 );
