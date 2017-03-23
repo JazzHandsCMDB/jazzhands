@@ -82,7 +82,7 @@ CREATE TABLE port_range (
 
 --
 -- defines various types -- nat providers, load balancers, direct connections
--- this dictates what's possible
+-- triggers enforce some things based on this.
 --
 DROP TABLE IF EXISTS service_endpoint_provider_type;
 CREATE TABLE service_endpoint_provider_type (
@@ -94,8 +94,11 @@ CREATE TABLE service_endpoint_provider_type (
 );
 
 --
--- This describes where the service actually terminates.  At the moment, this
--- may be 1-1 with service_endpoint (not sure)
+-- This describes where the service actually terminates.
+-- 
+-- This may be 1-1 with service_endpoint (not sure)
+--
+-- names are kind of irrelevent.
 --
 DROP TABLE IF EXISTS service_endpoint_provider ;
 CREATE TABLE service_endpoint_provider (
@@ -105,12 +108,18 @@ CREATE TABLE service_endpoint_provider (
 	service_endpoint_id		integer	NOT NULL,
 	device_id			integer	NOT NULL,
 	description			text,
-	PRIMARY KEY (service_endpoint_provider_id)
+	PRIMARY KEY (service_endpoint_provider_id),
+	UNIQUE (service_endpoint_provider_name, service_endpoint_provider_type)
 );
 
 --
 -- This does mapping from a service_endpoint_provider to an actual device
 -- some sort of prioritization?
+--
+-- if this is non-proxied connection, the port range must match the port
+-- range of the endpoint_provider (or endpoint?)
+--
+-- I think port_range_id belongs here instead of service_instance.
 --
 DROP TABLE IF EXISTS service_endpoint_provider_member ;
 CREATE TABLE service_endpoint_provider_member (
@@ -139,6 +148,10 @@ CREATE TABLE service_endpoint (
 
 -- possibly also a link to netblock_id or just a link to that?  This would
 -- allow for chaining providers.
+--
+-- I think port_range_id does not belong here but belongs in
+-- service_endpoint_provider_member .
+--
 DROP TABLE IF EXISTS service_instance cascade;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
