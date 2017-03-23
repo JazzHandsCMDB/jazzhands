@@ -1,3 +1,4 @@
+
 DROP TABLE IF EXISTS service cascade;
 CREATE TABLE service (
 	service_id	serial		NOT NULL,
@@ -23,6 +24,8 @@ CREATE TABLE service_version (
 	PRIMARY KEY (service_version_id),
 	UNIQUE	 (service_id, version_name)
 );
+
+--------------------------- relationships ---------------------------------
 
 --
 -- role: master, slave, ro, rw
@@ -155,6 +158,19 @@ CREATE TABLE service_endpoint_service_sla (
 	PRIMARY KEY (service_endpoint_id,service_sla_id,service_environment_id)
 );
 
+DROP TABLE IF EXISTS service_depend;
+CREATE TABLE service_depend (
+	service_depend_id	serial		NOT NULL,
+	service_version_id	integer		NOT NULL,
+	service_id		integer 	NOT NULL,
+	min_service_version_id	integer,
+	max_service_version_id	integer,
+	service_sla_id		integer,
+	PRIMARY KEY (service_depend_id),
+	UNIQUE (service_version_id, service_id, service_sla_id)
+);
+
+--------------------------- binary distributions -----------------------------
 DROP TABLE IF EXISTS software_repository cascade;
 CREATE TABLE software_repository (
 	software_repository_id		serial	NOT NULL,
@@ -171,17 +187,7 @@ CREATE TABLE software_repository_location (
 	PRIMARY KEY (software_repository_id, software_repository_location_type)
 );
 
-DROP TABLE IF EXISTS service_depend;
-CREATE TABLE service_depend (
-	service_depend_id	serial		NOT NULL,
-	service_version_id	integer		NOT NULL,
-	service_id		integer 	NOT NULL,
-	min_service_version_id	integer,
-	max_service_version_id	integer,
-	service_sla_id		integer,
-	PRIMARY KEY (service_depend_id),
-	UNIQUE (service_version_id, service_id, service_sla_id)
-);
+--------------------------- collections ---------------------------------
 
 DROP TABLE IF EXISTS service_collection cascade;
 CREATE TABLE service_collection (
