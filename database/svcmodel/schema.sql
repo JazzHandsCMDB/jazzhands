@@ -275,7 +275,7 @@ CREATE TABLE service_property (
 	PRIMARY KEY (service_property_id)
 );
 
------------------------- network acls collections  ----------------------------
+---------------------------- network acls  ---------------------------------
 
 -- filter
 DROP TABLE IF EXISTS acl_group;
@@ -293,10 +293,10 @@ CREATE TABLE acl_rule (
 	acl_rank				integer NOT NULL,
 	service_depend_id			integer,
 	description				text,
-	source_layer3_netblock_collection_id	integer	NOT NULL,
+	source_layer3_network_collection_id	integer	NOT NULL,
 	source_port_relation_restriction	text NOT NULL,
 	source_port_range_id			integer NOT NULL,
-	dest_layer3_netblock_collection_id	integer	NOT NULL,
+	dest_layer3_network_collection_id	integer	NOT NULL,
 	dest_port_relation_restriction		text NOT NULL,
 	dest_port_range_Id			integer	NOT NULL,
 	PRIMARY KEY (acl_rule_id),
