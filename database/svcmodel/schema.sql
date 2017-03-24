@@ -43,16 +43,27 @@ CREATE TABLE service_sla (
 );
 
 --
+-- /etc/protocols
+--
+DROP TABLE IF EXISTS protocol;
+CREATE TABLE protocol (
+	protocol		text		NOT NULL,
+	protocol_number		integer,
+	description		text,
+	PRIMARY KEY (protocol)
+);
+
+--
 -- used by port_range.    trigger enforces range_permitted and there's also
 -- a trigger tie to port_range.
 --
 DROP TABLE IF EXISTS val_port_range_type;
 CREATE TABLE val_port_range_type (
 	port_range_type		text		NOT NULL,
-	port_range_protocol	text		NOT NULL,
+	protocol		text		NOT NULL,
 	range_permitted		char(1) DEFAULT 'Y',
 	description		text,
-	PRIMARY KEY (port_range_type, port_range_protocol)
+	PRIMARY KEY (port_range_type, protocol)
 );
 
 --
@@ -101,8 +112,6 @@ CREATE TABLE service_endpoint_provider_type (
 --
 -- names are kind of irrelevent.
 --
--- shared_netblock_collection_id goes here
--- netblock_id goes here
 -- only one of shared_netblock_collection_id, netblock_id can be set
 -- if device_id is set, netblock_id must be set and the must match
 --
@@ -115,6 +124,8 @@ CREATE TABLE service_endpoint_provider (
 	service_endpoint_provider_name	text	NOT NULL,
 	service_endpoint_provider_type	text	NOT NULL,
 	service_endpoint_id		integer	NOT NULL,
+	shared_netblock_collection_id	integer	NOT NULL,
+	netblock_id			integer NOT NULL,
 	device_id			integer	NOT NULL,
 	description			text,
 	PRIMARY KEY (service_endpoint_provider_id),
@@ -134,8 +145,7 @@ DROP TABLE IF EXISTS service_endpoint_provider_member ;
 CREATE TABLE service_endpoint_provider_member (
 	service_endpoint_provider_id	integer	NOT NULL,
 	service_instance_id		integer NOT NULL,
-	PRIMARY KEY (service_endpoint_provider_id, service_instance_id,
-			port_range_id)
+	PRIMARY KEY (service_endpoint_provider_id, service_instance_id)
 );
 
 --
@@ -197,12 +207,12 @@ CREATE TABLE service_depend (
 --
 -- if we care about source ports, they'd go here
 DROP TABLE IF EXISTS service_acl;
-CREATE TABLE service_acl {
+CREATE TABLE service_acl (
 	service_depend_id	integer		NOT NULL,
 	description		text,
 	is_enabled		char(1) DEFAULT 'Y',
-	PRIMARY KEY (service_depend_id),
-)
+	PRIMARY KEY (service_depend_id)
+);
 
 
 --------------------------- binary distributions -----------------------------
@@ -264,6 +274,8 @@ CREATE TABLE service_property (
 	value_account_collection_id	integer,
 	PRIMARY KEY (service_property_id)
 );
+
+--------------------------- netowrk collections  -----------------------------
 
 -------------------------------------------------------------------------------
 
