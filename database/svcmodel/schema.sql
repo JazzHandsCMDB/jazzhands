@@ -95,10 +95,19 @@ CREATE TABLE service_endpoint_provider_type (
 
 --
 -- This describes where the service actually terminates.
--- 
--- This may be 1-1 with service_endpoint (not sure)
+--
+-- This may be 1-1 with service_endpoint (trigger enforced)
+-- likely many to many but not most cases
 --
 -- names are kind of irrelevent.
+--
+-- shared_netblock_collection_id goes here
+-- netblock_id goes here
+-- only one of shared_netblock_collection_id, netblock_id can be set
+-- if device_id is set, netblock_id must be set and the must match
+--
+-- This probably does NOT need an sla column, we're 25% sure about that
+-- because you would just create another service_endpoint.
 --
 DROP TABLE IF EXISTS service_endpoint_provider ;
 CREATE TABLE service_endpoint_provider (
@@ -119,13 +128,12 @@ CREATE TABLE service_endpoint_provider (
 -- if this is non-proxied connection, the port range must match the port
 -- range of the endpoint_provider (or endpoint?)
 --
--- I think port_range_id belongs here instead of service_instance.
+-- this is many-to-many glue, so NO port_range_id.
 --
 DROP TABLE IF EXISTS service_endpoint_provider_member ;
 CREATE TABLE service_endpoint_provider_member (
 	service_endpoint_provider_id	integer	NOT NULL,
 	service_instance_id		integer NOT NULL,
-	port_range_id			integer NOT NULL,
 	PRIMARY KEY (service_endpoint_provider_id, service_instance_id,
 			port_range_id)
 );
@@ -144,13 +152,13 @@ CREATE TABLE service_endpoint (
 	x509_signed_certificate_id	integer,
 	private_key_id			integer,
 	PRIMARY KEY (service_endpoint_id)
-);	
+);
 
 -- possibly also a link to netblock_id or just a link to that?  This would
 -- allow for chaining providers.
 --
--- I think port_range_id does not belong here but belongs in
--- service_endpoint_provider_member .
+-- mdr,kovert thought port_range_id belonged on
+-- service_endpoint_provider_member but talked out that it did not.
 --
 DROP TABLE IF EXISTS service_instance cascade;
 CREATE TABLE service_instance (
@@ -182,6 +190,20 @@ CREATE TABLE service_depend (
 	PRIMARY KEY (service_depend_id),
 	UNIQUE (service_version_id, service_id, service_sla_id)
 );
+
+--
+-- not sure if this needs to exist or not, but we're putting it here
+-- to indicate the row can go into an acl (at least)
+--
+-- if we care about source ports, they'd go here
+DROP TABLE IF EXISTS service_acl;
+CREATE TABLE service_acl {
+	service_depend_id	integer		NOT NULL,
+	description		text,
+	is_enabled		char(1) DEFAULT 'Y',
+	PRIMARY KEY (service_depend_id),
+)
+
 
 --------------------------- binary distributions -----------------------------
 DROP TABLE IF EXISTS software_repository cascade;
@@ -245,7 +267,7 @@ CREATE TABLE service_property (
 
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION create_all_services_collection() 
+CREATE OR REPLACE FUNCTION create_all_services_collection()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
@@ -268,25 +290,25 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_create_all_services_collection 
+DROP TRIGGER IF EXISTS trigger_create_all_services_collection
 	ON service;
-CREATE TRIGGER trigger_create_all_services_collection 
+CREATE TRIGGER trigger_create_all_services_collection
 	AFTER INSERT OR UPDATE OF service_name
-	ON service 
+	ON service
 	FOR EACH ROW
 	EXECUTE PROCEDURE create_all_services_collection();
 
-DROP TRIGGER IF EXISTS trigger_create_all_services_collection_del 
+DROP TRIGGER IF EXISTS trigger_create_all_services_collection_del
 	ON service;
 CREATE TRIGGER trigger_create_all_services_collection_del
 	BEFORE DELETE
-	ON service 
+	ON service
 	FOR EACH ROW
 	EXECUTE PROCEDURE create_all_services_collection();
 
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION manip_all_svc_collection_members() 
+CREATE OR REPLACE FUNCTION manip_all_svc_collection_members()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
@@ -315,19 +337,19 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members 
+DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members
 	ON service_version;
-CREATE TRIGGER trigger_manip_all_svc_collection_members 
-	AFTER INSERT 
+CREATE TRIGGER trigger_manip_all_svc_collection_members
+	AFTER INSERT
 	ON service_version
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_all_svc_collection_members();
 
 DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members_del
 	ON service_version;
-CREATE TRIGGER trigger_manip_all_svc_collection_members_del 
-	BEFORE DELETE 
-	ON service_version 
+CREATE TRIGGER trigger_manip_all_svc_collection_members_del
+	BEFORE DELETE
+	ON service_version
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_all_svc_collection_members();
 
@@ -345,7 +367,7 @@ Things not figured out yet:
 		- appaal_instance links to service_instance somehow?
 	version/feature advertisement
 		- this may just be properties?  more complicated?
-	should service_instance possibly become a property? 
+	should service_instance possibly become a property?
 		- if not, should it point to a network interface + device and not just
 			a device and pull in lb_node-style information?  how does that fit
 			into geoip-encoded records
@@ -392,7 +414,7 @@ KUBERNETES:
 
 DOCKER CONTAINERS:
  - services are containers, similar inside/outside thing as kubernetes
- - I am not sure if a container is a device. It probably should be if it 
+ - I am not sure if a container is a device. It probably should be if it
    consume its own IP
  - endpoints are the exposed ip/ports of the containers
  - container images are software packages as above, I think.
