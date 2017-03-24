@@ -275,7 +275,51 @@ CREATE TABLE service_property (
 	PRIMARY KEY (service_property_id)
 );
 
---------------------------- netowrk collections  -----------------------------
+------------------------ network acls collections  ----------------------------
+
+-- filter
+DROP TABLE IF EXISTS acl_group;
+CREATE TABLE acl_group (
+	acl_group_id			serial	NOT NULL,
+	description			text,
+	PRIMARY KEY (acl_group_id)
+);
+
+-- term
+DROP TABLE IF EXISTS acl_rule;
+CREATE TABLE acl_rule (
+	acl_rule_id				serial NOT NULL,
+	acl_group_id				integer NOT NULL,
+	acl_rank				integer NOT NULL,
+	service_depend_id			integer,
+	description				text,
+	source_layer3_netblock_collection_id	integer	NOT NULL,
+	source_port_relation_restriction	text NOT NULL,
+	source_port_range_id			integer NOT NULL,
+	dest_layer3_netblock_collection_id	integer	NOT NULL,
+	dest_port_relation_restriction		text NOT NULL,
+	dest_port_range_Id			integer	NOT NULL,
+	PRIMARY KEY (acl_rule_id),
+	UNIQUE (acl_group_id, acl_rank)
+);
+
+DROP TABLE IF EXISTS network_interface_acl;
+CREATE TABLE network_interface_acl (
+	network_interface_acl_id		serial NOT NULL,
+	network_interface_id			integer NOT NULL,
+	traffic_direction			text NOT NULL,
+	PRIMARY KEY (network_interface_acl_id),
+	UNIQUE (network_interface_id, traffic_direction)
+);
+
+DROP TABLE IF EXISTS network_interface_acl_chain;
+CREATE TABLE network_interface_acl_chain (
+	network_interface_acl_id		integer NOT NULL,
+	acl_group_id				integer NOT NULL,
+	network_interface_acl_chain_rank	integer NOT NULL,
+	PRIMARY KEY (network_interface_acl_id, acl_group_id),
+	UNIQUE (network_interface_acl_id, network_interface_acl_chain_rank)
+);
 
 -------------------------------------------------------------------------------
 
