@@ -40,11 +40,12 @@ WITH swpkg AS (
 	RETURNING *
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id
+		device_id, service_endpoint_id, service_version_id,port_range_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id
-	FROM device, endpoint, svcv
+		device_id, service_endpoint_id, service_version_id,p.port_range_id
+	FROM device, endpoint, svcv, port_range p
 	WHERE device_name ~ '^\d+\.stab\..*$'
+	AND p.port_range_name IN ('https') AND p.port_range_type = 'services'
 	RETURNING *
 ), svccol AS (
 	select sc.* 

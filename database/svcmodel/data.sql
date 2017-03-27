@@ -74,3 +74,21 @@ EXCEPTION WHEN unique_violation THEN
 	NULL;
 END
 $$;
+
+
+DO $$
+BEGIN
+	INSERT INTO port_range (
+		port_range_name, protocol, port_range_type,
+		port_start, port_end, is_singleton
+	) VALUES 
+		('postgresql', 'tcp', 'services', 5432, 5432, 'Y'),
+		('http', 'tcp', 'services', 80, 80, 'Y'),
+		('https', 'tcp', 'services', 443, 443, 'Y'),
+		('domain', 'tcp', 'services', 53, 53, 'Y'),
+		('domain', 'udp', 'services', 53, 53, 'Y')
+	;
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;

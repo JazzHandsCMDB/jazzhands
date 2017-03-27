@@ -82,13 +82,13 @@ DROP TABLE IF EXISTS port_range;
 CREATE TABLE port_range (
 	port_range_id		serial		NOT NULL,
 	port_range_name		text		NOT NULL,
-	port_range_protocol	text		NOT NULL,
+	protocol		text		NOT NULL,
 	port_range_type		text		NOT NULL,
 	port_start		integer		NOT NULL,
 	port_end		integer		NOT NULL,
 	is_singleton		char(1)		NOT NULL,
 	PRIMARY KEY (port_range_id),
-	UNIQUE (port_range_name, port_range_protocol, port_range_type)
+	UNIQUE (port_range_name, protocol, port_range_type)
 );
 
 --
@@ -176,7 +176,7 @@ CREATE TABLE service_instance (
 	device_id		integer		NOT NULL,
 	service_endpoint_id	integer		NOT NULL,
 	service_version_id	integer		NOT NULL,
-	port_range_id		integer		NOT NULL,
+	port_range_id		integer		NULL,
 	PRIMARY KEY (service_instance_id),
 	UNIQUE (device_id,service_endpoint_id,service_version_id)
 );
@@ -281,6 +281,8 @@ CREATE TABLE service_property (
 DROP TABLE IF EXISTS acl_group;
 CREATE TABLE acl_group (
 	acl_group_id			serial	NOT NULL,
+	acl_group_name			text,
+	acl_group_type			text,
 	description			text,
 	PRIMARY KEY (acl_group_id)
 );
@@ -293,6 +295,7 @@ CREATE TABLE acl_rule (
 	acl_rank				integer NOT NULL,
 	service_depend_id			integer,
 	description				text,
+	action					text,	-- permit/deny
 	source_layer3_network_collection_id	integer	NOT NULL,
 	source_port_relation_restriction	text NOT NULL,
 	source_port_range_id			integer NOT NULL,

@@ -33,12 +33,15 @@ WITH swpkg AS (
 	RETURNING *
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id
+		device_id, service_endpoint_id, service_version_id,port_range_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id
-	FROM device, endpoint, svcv
+		device_id, service_endpoint_id, service_version_id,p.port_range_id
+	FROM device, endpoint, svcv, port_range p
 	WHERE device_name ~ '^\d+\.(newdns|dns-recurse)\..*$'
 	AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))
+	AND p.port_range_name IN ('domain') AND p.port_range_type = 'services'
+	-- XXX need to create an enedpoint for tcp, too
+	AND p.protocol = 'udp'
 	RETURNING *
 ), svccol AS (
 	select sc.* 
