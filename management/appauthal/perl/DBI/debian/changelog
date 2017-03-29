@@ -1,3 +1,9 @@
+perl-jazzhands-dbi (0.79.2) unstable; urgency=medium
+
+  * require newer AppAuthAL
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Mar 2017 18:23:00 -0400
+
 perl-jazzhands-dbi (0.74.4) unstable; urgency=medium
 
   * patch from Yogi Saxena to fix transaction isolation level
@@ -10,20 +16,17 @@ perl-jazzhands-dbi (0.74.3) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 13 Oct 2016 11:35:22 -0400
 
-
 perl-jazzhands-dbi (0.66.1.2) unstable; urgency=medium
 
   * fix issue where module did not get installed under debian. not sure wtf.
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 14 Jan 2016 23:02:06 +0000
 
-
 perl-jazzhands-dbi (0.66.1.2) unstable; urgency=medium
 
   * fix issue where module did not get installed under debian. not sure wtf.
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu, 14 Jan 2016 23:02:06 +0000
-
 
 perl-jazzhands-dbi (0.66.1.1) unstable; urgency=medium
 
@@ -37,7 +40,6 @@ perl-jazzhands-dbi (0.66.1) trusty; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:06 +0000
 
-
 perl-jazzhands-dbi (0.56.3) unstable; urgency=low
 
   * Initial build.
@@ -49,4 +51,3 @@ perl-jazzhands-dbi (0.53) unstable; urgency=low
   * Initial build.
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 23 May 2012 20:22:28 +0000
-

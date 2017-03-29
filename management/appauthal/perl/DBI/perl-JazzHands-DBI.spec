@@ -18,8 +18,8 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
-Requires:   jazzhands-perl-common >= 0.66.1
-Requires:   perl-JazzHands-AppAuthAL >= 0.66.1
+Requires:   jazzhands-perl-common >= 0.73.2
+Requires:   perl-JazzHands-AppAuthAL >= 0.79.2
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
 
