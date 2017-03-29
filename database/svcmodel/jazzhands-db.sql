@@ -47,7 +47,7 @@ WITH endpoint AS (
 	INSERT INTO service_endpoint_provider (
 		service_endpoint_provider_name, service_endpoint_provider_type,
 		service_endpoint_id, netblock_id
-	) SELECT 'stab', 'direct', service_endpoint_id, netblock_id
+	) SELECT 'jazzhands-db', 'direct', service_endpoint_id, netblock_id
 	FROM  endpoint, netblock
 	WHERE host(ip_address) = '10.1.32.62' and netblock_type = 'default'
 	RETURNING *
