@@ -63,19 +63,19 @@ WITH swpkg AS (
 	AND netblock_id is not NULL
 	RETURNING *
 ), svcendpointprovider AS (
-        INSERT INTO service_endpoint_provider (
-                service_endpoint_provider_name, service_endpoint_provider_type,
-                service_endpoint_id, shared_netblock_collection_id
-        ) SELECT 'nym2-recursedns', 'ecmp',
-                service_endpoint_id, shared_netblock_collection_id
-        FROM  endpoint, snb
-        RETURNING *
+	INSERT INTO service_endpoint_provider (
+		service_endpoint_provider_name, service_endpoint_provider_type,
+		service_endpoint_id, shared_netblock_collection_id
+	) SELECT 'nym2-recursedns', 'ecmp',
+		service_endpoint_id, shared_netblock_collection_id
+	FROM  endpoint, snb
+	RETURNING *
 ), svcendpointmember AS (
-        INSERT INTO service_endpoint_provider_member (
-                service_endpoint_provider_id, service_instance_id
-        ) SELECT service_endpoint_provider_id, service_instance_id
-        FROM svcendpointprovider, svcinst
-        RETURNING *
+	INSERT INTO service_endpoint_provider_member (
+		service_endpoint_provider_id, service_instance_id
+	) SELECT service_endpoint_provider_id, service_instance_id
+	FROM svcendpointprovider, svcinst
+	RETURNING *
 ), svccol AS (
 	select sc.* 
 	FROM service_collection sc
