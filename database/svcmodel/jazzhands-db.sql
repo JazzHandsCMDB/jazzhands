@@ -26,21 +26,36 @@ WITH endpoint AS (
 	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version 
-		(service_id, version_name, software_tag, software_repository_id)
-	SELECT service_id, '0.64', '0.64', software_repository_id
+		(service_id, service_type, version_name, software_tag, software_repository_id)
+	SELECT service_id, 'network', '0.64', '0.64', software_repository_id
 	FROM svc, software_repository
 	WHERE software_repository_name = 'common'
 	RETURNING *
 ), svcinst AS (
 	INSERT INTO service_instance (
 		device_id, service_endpoint_id, service_version_id,
-		port_range_id
+		port_range_id, netblock_id
 	) SELECT
 		device_id, service_endpoint_id, service_version_id,
-		p.port_range_id
-	FROM device, endpoint, svcv, port_range p
+		p.port_range_id, nb.netblock_id
+	FROM device, endpoint, svcv, port_range p, netblock nb
 	WHERE device_name ~ '^\d+\.jazzhands-db\..*$'
 	AND p.port_range_name IN ('postgresql')
+	AND nb.netblock_type = 'default' AND host(nb.ip_address) = '10.1.32.62'
+	RETURNING *
+), svcendpointprovider AS (
+	INSERT INTO service_endpoint_provider (
+		service_endpoint_provider_name, service_endpoint_provider_type,
+		service_endpoint_id, netblock_id
+	) SELECT 'stab', 'direct', service_endpoint_id, netblock_id
+	FROM  endpoint, netblock
+	WHERE host(ip_address) = '10.1.32.62' and netblock_type = 'default'
+	RETURNING *
+), svcendpointmember AS (
+	INSERT INTO service_endpoint_provider_member (
+		service_endpoint_provider_id, service_instance_id
+	) SELECT service_endpoint_provider_id, service_instance_id
+	FROM svcendpointprovider, svcinst
 	RETURNING *
 ), svccol AS (
 	select sc.* 

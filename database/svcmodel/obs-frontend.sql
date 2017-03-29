@@ -1,3 +1,6 @@
+/*
+ * XXX - NOTE THIS DOES NOT USED THE shared_endpoint stuff yet
+ */
 INSERT INTO sw_package (sw_package_name, sw_package_type)
 VALUES ('obs-api', 'rpm');
 
@@ -31,15 +34,18 @@ AND software_repository_type = 'baseos';
 /* I used the package version of obs-api for the service_version name and tag.
    I did this only because it seemed to make sense and was the only thing I
    could think of. */
-INSERT INTO service_version (service_id, version_name, software_tag, software_repository_id)
-SELECT service_id, '2.5.5.1', '2.5.5.1', software_repository_id
+INSERT INTO service_version (service_id, service_type, version_name, software_tag, software_repository_id)
+SELECT service_id, 'network', '2.5.5.1', '2.5.5.1', software_repository_id
 FROM service, software_repository
 WHERE software_repository_name = 'opensuse_13.1' AND software_repository_type = 'baseos'
 AND service.service_name = 'obs-frontend';
 
-INSERT INTO service_instance (device_id, service_endpoint_id, service_version_id)
-SELECT device_id, service_endpoint_id, service_version_id
-FROM device, service_endpoint, service_version
+INSERT INTO service_instance (device_id, netblock_id, service_endpoint_id, service_version_id)
+SELECT device_id, netblock_id, service_endpoint_id, service_version_id
+FROM device
+	join network_interface using (device_id)
+	join netblock using (netblock_id)
+	, service_endpoint, service_version
 WHERE device_name = 'obs02.lax1.appnexus.com'
 AND service_endpoint.uri LIKE '%obs.corp%'
 AND service_version.version_name = '2.5.5.1';

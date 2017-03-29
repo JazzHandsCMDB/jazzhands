@@ -6,12 +6,26 @@ WITH swpkg AS (
 	) VALUES (
 		'jazzhands-stab', 'rpm'
 	) RETURNING *
+), snb AS (
+	INSERT INTO shared_netblock_collection (
+		shared_netblock_collection_name, shared_netblock_collection_type
+	) VALUES (
+		'intdns-nym2', 'ecmp'
+	) RETURNING *
+), snbnb AS (
+	INSERT INTO shared_netblock_coll_netblock (
+		shared_netblock_collection_id, shared_netblock_id
+	) SELECT shared_netblock_collection_id, shared_netblock_id
+	FROM snb, shared_netblock
+		JOIN netblock USING (netblock_id)
+	WHERE host(ip_address) = '68.67.163.255'
+	RETURNING *
 ),  endpoint AS (
 	INSERT INTO service_endpoint (
 		dns_record_id, uri
 	) SELECT dns_record_id, concat('dns://', dns_name, '.',soa_name,'/')
 	FROM dns_record join dns_domain using (dns_domain_id)
-	where dns_name ~ 'intdnsrecurse' order by dns_domain_id 
+	where dns_name ~ 'intdnsrecurse00' order by dns_domain_id  LIMIT 1
 	RETURNING *
 ), endsla AS (
 	INSERT INTO service_endpoint_service_sla (
@@ -27,22 +41,41 @@ WITH swpkg AS (
 	SELECT * FROM service WHERE service_name = 'dns-recurse'
 ), svcv AS (
 	INSERT INTO service_version 
-		(service_id, version_name)
-	SELECT service_id, '1.0.2'
+		(service_id, service_type, version_name)
+	SELECT service_id, 'network', '1.0.2'
 	FROM svc
 	RETURNING *
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id,port_range_id
+		device_id, service_endpoint_id, service_version_id,port_range_id,
+		netblock_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id,p.port_range_id
-	FROM device, endpoint, svcv, port_range p
+		device_id, service_endpoint_id, service_version_id,p.port_range_id,
+		netblock_id
+	FROM device
+			JOIN network_interface USING (device_id), 
+		endpoint, svcv, port_range p
 	WHERE device_name ~ '^\d+\.(newdns|dns-recurse)\..*$'
 	AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))
 	AND p.port_range_name IN ('domain') AND p.port_range_type = 'services'
 	-- XXX need to create an enedpoint for tcp, too
 	AND p.protocol = 'udp'
+	AND netblock_id is not NULL
 	RETURNING *
+), svcendpointprovider AS (
+        INSERT INTO service_endpoint_provider (
+                service_endpoint_provider_name, service_endpoint_provider_type,
+                service_endpoint_id, shared_netblock_collection_id
+        ) SELECT 'nym2-recursedns', 'ecmp',
+                service_endpoint_id, shared_netblock_collection_id
+        FROM  endpoint, snb
+        RETURNING *
+), svcendpointmember AS (
+        INSERT INTO service_endpoint_provider_member (
+                service_endpoint_provider_id, service_instance_id
+        ) SELECT service_endpoint_provider_id, service_instance_id
+        FROM svcendpointprovider, svcinst
+        RETURNING *
 ), svccol AS (
 	select sc.* 
 	FROM service_collection sc

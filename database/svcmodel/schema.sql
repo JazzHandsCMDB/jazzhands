@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS service_version cascade;
 CREATE TABLE service_version (
 	service_version_id	serial		NOT NULL,
 	service_id		integer		NOT NULL,
+	service_type		text		NOT NULL,
 	version_name		text		NOT NULL,
 	software_repository_id	integer,
 	software_tag		text,
@@ -24,6 +25,34 @@ CREATE TABLE service_version (
 	PRIMARY KEY (service_version_id),
 	UNIQUE	 (service_id, version_name)
 );
+
+--------------------------- shared netblock collections -------------------
+-- this will need types, recursion and all that jazz.
+
+DROP TABLE IF EXISTS shared_netblock_collection;
+CREATE TABLE shared_netblock_collection (
+	shared_netblock_collection_id	serial	NOT NULL,
+	shared_netblock_collection_name	text	NOT NULL,
+	shared_netblock_collection_type	text	NOT NULL,
+	description			TEXT,
+	PRIMARY KEY (shared_netblock_collection_id)
+);
+
+DROP TABLE IF EXISTS shared_netblock_coll_netblock;
+CREATE TABLE shared_netblock_coll_netblock (
+	shared_netblock_collection_id	integer	NOT NULL,
+	shared_netblock_id		integer	NOT NULL,
+	PRIMARY KEY (shared_netblock_collection_id, shared_netblock_id)
+);
+
+DROP TABLE IF EXISTS shared_netblock_collection_hier;
+CREATE TABLE shared_netblock_collection_hier (
+	shared_netblock_collection_id		integer	NOT NULL,
+	child_shared_netblock_collection_id	integer	NOT NULL,
+	PRIMARY KEY (shared_netblock_collection_id, 
+		child_shared_netblock_collection_id)
+);
+
 
 --------------------------- relationships ---------------------------------
 
@@ -124,9 +153,9 @@ CREATE TABLE service_endpoint_provider (
 	service_endpoint_provider_name	text	NOT NULL,
 	service_endpoint_provider_type	text	NOT NULL,
 	service_endpoint_id		integer	NOT NULL,
-	shared_netblock_collection_id	integer	NOT NULL,
-	netblock_id			integer NOT NULL,
-	device_id			integer	NOT NULL,
+	shared_netblock_collection_id	integer	NULL,
+	netblock_id			integer NULL,
+	device_id			integer	NULL,
 	description			text,
 	PRIMARY KEY (service_endpoint_provider_id),
 	UNIQUE (service_endpoint_provider_name, service_endpoint_provider_type)
@@ -170,10 +199,14 @@ CREATE TABLE service_endpoint (
 -- mdr,kovert thought port_range_id belonged on
 -- service_endpoint_provider_member but talked out that it did not.
 --
+-- netblock_id is probably not nullable but should be forced to be set if
+-- the service is a network service
+--
 DROP TABLE IF EXISTS service_instance cascade;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
 	device_id		integer		NOT NULL,
+	netblock_id		integer		NOT NULL,
 	service_endpoint_id	integer		NOT NULL,
 	service_version_id	integer		NOT NULL,
 	port_range_id		integer		NULL,
