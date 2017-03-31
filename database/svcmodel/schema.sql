@@ -4,6 +4,7 @@ CREATE TABLE service (
 	service_id	serial		NOT NULL,
 	service_name	text		NOT NULL,
 	description	text		NULL,
+	is_active	char(1) DEFAULT 'Y' NOT NULL,
 	PRIMARY KEY (service_id)
 );
 
@@ -44,7 +45,6 @@ CREATE TABLE service_version (
 	service_type		text		NOT NULL,
 	version_name		text		NOT NULL,
 	software_repository_id	integer,
-	software_tag		text,
 	is_enabled		char(1) DEFAULT 'Y',
 	PRIMARY KEY (service_version_id),
 	UNIQUE	 (service_id, version_name)
@@ -543,3 +543,8 @@ DOCKER CONTAINERS:
  - endpoints are the exposed ip/ports of the containers
  - container images are software packages as above, I think.
  */
+
+grant select on all tables in schema jazzhands to ro_role; 
+grant insert,update,delete on all tables in schema jazzhands to iud_role; 
+
+grant select,usage on all sequences in schema jazzhands to iud_role;

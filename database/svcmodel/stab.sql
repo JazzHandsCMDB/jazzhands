@@ -38,9 +38,9 @@ WITH swpkg AS (
 	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version
-		(service_id, service_type, version_name, software_tag,
+		(service_id, service_type, version_name, 
 		software_repository_id)
-	SELECT service_id, 'network', '0.64.8', '0.64.8', software_repository_id
+	SELECT service_id, 'network', '0.64.8', software_repository_id
 	FROM svc, software_repository
 	WHERE software_repository_name = 'common'
 	RETURNING *

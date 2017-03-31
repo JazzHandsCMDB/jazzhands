@@ -35,8 +35,8 @@ WITH endpoint AS (
 	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version
-		(service_id, service_type, version_name, software_tag, software_repository_id)
-	SELECT service_id, 'network', '0.64', '0.64', software_repository_id
+		(service_id, service_type, version_name, software_repository_id)
+	SELECT service_id, 'network', '0.64', software_repository_id
 	FROM svc, software_repository
 	WHERE software_repository_name = 'common'
 	RETURNING *
