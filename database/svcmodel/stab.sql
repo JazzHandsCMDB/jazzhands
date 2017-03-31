@@ -17,7 +17,7 @@ WITH swpkg AS (
 ), endsla AS (
 	INSERT INTO service_endpoint_service_sla (
 		service_endpoint_id, service_sla_id, service_environment_id
-	) SELECT 
+	) SELECT
 		service_endpoint_id, service_sla_id, service_environment_id
 	FROM endpoint, service_sla, service_environment
 	WHERE service_environment_name = 'production'
@@ -26,14 +26,19 @@ WITH swpkg AS (
 	RETURNING *
 ), svc AS (
 	SELECT * FROM service WHERE service_name = 'stab'
-), src AS (
-	INSERT INTO service_source_repository (service_id, source_repository)
-	SELECT service_id, 'git@github.com:JazzHandsCMDB/jazzhands'
-	FROM svc
+), src AS (	-- inserted in jazzhands-db
+	SELECT * FROM source_repository
+	WHERE source_repository_name = 'jazzhands'
+	AND source_repository_type = 'software'
+), srcrepo AS (
+	INSERT INTO service_source_repository (
+		service_id, source_repository_id, source_repository_path
+	) SELECT service_id, source_repository_id, 'management/stab'
+	FROM svc,src
 	RETURNING *
 ), svcv AS (
-	INSERT INTO service_version 
-		(service_id, service_type, version_name, software_tag, 
+	INSERT INTO service_version
+		(service_id, service_type, version_name, software_tag,
 		software_repository_id)
 	SELECT service_id, 'network', '0.64.8', '0.64.8', software_repository_id
 	FROM svc, software_repository
@@ -67,14 +72,14 @@ WITH swpkg AS (
 	FROM svcendpointprovider, svcinst
 	RETURNING *
 ), svccol AS (
-	select sc.* 
+	select sc.*
 	FROM service_collection sc
 		JOIN svc s ON s.service_name = sc.service_collection_name
 	WHERE service_collection_type = 'all-services'
 ), svcprop1 AS (
 	INSERT INTO service_property (
 		service_collection_id, service_property_name, service_property_type, value
-	) values 
+	) values
 		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'vm'),
 		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'baremetal'),
 		((SELECT service_collection_id FROM svccol), 'min_cpu', 'launch', '4'),
@@ -84,7 +89,7 @@ WITH swpkg AS (
 	RETURNING *
 ), svcprop2 AS (
 	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type,
 			value_layer3_network_collection_id
 	) SELECT service_collection_id, 'launch-nets', 'launch', netblock_collection_id
 	FROM netblock_collection,svccol
@@ -93,7 +98,7 @@ WITH swpkg AS (
 	RETURNING *
 ), svcprop2a AS (
 	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type,
 			value_layer3_network_collection_id
 	) SELECT service_collection_id, 'service-nets', 'launch', layer2_network_collection_id
 	FROM layer2_network_collection,svccol
@@ -102,7 +107,7 @@ WITH swpkg AS (
 	RETURNING *
 ), svcprop_admin AS (
 	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type,
 			value_account_collection_id
 	) SELECT service_collection_id, 'admin', 'role', account_collection_id
 	FROM account_collection,svccol
@@ -111,7 +116,7 @@ WITH swpkg AS (
 	RETURNING *
 ), svcprop_owner AS (
 	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type,
 			value_account_collection_id
 	) SELECT service_collection_id, 'owner', 'role', account_collection_id
 	FROM account_collection,svccol
@@ -121,7 +126,7 @@ WITH swpkg AS (
 
 ), svcprop4 AS (
 	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type,
 			value_account_collection_id
 	) SELECT service_collection_id, 'log_watcher', 'role', account_collection_id
 	FROM account_collection,svccol
@@ -130,7 +135,7 @@ WITH swpkg AS (
 	RETURNING *
 ), svcprop5 AS (
 	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type, 
+		service_collection_id, service_property_name, service_property_type,
 			value_sw_package_id
 	) SELECT service_collection_id, 'software', 'pkg', sw_package_id
 	FROM swpkg,svccol

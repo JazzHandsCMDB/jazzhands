@@ -3,14 +3,38 @@ DROP TABLE IF EXISTS service cascade;
 CREATE TABLE service (
 	service_id	serial		NOT NULL,
 	service_name	text		NOT NULL,
+	description	text		NULL,
 	PRIMARY KEY (service_id)
 );
 
+--
+-- source repository, it has a business type and a technology
+--
+-- type is business concept (software, config)
+-- technology is git, svn, hg, Vv
+--
+-- url is where you go to checkout; the next table can be used for
+-- relative paths within a checkout, if appropriate.
+--
+DROP TABLE IF EXISTS source_repository;
+CREATE TABLE source_repository (
+	source_repository_id		serial	NOT NULL,
+	source_repository_name		text	NOT NULL,
+	source_repository_type		text	NOT NULL,
+	source_repository_technology	text	NOT NULL,
+	source_repository_url		text	NOT NULL,
+	description			text	NULL,
+	PRIMARY KEY (source_repository_id),
+	unique (source_repository_name, source_repository_type)
+);
+
+-- path is used to say where something is inside a repo
 DROP TABLE IF EXISTS service_source_repository;
 CREATE TABLE service_source_repository (
-	service_id		integer,
-	source_repository	text,
-	PRIMARY KEY (service_id, source_repository)
+	service_id			integer NOT NULL,
+	source_repository_id		text	NOT NULL,
+	source_repository_path		text	NULL,
+	PRIMARY KEY (service_id, source_repository_id)
 );
 
 DROP TABLE IF EXISTS service_version cascade;
@@ -24,6 +48,14 @@ CREATE TABLE service_version (
 	is_enabled		char(1) DEFAULT 'Y',
 	PRIMARY KEY (service_version_id),
 	UNIQUE	 (service_id, version_name)
+);
+
+DROP TABLE IF EXISTS service_version_source;
+CREATE TABLE service_version_source (
+	service_version_id	integer		NOT NULL,
+	software_repository_id	integer		NOT NULL,
+	software_tag		text		NOT NULL,
+	PRIMARY KEY (service_version_id, software_repository_id)
 );
 
 --------------------------- shared netblock collections -------------------
@@ -49,7 +81,7 @@ DROP TABLE IF EXISTS shared_netblock_collection_hier;
 CREATE TABLE shared_netblock_collection_hier (
 	shared_netblock_collection_id		integer	NOT NULL,
 	child_shared_netblock_collection_id	integer	NOT NULL,
-	PRIMARY KEY (shared_netblock_collection_id, 
+	PRIMARY KEY (shared_netblock_collection_id,
 		child_shared_netblock_collection_id)
 );
 
