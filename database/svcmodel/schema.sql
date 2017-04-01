@@ -44,7 +44,6 @@ CREATE TABLE service_version (
 	service_id		integer		NOT NULL,
 	service_type		text		NOT NULL,
 	version_name		text		NOT NULL,
-	software_repository_id	integer,
 	is_enabled		char(1) DEFAULT 'Y',
 	PRIMARY KEY (service_version_id),
 	UNIQUE	 (service_id, version_name)
@@ -53,9 +52,29 @@ CREATE TABLE service_version (
 DROP TABLE IF EXISTS service_version_source;
 CREATE TABLE service_version_source (
 	service_version_id	integer		NOT NULL,
-	software_repository_id	integer		NOT NULL,
+	source_repository_id	integer		NOT NULL,
 	software_tag		text		NOT NULL,
-	PRIMARY KEY (service_version_id, software_repository_id)
+	PRIMARY KEY (service_version_id, source_repository_id)
+);
+
+-----------------------
+
+--
+-- specifies current default for dealing with new repos.  this cloned into
+-- the next table when a new release happens
+--
+DROP TABLE IF EXISTS service_software_repo;
+CREATE TABLE service_version_software_repo (
+	service_id		integer		NOT NULL,
+	release_repository_id	integer		NOT NULL,
+	PRIMARY KEY (service_id, release_repository_id)
+);
+
+DROP TABLE IF EXISTS service_software_repo;
+CREATE TABLE service__software_repo (
+	service_version_id	integer		NOT NULL,
+	release_repository_id	integer		NOT NULL,
+	PRIMARY KEY (service_version_id, release_repository_id)
 );
 
 --------------------------- shared netblock collections -------------------
@@ -281,20 +300,40 @@ CREATE TABLE service_acl (
 
 
 --------------------------- binary distributions -----------------------------
-DROP TABLE IF EXISTS software_repository cascade;
-CREATE TABLE software_repository (
-	software_repository_id		serial	NOT NULL,
-	software_repository_name	text	NOT NULL,
-	software_repository_type	text	NOT NULL,
-	PRIMARY KEY (software_repository_id)
+--
+-- points to something that takes the source and spits out binary releases.
+--
+-- name and type refer to the name of the system and its type.  its used to
+-- figure out where to hand things off to ("obs", "bob", "homegrown").
+--
+-- I can't think of any more than a default type.
+--
+-- project is a project inside the system, which could be an obs project,
+-- some identifier to bob or whatever.
+--
+DROP TABLE IF EXISTS release_repository cascade;
+CREATE TABLE release_repository (
+	release_repository_id		serial	NOT NULL,
+	release_repository_name	text	NOT NULL,
+	release_repository_type	text	NOT NULL,
+	release_repository_project	text	NOT NULL,
+	PRIMARY KEY (release_repository_id)
 );
 
-DROP TABLE IF EXISTS software_repository_location cascade;
-CREATE TABLE software_repository_location (
-	software_repository_id			integer NOT NULL,
-	software_repository_location_type	text	NOT NULL,
-	repository_location			text	NOT NULL,
-	PRIMARY KEY (software_repository_id, software_repository_location_type)
+--
+-- type is yum, apt, I think.
+-- sw_package type is rpm, deb, etc, which is in sw_package
+--
+-- its possible that this should be 1-m and have the pk be
+-- release_repository_id,repository_uri.
+--
+DROP TABLE IF EXISTS release_repository_location cascade;
+CREATE TABLE release_repository_location (
+	release_repository_id			integer NOT NULL,
+	release_repository_location_type	text	NOT NULL,
+	sw_package_type				text	NOT NULL,
+	repository_uri				text	NOT NULL,
+	PRIMARY KEY (release_repository_id, software_repository_location_type)
 );
 
 --------------------------- collections ---------------------------------
@@ -544,7 +583,7 @@ DOCKER CONTAINERS:
  - container images are software packages as above, I think.
  */
 
-grant select on all tables in schema jazzhands to ro_role; 
-grant insert,update,delete on all tables in schema jazzhands to iud_role; 
+grant select on all tables in schema jazzhands to ro_role;
+grant insert,update,delete on all tables in schema jazzhands to iud_role;
 
 grant select,usage on all sequences in schema jazzhands to iud_role;
