@@ -64,14 +64,14 @@ CREATE TABLE service_version_source (
 -- the next table when a new release happens
 --
 DROP TABLE IF EXISTS service_software_repo;
-CREATE TABLE service_version_software_repo (
+CREATE TABLE service_software_repo (
 	service_id		integer		NOT NULL,
 	sw_package_repository_id	integer		NOT NULL,
 	PRIMARY KEY (service_id, sw_package_repository_id)
 );
 
-DROP TABLE IF EXISTS service_software_repo;
-CREATE TABLE service__software_repo (
+DROP TABLE IF EXISTS service_version_software_repo;
+CREATE TABLE service_version_software_repo (
 	service_version_id	integer		NOT NULL,
 	sw_package_repository_id	integer		NOT NULL,
 	PRIMARY KEY (service_version_id, sw_package_repository_id)
