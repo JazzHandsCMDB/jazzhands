@@ -320,6 +320,11 @@ CREATE TABLE sw_package_repository (
 	PRIMARY KEY (sw_package_repository_id)
 );
 
+-- XXX - perhaps this should be tied to service environments somehow.  how
+-- to deal with "prod is here, dev is there"  .  also different people
+-- doing dev builds might be different (in the OBS case).  This may be
+-- some sort of magic pass-thru to the building interface.
+
 --
 -- type is yum, apt, I think.
 -- sw_package type is rpm, deb, etc, which is in sw_package
