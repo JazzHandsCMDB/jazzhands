@@ -333,7 +333,7 @@ CREATE TABLE sw_package_repository_location (
 	sw_package_repository_location_type	text	NOT NULL,
 	sw_package_type				text	NOT NULL,
 	repository_uri				text	NOT NULL,
-	PRIMARY KEY (sw_package_repository_id, software_repository_location_type)
+	PRIMARY KEY (sw_package_repository_id, sw_package_repository_location_type)
 );
 
 --------------------------- collections ---------------------------------
