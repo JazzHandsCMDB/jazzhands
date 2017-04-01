@@ -66,15 +66,15 @@ CREATE TABLE service_version_source (
 DROP TABLE IF EXISTS service_software_repo;
 CREATE TABLE service_version_software_repo (
 	service_id		integer		NOT NULL,
-	release_repository_id	integer		NOT NULL,
-	PRIMARY KEY (service_id, release_repository_id)
+	sw_package_repository_id	integer		NOT NULL,
+	PRIMARY KEY (service_id, sw_package_repository_id)
 );
 
 DROP TABLE IF EXISTS service_software_repo;
 CREATE TABLE service__software_repo (
 	service_version_id	integer		NOT NULL,
-	release_repository_id	integer		NOT NULL,
-	PRIMARY KEY (service_version_id, release_repository_id)
+	sw_package_repository_id	integer		NOT NULL,
+	PRIMARY KEY (service_version_id, sw_package_repository_id)
 );
 
 --------------------------- shared netblock collections -------------------
@@ -311,13 +311,13 @@ CREATE TABLE service_acl (
 -- project is a project inside the system, which could be an obs project,
 -- some identifier to bob or whatever.
 --
-DROP TABLE IF EXISTS release_repository cascade;
-CREATE TABLE release_repository (
-	release_repository_id		serial	NOT NULL,
-	release_repository_name	text	NOT NULL,
-	release_repository_type	text	NOT NULL,
-	release_repository_project	text	NOT NULL,
-	PRIMARY KEY (release_repository_id)
+DROP TABLE IF EXISTS sw_package_repository cascade;
+CREATE TABLE sw_package_repository (
+	sw_package_repository_id		serial	NOT NULL,
+	sw_package_repository_name	text	NOT NULL,
+	sw_package_repository_type	text	NOT NULL,
+	sw_package_repository_project	text	NOT NULL,
+	PRIMARY KEY (sw_package_repository_id)
 );
 
 --
@@ -325,15 +325,15 @@ CREATE TABLE release_repository (
 -- sw_package type is rpm, deb, etc, which is in sw_package
 --
 -- its possible that this should be 1-m and have the pk be
--- release_repository_id,repository_uri.
+-- sw_package_repository_id,repository_uri.
 --
-DROP TABLE IF EXISTS release_repository_location cascade;
-CREATE TABLE release_repository_location (
-	release_repository_id			integer NOT NULL,
-	release_repository_location_type	text	NOT NULL,
+DROP TABLE IF EXISTS sw_package_repository_location cascade;
+CREATE TABLE sw_package_repository_location (
+	sw_package_repository_id			integer NOT NULL,
+	sw_package_repository_location_type	text	NOT NULL,
 	sw_package_type				text	NOT NULL,
 	repository_uri				text	NOT NULL,
-	PRIMARY KEY (release_repository_id, software_repository_location_type)
+	PRIMARY KEY (sw_package_repository_id, software_repository_location_type)
 );
 
 --------------------------- collections ---------------------------------
