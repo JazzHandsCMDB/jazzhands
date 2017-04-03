@@ -46,6 +46,8 @@ EXCEPTION WHEN unique_violation THEN
 	NULL;
 END
 $$;
+*/
+
 DO $$
 BEGIN
 	--
@@ -61,7 +63,6 @@ EXCEPTION WHEN unique_violation THEN
 END
 $$;
 
-*/
 
 DO $$
 BEGIN

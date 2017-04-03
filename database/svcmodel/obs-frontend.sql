@@ -26,7 +26,7 @@ VALUES ('opensuse_13.1', 'baseos', 'whatever');
 /* This convention for modeling a OS mirror is something I made up.
    We haven't agreed this is right. */
 INSERT INTO sw_package_repository_location (sw_package_repository_id, sw_package_repository_location_type, sw_package_type, repository_uri)
-SELECT sw_package_repository_id, 'zypper', 'rpm', 'http://yum.local.appnexus.net/mirrors/opensuse/versioned/2015013000/13.1/suse/'
+SELECT sw_package_repository_id, 'zypper', 'rpm','http://yum.local.appnexus.net/mirrors/opensuse/versioned/2015013000/13.1/suse/'
 FROM sw_package_repository
 WHERE sw_package_repository_name = 'opensuse_13.1'
 AND sw_package_repository_type = 'baseos';
