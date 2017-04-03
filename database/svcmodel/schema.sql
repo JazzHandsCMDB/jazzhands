@@ -33,7 +33,7 @@ CREATE TABLE source_repository (
 DROP TABLE IF EXISTS service_source_repository;
 CREATE TABLE service_source_repository (
 	service_id			integer NOT NULL,
-	source_repository_id		text	NOT NULL,
+	source_repository_id		integer	NOT NULL,
 	source_repository_path		text	NULL,
 	PRIMARY KEY (service_id, source_repository_id)
 );

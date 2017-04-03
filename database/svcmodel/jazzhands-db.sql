@@ -35,11 +35,22 @@ WITH endpoint AS (
 	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version
-		(service_id, service_type, version_name, software_repository_id)
-	SELECT service_id, 'network', '0.64', software_repository_id
-	FROM svc, software_repository
-	WHERE software_repository_name = 'common'
+		(service_id, service_type, version_name)
+	SELECT service_id, 'network', '0.64'
+	FROM svc
 	RETURNING *
+), svcvsrc AS (
+	INSERT INTO service_version_source (
+		service_version_id,source_repository_id,software_tag
+	) SELECT service_version_id, source_repository_id,version_name
+	FROM svcv, srcrepo
+), svcswpkg AS (
+	INSERT INTO service_version_software_repo (
+		service_version_id, sw_package_repository_id
+	) SELECT service_version_id, sw_package_repository_id
+	FROM svcv, sw_package_repository
+	WHERE sw_package_repository_name = 'obs' 
+	AND sw_package_repository_project = 'common'
 ), svcinst AS (
 	INSERT INTO service_instance (
 		device_id, service_endpoint_id, service_version_id,

@@ -34,11 +34,12 @@ AND software_repository_type = 'baseos';
 /* I used the package version of obs-api for the service_version name and tag.
    I did this only because it seemed to make sense and was the only thing I
    could think of. */
-INSERT INTO service_version (service_id, service_type, version_name, software_repository_id)
-SELECT service_id, 'network', '2.5.5.1', software_repository_id
-FROM service, software_repository
-WHERE software_repository_name = 'opensuse_13.1' AND software_repository_type = 'baseos'
-AND service.service_name = 'obs-frontend';
+INSERT INTO service_version (service_id, service_type, version_name)
+SELECT service_id, 'network', '2.5.5.1'
+FROM service
+WHERE service.service_name = 'obs-frontend';
+
+--- XXX need to convert the sw_package_repository bits
 
 INSERT INTO service_instance (device_id, netblock_id, service_endpoint_id, service_version_id)
 SELECT device_id, netblock_id, service_endpoint_id, service_version_id
