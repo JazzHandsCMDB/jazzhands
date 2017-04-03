@@ -19,21 +19,23 @@ EXCEPTION WHEN unique_violation THEN
 END
 $$;
 
+/*
 DO $$
 DECLARE
 	_tal	integer;
 BEGIN
 WITH repo AS (
-	INSERT INTO software_repository (
-		software_repository_name, software_repository_type
+	INSERT INTO sw_package_repository (
+		sw_package_repository_name, sw_package_repository_type
+		sw_package_repository_project
 	) values (
 		'common', 'default'
 	) RETURNING *
 ), repoloc AS (
-	INSERT INTO software_repository_location
-		(software_repository_id, software_repository_location_type,
-		repository_location
-	) SELECT software_repository_id,
+	INSERT INTO sw_package_repository_location
+		(sw_package_repository_id, sw_package_repository_location_type,
+		repository_uri
+	) SELECT sw_package_repository_id,
 		unnest(ARRAY['obs', 'yum', 'apt']),
 		unnest(ARRAY['common', 'https:/yum.example.com/blahblah', 
 			'https://apt.example.com/blahblah'])
@@ -58,6 +60,8 @@ EXCEPTION WHEN unique_violation THEN
 	NULL;
 END
 $$;
+
+*/
 
 DO $$
 BEGIN

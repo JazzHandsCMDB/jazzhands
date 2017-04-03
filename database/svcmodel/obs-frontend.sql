@@ -20,16 +20,16 @@ AND service_endpoint.uri LIKE '%obs.corp%';
 INSERT INTO service (service_name)
 VALUES ('obs-frontend');
 
-INSERT INTO software_repository (software_repository_name, software_repository_type)
-VALUES ('opensuse_13.1', 'baseos');
+INSERT INTO sw_package_repository (sw_package_repository_name, sw_package_repository_type, sw_package_repository_project)
+VALUES ('opensuse_13.1', 'baseos', 'whatever');
 
 /* This convention for modeling a OS mirror is something I made up.
    We haven't agreed this is right. */
-INSERT INTO software_repository_location (software_repository_id, software_repository_location_type, repository_location)
-SELECT software_repository_id, 'zypper', 'http://yum.local.appnexus.net/mirrors/opensuse/versioned/2015013000/13.1/suse/'
-FROM software_repository
-WHERE software_repository_name = 'opensuse_13.1'
-AND software_repository_type = 'baseos';
+INSERT INTO sw_package_repository_location (sw_package_repository_id, sw_package_repository_location_type, sw_package_type, repository_uri)
+SELECT sw_package_repository_id, 'zypper', 'rpm', 'http://yum.local.appnexus.net/mirrors/opensuse/versioned/2015013000/13.1/suse/'
+FROM sw_package_repository
+WHERE sw_package_repository_name = 'opensuse_13.1'
+AND sw_package_repository_type = 'baseos';
 
 /* I used the package version of obs-api for the service_version name and tag.
    I did this only because it seemed to make sense and was the only thing I
