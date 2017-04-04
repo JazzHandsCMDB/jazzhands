@@ -1,3 +1,15 @@
+jazzhands-perl-netdev-mgmt (0.79.3) unstable; urgency=low
+
+  * Bug fixes with __devtype/arista.pm module to fix handling of VRRP correctly
+
+  * Add GetLLDPInformation to __devtype/*.pm
+
+  * Add support in GetChassisInfo in __devtype/juniper.pm to genericize for
+    things other than virtual chassis, and so that the format returned matches
+    what is returned by the arista.pm module
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 04 Apr 2017 16:31:35 -0500
+
 jazzhands-perl-netdev-mgmt (0.74.9) unstable; urgency=low
 
   * Make SetBGPPeer require a bgp_peer_group parameter to be passed,
