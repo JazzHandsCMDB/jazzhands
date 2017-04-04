@@ -1,4 +1,3 @@
-
 DROP TABLE IF EXISTS service cascade;
 CREATE TABLE service (
 	service_id	serial		NOT NULL,
@@ -49,8 +48,8 @@ CREATE TABLE service_version (
 	UNIQUE	 (service_id, version_name)
 );
 
-DROP TABLE IF EXISTS service_version_source;
-CREATE TABLE service_version_source (
+DROP TABLE IF EXISTS service_version_source_repository;
+CREATE TABLE service_version_source_repository (
 	service_version_id	integer		NOT NULL,
 	source_repository_id	integer		NOT NULL,
 	software_tag		text		NOT NULL,
@@ -70,8 +69,8 @@ CREATE TABLE service_software_repo (
 	PRIMARY KEY (service_id, sw_package_repository_id)
 );
 
-DROP TABLE IF EXISTS service_version_software_repo;
-CREATE TABLE service_version_software_repo (
+DROP TABLE IF EXISTS service_version_sw_package_repository;
+CREATE TABLE service_version_sw_package_repository (
 	service_version_id	integer		NOT NULL,
 	sw_package_repository_id	integer		NOT NULL,
 	PRIMARY KEY (service_version_id, sw_package_repository_id)
@@ -269,7 +268,7 @@ DROP TABLE IF EXISTS service_endpoint_service_sla cascade;
 CREATE TABLE service_endpoint_service_sla (
 	service_endpoint_id	integer		NOT NULL,
 	service_sla_id		integer		NOT NULL,
-	service_environment_id	integer		NOT NULL,
+	service_environment_id	integer		NULL,
 	PRIMARY KEY (service_endpoint_id,service_sla_id,service_environment_id)
 );
 
@@ -303,27 +302,37 @@ CREATE TABLE service_acl (
 --
 -- points to something that takes the source and spits out binary releases.
 --
--- name and type refer to the name of the system and its type.  its used to
--- figure out where to hand things off to ("obs", "bob", "homegrown").
+-- name is the repository name inside a given build/release system.  This may
+-- be an OBS project.
+--
+-- type is the build system, obs/bob/ospkg/maven/etc.
 --
 -- I can't think of any more than a default type.
 --
--- project is a project inside the system, which could be an obs project,
--- some identifier to bob or whatever.
+-- group should possibly be called metadata, which is just something
+-- meaningful within the build system.
 --
 DROP TABLE IF EXISTS sw_package_repository cascade;
 CREATE TABLE sw_package_repository (
 	sw_package_repository_id		serial	NOT NULL,
 	sw_package_repository_name	text	NOT NULL,
 	sw_package_repository_type	text	NOT NULL,
-	sw_package_repository_project	text	NOT NULL,
+	sw_package_repository_group	text	NULL,
 	PRIMARY KEY (sw_package_repository_id)
+	UNIQUE (sw_package_repository_name, sw_package_repository_type)
 );
 
 -- XXX - perhaps this should be tied to service environments somehow.  how
 -- to deal with "prod is here, dev is there"  .  also different people
 -- doing dev builds might be different (in the OBS case).  This may be
 -- some sort of magic pass-thru to the building interface.
+
+--
+-- service environment collections are more important on locations
+--
+-- possibility to promote a sw_package_repository to production or other
+-- environments, or force a rebuild by moving it to a new places
+--
 
 --
 -- type is yum, apt, I think.
@@ -338,6 +347,7 @@ CREATE TABLE sw_package_repository_location (
 	sw_package_repository_location_type	text	NOT NULL,
 	sw_package_type				text	NOT NULL,
 	repository_uri				text	NOT NULL,
+	service_environment_collection_id	integer	NULL,
 	PRIMARY KEY (sw_package_repository_id, sw_package_repository_location_type)
 );
 
@@ -397,6 +407,8 @@ CREATE TABLE acl_group (
 );
 
 -- term
+--
+-- XXX shouldn't be l3 networks, should be netblock collections
 DROP TABLE IF EXISTS acl_rule;
 CREATE TABLE acl_rule (
 	acl_rule_id				serial NOT NULL,

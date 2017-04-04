@@ -101,13 +101,11 @@ $$;
 DO $$
 BEGIN
 	INSERT INTO sw_package_repository (
-		sw_package_repository_name, sw_package_repository_type,
-		sw_package_repository_project
+		sw_package_repository_name, sw_package_repository_type
 	) VALUES 
-		('obs', 'default', 'common'),
-		('obs', 'default', 'adnexus'),
-		('obs', 'default', 'cloud'),
-		('obs', 'default', 'home:kovert')
+		('common', 'obs'),
+		('adnexus', 'obs'),
+		('cloud', 'obs')
 	;
 EXCEPTION WHEN unique_violation THEN
 	NULL;

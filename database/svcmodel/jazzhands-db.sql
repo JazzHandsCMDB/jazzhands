@@ -40,12 +40,12 @@ WITH endpoint AS (
 	FROM svc
 	RETURNING *
 ), svcvsrc AS (
-	INSERT INTO service_version_source (
+	INSERT INTO service_version_source_repository (
 		service_version_id,source_repository_id,software_tag
 	) SELECT service_version_id, source_repository_id,version_name
 	FROM svcv, srcrepo
 ), svcswpkg AS (
-	INSERT INTO service_version_software_repo (
+	INSERT INTO service_version_sw_package_repository (
 		service_version_id, sw_package_repository_id
 	) SELECT service_version_id, sw_package_repository_id
 	FROM svcv, sw_package_repository
