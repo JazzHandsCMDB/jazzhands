@@ -289,14 +289,14 @@ BEGIN
 	--
 	-- Delete network_interfaces
 	--
-	PERFORM remove_network_interfaces(
-		network_interface_list := ARRAY(
+	PERFORM device_utils.remove_network_interfaces(
+		network_interface_id_list := ARRAY(
 			SELECT
 				network_interface_id
 			FROM
-				network_interface
+				network_interface ni
 			WHERE
-				device_id = ANY(device_list)
+				ni.device_id = ANY(device_id_list)
 		)
 	);
 
@@ -526,7 +526,7 @@ BEGIN
 	END IF;
 
 	PERFORM * FROM device_utils.remove_network_interfaces(
-			network_interface_list := ARRAY[ network_interface_id ]
+			network_interface_id_list := ARRAY[ network_interface_id ]
 		);
 
 	RETURN true;
@@ -540,7 +540,7 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 --begin remove_network_interfaces
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION device_utils.remove_network_interfaces (
-	network_interface_list	integer[]
+	network_interface_id_list	integer[]
 ) RETURNS boolean AS $$
 DECLARE
 	nb_list		integer[];
@@ -553,7 +553,7 @@ BEGIN
 	--
 
 	RAISE LOG 'Removing network_interfaces with ids %',
-		array_to_string(network_interface_list, ', ');
+		array_to_string(network_interface_id_list, ', ');
 
 	RAISE LOG 'Retrieving netblock information...';
 
@@ -562,14 +562,14 @@ BEGIN
 	FROM
 		network_interface_netblock nin
 	WHERE
-		nin.network_interface_id = ANY(network_interface_list);
+		nin.network_interface_id = ANY(network_interface_id_list);
 
 	SELECT DISTINCT
 		array_agg(shared_netblock_id) INTO sn_list
 	FROM
 		shared_netblock_network_int snni
 	WHERE
-		snni.network_interface_id = ANY(network_interface_list);
+		snni.network_interface_id = ANY(network_interface_id_list);
 
 	--
 	-- Clean up network bits
@@ -584,7 +584,7 @@ BEGIN
 			FROM
 				network_interface ni
 			WHERE
-				ni.network_interface_id = ANY(network_interface_list)
+				ni.network_interface_id = ANY(network_interface_id_list)
 		);
 
 	--
@@ -626,16 +626,16 @@ BEGIN
 		 	FROM
 				network_interface ni
 			WHERE
-				ni.network_interface_id = ANY (network_interface_list)
+				ni.network_interface_id = ANY (network_interface_id_list)
 	);
 
 	RAISE LOG 'Removing network_interfaces...';
 
 	DELETE FROM network_interface_purpose nip WHERE
-		nip.network_interface_id = ANY(network_interface_list);
+		nip.network_interface_id = ANY(network_interface_id_list);
 
 	DELETE FROM network_interface ni WHERE ni.network_interface_id =
-		ANY(network_interface_list);
+		ANY(network_interface_id_list);
 
 	RAISE LOG 'Removing netblocks...';
 	IF nb_list IS NOT NULL THEN
