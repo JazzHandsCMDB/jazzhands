@@ -37,6 +37,7 @@ management/hotpants
 management/mgmt/perl
 management/mkpasswdfiles
 management/netdev-mgmt/perl
+management/netdev-mgmt/bin
 management/stab
 management/sync-prefix-lists
 management/util/perl	# jazzhands-perl-common
