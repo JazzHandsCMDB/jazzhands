@@ -19,22 +19,22 @@ sub new {
 	my $self = {};
 
 	if (!$opt->{credentials}) {
-		SetError($opt->{errors}, 
+		SetError($opt->{errors},
 			"credentials parameter must be passed to connect");
 		return undef;
 	}
 	if (!$opt->{device}) {
-		SetError($opt->{errors}, 
+		SetError($opt->{errors},
 			"device parameter must be passed to connect");
 		return undef;
-	}   
+	}
 	if (!ref($opt->{device})) {
-		SetError($opt->{errors}, 
+		SetError($opt->{errors},
 			"device parameter must be a device object");
 		return undef;
-	}   
+	}
 	my $device = $opt->{device};
-	
+
 	if (!$device->{hostname}) {
 		SetError($opt->{errors}, "device is missing hostname");
 		return undef;
@@ -59,7 +59,7 @@ sub commit {
 	my $err = $opt->{errors};
 
 	return $self->SendCommand(
-		commands => [ 
+		commands => [
 			'write memory'
 		],
 		errors => $err
@@ -84,7 +84,7 @@ sub SendCommand {
 	my $timeout = $opt->{timeout} || 30;
 	my $credentials = $opt->{credentials} || $self->{credentials};
 	if (!$credentials) {
-		SetError($err, 
+		SetError($err,
 			"credentials parameter must be passed to SendCommand");
 		return undef;
 	}
@@ -198,8 +198,8 @@ sub GetPortStatus {
 	}
 
 	my $result = $self->SendCommand(
-		commands => [ 
-			map { 'show interfaces ' . $_ } @$ports 
+		commands => [
+			map { 'show interfaces ' . $_ } @$ports
 		],
 		errors => $err
 	);
@@ -260,7 +260,7 @@ sub GetPortStatus {
 			next;
 		}
 	}
-	
+
 	foreach my $port (@$ports) {
 		my $status = $portstatus->{$port};
 		if ($status->{lacp}) {
@@ -273,7 +273,7 @@ sub GetPortStatus {
 			$status->{$_} = $portinfo->{$_};
 		} keys %{$portinfo};
 	}
-	
+
 	return $portstatus;
 }
 
@@ -325,9 +325,9 @@ sub SetPortVLAN {
 
 	my $commands;
 	if ($vlan eq 'trunk') {
-		$commands = [ 
+		$commands = [
 			'configure',
-			map { 
+			map {
 					'interface ' . $_,
 					'spanning-tree portfast edge',
 					'switchport mode trunk',
@@ -336,7 +336,7 @@ sub SetPortVLAN {
 				} @ports
 		];
 	} else {
-		$commands = [ 
+		$commands = [
 			'configure',
 			map {
 					'interface ' . $_,
@@ -373,7 +373,7 @@ sub SetPortLACP {
 			"ports parameter must be an array reference");
 		return undef;
 	}
-	
+
 	if (!defined($opt->{lacp})) {
 		SetError($err,
 			"lacp parameter must be passed to SetPortLACP");
@@ -434,39 +434,39 @@ sub SetPortLACP {
 	);
 	return undef if (!defined($result));
 	if ($debug) {
-		print STDERR Data::Dumper->Dump( 
+		print STDERR Data::Dumper->Dump(
 			[$result], ['$port_status']);
 	}
 	my $commands;
 	if ($opt->{lacp}) {
-		$commands = [ 
+		$commands = [
 			'configure',
 			'interface ' . $trunk_interface,
 			'mlag ' . $idx,
 			'port-channel lacp fallback',
 			'port-channel lacp fallback timeout 15',
 			'spanning-tree portfast edge',
-			(map { 
+			(map {
 					'interface ' . $_,
 					'channel-group ' . $idx . ' mode active'
 				} @$ports)
 		];
 		my $portinfo = $result->{$ports->[0]};
 		if ($portinfo->{mode} eq 'access') {
-			push @$commands, 
+			push @$commands,
 				'interface ' . $trunk_interface,
 				'switchport mode access',
 				sprintf("switchport access vlan %s",
 					$portinfo->{access_vlan});
 		} else {
-			push @$commands, 
+			push @$commands,
 				'interface ' . $trunk_interface,
 				'switchport mode trunk',
 				sprintf("switchport trunk native vlan %s",
 					$portinfo->{native_vlan});
 		}
 	} else {
-		$commands = [ 
+		$commands = [
 			'configure',
 		];
 		foreach my $port (@$ports) {
@@ -476,12 +476,12 @@ sub SetPortLACP {
 				'spanning-tree portfast edge';
 			my $trunkstanza;
 			if ($result->{$trunk_interface}->{mode} eq 'access') {
-				push @$commands, 
+				push @$commands,
 					'switchport mode access',
 					sprintf("switchport access vlan %s",
 						$result->{$trunk_interface}->{access_vlan});
 			} else {
-				push @$commands, 
+				push @$commands,
 					'switchport mode trunk',
 					sprintf("switchport trunk native vlan %s",
 						$result->{$trunk_interface}->{native_vlan});
@@ -560,7 +560,7 @@ sub SetBGPPeerStatus {
 			$device->{hostname});
 		return undef;
 	}
-	
+
 	my ($asn) = $output =~ /local AS number (\d+)/m;
 
 	if (!$asn) {
@@ -629,13 +629,13 @@ sub SetBGPPeerStatus {
 				}
 			}
 			if (!$found) {
-				SetError($err, 
+				SetError($err,
 					sprintf("%s is not a valid address on switch %s",
 					$opt->{bgp_peer},
 					$device->{hostname}));
 				return undef;
 			}
-			push @{$commands}, 'neighbor ' . $opt->{bgp_peer}->addr . 
+			push @{$commands}, 'neighbor ' . $opt->{bgp_peer}->addr .
 				' peer-group ' . $opt->{bgp_peer_group};
 		}
 		push @{$commands},
@@ -677,8 +677,8 @@ sub GetInterfaceConfig {
 
 	my @errors;
 	my $result = $self->SendCommand(
-		commands => [ 
-			'show ip interface' . 
+		commands => [
+			'show ip interface' .
 				($opt->{interface_name} ? ' ' . $opt->{interface_name} : '')
 		],
 		errors => \@errors
@@ -693,8 +693,8 @@ sub GetInterfaceConfig {
 
 	my $iface = {
 		addresses => {
-			$addr->{address} . '/' . $addr->{maskLen} => { 
-				"vrrp-group" => undef 
+			$addr->{address} . '/' . $addr->{maskLen} => {
+				"vrrp-group" => undef
 			}
 		}
 	};
@@ -720,7 +720,7 @@ sub GetIPAddressInformation {
 	# sucks if one command returns an error
 	#
 	my $result = $self->SendCommand(
-		commands => [ 
+		commands => [
 			'show ip interface'
 		],
 		errors => $err
@@ -733,7 +733,7 @@ sub GetIPAddressInformation {
 	my $ipv4ifaces = $result->[0]->{interfaces};
 
 	$result = $self->SendCommand(
-		commands => [ 
+		commands => [
 			'show ipv6 interface'
 		],
 		errors => $err
@@ -747,7 +747,7 @@ sub GetIPAddressInformation {
 	}
 
 	$result = $self->SendCommand(
-		commands => [ 
+		commands => [
 			'show vrrp'
 		],
 		errors => $err
@@ -761,7 +761,7 @@ sub GetIPAddressInformation {
 	}
 
 	$result = $self->SendCommand(
-		commands => [ 
+		commands => [
 			'show ip virtual-router'
 		],
 		errors => $err
@@ -779,7 +779,7 @@ sub GetIPAddressInformation {
 	foreach my $iface (values %$ipv4ifaces) {
 		next if (!$iface->{interfaceAddress}->{primaryIp}->{maskLen});
 		$ifaceinfo->{$iface->{name}} = {
-			ipv4 => [ 
+			ipv4 => [
 				map {
 					NetAddr::IP->new($_->{address}, $_->{maskLen})
 				} ($iface->{interfaceAddress}->{primaryIp},
@@ -793,10 +793,10 @@ sub GetIPAddressInformation {
 			$ifaceinfo->{$iface->{name}} = {};
 		}
 		$ifaceinfo->{$iface->{name}}->{ipv6} =
-			[ map 
-				{ 
+			[ map
+				{
 					NetAddr::IP->new(
-						$_->{address}, 
+						$_->{address},
 						NetAddr::IP->new($_->{subnet})->masklen
 					)
 				} @{$iface->{addresses}}
@@ -806,10 +806,10 @@ sub GetIPAddressInformation {
 	foreach my $v (@$vrrp) {
 		next if !$v->{interface};
 		my $vrrpinfo = {
-			address => $v->{virtualIp},
+			address => NetAddr::IP->new($v->{virtualIp}),
 			group => $v->{groupId},
 		};
-	
+
 		if (exists($ifaceinfo->{$v->{interface}}->{vrrp})) {
 			push @{$ifaceinfo->{$v->{interface}}->{vrrp}}, $vrrpinfo;
 		} else {
@@ -819,8 +819,123 @@ sub GetIPAddressInformation {
 
 	foreach my $v (@$vr) {
 		next if !$v->{interface};
-		$ifaceinfo->{$v->{interface}}->{virtual_router} = 
-			$v->{virtualIps};
+		$ifaceinfo->{$v->{interface}}->{virtual_router} = [
+			map {
+				eval { NetAddr::IP->new($_) }
+			} @{$v->{virtualIps}}
+		];
+	}
+
+	return $ifaceinfo;
+}
+
+my $iface_map = {
+	'10/100/1000' => {
+		module_type => '1000BaseTEthernet',
+		media_type =>  '1000BaseTEthernet',
+	},
+	'10GBASE-CR' => {
+		module_type => '10GSFP+Ethernet',
+		media_type  => '10GSFPCuEthernet',
+	},
+	'40GBASE-CR4' => {
+		module_type => '40GQSFP+Ethernet',
+		media_type =>  '40GQSFP+CuEthernet',
+	},
+	'40GBASE-SR4' => {
+		module_type => '40GQSFP+Ethernet',
+		media_type => '40GMPOEthernet'
+	},
+	'40GBASE-UNIV' => {
+		module_type => '40GQSFP+Ethernet',
+		media_type => '40GMPOEthernet'
+	},
+	'40GBASE-LR4' => {
+		module_type => '40GQSFP+Ethernet',
+		media_type => '40GMPOEthernet'
+	},
+	'40GBASE-PLR4' => {
+		module_type => '40GQSFP+Ethernet',
+		media_type => '40GMPOEthernet'
+	},
+	'100GBASE-SR10' => {
+		module_type => '100GMXPEthernet',
+		media_type => '100GMXPEthernet',
+	}
+};
+
+sub GetLLDPInformation {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $result = $self->SendCommand(
+		commands => [
+			'show lldp neighbors detail',
+			'show interfaces status'
+		],
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+	my $lldp = $result->[0]->{lldpNeighbors};
+	my $iface_status = $result->[1]->{interfaceStatuses};
+
+	my $ifaceinfo = {};
+	foreach my $iface (keys %$lldp) {
+		my $ninfo = $lldp->{$iface}->{lldpNeighborInfo}->[0];
+		#
+		# We only care about things that have reported a remote system
+		# name
+		#
+		if (!exists($ninfo->{systemName})) {
+			next;
+		}
+
+		my $rem_port;
+		if ($ninfo->{neighborInterfaceInfo}->{interfaceIdType} eq
+			'interfaceName')
+		{
+			$rem_port = $ninfo->{neighborInterfaceInfo}->{interfaceId};
+		} elsif ($ninfo->{neighborInterfaceInfo}->{interfaceIdType} eq
+			'local')
+		{
+			# Fuck you, Juniper
+			$rem_port = $ninfo->{neighborInterfaceInfo}->{interfaceDescription};
+		} else {
+			next;
+		}
+		#
+		# Get rid of the spurious quotation marks on the port names
+		#
+		$rem_port =~ s/"//g;
+
+		my $info = {
+			interface_name => $iface,
+			remote_system_name => $ninfo->{systemName},
+			remote_interface_name => $rem_port
+		};
+
+		my $media_type = $iface_status->{$iface}->{interfaceType};
+		if (defined($media_type) && exists($iface_map->{$media_type})) {
+			map {
+				$info->{$_} = $iface_map->{$media_type}->{$_};
+			} keys %{$iface_map->{$media_type}};
+		}
+
+		$ifaceinfo->{$iface} = $info;
 	}
 
 	return $ifaceinfo;
@@ -851,7 +966,7 @@ sub TestRouteExistence {
 	# sucks if one command returns an error
 	#
 	my $result = $self->SendCommand(
-		commands => [ 
+		commands => [
 			'show ip route ' . $opt->{route} . ' longer-prefixes',
 		],
 		errors => $err
@@ -1040,16 +1155,16 @@ sub GenerateTextForACL {
 	if ($dbh) {
 		my $q = q {
 			SELECT
-				CASE 
+				CASE
 					WHEN is_single_address = 'Y' THEN host(ip_address) || '/32'
 					ELSE ip_address::text
 				END
 			FROM
 				jazzhands.netblock_collection nc JOIN
-				jazzhands.v_netblock_coll_expanded nce USING 
+				jazzhands.v_netblock_coll_expanded nce USING
 					(netblock_collection_id) JOIN
 				jazzhands.netblock_collection_netblock ncn ON
-					(nce.root_netblock_collection_id = 
+					(nce.root_netblock_collection_id =
 						ncn.netblock_collection_id) JOIN
 				jazzhands.netblock USING (netblock_id)
 			WHERE
@@ -1058,7 +1173,7 @@ sub GenerateTextForACL {
 		};
 
 		if (!($sth = $dbh->prepare_cached($q))) {
-			SetError($opt->{errors}, 
+			SetError($opt->{errors},
 				sprintf("%s::Validate: Unable to prepare netblock collection query: %s",
 					scalar(caller()),
 					$dbh->errstr
@@ -1078,7 +1193,7 @@ sub GenerateTextForACL {
 		};
 
 		if (!($exist_sth = $dbh->prepare_cached($q))) {
-			SetError($opt->{errors}, 
+			SetError($opt->{errors},
 				sprintf("%s::Validate: Unable to prepare netblock collection query: %s",
 					scalar(caller()),
 					$dbh->errstr
@@ -1121,7 +1236,7 @@ sub GenerateTextForACL {
 				my $addresses = [];
 				foreach my $pl (@{$x->{group}}) {
 					if (!($exist_sth->execute($pl))) {
-						SetError($opt->{errors}, 
+						SetError($opt->{errors},
 							sprintf("%s::Validate: Unable to execute netblock collection query: %s",
 								scalar(caller()),
 								$exist_sth->errstr
@@ -1130,7 +1245,7 @@ sub GenerateTextForACL {
 						return undef;
 					}
 					if (!$exist_sth->fetchrow_hashref) {
-						SetError($opt->{errors}, 
+						SetError($opt->{errors},
 							sprintf("%s::Validate: prefix-list %s referenced on line %d, but it does not exist in the database",
 								scalar(caller()),
 								$pl,
@@ -1143,7 +1258,7 @@ sub GenerateTextForACL {
 					$exist_sth->finish;
 
 					if (!($sth->execute($pl))) {
-						SetError($opt->{errors}, 
+						SetError($opt->{errors},
 							sprintf("%s::Validate: Unable to execute netblock collection member query: %s",
 								scalar(caller()),
 								$sth->errstr
@@ -1180,19 +1295,19 @@ sub GenerateTextForACL {
 				my $newtextlines = [];
 				my @ranges = grep { (ref($_) eq 'ARRAY') } @{$x->{port}};
 				my @nonranges = grep { !(ref($_) eq 'ARRAY') } @{$x->{port}};
-				push @$newtextlines, map { 
+				push @$newtextlines, map {
 						my $a = $_;
 						map {
 							$_ . " range " . join (' ', @$a)
 						} @{$x->{textlines}}
-					} @ranges; 
+					} @ranges;
 				#
 				# Group ports into 10
 				#
 				while (@nonranges) {
-					push @$newtextlines, 
+					push @$newtextlines,
 						map {
-							$_ . " eq " . join (' ', 
+							$_ . " eq " . join (' ',
 								@nonranges[0.. ($#nonranges > 9 ? 9 : $#nonranges)])
 						} @{$x->{textlines}};
 					@nonranges = @nonranges[10 .. $#nonranges];
@@ -1213,7 +1328,7 @@ sub GenerateTextForACL {
 					));
 				} else {
 					if (!($entry->{icmptypes})) {
-						push @$acl_entries, 
+						push @$acl_entries,
 							sprintf("%s %s %s %s",
 								$entry->{action},
 								$entry->{protocol},
@@ -1252,7 +1367,7 @@ sub GetChassisInfo {
 	}
 
 	my $result = $self->SendCommand(
-		commands => [ 
+		commands => [
 			'show inventory'
 		],
 		errors => $err
@@ -1327,7 +1442,7 @@ sub GetChassisInfo {
 					$_,
 					{
 						model => $slots->{$_}->{name},
-						serial => 
+						serial =>
 							$slots->{$_}->{serialNum} eq 'N/A' ?
 							undef :
 							$slots->{$_}->{serialNum}

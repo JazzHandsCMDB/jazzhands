@@ -108,7 +108,7 @@ CREATE OR REPLACE FUNCTION device_utils.purge_physical_path (
 DECLARE
 	_r	RECORD;
 BEGIN
-	FOR _r IN 
+	FOR _r IN
 	      SELECT  pc.physical_connection_id,
 			pc.cable_type,
 			p1.physical_port_id as pc_p1_physical_port_id,
@@ -151,7 +151,7 @@ CREATE OR REPLACE FUNCTION device_utils.purge_l1_connection_from_port (
 DECLARE
 	_r	RECORD;
 BEGIN
-	FOR _r IN 
+	FOR _r IN
 		SELECT * FROM layer1_connection WHERE
 			physical_port1_id = _in_portid or physical_port2_id = _in_portid
 	LOOP
@@ -176,7 +176,7 @@ CREATE OR REPLACE FUNCTION device_utils.purge_physical_ports (
 DECLARE
 	_r	RECORD;
 BEGIN
-	FOR _r IN 
+	FOR _r IN
 		SELECT * FROM physical_port WHERE device_id = _in_devid
 	LOOP
 		PERFORM device_utils.purge_l1_connection_from_port(
@@ -232,140 +232,19 @@ CREATE OR REPLACE FUNCTION device_utils.retire_device (
 	in_Device_id device.device_id%type,
 	retire_modules boolean DEFAULT false
 ) RETURNS boolean AS $$
-DECLARE
-	tally		INTEGER;
-	_r			RECORD;
-	_d			DEVICE%ROWTYPE;
-	_mgrid		DEVICE.DEVICE_ID%TYPE;
-	_purgedev	boolean;
 BEGIN
-	_purgedev := false;
-
-	BEGIN
-		PERFORM local_hooks.device_retire_early(in_Device_Id, false);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
-	END;
-
-	SELECT * INTO _d FROM device WHERE device_id = in_Device_id;
-	delete from dns_record where netblock_id in (
-		select netblock_id 
-		from network_interface where device_id = in_Device_id
-	);
-
-	delete from network_interface_purpose where device_id = in_Device_id;
-
-	DELETE FROM network_interface_netblock
-	WHERE network_interface_id IN (
-			SELECT network_interface_id
-		 	FROM network_interface
-			WHERE device_id = in_Device_id
-	);
-
-	DELETE FROM network_interface WHERE device_id = in_Device_id;
-
-	PERFORM device_utils.purge_physical_ports( in_Device_id);
---	PERFORM device_utils.purge_power_ports( in_Device_id);
-
-	delete from property where device_collection_id in (
-		SELECT	dc.device_collection_id 
-		  FROM	device_collection dc
-				INNER JOIN device_collection_device dcd
-		 			USING (device_collection_id)
-		WHERE	dc.device_collection_type = 'per-device'
-		  AND	dcd.device_id = in_Device_id
-	);
-
-	delete from device_collection_device where device_id = in_Device_id
-		AND device_collection_id NOT IN (
-			select device_collection_id
-			FROM device_collection
-			WHERE device_collection_type = 'per-device'
-		);
-	delete from snmp_commstr where device_id = in_Device_id;
-
-		
-	IF _d.rack_location_id IS NOT NULL  THEN
-		UPDATE device SET rack_location_id = NULL 
-		WHERE device_id = in_Device_id;
-
-		-- This should not be permitted based on constraints, but in case
-		-- that constraint had to be disabled...
-		SELECT	count(*)
-		  INTO	tally
-		  FROM	device
-		 WHERE	rack_location_id = _d.RACK_LOCATION_ID;
-
-		IF tally = 0 THEN
-			DELETE FROM rack_location 
-			WHERE rack_location_id = _d.RACK_LOCATION_ID;
-		END IF;
-	END IF;
-
-	IF _d.chassis_location_id IS NOT NULL THEN
-		RAISE EXCEPTION 'Retiring modules is not supported yet.';
-	END IF;
-
-	SELECT	manager_device_id
-	INTO	_mgrid
-	 FROM	device_management_controller
-	WHERE	device_id = in_Device_id AND device_mgmt_control_type = 'bmc'
-	LIMIT 1;
-
-	IF _mgrid IS NOT NULL THEN
-		DELETE FROM device_management_controller
-		WHERE	device_id = in_Device_id AND device_mgmt_control_type = 'bmc'
-			AND manager_device_id = _mgrid;
-
-		PERFORM device_utils.retire_device( manager_device_id)
-		  FROM	device_management_controller
-		WHERE	device_id = in_Device_id AND device_mgmt_control_type = 'bmc';
-	END IF;
-
-	BEGIN
-		PERFORM local_hooks.device_retire_late(in_Device_Id, false);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
-	END;
-
-	SELECT count(*)
-	INTO tally
-	FROM device_note
-	WHERE device_id = in_Device_id;
-
 	--
-	-- If there is no notes or serial number its save to remove
-	-- 
-	IF tally = 0 AND _d.ASSET_ID is NULL THEN
-		_purgedev := true;
-	END IF;
+	-- device_utils.retire_devices will return whether the device was
+	-- actually removed or not, but the previous function always returned
+	-- true or raised an exception, even if the device was left around,
+	-- so for the principle of least surprise, we're going to always return
+	-- true for now
+	--
+	PERFORM * FROM device_utils.retire_devices(
+			device_id_list := ARRAY[ _in_Device_id ]
+		);
 
-	IF _purgedev THEN
-		--
-		-- If there is an fk violation, we just preserve the record but
-		-- delete all the identifying characteristics
-		--
-		BEGIN
-			DELETE FROM device where device_id = in_Device_Id;
-			return false;
-		EXCEPTION WHEN foreign_key_violation THEN
-			PERFORM 1;
-		END;
-	END IF;
-
-	UPDATE device SET 
-		device_name =NULL,
-		service_environment_id = (
-			select service_environment_id from service_environment
-			where service_environment_name = 'unallocated'),
-		device_status = 'removed',
-		voe_symbolic_track_id = NULL,
-		is_monitored = 'N',
-		should_fetch_config = 'N',
-		description = NULL
-	WHERE device_id = in_Device_id;
-
-	return true;
+	RETURN true;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
@@ -373,50 +252,564 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
---begin retire_rack
--- returns t/f if the device was removed or not
+--begin retire_devices
+-- returns a table of retirement success
 -------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION device_utils.retire_rack (
-	_in_rack_id	rack.rack_id%type
+CREATE OR REPLACE FUNCTION device_utils.retire_devices (
+	device_id_list	integer[]
+) RETURNS TABLE (
+	device_id	jazzhands.device.device_id%TYPE,
+	success		boolean
+) AS $$
+DECLARE
+	nb_list		integer[];
+	sn_list		integer[];
+	sn_rec		RECORD;
+	rl_list		integer[];
+	dev_id		jazzhands.device.device_id%TYPE;
+	se_id		jazzhands.service_environment.service_environment_id%TYPE;
+	nb_id		jazzhands.netblock.netblock_id%TYPE;
+BEGIN
+	--
+	-- Add all of the BMCs for any retiring devices to the list in case
+	-- they are not specified
+	--
+	device_id_list := array_cat(
+		device_id_list,
+		(SELECT
+			array_agg(manager_device_id)
+		FROM
+			device_management_controller dmc
+		WHERE
+			dmc.device_id = ANY(device_id_list) AND
+			device_mgmt_control_type = 'bmc'
+		)
+	);
+
+	--
+	-- Delete network_interfaces
+	--
+	PERFORM remove_network_interfaces(
+		network_interface_list := ARRAY(
+			SELECT
+				network_interface_id
+			FROM
+				network_interface
+			WHERE
+				device_id = ANY(device_list)
+		)
+	);
+
+	RAISE LOG 'Removing inter_component_connections...';
+
+	WITH s AS (
+		SELECT DISTINCT
+			slot_id
+		FROM
+			v_device_slots ds
+		WHERE
+			ds.device_id = ANY(device_id_list)
+	)
+	DELETE FROM inter_component_connection WHERE
+		slot1_id IN (SELECT slot_id FROM s) OR
+		slot2_id IN (SELECT slot_id FROM s);
+
+	RAISE LOG 'Removing device properties...';
+
+	DELETE FROM property WHERE device_collection_id IN (
+		SELECT
+			dc.device_collection_id
+		FROM
+			device_collection dc JOIN
+			device_collection_device dcd USING (device_collection_id)
+		WHERE
+			dc.device_collection_type = 'per-device' AND
+			dcd.device_id = ANY(device_id_list)
+	);
+
+	RAISE LOG 'Removing per-device device_collections...';
+
+	DELETE FROM
+		device_collection_device dcd
+	WHERE
+		dcd.device_id = ANY(device_id_list) AND
+		device_collection_id NOT IN (
+			SELECT
+				device_collection_id
+			FROM
+				device_collection
+			WHERE
+				device_collection_type = 'per-device'
+		);
+
+	--
+	-- Make sure all rack_location stuff has been cleared out
+	--
+
+	RAISE LOG 'Removing rack_locations...';
+
+	SELECT array_agg(rack_location_id) INTO rl_list FROM (
+		SELECT DISTINCT
+			rack_location_id
+		FROM
+			device d
+		WHERE
+			d.device_id = ANY(device_id_list) AND
+			rack_location_id IS NOT NULL
+		UNION
+		SELECT DISTINCT
+			rack_location_id
+		FROM
+			component c JOIN
+			v_device_components dc USING (component_id)
+		WHERE
+			dc.device_id = ANY(device_id_list) AND
+			rack_location_id IS NOT NULL
+	) x;
+
+	UPDATE
+		device d
+	SET
+		rack_location_id = NULL
+	WHERE
+		d.device_id = ANY(device_id_list) AND
+		rack_location_id IS NOT NULL;
+
+	UPDATE
+		component
+	SET
+		rack_location_id = NULL
+	WHERE
+		component_id IN (
+			SELECT
+				component_id
+			FROM
+				v_device_components dc
+			WHERE
+				dc.device_id = ANY(device_id_list)
+		) AND
+		rack_location_id IS NOT NULL;
+
+	--
+	-- Delete any now-abandoned rack_locations
+	--
+	DELETE FROM
+		rack_location rl
+	WHERE
+		rack_location_id = ANY (rl_list) AND
+		rack_location_id NOT IN (
+			SELECT
+				rack_location_id
+			FROM
+				device
+			UNION
+			SELECT
+				rack_location_id
+			FROM
+				component
+		);
+
+	RAISE LOG 'Removing device_management_controller links...';
+
+	DELETE FROM device_management_controller dmc WHERE
+		dmc.device_id = ANY (device_id_list) OR
+		manager_device_id = ANY (device_id_list);
+
+	RAISE LOG 'Removing device_encapsulation_domain entries...';
+
+	DELETE FROM device_encapsulation_domain ded WHERE
+		ded.device_id = ANY (device_id_list);
+
+	--
+	-- Clear out all of the logical_volume crap
+	--
+	RAISE LOG 'Removing logical volume hierarchies...';
+	SET CONSTRAINTS ALL DEFERRED;
+
+	DELETE FROM volume_group_physicalish_vol vgpv WHERE
+		vgpv.device_id = ANY (device_id_list);
+	DELETE FROM physicalish_volume pv WHERE
+		pv.device_id = ANY (device_id_list);
+
+	WITH z AS (
+		DELETE FROM volume_group vg
+		WHERE vg.device_id = ANY (device_id_list)
+		RETURNING vg.volume_group_id
+	)
+	DELETE FROM volume_group_purpose WHERE
+		volume_group_id IN (SELECT volume_group_id FROM z);
+
+	WITH z AS (
+		DELETE FROM logical_volume lv
+		WHERE lv.device_id = ANY (device_id_list)
+		RETURNING lv.logical_volume_id
+	), y AS (
+		DELETE FROM logical_volume_purpose WHERE
+			logical_volume_id IN (SELECT logical_volume_id FROM z)
+	)
+	DELETE FROM logical_volume_property WHERE
+		logical_volume_id IN (SELECT logical_volume_id FROM z);
+
+	SET CONSTRAINTS ALL IMMEDIATE;
+
+	--
+	-- Attempt to delete all of the devices
+	--
+	SELECT service_environment_id INTO se_id FROM service_environment WHERE
+		service_environment_name = 'unallocated';
+
+	FOREACH dev_id IN ARRAY device_id_list LOOP
+		RAISE LOG 'Deleting device %', dev_id;
+
+		BEGIN
+			DELETE FROM device_note dn WHERE dn.device_id = dev_id;
+
+			DELETE FROM device d WHERE d.device_id = dev_id;
+			device_id := dev_id;
+			success := true;
+			RETURN NEXT;
+		EXCEPTION
+			WHEN foreign_key_violation THEN
+				UPDATE device d SET
+					device_name = NULL,
+					service_environment_id = se_id,
+					device_status = 'removed',
+					voe_symbolic_track_id = NULL,
+					is_monitored = 'N',
+					should_fetch_config = 'N',
+					description = NULL
+				WHERE
+					d.device_id = dev_id;
+
+				device_id := dev_id;
+				success := false;
+				RETURN NEXT;
+		END;
+	END LOOP;
+	RETURN;
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+-------------------------------------------------------------------
+--end of retire_devices
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+--begin remove_network_interface
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION device_utils.remove_network_interface (
+	network_interface_id	jazzhands.network_interface.network_interface_id%TYPE DEFAULT NULL,
+	device_id				device.device_id%TYPE DEFAULT NULL,
+	network_interface_name	jazzhands.network_interface.network_interface_name%TYPE DEFAULT NULL
 ) RETURNS boolean AS $$
 DECLARE
-	_r	RECORD;
+	ni_id		ALIAS FOR network_interface_id;
+	dev_id		ALIAS FOR device_id;
+	ni_name		ALIAS FOR network_interface_name;
 BEGIN
+	IF network_interface_id IS NULL THEN
+		IF device_id IS NULL OR network_interface_name IS NULL THEN
+			RAISE 'Must pass either network_interface_id or device_id and network_interface_name to device_utils.delete_network_interface'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
 
-	BEGIN
-		PERFORM local_hooks.rack_retire_early(_in_rack_id, false);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
-	END;
+		SELECT
+			ni.network_interface_id INTO ni_id
+		FROM
+			network_interface ni
+		WHERE
+			ni.device_id = dev_id AND
+			ni.network_interface_name = ni_name;
 
-	FOR _r IN SELECT device_id
-			FROM device 
-				INNER JOIN rack_location using (rack_location_id)
-				INNER JOIN rack using (rack_id)
-			WHERE rack_id = _in_rack_id
+		IF NOT FOUND THEN
+			RETURN false;
+		END IF;
+	END IF;
+
+	PERFORM * FROM device_utils.remove_network_interfaces(
+			network_interface_list := ARRAY[ network_interface_id ]
+		);
+
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+-------------------------------------------------------------------
+--end of remove_network_interface
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+--begin remove_network_interfaces
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION device_utils.remove_network_interfaces (
+	network_interface_list	integer[]
+) RETURNS boolean AS $$
+DECLARE
+	nb_list		integer[];
+	sn_list		integer[];
+	sn_rec		RECORD;
+	nb_id		jazzhands.netblock.netblock_id%TYPE;
+BEGIN
+	--
+	-- Save off some netblock information for now
+	--
+
+	RAISE LOG 'Removing network_interfaces with ids %',
+		array_to_string(network_interface_list, ', ');
+
+	RAISE LOG 'Retrieving netblock information...';
+
+	SELECT
+		array_agg(nin.netblock_id) INTO nb_list
+	FROM
+		network_interface_netblock nin
+	WHERE
+		nin.network_interface_id = ANY(network_interface_list);
+
+	SELECT DISTINCT
+		array_agg(shared_netblock_id) INTO sn_list
+	FROM
+		shared_netblock_network_int snni
+	WHERE
+		snni.network_interface_id = ANY(network_interface_list);
+
+	--
+	-- Clean up network bits
+	--
+
+	RAISE LOG 'Removing shared netblocks...';
+
+	DELETE FROM shared_netblock_network_int WHERE
+		network_interface_id IN (
+			SELECT
+				network_interface_id
+			FROM
+				network_interface ni
+			WHERE
+				ni.network_interface_id = ANY(network_interface_list)
+		);
+
+	--
+	-- Clean up things for any shared_netblocks which are now orphaned
+	-- Unfortunately, we have to do these as individual queries to catch
+	-- exceptions
+	--
+	FOR sn_rec IN SELECT
+		shared_netblock_id,
+		netblock_id
+	FROM
+		shared_netblock s LEFT JOIN
+		shared_netblock_network_int USING (shared_netblock_id)
+	WHERE
+		shared_netblock_id = ANY(sn_list) AND
+		network_interface_id IS NULL
 	LOOP
-		PERFORM device_utils.retire_device( _r.device_id, true );
+		BEGIN
+			DELETE FROM dns_record dr WHERE
+				dr.netblock_id = sn_rec.netblock_id;
+			DELETE FROM shared_netblock sn WHERE
+				sn.shared_netblock_id = sn_rec.shared_netblock_id;
+			BEGIN
+				DELETE FROM netblock n WHERE
+					n.netblock_id = sn_rec.netblock_id;
+			EXCEPTION WHEN foreign_key_violation THEN
+				NULL;
+			END;
+		EXCEPTION WHEN foreign_key_violation THEN
+			NULL;
+		END;
 	END LOOP;
 
+	RAISE LOG 'Removing directly-assigned netblocks...';
+
+	DELETE FROM network_interface_netblock WHERE network_interface_id IN (
+			SELECT
+				network_interface_id
+		 	FROM
+				network_interface ni
+			WHERE
+				ni.network_interface_id = ANY (network_interface_list)
+	);
+
+	RAISE LOG 'Removing network_interfaces...';
+
+	DELETE FROM network_interface_purpose nip WHERE
+		nip.network_interface_id = ANY(network_interface_list);
+
+	DELETE FROM network_interface ni WHERE ni.network_interface_id =
+		ANY(network_interface_list);
+
+	RAISE LOG 'Removing netblocks...';
+	IF nb_list IS NOT NULL THEN
+		FOREACH nb_id IN ARRAY nb_list LOOP
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = nb_id;
+
+				DELETE FROM netblock n WHERE
+					n.netblock_id = nb_id;
+			EXCEPTION WHEN foreign_key_violation THEN
+				NULL;
+			END;
+		END LOOP;
+	END IF;
+
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+-------------------------------------------------------------------
+--end of remove_network_interfaces
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+--begin retire_rack
+-- returns t/f if the rack was removed or not
+-------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION device_utils.retire_rack (
+	rack_id	rack.rack_id%TYPE
+) RETURNS boolean AS $$
+BEGIN
+	PERFORM device_utils.retire_racks(
+		rack_id_list := ARRAY[ rack_id ]
+	);
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION device_utils.retire_racks (
+	rack_id_list	integer[]
+) RETURNS TABLE (
+	rack_id		jazzhands.rack.rack_id%TYPE,
+	success		boolean
+) AS $$
+DECLARE
+	rid					ALIAS FOR rack_id;
+	device_id_list		integer[];
+	component_id_list	integer[];
+	enc_domain_list		text[];
+	empty_enc_domain_list		text[];
+BEGIN
 	BEGIN
-		PERFORM local_hooks.racK_retire_late(_in_rack_id, false);
+		PERFORM local_hooks.rack_retire_early(rack_id, false);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
+		NULL;
 	END;
 
+	--
+	-- Get the list of devices which either are directly attached to
+	-- a rack_location in this rack, or which are attached to a component
+	-- which is attached to this rack.  Do this once, since it's an
+	-- expensive query
+	--
+	device_id_list := ARRAY(
+		SELECT
+			device_id
+		FROM
+			device d JOIN
+			rack_location rl USING (rack_location_id)
+		WHERE
+			rl.rack_id = ANY(rack_id_list)
+		UNION
+		SELECT
+			device_id
+		FROM
+			rack_location rl JOIN
+			component pc USING (rack_location_id) JOIN
+			v_component_hier ch USING (component_id) JOIN
+			device d ON (d.component_id = ch.child_component_id)
+		WHERE
+			rl.rack_id = ANY(rack_id_list)
+	);
+
+	--
+	-- For components, just get a list of those directly attached to the rack
+	-- and remove them.  We probably don't need to save this list, but just
+	-- in case, we do
+	--
+	component_id_list := ARRAY(
+		WITH x AS (
+			UPDATE
+				component AS c
+			SET
+				rack_location_id = NULL
+			FROM
+				rack_location rl
+			WHERE
+				rl.rack_location_id = c.rack_location_id AND
+				rl.rack_id = ANY(rack_id_list)
+			RETURNING
+				c.component_id AS component_id
+		) SELECT component_id FROM x
+	);
+
+	--
+	-- Get a list of all of the encapsulation_domains that are
+	-- used by devices in these racks and stash them for later
+	--
+	enc_domain_list := ARRAY(
+		SELECT DISTINCT
+			encapsulation_domain
+		FROM
+			device_encapsulation_domain
+		WHERE
+			device_id = ANY(device_id_list)
+	);
+
+	PERFORM device_utils.retire_devices(device_id_list := device_id_list);
+
+	--
+	-- Check the encapsulation domains and for any that have no devices
+	-- in them any more, clean up the layer2_networks for them
+	--
+
+	empty_enc_domain_list := ARRAY(
+		SELECT
+			encapsulation_domain
+		FROM
+			unnest(enc_domain_list) AS x(encapsulation_domain)
+		WHERE
+			encapsulation_domain NOT IN (
+				SELECT encapsulation_domain FROM device_encapsulation_domain
+			)
+	);
+
+	IF FOUND THEN
+		PERFORM layerx_network_manip.delete_layer2_networks(
+			layer2_network_id_list := ARRAY(
+				SELECT
+					layer2_network_id
+				FROM
+					layer2_network
+				WHERE
+					encapsulation_domain = ANY(empty_enc_domain_list)
+			)
+		);
+		DELETE FROM encapsulation_domain WHERE
+			encapsulation_domain = ANY(empty_enc_domain_list);
+	END IF;
+
 	BEGIN
-		DELETE FROM RACK where rack_id = _in_rack_id;
-		RETURN false;
-	EXCEPTION WHEN foreign_key_violation THEN
-		UPDATE rack SET
-			room = NULL,
-			sub_room = NULL,
-			rack_row = NULL,
-			rack_name = 'none',
-			description = 'retired'
-		WHERE	rack_id = _in_rack_id;
+		PERFORM local_hooks.racK_retire_late(rack_id, false);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
 	END;
-	RETURN true;
+
+	FOREACH rid IN ARRAY rack_id_list LOOP
+		BEGIN
+			DELETE FROM rack r WHERE r.rack_id = rid;
+			success := true;
+			RETURN NEXT;
+		EXCEPTION WHEN foreign_key_violation THEN
+			UPDATE rack r SET
+				room = NULL,
+				sub_room = NULL,
+				rack_row = NULL,
+				rack_name = 'none',
+				description = 'retired'
+			WHERE	r.rack_id = rid;
+			success := false;
+			RETURN NEXT;
+		END;
+	END LOOP;
+	RETURN;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
@@ -427,32 +820,39 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 --begin device_utils.monitoring_off_in_rack
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION device_utils.monitoring_off_in_rack (
-	_in_rack_id	rack.rack_id%type
+	rack_id	rack.rack_id%type
 ) RETURNS boolean AS $$
+DECLARE
+	rid	ALIAS FOR rack_id;
 BEGIN
 	BEGIN
 		PERFORM local_hooks.monitoring_off_in_rack_early(
-			_in_rack_id, false);
+			rack_id, false
+		);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
+		NULL;
 	END;
 
-	UPDATE device
-	  SET	is_monitored = 'N'
-	 WHERE	is_monitored = 'Y'
-	 AND	device_id in (
-	 		SELECT device_id
-			 FROM	device
-			 	INNER JOIN rack_location 
-					USING (rack_location_id)
-			WHERE	rack_id = 67
-	);
+	UPDATE device d SET
+		is_monitored = 'N'
+	WHERE
+		is_monitored = 'Y' AND
+		device_id IN (
+			SELECT
+				device_id
+			FROM
+				device d JOIN
+				rack_location rl USING (rack_location_id)
+			WHERE
+				rl.rack_id = rid
+		);
 
 	BEGIN
 		PERFORM local_hooks.monitoring_off_in_rack_late(
-			_in_rack_id, false);
+			rack_id, false
+		);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
+		NULL;
 	END;
 
 	RETURN true;

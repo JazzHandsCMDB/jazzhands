@@ -319,6 +319,32 @@ sub build_device_box {
 					)
 				)
 			);
+			$left_table .= $cgi->Tr(
+				$cgi->td(
+					{ -align => 'right' },
+					$cgi->b("Managed By")
+				),
+				$cgi->td(
+					build_managed_by_device_list(
+						$stab,
+						$values->{ _dbx('DEVICE_ID') },
+					)
+				)
+			);
+
+			$left_table .= $cgi->Tr(
+				$cgi->td(
+					{ -align => 'right' },
+					$cgi->b("Manages")
+				),
+				$cgi->td(
+					build_manages_device_list(
+						$stab,
+						$values->{ _dbx('DEVICE_ID') },
+					       $stab, $values->{ _dbx('DEVICE_ID') },
+					)
+				)
+			);
 		}
 	}
 
@@ -565,6 +591,77 @@ sub build_children_device_list {
 		$cgi->ul($list);
 	} else {
 		"none";
+	}
+}
+sub build_manages_device_list {
+	my ( $stab, $devid ) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my $q = qq{
+		select  dmc.device_id, device_name
+		  from  device d JOIN
+				device_management_controller dmc ON
+					(d.device_id = dmc.device_id)
+		 where  manager_device_id = ?
+	} || $stab->return_db_err();
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err();
+	$sth->execute($devid) || $stab->return_db_err();
+
+	my $list = "";
+	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
+		$list .= $cgi->li(
+			$cgi->a(
+				{
+					-target => "stab_device_$id",
+					-href   => "./device.pl?devid=$id",
+				},
+				$name
+			)
+		);
+	}
+	$sth->finish;
+
+	if ( length($list) ) {
+		$cgi->ul($list);
+	} else {
+		"";
+	}
+}
+
+sub build_managed_by_device_list {
+	my ( $stab, $devid ) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my $q = qq{
+		select  dmc.device_id, device_name
+		  from  device d JOIN
+				device_management_controller dmc ON
+					(d.device_id = dmc.manager_device_id)
+		 where  dmc.device_id = ?
+	} || $stab->return_db_err();
+
+	my $sth = $stab->prepare($q) || $stab->return_db_err();
+	$sth->execute($devid) || $stab->return_db_err();
+
+	my $list = "";
+	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
+		$list .= $cgi->li(
+			$cgi->a(
+				{
+					-target => "stab_device_$id",
+					-href   => "./device.pl?devid=$id",
+				},
+				$name
+			)
+		);
+	}
+	$sth->finish;
+
+	if ( length($list) ) {
+		$cgi->ul($list);
+	} else {
+		"";
 	}
 }
 

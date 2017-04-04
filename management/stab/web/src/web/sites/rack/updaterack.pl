@@ -36,9 +36,9 @@ sub retire_rack($$) {
 	my ( $stab, $rackid ) = @_;
 
 	my $sth = $stab->prepare(qq{
-	        SELECT  device_utils.retire_Rack(
-	                        _in_rack_id := ?
-	                );
+		SELECT  device_utils.retire_rack(
+				rack_id := ?
+			);
 	}) || die $stab->return_db_err($stab);
 
 	$sth->execute($rackid) || $stab->return_db_err($sth);
@@ -47,11 +47,11 @@ sub retire_rack($$) {
 
 	my ( $url, $msg );
 	if (! $stillhere) {
-	        $url = "./";
-	        $msg = "Rack Removed";
+		$url = "./";
+		$msg = "Rack Removed";
 	} else {
-	        $url = "./?RACK_ID=$rackid";
-	        $msg = "Rack Retired";
+		$url = "./?RACK_ID=$rackid";
+		$msg = "Rack Retired";
 	}
 
 	$stab->commit || $stab->error_return;
@@ -62,9 +62,9 @@ sub demonitor_rack($$) {
 	my ( $stab, $rackid ) = @_;
 
 	my $sth = $stab->prepare(qq{
-	        SELECT  device_utils.monitoring_off_in_rack(
-	                        _in_rack_id := ?
-	                );
+		SELECT  device_utils.monitoring_off_in_rack(
+				rack_id := ?
+			);
 	}) || die $stab->return_db_err($stab);
 
 	my $nr = $sth->execute($rackid) || $stab->return_db_err($sth);

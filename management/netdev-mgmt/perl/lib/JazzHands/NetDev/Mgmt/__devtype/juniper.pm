@@ -42,7 +42,7 @@ sub new {
 		return undef;
 	}
 	my $device = $opt->{device};
-	
+
 	if (!$device->{hostname}) {
 		SetError($opt->{errors}, "device is missing hostname");
 		return undef;
@@ -188,7 +188,7 @@ sub SetPortVLAN {
 			errors => $opt->{errors}))) {
 		return undef;
 	};
-	
+
 	my $ports;
 	if (ref($opt->{ports})) {
 		my %portlist;
@@ -199,7 +199,7 @@ sub SetPortVLAN {
 	} else {
 		$ports = [ $lacpstatus->{$opt->{ports}} || $opt->{ports} ];
 	}
-	
+
 	$res = $jnx->get_vlan_information(
 		brief => 1
 	);
@@ -367,7 +367,7 @@ sub SetPortVLAN {
 					sprintf("VLAN %d does not exist on the switch\n", $vlan));
 				return undef;
 			}
-			
+
 			#
 			# Put the port into access mode
 			#
@@ -613,7 +613,7 @@ sub SetPortLACP {
 		} else {
 			$portsnotaggregated++;
 		}
-			
+
 		if ($currentae->{$port} && $currentae->{$port} ne $aeinterface) {
 			SetError($err, sprintf(
 				"Port %s is part of aggregate %s.  Will not %s %s",
@@ -624,7 +624,7 @@ sub SetPortLACP {
 			return undef;
 		}
 	}
-	
+
 	#
 	# Check to see if anything needs to be done
 	#
@@ -679,7 +679,7 @@ sub SetPortLACP {
 	$unit = $unitdoc->getFirstChild;
 
 	my $intelement = $confdoc->getElementsByTagName('interfaces')->[0];
-	
+
 	if ($opt->{lacp}) {
 		foreach my $interface (@{$opt->{ports}}) {
 			#
@@ -696,7 +696,7 @@ sub SetPortLACP {
 			$newelement = $confdoc->createElement('name');
 			$newelement->appendChild($confdoc->createTextNode("0"));
 			$element->appendChild($newelement);
-			
+
 			#
 			# Configure the LACP stuff
 			#
@@ -816,7 +816,7 @@ sub SetPortLACP {
 		#
 		$intelement->appendChild($ielement);
 	}
-	
+
 	eval {
 		$res = $jnx->load_configuration(
 			format => 'xml',
@@ -984,7 +984,7 @@ sub SetPrefixLists {
 		}
 		$polelement->appendChild($plelement);
 	}
-	
+
 	eval {
 		$res = $jnx->load_configuration(
 			format => 'xml',
@@ -1059,7 +1059,7 @@ sub DeletePrefixLists {
 		$plelement->setAttribute('delete', 'delete');
 		$polelement->appendChild($plelement);
 	}
-	
+
 	eval {
 		$res = $jnx->load_configuration(
 			format => 'xml',
@@ -1263,7 +1263,7 @@ sub ConvertCiscoACLLineToJunOS {
 		SetError($error, "valid_ranges must be an array reference");
 		return undef;
 	    }
-		
+
 	    foreach my $r (@$valid_ranges) {
 		unless (ref($r) && ref($r) eq 'ARRAY') {
 		    SetError($error, "valid_ranges must be a reference to an array of arrays");
@@ -1312,7 +1312,7 @@ sub ConvertCiscoACLLineToJunOS {
 
 	# Any comments we just return
 	# If we don't otherwise start with 'permit' or 'deny', also bail
-	
+
 	if ($action eq 'remark') {
 		$element = $document->createElement('junos:comment');
 		$element->appendChild($document->createTextNode(
@@ -1416,7 +1416,7 @@ sub ConvertCiscoACLLineToJunOS {
 				$target->{addrlist} = [ $addr . "/" . $bits ];
 			}
         }
-		
+
 		foreach $addr (@{$target->{addrlist}}) {
 			my ($xaddr, $xmask) = split m%/%, $addr;
 
@@ -1846,7 +1846,7 @@ sub SetCiscoFormatACL {
 	} else {
 		$acl_text = $acl->{full_acl};
 	}
-		
+
 	$doc = GenerateXMLforACL(
 		errors => $err,
 		filtername => $filtername,
@@ -2180,7 +2180,7 @@ sub SetBGPPeerStatus {
 		#
 		# Remove the peer from the group
 		#
-	
+
 		my $xml = sprintf(q{
 	<configuration>
 		<protocols>
@@ -2404,7 +2404,7 @@ sub GetInterfaceConfig {
 			my $filtertype = $f->getNodeName;
 			my $filtername = $f->getElementsByTagName('filter-name')->[0];
 			if (ref($filtername)) {
-				$iface_info->{filter}->{$filtertype} = 
+				$iface_info->{filter}->{$filtertype} =
 					$filtername->getFirstChild->getNodeValue;
 			}
 		}
@@ -2508,7 +2508,7 @@ sub GetIPAddressInformation {
 
 	my $vrrpxml;
 	my $vrrp_info = {};
-	
+
 	my $response;
 	($vrrpxml, $response) = $jnx->request('<rpc><get-vrrp-information/></rpc>');
 
@@ -2521,10 +2521,10 @@ sub GetIPAddressInformation {
 			}
 			push @{$vrrp_info->{$ifacename}},
 				{
-					group => 
+					group =>
 						$iface->getElementsByTagName('group')->[0]->
 						getFirstChild->getNodeValue,
-					address => 
+					address =>
 						NetAddr::IP->new($iface->
 							getElementsByTagName('virtual-ip-address')->[0]->
 							getFirstChild->getNodeValue)
@@ -2595,7 +2595,7 @@ sub GetIPAddressInformation {
 						grep { $_->{address} eq $addr->addr() }
 							@{$vrrp_info->{$ifacename}}
 					);
-						
+
 					push @$ipv6, $addr;
 				}
 				$self->{ipv6} = $ipv6 if @$ipv6;
@@ -2609,6 +2609,207 @@ sub GetIPAddressInformation {
 
 	return $iface_info;
 }
+
+
+sub GetLLDPInformation {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $jnx;
+	if (!($jnx = $self->{handle})) {
+		SetError($err,
+			sprintf("No connection to device %s", $device->{hostname}));
+		return undef;
+	}
+
+
+	my $chassis_info = $self->GetChassisInfo;
+
+	my $lldp_info = {};
+	my $lldpxml = $jnx->get_lldp_neighbors_information;
+	if (!ref($lldpxml)) {
+		SetError($err, "Error retrieving interface config");
+		return undef;
+	}
+
+	if (ref($lldpxml)) {
+		foreach my $iface (
+			$lldpxml->getElementsByTagName('lldp-neighbor-information')
+		) {
+			#
+			# We only care about things that have a remote system name set
+			#
+			my $rsys = $iface->getElementsByTagName('lldp-remote-system-name');
+			next if (!@$rsys);
+			#
+			# Also skip anything that uses MAC address for the remote port ID
+			#
+			my ($idtype, $local_int_name, $rem_int_name, $rem_sys_name);
+			eval {
+				$idtype = $iface->
+					getElementsByTagName('lldp-remote-port-id-subtype')->[0]->
+					getFirstChild->getNodeValue;
+			};
+
+			eval {
+				$local_int_name =
+					$iface->getElementsByTagName('lldp-local-port-id')->[0]->
+					getFirstChild->getNodeValue;
+			};
+			if (!defined($local_int_name)) {
+				$local_int_name =
+					$iface->getElementsByTagName('lldp-local-interface')->[0]->
+					getFirstChild->getNodeValue;
+			}
+
+			eval {
+				$rem_sys_name =
+					$iface->getElementsByTagName('lldp-remote-system-name')->
+					[0]->getFirstChild->getNodeValue;
+			};
+
+			if (!$idtype) {
+				next;
+				#
+				# Fuck you, Juniper
+				#
+#				$rem_int_name = $iface->
+#					getElementsByTagName('lldp-remote-port-description')->[0]->
+#					getFirstChild->getNodeValue;
+			} elsif ($idtype eq 'Interface name') {
+				$rem_int_name =
+					$iface->getElementsByTagName('lldp-remote-port-id')->[0]->
+					getFirstChild->getNodeValue;
+
+			}
+
+			next if (!$rem_int_name);
+			my $info = {
+				interface_name => $local_int_name,
+				remote_system_name => $rem_sys_name,
+				remote_interface_name => $rem_int_name
+			};
+
+			if (exists($chassis_info->{ports}->{$local_int_name})) {
+				$info->{media_type} =
+					$chassis_info->{ports}->{$local_int_name}->{media_type};
+				$info->{module_type} =
+					$chassis_info->{ports}->{$local_int_name}->{module_type};
+			}
+			$lldp_info->{$local_int_name} = $info;
+		}
+	}
+
+#
+#	my $iface_info;
+#	foreach my $iface ($ifacexml->getElementsByTagName('logical-interface')) {
+#		my $self = {};
+#
+#		my $ifacename = $iface->getElementsByTagName('name')->[0]->
+#			getFirstChild->getNodeValue;
+#
+#		foreach my $afxml ($iface->getElementsByTagName('address-family')) {
+#			my $af = $afxml->getElementsByTagName('address-family-name')->[0]->
+#				getFirstChild->getNodeValue;
+#			next if !$af;
+#			if (exists($vrrp_info->{$ifacename})) {
+#				$self->{vrrp} = $vrrp_info->{$ifacename};
+#			}
+#			if ($af eq 'inet') {
+#				my $ipv4 = [
+#					map {
+#						my $netxml =
+#							$_->getElementsByTagName('ifa-destination');
+#						my $net;
+#						if (@$netxml) {
+#							$net = NetAddr::IP->new(
+#								$netxml->[0]->getFirstChild->getNodeValue)
+#						} else {
+#							$net = NetAddr::IP->new('0.0.0.0/32');
+#						}
+#						my $addr = NetAddr::IP->new(
+#							$_->getElementsByTagName('ifa-local')->[0]
+#								->getFirstChild->getNodeValue, $net->masklen);
+#						# Skip anything that's a VRRP service address
+#						if (!(grep { $addr->addr() eq $_->{address}->addr() }
+#							@{$vrrp_info->{$ifacename}})) {
+#							$addr
+#						} else {
+#							();
+#						}
+#					} $afxml->getElementsByTagName('interface-address')
+#				];
+#				$self->{ipv4} = $ipv4 if @$ipv4;
+#			}
+#			my $linklocal = NetAddr::IP->new('fe80::/64');
+#			if ($af eq 'inet6') {
+#				my $ipv6 = [];
+#				foreach my $addrxml
+#						($afxml->getElementsByTagName('interface-address')) {
+#
+#					my $netxml =
+#						$addrxml->getElementsByTagName('ifa-destination');
+#					next if !@$netxml;
+#					my $net;
+#					$net = NetAddr::IP->new(
+#						$netxml->[0]->getFirstChild->getNodeValue);
+#					next if $net eq $linklocal;
+#
+#					my $addr = NetAddr::IP->new(
+#						$addrxml->getElementsByTagName('ifa-local')->[0]
+#							->getFirstChild->getNodeValue, $net->masklen);
+#					# Skip anything that's a VRRP service address or
+#					# link local address
+#					next if (
+#						grep { $_->{address} eq $addr->addr() }
+#							@{$vrrp_info->{$ifacename}}
+#					);
+#
+#					push @$ipv6, $addr;
+#				}
+#				$self->{ipv6} = $ipv6 if @$ipv6;
+#			}
+#
+#		}
+#		if (%$self) {
+#			$iface_info->{$ifacename} = $self;
+#		}
+#	}
+
+	return $lldp_info;
+}
+
+my $iface_map = {
+    '10/100/1000' => {
+        module_type => '1000BaseTEthernet',
+        media_type => '1000BaseTEthernet',
+        slot_prefix => 'ge-',
+    },
+    'SFP-T' => {
+        module_type => '1GSFPEthernet',
+        media_type => '1000BaseTEthernet',
+        slot_prefix => 'ge-',
+    },
+    'SFP+-10G-SR' => {
+        module_type => '10GSFP+Ethernet',
+        media_type => '10GLCEthernet',
+        slot_prefix => 'xe-',
+    },
+    'SFP+-10G-LR' => {
+        module_type => '10GSFP+Ethernet',
+        media_type => '10GLCEthernet',
+        slot_prefix => 'xe-',
+    },
+};
 
 sub GetChassisInfo {
 	my $self = shift;
@@ -2636,21 +2837,138 @@ sub GetChassisInfo {
 		return undef;
 	}
 
+	my $port_inventory;
+
 	my $members = {};
+	my $h;
+
 	foreach my $member ($chassisxml->getElementsByTagName('chassis-module')) {
 		my $modname = $member->getElementsByTagName('name', 0)->[0]->
 			getFirstChild->getNodeValue;
-		my $slot;
-		($slot) = $modname =~ /^FPC (\d+)/;
-		next if (!defined($slot));
+		my $modslot;
+		($modslot) = $modname =~ /^FPC (\d+)/;
+		next if (!defined($modslot));
 
-		my $serial = $member->getElementsByTagName('serial-number', 0)->
-			[0]->getFirstChild->getNodeValue;
-		my $model = $member->getElementsByTagName('model-number', 0)->
-			[0]->getFirstChild->getNodeValue;
-		$members->{$slot} = {
+		my $serial;
+		$h = $member->getElementsByTagName('serial-number', 0);
+		if (@$h) {
+			$serial = $h->[0]->getFirstChild->getNodeValue;
+		}
+		my $model;
+		$h = $member->getElementsByTagName('model-number', 0);
+		if (@$h) {
+			$model = $h->[0]->getFirstChild->getNodeValue;
+		}
+		my $description;
+		$h = $member->getElementsByTagName('description', 0);
+		if (@$h) {
+			$description = $h->[0]->getFirstChild->getNodeValue;
+		}
+
+		my $modinfo = {
+			slot => $modslot,
 			serial => $serial,
-			model => uc($model)
+			model => uc($model || $description),
+			description => $description,
+			modules => {}
+		};
+		$members->{$modslot} = $modinfo;
+
+		foreach my $submod (
+			$member->getElementsByTagName('chassis-sub-module')
+		) {
+			my $submodname = $submod->getElementsByTagName('name', 0)->[0]->
+				getFirstChild->getNodeValue;
+			my $submodslot;
+			($submodslot) = $submodname =~ /^PIC (\d+)/;
+			next if (!defined($submodslot));
+			my $slot_template = $modslot . '/' . $submodslot . '/';
+
+			$h = $submod->getElementsByTagName('serial-number', 0);
+			my $serial;
+			if (@$h) {
+				$serial = $h->[0]->getFirstChild->getNodeValue;
+			}
+			my $model;
+			$h = $submod->getElementsByTagName('model-number', 0);
+			if (@$h) {
+				$model = $h->[0]->getFirstChild->getNodeValue;
+			}
+			my $description;
+			$h = $submod->getElementsByTagName('description', 0);
+			if (@$h) {
+				$description = $h->[0]->getFirstChild->getNodeValue;
+			}
+			my $submodinfo = {
+				slot => $submodslot,
+				name => $slot_template . $submodslot,
+				serial => $serial,
+				model => $model,
+				description => $description,
+				modules => {}
+			};
+			$modinfo->{modules}->{$submodslot} = $submodinfo;
+
+			#
+			# Handle some built-in types
+			#
+			my $portcount;
+
+			if (($portcount) = $description =~ qr{(\d+)x 10/100/1000 Base-T}) {
+				foreach my $p (0 .. $portcount ) {
+					$port_inventory->{$slot_template . $p} = {
+						name => 'ge-' . $slot_template . $p,
+						module_type => '1000BaseTEthernet',
+						media_type => '1000BaseTEthernet'
+					};
+				}
+				next;
+			}
+			foreach my $ssmod (
+				$submod->getElementsByTagName('chassis-sub-sub-module')
+			) {
+				my $ssmodname = $ssmod->getElementsByTagName('name', 0)->[0]->
+					getFirstChild->getNodeValue;
+				my $ssmodslot;
+				($ssmodslot) = $ssmodname =~ /^Xcvr (\d+)/;
+				next if (!defined($ssmodslot));
+
+				$h = $ssmod->getElementsByTagName('serial-number', 0);
+				my $serial;
+				if (@$h) {
+					$serial = $h->[0]->getFirstChild->getNodeValue;
+				}
+				my $model;
+				$h = $ssmod->getElementsByTagName('part-number', 0);
+				if (@$h) {
+					$model = $h->[0]->getFirstChild->getNodeValue;
+				}
+				my $description;
+				$h = $ssmod->getElementsByTagName('description', 0);
+				if (@$h) {
+					$description = $h->[0]->getFirstChild->getNodeValue;
+				}
+
+				my $ssmodinfo = {
+					slot => $ssmodslot,
+					serial => $serial,
+					model => $model
+				};
+
+				if (defined($description) &&
+					exists($iface_map->{$description}))
+				{
+					$ssmodinfo->{media_type} = $iface_map->{$description}->
+						{media_type};
+					$ssmodinfo->{module_type} = $iface_map->{$description}->
+						{module_type};
+					$ssmodinfo->{name} = $iface_map->{$description}->
+						{slot_prefix} . $slot_template . $ssmodslot;
+				}
+
+				$port_inventory->{$ssmodinfo->{name}} = $ssmodinfo;
+				$submodinfo->{modules}->{$ssmodslot} = $ssmodinfo;
+			}
 		}
 	}
 
@@ -2667,6 +2985,8 @@ sub GetChassisInfo {
 	if ($inventory->{model} eq 'Virtual Chassis') {
 		$inventory->{model} = 'Juniper EX4xxx virtual chassis';
 	}
+
+	$inventory->{ports} = $port_inventory;
 
 	return $inventory;
 }
