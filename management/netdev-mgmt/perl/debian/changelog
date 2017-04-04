@@ -1,4 +1,4 @@
-jazzhands-perl-netdev-mgmt (0.79.3) unstable; urgency=low
+jazzhands-perl-netdev-mgmt (0.79.3.1) unstable; urgency=low
 
   * Fix to make juniper probing ignore bme interfaces
 
