@@ -241,7 +241,7 @@ BEGIN
 	-- true for now
 	--
 	PERFORM * FROM device_utils.retire_devices(
-			device_id_list := ARRAY[ _in_Device_id ]
+			device_id_list := ARRAY[ in_Device_id ]
 		);
 
 	RETURN true;
