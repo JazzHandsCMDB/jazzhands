@@ -172,7 +172,7 @@ if (!($ni_list_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	SELECT * FROM device_utils.remove_network_interfaces(
-		network_interface_list := ?
+		network_interface_id_list := ?
 	);
 };
 
@@ -187,7 +187,8 @@ $q = q {
 	SELECT * FROM netblock_manip.set_interface_addresses(
 		device_id := ?,
 		network_interface_name := ?,
-		ip_address_hash := ?
+		ip_address_hash := ?,
+		create_layer3_networks := true
 	)
 };
 

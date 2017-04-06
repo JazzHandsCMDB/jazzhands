@@ -119,20 +119,11 @@ $q = q {
 		dt.device_type_id,
 		dt.device_type_name,
 		d.physical_label,
-		ni.network_interface_id,
-		ni.network_interface_name,
-		dr.dns_record_id,
 		dt.config_fetch_type
 	FROM
 		jazzhands.device d JOIN
-		jazzhands.device_type dt USING (device_type_id) JOIN
-		jazzhands.network_interface ni USING (device_id) JOIN
-		jazzhands.network_interface_netblock nin USING (network_interface_id)
-			JOIN
-		jazzhands.dns_record dr ON (dr.netblock_id = nin.netblock_id) JOIN
-		jazzhands.netblock n ON (dr.netblock_id = nin.netblock_id)
+		jazzhands.device_type dt USING (device_type_id)
 	WHERE
-		host(ip_address) = ? OR
 		device_name = ? OR
 		physical_label = ?
 };
@@ -513,10 +504,17 @@ foreach my $host (@$hostname) {
 	# multiple devices returned, then bail
 	#
 
-	if (!$dev_by_ip_sth->execute($ip_address, $host, $host)) {
+	if ($debug) {
+		printf "Getting device from database (IP address: %s, host: %s)\n",
+			$ip_address, $host;
+	}
+	if (!$dev_by_ip_sth->execute($host, $host)) {
 		printf STDERR "Error fetching device from database: %s\n",
 			$dev_by_ip_sth->errstr;
 		exit 1;
+	}
+	if ($debug) {
+		print "Done\n";
 	}
 
 	my $d = [];
@@ -549,25 +547,29 @@ foreach my $host (@$hostname) {
 		next;
 	}
 
-	my $ipinfo = $device->GetIPAddressInformation;
-
-	if (!$ipinfo) {
-		print STDERR "Unable to get IP address information from device\n";
-		exit 1;
-	}
-	my $iface_name =
-		(grep {
-			grep {
-				NetAddr::IP->new($_)->addr eq $ip_address
-			} @{$ipinfo->{$_}->{ipv4}}
-		} keys %$ipinfo)[0];
-
 	if ($debug) {
-		print "IP Addresses:\n";
-		print map {
-			sprintf "\t%s: %s\n", $_, (join ',', @{$ipinfo->{$_}->{ipv4}})
-		} keys %$ipinfo;
+		print "Fetching IP address information...\n";
 	}
+#	my $ipinfo = $device->GetIPAddressInformation;
+#
+#	if (!$ipinfo) {
+#		print STDERR "Unable to get IP address information from device\n";
+#		exit 1;
+#	}
+#	my $iface_name =
+#		(grep {
+#			grep {
+#				NetAddr::IP->new($_)->addr eq $ip_address
+#			} @{$ipinfo->{$_}->{ipv4}}
+#		} keys %$ipinfo)[0];
+#
+#	if ($debug) {
+#		print "IP Addresses:\n";
+#		print map {
+#			sprintf "\t%s: %s\n", $_, (join ',', @{$ipinfo->{$_}->{ipv4}})
+#		} keys %$ipinfo;
+#		print "Fetching chassis information...\n";
+#	}
 
 	my $chassisinfo;
 	if (!($chassisinfo = $device->GetChassisInfo (
@@ -584,78 +586,78 @@ foreach my $host (@$hostname) {
 		printf "Error doing device disconnect: %s\n", join "\n", @errors;
 	}
 
-	if (!$db_dev->{device_id}) {
-		printf "Inserting device entry for %s\n", $host;
-
-		if (!($ins_dev_sth->execute(
-			$host,
-			$chassisinfo->{model}
-		))) {
-			printf STDERR "Unable to insert device: %s\n",
-				$ins_dev_sth->errstr;
-			exit 1;
-		}
-		$db_dev = $ins_dev_sth->fetchrow_hashref;
-	} else {
-		my $do_update = 0;
-		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
-			printf "Changing device name from '%s' to '%s'\n",
-				$db_dev->{device_name} || $db_dev->{physical_label} || '',
-				$host;
-			$do_update = 1;
-		}
-		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
-			printf "Changing device type from '%s' to '%s'\n",
-				$db_dev->{device_type_name},
-				$chassisinfo->{model};
-			$do_update = 1;
-		}
-		if ($do_update) {
-			if (!($upd_dev_sth->execute(
-					$db_dev->{device_id},
-					$host,
-					$chassisinfo->{model}
-			))) {
-				printf STDERR "Unable to update device: %s\n",
-					$upd_dev_sth->errstr;
-				exit 1;
-			}
-		}
-	}
-
-	if (!$db_dev->{network_interface_id}) {
-		printf "Inserting network interface %s\n", $iface_name;
-
-		if (!($upd_nb_sth->execute(
-			$ip_address
-		))) {
-			printf STDERR "Unable to execute netblock update: %s\n",
-				$upd_nb_sth->errstr;
-			exit 1;
-		}
-		if (!($ins_ni_sth->execute(
-			$db_dev->{device_id},
-			$iface_name,
-			$ip_address
-		))) {
-			printf STDERR "Unable to insert network interface: %s\n",
-				$ins_ni_sth->errstr;
-			exit 1;
-		}
-	} elsif ($db_dev->{network_interface_name} ne $iface_name) {
-		printf "Changing network interface name from '%s' to '%s'\n",
-			$db_dev->{network_interface_name},
-			$iface_name;
-
-		if (!($upd_ni_sth->execute(
-			$iface_name,
-			$db_dev->{network_interface_id}
-		))) {
-			printf STDERR "Unable to update network interface: %s\n",
-				$upd_ni_sth->errstr;
-			exit 1;
-		}
-	}
+#	if (!$db_dev->{device_id}) {
+#		printf "Inserting device entry for %s\n", $host;
+#
+#		if (!($ins_dev_sth->execute(
+#			$host,
+#			$chassisinfo->{model}
+#		))) {
+#			printf STDERR "Unable to insert device: %s\n",
+#				$ins_dev_sth->errstr;
+#			exit 1;
+#		}
+#		$db_dev = $ins_dev_sth->fetchrow_hashref;
+#	} else {
+#		my $do_update = 0;
+#		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
+#			printf "Changing device name from '%s' to '%s'\n",
+#				$db_dev->{device_name} || $db_dev->{physical_label} || '',
+#				$host;
+#			$do_update = 1;
+#		}
+#		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
+#			printf "Changing device type from '%s' to '%s'\n",
+#				$db_dev->{device_type_name},
+#				$chassisinfo->{model};
+#			$do_update = 1;
+#		}
+#		if ($do_update) {
+#			if (!($upd_dev_sth->execute(
+#					$db_dev->{device_id},
+#					$host,
+#					$chassisinfo->{model}
+#			))) {
+#				printf STDERR "Unable to update device: %s\n",
+#					$upd_dev_sth->errstr;
+#				exit 1;
+#			}
+#		}
+#	}
+#
+#	if (!$db_dev->{network_interface_id}) {
+#		printf "Inserting network interface %s\n", $iface_name;
+#
+#		if (!($upd_nb_sth->execute(
+#			$ip_address
+#		))) {
+#			printf STDERR "Unable to execute netblock update: %s\n",
+#				$upd_nb_sth->errstr;
+#			exit 1;
+#		}
+#		if (!($ins_ni_sth->execute(
+#			$db_dev->{device_id},
+#			$iface_name,
+#			$ip_address
+#		))) {
+#			printf STDERR "Unable to insert network interface: %s\n",
+#				$ins_ni_sth->errstr;
+#			exit 1;
+#		}
+#	} elsif ($db_dev->{network_interface_name} ne $iface_name) {
+#		printf "Changing network interface name from '%s' to '%s'\n",
+#			$db_dev->{network_interface_name},
+#			$iface_name;
+#
+#		if (!($upd_ni_sth->execute(
+#			$iface_name,
+#			$db_dev->{network_interface_id}
+#		))) {
+#			printf STDERR "Unable to update network interface: %s\n",
+#				$upd_ni_sth->errstr;
+#			exit 1;
+#		}
+#	}
 
 	if ($chassisinfo->{model} eq 'Juniper EX4xxx virtual chassis') {
 		#

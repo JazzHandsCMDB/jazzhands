@@ -602,7 +602,8 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 	ip_address_hash		jsonb DEFAULT NULL,
 	create_layer3_networks
 						boolean DEFAULT false,
-	force				boolean DEFAULT false
+	move_addresses		text DEFAULT 'if_same_device',
+	address_errors		text DEFAULT 'error'
 ) RETURNS boolean AS $$
 --
 -- ip_address_hash consists of the following elements
@@ -642,11 +643,11 @@ DECLARE
 	i				integer;
 
 	nb_rec			RECORD;
+	pnb_rec			RECORD;
 	layer3_rec		RECORD;
 	sn_rec			RECORD;
 	ni_rec			RECORD;
 	nin_rec			RECORD;
-	snni_rec		RECORD;
 	nb_id			jazzhands.netblock.netblock_id%TYPE;
 	nb_id_ary		integer[];
 	ni_id_ary		integer[];
@@ -690,6 +691,9 @@ BEGIN
 			) RETURNING network_interface.network_interface_id INTO ni_id;
 		END IF;
 	END IF;
+
+	SELECT * INTO ni_rec FROM network_interface ni WHERE 
+		ni.network_interface_id = ni_id;
 
 	--
 	-- First, loop through ip_addresses passed and process those
@@ -751,6 +755,16 @@ BEGIN
 
 			RAISE DEBUG 'Address is %, universe is %, nb type is %',
 				ipaddr, universe, nb_type;
+
+			--
+			-- This is a hack, because Juniper is really annoying about this.
+			-- If masklen < 8, then ignore this netblock (we specifically
+			-- want /8, because of 127/8 and 10/8, which someone could
+			-- maybe want to not subnet.
+			--
+			-- This should probably be a configuration parameter, but it's not.
+			--
+			CONTINUE WHEN masklen(ipaddr) < 8;
 
 			--
 			-- Check to see if this is a netblock that we have been
@@ -863,7 +877,28 @@ BEGIN
 						nb_type,
 						universe;
 					CONTINUE WHEN NOT create_layer3_networks;
-					WITH nb_ins AS (
+					--
+					-- Check to see if the netblock exists, but is
+					-- marked can_subnet='Y'.  If so, fix it
+					--
+					SELECT 
+						* INTO pnb_rec
+					FROM
+						netblock n
+					WHERE
+						n.ip_universe_id = universe AND
+						n.netblock_type = nb_type AND
+						n.is_single_address = 'N' AND
+						n.can_subnet = 'Y' AND
+						n.ip_address = network(ipaddr);
+
+					IF FOUND THEN
+						UPDATE netblock n SET
+							can_subnet = 'N'
+						WHERE
+							n.netblock_id = pnb_rec.netblock_id;
+						pnb_rec.can_subnet = 'N';
+					ELSE
 						INSERT INTO netblock (
 							ip_address,
 							netblock_type,
@@ -878,25 +913,23 @@ BEGIN
 							'N',
 							universe,
 							'Allocated'
-						) RETURNING *
-					), l3_ins AS (
+						) RETURNING * INTO pnb_rec;
+					END IF;
+
+					WITH l3_ins AS (
 						INSERT INTO layer3_network(
 							netblock_id
-						)
-						SELECT
-							netblock_id
-						FROM
-							nb_ins
-						RETURNING *
+						) VALUES (
+							pnb_rec.netblock_id
+						) RETURNING *
 					)
 					SELECT
-						nb_ins.netblock_id,
-						nb_ins.ip_address,
+						pnb_rec.netblock_id,
+						pnb_rec.ip_address,
 						l3_ins.layer3_network_id,
-						NULL
+						NULL::inet
 					INTO layer3_rec
 					FROM
-						nb_ins,
 						l3_ins;
 				ELSIF layer3_rec.layer3_network_id IS NULL THEN
 					--
@@ -957,30 +990,51 @@ BEGIN
 
 			--
 			-- See if this netblock is on something else, and delete it
-			-- if force is set, otherwise skip it
+			-- if move_addresses is set, otherwise skip it
 			--
-			PERFORM * FROM
-				network_interface_netblock nin
+			SELECT 
+				ni.network_interface_id,
+				nin.netblock_id,
+				ni.device_id
+			INTO nin_rec
+			FROM
+				network_interface_netblock nin JOIN
+				network_interface ni USING (network_interface_id)
 			WHERE
 				nin.netblock_id = nb_rec.netblock_id AND
 				nin.network_interface_id != ni_id;
 
 			IF FOUND THEN
-				IF NOT force THEN
-					RAISE DEBUG 'Netblock % is assigned to a different network_interface, but not forcing, so skipping',
-						nb_rec.netblock_id;
-					CONTINUE;
-				END IF;
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND 
+					nin_rec.device_id = ni_rec.device_id
+				)
+				THEN
+					DELETE FROM
+						network_interface_netblock
+					WHERE
+						netblock_id = nb_rec.netblock_id;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
 
-				DELETE FROM
-					network_interface_netblock
-				WHERE
-					netblock_id = nb_rec.netblock_id;
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+					END IF;
+				END IF;
 			END IF;
 
 			--
-			-- See if this netblock is on something else, and delete it
-			-- if force is set, otherwise skip it
+			-- See if this netblock is on a shared_address somewhere, and
+			-- move it only if move_addresses is 'always'
 			--
 			SELECT * FROM
 				shared_netblock sn
@@ -989,10 +1043,20 @@ BEGIN
 				sn.netblock_id = nb_rec.netblock_id;
 
 			IF FOUND THEN
-				IF NOT force THEN
-					RAISE DEBUG 'Netblock % is assigned to a shared_network, but not forcing, so skipping',
-						nb_rec.netblock_id;
-					CONTINUE;
+				IF move_addresses IS NULL OR move_addresses != 'always' THEN
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					END IF;
 				END IF;
 
 				DELETE FROM
@@ -1346,38 +1410,62 @@ BEGIN
 			-- See if this netblock is directly on any network_interface, and
 			-- delete it if force is set, otherwise skip it
 			--
-			PERFORM * FROM
-				network_interface_netblock nin
-			WHERE
-				nin.netblock_id = nb_rec.netblock_id;
-
 			ni_id_ary := ARRAY[]::integer[];
+
+			SELECT 
+				ni.network_interface_id,
+				nin.netblock_id,
+				ni.device_id
+			INTO nin_rec
+			FROM
+				network_interface_netblock nin JOIN
+				network_interface ni USING (network_interface_id)
+			WHERE
+				nin.netblock_id = nb_rec.netblock_id AND
+				nin.network_interface_id != ni_id;
+
 			IF FOUND THEN
-				IF NOT force THEN
-					RAISE DEBUG 'Netblock % is assigned to a different network_interface, but not forcing, so skipping',
-						nb_rec.netblock_id;
-					CONTINUE;
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND 
+					nin_rec.device_id = ni_rec.device_id
+				)
+				THEN
+					--
+					-- Remove the netblocks from the network_interfaces,
+					-- but save them for later so that we can migrate them
+					-- after we make sure the shared_netblock exists.
+					--
+					-- Also, append the network_inteface_id that we
+					-- specifically care about, and we'll add them all
+					-- below
+					--
+					WITH z AS (
+						DELETE FROM
+							network_interface_netblock
+						WHERE
+							netblock_id = nb_rec.netblock_id
+						RETURNING network_interface_id
+					)
+					SELECT array_agg(network_interface_id) FROM
+						(SELECT network_interface_id FROM z) v
+					INTO ni_id_ary;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+					END IF;
 				END IF;
 
-				--
-				-- Remove the netblocks from the network_interfaces,
-				-- but save them for later so that we can migrate them
-				-- after we make sure the shared_netblock exists.
-				--
-				-- Also, append the network_inteface_id that we
-				-- specifically care about, and we'll add them all
-				-- below
-				--
-				WITH z AS (
-					DELETE FROM
-						network_interface_netblock
-					WHERE
-						netblock_id = nb_rec.netblock_id
-					RETURNING network_interface_id
-				)
-				SELECT array_agg(network_interface_id) FROM
-					(SELECT network_interface_id FROM z) v
-				INTO ni_id_ary;
 			END IF;
 
 			IF NOT(ni_id = ANY(ni_id_ary)) THEN

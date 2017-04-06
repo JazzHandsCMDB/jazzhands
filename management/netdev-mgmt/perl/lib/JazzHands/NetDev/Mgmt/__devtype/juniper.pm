@@ -2539,8 +2539,9 @@ sub GetIPAddressInformation {
 		my $ifacename = $iface->getElementsByTagName('name')->[0]->
 			getFirstChild->getNodeValue;
 
-		# Skip any 'bme' inerfaces, because holy srsly
+		# Skip any 'bme' or 'em' inerfaces, because JFC, Juniper
 		next if $ifacename =~ /^bme/;
+		next if $ifacename =~ /^em/;
 
 		foreach my $afxml ($iface->getElementsByTagName('address-family')) {
 			my $af = $afxml->getElementsByTagName('address-family-name')->[0]->
