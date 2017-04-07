@@ -42,6 +42,7 @@ SELECT d.dns_record_id,
     d.dns_srv_weight,
     d.dns_srv_port,
     d.is_enabled,
+    d.should_generate_ptr,
     d.dns_value_record_id
 FROM (
 	SELECT  ip_universe_id AS real_ip_universe_id, f.*
