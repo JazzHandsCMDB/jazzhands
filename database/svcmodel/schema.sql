@@ -318,7 +318,7 @@ CREATE TABLE sw_package_repository (
 	sw_package_repository_name	text	NOT NULL,
 	sw_package_repository_type	text	NOT NULL,
 	sw_package_repository_group	text	NULL,
-	PRIMARY KEY (sw_package_repository_id)
+	PRIMARY KEY (sw_package_repository_id),
 	UNIQUE (sw_package_repository_name, sw_package_repository_type)
 );
 
