@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Todd M. Kover, Matthew Ragan
+# Copyright (c) 2013-2017 Todd M. Kover, Matthew Ragan
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,21 +46,22 @@ use 5.008007;
 use strict;
 use warnings;
 
-use JazzHands::STAB::DBAccess;
-use JazzHands::STAB::Device;
-use JazzHands::STAB::Rack;
-use JazzHands::DBI;
-use JazzHands::Common qw(:all);
-use Net::IP;
 use Storable qw(dclone);
-
 use CGI;    #qw(-no_xhtml);
 
 # use CGI::Pretty;
 use URI;
 use Carp qw(cluck);
 use Data::Dumper;
-use NetAddr::IP;
+use NetAddr::IP qw(:lower);
+use Net::IP;
+
+# Try to keep these later.
+use JazzHands::STAB::DBAccess;
+use JazzHands::STAB::Device;
+use JazzHands::STAB::Rack;
+use JazzHands::DBI;
+use JazzHands::Common qw(:all);
 
 our @ISA = qw(
   JazzHands::Mgmt
@@ -299,31 +300,35 @@ sub start_html {
 			push(
 				@{ $args{'-script'} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/ajaxsearch.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/table-manip.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/stab-common.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/dns-common.js"
+				},
+				{
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/device-utils.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/racks.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/ajax-utils.js"
 				},
 			);
@@ -332,19 +337,19 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$root/javascript-common/common.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/netblock-collection.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
@@ -353,23 +358,27 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$root/javascript-common/common.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/tickets.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/netblock.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
@@ -378,15 +387,24 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
+					-src =>
+					  "$root/javascript-common/external/jquery-Autocomplete/jquery.autocomplete.js",
+				},
+				{
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/stab-common.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/dns-common.js"
+				},
+				{
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/dns-utils.js"
 				},
 			);
@@ -395,20 +413,20 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src =>
 					  "$root/javascript-common/external/chosen/chosen.jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/stab-common.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/attest.js"
 				},
 			);
@@ -417,20 +435,20 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src =>
 					  "$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/stab-common.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/reporting.js"
 				},
 			);
@@ -439,16 +457,16 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src =>
 					  "$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/stab-common.js"
 				},
 			);
@@ -458,11 +476,11 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/devicetype.js"
 				}
 			);
@@ -471,15 +489,15 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src => "$root/javascript-common/external/jQuery/jquery.js",
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/racks.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
@@ -488,11 +506,15 @@ sub start_html {
 			push(
 				@{ $args{-script} },
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/app-utils.js"
 				},
 				{
-					-language => 'JavaScript',
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/ajax-utils.js"
 				}
 			);
@@ -797,7 +819,7 @@ sub error_return {
 	}
 
 	my $dbh = $self->dbh;
-	if($dbh) {
+	if ($dbh) {
 		$dbh->rollback;
 		$dbh->ping;
 		$dbh->disconnect;
@@ -821,7 +843,7 @@ sub msg_return {
 	print $cgi->redirect($url);
 
 	my $dbh = $self->dbh;
-	if($dbh) {
+	if ($dbh) {
 		$dbh->rollback;
 		$dbh->ping;
 		$dbh->disconnect;
@@ -1035,7 +1057,9 @@ sub b_nondbdropdown {
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
 	my $id       = $params->{'-id'};
+	my $class    = $params->{'-class'};
 	my $prefix   = $params->{'-prefix'} || "";
+	my $preidfix = $params->{'-preidfix'} || "";
 	my $suffix   = $params->{'-suffix'} || "";
 
 	my $xml = $params->{'-xml'};
@@ -1137,7 +1161,11 @@ sub b_nondbdropdown {
 	} elsif ( $selectfield eq 'RACK_STYLE' ) {
 		@list = ( 'CABINET', 'RELAY' );
 		my $df = 'CABINET';
+	} elsif ( $selectfield eq 'DNS_TYPE' ) {
+		@list = ( 'CNAME', 'A', 'AAAA' );
+		my $df = 'CNAME';
 	}
+
 	if ( defined($values) ) {
 		$default =
 		  ( defined( $values->{$field} ) ) ? $values->{$field} : undef;
@@ -1168,7 +1196,7 @@ sub b_nondbdropdown {
 
 	$field =~ tr/a-z/A-Z/;
 
-	my $name = "$prefix$field$pkn$suffix";
+	my $name = "$prefix$field$preidfix$pkn$suffix";
 	if ( defined($params) && exists( $params->{-name} ) ) {
 		$name = $params->{-name};
 	}
@@ -1178,6 +1206,7 @@ sub b_nondbdropdown {
 	}
 
 	my $popup_args = {};
+	$popup_args->{'-class'}    = $class if ($class);
 	$popup_args->{'-name'}     = $name;
 	$popup_args->{'-values'}   = \@list if ( $#list >= 0 );
 	$popup_args->{'-labels'}   = \%list if ( $#list >= 0 );
@@ -1221,6 +1250,7 @@ sub b_dropdown {
 	my $onchange = $params->{'-onChange'};
 	my $class    = $params->{'-class'};
 	my $prefix   = $params->{'-prefix'} || "";
+	my $preidfix = $params->{'-preidfix'} || "";
 	my $suffix   = $params->{'-suffix'} || "";
 
 	# [XXX] need to consider making id/name always the same?
@@ -1286,6 +1316,20 @@ sub b_dropdown {
 			order by 
 				CASE WHEN name = ' ' THEN lower(model) ELSE lower(name) END,
 				lower(model)
+		};
+	} elsif ( $selectfield eq 'COMPONENT_TYPE_ID' ) {
+		$q = qq{
+			SELECT * FROM (
+			SELECT	component_type_id, 
+					CASE WHEN company_name = 'unknown' THEN ' '
+						ELSE company_name 
+					END AS company_name,
+					model
+			FROM component_type ct
+				JOIN company cy USING (company_id)
+			WHERE model IS NOT NULL
+			) xx
+			ORDER BY company_name, lower(model)
 		};
 	} elsif ( $selectfield eq 'DEVICE_STATUS' ) {
 		$q = qq{
@@ -1832,12 +1876,12 @@ sub b_dropdown {
 	my $nfield = $field;
 	$nfield =~ tr/a-z/A-Z/;
 
-	my $name = "$nfield$pkn";
+	my $name = "$nfield$preidfix$pkn";
 	if ( defined($params) && exists( $params->{-name} ) ) {
 		$name = $params->{-name};
 	}
 
-	$name = "$prefix$name$suffix";
+	$name = "$prefix$preidfix$name$suffix";
 
 	if ( !defined($id) ) {
 		$id = $name;
@@ -1976,12 +2020,13 @@ sub b_textfield {
 	$field     = _dbx($field)     if ( defined($field) );
 	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
-	my $default = $params->{'-default'};
-	my $ip0     = $params->{'-allow_ip0'};
-	my $class   = $params->{'-class'};
-	my $editoff = $params->{'-noEdit'} || 'never';
-	my $prefix  = $params->{'-prefix'} || "";
-	my $suffix  = $params->{'-suffix'} || "";
+	my $default  = $params->{'-default'};
+	my $ip0      = $params->{'-allow_ip0'};
+	my $class    = $params->{'-class'};
+	my $editoff  = $params->{'-noEdit'} || 'never';
+	my $prefix   = $params->{'-prefix'} || "";
+	my $preidfix = $params->{'-preidfix'} || "";
+	my $suffix   = $params->{'-suffix'} || "";
 
 	my $cgi = $self->cgi;
 
@@ -2009,7 +2054,7 @@ sub b_textfield {
 	$f =~ tr/a-z/A-Z/;
 
 	my $name    = $pkn;
-	my $webname = "$prefix$f$pkn$suffix";
+	my $webname = "$prefix$f$preidfix$pkn$suffix";
 	if ( $params && $params->{'-name'} ) {
 		$name = $webname = $params->{'-name'};
 	}
@@ -2038,8 +2083,7 @@ sub b_textfield {
 		$size = 7  if ( $field =~ /APPROVAL_REF_NUM\b/ );
 		$size = 20 if ( $field eq 'SNMP_COMMSTR' );
 		$size = 16 if ( $field =~ /_?IP$/ );
-		$size = 18 if ( $field eq 'MAC_ADDR' );
-		$size = 40 if ( $field eq 'DNS_NAME' );
+		$size = 13 if ( $field eq 'MAC_ADDR' );
 		$size = 10 if ( $field eq 'RACK_UNITS' );
 		$size = 20 if ( $field eq 'INTERFACE_NAME' );
 		$size = 10 if ( $field eq 'POWER_INTERFACE_PORT' );
@@ -2047,7 +2091,6 @@ sub b_textfield {
 		$size = 10 if ( $field eq 'MAX_AMPERAGE' );
 		$size = 10 if ( $field eq 'P1_PORT_NAME' );
 		$size = 10 if ( $field eq 'P2_PORT_NAME' );
-		$size = 10 if ( $field eq 'DNS_TTL' );
 		$size = 15 if ( $field eq 'RD_STRING' );
 		$size = 15 if ( $field eq 'WR_STRING' );
 		$size = 15 if ( $field eq 'LOCAL_PO' );
@@ -2080,9 +2123,16 @@ sub b_textfield {
 					-id    => $buttonid,
 					-class => 'stabeditbutton',
 					-href  => '#',
-					-style => 'border: 1px solid; font-size: 50%'
 				},
-				"EDIT"
+				$cgi->img(
+					{
+						-src   => "../stabcons/e.png",
+						-alt   => "Edit",
+						-title => 'Edit',
+
+						# -class => 'stabeditbutton',
+					}
+				)
 			);
 		}
 		$disabled = 'true';
@@ -2097,9 +2147,15 @@ sub b_textfield {
 					-id    => $buttonid,
 					-class => 'stabeditbutton',
 					-href  => '#',
-					-style => 'border: 1px solid; font-size: 50%'
 				},
-				"EDIT"
+				$cgi->img(
+					{
+						-src   => "../stabcons/e.png",
+						-alt   => "Edit",
+						-title => 'Edit',
+						-class => 'stabeditbutton',
+					}
+				)
 			);
 		}
 		$disabled = 'true';
@@ -2108,13 +2164,20 @@ sub b_textfield {
 	$disabled = 1 if ( $params->{-disabled} );
 
 	my $args = {};
-	$args->{'-disabled'} = 'true' if ($disabled);
-	$args->{'-name'}     = $webname;
-	$args->{'-id'}       = $webname;
-	$args->{'-class'}    = $class if ( defined($class) );
-	$args->{'-default'}  = $allf if ( defined($allf) );
-	$args->{'-size'}     = $size if ($size);
+	$args->{'-name'}    = $webname;
+	$args->{'-id'}      = $webname;
+	$args->{'-class'}   = $class if ( defined($class) );
+	$args->{'-default'} = $allf if ( defined($allf) );
+	$args->{'-size'}    = $size if ($size);
 	$args->{'-maxlength'} = 2048;    ## [XXX] probably need to rethink!
+
+	if ($disabled) {
+		if ( $args->{-class} ) {
+			$args->{'-class'} .= " off";
+		} else {
+			$args->{'-class'} = "off";
+		}
+	}
 
 	my $optional = "";
 	if ( $params->{-mark} ) {
@@ -2862,6 +2925,241 @@ sub vendor_logo {
 		);
 	}
 	$rv;
+}
+
+#
+# process new references to this record.
+#
+sub process_dns_ref_add($$$$) {
+	my ( $self, $recupdid, $refid ) = @_;
+
+	my $cgi = $self->cgi || die "Could not create cgi";
+	my $numchanges = 0;
+
+	my $p        = 'dnsref_';
+	my $s        = "_dnsref_${recupdid}";
+	my $name     = $self->cgi_parse_param( "${p}DNS_NAME${s}", $refid );
+	my $type     = $self->cgi_parse_param( "${p}DNS_TYPE${s}", $refid );
+	my $refdomid = $self->cgi_parse_param( "${p}DNS_DOMAIN_ID${s}", $refid );
+
+	my $new = {
+		dns_name            => $name,
+		dns_domain_id       => $refdomid,
+		dns_type            => $type,
+		dns_value_record_id => $recupdid,
+		should_generate_ptr => 'N',
+	};
+
+	$numchanges += $self->process_and_insert_dns_record($new);
+}
+
+# Process recordds that refer to this one.
+sub process_dns_ref_updates($$$$) {
+	my ( $self, $recupdid, $refid ) = @_;
+
+	my $cgi = $self->cgi || die "Could not create cgi";
+	my $numchanges = 0;
+
+	my $p        = 'dnsref_';
+	my $s        = "_dnsref_${recupdid}";
+	my $name     = $self->cgi_parse_param( "${p}DNS_NAME${s}", $refid );
+	my $type     = $self->cgi_parse_param( "${p}DNS_TYPE${s}", $refid );
+	my $refdomid = $self->cgi_parse_param( "${p}DNS_DOMAIN_ID${s}", $refid );
+
+	my $new = {
+		dns_record_id       => $refid,
+		dns_name            => $name,
+		dns_type            => $type,
+		dns_domain_id       => $refdomid,
+		dns_value_record_id => $recupdid,
+		should_generate_ptr => 'N',
+	};
+
+	$numchanges += $self->process_and_update_dns_record($new);
+}
+
+sub process_and_update_dns_record {
+	my ( $self, $opts, $ttlonly ) = @_;
+
+	$opts = _dbx( $opts, 'lower' );
+
+	$opts->{'is_enabled'} = 'Y' if ( !defined( $opts->{'is_enabled'} ) );
+
+	my $orig = $self->get_dns_record_from_id( $opts->{'dns_record_id'} );
+
+	if ( !exists( $opts->{'dns_ttl'} ) ) {
+		$opts->{'dns_ttl'} = $orig->{ _dbx('DNS_TTL') };
+	} elsif ( !length( $opts->{'dns_ttl'} ) ) {
+		$opts->{'dns_ttl'} = undef;
+	}
+
+	my $newrecord;
+
+	# ttlonly applies only to A/AAAA records anchored to hosts
+	if ($ttlonly) {
+		$newrecord = {
+			DNS_RECORD_ID       => $opts->{'dns_record_id'},
+			DNS_TTL             => $opts->{'dns_ttl'},
+			IS_ENABLED          => $opts->{'is_enabled'},
+			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
+		};
+	} else {
+		$newrecord = {
+			DNS_RECORD_ID       => $opts->{'dns_record_id'},
+			DNS_TTL             => $opts->{'dns_ttl'},
+			DNS_NAME            => $opts->{'dns_name'},
+			DNS_VALUE           => $opts->{'dns_value'},
+			DNS_TYPE            => $opts->{'dns_type'},
+			IS_ENABLED          => $opts->{'is_enabled'},
+			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
+			DNS_PRIORITY        => $opts->{'dns_priority'},
+			DNS_SRV_SERVICE     => $opts->{'dns_srv_service'},
+			DNS_SRV_PROTOCOl    => $opts->{'dns_srv_protocol'},
+			DNS_SRV_WEIGHT      => $opts->{'dns_srv_weight'},
+			DNS_SRV_PORT        => $opts->{'dns_srv_port'},
+			DNS_VALUE_RECORD_ID => $opts->{'dns_value_record_id'},
+		};
+	}
+	if ( defined( $opts->{class} ) ) {
+		$newrecord->{'DNS_CLASS'} = $opts->{dns_class};
+	}
+
+	# This is used for dns references
+	if ( defined( $opts->{dns_domain_id} ) ) {
+		$newrecord->{'DNS_DOMAIN_ID'} = $opts->{dns_domain_id};
+	}
+
+	$newrecord = _dbx( $newrecord, 'lower' );
+
+	# On update:
+	#	Only pay attention to if the new type is A or AAAA.
+	#	If it is set to 'Y', then set it to 'Y' and change all other
+	#		records to the same netblock to 'N'.
+	#	If it a type change, and set to 'N', then check to see if there
+	#		is already a record with PTR.  If there is already, then set
+	#		to 'N'.
+	#	If it is not a type change, then just obey what it was set to.
+	#
+	if (   $opts->{should_generate_ptr}
+		&& $opts->{'dns_type'} =~ /^A(AAA)?$/ )
+	{
+		if ( $opts->{should_generate_ptr} eq 'Y' ) {
+			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
+		} elsif ( $orig->{'dns_type'} ne $opts->{'dns_type'} ) {
+			if ( ! $opts->{dns_value_record_id} && !$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) ) {
+				$newrecord->{'should_generate_ptr'} = 'Y';
+			} else {
+				$newrecord->{'should_generate_ptr'} =
+				  $opts->{should_generate_ptr};
+			}
+		} else {
+			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
+		}
+
+		if ( $opts->{should_generate_ptr} eq 'Y' ) {
+			# set all other dns_records but this one to have ptr = 'N'
+			if ( my $recid =
+				$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
+			{
+				$self->run_update_from_hash( "DNS_RECORD",
+					"DNS_RECORD_ID", $recid, { should_generate_ptr => 'N' } );
+			}
+		}
+	}
+
+	my $nblkid;
+	if (   defined( $opts->{dns_value} )
+		&& defined( $opts->{dns_value_record_id} ) )
+	{
+		$self->error_return("Must not specify a reference and Value");
+	}
+
+	# if the new type is A/AAAA then find the netblock and create if it
+	# does not exist.
+	# Creation should only happen on a change.
+	if ( $opts->{'dns_type'} =~ /^A(AAA)?/ && !$opts->{dns_value_record_id} ) {
+		if (   $opts->{'dns_value'} !~ /^(\d+\.){3}\d+/
+			&& $opts->{'dns_type'} eq 'A' )
+		{
+			$self->error_return(
+				"$opts->{'dns_value'} is not a valid IPv4 address");
+		} elsif ( $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/i
+			&& $opts->{'dns_type'} eq 'AAAA' )
+		{
+			$self->error_return(
+				"$opts->{'dns_value'} is not a valid IPv6 address");
+		}
+
+		my $block =
+		  $self->get_netblock_from_ip( ip_address => $opts->{'dns_value'} );
+		if ( !$block ) {
+			$block = $self->get_netblock_from_ip(
+				ip_address    => $opts->{'dns_value'},
+				netblock_type => 'dns'
+			);
+		}
+		if ( !defined($block) ) {
+			my $h = {
+				ip_address        => $opts->{'dns_value'},
+				is_single_address => 'Y'
+			};
+			if (
+				!(
+					my $par =
+					$self->guess_parent_netblock_id( $opts->{'dns_value'} )
+				)
+			  )
+			{
+				# XXX This is outside our IP universe,
+				# which we should probably print a warning
+				# on, but lacking that, it gets created as a
+				# type dns
+				$h->{netblock_type} = 'dns';
+			}
+			$nblkid = $self->add_netblock($h)
+			  || die $self->return_db_err();
+		} else {
+			$nblkid = $block->{ _dbx('NETBLOCK_ID') };
+		}
+	}
+
+	# if changing from A/AAAA or back then just swap out the netblock id and don't set the
+	# value
+	if (   $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
+		&& $opts->{dns_type} =~ /^A(AAA)?/ )
+	{
+		$newrecord->{ _dbx('DNS_VALUE') }   = undef;
+		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
+	} elsif ( $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
+		&& $opts->{dns_type} !~ /^A(AAA)?/ )
+	{
+		$newrecord->{ _dbx('DNS_VALUE') }   = $opts->{dns_value};
+		$newrecord->{ _dbx('NETBLOCK_ID') } = undef;
+	} elsif ( $orig->{ _dbx('DNS_TYPE') } !~ /^A(AAA)?/
+		&& $opts->{dns_type} =~ /^A(AAA)?/ )
+	{
+		$newrecord->{ _dbx('DNS_VALUE') }   = undef;
+		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
+	}
+
+	my $diffs = $self->hash_table_diff( $orig, _dbx($newrecord) );
+	my $tally = keys %$diffs;
+	if ( !$tally ) {
+		return 0;
+	} elsif (
+		!$self->run_update_from_hash(
+			"DNS_RECORD", "DNS_RECORD_ID", $orig->{dns_record_id}, $diffs
+		)
+	  )
+	{
+		$self->rollback;
+		$self->return_db_err();
+	}
+	#
+	# XXX -- NEED TO TRY TO REMOVE OLD NETBLOCK BUT NOT FAIL IF IT FAILS!
+	#
+	#
+	return $tally;
 }
 
 sub DESTROY {

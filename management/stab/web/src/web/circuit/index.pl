@@ -213,7 +213,7 @@ sub dump_circuit_l1table {
 			c.trunk_tcic_start,
 			c.trunk_tcic_end
 		  from  physical_port p
-			inner join network_interface ni on
+			inner join v_network_interface_trans ni on
 				ni.physical_port_id = p.physical_port_id
 			inner join device d on
 				d.device_id = ni.device_id

@@ -1,46 +1,46 @@
 /*
-* Copyright (c) 2005-2010, Vonage Holdings Corp.
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*     * Redistributions of source code must retain the above copyright
-*       notice, this list of conditions and the following disclaimer.
-*     * Redistributions in binary form must reproduce the above copyright
-*       notice, this list of conditions and the following disclaimer in the
-*       documentation and/or other materials provided with the distribution.
-*
-* THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
-* EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
-* DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-* LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-* ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-* SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Copyright (c) 2005-2010, Vonage Holdings Corp.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+ * Copyright (c) 2014-2017, Todd M. Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 //
 // $Id$
 //
 
 var request = null;
-
-function swaparrows(id, state) {
-	img = document.getElementById( id );
-	if(img == null) {
-		return;
-	}
-
-	if(state == 'dance') {
-		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/progress.gif");
-	} else if(state == 'down') {
-		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/collapse.jpg");
-	} else if(state == 'up') {
-		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/expand.jpg");
-	}
-}
 
 function forcedevtabload(tabname, devid) {
 	if(devid == null) {
@@ -87,7 +87,7 @@ function ShowDevTab(what,devid) {
 
 	deviceForm = document.getElementById('deviceForm');
 	if(deviceForm == null) {
-		alert("Can't find form on the document");   
+		alert("Can't find form on the document");
 		return;
 	}
 
@@ -132,7 +132,7 @@ function ShowDevTab(what,devid) {
 			qstr.replace(/__errormsg__=[^&;]+/, '');
 		}
 		url += ";passedin=" + qstr;
- 
+
 		divObj.style.textAlign = 'center';
 		divObj.style.padding = '50px';
 		divObj.innerHTML = "<img src=\"../stabcons/progress.gif\"> <em>Loading, Please Wait...</em>"
@@ -147,8 +147,6 @@ function ShowDevTab(what,devid) {
 				obj.style.textAlign = '';
 				obj.style.padding = '';
 				obj.innerHTML = htmlgoo;
-
-				RefreshAfterTabs();
 			}
 		}
 		ajaxrequest.send(null);
@@ -162,7 +160,7 @@ function ShowDevTab(what,devid) {
 	if(gotoTab) {
 		gotoTab.className = 'tabgroupactive';
 	}
-	
+
 }
 
 // this is the legal way to do innerHTML, but this appears to be
@@ -201,9 +199,9 @@ function uncheck (id, restoclass) {
 }
 
 // //////////////////////////////////////////////////////////////////////////
-// 
+//
 // Parent Device smartness
-// 
+//
 // //////////////////////////////////////////////////////////////////////////
 function updateDeviceParentLink(devid, paridfld) {
 	var devlink;
@@ -240,20 +238,20 @@ function setDevLinkRedir(dropfield, redirlink, root) {
 
     if(root == null) {
 	root = "./";
-    } 
-    
+    }
+
     if(dropfield && dropfield.value) {
 	redirlink.href = root+"type/?DEVICE_TYPE_ID=" + dropfield.value;
     } else {
 	redirlink.href = "javascript:void(null);";
-    }   
-}   
+    }
+}
 
 
 // //////////////////////////////////////////////////////////////////////////
-// 
+//
 // Physical Portage
-// 
+//
 // //////////////////////////////////////////////////////////////////////////
 //
 // does an ajax request and replaces the select option
@@ -335,7 +333,7 @@ function showPhysPortKid_Groups(devid, id, trid, portname) {
 
 	if(kid_tr) {
 		// totally need to toggle tr visibility and maybe change the  pic
-		if(kid_tr.style.visibility == 'hidden') { 
+		if(kid_tr.style.visibility == 'hidden') {
 			kid_tr.style.display = '';
 			kid_tr.style.visibility = 'visible';
 			swaparrows("kidXpand_" + id, 'down');
@@ -358,7 +356,7 @@ function showPhysPortKid_Groups(devid, id, trid, portname) {
 		if(tbl.tagName == 'TABLE') {
 			break;
 		}
-	}	
+	}
 
 	if(tbl == null) {
 		return;
@@ -406,7 +404,7 @@ function showPhysPortKid_Groups(devid, id, trid, portname) {
 
 	if(kid_tr) {
 		// totally need to toggle tr visibility and maybe change the  pic
-		if(kid_tr.style.visibility == 'hidden') { 
+		if(kid_tr.style.visibility == 'hidden') {
 			kid_tr.style.display = '';
 			kid_tr.style.visibility = 'visible';
 			swaparrows("kidXpand_" + id, 'down');
@@ -429,7 +427,7 @@ function showPhysPortKid_Groups(devid, id, trid, portname) {
 		if(tbl.tagName == 'TABLE') {
 			break;
 		}
-	}	
+	}
 
 	if(tbl == null) {
 		return;
@@ -479,7 +477,7 @@ function cleanup_patchpanel_links(pportid) {
 	if(pcthing) {
 		pcthing.parentNode.removeChild(pcthing);
 	}
-} 
+}
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -531,9 +529,9 @@ function updatePowerPort() {
 }
 
 ////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Device Sanity checking
-// 
+//
 ////////////////////////////////////////////////////////////////////////////
 function verify_device_submission(form) {
 	var msgtally, msg, result, name, verifybox, ser_reset, retire;
@@ -546,7 +544,7 @@ function verify_device_submission(form) {
 		form.dontSubmit = false;
 		return false;
 	}
-	
+
 
 	verifybox = document.getElementById("verifybox");
 	verifybox.innerHTML = null;
@@ -656,21 +654,21 @@ function verify_device_submission(form) {
 	return true;
 }
 
-// jquery version
+// jquery version - needs to merge in
 function toggleon_text(but) {
 	// var p = $(but).prev(":input").removeAttr('disabled');
 	// var d = $(but).previousSibling;
 	// $(but).filter(":parent").filter("input:disabled").removeAttr('disabled');
 
-	$(but).prev(":input").removeAttr('disabled');
+	$(but).closest("td").find(".off").removeClass('off');
 	$(but).addClass('irrelevant');
-	
+
 }
 
 ////////////////////////////////////////////////////////////////////////////
-// 
+//
 // patch panels
-// 
+//
 ////////////////////////////////////////////////////////////////////////////
 function close_patchpanel(killid) {
 	var node = document.getElementById(killid);
@@ -974,7 +972,7 @@ function showCircuitKids(link, circid, parent_tr_id, interface_id)
 
 	if(kid_tr) {
 		// totally need to toggle tr visibility and maybe change the  pic
-		if(kid_tr.style.visibility == 'hidden') { 
+		if(kid_tr.style.visibility == 'hidden') {
 			kid_tr.style.display = '';
 			kid_tr.style.visibility = 'visible';
 			swaparrows("cirExpand_" + circid, 'down');
@@ -997,7 +995,7 @@ function showCircuitKids(link, circid, parent_tr_id, interface_id)
 		if(tbl.tagName == 'TABLE') {
 			break;
 		}
-	}	
+	}
 
 	if(tbl == null) {
 		return;
@@ -1098,15 +1096,16 @@ function add_License(thing, parent_tr_id, devid)
 	}
 }
 
+
 //
 // replaces the name.domain link with a textbox and drop down for dns
 // suitable for changing.  Name and domain will match the link so submits
 // will not change anything; this is just to not make devices with many
 // interfaces not have giant pages.
 //
-function replace_int_dns_drop (td, resp)
+function replace_int_dns_drop (obj, resp)
 {
-	$(td).empty();
+	$(obj).empty();
 	var name = $("<input />", resp['DNS_NAME']);
 	var s = $("<select />", resp['DNS_DOMAIN']);
 
@@ -1114,28 +1113,22 @@ function replace_int_dns_drop (td, resp)
 		var o = $("<option/>",resp['domains']['options'][field]);
 		$(s).append(o);
 	}
-	$(td).append(name);
-	$(td).append(s);
+	$(obj).append(name);
+	$(obj).append(s);
 	$(name).focus();
 }
 
 // jQuery magic!
 $(document).ready(function(){
 	// this causes the EDIT button to show up where needed
-	$("table").on('click', ".stabeditbutton", function(event) {
+	$("body").on('click', ".stabeditbutton", function(event) {
 		toggleon_text(event.target);
 	});
 
-});
 
-//
-// This is called after any device tab is rendered fresh (additional clicks
-// on the tap will not call it
-//
-function RefreshAfterTabs() {
 	// When the more button is clicked on, find the table underneath
 	// and toggle if its shown or not
-	$("a.showmore").on('click', function(event) {
+	$("div.maindiv").on('click', 'a.showmore', function(event) {
 		var t = $(this).closest("td").find("table.intmoretable");
 		if(t) {
 			if ($(t).hasClass('irrelevant') ){
@@ -1148,19 +1141,17 @@ function RefreshAfterTabs() {
 		}
 	});
 
-	$("table.interfacetable").on('click', 'img.intdnsedit', function(event) {
-		var td = $(this).closest("td");
-		var id = $(this).closest("tr").find('.recordid').val();
-		if( $(td).is("td") && id) {
-			$.getJSON('device-ajax.pl',
-				'json=yes;type=service;what=interfacedns;NETWORK_INTERFACE_ID='+ id,
-				function (resp) {
-					replace_int_dns_drop (td, resp);
-				}
-			);
+	// When a component id checkbox is set to something meanintful,
+	// toggle the component related fields if they matter.
+	$("div.maindiv").on('change', 'select.componenttype', function(event) {
+		var x = $(this).find('option:selected').val();
+		if(x == '__unknown__') {
+			$(this).closest('table').find('.componentfields').addClass('off');
 		} else {
-			alert("Nonsensical lookup of recordid");
-		}
-		return(0);
+			$(this).closest('table').find('.componentfields').removeClass('off');
+		} 
 	});
-}
+
+	create_dns_reference_jquery("div.maindiv");
+
+});

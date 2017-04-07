@@ -1,4 +1,21 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2016-2017 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -47,7 +64,7 @@ if ( defined($devlist) && $devlist =~ /^[\d,]+$/ ) {
 	my $tally = $#devlist + 1;
 	print $cgi->p(
 		$cgi->b(
-"The following $tally devices match the selected criteria.  Please choose or submit a new search:"
+			"The following $tally devices match the selected criteria.  Please choose or submit a new search:"
 		)
 	);
 	my $q = qq{
@@ -63,8 +80,7 @@ if ( defined($devlist) && $devlist =~ /^[\d,]+$/ ) {
 	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
 		$name = "(unnamed, retired device)" if ( !defined($name) );
 		$all .=
-		  $cgi->li(
-			$cgi->a( { -href => "device.pl?devid=$id" }, $name ) )
+		  $cgi->li( $cgi->a( { -href => "device.pl?devid=$id" }, $name ) )
 		  . "\n";
 	}
 	if ( length($all) ) {
@@ -91,43 +107,44 @@ print $cgi->p(
 print $cgi->start_form( -method => 'POST', -action => 'search.pl' ), "\n";
 
 print $cgi->start_table( { align => 'center' } );
-print $cgi->Tr( $cgi->td("Host/Label: "),
-	$cgi->td( $cgi->textfield( -name => "byname" ) ) ),
+print $cgi->Tr(
+	$cgi->td("Host/Label/DNS Shortname: "),
+	$cgi->td( $cgi->textfield( -name => "byname" ) )
+  ),
   "\n";
-print $cgi->Tr( $cgi->td("IP or CIDR: "),
-	$cgi->td( $cgi->textfield( -name => "byip" ) ) ),
+print $cgi->Tr(
+	$cgi->td("IP or CIDR: "),
+	$cgi->td( $cgi->textfield( -name => "byip" ) )
+  ),
   "\n";
 print $cgi->Tr(
 	$cgi->td("Serial Number/HostId: "),
 	$cgi->td( $cgi->textfield( -name => "byserial" ) )
   ),
   "\n";
-print $cgi->Tr( $cgi->td("Mac Addr: "),
-	$cgi->td( $cgi->textfield( -name => "bymac" ) ) ),
+print $cgi->Tr(
+	$cgi->td("Mac Addr: "),
+	$cgi->td( $cgi->textfield( -name => "bymac" ) )
+  ),
   "\n";
 print $cgi->Tr( $cgi->td("Type: "),
 	$cgi->td( $stab->b_dropdown( undef, 'DEVICE_TYPE_ID', undef, 1 ) ) ),
   "\n";
-print $cgi->Tr(
-	$cgi->td("OS: "),
-	$cgi->td( $stab->b_dropdown( undef, 'OPERATING_SYSTEM_ID', undef, 1 ) )
-  ),
+print $cgi->Tr( $cgi->td("OS: "),
+	$cgi->td( $stab->b_dropdown( undef, 'OPERATING_SYSTEM_ID', undef, 1 ) ) ),
   "\n";
 print $cgi->Tr(
 	$cgi->td(
-		{ -colspan => 2, align => 'center' }, 
-          	$stab->build_checkbox( undef, "Include Removed devices", 
-			'INCLUDE_REMOVED', undef, 0 ),
+		{ -colspan => 2, align => 'center' },
+		$stab->build_checkbox(
+			undef, "Include Removed devices",
+			'INCLUDE_REMOVED', undef, 0
+		),
 	),
   ),
   "\n";
 print $cgi->Tr(
-	$cgi->td(
-		{ -colspan => 2, align => 'center' }, $cgi->submit("Search")
-	)
-);
-
-
+	$cgi->td( { -colspan => 2, align => 'center' }, $cgi->submit("Search") ) );
 
 print $cgi->end_table;
 print $cgi->end_form, "\n";

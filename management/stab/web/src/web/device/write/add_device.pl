@@ -1,4 +1,22 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2016-2017 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+#!/usr/bin/env perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -60,7 +78,7 @@ sub do_device_add {
 	$cgi  = $stab->cgi          || die "Could not create cgi";
 	$dbh  = $stab->dbh          || die "Could not create dbh";
 
-       # print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $device_name = $stab->cgi_parse_param('DEVICE_NAME');
 	my $devtypeid   = $stab->cgi_parse_param('DEVICE_TYPE_ID');
@@ -78,6 +96,7 @@ sub do_device_add {
 	my $cfgfetch    = $stab->cgi_parse_param('chk_SHOULD_FETCH_CONFIG');
 	my $virtdev     = $stab->cgi_parse_param('chk_IS_VIRTUAL_DEVICE');
 	my $mgmtprot    = $stab->cgi_parse_param('AUTO_MGMT_PROTOCOL');
+	my $comptypid   = $stab->cgi_parse_param('COMPONENT_TYPE_ID');
 	my $voetrax     = $stab->cgi_parse_param('VOE_SYMBOLIC_TRACK_ID');
 
 	if ($device_name) {
@@ -87,8 +106,7 @@ sub do_device_add {
 
 		my $existingdev = $stab->get_dev_from_name($device_name);
 		if ($existingdev) {
-			$stab->error_return(
-				"A device by that name already exists.");
+			$stab->error_return("A device by that name already exists.");
 		}
 	}
 
@@ -144,8 +162,7 @@ sub do_device_add {
 	$osid = 0;
 
 	if ( !defined($owner) ) {
-		$stab->error_return(
-			"You must describe the ownership arrangement.");
+		$stab->error_return("You must describe the ownership arrangement.");
 	}
 
 	if ( !defined($svcenv) ) {
@@ -160,29 +177,50 @@ sub do_device_add {
 	my $numchanges = 0;
 	my (@errs);
 
-	my $newasset = {
-		PART_NUMBER           => $partno,
-		SERIAL_NUMBER         => $serialno,
-		OWNERSHIP_STATUS      => $owner,
-	};
-	if (
-		!(
-			$numchanges += $stab->DBInsert(
-				table  => 'asset',
-				hash   => $newasset,
-				errors => \@errs
-			)
-		)
-	  )
-	{
-		$stab->error_return( join( " ", @errs ) );
-	}
+	my $compid;
+	if ($comptypid) {
+		my $newcomp = { COMPONENT_TYPE_ID => $comptypid, };
 
-	my $assetid = $newasset->{ _dbx('ASSET_ID') };
+		if (
+			!(
+				$numchanges += $stab->DBInsert(
+					table  => 'component',
+					hash   => $newcomp,
+					errors => \@errs
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
+		}
+
+		$compid = $newcomp->{ _dbx('COMPONENT_ID') };
+
+		my $newasset = {
+			COMPONENT_ID     => $compid,
+			PART_NUMBER      => $partno,
+			SERIAL_NUMBER    => $serialno,
+			OWNERSHIP_STATUS => $owner,
+		};
+
+		if (
+			!(
+				$numchanges += $stab->DBInsert(
+					table  => 'asset',
+					hash   => $newasset,
+					errors => \@errs
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
+		}
+		my $assetid = $newasset->{ _dbx('ASSET_ID') };
+	}
 
 	my $newdev = {
 		DEVICE_TYPE_ID         => $devtypeid,
-		ASSET_ID               => $assetid,
+		COMPONENT_ID           => $compid,
 		DEVICE_NAME            => $device_name,
 		DEVICE_STATUS          => $status,
 		SERVICE_ENVIRONMENT_ID => $svcenv,
@@ -228,23 +266,23 @@ sub do_device_add {
 		$sth->finish;
 	}
 
-      #	if ( $#appgroups > -1 ) {
-      #	     # note that appgroup_util.add_role validates the device collection
-      #	     # id to ensure that its of the right type, so that does not need to
-      #	     # happen here.
-      #		my $sth = $stab->prepare(
-      #			qq{
-      #			begin
-      #				appgroup_util.add_role(:1, :2);
-      #			end;
-      #		}
-      #		) || die $stab->return_db_err;
-      #
-      #		foreach my $dcid (@appgroups) {
-      #			$sth->execute( $devid, $dcid )
-      #			  || die $stab->return_db_err;
-      #		}
-      #	}
+	#	if ( $#appgroups > -1 ) {
+	#	     # note that appgroup_util.add_role validates the device collection
+	#	     # id to ensure that its of the right type, so that does not need to
+	#	     # happen here.
+	#		my $sth = $stab->prepare(
+	#			qq{
+	#			begin
+	#				appgroup_util.add_role(:1, :2);
+	#			end;
+	#		}
+	#		) || die $stab->return_db_err;
+	#
+	#		foreach my $dcid (@appgroups) {
+	#			$sth->execute( $devid, $dcid )
+	#			  || die $stab->return_db_err;
+	#		}
+	#	}
 
 	$stab->setup_device_power($devid);
 	$stab->setup_device_physical_ports($devid);

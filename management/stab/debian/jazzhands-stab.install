@@ -89,6 +89,7 @@
 /var/www/stab/javascript/attest.js
 /var/www/stab/javascript/device-utils.js
 /var/www/stab/javascript/devicetype.js
+/var/www/stab/javascript/dns-common.js
 /var/www/stab/javascript/dns-utils.js
 /var/www/stab/javascript/netblock-collection.js
 /var/www/stab/javascript/netblock.js
@@ -119,9 +120,13 @@
 /var/www/stab/stabcons/Axe_001.svg
 /var/www/stab/stabcons/Octagon_delete.svg
 /var/www/stab/stabcons/collapse.jpg
-/var/www/stab/stabcons/e.gif
+/var/www/stab/stabcons/e.png
 /var/www/stab/stabcons/expand.jpg
 /var/www/stab/stabcons/progress.gif
 /var/www/stab/stabcons/round_red_x_sign_4229.jpg
+/var/www/stab/stabcons/mystica-Arrow-set-Comic-3.png
 /var/www/stab/stabcons/stab.png
+/var/www/stab/stabcons/plus.png
+/var/www/stab/stabcons/arrow.png 
+/var/www/stab/stabcons/redx.jpg
 /var/www/stab/style.pl

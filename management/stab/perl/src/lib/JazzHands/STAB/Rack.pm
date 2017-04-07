@@ -21,6 +21,24 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
+# Copyright (c) 2017 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+#
 # $Id$
 #
 # most of this presentation was written by chang.
@@ -109,44 +127,35 @@ sub build_rack {
 	$rv .= $cgi->start_table(
 		{ -class => 'rackit', -border => 2, -align => 'center' } );
 
-	my $room = $rack->{ _dbx('ROOM') }|| '';
-	my $row = $rack->{ _dbx('RACK_ROW') }|| '';
-	my $rname = $rack->{ _dbx('RACK_NAME') }|| '';
+	my $room  = $rack->{ _dbx('ROOM') }      || '';
+	my $row   = $rack->{ _dbx('RACK_ROW') }  || '';
+	my $rname = $rack->{ _dbx('RACK_NAME') } || '';
 
-	my $fullname = join( "-",
-					$room,
-					$row,
-					$rname,
-				);
+	my $fullname = join( "-", $room, $row, $rname, );
 	$fullname =~ s/--/-/g;
 	$fullname =~ s/^-+//g;
 	$fullname =~ s/-+$//g;
 
-	$rv .= $cgi->Tr(
-		$cgi->th(
-			[
-				"u", $rack->{ _dbx('SITE_CODE') }.": $fullname",
-			]
-		)
-	);
+	$rv .=
+	  $cgi->Tr(
+		$cgi->th( [ "u", $rack->{ _dbx('SITE_CODE') } . ": $fullname", ] ) );
 
-	my $MAX_RACKSIZE =
-	  $rack->{ _dbx('RACK_HEIGHT_IN_U') } || 50;    # size of rack
+	my $MAX_RACKSIZE = $rack->{ _dbx('RACK_HEIGHT_IN_U') } || 50; # size of rack
 	while (
 		my (
-			$did,   $name,   $pardid, $parname, $label,
-			$model, $height, $offset, $side,    $site,
-			$status,  $vendor
+			$did,    $name,   $pardid, $parname, $label,  $model,
+			$height, $offset, $side,   $site,    $status, $vendor
 		)
 		= $sth->fetchrow_array
 	  )
 	{
-		if(!$name) {
+
+		if ( !$name ) {
 			$name = "Unnamed $vendor $model";
 		}
-		$label = $name if(!$label);
+		$label = $name if ( !$label );
 
-		$offset = 0 if (!defined($offset));
+		$offset = 0 if ( !defined($offset) );
 
 		# print header
 		# almost certainly need to mark this as a stub somehow; this is
@@ -169,8 +178,7 @@ sub build_rack {
 			# this is totally dumb; allows for vertical text
 			if ( $offset < 0 ) {
 				my $x = "";
-				for ( my $i = 0 ; $i < length($linkto) ; $i++ )
-				{
+				for ( my $i = 0 ; $i < length($linkto) ; $i++ ) {
 					my $l = substr( $linkto, $i, 1 );
 					$x .= "$l<br>";
 				}
@@ -179,17 +187,16 @@ sub build_rack {
 				$linkto = $cgi->escapeHTML($linkto);
 			}
 			$field = "";
-			if($offset) {
-				$field = $self->vendor_logo($vendor)
+			if ($offset) {
+				$field = $self->vendor_logo($vendor);
 			}
 			$field .= $cgi->a(
 				{
 					-title => $label,
-					-href =>
-					  "$root/device/device.pl?devid=$did"
+					-href  => "$root/device/device.pl?devid=$did"
 				},
 				$linkto
-			  );
+			);
 		} else {
 			$field = $cgi->escapeHTML($field);
 		}
@@ -200,22 +207,21 @@ sub build_rack {
 
 		if ( $thisrack{$offset} ) {
 
-	      # if this field is already set,
-	      # then we have an overlap.
-	      # warn, error condition
-	      # XXX not necessarily true, as 2 devices could be in one location,
-	      # front and back
-			$thisrack{$offset}  =
-			  $cgi->b("$thisrack{$offset}, $field");
+			# if this field is already set,
+			# then we have an overlap.
+			# warn, error condition
+			# XXX not necessarily true, as 2 devices could be in one location,
+			# front and back
+			$thisrack{$offset} = $cgi->b("$thisrack{$offset}, $field");
 
-	    # this is ugly, screws up table formatting.  need to fix this later.
+			# this is ugly, screws up table formatting.  need to fix this later.
 
 		} else {
 			$thisrack{$offset} = $field;
 		}
 
-		if($offset == 0) {
-			push(@{$missing}, $field);
+		if ( $offset == 0 ) {
+			push( @{$missing}, $field );
 		}
 		$field = $thisrack{$offset};
 
@@ -224,14 +230,14 @@ sub build_rack {
 		# of anything cleaner at the moment
 		if ( $height * 100 % 100 != 0 ) {
 
-		      # warn "fractional height $height RU is being rounded up";
+			# warn "fractional height $height RU is being rounded up";
 			$height = int($height) + 1;    # XXX OVERRIDE
 		}
 		for ( my $cnt = 0 ; $cnt < $height ; $cnt++ ) {
 			my $ru = $offset - $cnt;
 			next if ( $ru < 0 );
 
-	   # print STDERR "\tsetting overlaper $ru $name\n" if($name =~ /s199/);
+			# print STDERR "\tsetting overlaper $ru $name\n" if($name =~ /s199/);
 			$thisrack{$ru} = $field;
 		}
 		$offsets{$offset} = $height;
@@ -243,7 +249,7 @@ sub build_rack {
 		my $ru = $MAX_RACKSIZE - $iter;
 		my $presentu = ($shouldcountup) ? $ru : $iter + 1;
 
-# my $offset_link= sprintf ("<A HREF=\"/cgi-bin/rackit.pl?site=%s&room=%s&row=%s&rack=%s&offset=%d\">%d</A>",
+		# my $offset_link= sprintf ("<A HREF=\"/cgi-bin/rackit.pl?site=%s&room=%s&row=%s&rack=%s&offset=%d\">%d</A>",
 		my $offset_link = $presentu;
 
 		if ( !defined( $thisrack{$ru} ) ) {
@@ -254,14 +260,10 @@ sub build_rack {
 					$cgi->td($offset_link),
 					$cgi->td(
 						{
-							-rowspan =>
-							  $offsets{$ru},
-							-class => 'rackit_'
+							-rowspan => $offsets{$ru},
+							-class   => 'rackit_'
 							  . (
-								(
-									$flipflop
-									  % 2
-								)
+								( $flipflop % 2 )
 								? 'even'
 								: 'odd'
 							  )
@@ -288,21 +290,19 @@ sub build_rack {
 		# even #'s are on the lhs from the front
 		# odd #'s are on the rhs from the front
 		if ( $i % 2 ) {
-			$lhs .= $cgi->td( { -class => 'rackit_vertical' },
-				$thisrack{$i} );
+			$lhs .= $cgi->td( { -class => 'rackit_vertical' }, $thisrack{$i} );
 		} else {
-			$rhs .= $cgi->td( { -class => 'rackit_vertical' },
-				$thisrack{$i} );
+			$rhs .= $cgi->td( { -class => 'rackit_vertical' }, $thisrack{$i} );
 		}
 	}
 
 	my $tbl = $cgi->table( $cgi->Tr( $lhs, $cgi->td($rv), $rhs ) );
 
-	$rv =  "";
-	if($#{$missing} >= 0) {
-		$rv .= "Devices not assigned a u but in rack:".
-			$cgi->div({-class=>'racknou'},
-				$cgi->ul({-class=>'racknoru'}, $cgi->li( \@{$missing} )));
+	$rv = "";
+	if ( $#{$missing} >= 0 ) {
+		$rv .= "Devices not assigned a u but in rack:"
+		  . $cgi->div( { -class => 'racknou' },
+			$cgi->ul( { -class => 'racknoru' }, $cgi->li( \@{$missing} ) ) );
 	}
 
 	$rv .= $tbl;
@@ -606,7 +606,7 @@ sub disp_device {
 			INNER JOIN rack_location rl
 				USING (rack_location_id)
 			LEFT JOIN asset a
-				USING (asset_id)
+				USING (component_id)
 		WHERE	
 			device.device_id= ?
 	};

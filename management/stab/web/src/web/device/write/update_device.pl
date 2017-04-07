@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2010-2014 Todd M. Kover
+# Copyright (c) 2010-2017 Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -199,6 +199,7 @@ sub do_update_device {
 	my $devtypeid = $stab->cgi_parse_param( 'DEVICE_TYPE_ID', $devid );
 	my $serialno  = $stab->cgi_parse_param( 'SERIAL_NUMBER', $devid );
 	my $partno    = $stab->cgi_parse_param( 'PART_NUMBER', $devid );
+	my $leasexp   = $stab->cgi_parse_param( 'LEASE_EXPIRATION_DATE', $devid );
 	my $site      = $stab->cgi_parse_param( 'SITE_CODE', $devid );
 	my $status    = $stab->cgi_parse_param( 'DEVICE_STATUS', $devid );
 	my $owner     = $stab->cgi_parse_param( 'OWNERSHIP_STATUS', $devid );
@@ -217,7 +218,7 @@ sub do_update_device {
 	my $appgtab  = $stab->cgi_parse_param( 'has_appgroup_tab', $devid );
 	my @appgroup = $stab->cgi_parse_param( 'appgroup', $devid );
 
-	#-print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	#- print $cgi->header, $cgi->html($cgi->Dump()); exit;
 	# print $cgi->header, $cgi->start_html,
 	# my @x = $cgi->param('appgroup_'.$devid);
 	# print $cgi->p("appgroup is ", $cgi->ul(@appgroup), "totally");
@@ -328,6 +329,7 @@ sub do_update_device {
 	$numchanges += update_location( $stab, $devid );
 
 	$numchanges += update_all_interfaces( $stab, $devid );
+	$numchanges += update_all_dns_value_references( $stab, $devid );
 	$numchanges += add_device_note( $stab, $devid );
 
 	if ( $serial_reset && $retire_device ) {
@@ -355,12 +357,11 @@ sub do_update_device {
 
 	$numchanges += process_interfaces( $stab, $devid );
 
-	my $x = $stab->device_has_asset();
-
 	my $assetid = $dbdevice->{ _dbx('ASSET_ID') };
 	if ($assetid) {
 		my $dbasset =
-		  $stab->get_asset_from_asset_id( $dbdevice->{ _dbx('ASSET_ID') } );
+		  $stab->get_asset_from_component_id(
+			$dbdevice->{ _dbx('COMPONENT_ID') } );
 		if ( !$dbasset ) {
 			return $stab->error_return(
 				"Unable to obtain asset info.  Seek help");
@@ -380,11 +381,12 @@ sub do_update_device {
 		}
 
 		my $newasset = {
-			ASSET_ID         => $dbasset->{ _dbx('ASSET_ID') },
-			SERIAL_NUMBER    => $serialno,
-			PART_NUMBER      => $partno,
-			ASSET_TAG        => $assettag,
-			OWNERSHIP_STATUS => $owner,
+			ASSET_ID              => $dbasset->{ _dbx('ASSET_ID') },
+			SERIAL_NUMBER         => $serialno,
+			PART_NUMBER           => $partno,
+			ASSET_TAG             => $assettag,
+			OWNERSHIP_STATUS      => $owner,
+			LEASE_EXPIRATION_DATE => $leasexp,
 		};
 
 		my $diffs = $stab->hash_table_diff( $dbasset, _dbx($newasset) );
@@ -524,8 +526,8 @@ sub reconcile_appgroup {
 
 	foreach my $dcid (@curlist) {
 		next if ( grep( $_ eq $dcid, @$appgroup ) );
-		$numchanges +=
-		  $sth->execute( $devid, $dcid ) || $stab->return_db_err($sth);
+		$numchanges += $sth->execute( $devid, $dcid )
+		  || $stab->return_db_err($sth);
 	}
 
 	# 2. go through all the appgroups in the argument list and see if any
@@ -540,8 +542,8 @@ sub reconcile_appgroup {
 
 	foreach my $dcid (@$appgroup) {
 		next if ( grep( $_ eq $dcid, @curlist ) );
-		$numchanges +=
-		  $sth->execute( $devid, $dcid ) || $stab->return_db_err($sth);
+		$numchanges += $sth->execute( $devid, $dcid )
+		  || $stab->return_db_err($sth);
 	}
 
 	$numchanges;
@@ -757,7 +759,7 @@ sub get_network_interface {
 
 	my $q = qq{
 		select *
-		from	network_interface
+		from	v_network_interface_trans
 		where	network_interface_id = ?
 	};
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
@@ -772,7 +774,7 @@ sub get_total_ifs {
 
 	my $q = qq{
 		select	count(*)
-		  from	network_interface
+		  from	v_network_interface_trans
 		 where	device_id = ?
 	};
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
@@ -791,7 +793,7 @@ sub number_interface_kids {
 	my $sth = $stab->prepare(
 		qq{
 		select	count(*)
-		 from	network_interface
+		 from	v_network_interface_trans
 		where	parent_network_interface_id = ?
 	}
 	) || $stab->return_db_err;
@@ -819,7 +821,7 @@ sub delete_interface {
 			dns.dns_record_id,
 			dns.dns_name,
 			dom.soa_name
-		  from	network_interface ni
+		  from	v_network_interface_trans ni
 			inner join netblock nb on
 				ni.netblock_id = nb.netblock_id
 			left join dns_record dns on
@@ -838,7 +840,7 @@ sub delete_interface {
 
 	if ($netintid) {
 		my $q = qq{
-			delete	from network_interface
+			delete	from v_network_interface_trans
 			  where	network_interface_id = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
@@ -1275,7 +1277,8 @@ sub attempt_path_cleanup {
 				   set	physical_port2_id = ?
 				 where	physical_connection_id = ?
 			};
-			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
+			my $stab = $stab->prepare($q)
+			  || $stab->return_db_err($stab);
 			$stab->execute( $p2portid,
 				$path->[ $#{@$path} ]->{ _dbx('PHYSICAL_CONNECTION_ID') },
 			);
@@ -1289,7 +1292,8 @@ sub attempt_path_cleanup {
 				   set	physical_port2_id = ?
 				 where	physical_connection_id = ?
 			};
-			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
+			my $stab = $stab->prepare($q)
+			  || $stab->return_db_err($stab);
 			$stab->execute( $pportid,
 				$path->[ $#{@$path} ]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
 		}
@@ -1302,7 +1306,8 @@ sub attempt_path_cleanup {
 				   set	physical_port1_id = ?
 				 where	physical_connection_id = ?
 			};
-			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
+			my $stab = $stab->prepare($q)
+			  || $stab->return_db_err($stab);
 			$stab->execute( $p2portid,
 				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
 		}
@@ -1315,7 +1320,8 @@ sub attempt_path_cleanup {
 				   set	physical_port1_id = ?
 				 where	physical_connection_id = ?
 			};
-			my $stab = $stab->prepare($q) || $stab->return_db_err($stab);
+			my $stab = $stab->prepare($q)
+			  || $stab->return_db_err($stab);
 			$stab->execute( $pportid,
 				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
 		}
@@ -1418,6 +1424,7 @@ sub update_physical_connection {
 
 	if ($backwards) {
 		@newpath = reverse(@newpath);
+
 		#
 		# In this case, the ports get pulled back one
 		# so the cable types line up.
@@ -1608,6 +1615,57 @@ sub purge_physical_connection_by_physical_port_id {
 	$numchanges;
 }
 
+sub update_all_dns_value_references {
+	my ( $stab, $devid ) = @_;
+
+	my $cgi = $stab->cgi;
+
+	my $numchanges = 0;
+
+	# This is actually copied from dns/update_dns.pl and should probably be
+	# merged in somehow.  Just not doing it yet.
+
+	# now process dns references.  Note that this used to be in the update loop
+	# but because "same" dns records get cleared, records were not showing up,
+	# so the assumption here is that the records are valid.
+	foreach my $refname ( $stab->cgi_get_ids('dnsref_DNS_NAME_dnsref') ) {
+		$refname =~ /^(\d+)_(.+$)/;
+		my ( $recupdid, $refid ) = ( $1, $2 );
+
+		if ( $refid =~ /^new/ ) {
+			$numchanges += $stab->process_dns_ref_add( $recupdid, $refid );
+		} else {
+			$numchanges += $stab->process_dns_ref_updates( $recupdid, $refid );
+		}
+	}
+
+	# copied from dns/update_dns.pl
+	my $delsth;
+	foreach my $delid ( $stab->cgi_get_ids('Del') ) {
+		my $dns = $stab->get_dns_record_from_id($delid);
+		if ( !defined($delsth) ) {
+			my $q = qq{
+                delete from dns_record
+                 where  dns_record_id = ?
+            };
+			$delsth = $stab->prepare($q)
+			  || $stab->return_db_err;
+		}
+		$delsth->execute($delid) || $stab->return_db_err($delsth);
+		$cgi->delete("Del_$delid");
+		$cgi->delete("DNS_RECORD_ID_$delid");
+		$numchanges++;
+
+		if (   $dns
+			&& $dns->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/
+			&& $dns->{ _dbx('NETBLOCK_ID') } )
+		{
+			$numchanges += $stab->delete_netblock( $dns->{'netblock_id'}, 1 );
+		}
+	}
+	return $numchanges;
+}
+
 sub update_all_interfaces {
 	my ( $stab, $devid ) = @_;
 
@@ -1621,7 +1679,7 @@ sub update_all_interfaces {
 	my $sth = $stab->prepare(
 		qq{
 		select	network_interface_id
-		 from	network_interface
+		 from	v_network_interface_trans
 		where	device_id = ?
 		order by network_interface_id
 	}
@@ -1682,16 +1740,12 @@ sub update_interface {
 	my $ip       = $stab->cgi_parse_param( 'IP',            $netintid );
 	my $nitype  = $stab->cgi_parse_param( 'NETWORK_INTERFACE_TYPE', $netintid );
 	my $isintup = $stab->cgi_parse_param( 'chk_IS_INTERFACE_UP',    $netintid );
-	my $isnatint = $stab->cgi_parse_param( 'chk_PROVIDES_NAT',   $netintid );
-	my $shldmng  = $stab->cgi_parse_param( 'chk_SHOULD_MANAGE',  $netintid );
-	my $shldmon  = $stab->cgi_parse_param( 'chk_SHOULD_MONITOR', $netintid );
-	my $dhcp     = $stab->cgi_parse_param( 'chk_PROVIDES_DHCP',  $netintid );
+	my $shldmng = $stab->cgi_parse_param( 'chk_SHOULD_MANAGE',      $netintid );
+	my $shldmon = $stab->cgi_parse_param( 'chk_SHOULD_MONITOR',     $netintid );
 
-	$isintup  = $stab->mk_chk_yn($isintup);
-	$shldmng  = $stab->mk_chk_yn($shldmng);
-	$shldmon  = $stab->mk_chk_yn($shldmon);
-	$isnatint = $stab->mk_chk_yn($isnatint);
-	$dhcp     = $stab->mk_chk_yn($dhcp);
+	$isintup = $stab->mk_chk_yn($isintup);
+	$shldmng = $stab->mk_chk_yn($shldmng);
+	$shldmon = $stab->mk_chk_yn($shldmon);
 
 	if ($intname) {
 		$intname =~ s/^\s+//;
@@ -1756,6 +1810,7 @@ sub update_interface {
 		}
 		$nblkid = $nblk->{ _dbx('NETBLOCK_ID') };
 	} else {
+
 		#
 		# in this case, the IP was removed, which means it should
 		# be disassociated with the interface and removed.  At
@@ -1807,10 +1862,8 @@ sub update_interface {
 		IS_INTERFACE_UP        => $isintup,
 		MAC_ADDR               => $procdmac,
 		SHOULD_MONITOR         => $shldmon,
-		PROVIDES_NAT           => $isnatint,
 		NETBLOCK_ID            => $nblkid,
 		SHOULD_MANAGE          => $shldmng,
-		PROVIDES_DHCP          => $dhcp,
 		DESCRIPTION            => $desc,
 
 		#- PHYSICAL_PORT_ID => $newppid,
@@ -1821,7 +1874,8 @@ sub update_interface {
 
 	my $diff = $stab->hash_table_diff( $old_int, _dbx($new_int) );
 	$numchanges += keys %$diff;
-	$stab->run_update_from_hash( 'network_interface', 'network_interface_id',
+	$stab->run_update_from_hash( 'v_network_interface_trans',
+		'network_interface_id',
 		$old_int->{ _dbx('NETWORK_INTERFACE_ID') }, $diff );
 
 	#
@@ -1977,7 +2031,7 @@ sub process_interfaces {
 	my $cgi        = $stab->cgi;
 	my $numchanges = 0;
 
-	#print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	#- print $cgi->header, $cgi->html($cgi->Dump()); exit;
 
 	my $x = "";
 
@@ -2143,8 +2197,6 @@ sub add_interfaces {
 	my $isintup  = $stab->cgi_parse_param('chk_IS_INTERFACE_UP');
 	my $ismgmtip = $stab->cgi_parse_param('chk_IS_MANAGEMENT_INTERFACE');
 	my $ispriint = $stab->cgi_parse_param('chk_IS_PRIMARY');
-	my $isnatint = $stab->cgi_parse_param('chk_PROVIDES_NAT');
-	my $dhcp     = $stab->cgi_parse_param('chk_PROVIDES_DHCP');
 	my $shldmng  = $stab->cgi_parse_param('chk_SHOULD_MANAGE');
 	my $shldmon  = $stab->cgi_parse_param('chk_SHOULD_MONITOR');
 
@@ -2167,10 +2219,8 @@ sub add_interfaces {
 	$isintup  = $stab->mk_chk_yn($isintup);
 	$ismgmtip = $stab->mk_chk_yn($ismgmtip);
 	$ispriint = $stab->mk_chk_yn($ispriint);
-	$isnatint = $stab->mk_chk_yn($isnatint);
 	$shldmng  = $stab->mk_chk_yn($shldmng);
 	$shldmon  = $stab->mk_chk_yn($shldmon);
-	$dhcp     = $stab->mk_chk_yn($dhcp);
 
 	return 0 if ( !defined($intname) );
 
@@ -2189,6 +2239,7 @@ sub add_interfaces {
 	}
 
 	if ( defined($dns) && !defined($dnsdomid) ) {
+
 		#
 		# not sure if this is a good idea or not.
 		#
@@ -2250,25 +2301,23 @@ sub add_interfaces {
 		IS_INTERFACE_UP        => $isintup,
 		MAC_ADDR               => $macaddr,
 		physical_port_id       => $ppid,
-		provides_nat           => $isnatint,
-		provides_dhcp          => $dhcp,
 		netblock_id            => $nblk->{ _dbx('NETBLOCK_ID') },
 		should_manage          => $shldmng,
 		should_monitor         => $shldmon,
 	};
 
 	my $q = qq{
-		insert into network_interface (
+		insert into v_network_interface_trans (
 			device_id, name, NETWORK_INTERFACE_TYPE,
 			IS_INTERFACE_UP, MAC_ADDR,
 			NETWORK_INTERFACE_PURPOSE, IS_PRIMARY, SHOULD_MONITOR,
-			physical_port_id, provides_nat, provides_dhcp,
+			physical_port_id, 
 			NETBLOCK_ID, SHOULD_MANAGE, IS_MANAGEMENT_INTERFACE
 		) values (
 			:devid, :name, :nitype,
 			:isup, :mac,
 			:nipurpose, :isprimary, :shldmon,
-			:phsportid, :doesnat, 'N',
+			:phsportid,
 			:nblkid, :shldmng, :ismgmtip
 		) returning network_interface_Id into :rv
 	};
@@ -2278,7 +2327,7 @@ sub add_interfaces {
 	if (
 		!(
 			$numchanges += $stab->DBInsert(
-				table  => 'network_interface',
+				table  => 'v_network_interface_trans',
 				hash   => $new,
 				errors => \@errs
 			)
@@ -2302,6 +2351,7 @@ sub add_interfaces {
 				netblock_id   => $nblk->{ _dbx('NETBLOCK_ID') },
 			}
 		);
+		$numchanges++;
 	}
 
 	#
@@ -2318,7 +2368,7 @@ sub switch_all_ni_prop_to_n {
 	if ($field) {
 		my $q = qq{
 			select	count(*)
-			  from	network_interface
+			  from	v_network_interface_trans
 			 where	device_id = ?
 			  and	$field = 'Y'
 		};
@@ -2329,7 +2379,7 @@ sub switch_all_ni_prop_to_n {
 
 	if ($old_count) {
 		my $q = qq{
-			update network_interface
+			update v_network_interface_trans
 			  set  $field = 'N'
 			where  device_id = ?
 		};
@@ -2425,7 +2475,7 @@ sub delete_device_interfaces {
 
 	my (@netblocks);
 	my $nbq = qq{
-		select	netblock_id from network_interface
+		select	netblock_id from v_network_interface_trans
 					where device_id = ?
 	};
 	my $Nsth = $stab->prepare($nbq) || $stab->return_db_err;
@@ -2438,14 +2488,14 @@ sub delete_device_interfaces {
 	my @qs = (
 		qq{delete from dns_record
 			where netblock_id in
-					(select netblock_id from network_interface
+					(select netblock_id from v_network_interface_trans
 						where device_id = ?
 					)
 		},
 		qq{delete from network_interface_purpose
 					where device_id = ?
 		},
-		qq{delete from network_interface
+		qq{delete from v_network_interface_trans
 					where device_id = ?
 		},
 	);

@@ -42,16 +42,16 @@ BEGIN
 		netblock_id INTO par_nbid
 	FROM
 		jazzhands.netblock
-	WHERE 
+	WHERE
 		netblock_id = in_netblock_id;
-	
+
 	UPDATE
 		jazzhands.netblock
 	SET
 		parent_netblock_id = par_nbid
 	WHERE
 		parent_netblock_id = in_netblock_id;
-	
+
 	/*
 	 * Now delete the record
 	 */
@@ -69,15 +69,15 @@ DECLARE
 	ipaddr		inet;
 
 BEGIN
-	SELECT * INTO nbrec FROM jazzhands.netblock WHERE 
+	SELECT * INTO nbrec FROM jazzhands.netblock WHERE
 		netblock_id = in_netblock_id;
 
 	nbid := netblock_utils.find_best_parent_id(in_netblock_id);
 
 	UPDATE jazzhands.netblock SET parent_netblock_id = nbid
 		WHERE netblock_id = in_netblock_id;
-	
-	FOR childrec IN SELECT * FROM jazzhands.netblock WHERE 
+
+	FOR childrec IN SELECT * FROM jazzhands.netblock WHERE
 		parent_netblock_id = nbid
 		AND netblock_id != in_netblock_id
 	LOOP
@@ -108,7 +108,7 @@ CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 DECLARE
 	netblock_rec	RECORD;
 BEGIN
-	RETURN QUERY 
+	RETURN QUERY
 		SELECT * into netblock_rec FROM netblock_manip.allocate_netblock(
 		parent_netblock_list := ARRAY[parent_netblock_id],
 		netmask_bits := netmask_bits,
@@ -165,7 +165,7 @@ BEGIN
 	END IF;
 
 	IF ip_address IS NOT NULL THEN
-		SELECT 
+		SELECT
 			array_agg(netblock_id)
 		INTO
 			parent_netblock_list
@@ -183,7 +183,7 @@ BEGIN
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
 
-	FOR parent_rec IN SELECT * FROM jazzhands.netblock WHERE netblock_id = 
+	FOR parent_rec IN SELECT * FROM jazzhands.netblock WHERE netblock_id =
 			ANY(allocate_netblock.parent_netblock_list) ORDER BY netblock_id
 			FOR UPDATE LOOP
 
@@ -194,15 +194,15 @@ BEGIN
 
 		IF inet_family IS NULL THEN
 			inet_family := family(parent_rec.ip_address);
-		ELSIF inet_family != family(parent_rec.ip_address) 
+		ELSIF inet_family != family(parent_rec.ip_address)
 				AND ip_address IS NULL THEN
 			RAISE EXCEPTION 'Allocation may not mix IPv4 and IPv6 addresses'
 			USING ERRCODE = 'JH10F';
 		END IF;
 
 		IF address_type = 'loopback' THEN
-			loopback_bits := 
-				CASE WHEN 
+			loopback_bits :=
+				CASE WHEN
 					family(parent_rec.ip_address) = 4 THEN 32 ELSE 128 END;
 
 			IF parent_rec.can_subnet = 'N' THEN
@@ -355,7 +355,7 @@ BEGIN
 			allocate_netblock.description,
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
-		
+
 		RAISE DEBUG 'Allocated netblock_id % for %',
 			netblock_rec.netblock_id,
 			netblock_rec.ip_address;
@@ -388,18 +388,18 @@ BEGIN
 	--
 	-- If the network range already exists, then just return it
 	--
-	SELECT 
+	SELECT
 		nr.* INTO netrange
 	FROM
 		jazzhands.network_range nr JOIN
-		jazzhands.netblock startnb ON (nr.start_netblock_id = 
+		jazzhands.netblock startnb ON (nr.start_netblock_id =
 			startnb.netblock_id) JOIN
 		jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
 	WHERE
 		nr.network_range_type = nrtype AND
 		host(startnb.ip_address) = host(start_ip_address) AND
 		host(stopnb.ip_address) = host(stop_ip_address) AND
-		CASE WHEN pnbid IS NOT NULL THEN 
+		CASE WHEN pnbid IS NOT NULL THEN
 			(pnbid = nr.parent_netblock_id)
 		ELSE
 			true
@@ -412,11 +412,11 @@ BEGIN
 	--
 	-- If any other network ranges exist that overlap this, then error
 	--
-	PERFORM 
+	PERFORM
 		*
 	FROM
 		jazzhands.network_range nr JOIN
-		jazzhands.netblock startnb ON 
+		jazzhands.netblock startnb ON
 			(nr.start_netblock_id = startnb.netblock_id) JOIN
 		jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
 	WHERE
@@ -435,7 +435,7 @@ BEGIN
 	END IF;
 
 	IF parent_netblock_id IS NOT NULL THEN
-		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE 
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE
 			netblock_id = pnbid;
 		IF NOT FOUND THEN
 			RAISE 'create_network_range: parent_netblock_id % does not exist',
@@ -443,7 +443,7 @@ BEGIN
 		END IF;
 	ELSE
 		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE netblock_id = (
-			SELECT 
+			SELECT
 				*
 			FROM
 				netblock_utils.find_best_parent_id(
@@ -458,7 +458,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF par_netblock.can_subnet != 'N' OR 
+	IF par_netblock.can_subnet != 'N' OR
 			par_netblock.is_single_address != 'N' THEN
 		RAISE 'create_network_range: parent netblock % must not be subnettable or a single address',
 			par_netblock.netblock_id USING ERRCODE = 'check_violation';
@@ -487,7 +487,7 @@ BEGIN
 	-- range, unless allow_assigned is set
 	--
 	IF NOT allow_assigned THEN
-		PERFORM 
+		PERFORM
 			*
 		FROM
 			jazzhands.netblock n
@@ -589,6 +589,1001 @@ BEGIN
 	RETURN NULL;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
+
+CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
+	network_interface_id
+						jazzhands.network_interface.
+							network_interface_id%TYPE DEFAULT NULL,
+	device_id			jazzhands.device.device_id%TYPE DEFAULT NULL,
+	network_interface_name
+						text DEFAULT NULL,
+	network_interface_type
+						text DEFAULT 'broadcast',
+	ip_address_hash		jsonb DEFAULT NULL,
+	create_layer3_networks
+						boolean DEFAULT false,
+	move_addresses		text DEFAULT 'if_same_device',
+	address_errors		text DEFAULT 'error'
+) RETURNS boolean AS $$
+--
+-- ip_address_hash consists of the following elements
+--
+--		"ip_addresses" : [ (inet | netblock) ... ]
+--		"shared_ip_addresses" : [ (inet | netblock) ... ]
+--
+-- where inet is a text string that can be legally converted to type inet
+-- and netblock is a JSON object with fields:
+--		"ip_address" : inet
+--		"ip_universe_id" : integer (default 0)
+--		"netblock_type" : text (default 'default')
+--		"protocol" : text (default 'VRRP')
+--
+-- If either "ip_addresses" or "shared_ip_addresses" does not exist, it
+-- will not be processed.  If the key is present and is an empty array or
+-- null, then all IP addresses of those types will be removed from the
+-- interface
+--
+-- 'protocol' is only valid for shared addresses, which is how the address
+-- is shared.  Valid values can be found in the val_shared_netblock_protocol
+-- table
+--
+DECLARE
+	ni_id			ALIAS FOR network_interface_id;
+	dev_id			ALIAS FOR device_id;
+	ni_name			ALIAS FOR network_interface_name;
+	ni_type			ALIAS FOR network_interface_type;
+
+	addrs_ary		jsonb;
+	ipaddr			inet;
+	universe		integer;
+	nb_type			text;
+	protocol		text;
+
+	c				integer;
+	i				integer;
+
+	nb_rec			RECORD;
+	pnb_rec			RECORD;
+	layer3_rec		RECORD;
+	sn_rec			RECORD;
+	ni_rec			RECORD;
+	nin_rec			RECORD;
+	nb_id			jazzhands.netblock.netblock_id%TYPE;
+	nb_id_ary		integer[];
+	ni_id_ary		integer[];
+	del_list		integer[];
+BEGIN
+	--
+	-- Validate that we got enough information passed to do things
+	--
+
+	IF ip_address_hash IS NULL OR NOT
+		(jsonb_typeof(ip_address_hash) = 'object')
+	THEN
+		RAISE 'Must pass ip_addresses to netblock_manip.set_interface_addresses';
+	END IF;
+
+	IF network_interface_id IS NULL THEN
+		IF device_id IS NULL OR network_interface_name IS NULL THEN
+			RAISE 'netblock_manip.assign_shared_netblock: must pass either network_interface_id or device_id and network_interface_name'
+			USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		SELECT
+			ni.network_interface_id INTO ni_id
+		FROM
+			network_interface ni
+		WHERE
+			ni.device_id = dev_id AND
+			ni.network_interface_name = ni_name;
+
+		IF NOT FOUND THEN
+			INSERT INTO network_interface(
+				device_id,
+				network_interface_name,
+				network_interface_type,
+				should_monitor
+			) VALUES (
+				dev_id,
+				ni_name,
+				ni_type,
+				'N'
+			) RETURNING network_interface.network_interface_id INTO ni_id;
+		END IF;
+	END IF;
+
+	SELECT * INTO ni_rec FROM network_interface ni WHERE 
+		ni.network_interface_id = ni_id;
+
+	--
+	-- First, loop through ip_addresses passed and process those
+	--
+
+	IF ip_address_hash ? 'ip_addresses' AND
+		jsonb_typeof(ip_address_hash->'ip_addresses') = 'array'
+	THEN
+		RAISE DEBUG 'Processing ip_addresses...';
+		--
+		-- Loop through each member of the ip_addresses array
+		-- and process each address
+		--
+		addrs_ary := ip_address_hash->'ip_addresses';
+		c := jsonb_array_length(addrs_ary);
+		i := 0;
+		nb_id_ary := NULL;
+		WHILE (i < c) LOOP
+			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
+				--
+				-- If this is a string, use it as an inet with default
+				-- universe and netblock_type
+				--
+				ipaddr := addrs_ary->>i;
+				universe := 0;
+				nb_type := 'default';
+			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
+				--
+				-- If this is an object, require 'ip_address' key
+				-- optionally use 'ip_universe_id' and 'netblock_type' keys
+				-- to override the defaults
+				--
+				IF NOT addrs_ary->i ? 'ip_address' THEN
+					RAISE E'Object in array element % of ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses does not contain ip_address key:\n%',
+						i, jsonb_pretty(addrs_ary->i);
+				END IF;
+				ipaddr := addrs_ary->i->>'ip_address';
+
+				IF addrs_ary->i ? 'ip_universe_id' THEN
+					universe := addrs_ary->i->'ip_universe_id';
+				ELSE
+					universe := 0;
+				END IF;
+
+				IF addrs_ary->i ? 'netblock_type' THEN
+					nb_type := addrs_ary->i->>'netblock_type';
+				ELSE
+					nb_type := 'default';
+				END IF;
+			ELSE
+				RAISE 'Invalid type in array element % of ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses (%)',
+					i, jsonb_typeof(addrs_ary->i);
+			END IF;
+			--
+			-- We're done with the array, so increment the counter so
+			-- we don't have to deal with it later
+			--
+			i := i + 1;
+
+			RAISE DEBUG 'Address is %, universe is %, nb type is %',
+				ipaddr, universe, nb_type;
+
+			--
+			-- This is a hack, because Juniper is really annoying about this.
+			-- If masklen < 8, then ignore this netblock (we specifically
+			-- want /8, because of 127/8 and 10/8, which someone could
+			-- maybe want to not subnet.
+			--
+			-- This should probably be a configuration parameter, but it's not.
+			--
+			CONTINUE WHEN masklen(ipaddr) < 8;
+
+			--
+			-- Check to see if this is a netblock that we have been
+			-- told to explicitly ignore
+			--
+			PERFORM
+				ip_address
+			FROM
+				netblock n JOIN
+				netblock_collection_netblock ncn USING (netblock_id) JOIN
+				v_netblock_coll_expanded nce USING (netblock_collection_id)
+					JOIN
+				property p ON (
+					property_name = 'IgnoreProbedNetblocks' AND
+					property_type = 'DeviceInventory' AND
+					property_value_nblk_coll_id =
+						nce.root_netblock_collection_id
+				)
+			WHERE
+				ipaddr <<= n.ip_address AND
+				n.ip_universe_id = universe AND
+				n.netblock_type = nb_type;
+
+			--
+			-- If we found this netblock in the ignore list, then just
+			-- skip it
+			--
+			IF FOUND THEN
+				RAISE DEBUG 'Skipping ignored address %', ipaddr;
+				CONTINUE;
+			END IF;
+
+			--
+			-- Look for an is_single_address='Y', can_subnet='N' netblock
+			-- with the given ip_address
+			--
+			SELECT
+				* INTO nb_rec
+			FROM
+				netblock n
+			WHERE
+				is_single_address = 'Y' AND
+				can_subnet = 'N' AND
+				netblock_type = nb_type AND
+				ip_universe_id = universe AND
+				host(ip_address) = host(ipaddr);
+
+			IF FOUND THEN
+				RAISE DEBUG E'Located netblock:\n%',
+					jsonb_pretty(to_jsonb(nb_rec));
+
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+
+				--
+				-- Look to see if there's a layer3_network for the
+				-- parent netblock
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.netblock_id = nb_rec.parent_netblock_id;
+
+				IF FOUND THEN
+					RAISE DEBUG E'Located layer3_network:\n%',
+						jsonb_pretty(to_jsonb(layer3_rec));
+				ELSE
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+			ELSE
+				--
+				-- If the parent netblock does not exist, then create it
+				-- if we were passed the option to
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.ip_universe_id = universe AND
+					n.netblock_type = nb_type AND
+					is_single_address = 'N' AND
+					can_subnet = 'N' AND
+					n.ip_address >>= ipaddr;
+
+				IF NOT FOUND THEN
+					RAISE DEBUG 'Parent netblock with ip_address %, netblock_type %, ip_universe_id % not found',
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					--
+					-- Check to see if the netblock exists, but is
+					-- marked can_subnet='Y'.  If so, fix it
+					--
+					SELECT 
+						* INTO pnb_rec
+					FROM
+						netblock n
+					WHERE
+						n.ip_universe_id = universe AND
+						n.netblock_type = nb_type AND
+						n.is_single_address = 'N' AND
+						n.can_subnet = 'Y' AND
+						n.ip_address = network(ipaddr);
+
+					IF FOUND THEN
+						UPDATE netblock n SET
+							can_subnet = 'N'
+						WHERE
+							n.netblock_id = pnb_rec.netblock_id;
+						pnb_rec.can_subnet = 'N';
+					ELSE
+						INSERT INTO netblock (
+							ip_address,
+							netblock_type,
+							is_single_address,
+							can_subnet,
+							ip_universe_id,
+							netblock_status
+						) VALUES (
+							network(ipaddr),
+							nb_type,
+							'N',
+							'N',
+							universe,
+							'Allocated'
+						) RETURNING * INTO pnb_rec;
+					END IF;
+
+					WITH l3_ins AS (
+						INSERT INTO layer3_network(
+							netblock_id
+						) VALUES (
+							pnb_rec.netblock_id
+						) RETURNING *
+					)
+					SELECT
+						pnb_rec.netblock_id,
+						pnb_rec.ip_address,
+						l3_ins.layer3_network_id,
+						NULL::inet
+					INTO layer3_rec
+					FROM
+						l3_ins;
+				ELSIF layer3_rec.layer3_network_id IS NULL THEN
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+
+					RAISE DEBUG 'layer3_network for parent netblock % not found (ip_address %, netblock_type %, ip_universe_id %)',
+						layer3_rec.netblock_id,
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+				RAISE DEBUG E'Located layer3_network:\n%',
+					jsonb_pretty(to_jsonb(layer3_rec));
+				--
+				-- Parents should be all set up now.  Insert the netblock
+				--
+				INSERT INTO netblock (
+					ip_address,
+					netblock_type,
+					ip_universe_id,
+					is_single_address,
+					can_subnet,
+					netblock_status
+				) VALUES (
+					ipaddr,
+					nb_type,
+					universe,
+					'Y',
+					'N',
+					'Allocated'
+				) RETURNING * INTO nb_rec;
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+			END IF;
+			--
+			-- Now that we have the netblock and everything, check to see
+			-- if this netblock is already assigned to this network_interface
+			--
+			PERFORM * FROM
+				network_interface_netblock nin
+			WHERE
+				nin.netblock_id = nb_rec.netblock_id AND
+				nin.network_interface_id = ni_id;
+
+			IF FOUND THEN
+				RAISE DEBUG 'Netblock % already found on network_interface',
+					nb_rec.netblock_id;
+				CONTINUE;
+			END IF;
+
+			--
+			-- See if this netblock is on something else, and delete it
+			-- if move_addresses is set, otherwise skip it
+			--
+			SELECT 
+				ni.network_interface_id,
+				nin.netblock_id,
+				ni.device_id
+			INTO nin_rec
+			FROM
+				network_interface_netblock nin JOIN
+				network_interface ni USING (network_interface_id)
+			WHERE
+				nin.netblock_id = nb_rec.netblock_id AND
+				nin.network_interface_id != ni_id;
+
+			IF FOUND THEN
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND 
+					nin_rec.device_id = ni_rec.device_id
+				)
+				THEN
+					DELETE FROM
+						network_interface_netblock
+					WHERE
+						netblock_id = nb_rec.netblock_id;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+					END IF;
+				END IF;
+			END IF;
+
+			--
+			-- See if this netblock is on a shared_address somewhere, and
+			-- move it only if move_addresses is 'always'
+			--
+			SELECT * FROM
+				shared_netblock sn
+			INTO sn_rec
+			WHERE
+				sn.netblock_id = nb_rec.netblock_id;
+
+			IF FOUND THEN
+				IF move_addresses IS NULL OR move_addresses != 'always' THEN
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					END IF;
+				END IF;
+
+				DELETE FROM
+					shared_netblock_network_int snni
+				WHERE
+					snni.shared_netblock_id = sn_rec.shared_netblock_id;
+
+				DELETE FROM
+					shared_network sn
+				WHERE
+					sn.netblock_id = sn_rec.shared_netblock_id;
+			END IF;
+
+			--
+			-- Insert the netblock onto the interface using the next
+			-- rank
+			--
+			INSERT INTO network_interface_netblock (
+				network_interface_id,
+				netblock_id,
+				network_interface_rank
+			) SELECT
+				ni_id,
+				nb_rec.netblock_id,
+				COALESCE(MAX(network_interface_rank) + 1, 0)
+			FROM
+				network_interface_netblock nin
+			WHERE
+				nin.network_interface_id = ni_id
+			RETURNING * INTO nin_rec;
+
+			RAISE DEBUG E'Inserted into:\n%',
+				jsonb_pretty(to_jsonb(nin_rec));
+		END LOOP;
+		--
+		-- Remove any netblocks that are on the interface that are not
+		-- supposed to be (and that aren't ignored).
+		--
+
+		FOR nin_rec IN
+			DELETE FROM
+				network_interface_netblock nin
+			WHERE
+				(nin.network_interface_id, nin.netblock_id) IN (
+				SELECT
+					nin2.network_interface_id,
+					nin2.netblock_id
+				FROM
+					network_interface_netblock nin2 JOIN
+					netblock n USING (netblock_id)
+				WHERE
+					nin2.network_interface_id = ni_id AND NOT (
+						nin.netblock_id = ANY(nb_id_ary) OR
+						n.ip_address <<= ANY ( ARRAY (
+							SELECT
+								n2.ip_address
+							FROM
+								netblock n2 JOIN
+								netblock_collection_netblock ncn USING
+									(netblock_id) JOIN
+								v_netblock_coll_expanded nce USING
+									(netblock_collection_id) JOIN
+								property p ON (
+									property_name = 'IgnoreProbedNetblocks' AND
+									property_type = 'DeviceInventory' AND
+									property_value_nblk_coll_id =
+										nce.root_netblock_collection_id
+								)
+						))
+					)
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG 'Removed netblock % from network_interface %',
+				nin_rec.netblock_id,
+				nin_rec.network_interface_id;
+			--
+			-- Remove any DNS records and/or netblocks that aren't used
+			--
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = nin_rec.netblock_id;
+				DELETE FROM netblock_collection_netblock WHERE
+					netblock_id = nin_rec.netblock_id;
+				DELETE FROM netblock WHERE netblock_id =
+					nin_rec.netblock_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN NULL;
+			END;
+		END LOOP;
+	END IF;
+
+	--
+	-- Loop through shared_ip_addresses passed and process those
+	--
+
+	IF ip_address_hash ? 'shared_ip_addresses' AND
+		jsonb_typeof(ip_address_hash->'shared_ip_addresses') = 'array'
+	THEN
+		RAISE DEBUG 'Processing shared_ip_addresses...';
+		--
+		-- Loop through each member of the shared_ip_addresses array
+		-- and process each address
+		--
+		addrs_ary := ip_address_hash->'shared_ip_addresses';
+		c := jsonb_array_length(addrs_ary);
+		i := 0;
+		nb_id_ary := NULL;
+		WHILE (i < c) LOOP
+			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
+				--
+				-- If this is a string, use it as an inet with default
+				-- universe and netblock_type
+				--
+				ipaddr := addrs_ary->>i;
+				universe := 0;
+				nb_type := 'default';
+				protocol := 'VRRP';
+			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
+				--
+				-- If this is an object, require 'ip_address' key
+				-- optionally use 'ip_universe_id' and 'netblock_type' keys
+				-- to override the defaults
+				--
+				IF NOT addrs_ary->i ? 'ip_address' THEN
+					RAISE E'Object in array element % of shared_ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses does not contain ip_address key:\n%',
+						i, jsonb_pretty(addrs_ary->i);
+				END IF;
+				ipaddr := addrs_ary->i->>'ip_address';
+
+				IF addrs_ary->i ? 'ip_universe_id' THEN
+					universe := addrs_ary->i->'ip_universe_id';
+				ELSE
+					universe := 0;
+				END IF;
+
+				IF addrs_ary->i ? 'netblock_type' THEN
+					nb_type := addrs_ary->i->>'netblock_type';
+				ELSE
+					nb_type := 'default';
+				END IF;
+
+				IF addrs_ary->i ? 'shared_netblock_protocol' THEN
+					protocol := addrs_ary->i->>'shared_netblock_protocol';
+				ELSIF addrs_ary->i ? 'protocol' THEN
+					protocol := addrs_ary->i->>'protocol';
+				ELSE
+					protocol := 'VRRP';
+				END IF;
+			ELSE
+				RAISE 'Invalid type in array element % of shared_ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses (%)',
+					i, jsonb_typeof(addrs_ary->i);
+			END IF;
+			--
+			-- We're done with the array, so increment the counter so
+			-- we don't have to deal with it later
+			--
+			i := i + 1;
+
+			RAISE DEBUG 'Address is %, universe is %, nb type is %',
+				ipaddr, universe, nb_type;
+
+			--
+			-- Check to see if this is a netblock that we have been
+			-- told to explicitly ignore
+			--
+			PERFORM
+				ip_address
+			FROM
+				netblock n JOIN
+				netblock_collection_netblock ncn USING (netblock_id) JOIN
+				v_netblock_coll_expanded nce USING (netblock_collection_id)
+					JOIN
+				property p ON (
+					property_name = 'IgnoreProbedNetblocks' AND
+					property_type = 'DeviceInventory' AND
+					property_value_nblk_coll_id =
+						nce.root_netblock_collection_id
+				)
+			WHERE
+				ipaddr <<= n.ip_address AND
+				n.ip_universe_id = universe AND
+				n.netblock_type = nb_type;
+
+			--
+			-- If we found this netblock in the ignore list, then just
+			-- skip it
+			--
+			IF FOUND THEN
+				RAISE DEBUG 'Skipping ignored address %', ipaddr;
+				CONTINUE;
+			END IF;
+
+			--
+			-- Look for an is_single_address='Y', can_subnet='N' netblock
+			-- with the given ip_address
+			--
+			SELECT
+				* INTO nb_rec
+			FROM
+				netblock n
+			WHERE
+				is_single_address = 'Y' AND
+				can_subnet = 'N' AND
+				netblock_type = nb_type AND
+				ip_universe_id = universe AND
+				host(ip_address) = host(ipaddr);
+
+			IF FOUND THEN
+				RAISE DEBUG E'Located netblock:\n%',
+					jsonb_pretty(to_jsonb(nb_rec));
+
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+
+				--
+				-- Look to see if there's a layer3_network for the
+				-- parent netblock
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.netblock_id = nb_rec.parent_netblock_id;
+
+				IF FOUND THEN
+					RAISE DEBUG E'Located layer3_network:\n%',
+						jsonb_pretty(to_jsonb(layer3_rec));
+				ELSE
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+			ELSE
+				--
+				-- If the parent netblock does not exist, then create it
+				-- if we were passed the option to
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.ip_universe_id = universe AND
+					n.netblock_type = nb_type AND
+					is_single_address = 'N' AND
+					can_subnet = 'N' AND
+					n.ip_address >>= ipaddr;
+
+				IF NOT FOUND THEN
+					RAISE DEBUG 'Parent netblock with ip_address %, netblock_type %, ip_universe_id % not found',
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					WITH nb_ins AS (
+						INSERT INTO netblock (
+							ip_address,
+							netblock_type,
+							is_single_address,
+							can_subnet,
+							ip_universe_id,
+							netblock_status
+						) VALUES (
+							network(ipaddr),
+							nb_type,
+							'N',
+							'N',
+							universe,
+							'Allocated'
+						) RETURNING *
+					), l3_ins AS (
+						INSERT INTO layer3_network(
+							netblock_id
+						)
+						SELECT
+							netblock_id
+						FROM
+							nb_ins
+						RETURNING *
+					)
+					SELECT
+						nb_ins.netblock_id,
+						nb_ins.ip_address,
+						l3_ins.layer3_network_id,
+						NULL
+					INTO layer3_rec
+					FROM
+						nb_ins,
+						l3_ins;
+				ELSIF layer3_rec.layer3_network_id IS NULL THEN
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+
+					RAISE DEBUG 'layer3_network for parent netblock % not found (ip_address %, netblock_type %, ip_universe_id %)',
+						layer3_rec.netblock_id,
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+				RAISE DEBUG E'Located layer3_network:\n%',
+					jsonb_pretty(to_jsonb(layer3_rec));
+				--
+				-- Parents should be all set up now.  Insert the netblock
+				--
+				INSERT INTO netblock (
+					ip_address,
+					netblock_type,
+					ip_universe_id,
+					is_single_address,
+					can_subnet,
+					netblock_status
+				) VALUES (
+					ipaddr,
+					nb_type,
+					universe,
+					'Y',
+					'N',
+					'Allocated'
+				) RETURNING * INTO nb_rec;
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+			END IF;
+
+			--
+			-- See if this netblock is directly on any network_interface, and
+			-- delete it if force is set, otherwise skip it
+			--
+			ni_id_ary := ARRAY[]::integer[];
+
+			SELECT 
+				ni.network_interface_id,
+				nin.netblock_id,
+				ni.device_id
+			INTO nin_rec
+			FROM
+				network_interface_netblock nin JOIN
+				network_interface ni USING (network_interface_id)
+			WHERE
+				nin.netblock_id = nb_rec.netblock_id AND
+				nin.network_interface_id != ni_id;
+
+			IF FOUND THEN
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND 
+					nin_rec.device_id = ni_rec.device_id
+				)
+				THEN
+					--
+					-- Remove the netblocks from the network_interfaces,
+					-- but save them for later so that we can migrate them
+					-- after we make sure the shared_netblock exists.
+					--
+					-- Also, append the network_inteface_id that we
+					-- specifically care about, and we'll add them all
+					-- below
+					--
+					WITH z AS (
+						DELETE FROM
+							network_interface_netblock
+						WHERE
+							netblock_id = nb_rec.netblock_id
+						RETURNING network_interface_id
+					)
+					SELECT array_agg(network_interface_id) FROM
+						(SELECT network_interface_id FROM z) v
+					INTO ni_id_ary;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to network_interface %',
+							nb_rec.netblock_id, nin_rec.network_interface_id;
+					END IF;
+				END IF;
+
+			END IF;
+
+			IF NOT(ni_id = ANY(ni_id_ary)) THEN
+				ni_id_ary := array_append(ni_id_ary, ni_id);
+			END IF;
+
+			--
+			-- See if this netblock already belongs to a shared_network
+			--
+			SELECT * FROM
+				shared_netblock sn
+			INTO sn_rec
+			WHERE
+				sn.netblock_id = nb_rec.netblock_id;
+
+			IF FOUND THEN
+				IF sn_rec.shared_netblock_protocol != protocol THEN
+					RAISE 'Netblock % (%) is assigned to shared_network %, but the shared_network_protocol does not match (% vs. %)',
+						nb_rec.netblock_id,
+						nb_rec.ip_address,
+						sn_rec.shared_netblock_id,
+						sn_rec.shared_netblock_protocol,
+						protocol;
+				END IF;
+			ELSE
+				INSERT INTO shared_netblock (
+					shared_netblock_protocol,
+					netblock_id
+				) VALUES (
+					protocol,
+					nb_rec.netblock_id
+				) RETURNING * INTO sn_rec;
+			END IF;
+
+			--
+			-- Add this to any interfaces that we found above that
+			-- need this
+			--
+
+			INSERT INTO shared_netblock_network_int (
+				shared_netblock_id,
+				network_interface_id,
+				priority
+			) SELECT
+				sn_rec.shared_netblock_id,
+				x.network_interface_id,
+				0
+			FROM
+				unnest(ni_id_ary) x(network_interface_id)
+			ON CONFLICT ON CONSTRAINT pk_ip_group_network_interface DO NOTHING;
+
+			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
+				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(ni_id_ary));
+		END LOOP;
+		--
+		-- Remove any shared_netblocks that are on the interface that are not
+		-- supposed to be (and that aren't ignored).
+		--
+
+		FOR nin_rec IN
+			DELETE FROM
+				shared_netblock_network_int snni
+			WHERE
+				(snni.network_interface_id, snni.shared_netblock_id) IN (
+				SELECT
+					snni2.network_interface_id,
+					snni2.shared_netblock_id
+				FROM
+					shared_netblock_network_int snni2 JOIN
+					shared_netblock sn USING (shared_netblock_id) JOIN
+					netblock n USING (netblock_id)
+				WHERE
+					snni2.network_interface_id = ni_id AND NOT (
+						sn.netblock_id = ANY(nb_id_ary) OR
+						n.ip_address <<= ANY ( ARRAY (
+							SELECT
+								n2.ip_address
+							FROM
+								netblock n2 JOIN
+								netblock_collection_netblock ncn USING
+									(netblock_id) JOIN
+								v_netblock_coll_expanded nce USING
+									(netblock_collection_id) JOIN
+								property p ON (
+									property_name = 'IgnoreProbedNetblocks' AND
+									property_type = 'DeviceInventory' AND
+									property_value_nblk_coll_id =
+										nce.root_netblock_collection_id
+								)
+						))
+					)
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG 'Removed shared_netblock % from network_interface %',
+				nin_rec.shared_netblock_id,
+				nin_rec.network_interface_id;
+
+			--
+			-- Remove any DNS records, netblocks and shared_netblocks
+			-- that aren't used
+			--
+			SELECT netblock_id INTO nb_id FROM shared_netblock sn WHERE
+				sn.shared_netblock_id = nin_rec.shared_netblock_id;
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = nb_id;
+				DELETE FROM netblock_collection_netblock ncn WHERE
+					ncn.netblock_id = nb_id;
+				DELETE FROM shared_netblock WHERE netblock_id = nb_id;
+				DELETE FROM netblock WHERE netblock_id = nb_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN NULL;
+			END;
+		END LOOP;
+	END IF;
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 GRANT USAGE ON SCHEMA netblock_manip TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_manip TO iud_role;

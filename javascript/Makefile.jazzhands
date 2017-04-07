@@ -18,9 +18,10 @@
 all:
 
 install:
-	rm -rf $(INSTALLROOT)
-	mkdir -p $(INSTALLROOT)/$(PREFIX)
-	tar cf - `find . -name \*.js -o -name \*.css ` external/chosen/* | (cd $(INSTALLROOT)/$(PREFIX) ; tar xpf -)
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/$(PREFIX)
+	tar cf - `find . -name \*.js -o -name \*.css ` external/chosen/* external/jquery-Autocomplete/* | (cd $(DESTDIR)/$(PREFIX) ; tar xpf -)
+	find $(DESTDIR)
 
 clean:
-	[ -z "$(INSTALLROOT)" ] || rm -rf $(INSTALLROOT)
+	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)

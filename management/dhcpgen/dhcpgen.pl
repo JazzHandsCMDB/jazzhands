@@ -92,6 +92,10 @@ my $option_map = {
 		option => 'option domain-name-servers',
 		type => 'ip_address_list'
 	},
+	NTPServers => {
+		option => 'option ntp-servers',
+		type => 'ip_address_list'
+	},
 	MaxLeaseTime => {
 		option => 'max-lease-time',
 		type => 'integer'
@@ -576,12 +580,19 @@ sub generate_dhcp_configs {
 			#
 			if (exists($netrange_props->{$row->{network_range_id}}->
 					{$row->{property_name}})) {
-				$netrange_props->{$row->{network_range_id}}->
-					{$row->{property_name}} = [
-						$netrange_props->{$row->{network_range_id}}->
-							{$row->{property_name}},
-						$row->{property_value}
-					];
+				if (ref($netrange_props->{$row->{network_range_id}}->
+						{$row->{property_name}}) eq 'ARRAY') {
+					push @{$netrange_props->{$row->{network_range_id}}->
+							{$row->{property_name}}},
+						$row->{property_value};
+				} else {
+					$netrange_props->{$row->{network_range_id}}->
+						{$row->{property_name}} = [
+							$netrange_props->{$row->{network_range_id}}->
+								{$row->{property_name}},
+							$row->{property_value}
+						];
+				}
 			} else {
 				$netrange_props->{$row->{network_range_id}}->
 					{$row->{property_name}} = $row->{property_value};
@@ -656,7 +667,7 @@ sub generate_dhcp_configs {
 
 	if (!($sth->execute)) {
 		SetError($err,
-			sprintf("Unable to execute DHCP network_range property query: %s",
+			sprintf("Unable to execute DHCP device property query: %s",
 			$sth->errstr));
 		return undef;
 	}
@@ -675,12 +686,19 @@ sub generate_dhcp_configs {
 			#
 			if (exists($device_props->{$row->{device_id}}->
 					{$row->{property_name}})) {
-				$device_props->{$row->{device_id}}->
-					{$row->{property_name}} = [
-						$device_props->{$row->{device_id}}->
-							{$row->{property_name}},
-						$row->{property_value}
-					];
+				if (ref($device_props->{$row->{device_id}}->
+						{$row->{property_name}}) eq 'ARRAY') {
+					push @{$device_props->{$row->{device_id}}->
+							{$row->{property_name}}},
+						$row->{property_value};
+				} else {
+					$device_props->{$row->{device_id}}->
+						{$row->{property_name}} = [
+							$device_props->{$row->{device_id}}->
+								{$row->{property_name}},
+							$row->{property_value}
+						];
+				}
 			} else {
 				$device_props->{$row->{device_id}}->
 					{$row->{property_name}} = $row->{property_value};

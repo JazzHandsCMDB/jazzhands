@@ -194,7 +194,7 @@ sub build_collection_members($$) {
 				d.device_name
 		FROM	netblock nb
 				INNER JOIN netblock_collection_netblock USING (netblock_id)
-				LEFT JOIN network_interface USING (netblock_id)
+				LEFT JOIN v_network_interface_trans USING (netblock_id)
 				LEFT JOIN device d USING (device_id)
 		WHERE	netblock_collection_id = ?
 		ORDER BY nb.ip_address, nb.is_single_address, d.device_id

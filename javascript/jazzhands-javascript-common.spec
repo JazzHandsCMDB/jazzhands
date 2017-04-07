@@ -21,7 +21,7 @@ Javascript used by all JazzHands systems (many external)
 make -f Makefile.jazzhands
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} PREFIX=%{prefix} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
 make -f Makefile.jazzhands clean

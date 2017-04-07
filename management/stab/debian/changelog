@@ -1,3 +1,30 @@
+jazzhands-stab (0.79.3) trusty; urgency=medium
+
+  * Change function calls for retiring/monitoring/unmonitoring racks
+  * Add device_management_controller information to device display
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 04 Apr 2017 02:30:44 -0500
+
+jazzhands-stab (0.79.0) trusty; urgency=medium
+
+  * add forward reference record setting/changing for CNAME/A/AAAA records
+  * firm up debian port
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 13 Mar 2017 16:09:22 -0500
+
+jazzhands-stab (0.77.1) trusty; urgency=medium
+
+  * overhaul netblock hierarchy to make it collapsable.
+  * overhaul dns record manipulation, links to dns records
+  * implement CNAME/A records to values.
+  * make clear that you can search on dns names for devices
+  * change method to get to assets to be through components from device
+  * temporarily migrations to v_network_interface_trans
+  * rearrange asset bits on device page
+  * remove provides_dhcp and provides_nat from network_interface
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 02 Feb 2017 14:07:00 +0000
+
 jazzhands-stab (0.74.2) trusty; urgency=medium
 
   * fix debian dependencies

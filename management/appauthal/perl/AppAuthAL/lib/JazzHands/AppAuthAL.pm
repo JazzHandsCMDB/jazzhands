@@ -133,10 +133,18 @@ sub parse_json_auth {
 	my $fn = shift;
 	my $section = shift;
 
-	my $fh = new FileHandle($fn) || die "$fn: $!\n";
+	my $fh = new FileHandle($fn);
+	if(!$fh) {
+		$errstr = "$fn: $!";
+		return undef;
+	}
 	my $json = join("", $fh->getlines);
 	$fh->close;
-	my $thing = decode_json($json) || die "Unable to parse config file";
+	my $thing = decode_json($json);
+	if(!$thing) {
+		$errstr = "Unable to parse $fn; likely invalid json";
+		return undef;
+	}
 	if($section and $thing->{$section}) {
 		return $thing->{$section};
 	} else { return $thing } 

@@ -19,7 +19,7 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
-Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.69.0, jazzhands-perl-stab = %{version} , jazzhands-javascript-common  >= 0.64.6
+Requires:      	jazzhands-perl-mgmt, jazzhands-perl-common >= 0.73.2, jazzhands-perl-stab = %{version} , jazzhands-javascript-common  >= 0.79.0
 
 %description
 

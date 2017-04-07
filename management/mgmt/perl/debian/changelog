@@ -1,3 +1,9 @@
+jazzhands-perl-mgmt (0.79.0) trusty; urgency=medium
+
+  * test under debian
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 14 Mar 2017 11:27:00 -0500
+
 jazzhands-perl-mgmt (0.74.2) trusty; urgency=medium
 
   * fix debian dependencies

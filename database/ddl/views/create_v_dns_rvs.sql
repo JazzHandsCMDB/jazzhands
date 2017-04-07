@@ -42,6 +42,7 @@ SELECT 	NULL::integer	as dns_record_id,
 		NULL::integer as dns_srv_weight,
 		NULL::integer as dns_srv_srv_port,
 		combo.is_enabled,
+		'N'::character AS should_generate_ptr,
 		NULL::integer AS dns_value_record_id
 FROM (
 	SELECT  host(nb.ip_address)::inet as ip,
@@ -52,6 +53,7 @@ FROM (
 	    network(nb.ip_address) as ip_base,
 	    nb.ip_universe_id,
 	    dns.is_enabled,
+	    'N'::character AS should_generate_ptr,
 	    nb.netblock_id as netblock_id
 	  FROM  netblock nb
 		inner join dns_record dns
@@ -61,8 +63,7 @@ FROM (
 			dom.dns_domain_id
 		left join dns_record rdns
 			on rdns.dns_record_id = dns.reference_dns_record_id
-	 where
-		dns.should_generate_ptr = 'Y'
+	 where dns.should_generate_ptr = 'Y'
 	   and  dns.dns_class = 'IN'
 	   and ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
 	   and nb.is_single_address = 'Y'
@@ -74,6 +75,7 @@ UNION ALL
 			soa_name, NULL as dns_ttl, network(ip) as ip_base,
 			ip_universe_id,
 			'Y' as is_enabled,
+	    	'N'::character AS should_generate_ptr,
 			NULL as netblock_id
 	from (
        	select  

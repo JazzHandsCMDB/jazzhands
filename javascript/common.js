@@ -44,7 +44,6 @@ function jazzhands_common_init() {
 		inid = inid.replace(/:/g, "_C_");
 		var x = $(this).find("input#"+inid);
 		var ll = $(x).length;
-		var ss = $(x).size();
 		if ( $(x).length ) {
 			return;
 		}
