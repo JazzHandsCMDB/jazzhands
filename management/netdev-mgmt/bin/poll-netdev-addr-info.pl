@@ -41,8 +41,9 @@ my $commit = 1;
 #my $user = $ENV{'USER'};
 my $user;
 my $probe_lldp = 1;
+my $address_errors = 'error';
 my $probe_ip = 1;
-my $purge_int = 0;
+my $purge_int = 1;
 my $password;
 my $bgpstate = 'up';
 my $hostname = [];
@@ -58,6 +59,9 @@ GetOptions(
 	'commit!', \$commit,
 	'hostname=s', $hostname,
 	'verbose+', \$verbose,
+	'ignore-errors', sub {
+		$address_errors = 'warn'
+	},
 	'debug+', \$debug,
 	'probe-lldp!', \$probe_lldp,
 	'probe-ip!', \$probe_ip,
@@ -140,29 +144,38 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 	exit 1;
 }
 
-$q = q {
-	WITH parms AS (
-		SELECT ?::integer AS device_id
-	) SELECT
-		ni.network_interface_id,
-		ni.network_interface_name
-	FROM
-		jazzhands.network_interface ni JOIN
-		jazzhands.network_interface_netblock USING (network_interface_id),
-		parms
-	WHERE
-		ni.device_id = parms.device_id
-	UNION SELECT
-		ni.network_interface_id,
-		ni.network_interface_name
-	FROM
-		jazzhands.network_interface ni JOIN
-		jazzhands.shared_netblock_network_int snni USING (network_interface_id),
-		parms
-	WHERE
-		ni.device_id = parms.device_id
-};
+#$q = q {
+#	WITH parms AS (
+#		SELECT ?::integer AS device_id
+#	) SELECT
+#		ni.network_interface_id,
+#		ni.network_interface_name
+#	FROM
+#		jazzhands.network_interface ni JOIN
+#		jazzhands.network_interface_netblock USING (network_interface_id),
+#		parms
+#	WHERE
+#		ni.device_id = parms.device_id
+#	UNION SELECT
+#		ni.network_interface_id,
+#		ni.network_interface_name
+#	FROM
+#		jazzhands.network_interface ni JOIN
+#		jazzhands.shared_netblock_network_int snni USING (network_interface_id),
+#		parms
+#	WHERE
+#		ni.device_id = parms.device_id
+#};
 
+$q = q {
+	SELECT
+		ni.network_interface_id,
+		ni.network_interface_name
+	FROM
+		jazzhands.network_interface ni
+	WHERE
+		ni.device_id = ?
+};
 my $ni_list_sth;
 
 if (!($ni_list_sth = $dbh->prepare_cached($q))) {
@@ -188,7 +201,8 @@ $q = q {
 		device_id := ?,
 		network_interface_name := ?,
 		ip_address_hash := ?,
-		create_layer3_networks := true
+		create_layer3_networks := true,
+		address_errors := ?
 	)
 };
 
@@ -199,6 +213,7 @@ if (!($set_interface_sth = $dbh->prepare_cached($q))) {
 	exit 1;
 }
 
+HOSTLOOP:
 foreach my $host (@$hostname) {
 	my @errors;
 	my $device;
@@ -266,10 +281,15 @@ foreach my $host (@$hostname) {
 		}
 
 		my $dev_int = {};
+		my $unnamed_int = [];
 		my $rec;
 		while ($rec = $ni_list_sth->fetchrow_hashref) {
-			$dev_int->{$rec->{network_interface_name}} =
-				$rec->{network_interface_id};
+			if (defined($rec->{network_interface_name})) {
+				$dev_int->{$rec->{network_interface_name}} =
+					$rec->{network_interface_id};
+			} else {
+				push @$unnamed_int, $rec->{network_interface_id};
+			}
 		}
 
 		if (!($info = $device->GetIPAddressInformation(
@@ -342,29 +362,55 @@ foreach my $host (@$hostname) {
 							: ()
 						]
 				});
-
-			if (!$set_interface_sth->execute(
-				$db_dev->{device_id},
-				$iname,
-				$json
-			)) {
-				printf STDERR "Error setting device interface information for interface %s: %s\n",
+			{
+				my @warn;
+				local $SIG{__WARN__} = sub {
+					my $x = $_[0];
+					chomp($x);
+					push(@warn, $x);
+				};
+				if (!$set_interface_sth->execute(
+					$db_dev->{device_id},
 					$iname,
-					$set_interface_sth->errstr;
-				exit 1;
+					$json,
+					$address_errors
+				)) {
+					printf STDERR "Error setting device interface information for interface %s: %s\n",
+						$iname,
+						$set_interface_sth->errstr;
+					$dbh->rollback;
+					next HOSTLOOP;
+				} elsif ($verbose && @warn ) {
+					printf "        %s\n", 
+						(join "        ", @warn);
+				}
 			}
 		}
-		if (%$dev_int) {
+		if (%$dev_int || @$unnamed_int) {
 			if ($verbose) {
 				printf "    Removing network interfaces: %s\n",
 					(join ", ", keys %$dev_int);
 			}
-			if (!$ni_del_sth->execute( [ values %$dev_int ] )) {
+			if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
 				printf STDERR "Error deleting network_interfaces from database: %s\n",
 					$ni_del_sth->errstr;
 				exit 1;
 			}
 		}
+	}
+
+	if ($probe_lldp) {
+		if (!($info = $device->GetLLDPInformation(
+			debug			=> $debug,
+			errors 			=> \@errors
+		))) {
+			printf STDERR "Error getting LLDP information on switch %s: %s\n",
+				$host,
+				@errors;
+			next;
+		}
+
+		print Dumper($info);
 	}
 
 	#
