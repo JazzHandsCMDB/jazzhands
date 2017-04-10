@@ -69,7 +69,6 @@ BEGIN
 			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
 			dns_domain_collection_id IS NOT DISTINCT FROM
 				NEW.dns_domain_collection_id AND
-			dns_domain_id IS NOT DISTINCT FROM NEW.dns_domain_id AND
 			layer2_network_collection_id IS NOT DISTINCT FROM
 				NEW.layer2_network_collection_id AND
 			layer3_network_collection_id IS NOT DISTINCT FROM
@@ -108,7 +107,6 @@ BEGIN
 			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
 			dns_domain_collection_id IS NOT DISTINCT FROM
 				NEW.dns_domain_collection_id AND
-			dns_domain_id IS NOT DISTINCT FROM NEW.dns_domain_id AND
 			layer2_network_collection_id IS NOT DISTINCT FROM
 				NEW.layer2_network_collection_id AND
 			layer3_network_collection_id IS NOT DISTINCT FROM
@@ -173,7 +171,6 @@ BEGIN
 			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
 			dns_domain_collection_id IS NOT DISTINCT FROM
 				NEW.dns_domain_collection_id AND
-			dns_domain_id IS NOT DISTINCT FROM NEW.dns_domain_id AND
 			layer2_network_collection_id IS NOT DISTINCT FROM
 				NEW.layer2_network_collection_id AND
 			layer3_network_collection_id IS NOT DISTINCT FROM
@@ -658,18 +655,6 @@ BEGIN
 	ELSIF v_prop.Permit_Device_Collection_Id = 'PROHIBITED' THEN
 			IF NEW.Device_Collection_Id IS NOT NULL THEN
 				RAISE 'Device_Collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_DNS_Domain_Id = 'REQUIRED' THEN
-			IF NEW.DNS_Domain_Id IS NULL THEN
-				RAISE 'DNS_Domain_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_DNS_Domain_Id = 'PROHIBITED' THEN
-			IF NEW.DNS_Domain_Id IS NOT NULL THEN
-				RAISE 'DNS_Domain_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;

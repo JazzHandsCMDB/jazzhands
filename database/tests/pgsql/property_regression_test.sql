@@ -47,7 +47,6 @@ DECLARE
 	v_property_id			Property.property_id%TYPE;
 	v_company_id			Property.company_id%TYPE;
 	v_device_collection_id	Property.device_collection_id%TYPE;
-	v_dns_domain_id			Property.dns_domain_id%TYPE;
 	v_operating_system_id	Property.operating_system_id%TYPE;
 	v_svc_env_id			Property.service_env_collection_id%TYPE;
 	v_prop_coll_id			Property.property_collection_id%TYPE;
@@ -103,7 +102,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		Permit_service_env_collection,
 		Permit_property_collection_id,
@@ -123,7 +121,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -135,7 +132,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		Permit_service_env_collection,
 		Permit_property_collection_id,
@@ -157,7 +153,6 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
-		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -169,7 +164,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -191,7 +185,6 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
-		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -203,7 +196,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -225,7 +217,6 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
-		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -237,7 +228,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -259,7 +249,6 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
-		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -271,7 +260,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -293,7 +281,6 @@ BEGIN
 		'ALLOWED',
 		'ALLOWED',
 		'ALLOWED',
-		'ALLOWED',
 		'ALLOWED'
 	);
 
@@ -305,7 +292,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -327,7 +313,6 @@ BEGIN
 		'REQUIRED',
 		'REQUIRED',
 		'REQUIRED',
-		'REQUIRED',
 		'REQUIRED'
 	);
 
@@ -339,7 +324,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -361,7 +345,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -374,7 +357,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -396,7 +378,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -409,7 +390,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -431,7 +411,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -445,7 +424,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -467,7 +445,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -479,7 +456,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -501,7 +477,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -513,7 +488,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -535,7 +509,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -548,7 +521,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -570,7 +542,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -583,7 +554,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -605,7 +575,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -618,7 +587,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -640,7 +608,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -653,7 +620,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -675,7 +641,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -688,7 +653,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -710,7 +674,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -723,7 +686,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -745,7 +707,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -758,7 +719,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -780,7 +740,6 @@ BEGIN
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
-		'PROHIBITED',
 		'PROHIBITED'
 	);
 
@@ -793,7 +752,6 @@ BEGIN
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Device_Collection_Id,
-		Permit_DNS_Domain_Id,
 		Permit_Operating_System_Id,
 		permit_service_env_collection,
 		permit_property_collection_id,
@@ -807,7 +765,6 @@ BEGIN
 		'N',
 		NULL,
 		'list',
-		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -843,8 +800,6 @@ BEGIN
 		LIMIT 1;
 	SELECT Device_Collection_ID INTO v_device_collection_id FROM 
 		Device_Collection LIMIT 1;
-	SELECT DNS_Domain_ID INTO v_dns_domain_id FROM DNS_Domain 
-		LIMIT 1;
 	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System 
 		LIMIT 1;
 	SELECT service_env_collection_id INTO v_svc_env_id FROM service_environment_collection
@@ -873,7 +828,6 @@ BEGIN
 
 	RAISE NOTICE 'v_company_id is %', v_company_id;
 	RAISE NOTICE 'v_device_collection_id is %', v_device_collection_id;
-	RAISE NOTICE 'v_dns_domain_id is %', v_dns_domain_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
 	RAISE NOTICE 'v_svc_env_id is %', v_svc_env_id;
 	RAISE NOTICE 'v_prop_coll_id is %', v_prop_coll_id;
@@ -1041,7 +995,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1053,7 +1006,6 @@ BEGIN
 			'Allowed', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1075,7 +1027,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1087,7 +1038,6 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1109,7 +1059,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1120,7 +1069,6 @@ BEGIN
 			'Required', 'test', 'test',
 			NULL,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1141,7 +1089,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1151,39 +1098,6 @@ BEGIN
 			) VALUES (
 			'Required', 'test', 'test',
 			v_company_id,
-			NULL,
-			v_dns_domain_id,
-			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
-			v_site_code,
-			v_account_id,
-			v_account_collection_id
-			);
-		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Omitting DNS_Domain_ID from property with REQUIRED DNS_Domain_ID lhs field';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value,
-			Company_ID,
-			Device_Collection_ID,
-			DNS_Domain_ID,
-			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
-			Site_Code,
-			account_id,
-			Account_Collection_id
-			) VALUES (
-			'Required', 'test', 'test',
-			v_company_id,
-			v_device_collection_id,
 			NULL,
 			v_operating_system_id,
 			v_svc_env_id,
@@ -1205,7 +1119,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1216,7 +1129,6 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			NULL,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1237,7 +1149,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1247,7 +1158,6 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			NULL,
 			v_site_code,
@@ -1267,7 +1177,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1278,7 +1187,6 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1299,7 +1207,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1310,7 +1217,6 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1331,7 +1237,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1342,7 +1247,6 @@ BEGIN
 			'Required', 'test', 'test',
 			v_company_id,
 			v_device_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1364,7 +1268,6 @@ BEGIN
 			Company_ID,
 			Device_Collection_ID,
 			Account_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1376,7 +1279,6 @@ BEGIN
 			v_company_id,
 			v_device_collection_id,
 			v_account_collection_id,
-			v_dns_domain_id,
 			v_operating_system_id,
 			v_svc_env_id,
 			v_prop_coll_id,
@@ -1397,7 +1299,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1405,7 +1306,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1427,7 +1327,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1436,7 +1335,6 @@ BEGIN
 			) VALUES (
 			'Prohibited', 'test', 'test',
 			v_company_id,
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1457,7 +1355,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1467,37 +1364,6 @@ BEGIN
 			'Prohibited', 'test', 'test',
 			NULL,
 			v_device_collection_id,
-			NULL,
-			NULL,
-			NULL,
-			NULL,
-			NULL,
-			NULL
-			);
-		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Adding DNS_Domain_ID to property with PROHIBITED DNS_Domain_ID lhs field';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value,
-			Company_ID,
-			Device_Collection_ID,
-			DNS_Domain_ID,
-			Operating_System_ID,
-			service_env_collection_id,
-			Site_Code,
-			account_id,
-			Account_Collection_id
-			) VALUES (
-			'Prohibited', 'test', 'test',
-			NULL,
-			NULL,
-			v_dns_domain_id,
 			NULL,
 			NULL,
 			NULL,
@@ -1517,7 +1383,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1525,7 +1390,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			v_operating_system_id,
@@ -1547,7 +1411,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1556,7 +1419,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1579,7 +1441,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1588,7 +1449,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1611,7 +1471,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			property_collection_id,
@@ -1620,7 +1479,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1643,7 +1501,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1651,7 +1508,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1673,7 +1529,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1681,7 +1536,6 @@ BEGIN
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,
@@ -1703,7 +1557,6 @@ BEGIN
 			Property_Value,
 			Company_ID,
 			Device_Collection_ID,
-			DNS_Domain_ID,
 			Operating_System_ID,
 			service_env_collection_id,
 			Site_Code,
@@ -1711,7 +1564,6 @@ BEGIN
 			account_realm_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			NULL,
 			NULL,
 			NULL,
 			NULL,

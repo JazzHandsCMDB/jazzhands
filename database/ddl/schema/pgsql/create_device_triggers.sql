@@ -112,59 +112,6 @@ AFTER INSERT OR UPDATE
 ON device
 FOR EACH ROW EXECUTE PROCEDURE update_per_device_device_collection();
 
---- Other triggers on device
--- The whole VOE thing is not well supported.
-
-CREATE OR REPLACE FUNCTION verify_device_voe()
-RETURNS TRIGGER AS $$
-DECLARE
-	voe_sw_pkg_repos		sw_package_repository.sw_package_repository_id%TYPE;
-	os_sw_pkg_repos		operating_system.sw_package_repository_id%TYPE;
-	voe_sym_trx_sw_pkg_repo_id	voe_symbolic_track.sw_package_repository_id%TYPE;
-BEGIN
-
-	IF (NEW.operating_system_id IS NOT NULL)
-	THEN
-		SELECT sw_package_repository_id INTO os_sw_pkg_repos
-			FROM
-				operating_system
-			WHERE
-				operating_system_id = NEW.operating_system_id;
-	END IF;
-
-	IF (NEW.voe_id IS NOT NULL) THEN
-		SELECT sw_package_repository_id INTO voe_sw_pkg_repos
-			FROM
-				voe
-			WHERE
-				voe_id=NEW.voe_id;
-		IF (voe_sw_pkg_repos != os_sw_pkg_repos) THEN
-			RAISE EXCEPTION
-				'Device OS and VOE have different SW Pkg Repositories';
-		END IF;
-	END IF;
-
-	IF (NEW.voe_symbolic_track_id IS NOT NULL) THEN
-		SELECT sw_package_repository_id INTO voe_sym_trx_sw_pkg_repo_id
-			FROM
-				voe_symbolic_track
-			WHERE
-				voe_symbolic_track_id=NEW.voe_symbolic_track_id;
-		IF (voe_sym_trx_sw_pkg_repo_id != os_sw_pkg_repos) THEN
-			RAISE EXCEPTION
-				'Device OS and VOE track have different SW Pkg Repositories';
-		END IF;
-	END IF;
-	RETURN NEW;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_verify_device_voe ON device;
-CREATE TRIGGER trigger_verify_device_voe BEFORE INSERT OR UPDATE
-ON device FOR EACH ROW EXECUTE PROCEDURE verify_device_voe();
-
 /*
  * XXX - I THINK THIS NEEDS TO BE REDONE IN SOME WAY.
 -- A before trigger will exist such that if you update device_type_id,
