@@ -88,6 +88,7 @@ begin;
 \ir tests/pgsql/company_coll_hier_regression.sql
 \ir tests/pgsql/device_coll_hier_regression.sql
 \ir tests/pgsql/dns_domain_coll_hier_regression.sql
+\ir tests/pgsql/dns_domain_name_tests-RETIRE.sql
 \ir tests/pgsql/layer2_network_coll_hier_regression.sql
 \ir tests/pgsql/layer3_network_coll_hier_regression.sql
 \ir tests/pgsql/netblock_coll_hier_regression.sql

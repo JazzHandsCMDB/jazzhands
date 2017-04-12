@@ -64,6 +64,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_device_type_triggers.sql
 \ir ddl/schema/pgsql/create_dns_domain_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_dns_triggers.sql
+\ir ddl/schema/pgsql/create_dns_triggers-RETIRE.sql
 \ir ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
