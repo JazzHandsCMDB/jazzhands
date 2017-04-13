@@ -33,7 +33,7 @@ CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_network (
 	layer2_network_id	jazzhands.layer2_network.layer2_network_id%TYPE
 ) RETURNS VOID AS $$
 BEGIN
-	PERFORM * FROM delete_layer2_network(
+	PERFORM * FROM delete_layer2_networks(
 		layer2_network_id_list := ARRAY[ layer2_network_id ]
 	);
 END $$ LANGUAGE plpgsql;
