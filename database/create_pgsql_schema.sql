@@ -50,6 +50,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 \ir ddl/schema/pgsql/create_account_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_account_triggers.sql
+\ir ddl/schema/pgsql/create_account_hook_triggers.sql
 \ir ddl/schema/pgsql/create_acct_coll_report_triggers.sql
 \ir ddl/schema/pgsql/create_approval_triggers.sql
 \ir ddl/schema/pgsql/create_auto_account_coll_triggers.sql
