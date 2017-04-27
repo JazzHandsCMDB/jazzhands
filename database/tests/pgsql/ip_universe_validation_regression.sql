@@ -56,9 +56,9 @@ BEGIN
 		604800, 300, 'ns.example.com', 'hostmaster.example.com'
 	);
 
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('jhtest0')
+	INSERT INTO ip_universe (ip_universe_name, ip_namespace) VALUES ('jhtest0', 'default')
 		RETURNING ip_universe_id INTO _u0;
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('jhtest1')
+	INSERT INTO ip_universe (ip_universe_name, ip_namespace) VALUES ('jhtest1', 'default')
 		RETURNING ip_universe_id INTO _u1;
 
 	INSERT INTO NETBLOCK (ip_address, netblock_type,

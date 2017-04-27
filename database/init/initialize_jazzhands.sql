@@ -313,15 +313,21 @@ insert into val_netblock_status (NETBLOCK_STATUS) values ('Legacy');
 insert into val_netblock_status (NETBLOCK_STATUS) values ('ExternalOwned');
 insert into val_netblock_status (NETBLOCK_STATUS) values ('Reserved');
 
-INSERT INTO ip_universe (
-	ip_universe_id, ip_universe_name, description
+INSERT INTO val_ip_namespace (
+	ip_namespace, description
 ) VALUES 
-	( 0, 'default', 'default IP universe'    );
+	( 'default', 'default namespace'    );
 
 INSERT INTO ip_universe (
-	ip_universe_name, description
+	ip_universe_id, ip_universe_name, ip_namespace, description
 ) VALUES 
-	('private', 'RFC 1918 Space'    );
+	( 0, 'default', 'default', 'default IP universe'    );
+
+-- some sites may not want this to be unique, but this is the default.
+INSERT INTO ip_universe (
+	ip_universe_name, ip_namespace, description
+) VALUES 
+	('private', 'default', 'RFC 1918 Space'    );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy

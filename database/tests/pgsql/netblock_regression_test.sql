@@ -71,10 +71,12 @@ BEGIN
 -- Set up a couple of test universes
 --
 	RAISE NOTICE 'Creating test universes...';
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse')
+	INSERT INTO ip_universe (ip_universe_name,ip_namespace) 
+	VALUES ('JHTEST-testuniverse', 'default')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[0] = v_ip_universe_id;
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse2')
+	INSERT INTO ip_universe (ip_universe_name, ip_namespace) 
+	VALUES ('JHTEST-testuniverse2', 'default')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[1] = v_ip_universe_id;
 
