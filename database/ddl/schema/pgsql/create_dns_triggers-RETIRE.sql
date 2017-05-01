@@ -71,3 +71,24 @@ CREATE TRIGGER trigger_dns_domain_soa_name_retire
 	EXECUTE PROCEDURE dns_domain_soa_name_retire();
 
 ---------------------------------------------------------------------------
+--
+-- This goes away once vearious tools become up universe aware and this view
+-- can go away
+--
+CREATE OR REPLACE FUNCTION dns_domain_nouniverse_del()
+RETURNS TRIGGER AS $$
+BEGIN;
+	RAISE EXCEPTION 'Need to write this trigger.';
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_nouniverse_del
+	ON v_dns_domain_nouniverse;
+CREATE TRIGGER trigger_dns_domain_nouniverse_del
+	INSTEAD OF DELETE
+	ON v_dns_domain_nouniverse
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_domain_soa_name_retire();
