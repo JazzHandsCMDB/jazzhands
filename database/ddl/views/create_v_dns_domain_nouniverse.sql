@@ -18,9 +18,32 @@
 -- $Id$
 --
 
--- when columns are dropped from network_interface this will replicate the
--- legacy behavior until other things can be cleaned up.
+--
+-- show only ip universe zero.  Note that domains not in universe zero will
+-- not show up here at all.
+--
 CREATE OR REPLACE VIEW v_dns_domain_nouniverse AS
-	SELECT * FROM dns_domain
+SELECT
+	d.dns_domain_id,
+	d.soa_name,
+	du.soa_class,
+	du.soa_ttl,
+	du.soa_serial,
+	du.soa_refresh,
+	du.soa_retry,
+	du.soa_expire,
+	du.soa_minimum,
+	du.soa_mname,
+	du.soa_rname,
+	d.parent_dns_domain_id,
+	du.should_generate,
+	du.last_generated,
+	d.dns_domain_type,
+	coalesce(d.data_ins_user, du.data_ins_user) as data_ins_user,
+	coalesce(d.data_ins_date, du.data_ins_date) as data_ins_date,
+	coalesce(du.data_upd_user, d.data_upd_user) as data_upd_user,
+	coalesce(du.data_upd_date, d.data_upd_date) as data_upd_date
+FROM dns_domain d
+	JOIN dns_domain_ip_universe du USING (dns_domain_id)
+WHERE ip_universe_id = 0
 ;
-
