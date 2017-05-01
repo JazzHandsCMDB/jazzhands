@@ -261,7 +261,7 @@ sub do_domain_add {
 	if (
 		!(
 			$numchanges = $stab->DBInsert(
-				table  => 'dns_domain',
+				table  => 'v_dns_domain_nouniverse',
 				hash   => $new,
 				errors => \@errs
 			)

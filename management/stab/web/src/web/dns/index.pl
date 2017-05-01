@@ -157,7 +157,7 @@ n";
 			soa_rname,
 			should_generate,
 			last_generated
-		  from	dns_domain
+		  from	v_dns_domain_nouniverse
 		order by soa_name
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err;
@@ -556,7 +556,7 @@ sub dump_zone {
 			parent_dns_domain_id,
 			parent_soa_name,
 			last_generated
-		  from	dns_domain d1
+		  from	v_dns_domain_nouniverse d1
 				left join (select dns_domain_id as parent_dns_domain_id,
 						soa_name as parent_soa_name from dns_domain) d2 USING 
 					(parent_dns_domain_id)

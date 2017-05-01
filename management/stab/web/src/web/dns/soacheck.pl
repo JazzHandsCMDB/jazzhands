@@ -87,7 +87,7 @@ sub dump_soacheck_all {
 			dom.soa_rname,
 			dom.should_generate,
 			dom.last_generated
-		  from	dns_domain dom
+		  from	v_dns_domain_nouniverse dom
 			left join dns_record dns
 				on dns.dns_domain_id = dom.dns_domain_id
 				and dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
