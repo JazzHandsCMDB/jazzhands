@@ -25,7 +25,7 @@
 CREATE OR REPLACE VIEW v_dns_domain_nouniverse AS
 SELECT
 	d.dns_domain_id,
-	d.soa_name,
+	d.dns_domain_name AS soa_name,
 	du.soa_class,
 	du.soa_ttl,
 	du.soa_serial,
