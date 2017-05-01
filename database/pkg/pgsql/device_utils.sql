@@ -724,21 +724,19 @@ BEGIN
 	-- and remove them.  We probably don't need to save this list, but just
 	-- in case, we do
 	--
-	component_id_list := ARRAY(
-		WITH x AS (
-			UPDATE
-				component AS c
-			SET
-				rack_location_id = NULL
-			FROM
-				rack_location rl
-			WHERE
-				rl.rack_location_id = c.rack_location_id AND
-				rl.rack_id = ANY(rack_id_list)
-			RETURNING
-				c.component_id AS component_id
-		) SELECT component_id FROM x
-	);
+	WITH x AS (
+		UPDATE
+			component AS c
+		SET
+			rack_location_id = NULL
+		FROM
+			rack_location rl
+		WHERE
+			rl.rack_location_id = c.rack_location_id AND
+			rl.rack_id = ANY(rack_id_list)
+		RETURNING
+			c.component_id AS component_id
+	) SELECT ARRAY(SELECT component_id FROM x) INTO component_id_list;
 
 	--
 	-- Get a list of all of the encapsulation_domains that are
