@@ -265,9 +265,9 @@ sub process_dns_update {
 	my $in_priority   = $stab->cgi_parse_param( "DNS_PRIORITY",     $updateid );
 
 	#
-	# make ttl undset if its unset in the incoming form
+	# make ttl unset if its unset in the incoming form
 	#
-	if ( $ttl && !legnth($ttl) ) {
+	if ( $ttl && !length($ttl) ) {
 		$ttl = undef;
 	}
 

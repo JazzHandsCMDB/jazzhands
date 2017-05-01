@@ -70,7 +70,7 @@ sub toggle_domain_autogen {
 
 	my $sth = $stab->prepare_cached(
 		qq{
-		update dns_domain
+		update v_dns_domain_nouniverse
 		   set	should_generate = :direction
 		 where	dns_domain_id = :dom
 	}
@@ -115,7 +115,7 @@ sub process_domain_soa_changes {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
 	} elsif (
 		!$stab->DBUpdate(
-			table  => "DNS_DOMAIN",
+			table  => "v_dns_domain_nouniverse",
 			dbkey  => "DNS_DOMAIN_ID",
 			keyval => $domid,
 			hash   => $diffs

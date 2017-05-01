@@ -199,7 +199,7 @@ sub check_soa {
 	my $sth = $stab->prepare(
 		qq{
 		select	*
-		 from	dns_domain
+		 from	v_dns_domain_nouniverse
 		where	soa_name = ?
 	}
 	) || $stab->return_db_err;
