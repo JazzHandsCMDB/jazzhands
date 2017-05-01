@@ -1,3 +1,9 @@
+jazzhands-stab (0.79.5.1) trusty; urgency=medium
+
+  * Fix typo in dns_update.pl causing TTL updates to error out
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 01 May 2017 15:59:39 -0500
+
 jazzhands-stab (0.79.3) trusty; urgency=medium
 
   * Change function calls for retiring/monitoring/unmonitoring racks
