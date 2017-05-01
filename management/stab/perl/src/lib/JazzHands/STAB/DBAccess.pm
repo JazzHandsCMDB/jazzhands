@@ -535,7 +535,7 @@ sub get_dns_domain_from_id {
 			soa_rname,
 			parent_dns_domain_id,
 			should_generate
-		 from   dns_domain
+		 from   v_dns_domain_nouniverse
 		where   dns_domain_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
@@ -562,7 +562,7 @@ sub get_dns_domain_from_name {
 			soa_rname,
 			parent_dns_domain_id,
 			should_generate
-		 from   dns_domain
+		 from   v_dns_domain_nouniverse
 		where   soa_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
