@@ -23,6 +23,8 @@ Invoked:
 	--pre
 	pre
 	--suffix=v79
+	--first=mv_unix_group_mappings
+	--first=mv_unix_passwd_mappings
 	--first=v_property
 	--first=ip_universe
 */
@@ -2618,6 +2620,16 @@ END $function$
 -- Creating new sequences....
 
 
+--------------------------------------------------------------------
+-- DEALING WITH TABLE mv_unix_group_mappings
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'mv_unix_group_mappings');
+-- DONE DEALING WITH OLD TABLE mv_unix_group_mappings [19328550]
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE mv_unix_passwd_mappings
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'mv_unix_passwd_mappings');
+-- DONE DEALING WITH OLD TABLE mv_unix_passwd_mappings [19328543]
+--------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE v_property
 -- Save grants for later reapplication
@@ -6008,7 +6020,7 @@ ALTER TABLE device
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE device ADD CONSTRAINT ak_device_chassis_location_id UNIQUE (chassis_location_id);
--- ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
+ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
 ALTER TABLE device ADD CONSTRAINT pk_device PRIMARY KEY (device_id);
 
 -- Table/Column Comments
@@ -17405,7 +17417,10 @@ CREATE TRIGGER trigger_dns_domain_nouniverse_upd
 
 COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
 
--- should be found and recreated, I'm doing by hand.
+
+DROP MATERIALIZED VIEW IF EXISTS mv_unix_passwd_mappings;
+DROP MATERIALIZED VIEW IF EXISTS mv_unix_group_mappings;
+
 CREATE UNIQUE INDEX mv_dev_col_root_leaf_id_idx ON mv_dev_col_root USING btree (leaf_id);
 CREATE INDEX mv_dev_col_root_leaf_type_idx ON mv_dev_col_root USING btree (leaf_type);
 CREATE INDEX mv_dev_col_root_root_id_idx ON mv_dev_col_root USING btree (root_id);
