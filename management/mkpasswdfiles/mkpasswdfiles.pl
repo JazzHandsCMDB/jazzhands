@@ -21,7 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Copyright (c) 2013-2016, Todd Kover
+# Copyright (c) 2013-2017, Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,42 +142,6 @@ my ($support_email);
 
 main();
 exit(0);
-
-###############################################################################
-#
-# Usage: prep_and_get_txid();
-#
-# connects to mkpwdfiles-master, and figures out the opque transaction id
-# to block on before generating things.  If something goes wrong, this
-# just silently fails.
-#
-sub prep_and_get_txid() {
-	$dbh =
-	  JazzHands::DBI->connect( 'mkpwdfiles-master',
-		{ RaiseError => 0, AutoCommit => 0 } );
-
-	if(!$dbh) {
-		warn "Unable to connect ot master db..", $JazzHands::DBI::errstr if ($o_verbose);
-		return undef;
-	}
-
-	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
-	my $sth = $dbh->prepare_cached("SELECT backend_utils.get_opaque_txid()") || die $dbh->errstr;
-	$sth->execute() || die $sth->errstr;
-	my ($id) = $sth->fetchrow_array();
-	$sth->finish;
-
-	$dbh->do(q{
-		SELECT backend_utils.refresh_if_needed( 'mv_unix_passwd_mappings'), 
-			backend_utils.refresh_if_needed('mv_unix_group_mappings')
-	}) || die $dbh->errstr;
-
-	$dbh->commit();
-	$dbh->disconnect();
-
-	$id;
-
-}
 
 ###############################################################################
 #
@@ -426,7 +390,7 @@ sub generate_passwd_files($$) {
 
 		$q = qq{
 			SELECT	device_collection_name, map.*
-			FROM	mv_unix_passwd_mappings map
+			FROM	v_unix_passwd_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 			WHERE	device_collection_type = 'mclass'
 					$and
@@ -447,7 +411,7 @@ sub generate_passwd_files($$) {
 
 		$q = qq{
 			SELECT	d.device_name, map.*
-			FROM	mv_unix_passwd_mappings map
+			FROM	v_unix_passwd_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 					INNER JOIN device_collection_device
 							USING (device_collection_id)
@@ -549,7 +513,7 @@ sub generate_group_files($$) {
 
 		$q = qq{
 			SELECT	device_collection_name, map.*
-			FROM	mv_unix_group_mappings map
+			FROM	v_unix_group_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 			WHERE	device_collection_type = 'mclass'
 					$and
@@ -570,7 +534,7 @@ sub generate_group_files($$) {
 
 		$q = qq{
 			SELECT  d.device_name, map.*
-			FROM	mv_unix_group_mappings map
+			FROM	v_unix_group_mappings map
 					INNER JOIN device_collection USING (device_collection_id)
 					INNER JOIN device_collection_device
 							USING (device_collection_id)
@@ -1791,10 +1755,7 @@ sub main {
 		sleep($delay);
 	}
 
-	warn "Connecting to master DB to setup..." if ($o_verbose);
-	my $id = prep_and_get_txid();
-
-	warn "Connecting to default DB..." if ($o_verbose);
+	warn "Connecting to DB..." if ($o_verbose);
 	$dbh =
 	  JazzHands::DBI->connect( 'mkpwdfiles',
 		{ RaiseError => 1, AutoCommit => 0 } );
@@ -1805,14 +1766,8 @@ sub main {
 
 	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
 
-	if($id) {
-		warn "Waiting for $id..." if ($o_verbose);
-		$dbh->do(q{SELECT backend_utils.block_for_opaque_txid(?)}, undef, ($id));
-		warn "Woke from id#$id..." if ($o_verbose);
-	};
-
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
-  
+
 	# umask(027);
 	umask(022);
 
