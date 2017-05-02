@@ -47,8 +47,21 @@ DROP VIEW IF EXISTS v_dns_changes_pending;
 
 
 -- END Misc that does not apply to above
-CREATE SCHEMA layerx_network_manip AUTHORIZATION jazzhands;
---
+DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	select count(*)
+	from pg_catalog.pg_namespace
+	into _tal
+	where nspname = 'layerx_network_manip';
+	IF _tal = 0 THEN
+		DROP SCHEMA IF EXISTS layerx_network_manip;
+		CREATE SCHEMA layerx_network_manip AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
+	END IF;
+END;
+			$$;--
 -- Process middle (non-trigger) schema jazzhands
 --
 --
@@ -5995,7 +6008,7 @@ ALTER TABLE device
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE device ADD CONSTRAINT ak_device_chassis_location_id UNIQUE (chassis_location_id);
-ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
+-- ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
 ALTER TABLE device ADD CONSTRAINT pk_device PRIMARY KEY (device_id);
 
 -- Table/Column Comments
