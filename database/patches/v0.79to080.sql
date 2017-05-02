@@ -17,11 +17,14 @@
 /*
 Invoked:
 
+	--col-default=ip_namespace:'default'
 	--post
 	post
 	--pre
 	pre
 	--suffix=v79
+	--first=v_property
+	--first=ip_universe
 */
 
 \set ON_ERROR_STOP
@@ -2603,6 +2606,245 @@ END $function$
 
 
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_property
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_property', 'v_property');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_property');
+DROP VIEW IF EXISTS jazzhands.v_property;
+CREATE VIEW jazzhands.v_property AS
+ SELECT property.property_id,
+    property.account_collection_id,
+    property.account_id,
+    property.account_realm_id,
+    property.company_collection_id,
+    property.company_id,
+    property.device_collection_id,
+    property.dns_domain_collection_id,
+    property.layer2_network_collection_id,
+    property.layer3_network_collection_id,
+    property.netblock_collection_id,
+    property.network_range_id,
+    property.operating_system_id,
+    property.operating_system_snapshot_id,
+    property.person_id,
+    property.property_collection_id,
+    property.service_env_collection_id,
+    property.site_code,
+    property.x509_signed_certificate_id,
+    property.property_name,
+    property.property_type,
+    property.property_value,
+    property.property_value_timestamp,
+    property.property_value_company_id,
+    property.property_value_account_coll_id,
+    property.property_value_device_coll_id,
+    property.property_value_nblk_coll_id,
+    property.property_value_password_type,
+    property.property_value_person_id,
+    property.property_value_sw_package_id,
+    property.property_value_token_col_id,
+    property.property_rank,
+    property.start_date,
+    property.finish_date,
+    property.is_enabled,
+    property.data_ins_user,
+    property.data_ins_date,
+    property.data_upd_user,
+    property.data_upd_date
+   FROM property
+  WHERE property.is_enabled = 'Y'::bpchar AND (property.start_date IS NULL AND property.finish_date IS NULL OR property.start_date IS NULL AND now() <= property.finish_date OR property.start_date <= now() AND property.finish_date IS NULL OR property.start_date <= now() AND now() <= property.finish_date);
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_property';
+SELECT schema_support.replay_object_recreates();
+-- DONE DEALING WITH TABLE v_property
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE ip_universe
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'ip_universe', 'ip_universe');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS fk_dns_rec_ip_universe;
+ALTER TABLE netblock DROP CONSTRAINT IF EXISTS fk_nblk_ip_universe_id;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'ip_universe');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.ip_universe DROP CONSTRAINT IF EXISTS ak_ip_universe_name;
+ALTER TABLE jazzhands.ip_universe DROP CONSTRAINT IF EXISTS pk_ip_universe;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_ip_universe ON jazzhands.ip_universe;
+DROP TRIGGER IF EXISTS trigger_audit_ip_universe ON jazzhands.ip_universe;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'ip_universe');
+---- BEGIN audit.ip_universe TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'ip_universe', 'ip_universe');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'ip_universe');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.ip_universe DROP CONSTRAINT IF EXISTS ip_universe_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_ip_universe_ak_ip_universe_name";
+DROP INDEX IF EXISTS "audit"."aud_ip_universe_pk_ip_universe";
+DROP INDEX IF EXISTS "audit"."ip_universe_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.ip_universe TEARDOWN
+
+
+ALTER TABLE ip_universe RENAME TO ip_universe_v79;
+ALTER TABLE audit.ip_universe RENAME TO ip_universe_v79;
+
+CREATE TABLE ip_universe
+(
+	ip_universe_id	integer NOT NULL,
+	ip_universe_name	varchar(50) NOT NULL,
+	ip_namespace	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'ip_universe', false);
+ALTER TABLE ip_universe
+	ALTER ip_universe_id
+	SET DEFAULT nextval('ip_universe_ip_universe_id_seq'::regclass);
+INSERT INTO ip_universe (
+	ip_universe_id,
+	ip_universe_name,
+	ip_namespace,		-- new column (ip_namespace)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	ip_universe_id,
+	ip_universe_name,
+	'default',		-- new column (ip_namespace)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM ip_universe_v79;
+
+INSERT INTO audit.ip_universe (
+	ip_universe_id,
+	ip_universe_name,
+	ip_namespace,		-- new column (ip_namespace)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	ip_universe_id,
+	ip_universe_name,
+	'default',		-- new column (ip_namespace)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.ip_universe_v79;
+
+ALTER TABLE ip_universe
+	ALTER ip_universe_id
+	SET DEFAULT nextval('ip_universe_ip_universe_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE ip_universe ADD CONSTRAINT ak_ip_universe_name UNIQUE (ip_universe_name);
+ALTER TABLE ip_universe ADD CONSTRAINT pk_ip_universe PRIMARY KEY (ip_universe_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN ip_universe.ip_namespace IS 'defeines the namespace for a given ip universe -- all universes in this namespace are considered unique for netblock validations';
+-- INDEXES
+CREATE INDEX xif1ip_universe ON ip_universe USING btree (ip_namespace);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between ip_universe and dns_record
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dns_rec_ip_universe
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+-- consider FK between ip_universe and dns_change_record
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE dns_change_record
+--	ADD CONSTRAINT fk_dnschgrec_ip_universe
+--	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+
+-- consider FK between ip_universe and dns_domain_ip_universe
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE dns_domain_ip_universe
+--	ADD CONSTRAINT fk_dnsdom_ipu_ipu
+--	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+
+-- consider FK between ip_universe and ip_universe_visibility
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE ip_universe_visibility
+--	ADD CONSTRAINT fk_ip_universe_vis_ip_univ
+--	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+
+-- consider FK between ip_universe and ip_universe_visibility
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE ip_universe_visibility
+--	ADD CONSTRAINT fk_ip_universe_vis_ip_univ_vis
+--	FOREIGN KEY (visible_ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+
+-- consider FK between ip_universe and netblock
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_nblk_ip_universe_id
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+
+-- FOREIGN KEYS TO
+-- consider FK ip_universe and val_ip_namespace
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE ip_universe
+--	ADD CONSTRAINT r_815
+--	FOREIGN KEY (ip_namespace) REFERENCES val_ip_namespace(ip_namespace);
+
+
+-- TRIGGERS
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'ip_universe');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'ip_universe');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'ip_universe');
+ALTER SEQUENCE ip_universe_ip_universe_id_seq
+	 OWNED BY ip_universe.ip_universe_id;
+DROP TABLE IF EXISTS ip_universe_v79;
+DROP TABLE IF EXISTS audit.ip_universe_v79;
+-- DONE DEALING WITH TABLE ip_universe
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE val_dns_srv_service
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_dns_srv_service', 'val_dns_srv_service');
@@ -2760,11 +3002,9 @@ ALTER TABLE val_ip_namespace ADD CONSTRAINT pk_val_ip_namespace PRIMARY KEY (ip_
 
 -- FOREIGN KEYS FROM
 -- consider FK between val_ip_namespace and ip_universe
--- Skipping this FK since column does not exist yet
---ALTER TABLE ip_universe
---	ADD CONSTRAINT r_815
---	FOREIGN KEY (ip_namespace) REFERENCES val_ip_namespace(ip_namespace);
-
+ALTER TABLE ip_universe
+	ADD CONSTRAINT r_815
+	FOREIGN KEY (ip_namespace) REFERENCES val_ip_namespace(ip_namespace);
 
 -- FOREIGN KEYS TO
 
@@ -3584,6 +3824,1690 @@ DROP TABLE IF EXISTS audit.val_voe_state_v79;
 -- DONE DEALING WITH OLD TABLE val_voe_state [19320936]
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE account
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'account', 'account');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account_ssh_key DROP CONSTRAINT IF EXISTS fk_account_ssh_key_ssh_key_id;
+ALTER TABLE account_assignd_cert DROP CONSTRAINT IF EXISTS fk_acct_asdcrt_acctid;
+ALTER TABLE account_token DROP CONSTRAINT IF EXISTS fk_acct_ref_acct_token;
+ALTER TABLE account_auth_log DROP CONSTRAINT IF EXISTS fk_acctauthlog_accid;
+ALTER TABLE account_password DROP CONSTRAINT IF EXISTS fk_acctpwd_acct_id;
+ALTER TABLE account_collection_account DROP CONSTRAINT IF EXISTS fk_acol_account_id;
+ALTER TABLE appaal_instance DROP CONSTRAINT IF EXISTS fk_appaal_i_reference_fo_accti;
+ALTER TABLE approval_instance_item DROP CONSTRAINT IF EXISTS fk_appinstitm_app_acctid;
+ALTER TABLE approval_instance_step DROP CONSTRAINT IF EXISTS fk_appinststep_app_acct_id;
+ALTER TABLE approval_instance_step_notify DROP CONSTRAINT IF EXISTS fk_appr_inst_step_notif_acct;
+ALTER TABLE account_unix_info DROP CONSTRAINT IF EXISTS fk_auxifo_acct_id;
+ALTER TABLE department DROP CONSTRAINT IF EXISTS fk_dept_mgr_acct_id;
+ALTER TABLE device_collection_assignd_cert DROP CONSTRAINT IF EXISTS fk_devcolascrt_flownacctid;
+ALTER TABLE klogin DROP CONSTRAINT IF EXISTS fk_klgn_acct_dst_id;
+ALTER TABLE klogin DROP CONSTRAINT IF EXISTS fk_klgn_acct_id;
+ALTER TABLE pseudo_klogin DROP CONSTRAINT IF EXISTS fk_pklgn_acct_dstid;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_acctid;
+ALTER TABLE sw_package_release DROP CONSTRAINT IF EXISTS fk_sw_pkg_rel_ref_sys_user;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS fk_account_acct_rlm_id;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS fk_account_acctrole;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS fk_account_company_person;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS fk_account_prsn_cmpy_acct;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS fk_acct_stat_id;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS fk_acct_vacct_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'account');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS ak_acct_acctid_realm_id;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS ak_uq_account_lgn_realm;
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS pk_account_id;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."idx_account_account_status";
+DROP INDEX IF EXISTS "jazzhands"."idx_account_account_tpe";
+DROP INDEX IF EXISTS "jazzhands"."xif11account";
+DROP INDEX IF EXISTS "jazzhands"."xif12account";
+DROP INDEX IF EXISTS "jazzhands"."xif8account";
+DROP INDEX IF EXISTS "jazzhands"."xif9account";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.account DROP CONSTRAINT IF EXISTS check_yes_no_355473735;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_account_change_realm_aca_realm ON jazzhands.account;
+DROP TRIGGER IF EXISTS trig_add_account_automated_reporting_ac ON jazzhands.account;
+DROP TRIGGER IF EXISTS trig_add_automated_ac_on_account ON jazzhands.account;
+DROP TRIGGER IF EXISTS trig_rm_account_automated_reporting_ac ON jazzhands.account;
+DROP TRIGGER IF EXISTS trig_rm_automated_ac_on_account ON jazzhands.account;
+DROP TRIGGER IF EXISTS trig_userlog_account ON jazzhands.account;
+DROP TRIGGER IF EXISTS trigger_account_enforce_is_enabled ON jazzhands.account;
+DROP TRIGGER IF EXISTS trigger_account_validate_login ON jazzhands.account;
+DROP TRIGGER IF EXISTS trigger_audit_account ON jazzhands.account;
+DROP TRIGGER IF EXISTS trigger_create_new_unix_account ON jazzhands.account;
+DROP TRIGGER IF EXISTS trigger_delete_peraccount_account_collection ON jazzhands.account;
+DROP TRIGGER IF EXISTS trigger_update_peraccount_account_collection ON jazzhands.account;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'account');
+---- BEGIN audit.account TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'account', 'account');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'account');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.account DROP CONSTRAINT IF EXISTS account_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."account_aud#timestamp_idx";
+DROP INDEX IF EXISTS "audit"."aud_account_ak_acct_acctid_realm_id";
+DROP INDEX IF EXISTS "audit"."aud_account_ak_uq_account_lgn_realm";
+DROP INDEX IF EXISTS "audit"."aud_account_pk_account_id";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.account TEARDOWN
+
+
+ALTER TABLE account RENAME TO account_v79;
+ALTER TABLE audit.account RENAME TO account_v79;
+
+CREATE TABLE account
+(
+	account_id	integer NOT NULL,
+	login	varchar(50) NOT NULL,
+	person_id	integer NOT NULL,
+	company_id	integer NOT NULL,
+	is_enabled	character(1) NOT NULL,
+	account_realm_id	integer NOT NULL,
+	account_status	varchar(50) NOT NULL,
+	account_role	varchar(50) NOT NULL,
+	account_type	varchar(50) NOT NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'account', false);
+ALTER TABLE account
+	ALTER account_id
+	SET DEFAULT nextval('account_account_id_seq'::regclass);
+INSERT INTO account (
+	account_id,
+	login,
+	person_id,
+	company_id,
+	is_enabled,
+	account_realm_id,
+	account_status,
+	account_role,
+	account_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	account_id,
+	login,
+	person_id,
+	company_id,
+	is_enabled,
+	account_realm_id,
+	account_status,
+	account_role,
+	account_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM account_v79;
+
+INSERT INTO audit.account (
+	account_id,
+	login,
+	person_id,
+	company_id,
+	is_enabled,
+	account_realm_id,
+	account_status,
+	account_role,
+	account_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	account_id,
+	login,
+	person_id,
+	company_id,
+	is_enabled,
+	account_realm_id,
+	account_status,
+	account_role,
+	account_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.account_v79;
+
+ALTER TABLE account
+	ALTER account_id
+	SET DEFAULT nextval('account_account_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE account ADD CONSTRAINT ak_acct_acctid_realm_id UNIQUE (account_id, account_realm_id);
+ALTER TABLE account ADD CONSTRAINT ak_uq_account_lgn_realm UNIQUE (account_realm_id, login);
+ALTER TABLE account ADD CONSTRAINT pk_account_id PRIMARY KEY (account_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN account.is_enabled IS 'This column is trigger enforced to match what val_person_status says is the correct value for account_status';
+COMMENT ON COLUMN account.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX idx_account_account_status ON account USING btree (account_status);
+CREATE INDEX idx_account_account_tpe ON account USING btree (account_type);
+CREATE INDEX xif11account ON account USING btree (company_id, person_id);
+CREATE INDEX xif12account ON account USING btree (person_id, company_id, account_realm_id);
+CREATE INDEX xif8account ON account USING btree (account_realm_id);
+CREATE INDEX xif9account ON account USING btree (account_role);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE account ADD CONSTRAINT check_yes_no_355473735
+	CHECK (is_enabled = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+
+-- FOREIGN KEYS FROM
+-- consider FK between account and account_ssh_key
+ALTER TABLE account_ssh_key
+	ADD CONSTRAINT fk_account_ssh_key_ssh_key_id
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and account_assignd_cert
+ALTER TABLE account_assignd_cert
+	ADD CONSTRAINT fk_acct_asdcrt_acctid
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and account_token
+ALTER TABLE account_token
+	ADD CONSTRAINT fk_acct_ref_acct_token
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and account_auth_log
+ALTER TABLE account_auth_log
+	ADD CONSTRAINT fk_acctauthlog_accid
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and account_password
+ALTER TABLE account_password
+	ADD CONSTRAINT fk_acctpwd_acct_id
+	FOREIGN KEY (account_id, account_realm_id) REFERENCES account(account_id, account_realm_id);
+-- consider FK between account and account_collection_account
+ALTER TABLE account_collection_account
+	ADD CONSTRAINT fk_acol_account_id
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and appaal_instance
+ALTER TABLE appaal_instance
+	ADD CONSTRAINT fk_appaal_i_reference_fo_accti
+	FOREIGN KEY (file_owner_account_id) REFERENCES account(account_id);
+-- consider FK between account and approval_instance_item
+ALTER TABLE approval_instance_item
+	ADD CONSTRAINT fk_appinstitm_app_acctid
+	FOREIGN KEY (approved_account_id) REFERENCES account(account_id);
+-- consider FK between account and approval_instance_step
+ALTER TABLE approval_instance_step
+	ADD CONSTRAINT fk_appinststep_app_acct_id
+	FOREIGN KEY (approver_account_id) REFERENCES account(account_id);
+-- consider FK between account and approval_instance_step_notify
+ALTER TABLE approval_instance_step_notify
+	ADD CONSTRAINT fk_appr_inst_step_notif_acct
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and account_unix_info
+ALTER TABLE account_unix_info
+	ADD CONSTRAINT fk_auxifo_acct_id
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and department
+ALTER TABLE department
+	ADD CONSTRAINT fk_dept_mgr_acct_id
+	FOREIGN KEY (manager_account_id) REFERENCES account(account_id);
+-- consider FK between account and device_collection_assignd_cert
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_devcolascrt_flownacctid
+	FOREIGN KEY (file_owner_account_id) REFERENCES account(account_id);
+-- consider FK between account and klogin
+ALTER TABLE klogin
+	ADD CONSTRAINT fk_klgn_acct_dst_id
+	FOREIGN KEY (dest_account_id) REFERENCES account(account_id);
+-- consider FK between account and klogin
+ALTER TABLE klogin
+	ADD CONSTRAINT fk_klgn_acct_id
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+-- consider FK between account and pseudo_klogin
+ALTER TABLE pseudo_klogin
+	ADD CONSTRAINT fk_pklgn_acct_dstid
+	FOREIGN KEY (dest_account_id) REFERENCES account(account_id);
+-- consider FK between account and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_acctid
+	FOREIGN KEY (account_id) REFERENCES account(account_id);
+
+-- FOREIGN KEYS TO
+-- consider FK account and account_realm
+ALTER TABLE account
+	ADD CONSTRAINT fk_account_acct_rlm_id
+	FOREIGN KEY (account_realm_id) REFERENCES account_realm(account_realm_id);
+-- consider FK account and val_account_role
+ALTER TABLE account
+	ADD CONSTRAINT fk_account_acctrole
+	FOREIGN KEY (account_role) REFERENCES val_account_role(account_role);
+-- consider FK account and person_company
+ALTER TABLE account
+	ADD CONSTRAINT fk_account_company_person
+	FOREIGN KEY (company_id, person_id) REFERENCES person_company(company_id, person_id) DEFERRABLE;
+-- consider FK account and person_account_realm_company
+ALTER TABLE account
+	ADD CONSTRAINT fk_account_prsn_cmpy_acct
+	FOREIGN KEY (person_id, company_id, account_realm_id) REFERENCES person_account_realm_company(person_id, company_id, account_realm_id) DEFERRABLE;
+-- consider FK account and val_person_status
+ALTER TABLE account
+	ADD CONSTRAINT fk_acct_stat_id
+	FOREIGN KEY (account_status) REFERENCES val_person_status(person_status);
+-- consider FK account and val_account_type
+ALTER TABLE account
+	ADD CONSTRAINT fk_acct_vacct_type
+	FOREIGN KEY (account_type) REFERENCES val_account_type(account_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.account_change_realm_aca_realm
+CREATE OR REPLACE FUNCTION jazzhands.account_change_realm_aca_realm()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	SELECT	count(*)
+	INTO	_tally
+	FROM	account_collection_account
+			JOIN account_collection USING (account_collection_id)
+			JOIN val_account_collection_type vt USING (account_collection_type)
+	WHERE	vt.account_realm_id IS NOT NULL
+	AND		vt.account_realm_id != NEW.account_realm_id
+	AND		account_id = NEW.account_id;
+
+	IF _tally > 0 THEN
+		RAISE EXCEPTION 'New account realm (%) is part of % account collections with a type restriction',
+			NEW.account_realm_id,
+			_tally
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trig_account_change_realm_aca_realm BEFORE UPDATE OF account_realm_id ON account FOR EACH ROW EXECUTE PROCEDURE account_change_realm_aca_realm();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.account_automated_reporting_ac
+CREATE OR REPLACE FUNCTION jazzhands.account_automated_reporting_ac()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_numrpt	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.account_role != 'primary' THEN
+			RETURN OLD;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_role != 'primary' AND OLD.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	-- XXX check account realm to see if we should be inserting for this
+	-- XXX account realm
+
+	IF TG_OP = 'INSERT' THEN
+		PERFORM auto_ac_manip.make_all_auto_acs_right(
+			account_id := NEW.account_id,
+			account_realm_id := NEW.account_realm_id,
+			login := NEW.login
+		);
+	ELSIF TG_OP = 'UPDATE' THEN
+		PERFORM auto_ac_manip.rename_automated_report_acs(
+			NEW.account_id, OLD.login, NEW.login, NEW.account_realm_id);
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM account_collection_account WHERE account_id
+			= OLD.account_id
+		AND account_collection_id IN ( select account_collection_id
+			FROM account_collection where account_collection_type
+			= 'automated'
+		);
+		-- PERFORM auto_ac_manip.destroy_report_account_collections(
+		-- 	account_id := OLD.account_id,
+		-- 	account_realm_id := OLD.account_realm_id
+		-- );
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trig_add_account_automated_reporting_ac AFTER INSERT OR UPDATE OF login, account_status ON account FOR EACH ROW EXECUTE PROCEDURE account_automated_reporting_ac();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.automated_ac_on_account
+CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_account()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.account_role != 'primary' THEN
+			RETURN OLD;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_role != 'primary' AND OLD.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE'  THEN
+		PERFORM auto_ac_manip.make_site_acs_right(NEW.account_id);
+		PERFORM auto_ac_manip.make_personal_acs_right(NEW.account_id);
+
+		-- update the person's manager to match
+		WITH RECURSIVE map AS (
+			SELECT account_id as root_account_id,
+				account_id, login, manager_account_id, manager_login
+			FROM v_account_manager_map
+			UNION
+			SELECT map.root_account_id, m.account_id, m.login,
+				m.manager_account_id, m.manager_login
+				from v_account_manager_map m
+					join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+					account_id := manager_account_id,
+					account_realm_id := NEW.account_realm_id,
+					login := manager_login)
+				FROM map
+				WHERE root_account_id = NEW.account_id
+			) SELECT count(*) INTO _tally FROM x;
+	END IF;
+
+	IF TG_OP = 'UPDATE'  THEN
+		PERFORM auto_ac_manip.make_site_acs_right(OLD.account_id);
+		PERFORM auto_ac_manip.make_personal_acs_right(OLD.account_id);
+	END IF;
+
+	-- when deleting, do nothing rather than calling the above, same as
+	-- update; pointless because account is getting deleted anyway.
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trig_add_automated_ac_on_account AFTER INSERT OR UPDATE OF account_type, account_role, account_status ON account FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_account();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.account_automated_reporting_ac
+CREATE OR REPLACE FUNCTION jazzhands.account_automated_reporting_ac()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_numrpt	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.account_role != 'primary' THEN
+			RETURN OLD;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_role != 'primary' AND OLD.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	-- XXX check account realm to see if we should be inserting for this
+	-- XXX account realm
+
+	IF TG_OP = 'INSERT' THEN
+		PERFORM auto_ac_manip.make_all_auto_acs_right(
+			account_id := NEW.account_id,
+			account_realm_id := NEW.account_realm_id,
+			login := NEW.login
+		);
+	ELSIF TG_OP = 'UPDATE' THEN
+		PERFORM auto_ac_manip.rename_automated_report_acs(
+			NEW.account_id, OLD.login, NEW.login, NEW.account_realm_id);
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM account_collection_account WHERE account_id
+			= OLD.account_id
+		AND account_collection_id IN ( select account_collection_id
+			FROM account_collection where account_collection_type
+			= 'automated'
+		);
+		-- PERFORM auto_ac_manip.destroy_report_account_collections(
+		-- 	account_id := OLD.account_id,
+		-- 	account_realm_id := OLD.account_realm_id
+		-- );
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trig_rm_account_automated_reporting_ac BEFORE DELETE ON account FOR EACH ROW EXECUTE PROCEDURE account_automated_reporting_ac();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.automated_ac_on_account
+CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_account()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.account_role != 'primary' THEN
+			RETURN OLD;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_role != 'primary' AND OLD.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE'  THEN
+		PERFORM auto_ac_manip.make_site_acs_right(NEW.account_id);
+		PERFORM auto_ac_manip.make_personal_acs_right(NEW.account_id);
+
+		-- update the person's manager to match
+		WITH RECURSIVE map AS (
+			SELECT account_id as root_account_id,
+				account_id, login, manager_account_id, manager_login
+			FROM v_account_manager_map
+			UNION
+			SELECT map.root_account_id, m.account_id, m.login,
+				m.manager_account_id, m.manager_login
+				from v_account_manager_map m
+					join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+					account_id := manager_account_id,
+					account_realm_id := NEW.account_realm_id,
+					login := manager_login)
+				FROM map
+				WHERE root_account_id = NEW.account_id
+			) SELECT count(*) INTO _tally FROM x;
+	END IF;
+
+	IF TG_OP = 'UPDATE'  THEN
+		PERFORM auto_ac_manip.make_site_acs_right(OLD.account_id);
+		PERFORM auto_ac_manip.make_personal_acs_right(OLD.account_id);
+	END IF;
+
+	-- when deleting, do nothing rather than calling the above, same as
+	-- update; pointless because account is getting deleted anyway.
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trig_rm_automated_ac_on_account BEFORE DELETE ON account FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_account();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.account_enforce_is_enabled
+CREATE OR REPLACE FUNCTION jazzhands.account_enforce_is_enabled()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	correctval	char(1);
+BEGIN
+	SELECT is_enabled INTO correctval
+	FROM val_person_status
+	WHERE person_status = NEW.account_status;
+
+	IF TG_OP = 'INSERT' THEN
+		IF NEW.is_enabled is NULL THEN
+			NEW.is_enabled = correctval;
+		ELSIF NEW.is_enabled != correctval THEN
+			RAISE EXCEPTION 'May not set IS_ENABLED to an invalid value (%) for given account_status: %', NEW.is_enabled, NEW.account_status
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_status != OLD.account_status THEN
+			IF NEW.is_enabled != correctval THEN
+				NEW.is_enabled := correctval;
+			END IF;
+		ELSIF NEW.is_enabled != correctval THEN
+			RAISE EXCEPTION 'May not update IS_ENABLED to an invalid value (%->%) for given account_status: %', OLD.account_status, NEW.account_status, NEW.is_enabled
+			USING ERRCODE = 'integrity_constraint_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_account_enforce_is_enabled BEFORE INSERT OR UPDATE OF account_status, is_enabled ON account FOR EACH ROW EXECUTE PROCEDURE account_enforce_is_enabled();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.account_validate_login
+CREATE OR REPLACE FUNCTION jazzhands.account_validate_login()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	regexp		text;
+	correctval	char(1);
+BEGIN
+	SELECT property_value
+	INTO   regexp
+	FROM	property
+	WHERE	account_realm_id = NEW.account_realm_id
+	AND		property_name = 'login_restriction'
+	AND		property_type = 'Defaults';
+
+	IF FOUND THEN
+		-- ~ '[^-/@a-z0-9_]+' THEN
+		IF NEW.login  ~ regexp THEN
+			RAISE EXCEPTION 'May not set login to an invalid value (%)', NEW.login
+				USING errcode = 'integrity_constraint_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_account_validate_login BEFORE INSERT OR UPDATE OF login ON account FOR EACH ROW EXECUTE PROCEDURE account_validate_login();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.create_new_unix_account
+CREATE OR REPLACE FUNCTION jazzhands.create_new_unix_account()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	unix_id 		INTEGER;
+	_account_collection_id 	INTEGER;
+	_arid			INTEGER;
+BEGIN
+	--
+	-- This should be a property that shows which account collections
+	-- get unix accounts created by default, but the mapping of unix-groups
+	-- to account collection across realms needs to be resolved
+	--
+	SELECT  account_realm_id
+	INTO    _arid
+	FROM    property
+	WHERE   property_name = '_root_account_realm_id'
+	AND     property_type = 'Defaults';
+
+	IF _arid IS NOT NULL AND NEW.account_realm_id = _arid THEN
+		IF NEW.person_id != 0 THEN
+			PERFORM person_manip.setup_unix_account(
+				in_account_id := NEW.account_id,
+				in_account_type := NEW.account_type
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_create_new_unix_account AFTER INSERT ON account FOR EACH ROW EXECUTE PROCEDURE create_new_unix_account();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.delete_peraccount_account_collection
+CREATE OR REPLACE FUNCTION jazzhands.delete_peraccount_account_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	acid			account_collection.account_collection_id%TYPE;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		SELECT	account_collection_id
+		  INTO	acid
+		  FROM	account_collection ac
+				INNER JOIN account_collection_account aca
+					USING (account_collection_id)
+		 WHERE	aca.account_id = OLD.account_Id
+		   AND	ac.account_collection_type = 'per-account';
+
+		IF acid is NOT NULL THEN
+			DELETE from account_collection_account
+			where account_collection_id = acid;
+
+			DELETE from account_collection
+			where account_collection_id = acid;
+		END IF;
+	END IF;
+	RETURN OLD;
+END;
+$function$
+;
+CREATE TRIGGER trigger_delete_peraccount_account_collection BEFORE DELETE ON account FOR EACH ROW EXECUTE PROCEDURE delete_peraccount_account_collection();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.update_peraccount_account_collection
+CREATE OR REPLACE FUNCTION jazzhands.update_peraccount_account_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	def_acct_rlm	account_realm.account_realm_id%TYPE;
+	acid			account_collection.account_collection_id%TYPE;
+DECLARE
+	newname	TEXT;
+BEGIN
+	newname = concat(NEW.login, '_', NEW.account_id);
+	if TG_OP = 'INSERT' THEN
+		insert into account_collection
+			(account_collection_name, account_collection_type)
+		values
+			(newname, 'per-account')
+		RETURNING account_collection_id INTO acid;
+		insert into account_collection_account
+			(account_collection_id, account_id)
+		VALUES
+			(acid, NEW.account_id);
+	END IF;
+
+	IF TG_OP = 'UPDATE' AND OLD.login != NEW.login THEN
+		UPDATE	account_collection
+		    set	account_collection_name = newname
+		  where	account_collection_type = 'per-account'
+		    and	account_collection_id = (
+				SELECT	account_collection_id
+		  		FROM	account_collection ac
+						INNER JOIN account_collection_account aca
+							USING (account_collection_id)
+		 		WHERE	aca.account_id = OLD.account_Id
+		   		AND	ac.account_collection_type = 'per-account'
+			);
+	END IF;
+	return NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_update_peraccount_account_collection AFTER INSERT OR UPDATE ON account FOR EACH ROW EXECUTE PROCEDURE update_peraccount_account_collection();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'account');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'account');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'account');
+ALTER SEQUENCE account_account_id_seq
+	 OWNED BY account.account_id;
+DROP TABLE IF EXISTS account_v79;
+DROP TABLE IF EXISTS audit.account_v79;
+-- DONE DEALING WITH TABLE account
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE account_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'account_collection', 'account_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE sudo_acct_col_device_collectio DROP CONSTRAINT IF EXISTS fk_acctcol_ref_sudoaccldcl_ra;
+ALTER TABLE account_collection_account DROP CONSTRAINT IF EXISTS fk_acctcol_usr_ucol_id;
+ALTER TABLE account_collection_hier DROP CONSTRAINT IF EXISTS fk_acctcolhier_acctcolid;
+ALTER TABLE account_collection_hier DROP CONSTRAINT IF EXISTS fk_acctcolhier_cldacctcolid;
+ALTER TABLE appaal_instance DROP CONSTRAINT IF EXISTS fk_appaal_inst_filgrpacctcolid;
+ALTER TABLE account_unix_info DROP CONSTRAINT IF EXISTS fk_auxifo_unxgrp_acctcolid;
+ALTER TABLE department DROP CONSTRAINT IF EXISTS fk_dept_usr_col_id;
+ALTER TABLE device_collection_ssh_key DROP CONSTRAINT IF EXISTS fk_dev_coll_ssh_key_acct_col;
+ALTER TABLE device_collection_assignd_cert DROP CONSTRAINT IF EXISTS fk_devcol_asscrt_acctcolid;
+ALTER TABLE klogin DROP CONSTRAINT IF EXISTS fk_klogin_ref_acct_col_id;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_acct_col;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_pval_acct_colid;
+ALTER TABLE sudo_acct_col_device_collectio DROP CONSTRAINT IF EXISTS fk_sudoaccoll_fk_sudo_u_actcl;
+ALTER TABLE unix_group DROP CONSTRAINT IF EXISTS fk_unxgrp_uclsid;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.account_collection DROP CONSTRAINT IF EXISTS fk_acctcol_usrcoltyp;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'account_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.account_collection DROP CONSTRAINT IF EXISTS pk_account_collection;
+ALTER TABLE jazzhands.account_collection DROP CONSTRAINT IF EXISTS uq_acct_collection_name;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif_acctcol_acctcoltype";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_account_collection_realm ON jazzhands.account_collection;
+DROP TRIGGER IF EXISTS trig_userlog_account_collection ON jazzhands.account_collection;
+DROP TRIGGER IF EXISTS trigger_audit_account_collection ON jazzhands.account_collection;
+DROP TRIGGER IF EXISTS trigger_validate_account_collection_type_change ON jazzhands.account_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'account_collection');
+---- BEGIN audit.account_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'account_collection', 'account_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'account_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.account_collection DROP CONSTRAINT IF EXISTS account_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."account_collection_aud#timestamp_idx";
+DROP INDEX IF EXISTS "audit"."aud_account_collection_pk_account_collection";
+DROP INDEX IF EXISTS "audit"."aud_account_collection_uq_acct_collection_name";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.account_collection TEARDOWN
+
+
+ALTER TABLE account_collection RENAME TO account_collection_v79;
+ALTER TABLE audit.account_collection RENAME TO account_collection_v79;
+
+CREATE TABLE account_collection
+(
+	account_collection_id	integer NOT NULL,
+	account_collection_name	varchar(255) NOT NULL,
+	account_collection_type	varchar(50) NOT NULL,
+	external_id	varchar(255)  NULL,
+	description	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'account_collection', false);
+ALTER TABLE account_collection
+	ALTER account_collection_id
+	SET DEFAULT nextval('account_collection_account_collection_id_seq'::regclass);
+INSERT INTO account_collection (
+	account_collection_id,
+	account_collection_name,
+	account_collection_type,
+	external_id,		-- new column (external_id)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	account_collection_id,
+	account_collection_name,
+	account_collection_type,
+	NULL,		-- new column (external_id)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM account_collection_v79;
+
+INSERT INTO audit.account_collection (
+	account_collection_id,
+	account_collection_name,
+	account_collection_type,
+	external_id,		-- new column (external_id)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	account_collection_id,
+	account_collection_name,
+	account_collection_type,
+	NULL,		-- new column (external_id)
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.account_collection_v79;
+
+ALTER TABLE account_collection
+	ALTER account_collection_id
+	SET DEFAULT nextval('account_collection_account_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE account_collection ADD CONSTRAINT pk_account_collection PRIMARY KEY (account_collection_id);
+ALTER TABLE account_collection ADD CONSTRAINT uq_acct_collection_name UNIQUE (account_collection_name, account_collection_type);
+
+-- Table/Column Comments
+COMMENT ON COLUMN account_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif_acctcol_acctcoltype ON account_collection USING btree (account_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between account_collection and sudo_acct_col_device_collectio
+ALTER TABLE sudo_acct_col_device_collectio
+	ADD CONSTRAINT fk_acctcol_ref_sudoaccldcl_ra
+	FOREIGN KEY (run_as_account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and account_collection_account
+ALTER TABLE account_collection_account
+	ADD CONSTRAINT fk_acctcol_usr_ucol_id
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and account_collection_hier
+ALTER TABLE account_collection_hier
+	ADD CONSTRAINT fk_acctcolhier_acctcolid
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and account_collection_hier
+ALTER TABLE account_collection_hier
+	ADD CONSTRAINT fk_acctcolhier_cldacctcolid
+	FOREIGN KEY (child_account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and appaal_instance
+ALTER TABLE appaal_instance
+	ADD CONSTRAINT fk_appaal_inst_filgrpacctcolid
+	FOREIGN KEY (file_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and account_unix_info
+ALTER TABLE account_unix_info
+	ADD CONSTRAINT fk_auxifo_unxgrp_acctcolid
+	FOREIGN KEY (unix_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and department
+ALTER TABLE department
+	ADD CONSTRAINT fk_dept_usr_col_id
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and device_collection_ssh_key
+ALTER TABLE device_collection_ssh_key
+	ADD CONSTRAINT fk_dev_coll_ssh_key_acct_col
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and device_collection_assignd_cert
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_devcol_asscrt_acctcolid
+	FOREIGN KEY (file_group_acct_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and klogin
+ALTER TABLE klogin
+	ADD CONSTRAINT fk_klogin_ref_acct_col_id
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_acct_col
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_pval_acct_colid
+	FOREIGN KEY (property_value_account_coll_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and sudo_acct_col_device_collectio
+ALTER TABLE sudo_acct_col_device_collectio
+	ADD CONSTRAINT fk_sudoaccoll_fk_sudo_u_actcl
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+-- consider FK between account_collection and unix_group
+ALTER TABLE unix_group
+	ADD CONSTRAINT fk_unxgrp_uclsid
+	FOREIGN KEY (account_collection_id) REFERENCES account_collection(account_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK account_collection and val_account_collection_type
+ALTER TABLE account_collection
+	ADD CONSTRAINT fk_acctcol_usrcoltyp
+	FOREIGN KEY (account_collection_type) REFERENCES val_account_collection_type(account_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.account_collection_realm
+CREATE OR REPLACE FUNCTION jazzhands.account_collection_realm()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_at		val_account_collection_type%ROWTYPE;
+	_tally	integer;
+BEGIN
+	SELECT * INTO _at FROM val_account_collection_type
+	WHERE account_collection_type = NEW.account_collection_type;
+
+	IF _at.account_realm_id IS NULL THEN
+		RETURN NEW;
+	END IF;
+
+	SELECT	count(*)
+	INTO	_tally
+	FROM	account_collection_account
+			JOIN account a USING (account_id)
+	WHERE	account_collection_id = NEW.account_collection_id
+	AND		a.account_realm_id != _at.account_realm_id;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION 'Unable to set account_realm restriction because there are accounts assigned that do not match it'
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+
+	SELECT	count(*)
+	INTO	_tally
+	FROM	account_collection_hier h
+			JOIN account_collection pac USING (account_collection_id)
+			JOIN val_account_collection_type pat USING (account_collection_type)
+			JOIN account_collection cac ON
+				h.child_account_collection_id = cac.account_collection_id
+			JOIN val_account_collection_type cat ON
+				cac.account_collection_type = cat.account_collection_type
+	WHERE	(
+				pac.account_collection_id = NEW.account_collection_id
+			OR		cac.account_collection_id = NEW.account_collection_id
+			)
+	AND		pat.account_realm_id IS DISTINCT FROM cat.account_realm_id
+	;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION 'Unable to set account_realm restriction because there are account collections in the hierarchy that do not match'
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trig_account_collection_realm AFTER UPDATE OF account_collection_type ON account_collection FOR EACH ROW EXECUTE PROCEDURE account_collection_realm();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_account_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_account_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.account_collection_type != NEW.account_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.account_collection_type = OLD.account_collection_type
+		AND	p.account_collection_id = NEW.account_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'account_collection % of type % is used by % restricted properties.',
+				NEW.account_collection_id, NEW.account_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_account_collection_type_change BEFORE UPDATE OF account_collection_type ON account_collection FOR EACH ROW EXECUTE PROCEDURE validate_account_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'account_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'account_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'account_collection');
+ALTER SEQUENCE account_collection_account_collection_id_seq
+	 OWNED BY account_collection.account_collection_id;
+DROP TABLE IF EXISTS account_collection_v79;
+DROP TABLE IF EXISTS audit.account_collection_v79;
+-- DONE DEALING WITH TABLE account_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE company
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'company', 'company');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account_realm_company DROP CONSTRAINT IF EXISTS fk_acct_rlm_cmpy_cmpy_id;
+ALTER TABLE circuit DROP CONSTRAINT IF EXISTS fk_circuit_aloc_companyid;
+ALTER TABLE circuit DROP CONSTRAINT IF EXISTS fk_circuit_vend_companyid;
+ALTER TABLE circuit DROP CONSTRAINT IF EXISTS fk_circuit_zloc_company_id;
+ALTER TABLE company_collection_company DROP CONSTRAINT IF EXISTS fk_company_coll_company_id;
+ALTER TABLE company_type DROP CONSTRAINT IF EXISTS fk_company_type_company_id;
+ALTER TABLE component_type DROP CONSTRAINT IF EXISTS fk_component_type_company_id;
+ALTER TABLE contract DROP CONSTRAINT IF EXISTS fk_contract_company_id;
+ALTER TABLE department DROP CONSTRAINT IF EXISTS fk_dept_company;
+ALTER TABLE device_type DROP CONSTRAINT IF EXISTS fk_devtyp_company;
+ALTER TABLE netblock DROP CONSTRAINT IF EXISTS fk_netblock_company;
+ALTER TABLE operating_system DROP CONSTRAINT IF EXISTS fk_os_company;
+ALTER TABLE person_company DROP CONSTRAINT IF EXISTS fk_person_company_company_id;
+ALTER TABLE physical_address DROP CONSTRAINT IF EXISTS fk_physaddr_company_id;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_compid;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_pval_compid;
+ALTER TABLE person_contact DROP CONSTRAINT IF EXISTS fk_prsn_contect_cr_cmpyid;
+ALTER TABLE site DROP CONSTRAINT IF EXISTS fk_site_colo_company_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.company DROP CONSTRAINT IF EXISTS fk_company_parent_company_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'company');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.company DROP CONSTRAINT IF EXISTS pk_company;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif1company";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.company DROP CONSTRAINT IF EXISTS ckc_cmpy_shrt_name_195335815;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_company ON jazzhands.company;
+DROP TRIGGER IF EXISTS trigger_audit_company ON jazzhands.company;
+DROP TRIGGER IF EXISTS trigger_company_insert_function_nudge ON jazzhands.company;
+DROP TRIGGER IF EXISTS trigger_delete_per_company_company_collection ON jazzhands.company;
+DROP TRIGGER IF EXISTS trigger_update_per_company_company_collection ON jazzhands.company;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'company');
+---- BEGIN audit.company TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'company', 'company');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'company');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.company DROP CONSTRAINT IF EXISTS company_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_company_pk_company";
+DROP INDEX IF EXISTS "audit"."company_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.company TEARDOWN
+
+
+ALTER TABLE company RENAME TO company_v79;
+ALTER TABLE audit.company RENAME TO company_v79;
+
+CREATE TABLE company
+(
+	company_id	integer NOT NULL,
+	company_name	varchar(255) NOT NULL,
+	company_short_name	varchar(50)  NULL,
+	parent_company_id	integer  NULL,
+	description	varchar(4000)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'company', false);
+ALTER TABLE company
+	ALTER company_id
+	SET DEFAULT nextval('company_company_id_seq'::regclass);
+INSERT INTO company (
+	company_id,
+	company_name,
+	company_short_name,
+	parent_company_id,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	company_id,
+	company_name,
+	company_short_name,
+	parent_company_id,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM company_v79;
+
+INSERT INTO audit.company (
+	company_id,
+	company_name,
+	company_short_name,
+	parent_company_id,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	company_id,
+	company_name,
+	company_short_name,
+	parent_company_id,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.company_v79;
+
+ALTER TABLE company
+	ALTER company_id
+	SET DEFAULT nextval('company_company_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE company ADD CONSTRAINT pk_company PRIMARY KEY (company_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN company.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif1company ON company USING btree (parent_company_id);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE company ADD CONSTRAINT ckc_cmpy_shrt_name_195335815
+	CHECK (((company_short_name)::text = lower((company_short_name)::text)) AND ((company_short_name)::text !~~ '% %'::text));
+
+-- FOREIGN KEYS FROM
+-- consider FK between company and account_realm_company
+ALTER TABLE account_realm_company
+	ADD CONSTRAINT fk_acct_rlm_cmpy_cmpy_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and circuit
+ALTER TABLE circuit
+	ADD CONSTRAINT fk_circuit_aloc_companyid
+	FOREIGN KEY (aloc_lec_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and circuit
+ALTER TABLE circuit
+	ADD CONSTRAINT fk_circuit_vend_companyid
+	FOREIGN KEY (vendor_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and circuit
+ALTER TABLE circuit
+	ADD CONSTRAINT fk_circuit_zloc_company_id
+	FOREIGN KEY (zloc_lec_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and company_collection_company
+ALTER TABLE company_collection_company
+	ADD CONSTRAINT fk_company_coll_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id);
+-- consider FK between company and company_type
+ALTER TABLE company_type
+	ADD CONSTRAINT fk_company_type_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and component_type
+ALTER TABLE component_type
+	ADD CONSTRAINT fk_component_type_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id);
+-- consider FK between company and contract
+ALTER TABLE contract
+	ADD CONSTRAINT fk_contract_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and department
+ALTER TABLE department
+	ADD CONSTRAINT fk_dept_company
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and device_type
+ALTER TABLE device_type
+	ADD CONSTRAINT fk_devtyp_company
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and netblock
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblock_company
+	FOREIGN KEY (nic_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and operating_system
+ALTER TABLE operating_system
+	ADD CONSTRAINT fk_os_company
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and person_company
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and physical_address
+ALTER TABLE physical_address
+	ADD CONSTRAINT fk_physaddr_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_compid
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_pval_compid
+	FOREIGN KEY (property_value_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and person_contact
+ALTER TABLE person_contact
+	ADD CONSTRAINT fk_prsn_contect_cr_cmpyid
+	FOREIGN KEY (person_contact_cr_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK between company and site
+ALTER TABLE site
+	ADD CONSTRAINT fk_site_colo_company_id
+	FOREIGN KEY (colo_company_id) REFERENCES company(company_id) DEFERRABLE;
+
+-- FOREIGN KEYS TO
+-- consider FK company and company
+ALTER TABLE company
+	ADD CONSTRAINT fk_company_parent_company_id
+	FOREIGN KEY (parent_company_id) REFERENCES company(company_id) DEFERRABLE;
+
+-- TRIGGERS
+-- consider NEW jazzhands.company_insert_function_nudge
+CREATE OR REPLACE FUNCTION jazzhands.company_insert_function_nudge()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	BEGIN
+		IF current_setting('jazzhands.permit_company_insert') != 'permit' THEN
+			RAISE EXCEPTION  'You may not directly insert into company.'
+				USING ERRCODE = 'insufficient_privilege';
+		END IF;
+	EXCEPTION WHEN undefined_object THEN
+			RAISE EXCEPTION  'You may not directly insert into company'
+				USING ERRCODE = 'insufficient_privilege';
+	END;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_company_insert_function_nudge BEFORE INSERT ON company FOR EACH ROW EXECUTE PROCEDURE company_insert_function_nudge();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.delete_per_company_company_collection
+CREATE OR REPLACE FUNCTION jazzhands.delete_per_company_company_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	dcid			company_collection.company_collection_id%TYPE;
+BEGIN
+	SELECT	company_collection_id
+	  FROM  company_collection
+	  INTO	dcid
+	 WHERE	company_collection_type = 'per-company'
+	   AND	company_collection_id in
+		(select company_collection_id
+		 from company_collection_company
+		where company_id = OLD.company_id
+		)
+	ORDER BY company_collection_id
+	LIMIT 1;
+
+	IF dcid IS NOT NULL THEN
+		DELETE FROM company_collection_company
+		WHERE company_collection_id = dcid;
+
+		DELETE from company_collection
+		WHERE company_collection_id = dcid;
+	END IF;
+
+	RETURN OLD;
+END;
+$function$
+;
+CREATE TRIGGER trigger_delete_per_company_company_collection BEFORE DELETE ON company FOR EACH ROW EXECUTE PROCEDURE delete_per_company_company_collection();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.update_per_company_company_collection
+CREATE OR REPLACE FUNCTION jazzhands.update_per_company_company_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	dcid		company_collection.company_collection_id%TYPE;
+	newname		company_collection.company_collection_name%TYPE;
+BEGIN
+	IF NEW.company_name IS NOT NULL THEN
+		newname = NEW.company_name || '_' || NEW.company_id;
+	ELSE
+		newname = 'per_d_dc_contrived_' || NEW.company_id;
+	END IF;
+
+	IF TG_OP = 'INSERT' THEN
+		insert into company_collection
+			(company_collection_name, company_collection_type)
+		values
+			(newname, 'per-company')
+		RETURNING company_collection_id INTO dcid;
+		insert into company_collection_company
+			(company_collection_id, company_id)
+		VALUES
+			(dcid, NEW.company_id);
+	ELSIF TG_OP = 'UPDATE'  THEN
+		UPDATE	company_collection
+		   SET	company_collection_name = newname
+		 WHERE	company_collection_name != newname
+		   AND	company_collection_type = 'per-company'
+		   AND	company_collection_id in (
+			SELECT	company_collection_id
+			  FROM	company_collection_company
+			 WHERE	company_id = NEW.company_id
+			);
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_update_per_company_company_collection AFTER INSERT OR UPDATE ON company FOR EACH ROW EXECUTE PROCEDURE update_per_company_company_collection();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'company');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'company');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'company');
+ALTER SEQUENCE company_company_id_seq
+	 OWNED BY company.company_id;
+DROP TABLE IF EXISTS company_v79;
+DROP TABLE IF EXISTS audit.company_v79;
+-- DONE DEALING WITH TABLE company
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE company_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'company_collection', 'company_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE company_collection_hier DROP CONSTRAINT IF EXISTS fk_comp_coll_comp_coll_id;
+ALTER TABLE company_collection_hier DROP CONSTRAINT IF EXISTS fk_comp_coll_comp_coll_kid_id;
+ALTER TABLE company_collection_company DROP CONSTRAINT IF EXISTS fk_company_coll_company_coll_i;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_prop_compcoll_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.company_collection DROP CONSTRAINT IF EXISTS fk_comp_coll_com_coll_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'company_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.company_collection DROP CONSTRAINT IF EXISTS ak_company_collection_namtyp;
+ALTER TABLE jazzhands.company_collection DROP CONSTRAINT IF EXISTS pk_company_collection;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xifcomp_coll_com_coll_type";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_company_collection ON jazzhands.company_collection;
+DROP TRIGGER IF EXISTS trigger_audit_company_collection ON jazzhands.company_collection;
+DROP TRIGGER IF EXISTS trigger_validate_company_collection_type_change ON jazzhands.company_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'company_collection');
+---- BEGIN audit.company_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'company_collection', 'company_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'company_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.company_collection DROP CONSTRAINT IF EXISTS company_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_company_collection_ak_company_collection_namtyp";
+DROP INDEX IF EXISTS "audit"."aud_company_collection_pk_company_collection";
+DROP INDEX IF EXISTS "audit"."company_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.company_collection TEARDOWN
+
+
+ALTER TABLE company_collection RENAME TO company_collection_v79;
+ALTER TABLE audit.company_collection RENAME TO company_collection_v79;
+
+CREATE TABLE company_collection
+(
+	company_collection_id	integer NOT NULL,
+	company_collection_name	varchar(255) NOT NULL,
+	company_collection_type	varchar(50) NOT NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'company_collection', false);
+ALTER TABLE company_collection
+	ALTER company_collection_id
+	SET DEFAULT nextval('company_collection_company_collection_id_seq'::regclass);
+INSERT INTO company_collection (
+	company_collection_id,
+	company_collection_name,
+	company_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	company_collection_id,
+	company_collection_name,
+	company_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM company_collection_v79;
+
+INSERT INTO audit.company_collection (
+	company_collection_id,
+	company_collection_name,
+	company_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	company_collection_id,
+	company_collection_name,
+	company_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.company_collection_v79;
+
+ALTER TABLE company_collection
+	ALTER company_collection_id
+	SET DEFAULT nextval('company_collection_company_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE company_collection ADD CONSTRAINT ak_company_collection_namtyp UNIQUE (company_collection_name, company_collection_type);
+ALTER TABLE company_collection ADD CONSTRAINT pk_company_collection PRIMARY KEY (company_collection_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN company_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xifcomp_coll_com_coll_type ON company_collection USING btree (company_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between company_collection and company_collection_hier
+ALTER TABLE company_collection_hier
+	ADD CONSTRAINT fk_comp_coll_comp_coll_id
+	FOREIGN KEY (company_collection_id) REFERENCES company_collection(company_collection_id);
+-- consider FK between company_collection and company_collection_hier
+ALTER TABLE company_collection_hier
+	ADD CONSTRAINT fk_comp_coll_comp_coll_kid_id
+	FOREIGN KEY (child_company_collection_id) REFERENCES company_collection(company_collection_id);
+-- consider FK between company_collection and company_collection_company
+ALTER TABLE company_collection_company
+	ADD CONSTRAINT fk_company_coll_company_coll_i
+	FOREIGN KEY (company_collection_id) REFERENCES company_collection(company_collection_id);
+-- consider FK between company_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_prop_compcoll_id
+	FOREIGN KEY (company_collection_id) REFERENCES company_collection(company_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK company_collection and val_company_collection_type
+ALTER TABLE company_collection
+	ADD CONSTRAINT fk_comp_coll_com_coll_type
+	FOREIGN KEY (company_collection_type) REFERENCES val_company_collection_type(company_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.validate_company_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_company_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.company_collection_type != NEW.company_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.company_collection_type = OLD.company_collection_type
+		AND	p.company_collection_id = NEW.company_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'company_collection % of type % is used by % restricted properties.',
+				NEW.company_collection_id, NEW.company_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_company_collection_type_change BEFORE UPDATE OF company_collection_type ON company_collection FOR EACH ROW EXECUTE PROCEDURE validate_company_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'company_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'company_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'company_collection');
+ALTER SEQUENCE company_collection_company_collection_id_seq
+	 OWNED BY company_collection.company_collection_id;
+DROP TABLE IF EXISTS company_collection_v79;
+DROP TABLE IF EXISTS audit.company_collection_v79;
+-- DONE DEALING WITH TABLE company_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE department
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'department', 'department');
@@ -3898,6 +5822,7 @@ CREATE TABLE device
 	chassis_location_id	integer  NULL,
 	parent_device_id	integer  NULL,
 	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
 	device_status	varchar(50) NOT NULL,
 	operating_system_id	integer NOT NULL,
 	service_environment_id	integer NOT NULL,
@@ -3941,6 +5866,7 @@ INSERT INTO device (
 	chassis_location_id,
 	parent_device_id,
 	description,
+	external_id,		-- new column (external_id)
 	device_status,
 	operating_system_id,
 	service_environment_id,
@@ -3967,6 +5893,7 @@ INSERT INTO device (
 	chassis_location_id,
 	parent_device_id,
 	description,
+	NULL,		-- new column (external_id)
 	device_status,
 	operating_system_id,
 	service_environment_id,
@@ -3995,6 +5922,7 @@ INSERT INTO audit.device (
 	chassis_location_id,
 	parent_device_id,
 	description,
+	external_id,		-- new column (external_id)
 	device_status,
 	operating_system_id,
 	service_environment_id,
@@ -4027,6 +5955,7 @@ INSERT INTO audit.device (
 	chassis_location_id,
 	parent_device_id,
 	description,
+	NULL,		-- new column (external_id)
 	device_status,
 	operating_system_id,
 	service_environment_id,
@@ -4070,6 +5999,7 @@ ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_locati
 ALTER TABLE device ADD CONSTRAINT pk_device PRIMARY KEY (device_id);
 
 -- Table/Column Comments
+COMMENT ON COLUMN device.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 -- INDEXES
 CREATE INDEX idx_dev_islclymgd ON device USING btree (is_locally_managed);
 CREATE INDEX idx_dev_ismonitored ON device USING btree (is_monitored);
@@ -4665,6 +6595,243 @@ DROP TABLE IF EXISTS audit.device_v79;
 -- DONE DEALING WITH TABLE device
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE device_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'device_collection', 'device_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE device_collection_ssh_key DROP CONSTRAINT IF EXISTS fk_dev_coll_ssh_key_devcoll;
+ALTER TABLE device_collection_assignd_cert DROP CONSTRAINT IF EXISTS fk_devcolascrt_devcolid;
+ALTER TABLE appaal_instance_device_coll DROP CONSTRAINT IF EXISTS fk_devcoll_ref_appaalinstdcoll;
+ALTER TABLE device_collection_device DROP CONSTRAINT IF EXISTS fk_devcolldev_dev_colid;
+ALTER TABLE device_collection_hier DROP CONSTRAINT IF EXISTS fk_devcollhier_devcol_id;
+ALTER TABLE device_collection_hier DROP CONSTRAINT IF EXISTS fk_devcollhier_pdevcol_id;
+ALTER TABLE klogin_mclass DROP CONSTRAINT IF EXISTS fk_klgnmcl_devcoll_id;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_prop_pv_devcolid;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_devcolid;
+ALTER TABLE sudo_acct_col_device_collectio DROP CONSTRAINT IF EXISTS fk_sudo_ucl_fk_dev_co_device_c;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.device_collection DROP CONSTRAINT IF EXISTS fk_devc_devctyp_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'device_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.device_collection DROP CONSTRAINT IF EXISTS ak_uq_devicecoll_name_type;
+ALTER TABLE jazzhands.device_collection DROP CONSTRAINT IF EXISTS pk_device_collection;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."idx_devcoll_devcolltype";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_device_collection ON jazzhands.device_collection;
+DROP TRIGGER IF EXISTS trigger_audit_device_collection ON jazzhands.device_collection;
+DROP TRIGGER IF EXISTS trigger_validate_device_collection_type_change ON jazzhands.device_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'device_collection');
+---- BEGIN audit.device_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'device_collection', 'device_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'device_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.device_collection DROP CONSTRAINT IF EXISTS device_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_device_collection_ak_uq_devicecoll_name_type";
+DROP INDEX IF EXISTS "audit"."aud_device_collection_pk_device_collection";
+DROP INDEX IF EXISTS "audit"."device_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.device_collection TEARDOWN
+
+
+ALTER TABLE device_collection RENAME TO device_collection_v79;
+ALTER TABLE audit.device_collection RENAME TO device_collection_v79;
+
+CREATE TABLE device_collection
+(
+	device_collection_id	integer NOT NULL,
+	device_collection_name	varchar(255) NOT NULL,
+	device_collection_type	varchar(50) NOT NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'device_collection', false);
+ALTER TABLE device_collection
+	ALTER device_collection_id
+	SET DEFAULT nextval('device_collection_device_collection_id_seq'::regclass);
+INSERT INTO device_collection (
+	device_collection_id,
+	device_collection_name,
+	device_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	device_collection_id,
+	device_collection_name,
+	device_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM device_collection_v79;
+
+INSERT INTO audit.device_collection (
+	device_collection_id,
+	device_collection_name,
+	device_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	device_collection_id,
+	device_collection_name,
+	device_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.device_collection_v79;
+
+ALTER TABLE device_collection
+	ALTER device_collection_id
+	SET DEFAULT nextval('device_collection_device_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE device_collection ADD CONSTRAINT ak_uq_devicecoll_name_type UNIQUE (device_collection_name, device_collection_type);
+ALTER TABLE device_collection ADD CONSTRAINT pk_device_collection PRIMARY KEY (device_collection_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN device_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX idx_devcoll_devcolltype ON device_collection USING btree (device_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between device_collection and device_collection_ssh_key
+ALTER TABLE device_collection_ssh_key
+	ADD CONSTRAINT fk_dev_coll_ssh_key_devcoll
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and device_collection_assignd_cert
+ALTER TABLE device_collection_assignd_cert
+	ADD CONSTRAINT fk_devcolascrt_devcolid
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and appaal_instance_device_coll
+ALTER TABLE appaal_instance_device_coll
+	ADD CONSTRAINT fk_devcoll_ref_appaalinstdcoll
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and device_collection_device
+ALTER TABLE device_collection_device
+	ADD CONSTRAINT fk_devcolldev_dev_colid
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and device_collection_hier
+ALTER TABLE device_collection_hier
+	ADD CONSTRAINT fk_devcollhier_devcol_id
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and device_collection_hier
+ALTER TABLE device_collection_hier
+	ADD CONSTRAINT fk_devcollhier_pdevcol_id
+	FOREIGN KEY (parent_device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and klogin_mclass
+ALTER TABLE klogin_mclass
+	ADD CONSTRAINT fk_klgnmcl_devcoll_id
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_prop_pv_devcolid
+	FOREIGN KEY (property_value_device_coll_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_devcolid
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+-- consider FK between device_collection and sudo_acct_col_device_collectio
+ALTER TABLE sudo_acct_col_device_collectio
+	ADD CONSTRAINT fk_sudo_ucl_fk_dev_co_device_c
+	FOREIGN KEY (device_collection_id) REFERENCES device_collection(device_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK device_collection and val_device_collection_type
+ALTER TABLE device_collection
+	ADD CONSTRAINT fk_devc_devctyp_id
+	FOREIGN KEY (device_collection_type) REFERENCES val_device_collection_type(device_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.validate_device_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_device_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.device_collection_type != NEW.device_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.device_collection_type = OLD.device_collection_type
+		AND	p.device_collection_id = NEW.device_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'device_collection % of type % is used by % restricted properties.',
+				NEW.device_collection_id, NEW.device_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_device_collection_type_change BEFORE UPDATE OF device_collection_type ON device_collection FOR EACH ROW EXECUTE PROCEDURE validate_device_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'device_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'device_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'device_collection');
+ALTER SEQUENCE device_collection_device_collection_id_seq
+	 OWNED BY device_collection.device_collection_id;
+DROP TABLE IF EXISTS device_collection_v79;
+DROP TABLE IF EXISTS audit.device_collection_v79;
+-- DONE DEALING WITH TABLE device_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE dns_change_record
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_change_record', 'dns_change_record');
@@ -4800,9 +6967,9 @@ ALTER TABLE dns_change_record
 	ADD CONSTRAINT fk_dns_chg_dns_domain
 	FOREIGN KEY (dns_domain_id) REFERENCES dns_domain(dns_domain_id);
 -- consider FK dns_change_record and ip_universe
---ALTER TABLE dns_change_record
---	ADD CONSTRAINT fk_dnschgrec_ip_universe
---	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+ALTER TABLE dns_change_record
+	ADD CONSTRAINT fk_dnschgrec_ip_universe
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
 
 -- TRIGGERS
 -- consider NEW jazzhands.dns_change_record_pgnotify
@@ -4889,10 +7056,12 @@ ALTER TABLE audit.dns_domain RENAME TO dns_domain_v79;
 CREATE TABLE dns_domain
 (
 	dns_domain_id	integer NOT NULL,
+	soa_name	varchar(255) NOT NULL,
 	dns_domain_name	varchar(255) NOT NULL,
 	dns_domain_type	varchar(50) NOT NULL,
-	soa_name	varchar(255) NOT NULL,
 	parent_dns_domain_id	integer  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
 	data_upd_user	varchar(255)  NULL,
@@ -4904,20 +7073,24 @@ ALTER TABLE dns_domain
 	SET DEFAULT nextval('dns_domain_dns_domain_id_seq'::regclass);
 INSERT INTO dns_domain (
 	dns_domain_id,
+	soa_name,
 	dns_domain_name,		-- new column (dns_domain_name)
 	dns_domain_type,
-	soa_name,
 	parent_dns_domain_id,
+	description,		-- new column (description)
+	external_id,		-- new column (external_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
 ) SELECT
 	dns_domain_id,
+	soa_name,
 	NULL,		-- new column (dns_domain_name)
 	dns_domain_type,
-	soa_name,
 	parent_dns_domain_id,
+	NULL,		-- new column (description)
+	NULL,		-- new column (external_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -4926,10 +7099,12 @@ FROM dns_domain_v79;
 
 INSERT INTO audit.dns_domain (
 	dns_domain_id,
+	soa_name,
 	dns_domain_name,		-- new column (dns_domain_name)
 	dns_domain_type,
-	soa_name,
 	parent_dns_domain_id,
+	description,		-- new column (description)
+	external_id,		-- new column (external_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -4942,10 +7117,12 @@ INSERT INTO audit.dns_domain (
 	"aud#seq"
 ) SELECT
 	dns_domain_id,
+	soa_name,
 	NULL,		-- new column (dns_domain_name)
 	dns_domain_type,
-	soa_name,
 	parent_dns_domain_id,
+	NULL,		-- new column (description)
+	NULL,		-- new column (external_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -4968,6 +7145,7 @@ ALTER TABLE dns_domain ADD CONSTRAINT pk_dns_domain PRIMARY KEY (dns_domain_id);
 
 -- Table/Column Comments
 COMMENT ON COLUMN dns_domain.soa_name IS 'legacy name for zone.  This is being replaced with dns_domain_name and the other should be set and not this one (which will be syncd by trigger until it goes away).';
+COMMENT ON COLUMN dns_domain.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 -- INDEXES
 CREATE INDEX idx_dnsdomain_parentdnsdomain ON dns_domain USING btree (parent_dns_domain_id);
 CREATE INDEX xifdns_dom_dns_dom_type ON dns_domain USING btree (dns_domain_type);
@@ -5087,6 +7265,213 @@ DROP TABLE IF EXISTS audit.dns_domain_v79;
 -- DONE DEALING WITH TABLE dns_domain
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE dns_domain_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_domain_collection', 'dns_domain_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE dns_domain_collection_dns_dom DROP CONSTRAINT IF EXISTS fk_dns_dom_coll_dns_dom_dns_do;
+ALTER TABLE dns_domain_collection_hier DROP CONSTRAINT IF EXISTS fk_dns_domain_coll_id;
+ALTER TABLE dns_domain_collection_hier DROP CONSTRAINT IF EXISTS fk_dns_domain_coll_id_child;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_dns_dom_collect;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.dns_domain_collection DROP CONSTRAINT IF EXISTS fk_dns_dom_coll_typ_val;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'dns_domain_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.dns_domain_collection DROP CONSTRAINT IF EXISTS ak_dns_domain_collection_namty;
+ALTER TABLE jazzhands.dns_domain_collection DROP CONSTRAINT IF EXISTS pk_dns_domain_collection;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif1dns_domain_collection";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_dns_domain_collection ON jazzhands.dns_domain_collection;
+DROP TRIGGER IF EXISTS trigger_audit_dns_domain_collection ON jazzhands.dns_domain_collection;
+DROP TRIGGER IF EXISTS trigger_validate_dns_domain_collection_type_change ON jazzhands.dns_domain_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'dns_domain_collection');
+---- BEGIN audit.dns_domain_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'dns_domain_collection', 'dns_domain_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'dns_domain_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.dns_domain_collection DROP CONSTRAINT IF EXISTS dns_domain_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_dns_domain_collection_ak_dns_domain_collection_namty";
+DROP INDEX IF EXISTS "audit"."aud_dns_domain_collection_pk_dns_domain_collection";
+DROP INDEX IF EXISTS "audit"."dns_domain_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.dns_domain_collection TEARDOWN
+
+
+ALTER TABLE dns_domain_collection RENAME TO dns_domain_collection_v79;
+ALTER TABLE audit.dns_domain_collection RENAME TO dns_domain_collection_v79;
+
+CREATE TABLE dns_domain_collection
+(
+	dns_domain_collection_id	integer NOT NULL,
+	dns_domain_collection_name	varchar(50) NOT NULL,
+	dns_domain_collection_type	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'dns_domain_collection', false);
+ALTER TABLE dns_domain_collection
+	ALTER dns_domain_collection_id
+	SET DEFAULT nextval('dns_domain_collection_dns_domain_collection_id_seq'::regclass);
+INSERT INTO dns_domain_collection (
+	dns_domain_collection_id,
+	dns_domain_collection_name,
+	dns_domain_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	dns_domain_collection_id,
+	dns_domain_collection_name,
+	dns_domain_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM dns_domain_collection_v79;
+
+INSERT INTO audit.dns_domain_collection (
+	dns_domain_collection_id,
+	dns_domain_collection_name,
+	dns_domain_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	dns_domain_collection_id,
+	dns_domain_collection_name,
+	dns_domain_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.dns_domain_collection_v79;
+
+ALTER TABLE dns_domain_collection
+	ALTER dns_domain_collection_id
+	SET DEFAULT nextval('dns_domain_collection_dns_domain_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE dns_domain_collection ADD CONSTRAINT ak_dns_domain_collection_namty UNIQUE (dns_domain_collection_name, dns_domain_collection_type);
+ALTER TABLE dns_domain_collection ADD CONSTRAINT pk_dns_domain_collection PRIMARY KEY (dns_domain_collection_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN dns_domain_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif1dns_domain_collection ON dns_domain_collection USING btree (dns_domain_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between dns_domain_collection and dns_domain_collection_dns_dom
+ALTER TABLE dns_domain_collection_dns_dom
+	ADD CONSTRAINT fk_dns_dom_coll_dns_dom_dns_do
+	FOREIGN KEY (dns_domain_collection_id) REFERENCES dns_domain_collection(dns_domain_collection_id);
+-- consider FK between dns_domain_collection and dns_domain_collection_hier
+ALTER TABLE dns_domain_collection_hier
+	ADD CONSTRAINT fk_dns_domain_coll_id
+	FOREIGN KEY (dns_domain_collection_id) REFERENCES dns_domain_collection(dns_domain_collection_id);
+-- consider FK between dns_domain_collection and dns_domain_collection_hier
+ALTER TABLE dns_domain_collection_hier
+	ADD CONSTRAINT fk_dns_domain_coll_id_child
+	FOREIGN KEY (child_dns_domain_collection_id) REFERENCES dns_domain_collection(dns_domain_collection_id);
+-- consider FK between dns_domain_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_dns_dom_collect
+	FOREIGN KEY (dns_domain_collection_id) REFERENCES dns_domain_collection(dns_domain_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK dns_domain_collection and val_dns_domain_collection_type
+ALTER TABLE dns_domain_collection
+	ADD CONSTRAINT fk_dns_dom_coll_typ_val
+	FOREIGN KEY (dns_domain_collection_type) REFERENCES val_dns_domain_collection_type(dns_domain_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.validate_dns_domain_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_dns_domain_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.dns_domain_collection_type != NEW.dns_domain_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.dns_domain_collection_type = OLD.dns_domain_collection_type
+		AND	p.dns_domain_collection_id = NEW.dns_domain_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'dns_domain_collection % of type % is used by % restricted properties.',
+				NEW.dns_domain_collection_id, NEW.dns_domain_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_dns_domain_collection_type_change BEFORE UPDATE OF dns_domain_collection_type ON dns_domain_collection FOR EACH ROW EXECUTE PROCEDURE validate_dns_domain_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain_collection');
+ALTER SEQUENCE dns_domain_collection_dns_domain_collection_id_seq
+	 OWNED BY dns_domain_collection.dns_domain_collection_id;
+DROP TABLE IF EXISTS dns_domain_collection_v79;
+DROP TABLE IF EXISTS audit.dns_domain_collection_v79;
+-- DONE DEALING WITH TABLE dns_domain_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH NEW TABLE dns_domain_ip_universe
 CREATE TABLE dns_domain_ip_universe
 (
@@ -5126,13 +7511,13 @@ ALTER TABLE dns_domain_ip_universe ADD CONSTRAINT validation_rule_675_1416260427
 
 -- FOREIGN KEYS TO
 -- consider FK dns_domain_ip_universe and dns_domain
---ALTER TABLE dns_domain_ip_universe
---	ADD CONSTRAINT fk_dnsdom_ipu_dnsdomid
---	FOREIGN KEY (dns_domain_id) REFERENCES dns_domain(dns_domain_id);
+ALTER TABLE dns_domain_ip_universe
+	ADD CONSTRAINT fk_dnsdom_ipu_dnsdomid
+	FOREIGN KEY (dns_domain_id) REFERENCES dns_domain(dns_domain_id);
 -- consider FK dns_domain_ip_universe and ip_universe
---ALTER TABLE dns_domain_ip_universe
---	ADD CONSTRAINT fk_dnsdom_ipu_ipu
---	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+ALTER TABLE dns_domain_ip_universe
+	ADD CONSTRAINT fk_dnsdom_ipu_ipu
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
 
 -- TRIGGERS
 -- consider NEW jazzhands.dns_domain_ip_universe_trigger_change
@@ -5159,184 +7544,6 @@ SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain_ip_universe
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_ip_universe');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain_ip_universe');
 -- DONE DEALING WITH TABLE dns_domain_ip_universe
---------------------------------------------------------------------
---------------------------------------------------------------------
--- DEALING WITH TABLE ip_universe
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'ip_universe', 'ip_universe');
-
--- FOREIGN KEYS FROM
-ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS fk_dns_rec_ip_universe;
-ALTER TABLE netblock DROP CONSTRAINT IF EXISTS fk_nblk_ip_universe_id;
-
--- FOREIGN KEYS TO
-
--- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay('jazzhands', 'ip_universe');
-
--- PRIMARY and ALTERNATE KEYS
-ALTER TABLE jazzhands.ip_universe DROP CONSTRAINT IF EXISTS ak_ip_universe_name;
-ALTER TABLE jazzhands.ip_universe DROP CONSTRAINT IF EXISTS pk_ip_universe;
--- INDEXES
--- CHECK CONSTRAINTS, etc
--- TRIGGERS, etc
-DROP TRIGGER IF EXISTS trig_userlog_ip_universe ON jazzhands.ip_universe;
-DROP TRIGGER IF EXISTS trigger_audit_ip_universe ON jazzhands.ip_universe;
-SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'ip_universe');
----- BEGIN audit.ip_universe TEARDOWN
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('audit', 'ip_universe', 'ip_universe');
-
--- FOREIGN KEYS FROM
-
--- FOREIGN KEYS TO
-
--- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay('audit', 'ip_universe');
-
--- PRIMARY and ALTERNATE KEYS
-ALTER TABLE audit.ip_universe DROP CONSTRAINT IF EXISTS ip_universe_pkey;
--- INDEXES
-DROP INDEX IF EXISTS "audit"."aud_ip_universe_ak_ip_universe_name";
-DROP INDEX IF EXISTS "audit"."aud_ip_universe_pk_ip_universe";
-DROP INDEX IF EXISTS "audit"."ip_universe_aud#timestamp_idx";
--- CHECK CONSTRAINTS, etc
--- TRIGGERS, etc
----- DONE audit.ip_universe TEARDOWN
-
-
-ALTER TABLE ip_universe RENAME TO ip_universe_v79;
-ALTER TABLE audit.ip_universe RENAME TO ip_universe_v79;
-
-CREATE TABLE ip_universe
-(
-	ip_universe_id	integer NOT NULL,
-	ip_universe_name	varchar(50) NOT NULL,
-	ip_namespace	varchar(50) NOT NULL,
-	description	varchar(4000)  NULL,
-	data_ins_user	varchar(255)  NULL,
-	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(255)  NULL,
-	data_upd_date	timestamp with time zone  NULL
-);
-SELECT schema_support.build_audit_table('audit', 'jazzhands', 'ip_universe', false);
-ALTER TABLE ip_universe
-	ALTER ip_universe_id
-	SET DEFAULT nextval('ip_universe_ip_universe_id_seq'::regclass);
-INSERT INTO ip_universe (
-	ip_universe_id,
-	ip_universe_name,
-	ip_namespace,		-- new column (ip_namespace)
-	description,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-) SELECT
-	ip_universe_id,
-	ip_universe_name,
-	'default',		-- new column (ip_namespace)
-	description,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM ip_universe_v79;
-
-INSERT INTO audit.ip_universe (
-	ip_universe_id,
-	ip_universe_name,
-	ip_namespace,		-- new column (ip_namespace)
-	description,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	"aud#seq"
-) SELECT
-	ip_universe_id,
-	ip_universe_name,
-	'default',		-- new column (ip_namespace)
-	description,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	"aud#seq"
-FROM audit.ip_universe_v79;
-
-ALTER TABLE ip_universe
-	ALTER ip_universe_id
-	SET DEFAULT nextval('ip_universe_ip_universe_id_seq'::regclass);
-
--- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE ip_universe ADD CONSTRAINT ak_ip_universe_name UNIQUE (ip_universe_name);
-ALTER TABLE ip_universe ADD CONSTRAINT pk_ip_universe PRIMARY KEY (ip_universe_id);
-
--- Table/Column Comments
-COMMENT ON COLUMN ip_universe.ip_namespace IS 'defeines the namespace for a given ip universe -- all universes in this namespace are considered unique for netblock validations';
--- INDEXES
-CREATE INDEX xif1ip_universe ON ip_universe USING btree (ip_namespace);
-
--- CHECK CONSTRAINTS
-
--- FOREIGN KEYS FROM
--- consider FK between ip_universe and dns_record
-ALTER TABLE dns_record
-	ADD CONSTRAINT fk_dns_rec_ip_universe
-	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
--- consider FK between ip_universe and dns_change_record
-ALTER TABLE dns_change_record
-	ADD CONSTRAINT fk_dnschgrec_ip_universe
-	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
--- consider FK between ip_universe and dns_domain_ip_universe
-ALTER TABLE dns_domain_ip_universe
-	ADD CONSTRAINT fk_dnsdom_ipu_ipu
-	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
--- consider FK between ip_universe and ip_universe_visibility
--- Skipping this FK since column does not exist yet
---ALTER TABLE ip_universe_visibility
---	ADD CONSTRAINT fk_ip_universe_vis_ip_univ
---	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
-
--- consider FK between ip_universe and ip_universe_visibility
--- Skipping this FK since column does not exist yet
---ALTER TABLE ip_universe_visibility
---	ADD CONSTRAINT fk_ip_universe_vis_ip_univ_vis
---	FOREIGN KEY (visible_ip_universe_id) REFERENCES ip_universe(ip_universe_id);
-
--- consider FK between ip_universe and netblock
-ALTER TABLE netblock
-	ADD CONSTRAINT fk_nblk_ip_universe_id
-	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
-
--- FOREIGN KEYS TO
--- consider FK ip_universe and val_ip_namespace
-ALTER TABLE ip_universe
-	ADD CONSTRAINT r_815
-	FOREIGN KEY (ip_namespace) REFERENCES val_ip_namespace(ip_namespace);
-
--- TRIGGERS
--- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
-SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'ip_universe');
-SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'ip_universe');
-SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'ip_universe');
-ALTER SEQUENCE ip_universe_ip_universe_id_seq
-	 OWNED BY ip_universe.ip_universe_id;
-DROP TABLE IF EXISTS ip_universe_v79;
-DROP TABLE IF EXISTS audit.ip_universe_v79;
--- DONE DEALING WITH TABLE ip_universe
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE ip_universe_visibility
@@ -5386,6 +7593,2255 @@ SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'ip_universe_visibility
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'ip_universe_visibility');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'ip_universe_visibility');
 -- DONE DEALING WITH TABLE ip_universe_visibility
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE layer2_network
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'layer2_network', 'layer2_network');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE device_layer2_network DROP CONSTRAINT IF EXISTS fk_device_l2_net_l2netid;
+ALTER TABLE layer2_connection_l2_network DROP CONSTRAINT IF EXISTS fk_l2c_l2n_l2netid;
+ALTER TABLE layer2_connection_l2_network DROP CONSTRAINT IF EXISTS fk_l2cl2n_l2net_id_encap_typ;
+ALTER TABLE l2_network_coll_l2_network DROP CONSTRAINT IF EXISTS fk_l2netcl2net_l2netid;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_l3net_l2net;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.layer2_network DROP CONSTRAINT IF EXISTS fk_l2_net_encap_domain;
+ALTER TABLE jazzhands.layer2_network DROP CONSTRAINT IF EXISTS fk_l2_net_encap_range_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'layer2_network');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.layer2_network DROP CONSTRAINT IF EXISTS ak_l2_net_l2net_encap_typ;
+ALTER TABLE jazzhands.layer2_network DROP CONSTRAINT IF EXISTS ak_l2net_encap_name;
+ALTER TABLE jazzhands.layer2_network DROP CONSTRAINT IF EXISTS ak_l2net_encap_tag;
+ALTER TABLE jazzhands.layer2_network DROP CONSTRAINT IF EXISTS pk_layer2_network;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif_l2_net_encap_domain";
+DROP INDEX IF EXISTS "jazzhands"."xif_l2_net_encap_range_id";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_layer2_network ON jazzhands.layer2_network;
+DROP TRIGGER IF EXISTS trigger_audit_layer2_network ON jazzhands.layer2_network;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'layer2_network');
+---- BEGIN audit.layer2_network TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'layer2_network', 'layer2_network');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'layer2_network');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.layer2_network DROP CONSTRAINT IF EXISTS layer2_network_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_layer2_network_ak_l2_net_l2net_encap_typ";
+DROP INDEX IF EXISTS "audit"."aud_layer2_network_ak_l2net_encap_name";
+DROP INDEX IF EXISTS "audit"."aud_layer2_network_ak_l2net_encap_tag";
+DROP INDEX IF EXISTS "audit"."aud_layer2_network_pk_layer2_network";
+DROP INDEX IF EXISTS "audit"."layer2_network_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.layer2_network TEARDOWN
+
+
+ALTER TABLE layer2_network RENAME TO layer2_network_v79;
+ALTER TABLE audit.layer2_network RENAME TO layer2_network_v79;
+
+CREATE TABLE layer2_network
+(
+	layer2_network_id	integer NOT NULL,
+	encapsulation_name	varchar(32)  NULL,
+	encapsulation_domain	varchar(50)  NULL,
+	encapsulation_type	varchar(50)  NULL,
+	encapsulation_tag	integer  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	encapsulation_range_id	integer  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'layer2_network', false);
+ALTER TABLE layer2_network
+	ALTER layer2_network_id
+	SET DEFAULT nextval('layer2_network_layer2_network_id_seq'::regclass);
+INSERT INTO layer2_network (
+	layer2_network_id,
+	encapsulation_name,
+	encapsulation_domain,
+	encapsulation_type,
+	encapsulation_tag,
+	description,
+	external_id,		-- new column (external_id)
+	encapsulation_range_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	layer2_network_id,
+	encapsulation_name,
+	encapsulation_domain,
+	encapsulation_type,
+	encapsulation_tag,
+	description,
+	NULL,		-- new column (external_id)
+	encapsulation_range_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM layer2_network_v79;
+
+INSERT INTO audit.layer2_network (
+	layer2_network_id,
+	encapsulation_name,
+	encapsulation_domain,
+	encapsulation_type,
+	encapsulation_tag,
+	description,
+	external_id,		-- new column (external_id)
+	encapsulation_range_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	layer2_network_id,
+	encapsulation_name,
+	encapsulation_domain,
+	encapsulation_type,
+	encapsulation_tag,
+	description,
+	NULL,		-- new column (external_id)
+	encapsulation_range_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.layer2_network_v79;
+
+ALTER TABLE layer2_network
+	ALTER layer2_network_id
+	SET DEFAULT nextval('layer2_network_layer2_network_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE layer2_network ADD CONSTRAINT ak_l2_net_l2net_encap_typ UNIQUE (layer2_network_id, encapsulation_type);
+ALTER TABLE layer2_network ADD CONSTRAINT ak_l2net_encap_name UNIQUE (encapsulation_domain, encapsulation_type, encapsulation_name);
+ALTER TABLE layer2_network ADD CONSTRAINT ak_l2net_encap_tag UNIQUE (encapsulation_type, encapsulation_domain, encapsulation_tag);
+ALTER TABLE layer2_network ADD CONSTRAINT pk_layer2_network PRIMARY KEY (layer2_network_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN layer2_network.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+COMMENT ON COLUMN layer2_network.encapsulation_range_id IS 'Administrative information about which range this is a part of';
+-- INDEXES
+CREATE INDEX xif_l2_net_encap_domain ON layer2_network USING btree (encapsulation_domain, encapsulation_type);
+CREATE INDEX xif_l2_net_encap_range_id ON layer2_network USING btree (encapsulation_range_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between layer2_network and device_layer2_network
+ALTER TABLE device_layer2_network
+	ADD CONSTRAINT fk_device_l2_net_l2netid
+	FOREIGN KEY (layer2_network_id) REFERENCES layer2_network(layer2_network_id);
+-- consider FK between layer2_network and layer2_connection_l2_network
+ALTER TABLE layer2_connection_l2_network
+	ADD CONSTRAINT fk_l2c_l2n_l2netid
+	FOREIGN KEY (layer2_network_id) REFERENCES layer2_network(layer2_network_id);
+-- consider FK between layer2_network and layer2_connection_l2_network
+ALTER TABLE layer2_connection_l2_network
+	ADD CONSTRAINT fk_l2cl2n_l2net_id_encap_typ
+	FOREIGN KEY (layer2_network_id, encapsulation_type) REFERENCES layer2_network(layer2_network_id, encapsulation_type);
+-- consider FK between layer2_network and l2_network_coll_l2_network
+ALTER TABLE l2_network_coll_l2_network
+	ADD CONSTRAINT fk_l2netcl2net_l2netid
+	FOREIGN KEY (layer2_network_id) REFERENCES layer2_network(layer2_network_id);
+-- consider FK between layer2_network and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3net_l2net
+	FOREIGN KEY (layer2_network_id) REFERENCES layer2_network(layer2_network_id);
+
+-- FOREIGN KEYS TO
+-- consider FK layer2_network and encapsulation_domain
+ALTER TABLE layer2_network
+	ADD CONSTRAINT fk_l2_net_encap_domain
+	FOREIGN KEY (encapsulation_domain, encapsulation_type) REFERENCES encapsulation_domain(encapsulation_domain, encapsulation_type);
+-- consider FK layer2_network and encapsulation_range
+ALTER TABLE layer2_network
+	ADD CONSTRAINT fk_l2_net_encap_range_id
+	FOREIGN KEY (encapsulation_range_id) REFERENCES encapsulation_range(encapsulation_range_id);
+
+-- TRIGGERS
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer2_network');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer2_network');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer2_network');
+ALTER SEQUENCE layer2_network_layer2_network_id_seq
+	 OWNED BY layer2_network.layer2_network_id;
+DROP TABLE IF EXISTS layer2_network_v79;
+DROP TABLE IF EXISTS audit.layer2_network_v79;
+-- DONE DEALING WITH TABLE layer2_network
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE layer2_network_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'layer2_network_collection', 'layer2_network_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE layer2_network_collection_hier DROP CONSTRAINT IF EXISTS fk_l2net_collhier_chldl2net;
+ALTER TABLE layer2_network_collection_hier DROP CONSTRAINT IF EXISTS fk_l2net_collhier_l2net;
+ALTER TABLE l2_network_coll_l2_network DROP CONSTRAINT IF EXISTS fk_l2netcl2net_collid;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_prop_l2_netcollid;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.layer2_network_collection DROP CONSTRAINT IF EXISTS fk_l2netcoll_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'layer2_network_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.layer2_network_collection DROP CONSTRAINT IF EXISTS ak_l2network_coll_name_type;
+ALTER TABLE jazzhands.layer2_network_collection DROP CONSTRAINT IF EXISTS pk_layer2_network_collection;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif_l2netcoll_type";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS l2_net_coll_member_enforce_on_type_change ON jazzhands.layer2_network_collection;
+DROP TRIGGER IF EXISTS trig_userlog_layer2_network_collection ON jazzhands.layer2_network_collection;
+DROP TRIGGER IF EXISTS trigger_audit_layer2_network_collection ON jazzhands.layer2_network_collection;
+DROP TRIGGER IF EXISTS trigger_validate_layer2_network_collection_type_change ON jazzhands.layer2_network_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'layer2_network_collection');
+---- BEGIN audit.layer2_network_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'layer2_network_collection', 'layer2_network_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'layer2_network_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.layer2_network_collection DROP CONSTRAINT IF EXISTS layer2_network_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_layer2_network_collection_ak_l2network_coll_name_type";
+DROP INDEX IF EXISTS "audit"."aud_layer2_network_collection_pk_layer2_network_collection";
+DROP INDEX IF EXISTS "audit"."layer2_network_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.layer2_network_collection TEARDOWN
+
+
+ALTER TABLE layer2_network_collection RENAME TO layer2_network_collection_v79;
+ALTER TABLE audit.layer2_network_collection RENAME TO layer2_network_collection_v79;
+
+CREATE TABLE layer2_network_collection
+(
+	layer2_network_collection_id	integer NOT NULL,
+	layer2_network_collection_name	varchar(255) NOT NULL,
+	layer2_network_collection_type	varchar(50)  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'layer2_network_collection', false);
+ALTER TABLE layer2_network_collection
+	ALTER layer2_network_collection_id
+	SET DEFAULT nextval('layer2_network_collection_layer2_network_collection_id_seq'::regclass);
+INSERT INTO layer2_network_collection (
+	layer2_network_collection_id,
+	layer2_network_collection_name,
+	layer2_network_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	layer2_network_collection_id,
+	layer2_network_collection_name,
+	layer2_network_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM layer2_network_collection_v79;
+
+INSERT INTO audit.layer2_network_collection (
+	layer2_network_collection_id,
+	layer2_network_collection_name,
+	layer2_network_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	layer2_network_collection_id,
+	layer2_network_collection_name,
+	layer2_network_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.layer2_network_collection_v79;
+
+ALTER TABLE layer2_network_collection
+	ALTER layer2_network_collection_id
+	SET DEFAULT nextval('layer2_network_collection_layer2_network_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE layer2_network_collection ADD CONSTRAINT ak_l2network_coll_name_type UNIQUE (layer2_network_collection_name, layer2_network_collection_type);
+ALTER TABLE layer2_network_collection ADD CONSTRAINT pk_layer2_network_collection PRIMARY KEY (layer2_network_collection_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN layer2_network_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif_l2netcoll_type ON layer2_network_collection USING btree (layer2_network_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between layer2_network_collection and layer2_network_collection_hier
+ALTER TABLE layer2_network_collection_hier
+	ADD CONSTRAINT fk_l2net_collhier_chldl2net
+	FOREIGN KEY (child_l2_network_coll_id) REFERENCES layer2_network_collection(layer2_network_collection_id);
+-- consider FK between layer2_network_collection and layer2_network_collection_hier
+ALTER TABLE layer2_network_collection_hier
+	ADD CONSTRAINT fk_l2net_collhier_l2net
+	FOREIGN KEY (layer2_network_collection_id) REFERENCES layer2_network_collection(layer2_network_collection_id);
+-- consider FK between layer2_network_collection and l2_network_coll_l2_network
+ALTER TABLE l2_network_coll_l2_network
+	ADD CONSTRAINT fk_l2netcl2net_collid
+	FOREIGN KEY (layer2_network_collection_id) REFERENCES layer2_network_collection(layer2_network_collection_id);
+-- consider FK between layer2_network_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_prop_l2_netcollid
+	FOREIGN KEY (layer2_network_collection_id) REFERENCES layer2_network_collection(layer2_network_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK layer2_network_collection and val_layer2_network_coll_type
+ALTER TABLE layer2_network_collection
+	ADD CONSTRAINT fk_l2netcoll_type
+	FOREIGN KEY (layer2_network_collection_type) REFERENCES val_layer2_network_coll_type(layer2_network_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.l2_net_coll_member_enforce_on_type_change
+CREATE OR REPLACE FUNCTION jazzhands.l2_net_coll_member_enforce_on_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	l2ct		val_layer2_network_coll_type%ROWTYPE;
+	old_l2ct	val_layer2_network_coll_type%ROWTYPE;
+	tally integer;
+BEGIN
+	SELECT *
+	INTO	l2ct
+	FROM	val_layer2_network_coll_type
+	WHERE	layer2_network_collection_type = NEW.layer2_network_collection_type;
+
+	SELECT *
+	INTO	old_l2ct
+	FROM	val_layer2_network_coll_type
+	WHERE	layer2_network_collection_type = OLD.layer2_network_collection_type;
+
+	--
+	-- We only need to check this if we are enforcing now where we didn't used
+	-- to need to
+	--
+	IF l2ct.max_num_members IS NOT NULL AND
+			l2ct.max_num_members IS DISTINCT FROM old_l2ct.max_num_members THEN
+		select count(*)
+		  into tally
+		  from l2_network_coll_l2_network
+		  where layer2_network_collection_id = NEW.layer2_network_collection_id;
+		IF tally > l2ct.max_num_members THEN
+			RAISE EXCEPTION 'Too many members'
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	IF l2ct.MAX_NUM_COLLECTIONS IS NOT NULL THEN
+		SELECT MAX(l2count) FROM (
+			SELECT
+				COUNT(*) AS l2count
+			FROM
+				l2_network_coll_l2_network JOIN
+				layer2_network_collection USING (layer2_network_collection_id)
+			WHERE
+				layer2_network_collection_type = NEW.layer2_network_collection_type
+			GROUP BY
+				layer2_network_id
+		) x INTO tally;
+
+		IF tally > l2ct.max_num_collections THEN
+			RAISE EXCEPTION 'Layer2 network may not be a member of more than % collections of type %',
+				l2ct.MAX_NUM_COLLECTIONS, l2ct.layer2_network_collection_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER l2_net_coll_member_enforce_on_type_change AFTER UPDATE OF layer2_network_collection_type ON layer2_network_collection DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE l2_net_coll_member_enforce_on_type_change();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_layer2_network_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_layer2_network_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.layer2_network_collection_type != NEW.layer2_network_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.layer2_network_collection_type = OLD.layer2_network_collection_type
+		AND	p.layer2_network_collection_id = NEW.layer2_network_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'layer2_network_collection % of type % is used by % restricted properties.',
+				NEW.layer2_network_collection_id, NEW.layer2_network_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_layer2_network_collection_type_change BEFORE UPDATE OF layer2_network_collection_type ON layer2_network_collection FOR EACH ROW EXECUTE PROCEDURE validate_layer2_network_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer2_network_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer2_network_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer2_network_collection');
+ALTER SEQUENCE layer2_network_collection_layer2_network_collection_id_seq
+	 OWNED BY layer2_network_collection.layer2_network_collection_id;
+DROP TABLE IF EXISTS layer2_network_collection_v79;
+DROP TABLE IF EXISTS audit.layer2_network_collection_v79;
+-- DONE DEALING WITH TABLE layer2_network_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE layer3_network
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'layer3_network', 'layer3_network');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE l3_network_coll_l3_network DROP CONSTRAINT IF EXISTS fk_l3netcol_l3_net_l3netid;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.layer3_network DROP CONSTRAINT IF EXISTS fk_l3_net_def_gate_nbid;
+ALTER TABLE jazzhands.layer3_network DROP CONSTRAINT IF EXISTS fk_l3net_l2net;
+ALTER TABLE jazzhands.layer3_network DROP CONSTRAINT IF EXISTS fk_l3net_rndv_pt_nblk_id;
+ALTER TABLE jazzhands.layer3_network DROP CONSTRAINT IF EXISTS fk_layer3_network_netblock_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'layer3_network');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.layer3_network DROP CONSTRAINT IF EXISTS ak_layer3_network_netblock_id;
+ALTER TABLE jazzhands.layer3_network DROP CONSTRAINT IF EXISTS pk_layer3_network;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif_l3_net_def_gate_nbid";
+DROP INDEX IF EXISTS "jazzhands"."xif_l3net_l2net";
+DROP INDEX IF EXISTS "jazzhands"."xif_l3net_rndv_pt_nblk_id";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_layer3_network ON jazzhands.layer3_network;
+DROP TRIGGER IF EXISTS trigger_audit_layer3_network ON jazzhands.layer3_network;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'layer3_network');
+---- BEGIN audit.layer3_network TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'layer3_network', 'layer3_network');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'layer3_network');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.layer3_network DROP CONSTRAINT IF EXISTS layer3_network_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_layer3_network_ak_layer3_network_netblock_id";
+DROP INDEX IF EXISTS "audit"."aud_layer3_network_pk_layer3_network";
+DROP INDEX IF EXISTS "audit"."layer3_network_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.layer3_network TEARDOWN
+
+
+ALTER TABLE layer3_network RENAME TO layer3_network_v79;
+ALTER TABLE audit.layer3_network RENAME TO layer3_network_v79;
+
+CREATE TABLE layer3_network
+(
+	layer3_network_id	integer NOT NULL,
+	netblock_id	integer NOT NULL,
+	layer2_network_id	integer  NULL,
+	default_gateway_netblock_id	integer  NULL,
+	rendezvous_netblock_id	integer  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'layer3_network', false);
+ALTER TABLE layer3_network
+	ALTER layer3_network_id
+	SET DEFAULT nextval('layer3_network_layer3_network_id_seq'::regclass);
+INSERT INTO layer3_network (
+	layer3_network_id,
+	netblock_id,
+	layer2_network_id,
+	default_gateway_netblock_id,
+	rendezvous_netblock_id,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	layer3_network_id,
+	netblock_id,
+	layer2_network_id,
+	default_gateway_netblock_id,
+	rendezvous_netblock_id,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM layer3_network_v79;
+
+INSERT INTO audit.layer3_network (
+	layer3_network_id,
+	netblock_id,
+	layer2_network_id,
+	default_gateway_netblock_id,
+	rendezvous_netblock_id,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	layer3_network_id,
+	netblock_id,
+	layer2_network_id,
+	default_gateway_netblock_id,
+	rendezvous_netblock_id,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.layer3_network_v79;
+
+ALTER TABLE layer3_network
+	ALTER layer3_network_id
+	SET DEFAULT nextval('layer3_network_layer3_network_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE layer3_network ADD CONSTRAINT ak_layer3_network_netblock_id UNIQUE (netblock_id) DEFERRABLE;
+ALTER TABLE layer3_network ADD CONSTRAINT pk_layer3_network PRIMARY KEY (layer3_network_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN layer3_network.rendezvous_netblock_id IS 'Multicast Rendevous Point Address';
+COMMENT ON COLUMN layer3_network.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif_l3_net_def_gate_nbid ON layer3_network USING btree (default_gateway_netblock_id);
+CREATE INDEX xif_l3net_l2net ON layer3_network USING btree (layer2_network_id);
+CREATE INDEX xif_l3net_rndv_pt_nblk_id ON layer3_network USING btree (rendezvous_netblock_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between layer3_network and l3_network_coll_l3_network
+ALTER TABLE l3_network_coll_l3_network
+	ADD CONSTRAINT fk_l3netcol_l3_net_l3netid
+	FOREIGN KEY (layer3_network_id) REFERENCES layer3_network(layer3_network_id);
+
+-- FOREIGN KEYS TO
+-- consider FK layer3_network and netblock
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3_net_def_gate_nbid
+	FOREIGN KEY (default_gateway_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK layer3_network and layer2_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3net_l2net
+	FOREIGN KEY (layer2_network_id) REFERENCES layer2_network(layer2_network_id);
+-- consider FK layer3_network and netblock
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3net_rndv_pt_nblk_id
+	FOREIGN KEY (rendezvous_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK layer3_network and netblock
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_layer3_network_netblock_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+
+-- TRIGGERS
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer3_network');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer3_network');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer3_network');
+ALTER SEQUENCE layer3_network_layer3_network_id_seq
+	 OWNED BY layer3_network.layer3_network_id;
+DROP TABLE IF EXISTS layer3_network_v79;
+DROP TABLE IF EXISTS audit.layer3_network_v79;
+-- DONE DEALING WITH TABLE layer3_network
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE layer3_network_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'layer3_network_collection', 'layer3_network_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE l3_network_coll_l3_network DROP CONSTRAINT IF EXISTS fk_l3netcol_l3_net_l3netcolid;
+ALTER TABLE layer3_network_collection_hier DROP CONSTRAINT IF EXISTS fk_l3nethier_chld_l3netid;
+ALTER TABLE layer3_network_collection_hier DROP CONSTRAINT IF EXISTS fk_l3nethierl3netid;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_prop_l3_netcoll_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.layer3_network_collection DROP CONSTRAINT IF EXISTS fk_l3_netcol_netcol_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'layer3_network_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.layer3_network_collection DROP CONSTRAINT IF EXISTS ak_l3netcoll_name_type;
+ALTER TABLE jazzhands.layer3_network_collection DROP CONSTRAINT IF EXISTS pk_layer3_network_collection;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif_l3_netcol_netcol_type";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS l3_net_coll_member_enforce_on_type_change ON jazzhands.layer3_network_collection;
+DROP TRIGGER IF EXISTS trig_userlog_layer3_network_collection ON jazzhands.layer3_network_collection;
+DROP TRIGGER IF EXISTS trigger_audit_layer3_network_collection ON jazzhands.layer3_network_collection;
+DROP TRIGGER IF EXISTS trigger_validate_layer3_network_collection_type_change ON jazzhands.layer3_network_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'layer3_network_collection');
+---- BEGIN audit.layer3_network_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'layer3_network_collection', 'layer3_network_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'layer3_network_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.layer3_network_collection DROP CONSTRAINT IF EXISTS layer3_network_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_layer3_network_collection_ak_l3netcoll_name_type";
+DROP INDEX IF EXISTS "audit"."aud_layer3_network_collection_pk_layer3_network_collection";
+DROP INDEX IF EXISTS "audit"."layer3_network_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.layer3_network_collection TEARDOWN
+
+
+ALTER TABLE layer3_network_collection RENAME TO layer3_network_collection_v79;
+ALTER TABLE audit.layer3_network_collection RENAME TO layer3_network_collection_v79;
+
+CREATE TABLE layer3_network_collection
+(
+	layer3_network_collection_id	integer NOT NULL,
+	layer3_network_collection_name	varchar(255) NOT NULL,
+	layer3_network_collection_type	varchar(50)  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'layer3_network_collection', false);
+ALTER TABLE layer3_network_collection
+	ALTER layer3_network_collection_id
+	SET DEFAULT nextval('layer3_network_collection_layer3_network_collection_id_seq'::regclass);
+INSERT INTO layer3_network_collection (
+	layer3_network_collection_id,
+	layer3_network_collection_name,
+	layer3_network_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	layer3_network_collection_id,
+	layer3_network_collection_name,
+	layer3_network_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM layer3_network_collection_v79;
+
+INSERT INTO audit.layer3_network_collection (
+	layer3_network_collection_id,
+	layer3_network_collection_name,
+	layer3_network_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	layer3_network_collection_id,
+	layer3_network_collection_name,
+	layer3_network_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.layer3_network_collection_v79;
+
+ALTER TABLE layer3_network_collection
+	ALTER layer3_network_collection_id
+	SET DEFAULT nextval('layer3_network_collection_layer3_network_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE layer3_network_collection ADD CONSTRAINT ak_l3netcoll_name_type UNIQUE (layer3_network_collection_name, layer3_network_collection_type);
+ALTER TABLE layer3_network_collection ADD CONSTRAINT pk_layer3_network_collection PRIMARY KEY (layer3_network_collection_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN layer3_network_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif_l3_netcol_netcol_type ON layer3_network_collection USING btree (layer3_network_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between layer3_network_collection and l3_network_coll_l3_network
+ALTER TABLE l3_network_coll_l3_network
+	ADD CONSTRAINT fk_l3netcol_l3_net_l3netcolid
+	FOREIGN KEY (layer3_network_collection_id) REFERENCES layer3_network_collection(layer3_network_collection_id);
+-- consider FK between layer3_network_collection and layer3_network_collection_hier
+ALTER TABLE layer3_network_collection_hier
+	ADD CONSTRAINT fk_l3nethier_chld_l3netid
+	FOREIGN KEY (child_l3_network_coll_id) REFERENCES layer3_network_collection(layer3_network_collection_id);
+-- consider FK between layer3_network_collection and layer3_network_collection_hier
+ALTER TABLE layer3_network_collection_hier
+	ADD CONSTRAINT fk_l3nethierl3netid
+	FOREIGN KEY (layer3_network_collection_id) REFERENCES layer3_network_collection(layer3_network_collection_id);
+-- consider FK between layer3_network_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_prop_l3_netcoll_id
+	FOREIGN KEY (layer3_network_collection_id) REFERENCES layer3_network_collection(layer3_network_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK layer3_network_collection and val_layer3_network_coll_type
+ALTER TABLE layer3_network_collection
+	ADD CONSTRAINT fk_l3_netcol_netcol_type
+	FOREIGN KEY (layer3_network_collection_type) REFERENCES val_layer3_network_coll_type(layer3_network_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.l3_net_coll_member_enforce_on_type_change
+CREATE OR REPLACE FUNCTION jazzhands.l3_net_coll_member_enforce_on_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	l3ct		val_layer3_network_coll_type%ROWTYPE;
+	old_l3ct	val_layer3_network_coll_type%ROWTYPE;
+	tally integer;
+BEGIN
+	SELECT *
+	INTO	l3ct
+	FROM	val_layer3_network_coll_type
+	WHERE	layer3_network_collection_type = NEW.layer3_network_collection_type;
+
+	SELECT *
+	INTO	old_l3ct
+	FROM	val_layer3_network_coll_type
+	WHERE	layer3_network_collection_type = OLD.layer3_network_collection_type;
+
+	--
+	-- We only need to check this if we are enforcing now where we didn't used
+	-- to need to
+	--
+	IF l3ct.max_num_members IS NOT NULL AND
+			l3ct.max_num_members IS DISTINCT FROM old_l3ct.max_num_members THEN
+		select count(*)
+		  into tally
+		  from l3_network_coll_l3_network
+		  where layer3_network_collection_id = NEW.layer3_network_collection_id;
+		IF tally > l3ct.max_num_members THEN
+			RAISE EXCEPTION 'Too many members'
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	IF l3ct.MAX_NUM_COLLECTIONS IS NOT NULL THEN
+		SELECT MAX(l3count) FROM (
+			SELECT
+				COUNT(*) AS l3count
+			FROM
+				l3_network_coll_l3_network JOIN
+				layer3_network_collection USING (layer3_network_collection_id)
+			WHERE
+				layer3_network_collection_type = NEW.layer3_network_collection_type
+			GROUP BY
+				layer3_network_id
+		) x INTO tally;
+
+		IF tally > l3ct.max_num_collections THEN
+			RAISE EXCEPTION 'Layer2 network may not be a member of more than % collections of type %',
+				l3ct.MAX_NUM_COLLECTIONS, l3ct.layer3_network_collection_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER l3_net_coll_member_enforce_on_type_change AFTER UPDATE OF layer3_network_collection_type ON layer3_network_collection DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE l3_net_coll_member_enforce_on_type_change();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_layer3_network_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_layer3_network_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.layer3_network_collection_type != NEW.layer3_network_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.layer3_network_collection_type = OLD.layer3_network_collection_type
+		AND	p.layer3_network_collection_id = NEW.layer3_network_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'layer3_network_collection % of type % is used by % restricted properties.',
+				NEW.layer3_network_collection_id, NEW.layer3_network_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_layer3_network_collection_type_change BEFORE UPDATE OF layer3_network_collection_type ON layer3_network_collection FOR EACH ROW EXECUTE PROCEDURE validate_layer3_network_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer3_network_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer3_network_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer3_network_collection');
+ALTER SEQUENCE layer3_network_collection_layer3_network_collection_id_seq
+	 OWNED BY layer3_network_collection.layer3_network_collection_id;
+DROP TABLE IF EXISTS layer3_network_collection_v79;
+DROP TABLE IF EXISTS audit.layer3_network_collection_v79;
+-- DONE DEALING WITH TABLE layer3_network_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE netblock
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'netblock', 'netblock');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS fk_dnsid_nblk_id;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_l3_net_def_gate_nbid;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_l3net_rndv_pt_nblk_id;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_layer3_network_netblock_id;
+ALTER TABLE netblock_collection_netblock DROP CONSTRAINT IF EXISTS fk_nblk_col_nblk_nblkid;
+ALTER TABLE network_range DROP CONSTRAINT IF EXISTS fk_net_range_start_netblock;
+ALTER TABLE network_range DROP CONSTRAINT IF EXISTS fk_net_range_stop_netblock;
+ALTER TABLE static_route_template DROP CONSTRAINT IF EXISTS fk_netblock_st_rt_dst_net;
+ALTER TABLE static_route_template DROP CONSTRAINT IF EXISTS fk_netblock_st_rt_src_net;
+ALTER TABLE network_interface_netblock DROP CONSTRAINT IF EXISTS fk_netint_nb_netint_id;
+ALTER TABLE network_interface DROP CONSTRAINT IF EXISTS fk_netint_netblk_v4id;
+ALTER TABLE network_range DROP CONSTRAINT IF EXISTS fk_netrng_prngnblkid;
+ALTER TABLE shared_netblock DROP CONSTRAINT IF EXISTS fk_shared_net_netblock_id;
+ALTER TABLE site_netblock DROP CONSTRAINT IF EXISTS fk_site_netblock_ref_netblock;
+ALTER TABLE static_route DROP CONSTRAINT IF EXISTS fk_statrt_nblk_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_nblk_ip_universe_id;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblk_netblk_parid;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblock_company;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblock_nblk_typ;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblock_v_netblock_stat;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'netblock');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS ak_netblock_params;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS pk_netblock;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."idx_netblk_netblkstatus";
+DROP INDEX IF EXISTS "jazzhands"."idx_netblock_host_ip_address";
+DROP INDEX IF EXISTS "jazzhands"."ix_netblk_ip_address";
+DROP INDEX IF EXISTS "jazzhands"."ix_netblk_ip_address_parent";
+DROP INDEX IF EXISTS "jazzhands"."netblock_case_idx";
+DROP INDEX IF EXISTS "jazzhands"."xif5netblock";
+DROP INDEX IF EXISTS "jazzhands"."xif6netblock";
+DROP INDEX IF EXISTS "jazzhands"."xif7netblock";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS check_yes_no_172122967;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS ckc_is_single_address_netblock;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS aaa_ta_manipulate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS tb_a_validate_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trig_userlog_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_audit_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_check_ip_universe_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_nb_dns_a_rec_validation ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_netblock_single_address_ni ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_validate_netblock_to_range_changes ON jazzhands.netblock;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'netblock');
+---- BEGIN audit.netblock TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'netblock', 'netblock');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'netblock');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.netblock DROP CONSTRAINT IF EXISTS netblock_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_netblock_ak_netblock_params";
+DROP INDEX IF EXISTS "audit"."aud_netblock_pk_netblock";
+DROP INDEX IF EXISTS "audit"."netblock_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.netblock TEARDOWN
+
+
+ALTER TABLE netblock RENAME TO netblock_v79;
+ALTER TABLE audit.netblock RENAME TO netblock_v79;
+
+CREATE TABLE netblock
+(
+	netblock_id	integer NOT NULL,
+	ip_address	inet NOT NULL,
+	netblock_type	varchar(50) NOT NULL,
+	is_single_address	character(1) NOT NULL,
+	can_subnet	character(1) NOT NULL,
+	parent_netblock_id	integer  NULL,
+	netblock_status	varchar(50) NOT NULL,
+	nic_id	varchar(255)  NULL,
+	nic_company_id	integer  NULL,
+	ip_universe_id	integer NOT NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	reservation_ticket_number	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'netblock', false);
+ALTER TABLE netblock
+	ALTER netblock_id
+	SET DEFAULT nextval('netblock_netblock_id_seq'::regclass);
+ALTER TABLE netblock
+	ALTER ip_universe_id
+	SET DEFAULT 0;
+INSERT INTO netblock (
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	nic_id,
+	nic_company_id,
+	ip_universe_id,
+	description,
+	external_id,		-- new column (external_id)
+	reservation_ticket_number,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	nic_id,
+	nic_company_id,
+	ip_universe_id,
+	description,
+	NULL,		-- new column (external_id)
+	reservation_ticket_number,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM netblock_v79;
+
+INSERT INTO audit.netblock (
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	nic_id,
+	nic_company_id,
+	ip_universe_id,
+	description,
+	external_id,		-- new column (external_id)
+	reservation_ticket_number,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	nic_id,
+	nic_company_id,
+	ip_universe_id,
+	description,
+	NULL,		-- new column (external_id)
+	reservation_ticket_number,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.netblock_v79;
+
+ALTER TABLE netblock
+	ALTER netblock_id
+	SET DEFAULT nextval('netblock_netblock_id_seq'::regclass);
+ALTER TABLE netblock
+	ALTER ip_universe_id
+	SET DEFAULT 0;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE netblock ADD CONSTRAINT ak_netblock_params UNIQUE (ip_address, netblock_type, ip_universe_id, is_single_address);
+ALTER TABLE netblock ADD CONSTRAINT pk_netblock PRIMARY KEY (netblock_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN netblock.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX idx_netblk_netblkstatus ON netblock USING btree (netblock_status);
+CREATE INDEX idx_netblock_host_ip_address ON netblock USING btree (host(ip_address));
+CREATE INDEX ix_netblk_ip_address ON netblock USING btree (ip_address);
+CREATE INDEX ix_netblk_ip_address_parent ON netblock USING btree (parent_netblock_id);
+CREATE INDEX netblock_case_idx ON netblock USING btree ((
+CASE
+    WHEN family(ip_address) = 4 THEN ip_address - '0.0.0.0'::inet
+    ELSE NULL::bigint
+END));
+CREATE INDEX xif5netblock ON netblock USING btree (nic_company_id);
+CREATE INDEX xif6netblock ON netblock USING btree (ip_universe_id);
+CREATE INDEX xif7netblock ON netblock USING btree (netblock_type);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE netblock ADD CONSTRAINT check_yes_no_172122967
+	CHECK (can_subnet = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE netblock ADD CONSTRAINT ckc_is_single_address_netblock
+	CHECK ((is_single_address IS NULL) OR ((is_single_address = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])) AND ((is_single_address)::text = upper((is_single_address)::text))));
+
+-- FOREIGN KEYS FROM
+-- consider FK between netblock and dns_record
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsid_nblk_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3_net_def_gate_nbid
+	FOREIGN KEY (default_gateway_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3net_rndv_pt_nblk_id
+	FOREIGN KEY (rendezvous_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_layer3_network_netblock_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and netblock_collection_netblock
+ALTER TABLE netblock_collection_netblock
+	ADD CONSTRAINT fk_nblk_col_nblk_nblkid
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_range
+ALTER TABLE network_range
+	ADD CONSTRAINT fk_net_range_start_netblock
+	FOREIGN KEY (start_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_range
+ALTER TABLE network_range
+	ADD CONSTRAINT fk_net_range_stop_netblock
+	FOREIGN KEY (stop_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and static_route_template
+ALTER TABLE static_route_template
+	ADD CONSTRAINT fk_netblock_st_rt_dst_net
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and static_route_template
+ALTER TABLE static_route_template
+	ADD CONSTRAINT fk_netblock_st_rt_src_net
+	FOREIGN KEY (netblock_src_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_interface_netblock
+ALTER TABLE network_interface_netblock
+	ADD CONSTRAINT fk_netint_nb_netint_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id) DEFERRABLE;
+-- consider FK between netblock and network_interface
+ALTER TABLE network_interface
+	ADD CONSTRAINT fk_netint_netblk_v4id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_range
+ALTER TABLE network_range
+	ADD CONSTRAINT fk_netrng_prngnblkid
+	FOREIGN KEY (parent_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and shared_netblock
+ALTER TABLE shared_netblock
+	ADD CONSTRAINT fk_shared_net_netblock_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and site_netblock
+ALTER TABLE site_netblock
+	ADD CONSTRAINT fk_site_netblock_ref_netblock
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and static_route
+ALTER TABLE static_route
+	ADD CONSTRAINT fk_statrt_nblk_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+
+-- FOREIGN KEYS TO
+-- consider FK netblock and ip_universe
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_nblk_ip_universe_id
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+-- consider FK netblock and netblock
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblk_netblk_parid
+	FOREIGN KEY (parent_netblock_id) REFERENCES netblock(netblock_id) DEFERRABLE INITIALLY DEFERRED;
+-- consider FK netblock and company
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblock_company
+	FOREIGN KEY (nic_company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK netblock and val_netblock_type
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblock_nblk_typ
+	FOREIGN KEY (netblock_type) REFERENCES val_netblock_type(netblock_type);
+-- consider FK netblock and val_netblock_status
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblock_v_netblock_stat
+	FOREIGN KEY (netblock_status) REFERENCES val_netblock_status(netblock_status);
+
+-- TRIGGERS
+-- consider NEW jazzhands.manipulate_netblock_parentage_after
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_after()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+
+DECLARE
+	nbtype				record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+	v_row_count			integer;
+	v_trigger			record;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	IF TG_OP = 'DELETE' THEN
+		v_trigger := OLD;
+	ELSE
+		v_trigger := NEW;
+	END IF;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = v_trigger.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * If we are deleting, attach all children to the parent and wipe
+	 * hands on pants;
+	 */
+	IF TG_OP = 'DELETE' THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = OLD.netblock_id;
+
+		GET DIAGNOSTICS v_row_count = ROW_COUNT;
+	--	IF (v_row_count > 0) THEN
+			RAISE DEBUG 'Set parent for all child netblocks of deleted netblock % (address %, is_single_address %) to % (% rows updated)',
+				OLD.netblock_id,
+				OLD.ip_address,
+				OLD.is_single_address,
+				OLD.parent_netblock_id,
+				v_row_count;
+	--	END IF;
+
+		RETURN NULL;
+	END IF;
+
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+		NEW.parent_netblock_id,
+		NEW.netblock_id;
+
+	IF NEW.parent_netblock_id IS NULL THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id IS NULL AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id;
+		RETURN NULL;
+	ELSE
+		-- We don't need to specify the netblock_type or ip_universe_id here
+		-- because the parent would have had to match
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+		RETURN NULL;
+	END IF;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER aaa_ta_manipulate_netblock_parentage AFTER INSERT OR DELETE ON netblock NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_after();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_netblock
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	nbtype				RECORD;
+	v_netblock_id		netblock.netblock_id%TYPE;
+	parent_netblock		RECORD;
+	netmask_bits		integer;
+BEGIN
+	IF NEW.ip_address IS NULL THEN
+		RAISE EXCEPTION 'Column ip_address may not be null'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
+
+	IF NEW.is_single_address = 'Y' THEN
+		IF nbtype.db_forced_hierarchy = 'Y' THEN
+			RAISE DEBUG 'Calculating netmask for new netblock';
+
+			v_netblock_id := netblock_utils.find_best_parent_id(
+				NEW.ip_address,
+				NULL,
+				NEW.netblock_type,
+				NEW.ip_universe_id,
+				NEW.is_single_address,
+				NEW.netblock_id
+				);
+
+			IF v_netblock_id IS NULL THEN
+				RAISE EXCEPTION 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N', NEW.ip_address
+					USING ERRCODE = 'JH105';
+			END IF;
+
+			SELECT masklen(ip_address) INTO netmask_bits FROM
+				netblock WHERE netblock_id = v_netblock_id;
+
+			NEW.ip_address := set_masklen(NEW.ip_address, netmask_bits);
+		END IF;
+	END IF;
+
+	/* Done with handling of netmasks */
+
+	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
+		RAISE EXCEPTION 'Single addresses may not be subnettable'
+			USING ERRCODE = 'JH106';
+	END IF;
+
+	IF NEW.is_single_address = 'N' AND (NEW.ip_address != cidr(NEW.ip_address))
+			THEN
+		RAISE EXCEPTION
+			'Non-network bits must be zero if is_single_address is N for %',
+			NEW.ip_address
+			USING ERRCODE = 'JH103';
+	END IF;
+
+	/*
+	 * Commented out check for RFC1918 space.  This is probably handled
+	 * well enough by the ip_universe/netblock_type additions, although
+	 * it's possible that netblock_type may need to have an additional
+	 * field added to allow people to be stupid (for example,
+	 * allow_duplicates='Y','N','RFC1918')
+	 */
+
+/*
+	IF NOT net_manip.inet_is_private(NEW.ip_address) THEN
+*/
+			PERFORM netblock_id
+			   FROM netblock
+			  WHERE ip_address = NEW.ip_address AND
+					ip_universe_id = NEW.ip_universe_id AND
+					netblock_type = NEW.netblock_type AND
+					is_single_address = NEW.is_single_address;
+			IF (TG_OP = 'INSERT' AND FOUND) THEN
+				RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %',
+					NEW.ip_address
+					USING ERRCODE= 'unique_violation';
+			END IF;
+			IF (TG_OP = 'UPDATE') THEN
+				IF (NEW.ip_address != OLD.ip_address AND FOUND) THEN
+					RAISE EXCEPTION
+						'Unique Constraint Violated on IP Address: %',
+						NEW.ip_address
+						USING ERRCODE = 'unique_violation';
+				END IF;
+			END IF;
+/*
+	END IF;
+*/
+
+	/*
+	 * Parent validation is performed in the deferred after trigger
+	 */
+
+	 RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR UPDATE OF netblock_id, ip_address, netblock_type, is_single_address, can_subnet, parent_netblock_id, ip_universe_id ON netblock FOR EACH ROW EXECUTE PROCEDURE validate_netblock();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.manipulate_netblock_parentage_before
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_before()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+
+DECLARE
+	nbtype				record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	RAISE DEBUG 'Performing % on netblock %', TG_OP, NEW.netblock_id;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NEW;
+	END IF;
+
+	/*
+	 * Find the correct parent netblock
+	 */
+
+	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
+	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
+		NEW.ip_address,
+		NULL,
+		NEW.netblock_type,
+		NEW.ip_universe_id,
+		NEW.is_single_address,
+		NEW.netblock_id
+		);
+
+	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %',
+		NEW.netblock_id, NEW.ip_address, NEW.netblock_type,
+		NEW.ip_universe_id, NEW.is_single_address,
+		NEW.parent_netblock_id;
+
+	/*
+	 * If we are an end-node, then we're done
+	 */
+
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NEW;
+	END IF;
+
+	/*
+	 * If we're updating and we're a container netblock, find
+	 * all of the children of our new parent that should be ours and take
+	 * them.  They will already be guaranteed to be of the correct
+	 * netblock_type and ip_universe_id.  We can't do this for inserts
+	 * because the row doesn't exist causing foreign key problems, so
+	 * that needs to be done in an after trigger.
+	 */
+	IF TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+			NEW.parent_netblock_id,
+			NEW.netblock_id;
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+
+		RAISE DEBUG 'Setting parent for all child netblocks of netblock % that no longer belong to it to %',
+			NEW.parent_netblock_id,
+			NEW.netblock_id;
+		RAISE DEBUG 'Setting parent % to %',
+			OLD.netblock_id,
+			OLD.parent_netblock_id;
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = NEW.netblock_id AND
+			(ip_universe_id != NEW.ip_universe_id OR
+			 netblock_type != NEW.netblock_type OR
+			 NOT(ip_address <<= NEW.ip_address));
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER tb_manipulate_netblock_parentage BEFORE INSERT OR UPDATE OF ip_address, netblock_type, ip_universe_id, netblock_id, can_subnet, is_single_address ON netblock FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_before();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.check_ip_universe_netblock
+CREATE OR REPLACE FUNCTION jazzhands.check_ip_universe_netblock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM *
+	FROM dns_record
+	WHERE netblock_id IN (NEW.netblock_id, OLD.netblock_id)
+	AND ip_universe_id != NEW.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION
+			'IP Universes for netblocks must match dns records and netblocks'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER trigger_check_ip_universe_netblock AFTER UPDATE OF netblock_id, ip_universe_id ON netblock DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE check_ip_universe_netblock();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.nb_dns_a_rec_validation
+CREATE OR REPLACE FUNCTION jazzhands.nb_dns_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tal	integer;
+BEGIN
+	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
+		--
+		-- The dns_value_record_id check is not strictly needed since
+		-- the "dns_value_record_id" points to something of the same type
+		-- and the trigger would catch that, but its here in case some
+		-- assumption later changes and its good to test for..
+		IF family(NEW.ip_address) = 6 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'A'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'A'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+
+		IF family(NEW.ip_address) = 4 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'AAAA'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'AAAA'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.is_single_address = 'N' THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type IN ('A', 'AAAA');
+
+		IF _tal > 0 THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_nb_dns_a_rec_validation BEFORE UPDATE OF ip_address, is_single_address ON netblock FOR EACH ROW EXECUTE PROCEDURE nb_dns_a_rec_validation();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.netblock_single_address_ni
+CREATE OR REPLACE FUNCTION jazzhands.netblock_single_address_ni()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF (NEW.is_single_address = 'N' AND OLD.is_single_address = 'Y') OR
+		(NEW.netblock_type != 'default' AND OLD.netblock_type = 'default')
+			THEN
+		select count(*)
+		INTO _tally
+		FROM network_interface
+		WHERE netblock_id = NEW.netblock_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'network interfaces must refer to single ip addresses of type default address (%,%)', NEW.ip_address, NEW.netblock_id
+				USING errcode = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_netblock_single_address_ni BEFORE UPDATE OF is_single_address, netblock_type ON netblock FOR EACH ROW EXECUTE PROCEDURE netblock_single_address_ni();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_netblock_parentage
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_parentage()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	nbrec			record;
+	realnew			record;
+	nbtype			record;
+	parent_nbid		netblock.netblock_id%type;
+	ipaddr			inet;
+	parent_ipaddr	inet;
+	single_count	integer;
+	nonsingle_count	integer;
+	pip	    		netblock.ip_address%type;
+BEGIN
+
+	RAISE DEBUG 'Validating % of netblock %', TG_OP, NEW.netblock_id;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
+
+	/*
+	 * It's possible that due to delayed triggers that what is stored in
+	 * NEW is not current, so fetch the current values
+	 */
+
+	SELECT * INTO realnew FROM netblock WHERE netblock_id =
+		NEW.netblock_id;
+	IF NOT FOUND THEN
+		/*
+		 * If the netblock isn't there, it was subsequently deleted, so
+		 * our parentage doesn't need to be checked
+		 */
+		RETURN NULL;
+	END IF;
+
+
+	/*
+	 * If the parent changed above (or somewhere else between update and
+	 * now), just bail, because another trigger will have been fired that
+	 * we can do the full check with.
+	 */
+	IF NEW.parent_netblock_id != realnew.parent_netblock_id AND
+		realnew.parent_netblock_id IS NOT NULL
+	THEN
+		RAISE DEBUG '... skipping for now';
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * Validate that parent and all children are of the same netblock_type and
+	 * in the same ip_universe.  We care about this even if the
+	 * netblock type is not a validated type.
+	 */
+
+	RAISE DEBUG 'Verifying child ip_universe and type match';
+	PERFORM netblock_id FROM netblock WHERE
+		parent_netblock_id = realnew.netblock_id AND
+		netblock_type != realnew.netblock_type AND
+		ip_universe_id != realnew.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 'JH109';
+	END IF;
+
+	RAISE DEBUG '... OK';
+
+	/*
+	 * validate that this netblock is attached to its correct parent
+	 */
+	IF realnew.parent_netblock_id IS NULL THEN
+		IF nbtype.is_validated_hierarchy='N' THEN
+			RETURN NULL;
+		END IF;
+		RAISE DEBUG 'Checking hierarchical netblock_id % with NULL parent',
+			NEW.netblock_id;
+
+		IF realnew.is_single_address = 'Y' THEN
+			RAISE 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N',
+				realnew.ip_address
+				USING ERRCODE = 'JH105';
+		END IF;
+
+		/*
+		 * Validate that a netblock has a parent, unless
+		 * it is the root of a hierarchy
+		 */
+		parent_nbid := netblock_utils.find_best_parent_id(
+			realnew.ip_address,
+			NULL,
+			realnew.netblock_type,
+			realnew.ip_universe_id,
+			realnew.is_single_address,
+			realnew.netblock_id
+		);
+
+		IF parent_nbid IS NOT NULL THEN
+			SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+				parent_nbid;
+
+			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
+				realnew.netblock_id, realnew.ip_address,
+				parent_nbid, nbrec.ip_address USING ERRCODE = 'JH102';
+		END IF;
+
+		/*
+		 * Validate that none of the other top-level netblocks should
+		 * belong to this netblock
+		 */
+		PERFORM netblock_id FROM netblock WHERE
+			parent_netblock_id IS NULL AND
+			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id AND
+			ip_address <<= NEW.ip_address;
+		IF FOUND THEN
+			RAISE EXCEPTION 'Other top-level netblocks should belong to this parent'
+				USING ERRCODE = 'JH108';
+		END IF;
+	ELSE
+	 	/*
+		 * Reject a block that is self-referential
+		 */
+	 	IF realnew.parent_netblock_id = realnew.netblock_id THEN
+			RAISE EXCEPTION 'Netblock may not have itself as a parent'
+				USING ERRCODE = 'JH101';
+		END IF;
+
+		SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+			realnew.parent_netblock_id;
+
+		/*
+		 * This shouldn't happen, but may because of deferred constraints
+		 */
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Parent netblock % does not exist',
+			realnew.parent_netblock_id
+			USING ERRCODE = 'foreign_key_violation';
+		END IF;
+
+		IF nbrec.is_single_address = 'Y' THEN
+			RAISE EXCEPTION 'A parent netblock (% for %) may not be a single address',
+			nbrec.netblock_id, realnew.ip_address
+			USING ERRCODE = 'JH10A';
+		END IF;
+
+		IF nbrec.ip_universe_id != realnew.ip_universe_id OR
+				nbrec.netblock_type != realnew.netblock_type THEN
+			RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 'JH109';
+		END IF;
+
+		IF nbtype.is_validated_hierarchy='N' THEN
+			RETURN NULL;
+		ELSE
+			parent_nbid := netblock_utils.find_best_parent_id(
+				realnew.ip_address,
+				NULL,
+				realnew.netblock_type,
+				realnew.ip_universe_id,
+				realnew.is_single_address,
+				realnew.netblock_id
+				);
+
+			IF realnew.can_subnet = 'N' THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.netblock_id AND
+					is_single_address = 'N';
+				IF FOUND THEN
+					RAISE EXCEPTION 'A non-subnettable netblock (%) may not have child network netblocks',
+					realnew.netblock_id
+					USING ERRCODE = 'JH10B';
+				END IF;
+			END IF;
+			IF realnew.is_single_address = 'Y' THEN
+				SELECT * INTO nbrec FROM netblock
+					WHERE netblock_id = realnew.parent_netblock_id;
+				IF (nbrec.can_subnet = 'Y') THEN
+					RAISE 'Parent netblock % for single-address % must have can_subnet=N',
+						nbrec.netblock_id,
+						realnew.ip_address
+						USING ERRCODE = 'JH10D';
+				END IF;
+				IF (masklen(realnew.ip_address) !=
+						masklen(nbrec.ip_address)) THEN
+					RAISE 'Parent netblock % does not have the same netmask as single-address child % (% vs %)',
+						parent_nbid, realnew.netblock_id,
+						masklen(nbrec.ip_address),
+						masklen(realnew.ip_address)
+						USING ERRCODE = 'JH105';
+				END IF;
+			END IF;
+			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
+				SELECT ip_address INTO parent_ipaddr FROM netblock
+				WHERE
+					netblock_id = parent_nbid;
+				SELECT ip_address INTO ipaddr FROM netblock WHERE
+					netblock_id = realnew.parent_netblock_id;
+
+				RAISE EXCEPTION
+					'Parent netblock % (%) for netblock % (%) is not the correct parent (should be % (%))',
+					realnew.parent_netblock_id, ipaddr,
+					realnew.netblock_id, realnew.ip_address,
+					parent_nbid, parent_ipaddr
+					USING ERRCODE = 'JH102';
+			END IF;
+			/*
+			 * Validate that all children are is_single_address='Y' or
+			 * all children are is_single_address='N'
+			 */
+			SELECT count(*) INTO single_count FROM netblock WHERE
+				is_single_address='Y' and parent_netblock_id =
+				realnew.parent_netblock_id;
+			SELECT count(*) INTO nonsingle_count FROM netblock WHERE
+				is_single_address='N' and parent_netblock_id =
+				realnew.parent_netblock_id;
+
+			IF (single_count > 0 and nonsingle_count > 0) THEN
+				SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+					realnew.parent_netblock_id;
+				RAISE EXCEPTION 'Netblock % (%) may not have direct children for both single and multiple addresses simultaneously',
+					nbrec.netblock_id, nbrec.ip_address
+					USING ERRCODE = 'JH107';
+			END IF;
+			/*
+			 *  If we're updating and we changed our ip_address (including
+			 *  netmask bits), then check that our children still belong to
+			 *  us
+			 */
+			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.netblock_id AND
+					((is_single_address = 'Y' AND NEW.ip_address !=
+						ip_address::cidr) OR
+					(is_single_address = 'N' AND realnew.netblock_id !=
+						netblock_utils.find_best_parent_id(netblock_id)));
+				IF FOUND THEN
+					RAISE EXCEPTION 'Update for netblock % (%) causes parent to have children that do not belong to it',
+						realnew.netblock_id, realnew.ip_address
+						USING ERRCODE = 'JH10E';
+				END IF;
+			END IF;
+
+			/*
+			 * Validate that none of the children of the parent netblock are
+			 * children of this netblock (e.g. if inserting into the middle
+			 * of the hierarchy)
+			 */
+			IF (realnew.is_single_address = 'N') THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.parent_netblock_id AND
+					netblock_id != realnew.netblock_id AND
+					ip_address <<= realnew.ip_address;
+				IF FOUND THEN
+					RAISE EXCEPTION 'Other netblocks have children that should belong to parent % (%)',
+						realnew.parent_netblock_id, realnew.ip_address
+						USING ERRCODE = 'JH108';
+				END IF;
+			END IF;
+		END IF;
+	END IF;
+
+	RETURN NULL;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage AFTER INSERT OR UPDATE OF netblock_id, ip_address, netblock_type, is_single_address, can_subnet, parent_netblock_id, ip_universe_id ON netblock DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_netblock_to_range_changes
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_to_range_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM
+	FROM	network_range nr
+			JOIN netblock p on p.netblock_id = nr.parent_netblock_id
+			JOIN netblock start on start.netblock_id = nr.start_netblock_id
+			JOIN netblock stop on stop.netblock_id = nr.stop_netblock_id
+			JOIN val_network_range_type vnrt USING (network_range_type)
+	WHERE	( p.netblock_id = NEW.netblock_id
+				OR start.netblock_id = NEW.netblock_id
+				OR stop.netblock_id = NEW.netblock_id
+			) AND (
+					p.can_subnet = 'Y'
+				OR 	start.is_single_address = 'N'
+				OR 	stop.is_single_address = 'N'
+				OR NOT (
+					host(start.ip_address)::inet <<= p.ip_address
+					AND host(stop.ip_address)::inet <<= p.ip_address
+				)
+				OR ( vnrt.netblock_type IS NOT NULL
+				AND NOT
+					( start.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
+					AND	stop.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
+					)
+				)
+			)
+	;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Netblock changes conflict with network range requirements '
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+	RETURN NEW;
+END; $function$
+;
+CREATE CONSTRAINT TRIGGER trigger_validate_netblock_to_range_changes AFTER UPDATE OF ip_address, is_single_address, can_subnet, netblock_type ON netblock DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE validate_netblock_to_range_changes();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'netblock');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'netblock');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'netblock');
+ALTER SEQUENCE netblock_netblock_id_seq
+	 OWNED BY netblock.netblock_id;
+DROP TABLE IF EXISTS netblock_v79;
+DROP TABLE IF EXISTS audit.netblock_v79;
+-- DONE DEALING WITH TABLE netblock
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE netblock_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'netblock_collection', 'netblock_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE netblock_collection_hier DROP CONSTRAINT IF EXISTS fk_nblk_c_hier_chld_nc;
+ALTER TABLE netblock_collection_hier DROP CONSTRAINT IF EXISTS fk_nblk_c_hier_prnt_nc;
+ALTER TABLE netblock_collection_netblock DROP CONSTRAINT IF EXISTS fk_nblk_col_nblk_nbcolid;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_nblk_coll_id;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_pv_nblkcol_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.netblock_collection DROP CONSTRAINT IF EXISTS fk_nblk_coll_v_nblk_c_typ;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'netblock_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.netblock_collection DROP CONSTRAINT IF EXISTS pk_netblock_collection;
+ALTER TABLE jazzhands.netblock_collection DROP CONSTRAINT IF EXISTS uq_netblock_collection_name;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xifk_nb_col_val_nb_col_typ";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.netblock_collection DROP CONSTRAINT IF EXISTS check_ip_family_1970633785;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_netblock_collection ON jazzhands.netblock_collection;
+DROP TRIGGER IF EXISTS trigger_audit_netblock_collection ON jazzhands.netblock_collection;
+DROP TRIGGER IF EXISTS trigger_validate_netblock_collection_type_change ON jazzhands.netblock_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'netblock_collection');
+---- BEGIN audit.netblock_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'netblock_collection', 'netblock_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'netblock_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.netblock_collection DROP CONSTRAINT IF EXISTS netblock_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_netblock_collection_pk_netblock_collection";
+DROP INDEX IF EXISTS "audit"."aud_netblock_collection_uq_netblock_collection_name";
+DROP INDEX IF EXISTS "audit"."netblock_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.netblock_collection TEARDOWN
+
+
+ALTER TABLE netblock_collection RENAME TO netblock_collection_v79;
+ALTER TABLE audit.netblock_collection RENAME TO netblock_collection_v79;
+
+CREATE TABLE netblock_collection
+(
+	netblock_collection_id	integer NOT NULL,
+	netblock_collection_name	varchar(255) NOT NULL,
+	netblock_collection_type	varchar(50)  NULL,
+	netblock_ip_family_restrict	integer  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'netblock_collection', false);
+ALTER TABLE netblock_collection
+	ALTER netblock_collection_id
+	SET DEFAULT nextval('netblock_collection_netblock_collection_id_seq'::regclass);
+INSERT INTO netblock_collection (
+	netblock_collection_id,
+	netblock_collection_name,
+	netblock_collection_type,
+	netblock_ip_family_restrict,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	netblock_collection_id,
+	netblock_collection_name,
+	netblock_collection_type,
+	netblock_ip_family_restrict,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM netblock_collection_v79;
+
+INSERT INTO audit.netblock_collection (
+	netblock_collection_id,
+	netblock_collection_name,
+	netblock_collection_type,
+	netblock_ip_family_restrict,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	netblock_collection_id,
+	netblock_collection_name,
+	netblock_collection_type,
+	netblock_ip_family_restrict,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.netblock_collection_v79;
+
+ALTER TABLE netblock_collection
+	ALTER netblock_collection_id
+	SET DEFAULT nextval('netblock_collection_netblock_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE netblock_collection ADD CONSTRAINT pk_netblock_collection PRIMARY KEY (netblock_collection_id);
+ALTER TABLE netblock_collection ADD CONSTRAINT uq_netblock_collection_name UNIQUE (netblock_collection_name, netblock_collection_type);
+
+-- Table/Column Comments
+COMMENT ON COLUMN netblock_collection.netblock_ip_family_restrict IS 'member netblocks must have  and netblock collections must match this restriction, if set.';
+COMMENT ON COLUMN netblock_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xifk_nb_col_val_nb_col_typ ON netblock_collection USING btree (netblock_collection_type);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE netblock_collection ADD CONSTRAINT check_ip_family_1970633785
+	CHECK (netblock_ip_family_restrict = ANY (ARRAY[4, 6]));
+
+-- FOREIGN KEYS FROM
+-- consider FK between netblock_collection and netblock_collection_hier
+ALTER TABLE netblock_collection_hier
+	ADD CONSTRAINT fk_nblk_c_hier_chld_nc
+	FOREIGN KEY (child_netblock_collection_id) REFERENCES netblock_collection(netblock_collection_id);
+-- consider FK between netblock_collection and netblock_collection_hier
+ALTER TABLE netblock_collection_hier
+	ADD CONSTRAINT fk_nblk_c_hier_prnt_nc
+	FOREIGN KEY (netblock_collection_id) REFERENCES netblock_collection(netblock_collection_id);
+-- consider FK between netblock_collection and netblock_collection_netblock
+ALTER TABLE netblock_collection_netblock
+	ADD CONSTRAINT fk_nblk_col_nblk_nbcolid
+	FOREIGN KEY (netblock_collection_id) REFERENCES netblock_collection(netblock_collection_id);
+-- consider FK between netblock_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_nblk_coll_id
+	FOREIGN KEY (netblock_collection_id) REFERENCES netblock_collection(netblock_collection_id);
+-- consider FK between netblock_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_pv_nblkcol_id
+	FOREIGN KEY (property_value_nblk_coll_id) REFERENCES netblock_collection(netblock_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK netblock_collection and val_netblock_collection_type
+ALTER TABLE netblock_collection
+	ADD CONSTRAINT fk_nblk_coll_v_nblk_c_typ
+	FOREIGN KEY (netblock_collection_type) REFERENCES val_netblock_collection_type(netblock_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.validate_netblock_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.netblock_collection_type != NEW.netblock_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.netblock_collection_type = OLD.netblock_collection_type
+		AND	p.netblock_collection_id = NEW.netblock_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'netblock_collection % of type % is used by % restricted properties.',
+				NEW.netblock_collection_id, NEW.netblock_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_netblock_collection_type_change BEFORE UPDATE OF netblock_collection_type ON netblock_collection FOR EACH ROW EXECUTE PROCEDURE validate_netblock_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'netblock_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'netblock_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'netblock_collection');
+ALTER SEQUENCE netblock_collection_netblock_collection_id_seq
+	 OWNED BY netblock_collection.netblock_collection_id;
+DROP TABLE IF EXISTS netblock_collection_v79;
+DROP TABLE IF EXISTS audit.netblock_collection_v79;
+-- DONE DEALING WITH TABLE netblock_collection
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE operating_system
@@ -6917,7 +11373,7 @@ CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE ON property FOR
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
--- SELECT schema_support.replay_object_recreates();
+SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'property');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'property');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'property');
@@ -6926,6 +11382,465 @@ ALTER SEQUENCE property_property_id_seq
 DROP TABLE IF EXISTS property_v79;
 DROP TABLE IF EXISTS audit.property_v79;
 -- DONE DEALING WITH TABLE property
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE service_environment
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_environment', 'service_environment');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE appaal_instance DROP CONSTRAINT IF EXISTS fk_appaal_i_fk_applic_svcenv;
+ALTER TABLE device DROP CONSTRAINT IF EXISTS fk_device_dev_v_svcenv;
+ALTER TABLE network_service DROP CONSTRAINT IF EXISTS fk_netsvc_csvcenv;
+ALTER TABLE svc_environment_coll_svc_env DROP CONSTRAINT IF EXISTS fk_svc_env_col_svc_env;
+ALTER TABLE sw_package_release DROP CONSTRAINT IF EXISTS fk_sw_pkg_rel_ref_vsvcenv;
+ALTER TABLE voe DROP CONSTRAINT IF EXISTS fk_voe_ref_v_svcenv;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.service_environment DROP CONSTRAINT IF EXISTS fk_val_svcenv_prodstate;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'service_environment');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.service_environment DROP CONSTRAINT IF EXISTS pk_service_environment;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif1service_environment";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_service_environment ON jazzhands.service_environment;
+DROP TRIGGER IF EXISTS trigger_audit_service_environment ON jazzhands.service_environment;
+DROP TRIGGER IF EXISTS trigger_delete_per_svc_env_svc_env_collection ON jazzhands.service_environment;
+DROP TRIGGER IF EXISTS trigger_update_per_svc_env_svc_env_collection ON jazzhands.service_environment;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'service_environment');
+---- BEGIN audit.service_environment TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'service_environment', 'service_environment');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'service_environment');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.service_environment DROP CONSTRAINT IF EXISTS service_environment_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_service_environment_pk_service_environment";
+DROP INDEX IF EXISTS "audit"."service_environment_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.service_environment TEARDOWN
+
+
+ALTER TABLE service_environment RENAME TO service_environment_v79;
+ALTER TABLE audit.service_environment RENAME TO service_environment_v79;
+
+CREATE TABLE service_environment
+(
+	service_environment_id	integer NOT NULL,
+	service_environment_name	varchar(50) NOT NULL,
+	production_state	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment', false);
+ALTER TABLE service_environment
+	ALTER service_environment_id
+	SET DEFAULT nextval('service_environment_service_environment_id_seq'::regclass);
+INSERT INTO service_environment (
+	service_environment_id,
+	service_environment_name,
+	production_state,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	service_environment_id,
+	service_environment_name,
+	production_state,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM service_environment_v79;
+
+INSERT INTO audit.service_environment (
+	service_environment_id,
+	service_environment_name,
+	production_state,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	service_environment_id,
+	service_environment_name,
+	production_state,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.service_environment_v79;
+
+ALTER TABLE service_environment
+	ALTER service_environment_id
+	SET DEFAULT nextval('service_environment_service_environment_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE service_environment ADD CONSTRAINT pk_service_environment PRIMARY KEY (service_environment_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN service_environment.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif1service_environment ON service_environment USING btree (production_state);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between service_environment and appaal_instance
+ALTER TABLE appaal_instance
+	ADD CONSTRAINT fk_appaal_i_fk_applic_svcenv
+	FOREIGN KEY (service_environment_id) REFERENCES service_environment(service_environment_id);
+-- consider FK between service_environment and device
+ALTER TABLE device
+	ADD CONSTRAINT fk_device_dev_v_svcenv
+	FOREIGN KEY (service_environment_id) REFERENCES service_environment(service_environment_id);
+-- consider FK between service_environment and network_service
+ALTER TABLE network_service
+	ADD CONSTRAINT fk_netsvc_csvcenv
+	FOREIGN KEY (service_environment_id) REFERENCES service_environment(service_environment_id);
+-- consider FK between service_environment and svc_environment_coll_svc_env
+ALTER TABLE svc_environment_coll_svc_env
+	ADD CONSTRAINT fk_svc_env_col_svc_env
+	FOREIGN KEY (service_environment_id) REFERENCES service_environment(service_environment_id);
+
+-- FOREIGN KEYS TO
+-- consider FK service_environment and val_production_state
+ALTER TABLE service_environment
+	ADD CONSTRAINT fk_val_svcenv_prodstate
+	FOREIGN KEY (production_state) REFERENCES val_production_state(production_state);
+
+-- TRIGGERS
+-- consider NEW jazzhands.delete_per_svc_env_svc_env_collection
+CREATE OR REPLACE FUNCTION jazzhands.delete_per_svc_env_svc_env_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	secid	service_environment_collection.service_env_collection_id%TYPE;
+BEGIN
+	SELECT	service_env_collection_id
+	  FROM  service_environment_collection
+	  INTO	secid
+	 WHERE	service_env_collection_type = 'per-environment'
+	   AND	service_env_collection_id in
+		(select service_env_collection_id
+		 from svc_environment_coll_svc_env
+		where service_environment_id = OLD.service_environment_id
+		)
+	ORDER BY service_env_collection_id
+	LIMIT 1;
+
+	IF secid IS NOT NULL THEN
+		DELETE FROM svc_environment_coll_svc_env
+		WHERE service_env_collection_id = secid;
+
+		DELETE from service_environment_collection
+		WHERE service_env_collection_id = secid;
+	END IF;
+
+	RETURN OLD;
+END;
+$function$
+;
+CREATE TRIGGER trigger_delete_per_svc_env_svc_env_collection BEFORE DELETE ON service_environment FOR EACH ROW EXECUTE PROCEDURE delete_per_svc_env_svc_env_collection();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.update_per_svc_env_svc_env_collection
+CREATE OR REPLACE FUNCTION jazzhands.update_per_svc_env_svc_env_collection()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	secid		service_environment_collection.service_env_collection_id%TYPE;
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		insert into service_environment_collection
+			(service_env_collection_name, service_env_collection_type)
+		values
+			(NEW.service_environment_name, 'per-environment')
+		RETURNING service_env_collection_id INTO secid;
+		insert into svc_environment_coll_svc_env
+			(service_env_collection_id, service_environment_id)
+		VALUES
+			(secid, NEW.service_environment_id);
+	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment_id != NEW.service_environment_id THEN
+		UPDATE	service_environment_collection
+		   SET	service_env_collection_name = NEW.service_environment_name
+		 WHERE	service_env_collection_name != NEW.service_environment_name
+		   AND	service_env_collection_type = 'per-environment'
+		   AND	service_environment_id in (
+			SELECT	service_environment_id
+			  FROM	svc_environment_coll_svc_env
+			 WHERE	service_environment_id =
+				NEW.service_environment_id
+			);
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_update_per_svc_env_svc_env_collection AFTER INSERT OR UPDATE ON service_environment FOR EACH ROW EXECUTE PROCEDURE update_per_svc_env_svc_env_collection();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'service_environment');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment');
+ALTER SEQUENCE service_environment_service_environment_id_seq
+	 OWNED BY service_environment.service_environment_id;
+DROP TABLE IF EXISTS service_environment_v79;
+DROP TABLE IF EXISTS audit.service_environment_v79;
+-- DONE DEALING WITH TABLE service_environment
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE service_environment_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_environment_collection', 'service_environment_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_prop_svc_env_coll_id;
+ALTER TABLE svc_environment_coll_svc_env DROP CONSTRAINT IF EXISTS fk_svc_env_coll_svc_coll_id;
+ALTER TABLE service_environment_coll_hier DROP CONSTRAINT IF EXISTS fk_svc_env_hier_svc_env_coll_i;
+ALTER TABLE service_environment_coll_hier DROP CONSTRAINT IF EXISTS fk_svcenv_coll_child_svccollid;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.service_environment_collection DROP CONSTRAINT IF EXISTS fk_svc_env_col_v_svc_env_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'service_environment_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.service_environment_collection DROP CONSTRAINT IF EXISTS ak_val_svc_env_name_type;
+ALTER TABLE jazzhands.service_environment_collection DROP CONSTRAINT IF EXISTS pk_service_environment_collect;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif1service_environment_collec";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_service_environment_collection ON jazzhands.service_environment_collection;
+DROP TRIGGER IF EXISTS trigger_audit_service_environment_collection ON jazzhands.service_environment_collection;
+DROP TRIGGER IF EXISTS trigger_validate_service_env_collection_type_change ON jazzhands.service_environment_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'service_environment_collection');
+---- BEGIN audit.service_environment_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'service_environment_collection', 'service_environment_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'service_environment_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.service_environment_collection DROP CONSTRAINT IF EXISTS service_environment_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_0service_environment_collection_pk_service_environment_coll";
+DROP INDEX IF EXISTS "audit"."aud_service_environment_collection_ak_val_svc_env_name_type";
+DROP INDEX IF EXISTS "audit"."service_environment_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.service_environment_collection TEARDOWN
+
+
+ALTER TABLE service_environment_collection RENAME TO service_environment_collection_v79;
+ALTER TABLE audit.service_environment_collection RENAME TO service_environment_collection_v79;
+
+CREATE TABLE service_environment_collection
+(
+	service_env_collection_id	integer NOT NULL,
+	service_env_collection_name	varchar(50) NOT NULL,
+	service_env_collection_type	varchar(50)  NULL,
+	description	varchar(4000)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'service_environment_collection', false);
+ALTER TABLE service_environment_collection
+	ALTER service_env_collection_id
+	SET DEFAULT nextval('service_environment_collection_service_env_collection_id_seq'::regclass);
+INSERT INTO service_environment_collection (
+	service_env_collection_id,
+	service_env_collection_name,
+	service_env_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	service_env_collection_id,
+	service_env_collection_name,
+	service_env_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM service_environment_collection_v79;
+
+INSERT INTO audit.service_environment_collection (
+	service_env_collection_id,
+	service_env_collection_name,
+	service_env_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	service_env_collection_id,
+	service_env_collection_name,
+	service_env_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.service_environment_collection_v79;
+
+ALTER TABLE service_environment_collection
+	ALTER service_env_collection_id
+	SET DEFAULT nextval('service_environment_collection_service_env_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE service_environment_collection ADD CONSTRAINT ak_val_svc_env_name_type UNIQUE (service_env_collection_name, service_env_collection_type);
+ALTER TABLE service_environment_collection ADD CONSTRAINT pk_service_environment_collect PRIMARY KEY (service_env_collection_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN service_environment_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX xif1service_environment_collec ON service_environment_collection USING btree (service_env_collection_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between service_environment_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_prop_svc_env_coll_id
+	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
+-- consider FK between service_environment_collection and svc_environment_coll_svc_env
+ALTER TABLE svc_environment_coll_svc_env
+	ADD CONSTRAINT fk_svc_env_coll_svc_coll_id
+	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
+-- consider FK between service_environment_collection and service_environment_coll_hier
+ALTER TABLE service_environment_coll_hier
+	ADD CONSTRAINT fk_svc_env_hier_svc_env_coll_i
+	FOREIGN KEY (service_env_collection_id) REFERENCES service_environment_collection(service_env_collection_id);
+-- consider FK between service_environment_collection and service_environment_coll_hier
+ALTER TABLE service_environment_coll_hier
+	ADD CONSTRAINT fk_svcenv_coll_child_svccollid
+	FOREIGN KEY (child_service_env_coll_id) REFERENCES service_environment_collection(service_env_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK service_environment_collection and val_service_env_coll_type
+ALTER TABLE service_environment_collection
+	ADD CONSTRAINT fk_svc_env_col_v_svc_env_type
+	FOREIGN KEY (service_env_collection_type) REFERENCES val_service_env_coll_type(service_env_collection_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.validate_service_env_collection_type_change
+CREATE OR REPLACE FUNCTION jazzhands.validate_service_env_collection_type_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	integer;
+BEGIN
+	IF OLD.service_env_collection_type != NEW.service_env_collection_type THEN
+		SELECT	COUNT(*)
+		INTO	_tally
+		FROM	property p
+			join val_property vp USING (property_name,property_type)
+		WHERE	vp.service_env_collection_type = OLD.service_env_collection_type
+		AND	p.service_env_collection_id = NEW.service_env_collection_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'service_env_collection % of type % is used by % restricted properties.',
+				NEW.service_env_collection_id, NEW.service_env_collection_type, _tally
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_validate_service_env_collection_type_change BEFORE UPDATE OF service_env_collection_type ON service_environment_collection FOR EACH ROW EXECUTE PROCEDURE validate_service_env_collection_type_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'service_environment_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment_collection');
+ALTER SEQUENCE service_environment_collection_service_env_collection_id_seq
+	 OWNED BY service_environment_collection.service_env_collection_id;
+DROP TABLE IF EXISTS service_environment_collection_v79;
+DROP TABLE IF EXISTS audit.service_environment_collection_v79;
+-- DONE DEALING WITH TABLE service_environment_collection
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE sw_package_relation
@@ -7087,6 +12002,455 @@ ALTER TABLE audit.sw_package_repository RENAME TO sw_package_repository_v79;
 DROP TABLE IF EXISTS sw_package_repository_v79;
 DROP TABLE IF EXISTS audit.sw_package_repository_v79;
 -- DONE DEALING WITH OLD TABLE sw_package_repository [19319921]
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE token
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'token', 'token');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account_token DROP CONSTRAINT IF EXISTS fk_acct_token_ref_token;
+ALTER TABLE token_collection_token DROP CONSTRAINT IF EXISTS fk_tok_col_tok_token_id;
+ALTER TABLE token_sequence DROP CONSTRAINT IF EXISTS fk_token_seq_ref_token;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS fk_token_enc_id_id;
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS fk_token_ref_v_token_status;
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS fk_token_ref_v_token_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'token');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS ak_token_token_key;
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS pk_token;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."idx_token_tokenstatus";
+DROP INDEX IF EXISTS "jazzhands"."idx_token_tokentype";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS check_yes_no_tkn_islckd;
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS sys_c0020104;
+ALTER TABLE jazzhands.token DROP CONSTRAINT IF EXISTS sys_c0020105;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_token ON jazzhands.token;
+DROP TRIGGER IF EXISTS trigger_audit_token ON jazzhands.token;
+DROP TRIGGER IF EXISTS trigger_pgnotify_token_change ON jazzhands.token;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'token');
+---- BEGIN audit.token TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'token', 'token');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'token');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.token DROP CONSTRAINT IF EXISTS token_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_token_ak_token_token_key";
+DROP INDEX IF EXISTS "audit"."aud_token_pk_token";
+DROP INDEX IF EXISTS "audit"."token_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.token TEARDOWN
+
+
+ALTER TABLE token RENAME TO token_v79;
+ALTER TABLE audit.token RENAME TO token_v79;
+
+CREATE TABLE token
+(
+	token_id	integer NOT NULL,
+	token_type	varchar(50) NOT NULL,
+	token_status	varchar(50)  NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	token_serial	varchar(20)  NULL,
+	zero_time	timestamp with time zone  NULL,
+	time_modulo	integer  NULL,
+	time_skew	integer  NULL,
+	token_key	varchar(512)  NULL,
+	encryption_key_id	integer  NULL,
+	token_password	varchar(128)  NULL,
+	expire_time	timestamp with time zone  NULL,
+	is_token_locked	character(1) NOT NULL,
+	token_unlock_time	timestamp with time zone  NULL,
+	bad_logins	integer  NULL,
+	last_updated	timestamp with time zone NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'token', false);
+ALTER TABLE token
+	ALTER token_id
+	SET DEFAULT nextval('token_token_id_seq'::regclass);
+ALTER TABLE token
+	ALTER is_token_locked
+	SET DEFAULT 'N'::bpchar;
+INSERT INTO token (
+	token_id,
+	token_type,
+	token_status,
+	description,
+	external_id,		-- new column (external_id)
+	token_serial,
+	zero_time,
+	time_modulo,
+	time_skew,
+	token_key,
+	encryption_key_id,
+	token_password,
+	expire_time,
+	is_token_locked,
+	token_unlock_time,
+	bad_logins,
+	last_updated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	token_id,
+	token_type,
+	token_status,
+	description,
+	NULL,		-- new column (external_id)
+	token_serial,
+	zero_time,
+	time_modulo,
+	time_skew,
+	token_key,
+	encryption_key_id,
+	token_password,
+	expire_time,
+	is_token_locked,
+	token_unlock_time,
+	bad_logins,
+	last_updated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM token_v79;
+
+INSERT INTO audit.token (
+	token_id,
+	token_type,
+	token_status,
+	description,
+	external_id,		-- new column (external_id)
+	token_serial,
+	zero_time,
+	time_modulo,
+	time_skew,
+	token_key,
+	encryption_key_id,
+	token_password,
+	expire_time,
+	is_token_locked,
+	token_unlock_time,
+	bad_logins,
+	last_updated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	token_id,
+	token_type,
+	token_status,
+	description,
+	NULL,		-- new column (external_id)
+	token_serial,
+	zero_time,
+	time_modulo,
+	time_skew,
+	token_key,
+	encryption_key_id,
+	token_password,
+	expire_time,
+	is_token_locked,
+	token_unlock_time,
+	bad_logins,
+	last_updated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.token_v79;
+
+ALTER TABLE token
+	ALTER token_id
+	SET DEFAULT nextval('token_token_id_seq'::regclass);
+ALTER TABLE token
+	ALTER is_token_locked
+	SET DEFAULT 'N'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE token ADD CONSTRAINT ak_token_token_key UNIQUE (token_key);
+ALTER TABLE token ADD CONSTRAINT pk_token PRIMARY KEY (token_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN token.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+COMMENT ON COLUMN token.encryption_key_id IS 'encryption information for token_key, if used';
+-- INDEXES
+CREATE INDEX idx_token_tokenstatus ON token USING btree (token_status);
+CREATE INDEX idx_token_tokentype ON token USING btree (token_type);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE token ADD CONSTRAINT check_yes_no_tkn_islckd
+	CHECK (is_token_locked = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE token ADD CONSTRAINT sys_c0020104
+	CHECK (token_type IS NOT NULL);
+ALTER TABLE token ADD CONSTRAINT sys_c0020105
+	CHECK (last_updated IS NOT NULL);
+
+-- FOREIGN KEYS FROM
+-- consider FK between token and account_token
+ALTER TABLE account_token
+	ADD CONSTRAINT fk_acct_token_ref_token
+	FOREIGN KEY (token_id) REFERENCES token(token_id);
+-- consider FK between token and token_collection_token
+ALTER TABLE token_collection_token
+	ADD CONSTRAINT fk_tok_col_tok_token_id
+	FOREIGN KEY (token_id) REFERENCES token(token_id);
+-- consider FK between token and token_sequence
+ALTER TABLE token_sequence
+	ADD CONSTRAINT fk_token_seq_ref_token
+	FOREIGN KEY (token_id) REFERENCES token(token_id);
+
+-- FOREIGN KEYS TO
+-- consider FK token and encryption_key
+ALTER TABLE token
+	ADD CONSTRAINT fk_token_enc_id_id
+	FOREIGN KEY (encryption_key_id) REFERENCES encryption_key(encryption_key_id);
+-- consider FK token and val_token_status
+ALTER TABLE token
+	ADD CONSTRAINT fk_token_ref_v_token_status
+	FOREIGN KEY (token_status) REFERENCES val_token_status(token_status);
+-- consider FK token and val_token_type
+ALTER TABLE token
+	ADD CONSTRAINT fk_token_ref_v_token_type
+	FOREIGN KEY (token_type) REFERENCES val_token_type(token_type);
+
+-- TRIGGERS
+-- consider NEW jazzhands.pgnotify_token_change
+CREATE OR REPLACE FUNCTION jazzhands.pgnotify_token_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM pg_notify ('token_change', 'token_id=' || NEW.token_id);
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_pgnotify_token_change AFTER INSERT OR UPDATE ON token FOR EACH ROW EXECUTE PROCEDURE pgnotify_token_change();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'token');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'token');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'token');
+ALTER SEQUENCE token_token_id_seq
+	 OWNED BY token.token_id;
+DROP TABLE IF EXISTS token_v79;
+DROP TABLE IF EXISTS audit.token_v79;
+-- DONE DEALING WITH TABLE token
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE token_collection
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'token_collection', 'token_collection');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_pval_tokcolid;
+ALTER TABLE token_collection_hier DROP CONSTRAINT IF EXISTS fk_tok_col_hier_ch_tok_colid;
+ALTER TABLE token_collection_hier DROP CONSTRAINT IF EXISTS fk_tok_col_hier_tok_colid;
+ALTER TABLE token_collection_token DROP CONSTRAINT IF EXISTS fk_tok_col_tok_token_col_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.token_collection DROP CONSTRAINT IF EXISTS fk_tok_col_mem_token_col_type;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'token_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.token_collection DROP CONSTRAINT IF EXISTS pk_token_collection;
+ALTER TABLE jazzhands.token_collection DROP CONSTRAINT IF EXISTS uq_token_coll_name_type;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_token_collection ON jazzhands.token_collection;
+DROP TRIGGER IF EXISTS trigger_audit_token_collection ON jazzhands.token_collection;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'token_collection');
+---- BEGIN audit.token_collection TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'token_collection', 'token_collection');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'token_collection');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.token_collection DROP CONSTRAINT IF EXISTS token_collection_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_token_collection_pk_token_collection";
+DROP INDEX IF EXISTS "audit"."aud_token_collection_uq_token_coll_name_type";
+DROP INDEX IF EXISTS "audit"."token_collection_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.token_collection TEARDOWN
+
+
+ALTER TABLE token_collection RENAME TO token_collection_v79;
+ALTER TABLE audit.token_collection RENAME TO token_collection_v79;
+
+CREATE TABLE token_collection
+(
+	token_collection_id	integer NOT NULL,
+	token_collection_name	varchar(50) NOT NULL,
+	token_collection_type	varchar(50) NOT NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'token_collection', false);
+ALTER TABLE token_collection
+	ALTER token_collection_id
+	SET DEFAULT nextval('token_collection_token_collection_id_seq'::regclass);
+INSERT INTO token_collection (
+	token_collection_id,
+	token_collection_name,
+	token_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	token_collection_id,
+	token_collection_name,
+	token_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM token_collection_v79;
+
+INSERT INTO audit.token_collection (
+	token_collection_id,
+	token_collection_name,
+	token_collection_type,
+	description,
+	external_id,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	token_collection_id,
+	token_collection_name,
+	token_collection_type,
+	description,
+	NULL,		-- new column (external_id)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.token_collection_v79;
+
+ALTER TABLE token_collection
+	ALTER token_collection_id
+	SET DEFAULT nextval('token_collection_token_collection_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE token_collection ADD CONSTRAINT pk_token_collection PRIMARY KEY (token_collection_id);
+ALTER TABLE token_collection ADD CONSTRAINT uq_token_coll_name_type UNIQUE (token_collection_name, token_collection_type);
+
+-- Table/Column Comments
+COMMENT ON TABLE token_collection IS 'Group tokens together in arbitrary ways.';
+COMMENT ON COLUMN token_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between token_collection and property
+ALTER TABLE property
+	ADD CONSTRAINT fk_property_pval_tokcolid
+	FOREIGN KEY (property_value_token_col_id) REFERENCES token_collection(token_collection_id);
+-- consider FK between token_collection and token_collection_hier
+ALTER TABLE token_collection_hier
+	ADD CONSTRAINT fk_tok_col_hier_ch_tok_colid
+	FOREIGN KEY (token_collection_id) REFERENCES token_collection(token_collection_id);
+-- consider FK between token_collection and token_collection_hier
+ALTER TABLE token_collection_hier
+	ADD CONSTRAINT fk_tok_col_hier_tok_colid
+	FOREIGN KEY (child_token_collection_id) REFERENCES token_collection(token_collection_id);
+-- consider FK between token_collection and token_collection_token
+ALTER TABLE token_collection_token
+	ADD CONSTRAINT fk_tok_col_tok_token_col_id
+	FOREIGN KEY (token_collection_id) REFERENCES token_collection(token_collection_id);
+
+-- FOREIGN KEYS TO
+-- consider FK token_collection and val_token_collection_type
+ALTER TABLE token_collection
+	ADD CONSTRAINT fk_tok_col_mem_token_col_type
+	FOREIGN KEY (token_collection_type) REFERENCES val_token_collection_type(token_collection_type);
+
+-- TRIGGERS
+-- this used to be at the end...
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'token_collection');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'token_collection');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'token_collection');
+ALTER SEQUENCE token_collection_token_collection_id_seq
+	 OWNED BY token_collection.token_collection_id;
+DROP TABLE IF EXISTS token_collection_v79;
+DROP TABLE IF EXISTS audit.token_collection_v79;
+-- DONE DEALING WITH TABLE token_collection
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE voe
@@ -7347,6 +12711,7 @@ CREATE VIEW jazzhands.v_dns_changes_pending AS
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_dns_changes_pending';
+SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_dns_changes_pending
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7382,6 +12747,7 @@ CREATE VIEW jazzhands.v_dns_domain_nouniverse AS
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_dns_domain_nouniverse';
+SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_dns_domain_nouniverse
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7529,6 +12895,7 @@ UNION ALL
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_dns_fwd';
+SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_dns_fwd
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7607,6 +12974,7 @@ CREATE VIEW jazzhands.v_dns_rvs AS
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_dns_rvs';
+SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_dns_rvs
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7661,6 +13029,7 @@ CREATE VIEW jazzhands.v_property AS
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_property';
+SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_property
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7789,7 +13158,320 @@ CREATE VIEW jazzhands.v_dns AS
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_dns';
+SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_dns
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_unix_passwd_mappings
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_unix_passwd_mappings', 'v_unix_passwd_mappings');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_unix_passwd_mappings');
+DROP VIEW IF EXISTS jazzhands.v_unix_passwd_mappings;
+CREATE VIEW jazzhands.v_unix_passwd_mappings AS
+ WITH passtype AS (
+         SELECT ap.account_id,
+            ap.password,
+            ap.expire_time,
+            ap.change_time,
+            subq.device_collection_id,
+            subq.password_type,
+            subq.ord
+           FROM ( SELECT dchd.device_collection_id,
+                    p.property_value_password_type AS password_type,
+                    row_number() OVER (PARTITION BY dchd.device_collection_id) AS ord
+                   FROM v_property p
+                     JOIN v_device_coll_hier_detail dchd ON dchd.parent_device_collection_id = p.device_collection_id
+                  WHERE p.property_name::text = 'UnixPwType'::text AND p.property_type::text = 'MclassUnixProp'::text) subq
+             JOIN account_password ap USING (password_type)
+             JOIN account_unix_info a USING (account_id)
+          WHERE subq.ord = 1
+        )
+ SELECT s.device_collection_id,
+    s.account_id,
+    s.login,
+    s.crypt,
+    s.unix_uid,
+    s.unix_group_name,
+    regexp_replace(s.gecos, ' +'::text, ' '::text, 'g'::text) AS gecos,
+    regexp_replace(
+        CASE
+            WHEN s.forcehome IS NOT NULL AND s.forcehome::text ~ '/$'::text THEN concat(s.forcehome, s.login)
+            WHEN s.home IS NOT NULL AND s.home::text ~ '^/'::text THEN s.home::text
+            WHEN s.hometype::text = 'generic'::text THEN concat(COALESCE(s.homeplace, '/home'::character varying), '/', 'generic')
+            WHEN s.home IS NOT NULL AND s.home::text ~ '/$'::text THEN concat(s.home, '/', s.login)
+            WHEN s.homeplace IS NOT NULL AND s.homeplace::text ~ '/$'::text THEN concat(s.homeplace, '/', s.login)
+            ELSE concat(COALESCE(s.homeplace, '/home'::character varying), '/', s.login)
+        END, '/+'::text, '/'::text, 'g'::text) AS home,
+    s.shell,
+    s.ssh_public_key,
+    s.setting,
+    s.mclass_setting,
+    s.group_names AS extra_groups
+   FROM ( SELECT o.device_collection_id,
+            a.account_id,
+            a.login,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceCrypt'::text)]::text,
+                CASE
+                    WHEN pwt.expire_time IS NOT NULL AND now() < pwt.expire_time OR (now() - pwt.change_time) < concat(COALESCE((( SELECT v_property.property_value
+                       FROM v_property
+                      WHERE v_property.property_type::text = 'Defaults'::text AND v_property.property_name::text = '_maxpasswdlife'::text))::text, 90::text), 'days')::interval THEN pwt.password
+                    ELSE NULL::character varying
+                END::text, '*'::text) AS crypt,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceUserUID'::text)]::integer, a.unix_uid) AS unix_uid,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceUserGroup'::text)]::character varying(255), ugac.account_collection_name) AS unix_group_name,
+                CASE
+                    WHEN a.description IS NOT NULL THEN a.description::text
+                    ELSE concat(COALESCE(p.preferred_first_name, p.first_name), ' ',
+                    CASE
+                        WHEN p.middle_name IS NOT NULL AND length(p.middle_name::text) = 1 THEN concat(p.middle_name, '.')::character varying
+                        ELSE p.middle_name
+                    END, ' ', COALESCE(p.preferred_last_name, p.last_name))
+                END AS gecos,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceHome'::text)], a.default_home) AS home,
+            COALESCE(o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceShell'::text)], a.shell) AS shell,
+            o.setting,
+            mcs.mclass_setting,
+            o.setting[( SELECT i.i + 1
+                   FROM generate_subscripts(o.setting, 1) i(i)
+                  WHERE o.setting[i.i]::text = 'ForceHome'::text)] AS forcehome,
+            mcs.mclass_setting[( SELECT i.i + 1
+                   FROM generate_subscripts(mcs.mclass_setting, 1) i(i)
+                  WHERE mcs.mclass_setting[i.i]::text = 'HomePlace'::text)] AS homeplace,
+            mcs.mclass_setting[( SELECT i.i + 1
+                   FROM generate_subscripts(mcs.mclass_setting, 1) i(i)
+                  WHERE mcs.mclass_setting[i.i]::text = 'UnixHomeType'::text)] AS hometype,
+            ssh.ssh_public_key,
+            extra_groups.group_names
+           FROM ( SELECT a_1.account_id,
+                    a_1.login,
+                    a_1.person_id,
+                    a_1.company_id,
+                    a_1.is_enabled,
+                    a_1.account_realm_id,
+                    a_1.account_status,
+                    a_1.account_role,
+                    a_1.account_type,
+                    a_1.description,
+                    a_1.external_id,
+                    a_1.data_ins_user,
+                    a_1.data_ins_date,
+                    a_1.data_upd_user,
+                    a_1.data_upd_date,
+                    aui.unix_uid,
+                    aui.unix_group_acct_collection_id,
+                    aui.shell,
+                    aui.default_home
+                   FROM account a_1
+                     JOIN account_unix_info aui USING (account_id)
+                  WHERE a_1.is_enabled = 'Y'::bpchar) a
+             JOIN v_device_col_account_cart o USING (account_id)
+             JOIN device_collection dc USING (device_collection_id)
+             JOIN person p USING (person_id)
+             JOIN unix_group ug ON a.unix_group_acct_collection_id = ug.account_collection_id
+             JOIN account_collection ugac ON ugac.account_collection_id = ug.account_collection_id
+             LEFT JOIN ( SELECT p_1.device_collection_id,
+                    acae.account_id,
+                    array_agg(ac.account_collection_name) AS group_names
+                   FROM v_property p_1
+                     JOIN device_collection dc_1 USING (device_collection_id)
+                     JOIN account_collection ac USING (account_collection_id)
+                     JOIN account_collection pac ON pac.account_collection_id = p_1.property_value_account_coll_id
+                     JOIN v_acct_coll_acct_expanded acae ON pac.account_collection_id = acae.account_collection_id
+                  WHERE p_1.property_type::text = 'MclassUnixProp'::text AND p_1.property_name::text = 'UnixGroupMemberOverride'::text AND dc_1.device_collection_type::text <> 'mclass'::text
+                  GROUP BY p_1.device_collection_id, acae.account_id) extra_groups USING (device_collection_id, account_id)
+             LEFT JOIN v_device_collection_account_ssh_key ssh ON a.account_id = ssh.account_id AND (ssh.device_collection_id IS NULL OR ssh.device_collection_id = o.device_collection_id)
+             LEFT JOIN v_unix_mclass_settings mcs ON mcs.device_collection_id = dc.device_collection_id
+             LEFT JOIN passtype pwt ON o.device_collection_id = pwt.device_collection_id AND a.account_id = pwt.account_id) s
+  ORDER BY s.device_collection_id, s.account_id;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_unix_passwd_mappings';
+SELECT schema_support.replay_object_recreates();
+-- DONE DEALING WITH TABLE v_unix_passwd_mappings
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_unix_group_mappings
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_unix_group_mappings', 'v_unix_group_mappings');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_unix_group_mappings');
+DROP VIEW IF EXISTS jazzhands.v_unix_group_mappings;
+CREATE VIEW jazzhands.v_unix_group_mappings AS
+ SELECT dc.device_collection_id,
+    ac.account_collection_id,
+    ac.account_collection_name AS group_name,
+    COALESCE(o.setting[( SELECT i.i + 1
+           FROM generate_subscripts(o.setting, 1) i(i)
+          WHERE o.setting[i.i]::text = 'ForceGroupGID'::text)]::integer, unix_group.unix_gid) AS unix_gid,
+    unix_group.group_password,
+    o.setting,
+    mcs.mclass_setting,
+    array_agg(DISTINCT a.login ORDER BY a.login) AS members
+   FROM device_collection dc
+     JOIN ( SELECT dch.device_collection_id,
+            vace.account_collection_id
+           FROM v_property p
+             JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
+             JOIN v_account_collection_expanded vace ON vace.root_account_collection_id = p.account_collection_id
+          WHERE p.property_name::text = 'UnixGroup'::text AND p.property_type::text = 'MclassUnixProp'::text
+        UNION ALL
+         SELECT dch.device_collection_id,
+            uag.account_collection_id
+           FROM v_property p
+             JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
+             JOIN v_acct_coll_acct_expanded vace USING (account_collection_id)
+             JOIN ( SELECT a_2.account_id,
+                    a_2.login,
+                    a_2.person_id,
+                    a_2.company_id,
+                    a_2.is_enabled,
+                    a_2.account_realm_id,
+                    a_2.account_status,
+                    a_2.account_role,
+                    a_2.account_type,
+                    a_2.description,
+                    a_2.external_id,
+                    a_2.data_ins_user,
+                    a_2.data_ins_date,
+                    a_2.data_upd_user,
+                    a_2.data_upd_date
+                   FROM account a_2
+                     JOIN account_unix_info USING (account_id)
+                  WHERE a_2.is_enabled = 'Y'::bpchar) a_1 ON vace.account_id = a_1.account_id
+             JOIN account_unix_info aui ON a_1.account_id = aui.account_id
+             JOIN unix_group ug ON ug.account_collection_id = aui.unix_group_acct_collection_id
+             JOIN account_collection uag ON ug.account_collection_id = uag.account_collection_id
+          WHERE p.property_name::text = 'UnixLogin'::text AND p.property_type::text = 'MclassUnixProp'::text) ugmap USING (device_collection_id)
+     JOIN account_collection ac USING (account_collection_id)
+     JOIN unix_group USING (account_collection_id)
+     LEFT JOIN v_device_col_account_col_cart o USING (device_collection_id, account_collection_id)
+     LEFT JOIN ( SELECT g.account_id,
+            g.device_collection_id,
+            g.account_collection_id,
+            g.unix_uid,
+            g.unix_group_acct_collection_id,
+            g.shell,
+            g.default_home,
+            g.data_ins_user,
+            g.data_ins_date,
+            g.data_upd_user,
+            g.data_upd_date,
+            g.login,
+            g.person_id,
+            g.company_id,
+            g.is_enabled,
+            g.account_realm_id,
+            g.account_status,
+            g.account_role,
+            g.account_type,
+            g.description,
+            g.external_id,
+            g.data_ins_user_1 AS data_ins_user,
+            g.data_ins_date_1 AS data_ins_date,
+            g.data_upd_user_1 AS data_upd_user,
+            g.data_upd_date_1 AS data_upd_date
+           FROM ( SELECT actoa.account_id,
+                    actoa.device_collection_id,
+                    actoa.account_collection_id,
+                    ui.unix_uid,
+                    ui.unix_group_acct_collection_id,
+                    ui.shell,
+                    ui.default_home,
+                    ui.data_ins_user,
+                    ui.data_ins_date,
+                    ui.data_upd_user,
+                    ui.data_upd_date,
+                    a_1.login,
+                    a_1.person_id,
+                    a_1.company_id,
+                    a_1.is_enabled,
+                    a_1.account_realm_id,
+                    a_1.account_status,
+                    a_1.account_role,
+                    a_1.account_type,
+                    a_1.description,
+                    a_1.external_id,
+                    a_1.data_ins_user,
+                    a_1.data_ins_date,
+                    a_1.data_upd_user,
+                    a_1.data_upd_date
+                   FROM ( SELECT dc_1.device_collection_id,
+                            ae.account_collection_id,
+                            ae.account_id
+                           FROM device_collection dc_1,
+                            v_acct_coll_acct_expanded ae
+                             JOIN unix_group unix_group_1 USING (account_collection_id)
+                             JOIN account_collection inac USING (account_collection_id)
+                          WHERE dc_1.device_collection_type::text = 'mclass'::text
+                        UNION ALL
+                         SELECT dcugm.device_collection_id,
+                            dcugm.account_collection_id,
+                            dcugm.account_id
+                           FROM ( SELECT dch.device_collection_id,
+                                    p.account_collection_id,
+                                    aca.account_id
+                                   FROM v_property p
+                                     JOIN unix_group ug USING (account_collection_id)
+                                     JOIN v_device_coll_hier_detail dch ON p.device_collection_id = dch.parent_device_collection_id
+                                     JOIN v_acct_coll_acct_expanded aca ON p.property_value_account_coll_id = aca.account_collection_id
+                                  WHERE p.property_name::text = 'UnixGroupMemberOverride'::text AND p.property_type::text = 'MclassUnixProp'::text) dcugm) actoa
+                     JOIN account_unix_info ui USING (account_id)
+                     JOIN ( SELECT a_2.account_id,
+                            a_2.login,
+                            a_2.person_id,
+                            a_2.company_id,
+                            a_2.is_enabled,
+                            a_2.account_realm_id,
+                            a_2.account_status,
+                            a_2.account_role,
+                            a_2.account_type,
+                            a_2.description,
+                            a_2.external_id,
+                            a_2.data_ins_user,
+                            a_2.data_ins_date,
+                            a_2.data_upd_user,
+                            a_2.data_upd_date
+                           FROM account a_2
+                             JOIN account_unix_info USING (account_id)
+                          WHERE a_2.is_enabled = 'Y'::bpchar) a_1 USING (account_id)) g(account_id, device_collection_id, account_collection_id, unix_uid, unix_group_acct_collection_id, shell, default_home, data_ins_user, data_ins_date, data_upd_user, data_upd_date, login, person_id, company_id, is_enabled, account_realm_id, account_status, account_role, account_type, description, external_id, data_ins_user_1, data_ins_date_1, data_upd_user_1, data_upd_date_1)
+             JOIN ( SELECT a_1.account_id,
+                    a_1.login,
+                    a_1.person_id,
+                    a_1.company_id,
+                    a_1.is_enabled,
+                    a_1.account_realm_id,
+                    a_1.account_status,
+                    a_1.account_role,
+                    a_1.account_type,
+                    a_1.description,
+                    a_1.external_id,
+                    a_1.data_ins_user,
+                    a_1.data_ins_date,
+                    a_1.data_upd_user,
+                    a_1.data_upd_date
+                   FROM account a_1
+                     JOIN account_unix_info USING (account_id)
+                  WHERE a_1.is_enabled = 'Y'::bpchar) accts USING (account_id)
+             JOIN v_unix_passwd_mappings USING (device_collection_id, account_id)) a(account_id, device_collection_id, account_collection_id, unix_uid, unix_group_acct_collection_id, shell, default_home, data_ins_user, data_ins_date, data_upd_user, data_upd_date, login, person_id, company_id, is_enabled, account_realm_id, account_status, account_role, account_type, description, external_id, data_ins_user_1, data_ins_date_1, data_upd_user_1, data_upd_date_1) USING (device_collection_id, account_collection_id)
+     LEFT JOIN v_unix_mclass_settings mcs ON mcs.device_collection_id = dc.device_collection_id
+  GROUP BY dc.device_collection_id, ac.account_collection_id, ac.account_collection_name, unix_group.unix_gid, unix_group.group_password, o.setting, mcs.mclass_setting
+  ORDER BY dc.device_collection_id, ac.account_collection_id;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_unix_group_mappings';
+SELECT schema_support.replay_object_recreates();
+-- DONE DEALING WITH TABLE v_unix_group_mappings
 --------------------------------------------------------------------
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
@@ -11707,6 +17389,14 @@ CREATE TRIGGER trigger_dns_domain_nouniverse_ins
 CREATE TRIGGER trigger_dns_domain_nouniverse_upd 
 	INSTEAD OF UPDATE ON v_dns_domain_nouniverse 
 	FOR EACH ROW EXECUTE PROCEDURE dns_domain_nouniverse_upd();
+
+COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
+
+-- should be found and recreated, I'm doing by hand.
+CREATE UNIQUE INDEX mv_dev_col_root_leaf_id_idx ON mv_dev_col_root USING btree (leaf_id);
+CREATE INDEX mv_dev_col_root_leaf_type_idx ON mv_dev_col_root USING btree (leaf_type);
+CREATE INDEX mv_dev_col_root_root_id_idx ON mv_dev_col_root USING btree (root_id);
+CREATE INDEX mv_dev_col_root_root_type_idx ON mv_dev_col_root USING btree (root_type);
 
 
 
