@@ -17,6 +17,7 @@
 /*
 Invoked:
 
+	--col-default=dns_domain_name:soa_name
 	--col-default=ip_namespace:'default'
 	--post
 	post
@@ -41,11 +42,15 @@ DROP FUNCTION device_utils.retire_rack(integer);
 
 -- the order of this matters, so just make it die early as its
 -- eventually recreated
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns_domain_nouniverse');
-DROP VIEW IF EXISTS v_dns_domain_nouniverse;
+-- SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns_domain_nouniverse');
+-- SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_domain_nouniverse');
+-- DROP VIEW IF EXISTS v_dns_domain_nouniverse;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns_changes_pending');
 DROP VIEW IF EXISTS v_dns_changes_pending;
+
+DROP MATERIALIZED VIEW IF EXISTS mv_unix_passwd_mappings;
+DROP MATERIALIZED VIEW IF EXISTS mv_unix_group_mappings;
 
 
 -- END Misc that does not apply to above
@@ -2859,7 +2864,7 @@ ALTER TABLE netblock
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'ip_universe');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'ip_universe');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'ip_universe');
@@ -2987,7 +2992,7 @@ ALTER TABLE dns_record
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_dns_srv_service');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'val_dns_srv_service');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_dns_srv_service');
@@ -3035,7 +3040,7 @@ ALTER TABLE ip_universe
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_ip_namespace');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'val_ip_namespace');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_ip_namespace');
@@ -3659,7 +3664,7 @@ ALTER TABLE val_property
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_property');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'val_property');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_property');
@@ -4643,7 +4648,7 @@ CREATE TRIGGER trigger_update_peraccount_account_collection AFTER INSERT OR UPDA
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'account');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'account');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'account');
@@ -4956,7 +4961,7 @@ CREATE TRIGGER trigger_validate_account_collection_type_change BEFORE UPDATE OF 
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'account_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'account_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'account_collection');
@@ -5315,7 +5320,7 @@ CREATE TRIGGER trigger_update_per_company_company_collection AFTER INSERT OR UPD
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'company');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'company');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'company');
@@ -5522,7 +5527,7 @@ CREATE TRIGGER trigger_validate_company_collection_type_change BEFORE UPDATE OF 
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'company_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'company_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'company_collection');
@@ -5712,7 +5717,7 @@ ALTER TABLE department
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'department');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'department');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'department');
@@ -6020,7 +6025,7 @@ ALTER TABLE device
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE device ADD CONSTRAINT ak_device_chassis_location_id UNIQUE (chassis_location_id);
-ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
+-- ALTER TABLE device ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
 ALTER TABLE device ADD CONSTRAINT pk_device PRIMARY KEY (device_id);
 
 -- Table/Column Comments
@@ -6609,7 +6614,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_device_component_assignment AFTER INS
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'device');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'device');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'device');
@@ -6846,7 +6851,7 @@ CREATE TRIGGER trigger_validate_device_collection_type_change BEFORE UPDATE OF d
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'device_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'device_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'device_collection');
@@ -7013,7 +7018,7 @@ CREATE TRIGGER trigger_dns_change_record_pgnotify AFTER INSERT OR UPDATE ON dns_
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_change_record');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_change_record');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_change_record');
@@ -7111,7 +7116,7 @@ INSERT INTO dns_domain (
 ) SELECT
 	dns_domain_id,
 	soa_name,
-	NULL,		-- new column (dns_domain_name)
+	soa_name,		-- new column (dns_domain_name)
 	dns_domain_type,
 	parent_dns_domain_id,
 	NULL,		-- new column (description)
@@ -7143,7 +7148,7 @@ INSERT INTO audit.dns_domain (
 ) SELECT
 	dns_domain_id,
 	soa_name,
-	NULL,		-- new column (dns_domain_name)
+	soa_name,		-- new column (dns_domain_name)
 	dns_domain_type,
 	parent_dns_domain_id,
 	NULL,		-- new column (description)
@@ -7279,7 +7284,7 @@ CREATE TRIGGER trigger_dns_domain_trigger_change AFTER INSERT OR UPDATE OF soa_n
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain');
@@ -7486,7 +7491,7 @@ CREATE TRIGGER trigger_validate_dns_domain_collection_type_change BEFORE UPDATE 
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain_collection');
@@ -7564,7 +7569,7 @@ CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change AFTER INSERT OR UPD
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain_ip_universe');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_ip_universe');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain_ip_universe');
@@ -7613,7 +7618,7 @@ ALTER TABLE ip_universe_visibility
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'ip_universe_visibility');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'ip_universe_visibility');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'ip_universe_visibility');
@@ -7818,7 +7823,7 @@ ALTER TABLE layer2_network
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer2_network');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer2_network');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer2_network');
@@ -8091,7 +8096,7 @@ CREATE TRIGGER trigger_validate_layer2_network_collection_type_change BEFORE UPD
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer2_network_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer2_network_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer2_network_collection');
@@ -8281,7 +8286,7 @@ ALTER TABLE layer3_network
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer3_network');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer3_network');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer3_network');
@@ -8554,7 +8559,7 @@ CREATE TRIGGER trigger_validate_layer3_network_collection_type_change BEFORE UPD
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'layer3_network_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'layer3_network_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'layer3_network_collection');
@@ -9637,7 +9642,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_netblock_to_range_changes AFTER UPDAT
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'netblock');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'netblock');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'netblock');
@@ -9858,7 +9863,7 @@ CREATE TRIGGER trigger_validate_netblock_collection_type_change BEFORE UPDATE OF
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'netblock_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'netblock_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'netblock_collection');
@@ -10047,7 +10052,7 @@ ALTER TABLE operating_system
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'operating_system');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'operating_system');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'operating_system');
@@ -11398,7 +11403,7 @@ CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE ON property FOR
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'property');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'property');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'property');
@@ -11650,7 +11655,7 @@ CREATE TRIGGER trigger_update_per_svc_env_svc_env_collection AFTER INSERT OR UPD
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'service_environment');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment');
@@ -11857,7 +11862,7 @@ CREATE TRIGGER trigger_validate_service_env_collection_type_change BEFORE UPDATE
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_environment_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'service_environment_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'service_environment_collection');
@@ -12293,7 +12298,7 @@ CREATE TRIGGER trigger_pgnotify_token_change AFTER INSERT OR UPDATE ON token FOR
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'token');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'token');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'token');
@@ -12467,7 +12472,7 @@ ALTER TABLE token_collection
 
 -- TRIGGERS
 -- this used to be at the end...
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'token_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'token_collection');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'token_collection');
@@ -12736,7 +12741,7 @@ CREATE VIEW jazzhands.v_dns_changes_pending AS
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_dns_changes_pending';
-SELECT schema_support.replay_object_recreates();
+-- SELECT schema_support.replay_object_recreates();
 -- DONE DEALING WITH TABLE v_dns_changes_pending
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -17416,10 +17421,6 @@ CREATE TRIGGER trigger_dns_domain_nouniverse_upd
 	FOR EACH ROW EXECUTE PROCEDURE dns_domain_nouniverse_upd();
 
 COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
-
-
-DROP MATERIALIZED VIEW IF EXISTS mv_unix_passwd_mappings;
-DROP MATERIALIZED VIEW IF EXISTS mv_unix_group_mappings;
 
 CREATE UNIQUE INDEX mv_dev_col_root_leaf_id_idx ON mv_dev_col_root USING btree (leaf_id);
 CREATE INDEX mv_dev_col_root_leaf_type_idx ON mv_dev_col_root USING btree (leaf_type);
