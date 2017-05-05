@@ -632,6 +632,16 @@ BEGIN
 			RAISE EXCEPTION 'network interfaces must refer to single ip addresses of type default address (%,%)', NEW.ip_address, NEW.netblock_id
 				USING errcode = 'foreign_key_violation';
 		END IF;
+		select count(*)
+		INTO _tally
+		FROM network_interface_netblock
+		WHERE netblock_id = NEW.netblock_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'network interfaces must refer to single ip addresses of type default address (%,%)', NEW.ip_address, NEW.netblock_id
+				USING errcode = 'foreign_key_violation';
+		END IF;
+
 	END IF;
 	RETURN NEW;
 END;
