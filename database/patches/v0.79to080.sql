@@ -7290,8 +7290,9 @@ SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain');
 ALTER SEQUENCE dns_domain_dns_domain_id_seq
 	 OWNED BY dns_domain.dns_domain_id;
-DROP TABLE IF EXISTS dns_domain_v79;
-DROP TABLE IF EXISTS audit.dns_domain_v79;
+-- need to get data out of these later.
+-- DROP TABLE IF EXISTS dns_domain_v79;
+-- DROP TABLE IF EXISTS audit.dns_domain_v79;
 -- DONE DEALING WITH TABLE dns_domain
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7494,7 +7495,6 @@ CREATE TRIGGER trigger_validate_dns_domain_collection_type_change BEFORE UPDATE 
 -- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain_collection');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_collection');
-SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain_collection');
 ALTER SEQUENCE dns_domain_collection_dns_domain_collection_id_seq
 	 OWNED BY dns_domain_collection.dns_domain_collection_id;
 DROP TABLE IF EXISTS dns_domain_collection_v79;
@@ -7523,7 +7523,6 @@ CREATE TABLE dns_domain_ip_universe
 	data_upd_user	varchar(255)  NULL,
 	data_upd_date	timestamp with time zone  NULL
 );
-SELECT schema_support.build_audit_table('audit', 'jazzhands', 'dns_domain_ip_universe', true);
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE dns_domain_ip_universe ADD CONSTRAINT pk_dns_domain_ip_universe PRIMARY KEY (dns_domain_id, ip_universe_id);
@@ -7549,6 +7548,120 @@ ALTER TABLE dns_domain_ip_universe
 	ADD CONSTRAINT fk_dnsdom_ipu_ipu
 	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
 
+
+---- insert data
+
+INSERT INTO dns_domain_ip_universe (
+	dns_domain_id,
+	ip_universe_id,
+	soa_class,
+	soa_ttl,
+	soa_serial,
+	soa_refresh,
+	soa_retry,
+	soa_expire,
+	soa_minimum,
+	soa_mname,
+	soa_rname,
+	should_generate,
+	last_generated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	dns_domain_id,
+	0,
+	soa_class,
+	soa_ttl,
+	soa_serial,
+	soa_refresh,
+	soa_retry,
+	soa_expire,
+	soa_minimum,
+	soa_mname,
+	soa_rname,
+	should_generate,
+	last_generated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM dns_domain_v79;
+
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'dns_domain_ip_universe', true);
+
+INSERT INTO audit.dns_domain_ip_universe (
+	dns_domain_id,
+	ip_universe_id,
+	soa_class,
+	soa_ttl,
+	soa_serial,
+	soa_refresh,
+	soa_retry,
+	soa_expire,
+	soa_minimum,
+	soa_mname,
+	soa_rname,
+	should_generate,
+	last_generated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	dns_domain_id,
+	0,
+	soa_class,
+	soa_ttl,
+	soa_serial,
+	soa_refresh,
+	soa_retry,
+	soa_expire,
+	soa_minimum,
+	soa_mname,
+	soa_rname,
+	should_generate,
+	last_generated,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.dns_domain_v79
+ORDER BY "aud#seq";
+
+-- existed from earlier.
+DROP TABLE IF EXISTS dns_domain_v79;
+DROP TABLE IF EXISTS audit.dns_domain_v79;
+
+DO $$
+DECLARE
+	_x	INTEGER;
+	_t	TEXT;
+BEGIN
+	SELECT coalesce(max("aud#seq"), 0) + 1 INTO _x FROM audit.dns_domain_ip_universe;
+
+	RAISE NOTICE '%', _x;
+	_t := 'SELECT setval(''audit.dns_domain_ip_universe_seq'', '|| _x || ')';
+	RAISE NOTICE '%', _t;
+	EXECUTE _t;
+END;
+$$;
+
+---- done inserting data
+
 -- TRIGGERS
 -- consider NEW jazzhands.dns_domain_ip_universe_trigger_change
 CREATE OR REPLACE FUNCTION jazzhands.dns_domain_ip_universe_trigger_change()
@@ -7571,7 +7684,7 @@ CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change AFTER INSERT OR UPD
 -- this used to be at the end...
 -- SELECT schema_support.replay_object_recreates();
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'dns_domain_ip_universe');
-SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_ip_universe');
+-- SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'dns_domain_ip_universe');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'dns_domain_ip_universe');
 -- DONE DEALING WITH TABLE dns_domain_ip_universe
 --------------------------------------------------------------------
