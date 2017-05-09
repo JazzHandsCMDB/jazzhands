@@ -35,6 +35,7 @@ SELECT 	NULL::integer	as dns_record_id,
 		NULL::integer as dns_priority,
 		combo.ip,
 		combo.netblock_id,
+		combo.ip_universe_id,
 		NULL::integer as rdns_record_id,
 		NULL::text as dns_srv_service,
 		NULL::text as dns_srv_protocol,
@@ -50,6 +51,7 @@ FROM (
 	    dom.soa_name,
 	    dns.dns_ttl,
 	    network(nb.ip_address) as ip_base,
+	    nb.ip_universe_id,
 	    dns.is_enabled,
 	    'N'::character AS should_generate_ptr,
 	    nb.netblock_id as netblock_id
@@ -71,12 +73,14 @@ UNION ALL
 			concat(coalesce(dns_prefix, 'pool'), '-', 
 				replace(host(ip)::text, '.', '-')) as dns_name,
 			soa_name, NULL as dns_ttl, network(ip) as ip_base,
+			ip_universe_id,
 			'Y' as is_enabled,
 	    	'N'::character AS should_generate_ptr,
 			NULL as netblock_id
 	from (
        	select  
 		network_range_id,
+			nbstart.ip_universe_id,
 	    	dns_domain_id,
 	    	dns_prefix,
 		nbstart.ip_address +

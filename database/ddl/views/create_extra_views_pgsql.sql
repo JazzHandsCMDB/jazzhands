@@ -125,8 +125,9 @@
 \ir pgsql/create_v_unix_group_mappings.sql
 
 -- creds mgmt materialized views
-\ir pgsql/create_mv_unix_passwd_mappings.sql
-\ir pgsql/create_mv_unix_group_mappings.sql
+-- these were deprecated or at least put on hold in 0.80.
+-- \ir pgsql/create_mv_unix_passwd_mappings.sql
+-- \ir pgsql/create_mv_unix_group_mappings.sql
 
 -- dns
 \ir create_v_dns_changes_pending.sql

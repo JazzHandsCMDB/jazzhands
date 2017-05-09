@@ -193,83 +193,31 @@ INSERT INTO Operating_System (
 	'sparc'
 );
 
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('127.0.0.0/8', 'N',
-        'Allocated', 'default', 'Localhost Network', 'N');
+-----------------------------------------------------------------------------------------------------------------------------------------
 
 insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+	(IP_ADDRESS, IS_SINGLE_ADDRESS, NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-        ('127.0.0.1/8', 'Y',
-        'Allocated', 'default', 'Localhost', 'N');
-
-
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('::1/128', 'N',
-        'Allocated', 'default', 'Localhost', 'N');
-
-
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('::1/128', 'Y',
-        'Allocated', 'default', 'Localhost', 'N');
+	('127.0.0.0/8', 'N', 'Allocated', 'default', 'Localhost Network', 'N'),
+	('127.0.0.1/8', 'Y', 'Allocated', 'default', 'Localhost', 'N'),
+	('::1/128', 'N', 'Allocated', 'default', 'Localhost', 'N'),
+	('::1/128', 'Y', 'Allocated', 'default', 'Localhost', 'N'),
+	('169.254.0.0/16', 'N', 'Allocated', 'default', 'RFC3927 Autoconfig', 'Y'),
+	('224.0.0.0/4', 'N', 'Allocated', 'default', 'IPv4 Multicast', 'Y'),
+	('FF00::/8', 'N', 'Allocated', 'default', 'IPv6 Multicast', 'Y');
 
 -- RFC1493 Example space
 -- FC00::/7
 -- 334965454937798799971759379190646833152
-insert into  netblock (ip_address, is_single_address, netblock_status,
-        description, netblock_type, parent_netblock_id, can_subnet) values
-('FC00::/7', 'N', 'Allocated',
-        'RFC4193 IPV6 Block', 'default', null, 'Y');
+insert into  netblock 
+	(ip_address, is_single_address, netblock_status, netblock_type, description, can_subnet) 
+values
+	('FC00::/7', 'N', 'Allocated', 'default', 'RFC4193 IPV6 Block', 'Y');
 
 -- RFC 1918 space
 insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
+	(IP_UNIVERSE_ID, IP_ADDRESS, IS_SINGLE_ADDRESS, NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-        ('10.0.0.0/8', 'N',
-        'Allocated', 'default', 'RFC1918 Space', 'Y');
-
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('192.168.0.0/16', 'N',
-        'Allocated', 'default', 'RFC1918 Space', 'Y');
-
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('172.16.0.0/12', 'N',
-        'Allocated', 'default', 'RFC1918 Space', 'Y');
-
--- RFC3927
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('169.254.0.0/16', 'N',
-        'Allocated', 'default', 'RFC3927 Autoconfig', 'Y');
-
--- Multicast
-insert into netblock
-        (IP_ADDRESS, IS_SINGLE_ADDRESS,
-         NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
-values
-        ('224.0.0.0/4', 'N',
-        'Allocated', 'default', 'IPv4 Multicast', 'Y');
-
-insert into  netblock (ip_address, is_single_address, netblock_status,
-        description, netblock_type, parent_netblock_id, can_subnet) values
-('FF00::/8', 'N', 'Allocated',
-        'IPv6 Multicast', 'default', null, 'Y');
+	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '10.0.0.0/8', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y'),
+	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '192.168.0.0/16', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y'),
+	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '172.16.0.0/12', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y');

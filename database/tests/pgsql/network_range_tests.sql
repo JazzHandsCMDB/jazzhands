@@ -45,13 +45,9 @@ BEGIN
 	RAISE NOTICE '++ Inserting testing data';
 
         INSERT INTO DNS_DOMAIN (
-                soa_name, soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
-                soa_expire, soa_minimum, soa_mname, soa_rname, should_generate,
-                dns_domain_type
+                soa_name, dns_domain_type
         ) values (
-                'jhtest.example.com', 'IN', 3600, 1, 600, 1800,
-                604800, 300, 'ns.example.com', 'hostmaster.example.com', 'Y',
-                'service'
+                'jhtest.example.com', 'service'
         ) RETURNING dns_domain_id INTO _dom;
 
 	INSERT INTO val_netblock_type (

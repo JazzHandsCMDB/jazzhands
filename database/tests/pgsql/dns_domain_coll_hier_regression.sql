@@ -90,15 +90,15 @@ BEGIN
 	RAISE NOTICE 'Inserting collection specific records'; 
 
 	INSERT INTO dns_domain (
-		soa_name, soa_rname, should_generate, dns_domain_type
+		soa_name, dns_domain_type
 	) values (
-		'jhtest1.example.com', 'rname', 'N', 'service'
+		'jhtest1.example.com', 'service'
 	) RETURNING * into _c1;
 
 	INSERT INTO dns_domain (
-		soa_name, soa_rname, should_generate, dns_domain_type
+		soa_name, dns_domain_type
 	) values (
-		'jhtest2.example.com', 'rname', 'N', 'service'
+		'jhtest2.example.com', 'service'
 	) RETURNING * into _c2;
 
 	RAISE NOTICE 'Starting tests...';

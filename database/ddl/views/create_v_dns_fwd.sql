@@ -40,6 +40,7 @@ SELECT * FROM  (
 		CASE WHEN d.dns_value_record_id IS NOT NULL
 			AND dns_type IN ('A','AAAA') THEN	dv.netblock_id
 			ELSE ni.netblock_id END AS netblock_id,
+	    d.ip_universe_id,
 	    rdns.reference_dns_record_id AS ref_record_id,
 	    d.dns_srv_service, d.dns_srv_protocol,
 	    d.dns_srv_weight, d.dns_srv_port,
@@ -79,6 +80,7 @@ SELECT * FROM  (
 		NULL AS dns_prority,
 		ip::inet,
 		NULL AS netblock_id,
+		ip_universe_id,
 	    NULL AS ref_dns_record_id,
 		NULL AS dns_srv_service,
 		NULL AS dns_srv_protocol,
@@ -91,6 +93,7 @@ SELECT * FROM  (
        SELECT
 		network_range_id,
 	    	dns_domain_id,
+		nbstart.ip_universe_id,
 	    	dns_prefix,
 		nbstart.ip_address +
 			generate_series(0, nbstop.ip_address - nbstart.ip_address)
@@ -118,6 +121,7 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		dns_priority,
 		NULL::inet AS ip,
 		NULL::integer AS netblock_id,
+		dns_record.ip_universe_id,
 		NULL::integer AS ref_record_id,
 		NULL::text AS dns_srv_service,
 		NULL::text AS dns_srv_protocol,

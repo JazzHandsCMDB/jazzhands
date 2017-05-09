@@ -16,7 +16,15 @@
 --
 -- Test netblock triggers
 --
+
+\set ON_ERROR_STOP
+
 \t on
+
+SAVEPOINT netblock_trigger_test;
+
+-- tests this:
+-- \ir ../../ddl/schema/pgsql/create_netblock_triggers.sql
 
 DO $$
 DECLARE
@@ -33,10 +41,13 @@ BEGIN
 -- Clean up just in case
 --
 
-	DELETE FROM netblock WHERE netblock_type IN 
+	DELETE FROM val_ip_namespace where ip_namespace IN
+		('JH-universe1', 'JH-universe2');
+
+	DELETE FROM netblock WHERE netblock_type IN
 		('JHTEST-auto', 'JHTEST-auto2', 'JHTEST-manual',
 			'JHTEST-freeforall');
-	DELETE FROM val_netblock_type WHERE netblock_type IN 
+	DELETE FROM val_netblock_type WHERE netblock_type IN
 		('JHTEST-auto', 'JHTEST-auto2', 'JHTEST-manual',
 		'JHTEST-freeforall');
 	DELETE FROM ip_universe WHERE ip_universe_name IN
@@ -47,22 +58,22 @@ BEGIN
 --
 	RAISE NOTICE 'Creating test netblock types...';
 
-	INSERT INTO val_netblock_type 
+	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
 		('JHTEST-auto', 'Y', 'Y');
 
-	INSERT INTO val_netblock_type 
+	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
 		('JHTEST-auto2', 'Y', 'Y');
 
-	INSERT INTO val_netblock_type 
+	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
 		('JHTEST-manual', 'N', 'Y');
 
-	INSERT INTO val_netblock_type 
+	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
 		('JHTEST-freeforall', 'N', 'N');
@@ -71,10 +82,15 @@ BEGIN
 -- Set up a couple of test universes
 --
 	RAISE NOTICE 'Creating test universes...';
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse')
+	INSERT INTO val_ip_namespace (ip_namespace) VALUES
+		('JH-universe1'),
+		('JH-universe2');
+	INSERT INTO ip_universe (ip_universe_name,ip_namespace)
+	VALUES ('JHTEST-testuniverse', 'JH-universe1')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[0] = v_ip_universe_id;
-	INSERT INTO ip_universe (ip_universe_name) VALUES ('JHTEST-testuniverse2')
+	INSERT INTO ip_universe (ip_universe_name, ip_namespace)
+	VALUES ('JHTEST-testuniverse2', 'JH-universe2')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[1] = v_ip_universe_id;
 
@@ -94,8 +110,8 @@ BEGIN
 
 	RAISE NOTICE '    Inserting a netblock with can_subnet=Y and is_single_address=Y';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -110,8 +126,8 @@ BEGIN
 
 	RAISE NOTICE '    Inserting a netblock with is_single_address=N with set non-network bits';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -131,8 +147,8 @@ BEGIN
 -- Insert some new "root"s
 --
 	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -143,8 +159,8 @@ BEGIN
 
 	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16 to test unique constraint';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -156,8 +172,8 @@ BEGIN
 	END;
 
 	RAISE NOTICE '    Inserting JHTEST-auto2 top 172.31.0.0/16';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -168,8 +184,8 @@ BEGIN
 
 
 	RAISE NOTICE '    Inserting JHTEST-auto top 172.31.0.0/16 in different ip_universe';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -179,8 +195,8 @@ BEGIN
 	a_netblock_list[7] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-manual top 172.31.0.0/16';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -190,8 +206,8 @@ BEGIN
 	a_netblock_list[1] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-manual top 172.31.0.0/16 universe 1';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -201,8 +217,8 @@ BEGIN
 	a_netblock_list[8] = v_netblock_id;
 
 	RAISE NOTICE '    Inserting JHTEST-freeforall top 172.31.0.0/16';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -221,8 +237,8 @@ BEGIN
 
 	RAISE NOTICE 'Inserting hierarchy to test validation trigger';
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -232,8 +248,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[10] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -243,8 +259,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[11] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -254,8 +270,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[12] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -265,8 +281,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[13] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -276,8 +292,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[14] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -287,8 +303,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[15] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -298,8 +314,8 @@ BEGIN
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[16] = v_netblock_id;
 
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -320,8 +336,8 @@ BEGIN
 	SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
 	RAISE NOTICE '    Insert a block with a mismatched parent type';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -337,8 +353,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a block with a mismatched ip_universe';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -354,8 +370,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a single block with a NULL parent';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -371,8 +387,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a block with a NULL parent that should be in the hierarchy';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -389,8 +405,8 @@ BEGIN
 	RAISE NOTICE '    Insert a self-referential block';
 	BEGIN
 		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -410,8 +426,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a block in the wrong place (parent not a parent)';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -427,8 +443,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a block in the wrong place (better parent)';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -445,7 +461,7 @@ BEGIN
 
 	RAISE NOTICE '    Insert a block in the wrong place (parent not a parent)';
 	BEGIN
-		INSERT INTO netblock 
+		INSERT INTO netblock
 			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
@@ -463,8 +479,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a single block with a parent with a different netmask';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -480,8 +496,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a non-single block with a parent that has single blocks';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -498,8 +514,8 @@ BEGIN
 
 	RAISE NOTICE '    Insert a block into the middle of a hierarchy without rehoming the children';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -614,8 +630,8 @@ BEGIN
 
 	RAISE NOTICE 'Validating parentage management...';
 	RAISE NOTICE '    Inserting 172.31.1.0/24';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -631,8 +647,8 @@ BEGIN
 	a_netblock_list[3] = netblock_rec.netblock_id;
 
 	RAISE NOTICE '    Inserting 172.31.18.0/25';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -649,8 +665,8 @@ BEGIN
 
 
 	RAISE NOTICE '    Inserting 172.31.0.0/22 between two netblocks';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -669,7 +685,7 @@ BEGIN
 		netblock_id = a_netblock_list[3];
 
 	IF v_netblock_id != a_netblock_list[5] THEN
-		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %',
 			a_netblock_list[5],
 			v_netblock_id;
 	ELSE
@@ -683,7 +699,7 @@ BEGIN
 		netblock_id = a_netblock_list[4];
 
 	IF v_netblock_id != a_netblock_list[0] THEN
-		RAISE '        parent for 172.31.18.0/25 should still be %, but is %', 
+		RAISE '        parent for 172.31.18.0/25 should still be %, but is %',
 			a_netblock_list[0],
 			v_netblock_id;
 	ELSE
@@ -702,8 +718,8 @@ BEGIN
 
 	RAISE NOTICE '    Inserting 172.31.16.1/24 that is a single address which will not have a matching parent';
 	BEGIN
-		INSERT INTO netblock 
-			(ip_address, netblock_type, 
+		INSERT INTO netblock
+			(ip_address, netblock_type,
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
@@ -724,8 +740,8 @@ BEGIN
 --
 
 	RAISE NOTICE '    Inserting 172.31.1.1/24 that is a single address which will have a matching parent';
-	INSERT INTO netblock 
-		(ip_address, netblock_type, 
+	INSERT INTO netblock
+		(ip_address, netblock_type,
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
@@ -737,7 +753,7 @@ BEGIN
 	IF netblock_rec.parent_netblock_id = a_netblock_list[3] THEN
 		RAISE NOTICE '        parent should be and is %', a_netblock_list[3];
 	ELSE
-		SELECT * INTO parent_netblock_rec FROM netblock WHERE 
+		SELECT * INTO parent_netblock_rec FROM netblock WHERE
 			netblock_id = netblock_rec.parent_netblock_id;
 		RAISE '        parent should be %, but is % (%)',
 			a_netblock_list[3],
@@ -762,7 +778,7 @@ BEGIN
 		netblock_id = a_netblock_list[3];
 
 	IF v_netblock_id != a_netblock_list[5] THEN
-		RAISE '        parent for 172.31.1.0/24 should still be %, but is %', 
+		RAISE '        parent for 172.31.1.0/24 should still be %, but is %',
 			a_netblock_list[5],
 			v_netblock_id;
 	ELSE
@@ -776,7 +792,7 @@ BEGIN
 		netblock_id = a_netblock_list[4];
 
 	IF v_netblock_id != a_netblock_list[5] THEN
-		RAISE '        parent for 172.31.18.0/25 should now be %, but is %', 
+		RAISE '        parent for 172.31.18.0/25 should now be %, but is %',
 			a_netblock_list[5],
 			v_netblock_id;
 	ELSE
@@ -798,7 +814,7 @@ BEGIN
 		netblock_id = a_netblock_list[3];
 
 	IF v_netblock_id != a_netblock_list[5] THEN
-		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %',
 			a_netblock_list[5],
 			v_netblock_id;
 	ELSE
@@ -812,7 +828,7 @@ BEGIN
 		netblock_id = a_netblock_list[4];
 
 	IF v_netblock_id != a_netblock_list[0] THEN
-		RAISE '        parent for 172.31.18.0/25 should still be %, but is %', 
+		RAISE '        parent for 172.31.18.0/25 should still be %, but is %',
 			a_netblock_list[0],
 			v_netblock_id;
 	ELSE
@@ -837,7 +853,7 @@ BEGIN
 		netblock_id = a_netblock_list[3];
 
 	IF v_netblock_id != a_netblock_list[0] THEN
-		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %',
 			a_netblock_list[0],
 			v_netblock_id;
 	ELSE
@@ -851,7 +867,7 @@ BEGIN
 		netblock_id = a_netblock_list[4];
 
 	IF v_netblock_id != a_netblock_list[5] THEN
-		RAISE '        parent for 172.31.18.0/25 should now be %, but is %', 
+		RAISE '        parent for 172.31.18.0/25 should now be %, but is %',
 			a_netblock_list[5],
 			v_netblock_id;
 	ELSE
@@ -869,12 +885,12 @@ BEGIN
 
 	RAISE NOTICE '    Deleting 172.31.16.0/22, which is both the parent and child of other netblocks';
 	DELETE FROM netblock WHERE netblock_id = a_netblock_list[5];
-	
+
 	SELECT parent_netblock_id INTO v_netblock_id FROM netblock WHERE
 		netblock_id = a_netblock_list[4];
 
 	IF v_netblock_id != a_netblock_list[0] THEN
-		RAISE '        parent for 172.31.1.0/24 should now be %, but is %', 
+		RAISE '        parent for 172.31.1.0/24 should now be %, but is %',
 			a_netblock_list[0],
 			v_netblock_id;
 	ELSE
@@ -892,8 +908,8 @@ BEGIN
 --
 
 --	RAISE NOTICE '    Inserting 172.31.1.16/24 that is a single address';
---	INSERT INTO netblock 
---		(ip_address, netblock_type, 
+--	INSERT INTO netblock
+--		(ip_address, netblock_type,
 --		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 --		 ip_universe_id)
 --	VALUES
@@ -949,10 +965,10 @@ BEGIN
 
 	RAISE NOTICE 'Cleaning up...';
 
-	DELETE FROM netblock WHERE netblock_type IN 
+	DELETE FROM netblock WHERE netblock_type IN
 		('JHTEST-auto', 'JHTEST-auto2', 'JHTEST-manual',
 		'JHTEST-freeforall');
-	DELETE FROM val_netblock_type WHERE netblock_type IN 
+	DELETE FROM val_netblock_type WHERE netblock_type IN
 		('JHTEST-auto', 'JHTEST-auto2', 'JHTEST-manual',
 		'JHTEST-freeforall');
 	DELETE FROM ip_universe WHERE ip_universe_name IN
@@ -960,5 +976,7 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
+ROLLBACK TO netblock_trigger_test;
 
 \t off
