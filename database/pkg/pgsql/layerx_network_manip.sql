@@ -30,11 +30,13 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_network (
-	layer2_network_id	jazzhands.layer2_network.layer2_network_id%TYPE
+	layer2_network_id	jazzhands.layer2_network.layer2_network_id%TYPE,
+	purge_network_interfaces	boolean DEFAULT false
 ) RETURNS VOID AS $$
 BEGIN
-	PERFORM * FROM delete_layer2_networks(
-		layer2_network_id_list := ARRAY[ layer2_network_id ]
+	PERFORM * FROM layerx_network_manip.delete_layer2_networks(
+		layer2_network_id_list := ARRAY[ layer2_network_id ],
+		purge_network_interfaces := purge_network_interfaces
 	);
 END $$ LANGUAGE plpgsql;
 
@@ -45,8 +47,11 @@ END $$ LANGUAGE plpgsql;
 -- will fail
 --
 CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_networks (
-	layer2_network_id_list	integer[]
+	layer2_network_id_list	integer[],
+	purge_network_interfaces	boolean DEFAULT false
 ) RETURNS VOID AS $$
+DECLARE
+	netblock_id_list	integer[];
 BEGIN
 	BEGIN
 		PERFORM local_hooks.delete_layer2_networks_before_hooks(
@@ -55,6 +60,45 @@ BEGIN
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		NULL;
 	END;
+
+	IF (purge_network_interfaces) THEN
+		SELECT ARRAY(
+			SELECT
+				n.netblock_id AS netblock_id
+			FROM
+				jazzhands.layer2_network l2 JOIN
+				jazzhands.layer3_network l3 USING (layer2_network_id) JOIN
+				jazzhands.netblock p USING (netblock_id) JOIN
+				jazzhands.netblock n ON (p.netblock_id = n.parent_netblock_id)
+			WHERE
+				l2.layer2_network_id = ANY(layer2_network_id_list)
+		) INTO netblock_id_list;
+
+		WITH nin_del AS (
+			DELETE FROM
+				jazzhands.network_interface_netblock 
+			WHERE
+				netblock_id = ANY(netblock_id_list)
+			RETURNING network_interface_id
+		), snni_del AS (
+			DELETE FROM
+				jazzhands.shared_netblock_network_int
+			WHERE
+				shared_netblock_id IN (
+					SELECT shared_netblock_id FROM jazzhands.shared_netblock
+					WHERE netblock_id = ANY(netblock_id_list)
+				)
+			RETURNING network_interface_id
+		)
+		DELETE FROM jazzhands.network_interface
+		WHERE
+			network_interface_id IN (
+				SELECT network_interface_id FROM nin_del
+				UNION
+				SELECT network_interface_id FROM snni_del
+			);
+	END IF;
+
 
 	WITH x AS (
 		SELECT
@@ -91,7 +135,7 @@ BEGIN
 		SELECT
 			n.netblock_id
 		FROM
-			netblock n JOIN
+			jazzhands.netblock n JOIN
 			x ON (n.parent_netblock_id = x.netblock_id)
 	), dns_del AS (
 		DELETE FROM
@@ -101,6 +145,11 @@ BEGIN
 	), nb_del as (
 		DELETE FROM
 			jazzhands.netblock
+		WHERE
+			netblock_id IN (SELECT netblock_id FROM nb_sel)
+	), sn_del as (
+		DELETE FROM
+			jazzhands.shared_netblock
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM nb_sel)
 	)
@@ -117,6 +166,6 @@ BEGIN
 		NULL;
 	END;
 
-END $$ LANGUAGE plpgsql;
+END $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT USAGE ON SCHEMA layerx_network_manip TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA layerx_network_manip TO iud_role;
