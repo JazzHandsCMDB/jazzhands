@@ -1,8 +1,15 @@
+jazzhands-stab (0.80.0.1) trusty; urgency=medium
+
+  * missed a dns_domain reference
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 10 May 2017 11:08:00 -0500
+
 jazzhands-stab (0.80.0) trusty; urgency=medium
 
   * switch references to dns_domain to v_dns_domain_nouniverse
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 10 May 2017 10:44:00 -0500
+
 
 jazzhands-stab (0.79.5.1) trusty; urgency=medium
 

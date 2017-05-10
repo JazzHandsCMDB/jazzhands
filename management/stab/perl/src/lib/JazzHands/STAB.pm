@@ -1396,7 +1396,7 @@ sub b_dropdown {
 		}
 		$q = qq{
 			select	dns_domain_id, soa_name
-			  from	dns_domain $limitverbiage
+			  from	v_dns_domain_nouniverse $limitverbiage
 			order by CASE WHEN dns_domain_type = 'reverse' THEN 1 ELSE 0 END,
 				soa_name
 		};
