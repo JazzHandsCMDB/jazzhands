@@ -1,5 +1,13 @@
 #!/usr/bin/env perl
 
+# TODO:
+# - deal with ordering, TXT records on zone were coming later sometimes
+# - pulling up child zones with ip universe bits
+# - trigger enforcement of various data across ip universes keeping in mind
+#	ip_universe_visibility
+# - zonegen deals with per-server in a sane fashion
+# - dns domain collection association for "put these zones anyway" on per-server
+
 # Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
 #
@@ -49,6 +57,7 @@ use strict;
 use Getopt::Long qw(:config no_ignore_case bundling);
 use JazzHands::Common::Util qw(_dbx);
 use Pod::Usage;
+use Data::Dumper;
 
 ### XXX: SIGALRM that kills after one zone hasn't been processed for 20 mins?
 
@@ -117,12 +126,10 @@ sub new {
 sub make_directories() {
 	my $self = shift @_;
 
-	my @list = (
-		$self->{_output_root},
-		$self->{_zoneroot},
-		$self->{_zoneroot} . "/inaddr",
-		$self->{_zoneroot} . "/ip6",
-	);
+	#
+	# other directories are made elsewhere, this can probably just go away.
+	#
+	my @list = ( $self->{_output_root}, );
 
 	foreach my $dir (@list) {
 		$self->mkdir_p($dir) if ( !-d $dir );
@@ -329,7 +336,7 @@ sub get_dns_domid($$) {
 	my $sth = $dbh->prepare_cached(
 		qq{
 		select	dns_domain_id
-		 from	v_dns_domain_nouniverse
+		 from	dns_domain
 		where	soa_name = ?
 	}
 	) || die $dbh->errstr;
@@ -400,7 +407,7 @@ sub record_newgen {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		update	v_dns_domain_nouniverse
+		update	dns_domain
 		  set	soa_serial = soa_serial + 1, last_generated = now()
 		where	dns_domain_id = :domid
 	}
@@ -548,8 +555,13 @@ sub generate_rsync_list($$$$) {
 }
 
 sub process_all_dns_records {
-	my ( $self, $out, $domid, $domain) = @_;
+	my ( $self, $out, $domid, $domain, $universe ) = @_;
 	my $dbh = $self->DBHandle();
+
+	my $uclause = "";
+	if ( defined($universe) ) {
+		$uclause = "AND ( ip_universe_id = :universe )";
+	}
 
 	#
 	# sort_order is arranged such that records for the domain itself
@@ -584,7 +596,7 @@ sub process_all_dns_records {
 				ELSE 10 END as sortorder,
 			dns_domain_id
 		  from	v_dns
-		 where	dns_domain_id = :domid
+		 where	dns_domain_id = :domid $uclause
 		) SELECT *, row_number()
 			OVER (partition by dns_name,dns_domain_id ORDER BY sortorder) as rn
 		FROM dns
@@ -605,6 +617,9 @@ sub process_all_dns_records {
 	# order by sort_order, net_manip.inet_dbtop(ni.ip_address),dns_type
 
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	if ( defined($universe) ) {
+		$sth->bind_param( ':universe', $universe ) || die $sth->errstr;
+	}
 
 	$sth->execute || die $sth->errstr;
 
@@ -639,7 +654,7 @@ sub process_all_dns_records {
 			}
 			$pri .= " " if ( defined($pri) );
 			$value = "$pri$value";
-		} elsif ( $type eq 'TXT' ) {
+		} elsif ( $type eq 'TXT' || $type eq 'SPF') {
 			$value =~ s/^"//;
 			$value =~ s/"$//;
 			$value = "\"$value\"";
@@ -670,21 +685,23 @@ sub process_all_dns_records {
 }
 
 sub process_soa {
-	my ( $self, $out, $domid, $bumpsoa ) = @_;
+	my ( $self, $out, $domid, $bumpsoa, $uid ) = @_;
 	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select	soa_name, soa_class, soa_ttl,
-			soa_serial, soa_refresh, soa_retry,
-			soa_expire, soa_minimum,
-			soa_mname, soa_rname
-		  from	v_dns_domain_nouniverse
-		 where	dns_domain_id = ?
+		SELECT	soa_name, soa_class, soa_ttl,
+				soa_serial, soa_refresh, soa_retry,
+				soa_expire, soa_minimum,
+				soa_mname, soa_rname
+		  FROM	dns_domain
+				inner join dns_domain_ip_universe USING (dns_domain_id)
+		 WHERE	dns_domain_id = ?
+		   AND	ip_universe_id = ?
 	}
 	);
 
-	$sth->execute($domid) || die $sth->errstr;
+	$sth->execute( $domid, $uid ) || die $sth->errstr;
 
 	my ( $dom, $class, $ttl, $serial, $ref, $ret, $exp, $min, $mname, $rname )
 	  = $sth->fetchrow_array;
@@ -711,7 +728,9 @@ sub process_soa {
 	$mname = $self->get_db_default( '_dnsmname', 'auth00.example.com' )
 	  if ( !defined($mname) );
 
-	$mname =~ s/\@/./g;
+	# should do this - escaping of .'s in email addresses..
+	# $rname =~ s/[^\\]{0,1}\./\\./;
+	$rname =~ s/\@/./g;
 
 	$mname .= "." if ( $mname =~ /\./ );
 	$rname .= "." if ( $rname =~ /\./ );
@@ -732,7 +751,8 @@ sub process_soa {
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
-	my ( $self, $domid, $domain, $errcheck, $last, $bumpsoa ) = @_;
+	my ( $self, $domid, $domain, $uid, $uname, $errcheck, $last, $bumpsoa ) =
+	  @_;
 	my $dbh = $self->DBHandle();
 
 	my $zoneroot = $self->{_zoneroot};
@@ -752,12 +772,13 @@ sub process_domain {
 
 	}
 
+	$self->_Debug( 1, "processing universe %s (%s)...", $uname, $uid );
+
 	my ( $fn, $tmpfn );
 
 	if ($zoneroot) {
 
-		#my $dir = "$zoneroot/$uname/$inaddr";
-		my $dir = "$zoneroot/$inaddr";
+		my $dir = "$zoneroot/$uname/$inaddr";
 		$self->mkdir_p($dir) if ( !-d $dir );
 		$fn    = "$dir$domain";
 		$tmpfn = "$fn.tmp.$$";
@@ -769,10 +790,10 @@ sub process_domain {
 
 	$self->_Debug( 1, "process SOA to %s", $tmpfn );
 
-	$self->process_soa( $out, $domid, $bumpsoa );
+	$self->process_soa( $out, $domid, $bumpsoa, $uid );
 
 	$self->_Debug( 1, "process DNS Records to %s", $tmpfn );
-	$self->process_all_dns_records( $out, $domid, $domain );
+	$self->process_all_dns_records( $out, $domid, $domain, $uid );
 	$self->_Debug( 1, "process_domain complete" );
 	$out->close;
 
@@ -782,8 +803,7 @@ sub process_domain {
 		  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
 		if ($y) {
 			my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
-			utime( $whence, $whence, $tmpfn )
-			  ;    # If it does not work, then Vv
+			utime( $whence, $whence, $tmpfn );    # If it does not work, then Vv
 		} else {
 			warn "difficulting breaking apart $last";
 		}
@@ -836,7 +856,7 @@ sub generate_complete_files {
 	my $sth = $dbh->prepare_cached(
 		qq{
 		select	soa_name
-		  from	v_dns_domain_nouniverse
+		  from	dns_domain
 		 where	should_generate = 'Y'
 		order by soa_name
 	}
@@ -910,12 +930,14 @@ sub process_perserver {
 				ELSE concat(dns.dns_value,'.',dom.soa_name)
 			END AS dns_value,
 			dom.soa_name
-		 FROm   v_dns_domain_nouniverse dom
+		 FROM   dns_domain dom
+			INNER JOIN dns_domain_ip_universe di
+				USING (dns_domain_id)
 			INNER JOIN dns_record dns
-				ON dns.dns_domain_id = dom.dns_domain_id
+				USING (dns_domain_id)
 		 WHERE  dns.dns_name is NULL
 		   AND  dns_type = 'NS'
-		   AND	dom.should_generate = 'Y'
+		   AND	should_generate = 'Y'
 		ORDER BY dns_value
 	}
 	);
@@ -1290,6 +1312,8 @@ if ($debug) {
 # $generate contains all of the objects that are to be regenerated
 my $generate = {};
 if ( scalar @changeids ) {
+	die
+	  "need to finish poringthe dns_change_record stuff to universes, including trigger fixings";
 	#
 	# Now get all zones eligible for regeneration and save them.
 	#
@@ -1354,11 +1378,13 @@ if (1) {
 	my $dbh = $zg->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT  dns_domain_id, should_generate, last_generated,
-			soa_name,
-			extract(epoch from last_generated) as epoch_gen
-		  FROM	v_dns_domain_nouniverse
-		  order by soa_name
+		SELECT  dns_domain_id, ip_universe_id, ip_universe_name,
+				should_generate, last_generated, soa_name,
+				extract(epoch from last_generated) as epoch_gen
+		  FROM	dns_domain
+				join dns_domain_ip_universe USING (dns_domain_id)
+				join ip_universe USING (ip_universe_id)
+		  order by soa_name, ip_universe_id
 	}
 	) || die $dbh->errstr;
 	$sth->execute || die $sth->errstr;
@@ -1370,6 +1396,7 @@ if (1) {
 		# --genall overrides SHOULD_GENERATE in the db
 		#
 		if ( !$genall && $hr->{ _dbx('SHOULD_GENERATE') } eq 'N' ) {
+			die "need to deal with universes in this case";
 			delete $generate->{$dom};
 			next;
 		}
@@ -1418,13 +1445,20 @@ if (1) {
 			}
 		}
 
-		if ( exists( $generate->{$dom} ) ) {
-			next;
-		}
+		my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 
 		if ($genit) {
-			$generate->{$dom} = {};
-			push( @{ $generate->{$dom}->{rec} }, $hr );
+			if ( !$generate->{$dom} ) {
+				$generate->{$dom} = {};
+			} elsif ( exists( $generate->{$dom}->{$univ} ) ) {
+				next;
+			}
+
+			if ( !$generate->{$dom}->{$univ} ) {
+				$generate->{$dom}->{$univ} = {};
+			}
+
+			push( @{ $generate->{$dom}->{$univ}->{rec} }, $hr );
 		}
 	}
 	$sth->finish;
@@ -1433,6 +1467,7 @@ if (1) {
 #
 # Go through the command line and make  sure they are all there.
 #
+# XXX - need to deal with iprgment.
 foreach my $dom (@ARGV) {
 	if ( !exists( $generate->{$dom} ) ) {
 		if ( !$zg->get_dns_domid($dom) ) {
@@ -1448,27 +1483,34 @@ foreach my $dom (@ARGV) {
 #
 foreach my $dom ( sort keys( %{$generate} ) ) {
 	next if $dom eq '__unknown__';
-	my $bumpsoa = 0;
-	if ($nosoa) {
-		$generate->{$dom}->{bumpsoa} = 0;
-	} else {
-		if ($forcesoa) {
-			$bumpsoa = 1;
-			$generate->{$dom}->{bumpsoa} = 1;
+	foreach my $univ ( sort keys( %{ $generate->{$dom} } ) ) {
+		my $bumpsoa = 0;
+		if ($nosoa) {
+			$generate->{$dom}->{$univ}->{bumpsoa} = 0;
 		} else {
-			$bumpsoa = $generate->{$dom}->{bumpsoa} || 0;
+			if ($forcesoa) {
+				$bumpsoa = 1;
+				$generate->{$dom}->{$univ}->{bumpsoa} = 1;
+			} else {
+				$bumpsoa = $generate->{$dom}->{$univ}->{bumpsoa} || 0;
+			}
 		}
+		my $domid =
+		  $generate->{$dom}->{$univ}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
+		print "$dom\n";
+		my $last = $generate->{$dom}->{$univ}->{rec}->[0]->{last_generated};
+		if ($bumpsoa) {
+			$last = $zg->get_now();
+		}
+		my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
+		$zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
+			$bumpsoa );
 	}
-	my $domid = $generate->{$dom}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
-	print "$dom\n";
-	my $last = $generate->{$dom}->{rec}->[0]->{last_generated};
-	if ($bumpsoa) {
-		$last = $zg->get_now();
-	}
-	$zg->process_domain( $domid, $dom, undef, $last, $bumpsoa );
 
 }
 warn "Done Generating Zones\n" if ($verbose);
+
+die "need to port after this";
 
 my $docommit = 0;
 
@@ -1549,8 +1591,10 @@ if ( !$norsynclist ) {
 #
 warn "Generating configuration files and whatnot..." if ($debug);
 
-$zg->process_perserver( "../zones", $generate );
-$zg->generate_complete_files($generate);
+die "need to port per-server bits";
+
+#$zg->process_perserver( "../zones", $generate );
+#$zg->generate_complete_files($generate);
 
 $zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
 
@@ -1701,18 +1745,17 @@ to stdout.  Note that it does NOT change the serial number if it's due
 for updating, so it will match the last generation of the record.  This
 is meant as an error checking aide.
 
-generate-zones uses the rows of the network_range, v_dns_domain_nouniverse,
+generate-zones uses the rows of the network_range, dns_domain,
 dns_record, netblock, and network_interface tables in JazzHands to create
 zone files.
 
-The v_dns_domain_nouniverse table contains the typical information about 
-a zone, from
+The dns_domain table contains the typical information about a zone, from
 the SOA data, including serial number, to hierarchical relationships
 among zones.  It also contains a Y/N flag column, SHOULD_GENERATE and a
 value, LAST_GENERATED, to indicate if a zone should be auto-generated by
 this script, and the last time it was auto-generated.
 
-The dns_record table contains all records for a given v_dns_domain_nouniverse.  It
+The dns_record table contains all records for a given dns_domain.  It
 contains typical values for a DNS entry, such as Type and Class, but
 also contains a Netblock_id for resolving A/AAA records.  If the DNS_NAME
 value is set to NULL, the record is assumed to share a name of another
@@ -1721,7 +1764,7 @@ is assumed to be for the zone.  This is, for example, how NS records are
 populated.
 
 Under normal circumstances, PTR records are not explicitly stored in
-the db, but instead there is a v_dns_domain_nouniverse record for each inverse zone.
+the db, but instead there is a dns_domain record for each inverse zone.
 It has a dns_record of REVERSE_ZONE_BLOCK_PTR that indicates that the
 netblock_id for the record, contains the base record for a netblock
 that should be used to generate a reverse zone.  All A/AAA records matching
@@ -1738,9 +1781,9 @@ elsewhere in the db for an IP, that name will be favored over the
 generated name in a network range entry.
 
 When a zone is generated, the mtime of the zone file will be changed to
-match the last_generated value of the v_dns_domain_nouniverse row for that zone.  In the
+match the last_generated value of the dns_domain row for that zone.  In the
 event that the zone is updated by a run (that is, some operation bumped the
-SOA), the date, and v_dns_domain_nouniverse.last_updated are both set to the start time of
+SOA), the date, and dns_domain.last_updated are both set to the start time of
 the transaction.
 
 The script will also create sitecodeacl.conf in the main etc directory with
