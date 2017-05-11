@@ -167,16 +167,6 @@ sub do_show_serial {
 			print $stab->b_dropdown( undef, _dbx( \%values ),
 				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT' );
 		}
-	} elsif ( $what eq 'VOESymTrax' ) {
-		my $args = {};
-
-		# $args->{-xml} = $xml if($xml);
-
-		my $values = {};
-		$values->{'DEVICE_ID'}           = $devid;
-		$values->{'OPERATING_SYSTEM_ID'} = $osid;
-		print $stab->b_dropdown( $args, $values,
-			'VOE_SYMBOLIC_TRACK_ID', 'DEVICE_ID' );
 	} elsif ( $what eq 'Circuit' ) {
 		print $stab->device_circuit_tab( $devid, $parent );
 	} elsif ( $what eq 'AppGroup' ) {

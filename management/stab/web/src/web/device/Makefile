@@ -26,7 +26,7 @@
 
 STAB_DIR=/prod/www/stab/docs/device
 
-SUBDIRS= write type snmp os voe
+SUBDIRS= write type snmp os 
 
 SCRIPTS= ajax-devsearch.pl device-ajax.pl device.pl index.pl search.pl
 

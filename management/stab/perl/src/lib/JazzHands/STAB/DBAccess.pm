@@ -956,58 +956,6 @@ sub get_operating_system_from_id {
 	$os;
 }
 
-sub get_voe_from_id {
-	my ( $self, $id ) = @_;
-
-	my $q = qq{
-		select  voe.voe_id,
-			voe.voe_name,
-			voe.sw_package_repository_id,
-			voe.voe_state,
-			spr.sw_repository_name as sw_package_repository_name,
-			spr.description as sw_package_description,
-			spr.apt_repository as apt_repository
-		  from  VOE voe
-			inner join sw_package_repository spr
-				on spr.sw_package_repository_id =
-					voe.sw_package_repository_id
-		 where  voe.voe_id = ?
-
-	};
-
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
-	my $voe = $sth->fetchrow_hashref;
-	$sth->finish;
-	$voe;
-}
-
-sub get_package_release {
-	my ( $self, $id ) = @_;
-
-	# add package_state_restriction
-	#	pkg.package_state_restriction,
-	# left join sw_package_repository
-	my $q = qq{
-	    select  pkgr.sw_package_release_id,
-		pkg.sw_package_name, pkgr.sw_package_version, pkg.description
-	      from  sw_package pkg
-		    inner join sw_package_release pkgr
-			    on pkgr.sw_package_id = pkg.sw_package_id
-		    inner join voe_sw_package voeswp
-			    on voeswp.sw_package_release_id =
-				pkgr.sw_package_release_id
-	     where  voeswp.sw_package_release_id = ?
-	    order by pkg.sw_package_name
-	};
-
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
-	my $pkg = $sth->fetchrow_hashref;
-	$sth->finish;
-	$pkg;
-}
-
 sub get_device_from_id {
 	my ( $self, $id ) = @_;
 
@@ -1079,60 +1027,6 @@ sub get_device_type_from_name {
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$self->fill_asset_details_with_device($hr);
-}
-
-sub get_packages_for_voe {
-	my ( $self, $voeid ) = @_;
-
-	my $q = qq{
-		select  p.sw_package_name,
-			pr.sw_package_version as voe_version
-		  from  sw_package p
-			inner join sw_package_release pr
-				on pr.sw_package_id = p.sw_package_id
-			inner join voe_sw_package voe
-				on pr.sw_package_release_id =
-					voe.sw_package_release_id
-		 where
-			voe.voe_id = ?
-	};
-
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($voeid) || $self->return_db_err($sth);
-
-	my (%pkgs);
-	while ( my ( $pkg, $vers ) = $sth->fetchrow_array ) {
-		$pkgs{$pkg} = $vers;
-	}
-	$sth->finish;
-	\%pkgs;
-}
-
-sub get_dependancies_for_voe {
-	my ( $self, $voeid ) = @_;
-
-	my $q = qq{
-		select  p.sw_package_name,
-			pr.sw_package_version as voe_version
-		  from  sw_package p
-			inner join sw_package_release pr
-				on pr.sw_package_id = p.sw_package_id
-			inner join voe_sw_package voe
-				on pr.sw_package_release_id =
-					voe.sw_package_release_id
-		 where
-			voe.voe_id = ?
-	};
-
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($voeid) || $self->return_db_err($sth);
-
-	my (%pkgs);
-	while ( my ( $pkg, $vers ) = $sth->fetchrow_array ) {
-		$pkgs{$pkg} = $vers;
-	}
-	$sth->finish;
-	\%pkgs;
 }
 
 sub get_physical_path_from_l1conn {
