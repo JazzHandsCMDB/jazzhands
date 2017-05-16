@@ -16,11 +16,11 @@
  */
 
 
-CREATE OR REPLACE FUNCTION account_status_after_hooks()
+CREATE OR REPLACE FUNCTION account_status_per_row_after_hooks()
 RETURNS TRIGGER AS $$
 BEGIN
 	BEGIN
-		PERFORM local_hooks.account_status_after_hooks();
+		PERFORM local_hooks.account_status_per_row_after_hooks(account_record => NEW);
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
@@ -30,10 +30,10 @@ $$
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path=jazzhands;
 
-DROP TRIGGER IF EXISTS trigger_account_status_after_hooks
+DROP TRIGGER IF EXISTS trigger_account_status_per_row_after_hooks
 	ON account;
-CREATE TRIGGER trigger_account_status_after_hooks
+CREATE TRIGGER trigger_account_status_per_row_after_hooks
 AFTER UPDATE of account_status
 	ON account
-	FOR EACH ROW EXECUTE PROCEDURE account_status_after_hooks();
+	FOR EACH ROW EXECUTE PROCEDURE account_status_per_row_after_hooks();
 
