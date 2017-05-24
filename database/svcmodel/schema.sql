@@ -252,6 +252,9 @@ CREATE TABLE service_endpoint (
 -- netblock_id is probably not nullable but should be forced to be set if
 -- the service is a network service
 --
+-- for things that do not have an endpoint (something that runs on a host
+-- like a feed perhaps), service_endpoint_id may need to be nullable.
+--
 DROP TABLE IF EXISTS service_instance cascade;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
