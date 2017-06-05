@@ -187,7 +187,7 @@ END $$ LANGUAGE plpgsql;
 -- will fail unless purge_network_interfaces is passed
 --
 
-CREATE OR REPLACE FUNCTION mdr.delete_layer3_networks (
+CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_networks (
 	layer3_network_id_list	integer[],
 	purge_network_interfaces	boolean DEFAULT false
 ) RETURNS VOID AS $$
