@@ -61,102 +61,25 @@ BEGIN
 		NULL;
 	END;
 
-	IF (purge_network_interfaces) THEN
-		SELECT ARRAY(
-			SELECT
-				n.netblock_id AS netblock_id
-			FROM
-				jazzhands.layer2_network l2 JOIN
-				jazzhands.layer3_network l3 USING (layer2_network_id) JOIN
-				jazzhands.netblock p USING (netblock_id) JOIN
-				jazzhands.netblock n ON (p.netblock_id = n.parent_netblock_id)
-			WHERE
-				l2.layer2_network_id = ANY(layer2_network_id_list)
-		) INTO netblock_id_list;
+	PERFORM layerx_network_manip.delete_layer3_networks(
+		layer3_network_id_list := ARRAY(
+				SELECT layer3_network_id
+				FROM layer3_network l3n
+				WHERE layer2_network_id = ANY(layer2_network_id_list)
+			),
+		purge_network_interfaces := 
+			delete_layer2_networks.purge_network_interfaces
+	);
 
-		WITH nin_del AS (
-			DELETE FROM
-				jazzhands.network_interface_netblock 
-			WHERE
-				netblock_id = ANY(netblock_id_list)
-			RETURNING network_interface_id
-		), snni_del AS (
-			DELETE FROM
-				jazzhands.shared_netblock_network_int
-			WHERE
-				shared_netblock_id IN (
-					SELECT shared_netblock_id FROM jazzhands.shared_netblock
-					WHERE netblock_id = ANY(netblock_id_list)
-				)
-			RETURNING network_interface_id
-		)
-		DELETE FROM jazzhands.network_interface
-		WHERE
-			network_interface_id IN (
-				SELECT network_interface_id FROM nin_del
-				UNION
-				SELECT network_interface_id FROM snni_del
-			);
-	END IF;
-
-
-	WITH x AS (
-		SELECT
-			p.netblock_id AS netblock_id,
-			l2.layer2_network_id AS layer2_network_id,
-			l3.layer3_network_id AS layer3_network_id
-		FROM
-			jazzhands.layer2_network l2 JOIN
-			jazzhands.layer3_network l3 USING (layer2_network_id) JOIN
-			jazzhands.netblock p USING (netblock_id)
-		WHERE
-			l2.layer2_network_id = ANY(layer2_network_id_list)
-	), l3_coll_del AS (
-		DELETE FROM
-			jazzhands.l3_network_coll_l3_network
-		WHERE
-			layer3_network_id IN (SELECT layer3_network_id FROM x)
-	), l3_del AS (
-		DELETE FROM
-			jazzhands.layer3_network
-		WHERE
-			layer3_network_id in (SELECT layer3_network_id FROM x)
-	), l2_coll_del AS (
-		DELETE FROM
-			jazzhands.l2_network_coll_l2_network
-		WHERE
-			layer2_network_id IN (SELECT layer2_network_id FROM x)
-	), l2_del AS (
-		DELETE FROM
-			jazzhands.layer2_network
-		WHERE
-			layer2_network_id IN (SELECT layer2_network_id FROM x)
-	), nb_sel AS (
-		SELECT
-			n.netblock_id
-		FROM
-			jazzhands.netblock n JOIN
-			x ON (n.parent_netblock_id = x.netblock_id)
-	), dns_del AS (
-		DELETE FROM
-			jazzhands.dns_record
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM nb_sel)
-	), nb_del as (
-		DELETE FROM
-			jazzhands.netblock
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM nb_sel)
-	), sn_del as (
-		DELETE FROM
-			jazzhands.shared_netblock
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM nb_sel)
-	)
 	DELETE FROM
-		jazzhands.netblock
+		l2_network_coll_l2_network l2nc
 	WHERE
-		netblock_id IN (SELECT netblock_id FROM x);
+		l2nc.layer2_network_id = ANY(layer2_network_id_list);
+
+	DELETE FROM
+		layer2_network l2n
+	WHERE
+		l2n.layer2_network_id = ANY(layer2_network_id_list);
 
 	BEGIN
 		PERFORM local_hooks.delete_layer2_networks_after_hooks(
@@ -192,7 +115,8 @@ CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_networks (
 	purge_network_interfaces	boolean DEFAULT false
 ) RETURNS VOID AS $$
 DECLARE
-	netblock_id_list	integer[];
+	netblock_id_list			integer[];
+	network_interface_id_list	integer[];
 BEGIN
 	BEGIN
 		PERFORM local_hooks.delete_layer3_networks_before_hooks(
@@ -230,15 +154,22 @@ BEGIN
 				)
 			RETURNING network_interface_id
 		)
-		DELETE FROM jazzhands.network_interface
+		SELECT ARRAY(
+			SELECT network_interface_id FROM nin_del
+			UNION
+			SELECT network_interface_id FROM snni_del
+		) INTO network_interface_id_list;
+
+		DELETE FROM
+			network_interface ni
 		WHERE
-			network_interface_id IN (
-				SELECT network_interface_id FROM nin_del
+			ni.network_interface_id = ANY(network_interface_id_list) AND
+			ni.network_interface_id NOT IN (
+				SELECT network_interface_id FROM network_interface_netblock
 				UNION
-				SELECT network_interface_id FROM snni_del
+				SELECT network_interface_id FROM shared_netblock_network_int
 			);
 	END IF;
-
 
 	WITH x AS (
 		SELECT
@@ -270,6 +201,12 @@ BEGIN
 			jazzhands.dns_record
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM nb_sel)
+	), nbc_del as (
+		DELETE FROM
+			jazzhands.netblock_collection_netblock
+		WHERE
+			netblock_id IN (SELECT netblock_id FROM x
+				UNION SELECT netblock_id FROM nb_sel)
 	), nb_del as (
 		DELETE FROM
 			jazzhands.netblock

@@ -34,6 +34,7 @@ DECLARE
 	nbtype				RECORD;
 	v_netblock_id		netblock.netblock_id%TYPE;
 	parent_netblock		RECORD;
+	tmp_nb				RECORD;
 	universes			integer[];
 	netmask_bits		integer;
 	tally				integer;
@@ -90,23 +91,24 @@ BEGIN
 	 * This used to only happen for not-rfc1918 space, but that sort of
 	 * uniqueness enforcement is done through ip universes now.
 	 */
-	PERFORM netblock_id
-	   FROM netblock
-	  WHERE ip_address = NEW.ip_address AND
-			ip_universe_id = NEW.ip_universe_id AND
-			netblock_type = NEW.netblock_type AND
-			is_single_address = NEW.is_single_address;
+	SELECT * FROM netblock INTO tmp_nb
+	WHERE
+		ip_address = NEW.ip_address AND
+		ip_universe_id = NEW.ip_universe_id AND
+		netblock_type = NEW.netblock_type AND
+		is_single_address = NEW.is_single_address
+	LIMIT 1;
+
 	IF (TG_OP = 'INSERT' AND FOUND) THEN
-		RAISE EXCEPTION 'Unique Constraint Violated on IP Address: %',
-			NEW.ip_address
+		RAISE EXCEPTION E'Unique Constraint Violated on IP Address: %\nFailing row is %\nConflicts with: %',
+			NEW.ip_address, row_to_json(NEW), row_to_json(tmp_nb)
 			USING ERRCODE= 'unique_violation';
 	END IF;
 	IF (TG_OP = 'UPDATE') THEN
 		IF (NEW.ip_address != OLD.ip_address AND FOUND) THEN
-			RAISE EXCEPTION
-				'Unique Constraint Violated on IP Address: %',
-				NEW.ip_address
-				USING ERRCODE = 'unique_violation';
+			RAISE EXCEPTION E'Unique Constraint Violated on IP Address: %\nFailing row is %\nConflicts with: %',
+				NEW.ip_address, row_to_json(NEW), row_to_json(tmp_nb)
+				USING ERRCODE= 'unique_violation';
 		END IF;
 	END IF;
 
@@ -422,6 +424,7 @@ DECLARE
 	realnew			record;
 	nbtype			record;
 	parent_nbid		netblock.netblock_id%type;
+	parent_rec		record;
 	ipaddr			inet;
 	parent_ipaddr	inet;
 	single_count	integer;
@@ -578,13 +581,17 @@ BEGIN
 				realnew.netblock_id
 				);
 
+			SELECT * FROM netblock INTO parent_rec WHERE netblock_id =
+				parent_nbid;
+
 			IF realnew.can_subnet = 'N' THEN
 				PERFORM netblock_id FROM netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
 					is_single_address = 'N';
 				IF FOUND THEN
-					RAISE EXCEPTION 'A non-subnettable netblock (%) may not have child network netblocks',
-					realnew.netblock_id
+					RAISE EXCEPTION E'A non-subnettable netblock may not have child network netblocks\nParent: %\nChild: %\n',
+						row_to_json(parent_rec, true),
+						row_to_json(realnew, true)
 					USING ERRCODE = 'JH10B';
 				END IF;
 			END IF;
