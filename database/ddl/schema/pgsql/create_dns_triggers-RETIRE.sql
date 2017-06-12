@@ -123,6 +123,8 @@ BEGIN
 		) RETURNING dns_domain_id INTO _d;
 	END IF;
 
+	NEW.dns_domain_id := _d;
+
 	INSERT INTO dns_domain_ip_universe (
 		dns_domain_id, ip_universe_id,
 		soa_class, soa_ttl, soa_serial, soa_refresh,
