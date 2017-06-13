@@ -291,23 +291,93 @@ sub SetPortVLAN {
 	}
 
 	my @ports = (@{$opt->{ports}});
-	if (!$opt->{vlan}) {
-		SetError($err, "vlan parameter must be passed to SetPortVLAN");
-		return undef;
+	#
+	# For historical reasons; should be removed after the few clients that
+	# use this are upgraded
+	#
+	if ($opt->{vlan} && $opt->{vlan} eq 'trunk') {
+		$opt->{portmode} = 'trunk';
+		$opt->{vlan_list} = undef;
 	}
-	if ($opt->{vlan} ne 'trunk' && $opt->{vlan} !~ /^\d+$/) {
-		SetError($err, "vlan parameter must be a vlan number or 'trunk'");
-		return undef;
+	if (!$opt->{portmode}) {
+		$opt->{portmode} = 'access';
 	}
+	my $vltext;
+	if ($opt->{portmode} eq 'access') {
+		if (!$opt->{vlan}) {
+			SetError($err, "vlan parameter must be passed to SetPortVLAN if portmode is access");
+			return undef;
+		}
+		if ($opt->{vlan} !~ /^\d+$/ || 
+			$opt->{vlan} < 1 || $opt->{vlan} > 4095
+		) {
+			SetError($err,
+				"vlan parameter must be an integer between 1 and 4095");
+			return undef;
+		}
+	} elsif ($opt->{portmode} eq 'trunk') {
+		#
+		# Validate vlan_list and native_vlan parameters if they're passed
+		#
+		if (defined($opt->{vlan_list})) {
+			if (ref($opt->{vlan_list}) ne 'ARRAY') {
+				SetError($err,
+					"vlan_list parameter must be an array of integers between 1 and 4095 or not defined");
+				return undef;
+			}
+			if (
+				grep { $_ !~ /^\d+$/ || $_ < 1 || $_ > 4095 } 
+					@{$opt->{vlan_list}}
+			) {
+				SetError($err,
+					"vlan_list parameter must be an array of integers between 1 and 4095 or not defined");
+				return undef;
+			}
+		}
+
+		if (exists($opt->{native_vlan}) && defined($opt->{native_vlan}) &&
+			($opt->{native_vlan} !~ /^\d+$/ || 
+				$opt->{native_vlan} < 1 || $opt->{native_vlan} > 4095)
+		) {
+			SetError($err,
+				"native_vlan parameter must be an integer between 1 and 4095 or not defined");
+			return undef;
+		}
+
+		if (defined($opt->{vlan_list})) {
+			if (!@{$opt->{vlan_list}}) {
+				$vltext = "none";
+			} else {
+				$vltext = (join ',', @{$opt->{vlan_list}});
+			}
+		} else {
+			$vltext = "all";
+		};
+
+		if ($debug) {
+			my $nvdesc;
+			if (exists($opt->{native_vlan})) {
+				if (defined($opt->{native_vlan})) {
+					$nvdesc = $opt->{native_vlan};
+				} else {
+					$nvdesc = "cleared";
+				}
+			} else {
+				$nvdesc = "unchanged";
+			}
+			printf STDERR "Request to set port(s) %s to trunk mode, VLAN list %s, native vlan %s on switch %s\n",
+				(join ',', @{$opt->{ports}}),
+				$vltext,
+				$nvdesc,
+				$self->{device}->{hostname};
+		}
+	}
+
 	my $vlan = $opt->{vlan};
 	my $credentials = $self->{credentials};
 	my $errors = $opt->{errors};
 	my $device = $self->{device};
 
-	if ($debug) {
-		printf STDERR "Request to set ports %s to VLAN %d on switch %s\n",
-			(join ',', @{$opt->{ports}}), $vlan, $device->{hostname};
-	}
 	my $result = $self->GetPortStatus(
 		ports => [ @ports ],
 		errors => $errors
@@ -324,15 +394,26 @@ sub SetPortVLAN {
 
 
 	my $commands;
-	if ($vlan eq 'trunk') {
+	my @native_vl_cmds;
+
+	if (exists($opt->{native_vlan})) {
+		if (!defined($opt->{native_vlan})) {
+			push @native_vl_cmds, 'no switchport trunk native vlan';
+		} else {
+			push @native_vl_cmds, 'switchport trunk native vlan ' .
+				$opt->{native_vlan};
+		}
+	}
+
+	if ($opt->{portmode} eq 'trunk') {
 		$commands = [
 			'configure',
 			map {
 					'interface ' . $_,
 					'spanning-tree portfast edge',
 					'switchport mode trunk',
-					'switchport trunk allowed vlan 100,150,151,2000-2999',
-					'switchport trunk native vlan 100',
+					'switchport trunk allowed vlan ' . $vltext,
+					@native_vl_cmds
 				} @ports
 		];
 	} else {
@@ -346,13 +427,18 @@ sub SetPortVLAN {
 				} @ports
 		];
 	}
-	if ($commands) {
-		my $result = $self->SendCommand(
-			commands => $commands,
-			errors => $errors
-		);
-		return $result ? 1 : 0;
+	if ($debug) {
+		printf STDERR "Sending command to switch %s:\n    %s\n",
+			$self->{device}->{hostname},
+			join ("\n    ", @$commands);
 	}
+#	if ($commands) {
+#		my $result = $self->SendCommand(
+#			commands => $commands,
+#			errors => $errors
+#		);
+#		return $result ? 1 : 0;
+#	}
 	return 1;
 }
 
