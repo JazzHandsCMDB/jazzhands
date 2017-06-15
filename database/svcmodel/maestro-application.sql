@@ -24,7 +24,7 @@ BEGIN
 		) VALUES ( _a.id, _name, _a.description, _active) ;
 
 		-- created by trigger
-		SELECT service_collection_id INTO _sc 
+		SELECT service_collection_id INTO _sc
         	FROM service_collection sc
 			WHERE service_collection_name = _name
         	AND service_collection_type = 'all-services';
@@ -32,7 +32,7 @@ BEGIN
 		IF _a.svn_repo IS NOT NULL THEN
 			WITH sr AS (
 				INSERT INTO source_repository (
-					source_repository_name, source_repository_type, 
+					source_repository_name, source_repository_type,
 					source_repository_technology, source_repository_url
 				) VALUES (
 					_name || 'svn repo', 'software', 'svn', _a.svn_repo
@@ -46,7 +46,7 @@ BEGIN
 		IF _a.git_repo IS NOT NULL THEN
 			WITH sr AS (
 				INSERT INTO source_repository (
-					source_repository_name, source_repository_type, 
+					source_repository_name, source_repository_type,
 					source_repository_technology, source_repository_url
 				) VALUES (
 					concat(_name, ' git repo (', _a.id, ')'),
@@ -62,7 +62,7 @@ BEGIN
 			IF _a.has_config = 1 THEN
 				WITH sr AS (
 					INSERT INTO source_repository (
-						source_repository_name, source_repository_type, 
+						source_repository_name, source_repository_type,
 						source_repository_technology, source_repository_url
 					) VALUES (
 						concat(_name, ' git config repo (', _a.id, ')'),
@@ -78,7 +78,7 @@ BEGIN
 				-- this is probably not right but svn is retired.
 				WITH sr AS (
 					INSERT INTO source_repository (
-						source_repository_name, source_repository_type, 
+						source_repository_name, source_repository_type,
 						source_repository_technology, source_repository_url
 					) VALUES (
 						concat(_name, ' svn config repo (', _a.id, ')'),
@@ -92,7 +92,7 @@ BEGIN
 
 		IF _a.r_cores IS NOT NULL THEN
 			INSERT INTO service_property (
-				service_collection_id, service_property_name, 
+				service_collection_id, service_property_name,
 				service_property_type, value
 			) VALUES (
 				_sc, 'min_cpu',
@@ -103,7 +103,7 @@ BEGIN
 		-- XXX deal with gb/mb/etc
 		IF _a.r_memory_mb IS NOT NULL THEN
 			INSERT INTO service_property (
-				service_collection_id, service_property_name, 
+				service_collection_id, service_property_name,
 				service_property_type, value
 			) VALUES (
 				_sc, 'min_cpu',
@@ -114,7 +114,7 @@ BEGIN
 		-- XXX deal with gb/mb/etc
 		IF _a.r_disk_gb IS NOT NULL THEN
 			INSERT INTO service_property (
-				service_collection_id, service_property_name, 
+				service_collection_id, service_property_name,
 				service_property_type, value
 			) VALUES (
 				_sc, 'min_disk',
@@ -125,7 +125,7 @@ BEGIN
 		-- XXX deal with gb/mb/etc
 		IF _a.r_dedicated IS NOT NULL THEN
 			INSERT INTO service_property (
-				service_collection_id, service_property_name, 
+				service_collection_id, service_property_name,
 				service_property_type, value
 			) VALUES (
 				_sc, 'dedicated',
@@ -135,7 +135,7 @@ BEGIN
 
 		IF _a.documentation IS NOT NULL THEN
 			INSERT INTO service_property (
-				service_collection_id, service_property_name, 
+				service_collection_id, service_property_name,
 				service_property_type, value
 			) VALUES (
 				_sc, 'manual',

@@ -481,7 +481,7 @@ BEGIN
 	ELSIF TG_OP = 'UPDATE' THEN
 		UPDATE service_collection
 		SET service_collection_name = NEW.service_name
-		WHERE service_collection_type 
+		WHERE service_collection_type
 			IN ( 'all-services', 'current-services')
 		AND service_collection_name = OLD.service_name;
 	ELSIF TG_OP = 'DELETE' THEN

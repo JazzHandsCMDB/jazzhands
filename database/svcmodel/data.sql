@@ -37,7 +37,7 @@ WITH repo AS (
 		repository_uri
 	) SELECT sw_package_repository_id,
 		unnest(ARRAY['obs', 'yum', 'apt']),
-		unnest(ARRAY['common', 'https:/yum.example.com/blahblah', 
+		unnest(ARRAY['common', 'https:/yum.example.com/blahblah',
 			'https://apt.example.com/blahblah'])
 	FROM repo
 	RETURNING *
@@ -51,7 +51,7 @@ $$;
 DO $$
 BEGIN
 	--
-	-- groups of networks for launching hosts.  
+	-- groups of networks for launching hosts.
 	--
 	INSERT INTO val_layer2_network_coll_type (
 		layer2_network_collection_type
@@ -69,7 +69,7 @@ BEGIN
 	INSERT INTO layer2_network_collection (
 		layer2_network_collection_name, layer2_network_collection_type,
 		description)
-	VALUES 
+	VALUES
 		('internal-nets', 'service',
 		'places to launch internal facing hosts'),
 		('dmz-nets', 'service',
@@ -86,7 +86,7 @@ BEGIN
 	INSERT INTO port_range (
 		port_range_name, protocol, port_range_type,
 		port_start, port_end, is_singleton
-	) VALUES 
+	) VALUES
 		('postgresql', 'tcp', 'services', 5432, 5432, 'Y'),
 		('http', 'tcp', 'services', 80, 80, 'Y'),
 		('https', 'tcp', 'services', 443, 443, 'Y'),
@@ -102,7 +102,7 @@ DO $$
 BEGIN
 	INSERT INTO sw_package_repository (
 		sw_package_repository_name, sw_package_repository_type
-	) VALUES 
+	) VALUES
 		('common', 'obs'),
 		('adnexus', 'obs'),
 		('cloud', 'obs')

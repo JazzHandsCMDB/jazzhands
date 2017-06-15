@@ -49,7 +49,7 @@ WITH endpoint AS (
 		service_version_id, sw_package_repository_id
 	) SELECT service_version_id, sw_package_repository_id
 	FROM svcv, sw_package_repository
-	WHERE sw_package_repository_type = 'obs' 
+	WHERE sw_package_repository_type = 'obs'
 	AND sw_package_repository_name = 'common'
 ), svcinst AS (
 	INSERT INTO service_instance (
