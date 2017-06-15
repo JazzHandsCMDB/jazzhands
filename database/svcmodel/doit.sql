@@ -10,4 +10,4 @@ begin;
 \i recursing-dns.sql
 \i obs-frontend.sql
 
-rollback;
+-- rollback;

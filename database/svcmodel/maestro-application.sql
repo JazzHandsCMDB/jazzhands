@@ -1,5 +1,18 @@
 \set ON_ERROR_STOP
 
+-- things not done on insert:
+--
+-- short_name
+-- can_build_rpm
+-- default_nagios_service_set_id
+-- use_release
+-- starting_port_number
+-- max_num_ports
+-- build_type
+-- inherited_application_id
+--
+-- some want to be in a maestro_jazz table.  Some want to just go away.
+
 rollback;
 begin;
 
@@ -28,20 +41,6 @@ BEGIN
         	FROM service_collection sc
 			WHERE service_collection_name = _name
         	AND service_collection_type = 'all-services';
-
-		IF _a.svn_repo IS NOT NULL THEN
-			WITH sr AS (
-				INSERT INTO source_repository (
-					source_repository_name, source_repository_type,
-					source_repository_technology, source_repository_url
-				) VALUES (
-					_name || 'svn repo', 'software', 'svn', _a.svn_repo
-				) RETURNING *
-			) INSERT INTO service_source_repository
-				(service_Id, source_repository_id)
-				SELECT _a.id, source_repository_id
-				FROM sr;
-		END IF;
 
 		IF _a.git_repo IS NOT NULL THEN
 			WITH sr AS (
@@ -72,22 +71,7 @@ BEGIN
 					(service_Id, source_repository_id)
 					SELECT _a.id, source_repository_id
 					FROM sr;
-
 			END IF;
-		ELSIF _a.svn_repo IS NOT NULL AND _a.has_config = 1 THEN
-				-- this is probably not right but svn is retired.
-				WITH sr AS (
-					INSERT INTO source_repository (
-						source_repository_name, source_repository_type,
-						source_repository_technology, source_repository_url
-					) VALUES (
-						concat(_name, ' svn config repo (', _a.id, ')'),
-						'confg', 'svn', _a.svn_repo
-					) RETURNING *
-				) INSERT INTO service_source_repository
-					(service_Id, source_repository_id)
-					SELECT _a.id, source_repository_id
-					FROM sr;
 		END IF;
 
 		IF _a.r_cores IS NOT NULL THEN
