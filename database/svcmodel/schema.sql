@@ -356,11 +356,30 @@ CREATE TABLE sw_package_repository_location (
 
 --------------------------- collections ---------------------------------
 
+--
+-- These should arguably be called service_version_collections, and maybe they
+-- will be.
+--
+-- There are two trigger-maintained special ones which are treated the same
+-- by triggers but are meant to be different:
+--
+-- all-services - every version that has ever existed.  This is meant to
+-- take the place of a proper service_collection.
+--
+-- current-services -- new versions are added to this.  Its meant to assign
+-- properties to major groups of things, but if those need to be overhauled,
+-- the existing can be renamed something like servicename-pre2.0 and a new
+-- 'current-services' can be created so that new ones end up in the right
+-- place.
+--
+-- it is expected that most properties are assigned to 'current-servicsw'
+--
 DROP TABLE IF EXISTS service_collection cascade;
 CREATE TABLE service_collection (
 	service_collection_id	serial		NOT NULL,
 	service_collection_name	text		NOT NULL,
 	service_collection_type	text		NOT NULL,
+	description				TEXT,
 	PRIMARY KEY (service_collection_id)
 );
 
@@ -456,13 +475,14 @@ BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO service_collection (
 			service_collection_name, service_collection_type
-		) VALUES (
-			NEW.service_name, 'all-services'
-		);
+		) VALUES
+			( NEW.service_name, 'all-services' ),
+			( NEW.service_name, 'current-services' );
 	ELSIF TG_OP = 'UPDATE' THEN
 		UPDATE service_collection
 		SET service_collection_name = NEW.service_name
-		WHERE service_collection_type = 'all-services'
+		WHERE service_collection_type 
+			IN ( 'all-services', 'current-services')
 		AND service_collection_name = OLD.service_name;
 	ELSIF TG_OP = 'DELETE' THEN
 		RETURN OLD;
@@ -504,6 +524,15 @@ BEGIN
 			FROM service
 			WHERE service_id = NEW.service_id
 		);
+		INSERT INTO service_collection_service (
+			service_collection_id, service_version_id
+		) SELECT service_collection_id, NEW.service_version_id
+		FROM service_collection
+		WHERE service_collection_type = 'current-services'
+		AND service_collection_name IN (SELECT service_name
+			FROM service
+			WHERE service_id = NEW.service_id
+		);
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM service_collection_service
 		WHERE service_collection_type = 'all-services'
@@ -512,6 +541,14 @@ BEGIN
 			FROM service
 			WHERE service_id = OLD.service_id
 		);
+		DELETE FROM service_collection_service
+		WHERE service_collection_type = 'current-services'
+		AND service_version_id = OLD.service_version_id
+		AND service_collection_name IN (SELECT service_name
+			FROM service
+			WHERE service_id = OLD.service_id
+		);
+
 		RETURN OLD;
 	END IF;
 	RETURN NEW;

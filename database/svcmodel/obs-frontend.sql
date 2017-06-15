@@ -20,8 +20,8 @@ AND service_endpoint.uri LIKE '%obs.corp%';
 INSERT INTO service (service_name)
 VALUES ('obs-frontend');
 
-INSERT INTO sw_package_repository (sw_package_repository_name, sw_package_repository_type, sw_package_repository_project)
-VALUES ('opensuse_13.1', 'baseos', 'whatever');
+INSERT INTO sw_package_repository (sw_package_repository_name, sw_package_repository_type)
+VALUES ('opensuse_13.1', 'baseos');
 
 /* This convention for modeling a OS mirror is something I made up.
    We haven't agreed this is right. */

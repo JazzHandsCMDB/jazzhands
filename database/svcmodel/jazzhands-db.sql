@@ -49,8 +49,8 @@ WITH endpoint AS (
 		service_version_id, sw_package_repository_id
 	) SELECT service_version_id, sw_package_repository_id
 	FROM svcv, sw_package_repository
-	WHERE sw_package_repository_name = 'obs' 
-	AND sw_package_repository_project = 'common'
+	WHERE sw_package_repository_type = 'obs' 
+	AND sw_package_repository_name = 'common'
 ), svcinst AS (
 	INSERT INTO service_instance (
 		device_id, service_endpoint_id, service_version_id,
