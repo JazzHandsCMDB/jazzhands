@@ -220,10 +220,13 @@ CREATE TABLE service_endpoint_provider (
 --
 -- this is many-to-many glue, so NO port_range_id.
 --
+-- rank is used by upstream things to figure out how to direct traffic.
+--
 DROP TABLE IF EXISTS service_endpoint_provider_member ;
 CREATE TABLE service_endpoint_provider_member (
 	service_endpoint_provider_id	integer	NOT NULL,
 	service_instance_id		integer NOT NULL,
+	rank				integer NOT NULL DEFAULT 10,
 	PRIMARY KEY (service_endpoint_provider_id, service_instance_id)
 );
 
@@ -231,6 +234,10 @@ CREATE TABLE service_endpoint_provider_member (
 -- possibly should have the device of the endpoint on it
 -- (lb, if appropriate?)  however, arguably there also needs to be
 -- a gslb overlay; have not entirely gotten my head around this
+--
+-- Its possible, (probable?) that the private_key_id should not be
+-- here, although this this means sorting out encryption better since
+-- private keys are encrypted by default.
 --
 DROP TABLE IF EXISTS service_endpoint cascade;
 CREATE TABLE service_endpoint (
@@ -241,6 +248,30 @@ CREATE TABLE service_endpoint (
 	x509_signed_certificate_id	integer,
 	private_key_id			integer,
 	PRIMARY KEY (service_endpoint_id)
+);
+
+--
+-- This is used to implement health checks for load balancers and the like.
+--
+-- its possible to have multiple health checks per service_endpoint.
+--
+-- The gist is the thing that hosts a service_endpoint (generally
+-- a service_endpoint_provider) checks the instances listed in
+-- service_endpoint_provider_member.
+--
+-- I do not think this makes sense on direct connections.
+--
+--
+DROP TABLE IF EXISTS service_endpoint_health_check;
+CREATE TABLE service_endpoint_health_check (
+	service_endpoint_health_check_id	serial	NOT NULL,
+	service_endpoint_id			integer	NOT NULL,
+	rank					integer NOT NULL DEFAULT 10,
+	request_string				text,
+	search_string				text,
+	is_enabled				char(1) NOT NULL DEFAULT 'Y',
+	primary key (service_endpoint_health_check_id),
+	UNIQUE (service_endpoint_id, rank)
 );
 
 -- possibly also a link to netblock_id or just a link to that?  This would
@@ -574,7 +605,6 @@ CREATE TRIGGER trigger_manip_all_svc_collection_members_del
 	EXECUTE PROCEDURE manip_all_svc_collection_members();
 
 -------------------------------------------------------------------------------
-
 
 /*
 Things not figured out yet:

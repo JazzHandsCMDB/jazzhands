@@ -111,3 +111,17 @@ EXCEPTION WHEN unique_violation THEN
 	NULL;
 END
 $$;
+
+
+DO $$
+BEGIN
+	INSERT INTO val_port_range_type (
+		port_range_type, protocol, range_permitted
+	) values
+		('services', 'tcp', 'N'),
+		('services', 'udp', 'N')
+	;
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
