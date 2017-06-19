@@ -40,9 +40,10 @@ my $filename;
 my $commit = 1;
 #my $user = $ENV{'USER'};
 my $user;
-my $probe_lldp = 1;
+my $probe_lldp = 0;
 my $address_errors = 'error';
 my $probe_ip = 1;
+my $notreally = 0;
 my $purge_int = 1;
 my $password;
 my $bgpstate = 'up';
@@ -66,6 +67,7 @@ GetOptions(
 	'probe-lldp!', \$probe_lldp,
 	'probe-ip!', \$probe_ip,
 	'purge-empty-interfaces!', \$purge_int,
+	'notreally!', \$notreally,
 );
 
 #
@@ -318,7 +320,9 @@ foreach my $host (@$hostname) {
 				}
 				if (exists($interface->{vrrp}) && @{$interface->{vrrp}}) {
 					printf "        VRRP: %s\n", (join ',',
-						map { $_->{address} } @{$interface->{vrrp}});
+						map { $_->{group} . ':' . $_->{address} } 
+							sort { $a->{group} <=> $b->{group} }
+								@{$interface->{vrrp}});
 				}
 				if (exists($interface->{virtual_router}) &&
 					@{$interface->{virtual_router}})
@@ -369,20 +373,22 @@ foreach my $host (@$hostname) {
 					chomp($x);
 					push(@warn, $x);
 				};
-				if (!$set_interface_sth->execute(
-					$db_dev->{device_id},
-					$iname,
-					$json,
-					$address_errors
-				)) {
-					printf STDERR "Error setting device interface information for interface %s: %s\n",
+				if (!$notreally) {
+					if (!$set_interface_sth->execute(
+						$db_dev->{device_id},
 						$iname,
-						$set_interface_sth->errstr;
-					$dbh->rollback;
-					next HOSTLOOP;
-				} elsif ($verbose && @warn ) {
-					printf "        %s\n", 
-						(join "        ", @warn);
+						$json,
+						$address_errors
+					)) {
+						printf STDERR "Error setting device interface information for interface %s: %s\n",
+							$iname,
+							$set_interface_sth->errstr;
+						$dbh->rollback;
+						next HOSTLOOP;
+					} elsif ($verbose && @warn ) {
+						printf "        %s\n", 
+							(join "        ", @warn);
+					}
 				}
 			}
 		}
@@ -391,10 +397,12 @@ foreach my $host (@$hostname) {
 				printf "    Removing network interfaces: %s\n",
 					(join ", ", keys %$dev_int);
 			}
-			if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
-				printf STDERR "Error deleting network_interfaces from database: %s\n",
-					$ni_del_sth->errstr;
-				exit 1;
+			if (!$notreally) {
+				if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
+					printf STDERR "Error deleting network_interfaces from database: %s\n",
+						$ni_del_sth->errstr;
+					exit 1;
+				}
 			}
 		}
 	}

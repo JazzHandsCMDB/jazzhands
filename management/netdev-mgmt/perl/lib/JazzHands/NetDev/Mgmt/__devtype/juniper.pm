@@ -2429,7 +2429,7 @@ sub GetInterfaceConfig {
 
 	if (!$opt->{interface_name}) {
 		GetError($err,
-			"interface_name parameter must be passed to GetJuniperInterfaceConfig");
+			"interface_name parameter must be passed to GetInterfaceConfig");
 		return undef;
 	}
 
