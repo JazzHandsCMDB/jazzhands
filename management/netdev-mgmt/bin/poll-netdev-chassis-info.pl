@@ -586,45 +586,45 @@ foreach my $host (@$hostname) {
 		printf "Error doing device disconnect: %s\n", join "\n", @errors;
 	}
 
-#	if (!$db_dev->{device_id}) {
-#		printf "Inserting device entry for %s\n", $host;
-#
-#		if (!($ins_dev_sth->execute(
-#			$host,
-#			$chassisinfo->{model}
-#		))) {
-#			printf STDERR "Unable to insert device: %s\n",
-#				$ins_dev_sth->errstr;
-#			exit 1;
-#		}
-#		$db_dev = $ins_dev_sth->fetchrow_hashref;
-#	} else {
-#		my $do_update = 0;
-#		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
-#			printf "Changing device name from '%s' to '%s'\n",
-#				$db_dev->{device_name} || $db_dev->{physical_label} || '',
-#				$host;
-#			$do_update = 1;
-#		}
-#		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
-#			printf "Changing device type from '%s' to '%s'\n",
-#				$db_dev->{device_type_name},
-#				$chassisinfo->{model};
-#			$do_update = 1;
-#		}
-#		if ($do_update) {
-#			if (!($upd_dev_sth->execute(
-#					$db_dev->{device_id},
-#					$host,
-#					$chassisinfo->{model}
-#			))) {
-#				printf STDERR "Unable to update device: %s\n",
-#					$upd_dev_sth->errstr;
-#				exit 1;
-#			}
-#		}
-#	}
-#
+	if (!$db_dev->{device_id}) {
+		printf "Inserting device entry for %s\n", $host;
+
+		if (!($ins_dev_sth->execute(
+			$host,
+			$chassisinfo->{model}
+		))) {
+			printf STDERR "Unable to insert device: %s\n",
+				$ins_dev_sth->errstr;
+			exit 1;
+		}
+		$db_dev = $ins_dev_sth->fetchrow_hashref;
+	} else {
+		my $do_update = 0;
+		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
+			printf "Changing device name from '%s' to '%s'\n",
+				$db_dev->{device_name} || $db_dev->{physical_label} || '',
+				$host;
+			$do_update = 1;
+		}
+		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
+			printf "Changing device type from '%s' to '%s'\n",
+				$db_dev->{device_type_name},
+				$chassisinfo->{model};
+			$do_update = 1;
+		}
+		if ($do_update) {
+			if (!($upd_dev_sth->execute(
+					$db_dev->{device_id},
+					$host,
+					$chassisinfo->{model}
+			))) {
+				printf STDERR "Unable to update device: %s\n",
+					$upd_dev_sth->errstr;
+				exit 1;
+			}
+		}
+	}
+
 #	if (!$db_dev->{network_interface_id}) {
 #		printf "Inserting network interface %s\n", $iface_name;
 #
@@ -711,8 +711,8 @@ foreach my $host (@$hostname) {
 
 					if ($components->{$slotname}->{asset_id}) {
 						if (!($set_sn_sth->execute(
+							$chassisinfo->{modules}->{$slot}->{serial},
 							$components->{$slotname}->{asset_id},
-							$chassisinfo->{modules}->{$slot}->{serial}
 						))) {
 							printf STDERR "Unable to update serial number: %s\n",
 								$set_sn_sth->errstr;
@@ -809,8 +809,8 @@ foreach my $host (@$hostname) {
 
 				if ($asset->{asset_id}) {
 					if (!($set_sn_sth->execute(
+						$chassisinfo->{serial},
 						$asset->{asset_id},
-						$chassisinfo->{serial}
 					))) {
 						printf STDERR "Unable to update serial number: %s\n",
 							$set_sn_sth->errstr;
@@ -845,7 +845,9 @@ $ins_component_sth->finish;
 $dev_component_sth->finish;
 
 if ($commit) {
-	$dbh->commit;
+	if (!$dbh->commit) {
+		print STDERR $dbh->errstr;
+	};
 } else {
 	$dbh->rollback;
 }
