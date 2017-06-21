@@ -227,6 +227,7 @@ CREATE TABLE service_endpoint_provider_member (
 	service_endpoint_provider_id	integer	NOT NULL,
 	service_instance_id		integer NOT NULL,
 	rank				integer NOT NULL DEFAULT 10,
+	is_enabled			char(1) DEFAULT 'Y',
 	PRIMARY KEY (service_endpoint_provider_id, service_instance_id)
 );
 
