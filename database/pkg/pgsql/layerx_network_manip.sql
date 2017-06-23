@@ -217,6 +217,33 @@ BEGIN
 			jazzhands.shared_netblock
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM nb_sel)
+	), nrp_del as (
+		DELETE FROM
+			property
+		WHERE
+			network_range_id IN (
+				SELECT
+					network_range_id
+				FROM
+					network_range nr JOIN
+					x ON (nr.parent_netblock_id = x.netblock_id)
+			)
+	), nr_del as (
+		DELETE FROM
+			jazzhands.network_range
+		WHERE
+			parent_netblock_id IN (SELECT netblock_id FROM x)
+		RETURNING
+			start_netblock_id, stop_netblock_id
+	), nrnb_del AS (
+		DELETE FROM
+			jazzhands.netblock
+		WHERE
+			netblock_id IN (
+				SELECT start_netblock_id FROM nr_del
+				UNION
+				SELECT stop_netblock_id FROM nr_del
+		)
 	)
 	DELETE FROM
 		jazzhands.netblock
