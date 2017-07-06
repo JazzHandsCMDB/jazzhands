@@ -31,7 +31,7 @@ FROM (
 		dcr.device_collection_level,
 		IP_Address as IP_address,
 		rank() OVER
-			(PARTITION BY device_id ORDER BY device_collection_level desc )
+			(PARTITION BY device_id ORDER BY device_collection_level )
 			AS rank
 	FROM	device_collection dc
 		LEFT JOIN v_device_coll_hier_detail dcr ON
