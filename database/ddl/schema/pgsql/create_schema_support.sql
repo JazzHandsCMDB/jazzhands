@@ -465,8 +465,6 @@ BEGIN
            LEFT JOIN pg_catalog.pg_constraint con ON
                 (con.conrelid = i.indrelid
                 AND con.conindid = i.indexrelid )
-		WHERE c.relname =  'device'
-		AND	 n.nspname = 'jazzhands'
 		AND con.contype IS NULL
 	LOOP
 		_r.def := regexp_replace(_r.def, ' ON ', ' ON ' || sch || '.');
