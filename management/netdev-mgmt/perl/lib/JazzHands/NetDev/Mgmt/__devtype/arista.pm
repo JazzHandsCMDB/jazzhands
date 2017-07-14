@@ -432,13 +432,13 @@ sub SetPortVLAN {
 			$self->{device}->{hostname},
 			join ("\n    ", @$commands);
 	}
-#	if ($commands) {
-#		my $result = $self->SendCommand(
-#			commands => $commands,
-#			errors => $errors
-#		);
-#		return $result ? 1 : 0;
-#	}
+	if ($commands) {
+		my $result = $self->SendCommand(
+			commands => $commands,
+			errors => $errors
+		);
+		return $result ? 1 : 0;
+	}
 	return 1;
 }
 
