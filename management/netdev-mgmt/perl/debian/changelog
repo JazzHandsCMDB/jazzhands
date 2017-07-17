@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.80.4) unstable; urgency=low
+
+  * Fix issue caused by Juniper sucking ass with native vlans
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 17 Jul 2017 21:11:37 +0000
+
 jazzhands-perl-netdev-mgmt (0.80.3) unstable; urgency=low
 
   * Fix bug caused by commented out push to switches

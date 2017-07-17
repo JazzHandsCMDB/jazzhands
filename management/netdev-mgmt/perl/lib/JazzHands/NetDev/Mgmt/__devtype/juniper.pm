@@ -293,6 +293,7 @@ sub SetPortVLAN {
 				$vl->getElementsByTagName('vlan-tag')->[0]->
 				getFirstChild->getNodeValue,
 		};
+		next if !$vlstatus->{id};
 		$Vlans{byname}->{$vlstatus->{name}} = $vlstatus;
 		$Vlans{byid}->{$vlstatus->{id}} = $vlstatus;
 	}
@@ -399,9 +400,23 @@ sub SetPortVLAN {
 			$xml .= qq{<vlan replace="replace">\n};
 
 			if (!defined($opt->{vlan_list})) {
-				$xml .= "\t\t\t\t\t\t\t\t<members>all</members>\n";
+				# Fuck you, Juniper.  If the native vlan is listed as a
+				# member, things don't work, so put all of the vlans that
+				# are present on the switch except the native vlan
+				if (!$opt->{native_vlan}) {
+					$xml .= "\t\t\t\t\t\t\t\t<members>all</members>\n";
+				} else {
+					foreach my $vl (sort {$a <=> $b } keys %{$Vlans{byid}}) {
+						next if $vl eq $opt->{native_vlan};
+						$xml .= sprintf("\t\t\t\t\t\t\t\t<members>%d</members>\n",
+							$vl);
+					}
+				}
 			} else {
 				foreach my $vl (sort {$a <=> $b } @{$opt->{vlan_list}}) {
+					if ($opt->{native_vlan} && $vl eq $opt->{native_vlan}) {
+						next;
+					}
 					$xml .= sprintf("\t\t\t\t\t\t\t\t<members>%d</members>\n",
 						$vl);
 				}
