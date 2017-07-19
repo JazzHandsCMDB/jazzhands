@@ -10,6 +10,7 @@ use JazzHands::Common::Error qw(:all);
 use JSON::XS;
 use NetAddr::IP qw(:lower);
 use LWP::UserAgent;
+use JazzHands::NetDev::Mgmt::ACL;
 
 sub new {
 	my $proto = shift;
@@ -871,7 +872,6 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ipv6 interface'
 		],
-		errors => $err
 	);
 
 	my $ipv6ifaces;
