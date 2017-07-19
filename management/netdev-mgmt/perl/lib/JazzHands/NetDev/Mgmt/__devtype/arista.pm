@@ -277,6 +277,55 @@ sub GetPortStatus {
 	return $portstatus;
 }
 
+
+sub GetVLANs {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $device = $self->{device};
+	my $credentials = $self->{credentials};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $result = $self->SendCommand(
+		commands => [
+			'show vlan',
+			'show ip interface'
+		],
+		errors => $err
+	);
+	if (!$result) {
+		return undef;
+	}
+
+	my $vlans = {
+		names => {},
+		ids => {},
+		interfaces => {},
+	};
+	my $switch_vlan = $result->[0]->{vlans};
+	my $switch_int = $result->[1]->{interfaces};
+	foreach my $v (keys %{$switch_vlan}) {
+		my $vlan = {
+			id => $v,
+			name => $switch_vlan->{$v}->{name}
+		};
+		$vlans->{names}->{$vlan->{name}} = $vlan;
+		$vlans->{ids}->{$v} = $vlan;
+		if (exists($switch_int->{'Vlan' . $v})) {
+			$vlan->{l3_interface} = 'Vlan' . $v;
+			$vlans->{interfaces}->{'Vlan' . $v} = $vlan;
+		}
+	}
+
+	return $vlans;
+}
+
 sub SetPortVLAN {
 	my $self = shift;
 	my $opt = &_options(@_);
@@ -1206,7 +1255,7 @@ sub SetCiscoFormatACL {
 
 	my $commands = [
 		'enable',
-		'configure',
+		'configure session',
 		'ip access-list ' . $aclname,
 		(
 			map {
@@ -1214,7 +1263,7 @@ sub SetCiscoFormatACL {
 			} @{$result->[0]->{aclList}->[0]->{sequence}}
 		),
 		@$converted_acl,
-		'exit'
+		'commit'
 	];
 
 	$result = $self->SendCommand(

@@ -1,3 +1,10 @@
+jazzhands-perl-netdev-mgmt (0.80.5) unstable; urgency=low
+
+  * Add GetVLANs to arista.pm
+  * Have SetCiscoFormatACL use config sessions in arista.pm
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 19 Jul 2017 19:05:06 +0000
+
 jazzhands-perl-netdev-mgmt (0.80.4) unstable; urgency=low
 
   * Fix issue caused by Juniper sucking ass with native vlans
