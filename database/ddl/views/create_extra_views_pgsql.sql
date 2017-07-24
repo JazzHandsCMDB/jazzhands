@@ -151,6 +151,7 @@
 
 \ir pgsql/create_v_l2_network_coll_expanded.sql
 \ir pgsql/create_v_l3_network_coll_expanded.sql
+\ir pgsql/create_v_layer3_network_expanded.sql
 
 \ir create_v_person.sql
 \ir create_v_person_company.sql
