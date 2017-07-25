@@ -451,6 +451,8 @@ VALUES
 	('Defaults', '_dnsrname', 'string',
 		'Default Role Name (contact) for zone'),
 	('Defaults', '_dnsmname', 'string',
+		'Default contact for zone'),
+	('Defaults', '_authdns', 'string',
 		'Default Nameserver for zone');
 
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
