@@ -17,5 +17,5 @@
 \ir Arista_7010.sql
 \ir Arista_7050.sql
 \ir Arista_7050X.sql
-\ir Arista_7050Q-FR.sql
+\ir Arista_7050Q.sql
 \ir Arista_7500.sql
