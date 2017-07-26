@@ -161,6 +161,30 @@ BEGIN
 		) INTO network_interface_id_list;
 
 		DELETE FROM
+			network_interface_purpose nip
+		WHERE
+			nip.network_interface_id IN (
+				SELECT
+					network_interface_id
+				FROM
+					network_interface ni
+				WHERE
+					ni.network_interface_id = ANY(network_interface_id_list)
+						AND
+					ni.network_interface_id NOT IN (
+						SELECT
+							network_interface_id
+						FROM
+							network_interface_netblock
+						UNION
+						SELECT 
+							network_interface_id
+						FROM
+							shared_netblock_network_int
+					)
+			);
+			
+		DELETE FROM
 			network_interface ni
 		WHERE
 			ni.network_interface_id = ANY(network_interface_id_list) AND
