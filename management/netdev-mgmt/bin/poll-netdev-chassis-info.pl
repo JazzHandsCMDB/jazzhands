@@ -39,7 +39,9 @@ my $commit = 1;
 #my $user = $ENV{'USER'};
 my $user;
 my $password;
+my $connect_name = undef;
 my $hostname = [];
+my $conf_mgmt_type = undef;
 my $authapp = 'net_dev_probe';
 
 sub loggit {
@@ -50,7 +52,9 @@ sub loggit {
 GetOptions(
 	'username=s', \$user,
 	'commit!', \$commit,
+	'connect-name=s', \$connect_name,
 	'hostname=s', $hostname,
+	'management-type=s', \$conf_mgmt_type,
 	'debug+', \$debug
 );
 
@@ -171,7 +175,6 @@ $q = q {
 	) INSERT INTO jazzhands.device (
 		device_type_id,
 		device_name,
-		site_code,
 		physical_label,
 		device_status,
 		service_environment_id,
@@ -182,7 +185,6 @@ $q = q {
 	) SELECT
 		device_type_id,
 		parms.device_name,
-		sne.site_code,
 		parms.device_name,
 		'up',
 		service_environment_id,
@@ -191,15 +193,11 @@ $q = q {
 		'N',
 		'Y'
 	FROM
-		jazzhands.dns_record dr JOIN
-		jazzhands.dns_domain dd USING (dns_domain_id) JOIN
-		jazzhands.v_site_netblock_expanded sne USING (netblock_id),
 		jazzhands.service_environment se,
 		jazzhands.device_type dt,
 		parms
 	WHERE
 		service_environment_name = 'production' AND
-		concat_ws('.', dr.dns_name, dd.soa_name) = parms.device_name AND
 		dt.device_type_name = parms.device_type_name
 	RETURNING
 		*
@@ -486,8 +484,13 @@ if (!($dev_asset_sth = $dbh->prepare_cached($q))) {
 	exit 1;
 }
 
-
 foreach my $host (@$hostname) {
+	my $connect_host;
+	if ($host =~ /:/) {
+		($host, $connect_host) = $host =~ /(^[^:]+):(.*)/;
+	} else {
+		$connect_host = $host;
+	}
 	printf "Probing host %s\n", $host;
 	my $device;
 	my $packed_ip = gethostbyname($host);
@@ -532,14 +535,16 @@ foreach my $host (@$hostname) {
 	}
 	my $db_dev = $d->[0];
 
+	my $mgmt_type = $conf_mgmt_type || $db_dev->{config_fetch_type};
+
 	if ($debug) {
 		print Data::Dumper->Dump([$db_dev], [qw($db_dev)]);
 	}
 
 	if (!($device = $mgmt->connect(
 			device => {
-				hostname => $host,
-				management_type => $db_dev->{config_fetch_type}
+				hostname => $connect_host || $host,
+				management_type => $mgmt_type
 			},
 			credentials => $credentials,
 			errors => \@errors))) {
@@ -598,6 +603,9 @@ foreach my $host (@$hostname) {
 			exit 1;
 		}
 		$db_dev = $ins_dev_sth->fetchrow_hashref;
+		if ($debug) {
+			print Data::Dumper->Dump([$db_dev], ['$db_dev']);
+		}
 	} else {
 		my $do_update = 0;
 		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
