@@ -441,6 +441,44 @@ END;
 $FUNC$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.build_audit_table_other_indexes(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
+)
+RETURNS VOID AS $FUNC$
+DECLARE
+	_r	RECORD;
+	sch	TEXT;
+BEGIN
+	-- one day, I will want to construct the list of columns by hand rather
+	-- than use pg_get_constraintdef.  watch me...
+
+	sch := quote_ident( aud_schema );
+	FOR _r IN
+		SELECT c2.relname, pg_get_indexdef(i.indexrelid) as def, con.contype
+        FROM pg_catalog.pg_class c
+            INNER JOIN pg_namespace n
+                ON relnamespace = n.oid
+            INNER JOIN pg_catalog.pg_index i
+                ON c.oid = i.indrelid
+            INNER JOIN pg_catalog.pg_class c2
+                ON i.indexrelid = c2.oid
+           LEFT JOIN pg_catalog.pg_constraint con ON
+                (con.conrelid = i.indrelid
+                AND con.conindid = i.indexrelid )
+	WHERE c.relname =  table_name
+	AND      n.nspname = tbl_schema
+	AND 	con.contype IS NULL
+
+	LOOP
+		_r.def := regexp_replace(_r.def, ' ON ', ' ON ' || sch || '.');
+		EXECUTE _r.def;
+	END LOOP;
+
+END;
+$FUNC$ LANGUAGE plpgsql;
+
+
+-------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
 	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
 	first_time boolean DEFAULT true
@@ -480,6 +518,16 @@ BEGIN
 		|| quote_ident( table_name || '_aud#timestamp_idx')
 		|| ' ON ' || quote_ident(aud_schema) || '.'
 		|| quote_ident(table_name) || '("aud#timestamp")';
+
+	EXECUTE 'CREATE INDEX '
+		|| quote_ident( table_name || '_aud#realtime_idx')
+		|| ' ON ' || quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name) || '("aud#realtime")';
+
+	EXECUTE 'CREATE INDEX '
+		|| quote_ident( table_name || '_aud#txid_idx')
+		|| ' ON ' || quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name) || '("aud#txid")';
 
 	EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
 		|| quote_ident( table_name )
@@ -545,7 +593,7 @@ BEGIN
 	ORDER BY table_name
     LOOP
 	PERFORM schema_support.save_dependent_objects_for_replay(aud_schema::varchar, table_list.table_name::varchar);
-	PERFORM schema_support.save_grants_for_replay(schema, object);
+	PERFORM schema_support.save_grants_for_replay(aud_schema, table_list.table_name);
 	PERFORM schema_support.rebuild_audit_table
 	    ( aud_schema, tbl_schema, table_list.table_name );
 	PERFORM schema_support.replay_object_recreates();
@@ -1917,9 +1965,9 @@ BEGIN
 			BEGIN
 				IF objkind = 'r' THEN
 					EXECUTE 'SELECT max(pg_xact_commit_timestamp(xmin))
-						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) ||' 
+						FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) ||'
 						WHERE "aud#timestamp" > (
-								SELECT max("aud#timestamp") 
+								SELECT max("aud#timestamp")
 								FROM '||quote_ident(objaud)||'.'|| quote_ident(obj) || '
 							) - ''10 day''::interval'
 						INTO ts;
@@ -2062,11 +2110,45 @@ execution so in theory can undo every operation on a table if called without
 restriction.  It does not cascade or otherwise do anything with foreign keys.
 
 
--------------------------------------------------------------------------------
---
--- No longer want to call this on every invocation
---
--- select schema_support.rebuild_stamp_triggers();
--- SELECT schema_support.build_audit_tables();
+These setup triggers for the data_{ins,upd}_{user,date} columns on tables
+
+select schema_support.rebuild_stamp_triggers();
+
+
+Building and manipulating audit tables:
+
+	schema_support.build_audit_table_pkak_indexes (aud_schema, tbl_schema, table_name)
+	schema_support.build_audit_table_other_indexes (aud_schema, tbl_schema, table_name)
+	schema_support.build_audit_table (aud_schema, tbl_schema, table_name)
+	schema_support.build_audit_tables (aud_schema, tbl_schema)
+
+These are used to build various bits about audit tables.
+schema_support.build_audit_tables() is just a wrapper that
+loops through the list of tables in tbl_schema and runs
+schema_support.build_audit_table().  Arguably, the system needs a method
+to mark tables as exempt.
+
+schema_support.build_audit_table() also calls table_pkak_indexes().  So
+schema_support.build_audit_there is generally no reason to call that.
+
+schema_support.build_audit_table_other_indexes() mirrors all the indexes on
+the base table on the audit table and names them the same.  Note that the
+rebuild commands DO NOT mirror these (yet).  This should arguably be
+considered a bug...
+
+Rebuilding audit tables:
+
+	schema_support.rebuild_audit_trigger(aud_schema, tbl_schema table_name)
+	schema_support.rebuild_audit_table(aud_schema, tbl_schema, table_name)
+
+	schema_support.rebuild_audit_tables(aud_schema, tbl_schema)
+	schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
+
+These all work together but can be called individually.
+schema_support.rebuild_audit_tables is generally the interface and will
+iterate though every base table that has an audit table.
+schema_support.rebuild_audit_tables() will also preserve grants and views
+on top of the objects via functions in here, which the individual ones do not
+do.  This should arguably be changed.
 
 **************************************************************/

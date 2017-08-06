@@ -271,6 +271,7 @@ sub do_domain_add {
 		$stab->error_return( join( " ", @errs ) );
 	}
 
+	warn "new is ", Dumper($new);
 	my $dnsdomid = $new->{ _dbx('dns_domain_id') };
 
 	if ( $soaname =~ /\.in-addr.arpa$/ ) {

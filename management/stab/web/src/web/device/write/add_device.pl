@@ -89,7 +89,6 @@ sub do_device_add {
 	my $sitecode    = $stab->cgi_parse_param('SITE_CODE');
 	my $svcenv      = $stab->cgi_parse_param('SERVICE_ENVIRONMENT_ID');
 	my $osid        = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
-	my $voeid       = $stab->cgi_parse_param('VOE_ID');
 	my $commstr     = $stab->cgi_parse_param('SNMP_COMMSTR');
 	my $ismonitored = $stab->cgi_parse_param('chk_IS_MONITORED');
 	my $localmgd    = $stab->cgi_parse_param('chk_IS_LOCALLY_MANAGED');
@@ -97,7 +96,6 @@ sub do_device_add {
 	my $virtdev     = $stab->cgi_parse_param('chk_IS_VIRTUAL_DEVICE');
 	my $mgmtprot    = $stab->cgi_parse_param('AUTO_MGMT_PROTOCOL');
 	my $comptypid   = $stab->cgi_parse_param('COMPONENT_TYPE_ID');
-	my $voetrax     = $stab->cgi_parse_param('VOE_SYMBOLIC_TRACK_ID');
 
 	if ($device_name) {
 		$device_name =~ s/^\s+//;
@@ -225,14 +223,12 @@ sub do_device_add {
 		DEVICE_STATUS          => $status,
 		SERVICE_ENVIRONMENT_ID => $svcenv,
 		OPERATING_SYSTEM_ID    => $osid,
-		VOE_ID                 => $voeid,
 		SITE_CODE              => $sitecode,
 		IS_MONITORED           => $ismonitored,
 		IS_LOCALLY_MANAGED     => $localmgd,
 		SHOULD_FETCH_CONFIG    => $cfgfetch,
 		IS_VIRTUAL_DEVICE      => $virtdev,
 		AUTO_MGMT_PROTOCOL     => $mgmtprot,
-		VOE_SYMBOLIC_TRACK_ID  => $voetrax,
 	};
 
 	$numchanges = 0;

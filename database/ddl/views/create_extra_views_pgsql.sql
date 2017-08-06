@@ -137,6 +137,7 @@
 \ir pgsql/create_v_component_hier.sql
 
 \ir create_v_account_manager_map.sql
+\ir pgsql/create_v_account_manager_hier.sql
 \ir approval/create_approval_views.sql
 -- not clear if this belongs in the approval views or not.  probably?
 \ir pgsql/create_v_approval_instance_step_expanded.sql
@@ -150,6 +151,7 @@
 
 \ir pgsql/create_v_l2_network_coll_expanded.sql
 \ir pgsql/create_v_l3_network_coll_expanded.sql
+\ir pgsql/create_v_layer3_network_expanded.sql
 
 \ir create_v_person.sql
 \ir create_v_person_company.sql

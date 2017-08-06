@@ -20,11 +20,6 @@
 /var/www/stab/device/type/index.pl
 /var/www/stab/device/type/write/adddt.pl
 /var/www/stab/device/type/write/updatedt.pl
-/var/www/stab/device/voe/index.pl
-/var/www/stab/device/voe/pkg.pl
-/var/www/stab/device/voe/search.pl
-/var/www/stab/device/voe/voecompare.pl
-/var/www/stab/device/voe/voesymtrax.pl
 /var/www/stab/device/write/add_device.pl
 /var/www/stab/device/write/update_device.pl
 /var/www/stab/dns/addazone.pl

@@ -474,7 +474,6 @@ BEGIN
 					device_name = NULL,
 					service_environment_id = se_id,
 					device_status = 'removed',
-					voe_symbolic_track_id = NULL,
 					is_monitored = 'N',
 					should_fetch_config = 'N',
 					description = NULL

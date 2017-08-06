@@ -206,7 +206,6 @@ sub do_update_device {
 	my $svcenv    = $stab->cgi_parse_param( 'SERVICE_ENVIRONMENT_ID', $devid );
 	my $assettag  = $stab->cgi_parse_param( 'ASSET_TAG', $devid );
 	my $osid      = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID', $devid );
-	my $voeid     = $stab->cgi_parse_param( 'VOE_ID', $devid );
 	my $ismonitored = $stab->cgi_parse_param( 'chk_IS_MONITORED', $devid );
 	my $baselined   = $stab->cgi_parse_param( 'chk_IS_BASELINED', $devid );
 	my $parentid    = $stab->cgi_parse_param( 'PARENT_DEVICE_ID', $devid );
@@ -214,7 +213,6 @@ sub do_update_device {
 	my $cfgfetch = $stab->cgi_parse_param( 'chk_SHOULD_FETCH_CONFIG', $devid );
 	my $virtdev  = $stab->cgi_parse_param( 'chk_IS_VIRTUAL_DEVICE', $devid );
 	my $mgmtprot = $stab->cgi_parse_param( 'AUTO_MGMT_PROTOCOL', $devid );
-	my $voetrax  = $stab->cgi_parse_param( 'VOE_SYMBOLIC_TRACK_ID', $devid );
 	my $appgtab  = $stab->cgi_parse_param( 'has_appgroup_tab', $devid );
 	my @appgroup = $stab->cgi_parse_param( 'appgroup', $devid );
 
@@ -419,14 +417,12 @@ sub do_update_device {
 		#- DEVICE_STATUS		=> $status,
 
 		#- OPERATING_SYSTEM_ID	=> $osid,
-		#- VOE_ID			=> $voeid,
 		IS_MONITORED        => $ismonitored,
 		IS_LOCALLY_MANAGED  => $localmgd,
 		SHOULD_FETCH_CONFIG => $cfgfetch,
 		IS_VIRTUAL_DEVICE   => $virtdev,
 		AUTO_MGMT_PROTOCOL  => $mgmtprot,
 
-		#- VOE_SYMBOLIC_TRACK_ID	=> $voetrax,
 		SITE_CODE => $site,
 	};
 

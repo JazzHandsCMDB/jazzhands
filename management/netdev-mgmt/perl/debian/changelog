@@ -1,3 +1,28 @@
+jazzhands-perl-netdev-mgmt (0.80.5) unstable; urgency=low
+
+  * Add GetVLANs to arista.pm
+  * Have SetCiscoFormatACL use config sessions in arista.pm
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 19 Jul 2017 19:05:06 +0000
+
+jazzhands-perl-netdev-mgmt (0.80.4) unstable; urgency=low
+
+  * Fix issue caused by Juniper sucking ass with native vlans
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 17 Jul 2017 21:11:37 +0000
+
+jazzhands-perl-netdev-mgmt (0.80.3) unstable; urgency=low
+
+  * Fix bug caused by commented out push to switches
+
+ -- Matthew Ragan <mdr@sucksless.net>  Fri, 14 Jul 2017 15:22:35 +0000
+
+jazzhands-perl-netdev-mgmt (0.80.2) unstable; urgency=low
+
+  * Ensure fixes for handling trunk interfaces are correctly tagged
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 12 Jul 2017 22:07:00 +0000
+
 jazzhands-perl-netdev-mgmt (0.79.3.1) unstable; urgency=low
 
   * Fix to make juniper probing ignore bme interfaces

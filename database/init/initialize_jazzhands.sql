@@ -445,12 +445,14 @@ insert into val_property_type (property_type, description)
 ----------------------- DNS 
 
 INSERT INTO val_property
-	(property_type, property_name, property_data_type,
+	(property_type, property_name, property_data_type, is_multivalue,
 	 description)
 VALUES
-	('Defaults', '_dnsrname', 'string',
+	('Defaults', '_dnsrname', 'string', 'N',
 		'Default Role Name (contact) for zone'),
-	('Defaults', '_dnsmname', 'string',
+	('Defaults', '_dnsmname', 'string', 'N',
+		'Default contact for zone'),
+	('Defaults', '_authdns', 'string', 'Y',
 		'Default Nameserver for zone');
 
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');

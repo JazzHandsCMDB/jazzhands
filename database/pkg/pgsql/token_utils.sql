@@ -135,7 +135,13 @@ BEGIN
 		WHERE token_id = $1
 	' INTO _cur USING p_token_id;
 
-	IF _cur.last_updated <= p_last_updated THEN
+	--
+	-- This used to be <= but if two clients were doing things in the
+	-- same second, it became dueling syncs.  This may result in a change
+	-- getting undone.  Solution may be to make last_updated more garanular
+	-- as some libraries in here are no more granular than second (HOTPants
+	-- or dbsyncer in jazzhands)
+	IF _cur.last_updated < p_last_updated THEN
 		UPDATE token SET
 		is_token_locked = p_lock_status,
 			token_unlock_time = p_unlock_time,

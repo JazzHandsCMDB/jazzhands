@@ -47,6 +47,18 @@ BEGIN
 			NEW.encryption_key_id
 		) RETURNING private_key_id INTO key;
 		NEW.x509_cert_id := key;
+	ELSE
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			SELECT private_key_id
+			INTO key
+			FROM private_key
+			WHERE subject_key_identifier = NEW.subject_key_identifier;
+
+			SELECT private_key
+			INTO NEW.private_key
+			FROM private_key
+			WHERE private_key_id = key;
+		END IF;
 	END IF;
 
 	IF NEW.certificate_sign_req IS NOT NULL THEN
@@ -63,6 +75,21 @@ BEGIN
 		) RETURNING certificate_signing_request_id INTO csr;
 		IF NEW.x509_cert_id IS NULL THEN
 			NEW.x509_cert_id := csr;
+		END IF;
+	ELSE
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			SELECT certificate_signing_request_id
+			INTO csr
+			FROM certificate_signing_request
+				JOIN private_key USING (private_key_id)
+			WHERE subject_key_identifier = NEW.subject_key_identifier
+			ORDER BY certificate_signing_request_id
+			LIMIT 1;
+
+			SELECT certificate_signing_request
+			INTO NEW.certificate_sign_req
+			FROM certificate_signing_request
+			WHERE certificate_signing_request_id  = csr;
 		END IF;
 	END IF;
 

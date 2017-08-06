@@ -149,28 +149,98 @@ sub SetPortVLAN {
 		SetError($err, "ports parameter must be passed to SetJuniperPortVLAN");
 		return undef;
 	}
-	if (!$opt->{vlan}) {
-		SetError($err, "vlan parameter must be passed to SetJuniperPortVLAN");
-		return undef;
+
+	my $debug = $opt->{debug};
+
+	#
+	# For historical reasons; should be removed after the few clients that
+	# use this are upgraded
+	#
+	if ($opt->{vlan} && $opt->{vlan} eq 'trunk') {
+		$opt->{portmode} = 'trunk';
+		$opt->{vlan_list} = undef;
 	}
-	if ($opt->{vlan} ne 'trunk' && $opt->{vlan} !~ /^\d+$/) {
-		SetError($err, "vlan parameter must be a vlan number or 'trunk'");
-		return undef;
+	if (!$opt->{portmode}) {
+		$opt->{portmode} = 'access';
 	}
+	if ($opt->{portmode} eq 'access') {
+		if (!$opt->{vlan}) {
+			SetError($err, "vlan parameter must be passed to SetPortVLAN if portmode is access");
+			return undef;
+		}
+		if ($opt->{vlan} !~ /^\d+$/ || 
+			$opt->{vlan} < 1 || $opt->{vlan} > 4095
+		) {
+			SetError($err,
+				"vlan parameter must be an integer between 1 and 4095");
+			return undef;
+		}
+	} elsif ($opt->{portmode} eq 'trunk') {
+		#
+		# Validate vlan_list and native_vlan parameters if they're passed
+		#
+		if (defined($opt->{vlan_list})) {
+			if (ref($opt->{vlan_list}) ne 'ARRAY') {
+				SetError($err,
+					"vlan_list parameter must be an array of integers between 1 and 4095 or not defined");
+				return undef;
+			}
+			if (
+				grep { $_ !~ /^\d+$/ || $_ < 1 || $_ > 4095 } 
+					@{$opt->{vlan_list}}
+			) {
+				SetError($err,
+					"vlan_list parameter must be an array of integers between 1 and 4095 or not defined");
+				return undef;
+			}
+		}
+
+		if (exists($opt->{native_vlan}) && defined($opt->{native_vlan}) &&
+			($opt->{native_vlan} !~ /^\d+$/ || 
+				$opt->{native_vlan} < 1 || $opt->{native_vlan} > 4095)
+		) {
+			SetError($err,
+				"native_vlan parameter must be an integer between 1 and 4095 or not defined");
+			return undef;
+		}
+
+		my $vltext;
+		if (defined($opt->{vlan_list})) {
+			if (!@{$opt->{vlan_list}}) {
+				$vltext = "none";
+			} else {
+				$vltext = (join ',', @{$opt->{vlan_list}});
+			}
+		} else {
+			$vltext = "all";
+		};
+
+		if ($debug) {
+			my $nvdesc;
+			if (exists($opt->{native_vlan})) {
+				if (defined($opt->{native_vlan})) {
+					$nvdesc = $opt->{native_vlan};
+				} else {
+					$nvdesc = "cleared";
+				}
+			} else {
+				$nvdesc = "unchanged";
+			}
+			printf STDERR "Request to set port(s) %s to trunk mode, VLAN list %s, native vlan %s on switch %s\n",
+				(join ',', @{$opt->{ports}}),
+				$vltext,
+				$nvdesc,
+				$self->{device}->{hostname};
+		}
+	}
+
 	my $device = $self->{device};
 
-	my $native_vlan = $opt->{native_vlan} || 100;
-
-	my $debug = 0;
-	if ($opt->{debug}) {
-		$debug = 1;
-	}
-
 	my ($trunk, $vlan);
-	if ($opt->{vlan} eq 'trunk') {
+	if ($opt->{portmode} eq 'trunk') {
 		$trunk = 1;
 	} else {
-		$vlan = $opt->{vlan}
+		$vlan = $opt->{vlan};
 	}
 
 	my $jnx;
@@ -223,12 +293,12 @@ sub SetPortVLAN {
 				$vl->getElementsByTagName('vlan-tag')->[0]->
 				getFirstChild->getNodeValue,
 		};
+		next if !$vlstatus->{id};
 		$Vlans{byname}->{$vlstatus->{name}} = $vlstatus;
 		$Vlans{byid}->{$vlstatus->{id}} = $vlstatus;
 	}
 
 	foreach my $port (@$ports) {
-
 		$res = $jnx->get_ethernet_switching_interface_information(
 			interface_name => $port . ".0",
 			detail => 1
@@ -275,7 +345,23 @@ sub SetPortVLAN {
 				if ($child) {
 					$ifstatus->{vlan}->{id} = $child->getFirstChild->getNodeValue;
 				}
+				$child = $vlanInfo->
+					getElementsByTagName('interface-vlan-member-tagness')->[0];
+				if ($child) {
+					my $tagstuff = $child->getFirstChild->getNodeValue;
+					if ($tagstuff && $tagstuff eq 'untagged') {
+						$ifstatus->{native_vlan} = $ifstatus->{vlan}->{id};
+					}
+				}
 			}
+		}
+
+		#
+		# If we're not passed an explicit native vlan, use whatever
+		# may have been set before, if anything
+		#
+		if (!exists($opt->{native_vlan})) {
+			$opt->{native_vlan} = $ifstatus->{native_vlan};
 		}
 
 		if ($debug) {
@@ -303,17 +389,38 @@ sub SetPortVLAN {
 					<family>
 						<ethernet-switching>
 							<port-mode>trunk</port-mode>
-							<native-vlan-id>%d</native-vlan-id>
-							<vlan replace="replace">
-				}, $port, $native_vlan);
+							}, $port);
 
-			foreach my $vl (sort {$a <=> $b } keys %{$Vlans{byid}}) {
-				if ($vl > 100) {
+			if ($opt->{native_vlan}) {
+				$xml .= sprintf(q{<native-vlan-id replace="replace">%d</native-vlan-id>
+							}, $opt->{native_vlan});
+			} else {
+				$xml .= qq{<native-vlan-id delete="delete"/>\n};
+			}
+			$xml .= qq{<vlan replace="replace">\n};
+
+			if (!defined($opt->{vlan_list})) {
+				# Fuck you, Juniper.  If the native vlan is listed as a
+				# member, things don't work, so put all of the vlans that
+				# are present on the switch except the native vlan
+				if (!$opt->{native_vlan}) {
+					$xml .= "\t\t\t\t\t\t\t\t<members>all</members>\n";
+				} else {
+					foreach my $vl (sort {$a <=> $b } keys %{$Vlans{byid}}) {
+						next if $vl eq $opt->{native_vlan};
+						$xml .= sprintf("\t\t\t\t\t\t\t\t<members>%d</members>\n",
+							$vl);
+					}
+				}
+			} else {
+				foreach my $vl (sort {$a <=> $b } @{$opt->{vlan_list}}) {
+					if ($opt->{native_vlan} && $vl eq $opt->{native_vlan}) {
+						next;
+					}
 					$xml .= sprintf("\t\t\t\t\t\t\t\t<members>%d</members>\n",
 						$vl);
 				}
 			}
-
 			$xml .= q{
 							</vlan>
 						</ethernet-switching>
@@ -323,6 +430,10 @@ sub SetPortVLAN {
 		</interfaces>
 	</configuration>
 			};
+
+			if ($debug) {
+				printf STDERR "XML config is:\n%s\n", $xml;
+			}
 			my $parser = new XML::DOM::Parser;
 			my $doc = $parser->parsestring($xml);
 			if (!$doc) {
@@ -392,6 +503,9 @@ sub SetPortVLAN {
 		</interfaces>
 	</configuration>
 			}, $port, $vlan);
+			if ($debug) {
+				printf STDERR "XML config is:\n%s\n", $xml;
+			}
 			my $parser = new XML::DOM::Parser;
 			my $doc = $parser->parsestring($xml);
 			if (!$doc) {
@@ -2330,7 +2444,7 @@ sub GetInterfaceConfig {
 
 	if (!$opt->{interface_name}) {
 		GetError($err,
-			"interface_name parameter must be passed to GetJuniperInterfaceConfig");
+			"interface_name parameter must be passed to GetInterfaceConfig");
 		return undef;
 	}
 

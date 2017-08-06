@@ -765,6 +765,8 @@ sub return_db_err {
 	my $rawmsg = "";
 	if ( defined($dbobj) ) {
 		if ( defined( $dbobj->err ) ) {
+			# Most of these are no longer valid, but leaving here
+			# for reference.
 			if ( $dbobj->err == 20600 ) {
 				$errmsg = "There is a conflicting package.";
 			} elsif ( $dbobj->err == 20601 ) {
@@ -1285,7 +1287,7 @@ sub b_dropdown {
 	#
 	my $devidmap;
 	my $devfuncmap;
-	my ( $voetraxmap, $bindos );
+	my ( $bindos );
 
 	my $withlevel = 0;
 	my $default;
@@ -1349,26 +1351,6 @@ sub b_dropdown {
 			  from	val_ownership_status
 			order by description, ownership_status
 		};
-	} elsif ( $selectfield eq 'VOE_ID' ) {
-		$q = qq{
-		select
-			voe.voe_id,  
-			voe.voe_name,
-			spr.apt_repository,
-			dt.tally
-		      from  VOE voe
-			inner join sw_package_repository spr 
-			    on spr.sw_package_repository_id =
-				voe.sw_package_repository_id
-			left join
-			    (select voe_id, 
-				count(*) as tally from device
-				group by voe_id
-			    ) dt on dt.voe_id =
-				voe.voe_id
-		    order by spr.apt_repository, voe.voe_name
-		};
-		$withlevel = 0;
 	} elsif ( $selectfield eq 'OPERATING_SYSTEM_ID' ) {
 		$q = qq{
 			select	os.operating_system_id,
@@ -1396,7 +1378,7 @@ sub b_dropdown {
 		}
 		$q = qq{
 			select	dns_domain_id, soa_name
-			  from	dns_domain $limitverbiage
+			  from	v_dns_domain_nouniverse $limitverbiage
 			order by CASE WHEN dns_domain_type = 'reverse' THEN 1 ELSE 0 END,
 				soa_name
 		};
@@ -1689,23 +1671,6 @@ sub b_dropdown {
 			order by description, parity
 		};
 		$default = 'none' if ( !defined($default) );
-	} elsif ( $selectfield eq 'VOE_SYMBOLIC_TRACK_ID' ) {
-		$q = qq{
-			select	voe_symbolic_track_id,
-				vst.symbolic_track_name
-			  from	VOE_SYMBOLIC_TRACK vst
-				inner join sw_package_repository spr
-					on spr.sw_package_repository_id =
-						vst.sw_package_repository_id
-				inner join operating_system os
-					on os.sw_package_repository_id =
-						vst.sw_package_repository_id
-		};
-		if ( exists( $values->{ _dbx('OPERATING_SYSTEM_ID') } ) ) {
-			$q .= "where os.operating_system_id = :osid";
-			$voetraxmap = $values->{ _dbx('OPERATING_SYSTEM_ID') };
-			$bindos     = 1;
-		}
 	} elsif ( $selectfield eq 'X509_CERT_ID' ) {
 		$q = qq{
 			select	x509_cert_Id, subject
@@ -1787,10 +1752,6 @@ sub b_dropdown {
 
 	if ( defined($devfuncmap) ) {
 		$sth->bind_param( ':dev_func', $devfuncmap );
-	}
-
-	if ( defined($bindos) ) {
-		$sth->bind_param( ':osid', $voetraxmap );
 	}
 
 	if ( defined($devcoltype) ) {
@@ -2602,26 +2563,6 @@ sub cmpPkgVer {
 	}
 
 	return 0;
-}
-
-sub voe_compare_form {
-	my ( $self, $formdest ) = @_;
-
-	my $cgi = $self->cgi;
-
-	$formdest = "voecompare.pl" if ( !defined($formdest) );
-
-	my $rv;
-	$rv = $cgi->start_form( { -method => 'GET', -action => $formdest } );
-	$rv .= $cgi->div(
-		{ -align => 'center' },
-		$cgi->h3( { -align => 'center' }, 'Compare two VOEs:' ),
-		$self->b_dropdown( { -name => 'voe1' }, undef, 'VOE_ID', undef, 1 ),
-		$self->b_dropdown( { -name => 'voe2' }, undef, 'VOE_ID', undef, 1 ),
-		$cgi->submit
-	);
-	$rv .= $cgi->end_form;
-	$rv;
 }
 
 sub zone_header {

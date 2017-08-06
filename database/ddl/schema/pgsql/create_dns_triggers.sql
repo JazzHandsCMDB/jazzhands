@@ -620,7 +620,7 @@ BEGIN
 	WHERE dns_domain_id = NEW.dns_domain_id
 	AND SHOULD_GENERATE = 'Y';
 	IF FOUND THEN
-		insert into DNS_CHANGE_RECORD
+		INSERT INTO dns_change_record
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
 	END IF;
 	RETURN NEW;
@@ -634,6 +634,30 @@ CREATE TRIGGER trigger_dns_domain_trigger_change
 	ON dns_domain
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_trigger_change();
+
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_donain_ip_universe_change_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.should_generate THEN
+		INSERT INTO dns_change_record
+			(dns_domain_id,ip_universe) 
+		VALUES 
+			(NEW.dns_domain_id, NEW.ip_universe_id);
+	END IF;
+	RETURN NEW;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_donain_ip_universe_change_trigger 
+	ON dns_domain;
+CREATE TRIGGER trigger_dns_donain_ip_universe_change_trigger
+	AFTER INSERT OR UPDATE OF soa_name
+	ON dns_domain
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_donain_ip_universe_change_trigger();
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_change()

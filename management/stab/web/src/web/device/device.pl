@@ -235,63 +235,9 @@ sub build_device_box {
 	#	"Asset #", "ASSET_TAG", 'DEVICE_ID');
 	$top_table = $cgi->table($top_table);
 
-	my $voetr        = "";
-	my $voetraxdivid = "voe_symtrax_id_add_div";
 	my $osargs       = {};
 
-	#	if ( defined($values) ) {
-	#		if ( defined( $values->{VOE_ID} ) ) {
-	#			my $voeid = $values->{VOE_ID};
-	#			my $voe   = $stab->get_voe_from_id($voeid);
-	#
-	#			my $voelink = "";
-	#			if ($voe) {
-	#				$voelink =
-	#				  $cgi->a( { -href => "voe/?VOE_ID=$voeid" },
-	#					$voe->{VOE_NAME} );
-	#			} else {
-	#				$voelink = "--none--";
-	#			}
-	#			$voetr = $cgi->Tr(
-	#				$cgi->td(
-	#					{ -align => 'right' },
-	#					$cgi->b("VOE:")
-	#				),
-	#				$cgi->td($voelink)
-	#			);
-	#		}
-	#
-	#		if ( !length($voetr) ) {
-	#			$voetr = $cgi->Tr(
-	#				$cgi->td(
-	#					{ -align => 'right' },
-	#					$cgi->b("VOE")
-	#				),
-	#				$cgi->td("--none--")
-	#			);
-	#		}
-	#
-	#		$voetraxdivid =
-	#		  "voe_symbolic_track_id_" .
-	#			$values->{_dbx('DEVICE_ID')} . "_div";
-	#
-	#	}
-	#	my $ID = ($values) ? $values->{_dbx('DEVICE_ID')} : "null";
-	#	$osargs->{-onChange} = "update_voe_options($ID, \"$voetraxdivid\")";
-
-	#	$voetr .= $stab->build_tr( { -divWrap => $voetraxdivid },
-	#		$values, "b_dropdown", "VOE Track", "VOE_SYMBOLIC_TRACK_ID",
-	#		"DEVICE_ID" );
-
 	my ( $left_table, $right_table ) = ( "", "" );
-
-	#	$left_table .=
-	#	  $stab->build_tr( $values, "b_dropdown", "Status", "DEVICE_STATUS",
-	#		'DEVICE_ID' );
-	#	$left_table .=
-	#	  $stab->build_tr( $osargs, $values, "b_dropdown", "Operating System",
-	#		"OPERATING_SYSTEM_ID", 'DEVICE_ID' );
-	$left_table .= $voetr;
 
 	$right_table .=
 	  $stab->build_tr( $values, "b_dropdown", "Service Environment",

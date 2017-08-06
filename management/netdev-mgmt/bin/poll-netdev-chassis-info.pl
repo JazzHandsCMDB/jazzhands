@@ -39,7 +39,9 @@ my $commit = 1;
 #my $user = $ENV{'USER'};
 my $user;
 my $password;
+my $connect_name = undef;
 my $hostname = [];
+my $conf_mgmt_type = undef;
 my $authapp = 'net_dev_probe';
 
 sub loggit {
@@ -50,7 +52,9 @@ sub loggit {
 GetOptions(
 	'username=s', \$user,
 	'commit!', \$commit,
+	'connect-name=s', \$connect_name,
 	'hostname=s', $hostname,
+	'management-type=s', \$conf_mgmt_type,
 	'debug+', \$debug
 );
 
@@ -171,7 +175,6 @@ $q = q {
 	) INSERT INTO jazzhands.device (
 		device_type_id,
 		device_name,
-		site_code,
 		physical_label,
 		device_status,
 		service_environment_id,
@@ -182,7 +185,6 @@ $q = q {
 	) SELECT
 		device_type_id,
 		parms.device_name,
-		sne.site_code,
 		parms.device_name,
 		'up',
 		service_environment_id,
@@ -191,15 +193,11 @@ $q = q {
 		'N',
 		'Y'
 	FROM
-		jazzhands.dns_record dr JOIN
-		jazzhands.dns_domain dd USING (dns_domain_id) JOIN
-		jazzhands.v_site_netblock_expanded sne USING (netblock_id),
 		jazzhands.service_environment se,
 		jazzhands.device_type dt,
 		parms
 	WHERE
 		service_environment_name = 'production' AND
-		concat_ws('.', dr.dns_name, dd.soa_name) = parms.device_name AND
 		dt.device_type_name = parms.device_type_name
 	RETURNING
 		*
@@ -486,8 +484,13 @@ if (!($dev_asset_sth = $dbh->prepare_cached($q))) {
 	exit 1;
 }
 
-
 foreach my $host (@$hostname) {
+	my $connect_host;
+	if ($host =~ /:/) {
+		($host, $connect_host) = $host =~ /(^[^:]+):(.*)/;
+	} else {
+		$connect_host = $host;
+	}
 	printf "Probing host %s\n", $host;
 	my $device;
 	my $packed_ip = gethostbyname($host);
@@ -532,14 +535,16 @@ foreach my $host (@$hostname) {
 	}
 	my $db_dev = $d->[0];
 
+	my $mgmt_type = $conf_mgmt_type || $db_dev->{config_fetch_type};
+
 	if ($debug) {
 		print Data::Dumper->Dump([$db_dev], [qw($db_dev)]);
 	}
 
 	if (!($device = $mgmt->connect(
 			device => {
-				hostname => $host,
-				management_type => $db_dev->{config_fetch_type}
+				hostname => $connect_host || $host,
+				management_type => $mgmt_type
 			},
 			credentials => $credentials,
 			errors => \@errors))) {
@@ -586,45 +591,48 @@ foreach my $host (@$hostname) {
 		printf "Error doing device disconnect: %s\n", join "\n", @errors;
 	}
 
-#	if (!$db_dev->{device_id}) {
-#		printf "Inserting device entry for %s\n", $host;
-#
-#		if (!($ins_dev_sth->execute(
-#			$host,
-#			$chassisinfo->{model}
-#		))) {
-#			printf STDERR "Unable to insert device: %s\n",
-#				$ins_dev_sth->errstr;
-#			exit 1;
-#		}
-#		$db_dev = $ins_dev_sth->fetchrow_hashref;
-#	} else {
-#		my $do_update = 0;
-#		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
-#			printf "Changing device name from '%s' to '%s'\n",
-#				$db_dev->{device_name} || $db_dev->{physical_label} || '',
-#				$host;
-#			$do_update = 1;
-#		}
-#		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
-#			printf "Changing device type from '%s' to '%s'\n",
-#				$db_dev->{device_type_name},
-#				$chassisinfo->{model};
-#			$do_update = 1;
-#		}
-#		if ($do_update) {
-#			if (!($upd_dev_sth->execute(
-#					$db_dev->{device_id},
-#					$host,
-#					$chassisinfo->{model}
-#			))) {
-#				printf STDERR "Unable to update device: %s\n",
-#					$upd_dev_sth->errstr;
-#				exit 1;
-#			}
-#		}
-#	}
-#
+	if (!$db_dev->{device_id}) {
+		printf "Inserting device entry for %s\n", $host;
+
+		if (!($ins_dev_sth->execute(
+			$host,
+			$chassisinfo->{model}
+		))) {
+			printf STDERR "Unable to insert device: %s\n",
+				$ins_dev_sth->errstr;
+			exit 1;
+		}
+		$db_dev = $ins_dev_sth->fetchrow_hashref;
+		if ($debug) {
+			print Data::Dumper->Dump([$db_dev], ['$db_dev']);
+		}
+	} else {
+		my $do_update = 0;
+		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
+			printf "Changing device name from '%s' to '%s'\n",
+				$db_dev->{device_name} || $db_dev->{physical_label} || '',
+				$host;
+			$do_update = 1;
+		}
+		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
+			printf "Changing device type from '%s' to '%s'\n",
+				$db_dev->{device_type_name},
+				$chassisinfo->{model};
+			$do_update = 1;
+		}
+		if ($do_update) {
+			if (!($upd_dev_sth->execute(
+					$db_dev->{device_id},
+					$host,
+					$chassisinfo->{model}
+			))) {
+				printf STDERR "Unable to update device: %s\n",
+					$upd_dev_sth->errstr;
+				exit 1;
+			}
+		}
+	}
+
 #	if (!$db_dev->{network_interface_id}) {
 #		printf "Inserting network interface %s\n", $iface_name;
 #
@@ -711,8 +719,8 @@ foreach my $host (@$hostname) {
 
 					if ($components->{$slotname}->{asset_id}) {
 						if (!($set_sn_sth->execute(
+							$chassisinfo->{modules}->{$slot}->{serial},
 							$components->{$slotname}->{asset_id},
-							$chassisinfo->{modules}->{$slot}->{serial}
 						))) {
 							printf STDERR "Unable to update serial number: %s\n",
 								$set_sn_sth->errstr;
@@ -809,8 +817,8 @@ foreach my $host (@$hostname) {
 
 				if ($asset->{asset_id}) {
 					if (!($set_sn_sth->execute(
+						$chassisinfo->{serial},
 						$asset->{asset_id},
-						$chassisinfo->{serial}
 					))) {
 						printf STDERR "Unable to update serial number: %s\n",
 							$set_sn_sth->errstr;
@@ -845,7 +853,9 @@ $ins_component_sth->finish;
 $dev_component_sth->finish;
 
 if ($commit) {
-	$dbh->commit;
+	if (!$dbh->commit) {
+		print STDERR $dbh->errstr;
+	};
 } else {
 	$dbh->rollback;
 }
