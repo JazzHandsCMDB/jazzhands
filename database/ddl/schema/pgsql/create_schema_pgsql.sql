@@ -2549,6 +2549,7 @@ CREATE TABLE IP_UNIVERSE
 	IP_UNIVERSE_NAME     VARCHAR(50) NOT NULL
 ,
 	IP_NAMESPACE         VARCHAR(50) NOT NULL,
+	SHOULD_GENERATE_DNS  CHAR(1) NOT NULL,
 	DESCRIPTION          VARCHAR(4000) NULL,
 	DATA_INS_USER        VARCHAR(255) NULL,
 	DATA_INS_DATE        TIMESTAMP WITH TIME ZONE NULL,
@@ -2558,11 +2559,16 @@ CREATE TABLE IP_UNIVERSE
 
 COMMENT ON COLUMN IP_UNIVERSE.IP_NAMESPACE IS 'defeines the namespace for a given ip universe -- all universes in this namespace are considered unique for netblock validations';
 
+COMMENT ON COLUMN IP_UNIVERSE.SHOULD_GENERATE_DNS IS 'Indicates if any zones should generated rooted in this universe.   Primarily used to turn off DNS generation for universes that exist as shims between two networks (such as the internet can see, inside can not, for inbound NAT''d addresses).';
+
 ALTER TABLE IP_UNIVERSE
 	ADD CONSTRAINT  PK_IP_UNIVERSE PRIMARY KEY (IP_UNIVERSE_ID)       ;
 
 ALTER TABLE IP_UNIVERSE
 ADD CONSTRAINT  AK_IP_UNIVERSE_NAME UNIQUE (IP_UNIVERSE_NAME);
+
+ALTER TABLE IP_UNIVERSE
+	ADD CONSTRAINT  CHECK_YES_NO_722228305 CHECK (SHOULD_GENERATE_DNS IN ('Y', 'N'));
 
 CREATE  INDEX XIF1IP_UNIVERSE ON IP_UNIVERSE
 (IP_NAMESPACE   ASC);
