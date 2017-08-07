@@ -827,7 +827,7 @@ sub process_domain {
 			$errmsg = "[WARNING: PUSHING OUT!]";
 		}
 		$output = "" if ( !$output );
-		warn "$domain was generated with errors $errmsg ($output)\n";
+		warn "$domain ($uname) was generated with errors $errmsg ($output)\n";
 		if ( !$errcheck ) {
 			return 0;
 		}
@@ -1378,13 +1378,20 @@ if (1) {
 	my $dbh = $zg->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT  dns_domain_id, ip_universe_id, ip_universe_name,
+		WITH uv AS (
+			SELECT ip_universe_Id,visible_ip_universe_id
+				FROM ip_universe_visibility WHERE propagate_dns = 'Y'
+			UNION
+			SELECT ip_universe_id, ip_universe_id FROM ip_universe
+		) SELECT  dns_domain_id, u.ip_universe_id, ip_universe_name,
 				should_generate, last_generated, soa_name,
 				extract(epoch from last_generated) as epoch_gen
-		  FROM	dns_domain
-				join dns_domain_ip_universe USING (dns_domain_id)
-				join ip_universe USING (ip_universe_id)
-		  order by soa_name, ip_universe_id
+		FROM ip_universe u
+			JOIN uv USING (ip_universe_id)
+			JOIN dns_domain_ip_universe du ON
+				du.ip_universe_id = uv.visible_ip_universe_id
+			JOIN dns_domain d USING (dns_domain_id)
+		ORDER BY soa_name, ip_universe_id
 	}
 	) || die $dbh->errstr;
 	$sth->execute || die $sth->errstr;
