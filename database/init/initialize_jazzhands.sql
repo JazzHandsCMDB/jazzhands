@@ -319,15 +319,17 @@ INSERT INTO val_ip_namespace (
 	( 'default', 'default namespace'    );
 
 INSERT INTO ip_universe (
-	ip_universe_id, ip_universe_name, ip_namespace, description
+	ip_universe_id, ip_universe_name, ip_namespace, should_generate_dns,
+	description
 ) VALUES 
-	( 0, 'default', 'default', 'default IP universe'    );
+	( 0, 'default', 'default', 'Y',
+	'default IP universe'    );
 
 -- some sites may not want this to be unique, but this is the default.
 INSERT INTO ip_universe (
-	ip_universe_name, ip_namespace, description
+	ip_universe_name, ip_namespace, should_generate_dns, description
 ) VALUES 
-	('private', 'default', 'RFC 1918 Space'    );
+	('private', 'default', 'N', 'RFC 1918 Space'    );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
