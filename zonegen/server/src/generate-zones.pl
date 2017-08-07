@@ -1391,6 +1391,7 @@ if (1) {
 			JOIN dns_domain_ip_universe du ON
 				du.ip_universe_id = uv.visible_ip_universe_id
 			JOIN dns_domain d USING (dns_domain_id)
+		WHERE u.should_generate_dns = 'Y'
 		ORDER BY soa_name, ip_universe_id
 	}
 	) || die $dbh->errstr;
