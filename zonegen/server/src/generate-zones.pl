@@ -398,8 +398,8 @@ $commchr Please contact $email if you require more info.
 #
 # record that a zone has been generated and bump the soa.
 #
-sub record_newgen {
-	my ( $self, $domid ) = @_;
+sub record_newgen($$$) {
+	my ( $self, $domid, $uid ) = @_;
 	my $dbh = $self->DBHandle();
 
 	# This is for postgresql, oracle is to_date XXX
@@ -407,12 +407,14 @@ sub record_newgen {
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		update	dns_domain
+		update	dns_domain_ip_universe
 		  set	soa_serial = soa_serial + 1, last_generated = now()
 		where	dns_domain_id = :domid
+		  and	ip_universe_id = :uid
 	}
 	) || die dbhsth->errst;
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
+	$sth->bind_param( ':uid', $uid ) || die $sth->errstr;
 	$sth->execute || die $sth->errstr;
 }
 
@@ -1312,15 +1314,15 @@ if ($debug) {
 # $generate contains all of the objects that are to be regenerated
 my $generate = {};
 if ( scalar @changeids ) {
-	die
-	  "need to finish poringthe dns_change_record stuff to universes, including trigger fixings";
 	#
 	# Now get all zones eligible for regeneration and save them.
 	#
 	my $dbh = $zg->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
-			SELECT * FROM v_dns_changes_pending
+			SELECT v.*, u.ip_universe_name
+			FROM v_dns_changes_pending v
+			JOIN ip_universe u USING (ip_universe_id)
 	}
 	) || die $dbh->errstr;
 
@@ -1332,6 +1334,7 @@ if ( scalar @changeids ) {
 	#
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $dom = $hr->{ _dbx('SOA_NAME') };
+		my $uname = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 		if ( $#ARGV >= 0 ) {
 			next if ( !$dom || !grep( $_ eq $dom, @ARGV ) );
 		}
@@ -1357,9 +1360,13 @@ if ( scalar @changeids ) {
 			$generate->{$dom} = {};
 		}
 
+		if ( !defined( $generate->{$dom}->{$uname} ) ) {
+			$generate->{$dom}->{$uname} = {};
+		}
+
 		# There was a change and thus we bump the soa
-		$generate->{$dom}->{bumpsoa} = 1;
-		push( @{ $generate->{$dom}->{rec} }, $hr );
+		$generate->{$dom}->{$uname}->{bumpsoa} = 1;
+		push( @{ $generate->{$dom}->{$uname}->{rec} }, $hr );
 	}
 }
 
@@ -1421,31 +1428,33 @@ if (1) {
 			$genit = 1;
 		}
 
+		my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
+
 		if ($genall) {
 			$genit = 1;
 		} else {
 
 			# look for the existing file
 
-			my $zoneroot = $zg->{_zoneroot};
+			my $zoneroot = $zg->{_zoneroot}."/$univ";
 
 			my $fn = "$zoneroot/$dom";
 			if ( $dom =~ /\.in-addr\.arpa$/ ) {
-				$fn = "$zoneroot/inaddr/$dom";
+				$fn = "$zoneroot/${univ}inaddr/$dom";
 			} elsif ( $dom =~ /\.ip6\.arpa$/ ) {
-				$fn = "$zoneroot/ip6/$dom";
+				$fn = "$zoneroot/${univ}ip6/$dom";
 			}
 
 			if ( !-f $fn ) {
 				$genit = 1;
 			} else {
-
 				# if the file on disk was generated before
 				# the last generation date, regenerate it.
 				# Its possible it was generated on another
 				# host
 				my ($mtime) = ( stat($fn) )[9];
-				my ($epoch) = int( $hr->{ _dbx('epoch_gen') } );
+				my $epoch = $hr->{ _dbx('EPOCH_GEN') } || 0;
+				$epoch = int ($epoch);
 				if ( $mtime != $epoch ) {
 					$genit = 1;
 				}
@@ -1453,7 +1462,6 @@ if (1) {
 			}
 		}
 
-		my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 
 		if ($genit) {
 			if ( !$generate->{$dom} ) {
@@ -1505,7 +1513,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		}
 		my $domid =
 		  $generate->{$dom}->{$univ}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
-		print "$dom\n";
+		print "$dom $univ\n";
 		my $last = $generate->{$dom}->{$univ}->{rec}->[0]->{last_generated};
 		if ($bumpsoa) {
 			$last = $zg->get_now();
@@ -1518,8 +1526,6 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 }
 warn "Done Generating Zones\n" if ($verbose);
 
-die "need to port after this";
-
 my $docommit = 0;
 
 #
@@ -1529,12 +1535,16 @@ my $docommit = 0;
 #
 foreach my $dom ( sort keys( %{$generate} ) ) {
 	next if ( $dom eq '__unknown__' );
-	if ( $generate->{$dom}->{bumpsoa} ) {
-		my $domid =
-		  $generate->{$dom}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
-		warn "bumping soa for $domid, $dom\n" if ($debug);
-		$zg->record_newgen($domid);
-		$docommit++;
+	foreach my $universe ( sort keys( %{ $generate->{$dom} } ) ) {
+		my $t = $generate->{$dom}->{$universe};
+		if ( $t->{bumpsoa} ) {
+			my $rec = $t->{rec}->[0];
+			my $domid = $rec->{ _dbx('DNS_DOMAIN_ID') };
+			my $uid   = $rec->{ _dbx('IP_UNIVERSE_ID') };
+			warn "bumping soa for $domid, $dom\n" if ($debug);
+			$zg->record_newgen( $domid, $uid );
+			$docommit++;
+		}
 	}
 }
 warn "Done bumping SOAs\n" if ($debug);
@@ -1555,31 +1565,34 @@ if ( !$nosoa ) {
 		}
 		) || die $dbh->errstr;
 		foreach my $dom ( sort keys( %{$generate} ) ) {
-			next if ( !defined( $generate->{$dom}->{rec} ) );
-			foreach my $hr ( @{ $generate->{$dom}->{rec} } ) {
-				my $id = $hr->{ _dbx('DNS_CHANGE_RECORD_ID') };
+			foreach my $u ( sort keys %{ $generate->{$dom} } ) {
+				next if ( !defined( $generate->{$dom}->{$u}->{rec} ) );
+				my $b = $generate->{$dom}->{$u};
+				foreach my $hr ( @{ $b->{rec} } ) {
+					my $id = $hr->{ _dbx('DNS_CHANGE_RECORD_ID') };
 
-				# for if something was forced from the command line but did not
-				# have recorded changes
-				next if ( !$id );
+					# for if something was forced from the command line but did not
+					# have recorded changes
+					next if ( !$id );
 
-				#
-				# only remove ids that were found before processing started.
-				# This allows for transactions commited during the run to get
-				# a chance to regenerate
-				#
-				if ( !grep( $_ == $id, @changeids ) ) {
-					warn "skipping change record $id, not in initial set\n"
-					  if ($debug);
-					next;
+					#
+					# only remove ids that were found before processing started.
+					# This allows for transactions commited during the run to get
+					# a chance to regenerate
+					#
+					if ( !grep( $_ == $id, @changeids ) ) {
+						warn "skipping change record $id, not in initial set\n"
+						  if ($debug);
+						next;
+					}
+					if ( !exists( $seen->{$id} ) ) {
+						warn "deleting change record $id\n"
+						  if ($debug);
+						$sth->execute($id) || die $sth->errstr;
+						$docommit++;
+					}
+					$seen->{$id}++;
 				}
-				if ( !exists( $seen->{$id} ) ) {
-					warn "deleting change record $id\n"
-					  if ($debug);
-					$sth->execute($id) || die $sth->errstr;
-					$docommit++;
-				}
-				$seen->{$id}++;
 
 			}
 		}
