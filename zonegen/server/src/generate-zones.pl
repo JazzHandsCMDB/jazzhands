@@ -2,11 +2,12 @@
 
 # TODO:
 # - deal with ordering, TXT records on zone were coming later sometimes
-# - pulling up child zones with ip universe bits
+# - pulling up child zones with ip universe bits properly
 # - trigger enforcement of various data across ip universes keeping in mind
 #	ip_universe_visibility
 # - zonegen deals with per-server in a sane fashion
 # - dns domain collection association for "put these zones anyway" on per-server
+# - ability to handle things smaller than a /24
 
 # Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
@@ -164,7 +165,7 @@ sub get_my_hosts($$) {
 		SELECT distinct device_name from (
 		SELECT	coalesce(p.site_code, d.site_code) as site_code,
 			d.device_name
- 		FROM	device d
+		FROM	device d
 			INNER JOIN device_collection_device dcd  USING
 				(device_id)
 			INNER JOIN v_device_coll_hier_detail h  USING
@@ -447,7 +448,7 @@ sub generate_named_acl_file($$$) {
 		my $sth = $dbh->prepare_cached(
 			qq{
 		SELECT	p.property_value AS acl_name, nb.ip_address, nb.description
-		FROM 	v_nblk_coll_netblock_expanded nbe
+		FROM	v_nblk_coll_netblock_expanded nbe
 				INNER JOIN property p USING (netblock_collection_id)
 				INNER JOIN netblock nb USING (netblock_id)
 		WHERE property_name = 'DNSACLs' and property_type = 'DNSZonegen'
@@ -849,31 +850,45 @@ sub generate_complete_files {
 	my $cfgdir = "$zoneroot/../etc";
 
 	$self->mkdir_p("$cfgdir");
-	my $cfgfn    = "$cfgdir/named.conf.auto-gen";
-	my $tmpcfgfn = "$cfgfn.tmp.$$";
-	my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
-
-	$self->print_comments( $cfgf, '#' );
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select	soa_name
-		  from	dns_domain
-		 where	should_generate = 'Y'
-		order by soa_name
+		SELECT	ip_universe_name, soa_name
+		  FROM	dns_domain
+				JOIN dns_domain_ip_universe USING (dns_domain_id)
+				JOIN ip_universe USING (ip_universe_id)
+		 WHERE	should_generate = 'Y'
+		 AND	should_generate_dns = 'Y'
+		ORDER BY ip_universe_name, soa_name
 	}
 	);
 	$sth->execute || die $sth->errstr;
 
-	while ( my ($zone) = $sth->fetchrow_array ) {
+	my ($cfgf, $cfgfn, $tmpcfgfn);
+	my $lastu;
+
+	while ( my ($univ, $zone) = $sth->fetchrow_array ) {
+		if(!$cfgf || $univ ne $lastu) {
+			$lastu = $univ;
+			if($cfgf) {
+				$cfgf->close();
+				$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
+			}
+			$self->mkdir_p($cfgdir."/$univ");
+			$cfgfn    = "$cfgdir/${univ}/named.conf.auto-gen";
+			$tmpcfgfn = "$cfgfn.tmp.$$";
+			$cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
+			$self->print_comments( $cfgf, '#' );
+		}
+
 		my $fn = $zone;
-		if ( $fn =~ /.in-addr.arpa/ ) {
+		if ( $zone =~ /.in-addr.arpa/ ) {
 			$fn = "inaddr/$zone";
-		} elsif ( $fn =~ /.ip6.arpa/ ) {
+		} elsif ( $zone =~ /.ip6.arpa/ ) {
 			$fn = "ip6/$zone";
 		}
 		$cfgf->print(
-			"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/$fn\";\n};\n\n"
+			"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/${univ}/$fn\";\n};\n\n"
 		);
 	}
 	$cfgf->close;
@@ -892,16 +907,17 @@ sub generate_complete_files {
 	my $tally = 0;
 	foreach my $zone ( sort keys(%$zonesgend) ) {
 		if ( defined($zonesgend) && defined( $zonesgend->{$zone} ) ) {
-
-			# oh, this is a hack!
-			$zcf->print("$zone\n");
-			$tally++;
+			foreach my $univ (sort keys(%{$zonesgend->{$zone}})) {
+				next if($zonesgend->{$zone}->{$univ}->{failed});
+				# oh, this is a hack!
+				$zcf->printf("%s\t%s\r\n", $zone, $univ);
+				$tally++;
+			}
 		}
 	}
 
 	$zcf->close;
 	$self->safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
-
 }
 
 #
@@ -926,7 +942,7 @@ sub process_perserver {
 	my $sth = $dbh->prepare_cached(
 		q{
 		SELECT	DISTINCT
-			dom.dns_domain_id,
+			dom.dns_domain_id, u.ip_universe_name,
 			CASE WHEN dns.dns_value ~ '\.$'
 				THEN regexp_replace(dns.dns_value, '\.$', '')
 				ELSE concat(dns.dns_value,'.',dom.soa_name)
@@ -935,22 +951,24 @@ sub process_perserver {
 		 FROM   dns_domain dom
 			INNER JOIN dns_domain_ip_universe di
 				USING (dns_domain_id)
+			INNER JOIN ip_universe u
+				USING (ip_universe_id)
 			INNER JOIN dns_record dns
 				USING (dns_domain_id)
 		 WHERE  dns.dns_name is NULL
 		   AND  dns_type = 'NS'
 		   AND	should_generate = 'Y'
-		ORDER BY dns_value
+		ORDER BY u.ip_universe_name, dns_value
 	}
 	);
 
 	$sth->execute || die $sth->errstr;
 
 	my %servers;
-	while ( my ( $id, $ns, $zone ) = $sth->fetchrow_array ) {
+	while ( my ( $id, $u, $ns, $zone ) = $sth->fetchrow_array ) {
 		next if ( !$ns );    # this should not happen
 		$ns =~ s/\.*$//;
-		push( @${ $servers{$ns} }, $zone );
+		push( @${ $servers{$ns}->{$u} }, $zone );
 	}
 
 	#
@@ -958,147 +976,148 @@ sub process_perserver {
 	#
 	my $tally = 0;
 	foreach my $server ( keys(%servers) ) {
-		my $svrdir  = "$persvrroot/$server";
-		my $zonedir = "$svrdir/zones";
-		my $cfgdir  = "$svrdir/etc";
-		my $zones   = $servers{$server};
+		foreach my $u ( keys( %{ $servers{$server} } ) ) {
+			my $svrdir  = "$persvrroot/$server";
+			my $zonedir = "$svrdir/zones/$u";
+			my $cfgdir  = "$svrdir/etc/$u";
+			my $zones   = $servers{$server}->{$u};
 
-		if ( -d $zonedir ) {
-			#
-			# go through and remove zones that don't belong.
-			# This may leave excess in-addrs.  oh well.
-			#
-			opendir( DIR, $zonedir ) || die "$zonedir: $!";
-			foreach my $entry ( readdir(DIR) ) {
-				my $fqn = "$zonedir/$entry";
-				next if ( !-l $fqn );
-				next if ( grep( $_ eq $entry, @$$zones ) );
-				unlink($fqn);
-			}
-			closedir(DIR);
-		} else {
-			$self->mkdir_p($zonedir);
-		}
-
-		foreach my $dir ( "$zonedir/inaddr", "$zonedir/ip6" ) {
-			if ( -d $dir ) {
+			if ( -d $zonedir ) {
 				#
-				# go through and remove zones that don't belong,
-				# which may leave some non-inaddrs.
+				# go through and remove zones that don't belong.
+				# This may leave excess in-addrs.  oh well.
 				#
-				opendir( DIR, $dir ) || die "$dir: $!";
+				opendir( DIR, $zonedir ) || die "$zonedir: $!";
 				foreach my $entry ( readdir(DIR) ) {
-					my $fqn = "$dir/$entry";
+					my $fqn = "$zonedir/$entry";
 					next if ( !-l $fqn );
-					next
-					  if ( grep( $_ eq $entry, @$$zones ) );
+					next if ( grep( $_ eq $entry, @$$zones ) );
 					unlink($fqn);
 				}
 				closedir(DIR);
 			} else {
-				$self->mkdir_p($dir);
-			}
-		}
-
-		#
-		# create a symlink in the "perserver" directory for zones
-		# the server servers as well as creating a named.conf
-		# file to be included.  A file that lists all the zones that
-		# are auto-generated that were changed on this run is also saved.
-		#
-		$self->mkdir_p("$cfgdir");
-		my $cfgfn    = "$cfgdir/named.conf.auto-gen";
-		my $tmpcfgfn = "$cfgfn.tmp.$$";
-		my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
-
-		$self->print_comments( $cfgf, '#' );
-
-		my $zcfn    = "$cfgdir/zones-changed";
-		my $tmpzcfn = "$zcfn.tmp.$$";
-		my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
-		chmod( 0755, $tmpzcfn );
-		$self->print_comments( $zcf, '#' );
-
-		foreach my $zone ( sort @$$zones ) {
-			my $fqn = "$zonedir/$zone";
-			my $zr  = $zoneroot;
-			if ( $zr =~ /^\.\./ ) {
-				$zr = "../../$zr";
+				$self->mkdir_p($zonedir);
 			}
 
-			if ( $zone =~ /in-addr.arpa$/ ) {
-				if ( $zr =~ /^\.\./ ) {
-					$zr = "../$zr";
+			foreach my $dir ( "$zonedir/inaddr", "$zonedir/ip6" ) {
+				if ( -d $dir ) {
+					#
+					# go through and remove zones that don't belong,
+					# which may leave some non-inaddrs.
+					#
+					opendir( DIR, $dir ) || die "$dir: $!";
+					foreach my $entry ( readdir(DIR) ) {
+						my $fqn = "$dir/$entry";
+						next if ( !-l $fqn );
+						next if ( grep( $_ eq $entry, @$$zones ) );
+						unlink($fqn);
+					}
+					closedir(DIR);
+				} else {
+					$self->mkdir_p($dir);
 				}
-				$fqn = "$zonedir/inaddr/$zone";
-				$zr .= "/inaddr/$zone";
-			} elsif ( $zone =~ /ip6.arpa$/ ) {
-				if ( $zr =~ /^\.\./ ) {
-					$zr = "../$zr";
-				}
-				$fqn = "$zonedir/ip6/$zone";
-				$zr .= "/ip6/$zone";
-
-			} else {
-				$zr .= "/$zone";
 			}
 
 			#
-			# now actually create the link, and if the link
-			# is pointing to the wrong place, move it
+			# create a symlink in the "perserver" directory for zones
+			# the server servers as well as creating a named.conf
+			# file to be included.  A file that lists all the zones that
+			# are auto-generated that were changed on this run is also saved.
 			#
-			if ( !-l $fqn ) {
-				unlink($zr);
-				symlink( $zr, $fqn );
-			} else {
-				my $ov = readlink($fqn);
-				if ( $ov ne $zr ) {
-					unlink($fqn);
+			$self->mkdir_p("$cfgdir");
+			my $cfgfn    = "$cfgdir/named.conf.auto-gen";
+			my $tmpcfgfn = "$cfgfn.tmp.$$";
+			my $cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
+
+			$self->print_comments( $cfgf, '#' );
+
+			my $zcfn    = "$cfgdir/zones-changed";
+			my $tmpzcfn = "$zcfn.tmp.$$";
+			my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
+			chmod( 0755, $tmpzcfn );
+			$self->print_comments( $zcf, '#' );
+
+			foreach my $zone ( sort @$$zones ) {
+				my $fqn = "$zonedir/$zone";
+				my $zr  = $zoneroot;
+				if ( $zr =~ /^\.\./ ) {
+					$zr = "../../../$zr/$u";
+				}
+
+				if ( $zone =~ /in-addr.arpa$/ ) {
+					if ( $zr =~ /^\.\./ ) {
+						$zr = "../$zr";
+					}
+					$fqn = "$zonedir/inaddr/$zone";
+					$zr .= "/inaddr/$zone";
+				} elsif ( $zone =~ /ip6.arpa$/ ) {
+					if ( $zr =~ /^\.\./ ) {
+						$zr = "../$zr";
+					}
+					$fqn = "$zonedir/ip6/$zone";
+					$zr .= "/ip6/$zone";
+
+				} else {
+					$zr .= "/$zone";
+				}
+
+				#
+				# now actually create the link, and if the link
+				# is pointing to the wrong place, move it
+				#
+				if ( !-l $fqn ) {
+					unlink($zr);
 					symlink( $zr, $fqn );
+				} else {
+					my $ov = readlink($fqn);
+					if ( $ov ne $zr ) {
+						unlink($fqn);
+						symlink( $zr, $fqn );
+					}
+				}
+				if ( !-r $fqn ) {
+					warn
+					  "$zone does not exist for $server (see $fqn); possibly needs to be forced before a regular run\n";
+				}
+
+				if ( $zone =~ /in-addr.arpa$/ ) {
+					$cfgf->print(
+						"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/inaddr/$zone\";\n};\n\n"
+					);
+				} elsif ( $zone =~ /ip6.arpa$/ ) {
+					$cfgf->print(
+						"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/ip6/$zone\";\n};\n\n"
+					);
+				} else {
+					$cfgf->print(
+						"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/$zone\";\n};\n\n"
+					);
+				}
+
+				if (   defined($zonesgend)
+					&& defined( $zonesgend->{$zone} ) )
+				{
+					$zcf->print("$zone\n");
+					$tally++;
 				}
 			}
-			if ( !-r $fqn ) {
-				warn
-				  "$zone does not exist for $server (see $fqn); possibly needs to be forced before a regular run\n";
+
+			$cfgf->close;
+			$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
+
+			$zcf->close;
+			unlink($zcfn);
+			$self->safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
+
+			#
+			# create a symlink to the acl file so it gets sync'd out right"
+			#
+			if ( -r "$persvrroot/$zoneroot/../etc/sitecodeacl.conf" ) {
+				unlink("$svrdir/etc/sitecodeacl.conf");
+				symlink( "$zoneroot/../../../etc/sitecodeacl.conf",
+					"$svrdir/etc/sitecodeacl.conf" )
+				  || die "not create symlink in $svrdir...";
 			}
-
-			if ( $zone =~ /in-addr.arpa$/ ) {
-				$cfgf->print(
-					"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/inaddr/$zone\";\n};\n\n"
-				);
-			} elsif ( $zone =~ /ip6.arpa$/ ) {
-				$cfgf->print(
-					"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/ip6/$zone\";\n};\n\n"
-				);
-			} else {
-				$cfgf->print(
-					"zone \"$zone\" {\n\ttype master;\n\tfile \"auto-gen/zones/$zone\";\n};\n\n"
-				);
-			}
-
-			if (   defined($zonesgend)
-				&& defined( $zonesgend->{$zone} ) )
-			{
-				$zcf->print("$zone\n");
-				$tally++;
-			}
-		}
-
-		$cfgf->close;
-		$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
-
-		$zcf->close;
-		unlink($zcfn);
-		$self->safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
-
-		#
-		# create a symlink to the acl file so it gets sync'd out right"
-		#
-		if ( -r "$persvrroot/$zoneroot/../etc/sitecodeacl.conf" ) {
-			unlink("$svrdir/etc/sitecodeacl.conf");
-			symlink( "$zoneroot/../../../etc/sitecodeacl.conf",
-				"$svrdir/etc/sitecodeacl.conf" )
-			  || die "not create symlink in $svrdir...";
 		}
 	}
 }
@@ -1436,13 +1455,13 @@ if (1) {
 
 			# look for the existing file
 
-			my $zoneroot = $zg->{_zoneroot}."/$univ";
+			my $zoneroot = $zg->{_zoneroot};
 
-			my $fn = "$zoneroot/$dom";
+			my $fn = "$zoneroot/${univ}/$dom";
 			if ( $dom =~ /\.in-addr\.arpa$/ ) {
-				$fn = "$zoneroot/${univ}inaddr/$dom";
+				$fn = "$zoneroot/${univ}/inaddr/$dom";
 			} elsif ( $dom =~ /\.ip6\.arpa$/ ) {
-				$fn = "$zoneroot/${univ}ip6/$dom";
+				$fn = "$zoneroot/${univ}/ip6/$dom";
 			}
 
 			if ( !-f $fn ) {
@@ -1466,12 +1485,12 @@ if (1) {
 		if ($genit) {
 			if ( !$generate->{$dom} ) {
 				$generate->{$dom} = {};
-			} elsif ( exists( $generate->{$dom}->{$univ} ) ) {
-				next;
 			}
 
-			if ( !$generate->{$dom}->{$univ} ) {
+			if ( !exists($generate->{$dom}->{$univ}) ) {
 				$generate->{$dom}->{$univ} = {};
+			} elsif ( exists( $generate->{$dom}->{$univ} ) ) {
+				next;
 			}
 
 			push( @{ $generate->{$dom}->{$univ}->{rec} }, $hr );
@@ -1519,8 +1538,12 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 			$last = $zg->get_now();
 		}
 		my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
-		$zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
+		my $rv = $zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
 			$bumpsoa );
+		if(!$rv) {
+			# do not treat it as regenrated.  This may not be smart.
+			$generate->{$dom}->{$univ}->{failed} = 1;
+		}
 	}
 
 }
@@ -1612,12 +1635,12 @@ if ( !$norsynclist ) {
 #
 warn "Generating configuration files and whatnot..." if ($debug);
 
-die "need to port per-server bits";
 
-#$zg->process_perserver( "../zones", $generate );
-#$zg->generate_complete_files($generate);
+$zg->process_perserver( "../zones", $generate );
+$zg->generate_complete_files($generate);
 
 $zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
+
 
 warn "Done file generation, about to commit\n" if ($verbose);
 if ($docommit) {
