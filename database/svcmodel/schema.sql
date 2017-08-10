@@ -37,6 +37,12 @@ CREATE TABLE service_source_repository (
 	PRIMARY KEY (service_id, source_repository_id)
 );
 
+--
+-- service_type is not yet clearly defined and may change  but at the moment
+-- 'network', 'integration' (for things that just talk between services but
+-- do not listen, like feeds).  possibly also 'process' for things that do not
+-- leave the machine. 
+--
 DROP TABLE IF EXISTS service_version cascade;
 CREATE TABLE service_version (
 	service_version_id	serial		NOT NULL,
@@ -432,6 +438,9 @@ CREATE TABLE service_collection_service (
 --
 -- THere is a reasonable chance that this will just become property with
 -- service_collection being added to the lhs (and possibly rhs).
+--
+-- This means you should assume every lhs and rhs in property are here, even
+-- though they are not yet.
 --
 DROP TABLE IF EXISTS service_property;
 CREATE TABLE service_property (
