@@ -93,7 +93,13 @@ sub commit {
 
 	my $rc = 1;
 	my $jnx = $self->{handle};
-	my $res = $jnx->commit_configuration();
+	my @args;
+	if ($opt->{confirmed_timeout}) {
+		push @args, 
+			"confirmed" => 1,
+			"confirm-timeout" => $opt->{confirmed_timeout};
+	}
+	my $res = $jnx->commit_configuration( @args);
 	my $jerr = $res->getFirstError();
 	if ($jerr) {
 		SetError($err,
@@ -102,7 +108,40 @@ sub commit {
 			sprintf("commit error: %s", $jerr->{message}));
 		$rc = 0;
 	} else {
-		$self->{connection_cache}->{$hostname}->{state} = STATE_LOCKED;
+		$self->{state} = STATE_LOCKED;
+	}
+	return $rc;
+}
+
+sub rollback {
+	my $self = shift;
+	if (!ref($self)) {
+		return undef;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+	if (!$self->{handle}) {
+		return;
+	}
+
+	my $hostname = $self->{device}->{hostname};
+
+	my $rc = 1;
+	my $jnx = $self->{handle};
+	if ($self->{state} >= STATE_CONFIG_LOADED) {
+		my $res;
+		eval { $res = $jnx->load_configuration(rollback => 0); };
+		my $jerr = $res->getFirstError();
+		if ($jerr) {
+			SetError($err,
+				sprintf("%s: rollback error: %s", $hostname, $jerr->{message}));
+			SetError($opt->{errbyhost}->{$hostname},
+				sprintf("rollback error: %s", $jerr->{message}));
+			$rc = 0;
+		} else {
+			$self->{state} = STATE_LOCKED;
+		}
 	}
 	return $rc;
 }
@@ -124,7 +163,7 @@ sub disconnect {
 	my $jnx = $self->{handle};
 
 	my $state = $self->{state};
-	if ($state >= STATE_CONFIG_LOADED) {
+	if ($state >= STATE_CONFIG_LOADED && !$opt->{norollback}) {
 		eval { $jnx->load_configuration(rollback => 0); };
 	}
 	if ($state >= STATE_LOCKED) {
@@ -138,6 +177,88 @@ sub disconnect {
 	}
 	undef %$self;
 	1;
+}
+
+sub check_for_changes {
+	my $self = shift;
+	if (!ref($self)) {
+		return undef;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+	if (!$self->{handle}) {
+		return;
+	}
+	my $jnx = $self->{handle};
+
+	my $res = $jnx->get_configuration(
+		compare => 'rollback',
+		rollback => 0,
+		format => 'text'
+	);
+	my $changes;
+	my $x = $res->getElementsByTagName('configuration-output');
+	if (@$x) {
+		$changes = $x->[0]->getFirstChild->getNodeValue;
+	}
+
+	if (!$changes || $changes =~ /^\s*$/) {
+		return 0;
+	} else {
+		return $changes;
+	}
+}
+
+sub UploadConfigText {
+	my $self;
+	if (ref($_[0])) {
+		$self = shift;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+
+	my $jnx = $self->{handle};
+
+	if (!$opt->{config}) {
+		SetError($err, "config option must be passed");
+		return undef;
+	}
+
+	my $device = $self->{device};
+	my $action = $opt->{action} || 'replace';
+
+	my $res;
+	$self->{state} = STATE_CONNECTED;
+
+	eval {
+		$res = $jnx->load_configuration(
+			format => ($opt->{format} || 'text'),
+			action => 'replace',
+			($opt->{format} && $opt->{format} eq 'xml') ?
+				(configuration => $opt->{config}) :
+				("configuration-text" => $opt->{config})
+		);
+	};
+	$self->{state} = STATE_CONFIG_LOADED;
+	if ($@) {
+		SetError($err, sprintf("Error sending config: %s", $@));
+		return undef;
+	}
+	if (!$res) {
+		SetError($err, "Unknown error sending config");
+		return undef;
+	}
+	my $error = $res->getFirstError();
+	if ($error) {
+		SetError($err, sprintf("Error sending config: %s", $error->{message}));
+		return undef;
+	};
+	if ($opt->{commit}) {
+		return $self->commit(errors => \$err);
+	}
+	return 1;
 }
 
 sub SetPortVLAN {
@@ -2134,66 +2255,6 @@ sub GetPortVlan {
     }
     my $trunking = $ifstatus->{portMode} eq 'Trunk' ? 'on' : 'off';
     return ($trunking, $vlan);
-}
-
-sub UploadConfigText {
-	my $self;
-	if (ref($_[0])) {
-		$self = shift;
-	}
-	my $opt = &_options(@_);
-	my $err = $opt->{errors};
-
-
-	my $jnx = $self->{handle};
-
-	if (!$opt->{config}) {
-		SetError($err, "config option must be passed");
-		return undef;
-	}
-
-	my $device = $self->{device};
-	my $credentials = $opt->{credentials};
-	my $action = $opt->{action} || 'replace';
-
-	my $res;
-	my $state;
-	$state = STATE_CONNECTED;
-
-	eval {
-		$res = $jnx->load_configuration(
-			format => ($opt->{format} || 'text'),
-			action => 'replace',
-			($opt->{format} && $opt->{format} eq 'xml') ?
-				(configuration => $opt->{config}) :
-				("configuration-text" => $opt->{config})
-		);
-	};
-	$state = STATE_CONFIG_LOADED;
-	if ($@) {
-		SetError($err, sprintf("Error sending config: %s", $@));
-		return undef;
-	}
-	if (!$res) {
-		SetError($err, "Unknown error sending config");
-		return undef;
-	}
-	my $error = $res->getFirstError();
-	if ($error) {
-		SetError($err, sprintf("Error sending config: %s", $error->{message}));
-		return undef;
-	};
-	if ($opt->{commit}) {
-		$res = $jnx->commit_configuration();
-		$error = $res->getFirstError();
-		if ($error) {
-			SetError($err, sprintf(
-				"Error committing configuration change: %s",
-				$error->{message}));
-			return undef;
-		}
-	}
-	return 1;
 }
 
 sub SetBGPPeerStatus {
