@@ -1,3 +1,12 @@
+jazzhands-perl-netdev-mgmt (0.80.6) unstable; urgency=low
+
+  * Add rollback() and check_for_changes() functions to juniper.pm
+  * Fix state handling for UploadConfigText
+  * Add 'norollback' option to disconnect
+  * Add 'confirmed_timeout' option to commit
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 24 Aug 2017 11:44:44 +0000
+
 jazzhands-perl-netdev-mgmt (0.80.5) unstable; urgency=low
 
   * Add GetVLANs to arista.pm
