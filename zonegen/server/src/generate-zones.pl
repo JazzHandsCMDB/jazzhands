@@ -8,6 +8,7 @@
 # - zonegen deals with per-server in a sane fashion
 # - dns domain collection association for "put these zones anyway" on per-server
 # - ability to handle things smaller than a /24
+# - deal with --nosoa without --genall
 
 # Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
