@@ -137,6 +137,7 @@ sub open {
 	my $login   = $args{requestor};
 	my $msg     = $args{body};
 	my $summary = $args{summary};
+	my $summary = $args{assignee};
 
 	if ( !$login ) {
 		$Errstr = $self->errstr("Must specify requestor");
@@ -150,6 +151,11 @@ sub open {
 
 	if ( !$summary ) {
 		$Errstr = $self->errstr("Must specify summary");
+		return undef;
+	}
+
+	if ($assignee) {
+		$Errstr = $self->errstr("Asignee not implemented yet");
 		return undef;
 	}
 

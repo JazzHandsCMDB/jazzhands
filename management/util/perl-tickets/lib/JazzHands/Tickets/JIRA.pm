@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# Copyright (c) 2015, Todd M. Kover
+# Copyright (c) 2015-2017, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -127,11 +127,13 @@ sub open {
 	my $self = shift @_;
 	my %args = @_;
 
-	my $login   = $args{requestor};
-	my $msg     = $args{body};
-	my $summary = $args{summary};
+	my $login       = $args{requestor};
+	my $msg         = $args{body};
+	my $summary     = $args{summary};
+	my $assignee    = $args{assignee};
+	my $norequestor = $args{norequestor};
 
-	if ( !$login ) {
+	if ( !$login && !$norequestor ) {
 		$Errstr = $self->errstr("Must specify requestor");
 		return undef;
 	}
@@ -157,9 +159,17 @@ sub open {
 			'description' => $msg,
 			'priority'    => { 'name' => $self->{_priority} },
 			'issuetype'   => { 'name' => $self->{_issuetype} },
-			'reporter'    => { 'name' => $login },
 		},
 	};
+
+	if ($login) {
+		$jira->{fields}->{'reporter'}->{'name'} = $login;
+	}
+
+	if ($assignee) {
+		$jira->{fields}->{'assignee'}->{'name'} = $assignee;
+	}
+
 	my $j = new JSON::PP;
 	my $p = $j->pretty->encode($jira);
 	if ( $self->{_dryrun} ) {
