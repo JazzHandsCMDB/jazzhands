@@ -1427,19 +1427,20 @@ if (1) {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $dom = $hr->{ _dbx('SOA_NAME') };
 
+		my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
+
 		#
 		# --genall overrides SHOULD_GENERATE in the db
 		#
 		if ( !$genall && $hr->{ _dbx('SHOULD_GENERATE') } eq 'N' ) {
-			die "need to deal with universes in this case";
-			delete $generate->{$dom};
+			delete $generate->{$dom}->{$univ};
 			next;
 		}
 
 		my $genit = 0;
 		if ( $#ARGV >= 0 ) {
 			if ( !grep( $_ eq $dom, @ARGV ) ) {
-				delete $generate->{$dom};
+				delete $generate->{$dom}->{$univ};
 				next;
 			} elsif ($forcegen) {
 				$genit = 1;
@@ -1448,7 +1449,6 @@ if (1) {
 			$genit = 1;
 		}
 
-		my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 
 		if ($genall) {
 			$genit = 1;
