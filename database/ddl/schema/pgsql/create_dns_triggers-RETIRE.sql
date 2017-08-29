@@ -63,7 +63,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_dns_domain_soa_name_retire ON dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_domain_soa_name_retire ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_soa_name_retire
 	BEFORE INSERT OR UPDATE OF soa_name, dns_domain_name
 	ON dns_domain

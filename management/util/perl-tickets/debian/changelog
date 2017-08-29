@@ -1,8 +1,15 @@
+jazzhands-perl-tickets (0.80.7) trusty; urgency=medium
+
+  * Make it possible to open JIRA issues without a designated opener.
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 28 Aug 2017 17:21:58 -0400
+
 jazzhands-perl-tickets (0.70.5) trusty; urgency=medium
 
   * added KACE ticket handling module
 
  -- Ryan D Williams <xrxdxwx@gmail.com>  Wed, 20 Apr 2016 22:25:00 +0000
+
 
 jazzhands-perl-tickets (0.66.1) trusty; urgency=medium
 
