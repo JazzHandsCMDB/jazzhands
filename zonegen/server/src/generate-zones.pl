@@ -971,10 +971,6 @@ sub process_perserver {
 			symlink( ".", "$zonedir/default" );
 		}
 
-		if ( !-l "$cfgdir/default" ) {
-			symlink( ".", "$cfgdir/default" );
-		}
-
 		foreach my $dir ( "$zonedir/inaddr", "$zonedir/ip6" ) {
 			if ( -d $dir ) {
 				#
@@ -1013,6 +1009,10 @@ sub process_perserver {
 		my $zcf     = new FileHandle(">$tmpzcfn") || die "$zcfn\n";
 		chmod( 0755, $tmpzcfn );
 		$self->print_comments( $zcf, '#' );
+
+		if ( !-l "$cfgdir/default" ) {
+			symlink( ".", "$cfgdir/default" );
+		}
 
 		foreach my $zone ( sort @$$zones ) {
 			my $fqn = "$zonedir";
