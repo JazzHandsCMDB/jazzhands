@@ -64,6 +64,7 @@ use Data::Dumper;
 ### XXX: SIGALRM that kills after one zone hasn't been processed for 20 mins?
 
 # local $SIG{__WARN__} = \&Carp::cluck;
+# local $SIG{__DIE__} = \&Carp::cluck;
 
 # This is required and the db is assumed to be returning UTC dates.
 $ENV{'TZ'}   = 'UTC';
@@ -1131,6 +1132,12 @@ sub mkdir_p {
 
 	my ($dir) = @_;
 	my $mode = 0755;
+
+	#
+	# if it already exists as a symlink remove it
+	if( -l $dir ) {
+		unlink($dir);
+	}
 
 	my (@d) = split( m-/-, $dir );
 	my $ne = $#d + 1;
