@@ -60,11 +60,12 @@ use Getopt::Long qw(:config no_ignore_case bundling);
 use JazzHands::Common::Util qw(_dbx);
 use Pod::Usage;
 use Data::Dumper;
+use Carp;
 
 ### XXX: SIGALRM that kills after one zone hasn't been processed for 20 mins?
 
 # local $SIG{__WARN__} = \&Carp::cluck;
-# local $SIG{__DIE__} = \&Carp::cluck;
+local $SIG{__DIE__} = \&Carp::cluck;
 
 # This is required and the db is assumed to be returning UTC dates.
 $ENV{'TZ'}   = 'UTC';
@@ -136,6 +137,14 @@ sub make_directories() {
 
 	foreach my $dir (@list) {
 		$self->mkdir_p($dir) if ( !-d $dir );
+	}
+
+	#
+	# for future support of ip universes
+	#
+	my $l = $self->{_zoneroot} . "/default";
+	if ( !-l $l ) {
+		symlink( ".", $l );
 	}
 }
 
@@ -417,7 +426,7 @@ sub record_newgen($$$) {
 	}
 	) || die dbhsth->errst;
 	$sth->bind_param( ':domid', $domid ) || die $sth->errstr;
-	$sth->bind_param( ':uid', $uid ) || die $sth->errstr;
+	$sth->bind_param( ':uid',   $uid )   || die $sth->errstr;
 	$sth->execute || die $sth->errstr;
 }
 
@@ -659,7 +668,7 @@ sub process_all_dns_records {
 			}
 			$pri .= " " if ( defined($pri) );
 			$value = "$pri$value";
-		} elsif ( $type eq 'TXT' || $type eq 'SPF') {
+		} elsif ( $type eq 'TXT' || $type eq 'SPF' ) {
 			$value =~ s/^"//;
 			$value =~ s/"$//;
 			$value = "\"$value\"";
@@ -734,7 +743,6 @@ sub process_soa {
 	  if ( !defined($mname) );
 
 	# should do this - escaping of .'s in email addresses..
-	# $rname =~ s/[^\\]{0,1}\./\\./;
 	$rname =~ s/\@/./g;
 
 	$mname .= "." if ( $mname =~ /\./ );
@@ -851,6 +859,10 @@ sub generate_complete_files {
 
 	my $cfgdir = "$zoneroot/../etc";
 
+	if ( !-l "$cfgdir/default" ) {
+		symlink( ".", "$cfgdir/default" );
+	}
+
 	$self->mkdir_p("$cfgdir");
 
 	my $sth = $dbh->prepare_cached(
@@ -866,17 +878,17 @@ sub generate_complete_files {
 	);
 	$sth->execute || die $sth->errstr;
 
-	my ($cfgf, $cfgfn, $tmpcfgfn);
+	my ( $cfgf, $cfgfn, $tmpcfgfn );
 	my $lastu;
 
-	while ( my ($univ, $zone) = $sth->fetchrow_array ) {
-		if(!$cfgf || $univ ne $lastu) {
+	while ( my ( $univ, $zone ) = $sth->fetchrow_array ) {
+		if ( !$cfgf || $univ ne $lastu ) {
 			$lastu = $univ;
-			if($cfgf) {
+			if ($cfgf) {
 				$cfgf->close();
 				$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
 			}
-			$self->mkdir_p($cfgdir."/$univ");
+			$self->mkdir_p( $cfgdir . "/$univ" );
 			$cfgfn    = "$cfgdir/${univ}/named.conf.auto-gen";
 			$tmpcfgfn = "$cfgfn.tmp.$$";
 			$cfgf     = new FileHandle(">$tmpcfgfn") || die "$tmpcfgfn\n";
@@ -909,10 +921,11 @@ sub generate_complete_files {
 	my $tally = 0;
 	foreach my $zone ( sort keys(%$zonesgend) ) {
 		if ( defined($zonesgend) && defined( $zonesgend->{$zone} ) ) {
-			foreach my $univ (sort keys(%{$zonesgend->{$zone}})) {
-				next if($zonesgend->{$zone}->{$univ}->{failed});
+			foreach my $univ ( sort keys( %{ $zonesgend->{$zone} } ) ) {
+				next if ( $zonesgend->{$zone}->{$univ}->{failed} );
+
 				# oh, this is a hack!
-				$zcf->printf("%s\t%s\r\n", $zone, $univ);
+				$zcf->printf( "%s\t%s\r\n", $zone, $univ );
 				$tally++;
 			}
 		}
@@ -923,20 +936,21 @@ sub generate_complete_files {
 }
 
 #
-# zoneroot is passwd in so symlinks work.  Not fully qualified symlinks
+# zoneroot is passwd in so hardlinks work.  Not fully qualified hardlinks
 # for debugging purposes (since much of that is done in `pwd`).  This is
 # probably worth rethinking.
 #
-# The underlying rsync follows symlinks.
 #
 sub process_perserver {
-	my ( $self, $zoneroot, $zonesgend ) = @_;
+	my ( $self, $zonesgend ) = @_;
 	my $dbh = $self->DBHandle();
 
+	my $cfgroot    = $self->{_cfgroot};
+	my $zoneroot   = $self->{_zoneroot};
 	my $persvrroot = $self->{_perserver};
 
 	#
-	# we only create symlinks for zones that should be generated
+	# we only create hard links for zones that should be generated
 	#
 	# This does NOT use v_dns because its super slow for just these records
 	# of interest.
@@ -1040,43 +1054,23 @@ sub process_perserver {
 			$self->print_comments( $zcf, '#' );
 
 			foreach my $zone ( sort @$$zones ) {
-				my $fqn = "$zonedir/$zone";
-				my $zr  = $zoneroot;
-				if ( $zr =~ /^\.\./ ) {
-					$zr = "../../../$zr/$u";
-				}
+				my $fqn = "$zonedir";
+				my $zr  = "$zoneroot/$u";
 
 				if ( $zone =~ /in-addr.arpa$/ ) {
-					if ( $zr =~ /^\.\./ ) {
-						$zr = "../$zr";
-					}
 					$fqn = "$zonedir/inaddr/$zone";
 					$zr .= "/inaddr/$zone";
 				} elsif ( $zone =~ /ip6.arpa$/ ) {
-					if ( $zr =~ /^\.\./ ) {
-						$zr = "../$zr";
-					}
 					$fqn = "$zonedir/ip6/$zone";
 					$zr .= "/ip6/$zone";
 
 				} else {
-					$zr .= "/$zone";
+					$fqn .= "/$zone";
+					$zr  .= "/$zone";
 				}
 
-				#
-				# now actually create the link, and if the link
-				# is pointing to the wrong place, move it
-				#
-				if ( !-l $fqn ) {
-					unlink($zr);
-					symlink( $zr, $fqn );
-				} else {
-					my $ov = readlink($fqn);
-					if ( $ov ne $zr ) {
-						unlink($fqn);
-						symlink( $zr, $fqn );
-					}
-				}
+				forcehardlinker( $zr, $fqn );
+
 				if ( !-r $fqn ) {
 					warn
 					  "$zone does not exist for $server (see $fqn); possibly needs to be forced before a regular run\n";
@@ -1112,14 +1106,11 @@ sub process_perserver {
 			$self->safe_mv_if_changed( $tmpzcfn, $zcfn, 1 );
 
 			#
-			# create a symlink to the acl file so it gets sync'd out right"
+			# create a link to the acl file so it gets sync'd out right
+			# this is always recreated.
 			#
-			if ( -r "$persvrroot/$zoneroot/../etc/sitecodeacl.conf" ) {
-				unlink("$svrdir/etc/sitecodeacl.conf");
-				symlink( "$zoneroot/../../../etc/sitecodeacl.conf",
-					"$svrdir/etc/sitecodeacl.conf" )
-				  || die "not create symlink in $svrdir...";
-			}
+			forcehardlinker( "$cfgroot/sitecodeacl.conf",
+				"$svrdir/etc/sitecodeacl.conf" );
 		}
 	}
 }
@@ -1135,7 +1126,7 @@ sub mkdir_p {
 
 	#
 	# if it already exists as a symlink remove it
-	if( -l $dir ) {
+	if ( -l $dir ) {
 		unlink($dir);
 	}
 
@@ -1147,6 +1138,35 @@ sub mkdir_p {
 		my $thing = join( "/", @dir );
 		mkdir( $thing, $mode );
 	}
+}
+
+#
+# force hardlinker -- given two paths, check to see that they are hard links
+# to the same thing and make them so if not.
+#
+# This will explode across devices.
+#
+sub forcehardlinker {
+	my ( $old, $new ) = @_;
+
+	my $doit = 0;
+
+	if ( !-r $new || !-f $new ) {
+		$doit = 1;
+	} else {
+		my ( $d1, $ino1 ) = ( stat($old) )[ 0, 1 ];
+		my ( $d2, $ino2 ) = ( stat($new) )[ 0, 1 ];
+
+		if ( $d1 != $d2 || $ino1 != $ino2 ) {
+			$doit = 1;
+		}
+	}
+
+	if ($doit) {
+		unlink $new;
+		link( $old, $new ) || die "link($old,$new): $!";
+	}
+	0;
 }
 
 #
@@ -1360,7 +1380,7 @@ if ( scalar @changeids ) {
 	# change ids that need to later be zapped.
 	#
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $dom = $hr->{ _dbx('SOA_NAME') };
+		my $dom   = $hr->{ _dbx('SOA_NAME') };
 		my $uname = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 		if ( $#ARGV >= 0 ) {
 			next if ( !$dom || !grep( $_ eq $dom, @ARGV ) );
@@ -1456,7 +1476,6 @@ if (1) {
 			$genit = 1;
 		}
 
-
 		if ($genall) {
 			$genit = 1;
 		} else {
@@ -1475,13 +1494,14 @@ if (1) {
 			if ( !-f $fn ) {
 				$genit = 1;
 			} else {
+
 				# if the file on disk was generated before
 				# the last generation date, regenerate it.
 				# Its possible it was generated on another
 				# host
 				my ($mtime) = ( stat($fn) )[9];
 				my $epoch = $hr->{ _dbx('EPOCH_GEN') } || 0;
-				$epoch = int ($epoch);
+				$epoch = int($epoch);
 				if ( $mtime != $epoch ) {
 					$genit = 1;
 				}
@@ -1489,13 +1509,12 @@ if (1) {
 			}
 		}
 
-
 		if ($genit) {
 			if ( !$generate->{$dom} ) {
 				$generate->{$dom} = {};
 			}
 
-			if ( !exists($generate->{$dom}->{$univ}) ) {
+			if ( !exists( $generate->{$dom}->{$univ} ) ) {
 				$generate->{$dom}->{$univ} = {};
 			} elsif ( exists( $generate->{$dom}->{$univ} ) ) {
 				next;
@@ -1546,9 +1565,11 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 			$last = $zg->get_now();
 		}
 		my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
-		my $rv = $zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
+		my $rv =
+		  $zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
 			$bumpsoa );
-		if(!$rv) {
+		if ( !$rv ) {
+
 			# do not treat it as regenrated.  This may not be smart.
 			$generate->{$dom}->{$univ}->{failed} = 1;
 		}
@@ -1569,7 +1590,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 	foreach my $universe ( sort keys( %{ $generate->{$dom} } ) ) {
 		my $t = $generate->{$dom}->{$universe};
 		if ( $t->{bumpsoa} ) {
-			my $rec = $t->{rec}->[0];
+			my $rec   = $t->{rec}->[0];
 			my $domid = $rec->{ _dbx('DNS_DOMAIN_ID') };
 			my $uid   = $rec->{ _dbx('IP_UNIVERSE_ID') };
 			warn "bumping soa for $domid, $dom\n" if ($debug);
@@ -1643,12 +1664,10 @@ if ( !$norsynclist ) {
 #
 warn "Generating configuration files and whatnot..." if ($debug);
 
-
-$zg->process_perserver( "../zones", $generate );
+$zg->process_perserver($generate);
 $zg->generate_complete_files($generate);
 
 $zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
-
 
 warn "Done file generation, about to commit\n" if ($verbose);
 if ($docommit) {
@@ -1724,7 +1743,7 @@ By default only those zones and ones without files in the output
 directory will be generated.  If a zone has changed, its SOA serial
 number will be bumped by one and zone files generation.  A configuration
 file and a shell script that invokes rndc for each changed zone is also
-generated with a hierarchy of symlinks for distribution to name servers.
+generated with a hierarchy of links for distribution to name servers.
 These are used by a wrapper script to copy to machines.
 
 Anytime the SOA record changes, change records are removed from the
@@ -1756,9 +1775,9 @@ authoritative for zones with the should_generate flag set to Y.  Each
 of these directories contains two directories, "etc", and "zones".  The
 etc directory contains part of a named.conf file that can be included on
 a name server to make it a master server for auto generated zones.  The
-"zones" file contains symlinks back to the master zones directory in
+"zones" file contains hardlinks back to the master zones directory in
 the output_root area.  This entire tree can be copied via rsync or rdist
-(by not replicating symlinks) to a nameserver's auto-gen directory under
+to a nameserver's auto-gen directory under
 it's named root.
 
 generate-zones normally does it's work under the /var/lib/zonegen/auto-gen/
