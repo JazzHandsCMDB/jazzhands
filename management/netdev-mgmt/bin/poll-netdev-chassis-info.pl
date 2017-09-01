@@ -128,8 +128,9 @@ $q = q {
 		jazzhands.device d JOIN
 		jazzhands.device_type dt USING (device_type_id)
 	WHERE
-		device_name = ? OR
-		physical_label = ?
+		(device_name = ? OR
+		physical_label = ?) AND
+		device_status != 'removed'
 };
 
 my $dev_by_ip_sth;
@@ -581,6 +582,7 @@ foreach my $host (@$hostname) {
 			errors => \@errors,
 			))) {
 		print "Error retrieving chassis info: " . join("\n", @errors) . "\n";
+		next;
 	}
 
 	if ($debug) {
@@ -603,6 +605,10 @@ foreach my $host (@$hostname) {
 			exit 1;
 		}
 		$db_dev = $ins_dev_sth->fetchrow_hashref;
+		if (!$db_dev) {
+			print STDERR "Unable to insert device\n";
+			exit 1;
+		}
 		if ($debug) {
 			print Data::Dumper->Dump([$db_dev], ['$db_dev']);
 		}

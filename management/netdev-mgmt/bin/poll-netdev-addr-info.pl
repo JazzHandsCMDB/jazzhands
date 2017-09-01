@@ -402,15 +402,17 @@ foreach my $host (@$hostname) {
 			}
 		}
 		if (%$dev_int || @$unnamed_int) {
-			if ($verbose) {
-				printf "    Removing network interfaces: %s\n",
-					(join ", ", keys %$dev_int);
-			}
-			if (!$notreally) {
-				if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
-					printf STDERR "Error deleting network_interfaces from database: %s\n",
-						$ni_del_sth->errstr;
-					exit 1;
+			if ($purge_int) {
+				if ($verbose) {
+					printf "    Removing network interfaces: %s\n",
+						(join ", ", keys %$dev_int);
+				}
+				if (!$notreally) {
+					if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
+						printf STDERR "Error deleting network_interfaces from database: %s\n",
+							$ni_del_sth->errstr;
+						exit 1;
+					}
 				}
 			}
 		}
