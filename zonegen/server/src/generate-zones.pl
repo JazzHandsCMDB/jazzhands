@@ -118,14 +118,20 @@ sub make_directories() {
 	my $self = shift @_;
 
 	my @list = (
-		$self->{_output_root},
-		$self->{_zoneroot},
-		$self->{_zoneroot} . "/inaddr",
-		$self->{_zoneroot} . "/ip6",
+		$self->{_output_root},          $self->{_zoneroot},
+		$self->{_zoneroot} . "/inaddr", $self->{_zoneroot} . "/ip6",
 	);
 
 	foreach my $dir (@list) {
 		$self->mkdir_p($dir) if ( !-d $dir );
+	}
+
+	#
+	# for future support of ip universes
+	#
+	my $l = $self->{_zoneroot} . "/default";
+	if ( !-l $l ) {
+		symlink( ".", $l );
 	}
 }
 
@@ -548,7 +554,7 @@ sub generate_rsync_list($$$$) {
 }
 
 sub process_all_dns_records {
-	my ( $self, $out, $domid, $domain) = @_;
+	my ( $self, $out, $domid, $domain ) = @_;
 	my $dbh = $self->DBHandle();
 
 	#
@@ -711,7 +717,7 @@ sub process_soa {
 	$mname = $self->get_db_default( '_dnsmname', 'auth00.example.com' )
 	  if ( !defined($mname) );
 
-	$mname =~ s/\@/./g;
+	$rname =~ s/\@/./g;
 
 	$mname .= "." if ( $mname =~ /\./ );
 	$rname .= "." if ( $rname =~ /\./ );
@@ -782,8 +788,7 @@ sub process_domain {
 		  ( $last =~ /^(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+)/ );
 		if ($y) {
 			my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
-			utime( $whence, $whence, $tmpfn )
-			  ;    # If it does not work, then Vv
+			utime( $whence, $whence, $tmpfn );    # If it does not work, then Vv
 		} else {
 			warn "difficulting breaking apart $last";
 		}
@@ -825,6 +830,10 @@ sub generate_complete_files {
 	my $zoneroot = $self->{_zoneroot};
 
 	my $cfgdir = "$zoneroot/../etc";
+
+	if ( !-l "$cfgdir/default" ) {
+		symlink( ".", "$cfgdir/default" );
+	}
 
 	$self->mkdir_p("$cfgdir");
 	my $cfgfn    = "$cfgdir/named.conf.auto-gen";
@@ -954,6 +963,14 @@ sub process_perserver {
 			closedir(DIR);
 		} else {
 			$self->mkdir_p($zonedir);
+		}
+
+		if ( !-l "$zonedir/default" ) {
+			symlink( ".", "$zonedir/default" );
+		}
+
+		if ( !-l "$cfgdir/default" ) {
+			symlink( ".", "$cfgdir/default" );
 		}
 
 		foreach my $dir ( "$zonedir/inaddr", "$zonedir/ip6" ) {

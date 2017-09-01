@@ -52,13 +52,14 @@ WITH RECURSIVE phier (
 		AS human_readable,
 	account_realm_id,
 	manager_account_id,
+	manager_login,
 	manager_person_id,
 	manager_company_id,
 	manager_human_readable,
 	array_path
 FROM	account a
 	JOIN phier h USING (person_id, company_id)
-	JOIN person p USING (person_id)
+	JOIN v_person p USING (person_id)
 	-- possible for someone not to have a manager, like the CEO...
 	LEFT JOIN (
 		SELECT	person_id as manager_person_id,
@@ -72,7 +73,7 @@ FROM	account a
 			a.account_realm_id,
 			a.login as manager_login
 		FROM	account a
-			JOIN person p USING (person_id)
+			JOIN v_person p USING (person_id)
 		WHERE account_role = 'primary' and a.account_type = 'person'
 	) m USING (manager_person_id, account_realm_id, account_role)
 WHERE account_role = 'primary' and a.account_type = 'person'
