@@ -106,6 +106,8 @@
 \ir create_v_corp_family_account.sql
 
 \ir pgsql/create_v_person_company_hier.sql
+\ir create_v_person.sql
+\ir create_v_person_company.sql
 
 -- possibly to replace v_device_col_acct_col_expanded
 \ir create_v_device_col_acct_col_unixlogin.sql
@@ -152,9 +154,6 @@
 \ir pgsql/create_v_l2_network_coll_expanded.sql
 \ir pgsql/create_v_l3_network_coll_expanded.sql
 \ir pgsql/create_v_layer3_network_expanded.sql
-
-\ir create_v_person.sql
-\ir create_v_person_company.sql
 
 \ir create_v_dns_fwd.sql
 \ir create_v_dns_rvs.sql
