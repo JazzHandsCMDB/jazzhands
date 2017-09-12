@@ -21,6 +21,54 @@
 -- when columns are dropped from network_interface this will replicate the
 -- legacy behavior until other things can be cleaned up.
 CREATE OR REPLACE VIEW v_network_interface_trans AS
-	SELECT * FROM network_interface
+SELECT network_interface_id,
+	device_id,
+	network_interface_name,
+	description,
+	parent_network_interface_id,
+	parent_relation_type,
+	netblock_id,
+	physical_port_id,
+	slot_id,
+	logical_port_id,
+	network_interface_type,
+	is_interface_up,
+	mac_addr,
+	should_monitor,
+	provides_nat,
+	should_manage,
+	provides_dhcp,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM (
+SELECT	ni.network_interface_id,
+	ni.device_id,
+	ni.network_interface_name,
+	ni.description,
+	ni.parent_network_interface_id,
+	ni.parent_relation_type,
+	nin.netblock_id,
+	ni.physical_port_id,
+	ni.slot_id,
+	ni.logical_port_id,
+	ni.network_interface_type,
+	ni.is_interface_up,
+	ni.mac_addr,
+	ni.should_monitor,
+	ni.provides_nat,
+	ni.should_manage,
+	ni.provides_dhcp,
+	ni.data_ins_user,
+	ni.data_ins_date,
+	ni.data_upd_user,
+	ni.data_upd_date,
+	rank() OVER (PARTITION BY network_interface_id 
+			ORDER BY network_interface_rank) as rnk
+FROM	network_interface ni
+	JOIN network_interface_netblock nin USING (network_interface_id)
+) base
+WHERE rnk = 1;
 ;
 
