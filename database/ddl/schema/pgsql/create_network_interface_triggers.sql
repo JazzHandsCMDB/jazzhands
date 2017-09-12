@@ -40,10 +40,65 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_net_int_nb_single_address ON 
+DROP TRIGGER IF EXISTS trigger_net_int_nb_single_address ON
 	network_interface_netblock;
 CREATE TRIGGER trigger_net_int_nb_single_address
 	BEFORE INSERT OR UPDATE OF netblock_id
 	ON network_interface_netblock
 	FOR EACH ROW
 	EXECUTE PROCEDURE net_int_nb_single_address();
+
+---------------------------------------------------------------------------
+-- sync device_id on network_interface on network_interface_netblock changes
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION net_int_nb_device_id_ins()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF NEW.device_id IS NULL OR TG_OP = 'UPDATE' THEN
+		SELECT device_id
+		INTO	NEW.device_id
+		FROM	network_interface
+		WHERE	network_interface_id = NEW.network_interface_id;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_net_int_nb_device_id_ins ON
+	network_interface_netblock;
+CREATE TRIGGER trigger_net_int_nb_device_id_ins
+	BEFORE INSERT OR UPDATE OF network_interface_id
+	ON network_interface_netblock
+	FOR EACH ROW
+	EXECUTE PROCEDURE net_int_nb_device_id_ins();
+
+
+------------------------------------------------------------------------------
+-- sync device_id on network_interface_netblock on network_interface changes
+--
+-- XXX - This needs to properly handle deferring triggers if appropriate XXX
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION net_int_device_id_upd()
+RETURNS TRIGGER AS $$
+BEGIN
+	UPDATE network_interface_netblock
+	SET device_id = NEW.device_id
+	WHERE	network_interface_id = NEW.network_interface_id;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_net_int_device_id_upd ON
+	network_interface;
+CREATE TRIGGER trigger_net_int_device_id_upd
+	AFTER UPDATE OF device_id
+	ON network_interface
+	FOR EACH ROW
+	EXECUTE PROCEDURE net_int_device_id_upd();
+
