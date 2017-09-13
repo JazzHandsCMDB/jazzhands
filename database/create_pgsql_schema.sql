@@ -48,6 +48,8 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 \ir pkg/pgsql/create_all_packages.sql
 
+\ir ddl/schema/pgsql/postgres-json-schema/postgres-json-schema--0.1.0.sql
+
 \ir ddl/schema/pgsql/create_account_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_account_triggers.sql
 \ir ddl/schema/pgsql/create_account_hook_triggers.sql

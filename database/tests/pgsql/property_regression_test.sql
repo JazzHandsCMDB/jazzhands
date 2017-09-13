@@ -67,9 +67,9 @@ BEGIN
 -- Clean up just in case
 --
 
-	DELETE FROM Property WHERE Property_Type IN 
+	DELETE FROM Property WHERE Property_Type IN
 		('test', 'multivaluetest');
-	DELETE FROM VAL_Property_Value WHERE Property_Type IN 
+	DELETE FROM VAL_Property_Value WHERE Property_Type IN
 		('test', 'multivaluetest');
 	DELETE FROM VAL_Property WHERE Property_Type IN
 		('test', 'multivaluetest');
@@ -85,9 +85,9 @@ BEGIN
 -- Set up VAL_Property_Data_Type for test data
 --
 
-	INSERT INTO VAL_Property_Type ( Property_Type, Is_Multivalue ) VALUES 
+	INSERT INTO VAL_Property_Type ( Property_Type, Is_Multivalue ) VALUES
 		('test', 'Y');
-	INSERT INTO VAL_Property_Type ( Property_Type, Is_Multivalue ) VALUES 
+	INSERT INTO VAL_Property_Type ( Property_Type, Is_Multivalue ) VALUES
 		('multivaluetest', 'N');
 
 --
@@ -789,37 +789,37 @@ BEGIN
 	INSERT INTO val_property_collection_type (
 		property_collection_type ) values ( 'JHTEST-PCT');
 	INSERT INTO property_collection (
-		property_collection_name, property_collection_type ) 
+		property_collection_name, property_collection_type )
 		values ('JHTEST', 'JHTEST-PCT');
 
 	--
 	-- Get some valid data to work with
 	--
 
-	SELECT Company_ID INTO v_company_id FROM Company 
+	SELECT Company_ID INTO v_company_id FROM Company
 		LIMIT 1;
-	SELECT Device_Collection_ID INTO v_device_collection_id FROM 
+	SELECT Device_Collection_ID INTO v_device_collection_id FROM
 		Device_Collection LIMIT 1;
-	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System 
+	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System
 		LIMIT 1;
 	SELECT service_env_collection_id INTO v_svc_env_id FROM service_environment_collection
 		LIMIT 1;
-	SELECT property_collection_id INTO v_prop_coll_id 
+	SELECT property_collection_id INTO v_prop_coll_id
 		FROM property_collection
 		LIMIT 1;
-	SELECT Site_Code INTO v_site_code FROM Site 
+	SELECT Site_Code INTO v_site_code FROM Site
 		LIMIT 1;
-	SELECT Account_Id INTO v_account_Id FROM account 
+	SELECT Account_Id INTO v_account_Id FROM account
 		LIMIT 1;
-	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection 
+	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection
 		WHERE Account_Collection_Type = 'per-account' LIMIT 1;
-	SELECT Account_Realm_Id INTO v_account_realm_id FROM Account_realm 
+	SELECT Account_Realm_Id INTO v_account_realm_id FROM Account_realm
 		LIMIT 1;
-	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection 
-		WHERE Account_Collection_Type <> 'per-account' LIMIT 1; 
+	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection
+		WHERE Account_Collection_Type <> 'per-account' LIMIT 1;
 	SELECT Netblock_Collection_id INTO v_net_coll_Id FROM Netblock_Collection
 		LIMIT 1;
-	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type 
+	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type
 		LIMIT 1;
 --	SELECT SW_Package_ID INTO v_sw_package_id FROM SW_Package
 --		LIMIT 1;
@@ -945,7 +945,7 @@ BEGIN
 
 
 	--
-	-- Insert two different properties for a property type that is 
+	-- Insert two different properties for a property type that is
 	-- not multivalue.  The second should fail
 	--
 	RAISE NOTICE 'Inserting a non-multi-valued-type property';
@@ -960,7 +960,7 @@ BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Company_Id, Account_Collection_id, Property_Value
 			) VALUES (
-			'AnotherProperty', 'multivaluetest', v_company_id, v_account_collection_id, 
+			'AnotherProperty', 'multivaluetest', v_company_id, v_account_collection_id,
 				'test2'
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1348,7 +1348,7 @@ BEGIN
 		WHEN invalid_parameter_value THEN
 			RAISE NOTICE '... Failed correctly';
 	END;
-	
+
 	RAISE NOTICE 'Adding Device_Collection_ID to property with PROHIBITED Device_Collection_ID lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2927,7 +2927,7 @@ BEGIN
 			'actype', 'test',
 			'Vv', v_account_collection_id2
 			) RETURNING Property_ID INTO v_property_id;
-		RAISE NOTICE '... Success.  THIS IS A PROBLEM % %', 
+		RAISE NOTICE '... Success.  THIS IS A PROBLEM % %',
 			v_account_collection_id, v_account_collection_id2;
 		raise error_in_assignment;
 	EXCEPTION
@@ -2952,19 +2952,86 @@ BEGIN
 	END;
 	DELETE FROM Property WHERE Property_ID = v_property_id;
 
+	RAISE NOTICE 'Checking if json schema must be set';
+	BEGIN
+		INSERT INTO val_property (
+			property_name, property_type, property_data_type
+		) VALUES (
+			'testjson', 'test', 'json'
+		);
+	EXCEPTION WHEN invalid_parameter_value THEN
+		RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Checking if json schema can be set';
+	BEGIN
+		INSERT INTO val_property (
+			property_name, property_type, property_data_type,
+			property_value_json_schema
+		) VALUES (
+			'testjson', 'test', 'json',
+			'{"type": "boolean", "required": ["type"]}'
+		);
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking bogus JSON Schema validation';
+	BEGIN
+		INSERT INTO val_property (
+			property_name, property_type, property_data_type,
+			property_value_json_schema
+		) VALUES (
+			'testjson', 'test', 'json',
+			'{"type": "object", "required": ["is"], "properties": { "is": { "type": "boolean" }}   }'
+		);
+		INSERT INTO property (
+			property_name, property_type,
+			property_value_json
+		) VALUES (
+			'testjson', 'test',
+			'{ "is": "foo" }'
+		);
+	EXCEPTION WHEN invalid_parameter_value THEN
+		RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Checking successful JSON Schema validation';
+	BEGIN
+		INSERT INTO val_property (
+			property_name, property_type, property_data_type,
+			property_value_json_schema
+		) VALUES (
+			'testjson', 'test', 'json',
+			'{"type": "object", "required": ["is"], "properties": { "is": { "type": "boolean" }}   }'
+		);
+		INSERT INTO property (
+			property_name, property_type,
+			property_value_json
+		) VALUES (
+			'testjson', 'test',
+			'{ "is": false }'
+		);
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
 
 	--
 	-- Checking to see if a property value restricted account_collection
-	-- 
+	--
 
 	RAISE NOTICE 'ALL TESTS PASSED';
 	--
 	-- Clean up
 	--
 
-	DELETE FROM Property WHERE Property_Type IN 
+	DELETE FROM Property WHERE Property_Type IN
 		('test', 'multivaluetest');
-	DELETE FROM VAL_Property_Value WHERE Property_Type IN 
+	DELETE FROM VAL_Property_Value WHERE Property_Type IN
 		('test', 'multivaluetest');
 	DELETE FROM VAL_Property WHERE Property_Type IN
 		('test', 'multivaluetest');

@@ -122,6 +122,8 @@ BEGIN
 				NEW.service_env_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code AND
 			property_value IS NOT DISTINCT FROM NEW.property_value AND
+			property_value_json IS NOT DISTINCT FROM
+				NEW.property_value_json AND
 			property_value_timestamp IS NOT DISTINCT FROM
 				NEW.property_value_timestamp AND
 			property_value_company_id IS NOT DISTINCT FROM
@@ -210,6 +212,14 @@ BEGIN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be Company_Id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_JSON IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'json' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be JSON' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -482,7 +492,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- If the LHS contains a network_range_id, check to see if it must 
+	-- If the LHS contains a network_range_id, check to see if it must
 	-- be a specific type and verify that if so
 	IF NEW.netblock_collection_id IS NOT NULL THEN
 		IF v_prop.network_range_type IS NOT NULL THEN
@@ -612,6 +622,17 @@ BEGIN
 					-- let the database deal with the fk exception later
 					NULL;
 			END;
+		END IF;
+	END IF;
+
+	--
+	--
+	IF v_prop.property_data_type = 'json' THEN
+		IF  NOT validate_json_schema(
+				v_prop.property_value_json_schema,
+				NEW.property_value_json) THEN
+			RAISE EXCEPTION 'JSON provided must match the json schema'
+				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
 
@@ -836,4 +857,47 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_validate_property ON Property;
 CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE
 	ON Property FOR EACH ROW EXECUTE PROCEDURE validate_property();
+
+
+------------------------------------------------------------------------------
+--
+-- val_property validations
+--
+-- XXX should probably check all the various fields
+--
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION validate_val_property() RETURNS TRIGGER AS $$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF NEW.property_data_type = 'json' AND NEW.property_value_json_schema IS NULL THEN
+		RAISE 'property_data_type json requires a schema to be set'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF TG_OP = 'UPDATE' AND OLD.property_data_type != NEW.property_data_type THEN
+		SELECT	count(*)
+		INTO	_tally
+		WHERE	property_name = NEW.property_name
+		AND		property_type = NEW.property_type;
+
+		IF _tally > 0  THEN
+			RAISE 'May not change property type if there are existing proeprties'
+				USING ERRCODE = 'foreign_key_violation';
+
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_validate_val_property ON val_property;
+CREATE TRIGGER trigger_validate_val_property
+	BEFORE INSERT OR UPDATE OF property_data_type, property_value_json_schema
+	ON val_property
+	FOR EACH ROW
+	EXECUTE PROCEDURE validate_val_property();
+
 

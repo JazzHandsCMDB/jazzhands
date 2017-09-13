@@ -421,6 +421,7 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values
 	('number'),
 	('string'),
 	('list'),
+	('json'),
 	('timestamp'),
 	('company_id'),
 	('dns_domain_id'),
