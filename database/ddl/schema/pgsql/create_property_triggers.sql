@@ -873,6 +873,10 @@ BEGIN
 	IF NEW.property_data_type = 'json' AND NEW.property_value_json_schema IS NULL THEN
 		RAISE 'property_data_type json requires a schema to be set'
 			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF NEW.property_data_type != 'json' AND NEW.property_value_json_schema IS NOT NULL THEN
+		RAISE 'property_data_type % may not have a json schema set',
+			NEW.property_data_type
+			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
 	IF TG_OP = 'UPDATE' AND OLD.property_data_type != NEW.property_data_type THEN

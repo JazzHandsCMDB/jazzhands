@@ -2952,12 +2952,25 @@ BEGIN
 	END;
 	DELETE FROM Property WHERE Property_ID = v_property_id;
 
-	RAISE NOTICE 'Checking if json schema must be set';
+	RAISE NOTICE 'Checking if json schema must be set on json';
 	BEGIN
 		INSERT INTO val_property (
 			property_name, property_type, property_data_type
 		) VALUES (
 			'testjson', 'test', 'json'
+		);
+	EXCEPTION WHEN invalid_parameter_value THEN
+		RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Checking if json schema must not be set on not json';
+	BEGIN
+		INSERT INTO val_property (
+			property_name, property_type, property_data_type,
+			property_value_json_schema
+		) VALUES (
+			'testjson', 'test', 'string',
+			'{"type": "boolean", "required": ["type"]}'
 		);
 	EXCEPTION WHEN invalid_parameter_value THEN
 		RAISE NOTICE '... Failed correctly';
