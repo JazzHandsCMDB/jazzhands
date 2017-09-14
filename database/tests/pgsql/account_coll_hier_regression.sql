@@ -304,6 +304,74 @@ BEGIN
 		RAISE NOTICE '.... it did!';
 	END;
 
+	RAISE NOTICE 'Checking if relation collection restictions fail as expected... ';
+	BEGIN
+		INSERT INTO val_account_collection_relatio (
+			account_collection_relation
+		) VALUES (
+			'indirect'
+		);
+
+		WITH type AS (
+			INSERT INTO val_account_collection_type (
+				account_collection_type
+			) VALUES (
+				'jhtesty'
+			) RETURNING *
+		) INSERT INTO account_coll_type_relation (
+				account_collection_type, account_collection_relation
+			) SELECT account_collection_type, 'indirect'
+		FROM type;
+
+		UPDATE account_coll_type_relation
+		SET max_num_collections = 1
+		WHERE account_collection_relation = 'indirect';
+
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type
+		) VALUES (
+			'jhtest-01', 'jhtesty'
+		) RETURNING * INTO _ac1;
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type
+		) VALUES (
+			'jhtest-02', 'jhtesty'
+		) RETURNING * INTO _ac2;
+		INSERT INTO account_collection (
+			account_collection_name, account_collection_type
+		) VALUES (
+			'jhtest-03', 'jhtesty'
+		) RETURNING * INTO _ac3;
+
+		INSERT INTO account_collection_account (
+			account_collection_id, account_collection_relation, account_id
+		) VALUES (
+			_ac1.account_collection_id, 'indirect', _acc1.account_id
+		);
+
+		BEGIN
+			INSERT INTO account_collection_account (
+				account_collection_id, account_collection_relation, account_id
+			) VALUES (
+				_ac3.account_collection_id, 'indirect', _acc1.account_id
+			);
+			RAISE EXCEPTION 'direct num collections check failed!';
+		EXCEPTION WHEN unique_violation THEN
+			RAISE NOTICE 'direct num members check passed';
+		END;
+
+		INSERT INTO account_collection_account (
+			account_collection_id, account_collection_relation, account_id
+		) VALUES (
+			_ac3.account_collection_id, 'direct', _acc1.account_id
+		);
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+
 	RAISE NOTICE 'account_coll_hier_regression: DONE';
 	RETURN true;
 END;

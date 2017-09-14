@@ -169,6 +169,24 @@ BEGIN
 		END IF;
 	END IF;
 
+	IF act.MAX_NUM_COLLECTIONS IS NOT NULL THEN
+		SELECT count(*)
+		  INTO tally
+		  FROM account_collection_account
+		  		JOIN account_collection USING (account_collection_id)
+		  WHERE account_collection_type = act.account_collection_type
+		  AND account_collection_relation = NEW.account_collection_relation
+		  AND account_id = NEW.account_id;
+
+		IF tally > act.MAX_NUM_COLLECTIONS THEN
+			RAISE EXCEPTION 'account % is in too many collections of type %/%',
+				NEW.account_id,
+				act.account_collection_type,
+				act.account_collection_relation
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
 	RETURN NEW;
 END;
 $$
