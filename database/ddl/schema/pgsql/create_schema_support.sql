@@ -352,7 +352,7 @@ BEGIN
 		|| quote_ident('__old__' || table_name);
 
 	--
-	-- drop audit sequence, in case it was nto dropped with table.
+	-- drop audit sequence, in case it was not dropped with table.
 	--
 	EXECUTE 'DROP SEQUENCE IF EXISTS '
 		|| quote_ident(aud_schema) || '.'
