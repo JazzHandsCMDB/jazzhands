@@ -2392,6 +2392,11 @@ sub check_if_sure {
 	}
 }
 
+#
+# this used to call guess_parent_netblock_id but was switched around to
+# hit up the db directly since guess_parent_netblock_id probaly just needs
+# to die since that's all handled in the db.
+#
 sub parse_netblock_search {
 	my ( $self, $bycidr ) = @_;
 
@@ -2406,11 +2411,28 @@ sub parse_netblock_search {
 
 	my $parent = $self->guess_parent_netblock_id( $bycidr, undef, 'Y' );
 
-	# zero is 0/0, which is also considered "not found"
-	if ( !$parent ) {
+	my $sth = $self->prepare(qq{
+		SELECT *
+		FROM netblock
+		WHERE netblock_id IN ( SELECT
+			netblock_utils.find_best_parent_id(
+				in_IpAddress := ?,
+				in_ip_universe_id := 0,
+				in_netblock_type := 'default'
+		))
+		ORDER BY netblock_id
+		LIMIT 1
+	}) || return $self->return_db_err();
+
+	$sth->execute($bycidr) || return $self->return_db_err($sth);
+
+	my $blk = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	if ( !$blk ) {
 		return $self->error_return("Network not found");
 	}
-	$parent;
+	$blk;
 }
 
 sub parse_netblock_description_search {
