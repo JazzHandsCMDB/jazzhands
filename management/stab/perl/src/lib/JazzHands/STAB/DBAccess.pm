@@ -347,9 +347,8 @@ sub add_netblock {
 	for my $f (
 		'is_single_address', 'netblock_type',
 		'can_subnet',        'parent_netblock_id',
-		'netblock_status',   'nic_id',
-		'nic_company_id',    'ip_universe_id',
-		'description',       'reservation_ticket_number',
+		'netblock_status',   'ip_universe_id',
+		'description',
 	  )
 	{
 		if ( exists( $opts->{$f} ) ) {
@@ -1674,7 +1673,7 @@ sub get_x509_cert_by_id {
 # netblock/index.pl
 #
 sub build_netblock_ip_row {
-	my ( $self, $params, $blk, $hr, $ip, $reservation ) = @_;
+	my ( $self, $params, $blk, $hr, $ip ) = @_;
 
 	my $cgi = $self->cgi;
 
@@ -1715,7 +1714,7 @@ sub build_netblock_ip_row {
 
 	my $showtr = 1;
 
-	my ( $id, $devid, $name, $dom, $status, $desc, $atix, $atixsys );
+	my ( $id, $devid, $name, $dom, $status, $desc, );
 
 	$status = "";
 	$name   = "";
@@ -1746,19 +1745,13 @@ sub build_netblock_ip_row {
 	}
 
 	my $fqhn = "";
-	if ($reservation) {
-		$status       = 'Allocated';
-		$desc         = $reservation;
-		$editabledesc = 0;
-	} elsif ( defined($hr) ) {
-		$id      = $hr->{ _dbx('NETBLOCK_ID') };
-		$devid   = $hr->{ _dbx('DEVICE_ID') };
-		$name    = $hr->{ _dbx('DNS_NAME') };
-		$dom     = $hr->{ _dbx('SOA_NAME') };
-		$status  = $hr->{ _dbx('NETBLOCK_STATUS') };
-		$desc    = $hr->{ _dbx('DESCRIPTION') };
-		$atix    = $hr->{ _dbx('APPROVAL_REF_NUM') };
-		$atixsys = $hr->{ _dbx('APPROVAL_TYPE') };
+	if ( defined($hr) ) {
+		$id     = $hr->{ _dbx('NETBLOCK_ID') };
+		$devid  = $hr->{ _dbx('DEVICE_ID') };
+		$name   = $hr->{ _dbx('DNS_NAME') };
+		$dom    = $hr->{ _dbx('SOA_NAME') };
+		$status = $hr->{ _dbx('NETBLOCK_STATUS') };
+		$desc   = $hr->{ _dbx('DESCRIPTION') };
 
 		my $recid = $hr->{ _dbx('DNS_RECORD_ID') };
 
@@ -1804,7 +1797,6 @@ sub build_netblock_ip_row {
 		$fqhn = $cgi->span( { -class => 'editdns' }, $fqhn );
 	}
 
-	my $maketixlink;
 	if ($editabledesc) {
 		my $h = $cgi->hidden(
 			-name    => "rowblk_$uniqid",
@@ -1820,38 +1812,13 @@ sub build_netblock_ip_row {
 		$desc = $h
 		  . $cgi->span( { -class => 'editabletext', -id => "desc_$uniqid" },
 			( $desc || "" ) );
-
-		if ( !defined($atix) ) {
-			$atix = $self->build_ticket_row( $hr, $uniqid, 'IP' );
-		} else {
-			$maketixlink = 1;
-		}
-	} else {
-		$maketixlink = 1;
 	}
 
 	my $url;
-	if ( $maketixlink && defined($atix) ) {
-		$url = $self->build_trouble_ticket_link( $atix, $atixsys );
-		if ($url) {
-			$atix = $cgi->a(
-				{
-					-href =>
-					  $self->build_trouble_ticket_link( $atix, $atixsys ),
-					-target => 'top'
-				},
-				"$atixsys:$atix"
-			);
-		} else {
-			$atix = "$atixsys:$atix";
-		}
-	} else {
-		$atix = "";
-	}
 
 	my $trid = $uniqid;
 
-	my $tds = $cgi->td( [ $printip, $status, $fqhn, $desc, $atix, ] );
+	my $tds = $cgi->td( [ $printip, $status, $fqhn, $desc ] );
 
 	my $rv;
 	if ($showtr) {

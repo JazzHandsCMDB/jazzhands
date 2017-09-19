@@ -84,26 +84,10 @@ sub do_netblock_search {
 				my $blk  = $blks->{$id};
 				my $mask = $blk->{ _dbx('IP_ADDRESS') };
 				my $desc = $blk->{ _dbx('DESCRIPTION') };
-				my $tix =
-				  $blk->{ _dbx('RESERVATION_TICKET_NUMBER') };
 				my $pid  = $blk->{ _dbx('PARENT_NETBLOCK_ID') };
 				my $stat = $blk->{ _dbx('NETBLOCK_STATUS') };
 
 				$desc = ( defined($desc) ? $desc : "" );
-				$tix  = ( defined($tix)  ? $tix  : "" );
-
-				my $tixlink = "";
-				if ( defined($tix) && length($tix) ) {
-					$tixlink = $cgi->a(
-						{
-							-href => $stab
-							  ->build_trouble_ticket_link
-							  (
-								$tix)
-						},
-						$tix
-					);
-				}
 
 				$x .= $cgi->Tr(
 					$cgi->td(
@@ -125,7 +109,6 @@ sub do_netblock_search {
 							$desc
 						)
 					),
-					$cgi->td($tixlink)
 				);
 			}
 
