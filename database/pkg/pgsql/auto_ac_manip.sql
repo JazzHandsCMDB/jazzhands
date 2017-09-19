@@ -100,6 +100,8 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 -- returns the number of direct reports to a person
 --
+-- does *NOT* include terminated employees.
+--
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_direct_reports(
 	account_id 	account.account_id%TYPE,
@@ -118,7 +120,7 @@ BEGIN
 			WHERE	account_role = $3
 			AND		account_type = ''person''
 			AND		person_company_relation = ''employee''
-			AND		a.is_enabled = ''Y''
+			AND		is_enabled = ''Y''
 		) SELECT count(*)
 		FROM peeps reports
 			INNER JOIN peeps managers on  
@@ -147,14 +149,13 @@ BEGIN
 	EXECUTE '
 		WITH peeps AS (
 			SELECT	account_realm_id, account_id, login, person_id, 
-					manager_person_id
+					manager_person_id, is_enabled
 			FROM	account a
 				INNER JOIN person_company USING (person_id, company_id)
 			WHERE	account_role = $3
 			AND		account_type = ''person''
 			AND		person_company_relation = ''employee''
 			AND		account_realm_id = $2
-			AND		a.is_enabled = ''Y''
 		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
 				managers.login as manager_login, p.property_name,
 				p.property_value_account_coll_id as account_collection_id
@@ -167,6 +168,7 @@ BEGIN
 				AND p.account_realm_id = reports.account_realm_id
 				AND p.property_name IN ($4,$5)
 				AND p.property_type = $6
+			WHERE reports.is_enabled = ''Y''
 		), rank AS (
 			SELECT *,
 				rank() OVER (partition by account_id ORDER BY property_name desc)
@@ -313,7 +315,10 @@ BEGIN
 					managers.person_id = reports.manager_person_id
 				AND	managers.account_realm_id = reports.account_realm_id
 			WHERE	managers.account_id =  $1
-			UNION SELECT $3, $1
+			UNION SELECT $3, $1 
+				FROM account 
+				WHERE account_id = $1 
+				AND is_enabled = ''Y''
 		), ins AS (
 			INSERT INTO account_collection_account 
 				(account_collection_id, account_id)

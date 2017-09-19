@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+\set ON_ERROR_STOP
+
 --
 -- Changes to account trigger addition/removal from various things.  This is
 -- actually redundant with the second two triggers on person_company and
@@ -119,6 +121,20 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
+	--
+	-- clean up current user if the person is now disabled.
+	--
+	IF OLD.person_company_status != NEW.person_company_status THEN
+		PERFORM	count(*)
+		FROM	val_person_status
+		WHERE	person_status = NEW.person_company_status
+		AND		is_enabled = 'N';
+
+		IF FOUND THEN
+			PERFORM auto_ac_manip.make_auto_report_acs_right(_acc.account_id, _acc.account_realm_id, _acc.login);
+		END IF;
+	END IF;
+
 	SELECT * INTO _acc
 	FROM account
 	WHERE person_id = OLD.manager_person_id
@@ -153,7 +169,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_automated_ac_on_person_company
+DROP TRIGGER IF EXISTS trigger_z_automated_ac_on_person_company ON person_company;
+CREATE TRIGGER trigger_z_automated_ac_on_person_company
 	AFTER UPDATE OF manager_person_id, person_company_status,
 		person_company_relation
 	ON person_company
