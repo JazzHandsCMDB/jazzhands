@@ -32,6 +32,7 @@ Invoked:
 	v_hotpants_device_collection
 	--post
 	post
+	--reinsert-dir=i
 */
 
 \set ON_ERROR_STOP
@@ -329,6 +330,656 @@ $function$
 --
 -- Process middle (non-trigger) schema auto_ac_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'destroy_report_account_collections');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.destroy_report_account_collections ( account_id integer, account_realm_id integer, numrpt integer, numrlup integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.destroy_report_account_collections(account_id integer, account_realm_id integer DEFAULT NULL::integer, numrpt integer DEFAULT NULL::integer, numrlup integer DEFAULT NULL::integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_account	account%ROWTYPE;
+	_directac	account_collection.account_collection_id%TYPE;
+	_rollupac	account_collection.account_collection_id%TYPE;
+BEGIN
+	IF account_realm_id IS NULL THEN
+		EXECUTE '
+			SELECT account_realm_id
+			FROM	account
+			WHERE	account_id = $1
+		' INTO account_realm_id USING account_id;
+	END IF;
+
+	IF numrpt IS NULL THEN
+		numrpt := auto_ac_manip.get_num_direct_reports(account_id, account_realm_id);
+	END IF;
+	IF numrpt = 0 THEN
+		PERFORM auto_ac_manip.purge_report_account_collection(
+			account_id := account_id,
+			account_realm_id := account_realm_id,
+			ac_type := 'AutomatedDirectsAC');
+		RETURN;
+	END IF;
+
+	IF numrlup IS NULL THEN
+		numrlup := auto_ac_manip.get_num_reports_with_reports(account_id, account_realm_id);
+	END IF;
+	IF numrlup = 0 THEN
+		PERFORM auto_ac_manip.purge_report_account_collection(
+			account_id := account_id,
+			account_realm_id := account_realm_id,
+			ac_type := 'AutomatedRollupsAC');
+		RETURN;
+	END IF;
+
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'find_or_create_automated_ac');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.find_or_create_automated_ac ( account_id integer, ac_type character varying, account_realm_id integer, login character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.find_or_create_automated_ac(account_id integer, ac_type character varying, account_realm_id integer DEFAULT NULL::integer, login character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_acname		text;
+	_acid		account_collection.account_collection_id%TYPE;
+BEGIN
+	IF login is NULL THEN
+		EXECUTE 'SELECT account_realm_id,login
+			FROM account where account_id = $1'
+			INTO account_realm_id,login USING account_id;
+	END IF;
+
+	IF ac_type = 'AutomatedDirectsAC' THEN
+		_acname := concat(login, '-employee-directs');
+	ELSIF ac_type = 'AutomatedRollupsAC' THEN
+		_acname := concat(login, '-employee-rollup');
+	ELSE
+		RAISE EXCEPTION 'Do not know how to name Automated AC type %', ac_type;
+	END IF;
+
+	--
+	-- Check to see if a -direct account collection exists already.  If not,
+	-- create it.  There is a bit of a problem here if the name is not unique
+	-- or otherwise messed up.  This will just raise errors.
+	--
+	EXECUTE 'SELECT ac.account_collection_id
+			FROM account_collection ac
+				INNER JOIN property p
+					ON p.property_value_account_coll_id = ac.account_collection_id
+		   WHERE ac.account_collection_name = $1
+		    AND	ac.account_collection_type = $2
+			AND	p.property_name = $3
+			AND p.property_type = $4
+			AND p.account_id = $5
+			AND p.account_realm_id = $6
+		' INTO _acid USING _acname, 'automated',
+				ac_type, 'auto_acct_coll', account_id,
+				account_realm_id;
+
+	-- Assume the person is always in their own account collection, or if tehy
+	-- are not someone took them out for a good reason.  (Thus, they are only
+	-- added on creation).
+	IF _acid IS NULL THEN
+		EXECUTE 'INSERT INTO account_collection (
+					account_collection_name, account_collection_type
+				) VALUES ( $1, $2) RETURNING *
+			' INTO _acid USING _acname, 'automated';
+
+		IF ac_type = 'AutomatedDirectsAC' THEN
+			EXECUTE 'INSERT INTO account_collection_account (
+						account_collection_id, account_id
+					) VALUES (  $1, $2 )
+				' USING _acid, account_id;
+		END IF;
+
+		EXECUTE '
+			INSERT INTO property (
+				account_id,
+				account_realm_id,
+				property_name,
+				property_type,
+				property_value_account_coll_id
+			)  VALUES ( $1, $2, $3, $4, $5)'
+			USING account_id, account_realm_id,
+				ac_type, 'auto_acct_coll', _acid;
+	END IF;
+
+	RETURN _acid;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'get_num_direct_reports');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.get_num_direct_reports ( account_id integer, account_realm_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_direct_reports(account_id integer, account_realm_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_numrpt	INTEGER;
+BEGIN
+	-- get number of direct reports
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $3
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		is_enabled = ''Y''
+		) SELECT count(*)
+		FROM peeps reports
+			INNER JOIN peeps managers on
+				managers.person_id = reports.manager_person_id
+			AND	managers.account_realm_id = reports.account_realm_id
+		WHERE	managers.account_id = $1
+		AND		managers.account_realm_id = $2
+	' INTO _numrpt USING account_id, account_realm_id, 'primary';
+
+	RETURN _numrpt;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'get_num_reports_with_reports');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.get_num_reports_with_reports ( account_id integer, account_realm_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_reports_with_reports(account_id integer, account_realm_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_numrlup	INTEGER;
+BEGIN
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id, is_enabled
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $3
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		account_realm_id = $2
+		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
+				managers.login as manager_login, p.property_name,
+				p.property_value_account_coll_id as account_collection_id
+			FROM peeps reports
+			INNER JOIN peeps managers
+				ON managers.person_id = reports.manager_person_id
+				AND	managers.account_realm_id = reports.account_realm_id
+			INNER JOIN property p
+				ON p.account_id = reports.account_id
+				AND p.account_realm_id = reports.account_realm_id
+				AND p.property_name IN ($4,$5)
+				AND p.property_type = $6
+			WHERE reports.is_enabled = ''Y''
+		), rank AS (
+			SELECT *,
+				rank() OVER (partition by account_id ORDER BY property_name desc)
+					as rank
+			FROM agg
+		) SELECT count(*) from rank
+		WHERE	manager_account_id =  $1
+		AND	account_realm_id = $2
+		AND	rank = 1;
+	' INTO _numrlup USING account_id, account_realm_id, 'primary',
+				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll';
+
+	RETURN _numrlup;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'make_personal_acs_right');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.make_personal_acs_right ( account_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_personal_acs_right(account_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	EXECUTE '
+	WITH ac AS (
+		SELECT DISTINCT ac.*
+		FROM	account_collection ac
+				INNER JOIN property p USING (account_collection_id)
+		WHERE	property_type = ''auto_acct_coll''
+		AND		property_name in (''non_exempt'', ''exempt'',
+					''management'', ''non_management'', ''full_time'',
+					''non_full_time'', ''male'', ''female'', ''unspecified_gender'',
+					''account_type'', ''person_company_relation'')
+	), acct AS (
+		    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
+			    pc.is_management, pc.is_full_time, pc.is_exempt,
+			    p.gender, pc.person_company_relation
+		     FROM   account a
+			    INNER JOIN person_account_realm_company parc
+				    USING (person_id, company_id, account_realm_id)
+			    INNER JOIN person_company pc USING (person_id,company_id)
+			    INNER JOIN person p USING (person_id)
+			WHERE a.is_enabled = ''Y''
+			AND a.account_role = ''primary''
+		),
+	list AS (
+		SELECT  p.account_collection_id, a.account_id, a.account_type,
+			a.account_role,
+			a.person_id, a.company_id,
+			ac.account_collection_name, ac.account_collection_type,
+			p.property_name, p.property_type, p.property_value, p.property_id
+		FROM    property p
+			INNER JOIN ac USING (account_collection_id)
+		    INNER JOIN acct a
+				ON a.account_realm_id = p.account_realm_id
+		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		    AND     property_type = ''auto_acct_coll''
+			AND	( a.account_type = ''person''
+				AND a.person_company_relation = ''employee''
+				AND (
+			(
+				property_name =
+					CASE WHEN a.is_exempt = ''N''
+					THEN ''non_exempt''
+					ELSE ''exempt'' END
+				OR
+				property_name =
+					CASE WHEN a.is_management = ''N''
+					THEN ''non_management''
+					ELSE ''management'' END
+				OR
+				property_name =
+					CASE WHEN a.is_full_time = ''N''
+					THEN ''non_full_time''
+					ELSE ''full_time'' END
+				OR
+				property_name =
+					CASE WHEN a.gender = ''M'' THEN ''male''
+					WHEN a.gender = ''F'' THEN ''female''
+					ELSE ''unspecified_gender'' END
+			) )
+			OR (
+			    property_name = ''account_type''
+			    AND property_value = a.account_type
+			    )
+			OR (
+			    property_name = ''person_company_relation''
+			    AND property_value = a.person_company_relation
+			    )
+			)
+	), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT	account_collection_id, account_id
+			FROM	 list
+			WHERE	 (account_collection_id, account_id) NOT IN
+					(SELECT account_collection_id, account_id FROM
+						account_collection_account
+					JOIN ac USING (account_collection_id) )
+			AND account_id = $1
+		RETURNING *
+	), del AS (
+		DELETE
+		FROM	 account_collection_account
+		WHERE	 (account_collection_id, account_id) NOT IN
+				 (SELECT account_collection_id, account_id FROM
+					list JOIN ac USING (account_collection_id))
+		AND		(account_collection_id, account_id) IN
+				(SELECT account_collection_id,account_id from ac)
+		AND account_id = $1 RETURNING *
+	), combo AS (
+		SELECT * from ins UNION select * FROM del
+	) SELECT count(*)
+		FROM combo
+		JOIN account_collection USING (account_collection_id);
+	' INTO _tally USING account_id;
+	RETURN _tally;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'make_site_acs_right');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.make_site_acs_right ( account_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_site_acs_right(account_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	EXECUTE '
+	WITH ac AS (
+		SELECT DISTINCT ac.*
+		FROM	account_collection ac
+				INNER JOIN property p USING (account_collection_id)
+		WHERE	property_type = ''auto_acct_coll''
+		AND		property_name in (''site'')
+	), acct AS (
+		    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
+			    pc.is_management, pc.is_full_time, pc.is_exempt,
+			    p.gender, pc.person_company_relation
+		     FROM   account a
+			    INNER JOIN person_account_realm_company parc
+				    USING (person_id, company_id, account_realm_id)
+			    INNER JOIN person_company pc USING (person_id,company_id)
+			    INNER JOIN person p USING (person_id)
+			WHERE a.is_enabled = ''Y''
+			AND a.account_role = ''primary''
+	), list AS (
+		SELECT  p.account_collection_id, a.account_id, a.account_type,
+			a.account_role,
+			a.person_id, a.company_id,
+			ac.account_collection_name, ac.account_collection_type,
+			p.property_name, p.property_type, p.property_value, p.property_id
+		FROM    property p
+			INNER JOIN ac USING (account_collection_id)
+		    INNER JOIN acct a
+				ON a.account_realm_id = p.account_realm_id
+			INNER JOIN person_location pl on a.person_id = pl.person_id
+		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		AND		a.person_company_relation = ''employee''
+		AND		property_type = ''auto_acct_coll''
+		AND		p.site_code = pl.site_code
+		AND		property_name = ''site''
+	), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT	account_collection_id, account_id
+			FROM	 list
+			WHERE	 (account_collection_id, account_id) NOT IN
+					(SELECT account_collection_id, account_id FROM
+						account_collection_account
+					JOIN ac USING (account_collection_id) )
+			AND account_id = $1
+		RETURNING *
+	), del AS (
+		DELETE
+		FROM	 account_collection_account
+		WHERE	 (account_collection_id, account_id) NOT IN
+				 (SELECT account_collection_id, account_id FROM
+					list JOIN ac USING (account_collection_id))
+		AND		(account_collection_id, account_id) IN
+				(SELECT account_collection_id,account_id from ac)
+		AND account_id = $1 RETURNING *
+	), combo AS (
+		SELECT * from ins UNION select * FROM del
+	) SELECT count(*)
+		FROM combo
+		JOIN account_collection USING (account_collection_id);
+	' INTO _tally USING account_id;
+	RETURN _tally;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'populate_direct_report_ac');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.populate_direct_report_ac ( account_id integer, account_realm_id integer, login character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.populate_direct_report_ac(account_id integer, account_realm_id integer DEFAULT NULL::integer, login character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_directac	account_collection.account_collection_id%TYPE;
+BEGIN
+	_directac := auto_ac_manip.find_or_create_automated_ac(
+		account_id := account_id,
+		account_realm_id := account_realm_id,
+		ac_type := 'AutomatedDirectsAC'
+	);
+
+	--
+	-- Make membership right
+	--
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $2
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		a.is_enabled = ''Y''
+		), arethere AS (
+			SELECT account_collection_id, account_id FROM
+				account_collection_account
+				WHERE account_collection_id = $3
+		), shouldbethere AS (
+			SELECT $3 as account_collection_id, reports.account_id
+			FROM peeps reports
+				INNER JOIN peeps managers on
+					managers.person_id = reports.manager_person_id
+				AND	managers.account_realm_id = reports.account_realm_id
+			WHERE	managers.account_id =  $1
+			UNION SELECT $3, $1
+				FROM account
+				WHERE account_id = $1
+				AND is_enabled = ''Y''
+		), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT account_collection_id, account_id
+			FROM shouldbethere
+			WHERE (account_collection_id, account_id)
+				NOT IN (select account_collection_id, account_id FROM arethere)
+			RETURNING *
+		), del AS (
+			DELETE FROM account_collection_account
+			WHERE (account_collection_id, account_id)
+			IN (
+				SELECT account_collection_id, account_id
+				FROM arethere
+			) AND (account_collection_id, account_id) NOT IN (
+				SELECT account_collection_id, account_id
+				FROM shouldbethere
+			) RETURNING *
+		) SELECT * from ins UNION SELECT * from del
+		'USING account_id, 'primary', _directac;
+
+	RETURN _directac;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'populate_rollup_report_ac');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.populate_rollup_report_ac ( account_id integer, account_realm_id integer, login character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.populate_rollup_report_ac(account_id integer, account_realm_id integer DEFAULT NULL::integer, login character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_rollupac	account_collection.account_collection_id%TYPE;
+BEGIN
+	_rollupac := auto_ac_manip.find_or_create_automated_ac(
+		account_id := account_id,
+		account_realm_id := account_realm_id,
+		ac_type := 'AutomatedRollupsAC'
+	);
+
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $2
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		a.is_enabled = ''Y''
+		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
+				managers.login as manager_login, p.property_name,
+				p.property_value_account_coll_id as account_collection_id
+			FROM peeps reports
+			INNER JOIN peeps managers
+				ON managers.person_id = reports.manager_person_id
+				AND	managers.account_realm_id = reports.account_realm_id
+			INNER JOIN property p
+				ON p.account_id = reports.account_id
+				AND p.account_realm_id = reports.account_realm_id
+				AND p.property_name IN ($3,$4)
+				AND p.property_type = $5
+		), rank AS (
+			SELECT *,
+				rank() OVER (partition by account_id ORDER BY property_name desc)
+					as rank
+			FROM agg
+		), shouldbethere AS (
+			SELECT $6 as account_collection_id,
+					account_collection_id as child_account_collection_id
+			FROM rank
+			WHERE	manager_account_id =  $1
+			AND	rank = 1
+		), arethere AS (
+			SELECT account_collection_id, child_account_collection_id FROM
+				account_collection_hier
+			WHERE account_collection_id = $6
+		), ins AS (
+			INSERT INTO account_collection_hier
+				(account_collection_id, child_account_collection_id)
+			SELECT account_collection_id, child_account_collection_id
+			FROM shouldbethere
+			WHERE (account_collection_id, child_account_collection_id)
+				NOT IN (SELECT * from arethere)
+			RETURNING *
+		), del AS (
+			DELETE FROM account_collection_hier
+			WHERE (account_collection_id, child_account_collection_id)
+				IN (SELECT * from arethere)
+			AND (account_collection_id, child_account_collection_id)
+				NOT IN (SELECT * FROM shouldbethere)
+			RETURNING *
+		) select * from ins UNION select * from del;
+
+	' USING account_id, 'primary',
+				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll',
+				_rollupac;
+
+	RETURN _rollupac;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'purge_report_account_collection');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.purge_report_account_collection ( account_id integer, account_realm_id integer, ac_type character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.purge_report_account_collection(account_id integer, account_realm_id integer, ac_type character varying)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	EXECUTE '
+		DELETE FROM account_collection_account
+		WHERE account_collection_ID IN (
+			SELECT	property_value_account_coll_id
+			FROM	property
+			WHERE	property_name = $3
+			AND		property_type = $4
+			AND		account_id = $1
+			AND		account_realm_id = $2
+		)' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
+
+	EXECUTE '
+		WITH p AS (
+			SELECT	property_value_account_coll_id AS account_collection_id
+			FROM	property
+			WHERE	property_name = $3
+			AND		property_type = $4
+			AND		account_id = $1
+			AND		account_realm_id = $2
+		)
+		DELETE FROM account_collection_hier
+		WHERE account_collection_id IN ( select account_collection_id from p)
+		OR child_account_collection_id IN
+			( select account_collection_id from p)
+		' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
+
+	EXECUTE '
+		WITH list AS (
+			SELECT	property_value_account_coll_id as account_collection_id,
+					property_id
+			FROM	property
+			WHERE	property_name = $3
+			AND		property_type = $4
+			AND		account_id = $1
+			AND		account_realm_id = $2
+		), props AS (
+			DELETE FROM property WHERE property_id IN
+				(select property_id FROM list ) RETURNING *
+		) DELETE FROM account_collection WHERE account_collection_id IN
+				(select property_value_account_coll_id FROM props )
+		' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
+
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'rename_automated_report_acs');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.rename_automated_report_acs ( account_id integer, old_login character varying, new_login character varying, account_realm_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.rename_automated_report_acs(account_id integer, old_login character varying, new_login character varying, account_realm_id integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	EXECUTE '
+		UPDATE account_collection
+		  SET	account_collection_name =
+				replace(account_collection_name, $6, $7)
+		WHERE	account_collection_id IN (
+				SELECT property_value_account_coll_id
+				FROM	property
+				WHERE	property_name IN ($3, $4)
+				AND		property_type = $5
+				AND		account_id = $1
+				AND		account_realm_id = $2
+		)' USING	account_id, account_realm_id,
+				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll',
+				old_login, new_login;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema company_manip
 --
@@ -2970,6 +3621,13 @@ SELECT schema_support.build_audit_table('audit', 'jazzhands', 'network_interface
 ALTER TABLE network_interface_netblock
 	ALTER network_interface_rank
 	SET DEFAULT 0;
+
+
+-- BEGIN Manually written insert function
+
+ALTER TABLE network_interface_netblock
+	ALTER network_interface_rank
+	SET DEFAULT 0;
 INSERT INTO network_interface_netblock (
 	netblock_id,
 	network_interface_id,
@@ -2982,14 +3640,19 @@ INSERT INTO network_interface_netblock (
 ) SELECT
 	netblock_id,
 	network_interface_id,
-	NULL,		-- new column (device_id)
+	device_id,		-- new column (device_id)
 	network_interface_rank,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM network_interface_netblock_v80;
+FROM network_interface_netblock_v80
+	join (select device_id, network_interface_id FROM network_interface) ni
+		USING (network_interface_id);
 
+--
+-- note -- this will miss historical device_ids but that's work.
+--
 INSERT INTO audit.network_interface_netblock (
 	netblock_id,
 	network_interface_id,
@@ -3006,9 +3669,9 @@ INSERT INTO audit.network_interface_netblock (
 	"aud#user",
 	"aud#seq"
 ) SELECT
-	netblock_id,
+	nbn.netblock_id,
 	network_interface_id,
-	NULL,		-- new column (device_id)
+	device_id,		-- new column (device_id)
 	network_interface_rank,
 	data_ins_user,
 	data_ins_date,
@@ -3020,8 +3683,14 @@ INSERT INTO audit.network_interface_netblock (
 	"aud#txid",
 	"aud#user",
 	"aud#seq"
-FROM audit.network_interface_netblock_v80;
+FROM audit.network_interface_netblock_v80 nbn
+	LEFT
+	join (select device_id, network_interface_id FROM network_interface) ni
+		USING (network_interface_id);
 
+
+
+-- END Manually written insert function
 ALTER TABLE network_interface_netblock
 	ALTER network_interface_rank
 	SET DEFAULT 0;
@@ -5348,6 +6017,67 @@ $function$
 ;
 
 -- Changed function
+SELECT schema_support.save_grants_for_replay('jazzhands', 'account_automated_reporting_ac');
+CREATE OR REPLACE FUNCTION jazzhands.account_automated_reporting_ac()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_numrpt	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.account_role != 'primary' THEN
+			RETURN OLD;
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.account_role != 'primary' AND OLD.account_role != 'primary' THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	-- XXX check account realm to see if we should be inserting for this
+	-- XXX account realm
+
+	IF TG_OP = 'INSERT' THEN
+		PERFORM auto_ac_manip.make_all_auto_acs_right(
+			account_id := NEW.account_id,
+			account_realm_id := NEW.account_realm_id,
+			login := NEW.login
+		);
+	ELSIF TG_OP = 'UPDATE' THEN
+		PERFORM auto_ac_manip.rename_automated_report_acs(
+			NEW.account_id, OLD.login, NEW.login, NEW.account_realm_id);
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM account_collection_account WHERE account_id
+			= OLD.account_id
+		AND account_collection_id IN ( select account_collection_id
+			FROM account_collection where account_collection_type
+			= 'automated'
+		);
+		-- PERFORM auto_ac_manip.destroy_report_account_collections(
+		--	account_id := OLD.account_id,
+		--	account_realm_id := OLD.account_realm_id
+		-- );
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+
+-- Changed function
 SELECT schema_support.save_grants_for_replay('jazzhands', 'account_coll_member_relation_enforce');
 CREATE OR REPLACE FUNCTION jazzhands.account_coll_member_relation_enforce()
  RETURNS trigger
@@ -7154,6 +7884,656 @@ $function$
 --
 -- Process drops in auto_ac_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'destroy_report_account_collections');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.destroy_report_account_collections ( account_id integer, account_realm_id integer, numrpt integer, numrlup integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.destroy_report_account_collections(account_id integer, account_realm_id integer DEFAULT NULL::integer, numrpt integer DEFAULT NULL::integer, numrlup integer DEFAULT NULL::integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_account	account%ROWTYPE;
+	_directac	account_collection.account_collection_id%TYPE;
+	_rollupac	account_collection.account_collection_id%TYPE;
+BEGIN
+	IF account_realm_id IS NULL THEN
+		EXECUTE '
+			SELECT account_realm_id
+			FROM	account
+			WHERE	account_id = $1
+		' INTO account_realm_id USING account_id;
+	END IF;
+
+	IF numrpt IS NULL THEN
+		numrpt := auto_ac_manip.get_num_direct_reports(account_id, account_realm_id);
+	END IF;
+	IF numrpt = 0 THEN
+		PERFORM auto_ac_manip.purge_report_account_collection(
+			account_id := account_id,
+			account_realm_id := account_realm_id,
+			ac_type := 'AutomatedDirectsAC');
+		RETURN;
+	END IF;
+
+	IF numrlup IS NULL THEN
+		numrlup := auto_ac_manip.get_num_reports_with_reports(account_id, account_realm_id);
+	END IF;
+	IF numrlup = 0 THEN
+		PERFORM auto_ac_manip.purge_report_account_collection(
+			account_id := account_id,
+			account_realm_id := account_realm_id,
+			ac_type := 'AutomatedRollupsAC');
+		RETURN;
+	END IF;
+
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'find_or_create_automated_ac');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.find_or_create_automated_ac ( account_id integer, ac_type character varying, account_realm_id integer, login character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.find_or_create_automated_ac(account_id integer, ac_type character varying, account_realm_id integer DEFAULT NULL::integer, login character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_acname		text;
+	_acid		account_collection.account_collection_id%TYPE;
+BEGIN
+	IF login is NULL THEN
+		EXECUTE 'SELECT account_realm_id,login
+			FROM account where account_id = $1'
+			INTO account_realm_id,login USING account_id;
+	END IF;
+
+	IF ac_type = 'AutomatedDirectsAC' THEN
+		_acname := concat(login, '-employee-directs');
+	ELSIF ac_type = 'AutomatedRollupsAC' THEN
+		_acname := concat(login, '-employee-rollup');
+	ELSE
+		RAISE EXCEPTION 'Do not know how to name Automated AC type %', ac_type;
+	END IF;
+
+	--
+	-- Check to see if a -direct account collection exists already.  If not,
+	-- create it.  There is a bit of a problem here if the name is not unique
+	-- or otherwise messed up.  This will just raise errors.
+	--
+	EXECUTE 'SELECT ac.account_collection_id
+			FROM account_collection ac
+				INNER JOIN property p
+					ON p.property_value_account_coll_id = ac.account_collection_id
+		   WHERE ac.account_collection_name = $1
+		    AND	ac.account_collection_type = $2
+			AND	p.property_name = $3
+			AND p.property_type = $4
+			AND p.account_id = $5
+			AND p.account_realm_id = $6
+		' INTO _acid USING _acname, 'automated',
+				ac_type, 'auto_acct_coll', account_id,
+				account_realm_id;
+
+	-- Assume the person is always in their own account collection, or if tehy
+	-- are not someone took them out for a good reason.  (Thus, they are only
+	-- added on creation).
+	IF _acid IS NULL THEN
+		EXECUTE 'INSERT INTO account_collection (
+					account_collection_name, account_collection_type
+				) VALUES ( $1, $2) RETURNING *
+			' INTO _acid USING _acname, 'automated';
+
+		IF ac_type = 'AutomatedDirectsAC' THEN
+			EXECUTE 'INSERT INTO account_collection_account (
+						account_collection_id, account_id
+					) VALUES (  $1, $2 )
+				' USING _acid, account_id;
+		END IF;
+
+		EXECUTE '
+			INSERT INTO property (
+				account_id,
+				account_realm_id,
+				property_name,
+				property_type,
+				property_value_account_coll_id
+			)  VALUES ( $1, $2, $3, $4, $5)'
+			USING account_id, account_realm_id,
+				ac_type, 'auto_acct_coll', _acid;
+	END IF;
+
+	RETURN _acid;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'get_num_direct_reports');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.get_num_direct_reports ( account_id integer, account_realm_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_direct_reports(account_id integer, account_realm_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_numrpt	INTEGER;
+BEGIN
+	-- get number of direct reports
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $3
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		is_enabled = ''Y''
+		) SELECT count(*)
+		FROM peeps reports
+			INNER JOIN peeps managers on
+				managers.person_id = reports.manager_person_id
+			AND	managers.account_realm_id = reports.account_realm_id
+		WHERE	managers.account_id = $1
+		AND		managers.account_realm_id = $2
+	' INTO _numrpt USING account_id, account_realm_id, 'primary';
+
+	RETURN _numrpt;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'get_num_reports_with_reports');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.get_num_reports_with_reports ( account_id integer, account_realm_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_reports_with_reports(account_id integer, account_realm_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_numrlup	INTEGER;
+BEGIN
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id, is_enabled
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $3
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		account_realm_id = $2
+		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
+				managers.login as manager_login, p.property_name,
+				p.property_value_account_coll_id as account_collection_id
+			FROM peeps reports
+			INNER JOIN peeps managers
+				ON managers.person_id = reports.manager_person_id
+				AND	managers.account_realm_id = reports.account_realm_id
+			INNER JOIN property p
+				ON p.account_id = reports.account_id
+				AND p.account_realm_id = reports.account_realm_id
+				AND p.property_name IN ($4,$5)
+				AND p.property_type = $6
+			WHERE reports.is_enabled = ''Y''
+		), rank AS (
+			SELECT *,
+				rank() OVER (partition by account_id ORDER BY property_name desc)
+					as rank
+			FROM agg
+		) SELECT count(*) from rank
+		WHERE	manager_account_id =  $1
+		AND	account_realm_id = $2
+		AND	rank = 1;
+	' INTO _numrlup USING account_id, account_realm_id, 'primary',
+				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll';
+
+	RETURN _numrlup;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'make_personal_acs_right');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.make_personal_acs_right ( account_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_personal_acs_right(account_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	EXECUTE '
+	WITH ac AS (
+		SELECT DISTINCT ac.*
+		FROM	account_collection ac
+				INNER JOIN property p USING (account_collection_id)
+		WHERE	property_type = ''auto_acct_coll''
+		AND		property_name in (''non_exempt'', ''exempt'',
+					''management'', ''non_management'', ''full_time'',
+					''non_full_time'', ''male'', ''female'', ''unspecified_gender'',
+					''account_type'', ''person_company_relation'')
+	), acct AS (
+		    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
+			    pc.is_management, pc.is_full_time, pc.is_exempt,
+			    p.gender, pc.person_company_relation
+		     FROM   account a
+			    INNER JOIN person_account_realm_company parc
+				    USING (person_id, company_id, account_realm_id)
+			    INNER JOIN person_company pc USING (person_id,company_id)
+			    INNER JOIN person p USING (person_id)
+			WHERE a.is_enabled = ''Y''
+			AND a.account_role = ''primary''
+		),
+	list AS (
+		SELECT  p.account_collection_id, a.account_id, a.account_type,
+			a.account_role,
+			a.person_id, a.company_id,
+			ac.account_collection_name, ac.account_collection_type,
+			p.property_name, p.property_type, p.property_value, p.property_id
+		FROM    property p
+			INNER JOIN ac USING (account_collection_id)
+		    INNER JOIN acct a
+				ON a.account_realm_id = p.account_realm_id
+		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		    AND     property_type = ''auto_acct_coll''
+			AND	( a.account_type = ''person''
+				AND a.person_company_relation = ''employee''
+				AND (
+			(
+				property_name =
+					CASE WHEN a.is_exempt = ''N''
+					THEN ''non_exempt''
+					ELSE ''exempt'' END
+				OR
+				property_name =
+					CASE WHEN a.is_management = ''N''
+					THEN ''non_management''
+					ELSE ''management'' END
+				OR
+				property_name =
+					CASE WHEN a.is_full_time = ''N''
+					THEN ''non_full_time''
+					ELSE ''full_time'' END
+				OR
+				property_name =
+					CASE WHEN a.gender = ''M'' THEN ''male''
+					WHEN a.gender = ''F'' THEN ''female''
+					ELSE ''unspecified_gender'' END
+			) )
+			OR (
+			    property_name = ''account_type''
+			    AND property_value = a.account_type
+			    )
+			OR (
+			    property_name = ''person_company_relation''
+			    AND property_value = a.person_company_relation
+			    )
+			)
+	), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT	account_collection_id, account_id
+			FROM	 list
+			WHERE	 (account_collection_id, account_id) NOT IN
+					(SELECT account_collection_id, account_id FROM
+						account_collection_account
+					JOIN ac USING (account_collection_id) )
+			AND account_id = $1
+		RETURNING *
+	), del AS (
+		DELETE
+		FROM	 account_collection_account
+		WHERE	 (account_collection_id, account_id) NOT IN
+				 (SELECT account_collection_id, account_id FROM
+					list JOIN ac USING (account_collection_id))
+		AND		(account_collection_id, account_id) IN
+				(SELECT account_collection_id,account_id from ac)
+		AND account_id = $1 RETURNING *
+	), combo AS (
+		SELECT * from ins UNION select * FROM del
+	) SELECT count(*)
+		FROM combo
+		JOIN account_collection USING (account_collection_id);
+	' INTO _tally USING account_id;
+	RETURN _tally;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'make_site_acs_right');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.make_site_acs_right ( account_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.make_site_acs_right(account_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	EXECUTE '
+	WITH ac AS (
+		SELECT DISTINCT ac.*
+		FROM	account_collection ac
+				INNER JOIN property p USING (account_collection_id)
+		WHERE	property_type = ''auto_acct_coll''
+		AND		property_name in (''site'')
+	), acct AS (
+		    SELECT  a.account_id, a.account_type, a.account_role, parc.*,
+			    pc.is_management, pc.is_full_time, pc.is_exempt,
+			    p.gender, pc.person_company_relation
+		     FROM   account a
+			    INNER JOIN person_account_realm_company parc
+				    USING (person_id, company_id, account_realm_id)
+			    INNER JOIN person_company pc USING (person_id,company_id)
+			    INNER JOIN person p USING (person_id)
+			WHERE a.is_enabled = ''Y''
+			AND a.account_role = ''primary''
+	), list AS (
+		SELECT  p.account_collection_id, a.account_id, a.account_type,
+			a.account_role,
+			a.person_id, a.company_id,
+			ac.account_collection_name, ac.account_collection_type,
+			p.property_name, p.property_type, p.property_value, p.property_id
+		FROM    property p
+			INNER JOIN ac USING (account_collection_id)
+		    INNER JOIN acct a
+				ON a.account_realm_id = p.account_realm_id
+			INNER JOIN person_location pl on a.person_id = pl.person_id
+		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
+		AND		a.person_company_relation = ''employee''
+		AND		property_type = ''auto_acct_coll''
+		AND		p.site_code = pl.site_code
+		AND		property_name = ''site''
+	), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT	account_collection_id, account_id
+			FROM	 list
+			WHERE	 (account_collection_id, account_id) NOT IN
+					(SELECT account_collection_id, account_id FROM
+						account_collection_account
+					JOIN ac USING (account_collection_id) )
+			AND account_id = $1
+		RETURNING *
+	), del AS (
+		DELETE
+		FROM	 account_collection_account
+		WHERE	 (account_collection_id, account_id) NOT IN
+				 (SELECT account_collection_id, account_id FROM
+					list JOIN ac USING (account_collection_id))
+		AND		(account_collection_id, account_id) IN
+				(SELECT account_collection_id,account_id from ac)
+		AND account_id = $1 RETURNING *
+	), combo AS (
+		SELECT * from ins UNION select * FROM del
+	) SELECT count(*)
+		FROM combo
+		JOIN account_collection USING (account_collection_id);
+	' INTO _tally USING account_id;
+	RETURN _tally;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'populate_direct_report_ac');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.populate_direct_report_ac ( account_id integer, account_realm_id integer, login character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.populate_direct_report_ac(account_id integer, account_realm_id integer DEFAULT NULL::integer, login character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_directac	account_collection.account_collection_id%TYPE;
+BEGIN
+	_directac := auto_ac_manip.find_or_create_automated_ac(
+		account_id := account_id,
+		account_realm_id := account_realm_id,
+		ac_type := 'AutomatedDirectsAC'
+	);
+
+	--
+	-- Make membership right
+	--
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $2
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		a.is_enabled = ''Y''
+		), arethere AS (
+			SELECT account_collection_id, account_id FROM
+				account_collection_account
+				WHERE account_collection_id = $3
+		), shouldbethere AS (
+			SELECT $3 as account_collection_id, reports.account_id
+			FROM peeps reports
+				INNER JOIN peeps managers on
+					managers.person_id = reports.manager_person_id
+				AND	managers.account_realm_id = reports.account_realm_id
+			WHERE	managers.account_id =  $1
+			UNION SELECT $3, $1
+				FROM account
+				WHERE account_id = $1
+				AND is_enabled = ''Y''
+		), ins AS (
+			INSERT INTO account_collection_account
+				(account_collection_id, account_id)
+			SELECT account_collection_id, account_id
+			FROM shouldbethere
+			WHERE (account_collection_id, account_id)
+				NOT IN (select account_collection_id, account_id FROM arethere)
+			RETURNING *
+		), del AS (
+			DELETE FROM account_collection_account
+			WHERE (account_collection_id, account_id)
+			IN (
+				SELECT account_collection_id, account_id
+				FROM arethere
+			) AND (account_collection_id, account_id) NOT IN (
+				SELECT account_collection_id, account_id
+				FROM shouldbethere
+			) RETURNING *
+		) SELECT * from ins UNION SELECT * from del
+		'USING account_id, 'primary', _directac;
+
+	RETURN _directac;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'populate_rollup_report_ac');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.populate_rollup_report_ac ( account_id integer, account_realm_id integer, login character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.populate_rollup_report_ac(account_id integer, account_realm_id integer DEFAULT NULL::integer, login character varying DEFAULT NULL::character varying)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_rollupac	account_collection.account_collection_id%TYPE;
+BEGIN
+	_rollupac := auto_ac_manip.find_or_create_automated_ac(
+		account_id := account_id,
+		account_realm_id := account_realm_id,
+		ac_type := 'AutomatedRollupsAC'
+	);
+
+	EXECUTE '
+		WITH peeps AS (
+			SELECT	account_realm_id, account_id, login, person_id,
+					manager_person_id
+			FROM	account a
+				INNER JOIN person_company USING (person_id, company_id)
+			WHERE	account_role = $2
+			AND		account_type = ''person''
+			AND		person_company_relation = ''employee''
+			AND		a.is_enabled = ''Y''
+		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
+				managers.login as manager_login, p.property_name,
+				p.property_value_account_coll_id as account_collection_id
+			FROM peeps reports
+			INNER JOIN peeps managers
+				ON managers.person_id = reports.manager_person_id
+				AND	managers.account_realm_id = reports.account_realm_id
+			INNER JOIN property p
+				ON p.account_id = reports.account_id
+				AND p.account_realm_id = reports.account_realm_id
+				AND p.property_name IN ($3,$4)
+				AND p.property_type = $5
+		), rank AS (
+			SELECT *,
+				rank() OVER (partition by account_id ORDER BY property_name desc)
+					as rank
+			FROM agg
+		), shouldbethere AS (
+			SELECT $6 as account_collection_id,
+					account_collection_id as child_account_collection_id
+			FROM rank
+			WHERE	manager_account_id =  $1
+			AND	rank = 1
+		), arethere AS (
+			SELECT account_collection_id, child_account_collection_id FROM
+				account_collection_hier
+			WHERE account_collection_id = $6
+		), ins AS (
+			INSERT INTO account_collection_hier
+				(account_collection_id, child_account_collection_id)
+			SELECT account_collection_id, child_account_collection_id
+			FROM shouldbethere
+			WHERE (account_collection_id, child_account_collection_id)
+				NOT IN (SELECT * from arethere)
+			RETURNING *
+		), del AS (
+			DELETE FROM account_collection_hier
+			WHERE (account_collection_id, child_account_collection_id)
+				IN (SELECT * from arethere)
+			AND (account_collection_id, child_account_collection_id)
+				NOT IN (SELECT * FROM shouldbethere)
+			RETURNING *
+		) select * from ins UNION select * from del;
+
+	' USING account_id, 'primary',
+				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll',
+				_rollupac;
+
+	RETURN _rollupac;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'purge_report_account_collection');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.purge_report_account_collection ( account_id integer, account_realm_id integer, ac_type character varying );
+CREATE OR REPLACE FUNCTION auto_ac_manip.purge_report_account_collection(account_id integer, account_realm_id integer, ac_type character varying)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	EXECUTE '
+		DELETE FROM account_collection_account
+		WHERE account_collection_ID IN (
+			SELECT	property_value_account_coll_id
+			FROM	property
+			WHERE	property_name = $3
+			AND		property_type = $4
+			AND		account_id = $1
+			AND		account_realm_id = $2
+		)' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
+
+	EXECUTE '
+		WITH p AS (
+			SELECT	property_value_account_coll_id AS account_collection_id
+			FROM	property
+			WHERE	property_name = $3
+			AND		property_type = $4
+			AND		account_id = $1
+			AND		account_realm_id = $2
+		)
+		DELETE FROM account_collection_hier
+		WHERE account_collection_id IN ( select account_collection_id from p)
+		OR child_account_collection_id IN
+			( select account_collection_id from p)
+		' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
+
+	EXECUTE '
+		WITH list AS (
+			SELECT	property_value_account_coll_id as account_collection_id,
+					property_id
+			FROM	property
+			WHERE	property_name = $3
+			AND		property_type = $4
+			AND		account_id = $1
+			AND		account_realm_id = $2
+		), props AS (
+			DELETE FROM property WHERE property_id IN
+				(select property_id FROM list ) RETURNING *
+		) DELETE FROM account_collection WHERE account_collection_id IN
+				(select property_value_account_coll_id FROM props )
+		' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
+
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('auto_ac_manip', 'rename_automated_report_acs');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS auto_ac_manip.rename_automated_report_acs ( account_id integer, old_login character varying, new_login character varying, account_realm_id integer );
+CREATE OR REPLACE FUNCTION auto_ac_manip.rename_automated_report_acs(account_id integer, old_login character varying, new_login character varying, account_realm_id integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	EXECUTE '
+		UPDATE account_collection
+		  SET	account_collection_name =
+				replace(account_collection_name, $6, $7)
+		WHERE	account_collection_id IN (
+				SELECT property_value_account_coll_id
+				FROM	property
+				WHERE	property_name IN ($3, $4)
+				AND		property_type = $5
+				AND		account_id = $1
+				AND		account_realm_id = $2
+		)' USING	account_id, account_realm_id,
+				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll',
+				old_login, new_login;
+END;
+$function$
+;
+
 --
 -- Process drops in company_manip
 --
@@ -8315,6 +9695,8 @@ CREATE INDEX idx_dev_phys_label ON device USING btree (physical_label);
 DROP TRIGGER IF EXISTS trigger_account_status_after_hooks ON account;
 DROP TRIGGER IF EXISTS trigger_account_status_per_row_after_hooks ON account;
 CREATE TRIGGER trigger_account_status_per_row_after_hooks AFTER UPDATE OF account_status ON account FOR EACH ROW EXECUTE PROCEDURE account_status_per_row_after_hooks();
+DROP TRIGGER IF EXISTS trigger_z_automated_ac_on_person_company ON person_company;
+CREATE TRIGGER trigger_z_automated_ac_on_person_company AFTER UPDATE OF manager_person_id, person_company_status, person_company_relation ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
 
 
 -- BEGIN Misc that does not apply to above

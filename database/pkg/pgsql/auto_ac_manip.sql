@@ -82,7 +82,7 @@ BEGIN
 	EXECUTE '
 		UPDATE account_collection
 		  SET	account_collection_name =
-		  			replace(account_collection_name, $6, $7)
+				replace(account_collection_name, $6, $7)
 		WHERE	account_collection_id IN (
 				SELECT property_value_account_coll_id
 				FROM	property
@@ -104,7 +104,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_direct_reports(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE
 ) RETURNS INTEGER AS $_$
 DECLARE
@@ -113,7 +113,7 @@ BEGIN
 	-- get number of direct reports
 	EXECUTE '
 		WITH peeps AS (
-			SELECT	account_realm_id, account_id, login, person_id, 
+			SELECT	account_realm_id, account_id, login, person_id,
 					manager_person_id
 			FROM	account a
 				INNER JOIN person_company USING (person_id, company_id)
@@ -123,7 +123,7 @@ BEGIN
 			AND		is_enabled = ''Y''
 		) SELECT count(*)
 		FROM peeps reports
-			INNER JOIN peeps managers on  
+			INNER JOIN peeps managers on
 				managers.person_id = reports.manager_person_id
 			AND	managers.account_realm_id = reports.account_realm_id
 		WHERE	managers.account_id = $1
@@ -140,7 +140,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.get_num_reports_with_reports(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE
 ) RETURNS INTEGER AS $_$
 DECLARE
@@ -148,7 +148,7 @@ DECLARE
 BEGIN
 	EXECUTE '
 		WITH peeps AS (
-			SELECT	account_realm_id, account_id, login, person_id, 
+			SELECT	account_realm_id, account_id, login, person_id,
 					manager_person_id, is_enabled
 			FROM	account a
 				INNER JOIN person_company USING (person_id, company_id)
@@ -163,7 +163,7 @@ BEGIN
 			INNER JOIN peeps managers
 				ON managers.person_id = reports.manager_person_id
 				AND	managers.account_realm_id = reports.account_realm_id
-			INNER JOIN property p 
+			INNER JOIN property p
 				ON p.account_id = reports.account_id
 				AND p.account_realm_id = reports.account_realm_id
 				AND p.property_name IN ($4,$5)
@@ -176,7 +176,7 @@ BEGIN
 			FROM agg
 		) SELECT count(*) from rank
 		WHERE	manager_account_id =  $1
-		AND 	account_realm_id = $2
+		AND	account_realm_id = $2
 		AND	rank = 1;
 	' INTO _numrlup USING account_id, account_realm_id, 'primary',
 				'AutomatedDirectsAC','AutomatedRollupsAC','auto_acct_coll';
@@ -193,7 +193,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.find_or_create_automated_ac(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	ac_type		property.property_name%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
 	login				account.login%TYPE DEFAULT NULL
@@ -203,8 +203,8 @@ DECLARE
 	_acid		account_collection.account_collection_id%TYPE;
 BEGIN
 	IF login is NULL THEN
-		EXECUTE 'SELECT account_realm_id,login 
-			FROM account where account_id = $1' 
+		EXECUTE 'SELECT account_realm_id,login
+			FROM account where account_id = $1'
 			INTO account_realm_id,login USING account_id;
 	END IF;
 
@@ -252,7 +252,7 @@ BEGIN
 		END IF;
 
 		EXECUTE '
-			INSERT INTO property ( 
+			INSERT INTO property (
 				account_id,
 				account_realm_id,
 				property_name,
@@ -278,7 +278,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.populate_direct_report_ac(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
 	login				account.login%TYPE DEFAULT NULL
 )  RETURNS account_collection.account_collection_id%TYPE AS $_$
@@ -296,7 +296,7 @@ BEGIN
 	--
 	EXECUTE '
 		WITH peeps AS (
-			SELECT	account_realm_id, account_id, login, person_id, 
+			SELECT	account_realm_id, account_id, login, person_id,
 					manager_person_id
 			FROM	account a
 				INNER JOIN person_company USING (person_id, company_id)
@@ -311,18 +311,18 @@ BEGIN
 		), shouldbethere AS (
 			SELECT $3 as account_collection_id, reports.account_id
 			FROM peeps reports
-				INNER JOIN peeps managers on  
+				INNER JOIN peeps managers on
 					managers.person_id = reports.manager_person_id
 				AND	managers.account_realm_id = reports.account_realm_id
 			WHERE	managers.account_id =  $1
-			UNION SELECT $3, $1 
-				FROM account 
-				WHERE account_id = $1 
+			UNION SELECT $3, $1
+				FROM account
+				WHERE account_id = $1
 				AND is_enabled = ''Y''
 		), ins AS (
-			INSERT INTO account_collection_account 
+			INSERT INTO account_collection_account
 				(account_collection_id, account_id)
-			SELECT account_collection_id, account_id 
+			SELECT account_collection_id, account_id
 			FROM shouldbethere
 			WHERE (account_collection_id, account_id)
 				NOT IN (select account_collection_id, account_id FROM arethere)
@@ -331,10 +331,10 @@ BEGIN
 			DELETE FROM account_collection_account
 			WHERE (account_collection_id, account_id)
 			IN (
-				SELECT account_collection_id, account_id 
+				SELECT account_collection_id, account_id
 				FROM arethere
 			) AND (account_collection_id, account_id) NOT IN (
-				SELECT account_collection_id, account_id 
+				SELECT account_collection_id, account_id
 				FROM shouldbethere
 			) RETURNING *
 		) SELECT * from ins UNION SELECT * from del
@@ -354,7 +354,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.populate_rollup_report_ac(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
 	login				account.login%TYPE DEFAULT NULL
 )  RETURNS account_collection.account_collection_id%TYPE AS $_$
@@ -369,7 +369,7 @@ BEGIN
 
 	EXECUTE '
 		WITH peeps AS (
-			SELECT	account_realm_id, account_id, login, person_id, 
+			SELECT	account_realm_id, account_id, login, person_id,
 					manager_person_id
 			FROM	account a
 				INNER JOIN person_company USING (person_id, company_id)
@@ -384,7 +384,7 @@ BEGIN
 			INNER JOIN peeps managers
 				ON managers.person_id = reports.manager_person_id
 				AND	managers.account_realm_id = reports.account_realm_id
-			INNER JOIN property p 
+			INNER JOIN property p
 				ON p.account_id = reports.account_id
 				AND p.account_realm_id = reports.account_realm_id
 				AND p.property_name IN ($3,$4)
@@ -398,14 +398,14 @@ BEGIN
 			SELECT $6 as account_collection_id,
 					account_collection_id as child_account_collection_id
 			FROM rank
-	 		WHERE	manager_account_id =  $1
+			WHERE	manager_account_id =  $1
 			AND	rank = 1
 		), arethere AS (
 			SELECT account_collection_id, child_account_collection_id FROM
 				account_collection_hier
 			WHERE account_collection_id = $6
 		), ins AS (
-			INSERT INTO account_collection_hier 
+			INSERT INTO account_collection_hier
 				(account_collection_id, child_account_collection_id)
 			SELECT account_collection_id, child_account_collection_id
 			FROM shouldbethere
@@ -437,7 +437,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.create_report_account_collections(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account.account_realm_id%TYPE DEFAULT NULL,
 	login				account.login%TYPE DEFAULT NULL,
 	numrpt				integer DEFAULT NULL,
@@ -485,7 +485,7 @@ END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION auto_ac_manip.purge_report_account_collection(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE,
 	ac_type		property.property_name%TYPE
 ) RETURNS VOID AS $_$
@@ -512,7 +512,7 @@ BEGIN
 		)
 		DELETE FROM account_collection_hier
 		WHERE account_collection_id IN ( select account_collection_id from p)
-		OR child_account_collection_id IN 
+		OR child_account_collection_id IN
 			( select account_collection_id from p)
 		' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
 
@@ -540,11 +540,11 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 -- makes sure that the -direct and -rollup account collections do exist for
 -- someone if they should not.  Removes if necessary, and also removes them
 -- from other account collections.  Arguably should also remove other
--- properties associated but I opted out of that for now. 
+-- properties associated but I opted out of that for now.
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.destroy_report_account_collections(
-	account_id 	account.account_id%TYPE,
+	account_id	account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
 	numrpt				integer DEFAULT NULL,
 	numrlup				integer DEFAULT NULL
@@ -567,7 +567,7 @@ BEGIN
 	END IF;
 	IF numrpt = 0 THEN
 		PERFORM auto_ac_manip.purge_report_account_collection(
-			account_id := account_id, 
+			account_id := account_id,
 			account_realm_id := account_realm_id,
 			ac_type := 'AutomatedDirectsAC');
 		RETURN;
@@ -576,9 +576,9 @@ BEGIN
 	IF numrlup IS NULL THEN
 		numrlup := auto_ac_manip.get_num_reports_with_reports(account_id, account_realm_id);
 	END IF;
-	IF numrlup = 0 THEN 
+	IF numrlup = 0 THEN
 		PERFORM auto_ac_manip.purge_report_account_collection(
-			account_id := account_id, 
+			account_id := account_id,
 			account_realm_id := account_realm_id,
 			ac_type := 'AutomatedRollupsAC');
 		RETURN;
@@ -595,7 +595,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.make_auto_report_acs_right(
-	account_id 			account.account_id%TYPE,
+	account_id			account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
 	login				account.login%TYPE DEFAULT NULL
 )  RETURNS VOID AS $_$
@@ -665,29 +665,29 @@ BEGIN
 				ON a.account_realm_id = p.account_realm_id
 		WHERE   (p.company_id is NULL or a.company_id = p.company_id)
 		    AND     property_type = ''auto_acct_coll''
-			AND	( a.account_type = ''person'' 
+			AND	( a.account_type = ''person''
 				AND a.person_company_relation = ''employee''
 				AND (
-		    	(
-			    	property_name =
+			(
+				property_name =
 					CASE WHEN a.is_exempt = ''N''
-				    	THEN ''non_exempt''
-				    	ELSE ''exempt'' END
+					THEN ''non_exempt''
+					ELSE ''exempt'' END
 				OR
-			    	property_name =
+				property_name =
 					CASE WHEN a.is_management = ''N''
-				    	THEN ''non_management''
-				    	ELSE ''management'' END
+					THEN ''non_management''
+					ELSE ''management'' END
 				OR
-			    	property_name =
+				property_name =
 					CASE WHEN a.is_full_time = ''N''
-				    	THEN ''non_full_time''
-				    	ELSE ''full_time'' END
+					THEN ''non_full_time''
+					ELSE ''full_time'' END
 				OR
-			    	property_name =
+				property_name =
 					CASE WHEN a.gender = ''M'' THEN ''male''
-				    	WHEN a.gender = ''F'' THEN ''female''
-				    	ELSE ''unspecified_gender'' END
+					WHEN a.gender = ''F'' THEN ''female''
+					ELSE ''unspecified_gender'' END
 			) )
 			OR (
 			    property_name = ''account_type''
@@ -701,11 +701,11 @@ BEGIN
 	), ins AS (
 			INSERT INTO account_collection_account
 				(account_collection_id, account_id)
-			SELECT 	account_collection_id, account_id
+			SELECT	account_collection_id, account_id
 			FROM	 list
 			WHERE	 (account_collection_id, account_id) NOT IN
-				 	(SELECT account_collection_id, account_id FROM
-						account_collection_account 
+					(SELECT account_collection_id, account_id FROM
+						account_collection_account
 					JOIN ac USING (account_collection_id) )
 			AND account_id = $1
 		RETURNING *
@@ -715,13 +715,13 @@ BEGIN
 		WHERE	 (account_collection_id, account_id) NOT IN
 				 (SELECT account_collection_id, account_id FROM
 					list JOIN ac USING (account_collection_id))
-		AND	 	(account_collection_id, account_id) IN
+		AND		(account_collection_id, account_id) IN
 				(SELECT account_collection_id,account_id from ac)
 		AND account_id = $1 RETURNING *
 	), combo AS (
 		SELECT * from ins UNION select * FROM del
-	) SELECT count(*) 
-		FROM combo 
+	) SELECT count(*)
+		FROM combo
 		JOIN account_collection USING (account_collection_id);
 	' INTO _tally USING account_id;
 	RETURN _tally;
@@ -778,11 +778,11 @@ BEGIN
 	), ins AS (
 			INSERT INTO account_collection_account
 				(account_collection_id, account_id)
-			SELECT 	account_collection_id, account_id
+			SELECT	account_collection_id, account_id
 			FROM	 list
 			WHERE	 (account_collection_id, account_id) NOT IN
-				 	(SELECT account_collection_id, account_id FROM
-						account_collection_account 
+					(SELECT account_collection_id, account_id FROM
+						account_collection_account
 					JOIN ac USING (account_collection_id) )
 			AND account_id = $1
 		RETURNING *
@@ -792,13 +792,13 @@ BEGIN
 		WHERE	 (account_collection_id, account_id) NOT IN
 				 (SELECT account_collection_id, account_id FROM
 					list JOIN ac USING (account_collection_id))
-		AND	 	(account_collection_id, account_id) IN
+		AND		(account_collection_id, account_id) IN
 				(SELECT account_collection_id,account_id from ac)
 		AND account_id = $1 RETURNING *
 	), combo AS (
 		SELECT * from ins UNION select * FROM del
-	) SELECT count(*) 
-		FROM combo 
+	) SELECT count(*)
+		FROM combo
 		JOIN account_collection USING (account_collection_id);
 	' INTO _tally USING account_id;
 	RETURN _tally;
@@ -812,7 +812,7 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION auto_ac_manip.make_all_auto_acs_right(
-	account_id 			account.account_id%TYPE,
+	account_id			account.account_id%TYPE,
 	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
 	login				account.login%TYPE DEFAULT NULL
 )  RETURNS VOID AS $_$

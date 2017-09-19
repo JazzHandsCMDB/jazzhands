@@ -67,8 +67,8 @@ BEGIN
 			= 'automated'
 		);
 		-- PERFORM auto_ac_manip.destroy_report_account_collections(
-		-- 	account_id := OLD.account_id,
-		-- 	account_realm_id := OLD.account_realm_id
+		--	account_id := OLD.account_id,
+		--	account_realm_id := OLD.account_realm_id
 		-- );
 	END IF;
 
