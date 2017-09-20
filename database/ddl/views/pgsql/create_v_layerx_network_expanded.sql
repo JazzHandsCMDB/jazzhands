@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE OR REPLACE VIEW jazzhands.v_layer3_network_expanded
+CREATE OR REPLACE VIEW jazzhands.v_layerx_network_expanded
 AS
 SELECT
 	l3.layer3_network_id,
@@ -36,5 +36,5 @@ FROM
 	jazzhands.layer3_network l3 JOIN
 	jazzhands.netblock n USING (netblock_id) LEFT JOIN
 	jazzhands.netblock dg ON 
-		(l3.default_gateway_netblock_id = dg.netblock_id) LEFT JOIN
+		(l3.default_gateway_netblock_id = dg.netblock_id) FULL JOIN
 	jazzhands.layer2_network l2 USING (layer2_network_id);
