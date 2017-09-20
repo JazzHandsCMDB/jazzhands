@@ -462,7 +462,7 @@ function configure_autocomplete(selector) {
 	}
 
 	//
-	// Its done thsi way so that the URL can have the type in it.
+	// Its done this way so that the URL can have the type in it.
 	//
 	$('html').find(selector).each(function(idx, elem) {
 		var type = $(elem).closest('tr').find('select.dnstype').val();

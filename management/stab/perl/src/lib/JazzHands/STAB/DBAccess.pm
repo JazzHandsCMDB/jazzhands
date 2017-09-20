@@ -1374,6 +1374,26 @@ sub get_netblock_collection($$) {
 	$nc;
 }
 
+#
+# given an id, return the account_collection record
+#
+sub get_account_collection($$) {
+	my ( $self, $id ) = @_;
+
+	my $sth = $self->prepare(
+		qq{
+		select	*
+		  from	account_collection
+		 where	account_collection_id = ?
+	}
+	) || die $self->return_db_err;
+
+	$sth->execute($id) || $self->return_db_err($sth);
+	my $nc = $sth->fetchrow_hashref;
+	$sth->finish;
+	$nc;
+}
+
 sub get_system_user {
 	my ( $self, $suid ) = @_;
 
@@ -2118,6 +2138,109 @@ sub check_management_chain($$;$) {
 	} while ($acct);
 
 	0;
+}
+
+#
+# this really needs to get rethunk to handle optional recursion on both sides
+# and what not.  This is just kind of gross.
+#
+# returns undef on no permissions or error.
+#
+# Needs to have a global admin permission shortcut.
+#
+sub get_account_collection_permissions($$;$) {
+	my $self = shift @_;
+	my $type = shift @_;
+
+	my $clause;
+	if ($type) {
+		if ( $type eq 'RO' ) {
+			$clause =
+			  q{property_name IN ('AccountCollectionRO','AccountCollectionRW')};
+		} elsif ( $type eq 'RW' ) {
+			$clause = q{property_name ='AccountCollectionRW'};
+		}
+	}
+
+	return undef if ( !$clause );
+
+	my $cachename = "_cache_account_collection_perms.$type";
+
+	if ( exists( $self->{$cachename} ) ) {
+		return $self->{$cachename};
+	}
+
+	my $sth = $self->prepare(
+		qq{
+		SELECT	child_account_collection_id as account_collection_id,
+				h.account_collection_name,
+				h.account_collection_type
+		FROM	property p
+		JOIN	account_collection ac USING (account_collection_id)
+		JOIN	(
+				SELECT	h.account_collection_id AS
+							property_value_account_coll_id,
+						child_account_collection_id,
+						account_collection_name,
+						account_collection_type
+				FROM account_collection_hier h
+					JOIN account_collection ac ON
+						h.child_account_collection_id =
+							ac.account_collection_id
+				) h USING (property_value_account_coll_id)
+		JOIN	v_acct_coll_acct_expanded ace USING (account_collection_id)
+		JOIN	v_corp_family_account a ON a.account_id =  ace.account_id
+		WHERE	property_type = 'StabRole'
+		AND		$clause
+		AND		login = ?
+	}
+	) || die $self->return_db_err;
+
+	my $rv = { type => [], collections => [] };
+	$sth->execute( $self->{_username} )
+	  || return $self->return_db_err();
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		if (
+			!exists( $rv->{types} )
+			|| !grep( $_ eq $hr->{ _dbx('ACCOUNT_COLLECTION_TYPE') },
+				$rv->{types} )
+		  )
+		{
+			push( @{ $rv->{types} }, $hr->{ _dbx('ACCOUNT_COLLECTION_TYPE') } );
+		}
+		push( @{ $rv->{collections} }, $hr );
+	}
+
+	#
+	# no permissions or error return undef
+	#
+	if ( scalar( @{ $rv->{collections} } ) ) {
+		$self->{$cachename} = $rv;
+	} else {
+		$self->{$cachename} = undef;
+	}
+}
+
+#
+# calls the above and is used to lookup if a user has permission on a given
+# account collection
+#
+sub check_account_collection_permissions($$$) {
+	my $self = shift @_;
+	my $acid = shift @_;
+	my $type = shift @_ || 'RO';
+
+	my $perms = $self->get_account_collection_permissions($type);
+
+	if (
+		grep( $_->{ _dbx('ACCOUNT_COLLECTION_ID') } == $acid,
+			@{ $perms->{collections} } )
+	  )
+	{
+		1;
+	} else {
+		0;
+	}
 }
 
 1;
