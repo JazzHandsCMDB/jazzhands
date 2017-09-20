@@ -153,7 +153,7 @@
 
 \ir pgsql/create_v_l2_network_coll_expanded.sql
 \ir pgsql/create_v_l3_network_coll_expanded.sql
-\ir pgsql/create_v_layer3_network_expanded.sql
+\ir pgsql/create_v_layerx_network_expanded.sql
 
 \ir create_v_dns_fwd.sql
 \ir create_v_dns_rvs.sql
