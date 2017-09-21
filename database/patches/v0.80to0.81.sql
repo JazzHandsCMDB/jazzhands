@@ -30,14 +30,42 @@ Invoked:
 	v_network_interface_trans
 	--first
 	v_hotpants_device_collection
+	--pre
+	pre
 	--post
 	post
+	--postschema
+	layerx_network_manip
 	--reinsert-dir=i
 */
 
 \set ON_ERROR_STOP
 SELECT schema_support.begin_maintenance();
 select timeofday(), now();
+
+
+-- BEGIN Misc that does not apply to above
+
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'layerx_network_manip';
+        IF _tal = 0 THEN
+                DROP SCHEMA IF EXISTS layerx_network_manip;
+                CREATE SCHEMA layerx_network_manip AUTHORIZATION jazzhands;
+                COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
+        END IF;
+END;
+$$;
+
+
+
+
+-- END Misc that does not apply to above
 --
 -- Process middle (non-trigger) schema jazzhands
 --
@@ -1873,250 +1901,6 @@ BEGIN
 
 END;
 $function$
-;
-
---
--- Process middle (non-trigger) schema layerx_network_manip
---
--- Changed function
-SELECT schema_support.save_grants_for_replay('layerx_network_manip', 'delete_layer2_networks');
--- Dropped in case type changes.
-DROP FUNCTION IF EXISTS layerx_network_manip.delete_layer2_networks ( layer2_network_id_list integer[], purge_network_interfaces boolean );
-CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_networks(layer2_network_id_list integer[], purge_network_interfaces boolean DEFAULT false)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	netblock_id_list	integer[];
-BEGIN
-	BEGIN
-		PERFORM local_hooks.delete_layer2_networks_before_hooks(
-			layer2_network_id_list := layer2_network_id_list
-		);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		NULL;
-	END;
-
-	PERFORM layerx_network_manip.delete_layer3_networks(
-		layer3_network_id_list := ARRAY(
-				SELECT layer3_network_id
-				FROM layer3_network l3n
-				WHERE layer2_network_id = ANY(layer2_network_id_list)
-			),
-		purge_network_interfaces := 
-			delete_layer2_networks.purge_network_interfaces
-	);
-
-	DELETE FROM
-		l2_network_coll_l2_network l2nc
-	WHERE
-		l2nc.layer2_network_id = ANY(layer2_network_id_list);
-
-	DELETE FROM
-		layer2_network l2n
-	WHERE
-		l2n.layer2_network_id = ANY(layer2_network_id_list);
-
-	BEGIN
-		PERFORM local_hooks.delete_layer2_networks_after_hooks(
-			layer2_network_id_list := layer2_network_id_list
-		);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		NULL;
-	END;
-
-END $function$
-;
-
--- New function
-CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_network(layer3_network_id integer, purge_network_interfaces boolean DEFAULT false)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-	PERFORM * FROM layerx_network_manip.delete_layer3_networks(
-		layer3_network_id_list := ARRAY[ layer3_network_id ],
-		purge_network_interfaces := purge_network_interfaces
-	);
-END $function$
-;
-
--- New function
-CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_networks(layer3_network_id_list integer[], purge_network_interfaces boolean DEFAULT false)
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
-AS $function$
-DECLARE
-	netblock_id_list			integer[];
-	network_interface_id_list	integer[];
-BEGIN
-	BEGIN
-		PERFORM local_hooks.delete_layer3_networks_before_hooks(
-			layer3_network_id_list := layer3_network_id_list
-		);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		NULL;
-	END;
-
-	IF (purge_network_interfaces) THEN
-		SELECT ARRAY(
-			SELECT
-				n.netblock_id AS netblock_id
-			FROM
-				jazzhands.layer3_network l3 JOIN
-				jazzhands.netblock p USING (netblock_id) JOIN
-				jazzhands.netblock n ON (p.netblock_id = n.parent_netblock_id)
-			WHERE
-				l3.layer3_network_id = ANY(layer3_network_id_list)
-		) INTO netblock_id_list;
-
-		WITH nin_del AS (
-			DELETE FROM
-				jazzhands.network_interface_netblock 
-			WHERE
-				netblock_id = ANY(netblock_id_list)
-			RETURNING network_interface_id
-		), snni_del AS (
-			DELETE FROM
-				jazzhands.shared_netblock_network_int
-			WHERE
-				shared_netblock_id IN (
-					SELECT shared_netblock_id FROM jazzhands.shared_netblock
-					WHERE netblock_id = ANY(netblock_id_list)
-				)
-			RETURNING network_interface_id
-		)
-		SELECT ARRAY(
-			SELECT network_interface_id FROM nin_del
-			UNION
-			SELECT network_interface_id FROM snni_del
-		) INTO network_interface_id_list;
-
-		DELETE FROM
-			network_interface_purpose nip
-		WHERE
-			nip.network_interface_id IN (
-				SELECT
-					network_interface_id
-				FROM
-					network_interface ni
-				WHERE
-					ni.network_interface_id = ANY(network_interface_id_list)
-						AND
-					ni.network_interface_id NOT IN (
-						SELECT
-							network_interface_id
-						FROM
-							network_interface_netblock
-						UNION
-						SELECT 
-							network_interface_id
-						FROM
-							shared_netblock_network_int
-					)
-			);
-			
-		DELETE FROM
-			network_interface ni
-		WHERE
-			ni.network_interface_id = ANY(network_interface_id_list) AND
-			ni.network_interface_id NOT IN (
-				SELECT network_interface_id FROM network_interface_netblock
-				UNION
-				SELECT network_interface_id FROM shared_netblock_network_int
-			);
-	END IF;
-
-	WITH x AS (
-		SELECT
-			p.netblock_id AS netblock_id,
-			l3.layer3_network_id AS layer3_network_id
-		FROM
-			jazzhands.layer3_network l3 JOIN
-			jazzhands.netblock p USING (netblock_id)
-		WHERE
-			l3.layer3_network_id = ANY(layer3_network_id_list)
-	), l3_coll_del AS (
-		DELETE FROM
-			jazzhands.l3_network_coll_l3_network
-		WHERE
-			layer3_network_id IN (SELECT layer3_network_id FROM x)
-	), l3_del AS (
-		DELETE FROM
-			jazzhands.layer3_network
-		WHERE
-			layer3_network_id in (SELECT layer3_network_id FROM x)
-	), nb_sel AS (
-		SELECT
-			n.netblock_id
-		FROM
-			jazzhands.netblock n JOIN
-			x ON (n.parent_netblock_id = x.netblock_id)
-	), dns_del AS (
-		DELETE FROM
-			jazzhands.dns_record
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM nb_sel)
-	), nbc_del as (
-		DELETE FROM
-			jazzhands.netblock_collection_netblock
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM x
-				UNION SELECT netblock_id FROM nb_sel)
-	), nb_del as (
-		DELETE FROM
-			jazzhands.netblock
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM nb_sel)
-	), sn_del as (
-		DELETE FROM
-			jazzhands.shared_netblock
-		WHERE
-			netblock_id IN (SELECT netblock_id FROM nb_sel)
-	), nrp_del as (
-		DELETE FROM
-			property
-		WHERE
-			network_range_id IN (
-				SELECT
-					network_range_id
-				FROM
-					network_range nr JOIN
-					x ON (nr.parent_netblock_id = x.netblock_id)
-			)
-	), nr_del as (
-		DELETE FROM
-			jazzhands.network_range
-		WHERE
-			parent_netblock_id IN (SELECT netblock_id FROM x)
-		RETURNING
-			start_netblock_id, stop_netblock_id
-	), nrnb_del AS (
-		DELETE FROM
-			jazzhands.netblock
-		WHERE
-			netblock_id IN (
-				SELECT start_netblock_id FROM nr_del
-				UNION
-				SELECT stop_netblock_id FROM nr_del
-		)
-	)
-	DELETE FROM
-		jazzhands.netblock
-	WHERE
-		netblock_id IN (SELECT netblock_id FROM x);
-
-	BEGIN
-		PERFORM local_hooks.delete_layer3_networks_after_hooks(
-			layer3_network_id_list := layer3_network_id_list
-		);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		NULL;
-	END;
-
-END $function$
 ;
 
 -- Creating new sequences....
@@ -5048,6 +4832,1144 @@ DROP TABLE IF EXISTS audit.ip_universe_v80;
 -- DONE DEALING WITH TABLE ip_universe
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE netblock
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'netblock', 'netblock');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE dns_record DROP CONSTRAINT IF EXISTS fk_dnsid_nblk_id;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_l3_net_def_gate_nbid;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_l3net_rndv_pt_nblk_id;
+ALTER TABLE layer3_network DROP CONSTRAINT IF EXISTS fk_layer3_network_netblock_id;
+ALTER TABLE netblock_collection_netblock DROP CONSTRAINT IF EXISTS fk_nblk_col_nblk_nblkid;
+ALTER TABLE network_range DROP CONSTRAINT IF EXISTS fk_net_range_start_netblock;
+ALTER TABLE network_range DROP CONSTRAINT IF EXISTS fk_net_range_stop_netblock;
+ALTER TABLE static_route_template DROP CONSTRAINT IF EXISTS fk_netblock_st_rt_dst_net;
+ALTER TABLE static_route_template DROP CONSTRAINT IF EXISTS fk_netblock_st_rt_src_net;
+ALTER TABLE network_interface_netblock DROP CONSTRAINT IF EXISTS fk_netint_nb_netint_id;
+ALTER TABLE network_interface DROP CONSTRAINT IF EXISTS fk_netint_netblk_v4id;
+ALTER TABLE network_range DROP CONSTRAINT IF EXISTS fk_netrng_prngnblkid;
+ALTER TABLE shared_netblock DROP CONSTRAINT IF EXISTS fk_shared_net_netblock_id;
+ALTER TABLE site_netblock DROP CONSTRAINT IF EXISTS fk_site_netblock_ref_netblock;
+ALTER TABLE static_route DROP CONSTRAINT IF EXISTS fk_statrt_nblk_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_nblk_ip_universe_id;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblk_netblk_parid;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblock_company;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblock_nblk_typ;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS fk_netblock_v_netblock_stat;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'netblock');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS ak_netblock_params;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS pk_netblock;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."idx_netblk_netblkstatus";
+DROP INDEX IF EXISTS "jazzhands"."idx_netblock_host_ip_address";
+DROP INDEX IF EXISTS "jazzhands"."ix_netblk_ip_address";
+DROP INDEX IF EXISTS "jazzhands"."ix_netblk_ip_address_parent";
+DROP INDEX IF EXISTS "jazzhands"."netblock_case_idx";
+DROP INDEX IF EXISTS "jazzhands"."xif5netblock";
+DROP INDEX IF EXISTS "jazzhands"."xif6netblock";
+DROP INDEX IF EXISTS "jazzhands"."xif7netblock";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS check_yes_no_172122967;
+ALTER TABLE jazzhands.netblock DROP CONSTRAINT IF EXISTS ckc_is_single_address_netblock;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS aaa_ta_manipulate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS tb_a_validate_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS tb_manipulate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trig_userlog_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_audit_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_check_ip_universe_netblock ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_nb_dns_a_rec_validation ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_netblock_single_address_ni ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_validate_netblock_parentage ON jazzhands.netblock;
+DROP TRIGGER IF EXISTS trigger_validate_netblock_to_range_changes ON jazzhands.netblock;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'netblock');
+---- BEGIN audit.netblock TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'netblock', 'netblock');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'netblock');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.netblock DROP CONSTRAINT IF EXISTS netblock_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_netblock_ak_netblock_params";
+DROP INDEX IF EXISTS "audit"."aud_netblock_pk_netblock";
+DROP INDEX IF EXISTS "audit"."netblock_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.netblock TEARDOWN
+
+
+ALTER TABLE netblock RENAME TO netblock_v80;
+ALTER TABLE audit.netblock RENAME TO netblock_v80;
+
+CREATE TABLE netblock
+(
+	netblock_id	integer NOT NULL,
+	ip_address	inet NOT NULL,
+	netblock_type	varchar(50) NOT NULL,
+	is_single_address	character(1) NOT NULL,
+	can_subnet	character(1) NOT NULL,
+	parent_netblock_id	integer  NULL,
+	netblock_status	varchar(50) NOT NULL,
+	ip_universe_id	integer NOT NULL,
+	description	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'netblock', false);
+ALTER TABLE netblock
+	ALTER netblock_id
+	SET DEFAULT nextval('netblock_netblock_id_seq'::regclass);
+ALTER TABLE netblock
+	ALTER ip_universe_id
+	SET DEFAULT 0;
+INSERT INTO netblock (
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	ip_universe_id,
+	description,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	ip_universe_id,
+	description,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM netblock_v80;
+
+INSERT INTO audit.netblock (
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	ip_universe_id,
+	description,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	netblock_id,
+	ip_address,
+	netblock_type,
+	is_single_address,
+	can_subnet,
+	parent_netblock_id,
+	netblock_status,
+	ip_universe_id,
+	description,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.netblock_v80;
+
+ALTER TABLE netblock
+	ALTER netblock_id
+	SET DEFAULT nextval('netblock_netblock_id_seq'::regclass);
+ALTER TABLE netblock
+	ALTER ip_universe_id
+	SET DEFAULT 0;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE netblock ADD CONSTRAINT ak_netblock_params UNIQUE (ip_address, netblock_type, ip_universe_id, is_single_address);
+ALTER TABLE netblock ADD CONSTRAINT pk_netblock PRIMARY KEY (netblock_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN netblock.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+CREATE INDEX idx_netblk_netblkstatus ON netblock USING btree (netblock_status);
+CREATE INDEX idx_netblock_host_ip_address ON netblock USING btree (host(ip_address));
+CREATE INDEX ix_netblk_ip_address ON netblock USING btree (ip_address);
+CREATE INDEX ix_netblk_ip_address_parent ON netblock USING btree (parent_netblock_id);
+CREATE INDEX netblock_case_idx ON netblock USING btree ((
+CASE
+    WHEN family(ip_address) = 4 THEN ip_address - '0.0.0.0'::inet
+    ELSE NULL::bigint
+END));
+CREATE INDEX xif6netblock ON netblock USING btree (ip_universe_id);
+CREATE INDEX xif7netblock ON netblock USING btree (netblock_type);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE netblock ADD CONSTRAINT check_yes_no_172122967
+	CHECK (can_subnet = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE netblock ADD CONSTRAINT ckc_is_single_address_netblock
+	CHECK ((is_single_address IS NULL) OR ((is_single_address = ANY (ARRAY['Y'::bpchar, 'N'::bpchar])) AND ((is_single_address)::text = upper((is_single_address)::text))));
+
+-- FOREIGN KEYS FROM
+-- consider FK between netblock and dns_record
+ALTER TABLE dns_record
+	ADD CONSTRAINT fk_dnsid_nblk_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3_net_def_gate_nbid
+	FOREIGN KEY (default_gateway_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_l3net_rndv_pt_nblk_id
+	FOREIGN KEY (rendezvous_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and layer3_network
+ALTER TABLE layer3_network
+	ADD CONSTRAINT fk_layer3_network_netblock_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and netblock_collection_netblock
+ALTER TABLE netblock_collection_netblock
+	ADD CONSTRAINT fk_nblk_col_nblk_nblkid
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_range
+ALTER TABLE network_range
+	ADD CONSTRAINT fk_net_range_start_netblock
+	FOREIGN KEY (start_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_range
+ALTER TABLE network_range
+	ADD CONSTRAINT fk_net_range_stop_netblock
+	FOREIGN KEY (stop_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and static_route_template
+ALTER TABLE static_route_template
+	ADD CONSTRAINT fk_netblock_st_rt_dst_net
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and static_route_template
+ALTER TABLE static_route_template
+	ADD CONSTRAINT fk_netblock_st_rt_src_net
+	FOREIGN KEY (netblock_src_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and network_interface_netblock
+ALTER TABLE network_interface_netblock
+	ADD CONSTRAINT fk_netint_nb_netint_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id) DEFERRABLE;
+-- consider FK between netblock and network_range
+ALTER TABLE network_range
+	ADD CONSTRAINT fk_netrng_prngnblkid
+	FOREIGN KEY (parent_netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and shared_netblock
+ALTER TABLE shared_netblock
+	ADD CONSTRAINT fk_shared_net_netblock_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and site_netblock
+ALTER TABLE site_netblock
+	ADD CONSTRAINT fk_site_netblock_ref_netblock
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK between netblock and static_route
+ALTER TABLE static_route
+	ADD CONSTRAINT fk_statrt_nblk_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+
+-- FOREIGN KEYS TO
+-- consider FK netblock and ip_universe
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_nblk_ip_universe_id
+	FOREIGN KEY (ip_universe_id) REFERENCES ip_universe(ip_universe_id);
+-- consider FK netblock and netblock
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblk_netblk_parid
+	FOREIGN KEY (parent_netblock_id) REFERENCES netblock(netblock_id) DEFERRABLE INITIALLY DEFERRED;
+-- consider FK netblock and val_netblock_type
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblock_nblk_typ
+	FOREIGN KEY (netblock_type) REFERENCES val_netblock_type(netblock_type);
+-- consider FK netblock and val_netblock_status
+ALTER TABLE netblock
+	ADD CONSTRAINT fk_netblock_v_netblock_stat
+	FOREIGN KEY (netblock_status) REFERENCES val_netblock_status(netblock_status);
+
+-- TRIGGERS
+-- consider NEW jazzhands.manipulate_netblock_parentage_after
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_after()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+
+DECLARE
+	nbtype				record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+	v_row_count			integer;
+	v_trigger			record;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	IF TG_OP = 'DELETE' THEN
+		v_trigger := OLD;
+	ELSE
+		v_trigger := NEW;
+	END IF;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = v_trigger.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * If we are deleting, attach all children to the parent and wipe
+	 * hands on pants;
+	 */
+	IF TG_OP = 'DELETE' THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = OLD.netblock_id;
+
+		GET DIAGNOSTICS v_row_count = ROW_COUNT;
+	--	IF (v_row_count > 0) THEN
+			RAISE DEBUG 'Set parent for all child netblocks of deleted netblock % (address %, is_single_address %) to % (% rows updated)',
+				OLD.netblock_id,
+				OLD.ip_address,
+				OLD.is_single_address,
+				OLD.parent_netblock_id,
+				v_row_count;
+	--	END IF;
+
+		RETURN NULL;
+	END IF;
+
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NULL;
+	END IF;
+
+	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+		NEW.parent_netblock_id,
+		NEW.netblock_id;
+
+	IF NEW.parent_netblock_id IS NULL THEN
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id IS NULL AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id;
+		RETURN NULL;
+	ELSE
+		-- We don't need to specify the netblock_type or ip_universe_id here
+		-- because the parent would have had to match
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+		RETURN NULL;
+	END IF;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER aaa_ta_manipulate_netblock_parentage AFTER INSERT OR DELETE ON netblock NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_after();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_netblock
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	nbtype				RECORD;
+	v_netblock_id		netblock.netblock_id%TYPE;
+	parent_netblock		RECORD;
+	tmp_nb				RECORD;
+	universes			integer[];
+	netmask_bits		integer;
+	tally				integer;
+BEGIN
+	IF NEW.ip_address IS NULL THEN
+		RAISE EXCEPTION 'Column ip_address may not be null'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
+
+	IF NEW.is_single_address = 'Y' THEN
+		IF nbtype.db_forced_hierarchy = 'Y' THEN
+			RAISE DEBUG 'Calculating netmask for new netblock';
+
+			v_netblock_id := netblock_utils.find_best_parent_id(
+				NEW.ip_address,
+				NULL,
+				NEW.netblock_type,
+				NEW.ip_universe_id,
+				NEW.is_single_address,
+				NEW.netblock_id
+				);
+
+			IF v_netblock_id IS NULL THEN
+				RAISE EXCEPTION 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N', NEW.ip_address
+					USING ERRCODE = 'JH105';
+			END IF;
+
+			SELECT masklen(ip_address) INTO netmask_bits FROM
+				netblock WHERE netblock_id = v_netblock_id;
+
+			NEW.ip_address := set_masklen(NEW.ip_address, netmask_bits);
+		END IF;
+	END IF;
+
+	/* Done with handling of netmasks */
+
+	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
+		RAISE EXCEPTION 'Single addresses may not be subnettable'
+			USING ERRCODE = 'JH106';
+	END IF;
+
+	IF NEW.is_single_address = 'N' AND (NEW.ip_address != cidr(NEW.ip_address))
+			THEN
+		RAISE EXCEPTION
+			'Non-network bits must be zero if is_single_address is N for %',
+			NEW.ip_address
+			USING ERRCODE = 'JH103';
+	END IF;
+
+	/*
+	 * This used to only happen for not-rfc1918 space, but that sort of
+	 * uniqueness enforcement is done through ip universes now.
+	 */
+	SELECT * FROM netblock INTO tmp_nb
+	WHERE
+		ip_address = NEW.ip_address AND
+		ip_universe_id = NEW.ip_universe_id AND
+		netblock_type = NEW.netblock_type AND
+		is_single_address = NEW.is_single_address
+	LIMIT 1;
+
+	IF (TG_OP = 'INSERT' AND FOUND) THEN
+		RAISE EXCEPTION E'Unique Constraint Violated on IP Address: %\nFailing row is %\nConflicts with: %',
+			NEW.ip_address, row_to_json(NEW), row_to_json(tmp_nb)
+			USING ERRCODE= 'unique_violation';
+	END IF;
+	IF (TG_OP = 'UPDATE') THEN
+		IF (NEW.ip_address != OLD.ip_address AND FOUND) THEN
+			RAISE EXCEPTION E'Unique Constraint Violated on IP Address: %\nFailing row is %\nConflicts with: %',
+				NEW.ip_address, row_to_json(NEW), row_to_json(tmp_nb)
+				USING ERRCODE= 'unique_violation';
+		END IF;
+	END IF;
+
+	/*
+	 * for networks, check for uniqueness across ip universe and ip visibility
+	 */
+	IF NEW.is_single_address = 'N' THEN
+		WITH x AS (
+				SELECT	ip_universe_id
+				FROM	ip_universe
+				WHERE	ip_namespace IN (
+							SELECT ip_namespace FROM ip_universe
+							WHERE ip_universe_id = NEW.ip_universe_id
+						)
+				AND		ip_universe_id != NEW.ip_universe_id
+			UNION
+				SELECT	visible_ip_universe_id
+				FROM	ip_universe_visibility
+				WHERE	ip_universe_id = NEW.ip_universe_id
+				AND		ip_universe_id != NEW.ip_universe_id
+			UNION
+				SELECT	ip_universe_id
+				FROM	ip_universe_visibility
+				WHERE	visible_ip_universe_id = NEW.ip_universe_id
+				AND		visible_ip_universe_id != NEW.ip_universe_id
+		) SELECT count(*) INTO tally
+		FROM netblock
+		WHERE ip_address = NEW.ip_address AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id IN (select ip_universe_id FROM x) AND
+			is_single_address = 'N' AND
+			netblock_id != NEW.netblock_id
+		;
+
+		IF tally >  0 THEN
+			RAISE EXCEPTION
+				'IP Universe Constraint Violated on IP Address: % Universe: %',
+				NEW.ip_address, NEW.ip_universe_id
+				USING ERRCODE= 'unique_violation';
+		END IF;
+
+		IF NEW.can_subnet = 'N' THEN
+			WITH x AS (
+				SELECT	ip_universe_id
+				FROM	ip_universe
+				WHERE	ip_namespace IN (
+							SELECT ip_namespace FROM ip_universe
+							WHERE ip_universe_id = NEW.ip_universe_id
+						)
+				AND		ip_universe_id != NEW.ip_universe_id
+			UNION
+				SELECT	visible_ip_universe_id
+				FROM	ip_universe_visibility
+				WHERE	ip_universe_id = NEW.ip_universe_id
+				AND		visible_ip_universe_id != NEW.ip_universe_id
+			UNION
+				SELECT	ip_universe_id
+				FROM	ip_universe_visibility
+				WHERE	visible_ip_universe_id = NEW.ip_universe_id
+				AND		ip_universe_id != NEW.ip_universe_id
+			) SELECT count(*) INTO tally
+			FROM netblock
+			WHERE
+				ip_universe_id IN (select ip_universe_id FROM x) AND
+				(
+					ip_address <<= NEW.ip_address OR
+					ip_address >>= NEW.ip_address
+				) AND
+				netblock_type = NEW.netblock_type AND
+				is_single_address = 'N' AND
+				can_subnet = 'N' AND
+				netblock_id != NEW.netblock_id
+			;
+
+			IF tally >  0 THEN
+				RAISE EXCEPTION
+					'Can Subnet = N IP Universe Constraint Violated on IP Address: % Universe: %',
+					NEW.ip_address, NEW.ip_universe_id
+					USING ERRCODE= 'unique_violation';
+			END IF;
+		END IF;
+	END IF;
+
+	/*
+	 * Parent validation is performed in the deferred after trigger
+	 */
+
+	 RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER tb_a_validate_netblock BEFORE INSERT OR UPDATE OF netblock_id, ip_address, netblock_type, is_single_address, can_subnet, parent_netblock_id, ip_universe_id ON netblock FOR EACH ROW EXECUTE PROCEDURE validate_netblock();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.manipulate_netblock_parentage_before
+CREATE OR REPLACE FUNCTION jazzhands.manipulate_netblock_parentage_before()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+
+DECLARE
+	nbtype				record;
+	v_netblock_type		val_netblock_type.netblock_type%TYPE;
+BEGIN
+	/*
+	 * Get the parameters for the given netblock type to see if we need
+	 * to do anything
+	 */
+
+	RAISE DEBUG 'Performing % on netblock %', TG_OP, NEW.netblock_id;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
+
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+		RETURN NEW;
+	END IF;
+
+	/*
+	 * Find the correct parent netblock
+	 */
+
+	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
+	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
+		NEW.ip_address,
+		NULL,
+		NEW.netblock_type,
+		NEW.ip_universe_id,
+		NEW.is_single_address,
+		NEW.netblock_id
+		);
+
+	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %',
+		NEW.netblock_id, NEW.ip_address, NEW.netblock_type,
+		NEW.ip_universe_id, NEW.is_single_address,
+		NEW.parent_netblock_id;
+
+	/*
+	 * If we are an end-node, then we're done
+	 */
+
+	IF NEW.is_single_address = 'Y' THEN
+		RETURN NEW;
+	END IF;
+
+	/*
+	 * If we're updating and we're a container netblock, find
+	 * all of the children of our new parent that should be ours and take
+	 * them.  They will already be guaranteed to be of the correct
+	 * netblock_type and ip_universe_id.  We can't do this for inserts
+	 * because the row doesn't exist causing foreign key problems, so
+	 * that needs to be done in an after trigger.
+	 */
+	IF TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+			NEW.parent_netblock_id,
+			NEW.netblock_id;
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = NEW.netblock_id
+		WHERE
+			parent_netblock_id = NEW.parent_netblock_id AND
+			ip_address <<= NEW.ip_address AND
+			netblock_id != NEW.netblock_id;
+
+		RAISE DEBUG 'Setting parent for all child netblocks of netblock % that no longer belong to it to %',
+			NEW.parent_netblock_id,
+			NEW.netblock_id;
+		RAISE DEBUG 'Setting parent % to %',
+			OLD.netblock_id,
+			OLD.parent_netblock_id;
+		UPDATE
+			netblock
+		SET
+			parent_netblock_id = OLD.parent_netblock_id
+		WHERE
+			parent_netblock_id = NEW.netblock_id AND
+			(ip_universe_id != NEW.ip_universe_id OR
+			 netblock_type != NEW.netblock_type OR
+			 NOT(ip_address <<= NEW.ip_address));
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER tb_manipulate_netblock_parentage BEFORE INSERT OR UPDATE OF ip_address, netblock_type, ip_universe_id, netblock_id, can_subnet, is_single_address ON netblock FOR EACH ROW EXECUTE PROCEDURE manipulate_netblock_parentage_before();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.check_ip_universe_netblock
+CREATE OR REPLACE FUNCTION jazzhands.check_ip_universe_netblock()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM *
+	FROM dns_record
+	WHERE netblock_id IN (NEW.netblock_id, OLD.netblock_id)
+	AND ip_universe_id != NEW.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION
+			'IP Universes for netblocks must match dns records and netblocks'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER trigger_check_ip_universe_netblock AFTER UPDATE OF netblock_id, ip_universe_id ON netblock DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE check_ip_universe_netblock();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.nb_dns_a_rec_validation
+CREATE OR REPLACE FUNCTION jazzhands.nb_dns_a_rec_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tal	integer;
+BEGIN
+	IF family(OLD.ip_address) != family(NEW.ip_address) THEN
+		--
+		-- The dns_value_record_id check is not strictly needed since
+		-- the "dns_value_record_id" points to something of the same type
+		-- and the trigger would catch that, but its here in case some
+		-- assumption later changes and its good to test for..
+		IF family(NEW.ip_address) = 6 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'A'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'A'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'A records must be assigned to IPv4 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+
+		IF family(NEW.ip_address) = 4 THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	(
+						netblock_id = NEW.netblock_id
+						AND		dns_type = 'AAAA'
+					)
+			OR		(
+						dns_value_record_id IN (
+							SELECT dns_record_id
+							FROM	dns_record
+							WHERE	netblock_id = NEW.netblock_id
+							AND		dns_type = 'AAAA'
+						)
+					);
+
+			IF _tal > 0 THEN
+				RAISE EXCEPTION 'AAAA records must be assigned to IPv6 records'
+					USING ERRCODE = 'JH200';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.is_single_address = 'N' THEN
+			SELECT count(*)
+			INTO	_tal
+			FROM	dns_record
+			WHERE	netblock_id = NEW.netblock_id
+			AND		dns_type IN ('A', 'AAAA');
+
+		IF _tal > 0 THEN
+			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_nb_dns_a_rec_validation BEFORE UPDATE OF ip_address, is_single_address ON netblock FOR EACH ROW EXECUTE PROCEDURE nb_dns_a_rec_validation();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.netblock_single_address_ni
+CREATE OR REPLACE FUNCTION jazzhands.netblock_single_address_ni()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+BEGIN
+	IF (NEW.is_single_address = 'N' AND OLD.is_single_address = 'Y') OR
+		(NEW.netblock_type != 'default' AND OLD.netblock_type = 'default')
+			THEN
+		select count(*)
+		INTO _tally
+		FROM network_interface_netblock
+		WHERE netblock_id = NEW.netblock_id;
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'network interfaces must refer to single ip addresses of type default address (%,%)', NEW.ip_address, NEW.netblock_id
+				USING errcode = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_netblock_single_address_ni BEFORE UPDATE OF is_single_address, netblock_type ON netblock FOR EACH ROW EXECUTE PROCEDURE netblock_single_address_ni();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_netblock_parentage
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_parentage()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	nbrec			record;
+	realnew			record;
+	nbtype			record;
+	parent_nbid		netblock.netblock_id%type;
+	parent_rec		record;
+	ipaddr			inet;
+	parent_ipaddr	inet;
+	single_count	integer;
+	nonsingle_count	integer;
+	pip	    		netblock.ip_address%type;
+BEGIN
+
+	RAISE DEBUG 'Validating % of netblock %', TG_OP, NEW.netblock_id;
+
+	SELECT * INTO nbtype FROM val_netblock_type WHERE
+		netblock_type = NEW.netblock_type;
+
+	/*
+	 * It's possible that due to delayed triggers that what is stored in
+	 * NEW is not current, so fetch the current values
+	 */
+
+	SELECT * INTO realnew FROM netblock WHERE netblock_id =
+		NEW.netblock_id;
+	IF NOT FOUND THEN
+		/*
+		 * If the netblock isn't there, it was subsequently deleted, so
+		 * our parentage doesn't need to be checked
+		 */
+		RETURN NULL;
+	END IF;
+
+
+	/*
+	 * If the parent changed above (or somewhere else between update and
+	 * now), just bail, because another trigger will have been fired that
+	 * we can do the full check with.
+	 */
+	IF NEW.parent_netblock_id != realnew.parent_netblock_id AND
+		realnew.parent_netblock_id IS NOT NULL
+	THEN
+		RAISE DEBUG '... skipping for now';
+		RETURN NULL;
+	END IF;
+
+	/*
+	 * Validate that parent and all children are of the same netblock_type and
+	 * in the same ip_universe.  We care about this even if the
+	 * netblock type is not a validated type.
+	 */
+
+	RAISE DEBUG 'Verifying child ip_universe and type match';
+	PERFORM netblock_id FROM netblock WHERE
+		parent_netblock_id = realnew.netblock_id AND
+		netblock_type != realnew.netblock_type AND
+		ip_universe_id != realnew.ip_universe_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 'JH109';
+	END IF;
+
+	RAISE DEBUG '... OK';
+
+	/*
+	 * validate that this netblock is attached to its correct parent
+	 */
+	IF realnew.parent_netblock_id IS NULL THEN
+		IF nbtype.is_validated_hierarchy='N' THEN
+			RETURN NULL;
+		END IF;
+		RAISE DEBUG 'Checking hierarchical netblock_id % with NULL parent',
+			NEW.netblock_id;
+
+		IF realnew.is_single_address = 'Y' THEN
+			RAISE 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N',
+				realnew.ip_address
+				USING ERRCODE = 'JH105';
+		END IF;
+
+		/*
+		 * Validate that a netblock has a parent, unless
+		 * it is the root of a hierarchy
+		 */
+		parent_nbid := netblock_utils.find_best_parent_id(
+			realnew.ip_address,
+			NULL,
+			realnew.netblock_type,
+			realnew.ip_universe_id,
+			realnew.is_single_address,
+			realnew.netblock_id
+		);
+
+		IF parent_nbid IS NOT NULL THEN
+			SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+				parent_nbid;
+
+			RAISE EXCEPTION 'Netblock % (%) has NULL parent; should be % (%)',
+				realnew.netblock_id, realnew.ip_address,
+				parent_nbid, nbrec.ip_address USING ERRCODE = 'JH102';
+		END IF;
+
+		/*
+		 * Validate that none of the other top-level netblocks should
+		 * belong to this netblock
+		 */
+		PERFORM netblock_id FROM netblock WHERE
+			parent_netblock_id IS NULL AND
+			netblock_id != NEW.netblock_id AND
+			netblock_type = NEW.netblock_type AND
+			ip_universe_id = NEW.ip_universe_id AND
+			ip_address <<= NEW.ip_address;
+		IF FOUND THEN
+			RAISE EXCEPTION 'Other top-level netblocks should belong to this parent'
+				USING ERRCODE = 'JH108';
+		END IF;
+	ELSE
+	 	/*
+		 * Reject a block that is self-referential
+		 */
+	 	IF realnew.parent_netblock_id = realnew.netblock_id THEN
+			RAISE EXCEPTION 'Netblock may not have itself as a parent'
+				USING ERRCODE = 'JH101';
+		END IF;
+
+		SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+			realnew.parent_netblock_id;
+
+		/*
+		 * This shouldn't happen, but may because of deferred constraints
+		 */
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Parent netblock % does not exist',
+			realnew.parent_netblock_id
+			USING ERRCODE = 'foreign_key_violation';
+		END IF;
+
+		IF nbrec.is_single_address = 'Y' THEN
+			RAISE EXCEPTION 'A parent netblock (% for %) may not be a single address',
+			nbrec.netblock_id, realnew.ip_address
+			USING ERRCODE = 'JH10A';
+		END IF;
+
+		IF nbrec.ip_universe_id != realnew.ip_universe_id OR
+				nbrec.netblock_type != realnew.netblock_type THEN
+			RAISE EXCEPTION 'Netblock children must all be of the same type and universe as the parent'
+			USING ERRCODE = 'JH109';
+		END IF;
+
+		IF nbtype.is_validated_hierarchy='N' THEN
+			RETURN NULL;
+		ELSE
+			parent_nbid := netblock_utils.find_best_parent_id(
+				realnew.ip_address,
+				NULL,
+				realnew.netblock_type,
+				realnew.ip_universe_id,
+				realnew.is_single_address,
+				realnew.netblock_id
+				);
+
+			SELECT * FROM netblock INTO parent_rec WHERE netblock_id =
+				parent_nbid;
+
+			IF realnew.can_subnet = 'N' THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.netblock_id AND
+					is_single_address = 'N';
+				IF FOUND THEN
+					RAISE EXCEPTION E'A non-subnettable netblock may not have child network netblocks\nParent: %\nChild: %\n',
+						row_to_json(parent_rec, true),
+						row_to_json(realnew, true)
+					USING ERRCODE = 'JH10B';
+				END IF;
+			END IF;
+			IF realnew.is_single_address = 'Y' THEN
+				SELECT * INTO nbrec FROM netblock
+					WHERE netblock_id = realnew.parent_netblock_id;
+				IF (nbrec.can_subnet = 'Y') THEN
+					RAISE 'Parent netblock % for single-address % must have can_subnet=N',
+						nbrec.netblock_id,
+						realnew.ip_address
+						USING ERRCODE = 'JH10D';
+				END IF;
+				IF (masklen(realnew.ip_address) !=
+						masklen(nbrec.ip_address)) THEN
+					RAISE 'Parent netblock % does not have the same netmask as single-address child % (% vs %)',
+						parent_nbid, realnew.netblock_id,
+						masklen(nbrec.ip_address),
+						masklen(realnew.ip_address)
+						USING ERRCODE = 'JH105';
+				END IF;
+			END IF;
+			IF (parent_nbid IS NULL OR realnew.parent_netblock_id != parent_nbid) THEN
+				SELECT ip_address INTO parent_ipaddr FROM netblock
+				WHERE
+					netblock_id = parent_nbid;
+				SELECT ip_address INTO ipaddr FROM netblock WHERE
+					netblock_id = realnew.parent_netblock_id;
+
+				RAISE EXCEPTION
+					'Parent netblock % (%) for netblock % (%) is not the correct parent (should be % (%))',
+					realnew.parent_netblock_id, ipaddr,
+					realnew.netblock_id, realnew.ip_address,
+					parent_nbid, parent_ipaddr
+					USING ERRCODE = 'JH102';
+			END IF;
+			/*
+			 * Validate that all children are is_single_address='Y' or
+			 * all children are is_single_address='N'
+			 */
+			SELECT count(*) INTO single_count FROM netblock WHERE
+				is_single_address='Y' and parent_netblock_id =
+				realnew.parent_netblock_id;
+			SELECT count(*) INTO nonsingle_count FROM netblock WHERE
+				is_single_address='N' and parent_netblock_id =
+				realnew.parent_netblock_id;
+
+			IF (single_count > 0 and nonsingle_count > 0) THEN
+				SELECT * INTO nbrec FROM netblock WHERE netblock_id =
+					realnew.parent_netblock_id;
+				RAISE EXCEPTION 'Netblock % (%) may not have direct children for both single and multiple addresses simultaneously',
+					nbrec.netblock_id, nbrec.ip_address
+					USING ERRCODE = 'JH107';
+			END IF;
+			/*
+			 *  If we're updating and we changed our ip_address (including
+			 *  netmask bits), then check that our children still belong to
+			 *  us
+			 */
+			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.netblock_id AND
+					((is_single_address = 'Y' AND NEW.ip_address !=
+						ip_address::cidr) OR
+					(is_single_address = 'N' AND realnew.netblock_id !=
+						netblock_utils.find_best_parent_id(netblock_id)));
+				IF FOUND THEN
+					RAISE EXCEPTION 'Update for netblock % (%) causes parent to have children that do not belong to it',
+						realnew.netblock_id, realnew.ip_address
+						USING ERRCODE = 'JH10E';
+				END IF;
+			END IF;
+
+			/*
+			 * Validate that none of the children of the parent netblock are
+			 * children of this netblock (e.g. if inserting into the middle
+			 * of the hierarchy)
+			 */
+			IF (realnew.is_single_address = 'N') THEN
+				PERFORM netblock_id FROM netblock WHERE
+					parent_netblock_id = realnew.parent_netblock_id AND
+					netblock_id != realnew.netblock_id AND
+					ip_address <<= realnew.ip_address;
+				IF FOUND THEN
+					RAISE EXCEPTION 'Other netblocks have children that should belong to parent % (%)',
+						realnew.parent_netblock_id, realnew.ip_address
+						USING ERRCODE = 'JH108';
+				END IF;
+			END IF;
+		END IF;
+	END IF;
+
+	RETURN NULL;
+END;
+$function$
+;
+CREATE CONSTRAINT TRIGGER trigger_validate_netblock_parentage AFTER INSERT OR UPDATE OF netblock_id, ip_address, netblock_type, is_single_address, can_subnet, parent_netblock_id, ip_universe_id ON netblock DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE PROCEDURE validate_netblock_parentage();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.validate_netblock_to_range_changes
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_to_range_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	PERFORM
+	FROM	network_range nr
+			JOIN netblock p on p.netblock_id = nr.parent_netblock_id
+			JOIN netblock start on start.netblock_id = nr.start_netblock_id
+			JOIN netblock stop on stop.netblock_id = nr.stop_netblock_id
+			JOIN val_network_range_type vnrt USING (network_range_type)
+	WHERE	( p.netblock_id = NEW.netblock_id
+				OR start.netblock_id = NEW.netblock_id
+				OR stop.netblock_id = NEW.netblock_id
+			) AND (
+					p.can_subnet = 'Y'
+				OR 	start.is_single_address = 'N'
+				OR 	stop.is_single_address = 'N'
+				OR NOT (
+					host(start.ip_address)::inet <<= p.ip_address
+					AND host(stop.ip_address)::inet <<= p.ip_address
+				)
+				OR ( vnrt.netblock_type IS NOT NULL
+				AND NOT
+					( start.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
+					AND	stop.netblock_type IS NOT DISTINCT FROM vnrt.netblock_type
+					)
+				)
+			)
+	;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Netblock changes conflict with network range requirements '
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+	RETURN NEW;
+END; $function$
+;
+CREATE CONSTRAINT TRIGGER trigger_validate_netblock_to_range_changes AFTER UPDATE OF ip_address, is_single_address, can_subnet, netblock_type ON netblock DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE PROCEDURE validate_netblock_to_range_changes();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+-- SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'netblock');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'netblock');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'netblock');
+ALTER SEQUENCE netblock_netblock_id_seq
+	 OWNED BY netblock.netblock_id;
+DROP TABLE IF EXISTS netblock_v80;
+DROP TABLE IF EXISTS audit.netblock_v80;
+-- DONE DEALING WITH TABLE netblock
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE network_interface
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'network_interface', 'network_interface');
@@ -5620,10 +6542,10 @@ delete from __recreate where type = 'view' and object = 'v_hotpants_client';
 -- DONE DEALING WITH TABLE v_hotpants_client
 --------------------------------------------------------------------
 --------------------------------------------------------------------
--- DEALING WITH NEW TABLE v_layer3_network_expanded
-SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer3_network_expanded');
-DROP VIEW IF EXISTS jazzhands.v_layer3_network_expanded;
-CREATE VIEW jazzhands.v_layer3_network_expanded AS
+-- DEALING WITH NEW TABLE v_layerx_network_expanded
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layerx_network_expanded');
+DROP VIEW IF EXISTS jazzhands.v_layerx_network_expanded;
+CREATE VIEW jazzhands.v_layerx_network_expanded AS
  SELECT l3.layer3_network_id,
     l3.description AS layer3_network_description,
     n.netblock_id,
@@ -5642,10 +6564,10 @@ CREATE VIEW jazzhands.v_layer3_network_expanded AS
     l2.description AS layer2_network_description
    FROM layer3_network l3
      JOIN netblock n USING (netblock_id)
-     LEFT JOIN netblock dg ON l3.default_gateway_netblock_id = dg.netblock_id
-     LEFT JOIN layer2_network l2 USING (layer2_network_id);
+     LEFT JOIN netblock dg(netblock_id_1, ip_address, netblock_type, is_single_address, can_subnet, parent_netblock_id, netblock_status, ip_universe_id, description, external_id, data_ins_user, data_ins_date, data_upd_user, data_upd_date) ON l3.default_gateway_netblock_id = dg.netblock_id_1
+     FULL JOIN layer2_network l2 USING (layer2_network_id);
 
--- DONE DEALING WITH TABLE v_layer3_network_expanded
+-- DONE DEALING WITH TABLE v_layerx_network_expanded
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE v_account_manager_hier
@@ -5705,7 +6627,6 @@ CREATE VIEW jazzhands.v_account_manager_hier AS
 
 -- DONE DEALING WITH TABLE v_account_manager_hier
 --------------------------------------------------------------------
-SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
@@ -9430,8 +10351,249 @@ $function$
 ;
 
 --
--- Process drops in layerx_network_manip
+-- Process post-schema layerx_network_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('layerx_network_manip', 'delete_layer2_networks');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS layerx_network_manip.delete_layer2_networks ( layer2_network_id_list integer[], purge_network_interfaces boolean );
+CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_networks(layer2_network_id_list integer[], purge_network_interfaces boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+	netblock_id_list	integer[];
+BEGIN
+	BEGIN
+		PERFORM local_hooks.delete_layer2_networks_before_hooks(
+			layer2_network_id_list := layer2_network_id_list
+		);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
+	PERFORM layerx_network_manip.delete_layer3_networks(
+		layer3_network_id_list := ARRAY(
+				SELECT layer3_network_id
+				FROM layer3_network l3n
+				WHERE layer2_network_id = ANY(layer2_network_id_list)
+			),
+		purge_network_interfaces := 
+			delete_layer2_networks.purge_network_interfaces
+	);
+
+	DELETE FROM
+		l2_network_coll_l2_network l2nc
+	WHERE
+		l2nc.layer2_network_id = ANY(layer2_network_id_list);
+
+	DELETE FROM
+		layer2_network l2n
+	WHERE
+		l2n.layer2_network_id = ANY(layer2_network_id_list);
+
+	BEGIN
+		PERFORM local_hooks.delete_layer2_networks_after_hooks(
+			layer2_network_id_list := layer2_network_id_list
+		);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
+END $function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_network(layer3_network_id integer, purge_network_interfaces boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+	PERFORM * FROM layerx_network_manip.delete_layer3_networks(
+		layer3_network_id_list := ARRAY[ layer3_network_id ],
+		purge_network_interfaces := purge_network_interfaces
+	);
+END $function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_networks(layer3_network_id_list integer[], purge_network_interfaces boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+	netblock_id_list			integer[];
+	network_interface_id_list	integer[];
+BEGIN
+	BEGIN
+		PERFORM local_hooks.delete_layer3_networks_before_hooks(
+			layer3_network_id_list := layer3_network_id_list
+		);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
+	IF (purge_network_interfaces) THEN
+		SELECT ARRAY(
+			SELECT
+				n.netblock_id AS netblock_id
+			FROM
+				jazzhands.layer3_network l3 JOIN
+				jazzhands.netblock p USING (netblock_id) JOIN
+				jazzhands.netblock n ON (p.netblock_id = n.parent_netblock_id)
+			WHERE
+				l3.layer3_network_id = ANY(layer3_network_id_list)
+		) INTO netblock_id_list;
+
+		WITH nin_del AS (
+			DELETE FROM
+				jazzhands.network_interface_netblock 
+			WHERE
+				netblock_id = ANY(netblock_id_list)
+			RETURNING network_interface_id
+		), snni_del AS (
+			DELETE FROM
+				jazzhands.shared_netblock_network_int
+			WHERE
+				shared_netblock_id IN (
+					SELECT shared_netblock_id FROM jazzhands.shared_netblock
+					WHERE netblock_id = ANY(netblock_id_list)
+				)
+			RETURNING network_interface_id
+		)
+		SELECT ARRAY(
+			SELECT network_interface_id FROM nin_del
+			UNION
+			SELECT network_interface_id FROM snni_del
+		) INTO network_interface_id_list;
+
+		DELETE FROM
+			network_interface_purpose nip
+		WHERE
+			nip.network_interface_id IN (
+				SELECT
+					network_interface_id
+				FROM
+					network_interface ni
+				WHERE
+					ni.network_interface_id = ANY(network_interface_id_list)
+						AND
+					ni.network_interface_id NOT IN (
+						SELECT
+							network_interface_id
+						FROM
+							network_interface_netblock
+						UNION
+						SELECT 
+							network_interface_id
+						FROM
+							shared_netblock_network_int
+					)
+			);
+			
+		DELETE FROM
+			network_interface ni
+		WHERE
+			ni.network_interface_id = ANY(network_interface_id_list) AND
+			ni.network_interface_id NOT IN (
+				SELECT network_interface_id FROM network_interface_netblock
+				UNION
+				SELECT network_interface_id FROM shared_netblock_network_int
+			);
+	END IF;
+
+	WITH x AS (
+		SELECT
+			p.netblock_id AS netblock_id,
+			l3.layer3_network_id AS layer3_network_id
+		FROM
+			jazzhands.layer3_network l3 JOIN
+			jazzhands.netblock p USING (netblock_id)
+		WHERE
+			l3.layer3_network_id = ANY(layer3_network_id_list)
+	), l3_coll_del AS (
+		DELETE FROM
+			jazzhands.l3_network_coll_l3_network
+		WHERE
+			layer3_network_id IN (SELECT layer3_network_id FROM x)
+	), l3_del AS (
+		DELETE FROM
+			jazzhands.layer3_network
+		WHERE
+			layer3_network_id in (SELECT layer3_network_id FROM x)
+	), nb_sel AS (
+		SELECT
+			n.netblock_id
+		FROM
+			jazzhands.netblock n JOIN
+			x ON (n.parent_netblock_id = x.netblock_id)
+	), dns_del AS (
+		DELETE FROM
+			jazzhands.dns_record
+		WHERE
+			netblock_id IN (SELECT netblock_id FROM nb_sel)
+	), nbc_del as (
+		DELETE FROM
+			jazzhands.netblock_collection_netblock
+		WHERE
+			netblock_id IN (SELECT netblock_id FROM x
+				UNION SELECT netblock_id FROM nb_sel)
+	), nb_del as (
+		DELETE FROM
+			jazzhands.netblock
+		WHERE
+			netblock_id IN (SELECT netblock_id FROM nb_sel)
+	), sn_del as (
+		DELETE FROM
+			jazzhands.shared_netblock
+		WHERE
+			netblock_id IN (SELECT netblock_id FROM nb_sel)
+	), nrp_del as (
+		DELETE FROM
+			property
+		WHERE
+			network_range_id IN (
+				SELECT
+					network_range_id
+				FROM
+					network_range nr JOIN
+					x ON (nr.parent_netblock_id = x.netblock_id)
+			)
+	), nr_del as (
+		DELETE FROM
+			jazzhands.network_range
+		WHERE
+			parent_netblock_id IN (SELECT netblock_id FROM x)
+		RETURNING
+			start_netblock_id, stop_netblock_id
+	), nrnb_del AS (
+		DELETE FROM
+			jazzhands.netblock
+		WHERE
+			netblock_id IN (
+				SELECT start_netblock_id FROM nr_del
+				UNION
+				SELECT stop_netblock_id FROM nr_del
+		)
+	)
+	DELETE FROM
+		jazzhands.netblock
+	WHERE
+		netblock_id IN (SELECT netblock_id FROM x);
+
+	BEGIN
+		PERFORM local_hooks.delete_layer3_networks_after_hooks(
+			layer3_network_id_list := layer3_network_id_list
+		);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
+END $function$
+;
+
 -- Changed function
 SELECT schema_support.save_grants_for_replay('layerx_network_manip', 'delete_layer2_networks');
 -- Dropped in case type changes.
