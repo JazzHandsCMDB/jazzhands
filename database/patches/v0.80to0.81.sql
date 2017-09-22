@@ -30,10 +30,14 @@ Invoked:
 	v_network_interface_trans
 	--first
 	v_hotpants_device_collection
+	--first
+	v_person_company
 	--pre
 	pre
 	--post
 	post
+	--preschema
+	approval_utils
 	--postschema
 	layerx_network_manip
 	--reinsert-dir=i
@@ -62,10 +66,162 @@ BEGIN
 END;
 $$;
 
+--
+-- this should be done automatically but isn't...
+--
+
+SELECT schema_support.save_dependent_objects_for_replay('approval_utils', 'v_person_company_audit_map');
+SELECT schema_support.save_grants_for_replay('approval_utils', 'v_person_company_audit_map');
+
+DROP VIEW approval_utils.v_person_company_audit_map;
+
+CREATE OR REPLACE VIEW approval_utils.v_person_company_audit_map AS
+ SELECT all_audrecs."aud#seq" AS audit_seq_id,
+    all_audrecs.company_id,
+    all_audrecs.person_id,
+    all_audrecs.person_company_status,
+    all_audrecs.person_company_relation,
+    all_audrecs.is_exempt,
+    all_audrecs.is_management,
+    all_audrecs.is_full_time,
+    all_audrecs.description,
+    all_audrecs.position_title,
+    all_audrecs.hire_date,
+    all_audrecs.termination_date,
+    all_audrecs.manager_person_id,
+    all_audrecs.nickname,
+    all_audrecs.data_ins_user,
+    all_audrecs.data_ins_date,
+    all_audrecs.data_upd_user,
+    all_audrecs.data_upd_date,
+    all_audrecs."aud#action",
+    all_audrecs."aud#timestamp",
+    all_audrecs."aud#realtime",
+    all_audrecs."aud#txid",
+    all_audrecs."aud#user",
+    all_audrecs."aud#seq",
+    all_audrecs.rownum
+   FROM ( SELECT pca.company_id,
+            pca.person_id,
+            pca.person_company_status,
+            pca.person_company_relation,
+            pca.is_exempt,
+            pca.is_management,
+            pca.is_full_time,
+            pca.description,
+            pca.position_title,
+            pca.hire_date,
+            pca.termination_date,
+            pca.manager_person_id,
+            pca.nickname,
+            pca.data_ins_user,
+            pca.data_ins_date,
+            pca.data_upd_user,
+            pca.data_upd_date,
+            pca."aud#action",
+            pca."aud#timestamp",
+            pca."aud#realtime",
+            pca."aud#txid",
+            pca."aud#user",
+            pca."aud#seq",
+            row_number() OVER (PARTITION BY pc.person_id, pc.company_id ORDER BY pca."aud#seq" DESC) AS rownum
+           FROM person_company pc
+             JOIN audit.person_company pca USING (person_id, company_id)
+          WHERE pca."aud#action" = ANY (ARRAY['UPD'::bpchar, 'INS'::bpchar])) all_audrecs
+  WHERE all_audrecs.rownum = 1
+;
+
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.replay_saved_grants();
+
+--
+-- This also happens later but here for migration
+--
+
+
+CREATE OR REPLACE FUNCTION validate_pers_company_attr() RETURNS TRIGGER AS $$
+DECLARE
+	tally			integer;
+	v_pc_atr		val_person_company_attr_name%ROWTYPE;
+	v_listvalue		Property.Property_Value%TYPE;
+BEGIN
+
+	SELECT	*
+	INTO	v_pc_atr
+	FROM	val_person_company_attr_name
+	WHERE	person_company_attr_name = NEW.person_company_attr_name;
+
+	IF v_pc_atr.person_company_attr_data_type IN
+			('boolean', 'number', 'string', 'list') THEN
+		IF NEW.attribute_value IS NULL THEN
+			RAISE EXCEPTION 'attribute_value must be set for %',
+				v_pc_atr.person_company_attr_data_type
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+		IF v_pc_atr.person_company_attr_data_type = 'boolean' THEN
+			IF NEW.attribute_value NOT IN ('Y', 'N') THEN
+				RAISE EXCEPTION 'attribute_value must be boolean (Y,N)'
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		ELSIF v_pc_atr.person_company_attr_data_type = 'number' THEN
+			IF NEW.attribute_value !~ '^-?(\d*\.?\d*){1}$' THEN
+				RAISE EXCEPTION 'attribute_value must be a number'
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		ELSIF v_pc_atr.person_company_attr_data_type = 'timestamp' THEN
+			IF NEW.attribute_value_timestamp IS NULL THEN
+				RAISE EXCEPTION 'attribute_value_timestamp must be set for %',
+					v_pc_atr.person_company_attr_data_type
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+		ELSIF v_pc_atr.person_company_attr_data_type = 'list' THEN
+			PERFORM 1
+			FROM	val_person_company_attr_value
+			WHERE	(person_company_attr_name,person_company_attr_value)
+					IN
+					(NEW.person_company_attr_name,NEW.person_company_attr_value)
+			;
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'attribute_value must be valid'
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		END IF;
+	ELSIF v_pc_atr.person_company_attr_data_type = 'person_id' THEN
+		IF NEW.person_id IS NULL THEN
+			RAISE EXCEPTION 'person_id must be set for %',
+				v_pc_atr.person_company_attr_data_type
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	END IF;
+
+	IF NEW.attribute_value IS NOT NULL AND
+			(NEW.attribute_value_person_id IS NOT NULL OR
+			NEW.attribute_value_timestamp IS NOT NULL) THEN
+		RAISE EXCEPTION 'only one attribute_value may be set'
+			USING ERRCODE = 'integrity_constraint_violation';
+	ELSIF NEW.attribute_value_person_id IS NOT NULL AND
+			(NEW.attribute_value IS NOT NULL OR
+			NEW.attribute_value_timestamp IS NOT NULL) THEN
+		RAISE EXCEPTION 'only one attribute_value may be set'
+			USING ERRCODE = 'integrity_constraint_violation';
+	ELSIF NEW.attribute_value_timestamp IS NOT NULL AND
+			(NEW.attribute_value_person_id IS NOT NULL OR
+			NEW.attribute_value IS NOT NULL) THEN
+		RAISE EXCEPTION 'only one attribute_value may be set'
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
 
 
 -- END Misc that does not apply to above
+--
+-- Process pre-schema approval_utils
+--
 --
 -- Process middle (non-trigger) schema jazzhands
 --
@@ -1434,9 +1590,6 @@ $function$
 --
 --
 -- Process middle (non-trigger) schema lv_manip
---
---
--- Process middle (non-trigger) schema approval_utils
 --
 --
 -- Process middle (non-trigger) schema account_collection_manip
@@ -3657,6 +3810,261 @@ CREATE VIEW jazzhands.v_hotpants_device_collection AS
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_hotpants_device_collection';
 -- DONE DEALING WITH TABLE v_hotpants_device_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_person_company
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_person_company', 'v_person_company');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_person_company');
+DROP VIEW IF EXISTS jazzhands.v_person_company;
+CREATE VIEW jazzhands.v_person_company AS
+ SELECT pc.company_id,
+    pc.person_id,
+    pc.person_company_status,
+    pc.person_company_relation,
+    pc.is_exempt,
+    pc.is_management,
+    pc.is_full_time,
+    pc.description,
+    empid.attribute_value AS employee_id,
+    payid.attribute_value AS payroll_id,
+    hrid.attribute_value AS external_hr_id,
+    pc.position_title,
+    badge.attribute_value AS badge_system_id,
+    pc.hire_date,
+    pc.termination_date,
+    pc.manager_person_id,
+    super.attribute_value_person_id AS supervisor_person_id,
+    pc.nickname,
+    pc.data_ins_user,
+    pc.data_ins_date,
+    pc.data_upd_user,
+    pc.data_upd_date
+   FROM person_company pc
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'employee_id'::text) empid USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'payroll_id'::text) payid USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'badge_system_id'::text) badge USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'supervisor_id'::text) super USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'external_hr_id'::text) hrid USING (company_id, person_id);
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_person_company';
+-- DONE DEALING WITH TABLE v_person_company
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE val_person_status
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_person_status', 'val_person_status');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account DROP CONSTRAINT IF EXISTS fk_acct_stat_id;
+ALTER TABLE person_company DROP CONSTRAINT IF EXISTS fk_person_company_prsncmpy_sta;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'val_person_status');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_person_status DROP CONSTRAINT IF EXISTS pk_val_person_status;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.val_person_status DROP CONSTRAINT IF EXISTS check_yes_no_100412184;
+ALTER TABLE jazzhands.val_person_status DROP CONSTRAINT IF EXISTS check_yes_no_856940377;
+ALTER TABLE jazzhands.val_person_status DROP CONSTRAINT IF EXISTS check_yes_no_vpers_stat_enable;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_person_status ON jazzhands.val_person_status;
+DROP TRIGGER IF EXISTS trigger_audit_val_person_status ON jazzhands.val_person_status;
+DROP TRIGGER IF EXISTS trigger_val_person_status_enabled_migration_enforce ON jazzhands.val_person_status;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'val_person_status');
+---- BEGIN audit.val_person_status TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'val_person_status', 'val_person_status');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'val_person_status');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.val_person_status DROP CONSTRAINT IF EXISTS val_person_status_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_val_person_status_pk_val_person_status";
+DROP INDEX IF EXISTS "audit"."val_person_status_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.val_person_status TEARDOWN
+
+
+ALTER TABLE val_person_status RENAME TO val_person_status_v80;
+ALTER TABLE audit.val_person_status RENAME TO val_person_status_v80;
+
+CREATE TABLE val_person_status
+(
+	person_status	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	is_enabled	character(1) NOT NULL,
+	propagate_from_person	character(1) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_person_status', false);
+INSERT INTO val_person_status (
+	person_status,
+	description,
+	is_enabled,
+	propagate_from_person,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	person_status,
+	description,
+	is_enabled,
+	propagate_from_person,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_person_status_v80;
+
+INSERT INTO audit.val_person_status (
+	person_status,
+	description,
+	is_enabled,
+	propagate_from_person,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	person_status,
+	description,
+	is_enabled,
+	propagate_from_person,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.val_person_status_v80;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE val_person_status ADD CONSTRAINT pk_val_person_status PRIMARY KEY (person_status);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+ALTER TABLE val_person_status ADD CONSTRAINT check_yes_no_856940377
+	CHECK (propagate_from_person = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE val_person_status ADD CONSTRAINT check_yes_no_vpers_stat_enable
+	CHECK (is_enabled = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_person_status and account
+ALTER TABLE account
+	ADD CONSTRAINT fk_acct_stat_id
+	FOREIGN KEY (account_status) REFERENCES val_person_status(person_status);
+-- consider FK between val_person_status and person_company
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsncmpy_sta
+	FOREIGN KEY (person_company_status) REFERENCES val_person_status(person_status);
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- this used to be at the end...
+-- SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_person_status');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'val_person_status');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_person_status');
+DROP TABLE IF EXISTS val_person_status_v80;
+DROP TABLE IF EXISTS audit.val_person_status_v80;
+-- DONE DEALING WITH TABLE val_person_status
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE val_property
@@ -6370,6 +6778,575 @@ DROP TABLE IF EXISTS audit.network_interface_v80;
 -- DONE DEALING WITH TABLE network_interface
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE person_company
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'person_company', 'person_company');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account DROP CONSTRAINT IF EXISTS fk_account_company_person;
+ALTER TABLE person_company_attr DROP CONSTRAINT IF EXISTS fk_pers_comp_attr_person_comp_;
+ALTER TABLE person_company_badge DROP CONSTRAINT IF EXISTS fk_person_company_badge_pc;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS fk_person_company_company_id;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS fk_person_company_mgrprsn_id;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS fk_person_company_prsncmpy_sta;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS fk_person_company_prsncmpyrelt;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS fk_person_company_prsnid;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS fk_person_company_sprprsn_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'person_company');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS ak_uq_person_company_empid;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS ak_uq_prson_company_bdgid;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS pk_person_company;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif3person_company";
+DROP INDEX IF EXISTS "jazzhands"."xif4person_company";
+DROP INDEX IF EXISTS "jazzhands"."xif5person_company";
+DROP INDEX IF EXISTS "jazzhands"."xif6person_company";
+DROP INDEX IF EXISTS "jazzhands"."xifperson_company_company_id";
+DROP INDEX IF EXISTS "jazzhands"."xifperson_company_person_id";
+-- CHECK CONSTRAINTS, etc
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS check_yes_no_1391508687;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS check_yes_no_691526916;
+ALTER TABLE jazzhands.person_company DROP CONSTRAINT IF EXISTS check_yes_no_prsncmpy_mgmt;
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_person_company ON jazzhands.person_company;
+DROP TRIGGER IF EXISTS trigger_audit_person_company ON jazzhands.person_company;
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON jazzhands.person_company;
+DROP TRIGGER IF EXISTS trigger_propagate_person_status_to_account ON jazzhands.person_company;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'person_company');
+---- BEGIN audit.person_company TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'person_company', 'person_company');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'person_company');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.person_company DROP CONSTRAINT IF EXISTS person_company_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_person_company_ak_uq_person_company_empid";
+DROP INDEX IF EXISTS "audit"."aud_person_company_ak_uq_prson_company_bdgid";
+DROP INDEX IF EXISTS "audit"."aud_person_company_pk_person_company";
+DROP INDEX IF EXISTS "audit"."person_company_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.person_company TEARDOWN
+
+
+ALTER TABLE person_company RENAME TO person_company_v80;
+ALTER TABLE audit.person_company RENAME TO person_company_v80;
+
+CREATE TABLE person_company
+(
+	company_id	integer NOT NULL,
+	person_id	integer NOT NULL,
+	person_company_status	varchar(50) NOT NULL,
+	person_company_relation	varchar(50) NOT NULL,
+	is_exempt	character(1) NOT NULL,
+	is_management	character(1) NOT NULL,
+	is_full_time	character(1) NOT NULL,
+	description	varchar(255)  NULL,
+	position_title	varchar(50)  NULL,
+	hire_date	timestamp with time zone  NULL,
+	termination_date	timestamp with time zone  NULL,
+	manager_person_id	integer  NULL,
+	nickname	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'person_company', false);
+ALTER TABLE person_company
+	ALTER is_exempt
+	SET DEFAULT 'Y'::bpchar;
+ALTER TABLE person_company
+	ALTER is_management
+	SET DEFAULT 'N'::bpchar;
+ALTER TABLE person_company
+	ALTER is_full_time
+	SET DEFAULT 'Y'::bpchar;
+
+
+-- BEGIN Manually written insert function
+DO $$
+BEGIN
+	PERFORM *
+	FROM person_company_v80
+	WHERE employee_id IS NOT NULL;
+
+	IF FOUND THEN
+		INSERT INTO val_person_company_attr_name
+			(person_company_attr_name, person_company_attr_data_type)
+		VALUES
+			('employee_id','string');
+
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) SELECT company_id, person_id, 'employee_id', employee_id
+		FROM person_company_v80
+		WHERE employee_id IS NOT NULL;
+	END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+	PERFORM *
+	FROM person_company_v80
+	WHERE payroll_id IS NOT NULL;
+
+	IF FOUND THEN
+		INSERT INTO val_person_company_attr_name
+			(person_company_attr_name, person_company_attr_data_type)
+		VALUES
+			('payroll_id','string');
+
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) SELECT company_id, person_id, 'payroll_id', payroll_id
+		FROM person_company_v80
+		WHERE payroll_id IS NOT NULL;
+	END IF;
+END;
+$$;
+
+
+DO $$
+BEGIN
+	PERFORM *
+	FROM person_company_v80
+	WHERE badge_system_id IS NOT NULL;
+
+	IF FOUND THEN
+		INSERT INTO val_person_company_attr_name
+			(person_company_attr_name, person_company_attr_data_type)
+		VALUES
+			('badge_system_id','string');
+
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) SELECT company_id, person_id, 'badge_system_id', badge_system_id
+		FROM person_company_v80
+		WHERE badge_system_id IS NOT NULL;
+	END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+	PERFORM *
+	FROM person_company_v80
+	WHERE external_hr_id IS NOT NULL;
+
+	IF FOUND THEN
+		INSERT INTO val_person_company_attr_name
+			(person_company_attr_name, person_company_attr_data_type)
+		VALUES
+			('external_hr_id','string');
+
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) SELECT company_id, person_id, 'external_hr_id', external_hr_id
+		FROM person_company_v80
+		WHERE external_hr_id IS NOT NULL;
+	END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+	PERFORM *
+	FROM person_company_v80
+	WHERE supervisor_person_id IS NOT NULL;
+
+	IF FOUND THEN
+		INSERT INTO val_person_company_attr_name
+			(person_company_attr_name, person_company_attr_data_type)
+		VALUES
+			('supervisor_id','person_id');
+
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value_person_id
+		) SELECT company_id, person_id, 'supervisor_id', 
+			supervisor_person_id
+		FROM person_company_v80
+		WHERE supervisor_person_id IS NOT NULL;
+	END IF;
+END;
+$$;
+
+INSERT INTO person_company (
+	company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	is_management,
+	is_full_time,
+	description,
+	position_title,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	is_management,
+	is_full_time,
+	description,
+	position_title,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM person_company_v80;
+
+INSERT INTO audit.person_company (
+	company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	is_management,
+	is_full_time,
+	description,
+	position_title,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	company_id,
+	person_id,
+	person_company_status,
+	person_company_relation,
+	is_exempt,
+	is_management,
+	is_full_time,
+	description,
+	position_title,
+	hire_date,
+	termination_date,
+	manager_person_id,
+	nickname,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.person_company_v80;
+
+
+-- END Manually written insert function
+ALTER TABLE person_company
+	ALTER is_exempt
+	SET DEFAULT 'Y'::bpchar;
+ALTER TABLE person_company
+	ALTER is_management
+	SET DEFAULT 'N'::bpchar;
+ALTER TABLE person_company
+	ALTER is_full_time
+	SET DEFAULT 'Y'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE person_company ADD CONSTRAINT pk_person_company PRIMARY KEY (company_id, person_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN person_company.nickname IS 'Nickname in the context of a given company.  This is less likely to be used, the value in person is preferrred.';
+-- INDEXES
+CREATE INDEX xif3person_company ON person_company USING btree (manager_person_id);
+CREATE INDEX xif5person_company ON person_company USING btree (person_company_status);
+CREATE INDEX xif6person_company ON person_company USING btree (person_company_relation);
+CREATE INDEX xifperson_company_company_id ON person_company USING btree (company_id);
+CREATE INDEX xifperson_company_person_id ON person_company USING btree (person_id);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE person_company ADD CONSTRAINT check_yes_no_1391508687
+	CHECK (is_exempt = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE person_company ADD CONSTRAINT check_yes_no_691526916
+	CHECK (is_full_time = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+ALTER TABLE person_company ADD CONSTRAINT check_yes_no_prsncmpy_mgmt
+	CHECK (is_management = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]));
+
+-- FOREIGN KEYS FROM
+-- consider FK between person_company and account
+ALTER TABLE account
+	ADD CONSTRAINT fk_account_company_person
+	FOREIGN KEY (company_id, person_id) REFERENCES person_company(company_id, person_id) DEFERRABLE;
+-- consider FK between person_company and person_company_attr
+ALTER TABLE person_company_attr
+	ADD CONSTRAINT fk_pers_comp_attr_person_comp_
+	FOREIGN KEY (company_id, person_id) REFERENCES person_company(company_id, person_id) DEFERRABLE;
+-- consider FK between person_company and person_company_badge
+ALTER TABLE person_company_badge
+	ADD CONSTRAINT fk_person_company_badge_pc
+	FOREIGN KEY (company_id, person_id) REFERENCES person_company(company_id, person_id);
+
+-- FOREIGN KEYS TO
+-- consider FK person_company and company
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_company_id
+	FOREIGN KEY (company_id) REFERENCES company(company_id) DEFERRABLE;
+-- consider FK person_company and person
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_mgrprsn_id
+	FOREIGN KEY (manager_person_id) REFERENCES person(person_id);
+-- consider FK person_company and val_person_status
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsncmpy_sta
+	FOREIGN KEY (person_company_status) REFERENCES val_person_status(person_status);
+-- consider FK person_company and val_person_company_relation
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsncmpyrelt
+	FOREIGN KEY (person_company_relation) REFERENCES val_person_company_relation(person_company_relation);
+-- consider FK person_company and person
+ALTER TABLE person_company
+	ADD CONSTRAINT fk_person_company_prsnid
+	FOREIGN KEY (person_id) REFERENCES person(person_id);
+
+-- TRIGGERS
+-- consider NEW jazzhands.automated_ac_on_person_company
+CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person_company()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+
+		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND
+				NEW.manager_person_id != OLD.manager_person_id )
+		) THEN
+			-- update the person's manager to match
+			WITH RECURSIVE map As (
+				SELECT account_id as root_account_id,
+					account_id, login, manager_account_id, manager_login
+				FROM v_account_manager_map
+				UNION
+				SELECT map.root_account_id, m.account_id, m.login,
+					m.manager_account_id, m.manager_login
+					from v_account_manager_map m
+						join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+						account_id := manager_account_id,
+						account_realm_id := account_realm_id,
+						login := manager_login)
+					FROM map m
+							join v_corp_family_account a ON
+								a.account_id = m.root_account_id
+					WHERE a.person_id = NEW.person_id
+					AND a.company_id = NEW.company_id
+			) SELECT count(*) into _tally from x;
+			IF TG_OP = 'UPDATE' THEN
+				PERFORM auto_ac_manip.make_auto_report_acs_right(
+							account_id := account_id)
+				FROM    v_corp_family_account
+				WHERE   account_role = 'primary'
+				AND     is_enabled = 'Y'
+				AND     person_id = OLD.manager_person_id;
+			END IF;
+		END IF;
+	END IF;
+
+	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = OLD.person_id
+		AND		company_id = OLD.company_id;
+	END IF;
+	IF ( TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trigger_automated_ac_on_person_company AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id, company_id, manager_person_id ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.propagate_person_status_to_account
+CREATE OR REPLACE FUNCTION jazzhands.propagate_person_status_to_account()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	should_propagate	val_person_status.propagate_from_person%type;
+BEGIN
+
+	IF OLD.person_company_status != NEW.person_company_status THEN
+		select propagate_from_person
+		  into should_propagate
+		 from	val_person_status
+		 where	person_status = NEW.person_company_status;
+		IF should_propagate = 'Y' THEN
+			update account
+			  set	account_status = NEW.person_company_status
+			 where	person_id = NEW.person_id
+			  AND	company_id = NEW.company_id;
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_propagate_person_status_to_account AFTER UPDATE ON person_company FOR EACH ROW EXECUTE PROCEDURE propagate_person_status_to_account();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.automated_ac_on_person_company
+CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person_company()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_r		RECORD;
+BEGIN
+	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+
+		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND
+				NEW.manager_person_id != OLD.manager_person_id )
+		) THEN
+			-- update the person's manager to match
+			WITH RECURSIVE map As (
+				SELECT account_id as root_account_id,
+					account_id, login, manager_account_id, manager_login
+				FROM v_account_manager_map
+				UNION
+				SELECT map.root_account_id, m.account_id, m.login,
+					m.manager_account_id, m.manager_login
+					from v_account_manager_map m
+						join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+						account_id := manager_account_id,
+						account_realm_id := account_realm_id,
+						login := manager_login)
+					FROM map m
+							join v_corp_family_account a ON
+								a.account_id = m.root_account_id
+					WHERE a.person_id = NEW.person_id
+					AND a.company_id = NEW.company_id
+			) SELECT count(*) into _tally from x;
+			IF TG_OP = 'UPDATE' THEN
+				PERFORM auto_ac_manip.make_auto_report_acs_right(
+							account_id := account_id)
+				FROM    v_corp_family_account
+				WHERE   account_role = 'primary'
+				AND     is_enabled = 'Y'
+				AND     person_id = OLD.manager_person_id;
+			END IF;
+		END IF;
+	END IF;
+
+	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = OLD.person_id
+		AND		company_id = OLD.company_id;
+	END IF;
+	IF ( TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+	END IF;
+
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
+END;
+$function$
+;
+CREATE TRIGGER trigger_z_automated_ac_on_person_company AFTER UPDATE OF manager_person_id, person_company_status, person_company_relation ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
+
+-- XXX - may need to include trigger function
+-- this used to be at the end...
+-- SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'person_company');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'person_company');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'person_company');
+-- DONE DEALING WITH TABLE person_company
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_network_interface_trans
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_network_interface_trans', 'v_network_interface_trans');
@@ -6429,6 +7406,160 @@ delete from __recreate where type = 'view' and object = 'v_network_interface_tra
 -- DONE DEALING WITH TABLE v_network_interface_trans
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_person_company
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_person_company', 'v_person_company');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_person_company');
+DROP VIEW IF EXISTS jazzhands.v_person_company;
+CREATE VIEW jazzhands.v_person_company AS
+ SELECT pc.company_id,
+    pc.person_id,
+    pc.person_company_status,
+    pc.person_company_relation,
+    pc.is_exempt,
+    pc.is_management,
+    pc.is_full_time,
+    pc.description,
+    empid.attribute_value AS employee_id,
+    payid.attribute_value AS payroll_id,
+    hrid.attribute_value AS external_hr_id,
+    pc.position_title,
+    badge.attribute_value AS badge_system_id,
+    pc.hire_date,
+    pc.termination_date,
+    pc.manager_person_id,
+    super.attribute_value_person_id AS supervisor_person_id,
+    pc.nickname,
+    pc.data_ins_user,
+    pc.data_ins_date,
+    pc.data_upd_user,
+    pc.data_upd_date
+   FROM person_company pc
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'employee_id'::text) empid USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'payroll_id'::text) payid USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'badge_system_id'::text) badge USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'supervisor_id'::text) super USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'external_hr_id'::text) hrid USING (company_id, person_id);
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_person_company';
+-- DONE DEALING WITH TABLE v_person_company
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_person_company_hier
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_person_company_hier', 'v_person_company_hier');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_person_company_hier');
+DROP VIEW IF EXISTS jazzhands.v_person_company_hier;
+CREATE VIEW jazzhands.v_person_company_hier AS
+ WITH RECURSIVE pc_recurse(level, person_id, subordinate_person_id, intermediate_person_id, person_company_relation, array_path, rvs_array_path, cycle) AS (
+         SELECT DISTINCT 0 AS level,
+            pc.manager_person_id AS person_id,
+            pc.person_id AS subordinate_person_id,
+            pc.manager_person_id AS intermediate_person_id,
+            pc.person_company_relation,
+            ARRAY[pc.manager_person_id] AS array_path,
+            ARRAY[pc.manager_person_id] AS rvs_array_path,
+            false AS bool
+           FROM person_company pc
+             JOIN val_person_status vps ON pc.person_company_status::text = vps.person_status::text
+          WHERE vps.is_enabled = 'Y'::bpchar
+        UNION ALL
+         SELECT x.level + 1 AS level,
+            x.person_id,
+            pc.person_id AS subordinate_person_id,
+            pc.manager_person_id AS intermediate_person_id,
+            pc.person_company_relation,
+            x.array_path || pc.person_id AS array_path,
+            pc.person_id || x.rvs_array_path AS rvs_array_path,
+            pc.person_id = ANY (x.array_path) AS cycle
+           FROM pc_recurse x
+             JOIN person_company pc ON x.subordinate_person_id = pc.manager_person_id
+             JOIN val_person_status vps ON pc.person_company_status::text = vps.person_status::text
+          WHERE vps.is_enabled = 'Y'::bpchar AND NOT x.cycle
+        )
+ SELECT pc_recurse.level,
+    pc_recurse.person_id,
+    pc_recurse.subordinate_person_id,
+    pc_recurse.intermediate_person_id,
+    pc_recurse.person_company_relation,
+    pc_recurse.array_path,
+    pc_recurse.rvs_array_path,
+    pc_recurse.cycle
+   FROM pc_recurse;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_person_company_hier';
+-- DONE DEALING WITH TABLE v_person_company_hier
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_property
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_property', 'v_property');
@@ -6482,6 +7613,69 @@ CREATE VIEW jazzhands.v_property AS
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_property';
 -- DONE DEALING WITH TABLE v_property
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_account_manager_map
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_manager_map', 'v_account_manager_map');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_manager_map');
+DROP VIEW IF EXISTS jazzhands.v_account_manager_map;
+CREATE VIEW jazzhands.v_account_manager_map AS
+ WITH dude_base AS (
+         SELECT a_1.login,
+            a_1.account_id,
+            a_1.person_id,
+            a_1.company_id,
+            a_1.account_realm_id,
+            COALESCE(p.preferred_first_name, p.first_name) AS first_name,
+            COALESCE(p.preferred_last_name, p.last_name) AS last_name,
+            p.middle_name,
+            pc.manager_person_id,
+            pc.employee_id
+           FROM account a_1
+             JOIN v_person_company pc USING (company_id, person_id)
+             JOIN person p USING (person_id)
+          WHERE a_1.is_enabled = 'Y'::bpchar AND pc.person_company_relation::text = 'employee'::text AND a_1.account_role::text = 'primary'::text AND a_1.account_type::text = 'person'::text
+        ), dude AS (
+         SELECT dude_base.login,
+            dude_base.account_id,
+            dude_base.person_id,
+            dude_base.company_id,
+            dude_base.account_realm_id,
+            dude_base.first_name,
+            dude_base.last_name,
+            dude_base.middle_name,
+            dude_base.manager_person_id,
+            dude_base.employee_id,
+            concat(dude_base.first_name, ' ', dude_base.last_name, ' (', dude_base.login, ')') AS human_readable
+           FROM dude_base
+        )
+ SELECT a.login,
+    a.account_id,
+    a.person_id,
+    a.company_id,
+    a.account_realm_id,
+    a.first_name,
+    a.last_name,
+    a.middle_name,
+    a.manager_person_id,
+    a.employee_id,
+    a.human_readable,
+    mp.account_id AS manager_account_id,
+    mp.login AS manager_login,
+    concat(mp.first_name, ' ', mp.last_name, ' (', mp.login, ')') AS manager_human_readable,
+    mp.last_name AS manager_last_name,
+    mp.middle_name AS manager_middle_name,
+    mp.first_name AS manger_first_name,
+    mp.employee_id AS manager_employee_id,
+    mp.company_id AS manager_company_id
+   FROM dude a
+     JOIN dude mp ON mp.person_id = a.manager_person_id AND mp.account_realm_id = a.account_realm_id;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_account_manager_map';
+-- DONE DEALING WITH TABLE v_account_manager_map
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE v_hotpants_device_collection
@@ -6650,7 +7844,6 @@ SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
 SELECT schema_support.replay_object_recreates();
-SELECT schema_support.replay_object_recreates();
 --
 -- Process drops in jazzhands
 --
@@ -6666,6 +7859,8 @@ DROP TRIGGER IF EXISTS trigger_network_interface_drop_tt_netint_ni ON jazzhands.
 DROP FUNCTION IF EXISTS jazzhands.network_interface_drop_tt (  );
 DROP TRIGGER IF EXISTS trigger_network_interface_netblock_to_ni ON jazzhands.network_interface_netblock;
 DROP FUNCTION IF EXISTS jazzhands.network_interface_netblock_to_ni (  );
+DROP TRIGGER IF EXISTS trigger_val_person_status_enabled_migration_enforce ON jazzhands.val_person_status;
+DROP FUNCTION IF EXISTS jazzhands.val_person_status_enabled_migration_enforce (  );
 -- New function
 CREATE OR REPLACE FUNCTION jazzhands._validate_json_schema_type(type text, data jsonb)
  RETURNS boolean
@@ -7855,6 +9050,89 @@ $function$
 ;
 
 -- Changed function
+SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_pers_company_attr');
+CREATE OR REPLACE FUNCTION jazzhands.validate_pers_company_attr()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	tally			integer;
+	v_pc_atr		val_person_company_attr_name%ROWTYPE;
+	v_listvalue		Property.Property_Value%TYPE;
+BEGIN
+
+	SELECT	*
+	INTO	v_pc_atr
+	FROM	val_person_company_attr_name
+	WHERE	person_company_attr_name = NEW.person_company_attr_name;
+
+	IF v_pc_atr.person_company_attr_data_type IN
+			('boolean', 'number', 'string', 'list') THEN
+		IF NEW.attribute_value IS NULL THEN
+			RAISE EXCEPTION 'attribute_value must be set for %',
+				v_pc_atr.person_company_attr_data_type
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+		IF v_pc_atr.person_company_attr_data_type = 'boolean' THEN
+			IF NEW.attribute_value NOT IN ('Y', 'N') THEN
+				RAISE EXCEPTION 'attribute_value must be boolean (Y,N)'
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		ELSIF v_pc_atr.person_company_attr_data_type = 'number' THEN
+			IF NEW.attribute_value !~ '^-?(\d*\.?\d*){1}$' THEN
+				RAISE EXCEPTION 'attribute_value must be a number'
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		ELSIF v_pc_atr.person_company_attr_data_type = 'timestamp' THEN
+			IF NEW.attribute_value_timestamp IS NULL THEN
+				RAISE EXCEPTION 'attribute_value_timestamp must be set for %',
+					v_pc_atr.person_company_attr_data_type
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+		ELSIF v_pc_atr.person_company_attr_data_type = 'list' THEN
+			PERFORM 1
+			FROM	val_person_company_attr_value
+			WHERE	(person_company_attr_name,person_company_attr_value)
+					IN
+					(NEW.person_company_attr_name,NEW.person_company_attr_value)
+			;
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'attribute_value must be valid'
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		END IF;
+	ELSIF v_pc_atr.person_company_attr_data_type = 'person_id' THEN
+		IF NEW.person_id IS NULL THEN
+			RAISE EXCEPTION 'person_id must be set for %',
+				v_pc_atr.person_company_attr_data_type
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	END IF;
+
+	IF NEW.attribute_value IS NOT NULL AND
+			(NEW.attribute_value_person_id IS NOT NULL OR
+			NEW.attribute_value_timestamp IS NOT NULL) THEN
+		RAISE EXCEPTION 'only one attribute_value may be set'
+			USING ERRCODE = 'integrity_constraint_violation';
+	ELSIF NEW.attribute_value_person_id IS NOT NULL AND
+			(NEW.attribute_value IS NOT NULL OR
+			NEW.attribute_value_timestamp IS NOT NULL) THEN
+		RAISE EXCEPTION 'only one attribute_value may be set'
+			USING ERRCODE = 'integrity_constraint_violation';
+	ELSIF NEW.attribute_value_timestamp IS NOT NULL AND
+			(NEW.attribute_value_person_id IS NOT NULL OR
+			NEW.attribute_value IS NOT NULL) THEN
+		RAISE EXCEPTION 'only one attribute_value may be set'
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- Changed function
 SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_property');
 CREATE OR REPLACE FUNCTION jazzhands.validate_property()
  RETURNS trigger
@@ -8746,6 +10024,271 @@ BEGIN
 		FROM	network_interface
 		WHERE	network_interface_id = NEW.network_interface_id;
 	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.v_person_company_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	DELETE FROM person_company_attr
+	WHERE person_id = OLD.person_id
+	AND company_id = OLD.company_id
+	AND person_company_attr_name IN (
+		'employee_id', 'payroll_id', 'external_hr_id',
+		'badge_system_id', 'supervisor_person_id'
+	);
+
+	DELETE FROM person_company
+	WHERE person_id = OLD.person_id
+	AND company_id = NEW.company_id;
+
+	RETURN OLD;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.v_person_company_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_pc	person_company%ROWTYPE;
+BEGIN
+	INSERT INTO person_company (
+        company_id, person_id, person_company_status,
+        person_company_relation, is_exempt, is_management, 
+		is_full_time,
+        description, position_title, hire_date, termination_date,
+        manager_person_id, nickname
+	) VALUES (
+        NEW.company_id, NEW.person_id, NEW.person_company_status,
+        NEW.person_company_relation, NEW.is_exempt, NEW.is_management, 
+		NEW.is_full_time,
+        NEW.description, NEW.position_title, NEW.hire_date, NEW.termination_date,
+        NEW.manager_person_id, NEW.nickname
+	) RETURNING * INTO _pc;
+
+	IF NEW.employee_id IS NOT NULL THEN
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'employee_id',
+			NEW.employee_id
+		);
+	END IF;
+
+	IF NEW.payroll_id IS NOT NULL THEN
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'payroll_id',
+			NEW.payroll_id
+		);
+	END IF;
+
+	IF NEW.external_hr_id IS NOT NULL THEN
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'external_hr_id',
+			NEW.external_hr_id
+		);
+	END IF;
+
+	IF NEW.badge_system_id IS NOT NULL THEN
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'badge_system_id',
+			NEW.badge_system_id
+		);
+	END IF;
+
+	IF NEW.supervisor_person_id IS NOT NULL THEN
+		INSERT INTO person_company_attr (
+			company_id, person_id, person_company_attr_name,
+			attribute_value_person_id
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'supervisor_person_id',
+			NEW.attribute_value_person_id
+		);
+	END IF;
+
+	--
+	-- deal with any trigger changes or whatever, tho most of these should
+	-- be noops.
+	--
+
+	NEW.company_id := _pc.company_id;
+	NEW.person_id := _pc.person_id;
+	NEW.person_company_status := _pc.person_company_status;
+	NEW.person_company_relation := _pc.person_company_relation;
+	NEW.is_exempt := _pc.is_exempt;
+	NEW.is_management := _pc.is_management;
+	NEW.is_full_time := _pc.is_full_time;
+	NEW.description := _pc.description;
+	NEW.position_title := _pc.position_title;
+	NEW.hire_date := _pc.hire_date;
+	NEW.termination_date := _pc.termination_date;
+	NEW.manager_person_id := _pc.manager_person_id;
+	NEW.nickname := _pc.nickname;
+	NEW.data_ins_user := _pc.data_ins_user;
+	NEW.data_ins_date := _pc.data_ins_date;
+	NEW.data_upd_user := _pc.data_upd_user;
+	NEW.data_upd_date := _pc.data_upd_date;
+
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.v_person_company_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	upd_query	TEXT[];
+	_pc		person_company%ROWTYPE;
+BEGIN
+	upd_query := NULL;
+
+	IF NEW.company_id IS DISTINCT FROM OLD.company_id THEN
+		upd_query := array_append(upd_query,
+			'company_id = ' || quote_nullable(NEW.company_id));
+	END IF;
+	IF NEW.person_id IS DISTINCT FROM OLD.person_id THEN
+		upd_query := array_append(upd_query,
+			'person_id = ' || quote_nullable(NEW.person_id));
+	END IF;
+	IF NEW.person_company_status IS DISTINCT FROM OLD.person_company_status THEN
+		upd_query := array_append(upd_query,
+			'person_company_status = ' || quote_nullable(NEW.person_company_status));
+	END IF;
+	IF NEW.person_company_relation IS DISTINCT FROM OLD.person_company_relation THEN
+		upd_query := array_append(upd_query,
+			'person_company_relation = ' || quote_nullable(NEW.person_company_relation));
+	END IF;
+	IF NEW.is_exempt IS DISTINCT FROM OLD.is_exempt THEN
+		upd_query := array_append(upd_query,
+			'is_exempt = ' || quote_nullable(NEW.is_exempt));
+	END IF;
+	IF NEW.is_management IS DISTINCT FROM OLD.is_management THEN
+		upd_query := array_append(upd_query,
+			'is_management = ' || quote_nullable(NEW.is_management));
+	END IF;
+	IF NEW.is_full_time IS DISTINCT FROM OLD.is_full_time THEN
+		upd_query := array_append(upd_query,
+			'is_full_time = ' || quote_nullable(NEW.is_full_time));
+	END IF;
+	IF NEW.description IS DISTINCT FROM OLD.description THEN
+		upd_query := array_append(upd_query,
+			'description = ' || quote_nullable(NEW.description));
+	END IF;
+	IF NEW.position_title IS DISTINCT FROM OLD.position_title THEN
+		upd_query := array_append(upd_query,
+			'position_title = ' || quote_nullable(NEW.position_title));
+	END IF;
+	IF NEW.hire_date IS DISTINCT FROM OLD.hire_date THEN
+		upd_query := array_append(upd_query,
+			'hire_date = ' || quote_nullable(NEW.hire_date));
+	END IF;
+	IF NEW.termination_date IS DISTINCT FROM OLD.termination_date THEN
+		upd_query := array_append(upd_query,
+			'termination_date = ' || quote_nullable(NEW.termination_date));
+	END IF;
+	IF NEW.manager_person_id IS DISTINCT FROM OLD.manager_person_id THEN
+		upd_query := array_append(upd_query,
+			'manager_person_id = ' || quote_nullable(NEW.manager_person_id));
+	END IF;
+	IF NEW.nickname IS DISTINCT FROM OLD.nickname THEN
+		upd_query := array_append(upd_query,
+			'nickname = ' || quote_nullable(NEW.nickname));
+	END IF;
+
+	IF upd_query IS NOT NULL THEN
+		EXECUTE 'UPDATE person_company SET ' ||
+		array_to_string(upd_query, ', ') ||
+		' WHERE company_id = $1 AND person_id = $2 RETURNING *'
+		USING OLD.company_id, OLD.person_id
+		INTO _pc;
+
+		NEW.company_id := _pc.company_id;
+		NEW.person_id := _pc.person_id;
+		NEW.person_company_status := _pc.person_company_status;
+		NEW.person_company_relation := _pc.person_company_relation;
+		NEW.is_exempt := _pc.is_exempt;
+		NEW.is_management := _pc.is_management;
+		NEW.is_full_time := _pc.is_full_time;
+		NEW.description := _pc.description;
+		NEW.position_title := _pc.position_title;
+		NEW.hire_date := _pc.hire_date;
+		NEW.termination_date := _pc.termination_date;
+		NEW.manager_person_id := _pc.manager_person_id;
+		NEW.nickname := _pc.nickname;
+		NEW.data_ins_user := _pc.data_ins_user;
+		NEW.data_ins_date := _pc.data_ins_date;
+		NEW.data_upd_user := _pc.data_upd_user;
+		NEW.data_upd_date := _pc.data_upd_date;
+	END IF;
+
+	IF NEW.employee_id IS NOT NULL THEN
+		UPDATE person_company_attr
+		SET	person_company_attr_name = NEW.employee_id
+		WHERE person_company_attr_name = 'employee_id'
+		AND person_id = NEW.person_id
+		AND company_id = NEW.company_id;
+	END IF;
+
+	IF NEW.payroll_id IS NOT NULL THEN
+		UPDATE person_company_attr
+		SET	person_company_attr_name = NEW.payroll_id
+		WHERE person_company_attr_name = 'payroll_id'
+		AND person_id = NEW.person_id
+		AND company_id = NEW.company_id;
+	END IF;
+
+	IF NEW.external_hr_id IS NOT NULL THEN
+		UPDATE person_company_attr
+		SET	person_company_attr_name = NEW.external_hr_id
+		WHERE person_company_attr_name = 'external_hr_id'
+		AND person_id = NEW.person_id
+		AND company_id = NEW.company_id;
+	END IF;
+
+	IF NEW.badge_system_id IS NOT NULL THEN
+		UPDATE person_company_attr
+		SET	person_company_attr_name = NEW.badge_system_id
+		WHERE person_company_attr_name = 'badge_system_id'
+		AND person_id = NEW.person_id
+		AND company_id = NEW.company_id;
+	END IF;
+
+	IF NEW.supervisor_person_id IS NOT NULL THEN
+		UPDATE person_company_attr
+		SET	attribute_value_person_id = NEW.supervisor_person_id
+		WHERE person_company_attr_name = 'supervisor_id'
+		AND person_id = NEW.person_id
+		AND company_id = NEW.company_id;
+	END IF;
+
 	RETURN NEW;
 END;
 $function$
@@ -9883,9 +11426,6 @@ $function$
 -- Process drops in lv_manip
 --
 --
--- Process drops in approval_utils
---
---
 -- Process drops in account_collection_manip
 --
 --
@@ -10857,11 +12397,25 @@ CREATE INDEX idx_dev_phys_label ON device USING btree (physical_label);
 DROP TRIGGER IF EXISTS trigger_account_status_after_hooks ON account;
 DROP TRIGGER IF EXISTS trigger_account_status_per_row_after_hooks ON account;
 CREATE TRIGGER trigger_account_status_per_row_after_hooks AFTER UPDATE OF account_status ON account FOR EACH ROW EXECUTE PROCEDURE account_status_per_row_after_hooks();
-DROP TRIGGER IF EXISTS trigger_z_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_z_automated_ac_on_person_company AFTER UPDATE OF manager_person_id, person_company_status, person_company_relation ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
 
 
 -- BEGIN Misc that does not apply to above
+
+SELECT schema_support.relation_diff(
+	schema := 'jazzhands',
+	old_rel := 'person_company_v80',
+	new_rel := 'v_person_company',
+	prikeys := ARRAY['company_id','person_id'],
+	raise_exception := true
+);
+DROP TABLE IF EXISTS person_company_v80;
+DROP TABLE IF EXISTS audit.person_company_v80;
+
+
+ALTER VIEW v_person_company alter column is_exempt set default 'Y'::text;
+ALTER VIEW v_person_company alter column is_management set default 'N'::text;
+ALTER VIEW v_person_company alter column is_full_time set default 'Y'::text;
+
 
 select schema_support.rebuild_audit_tables( 'audit'::text, 'jazzhands'::text);
 
