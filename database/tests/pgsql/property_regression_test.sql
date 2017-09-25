@@ -1604,21 +1604,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into string property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'string', 'test',
-			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_collection_Id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -1744,21 +1729,6 @@ BEGIN
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting Company_ID value into timestamp property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'timestamp', 'test',
-			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -1883,22 +1853,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into company_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'company_id', 'test',
-			v_company_id
-			) RETURNING Property_ID INTO v_property_id;
-		RAISE NOTICE '... Success';
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed';
-			raise error_in_assignment;
-	END;
-	DELETE FROM Property where Property_ID = v_property_id;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into company_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2015,21 +1969,6 @@ BEGIN
 			) VALUES (
 			'netblock_collection_id', 'test',
 			now()
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Company_ID value into Netblock_Collection_Id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'netblock_collection_id', 'test',
-			v_company_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2163,21 +2102,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into password_type property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'password_type', 'test',
-			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2295,21 +2219,6 @@ BEGIN
 			) VALUES (
 			'sw_package_id', 'test',
 			now()
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Company_ID value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'sw_package_id', 'test',
-			v_company_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2444,21 +2353,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into token_collection_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'token_collection_id', 'test',
-			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2584,21 +2478,6 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting Company_ID value into account_collection_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'account_collection_id', 'test',
-			v_company_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2716,21 +2595,6 @@ BEGIN
 			) VALUES (
 			'none', 'test',
 			now()
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Company_ID value into none property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Company_ID
-			) VALUES (
-			'none', 'test',
-			v_company_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;

@@ -864,8 +864,7 @@ insert into val_property (
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, PROPERTY_DATA_TYPE
 ) VALUES
-	('_rootcompanyid', 'Defaults', 'define the root corporate identity default for commands', 'company_id'),
-	('_defaultdomain', 'Defaults', 'defines domain used for defaultas where necessary', 'string'),
+	('_defaultdomain', 'Defaults', 'defines domain used for defaults where necessary', 'string'),
 	('_supportemail', 'Defaults', 'defines support email used by tools', 'string'),
 	('_Forced2FA', 'Defaults', '2FA is Mandatory', 'boolean');
 

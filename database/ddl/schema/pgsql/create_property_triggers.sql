@@ -126,8 +126,6 @@ BEGIN
 				NEW.property_value_json AND
 			property_value_timestamp IS NOT DISTINCT FROM
 				NEW.property_value_timestamp AND
-			property_value_company_id IS NOT DISTINCT FROM
-				NEW.property_value_company_id AND
 			property_value_account_coll_id IS NOT DISTINCT FROM
 				NEW.property_value_account_coll_id AND
 			property_value_device_coll_id IS NOT DISTINCT FROM
@@ -207,14 +205,6 @@ BEGIN
 
 	-- iterate over each of fk PROPERTY_VALUE columns and if a valid
 	-- value is set, increment tally, otherwise raise an exception.
-	IF NEW.Property_Value_Company_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'company_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Company_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
 	IF NEW.Property_Value_JSON IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'json' THEN
 			tally := tally + 1;

@@ -50,6 +50,15 @@ select timeofday(), now();
 
 -- BEGIN Misc that does not apply to above
 
+DELETE FROM property where (property_name, property_type) IN
+	(SELECT property_name, property_type
+	FROM val_property
+	WHERE property_data_type = 'company_id'
+	);
+
+DELETE FROM val_property WHERE property_data_type = 'company_id';
+
+
 DO $$
 DECLARE
         _tal INTEGER;
@@ -2185,7 +2194,6 @@ CREATE TABLE property
 	property_type	varchar(50) NOT NULL,
 	property_value	varchar(1024)  NULL,
 	property_value_timestamp	timestamp without time zone  NULL,
-	property_value_company_id	integer  NULL,
 	property_value_account_coll_id	integer  NULL,
 	property_value_device_coll_id	integer  NULL,
 	property_value_json	jsonb  NULL,
@@ -2234,7 +2242,6 @@ INSERT INTO property (
 	property_type,
 	property_value,
 	property_value_timestamp,
-	property_value_company_id,
 	property_value_account_coll_id,
 	property_value_device_coll_id,
 	property_value_json,		-- new column (property_value_json)
@@ -2275,7 +2282,6 @@ INSERT INTO property (
 	property_type,
 	property_value,
 	property_value_timestamp,
-	property_value_company_id,
 	property_value_account_coll_id,
 	property_value_device_coll_id,
 	NULL,		-- new column (property_value_json)
@@ -2318,7 +2324,6 @@ INSERT INTO audit.property (
 	property_type,
 	property_value,
 	property_value_timestamp,
-	property_value_company_id,
 	property_value_account_coll_id,
 	property_value_device_coll_id,
 	property_value_json,		-- new column (property_value_json)
@@ -2365,7 +2370,6 @@ INSERT INTO audit.property (
 	property_type,
 	property_value,
 	property_value_timestamp,
-	property_value_company_id,
 	property_value_account_coll_id,
 	property_value_device_coll_id,
 	NULL,		-- new column (property_value_json)
@@ -2421,7 +2425,6 @@ COMMENT ON COLUMN property.property_name IS 'textual name of a property';
 COMMENT ON COLUMN property.property_type IS 'textual type of a department';
 COMMENT ON COLUMN property.property_value IS 'RHS - general purpose column for value of property not defined by other types.  This may be enforced by fk (trigger) if val_property.property_data_type is list (fk is to val_property_value).   permitted based on val_property.property_data_type.';
 COMMENT ON COLUMN property.property_value_timestamp IS 'RHS - value is a timestamp , permitted based on val_property.property_data_type.';
-COMMENT ON COLUMN property.property_value_company_id IS 'RHS - fk to company_id,  permitted based on val_property.property_data_type.  THIS COLUMN IS DEPRECATED AND WILL BE REMOVED >= 0.66';
 COMMENT ON COLUMN property.property_value_account_coll_id IS 'RHS, fk to account_collection,    permitted based on val_property.property_data_type.';
 COMMENT ON COLUMN property.property_value_device_coll_id IS 'RHS - fk to device_collection.    permitted based on val_property.property_data_type.';
 COMMENT ON COLUMN property.property_value_nblk_coll_id IS 'RHS - fk to network_collection.    permitted based on val_property.property_data_type.';
@@ -2456,7 +2459,6 @@ CREATE INDEX xifprop_devcolid ON property USING btree (device_collection_id);
 CREATE INDEX xifprop_nmtyp ON property USING btree (property_name, property_type);
 CREATE INDEX xifprop_osid ON property USING btree (operating_system_id);
 CREATE INDEX xifprop_pval_acct_colid ON property USING btree (property_value_account_coll_id);
-CREATE INDEX xifprop_pval_compid ON property USING btree (property_value_company_id);
 CREATE INDEX xifprop_pval_pwdtyp ON property USING btree (property_value_password_type);
 CREATE INDEX xifprop_pval_swpkgid ON property USING btree (property_value_sw_package_id);
 CREATE INDEX xifprop_pval_tokcolid ON property USING btree (property_value_token_col_id);
@@ -2553,10 +2555,6 @@ ALTER TABLE property
 ALTER TABLE property
 	ADD CONSTRAINT fk_property_pval_acct_colid
 	FOREIGN KEY (property_value_account_coll_id) REFERENCES account_collection(account_collection_id);
--- consider FK property and company
-ALTER TABLE property
-	ADD CONSTRAINT fk_property_pval_compid
-	FOREIGN KEY (property_value_company_id) REFERENCES company(company_id) DEFERRABLE;
 -- consider FK property and val_password_type
 ALTER TABLE property
 	ADD CONSTRAINT fk_property_pval_pwdtyp
@@ -2695,8 +2693,6 @@ BEGIN
 				NEW.property_value_json AND
 			property_value_timestamp IS NOT DISTINCT FROM
 				NEW.property_value_timestamp AND
-			property_value_company_id IS NOT DISTINCT FROM
-				NEW.property_value_company_id AND
 			property_value_account_coll_id IS NOT DISTINCT FROM
 				NEW.property_value_account_coll_id AND
 			property_value_device_coll_id IS NOT DISTINCT FROM
@@ -2776,14 +2772,6 @@ BEGIN
 
 	-- iterate over each of fk PROPERTY_VALUE columns and if a valid
 	-- value is set, increment tally, otherwise raise an exception.
-	IF NEW.Property_Value_Company_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'company_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Company_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
 	IF NEW.Property_Value_JSON IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'json' THEN
 			tally := tally + 1;
@@ -3465,7 +3453,6 @@ CREATE VIEW jazzhands.v_property AS
     property.property_type,
     property.property_value,
     property.property_value_timestamp,
-    property.property_value_company_id,
     property.property_value_account_coll_id,
     property.property_value_device_coll_id,
     property.property_value_json,
@@ -7589,7 +7576,6 @@ CREATE VIEW jazzhands.v_property AS
     property.property_type,
     property.property_value,
     property.property_value_timestamp,
-    property.property_value_company_id,
     property.property_value_account_coll_id,
     property.property_value_device_coll_id,
     property.property_value_json,
@@ -7711,6 +7697,55 @@ CREATE VIEW jazzhands.v_hotpants_device_collection AS
 SELECT schema_support.prepare_for_object_replay();
 delete from __recreate where type = 'view' and object = 'v_hotpants_device_collection';
 -- DONE DEALING WITH TABLE v_hotpants_device_collection
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_acct_coll_prop_expanded
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_acct_coll_prop_expanded', 'v_acct_coll_prop_expanded');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_acct_coll_prop_expanded');
+DROP VIEW IF EXISTS jazzhands.v_acct_coll_prop_expanded;
+CREATE VIEW jazzhands.v_acct_coll_prop_expanded AS
+ SELECT v_acct_coll_expanded_detail.root_account_collection_id AS account_collection_id,
+    v_property.property_id,
+    v_property.property_name,
+    v_property.property_type,
+    v_property.property_value,
+    v_property.property_value_timestamp,
+    v_property.property_value_account_coll_id,
+    v_property.property_value_nblk_coll_id,
+    v_property.property_value_password_type,
+    v_property.property_value_person_id,
+    v_property.property_value_token_col_id,
+    v_property.property_rank,
+        CASE val_property.is_multivalue
+            WHEN 'N'::bpchar THEN false
+            WHEN 'Y'::bpchar THEN true
+            ELSE NULL::boolean
+        END AS is_multivalue,
+        CASE ac.account_collection_type
+            WHEN 'per-account'::text THEN 0
+            ELSE
+            CASE v_acct_coll_expanded_detail.assign_method
+                WHEN 'DirectAccountCollectionAssignment'::text THEN 10
+                WHEN 'DirectDepartmentAssignment'::text THEN 200
+                WHEN 'DepartmentAssignedToAccountCollection'::text THEN 300 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'AccountAssignedToChildDepartment'::text THEN 400 + v_acct_coll_expanded_detail.dept_level
+                WHEN 'AccountAssignedToChildAccountCollection'::text THEN 500 + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'DepartmentAssignedToChildAccountCollection'::text THEN 600 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'ChildDepartmentAssignedToAccountCollection'::text THEN 700 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                WHEN 'ChildDepartmentAssignedToChildAccountCollection'::text THEN 800 + v_acct_coll_expanded_detail.dept_level + v_acct_coll_expanded_detail.acct_coll_level
+                ELSE 999
+            END
+        END AS assign_rank
+   FROM v_acct_coll_expanded_detail
+     JOIN account_collection ac USING (account_collection_id)
+     JOIN v_property USING (account_collection_id)
+     JOIN val_property USING (property_name, property_type);
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+delete from __recreate where type = 'view' and object = 'v_acct_coll_prop_expanded';
+-- DONE DEALING WITH TABLE v_acct_coll_prop_expanded
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE v_hotpants_client
@@ -9249,8 +9284,6 @@ BEGIN
 				NEW.property_value_json AND
 			property_value_timestamp IS NOT DISTINCT FROM
 				NEW.property_value_timestamp AND
-			property_value_company_id IS NOT DISTINCT FROM
-				NEW.property_value_company_id AND
 			property_value_account_coll_id IS NOT DISTINCT FROM
 				NEW.property_value_account_coll_id AND
 			property_value_device_coll_id IS NOT DISTINCT FROM
@@ -9330,14 +9363,6 @@ BEGIN
 
 	-- iterate over each of fk PROPERTY_VALUE columns and if a valid
 	-- value is set, increment tally, otherwise raise an exception.
-	IF NEW.Property_Value_Company_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'company_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Company_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
 	IF NEW.Property_Value_JSON IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'json' THEN
 			tally := tally + 1;
@@ -12401,6 +12426,31 @@ CREATE TRIGGER trigger_account_status_per_row_after_hooks AFTER UPDATE OF accoun
 
 -- BEGIN Misc that does not apply to above
 
+ALTER VIEW v_person_company alter column is_exempt set default 'Y'::text;
+ALTER VIEW v_person_company alter column is_management set default 'N'::text;
+ALTER VIEW v_person_company alter column is_full_time set default 'Y'::text;
+
+DROP TRIGGER IF EXISTS trigger_v_person_company_ins
+        ON v_person_company;
+CREATE TRIGGER trigger_v_person_company_ins
+        INSTEAD OF INSERT ON v_person_company
+        FOR EACH ROW
+        EXECUTE PROCEDURE v_person_company_ins();
+DROP TRIGGER IF EXISTS trigger_v_person_company_del
+        ON v_person_company;
+CREATE TRIGGER trigger_v_person_company_del
+        INSTEAD OF DELETE
+        ON v_person_company
+        FOR EACH ROW
+        EXECUTE PROCEDURE v_person_company_del();
+DROP TRIGGER IF EXISTS trigger_v_person_company_upd
+        ON v_person_company;
+CREATE TRIGGER trigger_v_person_company_upd
+        INSTEAD OF UPDATE
+        ON v_person_company
+        FOR EACH ROW
+        EXECUTE PROCEDURE v_person_company_upd();
+
 SELECT schema_support.relation_diff(
 	schema := 'jazzhands',
 	old_rel := 'person_company_v80',
@@ -12412,13 +12462,13 @@ DROP TABLE IF EXISTS person_company_v80;
 DROP TABLE IF EXISTS audit.person_company_v80;
 
 
-ALTER VIEW v_person_company alter column is_exempt set default 'Y'::text;
-ALTER VIEW v_person_company alter column is_management set default 'N'::text;
-ALTER VIEW v_person_company alter column is_full_time set default 'Y'::text;
-
-
 select schema_support.rebuild_audit_tables( 'audit'::text, 'jazzhands'::text);
 
+
+--
+-- Just in case its accidentally recreated by the above.
+--
+DROP TRIGGER IF EXISTS trigger_audit_token_sequence ON token_sequence;
 
 
 -- END Misc that does not apply to above
