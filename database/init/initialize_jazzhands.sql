@@ -423,7 +423,6 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values
 	('list'),
 	('json'),
 	('timestamp'),
-	('company_id'),
 	('dns_domain_id'),
 	('device_collection_id'),
 	('netblock_collection_id'),
@@ -1404,7 +1403,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1422,7 +1421,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1440,7 +1439,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1458,7 +1457,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1476,7 +1475,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1494,7 +1493,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1512,7 +1511,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1530,7 +1529,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1548,7 +1547,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1566,7 +1565,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1596,7 +1595,7 @@ insert into val_property (
 	property_name, property_type,
 	permit_account_collection_id,
 	permit_account_realm_id,
-	permit_company_id,
+	permit_company_collection_id,
 	permit_site_code,
 	property_data_type,
 	is_multivalue
@@ -1830,7 +1829,7 @@ insert into val_property (
 insert into val_property (
         property_name,
         property_type,
-        permit_company_id,
+        permit_company_collection_id,
         property_data_type,
         description
 ) values (

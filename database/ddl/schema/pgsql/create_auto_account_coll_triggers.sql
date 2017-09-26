@@ -149,6 +149,7 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
+RAISE NOTICE '1';
 	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
@@ -161,6 +162,7 @@ BEGIN
 				NEW.manager_person_id != OLD.manager_person_id )
 		) THEN
 			-- update the person's manager to match
+RAISE NOTICE '2';
 			WITH RECURSIVE map As (
 				SELECT account_id as root_account_id,
 					account_id, login, manager_account_id, manager_login
@@ -181,6 +183,7 @@ BEGIN
 					AND a.company_id = NEW.company_id
 			) SELECT count(*) into _tally from x;
 			IF TG_OP = 'UPDATE' THEN
+RAISE NOTICE '2a';
 				PERFORM auto_ac_manip.make_auto_report_acs_right(
 							account_id := account_id)
 				FROM    v_corp_family_account
@@ -192,6 +195,7 @@ BEGIN
 	END IF;
 
 	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
+RAISE NOTICE '3: %', OLD;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -199,7 +203,11 @@ BEGIN
 		AND		person_id = OLD.person_id
 		AND		company_id = OLD.company_id;
 	END IF;
-	IF ( TG_OP = 'UPDATE' ) THEN
+	IF ( TG_OP = 'UPDATE' AND  (
+			OLD.person_id IS DISTINCT FROM NEW.person_id OR
+			OLD.company_id IS DISTINCT FROM NEW.company_id )
+		) THEN
+RAISE NOTICE '4: %', NEW;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -208,6 +216,7 @@ BEGIN
 		AND		company_id = NEW.company_id;
 	END IF;
 
+RAISE NOTICE '5';
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
@@ -219,7 +228,9 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_automated_ac_on_person_company
+DROP TRIGGER IF EXISTS trigger_z_automated_ac_on_person_company 
+	ON person_company;
+CREATE TRIGGER trigger_z_automated_ac_on_person_company
 	AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id,company_id,
 		manager_person_id
 	ON person_company

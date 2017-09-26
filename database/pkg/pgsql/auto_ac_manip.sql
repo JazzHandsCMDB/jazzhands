@@ -659,7 +659,19 @@ BEGIN
 			a.person_id, a.company_id,
 			ac.account_collection_name, ac.account_collection_type,
 			p.property_name, p.property_type, p.property_value, p.property_id
-		FROM    property p
+		FROM    (SELECT p.property_id, 
+					p.account_collection_id,
+					cc.company_id, 
+					p.account_realm_id, p.property_name, p.property_type,
+					p.property_value
+					FROM property p
+						LEFT JOIN (
+								SELECT company_collection_id, company_id
+								FROM	company_collection
+										JOIN company_collection_company
+										USING (company_collection_id)
+						) cc USING (company_collection_id)
+				) p
 			INNER JOIN ac USING (account_collection_id)
 		    INNER JOIN acct a
 				ON a.account_realm_id = p.account_realm_id

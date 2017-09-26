@@ -881,6 +881,14 @@ BEGIN
 
 		END IF;
 	END IF;
+
+	IF TG_OP = 'INSERT' AND NEW.permit_company_id != 'PROHIBITED' OR
+		( TG_OP = 'UPDATE' AND NEW.permit_company_id != 'PROHIBITED' AND
+			OLD.permit_company_id IS DISTINCT FROM NEW.permit_company_id )
+	THEN
+		RAISE 'property.company_id is being retired.  Please use per-company collections'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
 	RETURN NEW;
 END;
 $$
@@ -889,7 +897,8 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_val_property ON val_property;
 CREATE TRIGGER trigger_validate_val_property
-	BEFORE INSERT OR UPDATE OF property_data_type, property_value_json_schema
+	BEFORE INSERT OR UPDATE OF property_data_type, property_value_json_schema,
+		permit_company_id
 	ON val_property
 	FOR EACH ROW
 	EXECUTE PROCEDURE validate_val_property();

@@ -40,6 +40,8 @@ Invoked:
 	approval_utils
 	--postschema
 	layerx_network_manip
+	--no-drop
+	person_company
 	--reinsert-dir=i
 */
 
@@ -784,7 +786,19 @@ BEGIN
 			a.person_id, a.company_id,
 			ac.account_collection_name, ac.account_collection_type,
 			p.property_name, p.property_type, p.property_value, p.property_id
-		FROM    property p
+		FROM    (SELECT p.property_id, 
+					p.account_collection_id,
+					cc.company_id, 
+					p.account_realm_id, p.property_name, p.property_type,
+					p.property_value
+					FROM property p
+						LEFT JOIN (
+								SELECT company_collection_id, company_id
+								FROM	company_collection
+										JOIN company_collection_company
+										USING (company_collection_id)
+						) cc USING (company_collection_id)
+				) p
 			INNER JOIN ac USING (account_collection_id)
 		    INNER JOIN acct a
 				ON a.account_realm_id = p.account_realm_id
@@ -1176,6 +1190,183 @@ $function$
 --
 -- Process middle (non-trigger) schema company_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('company_manip', 'add_auto_collections');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS company_manip.add_auto_collections ( _company_id integer, _account_realm_id integer, _company_type text );
+CREATE OR REPLACE FUNCTION company_manip.add_auto_collections(_company_id integer, _account_realm_id integer, _company_type text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ar		account_realm.account_realm_name%TYPE;
+	_csn	company.company_short_name%TYPE;
+	_r		RECORD;
+	_v		text[];
+	i		text;
+	_cc		company_collection.company_collection_id%TYPE;
+	acname	account_collection.account_collection_name%TYPE;
+	acid	account_collection.account_collection_id%TYPE;
+	propv	text;
+	tally	integer;
+BEGIN
+	PERFORM *
+	FROM	account_realm_company
+	WHERE	company_id = _company_id
+	AND		account_realm_id = _account_realm_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Company and Account Realm are not associated together'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	PERFORM *
+	FROM	company_type
+	WHERE	company_id = _company_id
+	AND		company_type = _company_type;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Company % is not of type %', _company_id, _company_type
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT	company_collection_id
+	INTO	_cc
+	FROM	company_collection
+			INNER JOIN company_collection_company USING (company_collection_id)
+	WHERE	company_collection_type = 'per-company'
+	AND		company_id = _company_id;
+
+	tally := 0;
+	FOR _r IN SELECT	property_name, property_type,
+						permit_company_collection_id
+				FROM    property_collection_property pcp
+				INNER JOIN property_collection pc
+					USING (property_collection_id)
+				INNER JOIN val_property vp USING (property_name,property_type)
+				WHERE pc.property_collection_type = 'auto_ac_assignment'
+				AND pc.property_collection_name = _company_type
+				AND property_name != 'site'
+	LOOP
+		IF _r.property_name = 'account_type' THEN
+			SELECT array_agg( account_type)
+			INTO _v
+			FROM val_account_type
+			WHERE account_type != 'blacklist';
+		ELSE
+			_v := ARRAY[NULL]::text[];
+		END IF;
+
+	SELECT	account_realm_name
+	INTO	_ar
+	FROM	account_realm
+	WHERE	account_realm_id = _account_realm_id;
+
+	SELECT	company_short_name
+	INTO	_csn
+	FROM	company
+	WHERE	company_id = _company_id;
+
+		FOREACH i IN ARRAY _v
+		LOOP
+			IF i IS NULL THEN
+				acname := concat(_ar, '_', _csn, '_', _r.property_name);
+				propv := NULL;
+			ELSE
+				acname := concat(_ar, '_', _csn, '_', i);
+				propv := i;
+			END IF;
+
+			INSERT INTO account_collection (
+				account_collection_name, account_collection_type
+			) VALUES (
+				acname, 'automated'
+			) RETURNING account_collection_id INTO acid;
+
+			INSERT INTO property (
+				property_name, property_type, account_realm_id,
+				account_collection_id,
+				company_collection_id, property_value
+			) VALUES (
+				_r.property_name, _r.property_type, _account_realm_id,
+				acid,
+				_cc, propv
+			);
+			tally := tally + 1;
+		END LOOP;
+	END LOOP;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('company_manip', 'add_company');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS company_manip.add_company ( _company_name text, _company_types text[], _parent_company_id integer, _account_realm_id integer, _company_short_name text, _description text );
+CREATE OR REPLACE FUNCTION company_manip.add_company(_company_name text, _company_types text[] DEFAULT NULL::text[], _parent_company_id integer DEFAULT NULL::integer, _account_realm_id integer DEFAULT NULL::integer, _company_short_name text DEFAULT NULL::text, _description text DEFAULT NULL::text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_cmpid	company.company_id%type;
+	_short	text;
+	_isfam	char(1);
+	_perm	text;
+BEGIN
+	IF _company_types @> ARRAY['corporate family'] THEN
+		_isfam := 'Y';
+	ELSE
+		_isfam := 'N';
+	END IF;
+	IF _company_short_name IS NULL and _isfam = 'Y' THEN
+		_short := lower(regexp_replace(
+				regexp_replace(
+					regexp_replace(_company_name,
+						E'\\s+(ltd|sarl|limited|pt[ye]|GmbH|ag|ab|inc)',
+						'', 'gi'),
+					E'[,\\.\\$#@]', '', 'mg'),
+				E'\\s+', '_', 'gi'));
+	ELSE
+		_short := _company_short_name;
+	END IF;
+
+	BEGIN
+		_perm := current_setting('jazzhands.permit_company_insert');
+	EXCEPTION WHEN undefined_object THEN
+		_perm := '';
+	END;
+
+	SET jazzhands.permit_company_insert = 'permit';
+
+	INSERT INTO company (
+		company_name, company_short_name,
+		parent_company_id, description
+	) VALUES (
+		_company_name, _short,
+		_parent_company_id, _description
+	) RETURNING company_id INTO _cmpid;
+
+	SET jazzhands.permit_company_insert = _perm;
+
+	IF _account_realm_id IS NOT NULL THEN
+		INSERT INTO account_realm_company (
+			account_realm_id, company_id
+		) VALUES (
+			_account_realm_id, _cmpid
+		);
+	END IF;
+
+	IF _company_types IS NOT NULL THEN
+		PERFORM company_manip.add_company_types(_cmpid, _account_realm_id, _company_types);
+	END IF;
+
+	RETURN _cmpid;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema token_utils
 --
@@ -4705,11 +4896,19 @@ BEGIN
 
 		END IF;
 	END IF;
+
+	IF TG_OP = 'INSERT' AND NEW.permit_company_id != 'PROHIBITED' OR
+		( TG_OP = 'UPDATE' AND NEW.permit_company_id != 'PROHIBITED' AND
+			OLD.permit_company_id IS DISTINCT FROM NEW.permit_company_id )
+	THEN
+		RAISE 'property.company_id is being retired.  Please use per-company collections'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
 	RETURN NEW;
 END;
 $function$
 ;
-CREATE TRIGGER trigger_validate_val_property BEFORE INSERT OR UPDATE OF property_data_type, property_value_json_schema ON val_property FOR EACH ROW EXECUTE PROCEDURE validate_val_property();
+CREATE TRIGGER trigger_validate_val_property BEFORE INSERT OR UPDATE OF property_data_type, property_value_json_schema, permit_company_id ON val_property FOR EACH ROW EXECUTE PROCEDURE validate_val_property();
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
@@ -7134,87 +7333,6 @@ ALTER TABLE person_company
 	FOREIGN KEY (person_id) REFERENCES person(person_id);
 
 -- TRIGGERS
--- consider NEW jazzhands.automated_ac_on_person_company
-CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person_company()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO jazzhands
-AS $function$
-DECLARE
-	_tally	INTEGER;
-	_r		RECORD;
-BEGIN
-	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
-		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
-		FROM	v_corp_family_account
-				INNER JOIN person_company USING (person_id,company_id)
-		WHERE	account_role = 'primary'
-		AND		person_id = NEW.person_id
-		AND		company_id = NEW.company_id;
-
-		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND
-				NEW.manager_person_id != OLD.manager_person_id )
-		) THEN
-			-- update the person's manager to match
-			WITH RECURSIVE map As (
-				SELECT account_id as root_account_id,
-					account_id, login, manager_account_id, manager_login
-				FROM v_account_manager_map
-				UNION
-				SELECT map.root_account_id, m.account_id, m.login,
-					m.manager_account_id, m.manager_login
-					from v_account_manager_map m
-						join map on m.account_id = map.manager_account_id
-			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
-						account_id := manager_account_id,
-						account_realm_id := account_realm_id,
-						login := manager_login)
-					FROM map m
-							join v_corp_family_account a ON
-								a.account_id = m.root_account_id
-					WHERE a.person_id = NEW.person_id
-					AND a.company_id = NEW.company_id
-			) SELECT count(*) into _tally from x;
-			IF TG_OP = 'UPDATE' THEN
-				PERFORM auto_ac_manip.make_auto_report_acs_right(
-							account_id := account_id)
-				FROM    v_corp_family_account
-				WHERE   account_role = 'primary'
-				AND     is_enabled = 'Y'
-				AND     person_id = OLD.manager_person_id;
-			END IF;
-		END IF;
-	END IF;
-
-	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
-		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
-		FROM	v_corp_family_account
-				INNER JOIN person_company USING (person_id,company_id)
-		WHERE	account_role = 'primary'
-		AND		person_id = OLD.person_id
-		AND		company_id = OLD.company_id;
-	END IF;
-	IF ( TG_OP = 'UPDATE' ) THEN
-		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
-		FROM	v_corp_family_account
-				INNER JOIN person_company USING (person_id,company_id)
-		WHERE	account_role = 'primary'
-		AND		person_id = NEW.person_id
-		AND		company_id = NEW.company_id;
-	END IF;
-
-	IF TG_OP = 'DELETE' THEN
-		RETURN OLD;
-	ELSE
-		RETURN NEW;
-	END IF;
-END;
-$function$
-;
-CREATE TRIGGER trigger_automated_ac_on_person_company AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id, company_id, manager_person_id ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
-
--- XXX - may need to include trigger function
 -- consider NEW jazzhands.propagate_person_status_to_account
 CREATE OR REPLACE FUNCTION jazzhands.propagate_person_status_to_account()
  RETURNS trigger
@@ -7256,6 +7374,7 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
+RAISE NOTICE '1';
 	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
@@ -7268,6 +7387,7 @@ BEGIN
 				NEW.manager_person_id != OLD.manager_person_id )
 		) THEN
 			-- update the person's manager to match
+RAISE NOTICE '2';
 			WITH RECURSIVE map As (
 				SELECT account_id as root_account_id,
 					account_id, login, manager_account_id, manager_login
@@ -7288,6 +7408,7 @@ BEGIN
 					AND a.company_id = NEW.company_id
 			) SELECT count(*) into _tally from x;
 			IF TG_OP = 'UPDATE' THEN
+RAISE NOTICE '2a';
 				PERFORM auto_ac_manip.make_auto_report_acs_right(
 							account_id := account_id)
 				FROM    v_corp_family_account
@@ -7299,6 +7420,7 @@ BEGIN
 	END IF;
 
 	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
+RAISE NOTICE '3: %', OLD;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -7306,7 +7428,11 @@ BEGIN
 		AND		person_id = OLD.person_id
 		AND		company_id = OLD.company_id;
 	END IF;
-	IF ( TG_OP = 'UPDATE' ) THEN
+	IF ( TG_OP = 'UPDATE' AND  (
+			OLD.person_id IS DISTINCT FROM NEW.person_id OR
+			OLD.company_id IS DISTINCT FROM NEW.company_id )
+		) THEN
+RAISE NOTICE '4: %', NEW;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -7315,6 +7441,7 @@ BEGIN
 		AND		company_id = NEW.company_id;
 	END IF;
 
+RAISE NOTICE '5';
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
@@ -7323,7 +7450,7 @@ BEGIN
 END;
 $function$
 ;
-CREATE TRIGGER trigger_z_automated_ac_on_person_company AFTER UPDATE OF manager_person_id, person_company_status, person_company_relation ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
+CREATE TRIGGER trigger_z_automated_ac_on_person_company AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id, company_id, manager_person_id ON person_company FOR EACH ROW EXECUTE PROCEDURE automated_ac_on_person_company();
 
 -- XXX - may need to include trigger function
 -- this used to be at the end...
@@ -7331,6 +7458,9 @@ CREATE TRIGGER trigger_z_automated_ac_on_person_company AFTER UPDATE OF manager_
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'person_company');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'person_company');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'person_company');
+-- not dropping person_company, as directed
+-- DROP TABLE IF EXISTS person_company_v80;
+-- DROP TABLE IF EXISTS audit.person_company_v80;
 -- DONE DEALING WITH TABLE person_company
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -8281,6 +8411,95 @@ BEGIN
 	END IF;
 
 	RETURN NEW;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('jazzhands', 'automated_ac_on_person_company');
+CREATE OR REPLACE FUNCTION jazzhands.automated_ac_on_person_company()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_tally	INTEGER;
+	_r		RECORD;
+BEGIN
+RAISE NOTICE '1';
+	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+
+		IF ( TG_OP = 'INSERT' OR ( TG_OP = 'UPDATE' AND
+				NEW.manager_person_id != OLD.manager_person_id )
+		) THEN
+			-- update the person's manager to match
+RAISE NOTICE '2';
+			WITH RECURSIVE map As (
+				SELECT account_id as root_account_id,
+					account_id, login, manager_account_id, manager_login
+				FROM v_account_manager_map
+				UNION
+				SELECT map.root_account_id, m.account_id, m.login,
+					m.manager_account_id, m.manager_login
+					from v_account_manager_map m
+						join map on m.account_id = map.manager_account_id
+			), x AS ( SELECT auto_ac_manip.make_auto_report_acs_right(
+						account_id := manager_account_id,
+						account_realm_id := account_realm_id,
+						login := manager_login)
+					FROM map m
+							join v_corp_family_account a ON
+								a.account_id = m.root_account_id
+					WHERE a.person_id = NEW.person_id
+					AND a.company_id = NEW.company_id
+			) SELECT count(*) into _tally from x;
+			IF TG_OP = 'UPDATE' THEN
+RAISE NOTICE '2a';
+				PERFORM auto_ac_manip.make_auto_report_acs_right(
+							account_id := account_id)
+				FROM    v_corp_family_account
+				WHERE   account_role = 'primary'
+				AND     is_enabled = 'Y'
+				AND     person_id = OLD.manager_person_id;
+			END IF;
+		END IF;
+	END IF;
+
+	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
+RAISE NOTICE '3: %', OLD;
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = OLD.person_id
+		AND		company_id = OLD.company_id;
+	END IF;
+	IF ( TG_OP = 'UPDATE' AND  (
+			OLD.person_id IS DISTINCT FROM NEW.person_id OR
+			OLD.company_id IS DISTINCT FROM NEW.company_id )
+		) THEN
+RAISE NOTICE '4: %', NEW;
+		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
+		FROM	v_corp_family_account
+				INNER JOIN person_company USING (person_id,company_id)
+		WHERE	account_role = 'primary'
+		AND		person_id = NEW.person_id
+		AND		company_id = NEW.company_id;
+	END IF;
+
+RAISE NOTICE '5';
+	IF TG_OP = 'DELETE' THEN
+		RETURN OLD;
+	ELSE
+		RETURN NEW;
+	END IF;
 END;
 $function$
 ;
@@ -10350,6 +10569,14 @@ BEGIN
 
 		END IF;
 	END IF;
+
+	IF TG_OP = 'INSERT' AND NEW.permit_company_id != 'PROHIBITED' OR
+		( TG_OP = 'UPDATE' AND NEW.permit_company_id != 'PROHIBITED' AND
+			OLD.permit_company_id IS DISTINCT FROM NEW.permit_company_id )
+	THEN
+		RAISE 'property.company_id is being retired.  Please use per-company collections'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
 	RETURN NEW;
 END;
 $function$
@@ -10634,7 +10861,19 @@ BEGIN
 			a.person_id, a.company_id,
 			ac.account_collection_name, ac.account_collection_type,
 			p.property_name, p.property_type, p.property_value, p.property_id
-		FROM    property p
+		FROM    (SELECT p.property_id, 
+					p.account_collection_id,
+					cc.company_id, 
+					p.account_realm_id, p.property_name, p.property_type,
+					p.property_value
+					FROM property p
+						LEFT JOIN (
+								SELECT company_collection_id, company_id
+								FROM	company_collection
+										JOIN company_collection_company
+										USING (company_collection_id)
+						) cc USING (company_collection_id)
+				) p
 			INNER JOIN ac USING (account_collection_id)
 		    INNER JOIN acct a
 				ON a.account_realm_id = p.account_realm_id
@@ -11026,6 +11265,183 @@ $function$
 --
 -- Process drops in company_manip
 --
+-- Changed function
+SELECT schema_support.save_grants_for_replay('company_manip', 'add_auto_collections');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS company_manip.add_auto_collections ( _company_id integer, _account_realm_id integer, _company_type text );
+CREATE OR REPLACE FUNCTION company_manip.add_auto_collections(_company_id integer, _account_realm_id integer, _company_type text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ar		account_realm.account_realm_name%TYPE;
+	_csn	company.company_short_name%TYPE;
+	_r		RECORD;
+	_v		text[];
+	i		text;
+	_cc		company_collection.company_collection_id%TYPE;
+	acname	account_collection.account_collection_name%TYPE;
+	acid	account_collection.account_collection_id%TYPE;
+	propv	text;
+	tally	integer;
+BEGIN
+	PERFORM *
+	FROM	account_realm_company
+	WHERE	company_id = _company_id
+	AND		account_realm_id = _account_realm_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Company and Account Realm are not associated together'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	PERFORM *
+	FROM	company_type
+	WHERE	company_id = _company_id
+	AND		company_type = _company_type;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Company % is not of type %', _company_id, _company_type
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT	company_collection_id
+	INTO	_cc
+	FROM	company_collection
+			INNER JOIN company_collection_company USING (company_collection_id)
+	WHERE	company_collection_type = 'per-company'
+	AND		company_id = _company_id;
+
+	tally := 0;
+	FOR _r IN SELECT	property_name, property_type,
+						permit_company_collection_id
+				FROM    property_collection_property pcp
+				INNER JOIN property_collection pc
+					USING (property_collection_id)
+				INNER JOIN val_property vp USING (property_name,property_type)
+				WHERE pc.property_collection_type = 'auto_ac_assignment'
+				AND pc.property_collection_name = _company_type
+				AND property_name != 'site'
+	LOOP
+		IF _r.property_name = 'account_type' THEN
+			SELECT array_agg( account_type)
+			INTO _v
+			FROM val_account_type
+			WHERE account_type != 'blacklist';
+		ELSE
+			_v := ARRAY[NULL]::text[];
+		END IF;
+
+	SELECT	account_realm_name
+	INTO	_ar
+	FROM	account_realm
+	WHERE	account_realm_id = _account_realm_id;
+
+	SELECT	company_short_name
+	INTO	_csn
+	FROM	company
+	WHERE	company_id = _company_id;
+
+		FOREACH i IN ARRAY _v
+		LOOP
+			IF i IS NULL THEN
+				acname := concat(_ar, '_', _csn, '_', _r.property_name);
+				propv := NULL;
+			ELSE
+				acname := concat(_ar, '_', _csn, '_', i);
+				propv := i;
+			END IF;
+
+			INSERT INTO account_collection (
+				account_collection_name, account_collection_type
+			) VALUES (
+				acname, 'automated'
+			) RETURNING account_collection_id INTO acid;
+
+			INSERT INTO property (
+				property_name, property_type, account_realm_id,
+				account_collection_id,
+				company_collection_id, property_value
+			) VALUES (
+				_r.property_name, _r.property_type, _account_realm_id,
+				acid,
+				_cc, propv
+			);
+			tally := tally + 1;
+		END LOOP;
+	END LOOP;
+END;
+$function$
+;
+
+-- Changed function
+SELECT schema_support.save_grants_for_replay('company_manip', 'add_company');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS company_manip.add_company ( _company_name text, _company_types text[], _parent_company_id integer, _account_realm_id integer, _company_short_name text, _description text );
+CREATE OR REPLACE FUNCTION company_manip.add_company(_company_name text, _company_types text[] DEFAULT NULL::text[], _parent_company_id integer DEFAULT NULL::integer, _account_realm_id integer DEFAULT NULL::integer, _company_short_name text DEFAULT NULL::text, _description text DEFAULT NULL::text)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_cmpid	company.company_id%type;
+	_short	text;
+	_isfam	char(1);
+	_perm	text;
+BEGIN
+	IF _company_types @> ARRAY['corporate family'] THEN
+		_isfam := 'Y';
+	ELSE
+		_isfam := 'N';
+	END IF;
+	IF _company_short_name IS NULL and _isfam = 'Y' THEN
+		_short := lower(regexp_replace(
+				regexp_replace(
+					regexp_replace(_company_name,
+						E'\\s+(ltd|sarl|limited|pt[ye]|GmbH|ag|ab|inc)',
+						'', 'gi'),
+					E'[,\\.\\$#@]', '', 'mg'),
+				E'\\s+', '_', 'gi'));
+	ELSE
+		_short := _company_short_name;
+	END IF;
+
+	BEGIN
+		_perm := current_setting('jazzhands.permit_company_insert');
+	EXCEPTION WHEN undefined_object THEN
+		_perm := '';
+	END;
+
+	SET jazzhands.permit_company_insert = 'permit';
+
+	INSERT INTO company (
+		company_name, company_short_name,
+		parent_company_id, description
+	) VALUES (
+		_company_name, _short,
+		_parent_company_id, _description
+	) RETURNING company_id INTO _cmpid;
+
+	SET jazzhands.permit_company_insert = _perm;
+
+	IF _account_realm_id IS NOT NULL THEN
+		INSERT INTO account_realm_company (
+			account_realm_id, company_id
+		) VALUES (
+			_account_realm_id, _cmpid
+		);
+	END IF;
+
+	IF _company_types IS NOT NULL THEN
+		PERFORM company_manip.add_company_types(_cmpid, _account_realm_id, _company_types);
+	END IF;
+
+	RETURN _cmpid;
+END;
+$function$
+;
+
 --
 -- Process drops in token_utils
 --
@@ -12430,6 +12846,9 @@ ALTER VIEW v_person_company alter column is_exempt set default 'Y'::text;
 ALTER VIEW v_person_company alter column is_management set default 'N'::text;
 ALTER VIEW v_person_company alter column is_full_time set default 'Y'::text;
 
+DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
+
+
 DROP TRIGGER IF EXISTS trigger_v_person_company_ins
         ON v_person_company;
 CREATE TRIGGER trigger_v_person_company_ins
@@ -12451,6 +12870,98 @@ CREATE TRIGGER trigger_v_person_company_upd
         FOR EACH ROW
         EXECUTE PROCEDURE v_person_company_upd();
 
+------------------------------------------------------------------------------
+--
+-- deal with auto collections moving to company collections instead of
+-- companies
+
+-- ALTER TABLE property DISABLE TRIGGER trigger_validate_property;
+
+UPDATE val_property 
+SET 
+	permit_company_collection_id = 'REQUIRED',
+	permit_company_id = 'PROHIBITED'
+WHERE property_type = 'auto_acct_coll'
+AND property_name IN (
+	'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+	'management',
+	'non_management', 'full_time', 'non_full_time', 'account_type'
+);
+
+--
+-- somehow some companies may have been missed, so adding them.
+--
+WITH c AS (
+	select *, row_number() OVER (ORDER BY company_name) as rn
+	from company 
+	where company_id not in (
+		select company_id 
+		from company_collection_company 
+		join company_collection using (company_collection_id) 
+		where company_collection_type = 'per-company'
+		order by company_name
+	)
+	and company_id > 0
+), cc AS (
+	INSERT INTO company_collection
+		(company_collection_name, company_collection_type)
+	SELECT
+		c.company_name || '_' || c.company_id, 'per-company'
+	FROM c
+	ORDER BY rn
+	RETURNING *
+), icc AS (
+	SELECT *, row_number() OVER (order by company_collection_name) as rn
+	FROM cc
+) INSERT INTO company_collection_company
+	(company_collection_id, company_id)
+SELECT company_collection_id, company_id
+FROM c JOIN icc USING (rn)
+ORDER BY rn;
+
+select count(*) FROM property
+	WHERE property_type = 'auto_acct_coll'
+	AND property_name IN (
+		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+		'management',
+		'non_management', 'full_time', 'non_full_time', 'account_type'
+	);
+
+
+WITH op AS (
+	SELECT p.property_id, p.property_name, p.property_type,
+		cc.company_collection_id, company_id
+	FROM	property p
+		INNER JOIN (select company_id, company_collection_id
+			FROM company_collection
+			JOIN company_collection_company USING (company_collection_id)
+			WHERE company_collection_type = 'per-company'
+		) cc USING (company_id)
+	WHERE property_type = 'auto_acct_coll'
+	AND property_name IN (
+		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+		'management',
+		'non_management', 'full_time', 'non_full_time', 'account_type'
+	)
+) UPDATE property p
+	SET company_collection_id = op.company_collection_id,
+		company_id = NULL
+FROM op
+WHERE op.property_id = p.property_id;
+
+select count(*) FROM property
+	WHERE property_type = 'auto_acct_coll'
+	AND property_name IN (
+		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+		'management',
+		'non_management', 'full_time', 'non_full_time', 'account_type'
+	);
+
+-- ALTER TABLE property ENABLE TRIGGER trigger_validate_property;
+
+
+------------------------------------------------------------------------------
+
 SELECT schema_support.relation_diff(
 	schema := 'jazzhands',
 	old_rel := 'person_company_v80',
@@ -12458,9 +12969,11 @@ SELECT schema_support.relation_diff(
 	prikeys := ARRAY['company_id','person_id'],
 	raise_exception := true
 );
+
 DROP TABLE IF EXISTS person_company_v80;
 DROP TABLE IF EXISTS audit.person_company_v80;
 
+------------------------------------------------------------------------------
 
 select schema_support.rebuild_audit_tables( 'audit'::text, 'jazzhands'::text);
 
