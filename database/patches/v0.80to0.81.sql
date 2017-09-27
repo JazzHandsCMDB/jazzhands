@@ -21,6 +21,10 @@ Invoked:
 	--suffix=v80
 	--col-default=should_generate_dns:'Y'
 	--first
+	v_account_manager_hier
+	--first
+	v_person_company
+	--first
 	property
 	--first
 	v_property
@@ -30,8 +34,6 @@ Invoked:
 	v_network_interface_trans
 	--first
 	v_hotpants_device_collection
-	--first
-	v_person_company
 	--pre
 	pre
 	--post
@@ -2261,6 +2263,189 @@ CREATE SEQUENCE contract_contract_id_seq;
 
 
 --------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_account_manager_hier
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_manager_hier');
+DROP VIEW IF EXISTS jazzhands.v_account_manager_hier;
+CREATE VIEW jazzhands.v_account_manager_hier AS
+ WITH RECURSIVE phier(level, person_id, company_id, intermediate_manager_person_id, manager_person_id) AS (
+         SELECT 0 AS level,
+            v_person_company.person_id,
+            v_person_company.company_id,
+            v_person_company.manager_person_id AS intermediate_manager_person_id,
+            v_person_company.manager_person_id,
+            ARRAY[v_person_company.person_id] AS array_path,
+            false AS cycle
+           FROM v_person_company
+        UNION
+         SELECT x.level + 1 AS level,
+            x.person_id,
+            x.company_id,
+            m_1.manager_person_id AS intermediate_manager_person_id,
+            m_1.manager_person_id,
+            x.array_path || m_1.manager_person_id AS array_path,
+            m_1.manager_person_id = ANY (x.array_path) AS cycle
+           FROM v_person_company m_1
+             JOIN phier x ON x.intermediate_manager_person_id = m_1.person_id
+          WHERE NOT x.cycle AND m_1.manager_person_id IS NOT NULL
+        )
+ SELECT h.level,
+    a.account_id,
+    a.person_id,
+    a.company_id,
+    a.login,
+    concat(p.first_name, ' ', p.last_name, ' (', a.login, ')') AS human_readable,
+    a.account_realm_id,
+    m.manager_account_id,
+    m.manager_login,
+    h.manager_person_id,
+    m.manager_company_id,
+    m.manager_human_readable,
+    h.array_path
+   FROM account a
+     JOIN phier h USING (person_id, company_id)
+     JOIN v_person p USING (person_id)
+     LEFT JOIN ( SELECT a_1.person_id AS manager_person_id,
+            a_1.account_id AS manager_account_id,
+            concat(p_1.first_name, ' ', p_1.last_name, ' (', a_1.login, ')') AS manager_human_readable,
+            p_1.first_name AS manager_first_name,
+            p_1.last_name AS manager_last_name,
+            a_1.account_role,
+            a_1.company_id AS manager_company_id,
+            a_1.account_realm_id,
+            a_1.login AS manager_login
+           FROM account a_1
+             JOIN v_person p_1 USING (person_id)
+          WHERE a_1.account_role::text = 'primary'::text AND a_1.account_type::text = 'person'::text) m USING (manager_person_id, account_realm_id, account_role)
+  WHERE a.account_role::text = 'primary'::text AND a.account_type::text = 'person'::text;
+
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_account_manager_hier';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_account_manager_hier failed but that is ok';
+				NULL;
+			END;
+$$;
+
+-- DONE DEALING WITH TABLE v_account_manager_hier
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE v_person_company
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_person_company', 'v_person_company');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_person_company');
+DROP VIEW IF EXISTS jazzhands.v_person_company;
+CREATE VIEW jazzhands.v_person_company AS
+ SELECT pc.company_id,
+    pc.person_id,
+    pc.person_company_status,
+    pc.person_company_relation,
+    pc.is_exempt,
+    pc.is_management,
+    pc.is_full_time,
+    pc.description,
+    empid.attribute_value AS employee_id,
+    payid.attribute_value AS payroll_id,
+    hrid.attribute_value AS external_hr_id,
+    pc.position_title,
+    badge.attribute_value AS badge_system_id,
+    pc.hire_date,
+    pc.termination_date,
+    pc.manager_person_id,
+    super.attribute_value_person_id AS supervisor_person_id,
+    pc.nickname,
+    pc.data_ins_user,
+    pc.data_ins_date,
+    pc.data_upd_user,
+    pc.data_upd_date
+   FROM person_company pc
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'employee_id'::text) empid USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'payroll_id'::text) payid USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'badge_system_id'::text) badge USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'supervisor_id'::text) super USING (company_id, person_id)
+     LEFT JOIN ( SELECT person_company_attr.company_id,
+            person_company_attr.person_id,
+            person_company_attr.person_company_attr_name,
+            person_company_attr.attribute_value,
+            person_company_attr.attribute_value_timestamp,
+            person_company_attr.attribute_value_person_id,
+            person_company_attr.start_date,
+            person_company_attr.finish_date,
+            person_company_attr.data_ins_user,
+            person_company_attr.data_ins_date,
+            person_company_attr.data_upd_user,
+            person_company_attr.data_upd_date
+           FROM person_company_attr
+          WHERE person_company_attr.person_company_attr_name::text = 'external_hr_id'::text) hrid USING (company_id, person_id);
+
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_person_company';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_person_company failed but that is ok';
+				NULL;
+			END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+-- DONE DEALING WITH TABLE v_person_company
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE property
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'property', 'property');
@@ -3663,9 +3848,18 @@ CREATE VIEW jazzhands.v_property AS
    FROM property
   WHERE property.is_enabled = 'Y'::bpchar AND (property.start_date IS NULL AND property.finish_date IS NULL OR property.start_date IS NULL AND now() <= property.finish_date OR property.start_date <= now() AND property.finish_date IS NULL OR property.start_date <= now() AND now() <= property.finish_date);
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_property';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_property failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_property';
 -- DONE DEALING WITH TABLE v_property
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -3949,9 +4143,18 @@ CREATE VIEW jazzhands.v_network_interface_trans AS
              JOIN network_interface_netblock nin USING (network_interface_id)) base
   WHERE base.rnk = 1;
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_network_interface_trans';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_network_interface_trans failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_network_interface_trans';
 -- DONE DEALING WITH TABLE v_network_interface_trans
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -3984,116 +4187,19 @@ CREATE VIEW jazzhands.v_hotpants_device_collection AS
           WHERE dc.device_collection_type::text = ANY (ARRAY['HOTPants'::character varying, 'HOTPants-app'::character varying]::text[])) rankbyhier
   WHERE rankbyhier.device_collection_type::text = 'HOTPants-app'::text OR rankbyhier.rank = 1 AND rankbyhier.ip_address IS NOT NULL;
 
--- just in case
-SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_hotpants_device_collection';
--- DONE DEALING WITH TABLE v_hotpants_device_collection
---------------------------------------------------------------------
---------------------------------------------------------------------
--- DEALING WITH TABLE v_person_company
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_person_company', 'v_person_company');
-SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_person_company');
-DROP VIEW IF EXISTS jazzhands.v_person_company;
-CREATE VIEW jazzhands.v_person_company AS
- SELECT pc.company_id,
-    pc.person_id,
-    pc.person_company_status,
-    pc.person_company_relation,
-    pc.is_exempt,
-    pc.is_management,
-    pc.is_full_time,
-    pc.description,
-    empid.attribute_value AS employee_id,
-    payid.attribute_value AS payroll_id,
-    hrid.attribute_value AS external_hr_id,
-    pc.position_title,
-    badge.attribute_value AS badge_system_id,
-    pc.hire_date,
-    pc.termination_date,
-    pc.manager_person_id,
-    super.attribute_value_person_id AS supervisor_person_id,
-    pc.nickname,
-    pc.data_ins_user,
-    pc.data_ins_date,
-    pc.data_upd_user,
-    pc.data_upd_date
-   FROM person_company pc
-     LEFT JOIN ( SELECT person_company_attr.company_id,
-            person_company_attr.person_id,
-            person_company_attr.person_company_attr_name,
-            person_company_attr.attribute_value,
-            person_company_attr.attribute_value_timestamp,
-            person_company_attr.attribute_value_person_id,
-            person_company_attr.start_date,
-            person_company_attr.finish_date,
-            person_company_attr.data_ins_user,
-            person_company_attr.data_ins_date,
-            person_company_attr.data_upd_user,
-            person_company_attr.data_upd_date
-           FROM person_company_attr
-          WHERE person_company_attr.person_company_attr_name::text = 'employee_id'::text) empid USING (company_id, person_id)
-     LEFT JOIN ( SELECT person_company_attr.company_id,
-            person_company_attr.person_id,
-            person_company_attr.person_company_attr_name,
-            person_company_attr.attribute_value,
-            person_company_attr.attribute_value_timestamp,
-            person_company_attr.attribute_value_person_id,
-            person_company_attr.start_date,
-            person_company_attr.finish_date,
-            person_company_attr.data_ins_user,
-            person_company_attr.data_ins_date,
-            person_company_attr.data_upd_user,
-            person_company_attr.data_upd_date
-           FROM person_company_attr
-          WHERE person_company_attr.person_company_attr_name::text = 'payroll_id'::text) payid USING (company_id, person_id)
-     LEFT JOIN ( SELECT person_company_attr.company_id,
-            person_company_attr.person_id,
-            person_company_attr.person_company_attr_name,
-            person_company_attr.attribute_value,
-            person_company_attr.attribute_value_timestamp,
-            person_company_attr.attribute_value_person_id,
-            person_company_attr.start_date,
-            person_company_attr.finish_date,
-            person_company_attr.data_ins_user,
-            person_company_attr.data_ins_date,
-            person_company_attr.data_upd_user,
-            person_company_attr.data_upd_date
-           FROM person_company_attr
-          WHERE person_company_attr.person_company_attr_name::text = 'badge_system_id'::text) badge USING (company_id, person_id)
-     LEFT JOIN ( SELECT person_company_attr.company_id,
-            person_company_attr.person_id,
-            person_company_attr.person_company_attr_name,
-            person_company_attr.attribute_value,
-            person_company_attr.attribute_value_timestamp,
-            person_company_attr.attribute_value_person_id,
-            person_company_attr.start_date,
-            person_company_attr.finish_date,
-            person_company_attr.data_ins_user,
-            person_company_attr.data_ins_date,
-            person_company_attr.data_upd_user,
-            person_company_attr.data_upd_date
-           FROM person_company_attr
-          WHERE person_company_attr.person_company_attr_name::text = 'supervisor_id'::text) super USING (company_id, person_id)
-     LEFT JOIN ( SELECT person_company_attr.company_id,
-            person_company_attr.person_id,
-            person_company_attr.person_company_attr_name,
-            person_company_attr.attribute_value,
-            person_company_attr.attribute_value_timestamp,
-            person_company_attr.attribute_value_person_id,
-            person_company_attr.start_date,
-            person_company_attr.finish_date,
-            person_company_attr.data_ins_user,
-            person_company_attr.data_ins_date,
-            person_company_attr.data_upd_user,
-            person_company_attr.data_upd_date
-           FROM person_company_attr
-          WHERE person_company_attr.person_company_attr_name::text = 'external_hr_id'::text) hrid USING (company_id, person_id);
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_hotpants_device_collection';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_hotpants_device_collection failed but that is ok';
+				NULL;
+			END;
+$$;
 
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_person_company';
--- DONE DEALING WITH TABLE v_person_company
+-- DONE DEALING WITH TABLE v_hotpants_device_collection
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE val_person_status
@@ -7517,9 +7623,18 @@ CREATE VIEW jazzhands.v_network_interface_trans AS
              JOIN network_interface_netblock nin USING (network_interface_id)) base
   WHERE base.rnk = 1;
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_network_interface_trans';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_network_interface_trans failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_network_interface_trans';
 -- DONE DEALING WITH TABLE v_network_interface_trans
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7623,9 +7738,18 @@ CREATE VIEW jazzhands.v_person_company AS
            FROM person_company_attr
           WHERE person_company_attr.person_company_attr_name::text = 'external_hr_id'::text) hrid USING (company_id, person_id);
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_person_company';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_person_company failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_person_company';
 -- DONE DEALING WITH TABLE v_person_company
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7671,9 +7795,18 @@ CREATE VIEW jazzhands.v_person_company_hier AS
     pc_recurse.cycle
    FROM pc_recurse;
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_person_company_hier';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_person_company_hier failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_person_company_hier';
 -- DONE DEALING WITH TABLE v_person_company_hier
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7725,9 +7858,18 @@ CREATE VIEW jazzhands.v_property AS
    FROM property
   WHERE property.is_enabled = 'Y'::bpchar AND (property.start_date IS NULL AND property.finish_date IS NULL OR property.start_date IS NULL AND now() <= property.finish_date OR property.start_date <= now() AND property.finish_date IS NULL OR property.start_date <= now() AND now() <= property.finish_date);
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_property';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_property failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_property';
 -- DONE DEALING WITH TABLE v_property
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7788,9 +7930,18 @@ CREATE VIEW jazzhands.v_account_manager_map AS
    FROM dude a
      JOIN dude mp ON mp.person_id = a.manager_person_id AND mp.account_realm_id = a.account_realm_id;
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_account_manager_map';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_account_manager_map failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_account_manager_map';
 -- DONE DEALING WITH TABLE v_account_manager_map
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7823,9 +7974,18 @@ CREATE VIEW jazzhands.v_hotpants_device_collection AS
           WHERE dc.device_collection_type::text = ANY (ARRAY['HOTPants'::character varying, 'HOTPants-app'::character varying]::text[])) rankbyhier
   WHERE rankbyhier.device_collection_type::text = 'HOTPants-app'::text OR rankbyhier.rank = 1 AND rankbyhier.ip_address IS NOT NULL;
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_hotpants_device_collection';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_hotpants_device_collection failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_hotpants_device_collection';
 -- DONE DEALING WITH TABLE v_hotpants_device_collection
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7872,9 +8032,18 @@ CREATE VIEW jazzhands.v_acct_coll_prop_expanded AS
      JOIN v_property USING (account_collection_id)
      JOIN val_property USING (property_name, property_type);
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_acct_coll_prop_expanded';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_acct_coll_prop_expanded failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_acct_coll_prop_expanded';
 -- DONE DEALING WITH TABLE v_acct_coll_prop_expanded
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7895,9 +8064,18 @@ CREATE VIEW jazzhands.v_hotpants_client AS
      JOIN netblock USING (netblock_id)
   WHERE p.property_name::text = 'RadiusSharedSecret'::text AND p.property_type::text = 'HOTPants'::text;
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_hotpants_client';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_hotpants_client failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- just in case
 SELECT schema_support.prepare_for_object_replay();
-delete from __recreate where type = 'view' and object = 'v_hotpants_client';
 -- DONE DEALING WITH TABLE v_hotpants_client
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7926,6 +8104,16 @@ CREATE VIEW jazzhands.v_layerx_network_expanded AS
      LEFT JOIN netblock dg(netblock_id_1, ip_address, netblock_type, is_single_address, can_subnet, parent_netblock_id, netblock_status, ip_universe_id, description, external_id, data_ins_user, data_ins_date, data_upd_user, data_upd_date) ON l3.default_gateway_netblock_id = dg.netblock_id_1
      FULL JOIN layer2_network l2 USING (layer2_network_id);
 
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_layerx_network_expanded';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_layerx_network_expanded failed but that is ok';
+				NULL;
+			END;
+$$;
+
 -- DONE DEALING WITH TABLE v_layerx_network_expanded
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7935,13 +8123,13 @@ DROP VIEW IF EXISTS jazzhands.v_account_manager_hier;
 CREATE VIEW jazzhands.v_account_manager_hier AS
  WITH RECURSIVE phier(level, person_id, company_id, intermediate_manager_person_id, manager_person_id) AS (
          SELECT 0 AS level,
-            person_company.person_id,
-            person_company.company_id,
-            person_company.manager_person_id AS intermediate_manager_person_id,
-            person_company.manager_person_id,
-            ARRAY[person_company.person_id] AS array_path,
+            v_person_company.person_id,
+            v_person_company.company_id,
+            v_person_company.manager_person_id AS intermediate_manager_person_id,
+            v_person_company.manager_person_id,
+            ARRAY[v_person_company.person_id] AS array_path,
             false AS cycle
-           FROM person_company
+           FROM v_person_company
         UNION
          SELECT x.level + 1 AS level,
             x.person_id,
@@ -7950,7 +8138,7 @@ CREATE VIEW jazzhands.v_account_manager_hier AS
             m_1.manager_person_id,
             x.array_path || m_1.manager_person_id AS array_path,
             m_1.manager_person_id = ANY (x.array_path) AS cycle
-           FROM person_company m_1
+           FROM v_person_company m_1
              JOIN phier x ON x.intermediate_manager_person_id = m_1.person_id
           WHERE NOT x.cycle AND m_1.manager_person_id IS NOT NULL
         )
@@ -7983,6 +8171,16 @@ CREATE VIEW jazzhands.v_account_manager_hier AS
              JOIN v_person p_1 USING (person_id)
           WHERE a_1.account_role::text = 'primary'::text AND a_1.account_type::text = 'person'::text) m USING (manager_person_id, account_realm_id, account_role)
   WHERE a.account_role::text = 'primary'::text AND a.account_type::text = 'person'::text;
+
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_account_manager_hier';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_account_manager_hier failed but that is ok';
+				NULL;
+			END;
+$$;
 
 -- DONE DEALING WITH TABLE v_account_manager_hier
 --------------------------------------------------------------------
@@ -12877,13 +13075,13 @@ CREATE TRIGGER trigger_v_person_company_upd
 
 -- ALTER TABLE property DISABLE TRIGGER trigger_validate_property;
 
-UPDATE val_property 
-SET 
+UPDATE val_property
+SET
 	permit_company_collection_id = 'REQUIRED',
 	permit_company_id = 'PROHIBITED'
 WHERE property_type = 'auto_acct_coll'
 AND property_name IN (
-	'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+	'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender',
 	'management',
 	'non_management', 'full_time', 'non_full_time', 'account_type'
 );
@@ -12893,11 +13091,11 @@ AND property_name IN (
 --
 WITH c AS (
 	select *, row_number() OVER (ORDER BY company_name) as rn
-	from company 
+	from company
 	where company_id not in (
-		select company_id 
-		from company_collection_company 
-		join company_collection using (company_collection_id) 
+		select company_id
+		from company_collection_company
+		join company_collection using (company_collection_id)
 		where company_collection_type = 'per-company'
 		order by company_name
 	)
@@ -12922,7 +13120,7 @@ ORDER BY rn;
 select count(*) FROM property
 	WHERE property_type = 'auto_acct_coll'
 	AND property_name IN (
-		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender',
 		'management',
 		'non_management', 'full_time', 'non_full_time', 'account_type'
 	);
@@ -12939,7 +13137,7 @@ WITH op AS (
 		) cc USING (company_id)
 	WHERE property_type = 'auto_acct_coll'
 	AND property_name IN (
-		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender',
 		'management',
 		'non_management', 'full_time', 'non_full_time', 'account_type'
 	)
@@ -12952,7 +13150,7 @@ WHERE op.property_id = p.property_id;
 select count(*) FROM property
 	WHERE property_type = 'auto_acct_coll'
 	AND property_name IN (
-		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender', 
+		'exempt', 'non_exempt', 'male', 'female', 'unspecified_gender',
 		'management',
 		'non_management', 'full_time', 'non_full_time', 'account_type'
 	);
