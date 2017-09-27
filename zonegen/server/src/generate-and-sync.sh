@@ -71,7 +71,7 @@ dorsync() {
 	host=$1
 	zoneroot=$2
 
-	rsync </dev/null -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
+	rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
 	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
 }
 
@@ -143,7 +143,7 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 	# prune temporary files not from today, since presumably they have been
 	# cleaned up already.
 	#
-	find $ZG_ROOT -name '*.tmp.[0-9]*' -type f \! -mmin +1440 -print0 |xargs -0 rm -f
+	find $ZG_ROOT/auto-gen/zones -name '*.tmp.[0-9]*' -mmin +1440 -print0 |xargs -0 rm -f
 
 	if [ -f /etc/krb5.keytab.zonegen ] ; then
 		kinit -k -t /etc/krb5.keytab.zonegen zonegen

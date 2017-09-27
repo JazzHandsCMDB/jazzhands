@@ -20,7 +20,7 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
--- Copyright (c) 2010-2015, Todd M. Kover
+-- Copyright (c) 2010-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -1119,8 +1119,10 @@ insert into val_property (
 insert into val_property_value (
 	property_name, property_type, valid_property_value
 ) values
+	('PermitStabSection', 'StabRole', 'AccountCol'),
 	('PermitStabSection', 'StabRole', 'Device'),
 	('PermitStabSection', 'StabRole', 'DNS'),
+	('PermitStabSection', 'StabRole', 'Network'),
 	('PermitStabSection', 'StabRole', 'Netblock'),
 	('PermitStabSection', 'StabRole', 'Sites'),
 	('PermitStabSection', 'StabRole', 'StabAccess'),
@@ -1129,6 +1131,24 @@ insert into val_property_value (
 	('PermitStabSection', 'StabRole', 'X509'),
 	('PermitStabSection', 'StabRole', 'FullAdmin')
 ;
+
+insert into val_property (
+	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
+	permit_account_collection_id
+) values
+	('AccountCollectionAdmin', 'StabRole', 'Y', 'none', 'REQUIRED')
+;
+
+INSERT INTO val_property (
+	property_name, property_type, property_data_type,
+	permit_account_collection_id, description
+) VALUES
+	('AccountCollectionRO', 'StabRole', 'account_collection_id',
+		'REQUIRED', 'ro to direct descendent children collections'),
+	('AccountCollectionRW', 'StabRole', 'account_collection_id',
+		'REQUIRED', 'r/w to direct descendent children collections')
+;
+
 
 insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,

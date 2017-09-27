@@ -134,10 +134,12 @@ sub new {
 	# These are used for permissions.
 	#
 	$self->{_permmap} = {
+		'AccountCol' => '/account/collection',
 		'Approval'   => '/approve',
 		'Device'     => '/device',
 		'DNS'        => '/dns/',
 		'Netblock'   => '/netblock/',
+		'Network'    => '/network/',
 		'Sites',     => '/sites/rack/',
 		'X509',      => '/x509/',
 		'StabAccess' => '/',
@@ -202,7 +204,7 @@ sub check_permissions {
 	my $self = shift;
 	my $role = shift;
 
-	if ( !exists( $self->{_roles} ) ) {
+	if ( !exists( $self->{_sectionaccess} ) ) {
 		my $q = qq{
 			select	property_value
 			  from	v_property p
@@ -213,6 +215,36 @@ sub check_permissions {
 			where	a.login = ?
 			 and	p.property_type = 'StabRole'
 			 and	p.property_name = 'PermitStabSection'
+		} || die $self->return_db_err();
+
+		my $sth = $self->prepare($q) || $self->return_db_err;
+
+		$sth->execute( $self->{_username} ) || die $self->return_db_err;
+		while ( my ($r) = $sth->fetchrow_array() ) {
+			push( @{ $self->{_sectionaccess} }, $r );
+		}
+		$sth->finish;
+	}
+
+	my @r = grep( $_ eq $role, @{ $self->{_sectionaccess} } );
+	( $#r >= 0 ) ? 1 : 0;
+}
+
+sub check_role {
+	my $self = shift;
+	my $role = shift;
+
+	if ( !exists( $self->{_roles} ) ) {
+		my $q = qq{
+			select	property_name
+			  from	v_property p
+					inner join v_acct_coll_acct_expanded ae
+							using (account_collection_id)
+					inner join v_corp_family_account a
+							on ae.account_id = a.account_id
+			where	a.login = ?
+			 and	p.property_type = 'StabRole'
+			 and	p.property_name != 'PermitStabSection'
 		} || die $self->return_db_err();
 
 		my $sth = $self->prepare($q) || $self->return_db_err;
@@ -406,6 +438,28 @@ sub start_html {
 				{
 					-language => 'javascript',
 					-src      => "$stabroot/javascript/dns-utils.js"
+				},
+			);
+		}
+		if ( $opts->{javascript} eq 'ac' ) {
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'javascript',
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'javascript',
+					-src =>
+					  "$root/javascript-common/external/jquery-Autocomplete/jquery.autocomplete.js",
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/account-collection.js"
 				},
 			);
 		}
@@ -765,6 +819,7 @@ sub return_db_err {
 	my $rawmsg = "";
 	if ( defined($dbobj) ) {
 		if ( defined( $dbobj->err ) ) {
+
 			# Most of these are no longer valid, but leaving here
 			# for reference.
 			if ( $dbobj->err == 20600 ) {
@@ -1254,6 +1309,7 @@ sub b_dropdown {
 	my $prefix   = $params->{'-prefix'} || "";
 	my $preidfix = $params->{'-preidfix'} || "";
 	my $suffix   = $params->{'-suffix'} || "";
+	my $callback = $params->{'-callback'};
 
 	# [XXX] need to consider making id/name always the same?
 	my $id = $params->{'-id'};
@@ -1287,7 +1343,7 @@ sub b_dropdown {
 	#
 	my $devidmap;
 	my $devfuncmap;
-	my ( $bindos );
+	my ($bindos);
 
 	my $withlevel = 0;
 	my $default;
@@ -1726,6 +1782,20 @@ sub b_dropdown {
 			  from	val_netblock_collection_type
 			order by netblock_collection_type
 		};
+	} elsif ( $selectfield eq 'ACCOUNT_COLLECTION_TYPE' ) {
+		my $d = 'account_collection_type';
+		if ( defined( $params->{-desc} ) && $params->{-desc} eq 'expand' ) {
+			$d = q{
+					account_collection_type || ' (' || description || ')' as
+						description
+			};
+		}
+		$q = qq{
+			select	account_collection_type,  $d
+			  from	val_account_collection_type
+			order by account_collection_type
+		};
+
 	} elsif ( $selectfield eq 'APPROVAL_INSTANCE_ID' ) {
 		$q = qq{
 			select approval_instance_id, approval_instance_name
@@ -1780,6 +1850,12 @@ sub b_dropdown {
 	}
 	while ( my (@stuff) = $sth->fetchrow_array ) {
 		my $grey;
+		#
+		# allow caller to limit what's shown via a callback.
+		#
+		if ($callback) {
+			next if ( !$callback->( $stuff[0] ) );
+		}
 		$grey = shift(@stuff) if ($argone_grey);
 		my $header = "";
 		if ($withlevel) {
@@ -2392,6 +2468,11 @@ sub check_if_sure {
 	}
 }
 
+#
+# this used to call guess_parent_netblock_id but was switched around to
+# hit up the db directly since guess_parent_netblock_id probaly just needs
+# to die since that's all handled in the db.
+#
 sub parse_netblock_search {
 	my ( $self, $bycidr ) = @_;
 
@@ -2406,11 +2487,28 @@ sub parse_netblock_search {
 
 	my $parent = $self->guess_parent_netblock_id( $bycidr, undef, 'Y' );
 
-	# zero is 0/0, which is also considered "not found"
-	if ( !$parent ) {
+	my $sth = $self->prepare(qq{
+		SELECT *
+		FROM netblock
+		WHERE netblock_id IN ( SELECT
+			netblock_utils.find_best_parent_id(
+				in_IpAddress := ?,
+				in_ip_universe_id := 0,
+				in_netblock_type := 'default'
+		))
+		ORDER BY netblock_id
+		LIMIT 1
+	}) || return $self->return_db_err();
+
+	$sth->execute($bycidr) || return $self->return_db_err($sth);
+
+	my $blk = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	if ( !$blk ) {
 		return $self->error_return("Network not found");
 	}
-	$parent;
+	$blk;
 }
 
 sub parse_netblock_description_search {
@@ -2987,7 +3085,9 @@ sub process_and_update_dns_record {
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
 			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
 		} elsif ( $orig->{'dns_type'} ne $opts->{'dns_type'} ) {
-			if ( ! $opts->{dns_value_record_id} && !$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) ) {
+			if (   !$opts->{dns_value_record_id}
+				&& !$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
+			{
 				$newrecord->{'should_generate_ptr'} = 'Y';
 			} else {
 				$newrecord->{'should_generate_ptr'} =
@@ -2998,6 +3098,7 @@ sub process_and_update_dns_record {
 		}
 
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
+
 			# set all other dns_records but this one to have ptr = 'N'
 			if ( my $recid =
 				$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )

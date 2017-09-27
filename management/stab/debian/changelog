@@ -1,3 +1,13 @@
+jazzhands-stab (0.80.8) trusty; urgency=medium
+
+  * remove netblocks' nic_id, nic_company_id, reservation_ticket_number
+  * make netblock searching suck significantly less
+  * Add account collection management section
+  * add network section acls to stab
+  * add l2/l3 network landing pages.  very basic.
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 20 Sep 2017 13:08:00 -0400
+
 jazzhands-stab (0.80.1) trusty; urgency=medium
 
   * remove all references to VOEs

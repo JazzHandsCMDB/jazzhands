@@ -652,6 +652,11 @@ input.attestsubmit {
 	text-align: center;
 }
 
+.collectionbox {
+	margin: auto;
+	text-align: center;
+}
+
 .duesoon {
 	background: yellow;
 }
@@ -662,6 +667,11 @@ input.attestsubmit {
 }
 
 tr.rowrm {
+	background: red;
+	text-decoration: line-through;
+}
+
+li.rmrow {
 	background: red;
 	text-decoration: line-through;
 }
@@ -717,6 +727,60 @@ ul.nbhier > li.nbnokids {
 	margin-left: 5ex;
 }
 
+/* account (and eventually other) collection manipulation */
+
+ul.collectionbox a.collpad {
+	pointer-events: none;
+	visibility: hidden;
+}
+
+ul.collectionbox li {
+	width: 100%;
+}
+
+ul.collectionbox li.plus {
+	list-style-type: none;
+}
+
+ul.collectionbox input {
+	width: 50%;
+	mid-width: 25ex;
+}
+
+form.picker ul {
+	text-align: left;
+	margin: auto;
+}
+
+h2.objectdetails {
+	text-align: center;
+	margin: auto;
+}
+
+div.collectionname {
+	text-align: center;
+	margin: auto;
+}
+
+div.collectionexpandview {
+	position: absolute;
+	border: 2px double;
+	z-index: 2;
+	left: 0;
+	right: 0;
+	margin: auto;
+	text-align: center;
+	vertical-align:center;
+	min-width: 50ex;
+	min-height: 20em;
+	width: 50%;
+	height: 50%;
+	overflow-y: auto;
+	background: lightgrey;
+}
+div.collectionexpandview ul {
+	text-align: left;
+}
 
 END
 	undef $stab;

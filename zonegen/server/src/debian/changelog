@@ -1,4 +1,4 @@
-jazzhands-zonegen-server (0.80.7) trusty; urgency=medium
+jazzhands-zonegen-server (0.80.9) trusty; urgency=medium
 
   * fix @ signs leaking into SOA records
   * create 'default' directory in anticipation of ip universes

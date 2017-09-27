@@ -66,6 +66,21 @@ print $cgi->h2( { -align => 'center' }, "STAB Network Element Management" );
 
 my @things;
 
+if($stab->check_permissions('AccountCol')) {
+	push(@things, join("",
+		#$cgi->li( $cgi->a( { -href => "account/" }, "Account" ) ) . "\n",
+		$cgi->li('Account'),
+			$cgi->ul(
+				$cgi->li(
+					$cgi->a(
+						{ -href => "account/collection" },
+						"Account Collections",
+					)
+				)
+			)
+	));
+}
+
 if($stab->check_permissions('DNS')) {
 	push(@things, join("",
 		$cgi->li( $cgi->a( { -href => "dns/" }, "DNS" ) ) . "\n",
