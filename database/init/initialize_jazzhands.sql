@@ -1830,11 +1830,11 @@ insert into val_property (
 insert into val_property (
         property_name,
         property_type,
-        permit_company_id,
+        permit_company_collection_id,
         property_data_type,
         description
 ) values (
-        'ShowBirthday',
+        'ShowBirthdayCompanies',
         'PhoneDirectoryAttributes',
         'REQUIRED',
         'none',
