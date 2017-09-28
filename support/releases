@@ -33,6 +33,7 @@ management/appauthal/php
 management/approval
 management/dbsyncer
 management/dhcpgen
+management/directory
 management/hotpants
 management/mgmt/perl
 management/mkpasswdfiles
