@@ -25,7 +25,7 @@ sub get_people($$) {
 				inner join v_corp_family_account a
 					using (person_id)
 	   where	( a.account_type = 'person' and a.account_role = 'primary' )
-		and a.is_enabeld = 'Y'
+		and a.is_enabled = 'Y'
 		and	(
 				lower(p.first_name || ' ' || p.last_name) like :search
 			or

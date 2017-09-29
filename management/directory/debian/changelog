@@ -1,5 +1,12 @@
+jazzhands-account-directory (0.80.11) trusty; urgency=medium
+
+  * fix typo in search query
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Sep 2017 10:32:00 -0400
+
 jazzhands-account-directory (0.80.10) trusty; urgency=medium
 
   * Initial Revision
 
  -- Todd Kover <kovert@omniscient.com>  Thu, 28 Sep 2017 11:13:22 -0400
+
