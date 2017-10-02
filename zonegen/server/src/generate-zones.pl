@@ -5,10 +5,11 @@
 # - pulling up child zones with ip universe bits properly
 # - trigger enforcement of various data across ip universes keeping in mind
 #	ip_universe_visibility
-# - zonegen deals with per-server in a sane fashion
+# x zonegen deals with per-server in a sane fashion
 # - dns domain collection association for "put these zones anyway" on per-server
 # - ability to handle things smaller than a /24
-# - deal with --nosoa without --genall
+# x deal with --nosoa without --genall
+# - figure out how to manage view config files combined (probably) with acls.
 
 # Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
