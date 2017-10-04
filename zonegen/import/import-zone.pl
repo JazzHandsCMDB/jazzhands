@@ -76,7 +76,6 @@ sub new {
 sub find_universe {
 	my ( $self, $u ) = @_;
 
-
 	return 0 if ( !defined($u) );
 
 	return undef if ( $u eq 'none' );
@@ -919,7 +918,7 @@ sub process_zone($$$;$) {
 
 	my $zone;
 
-	if(!$file) {
+	if ( !$file ) {
 		my $res = new Net::DNS::Resolver;
 		$res->nameservers($ns);
 		my @zone = $res->axfr($xferzone);
@@ -931,20 +930,22 @@ sub process_zone($$$;$) {
 		}
 	} else {
 		my $r  = new Net::DNS::Zone::Parser();
-		my $rv = $r->read($file, {
+		my $rv = $r->read(
+			$file,
+			{
 				ORIGIN    => $xferzone,
 				CREATE_RR => 1
-		});
+			}
+		);
 		if ( !defined($rv) ) {
 			die "$file: $! /$rv";
 		}
 		$zone = $r->get_array();
-		if ( scalar(@{$zone}) == 0 ) {
+		if ( scalar( @{$zone} ) == 0 ) {
 			warn "No records read from $file for $xferzone: $!";
 			return undef;
 		}
 	}
-
 
 	#
 	# XXX - First go through the zone and find things that are not there that should be
@@ -1145,9 +1146,9 @@ sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
 	my (
-		$ns,             $verbose,       $addsvr,
-		$nodelete,       $debug,         $dryrun,
-		$universe,       $guessuniverse, $v6universe,
+		$ns,             $verbose,          $addsvr,
+		$nodelete,       $debug,            $dryrun,
+		$universe,       $guessuniverse,    $v6universe,
 		$shouldgenerate, @alloweduniverses, $file
 	);
 
@@ -1159,7 +1160,7 @@ sub do_zone_load {
 		"nameserver=s"        => \$ns,
 		"add-services"        => \$addsvr,
 		"no-delete"           => \$nodelete,
-		"file=s"           => \$file,
+		"file=s"              => \$file,
 		"v6-universe=s"       => \$v6universe,
 		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
@@ -1189,7 +1190,7 @@ sub do_zone_load {
 	if ($ns) {
 		my $res  = new Net::DNS::Resolver;
 		my $resp = $res->query($ns);
-		if($resp) {
+		if ($resp) {
 			foreach my $rr ( grep { $_->type =~ /^(A|AAAA$)/ } $resp->answer ) {
 				$ns = $rr->address;
 				last;
@@ -1199,7 +1200,7 @@ sub do_zone_load {
 		}
 	}
 
-	if($file && scalar(@ARGV) != 1) {
+	if ( $file && scalar(@ARGV) != 1 ) {
 		die "When specifying a filename, only one zone can be processed.\n";
 	}
 
@@ -1225,7 +1226,7 @@ sub do_zone_load {
 		$ziw->_Debug( 1, "Processing zone %s", $zone );
 		if ($file) {
 			$ziw->process_zone( $ns, $zone, $file );
-			$ziw->process_db($zone, $file);
+			$ziw->process_db( $zone, $file );
 		} elsif ($ns) {
 			$ziw->process_zone( $ns, $zone );
 			$ziw->process_db($zone);
