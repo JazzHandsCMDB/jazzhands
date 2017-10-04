@@ -26,6 +26,7 @@ use Getopt::Long;
 
 package ZoneImportWorker;
 
+use Net::DNS::Zone::Parser;
 use Net::DNS;
 use JazzHands::DBI;
 use Net::IP;    # Just for reverse DNS-type operations
@@ -36,6 +37,7 @@ use Carp;
 use parent 'JazzHands::Common';
 
 # local $SIG{__WARN__} = \&Carp::cluck;
+local $SIG{__DIE__} = \&Carp::cluck;
 
 our $errstr;
 
@@ -478,8 +480,7 @@ sub freshen_zone {
 			errors          => \@errs
 		);
 
-		my $parent;
-		$parent = get_parent_domain( $self, $zone );
+		my $parent = get_parent_domain( $self, $zone );
 
 		if ( !$olddom ) {
 			if ( $self->DBHandle->err ) {
@@ -896,12 +897,17 @@ sub refresh_dns_record {
 	$numchanges;
 }
 
-sub process_zone {
-	my ( $self, $ns, $xferzone ) = @_;
+sub process_zone($$$;$) {
+	my ( $self, $ns, $xferzone, $file ) = @_;
 
 	my $numchanges = 0;
 
 	my $dom;
+	#
+	# XXX -- SOA parsing needs to move into the rr processing below and
+	# freshen_zone just becomes a routine that makes sure there's a dns_domain
+	# row.
+	#
 	my $r = $self->freshen_zone( $ns, $xferzone, \$dom );
 	if ( defined($r) ) {
 		$numchanges += $r;
@@ -911,19 +917,39 @@ sub process_zone {
 
 	my $domid = $dom->{dns_domain_id};
 
-	my $res = new Net::DNS::Resolver;
-	$res->nameservers($ns);
+	my $zone;
 
-	my @zone = $res->axfr($xferzone);
-	if ( $#zone == -1 ) {
-		warn "No records returned in AXFR --", $res->errorstring;
-		return undef;
+	if(!$file) {
+		my $res = new Net::DNS::Resolver;
+		$res->nameservers($ns);
+		my @zone = $res->axfr($xferzone);
+		$zone = \@zone;
+
+		if ( $#zone == -1 ) {
+			warn "No records returned in AXFR --", $res->errorstring;
+			return undef;
+		}
+	} else {
+		my $r  = new Net::DNS::Zone::Parser();
+		my $rv = $r->read($file, {
+				ORIGIN    => $xferzone,
+				CREATE_RR => 1
+		});
+		if ( !defined($rv) ) {
+			die "$file: $! /$rv";
+		}
+		$zone = $r->get_array();
+		if ( scalar(@{$zone}) == 0 ) {
+			warn "No records read from $file for $xferzone: $!";
+			return undef;
+		}
 	}
+
 
 	#
 	# XXX - First go through the zone and find things that are not there that should be
 	my $numrec = 0;
-	foreach my $rr ( sort by_name @zone ) {
+	foreach my $rr ( sort by_name @{$zone} ) {
 		my $x = $rr->string;
 		$x =~ s/\s+/ /mg;
 		$self->_Debug( 1, ">> Processing record %s...", $x );
@@ -1122,7 +1148,7 @@ sub do_zone_load {
 		$ns,             $verbose,       $addsvr,
 		$nodelete,       $debug,         $dryrun,
 		$universe,       $guessuniverse, $v6universe,
-		$shouldgenerate, @alloweduniverses
+		$shouldgenerate, @alloweduniverses, $file
 	);
 
 	my $r = GetOptions(
@@ -1133,6 +1159,7 @@ sub do_zone_load {
 		"nameserver=s"        => \$ns,
 		"add-services"        => \$addsvr,
 		"no-delete"           => \$nodelete,
+		"file=s"           => \$file,
 		"v6-universe=s"       => \$v6universe,
 		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
@@ -1162,10 +1189,18 @@ sub do_zone_load {
 	if ($ns) {
 		my $res  = new Net::DNS::Resolver;
 		my $resp = $res->query($ns);
-		foreach my $rr ( grep { $_->type =~ /^(A|AAAA$)/ } $resp->answer ) {
-			$ns = $rr->address;
-			last;
+		if($resp) {
+			foreach my $rr ( grep { $_->type =~ /^(A|AAAA$)/ } $resp->answer ) {
+				$ns = $rr->address;
+				last;
+			}
+		} else {
+			die "no nameserver $ns\n";
 		}
+	}
+
+	if($file && scalar(@ARGV) != 1) {
+		die "When specifying a filename, only one zone can be processed.\n";
 	}
 
 	$ziw->{nbrule}     = $nbrule;
@@ -1188,7 +1223,10 @@ sub do_zone_load {
 
 	foreach my $zone (@ARGV) {
 		$ziw->_Debug( 1, "Processing zone %s", $zone );
-		if ($ns) {
+		if ($file) {
+			$ziw->process_zone( $ns, $zone, $file );
+			$ziw->process_db($zone, $file);
+		} elsif ($ns) {
 			$ziw->process_zone( $ns, $zone );
 			$ziw->process_db($zone);
 		} else {
