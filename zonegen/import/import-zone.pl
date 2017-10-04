@@ -37,7 +37,7 @@ use Carp;
 use parent 'JazzHands::Common';
 
 # local $SIG{__WARN__} = \&Carp::cluck;
-local $SIG{__DIE__} = \&Carp::cluck;
+# local $SIG{__DIE__} = \&Carp::cluck;
 
 our $errstr;
 
@@ -467,7 +467,12 @@ sub freshen_zone {
 	my $res = new Net::DNS::Resolver;
 	$res->nameservers($ns);
 
-	my $answer = $res->query( $zone, 'SOA' ) || return undef;    # XXX
+	my $answer = $res->query( $zone, 'SOA' );
+
+	if ( !$answer ) {
+		die "Unable to get SOA for '$zone' from '$ns'\n";
+		return undef;    # XXX
+	}
 
 	foreach my $rr ( grep { $_->type eq 'SOA' } $answer->answer ) {
 		next if ( $rr->name ne $zone );
@@ -558,7 +563,9 @@ sub freshen_zone {
 					errs   => \@errs,
 				) || die join( " ", @errs );
 			}
-			${$dom}->{soa_ttl} = $newzone->{soa_ttl};
+
+			# requires RETURNING * in DBUpdate()
+			# $newzone = $diff;
 		} else {
 			$newzone->{should_generate} = $self->{shouldgenerate};
 			$numchanges += $self->DBInsert(
@@ -566,8 +573,8 @@ sub freshen_zone {
 				hash  => $newzone,
 				errrs => \@errs,
 			) || die join( " ", @errs );
-			${$dom}->{soa_ttl} = $newzone->{soa_ttl};
 		}
+		${$dom}->{soa_ttl} = $newzone->{soa_ttl};
 
 		# If this is an in-addr zone, then do reverse linkage
 		if ( $zone =~ /in-addr.arpa$/ ) {
@@ -907,6 +914,9 @@ sub process_zone($$$;$) {
 	# freshen_zone just becomes a routine that makes sure there's a dns_domain
 	# row.
 	#
+	# This is to accomodate a file pull of a zone, also gets the SOA as part of
+	# the AXFR...
+	#
 	my $r = $self->freshen_zone( $ns, $xferzone, \$dom );
 	if ( defined($r) ) {
 		$numchanges += $r;
@@ -1198,6 +1208,9 @@ sub do_zone_load {
 		} else {
 			die "no nameserver $ns\n";
 		}
+	} else {
+		die
+		  "Must specify a nameserver for now to axfr from, at least to deal with files.  This probably needs some attention XXX";
 	}
 
 	if ( $file && scalar(@ARGV) != 1 ) {

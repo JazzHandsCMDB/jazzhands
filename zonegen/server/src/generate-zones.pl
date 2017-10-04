@@ -10,6 +10,8 @@
 # - ability to handle things smaller than a /24
 # x deal with --nosoa without --genall
 # - figure out how to manage view config files combined (probably) with acls.
+# - what to do about new links to bum zones in perserver dir (currently die)
+# - makesure to regen hard links on *every* regen
 
 # Copyright (c) 2013-2017, Todd M. Kover
 # All rights reserved.
