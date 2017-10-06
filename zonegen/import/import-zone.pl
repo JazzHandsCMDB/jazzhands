@@ -415,7 +415,7 @@ sub get_inaddr {
 		# CNAMEs, which the AUTH server may not actually  have.
 		# XXX - this will almost certainly have issue where switching BACK
 		# to the auth nameserver is required to deal with cases where its not
-		# 'internet resolvable'f rom the main host.
+		# 'internet resolvable' from the main host.
 		my $res = new Net::DNS::Resolver;
 		my $qn  = $inaddr;
 		do {
@@ -447,8 +447,16 @@ sub get_inaddr {
 	undef;
 }
 
-sub by_name {
-	if ( $a->name =~ /^\d+$/ && $b->name =~ /^\d+$/ ) {
+sub favor_soa_by_name {
+	if ( $a->type eq 'SOA' ) {
+		if ( $b->type eq 'SOA' ) {
+			return ( $a->name <=> $b->name );
+		} else {
+			return -1;
+		}
+	} elsif ( $b->type eq 'SOA' ) {
+		return 1;
+	} elsif ( $a->name =~ /^\d+$/ && $b->name =~ /^\d+$/ ) {
 		return ( $a->name <=> $b->name );
 	} else {
 		return ( $a->name cmp $b->name );
@@ -456,241 +464,243 @@ sub by_name {
 }
 
 #
+# given a zone, makes sure its in the DB and returns a record accordingly.
+#
+sub freshen_zone {
+	my ( $self, $zone, $dom ) = @_;
+
+	my @errs;
+	my $numchanges = 0;
+
+	my $olddom = $self->DBFetch(
+		table           => 'dns_domain',
+		match           => { soa_name => $zone },
+		result_set_size => 'exactlyone',
+		errors          => \@errs
+	);
+
+	my $parent = get_parent_domain( $self, $zone );
+
+	if ( !$olddom ) {
+		if ( $self->DBHandle->err ) {
+			die "$zone: ", join( " ", @errs );
+		}
+
+		my $new = {
+			soa_name        => $zone,
+			dns_domain_type => 'service',    # XXX
+		};
+		if ($parent) {
+			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
+		}
+
+		$numchanges += $self->DBInsert(
+			table => 'dns_domain',
+			hash  => $new,
+			errrs => \@errs,
+		) || die join( " ", @errs );
+		$$dom = $new;
+	} else {
+		$$dom = $olddom;
+	}
+
+	my $lineage = $zone;
+	$lineage =~ s/^[^\.]+\././;
+	foreach my $z (
+		@{
+			$self->DBFetch(
+				table => 'dns_domain',
+				match => [
+					{
+						key       => 'soa_name',
+						value     => $lineage,
+						matchtype => 'like',
+					}
+				],
+				errors => \@errs,
+			)
+		}
+	  )
+	{
+		if ( !defined( $z->{parent_dns_domain_id} )
+			|| $z->{parent_dns_domain_id} != $$dom->{dns_domain_id} )
+		{
+			if ( $self->{verbose} ) {
+				warn "updating ", $z->{soa_name}, " to have parent of ",
+				  $dom->{soa_name}, "\n";
+			}
+			$numchanges += $self->DBUpdate(
+				table  => 'dns_domain',
+				dbkey  => 'dns_domain_id',
+				keyval => $z->{dns_domain_id},
+				hash   => {
+					parent_dns_domain_id => $dom->{dns_domain_id},
+				},
+				errs => \@errs,
+			) || die join( " ", @errs );
+		}
+	}
+
+	# XXX rehome children appropriately
+
+	# XXX need to deal with rehoming subzones and homing this zone to parent
+
+	$numchanges;
+}
+
+#
 # takes a nameserver and a zone, gets the SOA record for that zone and
 # makes sure the database matches for all the SOA vaules
 #
-sub freshen_zone {
-	my ( $self, $ns, $zone, $dom ) = @_;
+sub freshen_soa {
+	my ( $self, $zone, $rr, $dom ) = @_;
+
+	my $domid = $dom->{dns_domain_id};
 
 	my $numchanges = 0;
 
-	my $res = new Net::DNS::Resolver;
-	$res->nameservers($ns);
+	if ( $rr->name ne $zone ) {
+		die "freshen_soa name mismatch: ", $rr->name, " v ", $zone, "\n";
 
-	my $answer = $res->query( $zone, 'SOA' );
+		# return undef;
+	}
+	my @errs;
+	my $newzone = {
+		dns_domain_id  => $domid,
+		ip_universe_id => $self->{ip_universe},
+		soa_class      => $rr->class,
+		soa_ttl        => $rr->ttl,
+		soa_serial     => $rr->serial,
+		soa_refresh    => $rr->refresh,
+		soa_retry      => $rr->retry,
+		soa_expire     => $rr->expire,
+		soa_minimum    => $rr->minimum,
+		soa_mname      => $rr->mname,
+		soa_rname      => $rr->rname,
+	};
 
-	if ( !$answer ) {
-		die "Unable to get SOA for '$zone' from '$ns'\n";
-		return undef;    # XXX
+	my $oldzone = $self->DBFetch(
+		table => 'dns_domain_ip_universe',
+		match => {
+			'dns_domain_id'  => $domid,
+			'ip_universe_id' => $self->{ip_universe},
+		},
+		result_set_size => 'exactlyone',
+		errors          => \@errs
+	);
+
+	if ( !$oldzone ) {
+		if ( $self->DBHandle->err ) {
+			die "$zone: ", join( " ", @errs );
+		}
 	}
 
-	foreach my $rr ( grep { $_->type eq 'SOA' } $answer->answer ) {
-		next if ( $rr->name ne $zone );
-		my @errs;
-		my $olddom = $self->DBFetch(
-			table           => 'dns_domain',
-			match           => { soa_name => $zone },
-			result_set_size => 'exactlyone',
-			errors          => \@errs
-		);
+	# XXX needs to be fixed!
+	# This should be a bigint now, so this needs to be tested and this code can be removed.
+	#if ( $new->{soa_serial} > 2147483647 ) {
+	#	$new->{soa_serial} = 2147483646;
+	#}
+	if ($oldzone) {
+		my $diff = $self->hash_table_diff( $oldzone, $newzone );
+		if ( scalar %$diff ) {
+			$numchanges += $self->DBUpdate(
+				table  => 'dns_domain_ip_universe',
+				dbkey  => [ 'dns_domain_id', 'ip_universe_id' ],
+				keyval => [ $domid, $self->{ip_universe} ],
+				hash   => $diff,
+				errs   => \@errs,
+			) || die join( " ", @errs );
+		}
 
+		# requires RETURNING * in DBUpdate()
+		# $newzone = $diff;
+	} else {
+		$newzone->{should_generate} = $self->{shouldgenerate};
+		$numchanges += $self->DBInsert(
+			table => 'dns_domain_ip_universe',
+			hash  => $newzone,
+			errrs => \@errs,
+		) || die join( " ", @errs );
+	}
+
+	# If this is an in-addr zone, then do reverse linkage
+	# XXX -- this needs to properly handle ip universe!
+	if ( $zone =~ /in-addr.arpa$/ ) {
+
+		# XXX needs to be combined with routine in gen_ptr
+		$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
+		if ($1) {
+			my $block;
+			my @digits = reverse split( /\./, $1 );
+			my ( $ip, $bit );
+			if ( $#digits <= 3 ) {
+				$ip = join( ".", @digits );
+
+				# ipv4, most likely...
+				if ( $#digits == 2 ) {
+					$block = "$ip.0/24";
+				}
+			} else {
+				die "need to sort out ipv6\n";
+			}
+			die "Unable to discern block for $zone", if ( !$block );
+			$numchanges += link_inaddr( $self, $dom->{dns_domain_id}, $block );
+		} else {
+			warn "Unable to make in-addr dns linkage\n";
+		}
+	}
+
+	#
+	#
+	# Probably only meaningful for initial setup.  This needs to be on a
+	# per-universe basis!
+	#
+	if ( $dom->{parent_dns_domain_id} ) {
 		my $parent = get_parent_domain( $self, $zone );
 
-		if ( !$olddom ) {
-			if ( $self->DBHandle->err ) {
-				die "$zone: ", join( " ", @errs );
-			}
-
-			my $new = {
-				soa_name        => $zone,
-				dns_domain_type => 'service',    # XXX
-			};
-			if ($parent) {
-				$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
-			}
-
-			$numchanges += $self->DBInsert(
-				table => 'dns_domain',
-				hash  => $new,
-				errrs => \@errs,
-			) || die join( " ", @errs );
-			$$dom = $new;
-		} else {
-			$$dom = $olddom;
-		}
-
-		my $domid = ${$dom}->{dns_domain_id};
-
-		# should only be one SOA record, but just in case...
-		my $newdom = {
-			dns_domain_id => $domid,
-			soa_name      => $zone,
-		};
-
-		my $newzone = {
-			dns_domain_id  => $domid,
-			ip_universe_id => $self->{ip_universe},
-			soa_class      => $rr->class,
-			soa_ttl        => $rr->ttl,
-			soa_serial     => $rr->serial,
-			soa_refresh    => $rr->refresh,
-			soa_retry      => $rr->retry,
-			soa_expire     => $rr->expire,
-			soa_minimum    => $rr->minimum,
-			soa_mname      => $rr->mname,
-			soa_rname      => $rr->rname,
-		};
-
-		my $oldzone = $self->DBFetch(
-			table => 'dns_domain_ip_universe',
-			match => {
-				'dns_domain_id'  => $domid,
-				'ip_universe_id' => $self->{ip_universe},
-			},
-			result_set_size => 'exactlyone',
-			errors          => \@errs
-		);
-
-		if ( !$oldzone ) {
-			if ( $self->DBHandle->err ) {
-				die "$zone: ", join( " ", @errs );
-			}
-		}
-
-		# XXX needs to be fixed!
-		# This should be a bigint now, so this needs to be tested and this code can be removed.
-		#if ( $new->{soa_serial} > 2147483647 ) {
-		#	$new->{soa_serial} = 2147483646;
-		#}
-		if ($oldzone) {
-			my $diff = $self->hash_table_diff( $oldzone, $newzone );
-			if ( scalar %$diff ) {
-				$numchanges += $self->DBUpdate(
-					table  => 'dns_domain_ip_universe',
-					dbkey  => [ 'dns_domain_id', 'ip_universe_id' ],
-					keyval => [ $domid, $self->{ip_universe} ],
-					hash   => $diff,
-					errs   => \@errs,
-				) || die join( " ", @errs );
-			}
-
-			# requires RETURNING * in DBUpdate()
-			# $newzone = $diff;
-		} else {
-			$newzone->{should_generate} = $self->{shouldgenerate};
-			$numchanges += $self->DBInsert(
-				table => 'dns_domain_ip_universe',
-				hash  => $newzone,
-				errrs => \@errs,
-			) || die join( " ", @errs );
-		}
-		${$dom}->{soa_ttl} = $newzone->{soa_ttl};
-
-		# If this is an in-addr zone, then do reverse linkage
-		if ( $zone =~ /in-addr.arpa$/ ) {
-
-			# XXX needs to be combined with routine in gen_ptr
-			$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
-			if ($1) {
-				my $block;
-				my @digits = reverse split( /\./, $1 );
-				my ( $ip, $bit );
-				if ( $#digits <= 3 ) {
-					$ip = join( ".", @digits );
-
-					# ipv4, most likely...
-					if ( $#digits == 2 ) {
-						$block = "$ip.0/24";
-					}
-				} else {
-					die "need to sort out ipv6\n";
-				}
-				die "Unable to discern block for $zone", if ( !$block );
-				$numchanges +=
-				  link_inaddr( $self, $$dom->{dns_domain_id}, $block );
-			} else {
-				warn "Unable to make in-addr dns linkage\n";
-			}
-		}
-
-		if ($parent) {
-
-			# In our parent, if there are any NS record for us, they
-			# should be deleted, because Zone Generaion will DTRT with
-			# delegation
-			my $shortname = $zone;
-			$shortname =~ s/.$parent->{soa_name}$//;
-			foreach my $z (
-				@{
-					$self->DBFetch(
-						table => 'dns_record',
-						match => {
-							dns_domain_id => $parent->{dns_domain_id},
-							dns_type      => 'NS',
-							dns_name      => $shortname,
-						},
-						errors => \@errs
-					)
-				}
-			  )
-			{
-				my $ret = 0;
-				if ( $self->{nodelete} ) {
-					warn "Skipping NS record cleanup on ", $z->{dns_record_id},
-					  "\n";
-				} else {
-					warn "deleting ns record ", $z->{dns_record_id};
-					if (
-						!(
-							$ret = $self->DBDelete(
-								table  => 'dns_record',
-								dbkey  => 'dns_record_id',
-								keyval => $z->{dns_record_id},
-								errors => \@errs,
-							)
-						)
-					  )
-					{
-						die "Error deleting record ", join( " ", @errs ), ": ",
-						  Dumper($z);
-					}
-				}
-				$numchanges += $ret;
-			}
-		}
-
-		my $lineage = $zone;
-		$lineage =~ s/^[^\.]+\././;
+		# In our parent, if there are any NS record for us, they
+		# should be deleted, because Zone Generaion will DTRT with
+		# delegation
+		my $shortname = $zone;
+		$shortname =~ s/.$parent->{soa_name}$//;
 		foreach my $z (
 			@{
 				$self->DBFetch(
-					table => 'dns_domain',
-					match => [
-						{
-							key       => 'soa_name',
-							value     => $lineage,
-							matchtype => 'like',
-						}
-					],
-					errors => \@errs,
+					table => 'dns_record',
+					match => {
+						dns_domain_id => $parent->{dns_domain_id},
+						dns_type      => 'NS',
+						dns_name      => $shortname,
+					},
+					errors => \@errs
 				)
 			}
 		  )
 		{
-			if ( !defined( $z->{parent_dns_domain_id} )
-				|| $z->{parent_dns_domain_id} != $newzone->{dns_domain_id} )
-			{
-				if ( $self->{verbose} ) {
-					warn "updating ", $z->{soa_name}, " to have parent of ",
-					  $dom->{soa_name}, "\n";
+			my $ret = 0;
+			if ( $self->{nodelete} ) {
+				warn "Skipping NS record cleanup on ", $z->{dns_record_id},
+				  "\n";
+			} else {
+				warn "deleting ns record ", $z->{dns_record_id};
+				if (
+					!(
+						$ret = $self->DBDelete(
+							table  => 'dns_record',
+							dbkey  => 'dns_record_id',
+							keyval => $z->{dns_record_id},
+							errors => \@errs,
+						)
+					)
+				  )
+				{
+					die "Error deleting record ", join( " ", @errs ), ": ",
+					  Dumper($z);
 				}
-				$numchanges += $self->DBUpdate(
-					table  => 'dns_domain',
-					dbkey  => 'dns_domain_id',
-					keyval => $z->{dns_domain_id},
-					hash   => {
-						parent_dns_domain_id => $dom->{dns_domain_id},
-					},
-					errs => \@errs,
-				) || die join( " ", @errs );
 			}
+			$numchanges += $ret;
 		}
-
-		# XXX rehome children appropriately
-
-		# XXX need to deal with rehoming subzones and homing this zone to parent
 	}
-
 	$numchanges;
 }
 
@@ -910,14 +920,13 @@ sub process_zone($$$;$) {
 
 	my $dom;
 	#
-	# XXX -- SOA parsing needs to move into the rr processing below and
-	# freshen_zone just becomes a routine that makes sure there's a dns_domain
-	# row.
+	# This makes sure the zone exists and is in order.  SOA processing is
+	# handled later.
 	#
-	# This is to accomodate a file pull of a zone, also gets the SOA as part of
-	# the AXFR...
+	# XXX dom is returned both from freshen_zone and freshen_soa.  This needs
+	# to be better reconciled.
 	#
-	my $r = $self->freshen_zone( $ns, $xferzone, \$dom );
+	my $r = $self->freshen_zone( $xferzone, \$dom );
 	if ( defined($r) ) {
 		$numchanges += $r;
 	}
@@ -957,10 +966,11 @@ sub process_zone($$$;$) {
 		}
 	}
 
+	my $defttl = 3600;
 	#
 	# XXX - First go through the zone and find things that are not there that should be
 	my $numrec = 0;
-	foreach my $rr ( sort by_name @{$zone} ) {
+	foreach my $rr ( sort favor_soa_by_name @{$zone} ) {
 		my $x = $rr->string;
 		$x =~ s/\s+/ /mg;
 		$self->_Debug( 1, ">> Processing record %s...", $x );
@@ -972,6 +982,14 @@ sub process_zone($$$;$) {
 		}
 
 		$numrec++;
+
+		# This assumes there will be an SOA first basically because it fills
+		# in the zone ttl.
+		if ( $rr->type eq 'SOA' ) {
+			$numchanges += $self->freshen_soa( $xferzone, $rr, $dom );
+			$defttl = $rr->ttl;
+			next;
+		}
 		my $new = {
 			handle        => $self,
 			domain        => $xferzone,
@@ -979,7 +997,7 @@ sub process_zone($$$;$) {
 			dns_domain_id => $domid,
 			dns_type      => $rr->type,
 			dns_class     => $rr->class,
-			dns_ttl       => ( $rr->ttl == $dom->{soa_ttl} ? undef : $rr->ttl ),
+			dns_ttl       => ( $rr->ttl == $defttl ? undef : $rr->ttl ),
 			genptr        => 'N',
 		};
 		if ( $rr->type eq 'PTR' ) {
