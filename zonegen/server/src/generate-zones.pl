@@ -1038,7 +1038,7 @@ sub process_perserver {
 			}
 
 			#
-			# create a symlink in the "perserver" directory for zones
+			# create a link in the "perserver" directory for zones
 			# the server servers as well as creating a named.conf
 			# file to be included.  A file that lists all the zones that
 			# are auto-generated that were changed on this run is also saved.
@@ -1072,11 +1072,16 @@ sub process_perserver {
 					$zr  .= "/$zone";
 				}
 
+				if(! -r $zr ) {
+					warn "Skipping $zone ($u) because it original does not exist.\n";
+					next;
+				}
+
 				forcehardlinker( $zr, $fqn );
 
 				if ( !-r $fqn ) {
 					warn
-					  "$zone does not exist for $server (see $fqn); possibly needs to be forced before a regular run\n";
+					  "$zone does not exist for $server (see $fqn)\n";
 				}
 
 				if ( $zone =~ /in-addr.arpa$/ ) {

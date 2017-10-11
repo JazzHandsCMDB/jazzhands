@@ -99,6 +99,8 @@ sub find_universe {
 	}
 	$self->dbh->err && die join( " ", @errs );
 
+	die "Unable to find universe $u\n";
+
 	return undef;
 }
 
@@ -1254,7 +1256,7 @@ sub do_zone_load {
 	$ziw->{v6_universe} = $ziw->find_universe($v6universe) if ($v6universe);
 
 	foreach my $zone (@ARGV) {
-		$ziw->_Debug( 1, "Processing zone %s", $zone );
+		$ziw->_Debug( 1, "Processing zone %s (%s)", $zone, $universe );
 		if ($file) {
 			$ziw->process_zone( $ns, $zone, $file );
 			$ziw->process_db( $zone, $file );
