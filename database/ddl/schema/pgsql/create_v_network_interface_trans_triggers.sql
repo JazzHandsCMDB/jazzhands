@@ -40,7 +40,7 @@ BEGIN
                 NEW.slot_id, NEW.logical_port_id,
                 NEW.network_interface_type, NEW.is_interface_up,
                 NEW.mac_addr, NEW.should_monitor, NEW.provides_nat,
-                NEW.should_manage, NEW.provides_dhcp, NEW.data_ins_user
+                NEW.should_manage, NEW.provides_dhcp
 	) RETURNING * INTO _ni;
 
 	IF NEW.netblock_id IS NOT NULL THEN
