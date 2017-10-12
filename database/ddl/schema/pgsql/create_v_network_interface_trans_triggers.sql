@@ -51,6 +51,28 @@ BEGIN
 		);
 	END IF;
 
+	NEW.network_interface_id := _ni.network_interface_id;
+	NEW.device_id := _ni.device_id;
+	NEW.network_interface_name := _ni.network_interface_name;
+	NEW.description := _ni.description;
+	NEW.parent_network_interface_id := _ni.parent_network_interface_id;
+	NEW.parent_relation_type := _ni.parent_relation_type;
+	NEW.physical_port_id := _ni.physical_port_id;
+	NEW.slot_id := _ni.slot_id;
+	NEW.logical_port_id := _ni.logical_port_id;
+	NEW.network_interface_type := _ni.network_interface_type;
+	NEW.is_interface_up := _ni.is_interface_up;
+	NEW.mac_addr := _ni.mac_addr;
+	NEW.should_monitor := _ni.should_monitor;
+	NEW.provides_nat := _ni.provides_nat;
+	NEW.should_manage := _ni.should_manage;
+	NEW.provides_dhcp :=_ni.provides_dhcp;
+	NEW.data_ins_user :=_ni.data_ins_user;
+	NEW.data_ins_date := _ni.data_ins_date;
+	NEW.data_upd_user := _ni.data_upd_user;
+	NEW.data_upd_date := _ni.data_upd_date;
+
+
 	RETURN NEW;
 END;
 $$
