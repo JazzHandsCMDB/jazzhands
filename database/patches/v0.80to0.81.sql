@@ -13175,6 +13175,16 @@ DROP TABLE IF EXISTS audit.person_company_v80;
 
 select schema_support.rebuild_audit_tables( 'audit'::text, 'jazzhands'::text);
 
+ALTER VIEW v_network_interface_trans
+        alter column is_interface_up set default 'Y'::text;
+ALTER VIEW v_network_interface_trans
+        alter column provides_nat set default 'N'::text;
+ALTER VIEW v_network_interface_trans
+        alter column should_manage set default 'Y'::text;
+ALTER VIEW v_network_interface_trans
+        alter column provides_dhcp set default 'N'::text;
+
+
 
 --
 -- Just in case its accidentally recreated by the above.
