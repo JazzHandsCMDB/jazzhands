@@ -918,9 +918,6 @@ sub generate_complete_files {
 
 	$self->print_comments( $zcf, '#' );
 
-	#
-	# XXX this really wants to be a variable set in the db to determine
-	# if views are in use or not, or better, views in the db.
 	my $tally = 0;
 	foreach my $zone ( sort keys(%$zonesgend) ) {
 		if ( defined($zonesgend) && defined( $zonesgend->{$zone} ) ) {
@@ -1567,7 +1564,6 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		}
 		my $domid =
 		  $generate->{$dom}->{$univ}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
-		print "$dom $univ\n";
 		my $last = $generate->{$dom}->{$univ}->{rec}->[0]->{last_generated};
 		if ($bumpsoa) {
 			$last = $zg->get_now();
@@ -1580,6 +1576,8 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 
 			# do not treat it as regenrated.  This may not be smart.
 			$generate->{$dom}->{$univ}->{failed} = 1;
+		} else {
+			print "$dom $univ\n";
 		}
 	}
 
