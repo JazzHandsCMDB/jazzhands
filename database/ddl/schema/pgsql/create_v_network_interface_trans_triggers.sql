@@ -24,7 +24,7 @@ DECLARE
 	_ni	network_interface%ROWTYPE;
 BEGIN
 	INSERT INTO network_interface (
-                network_interface_id, device_id, 
+                device_id, 
 		network_interface_name, description, 
 		parent_network_interface_id,
                 parent_relation_type, physical_port_id, 
@@ -33,7 +33,7 @@ BEGIN
 		mac_addr, should_monitor, provides_nat,
                 should_manage, provides_dhcp
 	) VALUES (
-                NEW.network_interface_id, NEW.device_id,
+                NEW.device_id,
                 NEW.network_interface_name, NEW.description,
                 NEW.parent_network_interface_id,
                 NEW.parent_relation_type, NEW.physical_port_id,
