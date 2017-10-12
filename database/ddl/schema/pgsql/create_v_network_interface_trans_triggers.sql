@@ -159,9 +159,6 @@ BEGIN
 		END IF;
 	END IF;
 
-	DELETE FROM network_interface
-	WHERE network_interface_id = OLD.network_interface_id;
-
 	upd_query := NULL;
 		IF NEW.device_id IS DISTINCT FROM OLD.device_id THEN
 			upd_query := array_append(upd_query,
