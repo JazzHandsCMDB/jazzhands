@@ -136,7 +136,7 @@ BEGIN
 				_ni.network_interface_id, NEW.netblock_id
 			);
 		ELSIF NEW.netblock_id IS NULL THEN
-			DELETE FROM network_interface_netbock
+			DELETE FROM network_interface_netblock
 			WHERE network_interface_id = OLD.network_interface_id
 			AND netblock_id = OLD.netblock_id;
 
