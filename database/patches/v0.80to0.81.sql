@@ -4085,8 +4085,8 @@ CREATE TRIGGER trigger_net_int_nb_single_address BEFORE INSERT OR UPDATE OF netb
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'network_interface_netblock');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'network_interface_netblock');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'network_interface_netblock');
-DROP TABLE IF EXISTS network_interface_netblock_v80;
-DROP TABLE IF EXISTS audit.network_interface_netblock_v80;
+-- DROP TABLE IF EXISTS network_interface_netblock_v80;
+-- DROP TABLE IF EXISTS audit.network_interface_netblock_v80;
 -- DONE DEALING WITH TABLE network_interface_netblock
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -4140,7 +4140,7 @@ CREATE VIEW jazzhands.v_network_interface_trans AS
             ni.data_upd_date,
             rank() OVER (PARTITION BY ni.network_interface_id ORDER BY nin.network_interface_rank) AS rnk
            FROM network_interface ni
-             JOIN network_interface_netblock nin USING (network_interface_id)) base
+             LEFT JOIN network_interface_netblock nin USING (network_interface_id)) base
   WHERE base.rnk = 1;
 
 DO $$
@@ -13170,6 +13170,17 @@ SELECT schema_support.relation_diff(
 
 DROP TABLE IF EXISTS person_company_v80;
 DROP TABLE IF EXISTS audit.person_company_v80;
+
+SELECT schema_support.relation_diff(
+	schema := 'jazzhands',
+	old_rel := 'network_interface',
+	new_rel := 'tmp_v_network_interface_trans',
+	prikeys := ARRAY['network_interface_id'],
+	raise_exception := true
+);
+
+DROP TABLE IF EXISTS network_interface_netblock_v80;
+DROP TABLE IF EXISTS audit.network_interface_netblock_v80;
 
 ------------------------------------------------------------------------------
 

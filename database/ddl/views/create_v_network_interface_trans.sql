@@ -67,7 +67,7 @@ SELECT	ni.network_interface_id,
 	rank() OVER (PARTITION BY network_interface_id 
 			ORDER BY network_interface_rank) as rnk
 FROM	network_interface ni
-	JOIN network_interface_netblock nin USING (network_interface_id)
+	LEFT JOIN network_interface_netblock nin USING (network_interface_id)
 ) base
 WHERE rnk = 1;
 ;
