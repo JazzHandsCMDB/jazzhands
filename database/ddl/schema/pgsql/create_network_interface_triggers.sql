@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+\set ON_ERROR_STOP
+
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION net_int_nb_single_address()
 RETURNS TRIGGER AS $$
@@ -55,6 +57,7 @@ CREATE TRIGGER trigger_net_int_nb_single_address
 CREATE OR REPLACE FUNCTION net_int_nb_device_id_ins()
 RETURNS TRIGGER AS $$
 BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
 	IF NEW.device_id IS NULL OR TG_OP = 'UPDATE' THEN
 		SELECT device_id
 		INTO	NEW.device_id
@@ -76,11 +79,45 @@ CREATE TRIGGER trigger_net_int_nb_device_id_ins
 	EXECUTE PROCEDURE net_int_nb_device_id_ins();
 
 
+CREATE OR REPLACE FUNCTION net_int_nb_device_id_ins_after()
+RETURNS TRIGGER AS $$
+BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_net_int_nb_device_id_ins_after ON
+	network_interface_netblock;
+CREATE TRIGGER trigger_net_int_nb_device_id_ins_after
+	AFTER INSERT OR UPDATE OF network_interface_id
+	ON network_interface_netblock
+	FOR EACH ROW
+	EXECUTE PROCEDURE net_int_nb_device_id_ins_after();
+
 ------------------------------------------------------------------------------
 -- sync device_id on network_interface_netblock on network_interface changes
 --
 -- XXX - This needs to properly handle deferring triggers if appropriate XXX
 ------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION net_int_nb_device_id_ins_before()
+RETURNS TRIGGER AS $$
+BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_net_int_nb_device_id_ins_before ON
+	network_interface;
+CREATE TRIGGER trigger_net_int_nb_device_id_ins_before
+	BEFORE UPDATE OF device_id
+	ON network_interface
+	FOR EACH ROW
+	EXECUTE PROCEDURE net_int_nb_device_id_ins_before();
 
 CREATE OR REPLACE FUNCTION net_int_device_id_upd()
 RETURNS TRIGGER AS $$
@@ -89,6 +126,7 @@ BEGIN
 	SET device_id = NEW.device_id
 	WHERE	network_interface_id = NEW.network_interface_id;
 	RETURN NEW;
+	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
 END;
 $$
 SET search_path=jazzhands
