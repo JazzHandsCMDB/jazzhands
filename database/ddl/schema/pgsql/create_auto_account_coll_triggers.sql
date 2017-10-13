@@ -149,7 +149,6 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
-RAISE NOTICE '1';
 	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
@@ -162,7 +161,6 @@ RAISE NOTICE '1';
 				NEW.manager_person_id != OLD.manager_person_id )
 		) THEN
 			-- update the person's manager to match
-RAISE NOTICE '2';
 			WITH RECURSIVE map As (
 				SELECT account_id as root_account_id,
 					account_id, login, manager_account_id, manager_login
@@ -183,7 +181,6 @@ RAISE NOTICE '2';
 					AND a.company_id = NEW.company_id
 			) SELECT count(*) into _tally from x;
 			IF TG_OP = 'UPDATE' THEN
-RAISE NOTICE '2a';
 				PERFORM auto_ac_manip.make_auto_report_acs_right(
 							account_id := account_id)
 				FROM    v_corp_family_account
@@ -195,7 +192,6 @@ RAISE NOTICE '2a';
 	END IF;
 
 	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
-RAISE NOTICE '3: %', OLD;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -207,7 +203,6 @@ RAISE NOTICE '3: %', OLD;
 			OLD.person_id IS DISTINCT FROM NEW.person_id OR
 			OLD.company_id IS DISTINCT FROM NEW.company_id )
 		) THEN
-RAISE NOTICE '4: %', NEW;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -216,7 +211,6 @@ RAISE NOTICE '4: %', NEW;
 		AND		company_id = NEW.company_id;
 	END IF;
 
-RAISE NOTICE '5';
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
