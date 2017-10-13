@@ -21,35 +21,13 @@
 -- when columns are dropped from network_interface this will replicate the
 -- legacy behavior until other things can be cleaned up.
 CREATE OR REPLACE VIEW v_network_interface_trans AS
-SELECT network_interface_id,
-	device_id,
-	network_interface_name,
-	description,
-	parent_network_interface_id,
-	parent_relation_type,
-	netblock_id,
-	physical_port_id,
-	slot_id,
-	logical_port_id,
-	network_interface_type,
-	is_interface_up,
-	mac_addr,
-	should_monitor,
-	provides_nat,
-	should_manage,
-	provides_dhcp,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM (
-SELECT	ni.network_interface_id,
+SELECT ni.network_interface_id,
 	ni.device_id,
 	ni.network_interface_name,
 	ni.description,
 	ni.parent_network_interface_id,
 	ni.parent_relation_type,
-	nin.netblock_id,
+	nb.netblock_id,
 	ni.physical_port_id,
 	ni.slot_id,
 	ni.logical_port_id,
@@ -63,20 +41,28 @@ SELECT	ni.network_interface_id,
 	ni.data_ins_user,
 	ni.data_ins_date,
 	ni.data_upd_user,
-	ni.data_upd_date,
-	rank() OVER (PARTITION BY network_interface_id 
-			ORDER BY network_interface_rank) as rnk
-FROM	network_interface ni
-	LEFT JOIN network_interface_netblock nin USING (network_interface_id)
-) base
-WHERE rnk = 1;
+	ni.data_upd_date
+FROM network_interface ni
+	LEFT JOIN (
+		SELECT nin.network_interface_id, nin.netblock_id
+		FROM network_interface_netblock nin
+			JOIN (
+					SELECT network_interface_id,
+						min(network_interface_rank) as network_interface_rank
+					FROM network_interface_netblock
+					GROUP BY network_interface_id
+			) mn
+				USING (network_interface_id, network_interface_rank)
+		) nb
+	 USING (network_interface_id)
+
 ;
 
-ALTER VIEW v_network_interface_trans 
+ALTER VIEW v_network_interface_trans
 	alter column is_interface_up set default 'Y'::text;
-ALTER VIEW v_network_interface_trans 
+ALTER VIEW v_network_interface_trans
 	alter column provides_nat set default 'N'::text;
-ALTER VIEW v_network_interface_trans 
+ALTER VIEW v_network_interface_trans
 	alter column should_manage set default 'Y'::text;
-ALTER VIEW v_network_interface_trans 
+ALTER VIEW v_network_interface_trans
 	alter column provides_dhcp set default 'N'::text;
