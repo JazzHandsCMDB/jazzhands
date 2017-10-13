@@ -83,6 +83,7 @@ CREATE OR REPLACE FUNCTION net_int_nb_device_id_ins_after()
 RETURNS TRIGGER AS $$
 BEGIN
 	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -106,6 +107,7 @@ CREATE OR REPLACE FUNCTION net_int_nb_device_id_ins_before()
 RETURNS TRIGGER AS $$
 BEGIN
 	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -125,8 +127,8 @@ BEGIN
 	UPDATE network_interface_netblock
 	SET device_id = NEW.device_id
 	WHERE	network_interface_id = NEW.network_interface_id;
-	RETURN NEW;
 	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
