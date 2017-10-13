@@ -18,9 +18,15 @@
 -- $Id$
 --
 
--- when columns are dropped from network_interface this will replicate the
+-- This represents legacy behavior (netblock_id in network_interface)
+-- until that can be cleaned up properly.
 -- legacy behavior until other things can be cleaned up.
+--
+-- so FOR UPDATE works, this needs to be a WITH.  This will likely cause
+-- downstream issues...
+--
 CREATE OR REPLACE VIEW v_network_interface_trans AS
+WITH x AS (
 SELECT ni.network_interface_id,
 	ni.device_id,
 	ni.network_interface_name,
@@ -55,7 +61,7 @@ FROM network_interface ni
 				USING (network_interface_id, network_interface_rank)
 		) nb
 	 USING (network_interface_id)
-
+) SELECT * FROM x
 ;
 
 ALTER VIEW v_network_interface_trans
