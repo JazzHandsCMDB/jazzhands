@@ -44,6 +44,8 @@ Invoked:
 	layerx_network_manip
 	--no-drop
 	person_company
+	--no-drop
+	network_interface
 	--reinsert-dir=i
 */
 
@@ -4012,7 +4014,7 @@ ALTER TABLE network_interface_netblock ADD CONSTRAINT pk_network_interface_netbl
 -- Table/Column Comments
 COMMENT ON COLUMN network_interface_netblock.network_interface_rank IS 'specifies the order of priority for the ip address.  generally only the highest priority matters (or highest priority v4 and v6) and is the "primary" if the underlying device supports it.';
 -- INDEXES
-CREATE INDEX xif3network_interface_netblock ON network_interface_netblock USING btree (network_interface_id, device_id);
+CREATE INDEX xif_netint_nb_nblk_id ON network_interface_netblock USING btree (network_interface_id, device_id);
 
 -- CHECK CONSTRAINTS
 
@@ -4022,7 +4024,7 @@ CREATE INDEX xif3network_interface_netblock ON network_interface_netblock USING 
 -- consider FK network_interface_netblock and network_interface
 ALTER TABLE network_interface_netblock
 	ADD CONSTRAINT fk_netint_nb_nblk_id
-	FOREIGN KEY (network_interface_id, device_id) REFERENCES network_interface(network_interface_id, device_id);
+	FOREIGN KEY (network_interface_id, device_id) REFERENCES network_interface(network_interface_id, device_id) DEFERRABLE;
 -- consider FK network_interface_netblock and netblock
 ALTER TABLE network_interface_netblock
 	ADD CONSTRAINT fk_netint_nb_netint_id
@@ -4037,6 +4039,7 @@ CREATE OR REPLACE FUNCTION jazzhands.net_int_nb_device_id_ins()
  SET search_path TO jazzhands
 AS $function$
 BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
 	IF NEW.device_id IS NULL OR TG_OP = 'UPDATE' THEN
 		SELECT device_id
 		INTO	NEW.device_id
@@ -4048,6 +4051,22 @@ END;
 $function$
 ;
 CREATE TRIGGER trigger_net_int_nb_device_id_ins BEFORE INSERT OR UPDATE OF network_interface_id ON network_interface_netblock FOR EACH ROW EXECUTE PROCEDURE net_int_nb_device_id_ins();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.net_int_nb_device_id_ins_after
+CREATE OR REPLACE FUNCTION jazzhands.net_int_nb_device_id_ins_after()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_net_int_nb_device_id_ins_after AFTER INSERT OR UPDATE OF network_interface_id ON network_interface_netblock FOR EACH ROW EXECUTE PROCEDURE net_int_nb_device_id_ins_after();
 
 -- XXX - may need to include trigger function
 -- consider NEW jazzhands.net_int_nb_single_address
@@ -4085,8 +4104,8 @@ CREATE TRIGGER trigger_net_int_nb_single_address BEFORE INSERT OR UPDATE OF netb
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'network_interface_netblock');
 SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'network_interface_netblock');
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'network_interface_netblock');
--- DROP TABLE IF EXISTS network_interface_netblock_v80;
--- DROP TABLE IF EXISTS audit.network_interface_netblock_v80;
+DROP TABLE IF EXISTS network_interface_netblock_v80;
+DROP TABLE IF EXISTS audit.network_interface_netblock_v80;
 -- DONE DEALING WITH TABLE network_interface_netblock
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -4096,34 +4115,14 @@ SELECT schema_support.save_grants_for_replay('jazzhands', 'v_network_interface_t
 SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_network_interface_trans');
 DROP VIEW IF EXISTS jazzhands.v_network_interface_trans;
 CREATE VIEW jazzhands.v_network_interface_trans AS
- SELECT base.network_interface_id,
-    base.device_id,
-    base.network_interface_name,
-    base.description,
-    base.parent_network_interface_id,
-    base.parent_relation_type,
-    base.netblock_id,
-    base.physical_port_id,
-    base.slot_id,
-    base.logical_port_id,
-    base.network_interface_type,
-    base.is_interface_up,
-    base.mac_addr,
-    base.should_monitor,
-    base.provides_nat,
-    base.should_manage,
-    base.provides_dhcp,
-    base.data_ins_user,
-    base.data_ins_date,
-    base.data_upd_user,
-    base.data_upd_date
-   FROM ( SELECT ni.network_interface_id,
+ WITH x AS (
+         SELECT ni.network_interface_id,
             ni.device_id,
             ni.network_interface_name,
             ni.description,
             ni.parent_network_interface_id,
             ni.parent_relation_type,
-            nin.netblock_id,
+            nb.netblock_id,
             ni.physical_port_id,
             ni.slot_id,
             ni.logical_port_id,
@@ -4137,11 +4136,38 @@ CREATE VIEW jazzhands.v_network_interface_trans AS
             ni.data_ins_user,
             ni.data_ins_date,
             ni.data_upd_user,
-            ni.data_upd_date,
-            rank() OVER (PARTITION BY ni.network_interface_id ORDER BY nin.network_interface_rank) AS rnk
+            ni.data_upd_date
            FROM network_interface ni
-             LEFT JOIN network_interface_netblock nin USING (network_interface_id)) base
-  WHERE base.rnk = 1;
+             LEFT JOIN ( SELECT nin.network_interface_id,
+                    nin.netblock_id
+                   FROM network_interface_netblock nin
+                     JOIN ( SELECT network_interface_netblock.network_interface_id,
+                            min(network_interface_netblock.network_interface_rank) AS network_interface_rank
+                           FROM network_interface_netblock
+                          GROUP BY network_interface_netblock.network_interface_id) mn USING (network_interface_id, network_interface_rank)) nb USING (network_interface_id)
+        )
+ SELECT x.network_interface_id,
+    x.device_id,
+    x.network_interface_name,
+    x.description,
+    x.parent_network_interface_id,
+    x.parent_relation_type,
+    x.netblock_id,
+    x.physical_port_id,
+    x.slot_id,
+    x.logical_port_id,
+    x.network_interface_type,
+    x.is_interface_up,
+    x.mac_addr,
+    x.should_monitor,
+    x.provides_nat,
+    x.should_manage,
+    x.provides_dhcp,
+    x.data_ins_user,
+    x.data_ins_date,
+    x.data_upd_user,
+    x.data_upd_date
+   FROM x;
 
 DO $$
 
@@ -6948,7 +6974,7 @@ ALTER TABLE network_interface ADD CONSTRAINT ckc_should_manage_network_
 -- consider FK between network_interface and network_interface_netblock
 ALTER TABLE network_interface_netblock
 	ADD CONSTRAINT fk_netint_nb_nblk_id
-	FOREIGN KEY (network_interface_id, device_id) REFERENCES network_interface(network_interface_id, device_id);
+	FOREIGN KEY (network_interface_id, device_id) REFERENCES network_interface(network_interface_id, device_id) DEFERRABLE;
 -- consider FK between network_interface and network_interface_purpose
 ALTER TABLE network_interface_purpose
 	ADD CONSTRAINT fk_netint_purp_dev_ni_id
@@ -7008,11 +7034,28 @@ BEGIN
 	UPDATE network_interface_netblock
 	SET device_id = NEW.device_id
 	WHERE	network_interface_id = NEW.network_interface_id;
+	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
 	RETURN NEW;
 END;
 $function$
 ;
 CREATE TRIGGER trigger_net_int_device_id_upd AFTER UPDATE OF device_id ON network_interface FOR EACH ROW EXECUTE PROCEDURE net_int_device_id_upd();
+
+-- XXX - may need to include trigger function
+-- consider NEW jazzhands.net_int_nb_device_id_ins_before
+CREATE OR REPLACE FUNCTION jazzhands.net_int_nb_device_id_ins_before()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
+	RETURN NEW;
+END;
+$function$
+;
+CREATE TRIGGER trigger_net_int_nb_device_id_ins_before BEFORE UPDATE OF device_id ON network_interface FOR EACH ROW EXECUTE PROCEDURE net_int_nb_device_id_ins_before();
 
 -- XXX - may need to include trigger function
 -- consider NEW jazzhands.net_int_physical_id_to_slot_id_enforce
@@ -7065,8 +7108,9 @@ SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'netw
 SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'network_interface');
 ALTER SEQUENCE network_interface_network_interface_id_seq
 	 OWNED BY network_interface.network_interface_id;
-DROP TABLE IF EXISTS network_interface_v80;
-DROP TABLE IF EXISTS audit.network_interface_v80;
+-- not dropping network_interface, as directed
+-- DROP TABLE IF EXISTS network_interface_v80;
+-- DROP TABLE IF EXISTS audit.network_interface_v80;
 -- DONE DEALING WITH TABLE network_interface
 --------------------------------------------------------------------
 --------------------------------------------------------------------
@@ -7480,7 +7524,6 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
-RAISE NOTICE '1';
 	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
@@ -7493,7 +7536,6 @@ RAISE NOTICE '1';
 				NEW.manager_person_id != OLD.manager_person_id )
 		) THEN
 			-- update the person's manager to match
-RAISE NOTICE '2';
 			WITH RECURSIVE map As (
 				SELECT account_id as root_account_id,
 					account_id, login, manager_account_id, manager_login
@@ -7514,7 +7556,6 @@ RAISE NOTICE '2';
 					AND a.company_id = NEW.company_id
 			) SELECT count(*) into _tally from x;
 			IF TG_OP = 'UPDATE' THEN
-RAISE NOTICE '2a';
 				PERFORM auto_ac_manip.make_auto_report_acs_right(
 							account_id := account_id)
 				FROM    v_corp_family_account
@@ -7526,7 +7567,6 @@ RAISE NOTICE '2a';
 	END IF;
 
 	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
-RAISE NOTICE '3: %', OLD;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -7538,7 +7578,6 @@ RAISE NOTICE '3: %', OLD;
 			OLD.person_id IS DISTINCT FROM NEW.person_id OR
 			OLD.company_id IS DISTINCT FROM NEW.company_id )
 		) THEN
-RAISE NOTICE '4: %', NEW;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -7547,7 +7586,6 @@ RAISE NOTICE '4: %', NEW;
 		AND		company_id = NEW.company_id;
 	END IF;
 
-RAISE NOTICE '5';
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
@@ -7570,40 +7608,107 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'person_compan
 -- DONE DEALING WITH TABLE person_company
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE v_dns_changes_pending
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_dns_changes_pending', 'v_dns_changes_pending');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_changes_pending');
+DROP VIEW IF EXISTS jazzhands.v_dns_changes_pending;
+CREATE VIEW jazzhands.v_dns_changes_pending AS
+ WITH chg AS (
+         SELECT dns_change_record.dns_change_record_id,
+            dns_change_record.dns_domain_id,
+                CASE
+                    WHEN family(dns_change_record.ip_address) = 4 THEN set_masklen(dns_change_record.ip_address, 24)
+                    ELSE set_masklen(dns_change_record.ip_address, 64)
+                END AS ip_address,
+            dns_utils.get_domain_from_cidr(dns_change_record.ip_address) AS cidrdns
+           FROM dns_change_record
+          WHERE dns_change_record.ip_address IS NOT NULL
+        )
+ SELECT x.dns_change_record_id,
+    x.dns_domain_id,
+    x.ip_universe_id,
+    x.should_generate,
+    x.last_generated,
+    x.soa_name,
+    x.ip_address
+   FROM ( SELECT chg.dns_change_record_id,
+            n.dns_domain_id,
+            du.ip_universe_id,
+            du.should_generate,
+            du.last_generated,
+            n.soa_name,
+            chg.ip_address
+           FROM chg
+             JOIN dns_domain n ON chg.cidrdns = n.soa_name::text
+             JOIN dns_domain_ip_universe du ON du.dns_domain_id = n.dns_domain_id
+        UNION ALL
+         SELECT chg.dns_change_record_id,
+            d.dns_domain_id,
+            du.ip_universe_id,
+            du.should_generate,
+            du.last_generated,
+            d.soa_name,
+            NULL::inet
+           FROM dns_change_record chg
+             JOIN dns_domain d USING (dns_domain_id)
+             JOIN dns_domain_ip_universe du USING (dns_domain_id)
+          WHERE chg.dns_domain_id IS NOT NULL AND chg.ip_universe_id IS NULL
+        UNION ALL
+         SELECT chg.dns_change_record_id,
+            d.dns_domain_id,
+            chg.ip_universe_id,
+            du.should_generate,
+            du.last_generated,
+            d.soa_name,
+            NULL::inet
+           FROM dns_change_record chg
+             JOIN dns_domain d USING (dns_domain_id)
+             JOIN dns_domain_ip_universe du USING (dns_domain_id, ip_universe_id)
+          WHERE chg.dns_domain_id IS NOT NULL AND chg.ip_universe_id IS NOT NULL
+        UNION ALL
+         SELECT chg.dns_change_record_id,
+            d.dns_domain_id,
+            iv.visible_ip_universe_id,
+            du.should_generate,
+            du.last_generated,
+            d.soa_name,
+            NULL::inet
+           FROM dns_change_record chg
+             JOIN ip_universe_visibility iv USING (ip_universe_id)
+             JOIN dns_domain d USING (dns_domain_id)
+             JOIN dns_domain_ip_universe du USING (dns_domain_id)
+          WHERE chg.dns_domain_id IS NOT NULL AND chg.ip_universe_id IS NOT NULL) x;
+
+DO $$
+
+			BEGIN
+				DELETE FROM __recreate WHERE type = 'view' AND object = 'v_dns_changes_pending';
+			EXCEPTION WHEN undefined_table THEN
+				RAISE NOTICE 'Drop of v_dns_changes_pending failed but that is ok';
+				NULL;
+			END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+-- DONE DEALING WITH TABLE v_dns_changes_pending
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE v_network_interface_trans
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_network_interface_trans', 'v_network_interface_trans');
 SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_network_interface_trans');
 DROP VIEW IF EXISTS jazzhands.v_network_interface_trans;
 CREATE VIEW jazzhands.v_network_interface_trans AS
- SELECT base.network_interface_id,
-    base.device_id,
-    base.network_interface_name,
-    base.description,
-    base.parent_network_interface_id,
-    base.parent_relation_type,
-    base.netblock_id,
-    base.physical_port_id,
-    base.slot_id,
-    base.logical_port_id,
-    base.network_interface_type,
-    base.is_interface_up,
-    base.mac_addr,
-    base.should_monitor,
-    base.provides_nat,
-    base.should_manage,
-    base.provides_dhcp,
-    base.data_ins_user,
-    base.data_ins_date,
-    base.data_upd_user,
-    base.data_upd_date
-   FROM ( SELECT ni.network_interface_id,
+ WITH x AS (
+         SELECT ni.network_interface_id,
             ni.device_id,
             ni.network_interface_name,
             ni.description,
             ni.parent_network_interface_id,
             ni.parent_relation_type,
-            nin.netblock_id,
+            nb.netblock_id,
             ni.physical_port_id,
             ni.slot_id,
             ni.logical_port_id,
@@ -7617,11 +7722,38 @@ CREATE VIEW jazzhands.v_network_interface_trans AS
             ni.data_ins_user,
             ni.data_ins_date,
             ni.data_upd_user,
-            ni.data_upd_date,
-            rank() OVER (PARTITION BY ni.network_interface_id ORDER BY nin.network_interface_rank) AS rnk
+            ni.data_upd_date
            FROM network_interface ni
-             JOIN network_interface_netblock nin USING (network_interface_id)) base
-  WHERE base.rnk = 1;
+             LEFT JOIN ( SELECT nin.network_interface_id,
+                    nin.netblock_id
+                   FROM network_interface_netblock nin
+                     JOIN ( SELECT network_interface_netblock.network_interface_id,
+                            min(network_interface_netblock.network_interface_rank) AS network_interface_rank
+                           FROM network_interface_netblock
+                          GROUP BY network_interface_netblock.network_interface_id) mn USING (network_interface_id, network_interface_rank)) nb USING (network_interface_id)
+        )
+ SELECT x.network_interface_id,
+    x.device_id,
+    x.network_interface_name,
+    x.description,
+    x.parent_network_interface_id,
+    x.parent_relation_type,
+    x.netblock_id,
+    x.physical_port_id,
+    x.slot_id,
+    x.logical_port_id,
+    x.network_interface_type,
+    x.is_interface_up,
+    x.mac_addr,
+    x.should_monitor,
+    x.provides_nat,
+    x.should_manage,
+    x.provides_dhcp,
+    x.data_ins_user,
+    x.data_ins_date,
+    x.data_upd_user,
+    x.data_upd_date
+   FROM x;
 
 DO $$
 
@@ -8625,7 +8757,6 @@ DECLARE
 	_tally	INTEGER;
 	_r		RECORD;
 BEGIN
-RAISE NOTICE '1';
 	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
@@ -8638,7 +8769,6 @@ RAISE NOTICE '1';
 				NEW.manager_person_id != OLD.manager_person_id )
 		) THEN
 			-- update the person's manager to match
-RAISE NOTICE '2';
 			WITH RECURSIVE map As (
 				SELECT account_id as root_account_id,
 					account_id, login, manager_account_id, manager_login
@@ -8659,7 +8789,6 @@ RAISE NOTICE '2';
 					AND a.company_id = NEW.company_id
 			) SELECT count(*) into _tally from x;
 			IF TG_OP = 'UPDATE' THEN
-RAISE NOTICE '2a';
 				PERFORM auto_ac_manip.make_auto_report_acs_right(
 							account_id := account_id)
 				FROM    v_corp_family_account
@@ -8671,7 +8800,6 @@ RAISE NOTICE '2a';
 	END IF;
 
 	IF ( TG_OP = 'DELETE' OR TG_OP = 'UPDATE' ) THEN
-RAISE NOTICE '3: %', OLD;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -8683,7 +8811,6 @@ RAISE NOTICE '3: %', OLD;
 			OLD.person_id IS DISTINCT FROM NEW.person_id OR
 			OLD.company_id IS DISTINCT FROM NEW.company_id )
 		) THEN
-RAISE NOTICE '4: %', NEW;
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -8692,7 +8819,6 @@ RAISE NOTICE '4: %', NEW;
 		AND		company_id = NEW.company_id;
 	END IF;
 
-RAISE NOTICE '5';
 	IF TG_OP = 'DELETE' THEN
 		RETURN OLD;
 	ELSE
@@ -10447,6 +10573,7 @@ BEGIN
 	UPDATE network_interface_netblock
 	SET device_id = NEW.device_id
 	WHERE	network_interface_id = NEW.network_interface_id;
+	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
 	RETURN NEW;
 END;
 $function$
@@ -10460,12 +10587,271 @@ CREATE OR REPLACE FUNCTION jazzhands.net_int_nb_device_id_ins()
  SET search_path TO jazzhands
 AS $function$
 BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
 	IF NEW.device_id IS NULL OR TG_OP = 'UPDATE' THEN
 		SELECT device_id
 		INTO	NEW.device_id
 		FROM	network_interface
 		WHERE	network_interface_id = NEW.network_interface_id;
 	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.net_int_nb_device_id_ins_after()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id IMMEDIATE;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.net_int_nb_device_id_ins_before()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+BEGIN
+	SET CONSTRAINTS fk_netint_nb_nblk_id DEFERRED;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.v_network_interface_trans_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ni		network_interface%ROWTYPE;
+BEGIN
+	IF OLD.netblock_id IS NOT NULL THEN
+		DELETE FROM network_interface_netblock
+		WHERE network_interface_id = OLD.network_interface_id
+		AND netblock_id = OLD.netblock_id;
+	END IF;
+
+	DELETE FROM network_interface
+	WHERE network_interface_id = OLD.network_interface_id;
+
+	RETURN OLD;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.v_network_interface_trans_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	_ni	network_interface%ROWTYPE;
+BEGIN
+	INSERT INTO network_interface (
+                device_id, 
+		network_interface_name, description, 
+		parent_network_interface_id,
+                parent_relation_type, physical_port_id, 
+		slot_id, logical_port_id, 
+		network_interface_type, is_interface_up, 
+		mac_addr, should_monitor, provides_nat,
+                should_manage, provides_dhcp
+	) VALUES (
+                NEW.device_id,
+                NEW.network_interface_name, NEW.description,
+                NEW.parent_network_interface_id,
+                NEW.parent_relation_type, NEW.physical_port_id,
+                NEW.slot_id, NEW.logical_port_id,
+                NEW.network_interface_type, NEW.is_interface_up,
+                NEW.mac_addr, NEW.should_monitor, NEW.provides_nat,
+                NEW.should_manage, NEW.provides_dhcp
+	) RETURNING * INTO _ni;
+
+	IF NEW.netblock_id IS NOT NULL THEN
+		INSERT INTO network_interface_netblock (
+			network_interface_id, netblock_id
+		) VALUES (
+			_ni.network_interface_id, NEW.netblock_id
+		);
+	END IF;
+
+	NEW.network_interface_id := _ni.network_interface_id;
+	NEW.device_id := _ni.device_id;
+	NEW.network_interface_name := _ni.network_interface_name;
+	NEW.description := _ni.description;
+	NEW.parent_network_interface_id := _ni.parent_network_interface_id;
+	NEW.parent_relation_type := _ni.parent_relation_type;
+	NEW.physical_port_id := _ni.physical_port_id;
+	NEW.slot_id := _ni.slot_id;
+	NEW.logical_port_id := _ni.logical_port_id;
+	NEW.network_interface_type := _ni.network_interface_type;
+	NEW.is_interface_up := _ni.is_interface_up;
+	NEW.mac_addr := _ni.mac_addr;
+	NEW.should_monitor := _ni.should_monitor;
+	NEW.provides_nat := _ni.provides_nat;
+	NEW.should_manage := _ni.should_manage;
+	NEW.provides_dhcp :=_ni.provides_dhcp;
+	NEW.data_ins_user :=_ni.data_ins_user;
+	NEW.data_ins_date := _ni.data_ins_date;
+	NEW.data_upd_user := _ni.data_upd_user;
+	NEW.data_upd_date := _ni.data_upd_date;
+
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function
+CREATE OR REPLACE FUNCTION jazzhands.v_network_interface_trans_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO jazzhands
+AS $function$
+DECLARE
+	upd_query		TEXT[];
+	_ni				network_interface%ROWTYPE;
+BEGIN
+	IF OLD.network_interface_id IS DISTINCT FROM NEW.network_interface_id THEN
+		RAISE EXCEPTION 'May not update network_interface_id'
+		USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF OLD.netblock_id IS DISTINCT FROM NEW.netblock_id THEN
+		IF OLD.netblock_id IS NULL THEN
+			INSERT INTO network_interface_netblock (
+				network_interface_id, netblock_id
+			) VALUES (
+				_ni.network_interface_id, NEW.netblock_id
+			);
+		ELSIF NEW.netblock_id IS NULL THEN
+			DELETE FROM network_interface_netblock
+			WHERE network_interface_id = OLD.network_interface_id
+			AND netblock_id = OLD.netblock_id;
+
+			WITH x AS (
+				SELECT *,
+				rank() OVER (PARTITION BY 
+					ni.network_interface_id ORDER BY 
+					nin.network_interface_rank) AS rnk
+				FROM network_interface_netblock
+				WHERE network_interface_id = NEW.network_interface_id
+			) SELECT netblock_id
+			INTO NEW.netblock_id
+				FROM x
+				WHERE x.rnk = 1;
+		ELSE
+			UPDATE network_interface_netblock
+			SET netblock_id = NEW.netblock_id
+			WHERE netblock_id = OLD.netblock_id
+			AND network_interface_id = NEW.network_interface_id;
+		END IF;
+	END IF;
+
+	upd_query := NULL;
+		IF NEW.device_id IS DISTINCT FROM OLD.device_id THEN
+			upd_query := array_append(upd_query,
+				'device_id = ' || quote_nullable(NEW.device_id));
+		END IF;
+		IF NEW.network_interface_name IS DISTINCT FROM OLD.network_interface_name THEN
+			upd_query := array_append(upd_query,
+				'network_interface_name = ' || quote_nullable(NEW.network_interface_name));
+		END IF;
+		IF NEW.description IS DISTINCT FROM OLD.description THEN
+			upd_query := array_append(upd_query,
+				'description = ' || quote_nullable(NEW.description));
+		END IF;
+		IF NEW.parent_network_interface_id IS DISTINCT FROM OLD.parent_network_interface_id THEN
+			upd_query := array_append(upd_query,
+				'parent_network_interface_id = ' || quote_nullable(NEW.parent_network_interface_id));
+		END IF;
+		IF NEW.parent_relation_type IS DISTINCT FROM OLD.parent_relation_type THEN
+			upd_query := array_append(upd_query,
+				'parent_relation_type = ' || quote_nullable(NEW.parent_relation_type));
+		END IF;
+		IF NEW.physical_port_id IS DISTINCT FROM OLD.physical_port_id THEN
+			upd_query := array_append(upd_query,
+				'physical_port_id = ' || quote_nullable(NEW.physical_port_id));
+		END IF;
+		IF NEW.slot_id IS DISTINCT FROM OLD.slot_id THEN
+			upd_query := array_append(upd_query,
+				'slot_id = ' || quote_nullable(NEW.slot_id));
+		END IF;
+		IF NEW.logical_port_id IS DISTINCT FROM OLD.logical_port_id THEN
+			upd_query := array_append(upd_query,
+				'logical_port_id = ' || quote_nullable(NEW.logical_port_id));
+		END IF;
+		IF NEW.network_interface_type IS DISTINCT FROM OLD.network_interface_type THEN
+			upd_query := array_append(upd_query,
+				'network_interface_type = ' || quote_nullable(NEW.network_interface_type));
+		END IF;
+		IF NEW.is_interface_up IS DISTINCT FROM OLD.is_interface_up THEN
+			upd_query := array_append(upd_query,
+				'is_interface_up = ' || quote_nullable(NEW.is_interface_Up));
+		END IF;
+		IF NEW.mac_addr IS DISTINCT FROM OLD.mac_addr THEN
+			upd_query := array_append(upd_query,
+				'mac_addr = ' || quote_nullable(NEW.mac_addr));
+		END IF;
+		IF NEW.should_monitor IS DISTINCT FROM OLD.should_monitor THEN
+			upd_query := array_append(upd_query,
+				'should_monitor = ' || quote_nullable(NEW.should_monitor));
+		END IF;
+		IF NEW.provides_nat IS DISTINCT FROM OLD.provides_nat THEN
+			upd_query := array_append(upd_query,
+				'provides_nat = ' || quote_nullable(NEW.provides_nat));
+		END IF;
+		IF NEW.should_manage IS DISTINCT FROM OLD.should_manage THEN
+			upd_query := array_append(upd_query,
+				'should_manage = ' || quote_nullable(NEW.should_manage));
+		END IF;
+		IF NEW.provides_dhcp IS DISTINCT FROM OLD.provides_dhcp THEN
+			upd_query := array_append(upd_query,
+				'provides_dhcp = ' || quote_nullable(NEW.provides_dhcp));
+		END IF;
+
+		IF upd_query IS NOT NULL THEN
+			EXECUTE 'UPDATE network_interface SET ' ||
+				array_to_string(upd_query, ', ') ||
+				' WHERE network_interface_id = $1 RETURNING *'
+			USING OLD.network_interface_id
+			INTO _ni;
+
+			NEW.device_id := _ni.device_id;
+			NEW.network_interface_name := _ni.network_interface_name;
+			NEW.description := _ni.description;
+			NEW.parent_network_interface_id := _ni.parent_network_interface_id;
+			NEW.parent_relation_type := _ni.parent_relation_type;
+			NEW.physical_port_id := _ni.physical_port_id;
+			NEW.slot_id := _ni.slot_id;
+			NEW.logical_port_id := _ni.logical_port_id;
+			NEW.network_interface_type := _ni.network_interface_type;
+			NEW.is_interface_up := _ni.is_interface_up;
+			NEW.mac_addr := _ni.mac_addr;
+			NEW.should_monitor := _ni.should_monitor;
+			NEW.provides_nat := _ni.provides_nat;
+			NEW.should_manage := _ni.should_manage;
+			NEW.provides_dhcp := _ni.provides_dhcp;
+			NEW.data_ins_user := _ni.data_ins_user;
+			NEW.data_ins_date := _ni.data_ins_date;
+			NEW.data_upd_user := _ni.data_upd_user;
+			NEW.data_upd_date := _ni.data_upd_date;
+		END IF;
 	RETURN NEW;
 END;
 $function$
@@ -13170,21 +13556,24 @@ SELECT schema_support.relation_diff(
 
 DROP TABLE IF EXISTS person_company_v80;
 DROP TABLE IF EXISTS audit.person_company_v80;
+------------------------------------------------------------------------------
 
 SELECT schema_support.relation_diff(
 	schema := 'jazzhands',
-	old_rel := 'network_interface',
-	new_rel := 'tmp_v_network_interface_trans',
+	old_rel := 'network_interface_v80',
+	new_rel := 'v_network_interface_trans',
 	prikeys := ARRAY['network_interface_id'],
 	raise_exception := true
 );
 
-DROP TABLE IF EXISTS network_interface_netblock_v80;
-DROP TABLE IF EXISTS audit.network_interface_netblock_v80;
+DROP TABLE IF EXISTS network_interface_v80;
+DROP TABLE IF EXISTS audit.network_interface_v80;
+
 
 ------------------------------------------------------------------------------
 
 select schema_support.rebuild_audit_tables( 'audit'::text, 'jazzhands'::text);
+
 
 ALTER VIEW v_network_interface_trans
         alter column is_interface_up set default 'Y'::text;
@@ -13195,7 +13584,17 @@ ALTER VIEW v_network_interface_trans
 ALTER VIEW v_network_interface_trans
         alter column provides_dhcp set default 'N'::text;
 
+CREATE TRIGGER trigger_v_network_interface_trans_del 
+	INSTEAD OF DELETE ON v_network_interface_trans 
+	FOR EACH ROW EXECUTE PROCEDURE v_network_interface_trans_del();
 
+CREATE TRIGGER trigger_v_network_interface_trans_ins 
+	INSTEAD OF INSERT ON v_network_interface_trans 
+	FOR EACH ROW EXECUTE PROCEDURE v_network_interface_trans_ins();
+
+CREATE TRIGGER trigger_v_network_interface_trans_upd 
+	INSTEAD OF UPDATE ON v_network_interface_trans 
+	FOR EACH ROW EXECUTE PROCEDURE v_network_interface_trans_upd();
 
 --
 -- Just in case its accidentally recreated by the above.
