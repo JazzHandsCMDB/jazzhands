@@ -4116,35 +4116,52 @@ SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_network_
 DROP VIEW IF EXISTS jazzhands.v_network_interface_trans;
 CREATE VIEW jazzhands.v_network_interface_trans AS
  WITH x AS (
-         SELECT ni.network_interface_id,
-            ni.device_id,
-            ni.network_interface_name,
-            ni.description,
-            ni.parent_network_interface_id,
-            ni.parent_relation_type,
-            nb.netblock_id,
-            ni.physical_port_id,
-            ni.slot_id,
-            ni.logical_port_id,
-            ni.network_interface_type,
-            ni.is_interface_up,
-            ni.mac_addr,
-            ni.should_monitor,
-            ni.provides_nat,
-            ni.should_manage,
-            ni.provides_dhcp,
-            ni.data_ins_user,
-            ni.data_ins_date,
-            ni.data_upd_user,
-            ni.data_upd_date
-           FROM network_interface ni
-             LEFT JOIN ( SELECT nin.network_interface_id,
-                    nin.netblock_id
-                   FROM network_interface_netblock nin
-                     JOIN ( SELECT network_interface_netblock.network_interface_id,
-                            min(network_interface_netblock.network_interface_rank) AS network_interface_rank
-                           FROM network_interface_netblock
-                          GROUP BY network_interface_netblock.network_interface_id) mn USING (network_interface_id, network_interface_rank)) nb USING (network_interface_id)
+         SELECT base.network_interface_id,
+            base.device_id,
+            base.network_interface_name,
+            base.description,
+            base.parent_network_interface_id,
+            base.parent_relation_type,
+            base.netblock_id,
+            base.physical_port_id,
+            base.slot_id,
+            base.logical_port_id,
+            base.network_interface_type,
+            base.is_interface_up,
+            base.mac_addr,
+            base.should_monitor,
+            base.provides_nat,
+            base.should_manage,
+            base.provides_dhcp,
+            base.data_ins_user,
+            base.data_ins_date,
+            base.data_upd_user,
+            base.data_upd_date
+           FROM ( SELECT ni.network_interface_id,
+                    ni.device_id,
+                    ni.network_interface_name,
+                    ni.description,
+                    ni.parent_network_interface_id,
+                    ni.parent_relation_type,
+                    nin.netblock_id,
+                    ni.physical_port_id,
+                    ni.slot_id,
+                    ni.logical_port_id,
+                    ni.network_interface_type,
+                    ni.is_interface_up,
+                    ni.mac_addr,
+                    ni.should_monitor,
+                    ni.provides_nat,
+                    ni.should_manage,
+                    ni.provides_dhcp,
+                    ni.data_ins_user,
+                    ni.data_ins_date,
+                    ni.data_upd_user,
+                    ni.data_upd_date,
+                    rank() OVER (PARTITION BY ni.network_interface_id ORDER BY nin.network_interface_rank) AS rnk
+                   FROM network_interface ni
+                     LEFT JOIN network_interface_netblock nin USING (network_interface_id)) base
+          WHERE base.rnk = 1
         )
  SELECT x.network_interface_id,
     x.device_id,
@@ -7702,35 +7719,52 @@ SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_network_
 DROP VIEW IF EXISTS jazzhands.v_network_interface_trans;
 CREATE VIEW jazzhands.v_network_interface_trans AS
  WITH x AS (
-         SELECT ni.network_interface_id,
-            ni.device_id,
-            ni.network_interface_name,
-            ni.description,
-            ni.parent_network_interface_id,
-            ni.parent_relation_type,
-            nb.netblock_id,
-            ni.physical_port_id,
-            ni.slot_id,
-            ni.logical_port_id,
-            ni.network_interface_type,
-            ni.is_interface_up,
-            ni.mac_addr,
-            ni.should_monitor,
-            ni.provides_nat,
-            ni.should_manage,
-            ni.provides_dhcp,
-            ni.data_ins_user,
-            ni.data_ins_date,
-            ni.data_upd_user,
-            ni.data_upd_date
-           FROM network_interface ni
-             LEFT JOIN ( SELECT nin.network_interface_id,
-                    nin.netblock_id
-                   FROM network_interface_netblock nin
-                     JOIN ( SELECT network_interface_netblock.network_interface_id,
-                            min(network_interface_netblock.network_interface_rank) AS network_interface_rank
-                           FROM network_interface_netblock
-                          GROUP BY network_interface_netblock.network_interface_id) mn USING (network_interface_id, network_interface_rank)) nb USING (network_interface_id)
+         SELECT base.network_interface_id,
+            base.device_id,
+            base.network_interface_name,
+            base.description,
+            base.parent_network_interface_id,
+            base.parent_relation_type,
+            base.netblock_id,
+            base.physical_port_id,
+            base.slot_id,
+            base.logical_port_id,
+            base.network_interface_type,
+            base.is_interface_up,
+            base.mac_addr,
+            base.should_monitor,
+            base.provides_nat,
+            base.should_manage,
+            base.provides_dhcp,
+            base.data_ins_user,
+            base.data_ins_date,
+            base.data_upd_user,
+            base.data_upd_date
+           FROM ( SELECT ni.network_interface_id,
+                    ni.device_id,
+                    ni.network_interface_name,
+                    ni.description,
+                    ni.parent_network_interface_id,
+                    ni.parent_relation_type,
+                    nin.netblock_id,
+                    ni.physical_port_id,
+                    ni.slot_id,
+                    ni.logical_port_id,
+                    ni.network_interface_type,
+                    ni.is_interface_up,
+                    ni.mac_addr,
+                    ni.should_monitor,
+                    ni.provides_nat,
+                    ni.should_manage,
+                    ni.provides_dhcp,
+                    ni.data_ins_user,
+                    ni.data_ins_date,
+                    ni.data_upd_user,
+                    ni.data_upd_date,
+                    rank() OVER (PARTITION BY ni.network_interface_id ORDER BY nin.network_interface_rank) AS rnk
+                   FROM network_interface ni
+                     LEFT JOIN network_interface_netblock nin USING (network_interface_id)) base
+          WHERE base.rnk = 1
         )
  SELECT x.network_interface_id,
     x.device_id,
@@ -13546,6 +13580,8 @@ select count(*) FROM property
 
 ------------------------------------------------------------------------------
 
+/* skipping; it takes a while
+
 SELECT schema_support.relation_diff(
 	schema := 'jazzhands',
 	old_rel := 'person_company_v80',
@@ -13553,10 +13589,13 @@ SELECT schema_support.relation_diff(
 	prikeys := ARRAY['company_id','person_id'],
 	raise_exception := true
 );
+ */
 
 DROP TABLE IF EXISTS person_company_v80;
 DROP TABLE IF EXISTS audit.person_company_v80;
 ------------------------------------------------------------------------------
+
+/* skipping, it takes a while, but leaving network_interface_v80 for after
 
 SELECT schema_support.relation_diff(
 	schema := 'jazzhands',
@@ -13566,6 +13605,7 @@ SELECT schema_support.relation_diff(
 	raise_exception := true
 );
 
+*/
 DROP TABLE IF EXISTS network_interface_v80;
 DROP TABLE IF EXISTS audit.network_interface_v80;
 
