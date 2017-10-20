@@ -18,7 +18,7 @@
 
 \set ON_ERROR_STOP
 
-SAVEPOINT device_coll_hier_regression_test;
+SAVEPOINT dns_domain_coll_hier_regression_test;
 
 \ir ../../ddl/schema/pgsql/create_dns_domain_coll_hier_triggers.sql
 \ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
@@ -260,5 +260,7 @@ $$ LANGUAGE plpgsql;
 SELECT dns_domain_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION dns_domain_coll_hier_regression();
+
+ROLLBACK TO dns_domain_coll_hier_regression_test;
 
 \t off

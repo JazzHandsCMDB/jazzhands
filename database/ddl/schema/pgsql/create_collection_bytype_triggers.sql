@@ -419,3 +419,270 @@ AFTER INSERT OR UPDATE OF service_env_collection_type
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 
+
+
+CREATE OR REPLACE FUNCTION manip_layer2_network_collection_type_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.layer2_network_collection_type NOT IN ('by-type', 'per-layer2_network') THEN
+			DELETE FROM layer2_network_collection
+			WHERE layer2_network_collection_name = OLD.layer2_network_collection_type
+			AND layer2_network_collection_type = 'by-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.layer2_network_collection_type IN ('by-type', 'per-layer2_network') AND
+			OLD.layer2_network_collection_type NOT IN ('by-type', 'per-layer2_network')
+		THEN
+			DELETE FROM layer2_network_collection
+			WHERE layer2_network_collection_id = OLD.layer2_network_collection_id;
+		ELSE
+			UPDATE layer2_network_collection
+			SET layer2_network_collection_name = NEW.layer2_network_collection_name
+			WHERE layer2_network_collection_name = OLD.layer2_network_collection_type
+			AND layer2_network_collection_type = 'by-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.layer2_network_collection_type NOT IN ('by-type', 'per-layer2_network') THEN
+			INSERT INTO layer2_network_collection (
+				layer2_network_collection_name, layer2_network_collection_type
+			) VALUES (
+				NEW.layer2_network_collection_type, 'by-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_del
+	ON val_layer2_network_coll_type;
+CREATE TRIGGER trigger_manip_layer2_network_collection_type_bytype_del
+BEFORE DELETE 
+	ON val_layer2_network_coll_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer2_network_collection_type_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_insup
+	ON val_layer2_network_coll_type;
+CREATE TRIGGER trigger_manip_layer2_network_collection_type_bytype_insup
+AFTER INSERT OR UPDATE OF layer2_network_collection_type
+	ON val_layer2_network_coll_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer2_network_collection_type_bytype();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION manip_layer2_network_collection_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' OR
+		( TG_OP = 'UPDATE' and OLD.layer2_network_collection_type = 'per-layer2_network')
+	THEN
+		DELETE FROM layer2_network_collection_hier
+		WHERE child_l2_network_coll_id = OLD.layer2_network_collection_id
+		AND layer2_network_collection_id IN (
+			SELECT layer2_network_collection_id
+			FROM layer2_network_collection
+			WHERE layer2_network_collection_type = 'by-type'
+			AND layer2_network_collection_name = OLD.layer2_network_collection_type
+		);
+
+		IF TG_OP = 'DELETE' THEN
+			RETURN OLD;
+		ELSE
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	IF NEW.layer2_network_collection_type IN ('per-layer2_network','by-type') THEN
+		RETURN NEW;
+	END IF;
+
+	
+	IF TG_OP = 'UPDATE' THEN
+		UPDATE layer2_network_collection_hier
+		SET layer2_network_collection_id = (
+			SELECT layer2_network_collection_id
+			FROM layer2_network_collection
+			WHERE layer2_network_collection_type = 'by-type'
+			AND layer2_network_collection_name = NEW.layer2_network_collection_type
+		),
+			child_l2_network_coll_id = NEW.layer2_network_collection_id
+		WHERE layer2_network_collection_id = (
+			SELECT layer2_network_collection_id
+			FROM layer2_network_collection
+			WHERE layer2_network_collection_type = 'by-type'
+			AND layer2_network_collection_name = OLD.layer2_network_collection_type
+		)
+		AND child_l2_network_coll_id = OLD.layer2_network_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO layer2_network_collection_hier (
+			layer2_network_collection_id, child_l2_network_coll_id
+		) SELECT layer2_network_collection_id, NEW.layer2_network_collection_id
+			FROM layer2_network_collection
+			WHERE layer2_network_collection_type = 'by-type'
+			AND layer2_network_collection_name = NEW.layer2_network_collection_type;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_bytype_del
+	ON layer2_network_collection;
+CREATE TRIGGER trigger_manip_layer2_network_collection_bytype_del
+BEFORE DELETE 
+	ON layer2_network_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer2_network_collection_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_bytype_insup
+	ON layer2_network_collection;
+CREATE TRIGGER trigger_manip_layer2_network_collection_bytype_insup
+AFTER INSERT OR UPDATE OF layer2_network_collection_type
+	ON layer2_network_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer2_network_collection_bytype();
+
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+
+
+
+CREATE OR REPLACE FUNCTION manip_layer3_network_collection_type_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.layer3_network_collection_type NOT IN ('by-type', 'per-layer3_network') THEN
+			DELETE FROM layer3_network_collection
+			WHERE layer3_network_collection_name = OLD.layer3_network_collection_type
+			AND layer3_network_collection_type = 'by-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.layer3_network_collection_type IN ('by-type', 'per-layer3_network') AND
+			OLD.layer3_network_collection_type NOT IN ('by-type', 'per-layer3_network')
+		THEN
+			DELETE FROM layer3_network_collection
+			WHERE layer3_network_collection_id = OLD.layer3_network_collection_id;
+		ELSE
+			UPDATE layer3_network_collection
+			SET layer3_network_collection_name = NEW.layer3_network_collection_name
+			WHERE layer3_network_collection_name = OLD.layer3_network_collection_type
+			AND layer3_network_collection_type = 'by-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.layer3_network_collection_type NOT IN ('by-type', 'per-layer3_network') THEN
+			INSERT INTO layer3_network_collection (
+				layer3_network_collection_name, layer3_network_collection_type
+			) VALUES (
+				NEW.layer3_network_collection_type, 'by-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_del
+	ON val_layer3_network_coll_type;
+CREATE TRIGGER trigger_manip_layer3_network_collection_type_bytype_del
+BEFORE DELETE 
+	ON val_layer3_network_coll_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer3_network_collection_type_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_insup
+	ON val_layer3_network_coll_type;
+CREATE TRIGGER trigger_manip_layer3_network_collection_type_bytype_insup
+AFTER INSERT OR UPDATE OF layer3_network_collection_type
+	ON val_layer3_network_coll_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer3_network_collection_type_bytype();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION manip_layer3_network_collection_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' OR
+		( TG_OP = 'UPDATE' and OLD.layer3_network_collection_type = 'per-layer3_network')
+	THEN
+		DELETE FROM layer3_network_collection_hier
+		WHERE child_l3_network_coll_id = OLD.layer3_network_collection_id
+		AND layer3_network_collection_id IN (
+			SELECT layer3_network_collection_id
+			FROM layer3_network_collection
+			WHERE layer3_network_collection_type = 'by-type'
+			AND layer3_network_collection_name = OLD.layer3_network_collection_type
+		);
+
+		IF TG_OP = 'DELETE' THEN
+			RETURN OLD;
+		ELSE
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	IF NEW.layer3_network_collection_type IN ('per-layer3_network','by-type') THEN
+		RETURN NEW;
+	END IF;
+
+	
+	IF TG_OP = 'UPDATE' THEN
+		UPDATE layer3_network_collection_hier
+		SET layer3_network_collection_id = (
+			SELECT layer3_network_collection_id
+			FROM layer3_network_collection
+			WHERE layer3_network_collection_type = 'by-type'
+			AND layer3_network_collection_name = NEW.layer3_network_collection_type
+		),
+			child_l3_network_coll_id = NEW.layer3_network_collection_id
+		WHERE layer3_network_collection_id = (
+			SELECT layer3_network_collection_id
+			FROM layer3_network_collection
+			WHERE layer3_network_collection_type = 'by-type'
+			AND layer3_network_collection_name = OLD.layer3_network_collection_type
+		)
+		AND child_l3_network_coll_id = OLD.layer3_network_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO layer3_network_collection_hier (
+			layer3_network_collection_id, child_l3_network_coll_id
+		) SELECT layer3_network_collection_id, NEW.layer3_network_collection_id
+			FROM layer3_network_collection
+			WHERE layer3_network_collection_type = 'by-type'
+			AND layer3_network_collection_name = NEW.layer3_network_collection_type;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_bytype_del
+	ON layer3_network_collection;
+CREATE TRIGGER trigger_manip_layer3_network_collection_bytype_del
+BEFORE DELETE 
+	ON layer3_network_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer3_network_collection_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_bytype_insup
+	ON layer3_network_collection;
+CREATE TRIGGER trigger_manip_layer3_network_collection_bytype_insup
+AFTER INSERT OR UPDATE OF layer3_network_collection_type
+	ON layer3_network_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_layer3_network_collection_bytype();
+

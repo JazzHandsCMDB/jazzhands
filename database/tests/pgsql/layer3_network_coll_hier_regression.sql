@@ -19,7 +19,12 @@
 \set ON_ERROR_STOP
 
 \t on
-SAVEPOINT l3nc_test;
+
+SAVEPOINT l3_network_coll_hier_regression_test;
+
+\ir ../../ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
+
 
 -- 
 -- Trigger tests
@@ -83,6 +88,11 @@ BEGIN
 		'JHTEST-COLS', 1
 	);
 	INSERT INTO val_layer3_network_coll_type (
+		layer3_network_collection_type, max_num_collections
+	) VALUES (
+		'JHTEST-COLS2', 1
+	);
+	INSERT INTO val_layer3_network_coll_type (
 		layer3_network_collection_type, can_have_hierarchy
 	) VALUES (
 		'JHTEST-HIER', 'N'
@@ -128,6 +138,78 @@ BEGIN
 	) RETURNING * into _c2;
 
 	RAISE NOTICE 'Starting tests...';
+
+	RAISE NOTICE 'Making sure a by-type works...';
+	BEGIN
+		SELECT count(*)
+		INTO _tally
+		FROM layer2_network_collection nc
+			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
+				h.layer2_network_collection_id
+		WHERE nc.layer2_network_collection_type = 'by-type'
+		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS'
+		AND child_l3_network_coll_id IN (
+			_nc_onecol1.layer2_network_collection_id,
+			_nc_onecol3.layer2_network_collection_id
+		);
+		IF _tally != 2 THEN
+			RAISE '... failed with % != 2 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM layer2_network_collection nc
+			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
+				h.layer2_network_collection_id
+		WHERE nc.layer2_network_collection_type = 'by-type'
+		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS2'
+		AND child_l3_network_coll_id IN (
+			_nc_onecol1.layer2_network_collection_id,
+			_nc_onecol3.layer2_network_collection_id
+		);
+		IF _tally != 0 THEN
+			RAISE 'old type is not initialized right 0 != %', _tally;
+		END IF;
+
+		UPDATE layer2_network_collection
+		SET layer2_network_collection_type = 'JHTEST-COLS2'
+		WHERE layer2_network_collection_id = _nc_onecol1.layer2_network_collection_id;
+
+		SELECT count(*)
+		INTO _tally
+		FROM layer2_network_collection nc
+			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
+				h.layer2_network_collection_id
+		WHERE nc.layer2_network_collection_type = 'by-type'
+		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS'
+		AND child_l3_network_coll_id IN (
+			_nc_onecol1.layer2_network_collection_id,
+			_nc_onecol3.layer2_network_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'old type failed with % != 1 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM layer2_network_collection nc
+			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
+				h.layer2_network_collection_id
+		WHERE nc.layer2_network_collection_type = 'by-type'
+		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS2'
+		AND child_l3_network_coll_id IN (
+			_nc_onecol1.layer2_network_collection_id,
+			_nc_onecol3.layer2_network_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'new type failed with % != 2 rows!', _tally;
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
@@ -205,6 +287,6 @@ SELECT layer3_network_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION layer3_network_coll_hier_regression();
 
-ROLLBACK TO l3nc_test;
+ROLLBACK TO l3_network_coll_hier_regression_test;
 
 \t off
