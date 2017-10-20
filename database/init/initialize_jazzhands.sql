@@ -42,11 +42,11 @@
 -- Items that are essential.
 
 --
--- triggers want this for by-type but they should be smarter about not setting
--- a row for this because max_num_members is zero for by-type.  Still that
+-- triggers want this for by-coll-type but they should be smarter about not setting
+-- a row for this because max_num_members is zero for by-coll-type.  Still that
 -- requires by-directional checking, so not introducing that complexity.
 --
--- for now, there is no account_collection by-type; need to sort out how
+-- for now, there is no account_collection by-coll-type; need to sort out how
 -- the account_realm_id restrictions fit into those.
 --
 insert into val_account_collection_relatio
@@ -61,51 +61,51 @@ values
 -- INSERT INTO val_account_collection_type (
 -- 	account_collection_type, description, max_num_members
 -- ) VALUES (
--- 	'by-type', 'automated collection for accounts of this type', 0
+-- 	'by-coll-type', 'automated collection for accounts of this type', 0
 -- );
 INSERT INTO val_netblock_collection_type (
 	netblock_collection_type, description, max_num_members
 ) VALUES (
-	'by-type', 'automated collection for netblocks of this type', 0
+	'by-coll-type', 'automated collection for netblocks of this type', 0
 );
 INSERT INTO val_company_collection_type (
 	company_collection_type, description, max_num_members
 ) VALUES (
-	'by-type', 'automated collection for companies of this type', 0
+	'by-coll-type', 'automated collection for companies of this type', 0
 );
 INSERT INTO val_device_collection_type (
 	device_collection_type, description,
 	max_num_collections, can_have_hierarchy
 ) VALUES (
-	'by-type', 'automated collection for devices of this type',
+	'by-coll-type', 'automated collection for devices of this type',
 	1, 'Y'
 );
 INSERT INTO val_dns_domain_collection_type (
 	dns_domain_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
-	'by-type', 'automated collection for dns_domains of this type',
+	'by-coll-type', 'automated collection for dns_domains of this type',
 	1, 0
 );
 INSERT INTO val_layer2_network_coll_type (
 	layer2_network_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
-	'by-type', 'automated collection for layer2_networks of this type',
+	'by-coll-type', 'automated collection for layer2_networks of this type',
 	1, 0
 );
 INSERT INTO val_layer3_network_coll_type (
 	layer3_network_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
-	'by-type', 'automated collection for layer3_networks of this type',
+	'by-coll-type', 'automated collection for layer3_networks of this type',
 	1, 0
 );
 INSERT INTO val_service_env_coll_type (
 	service_env_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
-	'by-type', 'automated collection for service_environments of this type',
+	'by-coll-type', 'automated collection for service_environments of this type',
 	1, 0
 );
 -----------------------------------------------------------------------------

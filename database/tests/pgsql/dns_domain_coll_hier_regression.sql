@@ -113,14 +113,14 @@ BEGIN
 
 	RAISE NOTICE 'Starting tests...';
 
-	RAISE NOTICE 'Making sure a by-type works...';
+	RAISE NOTICE 'Making sure a by-coll-type works...';
 	BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM dns_domain_collection nc
 			JOIN dns_domain_collection_hier h ON nc.dns_domain_collection_id =
 				h.dns_domain_collection_id
-		WHERE nc.dns_domain_collection_type = 'by-type'
+		WHERE nc.dns_domain_collection_type = 'by-coll-type'
 		AND nc.dns_domain_collection_NAME = 'JHTEST-COLS'
 		AND h.child_dns_domain_collection_id IN (
 			_nc_onecol1.dns_domain_collection_id,
@@ -135,7 +135,7 @@ BEGIN
 		FROM dns_domain_collection nc
 			JOIN dns_domain_collection_hier h ON nc.dns_domain_collection_id =
 				h.dns_domain_collection_id
-		WHERE nc.dns_domain_collection_type = 'by-type'
+		WHERE nc.dns_domain_collection_type = 'by-coll-type'
 		AND nc.dns_domain_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_dns_domain_collection_id IN (
 			_nc_onecol1.dns_domain_collection_id,
@@ -154,7 +154,7 @@ BEGIN
 		FROM dns_domain_collection nc
 			JOIN dns_domain_collection_hier h ON nc.dns_domain_collection_id =
 				h.dns_domain_collection_id
-		WHERE nc.dns_domain_collection_type = 'by-type'
+		WHERE nc.dns_domain_collection_type = 'by-coll-type'
 		AND nc.dns_domain_collection_NAME = 'JHTEST-COLS'
 		AND h.child_dns_domain_collection_id IN (
 			_nc_onecol1.dns_domain_collection_id,
@@ -169,7 +169,7 @@ BEGIN
 		FROM dns_domain_collection nc
 			JOIN dns_domain_collection_hier h ON nc.dns_domain_collection_id =
 				h.dns_domain_collection_id
-		WHERE nc.dns_domain_collection_type = 'by-type'
+		WHERE nc.dns_domain_collection_type = 'by-coll-type'
 		AND nc.dns_domain_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_dns_domain_collection_id IN (
 			_nc_onecol1.dns_domain_collection_id,
@@ -246,7 +246,7 @@ BEGIN
 		dns_domain_collection where dns_domain_collection_type like
 		'JHTEST%');
 	delete from dns_domain_collection where dns_domain_collection_type like
-		'JHTEST%' and dns_domain_collection_type NOT IN ('by-type');
+		'JHTEST%' and dns_domain_collection_type NOT IN ('by-coll-type');
 	delete from val_dns_domain_collection_type where 
 		dns_domain_collection_type like
 		'JHTEST%';

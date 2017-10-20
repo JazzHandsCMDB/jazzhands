@@ -115,14 +115,14 @@ BEGIN
 	RAISE NOTICE 'Starting tests...';
 
 
-	RAISE NOTICE 'Making sure a by-type works...';
+	RAISE NOTICE 'Making sure a by-coll-type works...';
 	BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM netblock_collection nc
 			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
 				h.netblock_collection_id
-		WHERE nc.netblock_collection_type = 'by-type'
+		WHERE nc.netblock_collection_type = 'by-coll-type'
 		AND nc.netblock_collection_NAME = 'JHTEST-COLS'
 		AND h.child_netblock_collection_id IN (
 			_nc_onecol1.netblock_collection_id,
@@ -137,7 +137,7 @@ BEGIN
 		FROM netblock_collection nc
 			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
 				h.netblock_collection_id
-		WHERE nc.netblock_collection_type = 'by-type'
+		WHERE nc.netblock_collection_type = 'by-coll-type'
 		AND nc.netblock_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_netblock_collection_id IN (
 			_nc_onecol1.netblock_collection_id,
@@ -156,7 +156,7 @@ BEGIN
 		FROM netblock_collection nc
 			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
 				h.netblock_collection_id
-		WHERE nc.netblock_collection_type = 'by-type'
+		WHERE nc.netblock_collection_type = 'by-coll-type'
 		AND nc.netblock_collection_NAME = 'JHTEST-COLS'
 		AND h.child_netblock_collection_id IN (
 			_nc_onecol1.netblock_collection_id,
@@ -171,7 +171,7 @@ BEGIN
 		FROM netblock_collection nc
 			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
 				h.netblock_collection_id
-		WHERE nc.netblock_collection_type = 'by-type'
+		WHERE nc.netblock_collection_type = 'by-coll-type'
 		AND nc.netblock_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_netblock_collection_id IN (
 			_nc_onecol1.netblock_collection_id,

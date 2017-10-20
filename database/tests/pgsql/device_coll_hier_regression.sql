@@ -96,14 +96,14 @@ BEGIN
 		'JHTEST-mems-dc', 'JHTEST-MEMS'
 	) RETURNING * into __dc_onemem;
 
-	RAISE NOTICE 'Making sure a by-type works...';
+	RAISE NOTICE 'Making sure a by-coll-type works...';
 	BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
 			JOIN device_collection_hier h ON dc.device_collection_id =
 				h.parent_device_collection_id
-		WHERE dc.device_collection_type = 'by-type'
+		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS'
 		AND h.device_collection_id IN (
 			_dc_onecol.device_collection_id,
@@ -118,7 +118,7 @@ BEGIN
 		FROM device_collection dc
 			JOIN device_collection_hier h ON dc.device_collection_id =
 				h.parent_device_collection_id
-		WHERE dc.device_collection_type = 'by-type'
+		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS2'
 		AND h.device_collection_id IN (
 			_dc_onecol.device_collection_id,
@@ -137,7 +137,7 @@ BEGIN
 		FROM device_collection dc
 			JOIN device_collection_hier h ON dc.device_collection_id =
 				h.parent_device_collection_id
-		WHERE dc.device_collection_type = 'by-type'
+		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS'
 		AND h.device_collection_id IN (
 			_dc_onecol.device_collection_id,
@@ -152,7 +152,7 @@ BEGIN
 		FROM device_collection dc
 			JOIN device_collection_hier h ON dc.device_collection_id =
 				h.parent_device_collection_id
-		WHERE dc.device_collection_type = 'by-type'
+		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS2'
 		AND h.device_collection_id IN (
 			_dc_onecol.device_collection_id,
@@ -253,7 +253,7 @@ BEGIN
 		site_code = 'JHTEST01';
 	delete from device_collection where
 		device_collection_name like 'JHTEST-%'
-		and device_collection_type NOT IN ('by-type');
+		and device_collection_type NOT IN ('by-coll-type');
 	delete from val_device_collection_Type where
 		device_collection_Type like 'JHTEST-%';
 	delete from site where site_code like 'JHTEST%';

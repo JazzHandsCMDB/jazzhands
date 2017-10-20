@@ -116,14 +116,14 @@ BEGIN
 
 	RAISE NOTICE 'Starting tests...';
 
-	RAISE NOTICE 'Making sure a by-type works...';
+	RAISE NOTICE 'Making sure a by-coll-type works...';
 	BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM company_collection nc
 			JOIN company_collection_hier h ON nc.company_collection_id =
 				h.company_collection_id
-		WHERE nc.company_collection_type = 'by-type'
+		WHERE nc.company_collection_type = 'by-coll-type'
 		AND nc.company_collection_NAME = 'JHTEST-COLS'
 		AND h.child_company_collection_id IN (
 			_nc_onecol1.company_collection_id,
@@ -138,7 +138,7 @@ BEGIN
 		FROM company_collection nc
 			JOIN company_collection_hier h ON nc.company_collection_id =
 				h.company_collection_id
-		WHERE nc.company_collection_type = 'by-type'
+		WHERE nc.company_collection_type = 'by-coll-type'
 		AND nc.company_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_company_collection_id IN (
 			_nc_onecol1.company_collection_id,
@@ -157,7 +157,7 @@ BEGIN
 		FROM company_collection nc
 			JOIN company_collection_hier h ON nc.company_collection_id =
 				h.company_collection_id
-		WHERE nc.company_collection_type = 'by-type'
+		WHERE nc.company_collection_type = 'by-coll-type'
 		AND nc.company_collection_NAME = 'JHTEST-COLS'
 		AND h.child_company_collection_id IN (
 			_nc_onecol1.company_collection_id,
@@ -172,7 +172,7 @@ BEGIN
 		FROM company_collection nc
 			JOIN company_collection_hier h ON nc.company_collection_id =
 				h.company_collection_id
-		WHERE nc.company_collection_type = 'by-type'
+		WHERE nc.company_collection_type = 'by-coll-type'
 		AND nc.company_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_company_collection_id IN (
 			_nc_onecol1.company_collection_id,

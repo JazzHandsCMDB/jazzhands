@@ -113,14 +113,14 @@ BEGIN
 
 	RAISE NOTICE 'Starting tests...';
 
-	RAISE NOTICE 'Making sure a by-type works...';
+	RAISE NOTICE 'Making sure a by-coll-type works...';
 	BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM layer2_network_collection nc
 			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
 				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
+		WHERE nc.layer2_network_collection_type = 'by-coll-type'
 		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS'
 		AND child_l2_network_coll_id IN (
 			_nc_onecol1.layer2_network_collection_id,
@@ -135,7 +135,7 @@ BEGIN
 		FROM layer2_network_collection nc
 			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
 				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
+		WHERE nc.layer2_network_collection_type = 'by-coll-type'
 		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS2'
 		AND child_l2_network_coll_id IN (
 			_nc_onecol1.layer2_network_collection_id,
@@ -154,7 +154,7 @@ BEGIN
 		FROM layer2_network_collection nc
 			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
 				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
+		WHERE nc.layer2_network_collection_type = 'by-coll-type'
 		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS'
 		AND child_l2_network_coll_id IN (
 			_nc_onecol1.layer2_network_collection_id,
@@ -169,7 +169,7 @@ BEGIN
 		FROM layer2_network_collection nc
 			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
 				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
+		WHERE nc.layer2_network_collection_type = 'by-coll-type'
 		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS2'
 		AND child_l2_network_coll_id IN (
 			_nc_onecol1.layer2_network_collection_id,

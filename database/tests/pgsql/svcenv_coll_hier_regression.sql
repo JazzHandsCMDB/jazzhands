@@ -109,14 +109,14 @@ BEGIN
 		values('JHTEST02', 'production') RETURNING * into _svcenv2;
 	RAISE NOTICE 'Starting tests...';
 
-	RAISE NOTICE 'Making sure a by-type works...';
+	RAISE NOTICE 'Making sure a by-coll-type works...';
 	BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM service_environment_collection sc
 			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
 				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-type'
+		WHERE sc.service_env_collection_type = 'by-coll-type'
 		AND sc.service_env_collection_NAME = 'JHTEST-COLS'
 		AND h.child_service_env_coll_id IN (
 			_sc_onecol1.service_env_collection_id,
@@ -131,7 +131,7 @@ BEGIN
 		FROM service_environment_collection sc
 			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
 				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-type'
+		WHERE sc.service_env_collection_type = 'by-coll-type'
 		AND sc.service_env_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_service_env_coll_id IN (
 			_sc_onecol1.service_env_collection_id,
@@ -150,7 +150,7 @@ BEGIN
 		FROM service_environment_collection sc
 			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
 				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-type'
+		WHERE sc.service_env_collection_type = 'by-coll-type'
 		AND sc.service_env_collection_NAME = 'JHTEST-COLS'
 		AND h.child_service_env_coll_id IN (
 			_sc_onecol1.service_env_collection_id,
@@ -165,7 +165,7 @@ BEGIN
 		FROM service_environment_collection sc
 			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
 				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-type'
+		WHERE sc.service_env_collection_type = 'by-coll-type'
 		AND sc.service_env_collection_NAME = 'JHTEST-COLS2'
 		AND h.child_service_env_coll_id IN (
 			_sc_onecol1.service_env_collection_id,
