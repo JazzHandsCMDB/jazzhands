@@ -151,8 +151,6 @@ AFTER INSERT OR UPDATE OF device_collection_type
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
-
-
 CREATE OR REPLACE FUNCTION manip_dns_domain_collection_type_bytype()
 	RETURNS TRIGGER AS $$
 BEGIN
@@ -550,12 +548,9 @@ AFTER INSERT OR UPDATE OF layer2_network_collection_type
 	FOR EACH ROW 
 	EXECUTE PROCEDURE manip_layer2_network_collection_bytype();
 
-
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
-
-
 
 CREATE OR REPLACE FUNCTION manip_layer3_network_collection_type_bytype()
 	RETURNS TRIGGER AS $$
@@ -685,4 +680,141 @@ AFTER INSERT OR UPDATE OF layer3_network_collection_type
 	ON layer3_network_collection
 	FOR EACH ROW 
 	EXECUTE PROCEDURE manip_layer3_network_collection_bytype();
+
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION manip_company_collection_type_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.company_collection_type NOT IN ('by-type', 'per-company') THEN
+			DELETE FROM company_collection
+			WHERE company_collection_name = OLD.company_collection_type
+			AND company_collection_type = 'by-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.company_collection_type IN ('by-type', 'per-company') AND
+			OLD.company_collection_type NOT IN ('by-type', 'per-company')
+		THEN
+			DELETE FROM company_collection
+			WHERE company_collection_id = OLD.company_collection_id;
+		ELSE
+			UPDATE company_collection
+			SET company_collection_name = NEW.company_collection_name
+			WHERE company_collection_name = OLD.company_collection_type
+			AND company_collection_type = 'by-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.company_collection_type NOT IN ('by-type', 'per-company') THEN
+			INSERT INTO company_collection (
+				company_collection_name, company_collection_type
+			) VALUES (
+				NEW.company_collection_type, 'by-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_company_collection_type_bytype_del
+	ON val_company_collection_type;
+CREATE TRIGGER trigger_manip_company_collection_type_bytype_del
+BEFORE DELETE 
+	ON val_company_collection_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_company_collection_type_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_company_collection_type_bytype_insup
+	ON val_company_collection_type;
+CREATE TRIGGER trigger_manip_company_collection_type_bytype_insup
+AFTER INSERT OR UPDATE OF company_collection_type
+	ON val_company_collection_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_company_collection_type_bytype();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION manip_company_collection_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' OR
+		( TG_OP = 'UPDATE' and OLD.company_collection_type = 'per-company')
+	THEN
+		DELETE FROM company_collection_hier
+		WHERE child_company_collection_id = OLD.company_collection_id
+		AND company_collection_id IN (
+			SELECT company_collection_id
+			FROM company_collection
+			WHERE company_collection_type = 'by-type'
+			AND company_collection_name = OLD.company_collection_type
+		);
+
+		IF TG_OP = 'DELETE' THEN
+			RETURN OLD;
+		ELSE
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	IF NEW.company_collection_type IN ('per-company','by-type') THEN
+		RETURN NEW;
+	END IF;
+
+	
+	IF TG_OP = 'UPDATE' THEN
+		UPDATE company_collection_hier
+		SET company_collection_id = (
+			SELECT company_collection_id
+			FROM company_collection
+			WHERE company_collection_type = 'by-type'
+			AND company_collection_name = NEW.company_collection_type
+		),
+			child_company_collection_id = NEW.company_collection_id
+		WHERE company_collection_id = (
+			SELECT company_collection_id
+			FROM company_collection
+			WHERE company_collection_type = 'by-type'
+			AND company_collection_name = OLD.company_collection_type
+		)
+		AND child_company_collection_id = OLD.company_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO company_collection_hier (
+			company_collection_id, child_company_collection_id
+		) SELECT company_collection_id, NEW.company_collection_id
+			FROM company_collection
+			WHERE company_collection_type = 'by-type'
+			AND company_collection_name = NEW.company_collection_type;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_company_collection_bytype_del
+	ON company_collection;
+CREATE TRIGGER trigger_manip_company_collection_bytype_del
+BEFORE DELETE 
+	ON company_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_company_collection_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_company_collection_bytype_insup
+	ON company_collection;
+CREATE TRIGGER trigger_manip_company_collection_bytype_insup
+AFTER INSERT OR UPDATE OF company_collection_type
+	ON company_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_company_collection_bytype();
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 

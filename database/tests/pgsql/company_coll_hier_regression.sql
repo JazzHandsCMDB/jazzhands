@@ -21,6 +21,10 @@
 SAVEPOINT company_coll_hier_regression;
 SET jazzhands.permit_company_insert = 'permit';
 
+\ir ../../ddl/schema/pgsql/create_company_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
+
+
 
 \t on
 -- 
@@ -59,6 +63,11 @@ BEGIN
 		company_collection_type, max_num_collections
 	) VALUES (
 		'JHTEST-COLS', 1
+	);
+	INSERT INTO val_company_collection_Type (
+		company_collection_type, max_num_collections
+	) VALUES (
+		'JHTEST-COLS2', 1
 	);
 	INSERT INTO val_company_collection_Type (
 		company_collection_type, can_have_hierarchy
@@ -106,6 +115,78 @@ BEGIN
 	) RETURNING * into _c2;
 
 	RAISE NOTICE 'Starting tests...';
+
+	RAISE NOTICE 'Making sure a by-type works...';
+	BEGIN
+		SELECT count(*)
+		INTO _tally
+		FROM company_collection nc
+			JOIN company_collection_hier h ON nc.company_collection_id =
+				h.company_collection_id
+		WHERE nc.company_collection_type = 'by-type'
+		AND nc.company_collection_NAME = 'JHTEST-COLS'
+		AND h.child_company_collection_id IN (
+			_nc_onecol1.company_collection_id,
+			_nc_onecol2.company_collection_id
+		);
+		IF _tally != 2 THEN
+			RAISE '... failed with % != 2 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM company_collection nc
+			JOIN company_collection_hier h ON nc.company_collection_id =
+				h.company_collection_id
+		WHERE nc.company_collection_type = 'by-type'
+		AND nc.company_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_company_collection_id IN (
+			_nc_onecol1.company_collection_id,
+			_nc_onecol2.company_collection_id
+		);
+		IF _tally != 0 THEN
+			RAISE 'old type is not initialized right 0 != %', _tally;
+		END IF;
+
+		UPDATE company_collection
+		SET company_collection_type = 'JHTEST-COLS2'
+		WHERE company_collection_id = _nc_onecol1.company_collection_id;
+
+		SELECT count(*)
+		INTO _tally
+		FROM company_collection nc
+			JOIN company_collection_hier h ON nc.company_collection_id =
+				h.company_collection_id
+		WHERE nc.company_collection_type = 'by-type'
+		AND nc.company_collection_NAME = 'JHTEST-COLS'
+		AND h.child_company_collection_id IN (
+			_nc_onecol1.company_collection_id,
+			_nc_onecol2.company_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'old type failed with % != 1 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM company_collection nc
+			JOIN company_collection_hier h ON nc.company_collection_id =
+				h.company_collection_id
+		WHERE nc.company_collection_type = 'by-type'
+		AND nc.company_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_company_collection_id IN (
+			_nc_onecol1.company_collection_id,
+			_nc_onecol2.company_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'new type failed with % != 2 rows!', _tally;
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
