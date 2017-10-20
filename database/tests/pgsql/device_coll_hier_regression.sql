@@ -20,12 +20,18 @@
 
 \t on
 
+SAVEPOINT device_coll_hier_regression_test;
+
+\ir ../../ddl/schema/pgsql/create_device_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
+
 -- 
 -- Trigger tests
 --
 CREATE OR REPLACE FUNCTION device_coll_hier_regression() RETURNS BOOLEAN AS $$
 DECLARE
 	_tally			integer;
+	_dc				device_collection%ROWTYPE;
 	_dc_onecol		device_collection%ROWTYPE;
 	_dc_onecol2		device_collection%ROWTYPE;
 	__dc_onemem		device_collection%ROWTYPE;
@@ -61,6 +67,12 @@ BEGIN
 		'JHTEST-COLS', 1
 	);
 	INSERT INTO val_device_collection_Type (
+		device_collection_type, max_num_collections
+	) VALUES (
+		'JHTEST-COLS2', 1
+	);
+
+	INSERT INTO val_device_collection_Type (
 		device_collection_type, can_have_hierarchy
 	) VALUES (
 		'JHTEST-HIER', 'N'
@@ -84,6 +96,79 @@ BEGIN
 		'JHTEST-mems-dc', 'JHTEST-MEMS'
 	) RETURNING * into __dc_onemem;
 
+	RAISE NOTICE 'Making sure a by-type works...';
+	BEGIN
+		SELECT count(*)
+		INTO _tally
+		FROM device_collection dc
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.parent_device_collection_id
+		WHERE dc.device_collection_type = 'by-type'
+		AND dc.device_collection_NAME = 'JHTEST-COLS'
+		AND h.device_collection_id IN (
+			_dc_onecol.device_collection_id,
+			_dc_onecol2.device_collection_id
+		);
+		IF _tally != 2 THEN
+			RAISE '... failed with % != 2 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM device_collection dc
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.parent_device_collection_id
+		WHERE dc.device_collection_type = 'by-type'
+		AND dc.device_collection_NAME = 'JHTEST-COLS2'
+		AND h.device_collection_id IN (
+			_dc_onecol.device_collection_id,
+			_dc_onecol2.device_collection_id
+		);
+		IF _tally != 0 THEN
+			RAISE 'old type is not initialized right 0 != %', _tally;
+		END IF;
+
+		UPDATE device_collection
+		SET device_collection_type = 'JHTEST-COLS2'
+		WHERE device_collection_id = _dc_onecol.device_collection_id;
+
+		SELECT count(*)
+		INTO _tally
+		FROM device_collection dc
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.parent_device_collection_id
+		WHERE dc.device_collection_type = 'by-type'
+		AND dc.device_collection_NAME = 'JHTEST-COLS'
+		AND h.device_collection_id IN (
+			_dc_onecol.device_collection_id,
+			_dc_onecol2.device_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'old type failed with % != 1 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM device_collection dc
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.parent_device_collection_id
+		WHERE dc.device_collection_type = 'by-type'
+		AND dc.device_collection_NAME = 'JHTEST-COLS2'
+		AND h.device_collection_id IN (
+			_dc_onecol.device_collection_id,
+			_dc_onecol2.device_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'new type failed with % != 2 rows!', _tally;
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+
+	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	INSERT into device_collection (
 		device_collection_name, device_collection_type
 	) values (
@@ -167,7 +252,8 @@ BEGIN
 	delete from device where
 		site_code = 'JHTEST01';
 	delete from device_collection where
-		device_collection_name like 'JHTEST-%';
+		device_collection_name like 'JHTEST-%'
+		and device_collection_type NOT IN ('by-type');
 	delete from val_device_collection_Type where
 		device_collection_Type like 'JHTEST-%';
 	delete from site where site_code like 'JHTEST%';
@@ -181,5 +267,8 @@ $$ LANGUAGE plpgsql;
 SELECT device_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION device_coll_hier_regression();
+
+ROLLBACK TO device_coll_hier_regression_test;
+
 
 \t off

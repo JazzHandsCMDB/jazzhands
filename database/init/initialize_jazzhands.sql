@@ -133,6 +133,47 @@ INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 INSERT INTO VAL_Account_Collection_Type (Account_Collection_Type, Description)
 	VALUES ('automated', 'automatic Account_Collectiones managed by trigger');
 
+INSERT INTO val_company_collection_type (
+	company_collection_type, description, max_num_members
+) VALUES (
+	'by-type', 'automated collection for companies of this type', 0
+);
+INSERT INTO val_device_collection_type (
+	device_collection_type, description,
+	max_num_collections, can_have_hierarchy
+) VALUES (
+	'by-type', 'automated collection for devices of this type',
+	1, 'Y'
+);
+INSERT INTO val_dns_domain_collection_type (
+	dns_domain_collection_type, description,
+	max_num_collections, max_num_members
+) VALUES (
+	'by-type', 'automated collection for dns_domains of this type',
+	1, 0
+);
+INSERT INTO val_layer2_network_coll_type (
+	layer2_network_collection_type, description,
+	max_num_collections, max_num_members
+) VALUES (
+	'by-type', 'automated collection for layer2_networks of this type',
+	1, 0
+);
+INSERT INTO val_layer3_network_coll_type (
+	layer3_network_collection_type, description,
+	max_num_collections, max_num_members
+) VALUES (
+	'by-type', 'automated collection for layer3_networks of this type',
+	1, 0
+);
+INSERT INTO val_service_env_coll_type (
+	service_env_collection_type, description,
+	max_num_collections, max_num_members
+) VALUES (
+	'by-type', 'automated collection for service_environments of this type',
+	1, 0
+);
+
 INSERT INTO VAL_Device_Status (Device_Status, Description)
 	VALUES ('unknown', 'Unknown or incompletely entered');
 INSERT INTO VAL_Device_Status (Device_Status, Description)
@@ -1842,4 +1883,3 @@ insert into val_property (
 
 -- END Phone Directory
 -------------------------------------------------------------------------
-
