@@ -143,14 +143,14 @@ BEGIN
 	BEGIN
 		SELECT count(*)
 		INTO _tally
-		FROM layer2_network_collection nc
-			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
-				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
-		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS'
+		FROM layer3_network_collection nc
+			JOIN layer3_network_collection_hier h ON nc.layer3_network_collection_id =
+				h.layer3_network_collection_id
+		WHERE nc.layer3_network_collection_type = 'by-type'
+		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS'
 		AND child_l3_network_coll_id IN (
-			_nc_onecol1.layer2_network_collection_id,
-			_nc_onecol3.layer2_network_collection_id
+			_nc_onecol1.layer3_network_collection_id,
+			_nc_onecol3.layer3_network_collection_id
 		);
 		IF _tally != 2 THEN
 			RAISE '... failed with % != 2 rows!', _tally;
@@ -158,33 +158,33 @@ BEGIN
 
 		SELECT count(*)
 		INTO _tally
-		FROM layer2_network_collection nc
-			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
-				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
-		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS2'
+		FROM layer3_network_collection nc
+			JOIN layer3_network_collection_hier h ON nc.layer3_network_collection_id =
+				h.layer3_network_collection_id
+		WHERE nc.layer3_network_collection_type = 'by-type'
+		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS2'
 		AND child_l3_network_coll_id IN (
-			_nc_onecol1.layer2_network_collection_id,
-			_nc_onecol3.layer2_network_collection_id
+			_nc_onecol1.layer3_network_collection_id,
+			_nc_onecol3.layer3_network_collection_id
 		);
 		IF _tally != 0 THEN
 			RAISE 'old type is not initialized right 0 != %', _tally;
 		END IF;
 
-		UPDATE layer2_network_collection
-		SET layer2_network_collection_type = 'JHTEST-COLS2'
-		WHERE layer2_network_collection_id = _nc_onecol1.layer2_network_collection_id;
+		UPDATE layer3_network_collection
+		SET layer3_network_collection_type = 'JHTEST-COLS2'
+		WHERE layer3_network_collection_id = _nc_onecol1.layer3_network_collection_id;
 
 		SELECT count(*)
 		INTO _tally
-		FROM layer2_network_collection nc
-			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
-				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
-		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS'
+		FROM layer3_network_collection nc
+			JOIN layer3_network_collection_hier h ON nc.layer3_network_collection_id =
+				h.layer3_network_collection_id
+		WHERE nc.layer3_network_collection_type = 'by-type'
+		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS'
 		AND child_l3_network_coll_id IN (
-			_nc_onecol1.layer2_network_collection_id,
-			_nc_onecol3.layer2_network_collection_id
+			_nc_onecol1.layer3_network_collection_id,
+			_nc_onecol3.layer3_network_collection_id
 		);
 		IF _tally != 1 THEN
 			RAISE 'old type failed with % != 1 rows!', _tally;
@@ -192,14 +192,14 @@ BEGIN
 
 		SELECT count(*)
 		INTO _tally
-		FROM layer2_network_collection nc
-			JOIN layer2_network_collection_hier h ON nc.layer2_network_collection_id =
-				h.layer2_network_collection_id
-		WHERE nc.layer2_network_collection_type = 'by-type'
-		AND nc.layer2_network_collection_NAME = 'JHTEST-COLS2'
+		FROM layer3_network_collection nc
+			JOIN layer3_network_collection_hier h ON nc.layer3_network_collection_id =
+				h.layer3_network_collection_id
+		WHERE nc.layer3_network_collection_type = 'by-type'
+		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS2'
 		AND child_l3_network_coll_id IN (
-			_nc_onecol1.layer2_network_collection_id,
-			_nc_onecol3.layer2_network_collection_id
+			_nc_onecol1.layer3_network_collection_id,
+			_nc_onecol3.layer3_network_collection_id
 		);
 		IF _tally != 1 THEN
 			RAISE 'new type failed with % != 2 rows!', _tally;

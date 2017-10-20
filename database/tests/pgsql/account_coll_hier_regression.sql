@@ -30,6 +30,9 @@ SAVEPOINT acct_coll_regression_tests;
 \ir ../../ddl/schema/pgsql/create_auto_account_coll_triggers.sql
 \ir ../../ddl/schema/pgsql/create_v_corp_family_account_triggers.sql
 
+-- This needs to be better thought out with account_realm restrictions.
+-- \ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
+
 SET jazzhands.permit_company_insert = 'permit';
 
 -- 

@@ -59,9 +59,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_device_collection_type_bytype_del
 	ON val_device_collection_type;
 CREATE TRIGGER trigger_manip_device_collection_type_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON val_device_collection_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_device_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_device_collection_type_bytype_insup
@@ -69,7 +69,7 @@ DROP TRIGGER IF EXISTS trigger_manip_device_collection_type_bytype_insup
 CREATE TRIGGER trigger_manip_device_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF device_collection_type
 	ON val_device_collection_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_device_collection_type_bytype();
 
 ------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	
+
 	IF TG_OP = 'UPDATE' THEN
 		UPDATE device_collection_hier
 		SET parent_device_collection_id = (
@@ -135,9 +135,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_device_collection_bytype_del
 	ON device_collection;
 CREATE TRIGGER trigger_manip_device_collection_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON device_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_device_collection_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_device_collection_bytype_insup
@@ -145,7 +145,7 @@ DROP TRIGGER IF EXISTS trigger_manip_device_collection_bytype_insup
 CREATE TRIGGER trigger_manip_device_collection_bytype_insup
 AFTER INSERT OR UPDATE OF device_collection_type
 	ON device_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_device_collection_bytype();
 
 ------------------------------------------------------------------------------
@@ -191,9 +191,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_del
 	ON val_dns_domain_collection_type;
 CREATE TRIGGER trigger_manip_dns_domain_collection_type_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON val_dns_domain_collection_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_dns_domain_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_insup
@@ -201,7 +201,7 @@ DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_insup
 CREATE TRIGGER trigger_manip_dns_domain_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF dns_domain_collection_type
 	ON val_dns_domain_collection_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_dns_domain_collection_type_bytype();
 
 ------------------------------------------------------------------------------
@@ -232,7 +232,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	
+
 	IF TG_OP = 'UPDATE' THEN
 		UPDATE dns_domain_collection_hier
 		SET dns_domain_collection_id = (
@@ -267,9 +267,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_bytype_del
 	ON dns_domain_collection;
 CREATE TRIGGER trigger_manip_dns_domain_collection_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON dns_domain_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_dns_domain_collection_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_bytype_insup
@@ -277,7 +277,7 @@ DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_bytype_insup
 CREATE TRIGGER trigger_manip_dns_domain_collection_bytype_insup
 AFTER INSERT OR UPDATE OF dns_domain_collection_type
 	ON dns_domain_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_dns_domain_collection_bytype();
 
 ------------------------------------------------------------------------------
@@ -324,9 +324,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_del
 	ON val_service_env_coll_type;
 CREATE TRIGGER trigger_manip_service_env_collection_type_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON val_service_env_coll_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_service_env_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_insup
@@ -334,7 +334,7 @@ DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_insup
 CREATE TRIGGER trigger_manip_service_env_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF service_env_collection_type
 	ON val_service_env_coll_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_service_env_collection_type_bytype();
 
 ------------------------------------------------------------------------------
@@ -365,7 +365,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	
+
 	IF TG_OP = 'UPDATE' THEN
 		UPDATE service_environment_coll_hier
 		SET service_env_collection_id = (
@@ -400,9 +400,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_del
 	ON service_environment_collection;
 CREATE TRIGGER trigger_manip_service_env_collection_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON service_environment_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_service_env_collection_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_insup
@@ -410,7 +410,7 @@ DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_insup
 CREATE TRIGGER trigger_manip_service_env_collection_bytype_insup
 AFTER INSERT OR UPDATE OF service_env_collection_type
 	ON service_environment_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_service_env_collection_bytype();
 
 ------------------------------------------------------------------------------
@@ -459,9 +459,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_del
 	ON val_layer2_network_coll_type;
 CREATE TRIGGER trigger_manip_layer2_network_collection_type_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON val_layer2_network_coll_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer2_network_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_insup
@@ -469,7 +469,7 @@ DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_insup
 CREATE TRIGGER trigger_manip_layer2_network_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF layer2_network_collection_type
 	ON val_layer2_network_coll_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer2_network_collection_type_bytype();
 
 ------------------------------------------------------------------------------
@@ -500,7 +500,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	
+
 	IF TG_OP = 'UPDATE' THEN
 		UPDATE layer2_network_collection_hier
 		SET layer2_network_collection_id = (
@@ -535,9 +535,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_bytype_del
 	ON layer2_network_collection;
 CREATE TRIGGER trigger_manip_layer2_network_collection_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON layer2_network_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer2_network_collection_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_bytype_insup
@@ -545,7 +545,7 @@ DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_bytype_insup
 CREATE TRIGGER trigger_manip_layer2_network_collection_bytype_insup
 AFTER INSERT OR UPDATE OF layer2_network_collection_type
 	ON layer2_network_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer2_network_collection_bytype();
 
 ------------------------------------------------------------------------------
@@ -592,9 +592,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_del
 	ON val_layer3_network_coll_type;
 CREATE TRIGGER trigger_manip_layer3_network_collection_type_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON val_layer3_network_coll_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer3_network_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_insup
@@ -602,7 +602,7 @@ DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_insup
 CREATE TRIGGER trigger_manip_layer3_network_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF layer3_network_collection_type
 	ON val_layer3_network_coll_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer3_network_collection_type_bytype();
 
 ------------------------------------------------------------------------------
@@ -633,7 +633,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	
+
 	IF TG_OP = 'UPDATE' THEN
 		UPDATE layer3_network_collection_hier
 		SET layer3_network_collection_id = (
@@ -668,9 +668,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_bytype_del
 	ON layer3_network_collection;
 CREATE TRIGGER trigger_manip_layer3_network_collection_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON layer3_network_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer3_network_collection_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_bytype_insup
@@ -678,7 +678,7 @@ DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_bytype_insup
 CREATE TRIGGER trigger_manip_layer3_network_collection_bytype_insup
 AFTER INSERT OR UPDATE OF layer3_network_collection_type
 	ON layer3_network_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer3_network_collection_bytype();
 
 
@@ -725,9 +725,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_company_collection_type_bytype_del
 	ON val_company_collection_type;
 CREATE TRIGGER trigger_manip_company_collection_type_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON val_company_collection_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_company_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_company_collection_type_bytype_insup
@@ -735,7 +735,7 @@ DROP TRIGGER IF EXISTS trigger_manip_company_collection_type_bytype_insup
 CREATE TRIGGER trigger_manip_company_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF company_collection_type
 	ON val_company_collection_type
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_company_collection_type_bytype();
 
 ------------------------------------------------------------------------------
@@ -766,7 +766,7 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	
+
 	IF TG_OP = 'UPDATE' THEN
 		UPDATE company_collection_hier
 		SET company_collection_id = (
@@ -801,9 +801,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_manip_company_collection_bytype_del
 	ON company_collection;
 CREATE TRIGGER trigger_manip_company_collection_bytype_del
-BEFORE DELETE 
+BEFORE DELETE
 	ON company_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_company_collection_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_company_collection_bytype_insup
@@ -811,10 +811,141 @@ DROP TRIGGER IF EXISTS trigger_manip_company_collection_bytype_insup
 CREATE TRIGGER trigger_manip_company_collection_bytype_insup
 AFTER INSERT OR UPDATE OF company_collection_type
 	ON company_collection
-	FOR EACH ROW 
+	FOR EACH ROW
 	EXECUTE PROCEDURE manip_company_collection_bytype();
 
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION manip_netblock_collection_type_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.netblock_collection_type NOT IN ('by-type', 'per-netblock') THEN
+			DELETE FROM netblock_collection
+			WHERE netblock_collection_name = OLD.netblock_collection_type
+			AND netblock_collection_type = 'by-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.netblock_collection_type IN ('by-type', 'per-netblock') AND
+			OLD.netblock_collection_type NOT IN ('by-type', 'per-netblock')
+		THEN
+			DELETE FROM netblock_collection
+			WHERE netblock_collection_id = OLD.netblock_collection_id;
+		ELSE
+			UPDATE netblock_collection
+			SET netblock_collection_name = NEW.netblock_collection_name
+			WHERE netblock_collection_name = OLD.netblock_collection_type
+			AND netblock_collection_type = 'by-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.netblock_collection_type NOT IN ('by-type', 'per-netblock') THEN
+			INSERT INTO netblock_collection (
+				netblock_collection_name, netblock_collection_type
+			) VALUES (
+				NEW.netblock_collection_type, 'by-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trigger_manip_netblock_collection_type_bytype_del
+	ON val_netblock_collection_type;
+CREATE TRIGGER trigger_manip_netblock_collection_type_bytype_del
+BEFORE DELETE
+	ON val_netblock_collection_type
+	FOR EACH ROW
+	EXECUTE PROCEDURE manip_netblock_collection_type_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_netblock_collection_type_bytype_insup
+	ON val_netblock_collection_type;
+CREATE TRIGGER trigger_manip_netblock_collection_type_bytype_insup
+AFTER INSERT OR UPDATE OF netblock_collection_type
+	ON val_netblock_collection_type
+	FOR EACH ROW
+	EXECUTE PROCEDURE manip_netblock_collection_type_bytype();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION manip_netblock_collection_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' OR
+		( TG_OP = 'UPDATE' and OLD.netblock_collection_type = 'per-netblock')
+	THEN
+		DELETE FROM netblock_collection_hier
+		WHERE child_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id IN (
+			SELECT netblock_collection_id
+			FROM netblock_collection
+			WHERE netblock_collection_type = 'by-type'
+			AND netblock_collection_name = OLD.netblock_collection_type
+		);
+
+		IF TG_OP = 'DELETE' THEN
+			RETURN OLD;
+		ELSE
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	IF NEW.netblock_collection_type IN ('per-netblock','by-type') THEN
+		RETURN NEW;
+	END IF;
+
+
+	IF TG_OP = 'UPDATE' THEN
+		UPDATE netblock_collection_hier
+		SET netblock_collection_id = (
+			SELECT netblock_collection_id
+			FROM netblock_collection
+			WHERE netblock_collection_type = 'by-type'
+			AND netblock_collection_name = NEW.netblock_collection_type
+		),
+			child_netblock_collection_id = NEW.netblock_collection_id
+		WHERE netblock_collection_id = (
+			SELECT netblock_collection_id
+			FROM netblock_collection
+			WHERE netblock_collection_type = 'by-type'
+			AND netblock_collection_name = OLD.netblock_collection_type
+		)
+		AND child_netblock_collection_id = OLD.netblock_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO netblock_collection_hier (
+			netblock_collection_id, child_netblock_collection_id
+		) SELECT netblock_collection_id, NEW.netblock_collection_id
+			FROM netblock_collection
+			WHERE netblock_collection_type = 'by-type'
+			AND netblock_collection_name = NEW.netblock_collection_type;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_netblock_collection_bytype_del
+	ON netblock_collection;
+CREATE TRIGGER trigger_manip_netblock_collection_bytype_del
+BEFORE DELETE
+	ON netblock_collection
+	FOR EACH ROW
+	EXECUTE PROCEDURE manip_netblock_collection_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_netblock_collection_bytype_insup
+	ON netblock_collection;
+CREATE TRIGGER trigger_manip_netblock_collection_bytype_insup
+AFTER INSERT OR UPDATE OF netblock_collection_type
+	ON netblock_collection
+	FOR EACH ROW
+	EXECUTE PROCEDURE manip_netblock_collection_bytype();
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------

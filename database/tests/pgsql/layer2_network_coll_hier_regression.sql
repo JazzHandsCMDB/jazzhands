@@ -251,7 +251,7 @@ BEGIN
 		layer2_network_collection_type like
 		'JHTEST%';
 	delete from layer2_network where description like 'JHTEST%';
-	RAISE NOTICE 'layer3_network_coll_hier_regression: DONE';
+	RAISE NOTICE 'layer2_network_coll_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;
@@ -261,7 +261,7 @@ SELECT layer2_network_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION layer2_network_coll_hier_regression();
 
-ROLLBACK TO l2_network_domain_coll_hier_regression_test;
+ROLLBACK TO l2_network_coll_hier_regression_test;
 
 
 \t off

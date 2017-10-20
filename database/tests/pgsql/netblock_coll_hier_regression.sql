@@ -20,6 +20,12 @@
 
 \t on
 
+SAVEPOINT dns_domain_coll_hier_regression_test;
+
+\ir ../../ddl/schema/pgsql/create_netblock_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
+
+
 -- 
 -- Trigger tests
 --
@@ -56,6 +62,11 @@ BEGIN
 		netblock_collection_type, max_num_collections
 	) VALUES (
 		'JHTEST-COLS', 1
+	);
+	INSERT INTO val_netblock_collection_Type (
+		netblock_collection_type, max_num_collections
+	) VALUES (
+		'JHTEST-COLS2', 1
 	);
 	INSERT INTO val_netblock_collection_Type (
 		netblock_collection_type, can_have_hierarchy
@@ -102,6 +113,79 @@ BEGIN
 			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb2;
 
 	RAISE NOTICE 'Starting tests...';
+
+
+	RAISE NOTICE 'Making sure a by-type works...';
+	BEGIN
+		SELECT count(*)
+		INTO _tally
+		FROM netblock_collection nc
+			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
+				h.netblock_collection_id
+		WHERE nc.netblock_collection_type = 'by-type'
+		AND nc.netblock_collection_NAME = 'JHTEST-COLS'
+		AND h.child_netblock_collection_id IN (
+			_nc_onecol1.netblock_collection_id,
+			_nc_onecol2.netblock_collection_id
+		);
+		IF _tally != 2 THEN
+			RAISE '... failed with % != 2 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM netblock_collection nc
+			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
+				h.netblock_collection_id
+		WHERE nc.netblock_collection_type = 'by-type'
+		AND nc.netblock_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_netblock_collection_id IN (
+			_nc_onecol1.netblock_collection_id,
+			_nc_onecol2.netblock_collection_id
+		);
+		IF _tally != 0 THEN
+			RAISE 'old type is not initialized right 0 != %', _tally;
+		END IF;
+
+		UPDATE netblock_collection
+		SET netblock_collection_type = 'JHTEST-COLS2'
+		WHERE netblock_collection_id = _nc_onecol1.netblock_collection_id;
+
+		SELECT count(*)
+		INTO _tally
+		FROM netblock_collection nc
+			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
+				h.netblock_collection_id
+		WHERE nc.netblock_collection_type = 'by-type'
+		AND nc.netblock_collection_NAME = 'JHTEST-COLS'
+		AND h.child_netblock_collection_id IN (
+			_nc_onecol1.netblock_collection_id,
+			_nc_onecol2.netblock_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'old type failed with % != 1 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM netblock_collection nc
+			JOIN netblock_collection_hier h ON nc.netblock_collection_id =
+				h.netblock_collection_id
+		WHERE nc.netblock_collection_type = 'by-type'
+		AND nc.netblock_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_netblock_collection_id IN (
+			_nc_onecol1.netblock_collection_id,
+			_nc_onecol2.netblock_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'new type failed with % != 2 rows!', _tally;
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
@@ -179,4 +263,5 @@ SELECT netblock_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION netblock_coll_hier_regression();
 
+ROLLBACK TO dns_domain_coll_hier_regression_test;
 \t off
