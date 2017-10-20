@@ -286,3 +286,136 @@ AFTER INSERT OR UPDATE OF dns_domain_collection_type
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 
+CREATE OR REPLACE FUNCTION manip_service_env_collection_type_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.service_env_collection_type NOT IN ('by-type', 'per-service_environment') THEN
+			DELETE FROM service_environment_collection
+			WHERE service_env_collection_name = OLD.service_env_collection_type
+			AND service_env_collection_type = 'by-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.service_env_collection_type IN ('by-type', 'per-service_environment') AND
+			OLD.service_env_collection_type NOT IN ('by-type', 'per-service_environment')
+		THEN
+			DELETE FROM service_environment_collection
+			WHERE service_env_collection_id = OLD.service_env_collection_id;
+		ELSE
+			UPDATE service_environment_collection
+			SET service_env_collection_name = NEW.service_env_collection_name
+			WHERE service_env_collection_name = OLD.service_env_collection_type
+			AND service_env_collection_type = 'by-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.service_env_collection_type NOT IN ('by-type', 'per-service_environment') THEN
+			INSERT INTO service_environment_collection (
+				service_env_collection_name, service_env_collection_type
+			) VALUES (
+				NEW.service_env_collection_type, 'by-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_del
+	ON val_service_env_coll_type;
+CREATE TRIGGER trigger_manip_service_env_collection_type_bytype_del
+BEFORE DELETE 
+	ON val_service_env_coll_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_service_env_collection_type_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_insup
+	ON val_service_env_coll_type;
+CREATE TRIGGER trigger_manip_service_env_collection_type_bytype_insup
+AFTER INSERT OR UPDATE OF service_env_collection_type
+	ON val_service_env_coll_type
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_service_env_collection_type_bytype();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION manip_service_env_collection_bytype()
+	RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' OR
+		( TG_OP = 'UPDATE' and OLD.service_env_collection_type = 'per-service_environment')
+	THEN
+		DELETE FROM service_environment_coll_hier
+		WHERE child_service_env_coll_id = OLD.service_env_collection_id
+		AND service_env_collection_id IN (
+			SELECT service_env_collection_id
+			FROM service_environment_collection
+			WHERE service_env_collection_type = 'by-type'
+			AND service_env_collection_name = OLD.service_env_collection_type
+		);
+
+		IF TG_OP = 'DELETE' THEN
+			RETURN OLD;
+		ELSE
+			RETURN NEW;
+		END IF;
+	END IF;
+
+	IF NEW.service_env_collection_type IN ('per-service_environment','by-type') THEN
+		RETURN NEW;
+	END IF;
+
+	
+	IF TG_OP = 'UPDATE' THEN
+		UPDATE service_environment_coll_hier
+		SET service_env_collection_id = (
+			SELECT service_env_collection_id
+			FROM service_environment_collection
+			WHERE service_env_collection_type = 'by-type'
+			AND service_env_collection_name = NEW.service_env_collection_type
+		),
+			child_service_env_coll_id = NEW.service_env_collection_id
+		WHERE service_env_collection_id = (
+			SELECT service_env_collection_id
+			FROM service_environment_collection
+			WHERE service_env_collection_type = 'by-type'
+			AND service_env_collection_name = OLD.service_env_collection_type
+		)
+		AND child_service_env_coll_id = OLD.service_env_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO service_environment_coll_hier (
+			service_env_collection_id, child_service_env_coll_id
+		) SELECT service_env_collection_id, NEW.service_env_collection_id
+			FROM service_environment_collection
+			WHERE service_env_collection_type = 'by-type'
+			AND service_env_collection_name = NEW.service_env_collection_type;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_del
+	ON service_environment_collection;
+CREATE TRIGGER trigger_manip_service_env_collection_bytype_del
+BEFORE DELETE 
+	ON service_environment_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_service_env_collection_bytype();
+
+DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_insup
+	ON service_environment_collection;
+CREATE TRIGGER trigger_manip_service_env_collection_bytype_insup
+AFTER INSERT OR UPDATE OF service_env_collection_type
+	ON service_environment_collection
+	FOR EACH ROW 
+	EXECUTE PROCEDURE manip_service_env_collection_bytype();
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+

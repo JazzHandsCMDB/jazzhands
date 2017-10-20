@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Todd Kover
+-- Copyright (c) 2014-2017 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,12 @@
 \set ON_ERROR_STOP
 
 \t on
+
+SAVEPOINT servie_environment_coll_hier_regression_test;
+
+\ir ../../ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
+
 
 -- 
 -- Trigger tests
@@ -60,6 +66,11 @@ BEGIN
 		'JHTEST-COLS', 1
 	);
 	INSERT INTO val_service_env_coll_type (
+		service_env_collection_type, max_num_collections
+	) VALUES (
+		'JHTEST-COLS2', 1
+	);
+	INSERT INTO val_service_env_coll_type (
 		service_env_collection_type, can_have_hierarchy
 	) VALUES (
 		'JHTEST-HIER', 'N'
@@ -97,6 +108,78 @@ BEGIN
 	insert into service_environment (service_environment_name,production_state) 
 		values('JHTEST02', 'production') RETURNING * into _svcenv2;
 	RAISE NOTICE 'Starting tests...';
+
+	RAISE NOTICE 'Making sure a by-type works...';
+	BEGIN
+		SELECT count(*)
+		INTO _tally
+		FROM service_environment_collection sc
+			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
+				h.service_env_collection_id
+		WHERE sc.service_env_collection_type = 'by-type'
+		AND sc.service_env_collection_NAME = 'JHTEST-COLS'
+		AND h.child_service_env_coll_id IN (
+			_sc_onecol1.service_env_collection_id,
+			_sc_onecol2.service_env_collection_id
+		);
+		IF _tally != 2 THEN
+			RAISE '... failed with % != 2 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM service_environment_collection sc
+			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
+				h.service_env_collection_id
+		WHERE sc.service_env_collection_type = 'by-type'
+		AND sc.service_env_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_service_env_coll_id IN (
+			_sc_onecol1.service_env_collection_id,
+			_sc_onecol2.service_env_collection_id
+		);
+		IF _tally != 0 THEN
+			RAISE 'old type is not initialized right 0 != %', _tally;
+		END IF;
+
+		UPDATE service_environment_collection
+		SET service_env_collection_type = 'JHTEST-COLS2'
+		WHERE service_env_collection_id = _sc_onecol1.service_env_collection_id;
+
+		SELECT count(*)
+		INTO _tally
+		FROM service_environment_collection sc
+			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
+				h.service_env_collection_id
+		WHERE sc.service_env_collection_type = 'by-type'
+		AND sc.service_env_collection_NAME = 'JHTEST-COLS'
+		AND h.child_service_env_coll_id IN (
+			_sc_onecol1.service_env_collection_id,
+			_sc_onecol2.service_env_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'old type failed with % != 1 rows!', _tally;
+		END IF;
+
+		SELECT count(*)
+		INTO _tally
+		FROM service_environment_collection sc
+			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
+				h.service_env_collection_id
+		WHERE sc.service_env_collection_type = 'by-type'
+		AND sc.service_env_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_service_env_coll_id IN (
+			_sc_onecol1.service_env_collection_id,
+			_sc_onecol2.service_env_collection_id
+		);
+		IF _tally != 1 THEN
+			RAISE 'new type failed with % != 2 rows!', _tally;
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
@@ -163,5 +246,7 @@ $$ LANGUAGE plpgsql;
 SELECT service_env_coll_hier_regression();
 -- set search_path=jazzhands;
 DROP FUNCTION service_env_coll_hier_regression();
+
+ROLLBACK TO servie_environment_coll_hier_regression_test;
 
 \t off
