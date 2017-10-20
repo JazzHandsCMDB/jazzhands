@@ -5070,6 +5070,127 @@ DROP TABLE IF EXISTS audit.val_property_v80;
 -- DONE DEALING WITH TABLE val_property
 --------------------------------------------------------------------
 --------------------------------------------------------------------
+-- DEALING WITH TABLE val_shared_netblock_protocol
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_shared_netblock_protocol', 'val_shared_netblock_protocol');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE shared_netblock DROP CONSTRAINT IF EXISTS fk_shrdnet_shrdnet_proto;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'val_shared_netblock_protocol');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_shared_netblock_protocol DROP CONSTRAINT IF EXISTS pk_val_shared_netblock_protoco;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_shared_netblock_protocol ON jazzhands.val_shared_netblock_protocol;
+DROP TRIGGER IF EXISTS trigger_audit_val_shared_netblock_protocol ON jazzhands.val_shared_netblock_protocol;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'val_shared_netblock_protocol');
+---- BEGIN audit.val_shared_netblock_protocol TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'val_shared_netblock_protocol', 'val_shared_netblock_protocol');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'val_shared_netblock_protocol');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.val_shared_netblock_protocol DROP CONSTRAINT IF EXISTS val_shared_netblock_protocol_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_val_shared_netblock_protocol_pk_val_shared_netblock_protoco";
+DROP INDEX IF EXISTS "audit"."val_shared_netblock_protocol_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.val_shared_netblock_protocol TEARDOWN
+
+
+ALTER TABLE val_shared_netblock_protocol RENAME TO val_shared_netblock_protocol_v80;
+ALTER TABLE audit.val_shared_netblock_protocol RENAME TO val_shared_netblock_protocol_v80;
+
+CREATE TABLE val_shared_netblock_protocol
+(
+	shared_netblock_protocol	varchar(50) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'val_shared_netblock_protocol', false);
+INSERT INTO val_shared_netblock_protocol (
+	shared_netblock_protocol,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	shared_netblock_protocol,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_shared_netblock_protocol_v80;
+
+INSERT INTO audit.val_shared_netblock_protocol (
+	shared_netblock_protocol,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	shared_netblock_protocol,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.val_shared_netblock_protocol_v80;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE val_shared_netblock_protocol ADD CONSTRAINT pk_val_shared_netblock_protoco PRIMARY KEY (shared_netblock_protocol);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_shared_netblock_protocol and shared_netblock
+ALTER TABLE shared_netblock
+	ADD CONSTRAINT fk_shrdnet_shrdnet_proto
+	FOREIGN KEY (shared_netblock_protocol) REFERENCES val_shared_netblock_protocol(shared_netblock_protocol);
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- this used to be at the end...
+-- SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_shared_netblock_protocol');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'val_shared_netblock_protocol');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'val_shared_netblock_protocol');
+DROP TABLE IF EXISTS val_shared_netblock_protocol_v80;
+DROP TABLE IF EXISTS audit.val_shared_netblock_protocol_v80;
+-- DONE DEALING WITH TABLE val_shared_netblock_protocol
+--------------------------------------------------------------------
+--------------------------------------------------------------------
 -- DEALING WITH TABLE account_coll_type_relation
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'account_coll_type_relation', 'account_coll_type_relation');
@@ -7623,6 +7744,165 @@ SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'person_compan
 -- DROP TABLE IF EXISTS person_company_v80;
 -- DROP TABLE IF EXISTS audit.person_company_v80;
 -- DONE DEALING WITH TABLE person_company
+--------------------------------------------------------------------
+--------------------------------------------------------------------
+-- DEALING WITH TABLE shared_netblock
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'shared_netblock', 'shared_netblock');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE shared_netblock_network_int DROP CONSTRAINT IF EXISTS fk_shrdnet_netint_shrdnet_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.shared_netblock DROP CONSTRAINT IF EXISTS fk_shared_net_netblock_id;
+ALTER TABLE jazzhands.shared_netblock DROP CONSTRAINT IF EXISTS fk_shrdnet_shrdnet_proto;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('jazzhands', 'shared_netblock');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.shared_netblock DROP CONSTRAINT IF EXISTS ak_shared_netblock_netblock;
+ALTER TABLE jazzhands.shared_netblock DROP CONSTRAINT IF EXISTS pk_shared_netblock;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xif1shared_netblock";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_shared_netblock ON jazzhands.shared_netblock;
+DROP TRIGGER IF EXISTS trigger_audit_shared_netblock ON jazzhands.shared_netblock;
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'shared_netblock');
+---- BEGIN audit.shared_netblock TEARDOWN
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('audit', 'shared_netblock', 'shared_netblock');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay('audit', 'shared_netblock');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE audit.shared_netblock DROP CONSTRAINT IF EXISTS shared_netblock_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "audit"."aud_shared_netblock_ak_shared_netblock_netblock";
+DROP INDEX IF EXISTS "audit"."aud_shared_netblock_pk_shared_netblock";
+DROP INDEX IF EXISTS "audit"."shared_netblock_aud#timestamp_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+---- DONE audit.shared_netblock TEARDOWN
+
+
+ALTER TABLE shared_netblock RENAME TO shared_netblock_v80;
+ALTER TABLE audit.shared_netblock RENAME TO shared_netblock_v80;
+
+CREATE TABLE shared_netblock
+(
+	shared_netblock_id	integer NOT NULL,
+	shared_netblock_protocol	varchar(50) NOT NULL,
+	netblock_id	integer  NULL,
+	description	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('audit', 'jazzhands', 'shared_netblock', false);
+ALTER TABLE shared_netblock
+	ALTER shared_netblock_id
+	SET DEFAULT nextval('shared_netblock_shared_netblock_id_seq'::regclass);
+INSERT INTO shared_netblock (
+	shared_netblock_id,
+	shared_netblock_protocol,
+	netblock_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	shared_netblock_id,
+	shared_netblock_protocol,
+	netblock_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM shared_netblock_v80;
+
+INSERT INTO audit.shared_netblock (
+	shared_netblock_id,
+	shared_netblock_protocol,
+	netblock_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+) SELECT
+	shared_netblock_id,
+	shared_netblock_protocol,
+	netblock_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM audit.shared_netblock_v80;
+
+ALTER TABLE shared_netblock
+	ALTER shared_netblock_id
+	SET DEFAULT nextval('shared_netblock_shared_netblock_id_seq'::regclass);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE shared_netblock ADD CONSTRAINT ak_shared_netblock_netblock UNIQUE (netblock_id);
+ALTER TABLE shared_netblock ADD CONSTRAINT pk_shared_netblock PRIMARY KEY (shared_netblock_id);
+
+-- Table/Column Comments
+-- INDEXES
+CREATE INDEX xif1shared_netblock ON shared_netblock USING btree (shared_netblock_protocol);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between shared_netblock and shared_netblock_network_int
+ALTER TABLE shared_netblock_network_int
+	ADD CONSTRAINT fk_shrdnet_netint_shrdnet_id
+	FOREIGN KEY (shared_netblock_id) REFERENCES shared_netblock(shared_netblock_id);
+
+-- FOREIGN KEYS TO
+-- consider FK shared_netblock and netblock
+ALTER TABLE shared_netblock
+	ADD CONSTRAINT fk_shared_net_netblock_id
+	FOREIGN KEY (netblock_id) REFERENCES netblock(netblock_id);
+-- consider FK shared_netblock and val_shared_netblock_protocol
+ALTER TABLE shared_netblock
+	ADD CONSTRAINT fk_shrdnet_shrdnet_proto
+	FOREIGN KEY (shared_netblock_protocol) REFERENCES val_shared_netblock_protocol(shared_netblock_protocol);
+
+-- TRIGGERS
+-- this used to be at the end...
+-- SELECT schema_support.replay_object_recreates();
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'shared_netblock');
+SELECT schema_support.build_audit_table_pkak_indexes('audit', 'jazzhands', 'shared_netblock');
+SELECT schema_support.rebuild_audit_trigger('audit', 'jazzhands', 'shared_netblock');
+ALTER SEQUENCE shared_netblock_shared_netblock_id_seq
+	 OWNED BY shared_netblock.shared_netblock_id;
+DROP TABLE IF EXISTS shared_netblock_v80;
+DROP TABLE IF EXISTS audit.shared_netblock_v80;
+-- DONE DEALING WITH TABLE shared_netblock
 --------------------------------------------------------------------
 --------------------------------------------------------------------
 -- DEALING WITH TABLE v_dns_changes_pending
