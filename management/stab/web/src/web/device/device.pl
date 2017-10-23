@@ -580,7 +580,7 @@ sub build_managed_by_device_list {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $q = qq{
-		select  dmc.device_id, device_name
+		select  dmc.manager_device_id, device_name
 		  from  device d JOIN
 				device_management_controller dmc ON
 					(d.device_id = dmc.manager_device_id)
