@@ -2,8 +2,9 @@ package JazzHands::Apache::API::Common;
 use strict;
 
 use Exporter 'import';
-use JazzHands::Common qw(:all);
+use Apache2::Const -compile => qw(:common :log);
 use Time::HiRes qw(gettimeofday tv_interval);
+use JazzHands::Common qw(:all :db);
 
 use vars qw(@ISA @EXPORT $VERSION);
 
