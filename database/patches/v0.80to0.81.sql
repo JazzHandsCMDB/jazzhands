@@ -14668,6 +14668,8 @@ DROP TABLE IF EXISTS audit.network_interface_v80;
 
 
 ------------------------------------------------------------------------------
+SELECT schema_support.replay_object_recreates();
+SELECT schema_support.replay_saved_grants();
 
 INSERT INTO val_netblock_collection_type (
 	netblock_collection_type, description, max_num_members
@@ -14864,8 +14866,6 @@ DROP TRIGGER IF EXISTS trigger_audit_token_sequence ON token_sequence;
 
 
 -- Clean Up
-SELECT schema_support.replay_object_recreates();
-SELECT schema_support.replay_saved_grants();
 GRANT select on all tables in schema jazzhands to ro_role;
 GRANT insert,update,delete on all tables in schema jazzhands to iud_role;
 GRANT select on all sequences in schema jazzhands to ro_role;
