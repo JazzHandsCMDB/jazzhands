@@ -19,14 +19,17 @@ $query ="
 		FROM	v_corp_family_account
 				INNER JOIN account_collection_account USING (account_id)
 				INNER JOIN account_collection USING (account_collection_id)
-		WHERE	account_collection_type = 'system'
+		WHERE	account_collection_type = 'systems'
 		AND		account_collection_name IN
 				('noeventsbirthday', 'noeventsanniversary')
 	), birthdaycompanyok AS (
-		SELECT	s.site_code, company_id
+		SELECT	s.site_code, ccc.company_id
 		FROM	site s
-				INNER JOIN property p on s.colo_company_id = p.company_id
-		WHERE	p.property_name = 'ShowBirthday'
+				INNER JOIN company_collection_company ccc
+					ON s.colo_company_id = ccc.company_id
+				INNER JOIN company_collection cc USING (company_collection_id)
+				INNER JOIN property p USING (company_collection_id)
+		WHERE	p.property_name = 'ShowBirthdayCompanies'
 		AND		p.property_type = 'PhoneDirectoryAttributes'
 	), officemap AS (
 	    select  pa.physical_address_id,

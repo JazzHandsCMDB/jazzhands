@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	$(MAKE) -f Makefile.jazzhands DESTDIR=$$(pwd)/debian/jazzhands-account-directory PREFIX=/var/www/account/directory install
