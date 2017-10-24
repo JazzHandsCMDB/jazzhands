@@ -66,14 +66,6 @@ SELECT company_manip.add_company(
 
 insert into property (
 	property_name, property_type, 
-	property_value_company_id
-) VALUES  (
-	'_rootcompanyid', 'Defaults', 
-	(select company_id from company where company_name = 'Omniscient Technologies')
- );
-
-insert into property (
-	property_name, property_type, 
 	account_realm_id
 ) VALUES  (
 	'_root_account_realm_id', 'Defaults',
@@ -198,7 +190,7 @@ insert into person (first_name, middle_name, last_name, gender)
 	values ('Todd', 'M', 'Kover', 'M');
 
 insert into person_company (company_id, person_id, 
-	employee_id, is_exempt,
+	is_exempt,
 	person_company_status, person_company_relation
 	) 
 values(
@@ -206,7 +198,7 @@ values(
 		where company_name = 'Omniscient Technologies'),
 	(select person_id from person where first_name = 'Todd' and
 		last_name = 'Kover'),
-	10, 'Y',
+	'Y',
 	'enabled', 'employee'
 );
 
@@ -240,14 +232,14 @@ insert into person (first_name, middle_name, last_name, gender)
 	values ('Matthew', 'D', 'Ragan', 'M');
 
 insert into person_company (company_id, person_id, 
-	employee_id, is_exempt,
+	is_exempt,
 	person_company_status, person_company_relation
 	) 
 values(
 	(select company_id from company where company_name = 'Sucksless Industries'),
 	(select person_id from person where first_name = 'Matthew' and
 		last_name = 'Ragan'),
-	5, 'Y',
+	'Y',
 	'enabled', 'employee'
 );
 

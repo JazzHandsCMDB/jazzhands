@@ -39,7 +39,7 @@ FROM (
 		LEFT JOIN device_collection_device dcd ON
 			dcd.device_collection_id = dcr.device_collection_id
 		LEFT JOIN Device USING (Device_Id)
-		LEFT JOIN Network_Interface NI USING (Device_ID)
+		LEFT JOIN Network_Interface_netblock NI USING (Device_ID)
 		LEFT JOIN Netblock NB USING (Netblock_id)
 	WHERE
 		device_collection_type IN ('HOTPants', 'HOTPants-app')

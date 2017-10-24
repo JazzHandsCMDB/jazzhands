@@ -85,12 +85,12 @@ BEGIN
 	INSERT INTO val_ip_namespace (ip_namespace) VALUES
 		('JH-universe1'),
 		('JH-universe2');
-	INSERT INTO ip_universe (ip_universe_name,ip_namespace)
-	VALUES ('JHTEST-testuniverse', 'JH-universe1')
+	INSERT INTO ip_universe (ip_universe_name,ip_namespace,should_generate_dns)
+	VALUES ('JHTEST-testuniverse', 'JH-universe1', 'Y')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[0] = v_ip_universe_id;
-	INSERT INTO ip_universe (ip_universe_name, ip_namespace)
-	VALUES ('JHTEST-testuniverse2', 'JH-universe2')
+	INSERT INTO ip_universe (ip_universe_name, ip_namespace,should_generate_dns)
+	VALUES ('JHTEST-testuniverse2', 'JH-universe2', 'Y')
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[1] = v_ip_universe_id;
 

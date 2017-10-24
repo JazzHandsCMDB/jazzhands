@@ -1,4 +1,4 @@
--- Copyright (c) 2016, Todd M. Kover
+-- Copyright (c) 2016-2017, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,5 +14,51 @@
 -- limitations under the License.
 
 CREATE OR REPLACE VIEW v_person_company AS
-SELECT * FROM person_company;
+SELECT pc.company_id,
+	pc.person_id,
+	pc.person_company_status,
+	pc.person_company_relation,
+	pc.is_exempt,
+	pc.is_management,
+	pc.is_full_time,
+	pc.description,
+	empid.attribute_value AS employee_id,
+	payid.attribute_value AS payroll_id,
+	hrid.attribute_value AS external_hr_id,
+	pc.position_title,
+	badge.attribute_value AS badge_system_id,
+	pc.hire_date,
+	pc.termination_date,
+	pc.manager_person_id,
+	super.attribute_value_person_id AS supervisor_person_id,
+	pc.nickname,
+	pc.data_ins_user,
+	pc.data_ins_date,
+	pc.data_upd_user,
+	pc.data_upd_date
+FROM	person_company pc
+	LEFT JOIN (SELECT *
+		FROM person_company_attr 
+		WHERE person_company_attr_name = 'employee_id'
+		) empid USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM person_company_attr 
+		WHERE person_company_attr_name = 'payroll_id'
+		) payid USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM person_company_attr 
+		WHERE person_company_attr_name = 'badge_system_id'
+		) badge USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM person_company_attr 
+		WHERE person_company_attr_name = 'supervisor_id'
+		) super USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM person_company_attr 
+		WHERE person_company_attr_name = 'external_hr_id'
+		) hrid USING (company_id, person_id)
+;
 
+ALTER VIEW v_person_company alter column is_exempt set default 'Y'::text;
+ALTER VIEW v_person_company alter column is_management set default 'N'::text;
+ALTER VIEW v_person_company alter column is_full_time set default 'Y'::text;

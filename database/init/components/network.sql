@@ -92,9 +92,8 @@ BEGIN
 			('10GSFP+Ethernet', 'SFP+', 'network', '10Gbps SFP+ Ethernet', 'N'),
 			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', 'N'),
 			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', 'N'),
-			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N');
-			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', 'N'),
-			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N');
+			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N'),
+			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', 'N');
 
 
 		--

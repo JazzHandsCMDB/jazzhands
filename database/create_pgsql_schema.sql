@@ -48,6 +48,8 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
 \ir pkg/pgsql/create_all_packages.sql
 
+\ir ddl/schema/pgsql/postgres-json-schema/postgres-json-schema--0.1.0.sql
+
 \ir ddl/schema/pgsql/create_account_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_account_triggers.sql
 \ir ddl/schema/pgsql/create_account_hook_triggers.sql
@@ -55,6 +57,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_approval_triggers.sql
 \ir ddl/schema/pgsql/create_auto_account_coll_triggers.sql
 \ir ddl/schema/pgsql/create_collection_loop_triggers.sql
+\ir ddl/schema/pgsql/create_collection_bytype_triggers.sql
 \ir ddl/schema/pgsql/create_collection_type_property_triggers.sql
 \ir ddl/schema/pgsql/create_company_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_company_triggers.sql
@@ -101,6 +104,8 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_account_pgnotify_trigger.sql
 
 \ir ddl/schema/pgsql/create_hotpants_view_triggers.sql
+\ir ddl/schema/pgsql/create_v_person_company_triggers.sql
+\ir ddl/schema/pgsql/create_v_network_interface_trans_triggers.sql
 
 -- This could be done for backwards compatibility but is not.
 -- \ir compat/pgsql/create_location_compatibility_view.sql
