@@ -65,25 +65,25 @@ BEGIN
 		('jhtest1'),
 		('jhtest2');
 
-	INSERT INTO ip_universe 
+	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
 		VALUES ('jhtest0', 'jhtest0', 'Y')
 		RETURNING ip_universe_id INTO _u0;
-	INSERT INTO ip_universe 
+	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
 		VALUES ('jhtest1', 'jhtest1', 'Y')
 		RETURNING ip_universe_id INTO _u1;
 
-	INSERT INTO ip_universe 
+	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
 		VALUES ('jhtest0a', 'jhtest0', 'Y')
 		RETURNING ip_universe_id INTO _u0a;
-	INSERT INTO ip_universe 
+	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
 		VALUES ('jhtest1a', 'jhtest1', 'Y')
 		RETURNING ip_universe_id INTO _u1a;
 
-	INSERT INTO ip_universe 
+	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
 		VALUES ('jhtest2', 'jhtest2', 'Y')
 		RETURNING ip_universe_id INTO _u2;

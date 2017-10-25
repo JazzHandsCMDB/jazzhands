@@ -98,6 +98,7 @@ begin;
 \ir tests/pgsql/account_coll_realm_regression.sql
 \ir tests/pgsql/network_range_tests.sql
 \ir tests/pgsql/x509_tests.sql
+\ir tests/pgsql/v_person_company_regression.sql
 
 \ir tests/pgsql/account_enabled_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql

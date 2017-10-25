@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.81.1) trusty; urgency=medium
+
+  * Fix issue with dhcpgen not using network_interface_netblock
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 25 Oct 2017 13:01:29 +0000
+
 jazzhands-dhcpgen (0.79.1.1) trusty; urgency=medium
 
   * Fix issue with multi-value properties on device_collections and

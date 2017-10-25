@@ -178,27 +178,6 @@ BEGIN
 		RAISE NOTICE '... They can''t';
 	END;
 
-	RAISE NOTICE 'Checking to see if person_status.is_enabled/disabled can both be updated... ';
-	BEGIN
-		UPDATE val_person_status set is_enabled = 'N', is_disabled = 'Y' where
-			is_enabled = 'Y' AND person_status = 'enabled';
-		RAISE EXCEPTION '... THEY CAN.';
-	EXCEPTION WHEN integrity_constraint_violation THEN
-		RAISE NOTICE '... They can''t';
-	END;
-
-	RAISE NOTICE 'Checking to see of inserts of val_person_status succeed with both disabled/enabled set.';
-	BEGIN
-		INSERT INTO val_person_status(
-			person_status,is_enabled,is_disabled
-		) values (
-			'testing', 'Y', 'N'
-		);
-		RAISE EXCEPTION '... THEY DO.';
-	EXCEPTION WHEN integrity_constraint_violation THEN
-		RAISE NOTICE '... They do not.';
-	END;
-
 	RAISE NOTICE 'AcctIsEnabled: DONE';
 	RETURN true;
 END;

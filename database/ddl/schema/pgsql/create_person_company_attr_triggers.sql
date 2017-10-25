@@ -63,8 +63,8 @@ BEGIN
 			END IF;
 		END IF;
 	ELSIF v_pc_atr.person_company_attr_data_type = 'person_id' THEN
-		IF NEW.attribute_value_timestamp IS NULL THEN
-			RAISE EXCEPTION 'attribute_value_timestamp must be set for %',
+		IF NEW.person_id IS NULL THEN
+			RAISE EXCEPTION 'person_id must be set for %',
 				v_pc_atr.person_company_attr_data_type
 				USING ERRCODE = 'not_null_violation';
 		END IF;

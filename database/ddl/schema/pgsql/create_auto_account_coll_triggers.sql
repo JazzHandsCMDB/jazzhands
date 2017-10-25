@@ -199,7 +199,10 @@ BEGIN
 		AND		person_id = OLD.person_id
 		AND		company_id = OLD.company_id;
 	END IF;
-	IF ( TG_OP = 'UPDATE' ) THEN
+	IF ( TG_OP = 'UPDATE' AND  (
+			OLD.person_id IS DISTINCT FROM NEW.person_id OR
+			OLD.company_id IS DISTINCT FROM NEW.company_id )
+		) THEN
 		PERFORM	auto_ac_manip.make_personal_acs_right(account_id)
 		FROM	v_corp_family_account
 				INNER JOIN person_company USING (person_id,company_id)
@@ -219,7 +222,9 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_automated_ac_on_person_company
+DROP TRIGGER IF EXISTS trigger_z_automated_ac_on_person_company 
+	ON person_company;
+CREATE TRIGGER trigger_z_automated_ac_on_person_company
 	AFTER UPDATE OF is_management, is_exempt, is_full_time, person_id,company_id,
 		manager_person_id
 	ON person_company

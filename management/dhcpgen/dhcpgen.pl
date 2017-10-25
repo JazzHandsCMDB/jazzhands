@@ -874,10 +874,11 @@ sub generate_dhcp_configs {
 				ni.mac_addr,
 				NULL AS other_network_interface_id,
 				NULL AS other_network_interface_name,
-				ni.netblock_id
+				nin.netblock_id
 			FROM
 				device d JOIN
-				network_interface ni USING (device_id)
+				network_interface ni USING (device_id) JOIN
+				network_interface_netblock nin USING (network_interface_id)
 			WHERE
 				ni.mac_addr IS NOT NULL
 			UNION
@@ -895,15 +896,17 @@ sub generate_dhcp_configs {
 				device d JOIN
 				(
 					SELECT
-						device_id,
-						network_interface_id,
-						network_interface_name,
-						mac_addr,
+						ni.device_id,
+						ni.network_interface_id,
+						ni.network_interface_name,
+						ni.mac_addr,
 						rank() OVER 
-							(PARTITION BY device_id ORDER BY network_interface_name) AS
+							(PARTITION BY ni.device_id ORDER BY network_interface_name) AS
 							ni_rank
 					FROM
-						network_interface ni
+						network_interface ni LEFT JOIN
+						network_interface_netblock nin
+							USING (network_interface_id)
 					WHERE
 						mac_addr IS NOT NULL AND
 						netblock_id IS NULL AND
@@ -911,18 +914,19 @@ sub generate_dhcp_configs {
 				) ni1 ON (d.device_id = ni1.device_id AND ni1.ni_rank = 1) JOIN
 				(
 					SELECT
-						device_id,
-						network_interface_id,
-						network_interface_name,
-						netblock_id,
+						ni.device_id,
+						ni.network_interface_id,
+						ni.network_interface_name,
+						nin.netblock_id,
 						rank() OVER 
-							(PARTITION BY device_id ORDER BY network_interface_name) AS
+							(PARTITION BY ni.device_id ORDER BY network_interface_name) AS
 							ni_rank
 					FROM
-						network_interface ni
+						network_interface ni JOIN
+						network_interface_netblock nin
+							USING (network_interface_id)
 					WHERE
-						mac_addr IS NULL AND
-						netblock_id IS NOT NULL
+						mac_addr IS NULL
 				) ni2 ON (d.device_id = ni2.device_id AND ni2.ni_rank = 1)
 			) dhcp JOIN
 			netblock n USING (netblock_id) JOIN

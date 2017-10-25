@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+\set ON_ERROR_STOP
+
 --
 -- Changes to account trigger addition/removal from various things.  This is
 -- actually redundant with the second two triggers on person_company and
@@ -65,8 +67,8 @@ BEGIN
 			= 'automated'
 		);
 		-- PERFORM auto_ac_manip.destroy_report_account_collections(
-		-- 	account_id := OLD.account_id,
-		-- 	account_realm_id := OLD.account_realm_id
+		--	account_id := OLD.account_id,
+		--	account_realm_id := OLD.account_realm_id
 		-- );
 	END IF;
 
@@ -93,71 +95,5 @@ CREATE TRIGGER trig_rm_account_automated_reporting_ac
 	ON account
 	FOR EACH ROW
 	EXECUTE PROCEDURE account_automated_reporting_ac();
-
---------------------------------------------------------------------------
-
---
--- If a person changes managers, and they are in the default account realm
--- rearrange all the automated tiered account collections
---
-CREATE OR REPLACE FUNCTION automated_ac_on_person_company()
-RETURNS TRIGGER AS $_$
-DECLARE
-	_acc	account%ROWTYPE;
-BEGIN
-	SELECT * INTO _acc
-	FROM account
-	WHERE person_id = NEW.person_id
-	AND account_role = 'primary'
-	AND account_realm_id IN (
-		SELECT account_realm_id FROM property
-		WHERE property_name = '_root_account_realm_id'
-		AND property_type = 'Defaults'
-	);
-
-	IF NOT FOUND THEN
-		RETURN NEW;
-	END IF;
-
-	SELECT * INTO _acc
-	FROM account
-	WHERE person_id = OLD.manager_person_id
-	AND account_role = 'primary'
-	AND account_realm_id IN (
-		SELECT account_realm_id FROM property
-		WHERE property_name = '_root_account_realm_id'
-		AND property_type = 'Defaults'
-	);
-	IF FOUND THEN
-		PERFORM auto_ac_manip.make_auto_report_acs_right(_acc.account_id, _acc.account_realm_id, _acc.login);
-	END IF;
-
-	SELECT * INTO _acc
-	FROM account
-	WHERE person_id = NEW.manager_person_id
-	AND account_role = 'primary'
-	AND account_realm_id IN (
-		SELECT account_realm_id FROM property
-		WHERE property_name = '_root_account_realm_id'
-		AND property_type = 'Defaults'
-	);
-	IF FOUND THEN
-		PERFORM auto_ac_manip.make_auto_report_acs_right(_acc.account_id, _acc.account_realm_id, _acc.login);
-	END IF;
-
-
-	RETURN NEW;
-END;
-$_$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_automated_ac_on_person_company ON person_company;
-CREATE TRIGGER trigger_automated_ac_on_person_company
-	AFTER UPDATE OF manager_person_id, person_company_status,
-		person_company_relation
-	ON person_company
-	FOR EACH ROW EXECUTE PROCEDURE
-	automated_ac_on_person_company();
 
 --------------------------------------------------------------------------

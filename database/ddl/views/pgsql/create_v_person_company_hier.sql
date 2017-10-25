@@ -37,7 +37,7 @@ WITH RECURSIVE pc_recurse (
 			person_company pc
 			JOIN val_person_status vps  on
 				pc.person_company_status = vps.person_status
-		WHERE	is_disabled = 'N'
+		WHERE	is_enabled = 'Y'
 	UNION ALL
 		SELECT 
 			x.level + 1 				as level,
@@ -56,7 +56,7 @@ WITH RECURSIVE pc_recurse (
 			JOIN val_person_status vps  on
 				pc.person_company_status = vps.person_status
 		WHERE
-			is_disabled = 'N'
+			is_enabled = 'Y'
 		AND
 			NOT cycle 
 ) SELECT

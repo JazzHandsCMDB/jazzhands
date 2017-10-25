@@ -717,7 +717,7 @@ BEGIN
 			THEN
 		select count(*)
 		INTO _tally
-		FROM network_interface
+		FROM network_interface_netblock
 		WHERE netblock_id = NEW.netblock_id;
 
 		IF _tally > 0 THEN
