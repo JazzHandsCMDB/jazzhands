@@ -242,7 +242,7 @@ BEGIN
 
 	IF NEW.employee_id IS NOT NULL THEN
 		UPDATE person_company_attr
-		SET	person_company_attr_name = NEW.employee_id
+		SET	attribute_value = NEW.employee_id
 		WHERE person_company_attr_name = 'employee_id'
 		AND person_id = NEW.person_id
 		AND company_id = NEW.company_id;
@@ -250,7 +250,7 @@ BEGIN
 
 	IF NEW.payroll_id IS NOT NULL THEN
 		UPDATE person_company_attr
-		SET	person_company_attr_name = NEW.payroll_id
+		SET	attribute_value = NEW.payroll_id
 		WHERE person_company_attr_name = 'payroll_id'
 		AND person_id = NEW.person_id
 		AND company_id = NEW.company_id;
@@ -258,7 +258,7 @@ BEGIN
 
 	IF NEW.external_hr_id IS NOT NULL THEN
 		UPDATE person_company_attr
-		SET	person_company_attr_name = NEW.external_hr_id
+		SET	attribute_value = NEW.external_hr_id
 		WHERE person_company_attr_name = 'external_hr_id'
 		AND person_id = NEW.person_id
 		AND company_id = NEW.company_id;
@@ -266,7 +266,7 @@ BEGIN
 
 	IF NEW.badge_system_id IS NOT NULL THEN
 		UPDATE person_company_attr
-		SET	person_company_attr_name = NEW.badge_system_id
+		SET	attribute_value = NEW.badge_system_id
 		WHERE person_company_attr_name = 'badge_system_id'
 		AND person_id = NEW.person_id
 		AND company_id = NEW.company_id;
