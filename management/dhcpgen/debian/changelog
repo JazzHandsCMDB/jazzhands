@@ -2,8 +2,7 @@ jazzhands-dhcpgen (0.81.2) trusty; urgency=medium
 
   * Change how LACP interfaces are handled.  This is yet another interim update
     until we have the data representation in the database correct for LACP
-	things (the data structures are in place, but the data does not reflect
-	this yet)
+    things
 
   * Support seperate boot files for BIOS and UEFI booting.
 
