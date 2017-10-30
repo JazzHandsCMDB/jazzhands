@@ -274,7 +274,7 @@ BEGIN
             INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
                 VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date);
         END IF;
-        INSERT INTO person_company
+        INSERT INTO v_person_company
             (person_id, company_id, external_hr_id, person_company_status, is_management, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, position_title, manager_person_id)
             VALUES
             (person_id, company_id, external_hr_id, person_company_status, is_management, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, position_title, manager_person_id);
@@ -623,7 +623,7 @@ BEGIN
 
 	DELETE FROM person_contact WHERE person_id = in_person_id;
 	DELETE FROM person_location WHERE person_id = in_person_id;
-	DELETE FROM person_company WHERE person_id = in_person_id;
+	DELETE FROM v_person_company WHERE person_id = in_person_id;
 	DELETE FROM person_account_realm_company WHERE person_id = in_person_id;
 	DELETE FROM person WHERE person_id = in_person_id;
 END;
@@ -636,20 +636,20 @@ CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
 	merge_to_account_id	account.account_Id%TYPE
 ) RETURNS INTEGER AS $$
 DECLARE
-	fpc		person_company%ROWTYPE;
-	tpc		person_company%ROWTYPE;
+	fpc		v_person_company%ROWTYPE;
+	tpc		v_person_company%ROWTYPE;
 	_account_realm_id INTEGER;
 BEGIN
 	select	*
 	  into	fpc
-	  from	person_company
+	  from	v_person_company
 	 where	(person_id, company_id) in
 		(select person_id, company_id 
 		   from account where account_id = merge_from_account_id);
 
 	select	*
 	  into	tpc
-	  from	person_company
+	  from	v_person_company
 	 where	(person_id, company_id) in
 		(select person_id, company_id 
 		   from account where account_id = merge_to_account_id);
@@ -694,7 +694,7 @@ BEGIN
 	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = tpc.company_id;
 	INSERT INTO person_account_realm_company (person_id, company_id, account_realm_id) VALUES ( fpc.person_id , tpc.company_id, _account_realm_id);
 	UPDATE account SET account_realm_id = _account_realm_id, person_id = fpc.person_id WHERE person_id = tpc.person_id AND company_id = fpc.company_id;
-	DELETE FROM person_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
+	DELETE FROM v_person_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
 	DELETE FROM person_account_realm_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
 	UPDATE person_image SET person_id = fpc.person_id WHERE person_id = tpc.person_id;
 	-- if there are other relations that may exist, do not delete the person.
