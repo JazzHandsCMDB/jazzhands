@@ -1,3 +1,10 @@
+jazzhands-perl-netdev-mgmt (0.81.3) unstable; urgency=low
+
+  * Add support for QSFP28-100G-CDWM4-FEC Juniper slot types
+  * Fix issue with Arista SetBGPPeer not DTRT with overlay networks
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 01 Nov 2017 19:09:08 +0000
+
 jazzhands-perl-netdev-mgmt (0.80.6) unstable; urgency=low
 
   * Add rollback() and check_for_changes() functions to juniper.pm
