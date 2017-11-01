@@ -2993,6 +2993,11 @@ my $iface_map = {
         media_type => '100GMXPEthernet',
         slot_prefix => 'et-',
 	},
+	'QSFP28-100G-CDWM4-FEC' => {
+        module_type => '100GQSFP28Ethernet',
+        media_type => '100GCDWM4Ethernet',
+        slot_prefix => 'et-',
+	},
 	'QSFP+-40G-SR4' => {
         module_type => '40GQSFP+Ethernet',
         media_type => '40GMPOEthernet',
@@ -3153,6 +3158,11 @@ sub GetChassisInfo {
 						{module_type};
 					$ssmodinfo->{name} = $iface_map->{$description}->
 						{slot_prefix} . $slot_template . $ssmodslot;
+				} else {
+					next if $description eq 'UNKNOWN';
+					printf STDERR "No media interface mapping for %s\n",
+						$description;
+					exit 1;
 				}
 
 				$port_inventory->{$ssmodinfo->{name}} = $ssmodinfo;
