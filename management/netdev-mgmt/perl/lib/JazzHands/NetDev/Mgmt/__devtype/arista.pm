@@ -11,6 +11,7 @@ use JSON::XS;
 use NetAddr::IP qw(:lower);
 use LWP::UserAgent;
 use JazzHands::NetDev::Mgmt::ACL;
+use Data::Dumper;
 
 sub new {
 	my $proto = shift;
@@ -649,6 +650,23 @@ sub SetBGPPeerStatus {
 		return undef;
 	}
 
+	my ($peerobj, $bgp_peer);
+	if (ref($opt->{bgp_peer})) {
+		$peerobj = $opt->{bgp_peer};
+		$bgp_peer = $peerobj->addr;
+	} else {
+		$bgp_peer = $opt->{bgp_peer};
+		eval {
+			$peerobj = NetAddr::IP->new($bgp_peer);
+		};
+		if (!$peerobj) {
+			SetError($err,
+				"invalid bgp_peer parameter passed to SetBGPPeer");
+			return undef;
+		}
+	}
+#	print STDERR Data::Dumper->Dump([$bgp_peer, $peerobj], ['$bgp_peer', '$peerobj']);
+
 	if (!$opt->{bgp_peer_group}) {
 		SetError($err,
 			"bgp_peer_group parameter must be passed to SetBGPPeerStatus");
@@ -722,22 +740,22 @@ sub SetBGPPeerStatus {
 		# If we're supposed to down or delete the peer, and it doesn't
 		# exist, wipe hands on pants
 		#
-		if (!exists($peers->{$opt->{bgp_peer}->addr})) {
+		if (!exists($peers->{$bgp_peer})) {
 			return 1;
 		}
 		if ($state eq 'down') {
 			push @{$commands},
-				'neighbor ' . $opt->{bgp_peer}->addr . ' shutdown';
+				'neighbor ' . $bgp_peer . ' shutdown';
 		} else {
 			push @{$commands},
-				'no neighbor ' . $opt->{bgp_peer}->addr;
+				'no neighbor ' . $bgp_peer;
 		}
 	} else {
 		#
 		# If we're supposed to up the peer, and it does not exist,
 		# determine if it's a valid peer
 		#
-		if (!exists($peers->{$opt->{bgp_peer}->addr})) {
+		if (!exists($peers->{$bgp_peer})) {
 			#
 			# Get IP networks attached to the switch
 			#
@@ -756,26 +774,28 @@ sub SetBGPPeerStatus {
 			my $found = 0;
 			foreach my $int (values %{$result->[0]->{interfaces}}) {
 				next if $int->{name} !~ /^Vlan/;
-				if (NetAddr::IP->new(
-						$int->{interfaceAddress}->{primaryIp}->{address},
-						$int->{interfaceAddress}->{primaryIp}->{maskLen})->
-							network->contains($opt->{bgp_peer})) {
-					$found = 1;
-					last;
+				foreach my $addr ($int->{interfaceAddress}->{primaryIp}, @{$int->{interfaceAddress}->{secondaryIpsOrderedList}}) {
+					if (NetAddr::IP->new(
+							$addr->{address},
+							$addr->{maskLen})->
+								network->contains($peerobj)) {
+						$found = 1;
+						last;
+					}
 				}
 			}
 			if (!$found) {
 				SetError($err,
 					sprintf("%s is not a valid address on switch %s",
-					$opt->{bgp_peer},
+					$peerobj,
 					$device->{hostname}));
 				return undef;
 			}
-			push @{$commands}, 'neighbor ' . $opt->{bgp_peer}->addr .
+			push @{$commands}, 'neighbor ' . $bgp_peer .
 				' peer-group ' . $opt->{bgp_peer_group};
 		}
 		push @{$commands},
-			'no neighbor ' . $opt->{bgp_peer}->addr . ' shutdown';
+			'no neighbor ' . $bgp_peer . ' shutdown';
 	}
 	push @{$commands}, 'write memory';
 
