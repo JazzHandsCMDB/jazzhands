@@ -587,6 +587,12 @@ BEGIN
 	DELETE FROM account_unix_info where ACCOUNT_ID = in_account_id;
 	DELETE FROM klogin where ACCOUNT_ID = in_account_id;
 	DELETE FROM property where ACCOUNT_ID = in_account_id;
+	DELETE FROM property where account_collection_id in
+		(select account_collection_id from account_collection
+			where account_collection_name in
+				(select login from account where account_id = in_account_id)
+				and account_collection_type in ('per-account')
+		);
 	DELETE FROM account_password where ACCOUNT_ID = in_account_id;
 	DELETE FROM unix_group where account_collection_id in
 		(select account_collection_id from account_collection 
@@ -600,6 +606,7 @@ BEGIN
 		(select login from account where account_id = in_account_id)
 		and account_collection_type in ('per-account', 'unix-group');
 
+	DELETE FROM account_ssh_key where ACCOUNT_ID = in_account_id;
 	DELETE FROM account where ACCOUNT_ID = in_account_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -621,6 +628,7 @@ BEGIN
 		PERFORM person_manip.purge_account ( aid );
 	END LOOP; 
 
+	DELETE FROM person_company_attr WHERE person_id = in_person_id;
 	DELETE FROM person_contact WHERE person_id = in_person_id;
 	DELETE FROM person_location WHERE person_id = in_person_id;
 	DELETE FROM person_company WHERE person_id = in_person_id;
@@ -694,6 +702,7 @@ BEGIN
 	SELECT account_realm_id INTO _account_realm_id FROM account_realm_company WHERE company_id = tpc.company_id;
 	INSERT INTO person_account_realm_company (person_id, company_id, account_realm_id) VALUES ( fpc.person_id , tpc.company_id, _account_realm_id);
 	UPDATE account SET account_realm_id = _account_realm_id, person_id = fpc.person_id WHERE person_id = tpc.person_id AND company_id = fpc.company_id;
+	DELETE FROM person_company_attr WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
 	DELETE FROM person_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
 	DELETE FROM person_account_realm_company WHERE person_id = tpc.person_id AND company_id = tpc.company_id;
 	UPDATE person_image SET person_id = fpc.person_id WHERE person_id = tpc.person_id;
