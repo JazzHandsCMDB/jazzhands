@@ -135,7 +135,7 @@ BEGIN
 
 	DELETE FROM person_company
 	WHERE person_id = OLD.person_id
-	AND company_id = NEW.company_id;
+	AND company_id = OLD.company_id;
 
 	RETURN OLD;
 END;
