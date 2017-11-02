@@ -34,10 +34,24 @@ function swaparrows(id, state) {
 
 //
 // jqeuery version of the above.  They should be consolidated.
+// Should also be tweaked to be a jquery function $(foo).progress('dance') or whatever.
+//
+// also become a general purpose progress thing, which could be used to swap
+// arrows or to just show progress
 //
 function swaparrows_jq(obj, state) {
 	if(obj == null) {
 		return;
+	}
+	if(!$(obj).length ) {
+		return;
+	}
+
+	if(state == 'hide') {
+		$(obj).addClass('irrelevant');
+		return;
+	} else {
+		$(obj).removeClass('irrelevant');
 	}
 
 	var thing = $(obj).attr('src');

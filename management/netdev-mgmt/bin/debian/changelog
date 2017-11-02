@@ -1,6 +1,6 @@
 jazzhands-netdev-mgmt-utils (0.79.5) trusty; urgency=medium
 
- * Updates for handling non-fatal interface conflict errors
+  * Updates for handling non-fatal interface conflict errors
 
  -- Matthew Ragan <mdr@sucksless.net>  Fri, 07 Apr 2017 04:27:23 -0500
 

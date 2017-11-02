@@ -21,12 +21,10 @@ CREATE OR REPLACE VIEW v_acct_coll_prop_expanded AS
 		property_type,
 		property_value,
 		property_value_timestamp,
-		property_value_company_id,
 		property_value_account_coll_id,
 		property_value_nblk_coll_id,
 		property_value_password_type,
 		property_value_person_id,
-		property_value_sw_package_id,
 		property_value_token_col_id,
 		property_rank,
 		CASE is_multivalue WHEN 'N' THEN false WHEN 'Y' THEN true END 

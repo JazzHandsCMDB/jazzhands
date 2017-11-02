@@ -31,7 +31,7 @@ use parent 'JazzHands::Tickets';
 ### Defaults
 our $Errstr;
 
-# This script sends an email directly to KACE.  The SMTP connection will not 
+# This script sends an email directly to KACE.  The SMTP connection will not
 # return until the ticket has been commited.  The ticket number is captured by
 # querying the KACE DB.
 
@@ -43,8 +43,8 @@ sub new {
 
 	my %args = @_;
 
-	$self->{_service}   = $args{service};
-	$self->{_queue}   	= $args{queue};
+	$self->{_service} = $args{service};
+	$self->{_queue}   = $args{queue};
 
 	if ( !$self->{_service} ) {
 		$Errstr = "Must specify AppAuthAL service name";
@@ -65,19 +65,19 @@ sub new {
 		if ( ref($appauth) eq 'ARRAY' ) {
 			$appauth = $appauth->[0];
 		}
-		$self->{_smtp_server} 	= $appauth->{'SMTPServer'};
-		$self->{_domain} 		= $appauth->{'Domain'};
+		$self->{_smtp_server} = $appauth->{'SMTPServer'};
+		$self->{_domain}      = $appauth->{'Domain'};
 	}
 
 	$self->{_smtp_transport} = Email::Sender::Transport::SMTP->new(
 		{
-			host => $self->{_smtp_server}, 
+			host => $self->{_smtp_server},
 			port => 25
 		}
 	);
 
-	$self->{_dbh} = JazzHands::DBI->connect( $self->{_service} ) 
-		|| die $JazzHands::DBI::errstr;
+	$self->{_dbh} = JazzHands::DBI->connect( $self->{_service} )
+	  || die $JazzHands::DBI::errstr;
 
 	$self;
 }
@@ -85,19 +85,19 @@ sub new {
 sub _get_dbh {
 	my $self = shift @_;
 	unless ( $self->{_dbh}->ping ) {
-		$self->{_dbh} = JazzHands::DBI->connect( $self->{_service} ) 
-			|| die $JazzHands::DBI::errstr;
+		$self->{_dbh} = JazzHands::DBI->connect( $self->{_service} )
+		  || die $JazzHands::DBI::errstr;
 	}
 	$self->{_dbh};
 }
 
 sub _get_user_email($$) {
-	my ($self, $login) = @_;
+	my ( $self, $login ) = @_;
 
 	my $dbh = $self->_get_dbh;
 	my $sth = $dbh->prepare('SELECT EMAIL FROM USER WHERE LDAP_UID = ?')
-		|| die $dbh->errstr;
-	$sth->execute( $login ) || die $dbh->errstr;
+	  || die $dbh->errstr;
+	$sth->execute($login) || die $dbh->errstr;
 	my $email = $sth->fetchrow_array;
 	$sth->finish;
 
@@ -142,15 +142,17 @@ sub _get_ticket_id {
 	while ( !$ticket_id && $tid_timeout != 30 ) {
 		sleep 1;
 		$sth->execute( $login, $ticket_status, $queue, $summary )
-			|| die $dbh->errstr;
+		  || die $dbh->errstr;
 		$ticket_id = $sth->fetchrow_array;
 		$tid_timeout++;
 	}
 	$sth->finish;
 
 	if ( !$ticket_id ) {
-		$Errstr = $self->errstr("failed to retreive id for ticket:\nlogin: $login\n
-			queue: $queue\nsummary: $summary");
+		$Errstr = $self->errstr(
+			"failed to retreive id for ticket:\nlogin: $login\n
+			queue: $queue\nsummary: $summary"
+		);
 	}
 
 	$ticket_id;
@@ -160,12 +162,13 @@ sub open {
 	my $self = shift @_;
 	my %args = @_;
 
-	my $login   			= $args{requestor};
-	my $msg     			= $args{body};
-	my $summary 			= $args{summary};
-	my $queue_email 		= $self->{_queue} . '@' . $self->{_domain};
-	my $new_ticket_status 	= 'New';
-	my $requestor_email		= $self->_get_user_email($login);
+	my $assignee          = $args{assignee};
+	my $login             = $args{requestor};
+	my $msg               = $args{body};
+	my $summary           = $args{summary};
+	my $queue_email       = $self->{_queue} . '@' . $self->{_domain};
+	my $new_ticket_status = 'New';
+	my $requestor_email   = $self->_get_user_email($login);
 
 	if ( !$login ) {
 		$Errstr = $self->errstr("Must specify requestor");
@@ -182,11 +185,16 @@ sub open {
 		return undef;
 	}
 
+	if ($assignee) {
+		$Errstr = $self->errstr("Asignee not implemented yet");
+		return undef;
+	}
+
 	my $email = Email::Simple->create(
 		header => [
-			From    =>  $requestor_email,
-			To      =>  $queue_email,
-			Subject =>  $summary,
+			From    => $requestor_email,
+			To      => $queue_email,
+			Subject => $summary,
 		],
 		body => $msg
 	);
@@ -228,10 +236,10 @@ sub get {
 				HD_STATUS.NAME = 'Closed'
 		}
 	);
-	$sth->execute( $ticket_id ) || die $dbh->errstr;
+	$sth->execute($ticket_id) || die $dbh->errstr;
 
 	my @r = $sth->fetchrow_array;
-	unless ( @r ) {
+	unless (@r) {
 		return {};
 	}
 	$sth->finish;
@@ -241,18 +249,18 @@ sub get {
 		time_zone => 'America/New_York',
 		on_error  => 'croak'
 	);
-	my $dt = $s->parse_datetime($r[0]); 
+	my $dt = $s->parse_datetime( $r[0] );
 	$dt->set_time_zone('UTC');
 
-	my $res_date 	= $s->format_datetime($dt); 
-	$s->{pattern} 	= '%s';
-	my $res_epoch 	= $s->format_datetime($dt);
+	my $res_date = $s->format_datetime($dt);
+	$s->{pattern} = '%s';
+	my $res_epoch = $s->format_datetime($dt);
 
 	my $rv = {
-		resolutiondate 	=> $res_date,
-		resolutionepoch	=> $res_epoch,
-		owner 			=> $r[1],
-		status 			=> 'Resolved'
+		resolutiondate  => $res_date,
+		resolutionepoch => $res_epoch,
+		owner           => $r[1],
+		status          => 'Resolved'
 	};
 
 	$rv;

@@ -211,7 +211,7 @@ sub dump_nodes {
 	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
 	print $cgi->start_table( { -class => 'nblk_ipallocation' } );
 
-	print $cgi->th( [ 'IP', 'Status', 'DNS', 'Description', 'Ticket' ] );
+	print $cgi->th( [ 'IP', 'Status', 'DNS', 'Description', ] );
 
 	my $q = qq{
 		select	nb.netblock_id, 

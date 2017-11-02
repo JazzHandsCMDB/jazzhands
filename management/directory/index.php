@@ -38,6 +38,7 @@ $query_tables = "
 			and pc.company_id = a.company_id
 			and a.account_role = 'primary'
 			and a.is_enabled = 'Y' )
+			AND account_type = 'person'
 		left join (
 			select ac.*, account_id
 			FROM account_collection ac

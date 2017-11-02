@@ -22,7 +22,7 @@ WITH dude_base AS (
 	    p.middle_name,
 	    pc.manager_person_id, pc.employee_id
 	FROM    account a
-		INNER JOIN person_company pc USING (company_id,person_id)
+		INNER JOIN v_person_company pc USING (company_id,person_id)
 		INNER JOIN person p USING (person_id)
 	WHERE   a.is_enabled = 'Y'
 	AND		pc.person_company_relation = 'employee'

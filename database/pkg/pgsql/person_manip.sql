@@ -274,7 +274,7 @@ BEGIN
             INSERT INTO person (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date)
                 VALUES (person_id, first_name, middle_name, last_name, name_suffix, gender, preferred_first_name, preferred_last_name, birth_date);
         END IF;
-        INSERT INTO person_company
+        INSERT INTO v_person_company
             (person_id, company_id, external_hr_id, person_company_status, is_management, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, position_title, manager_person_id)
             VALUES
             (person_id, company_id, external_hr_id, person_company_status, is_management, is_exempt, is_full_time, employee_id, hire_date, termination_date, person_company_relation, position_title, manager_person_id);
@@ -631,7 +631,7 @@ BEGIN
 	DELETE FROM person_company_attr WHERE person_id = in_person_id;
 	DELETE FROM person_contact WHERE person_id = in_person_id;
 	DELETE FROM person_location WHERE person_id = in_person_id;
-	DELETE FROM person_company WHERE person_id = in_person_id;
+	DELETE FROM v_person_company WHERE person_id = in_person_id;
 	DELETE FROM person_account_realm_company WHERE person_id = in_person_id;
 	DELETE FROM person WHERE person_id = in_person_id;
 END;
@@ -644,20 +644,20 @@ CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
 	merge_to_account_id	account.account_Id%TYPE
 ) RETURNS INTEGER AS $$
 DECLARE
-	fpc		person_company%ROWTYPE;
-	tpc		person_company%ROWTYPE;
+	fpc		v_person_company%ROWTYPE;
+	tpc		v_person_company%ROWTYPE;
 	_account_realm_id INTEGER;
 BEGIN
 	select	*
 	  into	fpc
-	  from	person_company
+	  from	v_person_company
 	 where	(person_id, company_id) in
 		(select person_id, company_id 
 		   from account where account_id = merge_from_account_id);
 
 	select	*
 	  into	tpc
-	  from	person_company
+	  from	v_person_company
 	 where	(person_id, company_id) in
 		(select person_id, company_id 
 		   from account where account_id = merge_to_account_id);

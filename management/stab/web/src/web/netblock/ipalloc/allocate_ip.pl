@@ -114,7 +114,7 @@ sub process_netblock_reservations {
 	# Temporarily remove the routing stuff
 	#- cleanup_unchanged_routes( $stab, $nblkid );
 
-      #- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	$numchanges += process_dns_additions( $stab, $nblkid );
 
@@ -126,10 +126,7 @@ sub process_netblock_reservations {
 	for my $uniqid ( $stab->cgi_get_ids('desc') ) {
 		my $inid   = $stab->cgi_parse_param( 'rowblk', $uniqid );
 		my $indesc = $stab->cgi_parse_param( 'desc',   $uniqid );
-		my $intix =
-		  $stab->cgi_parse_param( 'RESERVATION_TICKET_NUMBER',
-			$uniqid );
-		my $inip = $stab->cgi_parse_param( 'ip', $uniqid );
+		my $inip   = $stab->cgi_parse_param( 'ip',     $uniqid );
 
 		my $ip;
 		if ( $uniqid !~ /^new_\d+/ ) {
@@ -145,8 +142,7 @@ sub process_netblock_reservations {
 			my $netblock = $stab->get_netblock_from_id($inid);
 			if ( !defined($netblock) ) {
 				$stab->error_return(
-"Unable to find IP ($ip) in DB for $inid.  Seek Help"
-				);
+					"Unable to find IP ($ip) in DB for $inid.  Seek Help" );
 			}
 			my $status = $netblock->{ _dbx('NETBLOCK_STATUS') };
 
@@ -156,7 +152,7 @@ sub process_netblock_reservations {
 
 			# no description means remove entry
 			if ( !defined($indesc) ) {
-				if (       $status eq 'Reserved'
+				if (   $status eq 'Reserved'
 					|| $status eq 'Legacy' )
 				{
 					remove_dns_record( $stab, $inid );
@@ -171,40 +167,25 @@ sub process_netblock_reservations {
 				  || die $stab->return_db_err($sth);
 				$sth->finish;
 
-			       # I used to allow err 2292 thru.  don't know why.
+				# I used to allow err 2292 thru.  don't know why.
 				next;
 			}
 
-	       # assume something changed because of the 'clear', so this is ok.
+			# assume something changed because of the 'clear', so this is ok.
 			if ( defined($status) && $status eq 'Legacy' ) {
 				$status = 'Reserved';
 			}
 
-		   #
-		   # its not possible to change this, so we force it to stay the
-		   # same if it wasn't passed through.
-			if (
-				defined(
-					$netblock->{ _dbx(
-'RESERVATION_TICKET_NUMBER'
-					) }
-				)
-			  )
-			{
-				$intix =
-				  $netblock->{ _dbx('RESERVATION_TICKET_NUMBER')
-				  };
-			}
-
+			#
+			# its not possible to change this, so we force it to stay the
+			# same if it wasn't passed through.
 			my %newnb = (
-				NETBLOCK_ID               => $inid,
-				DESCRIPTION               => $indesc,
-				RESERVATION_TICKET_NUMBER => $intix,
-				NETBLOCK_STATUS           => $status,
+				NETBLOCK_ID     => $inid,
+				DESCRIPTION     => $indesc,
+				NETBLOCK_STATUS => $status,
 			);
 			my $diffs =
-			  $stab->hash_table_diff( _dbx($netblock),
-				_dbx( \%newnb ) );
+			  $stab->hash_table_diff( _dbx($netblock), _dbx( \%newnb ) );
 
 			#- warn " ++ ", Dumper(\%newnb, $diffs, $netblock);
 			my $tally   += keys %$diffs;
@@ -212,21 +193,19 @@ sub process_netblock_reservations {
 			if (
 				$tally
 				&& !$stab->run_update_from_hash(
-					"NETBLOCK", "NETBLOCK_ID",
-					$inid,      $diffs
+					"NETBLOCK", "NETBLOCK_ID", $inid, $diffs
 				)
 			  )
 			{
 				$stab->rollback;
-				$stab->error_return(
-					"Unknown Error with Update");
+				$stab->error_return("Unknown Error with Update");
 			}
 
 		} else {
 
-		       # [XXX] need to reconfigure
-		       # Netblock can come into existance if it was populated by
-		       # a DNS insert previously.
+			# [XXX] need to reconfigure
+			# Netblock can come into existance if it was populated by
+			# a DNS insert previously.
 			if (
 				!(
 					my $xx = $stab->get_netblock_from_ip(
@@ -235,10 +214,8 @@ sub process_netblock_reservations {
 				)
 			  )
 			{
-				$inid = ipalloc_get_or_create_netblock_id(
-					$stab,   $ip, $nblkid,
-					$indesc, $intix
-				);
+				$inid = ipalloc_get_or_create_netblock_id( $stab, $ip, $nblkid,
+					$indesc, );
 				$numchanges++ if ($inid);
 			}
 		}
@@ -272,7 +249,7 @@ sub remove_dns_record {
 # needs to be merged in as appropriate!
 #
 sub ipalloc_get_or_create_netblock_id {
-	my ( $stab, $insert_ip, $par_nbid, $desc, $tix ) = @_;
+	my ( $stab, $insert_ip, $par_nbid, $desc ) = @_;
 	my $cgi = $stab->cgi;
 
 	return undef if ( !defined($par_nbid) );
@@ -280,8 +257,7 @@ sub ipalloc_get_or_create_netblock_id {
 	my $netblock = $stab->get_netblock_from_id($par_nbid);
 	if ( !defined($netblock) ) {
 		$stab->error_return(
-"Unable to find/configure parent IP in DB.  Please seek help"
-		);
+			"Unable to find/configure parent IP in DB.  Please seek help" );
 	}
 
 	my $pip = new Net::IP( $netblock->{ _dbx('IP_ADDRESS') } )
@@ -295,26 +271,24 @@ sub ipalloc_get_or_create_netblock_id {
 	# in Ipv6 (or large block) additions
 	#
 	if ( $pip->overlaps($nip) != $IP_B_IN_A_OVERLAP ) {
-		$stab->error_return( "$insert_ip is not in "
-			  . $netblock->{ _dbx('IP_ADDRESS') } );
+		$stab->error_return(
+			"$insert_ip is not in " . $netblock->{ _dbx('IP_ADDRESS') } );
 	}
 
 	my $q = qq {
 		WITH ins AS (
 			insert into netblock (
-				ip_address, 
+				ip_address,
 				is_single_address, netblock_status,
 				can_subnet,
 				netblock_type, ip_universe_id,
-				PARENT_NETBLOCK_ID, DESCRIPTION, 
-				RESERVATION_TICKET_NUMBER
+				PARENT_NETBLOCK_ID, DESCRIPTION
 			) values (
 				:ip,
 				'Y', 'Reserved',
 				'N',
 				'default', 0,
-				:parent_nblkid, :description, 
-				:tix
+				:parent_nblkid, :description
 			) RETURNING *
 		) SELECT netblock_id from ins
 	};
@@ -323,7 +297,6 @@ sub ipalloc_get_or_create_netblock_id {
 	$sth->bind_param( ":parent_nblkid", $par_nbid )
 	  || $stab->return_db_err($sth);
 	$sth->bind_param( ":description", $desc ) || $stab->return_db_err($sth);
-	$sth->bind_param( ":tix",         $tix )  || $stab->return_db_err($sth);
 
 	$sth->execute || $stab->return_db_err($sth);
 	my ($nbid) = ( $sth->fetchrow_array )[0];
@@ -361,15 +334,12 @@ sub cleanup_unchanged_routes {
 	$sth->execute($nblkid) || $stab->return_db_err($sth);
 	my $all = $sth->fetchall_hashref('STATIC_ROUTE_TEMPLATE_ID');
 
-      ROUTE:
+  ROUTE:
 	for my $srtid ( $stab->cgi_get_ids('STATIC_ROUTE_TEMPLATE_ID') ) {
-		my $srcip = $stab->cgi_parse_param( 'SOURCE_BLOCK_IP', $srtid );
-		my $srcbits =
-		  $stab->cgi_parse_param( 'SOURCE_MASKLEN', $srtid );
-		my $dstip =
-		  $stab->cgi_parse_param( 'ROUTE_DESTINATION_IP', $srtid );
-		my $desc =
-		  $stab->cgi_parse_param( 'ROUTE_DESCRIPTION', $srtid );
+		my $srcip   = $stab->cgi_parse_param( 'SOURCE_BLOCK_IP',      $srtid );
+		my $srcbits = $stab->cgi_parse_param( 'SOURCE_MASKLEN',       $srtid );
+		my $dstip   = $stab->cgi_parse_param( 'ROUTE_DESTINATION_IP', $srtid );
+		my $desc    = $stab->cgi_parse_param( 'ROUTE_DESCRIPTION',    $srtid );
 
 		my $map = {
 			SOURCE_BLOCK_IP      => $srcip,
@@ -378,9 +348,9 @@ sub cleanup_unchanged_routes {
 			ROUTE_DESCRIPTION    => $desc,
 		};
 
-	    # if it correponds to an actual row, compare, otherwise only keep if
-	    # something is set.
-		if (       defined($srtid)
+		# if it correponds to an actual row, compare, otherwise only keep if
+		# something is set.
+		if (   defined($srtid)
 			&& exists( $all->{$srtid} )
 			&& defined( $all->{$srtid} ) )
 		{
@@ -389,7 +359,7 @@ sub cleanup_unchanged_routes {
 				if ( $x->{$key} && defined( $map->{$key} ) ) {
 					next ROUTE
 					  if ( $x->{$key} ne $map->{$key} );
-				} elsif (  !defined( $x->{$key} )
+				} elsif ( !defined( $x->{$key} )
 					&& !defined( $map->{$key} ) )
 				{
 					;
@@ -446,7 +416,6 @@ sub cleanup_unchanged_netblocks {
 	my $sth = $stab->prepare(
 		qq{
 		select	netblock_id,netblock_status,description,
-				reservation_ticket_number,
 				net_manip.inet_dbtop(ip_address) as ip
 		  from 	netblock
 		 where	parent_netblock_id = ?
@@ -458,9 +427,6 @@ sub cleanup_unchanged_netblocks {
 	for my $uniqid ( $stab->cgi_get_ids('desc') ) {
 		my $inid   = $stab->cgi_parse_param( 'rowblk', $uniqid );
 		my $indesc = $stab->cgi_parse_param( 'desc',   $uniqid );
-		my $intix =
-		  $stab->cgi_parse_param( 'RESERVATION_TICKET_NUMBER',
-			$uniqid );
 
 		#
 		# new IP addresses, need to add them.
@@ -468,9 +434,9 @@ sub cleanup_unchanged_netblocks {
 
 		my $ip = $uniqid;
 
-	    # if it correponds to an actual row, compare, otherwise only keep if
-	    # something is set.
-		if (       defined($inid)
+		# if it correponds to an actual row, compare, otherwise only keep if
+		# something is set.
+		if (   defined($inid)
 			&& exists( $all->{$inid} )
 			&& defined( $all->{$inid} ) )
 		{
@@ -478,7 +444,7 @@ sub cleanup_unchanged_netblocks {
 			if ( $x->{ _dbx('DESCRIPTION') } && defined($indesc) ) {
 				next
 				  if ( $x->{ _dbx('DESCRIPTION') } ne $indesc );
-			} elsif (  !defined( $x->{ _dbx('DESCRIPTION') } )
+			} elsif ( !defined( $x->{ _dbx('DESCRIPTION') } )
 				&& !defined($indesc) )
 			{
 				;
@@ -486,23 +452,10 @@ sub cleanup_unchanged_netblocks {
 				next;
 			}
 
-			# ticket number can be added but not changed.
-			if (
-				!defined(
-					$x->{ _dbx('RESERVATION_TICKET_NUMBER')
-					}
-				)
-				&& $intix
-			  )
-			{
-				next;
-			}
-
 			# ignoring ticket system changes.  rethink?
 		} else {
-			if (       defined($inid)
-				|| defined($indesc)
-				|| defined($intix) )
+			if (   defined($inid)
+				|| defined($indesc) )
 			{
 				next;
 			}
@@ -510,7 +463,6 @@ sub cleanup_unchanged_netblocks {
 
 		$cgi->delete("rowblk_$ip");
 		$cgi->delete("desc_$ip");
-		$cgi->delete("RESERVATION_TICKET_NUMBER_$ip");
 	}
 
 	undef $all;
@@ -546,8 +498,7 @@ sub add_netblock_routes {
 	}
 
 	# exits with an error if it does not validate.
-	my ( $ni, $nb ) =
-	  $stab->validate_route_entry( $srcip, $srcbits, $destip );
+	my ( $ni, $nb ) = $stab->validate_route_entry( $srcip, $srcbits, $destip );
 
 	return 0 if ( !$ni && !$nb );
 
@@ -577,17 +528,15 @@ sub update_netblock_routes {
 
 	my $numchanges = 0;
 
-	foreach my $id ( $stab->cgi_get_ids('chk_RM_STATIC_ROUTE_TEMPLATE_ID') )
-	{
+	foreach my $id ( $stab->cgi_get_ids('chk_RM_STATIC_ROUTE_TEMPLATE_ID') ) {
 		$numchanges += $stab->rm_static_route_from_netblock($id);
 	}
 
 	foreach my $id ( $stab->cgi_get_ids('STATIC_ROUTE_TEMPLATE_ID') ) {
-		my $srcip   = $stab->cgi_parse_param( 'SOURCE_BLOCK_IP', $id );
-		my $srcbits = $stab->cgi_parse_param( 'SOURCE_MASKLEN',  $id );
-		my $destip =
-		  $stab->cgi_parse_param( 'ROUTE_DESTINATION_IP', $id );
-		my $desc = $stab->cgi_parse_param( 'ROUTE_DESCRIPTION', $id );
+		my $srcip   = $stab->cgi_parse_param( 'SOURCE_BLOCK_IP',      $id );
+		my $srcbits = $stab->cgi_parse_param( 'SOURCE_MASKLEN',       $id );
+		my $destip  = $stab->cgi_parse_param( 'ROUTE_DESTINATION_IP', $id );
+		my $desc    = $stab->cgi_parse_param( 'ROUTE_DESCRIPTION',    $id );
 
 		if ( $srcip && $srcip =~ /^default$/i ) {
 			$srcip = '0.0.0.0';
@@ -625,8 +574,8 @@ sub update_netblock_routes {
 		if (
 			$tally
 			&& !$stab->build_update_sth_from_hash(
-				'STATIC_ROUTE_TEMPLATE',
-				'STATIC_ROUTE_TEMPLATE_ID', $id, $diffs
+				'STATIC_ROUTE_TEMPLATE', 'STATIC_ROUTE_TEMPLATE_ID',
+				$id,                     $diffs
 			)
 		  )
 		{
@@ -649,8 +598,7 @@ sub process_dns_additions( $$ ) {
 			$ip = $stab->cgi_parse_param( 'ip_new', $1 );
 			if ( !$ip ) {
 				$stab->error_return(
-"Unable to find IP for uniq id $uniqid.  Seek help"
-				);
+					"Unable to find IP for uniq id $uniqid.  Seek help" );
 			}
 		}
 		my $type = 'A';
@@ -658,14 +606,12 @@ sub process_dns_additions( $$ ) {
 			$type = 'AAAA';
 		}
 		my $new = {
-			DNS_NAME =>
-			  $stab->cgi_parse_param( 'DNS_RECORD_ID', $uniqid ),
-			DNS_DOMAIN_ID =>
-			  $stab->cgi_parse_param( 'DNS_DOMAIN_ID', $uniqid ),
-			DNS_CLASS  => 'IN',
-			DNS_TYPE   => $type,
-			DNS_VALUE  => $ip,
-			IS_ENABLED => 'Y',
+			DNS_NAME      => $stab->cgi_parse_param( 'DNS_RECORD_ID', $uniqid ),
+			DNS_DOMAIN_ID => $stab->cgi_parse_param( 'DNS_DOMAIN_ID', $uniqid ),
+			DNS_CLASS     => 'IN',
+			DNS_TYPE      => $type,
+			DNS_VALUE     => $ip,
+			IS_ENABLED    => 'Y',
 		};
 		$numchanges += $stab->process_and_insert_dns_record($new);
 	}

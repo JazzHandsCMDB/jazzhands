@@ -219,20 +219,29 @@ HOSTLOOP:
 foreach my $host (@$hostname) {
 	my @errors;
 	my $device;
-	my $packed_ip = gethostbyname($host);
-	my $ip_address;
+	my $connect_host;
+
+    if ($host =~ /:/) {
+        ($host, $connect_host) = $host =~ /(^[^:]+):(.*)/;
+    } else {
+        $connect_host = $host;
+    }
 
 	if ($verbose) {
 		printf "%s:\n", $host;
 	}
 
-	if (defined $packed_ip) {
-		$ip_address = inet_ntoa($packed_ip);
-	}
-	if (!$ip_address) {
-		printf "Name '%s' does not resolve\n", $host;
-		next;
-	}
+#	my $packed_ip = gethostbyname($host);
+#	my $ip_address;
+#
+#	if (defined $packed_ip) {
+#		$ip_address = inet_ntoa($packed_ip);
+#	}
+#	if (!$ip_address) {
+#		printf "Name '%s' does not resolve\n", $host;
+#		next;
+#	}
+
 	#
 	# Pull information about this device from the database.  If there are
 	# multiple devices returned, then bail
@@ -265,7 +274,7 @@ foreach my $host (@$hostname) {
 
 	if (!($device = $mgmt->connect(
 			device => {
-				hostname => $host,
+				hostname => $connect_host,
 				management_type => $db_dev->{config_fetch_type}
 			},
 			credentials => $credentials,
@@ -393,15 +402,17 @@ foreach my $host (@$hostname) {
 			}
 		}
 		if (%$dev_int || @$unnamed_int) {
-			if ($verbose) {
-				printf "    Removing network interfaces: %s\n",
-					(join ", ", keys %$dev_int);
-			}
-			if (!$notreally) {
-				if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
-					printf STDERR "Error deleting network_interfaces from database: %s\n",
-						$ni_del_sth->errstr;
-					exit 1;
+			if ($purge_int) {
+				if ($verbose) {
+					printf "    Removing network interfaces: %s\n",
+						(join ", ", keys %$dev_int);
+				}
+				if (!$notreally) {
+					if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
+						printf STDERR "Error deleting network_interfaces from database: %s\n",
+							$ni_del_sth->errstr;
+						exit 1;
+					}
 				}
 			}
 		}

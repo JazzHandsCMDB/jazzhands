@@ -796,7 +796,7 @@ BEGIN
 					calculate_intermediate_netblocks.ip_universe_id AND
 				n.netblock_type =
 					calculate_intermediate_netblocks.netblock_type;
-			IF FOUND THEN
+			IF FOUND AND masklen(ip_addr) < 32 THEN
 				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
 				RETURN NEXT;
 				ip_addr := broadcast(ip_addr) + 1;
@@ -826,9 +826,8 @@ BEGIN
 					calculate_intermediate_netblocks.ip_universe_id AND
 				n.netblock_type =
 					calculate_intermediate_netblocks.netblock_type;
-			IF FOUND THEN
+			IF FOUND AND masklen(ip_addr) < 32 THEN
 				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
-				RAISE NOTICE 'IP is %', ip_addr;
 				RETURN NEXT;
 				ip_addr := broadcast(ip_addr) + 1;
 				RETURN NEXT;

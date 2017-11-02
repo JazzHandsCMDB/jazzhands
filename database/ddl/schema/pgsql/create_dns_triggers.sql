@@ -620,7 +620,7 @@ BEGIN
 	WHERE dns_domain_id = NEW.dns_domain_id
 	AND SHOULD_GENERATE = 'Y';
 	IF FOUND THEN
-		insert into DNS_CHANGE_RECORD
+		INSERT INTO dns_change_record
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
 	END IF;
 	RETURN NEW;
@@ -642,6 +642,10 @@ BEGIN
 	IF NEW.should_generate = 'Y' THEN
 		insert into DNS_CHANGE_RECORD
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
+    ELSE
+		DELETE FROM DNS_CHANGE_RECORD
+		WHERE dns_domain_id = NEW.dns_domain_id
+		AND ip_universe_id = NEW.ip_universe_id;
 	END IF;
 	RETURN NEW;
 END;

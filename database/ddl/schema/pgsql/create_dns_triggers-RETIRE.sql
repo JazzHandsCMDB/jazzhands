@@ -63,7 +63,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_dns_domain_soa_name_retire ON dns_record;
+DROP TRIGGER IF EXISTS trigger_dns_domain_soa_name_retire ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_soa_name_retire
 	BEFORE INSERT OR UPDATE OF soa_name, dns_domain_name
 	ON dns_domain
@@ -190,61 +190,51 @@ BEGIN
 			'soa_class = ' || quote_nullable(NEW.soa_class));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_ttl IS DISTINCT FROM NEW.soa_ttl THEN
 		upd_query := array_append( upd_query,
 			'soa_ttl = ' || quote_nullable(NEW.soa_ttl));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_serial IS DISTINCT FROM NEW.soa_serial THEN
 		upd_query := array_append( upd_query,
 			'soa_serial = ' || quote_nullable(NEW.soa_serial));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_refresh IS DISTINCT FROM NEW.soa_refresh THEN
 		upd_query := array_append( upd_query,
 			'soa_refresh = ' || quote_nullable(NEW.soa_refresh));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_retry IS DISTINCT FROM NEW.soa_retry THEN
 		upd_query := array_append( upd_query,
 			'soa_retry = ' || quote_nullable(NEW.soa_retry));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_expire IS DISTINCT FROM NEW.soa_expire THEN
 		upd_query := array_append( upd_query,
 			'soa_expire = ' || quote_nullable(NEW.soa_expire));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_minimum IS DISTINCT FROM NEW.soa_minimum THEN
 		upd_query := array_append( upd_query,
 			'soa_minimum = ' || quote_nullable(NEW.soa_minimum));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_mname IS DISTINCT FROM NEW.soa_mname THEN
 		upd_query := array_append( upd_query,
 			'soa_mname = ' || quote_nullable(NEW.soa_mname));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.soa_rname IS DISTINCT FROM NEW.soa_rname THEN
 		upd_query := array_append( upd_query,
 			'soa_rname = ' || quote_nullable(NEW.soa_rname));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.should_generate IS DISTINCT FROM NEW.should_generate THEN
 		upd_query := array_append( upd_query,
 			'should_generate = ' || quote_nullable(NEW.should_generate));
 	END IF;
 
-	upd_query := NULL;
 	IF OLD.last_generated IS DISTINCT FROM NEW.last_generated THEN
 		upd_query := array_append( upd_query,
 			'last_generated = ' || quote_nullable(NEW.last_generated));

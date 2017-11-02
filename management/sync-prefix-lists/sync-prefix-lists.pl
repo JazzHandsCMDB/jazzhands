@@ -622,7 +622,7 @@ foreach my $hostname (@hosts) {
 						exit 1;
 					}
 				}
-				print "\n";
+				print "\n" if $verbose > 2;
 			}
 			print "\n" if $verbose > 1;
 		}

@@ -65,6 +65,7 @@ DECLARE
 	_r		RECORD;
 	_v		text[];
 	i		text;
+	_cc		company_collection.company_collection_id%TYPE;
 	acname	account_collection.account_collection_name%TYPE;
 	acid	account_collection.account_collection_id%TYPE;
 	propv	text;
@@ -87,9 +88,17 @@ BEGIN
 		RAISE EXCEPTION 'Company % is not of type %', _company_id, _company_type
 			USING ERRCODE = 'not_null_violation';
 	END IF;
-	
+
+	SELECT	company_collection_id
+	INTO	_cc
+	FROM	company_collection
+			INNER JOIN company_collection_company USING (company_collection_id)
+	WHERE	company_collection_type = 'per-company'
+	AND		company_id = _company_id;
+
 	tally := 0;
-	FOR _r IN SELECT	property_name, property_type, permit_company_id
+	FOR _r IN SELECT	property_name, property_type,
+						permit_company_collection_id
 				FROM    property_collection_property pcp
 				INNER JOIN property_collection pc
 					USING (property_collection_id)
@@ -136,17 +145,17 @@ BEGIN
 			INSERT INTO property (
 				property_name, property_type, account_realm_id,
 				account_collection_id,
-				company_id, property_value
+				company_collection_id, property_value
 			) VALUES (
 				_r.property_name, _r.property_type, _account_realm_id,
 				acid,
-				_company_id, propv
+				_cc, propv
 			);
 			tally := tally + 1;
 		END LOOP;
 	END LOOP;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -197,7 +206,7 @@ BEGIN
 	);
 	tally := tally + 1;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -233,7 +242,7 @@ BEGIN
 	END LOOP;
 	return count;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -271,8 +280,8 @@ BEGIN
 	IF _company_short_name IS NULL and _isfam = 'Y' THEN
 		_short := lower(regexp_replace(
 				regexp_replace(
-					regexp_replace(_company_name, 
-						E'\\s+(ltd|sarl|limited|pt[ye]|GmbH|ag|ab|inc)', 
+					regexp_replace(_company_name,
+						E'\\s+(ltd|sarl|limited|pt[ye]|GmbH|ag|ab|inc)',
 						'', 'gi'),
 					E'[,\\.\\$#@]', '', 'mg'),
 				E'\\s+', '_', 'gi'));
@@ -312,7 +321,7 @@ BEGIN
 
 	RETURN _cmpid;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -357,7 +366,7 @@ BEGIN
 	END IF;
 	RETURN true;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -395,7 +404,7 @@ BEGIN
 		);
 	END IF;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
