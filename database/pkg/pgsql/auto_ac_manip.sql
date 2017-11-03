@@ -163,7 +163,7 @@ BEGIN
 			INNER JOIN peeps managers
 				ON managers.person_id = reports.manager_person_id
 				AND	managers.account_realm_id = reports.account_realm_id
-			INNER JOIN property p
+			INNER JOIN v_property p
 				ON p.account_id = reports.account_id
 				AND p.account_realm_id = reports.account_realm_id
 				AND p.property_name IN ($4,$5)
@@ -223,7 +223,7 @@ BEGIN
 	--
 	EXECUTE 'SELECT ac.account_collection_id
 			FROM account_collection ac
-				INNER JOIN property p
+				INNER JOIN v_property p
 					ON p.property_value_account_coll_id = ac.account_collection_id
 		   WHERE ac.account_collection_name = $1
 		    AND	ac.account_collection_type = $2
@@ -384,7 +384,7 @@ BEGIN
 			INNER JOIN peeps managers
 				ON managers.person_id = reports.manager_person_id
 				AND	managers.account_realm_id = reports.account_realm_id
-			INNER JOIN property p
+			INNER JOIN v_property p
 				ON p.account_id = reports.account_id
 				AND p.account_realm_id = reports.account_realm_id
 				AND p.property_name IN ($3,$4)
@@ -635,7 +635,7 @@ BEGIN
 	WITH ac AS (
 		SELECT DISTINCT ac.*
 		FROM	account_collection ac
-				INNER JOIN property p USING (account_collection_id)
+				INNER JOIN v_property p USING (account_collection_id)
 		WHERE	property_type = ''auto_acct_coll''
 		AND		property_name in (''non_exempt'', ''exempt'',
 					''management'', ''non_management'', ''full_time'',
@@ -664,7 +664,7 @@ BEGIN
 					cc.company_id, 
 					p.account_realm_id, p.property_name, p.property_type,
 					p.property_value
-					FROM property p
+					FROM v_property p
 						LEFT JOIN (
 								SELECT company_collection_id, company_id
 								FROM	company_collection
@@ -757,7 +757,7 @@ BEGIN
 	WITH ac AS (
 		SELECT DISTINCT ac.*
 		FROM	account_collection ac
-				INNER JOIN property p USING (account_collection_id)
+				INNER JOIN v_property p USING (account_collection_id)
 		WHERE	property_type = ''auto_acct_coll''
 		AND		property_name in (''site'')
 	), acct AS (
@@ -777,7 +777,7 @@ BEGIN
 			a.person_id, a.company_id,
 			ac.account_collection_name, ac.account_collection_type,
 			p.property_name, p.property_type, p.property_value, p.property_id
-		FROM    property p
+		FROM    v_property p
 			INNER JOIN ac USING (account_collection_id)
 		    INNER JOIN acct a
 				ON a.account_realm_id = p.account_realm_id

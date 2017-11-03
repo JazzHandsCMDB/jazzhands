@@ -47,6 +47,8 @@ sub new {
 	$self->{_project}   = $args{project};
 	$self->{_priority}  = $args{priority} || 'Critical';
 	$self->{_issuetype} = $args{priority} || 'Task';
+	$self->{_dryrun}    = 1 if ( $args{dryrun} );
+	$self->{_debug}     = 1 if ( $args{debug} );
 
 	if ( !$self->{_service} ) {
 		$Errstr = "Must specify AppAuthAL service name";
@@ -117,7 +119,11 @@ sub _jira_req($$$) {
 
 	my $res = $ua->request($req);
 	if ( $res->is_success ) {
-		return decode_json( $res->content );
+		if ( $res->content && length( $res->content ) ) {
+			return decode_json( $res->content );
+		} else {
+			return 1;
+		}
 	}
 	$self->errstr( "Jira Error($url): " . $res->status_line );
 	return undef;
@@ -172,8 +178,10 @@ sub open {
 
 	my $j = new JSON::PP;
 	my $p = $j->pretty->encode($jira);
-	if ( $self->{_dryrun} ) {
+	if ( $self->{_debug} ) {
 		print "posting: $p";
+	}
+	if ( $self->{_dryrun} ) {
 		return {};
 	}
 
@@ -211,6 +219,14 @@ sub get($$) {
 	}
 
 	$rv;
+}
+
+sub delete($$) {
+	my $self = shift @_;
+	my $key  = shift @_;
+
+	my $r = $self->_jira_req( "issue/$key", 'DELETE' );
+	$r;
 }
 
 1;
