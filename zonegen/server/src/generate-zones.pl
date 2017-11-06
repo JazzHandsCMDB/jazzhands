@@ -1070,7 +1070,9 @@ sub process_perserver {
 				}
 
 				if(! -r $zr ) {
-					warn "Skipping $zone ($u) because it original does not exist.\n";
+					# XXX probably just want to silently do this since this is
+					# ok when should_generate_dns is 'N'.
+					warn "Skipping $zone ($u) because the original does not exist.\n";
 					next;
 				}
 
