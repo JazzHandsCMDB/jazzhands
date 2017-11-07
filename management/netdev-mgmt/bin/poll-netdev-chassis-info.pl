@@ -49,14 +49,16 @@ sub loggit {
 	print "\n";
 }
 
-GetOptions(
+if (!(GetOptions(
 	'username=s', \$user,
 	'commit!', \$commit,
 	'connect-name=s', \$connect_name,
 	'hostname=s', $hostname,
 	'management-type=s', \$conf_mgmt_type,
 	'debug+', \$debug
-);
+))) {
+	exit 1;
+};
 
 #
 # Add the rest of the arguments as additional hosts
@@ -594,7 +596,9 @@ foreach my $host (@$hostname) {
 	}
 
 	if (!$db_dev->{device_id}) {
-		printf "Inserting device entry for %s\n", $host;
+		printf "Inserting device entry for %s, model %s\n",
+			$host,
+			$chassisinfo->{model};
 
 		if (!($ins_dev_sth->execute(
 			$host,

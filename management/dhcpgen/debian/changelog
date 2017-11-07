@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.81.3.1) trusty; urgency=medium
+
+  * Bug fix for PXE conditional missing the 'option' keyword
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 07 Nov 2017 20:51:30 +0000
+
 jazzhands-dhcpgen (0.81.2) trusty; urgency=medium
 
   * Change how LACP interfaces are handled.  This is yet another interim update
