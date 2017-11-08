@@ -87,7 +87,7 @@ sub handler {
 	}
 	if ($r->method ne 'GET') {
 		$response->{status} = 'error',
-		$response->{message} = 'must present JSON data in a POST request';
+		$response->{message} = 'must present JSON data in a GET request';
 		$r->print($json->encode($response));
 		$r->log_error('not a POST request');
 		return Apache2::Const::OK;
@@ -173,7 +173,7 @@ sub handler {
 	### the principal must either be a valid user or a host principal
 	###
 
-	my $user = $ENV{REMOTE_USER} || 'host/01.dns-recurse.nym2.appnexus.net';
+	my $user = $ENV{REMOTE_USER};
 
 	#
 	# We need to check for valid authentication realms here, but things
@@ -293,7 +293,7 @@ sub handler {
 	} else {
 		if(! exists($handler_map->{$command}) ) {
 			$response->{status} = 'error';
-			$response->{message} = 'Invalid command $command';
+			$response->{message} = "Invalid command $command";
 		} else {
 			$handler_map->{$command}->(
 				dbh => $dbh,
