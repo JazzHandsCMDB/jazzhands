@@ -293,6 +293,9 @@ sub InitializeRequest {
 
 	$jhdbi->set_session_user('jazzhands-api');
 
+	#
+	# XXX - figure out how to deal with host principals!
+	#
 	my $user = $ENV{REMOTE_USER} || '';
 
 	#
