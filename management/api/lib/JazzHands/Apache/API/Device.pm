@@ -87,7 +87,7 @@ sub handler {
 	}
 	if ($r->method ne 'GET') {
 		$response->{status} = 'error',
-		$response->{message} = 'must present JSON data in a POST request';
+		$response->{message} = 'must present JSON data in a GET request';
 		$r->print($json->encode($response));
 		$r->log_error('not a POST request');
 		return Apache2::Const::OK;
@@ -293,7 +293,7 @@ sub handler {
 	} else {
 		if(! exists($handler_map->{$command}) ) {
 			$response->{status} = 'error';
-			$response->{message} = 'Invalid command $command';
+			$response->{message} = "Invalid command $command";
 		} else {
 			$handler_map->{$command}->(
 				dbh => $dbh,
