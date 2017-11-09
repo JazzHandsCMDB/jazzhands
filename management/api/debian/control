@@ -7,5 +7,5 @@ Standards-Version: 3.9.4
 
 Package: jazzhands-apache-api
 Architecture: all
-Depends: apache2-bin, libapache2-mod-perl2, libapache2-mod-auth-kerb, libdbd-pg-perl, libapache-dbi-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, libdbi-perl, libjson-xs-perl, libjson-perl
+Depends: apache2-bin, libapache2-mod-perl2, libapache2-mod-auth-kerb, libdbd-pg-perl, libapache-dbi-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, libdbi-perl, libjson-xs-perl, libjson-perl, libnetaddr-ip-perl  (>= 4.071)
 Description: Apache module for JazzHands API
