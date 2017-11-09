@@ -45,23 +45,7 @@ sub handler {
 	$r->subprocess_env;
 
 	# these next two need to be merged together.
-	# ProcessMessage($request) || return ReturnError($request);
-
-	my $path = $r->path_info();
-	$path =~ m,^/device(/(.+$)),;
-	my $command = $2;
-	$request->{data}->{command} = $command;
-
-	my $host = $request->{meta}->{username};
-	if ( $user =~ m,^host/(.+)$, ) {
-		$host = $1;
-	} else {
-		$admin = CheckAdmin( $request, 'ContainerAdmin', 'API', $user )
-		  || return ReturnError($request);
-	}
-	$request->{data}->{device_name} = $host;
-
-	warn Dumper($host);
+	ProcessMessage($request) || return ReturnError($request);
 
 	#
 	# save some arguments passed from the message locally
@@ -73,6 +57,38 @@ sub handler {
 	my $client_ip = $request->{meta}->{client_ip};
 	my $user      = $request->{meta}->{user};
 	my $dbh       = $request->{meta}->{dbh};
+
+	my $command = $request->{data}->{command};
+
+	if ( $request->{meta}->{user_type} eq 'account' ) {
+		$admin = CheckAdmin( $request, 'DeviceAdmin', 'API', $user )
+		  || return ReturnError($request);
+	}
+
+	#
+	# Some arguments can be overriden by admins
+	#
+	if ( !$admin ) {
+		if ( $request->{data}->{device_name} ) {
+			$request->{status}->{meta}->{errorstate}->{message} =
+			  sprintf( 'User %s is not authorized to set a device', $user );
+			$r->log_error(
+				sprintf(
+					'Rejecting %s device_name request from %s: %s',
+					$request->{data}->{command},
+					$request->{meta}->{client_ip},
+					$request->{status}->{meta}->{errorstate}->{message},
+				)
+			);
+			return ReturnError($request);
+		}
+	}
+
+	if ( !$request->{data}->{device_name} ) {
+		$request->{data}->{device_name} = $request->{meta}->{device_name};
+	}
+
+	my $host = $request->{data}->{device_name};
 
 	#
 	# This is needed for Apache::DBI
@@ -112,7 +128,7 @@ sub handler {
 				dbh      => $dbh,
 				request  => $request,
 				response => $response
-			);
+			) || return ReturnError($request);
 		}
 	}
 
@@ -183,7 +199,8 @@ sub network {
 	my $opt = &_options(@_);
 
 	my $dbh      = $opt->{dbh};
-	my $request  = $opt->{request}->{data};
+	my $request  = $opt->{request};
+	my $data     = $opt->{request}->{data};
 	my $r        = $opt->{request}->{handle};
 	my $response = $opt->{response};
 	my $meta     = $opt->{request}->{meta};
@@ -192,13 +209,14 @@ sub network {
 	##
 	## Validate that the request is okay
 	##
-	if ( !$request->{device_name} ) {
-		$response->{status}  = 'reject';
-		$response->{message} = "request must include device_name";
+	if ( !$data->{device_name} ) {
+		my $msg = "request must be for a specific device.";
+		$request->{status}->{meta}->{errorstate}->{status} = "reject";
+		$request->{status}->{meta}->{errorstate}->{message} =$msg;
 
 		$r->log_rerror(
 			Apache2::Log::LOG_MARK, Apache2::Const::LOG_ERR,
-			APR::Const::SUCCESS,    'Bad Request: ' . $response->{message}
+			APR::Const::SUCCESS,    'Bad Request: ' . $msg
 		);
 		return undef;
 	}
@@ -253,21 +271,28 @@ sub network {
 			JOIN device d USING (device_id)
 			WHERE	device_name = ?
 		},
-				args => [ $request->{device_name} ]
+				args => [ $data->{device_name} ]
 			)
 		)
 	  )
 	{
-		return Apache2::Const::OK;
+		$request->{status}->{meta}->{errorstate}->{message} =
+		  "Database query failed.";
+		return undef;
 	}
 
 	my $json = JSON->new;
 	$json->allow_blessed(1);
 
+	if ( !$ret->[0]->{data} ) {
+		$request->{status}->{meta}->{errorstate}->{message} =
+		  sprintf( "Unable to find information on %s", $data->{device_name} );
+		return undef;
+	}
 	$response->{status} = 'success';
 	$response->{json}   = $json->decode( $ret->[0]->{data} );
 
-	return Apache2::Const::OK;
+	1;
 }
 
 1;

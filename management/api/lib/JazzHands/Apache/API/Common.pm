@@ -3,6 +3,7 @@ use strict;
 
 use Exporter 'import';
 use Apache2::Const -compile => qw(:common :log);
+use CGI;
 use Time::HiRes qw(gettimeofday tv_interval);
 use JazzHands::Common qw(:all :db);
 use Data::Dumper;
@@ -227,16 +228,23 @@ sub FindHashChild {
 sub ReturnError($) {
 	my $request = shift @_;
 
-	my $response;
 	my $r    = $request->{handle};
 	my $json = JSON->new;
 	$json->allow_blessed(1);
 
+	my $response;
 	if ( $request->{status}->{meta}->{errorstate} ) {
 		$response = {
 			status => $request->{status}->{meta}->{errorstate}->{status}
 			  || 'error',
 			message => $request->{status}->{meta}->{errorstate}->{message},
+		};
+	}
+
+	if ( !$response ) {
+		$response = {
+			status  => 'error',
+			message => 'error pass thru failed.  seek help'
 		};
 	}
 
@@ -296,7 +304,9 @@ sub InitializeRequest {
 	#
 	# XXX - figure out how to deal with host principals!
 	#
-	my $user = $ENV{REMOTE_USER} || '';
+	my $user = $ENV{REMOTE_USER};
+
+	$request->{meta}->{principal} = $user;
 
 	#
 	# We need to check for valid authentication realms here, but things
@@ -307,6 +317,16 @@ sub InitializeRequest {
 
 	# XXX should jazzhands-api be there?
 	$jhdbi->set_session_user( 'jazzhands-api/' . $user );
+
+	if ( $user =~ m,^host/(.+)$, ) {
+		my $host = $user;
+		$host =~ s,^host/,,;
+		$request->{meta}->{device_name} = $host;
+		$request->{meta}->{user_type}   = 'device';
+	} else {
+		$request->{meta}->{user_type} = 'account';
+	}
+
 	$request->{meta}->{user} = $user;
 
 	#
@@ -363,11 +383,8 @@ sub CheckAdmin($$$$) {
 				login
 			FROM
 				property p JOIN
-				account_collection ac ON
-					(p.property_value_account_coll_id =
-					ac.account_collection_id) JOIN
 				v_acct_coll_acct_expanded acae ON
-					(ac.account_collection_id =
+					(p.property_value_account_coll_id =
 					acae.account_collection_id) JOIN
 				account a ON
 					(acae.account_id = a.account_id)
@@ -392,14 +409,13 @@ sub CheckAdmin($$$$) {
 				Apache2::Log::LOG_MARK,
 				Apache2::Const::LOG_DEBUG,
 				APR::Const::SUCCESS,
-				sprintf( 'User %s is authorized to run API for containers',
-					$user )
+				sprintf( 'User %s is authorized for selected action', $user )
 			);
 		}
 		$request->{meta}->{admin} = 1;
 	} else {
 		$request->{status}->{meta}->{errorstate}->{message} =
-		  sprintf( 'User %s is not allowed to administer containers', $user );
+		  sprintf( 'User %s is not authorized for selected action', $user );
 		$r->log_error(
 			sprintf(
 				'Rejecting %s request from %s: %s',
@@ -432,36 +448,58 @@ sub CheckAdmin($$$$) {
 #
 # given a requests, handles post data or headers and DTRT
 #
-sub ProcessMessage {
+sub ProcessMessage($;$) {
 	my $request = shift @_;
+	my $root    = shift @_;
 
 	my $r = $request->{handle};
+
+	my $path;
+	if ( !$root ) {
+		$path = $r->path_info();
+		$path =~ s,^/([^/]+/)([^/]+)/?,$2,;
+	}
 
 	my $json = JSON->new;
 	$json->allow_blessed(1);
 	my $headers = $r->headers_in;
 
-	my $json_data;
 	if ( $r->headers_in->{'Content-Length'} ) {
+		my $json_data;
 		$r->read( $json_data, $r->headers_in->{'Content-Length'} );
+
+		eval { $request->{data} = $json->decode($json_data) };
+		if ( !defined( $request->{data} ) ) {
+			$request->{status}->{meta}->{errorstate}->{status} = 'error';
+			$request->{status}->{meta}->{errorstate}->{message} =
+			  'invalid JSON passed in POST request';
+		} else {
+			if ( $request->{data}->{debug} ) {
+				$request->{meta}->{debug} = $request->{data}->{debug};
+			}
+			if ( $request->{data}->{dryrun} ) {
+				$request->{meta}->{debug} = $request->{data}->{dryrun};
+			}
+		}
+	} else {
+		$request->{data} = {};
+		if(my $cgi = new CGI($r)) {
+			foreach my $p ($cgi->param()) {
+				$request->{data}->{$p} = $cgi->param($p);
+			}
+		}
 	}
 
-	eval { $request->{data} = $json->decode($json_data) };
-	if ( !defined( $request->{data} ) ) {
-		$request->{status}->{meta}->{errorstate}->{status} = 'error';
-		$request->{status}->{meta}->{errorstate}->{message} =
-		  'invalid JSON passed in POST request';
-	} elsif ( !defined( $request->{data}->{command} ) ) {
+	if ( !$request->{data}->{command} ) {
+		$request->{data}->{command} = $path;
+	}
+
+	if (   !$request->{data}->{command}
+		|| !length( $request->{data}->{command} ) )
+	{
 		$request->{status}->{meta}->{errorstate}->{status} = 'reject';
 		$request->{status}->{meta}->{errorstate}->{message} =
 		  'no command given';
-	} else {
-		if ( $request->{data}->{debug} ) {
-			$request->{meta}->{debug} = $request->{data}->{debug};
-		}
-		if ( $request->{data}->{dryrun} ) {
-			$request->{meta}->{debug} = $request->{data}->{dryrun};
-		}
 	}
 
 	return !exists( $request->{status}->{meta}->{errorstate} );
