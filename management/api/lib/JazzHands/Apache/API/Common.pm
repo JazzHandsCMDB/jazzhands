@@ -289,7 +289,7 @@ sub InitializeRequest {
 		$request->{status}->{meta}->{errorstate}->{message} =
 		  'error connecting to database';
 		$r->log_error(
-			    $$request->{status}->{meta}->{errorstate}->{message} . ': '
+			    $request->{status}->{meta}->{errorstate}->{message} . ': '
 			  . $JazzHands::DBI::errstr
 			  . ", APPAUTHAL_CONFIG="
 			  . $ENV{APPAUTHAL_CONFIG} );
