@@ -61,7 +61,7 @@ sub handler {
 	my $command = $request->{data}->{command};
 
 	if ( $request->{meta}->{user_type} eq 'account' ) {
-		$admin = CheckAdmin( $request, 'DeviceAdmin', 'API', $user )
+		$admin = CheckAdmin( $request, 'DeviceAdmin', 'API')
 		  || return ReturnError($request);
 	}
 

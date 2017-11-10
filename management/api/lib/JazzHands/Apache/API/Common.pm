@@ -304,7 +304,7 @@ sub InitializeRequest {
 	#
 	# XXX - figure out how to deal with host principals!
 	#
-	my $user = $ENV{REMOTE_USER};
+	my $user = $r->user();
 
 	$request->{meta}->{principal} = $user;
 
@@ -355,8 +355,10 @@ sub InitializeRequest {
 	$request;
 }
 
-sub CheckAdmin($$$$) {
+sub CheckAdmin($$$;$) {
 	my ( $request, $name, $type, $user ) = @_;
+
+	$user = $request->{meta}->{user} if(!$user);
 
 	$type = 'API' if ( !$type );
 
