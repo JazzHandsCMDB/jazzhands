@@ -2135,7 +2135,6 @@ sub check_management_chain($$;$) {
 		}
 	}
 
-warn "returning NO";
 	0;
 }
 
