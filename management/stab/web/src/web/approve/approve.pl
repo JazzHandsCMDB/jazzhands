@@ -41,7 +41,7 @@ sub process_attestment {
 	my $acctid = $stab->cgi_parse_param('accting_as_account');
 
 	if(! $stab->check_management_chain($acctid) && ! $stab->check_admin() ) {
-		$stab->error_return("You are not permitted to attest to this person's accounts");
+		return $stab->error_return("You are not permitted to attest to this person's accounts");
 	}
 
 	my $myacctid = $stab->get_account_id() || die $stab->error_return("I was not able to determine who you are trying to validate. This should not happen.");

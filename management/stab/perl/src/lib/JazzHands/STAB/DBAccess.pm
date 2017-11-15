@@ -2112,31 +2112,30 @@ sub build_dns_classes_drop {
 # check to see if account is in another's managment chain
 #
 sub check_management_chain($$;$) {
-	my $self        = shift @_;
-	my $bottom_acct = shift @_;
-	my $top_acct    = shift @_ || $self->get_account_id();
+	my $self          = shift @_;
+	my $acctid        = shift @_;
+	my $possiblemgrid = shift @_ || $self->get_account_id();
 
-	return 1 if ( $top_acct == $bottom_acct );
+	return 1 if ( $acctid == $possiblemgrid );
 
 	my $sth = $self->prepare(
 		q{
 		SELECT	manager_account_id
-		FROM	v_account_manager_map
+		FROM	v_account_manager_hier
 		WHERE	account_id = ?
 	}
 	) || die $self->return_db_err;
 
-	my $acct = $bottom_acct;
-	do {
-		$sth->execute($acct) || $self->return_db_err($sth);
-		my ($mid) = $sth->fetchrow_array();
-		$sth->finish;
-		if ( $mid && $mid == $top_acct ) {
+	$sth->execute($acctid) || $self->return_db_err($sth);
+
+	while ( my ($mid) = $sth->fetchrow_array ) {
+		if ( $mid && $mid == $possiblemgrid ) {
+			$sth->finish;
 			return 1;
 		}
-		$acct = $mid;
-	} while ($acct);
+	}
 
+warn "returning NO";
 	0;
 }
 
