@@ -358,7 +358,7 @@ sub InitializeRequest {
 sub CheckAdmin($$$;$) {
 	my ( $request, $name, $type, $user ) = @_;
 
-	$user = $request->{meta}->{user} if(!$user);
+	$user = $request->{meta}->{user} if ( !$user );
 
 	$type = 'API' if ( !$type );
 
@@ -485,8 +485,8 @@ sub ProcessMessage($;$) {
 		}
 	} else {
 		$request->{data} = {};
-		if(my $cgi = new CGI($r)) {
-			foreach my $p ($cgi->param()) {
+		if ( my $cgi = new CGI($r) ) {
+			foreach my $p ( $cgi->param() ) {
 				$request->{data}->{$p} = $cgi->param($p);
 			}
 		}

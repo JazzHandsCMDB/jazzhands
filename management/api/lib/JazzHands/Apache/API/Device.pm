@@ -61,7 +61,7 @@ sub handler {
 	my $command = $request->{data}->{command};
 
 	if ( $request->{meta}->{user_type} eq 'account' ) {
-		$admin = CheckAdmin( $request, 'DeviceAdmin', 'API')
+		$admin = CheckAdmin( $request, 'DeviceAdmin', 'API' )
 		  || return ReturnError($request);
 	}
 
@@ -71,7 +71,7 @@ sub handler {
 	if ( !$admin ) {
 		if ( $request->{data}->{device_name} ) {
 			$request->{status}->{meta}->{errorstate}->{message} =
-			  sprintf( 'User %s is not authorized to set a device', $user );
+			  sprintf( 'User %s is not authorized to read any device', $user );
 			$r->log_error(
 				sprintf(
 					'Rejecting %s device_name request from %s: %s',
@@ -211,8 +211,8 @@ sub network {
 	##
 	if ( !$data->{device_name} ) {
 		my $msg = "request must be for a specific device.";
-		$request->{status}->{meta}->{errorstate}->{status} = "reject";
-		$request->{status}->{meta}->{errorstate}->{message} =$msg;
+		$request->{status}->{meta}->{errorstate}->{status}  = "reject";
+		$request->{status}->{meta}->{errorstate}->{message} = $msg;
 
 		$r->log_rerror(
 			Apache2::Log::LOG_MARK, Apache2::Const::LOG_ERR,
@@ -245,22 +245,25 @@ sub network {
 				nb.agg as netblocks,
 				snb.agg as shared_netblocks
 			FROM	network_interface
-				LEFT JOIN	( SELECT network_interface_id, 
+				LEFT JOIN	( SELECT network_interface_id,
 							json_agg(json_build_object(
-								'ip_address', ip_address, 
-								'network_interface_rank', network_interface_rank
-							) ORDER BY ip_address,network_interface_rank) as agg
-					FROM network_interface_netblock 
-						JOIN netblock USING (netblock_id)
+								'ip_address', nb.ip_address,
+								'network_interface_rank', network_interface_rank,
+								'default_gateway', host(default_gateway_ip_address)
+							) ORDER BY nb.ip_address,network_interface_rank) as agg
+					FROM network_interface_netblock  nbn
+						JOIN netblock nb USING (netblock_id)
+						LEFT JOIN v_layerx_network_expanded lx
+							ON lx.netblock_id = nb.parent_netblock_id
 					GROUP BY network_interface_id
 				) nb USING (network_interface_id)
 				LEFT JOIN	(
-					SELECT network_interface_id, 
+					SELECT network_interface_id,
 							json_agg(json_build_object(
-								'shared netblock_id', shared_netblock_id,
-								'shared_netblock_protocol', shared_netblock_protocol, 
-								'ip_address', ip_address, 
-								'priority', priority 
+								'shared_netblock_id', shared_netblock_id,
+								'shared_netblock_protocol', shared_netblock_protocol,
+								'ip_address', ip_address,
+								'priority', priority
 							) ORDER BY ip_address) as agg
 					FROM	shared_netblock_network_int
 						JOIN shared_netblock USING (shared_netblock_id)
