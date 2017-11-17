@@ -1896,7 +1896,7 @@ sub manipulate_network_interface_purpose {
 	my ( $stab, $netintid, $devid ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my @newpurp = $cgi->param( 'NETWORK_INTERFACE_PURPOSE_' . $netintid );
+	my @newpurp = $cgi->multi_param( 'NETWORK_INTERFACE_PURPOSE_' . $netintid );
 
 	my $oldpurp = $stab->get_network_int_purpose($netintid);
 
