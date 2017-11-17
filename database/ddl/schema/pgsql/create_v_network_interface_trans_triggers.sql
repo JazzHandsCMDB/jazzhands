@@ -24,12 +24,12 @@ DECLARE
 	_ni	network_interface%ROWTYPE;
 BEGIN
 	INSERT INTO network_interface (
-                device_id, 
-		network_interface_name, description, 
+                device_id,
+		network_interface_name, description,
 		parent_network_interface_id,
-                parent_relation_type, physical_port_id, 
-		slot_id, logical_port_id, 
-		network_interface_type, is_interface_up, 
+                parent_relation_type, physical_port_id,
+		slot_id, logical_port_id,
+		network_interface_type, is_interface_up,
 		mac_addr, should_monitor, provides_nat,
                 should_manage, provides_dhcp
 	) VALUES (
@@ -142,9 +142,9 @@ BEGIN
 
 			WITH x AS (
 				SELECT *,
-				rank() OVER (PARTITION BY 
-					ni.network_interface_id ORDER BY 
-					nin.network_interface_rank) AS rnk
+				rank() OVER (PARTITION BY
+					network_interface_id ORDER BY
+					network_interface_rank) AS rnk
 				FROM network_interface_netblock
 				WHERE network_interface_id = NEW.network_interface_id
 			) SELECT netblock_id
