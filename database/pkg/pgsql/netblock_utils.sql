@@ -745,6 +745,7 @@ DECLARE
 	new_nb			inet;
 	min_addr		inet;
 	max_addr		inet;
+	family_bits		integer;
 BEGIN
 	IF ip_block_1 IS NULL OR ip_block_2 IS NULL THEN
 		RAISE EXCEPTION 'Must specify both ip_block_1 and ip_block_2';
@@ -760,8 +761,10 @@ BEGIN
 
 	-- If the blocks are subsets of each other, then error
 
-	IF ip_block_1 <<= ip_block_2 OR ip_block_2 <<= ip_block_1 THEN
-		RAISE EXCEPTION 'netblocks intersect each other';
+	IF ip_block_1 <<= ip_block_2 AND ip_block_2 <<= ip_block_1 THEN
+		RAISE EXCEPTION 'netblocks % and % intersect each other',
+			ip_block_1,
+			ip_block_2;
 	END IF;
 
 	-- Order the blocks correctly
@@ -775,6 +778,8 @@ BEGIN
 	current_nb := ip_block_1;
 	max_addr := broadcast(ip_block_1);
 
+	family_bits := CASE WHEN family(ip_block_1) = 4 THEN 32 ELSE 128 END;
+
 	-- Loop through bumping the netmask up and seeing if the destination block is in the new block
 	LOOP
 		new_nb := network(set_masklen(current_nb, masklen(current_nb) - 1));
@@ -786,7 +791,9 @@ BEGIN
 		END IF;
 	
 		-- If the max address of the new netblock is larger than the last one, then it's empty
-		IF set_masklen(broadcast(new_nb), 32) > set_masklen(max_addr, 32) THEN
+		IF set_masklen(broadcast(new_nb), family_bits) > 
+			set_masklen(max_addr, family_bits)
+		THEN
 			ip_addr := set_masklen(max_addr + 1, masklen(current_nb));
 			-- Validate that this isn't an empty can_subnet='Y' block already
 			-- If it is, split it in half and return both halves
@@ -796,7 +803,7 @@ BEGIN
 					calculate_intermediate_netblocks.ip_universe_id AND
 				n.netblock_type =
 					calculate_intermediate_netblocks.netblock_type;
-			IF FOUND AND masklen(ip_addr) < 32 THEN
+			IF FOUND AND masklen(ip_addr) < family_bits THEN
 				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
 				RETURN NEXT;
 				ip_addr := broadcast(ip_addr) + 1;
@@ -812,9 +819,12 @@ BEGIN
 	-- Now loop through there to find the unused blocks at the front
 
 	LOOP
-		IF host(current_nb) = host(ip_block_2) THEN
+		IF host(current_nb) = host(ip_block_2) OR
+			masklen(current_nb) >= family_bits
+		THEN
 			RETURN;
 		END IF;
+
 		current_nb := set_masklen(current_nb, masklen(current_nb) + 1);
 		IF NOT (current_nb >>= ip_block_2) THEN
 			ip_addr := current_nb;
@@ -826,7 +836,7 @@ BEGIN
 					calculate_intermediate_netblocks.ip_universe_id AND
 				n.netblock_type =
 					calculate_intermediate_netblocks.netblock_type;
-			IF FOUND AND masklen(ip_addr) < 32 THEN
+			IF FOUND AND masklen(ip_addr) < family_bits THEN
 				ip_addr := set_masklen(ip_addr, masklen(ip_addr) + 1);
 				RETURN NEXT;
 				ip_addr := broadcast(ip_addr) + 1;

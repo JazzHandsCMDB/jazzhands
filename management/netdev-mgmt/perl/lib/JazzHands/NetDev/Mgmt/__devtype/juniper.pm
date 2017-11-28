@@ -8,6 +8,7 @@ use	XML::DOM;
 use JazzHands::Common::Util qw(_options);
 use JazzHands::Common::Error qw(:all);
 use NetAddr::IP qw(:lower);
+use Net::MAC qw(:lower);
 
 #
 # We need to get rid of using JUNOS::Device, because Juniper sucks and has
@@ -2814,6 +2815,7 @@ sub GetLLDPInformation {
 	my $chassis_info = $self->GetChassisInfo;
 
 	my $lldp_info = {};
+	$lldp_info->{chassisId} = $chassis_info->{chassisId};
 	my $lldpxml = $jnx->get_lldp_neighbors_information;
 	if (!ref($lldpxml)) {
 		SetError($err, "Error retrieving interface config");
@@ -3187,6 +3189,15 @@ sub GetChassisInfo {
 
 	$inventory->{ports} = $port_inventory;
 
+	$chassisxml = $jnx->get_lldp_local_info();
+	my $chassisid;
+	eval { $chassisid =
+		$chassisxml->getElementsByTagName('lldp-local-chassis-id')
+		->[0]->getFirstChild->getNodeValue;
+	};
+	$chassisid = Net::MAC->new(mac => $chassisid,
+		base => 16, bit_group => 8, delimiter => ':')->as_Sun();
+	$inventory->{lldp_chassis_id} = $chassisid;
 	return $inventory;
 }
 
