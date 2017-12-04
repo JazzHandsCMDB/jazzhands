@@ -12,6 +12,7 @@ use NetAddr::IP qw(:lower);
 use LWP::UserAgent;
 use JazzHands::NetDev::Mgmt::ACL;
 use Data::Dumper;
+use Net::MAC;
 
 sub new {
 	my $proto = shift;
@@ -1036,7 +1037,8 @@ sub GetLLDPInformation {
 	my $result = $self->SendCommand(
 		commands => [
 			'show lldp neighbors detail',
-			'show interfaces status'
+			'show interfaces status',
+			'show lldp local-info'
 		],
 		errors => $err
 	);
@@ -1047,8 +1049,14 @@ sub GetLLDPInformation {
 
 	my $lldp = $result->[0]->{lldpNeighbors};
 	my $iface_status = $result->[1]->{interfaceStatuses};
+	my $chassis_info = $result->[2];
 
 	my $ifaceinfo = {};
+
+	if ($chassis_info && $chassis_info->{chassisId}) {
+		$ifaceinfo->{lldp_chassis_id} = $chassis_info->{chassisId};
+	};
+
 	foreach my $iface (keys %$lldp) {
 		my $ninfo = $lldp->{$iface}->{lldpNeighborInfo}->[0];
 		#
@@ -1523,7 +1531,8 @@ sub GetChassisInfo {
 
 	my $result = $self->SendCommand(
 		commands => [
-			'show inventory'
+			'show inventory',
+			'show lldp local-info'
 		],
 		errors => $err
 	);
@@ -1548,13 +1557,14 @@ sub GetChassisInfo {
 		$chassis->{modules} = {
 			map {
 				if ($slots->{$_}->{modelName} ne "Not Inserted") {
-					$_,
-					{
+					$_ => {
 						model => $slots->{$_}->{name},
 						manufacture_date => $slots->{$_}->{mfgDate},
 						hardware_rev => $slots->{$_}->{hardwareRev},
 						serial => $slots->{$_}->{serialNum}
-					}
+					};
+				} else {
+					()
 				}
 			} keys %$slots
 		};
@@ -1606,6 +1616,16 @@ sub GetChassisInfo {
 			} keys %$slots
 		};
 	}
+
+	my $lldp = $result->[1];
+	if ($lldp && $lldp->{chassisId}) {
+		$chassis->{lldp_chassis_id} = Net::MAC->new(
+			mac => $lldp->{chassisId},
+			base => 16,
+			bit_group => 16,
+			delimiter => '.'
+		)->as_Sun()->get_mac;
+	};
 	return $chassis;
 }
 

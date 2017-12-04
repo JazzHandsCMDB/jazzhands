@@ -123,7 +123,7 @@ my $option_map = {
 	},
 	BootFile =>  {
 		option => q !
-if substring(option vendor-class-identifier, 0, 9) = "PXEClient" and PXEArch = 00:00 {
+if substring(option vendor-class-identifier, 0, 9) = "PXEClient" and option PXEArch = 00:00 {
     option bootfile-name "%s";
 }
 !,
@@ -131,7 +131,7 @@ if substring(option vendor-class-identifier, 0, 9) = "PXEClient" and PXEArch = 0
 	},
 	UEFIBootFile =>  {
 		option => q !
-if substring(option vendor-class-identifier, 0, 9) = "PXEClient" and PXEArch = 00:07 {
+if substring(option vendor-class-identifier, 0, 9) = "PXEClient" and option PXEArch = 00:07 {
     option bootfile-name "%s";
 }
 !,
@@ -321,7 +321,9 @@ sub handle_stomp_frames {
 		next if $frame->command ne "MESSAGE";
 
 		while ($frame) {
-			$log->debug(Data::Dumper->Dump([$frame], ['frame']));
+			if ($conf->{debug}) {
+				$log->debug(Data::Dumper->Dump([$frame], ['frame']));
+			}
 			my $body = $frame->body;
 			my $headers = $frame->headers;
 			if ($body eq 'update') {

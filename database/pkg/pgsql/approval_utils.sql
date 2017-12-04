@@ -513,24 +513,10 @@ BEGIN
 	-- than hard coded on account...
 	IF (_r.approval_type = 'account' AND _r.approver_account_id != approving_account_id ) THEN
 		EXECUTE '
-			WITH RECURSIVE rec (
-					root_account_id,
-					account_id,
-					manager_account_id,
-					apath, cycle
-	    			) as (
-		    			SELECT  account_id as root_account_id,
-			    			account_id, manager_account_id,
-			    			ARRAY[account_id] as apath, false as cycle
-		    			FROM    v_account_manager_map
-					UNION ALL
-		    			SELECT a.root_account_id, m.account_id, m.manager_account_id,
-						a.apath || m.account_id, m.account_id=ANY(a.apath)
-		    			FROM rec a join v_account_manager_map m
-						ON a.manager_account_id = m.account_id
-		    			WHERE not a.cycle
-			) SELECT count(*) from rec where root_account_id = $1
-				and manager_account_id = $2
+			SELECT count(*)
+			FROM	v_account_manager_hier
+			WHERE account_id = $1
+			AND manager_account_id = $2
 		' INTO _tally USING _r.approver_account_id, approving_account_id;
 
 		IF _tally = 0 THEN

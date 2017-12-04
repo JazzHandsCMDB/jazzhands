@@ -33,6 +33,9 @@ umask 022;
 
 my $help = 0;
 my $debug = 0;
+my $verbose = 0;
+my $parallel = 0;
+my $probe_addresses = 0;
 
 my $filename;
 my $commit = 1;
@@ -49,14 +52,19 @@ sub loggit {
 	print "\n";
 }
 
-GetOptions(
+if (!(GetOptions(
 	'username=s', \$user,
 	'commit!', \$commit,
 	'connect-name=s', \$connect_name,
 	'hostname=s', $hostname,
 	'management-type=s', \$conf_mgmt_type,
-	'debug+', \$debug
-);
+	'probe-addresses!', \$probe_addresses,
+	'debug+', \$debug,
+	'verbose+', \$verbose,
+	'parallel!', \$parallel
+))) {
+	exit 1;
+};
 
 #
 # Add the rest of the arguments as additional hosts
@@ -119,6 +127,7 @@ $q = q {
 	SELECT
 		d.device_id,
 		d.device_name,
+		d.host_id,
 		d.component_id,
 		dt.device_type_id,
 		dt.device_type_name,
@@ -294,6 +303,21 @@ if (!($upd_ni_sth = $dbh->prepare_cached($q))) {
 	exit 1;
 }
 
+$q = q {
+	UPDATE
+		jazzhands.device
+	SET
+		host_id = ?
+	WHERE
+		device_id = ?
+};
+
+my $set_hi_sth;
+
+if (!($set_hi_sth = $dbh->prepare_cached($q))) {
+	print STDERR $dbh->errstr;
+	exit 1;
+}
 
 $q = q {
 	UPDATE
@@ -492,7 +516,9 @@ foreach my $host (@$hostname) {
 	} else {
 		$connect_host = $host;
 	}
-	printf "Probing host %s\n", $host;
+	if ($verbose && !$parallel) {
+		printf "Probing host %s\n", $host;
+	}
 	my $device;
 	my $packed_ip = gethostbyname($host);
 	my $ip_address;
@@ -500,7 +526,7 @@ foreach my $host (@$hostname) {
 		$ip_address = inet_ntoa($packed_ip);
 	}
 	if (!$ip_address) {
-		printf "Name '%s' does not resolve\n", $host;
+		printf STDERR "Name '%s' does not resolve\n", $host;
 		next;
 	}
 	#
@@ -528,10 +554,11 @@ foreach my $host (@$hostname) {
 	}
 
 	if ($#$d > 0) {
-		print STDERR "Multiple devices returned with this device_name or IP address:\n";
-		map {
-			printf "    %6d %-30s %-30s\n", @{$_}[0,1,2];
-		}
+		print STDERR "Multiple devices returned with device_name %s:\n",
+			$host,
+			map {
+				printf "    %6d %-30s %-30s\n", @{$_}[0,1,2];
+			}
 		next;
 	}
 	my $db_dev = $d->[0];
@@ -549,39 +576,18 @@ foreach my $host (@$hostname) {
 			},
 			credentials => $credentials,
 			errors => \@errors))) {
-		printf "Error connecting to device: %s\n", (join "\n", @errors);
+		printf STDERR "Error connecting to device %s: %s\n",
+			$host,
+			(join "\n", @errors);
 		next;
 	}
-
-	if ($debug) {
-		print "Fetching IP address information...\n";
-	}
-#	my $ipinfo = $device->GetIPAddressInformation;
-#
-#	if (!$ipinfo) {
-#		print STDERR "Unable to get IP address information from device\n";
-#		exit 1;
-#	}
-#	my $iface_name =
-#		(grep {
-#			grep {
-#				NetAddr::IP->new($_)->addr eq $ip_address
-#			} @{$ipinfo->{$_}->{ipv4}}
-#		} keys %$ipinfo)[0];
-#
-#	if ($debug) {
-#		print "IP Addresses:\n";
-#		print map {
-#			sprintf "\t%s: %s\n", $_, (join ',', @{$ipinfo->{$_}->{ipv4}})
-#		} keys %$ipinfo;
-#		print "Fetching chassis information...\n";
-#	}
-
 	my $chassisinfo;
 	if (!($chassisinfo = $device->GetChassisInfo (
 			errors => \@errors,
 			))) {
-		print "Error retrieving chassis info: " . join("\n", @errors) . "\n";
+		printf STDERR "Error retrieving chassis info for %s: %s\n",
+			$host,
+			(join("\n", @errors));
 		next;
 	}
 
@@ -589,12 +595,17 @@ foreach my $host (@$hostname) {
 		print Data::Dumper->Dump([$chassisinfo], [qw($chassisinfo)]);
 	}
 
-	if (!$device->disconnect) {
-		printf "Error doing device disconnect: %s\n", join "\n", @errors;
-	}
+	#
+	# Don't really care if this fails
+	#
+	$device->disconnect;
 
 	if (!$db_dev->{device_id}) {
-		printf "Inserting device entry for %s\n", $host;
+		if ($verbose) {
+			printf "Inserting device entry for %s, model %s\n",
+				$host,
+				$chassisinfo->{model};
+		}
 
 		if (!($ins_dev_sth->execute(
 			$host,
@@ -615,16 +626,20 @@ foreach my $host (@$hostname) {
 	} else {
 		my $do_update = 0;
 		if ((!$db_dev->{device_name}) || $db_dev->{device_name} ne $host) {
-			printf "Changing device name from '%s' to '%s'\n",
-				$db_dev->{device_name} || $db_dev->{physical_label} || '',
-				$host;
+			if ($verbose) {
+				printf "Changing device name from '%s' to '%s'\n",
+					$db_dev->{device_name} || $db_dev->{physical_label} || '',
+					$host;
+			}
 			$do_update = 1;
 		}
 		if ($db_dev->{device_type_name} ne $chassisinfo->{model}) {
-			printf "Changing device type from '%s' to '%s'\n",
-				$db_dev->{device_type_name},
-				$chassisinfo->{model};
-			$do_update = 1;
+			if ($verbose) {
+				printf "Changing device type from '%s' to '%s'\n",
+					$db_dev->{device_type_name},
+					$chassisinfo->{model};
+				$do_update = 1;
+			}
 		}
 		if ($do_update) {
 			if (!($upd_dev_sth->execute(
@@ -638,40 +653,26 @@ foreach my $host (@$hostname) {
 			}
 		}
 	}
+	if (defined($chassisinfo->{lldp_chassis_id}) &&
+		(!defined($db_dev->{host_id}) || 
+		$db_dev->{host_id} ne $chassisinfo->{lldp_chassis_id})
+	) {
+		if ($verbose) {
+			printf "Setting host_id of %s to %s\n",
+				$host,
+				$chassisinfo->{lldp_chassis_id};
+		}
+		if (!($set_hi_sth->execute(
+			$chassisinfo->{lldp_chassis_id},
+			$db_dev->{device_id}
+		))) {
+			printf STDERR "Unable to set host_id of %s: %s\n",
+				$host,
+				$set_hi_sth->errstr;
+			exit 1;
+		}
+	}
 
-#	if (!$db_dev->{network_interface_id}) {
-#		printf "Inserting network interface %s\n", $iface_name;
-#
-#		if (!($upd_nb_sth->execute(
-#			$ip_address
-#		))) {
-#			printf STDERR "Unable to execute netblock update: %s\n",
-#				$upd_nb_sth->errstr;
-#			exit 1;
-#		}
-#		if (!($ins_ni_sth->execute(
-#			$db_dev->{device_id},
-#			$iface_name,
-#			$ip_address
-#		))) {
-#			printf STDERR "Unable to insert network interface: %s\n",
-#				$ins_ni_sth->errstr;
-#			exit 1;
-#		}
-#	} elsif ($db_dev->{network_interface_name} ne $iface_name) {
-#		printf "Changing network interface name from '%s' to '%s'\n",
-#			$db_dev->{network_interface_name},
-#			$iface_name;
-#
-#		if (!($upd_ni_sth->execute(
-#			$iface_name,
-#			$db_dev->{network_interface_id}
-#		))) {
-#			printf STDERR "Unable to update network interface: %s\n",
-#				$upd_ni_sth->errstr;
-#			exit 1;
-#		}
-#	}
 
 	if ($chassisinfo->{model} eq 'Juniper EX4xxx virtual chassis') {
 		#
@@ -696,16 +697,21 @@ foreach my $host (@$hostname) {
 					$components->{$slotname}->{serial_number} ne
 						$chassisinfo->{modules}->{$slot}->{serial})
 				{
-					printf STDERR "Serial number of component in %s do not match.  This needs to be fixed manually because of things\n",
-						$slotname;
+					printf STDERR "Serial number of component %s in slot %s (%s) of device %s (%s) do not match.  This needs to be fixed manually because of things\n",
+						$components->{$slotname}->{component_id},
+						$slotname,
+						;
 					next;
 				}
 				if ($components->{$slotname}->{model} ne
 						$chassisinfo->{modules}->{$slot}->{model}) {
-					printf "Changing component type of slot %s from %s to %s\n",
-						$slotname,
-						$components->{$slotname}->{model},
-						$chassisinfo->{modules}->{$slot}->{model};
+					if ($verbose) {
+						printf "Changing component type of slot %s of %s from %s to %s\n",
+							$slotname,
+							$host,
+							$components->{$slotname}->{model},
+							$chassisinfo->{modules}->{$slot}->{model};
+					}
 
 					if (!($upd_ct_sth->execute(
 						$components->{$slotname}->{component_id},
@@ -717,11 +723,14 @@ foreach my $host (@$hostname) {
 					}
 				}
 				if (!$components->{$slotname}->{serial_number}) {
-					printf "Setting serial number of %s in slot %s (component id %d) to %s\n",
-						$chassisinfo->{modules}->{$slot}->{model},
-						$slotname,
-						$components->{$slotname}->{component_id},
-						$chassisinfo->{modules}->{$slot}->{serial};
+					if ($verbose) {
+						printf "Setting serial number of %s in slot %s (component id %d) of %s to %s\n",
+							$chassisinfo->{modules}->{$slot}->{model},
+							$slotname,
+							$components->{$slotname}->{component_id},
+							$host,
+							$chassisinfo->{modules}->{$slot}->{serial};
+					}
 
 					if ($components->{$slotname}->{asset_id}) {
 						if (!($set_sn_sth->execute(
@@ -744,11 +753,13 @@ foreach my $host (@$hostname) {
 					}
 				}
 			} else {
-				printf "Inserting %s component type into slot %s with serial %s\n",
-					$chassisinfo->{modules}->{$slot}->{model},
-					$slotname,
-					$chassisinfo->{modules}->{$slot}->{serial};
-
+				if ($verbose) {
+					printf "Inserting %s component type into slot %s of %s with serial %s\n",
+						$chassisinfo->{modules}->{$slot}->{model},
+						$slotname,
+						$host,
+						$chassisinfo->{modules}->{$slot}->{serial};
+				}
 				if (!($ins_component_sth->execute(
 					$components->{$slotname}->{slot_id},
 					$chassisinfo->{manufacturer},
@@ -783,10 +794,13 @@ foreach my $host (@$hostname) {
 			next;
 		}
 		if (!$asset->{component_id}) {
-			printf "Inserting %s component type for device %s with serial %s\n",
-				$chassisinfo->{model},
-				$db_dev->{device_id},
-				$chassisinfo->{serial};
+			if ($verbose) {
+				printf "Inserting %s component type for device %s (%s) with serial %s\n",
+					$chassisinfo->{model},
+					$db_dev->{device_id},
+					$host,
+					$chassisinfo->{serial};
+			}
 
 			if (!($dev_component_sth->execute(
 				$db_dev->{device_id},
@@ -803,10 +817,12 @@ foreach my $host (@$hostname) {
 				#
 				# This shouldn't be able to happen, but just in case
 				#
-				printf "Changing component type of device from %s to %s\n",
-					$asset->{model},
-					$chassisinfo->{model};
-
+				if ($verbose) {
+					printf "Changing component type of %s from %s to %s\n",
+						$host,
+						$asset->{model},
+						$chassisinfo->{model};
+				}
 				if (!($upd_ct_sth->execute(
 					$asset->{component_id},
 					$chassisinfo->{model}
@@ -817,10 +833,12 @@ foreach my $host (@$hostname) {
 				}
 			}
 			if (!$asset->{serial_number}) {
-				printf "Setting serial number of device (component id %d) to %s\n",
-					$asset->{component_id},
-					$chassisinfo->{serial};
-
+				if ($verbose) {
+					printf "Setting serial number of %s (component id %d) to %s\n",
+						$host,
+						$asset->{component_id},
+						$chassisinfo->{serial};
+				}
 				if ($asset->{asset_id}) {
 					if (!($set_sn_sth->execute(
 						$chassisinfo->{serial},
@@ -843,6 +861,67 @@ foreach my $host (@$hostname) {
 			}
 		}
 	}
+
+	if ($probe_addresses) {
+		if ($debug) {
+			print "Fetching IP address information...\n";
+		}
+#		my $ipinfo = $device->GetIPAddressInformation;
+#
+#		if (!$ipinfo) {
+#			print STDERR "Unable to get IP address information from device\n";
+#			exit 1;
+#		}
+#		my $iface_name =
+#			(grep {
+#				grep {
+#					NetAddr::IP->new($_)->addr eq $ip_address
+#				} @{$ipinfo->{$_}->{ipv4}}
+#			} keys %$ipinfo)[0];
+#
+#		if ($debug) {
+#			print "IP Addresses:\n";
+#			print map {
+#				sprintf "\t%s: %s\n", $_, (join ',', @{$ipinfo->{$_}->{ipv4}})
+#			} keys %$ipinfo;
+#			print "Fetching chassis information...\n";
+#		}
+#
+#		if (!$db_dev->{network_interface_id}) {
+#			printf "Inserting network interface %s\n", $iface_name;
+#
+#			if (!($upd_nb_sth->execute(
+#				$ip_address
+#			))) {
+#				printf STDERR "Unable to execute netblock update: %s\n",
+#					$upd_nb_sth->errstr;
+#				exit 1;
+#			}
+#			if (!($ins_ni_sth->execute(
+#				$db_dev->{device_id},
+#				$iface_name,
+#				$ip_address
+#			))) {
+#				printf STDERR "Unable to insert network interface: %s\n",
+#					$ins_ni_sth->errstr;
+#				exit 1;
+#			}
+#		} elsif ($db_dev->{network_interface_name} ne $iface_name) {
+#			printf "Changing network interface name from '%s' to '%s'\n",
+#				$db_dev->{network_interface_name},
+#				$iface_name;
+#
+#			if (!($upd_ni_sth->execute(
+#				$iface_name,
+#				$db_dev->{network_interface_id}
+#			))) {
+#				printf STDERR "Unable to update network interface: %s\n",
+#					$upd_ni_sth->errstr;
+#				exit 1;
+#			}
+#		}
+	}
+
 }
 
 $dev_by_ip_sth->finish;
