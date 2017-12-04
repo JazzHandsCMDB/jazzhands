@@ -30,14 +30,28 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION component_connection_utils.create_inter_component_connection (
-	device_id			jazzhands.device.device_id%TYPE,
-	slot_name			jazzhands.slot.slot_name%TYPE,
-	remote_slot_name	jazzhands.slot.slot_name%TYPE,
-	remote_device_id	jazzhands.device.device_id%TYPE DEFAULT NULL,
+	device_id			INOUT jazzhands.device.device_id%TYPE,
+	slot_name			INOUT jazzhands.slot.slot_name%TYPE,
+	remote_slot_name	INOUT jazzhands.slot.slot_name%TYPE,
+	remote_device_id	INOUT jazzhands.device.device_id%TYPE DEFAULT NULL,
 	remote_host_id		jazzhands.device.host_id%TYPE DEFAULT NULL,
 	remote_device_name	jazzhands.device.device_name%TYPE DEFAULT NULL,
-	force				boolean DEFAULT false
-) RETURNS SETOF jazzhands.v_device_slot_connections AS $$
+	force				boolean DEFAULT false,
+	inter_component_connection_id	OUT integer,
+	slot_id							OUT integer,
+	slot_index						OUT integer,
+	mac_address						OUT macaddr,
+	slot_type_id					OUT integer,
+	slot_type						OUT text,
+	slot_function					OUT text,
+	remote_slot_id					OUT integer,
+	remote_slot_index				OUT integer,
+	remote_mac_address				OUT macaddr,
+	remote_slot_type_id				OUT integer,
+	remote_slot_type				OUT text,
+	remote_slot_function			OUT text,
+	changed							OUT boolean
+) RETURNS SETOF RECORD AS $$
 DECLARE
 	remote_dev_rec		RECORD;
 	slot_rec			RECORD;
@@ -164,7 +178,24 @@ BEGIN
 	IF slot_rec.inter_component_connection_id = 
 		remote_slot_rec.inter_component_connection_id
 	THEN
-		RETURN NEXT slot_rec;
+		inter_component_connection_id := slot_rec.inter_component_connection_id;
+		slot_id := slot_rec.slot_id;
+		slot_name := slot_rec.slot_name;
+		slot_index := slot_rec.slot_index;
+		mac_address := slot_rec.mac_address;
+		slot_type_id := slot_rec.slot_type_id;
+		slot_type := slot_rec.slot_type;
+		slot_function := slot_rec.slot_function;
+		remote_device_id := slot_rec.remote_device_id;
+		remote_slot_id := slot_rec.remote_slot_id;
+		remote_slot_name := slot_rec.remote_slot_name;
+		remote_slot_index := slot_rec.remote_slot_index;
+		remote_mac_address := slot_rec.remote_mac_address;
+		remote_slot_type_id := slot_rec.remote_slot_type_id;
+		remote_slot_type := slot_rec.remote_slot_type;
+		remote_slot_function := slot_rec.remote_slot_function;
+		changed := false;
+		RETURN NEXT;
 		RETURN;
 	END IF;
 
@@ -177,9 +208,9 @@ BEGIN
 			remote_host_id = remote_dev_rec.host_id
 		THEN
 			DELETE FROM
-				inter_component_connection
+				inter_component_connection icc
 			WHERE
-				inter_component_connection_id = 
+				icc.inter_component_connection_id = 
 					remote_slot_rec.inter_component_connection_id;
 		ELSE
 			RAISE EXCEPTION 'Slot % for device % is already connected to slot % on device %',
@@ -193,9 +224,9 @@ BEGIN
 
 	IF slot_rec.inter_component_connection_id IS NOT NULL THEN
 		DELETE FROM
-			inter_component_connection
+			inter_component_connection icc
 		WHERE
-			inter_component_connection_id = 
+			icc.inter_component_connection_id = 
 				slot_rec.inter_component_connection_id;
 	END IF;
 
@@ -207,11 +238,31 @@ BEGIN
 		remote_slot_rec.slot_id
 	);
 
-	RETURN QUERY SELECT * FROM
+	SELECT
+		* INTO slot_rec
+	FROM
 		jazzhands.v_device_slot_connections dsc
 	WHERE
 		dsc.slot_id = slot_rec.slot_id;
 		
+	inter_component_connection_id := slot_rec.inter_component_connection_id;
+	slot_id := slot_rec.slot_id;
+	slot_name := slot_rec.slot_name;
+	slot_index := slot_rec.slot_index;
+	mac_address := slot_rec.mac_address;
+	slot_type_id := slot_rec.slot_type_id;
+	slot_type := slot_rec.slot_type;
+	slot_function := slot_rec.slot_function;
+	remote_device_id := slot_rec.remote_device_id;
+	remote_slot_id := slot_rec.remote_slot_id;
+	remote_slot_name := slot_rec.remote_slot_name;
+	remote_slot_index := slot_rec.remote_slot_index;
+	remote_mac_address := slot_rec.remote_mac_address;
+	remote_slot_type_id := slot_rec.remote_slot_type_id;
+	remote_slot_type := slot_rec.remote_slot_type;
+	remote_slot_function := slot_rec.remote_slot_function;
+	changed := true;
+	RETURN NEXT;
 	RETURN;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
