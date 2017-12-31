@@ -834,7 +834,7 @@ sub process_domain {
 	# failed the test, then spit out an error message and return something
 	# indicating as such.
 	#
-	my $prog = "named-checkzone $domain $tmpfn";
+	my $prog = "named-checkzone -i none $domain $tmpfn";
 	$self->_Debug( 1, "running '%s'", $prog );
 	my $output = `$prog`;
 	if ( ( $? >> 8 ) ) {
