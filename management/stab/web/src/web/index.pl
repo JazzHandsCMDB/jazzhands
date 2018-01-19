@@ -37,7 +37,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 use strict;
 use warnings;
 use JazzHands::STAB;
@@ -54,22 +53,28 @@ my $email = $stab->support_email();
 
 my $mailto = $cgi->a( { -href => $email }, $email );
 
-print $cgi->div({-class => 'description'},qq{
+print $cgi->div(
+	{ -class => 'description' }, qq{
 	STAB is a web front-end to JazzHands.
 	STAB is used to manage network elements, and related information,
 	ranging from device properties, to network topology to DNS
 	information.  If you have
 	any issues with STAB, please contact  $mailto.
-});
+}
+);
 
 print $cgi->h2( { -align => 'center' }, "STAB Network Element Management" );
 
 my @things;
 
-if($stab->check_permissions('AccountCol')) {
-	push(@things, join("",
-		#$cgi->li( $cgi->a( { -href => "account/" }, "Account" ) ) . "\n",
-		$cgi->li('Account'),
+if ( $stab->check_permissions('AccountCol') ) {
+	push(
+		@things,
+		join(
+			"",
+
+			#$cgi->li( $cgi->a( { -href => "account/" }, "Account" ) ) . "\n",
+			$cgi->li('Account'),
 			$cgi->ul(
 				$cgi->li(
 					$cgi->a(
@@ -78,12 +83,16 @@ if($stab->check_permissions('AccountCol')) {
 					)
 				)
 			)
-	));
+		)
+	);
 }
 
-if($stab->check_permissions('DNS')) {
-	push(@things, join("",
-		$cgi->li( $cgi->a( { -href => "dns/" }, "DNS" ) ) . "\n",
+if ( $stab->check_permissions('DNS') ) {
+	push(
+		@things,
+		join(
+			"",
+			$cgi->li( $cgi->a( { -href => "dns/" }, "DNS" ) ) . "\n",
 			$cgi->ul(
 				$cgi->li(
 					$cgi->a(
@@ -92,78 +101,107 @@ if($stab->check_permissions('DNS')) {
 					)
 				),
 
-			#		$cgi->li(
-			#			$cgi->a(
-			#				{ -href => "dns/dns-debug.pl" },
-			#				"DNS Namespace Debugging"
-			#			)
-			#		),
-		),
-	));
+				#		$cgi->li(
+				#			$cgi->a(
+				#				{ -href => "dns/dns-debug.pl" },
+				#				"DNS Namespace Debugging"
+				#			)
+				#		),
+			),
+		)
+	);
 }
 
-if($stab->check_permissions('Device')) {
-	push(@things, join("",
-		$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
-	  	. "\n",
-		$cgi->li(
-			[
-				$cgi->a(
-					{ -href => "device/type/" },
-					"Device Type Management"
-				),
-
-		       	#		$cgi->a(
-		       	#			{ -href => "device/apps/" }, "Application Management"
-		       	#		),
-			]
-	  	)
-	  	. "\n",
-	));
-}
-
-if($stab->check_permissions('Netblock')) {
-	push(@things, join("",
-		$cgi->li( $cgi->a( { -href => "netblock/" }, "Netblock Management" ) )
-	  	. "\n",
-		$cgi->ul(
+if ( $stab->check_permissions('Device') ) {
+	push(
+		@things,
+		join(
+			"",
+			$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
+			  . "\n",
 			$cgi->li(
 				[
 					$cgi->a(
-						{ href => "netblock/networkrange.pl" },
-						"Network Ranges (VPN/DHCP/etc)"
+						{ -href => "device/type/" },
+						"Device Type Management"
 					),
-					$cgi->a(
-						{ href => "netblock/collection/" },
-						"Netblock Collections"
-					),
+
+					#		$cgi->a(
+					#			{ -href => "device/apps/" }, "Application Management"
+					#		),
 				]
-			)
-		),
-	));
+			  )
+			  . "\n",
+		)
+	);
 }
 
-if($stab->check_permissions('Sites')) {
-	push(@things, join("",
-		$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
-		$cgi->ul(
+if ( $stab->check_permissions('Netblock') ) {
+	push(
+		@things,
+		join(
+			"",
 			$cgi->li(
-				$cgi->a(
-					{ -href => "sites/blockmgr.pl" },
-					"IP Space Management by Site"
+				$cgi->a( { -href => "netblock/" }, "Netblock Management" )
+			  )
+			  . "\n",
+			$cgi->ul(
+				$cgi->li(
+					[
+						$cgi->a(
+							{ href => "netblock/networkrange.pl" },
+							"Network Ranges (VPN/DHCP/etc)"
+						),
+						$cgi->a(
+							{ href => "netblock/collection/" },
+							"Netblock Collections"
+						),
+					]
 				)
 			),
-			$cgi->li(
-				$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
-			)
-		),
-	));
+		)
+	);
 }
 
-if($stab->check_permissions('X509')) {
-	push(@things, join("",
-		$cgi->li( $cgi->a( { -href => "x509/" }, "X509 Certificates" ) ) . "\n",
+if ( $stab->check_permissions('Sites') ) {
+	push(
+		@things,
+		join(
+			"",
+			$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
+			$cgi->ul(
+				$cgi->li(
+					$cgi->a(
+						{ -href => "sites/blockmgr.pl" },
+						"IP Space Management by Site"
+					)
+				),
+				$cgi->li(
+					$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
 				)
+			),
+		)
+	);
+}
+
+if ( $stab->check_permissions('X509') ) {
+	push(
+		@things,
+		join(
+			"",
+			$cgi->li( $cgi->a( { -href => "x509/" }, "X509 Certificates" ) )
+			  . "\n",
+			$cgi->ul(
+				$cgi->li(
+					$cgi->a(
+						{ -href => "x509/expiry.pl" },
+						"Pending Expiration"
+					)
+				  )
+				  . "\n",
+			)
+		  )
+
 	);
 }
 
