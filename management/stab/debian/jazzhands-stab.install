@@ -132,3 +132,4 @@
 /var/www/stab/stabcons/stab.png
 /var/www/stab/style.pl
 /var/www/stab/x509/index.pl
+/var/www/stab/x509/expiry.pl
