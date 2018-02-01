@@ -133,7 +133,7 @@ BEGIN
 			INSERT INTO network_interface_netblock (
 				network_interface_id, netblock_id
 			) VALUES (
-				_ni.network_interface_id, NEW.netblock_id
+				NEW.network_interface_id, NEW.netblock_id
 			);
 		ELSIF NEW.netblock_id IS NULL THEN
 			DELETE FROM network_interface_netblock
