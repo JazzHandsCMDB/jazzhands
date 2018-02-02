@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.81.5) unstable; urgency=low
+
+  * Return LLDP chassis ID as part of GetChassisInfo
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 05 Dec 2017 01:35:49 +0000
+
 jazzhands-perl-netdev-mgmt (0.81.3) unstable; urgency=low
 
   * Add support for QSFP28-100G-CDWM4-FEC Juniper slot types

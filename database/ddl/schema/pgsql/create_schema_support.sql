@@ -159,11 +159,13 @@ BEGIN
 			clock_timestamp(), txid_current(), appuser );
 		    RETURN OLD;
 		ELSIF TG_OP = 'UPDATE' THEN
-		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
-			|| '.' || quote_ident(table_name) || $ZZ$
-		    VALUES ( NEW.*, 'UPD', now(),
-			clock_timestamp(), txid_current(), appuser );
-		    RETURN NEW;
+			IF OLD != NEW THEN
+				INSERT INTO $ZZ$ || quote_ident(aud_schema)
+				|| '.' || quote_ident(table_name) || $ZZ$
+				VALUES ( NEW.*, 'UPD', now(),
+				clock_timestamp(), txid_current(), appuser );
+			END IF;
+			RETURN NEW;
 		ELSIF TG_OP = 'INSERT' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
@@ -625,7 +627,7 @@ BEGIN
 	NEW.data_ins_date = 'now';
     END IF;
 
-    IF TG_OP = 'UPDATE' THEN
+    IF TG_OP = 'UPDATE' AND OLD != NEW THEN
 	NEW.data_upd_user = appuser;
 	NEW.data_upd_date = 'now';
 

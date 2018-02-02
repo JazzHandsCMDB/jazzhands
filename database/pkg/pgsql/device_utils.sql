@@ -402,11 +402,15 @@ BEGIN
 				rack_location_id
 			FROM
 				device
+			WHERE
+				rack_location_id IS NOT NULL
 			UNION
 			SELECT
 				rack_location_id
 			FROM
 				component
+			WHERE
+				rack_location_id IS NOT NULL
 		);
 
 	RAISE LOG 'Removing device_management_controller links...';
@@ -791,6 +795,11 @@ BEGIN
 
 	FOREACH rid IN ARRAY rack_id_list LOOP
 		BEGIN
+			DELETE FROM rack_location rl WHERE rl.rack_id = rid;
+		EXCEPTION WHEN foreign_key_violation THEN
+			NULL;
+		END;
+		BEGIN
 			DELETE FROM rack r WHERE r.rack_id = rid;
 			success := true;
 			RETURN NEXT;
@@ -810,7 +819,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
---end of retire_rack
+--end of retire_racks
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------

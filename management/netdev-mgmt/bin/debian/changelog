@@ -1,3 +1,9 @@
+jazzhands-netdev-mgmt-utils (0.81.5) trusty; urgency=medium
+
+  * Populate LLDP chassis ID as device.host_id
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 05 Dec 2017 01:35:12 +0000
+
 jazzhands-netdev-mgmt-utils (0.79.5) trusty; urgency=medium
 
   * Updates for handling non-fatal interface conflict errors
