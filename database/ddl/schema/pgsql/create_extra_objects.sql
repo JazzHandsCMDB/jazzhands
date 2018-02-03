@@ -44,3 +44,6 @@ CREATE UNIQUE INDEX ON mv_dev_col_root (leaf_id);
 CREATE INDEX ON mv_dev_col_root (leaf_type);
 CREATE INDEX ON mv_dev_col_root (root_id);
 CREATE INDEX ON mv_dev_col_root (root_type);
+
+-- this needs to be dropped from the model.
+ALTER TABLE netblock ALTER ip_universe_id DROP default;

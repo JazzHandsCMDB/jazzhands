@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2014, Todd M. Kover
+-- Copyright (c) 2013-2018, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -851,6 +851,39 @@ BEGIN
 	RETURN;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
+
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_ip_universe(
+	ip_address	jazzhands.netblock.ip_address%type,
+	ip_namespace	jazzhands.ip_universe.ip_namespace%type
+				DEFAULT 'default'
+) RETURNS jazzhands.ip_universe.ip_universe_id%type AS $$
+DECLARE
+	u_id	ip_universe.ip_universe_id%TYPE;
+	ip	inet;
+	nsp	text;
+BEGIN
+	ip := ip_address;
+	nsp := ip_namespace;
+
+	SELECT	nb.ip_universe_id
+	INTO	u_id
+	FROM	netblock nb
+		JOIN ip_universe u USING (ip_universe_id)
+	WHERE	is_single_address = 'N'
+	AND	nb.ip_address >>= '205.129.9.5'
+	AND	u.ip_namespace = 'default'
+	ORDER BY masklen(nb.ip_address) desc
+	LIMIT 1;
+
+	IF u_id IS NOT NULL THEN
+		RETURN u_id;
+	END IF;
+	RETURN 0;
+
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql;
 
 GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO ro_role;

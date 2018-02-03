@@ -1,4 +1,5 @@
--- Copyright (c) 2012,2013,2014 Matthew Ragan
+-- Copyright (c) 2012-2017 Matthew Ragan
+-- Copyright (c) 2014-2018 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,6 +43,21 @@ BEGIN
 	IF NEW.ip_address IS NULL THEN
 		RAISE EXCEPTION 'Column ip_address may not be null'
 			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	/*
+	 * If the universe is not set, we used to assume 0/default, but now
+	 * its the same namespace.  In the interest of speed, we assume a
+	 * default namespace of 0, which is kind of like before, and 
+	 * assume that if there's no match, 0 should be returned, which
+	 * is also like before, which basically is just all the defaults.
+	 * The assumption is that if multiple namespaces are used, then
+	 * the caller is smart about figuring this out
+	 */
+	IF NEW.ip_universe_id IS NULL THEN
+		NEW.ip_universe_id := netblock_utils.find_best_ip_universe(
+				ip_address := NEW.ip_address
+			);
 	END IF;
 
 	SELECT * INTO nbtype FROM val_netblock_type WHERE
