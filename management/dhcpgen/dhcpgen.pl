@@ -136,6 +136,10 @@ if substring(option vendor-class-identifier, 0, 9) = "PXEClient" and option PXEA
 }
 !,
 		type => 'string_replacement'
+	},
+	ConfigStanza => {
+		option => "%s",
+		type => 'string_replacement'
 	}
 };
 pod2usage(2) if ($help);
@@ -1040,12 +1044,14 @@ EOM
 			next if ($l3_net->{netblock_address}->masklen <= 19 || 
 				$l3_net->{netblock_address}->masklen > 30);
 			printf $l2fh <<EOF
-${indent}subnet %s netmask %s {
-${indent}	option routers %s;
+%ssubnet %s netmask %s {
+%s	option routers %s;
 EOF
 ,
+				$shared_network ? "\t" : "",
 				$l3_net->{netblock_address}->addr,
 				$l3_net->{netblock_address}->mask,
+				$shared_network ? "\t" : "",
 				$l3_net->{gateway_address}->addr;
 			my $props = $l2_props->{$l2_net->{layer2_network_collection_id}};
 			foreach my $option (sort keys %$option_map) {
@@ -1185,28 +1191,28 @@ sub FormatOption {
 				$type->{option},
 				$val);
 		}
-	} elsif ($type->{type} eq 
-			'quoted_string') {
+	} elsif ($type->{type} eq 'quoted_string') {
 		$ret = sprintf(qq{%s "%s";},
 			$type->{option},
 			$val);
-	} elsif ($type->{type} eq 
-			'string_replacement') {
-		$ret = sprintf($type->{option},
-			$val);
-	} elsif ($type->{type} eq 
-			'quoted_string_list') {
+	} elsif ($type->{type} eq 'string_replacement') {
+		if (ref($val) eq 'ARRAY') {
+			$ret = join ("\n", map { 
+				sprintf($type->{option}, $_)
+			} @$val);
+		}  else {
+			$ret = sprintf($type->{option}, $val);
+		}
+	} elsif ($type->{type} eq 'quoted_string_list') {
 		$ret = sprintf(qq{%s %s;},
 			$type->{option},
 			join (', ', (map { qq{"$_"} }
 				ref($val) eq 'ARRAY' ?  @$val : ( $val ))));
-	} elsif ($type->{type} eq 
-			'ip_address') {
+	} elsif ($type->{type} eq 'ip_address') {
 		$ret = sprintf(qq{%s %s;},
 			$type->{option},
 			$val->addr);
-	} elsif ($type->{type} eq 
-			'ip_address_list') {
+	} elsif ($type->{type} eq 'ip_address_list') {
 		$ret = sprintf(qq{%s %s;},
 			$type->{option},
 			join (', ', (map { $_->addr } 
