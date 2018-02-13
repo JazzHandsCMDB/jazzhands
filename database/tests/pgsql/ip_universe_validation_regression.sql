@@ -444,7 +444,7 @@ BEGIN
 	END;
 
 
-	RAISE EXCEPTION 'Need to finish testing netblock_utils.find_best_ip_universe and also drop the netblock.ip_universe_id from the model';
+	RAISE EXCEPTION 'Need to finish testing netblock_utils.find_best_ip_universe';
 
 	RAISE NOTICE 'ip_universe_valid_regression: DONE';
 	RETURN true;
