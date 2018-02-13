@@ -61,6 +61,8 @@ BEGIN
 				'SFP',
 				'SFP+',
 				'QSFP+',
+				'SFP28',
+				'QSFP28',
 				'GBIC',
 				'XENPAK',
 				'RJ45',
@@ -68,8 +70,7 @@ BEGIN
 				'LC',
 				'SC',
 				'10GSFP+Cu',
-				'MXP',
-				'QSFP28'
+				'MXP'
 			]),
 			'network'
 		;
@@ -93,7 +94,8 @@ BEGIN
 			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', 'N'),
 			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', 'N'),
 			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N'),
-			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', 'N');
+			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', 'N'),
+			('25GSFP28Ethernet', 'QSFP28', 'network', '25Gbps SFP28 Ethernet', 'N');
 
 
 		--
@@ -118,9 +120,14 @@ BEGIN
 				(st.slot_physical_interface_type = 'QSFP+' AND
 					cst.slot_physical_interface_type = 'QSFP+') OR
 				(st.slot_physical_interface_type = 'SFP+' AND
-					cst.slot_physical_interface_type IN ('SFP', 'SFP+')) OR
+					cst.slot_physical_interface_type IN ('SFP', 'SFP+',
+					'SFP28')) OR
 				(st.slot_physical_interface_type = 'QSFP28' AND
-					cst.slot_physical_interface_type IN ('QSFP+', 'QSFP28'))
+					cst.slot_physical_interface_type IN ('QSFP+', 'QSFP28',
+					'SFP28')) AND
+				(st.slot_physical_interface_type = 'SFP28' AND
+					cst.slot_physical_interface_type IN ('SFP+', 'QSFP+',
+					'QSFP28', 'SFP28')) 
 			);
 
 		--
