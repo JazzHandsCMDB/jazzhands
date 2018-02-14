@@ -63,7 +63,7 @@ WITH swpkg AS (
 		device_id, service_endpoint_id, service_version_id,p.port_range_id,
 		netblock_id
 	FROM device
-			JOIN network_interface USING (device_id),
+			JOIN network_interface_netblock USING (device_id),
 		endpoint, svcv, port_range p
 	WHERE device_name ~ '^(01|02)\.(newdns|dns-recurse)\..*$'
 	AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))

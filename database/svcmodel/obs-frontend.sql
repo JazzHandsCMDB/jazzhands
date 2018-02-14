@@ -44,7 +44,7 @@ WHERE service.service_name = 'obs-frontend';
 INSERT INTO service_instance (device_id, netblock_id, service_endpoint_id, service_version_id)
 SELECT device_id, netblock_id, service_endpoint_id, service_version_id
 FROM device
-	join network_interface using (device_id)
+	join network_interface_netblock using (device_id)
 	join netblock using (netblock_id)
 	, service_endpoint, service_version
 WHERE device_name = 'obs02.lax1.appnexus.com'

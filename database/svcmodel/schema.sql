@@ -242,9 +242,8 @@ CREATE TABLE service_endpoint_provider_member (
 -- (lb, if appropriate?)  however, arguably there also needs to be
 -- a gslb overlay; have not entirely gotten my head around this
 --
--- Its possible, (probable?) that the private_key_id should not be
--- here, although this this means sorting out encryption better since
--- private keys are encrypted by default.
+-- x509 certificates are broken out in order to support multiple types of
+-- certifiates on the same endpoint (ECC, RSA).
 --
 DROP TABLE IF EXISTS service_endpoint cascade;
 CREATE TABLE service_endpoint (
@@ -252,10 +251,24 @@ CREATE TABLE service_endpoint (
 	dns_record_id		integer,
 	port_range_id		integer,
 	uri			text,
-	x509_signed_certificate_id	integer,
-	private_key_id			integer,
 	PRIMARY KEY (service_endpoint_id)
 );
+
+--
+-- Its possible, (probable?) that the private_key_id should not be
+-- here, although this this means sorting out encryption better since
+-- private keys are encrypted by default.
+--
+DROP TABLE IF EXISTS service_endpoint_x509_certificate cascade;
+CREATE TABLE service_endpoint_x509_certificate (
+	service_endpoint_id	serial		NOT NULL,
+	x509_signed_certificate_id	integer,
+	private_key_id			integer,
+	x509_certificate_rank		integer,
+	PRIMARY KEY (service_endpoint_id,x509_signed_certificate_id),
+	UNIQUE (service_endpoint_id, x509_certificate_rank)
+);
+
 
 --
 -- This is used to implement health checks for load balancers and the like.
