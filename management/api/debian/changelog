@@ -1,3 +1,9 @@
+jazzhands-apache-api (0.81.7) trusty; urgency=medium
+
+  * add means to poll interfaces/netblocks/etc for a device
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 14 Feb 2018 17:57:22 -0400
+
 jazzhands-apache-api (0.69.4) trusty; urgency=medium
 
   * Fix for dns_record handling
