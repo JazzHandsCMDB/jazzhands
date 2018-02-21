@@ -1,4 +1,5 @@
 SOURCES= \
+	JazzHands/Apache/API/Device.pm \
 	JazzHands/Apache/API/Common.pm \
 	JazzHands/Apache/API/Container.pm
 

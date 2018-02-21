@@ -1,8 +1,15 @@
+jazzhands-apache-api (0.81.8.1) trusty; urgency=medium
+
+  * install Device.pm
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 21 Feb 2018 14:56:37 -0400
+
 jazzhands-apache-api (0.81.7) trusty; urgency=medium
 
   * add means to poll interfaces/netblocks/etc for a device
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 14 Feb 2018 17:57:22 -0400
+
 
 jazzhands-apache-api (0.69.4) trusty; urgency=medium
 
