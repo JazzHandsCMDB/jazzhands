@@ -459,7 +459,7 @@ sub ProcessMessage($;$) {
 	my $path;
 	if ( !$root ) {
 		$path = $r->path_info();
-		$path =~ s,^/([^/]+/)([^/]+)/?,$2,;
+		$path =~ s,^.*/([^/]+)/?,$1,;
 	}
 
 	my $json = JSON->new;
