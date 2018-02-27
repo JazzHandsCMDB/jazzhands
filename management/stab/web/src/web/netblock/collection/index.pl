@@ -237,6 +237,8 @@ sub build_collection_children {
 				INNER JOIN netblock_collection_hier h ON
 					h.child_netblock_collection_id = nc.netblock_collection_id
 		WHERE	h.netblock_collection_id = ?
+		ORDER BY nc.netblock_collection_type,nc.netblock_collection_name,
+				nc.netblock_collection_id
 	}) || return $stab->return_db_err;
 
 	$sth->execute($ncid) || die $stab->return_db_err();
