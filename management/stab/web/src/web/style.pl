@@ -423,13 +423,11 @@ ul.collection {
 }
 
 span.netblocksite {
-	width: 8ex;
-	float: left;
+	min-width: 8ex;
 }
 
 span.netblocklink {
 	min-width: 30ex;
-	float: left;
 }
 
 #SOA_MNAME, #SOA_RNAME {
