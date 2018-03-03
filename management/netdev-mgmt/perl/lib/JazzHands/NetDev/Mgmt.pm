@@ -9,7 +9,7 @@ use JazzHands::Common::Error qw(:all);
 use JSON::XS;
 
 my $VERSION;
-$VERSION = '0.70.7.1';
+$VERSION = '0.81.7';
 
 sub new {
 	my $proto = shift;

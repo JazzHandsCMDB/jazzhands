@@ -2980,6 +2980,11 @@ my $iface_map = {
         media_type => '1000BaseTEthernet',
         slot_prefix => 'ge-',
     },
+    'SFP-LX10' => {
+        module_type => '1GSFPEthernet',
+        media_type => '1GLCEthernet',
+        slot_prefix => 'ge-',
+    },
     'SFP+-10G-SR' => {
         module_type => '10GSFP+Ethernet',
         media_type => '10GLCEthernet',

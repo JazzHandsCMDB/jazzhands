@@ -59,6 +59,7 @@
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components.sql
 \ir pgsql/create_v_device_components_expanded.sql
+\ir pgsql/create_v_device_slot_connections.sql
 
 \ir create_physical_port.sql
 \ir create_layer1_connection.sql
@@ -66,6 +67,7 @@
 
 \ir create_device_power_connection.sql
 \ir create_device_power_interface.sql
+
 
 -- XXX these need to be ported
 -- \ir create_v_joined_acct_collection_user_detail.sql

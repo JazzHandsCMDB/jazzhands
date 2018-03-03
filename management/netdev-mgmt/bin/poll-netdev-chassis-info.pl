@@ -510,6 +510,7 @@ if (!($dev_asset_sth = $dbh->prepare_cached($q))) {
 }
 
 foreach my $host (@$hostname) {
+	undef @errors;
 	my $connect_host;
 	if ($host =~ /:/) {
 		($host, $connect_host) = $host =~ /(^[^:]+):(.*)/;

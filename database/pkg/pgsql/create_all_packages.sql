@@ -66,3 +66,4 @@
 \ir backend_utils.sql
 \ir rack_utils.sql
 \ir layerx_network_manip.sql
+\ir component_connection_utils.sql
