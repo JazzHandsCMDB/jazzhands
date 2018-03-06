@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Todd Kover
+-- Copyright (c) 2014-2018 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +40,18 @@
 --
 -- Test property trigger
 --
+
+\set ON_ERROR_STOP
+
 \t on
+
+-- tests this, but does not work just yet because it assumes global test
+-- data is there; need to do that before rewritten to use proper savepoints.
+
+-- \ir ../../pkg/pgsql/property_utils.sql
+-- \ir ../../ddl/schema/pgsql/create_property_triggers.sql
+
+-- SAVEPOINT property_trigger_test;
 
 CREATE FUNCTION validate_property_triggers() RETURNS BOOLEAN AS $$
 DECLARE
@@ -2701,6 +2712,7 @@ BEGIN
 		) VALUES (
 			'testjson', 'test', 'json'
 		);
+		RAISE EXCEPTION 'It did not!';
 	EXCEPTION WHEN invalid_parameter_value THEN
 		RAISE NOTICE '... Failed correctly';
 	END;
@@ -2714,6 +2726,7 @@ BEGIN
 			'testjson', 'test', 'string',
 			'{"type": "boolean", "required": ["type"]}'
 		);
+		RAISE EXCEPTION 'It did not!';
 	EXCEPTION WHEN invalid_parameter_value THEN
 		RAISE NOTICE '... Failed correctly';
 	END;
@@ -2834,8 +2847,36 @@ BEGIN
 	END;
 
 	--
-	-- Checking to see if a property value restricted account_collection
+	-- Should do more of these checks.
 	--
+
+	RAISE NOTICE 'Checking if changing property requirements works as expected..';
+	BEGIN
+		INSERT INTO VAL_Property (
+			Property_Name, Property_Type,
+			Property_Data_Type, Permit_Account_Collection_id
+		) VALUES (
+			'ac', 'test',
+			'none', 'REQUIRED'
+		);
+
+		INSERT INTO property (
+			property_name, property_type, account_collection_id
+		) VALUES (
+			'ac', 'test', v_account_collection_id
+		);
+
+
+		BEGIN
+			UPDATE val_property set Permit_Account_Collection_id = 'PROHIBITED'
+			WHERE property_type = 'test' AND property_name = 'ac';
+		EXCEPTION WHEN SQLSTATE 'JH200' THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '.... it did not! (BAD!)';
+	EXCEPTION WHEN invalid_parameter_value THEN
+		RAISE NOTICE '.... it did!';
+	END;
 
 	RAISE NOTICE 'ALL TESTS PASSED';
 	--
@@ -2863,5 +2904,7 @@ $$ LANGUAGE plpgsql;
 
 SELECT validate_property_triggers();
 DROP FUNCTION validate_property_triggers();
+
+-- ROLLBACK TO property_trigger_test;
 
 \t off

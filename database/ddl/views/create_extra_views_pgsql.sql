@@ -34,8 +34,6 @@
 -- \ir create_v_login_changes.sql
 -- \ir create_v_user_deletions.sql
 
-\ir pgsql/create_v_netblock_hier.sql
-
 -- XXX - not sure if this is still needed.  Leaving out until it is
 -- \ir create_v_user_extract.sql 
 \ir pgsql/create_v_property.sql
@@ -101,7 +99,9 @@
 \ir pgsql/create_v_application_role.sql
 
 \ir pgsql/create_v_company_hier.sql
+\ir create_site_netblock.sql
 \ir pgsql/create_v_site_netblock_expanded.sql
+\ir pgsql/create_v_netblock_hier.sql
 \ir pgsql/create_v_physical_connection.sql
 
 \ir create_v_device_col_acct_col_expanded.sql

@@ -143,14 +143,14 @@ BEGIN
 	    DECLARE
 		appuser VARCHAR;
 	    BEGIN
-		BEGIN
-		    appuser := session_user
-			|| '/' || current_setting('jazzhands.appuser');
-		EXCEPTION WHEN OTHERS THEN
-		    appuser := session_user;
-		END;
+		appuser := concat_ws('/', session_user,
+			coalesce(
+				current_setting('jazzhands.appuser', true),
+				current_setting('request.header.x-remote-user', true)
+			)
+		);
 
-    		appuser = substr(appuser, 1, 255);
+		appuser = substr(appuser, 1, 255);
 
 		IF TG_OP = 'DELETE' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
@@ -614,12 +614,12 @@ RETURNS TRIGGER AS $$
 DECLARE
     appuser VARCHAR;
 BEGIN
-    BEGIN
-	appuser := session_user || '/' || current_setting('jazzhands.appuser');
-    EXCEPTION
-	WHEN OTHERS THEN appuser := session_user;
-    END;
-
+	appuser := concat_ws('/', session_user,
+		coalesce(
+			current_setting('jazzhands.appuser', true),
+			current_setting('request.header.x-remote-user', true)
+		)
+	);
     appuser = substr(appuser, 1, 255);
 
     IF TG_OP = 'INSERT' THEN

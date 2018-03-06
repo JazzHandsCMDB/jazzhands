@@ -21,6 +21,7 @@
 \t on
 
 -- tests this:
+\ir ../../pkg/pgsql/netblock_utils.sql
 \ir ../../ddl/schema/pgsql/create_dns_triggers.sql
 
 
@@ -29,6 +30,7 @@ SAVEPOINT dns_trigger_test;
 CREATE OR REPLACE FUNCTION validate_dns_triggers() RETURNS BOOLEAN AS $$
 DECLARE
 	_tally			integer;
+	_universe		ip_universe.ip_universe_id%TYPE;
 	_dnsdomid		dns_domain.dns_domain_id%TYPE;
 	_blkid			netblock.netblock_id%TYPE;
 	_ip1id			netblock.netblock_id%TYPE;
@@ -39,6 +41,7 @@ DECLARE
 	_dnsrec1		dns_record%ROWTYPE;
 	_dnsrec2		dns_record%ROWTYPE;
 	_dnsrec			dns_record%ROWTYPE;
+	_nb				netblock%ROWTYPE;
 BEGIN
 	RAISE NOTICE '++ Beginning tests of dns_record_update_nontime...';
 
@@ -57,6 +60,26 @@ BEGIN
 	END IF;
 
 	RAISE NOTICE 'Inserting bootstrapping test records.';
+
+	WITH x as (
+		INSERT INTO ip_universe_visibility
+			(ip_universe_id, visible_ip_universe_id, propagate_dns)
+		SELECT i.ip_universe_id, v.ip_universe_id, 'Y'
+		FROM ip_universe i, ip_universe v
+		WHERE i.ip_universe_name = 'default'
+		AND v.ip_universe_name = 'private'
+		returning *
+	) select count(*) into _tally FROM x;
+
+	WITH x as (
+		INSERT INTO ip_universe_visibility
+			(ip_universe_id, visible_ip_universe_id, propagate_dns)
+		SELECT i.ip_universe_id, v.ip_universe_id, 'Y'
+		FROM ip_universe i, ip_universe v
+		WHERE v.ip_universe_name = 'default'
+		AND i.ip_universe_name = 'private'
+		returning *
+	) select count(*) into _tally FROM x;
 
 	INSERT INTO DNS_DOMAIN (
 		soa_name, dns_domain_type
@@ -87,6 +110,73 @@ BEGIN
 		RAISE NOTICE '... It does!';
 	END IF;
 	DELETE from dns_change_record;
+
+	RAISE NOTICE 'Checking to see if updating dns_domain serial triggers a regen';
+	BEGIN
+		BEGIN
+			-- just to make the trigger work.
+			UPDATE DNS_DOMAIN_IP_UNIVERSE
+				SET last_generated = now() - '1 week'::interval
+				WHERE dns_domain_id = _dnsdomid
+				AND ip_universe_id = 0;
+
+			UPDATE DNS_DOMAIN_IP_UNIVERSE
+				SET soa_serial = soa_serial + 1
+				WHERE dns_domain_id = _dnsdomid
+				AND ip_universe_id = 0;
+
+			SELECT count(*)
+	  			INTO _tally
+	  			FROM	dns_change_record
+	 			WHERE dns_domain_id = _dnsdomid
+	   			AND ip_address is NULL;
+
+			IF _tally != 1 THEN
+				RAISE EXCEPTION '... It does not: % records with domain set and netblock null.', _tally;
+			ELSE
+				RAISE NOTICE '... It does!';
+			END IF;
+
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking to see if noting last_generated triggers a regen.';
+	BEGIN
+		BEGIN
+			-- just to make the trigger work.
+			UPDATE DNS_DOMAIN_IP_UNIVERSE
+				SET last_generated = now() - '1 week'::interval
+				WHERE dns_domain_id = _dnsdomid
+				AND ip_universe_id = 0;
+
+			UPDATE DNS_DOMAIN_IP_UNIVERSE
+				SET soa_serial = soa_serial + 1, last_generated = now()
+				WHERE dns_domain_id = _dnsdomid
+				AND ip_universe_id = 0;
+
+			SELECT count(*)
+	  			INTO _tally
+	  			FROM	dns_change_record
+	 			WHERE dns_domain_id = _dnsdomid
+	   			AND ip_address is NULL;
+
+			IF _tally != 0 THEN
+				RAISE EXCEPTION '... It does not: % records with domain set and netblock null.', _tally;
+			ELSE
+				RAISE NOTICE '... It does!';
+			END IF;
+
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+
+
 
 	INSERT INTO NETBLOCK (ip_address, netblock_type,
 			is_single_address, can_subnet, netblock_status,
@@ -161,19 +251,6 @@ BEGIN
 
 	END IF;
 	RAISE NOTICE '.. It does';
-
-	RAISE NOTICE 'Checking to see if second non-netblock dns_records trigger - %', _ip1id;
-	BEGIN
-		INSERT INTO dns_record (
-			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
-			should_generate_ptr
-		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, 'Y'
-		) RETURNING dns_record_id INTO _dnsrec1;
-		RAISE NOTICE '.. It does (BAD!)';
-	EXCEPTION WHEN unique_violation THEN
-		RAISE NOTICE '.. It does not';
-	END;
 
 	-- Note this one is both used immediately and later for a dup test.
 	BEGIN
@@ -493,6 +570,7 @@ BEGIN
 	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
 	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
 
+	------------------------------------------------------------------------
 	RAISE NOTICE 'Checking CNAME and A records not on zone...';
 	RAISE NOTICE 'Checking A+CNAME works...';
 	INSERT INTO dns_record (
@@ -513,6 +591,8 @@ BEGIN
 	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
 	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
 
+	------------------------------------------------------------------------
+
 	RAISE NOTICE 'Checking CNAME+NS works...';
 	INSERT INTO dns_record (
 		dns_name, dns_domain_id, dns_type, dns_value
@@ -531,6 +611,7 @@ BEGIN
 	END;
 	DELETE FROM dns_record where dns_Record_id = _dnsrec1.dns_record_id;
 	DELETE FROM dns_record where dns_Record_id = _dnsrec2.dns_record_id;
+	------------------------------------------------------------------------
 
 	RAISE NOTICE 'Checking two CNAMEs';
 	INSERT INTO dns_record (
@@ -637,6 +718,15 @@ BEGIN
 
 	RAISE NOTICE 'Checking if changing the family of a referenced A record fails... ';
 	BEGIN
+		-- this isn't private but the test expects it.
+		INSERT INTO netblock (
+			ip_address, can_subnet, is_single_address, netblock_status,
+			ip_universe_id)
+		SELECT '2001:DB8:f00d::/64', 'N', 'N', 'Allocated', ip_universe_id
+			FROM ip_universe where ip_universe_name = 'private'
+			LIMIT 1
+			RETURNING * INTO _nb;
+
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, netblock_id
 		) VALUES (
@@ -651,12 +741,12 @@ BEGIN
 		) RETURNING * INTO _dnsrec2;
 
 		BEGIN
-			UPDATE netblock set ip_address = 'fc00::42/64'
+			UPDATE netblock set ip_address = '2001:DB8:f00d::1'
 				WHERE netblock_id = _ip1id;
 		EXCEPTION WHEN SQLSTATE 'JH200' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
 		END;
-		RAISE EXCEPTION '.... it did not!';
+		RAISE EXCEPTION '.... it did not! (BAD!)';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE '.... it did!';
 	END;
@@ -928,6 +1018,56 @@ BEGIN
 		RAISE NOTICE '.... it did!';
 	END;
 
+	RAISE NOTICE 'Checking if wildcards can not have PTRs... ';
+	BEGIN
+		BEGIN
+			INSERT INTO dns_record (
+				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
+			) VALUES (
+				'*', _dnsdomid, 'A', _ip1id, 'Y'
+			) RETURNING * INTO _dnsrec1;
+
+		EXCEPTION WHEN integrity_constraint_violation THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking invalid charachters in name... ';
+	BEGIN
+		BEGIN
+			INSERT INTO dns_record (
+				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
+			) VALUES (
+				'$', _dnsdomid, 'A', _ip1id, 'N'
+			) RETURNING * INTO _dnsrec1;
+
+		EXCEPTION WHEN integrity_constraint_violation THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking if wildcards work... ';
+	BEGIN
+		BEGIN
+			INSERT INTO dns_record (
+				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
+			) VALUES (
+				'*', _dnsdomid, 'A', _ip1id, 'N'
+			) RETURNING * INTO _dnsrec1;
+
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
 
 	RAISE NOTICE 'Done CNAME and other check tests';
 
