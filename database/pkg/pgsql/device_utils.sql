@@ -270,6 +270,11 @@ DECLARE
 	se_id		jazzhands.service_environment.service_environment_id%TYPE;
 	nb_id		jazzhands.netblock.netblock_id%TYPE;
 BEGIN
+	BEGIN
+		PERFORM local_hooks.retire_devices_early(device_id_list);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
 	--
 	-- Add all of the BMCs for any retiring devices to the list in case
 	-- they are not specified
@@ -489,6 +494,12 @@ BEGIN
 				RETURN NEXT;
 		END;
 	END LOOP;
+
+	BEGIN
+		PERFORM local_hooks.retire_devices_late(device_id_list);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
 	RETURN;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;

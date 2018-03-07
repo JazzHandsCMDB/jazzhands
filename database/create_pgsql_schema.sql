@@ -96,7 +96,7 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 \ir ddl/schema/pgsql/create_x509_triggers-RETIRE.sql
 \ir ddl/schema/pgsql/create_ip_universe_valid_triggers.sql
 
-
+\ir ddl/schema/pgsql/create_site_netblock_triggers.sql
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
 
 \ir ddl/schema/pgsql/create_physical_conection_triggers_RETIRE.sql
