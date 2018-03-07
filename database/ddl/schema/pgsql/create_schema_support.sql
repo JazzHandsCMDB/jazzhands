@@ -142,8 +142,17 @@ BEGIN
 	|| $ZZ$() RETURNS TRIGGER AS $TQ$
 	    DECLARE
 		appuser VARCHAR;
+		curruser VARCHAR;
 	    BEGIN
-		appuser := concat_ws('/', session_user,
+		curruser := current_setting('role', true);
+
+		IF (curruser != 'none' AND session_user != curruser) THEN
+			appuser := session_user || '/' || curruser;
+		ELSE
+			appuser := session_user;
+		END IF;
+
+		appuser := concat_ws('/', appuser,
 			coalesce(
 				current_setting('jazzhands.appuser', true),
 				current_setting('request.header.x-remote-user', true)
@@ -613,8 +622,17 @@ CREATE OR REPLACE FUNCTION schema_support.trigger_ins_upd_generic_func()
 RETURNS TRIGGER AS $$
 DECLARE
     appuser VARCHAR;
+    curruser VARCHAR;
 BEGIN
-	appuser := concat_ws('/', session_user,
+	curruser := current_setting('role', true);
+
+	IF (curruser != 'none' AND session_user != curruser) THEN
+		appuser := session_user || '/' || curruser;
+	ELSE
+		appuser := session_user;
+	END IF;
+
+	appuser := concat_ws('/', appuser,
 		coalesce(
 			current_setting('jazzhands.appuser', true),
 			current_setting('request.header.x-remote-user', true)
