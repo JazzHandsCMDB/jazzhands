@@ -163,6 +163,25 @@ DECLARE
 	_ip		netblock.ip_address%type;
 	_sing	netblock.is_single_address%type;
 BEGIN
+	--
+	-- arguably, this belongs elsewhere in a non-"validation" trigger,
+	-- but that only matters if this wants to be a constraint trigger.
+	--
+	IF NEW.ip_universe_id IS NULL THEN
+		IF NEW.netblock_id IS NOT NULL THEN
+			SELECT ip_universe_id INTO NEW.ip_universe_id
+			FROM netblock
+			WHERE netblock_id = NEW.netblock_id;
+		ELSIF NEW.dns_value_record_id IS NOT NULL THEN
+			SELECT ip_universe_id INTO NEW.ip_universe_id
+			FROM dns_record
+			WHERE dns_record_id = NEW.dns_value_record_id;
+		ELSE
+			-- old default.
+			NEW.ip_universe_id = 0;
+		END IF;
+	END IF;
+
 	IF NEW.dns_type in ('A', 'AAAA') THEN
 		IF ( NEW.netblock_id IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
 			RAISE EXCEPTION 'Attempt to set % record without netblocks',
@@ -222,7 +241,6 @@ BEGIN
 		END IF;
 
 	END IF;
-
 
 	RETURN NEW;
 END;
@@ -448,8 +466,15 @@ RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.DNS_NAME IS NOT NULL THEN
 		-- rfc rfc952
-		IF NEW.DNS_NAME !~ '[-a-zA-Z0-9\._]*' THEN
+		IF NEW.DNS_NAME ~ '[^-a-zA-Z0-9\._\*]+' THEN
 			RAISE EXCEPTION 'Invalid DNS NAME %',
+				NEW.DNS_NAME
+				USING ERRCODE = 'integrity_constraint_violation';
+		END IF;
+
+		-- PTRs on wildcard records break thing and make no sense.
+		IF NEW.DNS_NAME ~ '\*' AND NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+			RAISE EXCEPTION 'Wildcard DNS Record % can not have auto-set PTR',
 				NEW.DNS_NAME
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
@@ -462,7 +487,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_check_name ON dns_record;
 CREATE TRIGGER trigger_dns_record_check_name
-	BEFORE INSERT OR UPDATE OF DNS_NAME
+	BEFORE INSERT OR UPDATE OF DNS_NAME, SHOULD_GENERATE_PTR
 	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_check_name();
@@ -481,7 +506,7 @@ BEGIN
 			IF TG_OP = 'UPDATE' THEN
 			SELECT	COUNT(*)
 				  INTO	_tally
-				  FROM	dns_record x
+				  FROM	v_dns x
 				 WHERE
 						NEW.dns_domain_id = x.dns_domain_id
 				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
@@ -496,7 +521,7 @@ BEGIN
 				-- only difference between above and this is the use of OLD
 				SELECT	COUNT(*)
 				  INTO	_tally
-				  FROM	dns_record x
+				  FROM	v_dns x
 				 WHERE
 						NEW.dns_domain_id = x.dns_domain_id
 				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
@@ -507,12 +532,12 @@ BEGIN
 						)
 				;
 			END IF;
-		-- this clause is basically the same as above except = 'CANME'
+		-- this clause is basically the same as above except = 'CNAME'
 		ELSIF NEW.DNS_TYPE != 'CNAME' THEN
 			IF TG_OP = 'UPDATE' THEN
 				SELECT	COUNT(*)
 				  INTO	_tally
-				  FROM	dns_record x
+				  FROM	v_dns x
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	OLD.dns_record_id != x.dns_record_id
@@ -527,7 +552,7 @@ BEGIN
 				-- only difference between above and this is the use of OLD
 				SELECT	COUNT(*)
 				  INTO	_tally
-				  FROM	dns_record x
+				  FROM	v_dns x
 				 WHERE	x.dns_type = 'CNAME'
 				 AND	NEW.dns_domain_id = x.dns_domain_id
 				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
@@ -640,22 +665,35 @@ CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_change()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF NEW.should_generate = 'Y' THEN
-		insert into DNS_CHANGE_RECORD
+		--
+		-- kind of a weird case, but if last_generated matches
+		-- the last change date of the zone, then its part of actually
+		-- regenerating and should not get a change record otherwise
+		-- that would constantly create change records.
+		--
+		IF TG_OP = 'INSERT' OR NEW.last_generated < NEW.data_upd_date THEN
+			INSERT INTO dns_change_record
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
+		END IF;
     ELSE
 		DELETE FROM DNS_CHANGE_RECORD
 		WHERE dns_domain_id = NEW.dns_domain_id
 		AND ip_universe_id = NEW.ip_universe_id;
 	END IF;
+
+	--
+	-- When its not a change as part of zone generation, mark it as
+	-- something that needs to be addressed by zonegen
+	--
 	RETURN NEW;
 END;
 $$
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_dns_domain_ip_universe_trigger_change 
+DROP TRIGGER IF EXISTS trigger_dns_domain_ip_universe_trigger_change
 	ON dns_domain_ip_universe;
 CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change
-	AFTER INSERT OR UPDATE OF soa_class, soa_ttl,
+	AFTER INSERT OR UPDATE OF soa_class, soa_ttl, soa_serial,
 		soa_refresh, soa_retry, soa_expire, soa_minimum, soa_mname,
 		soa_rname, should_generate
 	ON dns_domain_ip_universe

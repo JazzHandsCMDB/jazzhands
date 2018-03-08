@@ -870,7 +870,7 @@ BEGIN
 	FROM	netblock nb
 		JOIN ip_universe u USING (ip_universe_id)
 	WHERE	is_single_address = 'N'
-	AND	nb.ip_address >>= '205.129.9.5'
+	AND	nb.ip_address >>= ip
 	AND	u.ip_namespace = 'default'
 	ORDER BY masklen(nb.ip_address) desc
 	LIMIT 1;
@@ -885,5 +885,4 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
-GRANT USAGE ON SCHEMA netblock_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO ro_role;

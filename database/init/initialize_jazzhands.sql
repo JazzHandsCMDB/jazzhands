@@ -108,6 +108,7 @@ INSERT INTO val_service_env_coll_type (
 	'by-coll-type', 'automated collection for service_environments of this type',
 	1, 0
 );
+
 -----------------------------------------------------------------------------
 
 INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced,
@@ -1722,6 +1723,34 @@ AND p.property_data_type = 'none';
 ;
 
 -- END automated account collection infrastructure (tied to properties)
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+--
+-- Begin automated properties/colletions
+--
+INSERT INTO val_netblock_collection_type (
+	netblock_collection_type, description, can_have_hierarchy
+) VALUES (
+	'per-site', 'automated collection named after sites', 'N'
+);
+
+INSERT INTO val_property_type (
+	property_type, description
+) VALUES (
+	'automated', 'properties that are automatically managed by jazzhands'
+);
+
+INSERT INTO val_property (
+	property_type, property_name, permit_netblock_collection_id,
+	permit_site_code, property_data_type
+) VALUES (
+	'automated', 'per-site-netblock_collection', 'REQUIRED',
+	'REQUIRED', 'none'
+);
+
+--
+-- End automated properties/colletions
 -------------------------------------------------------------------------
 
 -------------------------------------------------------------------------

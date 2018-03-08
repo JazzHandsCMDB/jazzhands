@@ -46,6 +46,16 @@ BEGIN
 	END IF;
 
 	/*
+	 * These are trigger enforced later and are basically what anyone
+	 * using this means.
+	 */
+	IF NEW.can_subnet = 'Y' and NEW.is_single_address iS NULL THEN
+		NEW.is_single_address = 'N';
+	ELSIF NEW.can_subnet IS NULL and NEW.is_single_address = 'Y' THEN
+		NEW.can_subnet = 'N';
+	END IF;
+
+	/*
 	 * If the universe is not set, we used to assume 0/default, but now
 	 * its the same namespace.  In the interest of speed, we assume a
 	 * default namespace of 0, which is kind of like before, and 

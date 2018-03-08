@@ -47,15 +47,17 @@ GetOptions(
 my $credentials;
 
 if ($user) {
-	print STDERR 'Password: ';
-	ReadMode('noecho');
-	chomp($password = <STDIN>);
-	ReadMode(0);
-	print STDERR "\n";
-
 	if (!$password) {
-		print STDERR "Password required\n";
-		exit 1;
+		print STDERR 'Password: ';
+		ReadMode('noecho');
+		chomp($password = <STDIN>);
+		ReadMode(0);
+		print STDERR "\n";
+
+		if (!$password) {
+			print STDERR "Password required\n";
+			exit 1;
+		}
 	}
 	$credentials->{username} = $user;
 	$credentials->{password} = $password;

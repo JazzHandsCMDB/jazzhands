@@ -34,8 +34,6 @@
 -- \ir create_v_login_changes.sql
 -- \ir create_v_user_deletions.sql
 
-\ir pgsql/create_v_netblock_hier.sql
-
 -- XXX - not sure if this is still needed.  Leaving out until it is
 -- \ir create_v_user_extract.sql 
 \ir pgsql/create_v_property.sql
@@ -59,6 +57,7 @@
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components.sql
 \ir pgsql/create_v_device_components_expanded.sql
+\ir pgsql/create_v_device_slot_connections.sql
 
 \ir create_physical_port.sql
 \ir create_layer1_connection.sql
@@ -66,6 +65,7 @@
 
 \ir create_device_power_connection.sql
 \ir create_device_power_interface.sql
+
 
 -- XXX these need to be ported
 -- \ir create_v_joined_acct_collection_user_detail.sql
@@ -99,7 +99,9 @@
 \ir pgsql/create_v_application_role.sql
 
 \ir pgsql/create_v_company_hier.sql
+\ir create_site_netblock.sql
 \ir pgsql/create_v_site_netblock_expanded.sql
+\ir pgsql/create_v_netblock_hier.sql
 \ir pgsql/create_v_physical_connection.sql
 
 \ir create_v_device_col_acct_col_expanded.sql

@@ -94,7 +94,7 @@ BEGIN
 	) VALUES (
 		'172.31.30.0/24', 'default',
 			'N', 'N', 'Allocated',
-			'JHTEST _blk0id', _u0
+			'JHTEST _blk0id_u0', _u0
 	) RETURNING netblock_id INTO _blk0id;
 
 	INSERT INTO NETBLOCK (ip_address, netblock_type,
@@ -103,7 +103,7 @@ BEGIN
 	) VALUES (
 		'172.31.30.0/24', 'default',
 			'N', 'N', 'Allocated',
-			'JHTEST _blk0id', _u1
+			'JHTEST _blk0id_u1', _u1
 	) RETURNING netblock_id INTO _blk1id;
 
 	RAISE NOTICE 'Checking if netblock/dns_record mismatch fails... ';
@@ -442,9 +442,6 @@ BEGIN
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE '.... it did!';
 	END;
-
-
-	RAISE EXCEPTION 'Need to finish testing netblock_utils.find_best_ip_universe';
 
 	RAISE NOTICE 'ip_universe_valid_regression: DONE';
 	RETURN true;

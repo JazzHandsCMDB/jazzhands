@@ -51,6 +51,7 @@
 \ir port_util.sql
 \ir device_utils.sql
 \ir netblock_utils.sql
+\ir property_utils.sql
 \ir netblock_manip.sql
 -- \ir key_crypto.sql
 -- \ir dbms_job_util.sql
@@ -66,3 +67,4 @@
 \ir backend_utils.sql
 \ir rack_utils.sql
 \ir layerx_network_manip.sql
+\ir component_connection_utils.sql

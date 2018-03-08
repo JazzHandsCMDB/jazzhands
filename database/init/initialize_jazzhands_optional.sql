@@ -206,18 +206,15 @@ values
 	('224.0.0.0/4', 'N', 'Allocated', 'default', 'IPv4 Multicast', 'Y'),
 	('FF00::/8', 'N', 'Allocated', 'default', 'IPv6 Multicast', 'Y');
 
--- RFC1493 Example space
+-- RFC4193 globally unique (private) space
 -- FC00::/7
 -- 334965454937798799971759379190646833152
-insert into  netblock 
-	(ip_address, is_single_address, netblock_status, netblock_type, description, can_subnet) 
-values
-	('FC00::/7', 'N', 'Allocated', 'default', 'RFC4193 IPV6 Block', 'Y');
 
 -- RFC 1918 space
 insert into netblock
 	(IP_UNIVERSE_ID, IP_ADDRESS, IS_SINGLE_ADDRESS, NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
+	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), 'FC00::/7', 'N', 'Allocated', 'default', 'RFC4193 IPV6 Block', 'Y'),
 	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '10.0.0.0/8', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y'),
 	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '192.168.0.0/16', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y'),
 	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '172.16.0.0/12', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y');
