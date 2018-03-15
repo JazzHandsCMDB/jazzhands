@@ -718,7 +718,7 @@ BEGIN
 				-- universe and netblock_type
 				--
 				ipaddr := addrs_ary->>i;
-				universe := 0;
+				universe := netblock_utils.find_best_ip_universe(ipaddr);
 				nb_type := 'default';
 			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
 				--
@@ -735,7 +735,7 @@ BEGIN
 				IF addrs_ary->i ? 'ip_universe_id' THEN
 					universe := addrs_ary->i->'ip_universe_id';
 				ELSE
-					universe := 0;
+					universe := netblock_utils.find_best_ip_universe(ipaddr);
 				END IF;
 
 				IF addrs_ary->i ? 'netblock_type' THEN
@@ -1171,7 +1171,7 @@ BEGIN
 				-- universe and netblock_type
 				--
 				ipaddr := addrs_ary->>i;
-				universe := 0;
+				universe := netblock_utils.find_best_ip_universe(ipaddr);
 				nb_type := 'default';
 				protocol := 'VRRP';
 			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
@@ -1189,7 +1189,7 @@ BEGIN
 				IF addrs_ary->i ? 'ip_universe_id' THEN
 					universe := addrs_ary->i->'ip_universe_id';
 				ELSE
-					universe := 0;
+					universe := netblock_utils.find_best_ip_universe(ipaddr);
 				END IF;
 
 				IF addrs_ary->i ? 'netblock_type' THEN
