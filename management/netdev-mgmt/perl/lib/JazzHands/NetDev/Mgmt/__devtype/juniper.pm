@@ -2995,10 +2995,15 @@ my $iface_map = {
         media_type => '10GLCEthernet',
         slot_prefix => 'xe-',
     },
-	'100GBASE-SR4' => {
-        module_type => '100GQSFP28Ethernet',
-        media_type => '100GMXPEthernet',
-        slot_prefix => 'et-',
+    'SFP+-10G-LR' => {
+        module_type => '10GSFP+Ethernet',
+        media_type => '10GLCEthernet',
+        slot_prefix => 'xe-',
+    },
+	'SFP+-10G-CU1M' => {
+        module_type => '10GSFP+Ethernet',
+        media_type => '10GSFPCuEthernet',
+        slot_prefix => 'xe-',
 	},
 	'QSFP28-100G-CDWM4-FEC' => {
         module_type => '100GQSFP28Ethernet',
