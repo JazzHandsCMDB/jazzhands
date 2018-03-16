@@ -199,7 +199,7 @@ BEGIN
 
 	--
 	-- It is possible that this will fail if there are surprise foreign
-	-- keys to the accounts.  Thisis
+	-- keys to the accounts.  This is silently ignored.
 	--
 	EXECUTE '
 		WITH x AS (
@@ -352,7 +352,7 @@ BEGIN
 		SELECT	property_value::interval
 		INTO	lifespan
 		FROM	property
-		WHERE	property_name = 'account_collection_cleanup_interval'
+		WHERE	property_name = 'account_collection_purge_interval'
 		AND		property_type = '_Defaults';
 	END IF;
 
