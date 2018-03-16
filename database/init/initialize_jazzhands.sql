@@ -1933,3 +1933,39 @@ insert into val_property (
 
 -- END Phone Directory
 -------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- BEGIN Device Inventory
+
+INSERT INTO val_property_type (
+	property_type, description
+) VALUES
+	('DeviceInventory', 'properties for device inventory functions')
+;
+
+INSERT INTO val_property (
+	property_type, property_name, property_data_type,
+	permit_device_collection_id,
+	description
+) VALUES
+	('DeviceInventory', 'AdminAccountCollection', 'account_collection_id',
+	'ALLOWED',
+	'account collection of administrators allowed to run device inventory')
+;
+
+INSERT INTO val_property (
+	property_type, property_name, property_data_type,
+	description
+) VALUES
+	('DeviceInventory', 'IgnoreProbedNetblocks', 'netblock_collection_id',
+	'When probing devices, prevent any netblocks which are sub-blocks of those in the referenced collection from being assigned to a network interface')
+;
+
+INSERT INTO val_netblock_collection_type (
+	netblock_collection_type, description
+) VALUES (
+	'DeviceInventory', 'netblock collections for various automated device inventory function')
+;
+
+-- END Device Inventory
+-------------------------------------------------------------------------
