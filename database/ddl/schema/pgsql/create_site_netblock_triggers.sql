@@ -36,7 +36,7 @@ BEGIN
 	) SELECT count(*) INTO _tally FROM i;
 
 	IF _tally != 1 THEN
-		RAISE 'Inserted % rows, not 1.', _tally;
+		RAISE 'Inserted % rows, not 1. (%,%)', _tally, NEW.site_code, NEW.netblock_id;
 	END IF;
 	RETURN NEW;
 END;
