@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2013-2017, Todd M. Kover
+# Copyright (c) 2013-2018, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -972,10 +972,17 @@ sub process_zone($$$;$) {
 	#
 	# XXX - First go through the zone and find things that are not there that should be
 	my $numrec = 0;
+  RR:
 	foreach my $rr ( sort favor_soa_by_name @{$zone} ) {
 		my $x = $rr->string;
 		$x =~ s/\s+/ /mg;
 		$self->_Debug( 1, ">> Processing record %s...", $x );
+		foreach my $pre ( @{ $self->{ignoreprefix} } ) {
+			if ( $x =~ /^$pre/ ) {
+				$self->_Debug( 2, " Skipping, matches $pre" );
+				next RR;
+			}
+		}
 		my $name = $rr->name;
 		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
@@ -1179,7 +1186,8 @@ sub do_zone_load {
 		$ns,             $verbose,          $addsvr,
 		$nodelete,       $debug,            $dryrun,
 		$universe,       $guessuniverse,    $v6universe,
-		$shouldgenerate, @alloweduniverses, $file
+		$shouldgenerate, @alloweduniverses, $file,
+		@ignoreprefix
 	);
 
 	my $r = GetOptions(
@@ -1194,6 +1202,7 @@ sub do_zone_load {
 		"v6-universe=s"       => \$v6universe,
 		"ip-universe=s"       => \$universe,
 		"guess-universe"      => \$guessuniverse,
+		"ignore-prefix=s"     => \@ignoreprefix,
 		"unknown-netblocks=s" => \$nbrule,
 		"should-generate"     => \$shouldgenerate,
 		"allowed-universe=s"  => \@alloweduniverses,
@@ -1237,10 +1246,11 @@ sub do_zone_load {
 		die "When specifying a filename, only one zone can be processed.\n";
 	}
 
-	$ziw->{nbrule}     = $nbrule;
-	$ziw->{verbose}    = $verbose;
-	$ziw->{addservice} = $addsvr;
-	$ziw->{nodelete}   = $nodelete;
+	$ziw->{ignoreprefix} = \@ignoreprefix;
+	$ziw->{nbrule}       = $nbrule;
+	$ziw->{verbose}      = $verbose;
+	$ziw->{addservice}   = $addsvr;
+	$ziw->{nodelete}     = $nodelete;
 	if ( scalar @alloweduniverses ) {
 		foreach my $u (@alloweduniverses) {
 			my $id = $ziw->find_universe($u);
