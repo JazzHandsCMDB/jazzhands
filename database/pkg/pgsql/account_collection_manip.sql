@@ -161,6 +161,251 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
+--------------------------------------------------------------------------------
+--
+-- Used to purge accounts from account from account collections when the
+-- members have been terminated for more than an interval.
+--
+-- The default is a year, but its possible to pass in an interval or set up
+-- a system wide default.
+--
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_collection_manip.cleanup_account_collection_account (
+	lifespan	INTERVAL DEFAULT NULL
+) RETURNS INTEGER AS $$
+DECLARE
+	rv	INTEGER;
+BEGIN
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_collection_cleanup_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_cleanup_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+
+	IF lifespan IS NULL THEN
+		lifespan := '1 year'::interval;
+	END IF;
+
+	--
+	-- It is possible that this will fail if there are surprise foreign
+	-- keys to the accounts.  Thisis
+	--
+	EXECUTE '
+		WITH x AS (
+			SELECT account_collection_id, account_id
+			FROM    account a
+        			JOIN account_collection_account aca USING (account_id)
+        			JOIN account_collection ac USING (account_collection_id)
+        			JOIN person_company pc USING (person_id, company_id)
+			WHERE   pc.termination_date IS NOT NULL
+			AND     pc.termination_date < now() - $1::interval
+			AND     account_collection_type != $2
+			AND
+				(account_collection_id, account_id)  NOT IN
+					( SELECT unix_group_acct_collection_id, account_id from
+						account_unix_info)
+			) DELETE FROM account_collection_account aca
+			WHERE (account_collection_id, account_id) IN
+				(SELECT account_collection_id, account_id FROM x)
+		' USING lifespan, 'per-account';
+	GET DIAGNOSTICS rv = ROW_COUNT;
+	RETURN rv;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--------------------------------------------------------------------------------
+--
+-- Used to purge inactive departments from various places where the database
+-- maintains them.
+--
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_departments(
+	lifespan	INTERVAL DEFAULT NULL,
+	raise_exception	boolean DEFAULT true
+) RETURNS INTEGER AS $$
+DECLARE
+	_r	RECORD;
+	rv	INTEGER;
+	i	INTEGER;
+BEGIN
+	rv := 0;
+
+	--
+	-- delete login assignment to linux machines for departments that are
+	-- disabled and not in use
+	--
+	FOR _r IN SELECT	p.property_id
+			FROM	account_collection ac
+				JOIN department d USING (account_collection_id)
+				JOIN property p USING (account_collection_id)
+			WHERE 	d.is_active = 'N'
+			AND	property_type = 'MclassUnixProp' AND property_name = 'UnixLogin'
+			AND	account_collection_id NOT IN (
+					SELECT child_account_collection_id
+					FROM account_collection_hier
+				)
+			AND	account_collection_id NOT IN (
+					SELECT account_collection_id
+					FROM account_collection_account
+				)
+	LOOP
+		BEGIN
+			DELETE FROM property
+			WHERE property_id = _r.property_id;
+			GET DIAGNOSTICS i = ROW_COUNT;
+			rv := rv + i;
+		EXCEPTION WHEN foreign_key_violation THEN
+			NULL;
+		END;
+	END LOOP;
+
+
+	--
+	-- delete unix group overrides to linux machines for departments that are
+	-- disabled and not in use
+	--
+	FOR _r IN SELECT	p.property_id
+			FROM	account_collection ac
+				JOIN department d USING (account_collection_id)
+				JOIN property p ON p.property_value_account_coll_id =
+					ac.account_collection_id
+			WHERE 	d.is_active = 'N'
+			AND	property_type = 'MclassUnixProp'
+			AND	property_name = 'UnixGroupMemberOverride'
+			AND	p.property_value_account_coll_id NOT IN (
+					SELECT child_account_collection_id
+					FROM account_collection_hier
+				)
+			AND	p.property_value_account_coll_id NOT IN (
+					SELECT account_collection_id
+					FROM account_collection_account
+				)
+	LOOP
+		BEGIN
+			DELETE FROM property
+			WHERE property_id = _r.property_id;
+			GET DIAGNOSTICS i = ROW_COUNT;
+			rv := rv + i;
+		EXCEPTION WHEN foreign_key_violation THEN
+			NULL;
+		END;
+	END LOOP;
+
+	--
+	-- remove child account collection membership
+	--
+	FOR _r IN SELECT	ac.*
+			FROM	account_collection ac
+				JOIN department d USING (account_collection_id)
+			WHERE	d.is_active = 'N'
+			AND	account_collection_id IN (
+				SELECT child_account_collection_id FROM account_collection_hier
+			)
+	LOOP
+		BEGIN
+			DELETE FROM account_collection_hier
+				WHERE child_account_collection_id = _r.account_collection_id;
+			GET DIAGNOSTICS i = ROW_COUNT;
+			rv := rv + i;
+		EXCEPTION WHEN foreign_key_violation THEN
+			NULL;
+		END;
+	END LOOP;
+
+	RETURN rv;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+--------------------------------------------------------------------------------
+--
+-- Used to purge account collections that are empty from children account
+-- collections if they have no properties assigned.  Since container-only
+-- account collections should have properties attached, if it fails to
+-- delete, it means its attached elsewhere.  properties are skipped because
+-- they are obvious.
+--
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_account_collections(
+	lifespan	INTERVAL DEFAULT NULL,
+	raise_exception	boolean DEFAULT true
+) RETURNS INTEGER AS $$
+DECLARE
+	_r	RECORD;
+	i	INTEGER;
+	rv	INTEGER;
+BEGIN
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_collection_cleanup_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_cleanup_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+	IF lifespan IS NULL THEN
+		lifespan := '1 year'::interval;
+	END IF;
+
+	--
+	-- remove unused account collections
+	--
+	rv := 0;
+	FOR _r IN
+		SELECT ac.*
+		FROM	account_collection ac
+			JOIN val_account_collection_type act USING (account_collection_type)
+		WHERE	now() -
+			coalesce(ac.data_upd_date,ac.data_ins_date) > lifespan::interval
+		AND	act.is_infrastructure_type = 'N'
+		AND	account_collection_id NOT IN
+			(SELECT child_account_collection_id FROM account_collection_hier)
+		AND	account_collection_id NOT IN
+			(SELECT account_collection_id FROM account_collection_hier)
+		AND	account_collection_id NOT IN
+			(SELECT account_collection_id FROM account_collection_account)
+		AND	account_collection_id NOT IN
+			(SELECT account_collection_id FROM property
+				WHERE account_collection_id IS NOT NULL)
+		AND	account_collection_id NOT IN
+			(SELECT property_value_account_coll_id FROM property
+				WHERE property_value_account_coll_id IS NOT NULL)
+	LOOP
+		BEGIN
+			DELETE FROM account_collection
+				WHERE account_collection_id = _r.account_collection_id;
+			GET DIAGNOSTICS i = ROW_COUNT;
+			rv := rv + i;
+		EXCEPTION WHEN foreign_key_violation THEN
+			NULL;
+		END;
+	END LOOP;
+
+	RETURN rv;
+
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 grant select on all tables in schema account_collection_manip to iud_role;
 grant usage on schema account_collection_manip to iud_role;
 revoke all on schema account_collection_manip from public;
