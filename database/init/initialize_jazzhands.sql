@@ -1018,7 +1018,7 @@ VALUES (
 	'SystemInstallation',
 	'Specify the name of the system installation profile to use',
 	'N',
-	'boolean',
+	'string',
 	'ALLOWED',
 	'ALLOWED',
 	'ALLOWED',
