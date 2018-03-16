@@ -199,7 +199,7 @@ BEGIN
 
 	--
 	-- It is possible that this will fail if there are surprise foreign
-	-- keys to the accounts.  This is silently ignored.
+	-- keys to the accounts.
 	--
 	EXECUTE '
 		WITH x AS (
