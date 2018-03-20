@@ -582,6 +582,7 @@ insert into val_property_type (property_type, description,is_multivalue)
 	('RADIUS','RADIUS properties', 'Y'),
 	('ConsoleACL','console access control properties', 'Y'),
 	('UnixPasswdFileValue','override value set in the Unix passwd file','Y'),
+	('SystemInstallation','Properties associated with the system loading process','Y'),
 	('wwwgroup','WWW Group properties','Y');
 
 insert into val_property
@@ -998,6 +999,32 @@ VALUES (
 	'boolean',
 	'REQUIRED',
 	'REQUIRED'
+);
+
+-- System installation properties
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_device_collection_id,
+	permit_layer2_network_coll_id,
+	permit_layer3_network_coll_id,
+	permit_netblock_collection_id,
+	permit_network_range_id,
+	permit_site_code
+	)
+VALUES (
+	'InstallationProfile',
+	'SystemInstallation',
+	'Specify the name of the system installation profile to use',
+	'N',
+	'string',
+	'ALLOWED',
+	'ALLOWED',
+	'ALLOWED',
+	'ALLOWED',
+	'ALLOWED',
+	'ALLOWED'
 );
 
 insert into val_company_collection_type
