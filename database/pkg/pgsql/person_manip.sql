@@ -137,7 +137,7 @@ BEGIN
 	-- wtf. this should never happen
 	RETURN NULL;
 END;
-$$
+$$ 
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -206,11 +206,11 @@ CREATE OR REPLACE FUNCTION person_manip.add_user(
     termination_date                DATE        DEFAULT NULL,
     position_title                  VARCHAR     DEFAULT NULL,
     job_title		                VARCHAR     DEFAULT NULL,
-    department_name                 VARCHAR     DEFAULT NULL,
-    manager_person_id               INTEGER     DEFAULT NULL,
-    site_code                       VARCHAR     DEFAULT NULL,
-    physical_address_id             INTEGER     DEFAULT NULL,
-    person_location_type            VARCHAR     DEFAULT 'office',
+    department_name                 VARCHAR     DEFAULT NULL, 
+    manager_person_id               INTEGER     DEFAULT NULL, 
+    site_code                       VARCHAR     DEFAULT NULL, 
+    physical_address_id             INTEGER     DEFAULT NULL, 
+    person_location_type            VARCHAR     DEFAULT 'office', 
     description                     VARCHAR     DEFAULT NULL,
     unix_uid                        VARCHAR     DEFAULT NULL,
     INOUT person_id                 INTEGER     DEFAULT NULL,
@@ -239,8 +239,8 @@ BEGIN
     END IF;
     _companyid := company_id;
 
-    SELECT arc.account_realm_id
-      INTO _account_realm_id
+    SELECT arc.account_realm_id 
+      INTO _account_realm_id 
       FROM account_realm_company arc
      WHERE arc.company_id = _companyid;
     IF NOT FOUND THEN
@@ -248,9 +248,9 @@ BEGIN
     END IF;
 
     IF login is NULL THEN
-        IF first_name IS NULL or last_name IS NULL THEN
+        IF first_name IS NULL or last_name IS NULL THEN 
             RAISE EXCEPTION 'Must specify login name or first name+last name';
-        ELSE
+        ELSE 
             login := person_manip.pick_login(
                 in_account_realm_id := _account_realm_id,
                 in_first_name := coalesce(preferred_first_name, first_name),
@@ -303,7 +303,7 @@ BEGIN
     END IF;
 
     IF physical_address_id IS NOT NULL AND site_code IS NOT NULL THEN
-        INSERT INTO person_location
+        INSERT INTO person_location 
             (person_id, person_location_type, site_code, physical_address_id)
         VALUES
             (person_id, person_location_type, site_code, physical_address_id);
@@ -343,17 +343,17 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --
 CREATE OR REPLACE FUNCTION person_manip.add_person(
 	__person_id INTEGER,
-	first_name VARCHAR,
-	middle_name VARCHAR,
+	first_name VARCHAR, 
+	middle_name VARCHAR, 
 	last_name VARCHAR,
-	name_suffix VARCHAR,
-	gender VARCHAR(1),
+	name_suffix VARCHAR, 
+	gender VARCHAR(1), 
 	preferred_last_name VARCHAR,
 	preferred_first_name VARCHAR,
 	birth_date DATE,
-	_company_id INTEGER,
-	external_hr_id VARCHAR,
-	person_company_status VARCHAR,
+	_company_id INTEGER, 
+	external_hr_id VARCHAR, 
+	person_company_status VARCHAR, 
 	is_manager VARCHAR(1),
 	is_exempt VARCHAR(1),
 	is_full_time VARCHAR(1),
@@ -371,7 +371,7 @@ CREATE OR REPLACE FUNCTION person_manip.add_person(
 DECLARE
 	_account_realm_id INTEGER;
 BEGIN
-	SELECT
+	SELECT	
 		xxx.person_id,
 		xxx.dept_account_collection_id,
 		xxx.account_id
@@ -402,7 +402,7 @@ BEGIN
 			job_title := job_title,
 			department_name := department,
 			login := login
-		) xxx;
+		) xxx; 
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -410,9 +410,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- THIS FUNCTION IS DEPRECATED AND WILL GO AWAY.  Call add_person instead
 --
 CREATE OR REPLACE FUNCTION person_manip.add_user_non_person(
-	_company_id integer,
-	_account_status character varying,
-	_login character varying,
+	_company_id integer, 
+	_account_status character varying, 
+	_login character varying, 
 	_description character varying
 ) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
@@ -595,7 +595,7 @@ BEGIN
 		);
 	DELETE FROM account_password where ACCOUNT_ID = in_account_id;
 	DELETE FROM unix_group where account_collection_id in
-		(select account_collection_id from account_collection
+		(select account_collection_id from account_collection 
 			where account_collection_name in
 				(select login from account where account_id = in_account_id)
 				and account_collection_type in ('unix-group')
@@ -621,12 +621,12 @@ CREATE OR REPLACE FUNCTION person_manip.purge_person(
 DECLARE
 	aid	INTEGER;
 BEGIN
-	FOR aid IN select account_id
-			FROM account
+	FOR aid IN select account_id 
+			FROM account 
 			WHERE person_id = in_person_id
 	LOOP
 		PERFORM person_manip.purge_account ( aid );
-	END LOOP;
+	END LOOP; 
 
 	DELETE FROM person_company_attr WHERE person_id = in_person_id;
 	DELETE FROM person_contact WHERE person_id = in_person_id;
@@ -652,14 +652,14 @@ BEGIN
 	  into	fpc
 	  from	v_person_company
 	 where	(person_id, company_id) in
-		(select person_id, company_id
+		(select person_id, company_id 
 		   from account where account_id = merge_from_account_id);
 
 	select	*
 	  into	tpc
 	  from	v_person_company
 	 where	(person_id, company_id) in
-		(select person_id, company_id
+		(select person_id, company_id 
 		   from account where account_id = merge_to_account_id);
 
 	IF (fpc.company_id != tpc.company_id) THEN
@@ -720,8 +720,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --------------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION person_manip.change_company(
-	final_company_id 	integer,
-	_person_id		integer,
+	final_company_id 	integer, 
+	_person_id		integer, 
 	initial_company_id 	integer,
 	_account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL
 )  RETURNS VOID AS $_$
@@ -749,10 +749,10 @@ BEGIN
 	AND company_id = initial_company_id
 	AND account_realm_id = _arid;
 
-	SELECT *
-	INTO initial_person_company
-	FROM person_company
-	WHERE person_id = _person_id
+	SELECT * 
+	INTO initial_person_company 
+	FROM person_company 
+	WHERE person_id = _person_id 
 	AND company_id = initial_company_id;
 
 	UPDATE person_company
@@ -765,9 +765,9 @@ BEGIN
 	WHERE company_id = initial_company_id
 	AND person_id = _person_id;
 
-	UPDATE account
-	SET company_id = final_company_id
-	WHERE company_id = initial_company_id
+	UPDATE account 
+	SET company_id = final_company_id 
+	WHERE company_id = initial_company_id 
 	AND person_id = _person_id
 	AND account_realm_id = _arid;
 
@@ -785,8 +785,8 @@ $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands, pg_temp;
 -- This is imperfect
 --
 CREATE OR REPLACE FUNCTION person_manip.guess_person_id(
-	first_name 	text,
-	last_name	text,
+	first_name 	text, 
+	last_name	text, 
 	login 		text,
 	company_id	company.company_id%TYPE DEFAULT NULL
 )  RETURNS person.person_id%TYPE AS $_$
@@ -820,7 +820,7 @@ BEGIN
 			AND		first_name = $3
 			AND		last_name = $4
 		' INTO pid USING _l, company_id, first_name, last_name;
-
+	
 		IF pid IS NOT NULL THEN
 			RETURN pid;
 		END IF;
@@ -828,8 +828,8 @@ BEGIN
 
 	RETURN NULL;
 END;
-$_$
-LANGUAGE plpgsql SECURITY DEFINER
+$_$ 
+LANGUAGE plpgsql SECURITY DEFINER 
 SET search_path = jazzhands, pg_temp;
 
 --------------------------------------------------------------------------------
@@ -838,7 +838,7 @@ SET search_path = jazzhands, pg_temp;
 --------------------------------------------------------------------------------
 
 DROP FUNCTION IF EXISTS person_manip.get_physical_address_from_site_code(varchar);
-CREATE OR REPLACE FUNCTION person_manip.get_physical_address_from_site_code(_site_code VARCHAR)
+CREATE OR REPLACE FUNCTION person_manip.get_physical_address_from_site_code(_site_code VARCHAR) 
 	RETURNS INTEGER AS $$
 DECLARE
 	_physical_address_id INTEGER;
@@ -852,7 +852,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP FUNCTION IF EXISTS person_manip.get_site_code_from_physical_address_id(integer);
-CREATE OR REPLACE FUNCTION person_manip.get_site_code_from_physical_address_id(_physical_address_id INTEGER)
+CREATE OR REPLACE FUNCTION person_manip.get_site_code_from_physical_address_id(_physical_address_id INTEGER) 
 	RETURNS VARCHAR AS $$
 DECLARE
 	_site_code VARCHAR;
@@ -866,7 +866,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --------------------------------------------------------------------------------
--- function to change a persons location.  takes person_id AND either
+-- function to change a persons location.  takes person_id AND either 
 -- phsyical_address_id OR site_code and sets the person_location entry for the
 -- for the given person_id
 --------------------------------------------------------------------------------
