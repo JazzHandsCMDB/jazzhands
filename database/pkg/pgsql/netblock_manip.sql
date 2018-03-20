@@ -785,8 +785,8 @@ BEGIN
 				)
 			WHERE
 				ipaddr <<= n.ip_address AND
-				n.ip_universe_id = universe AND
-				n.netblock_type = nb_type;
+				n.ip_universe_id = universe
+			;
 
 			--
 			-- If we found this netblock in the ignore list, then just
