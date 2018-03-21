@@ -205,9 +205,9 @@ BEGIN
 		WITH x AS (
 			SELECT account_collection_id, account_id
 			FROM    account a
-        			JOIN account_collection_account aca USING (account_id)
-        			JOIN account_collection ac USING (account_collection_id)
-        			JOIN person_company pc USING (person_id, company_id)
+				JOIN account_collection_account aca USING (account_id)
+				JOIN account_collection ac USING (account_collection_id)
+				JOIN person_company pc USING (person_id, company_id)
 			WHERE   pc.termination_date IS NOT NULL
 			AND     pc.termination_date < now() - $1::interval
 			AND     account_collection_type != $2
