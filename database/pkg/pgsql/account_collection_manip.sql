@@ -231,8 +231,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_department_properties(
-	property_name	property.property_name%TYPE,
 	property_type	property.property_type%TYPE,
+	property_name	property.property_name%TYPE DEFAULT NULL,
 	lifespan	INTERVAL DEFAULT NULL,
 	raise_exception	boolean DEFAULT true
 ) RETURNS INTEGER AS $$
@@ -275,7 +275,8 @@ BEGIN
 				JOIN department d USING (account_collection_id)
 				JOIN property p USING (account_collection_id)
 			WHERE 	d.is_active = 'N'
-			AND	p.property_type = _pt AND p.property_name = _pn
+			AND ((_pn IS NOT NULL AND _pn = _pn.property_name) OR _pn IS NULL )
+			AND	p.property_type = _pt
 			AND	account_collection_id NOT IN (
 					SELECT child_account_collection_id
 					FROM account_collection_hier
@@ -306,7 +307,8 @@ BEGIN
 				JOIN property p ON p.property_value_account_coll_id =
 					ac.account_collection_id
 			WHERE 	d.is_active = 'N'
-			AND	p.property_type = _pt AND p.property_name = _pn
+			AND ((_pn IS NOT NULL AND _pn = _pn.property_name) OR _pn IS NULL )
+			AND	p.property_type = _pt
 			AND	p.property_value_account_coll_id NOT IN (
 					SELECT child_account_collection_id
 					FROM account_collection_hier
@@ -365,15 +367,43 @@ BEGIN
 	END IF;
 
 	rv := rv + account_collection_manip.purge_inactive_department_properties(
-		property_name := 'MclassUnixProp',
 		property_type := 'UnixLogin',
 		lifespan := lifespan,
 		raise_exception := raise_exception
 	);
 
 	rv := rv + account_collection_manip.purge_inactive_department_properties(
-		property_name := 'UnixGroupMemberOverride',
 		property_type := 'MclassUnixProp',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_type := 'StabRole',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_type := 'Defaults',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_type := 'API',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_type := 'DeviceInventory',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_type := 'PhoneDirectoryAttributes',
 		lifespan := lifespan,
 		raise_exception := raise_exception
 	);
