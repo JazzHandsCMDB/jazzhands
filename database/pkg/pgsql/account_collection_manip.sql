@@ -110,7 +110,7 @@ BEGIN
 		return false;
 	END IF;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -134,7 +134,7 @@ BEGIN
 		account_collection_name, account_collection_type, account_id,
 		forced);
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -157,7 +157,7 @@ BEGIN
 		account_collection_name, account_collection_type, account_id,
 		forced);
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -226,12 +226,13 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 --------------------------------------------------------------------------------
 --
--- Used to purge inactive departments from various places where the database
+-- generic routine to cleanup account collections assigned to department
 -- maintains them.
 --
---
 --------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_departments(
+CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_department_properties(
+	property_name	property.property_name%TYPE,
+	property_type	property.property_type%TYPE,
 	lifespan	INTERVAL DEFAULT NULL,
 	raise_exception	boolean DEFAULT true
 ) RETURNS INTEGER AS $$
@@ -239,8 +240,31 @@ DECLARE
 	_r	RECORD;
 	rv	INTEGER;
 	i	INTEGER;
+	_pn	TEXT;
+	_pt TEXT;
 BEGIN
+	_pn := property_name;
+	_pt := property_type;
 	rv := 0;
+
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_collection_purge_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_cleanup_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+	IF lifespan IS NULL THEN
+		lifespan := '1 year'::interval;
+	END IF;
 
 	--
 	-- delete login assignment to linux machines for departments that are
@@ -251,7 +275,7 @@ BEGIN
 				JOIN department d USING (account_collection_id)
 				JOIN property p USING (account_collection_id)
 			WHERE 	d.is_active = 'N'
-			AND	property_type = 'MclassUnixProp' AND property_name = 'UnixLogin'
+			AND	p.property_type = _pt AND p.property_name = _pn
 			AND	account_collection_id NOT IN (
 					SELECT child_account_collection_id
 					FROM account_collection_hier
@@ -282,8 +306,7 @@ BEGIN
 				JOIN property p ON p.property_value_account_coll_id =
 					ac.account_collection_id
 			WHERE 	d.is_active = 'N'
-			AND	property_type = 'MclassUnixProp'
-			AND	property_name = 'UnixGroupMemberOverride'
+			AND	p.property_type = _pt AND p.property_name = _pn
 			AND	p.property_value_account_coll_id NOT IN (
 					SELECT child_account_collection_id
 					FROM account_collection_hier
@@ -302,6 +325,58 @@ BEGIN
 			NULL;
 		END;
 	END LOOP;
+
+END;
+$$ LANGUAGE plpgsql SECURITY INVOKER;;
+
+--------------------------------------------------------------------------------
+--
+-- Used to purge inactive departments from various places where the database
+-- maintains them
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_departments(
+	lifespan	INTERVAL DEFAULT NULL,
+	raise_exception	boolean DEFAULT true
+) RETURNS INTEGER AS $$
+DECLARE
+	_r	RECORD;
+	rv	INTEGER;
+	i	INTEGER;
+BEGIN
+	rv := 0;
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_collection_purge_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+
+	IF lifespan IS NULL THEN
+		SELECT	property_value::interval
+		INTO	lifespan
+		FROM	property
+		WHERE	property_name = 'account_cleanup_interval'
+		AND		property_type = '_Defaults';
+	END IF;
+	IF lifespan IS NULL THEN
+		lifespan := '1 year'::interval;
+	END IF;
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_name := 'MclassUnixProp',
+		property_type := 'UnixLogin',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
+
+	rv := rv + account_collection_manip.purge_inactive_department_properties(
+		property_name := 'UnixGroupMemberOverride',
+		property_type := 'MclassUnixProp',
+		lifespan := lifespan,
+		raise_exception := raise_exception
+	);
 
 	--
 	-- remove child account collection membership
