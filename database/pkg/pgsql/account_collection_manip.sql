@@ -275,7 +275,7 @@ BEGIN
 				JOIN department d USING (account_collection_id)
 				JOIN property p USING (account_collection_id)
 			WHERE 	d.is_active = 'N'
-			AND ((_pn IS NOT NULL AND _pn = _pn.property_name) OR _pn IS NULL )
+			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
 			AND	account_collection_id NOT IN (
 					SELECT child_account_collection_id
@@ -307,7 +307,7 @@ BEGIN
 				JOIN property p ON p.property_value_account_coll_id =
 					ac.account_collection_id
 			WHERE 	d.is_active = 'N'
-			AND ((_pn IS NOT NULL AND _pn = _pn.property_name) OR _pn IS NULL )
+			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
 			AND	p.property_value_account_coll_id NOT IN (
 					SELECT child_account_collection_id
@@ -328,6 +328,7 @@ BEGIN
 		END;
 	END LOOP;
 
+	RETURN rv;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;;
 
