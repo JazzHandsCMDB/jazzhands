@@ -1,3 +1,11 @@
+make it so:
+
+setup.sql run as superuset sets things up
+
+ddl-only.sql - sets up objects but no example data
+d
+
+
 notes from 2015-12-10 --
 
 Goals:
