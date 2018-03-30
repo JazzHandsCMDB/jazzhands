@@ -259,37 +259,43 @@ FROM	jazzhands.service_endpoint_provider sep
 	LEFT JOIN jazzhands.service_endpoint_health_check sehc
 		USING (service_endpoint_id)
 	LEFT JOIN (
-		WITH RECURSIVE r AS (
-			SELECT x.x509_signed_certificate_id,
-				x.x509_signed_certificate_id as my_id,
-				x.signing_cert_id,
-				x.public_key,
-				ARRAY[x.x509_signed_certificate_id] as array_path,
-				false as cycle
-				FROM x509_signed_certificate x
-				WHERE x.is_certificate_authority = 'Y'
-			UNION
-			SELECT r.x509_signed_certificate_id,
-					ca.x509_signed_certificate_id as my_id,
-					ca.signing_cert_id,
-					concat(r.public_key || '\n' || ca.public_key),
-					ca.x509_signed_certificate_id || r.array_path as array_path,
-					ca.x509_signed_certificate_id = ANY(r.array_path) as cycle
-			FROM r JOIN x509_signed_certificate ca
-				ON r.signing_cert_id =
-					ca.x509_signed_certificate_id
-				AND ca.x509_signed_certificate_id != ca.signing_cert_id
-			WHERE NOT r.cycle
-		) SELECT service_endpoint_id, x.public_key, pk.private_key,
-			ca.public_key as chain
-		FROM jazzhands.service_endpoint_x509_certificate
-			JOIN jazzhands.x509_signed_certificate x
-				USING (x509_signed_certificate_id)
-			LEFT JOIN jazzhands.private_key pk
-				USING (private_key_id)
-			LEFT JOIN r ca
-				ON ca.x509_signed_certificate_id =
-					x.signing_cert_id
+		SELECT *
+		FROM (
+			WITH RECURSIVE r AS (
+				SELECT x.x509_signed_certificate_id,
+					x.x509_signed_certificate_id as my_id,
+					x.signing_cert_id,
+					x.public_key,
+					ARRAY[x.x509_signed_certificate_id] as array_path,
+					false as cycle
+					FROM x509_signed_certificate x
+					WHERE x.is_certificate_authority = 'Y'
+				UNION
+				SELECT r.x509_signed_certificate_id,
+						ca.x509_signed_certificate_id as my_id,
+						ca.signing_cert_id,
+						concat(r.public_key || '\n' || ca.public_key),
+						ca.x509_signed_certificate_id || r.array_path as array_path,
+						ca.x509_signed_certificate_id = ANY(r.array_path) as cycle
+				FROM r JOIN x509_signed_certificate ca
+					ON r.signing_cert_id =
+						ca.x509_signed_certificate_id
+					AND ca.x509_signed_certificate_id != ca.signing_cert_id
+				WHERE NOT r.cycle
+			) SELECT service_endpoint_id, x.public_key, pk.private_key,
+				ca.public_key as chain,
+				rank() OVER (PARTITION BY service_endpoint_id,
+					x509_certificate_rank) AS x509rnk
+			FROM jazzhands.service_endpoint_x509_certificate
+				JOIN jazzhands.x509_signed_certificate x
+					USING (x509_signed_certificate_id)
+				LEFT JOIN jazzhands.private_key pk
+					USING (private_key_id)
+				LEFT JOIN r ca
+					ON ca.x509_signed_certificate_id =
+						x.signing_cert_id
+		) nasty
+		WHERE x509rnk = 1
 	) sub USING (service_endpoint_id)
 ) q
 WHERE rnk = 1
