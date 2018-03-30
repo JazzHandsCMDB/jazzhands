@@ -31,7 +31,7 @@ set constraints all immediate;
 the ones in intended have a solution, those not should probably be in a
 cloud_jazz table:
 
-XXX port ranges need to be sorted out, its just a matter of looking for a 
+XXX port ranges need to be sorted out, its just a matter of looking for a
 service and using it, otherwise creating a new one.
 
 triggers will need to exist to handle changing ports gracefully.
@@ -43,7 +43,7 @@ triggers will need to exist to handle changing ports gracefully.
 CREATE TABLE cloud_jazz.lb_pool (
 	datacenter_id					varchar(5) NOT NULL,
 	name							varchar(255),
-	service_endpoint_provider_id	int NOT NULL,				
+	service_endpoint_provider_id	int NOT NULL,
 	customer_id						bigint,
 	method							lb_method_enum,
 	type							varchar(255) NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE cloud_jazz.lb_pool (
 --
 -- stuff that should have been done already in CSIP-462
 --
-DELETE  FROM cloud_jazz.lb_pool_config 
+DELETE  FROM cloud_jazz.lb_pool_config
 	WHERE pool_id in (select id from lb_pool where is_deleted = 1
 			OR managed_by_api = 0);
 DELETE FROM lb_node WHERE is_deleted = 1;
@@ -105,7 +105,7 @@ BEGIN
 		_name := _p.datacenter_id || ':' || _p.id;
 
 		-- insert a port range
-		SELECT port_range_id 
+		SELECT port_range_id
 			INTO pr
 			FROM port_range
 			WHERE port_start = _p.port
@@ -144,7 +144,13 @@ BEGIN
 			sei, _p.request_string, _p.search_string, 'Y'
 		);
 
-		IF 0 = 1 AND _p.ssl_certificate IS NOT NULL THEN
+		-- set some defaults, if the certificate is found, it gets
+		-- overridden in the next conditional.
+		useleg := true;
+		crt := _p.ssl_certificate;
+		key := _p.ssl_key;
+		chn := _p.ssl_chain;
+		IF _p.ssl_certificate IS NOT NULL THEN
 			--
 			-- imperfect because different certs may exist with the same
 			-- private key, but since subject_key_identifer stuff is not
@@ -153,7 +159,7 @@ BEGIN
 			SELECT x509_signed_certificate_id
 			INTO x
 			FROM jazzhands.x509_signed_certificate
-			WHERE public_key = _p.public_key
+			WHERE public_key = _p.ssl_certificate
 			AND is_active = 'Y'
 			LIMIT 1;
 
@@ -163,20 +169,16 @@ BEGIN
 				) VALUES (
 					sei, x
 				);
+
+				useleg := false;
+				crt := NULL;
+				-- true until deencryption can be dealt with
+				key := _p.ssl_key;
+
+				-- true until the mess of chains in the db is cleaned
+				chn := _p.ssl_chain;
 			END IF;
-
-			useleg := false;
-			crt := NULL;
-			-- true until deencryption can be dealt with
-			key := _p.ssl_key;
-			chn := NULL;
-		ELSE 
-			useleg := true;
-			crt := _p.ssl_certificate;
-			key := _p.ssl_key;
-			chn := _p.ssl_chain;
 		END IF;
-
 
 
 		INSERT INTO cloud_jazz.lb_pool (
@@ -187,9 +189,9 @@ BEGIN
 			load_threshold_override, ignore_node_status,
 			redirect_to, created_on
 		) VALUES (
-			_p.datacenter_id, _p.name, sepi, 
+			_p.datacenter_id, _p.name, sepi,
 			_p.customer_id, _p.method, _p.type, _p.metadata,
-			useleg, 
+			useleg,
 			crt, key, chn,
 			_p.load_threshold_override, _p.ignore_node_status,
 			_p.redirect_to, _p.created_on
@@ -241,9 +243,11 @@ SELECT
 	cj.type,
 	cj.metadata,
 	cj.created_on,						--- XXX
-	cj.ssl_certificate,
-	cj.ssl_key,
-	cj.ssl_chain,
+	CASE WHEN cj.use_legacy_ssl THEN cj.ssl_certificate ELSE sub.public_key
+		END as ssl_certificate,
+	CASE WHEN cj.use_legacy_ssl THEN cj.ssl_key ELSE cj.ssl_key END as ssl_key,
+	CASE WHEN cj.use_legacy_ssl THEN cj.ssl_chain ELSE cj.ssl_chain
+		END as ssl_chain,
 	cj.load_threshold_override,
 	cj.ignore_node_status,
 	cj.redirect_to,
@@ -252,12 +256,46 @@ FROM	jazzhands.service_endpoint_provider sep
 	INNER JOIN jazzhands.service_endpoint USING (service_endpoint_id)
 	INNER JOIN jazzhands.port_range pr USING (port_range_id)
 	INNER JOIN cloud_jazz.lb_pool cj USING (service_endpoint_provider_id)
-	LEFT JOIN jazzhands.service_endpoint_health_check sehc 
+	LEFT JOIN jazzhands.service_endpoint_health_check sehc
 		USING (service_endpoint_id)
-) sub
+	LEFT JOIN (
+		WITH RECURSIVE r AS (
+			SELECT x.x509_signed_certificate_id,
+				x.x509_signed_certificate_id as my_id,
+				x.signing_cert_id,
+				x.public_key,
+				ARRAY[x.x509_signed_certificate_id] as array_path,
+				false as cycle
+				FROM x509_signed_certificate x
+				WHERE x.is_certificate_authority = 'Y'
+			UNION
+			SELECT r.x509_signed_certificate_id,
+					ca.x509_signed_certificate_id as my_id,
+					ca.signing_cert_id,
+					concat(r.public_key || '\n' || ca.public_key),
+					ca.x509_signed_certificate_id || r.array_path as array_path,
+					ca.x509_signed_certificate_id = ANY(r.array_path) as cycle
+			FROM r JOIN x509_signed_certificate ca
+				ON r.signing_cert_id =
+					ca.x509_signed_certificate_id
+				AND ca.x509_signed_certificate_id != ca.signing_cert_id
+			WHERE NOT r.cycle
+		) SELECT service_endpoint_id, x.public_key, pk.private_key,
+			ca.public_key as chain
+		FROM jazzhands.service_endpoint_x509_certificate
+			JOIN jazzhands.x509_signed_certificate x
+				USING (x509_signed_certificate_id)
+			LEFT JOIN jazzhands.private_key pk
+				USING (private_key_id)
+			LEFT JOIN r ca
+				ON ca.x509_signed_certificate_id =
+					x.signing_cert_id
+	) sub USING (service_endpoint_id)
+) q
 WHERE rnk = 1
 ;
 
+savepoint lbpool;
 SELECT schema_support.relation_diff (
         schema := 'cloudapi',
         old_rel := 'lb_pool',
@@ -265,7 +303,6 @@ SELECT schema_support.relation_diff (
         prikeys := ARRAY['id']
 );
 
-savepoint lbpool;
 -----------------------------------------------------------------------------
 --
 -- lb_node
@@ -285,8 +322,8 @@ DECLARE
 BEGIN
 	FOR _r IN SELECT * FROM lb_node
 			WHERE inet_ntoa(ip_address) IN (
-				select host(ip_address) 
-				from netblock 
+				select host(ip_address)
+				from netblock
 				join network_interface_netblock using (netblock_id)
 			)
 	LOOP
@@ -306,7 +343,7 @@ BEGIN
 		RETURNING service_version_id INTO _svid;
 
 		-- PORT RANGE
-		SELECT port_range_id 
+		SELECT port_range_id
 			INTO _pr
 			FROM port_range
 			WHERE port_start = _r.port
@@ -356,8 +393,8 @@ $$
 CREATE VIEW lb_node_legacy AS
 	SELECT * FROM lb_node WHERE is_deleted = 0 AND
 			inet_ntoa(ip_address) IN (
-				select host(ip_address) 
-				from netblock 
+				select host(ip_address)
+				from netblock
 				join network_interface_netblock using (netblock_id)
 			)
 ;
