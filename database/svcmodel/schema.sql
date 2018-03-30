@@ -262,9 +262,8 @@ CREATE TABLE service_endpoint (
 DROP TABLE IF EXISTS service_endpoint_x509_certificate cascade;
 CREATE TABLE service_endpoint_x509_certificate (
 	service_endpoint_id	serial		NOT NULL,
-	x509_signed_certificate_id	integer,
-	private_key_id			integer,
-	x509_certificate_rank		integer,
+	x509_signed_certificate_id	integer NOT NULL,
+	x509_certificate_rank		integer NOT NULL DEFAULT 10,
 	PRIMARY KEY (service_endpoint_id,x509_signed_certificate_id),
 	UNIQUE (service_endpoint_id, x509_certificate_rank)
 );
@@ -280,6 +279,10 @@ CREATE TABLE service_endpoint_x509_certificate (
 -- service_endpoint_provider_member.
 --
 -- I do not think this makes sense on direct connections.
+--
+-- This likely wants to be overhauled to suck less, probably by adding
+-- some defined types like "http" and whatnot so they do not need to be
+-- constructed in the check.
 --
 --
 DROP TABLE IF EXISTS service_endpoint_health_check;

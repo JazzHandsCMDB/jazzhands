@@ -1,5 +1,9 @@
 \set ON_ERROR_STOP
 
+rollback;
+begin;
+set search_path=cloudapi,jazzhands;
+
 /*
  *
 
@@ -19,6 +23,7 @@ and datacenter_id = 'LAX1';
 set constraints all immediate;
 
 
+
  */
 
 /*
@@ -26,36 +31,59 @@ set constraints all immediate;
 the ones in intended have a solution, those not should probably be in a
 cloud_jazz table:
 
--- datacenter_id
-				-- id
--- customer_id
--- method
-				-- request_string
-				-- search_string
--- type
--- metadata
-				-- created_on
--- ssl_certificate
--- ssl_key
--- ssl_chain
--- load_threshold_override
--- ignore_node_status
--- redirect_to
-
--- is_deleted
--- deleted_on
--- managed_by_api
-
-port ranges need to be sorted out, its just a matter of looking for a service
-and using it, otherwise creating a new one.
+XXX port ranges need to be sorted out, its just a matter of looking for a 
+service and using it, otherwise creating a new one.
 
 triggers will need to exist to handle changing ports gracefully.
 
 */
 
+--
+-- datacenter_id should get pulled from elsewhere
+CREATE TABLE cloud_jazz.lb_pool (
+	datacenter_id					varchar(5) NOT NULL,
+	name							varchar(255),
+	service_endpoint_provider_id	int NOT NULL,				
+	customer_id						bigint,
+	method							lb_method_enum,
+	type							varchar(255) NOT NULL,
+	metadata						TEXT,
+	use_legacy_ssl					boolean,
+	ssl_certificate					TEXT,
+	ssl_key							TEXT,
+	ssl_chain						TEXT,
+	load_threshold_override			double precision,
+	ignore_node_status				smallint,
+	redirect_to						TEXT,
+	created_on						timestamp without time zone,
+	primary key (service_endpoint_provider_id)
+);
 
-rollback;
-begin;
+
+----------------------------------------------------------------------------
+--
+-- stuff that should have been done already in CSIP-462
+--
+DELETE  FROM cloud_jazz.lb_pool_config 
+	WHERE pool_id in (select id from lb_pool where is_deleted = 1
+			OR managed_by_api = 0);
+DELETE FROM lb_node WHERE is_deleted = 1;
+UPDATE cloudapi_audit.lb_node set "aud#timestamp" = deleted_on where "aud#timestamp" = now();
+DELETE FROM lb_pool WHERE is_deleted = 1;
+UPDATE cloudapi_audit.lb_pool set "aud#timestamp" = deleted_on where "aud#timestamp" = now();
+
+--
+-- stuff I'm just considering deleted - XXX
+--
+DELETE FROM lb_node where lb_pool_id IN (
+	SELECT id FROM lb_pool where managed_by_api = 0
+);
+DELETE FROM lb_pool WHERE managed_by_api = 0;
+
+-- ALTER TABLE lb_pool DROP is_deleted;
+-- ALTER TABLE lb_pool DROP deleted_on;
+
+----------------------------------------------------------------------------
 
 DO $$
 DECLARE
@@ -63,29 +91,36 @@ DECLARE
 	_name TEXT;
 	_active char(1);
 	_svc integer;
-	id integer;
-	svid integer;
 	sei integer;
 	sepi integer;
 	pr integer;
+	x INTEGER;
+	crt TEXT;
+	key TEXT;
+	chn TEXT;
+	useleg boolean;
 BEGIN
-
-	FOR _p IN SELECT * FROM cloudapi.lb_pool ORDER BY id
+	FOR _p IN SELECT * FROM cloudapi.lb_pool WHERE is_deleted = 0ORDER BY id
 	LOOP
 		_name := _p.datacenter_id || ':' || _p.id;
-		INSERT INTO service (
-			service_name, description
-		) values (
-			_name, 'imported from ' || _name
-		) RETURNING service_id INTO id;
-
-		INSERT INTO service_version (
-			service_id, service_type, version_name
-		) VALUES (
-			id, 'lbpool', _name
-		) RETURNING service_version_id INTO svid;
 
 		-- insert a port range
+		SELECT port_range_id 
+			INTO pr
+			FROM port_range
+			WHERE port_start = _p.port
+			AND port_range_type = 'services'
+			AND is_singleton = 'Y';
+
+		IF NOT FOUND THEN
+			INSERT INTO port_range (
+				port_range_name, protocol, port_range_type,
+				port_start, port_end, is_singleton
+			) VALUES (
+				_p.name, 'tcp', 'lbpool',
+				_p.port, _p.port, 'Y'
+			) RETURNING port_range_id INTO pr;
+		END IF;
 
 		INSERT INTO service_endpoint ( port_range_id ) VALUES ( pr )
 			RETURNING service_endpoint_id INTO sei;
@@ -103,18 +138,252 @@ BEGIN
 			sei, _p.lb_ip_id
 		) RETURNING service_endpoint_provider_id INTO sepi;
 
+		INSERT INTO jazzhands.service_endpoint_health_check (
+			service_endpoint_id, request_string, search_string, is_enabled
+		) VALUES (
+			sei, _p.request_string, _p.search_string, 'Y'
+		);
 
-	-- service_endpoint_provider
-	-- service_endpoint_provider_member (node?)
+		IF 0 = 1 AND _p.ssl_certificate IS NOT NULL THEN
+			--
+			-- imperfect because different certs may exist with the same
+			-- private key, but since subject_key_identifer stuff is not
+			-- happening..
+			--
+			SELECT x509_signed_certificate_id
+			INTO x
+			FROM jazzhands.x509_signed_certificate
+			WHERE public_key = _p.public_key
+			AND is_active = 'Y'
+			LIMIT 1;
+
+			IF FOUND THEN
+				INSERT INTO service_endpoint_x509_certificate (
+					service_endpoint_id, x509_signed_certificate_id
+				) VALUES (
+					sei, x
+				);
+			END IF;
+
+			useleg := false;
+			crt := NULL;
+			-- true until deencryption can be dealt with
+			key := _p.ssl_key;
+			chn := NULL;
+		ELSE 
+			useleg := true;
+			crt := _p.ssl_certificate;
+			key := _p.ssl_key;
+			chn := _p.ssl_chain;
+		END IF;
+
+
+
+		INSERT INTO cloud_jazz.lb_pool (
+			datacenter_id, name, service_endpoint_provider_id,
+			customer_id, method, type, metadata,
+			use_legacy_ssl,
+			ssl_certificate, ssl_key, ssl_chain,
+			load_threshold_override, ignore_node_status,
+			redirect_to, created_on
+		) VALUES (
+			_p.datacenter_id, _p.name, sepi, 
+			_p.customer_id, _p.method, _p.type, _p.metadata,
+			useleg, 
+			crt, key, chn,
+			_p.load_threshold_override, _p.ignore_node_status,
+			_p.redirect_to, _p.created_on
+		);
 
 	END LOOP;
 
-	SELECT schema_support.reset_table_sequence(
-		schema := 'jazzhands',
-		table_name := 'service_endpoint_provider'
-	);
+	--SELECT schema_support.reset_table_sequence(
+	--	schema := 'jazzhands',
+	--	table_name := 'service_endpoint_provider'
+	--);
 END;
 $$
 ;
 
-rollback;
+CREATE VIEW lb_pool_new AS
+SELECT
+	datacenter_id,
+	service_endpoint_provider_id AS id,
+	name,
+	netblock_id AS lb_ip_id,
+	customer_id,
+	port,
+	method,
+	request_string,
+	search_string,
+	type,
+	metadata,
+	created_on,
+	ssl_certificate,
+	ssl_key,
+	ssl_chain,
+	1::smallint AS managed_by_api,
+	load_threshold_override,
+	ignore_node_status,
+	redirect_to,
+	rnk
+FROM (
+SELECT
+	cj.datacenter_id,
+	sep.service_endpoint_provider_id,
+	COALESCE(cj.name, sep.service_endpoint_provider_name) AS name,
+	sep.netblock_id,
+	cj.customer_id,
+	pr.port_start AS port,
+	cj.method,
+	sehc.request_string,
+	sehc.search_string,
+	cj.type,
+	cj.metadata,
+	cj.created_on,						--- XXX
+	cj.ssl_certificate,
+	cj.ssl_key,
+	cj.ssl_chain,
+	cj.load_threshold_override,
+	cj.ignore_node_status,
+	cj.redirect_to,
+	rank() OVER (PARTITION BY sep.service_endpoint_provider_id, sehc.rank) AS rnk
+FROM	jazzhands.service_endpoint_provider sep
+	INNER JOIN jazzhands.service_endpoint USING (service_endpoint_id)
+	INNER JOIN jazzhands.port_range pr USING (port_range_id)
+	INNER JOIN cloud_jazz.lb_pool cj USING (service_endpoint_provider_id)
+	LEFT JOIN jazzhands.service_endpoint_health_check sehc 
+		USING (service_endpoint_id)
+) sub
+WHERE rnk = 1
+;
+
+SELECT schema_support.relation_diff (
+        schema := 'cloudapi',
+        old_rel := 'lb_pool',
+        new_rel := 'lb_pool_new',
+        prikeys := ARRAY['id']
+);
+
+savepoint lbpool;
+-----------------------------------------------------------------------------
+--
+-- lb_node
+--
+-----------------------------------------------------------------------------
+
+
+
+DO $$
+DECLARE
+	_r		RECORD;
+	_nin	network_interface_netblock%ROWTYPE;
+	_si		service_instance.service_instance_id%TYPE;
+	_pr		port_range.port_range_id%TYPE;
+	_svid	jazzhands.service_version.service_version_id%TYPE;
+	_name TEXT;
+BEGIN
+	FOR _r IN SELECT * FROM lb_node
+			WHERE inet_ntoa(ip_address) IN (
+				select host(ip_address) 
+				from netblock 
+				join network_interface_netblock using (netblock_id)
+			)
+	LOOP
+
+		_name := _r.datacenter_id || ':' || _r.id;
+
+		WITH s AS (
+			INSERT INTO service (
+				service_name, description
+			) VALUES (
+				_name, 'imported from ' || _name
+			) RETURNING *
+		) INSERT INTO service_version (
+				service_id, service_type, version_name
+			) SELECT service_id, 'lbnode', _name
+			FROM s
+		RETURNING service_version_id INTO _svid;
+
+		-- PORT RANGE
+		SELECT port_range_id 
+			INTO _pr
+			FROM port_range
+			WHERE port_start = _r.port
+			AND port_range_type = 'services'
+			AND is_singleton = 'Y';
+		IF NOT FOUND THEN
+			INSERT INTO port_range (
+				port_range_name, protocol, port_range_type,
+				port_start, port_end, is_singleton
+			) VALUES (
+				concat(_r.datacenter_id,':',_r.id), 'tcp', 'lbnode',
+				_r.port, _r.port, 'Y'
+			) RETURNING port_range_id INTO _pr;
+		END IF;
+
+		SELECT nin.*
+			INTO _nin
+			FROM network_interface_netblock nin
+				JOIN netblock USING (netblock_id)
+			WHERE family(ip_address) = 4
+			AND host(ip_address) = inet_ntoa(_r.ip_address);
+
+		INSERT INTO service_instance (
+			device_id, netblock_id, port_range_id,
+			service_endpoint_id, service_version_id
+		) VALUES (
+			_nin.device_id, _nin.netblock_id, _pr,
+			_r.lb_pool_id, _svid
+		) RETURNING service_instance_id INTO _si;
+
+		INSERT INTO service_endpoint_provider_member (
+			service_endpoint_provider_id,
+			service_instance_id,
+			rank,
+			is_enabled
+		) VALUES (
+			_r.id,
+			_si,
+			coalesce(_r.weight, -1),
+			CASE WHEN _r.active = 0 THEN 'N' ELSE 'Y' END
+		);
+	END LOOP;
+END;
+$$
+;
+
+CREATE VIEW lb_node_legacy AS
+	SELECT * FROM lb_node WHERE is_deleted = 0 AND
+			inet_ntoa(ip_address) IN (
+				select host(ip_address) 
+				from netblock 
+				join network_interface_netblock using (netblock_id)
+			)
+;
+
+CREATE VIEW lb_node_new AS
+SELECT	site_code,
+	sepm.service_endpoint_provider_id AS id,
+	sei.service_endpoint_id AS lb_pool_id,
+	inet_aton(host(ip_address)) AS ip_address,
+	pr.port_start AS port,
+	CASE WHEN sepm.rank = -1 THEN NULL ELSE sepm.rank END AS weight,
+	CASE WHEN sepm.is_enabled = 'Y' THEN 1 ELSE 0 END AS active
+FROM jazzhands.service_endpoint_provider_member sepm
+	JOIN jazzhands.service_instance sei USING (service_instance_id)
+	JOIN jazzhands.network_interface_netblock USING (netblock_id, device_id)
+	JOIN jazzhands.netblock USING (netblock_id)
+	JOIN jazzhands.device USING (device_id)
+	JOIN jazzhands.port_range pr USING (port_range_id)
+;
+
+savepoint lbnode;
+SELECT schema_support.relation_diff (
+        schema := 'cloudapi',
+        old_rel := 'lb_node_legacy',
+        new_rel := 'lb_node_new',
+        prikeys := ARRAY['id']
+);
+
+
