@@ -275,8 +275,10 @@ FROM	jazzhands.service_endpoint_provider sep
 						ca.x509_signed_certificate_id as my_id,
 						ca.signing_cert_id,
 						concat(r.public_key || '\n' || ca.public_key),
-						ca.x509_signed_certificate_id || r.array_path as array_path,
-						ca.x509_signed_certificate_id = ANY(r.array_path) as cycle
+						ca.x509_signed_certificate_id ||
+							r.array_path as array_path,
+						ca.x509_signed_certificate_id =
+							ANY(r.array_path) as cycle
 				FROM r JOIN x509_signed_certificate ca
 					ON r.signing_cert_id =
 						ca.x509_signed_certificate_id
