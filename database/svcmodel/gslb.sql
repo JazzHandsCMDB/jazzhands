@@ -6,12 +6,14 @@ set search_path=cloudapi,jazzhands;
 
 
 
-
 /*
 
  cloudapi | gslb_group
+ 			- becomes netblock collections for ips.  not clear on replies
  cloudapi | gslb_ip_address
+ 			- becomes netblock_collection membership, probably
  cloudapi | gslb_name
+ 			- expand service points
  cloudapi | gslb_name_gslb_group
 
 These two need to be considered after the configuration data is done.  They
@@ -27,6 +29,13 @@ CREATE TABLE cloud_jazz.gslb_zone (
 	customer_id		integer,
 	metadata		TEXT,
 	primary key (dns_domain_id)
+);
+
+CREATE TABLE cloud_jazz.gslb_name (
+	service_endpoint_id	INTEGER,
+	metadata						TEXT,
+	ttl								INTEGER,
+	PRIMARY KEY (service_endpoint_id)
 );
 
 ----------------------------------------------------------------------------
@@ -50,10 +59,10 @@ DELETE FROM gslb_name WHERE is_deleted = 1;
 
 DELETE FROM gslb_zone WHERE is_deleted = 1;
 
-DELETE FROM gslb_ip_address WHERE gslb_group_id 
+DELETE FROM gslb_ip_address WHERE gslb_group_id
 	NOT IN (SELECT gslb_group_id FROM gslb_name_gslb_group );
 
-DELETE FROM gslb_group WHERE id 
+DELETE FROM gslb_group WHERE id
 	NOT IN (SELECT gslb_group_id FROM gslb_name_gslb_group );
 
 savepoint cleanup;
@@ -140,7 +149,7 @@ END;
 $$
 ;
 
-CREATE VIEW gslb_zone_new AS 
+CREATE VIEW gslb_zone_new AS
 SELECT
 	dns_domain_id AS id,
 	data_ins_date::timestamp without time zone AS created_on,
@@ -155,9 +164,227 @@ WHERE dns_domain_type = 'gslb'
 
 savepoint gslbzone;
 SELECT schema_support.relation_diff (
-        schema := 'cloudapi',
-        old_rel := 'gslb_zone',
-        new_rel := 'gslb_zone_new',
-        prikeys := ARRAY['id']
+	schema := 'cloudapi',
+	old_rel := 'gslb_zone',
+	new_rel := 'gslb_zone_new',
+	prikeys := ARRAY['id']
+);
+
+
+INSERT INTO jazzhands.val_netblock_type (
+	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
+) VALUES (
+	'gslb', 'gslb related stragglers', 'N', 'N'
+);
+
+--------------------------------------------------------------------------
+-- gslb_name -> service_endpoint
+
+DO $$
+DECLARE
+	_tally	INTEGER;
+	_name	TEXT;
+	_r		RECORD;
+	nb		netblock.netblock_id%TYPE;
+	se		service_endpoint.service_endpoint_id%TYPE;
+	sep		service_endpoint_provider.service_endpoint_provider_id%TYPE;
+	pr		port_range.port_range_id%TYPE;
+BEGIN
+	_tally = 0;
+	FOR _r IN SELECT * FROM gslb_name
+	LOOP
+		_tally := _tally + 1;
+		IF _tally % 50  = 0 THEN
+			RAISE NOTICE 'processed % gslb_name records', _tally;
+		END IF;
+		SELECT port_range_id
+			INTO pr
+			FROM port_range
+			WHERE port_start = _r.port
+			AND port_range_type = 'services'
+			AND is_singleton = 'Y';
+
+		IF NOT FOUND THEN
+			_name := concat(_r.domain, '-', _r.id);
+			INSERT INTO port_range (
+				port_range_name, protocol, port_range_type,
+				port_start, port_end, is_singleton
+			) VALUES (
+				_name, 'tcp', 'gslb',
+				_r.port, _r.port, 'Y'
+			) RETURNING port_range_id INTO pr;
+		END IF;
+		INSERT INTO service_endpoint (
+			service_endpoint_id, dns_name, dns_domain_id, port_range_id,
+			description
+		) VALUES (
+			_r.id, _r.domain, _r.gslb_zone_id, pr,
+			_r.description
+		) RETURNING service_endpoint_id INTO se;
+
+		INSERT INTO service_endpoint_health_check (
+			service_endpoint_id, protocol,
+			request_string, search_string
+		) VALUES (
+			se, _r.monitor_type,
+			_r.request_string, _r.search_string
+		);
+
+		-- ddl will move to dns_record, I think.
+		INSERT INTO cloud_jazz.gslb_name (
+			service_endpoint_id, metadata, ttl
+		) VALUES (
+			se, _r.metadata, _r.ttl
+		);
+
+		IF _r.failover_ip_address IS NOT NULL THEN
+			_name := concat(_r.domain, '-', _r.id || '-faiover');
+			SELECT netblock_id
+				INTO nb
+				FROM netblock
+				WHERE netblock_type IN ('default', 'gslb')
+				AND is_single_address = 'Y'
+				AND host(ip_address) = inet_ntoa(_r.failover_ip_address)
+				ORDER BY netblock_type
+				LIMIT 1;
+
+			IF NOT FOUND THEN
+				INSERT INTO netblock (
+					ip_address, netblock_type, is_single_address,
+					netblock_status
+				) VALUES (
+					inet_ntoa(_r.failover_ip_address)::inet, 'gslb', 'Y',
+					'Allocated'
+				) RETURNING netblock_id INTO nb;
+			END IF;
+
+			WITH p AS (
+				INSERT INTO service_endpoint_provider (
+					service_endpoint_provider_name,
+					service_endpoint_provider_type,
+					service_endpoint_id,
+					netblock_id
+				) VALUES (
+					_name,
+					'gslb',	-- for now
+					se,
+					nb
+				) RETURNING *
+			), spc AS (
+				INSERT INTO service_endpoint_provider_collection (
+					service_endpoint_provider_collection_name,
+					service_endpoint_provider_collection_type
+				) VALUES  (
+					_name,
+					'gslb'
+				) RETURNING *
+			), spcsp AS (
+				INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+					service_endpoint_provider_collection_id,
+					service_endpoint_provider_id
+				) SELECT service_endpoint_provider_collection_id,
+					service_endpoint_provider_id
+				FROM spc, p
+				RETURNING *
+			) INSERT INTO service_endpoint_provider_service_endpoint (
+				service_endpoint_provider_id,
+				service_endpoint_provider_collection_id,
+				service_endpoint_provider_relation
+			) SELECT service_endpoint_provider_id,
+					service_endpoint_provider_collection_id,
+					'failover'
+				FROM p, spc
+			;
+		ELSIF _r.failover_cname IS NOT NULL THEN
+			_name := concat(_r.domain, '-', _r.id || '-faiover');
+			WITH p AS (
+				INSERT INTO service_endpoint_provider (
+					service_endpoint_provider_name,
+					service_endpoint_provider_type,
+					service_endpoint_id,
+					dns_value
+				) VALUES (
+					_name,
+					'gslb',	-- for now
+					se,
+					_r.failover_cname
+				) RETURNING *
+			), spc AS (
+				INSERT INTO service_endpoint_provider_collection (
+					service_endpoint_provider_collection_name,
+					service_endpoint_provider_collection_type
+				) VALUES  (
+					_name,
+					'gslb'
+				) RETURNING *
+			), spcsp AS (
+				INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+					service_endpoint_provider_collection_id,
+					service_endpoint_provider_id
+				) SELECT service_endpoint_provider_collection_id,
+					service_endpoint_provider_id
+				FROM spc, p
+				RETURNING *
+			) INSERT INTO service_endpoint_provider_service_endpoint (
+				service_endpoint_provider_id,
+				service_endpoint_provider_collection_id,
+				service_endpoint_provider_relation
+			) SELECT service_endpoint_provider_id,
+					service_endpoint_provider_collection_id,
+					'failover'
+				FROM p, spc
+			;
+		END IF;
+
+	END LOOP;
+END;
+$$;
+
+savepoint gslbname;
+CREATE VIEW gslb_name_new AS
+	SELECT
+			se.service_endpoint_id AS id,
+			se.dns_name AS domain,
+			CASE WHEN f.ip_address IS NOT NULL THEN
+				inet_aton(host(f.ip_address)) ELSE NULL END AS
+				failover_ip_address,
+			CASE WHEN f.dns_value IS NOT NULL THEN
+				dns_value ELSE NULL END AS
+				failover_cname,
+			hc.request_string,
+			hc.search_string,
+			pr.port_start,
+			se.description,
+			hc.protocol AS monitor_type,
+			cj.metadata,
+			se.dns_domain_id AS gslb_zone_id,
+			cj.ttl
+	FROM	service_endpoint se
+		INNER JOIN cloud_jazz.gslb_name cj USING (service_endpoint_id)
+		INNER JOIN port_range pr USING (port_range_id)
+		INNER JOIN service_endpoint_health_check hc USING
+				(service_endpoint_id)
+		LEFT JOIN (
+			SELECT service_endpoint_id, ip_address, dns_value
+			FROM service_endpoint
+				JOIN service_endpoint_provider
+					USING (service_endpoint_id)
+				JOIN service_endpoint_provider_service_endpoint
+					USING (service_endpoint_provider_id)
+				JOIN service_endpoint_provider_collection_service_endpoint_provider
+					USING (service_endpoint_provider_collection_id,service_endpoint_provider_id)
+				JOIN service_endpoint_provider_collection
+					USING (service_endpoint_provider_collection_id)
+				LEFT JOIN netblock USING (netblock_id)
+			WHERE service_endpoint_provider_relation = 'failover'
+		) f USING (service_endpoint_id)
+;
+
+savepoint pretest;
+SELECT schema_support.relation_diff (
+    schema := 'cloudapi',
+    old_rel := 'gslb_name',
+    new_rel := 'gslb_name_new',
+    prikeys := ARRAY['id']
 );
 

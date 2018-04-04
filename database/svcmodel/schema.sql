@@ -203,18 +203,68 @@ CREATE TABLE service_endpoint_provider_type (
 -- This probably does NOT need an sla column, we're 25% sure about that
 -- because you would just create another service_endpoint.
 --
+-- dns_record_id is only the destination on CNAMEs.  I think.  Maybe it 
+-- needs to go away.
+--
+-- the whole dns_record/netblock_id/device_id thing need to be considered.
+--
+-- dns_value is just temporarily there for CNAMEs and will go away in favor
+-- of using dns_record_id.
+--
 DROP TABLE IF EXISTS service_endpoint_provider ;
 CREATE TABLE service_endpoint_provider (
 	service_endpoint_provider_id	serial	NOT NULL,
 	service_endpoint_provider_name	text	NOT NULL,
 	service_endpoint_provider_type	text	NOT NULL,
 	service_endpoint_id		integer	NOT NULL,
-	shared_netblock_collection_id	integer	NULL,
+	dns_record_id			integer NULL,
+	dns_value			TEXT 	NULL,
 	netblock_id			integer NULL,
 	device_id			integer	NULL,
 	description			text,
 	PRIMARY KEY (service_endpoint_provider_id),
 	UNIQUE (service_endpoint_provider_name, service_endpoint_provider_type)
+);
+
+-- groan
+DROP TABLE IF EXISTS service_endpoint_provider_collection;
+CREATE TABLE service_endpoint_provider_collection (
+	service_endpoint_provider_collection_id		SERIAL NOT NULL,
+	service_endpoint_provider_collection_name	TEXT NOT NULL,
+	service_endpoint_provider_collection_type	TEXT NOT NULL,
+	description					TEXT,
+	PRIMARY KEY (service_endpoint_provider_collection_id),
+	UNIQUE (service_endpoint_provider_collection_name,
+		service_endpoint_provider_collection_type)
+);
+DROP TABLE IF EXISTS service_endpoint_provider_collection_service_endpoint_provider;
+CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
+ (
+	service_endpoint_provider_collection_id		INTEGER NOT NULL,
+	service_endpoint_provider_id			INTEGER NOT NULL,
+	PRIMARY KEY (service_endpoint_provider_collection_id,
+		service_endpoint_provider_id)
+);
+
+
+--
+-- This is used to handle more complicated ways that service_endpoints and
+-- service_endpoint_providers.  Its possible/probable that service_endpoint_id
+-- will more out of service_provider and here.
+--
+-- relation would failover, service
+--
+DROP TABLE IF EXISTS service_endpoint_provider_service_endpoint ;
+CREATE TABLE service_endpoint_provider_service_endpoint  (
+	service_endpoint_provider_id		INTEGER NOT NULL,
+	service_endpoint_provider_collection_id	INTEGER NOT NULL,
+	service_endpoint_provider_relation	TEXT NOT NULL,
+	service_endpoint_provider_weight	INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (
+		service_endpoint_provider_id,
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_relation
+	)
 );
 
 --
@@ -245,12 +295,20 @@ CREATE TABLE service_endpoint_provider_member (
 -- x509 certificates are broken out in order to support multiple types of
 -- certifiates on the same endpoint (ECC, RSA).
 --
+-- its possible that dns_record should be a synthesized record for gslbish
+-- type things.   I'm thinking this should probably be the case, and in that
+-- case, there's some special record class or some such that causes it to not
+-- require a netblock_id or value.
+--
 DROP TABLE IF EXISTS service_endpoint cascade;
 CREATE TABLE service_endpoint (
 	service_endpoint_id	serial		NOT NULL,
 	dns_record_id		integer,
+	dns_name		TEXT,
+	dns_domain_id		integer,
 	port_range_id		integer,
-	uri			text,
+	uri			TEXT,
+	description		TEXT,
 	PRIMARY KEY (service_endpoint_id)
 );
 
@@ -289,6 +347,7 @@ DROP TABLE IF EXISTS service_endpoint_health_check;
 CREATE TABLE service_endpoint_health_check (
 	service_endpoint_health_check_id	serial	NOT NULL,
 	service_endpoint_id			integer	NOT NULL,
+	protocol				TEXT NOT NULL,
 	rank					integer NOT NULL DEFAULT 10,
 	request_string				text,
 	search_string				text,
