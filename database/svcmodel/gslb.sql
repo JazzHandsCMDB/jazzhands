@@ -8,12 +8,8 @@ set search_path=cloudapi,jazzhands;
 
 /*
 
- cloudapi | gslb_group
- 			- becomes netblock collections for ips.  not clear on replies
  cloudapi | gslb_ip_address
  			- becomes netblock_collection membership, probably
- cloudapi | gslb_name
- 			- expand service points
  cloudapi | gslb_name_gslb_group
 
 These two need to be considered after the configuration data is done.  They
@@ -36,6 +32,13 @@ CREATE TABLE cloud_jazz.gslb_name (
 	metadata						TEXT,
 	ttl								INTEGER,
 	PRIMARY KEY (service_endpoint_id)
+);
+
+CREATE TABLE cloud_jazz.gslb_group (
+	service_endpoint_provider_collection_id		INTEGER,
+	customer_Id									INTEGER,
+	metadata									TEXT,
+	PRIMARY KEY (service_endpoint_provider_collection_id)
 );
 
 ----------------------------------------------------------------------------
@@ -64,6 +67,22 @@ DELETE FROM gslb_ip_address WHERE gslb_group_id
 
 DELETE FROM gslb_group WHERE id
 	NOT IN (SELECT gslb_group_id FROM gslb_name_gslb_group );
+
+--
+-- Probably need to think about this
+--
+DELETE FROM gslb_ip_address
+WHERE gslb_group_id NOT IN
+	(select gslb_group_id FROM gslb_name_gslb_group);
+DELETE FROM gslb_group
+WHERE id NOT IN
+	(select gslb_group_id FROM gslb_name_gslb_group);
+
+UPDATE gslb_group
+SET name = concat(customer_id, '-', name)
+WHERE name in ('prod_cq_auditor_lax1', 'prod_cq_auditor_nym2');
+
+select name, count(*) from gslb_group where is_deleted = 0 group by name having count(*) > 1;
 
 savepoint cleanup;
 
@@ -145,6 +164,7 @@ BEGIN
 	INSERT INTO cloud_jazz.gslb_zone (
 		dns_domain_id, customer_id, metadata
 	) SELECT id, customer_id,metadata FROM gslb_zone ORDER BY id;
+
 END;
 $$
 ;
@@ -178,6 +198,111 @@ INSERT INTO jazzhands.val_netblock_type (
 );
 
 --------------------------------------------------------------------------
+-- gslb_group -> service_provider_collection
+
+DO $$
+DECLARE
+	_r RECORD;
+BEGIN
+
+	INSERT INTO cloud_jazz.gslb_group (
+		service_endpoint_provider_collection_id,
+		customer_id, metadata
+	) SELECT id, customer_id, metadata
+	FROM gslb_group
+	ORDER BY id;
+
+	INSERT INTO service_endpoint_provider_collection (
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_collection_name,
+		service_endpoint_provider_collection_type,
+		description
+	) SELECT
+		id,
+		name,
+		'gslb-group',
+		description
+	FROM gslb_group
+	ORDER BY id;
+
+	WITH sp AS (
+		INSERT INTO service_endpoint (
+			dns_name, description
+		) SELECT cname, 'imported from ' || id
+		FROM gslb_group WHERE cname IS NOT NULL
+		ORDER BY id
+		RETURNING *
+	), sprn AS (
+		SELECT *, row_number() OVER () AS rn
+		FROM sp
+	), grprn AS (
+		SELECT *, row_number() OVER (ORDER BY id) AS rn
+		FROM gslb_group WHERE cname IS NOT NULL ORDER BY id
+	), map AS (
+		SELECT service_endpoint_id, grprn.*
+		FROM grprn JOIN sprn USING (rn)
+	), sep AS (
+		INSERT INTO service_endpoint_provider (
+			service_endpoint_provider_name, service_endpoint_provider_type,
+			service_endpoint_id, dns_value
+		) SELECT concat(name,'-cname'), 'gslb',
+			service_endpoint_id, cname
+		FROM map
+		ORDER BY id
+		RETURNING *
+	), seprn AS (
+		SELECT *, row_number() OVER () AS rn
+		FROM sep
+	), map2 AS (
+		SELECT grprn.id, service_endpoint_provider_id
+		FROM seprn JOIN grprn USING (rn)
+	) INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_id
+	)  SELECT id, service_endpoint_provider_id
+	FROM map2
+	;
+
+END;
+$$;
+
+savepoint preview;
+CREATE VIEW gslb_group_new AS
+SELECT
+	service_endpoint_provider_collection_id AS id,
+	service_endpoint_provider_collection_name AS name,
+	cj.customer_id,
+	sepc.description,
+	cname.dns_value AS cname,
+	cj.metadata
+FROM service_endpoint_provider_collection sepc
+	JOIN cloud_jazz.gslb_group cj
+		USING (service_endpoint_provider_collection_id)
+	LEFT JOIN (
+		SELECT service_endpoint_provider_collection_id, sep.*
+		FROM service_endpoint_provider sep
+			JOIN service_endpoint_provider_collection_service_endpoint_provider
+				sepcsep USING (service_endpoint_provider_id)
+		WHERE dns_value IS NOT NULL
+		AND service_endpoint_provider_type = 'gslb'
+	) cname
+		USING (service_endpoint_provider_collection_id)
+WHERE service_endpoint_provider_collection_type = 'gslb-group'
+;
+
+
+
+savepoint gslbgroup;
+SELECT schema_support.relation_diff (
+	schema := 'cloudapi',
+	old_rel := 'gslb_group',
+	new_rel := 'gslb_group_new',
+	prikeys := ARRAY['id']
+);
+
+
+--------------------------------------------------------------------------
+--------------------------------------------------------------------------
 -- gslb_name -> service_endpoint
 
 DO $$
@@ -191,7 +316,7 @@ DECLARE
 	pr		port_range.port_range_id%TYPE;
 BEGIN
 	_tally = 0;
-	FOR _r IN SELECT * FROM gslb_name
+	FOR _r IN SELECT *, host(inet_ntoa(failover_ip_address)::inet) as ip FROM gslb_name
 	LOOP
 		_tally := _tally + 1;
 		IF _tally % 50  = 0 THEN
@@ -244,7 +369,7 @@ BEGIN
 				FROM netblock
 				WHERE netblock_type IN ('default', 'gslb')
 				AND is_single_address = 'Y'
-				AND host(ip_address) = inet_ntoa(_r.failover_ip_address)
+				AND host(ip_address) = _r.ip
 				ORDER BY netblock_type
 				LIMIT 1;
 
@@ -253,7 +378,7 @@ BEGIN
 					ip_address, netblock_type, is_single_address,
 					netblock_status
 				) VALUES (
-					inet_ntoa(_r.failover_ip_address)::inet, 'gslb', 'Y',
+					_r.ip::inet, 'gslb', 'Y',
 					'Allocated'
 				) RETURNING netblock_id INTO nb;
 			END IF;
@@ -388,3 +513,4 @@ SELECT schema_support.relation_diff (
     prikeys := ARRAY['id']
 );
 
+----------------------------------------------------------------------------
