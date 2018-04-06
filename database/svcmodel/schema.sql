@@ -301,35 +301,6 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 		service_endpoint_provider_id)
 );
 
-
---
--- XXX IF THIS PERSISTS, IT NEEDS TO BE RENAMED.  MOST LIKELY IT WILL GO
--- XXX AWAY AND GET MERGED INTO service_endpoint_service_endpoint_provider.
---
--- This is used to handle more complicated ways that service_endpoints and
--- service_endpoint_providers.  Its possible/probable that service_endpoint_id
--- will move out of service_provider and tie into here.    I still need to
--- figure this out.  When I first dropped it in, this allowed for failovers
--- in gslb_name, which roll up to service_endpoint, which I'm not so sure
--- about.
---
--- This was added for gslb.  Initially for failover
---
--- relation would be failover, service
---
-DROP TABLE IF EXISTS service_endpoint_provider_service_endpoint ;
-CREATE TABLE service_endpoint_provider_service_endpoint  (
-	service_endpoint_provider_id		INTEGER NOT NULL,
-	service_endpoint_provider_collection_id	INTEGER NOT NULL,
-	service_endpoint_provider_relation	TEXT NOT NULL,
-	service_endpoint_provider_weight	INTEGER NOT NULL DEFAULT 0,
-	PRIMARY KEY (
-		service_endpoint_provider_id,
-		service_endpoint_provider_collection_id,
-		service_endpoint_provider_relation
-	)
-);
-
 --
 -- This does mapping from a service_endpoint_provider to an actual device
 -- some sort of prioritization?

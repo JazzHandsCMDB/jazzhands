@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP
 \set ECHO queries
+
 rollback;
 begin;
 set search_path=cloudapi,jazzhands;
@@ -512,7 +513,7 @@ BEGIN
 					_name,
 					'gslb'
 				) RETURNING *
-			), spcsp AS (
+			), sepcse AS (
 				INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
 					service_endpoint_provider_collection_id,
 					service_endpoint_provider_id
@@ -520,12 +521,14 @@ BEGIN
 					service_endpoint_provider_id
 				FROM spc, p
 				RETURNING *
-			) INSERT INTO service_endpoint_provider_service_endpoint (
-				service_endpoint_provider_id,
+			) INSERT INTO service_endpoint_service_endpoint_provider (
+				service_endpoint_id,
 				service_endpoint_provider_collection_id,
-				service_endpoint_provider_relation
-			) SELECT service_endpoint_provider_id,
+				service_endpoint_relation_type,
+				service_endpoint_relation_key
+			) SELECT se,
 					service_endpoint_provider_collection_id,
+					'failover',
 					'failover'
 				FROM p, spc
 			;
@@ -535,12 +538,10 @@ BEGIN
 				INSERT INTO service_endpoint_provider (
 					service_endpoint_provider_name,
 					service_endpoint_provider_type,
-					service_endpoint_id,
 					dns_value
 				) VALUES (
 					_name,
 					'gslb',	-- for now
-					se,
 					_r.failover_cname
 				) RETURNING *
 			), spc AS (
@@ -559,12 +560,14 @@ BEGIN
 					service_endpoint_provider_id
 				FROM spc, p
 				RETURNING *
-			) INSERT INTO service_endpoint_provider_service_endpoint (
-				service_endpoint_provider_id,
+			) INSERT INTO service_endpoint_service_endpoint_provider (
+				service_endpoint_id,
 				service_endpoint_provider_collection_id,
-				service_endpoint_provider_relation
-			) SELECT service_endpoint_provider_id,
+				service_endpoint_relation_type,
+				service_endpoint_relation_key
+			) SELECT se,
 					service_endpoint_provider_collection_id,
+					'failover',
 					'failover'
 				FROM p, spc
 			;
@@ -574,8 +577,7 @@ BEGIN
 END;
 $$;
 
-savepoint gslbname;
-CREATE VIEW gslb_name_new AS
+CREATE OR REPLACE VIEW gslb_name_new AS
 	SELECT
 			se.service_endpoint_id AS id,
 			se.dns_name AS domain,
@@ -599,18 +601,15 @@ CREATE VIEW gslb_name_new AS
 		INNER JOIN service_endpoint_health_check hc USING
 				(service_endpoint_id)
 		LEFT JOIN (
-			SELECT service_endpoint_id, ip_address, dns_value
-			FROM service_endpoint
-				JOIN service_endpoint_provider
-					USING (service_endpoint_id)
-				JOIN service_endpoint_provider_service_endpoint
-					USING (service_endpoint_provider_id)
+			SELECT se.service_endpoint_id, ip_address, dns_value
+			FROM service_endpoint_service_endpoint_provider se
 				JOIN service_endpoint_provider_collection_service_endpoint_provider
-					USING (service_endpoint_provider_collection_id,service_endpoint_provider_id)
-				JOIN service_endpoint_provider_collection
 					USING (service_endpoint_provider_collection_id)
+				JOIN service_endpoint_provider
+					USING (service_endpoint_provider_id)
 				LEFT JOIN netblock USING (netblock_id)
-			WHERE service_endpoint_provider_relation = 'failover'
+			WHERE service_endpoint_relation_type = 'failover'
+			AND service_endpoint_relation_key = 'failover'
 		) f USING (service_endpoint_id)
 ;
 
