@@ -474,7 +474,7 @@ BEGIN
 		);
 
 		IF _r.failover_ip_address IS NOT NULL THEN
-			_name := concat(_r.domain, '-', _r.id || '-faiover');
+			_name := concat(_r.domain, '-', _r.id || '-failover');
 			SELECT netblock_id
 				INTO nb
 				FROM netblock
@@ -532,7 +532,7 @@ BEGIN
 				FROM p, spc
 			;
 		ELSIF _r.failover_cname IS NOT NULL THEN
-			_name := concat(_r.domain, '-', _r.id || '-faiover');
+			_name := concat(_r.domain, '-', _r.id || '-failover');
 			WITH p AS (
 				INSERT INTO service_endpoint_provider (
 					service_endpoint_provider_name,

@@ -201,16 +201,18 @@ CREATE TABLE service_endpoint_provider_type (
 --
 -- names are kind of irrelevent.
 --
--- only one of shared_netblock_collection_id, netblock_id can be set
--- if device_id is set, netblock_id must be set and the must match
+-- if device_id is set, netblock_id must be set and the must match.
+-- Need to sort out the right way to
 --
 -- This probably does NOT need an sla column, we're 25% sure about that
 -- because you would just create another service_endpoint.
 --
--- dns_record_id is only the destination on CNAMEs.  I think.  Maybe it 
--- needs to go away.
+-- dns_record_id is only the destination on CNAMEs.  I think.  I used to think
+-- it  may not be necessary, now I'm thinking its a relation we want to capture
+-- and enforce consistency with dns_record/dns_value_record_id.
 --
--- the whole dns_record/netblock_id/device_id thing need to be considered.
+-- the whole dns_record/netblock_id/device_id thing need to be reconsidered,
+-- especially in light of shared_netblocks.
 --
 -- dns_value is just temporarily there for CNAMEs and will go away in favor
 -- of using dns_record_id.
@@ -230,7 +232,10 @@ CREATE TABLE service_endpoint_provider (
 	UNIQUE (service_endpoint_provider_name, service_endpoint_provider_type)
 );
 
--- groan
+--
+-- This came into existance to be a gslb_group and it may become the only
+-- way service_endpoints map to service_endpoitn_providers.
+--
 DROP TABLE IF EXISTS service_endpoint_provider_collection;
 CREATE TABLE service_endpoint_provider_collection (
 	service_endpoint_provider_collection_id		SERIAL NOT NULL,
@@ -254,9 +259,11 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 --
 -- This is used to handle more complicated ways that service_endpoints and
 -- service_endpoint_providers.  Its possible/probable that service_endpoint_id
--- will more out of service_provider and here.
+-- will move out of service_provider and here.
 --
--- relation would failover, service
+-- This was added for gslb.
+--
+-- relation would be failover, service
 --
 DROP TABLE IF EXISTS service_endpoint_provider_service_endpoint ;
 CREATE TABLE service_endpoint_provider_service_endpoint  (

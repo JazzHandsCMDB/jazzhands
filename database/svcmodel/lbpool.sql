@@ -138,10 +138,16 @@ BEGIN
 			sei, _p.lb_ip_id
 		) RETURNING service_endpoint_provider_id INTO sepi;
 
+		--
+		-- XXX - need to sort out health check and how it maps to gslb.
+		-- probably allows for the more rich types inside nginx?
+		--
 		INSERT INTO jazzhands.service_endpoint_health_check (
-			service_endpoint_id, request_string, search_string, is_enabled
+			service_endpoint_id, protocol,
+			request_string, search_string, is_enabled
 		) VALUES (
-			sei, _p.request_string, _p.search_string, 'Y'
+			sei, 'tcp',
+			_p.request_string, _p.search_string, 'Y'
 		);
 
 		-- set some defaults, if the certificate is found, it gets
