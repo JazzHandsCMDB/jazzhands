@@ -41,7 +41,7 @@ CREATE TABLE service_source_repository (
 -- service_type is not yet clearly defined and may change  but at the moment
 -- 'network', 'integration' (for things that just talk between services but
 -- do not listen, like feeds).  possibly also 'process' for things that do not
--- leave the machine. 
+-- leave the machine.
 --
 DROP TABLE IF EXISTS service_version cascade;
 CREATE TABLE service_version (
@@ -190,6 +190,52 @@ CREATE TABLE service_endpoint_provider_type (
 );
 
 --
+-- This covers how service_endpoints, the DNS names actually map to the things
+-- that provide them.  Basically "dns value".  This is meant to support direct
+-- dns mapping (which probably needs to be trigger enforced or trigger updated
+-- anyway so changing dns_record will DTRT) or mapping through a load balancer
+-- (which is the same as the previous case, I think) or something more
+-- complicated like gslb or nsone.
+--
+-- Since there's basically an infinite number of ways that could happen, this
+-- just captures a type and relationship between the things and its up to the
+-- system extracting it to define what those means.  This can _probably_
+-- be rethought to have a little more intellegence in the db, at least to
+-- ensure proper enforcement.
+--
+-- This MAY consume service_endpoint_provider_service_endpoint, which is
+-- used for  failover mappings (likely will).
+--
+--
+-- service_endpoint_relation_type is 'direct', 'service', 'failover'
+--
+-- service_endpoint_relation_key is a freeform name that is understood by the
+-- external system for how it relates to the service_endpoint.  The name
+-- sucks, in part because there is no value (and maybe there should  be a
+-- key,value table for this or some other property?
+--
+-- XXX maximum_capacity is just for gslb because I did not want to create a
+-- cloud_jazz table just yet, but maybe that should be a thing.
+--
+DROP TABLE IF EXISTS service_endpoint_service_endpoint_provider;
+CREATE TABLE service_endpoint_service_endpoint_provider  (
+	service_endpoint_id							INTEGER NOT NULL,
+	service_endpoint_provider_collection_id		INTEGER NOT NULL,
+	service_endpoint_relation_type				TEXT NOT NULL,
+	service_endpoint_relation_key				TEXT NOT NULL DEFAULT 'none',
+	weight										INTEGER NOT NULL DEFAULT 0,
+	maximum_capacity							INTEGER NOT NULL DEFAULT 100,
+	is_enabled									char(1) NOT NULL DEFAULT 'Y',
+	PRIMARY KEY (
+		service_endpoint_id,
+		service_endpoint_provider_collection_id,
+		service_endpoint_relation_type,
+		service_endpoint_relation_key
+	)
+);
+
+
+--
 -- This describes where the service actually terminates.
 --
 -- This may be 1-1 with service_endpoint (trigger enforced)
@@ -257,11 +303,17 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 
 
 --
+-- XXX IF THIS PERSISTS, IT NEEDS TO BE RENAMED.  MOST LIKELY IT WILL GO
+-- XXX AWAY AND GET MERGED INTO service_endpoint_service_endpoint_provider.
+--
 -- This is used to handle more complicated ways that service_endpoints and
 -- service_endpoint_providers.  Its possible/probable that service_endpoint_id
--- will move out of service_provider and here.
+-- will move out of service_provider and tie into here.    I still need to
+-- figure this out.  When I first dropped it in, this allowed for failovers
+-- in gslb_name, which roll up to service_endpoint, which I'm not so sure
+-- about.
 --
--- This was added for gslb.
+-- This was added for gslb.  Initially for failover
 --
 -- relation would be failover, service
 --

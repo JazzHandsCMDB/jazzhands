@@ -8,8 +8,6 @@ set search_path=cloudapi,jazzhands;
 
 /*
 
- cloudapi | gslb_name_gslb_group
-
 These two need to be considered after the configuration data is done.  They
 are not presently restored in a default dev db.
 
@@ -620,9 +618,50 @@ savepoint pretest;
 SELECT schema_support.relation_diff (
     schema := 'cloudapi',
     old_rel := 'gslb_name',
-    new_rel := 'gslb_name_new',
-    prikeys := ARRAY['id']
+    new_rel := 'gslb_name_new'
 );
+
+----------------------------------------------------------------------------
+-- gslb_name_gslb_group -> service_endpoint_service_endpoint_provider
+--
+
+INSERT INTO service_endpoint_service_endpoint_provider (
+	service_endpoint_id,
+	service_endpoint_provider_collection_id,
+	service_endpoint_relation_type,
+	service_endpoint_relation_key,
+	weight,
+	maximum_capacity,
+	is_enabled
+) SELECT
+	gslb_name_id,
+	gslb_group_id,
+	'gslb',
+	datacenter_id,
+	weight,
+	max_traffic,
+	CASE WHEN active = 0 THEN 'N' ELSE 'Y' END
+FROM gslb_name_gslb_group
+;
+
+CREATE OR REPLACE VIEW gslb_name_gslb_group_new AS
+SELECT
+	service_endpoint_id AS gslb_name_id,
+	service_endpoint_provider_collection_id AS gslb_group_id,
+	service_endpoint_relation_key AS datacenter_id,
+	weight,
+	maximum_capacity AS max_traffic,
+	CASE WHEN is_enabled = 'Y' THEN 1 ELSE 0 END as active
+FROM service_endpoint_service_endpoint_provider
+WHERE service_endpoint_relation_type = 'gslb';
+
+savepoint pretest;
+SELECT schema_support.relation_diff (
+    schema := 'cloudapi',
+    old_rel := 'gslb_name_gslb_group',
+    new_rel := 'gslb_name_gslb_group_new'
+);
+
 
 ----------------------------------------------------------------------------
 \set ECHO ERRORS
