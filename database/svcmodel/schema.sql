@@ -193,7 +193,11 @@ CREATE TABLE service_endpoint_provider_type (
 -- This describes where the service actually terminates.
 --
 -- This may be 1-1 with service_endpoint (trigger enforced)
--- likely many to many but not most cases
+-- likely many to many but not most cases.  THINKING MORE..  This may
+-- actually become a m-m relationship to account for different ways of
+-- getting at a service (in some cases it'll be 1-1 or 1-m, trigger enforced)
+--
+-- This is why service_endpoint_id is NULL for the moment.
 --
 -- names are kind of irrelevent.
 --
@@ -216,7 +220,7 @@ CREATE TABLE service_endpoint_provider (
 	service_endpoint_provider_id	serial	NOT NULL,
 	service_endpoint_provider_name	text	NOT NULL,
 	service_endpoint_provider_type	text	NOT NULL,
-	service_endpoint_id		integer	NOT NULL,
+	service_endpoint_id		integer,
 	dns_record_id			integer NULL,
 	dns_value			TEXT 	NULL,
 	netblock_id			integer NULL,

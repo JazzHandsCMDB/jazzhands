@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP
-
+\set ECHO queries
 rollback;
 begin;
 set search_path=cloudapi,jazzhands;
@@ -8,8 +8,6 @@ set search_path=cloudapi,jazzhands;
 
 /*
 
- cloudapi | gslb_ip_address
- 			- becomes netblock_collection membership, probably
  cloudapi | gslb_name_gslb_group
 
 These two need to be considered after the configuration data is done.  They
@@ -95,6 +93,13 @@ INSERT INTO val_dns_domain_type (
 	'gslb', 'domain used for gslb'
 );
 
+INSERT INTO jazzhands.val_netblock_type (
+	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
+) VALUES (
+	'gslb', 'gslb related stragglers', 'N', 'N'
+);
+
+----------------------------------------------------------------------------
 
 --
 -- gslb_zone -> dns_domain
@@ -105,7 +110,6 @@ DECLARE
 	_t		INTEGER;
 BEGIN
 	SELECT current_role INTO myrole;
-
 	SET role = dba;
 
 	SET constraints ALL deferred;
@@ -191,18 +195,13 @@ SELECT schema_support.relation_diff (
 );
 
 
-INSERT INTO jazzhands.val_netblock_type (
-	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
-) VALUES (
-	'gslb', 'gslb related stragglers', 'N', 'N'
-);
-
 --------------------------------------------------------------------------
 -- gslb_group -> service_provider_collection
 
 DO $$
 DECLARE
 	_r RECORD;
+	_tally INTEGER;
 BEGIN
 
 	INSERT INTO cloud_jazz.gslb_group (
@@ -225,48 +224,121 @@ BEGIN
 	FROM gslb_group
 	ORDER BY id;
 
-	WITH sp AS (
-		INSERT INTO service_endpoint (
-			dns_name, description
-		) SELECT cname, 'imported from ' || id
-		FROM gslb_group WHERE cname IS NOT NULL
-		ORDER BY id
-		RETURNING *
-	), sprn AS (
-		SELECT *, row_number() OVER () AS rn
-		FROM sp
-	), grprn AS (
+	--
+	-- Insert all CNAMEs
+	--
+	WITH grprn AS (
 		SELECT *, row_number() OVER (ORDER BY id) AS rn
 		FROM gslb_group WHERE cname IS NOT NULL ORDER BY id
-	), map AS (
-		SELECT service_endpoint_id, grprn.*
-		FROM grprn JOIN sprn USING (rn)
 	), sep AS (
 		INSERT INTO service_endpoint_provider (
 			service_endpoint_provider_name, service_endpoint_provider_type,
-			service_endpoint_id, dns_value
+			dns_value
 		) SELECT concat(name,'-cname'), 'gslb',
-			service_endpoint_id, cname
-		FROM map
+			cname
+		FROM grprn
 		ORDER BY id
 		RETURNING *
 	), seprn AS (
 		SELECT *, row_number() OVER () AS rn
 		FROM sep
-	), map2 AS (
+	), map AS (
 		SELECT grprn.id, service_endpoint_provider_id
 		FROM seprn JOIN grprn USING (rn)
-	) INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
-		service_endpoint_provider_collection_id,
-		service_endpoint_provider_id
-	)  SELECT id, service_endpoint_provider_id
-	FROM map2
-	;
+	), i AS (
+		INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+			service_endpoint_provider_collection_id,
+			service_endpoint_provider_id
+		)  SELECT id, service_endpoint_provider_id
+		FROM map
+		RETURNING *
+	) SELECT count(*) INTO _tally FROM i;
+
+	RAISE NOTICE 'inserted % gslb cnames', _tally;
+
+	--
+	-- Now deal with all the ip addresses.
+	-- first, just ones associated with netblocks and maybe devices
+	--
+	WITH base AS (
+		SELECT gslb_group_id, inet_ntoa(g.ip_address)::Inet as ip,
+			netblock_id, device_id,
+		concat(gslb_group_id, '-', g.ip_address) AS  key
+		FROM gslb_ip_address g
+		LEFT JOIN (
+			SELECT * FROM netblock where is_single_address = 'Y'
+			AND netblock_type = 'default'
+			) nb ON host(nb.ip_address) = inet_ntoa(g.ip_address)::text
+		LEFT JOIN network_interface_netblock nin USING (netblock_id)
+		WHERE netblock_id IS NOT NULL
+		ORDER BY gslb_group_id, ip
+	), sep AS (
+		INSERT INTO service_endpoint_provider (
+			service_endpoint_provider_name,
+			service_endpoint_provider_type,
+			netblock_id,
+			device_id
+		)
+		SELECT
+			key, 'gslb', netblock_id, device_id
+		FROM base
+		RETURNING *
+	), i AS (
+		INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+			service_endpoint_provider_collection_id,
+			service_endpoint_provider_id
+		) SELECT base.gslb_group_id, sep.service_endpoint_provider_id
+		FROM sep JOIN base ON base.key = sep.service_endpoint_provider_name
+		RETURNING *
+	) SELECT count(*) INTO _tally FROM i;
+	RAISE NOTICE 'inserted % gslb ip_addresses', _tally;
+
+	--
+	-- Same as above but those without netblocks
+	--
+	WITH base AS (
+		SELECT gslb_group_id, inet_ntoa(g.ip_address)::Inet as ip,
+			netblock_id, device_id,
+		concat(gslb_group_id, '-', g.ip_address) AS  key
+		FROM gslb_ip_address g
+		LEFT JOIN (
+			SELECT * FROM netblock where is_single_address = 'Y'
+			AND netblock_type = 'default'
+			) nb ON host(nb.ip_address) = inet_ntoa(g.ip_address)::text
+		LEFT JOIN network_interface_netblock nin USING (netblock_id)
+		WHERE netblock_id IS NULL
+		ORDER BY gslb_group_id, ip
+	), newnb AS (
+		INSERT INTO netblock (
+			ip_address, netblock_type, is_single_address, netblock_status
+		) SELECT DISTINCT ip::inet, 'gslb', 'Y', 'Allocated'
+		FROM base
+		RETURNING *
+	), sep AS (
+		INSERT INTO service_endpoint_provider (
+			service_endpoint_provider_name,
+			service_endpoint_provider_type,
+			netblock_id,
+			device_id
+		)
+		SELECT
+			key, 'gslb', newnb.netblock_id, device_id
+		FROM base JOIN newnb ON newnb.ip_address = base.ip
+		RETURNING *
+	), i AS (
+		INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+			service_endpoint_provider_collection_id,
+			service_endpoint_provider_id
+		) SELECT base.gslb_group_id, sep.service_endpoint_provider_id
+		FROM base JOIN sep ON base.key = sep.service_endpoint_provider_name
+		RETURNING *
+	) SELECT count(*) INTO _tally FROM i;
+	RAISE NOTICE 'inserted % gslb ip_addresses', _tally;
 
 END;
 $$;
 
-savepoint preview;
+
 CREATE VIEW gslb_group_new AS
 SELECT
 	service_endpoint_provider_collection_id AS id,
@@ -290,8 +362,6 @@ FROM service_endpoint_provider_collection sepc
 WHERE service_endpoint_provider_collection_type = 'gslb-group'
 ;
 
-
-
 savepoint gslbgroup;
 SELECT schema_support.relation_diff (
 	schema := 'cloudapi',
@@ -300,10 +370,51 @@ SELECT schema_support.relation_diff (
 	prikeys := ARRAY['id']
 );
 
+CREATE VIEW gslb_ip_address_new AS
+SELECT	service_endpoint_provider_collection_id AS gslb_group_id,
+	inet_aton(host(ip_address)) as ip_address
+FROM service_endpoint_provider_collection sepc
+	JOIN service_endpoint_provider_collection_service_endpoint_provider
+		USING (service_endpoint_provider_collection_id)
+	JOIN service_endpoint_provider sep
+		USING (service_endpoint_provider_id)
+	JOIN netblock nb
+		USING (netblock_id)
+WHERE family(ip_address) = 4;
+
+savepoint gslbipaddr;
+SELECT schema_support.relation_diff (
+	schema := 'cloudapi',
+	old_rel := 'gslb_ip_address',
+	new_rel := 'gslb_ip_address_new',
+	prikeys := ARRAY['gslb_group_id', 'ip_address']
+);
+
 
 --------------------------------------------------------------------------
 --------------------------------------------------------------------------
 -- gslb_name -> service_endpoint
+
+--
+-- probably others need to be dealt with.
+--
+DO $$
+DECLARE
+	x INTEGER;
+	myrole TEXT;
+BEGIN
+	SELECT max(service_endpoint_provider_collection_id) + 1000
+	INTO x
+	FROM service_endpoint_provider_collection;
+
+	SELECT current_role INTO myrole;
+	SET role = dba;
+
+	EXECUTE 'ALTER SEQUENCE IF EXISTS service_endpoint_provider_col_service_endpoint_provider_col_seq RESTART WITH ' || x;
+	EXECUTE 'SET role ' || myrole;
+END;
+$$;
+
 
 DO $$
 DECLARE
@@ -514,3 +625,4 @@ SELECT schema_support.relation_diff (
 );
 
 ----------------------------------------------------------------------------
+\set ECHO ERRORS
