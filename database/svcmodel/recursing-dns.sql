@@ -23,7 +23,7 @@ WITH swpkg AS (
 	) SELECT shared_netblock_collection_id, shared_netblock_id
 	FROM snb, shared_netblock
 		JOIN netblock USING (netblock_id)
-	WHERE host(ip_address) = '68.67.163.255'
+	WHERE host(ip_address) = '68.67.166.255'
 	RETURNING *
 ),  endpoint AS (
 	INSERT INTO service_endpoint (
@@ -65,7 +65,7 @@ WITH swpkg AS (
 	FROM device
 			JOIN network_interface_netblock USING (device_id),
 		endpoint, svcv, port_range p
-	WHERE device_name ~ '^(01|02)\.(newdns|dns-recurse)\..*$'
+	WHERE device_name ~ '^(\d+)\.(newdns|dns-recurse)\..*$'
 	AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))
 	AND p.port_range_name IN ('domain') AND p.port_range_type = 'services'
 	-- XXX need to create an enedpoint for tcp, too
@@ -75,11 +75,42 @@ WITH swpkg AS (
 ), svcendpointprovider AS (
 	INSERT INTO service_endpoint_provider (
 		service_endpoint_provider_name, service_endpoint_provider_type,
-		service_endpoint_id, shared_netblock_collection_id
-	) SELECT 'nym2-recursedns-' || service_endpoint_id, 'ecmp',
-		service_endpoint_id, shared_netblock_collection_id
-	FROM  endpoint, snb
+		netblock_id
+	) SELECT 'nym2-recursedns', 'ecmp',
+		netblock_id
+	FROM  shared_netblock
+        JOIN netblock USING (netblock_id)
+    WHERE host(ip_address) = '68.67.166.255'
 	RETURNING *
+), svcendpointprovidercol AS (
+	INSERT INTO service_endpoint_provider_collection (
+		service_endpoint_provider_collection_name,
+		service_endpoint_provider_collection_type
+	) SELECT
+		service_endpoint_provider_name,
+		'per-service-endpoint-provider'
+	FROM svcendpointprovider
+	RETURNING *
+), se_secol AS (
+	INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_id
+	) SELECT
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_id
+	FROM svcendpointprovider, svcendpointprovidercol
+	RETURNING *
+), se_sep AS (
+	INSERT INTO service_endpoint_service_endpoint_provider (
+		service_endpoint_id,
+		service_endpoint_provider_collection_id,
+		service_endpoint_relation_type
+	) SELECT
+		service_endpoint_id,
+		service_endpoint_provider_collection_id,
+		'direct'
+	FROM endpoint, svcendpointprovidercol
+	 RETURNING *
 ), svcendpointmember AS (
 	INSERT INTO service_endpoint_provider_member (
 		service_endpoint_provider_id, service_instance_id

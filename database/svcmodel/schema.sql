@@ -268,7 +268,6 @@ CREATE TABLE service_endpoint_provider (
 	service_endpoint_provider_id	serial	NOT NULL,
 	service_endpoint_provider_name	text	NOT NULL,
 	service_endpoint_provider_type	text	NOT NULL,
-	service_endpoint_id		integer,
 	dns_record_id			integer NULL,
 	dns_value			TEXT 	NULL,
 	netblock_id			integer NULL,

@@ -66,11 +66,40 @@ WITH endpoint AS (
 ), svcendpointprovider AS (
 	INSERT INTO service_endpoint_provider (
 		service_endpoint_provider_name, service_endpoint_provider_type,
-		service_endpoint_id, netblock_id
-	) SELECT 'jazzhands-db', 'direct', service_endpoint_id, netblock_id
-	FROM  endpoint, netblock
+		netblock_id
+	) SELECT 'jazzhands-db', 'direct', netblock_id
+	FROM  netblock
 	WHERE host(ip_address) = '10.1.32.62' and netblock_type = 'default'
 	RETURNING *
+), svcendpointprovidercol AS (
+	INSERT INTO service_endpoint_provider_collection (
+		service_endpoint_provider_collection_name,
+		service_endpoint_provider_collection_type
+	) SELECT
+		service_endpoint_provider_name,
+		'per-service-endpoint-provider'
+	FROM svcendpointprovider
+	RETURNING *
+), se_secol AS (
+	INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_id
+	) SELECT
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_id
+	FROM svcendpointprovider, svcendpointprovidercol
+	RETURNING *
+), se_sep AS (
+	INSERT INTO service_endpoint_service_endpoint_provider (
+		service_endpoint_id,
+		service_endpoint_provider_collection_id,
+		service_endpoint_relation_type
+	) SELECT
+		service_endpoint_id,
+		service_endpoint_provider_collection_id,
+		'direct'
+	FROM endpoint, svcendpointprovidercol
+	 RETURNING *
 ), svcendpointmember AS (
 	INSERT INTO service_endpoint_provider_member (
 		service_endpoint_provider_id, service_instance_id

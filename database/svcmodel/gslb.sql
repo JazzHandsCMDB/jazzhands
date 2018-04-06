@@ -497,12 +497,10 @@ BEGIN
 				INSERT INTO service_endpoint_provider (
 					service_endpoint_provider_name,
 					service_endpoint_provider_type,
-					service_endpoint_id,
 					netblock_id
 				) VALUES (
 					_name,
 					'gslb',	-- for now
-					se,
 					nb
 				) RETURNING *
 			), spc AS (

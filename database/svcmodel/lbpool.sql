@@ -128,15 +128,46 @@ BEGIN
 		-- insert service_endpoint_provider
 		--
 		-- XX should migrate to shared_netblock_id
-		INSERT INTO service_endpoint_provider (
-			service_endpoint_provider_id,
-			service_endpoint_provider_name, service_endpoint_provider_type,
-			service_endpoint_id, netblock_id
-		) VALUES (
-			_p.id,
-			_name, 'loadbalancer',
-			sei, _p.lb_ip_id
-		) RETURNING service_endpoint_provider_id INTO sepi;
+		WITH sepi AS (
+			INSERT INTO service_endpoint_provider (
+				service_endpoint_provider_id,
+				service_endpoint_provider_name, service_endpoint_provider_type,
+				netblock_id
+			) VALUES (
+				_p.id,
+				_name, 'loadbalancer',
+				_p.lb_ip_id
+			) RETURNING *
+		), spc AS (
+			INSERT INTO service_endpoint_provider_collection (
+				service_endpoint_provider_collection_name,
+				service_endpoint_provider_collection_type
+			) VALUES (
+				_name,
+				'per-service-endpoint-provider'
+			) RETURNING *
+		), i AS (
+			INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+				service_endpoint_provider_collection_id,
+				service_endpoint_provider_id
+			) SELECT
+				service_endpoint_provider_collection_id,
+				service_endpoint_provider_id
+			FROM spc, sepi
+		), i2 AS (
+			INSERT INTO service_endpoint_service_endpoint_provider (
+				service_endpoint_id,
+				service_endpoint_provider_collection_id,
+				service_endpoint_relation_type
+			) SELECT
+				sei,
+				service_endpoint_provider_collection_id,
+				'direct'
+			FROM spc
+			RETURNING *
+		) SELECT service_endpoint_provider_id
+			INTO sepi
+			FROM sepi;
 
 		--
 		-- XXX - need to sort out health check and how it maps to gslb.
@@ -213,6 +244,7 @@ END;
 $$
 ;
 
+savepoint preview;
 CREATE VIEW lb_pool_new AS
 SELECT
 	datacenter_id,
@@ -259,6 +291,10 @@ SELECT
 	cj.redirect_to,
 	rank() OVER (PARTITION BY sep.service_endpoint_provider_id, sehc.rank) AS rnk
 FROM	jazzhands.service_endpoint_provider sep
+	INNER JOIN service_endpoint_provider_collection_service_endpoint_provider
+		USING (service_endpoint_provider_id)
+	INNER JOIN service_endpoint_service_endpoint_provider
+		USING (service_endpoint_provider_collection_id)
 	INNER JOIN jazzhands.service_endpoint USING (service_endpoint_id)
 	INNER JOIN jazzhands.port_range pr USING (port_range_id)
 	INNER JOIN cloud_jazz.lb_pool cj USING (service_endpoint_provider_id)
