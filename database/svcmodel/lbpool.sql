@@ -1,7 +1,9 @@
 \set ON_ERROR_STOP
 
-rollback;
-begin;
+savepoint startlbpool;
+
+-- rollback;
+-- begin;
 set search_path=cloudapi,jazzhands;
 
 /*

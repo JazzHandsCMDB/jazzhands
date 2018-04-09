@@ -1,8 +1,10 @@
 \set ON_ERROR_STOP
 \set ECHO queries
 
-rollback;
-begin;
+savepoint startglb;
+
+-- rollback;
+-- begin;
 set search_path=cloudapi,jazzhands;
 
 
@@ -379,7 +381,8 @@ FROM service_endpoint_provider_collection sepc
 		USING (service_endpoint_provider_id)
 	JOIN netblock nb
 		USING (netblock_id)
-WHERE family(ip_address) = 4;
+WHERE family(ip_address) = 4
+AND service_endpoint_provider_type = 'gslb';
 
 savepoint gslbipaddr;
 SELECT schema_support.relation_diff (
