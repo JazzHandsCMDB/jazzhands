@@ -112,7 +112,7 @@ INSERT INTO shared_netblock_network_int (
 FROM shared_netblock sb
 	JOIN lb_ip ip ON (sb.netblock_id = ip.id)
 	JOIN (
-		SELECT * FROM ( 
+		SELECT * FROM (
 			SELECT network_interface_id, parent_device_id AS device_id,
 				row_number() OVER (PARTITION BY device_id ORDER BY
 						network_interface_rank,
@@ -147,7 +147,7 @@ DECLARE
 	chn TEXT;
 	useleg boolean;
 BEGIN
-	FOR _p IN SELECT p.*, sb.shared_netblock_id 
+	FOR _p IN SELECT p.*, sb.shared_netblock_id
 		FROM cloudapi.lb_pool  p
 			JOIN cloudapi.lb_ip  ip ON p.lb_ip_id = ip.id
 			JOIN shared_netblock sb ON ip.id = sb.netblock_id
