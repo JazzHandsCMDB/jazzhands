@@ -271,6 +271,7 @@ CREATE TABLE service_endpoint_provider (
 	dns_record_id			integer NULL,
 	dns_value			TEXT 	NULL,
 	netblock_id			integer NULL,
+	shared_netblock_id		integer	NULL,
 	device_id			integer	NULL,
 	description			text,
 	PRIMARY KEY (service_endpoint_provider_id),

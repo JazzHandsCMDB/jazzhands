@@ -5,7 +5,6 @@ savepoint startlbpool;
 -- rollback;
 -- begin;
 set search_path=cloudapi,jazzhands;
-
 /*
  *
 
@@ -74,9 +73,6 @@ UPDATE cloudapi_audit.lb_node set "aud#timestamp" = deleted_on where "aud#timest
 DELETE FROM lb_pool WHERE is_deleted = 1;
 UPDATE cloudapi_audit.lb_pool set "aud#timestamp" = deleted_on where "aud#timestamp" = now();
 
---
--- stuff I'm just considering deleted - XXX
---
 DELETE FROM lb_node where lb_pool_id IN (
 	SELECT id FROM lb_pool where managed_by_api = 0
 );
@@ -86,10 +82,59 @@ DELETE FROM lb_pool WHERE managed_by_api = 0;
 -- ALTER TABLE lb_pool DROP deleted_on;
 
 ----------------------------------------------------------------------------
+--
+-- prerequisite work before all this can be done.  shared_netblock_id will
+-- become the key for lb_ip and it will only be assigned for things that are
+-- assigned to load balacers.
+--
+----------------------------------------------------------------------------
+
+DELETE FROM shared_netblock_network_int WHERE shared_netblock_id IN (
+	SELECT shared_netblock_id FROM shared_netblock WHERE netblock_id IN (
+		SELECT id FROM lb_ip
+	)
+);
+
+DELETE FROM shared_netblock where netblock_id IN (
+	SELECT id FROM lb_ip
+);
+
+-- XXX probably do not want description in both
+INSERT INTO shared_netblock (
+	shared_netblock_protocol, netblock_id, description
+) SELECT 'BGP', id, description
+FROM lb_ip
+WHERE customer_Id IS NOT NULL;
+
+INSERT INTO shared_netblock_network_int (
+	shared_netblock_id, network_interface_id, priority
+) SELECT sb.shared_netblock_id, network_interface_id, 225
+FROM shared_netblock sb
+	JOIN lb_ip ip ON (sb.netblock_id = ip.id)
+	JOIN (
+		SELECT * FROM ( 
+			SELECT network_interface_id, parent_device_id AS device_id,
+				row_number() OVER (PARTITION BY device_id ORDER BY
+						network_interface_rank,
+						network_interface_id desc,
+						netblock_id) as rnk
+			FROM network_interface_netblock nin
+				JOIN v_lb_cluster_member mem USING (device_id)
+		) sub WHERE rnk = 1
+	) ints USING (device_id)
+;
+
+savepoint wait;
+-- DO $$ BEGIN RAISE EXCEPTION 'stop'; END; $$;
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
 
 DO $$
 DECLARE
-	_p		cloudapi.lb_pool%ROWTYPE;
+	_p		RECORD;
 	_name TEXT;
 	_active char(1);
 	_svc integer;
@@ -102,7 +147,12 @@ DECLARE
 	chn TEXT;
 	useleg boolean;
 BEGIN
-	FOR _p IN SELECT * FROM cloudapi.lb_pool WHERE is_deleted = 0ORDER BY id
+	FOR _p IN SELECT p.*, sb.shared_netblock_id 
+		FROM cloudapi.lb_pool  p
+			JOIN cloudapi.lb_ip  ip ON p.lb_ip_id = ip.id
+			JOIN shared_netblock sb ON ip.id = sb.netblock_id
+		WHERE is_deleted = 0
+		ORDER BY id
 	LOOP
 		_name := _p.datacenter_id || ':' || _p.id;
 
@@ -134,11 +184,11 @@ BEGIN
 			INSERT INTO service_endpoint_provider (
 				service_endpoint_provider_id,
 				service_endpoint_provider_name, service_endpoint_provider_type,
-				netblock_id
+				netblock_id, shared_netblock_id
 			) VALUES (
 				_p.id,
 				_name, 'loadbalancer',
-				_p.lb_ip_id
+				_p.lb_ip_id, _p.shared_netblock_id
 			) RETURNING *
 		), spc AS (
 			INSERT INTO service_endpoint_provider_collection (
@@ -475,4 +525,24 @@ SELECT schema_support.relation_diff (
         prikeys := ARRAY['id']
 );
 
+--
+-- reset all of these to new numbers based on the above
+--
+DO $$
+DECLARE
+        myrole  TEXT;
+        _t              INTEGER;
+BEGIN
+	SELECT current_role INTO myrole;
+	SET role = dba;
 
+	PERFORM schema_support.reset_table_sequence(
+		schema := 'jazzhands',
+		table_name := 'service_endpoint_provider'
+	);
+
+	EXECUTE 'SET role ' || myrole;
+END;
+$$;
+
+savepoint lb;

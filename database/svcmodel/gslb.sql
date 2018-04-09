@@ -371,7 +371,7 @@ SELECT schema_support.relation_diff (
 	prikeys := ARRAY['id']
 );
 
-CREATE VIEW gslb_ip_address_new AS
+CREATE OR REPLACE VIEW gslb_ip_address_new AS
 SELECT	service_endpoint_provider_collection_id AS gslb_group_id,
 	inet_aton(host(ip_address)) as ip_address
 FROM service_endpoint_provider_collection sepc
@@ -662,6 +662,28 @@ SELECT schema_support.relation_diff (
     new_rel := 'gslb_name_gslb_group_new'
 );
 
+
+--
+-- reset all of these to new numbers based on the above
+--
+DO $$
+DECLARE
+        myrole  TEXT;
+        _t              INTEGER;
+BEGIN
+	SELECT current_role INTO myrole;
+	SET role = dba;
+
+	PERFORM schema_support.reset_table_sequence(
+		schema := 'jazzhands',
+		table_name := 'service_endpoint_provider_collection'
+	);
+
+	EXECUTE 'SET role ' || myrole;
+END;
+$$;
+
+savepoint gslb;
 
 ----------------------------------------------------------------------------
 \set ECHO ERRORS

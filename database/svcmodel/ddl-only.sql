@@ -3,3 +3,4 @@ rollback;
 begin;
 \i schema.sql
 \i data.sql
+COMMIT;
