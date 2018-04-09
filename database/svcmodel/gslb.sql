@@ -422,10 +422,11 @@ DO $$
 DECLARE
 	_tally	INTEGER;
 	_name	TEXT;
+	_sepc	service_endpoint_provider_collection.service_endpoint_provider_collection_id%TYPE;
 	_r		RECORD;
 	nb		netblock.netblock_id%TYPE;
 	se		service_endpoint.service_endpoint_id%TYPE;
-	sep		service_endpoint_provider.service_endpoint_provider_id%TYPE;
+	_sep	service_endpoint_provider.service_endpoint_provider_id%TYPE;
 	pr		port_range.port_range_id%TYPE;
 BEGIN
 	_tally = 0;
@@ -496,7 +497,22 @@ BEGIN
 				) RETURNING netblock_id INTO nb;
 			END IF;
 
-			WITH p AS (
+			SELECT service_endpoint_provider_collection_id
+			INTO	_sepc
+			FROM	service_endpoint_provider_collection
+					JOIN service_endpoint_provider_collection_service_endpoint_provider
+						USING (service_endpoint_provider_collection_id)
+					JOIN service_endpoint_provider
+						USING (service_endpoint_provider_id)
+			WHERE netblock_id = nb
+			AND service_endpoint_provider_collection_type = 'per-service-endpoint-provider';
+
+			IF NOT FOUND THEN
+				--
+				-- setup a service_endpoint_provier for the failover IP.
+				-- ideally this would be a particular member and not need to
+				-- exist.
+				--
 				INSERT INTO service_endpoint_provider (
 					service_endpoint_provider_name,
 					service_endpoint_provider_type,
@@ -505,34 +521,40 @@ BEGIN
 					_name,
 					'gslb',	-- for now
 					nb
-				) RETURNING *
-			), spc AS (
-				INSERT INTO service_endpoint_provider_collection (
-					service_endpoint_provider_collection_name,
-					service_endpoint_provider_collection_type
-				) VALUES  (
-					_name,
-					'gslb'
-				) RETURNING *
-			), sepcse AS (
-				INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
-					service_endpoint_provider_collection_id,
-					service_endpoint_provider_id
-				) SELECT service_endpoint_provider_collection_id,
-					service_endpoint_provider_id
-				FROM spc, p
-				RETURNING *
-			) INSERT INTO service_endpoint_service_endpoint_provider (
+				) RETURNING service_endpoint_provider_id INTO _sep;
+
+				--
+				-- setup a collection for the thing and put the above mentioned
+				-- endpoint into it.
+				--
+				WITH spc AS (
+					INSERT INTO service_endpoint_provider_collection (
+						service_endpoint_provider_collection_name,
+						service_endpoint_provider_collection_type
+					) VALUES  (
+						_name,
+						'gslb'
+					) RETURNING *
+				), sepcse AS (
+					INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
+						service_endpoint_provider_collection_id,
+						service_endpoint_provider_id
+					) SELECT service_endpoint_provider_collection_id,
+						_sep
+					FROM spc
+					RETURNING *
+					) SELECT service_endpoint_provider_collection_id
+						INTO _sepc
+					FROM spc;
+			END IF;
+
+			INSERT INTO service_endpoint_service_endpoint_provider (
 				service_endpoint_id,
 				service_endpoint_provider_collection_id,
 				service_endpoint_relation_type,
 				service_endpoint_relation_key
-			) SELECT se,
-					service_endpoint_provider_collection_id,
-					'failover',
-					'failover'
-				FROM p, spc
-			;
+			) VALUES (se, _sepc, 'failover', 'failover');
+
 		ELSIF _r.failover_cname IS NOT NULL THEN
 			_name := concat(_r.domain, '-', _r.id || '-failover');
 			WITH p AS (
