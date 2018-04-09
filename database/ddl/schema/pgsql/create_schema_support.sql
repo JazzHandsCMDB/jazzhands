@@ -1692,6 +1692,9 @@ DECLARE
 	_w TEXT[];
 	_ctl TEXT[];
 	_rv	boolean;
+	_k	TEXT;
+	oj	jsonb;
+	nj	jsonb;
 BEGIN
 	-- do a simple row count
 	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || old_rel || '"' INTO _t1;
@@ -1763,9 +1766,18 @@ BEGIN
 		EXECUTE _q INTO _nr;
 
 		IF _or != _nr THEN
+			oj = row_to_json(_or);
+			nj = row_to_json(_nr);
+			FOR _k IN SELECT jsonb_object_keys(oj)
+			LOOP
+				IF NOT _k = ANY(prikeys) AND oj->>_k IS NOT DISTINCT FROM nj->>_k THEN
+					oj = oj - _k;
+					nj = nj - _k;
+				END IF;
+			END LOOP;
 			RAISE NOTICE 'mismatched row:';
-			RAISE NOTICE 'OLD: %', row_to_json(_or);
-			RAISE NOTICE 'NEW: %', row_to_json(_nr);
+			RAISE NOTICE 'NEW: %', nj;
+			RAISE NOTICE 'OLD: %', oj;
 			_rv := false;
 		END IF;
 
