@@ -541,6 +541,11 @@ BEGIN
 		table_name := 'service_endpoint_provider'
 	);
 
+	PERFORM schema_support.reset_table_sequence(
+		schema := 'jazzhands',
+		table_name := 'service_endpoint'
+	);
+
 	EXECUTE 'SET role ' || myrole;
 END;
 $$;
