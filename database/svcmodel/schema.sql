@@ -247,21 +247,18 @@ CREATE TABLE service_endpoint_service_endpoint_provider  (
 --
 -- names are kind of irrelevent.
 --
--- if device_id is set, netblock_id must be set and the must match.
--- Need to sort out the right way to
+-- I *think* shared_netblock_id and device_id go away.
 --
 -- This probably does NOT need an sla column, we're 25% sure about that
 -- because you would just create another service_endpoint.
 --
 -- dns_record_id is only the destination on CNAMEs.  I think.  I used to think
 -- it  may not be necessary, now I'm thinking its a relation we want to capture
--- and enforce consistency with dns_record/dns_value_record_id.
---
--- the whole dns_record/netblock_id/device_id thing need to be reconsidered,
--- especially in light of shared_netblocks.
+-- and enforce consistency with dns_record/dns_value_record_id, which may not
+-- make sense in GSLB scenarios.
 --
 -- dns_value is just temporarily there for CNAMEs and will go away in favor
--- of using dns_record_id.
+-- of using dns_record_id, which will be the destination value of a CNAME
 --
 DROP TABLE IF EXISTS service_endpoint_provider ;
 CREATE TABLE service_endpoint_provider (
