@@ -259,18 +259,30 @@ BEGIN
 
 	--
 	-- Now deal with all the ip addresses.
-	-- first, just ones associated with netblocks and maybe devices
+	-- first, just ones associated with netblocks and maybe devices but
+	-- favor existing load balancer pools, but only the first one.
 	--
 	WITH base AS (
 		SELECT gslb_group_id, inet_ntoa(g.ip_address)::Inet as ip,
-			netblock_id, device_id,
-		concat(gslb_group_id, '-', g.ip_address) AS  key
+			netblock_id, nin.device_id,
+		concat(gslb_group_id, '-', g.ip_address) AS  key,
+		service_endpoint_provider_id,
+		service_endpoint_provider_name, service_endpoint_provider_type
 		FROM gslb_ip_address g
 		LEFT JOIN (
 			SELECT * FROM netblock where is_single_address = 'Y'
 			AND netblock_type = 'default'
 			) nb ON host(nb.ip_address) = inet_ntoa(g.ip_address)::text
 		LEFT JOIN network_interface_netblock nin USING (netblock_id)
+		LEFT JOIN (
+			SELECT *
+			FROM (
+				SELECT sep.*, row_number() OVER
+						(PARTITION BY netblock_id ORDER BY service_endpoint_provider_id)
+						AS rnk
+				FROM	service_endpoint_provider sep
+			) x WHERE rnk = 1
+		) sep USING (netblock_id)
 		WHERE netblock_id IS NOT NULL
 		ORDER BY gslb_group_id, ip
 	), sep AS (
@@ -283,13 +295,20 @@ BEGIN
 		SELECT
 			key, 'gslb', netblock_id, device_id
 		FROM base
+		WHERE service_endpoint_provider_id IS NULL
 		RETURNING *
 	), i AS (
 		INSERT INTO service_endpoint_provider_collection_service_endpoint_provider (
 			service_endpoint_provider_collection_id,
 			service_endpoint_provider_id
-		) SELECT base.gslb_group_id, sep.service_endpoint_provider_id
-		FROM sep JOIN base ON base.key = sep.service_endpoint_provider_name
+		)
+		SELECT base.gslb_group_id, sep.service_endpoint_provider_id
+			FROM sep
+				JOIN base ON base.key = sep.service_endpoint_provider_name
+		UNION
+		SELECT base.gslb_group_id, service_endpoint_provider_id
+			FROM base
+			WHERE service_endpoint_provider_id IS NOT NULL
 		RETURNING *
 	) SELECT count(*) INTO _tally FROM i;
 	RAISE NOTICE 'inserted % gslb ip_addresses', _tally;
@@ -340,7 +359,7 @@ END;
 $$;
 
 
-CREATE VIEW gslb_group_new AS
+CREATE OR REPLACE VIEW gslb_group_new AS
 SELECT
 	service_endpoint_provider_collection_id AS id,
 	service_endpoint_provider_collection_name AS name,
@@ -357,7 +376,6 @@ FROM service_endpoint_provider_collection sepc
 			JOIN service_endpoint_provider_collection_service_endpoint_provider
 				sepcsep USING (service_endpoint_provider_id)
 		WHERE dns_value IS NOT NULL
-		AND service_endpoint_provider_type = 'gslb'
 	) cname
 		USING (service_endpoint_provider_collection_id)
 WHERE service_endpoint_provider_collection_type = 'gslb-group'
@@ -382,7 +400,7 @@ FROM service_endpoint_provider_collection sepc
 	JOIN netblock nb
 		USING (netblock_id)
 WHERE family(ip_address) = 4
-AND service_endpoint_provider_type = 'gslb';
+AND service_endpoint_provider_collection_type = 'gslb-group';
 
 savepoint gslbipaddr;
 SELECT schema_support.relation_diff (
@@ -509,7 +527,7 @@ BEGIN
 
 			IF NOT FOUND THEN
 				--
-				-- setup a service_endpoint_provier for the failover IP.
+				-- setup a service_endpoint_provider for the failover IP.
 				-- ideally this would be a particular member and not need to
 				-- exist.
 				--
