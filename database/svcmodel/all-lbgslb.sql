@@ -27,5 +27,9 @@ $$;
 
 savepoint lb;
 
+
+-- SET CONSTRAINTS ALL DEFERRED;
 \ir lbpool.sql
 \ir gslb.sql
+
+-- SET CONSTRAINTS ALL IMMEDIATE;

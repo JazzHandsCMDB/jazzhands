@@ -80,6 +80,19 @@ EXCEPTION WHEN unique_violation THEN
 END
 $$;
 
+DO $$
+BEGIN
+	INSERT INTO protocol (
+		protocol, protocol_number
+	) VALUES
+		('tcp', 6),
+		('udp', 17)
+	;
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
+
 
 DO $$
 BEGIN

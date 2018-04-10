@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS service cascade;
+DROP TABLE IF EXISTS service CASCADE;
 CREATE TABLE service (
 	service_id	serial		NOT NULL,
 	service_name	text		NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE service (
 -- url is where you go to checkout; the next table can be used for
 -- relative paths within a checkout, if appropriate.
 --
-DROP TABLE IF EXISTS source_repository;
+DROP TABLE IF EXISTS source_repository CASCADE;
 CREATE TABLE source_repository (
 	source_repository_id		serial	NOT NULL,
 	source_repository_name		text	NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE source_repository (
 );
 
 -- path is used to say where something is inside a repo
-DROP TABLE IF EXISTS service_source_repository;
+DROP TABLE IF EXISTS service_source_repository CASCADE;
 CREATE TABLE service_source_repository (
 	service_id			integer NOT NULL,
 	source_repository_id		integer	NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE service_source_repository (
 -- do not listen, like feeds).  possibly also 'process' for things that do not
 -- leave the machine.
 --
-DROP TABLE IF EXISTS service_version cascade;
+DROP TABLE IF EXISTS service_version CASCADE;
 CREATE TABLE service_version (
 	service_version_id	serial		NOT NULL,
 	service_id		integer		NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE service_version (
 	UNIQUE	 (service_id, version_name)
 );
 
-DROP TABLE IF EXISTS service_version_source_repository;
+DROP TABLE IF EXISTS service_version_source_repository CASCADE;
 CREATE TABLE service_version_source_repository (
 	service_version_id	integer		NOT NULL,
 	source_repository_id	integer		NOT NULL,
@@ -68,14 +68,14 @@ CREATE TABLE service_version_source_repository (
 -- specifies current default for dealing with new repos.  this cloned into
 -- the next table when a new release happens
 --
-DROP TABLE IF EXISTS service_software_repo;
+DROP TABLE IF EXISTS service_software_repo CASCADE;
 CREATE TABLE service_software_repo (
 	service_id		integer		NOT NULL,
 	sw_package_repository_id	integer		NOT NULL,
 	PRIMARY KEY (service_id, sw_package_repository_id)
 );
 
-DROP TABLE IF EXISTS service_version_sw_package_repository;
+DROP TABLE IF EXISTS service_version_sw_package_repository CASCADE;
 CREATE TABLE service_version_sw_package_repository (
 	service_version_id	integer		NOT NULL,
 	sw_package_repository_id	integer		NOT NULL,
@@ -84,30 +84,34 @@ CREATE TABLE service_version_sw_package_repository (
 
 --------------------------- shared netblock collections -------------------
 -- this will need types, recursion and all that jazz.
+--
+-- XXX not clear if these need to exist.
 
-DROP TABLE IF EXISTS shared_netblock_collection;
-CREATE TABLE shared_netblock_collection (
-	shared_netblock_collection_id	serial	NOT NULL,
-	shared_netblock_collection_name	text	NOT NULL,
-	shared_netblock_collection_type	text	NOT NULL,
-	description			TEXT,
-	PRIMARY KEY (shared_netblock_collection_id)
-);
+-- XXX will need fks
 
-DROP TABLE IF EXISTS shared_netblock_coll_netblock;
-CREATE TABLE shared_netblock_coll_netblock (
-	shared_netblock_collection_id	integer	NOT NULL,
-	shared_netblock_id		integer	NOT NULL,
-	PRIMARY KEY (shared_netblock_collection_id, shared_netblock_id)
-);
-
-DROP TABLE IF EXISTS shared_netblock_collection_hier;
-CREATE TABLE shared_netblock_collection_hier (
-	shared_netblock_collection_id		integer	NOT NULL,
-	child_shared_netblock_collection_id	integer	NOT NULL,
-	PRIMARY KEY (shared_netblock_collection_id,
-		child_shared_netblock_collection_id)
-);
+-- DROP TABLE IF EXISTS shared_netblock_collection;
+-- CREATE TABLE shared_netblock_collection (
+-- 	shared_netblock_collection_id	serial	NOT NULL,
+-- 	shared_netblock_collection_name	text	NOT NULL,
+-- 	shared_netblock_collection_type	text	NOT NULL,
+-- 	description			TEXT,
+-- 	PRIMARY KEY (shared_netblock_collection_id)
+-- );
+--
+-- DROP TABLE IF EXISTS shared_netblock_coll_netblock;
+-- CREATE TABLE shared_netblock_coll_netblock (
+-- 	shared_netblock_collection_id	integer	NOT NULL,
+-- 	shared_netblock_id		integer	NOT NULL,
+-- 	PRIMARY KEY (shared_netblock_collection_id, shared_netblock_id)
+-- );
+--
+-- DROP TABLE IF EXISTS shared_netblock_collection_hier;
+-- CREATE TABLE shared_netblock_collection_hier (
+-- 	shared_netblock_collection_id		integer	NOT NULL,
+-- 	child_shared_netblock_collection_id	integer	NOT NULL,
+-- 	PRIMARY KEY (shared_netblock_collection_id,
+-- 		child_shared_netblock_collection_id)
+-- );
 
 
 --------------------------- relationships ---------------------------------
@@ -116,7 +120,7 @@ CREATE TABLE shared_netblock_collection_hier (
 -- role: master, slave, ro, rw
 -- scope: internal, external, datacenter
 -- availability - expected uptime (in integer percent)
-DROP TABLE IF EXISTS service_sla;
+DROP TABLE IF EXISTS service_sla CASCADE;
 CREATE TABLE service_sla (
 	service_sla_id		serial		NOT NULL,
 	service_sla_name	text		NOT NULL,
@@ -130,7 +134,7 @@ CREATE TABLE service_sla (
 --
 -- /etc/protocols
 --
-DROP TABLE IF EXISTS protocol;
+DROP TABLE IF EXISTS protocol CASCADE;
 CREATE TABLE protocol (
 	protocol		text		NOT NULL,
 	protocol_number		integer,
@@ -142,7 +146,7 @@ CREATE TABLE protocol (
 -- used by port_range.    trigger enforces range_permitted and there's also
 -- a trigger tie to port_range.
 --
-DROP TABLE IF EXISTS val_port_range_type;
+DROP TABLE IF EXISTS val_port_range_type CASCADE;
 CREATE TABLE val_port_range_type (
 	port_range_type		text		NOT NULL,
 	protocol		text		NOT NULL,
@@ -163,7 +167,7 @@ CREATE TABLE val_port_range_type (
 -- although no support for port nicknames here.  (if we wanted that, it would
 -- be another table, I think.
 --
-DROP TABLE IF EXISTS port_range;
+DROP TABLE IF EXISTS port_range CASCADE;
 CREATE TABLE port_range (
 	port_range_id		serial		NOT NULL,
 	port_range_name		text		NOT NULL,
@@ -180,7 +184,7 @@ CREATE TABLE port_range (
 -- defines various types -- nat providers, load balancers, direct connections
 -- triggers enforce some things based on this.
 --
-DROP TABLE IF EXISTS service_endpoint_provider_type;
+DROP TABLE IF EXISTS service_endpoint_provider_type CASCADE;
 CREATE TABLE service_endpoint_provider_type (
 	service_endpoint_provider_type	text	NOT NULL,
 	maximum_members			integer	NOT NULL,
@@ -217,7 +221,7 @@ CREATE TABLE service_endpoint_provider_type (
 -- XXX maximum_capacity is just for gslb because I did not want to create a
 -- cloud_jazz table just yet, but maybe that should be a thing.
 --
-DROP TABLE IF EXISTS service_endpoint_service_endpoint_provider;
+DROP TABLE IF EXISTS service_endpoint_service_endpoint_provider CASCADE;
 CREATE TABLE service_endpoint_service_endpoint_provider  (
 	service_endpoint_id							INTEGER NOT NULL,
 	service_endpoint_provider_collection_id		INTEGER NOT NULL,
@@ -260,7 +264,7 @@ CREATE TABLE service_endpoint_service_endpoint_provider  (
 -- dns_value is just temporarily there for CNAMEs and will go away in favor
 -- of using dns_record_id, which will be the destination value of a CNAME
 --
-DROP TABLE IF EXISTS service_endpoint_provider ;
+DROP TABLE IF EXISTS service_endpoint_provider  CASCADE;
 CREATE TABLE service_endpoint_provider (
 	service_endpoint_provider_id	serial	NOT NULL,
 	service_endpoint_provider_name	text	NOT NULL,
@@ -279,7 +283,7 @@ CREATE TABLE service_endpoint_provider (
 -- This came into existance to be a gslb_group and it may become the only
 -- way service_endpoints map to service_endpoitn_providers.
 --
-DROP TABLE IF EXISTS service_endpoint_provider_collection;
+DROP TABLE IF EXISTS service_endpoint_provider_collection CASCADE;
 CREATE TABLE service_endpoint_provider_collection (
 	service_endpoint_provider_collection_id		SERIAL NOT NULL,
 	service_endpoint_provider_collection_name	TEXT NOT NULL,
@@ -289,7 +293,7 @@ CREATE TABLE service_endpoint_provider_collection (
 	UNIQUE (service_endpoint_provider_collection_name,
 		service_endpoint_provider_collection_type)
 );
-DROP TABLE IF EXISTS service_endpoint_provider_collection_service_endpoint_provider;
+DROP TABLE IF EXISTS service_endpoint_provider_collection_service_endpoint_provider CASCADE;
 CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
  (
 	service_endpoint_provider_collection_id		INTEGER NOT NULL,
@@ -309,7 +313,7 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 --
 -- rank is used by upstream things to figure out how to direct traffic.
 --
-DROP TABLE IF EXISTS service_endpoint_provider_member ;
+DROP TABLE IF EXISTS service_endpoint_provider_member  CASCADE;
 CREATE TABLE service_endpoint_provider_member (
 	service_endpoint_provider_id	integer	NOT NULL,
 	service_instance_id		integer NOT NULL,
@@ -331,7 +335,7 @@ CREATE TABLE service_endpoint_provider_member (
 -- case, there's some special record class or some such that causes it to not
 -- require a netblock_id or value.
 --
-DROP TABLE IF EXISTS service_endpoint cascade;
+DROP TABLE IF EXISTS service_endpoint CASCADE;
 CREATE TABLE service_endpoint (
 	service_endpoint_id	serial		NOT NULL,
 	dns_record_id		integer,
@@ -348,7 +352,7 @@ CREATE TABLE service_endpoint (
 -- here, although this this means sorting out encryption better since
 -- private keys are encrypted by default.
 --
-DROP TABLE IF EXISTS service_endpoint_x509_certificate cascade;
+DROP TABLE IF EXISTS service_endpoint_x509_certificate CASCADE;
 CREATE TABLE service_endpoint_x509_certificate (
 	service_endpoint_id	serial		NOT NULL,
 	x509_signed_certificate_id	integer NOT NULL,
@@ -374,7 +378,7 @@ CREATE TABLE service_endpoint_x509_certificate (
 -- constructed in the check.
 --
 --
-DROP TABLE IF EXISTS service_endpoint_health_check;
+DROP TABLE IF EXISTS service_endpoint_health_check CASCADE;
 CREATE TABLE service_endpoint_health_check (
 	service_endpoint_health_check_id	serial	NOT NULL,
 	service_endpoint_id			integer	NOT NULL,
@@ -399,7 +403,7 @@ CREATE TABLE service_endpoint_health_check (
 -- for things that do not have an endpoint (something that runs on a host
 -- like a feed perhaps), service_endpoint_id may need to be nullable.
 --
-DROP TABLE IF EXISTS service_instance cascade;
+DROP TABLE IF EXISTS service_instance CASCADE;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
 	device_id		integer		NOT NULL,
@@ -411,7 +415,7 @@ CREATE TABLE service_instance (
 	UNIQUE (device_id,service_endpoint_id,service_version_id)
 );
 
-DROP TABLE IF EXISTS service_endpoint_service_sla cascade;
+DROP TABLE IF EXISTS service_endpoint_service_sla CASCADE;
 CREATE TABLE service_endpoint_service_sla (
 	service_endpoint_id	integer		NOT NULL,
 	service_sla_id		integer		NOT NULL,
@@ -419,7 +423,7 @@ CREATE TABLE service_endpoint_service_sla (
 	PRIMARY KEY (service_endpoint_id,service_sla_id,service_environment_id)
 );
 
-DROP TABLE IF EXISTS service_depend;
+DROP TABLE IF EXISTS service_depend CASCADE;
 CREATE TABLE service_depend (
 	service_depend_id	serial		NOT NULL,
 	service_version_id	integer		NOT NULL,
@@ -436,7 +440,7 @@ CREATE TABLE service_depend (
 -- to indicate the row can go into an acl (at least)
 --
 -- if we care about source ports, they'd go here
-DROP TABLE IF EXISTS service_acl;
+DROP TABLE IF EXISTS service_acl CASCADE;
 CREATE TABLE service_acl (
 	service_depend_id	integer		NOT NULL,
 	description		text,
@@ -459,7 +463,7 @@ CREATE TABLE service_acl (
 -- group should possibly be called metadata, which is just something
 -- meaningful within the build system.
 --
-DROP TABLE IF EXISTS sw_package_repository cascade;
+DROP TABLE IF EXISTS sw_package_repository CASCADE;
 CREATE TABLE sw_package_repository (
 	sw_package_repository_id		serial	NOT NULL,
 	sw_package_repository_name	text	NOT NULL,
@@ -488,7 +492,7 @@ CREATE TABLE sw_package_repository (
 -- its possible that this should be 1-m and have the pk be
 -- sw_package_repository_id,repository_uri.
 --
-DROP TABLE IF EXISTS sw_package_repository_location cascade;
+DROP TABLE IF EXISTS sw_package_repository_location CASCADE;
 CREATE TABLE sw_package_repository_location (
 	sw_package_repository_id			integer NOT NULL,
 	sw_package_repository_location_type	text	NOT NULL,
@@ -518,7 +522,7 @@ CREATE TABLE sw_package_repository_location (
 --
 -- it is expected that most properties are assigned to 'current-servicsw'
 --
-DROP TABLE IF EXISTS service_collection cascade;
+DROP TABLE IF EXISTS service_collection CASCADE;
 CREATE TABLE service_collection (
 	service_collection_id	serial		NOT NULL,
 	service_collection_name	text		NOT NULL,
@@ -527,14 +531,14 @@ CREATE TABLE service_collection (
 	PRIMARY KEY (service_collection_id)
 );
 
-DROP TABLE IF EXISTS service_collection_hier cascade;
+DROP TABLE IF EXISTS service_collection_hier CASCADE;
 CREATE TABLE service_collection_hier (
 	service_collection_id		integer	NOT NULL,
 	child_service_collection_id	integer	NOT NULL,
 	PRIMARY KEY (service_collection_id, child_service_collection_id)
 );
 
-DROP TABLE IF EXISTS service_collection_service cascade;
+DROP TABLE IF EXISTS service_collection_service CASCADE;
 CREATE TABLE service_collection_service (
 	service_collection_id		integer	NOT NULL,
 	service_version_id		integer	NOT NULL,
