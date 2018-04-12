@@ -285,6 +285,23 @@ BEGIN
 					SELECT account_collection_id
 					FROM account_collection_account
 				)
+			AND account_collection_id NOT IN (
+				SELECT account_collection_id
+				FROM	account_collection ac
+					JOIN department d USING (account_collection_id)
+					JOIN (
+						SELECT level, v.account_collection_id,
+							ac.account_collection_id as child_account_collection_id,
+							account_collection_name as name,
+							account_collection_type as type
+						FROM	v_acct_coll_expanded 	 v
+							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
+							JOIN department d ON ac.account_collection_id = d.account_collection_id
+						WHERE	is_active = 'Y'
+					) kid USING (account_collection_id)
+				WHERE
+					is_active = 'N'
+			)
 	LOOP
 		BEGIN
 			DELETE FROM property
@@ -317,6 +334,23 @@ BEGIN
 					SELECT account_collection_id
 					FROM account_collection_account
 				)
+			AND p.property_value_account_coll_id NOT IN (
+				SELECT account_collection_id
+				FROM	account_collection ac
+					JOIN department d USING (account_collection_id)
+					JOIN (
+						SELECT level, v.account_collection_id,
+							ac.account_collection_id as child_account_collection_id,
+							account_collection_name as name,
+							account_collection_type as type
+						FROM	v_acct_coll_expanded 	 v
+							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
+							JOIN department d ON ac.account_collection_id = d.account_collection_id
+						WHERE	is_active = 'Y'
+					) kid USING (account_collection_id)
+				WHERE
+					is_active = 'N'
+			)
 	LOOP
 		BEGIN
 			DELETE FROM property
@@ -419,6 +453,24 @@ BEGIN
 			AND	account_collection_id IN (
 				SELECT child_account_collection_id FROM account_collection_hier
 			)
+			AND account_collection_id NOT IN (
+				SELECT account_collection_id
+				FROM	account_collection ac
+					JOIN department d USING (account_collection_id)
+					JOIN (
+						SELECT level, v.account_collection_id,
+							ac.account_collection_id as child_account_collection_id,
+							account_collection_name as name,
+							account_collection_type as type
+						FROM	v_acct_coll_expanded 	 v
+							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
+							JOIN department d ON ac.account_collection_id = d.account_collection_id
+						WHERE	is_active = 'Y'
+					) kid USING (account_collection_id)
+				WHERE
+					is_active = 'N'
+			)
+
 	LOOP
 		BEGIN
 			DELETE FROM account_collection_hier
@@ -442,7 +494,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- account collections should have properties attached, if it fails to
 -- delete, it means its attached elsewhere.  properties are skipped because
 -- they are obvious.
---
 --
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION account_collection_manip.purge_inactive_account_collections(
@@ -508,7 +559,30 @@ BEGIN
 	END LOOP;
 
 	RETURN rv;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+--------------------------------------------------------------------------------
+--
+-- Runs all routine maintenance for account collections
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_collection_manip.routine_account_collection_cleanup(
+	lifespan	INTERVAL DEFAULT NULL,
+	raise_exception	boolean DEFAULT true
+) RETURNS INTEGER AS $$
+DECLARE
+	rv INTEGER;
+	c INTEGER;
+BEGIN
+	select account_collection_manip.cleanup_account_collection_account(lifespan);
+	rv := c;
+	select account_collection_manip.purge_inactive_departments(lifespan, raise_exception) INTO c;
+
+	rv := rv + c;
+	select account_collection_manip.purge_inactive_account_collections(lifespan, raise_exception) INTO c;
+	rv := c;
+	RETURN rv;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
