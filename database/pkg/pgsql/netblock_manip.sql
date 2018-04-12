@@ -642,6 +642,7 @@ DECLARE
 	c				integer;
 	i				integer;
 
+	error_rec		RECORD;
 	nb_rec			RECORD;
 	pnb_rec			RECORD;
 	layer3_rec		RECORD;
@@ -994,12 +995,15 @@ BEGIN
 			--
 			SELECT 
 				ni.network_interface_id,
+				ni.network_interface_name,
 				nin.netblock_id,
-				ni.device_id
+				d.device_id,
+				COALESCE(d.device_name, d.physical_label) AS device_name
 			INTO nin_rec
 			FROM
 				network_interface_netblock nin JOIN
-				network_interface ni USING (network_interface_id)
+				network_interface ni USING (network_interface_id) JOIN
+				device d ON (nin.device_id = d.device_id)
 			WHERE
 				nin.netblock_id = nb_rec.netblock_id AND
 				nin.network_interface_id != ni_id;
@@ -1021,13 +1025,23 @@ BEGIN
 
 						CONTINUE;
 					ELSIF address_errors = 'warn' THEN
-						RAISE NOTICE 'Netblock % is assigned to network_interface %',
-							nb_rec.netblock_id, nin_rec.network_interface_id;
+						RAISE NOTICE 'Netblock % (%) is assigned to network_interface % (%) on device % (%)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							nin_rec.network_interface_id,
+							nin_rec.network_interface_name,
+							nin_rec.device_id,
+							nin_rec.device_name;
 
 						CONTINUE;
 					ELSE
-						RAISE 'Netblock % is assigned to network_interface %',
-							nb_rec.netblock_id, nin_rec.network_interface_id;
+						RAISE 'Netblock % (%) is assigned to network_interface %(%) on device % (%)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							nin_rec.network_interface_id,
+							nin_rec.network_interface_name,
+							nin_rec.device_id,
+							nin_rec.device_name;
 					END IF;
 				END IF;
 			END IF;
@@ -1049,12 +1063,14 @@ BEGIN
 							nb_rec.netblock_id, sn.shared_netblock_id;
 						CONTINUE;
 					ELSIF address_errors = 'warn' THEN
-						RAISE NOTICE 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
-							nb_rec.netblock_id, sn.shared_netblock_id;
+						RAISE NOTICE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, nb_rec.ip_address,
+							sn.shared_netblock_id;
 						CONTINUE;
 					ELSE
-						RAISE 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
-							nb_rec.netblock_id, sn.shared_netblock_id;
+						RAISE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, nb_rec.ip_address,
+							sn.shared_netblock_id;
 						CONTINUE;
 					END IF;
 				END IF;
