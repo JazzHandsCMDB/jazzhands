@@ -111,6 +111,7 @@ EXCEPTION WHEN unique_violation THEN
 END
 $$;
 
+-- totally need to think more about this.
 DO $$
 BEGIN
 	INSERT INTO sw_package_repository (
@@ -118,7 +119,8 @@ BEGIN
 	) VALUES
 		('common', 'obs'),
 		('adnexus', 'obs'),
-		('cloud', 'obs')
+		('cloud', 'obs'),
+		('os', 'os')
 	;
 EXCEPTION WHEN unique_violation THEN
 	NULL;

@@ -10,4 +10,5 @@ begin;
 \i recursing-dns.sql
 \i obs-frontend.sql
 
+\i xen.sql
 -- rollback;

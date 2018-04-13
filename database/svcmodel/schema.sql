@@ -395,7 +395,7 @@ CREATE TABLE service_endpoint_health_check (
 -- mdr,kovert thought port_range_id belonged on
 -- service_endpoint_provider_member but talked out that it did not.
 --
--- netblock_id is probably not nullable but should be forced to be set if
+-- netblock_id is probably nullable but should be forced to be set if
 -- the service is a network service
 --
 -- for things that do not have an endpoint (something that runs on a host
@@ -405,9 +405,9 @@ DROP TABLE IF EXISTS service_instance CASCADE;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
 	device_id		integer		NOT NULL,
-	netblock_id		integer		NOT NULL,
 	service_endpoint_id	integer		NOT NULL,
 	service_version_id	integer		NOT NULL,
+	netblock_id		integer		NULL,
 	port_range_id		integer		NULL,
 	PRIMARY KEY (service_instance_id),
 	UNIQUE (device_id,service_endpoint_id,service_version_id)
