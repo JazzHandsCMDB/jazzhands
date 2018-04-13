@@ -289,11 +289,10 @@ BEGIN
 		INSERT INTO service_endpoint_provider (
 			service_endpoint_provider_name,
 			service_endpoint_provider_type,
-			netblock_id,
-			device_id
+			netblock_id
 		)
 		SELECT
-			key, 'gslb', netblock_id, device_id
+			key, 'gslb', netblock_id
 		FROM base
 		WHERE service_endpoint_provider_id IS NULL
 		RETURNING *
@@ -338,11 +337,10 @@ BEGIN
 		INSERT INTO service_endpoint_provider (
 			service_endpoint_provider_name,
 			service_endpoint_provider_type,
-			netblock_id,
-			device_id
+			netblock_id
 		)
 		SELECT
-			key, 'gslb', newnb.netblock_id, device_id
+			key, 'gslb', newnb.netblock_id
 		FROM base JOIN newnb ON newnb.ip_address = base.ip
 		RETURNING *
 	), i AS (

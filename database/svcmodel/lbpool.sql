@@ -184,11 +184,11 @@ BEGIN
 			INSERT INTO service_endpoint_provider (
 				service_endpoint_provider_id,
 				service_endpoint_provider_name, service_endpoint_provider_type,
-				netblock_id, shared_netblock_id
+				netblock_id
 			) VALUES (
 				_p.id,
 				_name, 'loadbalancer',
-				_p.lb_ip_id, _p.shared_netblock_id
+				_p.lb_ip_id
 			) RETURNING *
 		), spc AS (
 			INSERT INTO service_endpoint_provider_collection (
