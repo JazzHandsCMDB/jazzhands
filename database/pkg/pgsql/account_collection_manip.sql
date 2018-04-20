@@ -575,13 +575,13 @@ DECLARE
 	rv INTEGER;
 	c INTEGER;
 BEGIN
-	select account_collection_manip.cleanup_account_collection_account(lifespan);
+	select account_collection_manip.cleanup_account_collection_account(lifespan) INTO c;
 	rv := c;
 	select account_collection_manip.purge_inactive_departments(lifespan, raise_exception) INTO c;
 
 	rv := rv + c;
 	select account_collection_manip.purge_inactive_account_collections(lifespan, raise_exception) INTO c;
-	rv := c;
+	rv := rv + c;
 	RETURN rv;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
