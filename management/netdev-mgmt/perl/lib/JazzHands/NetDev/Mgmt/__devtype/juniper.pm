@@ -2708,16 +2708,13 @@ sub GetIPAddressInformation {
 		}
 	}
 
+	my $linklocal = NetAddr::IP->new('fe80::/7');
 	my $iface_info;
 	foreach my $iface ($ifacexml->getElementsByTagName('logical-interface')) {
 		my $self = {};
 
 		my $ifacename = $iface->getElementsByTagName('name')->[0]->
 			getFirstChild->getNodeValue;
-
-		# Skip any 'bme' or 'em' inerfaces, because JFC, Juniper
-		next if $ifacename =~ /^bme/;
-		next if $ifacename =~ /^em/;
 
 		foreach my $afxml ($iface->getElementsByTagName('address-family')) {
 			my $af = $afxml->getElementsByTagName('address-family-name')->[0]->
@@ -2738,12 +2735,16 @@ sub GetIPAddressInformation {
 						} else {
 							$net = NetAddr::IP->new('0.0.0.0/32');
 						}
+
 						my $addr = NetAddr::IP->new(
 							$_->getElementsByTagName('ifa-local')->[0]
 								->getFirstChild->getNodeValue, $net->masklen);
 						# Skip anything that's a VRRP service address
-						if (!(grep { $addr->addr() eq $_->{address}->addr() }
-							@{$vrrp_info->{$ifacename}})) {
+						if (
+							$net->masklen > 8 &&
+							!(grep { $addr->addr() eq $_->{address}->addr() }
+								@{$vrrp_info->{$ifacename}})
+						) {
 							$addr
 						} else {
 							();
@@ -2752,7 +2753,6 @@ sub GetIPAddressInformation {
 				];
 				$self->{ipv4} = $ipv4 if @$ipv4;
 			}
-			my $linklocal = NetAddr::IP->new('fe80::/64');
 			if ($af eq 'inet6') {
 				my $ipv6 = [];
 				foreach my $addrxml
@@ -2764,7 +2764,7 @@ sub GetIPAddressInformation {
 					my $net;
 					$net = NetAddr::IP->new(
 						$netxml->[0]->getFirstChild->getNodeValue);
-					next if $net eq $linklocal;
+					next if $net->within($linklocal);
 
 					my $addr = NetAddr::IP->new(
 						$addrxml->getElementsByTagName('ifa-local')->[0]

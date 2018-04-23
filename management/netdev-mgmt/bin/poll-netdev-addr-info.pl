@@ -35,6 +35,7 @@ umask 022;
 my $help = 0;
 my $debug = 0;
 my $verbose = 0;
+my $force = 0;
 
 my $filename;
 my $commit = 1;
@@ -60,6 +61,7 @@ GetOptions(
 	'commit!', \$commit,
 	'hostname=s', $hostname,
 	'verbose+', \$verbose,
+	'force!', \$force,
 	'ignore-errors', sub {
 		$address_errors = 'warn'
 	},
@@ -204,6 +206,7 @@ $q = q {
 		network_interface_name := ?,
 		ip_address_hash := ?,
 		create_layer3_networks := true,
+		move_addresses := ?,
 		address_errors := ?
 	)
 };
@@ -387,6 +390,7 @@ foreach my $host (@$hostname) {
 						$db_dev->{device_id},
 						$iname,
 						$json,
+						$force ? 'always' : 'if_same_device',
 						$address_errors
 					)) {
 						printf STDERR "Error setting device interface information for interface %s: %s\n",
