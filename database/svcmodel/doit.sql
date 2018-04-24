@@ -10,5 +10,7 @@ begin;
 \i recursing-dns.sql
 \i obs-frontend.sql
 
+-- two ways ofdoing services
 \i xen.sql
+\i kvm.sql
 -- rollback;

@@ -5,6 +5,7 @@ savepoint startlbpool;
 -- rollback;
 -- begin;
 set search_path=cloudapi,jazzhands;
+
 /*
  *
 
@@ -59,27 +60,6 @@ CREATE TABLE cloud_jazz.lb_pool (
 	created_on						timestamp without time zone,
 	primary key (service_endpoint_provider_id)
 );
-
-
-----------------------------------------------------------------------------
---
--- stuff that should have been done already in CSIP-462
---
-DELETE  FROM cloud_jazz.lb_pool_config
-	WHERE pool_id in (select id from lb_pool where is_deleted = 1
-			OR managed_by_api = 0);
-DELETE FROM lb_node WHERE is_deleted = 1;
-UPDATE cloudapi_audit.lb_node set "aud#timestamp" = deleted_on where "aud#timestamp" = now();
-DELETE FROM lb_pool WHERE is_deleted = 1;
-UPDATE cloudapi_audit.lb_pool set "aud#timestamp" = deleted_on where "aud#timestamp" = now();
-
-DELETE FROM lb_node where lb_pool_id IN (
-	SELECT id FROM lb_pool where managed_by_api = 0
-);
-DELETE FROM lb_pool WHERE managed_by_api = 0;
-
--- ALTER TABLE lb_pool DROP is_deleted;
--- ALTER TABLE lb_pool DROP deleted_on;
 
 ----------------------------------------------------------------------------
 --
@@ -151,7 +131,6 @@ BEGIN
 		FROM cloudapi.lb_pool  p
 			JOIN cloudapi.lb_ip  ip ON p.lb_ip_id = ip.id
 			JOIN shared_netblock sb ON ip.id = sb.netblock_id
-		WHERE is_deleted = 0
 		ORDER BY id
 	LOOP
 		_name := _p.datacenter_id || ':' || _p.id;
@@ -468,13 +447,19 @@ BEGIN
 			WHERE family(ip_address) = 4
 			AND host(ip_address) = inet_ntoa(_r.ip_address);
 
+
 		INSERT INTO service_instance (
 			device_id, netblock_id, port_range_id,
 			service_endpoint_id, service_version_id
-		) VALUES (
+		) SELECT
 			_nin.device_id, _nin.netblock_id, _pr,
-			_r.lb_pool_id, _svid
-		) RETURNING service_instance_id INTO _si;
+			service_endpoint_id, _svid
+		FROM
+			jazzhands.service_endpoint_provider_collection_service_endpoint_provider
+				JOIN jazzhands.service_endpoint_service_endpoint_provider
+					USING (service_endpoint_provider_collection_id)
+		WHERE service_endpoint_provider_id = _r.lb_pool_id
+		RETURNING service_instance_id INTO _si;
 
 		INSERT INTO service_endpoint_provider_member (
 			service_endpoint_provider_id,
@@ -493,7 +478,7 @@ $$
 ;
 
 CREATE VIEW lb_node_legacy AS
-	SELECT * FROM lb_node WHERE is_deleted = 0 AND
+	SELECT * FROM lb_node WHERE 
 			inet_ntoa(ip_address) IN (
 				select host(ip_address)
 				from netblock
@@ -504,13 +489,17 @@ CREATE VIEW lb_node_legacy AS
 CREATE VIEW lb_node_new AS
 SELECT	site_code,
 	sepm.service_endpoint_provider_id AS id,
-	sei.service_endpoint_id AS lb_pool_id,
+	sepcep.service_endpoint_provider_id AS lb_pool_id,
 	inet_aton(host(ip_address)) AS ip_address,
 	pr.port_start AS port,
 	CASE WHEN sepm.rank = -1 THEN NULL ELSE sepm.rank END AS weight,
 	CASE WHEN sepm.is_enabled = 'Y' THEN 1 ELSE 0 END AS active
 FROM jazzhands.service_endpoint_provider_member sepm
 	JOIN jazzhands.service_instance sei USING (service_instance_id)
+	JOIN jazzhands.service_endpoint_service_endpoint_provider
+		USING (service_endpoint_id)
+	JOIN jazzhands.service_endpoint_provider_collection_service_endpoint_provider sepcep
+		USING (service_endpoint_provider_collection_id)
 	JOIN jazzhands.network_interface_netblock USING (netblock_id, device_id)
 	JOIN jazzhands.netblock USING (netblock_id)
 	JOIN jazzhands.device USING (device_id)

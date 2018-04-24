@@ -1,5 +1,8 @@
 INSERT INTO service (service_name) VALUES ('xen');
 
+--
+-- This comes with all the overhead
+--
 WITH  endpoint AS (
 	INSERT INTO service_endpoint (
 		uri
