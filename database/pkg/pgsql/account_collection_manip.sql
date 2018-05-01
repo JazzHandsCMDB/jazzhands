@@ -215,6 +215,11 @@ BEGIN
 				(account_collection_id, account_id)  NOT IN
 					( SELECT unix_group_acct_collection_id, account_id from
 						account_unix_info)
+			AND account_collection_id NOT IN (
+				SELECT account_collection_id
+				FROM account_collection
+				WHERE account_collection_type = ''department''
+			)
 			) DELETE FROM account_collection_account aca
 			WHERE (account_collection_id, account_id) IN
 				(SELECT account_collection_id, account_id FROM x)
