@@ -153,7 +153,15 @@ BEGIN
 			) RETURNING port_range_id INTO pr;
 		END IF;
 
-		INSERT INTO service_endpoint ( port_range_id ) VALUES ( pr )
+		WITH svc AS (
+			INSERT INTO service (
+				service_name, description
+			) VALUES (
+				'lb-' || _name, 'import from lb - ' || _name
+			) RETURNING *
+		) INSERT INTO service_endpoint ( service_id, port_range_id )
+			SELECT service_id, pr
+			FROM svc
 			RETURNING service_endpoint_id INTO sei;
 
 		-- insert service_endpoint_provider
@@ -478,7 +486,7 @@ $$
 ;
 
 CREATE VIEW lb_node_legacy AS
-	SELECT * FROM lb_node WHERE 
+	SELECT * FROM lb_node WHERE
 			inet_ntoa(ip_address) IN (
 				select host(ip_address)
 				from netblock

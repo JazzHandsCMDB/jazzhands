@@ -1,13 +1,20 @@
 /*
  * XXX - NOTE THIS DOES NOT USED THE shared_endpoint stuff yet
  */
+
+INSERT INTO service (service_name)
+VALUES ('obs-frontend');
+
 INSERT INTO sw_package (sw_package_name, sw_package_type)
 VALUES ('obs-api', 'rpm');
 
-INSERT INTO service_endpoint (dns_record_id, uri)
-SELECT dns_record_id, concat('https://', dns_name, '.',soa_name,'/')
-FROM dns_record join dns_domain using (dns_domain_id)
-WHERE dns_name = 'obs' ORDER BY dns_domain_id limit 1;
+INSERT INTO service_endpoint (service_id, dns_record_id, uri)
+SELECT service_id, dns_record_id,
+	concat('https://', dns_name, '.',soa_name,'/')
+FROM dns_record join dns_domain using (dns_domain_id), service
+WHERE dns_name = 'obs'
+AND service_name = 'obs-frontend'
+ORDER BY dns_domain_id limit 1;
 
 INSERT INTO service_endpoint_service_sla (service_endpoint_id, service_sla_id, service_environment_id)
 SELECT service_endpoint_id, service_sla_id, service_environment_id
@@ -16,9 +23,6 @@ WHERE service_environment_name = 'production'
 AND production_state = 'production'
 AND service_sla_name = 'always'
 AND service_endpoint.uri LIKE '%obs.corp%';
-
-INSERT INTO service (service_name)
-VALUES ('obs-frontend');
 
 INSERT INTO sw_package_repository (sw_package_repository_name, sw_package_repository_type)
 VALUES ('opensuse_13.1', 'baseos');

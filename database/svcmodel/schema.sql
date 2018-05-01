@@ -336,6 +336,7 @@ CREATE TABLE service_endpoint_provider_member (
 DROP TABLE IF EXISTS service_endpoint CASCADE;
 CREATE TABLE service_endpoint (
 	service_endpoint_id	serial		NOT NULL,
+	service_id		integer		NOT NULL,
 	dns_record_id		integer,
 	dns_name		TEXT,
 	dns_domain_id		integer,

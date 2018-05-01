@@ -4,13 +4,14 @@ INSERT INTO service (service_name) VALUES ('kvm');
 -- This comes with none of the endpoint overhead and is closer to a minimum
 -- set of tables.  need to reconsider endpoint.
 --
-WITH  endpoint AS (
-        INSERT INTO service_endpoint (
-                uri
-        ) VALUES ( '/var/run/libvirt/libvirt-sock' )
-        RETURNING *
-), svc AS (
+WITH svc AS (
 	SELECT * FROM service WHERE service_name = 'kvm'
+),  endpoint AS (
+        INSERT INTO service_endpoint (
+                service_id, uri
+        ) SELECT service_id, '/var/run/libvirt/libvirt-sock'
+		FROM svc
+        RETURNING *
 ), svcv AS (
 	INSERT INTO service_version
 		(service_id, service_type, version_name)

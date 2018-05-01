@@ -1,7 +1,9 @@
 INSERT INTO service (service_name) VALUES ('stab');
 
 
-WITH swpkg AS (
+WITH svc AS (
+	SELECT * FROM service WHERE service_name = 'stab'
+), swpkg AS (
 	INSERT INTO sw_package (
 		sw_package_name, sw_package_type
 	) VALUES (
@@ -9,9 +11,10 @@ WITH swpkg AS (
 	) RETURNING *
 ),  endpoint AS (
 	INSERT INTO service_endpoint (
-		dns_record_id, uri
-	) SELECT dns_record_id, concat('https://', dns_name, '.',soa_name,'/')
-	FROM dns_record join dns_domain using (dns_domain_id)
+		service_id, dns_record_id, uri
+	) SELECT service_id, dns_record_id,
+		concat('https://', dns_name, '.',soa_name,'/')
+	FROM svc, dns_record join dns_domain using (dns_domain_id)
 	where dns_name = 'stab' order by dns_domain_id limit 1
 	RETURNING *
 ), endsla AS (
@@ -24,8 +27,6 @@ WITH swpkg AS (
 	AND production_state = 'production'
 	AND service_sla_name = 'always'
 	RETURNING *
-), svc AS (
-	SELECT * FROM service WHERE service_name = 'stab'
 ), src AS (	-- inserted in jazzhands-db
 	SELECT * FROM source_repository
 	WHERE source_repository_name = 'jazzhands'

@@ -5,36 +5,24 @@
 
 INSERT INTO service (service_name) VALUES ('dns-recurse');
 
-WITH swpkg AS (
+WITH svc AS (
+	SELECT * FROM service WHERE service_name = 'dns-recurse'
+), swpkg AS (
 	INSERT INTO sw_package (
 		sw_package_name, sw_package_type
 	) VALUES (
 		'jazzhands-stab', 'rpm'
 	) RETURNING *
-), snb AS (
-	INSERT INTO shared_netblock_collection (
-		shared_netblock_collection_name, shared_netblock_collection_type
-	) VALUES (
-		'intdns-nym2', 'ecmp'
-	) RETURNING *
-), snbnb AS (
-	INSERT INTO shared_netblock_coll_netblock (
-		shared_netblock_collection_id, shared_netblock_id
-	) SELECT shared_netblock_collection_id, shared_netblock_id
-	FROM snb, shared_netblock
-		JOIN netblock USING (netblock_id)
-	WHERE host(ip_address) = '68.67.166.255'
-	RETURNING *
 ),  endpoint AS (
 	INSERT INTO service_endpoint (
-		dns_record_id, uri, port_range_id
-	) SELECT dns_record_id,
+		service_id, dns_record_id, uri, port_range_id
+	) SELECT service_id, dns_record_id,
 		concat('dns',p.protocol,'://',
 			dns_name, '.',soa_name,'/'), port_range_id
 	FROM ( SELECT * fROM  dns_record join dns_domain using (dns_domain_id)
 		where dns_name ~ 'intdnsrecurse00' order by dns_domain_id  LIMIT 1) d,
 		(SELECT unnest(ARRAY['udp','tcp']) as protocol) p,
-		port_range pr
+		port_range pr, svc
 	WHERE pr.port_range_name = 'domain' and pr.protocol = p.protocol
 	RETURNING *
 ), endsla AS (
@@ -47,8 +35,6 @@ WITH swpkg AS (
 	AND production_state = 'production'
 	AND service_sla_name = 'always'
 	RETURNING *
-), svc AS (
-	SELECT * FROM service WHERE service_name = 'dns-recurse'
 ), svcv AS (
 	INSERT INTO service_version
 		(service_id, service_type, version_name)
@@ -78,9 +64,8 @@ WITH swpkg AS (
 		netblock_id
 	) SELECT 'nym2-recursedns', 'ecmp',
 		netblock_id
-	FROM  shared_netblock
-        JOIN netblock USING (netblock_id)
-    WHERE host(ip_address) = '68.67.166.255'
+        FROM netblock
+	WHERE host(ip_address) = '68.67.166.255' AND is_single_address = 'Y'
 	RETURNING *
 ), svcendpointprovidercol AS (
 	INSERT INTO service_endpoint_provider_collection (

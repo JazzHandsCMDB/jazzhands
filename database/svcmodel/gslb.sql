@@ -469,13 +469,21 @@ BEGIN
 				_r.port, _r.port, 'Y'
 			) RETURNING port_range_id INTO pr;
 		END IF;
-		INSERT INTO service_endpoint (
-			service_endpoint_id, dns_name, dns_domain_id, port_range_id,
-			description
-		) VALUES (
-			_r.id, _r.domain, _r.gslb_zone_id, pr,
+		WITH svc AS (
+			INSERT INTO service (
+				service_name, desription
+			) VALUES (
+				'gslb - ' || r._id,
+				'pseudoservice  imported from gslb -' || r._id
+			) RETURNING *
+		) INSERT INTO service_endpoint (
+			service_id, service_endpoint_id, dns_name, dns_domain_id,
+			port_range_id, description
+		) SELECT
+			service_id, _r.id, _r.domain, _r.gslb_zone_id, pr,
 			_r.description
-		) RETURNING service_endpoint_id INTO se;
+		FROM svc
+		RETURNING service_endpoint_id INTO se;
 
 		INSERT INTO service_endpoint_health_check (
 			service_endpoint_id, protocol,

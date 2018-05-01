@@ -1,10 +1,13 @@
 INSERT INTO service (service_name) VALUES ('jazzhands-db');
 
-WITH endpoint AS (
+WITH svc AS (
+	SELECT * FROM service where service_name = 'jazzhands-db'
+), endpoint AS (
 	INSERT INTO service_endpoint (
-		dns_record_id, uri
-	) SELECT dns_record_id, concat('psql://', dns_name, '.',soa_name,'/')
-	FROM dns_record join dns_domain using (dns_domain_id)
+		service_id, dns_record_id, uri
+	) SELECT service_id, dns_record_id,
+		concat('psql://', dns_name, '.',soa_name,'/')
+	FROM svc, dns_record join dns_domain using (dns_domain_id)
 	where dns_name = 'jazzhands-db' order by dns_domain_id limit 1
 	RETURNING *
 ), endsla AS (
@@ -17,8 +20,6 @@ WITH endpoint AS (
 	AND production_state = 'production'
 	AND service_sla_name = 'always'
 	RETURNING *
-), svc AS (
-	SELECT * FROM service where service_name = 'jazzhands-db'
 ), src AS (
 	INSERT INTO source_repository (
 		source_repository_name, source_repository_type,

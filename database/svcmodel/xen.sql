@@ -3,13 +3,14 @@ INSERT INTO service (service_name) VALUES ('xen');
 --
 -- This comes with all the overhead
 --
-WITH  endpoint AS (
-	INSERT INTO service_endpoint (
-		uri
-	) VALUES ( '/var/lib/xend/xend-socket' )
-	RETURNING *
-), svc AS (
+WITH svc AS (
 	SELECT * FROM service WHERE service_name = 'xen'
+),  endpoint AS (
+	INSERT INTO service_endpoint (
+		service_id,uri
+	) SELECT service_Id, '/var/lib/xend/xend-socket'
+	FROM svc
+	RETURNING *
 ), svcv AS (
 	INSERT INTO service_version
 		(service_id, service_type, version_name)
