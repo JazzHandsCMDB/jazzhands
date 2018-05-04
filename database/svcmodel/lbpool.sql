@@ -283,8 +283,15 @@ END;
 $$
 ;
 
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'lb_pool'
+);
+
+ALTER TABLE lb_pool RENAME TO lb_pool_old;
+
 savepoint preview;
-CREATE VIEW lb_pool_new AS
+CREATE VIEW lb_pool AS
 SELECT
 	datacenter_id,
 	service_endpoint_provider_id AS id,
@@ -387,8 +394,8 @@ WHERE rnk = 1
 savepoint lbpool;
 SELECT schema_support.relation_diff (
         schema := 'cloudapi',
-        old_rel := 'lb_pool',
-        new_rel := 'lb_pool_new',
+        old_rel := 'lb_pool_old',
+        new_rel := 'lb_pool',
         prikeys := ARRAY['id']
 );
 
@@ -397,8 +404,6 @@ SELECT schema_support.relation_diff (
 -- lb_node
 --
 -----------------------------------------------------------------------------
-
-
 
 DO $$
 DECLARE
@@ -487,8 +492,15 @@ END;
 $$
 ;
 
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'lb_node'
+);
+
+ALTER TABLE lb_node RENAME TO lb_node_old;
+
 CREATE VIEW lb_node_legacy AS
-	SELECT * FROM lb_node WHERE
+	SELECT * FROM lb_node_old WHERE
 			inet_ntoa(ip_address) IN (
 				select host(ip_address)
 				from netblock
@@ -496,7 +508,7 @@ CREATE VIEW lb_node_legacy AS
 			)
 ;
 
-CREATE VIEW lb_node_new AS
+CREATE VIEW lb_node AS
 SELECT	site_code,
 	sepm.service_endpoint_provider_member_id AS id,
 	sepcep.service_endpoint_provider_id AS lb_pool_id,
@@ -520,7 +532,7 @@ savepoint lbnode;
 SELECT schema_support.relation_diff (
         schema := 'cloudapi',
         old_rel := 'lb_node_legacy',
-        new_rel := 'lb_node_new',
+        new_rel := 'lb_node',
         prikeys := ARRAY['id']
 );
 
@@ -555,3 +567,5 @@ END;
 $$;
 
 savepoint lb;
+
+SELECT schema_support.replay_saved_grants();

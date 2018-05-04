@@ -174,7 +174,13 @@ END;
 $$
 ;
 
-CREATE VIEW gslb_zone_new AS
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'gslb_zone'
+);
+ALTER TABLE gslb_zone RENAME TO gslb_zone_old;
+
+CREATE VIEW gslb_zone AS
 SELECT
 	dns_domain_id AS id,
 	data_ins_date::timestamp without time zone AS created_on,
@@ -190,8 +196,8 @@ WHERE dns_domain_type = 'gslb'
 savepoint gslbzone;
 SELECT schema_support.relation_diff (
 	schema := 'cloudapi',
-	old_rel := 'gslb_zone',
-	new_rel := 'gslb_zone_new',
+	old_rel := 'gslb_zone_old',
+	new_rel := 'gslb_zone',
 	prikeys := ARRAY['id']
 );
 
@@ -357,7 +363,13 @@ END;
 $$;
 
 
-CREATE OR REPLACE VIEW gslb_group_new AS
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'gslb_group'
+);
+ALTER TABLE gslb_group RENAME TO gslb_group_old;
+
+CREATE OR REPLACE VIEW gslb_group AS
 SELECT
 	service_endpoint_provider_collection_id AS id,
 	service_endpoint_provider_collection_name AS name,
@@ -382,12 +394,18 @@ WHERE service_endpoint_provider_collection_type = 'gslb-group'
 savepoint gslbgroup;
 SELECT schema_support.relation_diff (
 	schema := 'cloudapi',
-	old_rel := 'gslb_group',
-	new_rel := 'gslb_group_new',
+	old_rel := 'gslb_group_old',
+	new_rel := 'gslb_group',
 	prikeys := ARRAY['id']
 );
 
-CREATE OR REPLACE VIEW gslb_ip_address_new AS
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'gslb_ip_address'
+);
+ALTER TABLE gslb_ip_address RENAME TO gslb_ip_address_old;
+
+CREATE OR REPLACE VIEW gslb_ip_address AS
 SELECT	service_endpoint_provider_collection_id AS gslb_group_id,
 	inet_aton(host(ip_address)) as ip_address
 FROM service_endpoint_provider_collection sepc
@@ -403,8 +421,8 @@ AND service_endpoint_provider_collection_type = 'gslb-group';
 savepoint gslbipaddr;
 SELECT schema_support.relation_diff (
 	schema := 'cloudapi',
-	old_rel := 'gslb_ip_address',
-	new_rel := 'gslb_ip_address_new',
+	old_rel := 'gslb_ip_address_old',
+	new_rel := 'gslb_ip_address',
 	prikeys := ARRAY['gslb_group_id', 'ip_address']
 );
 
@@ -624,7 +642,13 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE VIEW gslb_name_new AS
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'gslb_name'
+);
+ALTER TABLE gslb_name RENAME TO gslb_name_old;
+
+CREATE OR REPLACE VIEW gslb_name AS
 	SELECT
 			se.service_endpoint_id AS id,
 			se.dns_name AS domain,
@@ -663,8 +687,8 @@ CREATE OR REPLACE VIEW gslb_name_new AS
 savepoint pretest;
 SELECT schema_support.relation_diff (
     schema := 'cloudapi',
-    old_rel := 'gslb_name',
-    new_rel := 'gslb_name_new'
+    old_rel := 'gslb_name_old',
+    new_rel := 'gslb_name'
 );
 
 ----------------------------------------------------------------------------
@@ -690,7 +714,13 @@ INSERT INTO service_endpoint_service_endpoint_provider (
 FROM gslb_name_gslb_group
 ;
 
-CREATE OR REPLACE VIEW gslb_name_gslb_group_new AS
+SELECT schema_support.save_grants_for_replay(
+        schema := 'cloudapi',
+        object := 'gslb_name_gslb_group'
+);
+ALTER TABLE gslb_name_gslb_group RENAME TO gslb_name_gslb_group_old;
+
+CREATE OR REPLACE VIEW gslb_name_gslb_group AS
 SELECT
 	service_endpoint_id AS gslb_name_id,
 	service_endpoint_provider_collection_id AS gslb_group_id,
@@ -704,8 +734,8 @@ WHERE service_endpoint_relation_type = 'gslb';
 savepoint pretest;
 SELECT schema_support.relation_diff (
     schema := 'cloudapi',
-    old_rel := 'gslb_name_gslb_group',
-    new_rel := 'gslb_name_gslb_group_new'
+    old_rel := 'gslb_name_gslb_group_old',
+    new_rel := 'gslb_name_gslb_group'
 );
 
 
@@ -730,6 +760,8 @@ END;
 $$;
 
 savepoint gslb;
+
+SELECT schema_support.replay_saved_grants();
 
 ----------------------------------------------------------------------------
 \set ECHO ERRORS
