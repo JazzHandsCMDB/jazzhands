@@ -15,7 +15,7 @@ CREATE TABLE maestro_jazz.application (
 	PRIMARY KEY (service_id),
 	UNIQUE (service_collection_id)
 );
-	
+
 
 grant insert,update,delete on all tables in schema maestro_jazz to maestro_iud_role;
 grant select on all tables in schema maestro_jazz to maestro_ro_role;

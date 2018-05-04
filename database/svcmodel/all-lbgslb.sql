@@ -1,5 +1,3 @@
-rollback;
-begin;
 \set ON_ERROR_STOP
 \set ECHO queries
 

@@ -13,9 +13,6 @@
 --
 -- some want to be in a maestro_jazz table.  Some want to just go away.
 
-rollback;
-begin;
-
 SET search_path=jazzhands,maestro;
 
 DO $$
@@ -152,6 +149,11 @@ END;
 $$
 ;
 
+SELECT schema_support.save_grants_for_replay(
+	schema := 'maestro',
+	object := 'application'
+);
+
 ALTER TABLE maestro.application RENAME TO application_old;
 
 SAVEPOINT preview;
@@ -220,3 +222,7 @@ SELECT schema_support.relation_diff (
 	new_rel := 'application',
 	prikeys := ARRAY['id']
 );
+
+SELECT schema_support.replay_saved_grants();
+
+--- XXX need to remove foreign keys

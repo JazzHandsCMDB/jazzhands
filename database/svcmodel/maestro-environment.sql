@@ -89,17 +89,22 @@ WITH map AS (
 		ELSE 'test'
 	END as production_state
 	FROM map
-	RETURNING *
 ;
 
 
 SET constraints all immediate;
 
-INSERT INTO jazzhands.val_service_env_coll_type (
-	service_env_collection_type, description
-) VALUES (
-	'maestro', 'groupings of environments for use with maestro'
-);
+DO $$
+BEGIN
+	INSERT INTO jazzhands.val_service_env_coll_type (
+		service_env_collection_type, description
+	) VALUES (
+		'maestro', 'groupings of environments for use with maestro'
+	);
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
 
 WITH se AS (
 	INSERT INTO jazzhands.service_environment_collection (

@@ -313,11 +313,13 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 --
 DROP TABLE IF EXISTS service_endpoint_provider_member  CASCADE;
 CREATE TABLE service_endpoint_provider_member (
+	service_endpoint_provider_member_id	serial NOT NULL,
 	service_endpoint_provider_id	integer	NOT NULL,
 	service_instance_id		integer NOT NULL,
 	rank				integer NOT NULL DEFAULT 10,
 	is_enabled			char(1) DEFAULT 'Y',
-	PRIMARY KEY (service_endpoint_provider_id, service_instance_id)
+	PRIMARY KEY (service_endpoint_provider_member_id),
+	UNIQUE (service_endpoint_provider_id, service_instance_id)
 );
 
 --
@@ -390,17 +392,21 @@ CREATE TABLE service_endpoint_health_check (
 	UNIQUE (service_endpoint_id, rank)
 );
 
--- possibly also a link to netblock_id or just a link to that?  This would
--- allow for chaining providers.
---
 -- mdr,kovert thought port_range_id belonged on
 -- service_endpoint_provider_member but talked out that it did not.
 --
 -- netblock_id is probably nullable but should be forced to be set if
 -- the service is a network service
 --
+-- could also be a "fk" to network_interface_netblock, if both are set/
+-- for network_services
+--
 -- for things that do not have an endpoint (something that runs on a host
 -- like a feed perhaps), service_endpoint_id may need to be nullable.
+--
+-- NOT SURE WHAT THIS MEANS OR IF ITS STILL APPLICABLE: possibly also a
+-- link to netblock_id or just a link to that?  This would allow for
+-- chaining providers.
 --
 DROP TABLE IF EXISTS service_instance CASCADE;
 CREATE TABLE service_instance (

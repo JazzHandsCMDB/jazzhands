@@ -471,10 +471,10 @@ BEGIN
 		END IF;
 		WITH svc AS (
 			INSERT INTO service (
-				service_name, desription
+				service_name, description
 			) VALUES (
-				'gslb - ' || r._id,
-				'pseudoservice  imported from gslb -' || r._id
+				'gslb - ' || _r.id,
+				'pseudoservice  imported from gslb -' || _r.id
 			) RETURNING *
 		) INSERT INTO service_endpoint (
 			service_id, service_endpoint_id, dns_name, dns_domain_id,

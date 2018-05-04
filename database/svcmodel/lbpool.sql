@@ -470,12 +470,14 @@ BEGIN
 		RETURNING service_instance_id INTO _si;
 
 		INSERT INTO service_endpoint_provider_member (
+			service_endpoint_provider_member_id,
 			service_endpoint_provider_id,
 			service_instance_id,
 			rank,
 			is_enabled
 		) VALUES (
 			_r.id,
+			_r.lb_pool_id,
 			_si,
 			coalesce(_r.weight, -1),
 			CASE WHEN _r.active = 0 THEN 'N' ELSE 'Y' END
@@ -496,7 +498,7 @@ CREATE VIEW lb_node_legacy AS
 
 CREATE VIEW lb_node_new AS
 SELECT	site_code,
-	sepm.service_endpoint_provider_id AS id,
+	sepm.service_endpoint_provider_member_id AS id,
 	sepcep.service_endpoint_provider_id AS lb_pool_id,
 	inet_aton(host(ip_address)) AS ip_address,
 	pr.port_start AS port,
@@ -541,6 +543,11 @@ BEGIN
 	PERFORM schema_support.reset_table_sequence(
 		schema := 'jazzhands',
 		table_name := 'service_endpoint'
+	);
+
+	PERFORM schema_support.reset_table_sequence(
+		schema := 'jazzhands',
+		table_name := 'service_endpoint_provider_member'
 	);
 
 	EXECUTE 'SET role ' || myrole;
