@@ -8,7 +8,9 @@ WITH svc AS (
 	) SELECT service_id, dns_record_id,
 		concat('psql://', dns_name, '.',soa_name,'/')
 	FROM svc, dns_record join dns_domain using (dns_domain_id)
-	where dns_name = 'jazzhands-db' order by dns_domain_id limit 1
+	where dns_name = 'jazzhands-db' 
+	and dns_domain_name = 'appnexus.net'
+	order by dns_domain_id limit 1
 	RETURNING *
 ), endsla AS (
 	INSERT INTO service_endpoint_service_sla (
@@ -59,7 +61,10 @@ WITH svc AS (
 	) SELECT
 		device_id, service_endpoint_id, service_version_id,
 		p.port_range_id, nb.netblock_id
-	FROM device, endpoint, svcv, port_range p, netblock nb
+	FROM device d
+		JOIN network_interface_netblock USING (device_id)
+		JOIN netblock nb USING (netblock_id),
+		endpoint, svcv, port_range p
 	WHERE device_name ~ '^\d+\.jazzhands-db\..*$'
 	AND p.port_range_name IN ('postgresql')
 	AND nb.netblock_type = 'default' AND host(nb.ip_address) = '10.1.32.62'
