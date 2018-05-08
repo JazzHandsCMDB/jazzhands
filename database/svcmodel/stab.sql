@@ -1,4 +1,38 @@
-INSERT INTO service (service_name) VALUES ('stab');
+
+DO $$
+DECLARE
+	svcend	service_endpoint%ROWTYPE;
+BEGIN
+	--
+	-- NOTE:  This should point to an apex A record and not the domain
+	-- but those need to be setup.
+	--
+	SELECT 	se.*
+	INTO	svcend
+	FROM	service_endpoint se
+		JOIN dns_domain USING (dns_domain_id)
+	WHERE	dns_domain_name = 'stab.appnexus.net'
+	LIMIT 1;
+
+	IF FOUND THEN
+		UPDATE service
+		SET	service_name = 'stab'
+		WHERE	service_id = svcend.service_id;
+	ELSE
+		INSERT INTO service (service_name) VALUES ('stab');
+
+		INSERT INTO service_endpoint (
+			service_id, dns_record_id, uri
+		) SELECT service_id, dns_record_id,
+			concat('https://', dns_name, '.',soa_name,'/')
+		FROM service, dns_record
+				JOIN dns_domain using (dns_domain_id)
+		WHERE dns_name = 'stab'
+		AND service_name = 'stab'
+		ORDER BY dns_domain_id limit 1;
+	END IF;
+END;
+$$;
 
 
 WITH svc AS (
@@ -10,13 +44,9 @@ WITH svc AS (
 		'jazzhands-stab', 'rpm'
 	) RETURNING *
 ),  endpoint AS (
-	INSERT INTO service_endpoint (
-		service_id, dns_record_id, uri
-	) SELECT service_id, dns_record_id,
-		concat('https://', dns_name, '.',soa_name,'/')
-	FROM svc, dns_record join dns_domain using (dns_domain_id)
-	where dns_name = 'stab' order by dns_domain_id limit 1
-	RETURNING *
+	SELECT se.*
+	FROM service_endpoint se
+		JOIN svc USING (service_id)
 ), endsla AS (
 	INSERT INTO service_endpoint_service_sla (
 		service_endpoint_id, service_sla_id, service_environment_id

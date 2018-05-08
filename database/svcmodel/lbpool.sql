@@ -41,7 +41,13 @@ triggers will need to exist to handle changing ports gracefully.
 */
 
 --
--- datacenter_id should get pulled from elsewhere
+-- datacenter_id should get pulled from elsewhere, I think
+--
+-- name is here because service_endpoint_provider_name is unique within
+-- a type, and that does not play nicely with clodu customers.  We should
+-- move in that direction, probably
+--
+--
 CREATE TABLE cloud_jazz.lb_pool (
 	datacenter_id					varchar(5) NOT NULL,
 	name							varchar(255),
@@ -115,6 +121,8 @@ savepoint wait;
 DO $$
 DECLARE
 	_p		RECORD;
+	_sepname	TEXT;
+	_lbname	TEXT;
 	_name TEXT;
 	_active char(1);
 	_svc integer;
@@ -153,6 +161,22 @@ BEGIN
 			) RETURNING port_range_id INTO pr;
 		END IF;
 
+
+		--
+		-- check to see if the name exists, if it does then make up a unique
+		-- name.
+		--
+		PERFORM *
+		FROM service_endpoint_provider
+		WHERE service_endpoint_provider_name = _p.name
+		AND service_endpoint_provider_type = 'loadbalancer';
+
+		IF FOUND THEN
+			_sepname := concat(_p.name, '-', _name);
+		ELSE
+			_sepname := _p.name;
+		END IF;
+
 		WITH svc AS (
 			INSERT INTO service (
 				service_name, description
@@ -174,7 +198,7 @@ BEGIN
 				netblock_id
 			) VALUES (
 				_p.id,
-				_name, 'loadbalancer',
+				_sepname, 'loadbalancer',
 				_p.lb_ip_id
 			) RETURNING *
 		), spc AS (
@@ -256,6 +280,11 @@ BEGIN
 			END IF;
 		END IF;
 
+		IF _sepname != _p.name THEN
+			_lbname := _p.name;
+		ELSE
+			_lbname := NULL;
+		END IF;
 
 		INSERT INTO cloud_jazz.lb_pool (
 			datacenter_id, name, service_endpoint_provider_id,
@@ -265,7 +294,7 @@ BEGIN
 			load_threshold_override, ignore_node_status,
 			redirect_to, created_on
 		) VALUES (
-			_p.datacenter_id, _p.name, sepi,
+			_p.datacenter_id, _lbname, sepi,
 			_p.customer_id, _p.method, _p.type, _p.metadata,
 			useleg,
 			crt, key, chn,
