@@ -51,9 +51,9 @@ ALTER TABLE service_software_repo
 	DEFERRABLE;
 
 ALTER TABLE service_version_sw_package_repository
-	ADD CONSTRAINT  service_version_sw_package_repository_svi
+	ADD CONSTRAINT  fk_service_version_sw_package_repository_svi
 	FOREIGN KEY
-	(service_version_id) REFERENCES service(service_id)
+	(service_version_id) REFERENCES service_version(service_version_id)
 	DEFERRABLE;
 
 ALTER TABLE service_version_sw_package_repository

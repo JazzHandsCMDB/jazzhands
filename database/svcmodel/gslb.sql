@@ -52,6 +52,16 @@ CREATE TABLE cloud_jazz.gslb_group (
 -- and gslb (such as devnxs.net).
 --
 
+DELETE FROM gslb_resource_state WHERE
+	gslb_name_id IN (SELECT id from gslb_name WHERE is_deleted = 1)
+OR
+	gslb_group_id IN (SELECT id from gslb_group WHERE is_deleted = 1)
+;
+
+DELETE FROM gslb_resource_state_log WHERE
+	gslb_name_id IN (SELECT id from gslb_name WHERE is_deleted = 1)
+;
+
 DELETE FROM gslb_ip_address WHERE gslb_group_id IN
 	(SELECT id FROM gslb_group WHERE is_deleted = 1);
 
