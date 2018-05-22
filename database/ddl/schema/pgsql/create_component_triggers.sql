@@ -448,8 +448,11 @@ BEGIN
 						valid_property_value = NEW.property_value;
 			EXCEPTION
 				WHEN NO_DATA_FOUND THEN
-					RAISE 'property_value must be a valid value' USING
-						ERRCODE = 'invalid_parameter_value';
+					RAISE 'property_value for component_property_name %, component_property_type % must be a valid value ("%")',
+						NEW.component_property_name,
+						NEW.component_property_type,
+						NEW.property_value
+						USING ERRCODE = 'invalid_parameter_value';
 			END;
 		ELSIF v_comp_prop.property_data_type != 'string' THEN
 			RAISE 'property_data_type is not a known type' USING
