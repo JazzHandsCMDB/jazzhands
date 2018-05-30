@@ -651,6 +651,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
+SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
