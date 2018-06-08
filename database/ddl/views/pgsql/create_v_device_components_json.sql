@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE OR REPLACE VIEW jazzhands.v_device_component_expanded AS 
+CREATE OR REPLACE VIEW jazzhands.v_device_components_json AS 
 WITH ctf AS (
 	SELECT 
 		ctcf.component_type_id,
