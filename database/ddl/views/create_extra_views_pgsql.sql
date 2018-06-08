@@ -57,6 +57,9 @@
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components.sql
 \ir pgsql/create_v_device_components_expanded.sql
+\ir pgsql/create_v_device_components_json.sql
+\ir pgsql/create_v_device_component_summary.sql
+
 \ir pgsql/create_v_device_slot_connections.sql
 
 \ir create_physical_port.sql
