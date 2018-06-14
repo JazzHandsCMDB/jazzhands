@@ -32,7 +32,8 @@ WITH ctf AS (
 			'company_name', comp.company_name,
 			'model', ct.model,
 			'core_count', pc.property_value::bigint,
-			'processor_speed', ps.property_value
+			'processor_speed', ps.property_value,
+			'component_function', 'CPU'
 		) as component_json
 	FROM
 		component c
@@ -64,7 +65,8 @@ WITH ctf AS (
 			'size', CEIL(ds.property_value::bigint / 1073741824::numeric) ||
 				'G'::text,
 			'protocol', dp.property_value,
-			'media_type', mt.property_value
+			'media_type', mt.property_value,
+			'component_function', 'disk'
 		) as component_json
 	FROM
 		component c
@@ -99,7 +101,8 @@ WITH ctf AS (
 			'model', ct.model,
 			'serial_number', a.serial_number,
 			'size', msize.property_value::bigint,
-			'speed', mspeed.property_value
+			'speed', mspeed.property_value,
+			'component_function', 'memory'
 		) as component_json
 	FROM
 		component c
@@ -122,7 +125,7 @@ WITH ctf AS (
 )
 SELECT
 	dc.device_id,
-	jsonb_agg(x.component_json)
+	jsonb_agg(x.component_json) AS components
 FROM
 	jazzhands.v_device_components dc JOIN
 	(
