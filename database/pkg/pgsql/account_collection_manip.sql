@@ -338,6 +338,8 @@ BEGIN
 			AND	p.property_value_account_coll_id NOT IN (
 					SELECT account_collection_id
 					FROM account_collection_account
+						JOIN account a USING (account_id)
+					WHERE a.is_enabled = 'Y'
 				)
 			AND p.property_value_account_coll_id NOT IN (
 				SELECT account_collection_id
