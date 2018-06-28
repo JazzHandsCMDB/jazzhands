@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Tool for managing PostgREST user JWTs"""
+
+
+# stdlib imports
+import sys
+import argparse
+
+
+# third party imports
+from postgrest_tokenmgr import TokenMgr, init_logging
+
+
+# defaults
+DEFAULT_CONF_FILE = '/etc/postgrest-tokenmgr/tokenmgr_conf.json'
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Manipulate PostgREST user JWTs')
+    parser.add_argument(
+        dest='command', choices=['list', 'generate', 'modify'],
+        help=(
+            'list - can filter using --login and --audience\n'
+            'generate - requires --login and --audience\n'
+            'modify - requires --login and --audience and --enabled\n'))
+    parser.add_argument(
+        '-v', '--verbose', dest='verbose', action='store_true', default=False,
+        help='run the script in verbose mode')
+    parser.add_argument(
+        '-d', '--debug', dest='debug', action='store_true', default=False,
+        help='run the script in debug mode')
+    parser.add_argument(
+        '-l', '--login', dest='login', help='the login of the user')
+    parser.add_argument(
+        '-a', '--audience', dest='audience', help='aud value in token')
+    parser.add_argument(
+        '-e', '--enabled', dest='enabled', choices=['Y', 'N'], help='aud value in token')
+    parser.add_argument(
+        '-x', '--expire', dest='expire', type=int,
+        help='number of days from today to expire the token')
+    parser.add_argument(
+        '--conf-file', dest='conf_file', default=DEFAULT_CONF_FILE,
+        help='override default conf file location')
+    args = parser.parse_args()
+    init_logging(args.debug, args.verbose)
+    tkmgr = TokenMgr(args.conf_file)
+
+    if args.command == 'list':
+        print('       login       |             audience             | tvn | enabled ')
+        print('-------------------|----------------------------------|-----|---------')
+        for row in tkmgr.get_tokens(role=args.login, aud=args.audience):
+            print('{role:^19s}|{audience:^34s}|{tvn:^5}|{token_enabled:^9}'.format(**row))
+    if args.command == 'generate':
+        if not args.login or not args.audience:
+            print('login and audience required for generate commands')
+            sys.exit(1)
+        token = tkmgr.generate_token(args.login, args.audience, args.expire)
+        print('Authorization: Bearer {}'.format(token.decode()))
+    if args.command == 'modify':
+        if not args.login or not args.audience or not args.enabled:
+            print('login, audience and enabled required for generate commands')
+            sys.exit(1)
+        enabled = bool(args.enabled == 'Y')
+        if tkmgr.set_token_state(args.login, args.audience, enabled) == enabled:
+            print('Token {}:{} state succesfully set to enabled: {}'.format(
+                args.login, args.audience, args.enabled))
+        else:
+            print('Modify unsuccessful')

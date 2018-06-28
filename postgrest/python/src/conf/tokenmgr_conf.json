@@ -1,0 +1,5 @@
+{
+    "appauthal_name": "postgrest-tokenmgr",
+    "token_expire_hours": 8760,
+    "signing_key_file": "/etc/postgrest-tokenmgr/signing_key.pem"
+}
