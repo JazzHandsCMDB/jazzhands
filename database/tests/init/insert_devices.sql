@@ -1,14 +1,11 @@
-insert into device (device_type_id, device_name, device_status,
+INSERT INTO device (device_type_id, device_name, device_status,
 	service_environment_id,
-	operating_system_id,
-	is_locally_managed, is_monitored, is_virtual_device,
-	should_Fetch_config)
-values
+	operating_system_id, is_monitored, is_virtual_device
+) VALUES
 	(1, 'guinness.omniscient.com', 'up',
 	(select service_environment_id from service_environment where
 		service_environment_name = 'production'),
-	0,
-	'Y', 'Y', 'N', 'Y')
+	0, 'Y', 'N')
 ;
 
 INSERT INTO property
@@ -34,16 +31,9 @@ insert into netblock
 
 WITH ni AS (
 insert into network_interface
-	(device_id, network_interface_name,
-		network_interface_type,
-		is_interface_up, mac_addr,
-		should_monitor, provides_nat, should_manage,
-		provides_dhcp
+	(device_id, network_interface_name, network_interface_type, mac_addr
 	)
-	select device_id, 'bge0', 'broadcast',
-		'Y', 'aa:bb:cc:dd:ee:ff',
-		'Y', 'N', 'Y',
-		'N'
+	select device_id, 'bge0', 'broadcast', 'aa:bb:cc:dd:ee:ff'
 	from device
 	where device_name = 'guinness.omniscient.com'
 	RETURNING *

@@ -37,9 +37,7 @@ WITH x AS (
 		is_interface_up,
 		mac_addr,
 		should_monitor,
-		provides_nat,
 		should_manage,
-		provides_dhcp,
 		data_ins_user,
 		data_ins_date,
 		data_upd_user,
@@ -59,9 +57,7 @@ WITH x AS (
 		ni.is_interface_up,
 		ni.mac_addr,
 		ni.should_monitor,
-		ni.provides_nat,
 		ni.should_manage,
-		ni.provides_dhcp,
 		ni.data_ins_user,
 		ni.data_ins_date,
 		ni.data_upd_user,
@@ -78,8 +74,4 @@ WITH x AS (
 ALTER VIEW v_network_interface_trans 
 	alter column is_interface_up set default 'Y'::text;
 ALTER VIEW v_network_interface_trans 
-	alter column provides_nat set default 'N'::text;
-ALTER VIEW v_network_interface_trans 
 	alter column should_manage set default 'Y'::text;
-ALTER VIEW v_network_interface_trans 
-	alter column provides_dhcp set default 'N'::text;
