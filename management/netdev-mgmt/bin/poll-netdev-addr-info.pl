@@ -321,6 +321,10 @@ foreach my $host (@$hostname) {
 			# If we found the interface, then we don't need to process it later
 			#
 			delete $dev_int->{$iname};
+			#
+			# Don't process anything for lo0, because
+			#
+			next if $iname =~ '^lo0';
 
 			if ($verbose) {
 				printf "    %s:\n", $iname;
