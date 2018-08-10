@@ -412,6 +412,12 @@ INSERT INTO val_netblock_type(
 	'dns', 'organizational groupings used for assigning DNS', 'N', 'N'
 );
 
+INSERT INTO val_netblock_type(
+	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
+) VALUES (
+	'network_range', 'stop/start network range', 'N', 'N'
+);
+
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
 	values ('noarch', 0);
 -- consider better how to deal with these
