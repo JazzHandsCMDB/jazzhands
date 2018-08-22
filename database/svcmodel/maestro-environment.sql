@@ -106,18 +106,24 @@ EXCEPTION WHEN unique_violation THEN
 END
 $$;
 
-WITH se AS (
-	INSERT INTO jazzhands.service_environment_collection (
-		service_env_collection_name, service_env_collection_type,
-		description
-	) VALUES (
-		'visible', 'maestro',
-		'visible inside maestro'
-	) RETURNING *
-) INSERT INTO jazzhands.svc_environment_coll_svc_env (
-	service_env_collection_id, service_environment_id
-) SELECT service_env_collection_id, id
-FROM se, environment;
+DO $$
+BEGIN
+	WITH se AS (
+		INSERT INTO jazzhands.service_environment_collection (
+			service_env_collection_name, service_env_collection_type,
+			description
+		) VALUES (
+			'visible', 'maestro',
+			'visible inside maestro'
+		) RETURNING *
+	) INSERT INTO jazzhands.svc_environment_coll_svc_env (
+		service_env_collection_id, service_environment_id
+	) SELECT service_env_collection_id, id
+	FROM se, environment;
+EXCEPTION WHEN unique_violation THEN
+	NULL;
+END
+$$;
 
 SELECT schema_support.save_grants_for_replay(
 	schema := 'maestro',

@@ -6,6 +6,8 @@ savepoint startlbpool;
 -- begin;
 set search_path=cloudapi,jazzhands;
 
+DROP TABLE IF EXISTS lb_node_old;
+
 /*
  *
 
@@ -118,6 +120,8 @@ savepoint wait;
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
 
+savepoint itbegins;
+
 DO $$
 DECLARE
 	_p		RECORD;
@@ -135,10 +139,21 @@ DECLARE
 	chn TEXT;
 	useleg boolean;
 BEGIN
-	FOR _p IN SELECT p.*, sb.shared_netblock_id
+	FOR _p IN SELECT p.*, sb.shared_netblock_id, dns_record_id,
+			dns_domain_id, dns.fqdn
 		FROM cloudapi.lb_pool  p
 			JOIN cloudapi.lb_ip  ip ON p.lb_ip_id = ip.id
 			JOIN shared_netblock sb ON ip.id = sb.netblock_id
+			LEFT JOIN (
+				SELECT CASE WHEN dns_name IS NULL THEN dns_domain_name
+						ELSE concat(dns_name, '.', dns_domain_name)
+						END as fqdn,
+					netblock_id, dns_record_id, dns_domain_id
+				FROM v_dns_fwd JOIN dns_domain USING (dns_domain_id)
+				WHERE should_generate_ptr = 'Y'
+				AND dns_type = 'A'
+				AND dns_name NOT LIKE 'lb%'
+			) dns ON dns.netblock_id = p.lb_ip_id
 		ORDER BY id
 	LOOP
 		_name := _p.datacenter_id || ':' || _p.id;
@@ -148,8 +163,10 @@ BEGIN
 			INTO pr
 			FROM port_range
 			WHERE port_start = _p.port
-			AND port_range_type = 'services'
-			AND is_singleton = 'Y';
+			AND port_range_type IN ('services','localservices')
+			AND is_singleton = 'Y'
+		ORDER BY port_range_type DESC
+		LIMIT 1;
 
 		IF NOT FOUND THEN
 			INSERT INTO port_range (
@@ -183,8 +200,9 @@ BEGIN
 			) VALUES (
 				'lb-' || _name, 'import from lb - ' || _name
 			) RETURNING *
-		) INSERT INTO service_endpoint ( service_id, port_range_id )
-			SELECT service_id, pr
+		) INSERT INTO service_endpoint (
+				service_id, port_range_id, dns_record_id
+			) SELECT service_id, pr, _p.dns_record_id
 			FROM svc
 			RETURNING service_endpoint_id INTO sei;
 
@@ -340,8 +358,7 @@ SELECT
 	1::smallint AS managed_by_api,
 	load_threshold_override,
 	ignore_node_status,
-	redirect_to,
-	rnk
+	redirect_to
 FROM (
 SELECT
 	cj.datacenter_id,
@@ -598,3 +615,5 @@ $$;
 savepoint lb;
 
 SELECT schema_support.replay_saved_grants();
+
+savepoint lb;

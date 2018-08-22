@@ -194,24 +194,33 @@ CREATE TABLE service_endpoint_provider_type (
 );
 
 --
--- This covers how service_endpoints, the DNS names actually map to the things
--- that provide them.  Basically "dns value".  This is meant to support direct
--- dns mapping (which probably needs to be trigger enforced or trigger updated
--- anyway so changing dns_record will DTRT) or mapping through a load balancer
--- (which is the same as the previous case, I think) or something more
--- complicated like gslb or nsone.
+-- This covers how service_endpoints, the DNS names actually map to the
+-- things that provide them.  Basically possible dns value/rhs of a dns
+-- record.  This is meant to support direct dns mapping (which probably
+-- needs to be trigger enforced or trigger updated anyway so changing
+-- dns_record will DTRT) or mapping through a load balancer (which is
+-- the same as the previous case, I think) or something more complicated
+-- like gslb or nsone.
+--
 --
 -- Since there's basically an infinite number of ways that could happen, this
 -- just captures a type and relationship between the things and its up to the
--- system extracting it to define what those means.  This can _probably_
+-- system extracting it to define what those mean.  This can _probably_
 -- be rethought to have a little more intellegence in the db, at least to
 -- ensure proper enforcement.
 --
--- This MAY consume service_endpoint_provider_service_endpoint, which is
--- used for  failover mappings (likely will).
+--service_endpoint_relation_type:
 --
+-- gslb		- key==DC, this is used by gslb for datacenter mapping
+-- direct	- maps directly to one collection always.  This may still be
+-- 		through a load balancer downstream or may be direct-to-host.
+-- 		It's possible that direct-to-host and direct-to-lb should be
+-- 		different types for sanity.  I also need to figure out how
+-- 		RR dns_records would fit into this. XXX
+-- failover - for now, gslb failover only used.
 --
--- service_endpoint_relation_type is 'direct', 'service', 'failover'
+-- possibly gslb should become service?  Need to think of how nsone hooks
+-- into this.
 --
 -- service_endpoint_relation_key is a freeform name that is understood by the
 -- external system for how it relates to the service_endpoint.  The name
@@ -219,7 +228,8 @@ CREATE TABLE service_endpoint_provider_type (
 -- key,value table for this or some other property?
 --
 -- XXX maximum_capacity is just for gslb because I did not want to create a
--- cloud_jazz table just yet, but maybe that should be a thing.
+-- cloud_jazz table just yet, but maybe there should be a json blob or some
+-- key/value thing
 --
 DROP TABLE IF EXISTS service_endpoint_service_endpoint_provider CASCADE;
 CREATE TABLE service_endpoint_service_endpoint_provider  (
@@ -240,21 +250,18 @@ CREATE TABLE service_endpoint_service_endpoint_provider  (
 
 
 --
--- This describes where the service actually terminates.
+-- This describes the thing where the service actually terminates.  This may
+-- mean an A record or the destination of a CNAME (see below).
 --
--- This may be 1-1 with service_endpoint (trigger enforced)
+-- This also may be 1-1 with service_endpoint (trigger enforced)
 -- likely many to many but not most cases.  THINKING MORE..  This may
 -- actually become a m-m relationship to account for different ways of
 -- getting at a service (in some cases it'll be 1-1 or 1-m, trigger enforced)
 --
--- This is why service_endpoint_id is NULL for the moment.
---
 -- names are kind of irrelevent.
 --
--- I *think* shared_netblock_id and device_id go away.
---
 -- This probably does NOT need an sla column, we're 25% sure about that
--- because you would just create another service_endpoint.
+-- because you would just create another service_endpoint. (it does not now)
 --
 -- dns_record_id is only the destination on CNAMEs.  I think.  I used to think
 -- it  may not be necessary, now I'm thinking its a relation we want to capture
@@ -279,7 +286,18 @@ CREATE TABLE service_endpoint_provider (
 
 --
 -- This came into existance to be a gslb_group and it may become the only
--- way service_endpoints map to service_endpoitn_providers.
+-- way service_endpoints map to service_endpoint_providers.
+--
+-- types:
+-- gslb-group - gslb groups (name associated with a bunch of hosts).
+-- 	XXX - these are universally unique, which can be a cross-customer
+-- 		problem.
+-- gslb - these are well gslb group falovers are stashed for now. This
+-- probbaly wants to be absorbed by gslb-group in some fashion.
+-- per-service-endpoint-provider - for things that map 1-1 to a thing, like
+-- a load balancer or host.  Basically, there is no DNS routing cleverness.
+--
+-- end type
 --
 DROP TABLE IF EXISTS service_endpoint_provider_collection CASCADE;
 CREATE TABLE service_endpoint_provider_collection (
@@ -302,7 +320,8 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 
 --
 -- This does mapping from a service_endpoint_provider to an actual device
--- some sort of prioritization?
+-- that hosts it, potentially some sort of prioritization when there is more
+-- than one host.
 --
 -- if this is non-proxied connection, the port range must match the port
 -- range of the endpoint_provider (or endpoint?)
@@ -323,17 +342,25 @@ CREATE TABLE service_endpoint_provider_member (
 );
 
 --
+--
+-- This is the endpoint that things actually talk to.  typically it's a
+-- dns name or uri.
+--
 -- possibly should have the device of the endpoint on it
 -- (lb, if appropriate?)  however, arguably there also needs to be
 -- a gslb overlay; have not entirely gotten my head around this
+-- [ thinking more, likely not, this comes from shared_netblock probably
+-- thru dns.   ]
 --
 -- x509 certificates are broken out in order to support multiple types of
 -- certifiates on the same endpoint (ECC, RSA).
 --
--- its possible that dns_record should be a synthesized record for gslbish
--- type things.   I'm thinking this should probably be the case, and in that
--- case, there's some special record class or some such that causes it to not
--- require a netblock_id or value.
+-- dns_name and dns_domain_name are likely temporary and will be replaced
+-- with just dns_record_id, but that depends on all the gslb records being
+-- better integrated into the dns_record/dns_domain stuff.
+--
+-- There should be a trigger that allows for either dns_record_id OR
+-- dns_name+dns_domain_id and eventually that will be dropped.
 --
 DROP TABLE IF EXISTS service_endpoint CASCADE;
 CREATE TABLE service_endpoint (

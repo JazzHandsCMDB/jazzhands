@@ -104,7 +104,8 @@ BEGIN
 		('http', 'tcp', 'services', 80, 80, 'Y'),
 		('https', 'tcp', 'services', 443, 443, 'Y'),
 		('domain', 'tcp', 'services', 53, 53, 'Y'),
-		('domain', 'udp', 'services', 53, 53, 'Y')
+		('domain', 'udp', 'services', 53, 53, 'Y'),
+		('puppet', 'tcp', 'localservices', 8140, 8140, 'Y')
 	;
 EXCEPTION WHEN unique_violation THEN
 	NULL;
@@ -134,7 +135,9 @@ BEGIN
 		port_range_type, protocol, range_permitted
 	) values
 		('services', 'tcp', 'N'),
-		('services', 'udp', 'N')
+		('services', 'udp', 'N'),
+		('localservices', 'tcp', 'N'),
+		('localservices', 'udp', 'N')
 	;
 EXCEPTION WHEN unique_violation THEN
 	NULL;
