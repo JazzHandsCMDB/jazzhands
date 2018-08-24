@@ -56,15 +56,15 @@ WITH svc AS (
 	AND sw_package_repository_name = 'common'
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id,
+		device_id, service_version_id,
 		port_range_id, netblock_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id,
+		device_id, service_version_id,
 		p.port_range_id, nb.netblock_id
 	FROM device d
 		JOIN network_interface_netblock USING (device_id)
 		JOIN netblock nb USING (netblock_id),
-		endpoint, svcv, port_range p
+		svcv, port_range p
 	WHERE device_name ~ '^\d+\.jazzhands-db\..*$'
 	AND p.port_range_name IN ('postgresql')
 	AND nb.netblock_type = 'default' AND host(nb.ip_address) = '10.1.32.62'

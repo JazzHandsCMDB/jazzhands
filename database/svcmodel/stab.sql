@@ -87,15 +87,15 @@ WITH svc AS (
 	AND sw_package_repository_name = 'common'
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id,port_range_id,
+		device_id, service_version_id,port_range_id,
 		netblock_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id,p.port_range_id,
+		device_id, service_version_id,p.port_range_id,
 		netblock_id
 	FROM device
 		JOIN network_interface_netblock USING (device_id)
 		JOIN netblock nb USING (netblock_id),
-		endpoint, svcv, port_range p
+		svcv, port_range p
 	WHERE device_name ~ '^\d+\.stab\..*$'
 	AND p.port_range_name IN ('https') AND p.port_range_type = 'services'
 	AND nb.netblock_type = 'default' and host(ip_address) = '68.67.155.145'

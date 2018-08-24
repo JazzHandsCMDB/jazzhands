@@ -2,7 +2,9 @@ INSERT INTO service (service_name) VALUES ('kvm');
 
 --
 -- This comes with none of the endpoint overhead and is closer to a minimum
--- set of tables.  need to reconsider endpoint.
+-- set of tables, although I think it doesn't make any sense anymore because
+-- service_endpoint is not tied in anymore.  It _used_ to be in
+-- service_instance but I dropped it. XXX
 --
 WITH svc AS (
 	SELECT * FROM service WHERE service_name = 'kvm'
@@ -20,10 +22,10 @@ WITH svc AS (
 	RETURNING *
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id
+		device_id, service_version_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id
-	FROM device, endpoint, svcv
+		device_id, service_version_id
+	FROM device, svcv
 	WHERE device_name = '0380.dbk.nym2.appnexus.net'
 	RETURNING *
 ), svccol AS (

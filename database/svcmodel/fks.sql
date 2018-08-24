@@ -152,13 +152,6 @@ ALTER TABLE service_instance
 	DEFERRABLE;
 
 ALTER TABLE service_instance
-	ADD CONSTRAINT  fk_service_instance_epid
-	FOREIGN KEY
-	(service_endpoint_Id)
-	REFERENCES service_endpoint(service_endpoint_id)
-	DEFERRABLE;
-
-ALTER TABLE service_instance
 	ADD CONSTRAINT  fk_service_instance_svcversionid
 	FOREIGN KEY
 	(service_version_Id)

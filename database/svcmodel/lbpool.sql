@@ -509,10 +509,10 @@ BEGIN
 
 		INSERT INTO service_instance (
 			device_id, netblock_id, port_range_id,
-			service_endpoint_id, service_version_id
+			service_version_id
 		) SELECT
 			_nin.device_id, _nin.netblock_id, _pr,
-			service_endpoint_id, _svid
+			_svid
 		FROM
 			jazzhands.service_endpoint_provider_collection_service_endpoint_provider
 				JOIN jazzhands.service_endpoint_service_endpoint_provider
@@ -564,10 +564,8 @@ SELECT	site_code,
 	CASE WHEN sepm.is_enabled = 'Y' THEN 1 ELSE 0 END AS active
 FROM jazzhands.service_endpoint_provider_member sepm
 	JOIN jazzhands.service_instance sei USING (service_instance_id)
-	JOIN jazzhands.service_endpoint_service_endpoint_provider
-		USING (service_endpoint_id)
 	JOIN jazzhands.service_endpoint_provider_collection_service_endpoint_provider sepcep
-		USING (service_endpoint_provider_collection_id)
+		USING (service_endpoint_provider_id)
 	JOIN jazzhands.network_interface_netblock USING (netblock_id, device_id)
 	JOIN jazzhands.netblock USING (netblock_id)
 	JOIN jazzhands.device USING (device_id)

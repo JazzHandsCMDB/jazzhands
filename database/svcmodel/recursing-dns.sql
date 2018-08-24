@@ -43,20 +43,26 @@ WITH svc AS (
 	RETURNING *
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id,port_range_id,
+		device_id, service_version_id,port_range_id,
 		netblock_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id,p.port_range_id,
+		device_id, service_version_id,port_range_id,
 		netblock_id
-	FROM device
+	FROM (
+		SELECT
+			device_id, service_version_id,p.port_range_id,
+			netblock_id,
+			row_number() OVER (PARTITION BY device_id) as rnk
+		FROM device
 			JOIN network_interface_netblock USING (device_id),
-		endpoint, svcv, port_range p
-	WHERE device_name ~ '^(\d+)\.(newdns|dns-recurse)\..*$'
-	AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))
-	AND p.port_range_name IN ('domain') AND p.port_range_type = 'services'
-	-- XXX need to create an enedpoint for tcp, too
-	AND endpoint.uri ~ concat('dns', p.protocol)
-	AND netblock_id is not NULL
+			endpoint, svcv, port_range p
+		WHERE device_name ~ '^(\d+)\.(newdns|dns-recurse)\..*$'
+		AND site_code = upper(regexp_replace(endpoint.uri, '^.*\.([a-z]+[0-9])\.appnexus.net.*$', '\1'))
+		AND p.port_range_name IN ('domain') AND p.port_range_type = 'services'
+		-- XXX need to create an enedpoint for tcp, too
+		AND endpoint.uri ~ concat('dns', p.protocol)
+		AND netblock_id is not NULL
+	) x WHERE rnk = 1
 	RETURNING *
 ), svcendpointprovider AS (
 	INSERT INTO service_endpoint_provider (

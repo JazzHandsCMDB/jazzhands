@@ -431,20 +431,24 @@ CREATE TABLE service_endpoint_health_check (
 -- for things that do not have an endpoint (something that runs on a host
 -- like a feed perhaps), service_endpoint_id may need to be nullable.
 --
+-- not sure what service_endpoint_id does here and it can possibly be removed.
+-- was previously holding lb_pool_id, basically.
+--
 -- NOT SURE WHAT THIS MEANS OR IF ITS STILL APPLICABLE: possibly also a
 -- link to netblock_id or just a link to that?  This would allow for
 -- chaining providers.
+--
+-- need to figure out the unique constraint.
 --
 DROP TABLE IF EXISTS service_instance CASCADE;
 CREATE TABLE service_instance (
 	service_instance_id	serial		NOT NULL,
 	device_id		integer		NOT NULL,
-	service_endpoint_id	integer		NOT NULL,
 	service_version_id	integer		NOT NULL,
 	netblock_id		integer		NULL,
 	port_range_id		integer		NULL,
 	PRIMARY KEY (service_instance_id),
-	UNIQUE (device_id,service_endpoint_id,service_version_id)
+	UNIQUE (device_id,service_version_id)
 );
 
 DROP TABLE IF EXISTS service_endpoint_service_sla CASCADE;

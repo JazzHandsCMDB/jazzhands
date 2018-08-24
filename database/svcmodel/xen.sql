@@ -26,10 +26,10 @@ WITH svc AS (
 	AND sw_package_repository_name = 'os'
 ), svcinst AS (
 	INSERT INTO service_instance (
-		device_id, service_endpoint_id, service_version_id
+		device_id, service_version_id
 	) SELECT
-		device_id, service_endpoint_id, service_version_id
-	FROM device, endpoint, svcv
+		device_id, service_version_id
+	FROM device, svcv
 	WHERE device_name = '0380.dbk.nym2.appnexus.net'
 	RETURNING *
 ), svcendpointprovider AS (

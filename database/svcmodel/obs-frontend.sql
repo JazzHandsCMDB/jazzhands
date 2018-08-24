@@ -45,14 +45,13 @@ WHERE service.service_name = 'obs-frontend';
 
 --- XXX need to convert the sw_package_repository bits
 
-INSERT INTO service_instance (device_id, netblock_id, service_endpoint_id, service_version_id)
-SELECT device_id, netblock_id, service_endpoint_id, service_version_id
+INSERT INTO service_instance (device_id, netblock_id, service_version_id)
+SELECT device_id, netblock_id, service_version_id
 FROM device
 	join network_interface_netblock using (device_id)
-	join netblock using (netblock_id)
-	, service_endpoint, service_version
+	join netblock using (netblock_id),
+	service_endpoint, service_version
 WHERE device_name = 'obs02.lax1.appnexus.com'
-AND service_endpoint.uri LIKE '%obs.corp%'
 AND service_version.version_name = '2.5.5.1';
 
 WITH svccol AS (
