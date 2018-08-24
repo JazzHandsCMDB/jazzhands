@@ -1,12 +1,14 @@
+\set ON_ERROR_STOP
+
+--
+-- This is written so it works shim'd without gslb stuff converted over
+-- but it aslo works with that.
+--
 
 DO $$
 DECLARE
 	svcend	service_endpoint%ROWTYPE;
 BEGIN
-	--
-	-- NOTE:  This should point to an apex A record and not the domain
-	-- but those need to be setup.
-	--
 	SELECT 	se.*
 	INTO	svcend
 	FROM	service_endpoint se
@@ -22,13 +24,15 @@ BEGIN
 		INSERT INTO service (service_name) VALUES ('stab');
 
 		INSERT INTO service_endpoint (
-			service_id, dns_record_id, uri
+			service_id, dns_record_id, uri, port_range_id
 		) SELECT service_id, dns_record_id,
-			concat('https://', dns_name, '.',soa_name,'/')
-		FROM service, dns_record
+			concat('https://', dns_name, '.',soa_name,'/'), port_range_id
+		FROM service, port_range, dns_record
 				JOIN dns_domain using (dns_domain_id)
 		WHERE dns_name = 'stab'
 		AND service_name = 'stab'
+		AND port_range_name = 'https'
+		AND port_range_type = 'services'
 		ORDER BY dns_domain_id limit 1;
 	END IF;
 END;
@@ -85,29 +89,84 @@ WITH svc AS (
 	FROM svcv, sw_package_repository
 	WHERE sw_package_repository_type = 'obs'
 	AND sw_package_repository_name = 'common'
+	RETURNING *
+) SELECT * FROM svcv;
+
+DO $$
+DECLARE
+	svcend	service_endpoint%ROWTYPE;
+	_r		RECORD;
+BEGIN
+	--
+	-- NOTE:  This should point to an apex A record and not the domain
+	-- but those need to be setup.
+	--
+	SELECT 	se.*
+	INTO	svcend
+	FROM	service_endpoint se
+		JOIN dns_domain USING (dns_domain_id)
+	WHERE	dns_domain_name = 'stab.appnexus.net'
+	LIMIT 1;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'ugh';
+	ELSE
+		WITH svcv AS (
+			SELECT sv.*
+			FROM service_version sv
+				JOIN service USING (service_id)
+			WHERE service_name = 'stab'
+		), svcinst AS (
+			INSERT INTO service_instance (
+				device_id, service_version_id,port_range_id,
+				netblock_id
+			) SELECT
+				device_id, service_version_id,p.port_range_id,
+				netblock_id
+			FROM device
+				JOIN network_interface_netblock USING (device_id)
+				JOIN netblock nb USING (netblock_id),
+				svcv, port_range p
+			WHERE device_name ~ '^\d+\.stab\..*$'
+			AND p.port_range_name IN ('https') AND p.port_range_type = 'services'
+			AND nb.netblock_type = 'default' and host(ip_address) = '68.67.155.145'
+			RETURNING *
+		), svcendpointprovider AS (
+			INSERT INTO service_endpoint_provider (
+				service_endpoint_provider_name, service_endpoint_provider_type,
+				netblock_id
+			) SELECT 'stab', 'lb', netblock_id
+			FROM  netblock
+			WHERE host(ip_address) = '68.67.154.123' and netblock_type = 'default'
+			RETURNING *
+		) SELECT * INTO _r FROM svcendpointprovider;
+	END IF;
+END;
+$$;
+
+--
+-- insert all the rest of the stab related properties.
+--
+WITH endpoint AS (
+	SELECT se.*
+	FROM service_endpoint se
+		JOIN service USING (service_id)
+	WHERE service_name = 'stab'
+), swpkg AS (
+	SELECT * FROM sw_package where sw_package_name = 'jazzhands-stab'
+), svc AS (
+	SELECT * FROM service WHERE service_name = 'stab'
+), svcv AS (
+	SELECT * FROM service_version JOIN svc USING (service_id)
 ), svcinst AS (
-	INSERT INTO service_instance (
-		device_id, service_version_id,port_range_id,
-		netblock_id
-	) SELECT
-		device_id, service_version_id,p.port_range_id,
-		netblock_id
-	FROM device
-		JOIN network_interface_netblock USING (device_id)
-		JOIN netblock nb USING (netblock_id),
-		svcv, port_range p
-	WHERE device_name ~ '^\d+\.stab\..*$'
-	AND p.port_range_name IN ('https') AND p.port_range_type = 'services'
-	AND nb.netblock_type = 'default' and host(ip_address) = '68.67.155.145'
-	RETURNING *
+	SELECT *
+	FROM service_instance
+		JOIN service_version USING (service_version_id)
+		JOIN svc USING (service_id)
 ), svcendpointprovider AS (
-	INSERT INTO service_endpoint_provider (
-		service_endpoint_provider_name, service_endpoint_provider_type,
-		netblock_id
-	) SELECT 'stab', 'lb', netblock_id
-	FROM  netblock
-	WHERE host(ip_address) = '68.67.154.123' and netblock_type = 'default'
-	RETURNING *
+	SELECT * FROM service_endpoint_provider
+		WHERE service_endpoint_provider_name = 'stab'
+		AND service_endpoint_provider_type = 'lb'
 ), svcendpointprovidercol AS (
 	INSERT INTO service_endpoint_provider_collection (
 		service_endpoint_provider_collection_name,
@@ -195,7 +254,6 @@ WITH svc AS (
 	WHERE account_collection_name ~ 'Core Sys Infr'
 	AND account_collection_type = 'department'
 	RETURNING *
-
 ), svcprop4 AS (
 	INSERT INTO service_property (
 		service_collection_id, service_property_name, service_property_type,
@@ -222,3 +280,35 @@ WITH svc AS (
 	AND a.service_sla_name = 'always'
 ) select * from svccol;
 
+-- === === === === === === === === === === === === === === === === ===
+
+SELECT	service_id, service_name, service_endpoint_id,
+	dns.dns_record_id, dns.dns_name, dom.dns_domain_name,
+	pr.port_start,
+	service_name, service_endpoint_provider_name,
+	service_endpoint_provider_collection_name,
+	service_instance_id, service_version_id, version_name,
+	device_id, device_name, client_port
+FROM	service
+	JOIN service_endpoint USING (service_id)
+	JOIN dns_record dns USING (dns_record_id)
+	JOIN dns_domain dom ON dns.dns_domain_id = dom.dns_domain_id
+	JOIN port_range pr USING (port_range_id)
+	JOIN service_endpoint_service_endpoint_provider
+		USING (service_endpoint_id)
+	JOIN service_endpoint_provider_collection
+		USING (service_endpoint_provider_collection_id)
+	JOIN service_endpoint_provider_collection_service_endpoint_provider
+		USING (service_endpoint_provider_collection_id)
+	JOIN service_endpoint_provider USING (service_endpoint_provider_id)
+	JOIN service_endpoint_provider_member
+		USING (service_endpoint_provider_id)
+	JOIN (SELECT si.*, ipr.port_start as client_port
+		FROM service_instance  si JOIN port_range ipr USING (port_range_id)
+		) svcinst USING (service_instance_id)
+	JOIN service_version
+		USING (service_id, service_version_id)
+	JOIN device
+		USING (device_id)
+WHERE service_name = 'stab'
+;
