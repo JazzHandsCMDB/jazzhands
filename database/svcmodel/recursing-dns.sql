@@ -11,7 +11,7 @@ WITH svc AS (
 	INSERT INTO sw_package (
 		sw_package_name, sw_package_type
 	) VALUES (
-		'jazzhands-stab', 'rpm'
+		'bind9', 'rpm'
 	) RETURNING *
 ),  endpoint AS (
 	INSERT INTO service_endpoint (

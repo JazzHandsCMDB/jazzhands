@@ -39,15 +39,6 @@ WITH svc AS (
 	) values
 		((SELECT service_collection_id FROM svccol), 'location', 'launch', 'baremetal')
 	RETURNING *
-), svcprop_admin AS (
-	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type,
-			value_account_collection_id
-	) SELECT service_collection_id, 'admin', 'role', account_collection_id
-	FROM account_collection,svccol
-	WHERE account_collection_name = 'stab_full_admin'
-	AND account_collection_type = 'systems'
-	RETURNING *
 ), svcprop_owner AS (
 	INSERT INTO service_property (
 		service_collection_id, service_property_name, service_property_type,
@@ -56,16 +47,6 @@ WITH svc AS (
 	FROM account_collection,svccol
 	WHERE account_collection_name ~ 'Core Sys Infr'
 	AND account_collection_type = 'department'
-	RETURNING *
-
-), svcprop4 AS (
-	INSERT INTO service_property (
-		service_collection_id, service_property_name, service_property_type,
-			value_account_collection_id
-	) SELECT service_collection_id, 'log_watcher', 'role', account_collection_id
-	FROM account_collection,svccol
-	WHERE account_collection_name = 'stab_all_access'
-	AND account_collection_type = 'systems'
 	RETURNING *
 ) select * from svccol;
 
