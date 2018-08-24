@@ -324,7 +324,7 @@ CREATE TABLE service_endpoint_provider_collection_service_endpoint_provider
 -- than one host.
 --
 -- if this is non-proxied connection, the port range must match the port
--- range of the endpoint_provider (or endpoint?)
+-- range of the endpoint_provider (or endpoint?), and it is probably 1-1.
 --
 -- this is many-to-many glue, so NO port_range_id.
 --

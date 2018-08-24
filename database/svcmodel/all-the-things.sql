@@ -1,3 +1,4 @@
+\pager off
 \set ON_ERROR_STOP
 
 \c - jazzhands
@@ -62,4 +63,6 @@ begin;
 \i kvm.sql
 \i consolidate-puppet4.sql
 
+\i helpful-queries.sql
 commit;
+\pager on

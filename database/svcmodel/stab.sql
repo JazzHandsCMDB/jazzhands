@@ -109,7 +109,20 @@ BEGIN
 	LIMIT 1;
 
 	IF FOUND THEN
-		RAISE EXCEPTION 'ugh';
+		UPDATE service_instance
+		SET service_version_id = (
+			SELECT service_version_id
+			FROM service_version sv
+				JOIN service USING (service_id)
+			WHERE service_name = 'stab'
+			LIMIT 1
+		) WHERE service_instance_id IN (
+			SELECT service_instance_id
+			FROM service_instance
+				JOIN device USING (device_id)
+			WHERE device_name ~ 'stab'
+			AND site_code != 'DEV2'
+		);
 	ELSE
 		WITH svcv AS (
 			SELECT sv.*
@@ -279,36 +292,3 @@ WITH endpoint AS (
 	WHERE s.service_name = 'jazzhands-db'
 	AND a.service_sla_name = 'always'
 ) select * from svccol;
-
--- === === === === === === === === === === === === === === === === ===
-
-SELECT	service_id, service_name, service_endpoint_id,
-	dns.dns_record_id, dns.dns_name, dom.dns_domain_name,
-	pr.port_start,
-	service_name, service_endpoint_provider_name,
-	service_endpoint_provider_collection_name,
-	service_instance_id, service_version_id, version_name,
-	device_id, device_name, client_port
-FROM	service
-	JOIN service_endpoint USING (service_id)
-	JOIN dns_record dns USING (dns_record_id)
-	JOIN dns_domain dom ON dns.dns_domain_id = dom.dns_domain_id
-	JOIN port_range pr USING (port_range_id)
-	JOIN service_endpoint_service_endpoint_provider
-		USING (service_endpoint_id)
-	JOIN service_endpoint_provider_collection
-		USING (service_endpoint_provider_collection_id)
-	JOIN service_endpoint_provider_collection_service_endpoint_provider
-		USING (service_endpoint_provider_collection_id)
-	JOIN service_endpoint_provider USING (service_endpoint_provider_id)
-	JOIN service_endpoint_provider_member
-		USING (service_endpoint_provider_id)
-	JOIN (SELECT si.*, ipr.port_start as client_port
-		FROM service_instance  si JOIN port_range ipr USING (port_range_id)
-		) svcinst USING (service_instance_id)
-	JOIN service_version
-		USING (service_id, service_version_id)
-	JOIN device
-		USING (device_id)
-WHERE service_name = 'stab'
-;
