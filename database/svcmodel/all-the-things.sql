@@ -54,11 +54,12 @@ begin;
 \i fks.sql
 
 \i jazzhands-db.sql
-\i stab.sql
+-- \i stab.sql
 \i recursing-dns.sql
 \i obs-frontend.sql
 
 \i xen.sql
 \i kvm.sql
+\i consolidate-puppet4.sql
 
 commit;
