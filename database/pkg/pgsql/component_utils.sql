@@ -1265,7 +1265,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 --
 -- Replace a given simple component with another one.  This isn't very smart,

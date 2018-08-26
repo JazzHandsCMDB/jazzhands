@@ -2052,7 +2052,7 @@ LANGUAGE plpgsql SECURITY INVOKER;
 -- END materialized view support
 ----------------------------------------------------------------------------
 
-
+\ir create_schema_support_cache_tables.sql
 
 /**************************************************************
  *  FUNCTIONS

@@ -38,6 +38,9 @@ COMMENT ON SCHEMA audit IS 'part of jazzhands project';
 SELECT schema_support.rebuild_stamp_triggers('jazzhands');
 SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 
+CREATE SCHEMA jazzhands_cache;
+COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
+
 \ir pkg/pgsql/create_early_packages.sql
 
 \ir ddl/views/create_extra_views_pgsql.sql
