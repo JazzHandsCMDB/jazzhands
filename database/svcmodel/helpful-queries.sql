@@ -41,5 +41,6 @@ FROM	service
 		USING (service_id, service_version_id)
 	LEFT JOIN device
 		USING (device_id)
-WHERE service_name IN ('stab', 'cloud-puppet-server');
+WHERE service_name IN ('stab', 'cloud-puppet-server')
+ORDER BY 1
 ;

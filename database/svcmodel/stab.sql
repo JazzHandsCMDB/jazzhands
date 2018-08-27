@@ -20,6 +20,16 @@ BEGIN
 		UPDATE service
 		SET	service_name = 'stab'
 		WHERE	service_id = svcend.service_id;
+
+		UPDATE service_endpoint
+		SET service_id = (SELECT service_id FROM service
+					WHERE service_name = 'stab')
+		WHERE service_id IN (
+			SELECT service_id
+			FROM service_endpoint se
+			JOIN dns_record d  USING (dns_record_id)
+			where d.dns_name = 'stab'
+		);
 	ELSE
 		INSERT INTO service (service_name) VALUES ('stab');
 
