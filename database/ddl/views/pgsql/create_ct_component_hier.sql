@@ -84,13 +84,24 @@ BEGIN
 	-- Insert any new rows to correspond with a new parent
 	--
 
-	IF
-		(TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND
-		NEW.parent_slot_id IS NOT NULL
-	THEN
-		RAISE DEBUG 'Inserting upstream references for component % into cache',
+	IF (TG_OP = 'INSERT') THEN
+		RAISE DEBUG 'Inserting reference for new component % into cache',
 			NEW.component_id;
 
+		INSERT INTO jazzhands_cache.ct_component_hier (
+			component_id,
+			child_component_id,
+			component_path,
+			level
+		) VALUES (
+			NEW.component_id,
+			NEW.component_id,
+			ARRAY[NEW.component_id],
+			1
+		);
+	ELSIF (TG_OP = 'UPDATE' AND NEW.parent_slot_id IS NOT NULL) THEN
+		RAISE DEBUG 'Inserting upstream references for updated component % into cache',
+			NEW.component_id;
 		INSERT INTO jazzhands_cache.ct_component_hier
 		SELECT 
 			ch.component_id,
