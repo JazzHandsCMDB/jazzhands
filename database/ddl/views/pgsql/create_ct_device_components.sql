@@ -56,10 +56,6 @@ CREATE INDEX ix_device_components_device_id ON
 CREATE OR REPLACE FUNCTION jazzhands_cache.cache_device_component_device_handler()
 RETURNS TRIGGER AS $$
 BEGIN
-	RAISE DEBUG 'In jazzhands_cache.cache_device_component_device_handler';
-	RAISE DEBUG E'\nOLD is: %\nNEW is %\n',
-		jsonb_pretty(to_jsonb(OLD)),
-		jsonb_pretty(to_jsonb(NEW));
 	--
 	-- Delete any rows that are invalidated due to a device un/reassignment
 	--
@@ -85,7 +81,7 @@ BEGIN
 		NEW.component_id IS NOT NULL
 	THEN
 		RAISE DEBUG 'Inserting upstream references for component % into cache',
-			OLD.component_id;
+			NEW.component_id;
 
 		INSERT INTO jazzhands_cache.ct_device_components (
 			device_id,
@@ -133,11 +129,6 @@ DECLARE
 	dev_rec	RECORD;
 	dc_rec	RECORD;
 BEGIN
-	RAISE DEBUG 'In jazzhands_cache.cache_device_component_component_handler';
-	RAISE DEBUG E'\nOLD is: %\nNEW is %\n',
-		jsonb_pretty(to_jsonb(OLD)),
-		jsonb_pretty(to_jsonb(NEW));
-
 	--
 	-- Delete any rows that are invalidated due to a parent slot un/reassignment
 	--
@@ -182,7 +173,7 @@ BEGIN
 		NEW.parent_slot_id IS NOT NULL
 	THEN
 		RAISE DEBUG 'Inserting upstream device references for component % into cache',
-			OLD.component_id;
+			NEW.component_id;
 
 		
 		SELECT d.* INTO dev_rec

@@ -63,10 +63,6 @@ CREATE INDEX ix_component_hier_child_component_id ON
 CREATE OR REPLACE FUNCTION jazzhands_cache.cache_component_parent_handler()
 RETURNS TRIGGER AS $$
 BEGIN
-	RAISE DEBUG 'In jazzhands_cache.cache_component_parent_handler';
-	RAISE DEBUG E'\nOLD is: %\nNEW is %\n',
-		jsonb_pretty(to_jsonb(OLD)),
-		jsonb_pretty(to_jsonb(NEW));
 	--
 	-- Delete any rows that are invalidated due to a parent change.
 	--
@@ -93,7 +89,7 @@ BEGIN
 		NEW.parent_slot_id IS NOT NULL
 	THEN
 		RAISE DEBUG 'Inserting upstream references for component % into cache',
-			OLD.component_id;
+			NEW.component_id;
 
 		INSERT INTO jazzhands_cache.ct_component_hier
 		SELECT 
