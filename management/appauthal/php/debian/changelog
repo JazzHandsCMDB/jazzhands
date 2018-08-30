@@ -1,8 +1,15 @@
+php-jazzhands-appauthal (0.83.0) bionic; urgency=medium
+
+  * make debian bits actually work
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu, 30 Jan 2018 18:39_03 -0400
+
 php-jazzhands-appauthal (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:07 +0000
+
 
 php-jazzhands-appauthal (0.2.7.0) unstable; urgency=low
 
