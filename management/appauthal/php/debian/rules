@@ -2,17 +2,6 @@
 
 include /usr/share/dpkg/default.mk
 
-PHP_DEFAULT_VERSION    := 7.0
-PHP_SUPPORTED_VERSIONS := 7.0
-
-, := ,
-
-PHP_COMMON_DEB_VERSION := 1:$(DEB_VERSION)
-PHP_DEB_VERSION        := 1:$(PHP_DEFAULT_VERSION)+$(DEB_VERSION)
-
-export DH_OPTIONS
-export DH_VERBOSE=1
-
 %:
 	dh $@
 

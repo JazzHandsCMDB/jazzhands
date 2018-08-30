@@ -263,14 +263,16 @@ BEGIN
 	AND con.contype in ('p', 'u')
 	;
 
-	FOREACH i IN ARRAY idx
-	LOOP
-		EXECUTE 'ALTER INDEX '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(i)
-			|| ' RENAME TO '
-			|| quote_ident('_' || i);
-	END LOOP;
+	IF idx IS NOT NULL THEN 
+		FOREACH i IN ARRAY idx
+		LOOP
+			EXECUTE 'ALTER INDEX '
+				|| quote_ident(aud_schema) || '.'
+				|| quote_ident(i)
+				|| ' RENAME TO '
+				|| quote_ident('_' || i);
+		END LOOP;
+	END IF;
 
 	IF array_length(keys, 1) > 0 THEN
 		FOREACH i IN ARRAY keys
@@ -286,7 +288,8 @@ BEGIN
 	END IF;
 
 	--
-	-- get columns
+	-- get columns - XXX NOTE:  Need to remove columns not in the new
+	-- table...
 	--
 	SELECT	array_agg(quote_ident(a.attname) ORDER BY a.attnum)
 	INTO	cols
