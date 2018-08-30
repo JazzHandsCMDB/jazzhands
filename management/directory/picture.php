@@ -140,8 +140,11 @@ function send_cached_image($dbconn, $row, $in_hint) {
 		}
 		if(is_executable("$p/$uqcvt")) {
 			$cvt = "$p/$uqcvt";
+		} elseif(is_executable("$p/pnmscale")) {
+			$cvt = "$p/pnmscale";
 		}
 	}
+
 
 
 	if($hint == 'thumb') {

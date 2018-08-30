@@ -1,6 +1,7 @@
 jazzhands-account-directory (0.83.1) bionic; urgency=medium
 
   * adjust depends on directory to use generic version of php-pgsql
+  * allow for either pamscale or pnmscale
 
  -- Todd Kover <kovert@omniscient.com>  Tue, 28 Aug 2018 10:57:00 -0400
 
