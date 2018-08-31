@@ -1,6 +1,16 @@
 \pager off
 \set ON_ERROR_STOP
 
+\c - postgres
+DO $$
+BEGIN
+	CREATE ROLE dba SUPERUSER NOINHERIT;
+EXCEPTION WHEN duplicate_object THEN
+	RAISE NOTICE 'dba already exists';
+END;
+$$;
+grant dba to cloudapi;
+
 \c - jazzhands
 \set ON_ERROR_STOP
 begin;
@@ -61,8 +71,17 @@ begin;
 
 \i xen.sql
 \i kvm.sql
+
+\c - postgres
+begin;
+SET search_path=jazzhands,cloudapi;
 \i consolidate-puppet4.sql
 
+commit;
+\c - jazzhands
 \i helpful-queries.sql
 commit;
+
+\c - postgres
+revoke dba from cloudapi;
 \pager on
