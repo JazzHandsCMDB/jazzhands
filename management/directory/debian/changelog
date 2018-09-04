@@ -1,3 +1,9 @@
+jazzhands-account-directory (0.83.2) bionic; urgency=medium
+
+  * last version not tagged qutite right, retagging.
+
+ -- Todd Kover <kovert@omniscient.com>  Tue,  4 Sep 2018 13:00:00 -0400
+
 jazzhands-account-directory (0.83.1) bionic; urgency=medium
 
   * adjust depends on directory to use generic version of php-pgsql
