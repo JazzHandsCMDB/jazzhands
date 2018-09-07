@@ -1684,20 +1684,18 @@ create or replace function schema_support.relation_diff(
 ) returns boolean AS
 $$
 DECLARE
-	_or	RECORD;
-	_nr	RECORD;
-	_t1	integer;
-	_t2	integer;
-	_cols TEXT[];
-	_q TEXT;
-	_f TEXT;
-	_c RECORD;
-	_w TEXT[];
-	_ctl TEXT[];
+	_r		RECORD;
+	_diff	jsonb;
+	_t1		integer;
+	_t2		integer;
+	_cols 	TEXT[];
+	_pkcol 	TEXT[];
+	_q 		TEXT;
+	_f 		TEXT;
+	_c 		RECORD;
+	_w 		TEXT[];
+	_ctl 		TEXT[];
 	_rv	boolean;
-	_k	TEXT;
-	oj	jsonb;
-	nj	jsonb;
 BEGIN
 	-- do a simple row count
 	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || old_rel || '"' INTO _t1;
@@ -1714,18 +1712,6 @@ BEGIN
 		_rv := false;
 	END IF;
 
-	IF _t1 != _t2 THEN
-		RAISE NOTICE 'table % has % rows; table % has % rows', old_rel, _t1, new_rel, _t2;
-		_rv := false;
-	END IF;
-
-	IF NOT _rv THEN
-		IF raise_exception THEN
-			RAISE EXCEPTION 'Relations do not match';
-		END IF;
-		RETURN false;
-	END IF;
-
 	IF prikeys IS NULL THEN
 		-- read into prikeys the primary key for the table
 		IF key_relation IS NULL THEN
@@ -1739,55 +1725,106 @@ BEGIN
 
 	FOREACH _f IN ARRAY _cols
 	LOOP
-		SELECT array_append(_ctl,
-			quote_ident(_f) || '::text') INTO _ctl;
+		SELECT array_append(_ctl, quote_ident(_f) ) INTO _ctl;
 	END LOOP;
-
 	_cols := _ctl;
 
-	_q := 'SELECT '|| array_to_string(_cols,',') ||' FROM ' || quote_ident(schema) || '.' ||
-		quote_ident(old_rel);
-
-	FOR _or IN EXECUTE _q
+	_ctl := NULL;
+	FOREACH _f IN ARRAY prikeys
 	LOOP
-		_w = NULL;
-		FOREACH _f IN ARRAY prikeys
-		LOOP
-			FOR _c IN SELECT * FROM json_each_text( row_to_json(_or) )
-			LOOP
-				IF _c.key = _f THEN
-					SELECT array_append(_w,
-						quote_ident(_f) || '::text = ' || quote_literal(_c.value))
-					INTO _w;
-				END IF;
-			END LOOP;
-		END LOOP;
-		_q := 'SELECT ' || array_to_string(_cols,',') ||
-			' FROM ' || quote_ident(schema) || '.' ||
-			quote_ident(new_rel) || ' WHERE ' ||
-			array_to_string(_w, ' AND ' );
-		EXECUTE _q INTO _nr;
+		SELECT array_append(_ctl, quote_ident(_f) ) INTO _ctl;
+	END LOOP;
+	_pkcol := _ctl;
 
-		IF _or != _nr THEN
-			oj = row_to_json(_or);
-			nj = row_to_json(_nr);
-			FOR _k IN SELECT jsonb_object_keys(oj)
-			LOOP
-				IF NOT _k = ANY(prikeys) AND oj->>_k IS NOT DISTINCT FROM nj->>_k THEN
-					oj = oj - _k;
-					nj = nj - _k;
-				END IF;
-			END LOOP;
-			RAISE NOTICE 'mismatched row:';
-			RAISE NOTICE 'NEW: %', nj;
-			RAISE NOTICE 'OLD: %', oj;
-			_rv := false;
+
+	--
+	-- Number of rows mismatch.  Show the missing rows based on the
+	-- primary key.
+	--
+	IF _t1 != _t2 THEN
+		RAISE NOTICE 'table % has % rows; table % has % rows', old_rel, _t1, new_rel, _t2;
+		IF _t1 > _t2 THEN
+			_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+				' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+					quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+					' EXCEPT ( '
+						' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+						quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+					' )) ';
+		ELSE
+			_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+				' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+					quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+					' EXCEPT ( '
+						' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+						quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+					' )) ';
+
 		END IF;
 
+		FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
+		LOOP
+			RAISE NOTICE '%', _r;
+		END LOOP;
+
+		_rv := false;
+	END IF;
+
+	IF NOT _rv THEN
+		IF raise_exception THEN
+			RAISE EXCEPTION 'Relations do not match';
+		END IF;
+		RETURN false;
+	END IF;
+
+	-- At this point, the same number of rows appear in both, so need to
+	-- figure out rows that are different between them.
+
+	
+	-- SELECT row_to_json(o) as old, row_to_json(n) as new
+	-- FROM ( SELECT cols FROM old WHERE prikeys in Vv ) old,
+	-- JOIN ( SELECT cols FROM new WHERE prikeys in Vv ) new
+	-- USING (prikeys);
+	-- WHERE (prikeys) IN
+	-- ( SELECT  prikeys FROM (
+	--		( SELECT cols FROM old EXCEPT ( SELECT cols FROM new ) )
+	-- ))
+
+	_q := ' SELECT row_to_json(old) as old, row_to_json(new) as new FROM ' ||
+		'( SELECT '  || array_to_string(_cols,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(old_rel) || ' ) old ' ||
+		' JOIN ' ||
+		'( SELECT '  || array_to_string(_cols,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(new_rel) || ' ) new ' ||
+		' USING ( ' ||  array_to_string(_pkcol,',') || 
+		' ) WHERE (' || array_to_string(_pkcol,',') || ' ) IN (' ||
+		'SELECT ' || array_to_string(_pkcol,',')  || ' FROM ( ' ||
+			'( SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(old_rel) || 
+			' EXCEPT ' ||
+			'( SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(new_rel) || ' )) ' ||
+		' ) subq) ORDER BY ' || array_to_string(_pkcol,',')
+	;
+			
+	_t1 := 0;
+	FOR _r IN EXECUTE _q
+	LOOP
+		_t1 := _t1 + 1;
+		RAISE NOTICE 'mismatched row:';
+		RAISE NOTICE 'NEW: %', _r.new;
+		RAISE NOTICE 'OLD: %', _r.old;
+		_rv := false;
 	END LOOP;
 
 	IF NOT _rv AND raise_exception THEN
-		RAISE EXCEPTION 'Relations do not match';
+		RAISE EXCEPTION 'Relations do not match (% rows)', _t1;
+	ELSE
+		RAISE NOTICE '% rows mismatch', _t1;
 	END IF;
 	return _rv;
 END;
