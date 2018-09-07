@@ -1685,7 +1685,6 @@ create or replace function schema_support.relation_diff(
 $$
 DECLARE
 	_r		RECORD;
-	_diff	jsonb;
 	_t1		integer;
 	_t2		integer;
 	_cols 	TEXT[];
@@ -1696,6 +1695,8 @@ DECLARE
 	_w 		TEXT[];
 	_ctl 		TEXT[];
 	_rv	boolean;
+	_oj		jsonb;
+	_nj		jsonb;
 BEGIN
 	-- do a simple row count
 	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || old_rel || '"' INTO _t1;
@@ -1815,9 +1816,22 @@ BEGIN
 	FOR _r IN EXECUTE _q
 	LOOP
 		_t1 := _t1 + 1;
+		FOR _f IN SELECT json_object_keys(_r.new)
+		LOOP
+			IF _f = ANY ( prikeys ) OR _r.old->>_f IS DISTINCT FROM _r.new->>_f 
+			THEN
+				IF _oj IS NULL THEN
+					_oj := jsonb_build_object(_f, _r.old->>_f);
+					_nj := jsonb_build_object(_f, _r.new->>_f);
+				ELSE
+					_oj := _oj || jsonb_build_object(_f, _r.old->>_f);
+					_nj := _nj || jsonb_build_object(_f, _r.new->>_f);
+				END IF;
+			END IF;
+		END LOOP;
 		RAISE NOTICE 'mismatched row:';
-		RAISE NOTICE 'NEW: %', _r.new;
-		RAISE NOTICE 'OLD: %', _r.old;
+		RAISE NOTICE 'NEW: %', _oj;
+		RAISE NOTICE 'OLD: %', _nj;
 		_rv := false;
 	END LOOP;
 
