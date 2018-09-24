@@ -7,5 +7,5 @@ Standards-Version: 3.9.4
 
 Package: jazzhands-account-directory
 Architecture: all
-Depends: perl, perl-jazzhands-dbi, libdbd-pg-perl, perl-jazzhands-appauthal, php-pgsql, netpbm, libjpeg8, libdigest-sha-perl, jazzhands-javascript-common
+Depends: ${misc:Depends}, ${perl:Depends}, perl-jazzhands-dbi, libdbd-pg-perl, perl-jazzhands-appauthal, php-pgsql, netpbm, libjpeg8, libdigest-sha-perl, jazzhands-javascript-common, libcgi-pm-perl
 Description: Rudimentary Web site for Acccount Directory
