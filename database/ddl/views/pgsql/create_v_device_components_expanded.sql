@@ -23,7 +23,7 @@ WITH ctf AS (
 		jazzhands.component_type_component_func ctcf
 	GROUP BY
 		ctcf.component_type_id
-), ds AS (
+), disksize AS (
 	SELECT
 		cp.component_type_id,
 		cp.property_value::bigint AS disk_size
@@ -32,7 +32,16 @@ WITH ctf AS (
 	WHERE
 		cp.component_property_name::text = 'DiskSize'::text AND
 		cp.component_property_type::text = 'disk'::text
-), ms AS (
+), mediatype AS (
+	SELECT
+		cp.component_type_id,
+		cp.property_value::text AS media_type
+	FROM
+		jazzhands.component_property cp
+	WHERE
+		cp.component_property_name::text = 'MediaType'::text AND
+		cp.component_property_type::text = 'disk'::text
+), memsize AS (
 	SELECT
 	 	cp.component_type_id,
 		cp.property_value::bigint AS memory_size
@@ -41,6 +50,16 @@ WITH ctf AS (
 	WHERE
 		cp.component_property_name::text = 'MemorySize'::text AND
 		cp.component_property_type::text = 'memory'::text
+), memspeed AS (
+	SELECT
+	 	cp.component_type_id,
+		cp.property_value::bigint AS memory_speed
+	FROM
+		jazzhands.component_property cp
+	WHERE
+		cp.component_property_name::text = 'MemorySpeed'::text AND
+		cp.component_property_type::text = 'memory'::text
+
 )
 SELECT
 	dc.device_id,
@@ -50,14 +69,18 @@ SELECT
     a.serial_number,
     ctf.functions,
     s.slot_name,
-    ms.memory_size,
-    ds.disk_size
+    memsize.memory_size,
+    memspeed.memory_speed,
+    disksize.disk_size,
+	mediatype.media_type
 FROM
 	jazzhands.v_device_components dc JOIN
 	jazzhands.component c ON dc.component_id = c.component_id LEFT JOIN
 	jazzhands.asset a ON c.component_id = a.component_id JOIN
 	jazzhands.component_type ct USING (component_type_id) JOIN
 	ctf USING (component_type_id) LEFT JOIN
-	ds USING (component_type_id) LEFT JOIN
-	ms USING (component_type_id) LEFT JOIN
+	disksize USING (component_type_id) LEFT JOIN
+	mediatype USING (component_type_id) LEFT JOIN
+	memsize USING (component_type_id) LEFT JOIN
+	memspeed USING (component_type_id) LEFT JOIN
 	jazzhands.slot s ON c.parent_slot_id = s.slot_id;
