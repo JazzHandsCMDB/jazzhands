@@ -9,14 +9,18 @@
 -- rather than to devices, so it does not expand the same way.  Conceptually
 -- I don't think this is a bug, but I need to revisit. XXX
 --
+CREATE OR REPLACE VIEW service_end_to_end AS
 SELECT	service_id, service_name, service_endpoint_id,
 	dns.dns_record_id, dns.dns_name, dom.dns_domain_name,
 	pr.port_start,
-	service_name, service_endpoint_provider_name,
+	service_endpoint_provider_name,
+	service_endpoint_provider_type as sep_type,
 	service_endpoint_provider_collection_name,
+	service_endpoint_provider_collection_type as sepc_type,
+	service_endpoint_provider_id,
 	service_endpoint_provider_member_id,
 	service_endpoint_relation_type, service_endpoint_relation_key,
-	service_instance_id, service_version_id, service_endpoint_provider_id,
+	service_instance_id, service_version_id, 
 	version_name,
 	device_id, device_name, client_port
 FROM	service
@@ -44,3 +48,5 @@ FROM	service
 WHERE service_name IN ('stab', 'cloud-puppet-server')
 ORDER BY 1
 ;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA jazzhands TO ro_role;
