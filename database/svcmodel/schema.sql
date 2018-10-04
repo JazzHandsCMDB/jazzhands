@@ -448,7 +448,8 @@ CREATE TABLE service_instance (
 	netblock_id		integer		NULL,
 	port_range_id		integer		NULL,
 	PRIMARY KEY (service_instance_id),
-	UNIQUE (device_id,service_version_id)
+	UNIQUE (device_id,service_version_id),
+	UNIQUE (device_id,port_range_id),
 );
 
 DROP TABLE IF EXISTS service_endpoint_service_sla CASCADE;
