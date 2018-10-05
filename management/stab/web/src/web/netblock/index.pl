@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2010-2017 Todd M. Kover
+# Copyright (c) 2010-2018 Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -732,8 +732,8 @@ sub do_dump_netblock {
 		  ( length( $x->{kids} ) )
 		  ? $cgi->li( { -class => 'nbnokids' }, $x->{kids} )
 		  : "";
-		$tiers[$#tiers]->{kids} .=
-		  $cgi->ul( { -class => 'nbhier' }, $x->{label}, $k );
+		$tiers[$#tiers]->{kids} .= $cgi->li( { -class => 'nbkids' },
+			$cgi->ul( { -class => 'nbhier' }, $x->{label}, $k ) );
 	}
 	my $x = pop @tiers;
 	print $cgi->ul( { -class => 'nbhier' }, $x->{label}, $x->{kids} );
