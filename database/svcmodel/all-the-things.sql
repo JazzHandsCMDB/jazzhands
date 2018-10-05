@@ -1,4 +1,4 @@
-\pager off
+\setenv PAGER cat
 \set ON_ERROR_STOP
 
 \c - postgres
@@ -79,9 +79,10 @@ SET search_path=jazzhands,cloudapi;
 
 commit;
 \c - jazzhands
+begin;
 \i helpful-queries.sql
 commit;
 
 \c - postgres
 revoke dba from cloudapi;
-\pager on
+\setenv PAGER
