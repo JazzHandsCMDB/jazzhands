@@ -53,6 +53,10 @@ CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_networks (
 DECLARE
 	netblock_id_list	integer[];
 BEGIN
+	IF array_length(layer2_network_id_list, 1) IS NULL THEN
+		RETURN;
+	END IF;
+
 	BEGIN
 		PERFORM local_hooks.delete_layer2_networks_before_hooks(
 			layer2_network_id_list := layer2_network_id_list
@@ -118,6 +122,10 @@ DECLARE
 	netblock_id_list			integer[];
 	network_interface_id_list	integer[];
 BEGIN
+	IF array_length(layer3_network_id_list, 1) IS NULL THEN
+		RETURN;
+	END IF;
+
 	BEGIN
 		PERFORM local_hooks.delete_layer3_networks_before_hooks(
 			layer3_network_id_list := layer3_network_id_list

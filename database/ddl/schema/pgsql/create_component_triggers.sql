@@ -245,7 +245,32 @@ BEGIN
 				slot1.slot_type_id = pst.remote_slot_type_id));
 
 	IF NOT FOUND THEN
-		RAISE EXCEPTION 'Slot types are not allowed to be connected'
+		SELECT
+			slot1.slot_type_id AS slot1_slot_type_id,
+			slot1.slot_id AS slot1_slot_id,
+			slot1.component_id AS slot1_component_id,
+			slot1.slot_function AS slot1_slot_function,
+			slot2.slot_type_id AS slot2_slot_type_id,
+			slot2.slot_id AS slot2_slot_id,
+			slot2.component_id AS slot2_component_id,
+			slot2.slot_function AS slot2_slot_function
+		INTO slot_type_info
+		FROM
+			(slot cs1 JOIN slot_type st1 USING (slot_type_id)) slot1,
+			(slot cs2 JOIN slot_type st2 USING (slot_type_id)) slot2
+		WHERE
+			slot1.slot_id = NEW.slot1_id AND
+			slot2.slot_id = NEW.slot2_id;
+
+		RAISE EXCEPTION E'Slot types are not allowed to be connected:\nSlot %, component_id %, slot_type %, slot_function %\nSlot %, component_id %, slot_type %, slot_function %',
+			slot_type_info.slot1_slot_id,
+			slot_type_info.slot1_component_id,
+			slot_type_info.slot1_slot_type_id,
+			slot_type_info.slot1_slot_function,
+			slot_type_info.slot2_slot_id,
+			slot_type_info.slot2_component_id,
+			slot_type_info.slot2_slot_type_id,
+			slot_type_info.slot2_slot_function
 			USING ERRCODE = 'check_violation';
 	END IF;
 
@@ -423,8 +448,11 @@ BEGIN
 						valid_property_value = NEW.property_value;
 			EXCEPTION
 				WHEN NO_DATA_FOUND THEN
-					RAISE 'property_value must be a valid value' USING
-						ERRCODE = 'invalid_parameter_value';
+					RAISE 'property_value for component_property_name %, component_property_type % must be a valid value ("%")',
+						NEW.component_property_name,
+						NEW.component_property_type,
+						NEW.property_value
+						USING ERRCODE = 'invalid_parameter_value';
 			END;
 		ELSIF v_comp_prop.property_data_type != 'string' THEN
 			RAISE 'property_data_type is not a known type' USING

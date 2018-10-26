@@ -58,7 +58,7 @@ BEGIN
 	/*
 	 * If the universe is not set, we used to assume 0/default, but now
 	 * its the same namespace.  In the interest of speed, we assume a
-	 * default namespace of 0, which is kind of like before, and 
+	 * default namespace of 0, which is kind of like before, and
 	 * assume that if there's no match, 0 should be returned, which
 	 * is also like before, which basically is just all the defaults.
 	 * The assumption is that if multiple namespaces are used, then
@@ -763,4 +763,13 @@ CREATE TRIGGER trigger_netblock_single_address_ni
 	ON netblock
 	FOR EACH ROW
 	EXECUTE PROCEDURE netblock_single_address_ni();
+
+------------------------------------------------------------------------
+-- NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE
+-- NOTE
+-- NOTE -- There are other files that have netblock related triggers
+-- NOTE -- such as network_range
+-- NOTE
+-- NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE
+------------------------------------------------------------------------
 

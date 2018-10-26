@@ -20,11 +20,22 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --
+
+-- Copyright (c) 2018, Matthew Ragan
+-- All rights reserved.
 --
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
 --
+--       http://www.apache.org/licenses/LICENSE-2.0
 --
--- $Id$
---
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 
 -- XXX - Not sure if these two are still needed.  Leaving out until it is
 -- \ir accountview.sql
@@ -35,7 +46,7 @@
 -- \ir create_v_user_deletions.sql
 
 -- XXX - not sure if this is still needed.  Leaving out until it is
--- \ir create_v_user_extract.sql 
+-- \ir create_v_user_extract.sql
 \ir pgsql/create_v_property.sql
 \ir pgsql/create_v_nblk_coll_netblock_expanded.sql
 \ir pgsql/create_v_person_company_expanded.sql
@@ -54,9 +65,13 @@
 
 -- components
 
+\ir pgsql/create_ct_component_hier.sql
+\ir pgsql/create_ct_device_components.sql
 \ir pgsql/create_v_device_slots.sql
-\ir pgsql/create_v_device_components.sql
 \ir pgsql/create_v_device_components_expanded.sql
+\ir pgsql/create_v_device_components_json.sql
+\ir pgsql/create_v_device_component_summary.sql
+
 \ir pgsql/create_v_device_slot_connections.sql
 
 \ir create_physical_port.sql
@@ -74,8 +89,8 @@
 \ir pgsql/create_v_device_coll_hier_detail.sql
 -- \ir create_v_device_col_acct_collection_expanded.sql
 -- \ir create_mv_account_last_auth.sql
--- \ir pgsql/create_mv_acct_collection_user_expanded_detail.sql 
--- \ir create_v_user_prop_expanded.sql 
+-- \ir pgsql/create_mv_acct_collection_user_expanded_detail.sql
+-- \ir create_v_user_prop_expanded.sql
 -- \ir pgsql/create_mv_acct_collection_user_expanded.sql
 -- NOTE, some of these above may have been ported; need to dig into. XXX
 \ir pgsql/create_v_account_collection_account.sql
@@ -138,7 +153,6 @@
 
 -- logical volumes
 \ir pgsql/create_v_lv_hier.sql
-\ir pgsql/create_v_component_hier.sql
 
 \ir create_v_account_manager_map.sql
 \ir pgsql/create_v_account_manager_hier.sql

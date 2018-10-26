@@ -89,8 +89,8 @@ BEGIN
 		   SET	service_env_collection_name = NEW.service_environment_name
 		 WHERE	service_env_collection_name != NEW.service_environment_name
 		   AND	service_env_collection_type = 'per-environment'
-		   AND	service_environment_id in (
-			SELECT	service_environment_id
+		   AND	service_env_collection_id in (
+			SELECT	service_env_collection_id
 			  FROM	svc_environment_coll_svc_env
 			 WHERE	service_environment_id =
 				NEW.service_environment_id

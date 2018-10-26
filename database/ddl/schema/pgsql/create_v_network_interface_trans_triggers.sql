@@ -30,8 +30,8 @@ BEGIN
                 parent_relation_type, physical_port_id,
 		slot_id, logical_port_id,
 		network_interface_type, is_interface_up,
-		mac_addr, should_monitor, provides_nat,
-                should_manage, provides_dhcp
+		mac_addr, should_monitor,
+                should_manage
 	) VALUES (
                 NEW.device_id,
                 NEW.network_interface_name, NEW.description,
@@ -39,8 +39,8 @@ BEGIN
                 NEW.parent_relation_type, NEW.physical_port_id,
                 NEW.slot_id, NEW.logical_port_id,
                 NEW.network_interface_type, NEW.is_interface_up,
-                NEW.mac_addr, NEW.should_monitor, NEW.provides_nat,
-                NEW.should_manage, NEW.provides_dhcp
+                NEW.mac_addr, NEW.should_monitor,
+                NEW.should_manage
 	) RETURNING * INTO _ni;
 
 	IF NEW.netblock_id IS NOT NULL THEN
@@ -64,9 +64,7 @@ BEGIN
 	NEW.is_interface_up := _ni.is_interface_up;
 	NEW.mac_addr := _ni.mac_addr;
 	NEW.should_monitor := _ni.should_monitor;
-	NEW.provides_nat := _ni.provides_nat;
 	NEW.should_manage := _ni.should_manage;
-	NEW.provides_dhcp :=_ni.provides_dhcp;
 	NEW.data_ins_user :=_ni.data_ins_user;
 	NEW.data_ins_date := _ni.data_ins_date;
 	NEW.data_upd_user := _ni.data_upd_user;
@@ -208,17 +206,9 @@ BEGIN
 			upd_query := array_append(upd_query,
 				'should_monitor = ' || quote_nullable(NEW.should_monitor));
 		END IF;
-		IF NEW.provides_nat IS DISTINCT FROM OLD.provides_nat THEN
-			upd_query := array_append(upd_query,
-				'provides_nat = ' || quote_nullable(NEW.provides_nat));
-		END IF;
 		IF NEW.should_manage IS DISTINCT FROM OLD.should_manage THEN
 			upd_query := array_append(upd_query,
 				'should_manage = ' || quote_nullable(NEW.should_manage));
-		END IF;
-		IF NEW.provides_dhcp IS DISTINCT FROM OLD.provides_dhcp THEN
-			upd_query := array_append(upd_query,
-				'provides_dhcp = ' || quote_nullable(NEW.provides_dhcp));
 		END IF;
 
 		IF upd_query IS NOT NULL THEN
@@ -240,9 +230,7 @@ BEGIN
 			NEW.is_interface_up := _ni.is_interface_up;
 			NEW.mac_addr := _ni.mac_addr;
 			NEW.should_monitor := _ni.should_monitor;
-			NEW.provides_nat := _ni.provides_nat;
 			NEW.should_manage := _ni.should_manage;
-			NEW.provides_dhcp := _ni.provides_dhcp;
 			NEW.data_ins_user := _ni.data_ins_user;
 			NEW.data_ins_date := _ni.data_ins_date;
 			NEW.data_upd_user := _ni.data_upd_user;

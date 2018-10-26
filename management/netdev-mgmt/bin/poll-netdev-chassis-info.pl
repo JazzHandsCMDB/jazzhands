@@ -791,7 +791,10 @@ foreach my $host (@$hostname) {
 		if ($asset->{serial_number} &&
 			$asset->{serial_number} ne $chassisinfo->{serial})
 		{
-			printf STDERR "Serial number of asset does not match.  This needs to be fixed manually because of things\n";
+			printf STDERR "Serial number of asset does not match (asset %d: %s vs %s).  This needs to be fixed manually because of things\n",
+				$asset->{asset_id},
+				$asset->{serial_number},
+				$chassisinfo->{serial};
 			next;
 		}
 		if (!$asset->{component_id}) {

@@ -635,12 +635,12 @@ BEGIN
 	RAISE LOG 'Removing directly-assigned netblocks...';
 
 	DELETE FROM network_interface_netblock WHERE network_interface_id IN (
-			SELECT
-				network_interface_id
-		 	FROM
-				network_interface ni
-			WHERE
-				ni.network_interface_id = ANY (network_interface_id_list)
+		SELECT
+			network_interface_id
+	 	FROM
+			network_interface ni
+		WHERE
+			ni.network_interface_id = ANY (network_interface_id_list)
 	);
 
 	RAISE LOG 'Removing network_interfaces...';
@@ -651,7 +651,7 @@ BEGIN
 	DELETE FROM network_interface ni WHERE ni.network_interface_id =
 		ANY(network_interface_id_list);
 
-	RAISE LOG 'Removing netblocks...';
+	RAISE LOG 'Removing netblocks (%) ... ', nb_list; 
 	IF nb_list IS NOT NULL THEN
 		FOREACH nb_id IN ARRAY nb_list LOOP
 			BEGIN

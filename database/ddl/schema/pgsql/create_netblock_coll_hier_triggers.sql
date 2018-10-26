@@ -88,8 +88,9 @@ BEGIN
 		  where netblock_id = NEW.netblock_id
 		  and	netblock_collection_type = nct.netblock_collection_type;
 		IF tally > nct.MAX_NUM_COLLECTIONS THEN
-			RAISE EXCEPTION 'Netblock may not be a member of more than % collections of type %',
-				nct.MAX_NUM_COLLECTIONS, nct.netblock_collection_type
+			RAISE EXCEPTION 'Netblock may not be a member of more than % collections of type % (% %)',
+				nct.MAX_NUM_COLLECTIONS, nct.netblock_collection_type,
+				NEW.netblock_collection_id, NEW.netblock_id
 				USING ERRCODE = 'unique_violation';
 		END IF;
 	END IF;

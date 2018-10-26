@@ -330,7 +330,7 @@ BEGIN
 		sofar := sofar || elem;
 		parent_zone := regexp_replace(soa_name, '^'||sofar||'.', '');
 		EXECUTE 'SELECT dns_domain_id FROM dns_domain 
-			WHERE soa_name = $1' INTO parent_id USING soa_name;
+			WHERE soa_name = $1' INTO parent_id USING parent_zone;
 		IF parent_id IS NOT NULL THEN
 			EXIT;
 		END IF;
@@ -406,6 +406,21 @@ BEGIN
 
 	IF add_nameservers THEN
 		PERFORM dns_utils.add_ns_records(domain_id);
+	END IF;
+
+	--
+	-- XXX - need to reconsider how ip universes fit into this.
+	IF parent_id IS NOT NULL THEN
+		INSERT INTO dns_change_record (
+			dns_domain_id
+		) SELECT dns_domain_id
+		FROM dns_domain
+		WHERE dns_domain_id = parent_id
+		AND dns_domain_id IN (
+			SELECT dns_domain_id
+			FROM dns_domain_ip_universe
+			WHERE should_generate = 'Y'
+		);
 	END IF;
 
 	RETURN domain_id;
