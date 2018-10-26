@@ -72,6 +72,8 @@ begin;
 \i xen.sql
 \i kvm.sql
 
+commit;
+
 \c - postgres
 begin;
 SET search_path=jazzhands,cloudapi;
