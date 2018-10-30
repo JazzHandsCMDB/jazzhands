@@ -1,4 +1,4 @@
-jazzhands-dhcpgen (0.81.6) trusty; urgency=medium
+jazzhands-dhcpgen (0.83.3) trusty; urgency=medium
 
   * Support for ConfigStanza property to insert ad-hoc configuration into
     various stanzas
