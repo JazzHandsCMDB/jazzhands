@@ -967,7 +967,10 @@ sub generate_dhcp_configs {
 
 	my $devices = {};
 	while (my $row = $sth->fetchrow_hashref) {
-		next if (!exists($layer2_networks->{$row->{layer2_network_id}}));
+		next if (
+			!defined($row->{layer2_network_id}) ||
+			!exists($layer2_networks->{$row->{layer2_network_id}})
+		);
 
 		if (exists($layer2_networks->{$row->{layer2_network_id}}->
 				{dhcp_assignments})) {
