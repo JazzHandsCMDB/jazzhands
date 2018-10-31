@@ -164,7 +164,7 @@ sub get_my_hosts($$) {
 		SELECT distinct device_name from (
 		SELECT	coalesce(p.site_code, d.site_code) as site_code,
 			d.device_name
- 		FROM	device d
+		FROM	device d
 			INNER JOIN device_collection_device dcd  USING
 				(device_id)
 			INNER JOIN v_device_coll_hier_detail h  USING
@@ -278,11 +278,15 @@ sub lock_db_changes($;$$) {
 		}
 	}
 
+	#
+	# now() is set to start of transaction
+	#
 	my $sth = $dbh->prepare_cached(
 		qq{
-		select	dns_change_record_id
-		  from	dns_change_record
-		order by dns_change_record_id
+		SELECT	dns_change_record_id
+		  FROM	dns_change_record
+		 WHERE	data_ins_date < now()
+		ORDER BY dns_change_record_id
 		FOR UPDATE  $nowait
 	}
 	) || die $dbh->errstr;
@@ -762,7 +766,6 @@ sub process_domain {
 	my ( $fn, $tmpfn );
 
 	if ($zoneroot) {
-
 		#my $dir = "$zoneroot/$uname/$inaddr";
 		my $dir = "$zoneroot/$inaddr";
 		$self->mkdir_p($dir) if ( !-d $dir );
