@@ -1449,7 +1449,8 @@ CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(
 	in_start_time	timestamp DEFAULT NULL,
 	in_end_time		timestamp DEFAULT NULL,
 	in_aud_user		text DEFAULT NULL,
-	in_audit_ids	integer[] DEFAULT NULL
+	in_audit_ids	integer[] DEFAULT NULL,
+	in_txids		bigint[] DEFAULT NULL
 ) RETURNS INTEGER AS $$
 DECLARE
 	tally	integer;
@@ -1500,8 +1501,15 @@ BEGIN
 		ELSE
 			q := q || 'AND ';
 		END IF;
-		q := q || quote_ident('aud#seq') || ' IN ( ' ||
-			array_to_string(in_audit_ids, ',') || ')';
+		q := q || quote_ident('aud#seq') || ' = ANY (in_audit_ids)';
+	END IF;
+	IF in_audit_ids is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#txid') || ' = ANY (in_txids)';
 	END IF;
 
 	-- Iterate over all the rows that need to be replayed
