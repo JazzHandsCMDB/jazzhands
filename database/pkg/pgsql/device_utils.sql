@@ -481,6 +481,7 @@ BEGIN
 			WHEN foreign_key_violation THEN
 				UPDATE device d SET
 					device_name = NULL,
+					component_id = NULL,
 					service_environment_id = se_id,
 					device_status = 'removed',
 					is_monitored = 'N',
