@@ -241,43 +241,73 @@ BEGIN
 	END IF;
 
 	IF NEW.employee_id IS NOT NULL THEN
-		UPDATE person_company_attr
-		SET	attribute_value = NEW.employee_id
-		WHERE person_company_attr_name = 'employee_id'
-		AND person_id = NEW.person_id
-		AND company_id = NEW.company_id;
+		INSERT INTO person_company_attr AS pca (
+			company_id, person_id, person_company_attr_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'employee_id', NEW.employee_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attr
+		DO UPDATE
+			SET	attribute_value = NEW.employee_id
+			WHERE pca.person_company_attr_name = 'employee_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id;
+
 	END IF;
 
 	IF NEW.payroll_id IS NOT NULL THEN
-		UPDATE person_company_attr
-		SET	attribute_value = NEW.payroll_id
-		WHERE person_company_attr_name = 'payroll_id'
-		AND person_id = NEW.person_id
-		AND company_id = NEW.company_id;
+		INSERT INTO person_company_attr AS pca (
+			company_id, person_id, person_company_attr_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'payroll_id', NEW.payroll_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attr
+		DO
+			UPDATE
+			SET	attribute_value = NEW.payroll_id
+			WHERE pca.person_company_attr_name = 'payroll_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id;
 	END IF;
 
 	IF NEW.external_hr_id IS NOT NULL THEN
-		UPDATE person_company_attr
-		SET	attribute_value = NEW.external_hr_id
-		WHERE person_company_attr_name = 'external_hr_id'
-		AND person_id = NEW.person_id
-		AND company_id = NEW.company_id;
+		INSERT INTO person_company_attr AS pca (
+			company_id, person_id, person_company_attr_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'external_hr_id', NEW.external_hr_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attr
+		DO
+			UPDATE
+			SET	attribute_value = NEW.external_hr_id
+			WHERE pca.person_company_attr_name = 'external_hr_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id;
 	END IF;
 
 	IF NEW.badge_system_id IS NOT NULL THEN
-		UPDATE person_company_attr
-		SET	attribute_value = NEW.badge_system_id
-		WHERE person_company_attr_name = 'badge_system_id'
-		AND person_id = NEW.person_id
-		AND company_id = NEW.company_id;
+		INSERT INTO person_company_attr AS pca (
+			company_id, person_id, person_company_attr_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'badge_system_id', NEW.badge_system_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attr
+		DO
+			UPDATE
+			SET	attribute_value = NEW.badge_system_id
+			WHERE pca.person_company_attr_name = 'badge_system_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id;
 	END IF;
 
 	IF NEW.supervisor_person_id IS NOT NULL THEN
-		UPDATE person_company_attr
-		SET	attribute_value_person_id = NEW.supervisor_person_id
-		WHERE person_company_attr_name = 'supervisor_id'
-		AND person_id = NEW.person_id
-		AND company_id = NEW.company_id;
+		INSERT INTO person_company_attr AS pca (
+			company_id, person_id, person_company_attr_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'supervisor_person_id', NEW.supervisor_person_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attr
+		DO
+			UPDATE
+			SET	attribute_value = NEW.supervisor_person_id
+			WHERE pca.person_company_attr_name = 'supervisor_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id;
 	END IF;
 
 	RETURN NEW;
