@@ -240,7 +240,7 @@ BEGIN
 		NEW.data_upd_date := _pc.data_upd_date;
 	END IF;
 
-	IF NEW.employee_id IS NOT NULL THEN
+	IF NEW.employee_id IS NOT NULL AND OLD.employee_id IS DISTINCT FROM NEW.employee_id  THEN
 		INSERT INTO person_company_attr AS pca (
 			company_id, person_id, person_company_attr_name, attribute_value
 		) VALUES (
@@ -254,7 +254,7 @@ BEGIN
 
 	END IF;
 
-	IF NEW.payroll_id IS NOT NULL THEN
+	IF NEW.payroll_id IS NOT NULL AND OLD.payroll_id IS DISTINCT FROM NEW.payroll_id THEN
 		INSERT INTO person_company_attr AS pca (
 			company_id, person_id, person_company_attr_name, attribute_value
 		) VALUES (
@@ -268,7 +268,7 @@ BEGIN
 			AND pca.company_id = NEW.company_id;
 	END IF;
 
-	IF NEW.external_hr_id IS NOT NULL THEN
+	IF NEW.external_hr_id IS NOT NULL AND OLD.external_hr_id IS DISTINCT FROM NEW.external_hr_id THEN
 		INSERT INTO person_company_attr AS pca (
 			company_id, person_id, person_company_attr_name, attribute_value
 		) VALUES (
@@ -282,7 +282,7 @@ BEGIN
 			AND pca.company_id = NEW.company_id;
 	END IF;
 
-	IF NEW.badge_system_id IS NOT NULL THEN
+	IF NEW.badge_system_id IS NOT NULL AND OLD.badge_system_id IS DISTINCT FROM NEW.badge_system_id THEN
 		INSERT INTO person_company_attr AS pca (
 			company_id, person_id, person_company_attr_name, attribute_value
 		) VALUES (
@@ -296,11 +296,11 @@ BEGIN
 			AND pca.company_id = NEW.company_id;
 	END IF;
 
-	IF NEW.supervisor_person_id IS NOT NULL THEN
+	IF NEW.supervisor_person_id IS NOT NULL AND OLD.supervisor_person_id IS DISTINCT FROM NEW.supervisor_person_id THEN
 		INSERT INTO person_company_attr AS pca (
 			company_id, person_id, person_company_attr_name, attribute_value
 		) VALUES (
-			NEW.company_id, NEW.person_id, 'supervisor_person_id', NEW.supervisor_person_id
+			NEW.company_id, NEW.person_id, 'supervisor__id', NEW.supervisor_person_id
 		) ON CONFLICT ON CONSTRAINT pk_person_company_attr
 		DO
 			UPDATE
