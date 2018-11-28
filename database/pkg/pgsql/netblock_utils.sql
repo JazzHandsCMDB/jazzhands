@@ -559,13 +559,17 @@ BEGIN
 					jazzhands.netblock start_nb,
 					jazzhands.netblock stop_nb
 				WHERE
-					nr.start_netblock_id = start_nb.netblock_id AND
-					nr.stop_netblock_id = stop_nb.netblock_id AND
-					nr.parent_netblock_id = netblock_rec.netblock_id AND
-					start_nb.ip_address <= 
-						set_masklen(current_ip, masklen(start_nb.ip_address))
-					AND stop_nb.ip_address >=
-						set_masklen(current_ip, masklen(stop_nb.ip_address));
+					family(current_ip) = family(start_nb.ip_address) AND
+					family(current_ip) = family(stop_nb.ip_address) AND
+					(
+						nr.start_netblock_id = start_nb.netblock_id AND
+						nr.stop_netblock_id = stop_nb.netblock_id AND
+						nr.parent_netblock_id = netblock_rec.netblock_id AND
+						start_nb.ip_address <=
+							set_masklen(current_ip, masklen(start_nb.ip_address))
+						AND stop_nb.ip_address >=
+							set_masklen(current_ip, masklen(stop_nb.ip_address))
+					);
 
 				IF FOUND THEN
 					current_ip := CASE 
