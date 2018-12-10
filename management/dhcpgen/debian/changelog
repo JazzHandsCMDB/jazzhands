@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.83.6) trusty; urgency=medium
+
+  * Added support for Debian/Ubuntu isc-dhcp-server restart
+
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 10 Dec 2018 16:19:06 +0000
+
 jazzhands-dhcpgen (0.83.3) trusty; urgency=medium
 
   * Support for ConfigStanza property to insert ad-hoc configuration into

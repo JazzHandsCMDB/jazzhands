@@ -369,8 +369,12 @@ sub do_rebuild {
 
 	if ($ret) {
 		$log->info ("Rebuild completed successfully");
-		if ($conf->{restart_dhcpd} && -x "/etc/init.d/dhcpd") {
-			system("/etc/init.d/dhcpd restart");
+		if ($conf->{restart_dhcpd}) {
+			if (-x "/etc/init.d/dhcpd") {
+				system("/etc/init.d/dhcpd restart");
+			} if (-x "/etc/init.d/isc-dhcp-server") {
+				system("/etc/init.d/isc-dhcp-server restart");
+			}
 		}
 	} else {
 		$log->error(sprintf("FAIL: %s", join ("\n", @errors)));
