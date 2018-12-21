@@ -831,7 +831,8 @@ sub generate_dhcp_configs {
 			netblock en ON (en.netblock_id = r.stop_netblock_id) JOIN
 			layer3_network l3 ON (r.parent_netblock_id = l3.netblock_id)
 		WHERE
-			network_range_type = 'dhcp_lease_pool'
+			network_range_type = 'dhcp_lease_pool' AND
+			family(n.ip_address) = 4
 	};
 
 
@@ -943,7 +944,10 @@ sub generate_dhcp_configs {
 						mac_addr IS NULL
 				) ni2 ON (d.device_id = ni2.device_id AND ni2.ni_rank = 1)
 			) dhcp JOIN
-			netblock n USING (netblock_id) JOIN
+			netblock n ON (
+				dhcp.netblock_id = n.netblock_id AND
+				family(n.ip_address) = 4
+			) JOIN
 			layer3_network l3 ON (n.parent_netblock_id = l3.netblock_id)
 	};
 
@@ -963,7 +967,10 @@ sub generate_dhcp_configs {
 
 	my $devices = {};
 	while (my $row = $sth->fetchrow_hashref) {
-		next if (!exists($layer2_networks->{$row->{layer2_network_id}}));
+		next if (
+			!defined($row->{layer2_network_id}) ||
+			!exists($layer2_networks->{$row->{layer2_network_id}})
+		);
 
 		if (exists($layer2_networks->{$row->{layer2_network_id}}->
 				{dhcp_assignments})) {

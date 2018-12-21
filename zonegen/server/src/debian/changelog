@@ -1,3 +1,9 @@
+jazzhands-zonegen-server (0.83.4) trusty; urgency=medium
+
+  * only process change records from before transaction start
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 31 Oct 2018 16:38:22 -0400
+
 jazzhands-zonegen-server (0.80.9) trusty; urgency=medium
 
   * fix @ signs leaking into SOA records

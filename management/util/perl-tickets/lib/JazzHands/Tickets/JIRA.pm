@@ -46,7 +46,7 @@ sub new {
 	$self->{_service}   = $args{service};
 	$self->{_project}   = $args{project};
 	$self->{_priority}  = $args{priority} || 'Critical';
-	$self->{_issuetype} = $args{priority} || 'Task';
+	$self->{_issuetype} = $args{issuetype} || 'Task';
 	$self->{_dryrun}    = 1 if ( $args{dryrun} );
 	$self->{_debug}     = 1 if ( $args{debug} );
 

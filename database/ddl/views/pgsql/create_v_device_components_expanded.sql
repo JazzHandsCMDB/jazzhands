@@ -65,6 +65,7 @@ SELECT
 	dc.device_id,
     c.component_id,
 	s.slot_id,
+	comp.company_name AS vendor,
     ct.model,
     a.serial_number,
     ctf.functions,
@@ -79,6 +80,7 @@ FROM
 	jazzhands.asset a ON c.component_id = a.component_id JOIN
 	jazzhands.component_type ct USING (component_type_id) JOIN
 	ctf USING (component_type_id) LEFT JOIN
+	company comp USING (company_id) LEFT JOIN
 	disksize USING (component_type_id) LEFT JOIN
 	mediatype USING (component_type_id) LEFT JOIN
 	memsize USING (component_type_id) LEFT JOIN
