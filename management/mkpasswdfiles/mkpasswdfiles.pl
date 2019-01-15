@@ -140,6 +140,19 @@ my (
 
 my ($support_email);
 
+if ( ! -d $o_output_dir ) {
+    print "ERROR: $o_output_dir does not exist\n\n";
+    exit(1);
+}
+
+my (undef, undef, undef, undef, $uid) = stat($o_output_dir);
+if ( $< != $uid ) {
+    my $target_user = getpwuid($uid);
+    print "ERROR: $o_output_dir is owned by $target_user (UID $uid)\n";
+    print "This program must be run as that user to prevent file permission errors.\n\n";
+    exit(1);
+}
+
 main();
 exit(0);
 
@@ -1764,8 +1777,6 @@ sub main {
 		die "mkpwdfiles: ", $dbh->errstr;
 	}
 
-	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
-
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
 
 	# umask(027);
@@ -1814,8 +1825,6 @@ sub main {
 	## create any per-host files
 	generate_passwd_files("$o_output_dir/hosts", 'per-host');
 	generate_group_files("$o_output_dir/hosts", 'per-host');
-
-	$dbh->do("SELECT script_hooks.mkpasswdfiles_post()");
 
 	$dbh->disconnect;
 
