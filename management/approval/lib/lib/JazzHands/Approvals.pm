@@ -192,7 +192,7 @@ sub open_new_issues($$) {
 		AND  ais.is_completed = 'N'
 			AND  ais.external_reference_name IS NULL
 		ORDER BY approval_instance_step_id, approved_lhs, approved_category
-		FOR UPDATE
+		FOR UPDATE OF ais
 	}
 	) || die $dbh->errstr;
 
@@ -304,7 +304,7 @@ sub check_pending_issues($$) {
 			AND  aii.is_approved IS NULL
 			AND  ais.external_reference_name IS NOT NULL
 		ORDER BY approval_instance_step_id, approved_lhs, approved_category
-		FOR UPDATE
+		FOR UPDATE OF ais
 	}
 	) || die $dbh->errstr;
 

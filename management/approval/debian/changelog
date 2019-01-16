@@ -1,6 +1,12 @@
+jazzhands-approval (0.83.9) bionic; urgency=medium
+
+  * switch FOR UPDATE in approval query to only lock table to update
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 18 Jan 2019 16:33:00 +0000
+
 jazzhands-approval (0.83.8) bionic; urgency=medium
 
-  * fixing spec file to require at least version 0.70.5 of perl-tickets
+  * switch approval query to use FOR UPDATE
 
  -- Todd Kover <kovert@omniscient.com>  Mon, 14 Jan 2019 16:43:00 +0000
 
