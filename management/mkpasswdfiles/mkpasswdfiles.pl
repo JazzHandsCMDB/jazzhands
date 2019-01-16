@@ -129,6 +129,7 @@ use JSON::PP;
 use File::Find;
 
 my $o_output_dir = "/var/lib/jazzhands/creds-mgmt-server/out";
+my $o_force;
 my $o_verbose;
 my $o_random;
 
@@ -139,19 +140,6 @@ my (
 );
 
 my ($support_email);
-
-if ( ! -d $o_output_dir ) {
-    print "ERROR: $o_output_dir does not exist\n\n";
-    exit(1);
-}
-
-my (undef, undef, undef, undef, $uid) = stat($o_output_dir);
-if ( $< != $uid ) {
-    my $target_user = getpwuid($uid);
-    print "ERROR: $o_output_dir is owned by $target_user (UID $uid)\n";
-    print "This program must be run as that user to prevent file permission errors.\n\n";
-    exit(1);
-}
 
 main();
 exit(0);
@@ -1759,8 +1747,23 @@ sub main {
 	GetOptions(
 		'random-sleep=i' => \$o_random,
 		'v|verbose'      => \$o_verbose,
-		'o|output-dir=s' => \$o_output_dir
+		'o|output-dir=s' => \$o_output_dir,
+		'force' => \$o_force,
 	) or exit(2);
+
+	if ( ! -d $o_output_dir ) {
+		print "ERROR: $o_output_dir does not exist\n\n";
+		exit(1);
+	}
+
+
+	if(!$o_force) {
+		my $uid = (stat($o_output_dir))[4];
+		if ( !$o_force && $< != $uid) {
+			my $target_user = getpwuid($uid);
+			die "$o_output_dir is owned by $target_user.  Must be invoked as that user, or use --force. \n";
+		}
+	}
 
 	if ($o_random) {
 		my $delay = int( rand($o_random) );
