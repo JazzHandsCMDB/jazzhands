@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.83.11.1) unstable; urgency=low
+
+  * Fix changelog debdate error
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 17 Jan 2019 16:28:17 +0000
+
 jazzhands-perl-netdev-mgmt (0.83.11) unstable; urgency=low
 
   * Make all things in juniper.pm do timeouts on operations, because
@@ -9,7 +15,7 @@ jazzhands-perl-netdev-mgmt (0.83.7) unstable; urgency=low
 
   * Fix ubuntu package dependencies
 
- -- Matthew Ragan <mdr@sucksless.net>  Tue, 05 Nov 2018 23:35:39 +0000
+ -- Matthew Ragan <mdr@sucksless.net>  Mon, 05 Nov 2018 23:35:39 +0000
 
 jazzhands-perl-netdev-mgmt (0.81.5) unstable; urgency=low
 
