@@ -2,7 +2,7 @@ jazzhands-approval (0.83.9) bionic; urgency=medium
 
   * switch FOR UPDATE in approval query to only lock table to update
 
- -- Todd Kover <kovert@omniscient.com>  Wed, 18 Jan 2019 16:33:00 +0000
+ -- Todd Kover <kovert@omniscient.com>  Wed, 16 Jan 2019 16:33:00 +0000
 
 jazzhands-approval (0.83.8) bionic; urgency=medium
 
