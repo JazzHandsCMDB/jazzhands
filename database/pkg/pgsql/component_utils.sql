@@ -241,9 +241,11 @@ BEGIN
 	FOR slot_rec IN
 		SELECT 
 			s.slot_id,
-			st.slot_name_template,
+			COALESCE(pst.child_slot_name_template, st.slot_name_template)
+				AS slot_name_template,
 			st.slot_index as slot_index,
-			pst.slot_index as parent_slot_index
+			pst.slot_index as parent_slot_index,
+			pst.child_slot_offset as child_slot_offset
 		FROM
 			slot s JOIN
 			component_type_slot_tmplt st ON (s.component_type_slot_tmplt_id =
@@ -254,7 +256,10 @@ BEGIN
 				pst.component_type_slot_tmplt_id)
 		WHERE
 			s.slot_id = ANY(slot_id_list) AND
-			st.slot_name_template LIKE '%\%{%'
+			(
+				st.slot_name_template ~ '%{' OR
+				pst.child_slot_name_template ~ '%{'
+			)
 	LOOP
 		sn := slot_rec.slot_name_template;
 		IF (slot_rec.slot_index IS NOT NULL) THEN

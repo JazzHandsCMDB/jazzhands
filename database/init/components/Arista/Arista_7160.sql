@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2016 Matthew Ragan
+-- Copyright (c) 2015 Matthew Ragan
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,6 @@ DECLARE
 	cid		integer;
 	ctid	integer;
 	stid	integer;
-	p		text[];
 	s		text;
 BEGIN
 	SELECT company_id INTO cid FROM company WHERE company_name = 'Arista Networks';
@@ -31,71 +30,74 @@ BEGIN
 			_company_types := ARRAY['hardware provider']
 		) INTO cid;
 	END IF;
-	INSERT INTO component_type (
-		description,
-		slot_type_id,
-		model,
-		company_id,
-		asset_permitted,
-		is_rack_mountable,
-		size_units
-	) VALUES (
-		'DCS-7010T-48',
-		NULL,
-		'DCS-7010T-48',
-		cid,
-		'Y',
-		'Y',
-		1
-	) RETURNING component_type_id INTO ctid;
 
-	INSERT INTO component_type_component_func (
-		component_type_id,
-		component_function
-	) VALUES (
-		ctid,
-		'device'
-	);
+	SELECT component_type_id INTO ctid
+	FROM
+		component_type
+	WHERE
+		company_id = cid AND
+		model = 'DCS-7160-32CQ';
+	
+	IF NOT FOUND THEN
+		INSERT INTO component_type (
+			description,
+			slot_type_id,
+			model,
+			company_id,
+			asset_permitted,
+			is_rack_mountable,
+			size_units
+		) VALUES (
+			'Arista DCS-7160-32CQ',
+			NULL,
+			'DCS-7160-32CQ',
+			cid,
+			'Y',
+			'Y',
+			1
+		) RETURNING component_type_id INTO ctid;
 
-	INSERT INTO device_type (
-		component_type_id,
-		device_type_name,
-		description, 
-		company_id,
-		config_fetch_type,
-		rack_units)
-	VALUES (
-		ctid,
-		'DCS-7010T-48',
-		'Arista DCS-7010T-48',
-		cid,
-		'arista',
-		1
-	);
+		INSERT INTO component_type_component_func (
+			component_type_id,
+			component_function
+		) VALUES (
+			ctid,
+			'device'
+		);
+	END IF;
 
 	--
-	-- Console port
+	-- 100GE ports
 	--
-
 	INSERT INTO component_type_slot_tmplt (
 		component_type_id,
 		slot_type_id,
 		slot_name_template,
+		child_slot_name_template,
+		physical_label,
 		slot_index,
+		slot_x_offset,
 		slot_y_offset,
 		slot_side
 	) SELECT
 		ctid,
 		slot_type_id,
-		'console',
-		0,
-		0,
+		'Ethernet' || (x.idx + 1),
+		'Ethernet' || (x.idx + 1) || '/%{slot_index}',
+		1 + x.idx,
+		1 + x.idx,
+		(x.idx / 2) + 2,
+		(x.idx % 2),
 		'FRONT'
 	FROM
-		slot_type st
+		slot_type st,
+		generate_series(0,31) x(idx)
 	WHERE
-		slot_type = 'RJ45 serial' and slot_function = 'serial';
+		slot_type = '100GQSFP28Ethernet' and slot_function = 'network';
 
+	--
+	-- 10GE SFP+ Ethernet
+	--
 	INSERT INTO component_type_slot_tmplt (
 		component_type_id,
 		slot_type_id,
@@ -108,39 +110,15 @@ BEGIN
 	) SELECT
 		ctid,
 		slot_type_id,
-		'Ethernet' || (x.idx + 1),
-		x.idx + 1,
-		x.idx + 1,
+		'Ethernet' || x.idx + 33,
+		x.idx + 33,
+		x.idx + 33,
 		(x.idx / 2),
 		(x.idx % 2),
 		'FRONT'
 	FROM
 		slot_type st,
-		generate_series(0,p[2]::integer - 1) x(idx)
-	WHERE
-		slot_type = '1000BaseTEthernet' and slot_function = 'network';
-
-	INSERT INTO component_type_slot_tmplt (
-		component_type_id,
-		slot_type_id,
-		slot_name_template,
-		physical_label,
-		slot_index,
-		slot_x_offset,
-		slot_y_offset,
-		slot_side
-	) SELECT
-		ctid,
-		slot_type_id,
-		'Ethernet' || (x.idx + 1),
-		x.idx + 1,
-		x.idx + 1,
-		(x.idx / 2),
-		(x.idx % 2),
-		'FRONT'
-	FROM
-		slot_type st,
-		generate_series(48,51) x(idx)
+		generate_series(0,3) x(idx)
 	WHERE
 		slot_type = '10GSFP+Ethernet' and slot_function = 'network';
 
@@ -151,17 +129,45 @@ BEGIN
 		component_type_id,
 		slot_type_id,
 		slot_name_template,
+		physical_label,
 		slot_y_offset,
 		slot_side
 	) SELECT
 		ctid,
 		slot_type_id,
 		'Management1',
+		'<●●●>',
 		1,
 		'FRONT'
 	FROM
 		slot_type st
 	WHERE
 		slot_type = '1000BaseTEthernet' and slot_function = 'network';
+
+	--
+	-- Console port
+	--
+
+	INSERT INTO component_type_slot_tmplt (
+		component_type_id,
+		slot_type_id,
+		slot_name_template,
+		physical_label,
+		slot_index,
+		slot_y_offset,
+		slot_side
+	) SELECT
+		ctid,
+		slot_type_id,
+		'console',
+		'|○|○|',
+		0,
+		0,
+		'FRONT'
+	FROM
+		slot_type st
+	WHERE
+		slot_type = 'RJ45 serial' and slot_function = 'serial';
+
 END;
 $$ LANGUAGE plpgsql;
