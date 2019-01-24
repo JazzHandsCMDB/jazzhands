@@ -12,7 +12,7 @@ use NetAddr::IP qw(:lower);
 use LWP::UserAgent;
 use JazzHands::NetDev::Mgmt::ACL;
 use Data::Dumper;
-use Net::MAC;
+use NetAddr::MAC;
 
 sub new {
 	my $proto = shift;
@@ -175,6 +175,7 @@ sub GetPortStatus {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+	my @errors;
 
 	my $ports = $opt->{ports};
 	if (!$ports) {
@@ -499,6 +500,7 @@ sub SetPortLACP {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+	my @errors;
 
 	my $ports = $opt->{ports};
 	if (!$ports) {
@@ -527,8 +529,34 @@ sub SetPortLACP {
 	#
 
 	my $device = $self->{device};
-
 	my $trunk_interface = $opt->{trunk_interface};
+
+	#
+	# Get chassis information to see if we're going to noop or not
+	#
+	
+	my $chassisinfo;
+	if (!($chassisinfo = $self->GetChassisInfo (
+			errors => \@errors,
+			))) {
+		SetError($err,
+			"Error retrieving chassis info for %s: %s\n",
+			$device->{hostname},
+			(join("\n", @errors))
+		);
+		return undef;
+	}
+
+	if ($chassisinfo->{model} && $chassisinfo->{model} =~ /^DCS-7160/) {
+		if ($opt->{debug}) {
+			printf STDERR "SetPortLACP: Ignoring %s request for ports %s on switch %s: unsupported switch type\n",
+				$opt->{lacp} ? 'enable' : 'disable',
+				(join ',', @{$opt->{ports}}),
+				$device->{hostname};
+		}
+		return {};
+	}
+
 	my $idx;
 	if (!$trunk_interface) {
 		($idx) = $ports->[0] =~ /(\d+)$/;
@@ -603,7 +631,11 @@ sub SetPortLACP {
 				sprintf("switchport trunk native vlan %s",
 					$portinfo->{native_vlan});
 		}
-	} else {
+	} elsif($opt->{force}) {
+		#
+		# assume LACP fallback is configured, unless force is passed as
+		# an option
+		#
 		$commands = [
 			'configure',
 		];
@@ -1619,12 +1651,15 @@ sub GetChassisInfo {
 
 	my $lldp = $result->[1];
 	if ($lldp && $lldp->{chassisId}) {
-		$chassis->{lldp_chassis_id} = Net::MAC->new(
-			mac => $lldp->{chassisId},
-			base => 16,
-			bit_group => 16,
-			delimiter => '.'
-		)->as_Sun()->get_mac;
+#		$chassis->{lldp_chassis_id} = Net::MAC->new(
+#			mac => $lldp->{chassisId},
+#			base => 16,
+#			bit_group => 16,
+#			delimiter => '.',
+#			zero_padded => 1
+#		)->as_Sun()->get_mac;
+		$chassis->{lldp_chassis_id} = NetAddr::MAC->new($lldp->{chassisId})->
+			as_ieee();
 	};
 	return $chassis;
 }
