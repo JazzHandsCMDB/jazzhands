@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.83.12) unstable; urgency=low
+
+  * Temporariliy disable LACP handling for Arista 7160 switches
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 24 Jan 2019 20:09:53 +0000
+
 jazzhands-perl-netdev-mgmt (0.83.11.1) unstable; urgency=low
 
   * Fix changelog debdate error
