@@ -639,6 +639,19 @@ sub dump_zone {
 				)
 			)
 		);
+		$t .= $cgi->Tr(
+			{ -align => 'center' },
+			$cgi->td(
+				$cgi->submit(
+					{
+						-align => 'center',
+						-name  => "Nameservers",
+						-value => "Reset to Default Nameservers",
+					}
+				)
+			)
+		);
+
 		print $cgi->table( { -class => 'dnsgentable' }, $t );
 
 		$parlink = "--none--";

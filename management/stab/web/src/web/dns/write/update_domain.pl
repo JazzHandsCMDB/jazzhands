@@ -1,4 +1,20 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2019 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -46,6 +62,7 @@ sub do_domain_update {
 
 	my $domid   = $stab->cgi_parse_param('DNS_DOMAIN_ID');
 	my $genflip = $stab->cgi_parse_param('AutoGen');
+	my $resetns = $stab->cgi_parse_param('Nameservers');
 
 	if ( !defined($domid) ) {
 		$stab->error_return("Unknown Domain");
@@ -59,6 +76,19 @@ sub do_domain_update {
 		} else {
 			$stab->error_return("Unknown Command.");
 		}
+	}
+
+	if ( defined($resetns) && $domid ) {
+		my $sth = $dbh->prepare_cached(
+			qq{
+			SELECT dns_utils.add_ns_records(?, true)
+		}
+		) || $stab->return_db_err($dbh);
+
+		$sth->execute($domid) || $stab->return_db_err($dbh);
+		$sth->finish;
+		$stab->commit;
+		$stab->msg_return( "Successful update!", undef, 1 );
 	}
 
 	process_domain_soa_changes( $stab, $domid );
