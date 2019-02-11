@@ -48,6 +48,7 @@ BEGIN
 		EXECUTE '
 			DELETE FROM dns_record
 			WHERE dns_domain_id = $1
+			AND dns_name IS NULL
 			AND dns_class = $2
 			AND dns_type = $3
 			AND dns_value NOT IN (
