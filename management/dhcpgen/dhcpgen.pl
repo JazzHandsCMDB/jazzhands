@@ -42,11 +42,14 @@ use File::Path;
 use Pod::Usage;
 
 eval {
-	require _LocalHooks;
+	if (-f "modules/_LocalHooks.pm") {
+		require _LocalHooks;
+	}
 };
 
-if (!$@) {
+if ($@) {
 	print STDERR $@;
+	exit 1;
 }
 
 umask 022;
