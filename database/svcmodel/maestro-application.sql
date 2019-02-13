@@ -187,11 +187,11 @@ FROM maestro_jazz.application mj
 	JOIN jazzhands.service s USING (service_id)
 	LEFT JOIN (
 		SELECT service_collection_id,
-			MIN(value) FILTER (WHERE service_property_type = 'launch'
+			MIN(value::integer) FILTER (WHERE service_property_type = 'launch'
 						AND service_property_name = 'min_cpu') AS r_cores,
-			MIN(value) FILTER (WHERE service_property_type = 'launch'
+			MIN(value::integer) FILTER (WHERE service_property_type = 'launch'
 						AND service_property_name = 'min_memory') AS r_memory_mb,
-			MIN(value) FILTER (WHERE service_property_type = 'launch'
+			MIN(value::integer) FILTER (WHERE service_property_type = 'launch'
 						AND service_property_name = 'min_disk') AS r_disk_gb,
 			MIN(value) FILTER (WHERE service_property_type = 'launch'
 						AND service_property_name = 'dedicated') AS r_dedicated,

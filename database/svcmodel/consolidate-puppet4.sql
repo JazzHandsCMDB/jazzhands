@@ -35,7 +35,7 @@ WITH base as (
 	WHERE service_id IN (
 		SELECT service_id 
 		FROM base 
-		WHERE service_endpoint_provider_name = 'puppet4-nym2-https'
+		WHERE service_endpoint_provider_name = 'puppet4-nym2-https_offload'
 		LIMIT 1
 	)
 	RETURNING *

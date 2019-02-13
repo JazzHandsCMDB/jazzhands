@@ -15,6 +15,11 @@ grant dba to cloudapi;
 \set ON_ERROR_STOP
 begin;
 
+--
+-- This needs to match latest.  really need to do a release so this is a noop.
+--
+\ir ../ddl/schema/pgsql/create_schema_support.sql
+
 -- same as what would be in 
 -- \i ddl-only.sql
 \i schema.sql
