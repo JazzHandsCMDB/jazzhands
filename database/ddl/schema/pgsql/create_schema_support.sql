@@ -1359,6 +1359,10 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 --
 -- given two relations, returns an array columns they have in common
 --
+-- runs the column names through quote_ident to ensure it is usable and
+-- also will append ::text to adjust mismatches where one side or the other is
+-- an enum to force both to text.
+--
 CREATE OR REPLACE FUNCTION schema_support.get_common_columns(
     _schema     text,
     _table1      text,
@@ -1369,23 +1373,30 @@ DECLARE
     cols        text[];
 BEGIN
     _q := 'WITH cols AS (
-        SELECT  n.nspname as schema, c.relname as relation, a.attname as colname,
+        SELECT  n.nspname as schema, c.relname as relation, a.attname as colname, t.typoutput as type,
 		a.attnum
             FROM    pg_catalog.pg_attribute a
                 INNER JOIN pg_catalog.pg_class c
-                    on a.attrelid = c.oid
+                    ON a.attrelid = c.oid
                 INNER JOIN pg_catalog.pg_namespace n
-                    on c.relnamespace = n.oid
+                    ON c.relnamespace = n.oid
+				INNER JOIN pg_catalog.pg_type t
+					ON  t.oid = a.atttypid
             WHERE   a.attnum > 0
             AND   NOT a.attisdropped
             ORDER BY a.attnum
-       ) SELECT array_agg(colname ORDER BY o.attnum) as cols
-        FROM cols  o
+       ) SELECT array_agg(colname ORDER BY attnum) as cols
+        FROM ( SELECT CASE WHEN ( o.type::text ~ ''enum'' OR n.type::text ~ ''enum'')  AND o.type != n.type THEN concat(quote_ident(n.colname), ''::text'')
+					ELSE quote_ident(n.colname)
+					END  AS colname,
+				o.attnum
+			FROM cols  o
             INNER JOIN cols n USING (schema, colname)
 		WHERE
 			o.schema = $1
 		and o.relation = $2
-		and n.relation =$3
+		and n.relation = $3
+		) as prett
 	';
 	EXECUTE _q INTO cols USING _schema, _table1, _table2;
 	RETURN cols;
@@ -1732,19 +1743,12 @@ BEGIN
 	-- read into _cols the column list in common between old_rel and new_rel
 	_cols := schema_support.get_common_columns(schema, old_rel, new_rel);
 
-	FOREACH _f IN ARRAY _cols
-	LOOP
-		SELECT array_append(_ctl, quote_ident(_f) ) INTO _ctl;
-	END LOOP;
-	_cols := _ctl;
-
 	_ctl := NULL;
 	FOREACH _f IN ARRAY prikeys
 	LOOP
 		SELECT array_append(_ctl, quote_ident(_f) ) INTO _ctl;
 	END LOOP;
 	_pkcol := _ctl;
-
 
 	--
 	-- Number of rows mismatch.  Show the missing rows based on the
