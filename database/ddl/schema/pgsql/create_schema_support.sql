@@ -1838,8 +1838,8 @@ BEGIN
 			END IF;
 		END LOOP;
 		RAISE NOTICE 'mismatched row:';
-		RAISE NOTICE 'NEW: %', _oj;
-		RAISE NOTICE 'OLD: %', _nj;
+		RAISE NOTICE 'OLD: %', _oj;
+		RAISE NOTICE 'NEW: %', _nj;
 		_rv := false;
 	END LOOP;
 
