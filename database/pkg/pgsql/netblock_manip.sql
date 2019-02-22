@@ -375,7 +375,10 @@ CREATE OR REPLACE FUNCTION netblock_manip.create_network_range(
 	network_range_type	jazzhands.val_network_range_type.network_range_type%TYPE,
 	parent_netblock_id	jazzhands.netblock.netblock_id%TYPE DEFAULT NULL,
 	description			jazzhands.network_range.description%TYPE DEFAULT NULL,
-	allow_assigned		boolean DEFAULT false
+	allow_assigned		boolean DEFAULT false,
+	dns_prefix			TEXT DEFAULT NULL,
+	dns_domain_id		jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL,
+	lease_time			jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL
 ) RETURNS jazzhands.network_range AS $$
 DECLARE
 	par_netblock	RECORD;
@@ -575,13 +578,19 @@ BEGIN
 		description,
 		parent_netblock_id,
 		start_netblock_id,
-		stop_netblock_id
+		stop_netblock_id,
+		dns_prefix,
+		dns_domain_id,
+		lease_time
 	) VALUES (
 		nrtype,
 		description,
 		par_netblock.netblock_id,
 		start_netblock.netblock_id,
-		stop_netblock.netblock_id
+		stop_netblock.netblock_id,
+		create_network_range.dns_prefix,
+		create_network_range.dns_domain_id,
+		create_network_range.lease_time
 	) RETURNING * INTO netrange;
 
 	RETURN netrange;
