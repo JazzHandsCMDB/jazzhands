@@ -2006,7 +2006,7 @@ BEGIN
 		END IF;
 
 		IF rv IS NULL THEN
-			RETURN '-infinity'::interval;
+			RETURN '-infinity'::timestamp;
 		ELSE
 			RETURN rv;
 		END IF;
