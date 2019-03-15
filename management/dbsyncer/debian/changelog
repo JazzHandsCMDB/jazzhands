@@ -1,3 +1,9 @@
+jazzhands-dbsyncer (0.74.15) trusty; urgency=medium
+
+  * fixed primary keys on local tables feature
+
+ -- Ryan D. Williams <xrxdxwx@gmail.com>  Fri, 15 Mar 2019 18:27:00 -0400
+
 jazzhands-dbsyncer (0.74.14) trusty; urgency=medium
 
   * adjust defaults to do an upstream check and change --force semantics

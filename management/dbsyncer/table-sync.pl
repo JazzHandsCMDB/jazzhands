@@ -454,7 +454,7 @@ sub drop_table {
 }
 
 sub mktable {
-	my ( $self, $fromh, $table ) = @_;
+	my ( $self, $fromh, $table, $pkref ) = @_;
 
 	$self->{_schemachanges}++;
 
@@ -463,7 +463,7 @@ sub mktable {
 
 	my @cols = $fromh->get_cols($table);
 
-	my @pk = $fromh->get_primary_key($table);
+	my @pk = $pkref ? @$pkref : $fromh->get_primary_key($table);
 
 	my $pkstr = "";
 	if ( $#pk >= 0 ) {
@@ -512,7 +512,7 @@ sub copy_table($$$;$) {
 			$self->_Debug( 3, "Table structure mismatch, dropping %s", $table );
 		}
 		$self->_Debug( 2, "Creating table %s", $table );
-		$self->mktable( $fromh, $table );
+		$self->mktable( $fromh, $table, $pk);
 	}
 
 	if ( !$pk ) {
