@@ -158,18 +158,23 @@ sub check_if_refresh_needed {
 	my $object   = shift @_;
 	my $lcwhence = shift @_ || '1970-01-01 00:00:00';
 	my $save     = shift @_;
+	my $schema   = shift @_;
+
+	#HACK. Someone do this better
+	$schema = 'jazzhands' unless $schema;
 
 	my $dbh = $self->DBHandle();
 	my $sth = $dbh->prepare_cached(
 		qq{
 		WITH x as ( SELECT
-			backend_utils.relation_last_changed(:rel) as whence
+			backend_utils.relation_last_changed(:rel, :schema) as whence
 		) SELECT whence, whence > :ts as refresh FROM x
 	}
 	) || die $dbh->errstr;
 
-	$sth->bind_param( ':rel', $object )   || die $sth->errstr;
-	$sth->bind_param( ':ts',  $lcwhence ) || die $sth->errstr;
+	$sth->bind_param( ':rel', $object )     || die $sth->errstr;
+	$sth->bind_param( ':ts',  $lcwhence )   || die $sth->errstr;
+	$sth->bind_param( ':schema',  $schema ) || die $sth->errstr;
 
 	$sth->execute || die $sth->errstr;
 
@@ -718,7 +723,14 @@ sub sync_dbs {
 	}
 
 	my $tablemap = $config->{tablemap};
-	foreach my $table ( sort keys( %{$tablemap} ) ) {
+	foreach my $fqtable ( sort keys( %{$tablemap} ) ) {
+		my $table;
+		my $schema; 
+		if ( scalar split(/\./, $fqtable) == 2 ) {
+			($schema, $table) = split(/\./, $fqtable)
+		} else {
+			$table = $fqtable
+		}
 		next if ( @tables && !grep( $_ eq $table, @tables ) );
 		my ( $upts, $saveupts );
 		my $iwasforced = 0;
@@ -726,7 +738,7 @@ sub sync_dbs {
 		if ($forcecheck) {
 			$mylastchange = $self->get_last_change($table);
 			$upts = $upstream->check_if_refresh_needed( $table, $mylastchange,
-				\$saveupts );
+				\$saveupts, $schema );
 			if ( !$upts && $forceupdate ) {
 				$forceupdate = 1;
 				$iwasforced  = 1;
@@ -738,17 +750,17 @@ sub sync_dbs {
 		# This should be smarter, but basically if set, then some fields
 		# are pushed back, so a straight compare is not enough. This causes
 		# a WARNING not to be logged when things break.
-		if ( defined( $tablemap->{$table}->{pushback} ) ) {
+		if ( defined( $tablemap->{$fqtable}->{pushback} ) ) {
 			$iwasforced = undef;
 		}
 		if (   $upts
 			|| $forceupdate
-			|| defined( $tablemap->{$table}->{pushback} ) )
+			|| defined( $tablemap->{$fqtable}->{pushback} ) )
 		{
 			$self->_Debug( 4, "Synchronizing table %s (%s)",
 				$table, $upts || '' );
 			my $changes =
-			  $self->copy_table( $upstream, $table, $tablemap->{$table}, $key );
+			  $self->copy_table( $upstream, $table, $tablemap->{$fqtable}, $key );
 			#
 			# This only happens if its a full table sync.
 			#
