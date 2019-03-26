@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2014 Todd Kover
+ * Copyright (c) 2010-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 \set ON_ERROR_STOP
 
 /*
- * Copyright (c) 2010 Matthew Ragan
+ * Copyright (c) 2010-2019 Matthew Ragan
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -263,7 +263,7 @@ BEGIN
 	AND con.contype in ('p', 'u')
 	;
 
-	IF idx IS NOT NULL THEN 
+	IF idx IS NOT NULL THEN
 		FOREACH i IN ARRAY idx
 		LOOP
 			EXECUTE 'ALTER INDEX '
@@ -1038,6 +1038,7 @@ CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
+	_c		RECORD;
 	_cmd	TEXT;
 	_ddl	TEXT;
 	_mat	TEXT;
@@ -1050,7 +1051,9 @@ BEGIN
 
 	-- save any triggers on the view
 	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
-	FOR _r in SELECT n.nspname, c.relname, 'view',
+
+	-- now save the view
+	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
 				coalesce(u.usename, 'public') as owner,
 				pg_get_viewdef(c.oid, true) as viewdef, relkind
 		FROM pg_class c
@@ -1059,6 +1062,57 @@ BEGIN
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
+		--
+		-- iterate through all the columns on this view with comments or
+		-- defaults and reserve them
+		--
+		FOR _c IN SELECT * FROM ( SELECT a.attname AS colname,
+					pg_catalog.format_type(a.atttypid, a.atttypmod) AS coltype,
+					(
+						SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid)
+								FOR 128)
+						FROM pg_catalog.pg_attrdef d
+						WHERE
+							d.adrelid = a.attrelid
+							AND d.adnum = a.attnum
+							AND a.atthasdef) AS def, a.attnotnull, a.attnum, (
+							SELECT c.collname
+							FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+							WHERE
+								c.oid = a.attcollation
+								AND t.oid = a.atttypid
+								AND a.attcollation <> t.typcollation) AS attcollation, d.description AS COMMENT
+						FROM pg_catalog.pg_attribute a
+						LEFT JOIN pg_catalog.pg_description d ON d.objoid = a.attrelid
+							AND d.objsubid = a.attnum
+					WHERE
+						a.attrelid = _r.oid
+						AND a.attnum > 0
+						AND NOT a.attisdropped
+					ORDER BY a.attnum
+			) x WHERE def IS NOT NULL OR COMMENT IS NOT NULL
+		LOOP
+			IF _c.def IS NOT NULL THEN
+				_ddl := 'ALTER VIEW ' || quote_ident(schema) || '.' ||
+					quote_ident(object) || ' ALTER COLUMN ' ||
+					quote_ident(_c.colname) || ' SET DEFAULT ' || _c.def;
+				INSERT INTO __recreate (schema, object, type, ddl )
+					VALUES (
+						_r.nspname, _r.relname, 'default', _ddl
+					);
+			END IF;
+			IF _c.comment IS NOT NULL THEN
+				_ddl := 'COMMENT ON COLUMN ' ||
+					quote_ident(schema) || '.' || quote_ident(object)
+					' IS ''' || _c.comment || '''';
+				INSERT INTO __recreate (schema, object, type, ddl )
+					VALUES (
+						_r.nspname, _r.relname, 'colcomment', _ddl
+					);
+			END IF;
+
+		END LOOP;
+
 		_mat = ' VIEW ';
 		_typ = 'view';
 		IF _r.relkind = 'm' THEN
@@ -1096,7 +1150,6 @@ CREATE OR REPLACE FUNCTION schema_support.save_dependent_objects_for_replay(
 	dropit boolean DEFAULT true,
 	doobjectdeps boolean DEFAULT false
 ) RETURNS VOID AS $$
-
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
@@ -1283,6 +1336,7 @@ RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
 	_tally	integer;
+    _origsp TEXT;
 BEGIN
 	SELECT	count(*)
 	  INTO	_tally
@@ -1290,13 +1344,16 @@ BEGIN
 	 WHERE	relname = '__recreate'
 	   AND	relpersistence = 't';
 
+	SHOW search_path INTO _origsp;
+
 	IF _tally > 0 THEN
 		FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
 		LOOP
 			IF beverbose THEN
-				RAISE NOTICE 'Regrant: %.%', _r.schema, _r.object;
+				RAISE NOTICE 'Recreate % %.%', _r.type, _r.schema, _r.object;
 			END IF;
 			EXECUTE _r.ddl;
+			EXECUTE 'SET search_path = ' || _r.schema || ',jazzhands';
 			IF _r.owner is not NULL THEN
 				IF _r.type = 'view' OR _r.type = 'materialized view' THEN
 					EXECUTE 'ALTER ' || _r.type || ' ' || _r.schema || '.' || _r.object ||
@@ -1305,7 +1362,7 @@ BEGIN
 					EXECUTE 'ALTER FUNCTION ' || _r.schema || '.' || _r.object ||
 						'(' || _r.idargs || ') OWNER TO ' || _r.owner || ';';
 				ELSE
-					RAISE EXCEPTION 'Unable to restore grant for % ', _r;
+					RAISE EXCEPTION 'Unable to recreate object for % ', _r;
 				END IF;
 			END IF;
 			DELETE from __recreate where id = _r.id;
@@ -1322,6 +1379,8 @@ BEGIN
 			RAISE NOTICE '**** WARNING: replay_object_recreates did NOT have anything to regrant!';
 		END IF;
 	END IF;
+
+	EXECUTE 'SET search_path = ' || _origsp;
 
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -1797,7 +1856,7 @@ BEGIN
 	-- At this point, the same number of rows appear in both, so need to
 	-- figure out rows that are different between them.
 
-	
+
 	-- SELECT row_to_json(o) as old, row_to_json(n) as new
 	-- FROM ( SELECT cols FROM old WHERE prikeys in Vv ) old,
 	-- JOIN ( SELECT cols FROM new WHERE prikeys in Vv ) new
@@ -1813,24 +1872,24 @@ BEGIN
 		' JOIN ' ||
 		'( SELECT '  || array_to_string(_cols,',') || ' FROM ' ||
 			quote_ident(schema) || '.' || quote_ident(new_rel) || ' ) new ' ||
-		' USING ( ' ||  array_to_string(_pkcol,',') || 
+		' USING ( ' ||  array_to_string(_pkcol,',') ||
 		' ) WHERE (' || array_to_string(_pkcol,',') || ' ) IN (' ||
 		'SELECT ' || array_to_string(_pkcol,',')  || ' FROM ( ' ||
 			'( SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(old_rel) || 
+				quote_ident(schema) || '.' || quote_ident(old_rel) ||
 			' EXCEPT ' ||
 			'( SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
 				quote_ident(schema) || '.' || quote_ident(new_rel) || ' )) ' ||
 		' ) subq) ORDER BY ' || array_to_string(_pkcol,',')
 	;
-			
+
 	_t1 := 0;
 	FOR _r IN EXECUTE _q
 	LOOP
 		_t1 := _t1 + 1;
 		FOR _f IN SELECT json_object_keys(_r.new)
 		LOOP
-			IF _f = ANY ( prikeys ) OR _r.old->>_f IS DISTINCT FROM _r.new->>_f 
+			IF _f = ANY ( prikeys ) OR _r.old->>_f IS DISTINCT FROM _r.new->>_f
 			THEN
 				IF _oj IS NULL THEN
 					_oj := jsonb_build_object(_f, _r.old->>_f);
