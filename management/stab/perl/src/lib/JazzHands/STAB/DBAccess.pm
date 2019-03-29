@@ -1325,7 +1325,7 @@ sub get_device_collections_for_device {
 		  and
 				device_collection_id not in
 					(select parent_device_collection_id
-					  from	device_collection_hier
+					  from	v_device_collection_hier_trans
 					)
 	};
 	if ($type) {

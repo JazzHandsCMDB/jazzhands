@@ -192,7 +192,7 @@ sub do_apps {
 					select parent_device_collection_id as
 								device_collection_id, 
 							count(*) as tally
-					  from	device_collection_hier
+					  from	v_device_collection_hier_trans
 					  group by parent_device_collection_id
 				) kids on kids.device_collection_id = x.role_id
 		order by x.root_role_id, length(role_path), role_level
