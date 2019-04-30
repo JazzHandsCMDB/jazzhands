@@ -217,7 +217,7 @@ $$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table_insert_drop_old(
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table_finish(
 	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
 )
 RETURNS VOID AS $FUNC$
@@ -238,7 +238,7 @@ BEGIN
 			on d.objoid = a.attrelid
 			and d.objsubid = a.attnum
 	WHERE   n.nspname = quote_ident(aud_schema)
-	  AND	c.relname = quote_ident(table_name)
+	  AND	c.relname = quote_ident('__old__' || table_name)
 	  AND	a.attnum > 0
 	  AND	NOT a.attisdropped
 	;
@@ -295,7 +295,7 @@ $FUNC$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table(
 	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
-	insert_drop_old BOOLEAN DEFAULT true
+	finish_rebuild BOOLEAN DEFAULT true
 )
 RETURNS VOID AS $FUNC$
 DECLARE
@@ -401,8 +401,8 @@ BEGIN
 			|| ' RESTART WITH ' || seq;
 	END IF;
 
-	IF insert_drop_old THEN
-		EXECUTE schema_support.build_audit_table_insert_drop_old(aud_schema,tbl_schema,table_name);
+	IF finish_rebuild THEN
+		EXECUTE schema_support.rebuild_audit_table_finish(aud_schema,tbl_schema,table_name);
 	END IF;
 
 	--
