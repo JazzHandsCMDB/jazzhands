@@ -179,7 +179,112 @@ ALTER TABLE service_instance
 	REFERENCES port_range(port_range_id)
 	DEFERRABLE;
 
+ALTER TABLE service_endpoint_service_sla
+	ADD CONSTRAINT  fk_service_endpoint_service_sla_endpoint_id
+	FOREIGN KEY
+	(service_endpoint_id)
+	REFERENCES service_endpoint(service_endpoint_id)
+	DEFERRABLE;
+
+ALTER TABLE service_endpoint_service_sla
+	ADD CONSTRAINT  fk_service_endpoint_service_sla_service_sla_id
+	FOREIGN KEY
+	(service_sla_id)
+	REFERENCES service_sla(service_sla_id)
+	DEFERRABLE;
+
+ALTER TABLE service_endpoint_service_sla
+	ADD CONSTRAINT  fk_service_endpoint_service_sla_service_environment_id
+	FOREIGN KEY
+	(service_environment_id)
+	REFERENCES service_environment(service_environment_id)
+	DEFERRABLE;
+
+ALTER TABLE service_depend
+	ADD CONSTRAINT  fk_service_depend_service_version_id
+	FOREIGN KEY
+	(service_version_id)
+	REFERENCES service_version(service_version_id)
+	DEFERRABLE;
+
+ALTER TABLE service_depend
+	ADD CONSTRAINT  fk_service_depend_service_id
+	FOREIGN KEY
+	(service_id)
+	REFERENCES service(service_id)
+	DEFERRABLE;
+
+ALTER TABLE service_depend
+	ADD CONSTRAINT  fk_service_depend_min_service_version_id
+	FOREIGN KEY
+	(min_service_version_id)
+	REFERENCES service_version(service_version_id)
+	DEFERRABLE;
+
+ALTER TABLE service_depend
+	ADD CONSTRAINT  fk_service_depend_max_service_version_id
+	FOREIGN KEY
+	(max_service_version_id)
+	REFERENCES service_version(service_version_id)
+	DEFERRABLE;
+
+ALTER TABLE service_depend
+	ADD CONSTRAINT  fk_service_depend_service_sla_id
+	FOREIGN KEY
+	(service_sla_id)
+	REFERENCES service_sla(service_sla_id)
+	DEFERRABLE;
+
+ALTER TABLE service_depend
+	ADD CONSTRAINT  fk_service_depend_service_endpoint_provider_id
+	FOREIGN KEY
+	(service_endpoint_provider_id)
+	REFERENCES service_endpoint_provider(service_endpoint_provider_id)
+	DEFERRABLE;
+
+ALTER TABLE service_acl
+	ADD CONSTRAINT  fk_service_acl_depend_id
+	FOREIGN KEY
+	(service_depend_id)
+	REFERENCES service_depend(service_depend_id)
+	DEFERRABLE;
+
+-----------------------------------------------------------------------------
+
+ALTER TABLE service_collection_hier
+	ADD CONSTRAINT  fk_service_collection_hier_parent
+	FOREIGN KEY
+	(service_collection_id)
+	REFERENCES service_collection(service_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE service_collection_hier
+	ADD CONSTRAINT  fk_service_collection_hier_child
+	FOREIGN KEY
+	(child_service_collection_id)
+	REFERENCES service_collection(service_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE service_collection_service
+	ADD CONSTRAINT  fk_service_collection_service_collection
+	FOREIGN KEY
+	(service_collection_id)
+	REFERENCES service_collection(service_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE service_collection_service
+	ADD CONSTRAINT  fk_service_collection_service_version
+	FOREIGN KEY
+	(service_version_id)
+	REFERENCES service_version(service_version_id)
+	DEFERRABLE;
+
 -----------------------------------------------------------------------------
 --
--- pickup with service_endpoint_service_sla
+-- pickup with service_property .. or not.
+--
+
+-----------------------------------------------------------------------------
+--
+-- pickup with acl_rule 
 --
