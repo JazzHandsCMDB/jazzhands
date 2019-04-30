@@ -260,6 +260,9 @@ CREATE TABLE service_endpoint_service_endpoint_provider  (
 --
 -- names are kind of irrelevent.
 --
+-- XXX - this construct may also be used for things that aren't atually an
+-- addressable endpoint (property on the type?) but are grouped together.
+--
 -- This probably does NOT need an sla column, we're 25% sure about that
 -- because you would just create another service_endpoint. (it does not now)
 --
@@ -282,6 +285,13 @@ CREATE TABLE service_endpoint_provider (
 	description			text,
 	PRIMARY KEY (service_endpoint_provider_id),
 	UNIQUE (service_endpoint_provider_name, service_endpoint_provider_type)
+);
+
+DROP TABLE IF EXISTS service_endpoint_provider_appaal_instance;
+CREATE TABLE service_endpoint_provider_appaal_instance (
+	service_endpoint_provider_id	integer	NOT NULL,
+	appaal_instance_id		integer NOT NULL,
+	PRIMARY KEY (service_endpoint_provider_id,appaal_instance_id)
 );
 
 --
@@ -459,17 +469,30 @@ CREATE TABLE service_endpoint_service_sla (
 	PRIMARY KEY (service_endpoint_id,service_sla_id,service_environment_id)
 );
 
+--
+-- XXX - servcice_endpoint_ptovider_id is set if the relationship is defined
+-- by another service (say something that acts as an intermediary like a
+-- feed.
+--
 DROP TABLE IF EXISTS service_depend CASCADE;
 CREATE TABLE service_depend (
-	service_depend_id	serial		NOT NULL,
-	service_version_id	integer		NOT NULL,
-	service_id		integer 	NOT NULL,
-	min_service_version_id	integer,
-	max_service_version_id	integer,
-	service_sla_id		integer,
+	service_depend_id		serial		NOT NULL,
+	service_version_id		integer		NOT NULL,
+	service_id			integer 	NOT NULL,
+	min_service_version_id		integer,
+	max_service_version_id		integer,
+	service_sla_id			integer,
+	service_endpoint_provider_id	integer,
 	PRIMARY KEY (service_depend_id),
 	UNIQUE (service_version_id, service_id, service_sla_id)
 );
+
+--
+-- XXX - need to figure out how to inject feeds here?
+-- perhaps a third service that defines the relationship
+--
+-- also model all the jazzhands slaves, too, I think.
+--
 
 --
 -- not sure if this needs to exist or not, but we're putting it here

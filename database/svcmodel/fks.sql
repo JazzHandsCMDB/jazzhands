@@ -96,6 +96,20 @@ ALTER TABLE service_endpoint_provider_member
 	REFERENCES service_endpoint_provider(service_endpoint_provider_id)
 	DEFERRABLE;
 
+ALTER TABLE service_endpoint_provider_appaal_instance
+	ADD CONSTRAINT fk_service_endpoint_provifder_appaal_instance_sp
+	FOREIGN KEY
+	(service_endpoint_provider_id) 
+	REFERENCES service_endpoint_provider(service_endpoint_provider_id)
+	DEFERRABLE;
+
+ALTER TABLE service_endpoint_provider_appaal_instance
+	ADD CONSTRAINT fk_service_endpoint_provifder_appaal_instance_appaal
+	FOREIGN KEY
+	(appaal_instance_id) 
+	REFERENCES appaal_instance(appaal_instance_id)
+	DEFERRABLE;
+
 ALTER TABLE service_endpoint_provider_member
 	ADD CONSTRAINT  fk_service_endpoint_provider_member_siid
 	FOREIGN KEY
