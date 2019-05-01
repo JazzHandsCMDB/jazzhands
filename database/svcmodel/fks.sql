@@ -9,7 +9,7 @@ ALTER TABLE service_source_repository
 ALTER TABLE service_source_repository
 	ADD CONSTRAINT  FK_service_source_repo_srcrepoid
 	FOREIGN KEY
-	(source_repository_id) 
+	(source_repository_id)
 	REFERENCES source_repository(source_repository_id)
 	DEFERRABLE;
 
@@ -31,7 +31,7 @@ ALTER TABLE service_version_source_repository
 ALTER TABLE service_version_source_repository
 	ADD CONSTRAINT  fk_service_version_source_repository_srcrepoid
 	FOREIGN KEY
-	(source_repository_id) 
+	(source_repository_id)
 	REFERENCES source_repository(source_repository_id)
 	DEFERRABLE;
 
@@ -46,7 +46,7 @@ ALTER TABLE service_software_repo
 ALTER TABLE service_software_repo
 	ADD CONSTRAINT  fk_service_software_repo_sw_pkg_repo_id
 	FOREIGN KEY
-	(sw_package_repository_id) 
+	(sw_package_repository_id)
 	REFERENCES sw_package_repository(sw_package_repository_id)
 	DEFERRABLE;
 
@@ -59,7 +59,7 @@ ALTER TABLE service_version_sw_package_repository
 ALTER TABLE service_version_sw_package_repository
 	ADD CONSTRAINT  fk_service_software_repo_sw_pkg_repo_id
 	FOREIGN KEY
-	(sw_package_repository_id) 
+	(sw_package_repository_id)
 	REFERENCES sw_package_repository(sw_package_repository_id)
 	DEFERRABLE;
 
@@ -68,7 +68,7 @@ ALTER TABLE service_version_sw_package_repository
 ALTER TABLE port_range
 	ADD CONSTRAINT  fk_port_range_protocol
 	FOREIGN KEY
-	(protocol) 
+	(protocol)
 	REFERENCES protocol(protocol)
 	DEFERRABLE;
 
@@ -78,63 +78,63 @@ ALTER TABLE port_range
 ALTER TABLE service_endpoint_provider_collection_service_endpoint_provider
 	ADD CONSTRAINT  fk_sepc_sep_coll_id
 	FOREIGN KEY
-	(service_endpoint_provider_collection_id) 
+	(service_endpoint_provider_collection_id)
 	REFERENCES service_endpoint_provider_collection(service_endpoint_provider_collection_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint_provider_collection_service_endpoint_provider
 	ADD CONSTRAINT  fk_sepc_sep_epid
 	FOREIGN KEY
-	(service_endpoint_provider_id) 
+	(service_endpoint_provider_id)
 	REFERENCES service_endpoint_provider(service_endpoint_provider_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint_provider_member
 	ADD CONSTRAINT  fk_service_endpoint_provider_member_ep_id
 	FOREIGN KEY
-	(service_endpoint_provider_id) 
+	(service_endpoint_provider_id)
 	REFERENCES service_endpoint_provider(service_endpoint_provider_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint_provider_appaal_instance
 	ADD CONSTRAINT fk_service_endpoint_provifder_appaal_instance_sp
 	FOREIGN KEY
-	(service_endpoint_provider_id) 
+	(service_endpoint_provider_id)
 	REFERENCES service_endpoint_provider(service_endpoint_provider_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint_provider_appaal_instance
 	ADD CONSTRAINT fk_service_endpoint_provifder_appaal_instance_appaal
 	FOREIGN KEY
-	(appaal_instance_id) 
+	(appaal_instance_id)
 	REFERENCES appaal_instance(appaal_instance_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint_provider_member
 	ADD CONSTRAINT  fk_service_endpoint_provider_member_siid
 	FOREIGN KEY
-	(service_instance_id) 
+	(service_instance_id)
 	REFERENCES service_instance(service_instance_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint
 	ADD CONSTRAINT  fk_service_endpoint_dns_rec_id
 	FOREIGN KEY
-	(dns_record_id) 
+	(dns_record_id)
 	REFERENCES dns_record(dns_record_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint
 	ADD CONSTRAINT  fk_service_endpoint_svc
 	FOREIGN KEY
-	(service_id) 
+	(service_id)
 	REFERENCES service(service_id)
 	DEFERRABLE;
 
 ALTER TABLE service_endpoint
 	ADD CONSTRAINT  fk_service_endpoint_dns_dom_id
 	FOREIGN KEY
-	(dns_domain_id) 
+	(dns_domain_id)
 	REFERENCES dns_domain(dns_domain_id)
 	DEFERRABLE;
 
@@ -148,7 +148,7 @@ ALTER TABLE service_endpoint_x509_certificate
 ALTER TABLE service_endpoint_x509_certificate
 	ADD CONSTRAINT  fk_service_endpoint_x509_certificate_x509di
 	FOREIGN KEY
-	(x509_signed_certificate_id) 
+	(x509_signed_certificate_id)
 	REFERENCES x509_signed_certificate(x509_signed_certificate_id)
 	DEFERRABLE;
 
@@ -249,6 +249,13 @@ ALTER TABLE service_acl
 	REFERENCES service_depend(service_depend_id)
 	DEFERRABLE;
 
+ALTER TABLE sw_package_repository_location
+	ADD CONSTRAINT  fk_sw_package_repository_location_pkg_repo_id
+	FOREIGN KEY
+	(sw_package_repository_id)
+	REFERENCES sw_package_repository(sw_package_repository_id)
+	DEFERRABLE;
+
 -----------------------------------------------------------------------------
 
 ALTER TABLE service_collection_hier
@@ -284,7 +291,74 @@ ALTER TABLE service_collection_service
 -- pickup with service_property .. or not.
 --
 
+
+
 -----------------------------------------------------------------------------
 --
--- pickup with acl_rule 
+-- pickup with acl_rule
 --
+
+ALTER TABLE acl_rule
+	ADD CONSTRAINT  fk_acl_rule_acl_group_id
+	FOREIGN KEY
+	(acl_rule_id)
+	REFERENCES service_version(service_version_id)
+	DEFERRABLE;
+
+ALTER TABLE acl_rule
+	ADD CONSTRAINT  fk_acl_rule_acl_service_depend_id
+	FOREIGN KEY
+	(service_depend_id)
+	REFERENCES service_depend(service_depend_id)
+	DEFERRABLE;
+
+ALTER TABLE acl_rule
+	ADD CONSTRAINT  fk_acl_rule_acl_src_l3_net_collection
+	FOREIGN KEY
+	(source_layer3_network_collection_id)
+	REFERENCES layer3_network_collection(layer3_network_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE acl_rule
+	ADD CONSTRAINT  fk_acl_rule_acl_src_port_range
+	FOREIGN KEY
+	(source_port_range_id)
+	REFERENCES port_range(port_range_id)
+	DEFERRABLE;
+
+ALTER TABLE acl_rule
+	ADD CONSTRAINT  fk_acl_rule_acl_dst_l3_net_collection
+	FOREIGN KEY
+	(dest_layer3_network_collection_id)
+	REFERENCES layer3_network_collection(layer3_network_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE acl_rule
+	ADD CONSTRAINT  fk_acl_rule_acl_dst_port_range
+	FOREIGN KEY
+	(dest_port_range_id)
+	REFERENCES port_range(port_range_id)
+	DEFERRABLE;
+
+ALTER TABLE network_interface_acl
+	ADD CONSTRAINT  fk_network_interface_acl_network_interface
+	FOREIGN KEY
+	(network_interface_id)
+	REFERENCES network_interface(network_interface_id)
+	DEFERRABLE;
+
+ALTER TABLE network_interface_acl_chain
+	ADD CONSTRAINT  fk_network_interface_acl_chain_id
+	FOREIGN KEY
+	(network_interface_acl_id)
+	REFERENCES network_interface_acl(network_interface_acl_id)
+	DEFERRABLE;
+
+ALTER TABLE network_interface_acl_chain
+	ADD CONSTRAINT  fk_network_interface_acl_group_id
+	FOREIGN KEY
+	(acl_group_id)
+	REFERENCES acl_group(acl_group_id)
+	DEFERRABLE;
+
+
