@@ -1,3 +1,11 @@
+jazzhands-stab (0.84.2) trusty; urgency=medium
+
+  * remove operating_system.processor_architecture since it is going away
+  * fix issue with val_baud on device serial tab
+  * fix dns and description manipulations of /32 networks
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 14 May 2019 10:32:22 -0500
+
 jazzhands-stab (0.84.0) trusty; urgency=medium
 
   * switch to v_device_collection_hier_trans
@@ -7,6 +15,18 @@ jazzhands-stab (0.84.0) trusty; urgency=medium
     if they had a hierarachy and were the last, AND collapse all was clicked.
 
  -- Todd Kover <kovert@omniscient.com>  Fri, 29 Mar 2019 09:22:00 -0500
+
+
+jazzhands-stab (0.84.0) trusty; urgency=medium
+
+  * switch to v_device_collection_hier_trans
+  * revamp dns/soacheck
+  * add ability to reset NS records
+  * fix issue with netblock hierarchies that caused netblocks to disappear
+    if they had a hierarachy and were the last, AND collapse all was clicked.
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Mar 2019 09:22:00 -0500
+
 
 jazzhands-stab (0.82.0) trusty; urgency=medium
 
