@@ -69,8 +69,7 @@ sub do_add_child_netblock_prompt {
 	print $stab->start_html( { -title => 'STAB: Add a netblock' } ), "\n";
 	if ( defined($blk) ) {
 		print $cgi->h2( "Add a child to ",
-			$blk->IPAddress,
-			( $blk->hash()->{ _dbx('description') } || "" ) );
+			$blk->IPAddress, ( $blk->hash()->{ _dbx('description') } || "" ) );
 	} else {
 		print $cgi->h2("Add a netblock");
 	}

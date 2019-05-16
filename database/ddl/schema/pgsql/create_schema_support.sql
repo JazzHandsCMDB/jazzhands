@@ -216,77 +216,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table(
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table_finish(
 	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
 )
 RETURNS VOID AS $FUNC$
 DECLARE
-	idx		text[];
-	keys	text[];
 	cols	text[];
-	i		text;
-	seq		integer;
+	i	text;
 BEGIN
-	-- rename all the old indexes and constraints on the old audit table
-	SELECT	array_agg(c2.relname)
-		INTO	 idx
-		  FROM	pg_catalog.pg_index i
-			LEFT JOIN pg_catalog.pg_class c
-				ON c.oid = i.indrelid
-			LEFT JOIN pg_catalog.pg_class c2
-				ON i.indexrelid = c2.oid
-			LEFT JOIN pg_catalog.pg_namespace n
-				ON c2.relnamespace = n.oid
-			LEFT JOIN pg_catalog.pg_constraint con
-				ON (conrelid = i.indrelid
-				AND conindid = i.indexrelid
-				AND contype IN ('p','u','x'))
-		 WHERE n.nspname = quote_ident(aud_schema)
-		  AND	c.relname = quote_ident(table_name)
-		  AND	contype is NULL
-	;
-
-	SELECT array_agg(con.conname)
-	INTO	keys
-    FROM pg_catalog.pg_class c
-		INNER JOIN pg_namespace n
-			ON relnamespace = n.oid
-		INNER JOIN pg_catalog.pg_index i
-			ON c.oid = i.indrelid
-		INNER JOIN pg_catalog.pg_class c2
-			ON i.indexrelid = c2.oid
-		INNER JOIN pg_catalog.pg_constraint con ON
-			(con.conrelid = i.indrelid
-			AND con.conindid = i.indexrelid )
-	WHERE  	n.nspname = quote_ident(aud_schema)
-	AND		c.relname = quote_ident(table_name)
-	AND con.contype in ('p', 'u')
-	;
-
-	IF idx IS NOT NULL THEN
-		FOREACH i IN ARRAY idx
-		LOOP
-			EXECUTE 'ALTER INDEX '
-				|| quote_ident(aud_schema) || '.'
-				|| quote_ident(i)
-				|| ' RENAME TO '
-				|| quote_ident('_' || i);
-		END LOOP;
-	END IF;
-
-	IF array_length(keys, 1) > 0 THEN
-		FOREACH i IN ARRAY keys
-		LOOP
-			EXECUTE 'ALTER TABLE '
-				|| quote_ident(aud_schema) || '.'
-				|| quote_ident(table_name)
-				|| ' RENAME CONSTRAINT '
-				|| quote_ident(i)
-				|| ' TO '
-			|| quote_ident('__old__' || i);
-		END LOOP;
-	END IF;
-
 	--
 	-- get columns - XXX NOTE:  Need to remove columns not in the new
 	-- table...
@@ -299,35 +237,11 @@ BEGIN
 	LEFT JOIN pg_catalog.pg_description d
 			on d.objoid = a.attrelid
 			and d.objsubid = a.attnum
-	WHERE  	n.nspname = quote_ident(aud_schema)
-	  AND	c.relname = quote_ident(table_name)
-	  AND 	a.attnum > 0
-	  AND 	NOT a.attisdropped
+	WHERE   n.nspname = quote_ident(aud_schema)
+	  AND	c.relname = quote_ident('__old__' || table_name)
+	  AND	a.attnum > 0
+	  AND	NOT a.attisdropped
 	;
-
-	--
-	-- rename table
-	--
-	EXECUTE 'ALTER TABLE '
-		|| quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name)
-		|| ' RENAME TO '
-		|| quote_ident('__old__' || table_name);
-
-
-	--
-	-- RENAME sequence
-	--
-	EXECUTE 'ALTER SEQUENCE '
-		|| quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq')
-		|| ' RENAME TO '
-		|| quote_ident('_old_' || table_name || '_seq');
-
-	--
-	-- create a new audit table
-	--
-	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
 
 	EXECUTE 'INSERT INTO '
 		|| quote_ident(aud_schema) || '.'
@@ -339,18 +253,6 @@ BEGIN
 		|| ' ORDER BY '
 		|| quote_ident('aud#seq');
 
-	--
-	-- fix sequence primary key to have the correct next value
-	--
-	EXECUTE 'SELECT max("aud#seq") + 1 FROM	 '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name) INTO seq;
-	IF seq IS NOT NULL THEN
-		EXECUTE 'ALTER SEQUENCE '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name || '_seq')
-			|| ' RESTART WITH ' || seq;
-	END IF;
 
 	EXECUTE 'DROP TABLE '
 		|| quote_ident(aud_schema) || '.'
@@ -386,7 +288,122 @@ BEGIN
 			|| quote_ident(aud_schema) || '.'
 			|| quote_ident('_' || i);
 	END LOOP;
+END;
+$FUNC$ LANGUAGE plpgsql;
 
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
+	finish_rebuild BOOLEAN DEFAULT true
+)
+RETURNS VOID AS $FUNC$
+DECLARE
+	idx		text[];
+	keys		text[];
+	i		text;
+	seq		integer;
+BEGIN
+	-- rename all the old indexes and constraints on the old audit table
+	SELECT	array_agg(c2.relname)
+		INTO	 idx
+		  FROM	pg_catalog.pg_index i
+			LEFT JOIN pg_catalog.pg_class c
+				ON c.oid = i.indrelid
+			LEFT JOIN pg_catalog.pg_class c2
+				ON i.indexrelid = c2.oid
+			LEFT JOIN pg_catalog.pg_namespace n
+				ON c2.relnamespace = n.oid
+			LEFT JOIN pg_catalog.pg_constraint con
+				ON (conrelid = i.indrelid
+				AND conindid = i.indexrelid
+				AND contype IN ('p','u','x'))
+		 WHERE n.nspname = quote_ident(aud_schema)
+		  AND	c.relname = quote_ident(table_name)
+		  AND	contype is NULL
+	;
+
+	SELECT array_agg(con.conname)
+	INTO	keys
+    FROM pg_catalog.pg_class c
+		INNER JOIN pg_namespace n
+			ON relnamespace = n.oid
+		INNER JOIN pg_catalog.pg_index i
+			ON c.oid = i.indrelid
+		INNER JOIN pg_catalog.pg_class c2
+			ON i.indexrelid = c2.oid
+		INNER JOIN pg_catalog.pg_constraint con ON
+			(con.conrelid = i.indrelid
+			AND con.conindid = i.indexrelid )
+	WHERE		n.nspname = quote_ident(aud_schema)
+	AND		c.relname = quote_ident(table_name)
+	AND con.contype in ('p', 'u')
+	;
+
+	IF idx IS NOT NULL THEN
+		FOREACH i IN ARRAY idx
+		LOOP
+			EXECUTE 'ALTER INDEX '
+				|| quote_ident(aud_schema) || '.'
+				|| quote_ident(i)
+				|| ' RENAME TO '
+				|| quote_ident('_' || i);
+		END LOOP;
+	END IF;
+
+	IF array_length(keys, 1) > 0 THEN
+		FOREACH i IN ARRAY keys
+		LOOP
+			EXECUTE 'ALTER TABLE '
+				|| quote_ident(aud_schema) || '.'
+				|| quote_ident(table_name)
+				|| ' RENAME CONSTRAINT '
+				|| quote_ident(i)
+				|| ' TO '
+			|| quote_ident('__old__' || i);
+		END LOOP;
+	END IF;
+
+	--
+	-- rename table
+	--
+	EXECUTE 'ALTER TABLE '
+		|| quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name)
+		|| ' RENAME TO '
+		|| quote_ident('__old__' || table_name);
+
+
+	--
+	-- RENAME sequence
+	--
+	EXECUTE 'ALTER SEQUENCE '
+		|| quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name || '_seq')
+		|| ' RENAME TO '
+		|| quote_ident('_old_' || table_name || '_seq');
+
+	--
+	-- create a new audit table
+	--
+	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
+
+	--
+	-- fix sequence primary key to have the correct next value
+	--
+	EXECUTE 'SELECT max("aud#seq") + 1 FROM	 '
+			|| quote_ident(aud_schema) || '.'
+			|| quote_ident('__old__' || table_name) INTO seq;
+	IF seq IS NOT NULL THEN
+		EXECUTE 'ALTER SEQUENCE '
+			|| quote_ident(aud_schema) || '.'
+			|| quote_ident(table_name || '_seq')
+			|| ' RESTART WITH ' || seq;
+	END IF;
+
+	IF finish_rebuild THEN
+		EXECUTE schema_support.rebuild_audit_table_finish(aud_schema,tbl_schema,table_name);
+	END IF;
 
 	--
 	-- recreate audit trigger

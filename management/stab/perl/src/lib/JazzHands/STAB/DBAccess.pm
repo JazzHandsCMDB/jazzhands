@@ -22,7 +22,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Copyright (c) 2013-2017 Todd Kover, Matthew Ragan
+# Copyright (c) 2013-2019 Todd Kover, Matthew Ragan
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -939,9 +939,8 @@ sub get_operating_system_from_id {
 		select  os.operating_system_id,
 			c.company_name,
 			os.company_id,
-			os.name,
-			os.version,
-			os.processor_architecture
+			os.operating_system_name,
+			os.version
 		  from  operating_system os
 			inner join company c on
 				c.company_id = os.company_id
@@ -1902,12 +1901,15 @@ sub process_and_insert_dns_record {
 			  . Net::IP::Error()
 			  . ")" );
 
-		my $block =
-		  $self->get_netblock_from_ip( ip_address => $opts->{dns_value} );
+		my $block = $self->get_netblock_from_ip(
+			ip_address        => $opts->{dns_value},
+			is_single_address => 'Y'
+		);
 		if ( !$block ) {
 			$block = $self->get_netblock_from_ip(
-				ip_address    => $opts->{dns_value},
-				netblock_type => 'dns'
+				ip_address        => $opts->{dns_value},
+				netblock_type     => 'dns',
+				is_single_address => 'Y',
 			);
 		}
 
@@ -2098,7 +2100,7 @@ sub build_dns_classes_drop {
 	while ( my ( $id, $desc ) = $sth->fetchrow_array ) {
 		my $r = {};
 		$r->{'value'} = $id;
-		$r->{'text'} = $desc || $id;
+		$r->{'text'}  = $desc || $id;
 		if ( $id eq 'IN' ) {
 			$r->{selected} = 'true';
 		}

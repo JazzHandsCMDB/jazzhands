@@ -59,10 +59,6 @@ sub do_operating_system_report {
 	print $cgi->h3( { -style => 'text-align: center' }, 'OS by Name' );
 	print name_only($stab);
 
-	print $cgi->h3( { -style => 'text-align: center' },
-		'OS by Processor Arch' );
-	print by_arch($stab);
-
 	print $cgi->end_html;
 	undef $stab;
 }
@@ -76,18 +72,13 @@ sub version_arch {
 	my $q = qq{
 		select	os.name,
 			os.version,
-			os.processor_architecture,
 			count(*) as tally
 		  from	device d
 			inner join operating_system os
 				on os.operating_system_id = d.operating_system_id
 			left join device_function df on
 				d.device_id = df.device_id
-			where (
-					os.processor_architecture <> 'noarch' or
-					os.name = 'unknown'
-				  )
-			  and	device_id in
+			where device_id in
 					(
 					 select device_id from device_collection_device
 					 where device_collection_id in
@@ -98,8 +89,8 @@ sub version_arch {
 						)
 					)
 			 and status in ('up', 'down', 'unknown')
-		group by os.name, os.version, os.processor_architecture
-		order by lower(os.name), os.processor_architecture, os.version
+		group by os.name, os.version
+		order by lower(os.name), os.version
 	};
 
 	my $sth = $stab->prepare($q) || return $stab->return_db_error($dbh);
@@ -135,11 +126,7 @@ sub by_version {
 				on os.operating_system_id = d.operating_system_id
 			left join device_function df on
 				d.device_id = df.device_id
-			where (
-					os.processor_architecture <> 'noarch' or
-					os.name = 'unknown'
-				  )
-			  and	device_id in
+			where device_id in
 					(
 					 select device_id from device_collection_device
 					 where device_collection_id in
@@ -178,23 +165,18 @@ sub name_arch_only {
 
 	my $q = qq{
 		select	os.name,
-			os.processor_architecture,
 			count(*) as tally
 		  from	device d
 			inner join operating_system os
 				on os.operating_system_id = d.operating_system_id
 			left join device_function df on
 				d.device_id = df.device_id
-			where (
-					os.processor_architecture <> 'noarch' or
-					os.name = 'unknown'
-				  )
-			  and	(df.device_function_type is NULL or
+			where (df.device_function_type is NULL or
 					 df.device_function_type in ('server', 'desktop')
 					)
 			 and status in ('up', 'down', 'unknown')
-		group by os.name, os.processor_architecture
-		order by lower(os.name), os.processor_architecture
+		group by os.name
+		order by lower(os.name)
 	};
 
 	my $sth = $stab->prepare($q) || return $stab->return_db_error($dbh);
@@ -227,11 +209,7 @@ sub name_only {
 				on os.operating_system_id = d.operating_system_id
 			left join device_function df on
 				d.device_id = df.device_id
-			where (
-					os.processor_architecture <> 'noarch' or
-					os.name = 'unknown'
-				  )
-			  and device_id in (
+			where device_id in (
 					 select device_id from device_collection_device
 					 where device_collection_id in
 						(select device_collection_id
@@ -253,52 +231,6 @@ sub name_only {
 	$rv .= $cgi->th( [ 'Name', 'Number of Systems' ] );
 	while ( my ( $name, $tally ) = $sth->fetchrow_array ) {
 		$rv .= $cgi->Tr( $cgi->td($name), $cgi->td($tally), );
-	}
-	$rv .= $cgi->end_table;
-	$sth->finish;
-	$rv;
-}
-
-sub by_arch {
-	my $stab = shift @_;
-
-	my $dbh = $stab->dbh || die "Could not create dbh";
-	my $cgi = $stab->cgi || die "Could not create cgi";
-
-	my $q = qq{
-		select	os.processor_architecture,
-			count(*) as tally
-		  from	device d
-			inner join operating_system os
-				on os.operating_system_id = d.operating_system_id
-			left join device_function df on
-				d.device_id = df.device_id
-			where (
-					os.processor_architecture <> 'noarch' or
-					os.name = 'unknown'
-				  )
-			  and device_id in (
-					 select device_id from device_collection_device
-					 where device_collection_id in
-						(select device_collection_id
-						   from	device_collection
-						  where	device_collection_type = 'appgroup'
-							and	name in ('server', 'desktop')
-						)
-					)
-			 and status in ('up', 'down', 'unknown')
-		group by os.processor_architecture
-		order by os.processor_architecture
-	};
-
-	my $sth = $stab->prepare($q) || return $stab->return_db_error($dbh);
-	$sth->execute || return $stab->return_db_error($sth);
-
-	my $rv = "";
-	$rv .= $cgi->start_table( { -border => 1, align => 'center' } );
-	$rv .= $cgi->th( [ 'Arch', 'Number of Systems' ] );
-	while ( my ( $arch, $tally ) = $sth->fetchrow_array ) {
-		$rv .= $cgi->Tr( $cgi->td($arch), $cgi->td($tally), );
 	}
 	$rv .= $cgi->end_table;
 	$sth->finish;
