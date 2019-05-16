@@ -54,7 +54,6 @@ use URI;
 use Carp qw(cluck);
 use Data::Dumper;
 use NetAddr::IP qw(:lower);
-use Net::IP;
 
 # Try to keep these later.
 use JazzHands::STAB::DBAccess;
@@ -2890,7 +2889,7 @@ sub add_physical_ports {
 sub validate_ip {
 	my ( $self, $ip ) = @_;
 
-	my $i = new Net::IP($ip) || return 0;
+	my $i = new NetAddr::IP($ip) || return 0;
 	return $i->version();
 }
 
