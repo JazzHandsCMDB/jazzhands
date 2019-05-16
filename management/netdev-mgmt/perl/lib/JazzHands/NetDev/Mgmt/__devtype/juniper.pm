@@ -2746,6 +2746,101 @@ sub SetBGPPeerStatus {
 	return 1;
 }
 
+sub RemoveVLAN {
+    my $self = shift;
+    my $opt = &_options(@_);
+
+    my $err = $opt->{errors};
+
+    if (!$opt->{encapsulation_tag}) {
+        SetError($err,
+            "encapsulation_tag parameter must be passed to RemoveVLAN");
+        return undef;
+    }
+	my $encapsulation_tag = $opt->{encapsulation_tag};
+
+    if (
+        $encapsulation_tag !~ /^[0-9]+$/ ||
+        $encapsulation_tag < 1 ||
+        $encapsulation_tag > 4094
+    ) {
+        SetError($err,
+            "encapsulation_tag parameter must be a valid VLAN number for RemoveVLAN");
+        return undef;
+    }
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
+	my $vlans = $self->GetVLANs(
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!defined($vlans)) {
+		return undef;
+	}
+
+	if (!exists($vlans->{ids}->{$encapsulation_tag})) {
+		return undef;
+	}
+	my $vlan = $vlans->{ids}->{$encapsulation_tag};
+
+	my $conf = "<configuration>\n";
+	$conf .= sprintf(q {
+			<vlans>
+				<vlan delete="delete">
+					<vlan-id>%s</vlan-id>
+				</vlan>
+			</vlans>
+		},
+			$vlan->{name}
+	);
+
+	if ($vlan->{l3_interface}) {
+		my $iface = $self->GetInterfaceConfig(
+			timeout => $opt->{timeout},
+			interface_name => $vlan->{l3_interface}
+		);
+		if ($iface) {
+			$conf .= sprintf(q{
+				<interfaces>
+					<interface>
+						<name>irb</name>
+						<unit delete="delete">
+							<name>%s</name>
+						</unit>
+					</interface>
+				</interfaces>
+				},
+					$vlan->{l3_interface}
+			);
+			if (%{$iface->{filter}}) {
+				$conf .= q{
+					<firewall>
+						<family>
+							<inet>
+				};
+				foreach my $filter (keys %{$iface->{filter}}) {
+					$conf .= sprintf(q{
+								<filter delete="delete">
+									<name>%s</name>
+								</filter>
+					},
+						$iface->{filter}->{$filter});
+				}
+				$conf .= q{
+							</inet>
+						</family>
+					</firewall>
+				};
+			}
+		}
+	}
+	$conf .= "</configuration>\n";
+}
+
 sub GetInterfaceConfig {
 	my $self = shift;
 	my $opt = &_options(@_);
