@@ -442,7 +442,7 @@ sub generate_passwd_files($$) {
 			if ( $last_dcid != $dcid ) {
 				my $json = JSON::PP->new->ascii;
 				$json->canonical(1);
-				print $fh $json->pretty->encode( \@pwdlines );
+				print $fh $json->pretty->encode( \@pwdlines ), "\n";
 				$fh =
 				  new_mclass_file( $dir, $outname, $fh, $outclass );
 				$last_dcid = $dcid;
@@ -467,7 +467,7 @@ sub generate_passwd_files($$) {
 	## Let's not forget to write the passwd file for the last MCLASS
 	my $json = JSON::PP->new->ascii;
 	$json->canonical(1);
-	print $fh $json->pretty->encode( \@pwdlines ) if ($fh);
+	print $fh $json->pretty->encode( \@pwdlines ), "\n" if ($fh);
 	$fh->close if ( defined $fh );
 }
 
@@ -568,7 +568,7 @@ sub generate_group_files($$) {
 			if ( $last_dcid != $dcid ) {
 				my $json = JSON::PP->new->ascii;
 				$json->canonical(1);
-				print $fh $json->pretty->encode( \@grplines );
+				print $fh $json->pretty->encode( \@grplines ) ,"\n";
 				$fh =
 				  new_mclass_file( $dir, $outname, $fh, $outclass );
 				$last_dcid = $dcid;
@@ -597,7 +597,7 @@ sub generate_group_files($$) {
 	## Let's not forget to write the passwd file for the last MCLASS
 	my $json = JSON::PP->new->ascii;
 	$json->canonical(1);
-	print $fh $json->pretty->encode( \@grplines ) if ($fh);
+	print $fh $json->pretty->encode( \@grplines ) ,"\n" if ($fh);
 	$fh->close if ( defined $fh );
 
 }
@@ -1259,7 +1259,7 @@ sub generate_appaal_files($) {
 		if ($closemclass) {
 			my $json = JSON::PP->new->ascii;
 			$json->canonical(1);
-			print $fh $json->pretty->encode($allapps);
+			print $fh $json->pretty->encode($allapps) ,"\n";
 			if ($mclass) {
 				$fh =
 				  new_mclass_file( $dir, $mclass, $fh,
@@ -1727,13 +1727,14 @@ sub create_json_manifest {
 			push @files, $file;
 		}
 	};
-	find( $finder, $dir );
+	find( $finder, $dir."/mclass" );
+	find( $finder, $dir."/hosts" );
 	@files = sort(@files);
 	my $json = JSON::PP->new->ascii;
 	$json->canonical(1);
 	my $fh = IO::File->new( "$output_dir/$output_file", "w", 0640 )
 	  or die "can't create file $output_dir/$output_file: $!\n";
-	print $fh $json->pretty->encode( \@files );
+	print $fh $json->pretty->encode( \@files ) ,"\n";
 	$fh->close if ( defined $fh );
 }
 
