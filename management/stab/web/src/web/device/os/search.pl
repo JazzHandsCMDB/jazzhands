@@ -29,6 +29,7 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
+use JazzHands::Common::Util qw(_dbx);
 
 do_os_search();
 
@@ -56,7 +57,7 @@ sub do_os_search {
 		$stab->error_return('Unknown Operating System');
 	}
 
-	my $url = ".?OPERATING_SYSTEM_ID=" . $os->{'OPERATING_SYSTEM_ID'};
+	my $url = ".?OPERATING_SYSTEM_ID=" . $os->{_dbx('OPERATING_SYSTEM_ID')};
 	print $cgi->redirect($url);
 	undef $stab;
 }

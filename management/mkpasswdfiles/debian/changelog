@@ -1,8 +1,29 @@
+jazzhands-mkpasswdfiles (0.84.3) bionic; urgency=medium
+
+  * fix how json is generated
+  * properly generate manifest file
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 17 May 2019 09:46:00 -0500
+
+jazzhands-mkpasswdfiles (0.84.2) bionic; urgency=medium
+
+  * fix debian packaging of mkpasswdfiles
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 May 2019 08:31:00 -0500
+
+
+jazzhands-mkpasswdfiles (0.84.1) bionic; urgency=medium
+
+  * remove klogin include/exclude flag from k5login bits
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 10 Apr 2019 16:26:00 -0500
+
 jazzhands-mkpasswdfiles (0.83.10) bionic; urgency=medium
 
   * require uid of output directory to match uid of invoker or --force
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 16 Jan 2019 18:09:00 -0500
+
 
 jazzhands-mkpasswdfiles (0.74.0) trusty; urgency=medium
 

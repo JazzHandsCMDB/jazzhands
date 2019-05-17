@@ -1,8 +1,12 @@
+perl-jazzhands-dbi (0.84.3) unstable; urgency=medium
+
+  * debian compat patch from Renato Lanzetti
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri, 17 May 2019 14:33:10 +0200
+
 perl-jazzhands-dbi (0.79.2) unstable; urgency=medium
 
   * require newer AppAuthAL
-
- -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Mar 2017 18:23:00 -0400
 
 perl-jazzhands-dbi (0.74.4) unstable; urgency=medium
 

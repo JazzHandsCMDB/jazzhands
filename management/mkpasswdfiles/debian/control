@@ -7,6 +7,7 @@ Standards-Version: 3.9.4
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-mkpasswdfiles
+Depends: jazzhands-perl-common (>= 0.73.2), perl-jazzhands-dbi (>= 0.84.3)
 Architecture: any
 Description: 
  Generates unix credentials

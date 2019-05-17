@@ -22,6 +22,22 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
+# Copyright (c) 2019 Todd Kover, Matthew Ragan
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
 # $Id$
 #
 
@@ -142,7 +158,7 @@ sub process_netblock_reservations {
 			my $netblock = $stab->get_netblock_from_id($inid);
 			if ( !defined($netblock) ) {
 				$stab->error_return(
-					"Unable to find IP ($ip) in DB for $inid.  Seek Help" );
+					"Unable to find IP ($ip) in DB for $inid.  Seek Help");
 			}
 			my $status = $netblock->{ _dbx('NETBLOCK_STATUS') };
 
@@ -209,7 +225,8 @@ sub process_netblock_reservations {
 			if (
 				!(
 					my $xx = $stab->get_netblock_from_ip(
-						ip_address => $ip
+						ip_address        => $ip,
+						is_single_address => 'Y'
 					)
 				)
 			  )
@@ -257,7 +274,7 @@ sub ipalloc_get_or_create_netblock_id {
 	my $netblock = $stab->get_netblock_from_id($par_nbid);
 	if ( !defined($netblock) ) {
 		$stab->error_return(
-			"Unable to find/configure parent IP in DB.  Please seek help" );
+			"Unable to find/configure parent IP in DB.  Please seek help");
 	}
 
 	my $pip = new Net::IP( $netblock->{ _dbx('IP_ADDRESS') } )
@@ -270,9 +287,11 @@ sub ipalloc_get_or_create_netblock_id {
 	# check to see if IP is in the parent netblock.  This is more meaningful
 	# in Ipv6 (or large block) additions
 	#
-	if ( $pip->overlaps($nip) != $IP_B_IN_A_OVERLAP ) {
-		$stab->error_return(
-			"$insert_ip is not in " . $netblock->{ _dbx('IP_ADDRESS') } );
+	if ( $pip->ip() ne $nip->ip() ) {
+		if ( $pip->overlaps($nip) != $IP_B_IN_A_OVERLAP ) {
+			$stab->error_return(
+				"$insert_ip is not in " . $netblock->{ _dbx('IP_ADDRESS') } );
+		}
 	}
 
 	my $q = qq {
@@ -493,7 +512,7 @@ sub add_netblock_routes {
 	my $desc    = $stab->cgi_parse_param('ROUTE_DESCRIPTION');
 
 	if ( $srcip && $srcip =~ /^default$/i ) {
-		$srcip = '0.0.0.0';
+		$srcip   = '0.0.0.0';
 		$srcbits = 0 if ( !$srcbits );
 	}
 
@@ -539,7 +558,7 @@ sub update_netblock_routes {
 		my $desc    = $stab->cgi_parse_param( 'ROUTE_DESCRIPTION',    $id );
 
 		if ( $srcip && $srcip =~ /^default$/i ) {
-			$srcip = '0.0.0.0';
+			$srcip   = '0.0.0.0';
 			$srcbits = 0 if ( !$srcbits );
 		}
 
@@ -598,7 +617,7 @@ sub process_dns_additions( $$ ) {
 			$ip = $stab->cgi_parse_param( 'ip_new', $1 );
 			if ( !$ip ) {
 				$stab->error_return(
-					"Unable to find IP for uniq id $uniqid.  Seek help" );
+					"Unable to find IP for uniq id $uniqid.  Seek help");
 			}
 		}
 		my $type = 'A';
