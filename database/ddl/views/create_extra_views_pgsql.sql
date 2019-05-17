@@ -124,6 +124,7 @@
 
 \ir pgsql/create_v_person_company_hier.sql
 \ir create_v_person.sql
+\ir create_v_account_name.sql
 \ir create_v_person_company.sql
 
 -- possibly to replace v_device_col_acct_col_expanded
