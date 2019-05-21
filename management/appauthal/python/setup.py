@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright 2017 Ryan D. Williams
+# Copyright 2017-2019 Ryan D. Williams
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ import subprocess
 from distutils.core import setup
 
 # this should be pulled in automatically
-version = '0.1.0'
+version = '0.84.4'
 
 classifiers = [
     "Topic :: Utilities",
@@ -25,16 +25,15 @@ classifiers = [
 ]
 
 setup(
-    name = 'jazzhands-feedlogger',
-    description = 'Low level library for recording feed events to JazzHands feedlog',
+    name = 'jazzhands_appauthal',
     version = version,
-    long_description = """Contains library for interacting with the feedlog extension to JazzHands.
-Raw interface for creating a session, adding events and thier attributes.""",
-    license = 'APLv2',
     url = 'http://www.jazzhands.net/',
-    author = 'rdw',
-    author_email = 'rdw@appnexus.com',
+    author = 'Ryan D Williams',
+    author_email = 'rdw@xandr.com',
+    license = 'ALv2',
     package_dir = {'': 'src/lib'},
-    packages = ['jazzhands_extensions'],
+    packages = ['jazzhands_appauthal'],
+    description = 'Provides generic authentication abstraction libraries.'
+        ' Currently supports returning unified config interface for Postrgres and MySQL',
     classifiers = classifiers,
 )

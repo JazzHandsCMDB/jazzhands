@@ -30,6 +30,7 @@ management/appauthal/perl/AppAuthAL
 management/appauthal/perl/DBI
 management/appauthal/perl/LDAP
 management/appauthal/php
+management/appauthal/python
 management/approval
 management/dbsyncer
 management/dhcpgen
