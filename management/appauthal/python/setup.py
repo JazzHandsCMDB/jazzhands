@@ -26,15 +26,14 @@ classifiers = [
 
 setup(
     name = 'jazzhands-feedlogger',
-    description = 'Low level library for recording feed events to JazzHands feedlog',
+    description = 'Low level library for interfacing with JazzHands appauthal in python',
     version = version,
-    long_description = """Contains library for interacting with the feedlog extension to JazzHands.
-Raw interface for creating a session, adding events and thier attributes.""",
+    long_description = """Contains library for interacting with JazzHands appauthal in python.""",
     license = 'APLv2',
     url = 'http://www.jazzhands.net/',
     author = 'rdw',
-    author_email = 'rdw@appnexus.com',
+    author_email = 'xrxdxwx@gmail.com',
     package_dir = {'': 'src/lib'},
-    packages = ['jazzhands_extensions'],
+    packages = ['jazzhands_appauthal'],
     classifiers = classifiers,
 )
