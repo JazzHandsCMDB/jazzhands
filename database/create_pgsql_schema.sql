@@ -41,6 +41,8 @@ SELECT schema_support.build_audit_tables('audit', 'jazzhands');
 CREATE SCHEMA jazzhands_cache;
 COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
+\ir ddl/cache/create_cache_pgsql.sql
+
 \ir pkg/pgsql/create_early_packages.sql
 
 \ir ddl/views/create_extra_views_pgsql.sql
@@ -112,4 +114,10 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 -- This could be done for backwards compatibility but is not.
 -- \ir compat/pgsql/create_location_compatibility_view.sql
+
+--
+-- Backwards compatability for a few revisions
+--
+\ir ddl/legacy.sql
+
 select now();

@@ -354,6 +354,7 @@ DECLARE
 	v_netblock_type		val_netblock_type.netblock_type%TYPE;
 	v_row_count			integer;
 	v_trigger			record;
+	_tally				integer;
 BEGIN
 	/*
 	 * Get the parameters for the given netblock type to see if we need
@@ -402,9 +403,10 @@ BEGIN
 		RETURN NULL;
 	END IF;
 
-	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to %',
+	RAISE DEBUG 'Setting parent for all child netblocks of parent netblock % that belong to % %',
 		NEW.parent_netblock_id,
-		NEW.netblock_id;
+		NEW.netblock_id,
+		NEW.ip_universe_Id;
 
 	IF NEW.parent_netblock_id IS NULL THEN
 		UPDATE
@@ -417,6 +419,8 @@ BEGIN
 			netblock_id != NEW.netblock_id AND
 			netblock_type = NEW.netblock_type AND
 			ip_universe_id = NEW.ip_universe_id;
+		get diagnostics _tally = row_count;
+		RAISE DEBUG '.... % affected', _tally;
 		RETURN NULL;
 	ELSE
 		-- We don't need to specify the netblock_type or ip_universe_id here
@@ -429,6 +433,8 @@ BEGIN
 			parent_netblock_id = NEW.parent_netblock_id AND
 			ip_address <<= NEW.ip_address AND
 			netblock_id != NEW.netblock_id;
+		get diagnostics _tally = row_count;
+		RAISE DEBUG '.... % affected', _tally;
 		RETURN NULL;
 	END IF;
 END;

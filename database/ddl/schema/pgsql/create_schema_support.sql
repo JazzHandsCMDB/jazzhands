@@ -1782,6 +1782,7 @@ DECLARE
 	_r		RECORD;
 	_t1		integer;
 	_t2		integer;
+	_cnt	integer;
 	_cols 	TEXT[];
 	_pkcol 	TEXT[];
 	_q 		TEXT;
@@ -1831,33 +1832,39 @@ BEGIN
 	-- primary key.
 	--
 	IF _t1 != _t2 THEN
-		RAISE NOTICE 'table % has % rows; table % has % rows', old_rel, _t1, new_rel, _t2;
-		IF _t1 > _t2 THEN
-			_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+		RAISE NOTICE 'table % has % rows; table % has % rows (%)', old_rel, _t1, new_rel, _t2, _t1 - _t2;
+		_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+			' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
 				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-				' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
-					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-					quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-					' EXCEPT ( '
-						' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-						quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-					' )) ';
-		ELSE
-			_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-				' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+				' EXCEPT ( '
 					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
 					quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-					' EXCEPT ( '
-						' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-						quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-					' )) ';
+				' )) ';
 
-		END IF;
-
+		_cnt := 0;
 		FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
 		LOOP
-			RAISE NOTICE '%', _r;
+			RAISE NOTICE 'InOld/%: %', _cnt, _r;
+			_cnt := _cnt + 1;
+		END LOOP;
+
+		_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+			' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+				' EXCEPT ( '
+					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+					quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+				' )) ';
+
+		_cnt := 0;
+		FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
+		LOOP
+			RAISE NOTICE 'InNew/%: %', _cnt, _r;
+			_cnt := _cnt + 1;
 		END LOOP;
 
 		_rv := false;

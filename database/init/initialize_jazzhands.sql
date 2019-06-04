@@ -1149,13 +1149,13 @@ INSERT INTO Operating_System (
 	Operating_System_Name,
 	Major_Version,
 	Version,
-	Company_ID, processor_architecture
+	Company_ID
 ) VALUES (
 	0,
 	'unknown',
 	'unknown',
 	'unknown',
-	0, 'noarch'
+	0
 );
 UPDATE Operating_System SET Operating_System_ID = 0 where Company_ID = 0;
 

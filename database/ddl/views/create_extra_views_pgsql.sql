@@ -65,8 +65,6 @@
 
 -- components
 
-\ir pgsql/create_ct_component_hier.sql
-\ir pgsql/create_ct_device_components.sql
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components_expanded.sql
 \ir pgsql/create_v_device_components_json.sql
@@ -81,6 +79,10 @@
 \ir create_device_power_connection.sql
 \ir create_device_power_interface.sql
 
+--
+-- This is early because some views depend on it for now
+-- This needs to be moved later to the "to be retired section" and dropped
+\ir create_v_device_collection_hier_trans.sql
 
 -- XXX these need to be ported
 -- \ir create_v_joined_acct_collection_user_detail.sql
@@ -106,7 +108,7 @@
 \ir pgsql/create_v_netblock_coll_expanded.sql
 
 \ir create_v_dev_col_root.sql
-\ir create_mv_dev_col_root.sql
+-- \ir create_mv_dev_col_root.sql
 \ir create_v_dev_col_device_root.sql
 
 \ir pgsql/create_v_account_collection_expanded.sql
@@ -181,5 +183,4 @@
 -- to be retired
 \ir create_x509_certificate.sql
 \ir create_v_network_interface_trans.sql
-\ir create_v_device_collection_hier_trans.sql
 \ir create_v_dns_domain_nouniverse.sql
