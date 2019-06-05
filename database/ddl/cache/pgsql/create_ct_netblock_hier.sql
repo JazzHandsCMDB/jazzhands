@@ -70,7 +70,7 @@ DECLARE
 	_cnt	INTEGER;
 	_r		RECORD;
 BEGIN
-	IF NEW.is_single_address = 'Y' THEN
+	IF TG_OP IN ('UPDATE','INSERT') AND NEW.is_single_address = 'Y' THEN
 		RETURN NULL;
 	END IF;
 	--
