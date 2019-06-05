@@ -7,7 +7,6 @@ Invoked:
 
 \set ON_ERROR_STOP
 CREATE SCHEMA jazzhands_legacy;
-
 CREATE OR REPLACE VIEW jazzhands_legacy.account AS
 SELECT account_id,login,person_id,company_id,is_enabled,account_realm_id,account_status,account_role,account_type,description,external_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.account;
@@ -606,7 +605,7 @@ FROM jazzhands.network_service;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'network_service');
 CREATE OR REPLACE VIEW jazzhands_legacy.operating_system AS
-SELECT operating_system_id,operating_system_name,operating_system_short_name,company_id,major_version,version,operating_system_family,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT operating_system_id,operating_system_name,operating_system_short_name,company_id,major_version,version,operating_system_family,processor_architecture,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.operating_system;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'operating_system');
@@ -1618,6 +1617,11 @@ SELECT level,root_account_collection_id,account_collection_id
 FROM jazzhands.v_account_collection_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_expanded');
+CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_hier_from_ancestor AS
+SELECT root_account_collection_id,intermediate_account_collection_id,account_collection_id,path,cycle
+FROM jazzhands.v_account_collection_hier_from_ancestor;
+
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_hier_from_ancestor');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_expanded AS
 SELECT level,account_collection_id,root_account_collection_id,text_path,array_path,rvs_array_path
 FROM jazzhands.v_acct_coll_expanded;
@@ -1658,6 +1662,11 @@ SELECT company_id,account_collection_id
 FROM jazzhands.v_department_company_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_department_company_expanded');
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_hier_from_ancestor AS
+SELECT root_device_collection_id,intermediate_device_collection_id,device_collection_id,path,cycle
+FROM jazzhands.v_device_collection_hier_from_ancestor;
+
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_device_collection_hier_from_ancestor');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_hier_trans AS
 SELECT parent_device_collection_id,device_collection_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.v_device_collection_hier_trans;
@@ -1728,6 +1737,11 @@ SELECT level,netblock_collection_id,root_netblock_collection_id,text_path,array_
 FROM jazzhands.v_netblock_coll_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_netblock_coll_expanded');
+CREATE OR REPLACE VIEW jazzhands_legacy.v_netblock_collection_hier_from_ancestor AS
+SELECT root_netblock_collection_id,intermediate_netblock_collection_id,netblock_collection_id,path,cycle
+FROM jazzhands.v_netblock_collection_hier_from_ancestor;
+
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_netblock_collection_hier_from_ancestor');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_network_interface_trans AS
 SELECT network_interface_id,device_id,network_interface_name,description,parent_network_interface_id,parent_relation_type,netblock_id,physical_port_id,slot_id,logical_port_id,network_interface_type,is_interface_up,mac_addr,should_monitor,should_manage,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.v_network_interface_trans;
@@ -1783,6 +1797,11 @@ SELECT property_id,account_collection_id,account_id,account_realm_id,company_col
 FROM jazzhands.v_property;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_property');
+CREATE OR REPLACE VIEW jazzhands_legacy.v_site_netblock_expanded AS
+SELECT site_code,netblock_id
+FROM jazzhands.v_site_netblock_expanded;
+
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_site_netblock_expanded');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_token AS
 SELECT token_id,token_type,token_status,token_serial,token_sequence,account_id,token_password,zero_time,time_modulo,time_skew,is_token_locked,token_unlock_time,bad_logins,issued_date,token_last_updated,token_sequence_last_updated,lock_status_last_updated
 FROM jazzhands.v_token;
@@ -1819,6 +1838,11 @@ SELECT login,account_id,person_id,company_id,account_realm_id,first_name,last_na
 FROM jazzhands.v_account_manager_map;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_manager_map');
+CREATE OR REPLACE VIEW jazzhands_legacy.v_account_name AS
+SELECT account_id,first_name,last_name,display_name
+FROM jazzhands.v_account_name;
+
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_name');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_acct_expanded_detail AS
 SELECT account_collection_id,root_account_collection_id,account_id,acct_coll_level,dept_level,assign_method,text_path,array_path
 FROM jazzhands.v_acct_coll_acct_expanded_detail;
@@ -1874,11 +1898,11 @@ SELECT netblock_level,root_netblock_id,ip,netblock_id,ip_address,netblock_status
 FROM jazzhands.v_netblock_hier;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_netblock_hier');
-CREATE OR REPLACE VIEW jazzhands_legacy.v_site_netblock_expanded AS
-SELECT site_code,netblock_id
-FROM jazzhands.v_site_netblock_expanded;
+CREATE OR REPLACE VIEW jazzhands_legacy.v_netblock_hier_expanded AS
+SELECT netblock_level,root_netblock_id,site_code,path,netblock_id,ip_address,netblock_type,is_single_address,can_subnet,parent_netblock_id,netblock_status,ip_universe_id,description,external_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.v_netblock_hier_expanded;
 
-SELECT schema_support.save_grants_for_replay('jazzhands', 'v_site_netblock_expanded');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_netblock_hier_expanded');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_manager_hier AS
 SELECT level,account_id,person_id,company_id,login,human_readable,account_realm_id,manager_account_id,manager_login,manager_person_id,manager_company_id,manager_human_readable,array_path
 FROM jazzhands.v_account_manager_hier;
@@ -1991,3 +2015,4 @@ FROM jazzhands.v_unix_group_mappings;
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_unix_group_mappings');
 UPDATE __regrants SET regrant = regexp_replace(regrant, ' jazzhands.', ' jazzhands_legacy.');
 SELECT schema_support.replay_saved_grants();
+
