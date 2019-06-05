@@ -119,6 +119,7 @@
 \ir create_site_netblock.sql
 \ir pgsql/create_v_site_netblock_expanded.sql
 \ir pgsql/create_v_netblock_hier.sql
+\ir pgsql/create_v_netblock_hier_expanded.sql
 \ir pgsql/create_v_physical_connection.sql
 
 \ir create_v_device_col_acct_col_expanded.sql
