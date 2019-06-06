@@ -118,7 +118,7 @@
 \ir pgsql/create_v_company_hier.sql
 \ir create_site_netblock.sql
 \ir pgsql/create_v_site_netblock_expanded.sql
-\ir pgsql/create_v_site_netblock_expanded_assigned.sql
+\ir create_v_site_netblock_expanded_assigned.sql
 \ir pgsql/create_v_netblock_hier.sql
 \ir pgsql/create_v_netblock_hier_expanded.sql
 \ir pgsql/create_v_physical_connection.sql
