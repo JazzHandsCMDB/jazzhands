@@ -24,16 +24,15 @@ FROM (
 		rank() OVER (PARTITION BY n.netblock_id 
 		ORDER BY (array_length(hc.path, 1)), (array_length(n.path, 1)))
 		AS tier
-FROM property p
-	JOIN netblock_collection nc USING (netblock_collection_id)
+FROM netblock_collection_netblock ncn
 	JOIN jazzhands_cache.ct_netblock_collection_hier_from_ancestor hc 
 		USING (netblock_collection_id)
-	JOIN netblock_collection_netblock ncn USING (netblock_collection_id)
 	JOIN jazzhands_cache.ct_netblock_hier n 
 		ON ncn.netblock_id = n.root_netblock_id
-WHERE p.property_name = 'per-site-netblock_collection'
-AND p.property_type = 'automated'
+	JOIN (select *
+		FROM property
+		WHERE property_name = 'per-site-netblock_collection'
+		AND property_type = 'automated'
+	) p USING (netblock_collection_id)
 ) meat WHERE tier = 1
 ;
-
-
