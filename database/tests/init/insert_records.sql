@@ -20,7 +20,7 @@ insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('172.28.64.0/20', 'N',
+	('172.25.64.0/20', 'N',
 	'Allocated', 'default', 'Czech Public Network', 'Y');
 
 insert into netblock
@@ -28,10 +28,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.28.64.0/24', 'N',
+	('172.25.64.0/24', 'N',
 	'Allocated', 'default', 'Omniscient Čerčany CZ',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.28.64.0', 20)),
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 20)),
 	'Y'
 );
 
@@ -40,10 +40,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.28.64.0/26', 'N',
+	('172.25.64.0/26', 'N',
 	'Allocated', 'default', 'Server Network',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.28.64.0', 24)), 'N'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'N'
 );
 
 insert into netblock
@@ -51,10 +51,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.28.64.64/26', 'N',
+	('172.25.64.64/26', 'N',
 	'Allocated', 'default', 'Desktop Network',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.28.64.0', 24)), 'N'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'N'
 );
 
 insert into netblock
@@ -62,10 +62,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.28.64.128/27', 'N',
+	('172.25.64.128/27', 'N',
 	'Allocated', 'default', 'Wireless Network',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.28.64.0', 24)), 'Y'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'Y'
 );
 
 insert into netblock
@@ -73,10 +73,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.28.64.224/27', 'N',
+	('172.25.64.224/27', 'N',
 	'Allocated', 'default', 'Infrastructure',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.28.64.0', 24)), 'Y'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'Y'
 );
 
 insert into netblock
@@ -84,10 +84,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.28.65.0/24', 'N',
+	('172.25.65.0/24', 'N',
 	'Allocated', 'default', 'Omniscient Purcellville, VA',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.28.64.0', 20)), 'Y'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 20)), 'Y'
 );
 
 INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('OMNISCIENT.COM');
@@ -97,7 +97,7 @@ INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('SUCKSLESS.NET');
 insert into site_netblock (site_code, netblock_id)
         values ('CORP0', 
 	(select netblock_id from netblock where ip_address =
-		net_manip.inet_ptodb('172.28.65.0', 24))
+		net_manip.inet_ptodb('172.25.65.0', 24))
 	);
 insert into site_netblock (site_code, netblock_id)
         values ('CORP0', 
@@ -109,7 +109,7 @@ insert into site_netblock (site_code, netblock_id)
 insert into site_netblock (site_code, netblock_id)
         values ('CZ0', 
 	(select netblock_id from netblock where ip_address =
-		net_manip.inet_ptodb('172.28.64.0', 24))
+		net_manip.inet_ptodb('172.25.64.0', 24))
 	);
 
 insert into netblock

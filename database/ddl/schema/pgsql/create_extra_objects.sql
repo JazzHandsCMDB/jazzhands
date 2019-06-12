@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 Todd Kover
+ * Copyright (c) 2013-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,3 +44,26 @@ drop trigger IF EXISTS trigger_audit_token_sequence on token_sequence;
 -- CREATE INDEX ON mv_dev_col_root (leaf_type);
 -- CREATE INDEX ON mv_dev_col_root (root_id);
 -- CREATE INDEX ON mv_dev_col_root (root_type);
+
+
+--------------------------------------------- BEGIN
+CREATE INDEX xif2shared_netblock ON jazzhands.shared_netblock USING btree (netblock_id);
+-- These should have been created in the past but weren't for reasons not
+-- worth investigating.  Future versions of ERWIN DTRT, so not worth
+-- investigating.
+
+CREATE INDEX xif3approval_process_chain ON jazzhands.approval_process_chain USING btree (accept_app_process_chain_id);
+CREATE UNIQUE INDEX xif5department ON jazzhands.department USING btree (account_collection_id);
+CREATE INDEX xif_asset_comp_id ON jazzhands.asset USING btree (component_id);
+CREATE INDEX xif_chasloc_chass_devid ON jazzhands.device USING btree (chassis_location_id);
+CREATE INDEX xif_component_prnt_slt_id ON jazzhands.component USING btree (parent_slot_id);
+CREATE INDEX xif_dev_devtp_id ON jazzhands.device USING btree (device_type_id);
+CREATE INDEX xif_dev_rack_location_id ON jazzhands.device USING btree (rack_location_id);
+CREATE INDEX xif_intercomp_conn_slot1_id ON jazzhands.inter_component_connection USING btree (slot1_id);
+CREATE INDEX xif_intercomp_conn_slot2_id ON jazzhands.inter_component_connection USING btree (slot2_id);
+CREATE INDEX xif_layer3_network_netblock_id ON jazzhands.layer3_network USING btree (netblock_id);
+CREATE UNIQUE INDEX xif_netint_nb_netint_id ON jazzhands.network_interface_netblock USING btree (netblock_id);
+CREATE UNIQUE INDEX xifunixgrp_uclass_id ON jazzhands.unix_group USING btree (account_collection_id);
+CREATE UNIQUE INDEX uq_appaal_name ON jazzhands.appaal USING btree (appaal_name);
+--------------------------------------------- END
+
