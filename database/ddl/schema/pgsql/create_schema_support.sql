@@ -88,8 +88,8 @@ BEGIN
 			JOIN pg_namespace n ON n.oid = c.relnamespace
 			WHERE	c.relname = table_name
 			AND	n.nspname = schema
-				AND 	a.attnum > 0
-				AND 	NOT a.attisdropped
+				AND	a.attnum > 0
+				AND	NOT a.attisdropped
 		) SELECT s.*, nextval(s.seq) as nv FROM s WHERE seq IS NOT NULL
 	LOOP
 		EXECUTE 'SELECT max('||quote_ident(_r.column)||')+1 FROM  '
@@ -477,19 +477,19 @@ BEGIN
 	sch := quote_ident( aud_schema );
 	FOR _r IN
 		SELECT c2.relname, pg_get_indexdef(i.indexrelid) as def, con.contype
-        FROM pg_catalog.pg_class c
-            INNER JOIN pg_namespace n
-                ON relnamespace = n.oid
-            INNER JOIN pg_catalog.pg_index i
-                ON c.oid = i.indrelid
-            INNER JOIN pg_catalog.pg_class c2
-                ON i.indexrelid = c2.oid
-           LEFT JOIN pg_catalog.pg_constraint con ON
-                (con.conrelid = i.indrelid
-                AND con.conindid = i.indexrelid )
+	FROM pg_catalog.pg_class c
+	    INNER JOIN pg_namespace n
+		ON relnamespace = n.oid
+	    INNER JOIN pg_catalog.pg_index i
+		ON c.oid = i.indrelid
+	    INNER JOIN pg_catalog.pg_class c2
+		ON i.indexrelid = c2.oid
+	   LEFT JOIN pg_catalog.pg_constraint con ON
+		(con.conrelid = i.indrelid
+		AND con.conindid = i.indexrelid )
 	WHERE c.relname =  table_name
 	AND      n.nspname = tbl_schema
-	AND 	con.contype IS NULL
+	AND	con.contype IS NULL
 
 	LOOP
 		_r.def := regexp_replace(_r.def, ' ON ', ' ON ' || sch || '.');
@@ -870,7 +870,7 @@ BEGIN
 			INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
 			INNER JOIN pg_attribute a
-                ON a.attrelid = c.oid
+		ON a.attrelid = c.oid
 		WHERE c.relkind IN ('r', 'v', 'S', 'f')
 		  AND a.attacl IS NOT NULL
 		  AND c.relname = _object
@@ -1198,9 +1198,9 @@ BEGIN
 		JOIN pg_namespace n on n.oid = dependee.relnamespace
 		JOIN pg_namespace sn on sn.oid = dependent.relnamespace
 		JOIN pg_attribute ON pg_depend.refobjid = pg_attribute.attrelid
-   			AND pg_depend.refobjsubid = pg_attribute.attnum
+			AND pg_depend.refobjsubid = pg_attribute.attnum
 		WHERE dependent.relname = object
-  		AND sn.nspname = schema
+		AND sn.nspname = schema
 	LOOP
 		IF _r.relkind = 'v' OR _r.relkind = 'm' THEN
 			-- RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
@@ -1269,7 +1269,7 @@ DECLARE
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
-	FOR _r in 	SELECT n.nspname, c.relname, con.conname,
+	FOR _r in	SELECT n.nspname, c.relname, con.conname,
 				pg_get_constraintdef(con.oid, true) as def
 		FROM pg_constraint con
 			INNER JOIN pg_class c on (c.relnamespace, c.oid) =
@@ -1417,7 +1417,7 @@ DECLARE
 	_r			RECORD;
 BEGIN
 	for _r IN SELECT a.attname
-  			FROM pg_class c
+			FROM pg_class c
 				INNER JOIN pg_namespace n on n.oid = c.relnamespace
 				INNER JOIN pg_index i ON i.indrelid = c.oid
 				INNER JOIN pg_attribute  a ON   a.attrelid = c.oid AND
@@ -1446,28 +1446,28 @@ CREATE OR REPLACE FUNCTION schema_support.get_common_columns(
 ) RETURNS text[] AS $$
 DECLARE
 	_q			text;
-    cols        text[];
+    cols	text[];
 BEGIN
     _q := 'WITH cols AS (
-        SELECT  n.nspname as schema, c.relname as relation, a.attname as colname, t.typoutput as type,
+	SELECT  n.nspname as schema, c.relname as relation, a.attname as colname, t.typoutput as type,
 		a.attnum
-            FROM    pg_catalog.pg_attribute a
-                INNER JOIN pg_catalog.pg_class c
-                    ON a.attrelid = c.oid
-                INNER JOIN pg_catalog.pg_namespace n
-                    ON c.relnamespace = n.oid
+	    FROM    pg_catalog.pg_attribute a
+		INNER JOIN pg_catalog.pg_class c
+		    ON a.attrelid = c.oid
+		INNER JOIN pg_catalog.pg_namespace n
+		    ON c.relnamespace = n.oid
 				INNER JOIN pg_catalog.pg_type t
 					ON  t.oid = a.atttypid
-            WHERE   a.attnum > 0
-            AND   NOT a.attisdropped
-            ORDER BY a.attnum
+	    WHERE   a.attnum > 0
+	    AND   NOT a.attisdropped
+	    ORDER BY a.attnum
        ) SELECT array_agg(colname ORDER BY attnum) as cols
-        FROM ( SELECT CASE WHEN ( o.type::text ~ ''enum'' OR n.type::text ~ ''enum'')  AND o.type != n.type THEN concat(quote_ident(n.colname), ''::text'')
+	FROM ( SELECT CASE WHEN ( o.type::text ~ ''enum'' OR n.type::text ~ ''enum'')  AND o.type != n.type THEN concat(quote_ident(n.colname), ''::text'')
 					ELSE quote_ident(n.colname)
 					END  AS colname,
 				o.attnum
 			FROM cols  o
-            INNER JOIN cols n USING (schema, colname)
+	    INNER JOIN cols n USING (schema, colname)
 		WHERE
 			o.schema = $1
 		and o.relation = $2
@@ -1490,17 +1490,17 @@ DECLARE
 	_r			record;
 BEGIN
 	FOR _r IN SELECT  a.attname as colname,
-            pg_catalog.format_type(a.atttypid, a.atttypmod) as coltype,
-            a.attnotnull, a.attnum
-        FROM    pg_catalog.pg_attribute a
+	    pg_catalog.format_type(a.atttypid, a.atttypmod) as coltype,
+	    a.attnotnull, a.attnum
+	FROM    pg_catalog.pg_attribute a
 				INNER JOIN pg_class c on a.attrelid = c.oid
 				INNER JOIN pg_namespace n on n.oid = c.relnamespace
-        WHERE   c.relname = _table
+	WHERE   c.relname = _table
 		  AND	n.nspname = _schema
-          AND   a.attnum > 0
-          AND   NOT a.attisdropped
+	  AND   a.attnum > 0
+	  AND   NOT a.attisdropped
 		  AND	lower(a.attname) not like 'data_%'
-        ORDER BY a.attnum
+	ORDER BY a.attnum
 	LOOP
 		SELECT array_append(cols, _r.colname::text) INTO cols;
 	END LOOP;
@@ -1772,7 +1772,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 create or replace function schema_support.relation_diff(
 	schema			text,
 	old_rel			text,
-	new_rel 		text,
+	new_rel		text,
 	key_relation	text DEFAULT NULL,
 	prikeys			text[] DEFAULT NULL,
 	raise_exception boolean DEFAULT true
@@ -1783,13 +1783,13 @@ DECLARE
 	_t1		integer;
 	_t2		integer;
 	_cnt	integer;
-	_cols 	TEXT[];
-	_pkcol 	TEXT[];
-	_q 		TEXT;
-	_f 		TEXT;
-	_c 		RECORD;
-	_w 		TEXT[];
-	_ctl 		TEXT[];
+	_cols	TEXT[];
+	_pkcol	TEXT[];
+	_q		TEXT;
+	_f		TEXT;
+	_c		RECORD;
+	_w		TEXT[];
+	_ctl		TEXT[];
 	_rv	boolean;
 	_oj		jsonb;
 	_nj		jsonb;
@@ -2066,7 +2066,7 @@ BEGIN
 		RAISE EXCEPTION 'Schema % not configured for this', schema;
 	END IF;
 
-	SELECT 	relkind
+	SELECT	relkind
 	INTO	rk
 	FROM	pg_catalog.pg_class c
 		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -2097,29 +2097,29 @@ BEGIN
 
 	IF rk = 'v' OR rk = 'm' THEN
 		FOR obj,objaud,objkind, objschema IN WITH RECURSIVE recur AS (
-                SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
-                FROM pg_depend d
-                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-                    JOIN pg_class c on rewrite.ev_class = c.oid
-                    JOIN pg_namespace n on n.oid = c.relnamespace
-                WHERE c.relname = relation
-                AND n.nspname = relation_last_changed.schema
-                AND d.refobjsubid > 0
-            UNION ALL
-                SELECT recur.root_oid, d.refobjid as oid
-                FROM pg_depend d
-                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-                    JOIN pg_class c on rewrite.ev_class = c.oid
-                JOIN recur ON recur.oid = rewrite.ev_class
-                AND d.refobjsubid > 0
+		SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
+		FROM pg_depend d
+		    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+		    JOIN pg_class c on rewrite.ev_class = c.oid
+		    JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE c.relname = relation
+		AND n.nspname = relation_last_changed.schema
+		AND d.refobjsubid > 0
+	    UNION ALL
+		SELECT recur.root_oid, d.refobjid as oid
+		FROM pg_depend d
+		    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+		    JOIN pg_class c on rewrite.ev_class = c.oid
+		JOIN recur ON recur.oid = rewrite.ev_class
+		AND d.refobjsubid > 0
 		AND c.relkind != 'm'
-            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
-                FROM pg_class c
-                    JOIN recur on recur.oid = c.oid
-                    JOIN pg_namespace n on c.relnamespace = n.oid
-                    JOIN schema_support.schema_audit_map m
-                        ON m.schema = n.nspname
-                WHERE relkind IN ('r', 'm')
+	    ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
+		FROM pg_class c
+		    JOIN recur on recur.oid = c.oid
+		    JOIN pg_namespace n on c.relnamespace = n.oid
+		    JOIN schema_support.schema_audit_map m
+			ON m.schema = n.nspname
+		WHERE relkind IN ('r', 'm')
 		) SELECT relname, audit_schema, relkind, relschema from list
 		LOOP
 			-- if there is no audit table, assume its kept current.  This is
@@ -2197,6 +2197,107 @@ SET search_path=schema_support
 LANGUAGE plpgsql SECURITY INVOKER;
 
 
+--
+-- This migrates grants from one schema to another for setting up a shadow
+-- schema for dealing with migrations.  It still needs to handle functions.
+--
+-- It also ignores sequences because those really need to move to IDENTITY
+-- columns anyway. and sequences are really part of the shadow schema stuff.
+--
+CREATE OR REPLACE FUNCTION schema_support.migrate_grants (
+	username	TEXT,
+	direction	TEXT,
+	old_schema	TEXT DEFAULT 'jazzhands',
+	new_schema	TEXT DEFAULT 'jazzhands_legacy'
+) RETURNS TEXT[] AS $$
+DECLARE
+	_rv	TEXT[];
+	_r	RECORD;
+	_q	TEXT;
+BEGIN
+	IF lower(direction) NOT IN ('grant','revoke') THEN
+		RAISE EXCEPTION 'direction must be grant or revoke';
+	END IF;
+
+	FOR _r IN
+		WITH x AS (
+		SELECT *
+			FROM (
+		SELECT oid, schema, name,  typ,
+			p->>'privilege_type' as privilege_type,
+			col,
+			r.usename as grantor, e.usename as grantee,
+			r.usesysid as rid,  e.usesysid as eid,
+			e.useconfig
+		FROM (
+			SELECT  c.oid, n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
+				WHEN 'r' THEN 'table'
+				WHEN 'm' THEN 'view'
+				WHEN 'v' THEN 'mview'
+				WHEN 'S' THEN 'sequence'
+				WHEN 'f' THEN 'foreign table'
+				END as typ,
+				NULL::text as col,
+			to_jsonb(pg_catalog.aclexplode(acl := c.relacl)) as p
+			FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
+				ON n.oid = c.relnamespace
+			WHERE c.relkind IN ('r', 'v', 'S', 'f')
+		UNION ALL
+		SELECT  c.oid, n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
+				WHEN 'r' THEN 'table'
+				WHEN 'v' THEN 'view'
+				WHEN 'mv' THEN 'mview'
+				WHEN 'S' THEN 'sequence'
+				WHEN 'f' THEN 'foreign table'
+				END as typ,
+			a.attname as col,
+			to_jsonb(pg_catalog.aclexplode(a.attacl)) as p
+			FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
+				ON n.oid = c.relnamespace
+			INNER JOIN pg_attribute a
+				ON a.attrelid = c.oid
+			WHERE c.relkind IN ('r', 'v', 'S', 'f')
+			AND a.attacl IS NOT NULL
+		) x
+		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
+		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		) i
+		) select *
+		FROM x
+		WHERE ( schema = old_schema )
+		AND grantee = username
+		AND typ IN ('table', 'view', 'mview', 'foreign table')
+		order by name, col
+	LOOP
+		IF _r.col IS NOT NULL THEN
+			_q = concat(' (', _r.col, ') ');
+		ELSE
+			_q := NULL;
+		END IF;
+		IF lower(direction) = 'grant' THEN
+			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _r.name, ' TO ', _r.grantee);
+		ELSIF lower(direction) = 'revoke' THEN
+			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _r.name, ' FROM ', _r.grantee);
+		END IF;
+
+
+		_rv := array_append(_rv, _q);
+		EXECUTE _q;
+	END LOOP;
+	RETURN _rv;
+END;
+$$
+SET search_path=schema_support
+LANGUAGE plpgsql SECURITY INVOKER;
+
+
+
 ----------------------------------------------------------------------------
 -- END materialized view support
 ----------------------------------------------------------------------------
@@ -2214,6 +2315,11 @@ schema_support.begin_maintenance
 schema_support.end_maintenance
 	- revokes superuser from running user (based on argument)
 
+
+This:
+	schema_support.migrate_grants is used to deal with setting up
+	shadow schemas for migrations and removing/adding permissions as
+	things are moving.
 
 These will save an object for replay, including presering grants
 automatically:
