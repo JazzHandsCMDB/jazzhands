@@ -1,0 +1,7 @@
+JazzHands DHCP vendor option space
+
+option space JazzHands code width 2 length width 2 hash size 63;
+option JazzHands.provisioning-url code 1 = text;
+
+	Overrides the default provisioning URL (https://provisioning/provision)
+
