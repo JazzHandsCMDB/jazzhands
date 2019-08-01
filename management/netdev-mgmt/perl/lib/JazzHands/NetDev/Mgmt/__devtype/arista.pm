@@ -1100,6 +1100,10 @@ my $iface_map = {
 	'100GBASE-SR10' => {
 		module_type => '100GMXPEthernet',
 		media_type => '100GMXPEthernet',
+	},
+	'100GBASE-SR4' => {
+		module_type => '100GMXPEthernet',
+		media_type => '100GMXPEthernet',
 	}
 };
 
@@ -1621,7 +1625,8 @@ sub GetChassisInfo {
 
 	my $result = $self->SendCommand(
 		commands => [
-			'show inventory'
+			'show inventory',
+			'show version'
 		],
 		errors => $err
 	);
@@ -1631,12 +1636,14 @@ sub GetChassisInfo {
 	}
 
 	my $inventory = $result->[0];
+	my $software = $result->[1];
 	my $chassis = {
 		model => $inventory->{systemInformation}->{name},
 		manufacturer => 'Arista Networks',
 		manufacture_date => $inventory->{systemInformation}->{mfgDate},
 		hardware_rev => $inventory->{systemInformation}->{hardwareRev},
-		serial => $inventory->{systemInformation}->{serialNum}
+		serial => $inventory->{systemInformation}->{serialNum},
+		software_version => $software->{version}
 	};
 	#
 	# If the cardSlots hash is populated, then we're a modular chassis
