@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
 
 use FindBin qw($RealBin);
-use lib '/Users/mdr/work/JazzHands/jazzhands/perllib';
 
 use JazzHands::Common;
 use JazzHands::NetDev::Mgmt;
