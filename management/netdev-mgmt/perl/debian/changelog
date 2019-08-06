@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.84.5) unstable; urgency=low
+
+  * add GetSimpleTrafficCounterInfo method to juniper.pm
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 06 Aug 2019 15:13:41 +0000
+
 jazzhands-perl-netdev-mgmt (0.84.2) unstable; urgency=low
 
   * Temporariliy disable LACP handling for Arista 7160 switches
