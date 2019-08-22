@@ -1833,40 +1833,47 @@ BEGIN
 	--
 	IF _t1 != _t2 THEN
 		RAISE NOTICE 'table % has % rows; table % has % rows (%)', old_rel, _t1, new_rel, _t2, _t1 - _t2;
-		_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+	END IF;
+
+	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+		quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+		' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+			' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
 			quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-			' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
-				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-				' EXCEPT ( '
-					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-					quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-				' )) ';
-
-		_cnt := 0;
-		FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
-		LOOP
-			RAISE NOTICE 'InOld/%: %', _cnt, _r;
-			_cnt := _cnt + 1;
-		END LOOP;
-
-		_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-			quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-			' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+			' EXCEPT ( '
 				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
 				quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-				' EXCEPT ( '
-					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-					quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-				' )) ';
+			' )) ';
 
-		_cnt := 0;
-		FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
-		LOOP
-			RAISE NOTICE 'InNew/%: %', _cnt, _r;
-			_cnt := _cnt + 1;
-		END LOOP;
+	_cnt := 0;
+	FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
+	LOOP
+		RAISE NOTICE 'InOld/%: %', _cnt, _r;
+		_cnt := _cnt + 1;
+	END LOOP;
 
+	IF _cnt > 0  THEN
+		_rv := false;
+	END IF;
+
+	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+		quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+		' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+			' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+			' EXCEPT ( '
+				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+			' )) ';
+
+	_cnt := 0;
+	FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
+	LOOP
+		RAISE NOTICE 'InNew/%: %', _cnt, _r;
+		_cnt := _cnt + 1;
+	END LOOP;
+
+	IF _cnt > 0  THEN
 		_rv := false;
 	END IF;
 
@@ -1879,7 +1886,6 @@ BEGIN
 
 	-- At this point, the same number of rows appear in both, so need to
 	-- figure out rows that are different between them.
-
 
 	-- SELECT row_to_json(o) as old, row_to_json(n) as new
 	-- FROM ( SELECT cols FROM old WHERE prikeys in Vv ) old,
@@ -1929,6 +1935,7 @@ BEGIN
 		RAISE NOTICE 'NEW: %', _nj;
 		_rv := false;
 	END LOOP;
+
 
 	IF NOT _rv AND raise_exception THEN
 		RAISE EXCEPTION 'Relations do not match (% rows)', _t1;
