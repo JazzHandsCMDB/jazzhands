@@ -546,9 +546,10 @@ sub SetPortLACP {
 			errors => \@errors,
 			))) {
 		SetError($err,
-			"Error retrieving chassis info for %s: %s\n",
-			$device->{hostname},
-			(join("\n", @errors))
+			sprintf("Error retrieving chassis info for %s: %s\n",
+				$device->{hostname},
+				(join("\n", @errors))
+			)
 		);
 		return undef;
 	}
