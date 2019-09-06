@@ -1,12 +1,13 @@
 -- Copyright (c) 2018, Matthew Ragan
+-- Copyright (c) 2019, Todd Kover
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
+--
 --       http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,24 +18,24 @@
 -- BEGIN cache table support
 ----------------------------------------------------------------------------
 --
--- 
+--
 -- These functions are used to better automate creating and manipulating
 -- cache tables.  Cache tables are conceptually very similar to materialized
 -- views, except the theory is that triggers on the base tables will keep
 -- the views updated.  The functions here ensure that things stay
 -- synchronized when those triggers fail to DTRT, and also to set up and
 -- manage the cache tables from the underlying views
--- 
+--
 -- The schema_support.cache_table table contains a list of the cache
 -- tables and underlying views, and an updates_enabled boolean which
 -- controls whether or not calling the schema_support.refresh_cache_tables()
 -- function without specifying a cache table will regenerate that entry
--- 
+--
 -- The schema_support.cache_table_update_log will contain rows where
 -- schema_support.refresh_cache_tables() updated any rows, or if the forced
 -- flag was passed.  A log entry is not generated if no actions are performed
 -- unless the forced parameter is set to true.
--- 
+--
 
 CREATE OR REPLACE FUNCTION schema_support.create_cache_table (
 	cache_table_schema		text,
@@ -59,7 +60,7 @@ BEGIN
 	WHERE
 		table_schema = defining_view_schema AND
 		table_name = defining_view;
-	
+
 	IF NOT FOUND THEN
 		RAISE 'view %.% does not exist',
 			defining_view_schema,
@@ -79,7 +80,7 @@ BEGIN
 	WHERE
 		table_schema = cache_table_schema AND
 		table_name = cache_table;
-	
+
 	IF FOUND THEN
 		IF NOT force THEN
 			RAISE 'cache table %.% already exists',
@@ -105,6 +106,10 @@ BEGIN
 		END IF;
 
 		PERFORM schema_support.save_grants_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		PERFORM schema_support.save_dependent_objects_for_replay(
 			cache_table_schema, cache_table
 		);
 
@@ -142,8 +147,14 @@ BEGIN
 		defining_view_schema,
 		defining_view
 	);
+	IF force THEN
+		PERFORM schema_support.replay_object_recreates();
+		PERFORM schema_support.replay_saved_grants();
+	END IF;
 END
-$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path=schema_support;
+$$ LANGUAGE plpgsql
+-- SET search_path=schema_support
+SECURITY INVOKER;
 
 CREATE OR REPLACE FUNCTION schema_support.synchronize_cache_tables (
 	cache_table_schema		text DEFAULT NULL,
@@ -200,7 +211,7 @@ BEGIN
 		RAISE DEBUG 'Processing %.%',
 			quote_ident(ct_rec.cache_table_schema),
 			quote_ident(ct_rec.cache_table);
-			
+
 		--
 		-- Insert rows that exist in the view that do not exist in the cache
 		-- table
@@ -209,9 +220,9 @@ BEGIN
 			INSERT INTO %I.%I
 			SELECT * FROM %I.%I z
 			WHERE
-				(z) IN 
+				(z) IN
 				(
-					SELECT (x) FROM 
+					SELECT (x) FROM
 					(
 						SELECT * FROM %I.%I EXCEPT
 						SELECT * FROM %I.%I
@@ -238,9 +249,9 @@ BEGIN
 		query := format($query$
 			DELETE FROM %I.%I z
 			WHERE
-				(z) IN 
+				(z) IN
 				(
-					SELECT (x) FROM 
+					SELECT (x) FROM
 					(
 						SELECT * FROM %I.%I EXCEPT
 						SELECT * FROM %I.%I
@@ -277,7 +288,9 @@ BEGIN
 		END IF;
 	END LOOP;
 END
-$$ LANGUAGE plpgsql SECURITY INVOKER SET search_path=schema_support;
+$$ LANGUAGE plpgsql
+-- SET search_path=schema_support
+SECURITY INVOKER ;
 
 ----------------------------------------------------------------------------
 -- END cache table support
