@@ -1,3 +1,9 @@
+perl-jazzhands-dbi (0.86.0) unstable; urgency=medium
+
+  * add support for using vault to get credentials
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
 perl-jazzhands-dbi (0.84.3) unstable; urgency=medium
 
   * debian compat patch from Renato Lanzetti

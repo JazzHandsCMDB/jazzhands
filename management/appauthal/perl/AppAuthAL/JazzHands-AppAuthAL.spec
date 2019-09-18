@@ -25,7 +25,7 @@ buildarch: noarch
 prefix:    %(echo %{_prefix})
 provides:  perl(JazzHands::AppAuthAL)
 requires:  perl-JSON
-requires:  jazzhands-perl-common >= 0.66.1
+requires:  jazzhands-perl-common >= 0.86.0
 
 %description
 I totally need to write this.
@@ -41,7 +41,7 @@ I totally need to write this.
 make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
 make -f Makefile.jazzhands clean

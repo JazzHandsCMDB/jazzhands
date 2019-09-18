@@ -45,5 +45,6 @@ management/sync-prefix-lists
 management/util/perl	# jazzhands-perl-common
 management/util/perl-Krb5
 management/util/perl-tickets
+management/util/perl-vault
 zonegen/server/src
 zonegen/client
