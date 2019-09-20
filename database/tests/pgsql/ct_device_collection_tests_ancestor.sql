@@ -17,7 +17,7 @@
 
 \set ON_ERROR_STOP
 
-set client_min_messages to 'debug';
+set client_min_messages to 'notice';
 
 -- \t on
 SAVEPOINT ct_device_tests;
@@ -50,8 +50,7 @@ BEGIN
 		'JHTEST'
 	);
 
-
-	FOR _i IN 1..7 LOOP
+	FOR _i IN 1..8 LOOP
 		INSERT INTO device_collection (
 			device_collection_name, device_collection_type
 		) VALUES (
@@ -65,6 +64,14 @@ BEGIN
 	SELECT COUNT(*) INTO _tal FROM jazzhands_cache.ct_device_collection_hier_from_ancestor;
 	RAISE DEBUG '> % records in cache', _tal;
 
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_device_collection_hier_from_ancestor',
+		new_rel := 'ct_device_collection_hier_from_ancestor',
+		prikeys := ARRAY['path']
+	);
+
+	RAISE NOTICE '++ Testing first hierarchy insert ...';
 	INSERT INTO device_collection_hier (
 		device_collection_id, child_device_collection_id
 	) VALUES (
@@ -81,7 +88,7 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
-	RAISE NOTICE '++ Testing first insert up top...'; 
+	RAISE NOTICE '++ Testing first insert up top...';
 	INSERT INTO device_collection_hier (
 		device_collection_id, child_device_collection_id
 	) VALUES (
@@ -94,7 +101,7 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
-	RAISE NOTICE '++ Testing second insert up top...'; 
+	RAISE NOTICE '++ Testing second insert up top...';
 	INSERT INTO device_collection_hier (
 		device_collection_id, child_device_collection_id
 	) VALUES (
@@ -107,7 +114,7 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
-	RAISE NOTICE '++ Testing second insert as parent of first...'; 
+	RAISE NOTICE '++ Testing second insert as parent of first...';
 	INSERT INTO device_collection_hier (
 		device_collection_id, child_device_collection_id
 	) VALUES (
@@ -121,7 +128,37 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
-	RAISE NOTICE '++ Testing middle insert ...'; 
+	RAISE NOTICE '+++ Inserting some random records on top...';
+	SET client_min_messages to 'debug';
+	WITH ac AS (
+		INSERT INTO device_collection (
+			device_collection_name, device_collection_type
+		) VALUES ( unnest(ARRAY[ '_JHTEST995' ]), 'JHTEST')
+		RETURNING *
+	) INSERT INTO device_collection_hier (
+		device_collection_id, child_device_collection_id
+	) SELECT device_collection_id, _colls[5]
+	FROM ac;
+
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_device_collection_hier_from_ancestor',
+		new_rel := 'ct_device_collection_hier_from_ancestor',
+		prikeys := ARRAY['path']
+	);
+
+	RAISE NOTICE '+++ Inserting some random records down below...';
+	WITH ac AS (
+		INSERT INTO device_collection (
+			device_collection_name, device_collection_type
+		) VALUES ( unnest(ARRAY[ '_JHTEST885' ]), 'JHTEST')
+		RETURNING *
+	) INSERT INTO device_collection_hier (
+		device_collection_id, child_device_collection_id
+	) SELECT _colls[6], device_collection_id
+	FROM ac;
+
+	RAISE NOTICE '++ Testing middle insert ...';
 	INSERT INTO device_collection_hier (
 		device_collection_id, child_device_collection_id
 	) VALUES (
