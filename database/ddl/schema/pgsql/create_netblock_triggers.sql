@@ -462,6 +462,7 @@ DECLARE
 	single_count	integer;
 	nonsingle_count	integer;
 	pip	    		netblock.ip_address%type;
+	nblist			integer[];
 BEGIN
 
 	RAISE DEBUG 'Validating % of netblock %', TG_OP, NEW.netblock_id;
@@ -617,13 +618,13 @@ BEGIN
 				parent_nbid;
 
 			IF realnew.can_subnet = 'N' THEN
-				PERFORM netblock_id FROM netblock WHERE
+				SELECT array_agg(netblock_id) INTO nblist FROM netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
 					is_single_address = 'N';
-				IF FOUND THEN
-					RAISE EXCEPTION E'A non-subnettable netblock may not have child network netblocks\nParent: %\nChild: %\n',
-						row_to_json(parent_rec, true),
-						row_to_json(realnew, true)
+				IF nblist IS NOT NULL THEN
+					RAISE EXCEPTION E'A non-subnettable netblock may not have child network netblocks\nParent: %\nChild(ren): %\n',
+						row_to_json(realnew, true),
+						to_jsonb(nblist)
 					USING ERRCODE = 'JH10B';
 				END IF;
 			END IF;
