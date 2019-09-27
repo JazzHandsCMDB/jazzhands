@@ -1466,13 +1466,13 @@ BEGIN
 					--
 					WITH z AS (
 						DELETE FROM
-							network_interface_netblock
+							network_interface_netblock nin
 						WHERE
-							netblock_id = nb_rec.netblock_id
-						RETURNING network_interface_id
+							nin.netblock_id = nb_rec.netblock_id
+						RETURNING nin.network_interface_id
 					)
-					SELECT array_agg(network_interface_id) FROM
-						(SELECT network_interface_id FROM z) v
+					SELECT array_agg(v.network_interface_id) FROM
+						(SELECT z.network_interface_id FROM z) v
 					INTO ni_id_ary;
 				ELSE
 					IF address_errors = 'ignore' THEN
