@@ -15,19 +15,16 @@
 -- limitations under the License.
 --
 
-
 CREATE OR REPLACE VIEW jazzhands_cache.v_account_collection_hier_from_ancestor
 AS
 WITH RECURSIVE var_recurse (
 	root_account_collection_id,
-	intermediate_account_collection_id,
 	account_collection_id,
 	path,
 	cycle
 ) as (
 	SELECT
 		u.account_collection_id		as root_account_collection_id,
-		u.account_collection_id		as intermediate_account_collection_id,
 		u.account_collection_id		as account_collection_id,
 		ARRAY[u.account_collection_id]	as path,
 		false							as cycle
@@ -35,7 +32,6 @@ WITH RECURSIVE var_recurse (
 UNION ALL
 	SELECT
 		x.root_account_collection_id		as root_account_collection_id,
-		uch.account_collection_id		as intermediate_account_collection_id,
 		uch.child_account_collection_id	as account_collection_id,
 		array_prepend(uch.child_account_collection_id, x.path) as path,
 		uch.child_account_collection_id = ANY(x.path)			as cycle
@@ -52,7 +48,8 @@ SELECT * FROM schema_support.create_cache_table(
 	cache_table_schema := 'jazzhands_cache',
 	cache_table := 'ct_account_collection_hier_from_ancestor',
 	defining_view_schema := 'jazzhands_cache',
-	defining_view := 'v_account_collection_hier_from_ancestor'
+	defining_view := 'v_account_collection_hier_from_ancestor',
+	force := true
 );
 
 ALTER TABLE jazzhands_cache.ct_account_collection_hier_from_ancestor
@@ -61,9 +58,6 @@ PRIMARY KEY (path);
 
 CREATE INDEX ix_account_collection_hier_from_ancestor_id  ON
 	jazzhands_cache.ct_account_collection_hier_from_ancestor(root_account_collection_id);
-
-CREATE INDEX iix_account_collection_hier_from_ancestor_inter_id ON
-	jazzhands_cache.ct_account_collection_hier_from_ancestor(intermediate_account_collection_id);
 
 CREATE INDEX iix_account_collection_hier_from_ancestor_id ON
 	jazzhands_cache.ct_account_collection_hier_from_ancestor(account_collection_id);
@@ -74,29 +68,23 @@ BEGIN
 	IF TG_OP = 'DELETE' THEN
 		DELETE FROM jazzhands_cache.ct_account_collection_hier_from_ancestor
 		WHERE root_account_collection_id = OLD.account_collection_id
-		AND intermediate_account_collection_id = OLD.account_collection_id
 		AND account_collection_id = OLD.account_collection_id;
 
 		RETURN OLD;
 	ELSIF TG_OP = 'UPDATE' THEN
-		--- XXX - fix path?  write tests!
 		UPDATE jazzhands_cache.ct_account_collection_hier_from_ancestor
 		SET
 			root_account_collection_id = NEW.account_collection_id,
-			intermediate_account_collection_id = NEW.intermediate_account_collection_id,
 			account_collection_id = NEW.account_collection_id
 		WHERE root_account_collection_id = OLD.account_collection_id
-		AND intermediate_account_collection_id = OLD.account_collection_id
 		AND account_collection_id = OLD.account_collection_id;
 	ELSIF TG_OP = 'INSERT' THEN
 		INSERT INTO jazzhands_cache.ct_account_collection_hier_from_ancestor (
 			root_account_collection_id,
-			intermediate_account_collection_id,
 			account_collection_id,
 			path,
 			cycle
 		) VALUES (
-			NEW.account_collection_id,
 			NEW.account_collection_id,
 			NEW.account_collection_id,
 			ARRAY[NEW.account_collection_id],
@@ -151,133 +139,44 @@ BEGIN
 			OLD.account_collection_id, OLD.child_account_collection_id, _cnt;
 	END IF;
 
+
 	--
 	-- Insert any new rows to correspond with a new parent
 	--
-
-
-	--
-	-- XXX - NEED TO START OVER SKETCH OUT EXACTLY WHAT NEEDS TO HAPPEN
-	-- ON INSERT, UPDATE, DELETE IN ENGLISH, THEN WRITE.
-	--
-
-	--
-	-- this worked for stuff added on top but I think I need to be more
-	-- clever
-	--
 	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
 		RAISE DEBUG '%%Insert: %', to_json(NEW);
+		-- for the new collection/child, glue together all the ones that
+		-- have account_collection_id = parent
+		-- with those that have root_account_collection_id = child
+
 		FOR _r IN
-		WITH base_account AS (
-			SELECT *, 'parent'::text as src
-			FROM jazzhands_cache.ct_account_collection_hier_from_ancestor
-			WHERE NEW.account_collection_id = ANY (path)
-			AND array_length(path, 1) > 1
-			AND account_collection_id = NEW.account_collection_id
-
-		), base_child AS (
-			-- deal with everything rooted at the child; this handles the case
-			-- of something being inserted on top of the child
-			SELECT *, 'child'::text as src
-			FROM jazzhands_cache.ct_account_collection_hier_from_ancestor
-			WHERE NEW.child_account_collection_id = ANY (path)
-			AND root_account_collection_id != NEW.child_account_collection_id
-			AND account_collection_id != NEW.child_account_collection_id
-			AND array_length(path, 1) > 1
-
-		), iparent AS (
-			INSERT INTO jazzhands_cache.ct_account_collection_hier_from_ancestor (
-				root_account_collection_id,
-				intermediate_account_collection_id,
-				account_collection_id,
-				path,
-				cycle
-			)  SELECT
-				base.root_account_collection_id,
-				NEW.account_collection_id,
-				NEW.child_account_collection_id,
-				array_cat(
-					array_cat(
-						path[: (array_position(path, NEW.account_collection_id)-1)],
-					ARRAY[NEW.child_account_collection_id, NEW.account_collection_id]
-					),
-					path[(array_position(path, NEW.account_collection_id)+1) :]
-				),
-				NEW.child_account_collection_id = ANY(base.path)
-				FROM base_account AS base
-				RETURNING *
-		), ichild AS (
-			INSERT INTO jazzhands_cache.ct_account_collection_hier_from_ancestor (
-				root_account_collection_id,
-				intermediate_account_collection_id,
-				account_collection_id,
-				path,
-				cycle
-			)  SELECT
-				base.root_account_collection_id,
-				base.intermediate_account_collection_id,
-				base.account_collection_id,
-				array_cat(
-					array_cat(
-						path[: (array_position(path, NEW.child_account_collection_id)-1)],
-					ARRAY[NEW.child_account_collection_id, NEW.account_collection_id]
-					),
-					path[(array_position(path, NEW.child_account_collection_id)+1) :]
-				),
-				false -- hope... NEW.child_account_collection_id = ANY(base.path)
-				FROM base_child AS base
-				RETURNING *
-
-		) SELECT 'c' AS q, * FROM ichild UNION SELECT 'p' AS q, * FROM iparent
+			SELECT
+				p.path as parent_path, c.path as child_path,
+				p.root_account_collection_id,
+				c.account_collection_id,
+				c.path || p.path as path,
+				false AS cycle
+			FROM	jazzhands_cache.ct_account_collection_hier_from_ancestor p,
+				jazzhands_cache.ct_account_collection_hier_from_ancestor c
+			WHERE p.account_collection_id = NEW.account_collection_id
+			AND c.root_account_collection_id = NEW.child_account_collection_id
 		LOOP
-			RAISE DEBUG 'i/down:%', to_json(_r);
+			RAISE DEBUG 'i/smash:%', to_json(_r);
 			IF _r.cycle THEN
 				RAISE EXCEPTION 'danger!  cycle!';
 			END IF;
+			INSERT INTO jazzhands_cache.ct_account_collection_hier_from_ancestor (
+					root_account_collection_id,
+					account_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_account_collection_id,
+					_r.account_collection_id,
+					_r.path,
+					_r.cycle
+				);
 		END LOOP;
-
-		get diagnostics _cnt = row_count;
-		RAISE DEBUG 'Inserting upstream references down for updated netcoll %/% into cache == %',
-			NEW.account_collection_id, NEW.child_account_collection_id, _cnt;
-
-		-- walk up and install rows for all the things above due to change
-		FOR _r IN
-		WITH RECURSIVE tier (
-			root_account_collection_id,
-			intermediate_account_collection_id,
-			account_collection_id,
-			path
-		)AS (
-			SELECT h.account_collection_id,
-				h.account_collection_id,
-				h.child_account_collection_Id,
-				ARRAY[h.child_account_collection_id, h.account_collection_id],
-				false as cycle
-			FROM account_collection_hier  h
-			WHERE h.account_collection_id = NEW.account_collection_id
-			AND h.child_account_collection_id = NEW.child_account_collection_id
-		UNION ALL
-			SELECT tier.root_account_collection_id,
-				n.account_collection_id,
-				n.child_account_collection_id,
-				array_prepend(n.child_account_collection_id, tier.path),
-				n.child_account_collection_id = ANY(tier.path) as cycle
-			FROM tier
-				JOIN account_collection_hier n
-					ON n.account_collection_id = tier.account_collection_id
-			WHERE	NOT tier.cycle
-		) INSERT INTO jazzhands_cache.ct_account_collection_hier_from_ancestor
-				SELECT * FROM tier
-		RETURNING *
-		LOOP
-			RAISE DEBUG 'i/up %', to_json(_r);
-			IF _r.cycle THEN
-				RAISE EXCEPTION 'danger!  cycle!';
-			END IF;
-		END LOOP;
-		get diagnostics _cnt = row_count;
-		RAISE DEBUG 'Inserting upstream references up for updated netcol %/% into cache == %',
-			NEW.account_collection_id, NEW.child_account_collection_id, _cnt;
 	END IF;
 
 	RETURN NULL;
@@ -298,5 +197,5 @@ ON jazzhands.account_collection_hier
 FOR EACH ROW
 EXECUTE PROCEDURE jazzhands_cache.account_collection_root_handler();
 
-CREATE VIEW jazzhands.v_account_collection_hier_from_ancestor AS
+CREATE OR REPLACE VIEW jazzhands.v_account_collection_hier_from_ancestor AS
 SELECT * FROM jazzhands_cache.ct_account_collection_hier_from_ancestor;

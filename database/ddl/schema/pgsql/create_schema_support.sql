@@ -1833,6 +1833,7 @@ BEGIN
 	--
 	IF _t1 != _t2 THEN
 		RAISE NOTICE 'table % has % rows; table % has % rows (%)', old_rel, _t1, new_rel, _t2, _t1 - _t2;
+		_rv := false;
 	END IF;
 
 	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||

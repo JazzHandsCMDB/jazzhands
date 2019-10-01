@@ -515,7 +515,7 @@ FROM jazzhands.layer3_network_collection_hier;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'layer3_network_collection_hier');
 CREATE OR REPLACE VIEW jazzhands_legacy.logical_port AS
-SELECT logical_port_id,logical_port_name,logical_port_type,parent_logical_port_id,mac_address,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT logical_port_id,logical_port_name,logical_port_type,device_id,mlag_peering_id,parent_logical_port_id,mac_address,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.logical_port;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'logical_port');
@@ -543,7 +543,7 @@ FROM jazzhands.logical_volume_purpose;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'logical_volume_purpose');
 CREATE OR REPLACE VIEW jazzhands_legacy.mlag_peering AS
-SELECT mlag_peering_id,device1_id,device2_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT mlag_peering_id,device1_id,device2_id,domain_id,system_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.mlag_peering;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'mlag_peering');
@@ -605,7 +605,7 @@ FROM jazzhands.network_service;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'network_service');
 CREATE OR REPLACE VIEW jazzhands_legacy.operating_system AS
-SELECT operating_system_id,operating_system_name,operating_system_short_name,company_id,major_version,version,operating_system_family,processor_architecture,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT operating_system_id,operating_system_name,operating_system_short_name,company_id,major_version,version,operating_system_family,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.operating_system;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'operating_system');
@@ -1324,8 +1324,14 @@ FROM jazzhands.val_person_location_type;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_person_location_type');
 CREATE OR REPLACE VIEW jazzhands_legacy.val_person_status AS
-SELECT person_status,description,is_enabled,propagate_from_person,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT person_status,description,is_enabled,propagate_from_person,is_forced,is_db_enforced,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_person_status;
+
+ALTER TABLE jazzhands_legacy.val_person_status
+	ALTER is_forced SET DEFAULT 'N'::bpchar;
+
+ALTER TABLE jazzhands_legacy.val_person_status
+	ALTER is_db_enforced SET DEFAULT 'N'::bpchar;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_person_status');
 CREATE OR REPLACE VIEW jazzhands_legacy.val_physical_address_type AS
@@ -1618,7 +1624,7 @@ FROM jazzhands.v_account_collection_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_expanded');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_hier_from_ancestor AS
-SELECT root_account_collection_id,intermediate_account_collection_id,account_collection_id,path,cycle
+SELECT root_account_collection_id,account_collection_id,path,cycle
 FROM jazzhands.v_account_collection_hier_from_ancestor;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_account_collection_hier_from_ancestor');
@@ -1663,7 +1669,7 @@ FROM jazzhands.v_department_company_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_department_company_expanded');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_hier_from_ancestor AS
-SELECT root_device_collection_id,intermediate_device_collection_id,device_collection_id,path,cycle
+SELECT root_device_collection_id,device_collection_id,path,cycle
 FROM jazzhands.v_device_collection_hier_from_ancestor;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_device_collection_hier_from_ancestor');
@@ -1738,7 +1744,7 @@ FROM jazzhands.v_netblock_coll_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_netblock_coll_expanded');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_netblock_collection_hier_from_ancestor AS
-SELECT root_netblock_collection_id,intermediate_netblock_collection_id,netblock_collection_id,path,cycle
+SELECT root_netblock_collection_id,netblock_collection_id,path,cycle
 FROM jazzhands.v_netblock_collection_hier_from_ancestor;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_netblock_collection_hier_from_ancestor');
@@ -1802,6 +1808,11 @@ SELECT site_code,netblock_id
 FROM jazzhands.v_site_netblock_expanded;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'v_site_netblock_expanded');
+CREATE OR REPLACE VIEW jazzhands_legacy.v_site_netblock_expanded_assigned AS
+SELECT site_code,netblock_id
+FROM jazzhands.v_site_netblock_expanded_assigned;
+
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_site_netblock_expanded_assigned');
 CREATE OR REPLACE VIEW jazzhands_legacy.v_token AS
 SELECT token_id,token_type,token_status,token_serial,token_sequence,account_id,token_password,zero_time,time_modulo,time_skew,is_token_locked,token_unlock_time,bad_logins,issued_date,token_last_updated,token_sequence_last_updated,lock_status_last_updated
 FROM jazzhands.v_token;

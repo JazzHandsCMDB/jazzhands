@@ -45,8 +45,6 @@
 \ir token_utils.sql
 -- \ir time_util.sql
 -- \ir dns_gen_utils.sql
---++  \ir voe_manip_util.sql
---++ \ir voe_track_manip.sql
 \ir port_support.sql
 \ir port_util.sql
 \ir device_utils.sql
@@ -68,3 +66,4 @@
 \ir rack_utils.sql
 \ir layerx_network_manip.sql
 \ir component_connection_utils.sql
+\ir logical_port_manip.sql
