@@ -74,6 +74,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_dns_domain_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_dns_triggers.sql
 \ir ddl/schema/pgsql/create_dns_triggers-RETIRE.sql
+\ir ddl/schema/pgsql/create_layer3_network_triggers.sql
 \ir ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_l2network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
