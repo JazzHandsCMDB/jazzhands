@@ -1,3 +1,10 @@
+jazzhands-stab (0.86.0) trusty; urgency=medium
+
+  * order netblock collections alphabetically in drop down
+  * order dns domains alphabentically in drop down
+
+ -- Todd Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
 jazzhands-stab (0.84.2) trusty; urgency=medium
 
   * remove operating_system.processor_architecture since it is going away
@@ -5,6 +12,7 @@ jazzhands-stab (0.84.2) trusty; urgency=medium
   * fix dns and description manipulations of /32 networks
 
  -- Todd Kover <kovert@omniscient.com>  Tue, 14 May 2019 10:32:22 -0500
+
 
 jazzhands-stab (0.84.0) trusty; urgency=medium
 

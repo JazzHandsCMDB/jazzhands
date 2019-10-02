@@ -11,7 +11,7 @@ Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Requires:   jazzhands-perl-common >= 0.86.0
 %if 0%{?suse_version}
-BuildRequires: jazzhands-perl-common
+BuildRequires: perl(JazzHands::Common)
 %else
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)

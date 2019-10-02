@@ -31,10 +31,10 @@ DBI shim for JazzHands to support database authentication abstraction
 make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} clean
+make -f Makefile.jazzhands DESTDIR=%{buildroot} clean
 
 
 %files
