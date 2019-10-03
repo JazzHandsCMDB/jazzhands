@@ -1,4 +1,4 @@
--- Copyright (c) 2018-2019 Todd Kover
+-- Copyright (c) 2019 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,17 +17,14 @@
 
 \set ON_ERROR_STOP
 
--- set client_min_messages to 'debug';
-
 -- \t on
-SAVEPOINT ct_ct_netblock_tests;
+SAVEPOINT ct_netblock_tests;
 
--- \ir ../../ddl/cache/pgsql/create_ct_netblock_collection_hier_from_ancestor.sql
+\ir ../../ddl/cache/pgsql/create_ct_netblock_collection_hier_from_ancestor.sql
 
 SAVEPOINT readytest;
 
-alter sequence netblock_collection_netblock_collection_id_seq
-	restart with 3000;
+set client_min_messages to 'notice';
 
 --
 -- Trigger tests
@@ -44,7 +41,7 @@ DECLARE
 	_r		RECORD;
 	_i		INTEGER;
 BEGIN
-	RAISE NOTICE '++ Begin netblock Collection Hier Testing';
+	RAISE NOTICE '++ Begin Netblock Collection Hier Testing';
 	RAISE NOTICE '++ Inserting testing data';
 
 	INSERT INTO val_netblock_collection_type (
@@ -53,66 +50,48 @@ BEGIN
 		'JHTEST'
 	);
 
-	--
-	-- XXX - the last  one (8) is special
-	--
 	FOR _i IN 1..8 LOOP
-		RAISE DEBUG '... inserting collection %', _i;
-
 		INSERT INTO netblock_collection (
 			netblock_collection_name, netblock_collection_type
 		) VALUES (
 			'JHTEST ' || _i, 'JHTEST'
 		) RETURNING netblock_collection_id INTO _id;
-		RAISE DEBUG '... collection id is %', _id;
 		_colls = array_append(_colls, _id);
-
-	PERFORM schema_support.relation_diff(
-		schema := 'jazzhands_cache',
-		old_rel := 'v_netblock_collection_hier_from_ancestor',
-		new_rel := 'ct_netblock_collection_hier_from_ancestor',
-		prikeys := ARRAY['path']
-	);
 	END LOOP;
-
-	SELECT * INTO _r
-	FROM netblock_collection WHERE netblock_collection_id =_colls[1] - 1;
-	RAISE NOTICE ':: %', to_json(_r);
-
-	PERFORM schema_support.relation_diff(
-		schema := 'jazzhands_cache',
-		old_rel := 'v_netblock_collection_hier_from_ancestor',
-		new_rel := 'ct_netblock_collection_hier_from_ancestor',
-		prikeys := ARRAY['path']
-	);
-
-	RAISE NOTICE '++ Setup complex inheritence case...';
-	FOR _i IN 1..7 LOOP
-		INSERT INTO netblock_collection_hier (
-			netblock_collection_id, child_netblock_collection_id
-		) VALUES (
-			_colls[8], _colls[_i]
-		) ;
-	END LOOP;
-
-	PERFORM schema_support.relation_diff(
-		schema := 'jazzhands_cache',
-		old_rel := 'v_netblock_collection_hier_from_ancestor',
-		new_rel := 'ct_netblock_collection_hier_from_ancestor',
-		prikeys := ARRAY['path']
-	);
-
-	RAISE NOTICE '=========================================================';
 
 	RAISE NOTICE 'new collections are %', to_json(_colls);
 
-	RAISE NOTICE '++ inserting first new parent/child';
+	SELECT COUNT(*) INTO _tal FROM jazzhands_cache.ct_netblock_collection_hier_from_ancestor;
+	RAISE DEBUG '> % records in cache', _tal;
+
+	FOR _r IN SELECT *
+	FROM jazzhands_cache.ct_netblock_collection_hier_from_ancestor ORDER BY path
+	LOOP
+		RAISE NOTICE '==> %', to_json(_r);
+	END LOOP;
+
+	FOR _r IN SELECT netblock_collection_id, child_netblock_collection_id
+	FROM netblock_collection_hier ORDER BY 1, 2
+	LOOP
+		RAISE NOTICE '--> %', to_json(_r);
+	END LOOP;
+
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_netblock_collection_hier_from_ancestor',
+		new_rel := 'ct_netblock_collection_hier_from_ancestor',
+		prikeys := ARRAY['path']
+	);
+
+	RAISE NOTICE '++ Testing first hierarchy insert ...';
 	INSERT INTO netblock_collection_hier (
 		netblock_collection_id, child_netblock_collection_id
 	) VALUES (
 		_colls[3], _colls[5]
 	) RETURNING * INTO _r;
-	RAISE NOTICE 'Test Inserted %', to_json(_r);
+	RAISE NOTICE 'Inserted %', to_json(_r);
+	SELECT COUNT(*) INTO _tal FROM jazzhands_cache.ct_netblock_collection_hier_from_ancestor;
+	RAISE DEBUG '> % records in cache', _tal;
 
 	PERFORM schema_support.relation_diff(
 		schema := 'jazzhands_cache',
@@ -120,7 +99,6 @@ BEGIN
 		new_rel := 'ct_netblock_collection_hier_from_ancestor',
 		prikeys := ARRAY['path']
 	);
-
 
 	RAISE NOTICE '++ Testing first insert up top...';
 	INSERT INTO netblock_collection_hier (
@@ -162,6 +140,35 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
+	RAISE NOTICE '+++ Inserting some random records on top...';
+	WITH ac AS (
+		INSERT INTO netblock_collection (
+			netblock_collection_name, netblock_collection_type
+		) VALUES ( unnest(ARRAY[ '_JHTEST995' ]), 'JHTEST')
+		RETURNING *
+	) INSERT INTO netblock_collection_hier (
+		netblock_collection_id, child_netblock_collection_id
+	) SELECT netblock_collection_id, _colls[5]
+	FROM ac;
+
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_netblock_collection_hier_from_ancestor',
+		new_rel := 'ct_netblock_collection_hier_from_ancestor',
+		prikeys := ARRAY['path']
+	);
+
+	RAISE NOTICE '+++ Inserting some random records down below...';
+	WITH ac AS (
+		INSERT INTO netblock_collection (
+			netblock_collection_name, netblock_collection_type
+		) VALUES ( unnest(ARRAY[ '_JHTEST885' ]), 'JHTEST')
+		RETURNING *
+	) INSERT INTO netblock_collection_hier (
+		netblock_collection_id, child_netblock_collection_id
+	) SELECT _colls[6], netblock_collection_id
+	FROM ac;
+
 	RAISE NOTICE '++ Testing middle insert ...';
 	INSERT INTO netblock_collection_hier (
 		netblock_collection_id, child_netblock_collection_id
@@ -185,29 +192,6 @@ BEGIN
 		new_rel := 'ct_netblock_collection_hier_from_ancestor',
 		prikeys := ARRAY['path']
 	);
-
-/*
-FOR _r IN SELECT * FROM netblock_collection_hier WHERE
-	netblock_collection_id = _colls[1] - 1
-LOOP
-	RAISE NOTICE '== %', to_json(_r);
-END LOOP;
-FOR _r IN SELECT * FROM netblock_collection WHERE
-	netblock_collection_id > 2000
-LOOP
-	RAISE NOTICE '--> %', to_json(_r);
-END LOOP;
-FOR _r IN SELECT * FROM netblock_collection_hier WHERE
-	netblock_collection_id > 2000
-LOOP
-	RAISE NOTICE '==> %', to_json(_r);
-END LOOP;
-FOR _r IN SELECT * FROM jazzhands_cache.ct_netblock_collection_hier_from_ancestor WHERE
-	netblock_collection_id > 2000
-LOOP
-	RAISE NOTICE 'CC> %', to_json(_r);
-END LOOP;
- */
 
 	RAISE NOTICE '++ Updating middle ...';
 	UPDATE netblock_collection_hier
@@ -315,6 +299,6 @@ SELECT ct_netblock_collection_hier_tests();
 -- set search_path=jazzhands;
 DROP FUNCTION ct_netblock_collection_hier_tests();
 
-ROLLBACK TO ct_ct_netblock_tests;
+ROLLBACK TO ct_netblock_tests;
 
 \t off

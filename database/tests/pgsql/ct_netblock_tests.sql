@@ -15,15 +15,16 @@
 
 -- $Id$
 
--- \set ON_ERROR_STOP
-set client_min_messages to 'debug';
+\set ON_ERROR_STOP
 
 \t on
 SAVEPOINT ct_ct_netblock_tests;
 
--- \ir ../../ddl/cache/pgsql/create_ct_netblock_hier.sql
+-- \ir ../../ddl/schema/pgsql/create_netblock_triggers.sql
+\ir ../../ddl/cache/pgsql/create_ct_netblock_hier.sql
 
 SAVEPOINT readytest;
+set client_min_messages to 'debug';
 
 --
 -- Trigger tests
@@ -96,6 +97,40 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
+			-- these two were part of a failure scenario but
+			-- stopped
+			-- '172.31.0.0/16',
+			-- '172.30.43.0/24'
+
+	RAISE NOTICE '++ Inserting random siblings...';
+	INSERT INTO netblock (
+		ip_address, netblock_status, can_subnet, is_single_address
+	) VALUES (
+		unnest(ARRAY[
+			'172.28.64.0/24',
+			'172.28.64.0/20'
+		]::inet[]),
+		'Allocated', 'Y', 'N'
+	);
+
+	RAISE NOTICE '++ Inserting random parent ..';
+	INSERT INTO netblock (
+		ip_address, netblock_status, can_subnet, is_single_address
+	) VALUES (
+		unnest(ARRAY[
+			'172.28.0.0/15'
+		]::inet[]),
+		'Allocated', 'Y', 'N'
+	);
+
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_netblock_hier',
+		new_rel := 'ct_netblock_hier',
+		prikeys := ARRAY['path']
+	);
+
+
 	RAISE NOTICE '++ Inserting testing data - 172.30.42.0/24';
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
@@ -109,6 +144,23 @@ BEGIN
 		new_rel := 'ct_netblock_hier',
 		prikeys := ARRAY['path']
 	);
+
+	RAISE NOTICE '++ Checking if moving a netblock DTRT [back out]...';
+	BEGIN
+
+		UPDATE netblock SET ip_address = '172.28.42.0/24'
+		WHERE netblock_id = _nb3.netblock_id;
+
+		PERFORM schema_support.relation_diff(
+			schema := 'jazzhands_cache',
+			old_rel := 'v_netblock_hier',
+			new_rel := 'ct_netblock_hier',
+			prikeys := ARRAY['path']
+		);
+		RAISE EXCEPTION '%', 'ok' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did! (%)', SQLERRM;
+	END;
 
 	RAISE NOTICE '++ Inserting testing data - 172.30.42.5/24 addr';
 	INSERT INTO netblock (
@@ -131,6 +183,33 @@ BEGIN
 		new_rel := 'ct_netblock_hier',
 		prikeys := ARRAY['path']
 	);
+
+	RAISE NOTICE '++ Removing middle record %', _nb1.netblock_id;
+	DELETE FROM netblock WHERE netblock_id = _nb2.netblock_id;
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_netblock_hier',
+		new_rel := 'ct_netblock_hier',
+		prikeys := ARRAY['path']
+	);
+
+	RAISE NOTICE '++ Checking if moving a block out completely works ...';
+	BEGIN
+
+		UPDATE netblock SET ip_address = '1.0.0.0/24'
+		WHERE netblock_id = _nb2.netblock_id;
+
+		PERFORM schema_support.relation_diff(
+			schema := 'jazzhands_cache',
+			old_rel := 'v_netblock_hier',
+			new_rel := 'ct_netblock_hier',
+			prikeys := ARRAY['path']
+		);
+		RAISE EXCEPTION '%', 'ok' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did! (%)', SQLERRM;
+	END;
+
 
 
 	RAISE NOTICE 'Cleaning up...';
