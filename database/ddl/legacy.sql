@@ -605,7 +605,7 @@ FROM jazzhands.network_service;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'network_service');
 CREATE OR REPLACE VIEW jazzhands_legacy.operating_system AS
-SELECT operating_system_id,operating_system_name,operating_system_short_name,company_id,major_version,version,operating_system_family,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT operating_system_id,operating_system_name,operating_system_short_name,company_id,major_version,version,operating_system_family,processor_architecture,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.operating_system;
 
 SELECT schema_support.save_grants_for_replay('jazzhands', 'operating_system');
