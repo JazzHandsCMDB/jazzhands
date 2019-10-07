@@ -560,7 +560,6 @@ sub dump_zone {
 				left join (select dns_domain_id as parent_dns_domain_id,
 						soa_name as parent_soa_name from dns_domain) d2 USING 
 					(parent_dns_domain_id)
-		ORDER BY dns_domain_name
 	};
 	if ( scalar @limit ) {
 		$q .= "WHERE " . join( "\nAND ", @limit );

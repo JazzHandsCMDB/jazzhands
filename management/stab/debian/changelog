@@ -1,9 +1,17 @@
+jazzhands-stab (0.86.1) bionic; urgency=medium
+
+  * order netblock collections alphabetically in drop down
+  * order dns domains alphabentically in drop down
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 07 Oct 2019 17:34:00 +0200
+
 jazzhands-stab (0.86.0) trusty; urgency=medium
 
   * order netblock collections alphabetically in drop down
   * order dns domains alphabentically in drop down
 
  -- Todd Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
 
 jazzhands-stab (0.84.2) trusty; urgency=medium
 
