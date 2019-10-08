@@ -24,22 +24,23 @@ use Data::Dumper;
 
 use vars qw(@ISA %EXPORT_TAGS @EXPORT);
 
-use Exporter;# 'import';
+use Exporter;    # 'import';
 
 our $VERSION = '1.0';
 
 our @ISA = qw(
-	Exporter
-	JazzHands::Common::Util
-	JazzHands::Common::Error
-) ;
+  Exporter
+  JazzHands::Common::Util
+  JazzHands::Common::Error
+);
 
 our @EXPORT;
 our @EXPORT_OK;
-our %EXPORT_TAGS = 
-(
-        'all' => [],
-		# note that :db is special, see my import function
+our %EXPORT_TAGS = (
+	'all' => [],
+
+	# note that :db is special, see my import function
+	'inernal' => [],
 );
 
 #foreach my $c (@ISA) {
@@ -51,30 +52,43 @@ our %EXPORT_TAGS =
 #}
 
 # pull up all the stuff from JazzHands::Common::Util
-push(@EXPORT, @JazzHands::Common::Util::EXPORT);
-push(@EXPORT_OK, @JazzHands::Common::Util::EXPORT_OK);
-foreach my $name (keys %JazzHands::Common::Util::EXPORT_TAGS) {
-	push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::Util::EXPORT_TAGS{$name}});
+push( @EXPORT,    @JazzHands::Common::Util::EXPORT );
+push( @EXPORT_OK, @JazzHands::Common::Util::EXPORT_OK );
+foreach my $name ( keys %JazzHands::Common::Util::EXPORT_TAGS ) {
+	push(
+		@{ $EXPORT_TAGS{$name} },
+		@{ $JazzHands::Common::Util::EXPORT_TAGS{$name} }
+	);
 }
 
 # pull up all the stuff from JazzHands::Common::Error
-push(@EXPORT, @JazzHands::Common::Error::EXPORT);
-push(@EXPORT_OK, @JazzHands::Common::Error::EXPORT_OK);
-foreach my $name (keys %JazzHands::Common::Error::EXPORT_TAGS) {
-	push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::Error::EXPORT_TAGS{$name}});
+push( @EXPORT,    @JazzHands::Common::Error::EXPORT );
+push( @EXPORT_OK, @JazzHands::Common::Error::EXPORT_OK );
+foreach my $name ( keys %JazzHands::Common::Error::EXPORT_TAGS ) {
+	push(
+		@{ $EXPORT_TAGS{$name} },
+		@{ $JazzHands::Common::Error::EXPORT_TAGS{$name} }
+	);
 }
 
 sub import {
-	if(grep($_ =~ /^\:(db|all)$/, @_)) {
+	if ( grep( $_ =~ /^\:(db|all)$/, @_ ) ) {
 		use JazzHands::Common::GenericDB qw(:all);
-		push(@ISA, 'JazzHands::Common::GenericDB');
+		push( @ISA, 'JazzHands::Common::GenericDB' );
+
 		# pull up all the stuff from JazzHands::Common::GenericDB
-		push(@EXPORT, @JazzHands::Common::GenericDB::EXPORT);
-		push(@EXPORT_OK, @JazzHands::Common::GenericDB::EXPORT_OK);
-		foreach my $name (keys %JazzHands::Common::GenericDB::EXPORT_TAGS) {
-			push(@{$EXPORT_TAGS{$name}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{$name}});
+		push( @EXPORT,    @JazzHands::Common::GenericDB::EXPORT );
+		push( @EXPORT_OK, @JazzHands::Common::GenericDB::EXPORT_OK );
+		foreach my $name ( keys %JazzHands::Common::GenericDB::EXPORT_TAGS ) {
+			push(
+				@{ $EXPORT_TAGS{$name} },
+				@{ $JazzHands::Common::GenericDB::EXPORT_TAGS{$name} }
+			);
 		}
-		push(@{$EXPORT_TAGS{'db'}}, @{$JazzHands::Common::GenericDB::EXPORT_TAGS{'all'}});
+		push(
+			@{ $EXPORT_TAGS{'db'} },
+			@{ $JazzHands::Common::GenericDB::EXPORT_TAGS{'all'} }
+		);
 	}
 
 	my $save = $Exporter::ExportLevel;
@@ -96,12 +110,11 @@ sub new {
 	my $self = {};
 	bless $self, $class;
 
-
-	if($opt->{debug_callback}) {
+	if ( $opt->{debug_callback} ) {
 		$self->{_debug_callback} = $opt->{debug_callback};
 	}
 
-	$self->{_debug} = 0 if(!$self->{_debug});
+	$self->{_debug}  = 0 if ( !$self->{_debug} );
 	$self->{_errors} = [];
 	$self;
 }

@@ -1,4 +1,3 @@
-#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -744,14 +743,14 @@ sub build_serial_drop_tr {
 				'P1_PHYSICAL_PORT_ID'
 			)
 		),
-		$cgi->td( $self->b_dropdown( $hr, 'BAUD', 'P1_PHYSICAL_PORT_ID' ) ),
+		$cgi->td( $self->b_nondbdropdown( $hr, 'BAUD', 'P1_PHYSICAL_PORT_ID' ) ),
 		$cgi->td(
 			$self->b_nondbdropdown(
 				$hr, 'SERIAL_PARAMS', 'P1_PHYSICAL_PORT_ID'
 			)
 		),
 		$cgi->td(
-			$self->b_dropdown( $hr, 'FLOW_CONTROL', 'P1_PHYSICAL_PORT_ID' )
+			$self->b_nondbdropdown( $hr, 'FLOW_CONTROL', 'P1_PHYSICAL_PORT_ID' )
 		),
 	);
 }

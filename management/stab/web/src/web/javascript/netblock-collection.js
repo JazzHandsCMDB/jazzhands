@@ -25,16 +25,15 @@ function build_collection_drop(resp, div) {
 		class: "netcoldrop",
 	});
 	var tally = 0;
-	for(var id in resp['NETBLOCK_COLLECTIONS']) {
-		if(id) {
-			var r = resp['NETBLOCK_COLLECTIONS'][id];
-			var o = $("<option/>", {
-				value: id,
-				text: r
-			});
-			$(sel).append(o)
-			tally++;
-		}
+	for(var coll of  resp['NETBLOCK_COLLECTIONS']) {
+		var id = coll['id'];
+		var desc = coll['human'];
+		var o = $("<option/>", {
+			value: id,
+			text: desc
+		});
+		$(sel).append(o)
+		tally++;
 	}
 
 	$(div).empty();

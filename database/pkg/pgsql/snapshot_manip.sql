@@ -49,7 +49,7 @@ DECLARE
 BEGIN
 	SELECT company.company_id INTO companyid FROM company
 		INNER JOIN company_type USING (company_id)
-		WHERE company_short_name = os_name
+		WHERE lower(company_short_name) = lower(os_name)
 		AND company_type = 'os provider';
 
 	IF NOT FOUND THEN
@@ -74,7 +74,7 @@ BEGIN
 			companyid,
 			major_version,
 			os_version,
-			'Linux'
+			'linux'
 		) RETURNING * INTO osid;
 
 		INSERT INTO property (
@@ -345,6 +345,103 @@ BEGIN
 		input_device,
 		new_dcid
 	);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION snapshot_manip.get_default_snapshot(
+	os_name       operating_system.operating_system_name%type,
+	os_version    operating_system.version%type
+) RETURNS varchar AS $$
+
+DECLARE
+	major_version text;
+	companyid     company.company_id%type;
+	osid          operating_system.operating_system_id%type;
+	snapname      operating_system_snapshot.operating_system_snapshot_name%type;
+
+BEGIN
+	SELECT operating_system_id INTO osid FROM operating_system
+		WHERE operating_system_name = os_name
+		AND version = os_version;
+
+	IF NOT FOUND THEN
+		RAISE 'Operating system not found';
+	END IF;
+
+	SELECT operating_system_snapshot_name INTO snapname FROM operating_system_snapshot oss
+		INNER JOIN property p USING (operating_system_snapshot_id)
+		WHERE oss.operating_system_id = osid
+		AND property_type = 'OperatingSystem'
+		AND property_name = 'DefaultSnapshot';
+
+	IF NOT FOUND THEN
+		RAISE 'Default snapshot not found';
+	END IF;
+
+	RETURN snapname;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION snapshot_manip.get_device_snapshot(
+	input_device   device.device_id%type
+) RETURNS varchar AS $$
+
+DECLARE
+	snapname      operating_system_snapshot.operating_system_snapshot_name%type;
+
+BEGIN
+	SELECT oss.operating_system_snapshot_name INTO snapname FROM device d
+	INNER JOIN device_collection_device dcd USING (device_id)
+	INNER JOIN device_collection dc USING (device_collection_id)
+	INNER JOIN property p USING (device_collection_id)
+	INNER JOIN operating_system_snapshot oss USING (operating_system_snapshot_id)
+	INNER JOIN operating_system os ON os.operating_system_id = oss.operating_system_id
+	WHERE dc.device_collection_type::text = 'os-snapshot'::text
+		AND p.property_type::text = 'OperatingSystem'::text
+		AND p.property_name::text = 'DeviceCollection'::text
+		AND device_id = input_device;
+
+	IF NOT FOUND THEN
+		RAISE 'Snapshot not set for device';
+	END IF;
+
+	RETURN snapname;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION snapshot_manip.get_default_os_version(
+	os_name       operating_system.operating_system_name%type
+) RETURNS varchar AS $$
+
+DECLARE
+	osid          operating_system.operating_system_id%type;
+	os_version    operating_system.version%type;
+
+BEGIN
+	SELECT os.operating_system_id INTO osid FROM operating_system os
+		WHERE operating_system_name = os_name;
+
+	IF NOT FOUND THEN
+		RAISE 'Operating system not found';
+	END IF;
+
+	SELECT os.version INTO os_version FROM operating_system os
+		INNER JOIN property USING (operating_system_id)
+		WHERE operating_system_name = os_name
+		AND property_type = 'OperatingSystem'
+		AND property_name = 'DefaultVersion';
+
+	IF NOT FOUND THEN
+		RAISE 'Default version not found for operating system';
+	END IF;
+
+	RETURN os_version;
 END;
 $$
 SET search_path=jazzhands

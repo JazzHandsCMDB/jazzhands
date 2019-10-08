@@ -37,6 +37,21 @@
  * limitations under the License.
  */
 
+-- Copyright (c) 2019, Matthew Ragan
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 /*
  * $Id$
  */
@@ -265,6 +280,7 @@ DECLARE
 	nb_list		integer[];
 	sn_list		integer[];
 	sn_rec		RECORD;
+	mp_rec		RECORD;
 	rl_list		integer[];
 	dev_id		jazzhands.device.device_id%TYPE;
 	se_id		jazzhands.service_environment.service_environment_id%TYPE;
@@ -303,6 +319,85 @@ BEGIN
 			WHERE
 				ni.device_id = ANY(device_id_list)
 		)
+	);
+
+	--
+	-- If device is a member of an MLAG, remove it.  This will also clean
+	-- up any logical port assignments for this MLAG
+	--
+
+	FOREACH dev_id IN ARRAY device_id_list LOOP
+		PERFORM logical_port_manip.remove_mlag_peer(device_id := dev_id);
+	END LOOP;
+	
+	--
+	-- Delete all layer2_connections involving these devices
+	--
+
+	WITH x AS (
+		SELECT
+			layer2_connection_id
+		FROM
+			layer2_connection l2c
+		WHERE
+			l2c.logical_port1_id IN (
+				SELECT
+					logical_port_id
+				FROM
+					logical_port lp
+				WHERE
+					lp.device_id = ANY(device_id_list)
+			) OR
+			l2c.logical_port2_id IN (
+				SELECT
+					logical_port_id
+				FROM
+					logical_port lp
+				WHERE
+					lp.device_id = ANY(device_id_list)
+			)
+	), z AS (
+		DELETE FROM layer2_connection_l2_network l2cl2n WHERE
+			l2cl2n.layer2_connection_id IN (
+				SELECT layer2_connection_id FROM x
+			)
+	)
+	DELETE FROM layer2_connection l2c WHERE
+		l2c.layer2_connection_id IN (
+			SELECT layer2_connection_id FROM x
+		);
+
+	--
+	-- Delete all logical ports for these devices
+	--
+	DELETE FROM logical_port lp WHERE lp.device_id = ANY(device_id_list);
+
+
+	RAISE LOG 'Removing inter_component_connections...';
+
+	WITH s AS (
+		SELECT DISTINCT
+			slot_id
+		FROM
+			v_device_slots ds
+		WHERE
+			ds.device_id = ANY(device_id_list)
+	)
+	DELETE FROM inter_component_connection WHERE
+		slot1_id IN (SELECT slot_id FROM s) OR
+		slot2_id IN (SELECT slot_id FROM s);
+
+	RAISE LOG 'Removing device properties...';
+
+	DELETE FROM property WHERE device_collection_id IN (
+		SELECT
+			dc.device_collection_id
+		FROM
+			device_collection dc JOIN
+			device_collection_device dcd USING (device_collection_id)
+		WHERE
+			dc.device_collection_type = 'per-device' AND
+			dcd.device_id = ANY(device_id_list)
 	);
 
 	RAISE LOG 'Removing inter_component_connections...';

@@ -1,3 +1,9 @@
+jazzhands-perl-common (0.86.0) bionic; urgency=medium
+
+  * Update error handling to be smarter
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
 jazzhands-perl-common (0.73.2) trusty; urgency=medium
 
   * use IS DISTINCT FROM in DBUpdate/DBDelete

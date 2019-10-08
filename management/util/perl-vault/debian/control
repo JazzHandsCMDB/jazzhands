@@ -1,0 +1,14 @@
+Source: jazzhands-perl-vault
+Section: unknown
+Priority: extra
+Maintainer: JazzHands Project <release@jazzhands.net>
+Build-Depends: debhelper (>= 8.0.0), perl-modules
+Standards-Version: 3.9.4
+Homepage: http://www.jazzhands.net/
+
+Package: jazzhands-perl-vault
+Architecture: any
+Pre-Depends: jazzhands-perl-common
+Depends: jazzhands-perl-common (>=0.86.0)
+Description: 
+ Very basic routines to allow jazzhands tools to interact with Hashicorp Vault

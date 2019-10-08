@@ -72,7 +72,7 @@ AFTER INSERT OR UPDATE ON netblock_collection_hier
 CREATE OR REPLACE FUNCTION check_device_colllection_hier_loop()
 	RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.device_collection_id = NEW.parent_device_collection_id THEN
+	IF NEW.device_collection_id = NEW.child_device_collection_id THEN
 		RAISE EXCEPTION 'device Collection Loops Not Pernitted '
 			USING ERRCODE = 20704;	/* XXX */
 	END IF;

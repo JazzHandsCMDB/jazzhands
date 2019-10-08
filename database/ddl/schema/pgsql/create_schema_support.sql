@@ -88,8 +88,8 @@ BEGIN
 			JOIN pg_namespace n ON n.oid = c.relnamespace
 			WHERE	c.relname = table_name
 			AND	n.nspname = schema
-				AND 	a.attnum > 0
-				AND 	NOT a.attisdropped
+				AND	a.attnum > 0
+				AND	NOT a.attisdropped
 		) SELECT s.*, nextval(s.seq) as nv FROM s WHERE seq IS NOT NULL
 	LOOP
 		EXECUTE 'SELECT max('||quote_ident(_r.column)||')+1 FROM  '
@@ -216,77 +216,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table(
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table_finish(
 	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
 )
 RETURNS VOID AS $FUNC$
 DECLARE
-	idx		text[];
-	keys	text[];
 	cols	text[];
-	i		text;
-	seq		integer;
+	i	text;
 BEGIN
-	-- rename all the old indexes and constraints on the old audit table
-	SELECT	array_agg(c2.relname)
-		INTO	 idx
-		  FROM	pg_catalog.pg_index i
-			LEFT JOIN pg_catalog.pg_class c
-				ON c.oid = i.indrelid
-			LEFT JOIN pg_catalog.pg_class c2
-				ON i.indexrelid = c2.oid
-			LEFT JOIN pg_catalog.pg_namespace n
-				ON c2.relnamespace = n.oid
-			LEFT JOIN pg_catalog.pg_constraint con
-				ON (conrelid = i.indrelid
-				AND conindid = i.indexrelid
-				AND contype IN ('p','u','x'))
-		 WHERE n.nspname = quote_ident(aud_schema)
-		  AND	c.relname = quote_ident(table_name)
-		  AND	contype is NULL
-	;
-
-	SELECT array_agg(con.conname)
-	INTO	keys
-    FROM pg_catalog.pg_class c
-		INNER JOIN pg_namespace n
-			ON relnamespace = n.oid
-		INNER JOIN pg_catalog.pg_index i
-			ON c.oid = i.indrelid
-		INNER JOIN pg_catalog.pg_class c2
-			ON i.indexrelid = c2.oid
-		INNER JOIN pg_catalog.pg_constraint con ON
-			(con.conrelid = i.indrelid
-			AND con.conindid = i.indexrelid )
-	WHERE  	n.nspname = quote_ident(aud_schema)
-	AND		c.relname = quote_ident(table_name)
-	AND con.contype in ('p', 'u')
-	;
-
-	IF idx IS NOT NULL THEN
-		FOREACH i IN ARRAY idx
-		LOOP
-			EXECUTE 'ALTER INDEX '
-				|| quote_ident(aud_schema) || '.'
-				|| quote_ident(i)
-				|| ' RENAME TO '
-				|| quote_ident('_' || i);
-		END LOOP;
-	END IF;
-
-	IF array_length(keys, 1) > 0 THEN
-		FOREACH i IN ARRAY keys
-		LOOP
-			EXECUTE 'ALTER TABLE '
-				|| quote_ident(aud_schema) || '.'
-				|| quote_ident(table_name)
-				|| ' RENAME CONSTRAINT '
-				|| quote_ident(i)
-				|| ' TO '
-			|| quote_ident('__old__' || i);
-		END LOOP;
-	END IF;
-
 	--
 	-- get columns - XXX NOTE:  Need to remove columns not in the new
 	-- table...
@@ -299,35 +237,11 @@ BEGIN
 	LEFT JOIN pg_catalog.pg_description d
 			on d.objoid = a.attrelid
 			and d.objsubid = a.attnum
-	WHERE  	n.nspname = quote_ident(aud_schema)
-	  AND	c.relname = quote_ident(table_name)
-	  AND 	a.attnum > 0
-	  AND 	NOT a.attisdropped
+	WHERE   n.nspname = quote_ident(aud_schema)
+	  AND	c.relname = quote_ident('__old__' || table_name)
+	  AND	a.attnum > 0
+	  AND	NOT a.attisdropped
 	;
-
-	--
-	-- rename table
-	--
-	EXECUTE 'ALTER TABLE '
-		|| quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name)
-		|| ' RENAME TO '
-		|| quote_ident('__old__' || table_name);
-
-
-	--
-	-- RENAME sequence
-	--
-	EXECUTE 'ALTER SEQUENCE '
-		|| quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq')
-		|| ' RENAME TO '
-		|| quote_ident('_old_' || table_name || '_seq');
-
-	--
-	-- create a new audit table
-	--
-	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
 
 	EXECUTE 'INSERT INTO '
 		|| quote_ident(aud_schema) || '.'
@@ -339,18 +253,6 @@ BEGIN
 		|| ' ORDER BY '
 		|| quote_ident('aud#seq');
 
-	--
-	-- fix sequence primary key to have the correct next value
-	--
-	EXECUTE 'SELECT max("aud#seq") + 1 FROM	 '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name) INTO seq;
-	IF seq IS NOT NULL THEN
-		EXECUTE 'ALTER SEQUENCE '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name || '_seq')
-			|| ' RESTART WITH ' || seq;
-	END IF;
 
 	EXECUTE 'DROP TABLE '
 		|| quote_ident(aud_schema) || '.'
@@ -386,7 +288,122 @@ BEGIN
 			|| quote_ident(aud_schema) || '.'
 			|| quote_ident('_' || i);
 	END LOOP;
+END;
+$FUNC$ LANGUAGE plpgsql;
 
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR,
+	finish_rebuild BOOLEAN DEFAULT true
+)
+RETURNS VOID AS $FUNC$
+DECLARE
+	idx		text[];
+	keys		text[];
+	i		text;
+	seq		integer;
+BEGIN
+	-- rename all the old indexes and constraints on the old audit table
+	SELECT	array_agg(c2.relname)
+		INTO	 idx
+		  FROM	pg_catalog.pg_index i
+			LEFT JOIN pg_catalog.pg_class c
+				ON c.oid = i.indrelid
+			LEFT JOIN pg_catalog.pg_class c2
+				ON i.indexrelid = c2.oid
+			LEFT JOIN pg_catalog.pg_namespace n
+				ON c2.relnamespace = n.oid
+			LEFT JOIN pg_catalog.pg_constraint con
+				ON (conrelid = i.indrelid
+				AND conindid = i.indexrelid
+				AND contype IN ('p','u','x'))
+		 WHERE n.nspname = quote_ident(aud_schema)
+		  AND	c.relname = quote_ident(table_name)
+		  AND	contype is NULL
+	;
+
+	SELECT array_agg(con.conname)
+	INTO	keys
+    FROM pg_catalog.pg_class c
+		INNER JOIN pg_namespace n
+			ON relnamespace = n.oid
+		INNER JOIN pg_catalog.pg_index i
+			ON c.oid = i.indrelid
+		INNER JOIN pg_catalog.pg_class c2
+			ON i.indexrelid = c2.oid
+		INNER JOIN pg_catalog.pg_constraint con ON
+			(con.conrelid = i.indrelid
+			AND con.conindid = i.indexrelid )
+	WHERE		n.nspname = quote_ident(aud_schema)
+	AND		c.relname = quote_ident(table_name)
+	AND con.contype in ('p', 'u')
+	;
+
+	IF idx IS NOT NULL THEN
+		FOREACH i IN ARRAY idx
+		LOOP
+			EXECUTE 'ALTER INDEX '
+				|| quote_ident(aud_schema) || '.'
+				|| quote_ident(i)
+				|| ' RENAME TO '
+				|| quote_ident('_' || i);
+		END LOOP;
+	END IF;
+
+	IF array_length(keys, 1) > 0 THEN
+		FOREACH i IN ARRAY keys
+		LOOP
+			EXECUTE 'ALTER TABLE '
+				|| quote_ident(aud_schema) || '.'
+				|| quote_ident(table_name)
+				|| ' RENAME CONSTRAINT '
+				|| quote_ident(i)
+				|| ' TO '
+			|| quote_ident('__old__' || i);
+		END LOOP;
+	END IF;
+
+	--
+	-- rename table
+	--
+	EXECUTE 'ALTER TABLE '
+		|| quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name)
+		|| ' RENAME TO '
+		|| quote_ident('__old__' || table_name);
+
+
+	--
+	-- RENAME sequence
+	--
+	EXECUTE 'ALTER SEQUENCE '
+		|| quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name || '_seq')
+		|| ' RENAME TO '
+		|| quote_ident('_old_' || table_name || '_seq');
+
+	--
+	-- create a new audit table
+	--
+	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
+
+	--
+	-- fix sequence primary key to have the correct next value
+	--
+	EXECUTE 'SELECT max("aud#seq") + 1 FROM	 '
+			|| quote_ident(aud_schema) || '.'
+			|| quote_ident('__old__' || table_name) INTO seq;
+	IF seq IS NOT NULL THEN
+		EXECUTE 'ALTER SEQUENCE '
+			|| quote_ident(aud_schema) || '.'
+			|| quote_ident(table_name || '_seq')
+			|| ' RESTART WITH ' || seq;
+	END IF;
+
+	IF finish_rebuild THEN
+		EXECUTE schema_support.rebuild_audit_table_finish(aud_schema,tbl_schema,table_name);
+	END IF;
 
 	--
 	-- recreate audit trigger
@@ -460,19 +477,19 @@ BEGIN
 	sch := quote_ident( aud_schema );
 	FOR _r IN
 		SELECT c2.relname, pg_get_indexdef(i.indexrelid) as def, con.contype
-        FROM pg_catalog.pg_class c
-            INNER JOIN pg_namespace n
-                ON relnamespace = n.oid
-            INNER JOIN pg_catalog.pg_index i
-                ON c.oid = i.indrelid
-            INNER JOIN pg_catalog.pg_class c2
-                ON i.indexrelid = c2.oid
-           LEFT JOIN pg_catalog.pg_constraint con ON
-                (con.conrelid = i.indrelid
-                AND con.conindid = i.indexrelid )
+	FROM pg_catalog.pg_class c
+	    INNER JOIN pg_namespace n
+		ON relnamespace = n.oid
+	    INNER JOIN pg_catalog.pg_index i
+		ON c.oid = i.indrelid
+	    INNER JOIN pg_catalog.pg_class c2
+		ON i.indexrelid = c2.oid
+	   LEFT JOIN pg_catalog.pg_constraint con ON
+		(con.conrelid = i.indrelid
+		AND con.conindid = i.indexrelid )
 	WHERE c.relname =  table_name
 	AND      n.nspname = tbl_schema
-	AND 	con.contype IS NULL
+	AND	con.contype IS NULL
 
 	LOOP
 		_r.def := regexp_replace(_r.def, ' ON ', ' ON ' || sch || '.');
@@ -853,7 +870,7 @@ BEGIN
 			INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
 			INNER JOIN pg_attribute a
-                ON a.attrelid = c.oid
+		ON a.attrelid = c.oid
 		WHERE c.relkind IN ('r', 'v', 'S', 'f')
 		  AND a.attacl IS NOT NULL
 		  AND c.relname = _object
@@ -1181,9 +1198,9 @@ BEGIN
 		JOIN pg_namespace n on n.oid = dependee.relnamespace
 		JOIN pg_namespace sn on sn.oid = dependent.relnamespace
 		JOIN pg_attribute ON pg_depend.refobjid = pg_attribute.attrelid
-   			AND pg_depend.refobjsubid = pg_attribute.attnum
+			AND pg_depend.refobjsubid = pg_attribute.attnum
 		WHERE dependent.relname = object
-  		AND sn.nspname = schema
+		AND sn.nspname = schema
 	LOOP
 		IF _r.relkind = 'v' OR _r.relkind = 'm' THEN
 			-- RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
@@ -1252,7 +1269,7 @@ DECLARE
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
-	FOR _r in 	SELECT n.nspname, c.relname, con.conname,
+	FOR _r in	SELECT n.nspname, c.relname, con.conname,
 				pg_get_constraintdef(con.oid, true) as def
 		FROM pg_constraint con
 			INNER JOIN pg_class c on (c.relnamespace, c.oid) =
@@ -1400,7 +1417,7 @@ DECLARE
 	_r			RECORD;
 BEGIN
 	for _r IN SELECT a.attname
-  			FROM pg_class c
+			FROM pg_class c
 				INNER JOIN pg_namespace n on n.oid = c.relnamespace
 				INNER JOIN pg_index i ON i.indrelid = c.oid
 				INNER JOIN pg_attribute  a ON   a.attrelid = c.oid AND
@@ -1429,28 +1446,28 @@ CREATE OR REPLACE FUNCTION schema_support.get_common_columns(
 ) RETURNS text[] AS $$
 DECLARE
 	_q			text;
-    cols        text[];
+    cols	text[];
 BEGIN
     _q := 'WITH cols AS (
-        SELECT  n.nspname as schema, c.relname as relation, a.attname as colname, t.typoutput as type,
+	SELECT  n.nspname as schema, c.relname as relation, a.attname as colname, t.typoutput as type,
 		a.attnum
-            FROM    pg_catalog.pg_attribute a
-                INNER JOIN pg_catalog.pg_class c
-                    ON a.attrelid = c.oid
-                INNER JOIN pg_catalog.pg_namespace n
-                    ON c.relnamespace = n.oid
+	    FROM    pg_catalog.pg_attribute a
+		INNER JOIN pg_catalog.pg_class c
+		    ON a.attrelid = c.oid
+		INNER JOIN pg_catalog.pg_namespace n
+		    ON c.relnamespace = n.oid
 				INNER JOIN pg_catalog.pg_type t
 					ON  t.oid = a.atttypid
-            WHERE   a.attnum > 0
-            AND   NOT a.attisdropped
-            ORDER BY a.attnum
+	    WHERE   a.attnum > 0
+	    AND   NOT a.attisdropped
+	    ORDER BY a.attnum
        ) SELECT array_agg(colname ORDER BY attnum) as cols
-        FROM ( SELECT CASE WHEN ( o.type::text ~ ''enum'' OR n.type::text ~ ''enum'')  AND o.type != n.type THEN concat(quote_ident(n.colname), ''::text'')
+	FROM ( SELECT CASE WHEN ( o.type::text ~ ''enum'' OR n.type::text ~ ''enum'')  AND o.type != n.type THEN concat(quote_ident(n.colname), ''::text'')
 					ELSE quote_ident(n.colname)
 					END  AS colname,
 				o.attnum
 			FROM cols  o
-            INNER JOIN cols n USING (schema, colname)
+	    INNER JOIN cols n USING (schema, colname)
 		WHERE
 			o.schema = $1
 		and o.relation = $2
@@ -1473,17 +1490,17 @@ DECLARE
 	_r			record;
 BEGIN
 	FOR _r IN SELECT  a.attname as colname,
-            pg_catalog.format_type(a.atttypid, a.atttypmod) as coltype,
-            a.attnotnull, a.attnum
-        FROM    pg_catalog.pg_attribute a
+	    pg_catalog.format_type(a.atttypid, a.atttypmod) as coltype,
+	    a.attnotnull, a.attnum
+	FROM    pg_catalog.pg_attribute a
 				INNER JOIN pg_class c on a.attrelid = c.oid
 				INNER JOIN pg_namespace n on n.oid = c.relnamespace
-        WHERE   c.relname = _table
+	WHERE   c.relname = _table
 		  AND	n.nspname = _schema
-          AND   a.attnum > 0
-          AND   NOT a.attisdropped
+	  AND   a.attnum > 0
+	  AND   NOT a.attisdropped
 		  AND	lower(a.attname) not like 'data_%'
-        ORDER BY a.attnum
+	ORDER BY a.attnum
 	LOOP
 		SELECT array_append(cols, _r.colname::text) INTO cols;
 	END LOOP;
@@ -1755,7 +1772,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 create or replace function schema_support.relation_diff(
 	schema			text,
 	old_rel			text,
-	new_rel 		text,
+	new_rel		text,
 	key_relation	text DEFAULT NULL,
 	prikeys			text[] DEFAULT NULL,
 	raise_exception boolean DEFAULT true
@@ -1765,13 +1782,14 @@ DECLARE
 	_r		RECORD;
 	_t1		integer;
 	_t2		integer;
-	_cols 	TEXT[];
-	_pkcol 	TEXT[];
-	_q 		TEXT;
-	_f 		TEXT;
-	_c 		RECORD;
-	_w 		TEXT[];
-	_ctl 		TEXT[];
+	_cnt	integer;
+	_cols	TEXT[];
+	_pkcol	TEXT[];
+	_q		TEXT;
+	_f		TEXT;
+	_c		RECORD;
+	_w		TEXT[];
+	_ctl		TEXT[];
 	_rv	boolean;
 	_oj		jsonb;
 	_nj		jsonb;
@@ -1814,35 +1832,49 @@ BEGIN
 	-- primary key.
 	--
 	IF _t1 != _t2 THEN
-		RAISE NOTICE 'table % has % rows; table % has % rows', old_rel, _t1, new_rel, _t2;
-		IF _t1 > _t2 THEN
-			_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-				' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
-					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-					quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-					' EXCEPT ( '
-						' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-						quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-					' )) ';
-		ELSE
-			_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+		RAISE NOTICE 'table % has % rows; table % has % rows (%)', old_rel, _t1, new_rel, _t2, _t1 - _t2;
+		_rv := false;
+	END IF;
+
+	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+		quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+		' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+			' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+			' EXCEPT ( '
+				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
 				quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-				' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
-					' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-					quote_ident(schema) || '.' || quote_ident(new_rel)  ||
-					' EXCEPT ( '
-						' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-						quote_ident(schema) || '.' || quote_ident(old_rel)  ||
-					' )) ';
+			' )) ';
 
-		END IF;
+	_cnt := 0;
+	FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
+	LOOP
+		RAISE NOTICE 'InOld/%: %', _cnt, _r;
+		_cnt := _cnt + 1;
+	END LOOP;
 
-		FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
-		LOOP
-			RAISE NOTICE '%', _r;
-		END LOOP;
+	IF _cnt > 0  THEN
+		_rv := false;
+	END IF;
 
+	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
+		quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+		' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
+			' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+			quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+			' EXCEPT ( '
+				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
+				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+			' )) ';
+
+	_cnt := 0;
+	FOR _r IN EXECUTE 'SELECT row_to_json(x) as r FROM (' || _q || ') x'
+	LOOP
+		RAISE NOTICE 'InNew/%: %', _cnt, _r;
+		_cnt := _cnt + 1;
+	END LOOP;
+
+	IF _cnt > 0  THEN
 		_rv := false;
 	END IF;
 
@@ -1855,7 +1887,6 @@ BEGIN
 
 	-- At this point, the same number of rows appear in both, so need to
 	-- figure out rows that are different between them.
-
 
 	-- SELECT row_to_json(o) as old, row_to_json(n) as new
 	-- FROM ( SELECT cols FROM old WHERE prikeys in Vv ) old,
@@ -1905,6 +1936,7 @@ BEGIN
 		RAISE NOTICE 'NEW: %', _nj;
 		_rv := false;
 	END LOOP;
+
 
 	IF NOT _rv AND raise_exception THEN
 		RAISE EXCEPTION 'Relations do not match (% rows)', _t1;
@@ -2042,7 +2074,7 @@ BEGIN
 		RAISE EXCEPTION 'Schema % not configured for this', schema;
 	END IF;
 
-	SELECT 	relkind
+	SELECT	relkind
 	INTO	rk
 	FROM	pg_catalog.pg_class c
 		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -2073,29 +2105,29 @@ BEGIN
 
 	IF rk = 'v' OR rk = 'm' THEN
 		FOR obj,objaud,objkind, objschema IN WITH RECURSIVE recur AS (
-                SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
-                FROM pg_depend d
-                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-                    JOIN pg_class c on rewrite.ev_class = c.oid
-                    JOIN pg_namespace n on n.oid = c.relnamespace
-                WHERE c.relname = relation
-                AND n.nspname = relation_last_changed.schema
-                AND d.refobjsubid > 0
-            UNION ALL
-                SELECT recur.root_oid, d.refobjid as oid
-                FROM pg_depend d
-                    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
-                    JOIN pg_class c on rewrite.ev_class = c.oid
-                JOIN recur ON recur.oid = rewrite.ev_class
-                AND d.refobjsubid > 0
+		SELECT distinct rewrite.ev_class as root_oid, d.refobjid as oid
+		FROM pg_depend d
+		    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+		    JOIN pg_class c on rewrite.ev_class = c.oid
+		    JOIN pg_namespace n on n.oid = c.relnamespace
+		WHERE c.relname = relation
+		AND n.nspname = relation_last_changed.schema
+		AND d.refobjsubid > 0
+	    UNION ALL
+		SELECT recur.root_oid, d.refobjid as oid
+		FROM pg_depend d
+		    JOIN pg_rewrite rewrite ON d.objid = rewrite.oid
+		    JOIN pg_class c on rewrite.ev_class = c.oid
+		JOIN recur ON recur.oid = rewrite.ev_class
+		AND d.refobjsubid > 0
 		AND c.relkind != 'm'
-            ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
-                FROM pg_class c
-                    JOIN recur on recur.oid = c.oid
-                    JOIN pg_namespace n on c.relnamespace = n.oid
-                    JOIN schema_support.schema_audit_map m
-                        ON m.schema = n.nspname
-                WHERE relkind IN ('r', 'm')
+	    ), list AS ( select distinct m.audit_schema, c.relname, c.relkind, n.nspname as relschema, recur.*
+		FROM pg_class c
+		    JOIN recur on recur.oid = c.oid
+		    JOIN pg_namespace n on c.relnamespace = n.oid
+		    JOIN schema_support.schema_audit_map m
+			ON m.schema = n.nspname
+		WHERE relkind IN ('r', 'm')
 		) SELECT relname, audit_schema, relkind, relschema from list
 		LOOP
 			-- if there is no audit table, assume its kept current.  This is
@@ -2173,6 +2205,107 @@ SET search_path=schema_support
 LANGUAGE plpgsql SECURITY INVOKER;
 
 
+--
+-- This migrates grants from one schema to another for setting up a shadow
+-- schema for dealing with migrations.  It still needs to handle functions.
+--
+-- It also ignores sequences because those really need to move to IDENTITY
+-- columns anyway. and sequences are really part of the shadow schema stuff.
+--
+CREATE OR REPLACE FUNCTION schema_support.migrate_grants (
+	username	TEXT,
+	direction	TEXT,
+	old_schema	TEXT DEFAULT 'jazzhands',
+	new_schema	TEXT DEFAULT 'jazzhands_legacy'
+) RETURNS TEXT[] AS $$
+DECLARE
+	_rv	TEXT[];
+	_r	RECORD;
+	_q	TEXT;
+BEGIN
+	IF lower(direction) NOT IN ('grant','revoke') THEN
+		RAISE EXCEPTION 'direction must be grant or revoke';
+	END IF;
+
+	FOR _r IN
+		WITH x AS (
+		SELECT *
+			FROM (
+		SELECT oid, schema, name,  typ,
+			p->>'privilege_type' as privilege_type,
+			col,
+			r.usename as grantor, e.usename as grantee,
+			r.usesysid as rid,  e.usesysid as eid,
+			e.useconfig
+		FROM (
+			SELECT  c.oid, n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
+				WHEN 'r' THEN 'table'
+				WHEN 'm' THEN 'view'
+				WHEN 'v' THEN 'mview'
+				WHEN 'S' THEN 'sequence'
+				WHEN 'f' THEN 'foreign table'
+				END as typ,
+				NULL::text as col,
+			to_jsonb(pg_catalog.aclexplode(acl := c.relacl)) as p
+			FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
+				ON n.oid = c.relnamespace
+			WHERE c.relkind IN ('r', 'v', 'S', 'f')
+		UNION ALL
+		SELECT  c.oid, n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
+				WHEN 'r' THEN 'table'
+				WHEN 'v' THEN 'view'
+				WHEN 'mv' THEN 'mview'
+				WHEN 'S' THEN 'sequence'
+				WHEN 'f' THEN 'foreign table'
+				END as typ,
+			a.attname as col,
+			to_jsonb(pg_catalog.aclexplode(a.attacl)) as p
+			FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
+				ON n.oid = c.relnamespace
+			INNER JOIN pg_attribute a
+				ON a.attrelid = c.oid
+			WHERE c.relkind IN ('r', 'v', 'S', 'f')
+			AND a.attacl IS NOT NULL
+		) x
+		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
+		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		) i
+		) select *
+		FROM x
+		WHERE ( schema = old_schema )
+		AND grantee = username
+		AND typ IN ('table', 'view', 'mview', 'foreign table')
+		order by name, col
+	LOOP
+		IF _r.col IS NOT NULL THEN
+			_q = concat(' (', _r.col, ') ');
+		ELSE
+			_q := NULL;
+		END IF;
+		IF lower(direction) = 'grant' THEN
+			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _r.name, ' TO ', _r.grantee);
+		ELSIF lower(direction) = 'revoke' THEN
+			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _r.name, ' FROM ', _r.grantee);
+		END IF;
+
+
+		_rv := array_append(_rv, _q);
+		EXECUTE _q;
+	END LOOP;
+	RETURN _rv;
+END;
+$$
+SET search_path=schema_support
+LANGUAGE plpgsql SECURITY INVOKER;
+
+
+
 ----------------------------------------------------------------------------
 -- END materialized view support
 ----------------------------------------------------------------------------
@@ -2190,6 +2323,11 @@ schema_support.begin_maintenance
 schema_support.end_maintenance
 	- revokes superuser from running user (based on argument)
 
+
+This:
+	schema_support.migrate_grants is used to deal with setting up
+	shadow schemas for migrations and removing/adding permissions as
+	things are moving.
 
 These will save an object for replay, including presering grants
 automatically:

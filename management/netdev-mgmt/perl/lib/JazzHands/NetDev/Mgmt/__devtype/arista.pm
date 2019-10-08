@@ -73,6 +73,9 @@ sub disconnect {
 	return 1;
 }
 
+sub rollback {
+	return 1;
+}
 
 my $arista_cmd_serial = 1;
 
@@ -221,6 +224,9 @@ sub GetPortStatus {
 	#
 	# Get the switchport information for these ports, which requires getting
 	# it for everything, and it's not even JSON
+	#
+	# UPDATE: this should get converted to use JSON, because it's been
+	# supported for a while
 	#
 
 	$result = $self->SendCommand(
@@ -540,9 +546,10 @@ sub SetPortLACP {
 			errors => \@errors,
 			))) {
 		SetError($err,
-			"Error retrieving chassis info for %s: %s\n",
-			$device->{hostname},
-			(join("\n", @errors))
+			sprintf("Error retrieving chassis info for %s: %s\n",
+				$device->{hostname},
+				(join("\n", @errors))
+			)
 		);
 		return undef;
 	}
@@ -844,6 +851,51 @@ sub SetBGPPeerStatus {
 	return 1;
 }
 
+sub RemoveVLAN {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	if (!$opt->{encapsulation_tag}) {
+		SetError($err,
+			"encapsulation_tag parameter must be passed to RemoveVLAN");
+		return undef;
+	}
+
+	if (
+		$opt->{encapsulation_tag} !~ /^[0-9]+$/ ||
+		$opt->{encapsulation_tag} < 1 ||
+		$opt->{encapsulation_tag} > 4094
+	) {
+		SetError($err,
+			"encapsulation_tag parameter must be a valid VLAN number for RemoveVLAN");
+		return undef;
+	}
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my @errors;
+	my $result = $self->SendCommand(
+		commands => [
+			'no interface Vlan' . $opt->{encapsulation_tag},
+			'no vlan ' . $opt->{encapsulation_tag}
+		],
+		errors => \@errors
+	);
+
+	if (!$result) {
+		return {};
+	}
+
+	return 1;
+}
+
 sub GetInterfaceConfig {
 	my $self = shift;
 	my $opt = &_options(@_);
@@ -1049,6 +1101,10 @@ my $iface_map = {
 	'100GBASE-SR10' => {
 		module_type => '100GMXPEthernet',
 		media_type => '100GMXPEthernet',
+	},
+	'100GBASE-SR4' => {
+		module_type => '100GMXPEthernet',
+		media_type => '100GMXPEthernet',
 	}
 };
 
@@ -1069,8 +1125,7 @@ sub GetLLDPInformation {
 	my $result = $self->SendCommand(
 		commands => [
 			'show lldp neighbors detail',
-			'show interfaces status',
-			'show lldp local-info'
+			'show interfaces status'
 		],
 		errors => $err
 	);
@@ -1081,9 +1136,17 @@ sub GetLLDPInformation {
 
 	my $lldp = $result->[0]->{lldpNeighbors};
 	my $iface_status = $result->[1]->{interfaceStatuses};
-	my $chassis_info = $result->[2];
 
 	my $ifaceinfo = {};
+
+	$result = $self->SendCommand(
+		commands => [
+			'show lldp local-info'
+		],
+		errors => $err
+	);
+
+	my $chassis_info = $result->[0];
 
 	if ($chassis_info && $chassis_info->{chassisId}) {
 		$ifaceinfo->{lldp_chassis_id} = $chassis_info->{chassisId};
@@ -1564,7 +1627,7 @@ sub GetChassisInfo {
 	my $result = $self->SendCommand(
 		commands => [
 			'show inventory',
-			'show lldp local-info'
+			'show version'
 		],
 		errors => $err
 	);
@@ -1574,12 +1637,14 @@ sub GetChassisInfo {
 	}
 
 	my $inventory = $result->[0];
+	my $software = $result->[1];
 	my $chassis = {
 		model => $inventory->{systemInformation}->{name},
 		manufacturer => 'Arista Networks',
 		manufacture_date => $inventory->{systemInformation}->{mfgDate},
 		hardware_rev => $inventory->{systemInformation}->{hardwareRev},
-		serial => $inventory->{systemInformation}->{serialNum}
+		serial => $inventory->{systemInformation}->{serialNum},
+		software_version => $software->{version}
 	};
 	#
 	# If the cardSlots hash is populated, then we're a modular chassis
@@ -1649,18 +1714,21 @@ sub GetChassisInfo {
 		};
 	}
 
-	my $lldp = $result->[1];
-	if ($lldp && $lldp->{chassisId}) {
-#		$chassis->{lldp_chassis_id} = Net::MAC->new(
-#			mac => $lldp->{chassisId},
-#			base => 16,
-#			bit_group => 16,
-#			delimiter => '.',
-#			zero_padded => 1
-#		)->as_Sun()->get_mac;
-		$chassis->{lldp_chassis_id} = NetAddr::MAC->new($lldp->{chassisId})->
-			as_ieee();
-	};
+	$result = $self->SendCommand(
+		commands => [
+			'show lldp local-info'
+		],
+		errors => $err
+	);
+
+	if ($result) {
+		my $lldp = $result->[0];
+		if ($lldp && $lldp->{chassisId}) {
+			$chassis->{lldp_chassis_id} = NetAddr::MAC->new($lldp->{chassisId})->
+				as_ieee();
+		};
+	}
+
 	return $chassis;
 }
 

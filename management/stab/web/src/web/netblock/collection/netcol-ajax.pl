@@ -68,14 +68,13 @@ sub do_netcol_ajax {
 	if ( $what eq 'Collections' ) {
 		my $type  = $stab->cgi_parse_param('type');
 		my $r = {};
-		$r->{'NETBLOCK_COLLECTIONS'} = {};
 		my $sth = $stab->prepare(
 			qq{
 			select  netblock_collection_id,
 				netblock_collection_name, description
 			  from  netblock_collection
 			where	netblock_collection_type = ?
-			order by netblock_collection_name, 
+			order by netblock_collection_name,
 				netblock_collection_type,
 				netblock_collection_id
 		}
@@ -83,8 +82,14 @@ sub do_netcol_ajax {
 		$sth->execute($type) || die $sth->errstr;
 		my $j = JSON::PP->new->utf8;
 		while ( my ( $id, $name, $desc ) = $sth->fetchrow_array ) {
-			$r->{'NETBLOCK_COLLECTIONS'}->{$id} = "$name".
-				(($desc)?" - $desc":"");
+			push(@{$r->{'NETBLOCK_COLLECTIONS'}}, {
+				id => $id,
+				name => $name,
+				type => $type,
+				desc => $desc,
+				human => "$name".  (($desc)?" - $desc":"")
+			});
+
 		}
 		print $j->encode($r);
 	} else {

@@ -101,7 +101,7 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN device_collection_hier h ON dc.device_collection_id =
+			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
 				h.parent_device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS'
@@ -116,7 +116,7 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN device_collection_hier h ON dc.device_collection_id =
+			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
 				h.parent_device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS2'
@@ -135,7 +135,7 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN device_collection_hier h ON dc.device_collection_id =
+			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
 				h.parent_device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS'
@@ -150,7 +150,7 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN device_collection_hier h ON dc.device_collection_id =
+			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
 				h.parent_device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS2'
@@ -197,7 +197,7 @@ BEGIN
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
-		INSERT INTO device_collection_hier (
+		INSERT INTO v_device_collection_hier_trans (
 			parent_device_collection_id, device_collection_id
 		) VALUES (
 			_hdc.device_collection_id, __dc_onemem.device_collection_id

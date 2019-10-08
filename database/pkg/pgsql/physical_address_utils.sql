@@ -73,6 +73,7 @@ BEGIN
 	RETURN address;
 END; $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION physical_address_utils.localized_street_address(
@@ -100,6 +101,7 @@ BEGIN
 		);
 END; $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 GRANT USAGE ON SCHEMA physical_address_utils TO public;

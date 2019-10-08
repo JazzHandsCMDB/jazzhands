@@ -8,6 +8,5 @@ Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-common
 Architecture: any
-Pre-Depends: libcrypt-eksblowfish-perl, libdigest-hmac-perl, libcrypt-cbc-perl, libdatetime-format-strptime-perl
 Description: 
  Common perl modules used throughout jazzhands

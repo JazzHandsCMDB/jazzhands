@@ -16,6 +16,7 @@ for i in \
 	../management/netdev-mgmt/perl/lib \
 	../management/util/perl-tickets/lib \
 	../management/approval/lib/lib \
+	../management/util/perl-vault/lib \
 ; do
     echo process $i
     (cd $i; find JazzHands -type d -print) | xargs mkdir -p

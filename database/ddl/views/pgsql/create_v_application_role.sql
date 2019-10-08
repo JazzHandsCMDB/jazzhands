@@ -45,7 +45,7 @@ WITH RECURSIVE var_recurse(
 	WHERE
 		device_collection_type = 'appgroup'
 	AND	device_collection_id not in
-		(select device_collection_id from device_collection_hier)
+		(select device_collection_id from v_device_collection_hier_trans)
 UNION ALL
 	SELECT	x.role_level + 1				as role_level,
 		dch.device_collection_id 			as role_id,
@@ -62,11 +62,11 @@ UNION ALL
 		dch.parent_device_collection_id || x.array_path	as array_path,
 		dch.parent_device_collection_id = ANY(x.array_path)	as cycle
 	FROM	var_recurse x
-		inner join device_collection_hier dch
+		inner join v_device_collection_hier_trans dch
 			on x.role_id = dch.parent_device_collection_id
 		inner join device_collection dc
 			on dch.device_collection_id = dc.device_collection_id
-		left join device_collection_hier lchk
+		left join v_device_collection_hier_trans lchk
 			on dch.device_collection_id 
 				= lchk.parent_device_collection_id
 	WHERE NOT x.cycle

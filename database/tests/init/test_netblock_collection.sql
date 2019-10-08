@@ -52,7 +52,7 @@ values (
 insert into netblock_collection_netblock (netblock_collection_id, netblock_id)
 values (
 	(select netblock_collection_id from netblock_collection where netblock_collection_type = 'prefix list' and netblock_collection_name = 'test3'),
-	(select netblock_id from netblock where ip_address = net_manip.inet_ptodb('172.28.64.0', 24))
+	(select netblock_id from netblock where ip_address = net_manip.inet_ptodb('172.25.64.0', 24))
 );
 
 select	nc.netblock_collection_name, nc.netblock_collection_type, n.ip_address

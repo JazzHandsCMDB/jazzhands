@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2012-2013 Matthew Ragan
-# Copyright (c) 2012-2016 Todd Kover
+# Copyright (c) 2012-2019 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,20 +21,22 @@ use strict;
 use warnings;
 use Data::Dumper;
 
-our $errstr;
+our $errstr = "";
 
 use Exporter 'import';
 
 our $VERSION = '1.0';
 
-our @ISA       = qw(Exporter );
+our @ISA = qw(Exporter );
+
 # note:  exporting variables is bad, but this allows for a common errstr
 # throughout all the JazzHands::Common family.
-our @EXPORT_OK = qw(SetError $errstr );
+our @EXPORT_OK = qw(SetError Error $errstr );
 
-our %EXPORT_TAGS = ( 
-	'all' => [qw(SetError)], 
-	'internal' => [qw(SetError $errstr)] );
+our %EXPORT_TAGS = (
+	'all'      => [qw(SetError Error $errstr)],
+	'internal' => [qw(SetError Error $errstr)]
+);
 
 #
 # This is used external to JazzHands and thus can't really change
@@ -67,17 +69,17 @@ sub SetError {
 sub Error {
 	my $self = shift @_;
 
-	if($#_ >= 0 && !defined($_[0]) ) {
+	if ( $#_ >= 0 && !defined( $_[0] ) ) {
 		delete $self->{_errors};
 		$self->{_errors} = [];
 		return;
 	}
 
 	SetError( $self->{_errors}, @_ );
-	if(wantarray) {
-		return @{$self->{_errors}};
+	if (wantarray) {
+		return @{ $self->{_errors} };
 	} else {
-		$errstr = join("\n", @{$self->{_errors}});
+		$errstr = join( "\n", @{ $self->{_errors} } );
 		return $errstr;
 	}
 }
@@ -86,7 +88,7 @@ sub Error {
 # passes arguments through sprintf, and tacks them onto the end of the internal
 # error system
 #
-sub ErrorF { 
+sub ErrorF {
 	my $self = shift;
 
 	my $str;
@@ -101,7 +103,6 @@ sub ErrorF {
 	return $self->Error($str);
 }
 
-
 sub SetDebug {
 	my $self = shift;
 	if (@_) { $self->{_debug} = shift; }
@@ -113,16 +114,16 @@ sub _Debug {
 	my $level = shift;
 
 	if ( $level <= $self->{_debug} && @_ ) {
-		if($self->{_debug_callback}) {
+		if ( $self->{_debug_callback} ) {
 			my $fmt = shift @_;
-			my $str = sprintf ($fmt, @_);
-			&{$self->{_debug_callback}}($level, $str);
+			my $str = sprintf( $fmt, @_ );
+			&{ $self->{_debug_callback} }( $level, $str );
 		} else {
-			printf STDERR @_; print STDERR "\n";
+			printf STDERR @_;
+			print STDERR "\n";
 		}
 	}
 }
-
 
 1;
 

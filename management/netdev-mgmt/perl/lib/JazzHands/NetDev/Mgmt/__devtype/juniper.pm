@@ -2746,6 +2746,101 @@ sub SetBGPPeerStatus {
 	return 1;
 }
 
+sub RemoveVLAN {
+    my $self = shift;
+    my $opt = &_options(@_);
+
+    my $err = $opt->{errors};
+
+    if (!$opt->{encapsulation_tag}) {
+        SetError($err,
+            "encapsulation_tag parameter must be passed to RemoveVLAN");
+        return undef;
+    }
+	my $encapsulation_tag = $opt->{encapsulation_tag};
+
+    if (
+        $encapsulation_tag !~ /^[0-9]+$/ ||
+        $encapsulation_tag < 1 ||
+        $encapsulation_tag > 4094
+    ) {
+        SetError($err,
+            "encapsulation_tag parameter must be a valid VLAN number for RemoveVLAN");
+        return undef;
+    }
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
+	my $vlans = $self->GetVLANs(
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!defined($vlans)) {
+		return undef;
+	}
+
+	if (!exists($vlans->{ids}->{$encapsulation_tag})) {
+		return undef;
+	}
+	my $vlan = $vlans->{ids}->{$encapsulation_tag};
+
+	my $conf = "<configuration>\n";
+	$conf .= sprintf(q {
+			<vlans>
+				<vlan delete="delete">
+					<vlan-id>%s</vlan-id>
+				</vlan>
+			</vlans>
+		},
+			$vlan->{name}
+	);
+
+	if ($vlan->{l3_interface}) {
+		my $iface = $self->GetInterfaceConfig(
+			timeout => $opt->{timeout},
+			interface_name => $vlan->{l3_interface}
+		);
+		if ($iface) {
+			$conf .= sprintf(q{
+				<interfaces>
+					<interface>
+						<name>irb</name>
+						<unit delete="delete">
+							<name>%s</name>
+						</unit>
+					</interface>
+				</interfaces>
+				},
+					$vlan->{l3_interface}
+			);
+			if (%{$iface->{filter}}) {
+				$conf .= q{
+					<firewall>
+						<family>
+							<inet>
+				};
+				foreach my $filter (keys %{$iface->{filter}}) {
+					$conf .= sprintf(q{
+								<filter delete="delete">
+									<name>%s</name>
+								</filter>
+					},
+						$iface->{filter}->{$filter});
+				}
+				$conf .= q{
+							</inet>
+						</family>
+					</firewall>
+				};
+			}
+		}
+	}
+	$conf .= "</configuration>\n";
+}
+
 sub GetInterfaceConfig {
 	my $self = shift;
 	my $opt = &_options(@_);
@@ -3318,7 +3413,12 @@ my $iface_map = {
         module_type => '40GQSFP+Ethernet',
         media_type => '40GMPOEthernet',
         slot_prefix => 'xe-',
-	}
+	},
+	'QSFP+-4X10G-SR' => {
+        module_type => '40GQSFP+Ethernet',
+        media_type => '10GLCEthernet',
+        slot_prefix => 'xe-',
+	},
 };
 
 sub GetChassisInfo {
@@ -3510,6 +3610,10 @@ sub GetChassisInfo {
 		modules => $members
 	};
 
+	if ($inventory->{model} =~ /\[.+\]/) {
+		$inventory->{model} =~ s/.*\[([^\]]+)\].*/$1/;
+	}
+
 	if ($inventory->{model} eq 'Virtual Chassis') {
 		$inventory->{model} = 'Juniper EX4xxx virtual chassis';
 	}
@@ -3533,6 +3637,95 @@ sub GetChassisInfo {
 		base => 16, bit_group => 8, delimiter => ':')->as_Sun();
 	$inventory->{lldp_chassis_id} = $chassisid;
 	return $inventory;
+}
+
+
+sub GetSimpleTrafficCounterInfo {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $jnx;
+	if (!($jnx = $self->{handle})) {
+		SetError($err,
+			sprintf("No connection to device %s", $device->{hostname}));
+		return undef;
+	}
+
+	##
+	## Juniper traffic counters are completely stupid.  If a single filter is
+	## applied to an interface, the counter shows up under the filter name.
+	## If a filter list is applied, the counter shows up under a
+	## constructed filter named 'iface_name-i' or 'iface_name-o' for
+	## input and output filters, respectively, with a counter name that
+	## also has the constructed filter name appended.
+	##
+	my $firewallxml;
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$firewallxml = $jnx->get_firewall_information();
+
+	};
+	alarm 0;
+
+	if (!ref($firewallxml)) {
+		SetError($err, "Error retrieving firewall counter information");
+		return undef;
+	}
+
+	my $counters = {};
+
+	##
+	## Loop through all of the firewall filters and pull out the name.
+	## Pull out all of the counts and aggregate them, removing any trailing
+	## '-iface_name-o' or '-iface_name-i', where 'iface_name-{o,i{' is the name
+	## of the firewall filter
+	##
+	my $members = {};
+	my $h;
+
+	foreach my $filter ($firewallxml->getElementsByTagName('filter-information')) {
+		my $filtername = $filter->getElementsByTagName('filter-name', 0)->[0]
+			->getFirstChild->getNodeValue;
+		foreach my $counter ($filter->getElementsByTagName('counter')) {
+#			print $counter->toString;
+			my $counter_name = $counter->getElementsByTagName('counter-name', 0)
+				->[0]->getFirstChild->getNodeValue;
+			my $packet_count = $counter->getElementsByTagName('packet-count', 0)
+				->[0]->getFirstChild->getNodeValue;
+			my $byte_count = $counter->getElementsByTagName('byte-count', 0)
+				->[0]->getFirstChild->getNodeValue;
+
+			$counter_name =~ s/-${filtername}$//;
+
+			if (!exists($counters->{$counter_name})) {
+				$counters->{$counter_name} = {
+					bytes => $byte_count,
+					packets => $packet_count
+				};
+			} else {
+				$counters->{$counter_name}->{bytes} += $byte_count;
+				$counters->{$counter_name}->{packets} += $packet_count;
+			}
+		}
+	}
+
+	return $counters;
 }
 
 1;

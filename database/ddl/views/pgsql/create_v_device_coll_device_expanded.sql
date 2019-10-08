@@ -42,7 +42,7 @@ UNION  ALL
 		dch.parent_device_collection_id || x.array_path AS array_path,
 		dch.parent_device_collection_id = ANY(x.array_path)
 	 FROM	var_recurse x
-		inner join device_collection_hier dch
+		inner join v_device_collection_hier_trans dch
 			on x.device_collection_id = 
 				dch.parent_device_collection_id
 	WHERE
