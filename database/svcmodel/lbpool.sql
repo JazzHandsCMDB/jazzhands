@@ -77,6 +77,8 @@ CREATE TABLE cloud_jazz.lb_pool (
 --
 ----------------------------------------------------------------------------
 
+SET role=dba;
+
 DELETE FROM shared_netblock_network_int WHERE shared_netblock_id IN (
 	SELECT shared_netblock_id FROM shared_netblock WHERE netblock_id IN (
 		SELECT id FROM lb_ip
@@ -142,8 +144,8 @@ BEGIN
 	FOR _p IN SELECT p.*, sb.shared_netblock_id, dns_record_id,
 			dns_domain_id, dns.fqdn
 		FROM cloudapi.lb_pool  p
-			JOIN cloudapi.lb_ip  ip ON p.lb_ip_id = ip.id
-			JOIN shared_netblock sb ON ip.id = sb.netblock_id
+			-- JOIN cloudapi.lb_ip  ip ON p.lb_ip_id = ip.id
+			JOIN shared_netblock sb ON p.lb_ip_id = sb.netblock_id
 			LEFT JOIN (
 				SELECT CASE WHEN dns_name IS NULL THEN dns_domain_name
 						ELSE concat(dns_name, '.', dns_domain_name)
@@ -406,22 +408,24 @@ FROM	jazzhands.service_endpoint_provider sep
 					WHERE x.is_certificate_authority = 'Y'
 				UNION
 				SELECT r.x509_signed_certificate_id,
-						ca.x509_signed_certificate_id as my_id,
-						ca.signing_cert_id,
-						concat(r.public_key || '\n' || ca.public_key),
-						ca.x509_signed_certificate_id ||
-							r.array_path as array_path,
-						ca.x509_signed_certificate_id =
-							ANY(r.array_path) as cycle
+					ca.x509_signed_certificate_id as my_id,
+					ca.signing_cert_id,
+					concat(r.public_key || '\n' || ca.public_key),
+					ca.x509_signed_certificate_id ||
+						r.array_path as array_path,
+					ca.x509_signed_certificate_id =
+						ANY(r.array_path) as cycle
 				FROM r JOIN x509_signed_certificate ca
 					ON r.signing_cert_id =
-						ca.x509_signed_certificate_id
+					ca.x509_signed_certificate_id
 					AND ca.x509_signed_certificate_id != ca.signing_cert_id
 				WHERE NOT r.cycle
 			) SELECT service_endpoint_id, x.public_key, pk.private_key,
 				ca.public_key as chain,
 				rank() OVER (PARTITION BY service_endpoint_id,
-					x509_certificate_rank) AS x509rnk
+					x509_certificate_rank) AS x509rnk,
+				rank() OVER (PARTITION BY ca.x509_signed_certificate_id
+					ORDER BY array_length(array_path, 1) desc) as caspecificity
 			FROM jazzhands.service_endpoint_x509_certificate
 				JOIN jazzhands.x509_signed_certificate x
 					USING (x509_signed_certificate_id)
@@ -431,7 +435,7 @@ FROM	jazzhands.service_endpoint_provider sep
 					ON ca.x509_signed_certificate_id =
 						x.signing_cert_id
 		) nasty
-		WHERE x509rnk = 1
+		WHERE x509rnk = 1 and caspecificity = 1
 	) sub USING (service_endpoint_id)
 ) q
 WHERE rnk = 1
@@ -613,5 +617,6 @@ $$;
 savepoint lb;
 
 SELECT schema_support.replay_saved_grants();
+SET role=cloudapi;
 
 savepoint lb;

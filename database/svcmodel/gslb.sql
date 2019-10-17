@@ -89,7 +89,12 @@ WHERE id NOT IN
 
 UPDATE gslb_group
 SET name = concat(customer_id, '-', name)
-WHERE name in ('prod_cq_auditor_lax1', 'prod_cq_auditor_nym2');
+WHERE name IN (
+	'prod_cq_auditor_lax1',
+	'prod_cq_auditor_nym2',
+	'creative_asset_origin_nym1',
+	'creative_asset_origin_lax1'
+) RETURNING *;
 
 select name, count(*) from gslb_group where is_deleted = 0 group by name having count(*) > 1;
 
@@ -97,6 +102,7 @@ savepoint cleanup;
 
 ----------------------------------------------------------------------------
 
+SET role=dba;
 --- XXX need an enforced "can_generate" on this, I think.
 INSERT INTO val_dns_domain_type (
 	dns_domain_type, description
@@ -772,6 +778,8 @@ $$;
 savepoint gslb;
 
 SELECT schema_support.replay_saved_grants();
+
+SET role=cloudapi;
 
 ----------------------------------------------------------------------------
 \set ECHO ERRORS
