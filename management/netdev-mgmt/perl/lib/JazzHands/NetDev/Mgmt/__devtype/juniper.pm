@@ -2746,6 +2746,97 @@ sub SetBGPPeerStatus {
 	return 1;
 }
 
+sub GetBGPGroupIPFamily {
+    my $self = shift;
+    my $opt = &_options(@_);
+
+    my $err = $opt->{err};
+
+    if( !$opt->{timeout}) {
+        $opt->{timeout} = 30;
+    }
+
+    if( !$opt->{bgp_peer_group}) {
+        SetError($err,
+            "bgp_peer_group parameter must be passed to GetBGPGroupIPFamily"
+        );
+        return undef;
+    }
+
+    my $device = $self->{device};
+    my $debug = 0;
+    if ($opt->{debug}) {
+        $debug = 1;
+    }
+
+    my $jnx;
+    if (!($jnx = $self->{handle})) {
+        SetError($err,
+            sprintf("No connection to device %s", $device->{hostname})
+        );
+        return undef;
+    }
+
+    my $res;
+
+    eval {
+        local $SIG{ALRM} = sub { die "alarm\n"; };
+        alarm $opt->{timeout};
+
+        $res = $jnx->get_bgp_group_information(
+            group_name => $opt->{bgp_peer_group}
+        );
+    };
+    alarm 0;
+    if (!ref($res)) {
+        SetError($err,
+            sprintf("Error retrieving BGP information for BGP group %s on switch %s",
+                $opt->{bgp_peer_group},
+                $device->{hostname}
+            )
+        );
+        return undef;
+    }
+
+    # probably a Bug in JunOS, but if you call 'get_bgp_group_information'
+    # with group_name=FOO, then you would also receive information about
+    # a group called FOO* (FOOBAR, FOOX, etc..)!
+    my $bgpgroups = $res->getElementsByTagName('bgp-group');
+    if (!$bgpgroups) {
+        SetError($err,
+            sprintf("BGP group is not configured on switch %s",
+                $device->{hostname}
+            )
+        );
+        return undef;
+    }
+    my $num_bgp_groups = $bgpgroups->getLength;
+
+    my $first_peer_ipaddr;
+    for (my $i = 0 ; $i < $num_bgp_groups; $i++) {
+        my $node = $bgpgroups->item($i);
+        my $bgp_group_name = $node->getElementsByTagName('name')->item(0)->getFirstChild->getNodeValue;
+
+        next if ($bgp_group_name ne $opt->{bgp_peer_group});
+
+        my $first_peer = $node->getElementsByTagName('peer-address')->item(0);
+        if ($first_peer) {
+            $first_peer_ipaddr = NetAddr::IP->new( (split '\+', $first_peer->getFirstChild->getNodeValue)[0]);
+        }
+    }
+    if (!$first_peer_ipaddr) {
+        SetError($err,
+            sprintf("Either BGP group %s does not exist on switch %s, or we could not find a peer on this group\n",
+                $opt->{bgp_peer_group},
+                $device->{hostname}
+            )
+        );
+        return undef;
+    }
+
+    return $first_peer_ipaddr->version();
+}
+
 sub RemoveVLAN {
     my $self = shift;
     my $opt = &_options(@_);
