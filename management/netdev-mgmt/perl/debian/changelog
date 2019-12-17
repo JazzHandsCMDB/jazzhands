@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.86.0) unstable; urgency=low
+
+  * add libnetaddr-mac-perl as a debian depend
+
+ -- Todd kover <kovert@omniscient.com>  Tue, 22 Oct 2019 13:26:00 -0500
+
 jazzhands-perl-netdev-mgmt (0.84.5) unstable; urgency=low
 
   * add GetSimpleTrafficCounterInfo method to juniper.pm
