@@ -71,7 +71,7 @@ dorsync() {
 	host=$1
 	zoneroot=$2
 
-	rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
+	rsync </dev/null -l -e "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
 	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
 }
 
@@ -116,7 +116,7 @@ RSYNC_RSH=/usr/libexec/jazzhands/zonegen/ssh-wrap
 export RSYNC_RSH
 
 if [ ! -x ${RSYNC_RSH} ] ; then
-	RSYNC_RSH=ssh
+	RSYNC_RSH="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 fi
 
 KRB5CCNAME=/tmp/krb5cc_zonegen_$$_do_zonegen
