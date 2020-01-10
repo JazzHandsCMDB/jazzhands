@@ -117,6 +117,11 @@ FROM shared_netblock sb
 savepoint wait;
 -- DO $$ BEGIN RAISE EXCEPTION 'stop'; END; $$;
 
+-- XXX - this shouldn't happen, but it did
+DELETE FROM lb_pool WHERE lb_ip_id NOT IN (
+	SELECT Id from lb_ip where id IS NOT NULL
+);
+
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
@@ -558,14 +563,22 @@ CREATE VIEW lb_node_legacy AS
 			)
 ;
 
+--
+-- XXX - note the limitation to loadbalancer.  This should probably be
+-- cloudloadbalancer so that we can have other kinds (we do in some of the
+-- examples)
+--
 CREATE VIEW lb_node AS
-SELECT	site_code,
+SELECT	site_code as datacenter_id,
 	sepm.service_endpoint_provider_member_id AS id,
 	sepcep.service_endpoint_provider_id AS lb_pool_id,
 	inet_aton(host(ip_address)) AS ip_address,
 	pr.port_start AS port,
 	CASE WHEN sepm.rank = -1 THEN NULL ELSE sepm.rank END AS weight,
-	CASE WHEN sepm.is_enabled = 'Y' THEN 1 ELSE 0 END AS active
+-- created_on
+	CASE WHEN sepm.is_enabled = 'Y' THEN 1 ELSE 0 END AS active,
+-- inactive_since
+	ip_address as inet_ip_address
 FROM jazzhands.service_endpoint_provider_member sepm
 	JOIN jazzhands.service_instance sei USING (service_instance_id)
 	JOIN jazzhands.service_endpoint_provider_collection_service_endpoint_provider sepcep
@@ -574,6 +587,10 @@ FROM jazzhands.service_endpoint_provider_member sepm
 	JOIN jazzhands.netblock USING (netblock_id)
 	JOIN jazzhands.device USING (device_id)
 	JOIN jazzhands.port_range pr USING (port_range_id)
+	JOIN jazzhands.service_endpoint_provider sep
+		USING (service_endpoint_provider_id)
+WHERE
+	service_endpoint_provider_type = 'loadbalancer'
 ;
 
 savepoint lbnode;
