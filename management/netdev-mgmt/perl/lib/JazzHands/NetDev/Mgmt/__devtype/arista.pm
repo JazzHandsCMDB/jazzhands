@@ -855,7 +855,7 @@ sub GetBGPGroupIPFamily {
 	my $self = shift;
 	my $opt = &_options(@_);
 
-	my $err = $opt->{errors};
+	my $err = $opt->{err};
 
 	if (!$opt->{bgp_peer_group}) {
 		SetError($err,
@@ -885,9 +885,11 @@ sub GetBGPGroupIPFamily {
 		return undef;
 	}
 
+    my $output;
 	if (!($output = $result->[0]->{output})) {
 		SetError($err, "BGP does not appear to be configured on " .
-			$device->{hostname});
+			$device->{hostname} . " or there is no BGP group " .
+            $opt->{bgp_peer_group});
 		return undef;
 	}
 
@@ -895,7 +897,7 @@ sub GetBGPGroupIPFamily {
 	my ($first_peer_ipaddr_str) = (grep /^\s+\d+/, @output)[0] =~ /^\s+(.*),/;
 	if( !$first_peer_ipaddr_str) {
 		SetError($err, "Could not find any peer for BGP group " . $opt->{bgp_peer_group} .
-			"on device " . $device->{hostname});
+			" on device " . $device->{hostname});
 		return undef;
 	}
 
