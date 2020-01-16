@@ -851,6 +851,65 @@ sub SetBGPPeerStatus {
 	return 1;
 }
 
+sub GetBGPGroupIPFamily {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{err};
+
+	if (!$opt->{bgp_peer_group}) {
+		SetError($err,
+			"bgp_peer_group parameter must be passed to GetBGPGroupIPFamily");
+		return undef;
+	}
+
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $commands = [
+		'show ip bgp peer-group ' . $opt->{bgp_peer_group}
+	];
+
+	my $result = $self->SendCommand(
+		commands => $commands,
+		format => 'text',
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+    my $output;
+	if (!($output = $result->[0]->{output})) {
+		SetError($err, "BGP does not appear to be configured on " .
+			$device->{hostname} . " or there is no BGP group " .
+            $opt->{bgp_peer_group});
+		return undef;
+	}
+
+	my @output = split /\n/, $output;
+	my ($first_peer_ipaddr_str) = (grep /^\s+\d+/, @output)[0] =~ /^\s+(.*),/;
+	if( !$first_peer_ipaddr_str) {
+		SetError($err, "Could not find any peer for BGP group " . $opt->{bgp_peer_group} .
+			" on device " . $device->{hostname});
+		return undef;
+	}
+
+	my $first_peer_ipaddr = NetAddr::IP->new($first_peer_ipaddr_str);
+	if( !$first_peer_ipaddr) {
+		SetError($err, "Invalid IP addr " . $first_peer_ipaddr_str);
+		return undef;
+	}
+
+	return $first_peer_ipaddr->version();
+}
+
 sub RemoveVLAN {
 	my $self = shift;
 	my $opt = &_options(@_);
