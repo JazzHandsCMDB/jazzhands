@@ -33,15 +33,32 @@ $$;
 
 ------------------------------------------------------------------------------
 --
--- Add default NS records to a domain
+-- Add default NS records to a domain, idempotently, optionally removing the
+-- ones that do not match the default.
 --
 ------------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION dns_utils.add_ns_records(
-	dns_domain_id	dns_domain.dns_domain_id%type
+	dns_domain_id	dns_domain.dns_domain_id%type,
+	purge			boolean DEFAULT false
 ) RETURNS void AS
 $$
 BEGIN
+	IF purge THEN
+		EXECUTE '
+			DELETE FROM dns_record
+			WHERE dns_domain_id = $1
+			AND dns_name IS NULL
+			AND dns_class = $2
+			AND dns_type = $3
+			AND dns_value NOT IN (
+				SELECT property_value
+				FROM property
+				WHERE property_name = $4
+				AND property_type = $5
+			)
+		' USING dns_domain_id, 'IN', 'NS', '_authdns', 'Defaults';
+	END IF;
 	EXECUTE '
 		INSERT INTO dns_record (
 			dns_domain_id, dns_class, dns_type, dns_value
@@ -49,6 +66,14 @@ BEGIN
 		FROM property
 		WHERE property_name = $4
 		AND property_type = $5
+		AND property_value NOT IN (
+			SELECT dns_value
+			FROM dns_record
+			WHERE dns_domain_id = $1
+			AND dns_class = $2
+			AND dns_type = $3
+			AND dns_name IS NULL
+		)
 	' USING dns_domain_id, 'IN', 'NS', '_authdns', 'Defaults';
 END;
 $$ 

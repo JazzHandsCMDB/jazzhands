@@ -101,6 +101,12 @@ begin;
 \ir tests/pgsql/x509_tests.sql
 \ir tests/pgsql/v_person_company_regression.sql
 
+\ir tests/pgsql/ct_netblock_tests.sql
+\ir tests/pgsql/ct_site_netblock_tests.sql
+\ir tests/pgsql/ct_account_collection_tests_ancestor.sql
+\ir tests/pgsql/ct_netblock_collection_tests_ancestor.sql
+\ir tests/pgsql/ct_device_collection_tests_ancestor.sql
+
 \ir tests/pgsql/account_enabled_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 

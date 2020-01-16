@@ -24,6 +24,7 @@
 \ir components/patchpanel.sql
 \ir components/power.sql
 \ir components/disks/disks.sql
+\ir components/cables.sql
 
 \ir components/Juniper/Juniper.sql
 \ir components/Arista/Arista.sql

@@ -1,4 +1,4 @@
--- Copyright (c) 2014-2016 Todd Kover
+-- Copyright (c) 2014-2019 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -62,19 +62,19 @@ BEGIN
 		can_subnet, netblock_status, description
 		) VALUES (
 			'172.31.26.0/26', 'default', 'N',
-			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb1;
+			'N', 'Allocated', 'JHTEST1') RETURNING * into _nb1;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 		) VALUES (
 			'172.31.192.0/26', 'default', 'N',
-			'Y', 'Allocated', 'JHTEST2') RETURNING * into _nb2;
+			'N', 'Allocated', 'JHTEST2') RETURNING * into _nb2;
 
        INSERT INTO netblock (ip_address, netblock_type, is_single_address,
-                can_subnet, netblock_status, description
-                ) VALUES (
-                        'ff00:dead:f00d::/64', 'default', 'N',
-                        'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb6;
+		can_subnet, netblock_status, description
+		) VALUES (
+			'ff00:dead:f00d::/64', 'default', 'N',
+			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb6;
 
 
 	INSERT INTO val_layer3_network_coll_type (

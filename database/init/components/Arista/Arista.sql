@@ -19,3 +19,4 @@
 \ir Arista_7050X.sql
 \ir Arista_7050Q.sql
 \ir Arista_7500.sql
+\ir Arista_7160.sql

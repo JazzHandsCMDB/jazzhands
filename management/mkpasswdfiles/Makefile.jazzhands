@@ -18,12 +18,12 @@
 all:
 
 install:
-	rm -rf $(INSTALLROOT)
-	mkdir -p $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles
 	for file in mkpasswdfiles.pl ; do \
 		newfn=`echo $$file | sed 's/\..*$$//'` ;\
-		install -m 555  $$file $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles/$$newfn ;\
+		install -m 555  $$file $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles/$$newfn ;\
 	done 
 
 clean:
-	[ -z "$(INSTALLROOT)" ] || rm -rf $(INSTALLROOT)
+	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)

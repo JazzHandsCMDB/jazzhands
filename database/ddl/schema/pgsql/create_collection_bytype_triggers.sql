@@ -80,7 +80,7 @@ BEGIN
 	IF TG_OP = 'DELETE' OR
 		( TG_OP = 'UPDATE' and OLD.device_collection_type = 'per-device')
 	THEN
-		DELETE FROM device_collection_hier
+		DELETE FROM v_device_collection_hier_trans
 		WHERE device_collection_id = OLD.device_collection_id
 		AND parent_device_collection_id IN (
 			SELECT device_collection_id
@@ -102,7 +102,7 @@ BEGIN
 
 
 	IF TG_OP = 'UPDATE' THEN
-		UPDATE device_collection_hier
+		UPDATE v_device_collection_hier_trans
 		SET parent_device_collection_id = (
 			SELECT device_collection_id
 			FROM device_collection
@@ -118,7 +118,7 @@ BEGIN
 		)
 		AND device_collection_id = OLD.device_collection_id;
 	ELSIF TG_OP = 'INSERT' THEN
-		INSERT INTO device_collection_hier (
+		INSERT INTO v_device_collection_hier_trans (
 			parent_device_collection_id, device_collection_id
 		) SELECT device_collection_id, NEW.device_collection_id
 			FROM device_collection

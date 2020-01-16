@@ -193,7 +193,7 @@ BEGIN
 		EXCEPTION WHEN foreign_key_violation THEN
 			NULL;
 		END;
-	ELSE
+	ELSIF crt.private_key_id IS NOT NULL THEN
 		IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
 			upq := array_append(upq,
 				'is_active = ' || quote_literal(NEW.is_active)

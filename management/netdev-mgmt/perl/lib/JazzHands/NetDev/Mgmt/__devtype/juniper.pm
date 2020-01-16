@@ -61,12 +61,23 @@ sub new {
 		return $self;
 	}
 
-	my $jnx = new JUNOS::Device(
-		access => 'ssl',
-		login => $opt->{credentials}->{username},
-		password => $opt->{credentials}->{password},
-		hostname => $hostname
-	);
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+	my $jnx;
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$jnx = new JUNOS::Device(
+			access => 'ssl',
+			login => $opt->{credentials}->{username},
+			password => $opt->{credentials}->{password},
+			hostname => $hostname
+		);
+	};
+	alarm 0;
+
 	if (!ref($jnx)) {
 		SetError($opt->{errors}, sprintf("Unable to connect to %s",
 			$hostname));
@@ -86,6 +97,9 @@ sub commit {
 	my $opt = &_options(@_);
 	my $err = $opt->{errors};
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 90;
+	}
 	if (!$self->{handle}) {
 		return;
 	}
@@ -100,7 +114,27 @@ sub commit {
 			"confirmed" => 1,
 			"confirm-timeout" => $opt->{confirmed_timeout};
 	}
-	my $res = $jnx->commit_configuration( @args);
+
+	my $res;
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->commit_configuration( @args);
+	};
+	alarm 0;
+
+	if ($0 && $@ eq 'alarm') {
+		SetError(
+			$err,
+			sprintf("%s: timeout commit to host %s", $hostname)
+		);
+		SetError(
+			$opt->{errbyhost}->{$hostname},
+			sprintf("commit timeout")
+		);
+		return 0;
+	}
 	my $jerr = $res->getFirstError();
 	if ($jerr) {
 		SetError($err,
@@ -126,13 +160,36 @@ sub rollback {
 		return;
 	}
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $hostname = $self->{device}->{hostname};
 
 	my $rc = 1;
 	my $jnx = $self->{handle};
 	if ($self->{state} >= STATE_CONFIG_LOADED) {
 		my $res;
-		eval { $res = $jnx->load_configuration(rollback => 0); };
+		eval { 
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+			$res = $jnx->load_configuration(rollback => 0);
+		};
+
+		alarm 0;
+
+		if ($0 && $@ eq 'alarm') {
+			SetError(
+				$err,
+				sprintf("%s: timeout commit to host %s", $hostname)
+			);
+			SetError(
+				$opt->{errbyhost}->{$hostname},
+				sprintf("commit timeout")
+			);
+			return 0;
+		}
+
 		my $jerr = $res->getFirstError();
 		if ($jerr) {
 			SetError($err,
@@ -159,23 +216,33 @@ sub disconnect {
 		return;
 	}
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $hostname = $self->{device}->{hostname};
 
 	my $jnx = $self->{handle};
 
-	my $state = $self->{state};
-	if ($state >= STATE_CONFIG_LOADED && !$opt->{norollback}) {
-		eval { $jnx->load_configuration(rollback => 0); };
-	}
-	if ($state >= STATE_LOCKED) {
-		eval { $jnx->unlock_configuration(); };
-	}
-	if ($state >= STATE_CONNECTED) {
-		eval {
-			$jnx->request_end_session();
-			$jnx->disconnect();
-		};
-	}
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		my $state = $self->{state};
+		if ($state >= STATE_CONFIG_LOADED && !$opt->{norollback}) {
+			eval { $jnx->load_configuration(rollback => 0); };
+		}
+		if ($state >= STATE_LOCKED) {
+			eval { $jnx->unlock_configuration(); };
+		}
+		if ($state >= STATE_CONNECTED) {
+			eval {
+				$jnx->request_end_session();
+				$jnx->disconnect();
+			};
+		}
+	};
+	alarm 0;
 	undef %$self;
 	1;
 }
@@ -192,13 +259,28 @@ sub check_for_changes {
 		return;
 	}
 	my $jnx = $self->{handle};
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
-	my $res = $jnx->get_configuration(
-		compare => 'rollback',
-		rollback => 0,
-		format => 'text'
-	);
+	my $res;
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_configuration(
+			compare => 'rollback',
+			rollback => 0,
+			format => 'text'
+		);
+	};
+	alarm 0;
 	my $changes;
+	if (!$res) {
+		SetError($err, "error retrieving configuration");
+		return undef;
+	}
+
 	my $x = $res->getElementsByTagName('configuration-output');
 	if (@$x) {
 		$changes = $x->[0]->getFirstChild->getNodeValue;
@@ -270,6 +352,10 @@ sub SetPortVLAN {
 	if (!$opt->{ports}) {
 		SetError($err, "ports parameter must be passed to SetJuniperPortVLAN");
 		return undef;
+	}
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
 	}
 
 	my $debug = $opt->{debug};
@@ -392,9 +478,15 @@ sub SetPortVLAN {
 		$ports = [ $lacpstatus->{$opt->{ports}} || $opt->{ports} ];
 	}
 
-	$res = $jnx->get_vlan_information(
-		brief => 1
-	);
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+		$res = $jnx->get_vlan_information(
+			brief => 1
+		);
+	};
+	alarm 0;
+
 	if (!ref($res)) {
 		SetError($err, "unable to retrieve VLAN information");
 		return undef;
@@ -421,10 +513,17 @@ sub SetPortVLAN {
 	}
 
 	foreach my $port (@$ports) {
-		$res = $jnx->get_ethernet_switching_interface_information(
-			interface_name => $port . ".0",
-			detail => 1
-		);
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+			$res = $jnx->get_ethernet_switching_interface_information(
+				interface_name => $port . ".0",
+				detail => 1
+			);
+
+		};
+		alarm 0;
+
 		if (!ref($res)) {
 			SetError($err,
 				sprintf("Error retrieving port status for port %s", $port));
@@ -564,12 +663,15 @@ sub SetPortVLAN {
 				return undef;
 			}
 			eval {
+				local $SIG{ALRM} = sub { die "alarm\n"; };
+				alarm $opt->{timeout};
 				$res = $jnx->load_configuration(
 					format => 'xml',
 					action => 'replace',
 					configuration => $doc
 				);
 			};
+			alarm 0;
 			$self->{state} = STATE_CONFIG_LOADED;
 			if ($@) {
 				SetError($err,
@@ -636,12 +738,15 @@ sub SetPortVLAN {
 				return undef;
 			}
 			eval {
+				local $SIG{ALRM} = sub { die "alarm\n"; };
+				alarm $opt->{timeout};
 				$res = $jnx->load_configuration(
 					format => 'xml',
 					action => 'replace',
 					configuration => $doc
 				);
 			};
+			alarm 0;
 			$self->{state} = STATE_CONFIG_LOADED;
 			if ($@) {
 				SetError($err,
@@ -669,6 +774,10 @@ sub GetPortLACP {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!$opt->{ports}) {
 		GetError($err,
@@ -699,9 +808,17 @@ sub GetPortLACP {
 	my $res;
 	my $currentae;
 	foreach my $port (@{$opt->{ports}}) {
-		$res = $jnx->get_lacp_interface_information(
-			interface_name => $port
-		);
+
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
+			$res = $jnx->get_lacp_interface_information(
+				interface_name => $port
+			);
+
+		};
+		alarm 0;
 
 		if (!ref($res)) {
 			SetError($err, sprintf("Error retrieving LACP status for port %s",
@@ -725,6 +842,10 @@ sub SetPortLACP {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!$opt->{ports}) {
 		SetError($err,
@@ -801,11 +922,15 @@ sub SetPortLACP {
 		$confdoc = $parser->parsestring($xml);
 		$confdoc->getElementsByTagName('name')->[0]->getFirstChild->
 			setData($port);
-		$res = $jnx->get_configuration(configuration => $confdoc);
 
-#		$res = $jnx->get_lacp_interface_information(
-#			interface_name => $port,
-#		);
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
+			$res = $jnx->get_configuration(configuration => $confdoc);
+		};
+		alarm 0;
+
 		if (!ref($res)) {
 			SetError($err, sprintf("Error retrieving LACP status for port %s",
 				$port));
@@ -824,19 +949,6 @@ sub SetPortLACP {
 	# Get information about the ae interface itself, to make sure things
 	# are sane
 	#
-#	$res = $jnx->get_lacp_interface_information(
-#		interface_name => $aeinterface
-#	);
-#
-#	if (!ref($res)) {
-#		SetError($err, sprintf("Error retrieving LACP status for port %s",
-#			$port));
-#		return undef;
-#	}
-#	my $aeports;
-#	foreach my $interface ($res->getElementsByTagName('lag-lacp-protocol')) {
-#		$aeports->{$interface->getElementsByTagName('name')->[0]->getFirstChild->getNodeValue} = 1;
-#	}
 
 	#
 	# If port is already a part a different ae, then error
@@ -892,7 +1004,15 @@ sub SetPortLACP {
 	my $port = $opt->{lacp} ? $opt->{ports}->[0] : $aeinterface;
 	$confdoc->getElementsByTagName('name')->[0]->getFirstChild->setData($port);
 
-	$res = $jnx->get_configuration(configuration => $confdoc);
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_configuration(configuration => $confdoc);
+	};
+	alarm 0;
+
 	if (!ref($res)) {
 		SetError($err, sprintf("Error retrieving configuration for port %s",
 			$port));
@@ -1054,12 +1174,17 @@ sub SetPortLACP {
 	}
 
 	eval {
+
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
 		$res = $jnx->load_configuration(
 			format => 'xml',
 			action => 'replace',
 			configuration => $confdoc
 		);
 	};
+	alarm 0;
 	$self->{state} = STATE_CONFIG_LOADED;
 	if ($@) {
 		SetError(sprintf("Error setting LACP configuration for %s: %s",
@@ -1093,6 +1218,10 @@ sub GetPrefixLists {
 		$debug = 1;
 	}
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	if ($opt->{'prefix-list'} && !$opt->{'prefix-lists'}) {
 		$opt->{'prefix-lists'} = [ $opt->{'prefix-list'} ];
 	}
@@ -1120,7 +1249,15 @@ sub GetPrefixLists {
 		$confdoc = $parser->parsestring($xml);
 		$confdoc->getElementsByTagName('prefix-list')->[0]->
 			removeChild($confdoc->getElementsByTagName('name')->[0]);
-		$res = $jnx->get_configuration(configuration => $confdoc);
+
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
+			$res = $jnx->get_configuration(configuration => $confdoc);
+		};
+		alarm 0;
+
 		if (!ref($res)) {
 			SetError($err, "Error retrieving prefix-lists");
 			return undef;
@@ -1145,7 +1282,14 @@ sub GetPrefixLists {
 			$confdoc = $parser->parsestring($xml);
 			$confdoc->getElementsByTagName('name')->[0]->getFirstChild->
 				setData($name);
-			$res = $jnx->get_configuration(configuration => $confdoc);
+
+			eval {
+				local $SIG{ALRM} = sub { die "alarm\n"; };
+				alarm $opt->{timeout};
+				$res = $jnx->get_configuration(configuration => $confdoc);
+			};
+			alarm 0;
+
 			if (!ref($res)) {
 				SetError($err, sprintf("Error retrieving prefix-list %s",
 					$name));
@@ -1172,6 +1316,10 @@ sub SetPrefixLists {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!ref($opt->{"prefix-lists"})) {
 		GetError($err,
@@ -1222,12 +1370,18 @@ sub SetPrefixLists {
 	}
 
 	eval {
+
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
 		$res = $jnx->load_configuration(
 			format => 'xml',
 			action => 'replace',
 			configuration => $confdoc
 		);
 	};
+	alarm 0;
+
 	$self->{state} = STATE_CONFIG_LOADED;
 	if ($@) {
 		SetError($err,
@@ -1253,6 +1407,10 @@ sub DeletePrefixLists {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!defined($opt->{"prefix-list"})) {
 		GetError($err,
@@ -1297,12 +1455,17 @@ sub DeletePrefixLists {
 	}
 
 	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
 		$res = $jnx->load_configuration(
 			format => 'xml',
 			action => 'replace',
 			configuration => $confdoc
 		);
 	};
+	alarm 0;
+
 	$self->{state} = STATE_CONFIG_LOADED;
 	if ($@) {
 		SetError(sprintf("Error setting prefix-list configurations: %s", $@));
@@ -1328,6 +1491,10 @@ sub GetMSTPDigest {
 
 	my $err = $opt->{errors};
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $device = $self->{device};
 
 	my $debug = 0;
@@ -1346,13 +1513,21 @@ sub GetMSTPDigest {
 	my $confdoc;
 	my $res;
 	my $prefixlists = {};
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
 		$res = $jnx->get_mstp_bridge_configuration_information();
-		if (!ref($res)) {
-			SetError($err, "Error retrieving mstp configuration");
-			return undef;
-		}
-		my $digest = $res->getElementsByTagName('mstp-configuration-digest')->[0]->getFirstChild->getNodeValue;
-		return $digest;
+	};
+	alarm 0;
+
+	if (!ref($res)) {
+		SetError($err, "Error retrieving mstp configuration");
+		return undef;
+	}
+	my $digest = $res->getElementsByTagName('mstp-configuration-digest')->[0]->getFirstChild->getNodeValue;
+	return $digest;
 }
 
 sub TestRouteExistence {
@@ -1360,6 +1535,10 @@ sub TestRouteExistence {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!$opt->{route}) {
 		SetError($err,
@@ -1382,9 +1561,17 @@ sub TestRouteExistence {
 	}
 
 	my $res;
-	$res = $jnx->get_route_information(
-		destination => $opt->{route},
-		exact => 1);
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_route_information(
+			destination => $opt->{route},
+			exact => 1);
+	};
+	alarm 0;
+
 	if (!ref($res)) {
 		SetError($err, "Error retrieving route information");
 		return undef;
@@ -2025,6 +2212,10 @@ sub SetCiscoFormatACL {
 
 	my $err = $opt->{errors};
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $device = $self->{device};
 
 	my $debug = 0;
@@ -2093,12 +2284,17 @@ sub SetCiscoFormatACL {
 		return undef;
 	}
 	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
 		$res = $jnx->load_configuration(
 			format => 'xml',
 			action => 'replace',
 			configuration => $doc
 		);
 	};
+	alarm 0;
+
 	if ($@) {
 		SetError($err, sprintf("Error setting firewall settings: %s", $@));
 		return undef;
@@ -2129,6 +2325,10 @@ sub GetPortMACs {
 		$debug = 1;
 	}
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $err;
 
 	my $macport = {};
@@ -2139,7 +2339,15 @@ sub GetPortMACs {
 	my $device = $self->{device};
 	my $jnx = $self->{handle};
 	while(1) {
-		my $macdata = $jnx->get_ethernet_switching_table_information(brief=>1);
+		my $macdata;
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
+			$macdata = $jnx->get_ethernet_switching_table_information(brief=>1);
+		};
+		alarm 0;
+
 		if (!ref $macdata) {
 			SetError($errors,
 				"Unknown error getting MAC table from switch");
@@ -2196,6 +2404,10 @@ sub GetPortVlan {
 		return undef;
 	}
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $device = $self->{device};
 
 	my $debug = 0;
@@ -2210,10 +2422,19 @@ sub GetPortVlan {
 		return undef;
 	}
 
-    my $res = $jnx->get_ethernet_switching_interface_information(
-            interface_name => $port . ".0",
-            detail => 1
-        );
+	my $res;
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_ethernet_switching_interface_information(
+				interface_name => $port . ".0",
+				detail => 1
+			);
+	};
+	alarm 0;
+
 
 	if (!ref($res)) {
 		SetError($err, sprintf("Error retrieving port status for port %s",
@@ -2263,6 +2484,10 @@ sub SetBGPPeerStatus {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!$opt->{bgp_peer}) {
 		SetError($err,
@@ -2320,9 +2545,16 @@ sub SetBGPPeerStatus {
 	my $parser = new XML::DOM::Parser;
 	my $confdoc;
 	my $res;
-	$res = $jnx->get_bgp_group_information(
-		group_name => $opt->{bgp_peer_group}
-	);
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_bgp_group_information(
+			group_name => $opt->{bgp_peer_group}
+		);
+	};
+	alarm 0;
 
 	if (!ref($res)) {
 		SetError($err, "Error retrieving BGP information");
@@ -2379,12 +2611,17 @@ sub SetBGPPeerStatus {
 			return undef;
 		}
 		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
 			$res = $jnx->load_configuration(
 				format => 'xml',
 				action => 'replace',
 				configuration => $doc
 			);
 		};
+		alarm 0;
+
 		$self->{state} = STATE_CONFIG_LOADED;
 		if ($@) {
 			SetError($err,
@@ -2407,9 +2644,15 @@ sub SetBGPPeerStatus {
 		# Validate that the peer belongs on this host
 		#
 
-		$res = $jnx->get_route_information(
-			protocol => 'direct'
-		);
+		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
+			$res = $jnx->get_route_information(
+				protocol => 'direct'
+			);
+		};
+		alarm 0;
 
 		if (!ref($res)) {
 			SetError($err, "Error retrieving routing information");
@@ -2471,12 +2714,17 @@ sub SetBGPPeerStatus {
 			return undef;
 		}
 		eval {
+			local $SIG{ALRM} = sub { die "alarm\n"; };
+			alarm $opt->{timeout};
+
 			$res = $jnx->load_configuration(
 				format => 'xml',
 				action => 'merge',
 				configuration => $doc
 			);
 		};
+		alarm 0;
+
 		$self->{state} = STATE_CONFIG_LOADED;
 		if ($@) {
 			SetError($err,
@@ -2498,11 +2746,110 @@ sub SetBGPPeerStatus {
 	return 1;
 }
 
+sub RemoveVLAN {
+    my $self = shift;
+    my $opt = &_options(@_);
+
+    my $err = $opt->{errors};
+
+    if (!$opt->{encapsulation_tag}) {
+        SetError($err,
+            "encapsulation_tag parameter must be passed to RemoveVLAN");
+        return undef;
+    }
+	my $encapsulation_tag = $opt->{encapsulation_tag};
+
+    if (
+        $encapsulation_tag !~ /^[0-9]+$/ ||
+        $encapsulation_tag < 1 ||
+        $encapsulation_tag > 4094
+    ) {
+        SetError($err,
+            "encapsulation_tag parameter must be a valid VLAN number for RemoveVLAN");
+        return undef;
+    }
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
+	my $vlans = $self->GetVLANs(
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!defined($vlans)) {
+		return undef;
+	}
+
+	if (!exists($vlans->{ids}->{$encapsulation_tag})) {
+		return undef;
+	}
+	my $vlan = $vlans->{ids}->{$encapsulation_tag};
+
+	my $conf = "<configuration>\n";
+	$conf .= sprintf(q {
+			<vlans>
+				<vlan delete="delete">
+					<vlan-id>%s</vlan-id>
+				</vlan>
+			</vlans>
+		},
+			$vlan->{name}
+	);
+
+	if ($vlan->{l3_interface}) {
+		my $iface = $self->GetInterfaceConfig(
+			timeout => $opt->{timeout},
+			interface_name => $vlan->{l3_interface}
+		);
+		if ($iface) {
+			$conf .= sprintf(q{
+				<interfaces>
+					<interface>
+						<name>irb</name>
+						<unit delete="delete">
+							<name>%s</name>
+						</unit>
+					</interface>
+				</interfaces>
+				},
+					$vlan->{l3_interface}
+			);
+			if (%{$iface->{filter}}) {
+				$conf .= q{
+					<firewall>
+						<family>
+							<inet>
+				};
+				foreach my $filter (keys %{$iface->{filter}}) {
+					$conf .= sprintf(q{
+								<filter delete="delete">
+									<name>%s</name>
+								</filter>
+					},
+						$iface->{filter}->{$filter});
+				}
+				$conf .= q{
+							</inet>
+						</family>
+					</firewall>
+				};
+			}
+		}
+	}
+	$conf .= "</configuration>\n";
+}
+
 sub GetInterfaceConfig {
 	my $self = shift;
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	if (!$opt->{interface_name}) {
 		GetError($err,
@@ -2548,7 +2895,14 @@ sub GetInterfaceConfig {
 		$confdoc->getElementsByTagName('interface')->[0]->
 			appendChild($newelement);
 	}
-	$res = $jnx->get_configuration(configuration => $confdoc);
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_configuration(configuration => $confdoc);
+	};
+	alarm 0;
 
 	if (!ref($res)) {
 		SetError($err, sprintf("Error retrieving interface config for %s",
@@ -2596,6 +2950,10 @@ sub GetVLANs {
 
 	my $device = $self->{device};
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $debug = 0;
 	if ($opt->{debug}) {
 		$debug = 1;
@@ -2612,7 +2970,6 @@ sub GetVLANs {
 	# <get-vlan-information> doesn't show irb interface mappings on the
 	# 9200s, because Juniper sucks
 	#
-	#my $res = $jnx->get_vlan_information();
 
 	my $xml = qq {
 	<configuration>
@@ -2621,7 +2978,14 @@ sub GetVLANs {
 	my $parser = new XML::DOM::Parser;
 	my$confdoc = $parser->parsestring($xml);
 
-	my $res = $jnx->get_configuration(configuration => $confdoc);
+	my $res;
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->get_configuration(configuration => $confdoc);
+	};
+	alarm 0;
 
 	if (!ref($res)) {
 		SetError($err, "Error retrieving VLAN config");
@@ -2662,6 +3026,10 @@ sub GetIPAddressInformation {
 
 	my $err = $opt->{errors};
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $device = $self->{device};
 
 	my $debug = 0;
@@ -2676,7 +3044,17 @@ sub GetIPAddressInformation {
 		return undef;
 	}
 
-	my $ifacexml = $jnx->get_interface_information;
+	my $ifacexml;
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$ifacexml = $jnx->get_interface_information;
+
+	};
+	alarm 0;
+
 	if (!ref($ifacexml)) {
 		SetError($err, "Error retrieving interface config");
 		return undef;
@@ -2686,7 +3064,15 @@ sub GetIPAddressInformation {
 	my $vrrp_info = {};
 
 	my $response;
-	($vrrpxml, $response) = $jnx->request('<rpc><get-vrrp-information/></rpc>');
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		($vrrpxml, $response) = $jnx->request('<rpc><get-vrrp-information/></rpc>');
+
+	};
+	alarm 0;
 
 	if (ref($vrrpxml)) {
 		foreach my $iface ($vrrpxml->getElementsByTagName('vrrp-interface')) {
@@ -2797,6 +3183,10 @@ sub GetLLDPInformation {
 
 	my $err = $opt->{errors};
 
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
 	my $device = $self->{device};
 
 	my $debug = 0;
@@ -2816,7 +3206,16 @@ sub GetLLDPInformation {
 
 	my $lldp_info = {};
 	$lldp_info->{chassisId} = $chassis_info->{chassisId};
-	my $lldpxml = $jnx->get_lldp_neighbors_information;
+	my $lldpxml;
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$lldpxml = $jnx->get_lldp_neighbors_information;
+	};
+	alarm 0;
+
 	if (!ref($lldpxml)) {
 		SetError($err, "Error retrieving interface config");
 		return undef;
@@ -3014,7 +3413,12 @@ my $iface_map = {
         module_type => '40GQSFP+Ethernet',
         media_type => '40GMPOEthernet',
         slot_prefix => 'xe-',
-	}
+	},
+	'QSFP+-4X10G-SR' => {
+        module_type => '40GQSFP+Ethernet',
+        media_type => '10GLCEthernet',
+        slot_prefix => 'xe-',
+	},
 };
 
 sub GetChassisInfo {
@@ -3022,6 +3426,10 @@ sub GetChassisInfo {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
 
 	my $device = $self->{device};
 
@@ -3037,7 +3445,16 @@ sub GetChassisInfo {
 		return undef;
 	}
 	my $chassisxml;
-	$chassisxml = $jnx->get_chassis_inventory();
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$chassisxml = $jnx->get_chassis_inventory();
+
+	};
+	alarm 0;
+
 	if (!ref($chassisxml)) {
 		SetError($err, "Error retrieving chassis inventory");
 		return undef;
@@ -3193,13 +3610,24 @@ sub GetChassisInfo {
 		modules => $members
 	};
 
+	if ($inventory->{model} =~ /\[.+\]/) {
+		$inventory->{model} =~ s/.*\[([^\]]+)\].*/$1/;
+	}
+
 	if ($inventory->{model} eq 'Virtual Chassis') {
 		$inventory->{model} = 'Juniper EX4xxx virtual chassis';
 	}
 
 	$inventory->{ports} = $port_inventory;
 
-	$chassisxml = $jnx->get_lldp_local_info();
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$chassisxml = $jnx->get_lldp_local_info();
+	};
+	alarm 0;
+
 	my $chassisid;
 	eval { $chassisid =
 		$chassisxml->getElementsByTagName('lldp-local-chassis-id')
@@ -3209,6 +3637,95 @@ sub GetChassisInfo {
 		base => 16, bit_group => 8, delimiter => ':')->as_Sun();
 	$inventory->{lldp_chassis_id} = $chassisid;
 	return $inventory;
+}
+
+
+sub GetSimpleTrafficCounterInfo {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	if (!$opt->{timeout}) {
+		$opt->{timeout} = 30;
+	}
+
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $jnx;
+	if (!($jnx = $self->{handle})) {
+		SetError($err,
+			sprintf("No connection to device %s", $device->{hostname}));
+		return undef;
+	}
+
+	##
+	## Juniper traffic counters are completely stupid.  If a single filter is
+	## applied to an interface, the counter shows up under the filter name.
+	## If a filter list is applied, the counter shows up under a
+	## constructed filter named 'iface_name-i' or 'iface_name-o' for
+	## input and output filters, respectively, with a counter name that
+	## also has the constructed filter name appended.
+	##
+	my $firewallxml;
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$firewallxml = $jnx->get_firewall_information();
+
+	};
+	alarm 0;
+
+	if (!ref($firewallxml)) {
+		SetError($err, "Error retrieving firewall counter information");
+		return undef;
+	}
+
+	my $counters = {};
+
+	##
+	## Loop through all of the firewall filters and pull out the name.
+	## Pull out all of the counts and aggregate them, removing any trailing
+	## '-iface_name-o' or '-iface_name-i', where 'iface_name-{o,i{' is the name
+	## of the firewall filter
+	##
+	my $members = {};
+	my $h;
+
+	foreach my $filter ($firewallxml->getElementsByTagName('filter-information')) {
+		my $filtername = $filter->getElementsByTagName('filter-name', 0)->[0]
+			->getFirstChild->getNodeValue;
+		foreach my $counter ($filter->getElementsByTagName('counter')) {
+#			print $counter->toString;
+			my $counter_name = $counter->getElementsByTagName('counter-name', 0)
+				->[0]->getFirstChild->getNodeValue;
+			my $packet_count = $counter->getElementsByTagName('packet-count', 0)
+				->[0]->getFirstChild->getNodeValue;
+			my $byte_count = $counter->getElementsByTagName('byte-count', 0)
+				->[0]->getFirstChild->getNodeValue;
+
+			$counter_name =~ s/-${filtername}$//;
+
+			if (!exists($counters->{$counter_name})) {
+				$counters->{$counter_name} = {
+					bytes => $byte_count,
+					packets => $packet_count
+				};
+			} else {
+				$counters->{$counter_name}->{bytes} += $byte_count;
+				$counters->{$counter_name}->{packets} += $packet_count;
+			}
+		}
+	}
+
+	return $counters;
 }
 
 1;

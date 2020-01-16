@@ -1,4 +1,4 @@
--- Copyright (c) 2016, Todd Kover
+-- Copyright (c) 2016-2019, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,4 +14,11 @@
 -- limitations under the License.
 
 CREATE OR REPLACE VIEW v_device_collection_hier_trans AS
-SELECT * FROM device_collection_hier;
+SELECT 
+	device_collection_id AS parent_device_collection_id,
+	child_device_collection_id AS device_collection_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM device_collection_hier;

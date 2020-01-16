@@ -1149,13 +1149,13 @@ INSERT INTO Operating_System (
 	Operating_System_Name,
 	Major_Version,
 	Version,
-	Company_ID, processor_architecture
+	Company_ID
 ) VALUES (
 	0,
 	'unknown',
 	'unknown',
 	'unknown',
-	0, 'noarch'
+	0
 );
 UPDATE Operating_System SET Operating_System_ID = 0 where Company_ID = 0;
 
@@ -2001,4 +2001,24 @@ INSERT INTO val_netblock_collection_type (
 ;
 
 -- END Device Inventory
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+-- BEGIN Account Name Overrides
+
+INSERT INTO val_property_type
+	(property_type, description)
+VALUES
+	('account_name_override', 'All properties related to the overriding of account name data')
+;
+
+INSERT INTO val_property
+    (property_type, property_name, description, property_data_type, account_collection_type, permit_account_collection_id)
+VALUES
+    ('account_name_override', 'first_name', 'Override what would normally be used for first_name', 'string', 'per-account', 'REQUIRED'),
+    ('account_name_override', 'last_name', 'Override what would normally be used for last_name', 'string', 'per-account', 'REQUIRED'),
+    ('account_name_override', 'display_name', 'Override what would normally be used for display_name', 'string', 'per-account', 'REQUIRED')
+;
+
+-- END Account Name Overrides
 -------------------------------------------------------------------------

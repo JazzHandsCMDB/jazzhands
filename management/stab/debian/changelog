@@ -1,3 +1,49 @@
+jazzhands-stab (0.86.1) bionic; urgency=medium
+
+  * order netblock collections alphabetically in drop down
+  * order dns domains alphabentically in drop down
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 07 Oct 2019 17:34:00 +0200
+
+jazzhands-stab (0.86.0) trusty; urgency=medium
+
+  * order netblock collections alphabetically in drop down
+  * order dns domains alphabentically in drop down
+
+ -- Todd Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
+
+jazzhands-stab (0.84.2) trusty; urgency=medium
+
+  * remove operating_system.processor_architecture since it is going away
+  * fix issue with val_baud on device serial tab
+  * fix dns and description manipulations of /32 networks
+
+ -- Todd Kover <kovert@omniscient.com>  Tue, 14 May 2019 10:32:22 -0500
+
+
+jazzhands-stab (0.84.0) trusty; urgency=medium
+
+  * switch to v_device_collection_hier_trans
+  * revamp dns/soacheck
+  * add ability to reset NS records
+  * fix issue with netblock hierarchies that caused netblocks to disappear
+    if they had a hierarachy and were the last, AND collapse all was clicked.
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Mar 2019 09:22:00 -0500
+
+
+jazzhands-stab (0.84.0) trusty; urgency=medium
+
+  * switch to v_device_collection_hier_trans
+  * revamp dns/soacheck
+  * add ability to reset NS records
+  * fix issue with netblock hierarchies that caused netblocks to disappear
+    if they had a hierarachy and were the last, AND collapse all was clicked.
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Mar 2019 09:22:00 -0500
+
+
 jazzhands-stab (0.82.0) trusty; urgency=medium
 
   * adjust terminated employee management chains to approve
@@ -5,7 +51,7 @@ jazzhands-stab (0.82.0) trusty; urgency=medium
   * add x509 expiring certificates table
   * fix link for manager device
 
- -- Todd Kover <kovert@omniscient.com>  Wed,  9 may 2018 11:51:00 -0500
+ -- Todd Kover <kovert@omniscient.com>  Wed,  9 May 2018 11:51:00 -0500
 
 jazzhands-stab (0.80.8) trusty; urgency=medium
 
@@ -29,7 +75,6 @@ jazzhands-stab (0.80.0.1) trusty; urgency=medium
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 10 May 2017 11:08:00 -0500
 
-
 jazzhands-stab (0.80.0) trusty; urgency=medium
 
   * switch references to dns_domain to v_dns_domain_nouniverse
@@ -42,7 +87,6 @@ jazzhands-stab (0.79.5.1) trusty; urgency=medium
   * Fix typo in dns_update.pl causing TTL updates to error out
 
  -- Matthew Ragan <mdr@sucksless.net>  Mon, 01 May 2017 15:59:39 -0500
-
 
 jazzhands-stab (0.79.3) trusty; urgency=medium
 

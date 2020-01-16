@@ -1,4 +1,4 @@
--- Copyright (c) 2014-2018 Todd Kover
+-- Copyright (c) 2014-2019 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -2653,8 +2653,25 @@ BEGIN
 			RAISE NOTICE '... Failed';
 			raise error_in_assignment;
 	END;
-	DELETE FROM Property WHERE Property_ID = v_property_id;
 
+	RAISE NOTICE 'Trying to see if in-use list item removal fails... ';
+	BEGIN
+		BEGIN
+			DELETE FROM val_property_value
+			WHERE property_type = 'test'
+			AND property_name = 'list'
+			AND valid_property_value  = 'value';
+		EXCEPTION WHEN foreign_key_violation THEN
+			RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
+		END;
+
+		RAISE EXCEPTION '.. It did not % ', to_json(_r);
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... It did (%)', SQLERRM;
+	END;
+
+
+	DELETE FROM Property WHERE Property_ID = v_property_id;
 
 	RAISE NOTICE 'Inserting invalid value into list property';
 	BEGIN

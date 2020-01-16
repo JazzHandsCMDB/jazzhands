@@ -35,6 +35,7 @@ DECLARE
 	a_ip_universe			integer[];
 	netblock_rec			record;
 	parent_netblock_rec		record;
+	a_layer3_network		record;
 BEGIN
 
 --
@@ -954,6 +955,103 @@ BEGIN
 --	SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
 
 --
+-- Create a layer3_network and ensure that it can neither be subnettable or
+-- a single address
+--
+	SET CONSTRAINTS trigger_layer3_network_validate_netblock IMMEDIATE;
+	SET CONSTRAINTS trigger_netblock_validate_layer3_network_netblock IMMEDIATE;
+
+	RAISE NOTICE '    Inserting a layer3_network with netblock having can_subnet=Y and is_single_address=N';
+	BEGIN
+		INSERT INTO layer3_network (
+			netblock_id
+		) VALUES (
+			a_netblock_list[11]
+		);
+
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE 'JH111' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Inserting a layer3_network with netblock having can_subnet=N and is_single_address=Y';
+	BEGIN
+		INSERT INTO layer3_network (
+			netblock_id
+		) VALUES (
+			a_netblock_list[13]
+		);
+
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE 'JH111' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Inserting a layer3_network with netblock having can_subnet=N and is_single_address=N';
+	INSERT INTO layer3_network (
+		netblock_id
+	) VALUES (
+		a_netblock_list[12]
+	) RETURNING * INTO a_layer3_network;
+
+	RAISE NOTICE '    Updating a layer3_network with netblock having can_subnet=Y and is_single_address=N';
+	BEGIN
+		UPDATE layer3_network SET netblock_id = a_netblock_list[11]
+		WHERE layer3_network_id = a_layer3_network.layer3_network_id;
+
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE 'JH111' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Updating a layer3_network with netblock having can_subnet=N and is_single_address=Y';
+	BEGIN
+		UPDATE layer3_network SET netblock_id = a_netblock_list[13]
+		WHERE layer3_network_id = a_layer3_network.layer3_network_id;
+
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE 'JH111' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Updating a layer3_network with netblock having can_subnet=N and is_single_address=N';
+	UPDATE layer3_network SET netblock_id = a_netblock_list[16]
+	WHERE layer3_network_id = a_layer3_network.layer3_network_id;
+
+	
+	RAISE NOTICE '    Updating a netblock belonging to a layer3_network to can_subnet=Y';
+	BEGIN
+		UPDATE netblock SET can_subnet = 'Y'
+		WHERE netblock_id = a_netblock_list[16];
+
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE 'JH111' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+	RAISE NOTICE '    Updating a netblock belonging to a layer3_network to is_single_address=Y';
+	BEGIN
+		UPDATE netblock SET is_single_address = 'Y'
+		WHERE netblock_id = a_netblock_list[16];
+
+		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
+			ERRCODE = 'error_in_assignment';
+	EXCEPTION
+		WHEN SQLSTATE 'JH111' THEN
+			RAISE NOTICE '        ... Failed correctly';
+	END;
+
+--
 -- Yay!  We're done!
 --
 
@@ -965,6 +1063,8 @@ BEGIN
 
 	RAISE NOTICE 'Cleaning up...';
 
+	DELETE FROM layer3_network WHERE layer3_network_id =
+		a_layer3_network.layer3_network_id;
 	DELETE FROM netblock WHERE netblock_type IN
 		('JHTEST-auto', 'JHTEST-auto2', 'JHTEST-manual',
 		'JHTEST-freeforall');

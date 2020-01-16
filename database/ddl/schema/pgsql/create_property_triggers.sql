@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2015 Matthew Ragan
- * Copyright (c) 2012-2015 Todd Kover
+ * Copyright (c) 2012-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,6 +75,7 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
+------------------------------------------------------------------------------
 DROP TRIGGER IF EXISTS trigger_validate_val_property ON val_property;
 CREATE TRIGGER trigger_validate_val_property
 	BEFORE INSERT OR UPDATE OF property_data_type, property_value_json_schema,
@@ -82,7 +83,6 @@ CREATE TRIGGER trigger_validate_val_property
 	ON val_property
 	FOR EACH ROW
 	EXECUTE PROCEDURE validate_val_property();
-
 
 CREATE OR REPLACE FUNCTION validate_val_property_after() RETURNS TRIGGER AS $$
 DECLARE
@@ -107,3 +107,47 @@ CREATE CONSTRAINT TRIGGER trigger_validate_val_property_after
 	DEFERRABLE INITIALLY IMMEDIATE
 	FOR EACH ROW
 	EXECUTE PROCEDURE validate_val_property_after();
+
+------------------------------------------------------------------------------
+--
+-- val_property_value check
+--
+--
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION val_property_value_del_check()
+RETURNS TRIGGER AS $$
+DECLARE
+	_tal	INTEGER;
+BEGIN
+
+	SELECT COUNT(*)
+	INTO _tal
+	FROM property p
+	WHERE p.property_name = OLD.property_name
+	AND p.property_type = OLD.property_type
+	AND p.property_value = OLD.valid_property_value;
+
+	IF _tal > 0 THEN
+		RAISE EXCEPTION '% instances of %:% with value %',
+			_tal, OLD.property_type, OLD.property_name, OLD.valid_property_value
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	RETURN OLD;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- CONSTRAINT makes this an after trigger.
+--
+DROP TRIGGER IF EXISTS trigger_val_property_value_del_check ON val_property;
+CREATE CONSTRAINT TRIGGER trigger_val_property_value_del_check
+	AFTER DELETE
+	ON val_property_value
+	DEFERRABLE INITIALLY IMMEDIATE
+	FOR EACH ROW
+	EXECUTE PROCEDURE val_property_value_del_check();
+

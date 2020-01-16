@@ -29,13 +29,14 @@ BEGIN {
 		# use MIME::Base32 qw(RFC);
 		use MIME::Base32;
 		local $SIG{__WARN__} = sub { };
-		MIME::Base32->import( qw(RFC) );
+		MIME::Base32->import(qw(RFC));
 	};
 	if ($@) {
+
 		# >= 1.3
 		use MIME::Base32;
 	}
-	
+
 }
 use MIME::Base64;
 use Digest::SHA qw(sha256);
@@ -194,7 +195,7 @@ sub decrypt {
 		-literal_key => 1,
 	);
 	my $plaintext = $cipher->decrypt($c_text);
-	$plaintext
+	$plaintext;
 
 }
 
@@ -244,6 +245,35 @@ sub add_encryption_id($;$$$) {
 		encryption_key_purpose         => $ekpurpose,
 		encryption_key_purpose_version => $ekversion,
 		dbkey                          => $dbkey,
+	};
+}
+
+sub get_encryption_id($$) {
+	my $self = shift;
+	my $id   = shift;
+
+	my $dbh = $self->dbh;
+	my $sth = $dbh->prepare_cached(
+		qq{
+		SELECT	*
+		FROM	encryption_key
+		WHERE	encryption_key_id = ?
+	}
+	) || die $dbh->errstr;
+
+	$sth->execute($id) || die $sth->errstr;
+
+	my $hr = $sth->fetchrow_hashref;
+	return undef if ( !$hr );
+	$sth->finish;
+
+	return {
+		encryption_key_id              => $hr->{encryption_key_id},
+		encryption_key_purpose         => $hr->{encryption_key_purpose},
+		encryption_key_purpose_version => $hr->{encryption_key_purpose_version},
+		dbkey                          => $hr->{encryption_key_db_value},
+		encryption_key                 => $hr->{encryption_method},
+
 	};
 }
 
@@ -299,6 +329,46 @@ sub rm_token($$) {
 		return undef;
 	}
 	$nr;
+}
+
+sub fetch_token($$$) {
+	my $self    = shift;
+	my $tokenid = shift;
+
+	my $dbh = $self->dbh;
+	my $sth = $dbh->prepare_cached(
+		qq{ SELECT
+				token_type, token_status, time_modulo, token_key,
+				encryption_key_id, token_password, is_token_locked,
+				last_updated
+			FROM token
+			WHERE token_id = ?
+	}
+	) || die $dbh->errstr;
+
+	$sth->execute($tokenid) || die $sth->errstr;
+	my $hr = $sth->fetchrow_hashref();
+	$sth->finish;
+
+	return undef if ( !$hr );
+	my $enc = $self->get_encryption_id( $hr->{encryption_key_id} );
+
+	# get the part that's not in the db
+	my $nondbkey =
+	  $self->{_keymap}->{ $enc->{encryption_key_purpose_version} };
+
+	# assemble the full key based on what's in the db
+	my $fullkey = "$nondbkey" . $enc->{dbkey};
+
+	my $tokenkey = $self->decrypt( $hr->{token_key}, $fullkey );
+
+	my $key32 = MIME::Base32::encode($tokenkey);
+	my $key64 = encode_base64($tokenkey);
+
+	$self->{_type} = $hr->{token_type};
+	$self->{key32} = $key32;
+	$self->{key64} = $key64;
+	$tokenid;
 }
 
 sub add_token($$$) {
@@ -477,7 +547,7 @@ sub url($) {
 	my $issuer = $self->issuer;
 
 	$issuer = uri_escape($issuer);
-	$label = uri_escape($label);
+	$label  = uri_escape($label);
 
 	my $rv = "otpauth://$svc/$issuer%3A$label?secret=${key32}&issuer=$issuer";
 

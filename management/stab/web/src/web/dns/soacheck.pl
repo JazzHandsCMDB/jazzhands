@@ -1,4 +1,20 @@
 #!/usr/bin/env perl
+#
+# Copyright (c) 2019 Todd Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -31,6 +47,7 @@ use POSIX;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
 use Net::DNS;
+use Data::Dumper;
 
 do_soacheck();
 
@@ -88,11 +105,11 @@ sub dump_soacheck_all {
 			dom.should_generate,
 			dom.last_generated
 		  from	v_dns_domain_nouniverse dom
-			left join dns_record dns
-				on dns.dns_domain_id = dom.dns_domain_id
-				and dns.dns_type = 'REVERSE_ZONE_BLOCK_PTR'
-			left join netblock nb
-				on dns.netblock_id = nb.netblock_id
+			left join (
+				SELECT * FROM dns_record
+				WHERE dns_type = 'REVERSE_ZONE_BLOCK_PTR'
+				) dns USING (dns_domain_id)
+			left join netblock nb USING (netblock_id)
 		where	dom.parent_dns_domain_id is NULL
 		  and	dom.soa_name not like '%10.in-addr.arpa'
 		  and	dom.soa_name not like '%168.192.in-addr.arpa'
@@ -125,46 +142,39 @@ sub dump_soacheck_all {
 		my $domid     = $hr->{ _dbx('DNS_DOMAIN_ID') };
 		my $gen       = $hr->{ _dbx('SHOULD_GENERATE') };
 
-		if (       $nogenshow eq 'no'
+		if (   $nogenshow eq 'no'
 			&& $hr->{ _dbx('SHOULD_GENERATE') } eq 'N' )
 		{
 			next;
 		}
 
-		if (       $nogenshow eq 'yes'
+		if (   $nogenshow eq 'yes'
 			&& $hr->{ _dbx('SHOULD_GENERATE') } eq 'Y' )
 		{
 			next;
 		}
 
-		my @nic = get_nic_ns($zone_name);
 		my @jazzhands = get_jazzhands_namservers( $stab, $zone_name );
+		my @nic = get_nic_ns($zone_name);
 
 		my $problems = 0;
 		my $numauth  = 0;
 		my $numnic   = 0;
 
-		my $nslist = $cgi->Tr(
-			$cgi->td(
-				{ -background => 'green', -align => 'center' },
-				"NIC"
-			)
-		);
+		my $nslist =
+		  $cgi->Tr(
+			$cgi->td( { -background => 'green', -align => 'center' }, "NIC" ) );
 		if ( $#nic > -1 ) {
 			foreach my $ns ( sort @nic ) {
-				if (
-					$#jazzhands > -1
-					&& grep( lower($_) eq lower($ns),
-						@jazzhands )
-				  )
+				if ( $#jazzhands > -1
+					&& grep( lower($_) eq lower($ns), @jazzhands ) )
 				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
 					$nslist .= $cgi->Tr(
 						$cgi->td(
 							{
-								-style =>
-								  'color: red'
+								-style => 'color: red'
 							},
 							$ns
 						)
@@ -184,25 +194,20 @@ sub dump_soacheck_all {
 				)
 			);
 		}
-		$nslist .= $cgi->Tr(
-			$cgi->td(
-				{ -background => 'green', -align => 'center' },
-				"DB"
-			)
-		);
+		$nslist .=
+		  $cgi->Tr(
+			$cgi->td( { -background => 'green', -align => 'center' }, "DB" ) );
 		if ( $#jazzhands > -1 ) {
 			foreach my $ns ( sort @jazzhands ) {
 				if ( $#nic > -1
-					&& grep( lower($_) eq lower($ns), @nic )
-				  )
+					&& grep( lower($_) eq lower($ns), @nic ) )
 				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
 					$nslist .= $cgi->Tr(
 						$cgi->td(
 							{
-								-style =>
-								  'color: red'
+								-style => 'color: red'
 							},
 							$ns
 						)
@@ -233,16 +238,14 @@ sub dump_soacheck_all {
 					{ -width => '100%', -valign => 'top' },
 					$cgi->Tr(
 						{
-							-style =>
-							  'background: orange',
+							-style => 'background: orange',
 							-align => 'center'
 						},
 						$cgi->td(
 							{ -align => 'center' },
 							$cgi->a(
 								{
-									-href =>
-"./?dnsdomainid=$domid"
+									-href => "./?dnsdomainid=$domid"
 								},
 								$zone_name
 							),
@@ -282,7 +285,9 @@ sub get_jazzhands_namservers {
 				dns.dns_ttl,    
 				dns.dns_class,
 				dns.DNS_TYPE,
-				dns.dns_value,
+				CASE WHEN dns.dns_value LIKE '%.' THEN dns.dns_value
+					ELSE concat(dns_value, '.', dns_domain_name, '.')
+					END AS dns_value,
 				dns.netblock_id,
 				dns.should_generate_ptr,
 				nb.netblock_id,
@@ -335,10 +340,11 @@ sub find_ip_in_dns_packet {
 	# fingers
 	#
 	my $res = Net::DNS::Resolver->new;
-	my $answer = $res->query( $what, 'A' );
-	foreach my $rr ( $answer->answer ) {
-		if ( $rr->type eq 'A' ) {
-			return $rr->rdatastr;
+	if ( my $answer = $res->query( $what, 'A' ) ) {
+		foreach my $rr ( $answer->answer ) {
+			if ( $rr->type eq 'A' ) {
+				return $rr->rdatastr;
+			}
 		}
 	}
 	undef;
@@ -351,16 +357,30 @@ sub build_dns_ask_list {
 
 	foreach my $thing ( $packet->authority ) {
 		if ( $thing->type eq 'NS' ) {
-			my $ip =
-			  find_ip_in_dns_packet( $packet, $thing->rdatastr );
+			my $ip = find_ip_in_dns_packet( $packet, $thing->rdatastr );
 			if ($ip) {
 				push( @ips, $ip );
 			}
 		}
 	}
+
+	foreach my $thing ( $packet->answer ) {
+		if ( $thing->type eq 'NS' ) {
+			my $ip = find_ip_in_dns_packet( $packet, $thing->rdatastr );
+			if ($ip) {
+				push( @ips, $ip );
+			}
+		}
+	}
+
 	@ips;
 }
 
+#
+# walks from the roots and keeps going until it gets to one of the ones ina
+# jazzhands list.  This isn't truly "nic" since someone else may delegate to
+# us but be the delegation from the root.
+#
 sub get_nic_ns {
 	my ( $zone, @ips ) = @_;
 
@@ -383,17 +403,28 @@ sub get_nic_ns {
 		}
 	}
 
+	#
+	# $niconly probably wants to become an option.  It controls if we keep
+	# drilling down until we get to the end or stop when we get the first
+	# answer.  This distinction is most useful for in-addr or if it's just
+	# delegated off elsewhere.
+	#
+	my $niconly    = 0;
 	my $iterations = 0;
-
-	my (@ns);
-	do {
+	my @nsoflastresort;
+	while ( $iterations++ <= 10 ) {
+		my @ns;
 		my $res = Net::DNS::Resolver->new(
 			nameservers => \@ips,
 			recurse     => 0
 		);
 
-		my $packet = $res->send( $zone, 'NS' ) || die "no answer";
+		my $packet = $res->send( $zone, 'NS' );
+		if ( !$packet ) {
+			return @nsoflastresort;
+		}
 
+		# print "<pre>", join(", ", @ips), ": ", $packet->string, "</pre><hr>\n";
 		my @authority = $packet->authority;
 
 		$zone =~ s/\.+$//;
@@ -418,17 +449,81 @@ sub get_nic_ns {
 			}
 		}
 
-		if ( $#ns == -1 ) {
+		#
+		# at this point, @ns contains a list of nameservers that
+		# came back in either ANSWER or AUTH that match the name of
+		# the zone.  This may actually keep going (this is the nic
+		# vs all the way down case).  In that case, check to see if
+		# any of them match what we talked to.  If not, then check to
+		# see if this is the same set as the last ones we got.  If
+		# we did then there is probably some sort of name mismatch,
+		# so stop.
+		#
 
-			# go ask someone else
-			my @whotoask = build_dns_ask_list($packet);
-			if ( $#whotoask == -1 ) {
-				return @ns;
+		#
+		# based on this packet, figure out who to ask next.  This should be
+		# the same set of people we asked.
+		my @whotoask = build_dns_ask_list($packet);
+		if ( !$niconly ) {
+			#
+			# case when we keep drilling down even after the first match
+			#
+			if ($#ns) {
+				foreach my $ip (@whotoask) {
+
+					# in this case, we were told to talk to one of the things
+					# that were previous told, so we're done walking.
+					if ( grep( $ip eq $_, @ips ) ) {
+						return (@ns);
+					}
+				}
 			}
-			@ips = @whotoask;
+
+			if ( $#whotoask == -1 ) {
+				#
+				# check to see if any of the things we were going to
+				# return is one of the ones in the last.  If not, bail and
+				# return the last one we saw.  I'm not sure if this
+				# is correct.
+				#
+				my $ok = 0;
+			  NSCHECK:
+				foreach my $ns (@ns) {
+					my $i = Net::DNS::Resolver->new;
+					my $ipp = $i->send( $ns, "A" ) || die;
+					foreach my $a ( $ipp->answer ) {
+						if ( $a->type eq 'A' ) {
+							warn "compare $ns ", $a->address, " ",
+							  $packet->answerfrom;
+							if ( $a->address eq $packet->answerfrom ) {
+								$ok = 1;
+								last NSCHECK;
+							}
+						}
+					}
+				}
+				if ($ok) {
+					return (@ns);
+				} else {
+					return (@nsoflastresort);
+				}
+			}
+			@ips            = @whotoask;
+			@nsoflastresort = @ns;
 		} else {
-			return (@ns);
+			#
+			# case when we stop at the first match down from root
+			#
+			if ( $#ns == -1 ) {
+				if ( $#whotoask == -1 ) {
+					return @ns;
+				}
+				@ips = @whotoask;
+			} else {
+				return (@ns);
+			}
 		}
-	} while ( $iterations++ < 10 );
-	return @ns;
+	}
+
+	return @nsoflastresort;
 }

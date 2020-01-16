@@ -54,7 +54,6 @@ use URI;
 use Carp qw(cluck);
 use Data::Dumper;
 use NetAddr::IP qw(:lower);
-use Net::IP;
 
 # Try to keep these later.
 use JazzHands::STAB::DBAccess;
@@ -1410,17 +1409,9 @@ sub b_dropdown {
 	} elsif ( $selectfield eq 'OPERATING_SYSTEM_ID' ) {
 		$q = qq{
 			select	os.operating_system_id,
-				os.operating_system_name, os.version,
-				(case WHEN os.processor_architecture <> 'noarch' 
-					THEN ' - ' || os.processor_architecture || ' - ' ||
-						pa.kernel_bits || ' bit'
-				 ELSE ' '
-				 END
-				) as bits
+				os.operating_system_name, os.version
 			  from	operating_system os
-					inner join val_processor_architecture pa
-						on pa.processor_architecture = os.processor_architecture
-			order by os.operating_system_name, os.version, pa.kernel_bits
+			order by os.operating_system_name, os.version
 		};
 	} elsif ( $selectfield eq 'DNS_DOMAIN_ID' ) {
 		my $limitverbiage = "";
@@ -1661,33 +1652,6 @@ sub b_dropdown {
 			  from  val_processor_architecture
 			order by description, processor_architecture
 		};
-	} elsif ( $selectfield eq 'STOP_BITS' ) {
-		$q = qq{
-			select  stop_bits, description
-			  from  val_stop_bits
-			order by description, stop_bits
-		};
-		$default = 1 if ( !defined($default) );
-	} elsif ( $selectfield eq 'BAUD' ) {
-		$q = qq{
-			select  baud, description
-			  from  val_baud
-			order by description, baud
-		};
-		$default = 9600 if ( !defined($default) );
-	} elsif ( $selectfield eq 'DATA_BITS' ) {
-		$q = qq{
-			select  data_bits, description
-			  from  val_data_bits
-			order by description, data_bits
-		};
-		$default = 8 if ( !defined($default) );
-	} elsif ( $selectfield eq 'FLOW_CONTROL' ) {
-		$q = qq{
-			select  flow_control, description
-			  from  val_flow_control
-			order by description, flow_control
-		};
 	} elsif ( $selectfield eq 'SITE_CODE'
 		|| $selectfield eq 'RACK_SITE_CODE' )
 	{
@@ -1718,13 +1682,6 @@ sub b_dropdown {
 			where	rack_id > 0
 			$siteclause
 			order by site_code, room, sub_room, rack_row, rack_name
-		};
-		$default = 'none' if ( !defined($default) );
-	} elsif ( $selectfield eq 'PARITY' ) {
-		$q = qq{
-			select  parity, description
-			  from  val_parity
-			order by description, parity
 		};
 		$default = 'none' if ( !defined($default) );
 	} elsif ( $selectfield eq 'X509_CERT_ID' ) {
@@ -2932,7 +2889,7 @@ sub add_physical_ports {
 sub validate_ip {
 	my ( $self, $ip ) = @_;
 
-	my $i = new Net::IP($ip) || return 0;
+	my $i = new NetAddr::IP($ip) || return 0;
 	return $i->version();
 }
 

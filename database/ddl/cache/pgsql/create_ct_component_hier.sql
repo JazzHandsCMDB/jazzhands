@@ -99,7 +99,11 @@ BEGIN
 			ARRAY[NEW.component_id],
 			1
 		);
-	ELSIF (TG_OP = 'UPDATE' AND NEW.parent_slot_id IS NOT NULL) THEN
+	END IF;
+	IF (
+		(TG_OP = 'INSERT' OR TG_OP = 'UPDATE') AND
+		NEW.parent_slot_id IS NOT NULL
+	) THEN
 		RAISE DEBUG 'Inserting upstream references for updated component % into cache',
 			NEW.component_id;
 		INSERT INTO jazzhands_cache.ct_component_hier

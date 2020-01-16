@@ -72,11 +72,13 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- for the object itself in the case of tables, or dependent objects, in the
 -- case of materialized views and views.
 --
-CREATE OR REPLACE FUNCTION backend_utils.relation_last_changed(view text)
-RETURNS timestamp AS
+CREATE OR REPLACE FUNCTION backend_utils.relation_last_changed(
+	view TEXT,
+	schema TEXT DEFAULT 'jazzhands'
+) RETURNS timestamp AS
 $$
 BEGIN
-	RETURN schema_support.relation_last_changed(view);
+	RETURN schema_support.relation_last_changed(view, schema);
 END;
 $$ 
 SET search_path=jazzhands

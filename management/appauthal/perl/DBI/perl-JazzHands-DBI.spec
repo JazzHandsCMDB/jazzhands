@@ -18,8 +18,8 @@ BuildRequires: perl(ExtUtils::MakeMaker)
 BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
-Requires:   jazzhands-perl-common >= 0.73.2
-Requires:   perl-JazzHands-AppAuthAL >= 0.79.2
+Requires:   jazzhands-perl-common >= 0.86.0
+Requires:   perl-JazzHands-AppAuthAL >= 0.86.0
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
 
@@ -31,10 +31,10 @@ DBI shim for JazzHands to support database authentication abstraction
 make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} clean
+make -f Makefile.jazzhands DESTDIR=%{buildroot} clean
 
 
 %files

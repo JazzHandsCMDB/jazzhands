@@ -86,11 +86,6 @@ sub manip_operating_system {
 			"Version", 'VERSION',
 			'OPERATING_SYSTEM_ID'
 		),
-		$stab->build_tr(
-			$os,    "b_dropdown",
-			"Arch", 'PROCESSOR_ARCHITECTURE',
-			'OPERATING_SYSTEM_ID'
-		),
 		$cgi->Tr(
 			$cgi->td(
 				{ -align => 'center', -colspan => 2 },

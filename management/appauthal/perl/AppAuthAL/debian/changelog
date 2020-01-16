@@ -1,3 +1,9 @@
+perl-jazzhands-appauthal (0.86.0) trusty; urgency=medium
+
+  * add support for using vault to get credentials
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
 perl-jazzhands-appauthal (0.79.2) trusty; urgency=medium
 
   * make not being able to read a file not fatal

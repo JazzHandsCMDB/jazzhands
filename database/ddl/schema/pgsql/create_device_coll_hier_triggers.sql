@@ -31,7 +31,7 @@ BEGIN
 	FROM	val_device_collection_type
 	WHERE	device_collection_type =
 		(select device_collection_type from device_collection
-			where device_collection_id = NEW.parent_device_collection_id);
+			where device_collection_id = NEW.device_collection_id);
 
 	IF dct.can_have_hierarchy = 'N' THEN
 		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',

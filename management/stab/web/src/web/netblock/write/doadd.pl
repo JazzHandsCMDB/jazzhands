@@ -22,7 +22,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Copyright (c) 2013 Matthew Ragan
+# Copyright (c) 2013-2019 Todd Kover, Matthew Ragan
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -108,13 +108,13 @@ sub do_netblock_addition {
 
 		my $par_ip = $netblock->IPAddress;
 
-	 #
-	 # Validate that this netblock is a child of the parent.  This probably
-	 # isn't *strictly* necessary, since a) the database will take care of
-	 # homing the netblock correctly and b) it only checks that it's a child
-	 # of this block and not necessarily a child of a child of this block,
-	 # but it will at least catch some instances of fat-fingering.
-	 #
+		#
+		# Validate that this netblock is a child of the parent.  This probably
+		# isn't *strictly* necessary, since a) the database will take care of
+		# homing the netblock correctly and b) it only checks that it's a child
+		# of this block and not necessarily a child of a child of this block,
+		# but it will at least catch some instances of fat-fingering.
+		#
 		if ( !( $par_ip->contains($childaddr) ) ) {
 			$cgi->delete('orig_referer');
 			$stab->error_return(
@@ -129,15 +129,21 @@ sub do_netblock_addition {
 	# Create a new netblock object
 	#
 
+	my $cansubnet = 'Y';
+	warn "$bits $ip\n";
+	if ( ( $bits == 32 && $ip =~ /\./ ) || ( $bits == 128 && $ip =~ /:/ ) ) {
+		$cansubnet = 'N';
+	}
+
 	my $me = new JazzHands::Mgmt::Netblock(
 		jhhandle          => $stab,
 		is_single_address => 'N',
-		can_subnet        => 'Y',
+		can_subnet        => $cansubnet,
 		netblock_status   => 'Allocated',
 		description       => $desc,
 		netblock_type     => 'default',
 		ip_address        => $childaddr,
-		errors            => \@errors
+		errors            => \@errors,
 	);
 
 	if ( !defined($me) ) {
@@ -166,8 +172,7 @@ sub do_netblock_addition {
 
 	my $refurl = "../";
 	if ( $me->hash->{ _dbx('parent_netblock_id') } ) {
-		$refurl .=
-		  "?nblkid=" . $me->hash->{ _dbx('parent_netblock_id') };
+		$refurl .= "?nblkid=" . $me->hash->{ _dbx('parent_netblock_id') };
 	}
 	undef $me;
 	$stab->msg_return( "Child Netblock Added", $refurl, 1 );

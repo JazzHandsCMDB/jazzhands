@@ -158,6 +158,13 @@ JH110	-	No free netblocks available
 No netblocks were available to allocate matching the parameters
 
 ---------------------------------------------------------------------------
+
+JH111	-	Netblock must be non-subnettable and not a single-address
+
+For layer3_networks, a netblock must not be further subnettable and must
+not be a single address
+
+---------------------------------------------------------------------------
 -------------------
 DNS  ERRORS (JH2xx)
 -------------------

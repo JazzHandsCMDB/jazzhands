@@ -9,6 +9,6 @@ Homepage: http://www.jazzhands.net/
 Package: perl-jazzhands-dbi
 Section: unknown
 Architecture: any
-Pre-Depends: libdbi-perl, jazzhands-perl-common (>=0.73.2), perl-jazzhands-appauthal (>=-0.79.2)
+Pre-Depends: libdbi-perl, jazzhands-perl-common (>=0.86.0), perl-jazzhands-appauthal (>=0.86.0)
 Description: 
  DBI shim for JazzHands to support database authentication abstraction

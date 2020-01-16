@@ -122,8 +122,9 @@ BEGIN
 		netblock_status := netblock_status
 	);
 END;
-$$ LANGUAGE plpgsql SET search_path = jazzhands;
-
+$$ LANGUAGE plpgsql
+SET search_path = jazzhands
+SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock(
 	parent_netblock_list	integer[],
@@ -367,7 +368,9 @@ BEGIN
 		RETURN;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SET search_path = jazzhands;
+$$ LANGUAGE plpgsql
+SET search_path = jazzhands
+SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_manip.create_network_range(
 	start_ip_address	inet,
@@ -375,7 +378,10 @@ CREATE OR REPLACE FUNCTION netblock_manip.create_network_range(
 	network_range_type	jazzhands.val_network_range_type.network_range_type%TYPE,
 	parent_netblock_id	jazzhands.netblock.netblock_id%TYPE DEFAULT NULL,
 	description			jazzhands.network_range.description%TYPE DEFAULT NULL,
-	allow_assigned		boolean DEFAULT false
+	allow_assigned		boolean DEFAULT false,
+	dns_prefix			TEXT DEFAULT NULL,
+	dns_domain_id		jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL,
+	lease_time			jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL
 ) RETURNS jazzhands.network_range AS $$
 DECLARE
 	par_netblock	RECORD;
@@ -575,20 +581,28 @@ BEGIN
 		description,
 		parent_netblock_id,
 		start_netblock_id,
-		stop_netblock_id
+		stop_netblock_id,
+		dns_prefix,
+		dns_domain_id,
+		lease_time
 	) VALUES (
 		nrtype,
 		description,
 		par_netblock.netblock_id,
 		start_netblock.netblock_id,
-		stop_netblock.netblock_id
+		stop_netblock.netblock_id,
+		create_network_range.dns_prefix,
+		create_network_range.dns_domain_id,
+		create_network_range.lease_time
 	) RETURNING * INTO netrange;
 
 	RETURN netrange;
 
 	RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SET search_path = jazzhands;
+$$ LANGUAGE plpgsql
+SET search_path = jazzhands
+SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 	network_interface_id
@@ -693,7 +707,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	SELECT * INTO ni_rec FROM network_interface ni WHERE 
+	SELECT * INTO ni_rec FROM network_interface ni WHERE
 		ni.network_interface_id = ni_id;
 
 	--
@@ -882,7 +896,7 @@ BEGIN
 					-- Check to see if the netblock exists, but is
 					-- marked can_subnet='Y'.  If so, fix it
 					--
-					SELECT 
+					SELECT
 						* INTO pnb_rec
 					FROM
 						netblock n
@@ -993,7 +1007,7 @@ BEGIN
 			-- See if this netblock is on something else, and delete it
 			-- if move_addresses is set, otherwise skip it
 			--
-			SELECT 
+			SELECT
 				ni.network_interface_id,
 				ni.network_interface_name,
 				nin.netblock_id,
@@ -1010,7 +1024,7 @@ BEGIN
 
 			IF FOUND THEN
 				IF move_addresses = 'always' OR (
-					move_addresses = 'if_same_device' AND 
+					move_addresses = 'if_same_device' AND
 					nin_rec.device_id = ni_rec.device_id
 				)
 				THEN
@@ -1428,7 +1442,7 @@ BEGIN
 			--
 			ni_id_ary := ARRAY[]::integer[];
 
-			SELECT 
+			SELECT
 				ni.network_interface_id,
 				nin.netblock_id,
 				ni.device_id
@@ -1442,7 +1456,7 @@ BEGIN
 
 			IF FOUND THEN
 				IF move_addresses = 'always' OR (
-					move_addresses = 'if_same_device' AND 
+					move_addresses = 'if_same_device' AND
 					nin_rec.device_id = ni_rec.device_id
 				)
 				THEN
@@ -1457,13 +1471,13 @@ BEGIN
 					--
 					WITH z AS (
 						DELETE FROM
-							network_interface_netblock
+							network_interface_netblock nin
 						WHERE
-							netblock_id = nb_rec.netblock_id
-						RETURNING network_interface_id
+							nin.netblock_id = nb_rec.netblock_id
+						RETURNING nin.network_interface_id
 					)
-					SELECT array_agg(network_interface_id) FROM
-						(SELECT network_interface_id FROM z) v
+					SELECT array_agg(v.network_interface_id) FROM
+						(SELECT z.network_interface_id FROM z) v
 					INTO ni_id_ary;
 				ELSE
 					IF address_errors = 'ignore' THEN

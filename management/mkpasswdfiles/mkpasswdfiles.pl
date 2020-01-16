@@ -129,6 +129,7 @@ use JSON::PP;
 use File::Find;
 
 my $o_output_dir = "/var/lib/jazzhands/creds-mgmt-server/out";
+my $o_force;
 my $o_verbose;
 my $o_random;
 
@@ -440,7 +441,8 @@ sub generate_passwd_files($$) {
 		if ( defined($last_dcid) ) {
 			if ( $last_dcid != $dcid ) {
 				my $json = JSON::PP->new->ascii;
-				print $fh $json->pretty->encode( \@pwdlines );
+				$json->canonical(1);
+				print $fh $json->pretty->encode( \@pwdlines ), "\n";
 				$fh =
 				  new_mclass_file( $dir, $outname, $fh, $outclass );
 				$last_dcid = $dcid;
@@ -464,7 +466,8 @@ sub generate_passwd_files($$) {
 
 	## Let's not forget to write the passwd file for the last MCLASS
 	my $json = JSON::PP->new->ascii;
-	print $fh $json->pretty->encode( \@pwdlines ) if ($fh);
+	$json->canonical(1);
+	print $fh $json->pretty->encode( \@pwdlines ), "\n" if ($fh);
 	$fh->close if ( defined $fh );
 }
 
@@ -564,7 +567,8 @@ sub generate_group_files($$) {
 		if ( defined($last_dcid) ) {
 			if ( $last_dcid != $dcid ) {
 				my $json = JSON::PP->new->ascii;
-				print $fh $json->pretty->encode( \@grplines );
+				$json->canonical(1);
+				print $fh $json->pretty->encode( \@grplines ) ,"\n";
 				$fh =
 				  new_mclass_file( $dir, $outname, $fh, $outclass );
 				$last_dcid = $dcid;
@@ -592,7 +596,8 @@ sub generate_group_files($$) {
 
 	## Let's not forget to write the passwd file for the last MCLASS
 	my $json = JSON::PP->new->ascii;
-	print $fh $json->pretty->encode( \@grplines ) if ($fh);
+	$json->canonical(1);
+	print $fh $json->pretty->encode( \@grplines ) ,"\n" if ($fh);
 	$fh->close if ( defined $fh );
 
 }
@@ -1253,7 +1258,8 @@ sub generate_appaal_files($) {
 
 		if ($closemclass) {
 			my $json = JSON::PP->new->ascii;
-			print $fh $json->pretty->encode($allapps);
+			$json->canonical(1);
+			print $fh $json->pretty->encode($allapps) ,"\n";
 			if ($mclass) {
 				$fh =
 				  new_mclass_file( $dir, $mclass, $fh,
@@ -1297,14 +1303,6 @@ sub generate_k5login_root_files($) {
 	(select account_id from account where login = 'root')
 	and a.account_status in ('enabled', 'onleave-enable')
 	and c.device_collection_type = 'mclass'
-	and km2.include_exclude_flag = 'INCLUDE'
-	and not exists (
-	    select * from v_device_coll_hier_detail dchd1
-	    join klogin_mclass km1
-	    on km1.device_collection_id = dchd1.parent_device_collection_id
-	    where km1.include_exclude_flag = 'EXCLUDE'
-	    and dchd1.device_collection_id = dchd2.device_collection_id
-	    and km1.klogin_id = km2.klogin_id)
     };
 
 	if ($q_mclass_ids) {
@@ -1487,6 +1485,7 @@ sub generate_config_files {
 		if ( defined($last_mclass) ) {
 			if ( $last_mclass ne $mclass ) {
 				my $json = JSON::PP->new->ascii;
+				$json->canonical(1);
 				print $fh $json->pretty->encode(
 					{
 						'config' => $cfg
@@ -1510,6 +1509,7 @@ sub generate_config_files {
 	}
 
 	my $json = JSON::PP->new->ascii;
+	$json->canonical(1);
 	if ($fh) {
 		print $fh $json->pretty->encode(
 			{
@@ -1727,12 +1727,14 @@ sub create_json_manifest {
 			push @files, $file;
 		}
 	};
-	find( $finder, $dir );
+	find( $finder, $dir."/mclass" );
+	find( $finder, $dir."/hosts" );
 	@files = sort(@files);
 	my $json = JSON::PP->new->ascii;
+	$json->canonical(1);
 	my $fh = IO::File->new( "$output_dir/$output_file", "w", 0640 )
 	  or die "can't create file $output_dir/$output_file: $!\n";
-	print $fh $json->pretty->encode( \@files );
+	print $fh $json->pretty->encode( \@files ) ,"\n";
 	$fh->close if ( defined $fh );
 }
 
@@ -1746,8 +1748,23 @@ sub main {
 	GetOptions(
 		'random-sleep=i' => \$o_random,
 		'v|verbose'      => \$o_verbose,
-		'o|output-dir=s' => \$o_output_dir
+		'o|output-dir=s' => \$o_output_dir,
+		'force' => \$o_force,
 	) or exit(2);
+
+	if ( ! -d $o_output_dir ) {
+		print "ERROR: $o_output_dir does not exist\n\n";
+		exit(1);
+	}
+
+
+	if(!$o_force) {
+		my $uid = (stat($o_output_dir))[4];
+		if ( !$o_force && $< != $uid) {
+			my $target_user = getpwuid($uid);
+			die "$o_output_dir is owned by $target_user.  Must be invoked as that user, or use --force. \n";
+		}
+	}
 
 	if ($o_random) {
 		my $delay = int( rand($o_random) );
@@ -1763,8 +1780,6 @@ sub main {
 	if ( !$dbh ) {
 		die "mkpwdfiles: ", $dbh->errstr;
 	}
-
-	$dbh->do("SELECT script_hooks.mkpasswdfiles_pre()");
 
 	validate_mclasses(@ARGV) if ( $#ARGV >= 0 );
 
@@ -1814,8 +1829,6 @@ sub main {
 	## create any per-host files
 	generate_passwd_files("$o_output_dir/hosts", 'per-host');
 	generate_group_files("$o_output_dir/hosts", 'per-host');
-
-	$dbh->do("SELECT script_hooks.mkpasswdfiles_post()");
 
 	$dbh->disconnect;
 
