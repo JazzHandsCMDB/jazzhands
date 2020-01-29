@@ -1,8 +1,22 @@
+jazzhands-perl-tickets (0.86.3) trusty; urgency=medium
+
+  * fix bug in debian packaging
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 29 Jan 2020 09:28:00 -0400
+
 jazzhands-perl-tickets (0.83.5) trusty; urgency=medium
 
   * fix bug with setting issuetype on JIRA issues
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue,  4 Dec 2018 15:06:22 -0400
+
+
+jazzhands-perl-tickets (0.83.5) trusty; urgency=medium
+
+  * fix bug with setting issuetype on JIRA issues
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue,  4 Dec 2018 15:06:22 -0400
+
 
 jazzhands-perl-tickets (0.81.4) trusty; urgency=medium
 
