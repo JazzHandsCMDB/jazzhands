@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2015 Matthew Ragan
+-- Copyright (c) 2015, 2016, 2018, 2019 Matthew Ragan
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,6 +83,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.migrate_component_template_slots(
@@ -226,6 +227,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.set_slot_names(
@@ -287,6 +289,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.remove_component_hier(
@@ -382,6 +385,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -674,6 +678,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -849,6 +854,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.insert_memory_component(
@@ -1017,6 +1023,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -1187,6 +1194,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.insert_component_into_parent_slot(
@@ -1270,6 +1278,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql SECURITY DEFINER;
 
 --
@@ -1329,6 +1338,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -1389,7 +1399,8 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 GRANT USAGE ON SCHEMA component_utils TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO iud_role;
