@@ -2560,20 +2560,35 @@ sub SetBGPPeerStatus {
 		SetError($err, "Error retrieving BGP information");
 		return undef;
 	}
-	my $bgpstanza = $res->getElementsByTagName('bgp-group');
-	if (!$bgpstanza) {
-		SetError($err, "BGP group is not configured for this switch");
-		return undef;
-	}
-	my $bgppeers = $res->getElementsByTagName('peer-address');
-	my $peerfound;
-	foreach my $peercrap (@$bgppeers) {
-		my $peer = (split '\+', $peercrap->getFirstChild->getNodeValue)[0];
-		if ($peer && $peer eq $bgp_peer) {
-			$peerfound = 1;
-			last;
-		}
-	}
+
+	my $bgpgroups = $res->getElementsByTagName('bgp-group');
+    if (!$bgpgroups) {
+        SetError($err, "BGP group is not configured for this switch");
+        return undef;
+    }
+
+	# From Junos OS release 18.4 onwards, show bgp group group-name does an
+	# exact match and displays groups with names matching exactly with that
+	# of the specified group-name. For all Junos OS releases preceding 18.4,
+	# the implemenation was performed using the prefix matches (example: if
+	# there are two groups grp1, grp2 and the CLI command show bgp group grp
+	# was issued, then both grp1, grp2 were displayed).
+    my $num_bgp_groups = $bgpgroups->getLength;
+    my $peerfound;
+    for (my $i = 0; $i < $num_bgp_groups; $i++) {
+        my $node = $bgpgroups->item($i);
+        my $bgp_group_name = $node->getElementsByTagName('name')->item(0)->getFirstChild->getNodeValue;
+        next if ($bgp_group_name ne $opt->{bgp_peer_group});
+        my $bgppeers = $node->getElementsByTagName('peer-address');
+        foreach my $peercrap (@$bgppeers) {
+            my $peer = (split '\+', $peercrap->getFirstChild->getNodeValue)[0];
+            if ($peer && $peer eq $bgp_peer) {
+                $peerfound = 1;
+                last;
+            }
+        }
+        last if $peerfound;
+    }
 
 	# See if we need to do anything
 
@@ -2744,6 +2759,131 @@ sub SetBGPPeerStatus {
 		}
 	}
 	return 1;
+}
+
+# This function will return the IP Version of a BGP group (4 or 6).
+# This is done by looking at the IP Version of the first peer found in the group
+# If it cannot be determined (no peer in group), we return 1.
+# In case of error, returns undef.
+sub GetBGPGroupIPFamily {
+    my $self = shift;
+    my $opt = &_options(@_);
+
+    my $err = $opt->{err};
+
+    if( !$opt->{timeout}) {
+        $opt->{timeout} = 30;
+    }
+
+    if( !$opt->{bgp_peer_group}) {
+        SetError($err,
+            "bgp_peer_group parameter must be passed to GetBGPGroupIPFamily"
+        );
+        return undef;
+    }
+
+    my $device = $self->{device};
+    my $debug = 0;
+    if ($opt->{debug}) {
+        $debug = 1;
+    }
+
+    my $jnx;
+    if (!($jnx = $self->{handle})) {
+        SetError($err,
+            sprintf("No connection to device %s", $device->{hostname})
+        );
+        return undef;
+    }
+
+    my $res;
+
+    eval {
+        local $SIG{ALRM} = sub { die "alarm\n"; };
+        alarm $opt->{timeout};
+
+        $res = $jnx->get_bgp_group_information(
+            group_name => $opt->{bgp_peer_group}
+        );
+    };
+    alarm 0;
+    if (!ref($res)) {
+        SetError($err,
+            sprintf("Error retrieving BGP information for BGP group %s on switch %s",
+                $opt->{bgp_peer_group},
+                $device->{hostname}
+            )
+        );
+        return undef;
+    }
+
+
+    my $bgpgroups = $res->getElementsByTagName('bgp-group');
+    if (!$bgpgroups) {
+        SetError($err, "Unknown error in getElementsByTagName('bgp-group')");
+        return undef;
+    }
+    my $num_bgp_groups = $bgpgroups->getLength;
+
+
+	# There is an issue : if a BGP group has no peer, the `bgp show group`
+	# command (which is the Junos command ran by get_bgp_group_information) returns
+	# nothing, like if the BGP group was not existing !
+	# --> This behavior is at least ran into when, on a existing BGP GROUP, you
+	#     remove the last peer.
+	# --> So, instead of returning undef, we will return 1.
+    if ($num_bgp_groups == 0) {
+		SetError($err,
+            sprintf("Could not find BGP group %s on switch %s. Group might exist however. Returning 1",
+                $opt->{bgp_peer_group},
+                $device->{hostname}
+            )
+        );
+        return 1;
+    }
+
+    my $bgpgroup_found;
+    my $first_peer_ipaddr;
+    # See remark about Junos OS < 18.4 in the function SetBGPPeerStatus above.
+	# it explains why we have to use a loop here.
+    for (my $i = 0 ; $i < $num_bgp_groups; $i++) {
+        my $node = $bgpgroups->item($i);
+        my $bgp_group_name = $node->getElementsByTagName('name')->item(0)->getFirstChild->getNodeValue;
+
+        next if ($bgp_group_name ne $opt->{bgp_peer_group});
+		$bgpgroup_found = 1;
+
+        my $first_peer = $node->getElementsByTagName('peer-address')->item(0);
+        if ($first_peer) {
+            $first_peer_ipaddr = NetAddr::IP->new( (split '\+', $first_peer->getFirstChild->getNodeValue)[0]);
+        }
+    }
+
+	# see comment above : we might not find the BGP group we are looking if it has no peer.
+	# let's not return an error.
+    if (!$bgpgroup_found) {
+		SetError($err,
+            sprintf("Could not find BGP group %s on switch %s. Group might exist however. Returning 1",
+                $opt->{bgp_peer_group},
+                $device->{hostname}
+            )
+        );
+		return 1;
+    }
+
+	# Can we run into this case despite the bug descrive above ? not sure.
+	# Anyway, it would mean we have foudn the BGP group but it has no peer, so we return 1.
+    if (!$first_peer_ipaddr) {
+        SetError($err,
+            sprintf("Could not find a peer on BGP group %s on switch %s. Cannot determine version yet.",
+                $opt->{bgp_peer_group},
+                $device->{hostname}
+            )
+        );
+        return 1;
+    }
+
+    return $first_peer_ipaddr->version();
 }
 
 sub RemoveVLAN {
