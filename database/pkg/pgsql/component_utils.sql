@@ -1279,7 +1279,7 @@ END;
 $$
 SET search_path=jazzhands
 SECURITY DEFINER
-LANGUAGE plpgsql SECURITY DEFINER;
+LANGUAGE plpgsql;
 
 --
 -- Replace a given simple component with another one.  This isn't very smart,
@@ -1402,5 +1402,4 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-GRANT USAGE ON SCHEMA component_utils TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO iud_role;
