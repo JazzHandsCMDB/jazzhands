@@ -1,3 +1,9 @@
+jazzhands-stab (0.86.2) bionic; urgency=medium
+
+  * Add a confirmation step before updating rack details
+
+ -- Stephane Messerli <stephanae.messerli@xandr.com>  Mon, 02 Mar 2020 17:25:00 +0100
+
 jazzhands-stab (0.86.1) bionic; urgency=medium
 
   * order netblock collections alphabetically in drop down
