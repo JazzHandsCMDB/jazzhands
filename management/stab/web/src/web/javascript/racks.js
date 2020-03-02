@@ -25,8 +25,35 @@
 // $Id$
 //
 
+// Let's save the form data just after the page has finished loading
+// to be able to see what's changed later on
+var formOriginalData = new Array();
+
+$( document ).ready(function() {
+    formOriginalData = $("#RACK_FORM").serializeArray();
+});
+
+
+
 function verify_rack_submission(form) {
 	var nogo = new Array();
+	var values = new Array();
+
+	// Get the submitted form data
+	var formSubmittedData = new Array();
+	formSubmittedData = $("#RACK_FORM").serializeArray();
+
+	// Get the original and submitted site data
+	var dataPoints = [ 'SITE_CODE', 'ROOM', 'SUB_ROOM', 'RACK_ROW', 'RACK_NAME' ];
+	for( var i in dataPoints ) {
+		values = $.grep( formOriginalData.concat( formSubmittedData ), function( n, index ) {
+			regex = new RegExp( '^' + dataPoints[i] + '_[0-9]' );
+			return ( 'name' in n && regex.test( n.name ) );
+		});
+		if( values.length == 2 && values[0].value != values[1].value ) {
+			nogo.push( 'You have changed the rack ' + dataPoints[i].toLowerCase().replace( '_', ' ' ) + ' from ' + values[0].value + ' to ' + values[1].value + '.' );
+		}
+	}
 
 	$("input.scaryrm:checked").each(function() { 
 		if( $(this).hasClass('rmrack') ) {
