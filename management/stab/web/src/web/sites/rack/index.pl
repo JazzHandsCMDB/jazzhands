@@ -182,7 +182,8 @@ sub do_one_rack {
                 "" );
 
 	print $cgi->start_form({
-		 -method => 'GET', 
+		-id => 'RACK_FORM',
+		-method => 'GET', 
 		-action => 'updaterack.pl',
 		-onSubmit => "return(verify_rack_submission(this))",
 	});
