@@ -424,6 +424,7 @@ sub do_update_device {
 		AUTO_MGMT_PROTOCOL  => $mgmtprot,
 
 		SITE_CODE => $site,
+		SERVICE_ENVIRONMENT_ID => $svcenv,
 	};
 
 	#
