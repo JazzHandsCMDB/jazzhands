@@ -3055,10 +3055,10 @@ sub process_and_update_dns_record {
 		}
 
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
-
-			# set all other dns_records but this one to have ptr = 'N'
-			if ( my $recid =
-				$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
+                        # Get the dns record having the ptr
+			my $recid = $self->get_dns_a_record_for_ptr( $opts->{'dns_value'} );
+			# If there is one, and if it's different than the current record, set ptr = 'N'
+			if ( $recid && $recid != $orig->{'dns_record_id'} )
 			{
 				$self->run_update_from_hash( "DNS_RECORD",
 					"DNS_RECORD_ID", $recid, { should_generate_ptr => 'N' } );
