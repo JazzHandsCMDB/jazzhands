@@ -3055,7 +3055,7 @@ sub process_and_update_dns_record {
 		}
 
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
-                        # Get the dns record having the ptr
+			# Get the dns record having the ptr
 			my $recid = $self->get_dns_a_record_for_ptr( $opts->{'dns_value'} );
 			# If there is one, and if it's different than the current record, set ptr = 'N'
 			if ( $recid && $recid != $orig->{'dns_record_id'} )
