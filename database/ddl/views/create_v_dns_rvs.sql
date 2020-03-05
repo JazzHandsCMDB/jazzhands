@@ -91,6 +91,7 @@ UNION ALL
 		    	on dr.start_netblock_id = nbstart.netblock_id
 			inner join netblock nbstop
 		    	on dr.stop_netblock_id = nbstop.netblock_id
+		where	dns_domain_id is NOT NULL
 	) range
 		inner join dns_domain dom
 		    on range.dns_domain_id =
