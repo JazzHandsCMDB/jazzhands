@@ -2278,13 +2278,18 @@ sub device_location_print {
 			-id    => $locid,
 			-value => $hr->{ _dbx('RACK_LOCATION_ID') }
 		);
+	} else {
+		# This is to avoid an undefined hr value to cause issues in the
+		# response generation with a wrong rack selected if no location exists
+		my %emptyhr;
+		$hr = \%emptyhr;
 	}
 
 	my $root = $self->guess_stab_root;
 
 	my ( $rackdivid, $racksiteid );
 	my $racklink = "";
-	if ( $hr && exists( $hr->{ _dbx('LOCATION_RACK_ID') } ) ) {
+	if ( $hr && exists( $hr->{ _dbx('LOCATION_RACK_ID') } ) && $hr->{ _dbx('LOCATION_RACK_ID') } ) {
 		my $rack =
 		  $self->get_rack_from_rackid( $hr->{ _dbx('LOCATION_RACK_ID') } );
 

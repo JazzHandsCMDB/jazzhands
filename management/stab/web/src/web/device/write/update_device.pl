@@ -627,6 +627,13 @@ sub update_location {
 		$curloc = undef;
 	}
 
+	# No location previously existed and no new value provided, the user is not trying to update the location
+        return if ( !defined($curloc) && $rackid eq '' && $locid eq '' && $ru eq '' && $side eq '' );
+
+	if ( !defined($rackid) || !defined($side) || !defined($ru) ) {
+		$stab->error_return('Rack, U Offset and Rack Side are mandatory parameters.');
+	}
+
 	if ( !defined($ru) || $ru !~ /^-?\d+$/ ) {
 		$stab->error_return('U Offset must be a number.');
 	}
