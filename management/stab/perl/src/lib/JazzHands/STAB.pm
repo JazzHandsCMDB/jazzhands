@@ -976,6 +976,8 @@ sub cgi_parse_param {
 
 	if ( defined($v) ) {
 		$v =~ s/^\s*(.+)\s*$/$1/s;
+		# Trim leading and trailing spaces.
+		$v =~ s/^\s+|\s+$//g;
 	}
 	undef $cgi;
 	$v;
