@@ -403,6 +403,31 @@ sub do_update_device {
 			return $stab->return_db_err;
 		}
 
+        # If the asset doesn't exist, let's create it
+	} else {
+		my @errs;
+		my $newasset = {
+			COMPONENT_ID		=> $dbdevice->{ _dbx('COMPONENT_ID') },
+			SERIAL_NUMBER		=> $serialno,
+			PART_NUMBER		=> $partno,
+			ASSET_TAG		=> $assettag,
+			OWNERSHIP_STATUS	=> $owner || 'unknown',
+			LEASE_EXPIRATION_DATE	=> $leasexp,
+		};
+
+		if (
+			!(
+				$numchanges += $stab->DBInsert(
+					table  => 'asset',
+					hash   => $newasset,
+					errors => \@errs
+				)
+			)
+		)
+		{
+			$stab->error_return( join( " ", @errs ) );
+		}
+		my $assetid = $newasset->{ _dbx('ASSET_ID') };
 	}
 
 	my $newdevice = {
