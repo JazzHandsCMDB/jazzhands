@@ -18,9 +18,16 @@
 
 CREATE OR REPLACE FUNCTION account_status_per_row_after_hooks()
 RETURNS TRIGGER AS $$
+DECLARE
+	_al	jazzhands_legacy.account%ROWTYPE;
 BEGIN
 	BEGIN
-		PERFORM local_hooks.account_status_per_row_after_hooks(account_record => NEW);
+		BEGIN
+			PERFORM local_hooks.account_status_per_row_after_hooks(account_record => NEW);
+		EXCEPTION WHEN undefined_function THEN
+			_al := NEW;
+			PERFORM local_hooks.account_status_per_row_after_hooks(account_record => _al);
+		END;
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
