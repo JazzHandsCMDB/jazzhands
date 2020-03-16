@@ -143,9 +143,15 @@ CREATE TRIGGER trigger_validate_pers_comp_attr_value
 CREATE OR REPLACE FUNCTION person_company_attr_change_after_row_hooks() RETURNS TRIGGER AS $$
 DECLARE
 	tally			integer;
+	_pca			jazzhands_legacy.person_company_attr%ROWTYPE;
 BEGIN
 	BEGIN
-		PERFORM local_hooks.person_company_attr_change_after_row_hooks(person_company_attr_row => NEW);
+		BEGIN
+			PERFORM local_hooks.person_company_attr_change_after_row_hooks(person_company_attr_row => NEW);
+		EXCEPTION WHEN undefined_function THEN
+			_pca := NEW;
+			PERFORM local_hooks.person_company_attr_change_after_row_hooks(person_company_attr_row => _pca);
+		END;
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		PERFORM 1;
 	END;
