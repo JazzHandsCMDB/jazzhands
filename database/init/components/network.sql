@@ -63,6 +63,8 @@ BEGIN
 				'QSFP+',
 				'SFP28',
 				'QSFP28',
+				'OSFP',
+				'QSFP-DD',
 				'GBIC',
 				'XENPAK',
 				'RJ45',
@@ -95,6 +97,8 @@ BEGIN
 			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', 'N'),
 			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N'),
 			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', 'N'),
+			('400GQSFP-DDEthernet', 'QSFP-DD', 'network', '400Gbps QSFP-DD Ethernet', 'N'),
+			('400GOSFPEthernet', 'OSFP', 'network', '400Gbps OSFP Ethernet', 'N'),
 			('25GSFP28Ethernet', 'QSFP28', 'network', '25Gbps SFP28 Ethernet', 'N');
 
 
