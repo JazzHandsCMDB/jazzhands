@@ -71,17 +71,18 @@ sub do_rack_chooser {
 		}
 	);
 
-	print $cgi->start_form( { 
-		-method => 'GET', 
-		-action => './' 
-	} );
+	print $cgi->start_form(
+		{
+			-method => 'GET',
+			-action => './'
+		}
+	);
 	print $cgi->h3( { -align => 'center' }, 'Pick a site:' );
 	print $cgi->div(
 		{ -align => 'center' },
 		$stab->b_dropdown(
 			{
-				-onChange =>
-				  "site_to_rack(\"SITE_CODE\", \"$rackdivid\");"
+				-onChange => "site_to_rack(\"SITE_CODE\", \"$rackdivid\");"
 			},
 			undef,
 			'SITE_CODE',
@@ -111,34 +112,19 @@ sub do_one_rack {
 
 	my $box = join(
 		"",
+		$stab->build_tr( $hr, "b_dropdown",  "Site", "SITE_CODE", "RACK_ID" ),
+		$stab->build_tr( $hr, "b_textfield", "Room", "ROOM",      "RACK_ID" ),
 		$stab->build_tr(
-			$hr, "b_dropdown", "Site", "SITE_CODE", "RACK_ID"
+			$hr, "b_textfield", "Sub-Room", "SUB_ROOM", "RACK_ID"
 		),
+		$stab->build_tr( $hr, "b_textfield", "Row",  "RACK_ROW",  "RACK_ID" ),
+		$stab->build_tr( $hr, "b_textfield", "Rack", "RACK_NAME", "RACK_ID" ),
 		$stab->build_tr(
-			$hr, "b_textfield", "Room", "ROOM", "RACK_ID"
+			$hr, "b_textfield", "Description", "DESCRIPTION", "RACK_ID"
 		),
+		$stab->build_tr( $hr, "b_dropdown", "Type", "RACK_TYPE", "RACK_ID" ),
 		$stab->build_tr(
-			$hr, "b_textfield", "Sub-Room", "SUB_ROOM",
-			"RACK_ID"
-		),
-		$stab->build_tr(
-			$hr, "b_textfield", "Row", "RACK_ROW", "RACK_ID"
-		),
-		$stab->build_tr(
-			$hr, "b_textfield", "Rack", "RACK_NAME", "RACK_ID"
-		),
-		$stab->build_tr(
-			$hr,           "b_textfield",
-			"Description", "DESCRIPTION",
-			"RACK_ID"
-		),
-		$stab->build_tr(
-			$hr, "b_dropdown", "Type", "RACK_TYPE", "RACK_ID"
-		),
-		$stab->build_tr(
-			$hr,     "b_nondbdropdown",
-			"Style", "RACK_STYLE",
-			"RACK_ID"
+			$hr, "b_nondbdropdown", "Style", "RACK_STYLE", "RACK_ID"
 		),
 		$stab->build_tr(
 			$hr,           "b_textfield",
@@ -146,23 +132,30 @@ sub do_one_rack {
 			"RACK_ID"
 		),
 		$cgi->Tr(
-			$cgi->td($cgi->b("Remove Rack")),
-			$cgi->td($cgi->checkbox(
-				-name => 'REMOVE_RACK_'.$hr->{_dbx('RACK_ID')},
-				-id => 'REMOVE_RACK_'.$hr->{_dbx('RACK_ID')},
-				-label=> '',
-				-class => 'scaryrm rmrack',
-			))
+			$cgi->td( $cgi->b("Remove Rack") ),
+			$cgi->td(
+				$cgi->checkbox(
+					-name  => 'REMOVE_RACK_' . $hr->{ _dbx('RACK_ID') },
+					-id    => 'REMOVE_RACK_' . $hr->{ _dbx('RACK_ID') },
+					-label => '',
+					-class => 'scaryrm rmrack',
+				)
+			)
 		),
-		$cgi->Tr({
-				-title => 'Equivalent of unchecking Is Monitored on every device listed in the rack',
-			}, $cgi->td($cgi->b("Unmonitor devices in rack")),
-			$cgi->td($cgi->checkbox(
-				-name => 'DEMONITOR_RACK_'.$hr->{_dbx('RACK_ID')},
-				-id => 'DEMONITOR_RACK_'.$hr->{_dbx('RACK_ID')},
-				-label=> '',
-				-class => 'scaryrm demonitor',
-			))
+		$cgi->Tr(
+			{
+				-title =>
+				  'Equivalent of unchecking Is Monitored on every device listed in the rack',
+			},
+			$cgi->td( $cgi->b("Unmonitor devices in rack") ),
+			$cgi->td(
+				$cgi->checkbox(
+					-name  => 'DEMONITOR_RACK_' . $hr->{ _dbx('RACK_ID') },
+					-id    => 'DEMONITOR_RACK_' . $hr->{ _dbx('RACK_ID') },
+					-label => '',
+					-class => 'scaryrm demonitor',
+				)
+			)
 		),
 
 		# [XXX]Display from Bottom
@@ -178,21 +171,22 @@ sub do_one_rack {
 			-javascript => 'rack',
 		}
 	);
-        print $cgi->div( { -id => 'verifybox', -style => 'display: none' },
-                "" );
+	print $cgi->div( { -id => 'verifybox', -style => 'display: none' }, "" );
 
-	print $cgi->start_form({
-		 -method => 'GET', 
-		-action => 'updaterack.pl',
-		-onSubmit => "return(verify_rack_submission(this))",
-	});
+	print $cgi->start_form(
+		{
+			-id       => 'RACK_FORM',
+			-method   => 'GET',
+			-action   => 'updaterack.pl',
+			-onSubmit => "return(verify_rack_submission(this))",
+		}
+	);
 	print $cgi->hidden(
 		-name    => 'RACK_ID_' . $hr->{ _dbx('RACK_ID') },
 		-default => $hr->{ _dbx('RACK_ID') },
 	);
 
-	print $cgi->table( { -class => 'rack_summary', -align => 'center' },
-		$box );
+	print $cgi->table( { -class => 'rack_summary', -align => 'center' }, $box );
 
 	# print $cgi->div({-align=>'center'}, $cgi->submit("Submit Changes"));
 	print $cgi->end_form;

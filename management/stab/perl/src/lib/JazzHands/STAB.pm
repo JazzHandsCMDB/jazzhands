@@ -149,7 +149,7 @@ sub new {
 
 	if ( !exists( $opt->{nocheck_perms} ) ) {
 		my $stabroot = $self->guess_stab_root();
-		my $thisurl = $cgi->url( { -full => 1 } );
+		my $thisurl  = $cgi->url( { -full => 1 } );
 		foreach my $u (
 			sort { length($a) <=> length($b) }
 			keys %{ $self->{_urlpermmap} }
@@ -194,7 +194,7 @@ sub cgi {
 # fetch support email
 #
 sub support_email {
-	my $self = shift @_;
+	my $self  = shift @_;
 	my $email = $self->fetch_property( 'Defaults', '_supportemail' );
 	$email || '-- email support address not set --';
 }
@@ -976,6 +976,9 @@ sub cgi_parse_param {
 
 	if ( defined($v) ) {
 		$v =~ s/^\s*(.+)\s*$/$1/s;
+
+		# Trim leading and trailing spaces.
+		$v =~ s/^\s+|\s+$//g;
 	}
 	undef $cgi;
 	$v;
@@ -2298,7 +2301,7 @@ sub build_checkbox {
 		$name = $name . $params->{-suffix};
 	}
 	my $args = {
-		-name => $name || '',
+		-name  => $name || '',
 		-value => 'on',
 		-label => $label || '',
 	};
@@ -2444,7 +2447,8 @@ sub parse_netblock_search {
 
 	my $parent = $self->guess_parent_netblock_id( $bycidr, undef, 'Y' );
 
-	my $sth = $self->prepare(qq{
+	my $sth = $self->prepare(
+		qq{
 		SELECT *
 		FROM netblock
 		WHERE netblock_id IN ( SELECT
@@ -2455,7 +2459,8 @@ sub parse_netblock_search {
 		))
 		ORDER BY netblock_id
 		LIMIT 1
-	}) || return $self->return_db_err();
+	}
+	) || return $self->return_db_err();
 
 	$sth->execute($bycidr) || return $self->return_db_err($sth);
 
@@ -2929,7 +2934,7 @@ sub vendor_logo {
 sub process_dns_ref_add($$$$) {
 	my ( $self, $recupdid, $refid ) = @_;
 
-	my $cgi = $self->cgi || die "Could not create cgi";
+	my $cgi        = $self->cgi || die "Could not create cgi";
 	my $numchanges = 0;
 
 	my $p        = 'dnsref_';
@@ -2953,7 +2958,7 @@ sub process_dns_ref_add($$$$) {
 sub process_dns_ref_updates($$$$) {
 	my ( $self, $recupdid, $refid ) = @_;
 
-	my $cgi = $self->cgi || die "Could not create cgi";
+	my $cgi        = $self->cgi || die "Could not create cgi";
 	my $numchanges = 0;
 
 	my $p        = 'dnsref_';
@@ -3056,10 +3061,11 @@ sub process_and_update_dns_record {
 
 		if ( $opts->{should_generate_ptr} eq 'Y' ) {
 
-			# set all other dns_records but this one to have ptr = 'N'
-			if ( my $recid =
-				$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
-			{
+			# Get the dns record having the ptr
+			my $recid = $self->get_dns_a_record_for_ptr( $opts->{'dns_value'} );
+
+			# If there is one, and if it's different than the current record, set ptr = 'N'
+			if ( $recid && $recid != $orig->{'dns_record_id'} ) {
 				$self->run_update_from_hash( "DNS_RECORD",
 					"DNS_RECORD_ID", $recid, { should_generate_ptr => 'N' } );
 			}
