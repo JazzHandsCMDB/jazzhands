@@ -210,7 +210,7 @@ BEGIN
 	) ORDER BY table_name
     LOOP
 	PERFORM schema_support.rebuild_audit_trigger
-	    (aud_schema, tbl_schema, table_list.table_name);
+	    (aud_schema, tbl_schema, table_list.table_name::text);
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;
@@ -386,7 +386,7 @@ BEGIN
 	--
 	-- create a new audit table
 	--
-	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
+	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name::text);
 
 	--
 	-- fix sequence primary key to have the correct next value
@@ -585,7 +585,7 @@ BEGIN
 	ORDER BY table_name
     LOOP
 	PERFORM schema_support.build_audit_table
-	    ( aud_schema, tbl_schema, table_list.table_name );
+	    ( aud_schema, tbl_schema, table_list.table_name::text );
     END LOOP;
 
     PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
@@ -701,7 +701,7 @@ BEGIN
 	    AND table_name NOT LIKE 'aud$%'
 	LOOP
 	    PERFORM schema_support.rebuild_stamp_trigger
-		(tbl_schema, tab.table_name);
+		(tbl_schema::text, tab.table_name::text);
 	END LOOP;
     END;
 END;
