@@ -1477,13 +1477,13 @@ sub GenerateTextForACL {
 					ELSE ip_address::text
 				END
 			FROM
-				jazzhands.netblock_collection nc JOIN
-				jazzhands.v_netblock_coll_expanded nce USING
+				netblock_collection nc JOIN
+				v_netblock_coll_expanded nce USING
 					(netblock_collection_id) JOIN
-				jazzhands.netblock_collection_netblock ncn ON
+				netblock_collection_netblock ncn ON
 					(nce.root_netblock_collection_id =
 						ncn.netblock_collection_id) JOIN
-				jazzhands.netblock USING (netblock_id)
+				netblock USING (netblock_id)
 			WHERE
 				netblock_collection_type = 'prefix-list' AND
 				netblock_collection_name = ?
@@ -1503,7 +1503,7 @@ sub GenerateTextForACL {
 			SELECT
 				netblock_collection_id
 			FROM
-				jazzhands.netblock_collection
+				netblock_collection
 			WHERE
 				netblock_collection_type = 'prefix-list' AND
 				netblock_collection_name = ?
