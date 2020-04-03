@@ -58,7 +58,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_account_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_account_triggers.sql
 -- for now, need to do this after jazzhands_legacy is created.
-- \ir ddl/schema/pgsql/create_account_hook_triggers.sql
+-- \ir ddl/schema/pgsql/create_account_hook_triggers.sql
 \ir ddl/schema/pgsql/create_acct_coll_report_triggers.sql
 \ir ddl/schema/pgsql/create_approval_triggers.sql
 \ir ddl/schema/pgsql/create_auto_account_coll_triggers.sql
