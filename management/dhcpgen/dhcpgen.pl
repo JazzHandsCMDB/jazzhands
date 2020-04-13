@@ -407,7 +407,6 @@ sub generate_dhcp_configs {
 		$log->info ("Beginning DHCP rebuild");
 	}
 
-	$jh->do('set search_path=jazzhands');
 	my ($q, $sth);
 	
 	#
