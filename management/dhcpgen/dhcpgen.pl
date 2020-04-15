@@ -42,7 +42,7 @@ use File::Path;
 use Pod::Usage;
 
 eval {
-	if (-f "modules/_LocalHooks.pm") {
+	if (-f "$RealBin/modules/_LocalHooks.pm") {
 		require _LocalHooks;
 	}
 };
