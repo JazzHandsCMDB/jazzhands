@@ -124,5 +124,6 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 \ir ddl/schema/pgsql/create_account_hook_triggers.sql
 \ir ddl/schema/pgsql/create_person_company_attr_with_legacy.sql
+\ir ddl/schema/pgsql/create_jazzhands_legacy_picture_triggers.sql
 
 select now();
