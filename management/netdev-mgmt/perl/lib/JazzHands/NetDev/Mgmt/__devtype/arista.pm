@@ -942,6 +942,7 @@ sub RemoveVLAN {
 	my @errors;
 	my $result = $self->SendCommand(
 		commands => [
+			'configure',
 			'no interface Vlan' . $opt->{encapsulation_tag},
 			'no vlan ' . $opt->{encapsulation_tag}
 		],

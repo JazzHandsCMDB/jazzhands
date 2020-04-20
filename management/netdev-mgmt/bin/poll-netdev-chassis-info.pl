@@ -36,6 +36,7 @@ my $debug = 0;
 my $verbose = 0;
 my $parallel = 0;
 my $probe_addresses = 0;
+my $probe_interfaces = 0;
 
 my $filename;
 my $commit = 1;
@@ -59,6 +60,7 @@ if (!(GetOptions(
 	'hostname=s', $hostname,
 	'management-type=s', \$conf_mgmt_type,
 	'probe-addresses!', \$probe_addresses,
+	'probe-interfaces!', \$probe_interfaces,
 	'debug+', \$debug,
 	'verbose+', \$verbose,
 	'parallel!', \$parallel
@@ -137,8 +139,8 @@ $q = q {
 		jazzhands.device d JOIN
 		jazzhands.device_type dt USING (device_type_id)
 	WHERE
-		(device_name = ? OR
-		physical_label = ?) AND
+		(lower(device_name) = lower(?) OR
+		lower(physical_label) = lower(?)) AND
 		device_status != 'removed'
 };
 
@@ -926,6 +928,19 @@ foreach my $host (@$hostname) {
 #		}
 	}
 
+	if ($probe_interfaces) {
+		my $ifaceinfo = $device->GetInterfaceInformation(
+			$debug => $debug
+		);
+		if ($debug) {
+			print Data::Dumper->Dump([$ifaceinfo], [qw(ifaceinfo)]);
+		}
+	}
+	if ($commit) {
+		if (!$dbh->commit) {
+			print STDERR $dbh->errstr;
+		};
+	}
 }
 
 $dev_by_ip_sth->finish;
