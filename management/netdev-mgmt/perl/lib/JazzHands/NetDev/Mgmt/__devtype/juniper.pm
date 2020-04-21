@@ -109,10 +109,16 @@ sub commit {
 	my $rc = 1;
 	my $jnx = $self->{handle};
 	my @args;
-	if ($opt->{confirmed_timeout}) {
-		push @args, 
-			"confirmed" => 1,
-			"confirm-timeout" => $opt->{confirmed_timeout};
+	if ($opt->{confirmed_timeout} || $opt->{confirmed_timeout_seconds}) {
+		if ($opt->{confirmed_timeout_seconds}) {
+			push @args, 
+				"confirmed" => 1,
+				"confirm-timeout" => $opt->{confirmed_timeout_seconds} / 60;
+		} else {
+			push @args, 
+				"confirmed" => 1,
+				"confirm-timeout" => $opt->{confirmed_timeout};
+		}
 	}
 
 	my $res;
@@ -2913,6 +2919,16 @@ sub RemoveVLAN {
 		$opt->{timeout} = 30;
 	}
 
+    my $device = $self->{device};
+
+    my $jnx;
+    if (!($jnx = $self->{handle})) {
+        SetError($err,
+            sprintf("No connection to device %s", $device->{hostname})
+        );
+        return undef;
+    }
+
 	my $vlans = $self->GetVLANs(
 		timeout => $opt->{timeout},
 		errors => $err
@@ -2979,6 +2995,51 @@ sub RemoveVLAN {
 		}
 	}
 	$conf .= "</configuration>\n";
+
+	if ($opt->{debug}) {
+		printf STDERR "Applying configuration to %s: %s:\n",
+			$self->{device}->{hostname},
+			$conf;
+	}
+	my $parser = new XML::DOM::Parser;
+	my $doc = $parser->parsestring($conf);
+	if (!$doc) {
+		SetError($err,
+			"Bad XML string removing VLAN interface.  This should not happen");
+		return undef;
+	}
+
+    my $res;
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n"; };
+		alarm $opt->{timeout};
+
+		$res = $jnx->load_configuration(
+			format => 'xml',
+			action => 'replace',
+			configuration => $doc
+		);
+	};
+	alarm 0;
+
+	$self->{state} = STATE_CONFIG_LOADED;
+	if ($@) {
+		SetError($err,
+			sprintf("Error removing VLAN %s: %s", $opt->{encapsulation_tag}, $@));
+		return undef;
+	}
+	if (!$res) {
+		SetError($err,
+			sprintf("Unknown error removing VLAN %s", $opt->{encapsulation_tag}));
+		return undef;
+	}
+	my $xmlerr = $res->getFirstError();
+	if ($xmlerr) {
+		SetError($err, sprintf("Error removing VLAN %s: %s",
+			$opt->{encapsulation_tag}, $xmlerr->{message}));
+		return undef;
+	}
+	return 1;
 }
 
 sub GetInterfaceConfig {

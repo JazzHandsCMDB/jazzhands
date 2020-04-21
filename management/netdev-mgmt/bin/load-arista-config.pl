@@ -21,6 +21,7 @@ my $help = 0;
 
 my $filename;
 my $commit = 1;
+my $debug = 0;
 my $user;
 my $password;
 my $parallel = 0;
@@ -35,6 +36,7 @@ GetOptions(
 	'filename=s', \$filename,
 	'username=s', \$user,
 	'password=s', \$password,
+	'debug+', \$debug,
 	'write|commit!', \$commit,
 	'parallel!', \$parallel,
 	'authapp=s', \$authapp
@@ -81,11 +83,6 @@ if (!defined($filename)) {
 my @config;
 chomp(@config = <FH>);
 close FH;
-unshift @config, "configure";
-unshift @config, "enable";
-#if ($commit) {
-#	push @config, "write memory";
-#}
 
 my $netconf = new JazzHands::NetDev::Mgmt;
 while (my $device = shift) {
@@ -98,7 +95,8 @@ while (my $device = shift) {
 			hostname => $device,
 			management_type => 'arista'
 		},
-		errors => \@errors
+		errors => \@errors,
+		debug => $debug
 	);
 
 	if (!defined($dev)) {
@@ -106,12 +104,13 @@ while (my $device = shift) {
 		next;
 	}
 
-	my $result = $dev->SendCommand(
+	my $result = $dev->ApplyConfig(
 		commands => [
 			@config
 		],
 		timeout => 300,
-		errors => \@errors
+		errors => \@errors,
+		debug => $debug
 	);
 
 	if (!defined($result)) {

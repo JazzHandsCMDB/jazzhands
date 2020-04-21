@@ -2022,3 +2022,12 @@ VALUES
 
 -- END Account Name Overrides
 -------------------------------------------------------------------------
+-------------------------------------------------------------------------
+-- BEGIN logical ports
+
+insert into val_logical_port_type (logical_port_type, description) values 
+	('LACP', 'LACP aggregate'),
+	('MLAG', 'Multi-chassis aggregate');
+
+-- END logical ports
+-------------------------------------------------------------------------

@@ -13,6 +13,7 @@ use LWP::UserAgent;
 use JazzHands::NetDev::Mgmt::ACL;
 use Data::Dumper;
 use NetAddr::MAC;
+use UUID::Tiny ':std';
 
 sub new {
 	my $proto = shift;
@@ -61,8 +62,37 @@ sub commit {
 	my $opt = &_options(@_);
 	my $err = $opt->{errors};
 
+	my $commands;
+
+	if ($self->{config_session}) {
+		$commands = [
+			'configure session ' . $self->{config_session}
+		];
+
+		if (
+			defined($opt->{confirmed_timeout}) ||
+			defined($opt->{confirmed_timeout_seconds})
+		) {
+			if (!$opt->{confirmed_timeout_seconds}) {
+				$opt->{confirmed_timeout_seconds} = 
+					$opt->{confirmed_timeout} * 60;
+			}
+			push @$commands, 'commit timer ' .  
+				sprintf("%02d:%02d:%02d",
+					($opt->{confirmed_timeout_seconds} + 0) / 3600,
+					($opt->{confirmed_timeout_seconds} % 3600) / 60,
+					($opt->{confirmed_timeout_seconds} % 60)
+				);
+		} else {
+			push @$commands, 'commit';
+		}
+	}
+
+	delete $self->{config_session};
+
 	return $self->SendCommand(
 		commands => [
+			@$commands,
 			'write memory'
 		],
 		errors => $err
@@ -74,7 +104,27 @@ sub disconnect {
 }
 
 sub rollback {
-	return 1;
+	my $self = shift;
+	if (!ref($self)) {
+		return undef;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+	my $commands;
+
+	if (!$self->{config_session}) {
+		return 1;
+	}
+
+	delete $self->{config_session};
+
+	return $self->SendCommand(
+		commands => [
+			'no configure session ' . $self->{config_session}
+		],
+		errors => $err
+	);
 }
 
 my $arista_cmd_serial = 1;
@@ -127,7 +177,7 @@ sub SendCommand {
 			verify_hostname => 0,
 		}
 	);
-	$ua->agent("arista_mgr/1.0");
+	$ua->agent("jazzhands_mgr/1.0");
 	$ua->timeout($timeout);
 	my $header = HTTP::Headers->new;
 	$header->authorization_basic(
@@ -171,6 +221,23 @@ sub SendCommand {
 	}
 	shift @{$result->{result}};
 	return $result->{result};
+}
+
+sub ApplyConfig {
+	my $self;
+	if (ref($_[0])) {
+		$self = shift;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+	if (!$self->{config_session}) {
+		$self->{config_session} = create_uuid_as_string(UUID_V1);
+	}
+	unshift @{$opt->{commands}},
+		sprintf('configure session %s', $self->{config_session});
+
+	return $self->SendCommand(@_);
 }
 
 sub GetPortStatus {
@@ -466,7 +533,6 @@ sub SetPortVLAN {
 
 	if ($opt->{portmode} eq 'trunk') {
 		$commands = [
-			'configure',
 			map {
 					'interface ' . $_,
 					'spanning-tree portfast edge',
@@ -477,7 +543,6 @@ sub SetPortVLAN {
 		];
 	} else {
 		$commands = [
-			'configure',
 			map {
 					'interface ' . $_,
 					'spanning-tree portfast edge',
@@ -492,7 +557,7 @@ sub SetPortVLAN {
 			join ("\n    ", @$commands);
 	}
 	if ($commands) {
-		my $result = $self->SendCommand(
+		my $result = $self->ApplyConfig(
 			commands => $commands,
 			errors => $errors
 		);
@@ -613,7 +678,6 @@ sub SetPortLACP {
 	my $commands;
 	if ($opt->{lacp}) {
 		$commands = [
-			'configure',
 			'interface ' . $trunk_interface,
 			'mlag ' . $idx,
 			'port-channel lacp fallback',
@@ -644,7 +708,6 @@ sub SetPortLACP {
 		# an option
 		#
 		$commands = [
-			'configure',
 		];
 		foreach my $port (@$ports) {
 			next if (!defined($result->{$port}->{lacp}));
@@ -669,7 +732,7 @@ sub SetPortLACP {
 		if ($debug) {
 			printf STDERR "Commands:\n	%s\n", (join "\n", @$commands);
 		}
-		my $result = $self->SendCommand(
+		my $result = $self->ApplyConfig(
 			commands => $commands,
 			errors => $errors
 		);
@@ -771,7 +834,6 @@ sub SetBGPPeerStatus {
 	};
 
 	$commands = [
-		'configure',
 		'router bgp ' . $asn
 	];
 
@@ -837,9 +899,8 @@ sub SetBGPPeerStatus {
 		push @{$commands},
 			'no neighbor ' . $bgp_peer . ' shutdown';
 	}
-	push @{$commands}, 'write memory';
 
-	$result = $self->SendCommand(
+	$result = $self->ApplyConfig(
 		commands => $commands,
 		errors => $err
 	);
@@ -940,9 +1001,8 @@ sub RemoveVLAN {
 	}
 
 	my @errors;
-	my $result = $self->SendCommand(
+	my $result = $self->ApplyConfig(
 		commands => [
-			'configure',
 			'no interface Vlan' . $opt->{encapsulation_tag},
 			'no vlan ' . $opt->{encapsulation_tag}
 		],
@@ -1437,19 +1497,16 @@ sub SetCiscoFormatACL {
 	}
 
 	my $commands = [
-		'enable',
-		'configure session',
 		'ip access-list ' . $aclname,
 		(
 			map {
 				'no ' . $_->{sequenceNumber}
 			} @{$result->[0]->{aclList}->[0]->{sequence}}
 		),
-		@$converted_acl,
-		'commit'
+		@$converted_acl
 	];
 
-	$result = $self->SendCommand(
+	$result = $self->ApplyConfig(
 		commands => $commands,
 		timeout => 300,
 		errors => $err

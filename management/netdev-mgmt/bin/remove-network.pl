@@ -272,14 +272,19 @@ foreach my $devrec (@$devices) {
 
 	if (!($device->RemoveVLAN(
 			encapsulation_tag => $tag,
-			errors => \@errors
+			errors => \@errors,
+			debug => $debug
 			))) {
 		printf "%s: %s\n", $devrec->{device_name}, (join("\n", @errors));
 		$device->rollback;
 		$device->disconnect;
 		next;
 	}
-	$device->commit;
+	if ($notreally) {
+		$device->rollback;
+	} else {
+		$device->commit;
+	}
 	$device->disconnect;
 	print "done\n";
 }
