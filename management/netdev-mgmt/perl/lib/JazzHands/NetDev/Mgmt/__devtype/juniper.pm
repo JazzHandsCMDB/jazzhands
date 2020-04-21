@@ -2959,7 +2959,7 @@ sub RemoveVLAN {
 			timeout => $opt->{timeout},
 			interface_name => $vlan->{l3_interface}
 		);
-		if ($iface) {
+		if ($iface && %$iface) {
 			$conf .= sprintf(q{
 				<interfaces>
 					<interface>
@@ -2992,6 +2992,8 @@ sub RemoveVLAN {
 					</firewall>
 				};
 			}
+		} else {
+			return 1;
 		}
 	}
 	$conf .= "</configuration>\n";
