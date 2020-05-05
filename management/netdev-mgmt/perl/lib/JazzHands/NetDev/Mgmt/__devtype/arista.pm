@@ -95,6 +95,7 @@ sub commit {
 			@$commands,
 			'write memory'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 }
@@ -123,6 +124,7 @@ sub rollback {
 		commands => [
 			'no configure session ' . $self->{config_session}
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 }
@@ -275,6 +277,7 @@ sub GetPortStatus {
 		commands => [
 			map { 'show interfaces ' . $_ } @$ports
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 	if (!$result) {
@@ -299,6 +302,7 @@ sub GetPortStatus {
 	$result = $self->SendCommand(
 		commands => [ 'show interfaces switchport' ],
 		format => 'text',
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 	if (!$result) {
@@ -374,6 +378,7 @@ sub GetVLANs {
 			'show vlan',
 			'show ip interface'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 	if (!$result) {
@@ -803,6 +808,7 @@ sub SetBGPPeerStatus {
 
 	my $result = $self->SendCommand(
 		commands => $commands,
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -857,6 +863,7 @@ sub SetBGPPeerStatus {
 			#
 			my $result = $self->SendCommand(
 				commands => [ 'show ip interface'],
+				timeout => $opt->{timeout},
 				errors => $err
 			);
 
@@ -933,6 +940,7 @@ sub GetBGPGroupIPFamily {
 	my $result = $self->SendCommand(
 		commands => $commands,
 		format => 'text',
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -940,11 +948,11 @@ sub GetBGPGroupIPFamily {
 		return undef;
 	}
 
-    my $output;
+	my $output;
 	if (!($output = $result->[0]->{output})) {
 		SetError($err, "BGP does not appear to be configured on " .
 			$device->{hostname} . " or there is no BGP group " .
-            $opt->{bgp_peer_group});
+			$opt->{bgp_peer_group});
 		return undef;
 	}
 
@@ -1036,6 +1044,7 @@ sub GetInterfaceConfig {
 			'show ip interface' .
 				($opt->{interface_name} ? ' ' . $opt->{interface_name} : '')
 		],
+		timeout => $opt->{timeout},
 		errors => \@errors
 	);
 
@@ -1078,6 +1087,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ip interface'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1091,6 +1101,8 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ipv6 interface'
 		],
+		timeout => $opt->{timeout},
+		errors => $err
 	);
 
 	my $ipv6ifaces;
@@ -1104,6 +1116,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show vrrp'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1118,6 +1131,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ip virtual-router'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1219,7 +1233,11 @@ my $iface_map = {
 	'100GBASE-SR4' => {
 		module_type => '100GMXPEthernet',
 		media_type => '100GMXPEthernet',
-	}
+	},
+	'100GBASE-CR4' => {
+		module_type => '100GQSFP28Ethernet',
+		media_type => '100GQSFP28Ethernet',
+	},
 };
 
 sub GetLLDPInformation {
@@ -1239,8 +1257,9 @@ sub GetLLDPInformation {
 	my $result = $self->SendCommand(
 		commands => [
 			'show lldp neighbors detail',
-			'show interfaces status'
+#			'show interfaces status'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1249,7 +1268,7 @@ sub GetLLDPInformation {
 	}
 
 	my $lldp = $result->[0]->{lldpNeighbors};
-	my $iface_status = $result->[1]->{interfaceStatuses};
+#	my $iface_status = $result->[1]->{interfaceStatuses};
 
 	my $ifaceinfo = {};
 
@@ -1257,6 +1276,7 @@ sub GetLLDPInformation {
 		commands => [
 			'show lldp local-info'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1272,7 +1292,7 @@ sub GetLLDPInformation {
 		# We only care about things that have reported a remote system
 		# name
 		#
-		if (!exists($ninfo->{systemName})) {
+		if (!exists($ninfo->{systemName}) && !exists($ninfo->{chassiId})) {
 			next;
 		}
 
@@ -1286,6 +1306,11 @@ sub GetLLDPInformation {
 		{
 			# Fuck you, Juniper
 			$rem_port = $ninfo->{neighborInterfaceInfo}->{interfaceDescription};
+		} elsif ($ninfo->{neighborInterfaceInfo}->{interfaceIdType} eq
+			'macAddress')
+		{
+			$rem_port = NetAddr::MAC->new(
+				$ninfo->{neighborInterfaceInfo}->{interfaceId})->as_ieee();
 		} else {
 			next;
 		}
@@ -1296,19 +1321,58 @@ sub GetLLDPInformation {
 
 		my $info = {
 			interface_name => $iface,
+			chassis_id => $ninfo->{chassisId},
 			remote_system_name => $ninfo->{systemName},
 			remote_interface_name => $rem_port
 		};
 
-		my $media_type = $iface_status->{$iface}->{interfaceType};
-		if (defined($media_type) && exists($iface_map->{$media_type})) {
-			map {
-				$info->{$_} = $iface_map->{$media_type}->{$_};
-			} keys %{$iface_map->{$media_type}};
-		}
+#		my $media_type = $iface_status->{$iface}->{interfaceType};
+#		if (defined($media_type) && exists($iface_map->{$media_type})) {
+#			map {
+#				$info->{$_} = $iface_map->{$media_type}->{$_};
+#			} keys %{$iface_map->{$media_type}};
+#		}
 
 		$ifaceinfo->{$iface} = $info;
 	}
+
+	return $ifaceinfo;
+}
+
+sub GetInterfaceInformation {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $result = $self->SendCommand(
+		commands => [
+			'show interfaces status',
+			'show interfaces transceiver',
+		],
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+	my $iface_status = $result->[1]->{interfaceStatuses};
+	my $lldp = $result->[0]->{lldpNeighbors};
+
+	my $ifaceinfo = $self->GetLLDPInformation(
+		errors => $opt->{errors},
+		debug => $debug
+	);
 
 	return $ifaceinfo;
 }
@@ -1341,6 +1405,7 @@ sub TestRouteExistence {
 		commands => [
 			'show ip route ' . $opt->{route} . ' longer-prefixes',
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1477,6 +1542,7 @@ sub SetCiscoFormatACL {
 		commands => [
 			'show ip access-lists ' . $aclname
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1740,6 +1806,7 @@ sub GetChassisInfo {
 			'show inventory',
 			'show version'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1829,6 +1896,7 @@ sub GetChassisInfo {
 		commands => [
 			'show lldp local-info'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
