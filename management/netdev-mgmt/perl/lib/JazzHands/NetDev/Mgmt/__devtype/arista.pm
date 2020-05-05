@@ -768,7 +768,6 @@ sub SetBGPPeerStatus {
 			return undef;
 		}
 	}
-#	print STDERR Data::Dumper->Dump([$bgp_peer, $peerobj], ['$bgp_peer', '$peerobj']);
 
 	if (!$opt->{bgp_peer_group}) {
 		SetError($err,
@@ -804,21 +803,20 @@ sub SetBGPPeerStatus {
 
 	my $result = $self->SendCommand(
 		commands => $commands,
-		format => 'text',
 		errors => $err
 	);
 
 	if (!$result) {
 		return undef;
 	}
-	my $output;
-	if (!($output = $result->[0]->{output})) {
+	my $bgp_info;
+	if (!($bgp_info = $result->[0]->{vrfs}->{default})) {
 		SetError($err, "BGP does not appear to be configured on " .
 			$device->{hostname});
 		return undef;
 	}
 
-	my ($asn) = $output =~ /local AS number (\d+)/m;
+	my ($asn) = $bgp_info->{asn};
 
 	if (!$asn) {
 		SetError($err, sprintf(
@@ -827,11 +825,7 @@ sub SetBGPPeerStatus {
 		return undef;
 	}
 
-	my @output = split /\n/, $output;
-
-	my $peers = {
-		map { (split /\s+/, $_)[0,8] } (grep /^\d+/, @output)
-	};
+	my $peers = $bgp_info->{peers};
 
 	$commands = [
 		'router bgp ' . $asn
