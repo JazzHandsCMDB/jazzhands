@@ -1,4 +1,4 @@
-jazzhands-perl-netdev-mgmt (0.86.7) unstable; urgency=low
+jazzhands-perl-netdev-mgmt (0.86.7.1) unstable; urgency=low
 
   * Implement configuration sessions with rollback/commit for Arista changes
   * Add additional media types (100G and 400G types), at least until these
