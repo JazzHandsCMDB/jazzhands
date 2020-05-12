@@ -2228,55 +2228,55 @@ BEGIN
 	END IF;
 
 	FOR _r IN
-		WITH x AS (
-		SELECT *
+		with x AS ( SELECT *
 			FROM (
-		SELECT oid, schema, name,  typ,
-			p->>'privilege_type' as privilege_type,
-			col,
-			r.usename as grantor, e.usename as grantee,
-			r.usesysid as rid,  e.usesysid as eid,
-			e.useconfig
-		FROM (
-			SELECT  c.oid, n.nspname as schema,
-			c.relname as name,
-			CASE c.relkind
+			SELECT x.oid, schema, name,  typ,
+				p->>'privilege_type' as privilege_type,
+				col,
+				r.rolname as grantor, e.rolname as grantee,
+				r.oid as rid,  e.oid as eid,
+				e.rolconfig
+			FROM (
+				SELECT  c.oid, n.nspname as schema,
+				c.relname as name,
+				CASE c.relkind
 				WHEN 'r' THEN 'table'
 				WHEN 'm' THEN 'view'
 				WHEN 'v' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as typ,
-				NULL::text as col,
-			to_jsonb(pg_catalog.aclexplode(acl := c.relacl)) as p
-			FROM    pg_catalog.pg_class c
-			INNER JOIN pg_catalog.pg_namespace n
+					NULL::text as col,
+				to_jsonb(pg_catalog.aclexplode(
+					acl := c.relacl)) as p
+				FROM    pg_catalog.pg_class c
+				INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
-			WHERE c.relkind IN ('r', 'v', 'S', 'f')
-		UNION ALL
-		SELECT  c.oid, n.nspname as schema,
-			c.relname as name,
-			CASE c.relkind
+				WHERE c.relkind IN ('r', 'v', 'S', 'f')
+			UNION ALL
+			SELECT  c.oid, n.nspname as schema,
+				c.relname as name,
+				CASE c.relkind
 				WHEN 'r' THEN 'table'
 				WHEN 'v' THEN 'view'
 				WHEN 'mv' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as typ,
-			a.attname as col,
-			to_jsonb(pg_catalog.aclexplode(a.attacl)) as p
-			FROM    pg_catalog.pg_class c
-			INNER JOIN pg_catalog.pg_namespace n
+				a.attname as col,
+				to_jsonb(pg_catalog.aclexplode(a.attacl)) as p
+				FROM    pg_catalog.pg_class c
+				INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
-			INNER JOIN pg_attribute a
+				INNER JOIN pg_attribute a
 				ON a.attrelid = c.oid
-			WHERE c.relkind IN ('r', 'v', 'S', 'f')
-			AND a.attacl IS NOT NULL
-		) x
-		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
-		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
-		) i
-		) select *
+				WHERE c.relkind IN ('r', 'v', 'S', 'f')
+				AND a.attacl IS NOT NULL
+			) x
+			LEFT JOIN pg_roles r ON r.oid = (p->>'grantor')::oid
+			LEFT JOIN pg_roles e ON e.oid = (p->>'grantee')::oid
+			) i
+		) SELECT *
 		FROM x
 		WHERE ( schema = old_schema )
 		AND grantee = username
