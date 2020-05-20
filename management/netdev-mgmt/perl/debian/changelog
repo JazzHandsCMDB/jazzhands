@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.86.8.1) unstable; urgency=low
+
+  * Fix issue with doing a commit with no configuration session active
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 20 May 2020 21:53:53 +0000
+
 jazzhands-perl-netdev-mgmt (0.86.7.1) unstable; urgency=low
 
   * Implement configuration sessions with rollback/commit for Arista changes
