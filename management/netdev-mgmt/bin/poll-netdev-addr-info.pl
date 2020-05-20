@@ -137,8 +137,8 @@ $q = q {
 		d.device_name,
 		dt.config_fetch_type
 	FROM
-		jazzhands.device d JOIN
-		jazzhands.device_type dt USING (device_type_id)
+		device d JOIN
+		.device_type dt USING (device_type_id)
 	WHERE
 		lower(device_name) = lower(?)
 };
@@ -157,8 +157,8 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 #		ni.network_interface_id,
 #		ni.network_interface_name
 #	FROM
-#		jazzhands.network_interface ni JOIN
-#		jazzhands.network_interface_netblock USING (network_interface_id),
+#		network_interface ni JOIN
+#		network_interface_netblock USING (network_interface_id),
 #		parms
 #	WHERE
 #		ni.device_id = parms.device_id
@@ -166,8 +166,8 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 #		ni.network_interface_id,
 #		ni.network_interface_name
 #	FROM
-#		jazzhands.network_interface ni JOIN
-#		jazzhands.shared_netblock_network_int snni USING (network_interface_id),
+#		network_interface ni JOIN
+#		shared_netblock_network_int snni USING (network_interface_id),
 #		parms
 #	WHERE
 #		ni.device_id = parms.device_id
@@ -178,7 +178,7 @@ $q = q {
 		ni.network_interface_id,
 		ni.network_interface_name
 	FROM
-		jazzhands.network_interface ni
+		network_interface ni
 	WHERE
 		ni.device_id = ?
 };

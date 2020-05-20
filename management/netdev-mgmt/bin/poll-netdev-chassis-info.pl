@@ -136,8 +136,8 @@ $q = q {
 		d.physical_label,
 		dt.config_fetch_type
 	FROM
-		jazzhands.device d JOIN
-		jazzhands.device_type dt USING (device_type_id)
+		device d JOIN
+		device_type dt USING (device_type_id)
 	WHERE
 		(lower(device_name) = lower(?) OR
 		lower(physical_label) = lower(?)) AND
@@ -158,13 +158,13 @@ $q = q {
 			?::text AS device_name,
 			?::text AS device_type_name
 	) UPDATE
-		jazzhands.device d
+		device d
 	SET
 		device_name = parms.device_name,
 		physical_label = parms.device_name,
 		device_type_id = dt.device_type_id
 	FROM
-		jazzhands.device_type dt,
+		device_type dt,
 		parms
 	WHERE
 		d.device_id = parms.device_id AND
@@ -184,7 +184,7 @@ $q = q {
 		SELECT
 			?::text AS device_name,
 			?::text AS device_type_name
-	) INSERT INTO jazzhands.device (
+	) INSERT INTO device (
 		device_type_id,
 		device_name,
 		physical_label,
@@ -205,8 +205,8 @@ $q = q {
 		'N',
 		'Y'
 	FROM
-		jazzhands.service_environment se,
-		jazzhands.device_type dt,
+		service_environment se,
+		device_type dt,
 		parms
 	WHERE
 		service_environment_name = 'production' AND
@@ -231,7 +231,7 @@ $q = q {
 			?::text AS ip_addr
 	), upd_nb AS (
 		UPDATE
-			jazzhands.netblock n
+			netblock n
 		SET
 			netblock_type = 'default',
 			parent_netblock_id = netblock_utils.find_best_parent_id(
@@ -244,7 +244,7 @@ $q = q {
 			is_single_address = 'Y' AND
 			netblock_type = 'dns'
 	)
-	INSERT INTO jazzhands.network_interface (
+	INSERT INTO network_interface (
 		device_id,
 		network_interface_name,
 		netblock_id,
@@ -258,7 +258,7 @@ $q = q {
 		'Y'
 	FROM
 		parms,
-		jazzhands.netblock n
+		netblock n
 	WHERE
 		host(n.ip_address) = parms.ip_addr AND
 		is_single_address = 'Y'
@@ -273,7 +273,7 @@ if (!($ins_ni_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	UPDATE
-		jazzhands.netblock n
+		netblock n
 	SET
 		netblock_type = 'default'
 	WHERE
@@ -291,7 +291,7 @@ if (!($upd_nb_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	UPDATE
-		jazzhands.network_interface
+		network_interface
 	SET
 		network_interface_name = ?
 	WHERE
@@ -307,7 +307,7 @@ if (!($upd_ni_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	UPDATE
-		jazzhands.device
+		device
 	SET
 		host_id = ?
 	WHERE
@@ -323,12 +323,12 @@ if (!($set_hi_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	UPDATE
-		jazzhands.component c
+		component c
 	SET
 		component_type_id = ct.component_type_id
 	FROM
-		jazzhands.component_type ct,
-		jazzhands.component_type oct
+		component_type ct,
+		component_type oct
 	WHERE
 		c.component_id = ? AND
 		c.component_type_id = oct.component_type_id AND
@@ -345,7 +345,7 @@ if (!($upd_ct_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	UPDATE
-		jazzhands.asset a
+		asset a
 	SET
 		serial_number = ?
 	WHERE
@@ -360,7 +360,7 @@ if (!($set_sn_sth = $dbh->prepare_cached($q))) {
 }
 
 $q = q {
-	INSERT INTO jazzhands.asset (
+	INSERT INTO asset (
 		component_id,
 		serial_number,
 		ownership_status
@@ -391,8 +391,8 @@ $q = q {
 				SELECT
 					ct.component_type_id
 				FROM
-					jazzhands.component_type ct JOIN
-					jazzhands.company c USING (company_id),
+					component_type ct JOIN
+					company c USING (company_id),
 					parms
 				WHERE
 					c.company_name = parms.company_name AND
@@ -401,7 +401,7 @@ $q = q {
 			serial_number := (SELECT parms.serial FROM parms)
 		)
 	) UPDATE
-		jazzhands.component c
+		component c
 	SET
 		parent_slot_id = parms.slot_id
 	FROM
@@ -431,8 +431,8 @@ $q = q {
 				SELECT
 					ct.component_type_id
 				FROM
-					jazzhands.component_type ct JOIN
-					jazzhands.company c USING (company_id),
+					component_type ct JOIN
+					company c USING (company_id),
 					parms
 				WHERE
 					c.company_name = parms.company_name AND
@@ -441,7 +441,7 @@ $q = q {
 			serial_number := (SELECT parms.serial FROM parms)
 		)
 	) UPDATE
-		jazzhands.device d
+		device d
 	SET
 		component_id = comp_fetch.component_id
 	FROM
@@ -469,13 +469,13 @@ SELECT
 	a.asset_id,
 	a.serial_number
 FROM
-	jazzhands.device d LEFT JOIN
-	jazzhands.component p USING (component_id) LEFT JOIN
-	jazzhands.slot s USING (component_id) LEFT JOIN
-	jazzhands.component c ON (s.slot_id = c.parent_slot_id) LEFT JOIN
-	jazzhands.component_type ct ON
+	device d LEFT JOIN
+	component p USING (component_id) LEFT JOIN
+	slot s USING (component_id) LEFT JOIN
+	component c ON (s.slot_id = c.parent_slot_id) LEFT JOIN
+	component_type ct ON
 		(c.component_type_id = ct.component_type_id) LEFT JOIN
-	jazzhands.asset a ON (a.component_id = c.component_id)
+	asset a ON (a.component_id = c.component_id)
 WHERE
 	device_id = ?
 };
@@ -495,11 +495,11 @@ SELECT
 	a.asset_id,
 	a.serial_number
 FROM
-	jazzhands.device d LEFT JOIN
-	jazzhands.component c USING (component_id) LEFT JOIN
-	jazzhands.component_type ct ON
+	device d LEFT JOIN
+	component c USING (component_id) LEFT JOIN
+	component_type ct ON
 		(c.component_type_id = ct.component_type_id) LEFT JOIN
-	jazzhands.asset a ON (a.component_id = c.component_id)
+	asset a ON (a.component_id = c.component_id)
 WHERE
 	device_id = ?
 };
