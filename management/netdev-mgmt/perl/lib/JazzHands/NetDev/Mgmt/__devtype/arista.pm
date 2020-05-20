@@ -62,7 +62,7 @@ sub commit {
 	my $opt = &_options(@_);
 	my $err = $opt->{errors};
 
-	my $commands;
+	my $commands = [];
 
 	if ($self->{config_session}) {
 		$commands = [
