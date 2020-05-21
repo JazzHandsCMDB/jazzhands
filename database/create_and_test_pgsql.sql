@@ -45,6 +45,20 @@ grant create on database jazzhands_new to jazzhands;
 -- create database feedlogs;
 grant create on database jazzhands_new to jazzhands;
 
+\c jazzhands_new
+
+-- arguably should revoke public access to pgcrypto here but it
+-- may already exist.  Tricky if it's not in a pgcrypto schema.
+DO $$
+BEGIN
+	CREATE SCHEMA pgcrypto;
+	CREATE EXTENSION IF NOT EXISTS pgcrypto WITH schema pgcrypto;
+EXCEPTION WHEN duplicate_schema THEN
+	NULL;
+END;
+$$;
+
+
 \c jazzhands_new jazzhands;
 
 \ir create_pgsql_schema.sql
