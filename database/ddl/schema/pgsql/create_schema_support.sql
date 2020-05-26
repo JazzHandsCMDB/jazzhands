@@ -202,7 +202,7 @@ BEGIN
     -- select tables with audit tables
     --
     FOR table_list IN
-	SELECT table_name FROM information_schema.tables
+	SELECT table_name::text FROM information_schema.tables
 	WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
 	AND table_name IN (
 	    SELECT table_name FROM information_schema.tables
@@ -210,7 +210,7 @@ BEGIN
 	) ORDER BY table_name
     LOOP
 	PERFORM schema_support.rebuild_audit_trigger
-	    (aud_schema, tbl_schema, table_list.table_name::text);
+	    (aud_schema, tbl_schema, table_list.table_name);
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;
@@ -386,7 +386,7 @@ BEGIN
 	--
 	-- create a new audit table
 	--
-	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name::text);
+	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
 
 	--
 	-- fix sequence primary key to have the correct next value
@@ -448,6 +448,7 @@ BEGIN
 		WHERE c.relname =  table_name
 		AND	 n.nspname = tbl_schema
 		AND con.contype in ('p', 'u')
+		ORDER BY CASE WHEN con.contype = 'p' THEN 0 ELSE 1 END, con.conname
 	LOOP
 		name := 'aud_' || quote_ident( table_name || '_' || keys.conname);
 		IF char_length(name) > 63 THEN
@@ -574,7 +575,7 @@ DECLARE
      table_list RECORD;
 BEGIN
     FOR table_list IN
-	SELECT table_name FROM information_schema.tables
+	SELECT table_name::text FROM information_schema.tables
 	WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
 	AND NOT (
 	    table_name IN (
@@ -585,7 +586,7 @@ BEGIN
 	ORDER BY table_name
     LOOP
 	PERFORM schema_support.build_audit_table
-	    ( aud_schema, tbl_schema, table_list.table_name::text );
+	    ( aud_schema, tbl_schema, table_list.table_name );
     END LOOP;
 
     PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
@@ -599,30 +600,38 @@ $FUNC$ LANGUAGE plpgsql;
 -- added or there's some other reason to want to do it.
 --
 CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_tables
-    ( aud_schema varchar, tbl_schema varchar )
+	( aud_schema varchar, tbl_schema varchar )
 RETURNS VOID AS $FUNC$
 DECLARE
-     table_list RECORD;
+	 table_list RECORD;
 BEGIN
-    FOR table_list IN
-	SELECT b.table_name
-	FROM information_schema.tables b
-		INNER JOIN information_schema.tables a
-			USING (table_name,table_type)
-	WHERE table_type = 'BASE TABLE'
-	AND a.table_schema = aud_schema
-	AND b.table_schema = tbl_schema
-	ORDER BY table_name
-    LOOP
-	PERFORM schema_support.save_dependent_objects_for_replay(aud_schema::varchar, table_list.table_name::varchar);
-	PERFORM schema_support.save_grants_for_replay(aud_schema, table_list.table_name);
-	PERFORM schema_support.rebuild_audit_table
-	    ( aud_schema, tbl_schema, table_list.table_name );
-	PERFORM schema_support.replay_object_recreates();
-	PERFORM schema_support.replay_saved_grants();
-    END LOOP;
+	FOR table_list IN
+		SELECT b.table_name::text
+		FROM information_schema.tables b
+			INNER JOIN information_schema.tables a
+				USING (table_name,table_type)
+		WHERE table_type = 'BASE TABLE'
+		AND a.table_schema = aud_schema
+		AND b.table_schema = tbl_schema
+		ORDER BY table_name
+	LOOP
+		PERFORM schema_support.save_dependent_objects_for_replay(
+			schema := aud_schema::varchar,
+			object := table_list.table_name::varchar,
+			tags:= ARRAY['rebuild_audit_tables']);
+		PERFORM schema_support.save_grants_for_replay(schema := aud_schema,
+			object := table_list.table_name,
+			tags := ARRAY['rebuild_audit_tables']);
+		PERFORM schema_support.rebuild_audit_table
+			( aud_schema, tbl_schema, table_list.table_name );
+		PERFORM schema_support.replay_object_recreates();
+		PERFORM schema_support.replay_saved_grants();
+		END LOOP;
 
-    PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
+	PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
+	PERFORM schema_support.replay_object_recreates(tags := ARRAY['rebuild_audit_tables
+']);
+	PERFORM schema_support.replay_saved_grants(tags := ARRAY['rebuild_audit_tables']);
 END;
 $FUNC$ LANGUAGE plpgsql;
 
@@ -696,12 +705,12 @@ BEGIN
 	tab RECORD;
     BEGIN
 	FOR tab IN
-	    SELECT table_name FROM information_schema.tables
+	    SELECT table_name::text FROM information_schema.tables
 	    WHERE table_schema = tbl_schema AND table_type = 'BASE TABLE'
 	    AND table_name NOT LIKE 'aud$%'
 	LOOP
 	    PERFORM schema_support.rebuild_stamp_trigger
-		(tbl_schema::text, tab.table_name::text);
+		(tbl_schema, tab.table_name);
 	END LOOP;
     END;
 END;
@@ -778,7 +787,7 @@ BEGIN
 	   AND	relpersistence = 't';
 
 	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __regrants (id SERIAL, schema text, object text, newname text, regrant text);
+		CREATE TEMPORARY TABLE IF NOT EXISTS __regrants (id SERIAL, schema text, object text, newname text, regrant text, tags text[]);
 	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -790,7 +799,8 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_relations(
 	schema varchar,
 	object varchar,
-	newname varchar DEFAULT NULL
+	newname varchar DEFAULT NULL,
+	tags text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_schema		varchar;
@@ -850,7 +860,7 @@ BEGIN
 				RAISE EXCEPTION 'built up grant for %.% (%) is NULL',
 					schema, object, newname;
 	    END IF;
-			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
+			INSERT INTO __regrants (schema, object, newname, regrant, tags) values (schema,object, newname, _fullgrant, tags );
 		END LOOP;
 	END LOOP;
 
@@ -901,7 +911,7 @@ BEGIN
 				RAISE EXCEPTION 'built up grant for %.% (%) is NULL',
 					schema, object, newname;
 	    END IF;
-			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
+			INSERT INTO __regrants (schema, object, newname, regrant, tags) values (schema,object, newname, _fullgrant, tags );
 		END LOOP;
 	END LOOP;
 
@@ -915,7 +925,8 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay_functions(
 	schema varchar,
 	object varchar,
-	newname varchar DEFAULT NULL
+	newname varchar DEFAULT NULL,
+	tags text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_schema		varchar;
@@ -960,7 +971,7 @@ BEGIN
 				newname || '(' || _procs.args || ')  to ' ||
 				_role || _grant;
 			-- RAISE DEBUG 'inserting % for %', _fullgrant, _perm;
-			INSERT INTO __regrants (schema, object, newname, regrant) values (schema,object, newname, _fullgrant );
+			INSERT INTO __regrants (schema, object, newname, regrant, tags) values (schema,object, newname, _fullgrant, tags );
 		END LOOP;
 	END LOOP;
 END;
@@ -972,11 +983,12 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_grants_for_replay(
 	schema varchar,
 	object varchar,
-	newname varchar DEFAULT NULL
+	newname varchar DEFAULT NULL,
+	tags text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 BEGIN
-	PERFORM schema_support.save_grants_for_replay_relations(schema, object, newname);
-	PERFORM schema_support.save_grants_for_replay_functions(schema, object, newname);
+	PERFORM schema_support.save_grants_for_replay_relations(schema, object, newname, tags);
+	PERFORM schema_support.save_grants_for_replay_functions(schema, object, newname, tags);
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
@@ -984,7 +996,9 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- replay saved grants, drop temporary tables
 --
 CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants(
-	beverbose	boolean DEFAULT false
+	beverbose	boolean DEFAULT false,
+	schema		text DEFAULT NULL,
+	tags		text DEFAULT NULL
 )
 RETURNS VOID AS $$
 DECLARE
@@ -1000,6 +1014,14 @@ BEGIN
 	IF _tally > 0 THEN
 	    FOR _r in SELECT * from __regrants FOR UPDATE
 	    LOOP
+			if tags IS NOT NULL THEN
+				CONTINUE WHEN _r.tags IS NULL;
+				CONTINUE WHEN NOT _r.tags && tags;
+			END IF;
+			if schema IS NOT NULL THEN
+				CONTINUE WHEN _r.schema IS NULL;
+				CONTINUE WHEN _r.schema != schema;
+			END IF;
 		    IF beverbose THEN
 			    RAISE NOTICE 'Regrant Executing: %', _r.regrant;
 		    END IF;
@@ -1009,7 +1031,9 @@ BEGIN
 
 	    SELECT count(*) INTO _tally from __regrants;
 	    IF _tally > 0 THEN
-		    RAISE EXCEPTION 'Grant extractions were run while replaying grants - %.', _tally;
+			IF schema IS NULL AND tags IS NULL THEN
+				RAISE EXCEPTION 'Grant extractions were run while replaying grants - %.', _tally;
+			END IF;
 	    ELSE
 		    DROP TABLE __regrants;
 	    END IF;
@@ -1039,7 +1063,7 @@ BEGIN
 	   AND	relpersistence = 't';
 
 	IF _tally = 0 THEN
-		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, owner text, type text, ddl text, idargs text);
+		CREATE TEMPORARY TABLE IF NOT EXISTS __recreate (id SERIAL, schema text, object text, owner text, type text, ddl text, idargs text, tags text[], path text[]);
 	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -1051,7 +1075,9 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(
 	schema varchar,
 	object varchar,
-	dropit boolean DEFAULT true
+	dropit boolean DEFAULT true,
+	tags text[] DEFAULT NULL,
+	path text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -1061,13 +1087,14 @@ DECLARE
 	_mat	TEXT;
 	_typ	TEXT;
 BEGIN
+	path = path || concat(schema, '.', object);
 	PERFORM schema_support.prepare_for_object_replay();
 
 	-- implicitly save regrants
-	PERFORM schema_support.save_grants_for_replay(schema, object);
+	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
 
 	-- save any triggers on the view
-	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
+	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit, tags, path);
 
 	-- now save the view
 	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
@@ -1113,18 +1140,18 @@ BEGIN
 				_ddl := 'ALTER VIEW ' || quote_ident(schema) || '.' ||
 					quote_ident(object) || ' ALTER COLUMN ' ||
 					quote_ident(_c.colname) || ' SET DEFAULT ' || _c.def;
-				INSERT INTO __recreate (schema, object, type, ddl )
+				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
 					VALUES (
-						_r.nspname, _r.relname, 'default', _ddl
+						_r.nspname, _r.relname, 'default', _ddl, tags, path
 					);
 			END IF;
 			IF _c.comment IS NOT NULL THEN
 				_ddl := 'COMMENT ON COLUMN ' ||
 					quote_ident(schema) || '.' || quote_ident(object)
 					' IS ''' || _c.comment || '''';
-				INSERT INTO __recreate (schema, object, type, ddl )
+				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
 					VALUES (
-						_r.nspname, _r.relname, 'colcomment', _ddl
+						_r.nspname, _r.relname, 'colcomment', _ddl, tags, path
 					);
 			END IF;
 
@@ -1141,9 +1168,9 @@ BEGIN
 		IF _ddl is NULL THEN
 			RAISE EXCEPTION 'Unable to define view for %', _r;
 		END IF;
-		INSERT INTO __recreate (schema, object, owner, type, ddl )
+		INSERT INTO __recreate (schema, object, owner, type, ddl, tags, path )
 			VALUES (
-				_r.nspname, _r.relname, _r.owner, _typ, _ddl
+				_r.nspname, _r.relname, _r.owner, _typ, _ddl, tags, path
 			);
 		IF dropit  THEN
 			_cmd = 'DROP ' || _mat || _r.nspname || '.' || _r.relname || ';';
@@ -1165,7 +1192,9 @@ CREATE OR REPLACE FUNCTION schema_support.save_dependent_objects_for_replay(
 	schema varchar,
 	object varchar,
 	dropit boolean DEFAULT true,
-	doobjectdeps boolean DEFAULT false
+	doobjectdeps boolean DEFAULT false,
+	tags text[] DEFAULT NULL,
+	path text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
@@ -1173,6 +1202,7 @@ DECLARE
 	_ddl	TEXT;
 BEGIN
 	RAISE DEBUG 'processing %.%', schema, object;
+	path = path || concat(schema, '.', object);
 	-- process stored procedures
 	FOR _r in SELECT  distinct np.nspname::text, dependent.proname::text
 		FROM   pg_depend dep
@@ -1184,9 +1214,9 @@ BEGIN
 			  AND	  n.nspname = schema
 	LOOP
 		-- RAISE NOTICE '1 dealing with  %.%', _r.nspname, _r.proname;
-		PERFORM schema_support.save_constraint_for_replay(_r.nspname, _r.proname, dropit);
-		PERFORM schema_support.save_dependent_objects_for_replay(_r.nspname, _r.proname, dropit);
-		PERFORM schema_support.save_function_for_replay(_r.nspname, _r.proname, dropit);
+		PERFORM schema_support.save_constraint_for_replay(schema := _r.nspname, object := _r.proname, dropit := dropit, tags := tags, path := path);
+		PERFORM schema_support.save_dependent_objects_for_replay(_r.nspname, _r.proname, dropit, doobjectdeps, tags, path);
+		PERFORM schema_support.save_function_for_replay(_r.nspname, _r.proname, dropit, tags, path);
 	END LOOP;
 
 	-- save any triggers on the view
@@ -1204,13 +1234,13 @@ BEGIN
 	LOOP
 		IF _r.relkind = 'v' OR _r.relkind = 'm' THEN
 			-- RAISE NOTICE '2 dealing with  %.%', _r.nspname, _r.relname;
-			PERFORM * FROM save_dependent_objects_for_replay(_r.nspname, _r.relname, dropit);
-			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit);
+			PERFORM * FROM save_dependent_objects_for_replay(_r.nspname, _r.relname, dropit, doobjectdeps, tags, path);
+			PERFORM schema_support.save_view_for_replay(_r.nspname, _r.relname, dropit, tags, path);
 		END IF;
 	END LOOP;
 	IF doobjectdeps THEN
-		PERFORM schema_support.save_trigger_for_replay(schema, object, dropit);
-		PERFORM schema_support.save_constraint_for_replay('jazzhands', 'table');
+		PERFORM schema_support.save_trigger_for_replay(schema, object, dropit, tags, path);
+		PERFORM schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'table', tags := tags, path := path);
 	END IF;
 END;
 $$
@@ -1224,12 +1254,15 @@ SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_trigger_for_replay(
 	schema varchar,
 	object varchar,
-	dropit boolean DEFAULT true
+	dropit boolean DEFAULT true,
+	tags text[] DEFAULT NULL,
+	path text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
 BEGIN
+	path = path || concat(schema, '.', object);
 	PERFORM schema_support.prepare_for_object_replay();
 
 	FOR _r in
@@ -1240,9 +1273,9 @@ BEGIN
 			INNER JOIN pg_namespace n on n.oid = c.relnamespace
 		WHERE n.nspname = schema and c.relname = object
 	LOOP
-		INSERT INTO __recreate (schema, object, type, ddl )
+		INSERT INTO __recreate (schema, object, type, ddl, tags , path)
 			VALUES (
-				_r.nspname, _r.relname, 'trigger', _r.def
+				_r.nspname, _r.relname, 'trigger', _r.def, tags, path
 			);
 		IF dropit  THEN
 			_cmd = 'DROP TRIGGER ' || _r.tgname || ' ON ' ||
@@ -1260,37 +1293,113 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_constraint_for_replay(
 	schema varchar,
 	object varchar,
-	dropit boolean DEFAULT true
+	dropit boolean DEFAULT true,
+	newobject varchar DEFAULT NULL,
+	newmap jsonb DEFAULT NULL,
+	tags text[] DEFAULT NULL,
+	path text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
 	_ddl	TEXT;
+	_def	TEXT;
+	_cols	TEXT;
+	_myname	TEXT;
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
 
-	FOR _r in	SELECT n.nspname, c.relname, con.conname,
-				pg_get_constraintdef(con.oid, true) as def
-		FROM pg_constraint con
-			INNER JOIN pg_class c on (c.relnamespace, c.oid) =
-				(con.connamespace, con.conrelid)
-			INNER JOIN pg_namespace n on n.oid = c.relnamespace
-		WHERE con.confrelid in (
-			select c.oid
-			from pg_class c
-				inner join pg_namespace n on n.oid = c.relnamespace
-			WHERE c.relname = object
-			AND n.nspname = schema
-		) AND n.nspname != schema
+	-- This used to be just "def" but a once this was incorporating
+	-- tables and columns changing name, had to construct the definition
+	-- by hand.  yay.  Most of this query is to match the two sides
+	-- together.  This query took way too long to figure out.
+	--
+	FOR _r in
+		SELECT otherside.nspname, otherside.relname, otherside.conname,
+		    pg_get_constraintdef(otherside.oid, true) AS def,
+		    otherside.conname, otherside.condeferrable, otherside.condeferred,
+			otherside.cols as cols,
+		    myside.nspname as mynspname, myside.relname as myrelname,
+		    myside.cols as mycols, myside.conname as myconname
+		FROM
+		    (
+		        SELECT me.oid, n.oid as namespaceid, nspname, relname,
+		                conrelid, conindid, confrelid, conname, connamespace,
+		                condeferrable, condeferred,
+		                array_agg(attname) as cols
+		        FROM (
+		            SELECT con.*, a.attname
+		            FROM
+		                    ( SELECT oid, conrelid, conindid, confrelid,
+					contype, connamespace,
+		                        condeferrable, condeferred, conname,
+					unnest(conkey) as conkey
+		                        FROM pg_constraint
+		                    ) con
+		                JOIN pg_attribute a ON a.attrelid = con.conrelid
+		                        AND a.attnum = con.conkey
+				WHERE contype IN ('f')
+		        ) me
+		                JOIN pg_class c ON c.oid = me.conrelid
+		                JOIN pg_namespace n ON c.relnamespace = n.oid
+		        GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+		    ) otherside JOIN
+		    (
+		        SELECT me.oid, n.oid as namespaceid, nspname, relname,
+		                conrelid, conindid, confrelid, conname, connamespace,
+		                condeferrable, condeferred,
+		                array_agg(attname) as cols
+		        FROM (
+		            SELECT con.*, a.attname
+		            FROM
+		                    ( SELECT oid, conrelid, conindid, confrelid,
+					contype, connamespace,
+		                        condeferrable, condeferred, conname,
+					unnest(conkey) as conkey
+		                        FROM pg_constraint
+		                    ) con
+		                JOIN pg_attribute a ON a.attrelid = con.conrelid
+		                        AND a.attnum = con.conkey
+				WHERE contype IN ('u','p')
+		        ) me
+		                JOIN pg_class c ON c.oid = me.conrelid
+		                JOIN pg_namespace n ON c.relnamespace = n.oid
+		        GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+		    ) myside ON myside.conrelid = otherside.confrelid
+		            AND myside.conindid = otherside.conindid
+		WHERE myside.namespaceid != otherside.namespaceid
+		AND myside.nspname = schema
+		AND myside.relname = object
 	LOOP
+		--
+		-- if my name is changing, reflect that in the recreation
+		--
+		IF newobject IS NOT NULL THEN
+			_myname := newobject;
+		ELSE
+			_myname := object;
+		END IF;
+		_cols := array_to_string(_r.mycols, ',');
+		--
+		-- If newmap is set *AMD* contains a key of the constraint name
+		-- on "my" side, then replace the column list with the new names.
+		--
+		IF newmap IS NOT NULL AND newmap->>_r.myconname IS NOT NULL THEN
+			SELECT string_agg(x::text, ',') INTO _cols
+				FROM jsonb_array_elements_text(newmap->_r.myconname->'columns') x;
+		END IF;
+		_def := concat('FOREIGN KEY (', array_to_string(_r.cols, ','),
+			') REFERENCES ',
+			schema, '.', _myname, '(', _cols, ')');
+
 		_ddl := 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
-			' ADD CONSTRAINT ' || _r.conname || ' ' || _r.def;
+			' ADD CONSTRAINT ' || _r.conname || ' ' || _def;
 		IF _ddl is NULL THEN
 			RAISE EXCEPTION 'Unable to define constraint for %', _r;
 		END IF;
-		INSERT INTO __recreate (schema, object, type, ddl )
+		INSERT INTO __recreate (schema, object, type, ddl, tags , path)
 			VALUES (
-				_r.nspname, _r.relname, 'constraint', _ddl
+				_r.nspname, _r.relname, 'constraint', _ddl, tags, path
 			);
 		IF dropit  THEN
 			_cmd = 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
@@ -1310,16 +1419,19 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.save_function_for_replay(
 	schema varchar,
 	object varchar,
-	dropit boolean DEFAULT true
+	dropit boolean DEFAULT true,
+	tags text[] DEFAULT NULL,
+	path text[] DEFAULT NULL
 ) RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
 BEGIN
+	path = path || concat(schema, '.', object);
 	PERFORM schema_support.prepare_for_object_replay();
 
 	-- implicitly save regrants
-	PERFORM schema_support.save_grants_for_replay(schema, object);
+	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
 	FOR _r IN SELECT n.nspname, p.proname,
 				coalesce(u.usename, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
@@ -1331,9 +1443,11 @@ BEGIN
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
-		INSERT INTO __recreate (schema, object, type, owner, ddl, idargs )
-		VALUES (
-			_r.nspname, _r.proname, 'function', _r.owner, _r.funcdef, _r.idargs
+		INSERT INTO __recreate (schema, object, type, owner,
+			ddl, idargs, tags, path
+		) VALUES (
+			_r.nspname, _r.proname, 'function', _r.owner,
+			_r.funcdef, _r.idargs, tags, path
 		);
 		IF dropit  THEN
 			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
@@ -1342,12 +1456,22 @@ BEGIN
 		END IF;
 
 	END LOOP;
-
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
+--
+-- If tags is set, replays just the rows with those tags
+-- If object/schema are set, further refines to replay objects
+-- if path is set, include objects that have input path in path
+-- with those names.
+--
 CREATE OR REPLACE FUNCTION schema_support.replay_object_recreates(
-	beverbose	boolean DEFAULT false
+	beverbose	boolean DEFAULT false,
+	tags		text[] DEFAULT NULL,
+	schema		text DEFAULT NULL,
+	object		text DEFAULT NULL,
+	type		text DEFAULT NULL,
+	path		text DEFAULT NULL
 )
 RETURNS VOID AS $$
 DECLARE
@@ -1366,6 +1490,28 @@ BEGIN
 	IF _tally > 0 THEN
 		FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
 		LOOP
+			IF tags IS NOT NULL THEN
+				CONTINUE WHEN _r.tags IS NULL;
+				CONTINUE WHEN NOT _r.tags && tags;
+			END IF;
+			IF schema IS NOT NULL THEN
+				CONTINUE WHEN _r.schema IS NULL;
+				CONTINUE WHEN NOT _r.schema = schema;
+			END IF;
+			IF type IS NOT NULL THEN
+				CONTINUE WHEN _r.type IS NULL;
+				CONTINUE WHEN NOT _r.type = type;
+			END IF;
+			IF object IS NOT NULL THEN
+				CONTINUE WHEN _r.object IS NULL;
+				IF object ~ '^!' THEN
+					object = regexp_replace(object, '^!', '');
+					CONTINUE WHEN _r.object = object;
+				ELSE
+					CONTINUE WHEN NOT _r.object = object;
+				END IF;
+			END IF;
+
 			IF beverbose THEN
 				RAISE NOTICE 'Recreate % %.%', _r.type, _r.schema, _r.object;
 			END IF;
@@ -1386,8 +1532,11 @@ BEGIN
 		END LOOP;
 
 		SELECT count(*) INTO _tally from __recreate;
+
 		IF _tally > 0 THEN
-			RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+			IF tags IS NULL AND schema IS NULL and object IS NULL THEN
+				RAISE EXCEPTION '% objects still exist for recreating after a complete loop', _tally;
+			END IF;
 		ELSE
 			DROP TABLE __recreate;
 		END IF;
@@ -1440,9 +1589,10 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- an enum to force both to text.
 --
 CREATE OR REPLACE FUNCTION schema_support.get_common_columns(
-    _schema     text,
-    _table1      text,
-    _table2      text
+    _oldschema   TEXT,
+    _table1      TEXT,
+    _newschema   TEXT,
+    _table2      TEXT
 ) RETURNS text[] AS $$
 DECLARE
 	_q			text;
@@ -1467,14 +1617,15 @@ BEGIN
 					END  AS colname,
 				o.attnum
 			FROM cols  o
-	    INNER JOIN cols n USING (schema, colname)
+	    INNER JOIN cols n USING (colname)
 		WHERE
 			o.schema = $1
 		and o.relation = $2
-		and n.relation = $3
+		and n.schema = $3
+		and n.relation = $4
 		) as prett
 	';
-	EXECUTE _q INTO cols USING _schema, _table1, _table2;
+	EXECUTE _q INTO cols USING _oldschema, _table1, _newschema, _table2;
 	RETURN cols;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -1793,19 +1944,37 @@ DECLARE
 	_rv	boolean;
 	_oj		jsonb;
 	_nj		jsonb;
+	_oldschema	TEXT;
+	_newschema	TEXT;
 BEGIN
+	IF old_rel ~ '\.' THEN
+		_oldschema := regexp_replace(old_rel, '\..*$', '');
+		old_rel := regexp_replace(old_rel, '^[^\.]*\.', '');
+	ELSE
+		_oldschema:= schema;
+	END IF;
+
+	IF new_rel ~ '\.' THEN
+		_newschema := regexp_replace(new_rel, '\..*$', '');
+		new_rel := regexp_replace(new_rel, '^[^\.]*\.', '');
+	ELSE
+		_newschema:= schema;
+	END IF;
+
+	RAISE NOTICE '% % % %', _oldschema, old_rel, _newschema, new_rel;
+
 	-- do a simple row count
-	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || old_rel || '"' INTO _t1;
-	EXECUTE 'SELECT count(*) FROM ' || schema || '."' || new_rel || '"' INTO _t2;
+	EXECUTE 'SELECT count(*) FROM ' || _oldschema || '."' || old_rel || '"' INTO _t1;
+	EXECUTE 'SELECT count(*) FROM ' || _newschema || '."' || new_rel || '"' INTO _t2;
 
 	_rv := true;
 
 	IF _t1 IS NULL THEN
-		RAISE NOTICE 'table %.% does not seem to exist', schema, old_rel;
+		RAISE NOTICE 'table %.% does not seem to exist', _oldschema, old_rel;
 		_rv := false;
 	END IF;
 	IF _t2 IS NULL THEN
-		RAISE NOTICE 'table %.% does not seem to exist', schema, new_rel;
+		RAISE NOTICE 'table %.% does not seem to exist', _oldschema, new_rel;
 		_rv := false;
 	END IF;
 
@@ -1814,11 +1983,11 @@ BEGIN
 		IF key_relation IS NULL THEN
 			key_relation := old_rel;
 		END IF;
-		prikeys := schema_support.get_pk_columns(schema, key_relation);
+		prikeys := schema_support.get_pk_columns(_oldschema, key_relation);
 	END IF;
 
 	-- read into _cols the column list in common between old_rel and new_rel
-	_cols := schema_support.get_common_columns(schema, old_rel, new_rel);
+	_cols := schema_support.get_common_columns(_oldschema, old_rel, _newschema, new_rel);
 
 	_ctl := NULL;
 	FOREACH _f IN ARRAY prikeys
@@ -1837,13 +2006,13 @@ BEGIN
 	END IF;
 
 	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-		quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+		quote_ident(_oldschema) || '.' || quote_ident(old_rel)  ||
 		' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
 			' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-			quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+			quote_ident(_oldschema) || '.' || quote_ident(old_rel)  ||
 			' EXCEPT ( '
 				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+				quote_ident(_newschema) || '.' || quote_ident(new_rel)  ||
 			' )) ';
 
 	_cnt := 0;
@@ -1858,13 +2027,13 @@ BEGIN
 	END IF;
 
 	_q := 'SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-		quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+		quote_ident(_newschema) || '.' || quote_ident(new_rel)  ||
 		' WHERE (' || array_to_string(_pkcol,',') || ') IN ( ' ||
 			' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-			quote_ident(schema) || '.' || quote_ident(new_rel)  ||
+			quote_ident(_newschema) || '.' || quote_ident(new_rel)  ||
 			' EXCEPT ( '
 				' SELECT ' || array_to_string(_pkcol,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(old_rel)  ||
+				quote_ident(_oldschema) || '.' || quote_ident(old_rel)  ||
 			' )) ';
 
 	_cnt := 0;
@@ -1899,18 +2068,18 @@ BEGIN
 
 	_q := ' SELECT row_to_json(old) as old, row_to_json(new) as new FROM ' ||
 		'( SELECT '  || array_to_string(_cols,',') || ' FROM ' ||
-			quote_ident(schema) || '.' || quote_ident(old_rel) || ' ) old ' ||
+			quote_ident(_oldschema) || '.' || quote_ident(old_rel) || ' ) old ' ||
 		' JOIN ' ||
 		'( SELECT '  || array_to_string(_cols,',') || ' FROM ' ||
-			quote_ident(schema) || '.' || quote_ident(new_rel) || ' ) new ' ||
+			quote_ident(_newschema) || '.' || quote_ident(new_rel) || ' ) new ' ||
 		' USING ( ' ||  array_to_string(_pkcol,',') ||
 		' ) WHERE (' || array_to_string(_pkcol,',') || ' ) IN (' ||
 		'SELECT ' || array_to_string(_pkcol,',')  || ' FROM ( ' ||
 			'( SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(old_rel) ||
+				quote_ident(_oldschema) || '.' || quote_ident(old_rel) ||
 			' EXCEPT ' ||
 			'( SELECT ' || array_to_string(_cols,',') || ' FROM ' ||
-				quote_ident(schema) || '.' || quote_ident(new_rel) || ' )) ' ||
+				quote_ident(_newschema) || '.' || quote_ident(new_rel) || ' )) ' ||
 		' ) subq) ORDER BY ' || array_to_string(_pkcol,',')
 	;
 
@@ -2228,55 +2397,55 @@ BEGIN
 	END IF;
 
 	FOR _r IN
-		with x AS ( SELECT *
+		WITH x AS (
+		SELECT *
 			FROM (
-			SELECT x.oid, schema, name,  typ,
-				p->>'privilege_type' as privilege_type,
-				col,
-				r.rolname as grantor, e.rolname as grantee,
-				r.oid as rid,  e.oid as eid,
-				e.rolconfig
-			FROM (
-				SELECT  c.oid, n.nspname as schema,
-				c.relname as name,
-				CASE c.relkind
+		SELECT oid, schema, name,  typ,
+			p->>'privilege_type' as privilege_type,
+			col,
+			r.usename as grantor, e.usename as grantee,
+			r.usesysid as rid,  e.usesysid as eid,
+			e.useconfig
+		FROM (
+			SELECT  c.oid, n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
 				WHEN 'r' THEN 'table'
 				WHEN 'm' THEN 'view'
 				WHEN 'v' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as typ,
-					NULL::text as col,
-				to_jsonb(pg_catalog.aclexplode(
-					acl := c.relacl)) as p
-				FROM    pg_catalog.pg_class c
-				INNER JOIN pg_catalog.pg_namespace n
+				NULL::text as col,
+			to_jsonb(pg_catalog.aclexplode(acl := c.relacl)) as p
+			FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
-				WHERE c.relkind IN ('r', 'v', 'S', 'f')
-			UNION ALL
-			SELECT  c.oid, n.nspname as schema,
-				c.relname as name,
-				CASE c.relkind
+			WHERE c.relkind IN ('r', 'v', 'S', 'f')
+		UNION ALL
+		SELECT  c.oid, n.nspname as schema,
+			c.relname as name,
+			CASE c.relkind
 				WHEN 'r' THEN 'table'
 				WHEN 'v' THEN 'view'
 				WHEN 'mv' THEN 'mview'
 				WHEN 'S' THEN 'sequence'
 				WHEN 'f' THEN 'foreign table'
 				END as typ,
-				a.attname as col,
-				to_jsonb(pg_catalog.aclexplode(a.attacl)) as p
-				FROM    pg_catalog.pg_class c
-				INNER JOIN pg_catalog.pg_namespace n
+			a.attname as col,
+			to_jsonb(pg_catalog.aclexplode(a.attacl)) as p
+			FROM    pg_catalog.pg_class c
+			INNER JOIN pg_catalog.pg_namespace n
 				ON n.oid = c.relnamespace
-				INNER JOIN pg_attribute a
+			INNER JOIN pg_attribute a
 				ON a.attrelid = c.oid
-				WHERE c.relkind IN ('r', 'v', 'S', 'f')
-				AND a.attacl IS NOT NULL
-			) x
-			LEFT JOIN pg_roles r ON r.oid = (p->>'grantor')::oid
-			LEFT JOIN pg_roles e ON e.oid = (p->>'grantee')::oid
-			) i
-		) SELECT *
+			WHERE c.relkind IN ('r', 'v', 'S', 'f')
+			AND a.attacl IS NOT NULL
+		) x
+		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
+		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		) i
+		) select *
 		FROM x
 		WHERE ( schema = old_schema )
 		AND grantee = username
@@ -2309,8 +2478,6 @@ LANGUAGE plpgsql SECURITY INVOKER;
 ----------------------------------------------------------------------------
 -- END materialized view support
 ----------------------------------------------------------------------------
-
-\ir create_schema_support_cache_tables.sql
 
 /**************************************************************
  *  FUNCTIONS
