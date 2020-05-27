@@ -66,10 +66,12 @@ sub build_correction($$) {
 			$ph  = 'Please Select department';
 			$sth = $stab->prepare_cached(
 				qq{
-				select  account_collection_name
-				from  account_collection
-				where   account_collection_type = 'department'
-				order by account_collection_name
+					SELECT	account_collection_name
+					FROM	account_collection
+							JOIN  department USING (account_collection_id)
+					WHERE	account_collection_type = 'department'
+					AND		is_active = 'Y'
+					ORDER BY account_collection_name
 			}
 			) || return $stab->return_db_err();
 		} elsif ( $cat eq 'ReportingAttest' ) {

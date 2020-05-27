@@ -1,3 +1,9 @@
+jazzhands-stab (0.87.0) bionic; urgency=medium
+
+  * make approval department dropdown only show active departments
+
+ -- Todd Kover <kovert@xandr.com>  Wed, 27 May 2020 17:53:00 -0500
+
 jazzhands-stab (0.86.4) bionic; urgency=medium
 
   * Add a confirmation step before updating rack details
@@ -18,7 +24,6 @@ jazzhands-stab (0.86.0) trusty; urgency=medium
 
  -- Todd Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
 
-
 jazzhands-stab (0.84.2) trusty; urgency=medium
 
   * remove operating_system.processor_architecture since it is going away
@@ -27,7 +32,6 @@ jazzhands-stab (0.84.2) trusty; urgency=medium
 
  -- Todd Kover <kovert@omniscient.com>  Tue, 14 May 2019 10:32:22 -0500
 
-
 jazzhands-stab (0.84.0) trusty; urgency=medium
 
   * switch to v_device_collection_hier_trans
@@ -38,7 +42,6 @@ jazzhands-stab (0.84.0) trusty; urgency=medium
 
  -- Todd Kover <kovert@omniscient.com>  Fri, 29 Mar 2019 09:22:00 -0500
 
-
 jazzhands-stab (0.84.0) trusty; urgency=medium
 
   * switch to v_device_collection_hier_trans
@@ -48,7 +51,6 @@ jazzhands-stab (0.84.0) trusty; urgency=medium
     if they had a hierarachy and were the last, AND collapse all was clicked.
 
  -- Todd Kover <kovert@omniscient.com>  Fri, 29 Mar 2019 09:22:00 -0500
-
 
 jazzhands-stab (0.82.0) trusty; urgency=medium
 
