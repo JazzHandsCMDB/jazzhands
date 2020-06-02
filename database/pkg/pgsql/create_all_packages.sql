@@ -35,7 +35,9 @@
 -- \ir global_util.sql
 
 -- \ir system_user_util.sql
+\ir obfuscation_utils.sql
 \ir person_manip.sql
+\ir account_password_manip.sql
 \ir auto_ac_manip.sql
 \ir company_manip.sql
 -- \ir unix_util.sql

@@ -1,3 +1,40 @@
+jazzhands-perl-netdev-mgmt (0.86.8.1) unstable; urgency=low
+
+  * Fix issue with doing a commit with no configuration session active
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 20 May 2020 21:53:53 +0000
+
+jazzhands-perl-netdev-mgmt (0.86.7.1) unstable; urgency=low
+
+  * Implement configuration sessions with rollback/commit for Arista changes
+  * Add additional media types (100G and 400G types), at least until these
+    become database lookup tables.
+  * Proliferate timeout option throughout Arista module methods
+  * Fix SetBGPPeerStatus for Arista to properly disable/delete peers, which
+    Arista broke, but converted functions to JSON that are now JSONable.
+  * Fix Juniper LLDP handling, because JunOS sucks at LLDP.  A lot.
+
+ -- Matthew Ragan <mdr@sucksless.net>  Tue, 05 May 2020 21:56:19 +0000
+
+jazzhands-perl-netdev-mgmt (0.86.5) unstable; urgency=low
+
+  * remove qualification from jazzhands tables
+
+ -- Todd kover <kovert@omniscient.com>  Fri,  3 Apr 2020 11:57:22 -0500
+
+jazzhands-perl-netdev-mgmt (0.86.2) unstable; urgency=low
+
+  * bug fixes for juniper GetBGPGroupIPFamily from pr#13
+
+ -- Todd kover <kovert@omniscient.com>  Thu, 23 Jan 2020 16:15:00 -0400
+
+
+jazzhands-perl-netdev-mgmt (0.86.1) unstable; urgency=low
+
+  * release with GetBGPGroupIPFamily functions for arista/juniper
+
+ -- Todd kover <kovert@omniscient.com>  Thu, 16 Jan 2020 11:17:00 -0500
+
 jazzhands-perl-netdev-mgmt (0.86.0) unstable; urgency=low
 
   * add libnetaddr-mac-perl as a debian depend

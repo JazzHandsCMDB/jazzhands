@@ -268,7 +268,7 @@ sub device_circuit_tab {
 			);
 			if ( $hr->{ _dbx('TRUNK_TCIC_START') } ) {
 				$cic =
-				    $hr->{ _dbx('TRUNK_TCIC_START') } . "-"
+					$hr->{ _dbx('TRUNK_TCIC_START') } . "-"
 				  . $hr->{ _dbx('TRUNK_TCIC_END') };
 			}
 		}
@@ -660,7 +660,7 @@ sub device_serial_ports {
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $q = build_physical_port_query('serial');
+	my $q   = build_physical_port_query('serial');
 	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute( $devid, 'serial' ) || $self->return_db_err($sth);
 
@@ -743,14 +743,18 @@ sub build_serial_drop_tr {
 				'P1_PHYSICAL_PORT_ID'
 			)
 		),
-		$cgi->td( $self->b_nondbdropdown( $hr, 'BAUD', 'P1_PHYSICAL_PORT_ID' ) ),
+		$cgi->td(
+			$self->b_nondbdropdown( $hr, 'BAUD', 'P1_PHYSICAL_PORT_ID' )
+		),
 		$cgi->td(
 			$self->b_nondbdropdown(
 				$hr, 'SERIAL_PARAMS', 'P1_PHYSICAL_PORT_ID'
 			)
 		),
 		$cgi->td(
-			$self->b_nondbdropdown( $hr, 'FLOW_CONTROL', 'P1_PHYSICAL_PORT_ID' )
+			$self->b_nondbdropdown(
+				$hr, 'FLOW_CONTROL', 'P1_PHYSICAL_PORT_ID'
+			)
 		),
 	);
 }
@@ -920,7 +924,7 @@ sub device_physical_connection {
 					-backwards => $backwards,
 				},
 				$row, $refside, $hr
-			  )
+			);
 
 		}
 	}
@@ -934,7 +938,7 @@ sub device_patch_ports {
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $q = build_physical_port_conn_query('patchpanel');
+	my $q   = build_physical_port_conn_query('patchpanel');
 	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute( $devid, 'patchpanel' ) || $self->return_db_err($sth);
 
@@ -1169,7 +1173,7 @@ sub physical_connection_row {
 	}
 
 	my $innerHtml =
-	    $cgi->td( $hidden, $cable )
+		$cgi->td( $hidden, $cable )
 	  . $cgi->td($dev)
 	  . $cgi->td($pport)
 	  . $cgi->td($addrow);
@@ -1644,7 +1648,7 @@ sub get_device_netblock_routes {
 	my $tt = $cgi->th( [ "Add", "Route", "Dest IP", "Dest Interface", ] );
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $x =
-		    $hr->{ _dbx('SOURCE_BLOCK_IP') } . "/"
+			$hr->{ _dbx('SOURCE_BLOCK_IP') } . "/"
 		  . $hr->{ -dbx('SOURCE_BLOCK_BITS') };
 		if (
 			!(
@@ -1865,7 +1869,7 @@ sub build_collapsed_if_box {
 
 	# $self->textfield_sizing(undef);
 
-	my $pk = "NETWORK_INTERFACE_ID";
+	my $pk      = "NETWORK_INTERFACE_ID";
 	my $intname = $self->b_textfield( { -textfield_width => 10 },
 		$values, 'NETWORK_INTERFACE_NAME', $pk );
 
@@ -2278,13 +2282,22 @@ sub device_location_print {
 			-id    => $locid,
 			-value => $hr->{ _dbx('RACK_LOCATION_ID') }
 		);
+	} else {
+
+		# This is to avoid an undefined hr value to cause issues in the
+		# response generation with a wrong rack selected if no location exists
+		my %emptyhr;
+		$hr = \%emptyhr;
 	}
 
 	my $root = $self->guess_stab_root;
 
 	my ( $rackdivid, $racksiteid );
 	my $racklink = "";
-	if ( $hr && exists( $hr->{ _dbx('LOCATION_RACK_ID') } ) ) {
+	if (   $hr
+		&& exists( $hr->{ _dbx('LOCATION_RACK_ID') } )
+		&& $hr->{ _dbx('LOCATION_RACK_ID') } )
+	{
 		my $rack =
 		  $self->get_rack_from_rackid( $hr->{ _dbx('LOCATION_RACK_ID') } );
 
@@ -2496,7 +2509,7 @@ h
 			)
 		);
 		$indicatetab = $cgi->hidden( "has_appgroup_tab_$devid", $devid );
-		$name = 'appgroup_' . $devid;
+		$name        = 'appgroup_' . $devid;
 	}
 
 	my $tt = "";
@@ -2511,7 +2524,7 @@ h
 		$labels{ $hr->{ _dbx('ROLE_ID') } } = $printable;
 	}
 	my $x =
-	    $cgi->h3( { -align => 'center' }, 'Application Groupings' )
+		$cgi->h3( { -align => 'center' }, 'Application Groupings' )
 	  . $cgi->div( { -style => 'text-align: center' }, $warnmsg )
 	  . $indicatetab
 	  . $cgi->div(

@@ -49,6 +49,7 @@ my $purge_int = 1;
 my $password;
 my $bgpstate = 'up';
 my $hostname = [];
+my $timeout = undef;
 my $authapp = 'net_dev_probe';
 
 sub loggit {
@@ -58,6 +59,7 @@ sub loggit {
 
 GetOptions(
 	'username=s', \$user,
+	'timeout=i', \$timeout,
 	'commit!', \$commit,
 	'hostname=s', $hostname,
 	'verbose+', \$verbose,
@@ -135,10 +137,10 @@ $q = q {
 		d.device_name,
 		dt.config_fetch_type
 	FROM
-		jazzhands.device d JOIN
-		jazzhands.device_type dt USING (device_type_id)
+		device d JOIN
+		.device_type dt USING (device_type_id)
 	WHERE
-		device_name = ?
+		lower(device_name) = lower(?)
 };
 
 my $dev_search_sth;
@@ -155,8 +157,8 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 #		ni.network_interface_id,
 #		ni.network_interface_name
 #	FROM
-#		jazzhands.network_interface ni JOIN
-#		jazzhands.network_interface_netblock USING (network_interface_id),
+#		network_interface ni JOIN
+#		network_interface_netblock USING (network_interface_id),
 #		parms
 #	WHERE
 #		ni.device_id = parms.device_id
@@ -164,8 +166,8 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 #		ni.network_interface_id,
 #		ni.network_interface_name
 #	FROM
-#		jazzhands.network_interface ni JOIN
-#		jazzhands.shared_netblock_network_int snni USING (network_interface_id),
+#		network_interface ni JOIN
+#		shared_netblock_network_int snni USING (network_interface_id),
 #		parms
 #	WHERE
 #		ni.device_id = parms.device_id
@@ -176,7 +178,7 @@ $q = q {
 		ni.network_interface_id,
 		ni.network_interface_name
 	FROM
-		jazzhands.network_interface ni
+		network_interface ni
 	WHERE
 		ni.device_id = ?
 };
@@ -308,7 +310,8 @@ foreach my $host (@$hostname) {
 
 		if (!($info = $device->GetIPAddressInformation(
 			debug			=> $debug,
-			errors 			=> \@errors
+			errors 			=> \@errors,
+			timeout			=> $timeout,
 		))) {
 			printf STDERR "Error getting address information on switch %s: %s\n",
 				$host,
@@ -324,7 +327,7 @@ foreach my $host (@$hostname) {
 			#
 			# Don't process anything for lo0, because
 			#
-			next if $iname =~ '^lo0';
+			#next if $iname =~ '^lo0';
 
 			if ($verbose) {
 				printf "    %s:\n", $iname;
@@ -429,7 +432,8 @@ foreach my $host (@$hostname) {
 	if ($probe_lldp) {
 		if (!($info = $device->GetLLDPInformation(
 			debug			=> $debug,
-			errors 			=> \@errors
+			errors 			=> \@errors,
+			timeout			=> $timeout,
 		))) {
 			printf STDERR "Error getting LLDP information on switch %s: %s\n",
 				$host,

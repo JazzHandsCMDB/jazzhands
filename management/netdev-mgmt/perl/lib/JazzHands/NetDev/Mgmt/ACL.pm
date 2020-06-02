@@ -406,7 +406,7 @@ sub Validate {
 			SELECT
 				netblock_collection_id
 			FROM
-				jazzhands.netblock_collection
+				netblock_collection
 			WHERE
 				netblock_collection_type = 'prefix-list' AND
 				netblock_collection_name = ?

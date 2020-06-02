@@ -37,3 +37,5 @@ make -f Makefile.jazzhands clean
 %files
 %attr (-, root, bin) %{prefix}/sbin/poll-netdev-chassis-info
 %attr (-, root, bin) %{prefix}/sbin/poll-netdev-addr-info
+%attr (-, root, bin) %{prefix}/sbin/load-arista-config
+%attr (-, root, bin) %{prefix}/sbin/load-junos-config

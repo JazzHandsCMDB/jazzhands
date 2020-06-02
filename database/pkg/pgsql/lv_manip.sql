@@ -118,6 +118,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_lv_hier(
@@ -209,6 +210,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -233,6 +235,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -275,6 +278,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_vg(
@@ -291,6 +295,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_vg(
@@ -355,6 +360,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_lv(
@@ -369,6 +375,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -408,6 +415,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 GRANT USAGE ON SCHEMA lv_manip TO PUBLIC;

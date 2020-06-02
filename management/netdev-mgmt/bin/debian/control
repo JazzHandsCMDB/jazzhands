@@ -7,5 +7,5 @@ Standards-Version: 3.9.4
 
 Package: jazzhands-netdev-mgmt-utils
 Architecture: all
-Depends: libdbd-pg-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, perl-jazzhands-netdev-mgmt ( >= 0.81.5), libdbi-perl, liblog-log4perl-perl, libnetaddr-ip-perl
+Depends: libdbd-pg-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, jazzhands-perl-netdev-mgmt ( >= 0.81.5), libdbi-perl, liblog-log4perl-perl, libnetaddr-ip-perl
 Description: JazzHands network device management utilities

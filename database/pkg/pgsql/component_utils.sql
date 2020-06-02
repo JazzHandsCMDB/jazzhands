@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2015 Matthew Ragan
+-- Copyright (c) 2015, 2016, 2018, 2019 Matthew Ragan
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -83,6 +83,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.migrate_component_template_slots(
@@ -226,6 +227,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.set_slot_names(
@@ -287,6 +289,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.remove_component_hier(
@@ -382,6 +385,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -674,6 +678,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -849,6 +854,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.insert_memory_component(
@@ -1017,6 +1023,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -1187,6 +1194,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.insert_component_into_parent_slot(
@@ -1270,7 +1278,8 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
+SECURITY DEFINER
+LANGUAGE plpgsql;
 
 --
 -- Replace a given simple component with another one.  This isn't very smart,
@@ -1329,6 +1338,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -1336,12 +1346,14 @@ CREATE OR REPLACE FUNCTION component_utils.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
 	no_create			boolean DEFAULT false,
-	ownership_status	text DEFAULT 'unknown'
+	ownership_status	text DEFAULT 'unknown',
+	parent_slot_id		jazzhands.slot.slot_id%TYPE DEFAULT NULL
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
 	ctid		ALIAS FOR component_type_id;
 	sn			ALIAS FOR serial_number;
+	psid		ALIAS FOR parent_slot_id;
 	os			ALIAS FOR ownership_status;
 	c			RECORD;
 	cid			integer;
@@ -1359,7 +1371,18 @@ BEGIN
 			a.serial_number = sn;
 
 		IF FOUND THEN
-			return c;
+			--
+			-- Only update the parent slot if it isn't set already
+			--
+			IF c.parent_slot_id IS NULL THEN
+				UPDATE
+					component comp
+				SET
+					parent_slot_id = psid
+				WHERE
+					comp.component_id = c.component_id;
+			END IF;
+			RETURN c;
 		END IF;
 	END IF;
 
@@ -1368,9 +1391,11 @@ BEGIN
 	END IF;
 
 	INSERT INTO jazzhands.component (
-		component_type_id
+		component_type_id,
+		parent_slot_id
 	) VALUES (
-		ctid
+		ctid,
+		parent_slot_id
 	) RETURNING * INTO c;
 
 	IF serial_number IS NOT NULL THEN
@@ -1389,7 +1414,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
-GRANT USAGE ON SCHEMA component_utils TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO iud_role;

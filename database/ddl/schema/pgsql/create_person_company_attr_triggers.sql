@@ -138,30 +138,3 @@ CREATE TRIGGER trigger_validate_pers_comp_attr_value
 	FOR EACH ROW EXECUTE PROCEDURE
 	validate_pers_comp_attr_value();
 
-
------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION person_company_attr_change_after_row_hooks() RETURNS TRIGGER AS $$
-DECLARE
-	tally			integer;
-BEGIN
-	BEGIN
-		PERFORM local_hooks.person_company_attr_change_after_row_hooks(person_company_attr_row => NEW);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		PERFORM 1;
-	END;
-	RETURN NULL;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_person_company_attr_change_after_row_hooks
-	ON val_person_company_attr_value;
-CREATE TRIGGER trigger_person_company_attr_change_after_row_hooks
-	AFTER INSERT OR UPDATE
-	ON val_person_company_attr_value
-	FOR EACH ROW EXECUTE PROCEDURE
-	person_company_attr_change_after_row_hooks();
-
-
------------------------------------------------------------------------------

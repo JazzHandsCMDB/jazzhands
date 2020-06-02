@@ -21,10 +21,11 @@ my $help = 0;
 
 my $filename;
 my $commit = 1;
-my $user;
+my $debug = 0;
+my $user = $ENV{'USER'};
 my $password;
 my $parallel = 0;
-my $authapp = 'net_dev_probe';
+my $authapp;
 
 sub loggit {
 	printf STDERR join "\n", @_;
@@ -35,14 +36,24 @@ GetOptions(
 	'filename=s', \$filename,
 	'username=s', \$user,
 	'password=s', \$password,
+	'debug+', \$debug,
 	'write|commit!', \$commit,
 	'parallel!', \$parallel,
-	'authapp=s', \$authapp
+	'authapp=s', \$authapp,
 );
 
 my $credentials;
 
-if ($user) {
+
+if ($authapp) {
+	my $record = JazzHands::AppAuthAL::find_and_parse_auth($authapp);
+	if (!$record || !$record->{network_device}) {
+		loggit(sprintf("Unable to find network_device auth entry for %s.",
+			 $authapp));
+		exit 1;
+	}
+	$credentials = $record->{network_device};
+} elsif ($user) {
 	if (!$password) {
 		print STDERR 'Password: ';
 		ReadMode('noecho');
@@ -57,14 +68,9 @@ if ($user) {
 	}
 	$credentials->{username} = $user;
 	$credentials->{password} = $password;
-} elsif (!$user) {
-	my $record = JazzHands::AppAuthAL::find_and_parse_auth($authapp);
-	if (!$record || !$record->{network_device}) {
-		loggit(sprintf("Unable to find network_device auth entry for %s.",
-			 $authapp));
-		exit 1;
-	}
-	$credentials = $record->{network_device};
+} else {
+	print STDERR "Must give either --user or --authapp\n";
+	exit 1;
 }
 
 my @errors;
@@ -81,11 +87,6 @@ if (!defined($filename)) {
 my @config;
 chomp(@config = <FH>);
 close FH;
-unshift @config, "configure";
-unshift @config, "enable";
-#if ($commit) {
-#	push @config, "write memory";
-#}
 
 my $netconf = new JazzHands::NetDev::Mgmt;
 while (my $device = shift) {
@@ -98,7 +99,8 @@ while (my $device = shift) {
 			hostname => $device,
 			management_type => 'arista'
 		},
-		errors => \@errors
+		errors => \@errors,
+		debug => $debug
 	);
 
 	if (!defined($dev)) {
@@ -106,12 +108,13 @@ while (my $device = shift) {
 		next;
 	}
 
-	my $result = $dev->SendCommand(
+	my $result = $dev->ApplyConfig(
 		commands => [
 			@config
 		],
 		timeout => 300,
-		errors => \@errors
+		errors => \@errors,
+		debug => $debug
 	);
 
 	if (!defined($result)) {

@@ -13,6 +13,7 @@ use LWP::UserAgent;
 use JazzHands::NetDev::Mgmt::ACL;
 use Data::Dumper;
 use NetAddr::MAC;
+use UUID::Tiny ':std';
 
 sub new {
 	my $proto = shift;
@@ -61,10 +62,40 @@ sub commit {
 	my $opt = &_options(@_);
 	my $err = $opt->{errors};
 
+	my $commands = [];
+
+	if ($self->{config_session}) {
+		$commands = [
+			'configure session ' . $self->{config_session}
+		];
+
+		if (
+			defined($opt->{confirmed_timeout}) ||
+			defined($opt->{confirmed_timeout_seconds})
+		) {
+			if (!$opt->{confirmed_timeout_seconds}) {
+				$opt->{confirmed_timeout_seconds} = 
+					$opt->{confirmed_timeout} * 60;
+			}
+			push @$commands, 'commit timer ' .  
+				sprintf("%02d:%02d:%02d",
+					($opt->{confirmed_timeout_seconds} + 0) / 3600,
+					($opt->{confirmed_timeout_seconds} % 3600) / 60,
+					($opt->{confirmed_timeout_seconds} % 60)
+				);
+		} else {
+			push @$commands, 'commit';
+		}
+	}
+
+	delete $self->{config_session};
+
 	return $self->SendCommand(
 		commands => [
+			@$commands,
 			'write memory'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 }
@@ -74,7 +105,28 @@ sub disconnect {
 }
 
 sub rollback {
-	return 1;
+	my $self = shift;
+	if (!ref($self)) {
+		return undef;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+	my $commands;
+
+	if (!$self->{config_session}) {
+		return 1;
+	}
+
+	delete $self->{config_session};
+
+	return $self->SendCommand(
+		commands => [
+			'no configure session ' . $self->{config_session}
+		],
+		timeout => $opt->{timeout},
+		errors => $err
+	);
 }
 
 my $arista_cmd_serial = 1;
@@ -127,7 +179,7 @@ sub SendCommand {
 			verify_hostname => 0,
 		}
 	);
-	$ua->agent("arista_mgr/1.0");
+	$ua->agent("jazzhands_mgr/1.0");
 	$ua->timeout($timeout);
 	my $header = HTTP::Headers->new;
 	$header->authorization_basic(
@@ -173,6 +225,23 @@ sub SendCommand {
 	return $result->{result};
 }
 
+sub ApplyConfig {
+	my $self;
+	if (ref($_[0])) {
+		$self = shift;
+	}
+	my $opt = &_options(@_);
+	my $err = $opt->{errors};
+
+	if (!$self->{config_session}) {
+		$self->{config_session} = create_uuid_as_string(UUID_V1);
+	}
+	unshift @{$opt->{commands}},
+		sprintf('configure session %s', $self->{config_session});
+
+	return $self->SendCommand(@_);
+}
+
 sub GetPortStatus {
 	my $self = shift;
 	my $opt = &_options(@_);
@@ -208,6 +277,7 @@ sub GetPortStatus {
 		commands => [
 			map { 'show interfaces ' . $_ } @$ports
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 	if (!$result) {
@@ -232,6 +302,7 @@ sub GetPortStatus {
 	$result = $self->SendCommand(
 		commands => [ 'show interfaces switchport' ],
 		format => 'text',
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 	if (!$result) {
@@ -307,6 +378,7 @@ sub GetVLANs {
 			'show vlan',
 			'show ip interface'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 	if (!$result) {
@@ -466,7 +538,6 @@ sub SetPortVLAN {
 
 	if ($opt->{portmode} eq 'trunk') {
 		$commands = [
-			'configure',
 			map {
 					'interface ' . $_,
 					'spanning-tree portfast edge',
@@ -477,7 +548,6 @@ sub SetPortVLAN {
 		];
 	} else {
 		$commands = [
-			'configure',
 			map {
 					'interface ' . $_,
 					'spanning-tree portfast edge',
@@ -492,7 +562,7 @@ sub SetPortVLAN {
 			join ("\n    ", @$commands);
 	}
 	if ($commands) {
-		my $result = $self->SendCommand(
+		my $result = $self->ApplyConfig(
 			commands => $commands,
 			errors => $errors
 		);
@@ -613,7 +683,6 @@ sub SetPortLACP {
 	my $commands;
 	if ($opt->{lacp}) {
 		$commands = [
-			'configure',
 			'interface ' . $trunk_interface,
 			'mlag ' . $idx,
 			'port-channel lacp fallback',
@@ -644,7 +713,6 @@ sub SetPortLACP {
 		# an option
 		#
 		$commands = [
-			'configure',
 		];
 		foreach my $port (@$ports) {
 			next if (!defined($result->{$port}->{lacp}));
@@ -669,7 +737,7 @@ sub SetPortLACP {
 		if ($debug) {
 			printf STDERR "Commands:\n	%s\n", (join "\n", @$commands);
 		}
-		my $result = $self->SendCommand(
+		my $result = $self->ApplyConfig(
 			commands => $commands,
 			errors => $errors
 		);
@@ -705,7 +773,6 @@ sub SetBGPPeerStatus {
 			return undef;
 		}
 	}
-#	print STDERR Data::Dumper->Dump([$bgp_peer, $peerobj], ['$bgp_peer', '$peerobj']);
 
 	if (!$opt->{bgp_peer_group}) {
 		SetError($err,
@@ -741,21 +808,21 @@ sub SetBGPPeerStatus {
 
 	my $result = $self->SendCommand(
 		commands => $commands,
-		format => 'text',
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
 	if (!$result) {
 		return undef;
 	}
-	my $output;
-	if (!($output = $result->[0]->{output})) {
+	my $bgp_info;
+	if (!($bgp_info = $result->[0]->{vrfs}->{default})) {
 		SetError($err, "BGP does not appear to be configured on " .
 			$device->{hostname});
 		return undef;
 	}
 
-	my ($asn) = $output =~ /local AS number (\d+)/m;
+	my ($asn) = $bgp_info->{asn};
 
 	if (!$asn) {
 		SetError($err, sprintf(
@@ -764,14 +831,9 @@ sub SetBGPPeerStatus {
 		return undef;
 	}
 
-	my @output = split /\n/, $output;
-
-	my $peers = {
-		map { (split /\s+/, $_)[0,8] } (grep /^\d+/, @output)
-	};
+	my $peers = $bgp_info->{peers};
 
 	$commands = [
-		'configure',
 		'router bgp ' . $asn
 	];
 
@@ -801,6 +863,7 @@ sub SetBGPPeerStatus {
 			#
 			my $result = $self->SendCommand(
 				commands => [ 'show ip interface'],
+				timeout => $opt->{timeout},
 				errors => $err
 			);
 
@@ -837,9 +900,8 @@ sub SetBGPPeerStatus {
 		push @{$commands},
 			'no neighbor ' . $bgp_peer . ' shutdown';
 	}
-	push @{$commands}, 'write memory';
 
-	$result = $self->SendCommand(
+	$result = $self->ApplyConfig(
 		commands => $commands,
 		errors => $err
 	);
@@ -849,6 +911,66 @@ sub SetBGPPeerStatus {
 	}
 
 	return 1;
+}
+
+sub GetBGPGroupIPFamily {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{err};
+
+	if (!$opt->{bgp_peer_group}) {
+		SetError($err,
+			"bgp_peer_group parameter must be passed to GetBGPGroupIPFamily");
+		return undef;
+	}
+
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $commands = [
+		'show ip bgp peer-group ' . $opt->{bgp_peer_group}
+	];
+
+	my $result = $self->SendCommand(
+		commands => $commands,
+		format => 'text',
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+	my $output;
+	if (!($output = $result->[0]->{output})) {
+		SetError($err, "BGP does not appear to be configured on " .
+			$device->{hostname} . " or there is no BGP group " .
+			$opt->{bgp_peer_group});
+		return undef;
+	}
+
+	my @output = split /\n/, $output;
+	my ($first_peer_ipaddr_str) = (grep /^\s+\d+/, @output)[0] =~ /^\s+(.*),/;
+	if( !$first_peer_ipaddr_str) {
+		SetError($err, "Could not find any peer for BGP group " . $opt->{bgp_peer_group} .
+			" on device " . $device->{hostname});
+		return undef;
+	}
+
+	my $first_peer_ipaddr = NetAddr::IP->new($first_peer_ipaddr_str);
+	if( !$first_peer_ipaddr) {
+		SetError($err, "Invalid IP addr " . $first_peer_ipaddr_str);
+		return undef;
+	}
+
+	return $first_peer_ipaddr->version();
 }
 
 sub RemoveVLAN {
@@ -881,7 +1003,7 @@ sub RemoveVLAN {
 	}
 
 	my @errors;
-	my $result = $self->SendCommand(
+	my $result = $self->ApplyConfig(
 		commands => [
 			'no interface Vlan' . $opt->{encapsulation_tag},
 			'no vlan ' . $opt->{encapsulation_tag}
@@ -922,6 +1044,7 @@ sub GetInterfaceConfig {
 			'show ip interface' .
 				($opt->{interface_name} ? ' ' . $opt->{interface_name} : '')
 		],
+		timeout => $opt->{timeout},
 		errors => \@errors
 	);
 
@@ -964,6 +1087,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ip interface'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -977,6 +1101,8 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ipv6 interface'
 		],
+		timeout => $opt->{timeout},
+		errors => $err
 	);
 
 	my $ipv6ifaces;
@@ -990,6 +1116,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show vrrp'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1004,6 +1131,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ip virtual-router'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1105,7 +1233,11 @@ my $iface_map = {
 	'100GBASE-SR4' => {
 		module_type => '100GMXPEthernet',
 		media_type => '100GMXPEthernet',
-	}
+	},
+	'100GBASE-CR4' => {
+		module_type => '100GQSFP28Ethernet',
+		media_type => '100GQSFP28Ethernet',
+	},
 };
 
 sub GetLLDPInformation {
@@ -1125,8 +1257,9 @@ sub GetLLDPInformation {
 	my $result = $self->SendCommand(
 		commands => [
 			'show lldp neighbors detail',
-			'show interfaces status'
+#			'show interfaces status'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1135,7 +1268,7 @@ sub GetLLDPInformation {
 	}
 
 	my $lldp = $result->[0]->{lldpNeighbors};
-	my $iface_status = $result->[1]->{interfaceStatuses};
+#	my $iface_status = $result->[1]->{interfaceStatuses};
 
 	my $ifaceinfo = {};
 
@@ -1143,6 +1276,7 @@ sub GetLLDPInformation {
 		commands => [
 			'show lldp local-info'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1158,7 +1292,7 @@ sub GetLLDPInformation {
 		# We only care about things that have reported a remote system
 		# name
 		#
-		if (!exists($ninfo->{systemName})) {
+		if (!exists($ninfo->{systemName}) && !exists($ninfo->{chassiId})) {
 			next;
 		}
 
@@ -1172,6 +1306,11 @@ sub GetLLDPInformation {
 		{
 			# Fuck you, Juniper
 			$rem_port = $ninfo->{neighborInterfaceInfo}->{interfaceDescription};
+		} elsif ($ninfo->{neighborInterfaceInfo}->{interfaceIdType} eq
+			'macAddress')
+		{
+			$rem_port = NetAddr::MAC->new(
+				$ninfo->{neighborInterfaceInfo}->{interfaceId})->as_ieee();
 		} else {
 			next;
 		}
@@ -1182,19 +1321,58 @@ sub GetLLDPInformation {
 
 		my $info = {
 			interface_name => $iface,
+			chassis_id => $ninfo->{chassisId},
 			remote_system_name => $ninfo->{systemName},
 			remote_interface_name => $rem_port
 		};
 
-		my $media_type = $iface_status->{$iface}->{interfaceType};
-		if (defined($media_type) && exists($iface_map->{$media_type})) {
-			map {
-				$info->{$_} = $iface_map->{$media_type}->{$_};
-			} keys %{$iface_map->{$media_type}};
-		}
+#		my $media_type = $iface_status->{$iface}->{interfaceType};
+#		if (defined($media_type) && exists($iface_map->{$media_type})) {
+#			map {
+#				$info->{$_} = $iface_map->{$media_type}->{$_};
+#			} keys %{$iface_map->{$media_type}};
+#		}
 
 		$ifaceinfo->{$iface} = $info;
 	}
+
+	return $ifaceinfo;
+}
+
+sub GetInterfaceInformation {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $credentials = $self->{credentials};
+	my $device = $self->{device};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $result = $self->SendCommand(
+		commands => [
+			'show interfaces status',
+			'show interfaces transceiver',
+		],
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+	my $iface_status = $result->[1]->{interfaceStatuses};
+	my $lldp = $result->[0]->{lldpNeighbors};
+
+	my $ifaceinfo = $self->GetLLDPInformation(
+		errors => $opt->{errors},
+		debug => $debug
+	);
 
 	return $ifaceinfo;
 }
@@ -1227,6 +1405,7 @@ sub TestRouteExistence {
 		commands => [
 			'show ip route ' . $opt->{route} . ' longer-prefixes',
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1363,6 +1542,7 @@ sub SetCiscoFormatACL {
 		commands => [
 			'show ip access-lists ' . $aclname
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1377,19 +1557,16 @@ sub SetCiscoFormatACL {
 	}
 
 	my $commands = [
-		'enable',
-		'configure session',
 		'ip access-list ' . $aclname,
 		(
 			map {
 				'no ' . $_->{sequenceNumber}
 			} @{$result->[0]->{aclList}->[0]->{sequence}}
 		),
-		@$converted_acl,
-		'commit'
+		@$converted_acl
 	];
 
-	$result = $self->SendCommand(
+	$result = $self->ApplyConfig(
 		commands => $commands,
 		timeout => 300,
 		errors => $err
@@ -1418,13 +1595,13 @@ sub GenerateTextForACL {
 					ELSE ip_address::text
 				END
 			FROM
-				jazzhands.netblock_collection nc JOIN
-				jazzhands.v_netblock_coll_expanded nce USING
+				netblock_collection nc JOIN
+				v_netblock_coll_expanded nce USING
 					(netblock_collection_id) JOIN
-				jazzhands.netblock_collection_netblock ncn ON
+				netblock_collection_netblock ncn ON
 					(nce.root_netblock_collection_id =
 						ncn.netblock_collection_id) JOIN
-				jazzhands.netblock USING (netblock_id)
+				netblock USING (netblock_id)
 			WHERE
 				netblock_collection_type = 'prefix-list' AND
 				netblock_collection_name = ?
@@ -1444,7 +1621,7 @@ sub GenerateTextForACL {
 			SELECT
 				netblock_collection_id
 			FROM
-				jazzhands.netblock_collection
+				netblock_collection
 			WHERE
 				netblock_collection_type = 'prefix-list' AND
 				netblock_collection_name = ?
@@ -1629,6 +1806,7 @@ sub GetChassisInfo {
 			'show inventory',
 			'show version'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 
@@ -1718,6 +1896,7 @@ sub GetChassisInfo {
 		commands => [
 			'show lldp local-info'
 		],
+		timeout => $opt->{timeout},
 		errors => $err
 	);
 

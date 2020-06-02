@@ -103,6 +103,7 @@ SELECT * FROM  (
 		    ON dr.start_netblock_id = nbstart.netblock_id
 		INNER JOIN netblock nbstop
 		    ON dr.stop_netblock_id = nbstop.netblock_id
+		WHERE dns_domain_id IS NOT NULL
 		) range
 ) u
 WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
