@@ -146,3 +146,33 @@ CREATE TABLE authorization_policy_collection_hier (
 	child_authorization_policy_collection_id	INTEGER NOT NULL,
 	PRIMARY KEY (authorization_policy_collection_id,child_authorization_policy_collection_id)
 );
+
+/*
+ * Will merge into property
+ */
+CREATE TABLE authz_property_base (
+	property_id				INTEGER NOT NULL,
+	authorization_policy_collection_id	INTEGER NOT NULL,
+	primary key(property_id)
+);
+
+CREATE OR REPLACE VIEW authz_property AS SELECT
+	property_id, account_collection_id, account_id, account_realm_id,
+	authorization_policy_collection_id, company_collection_id, company_id,
+	device_collection_id, dns_domain_collection_id,
+	layer2_network_collection_id, layer3_network_collection_id,
+	netblock_collection_id, network_range_id, operating_system_id,
+	operating_system_snapshot_id, person_id, property_collection_id,
+	service_env_collection_id, site_code, x509_signed_certificate_id,
+	property_name, property_type, property_value, property_value_timestamp,
+	property_value_account_coll_id, property_value_device_coll_id,
+	property_value_json, property_value_nblk_coll_id,
+	property_value_password_type, property_value_person_id,
+	property_value_sw_package_id, property_value_token_col_id,
+	property_rank, start_date, finish_date, is_enabled, data_ins_user,
+	data_ins_date, data_upd_user, data_upd_date
+FROM	jazzhands.property
+	JOIN authz_property_base USING (property_id)
+;
+
+

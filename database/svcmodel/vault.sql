@@ -1,8 +1,5 @@
 \set ON_ERROR_STOP
 
-\ir authn-schema.sql
-\ir vault-data.sql
-
 -- XXX - need to deal with service, device collection integration
 
 CREATE OR REPLACE VIEW vault_policy AS
