@@ -90,4 +90,22 @@ WHERE authorization_policy_collection_name = 'jazzhands-device-rw'
 AND authorization_policy_collection_type = 'database-grants'
 RETURNING *;
 
-SELECT * FROM authz_property;
+
+CREATE VIEW v_database_grants AS
+SELECT ac.authorization_policy_collection_name, 
+	ap.authorization_policy_id,
+	ap.authorization_policy_name,
+	ap.authorization_policy_type,
+	ap.authorization_policy_scope,
+	ap.description,
+	perm.permission
+FROM authorization_policy_collection ac
+JOIN authorization_policy_collection_authorization_policy
+	USING (authorization_policy_collection_id)
+JOIN authorization_policy ap USING (authorization_policy_id)
+JOIN authorization_policy_permission perm USING (authorization_policy_id)
+WHERE authorization_policy_collection_type = 'database-grants'
+;
+
+-- SELECT * FROM authz_property;
+SELECT * FROM v_database_grants;
