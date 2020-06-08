@@ -60,104 +60,119 @@ OR	 policy_name = 'vault-disabled-approles' AND policy_type = 'disabled-approle'
 );
 
 WITH pt AS (
-	INSERT INTO authorization_policy (
-		authorization_policy_name, authorization_policy_type
-	) VALUES (
-		'global/kv/data/services/nbde-escrow/environments/production/hosts/*',
-		'vault-policy-path'
-	)
-	RETURNING *
-), perm AS (
-	INSERT INTO authorization_policy_permission (
-		authorization_policy_id, permission
-	) SELECT authorization_policy_id, 'create'
-	FROM pt
-) INSERT INTO authorization_policy_collection_authorization_policy (
-	authorization_policy_collection_id, authorization_policy_id
-) SELECT authorization_policy_collection_id, authorization_policy_id
-FROM pt, authorization_policy_collection
-WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-AND authorization_policy_collection_type = 'vault-policy' 
-;
+		INSERT INTO authorization_policy (
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES (
+			pgcrypto.gen_random_uuid(), 'vault-policy-path',
+			'global/kv/data/services/nbde-escrow/environments/production/hosts/*'
+		)
+		RETURNING *
+	), perm AS (
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) SELECT authorization_policy_id, 'create'
+		FROM pt
+	) INSERT INTO authorization_policy_collection_authorization_policy (
+		authorization_policy_collection_id, authorization_policy_id
+	) SELECT authorization_policy_collection_id, authorization_policy_id
+	FROM pt, authorization_policy_collection
+	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
+	AND authorization_policy_collection_type = 'vault-policy' 
+	;
 
-WITH pt AS (
-	INSERT INTO authorization_policy (
-		authorization_policy_name, authorization_policy_type
-	) VALUES 
-		('global/kv/data/services/nbde-escrow/environments/production/krb5-principal', 'vault-policy-path'),
-		('global/kv/data/services/nbde-escrow/environments/production/tls-certificate', 'vault-policy-path')
-	RETURNING *
-), perm AS (
-	INSERT INTO authorization_policy_permission (
-		authorization_policy_id, permission
-	) SELECT authorization_policy_id, 'create'
-	FROM pt
-) INSERT INTO authorization_policy_collection_authorization_policy (
-	authorization_policy_collection_id, authorization_policy_id
-) SELECT authorization_policy_collection_id, authorization_policy_id
-FROM pt, authorization_policy_collection
-WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-AND authorization_policy_collection_type = 'vault-policy' 
-;
+	WITH pt AS (
+		INSERT INTO authorization_policy (
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES  (
+			pgcrypto.gen_random_uuid(), 'vault-policy-path',
+			unnest(ARRAY[
+				'global/kv/data/services/nbde-escrow/environments/production/krb5-principal',
+				'global/kv/data/services/nbde-escrow/environments/production/tls-certificate'
+			])
+		) RETURNING *
+	), perm AS (
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) SELECT authorization_policy_id, 'create'
+		FROM pt
+	) INSERT INTO authorization_policy_collection_authorization_policy (
+		authorization_policy_collection_id, authorization_policy_id
+	) SELECT authorization_policy_collection_id, authorization_policy_id
+	FROM pt, authorization_policy_collection
+	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
+	AND authorization_policy_collection_type = 'vault-policy' 
+	;
 
-WITH pt AS (
-	INSERT INTO authorization_policy (
-		authorization_policy_name, authorization_policy_type
-	) VALUES 
-		('global/kv/data/services/nbde-escrow/environments/production/hosts/+/+/+/latest-checksum', 'vault-policy-path'),
-		('global/kv/data/services/nbde-escrow/environments/production/hosts/+/_tmp_luks-test-device/', 'vault-policy-path')
-	RETURNING *
-), perm AS (
-	INSERT INTO authorization_policy_permission (
-		authorization_policy_id, permission
-	) SELECT authorization_policy_id, 
-		unnest(ARRAY['read','create','update'])
-	FROM pt
-) INSERT INTO authorization_policy_collection_authorization_policy (
-	authorization_policy_collection_id, authorization_policy_id
-) SELECT authorization_policy_collection_id, authorization_policy_id
-FROM pt, authorization_policy_collection
-WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-AND authorization_policy_collection_type = 'vault-policy' 
-;
+	WITH pt AS (
+		INSERT INTO authorization_policy (
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES  (
+			pgcrypto.gen_random_uuid(), 'vault-policy-path',
+			unnest(ARRAY[
+				'global/kv/data/services/nbde-escrow/environments/production/hosts/+/+/+/latest-checksum',
+				'global/kv/data/services/nbde-escrow/environments/production/hosts/+/_tmp_luks-test-device/'
+			])
+		) RETURNING *
+	), perm AS (
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) SELECT authorization_policy_id, 
+			unnest(ARRAY['read','create','update'])
+		FROM pt
+	) INSERT INTO authorization_policy_collection_authorization_policy (
+		authorization_policy_collection_id, authorization_policy_id
+	) SELECT authorization_policy_collection_id, authorization_policy_id
+	FROM pt, authorization_policy_collection
+	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
+	AND authorization_policy_collection_type = 'vault-policy' 
+	;
 
-WITH pt AS (
-	INSERT INTO authorization_policy (
-		authorization_policy_name, authorization_policy_type
-	) VALUES 
-		('global/kv/metadata/services/nbde-escrow/environments/production/hosts/+/_tmp_luks-test-device/', 'vault-metadata-path')
-	RETURNING *
-), perm AS (
-	INSERT INTO authorization_policy_permission (
-		authorization_policy_id, permission
-	) SELECT authorization_policy_id, 
-		unnest(ARRAY['list','delete'])
-	FROM pt
-) INSERT INTO authorization_policy_collection_authorization_policy (
-	authorization_policy_collection_id, authorization_policy_id
-) SELECT authorization_policy_collection_id, authorization_policy_id
-FROM pt, authorization_policy_collection
-WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-AND authorization_policy_collection_type = 'vault-policy' 
-;
+	WITH pt AS (
+		INSERT INTO authorization_policy (
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES  (
+			pgcrypto.gen_random_uuid(), 'vault-policy-path',
+			'global/kv/metadata/services/nbde-escrow/environments/production/hosts/+/_tmp_luks-test-device/'
+		) RETURNING *
+	), perm AS (
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) SELECT authorization_policy_id, 
+			unnest(ARRAY['list','delete'])
+		FROM pt
+	) INSERT INTO authorization_policy_collection_authorization_policy (
+		authorization_policy_collection_id, authorization_policy_id
+	) SELECT authorization_policy_collection_id, authorization_policy_id
+	FROM pt, authorization_policy_collection
+	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
+	AND authorization_policy_collection_type = 'vault-policy' 
+	;
 
-WITH pt AS (
-	INSERT INTO authorization_policy (
-		authorization_policy_name, authorization_policy_type
-	) VALUES 
-		('global/kv/data/services/nbde-escrow/environments/production/hosts/01.code-test.local/*', 'vault-policy-path'),
-		('global/kv/metadata/services/nbde-escrow/environments/production/hosts/01.code-test.local/*', 'vault-policy-path')
-	RETURNING *
-), perm AS (
-	INSERT INTO authorization_policy_permission (
-		authorization_policy_id, permission
-	) SELECT authorization_policy_id, 
-		unnest(ARRAY['read','create','update'])
-	FROM pt
-) INSERT INTO authorization_policy_collection_authorization_policy (
-	authorization_policy_collection_id, authorization_policy_id
-) SELECT authorization_policy_collection_id, authorization_policy_id
-FROM pt, authorization_policy_collection
-WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-AND authorization_policy_collection_type = 'vault-policy' 
+	WITH pt AS (
+		INSERT INTO authorization_policy (
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES  (
+			pgcrypto.gen_random_uuid(), 'vault-policy-path',
+			unnest(ARRAY[
+				'global/kv/data/services/nbde-escrow/environments/production/hosts/01.code-test.local/*',
+				'global/kv/metadata/services/nbde-escrow/environments/production/hosts/01.code-test.local/*'
+			])
+		) RETURNING *
+	), perm AS (
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) SELECT authorization_policy_id, 
+			unnest(ARRAY['read','create','update'])
+		FROM pt
+	) INSERT INTO authorization_policy_collection_authorization_policy (
+		authorization_policy_collection_id, authorization_policy_id
+	) SELECT authorization_policy_collection_id, authorization_policy_id
+	FROM pt, authorization_policy_collection
+	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
+	AND authorization_policy_collection_type = 'vault-policy' 
 ;

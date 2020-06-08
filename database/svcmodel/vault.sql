@@ -35,7 +35,7 @@ CREATE OR REPLACE VIEW vault_policy_path AS
 SELECT
 	authorization_policy_id	AS vault_policy_path_id,
 	authorization_policy_collection_id AS vault_policy_id,
-	authorization_policy_name AS vault_policy_path,
+	authorization_policy_scope AS vault_policy_path,
 	CASE WHEN COUNT(*) FILTER (WHERE permission = 'create') > 0 THEN
 		true ELSE false END AS create,
 	CASE WHEN COUNT(*) FILTER (WHERE permission = 'list') > 0 THEN

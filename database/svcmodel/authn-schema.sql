@@ -43,9 +43,10 @@ CREATE TABLE val_authorization_policy_type (
  */
 CREATE TABLE authorization_policy (
 	authorization_policy_id		SERIAL,
-	authorization_policy_name	text NOT NULL,
-	authorization_policy_type	text NOT NULL,
-	description			text,
+	authorization_policy_name	TExt NOT NULL,
+	authorization_policy_type	TExt NOT NULL,
+	authorization_policy_scope	TEXT NOT NULL,
+	description			TEXT,
 	PRIMARY KEY (authorization_policy_id),
 	UNIQUE (authorization_policy_name,authorization_policy_type)
 );
