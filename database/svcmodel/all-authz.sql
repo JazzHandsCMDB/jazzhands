@@ -6,3 +6,4 @@
 \ir vault.sql
 
 \ir dbgrants-data.sql
+\ir stab.sql
