@@ -52,6 +52,35 @@ WITH ap AS (
 FROM apc, ap
 ;
 
+WITH ap AS (
+	INSERT INTO authorization_policy (
+    	authorization_policy_name, authorization_policy_type,
+    	authorization_policy_scope
+	) VALUES 
+		('update-serial-number', 'database-object-grants',
+    		'jazzhands.asset(serial_number)'
+		)
+		RETURNING *
+), app AS (
+	INSERT INTO authorization_policy_permission (
+		authorization_policy_id, permission
+	) SELECT authorization_policy_id,
+		unnest(ARRAY['update'])
+	FROM ap
+	RETURNING *
+), apc AS (
+	INSERT INTO authorization_policy_collection (
+		authorization_policy_collection_name, 
+		authorization_policy_collection_type
+	) VALUES (
+		'asset-mgmt', 'database-grants'
+	) RETURNING *
+) INSERT INTO authorization_policy_collection_authorization_policy (
+	authorization_policy_collection_id, authorization_policy_id
+) SELECT authorization_policy_collection_id, authorization_policy_id
+FROM apc, ap
+;
+
 INSERT INTO val_property_type (
 	property_type,
 	description
