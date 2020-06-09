@@ -88,6 +88,7 @@ CREATE TABLE authorization_policy_relation (
 );
 
 
+
 /*
 	TBD, probablyadded to properry
 CREATE TABLE authorization_policy_property_type (
@@ -147,6 +148,98 @@ CREATE TABLE authorization_policy_collection_hier (
 	child_authorization_policy_collection_id	INTEGER NOT NULL,
 	PRIMARY KEY (authorization_policy_collection_id,child_authorization_policy_collection_id)
 );
+
+--- fks
+
+ALTER TABLE policy
+	ADD CONSTRAINT fk_policy_policy_type
+	FOREIGN KEY (policy_type)
+	REFERENCES val_policy_type(policy_type)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy
+	ADD CONSTRAINT fk_authorization_policy_authorization_policy_type
+	FOREIGN KEY (authorization_policy_type)
+	REFERENCES val_authorization_policy_type(authorization_policy_type)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_type_permitted_permission
+	ADD CONSTRAINT fk_aptype_permitted_perm
+	FOREIGN KEY (authorization_policy_type)
+	REFERENCES val_authorization_policy_type(authorization_policy_type)
+	DEFERRABLE;
+
+ALTER TABLE authorization_type_policy_relation
+	ADD CONSTRAINT fk_authorization_type_policy_relation_ap_type
+	FOREIGN KEY (authorization_policy_type)
+	REFERENCES val_authorization_policy_type(authorization_policy_type)
+	DEFERRABLE;
+
+ALTER TABLE authorization_type_policy_relation
+	ADD CONSTRAINT fk_authn_type_policy_relation_policy
+	FOREIGN KEY (policy_id)
+	REFERENCES policy(policy_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_relation
+	ADD CONSTRAINT fk_authorization_policy_relation_ap_type
+	FOREIGN KEY (authorization_policy_id)
+	REFERENCES authorization_policy(authorization_policy_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_relation
+	ADD CONSTRAINT fk_authn_policy_relation_policy
+	FOREIGN KEY (policy_id)
+	REFERENCES policy(policy_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_permission
+	ADD CONSTRAINT fk_authorization_policy_permission_authn_policy
+	FOREIGN KEY (authorization_policy_id)
+	REFERENCES authorization_policy(authorization_policy_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection
+	ADD CONSTRAINT fk_authorization_policy_collection_type
+	FOREIGN KEY (authorization_policy_collection_type)
+	REFERENCES val_authorization_policy_collection_type(authorization_policy_collection_type)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection_policy
+	ADD CONSTRAINT fk_authn_policy_collection_policy_authn_policy
+	FOREIGN KEY (authorization_policy_collection_id)
+	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection_policy
+	ADD CONSTRAINT fk_authorization_policy_collection_policy_policy
+	FOREIGN KEY (policy_id)
+	REFERENCES policy(policy_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection_authorization_policy
+	ADD CONSTRAINT fk_authn_pol_collection_authn_policy_coll
+	FOREIGN KEY (authorization_policy_collection_id)
+	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection_authorization_policy
+	ADD CONSTRAINT fk_authn_pol_collection_authn_policy
+	FOREIGN KEY (authorization_policy_id)
+	REFERENCES authorization_policy(authorization_policy_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection_hier
+	ADD CONSTRAINT fk_authorization_policy_collection_id_authn_policy
+	FOREIGN KEY (authorization_policy_collection_id)
+	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_policy_collection_hier
+	ADD CONSTRAINT fk_authorization_policy_collection_id_child_authn_policy
+	FOREIGN KEY (child_authorization_policy_collection_id)
+	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
+	DEFERRABLE;
 
 /*
  * Will merge into property
