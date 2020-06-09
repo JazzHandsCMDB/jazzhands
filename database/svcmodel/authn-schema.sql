@@ -149,7 +149,38 @@ CREATE TABLE authorization_policy_collection_hier (
 	PRIMARY KEY (authorization_policy_collection_id,child_authorization_policy_collection_id)
 );
 
+/*
+ * Will merge into property
+ * applciation_id will become a collection
+ */
+CREATE TABLE authz_property_base (
+	property_id				INTEGER NOT NULL,
+	authorization_policy_collection_id	INTEGER NOT NULL,
+	application_id				INTEGER,
+	kubernetes_cluster			TEXT,
+	kubernetes_namespace			TEXT,
+	kubernetes_service_account		TEXT,
+	primary key(property_id)
+);
+
 --- fks
+ALTER TABLE authz_property_base
+	ADD CONSTRAINT fk_authz_property_base_property
+	FOREIGN KEY (property_id)
+	REFERENCES jazzhands.property(property_id)
+	DEFERRABLE;
+
+ALTER TABLE authz_property_base
+	ADD CONSTRAINT fk_authz_property_base_auth_p_collection
+	FOREIGN KEY (authorization_policy_collection_id)
+	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authz_property_base
+	ADD CONSTRAINT fk_authz_property_base_application
+	FOREIGN KEY (application_id)
+	REFERENCES maestro.application(id)
+	DEFERRABLE;
 
 ALTER TABLE policy
 	ADD CONSTRAINT fk_policy_policy_type
@@ -241,15 +272,6 @@ ALTER TABLE authorization_policy_collection_hier
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;
 
-/*
- * Will merge into property
- */
-CREATE TABLE authz_property_base (
-	property_id				INTEGER NOT NULL,
-	authorization_policy_collection_id	INTEGER NOT NULL,
-	primary key(property_id)
-);
-
 CREATE OR REPLACE VIEW authz_property AS SELECT
 	property_id, account_collection_id, account_id, account_realm_id,
 	authorization_policy_collection_id, company_collection_id, company_id,
@@ -258,6 +280,10 @@ CREATE OR REPLACE VIEW authz_property AS SELECT
 	netblock_collection_id, network_range_id, operating_system_id,
 	operating_system_snapshot_id, person_id, property_collection_id,
 	service_env_collection_id, site_code, x509_signed_certificate_id,
+	application_Id,
+	kubernetes_cluster,
+	kubernetes_namespace,
+	kubernetes_service_account,
 	property_name, property_type, property_value, property_value_timestamp,
 	property_value_account_coll_id, property_value_device_coll_id,
 	property_value_json, property_value_nblk_coll_id,
@@ -269,4 +295,62 @@ FROM	jazzhands.property
 	JOIN authz_property_base USING (property_id)
 ;
 
+CREATE OR REPLACE VIEW maestro_application AS
+SELECT	id as application_id,
+	name as application_name
+FROM	maestro.application;
 
+CREATE OR REPLACE VIEW mclass AS
+SELECT	device_collection_id,
+	device_collection_name
+FROM	jazzhands.device_collection
+WHERE	device_collection_type = 'mclass';
+
+
+INSERT INTO jazzhands.val_property_type (
+	property_type,
+	description
+) VALUES (
+	'authorization-mappings',
+	'prototype authorization mappings for authn schema'
+);
+
+INSERT INTO jazzhands.val_property (
+	property_name,
+	property_type,
+	permit_device_collection_id,
+	device_collection_type,
+	is_multivalue,
+	property_data_type
+) VALUES (
+	'mclass-authorization-map',
+	'authorization-mappings',
+	'REQUIRED',
+	'mclass',
+	'Y',
+	'none'
+);
+
+INSERT INTO jazzhands.val_property (
+	property_name,
+	property_type,
+	is_multivalue,
+	property_data_type
+) VALUES (
+	'application-authorization-map',
+	'authorization-mappings',
+	'Y',
+	'none'
+);
+
+INSERT INTO jazzhands.val_property (
+	property_name,
+	property_type,
+	is_multivalue,
+	property_data_type
+) VALUES (
+	'application-kubernetes-map',
+	'authorization-mappings',
+	'Y',
+	'none'
+);

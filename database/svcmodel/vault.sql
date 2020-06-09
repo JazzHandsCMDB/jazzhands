@@ -56,9 +56,27 @@ GROUP BY authorization_policy_id,
 	authorization_policy_name
 ;
 
+CREATE OR REPLACE VIEW vault_mclass AS
+SELECT authorization_policy_collection_id AS vault_policy_id,
+	device_collection_name AS mclass,
+	'notyet' as user,
+	'notyet' as group
+FROM authorization_policy_collection ac
+JOIN authz_property azp USING (authorization_policy_collection_id)
+JOIN device_collection USING (device_collection_id)
+-- WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
+WHERE authorization_policy_collection_type IN ('vault-policy')
+AND property_name = 'mclass-authorization-map'
+AND property_type = 'authorization-mappings'
+;
+
 \set ECHO queries
 
 SELECT * FROM vault_policy ORDER BY 1;
 SELECT * FROM vault_policy_path ORDER BY 1;
+
+SELECT * FROM vault_mclass;
+
+-- XXX need to incrporate user and group for mclass
 
 \set ECHO none
