@@ -151,33 +151,67 @@ CREATE TABLE authorization_policy_collection_hier (
 
 /*
  * Will merge into property
- * applciation_id will become a collection
+ * application_id will become a collection
+ *
+ * NOTE - There are multiple RHS that need to be reconciled before this
+ * gets merged into property.
+ *
  */
-CREATE TABLE authz_property_base (
-	property_id				INTEGER NOT NULL,
-	authorization_policy_collection_id	INTEGER NOT NULL,
+CREATE TABLE authorization_property (
+	authorization_property_id		SERIAL  NOT NULL,
+	account_collection_id			INTEGER,
+	device_collection_id			INTEGER,
 	application_id				INTEGER,
+	authorization_policy_collection_id	INTEGER NOT NULL,
+	property_type				TEXT,
+	property_name				TEXT,
+	account_id				INTEGER,
 	kubernetes_cluster			TEXT,
 	kubernetes_namespace			TEXT,
 	kubernetes_service_account		TEXT,
-	primary key(property_id)
+	unix_group_account_collection_id	INTEGER,
+	primary key(authorization_property_id)
 );
 
 --- fks
-ALTER TABLE authz_property_base
-	ADD CONSTRAINT fk_authz_property_base_property
-	FOREIGN KEY (property_id)
-	REFERENCES jazzhands.property(property_id)
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authorization_property_property_name
+	FOREIGN KEY (property_name, property_type)
+	REFERENCES jazzhands.val_property(property_name, property_type)
 	DEFERRABLE;
 
-ALTER TABLE authz_property_base
-	ADD CONSTRAINT fk_authz_property_base_auth_p_collection
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authz_property_auth_p_collection
 	FOREIGN KEY (authorization_policy_collection_id)
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;
 
-ALTER TABLE authz_property_base
-	ADD CONSTRAINT fk_authz_property_base_application
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authz_prop_account_collection_id
+	FOREIGN KEY (account_collection_id)
+	REFERENCES jazzhands.account_collection(account_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authz_prop_ug_account_collection_id
+	FOREIGN KEY (unix_group_account_collection_id)
+	REFERENCES jazzhands.unix_group(account_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authz_prop_device_collection_id
+	FOREIGN KEY (device_collection_id)
+	REFERENCES jazzhands.device_collection(device_collection_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authz_prop_account_id
+	FOREIGN KEY (account_id)
+	REFERENCES jazzhands.account(account_id)
+	DEFERRABLE;
+
+ALTER TABLE authorization_property
+	ADD CONSTRAINT fk_authz_property_application
 	FOREIGN KEY (application_id)
 	REFERENCES maestro.application(id)
 	DEFERRABLE;
@@ -271,29 +305,6 @@ ALTER TABLE authorization_policy_collection_hier
 	FOREIGN KEY (child_authorization_policy_collection_id)
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;
-
-CREATE OR REPLACE VIEW authz_property AS SELECT
-	property_id, account_collection_id, account_id, account_realm_id,
-	authorization_policy_collection_id, company_collection_id, company_id,
-	device_collection_id, dns_domain_collection_id,
-	layer2_network_collection_id, layer3_network_collection_id,
-	netblock_collection_id, network_range_id, operating_system_id,
-	operating_system_snapshot_id, person_id, property_collection_id,
-	service_env_collection_id, site_code, x509_signed_certificate_id,
-	application_Id,
-	kubernetes_cluster,
-	kubernetes_namespace,
-	kubernetes_service_account,
-	property_name, property_type, property_value, property_value_timestamp,
-	property_value_account_coll_id, property_value_device_coll_id,
-	property_value_json, property_value_nblk_coll_id,
-	property_value_password_type, property_value_person_id,
-	property_value_sw_package_id, property_value_token_col_id,
-	property_rank, start_date, finish_date, is_enabled, data_ins_user,
-	data_ins_date, data_upd_user, data_upd_date
-FROM	jazzhands.property
-	JOIN authz_property_base USING (property_id)
-;
 
 CREATE OR REPLACE VIEW maestro_application AS
 SELECT	id as application_id,

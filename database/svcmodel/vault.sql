@@ -62,7 +62,7 @@ SELECT authorization_policy_collection_id AS vault_policy_id,
 	'notyet' as user,
 	'notyet' as group
 FROM authorization_policy_collection ac
-JOIN authz_property azp USING (authorization_policy_collection_id)
+JOIN authorization_property azp USING (authorization_policy_collection_id)
 JOIN device_collection USING (device_collection_id)
 -- WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
 WHERE authorization_policy_collection_type IN ('vault-policy')

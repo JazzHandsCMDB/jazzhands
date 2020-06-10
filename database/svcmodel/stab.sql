@@ -52,24 +52,19 @@ WITH ap AS (
 FROM apc, ap
 ;
 
-WITH p AS (
-	INSERT INTO jazzhands.property (
-		property_name,
-		property_type,
-		device_collection_id
-	) SELECT 'mclass-authorization-map', 'authorization-mappings',
-		device_collection_id
-	FROM jazzhands.device_collection
-	WHERE device_collection_name = 'stab'
-	AND device_collection_type = 'mclass'
-	RETURNING *
-) INSERT INTO authz_property_base (
-	property_id, authorization_policy_collection_id
+INSERT INTO authorization_property (
+	property_name, property_type, 
+	device_collection_id,
+	authorization_policy_collection_id
 )
-SELECT property_id, authorization_policy_collection_id
-FROM p, authorization_policy_collection
+SELECT 'mclass-authorization-map', 'authorization-mappings',
+	device_collection_id,
+	authorization_policy_collection_id
+FROM jazzhands.device_collection, authorization_policy_collection
 WHERE authorization_policy_collection_name = 'stab-techs'
 AND authorization_policy_collection_type = 'stab-policies'
+AND device_collection_name = 'stab'
+AND device_collection_type = 'mclass'
 ;
 
 CREATE OR REPLACE VIEW v_stab_permissions AS
@@ -102,7 +97,7 @@ JOIN authorization_policy_collection_authorization_policy
 	USING (authorization_policy_collection_id)
 JOIN authorization_policy ap USING (authorization_policy_id)
 JOIN authorization_policy_permission perm USING (authorization_policy_id)
-JOIN authz_property azp USING (authorization_policy_collection_id)
+JOIN authorization_property azp USING (authorization_policy_collection_id)
 JOIN device_collection_device USING (device_collection_id)
 JOIN device d USING (device_id)
 WHERE authorization_policy_collection_type = 'stab-policies'

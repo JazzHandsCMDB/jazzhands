@@ -178,22 +178,15 @@ WITH pt AS (
 ;
 
 
-WITH p AS (
-	INSERT INTO jazzhands.property (
-		property_name,
-		property_type,
-		device_collection_id
-	) SELECT 'mclass-authorization-map', 'authorization-mappings',
-		device_collection_id
-	FROM jazzhands.device_collection
-	WHERE device_collection_name = 'stab'
-	AND device_collection_type = 'mclass'
-	RETURNING *
-) INSERT INTO authz_property_base (
-	property_id, authorization_policy_collection_id
+INSERT INTO authorization_property (
+	property_name, property_type, 
+	device_collection_id, authorization_policy_collection_id
 )
-SELECT property_id, authorization_policy_collection_id
-FROM p, authorization_policy_collection
+SELECT 'mclass-authorization-map', 'authorization-mappings',
+        device_collection_id, authorization_policy_collection_id
+FROM authorization_policy_collection, jazzhands.device_collection
 WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
 AND authorization_policy_collection_type = 'vault-policy'
+AND  device_collection_name = 'stab'
+AND device_collection_type = 'mclass'
 ;

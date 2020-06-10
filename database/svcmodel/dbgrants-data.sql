@@ -101,24 +101,6 @@ INSERT INTO val_property (
 	'Y'
 );
 
-WITH p AS (
-	INSERT INTO property (
-		property_name,
-		property_type,
-		property_value
-	) VALUES (
-		'object-grants',
-		'database-grants',
-		'device_collection_device'
-	) RETURNING *
-) INSERT INTO authz_property_base
-	(property_id,  authorization_policy_collection_id)
-SELECT property_id, authorization_policy_collection_id
-FROM p, authorization_policy_collection
-WHERE authorization_policy_collection_name = 'jazzhands-device-rw'
-AND authorization_policy_collection_type = 'database-grants'
-RETURNING *;
-
 
 CREATE VIEW v_database_grants AS
 SELECT ac.authorization_policy_collection_name, 
