@@ -180,13 +180,18 @@ WITH pt AS (
 
 INSERT INTO authorization_property (
 	property_name, property_type, 
-	device_collection_id, authorization_policy_collection_id
+	device_collection_id, authorization_policy_collection_id,
+	unix_group_account_collection_id
 )
 SELECT 'mclass-authorization-map', 'authorization-mappings',
-        device_collection_id, authorization_policy_collection_id
-FROM authorization_policy_collection, jazzhands.device_collection
+        device_collection_id, authorization_policy_collection_id,
+		account_collection_id
+FROM authorization_policy_collection, jazzhands.device_collection,
+	jazzhands.account_collection
 WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
 AND authorization_policy_collection_type = 'vault-policy'
 AND  device_collection_name = 'stab'
 AND device_collection_type = 'mclass'
+AND account_collection_name = 'www-data'
+AND account_collection_type = 'unix-group'
 ;

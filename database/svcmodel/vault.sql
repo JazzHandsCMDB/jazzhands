@@ -59,11 +59,14 @@ GROUP BY authorization_policy_id,
 CREATE OR REPLACE VIEW vault_mclass AS
 SELECT authorization_policy_collection_id AS vault_policy_id,
 	device_collection_name AS mclass,
-	'notyet' as user,
-	'notyet' as group
+	login,
+	account_collection_name as group
 FROM authorization_policy_collection ac
 JOIN authorization_property azp USING (authorization_policy_collection_id)
 JOIN device_collection USING (device_collection_id)
+LEFT JOIN account USING (account_id)
+LEFT JOIN account_collection u
+	ON u.account_collection_id = azp.unix_group_account_collection_id
 -- WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
 WHERE authorization_policy_collection_type IN ('vault-policy')
 AND property_name = 'mclass-authorization-map'
