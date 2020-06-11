@@ -6,19 +6,19 @@ CREATE OR REPLACE VIEW vault_policy AS
 SELECT
 	authorization_policy_collection_id as vault_policy_id,
 	authorization_policy_collection_name as vault_policy_name,
-	min(policy_definition->>'secret_ttl') 
+	min(policy_definition->>'secret_ttl')
 		FILTER (WHERE policy_type = 'vault-ttls') AS secret_ttl,
-	min(policy_definition->>'token_ttl') 
+	min(policy_definition->>'token_ttl')
 		FILTER (WHERE policy_type = 'vault-ttls') AS token_ttl,
-	min(policy_definition->>'token_max_ttl') 
+	min(policy_definition->>'token_max_ttl')
 		FILTER (WHERE policy_type = 'vault-ttls') AS token_max_ttl,
-	min(policy_definition->>'secret_max') 
+	min(policy_definition->>'secret_max')
 		FILTER (WHERE policy_type = 'vault-usages') AS secret_max,
-	min(policy_definition->>'token_max') 
+	min(policy_definition->>'token_max')
 		FILTER (WHERE policy_type = 'vault-usages') AS token_max,
 	coalesce(
-		bool_or( (policy_definition->>'disabled')::boolean ) 
-		FILTER (WHERE policy_type = 'disabled-approle') 
+		bool_or( (policy_definition->>'disabled')::boolean )
+		FILTER (WHERE policy_type = 'disabled-approle')
 	, false) AS approle_disabled
 FROM	authorization_policy_collection
 	lEFT JOIN (
@@ -56,7 +56,13 @@ GROUP BY authorization_policy_id,
 	authorization_policy_name
 ;
 
-CREATE OR REPLACE VIEW vault_mclass AS
+ALTER VIEW vault_policy_path ALTER "create" SET DEFAULT false;
+ALTER VIEW vault_policy_path ALTER "list" SET DEFAULT false;
+ALTER VIEW vault_policy_path ALTER "read" SET DEFAULT false;
+ALTER VIEW vault_policy_path ALTER "update" SET DEFAULT false;
+ALTER VIEW vault_policy_path ALTER "delete" SET DEFAULT false;
+
+CREATE OR REPLACE VIEW vault_policy_mclass AS
 SELECT authorization_policy_collection_id AS vault_policy_id,
 	device_collection_name AS mclass,
 	login,
@@ -73,12 +79,270 @@ AND property_name = 'mclass-authorization-map'
 AND property_type = 'authorization-mappings'
 ;
 
+--- === === === ===
+CREATE OR REPLACE FUNCTION vault_policy_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	apc	authorization_policy_collection%ROWTYPE;
+BEGIN
+
+	IF NEW.vault_policy_id IS NOT NULL THEN
+		INSERT INTO authorization_policy_collection (
+			authorization_policy_collection_id,
+			authorization_policy_collection_name,
+			authorization_policy_collection_type
+		) VALUES (
+			NEW.vault_policy_id,
+			NEW.vault_policy_name,
+			'vault-policy'
+		) RETURNING * INTO apc;
+
+	ELSE
+		INSERT INTO authorization_policy_collection (
+			authorization_policy_collection_name,
+			authorization_policy_collection_type
+		) VALUES (
+			NEW.vault_policy_name,
+			'vault-policy'
+		) RETURNING * INTO apc;
+	END IF;
+
+	NEW.vault_policy_id = apc.authorization_policy_collection_id;
+	NEW.vault_policy_name = apc.authorization_policy_collection_name;
+
+	INSERT INTO authorization_policy_collection_policy (
+		authorization_policy_collection_id, policy_id
+	) SELECT NEW.vault_policy_id, policy_id
+	FROM policy
+	WHERE (
+    	policy_name = 'initial-vault-ttl-default' AND policy_type = 'vault-ttls'
+	OR   policy_name = 'unlimited-usages' AND policy_type = 'vault-usages'
+	OR   policy_name = 'vault-disabled-approles' AND policy_type = 'disabled-approle'
+	);
+
+	SELECT * INTO NEW FROM vault_policy
+	WHERE vault_policy_id = NEW.vault_policy_id;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_vault_policy_ins
+        ON vault_policy;
+CREATE TRIGGER trigger_vault_policy_ins
+        INSTEAD OF INSERT
+        ON vault_policy
+        FOR EACH ROW
+        EXECUTE PROCEDURE vault_policy_ins();
+
+--- === === === ===
+CREATE OR REPLACE FUNCTION vault_policy_path_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	ap	authorization_policy%ROWTYPE;
+	policy_type TEXT;
+BEGIN
+	IF NEW.vault_policy_path ~ '/metadata/' THEN
+		policy_type := 'vault-metadata-path';
+	ELSE
+		policy_type := 'vault-policy-path';
+	END IF;
+	IF NEW.vault_policy_path_id IS NULL THEN
+		INSERT INTO authorization_policy (
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES (
+			pgcrypto.gen_random_uuid(), policy_type,
+			NEW.vault_policy_path
+		) RETURNING * INTO ap;
+	ELSE
+		INSERT INTO authorization_policy (
+			authorization_policy_id,
+			authorization_policy_name, authorization_policy_type,
+			authorization_policy_scope
+		) VALUES (
+			NEW.vault_policy_path_id,
+			pgcrypto.gen_random_uuid(), policy_type,
+			NEW.vault_policy_path
+		) RETURNING * INTO ap;
+	END IF;
+	NEW.vault_policy_path_id = ap.authorization_policy_id;
+
+	IF NEW.create THEN
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) VALUES (
+			ap.authorization_policy_id, 'create'
+		);
+	END IF;
+
+	IF NEW.list THEN
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) VALUES (
+			ap.authorization_policy_id, 'list'
+		);
+	END IF;
+
+	IF NEW.read THEN
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) VALUES (
+			ap.authorization_policy_id, 'read'
+		);
+	END IF;
+
+	IF NEW.update THEN
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) VALUES (
+			ap.authorization_policy_id, 'update'
+		);
+	END IF;
+
+	IF NEW.delete THEN
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) VALUES (
+			ap.authorization_policy_id, 'delete'
+		);
+	END IF;
+
+	INSERT INTO authorization_policy_collection_authorization_policy (
+		authorization_policy_collection_id, authorization_policy_id
+	) VALUES (
+		NEW.vault_policy_id, NEW.vault_policy_path_id
+	);
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_vault_policy_path_ins
+        ON vault_policy_path;
+CREATE TRIGGER trigger_vault_policy_path_ins
+        INSTEAD OF INSERT
+        ON vault_policy_path
+        FOR EACH ROW
+        EXECUTE PROCEDURE vault_policy_path_ins();
+
+--- === === === ===
+CREATE OR REPLACE FUNCTION vault_policy_mclass_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	azp	authorization_property%ROWTYPE;
+BEGIN
+	SELECT	device_collectio_id
+	INTO	azp.device_collection_Id
+	FROM	jazzhands.device_collection_id
+	WHERE	device_collection_type = 'mclass'
+	AND		device_collection_name IS NOT DISTINCT FROM NEW.mclass;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'bad mclass';
+	END IF;
+
+	IF NEW.login IS NOT NULL THEN
+		SELECT	account_id
+		INTO	azp.account_id
+		FROM	jazzhands.account a
+		WHERE	account_realm_id = 1
+		AND		a.login = HEW.login;
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'bad account';
+		END IF;
+	END IF;
+
+	IF NEW.group IS NOT NULL THEN
+		SELECT	account_collection_Id
+		INTO	azp.unix_group_account_collection_id
+		FROM	jazzhands.account_collection a
+		WHERE	account_collection_type = 'unix-group'
+		AND		account_collection_name = NEW.group;
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'bad account';
+		END IF;
+	END IF;
+
+	azp.authorization_policy_collection_id = NEW.vault_policy_id;
+
+	INSERT INTO authorization_property VALUES (azp);
+
+	SELECT * INTO NEW FROM vault_policy_mclass
+	WHERE vault_policy_id = NEW.vault_policy_id;
+
+
+
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_vault_policy_mclass_ins
+        ON vault_policy_mclass;
+CREATE TRIGGER trigger_vault_policy_mclass_ins
+        INSTEAD OF INSERT
+        ON vault_policy_mclass
+        FOR EACH ROW
+        EXECUTE PROCEDURE vault_policy_mclass_ins();
+
+--- === === === ===
+WITH v AS (
+	INSERT INTO vault_policy (
+		vault_policy_name
+	) VALUES (
+		'tang-a-production-consumer'
+	) RETURNING *
+), first AS (
+	INSERT INTO vault_policy_path (
+		vault_policy_id, read, vault_policy_path
+	) SELECT vault_policy_id, true,
+		'global/kv/data/services/tang/environments/production/a/*'
+	FROM v
+	RETURNING *
+), second AS (
+	INSERT INTO vault_policy_path (
+		vault_policy_id, list, vault_policy_path
+	) SELECT vault_policy_id, true,
+		'global/kv/metadata/services/tang/environments/production/a/*'
+	FROM v
+	RETURNING *
+) SELECT * FROM first UNION SELECT * FROM second;
+
+WITH v AS (
+	INSERT INTO vault_policy (
+		vault_policy_name
+	) VALUES (
+		'drivescale-development-admin-consumer'
+	) RETURNING *
+), first AS (
+	INSERT INTO vault_policy_path (
+		vault_policy_id, read, vault_policy_path
+	) SELECT vault_policy_id, true,
+		'global/kv/data/services/drivescale/environments/development/admin/*'
+	FROM v
+	RETURNING *
+), second AS (
+	INSERT INTO vault_policy_path (
+		vault_policy_id, list, vault_policy_path
+	) SELECT vault_policy_id, true,
+		'global/kv/metadata/services/drivescale/environments/development/admin/*'
+	FROM v
+	RETURNING *
+) SELECT * FROM first UNION SELECT * FROM second;
+
+
+--- === === === ===
+
 \set ECHO queries
 
 SELECT * FROM vault_policy ORDER BY 1;
 SELECT * FROM vault_policy_path ORDER BY 1;
 
-SELECT * FROM vault_mclass;
+SELECT * FROM vault_policy_mclass;
 
 -- XXX need to incrporate user and group for mclass
 
