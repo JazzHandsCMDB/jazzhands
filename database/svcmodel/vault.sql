@@ -73,9 +73,21 @@ JOIN device_collection USING (device_collection_id)
 LEFT JOIN account USING (account_id)
 LEFT JOIN account_collection u
 	ON u.account_collection_id = azp.unix_group_account_collection_id
--- WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
 WHERE authorization_policy_collection_type IN ('vault-policy')
 AND property_name = 'mclass-authorization-map'
+AND property_type = 'authorization-mappings'
+;
+
+CREATE OR REPLACE VIEW vault_policy_kubernetes AS
+SELECT authorization_policy_collection_id AS vault_policy_id,
+	kubernetes_cluster,
+	kubernetes_namespace,
+	kubernetes_service_account
+FROM authorization_policy_collection ac
+JOIN authorization_property azp USING (authorization_policy_collection_id)
+JOIN device_collection USING (device_collection_id)
+WHERE authorization_policy_collection_type IN ('vault-policy')
+AND property_name = 'application-kubernetes-map'
 AND property_type = 'authorization-mappings'
 ;
 
@@ -245,9 +257,12 @@ BEGIN
 		RAISE EXCEPTION 'bad mclass';
 	END IF;
 
+	azp.property_name = 'mclass-authorization-map';
+	azp.property_type = 'authorization-mappings';
+
 	IF NEW.login IS NOT NULL THEN
-		SELECT	account_id
-		INTO	azp.account_id
+		SELECT	account_id, login
+		INTO	azp.account_id, NEW.login
 		FROM	jazzhands.account a
 		WHERE	account_realm_id = 1
 		AND		a.login = HEW.login;
@@ -270,12 +285,7 @@ BEGIN
 	azp.authorization_policy_collection_id = NEW.vault_policy_id;
 
 	INSERT INTO authorization_property VALUES (azp);
-
-	SELECT * INTO NEW FROM vault_policy_mclass
-	WHERE vault_policy_id = NEW.vault_policy_id;
-
-
-
+	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
@@ -288,6 +298,46 @@ CREATE TRIGGER trigger_vault_policy_mclass_ins
         ON vault_policy_mclass
         FOR EACH ROW
         EXECUTE PROCEDURE vault_policy_mclass_ins();
+
+--- === === === ===
+CREATE OR REPLACE FUNCTION vault_policy_kubernetes_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	azp	authorization_property%ROWTYPE;
+BEGIN
+	INSERT INTO authorization_property (
+		property_name,
+		property_type,
+		kubernetes_cluster,
+		kubernetes_namespace,
+		kubernetes_service_account
+	) VALUES (
+	    'application-kubernetes-map',
+	    'authorization-mappings',
+		NEW.kubernetes_cluster,
+		NEW.kubernetes_namespace,
+		NEW.kubernetes_service_account
+	) RETURNING * INTO azp;
+
+	NEW.vault_policy_id = azp.authorization_policy_collection_id;
+	NEW.kubernetes_cluster = azp.kubernetes_cluster;
+	NEW.kubernetes_namespace = azp.kubernetes_namespace;
+	NEW.kubernetes_service_account = azp.kubernetes_service_account;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_vault_policy_kubernetes_ins
+        ON vault_policy_kubernetes;
+CREATE TRIGGER trigger_vault_policy_kubernetes_ins
+        INSTEAD OF INSERT
+        ON vault_policy_kubernetes
+        FOR EACH ROW
+        EXECUTE PROCEDURE vault_policy_kubernetes_ins();
+
 
 --- === === === ===
 WITH v AS (
@@ -333,7 +383,6 @@ WITH v AS (
 	FROM v
 	RETURNING *
 ) SELECT * FROM first UNION SELECT * FROM second;
-
 
 --- === === === ===
 
