@@ -15,9 +15,9 @@ INSERT INTO policy
 	(policy_name, policy_type, policy_definition)
 VALUES 
 	('initial-vault-ttl-default', 'vault-ttls', 
-		'{"secret_ttl": 2592000, "token_ttl": 172800, "token_max_ttl": 345600}'),
+		'{"secret_ttl_uses": 2592000, "token_ttl": 172800, "token_max_ttl_uses": 345600}'),
 	('unlimited-usages', 'vault-usages', 
-		'{"secret_max": null, "token_max": null }'),
+		'{"secret_max_usage": null, "token_max_usage": null }'),
 	('disabled-approle', 'vault-disabled-approles', '{"disabled": true}')
 ;
 

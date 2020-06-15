@@ -12,19 +12,19 @@ SELECT
 		FILTER (WHERE policy_type = 'vault-ttls') AS token_ttl,
 	min(policy_definition->>'token_max_ttl')
 		FILTER (WHERE policy_type = 'vault-ttls') AS token_max_ttl,
-	min(policy_definition->>'secret_max')
-		FILTER (WHERE policy_type = 'vault-usages') AS secret_max,
-	min(policy_definition->>'token_max')
-		FILTER (WHERE policy_type = 'vault-usages') AS token_max,
+	min(policy_definition->>'secret_max_uses')
+		FILTER (WHERE policy_type = 'vault-usages') AS secret_max_uses,
+	min(policy_definition->>'token_max_uses')
+		FILTER (WHERE policy_type = 'vault-usages') AS token_max_uses,
 	coalesce(
 		bool_or( (policy_definition->>'disabled')::boolean )
 		FILTER (WHERE policy_type = 'disabled-approle')
 	, false) AS approle_disabled
-FROM	authorization_policy_collection
-	lEFT JOIN (
+FROM	authorization_policy.authorization_policy_collection
+	LEFT JOIN (
 		SELECT authorization_policy_collection_id, p.*
-		FROM authorization_policy_collection_policy
-			JOIN policy p USING (policy_id)
+		FROM authorization_policy.authorization_policy_collection_policy
+			JOIN authorization_policy.policy p USING (policy_id)
 	) pols USING (authorization_policy_collection_id)
 WHERE authorization_policy_collection_type = 'vault-policy'
 GROUP BY authorization_policy_collection_id,
@@ -46,10 +46,11 @@ SELECT
 		true ELSE false END AS update,
 	CASE WHEN COUNT(*) FILTER (WHERE permission = 'delete') > 0 THEN
 		true ELSE false END AS delete
-FROM authorization_policy
-	JOIN authorization_policy_collection_authorization_policy
+FROM authorization_policy.authorization_policy
+	JOIN authorization_policy.authorization_policy_collection_authorization_policy
 		USING (authorization_policy_id)
-	JOIN authorization_policy_permission USING (authorization_policy_id)
+	JOIN authorization_policy.authorization_policy_permission
+		USING (authorization_policy_id)
 WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
 GROUP BY authorization_policy_id,
 	authorization_policy_collection_id,
@@ -67,11 +68,12 @@ SELECT authorization_policy_collection_id AS vault_policy_id,
 	device_collection_name AS mclass,
 	login,
 	account_collection_name as group
-FROM authorization_policy_collection ac
-JOIN authorization_property azp USING (authorization_policy_collection_id)
-JOIN device_collection USING (device_collection_id)
-LEFT JOIN account USING (account_id)
-LEFT JOIN account_collection u
+FROM authorization_policy.authorization_policy_collection ac
+JOIN authorization_policy.authorization_property azp
+	USING (authorization_policy_collection_id)
+JOIN jazzhands.device_collection USING (device_collection_id)
+LEFT JOIN jazzhands.account USING (account_id)
+LEFT JOIN jazzhands.account_collection u
 	ON u.account_collection_id = azp.unix_group_account_collection_id
 WHERE authorization_policy_collection_type IN ('vault-policy')
 AND property_name = 'mclass-authorization-map'
@@ -83,9 +85,10 @@ SELECT authorization_policy_collection_id AS vault_policy_id,
 	kubernetes_cluster,
 	kubernetes_namespace,
 	kubernetes_service_account
-FROM authorization_policy_collection ac
-JOIN authorization_property azp USING (authorization_policy_collection_id)
-JOIN device_collection USING (device_collection_id)
+FROM authorization_policy.authorization_policy_collection ac
+JOIN authorization_policy.authorization_property azp
+	USING (authorization_policy_collection_id)
+JOIN jazzhands.device_collection USING (device_collection_id)
 WHERE authorization_policy_collection_type IN ('vault-policy')
 AND property_name = 'application-kubernetes-map'
 AND property_type = 'authorization-mappings'
@@ -138,7 +141,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-SET search_path=jazzhands
+SET search_path=authorization_policy,vault_policy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_vault_policy_ins
@@ -231,7 +234,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-SET search_path=jazzhands
+SET search_path=authorization_policy,jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_vault_policy_path_ins
@@ -288,7 +291,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-SET search_path=jazzhands
+SET search_path=authorization_policy,jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_vault_policy_mclass_ins
@@ -327,7 +330,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-SET search_path=jazzhands
+SET search_path=authorization_policy,jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_vault_policy_kubernetes_ins

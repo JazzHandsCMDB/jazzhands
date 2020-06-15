@@ -52,6 +52,7 @@ WITH ap AS (
 FROM apc, ap
 ;
 
+\set ECHO queries
 INSERT INTO authorization_property (
 	property_name, property_type, 
 	device_collection_id,
@@ -98,8 +99,8 @@ JOIN authorization_policy_collection_authorization_policy
 JOIN authorization_policy ap USING (authorization_policy_id)
 JOIN authorization_policy_permission perm USING (authorization_policy_id)
 JOIN authorization_property azp USING (authorization_policy_collection_id)
-JOIN device_collection_device USING (device_collection_id)
-JOIN device d USING (device_id)
+JOIN jazzhands.device_collection_device USING (device_collection_id)
+JOIN jazzhands.device d USING (device_id)
 WHERE authorization_policy_collection_type = 'stab-policies'
 AND property_name = 'mclass-authorization-map'
 AND property_type = 'authorization-mappings'

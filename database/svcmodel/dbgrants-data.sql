@@ -81,27 +81,6 @@ WITH ap AS (
 FROM apc, ap
 ;
 
-INSERT INTO val_property_type (
-	property_type,
-	description
-) VALUES (
-	'database-grants',
-	'nuff said'
-);
-
-INSERT INTO val_property (
-	property_name,
-	property_type,
-	property_data_type,
-	is_multivalue
-) VALUES (
-	'object-grants',
-	'database-grants',
-	'string',
-	'Y'
-);
-
-
 CREATE VIEW v_database_grants AS
 SELECT ac.authorization_policy_collection_name, 
 	ap.authorization_policy_id,
