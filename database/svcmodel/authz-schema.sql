@@ -241,7 +241,7 @@ ALTER TABLE authorization_type_policy_relation
 	DEFERRABLE;
 
 ALTER TABLE authorization_type_policy_relation
-	ADD CONSTRAINT fk_authn_type_policy_relation_policy
+	ADD CONSTRAINT fk_authz_type_policy_relation_policy
 	FOREIGN KEY (policy_id)
 	REFERENCES policy(policy_id)
 	DEFERRABLE;
@@ -253,13 +253,13 @@ ALTER TABLE authorization_policy_relation
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_relation
-	ADD CONSTRAINT fk_authn_policy_relation_policy
+	ADD CONSTRAINT fk_authz_policy_relation_policy
 	FOREIGN KEY (policy_id)
 	REFERENCES policy(policy_id)
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_permission
-	ADD CONSTRAINT fk_authorization_policy_permission_authn_policy
+	ADD CONSTRAINT fk_authorization_policy_permission_authz_policy
 	FOREIGN KEY (authorization_policy_id)
 	REFERENCES authorization_policy(authorization_policy_id)
 	DEFERRABLE;
@@ -271,7 +271,7 @@ ALTER TABLE authorization_policy_collection
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_collection_policy
-	ADD CONSTRAINT fk_authn_policy_collection_policy_authn_policy
+	ADD CONSTRAINT fk_authz_policy_collection_policy_authz_policy
 	FOREIGN KEY (authorization_policy_collection_id)
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;
@@ -283,25 +283,25 @@ ALTER TABLE authorization_policy_collection_policy
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_collection_authorization_policy
-	ADD CONSTRAINT fk_authn_pol_collection_authn_policy_coll
+	ADD CONSTRAINT fk_authz_pol_collection_authz_policy_coll
 	FOREIGN KEY (authorization_policy_collection_id)
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_collection_authorization_policy
-	ADD CONSTRAINT fk_authn_pol_collection_authn_policy
+	ADD CONSTRAINT fk_authz_pol_collection_authz_policy
 	FOREIGN KEY (authorization_policy_id)
 	REFERENCES authorization_policy(authorization_policy_id)
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_collection_hier
-	ADD CONSTRAINT fk_authorization_policy_collection_id_authn_policy
+	ADD CONSTRAINT fk_authorization_policy_collection_id_authz_policy
 	FOREIGN KEY (authorization_policy_collection_id)
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;
 
 ALTER TABLE authorization_policy_collection_hier
-	ADD CONSTRAINT fk_authorization_policy_collection_id_child_authn_policy
+	ADD CONSTRAINT fk_authorization_policy_collection_id_child_authz_policy
 	FOREIGN KEY (child_authorization_policy_collection_id)
 	REFERENCES authorization_policy_collection(authorization_policy_collection_id)
 	DEFERRABLE;

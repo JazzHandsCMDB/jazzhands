@@ -6,7 +6,7 @@
 
 begin;
 SET search_path=authorization_policy ;
-\ir authn-schema.sql
+\ir authz-schema.sql
 \ir vault-data.sql 
 commit;
 

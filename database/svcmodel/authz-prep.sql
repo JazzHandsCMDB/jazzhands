@@ -108,7 +108,7 @@ INSERT INTO jazzhands.val_property_type (
 	description
 ) VALUES (
 	'authorization-mappings',
-	'prototype authorization mappings for authn schema'
+	'prototype authorization mappings for authz schema'
 );
 
 INSERT INTO jazzhands.val_property (
