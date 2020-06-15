@@ -9,46 +9,56 @@ DROP SCHEMA IF EXISTS authorization_policy CASCADE;
 DROP SCHEMA IF EXISTS vault_policy CASCADE;
 DROP SCHEMA IF EXISTS authz_test CASCADE;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM authorization_policy;
-REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM authorization_policy;
+DO $$
+BEGIN
+	REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM authorization_policy;
+	REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM authorization_policy;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM authorization_policy;
-REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM vault_policy;
-REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM vault_policy;
+	REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM authorization_policy;
+	REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM vault_policy;
+	REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM vault_policy;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM authz_test;
-REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM authz_test;
+	REVOKE ALL ON ALL TABLES IN SCHEMA jazzhands FROM authz_test;
+	REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM authz_test;
+EXCEPTION WHEN invalid_schema_name OR undefined_object THEN NULL;
+
+END;
+$$;
 
 DO $$
 BEGIN
 	REVOKE USAGE ON SCHEMA authorization_policy FROM vault_policy;
-EXCEPTION WHEN invalid_schema_name THEN NULL;
+EXCEPTION WHEN invalid_schema_name OR undefined_object THEN NULL;
 END;
 $$;
 
 DO $$
 BEGIN
 	REVOKE USAGE ON SCHEMA authorization_policy FROM authz_test;
-EXCEPTION WHEN invalid_schema_name THEN NULL;
+EXCEPTION WHEN invalid_schema_name OR undefined_object THEN NULL;
 END;
 $$;
 
+DO $$
+BEGIN
+	REVOKE USAGE on schema jazzhands FROM authorization_policy;
+	REVOKE USAGE on schema jazzhands FROM vault_policy;
+	REVOKE USAGE on schema jazzhands FROM authz_test;
 
-REVOKE USAGE on schema jazzhands FROM authorization_policy;
-REVOKE USAGE on schema jazzhands FROM vault_policy;
-REVOKE USAGE on schema jazzhands FROM authz_test;
+	REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM authorization_policy;
+	REVOKE USAGE ON schema maestro FROM authorization_policy;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA maestro FROM authorization_policy;
-REVOKE USAGE ON schema maestro FROM authorization_policy;
+	REVOKE USAGE ON schema jazzhands FROM authorization_policy;
 
-REVOKE USAGE ON schema jazzhands FROM authorization_policy;
+	REVOKE pgcrypto_roles FROM authorization_policy;
+	REVOKE pgcrypto_roles FROM vault_policy;
+EXCEPTION WHEN invalid_schema_name OR undefined_object THEN NULL;
+END;
+$$;
 
-REVOKE pgcrypto_roles FROM authorization_policy;
-REVOKE pgcrypto_roles FROM vault_policy;
-
-DROP USER authorization_policy;
-DROP USER vault_policy;
-DROP USER authz_test;
+DROP USER IF EXISTS authorization_policy;
+DROP USER IF EXISTS vault_policy;
+DROP USER IF EXISTS authz_test;
 
 --
 
