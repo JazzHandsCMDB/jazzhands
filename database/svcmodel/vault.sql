@@ -104,8 +104,8 @@ ALTER VIEW vault_policy_path ALTER "delete" SET DEFAULT false;
 CREATE OR REPLACE VIEW vault_policy_mclass AS
 SELECT authorization_policy_collection_id AS vault_policy_id,
 	device_collection_name AS mclass,
-	login,
-	account_collection_name as group
+	coalesce(login, 'root'),
+	coalesce(account_collection_name, 'root') as group
 FROM authorization_policy.authorization_policy_collection ac
 JOIN authorization_policy.authorization_property azp
 	USING (authorization_policy_collection_id)
