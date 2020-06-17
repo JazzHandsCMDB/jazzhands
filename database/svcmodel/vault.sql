@@ -46,6 +46,7 @@ CREATE OR REPLACE VIEW vault_policy_path AS
 SELECT
 	authorization_policy_id	AS vault_policy_path_id,
 	authorization_policy_collection_id AS vault_policy_id,
+	authorization_policy_collection_name AS vault_policy_name,
 	authorization_policy_scope AS vault_policy_path,
 	CASE WHEN COUNT(*) FILTER (WHERE permission = 'create') > 0 THEN
 		true ELSE false END AS create,
@@ -62,9 +63,13 @@ FROM authorization_policy.authorization_policy
 		USING (authorization_policy_id)
 	JOIN authorization_policy.authorization_policy_permission
 		USING (authorization_policy_id)
+	JOIN authorization_policy.authorization_policy_collection
+		USING (authorization_policy_collection_id)
 WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
+AND authorization_policy_collection_type = 'vault-policy'
 GROUP BY authorization_policy_id,
 	authorization_policy_collection_id,
+	authorization_policy_collection_name,
 	authorization_policy_name
 ;
 

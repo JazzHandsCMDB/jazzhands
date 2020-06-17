@@ -11,26 +11,28 @@ VALUES
 RETURNING *
 ;
 
-INSERT INTO policy 
+INSERT INTO policy
 	(policy_name, policy_type, policy_definition)
-VALUES 
-	('initial-vault-ttl-default', 'vault-ttls', 
+VALUES
+	('initial-vault-ttl-default', 'vault-ttls',
 		'{"secret_ttl": 2592000, "token_ttl": 172800, "token_max_ttl": 345600}'),
-	('unlimited-uses', 'vault-uses', 
+	('unlimited-uses', 'vault-uses',
 		'{"secret_max_uses": null, "token_max_uses": null }'),
+	('use-once', 'vault-uses',
+		'{"secret_max_uses": 2, "token_max_uses": 1 }'),
 	('disabled-approle', 'vault-disabled-approles', '{"disabled": true}')
 ;
 
 WITH apt AS (
 	INSERT INTO val_authorization_policy_type (
 		authorization_policy_type
-	) VALUES 
+	) VALUES
 		( 'vault-policy-path' ),
 		( 'vault-metadata-path' )
 	RETURNING *
 ) INSERT INTO authorization_policy_type_permitted_permission (
 	authorization_policy_type,permission
-) SELECT authorization_policy_type, 
+) SELECT authorization_policy_type,
 	unnest(ARRAY['create','read','update','delete'])
 FROM apt;
 
@@ -55,7 +57,7 @@ WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
 AND authorization_policy_collection_type = 'vault-policy'
 AND (
 	policy_name = 'initial-vault-ttl-default' AND policy_type = 'vault-ttls'
-OR	 policy_name = 'unlimited-uses' AND policy_type = 'vault-uses'
+OR	 policy_name = 'use-once' AND policy_type = 'vault-uses'
 OR	 policy_name = 'vault-disabled-approles' AND policy_type = 'disabled-approle'
 );
 
@@ -78,7 +80,7 @@ WITH pt AS (
 	) SELECT authorization_policy_collection_id, authorization_policy_id
 	FROM pt, authorization_policy_collection
 	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-	AND authorization_policy_collection_type = 'vault-policy' 
+	AND authorization_policy_collection_type = 'vault-policy'
 	;
 
 	WITH pt AS (
@@ -102,7 +104,7 @@ WITH pt AS (
 	) SELECT authorization_policy_collection_id, authorization_policy_id
 	FROM pt, authorization_policy_collection
 	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-	AND authorization_policy_collection_type = 'vault-policy' 
+	AND authorization_policy_collection_type = 'vault-policy'
 	;
 
 	WITH pt AS (
@@ -119,7 +121,7 @@ WITH pt AS (
 	), perm AS (
 		INSERT INTO authorization_policy_permission (
 			authorization_policy_id, permission
-		) SELECT authorization_policy_id, 
+		) SELECT authorization_policy_id,
 			unnest(ARRAY['read','create','update'])
 		FROM pt
 	) INSERT INTO authorization_policy_collection_authorization_policy (
@@ -127,7 +129,7 @@ WITH pt AS (
 	) SELECT authorization_policy_collection_id, authorization_policy_id
 	FROM pt, authorization_policy_collection
 	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-	AND authorization_policy_collection_type = 'vault-policy' 
+	AND authorization_policy_collection_type = 'vault-policy'
 	;
 
 	WITH pt AS (
@@ -141,7 +143,7 @@ WITH pt AS (
 	), perm AS (
 		INSERT INTO authorization_policy_permission (
 			authorization_policy_id, permission
-		) SELECT authorization_policy_id, 
+		) SELECT authorization_policy_id,
 			unnest(ARRAY['list','delete'])
 		FROM pt
 	) INSERT INTO authorization_policy_collection_authorization_policy (
@@ -149,7 +151,7 @@ WITH pt AS (
 	) SELECT authorization_policy_collection_id, authorization_policy_id
 	FROM pt, authorization_policy_collection
 	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-	AND authorization_policy_collection_type = 'vault-policy' 
+	AND authorization_policy_collection_type = 'vault-policy'
 	;
 
 	WITH pt AS (
@@ -166,7 +168,7 @@ WITH pt AS (
 	), perm AS (
 		INSERT INTO authorization_policy_permission (
 			authorization_policy_id, permission
-		) SELECT authorization_policy_id, 
+		) SELECT authorization_policy_id,
 			unnest(ARRAY['read','create','update'])
 		FROM pt
 	) INSERT INTO authorization_policy_collection_authorization_policy (
@@ -174,12 +176,12 @@ WITH pt AS (
 	) SELECT authorization_policy_collection_id, authorization_policy_id
 	FROM pt, authorization_policy_collection
 	WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
-	AND authorization_policy_collection_type = 'vault-policy' 
+	AND authorization_policy_collection_type = 'vault-policy'
 ;
 
 
 INSERT INTO authorization_property (
-	property_name, property_type, 
+	property_name, property_type,
 	device_collection_id, authorization_policy_collection_id,
 	unix_group_account_collection_id
 )

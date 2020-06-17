@@ -79,6 +79,9 @@ begin;
 SET search_path=vault_policy;
 \ir vault.sql
 \ir vault-data2.sql
+
+GRANT SELECT ON ALL TABLES IN schema vault_policy TO app_vault_extract;
+GRANT SELECT,INSERT ON ALL TABLES IN schema vault_policy TO app_vault_change;
 commit;
 
 \c jazzhands authz_test
