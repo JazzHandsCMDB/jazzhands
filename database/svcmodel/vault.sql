@@ -23,9 +23,9 @@ SELECT
 	min(policy_definition->>'token_max_ttl')
 		FILTER (WHERE policy_type = 'vault-ttls') AS token_max_ttl,
 	min(policy_definition->>'secret_max_uses')
-		FILTER (WHERE policy_type = 'vault-usages') AS secret_max_uses,
+		FILTER (WHERE policy_type = 'vault-uses') AS secret_max_uses,
 	min(policy_definition->>'token_max_uses')
-		FILTER (WHERE policy_type = 'vault-usages') AS token_max_uses,
+		FILTER (WHERE policy_type = 'vault-uses') AS token_max_uses,
 	coalesce(
 		bool_or( (policy_definition->>'disabled')::boolean )
 		FILTER (WHERE policy_type = 'disabled-approle')
@@ -142,7 +142,7 @@ BEGIN
 	FROM policy
 	WHERE (
     	policy_name = 'initial-vault-ttl-default' AND policy_type = 'vault-ttls'
-	OR   policy_name = 'unlimited-usages' AND policy_type = 'vault-usages'
+	OR   policy_name = 'unlimited-uses' AND policy_type = 'vault-uses'
 	OR   policy_name = 'vault-disabled-approles' AND policy_type = 'disabled-approle'
 	);
 

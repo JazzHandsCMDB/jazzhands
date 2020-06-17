@@ -6,7 +6,7 @@ INSERT INTO val_policy_type
 	(policy_type, policy_schema)
 VALUES
 	('vault-ttls', '{}'),
-	('vault-usages', '{}'),
+	('vault-uses', '{}'),
 	('vault-disabled-approles', '{}')
 RETURNING *
 ;
@@ -16,7 +16,7 @@ INSERT INTO policy
 VALUES 
 	('initial-vault-ttl-default', 'vault-ttls', 
 		'{"secret_ttl": 2592000, "token_ttl": 172800, "token_max_ttl": 345600}'),
-	('unlimited-usages', 'vault-usages', 
+	('unlimited-uses', 'vault-uses', 
 		'{"secret_max_uses": null, "token_max_uses": null }'),
 	('disabled-approle', 'vault-disabled-approles', '{"disabled": true}')
 ;
@@ -55,7 +55,7 @@ WHERE authorization_policy_collection_name = 'nbde-escrow-production-creator'
 AND authorization_policy_collection_type = 'vault-policy'
 AND (
 	policy_name = 'initial-vault-ttl-default' AND policy_type = 'vault-ttls'
-OR	 policy_name = 'unlimited-usages' AND policy_type = 'vault-usages'
+OR	 policy_name = 'unlimited-uses' AND policy_type = 'vault-uses'
 OR	 policy_name = 'vault-disabled-approles' AND policy_type = 'disabled-approle'
 );
 

@@ -31,8 +31,8 @@ vault policy
  - secret ttl -[ default 720h ] - how long secrets live
  - token ttl - [ default 48h ] - how long "tgt" (secret+role) lives
  - token_max_ttl
- - secret_max_usages - default null / 0 for unlimted
- - token_max_usagess - default null / 0 for unlimted
+ - secret_max_uses - default null / 0 for unlimted
+ - token_max_uses - default null / 0 for unlimted
  - last_updated - whenever path under changes (XXX - how relation tracked?)
 
  vault policy path
