@@ -105,6 +105,12 @@ GRANT SELECT ON jazzhands.device_collection TO authz_test;
 GRANT SELECT ON jazzhands.device_collection_device TO authz_test;
 GRANT SELECT ON jazzhands.device TO authz_test;
 
+GRANT USAGE ON schema vault_policy TO app_vault_extract;
+GRANT USAGE ON schema vault_policy TO app_vault_change;
+
+GRANT SELECT ON ALL TABLES IN schema vault_policy TO app_vault_extract;
+GRANT SELECT,INSERT ON ALL TABLES IN schema vault_policy TO app_vault_change;
+
 -- === === === === === === === === === === === === === === === === === ===
 
 DELETE FROM jazzhands.val_property WHERE
