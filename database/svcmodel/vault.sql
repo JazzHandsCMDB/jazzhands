@@ -79,7 +79,7 @@ SELECT
 	authorization_policy_collection_id AS vault_policy_id,
 	authorization_policy_collection_name AS vault_policy_name,
 	authorization_policy_scope AS vault_policy_path,
-	array_agg(permission ORDER BY permission) as permission
+	array_agg(permission ORDER BY permission) as capabilities
 FROM authorization_policy.authorization_policy
 	JOIN authorization_policy.authorization_policy_collection_authorization_policy
 		USING (authorization_policy_id)
