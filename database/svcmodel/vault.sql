@@ -4,6 +4,16 @@
 
 CREATE OR REPLACE VIEW vault_policy AS
 SELECT
+	vault_policy_id,
+	vault_policy_name,
+	coalesce(secret_ttl::int, 86400)		AS secret_ttl,
+	coalesce(token_ttl::int, 86400)		AS token_ttl,
+	coalesce(token_max_ttl::int, 86400)		AS token_max_ttl,
+	secret_max_uses::int,
+	token_max_uses::int,
+	approle_disabled::boolean
+FROM (
+SELECT
 	authorization_policy_collection_id as vault_policy_id,
 	authorization_policy_collection_name as vault_policy_name,
 	min(policy_definition->>'secret_ttl')
@@ -29,6 +39,7 @@ FROM	authorization_policy.authorization_policy_collection
 WHERE authorization_policy_collection_type = 'vault-policy'
 GROUP BY authorization_policy_collection_id,
 	authorization_policy_collection_name
+) inside
 ;
 
 CREATE OR REPLACE VIEW vault_policy_path AS
