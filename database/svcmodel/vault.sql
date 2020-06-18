@@ -70,7 +70,7 @@ SELECT authorization_policy_collection_id AS vault_policy_id,
 	authorization_policy_collection_name AS vault_policy_name,
 	device_collection_name AS mclass,
 	coalesce(login, 'root') AS login,
-	coalesce(account_collection_name, 'root') as group
+	coalesce(account_collection_name, 'root') as unix_group
 FROM authorization_policy.authorization_policy_collection ac
 JOIN authorization_policy.authorization_property azp
 	USING (authorization_policy_collection_id)
@@ -416,17 +416,17 @@ BEGIN
 		NEW.login = 'root';
 	END IF;
 
-	IF NEW.group IS NOT NULL THEN
+	IF NEW.unix_group IS NOT NULL THEN
 		SELECT	account_collection_Id
 		INTO	azp.unix_group_account_collection_id
 		FROM	jazzhands.account_collection a
 		WHERE	account_collection_type = 'unix-group'
-		AND		account_collection_name = NEW.group;
+		AND		account_collection_name = NEW.unix_group;
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'bad account';
 		END IF;
 	ELSE
-		NEW.group = 'root';
+		NEW.unix_group = 'root';
 	END IF;
 
 	IF ( NEW.vault_policy_id IS NOT NULL AND
@@ -525,8 +525,8 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF OLD.group IS DISTINCT FROM NEW.group THEN
-		IF NEW.group IS NULL OR NEW.group = 'root' THEN
+	IF OLD.unix_group IS DISTINCT FROM NEW.unix_group THEN
+		IF NEW.unix_group IS NULL OR NEW.unix_group = 'root' THEN
 			upd_query := array_append(upd_query,
 				'unix_group_account_collection_id  = NULL');
 		ELSE
@@ -534,7 +534,7 @@ BEGIN
 			INTO	azp.unix_group_account_collection_id
 			FROM	jazzhands.account_collection a
 			WHERE	account_collection_type = 'unix-group'
-			AND		account_collection_name = NEW.group;
+			AND		account_collection_name = NEW.unix_group;
 			IF NOT FOUND THEN
 				RAISE EXCEPTION 'bad account';
 			END IF;
