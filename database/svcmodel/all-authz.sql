@@ -7,29 +7,29 @@
 begin;
 SET search_path=authorization_policy ;
 \ir authz-schema.sql
-\ir vault-data.sql 
+\ir vault-data.sql
 commit;
 
 \c :DBNAME postgres
-GRANT SELECT,INSERT ON authorization_policy.authorization_policy_collection
+GRANT SELECT,INSERT,DELETE ON authorization_policy.authorization_policy_collection
         TO vault_policy;
 GRANT USAGE ON SEQUENCE authorization_policy.authorization_policy_collecti_authorization_policy_collecti_seq TO vault_policy;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT,DELETE ON
 	authorization_policy.authorization_policy_collection_policy
 	TO vault_policy;
-GRANT SELECT,INSERT ON authorization_policy.authorization_property
+GRANT SELECT,INSERT,DELETE,UPDATE ON authorization_policy.authorization_property
 	TO vault_policy;
-GRANT SELECT,INSERT ON authorization_policy.policy
+GRANT SELECT,INSERT,DELETE ON authorization_policy.policy
 	TO vault_policy;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT,DELETE ON
 	authorization_policy.authorization_policy
 	TO vault_policy;
 GRANT USAGE ON SEQUENCE authorization_policy.authorization_property_authorization_property_id_seq TO vault_policy;
 GRANT USAGE ON SEQUENCE authorization_policy.authorization_policy_authorization_policy_id_seq TO vault_policy;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT,DELETE ON
 	authorization_policy.authorization_policy_permission
 	TO vault_policy;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT,DELETE ON
 	authorization_policy.authorization_policy_collection_authorization_policy
 	TO vault_policy;
 GRANT SELECT ON
@@ -37,28 +37,28 @@ GRANT SELECT ON
 	tO vault_policy;
 
 --
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.val_authorization_policy_type
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.authorization_policy_type_permitted_permission
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.val_authorization_policy_collection_type
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.authorization_policy_collection_authorization_policy
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.authorization_policy
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.authorization_property
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.authorization_policy_permission
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.authorization_policy_collection
 	TO authz_test;
 GRANT USAGE ON SEQUENCE
@@ -70,7 +70,7 @@ GRANT USAGE ON SEQUENCE
 GRANT USAGE ON SEQUENCE
 	authorization_policy.authorization_property_authorization_property_id_seq
 	TO authz_test;
-GRANT SELECT,INSERT ON 
+GRANT SELECT,INSERT ON
 	authorization_policy.policy
 	TO authz_test;
 
