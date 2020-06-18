@@ -17,11 +17,14 @@ GRANT USAGE ON SEQUENCE authorization_policy.authorization_policy_collecti_autho
 GRANT SELECT,INSERT ON 
 	authorization_policy.authorization_policy_collection_policy
 	TO vault_policy;
+GRANT SELECT,INSERT ON authorization_policy.authorization_property
+	TO vault_policy;
 GRANT SELECT,INSERT ON authorization_policy.policy
 	TO vault_policy;
 GRANT SELECT,INSERT ON 
 	authorization_policy.authorization_policy
 	TO vault_policy;
+GRANT USAGE ON SEQUENCE authorization_policy.authorization_property_authorization_property_id_seq TO vault_policy;
 GRANT USAGE ON SEQUENCE authorization_policy.authorization_policy_authorization_policy_id_seq TO vault_policy;
 GRANT SELECT,INSERT ON 
 	authorization_policy.authorization_policy_permission

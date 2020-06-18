@@ -220,9 +220,9 @@ RETURNS TRIGGER AS $$
 DECLARE
 	azp	authorization_property%ROWTYPE;
 BEGIN
-	SELECT	device_collectio_id
+	SELECT	device_collection_id
 	INTO	azp.device_collection_Id
-	FROM	jazzhands.device_collection_id
+	FROM	jazzhands.device_collection
 	WHERE	device_collection_type = 'mclass'
 	AND		device_collection_name IS NOT DISTINCT FROM NEW.mclass;
 	IF NOT FOUND THEN
@@ -237,10 +237,12 @@ BEGIN
 		INTO	azp.account_id, NEW.login
 		FROM	jazzhands.account a
 		WHERE	account_realm_id = 1
-		AND		a.login = HEW.login;
+		AND		a.login = NEW.login;
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'bad account';
 		END IF;
+	ELSE
+		NEW.login = 'root';
 	END IF;
 
 	IF NEW.group IS NOT NULL THEN
@@ -252,11 +254,44 @@ BEGIN
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'bad account';
 		END IF;
+	ELSE
+		NEW.group = 'root';
+	END IF;
+
+	IF ( NEW.vault_policy_id IS NOT NULL AND
+		NEW.vault_policy_name IS NOT NULL )
+	THEN
+		RAISE EXCEPTION 'Only set vault_policy_id or vault_policy_name';
+	ELSIF NEW.vault_policy_name IS NOT NULL THEN
+		SELECT authorization_policy_collection_id
+		INTO NEW.vault_policy_id
+		FROM authorization_policy_collection
+		WHERE authorization_policy_collection_name = NEW.vault_policy_name
+		AND authorization_policy_collection_type = 'vault-policy';
+	ELSIF NEW.vault_policy_id IS NOT NULL THEN
+		SELECT authorization_policy_collection_name
+		INTO NEW.vault_policy_name
+		FROM authorization_policy_collection
+		WHERE authorization_policy_collection_id = NEW.vault_policy_id;
 	END IF;
 
 	azp.authorization_policy_collection_id = NEW.vault_policy_id;
+	INSERT INTO authorization_property (
+		device_collection_id,
+		authorization_policy_collection_id,
+		property_type,
+		property_name,
+		account_id,
+		unix_group_account_collection_id
+	) VALUES (
+		azp.device_collection_id,
+		azp.authorization_policy_collection_id,
+		azp.property_type,
+		azp.property_name,
+		azp.account_id,
+		azp.unix_group_account_collection_id
+	);
 
-	INSERT INTO authorization_property VALUES (azp);
 	RETURN NEW;
 END;
 $$
