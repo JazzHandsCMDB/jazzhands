@@ -48,37 +48,6 @@ SELECT
 	authorization_policy_collection_id AS vault_policy_id,
 	authorization_policy_collection_name AS vault_policy_name,
 	authorization_policy_scope AS vault_policy_path,
-	CASE WHEN COUNT(*) FILTER (WHERE permission = 'create') > 0 THEN
-		true ELSE false END AS create,
-	CASE WHEN COUNT(*) FILTER (WHERE permission = 'list') > 0 THEN
-		true ELSE false END AS list,
-	CASE WHEN COUNT(*) FILTER (WHERE permission = 'read') > 0 THEN
-		true ELSE false END AS read,
-	CASE WHEN COUNT(*) FILTER (WHERE permission = 'update') > 0 THEN
-		true ELSE false END AS update,
-	CASE WHEN COUNT(*) FILTER (WHERE permission = 'delete') > 0 THEN
-		true ELSE false END AS delete
-FROM authorization_policy.authorization_policy
-	JOIN authorization_policy.authorization_policy_collection_authorization_policy
-		USING (authorization_policy_id)
-	JOIN authorization_policy.authorization_policy_permission
-		USING (authorization_policy_id)
-	JOIN authorization_policy.authorization_policy_collection
-		USING (authorization_policy_collection_id)
-WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
-AND authorization_policy_collection_type = 'vault-policy'
-GROUP BY authorization_policy_id,
-	authorization_policy_collection_id,
-	authorization_policy_collection_name,
-	authorization_policy_scope
-;
-
-CREATE OR REPLACE VIEW other_vault_policy_path AS
-SELECT
-	authorization_policy_id	AS vault_policy_path_id,
-	authorization_policy_collection_id AS vault_policy_id,
-	authorization_policy_collection_name AS vault_policy_name,
-	authorization_policy_scope AS vault_policy_path,
 	array_agg(permission ORDER BY permission) as capabilities
 FROM authorization_policy.authorization_policy
 	JOIN authorization_policy.authorization_policy_collection_authorization_policy
@@ -95,16 +64,11 @@ GROUP BY authorization_policy_id,
 	authorization_policy_scope
 ;
 
-ALTER VIEW vault_policy_path ALTER "create" SET DEFAULT false;
-ALTER VIEW vault_policy_path ALTER "list" SET DEFAULT false;
-ALTER VIEW vault_policy_path ALTER "read" SET DEFAULT false;
-ALTER VIEW vault_policy_path ALTER "update" SET DEFAULT false;
-ALTER VIEW vault_policy_path ALTER "delete" SET DEFAULT false;
-
 CREATE OR REPLACE VIEW vault_policy_mclass AS
 SELECT authorization_policy_collection_id AS vault_policy_id,
+	authorization_policy_collection_name AS vault_policy_name,
 	device_collection_name AS mclass,
-	coalesce(login, 'root'),
+	coalesce(login, 'root') AS login,
 	coalesce(account_collection_name, 'root') as group
 FROM authorization_policy.authorization_policy_collection ac
 JOIN authorization_policy.authorization_property azp
@@ -120,6 +84,7 @@ AND property_type = 'authorization-mappings'
 
 CREATE OR REPLACE VIEW vault_policy_kubernetes AS
 SELECT authorization_policy_collection_id AS vault_policy_id,
+	authorization_policy_collection_name AS vault_policy_name,
 	kubernetes_cluster,
 	kubernetes_namespace,
 	kubernetes_service_account
@@ -223,45 +188,11 @@ BEGIN
 	END IF;
 	NEW.vault_policy_path_id = ap.authorization_policy_id;
 
-	IF NEW.create THEN
-		INSERT INTO authorization_policy_permission (
-			authorization_policy_id, permission
-		) VALUES (
-			ap.authorization_policy_id, 'create'
-		);
-	END IF;
-
-	IF NEW.list THEN
-		INSERT INTO authorization_policy_permission (
-			authorization_policy_id, permission
-		) VALUES (
-			ap.authorization_policy_id, 'list'
-		);
-	END IF;
-
-	IF NEW.read THEN
-		INSERT INTO authorization_policy_permission (
-			authorization_policy_id, permission
-		) VALUES (
-			ap.authorization_policy_id, 'read'
-		);
-	END IF;
-
-	IF NEW.update THEN
-		INSERT INTO authorization_policy_permission (
-			authorization_policy_id, permission
-		) VALUES (
-			ap.authorization_policy_id, 'update'
-		);
-	END IF;
-
-	IF NEW.delete THEN
-		INSERT INTO authorization_policy_permission (
-			authorization_policy_id, permission
-		) VALUES (
-			ap.authorization_policy_id, 'delete'
-		);
-	END IF;
+	INSERT INTO authorization_policy_permission (
+		authorization_policy_id, permission
+	) VALUES (
+		ap.authorization_policy_id, unnest(NEW.capabilities)
+	);
 
 	INSERT INTO authorization_policy_collection_authorization_policy (
 		authorization_policy_collection_id, authorization_policy_id

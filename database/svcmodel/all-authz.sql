@@ -2,7 +2,7 @@
 \set ON_ERROR_STOP
 \pset pager off
 
-\c jazzhands authorization_policy
+\c :DBNAME authorization_policy
 
 begin;
 SET search_path=authorization_policy ;
@@ -10,7 +10,7 @@ SET search_path=authorization_policy ;
 \ir vault-data.sql 
 commit;
 
-\c jazzhands postgres
+\c :DBNAME postgres
 GRANT SELECT,INSERT ON authorization_policy.authorization_policy_collection
         TO vault_policy;
 GRANT USAGE ON SEQUENCE authorization_policy.authorization_policy_collecti_authorization_policy_collecti_seq TO vault_policy;
@@ -73,7 +73,7 @@ GRANT SELECT,INSERT ON
 
 --
 
-\c jazzhands vault_policy
+\c :DBNAME vault_policy
 
 begin;
 SET search_path=vault_policy;
@@ -84,7 +84,7 @@ GRANT SELECT ON ALL TABLES IN schema vault_policy TO app_vault_extract;
 GRANT SELECT,INSERT ON ALL TABLES IN schema vault_policy TO app_vault_change;
 commit;
 
-\c jazzhands authz_test
+\c :DBNAME authz_test
 
 begin;
 SET search_path=authz_test,authorization_policy;
