@@ -170,7 +170,9 @@ CREATE TABLE authorization_property (
 	kubernetes_namespace			TEXT,
 	kubernetes_service_account		TEXT,
 	unix_group_account_collection_id	INTEGER,
-	primary key(authorization_property_id)
+	primary key(authorization_property_id),
+	unique (authorization_policy_collection_id, device_collection_id),
+	unique (authorization_policy_collection_id, kubernetes_cluster,kubernetes_namespace,kubernetes_service_account)
 );
 
 --- fks

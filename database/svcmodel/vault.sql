@@ -604,6 +604,11 @@ RETURNS TRIGGER AS $$
 DECLARE
 	azp	authorization_property%ROWTYPE;
 BEGIN
+	--
+	-- note, there is a unique constraint on
+	-- (authorization_policy_id, device_collection_id) that this assumes
+	-- is there.
+	--
 	DELETE FROM authorization_property
 	WHERE property_type = 'authorization-mappings'
 	AND property_name = 'mclass-authorization-map'
@@ -612,7 +617,7 @@ BEGIN
 		SElECT device_collection_id
 		FROM jazzhands.device_collection
 		WHERE	device_collection_type = 'mclass'
-		AND	device_collection_id = OLD.mclass
+		AND	device_collection_name = OLD.mclass
 	);
 
 	RETURN OLD;
