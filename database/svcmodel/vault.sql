@@ -612,7 +612,7 @@ BEGIN
 		SElECT device_collection_id
 		FROM jazzhands.device_collection
 		WHERE	device_collection_type = 'mclass'
-		AND	device_collection_name = OLD.mclass
+		AND	device_collection_id = OLD.mclass
 	);
 
 	RETURN OLD;
