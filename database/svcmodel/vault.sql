@@ -272,6 +272,23 @@ BEGIN
 	END IF;
 	NEW.vault_policy_path_id = ap.authorization_policy_id;
 
+	IF NEW.vault_policy_id IS NOT NULL AND NEW.vault_policy_name IS NOT NULL THEN
+		RAISE EXCEPTION 'May not set both vault_policy_id and vault_policy_name';
+	ELSIF NEW.vault_policy_id IS NOT NULL THEN
+		SELECT authorization_policy_collection_id, authorization_policy_collection_name
+		INTO  NEW.vault_policy_id, NEW.vault_policy_name
+		FROM authorization_policy_collection
+		WHERE authorization_policy_collection_id = NEW.vault_policy_id;
+	ELSIF NEW.vault_policy_name IS NOT NULL THEN
+		SELECT authorization_policy_collection_id, authorization_policy_collection_name
+		INTO  NEW.vault_policy_id, NEW.vault_policy_name
+		FROM authorization_policy_collection
+		WHERE authorization_policy_collection_name = NEW.vault_policy_name;
+	ELSE
+		RAISE EXCEPTION 'Must set vault_policy_id or vault_policy_name';
+	END IF;
+	
+
 	INSERT INTO authorization_policy_permission (
 		authorization_policy_id, permission
 	) VALUES (
@@ -287,7 +304,7 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-SET search_path=authorization_policy,jazzhands
+SET search_path=authorization_policy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_vault_policy_path_ins
