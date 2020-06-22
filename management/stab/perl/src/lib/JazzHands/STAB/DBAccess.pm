@@ -2021,9 +2021,11 @@ sub build_dns_drop {
 	}
 	my $sth = $self->prepare(
 		qq{
-		select  DNS_DOMAIN_ID, SOA_NAME
-		  from  DNS_DOMAIN
+		SELECT  DNS_DOMAIN_ID, SOA_NAME
+		  FROM  DNS_DOMAIN
 		  $where
+		  ORDER BY CASE WHEN dns_domain_type = 'reverse' THEN 1
+			ELSE 0 END, soa_name
 	}
 	) || die;
 	if ($type) {
