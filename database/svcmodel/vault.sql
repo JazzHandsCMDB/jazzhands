@@ -658,6 +658,24 @@ RETURNS TRIGGER AS $$
 DECLARE
 	azp	authorization_property%ROWTYPE;
 BEGIN
+
+	IF ( NEW.vault_policy_id IS NOT NULL AND
+		NEW.vault_policy_name IS NOT NULL )
+	THEN
+		RAISE EXCEPTION 'Only set vault_policy_id or vault_policy_name';
+	ELSIF NEW.vault_policy_name IS NOT NULL THEN
+		SELECT authorization_policy_collection_id
+		INTO NEW.vault_policy_id
+		FROM authorization_policy_collection
+		WHERE authorization_policy_collection_name = NEW.vault_policy_name
+		AND authorization_policy_collection_type = 'vault-policy';
+	ELSIF NEW.vault_policy_id IS NOT NULL THEN
+		SELECT authorization_policy_collection_name
+		INTO NEW.vault_policy_name
+		FROM authorization_policy_collection
+		WHERE authorization_policy_collection_id = NEW.vault_policy_id;
+	END IF;
+
 	INSERT INTO authorization_property (
 		property_name,
 		property_type,
@@ -666,8 +684,8 @@ BEGIN
 		kubernetes_service_account,
 		authorization_policy_collection_id
 	) VALUES (
-	    'application-kubernetes-map',
-	    'authorization-mappings',
+		'application-kubernetes-map',
+		'authorization-mappings',
 		NEW.kubernetes_cluster,
 		NEW.kubernetes_namespace,
 		NEW.kubernetes_service_account,

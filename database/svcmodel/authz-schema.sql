@@ -40,15 +40,19 @@ CREATE TABLE val_authorization_policy_type (
 
 /*
  * name of a policy that has permissions assocaited with it
+ *
+ * It is possible the type,scope unique constraint may need to be optional
+ * based on type
  */
 CREATE TABLE authorization_policy (
 	authorization_policy_id		SERIAL,
-	authorization_policy_name	TExt NOT NULL,
-	authorization_policy_type	TExt NOT NULL,
+	authorization_policy_name	TEXT NOT NULL,
+	authorization_policy_type	TEXT NOT NULL,
 	authorization_policy_scope	TEXT NOT NULL,
 	description			TEXT,
 	PRIMARY KEY (authorization_policy_id),
-	UNIQUE (authorization_policy_name,authorization_policy_type)
+	UNIQUE (authorization_policy_name,authorization_policy_type),
+	UNIQUE (authorization_policy_type,authorization_policy_scope)
 );
 
 /*
