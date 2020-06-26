@@ -57,7 +57,7 @@ FROM authorization_policy.authorization_policy
 		USING (authorization_policy_id)
 	JOIN authorization_policy.authorization_policy_collection
 		USING (authorization_policy_collection_id)
-WHERE authorization_policy_type IN ('vault-policy-path','vault-metadata-path')
+WHERE authorization_policy_type IN ('vault-policy-path')
 AND authorization_policy_collection_type = 'vault-policy'
 GROUP BY authorization_policy_id,
 	authorization_policy_collection_id,
@@ -246,11 +246,7 @@ DECLARE
 	ap	authorization_policy%ROWTYPE;
 	policy_type TEXT;
 BEGIN
-	IF NEW.vault_policy_path ~ '/metadata/' THEN
-		policy_type := 'vault-metadata-path';
-	ELSE
-		policy_type := 'vault-policy-path';
-	END IF;
+	policy_type := 'vault-policy-path';
 	IF NEW.vault_policy_path_id IS NULL THEN
 		INSERT INTO authorization_policy (
 			authorization_policy_name, authorization_policy_type,

@@ -27,8 +27,7 @@ WITH apt AS (
 	INSERT INTO val_authorization_policy_type (
 		authorization_policy_type
 	) VALUES
-		( 'vault-policy-path' ),
-		( 'vault-metadata-path' )
+		( 'vault-policy-path' )
 	RETURNING *
 ) INSERT INTO authorization_policy_type_permitted_permission (
 	authorization_policy_type,permission
