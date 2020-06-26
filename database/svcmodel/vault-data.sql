@@ -38,9 +38,9 @@ FROM apt;
 
 
 INSERT INTO val_authorization_policy_collection_type (
-	authorization_policy_collection_type
+	authorization_policy_collection_type, MAX_NUM_UNIQUE_SCOPES
 ) VALUES
-	('vault-policy')
+	('vault-policy', 1)
 ;
 
 INSERT INTO authorization_policy_collection (

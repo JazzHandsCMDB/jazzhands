@@ -38,7 +38,7 @@ CREATE TABLE policy (
  */
 CREATE TABLE val_authorization_policy_type (
 	authorization_policy_type	text NOT NULL,
-	description			text,
+	description					text,
 	unique_scope_per_type		boolean DEFAULT false,
 	PRIMARY KEY (authorization_policy_type)
 );
@@ -120,6 +120,7 @@ CREATE TABLE authorization_policy_permission (
 
 /*
  * collections of authorization_policies
+ *
  */
 CREATE TABLE val_authorization_policy_collection_type (
 	authorization_policy_collection_type	text NOT NULL,
@@ -127,6 +128,7 @@ CREATE TABLE val_authorization_policy_collection_type (
 	MAX_NUM_MEMBERS      			INTEGER NULL,
 	MAX_NUM_COLLECTIONS  			INTEGER NULL,
 	CAN_HAVE_HIERARCHY   			boolean NOT NULL DEFAULT true,
+	MAX_NUM_UNIQUE_SCOPES			INTEGER NULL,
 	PRIMARY KEY (authorization_policy_collection_type)
 );
 
@@ -429,5 +431,115 @@ CREATE CONSTRAINT TRIGGER trigger_val_authorization_policy_type_scope_unique
 	DEFERRABLE INITIALLY IMMEDIATE
 	FOR EACH ROW
 	EXECUTE PROCEDURE val_authorization_policy_type_scope_unique();
+
+-- === === === === === === === === === === == === === === === === === === ===
+
+CREATE OR REPLACE FUNCTION authz_policy_collection_scope_uniq()
+RETURNS TRIGGER AS $$
+DECLARE
+	numscopes	INTEGER;
+	_scope		TEXT;
+	tally		INTEGER;
+	typ			TEXT;
+BEGIN
+	SELECT	max_num_unique_scopes, authorization_policy_collection_type
+	INTO	numscopes, typ
+	FROM	val_authorization_policy_collection_type
+			JOIN authorization_policy_collection
+			USING (authorization_policy_collection_type)
+	WHERE	authorization_policy_collection_id =
+			NEW.authorization_policy_collection_id
+	;
+
+	IF numscopes IS NOT NULL THEN
+		SELECT count(*)
+		INTO tally
+		FROM (
+			SELECT	authorization_policy_scope, count(*)
+			FROM	authorization_policy_collection_authorization_policy
+					JOIN authorization_policy_collection
+						USING (authorization_policy_collection_id)
+					JOIN authorization_policy
+						USING (authorization_policy_id)
+			WHERE	authorization_policy_collection_id = 1
+			GROUP BY 1
+			HAVING count(*) >  numscopes
+		) inside;
+
+		IF tally > 0 THEN
+			RAISE EXCEPTION 'Maximum number of unique authorization_policy_scopes can not exeed % for collection type % [%]', numscopes, typ, tally
+			USING ERRCODE =  'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=authorization_policy
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS
+	trigger_authz_policy_collection_authorization_policy_scope_uniq
+	ON authorization_policy_collection_authorization_policy;
+CREATE CONSTRAINT TRIGGER trigger_authz_policy_collection_scope_uniq
+	AFTER INSERT OR UPDATE
+	ON authorization_policy_collection_authorization_policy
+	DEFERRABLE INITIALLY IMMEDIATE
+	FOR EACH ROW
+	EXECUTE PROCEDURE authz_policy_collection_scope_uniq();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION val_authorization_policy_collection_type_scope_unique()
+RETURNS TRIGGER AS $$
+DECLARE
+	tally		integer;
+BEGIN
+	--
+	-- only relevant if scope changes
+	--
+	IF TG_OP = 'UPDATE' AND
+		OLD.max_num_unique_scopes IS NOT DISTINCT FROM NEW.max_num_unique_scopes
+	THEN
+		RETURN NEW;
+	END IF;
+
+	IF NEW.max_num_unique_scopes IS  NOT NULL THEN
+		SELECT count(*)
+		INTO	tally
+		FROM (
+			SELECT authorization_policy_scope, count(*)
+			FROM	authorization_policy_collection apc
+					JOIN authorization_policy_collection_authorization_policy
+						appcap USING (authorization_policy_collection_id)
+					JOIN authorization_policy ap USING (authorization_policy_id)
+			WHERE	authorization_policy_collection_type =
+						NEW.authorization_policy_collection_type
+			GROUP BY authorization_policy_scope
+			HAVING count(*) > NEW.max_num_unique_scopes
+		) inside;
+
+		IF tally > 0 THEN
+			RAISE EXCEPTION
+				'authorization_policy_collection_scope must be unique within %',
+				NEW.authorization_policy_collection_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=authorization_policy
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_val_authorization_policy_collection_type_scope_unique
+	ON val_authorization_policy_collection_type;
+CREATE CONSTRAINT TRIGGER trigger_val_authorization_policy_collection_type_scope_unique
+	AFTER INSERT OR UPDATE
+	ON val_authorization_policy_collection_type
+	DEFERRABLE INITIALLY IMMEDIATE
+	FOR EACH ROW
+	EXECUTE PROCEDURE val_authorization_policy_collection_type_scope_unique();
 
 ------------------------------------------------------------------------------
