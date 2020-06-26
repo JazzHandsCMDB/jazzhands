@@ -31,10 +31,15 @@ CREATE TABLE policy (
 /*
  * typical
  *
+ * unique_scope_per_type means that for this type, there should be a unique
+ * constraint onfor things type in authorization_policy of the form:
+ * UNIQUE (authorization_policy_type,authorization_policy_scope)
+ *
  */
 CREATE TABLE val_authorization_policy_type (
 	authorization_policy_type	text NOT NULL,
 	description			text,
+	unique_scope_per_type		boolean DEFAULT false,
 	PRIMARY KEY (authorization_policy_type)
 );
 
@@ -51,12 +56,11 @@ CREATE TABLE authorization_policy (
 	authorization_policy_scope	TEXT NOT NULL,
 	description			TEXT,
 	PRIMARY KEY (authorization_policy_id),
-	UNIQUE (authorization_policy_name,authorization_policy_type),
-	UNIQUE (authorization_policy_type,authorization_policy_scope)
+	UNIQUE (authorization_policy_name,authorization_policy_type)
 );
 
 /*
- * the various permissions that can be assoicated with the 
+ * the various permissions that can be assoicated with the
  * policy by type  (read, write, update)
  */
 CREATE TABLE authorization_policy_type_permitted_permission (
@@ -68,10 +72,10 @@ CREATE TABLE authorization_policy_type_permitted_permission (
 
 /*
  * relates various policies to the authorization policy.
- * This would be things like ttls, lifetimes, etc 
+ * This would be things like ttls, lifetimes, etc
  *
  * required means that there's they can't be removed and if a variable
- * is not set (which a stored procedure would do), it can't add a new one. 
+ * is not set (which a stored procedure would do), it can't add a new one.
  *
  * having a row here means it's allowed
  */
@@ -119,10 +123,10 @@ CREATE TABLE authorization_policy_permission (
  */
 CREATE TABLE val_authorization_policy_collection_type (
 	authorization_policy_collection_type	text NOT NULL,
-        IS_INFRASTRUCTURE_TYPE 			boolean  NOT NULL DEFAULT false,
-        MAX_NUM_MEMBERS      			INTEGER NULL,
-        MAX_NUM_COLLECTIONS  			INTEGER NULL,
-        CAN_HAVE_HIERARCHY   			boolean NOT NULL DEFAULT true,
+	IS_INFRASTRUCTURE_TYPE 			boolean  NOT NULL DEFAULT false,
+	MAX_NUM_MEMBERS      			INTEGER NULL,
+	MAX_NUM_COLLECTIONS  			INTEGER NULL,
+	CAN_HAVE_HIERARCHY   			boolean NOT NULL DEFAULT true,
 	PRIMARY KEY (authorization_policy_collection_type)
 );
 
@@ -323,3 +327,107 @@ SELECT	device_collection_id,
 FROM	jazzhands.device_collection
 WHERE	device_collection_type = 'mclass';
 
+-- === === === === === === === === === === == === === === === === === === ===
+
+CREATE OR REPLACE FUNCTION authorization_policy_scope_unique()
+RETURNS TRIGGER AS $$
+DECLARE
+	scope_uq	boolean;
+	tally		integer;
+BEGIN
+	--
+	-- only relevant if scope changes
+	--
+	IF TG_OP = 'UPDATE' AND
+		OLD.authorization_policy_scope  = NEW.authorization_policy_scope
+	THEN
+		RETURN NEW;
+	END IF;
+
+	SELECT	unique_scope_per_type
+	INTO	scope_uq
+	FROM	val_authorization_policy_type
+	WHERE	authorization_policy_type = NEW.authorization_policy_type;
+
+
+	IF scope_uq THEN
+		SELECT	count(*)
+		INTO	tally
+		FROM	authorization_policy ap
+		WHERE	ap.authorization_policy_scope = NEW.authorization_policy_scope
+		AND		ap.authorization_policy_type = NEW.authorization_policy_type
+		AND		ap.authorization_policy_id != NEW.authorization_policy_id;
+
+		IF tally > 0 THEN
+			RAISE EXCEPTION
+				'authorization_policy_scope % must be unique within % [%]',
+				NEW.authorization_policy_scope,
+				NEW.authorization_policy_type, tally
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+
+	RETURN NEW;
+END;
+$$
+SET search_path=authorization_policy,vault_policy
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_authorization_policy_scope_unique
+	ON authorization_policy;
+CREATE CONSTRAINT TRIGGER trigger_authorization_policy_scope_unique
+	AFTER INSERT OR UPDATE
+	ON authorization_policy
+	DEFERRABLE INITIALLY IMMEDIATE
+	FOR EACH ROW
+	EXECUTE PROCEDURE authorization_policy_scope_unique();
+
+------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION val_authorization_policy_type_scope_unique()
+RETURNS TRIGGER AS $$
+DECLARE
+	tally		integer;
+BEGIN
+	--
+	-- only relevant if scope changes
+	--
+	IF TG_OP = 'UPDATE' AND
+		OLD.unique_scope_per_type  = NEW.unique_scope_per_type
+	THEN
+		RETURN NEW;
+	END IF;
+
+	IF NEW.unique_scope_per_type THEN
+		PERFORM	authorization_policy_scope, count(*)
+		FROM	authorization_policy ap
+		WHERE	ap.authorization_policy_type = NEW.authorization_policy_type
+		GROUP BY authorization_policy_scope
+		HAVING count(*) > 1;
+
+		IF FOUND THEN
+			RAISE EXCEPTION
+				'authorization_policy_scope must be unique within %',
+				NEW.authorization_policy_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+
+	RETURN NEW;
+END;
+$$
+SET search_path=authorization_policy,vault_policy
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_val_authorization_policy_type_scope_unique
+	ON val_authorization_policy_type;
+CREATE CONSTRAINT TRIGGER trigger_val_authorization_policy_type_scope_unique
+	AFTER INSERT OR UPDATE
+	ON val_authorization_policy_type
+	DEFERRABLE INITIALLY IMMEDIATE
+	FOR EACH ROW
+	EXECUTE PROCEDURE val_authorization_policy_type_scope_unique();
+
+------------------------------------------------------------------------------
