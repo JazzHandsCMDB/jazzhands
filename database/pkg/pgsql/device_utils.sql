@@ -142,8 +142,17 @@ CREATE OR REPLACE FUNCTION device_utils.retire_devices (
 	device_id	jazzhands.device.device_id%TYPE,
 	success		boolean
 ) AS $$
+DECLARE
+	_r	RECORD;
 BEGIN
-	RETURN device_manip.retire_devices(device_id_list, success);
+	FOR _r IN SELECT device_manip.retire_devices(device_id_list)
+	LOOP
+	END LOOP;
+		device_id := _r.device_id;
+		success := _r.success;
+		RETURN NEXT;
+
+	RETURN;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
@@ -197,14 +206,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 
-CREATE OR REPLACE FUNCTION device_manip.retire_racks (
+CREATE OR REPLACE FUNCTION device_utils.retire_racks (
 	rack_id_list	integer[]
 ) RETURNS TABLE (
 	rack_id		jazzhands.rack.rack_id%TYPE,
 	success		boolean
 ) AS $$
+DECLARE
+	_r	RECORD;
 BEGIN
-	RETURN device_utils.retire_racks( rack_id_list );
+	FOR _r IN SELECT device_utils.retire_racks( rack_id_list )
+	LOOP
+		rack_id		:= _r.rack_id;
+		success		:= _r.success;
+		RETURN NEXT;
+	END LOOP;
+
+	RETURN;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
