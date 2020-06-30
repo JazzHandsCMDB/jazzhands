@@ -59,6 +59,61 @@ BEGIN
 END;
 $$;
 
+-----------------------------------------------------------------------------
+--
+-- BEGIN DEPRECATE BELOW
+--
+-----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
+	in_IpAddress jazzhands.netblock.ip_address%type,
+	in_Netmask_Bits integer DEFAULT NULL,
+	in_netblock_type jazzhands.netblock.netblock_type%type DEFAULT 'default',
+	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
+	in_is_single_address jazzhands.netblock.is_single_address%type DEFAULT 'N',
+	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL,
+	in_fuzzy_can_subnet boolean DEFAULT false,
+	can_fix_can_subnet boolean DEFAULT false,
+	will_soon_be_dropped    boolean DEFAULT true
+) RETURNS jazzhands.netblock.netblock_id%type AS
+$$
+	RETURN netblock_utils.find_best_parent_netblock_id(
+		ip_address			:= in_IpAddress,
+		netmask_bits		:= in_Netmask_Bits,
+		netblock_type		:= in_netblock_type,
+		ip_universe_id		:= in_ip_universe_id,
+		is_single_address	:= in_is_single_address,
+		netblock_id			:= in_netblock_id,
+		fuzzy_can_subnet	:= in_fuzzy_can_subnet,
+		fix_can_submet		:= in_can_fix_can_subnet
+	);
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
+	in_netblock_id jazzhands.netblock.netblock_id%type,
+	will_soon_be_dropped    boolean DEFAULT true
+) RETURNS jazzhands.netblock.netblock_id%type AS $$
+DECLARE
+	nbrec		RECORD;
+BEGIN
+	RETURN netblock_utils.find_best_parent_netblock_id(
+			ip_addres := in_netblock_id
+	);
+END;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = jazzhands;
+
+
+-----------------------------------------------------------------------------
+--
+-- END DEPRECATE ABOVE
+--
+-----------------------------------------------------------------------------
+
+
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
 	in_IpAddress jazzhands.netblock.ip_address%type,
 	in_Netmask_Bits integer DEFAULT NULL,
