@@ -64,40 +64,6 @@ our @ISA = qw( );
 
 our $VERSION = '1.0.0';
 
-sub setup_device_power {
-	my ( $self, $devid ) = @_;
-
-	# XXX ORACLE/pgsql
-	# oracle requires this to be wrapped in a begin/end, pgsql needs the
-	# select
-
-	my $dbh = $self->dbh || die "Could not create dbh";
-
-	my $q = qq{
-			SELECT port_utils.setup_device_power(?);
-	};
-	my $sth = $dbh->prepare($q) || $self->return_db_err($dbh);
-	$sth->execute($devid) || $self->return_db_err($sth);
-	$sth->finish;
-}
-
-sub setup_device_physical_ports {
-	my ( $self, $devid, $type ) = @_;
-
-	# XXX ORACLE/pgsql
-	# oracle requires this to be wrapped in a begin/end, pgsql needs the
-	# select
-
-	my $dbh = $self->dbh || die "Could not create dbh";
-
-	my $q = qq{
-			SELECT port_utils.setup_device_physical_ports(?, ?);
-	};
-	my $sth = $dbh->prepare($q) || $self->return_db_err( $q, $dbh );
-	$sth->execute( $devid, $type ) || $self->return_db_err($sth);
-	$sth->finish;
-}
-
 ##############################################################################
 #
 # Device Notes
@@ -305,8 +271,6 @@ sub device_circuit_tab {
 sub device_switch_port {
 	my ( $self, $devid, $parent ) = @_;
 
-	$self->setup_device_physical_ports( $devid, 'network' );
-
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
 
@@ -473,8 +437,6 @@ sub build_switch_drop_tr {
 ##############################################################################
 sub device_power_ports {
 	my ( $self, $devid ) = @_;
-
-	$self->setup_device_power($devid);
 
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
@@ -654,8 +616,6 @@ sub powerport_device_magic {
 ##############################################################################
 sub device_serial_ports {
 	my ( $self, $devid ) = @_;
-
-	$self->setup_device_physical_ports( $devid, 'serial' );
 
 	my $dbh = $self->dbh || die "Could not create dbh";
 	my $cgi = $self->cgi || die "Could not create cgi";
