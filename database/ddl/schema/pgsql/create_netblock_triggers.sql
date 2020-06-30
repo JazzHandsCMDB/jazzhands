@@ -77,7 +77,7 @@ BEGIN
 		IF nbtype.db_forced_hierarchy = 'Y' THEN
 			RAISE DEBUG 'Calculating netmask for new netblock';
 
-			v_netblock_id := netblock_utils.find_best_parent_id(
+			v_netblock_id := netblock_utils.find_best_parent_netblock_id(
 				NEW.ip_address,
 				NULL,
 				NEW.netblock_type,
@@ -265,7 +265,7 @@ BEGIN
 	 */
 
 	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
-	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
+	NEW.parent_netblock_id := netblock_utils.find_best_parent_netblock_id(
 		NEW.ip_address,
 		NULL,
 		NEW.netblock_type,
@@ -537,7 +537,7 @@ BEGIN
 		 * Validate that a netblock has a parent, unless
 		 * it is the root of a hierarchy
 		 */
-		parent_nbid := netblock_utils.find_best_parent_id(
+		parent_nbid := netblock_utils.find_best_parent_netblock_id(
 			realnew.ip_address,
 			NULL,
 			realnew.netblock_type,
@@ -605,7 +605,7 @@ BEGIN
 		IF nbtype.is_validated_hierarchy='N' THEN
 			RETURN NULL;
 		ELSE
-			parent_nbid := netblock_utils.find_best_parent_id(
+			parent_nbid := netblock_utils.find_best_parent_netblock_id(
 				realnew.ip_address,
 				NULL,
 				realnew.netblock_type,
@@ -689,7 +689,7 @@ BEGIN
 					((is_single_address = 'Y' AND NEW.ip_address !=
 						ip_address::cidr) OR
 					(is_single_address = 'N' AND realnew.netblock_id !=
-						netblock_utils.find_best_parent_id(netblock_id)));
+						netblock_utils.find_best_parent_netblock_id(netblock_id)));
 				IF FOUND THEN
 					RAISE EXCEPTION 'Update for netblock % (%) causes parent to have children that do not belong to it',
 						realnew.netblock_id, realnew.ip_address
