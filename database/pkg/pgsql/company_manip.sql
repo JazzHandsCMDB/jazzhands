@@ -54,9 +54,9 @@ $$;
 -- note that there is no 'remove_auto_collections'
 --
 CREATE OR REPLACE FUNCTION company_manip.add_auto_collections(
-	_company_id		company.company_id%type,
-	_account_realm_id	account_realm.account_realm_id%type,
-	_company_type	text
+	company_id			company.company_id%TYPE,
+	account_realm_id	account_realm.account_realm_id%TYPE,
+	company_type		TEXT
 ) RETURNS void AS
 $$
 DECLARE
@@ -71,30 +71,31 @@ DECLARE
 	propv	text;
 	tally	integer;
 BEGIN
+
 	PERFORM *
-	FROM	account_realm_company
-	WHERE	company_id = _company_id
-	AND		account_realm_id = _account_realm_id;
+	FROM	account_realm_company arc
+	WHERE	arc.company_id = add_auto_collections.company_id
+	AND		arc.account_realm_id = add_auto_collections.account_realm_id;
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Company and Account Realm are not associated together'
 			USING ERRCODE = 'not_null_violation';
 	END IF;
 
 	PERFORM *
-	FROM	company_type
-	WHERE	company_id = _company_id
-	AND		company_type = _company_type;
+	FROM	company_type ct
+	WHERE	ct.company_id = add_auto_collections.company_id
+	AND		ct.company_type = add_auto_collections.company_type;
 	IF NOT FOUND THEN
-		RAISE EXCEPTION 'Company % is not of type %', _company_id, _company_type
+		RAISE EXCEPTION 'Company % is not of type %', company_id, company_type
 			USING ERRCODE = 'not_null_violation';
 	END IF;
 
 	SELECT	company_collection_id
 	INTO	_cc
-	FROM	company_collection
-			INNER JOIN company_collection_company USING (company_collection_id)
-	WHERE	company_collection_type = 'per-company'
-	AND		company_id = _company_id;
+	FROM	company_collection cc
+			INNER JOIN company_collection_company ccc USING (company_collection_id)
+	WHERE	cc.company_collection_type = 'per-company'
+	AND		ccc.company_id = add_auto_collections.company_id;
 
 	tally := 0;
 	FOR _r IN SELECT	property_name, property_type,
@@ -104,7 +105,7 @@ BEGIN
 					USING (property_collection_id)
 				INNER JOIN val_property vp USING (property_name,property_type)
 				WHERE pc.property_collection_type = 'auto_ac_assignment'
-				AND pc.property_collection_name = _company_type
+				AND pc.property_collection_name = add_auto_collections.company_type
 				AND property_name != 'site'
 	LOOP
 		IF _r.property_name = 'account_type' THEN
@@ -118,13 +119,13 @@ BEGIN
 
 	SELECT	account_realm_name
 	INTO	_ar
-	FROM	account_realm
-	WHERE	account_realm_id = _account_realm_id;
+	FROM	account_realm ar
+	WHERE	ar.account_realm_id = add_auto_collections.account_realm_id;
 
 	SELECT	company_short_name
 	INTO	_csn
-	FROM	company
-	WHERE	company_id = _company_id;
+	FROM	company c
+	WHERE	c.company_id = add_auto_collections.company_id;
 
 		FOREACH i IN ARRAY _v
 		LOOP
@@ -147,7 +148,7 @@ BEGIN
 				account_collection_id,
 				company_collection_id, property_value
 			) VALUES (
-				_r.property_name, _r.property_type, _account_realm_id,
+				_r.property_name, _r.property_type, account_realm_id,
 				acid,
 				_cc, propv
 			);
@@ -166,9 +167,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- NOTE:  There is no remove_auto_collections_site.
 --
 CREATE OR REPLACE FUNCTION company_manip.add_auto_collections_site(
-	_company_id		company.company_id%type,
-	_account_realm_id	account_realm.account_realm_id%type,
-	_site_code		site.site_code%type
+	company_id			company.company_id%TYPE,
+	account_realm_id	account_realm.account_realm_id%TYPE,
+	site_code			site.site_code%TYPE
 ) RETURNS void AS
 $$
 DECLARE
@@ -179,9 +180,9 @@ DECLARE
 	tally	integer;
 BEGIN
 	PERFORM *
-	FROM	account_realm_company
+	FROM	account_realm_company arc
 	WHERE	company_id = _company_id
-	AND		account_realm_id = _account_realm_id;
+	AND		arc.account_realm_id = add_auto_collections_site.account_realm_id;
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Company and Account Realm are not associated together'
 			USING ERRCODE = 'not_null_violation';
@@ -200,16 +201,15 @@ BEGIN
 		account_collection_id,
 		site_code
 	) VALUES (
-		'site', 'auto_acct_coll', _account_realm_id,
+		'site', 'auto_acct_coll', add_auto_collections_site.account_realm_id,
 		acid,
-		_site_code
+		add_auto_collections_site.site_code
 	);
 	tally := tally + 1;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
-
 
 
 ------------------------------------------------------------------------------
@@ -221,9 +221,9 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- note that there is no 'remove_company_types'
 --
 CREATE OR REPLACE FUNCTION company_manip.add_company_types(
-	_company_id		company.company_id%type,
-	_account_realm_id	account_realm.account_realm_id%type DEFAULT NULL,
-	_company_types	text[] default NULL
+	company_id			company.company_id%TYPE,
+	account_realm_id	account_realm.account_realm_id%TYPE DEFAULT NULL,
+	company_types		TEXT[]								DEFAULT NULL
 ) RETURNS integer AS
 $$
 DECLARE
@@ -231,12 +231,15 @@ DECLARE
 	count	integer;
 BEGIN
 	count := 0;
-	FOREACH x IN ARRAY _company_types
+	FOREACH x IN ARRAY company_types
 	LOOP
 		INSERT INTO company_type (company_id, company_type)
-			VALUES (_company_id, x);
-		IF _account_realm_id IS NOT NULL THEN
-			PERFORM company_manip.add_auto_collections(_company_id, _account_realm_id, x);
+			VALUES (company_id, x);
+		IF account_realm_id IS NOT NULL THEN
+			PERFORM company_manip.add_auto_collections(
+				company_id := company_id,
+				account_realm_id := account_realm_id,
+				company_type := x);
 		END IF;
 		count := count + 1;
 	END LOOP;
@@ -257,12 +260,12 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- NOTE: There is no remove_company.
 --
 CREATE OR REPLACE FUNCTION company_manip.add_company(
-	_company_name		text,
-	_company_types		text[] default NULL,
-	_parent_company_id	company.company_id%type DEFAULT NULL,
-	_account_realm_id	account_realm.account_realm_id%type DEFAULT NULL,
-	_company_short_name	text DEFAULT NULL,
-	_description		text DEFAULT NULL
+	company_name		TEXT,
+	company_types		TEXT[]								DEFAULT NULL,
+	parent_company_id	company.company_id%type			DEFAULT NULL,
+	account_realm_id	account_realm.account_realm_id%type DEFAULT NULL,
+	company_short_name	TEXT								DEFAULT NULL,
+	description			TEXT								DEFAULT NULL
 
 ) RETURNS integer AS
 $$
@@ -272,21 +275,21 @@ DECLARE
 	_isfam	char(1);
 	_perm	text;
 BEGIN
-	IF _company_types @> ARRAY['corporate family'] THEN
+	IF company_types @> ARRAY['corporate family'] THEN
 		_isfam := 'Y';
 	ELSE
 		_isfam := 'N';
 	END IF;
-	IF _company_short_name IS NULL and _isfam = 'Y' THEN
+	IF company_short_name IS NULL and _isfam = 'Y' THEN
 		_short := lower(regexp_replace(
 				regexp_replace(
-					regexp_replace(_company_name,
+					regexp_replace(company_name,
 						E'\\s+(ltd|sarl|limited|pt[ye]|GmbH|ag|ab|inc)',
 						'', 'gi'),
 					E'[,\\.\\$#@]', '', 'mg'),
 				E'\\s+', '_', 'gi'));
 	ELSE
-		_short := _company_short_name;
+		_short := company_short_name;
 	END IF;
 
 	BEGIN
@@ -301,22 +304,26 @@ BEGIN
 		company_name, company_short_name,
 		parent_company_id, description
 	) VALUES (
-		_company_name, _short,
-		_parent_company_id, _description
+		company_name, _short,
+		parent_company_id, description
 	) RETURNING company_id INTO _cmpid;
 
 	SET jazzhands.permit_company_insert = _perm;
 
-	IF _account_realm_id IS NOT NULL THEN
+	IF account_realm_id IS NOT NULL THEN
 		INSERT INTO account_realm_company (
 			account_realm_id, company_id
 		) VALUES (
-			_account_realm_id, _cmpid
+			account_realm_id, _cmpid
 		);
 	END IF;
 
-	IF _company_types IS NOT NULL THEN
-		PERFORM company_manip.add_company_types(_cmpid, _account_realm_id, _company_types);
+	IF company_types IS NOT NULL THEN
+		PERFORM company_manip.add_company_types(
+			company_id			:= _cmpid,
+			account_realm_id	:= account_realm_id,
+			company_types		:= company_types
+		);
 	END IF;
 
 	RETURN _cmpid;
@@ -330,36 +337,36 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- and will fail if fk's have grown to it nd raise_exception is set to true
 --
 CREATE OR REPLACE FUNCTION company_manip.remove_company(
-	_company_id	company.company_id%type,
-	raise_exception	boolean DEFAULT true
+	company_id			company.company_id%type,
+	raise_exception		boolean DEFAULT true
 ) RETURNS boolean AS
 $$
 BEGIN
 	IF raise_exception THEN
-		DELETE FROM company_type
-		WHERE company_id = _company_id;
+		DELETE FROM company_type ct
+		WHERE ct.company_id = remove_company.company_id;
 
-		DELETE FROM account_realm_company
-		WHERE company_id = _company_id;
+		DELETE FROM account_realm_company arc
+		WHERE arc.company_id = remove_company.company_id;
 
-		DELETE FROM account_realm_company
-		WHERE company_id = _company_id;
+		DELETE FROM account_realm_company arc
+		WHERE arc.company_id = remove_company.company_id;
 
-		DELETE FROM company
-		WHERE company_id = _company_id;
+		DELETE FROM company c
+		WHERE c.company_id = remove_company.company_id;
 	ELSE
 		BEGIN
-			DELETE FROM company_type
-			WHERE company_id = _company_id;
+			DELETE FROM company_type ct
+			WHERE ct.company_id = remove_company.company_id;
 
-			DELETE FROM account_realm_company
-			WHERE company_id = _company_id;
+			DELETE FROM account_realm_company arc
+			WHERE arc.company_id = remove_company.company_id;
 
-			DELETE FROM account_realm_company
-			WHERE company_id = _company_id;
+			DELETE FROM account_realm_company arc
+			WHERE arc.company_id = remove_company.company_id;
 
-			DELETE FROM company
-			WHERE company_id = _company_id;
+			DELETE FROM company c
+			WHERE c.company_id = remove_company.company_id;
 		EXCEPTION WHEN foreign_key_violation THEN
 			RETURN false;
 		END;
@@ -407,6 +414,143 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+--
+-- These all exist for backwards compatibility.  Note that their existance
+-- breaks positional arguments.
+--
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION company_manip.add_auto_collections(
+	_company_id			company.company_id%type,
+	_account_realm_id	account_realm.account_realm_id%type,
+	will_soon_be_dropped	boolean DEFAULT true
+) RETURNS void AS
+$$
+BEGIN
+	PERFORM company_manip.add_auto_collections(
+		company_id := _company_id,
+		account_realm_id := _account_realm_id
+	);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION company_manip.add_auto_collections_site(
+        _company_id             company.company_id%type,
+        _account_realm_id       account_realm.account_realm_id%type,
+        _site_code              site.site_code%type,
+		will_soon_be_dropped	boolean DEFAULT true
+) RETURNS void AS
+$$
+BEGIN
+	PERFORM company_manip.add_auto_collections_site(
+		company_id := _company_id,
+		account_realm_id := _account_realm_id,
+		site_code := _site_code
+	);
+
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION company_manip.add_company_types(
+        _company_id             company.company_id%type,
+        _account_realm_id       account_realm.account_realm_id%type,
+        _company_types 			TEXT[],
+		will_soon_be_dropped	BOOLEAN DEFAULT true
+) RETURNS integer AS
+$$
+BEGIN
+	RETURN company_manip.add_company_types(
+		company_id			:= _company_id,
+		account_realm_id	:= _account_realm_id,
+		company_types		:= _company_types
+	);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION company_manip.add_company(
+	_company_name		TEXT,
+	_company_types		TEXT[]							DEFAULT NULL,
+	_parent_company_id	company.company_id%type			DEFAULT NULL,
+	_account_realm_id	account_realm.account_realm_id%type DEFAULT NULL,
+	_company_short_name	TEXT							DEFAULT NULL,
+	_description			TEXT						DEFAULT NULL,
+	will_soon_be_dropped	boolean DEFAULT true
+) RETURNS integer AS
+$$
+BEGIN
+	RETURN company_manip.add_company(
+		company_name		:= _company_name,
+		company_types		:= _company_types,
+		parent_company_id	:= _parent_company_id,
+		account_realm_id	:= _account_realm_id,
+		company_short_name	:= _company_short_name,
+		description			:= _description
+	);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION company_manip.remove_company(
+        _company_id     company.company_id%type,
+        raise_exception			BOOLEAN,
+		will_soon_be_dropped	BOOLEAN DEFAULT true
+) RETURNS boolean AS
+$$
+BEGIN
+	RETURN company_manip.remove_company(
+        company_id		:= -_company_id,
+        raise_exception := raise_exception
+	);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION company_manip.add_location(
+        _company_id             company.company_id%type,
+        _site_code              site.site_code%type,
+        _physical_address_id    physical_address.physical_address_id%type,
+        _account_realm_id       account_realm.account_realm_id%type DEFAULT NULL,
+        _site_status            site.site_status%type DEFAULT 'ACTIVE',
+        _description            text DEFAULT NULL
+) RETURNS void AS
+$$
+BEGIN
+	PERFORM company_manip.add_location(
+		company_id := _company_id,
+		site_code := _site_code,
+		physical_address_id := _physical_address_id,
+		account_realm_id := _account_realm_id,
+		site_stauts := _site_status,
+		description := _description
+	);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY INVOKER;
+
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+--
+-- End of backwards compatibility
+--
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+
 
 grant select on all tables in schema company_manip to iud_role;
 grant usage on schema company_manip to iud_role;
