@@ -65,17 +65,18 @@ $$;
 --
 -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
-	in_IpAddress jazzhands.netblock.ip_address%type,
-	in_Netmask_Bits integer DEFAULT NULL,
-	in_netblock_type jazzhands.netblock.netblock_type%type DEFAULT 'default',
-	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
-	in_is_single_address jazzhands.netblock.is_single_address%type DEFAULT 'N',
-	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL,
-	in_fuzzy_can_subnet boolean DEFAULT false,
-	can_fix_can_subnet boolean DEFAULT false,
-	will_soon_be_dropped    boolean DEFAULT true
-) RETURNS jazzhands.netblock.netblock_id%type AS
+	in_IpAddress			netblock.ip_address%type,
+	in_Netmask_Bits			INTEGER DEFAULT NULL,
+	in_netblock_type		netblock.netblock_type%type DEFAULT 'default',
+	in_ip_universe_id		ip_universe.ip_universe_id%type DEFAULT 0,
+	in_is_single_address	netblock.is_single_address%type DEFAULT 'N',
+	in_netblock_id			netblock.netblock_id%type DEFAULT NULL,
+	in_fuzzy_can_subnet		boolean DEFAULT false,
+	in_can_fix_can_subnet	boolean DEFAULT false,
+	will_soon_be_dropped	boolean DEFAULT true
+) RETURNS netblock.netblock_id%type AS
 $$
+BEGIN
 	RETURN netblock_utils.find_best_parent_netblock_id(
 		ip_address			:= in_IpAddress,
 		netmask_bits		:= in_Netmask_Bits,
@@ -84,17 +85,18 @@ $$
 		is_single_address	:= in_is_single_address,
 		netblock_id			:= in_netblock_id,
 		fuzzy_can_subnet	:= in_fuzzy_can_subnet,
-		fix_can_submet		:= in_can_fix_can_subnet
+		can_fix_can_subnet	:= in_can_fix_can_subnet
 	);
+END;
 $$
 SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
-	in_netblock_id jazzhands.netblock.netblock_id%type,
+	in_netblock_id 			netblock.netblock_id%type,
 	will_soon_be_dropped    boolean DEFAULT true
-) RETURNS jazzhands.netblock.netblock_id%type AS $$
+) RETURNS netblock.netblock_id%type AS $$
 DECLARE
 	nbrec		RECORD;
 BEGIN
@@ -114,74 +116,75 @@ SET search_path = jazzhands;
 -----------------------------------------------------------------------------
 
 
-CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
-	in_IpAddress jazzhands.netblock.ip_address%type,
-	in_Netmask_Bits integer DEFAULT NULL,
-	in_netblock_type jazzhands.netblock.netblock_type%type DEFAULT 'default',
-	in_ip_universe_id jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
-	in_is_single_address jazzhands.netblock.is_single_address%type DEFAULT 'N',
-	in_netblock_id jazzhands.netblock.netblock_id%type DEFAULT NULL,
-	in_fuzzy_can_subnet boolean DEFAULT false,
-	can_fix_can_subnet boolean DEFAULT false
-) RETURNS jazzhands.netblock.netblock_id%type AS $$
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_netblock_id(
+	ip_address			netblock.ip_address%type,
+	netmask_bits		INTEGER DEFAULT NULL,
+	netblock_type		netblock.netblock_type%type DEFAULT 'default',
+	ip_universe_id		ip_universe.ip_universe_id%type DEFAULT 0,
+	is_single_address	netblock.is_single_address%type DEFAULT 'N',
+	netblock_id			netblock.netblock_id%type DEFAULT NULL,
+	fuzzy_can_subnet	boolean DEFAULT false,
+	can_fix_can_subnet	boolean DEFAULT false
+) RETURNS netblock.netblock_id%type AS $$
 DECLARE
 	par_nbid	jazzhands.netblock.netblock_id%type;
 BEGIN
-	IF (in_netmask_bits IS NOT NULL) THEN
-		in_IpAddress := set_masklen(in_IpAddress, in_Netmask_Bits);
+	IF (netmask_bits IS NOT NULL) THEN
+		ip_address := set_masklen(ip_address, netmask_bits);
 	END IF;
 
-	select  Netblock_Id
+	select  subq.Netblock_Id
 	  into	par_nbid
-	  from  ( select Netblock_Id, Ip_Address
-		    from jazzhands.netblock
+	  from  ( select n.Netblock_Id, n.Ip_Address
+		    from jazzhands.netblock n
 		   where
-		   	in_IpAddress <<= ip_address
-		    and is_single_address = 'N'
-			and netblock_type = in_netblock_type
-			and ip_universe_id = in_ip_universe_id
+		   	find_best_parent_netblock_id.ip_address <<= n.ip_address
+		    and n.is_single_address = 'N'
+			and n.netblock_type = find_best_parent_netblock_id.netblock_type
+			and n.ip_universe_id = find_best_parent_netblock_id.ip_universe_id
 		    and (
-				(in_is_single_address = 'N' AND
-					masklen(ip_address) < masklen(In_IpAddress))
+				(find_best_parent_netblock_id.is_single_address = 'N' AND
+					masklen(n.ip_address) < 
+						masklen(find_best_parent_netblock_id.ip_address))
 				OR
-				(in_is_single_address = 'Y' AND can_subnet = 'N' AND
-					(in_Netmask_Bits IS NULL
-						OR masklen(Ip_Address) = in_Netmask_Bits))
+				(find_best_parent_netblock_id.is_single_address = 'Y' AND 
+						can_subnet = 'N' AND
+					(find_best_parent_netblock_id.netmask_bits IS NULL
+						OR masklen(n.ip_address) = find_best_parent_netblock_id.netmask_bits))
 			)
-			and (in_netblock_id IS NULL OR
-				netblock_id != in_netblock_id)
-		order by masklen(ip_address) desc
+			and (find_best_parent_netblock_id.netblock_id IS NULL OR
+				n.netblock_id != find_best_parent_netblock_id.netblock_id)
+		order by masklen(n.ip_address) desc
 	) subq LIMIT 1;
 
-	IF par_nbid IS NULL AND in_is_single_address = 'Y' AND in_fuzzy_can_subnet THEN
-		select  Netblock_Id
+	IF par_nbid IS NULL AND is_single_address = 'Y' AND fuzzy_can_subnet THEN
+		select  subq.Netblock_Id
 		  into	par_nbid
-		  from  ( select Netblock_Id, Ip_Address
-			    from jazzhands.netblock
-			   where
-			   	in_IpAddress <<= ip_address
-			    and is_single_address = 'N'
-				and netblock_type = in_netblock_type
-				and ip_universe_id = in_ip_universe_id
+		  from  ( select n.Netblock_Id, n.Ip_Address
+			    from jazzhands.netblock n
+			   where find_best_parent_netblock_id.ip_address <<= n.ip_address
+			    and n.is_single_address = 'N'
+				and n.netblock_type = find_best_parent_netblock_id.netblock_type
+				and n.ip_universe_id = find_best_parent_netblock_id.ip_universe_id
 			    and
-					(in_is_single_address = 'Y' AND can_subnet = 'Y' AND
-						(in_Netmask_Bits IS NULL
-							OR masklen(Ip_Address) = in_Netmask_Bits))
-				and (in_netblock_id IS NULL OR
-					netblock_id != in_netblock_id)
+					(find_best_parent_netblock_id.is_single_address = 'Y' AND 
+								can_subnet = 'Y' AND
+						(find_best_parent_netblock_id.etmask_Bits IS NULL
+							OR masklen(n.ip_address) = find_best_parent_netblock_id.netmask_bits))
+				and (find_best_parent_netblock_id.netblock_id IS NULL OR
+					netblock_id != find_best_parent_netblock_id.netblock_id)
 				and netblock_id not IN (
-					select parent_netblock_id from jazzhands.netblock
-						where is_single_address = 'N'
-						and parent_netblock_id is not null
+					select parent_netblock_id from jazzhands.netblock n
+						where n.is_single_address = 'N'
+						and n.parent_netblock_id is not null
 				)
-			order by masklen(ip_address) desc
+			order by _masklen(n.ip_address) desc
 		) subq LIMIT 1;
 
 		IF can_fix_can_subnet AND par_nbid IS NOT NULL THEN
-			UPDATE netblock SET can_subnet = 'N' where netblock_id = par_nbid;
+			UPDATE netblock n SET n.can_subnet = 'N' where n.netblock_id = par_nbid;
 		END IF;
 	END IF;
-
 
 	return par_nbid;
 END;
@@ -190,14 +193,14 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_id(
-	in_netblock_id jazzhands.netblock.netblock_id%type
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_parent_netblock_id(
+	netblock_id jazzhands.netblock.netblock_id%type
 ) RETURNS jazzhands.netblock.netblock_id%type AS $$
 DECLARE
 	nbrec		RECORD;
 BEGIN
-	SELECT * INTO nbrec FROM jazzhands.netblock WHERE
-		netblock_id = in_netblock_id;
+	SELECT * INTO nbrec FROM jazzhands.netblock n WHERE
+		n.netblock_id = find_best_parent_netblock_id.netblock_id;
 
 	RETURN netblock_utils.find_best_parent_id(
 		nbrec.ip_address,
@@ -205,7 +208,7 @@ BEGIN
 		nbrec.netblock_type,
 		nbrec.ip_universe_id,
 		nbrec.is_single_address,
-		in_netblock_id
+		find_best_parent_netblock_id.netblock_id
 	);
 END;
 $$ LANGUAGE plpgsql
