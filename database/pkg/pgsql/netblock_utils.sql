@@ -212,6 +212,15 @@ $$ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = jazzhands;
 
+----------------------------------------------------------------------------
+--
+-- BEGIN below is going away (to comment)
+--
+----------------------------------------------------------------------------
+
+--
+-- moving to netblock_manip.  TO BE RETIRED
+--
 CREATE OR REPLACE FUNCTION netblock_utils.delete_netblock(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS VOID AS $$
@@ -242,6 +251,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
 
+--
+-- moving to netblock_manip.  TO BE RETIRED
+--
 CREATE OR REPLACE FUNCTION netblock_utils.recalculate_parentage(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS INTEGER AS $$
@@ -272,6 +284,11 @@ BEGIN
 	RETURN nbid;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
+----------------------------------------------------------------------------
+--
+-- END above is going away (to comment)
+--
+----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION netblock_utils.find_rvs_zone_from_netblock_id(
 	in_netblock_id	jazzhands.netblock.netblock_id%type
@@ -704,6 +721,7 @@ BEGIN
 	RETURN;
 END;
 $$ LANGUAGE 'plpgsql';
+
 
 
 CREATE OR REPLACE FUNCTION netblock_utils.list_unallocated_netblocks(

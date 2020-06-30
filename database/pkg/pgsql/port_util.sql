@@ -21,7 +21,7 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
- * Copyright (c) 2013-2014 Todd Kover
+ * Copyright (c) 2013-2020 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,11 @@
  */
 
 
+/****************************************************************************
+ *
+ * THIS ENTIRE SCHEMA WILL BE DROPPED SOON
+ *
+ ****************************************************************************/
 
 /*
  * $Id$
@@ -72,49 +77,9 @@ $$ LANGUAGE plpgsql;
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
--- sets up power ports for a device if they are not there.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_power (
-	in_Device_id device.device_id%type
-) RETURNS VOID AS $$
-DECLARE
-	dt_id	device.device_type_id%type;
-BEGIN
-	return;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- sets up serial ports for a device if they are not there.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_serial (
-	in_Device_id device.device_id%type
-) RETURNS INTEGER AS $$
-DECLARE
-	dt_id	device.device_type_id%type;
-BEGIN
-	return setup_device_physical_ports(in_device_id, 'serial');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- sets up physical ports for a device if they are not there.  This
--- will eitehr use in_port_type or in the case where its not set,
--- will iterate over each type of physical port and run it for that.
--- This is to facilitate new types that show up over time.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_physical_ports (
-	in_Device_id device.device_id%type,
-	in_port_type val_slot_function.slot_function%type DEFAULT NULL
-) RETURNS VOID AS $$
-BEGIN
-	-- this has been replaced by the slot/component stuff
-	RETURN;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
 -- connect to layer1 devices
+--
+-- ** THIS IS BEING DEPRECATED **
 -------------------------------------------------------------------
 --
 --
@@ -425,6 +390,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -------------------------------------------------------------------
 -- connect two power devices
+--
+-- ** THIS IS BEING DEPRECATED **
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION port_utils.configure_power_connect (
 	in_dev1_id	device_power_connection.device_id%type,
@@ -602,88 +569,5 @@ BEGIN
 				power_interface_port = in_port1_id
 		  where	device_power_connection_id = v_pc_id;
 	END IF;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- setup console information (dns and whatnot)
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_conscfg_record (
-	in_physportid   physical_port.physical_port_id%type,
-	in_name	 	device.device_name%type,
-	in_dstsvr       device.device_name%type
-) RETURNS void AS $$
-DECLARE
-	v_zoneid	dns_domain.dns_domain_id%type;
-	v_recid		dns_record.dns_record_id%type;
-	v_val		dns_record.dns_value%type;
-	v_isthere	boolean;
-	v_dstsvr	varchar(1024);
-BEGIN
-	return;
-
-	-- if we end up adopting the conscfg zone, then GC_conscfg_zone
-	-- is set to a constant that should probably be grabbed from the
-	-- property table.
-
-	select	dns_domain_id
-	  into	v_zoneid
-	  from	dns_domain
-	 where	soa_name = 'conscfg.example.com'; -- GC_conscfg_zone;
-
-	-- to ensure cname is properly terminated
-	v_val := substr(in_dstsvr, -1, 1);
-	IF ( v_val != '.' )  THEN
-		v_dstsvr := in_dstsvr || '.';
-	ELSE
-		v_dstsvr := in_dstsvr;
-	END IF;
-
-	v_isthere := true;
-	BEGIN
-		select	dns_record_id, dns_value
-		  into	v_recid, v_val
-		  from	dns_record
-		 where	dns_domain_id = v_zoneid
-		  and	dns_name = in_name;
-	EXCEPTION WHEN no_data_found THEN
-		v_isthere := false;
-	END;
-
-	if (v_isthere = true) THEN
-		if( v_val != v_dstsvr) THEN
-			update 	dns_record
-			  set	dns_value = v_dstsvr
-			 where	dns_record_id = v_recid;
-		END IF;
-	ELSE
-		insert into dns_record (
-			dns_name, dns_domain_id, dns_class, dns_type,
-			dns_value
-		) values (
-			in_name, v_zoneid, 'IN', 'CNAME',
-			v_dstsvr
-		);
-	END IF;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- cleanup a console connection
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.delete_conscfg_record (
-	in_name	 	device.device_name%type
-) RETURNS VOID AS $$
-DECLARE
-	v_zoneid	dns_domain.dns_domain_id%type;
-BEGIN
-	select	dns_domain_id
-	  into	v_zoneid
-	  from	dns_domain
-	 where	soa_name = GC_conscfg_zone;
-
-	delete from dns_record
-	 where	dns_name = in_name
-	   and	dns_domain_id = v_zoneid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

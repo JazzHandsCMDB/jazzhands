@@ -1,4 +1,5 @@
--- Copyright (c) 2014, 2015, 2016 Matthew Ragan
+-- Copyright (c) 2014-2020 Matthew Ragan
+-- Copyright (c) 2020 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +31,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION netblock_manip.delete_netblock(
-	in_netblock_id	jazzhands.netblock.netblock_id%type
+	netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS VOID AS $$
 DECLARE
 	par_nbid	jazzhands.netblock.netblock_id%type;
@@ -41,26 +42,26 @@ BEGIN
 	SELECT
 		netblock_id INTO par_nbid
 	FROM
-		jazzhands.netblock
+		jazzhands.netblock n
 	WHERE
-		netblock_id = in_netblock_id;
+		n.netblock_id = delete_netblock.netblock_id;
 
 	UPDATE
-		jazzhands.netblock
+		jazzhands.netblock n
 	SET
 		parent_netblock_id = par_nbid
 	WHERE
-		parent_netblock_id = in_netblock_id;
+		n.parent_netblock_id = delete_netblock.netblock_id;
 
 	/*
 	 * Now delete the record
 	 */
-	DELETE FROM jazzhands.netblock WHERE netblock_id = in_netblock_id;
+	DELETE FROM jazzhands.netblock WHERE netblock_id = delete_netblock.netblock_id;
 END;
 $$ LANGUAGE plpgsql SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_manip.recalculate_parentage(
-	in_netblock_id	jazzhands.netblock.netblock_id%type
+	netblock_id	jazzhands.netblock.netblock_id%type
 ) RETURNS INTEGER AS $$
 DECLARE
 	nbrec		RECORD;
@@ -70,20 +71,22 @@ DECLARE
 
 BEGIN
 	SELECT * INTO nbrec FROM jazzhands.netblock WHERE
-		netblock_id = in_netblock_id;
+		netblock_id = recalculate_parentage.netblock_id;
 
-	nbid := netblock_utils.find_best_parent_id(in_netblock_id);
+	nbid := netblock_utils.find_best_parent_id(netblock_id);
 
 	UPDATE jazzhands.netblock SET parent_netblock_id = nbid
-		WHERE netblock_id = in_netblock_id;
+		WHERE netblock_id = recalculate_parentage.netblock_id;
 
-	FOR childrec IN SELECT * FROM jazzhands.netblock WHERE
-		parent_netblock_id = nbid
-		AND netblock_id != in_netblock_id
+	FOR childrec IN SELECT * 
+		FROM jazzhands.netblock  p
+		WHERE p.parent_netblock_id = nbid
+		AND p.netblock_id != recalculate_parentage.netblock_id
 	LOOP
 		IF (childrec.ip_address <<= nbrec.ip_address) THEN
-			UPDATE jazzhands.netblock SET parent_netblock_id = in_netblock_id
-				WHERE netblock_id = childrec.netblock_id;
+			UPDATE jazzhands.netblock  n
+				SET parent_netblock_id = recalculate_parentage.netblock_id
+				WHERE n.netblock_id = childrec.netblock_id;
 		END IF;
 	END LOOP;
 	RETURN nbid;
