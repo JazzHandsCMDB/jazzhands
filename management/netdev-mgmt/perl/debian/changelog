@@ -1,3 +1,11 @@
+jazzhands-perl-netdev-mgmt (0.87.1) unstable; urgency=low
+
+  * Fix issue with Arista config sessions not being reused correctly
+  * Add support for Juniper QSFP-100G-SR4-T2, because these things aren't
+    in the database yet.
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 09 Jul 2020 07:11:53 +0000
+
 jazzhands-perl-netdev-mgmt (0.86.8.1) unstable; urgency=low
 
   * Fix issue with doing a commit with no configuration session active

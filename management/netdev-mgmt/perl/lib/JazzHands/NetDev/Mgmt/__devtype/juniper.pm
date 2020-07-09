@@ -3632,6 +3632,11 @@ my $iface_map = {
 		media_type => '100GMXPEthernet',
 		slot_prefix => 'et-',
 	},
+	'QSFP-100G-SR4-T2' => {
+		module_type => '100GQSFP28Ethernet',
+		media_type => '100GMXPEthernet',
+		slot_prefix => 'et-',
+	},
 };
 
 sub GetChassisInfo {

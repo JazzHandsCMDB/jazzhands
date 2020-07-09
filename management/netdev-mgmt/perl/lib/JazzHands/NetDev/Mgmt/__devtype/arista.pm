@@ -51,6 +51,7 @@ sub new {
 
 	$self->{credentials} = $opt->{credentials};
 	$self->{device} = $device;
+	$self->{handle} = {};
 	bless $self, $class;
 }
 
@@ -118,12 +119,14 @@ sub rollback {
 		return 1;
 	}
 
+	$commands = [
+		'no configure session ' . $self->{config_session}
+	];
+
 	delete $self->{config_session};
 
 	return $self->SendCommand(
-		commands => [
-			'no configure session ' . $self->{config_session}
-		],
+		commands => $commands,
 		timeout => $opt->{timeout},
 		errors => $err
 	);

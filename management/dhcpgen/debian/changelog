@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.87.1) trusty; urgency=medium
+
+  * Change order of device_name/physical_label for returning DHCP hostname
+
+ -- Matthew Ragan <mdr@sucksless.net>  Thu, 09 Jul 2020 07:31:34 +0000
+
 jazzhands-dhcpgen (0.86.6.1) trusty; urgency=medium
 
   * Fix issue with module importing

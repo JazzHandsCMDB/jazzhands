@@ -138,7 +138,7 @@ $q = q {
 		dt.config_fetch_type
 	FROM
 		device d JOIN
-		.device_type dt USING (device_type_id)
+		device_type dt USING (device_type_id)
 	WHERE
 		lower(device_name) = lower(?)
 };

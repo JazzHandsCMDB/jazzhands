@@ -1151,7 +1151,7 @@ host %s-%d-%d-%d {
 					$host->{netblock_id},
 					$host->{mac_addr},
 					$host->{ip_address}->addr,
-					$host->{physical_label} || $host->{device_name} || 
+					$host->{device_name} || $host->{physical_label} || 
 						('device' . $host->{device_id});
 
 				if (my $props = $device_props->{$host->{device_id}}) {

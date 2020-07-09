@@ -109,6 +109,12 @@ sub SetDebug {
 	return $self->{_debug};
 }
 
+sub SetDebugCallback {
+	my $self = shift;
+	if (@_) { $self->{_debug_callback} = shift; }
+	return $self->{_debug_callback};
+}
+
 sub _Debug {
 	my $self  = shift;
 	my $level = shift;
