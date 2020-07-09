@@ -1,4 +1,4 @@
-jazzhands-dhcpgen (0.87.1) trusty; urgency=medium
+jazzhands-dhcpgen (0.87.2) trusty; urgency=medium
 
   * Change order of device_name/physical_label for returning DHCP hostname
 
