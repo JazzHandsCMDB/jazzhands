@@ -280,9 +280,6 @@ sub do_device_add {
 	#		}
 	#	}
 
-	$stab->setup_device_power($devid);
-	$stab->setup_device_physical_ports($devid);
-
 	$dbh->commit;
 
 	my $url = "../device.pl?devid=$devid";

@@ -1,3 +1,9 @@
+jazzhands-stab (0.87.3) focal; urgency=medium
+
+  * remove calls no no longer defined functions (bug in 0.87.1)
+
+ -- Todd Kover <kovert@omnicient.com>  Tue, 14 Jul 2020 17:40:00 -0500
+
 jazzhands-stab (0.87.1) focal; urgency=medium
 
   * remove deprecated port_utils calls
