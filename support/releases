@@ -38,13 +38,15 @@ management/directory
 management/hotpants
 management/mgmt/perl
 management/mkpasswdfiles
-management/netdev-mgmt/perl
 management/netdev-mgmt/bin
+management/netdev-mgmt/perl
+management/redfish/bin
+management/redfish/perl
 management/stab
 management/sync-prefix-lists
 management/util/perl	# jazzhands-perl-common
 management/util/perl-Krb5
 management/util/perl-tickets
 management/util/perl-vault
-zonegen/server/src
 zonegen/client
+zonegen/server/src
