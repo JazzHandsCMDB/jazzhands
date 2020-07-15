@@ -1,3 +1,9 @@
+jazzhands-zonegen-server (0.87.3) trusty; urgency=medium
+
+  * generate-and-push exit code sholud match generate-zones on failure
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jul 2020 16:06:32 -0500
+
 jazzhands-zonegen-server (0.83.4) trusty; urgency=medium
 
   * only process change records from before transaction start
