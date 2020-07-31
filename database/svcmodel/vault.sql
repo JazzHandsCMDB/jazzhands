@@ -340,15 +340,23 @@ BEGIN
 	FOR perm IN SELECT unnest(NEW.capabilities)
 	LOOP
 		IF array_position(OLD.capabilities, perm) IS NULL THEN
-			RAISE NOTICE 'removing %', perm;
+			RAISE DEBUG 'removing %', perm;
 		END IF;
+		DELETE FROM authorization_policy_permission
+		WHERE ap.authorization_policy_id = NEW.vault_policy_id
+		AND permission = perm;
 	END LOOP;
 
 	FOR perm IN SELECT unnest(OLD.capabilities)
 	LOOP
 		IF array_position(NEW.capabilities, perm) IS NULL THEN
-			RAISE NOTICE 'adding %', perm;
+			RAISE DEBUG 'adding %', perm;
 		END IF;
+		INSERT INTO authorization_policy_permission (
+			authorization_policy_id, permission
+		) VALUES (
+			ap.authorization_policy_id, perm
+		);
 	END LOOP;
 
 	RETURN NEW;
