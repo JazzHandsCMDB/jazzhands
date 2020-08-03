@@ -1,8 +1,15 @@
+jazzhands-approval (0.87.4) bionic; urgency=medium
+
+  * make debian packaging work
+
+ -- Todd Kover <kovert@omniscient.com>  Mon,  3 Aug 2020 13:35:00 -0500
+
 jazzhands-approval (0.83.9) bionic; urgency=medium
 
   * switch FOR UPDATE in approval query to only lock table to update
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 16 Jan 2019 16:33:00 +0000
+
 
 jazzhands-approval (0.83.8) bionic; urgency=medium
 
