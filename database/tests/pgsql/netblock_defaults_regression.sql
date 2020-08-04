@@ -59,12 +59,12 @@ BEGIN
 
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest0', 'jhtest0', 'Y')
+		VALUES ('jhtest0', 'jhtest0', true)
 		RETURNING ip_universe_id INTO _u0;
 
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest0a', 'jhtest0', 'Y')
+		VALUES ('jhtest0a', 'jhtest0', true)
 		RETURNING ip_universe_id INTO _u0a;
 
 	--
@@ -74,7 +74,7 @@ BEGIN
 			description, ip_universe_id
 	) VALUES (
 		'172.31.30.0/24', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _blk0id_u0', _u0
 	) RETURNING netblock_id INTO _blk0id;
 	INSERT INTO NETBLOCK (ip_address, netblock_type,
@@ -82,7 +82,7 @@ BEGIN
 			description, ip_universe_id
 	) VALUES (
 		'172.31.31.0/24', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _blk0id_u0', _u0a
 	) RETURNING netblock_id INTO _blk0id;
 
@@ -100,7 +100,7 @@ BEGIN
 			description
 		) VALUES (
 			'172.31.30.0/24',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST test private'
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -128,7 +128,7 @@ BEGIN
 			description
 		) VALUES (
 			'1.2.3.0/24',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST test public'
 		) RETURNING netblock_id INTO _ip0id;
 

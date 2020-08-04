@@ -59,7 +59,7 @@ BEGIN
 				'network',
 				'QSFP28',
 				'100Gbps QSFP28 Ethernet',
-				'Y'
+				true
 			) RETURNING slot_type_id INTO stid;
 		END IF;
 
@@ -75,8 +75,8 @@ BEGIN
 			stid,
 			'QSFP28-4xSFP28',
 			cid,
-			'Y',
-			'N'
+			true,
+			false
 		) RETURNING component_type_id INTO ctid;
 
 		PERFORM * FROM val_component_function
@@ -92,7 +92,7 @@ BEGIN
 			);
 		END IF;
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) VALUES (
@@ -104,7 +104,7 @@ BEGIN
 	--
 	-- 100GE ports
 	--
-	INSERT INTO component_type_slot_tmplt (
+	INSERT INTO component_type_slot_template (
 		component_type_id,
 		slot_type_id,
 		slot_name_template,

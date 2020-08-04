@@ -68,7 +68,7 @@ BEGIN
 		model, rack_units, has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST rpc', 2, 'N', 'N', 'N', 'Y'
+		'JHTEST rpc', 2, false, false, false, true
 	) RETURNING * INTO _rpcdt;
 
 	INSERT INTO device_type_power_port_templt (
@@ -76,7 +76,7 @@ BEGIN
 		voltage, max_amperage, provides_power
 	) values (
 		'power5', _rpcdt.device_type_id, 'NEMA 5-15P',
-		120, 15, 'Y'
+		120, 15, true
 	) RETURNING * INTO _rpcptmpl;
 
 	INSERT INTO device (
@@ -86,7 +86,7 @@ BEGIN
 		_rpcdt.device_type_id, 'JHTEST rpc', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		where service_environment_name = 'production'),
-		0, 'Y'
+		0, true
 	) RETURNING * into _rpc;
 
 	RAISE NOTICE ' ... test dev';
@@ -94,7 +94,7 @@ BEGIN
 		model, rack_units, has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST dev', 2, 'N', 'N', 'N', 'Y'
+		'JHTEST dev', 2, false, false, false, true
 	) RETURNING * INTO _devdt;
 
 	INSERT INTO device_type_power_port_templt (
@@ -102,7 +102,7 @@ BEGIN
 		voltage, max_amperage, provides_power
 	) values (
 		'power0', _devdt.device_type_id, 'NEMA L14-30P',
-		120, 15, 'N'
+		120, 15, false
 	) RETURNING * INTO _devptmpl;
 
 	INSERT INTO device (
@@ -112,7 +112,7 @@ BEGIN
 		_devdt.device_type_id, 'JHTEST device', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		where service_environment_name = 'production'),
-		0, 'Y'
+		0, true
 	) RETURNING * into _dev;
 
 	RAISE NOTICE '++ Beginning tests of device_power...';
@@ -135,7 +135,7 @@ BEGIN
 	END;
 
 	UPDATE device_power_interface 
-	   SET provides_power = 'Y', power_plug_style = 'NEMA 5-15P'
+	   SET provides_power = true, power_plug_style = 'NEMA 5-15P'
 	 WHERE device_id = _dev.device_id and power_interface_port = 'power0';
 	
 
@@ -153,7 +153,7 @@ BEGIN
 		RAISE NOTICE '... It can not. (GOOD!)';
 	END;
 
-	update device_power_interface set provides_power = 'N'
+	update device_power_interface set provides_power = false
 		where (device_id = _rpc.device_id and power_interface_port = 'power5')
 		 or   (device_id = _dev.device_id and power_interface_port = 'power0')
 	;
@@ -172,11 +172,11 @@ BEGIN
 		RAISE NOTICE '... It can not. (GOOD!)';
 	END;
 
-	update device_power_interface set provides_power = 'Y'
+	update device_power_interface set provides_power = true
 		where (device_id = _rpc.device_id and power_interface_port = 'power5')
 	;
 
-	update device_power_interface set provides_power = 'N'
+	update device_power_interface set provides_power = false
 	where (device_id = _dev.device_id and power_interface_port = 'power0')
 	;
 
@@ -190,7 +190,7 @@ BEGIN
 
 	RAISE NOTICE 'Attempting to make the consumer a provider to see if it can..';
 	BEGIN
-		update device_power_interface set provides_power = 'Y'
+		update device_power_interface set provides_power = true
 		where (device_id = _dev.device_id and power_interface_port = 'power0')
 		;
 		RAISE EXCEPTION '... It CAN. (BAD!)';
@@ -200,7 +200,7 @@ BEGIN
 
 	RAISE NOTICE 'Attempting to make the provider a consume to see if it can..';
 	BEGIN
-		update device_power_interface set provides_power = 'N'
+		update device_power_interface set provides_power = false
 			where (device_id = _rpc.device_id and power_interface_port = 'power5')
 		;
 		RAISE EXCEPTION '... It CAN. (BAD!)';

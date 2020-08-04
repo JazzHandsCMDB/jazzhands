@@ -84,7 +84,7 @@ BEGIN
 		  SET	account_collection_name =
 				replace(account_collection_name, $6, $7)
 		WHERE	account_collection_id IN (
-				SELECT property_value_account_coll_id
+				SELECT property_value_account_collection_id
 				FROM	property
 				WHERE	property_name IN ($3, $4)
 				AND		property_type = $5
@@ -120,7 +120,7 @@ BEGIN
 			WHERE	account_role = $3
 			AND		account_type = ''person''
 			AND		person_company_relation = ''employee''
-			AND		is_enabled = ''Y''
+			AND		is_enabled = true
 		) SELECT count(*)
 		FROM peeps reports
 			INNER JOIN peeps managers on
@@ -158,7 +158,7 @@ BEGIN
 			AND		account_realm_id = $2
 		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
 				managers.login as manager_login, p.property_name,
-				p.property_value_account_coll_id as account_collection_id
+				p.property_value_account_collection_id as account_collection_id
 			FROM peeps reports
 			INNER JOIN peeps managers
 				ON managers.person_id = reports.manager_person_id
@@ -168,7 +168,7 @@ BEGIN
 				AND p.account_realm_id = reports.account_realm_id
 				AND p.property_name IN ($4,$5)
 				AND p.property_type = $6
-			WHERE reports.is_enabled = ''Y''
+			WHERE reports.is_enabled = true
 		), rank AS (
 			SELECT *,
 				rank() OVER (partition by account_id ORDER BY property_name desc)
@@ -224,7 +224,7 @@ BEGIN
 	EXECUTE 'SELECT ac.account_collection_id
 			FROM account_collection ac
 				INNER JOIN v_property p
-					ON p.property_value_account_coll_id = ac.account_collection_id
+					ON p.property_value_account_collection_id = ac.account_collection_id
 		   WHERE ac.account_collection_name = $1
 		    AND	ac.account_collection_type = $2
 			AND	p.property_name = $3
@@ -257,7 +257,7 @@ BEGIN
 				account_realm_id,
 				property_name,
 				property_type,
-				property_value_account_coll_id
+				property_value_account_collection_id
 			)  VALUES ( $1, $2, $3, $4, $5)'
 			USING account_id, account_realm_id,
 				ac_type, 'auto_acct_coll', _acid;
@@ -303,7 +303,7 @@ BEGIN
 			WHERE	account_role = $2
 			AND		account_type = ''person''
 			AND		person_company_relation = ''employee''
-			AND		a.is_enabled = ''Y''
+			AND		a.is_enabled = true
 		), arethere AS (
 			SELECT account_collection_id, account_id FROM
 				account_collection_account
@@ -318,7 +318,7 @@ BEGIN
 			UNION SELECT $3, $1
 				FROM account
 				WHERE account_id = $1
-				AND is_enabled = ''Y''
+				AND is_enabled = true
 		), ins AS (
 			INSERT INTO account_collection_account
 				(account_collection_id, account_id)
@@ -376,10 +376,10 @@ BEGIN
 			WHERE	account_role = $2
 			AND		account_type = ''person''
 			AND		person_company_relation = ''employee''
-			AND		a.is_enabled = ''Y''
+			AND		a.is_enabled = true
 		), agg AS ( SELECT reports.*, managers.account_id as manager_account_id,
 				managers.login as manager_login, p.property_name,
-				p.property_value_account_coll_id as account_collection_id
+				p.property_value_account_collection_id as account_collection_id
 			FROM peeps reports
 			INNER JOIN peeps managers
 				ON managers.person_id = reports.manager_person_id
@@ -493,7 +493,7 @@ BEGIN
 	EXECUTE '
 		DELETE FROM account_collection_account
 		WHERE account_collection_ID IN (
-			SELECT	property_value_account_coll_id
+			SELECT	property_value_account_collection_id
 			FROM	property
 			WHERE	property_name = $3
 			AND		property_type = $4
@@ -503,7 +503,7 @@ BEGIN
 
 	EXECUTE '
 		WITH p AS (
-			SELECT	property_value_account_coll_id AS account_collection_id
+			SELECT	property_value_account_collection_id AS account_collection_id
 			FROM	property
 			WHERE	property_name = $3
 			AND		property_type = $4
@@ -518,7 +518,7 @@ BEGIN
 
 	EXECUTE '
 		WITH list AS (
-			SELECT	property_value_account_coll_id as account_collection_id,
+			SELECT	property_value_account_collection_id as account_collection_id,
 					property_id
 			FROM	property
 			WHERE	property_name = $3
@@ -529,7 +529,7 @@ BEGIN
 			DELETE FROM property WHERE property_id IN
 				(select property_id FROM list ) RETURNING *
 		) DELETE FROM account_collection WHERE account_collection_id IN
-				(select property_value_account_coll_id FROM props )
+				(select property_value_account_collection_id FROM props )
 		' USING account_id, account_realm_id, ac_type, 'auto_acct_coll';
 
 END;
@@ -650,7 +650,7 @@ BEGIN
 				    USING (person_id, company_id, account_realm_id)
 			    INNER JOIN person_company pc USING (person_id,company_id)
 			    INNER JOIN person p USING (person_id)
-			WHERE a.is_enabled = ''Y''
+			WHERE a.is_enabled = true
 			AND a.account_role = ''primary''
 		),
 	list AS (
@@ -682,17 +682,17 @@ BEGIN
 				AND (
 			(
 				property_name =
-					CASE WHEN a.is_exempt = ''N''
+					CASE WHEN a.is_exempt = false
 					THEN ''non_exempt''
 					ELSE ''exempt'' END
 				OR
 				property_name =
-					CASE WHEN a.is_management = ''N''
+					CASE WHEN a.is_management = false
 					THEN ''non_management''
 					ELSE ''management'' END
 				OR
 				property_name =
-					CASE WHEN a.is_full_time = ''N''
+					CASE WHEN a.is_full_time = false
 					THEN ''non_full_time''
 					ELSE ''full_time'' END
 				OR
@@ -769,7 +769,7 @@ BEGIN
 				    USING (person_id, company_id, account_realm_id)
 			    INNER JOIN person_company pc USING (person_id,company_id)
 			    INNER JOIN person p USING (person_id)
-			WHERE a.is_enabled = ''Y''
+			WHERE a.is_enabled = true
 			AND a.account_role = ''primary''
 	), list AS (
 		SELECT  p.account_collection_id, a.account_id, a.account_type,

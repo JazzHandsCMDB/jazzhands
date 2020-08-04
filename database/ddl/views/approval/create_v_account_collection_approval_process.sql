@@ -76,7 +76,7 @@ FROM approval_utils.v_approval_matrix mx
 		p.property_name = mx.property_val_rhs AND
 		p.property_type = mx.property_val_lhs
 	INNER JOIN approval_utils.v_account_collection_audit_results mm ON
-		mm.account_collection_id=p.property_value_account_coll_id
+		mm.account_collection_id=p.property_value_account_collection_id
 	WHERE p.account_id != mm.account_id
 UNION
 SELECT  login,

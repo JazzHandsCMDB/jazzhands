@@ -51,8 +51,8 @@ BEGIN
 	INSERT INTO val_person_status 
 		(person_status, is_enabled, propagate_from_person)
 	VALUES
-		('active', 'Y', 'N'), 
-		('inactive', 'N', 'N');
+		('active', true, false), 
+		('inactive', false, false);
 
 	INSERT INTO v_person_company (
 		person_id, company_id, person_company_status, person_company_relation,
@@ -60,7 +60,7 @@ BEGIN
 		hire_date, manager_person_id
 	) VALUES (
 		p, c, 'active', 'employee',
-		'Y', 'Y', 'Y', 'dude', 'Chief Wrangler',
+		true, true, true, 'dude', 'Chief Wrangler',
 		now(), m
 	) RETURNING * INTO _vpco;
 

@@ -34,8 +34,8 @@ BEGIN
 
 		IF FOUND THEN
 			IF
-				nb.can_subnet = 'Y' OR
-				nb.is_single_address = 'Y'
+				nb.can_subnet = true OR
+				nb.is_single_address = true
 			THEN
 				RAISE 'Netblock % (%) assigned to layer3_network % must not be subnettable or a single address',
 					nb.netblock_id,
@@ -65,7 +65,7 @@ RETURNS TRIGGER AS $$
 DECLARE
 	l3	jazzhands.layer3_network%ROWTYPE;
 BEGIN
-	IF NEW.can_subnet = 'Y' OR NEW.is_single_address = 'Y' THEN
+	IF NEW.can_subnet = true OR NEW.is_single_address = 'Y' THEN
 		SELECT
 			* INTO l3
 		FROM

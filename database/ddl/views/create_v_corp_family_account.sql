@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2014, Todd M. Kover
+-- Copyright (c) 2013-2019, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,12 +22,13 @@ SELECT	a.account_id,
 	a.login,
 	a.person_id,
 	a.company_id,
+	a.is_enabled,
 	a.account_realm_id,
 	a.account_status,
 	a.account_role,
 	a.account_type,
 	a.description,
-	a.is_enabled,
+	a.external_id,
 	a.data_ins_user,
 	a.data_ins_date,
 	a.data_upd_user,

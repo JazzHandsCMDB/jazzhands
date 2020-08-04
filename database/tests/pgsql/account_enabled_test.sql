@@ -137,7 +137,7 @@ BEGIN
 	AND company_id = _acc1.company_id;
 
 	SELECT * INTO _tac FROM account where account_id = _acc1.account_id;
-	IF _tac.account_status != 'autoterminated' OR _tac.is_enabled != 'N' THEN
+	IF _tac.account_status != 'autoterminated' OR _tac.is_enabled != false THEN
 		RAISE EXCEPTION 'status did not propagate: %/%',
 			_tac.account_status, _tac.is_enabled;
 	END IF;
@@ -149,7 +149,7 @@ BEGIN
 	AND company_id = _acc1.company_id;
 
 	SELECT * INTO _tac FROM account where account_id = _acc1.account_id;
-	IF _tac.account_status != 'enabled' OR _tac.is_enabled != 'Y' THEN
+	IF _tac.account_status != 'enabled' OR _tac.is_enabled != true THEN
 		RAISE EXCEPTION 'status did not propagate: %/%',
 			_tac.account_status, _tac.is_enabled;
 	END IF;
@@ -157,7 +157,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking to see if is_enabled is immutable... ';
 	BEGIN
-		UPDATE account set is_enabled = 'N' WHERE account_id =
+		UPDATE account set is_enabled = false WHERE account_id =
 			_acc1.account_id;
 		RAISE EXCEPTION '... IT IS NOT.';
 	EXCEPTION WHEN integrity_constraint_violation THEN
@@ -172,7 +172,7 @@ BEGIN
 		values (
 			'jhtest02', _pers2.person_id, _com.company_id,
 			_ar.account_realm_id, 'enabled', 'primary', 'person',
-			'N');
+			false);
 		RAISE EXCEPTION '... THEY CAN.';
 	EXCEPTION WHEN integrity_constraint_violation THEN
 		RAISE NOTICE '... They can''t';

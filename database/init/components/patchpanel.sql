@@ -41,7 +41,7 @@ BEGIN
 			(slot_type, slot_physical_interface_type, slot_function,
 			 description, remote_slot_permitted)
 		VALUES
-			('RJ45 patch', 'RJ45', 'patchpanel', 'RJ45 patch port', 'Y')
+			('RJ45 patch', 'RJ45', 'patchpanel', 'RJ45 patch port', true)
 		;
 	END IF;
 END $$ language plpgsql

@@ -34,12 +34,12 @@ FROM (
 			(PARTITION BY device_id ORDER BY device_collection_level )
 			AS rank
 	FROM	device_collection dc
-		LEFT JOIN v_device_coll_hier_detail dcr ON
+		LEFT JOIN v_device_collection_hier_detail dcr ON
 			dc.device_collection_id = dcr.parent_device_collection_id
 		LEFT JOIN device_collection_device dcd ON
 			dcd.device_collection_id = dcr.device_collection_id
 		LEFT JOIN Device USING (Device_Id)
-		LEFT JOIN Network_Interface_netblock NI USING (Device_ID)
+		LEFT JOIN layer3_interface_netblock NI USING (device_id)
 		LEFT JOIN Netblock NB USING (Netblock_id)
 	WHERE
 		device_collection_type IN ('HOTPants', 'HOTPants-app')

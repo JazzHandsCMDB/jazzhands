@@ -43,11 +43,11 @@ BEGIN
 			(slot_type, slot_physical_interface_type, slot_function,
 			 description, remote_slot_permitted)
 		VALUES
-			('RJ45 serial', 'RJ45', 'serial', 'RJ45 serial port', 'Y'),
-			('DB9-F serial', 'DB9-F', 'serial', 'DB9 serial port', 'Y'),
-			('DB9-M serial', 'DB9-M', 'serial', 'DB9 serial port', 'Y'),
-			('DB25-F serial', 'DB25-F', 'serial', 'RJ45 serial port', 'Y'),
-			('DB25-M serial', 'DB25-M', 'serial', 'RJ45 serial port', 'Y'),
-			('virtual serial', 'virtual', 'serial', 'virtual serial port', 'Y');
+			('RJ45 serial', 'RJ45', 'serial', 'RJ45 serial port', true),
+			('DB9-F serial', 'DB9-F', 'serial', 'DB9 serial port', true),
+			('DB9-M serial', 'DB9-M', 'serial', 'DB9 serial port', true),
+			('DB25-F serial', 'DB25-F', 'serial', 'RJ45 serial port', true),
+			('DB25-M serial', 'DB25-M', 'serial', 'RJ45 serial port', true),
+			('virtual serial', 'virtual', 'serial', 'virtual serial port', true);
 	END IF;
 END $$ language plpgsql

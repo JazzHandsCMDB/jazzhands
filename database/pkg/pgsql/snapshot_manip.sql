@@ -86,7 +86,7 @@ BEGIN
 			'OperatingSystem',
 			'AllowOSDeploy',
 			osid,
-			'N'
+			false
 		);
 	END IF;
 
@@ -127,7 +127,7 @@ BEGIN
 		'AllowSnapDeploy',
 		NULL,
 		snapid,
-		'N'
+		false
 	);
 
 	RETURN snapid;

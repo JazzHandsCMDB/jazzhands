@@ -86,8 +86,8 @@ SELECT * FROM  (
 		NULL AS dns_srv_protocol,
 		NULL AS dns_srv_weight,
 		NULL AS dns_srv_port,
-		'Y' AS is_enabled,
-		'N'::character AS should_generate_ptr,
+		true AS is_enabled,
+		false AS should_generate_ptr,
 		NULL AS dns_value_record_id
 	FROM (
        SELECT
@@ -129,7 +129,7 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		NULL::integer AS dns_srv_weight,
 		NULL::integer AS dns_srv_port,
 		is_enabled AS is_enabled,
-		'N'::character AS should_generate_ptr,
+		false AS should_generate_ptr,
 		NULL AS dns_value_record_id
 	FROM	dns_record join dns_domain USING (dns_domain_id)
 		join (SELECT dns_domain_id AS parent_dns_domain_id,

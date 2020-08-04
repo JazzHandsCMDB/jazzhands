@@ -148,7 +148,7 @@ $$
 DECLARE
 	forced boolean;
 BEGIN
-	IF is_member IS NULL OR is_member = 'N' THEN
+	IF is_member = 'N' THEN
 		forced = false;
 	ELSE
 		forced = true;
@@ -280,7 +280,7 @@ BEGIN
 			FROM	account_collection ac
 				JOIN department d USING (account_collection_id)
 				JOIN property p USING (account_collection_id)
-			WHERE 	d.is_active = 'N'
+			WHERE 	d.is_active = false
 			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
 			AND	account_collection_id NOT IN (
@@ -303,10 +303,10 @@ BEGIN
 						FROM	v_acct_coll_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
-						WHERE	is_active = 'Y'
+						WHERE	is_active = true
 					) kid USING (account_collection_id)
 				WHERE
-					is_active = 'N'
+					is_active = false
 			)
 	LOOP
 		BEGIN
@@ -329,7 +329,7 @@ BEGIN
 				JOIN department d USING (account_collection_id)
 				JOIN property p ON p.property_value_account_coll_id =
 					ac.account_collection_id
-			WHERE 	d.is_active = 'N'
+			WHERE 	d.is_active = false
 			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
 			AND	p.property_value_account_coll_id NOT IN (
@@ -340,7 +340,7 @@ BEGIN
 					SELECT account_collection_id
 					FROM account_collection_account
 						JOIN account a USING (account_id)
-					WHERE a.is_enabled = 'Y'
+					WHERE a.is_enabled = true
 				)
 			AND p.property_value_account_coll_id NOT IN (
 				SELECT account_collection_id
@@ -354,10 +354,10 @@ BEGIN
 						FROM	v_acct_coll_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
-						WHERE	is_active = 'Y'
+						WHERE	is_active = true
 					) kid USING (account_collection_id)
 				WHERE
-					is_active = 'N'
+					is_active = false
 			)
 	LOOP
 		BEGIN
@@ -457,7 +457,7 @@ BEGIN
 	FOR _r IN SELECT	ac.*
 			FROM	account_collection ac
 				JOIN department d USING (account_collection_id)
-			WHERE	d.is_active = 'N'
+			WHERE	d.is_active = false
 			AND	account_collection_id IN (
 				SELECT child_account_collection_id FROM account_collection_hier
 			)
@@ -473,10 +473,10 @@ BEGIN
 						FROM	v_acct_coll_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
-						WHERE	is_active = 'Y'
+						WHERE	is_active = true
 					) kid USING (account_collection_id)
 				WHERE
-					is_active = 'N'
+					is_active = false
 			)
 
 	LOOP
@@ -542,7 +542,7 @@ BEGIN
 			JOIN val_account_collection_type act USING (account_collection_type)
 		WHERE	now() -
 			coalesce(ac.data_upd_date,ac.data_ins_date) > lifespan::interval
-		AND	act.is_infrastructure_type = 'N'
+		AND	act.is_infrastructure_type = false
 		AND	account_collection_id NOT IN
 			(SELECT child_account_collection_id FROM account_collection_hier)
 		AND	account_collection_id NOT IN

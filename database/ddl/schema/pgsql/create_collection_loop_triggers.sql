@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2015 Todd Kover
+ * Copyright (c) 2012-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -121,8 +121,8 @@ AFTER INSERT OR UPDATE ON token_collection_hier
 CREATE OR REPLACE FUNCTION check_svcenv_colllection_hier_loop()
 	RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.service_env_collection_id =
-		NEW.child_service_env_coll_id THEN
+	IF NEW.service_environment_collection_id =
+		NEW.child_service_environment_collection_id THEN
 			RAISE EXCEPTION 'svcenv Collection Loops Not Pernitted '
 			USING ERRCODE = 20704;	/* XXX */
 	END IF;
@@ -133,8 +133,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_check_svcenv_collection_hier_loop
-	ON service_environment_coll_hier;
+	ON service_environment_collection_hier;
 CREATE TRIGGER trigger_check_svcenv_collection_hier_loop
-AFTER INSERT OR UPDATE ON service_environment_coll_hier
+AFTER INSERT OR UPDATE ON service_environment_collection_hier
 	FOR EACH ROW EXECUTE PROCEDURE check_svcenv_colllection_hier_loop();
 

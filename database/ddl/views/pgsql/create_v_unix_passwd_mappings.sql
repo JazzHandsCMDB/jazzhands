@@ -34,7 +34,7 @@ WITH  passtype AS (
 				row_number() OVER (partition by
 					dchd.device_collection_id)  as ord
 		FROM	v_property p
-				INNER JOIN v_device_coll_hier_detail dchd
+				INNER JOIN v_device_collection_hier_detail dchd
 					ON dchd.parent_device_collection_id =
 						p.device_collection_id
 		WHERE
@@ -119,16 +119,16 @@ SELECT	o.device_collection_id,
 		extra_groups.group_names
 FROM
 		(
-			SELECT a.*, aui.unix_uid, aui.unix_group_acct_collection_id,
+			SELECT a.*, aui.unix_uid, aui.unix_group_account_collection_id,
 						aui.shell, aui.default_home
 			FROM account a
 					INNER JOIN account_unix_info aui using (account_id)
 			WHERE a.is_enabled = 'Y'
 		) a
-			JOIN v_device_col_account_cart o using (account_id)
+			JOIN v_device_collection_account_cart o using (account_id)
 			JOIN device_collection dc USING (device_collection_id)
 			JOIN person p USING (person_id)
-			JOIN unix_group ug on (a.unix_group_acct_collection_id
+			JOIN unix_group ug on (a.unix_group_account_collection_id
 				= ug.account_collection_id)
 			JOIN account_collection ugac
 				on (ugac.account_collection_id = ug.account_collection_id)
@@ -141,8 +141,8 @@ FROM
 						INNER JOIN account_collection ac 
 							USING (account_collection_id)
 						INNER JOIN account_collection pac ON
-							pac.account_collection_id = p.property_value_account_coll_id
-						INNER JOIN  v_acct_coll_acct_expanded acae ON
+							pac.account_collection_id = p.property_value_account_collection_id
+						INNER JOIN  v_account_collection_account_expanded acae ON
 							pac.account_collection_id = acae.account_collection_id
 				WHERE
 						p.property_type = 'MclassUnixProp'

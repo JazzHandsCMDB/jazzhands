@@ -28,7 +28,7 @@ BEGIN
 		INTO	_tally
 		FROM	approval_instance_step
 		WHERE	approval_instance_step_id = NEW.approval_instance_step_id
-		AND		is_completed = 'Y';
+		AND		is_completed = true;
 
 		IF _tally > 0 THEN
 			RAISE EXCEPTION 'Completed attestation cycles may not have items added';
@@ -45,7 +45,7 @@ BEGIN
 
 		IF _tally = 0 THEN
 			UPDATE	approval_instance_step
-			SET		is_completed = 'Y',
+			SET		is_completed = true,
 					approval_instance_step_end = now()
 			WHERE	approval_instance_step_id = NEW.approval_instance_step_id;
 		END IF;
@@ -70,7 +70,7 @@ CREATE TRIGGER trigger_approval_instance_step_auto_complete
 CREATE OR REPLACE FUNCTION approval_instance_step_completed_immutable()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF ( OLD.is_completed ='Y' AND NEW.is_completed = 'N' ) THEN
+	IF ( OLD.is_completed =true AND NEW.is_completed = false ) THEN
 		RAISE EXCEPTION 'Approval completion may not be reverted';
 	END IF;
 	RETURN NEW;
@@ -119,7 +119,7 @@ BEGIN
 	SELECT	count(*)
 	INTO	_tally
 	FROM	approval_instance_step
-	WHERE	is_completed = 'N'
+	WHERE	is_completed = false
 	AND		approval_instance_id = NEW.approval_instance_id;
 
 	IF _tally = 0 THEN

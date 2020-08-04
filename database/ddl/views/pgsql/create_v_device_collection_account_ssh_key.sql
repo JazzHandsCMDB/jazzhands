@@ -41,10 +41,10 @@ FROM (
 			ssh_public_key
 		FROM    device_collection_ssh_key dcssh
 			INNER JOIN ssh_key USING (ssh_key_id)
-			INNER JOIN v_acct_coll_acct_expanded ac
+			INNER JOIN v_account_collection_account_expanded ac
 		    		USING (account_collection_id)
 			INNER JOIN account a USING (account_id)
-			INNER JOIN v_device_coll_hier_detail dchd ON
+			INNER JOIN v_device_collection_hier_detail dchd ON
 		    		dchd.parent_device_collection_id =
 		    			dcssh.device_collection_id
     	UNION

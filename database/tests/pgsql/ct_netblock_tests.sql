@@ -61,7 +61,7 @@ BEGIN
 		INSERT INTO netblock (
 			ip_address, netblock_status, can_subnet, is_single_address
 		) VALUES (
-			'172.30.0.0/24', 'Allocated', 'N', 'N'
+			'172.30.0.0/24', 'Allocated', false, false
 		);
 		-- RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
 		RAISE EXCEPTIOn 'ok.' USING ERRCODE = 'JH999';
@@ -73,7 +73,7 @@ BEGIN
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.0.0/16', 'Allocated', 'Y', 'N'
+		'172.30.0.0/16', 'Allocated', true, false
 	) RETURNING * INTO _nb1;
 
 	PERFORM schema_support.relation_diff(
@@ -87,7 +87,7 @@ BEGIN
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.0.0/15', 'Allocated', 'Y', 'N'
+		'172.30.0.0/15', 'Allocated', true, false
 	) RETURNING * INTO _nb2;
 
 	PERFORM schema_support.relation_diff(
@@ -110,7 +110,7 @@ BEGIN
 			'172.28.64.0/24',
 			'172.28.64.0/20'
 		]::inet[]),
-		'Allocated', 'Y', 'N'
+		'Allocated', true, false
 	);
 
 	RAISE NOTICE '++ Inserting random parent ..';
@@ -120,7 +120,7 @@ BEGIN
 		unnest(ARRAY[
 			'172.28.0.0/15'
 		]::inet[]),
-		'Allocated', 'Y', 'N'
+		'Allocated', true, false
 	);
 
 	PERFORM schema_support.relation_diff(
@@ -135,7 +135,7 @@ BEGIN
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.42.0/24', 'Allocated', 'N', 'N'
+		'172.30.42.0/24', 'Allocated', false, false
 	) RETURNING * INTO _nb3;
 
 	PERFORM schema_support.relation_diff(
@@ -166,7 +166,7 @@ BEGIN
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.42.5/24', 'Allocated', 'N',  'Y'
+		'172.30.42.5/24', 'Allocated', false,  true
 	) RETURNING * INTO _nb4;
 	PERFORM schema_support.relation_diff(
 		schema := 'jazzhands_cache',

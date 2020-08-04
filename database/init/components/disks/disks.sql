@@ -28,7 +28,7 @@ BEGIN
 		INSERT INTO val_component_property_type (
 			component_property_type, description, is_multivalue
 		) VALUES 
-			('disk', 'disk properties', 'Y');
+			('disk', 'disk properties', true);
 
 		--
 		-- Insert some component function properties
@@ -42,7 +42,7 @@ BEGIN
 			required_component_function,
 			permit_component_type_id
 		) VALUES 
-			('DiskSize', 'disk', 'Disk Size (sectors)', 'N', 'number',
+			('DiskSize', 'disk', 'Disk Size (sectors)', false, 'number',
 				'disk', 'REQUIRED');
 
 		INSERT INTO val_component_property (
@@ -54,7 +54,7 @@ BEGIN
 			required_component_function,
 			permit_component_type_id
 		) VALUES 
-			('MediaType', 'disk', 'Disk Media Type', 'N', 'list',
+			('MediaType', 'disk', 'Disk Media Type', false, 'list',
 				'disk', 'REQUIRED');
 
 		INSERT INTO val_component_property_value (
@@ -75,7 +75,7 @@ BEGIN
 			required_component_function,
 			permit_component_type_id
 		) VALUES 
-			('DiskProtocol', 'disk', 'Disk Protocol', 'N', 'list',
+			('DiskProtocol', 'disk', 'Disk Protocol', false, 'list',
 				'disk', 'REQUIRED');
 
 		INSERT INTO val_component_property_value (
@@ -100,7 +100,7 @@ BEGIN
 		-- slot, a specific linkage must exist in either
 		-- slot_type_permitted_component_type for internal connections (i.e. the
 		-- component becomes a logical sub-component of the parent) or in
-		-- slot_type_prmt_rem_slot_type for an external connection (i.e.
+		-- slot_type_permitted_remote_slot_type for an external connection (i.e.
 		-- a connection to a separate component entirely, such as a network or
 		-- power connection)
 		--
@@ -124,15 +124,15 @@ BEGIN
 			(slot_type, slot_physical_interface_type, slot_function,
 			 description, remote_slot_permitted)
 		VALUES
-			('SATA', 'SATA', 'disk', 'SATA connection', 'N'),
-			('SAS', 'SAS', 'disk', 'SAS connection', 'N');
+			('SATA', 'SATA', 'disk', 'SATA connection', false),
+			('SAS', 'SAS', 'disk', 'SAS connection', false);
 
 		--
 		-- Insert the permitted disk connections.  SATA can go into SAS;
 		-- The reverse is not true
 		-- 
 
-		INSERT INTO slot_type_prmt_comp_slot_type (
+		INSERT INTO slot_type_permitted_component_slot_type (
 			slot_type_id,
 			component_slot_type_id
 		) SELECT
@@ -143,7 +143,7 @@ BEGIN
 		WHERE
 			st.slot_function = 'disk';
 
-		INSERT INTO slot_type_prmt_comp_slot_type (
+		INSERT INTO slot_type_permitted_component_slot_type (
 			slot_type_id,
 			component_slot_type_id
 		) SELECT

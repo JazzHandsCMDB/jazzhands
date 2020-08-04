@@ -33,14 +33,14 @@ BEGIN
 		ip_address, is_single_address, can_subnet, netblock_status, 
 		netblock_type, description
 	) values (
-		'10.42.42.1/26', 'Y', 'N', 'Allocated',
+		'10.42.42.1/26', true, false, 'Allocated',
 		'dns', 'JHTEST netblock'
 	) RETURNING * into _nb;
 
 	RAISE NOTICE '.. Got %', _nb;
 
 	RAISE NOTICE 'IS_IPV4_ADDRESS... ';
-	IF _nb.IS_IPV4_ADDRESS != 'Y' THEN
+	IF _nb.IS_IPV4_ADDRESS != true THEN
 		RAISE EXCEPTION '... was not set. %', _nb.IS_IPV4_ADDRESS;
 	ELSE 
 		RAISE NOTICE '... was set.';
@@ -76,7 +76,7 @@ BEGIN
 	RAISE NOTICE 'Update .. Got %', _nb;
 
 	RAISE NOTICE 'IS_IPV4_ADDRESS... ';
-	IF _nb.IS_IPV4_ADDRESS != 'Y' THEN
+	IF _nb.IS_IPV4_ADDRESS != true THEN
 		RAISE EXCEPTION '... was not set. %', _nb.IS_IPV4_ADDRESS;
 	ELSE 
 		RAISE NOTICE '... was set.';
@@ -112,7 +112,7 @@ BEGIN
 	RAISE NOTICE 'Update .. Got %', _nb;
 
 	RAISE NOTICE 'IS_IPV4_ADDRESS... ';
-	IF _nb.IS_IPV4_ADDRESS != 'N' THEN
+	IF _nb.IS_IPV4_ADDRESS != false THEN
 		RAISE EXCEPTION '... was not set. %', _nb.IS_IPV4_ADDRESS;
 	ELSE 
 		RAISE NOTICE '... was set.';
@@ -147,7 +147,7 @@ BEGIN
 			netblock_status, 
 			netblock_type, description
 		) values (
-			'10.41.90.1/26', 'N', 'Y', 'N', 
+			'10.41.90.1/26', false, true, false, 
 			'Allocated',
 			'dns', 'JHTEST netblock'
 		) RETURNING * into _nb;
@@ -163,7 +163,7 @@ BEGIN
 			netblock_status, 
 			netblock_type, description
 		) values (
-			'fc00::dead:beef:f00d:1/64', 'Y', 'Y', 'N', 
+			'fc00::dead:beef:f00d:1/64', true, true, false, 
 			'Allocated',
 			'dns', 'JHTEST netblock'
 		) RETURNING * into _nb;

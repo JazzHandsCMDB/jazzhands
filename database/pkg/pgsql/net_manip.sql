@@ -135,9 +135,9 @@ CREATE OR REPLACE FUNCTION net_manip.inet_is_private_yn
 RETURNS char AS $$
 BEGIN
 	IF (net_manip.inet_is_private(p_ip_address)) THEN
-		RETURN 'Y';
+		RETURN true;
 	ELSE
-		RETURN 'N';
+		RETURN false;
 	END IF;
 END;
 $$ LANGUAGE plpgsql;

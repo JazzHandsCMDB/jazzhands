@@ -37,22 +37,22 @@ CREATE OR REPLACE FUNCTION approval_utils.calculate_due_date(
 ) RETURNS timestamp AS $$
 DECLARE
 BEGIN
-	RETURN date_trunc('day', (CASE 
+	RETURN date_trunc('day', (CASE
 		WHEN to_char(from_when + response_period::interval, 'D') = '1'
 			THEN from_when + response_period::interval + '1 day'::interval
 		WHEN to_char(from_when + response_period::interval, 'D') = '7'
 			THEN from_when + response_period::interval + '2 days'::interval
-		ELSE from_when + response_period::interval END)::timestamp) + 
+		ELSE from_when + response_period::interval END)::timestamp) +
 			'1 day'::interval - '1 second'::interval
 	;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
-CREATE OR REPLACE FUNCTION 
+CREATE OR REPLACE FUNCTION
 		approval_utils.get_or_create_correct_approval_instance_link(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
-	approval_instance_link_id	
+	approval_instance_link_id
 					approval_instance_link.approval_instance_link_id%TYPE
 ) RETURNS approval_instance_link.approval_instance_link_id%TYPE AS $$
 DECLARE
@@ -68,7 +68,7 @@ BEGIN
 	_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
 
 	IF _v.audit_table = 'account_collection_account' THEN
-		IF _v.audit_seq_id IS NOT 
+		IF _v.audit_seq_id IS NOT
 					DISTINCT FROM  _l.acct_collection_acct_seq_id THEN
 			_acaid := _v.audit_seq_id;
 			_pcid := NULL;
@@ -107,7 +107,7 @@ DECLARE
 	_r	approval_utils.v_account_collection_approval_process%ROWTYPE;
 BEGIN
 	--
-	-- XXX p comes out of one of the three clauses in 
+	-- XXX p comes out of one of the three clauses in
 	-- v_account_collection_approval_process .  It is likely that that view
 	-- needs to be broken into 2 or 3 views joined together so there is no
 	-- code redundancy.  This is almost certainly true because it is a pain
@@ -172,7 +172,7 @@ BEGIN
 			 inner join p
 				on i.approved_label = p.approval_label
 				and res.person_id = p.person_id
-		) SELECT 
+		) SELECT
 			login,
 			account_id,
 			person_id,
@@ -219,10 +219,10 @@ BEGIN
 	tally := 0;
 
 	-- XXX need to add magic for entering after the right day of the period.
-	FOR _r IN SELECT * 
+	FOR _r IN SELECT *
 				FROM v_account_collection_approval_process
 				WHERE (approval_process_id, current_attestation_name) NOT IN
-					(SELECT approval_process_id, approval_instance_name 
+					(SELECT approval_process_id, approval_instance_name
 					 FROM approval_instance
 					)
 				AND current_attestation_begins < nowish
@@ -235,10 +235,10 @@ BEGIN
 		IF (ai.approval_process_id IS NULL OR
 				ai.approval_process_id != _r.approval_process_id) THEN
 
-			INSERT INTO approval_instance ( 
+			INSERT INTO approval_instance (
 				approval_process_id, description, approval_instance_name
-			) VALUES ( 
-				_r.approval_process_id, 
+			) VALUES (
+				_r.approval_process_id,
 				_r.approval_process_description, _r.current_attestation_name
 			) RETURNING * INTO ai;
 		END IF;
@@ -247,10 +247,10 @@ BEGIN
 				ais.approver_account_id != _r.manager_account_id THEN
 
 			INSERT INTO approval_instance_step (
-				approval_process_chain_id, approver_account_id, 
-				approval_instance_id, approval_type,  
+				approval_process_chain_id, approver_account_id,
+				approval_instance_id, approval_type,
 				approval_instance_step_name,
-				approval_instance_step_due, 
+				approval_instance_step_due,
 				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
@@ -269,9 +269,9 @@ BEGIN
 			_pcid := _r.audit_seq_id;
 		END IF;
 
-		INSERT INTO approval_instance_link ( 
+		INSERT INTO approval_instance_link (
 			acct_collection_acct_seq_id, person_company_seq_id
-		) VALUES ( 
+		) VALUES (
 			_acaid, _pcid
 		) RETURNING * INTO ail;
 
@@ -284,12 +284,12 @@ BEGIN
 		INSERT INTO approval_instance_item (
 			approval_instance_link_id, approval_instance_step_id,
 			approved_category, approved_label, approved_lhs, approved_rhs
-		) VALUES ( 
+		) VALUES (
 			ail.approval_instance_link_id, ais.approval_instance_step_id,
 			_r.approval_category, _r.approval_label, _r.approval_lhs, _r.approval_rhs
 		) RETURNING * INTO aii;
 
-		UPDATE approval_instance_step 
+		UPDATE approval_instance_step
 		SET approval_instance_id = ai.approval_instance_id
 		WHERE approval_instance_step_id = ais.approval_instance_step_id;
 		tally := tally + 1;
@@ -308,18 +308,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
-	approval_process_chain_id		
+	approval_process_chain_id
 						approval_process_chain.approval_process_chain_id%TYPE,
 	approval_instance_id
 				approval_instance.approval_instance_id%TYPE,
-	approved				char(1),
+	approved				boolean,
 	approving_account_id	account.account_id%TYPE,
 	new_value				text DEFAULT NULL
 ) RETURNS approval_instance_item.approval_instance_item_id%TYPE AS $$
 DECLARE
 	_r		RECORD;
-	_apc	approval_process_chain%ROWTYPE;	
-	_new	approval_instance_item%ROWTYPE;	
+	_apc	approval_process_chain%ROWTYPE;
+	_new	approval_instance_item%ROWTYPE;
 	_acid	account.account_id%TYPE;
 	_step	approval_instance_step.approval_instance_step_id%TYPE;
 	_l		approval_instance_link.approval_instance_link_id%TYPE;
@@ -396,7 +396,7 @@ BEGIN
 		WHERE	approval_process_chain_id = $1
 		AND		approval_instance_id = $2
 		AND		approver_account_id = $3
-		AND		is_completed = ''N''
+		AND		is_completed = false
 	' INTO _step USING approval_process_chain_id,
 		approval_instance_id, _acid;
 
@@ -410,22 +410,22 @@ BEGIN
 			INSERT INTO approval_instance_step (
 				approval_instance_id, approval_process_chain_id,
 				approval_instance_step_name,
-				approver_account_id, approval_type, 
+				approver_account_id, approval_type,
 				approval_instance_step_due,
 				description
 			) VALUES (
 				$1, $2, $3, $4, $5, approval_utils.calculate_due_date($6), $7
 			) RETURNING approval_instance_step_id
-		' INTO _step USING 
+		' INTO _step USING
 			approval_instance_id, approval_process_chain_id,
 			_apc.approval_process_chain_name,
-			_acid, apptype, 
+			_acid, apptype,
 			_apc.approval_chain_response_period::interval,
 			concat(_apc.description, ' for ', _r.approver_account_id, ' by ',
 			approving_account_id);
 	END IF;
 
-	IF _apc.refresh_all_data = 'Y' THEN
+	IF _apc.refresh_all_data = true THEN
 		-- this is called twice, should rethink how to not
 		_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
 		_l := approval_utils.get_or_create_correct_approval_instance_link(
@@ -461,7 +461,7 @@ BEGIN
 			FROM approval_instance_item
 			WHERE approval_instance_item_id = $1
 			RETURNING *
-	' INTO _new USING approval_instance_item_id, 
+	' INTO _new USING approval_instance_item_id,
 		_new.approval_instance_link_id, _new.approved_label, _new.approved_category,
 		_new.approved_lhs, _new.approved_rhs,
 		_step;
@@ -472,16 +472,16 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 CREATE OR REPLACE FUNCTION approval_utils.approve(
-	approval_instance_item_id	
+	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
-	approved				char(1),
+	approved				boolean,
 	approving_account_id	account.account_id%TYPE,
 	new_value				text DEFAULT NULL
 ) RETURNS boolean AS $$
 DECLARE
 	_r		RECORD;
-	_aii	approval_instance_item%ROWTYPE;	
-	_new	approval_instance_item.approval_instance_item_id%TYPE;	
+	_aii	approval_instance_item%ROWTYPE;
+	_new	approval_instance_item.approval_instance_item_id%TYPE;
 	_chid	approval_process_chain.approval_process_chain_id%TYPE;
 	_tally	INTEGER;
 BEGIN
@@ -493,8 +493,8 @@ BEGIN
 			ais.approval_type,
 			aii.is_approved,
 			ais.is_completed,
-			aic.accept_app_process_chain_id,
-			aic.reject_app_process_chain_id
+			aic.accept_approval_process_chain_id,
+			aic.reject_approval_process_chain_id
    	     FROM    approval_instance ai
    		     INNER JOIN approval_instance_step ais
    			 USING (approval_instance_id)
@@ -546,13 +546,13 @@ BEGIN
 		RAISE EXCEPTION 'Approval is already completed.';
 	END IF;
 
-	IF approved = 'N' THEN
-		IF _r.reject_app_process_chain_id IS NOT NULL THEN
-			_chid := _r.reject_app_process_chain_id;	
+	IF approved = false THEN
+		IF _r.reject_approval_process_chain_id IS NOT NULL THEN
+			_chid := _r.reject_approval_process_chain_id;
 		END IF;
-	ELSIF approved = 'Y' THEN
-		IF _r.accept_app_process_chain_id IS NOT NULL THEN
-			_chid := _r.accept_app_process_chain_id;
+	ELSIF approved = true THEN
+		IF _r.accept_approval_process_chain_id IS NOT NULL THEN
+			_chid := _r.accept_approval_process_chain_id;
 		END IF;
 	ELSE
 		RAISE EXCEPTION 'Approved must be Y or N';

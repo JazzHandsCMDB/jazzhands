@@ -29,7 +29,7 @@
 @@create_v_property.sql
 @@create_v_uclass_user_expanded_detail.sql
 @@create_v_uclass_user_expanded.sql
-@@create_v_device_coll_hier_detail.sql
+@@create_v_device_collection_hier_detail.sql
 @@create_mv_uclass_user_expanded_detail.sql
 @@create_mv_uclass_user_expanded.sql
 @@create_v_application_role.sql

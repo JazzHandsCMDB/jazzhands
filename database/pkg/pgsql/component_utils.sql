@@ -46,7 +46,7 @@ BEGIN
 			slot_name,
 			slot_type_id,
 			slot_index,
-			component_type_slot_tmplt_id,
+			component_type_slot_template_id,
 			physical_label,
 			slot_x_offset,
 			slot_y_offset,
@@ -57,27 +57,27 @@ BEGIN
 			ctst.slot_name_template,
 			ctst.slot_type_id,
 			ctst.slot_index,
-			ctst.component_type_slot_tmplt_id,
+			ctst.component_type_slot_template_id,
 			ctst.physical_label,
 			ctst.slot_x_offset,
 			ctst.slot_y_offset,
 			ctst.slot_z_offset,
 			ctst.slot_side
 		FROM
-			component_type_slot_tmplt ctst JOIN
+			component_type_slot_template ctst JOIN
 			component c USING (component_type_id) LEFT JOIN
 			slot ON (slot.component_id = cid AND
-				slot.component_type_slot_tmplt_id =
-				ctst.component_type_slot_tmplt_id
+				slot.component_type_slot_template_id =
+				ctst.component_type_slot_template_id
 			)
 		WHERE
 			c.component_id = cid AND
-			slot.component_type_slot_tmplt_id IS NULL
-		ORDER BY ctst.component_type_slot_tmplt_id
+			slot.component_type_slot_template_id IS NULL
+		ORDER BY ctst.component_type_slot_template_id
 		RETURNING *
 	LOOP
 		RAISE DEBUG 'Creating slot for component % from template %',
-			cid, s.component_type_slot_tmplt_id;
+			cid, s.component_type_slot_template_id;
 		RETURN NEXT s;
 	END LOOP;
 END;
@@ -111,12 +111,12 @@ BEGIN
 			s.slot_name,
 			s.slot_type_id,
 			st.slot_function,
-			ctst.component_type_slot_tmplt_id
+			ctst.component_type_slot_template_id
 		FROM
 			slot s JOIN 
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
-			component_type_slot_tmplt ctst USING (component_type_slot_tmplt_id)
+			component_type_slot_template ctst USING (component_type_slot_template_id)
 		WHERE
 			s.component_id = cid AND
 			ctst.component_type_id IS DISTINCT FROM c.component_type_id
@@ -130,7 +130,7 @@ BEGIN
 			slot s JOIN 
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
-			component_type_slot_tmplt ctst USING (component_type_slot_tmplt_id)
+			component_type_slot_template ctst USING (component_type_slot_template_id)
 		WHERE
 			s.component_id = cid AND
 			ctst.component_type_id IS NOT DISTINCT FROM c.component_type_id
@@ -219,7 +219,7 @@ BEGIN
 					c.component_id IS NULL AND
 					ni.network_interface_id IS NULL AND
 					cp.component_property_id IS NULL AND
-					os.component_type_slot_tmplt_id IS NOT NULL
+					os.component_type_slot_template_id IS NOT NULL
 			)
 	) SELECT s.* FROM slot s JOIN slot_map sm ON s.slot_id = sm.new_slot_id;
 
@@ -250,12 +250,12 @@ BEGIN
 			pst.child_slot_offset as child_slot_offset
 		FROM
 			slot s JOIN
-			component_type_slot_tmplt st ON (s.component_type_slot_tmplt_id =
-				st.component_type_slot_tmplt_id) JOIN
+			component_type_slot_template st ON (s.component_type_slot_template_id =
+				st.component_type_slot_template_id) JOIN
 			component c ON (s.component_id = c.component_id) LEFT JOIN
 			slot ps ON (c.parent_slot_id = ps.slot_id) LEFT JOIN
-			component_type_slot_tmplt pst ON (ps.component_type_slot_tmplt_id =
-				pst.component_type_slot_tmplt_id)
+			component_type_slot_template pst ON (ps.component_type_slot_template_id =
+				pst.component_type_slot_template_id)
 		WHERE
 			s.slot_id = ANY(slot_id_list) AND
 			(
@@ -597,7 +597,7 @@ BEGIN
 				pci_sub_device_name
 			END,
 			stid,
-			'Y',
+			true,
 			model_name
 		) RETURNING component_type_id INTO ctid;
 		--
@@ -781,7 +781,7 @@ BEGIN
 			cid,
 			model,
 			stid,
-			'Y',
+			true,
 			concat_ws(' ', vendor_name, model, media_type, 'disk')
 		) RETURNING component_type_id INTO ctid;
 
@@ -952,7 +952,7 @@ BEGIN
 			cid,
 			model,
 			stid,
-			'Y',
+			true,
 			concat_ws(' ', vendor_name, model, (memory_size || 'MB'), 'memory')
 		) RETURNING component_type_id INTO ctid;
 
@@ -1123,7 +1123,7 @@ BEGIN
 			cid,
 			model,
 			stid,
-			'Y',
+			true,
 			model
 		) RETURNING component_type_id INTO ctid;
 

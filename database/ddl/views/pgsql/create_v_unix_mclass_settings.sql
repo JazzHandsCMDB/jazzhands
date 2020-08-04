@@ -42,7 +42,7 @@ FROM (
 							p.property_name
 							ORDER BY dcd.device_collection_level, property_id
 					) AS ord
-			FROM    v_device_coll_hier_detail dcd
+			FROM    v_device_collection_hier_detail dcd
 				INNER JOIN v_property p on
 						p.device_collection_id = dcd.parent_device_collection_id
 			WHERE	p.property_type IN  ('MclassUnixProp')

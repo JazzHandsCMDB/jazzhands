@@ -1204,19 +1204,42 @@ BEGIN
 	RAISE DEBUG 'processing %.%', schema, object;
 	path = path || concat(schema, '.', object);
 	-- process stored procedures
-	FOR _r in SELECT  distinct np.nspname::text, dependent.proname::text
-		FROM   pg_depend dep
-			INNER join pg_type dependee on dependee.oid = dep.refobjid
-			INNER join pg_namespace n on n.oid = dependee.typnamespace
-			INNER join pg_proc dependent on dependent.oid = dep.objid
-			INNER join pg_namespace np on np.oid = dependent.pronamespace
-			WHERE   dependee.typname = object
-			  AND	  n.nspname = schema
+	FOR _r in
+			SELECT * FROM (
+				-- functions that dpeend on relations
+				SELECT  distinct np.nspname::text AS nspname,
+					dependent.proname::text AS dep_object,
+						n.nspname as base_namespace,
+						dependee.typname as base_object
+				FROM   pg_depend dep
+					INNER join pg_type dependee on dependee.oid = dep.refobjid
+					INNER join pg_namespace n on n.oid = dependee.typnamespace
+					INNER join pg_proc dependent on dependent.oid = dep.objid
+					INNER join pg_namespace np on np.oid = dependent.pronamespace
+				UNION ALL
+				-- relations that depend on functions
+				-- note dependent and depndee are backwards
+
+				SELECT  distinct n.nspname::text, dependee.relname::text,
+					np.nspname, dependent.proname::text
+				FROM   pg_depend dep
+					INNER JOIN pg_rewrite ON dep.objid = pg_rewrite.oid
+					INNER JOIN pg_class as dependee
+						ON pg_rewrite.ev_class = dependee.oid
+					INNER join pg_namespace n on n.oid = dependee.relnamespace
+					INNER join pg_proc dependent on dependent.oid = dep.refobjid
+					INNER join pg_namespace np on np.oid = dependent.pronamespace
+				) x
+        WHERE
+			base_object = object
+			AND base_namespace = schema
 	LOOP
-		-- RAISE NOTICE '1 dealing with  %.%', _r.nspname, _r.proname;
-		PERFORM schema_support.save_constraint_for_replay(schema := _r.nspname, object := _r.proname, dropit := dropit, tags := tags, path := path);
-		PERFORM schema_support.save_dependent_objects_for_replay(_r.nspname, _r.proname, dropit, doobjectdeps, tags, path);
-		PERFORM schema_support.save_function_for_replay(_r.nspname, _r.proname, dropit, tags, path);
+		-- RAISE NOTICE '1 dealing with  %.%', _r.nspname, _r.dep_object;
+		PERFORM schema_support.save_constraint_for_replay(schema := _r.nspname, object := _r.dep_object, dropit := dropit, tags := tags, path := path);
+		PERFORM schema_support.save_dependent_objects_for_replay(_r.nspname, _r.dep_object, dropit, doobjectdeps, tags, path);
+		-- which of these to run depends on which side of the union above
+		PERFORM schema_support.save_function_for_replay(_r.nspname, _r.dep_object, dropit, tags, path);
+		PERFORM schema_support.save_view_for_replay(_r.nspname, _r.dep_object, dropit, tags, path);
 	END LOOP;
 
 	-- save any triggers on the view
@@ -1326,9 +1349,9 @@ BEGIN
 		        SELECT me.oid, n.oid as namespaceid, nspname, relname,
 		                conrelid, conindid, confrelid, conname, connamespace,
 		                condeferrable, condeferred,
-		                array_agg(attname) as cols
+		                array_agg(attname ORDER BY attnum) as cols
 		        FROM (
-		            SELECT con.*, a.attname
+		            SELECT con.*, a.attname, a.attnum
 		            FROM
 		                    ( SELECT oid, conrelid, conindid, confrelid,
 					contype, connamespace,
@@ -1348,9 +1371,9 @@ BEGIN
 		        SELECT me.oid, n.oid as namespaceid, nspname, relname,
 		                conrelid, conindid, confrelid, conname, connamespace,
 		                condeferrable, condeferred,
-		                array_agg(attname) as cols
+		                array_agg(attname ORDER BY attnum) as cols
 		        FROM (
-		            SELECT con.*, a.attname
+		            SELECT con.*, a.attname, a.attnum
 		            FROM
 		                    ( SELECT oid, conrelid, conindid, confrelid,
 					contype, connamespace,

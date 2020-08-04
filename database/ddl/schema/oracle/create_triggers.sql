@@ -8469,7 +8469,7 @@ begin
                     update  dns_domain
                     set  zone_last_updated = sysdate
                     where  dns_domain_id =
-                            netblock_utils.find_rvs_zone_from_netblock_id(:new.netblock_id);
+                            netblock_utils.find_inadr_zone_from_netblock_id(:new.netblock_id);
             end if;
 
             IF UPDATING

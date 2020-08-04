@@ -185,7 +185,7 @@ BEGIN
 							account_id := account_id)
 				FROM    v_corp_family_account
 				WHERE   account_role = 'primary'
-				AND     is_enabled = 'Y'
+				AND     is_enabled = true
 				AND     person_id = OLD.manager_person_id;
 			END IF;
 		END IF;

@@ -22,6 +22,7 @@
 --
 
 -- Copyright (c) 2018, Matthew Ragan
+-- Copyright (c) 2010-2019 Toed M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,32 +37,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-
--- XXX - Not sure if these two are still needed.  Leaving out until it is
--- \ir accountview.sql
--- \ir sysuserphoneview.sql
-
--- not sure that we need these anymore.
--- \ir create_v_login_changes.sql
--- \ir create_v_user_deletions.sql
-
--- XXX - not sure if this is still needed.  Leaving out until it is
--- \ir create_v_user_extract.sql
 \ir pgsql/create_v_property.sql
-\ir pgsql/create_v_nblk_coll_netblock_expanded.sql
+\ir pgsql/create_v_netblock_collection_netblock_expanded.sql
 \ir pgsql/create_v_person_company_expanded.sql
 \ir pgsql/create_v_department_company_expanded.sql
 -- \ir pgsql/create_v_acct_collection_user_expanded_detail.sql
 
--- XXX needs to be ported
--- \ir create_v_user_prop_exp_nomv.sql
 \ir create_token_views.sql
--- \ir pgsql/create_v_acct_collection_user_expanded.sql
 -- not sure that we need these anymore.
--- \ir create_audit_views.sql
 
 -- XXX - not sure if this is still needed.  Leaving out until it is.
--- \ir create_v_limited_users.sql
 
 -- components
 
@@ -79,39 +64,21 @@
 \ir create_device_power_connection.sql
 \ir create_device_power_interface.sql
 
---
--- This is early because some views depend on it for now
--- This needs to be moved later to the "to be retired section" and dropped
-\ir create_v_device_collection_hier_trans.sql
-
--- XXX these need to be ported
--- \ir create_v_joined_acct_collection_user_detail.sql
--- this needs to be rethought...
-\ir pgsql/create_v_device_coll_device_expanded.sql
-\ir pgsql/create_v_device_coll_hier_detail.sql
--- \ir create_v_device_col_acct_collection_expanded.sql
--- \ir create_mv_account_last_auth.sql
--- \ir pgsql/create_mv_acct_collection_user_expanded_detail.sql
--- \ir create_v_user_prop_expanded.sql
--- \ir pgsql/create_mv_acct_collection_user_expanded.sql
--- NOTE, some of these above may have been ported; need to dig into. XXX
+\ir pgsql/create_v_device_collection_device_expanded.sql
+\ir pgsql/create_v_device_collection_hier_detail.sql
 \ir pgsql/create_v_account_collection_account.sql
 \ir pgsql/create_v_account_collection_expanded.sql
-\ir pgsql/create_v_acct_coll_expanded_detail.sql
-\ir pgsql/create_v_acct_coll_expanded.sql
-\ir pgsql/create_v_acct_coll_acct_expanded.sql
-\ir pgsql/create_v_acct_coll_acct_expanded_detail.sql
-\ir create_v_dev_col_user_prop_expanded.sql
-\ir pgsql/create_v_acct_coll_prop_expanded.sql
+\ir pgsql/create_v_account_collection_expanded_detail.sql
+\ir pgsql/create_v_account_collection_account_expanded.sql
+\ir pgsql/create_v_account_collection_account_expanded_detail.sql
+\ir create_v_device_collection_account_property_expanded.sql
+\ir pgsql/create_v_account_collection_property_expanded.sql
 
-\ir pgsql/create_v_device_coll_device_expanded.sql
-\ir pgsql/create_v_netblock_coll_expanded.sql
+\ir pgsql/create_v_device_collection_device_expanded.sql
+\ir pgsql/create_v_netblock_collection_expanded.sql
 
-\ir create_v_dev_col_root.sql
--- \ir create_mv_dev_col_root.sql
-\ir create_v_dev_col_device_root.sql
-
-\ir pgsql/create_v_account_collection_expanded.sql
+\ir create_v_device_collection_root.sql
+\ir create_v_device_collection_device_root.sql
 
 \ir pgsql/create_v_application_role.sql
 
@@ -123,7 +90,7 @@
 \ir pgsql/create_v_netblock_hier_expanded.sql
 \ir pgsql/create_v_physical_connection.sql
 
-\ir create_v_device_col_acct_col_expanded.sql
+\ir create_v_device_collection_account_collection_expanded.sql
 \ir create_v_corp_family_account.sql
 
 \ir pgsql/create_v_person_company_hier.sql
@@ -132,26 +99,21 @@
 \ir create_v_person_company.sql
 
 -- possibly to replace v_device_col_acct_col_expanded
-\ir create_v_device_col_acct_col_unixlogin.sql
-\ir create_v_device_col_acct_col_unixgroup.sql
+\ir create_v_device_collection_account_collection_unix_login.sql
+\ir create_v_device_collection_account_collection_unix_group.sql
 
 -- passwd file generation
 \ir pgsql/create_v_device_collection_account_ssh_key.sql
 \ir pgsql/create_v_unix_mclass_settings.sql
 
 \ir pgsql/create_v_unix_account_overrides.sql
-\ir pgsql/create_v_device_col_account_cart.sql
+\ir pgsql/create_v_device_collection_account_cart.sql
 \ir pgsql/create_v_unix_passwd_mappings.sql
 
 -- group file generation
 \ir pgsql/create_v_unix_group_overrides.sql
-\ir pgsql/create_v_device_col_account_col_cart.sql
+\ir pgsql/create_v_device_collection_account_collection_cart.sql
 \ir pgsql/create_v_unix_group_mappings.sql
-
--- creds mgmt materialized views
--- these were deprecated or at least put on hold in 0.80.
--- \ir pgsql/create_mv_unix_passwd_mappings.sql
--- \ir pgsql/create_mv_unix_group_mappings.sql
 
 -- dns
 \ir create_v_dns_changes_pending.sql
@@ -170,10 +132,10 @@
 \ir create_v_hotpants_token.sql
 \ir create_v_hotpants_client.sql
 \ir create_v_hotpants_account_attribute.sql
-\ir create_v_hotpants_dc_attribute.sql
+\ir create_v_hotpants_device_collection_attribute.sql
 
-\ir pgsql/create_v_l2_network_coll_expanded.sql
-\ir pgsql/create_v_l3_network_coll_expanded.sql
+\ir pgsql/create_v_layer2_network_collection_expanded.sql
+\ir pgsql/create_v_layer3_network_collection_expanded.sql
 \ir pgsql/create_v_layerx_network_expanded.sql
 \ir pgsql/create_v_network_range_expanded.sql
 
@@ -184,5 +146,4 @@
 
 -- to be retired
 \ir create_x509_certificate.sql
-\ir create_v_network_interface_trans.sql
 \ir create_v_dns_domain_nouniverse.sql

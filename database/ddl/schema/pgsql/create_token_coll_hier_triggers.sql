@@ -33,7 +33,7 @@ BEGIN
 		(select token_collection_type from token_collection
 			where token_collection_id = NEW.token_collection_id);
 
-	IF tct.can_have_hierarchy = 'N' THEN
+	IF tct.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'Token Collections of type % may not be hierarcical',
 			tct.token_collection_type
 			USING ERRCODE= 'unique_violation';

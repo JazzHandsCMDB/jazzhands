@@ -41,14 +41,14 @@ BEGIN
 	INSERT INTO component_type (
 		description, asset_permitted
 	) values (
-		'some sort of testing component', 'Y'
+		'some sort of testing component', true
 	) RETURNING * INTO _ct;
 
 	INSERT INTO device_type (
 		model, rack_units, has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis, component_type_id
 	) values (
-		'JHTEST type', 2, 'N', 'N', 'N', 'Y', _ct.component_type_id
+		'JHTEST type', 2, false, false, false, true, _ct.component_type_id
 	) RETURNING * INTO _dt;
 
 	INSERT INTO component (
@@ -70,7 +70,7 @@ BEGIN
 			is_monitored, component_id)
 		VALUES (
 			'asset test 1', _dt.device_type_id, 'up', 1,
-			'N', _com1.component_id
+			false, _com1.component_id
 		) RETURNING * INTO _dev;
 
 		INSERT INTO asset (
@@ -101,7 +101,7 @@ BEGIN
 			is_monitored, asset_id)
 		VALUES (
 			'asset test 1', _dt.device_type_id, 'up', 1,
-			'N', _ass.asset_id
+			false, _ass.asset_id
 		) RETURNING * INTO _dev;
 
 		IF _dev.component_id != _com1.component_id THEN
@@ -132,7 +132,7 @@ BEGIN
 			is_monitored, asset_id)
 		VALUES (
 			'asset test 1', _dt.device_type_id, 'up', 1,
-			'N', _ass.asset_id
+			false, _ass.asset_id
 		) RETURNING * INTO _dev;
 
 		UPDATE device
@@ -162,7 +162,7 @@ BEGIN
 			is_monitored, asset_id)
 		VALUES (
 			'asset test 1', _dt.device_type_id, 'up', 1,
-			'N', _ass.asset_id
+			false, _ass.asset_id
 		) RETURNING * INTO _dev;
 
 		BEGIN
@@ -207,7 +207,7 @@ BEGIN
 			is_monitored, component_id)
 		VALUES (
 			'asset test 1', _dt.device_type_id, 'up', 1,
-			'N', _com1.component_id
+			false, _com1.component_id
 		) RETURNING * INTO _dev;
 
 		INSERT INTO asset (

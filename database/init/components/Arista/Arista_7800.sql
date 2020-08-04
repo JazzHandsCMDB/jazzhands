@@ -59,7 +59,7 @@ BEGIN
 			RETURNING slot_type_id 
 		) SELECT array_agg(slot_type_id) FROM z INTO stid;
 
-		INSERT INTO slot_type_prmt_comp_slot_type (
+		INSERT INTO slot_type_permitted_component_slot_type (
 			slot_type_id,
 			component_slot_type_id
 		) SELECT
@@ -94,7 +94,7 @@ BEGIN
 			-- Supervisor slots
 			--
 
-			INSERT INTO component_type_slot_tmplt (
+			INSERT INTO component_type_slot_template (
 				component_type_id,
 				slot_type_id,
 				slot_name_template,
@@ -117,7 +117,7 @@ BEGIN
 			-- Linecard slots
 			--
 
-			INSERT INTO component_type_slot_tmplt (
+			INSERT INTO component_type_slot_template (
 				component_type_id,
 				slot_type_id,
 				slot_name_template,
@@ -161,7 +161,7 @@ BEGIN
 		-- Console ports
 		--
 
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -185,7 +185,7 @@ BEGIN
 		--
 		-- Management ports
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,

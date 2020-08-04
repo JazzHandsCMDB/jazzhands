@@ -263,7 +263,7 @@ BEGIN
 	SET
 		Token_ID = p_dest_token_id,
 		Issued_Date = SYSDATE,
-		Is_User_Token_Locked = 'N',
+		Is_User_Token_Locked = false,
 		Token_Unlock_Time = NULL,
 		Bad_Logins = 0,
 		Last_Updated = SYSDATE
@@ -341,7 +341,7 @@ BEGIN
 		) VALUES (
 			p_user_id,
 			p_token_id,
-			'N',
+			false,
 			SYSDATE,
 			SYSDATE
 		);

@@ -38,27 +38,27 @@ SELECT pc.company_id,
 	pc.data_upd_date
 FROM	person_company pc
 	LEFT JOIN (SELECT *
-		FROM person_company_attr 
-		WHERE person_company_attr_name = 'employee_id'
+		FROM person_company_attribute 
+		WHERE person_company_attribute_name = 'employee_id'
 		) empid USING (company_id, person_id)
 	LEFT JOIN (SELECT *
-		FROM person_company_attr 
-		WHERE person_company_attr_name = 'payroll_id'
+		FROM person_company_attribute 
+		WHERE person_company_attribute_name = 'payroll_id'
 		) payid USING (company_id, person_id)
 	LEFT JOIN (SELECT *
-		FROM person_company_attr 
-		WHERE person_company_attr_name = 'badge_system_id'
+		FROM person_company_attribute 
+		WHERE person_company_attribute_name = 'badge_system_id'
 		) badge USING (company_id, person_id)
 	LEFT JOIN (SELECT *
-		FROM person_company_attr 
-		WHERE person_company_attr_name = 'supervisor_id'
+		FROM person_company_attribute 
+		WHERE person_company_attribute_name = 'supervisor_id'
 		) super USING (company_id, person_id)
 	LEFT JOIN (SELECT *
-		FROM person_company_attr 
-		WHERE person_company_attr_name = 'external_hr_id'
+		FROM person_company_attribute 
+		WHERE person_company_attribute_name = 'external_hr_id'
 		) hrid USING (company_id, person_id)
 ;
 
-ALTER VIEW v_person_company alter column is_exempt set default 'Y'::text;
-ALTER VIEW v_person_company alter column is_management set default 'N'::text;
-ALTER VIEW v_person_company alter column is_full_time set default 'Y'::text;
+ALTER VIEW v_person_company alter column is_exempt set default true;
+ALTER VIEW v_person_company alter column is_management set default false;
+ALTER VIEW v_person_company alter column is_full_time set default true;

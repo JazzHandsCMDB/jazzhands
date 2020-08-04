@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2015, Todd M. Kover
+-- Copyright (c) 2013-2020, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -76,7 +76,7 @@ BEGIN
 		)
 	' USING dns_domain_id, 'IN', 'NS', '_authdns', 'Defaults';
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
@@ -100,8 +100,8 @@ BEGIN
 		IF (masklen(block) >= 24) THEN
 			rv = rv || dns_utils.get_domain_from_cidr(set_masklen(block, 24));
 		ELSE
-			FOR cur IN SELECT set_masklen((block + o), 24) 
-						FROM generate_series(0, (256 * (2 ^ (24 - 
+			FOR cur IN SELECT set_masklen((block + o), 24)
+						FROM generate_series(0, (256 * (2 ^ (24 -
 							masklen(block))) - 1)::integer, 256) as x(o)
 			LOOP
 				rv = rv || dns_utils.get_domain_from_cidr(cur);
@@ -142,12 +142,12 @@ BEGIN
 			soa_name := dns_utils.get_domain_from_cidr(set_masklen(block, 24));
 			RETURN NEXT;
 		ELSE
-			FOR cur IN 
-				SELECT 
-					set_masklen((block + o), 24) 
+			FOR cur IN
+				SELECT
+					set_masklen((block + o), 24)
 				FROM
 					generate_series(
-						0, 
+						0,
 						(256 * (2 ^ (24 - masklen(block))) - 1)::integer,
 						256)
 					AS x(o)
@@ -217,7 +217,7 @@ BEGIN
 		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
 			|| '.in-addr.arpa';
 	ELSE
-		domain := array_to_string(ipnodes, '.') 
+		domain := array_to_string(ipnodes, '.')
 			|| '.ip6.arpa';
 	END IF;
 
@@ -234,7 +234,7 @@ LANGUAGE plpgsql;
 -- for it.  This just works on one zone
 --
 ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION dns_utils.get_or_create_rvs_netblock_link(
+CREATE OR REPLACE FUNCTION dns_utils.get_or_create_inaddr_domain_netblock_link(
 	soa_name		dns_domain.soa_name%type,
 	dns_domain_id	dns_domain.dns_domain_id%type
 ) RETURNS netblock.netblock_id%type AS $$
@@ -286,8 +286,8 @@ BEGIN
 		INTO	nblk_id
 		FROM	netblock
 		WHERE	netblock_type = 'dns'
-		AND		is_single_address = 'N'
-		AND		can_subnet = 'N'
+		AND		is_single_address = false
+		AND		can_subnet = false
 		AND		netblock_status = 'Allocated'
 		AND		ip_universe_id = 0
 		AND		ip_address = ip;
@@ -297,8 +297,8 @@ BEGIN
 			ip_address, netblock_type, is_single_address,
 			can_subnet, netblock_status, ip_universe_id
 		) VALUES (
-			ip, 'dns', 'N',
-			'N', 'Allocated', 0
+			ip, 'dns', false,
+			false, 'Allocated', 0
 		) RETURNING netblock_id INTO nblk_id;
 	END IF;
 
@@ -312,7 +312,7 @@ BEGIN
 
 	RETURN nblk_id;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
@@ -354,7 +354,7 @@ BEGIN
 		END IF;
 		sofar := sofar || elem;
 		parent_zone := regexp_replace(soa_name, '^'||sofar||'.', '');
-		EXECUTE 'SELECT dns_domain_id FROM dns_domain 
+		EXECUTE 'SELECT dns_domain_id FROM dns_domain
 			WHERE soa_name = $1' INTO parent_id USING parent_zone;
 		IF parent_id IS NOT NULL THEN
 			EXIT;
@@ -362,7 +362,7 @@ BEGIN
 	END LOOP;
 
 	IF ip_universes IS NULL THEN
-		SELECT array_agg(ip_universe_id) 
+		SELECT array_agg(ip_universe_id)
 		INTO	ip_universes
 		FROM	ip_universe
 		WHERE	ip_universe_name = 'default';
@@ -376,7 +376,7 @@ BEGIN
 
 	IF dns_domain_type IS NULL THEN
 		RAISE EXCEPTION 'Unable to guess dns_domain_type for %',
-			soa_name USING ERRCODE = 'not_null_violation'; 
+			soa_name USING ERRCODE = 'not_null_violation';
 	END IF;
 
 	EXECUTE '
@@ -388,8 +388,8 @@ BEGIN
 			$1,
 			$2,
 			$3
-		) RETURNING dns_domain_id' INTO domain_id 
-		USING soa_name, 
+		) RETURNING dns_domain_id' INTO domain_id
+		USING soa_name,
 			parent_id,
 			dns_domain_type
 	;
@@ -414,18 +414,18 @@ BEGIN
 			);'
 			USING domain_id, univ,
 				'IN',
-				(select property_value from property 
+				(select property_value from property
 					where property_type = 'Defaults'
 					and property_name = '_dnsmname' ORDER BY property_id LIMIT 1),
-				(select property_value from property 
+				(select property_value from property
 					where property_type = 'Defaults'
 					and property_name = '_dnsrname' ORDER BY property_id LIMIT 1),
-				'Y'
+				true
 		;
 	END LOOP;
 
 	IF dns_domain_type = 'reverse' THEN
-		rvs_nblk_id := dns_utils.get_or_create_rvs_netblock_link(
+		rvs_nblk_id := get_or_create_inaddr_domain_netblock_link(
 			soa_name, domain_id);
 	END IF;
 
@@ -444,13 +444,13 @@ BEGIN
 		AND dns_domain_id IN (
 			SELECT dns_domain_id
 			FROM dns_domain_ip_universe
-			WHERE should_generate = 'Y'
+			WHERE should_generate = true
 		);
 	END IF;
 
 	RETURN domain_id;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
@@ -501,7 +501,7 @@ BEGIN
 		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
 			|| '.in-addr.arpa';
 	ELSE
-		domain := array_to_string(ipnodes, '.') 
+		domain := array_to_string(ipnodes, '.')
 			|| '.ip6.arpa';
 	END IF;
 
@@ -542,7 +542,7 @@ DECLARE
 	domain_id	dns_domain.dns_domain_id%TYPE;
 	nid			ALIAS FOR netblock_id;
 BEGIN
-	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid; 
+	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid;
 
 	RAISE DEBUG 'Creating inverse DNS zones for %s', block;
 
@@ -586,7 +586,7 @@ BEGIN
 		RAISE EXCEPTION '% is not a valid DNS name', fqdn;
 	END IF;
 
-	RETURN QUERY SELECT 
+	RETURN QUERY SELECT
 		regexp_replace(fqdn, '.' || dd.soa_name || '$', '')::text,
 		dd.soa_name::text,
 		dd.dns_domain_id
@@ -612,7 +612,7 @@ $$
 BEGIN
 	return trim(trailing '.' from
 		regexp_replace(reverse(regexp_replace(
-			dns_utils.expand_v6(ip_address), ':', '', 
+			dns_utils.expand_v6(ip_address), ':', '',
 			'g')), '(.)', '\1.', 'g'));
 END;
 $$
@@ -625,14 +625,14 @@ CREATE OR REPLACE FUNCTION dns_utils.expand_v6(
 AS
 $$
 BEGIN
-	RETURN array_to_string(array_agg(lpad(n, 4, '0')), ':') from 
+	RETURN array_to_string(array_agg(lpad(n, 4, '0')), ':') from
 	unnest(regexp_split_to_array(
 	regexp_replace(
 	regexp_replace(host(ip_address)::text,
 		'::',
 		concat(':', repeat('0:',
 			6 -
-			(length(regexp_replace(host(ip_address)::text, '::', '')) - 
+			(length(regexp_replace(host(ip_address)::text, '::', '')) -
 				length(regexp_replace(
 					regexp_replace(host(ip_address)::text, '::', ''),
 					':',  '', 'g')))::integer

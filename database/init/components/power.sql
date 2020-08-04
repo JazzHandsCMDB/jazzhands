@@ -28,8 +28,8 @@ BEGIN
 		INSERT INTO val_component_property_type (
 			component_property_type, description, is_multivalue
 		) VALUES 
-			('PDU', 'PDU properties', 'Y'),
-			('power_supply', 'power supply properties', 'Y');
+			('PDU', 'PDU properties', true),
+			('power_supply', 'power supply properties', true);
 
 		INSERT INTO val_component_property (
 			component_property_name,
@@ -40,13 +40,13 @@ BEGIN
 			required_component_function,
 			permit_slot_type_id
 		) VALUES 
-			('Voltage', 'PDU', 'Outlet Voltage', 'N', 'number',
+			('Voltage', 'PDU', 'Outlet Voltage', false, 'number',
 				'PDU', 'REQUIRED'),
-			('MaxAmperage', 'PDU', 'Max Outlet Amperage', 'N', 'number',
+			('MaxAmperage', 'PDU', 'Max Outlet Amperage', false, 'number',
 				'PDU', 'REQUIRED'),
-			('Wattage', 'power_supply', 'Power Supply Wattage', 'N', 'number',
+			('Wattage', 'power_supply', 'Power Supply Wattage', false, 'number',
 				'power_supply', 'REQUIRED'),
-			('Provides', 'power_supply', 'Provides power', 'N', 'boolean',
+			('Provides', 'power_supply', 'Provides power', false, 'boolean',
 				'power_supply', 'REQUIRED');
 
 		INSERT INTO val_slot_function (slot_function, description) VALUES
