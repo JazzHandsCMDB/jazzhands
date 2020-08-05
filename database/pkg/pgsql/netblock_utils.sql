@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2018, Todd M. Kover
+-- Copyright (c) 2013-2020, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -93,7 +93,7 @@ BEGIN
 		is_single_address	:= p_single,
 		netblock_id			:= in_netblock_id,
 		fuzzy_can_subnet	:= in_fuzzy_can_subnet,
-		fix_can_submet		:= in_can_fix_can_subnet
+		fix_can_submet		:= can_fix_can_subnet
 	);
 END;
 $$
