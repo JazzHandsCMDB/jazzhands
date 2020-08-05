@@ -86,7 +86,7 @@ BEGIN
 		_login := left(_login, _trunclen);
 	END IF;
 
-	SELECT account_id into id FROM account where account_realm_id = _acctrealmid
+	SELECT account_id into id FROM account a where a.account_realm_id = _acctrealmid
 		AND login = _login;
 
 	IF id IS NULL THEN
@@ -100,7 +100,7 @@ BEGIN
 		IF _trunclen IS NOT NULL AND _trunclen > 0 THEN
 			_login := left(_login, _trunclen);
 		END IF;
-		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
+		SELECT account_id into id FROM account a where a.account_realm_id = _acctrealmid
 			AND login = _login;
 		IF id IS NULL THEN
 			RETURN _login;
@@ -113,7 +113,7 @@ BEGIN
 		_login := left(_login, _trunclen);
 	END IF;
 	IF char_length(_login) < 10 THEN
-		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
+		SELECT account_id into id FROM account a where a.account_realm_id = _acctrealmid
 			AND login = _login;
 		IF id IS NULL THEN
 			RETURN _login;
@@ -127,7 +127,7 @@ BEGIN
 			_login := left(_login, _trunclen - 2);
 		END IF;
 		_trylogin := _login || i;
-		SELECT account_id into id FROM account where account_realm_id = _acctrealmid
+		SELECT account_id into id FROM account a where a.account_realm_id = _acctrealmid
 			AND login = _trylogin;
 		IF id IS NULL THEN
 			RETURN _trylogin;
