@@ -74,7 +74,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 --
 CREATE OR REPLACE FUNCTION backend_utils.relation_last_changed(
 	view TEXT,
-	schema TEXT DEFAULT 'jazzhands'
+	schema TEXT DEFAULT 'jazzhands_legacy'
 ) RETURNS timestamp AS
 $$
 BEGIN

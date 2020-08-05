@@ -2244,7 +2244,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 --
 CREATE OR REPLACE FUNCTION schema_support.relation_last_changed (
 	relation TEXT,
-	schema TEXT DEFAULT 'jazzhands',
+	schema TEXT DEFAULT 'jazzhands_legacy',
 	debug boolean DEFAULT false
 ) RETURNS TIMESTAMP AS $$
 DECLARE

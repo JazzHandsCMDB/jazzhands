@@ -108,10 +108,40 @@ BEGIN
 		END IF;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands;
+
 
 --
--- set_lock_status changes the lock status of the token.  
+-- set_lock_status changes the lock status of the token.
+--
+CREATE OR REPLACE FUNCTION token_utils.set_lock_status(
+	p_token_id		token.token_id % TYPE,
+	p_lock_status	TEXT,
+	p_unlock_time	token.token_unlock_time % TYPE,
+	p_bad_logins	token.bad_logins % TYPE,
+	p_last_updated	token.last_updated % TYPE
+) RETURNS void AS $$
+DECLARE
+	_ls boolean;
+BEGIN
+	IF p_lock_status = 'Y' THEN
+		_ls := true;
+	ELSE
+		_ls := false;
+	END IF;
+
+	PERFORM token_utils.set_lock_status(
+		p_token_id		:= p_token_id,
+		p_lock_status	:= _ls,
+		p_unlock_time	:= p_unlock_time,
+		p_bad_logins	:= p_bad_logins,
+		p_last_updated	:= p_last_updated
+	);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands;
+
+--
+-- set_lock_status changes the lock status of the token.
 --
 CREATE OR REPLACE FUNCTION token_utils.set_lock_status(
 	p_token_id	token.token_id % TYPE,
@@ -151,7 +181,7 @@ BEGIN
 			Token_ID = p_token_id;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands;
 
 
 /************************************************************************
@@ -241,7 +271,7 @@ END copy_pin;
 --
 -- replace_token updates all token assignments from one token to another
 -- for replacement.  Note that this does not copy the pin, nor does it
--- update the Token_Status of either token. 
+-- update the Token_Status of either token.
 --
 PROCEDURE replace_token
 (
