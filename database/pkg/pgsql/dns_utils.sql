@@ -425,7 +425,7 @@ BEGIN
 	END LOOP;
 
 	IF dns_domain_type = 'reverse' THEN
-		rvs_nblk_id := get_or_create_inaddr_domain_netblock_link(
+		rvs_nblk_id := dns_utils.get_or_create_inaddr_domain_netblock_link(
 			soa_name, domain_id);
 	END IF;
 
