@@ -608,13 +608,13 @@ SET search_path = jazzhands
 SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
-	layer3_interface_id
+	network_interface_id
 						jazzhands.layer3_interface.
 							layer3_interface_id%TYPE DEFAULT NULL,
 	device_id			jazzhands.device.device_id%TYPE DEFAULT NULL,
-	layer3_interface_name
+	network_interface_name
 						text DEFAULT NULL,
-	layer3_interface_type
+	network_interface_type
 						text DEFAULT 'broadcast',
 	ip_address_hash		jsonb DEFAULT NULL,
 	create_layer3_networks
@@ -645,10 +645,13 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 -- table
 --
 DECLARE
-	ni_id			ALIAS FOR layer3_interface_id;
+    layer3_interface_id ALIAS FOR network_interface_id;
+    layer3_interface_name ALIAS FOR network_interface_name;
+    layer3_interface_type ALIAS FOR network_interface_type;
+	ni_id			ALIAS FOR network_interface_id;
 	dev_id			ALIAS FOR device_id;
-	ni_name			ALIAS FOR layer3_interface_name;
-	ni_type			ALIAS FOR layer3_interface_type;
+	ni_name			ALIAS FOR network_interface_name;
+	ni_type			ALIAS FOR network_interface_type;
 
 	addrs_ary		jsonb;
 	ipaddr			inet;
@@ -793,12 +796,12 @@ BEGIN
 			FROM
 				netblock n JOIN
 				netblock_collection_netblock ncn USING (netblock_id) JOIN
-				v_netblock_coll_expanded nce USING (netblock_collection_id)
+				v_netblock_collection_expanded nce USING (netblock_collection_id)
 					JOIN
 				property p ON (
 					property_name = 'IgnoreProbedNetblocks' AND
 					property_type = 'DeviceInventory' AND
-					property_value_nblk_coll_id =
+					property_value_netblock_collection_id =
 						nce.root_netblock_collection_id
 				)
 			WHERE
@@ -1093,7 +1096,7 @@ BEGIN
 				END IF;
 
 				DELETE FROM
-					shared_netblock_network_int snni
+					shared_netblock_layer3_interface snni
 				WHERE
 					snni.shared_netblock_id = sn_rec.shared_netblock_id;
 
@@ -1110,11 +1113,11 @@ BEGIN
 			INSERT INTO layer3_interface_netblock (
 				layer3_interface_id,
 				netblock_id,
-				layer3_interface_rank
+				network_interface_rank
 			) SELECT
 				ni_id,
 				nb_rec.netblock_id,
-				COALESCE(MAX(layer3_interface_rank) + 1, 0)
+				COALESCE(MAX(network_interface_rank) + 1, 0)
 			FROM
 				layer3_interface_netblock nin
 			WHERE
@@ -1150,12 +1153,12 @@ BEGIN
 								netblock n2 JOIN
 								netblock_collection_netblock ncn USING
 									(netblock_id) JOIN
-								v_netblock_coll_expanded nce USING
+								v_netblock_collection_expanded nce USING
 									(netblock_collection_id) JOIN
 								property p ON (
 									property_name = 'IgnoreProbedNetblocks' AND
 									property_type = 'DeviceInventory' AND
-									property_value_nblk_coll_id =
+									property_value_netblock_collection_id =
 										nce.root_netblock_collection_id
 								)
 						))
@@ -1260,12 +1263,12 @@ BEGIN
 			FROM
 				netblock n JOIN
 				netblock_collection_netblock ncn USING (netblock_id) JOIN
-				v_netblock_coll_expanded nce USING (netblock_collection_id)
+				v_netblock_collection_expanded nce USING (netblock_collection_id)
 					JOIN
 				property p ON (
 					property_name = 'IgnoreProbedNetblocks' AND
 					property_type = 'DeviceInventory' AND
-					property_value_nblk_coll_id =
+					property_value_netblock_collection_id =
 						nce.root_netblock_collection_id
 				)
 			WHERE
@@ -1537,7 +1540,7 @@ BEGIN
 			-- need this
 			--
 
-			INSERT INTO shared_netblock_network_int (
+			INSERT INTO shared_netblock_layer3_interface (
 				shared_netblock_id,
 				layer3_interface_id,
 				priority
@@ -1547,7 +1550,7 @@ BEGIN
 				0
 			FROM
 				unnest(ni_id_ary) x(layer3_interface_id)
-			ON CONFLICT ON CONSTRAINT pk_ip_group_layer3_interface DO NOTHING;
+			ON CONFLICT ON CONSTRAINT pk_ip_group_network_interface DO NOTHING;
 
 			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
 				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(ni_id_ary));
@@ -1559,14 +1562,14 @@ BEGIN
 
 		FOR nin_rec IN
 			DELETE FROM
-				shared_netblock_network_int snni
+				shared_netblock_layer3_interface snni
 			WHERE
 				(snni.layer3_interface_id, snni.shared_netblock_id) IN (
 				SELECT
 					snni2.layer3_interface_id,
 					snni2.shared_netblock_id
 				FROM
-					shared_netblock_network_int snni2 JOIN
+					shared_netblock_layer3_interface snni2 JOIN
 					shared_netblock sn USING (shared_netblock_id) JOIN
 					netblock n USING (netblock_id)
 				WHERE
@@ -1579,12 +1582,12 @@ BEGIN
 								netblock n2 JOIN
 								netblock_collection_netblock ncn USING
 									(netblock_id) JOIN
-								v_netblock_coll_expanded nce USING
+								v_netblock_collection_expanded nce USING
 									(netblock_collection_id) JOIN
 								property p ON (
 									property_name = 'IgnoreProbedNetblocks' AND
 									property_type = 'DeviceInventory' AND
-									property_value_nblk_coll_id =
+									property_value_netblock_collection_id =
 										nce.root_netblock_collection_id
 								)
 						))
@@ -1616,6 +1619,8 @@ BEGIN
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+SELECT schema_support.replay_saved_grants();
 
 GRANT USAGE ON SCHEMA netblock_manip TO PUBLIC;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_manip TO iud_role;
