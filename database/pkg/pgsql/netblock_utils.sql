@@ -92,8 +92,7 @@ BEGIN
 		ip_universe_id		:= in_ip_universe_id,
 		is_single_address	:= p_single,
 		netblock_id			:= in_netblock_id,
-		fuzzy_can_subnet	:= in_fuzzy_can_subnet,
-		fix_can_submet		:= can_fix_can_subnet
+		fuzzy_can_subnet	:= in_fuzzy_can_subnet
 	);
 END;
 $$
