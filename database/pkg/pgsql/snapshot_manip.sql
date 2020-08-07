@@ -1,4 +1,5 @@
 -- Copyright (c) 2015, Kurt Adam
+-- Copyright (c) 2020, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -81,7 +82,7 @@ BEGIN
 			property_type,
 			property_name,
 			operating_system_id,
-			property_value
+			property_value_boolean
 		) VALUES (
 			'OperatingSystem',
 			'AllowOSDeploy',
@@ -115,7 +116,7 @@ BEGIN
 		property_name,
 		device_collection_id,
 		operating_system_snapshot_id,
-		property_value
+		property_value_boolean
 	) VALUES (
 		'OperatingSystem',
 		'DeviceCollection',
