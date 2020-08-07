@@ -728,7 +728,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 -- Raise an exception now
 --
 CREATE OR REPLACE FUNCTION schema_support.begin_maintenance(
-	shouldbesuper boolean DEFAULT true
+	shouldbesuper	BOOLEAN		DEFAULT true
 )
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -751,6 +751,44 @@ BEGIN
 	IF _tally > 0 THEN
 		RAISE EXCEPTION 'Must run maintenance in a transaction.';
 	END IF;
+
+	--
+	-- Stash counts of things that may relate to this maintenance for
+	-- alter verification and statistics
+	--
+	-- similar code is in end_maintenance (the INSERT uqery is the same
+	--
+	CREATE TEMPORARY TABLE __owner_before_stats (
+		username					TEXT,
+		before_views_count			INTEGER,
+		before_func_count		INTEGER,
+		before_key_count	INTEGER,
+		PRIMARY KEY (username)
+	);
+	INSERT INTO __owner_before_stats
+		SELECT rolname, coalesce(numrels, 0) AS numrels,
+		coalesce(numprocs, 0) AS numprocs,
+		coalesce(numfks, 0) AS numfks
+		FROM pg_roles r
+			LEFT JOIN (
+		SELECT relowner, count(*) AS numrels
+				FROM pg_class
+				WHERE relkind IN ('r','v')
+				GROUP BY 1
+				) c ON r.oid = c.relowner
+			LEFT JOIN (SELECT proowner, count(*) AS numprocs
+				FROM pg_proc
+				GROUP BY 1
+				) p ON r.oid = p.proowner
+			LEFT JOIN (
+				SELECT relowner, count(*) AS numfks
+				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
+				WHERE contype = 'f'
+				GROUP BY 1
+			) fk ON r.oid = fk.relowner
+		WHERE r.oid > 16384
+	AND (numrels IS NOT NULL OR numprocs IS NOT NULL OR numfks IS NOT NULL);
+
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -758,15 +796,135 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 --
 -- Revokes superuser if its set on the current user
 --
-CREATE OR REPLACE FUNCTION schema_support.end_maintenance()
-RETURNS BOOLEAN AS $$
-DECLARE issuper boolean;
+CREATE OR REPLACE FUNCTION schema_support.end_maintenance(
+	minnumdiff		INTEGER		DEFAULT 0,
+	minpercent		INTEGER		DEFAULT 0,
+	skipchecks		BOOLEAN		DEFAULT false
+) RETURNS BOOLEAN AS $$
+DECLARE
+	issuper BOOLEAN;
+	_r		RECORD;
+	doh	boolean DEFAULT false;
 BEGIN
-		SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
-		IF issuper THEN
-			EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
-		END IF;
+	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+	IF issuper THEN
+		EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
+	END IF;
+
+	--
+	-- Stash counts of things that may relate to this maintenance for
+	-- alter verification and statistics
+	--
+	-- similar code is in end_maintenance (the INSERT uqery is the same
+	--
+
+	CREATE TEMPORARY TABLE __owner_after_stats (
+		username			TEXT,
+		after_views_count	INTEGER,
+		after_func_count	INTEGER,
+		after_key_count		INTEGER,
+		PRIMARY KEY (username)
+	);
+	INSERT INTO __owner_after_stats
+		SELECT rolname, coalesce(numrels, 0) AS numrels,
+		coalesce(numprocs, 0) AS numprocs,
+		coalesce(numfks, 0) AS numfks
+		FROM pg_roles r
+			LEFT JOIN (
+		SELECT relowner, count(*) AS numrels
+				FROM pg_class
+				WHERE relkind IN ('r','v')
+				GROUP BY 1
+				) c ON r.oid = c.relowner
+			LEFT JOIN (SELECT proowner, count(*) AS numprocs
+				FROM pg_proc
+				GROUP BY 1
+				) p ON r.oid = p.proowner
+			LEFT JOIN (
+				SELECT relowner, count(*) AS numfks
+				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
+				WHERE contype = 'f'
+				GROUP BY 1
+			) fk ON r.oid = fk.relowner
+		WHERE r.oid > 16384
+	AND (numrels IS NOT NULL OR numprocs IS NOT NULL OR numfks IS NOT NULL);
+
+	--
+	-- sanity checks
+	--
+	IF skipchecks THEN
 		RETURN true;
+	END IF;
+
+	RAISE NOTICE 'Object difference count by username:';
+	FOR _r IN SELECT *,
+			abs(after_views_count - before_views_count) as viewdelta,
+			abs(after_func_count - before_func_count) as funcdelta,
+			abs(after_key_count - before_key_count) as keydelta
+		FROM __owner_before_stats JOIN __owner_after_stats USING (username)
+	LOOP
+		IF _r.viewdelta = 0 AND _r.funcdelta = 0 AND _r.keydelta = 0 THEN
+			CONTINUE;
+		END IF;
+		RAISE NOTICE '%: % v % / % v % / % v %',
+			_r.username,
+			_r.before_views_count,
+			_r.after_views_count,
+			_r.before_func_count,
+			_r.after_func_count,
+			_r.before_key_count,
+			_r.after_key_count;
+		IF _r.username = current_user THEN
+			CONTINUE;
+		END IF;
+		IF _r.viewdelta > 0 THEN
+			IF _r.viewdelta  > minnumdiff OR
+				(_r.viewdelta / _r.before_views_count )*100 > minpercent
+			THEN
+				RAISE NOTICE '!!! view changes not within tolerence';
+				doh := 1;
+			ELSE
+				RAISE NOTICE
+					'... View changes within tolerence (%/% %%), I will allow it: %/% %%',
+						minnumdiff, minpercent,
+						_r.viewdelta,
+						((_r.viewdelta::float / _r.before_views_count ))*100;
+			END IF;
+		END IF;
+		IF _r.funcdelta > 0 THEN
+			IF _r.funcdelta  > minnumdiff OR
+				(_r.funcdelta / _r.before_func_count )*100 > minpercent
+			THEN
+				RAISE NOTICE '!!! function changes not within tolerence';
+				doh := 1;
+			ELSE
+				RAISE NOTICE
+					'... Function changes within tolerence (%/% %%), I will allow it: %/% %%',
+						minnumdiff, minpercent,
+						_r.funcdelta,
+						((_r.funcdelta::float / _r.before_func_count ))*100;
+			END IF;
+		END IF;
+		IF _r.keydelta > 0 THEN
+			IF _r.keydelta  > minnumdiff OR
+				(_r.keydelta / _r.before_key_count )*100 > 100 - minpercent
+			THEN
+				RAISE NOTICE '!!! fk constraint changes not within tolerence';
+				doh := 1;
+			ELSE
+				RAISE NOTICE
+					'... Function changes within tolerence (%/% %%), I will allow it, %/% %%',
+						minnumdiff, minpercent,
+						_r.keydelta,
+						((_r.keydelta::float / _r.before_keys_count ))*100;
+			END IF;
+		END IF;
+	END LOOP;
+
+	IF doh THEN
+		RAISE EXCEPTION 'Too many changes, abort!';
+	END IF;
+	RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
