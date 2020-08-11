@@ -4014,10 +4014,16 @@ WITH x as (
 	x.slot_id,
 	x.logical_port_id,
 	x.network_interface_type,
-	x.is_interface_up,
+	CASE WHEN x.is_interface_up = true THEN 'Y'
+		WHEN x.is_interface_up = false THEN 'N'
+		ELSE NULL END as is_interface_up,
 	x.mac_addr,
-	x.should_monitor,
-	x.should_manage,
+	CASE WHEN x.should_monitor = true THEN 'Y'
+		WHEN x.should_monitor = false THEN 'N'
+		ELSE NULL END as should_monitor,
+	CASE WHEN x.should_manage = true THEN 'Y'
+		WHEN x.should_manage = false THEN 'N'
+		ELSE NULL END as should_manage,
 	x.data_ins_user,
 	x.data_ins_date,
 	x.data_upd_user,
