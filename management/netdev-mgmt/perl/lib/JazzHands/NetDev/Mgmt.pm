@@ -27,6 +27,7 @@ sub connect {
 	}
 	my $opt = &_options(@_);
 	my $errors = $opt->{errors};
+	my $debug = $opt->{debug_callback};
 
 	if (!$opt->{credentials}) {
 		SetError($errors,
@@ -59,11 +60,33 @@ sub connect {
 		SetError($errors, "must pass credentials");
 		return undef;
 	}
+
+	if (defined($debug)) {
+		&$debug(
+			1,
+			sprintf(
+				"Connecting to %s, type %s",
+				$device->{hostname},
+				$device->{management_type}
+			)
+		);
+	}
+
 	#
 	# If we already have a connection to the device, just return
 	#
 	my $hostname = $device->{hostname};
 	if (defined($self->{connection_cache}->{$hostname}->{handle})) {
+		if (defined($debug)) {
+			&$debug(
+				2,
+				sprintf(
+					"Using cached handle for device %s",
+					$device->{hostname}
+				)
+			);
+		}
+
 		return $self->{connection_cache}->{$hostname};
 	}
 
