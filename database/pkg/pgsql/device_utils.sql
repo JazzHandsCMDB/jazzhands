@@ -171,7 +171,26 @@ CREATE OR REPLACE FUNCTION device_utils.remove_network_interface (
 								DEFAULT NULL
 ) RETURNS boolean AS $$
 BEGIN
-	RETURN device_manip.remove_layer3_interface(network_interface_id_list);
+	RETURN device_manip.remove_layer3_interface(
+		layer3_network_id := network_interface_id,
+		device_id := device_id,
+		layer3_interface_name := network_interface_name
+	);
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+-------------------------------------------------------------------
+--end of remove_network_interface
+-------------------------------------------------------------------
+
+-------------------------------------------------------------------
+-- begin remove_network_interfaces
+-- XXX deprecated - going away
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION device_utils.remove_network_interfaces (
+	network_interface_id_list	integer[]
+) RETURNS boolean AS $$
+BEGIN
+	RETURN device_manip.remove_layer3_interfaces(network_interface_id_list);
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
