@@ -474,6 +474,32 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 CREATE OR REPLACE FUNCTION approval_utils.approve(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
+	approved				TEXT,
+	approving_account_id	account.account_id%TYPE,
+	new_value				text DEFAULT NULL
+) RETURNS boolean AS $$
+DECLARE
+	_tf	BOOLEAN;
+BEGIN
+	IF approved = 'Y' THEN
+		_tf = true;
+	ELSIF approved = 'N' THEN
+		_tf = false;
+	ELSE
+		RAISE NOTICE 'approved must by y/n or true/false';
+	END IF;
+	RETURN approval_utils.approve(
+		approval_instance_item_id := approval_instance_item_id,
+		approved := _tf,
+		approving_account_id := approving_account_id,
+		new_value := new_value
+	);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
+
+CREATE OR REPLACE FUNCTION approval_utils.approve(
+	approval_instance_item_id
+					approval_instance_item.approval_instance_item_id%TYPE,
 	approved				boolean,
 	approving_account_id	account.account_id%TYPE,
 	new_value				text DEFAULT NULL
@@ -523,7 +549,7 @@ BEGIN
 			EXECUTE '
 				SELECT	count(*)
 				FROM	property
-						INNER JOIN v_acct_coll_acct_expanded e
+						INNER JOIN v_account_collection_account_expanded e
 						USING (account_collection_id)
 				WHERE	property_type = ''Defaults''
 				AND		property_name = ''_can_approve_all''
