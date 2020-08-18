@@ -14,6 +14,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+--
+-- NOTE:  jazzhands_legacy has a version of this that is DIFFERENT and used
+-- by a handful of tools and that needs to be reconciled before merging things
+-- into jazzhands again!!
+--
+
 CREATE OR REPLACE VIEW v_account_collection_expanded AS
 WITH RECURSIVE acct_coll_recurse (
 	level,

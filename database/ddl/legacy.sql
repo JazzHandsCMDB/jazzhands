@@ -1860,11 +1860,43 @@ SELECT account_collection_id,account_id,account_collection_relation,account_id_r
 FROM jazzhands.v_account_collection_account;
 
 
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_expanded AS
-SELECT level,root_account_collection_id,account_collection_id
-FROM jazzhands.v_account_collection_expanded;
-
+--
+-- NOTE NOTE NOTE: The version in jazzhands is DIFFERENT and that needs to be
+-- cleaned up.
+--
+CREATE OR REPLACE VIEW jazzhands_legacyv_account_collection_expanded AS
+WITH RECURSIVE var_recurse (
+        level,
+        root_account_collection_id,
+        account_collection_id,
+        array_path,
+        cycle
+) as (
+        SELECT
+                0                               as level,
+                a.account_collection_id         as root_account_collection_id,
+                a.account_collection_id         as account_collection_id,
+                ARRAY[a.account_collection_id]  as array_path,
+                false                           as cycle
+          FROM  account_collection a
+UNION ALL
+        SELECT
+                x.level + 1                     as level,
+                x.root_account_collection_id    as root_account_collection_id,
+                ach.child_account_collection_id as account_collection_id,
+                ach.child_account_collection_id ||
+                        x.array_path            as array_path,
+                ach.child_account_collection_id =
+                        ANY(x.array_path)       as cycle
+          FROM  var_recurse x
+                inner join account_collection_hier ach
+                        on x.account_collection_id =
+                                ach.account_collection_id
+        WHERE   NOT x.cycle
+) SELECT        level,
+                root_account_collection_id,
+                account_collection_id
+  from          var_recurse;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_hier_from_ancestor AS
