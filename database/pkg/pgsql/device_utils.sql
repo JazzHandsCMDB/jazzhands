@@ -145,13 +145,12 @@ CREATE OR REPLACE FUNCTION device_utils.retire_devices (
 DECLARE
 	_r	RECORD;
 BEGIN
-	FOR _r IN SELECT device_manip.retire_devices(device_id_list)
+	FOR _r IN SELECT (device_manip.retire_devices(device_id_list)).*
 	LOOP
-	END LOOP;
 		device_id := _r.device_id;
 		success := _r.success;
 		RETURN NEXT;
-
+	END LOOP;
 	RETURN;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;

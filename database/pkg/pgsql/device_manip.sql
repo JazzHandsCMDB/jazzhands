@@ -388,8 +388,6 @@ BEGIN
 					component_id = NULL,
 					service_environment_id = se_id,
 					device_status = 'removed',
-					is_monitored = 'N',
-					should_fetch_config = 'N',
 					description = NULL
 				WHERE
 					d.device_id = dev_id;
@@ -752,20 +750,6 @@ BEGIN
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
 		NULL;
 	END;
-
-	UPDATE device d SET
-		is_monitored = 'N'
-	WHERE
-		is_monitored = 'Y' AND
-		device_id IN (
-			SELECT
-				device_id
-			FROM
-				device d JOIN
-				rack_location rl USING (rack_location_id)
-			WHERE
-				rl.rack_id = rid
-		);
 
 	BEGIN
 		PERFORM local_hooks.monitoring_off_in_rack_late(
