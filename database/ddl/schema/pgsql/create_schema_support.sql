@@ -738,7 +738,17 @@ BEGIN
 	IF shouldbesuper THEN
 		SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
 		IF issuper IS false THEN
-			RAISE EXCEPTION 'User must be a super user.';
+			PERFORM groname, rolname
+			FROM (
+				SELECT groname, unnest(grolist) AS oid
+				FROM pg_group ) g
+			JOIN pg_roles r USING (oid)
+			WHERE groname = 'dba'
+			AND rolname = current_user;
+
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'User must be a super user or have the dba role';
+			END IF;
 		END IF;
 	END IF;
 	-- Not sure how reliable this is.
@@ -805,10 +815,26 @@ DECLARE
 	issuper BOOLEAN;
 	_r		RECORD;
 	doh	boolean DEFAULT false;
+	_myrole	TEXT;
 BEGIN
 	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
 	IF issuper THEN
 		EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
+	END IF;
+
+	PERFORM groname, rolname
+	FROM (
+		SELECT groname, unnest(grolist) AS oid
+		FROM pg_group ) g
+	JOIN pg_roles r USING (oid)
+	WHERE groname = 'dba'
+	AND rolname = current_user;
+
+	IF FOUND THEN
+		SELECT current_role INTO _myrole;
+		SET role=dba;
+		EXECUTE 'REVOKE dba FROM ' || current_user;
+		EXECUTE 'SET role =' || _myrole;
 	END IF;
 
 	--
@@ -968,13 +994,22 @@ DECLARE
 	_grant		varchar;
 	_fullgrant		varchar;
 	_role		varchar;
+	_myrole		TEXT;
 BEGIN
 	_schema := schema;
 	_object := object;
 	if newname IS NULL THEN
 		newname := _object;
 	END IF;
+
 	PERFORM schema_support.prepare_for_grant_replay();
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
 
 	-- Handle table wide grants
 	FOR _tabs IN SELECT  n.nspname as schema,
@@ -1073,6 +1108,9 @@ BEGIN
 		END LOOP;
 	END LOOP;
 
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
@@ -1162,12 +1200,21 @@ RETURNS VOID AS $$
 DECLARE
 	_r		RECORD;
 	_tally	integer;
+	_myrole	TEXT;
 BEGIN
 	 SELECT  count(*)
       INTO  _tally
       FROM  pg_catalog.pg_class
      WHERE  relname = '__regrants'
        AND  relpersistence = 't';
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
+
 
 	IF _tally > 0 THEN
 	    FOR _r in SELECT * from __regrants FOR UPDATE
@@ -1199,6 +1246,10 @@ BEGIN
 		IF beverbose THEN
 			RAISE NOTICE '**** WARNING: replay_saved_grants did NOT have anything to regrant!';
 		END IF;
+	END IF;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
 	END IF;
 
 END;
@@ -1244,6 +1295,7 @@ DECLARE
 	_ddl	TEXT;
 	_mat	TEXT;
 	_typ	TEXT;
+	_myrole	TEXT;
 BEGIN
 	path = path || concat(schema, '.', object);
 	PERFORM schema_support.prepare_for_object_replay();
@@ -1253,6 +1305,13 @@ BEGIN
 
 	-- save any triggers on the view
 	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit, tags, path);
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
 
 	-- now save the view
 	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
@@ -1334,6 +1393,11 @@ BEGIN
 			_cmd = 'DROP ' || _mat || _r.nspname || '.' || _r.relname || ';';
 			EXECUTE _cmd;
 		END IF;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
 	END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -1358,10 +1422,18 @@ DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
 	_ddl	TEXT;
+	_myrole TEXT;
 BEGIN
 	RAISE DEBUG 'processing %.%', schema, object;
 	path = path || concat(schema, '.', object);
 	-- process stored procedures
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
+
 	FOR _r in
 			SELECT * FROM (
 				-- functions that dpeend on relations
@@ -1388,7 +1460,7 @@ BEGIN
 					INNER join pg_proc dependent on dependent.oid = dep.refobjid
 					INNER join pg_namespace np on np.oid = dependent.pronamespace
 				) x
-        WHERE
+	WHERE
 			base_object = object
 			AND base_namespace = schema
 	LOOP
@@ -1423,6 +1495,9 @@ BEGIN
 		PERFORM schema_support.save_trigger_for_replay(schema, object, dropit, tags, path);
 		PERFORM schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'table', tags := tags, path := path);
 	END IF;
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
 END;
 $$
 SET search_path=schema_support
@@ -1442,9 +1517,17 @@ CREATE OR REPLACE FUNCTION schema_support.save_trigger_for_replay(
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
+	_myrole TEXT;
 BEGIN
 	path = path || concat(schema, '.', object);
 	PERFORM schema_support.prepare_for_object_replay();
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
 
 	FOR _r in
 		SELECT n.nspname, c.relname, trg.tgname,
@@ -1464,6 +1547,10 @@ BEGIN
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
@@ -1487,8 +1574,16 @@ DECLARE
 	_def	TEXT;
 	_cols	TEXT;
 	_myname	TEXT;
+		_myrole TEXT;
 BEGIN
 	PERFORM schema_support.prepare_for_object_replay();
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
 
 	-- This used to be just "def" but a once this was incorporating
 	-- tables and columns changing name, had to construct the definition
@@ -1504,50 +1599,50 @@ BEGIN
 		    myside.cols as mycols, myside.conname as myconname
 		FROM
 		    (
-		        SELECT me.oid, n.oid as namespaceid, nspname, relname,
-		                conrelid, conindid, confrelid, conname, connamespace,
-		                condeferrable, condeferred,
-		                array_agg(attname ORDER BY attnum) as cols
-		        FROM (
-		            SELECT con.*, a.attname, a.attnum
-		            FROM
-		                    ( SELECT oid, conrelid, conindid, confrelid,
+			SELECT me.oid, n.oid as namespaceid, nspname, relname,
+				conrelid, conindid, confrelid, conname, connamespace,
+				condeferrable, condeferred,
+				array_agg(attname ORDER BY attnum) as cols
+			FROM (
+			    SELECT con.*, a.attname, a.attnum
+			    FROM
+				    ( SELECT oid, conrelid, conindid, confrelid,
 					contype, connamespace,
-		                        condeferrable, condeferred, conname,
+					condeferrable, condeferred, conname,
 					unnest(conkey) as conkey
-		                        FROM pg_constraint
-		                    ) con
-		                JOIN pg_attribute a ON a.attrelid = con.conrelid
-		                        AND a.attnum = con.conkey
+					FROM pg_constraint
+				    ) con
+				JOIN pg_attribute a ON a.attrelid = con.conrelid
+					AND a.attnum = con.conkey
 				WHERE contype IN ('f')
-		        ) me
-		                JOIN pg_class c ON c.oid = me.conrelid
-		                JOIN pg_namespace n ON c.relnamespace = n.oid
-		        GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+			) me
+				JOIN pg_class c ON c.oid = me.conrelid
+				JOIN pg_namespace n ON c.relnamespace = n.oid
+			GROUP BY 1,2,3,4,5,6,7,8,9,10,11
 		    ) otherside JOIN
 		    (
-		        SELECT me.oid, n.oid as namespaceid, nspname, relname,
-		                conrelid, conindid, confrelid, conname, connamespace,
-		                condeferrable, condeferred,
-		                array_agg(attname ORDER BY attnum) as cols
-		        FROM (
-		            SELECT con.*, a.attname, a.attnum
-		            FROM
-		                    ( SELECT oid, conrelid, conindid, confrelid,
+			SELECT me.oid, n.oid as namespaceid, nspname, relname,
+				conrelid, conindid, confrelid, conname, connamespace,
+				condeferrable, condeferred,
+				array_agg(attname ORDER BY attnum) as cols
+			FROM (
+			    SELECT con.*, a.attname, a.attnum
+			    FROM
+				    ( SELECT oid, conrelid, conindid, confrelid,
 					contype, connamespace,
-		                        condeferrable, condeferred, conname,
+					condeferrable, condeferred, conname,
 					unnest(conkey) as conkey
-		                        FROM pg_constraint
-		                    ) con
-		                JOIN pg_attribute a ON a.attrelid = con.conrelid
-		                        AND a.attnum = con.conkey
+					FROM pg_constraint
+				    ) con
+				JOIN pg_attribute a ON a.attrelid = con.conrelid
+					AND a.attnum = con.conkey
 				WHERE contype IN ('u','p')
-		        ) me
-		                JOIN pg_class c ON c.oid = me.conrelid
-		                JOIN pg_namespace n ON c.relnamespace = n.oid
-		        GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+			) me
+				JOIN pg_class c ON c.oid = me.conrelid
+				JOIN pg_namespace n ON c.relnamespace = n.oid
+			GROUP BY 1,2,3,4,5,6,7,8,9,10,11
 		    ) myside ON myside.conrelid = otherside.confrelid
-		            AND myside.conindid = otherside.conindid
+			    AND myside.conindid = otherside.conindid
 		WHERE myside.namespaceid != otherside.namespaceid
 		AND myside.nspname = schema
 		AND myside.relname = object
@@ -1588,6 +1683,11 @@ BEGIN
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
@@ -1607,9 +1707,18 @@ CREATE OR REPLACE FUNCTION schema_support.save_function_for_replay(
 DECLARE
 	_r		RECORD;
 	_cmd	TEXT;
+	_myrole TEXT;
 BEGIN
 	path = path || concat(schema, '.', object);
 	PERFORM schema_support.prepare_for_object_replay();
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
+
 
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
@@ -1635,8 +1744,12 @@ BEGIN
 				_r.proname || '(' || _r.idargs || ');';
 			EXECUTE _cmd;
 		END IF;
-
 	END LOOP;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
 
@@ -1659,6 +1772,7 @@ DECLARE
 	_r		RECORD;
 	_tally	integer;
     _origsp TEXT;
+	_myrole TEXT;
 BEGIN
 	SELECT	count(*)
 	  INTO	_tally
@@ -1667,6 +1781,13 @@ BEGIN
 	   AND	relpersistence = 't';
 
 	SHOW search_path INTO _origsp;
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
 
 	IF _tally > 0 THEN
 		FOR _r in SELECT * from __recreate ORDER BY id DESC FOR UPDATE
@@ -1728,6 +1849,10 @@ BEGIN
 	END IF;
 
 	EXECUTE 'SET search_path = ' || _origsp;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
 
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -2051,7 +2176,14 @@ DECLARE
 	_fn		TEXT;
 	_cmd	TEXT;
 	_rv		TEXT[];
+	_myrole TEXT;
 BEGIN
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege THEN
+		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	END;
 	FOR _r IN SELECT n.nspname, p.proname,
 				coalesce(u.usename, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
@@ -2071,6 +2203,9 @@ BEGIN
 			EXECUTE _cmd;
 		END IF;
 	END LOOP;
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
 	RETURN _rv;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -2565,8 +2700,8 @@ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants (
 	username	TEXT,
 	direction	TEXT,
-	old_schema	TEXT DEFAULT 'jazzhands',
-	new_schema	TEXT DEFAULT 'jazzhands_legacy'
+	old_schema	TEXT DEFAULT 'jazzhands_legacy',
+	new_schema	TEXT DEFAULT 'jazzhands'
 ) RETURNS TEXT[] AS $$
 DECLARE
 	_rv	TEXT[];
