@@ -138,7 +138,7 @@ BEGIN
 		*
 	FROM
 		slot s JOIN
-		slot_type_prmt_comp_slot_type stpcst USING (slot_type_id) JOIN
+		slot_type_permitted_component_slot_type stpcst USING (slot_type_id) JOIN
 		component_type ct ON (stpcst.component_slot_type_id = ct.slot_type_id)
 	WHERE
 		ct.component_type_id = NEW.component_type_id AND
@@ -232,7 +232,7 @@ BEGIN
 	FROM
 		(slot cs1 JOIN slot_type st1 USING (slot_type_id)) slot1,
 		(slot cs2 JOIN slot_type st2 USING (slot_type_id)) slot2,
-		slot_type_prmt_rem_slot_type pst
+		slot_type_permitted_remote_slot_type pst
 	WHERE
 		slot1.slot_id = NEW.slot1_id AND
 		slot2.slot_id = NEW.slot2_id AND

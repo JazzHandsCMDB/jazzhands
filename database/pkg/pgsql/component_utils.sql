@@ -626,7 +626,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO ccomponent_type_component_function (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -724,7 +724,7 @@ BEGIN
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		ccomponent_type_component_function ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		component_function = 'disk' AND
 		ct.model = m AND
@@ -802,7 +802,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO ccomponent_type_component_function (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -895,7 +895,7 @@ BEGIN
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		ccomponent_type_component_function ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		component_function = 'memory' AND
 		ct.model = m AND
@@ -972,7 +972,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO ccomponent_type_component_function (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -1065,7 +1065,7 @@ BEGIN
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		ccomponent_type_component_function ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		component_function = 'CPU' AND
 		ct.model = m AND
@@ -1143,7 +1143,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO ccomponent_type_component_function (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
