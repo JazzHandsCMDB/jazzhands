@@ -501,33 +501,33 @@ CREATE OR REPLACE FUNCTION person_manip.purge_account(
 BEGIN
 	-- note the per-account account collection is removed in triggers
 
-	DELETE FROM account_assignd_cert
-		where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM account_token where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM account_unix_info where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM klogin where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM property where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM property where account_collection_id in
+	DELETE FROM account_assigned_certificate ac
+		where ac.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM account_token at where at.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM account_unix_info aui where aui.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM klogin k where k.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM property p where p.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM property p where p.account_collection_id in
 		(select account_collection_id from account_collection
 			where account_collection_name in
-				(select login from account where account_id = purge_account.account_id)
+				(select login from account a where a.account_id = purge_account.account_id)
 				and account_collection_type in ('per-account')
 		);
-	DELETE FROM account_password where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM unix_group where account_collection_id in
+	DELETE FROM account_password ap where ap.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM unix_group ug where account_collection_id in
 		(select account_collection_id from account_collection
 			where account_collection_name in
-				(select login from account where account_id = purge_account.account_id)
+				(select login from account a where a.account_id = purge_account.account_id)
 				and account_collection_type in ('unix-group')
 		);
-	DELETE FROM account_collection_account where ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM account_collection_account aca where aca.ACCOUNT_ID = purge_account.account_id;
 
 	DELETE FROM account_collection where account_collection_name in
-		(select login from account where account_id = purge_account.account_id)
+		(select login from account a where a.account_id = purge_account.account_id)
 		and account_collection_type in ('per-account', 'unix-group');
 
-	DELETE FROM account_ssh_key where ACCOUNT_ID = purge_account.account_id;
-	DELETE FROM account where ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM account_ssh_key ssh where ssh.ACCOUNT_ID = purge_account.account_id;
+	DELETE FROM account a where a.ACCOUNT_ID = purge_account.account_id;
 END;
 $$
 SET search_path=jazzhands
@@ -545,20 +545,20 @@ DECLARE
 	aid	INTEGER;
 BEGIN
 	FOR aid IN select account_id
-			FROM account
-			WHERE person_id = purge_person.person_id
+			FROM account a
+			WHERE a.person_id = purge_person.person_id
 	LOOP
 		PERFORM person_manip.purge_account ( aid );
 	END LOOP;
 
-	DELETE FROM person_company_attribute
-		WHERE person_id = purge_person.person_id;
-	DELETE FROM person_contact WHERE person_id = purge_person.person_id;
-	DELETE FROM person_location WHERE person_id = purge_person.person_id;
-	DELETE FROM v_person_company WHERE person_id = purge_person.person_id;
-	DELETE FROM person_account_realm_company
-		WHERE person_id = purge_person.person_id;
-	DELETE FROM person WHERE person_id = purge_person.person_id;
+	DELETE FROM person_company_attribute pca
+		WHERE pca.person_id = purge_person.person_id;
+	DELETE FROM person_contact pc WHERE pc.person_id = purge_person.person_id;
+	DELETE FROM person_location pl WHERE pl.person_id = purge_person.person_id;
+	DELETE FROM v_person_company pc WHERE pc.person_id = purge_person.person_id;
+	DELETE FROM person_account_realm_company pcrc
+		WHERE pcrc.person_id = purge_person.person_id;
+	DELETE FROM person p WHERE p.person_id = purge_person.person_id;
 END;
 $$
 SET search_path=jazzhands
