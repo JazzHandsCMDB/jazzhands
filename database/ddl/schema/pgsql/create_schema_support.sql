@@ -1007,8 +1007,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 	-- Handle table wide grants
@@ -1211,8 +1211,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 
@@ -1309,8 +1309,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 	-- now save the view
@@ -1430,13 +1430,13 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 	FOR _r in
 			SELECT * FROM (
-				-- functions that dpeend on relations
+				-- functions that depend on relations
 				SELECT  distinct np.nspname::text AS nspname,
 					dependent.proname::text AS dep_object,
 						n.nspname as base_namespace,
@@ -1525,8 +1525,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 	FOR _r in
@@ -1581,8 +1581,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 	-- This used to be just "def" but a once this was incorporating
@@ -1668,6 +1668,16 @@ BEGIN
 			') REFERENCES ',
 			schema, '.', _myname, '(', _cols, ')');
 
+		IF _r.condeferrable THEN
+			_def := _def || ' DEFERRABLE';
+		END IF;
+
+		IF _r.condeferred THEN
+			_def := _def || ' INITIALLY DEFERRED';
+		ELSE
+			_def := _def || ' INITIALLY DEFERRED';
+		END IF;
+
 		_ddl := 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
 			' ADD CONSTRAINT ' || _r.conname || ' ' || _def;
 		IF _ddl is NULL THEN
@@ -1715,8 +1725,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 
@@ -1785,8 +1795,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 
 	IF _tally > 0 THEN
@@ -2181,8 +2191,8 @@ BEGIN
 	BEGIN
 		SELECT current_role INTO _myrole;
 		SET ROLE = dba;
-	EXCEPTION WHEN insufficient_privilege THEN
-		RAISE NOTICE 'Failed to raise privilege: %, crossing fingers', SQLERRM;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
 	END;
 	FOR _r IN SELECT n.nspname, p.proname,
 				coalesce(u.usename, 'public') as owner,

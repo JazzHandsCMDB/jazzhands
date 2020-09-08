@@ -231,36 +231,35 @@ insert into val_production_state (production_state)
 insert into val_service_environment_collection_type
 	( service_environment_collection_type ) values ('per-environment');
 
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('unspecified', 'unspecified');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('unallocated', 'unallocated');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('production', 'production');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('development', 'development');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('qa', 'test');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('staging', 'test');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('test', 'test');
+INSERT INTO val_service_environment_type (
+	service_environment_type, description
+) VALUES (
+	'default', 'universalish concepts'
+);
+
+INSERT INTO service_environment (
+	service_environment_name, service_environment_type, production_state
+) VALUES
+	('unspecified', 'default', 'unspecified'),
+	('unallocated', 'default', 'unallocated'),
+	('production', 'default', 'production'),
+	('development', 'default', 'development'),
+	('qa', 'default', 'test'),
+	('staging', 'default', 'test'),
+	('test', 'default', 'test');
 
 INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('owned');
-INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('leased');
-INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('onloan');
-INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('unknown');
+VALUES
+	('owned'),
+	('leased'),
+	('onloan'),
+	('unknown');
 
 insert into Val_Person_Contact_Type(person_contact_type)
-	values ('chat');
-insert into Val_Person_Contact_Type(person_contact_type)
-	values ('email');
-insert into Val_Person_Contact_Type(person_contact_type)
-	values ('phone');
+VALUES
+	('chat'),
+	('email'),
+	('phone');
 
 INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
 	Person_Contact_Type)
@@ -373,13 +372,13 @@ INSERT INTO val_password_type (password_type, description)
 
 -- XXX VAL_MClass_Unix_Home_Type
 
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('point-to-point');
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('broadcast');
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('loopback');
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('virtual');
 
 insert into val_netblock_status (NETBLOCK_STATUS) values ('Allocated');
@@ -475,33 +474,33 @@ insert into val_CABLE_TYPE (CABLE_TYPE) values ('straight');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('rollover');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('crossover');
 
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+insert into val_layer3_interface_purpose
+	(layer3_interface_PURPOSE,DESCRIPTION)
 	values ('api', 'Interface used to manage device via API');
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+insert into val_layer3_interface_purpose
+	(layer3_interface_PURPOSE,DESCRIPTION)
 	values ('radius', 'Interface used for radius');
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE)
+insert into val_layer3_interface_purpose
+	(layer3_interface_PURPOSE)
 	values ('login');
 
 insert into val_property_data_type (PROPERTY_DATA_TYPE, DESCRIPTION)
 	values ('none', 'No value should be set');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values
-	('boolean'),
+	('list'),
 	('number'),
 	('string'),
-	('list'),
-	('json'),
-	('timestamp'),
-	('dns_domain_id'),
+	('account_collection_id'),
+	('boolean'),
 	('device_collection_id'),
+	('encryption_key_id'),
+	('json'),
 	('netblock_collection_id'),
 	('password_type'),
-	('person_id'),
-	('token_collection_id'),
-	('account_collection_id'),
-	('sw_package_id');
+	('private_key_id'),
+	('sw_package_id'),
+	('timestamp'),
+	('token_collection_id');
 
 insert into val_person_company_attribute_data_type (person_company_attribute_data_type) values
 	('boolean'),
@@ -2036,3 +2035,10 @@ insert into val_logical_port_type (logical_port_type, description) values
 
 -- END logical ports
 -------------------------------------------------------------------------
+
+
+INSERT INTO val_encryption_key_purpose (
+        encryption_key_purpose, encryption_key_purpose_version, description
+) VALUES (
+        'external', 1, 'Key is stored  outside the database'
+);

@@ -650,17 +650,59 @@ CREATE OR REPLACE VIEW jazzhands_legacy.device_note AS
 SELECT note_id,device_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.device_note;
 
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.device_power_connection AS
-SELECT device_power_connection_id,inter_component_connection_id,rpc_device_id,rpc_power_interface_port,power_interface_port,device_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.device_power_connection;
-
+create or replace view jazzhands_legacy.device_power_connection AS
+WITH slotdev AS (
+	SELECT	slot_id, slot_name, device_id
+	FROM	jazzhands.slot
+		INNER JOIN jazzhands.v_device_slots USING (slot_id)
+		INNER JOIN jazzhands.slot_type st USING (slot_type_id)
+	WHERE	slot_function = 'power'
+) SELECT
+	icc.inter_component_connection_id	AS device_power_connection_id,
+	icc.inter_component_connection_id,
+	s1.device_id				AS rpc_device_id,
+	s1.slot_name				AS rpc_power_interface_port,
+	s2.slot_name				AS power_interface_port,
+	s2.device_id				AS device_id,
+	icc.data_ins_user,
+	icc.data_ins_date,
+	icc.data_upd_user,
+	icc.data_upd_date
+FROM	jazzhands.inter_component_connection icc
+	INNER JOIN slotdev s1 on icc.slot1_id = s1.slot_id
+	INNER JOIN slotdev s2 on icc.slot2_id = s2.slot_id
+;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.device_power_interface AS
-SELECT device_id,power_interface_port,power_plug_style,voltage,max_amperage,provides_power,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.device_power_interface;
+WITH pdu AS (
+	SELECT	slot_type_id, property_value::integer AS property_value
+	FROM	jazzhands.component_property
+	WHERE	component_property_type = 'PDU'
+), provides AS (
+	SELECT	slot_type_id, property_value
+	FROM	jazzhands.component_property
+	WHERE	component_property_type = 'power_supply'
+	AND	component_property_name = 'Provides'
+) SELECT
+	d.device_id,
+	s.slot_name			AS power_interface_port,
+	st.slot_physical_interface_type	AS power_plug_style,
+	vlt.property_value		AS voltage,
+	amp.property_value		AS max_amperage,
+	p.property_value::text	AS provides_power,
+	s.data_ins_user,
+	s.data_ins_date,
+	s.data_upd_user,
+	s.data_upd_date
+FROM	jazzhands.slot s
+	INNER JOIN jazzhands.slot_type st USING (slot_type_id)
+	INNER JOIN provides p USING (slot_type_id)
+	INNER JOIN pdu vlt USING (slot_type_id)
+	INNER JOIN pdu amp USING (slot_type_id)
+	INNER JOIN jazzhands.v_device_slots d USING (slot_id)
+WHERE slot_function = 'power'
+;
 
 
 
@@ -739,9 +781,18 @@ FROM jazzhands.dns_change_record;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.dns_domain AS
-SELECT dns_domain_id,soa_name,dns_domain_name,dns_domain_type,parent_dns_domain_id,description,external_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT dns_domain_id,
+	dns_domain_name AS soa_name,
+	dns_domain_name,
+	dns_domain_type,
+	parent_dns_domain_id,
+	description,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.dns_domain;
-
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.dns_domain_collection AS
@@ -937,8 +988,65 @@ FROM jazzhands.layer3_network_collection_layer3_network;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.layer1_connection AS
-SELECT layer1_connection_id,physical_port1_id,physical_port2_id,circuit_id,baud,data_bits,stop_bits,parity,flow_control,tcpsrv_device_id,is_tcpsrv_enabled,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.layer1_connection;
+WITH conn_props AS (
+	SELECT inter_component_connection_id,
+			component_property_name, component_property_type,
+			property_value
+	FROM	jazzhands.component_property
+	WHERE	component_property_type IN ('serial-connection')
+), tcpsrv_device_id AS (
+	SELECT inter_component_connection_id, device_id
+	FROM	jazzhands.component_property
+			INNER JOIN jazzhands.device USING (component_id)
+	WHERE	component_property_type = 'tcpsrv-connections'
+	AND		component_property_name = 'tcpsrv_device_id'
+) , tcpsrv_enabled AS (
+	SELECT inter_component_connection_id, property_value
+	FROM	jazzhands.component_property
+	WHERE	component_property_type = 'tcpsrv-connections'
+	AND		component_property_name = 'tcpsrv_enabled'
+) SELECT
+	icc.inter_component_connection_id  AS layer1_connection_id,
+	icc.slot1_id			AS physical_port1_id,
+	icc.slot2_id			AS physical_port2_id,
+	icc.circuit_id,
+	baud.property_value::integer			AS baud,
+	dbits.property_value::integer		AS data_bits,
+	sbits.property_value::integer		AS stop_bits,
+	parity.property_value		AS parity,
+	flow.property_value			AS flow_control,
+	tcpsrv.device_id			AS tcpsrv_device_id,
+	coalesce(tcpsrvon.property_value,'N')::char(1)	AS is_tcpsrv_enabled,
+	icc.data_ins_user,
+	icc.data_ins_date,
+	icc.data_upd_user,
+	icc.data_upd_date
+FROM jazzhands.inter_component_connection icc
+	INNER JOIN jazzhands.slot s1 ON icc.slot1_id = s1.slot_id
+	INNER JOIN jazzhands.slot_type st1 ON st1.slot_type_id = s1.slot_type_id
+	INNER JOIN jazzhands.slot s2 ON icc.slot2_id = s2.slot_id
+	INNER JOIN jazzhands.slot_type st2 ON st2.slot_type_id = s2.slot_type_id
+	LEFT JOIN tcpsrv_device_id tcpsrv USING (inter_component_connection_id)
+	LEFT JOIN tcpsrv_enabled tcpsrvon USING (inter_component_connection_id)
+	LEFT JOIN conn_props baud ON baud.inter_component_connection_id =
+		icc.inter_component_connection_id AND
+		baud.component_property_name = 'baud'
+	LEFT JOIN conn_props dbits ON dbits.inter_component_connection_id =
+		icc.inter_component_connection_id AND
+		dbits.component_property_name = 'data-bits'
+	LEFT JOIN conn_props sbits ON sbits.inter_component_connection_id =
+		icc.inter_component_connection_id AND
+		sbits.component_property_name = 'stop-bits'
+	LEFT JOIN conn_props parity ON parity.inter_component_connection_id =
+		icc.inter_component_connection_id AND
+		parity.component_property_name = 'parity'
+	LEFT JOIN conn_props flow ON flow.inter_component_connection_id =
+		icc.inter_component_connection_id AND
+		flow.component_property_name = 'flow-control'
+ WHERE  st1.slot_function in ('network', 'serial', 'patchpanel')
+	OR
+ 	st1.slot_function in ('network', 'serial', 'patchpanel')
+;
 
 
 
@@ -1138,7 +1246,7 @@ SELECT
 	netblock_id,
 	layer3_interface_id AS network_interface_id,
 	device_id,
-	network_interface_rank,
+	layer3_interface_rank AS network_interface_rank,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -1151,7 +1259,7 @@ FROM jazzhands.layer3_interface_netblock;
 CREATE OR REPLACE VIEW jazzhands_legacy.network_interface_purpose AS
 SELECT
 	device_id,
-	network_interface_purpose,
+	layer3_interface_purpose AS network_interface_purpose,
 	layer3_interface_id AS network_interface_id,
 	description,
 	data_ins_user,
@@ -1181,7 +1289,7 @@ SELECT
 		ELSE NULL
 	END AS is_monitored,
 	device_id,
-	network_interface_id,
+	layer3_interface_id AS network_interface_id,
 	dns_record_id,
 	service_environment_id,
 	data_ins_user,
@@ -1415,8 +1523,32 @@ FROM jazzhands.physical_connection;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.physical_port AS
-SELECT physical_port_id,device_id,port_name,port_type,description,port_plug_style,port_medium,port_protocol,port_speed,physical_label,port_purpose,logical_port_id,tcp_port,is_hardwired,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.physical_port;
+SELECT
+	sl.slot_id			AS physical_port_id,
+	d.device_id,
+	sl.slot_name			AS port_name,
+	st.slot_function		AS port_type,
+	sl.description,
+	st.slot_physical_interface_type	AS port_plug_style,
+	NULL::text			AS port_medium,
+	NULL::text			AS port_protocol,
+	NULL::text			AS port_speed,
+	sl.physical_label,
+	NULL::text			AS port_purpose,
+	NULL::integer			AS logical_port_id,
+	NULL::integer			AS tcp_port,
+	CASE WHEN ct.is_removable = 'Y' THEN 'N' ELSE 'Y' END AS is_hardwired,
+	sl.data_ins_user,
+	sl.data_ins_date,
+	sl.data_upd_user,
+	sl.data_upd_date
+  FROM	jazzhands.slot sl
+	INNER JOIN jazzhands.slot_type st USING (slot_type_id)
+	INNER JOIN jazzhands.v_device_slots d USING (slot_id)
+	INNER JOIN jazzhands.component c ON (sl.component_id = c.component_id)
+	INNER JOIN jazzhands.component_type ct USING (component_type_id)
+ WHERE	st.slot_function in ('network', 'serial', 'patchpanel')
+;
 
 
 
@@ -1463,7 +1595,6 @@ SELECT
 	network_range_id,
 	operating_system_id,
 	operating_system_snapshot_id,
-	person_id,
 	property_name_collection_id AS property_collection_id,
 	service_environment_collection_id AS service_env_collection_id,
 	site_code,
@@ -1479,7 +1610,6 @@ SELECT
 	property_value_json,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_person_id,
 	property_value_sw_package_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
@@ -1576,8 +1706,14 @@ SELECT rack_location_id,rack_id,rack_u_offset_of_device_top,rack_side,data_ins_u
 FROM jazzhands.rack_location;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.service_environment AS
-SELECT service_environment_id,service_environment_name,production_state,description,external_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.service_environment;
+SELECT service_environment_id,
+	service_environment_name,
+	production_state,
+	description,
+	external_id,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.service_environment
+WHERE service_environment_type = 'default';
 
 
 
@@ -1712,7 +1848,7 @@ CREATE OR REPLACE VIEW jazzhands_legacy.static_route AS
 SELECT
 	static_route_id,
 	device_source_id AS device_src_id,
-	network_interface_destination_id AS network_interface_dst_id,
+	layer3_interface_destination_id AS network_interface_dst_id,
 	netblock_id,
 	data_ins_user,
 	data_ins_date,
@@ -1727,7 +1863,7 @@ CREATE OR REPLACE VIEW jazzhands_legacy.static_route_template AS
 SELECT
 	static_route_template_id,
 	netblock_source_id AS netblock_src_id,
-	network_interface_destination_id AS network_interface_dst_id,
+	layer3_interface_destination_id AS network_interface_dst_id,
 	netblock_id,
 	description,
 	data_ins_user,
@@ -1864,7 +2000,7 @@ FROM jazzhands.v_account_collection_account;
 -- NOTE NOTE NOTE: The version in jazzhands is DIFFERENT and that needs to be
 -- cleaned up.
 --
-CREATE OR REPLACE VIEW jazzhands_legacyv_account_collection_expanded AS
+CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_expanded AS
 WITH RECURSIVE var_recurse (
         level,
         root_account_collection_id,
@@ -1908,13 +2044,6 @@ FROM jazzhands.v_account_collection_hier_from_ancestor;
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_manager_hier AS
 SELECT level,account_id,person_id,company_id,login,human_readable,account_realm_id,manager_account_id,manager_login,manager_person_id,manager_company_id,manager_human_readable,array_path
 FROM jazzhands.v_account_manager_hier;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_account_manager_map AS
-SELECT login,account_id,person_id,company_id,account_realm_id,first_name,last_name,middle_name,manager_person_id,employee_id,human_readable,manager_account_id,manager_login,manager_human_readable,manager_last_name,manager_middle_name,manger_first_name,manager_employee_id,manager_company_id
-FROM jazzhands.v_account_manager_map;
-
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_name AS
@@ -1967,7 +2096,6 @@ SELECT
 	property_value_account_collection_id AS property_value_account_coll_id,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_person_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
 	is_multivalue,
@@ -2223,40 +2351,46 @@ SELECT
 		ELSE NULL
 	END AS should_generate,
 	last_generated,
-	soa_name,
+	dns_domain_name AS soa_name,
 	ip_address
 FROM jazzhands.v_dns_changes_pending;
 
 
-
--- Simple column rename
+--
+-- show only ip universe zero.  Note that domains not in universe zero will
+-- not show up here at all.
+--
+-- This is to be deprecated
+--
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_domain_nouniverse AS
 SELECT
-	dns_domain_id,
-	soa_name,
-	soa_class,
-	soa_ttl,
-	soa_serial,
-	soa_refresh,
-	soa_retry,
-	soa_expire,
-	soa_minimum,
-	soa_mname,
-	soa_rname,
-	parent_dns_domain_id,
+	d.dns_domain_id,
+	d.dns_domain_name AS soa_name,
+	du.soa_class,
+	du.soa_ttl,
+	du.soa_serial,
+	du.soa_refresh,
+	du.soa_retry,
+	du.soa_expire,
+	du.soa_minimum,
+	du.soa_mname,
+	du.soa_rname,
+	d.parent_dns_domain_id,
 	CASE WHEN should_generate IS NULL THEN NULL
 		WHEN should_generate = true THEN 'Y'
 		WHEN should_generate = false THEN 'N'
 		ELSE NULL
 	END AS should_generate,
-	last_generated,
-	dns_domain_type,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM jazzhands.v_dns_domain_nouniverse;
-
+	du.last_generated,
+	d.dns_domain_type,
+	coalesce(d.data_ins_user, du.data_ins_user) as data_ins_user,
+	coalesce(d.data_ins_date, du.data_ins_date) as data_ins_date,
+	coalesce(du.data_upd_user, d.data_upd_user) as data_upd_user,
+	coalesce(du.data_upd_date, d.data_upd_date) as data_upd_date
+FROM jazzhands.dns_domain d
+	JOIN jazzhands.dns_domain_ip_universe du USING (dns_domain_id)
+WHERE ip_universe_id = 0
+;
 
 
 -- Simple column rename
@@ -2416,10 +2550,82 @@ SELECT
 FROM jazzhands.v_hotpants_token;
 
 
-
 CREATE OR REPLACE VIEW jazzhands_legacy.v_l1_all_physical_ports AS
-SELECT layer1_connection_id,physical_port_id,device_id,port_name,port_type,port_purpose,other_physical_port_id,other_device_id,other_port_name,other_port_purpose,baud,data_bits,stop_bits,parity,flow_control
-FROM jazzhands.v_l1_all_physical_ports;
+WITH pp AS (
+	SELECT
+		sl.slot_id,
+		ds.device_id,
+		sl.slot_name,
+		st.slot_function
+	FROM
+		jazzhands.slot sl JOIN
+		jazzhands.slot_type st USING (slot_type_id) LEFT JOIN
+		jazzhands.v_device_slots ds using (slot_id)
+)
+SELECT
+	icc.inter_component_connection_id as layer1_connection_id,
+	s1.slot_id as physical_port_id,
+	s1.device_id as device_id,
+	s1.slot_name as port_name,
+	s1.slot_function as port_type,
+	NULL as port_purpose,
+	s2.slot_id as other_physical_port_id,
+	s2.device_id as other_device_id,
+	s2.slot_name as other_port_name,
+	NULL as other_port_purpose,
+	NULL::integer as baud,
+	NULL::integer as data_bits,
+	NULL::integer as stop_bits,
+	NULL::varchar as parity,
+	NULL::varchar as flow_control
+FROM
+	pp s1 JOIN
+	jazzhands.inter_component_connection icc ON (s1.slot_id = icc.slot1_id) JOIN
+	pp s2 ON (s2.slot_id = icc.slot2_id)
+UNION
+SELECT
+	icc.inter_component_connection_id as layer1_connection_id,
+	s2.slot_id as physical_port_id,
+	s2.device_id as device_id,
+	s2.slot_name as port_name,
+	s2.slot_function as port_type,
+	NULL as port_purpose,
+	s1.slot_id as other_physical_port_id,
+	s1.device_id as other_device_id,
+	s1.slot_name as other_port_name,
+	NULL as other_port_purpose,
+	NULL::integer as baud,
+	NULL::integer as data_bits,
+	NULL::integer as stop_bits,
+	NULL::varchar as parity,
+	NULL::varchar as flow_control
+FROM
+	pp s1 JOIN
+	jazzhands.inter_component_connection icc ON (s1.slot_id = icc.slot1_id) JOIN
+	pp s2 ON (s2.slot_id = icc.slot2_id)
+UNION
+SELECT
+	NULL as layer1_connection_id,
+	s1.slot_id as physical_port_id,
+	s1.device_id as device_id,
+	s1.slot_name as port_name,
+	s1.slot_function as port_type,
+	NULL as port_purpose,
+	NULL as other_physical_port_id,
+	NULL as other_device_id,
+	NULL as other_port_name,
+	NULL as other_port_purpose,
+	NULL::integer as baud,
+	NULL::integer as data_bits,
+	NULL::integer as stop_bits,
+	NULL::varchar as parity,
+	NULL::varchar as flow_control
+FROM
+	pp s1 LEFT JOIN
+	jazzhands.inter_component_connection icc ON (s1.slot_id = icc.slot1_id OR
+		s1.slot_id = icc.slot2_id)
+WHERE
+	inter_component_connection_id IS NULL;
 
 
 
@@ -2537,7 +2743,7 @@ FROM jazzhands.v_netblock_hier_expanded;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_network_range_expanded AS
-SELECT network_range_id,network_range_type,description,parent_netblock_id,ip_address,netblock_type,ip_universe_id,start_netblock_id,start_ip_address,start_netblock_type,start_ip_universe_id,stop_netblock_id,stop_ip_address,stop_netblock_type,stop_ip_universe_id,dns_prefix,dns_domain_id,soa_name
+SELECT network_range_id,network_range_type,description,parent_netblock_id,ip_address,netblock_type,ip_universe_id,start_netblock_id,start_ip_address,start_netblock_type,start_ip_universe_id,stop_netblock_id,stop_ip_address,stop_netblock_type,stop_ip_universe_id,dns_prefix,dns_domain_id,dns_domain_name AS soa_name
 FROM jazzhands.v_network_range_expanded;
 
 
@@ -2569,50 +2775,85 @@ SELECT
 	data_upd_date
 FROM jazzhands.v_person;
 
-
-
--- Simple column rename
+-- Deprecated table with some column renames
 CREATE OR REPLACE VIEW jazzhands_legacy.v_person_company AS
-SELECT
-	company_id,
-	person_id,
-	person_company_status,
-	person_company_relation,
-	CASE WHEN is_exempt IS NULL THEN NULL
+SELECT pc.company_id,
+	pc.person_id,
+	pc.person_company_status,
+	pc.person_company_relation,
+	CASE WHEN pc.is_exempt IS NULL THEN NULL
 		WHEN is_exempt = true THEN 'Y'
 		WHEN is_exempt = false THEN 'N'
 		ELSE NULL
 	END AS is_exempt,
-	CASE WHEN is_management IS NULL THEN NULL
+	CASE WHEN pc.is_management IS NULL THEN NULL
 		WHEN is_management = true THEN 'Y'
 		WHEN is_management = false THEN 'N'
 		ELSE NULL
 	END AS is_management,
-	CASE WHEN is_full_time IS NULL THEN NULL
+	CASE WHEN pc.is_full_time IS NULL THEN NULL
 		WHEN is_full_time = true THEN 'Y'
 		WHEN is_full_time = false THEN 'N'
 		ELSE NULL
 	END AS is_full_time,
-	description,
-	employee_id,
-	payroll_id,
-	external_hr_id,
-	position_title,
-	badge_system_id,
-	hire_date,
-	termination_date,
-	manager_person_id,
-	supervisor_person_id,
-	nickname,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM jazzhands.v_person_company;
+	pc.description,
+	empid.attribute_value AS employee_id,
+	payid.attribute_value AS payroll_id,
+	hrid.attribute_value AS external_hr_id,
+	pc.position_title,
+	badge.attribute_value AS badge_system_id,
+	pc.hire_date,
+	pc.termination_date,
+	pc.manager_person_id,
+	super.attribute_value_person_id AS supervisor_person_id,
+	pc.nickname,
+	pc.data_ins_user,
+	pc.data_ins_date,
+	pc.data_upd_user,
+	pc.data_upd_date
+FROM	jazzhands.person_company pc
+	LEFT JOIN (SELECT *
+		FROM jazzhands.person_company_attribute
+		WHERE person_company_attribute_name = 'employee_id'
+		) empid USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM jazzhands.person_company_attribute
+		WHERE person_company_attribute_name = 'payroll_id'
+		) payid USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM jazzhands.person_company_attribute
+		WHERE person_company_attribute_name = 'badge_system_id'
+		) badge USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM jazzhands.person_company_attribute
+		WHERE person_company_attribute_name = 'supervisor_id'
+		) super USING (company_id, person_id)
+	LEFT JOIN (SELECT *
+		FROM jazzhands.person_company_attribute
+		WHERE person_company_attribute_name = 'external_hr_id'
+		) hrid USING (company_id, person_id)
+;
 
 ALTER TABLE jazzhands_legacy.v_person_company ALTER is_exempt SET DEFAULT 'Y'::text;
 ALTER TABLE jazzhands_legacy.v_person_company ALTER is_management SET DEFAULT 'N'::text;
 ALTER TABLE jazzhands_legacy.v_person_company ALTER is_full_time SET DEFAULT 'Y'::text;
+
+--
+-- This is a hack but hopefully nothing is uesing it.
+--
+CREATE OR REPLACE VIEW jazzhands_legacy.v_account_manager_map AS
+SELECT login, account_id, person_id, company_id, account_realm_id, first_name, last_name, middle_name, manager_person_id, employee_id, human_readable, manager_account_id, manager_login, manager_human_readable, manager_last_name, manager_middle_name, manger_first_name, manager_employee_id, manager_company_id
+FROM jazzhands.v_account_manager_map  map
+	JOIN ( SELECT company_id, person_id, employee_id
+		FROM jazzhands_legacy.v_person_company
+	) emp_pc USING (person_id, company_id)
+	JOIN ( SELECT company_id AS manager_company_id,
+		person_id AS manager_person_id,
+		employee_id AS manager_employee_id
+		FROM jazzhands_legacy.v_person_company
+	) mgr_pc USING (manager_person_id, manager_company_id)
+;
+
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_person_company_expanded AS
 SELECT company_id,person_id
@@ -2649,7 +2890,6 @@ SELECT
 	network_range_id,
 	operating_system_id,
 	operating_system_snapshot_id,
-	person_id,
 	property_name_collection_id AS property_collection_id,
 	service_environment_collection_id AS service_env_collection_id,
 	site_code,
@@ -2665,7 +2905,6 @@ SELECT
 	property_value_json,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_person_id,
 	property_value_sw_package_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
@@ -3309,14 +3548,24 @@ FROM jazzhands.val_netblock_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_network_interface_purpose AS
-SELECT network_interface_purpose,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_network_interface_purpose;
+SELECT layer3_interface_purpose AS network_interface_purpose,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_layer3_interface_purpose;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_network_interface_type AS
-SELECT network_interface_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_network_interface_type;
+SELECT layer3_interface_type AS network_interface_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_layer3_interface_type;
 
 
 
@@ -3569,7 +3818,6 @@ SELECT
 	permit_network_range_id,
 	permit_operating_system_id,
 	permit_operating_system_snapshot_id AS permit_os_snapshot_id,
-	permit_person_id,
 	permit_property_name_collection_id AS permit_property_collection_id,
 	permit_service_environment_collection AS permit_service_env_collection,
 	permit_site_code,
@@ -3595,7 +3843,6 @@ ALTER TABLE jazzhands_legacy.val_property ALTER permit_netblock_collection_id SE
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_network_range_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_operating_system_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_os_snapshot_id SET DEFAULT 'PROHIBITED'::bpchar;
-ALTER TABLE jazzhands_legacy.val_property ALTER permit_person_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_property_collection_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_service_env_collection SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_site_code SET DEFAULT 'PROHIBITED'::bpchar;
@@ -3857,42 +4104,43 @@ SELECT volume_group_id,volume_group_purpose,description,data_ins_user,data_ins_d
 FROM jazzhands.volume_group_purpose;
 
 
-
--- Simple column rename
+-- deprecated in earlier version of jazzhands.
 CREATE OR REPLACE VIEW jazzhands_legacy.x509_certificate AS
-SELECT
-	x509_cert_id,
-	friendly_name,
-	CASE WHEN is_active IS NULL THEN NULL
-		WHEN is_active = true THEN 'Y'
-		WHEN is_active = false THEN 'N'
+	SELECT crt.x509_signed_certificate_id AS x509_cert_id,
+	crt.friendly_name,
+	CASE WHEN crt.is_active IS NULL THEN NULL
+		WHEN crt.is_active = true THEN 'Y'
+		WHEN crt.is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	CASE WHEN is_certificate_authority IS NULL THEN NULL
-		WHEN is_certificate_authority = true THEN 'Y'
-		WHEN is_certificate_authority = false THEN 'N'
+	CASE WHEN crt.is_certificate_authority IS NULL THEN NULL
+		WHEN crt.is_certificate_authority = true THEN 'Y'
+		WHEN crt.is_certificate_authority = false THEN 'N'
 		ELSE NULL
 	END AS is_certificate_authority,
-	signing_cert_id,
-	x509_ca_cert_serial_number,
-	public_key,
-	private_key,
-	certificate_sign_req,
-	subject,
-	subject_key_identifier,
-	valid_from,
-	valid_to,
-	x509_revocation_date,
-	x509_revocation_reason,
-	passphrase,
-	encryption_key_id,
-	ocsp_uri,
-	crl_uri,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM jazzhands.x509_certificate;
+	crt.signing_cert_id,
+	crt.x509_ca_cert_serial_number,
+	crt.public_key,
+	key.private_key,
+	csr.certificate_signing_request AS certificate_sign_req,
+	crt.subject,
+	crt.subject_key_identifier,
+	crt.valid_from::timestamp,
+	crt.valid_to::timestamp,
+	crt.x509_revocation_date,
+	crt.x509_revocation_reason,
+	key.passphrase,
+	key.encryption_key_id,
+	crt.ocsp_uri,
+	crt.crl_uri,
+	crt.data_ins_user,
+	crt.data_ins_date,
+	crt.data_upd_user,
+	crt.data_upd_date
+FROM jazzhands.x509_signed_certificate crt
+	LEFT JOIN jazzhands.private_key key USING (private_key_id)
+	LEFT JOIN jazzhands.certificate_signing_request csr
+		USING (certificate_signing_request_id);
 
 ALTER TABLE jazzhands_legacy.x509_certificate ALTER is_active SET DEFAULT 'Y'::bpchar;
 ALTER TABLE jazzhands_legacy.x509_certificate ALTER is_certificate_authority SET DEFAULT 'N'::bpchar;
@@ -4030,7 +4278,7 @@ WITH x as (
 			l3i.data_upd_user,
 			l3i.data_upd_date,
 			rank() OVER (PARTITION BY l3i.layer3_interface_id
-				ORDER BY l3in.network_interface_rank) AS rnk
+				ORDER BY l3in.layer3_interface_rank) AS rnk
 		FROM jazzhands.layer3_interface l3i
 			LEFT JOIN jazzhands.layer3_interface_netblock l3in
 				USING (layer3_interface_id)
@@ -4072,23 +4320,23 @@ DECLARE
 	_ni	network_interface%ROWTYPE;
 BEGIN
 	INSERT INTO network_interface (
-                device_id,
+		device_id,
 		network_interface_name, description,
 		parent_network_interface_id,
-                parent_relation_type, physical_port_id,
+		parent_relation_type, physical_port_id,
 		slot_id, logical_port_id,
 		network_interface_type, is_interface_up,
 		mac_addr, should_monitor,
-                should_manage
+		should_manage
 	) VALUES (
-                NEW.device_id,
-                NEW.network_interface_name, NEW.description,
-                NEW.parent_network_interface_id,
-                NEW.parent_relation_type, NEW.physical_port_id,
-                NEW.slot_id, NEW.logical_port_id,
-                NEW.network_interface_type, NEW.is_interface_up,
-                NEW.mac_addr, NEW.should_monitor,
-                NEW.should_manage
+		NEW.device_id,
+		NEW.network_interface_name, NEW.description,
+		NEW.parent_network_interface_id,
+		NEW.parent_relation_type, NEW.physical_port_id,
+		NEW.slot_id, NEW.logical_port_id,
+		NEW.network_interface_type, NEW.is_interface_up,
+		NEW.mac_addr, NEW.should_monitor,
+		NEW.should_manage
 	) RETURNING * INTO _ni;
 
 	IF NEW.netblock_id IS NOT NULL THEN
@@ -4129,9 +4377,9 @@ DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_ins ON
 	v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_ins
-        INSTEAD OF INSERT ON jazzhands_legacy.v_network_interface_trans
-        FOR EACH ROW
-        EXECUTE PROCEDURE v_network_interface_trans_ins();
+	INSTEAD OF INSERT ON jazzhands_legacy.v_network_interface_trans
+	FOR EACH ROW
+	EXECUTE PROCEDURE v_network_interface_trans_ins();
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION v_network_interface_trans_del()
@@ -4158,9 +4406,9 @@ DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_del ON
 	v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_del
-        INSTEAD OF DELETE ON jazzhands_legacy.v_network_interface_trans
-        FOR EACH ROW
-        EXECUTE PROCEDURE v_network_interface_trans_del();
+	INSTEAD OF DELETE ON jazzhands_legacy.v_network_interface_trans
+	FOR EACH ROW
+	EXECUTE PROCEDURE v_network_interface_trans_del();
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION v_network_interface_trans_upd()
@@ -4294,9 +4542,9 @@ DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_upd ON
 	v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_upd
-        INSTEAD OF UPDATE ON jazzhands_legacy.v_network_interface_trans
-        FOR EACH ROW
-        EXECUTE PROCEDURE v_network_interface_trans_upd();
+	INSTEAD OF UPDATE ON jazzhands_legacy.v_network_interface_trans
+	FOR EACH ROW
+	EXECUTE PROCEDURE v_network_interface_trans_upd();
 
 ---------------------------------------------------------------------------
 
@@ -10073,11 +10321,6 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.operating_system_snapshot_id));
 	END IF;
 
-	IF NEW.person_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('person_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.person_id));
-	END IF;
-
 	IF NEW.property_collection_id IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('property_name_collection_id'));
 		_vq := array_append(_vq, quote_nullable(NEW.property_collection_id));
@@ -10153,11 +10396,6 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.property_value_password_type));
 	END IF;
 
-	IF NEW.property_value_person_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('property_value_person_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.property_value_person_id));
-	END IF;
-
 	IF NEW.property_value_sw_package_id IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('property_value_sw_package_id'));
 		_vq := array_append(_vq, quote_nullable(NEW.property_value_sw_package_id));
@@ -10208,7 +10446,6 @@ BEGIN
 	NEW.network_range_id = _nr.network_range_id;
 	NEW.operating_system_id = _nr.operating_system_id;
 	NEW.operating_system_snapshot_id = _nr.operating_system_snapshot_id;
-	NEW.person_id = _nr.person_id;
 	NEW.property_collection_id = _nr.property_name_collection_id;
 	NEW.service_env_collection_id = _nr.service_environment_collection_id;
 	NEW.site_code = _nr.site_code;
@@ -10229,7 +10466,6 @@ BEGIN
 	NEW.property_value_json = _nr.property_value_json;
 	NEW.property_value_nblk_coll_id = _nr.property_value_netblock_collection_id;
 	NEW.property_value_password_type = _nr.property_value_password_type;
-	NEW.property_value_person_id = _nr.property_value_person_id;
 	NEW.property_value_sw_package_id = _nr.property_value_sw_package_id;
 	NEW.property_value_token_col_id = _nr.property_value_token_collection_id;
 	NEW.property_rank = _nr.property_rank;
@@ -10320,10 +10556,6 @@ _uq := array_append(_uq, 'operating_system_id = ' || quote_nullable(NEW.operatin
 _uq := array_append(_uq, 'operating_system_snapshot_id = ' || quote_nullable(NEW.operating_system_snapshot_id));
 	END IF;
 
-	IF OLD.person_id IS DISTINCT FROM NEW.person_id THEN
-_uq := array_append(_uq, 'person_id = ' || quote_nullable(NEW.person_id));
-	END IF;
-
 	IF OLD.property_collection_id IS DISTINCT FROM NEW.property_collection_id THEN
 _uq := array_append(_uq, 'property_name_collection_id = ' || quote_nullable(NEW.property_collection_id));
 	END IF;
@@ -10387,10 +10619,6 @@ _uq := array_append(_uq, 'property_value_netblock_collection_id = ' || quote_nul
 _uq := array_append(_uq, 'property_value_password_type = ' || quote_nullable(NEW.property_value_password_type));
 	END IF;
 
-	IF OLD.property_value_person_id IS DISTINCT FROM NEW.property_value_person_id THEN
-_uq := array_append(_uq, 'property_value_person_id = ' || quote_nullable(NEW.property_value_person_id));
-	END IF;
-
 	IF OLD.property_value_sw_package_id IS DISTINCT FROM NEW.property_value_sw_package_id THEN
 _uq := array_append(_uq, 'property_value_sw_package_id = ' || quote_nullable(NEW.property_value_sw_package_id));
 	END IF;
@@ -10441,7 +10669,6 @@ END IF;
 		NEW.network_range_id = _nr.network_range_id;
 		NEW.operating_system_id = _nr.operating_system_id;
 		NEW.operating_system_snapshot_id = _nr.operating_system_snapshot_id;
-		NEW.person_id = _nr.person_id;
 		NEW.property_collection_id = _nr.property_name_collection_id;
 		NEW.service_env_collection_id = _nr.service_environment_collection_id;
 		NEW.site_code = _nr.site_code;
@@ -10464,7 +10691,6 @@ END IF;
 		NEW.property_value_json = _nr.property_value_json;
 		NEW.property_value_nblk_coll_id = _nr.property_value_netblock_collection_id;
 		NEW.property_value_password_type = _nr.property_value_password_type;
-		NEW.property_value_person_id = _nr.property_value_person_id;
 		NEW.property_value_sw_package_id = _nr.property_value_sw_package_id;
 		NEW.property_value_token_col_id = _nr.property_value_token_collection_id;
 		NEW.property_rank = _nr.property_rank;
@@ -10520,7 +10746,6 @@ BEGIN
 	OLD.network_range_id = _or.network_range_id;
 	OLD.operating_system_id = _or.operating_system_id;
 	OLD.operating_system_snapshot_id = _or.operating_system_snapshot_id;
-	OLD.person_id = _or.person_id;
 	OLD.property_collection_id = _or.property_name_collection_id;
 	OLD.service_env_collection_id = _or.service_environment_collection_id;
 	OLD.site_code = _or.site_code;
@@ -10541,7 +10766,6 @@ BEGIN
 	OLD.property_value_json = _or.property_value_json;
 	OLD.property_value_nblk_coll_id = _or.property_value_netblock_collection_id;
 	OLD.property_value_password_type = _or.property_value_password_type;
-	OLD.property_value_person_id = _or.property_value_person_id;
 	OLD.property_value_sw_package_id = _or.property_value_sw_package_id;
 	OLD.property_value_token_col_id = _or.property_value_token_collection_id;
 	OLD.property_rank = _or.property_rank;
@@ -11958,111 +12182,63 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.v_dns_domain_nouniverse_ins()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_cq	text[];
-	_vq	text[];
-	_nr	jazzhands.v_dns_domain_nouniverse%rowtype;
+	_d	jazzhands.dns_domain%rowtype;
+	_du	jazzhands.dns_domain_ip_universe%rowtype;
 BEGIN
-
-	IF NEW.dns_domain_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('dns_domain_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.dns_domain_id));
+	IF NEW.dns_domain_id IS NULL THEN
+		INSERT INTO jazzhands.dns_domain (
+			dns_domain_name, dns_domain_type, parent_dns_domain_id
+		) VALUES (
+			NEW.soa_name, NEW.dns_domain_type, NEW.parent_dns_domain_id
+		) RETURNING * INTO _d;
+	ELSE
+		INSERT INTO jazzhands.dns_domain (
+			dns_domain_id, dns_domain_name, dns_domain_type,
+			parent_dns_domain_id
+		) VALUES (
+			NEW.dns_domain_id, NEW.soa_name, NEW.dns_domain_type,
+			NEW.parent_dns_domain_id
+		) RETURNING * INTO _d;
 	END IF;
 
-	IF NEW.soa_name IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_name'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_name));
-	END IF;
+	INSERT INTO dns_domain_ip_universe (
+		dns_domain_id, ip_universe_id,
+		soa_class, soa_ttl, soa_serial, soa_refresh,
+		soa_retry,
+		soa_expire, soa_minimum, soa_mname, soa_rname,
+		should_generate,
+		last_generated
+	) VALUES (
+		_d.dns_domain_id, 0,
+		NEW.soa_class, NEW.soa_ttl, NEW.soa_serial, NEW.soa_refresh,
+		NEW.soa_retry,
+		NEW.soa_expire, NEW.soa_minimum, NEW.soa_mname, NEW.soa_rname,
+		CASE WHEN NEW.should_generate = 'Y' THEN true
+			WHEN NEW.should_generate = 'N' THEN false
+			ELSE NULL
+			END,
+		NEW.last_generated
+	) RETURNING * INTO _du;
 
-	IF NEW.soa_class IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_class'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_class));
-	END IF;
-
-	IF NEW.soa_ttl IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_ttl'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_ttl));
-	END IF;
-
-	IF NEW.soa_serial IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_serial'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_serial));
-	END IF;
-
-	IF NEW.soa_refresh IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_refresh'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_refresh));
-	END IF;
-
-	IF NEW.soa_retry IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_retry'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_retry));
-	END IF;
-
-	IF NEW.soa_expire IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_expire'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_expire));
-	END IF;
-
-	IF NEW.soa_minimum IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_minimum'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_minimum));
-	END IF;
-
-	IF NEW.soa_mname IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_mname'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_mname));
-	END IF;
-
-	IF NEW.soa_rname IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('soa_rname'));
-		_vq := array_append(_vq, quote_nullable(NEW.soa_rname));
-	END IF;
-
-	IF NEW.parent_dns_domain_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('parent_dns_domain_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.parent_dns_domain_id));
-	END IF;
-
-	IF NEW.should_generate IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('should_generate'));
-		_vq := array_append(_vq, quote_nullable(CASE WHEN NEW.should_generate = 'Y' THEN true WHEN NEW.should_generate = 'N' THEN false ELSE NULL END));
-	END IF;
-
-	IF NEW.last_generated IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('last_generated'));
-		_vq := array_append(_vq, quote_nullable(NEW.last_generated));
-	END IF;
-
-	IF NEW.dns_domain_type IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('dns_domain_type'));
-		_vq := array_append(_vq, quote_nullable(NEW.dns_domain_type));
-	END IF;
-
-	EXECUTE 'INSERT INTO jazzhands.v_dns_domain_nouniverse (' ||
-		array_to_string(_cq, ', ') ||
-		') VALUES ( ' ||
-		array_to_string(_vq, ', ') ||
-		') RETURNING *' INTO _nr;
-
-	NEW.dns_domain_id = _nr.dns_domain_id;
-	NEW.soa_name = _nr.soa_name;
-	NEW.soa_class = _nr.soa_class;
-	NEW.soa_ttl = _nr.soa_ttl;
-	NEW.soa_serial = _nr.soa_serial;
-	NEW.soa_refresh = _nr.soa_refresh;
-	NEW.soa_retry = _nr.soa_retry;
-	NEW.soa_expire = _nr.soa_expire;
-	NEW.soa_minimum = _nr.soa_minimum;
-	NEW.soa_mname = _nr.soa_mname;
-	NEW.soa_rname = _nr.soa_rname;
-	NEW.parent_dns_domain_id = _nr.parent_dns_domain_id;
-	NEW.should_generate = CASE WHEN _nr.should_generate = true THEN 'Y' WHEN _nr.should_generate = false THEN 'N' ELSE NULL END;
-	NEW.last_generated = _nr.last_generated;
-	NEW.dns_domain_type = _nr.dns_domain_type;
-	NEW.data_ins_user = _nr.data_ins_user;
-	NEW.data_ins_date = _nr.data_ins_date;
-	NEW.data_upd_user = _nr.data_upd_user;
-	NEW.data_upd_date = _nr.data_upd_date;
+	NEW.dns_domain_id = _d.dns_domain_id;
+	NEW.soa_name = _d.dns_domain_name;
+	NEW.soa_class = _du.soa_class;
+	NEW.soa_ttl = _du.soa_ttl;
+	NEW.soa_serial = _du.soa_serial;
+	NEW.soa_refresh = _du.soa_refresh;
+	NEW.soa_retry = _du.soa_retry;
+	NEW.soa_expire = _du.soa_expire;
+	NEW.soa_minimum = _du.soa_minimum;
+	NEW.soa_mname = _du.soa_mname;
+	NEW.soa_rname = _du.soa_rname;
+	NEW.parent_dns_domain_id = _d.parent_dns_domain_id;
+	NEW.should_generate = CASE WHEN _du.should_generate = true THEN 'Y' WHEN _du.should_generate = false THEN 'N' ELSE NULL END;
+	NEW.last_generated = _du.last_generated;
+	NEW.dns_domain_type = _d.dns_domain_type;
+	NEW.data_ins_user = _d.data_ins_user;
+	NEW.data_ins_date = _d.data_ins_date;
+	NEW.data_upd_user = _d.data_upd_user;
+	NEW.data_upd_date = _d.data_upd_date;
 	RETURN NEW;
 END;
 $$
@@ -12081,103 +12257,122 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.v_dns_domain_nouniverse_upd()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_r	jazzhands_legacy.v_dns_domain_nouniverse%rowtype;
-	_nr	jazzhands.v_dns_domain_nouniverse%rowtype;
-	_uq	text[];
+	_d		jazzhands.dns_domain%rowtype;
+	_du		jazzhands.dns_domain_ip_universe%rowtype;
+	_duq	text[];
+	_uq		text[];
 BEGIN
 
 	IF OLD.dns_domain_id IS DISTINCT FROM NEW.dns_domain_id THEN
-_uq := array_append(_uq, 'dns_domain_id = ' || quote_nullable(NEW.dns_domain_id));
+		RAISE EXCEPTION 'Can not change dns_domain_id'
+			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
 	IF OLD.soa_name IS DISTINCT FROM NEW.soa_name THEN
-_uq := array_append(_uq, 'soa_name = ' || quote_nullable(NEW.soa_name));
-	END IF;
-
-	IF OLD.soa_class IS DISTINCT FROM NEW.soa_class THEN
-_uq := array_append(_uq, 'soa_class = ' || quote_nullable(NEW.soa_class));
-	END IF;
-
-	IF OLD.soa_ttl IS DISTINCT FROM NEW.soa_ttl THEN
-_uq := array_append(_uq, 'soa_ttl = ' || quote_nullable(NEW.soa_ttl));
-	END IF;
-
-	IF OLD.soa_serial IS DISTINCT FROM NEW.soa_serial THEN
-_uq := array_append(_uq, 'soa_serial = ' || quote_nullable(NEW.soa_serial));
-	END IF;
-
-	IF OLD.soa_refresh IS DISTINCT FROM NEW.soa_refresh THEN
-_uq := array_append(_uq, 'soa_refresh = ' || quote_nullable(NEW.soa_refresh));
-	END IF;
-
-	IF OLD.soa_retry IS DISTINCT FROM NEW.soa_retry THEN
-_uq := array_append(_uq, 'soa_retry = ' || quote_nullable(NEW.soa_retry));
-	END IF;
-
-	IF OLD.soa_expire IS DISTINCT FROM NEW.soa_expire THEN
-_uq := array_append(_uq, 'soa_expire = ' || quote_nullable(NEW.soa_expire));
-	END IF;
-
-	IF OLD.soa_minimum IS DISTINCT FROM NEW.soa_minimum THEN
-_uq := array_append(_uq, 'soa_minimum = ' || quote_nullable(NEW.soa_minimum));
-	END IF;
-
-	IF OLD.soa_mname IS DISTINCT FROM NEW.soa_mname THEN
-_uq := array_append(_uq, 'soa_mname = ' || quote_nullable(NEW.soa_mname));
-	END IF;
-
-	IF OLD.soa_rname IS DISTINCT FROM NEW.soa_rname THEN
-_uq := array_append(_uq, 'soa_rname = ' || quote_nullable(NEW.soa_rname));
+		_duq := array_append(_duq, 'dns_domain_name = ' || quote_nullable(NEW.soa_name));
 	END IF;
 
 	IF OLD.parent_dns_domain_id IS DISTINCT FROM NEW.parent_dns_domain_id THEN
-_uq := array_append(_uq, 'parent_dns_domain_id = ' || quote_nullable(NEW.parent_dns_domain_id));
-	END IF;
-
-	IF OLD.should_generate IS DISTINCT FROM NEW.should_generate THEN
-IF NEW.should_generate = 'Y' THEN
-	_uq := array_append(_uq, 'should_generate = true');
-ELSIF NEW.should_generate = 'N' THEN
-	_uq := array_append(_uq, 'should_generate = false');
-ELSE
-	_uq := array_append(_uq, 'should_generate = NULL');
-END IF;
-	END IF;
-
-	IF OLD.last_generated IS DISTINCT FROM NEW.last_generated THEN
-_uq := array_append(_uq, 'last_generated = ' || quote_nullable(NEW.last_generated));
+		_duq := array_append(_duq, 'parent_dns_domain_id = ' || quote_nullable(NEW.parent_dns_domain_id));
 	END IF;
 
 	IF OLD.dns_domain_type IS DISTINCT FROM NEW.dns_domain_type THEN
-_uq := array_append(_uq, 'dns_domain_type = ' || quote_nullable(NEW.dns_domain_type));
+		_duq := array_append(_duq, 'dns_domain_type = ' || quote_nullable(NEW.dns_domain_type));
+	END IF;
+
+	--
+
+	IF OLD.soa_class IS DISTINCT FROM NEW.soa_class THEN
+		_uq := array_append(_uq, 'soa_class = ' || quote_nullable(NEW.soa_class));
+	END IF;
+
+	IF OLD.soa_ttl IS DISTINCT FROM NEW.soa_ttl THEN
+		_uq := array_append(_uq, 'soa_ttl = ' || quote_nullable(NEW.soa_ttl));
+	END IF;
+
+	IF OLD.soa_serial IS DISTINCT FROM NEW.soa_serial THEN
+		_uq := array_append(_uq, 'soa_serial = ' || quote_nullable(NEW.soa_serial));
+	END IF;
+
+	IF OLD.soa_refresh IS DISTINCT FROM NEW.soa_refresh THEN
+		_uq := array_append(_uq, 'soa_refresh = ' || quote_nullable(NEW.soa_refresh));
+	END IF;
+
+	IF OLD.soa_retry IS DISTINCT FROM NEW.soa_retry THEN
+		_uq := array_append(_uq, 'soa_retry = ' || quote_nullable(NEW.soa_retry));
+	END IF;
+
+	IF OLD.soa_expire IS DISTINCT FROM NEW.soa_expire THEN
+		_uq := array_append(_uq, 'soa_expire = ' || quote_nullable(NEW.soa_expire));
+	END IF;
+
+	IF OLD.soa_minimum IS DISTINCT FROM NEW.soa_minimum THEN
+		_uq := array_append(_uq, 'soa_minimum = ' || quote_nullable(NEW.soa_minimum));
+	END IF;
+
+	IF OLD.soa_mname IS DISTINCT FROM NEW.soa_mname THEN
+		_uq := array_append(_uq, 'soa_mname = ' || quote_nullable(NEW.soa_mname));
+	END IF;
+
+	IF OLD.soa_rname IS DISTINCT FROM NEW.soa_rname THEN
+		_uq := array_append(_uq, 'soa_rname = ' || quote_nullable(NEW.soa_rname));
+	END IF;
+
+	IF OLD.should_generate IS DISTINCT FROM NEW.should_generate THEN
+		IF NEW.should_generate = 'Y' THEN
+			_uq := array_append(_uq, 'should_generate = true');
+		ELSIF NEW.should_generate = 'N' THEN
+			_uq := array_append(_uq, 'should_generate = false');
+		ELSE
+			_uq := array_append(_uq, 'should_generate = NULL');
+		END IF;
+	END IF;
+
+	IF OLD.last_generated IS DISTINCT FROM NEW.last_generated THEN
+		_uq := array_append(_uq, 'last_generated = ' || quote_nullable(NEW.last_generated));
+	END IF;
+
+	IF _duq IS NOT NULL THEN
+		EXECUTE 'UPDATE jazzhands.dns_domain SET ' ||
+			array_to_string(_duq, ', ') ||
+			' WHERE  dns_domain_id = $1 RETURNING *'
+			USING OLD.dns_domain_id
+			INTO _d;
+
+		NEW.dns_domain_id = _d.dns_domain_id;
+		NEW.soa_name = _d.soa_name;
+		NEW.dns_domain_type = _d.dns_domain_type;
+		NEW.parent_dns_domain_id = _d.parent_dns_domain_id;
+		NEW.data_ins_user = _d.data_ins_user;
+		NEW.data_ins_date = _d.data_ins_date;
+		NEW.data_upd_user = _d.data_upd_user;
+		NEW.data_upd_date = _d.data_upd_date;
 	END IF;
 
 	IF _uq IS NOT NULL THEN
-		EXECUTE 'UPDATE jazzhands.v_dns_domain_nouniverse SET ' ||
+		EXECUTE 'UPDATE jazzhands.dns_domain_ip_universe SET ' ||
 			array_to_string(_uq, ', ') ||
-			' WHERE  dns_domain_id = $1 RETURNING *'  USING OLD.dns_domain_id
-			INTO _nr;
+			' WHERE  dns_domain_id = $1 AND ip_universe = 0 RETURNING *'
+			USING OLD.dns_domain_id
+			INTO _du;
 
-		NEW.dns_domain_id = _nr.dns_domain_id;
-		NEW.soa_name = _nr.soa_name;
-		NEW.soa_class = _nr.soa_class;
-		NEW.soa_ttl = _nr.soa_ttl;
-		NEW.soa_serial = _nr.soa_serial;
-		NEW.soa_refresh = _nr.soa_refresh;
-		NEW.soa_retry = _nr.soa_retry;
-		NEW.soa_expire = _nr.soa_expire;
-		NEW.soa_minimum = _nr.soa_minimum;
-		NEW.soa_mname = _nr.soa_mname;
-		NEW.soa_rname = _nr.soa_rname;
-		NEW.parent_dns_domain_id = _nr.parent_dns_domain_id;
-		NEW.should_generate = CASE WHEN _nr.should_generate = true THEN 'Y' WHEN _nr.should_generate = false THEN 'N' ELSE NULL END;
-		NEW.last_generated = _nr.last_generated;
-		NEW.dns_domain_type = _nr.dns_domain_type;
-		NEW.data_ins_user = _nr.data_ins_user;
-		NEW.data_ins_date = _nr.data_ins_date;
-		NEW.data_upd_user = _nr.data_upd_user;
-		NEW.data_upd_date = _nr.data_upd_date;
+		NEW.soa_class = _du.soa_class;
+		NEW.soa_ttl = _du.soa_ttl;
+		NEW.soa_serial = _du.soa_serial;
+		NEW.soa_refresh = _du.soa_refresh;
+		NEW.soa_retry = _du.soa_retry;
+		NEW.soa_expire = _du.soa_expire;
+		NEW.soa_minimum = _du.soa_minimum;
+		NEW.soa_mname = _du.soa_mname;
+		NEW.soa_rname = _du.soa_rname;
+		NEW.should_generate = CASE WHEN _du.should_generate = true THEN 'Y' WHEN _du.should_generate = false THEN 'N' ELSE NULL END;
+		NEW.last_generated = _du.last_generated;
+		NEW.data_ins_user = _du.data_ins_user;
+		NEW.data_ins_date = _du.data_ins_date;
+		NEW.data_upd_user = _du.data_upd_user;
+		NEW.data_upd_date = _du.data_upd_date;
 	END IF;
+
 	RETURN NEW;
 END;
 $$
@@ -12196,30 +12391,39 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.v_dns_domain_nouniverse_del()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_or	jazzhands.v_dns_domain_nouniverse%rowtype;
+	_d		jazzhands.dns_domain%rowtype;
+	_du		jazzhands.dns_domain_ip_universe%rowtype;
 BEGIN
-	DELETE FROM jazzhands.v_dns_domain_nouniverse
-	WHERE  dns_domain_id = OLD.dns_domain_id  RETURNING *
-	INTO _or;
-	OLD.dns_domain_id = _or.dns_domain_id;
-	OLD.soa_name = _or.soa_name;
-	OLD.soa_class = _or.soa_class;
-	OLD.soa_ttl = _or.soa_ttl;
-	OLD.soa_serial = _or.soa_serial;
-	OLD.soa_refresh = _or.soa_refresh;
-	OLD.soa_retry = _or.soa_retry;
-	OLD.soa_expire = _or.soa_expire;
-	OLD.soa_minimum = _or.soa_minimum;
-	OLD.soa_mname = _or.soa_mname;
-	OLD.soa_rname = _or.soa_rname;
-	OLD.parent_dns_domain_id = _or.parent_dns_domain_id;
-	OLD.should_generate = CASE WHEN _or.should_generate = true THEN 'Y' WHEN _or.should_generate = false THEN 'N' ELSE NULL END;
-	OLD.last_generated = _or.last_generated;
-	OLD.dns_domain_type = _or.dns_domain_type;
-	OLD.data_ins_user = _or.data_ins_user;
-	OLD.data_ins_date = _or.data_ins_date;
-	OLD.data_upd_user = _or.data_upd_user;
-	OLD.data_upd_date = _or.data_upd_date;
+	DELETE FROM jazzhands.v_dns_domain_ip_universe
+	WHERE  dns_domain_id = OLD.dns_domain_id
+	AND ip_universe = 0
+	RETURNING * INTO _du;
+
+
+	DELETE FROM jazzhands.dns_domain
+	WHERE  dns_domain_id = OLD.dns_domain_id
+	RETURNING * INTO _d;
+
+	OLD.dns_domain_id = _d.dns_domain_id;
+	OLD.soa_name = _d.dns_domain_name;
+	OLD.dns_domain_type = _d.dns_domain_type;
+	OLD.parent_dns_domain_id = _d.parent_dns_domain_id;
+
+	OLD.soa_class = _du.soa_class;
+	OLD.soa_ttl = _du.soa_ttl;
+	OLD.soa_serial = _du.soa_serial;
+	OLD.soa_refresh = _du.soa_refresh;
+	OLD.soa_retry = _du.soa_retry;
+	OLD.soa_expire = _du.soa_expire;
+	OLD.soa_minimum = _du.soa_minimum;
+	OLD.soa_mname = _du.soa_mname;
+	OLD.soa_rname = _du.soa_rname;
+	OLD.should_generate = CASE WHEN _du.should_generate = true THEN 'Y' WHEN _du.should_generate = false THEN 'N' ELSE NULL END;
+	OLD.last_generated = _du.last_generated;
+	OLD.data_ins_user = _du.data_ins_user;
+	OLD.data_ins_date = _du.data_ins_date;
+	OLD.data_upd_user = _du.data_upd_user;
+	OLD.data_upd_date = _du.data_upd_date;
 	RETURN OLD;
 END;
 $$
@@ -12536,7 +12740,7 @@ $$
 DECLARE
 	_cq	text[];
 	_vq	text[];
-	_nr	jazzhands.v_person_company%rowtype;
+	_nr	jazzhands.person_company%rowtype;
 BEGIN
 
 	IF NEW.company_id IS NOT NULL THEN
@@ -12579,29 +12783,9 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.description));
 	END IF;
 
-	IF NEW.employee_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('employee_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.employee_id));
-	END IF;
-
-	IF NEW.payroll_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('payroll_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.payroll_id));
-	END IF;
-
-	IF NEW.external_hr_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('external_hr_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.external_hr_id));
-	END IF;
-
 	IF NEW.position_title IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('position_title'));
 		_vq := array_append(_vq, quote_nullable(NEW.position_title));
-	END IF;
-
-	IF NEW.badge_system_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('badge_system_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.badge_system_id));
 	END IF;
 
 	IF NEW.hire_date IS NOT NULL THEN
@@ -12619,21 +12803,74 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.manager_person_id));
 	END IF;
 
-	IF NEW.supervisor_person_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('supervisor_person_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.supervisor_person_id));
-	END IF;
-
 	IF NEW.nickname IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('nickname'));
 		_vq := array_append(_vq, quote_nullable(NEW.nickname));
 	END IF;
 
-	EXECUTE 'INSERT INTO jazzhands.v_person_company (' ||
+	EXECUTE 'INSERT INTO jazzhands.person_company (' ||
 		array_to_string(_cq, ', ') ||
 		') VALUES ( ' ||
 		array_to_string(_vq, ', ') ||
 		') RETURNING *' INTO _nr;
+
+	--
+	-- These are the backwards compatability columns no longer in jazzhands.
+	--
+
+	IF NEW.employee_id IS NOT NULL THEN
+		INSERT INTO jazzhands.person_company_attribute (
+			company_id, person_id, person_company_attribute_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'employee_id',
+			NEW.employee_id
+		) RETURNING attribute_value INTO NEW.employee_id;
+	END IF;
+
+	IF NEW.payroll_id IS NOT NULL THEN
+		INSERT INTO jazzhands.person_company_attribute (
+			company_id, person_id, person_company_attribute_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'payroll_id',
+			NEW.payroll_id
+		) RETURNING attribute_value INTO NEW.payroll_id;
+	END IF;
+
+	IF NEW.external_hr_id IS NOT NULL THEN
+		INSERT INTO jazzhands.person_company_attribute (
+			company_id, person_id, person_company_attribute_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'external_hr_id',
+			NEW.external_hr_id
+		) RETURNING attribute_value INTO NEW.external_hr_id;
+	END IF;
+
+	IF NEW.badge_system_id IS NOT NULL THEN
+		INSERT INTO jazzhands.person_company_attribute (
+			company_id, person_id, person_company_attribute_name,
+			attribute_value
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'badge_system_id',
+			NEW.badge_system_id
+		) RETURNING attribute_value INTO NEW.badge_system_id;
+	END IF;
+
+	IF NEW.supervisor_person_id IS NOT NULL THEN
+		INSERT INTO jazzhands.person_company_attribute (
+			company_id, person_id, person_company_attribute_name,
+			attribute_value_person_id
+		) VALUES  (
+			NEW.company_id, NEW.person_id, 'supervisor_person_id',
+			NEW.attribute_value_person_id
+		) RETURNING attribute_value_person_id INTO NEW.supervisor_person_id;
+	END IF;
+
+	--
+	-- End of backwards compatability columns no longer in jazzhands
+	--
 
 	NEW.company_id = _nr.company_id;
 	NEW.person_id = _nr.person_id;
@@ -12643,15 +12880,10 @@ BEGIN
 	NEW.is_management = CASE WHEN _nr.is_management = true THEN 'Y' WHEN _nr.is_management = false THEN 'N' ELSE NULL END;
 	NEW.is_full_time = CASE WHEN _nr.is_full_time = true THEN 'Y' WHEN _nr.is_full_time = false THEN 'N' ELSE NULL END;
 	NEW.description = _nr.description;
-	NEW.employee_id = _nr.employee_id;
-	NEW.payroll_id = _nr.payroll_id;
-	NEW.external_hr_id = _nr.external_hr_id;
 	NEW.position_title = _nr.position_title;
-	NEW.badge_system_id = _nr.badge_system_id;
 	NEW.hire_date = _nr.hire_date;
 	NEW.termination_date = _nr.termination_date;
 	NEW.manager_person_id = _nr.manager_person_id;
-	NEW.supervisor_person_id = _nr.supervisor_person_id;
 	NEW.nickname = _nr.nickname;
 	NEW.data_ins_user = _nr.data_ins_user;
 	NEW.data_ins_date = _nr.data_ins_date;
@@ -12676,7 +12908,7 @@ RETURNS TRIGGER AS
 $$
 DECLARE
 	_r	jazzhands_legacy.v_person_company%rowtype;
-	_nr	jazzhands.v_person_company%rowtype;
+	_nr	jazzhands.person_company%rowtype;
 	_uq	text[];
 BEGIN
 
@@ -12730,24 +12962,8 @@ END IF;
 _uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
 	END IF;
 
-	IF OLD.employee_id IS DISTINCT FROM NEW.employee_id THEN
-_uq := array_append(_uq, 'employee_id = ' || quote_nullable(NEW.employee_id));
-	END IF;
-
-	IF OLD.payroll_id IS DISTINCT FROM NEW.payroll_id THEN
-_uq := array_append(_uq, 'payroll_id = ' || quote_nullable(NEW.payroll_id));
-	END IF;
-
-	IF OLD.external_hr_id IS DISTINCT FROM NEW.external_hr_id THEN
-_uq := array_append(_uq, 'external_hr_id = ' || quote_nullable(NEW.external_hr_id));
-	END IF;
-
 	IF OLD.position_title IS DISTINCT FROM NEW.position_title THEN
 _uq := array_append(_uq, 'position_title = ' || quote_nullable(NEW.position_title));
-	END IF;
-
-	IF OLD.badge_system_id IS DISTINCT FROM NEW.badge_system_id THEN
-_uq := array_append(_uq, 'badge_system_id = ' || quote_nullable(NEW.badge_system_id));
 	END IF;
 
 	IF OLD.hire_date IS DISTINCT FROM NEW.hire_date THEN
@@ -12762,16 +12978,12 @@ _uq := array_append(_uq, 'termination_date = ' || quote_nullable(NEW.termination
 _uq := array_append(_uq, 'manager_person_id = ' || quote_nullable(NEW.manager_person_id));
 	END IF;
 
-	IF OLD.supervisor_person_id IS DISTINCT FROM NEW.supervisor_person_id THEN
-_uq := array_append(_uq, 'supervisor_person_id = ' || quote_nullable(NEW.supervisor_person_id));
-	END IF;
-
 	IF OLD.nickname IS DISTINCT FROM NEW.nickname THEN
 _uq := array_append(_uq, 'nickname = ' || quote_nullable(NEW.nickname));
 	END IF;
 
 	IF _uq IS NOT NULL THEN
-		EXECUTE 'UPDATE jazzhands.v_person_company SET ' ||
+		EXECUTE 'UPDATE jazzhands.person_company SET ' ||
 			array_to_string(_uq, ', ') ||
 			' WHERE  person_id = $1 AND  company_id = $2 RETURNING *'  USING OLD.person_id, OLD.company_id
 			INTO _nr;
@@ -12784,21 +12996,92 @@ _uq := array_append(_uq, 'nickname = ' || quote_nullable(NEW.nickname));
 		NEW.is_management = CASE WHEN _nr.is_management = true THEN 'Y' WHEN _nr.is_management = false THEN 'N' ELSE NULL END;
 		NEW.is_full_time = CASE WHEN _nr.is_full_time = true THEN 'Y' WHEN _nr.is_full_time = false THEN 'N' ELSE NULL END;
 		NEW.description = _nr.description;
-		NEW.employee_id = _nr.employee_id;
-		NEW.payroll_id = _nr.payroll_id;
-		NEW.external_hr_id = _nr.external_hr_id;
 		NEW.position_title = _nr.position_title;
-		NEW.badge_system_id = _nr.badge_system_id;
 		NEW.hire_date = _nr.hire_date;
 		NEW.termination_date = _nr.termination_date;
 		NEW.manager_person_id = _nr.manager_person_id;
-		NEW.supervisor_person_id = _nr.supervisor_person_id;
 		NEW.nickname = _nr.nickname;
 		NEW.data_ins_user = _nr.data_ins_user;
 		NEW.data_ins_date = _nr.data_ins_date;
 		NEW.data_upd_user = _nr.data_upd_user;
 		NEW.data_upd_date = _nr.data_upd_date;
 	END IF;
+
+       IF NEW.employee_id IS NOT NULL AND OLD.employee_id IS DISTINCT FROM NEW.employee_id  THEN
+		INSERT INTO jazzhands.person_company_attribute AS pca (
+			company_id, person_id, person_company_attribute_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'employee_id', NEW.employee_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attribute
+		DO UPDATE
+			SET     attribute_value = NEW.employee_id
+			WHERE pca.person_company_attribute_name = 'employee_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id
+		RETURNING attribute_value INTO NEW.employee_id;
+
+	END IF;
+
+	IF NEW.payroll_id IS NOT NULL AND OLD.payroll_id IS DISTINCT FROM NEW.payroll_id THEN
+		INSERT INTO jazzhands.person_company_attribute AS pca (
+			company_id, person_id, person_company_attribute_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'payroll_id', NEW.payroll_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attribute
+		DO
+			UPDATE
+			SET     attribute_value = NEW.payroll_id
+			WHERE pca.person_company_attribute_name = 'payroll_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id
+		RETURNING attribute_value INTO NEW.payroll_id;
+	END IF;
+
+	IF NEW.external_hr_id IS NOT NULL AND OLD.external_hr_id IS DISTINCT FROM NEW.external_hr_id THEN
+		INSERT INTO jazzhands.person_company_attribute AS pca (
+			company_id, person_id, person_company_attribute_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'external_hr_id', NEW.external_hr_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attribute
+		DO
+			UPDATE
+			SET     attribute_value = NEW.external_hr_id
+			WHERE pca.person_company_attribute_name = 'external_hr_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id
+		RETURNING attribute_value INTO NEW.external_hr_id;
+	END IF;
+
+	IF NEW.badge_system_id IS NOT NULL AND OLD.badge_system_id IS DISTINCT FROM NEW.badge_system_id THEN
+		INSERT INTO jazzhands.person_company_attribute AS pca (
+			company_id, person_id, person_company_attribute_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'badge_system_id', NEW.badge_system_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attribute
+		DO
+			UPDATE
+			SET     attribute_value = NEW.badge_system_id
+			WHERE pca.person_company_attribute_name = 'badge_system_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id
+		RETURNING attribute_value INTO NEW.badge_system_id;
+	END IF;
+
+	IF NEW.supervisor_person_id IS NOT NULL AND OLD.supervisor_person_id IS DISTINCT FROM NEW.supervisor_person_id THEN
+		INSERT INTO jazzhands.person_company_attribute AS pca (
+			company_id, person_id, person_company_attribute_name, attribute_value
+		) VALUES (
+			NEW.company_id, NEW.person_id, 'supervisor__id', NEW.supervisor_person_id
+		) ON CONFLICT ON CONSTRAINT pk_person_company_attribute
+		DO
+			UPDATE
+			SET     attribute_value = NEW.supervisor_person_id
+			WHERE pca.person_company_attribute_name = 'supervisor_id'
+			AND pca.person_id = NEW.person_id
+			AND pca.company_id = NEW.company_id
+		RETURNING attribute_value_person_id INTO NEW.supervisor_person_id;
+	END IF;
+
 	RETURN NEW;
 END;
 $$
@@ -12817,9 +13100,40 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.v_person_company_del()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_or	jazzhands.v_person_company%rowtype;
+	_or	jazzhands.person_company%rowtype;
 BEGIN
-	DELETE FROM jazzhands.v_person_company
+
+	DELETE FROM person_company_attribute
+	WHERE person_id = OLD.person_id
+	AND company_id = OLD.company_id
+	AND person_company_attribute_name = 'employee_id'
+	RETURNING attribute_value INTO OLD.employee_id;
+
+	DELETE FROM person_company_attribute
+	WHERE person_id = OLD.person_id
+	AND company_id = OLD.company_id
+	AND person_company_attribute_name = 'payroll_id'
+	RETURNING attribute_value INTO OLD.payroll_id;
+
+	DELETE FROM person_company_attribute
+	WHERE person_id = OLD.person_id
+	AND company_id = OLD.company_id
+	AND person_company_attribute_name = 'external_hr_id'
+	RETURNING attribute_value INTO OLD.external_hr_id;
+
+	DELETE FROM person_company_attribute
+	WHERE person_id = OLD.person_id
+	AND company_id = OLD.company_id
+	AND person_company_attribute_name = 'badge_system_id'
+	RETURNING attribute_value INTO OLD.badge_system_id;
+
+	DELETE FROM person_company_attribute
+	WHERE person_id = OLD.person_id
+	AND company_id = OLD.company_id
+	AND person_company_attribute_name = 'supervisor_person_id'
+	RETURNING attribute_value_person_id INTO OLD.supervisor_person_id;
+
+	DELETE FROM jazzhands.person_company
 	WHERE  person_id = OLD.person_id  AND  company_id = OLD.company_id  RETURNING *
 	INTO _or;
 	OLD.company_id = _or.company_id;
@@ -12830,15 +13144,10 @@ BEGIN
 	OLD.is_management = CASE WHEN _or.is_management = true THEN 'Y' WHEN _or.is_management = false THEN 'N' ELSE NULL END;
 	OLD.is_full_time = CASE WHEN _or.is_full_time = true THEN 'Y' WHEN _or.is_full_time = false THEN 'N' ELSE NULL END;
 	OLD.description = _or.description;
-	OLD.employee_id = _or.employee_id;
-	OLD.payroll_id = _or.payroll_id;
-	OLD.external_hr_id = _or.external_hr_id;
 	OLD.position_title = _or.position_title;
-	OLD.badge_system_id = _or.badge_system_id;
 	OLD.hire_date = _or.hire_date;
 	OLD.termination_date = _or.termination_date;
 	OLD.manager_person_id = _or.manager_person_id;
-	OLD.supervisor_person_id = _or.supervisor_person_id;
 	OLD.nickname = _or.nickname;
 	OLD.data_ins_user = _or.data_ins_user;
 	OLD.data_ins_date = _or.data_ins_date;
@@ -15765,11 +16074,6 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.permit_os_snapshot_id));
 	END IF;
 
-	IF NEW.permit_person_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('permit_person_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.permit_person_id));
-	END IF;
-
 	IF NEW.permit_property_collection_id IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('permit_property_name_collection_id'));
 		_vq := array_append(_vq, quote_nullable(NEW.permit_property_collection_id));
@@ -15833,7 +16137,6 @@ BEGIN
 	NEW.permit_network_range_id = _nr.permit_network_range_id;
 	NEW.permit_operating_system_id = _nr.permit_operating_system_id;
 	NEW.permit_os_snapshot_id = _nr.permit_operating_system_snapshot_id;
-	NEW.permit_person_id = _nr.permit_person_id;
 	NEW.permit_property_collection_id = _nr.permit_property_name_collection_id;
 	NEW.permit_service_env_collection = _nr.permit_service_environment_collection;
 	NEW.permit_site_code = _nr.permit_site_code;
@@ -16000,10 +16303,6 @@ _uq := array_append(_uq, 'permit_operating_system_id = ' || quote_nullable(NEW.p
 _uq := array_append(_uq, 'permit_operating_system_snapshot_id = ' || quote_nullable(NEW.permit_os_snapshot_id));
 	END IF;
 
-	IF OLD.permit_person_id IS DISTINCT FROM NEW.permit_person_id THEN
-_uq := array_append(_uq, 'permit_person_id = ' || quote_nullable(NEW.permit_person_id));
-	END IF;
-
 	IF OLD.permit_property_collection_id IS DISTINCT FROM NEW.permit_property_collection_id THEN
 _uq := array_append(_uq, 'permit_property_name_collection_id = ' || quote_nullable(NEW.permit_property_collection_id));
 	END IF;
@@ -16062,7 +16361,6 @@ _uq := array_append(_uq, 'permit_property_rank = ' || quote_nullable(NEW.permit_
 		NEW.permit_network_range_id = _nr.permit_network_range_id;
 		NEW.permit_operating_system_id = _nr.permit_operating_system_id;
 		NEW.permit_os_snapshot_id = _nr.permit_operating_system_snapshot_id;
-		NEW.permit_person_id = _nr.permit_person_id;
 		NEW.permit_property_collection_id = _nr.permit_property_name_collection_id;
 		NEW.permit_service_env_collection = _nr.permit_service_environment_collection;
 		NEW.permit_site_code = _nr.permit_site_code;
@@ -16128,7 +16426,6 @@ BEGIN
 	OLD.permit_network_range_id = _or.permit_network_range_id;
 	OLD.permit_operating_system_id = _or.permit_operating_system_id;
 	OLD.permit_os_snapshot_id = _or.permit_operating_system_snapshot_id;
-	OLD.permit_person_id = _or.permit_person_id;
 	OLD.permit_property_collection_id = _or.permit_property_name_collection_id;
 	OLD.permit_service_env_collection = _or.permit_service_environment_collection;
 	OLD.permit_site_code = _or.permit_site_code;
@@ -17070,135 +17367,145 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.x509_certificate_ins()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_cq	text[];
-	_vq	text[];
-	_nr	jazzhands.x509_certificate%rowtype;
+	key	jazzhands.private_key%rowtype;
+	csr	jazzhands.certificate_signing_request%rowtype;
+	crt	jazzhands.x509_signed_certificate%rowtype;
 BEGIN
-
-	IF NEW.x509_cert_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('x509_cert_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.x509_cert_id));
-	END IF;
-
-	IF NEW.friendly_name IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('friendly_name'));
-		_vq := array_append(_vq, quote_nullable(NEW.friendly_name));
-	END IF;
-
-	IF NEW.is_active IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('is_active'));
-		_vq := array_append(_vq, quote_nullable(CASE WHEN NEW.is_active = 'Y' THEN true WHEN NEW.is_active = 'N' THEN false ELSE NULL END));
-	END IF;
-
-	IF NEW.is_certificate_authority IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('is_certificate_authority'));
-		_vq := array_append(_vq, quote_nullable(CASE WHEN NEW.is_certificate_authority = 'Y' THEN true WHEN NEW.is_certificate_authority = 'N' THEN false ELSE NULL END));
-	END IF;
-
-	IF NEW.signing_cert_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('signing_cert_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.signing_cert_id));
-	END IF;
-
-	IF NEW.x509_ca_cert_serial_number IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('x509_ca_cert_serial_number'));
-		_vq := array_append(_vq, quote_nullable(NEW.x509_ca_cert_serial_number));
-	END IF;
-
-	IF NEW.public_key IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('public_key'));
-		_vq := array_append(_vq, quote_nullable(NEW.public_key));
-	END IF;
-
 	IF NEW.private_key IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('private_key'));
-		_vq := array_append(_vq, quote_nullable(NEW.private_key));
+		INSERT INTO jazzhands.private_key (
+			private_key_encryption_type,
+			is_active,
+			subject_key_identifier,
+			private_key,
+			passphrase,
+			encryption_key_id
+		) VALUES (
+			'rsa',
+			NEW.is_active,
+			NEW.subject_key_identifier,
+			NEW.private_key,
+			NEW.passphrase,
+			NEW.encryption_key_id
+		) RETURNING * INTO key;
+		NEW.x509_cert_id := key;
+	ELSE
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			SELECT jazzhands.private_key_id
+			INTO key
+			FROM private_key
+			WHERE subject_key_identifier = NEW.subject_key_identifier;
+
+			SELECT private_key
+			INTO NEW.private_key
+			FROM private_key
+			WHERE private_key_id = key;
+		END IF;
 	END IF;
 
 	IF NEW.certificate_sign_req IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('certificate_sign_req'));
-		_vq := array_append(_vq, quote_nullable(NEW.certificate_sign_req));
+		INSERT INTO jazzhands.certificate_signing_request (
+			friendly_name,
+			subject,
+			certificate_signing_request,
+			private_key_id
+		) VALUES (
+			NEW.friendly_name,
+			NEW.subject,
+			NEW.certificate_sign_req,
+			key
+		) RETURNING * INTO csr;
+		IF NEW.x509_cert_id IS NULL THEN
+			NEW.x509_cert_id := csr;
+		END IF;
+	ELSE
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			SELECT certificate_signing_request_id
+			INTO csr
+			FROM certificate_signing_request
+				JOIN private_key USING (private_key_id)
+			WHERE subject_key_identifier = NEW.subject_key_identifier
+			ORDER BY certificate_signing_request_id
+			LIMIT 1;
+
+			SELECT certificate_signing_request
+			INTO NEW.certificate_sign_req
+			FROM certificate_signing_request
+			WHERE certificate_signing_request_id  = csr;
+		END IF;
 	END IF;
 
-	IF NEW.subject IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('subject'));
-		_vq := array_append(_vq, quote_nullable(NEW.subject));
+	IF NEW.public_key IS NOT NULL THEN
+		INSERT INTO jazzhands.x509_signed_certificate (
+			friendly_name,
+			is_active,
+			is_certificate_authority,
+			signing_cert_id,
+			x509_ca_cert_serial_number,
+			public_key,
+			subject,
+			subject_key_identifier,
+			valid_from,
+			valid_to,
+			x509_revocation_date,
+			x509_revocation_reason,
+			ocsp_uri,
+			crl_uri,
+			private_key_id,
+			certificate_signing_request_id
+		) VALUES (
+			NEW.friendly_name,
+			CASE WHEN NEW.is_active = 'Y' THEN true
+				WHEN NEW.is_active = 'N' THEN false
+				ELSE NULL END,
+			CASE WHEN NEW.is_certificate_authority = 'Y' THEN true
+				WHEN NEW.is_certificate_authority = 'N' THEN false
+				ELSE NULL END,
+			NEW.signing_cert_id,
+			NEW.x509_ca_cert_serial_number,
+			NEW.public_key,
+			NEW.subject,
+			NEW.subject_key_identifier,
+			NEW.valid_from,
+			NEW.valid_to,
+			NEW.x509_revocation_date,
+			NEW.x509_revocation_reason,
+			NEW.ocsp_uri,
+			NEW.crl_uri,
+			key,
+			csr
+		) RETURNING * INTO crt;
 	END IF;
 
-	IF NEW.subject_key_identifier IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('subject_key_identifier'));
-		_vq := array_append(_vq, quote_nullable(NEW.subject_key_identifier));
-	END IF;
+	NEW.x509_cert_id 		= crt.x509_signed_certificate_id;
+	NEW.friendly_name 		= crt.friendly_name;
+	NEW.is_active 			= CASE WHEN crt.is_active = true THEN 'Y'
+								WHEN crt.is_active = false THEN 'N'
+								ELSE NULL END;
+	NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority =
+									true THEN 'Y'
+								WHEN crt.is_certificate_authority = false
+									THEN 'N'
+								ELSE NULL END;
 
-	IF NEW.valid_from IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('valid_from'));
-		_vq := array_append(_vq, quote_nullable(NEW.valid_from));
-	END IF;
-
-	IF NEW.valid_to IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('valid_to'));
-		_vq := array_append(_vq, quote_nullable(NEW.valid_to));
-	END IF;
-
-	IF NEW.x509_revocation_date IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('x509_revocation_date'));
-		_vq := array_append(_vq, quote_nullable(NEW.x509_revocation_date));
-	END IF;
-
-	IF NEW.x509_revocation_reason IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('x509_revocation_reason'));
-		_vq := array_append(_vq, quote_nullable(NEW.x509_revocation_reason));
-	END IF;
-
-	IF NEW.passphrase IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('passphrase'));
-		_vq := array_append(_vq, quote_nullable(NEW.passphrase));
-	END IF;
-
-	IF NEW.encryption_key_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('encryption_key_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.encryption_key_id));
-	END IF;
-
-	IF NEW.ocsp_uri IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('ocsp_uri'));
-		_vq := array_append(_vq, quote_nullable(NEW.ocsp_uri));
-	END IF;
-
-	IF NEW.crl_uri IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('crl_uri'));
-		_vq := array_append(_vq, quote_nullable(NEW.crl_uri));
-	END IF;
-
-	EXECUTE 'INSERT INTO jazzhands.x509_certificate (' ||
-		array_to_string(_cq, ', ') ||
-		') VALUES ( ' ||
-		array_to_string(_vq, ', ') ||
-		') RETURNING *' INTO _nr;
-
-	NEW.x509_cert_id = _nr.x509_cert_id;
-	NEW.friendly_name = _nr.friendly_name;
-	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-	NEW.is_certificate_authority = CASE WHEN _nr.is_certificate_authority = true THEN 'Y' WHEN _nr.is_certificate_authority = false THEN 'N' ELSE NULL END;
-	NEW.signing_cert_id = _nr.signing_cert_id;
-	NEW.x509_ca_cert_serial_number = _nr.x509_ca_cert_serial_number;
-	NEW.public_key = _nr.public_key;
-	NEW.private_key = _nr.private_key;
-	NEW.certificate_sign_req = _nr.certificate_sign_req;
-	NEW.subject = _nr.subject;
-	NEW.subject_key_identifier = _nr.subject_key_identifier;
-	NEW.valid_from = _nr.valid_from;
-	NEW.valid_to = _nr.valid_to;
-	NEW.x509_revocation_date = _nr.x509_revocation_date;
-	NEW.x509_revocation_reason = _nr.x509_revocation_reason;
-	NEW.passphrase = _nr.passphrase;
-	NEW.encryption_key_id = _nr.encryption_key_id;
-	NEW.ocsp_uri = _nr.ocsp_uri;
-	NEW.crl_uri = _nr.crl_uri;
-	NEW.data_ins_user = _nr.data_ins_user;
-	NEW.data_ins_date = _nr.data_ins_date;
-	NEW.data_upd_user = _nr.data_upd_user;
-	NEW.data_upd_date = _nr.data_upd_date;
+	NEW.signing_cert_id 			= crt.signing_cert_id;
+	NEW.x509_ca_cert_serial_number	= crt.x509_ca_cert_serial_number;
+	NEW.public_key 					= crt.public_key;
+	NEW.private_key 				= key.private_key;
+	NEW.certificate_sign_req 		= csr.certificate_signing_request;
+	NEW.subject 					= crt.subject;
+	NEW.subject_key_identifier 		= crt.subject_key_identifier;
+	NEW.valid_from 					= crt.valid_from;
+	NEW.valid_to 					= crt.valid_to;
+	NEW.x509_revocation_date 		= crt.x509_revocation_date;
+	NEW.x509_revocation_reason 		= crt.x509_revocation_reason;
+	NEW.passphrase 					= key.passphrase;
+	NEW.encryption_key_id 			= key.encryption_key_id;
+	NEW.ocsp_uri 					= crt.ocsp_uri;
+	NEW.crl_uri 					= crt.crl_uri;
+	NEW.data_ins_user 				= crt.data_ins_user;
+	NEW.data_ins_date 				= crt.data_ins_date;
+	NEW.data_upd_user 				= crt.data_upd_user;
+	NEW.data_upd_date 				= crt.data_upd_date;
 	RETURN NEW;
 END;
 $$
@@ -17217,129 +17524,258 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.x509_certificate_upd()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_r	jazzhands_legacy.x509_certificate%rowtype;
-	_nr	jazzhands.x509_certificate%rowtype;
+	crt	jazzhands.x509_signed_certificate%rowtype;
+	key	jazzhands.private_key%rowtype;
+	csr	jazzhands.certificate_signing_request%rowtype;
 	_uq	text[];
 BEGIN
+	SELECT * INTO crt FROM jazzhands.x509_signed_certificate
+        WHERE x509_signed_certificate_id = OLD.x509_cert_id;
 
-	IF OLD.x509_cert_id IS DISTINCT FROM NEW.x509_cert_id THEN
-_uq := array_append(_uq, 'x509_cert_id = ' || quote_nullable(NEW.x509_cert_id));
+	IF crt.private_key_ID IS NULL AND NEW.private_key IS NOT NULL THEN
+		INSERT INTO private_key (
+			private_key_encryption_type,
+			is_active,
+			subject_key_identifier,
+			private_key,
+			passphrase,
+			encryption_key_id
+		) VALUES (
+			'rsa',
+			NEW.is_active,
+			NEW.subject_key_identifier,
+			NEW.private_key,
+			NEW.passphrase,
+			NEW.encryption_key_id
+		) RETURNING * INTO key;
+	ELSE IF crt.private_key_id IS NOT NULL THEN
+		SELECT * INTO key FROM jazzhands.private_key k
+			WHERE k.private_key_id =  crt.private_key_id;
+
+		-- delete happens at the end, after update
+		IF NEW.private_key IS NOT NULL THEN
+			IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
+				_uq := array_append(_uq,
+					'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier)
+				);
+			END IF;
+			IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
+				_uq := array_append(_uq,
+					'is_active = ' || quote_literal(NEW.is_active)
+				);
+			END IF;
+			IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
+				_uq := array_append(_uq,
+					'private_key = ' || quote_nullable(NEW.private_key)
+				);
+			END IF;
+			IF OLD.passphrase IS DISTINCT FROM NEW.passphrase THEN
+				_uq := array_append(_uq,
+					'passphrase = ' || quote_nullable(NEW.passphrase)
+				);
+			END IF;
+			IF OLD.encryption_key_id IS DISTINCT FROM NEW.encryption_key_id THEN
+				_uq := array_append(_uq,
+					'encryption_key_id = ' || quote_nullable(NEW.encryption_key_id)
+				);
+			END IF;
+			IF array_length(_uq, 1) > 0 THEN
+				EXECUTE format('UPDATE private_key SET %s WHERE private_key_id = $1 RETURNING *',
+					array_to_string(_uq, ', '))
+					USING crt.private_key_id
+					INTO key;
+			END IF;
+		END IF;
+
+		NEW.private_key 	= key.private_key;
+		NEW.is_active 		= key.private_key;
+		NEW.passphrase 		= key.passphrase;
+		NEW.encryption_key 	= key.passphrase;
 	END IF;
 
-	IF OLD.friendly_name IS DISTINCT FROM NEW.friendly_name THEN
-_uq := array_append(_uq, 'friendly_name = ' || quote_nullable(NEW.friendly_name));
+	-- private_key pieces are now what it is supposed to be.
+	_uq := NULL;
+
+	IF crt.certificate_signing_request_id IS NULL AND NEW.certificate_sign_req IS NOT NULL THEN
+		INSERT INTO jazzhands.certificate_signing_request (
+			friendly_name,
+			subject,
+			certificate_signing_request,
+			private_key_id
+		) VALUES (
+			NEW.friendly_name,
+			NEW.subject,
+			NEW.certificate_sign_req,
+			key.private_key_id
+		) RETURNING * INTO csr;
+	ELSIF crt.certificate_sign_req IS NOT NULL THEN
+		SELECT * INTO csr FROM jazzhands.certificate_signing_request c
+			WHERE c.certificate_sign_req =  crt.certificate_signing_request_id;
+
+		-- delete happens at the end, after update
+		IF NEW.certificate_sign_req IS NOT NULL THEN
+			IF OLD.certificate_sign_req IS DISTINCT FROM NEW.certificate_sign_req THEN
+				_uq := array_append(_uq,
+					'certificate_signing_request = ' || quote_nullable(NEW.certificate_sign_req)
+				);
+			END IF;
+			IF OLD.subject IS DISTINCT FROM NEW.subject THEN
+				_uq := array_append(_uq,
+					'subject = ' || quote_nullable(NEW.subject)
+				);
+			END IF;
+			IF OLD.friendly_name IS DISTINCT FROM NEW.friendly_name THEN
+				_uq := array_append(_uq,
+					'friendly_name = ' || quote_nullable(NEW.friendly_name)
+				);
+			END IF;
+			IF OLD.private_key_id IS DISTINCT FROM key.private_key_id THEN
+				_uq := array_append(_uq,
+					'private_key_id = ' || quote_nullable(NEW.private_key_id)
+				);
+			END IF;
+
+			IF array_length(_uq, 1) > 0 THEN
+				EXECUTE format('UPDATE private_key SET %s WHERE private_key_id = $1 RETURNING *',
+					array_to_string(_uq, ', '))
+					USING crt.private_key_id
+					INTO key;
+			END IF;
+		END IF;
+
+		NEW.certificate_sign_req 	= csr.certificate_signing_request;
 	END IF;
+
+	-- csr and private_key pieces are now what it is supposed to be.
+	_uq := NULL;
 
 	IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
-IF NEW.is_active = 'Y' THEN
-	_uq := array_append(_uq, 'is_active = true');
-ELSIF NEW.is_active = 'N' THEN
-	_uq := array_append(_uq, 'is_active = false');
-ELSE
-	_uq := array_append(_uq, 'is_active = NULL');
-END IF;
+		IF NEW.is_active = 'Y' THEN
+			_uq := array_append(_uq, 'is_active = true');
+		ELSIF NEW.is_active = 'N' THEN
+			_uq := array_append(_uq, 'is_active = false');
+		ELSE
+			_uq := array_append(_uq, 'is_active = NULL');
+		END IF;
+	END IF;
+
+	END IF;
+	IF OLD.friendly_name IS DISTINCT FROM NEW.friendly_name THEN
+		_uq := array_append(_uq,
+			'friendly_name = ' || quote_literal(NEW.friendly_name)
+		);
+	END IF;
+	IF OLD.subject IS DISTINCT FROM NEW.subject THEN
+		_uq := array_append(_uq,
+			'subject = ' || quote_literal(NEW.subject)
+		);
+	END IF;
+	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
+		_uq := array_append(_uq,
+			'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier)
+		);
 	END IF;
 
 	IF OLD.is_certificate_authority IS DISTINCT FROM NEW.is_certificate_authority THEN
-IF NEW.is_certificate_authority = 'Y' THEN
-	_uq := array_append(_uq, 'is_certificate_authority = true');
-ELSIF NEW.is_certificate_authority = 'N' THEN
-	_uq := array_append(_uq, 'is_certificate_authority = false');
-ELSE
-	_uq := array_append(_uq, 'is_certificate_authority = NULL');
-END IF;
+		IF NEW.is_certificate_authority = 'Y' THEN
+			_uq := array_append(_uq, 'is_certificate_authority = true');
+		ELSIF NEW.is_certificate_authority = 'N' THEN
+			_uq := array_append(_uq, 'is_certificate_authority = false');
+		ELSE
+			_uq := array_append(_uq, 'is_certificate_authority = NULL');
+		END IF;
 	END IF;
 
 	IF OLD.signing_cert_id IS DISTINCT FROM NEW.signing_cert_id THEN
-_uq := array_append(_uq, 'signing_cert_id = ' || quote_nullable(NEW.signing_cert_id));
+		_uq := array_append(_uq,
+			'signing_cert_id = ' || quote_nullable(NEW.signing_cert_id)
+		);
 	END IF;
-
 	IF OLD.x509_ca_cert_serial_number IS DISTINCT FROM NEW.x509_ca_cert_serial_number THEN
-_uq := array_append(_uq, 'x509_ca_cert_serial_number = ' || quote_nullable(NEW.x509_ca_cert_serial_number));
+		_uq := array_append(_uq,
+			'x509_ca_cert_serial_number = ' || quote_nullable(NEW.x509_ca_cert_serial_number)
+		);
 	END IF;
-
 	IF OLD.public_key IS DISTINCT FROM NEW.public_key THEN
-_uq := array_append(_uq, 'public_key = ' || quote_nullable(NEW.public_key));
+		_uq := array_append(_uq,
+			'public_key = ' || quote_nullable(NEW.public_key)
+		);
 	END IF;
-
-	IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
-_uq := array_append(_uq, 'private_key = ' || quote_nullable(NEW.private_key));
-	END IF;
-
-	IF OLD.certificate_sign_req IS DISTINCT FROM NEW.certificate_sign_req THEN
-_uq := array_append(_uq, 'certificate_sign_req = ' || quote_nullable(NEW.certificate_sign_req));
-	END IF;
-
-	IF OLD.subject IS DISTINCT FROM NEW.subject THEN
-_uq := array_append(_uq, 'subject = ' || quote_nullable(NEW.subject));
-	END IF;
-
-	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
-_uq := array_append(_uq, 'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier));
-	END IF;
-
 	IF OLD.valid_from IS DISTINCT FROM NEW.valid_from THEN
-_uq := array_append(_uq, 'valid_from = ' || quote_nullable(NEW.valid_from));
+		_uq := array_append(_uq,
+			'valid_from = ' || quote_nullable(NEW.valid_from)
+		);
 	END IF;
-
 	IF OLD.valid_to IS DISTINCT FROM NEW.valid_to THEN
-_uq := array_append(_uq, 'valid_to = ' || quote_nullable(NEW.valid_to));
+		_uq := array_append(_uq,
+			'valid_to = ' || quote_nullable(NEW.valid_to)
+		);
 	END IF;
-
 	IF OLD.x509_revocation_date IS DISTINCT FROM NEW.x509_revocation_date THEN
-_uq := array_append(_uq, 'x509_revocation_date = ' || quote_nullable(NEW.x509_revocation_date));
+		_uq := array_append(_uq,
+			'x509_revocation_date = ' || quote_nullable(NEW.x509_revocation_date)
+		);
 	END IF;
-
 	IF OLD.x509_revocation_reason IS DISTINCT FROM NEW.x509_revocation_reason THEN
-_uq := array_append(_uq, 'x509_revocation_reason = ' || quote_nullable(NEW.x509_revocation_reason));
+		_uq := array_append(_uq,
+			'x509_revocation_reason = ' || quote_nullable(NEW.x509_revocation_reason)
+		);
 	END IF;
-
-	IF OLD.passphrase IS DISTINCT FROM NEW.passphrase THEN
-_uq := array_append(_uq, 'passphrase = ' || quote_nullable(NEW.passphrase));
-	END IF;
-
-	IF OLD.encryption_key_id IS DISTINCT FROM NEW.encryption_key_id THEN
-_uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption_key_id));
-	END IF;
-
 	IF OLD.ocsp_uri IS DISTINCT FROM NEW.ocsp_uri THEN
-_uq := array_append(_uq, 'ocsp_uri = ' || quote_nullable(NEW.ocsp_uri));
+		_uq := array_append(_uq,
+			'ocsp_uri = ' || quote_nullable(NEW.ocsp_uri)
+		);
+	END IF;
+	IF OLD.crl_uri IS DISTINCT FROM NEW.crl_uri THEN
+		_uq := array_append(_uq,
+			'crl_uri = ' || quote_nullable(NEW.crl_uri)
+		);
 	END IF;
 
-	IF OLD.crl_uri IS DISTINCT FROM NEW.crl_uri THEN
-_uq := array_append(_uq, 'crl_uri = ' || quote_nullable(NEW.crl_uri));
+	IF array_length(_uq, 1) > 0 THEN
+		EXECUTE 'UPDATE x509_signed_certificate SET '
+			|| array_to_string(upq, ', ')
+			|| ' WHERE x509_signed_certificate_id = '
+			|| NEW.x509_cert_id;
 	END IF;
 
 	IF _uq IS NOT NULL THEN
 		EXECUTE 'UPDATE jazzhands.x509_certificate SET ' ||
 			array_to_string(_uq, ', ') ||
 			' WHERE  x509_cert_id = $1 RETURNING *'  USING OLD.x509_cert_id
-			INTO _nr;
+			INTO crt;
 
-		NEW.x509_cert_id = _nr.x509_cert_id;
-		NEW.friendly_name = _nr.friendly_name;
-		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-		NEW.is_certificate_authority = CASE WHEN _nr.is_certificate_authority = true THEN 'Y' WHEN _nr.is_certificate_authority = false THEN 'N' ELSE NULL END;
-		NEW.signing_cert_id = _nr.signing_cert_id;
-		NEW.x509_ca_cert_serial_number = _nr.x509_ca_cert_serial_number;
-		NEW.public_key = _nr.public_key;
-		NEW.private_key = _nr.private_key;
-		NEW.certificate_sign_req = _nr.certificate_sign_req;
-		NEW.subject = _nr.subject;
-		NEW.subject_key_identifier = _nr.subject_key_identifier;
-		NEW.valid_from = _nr.valid_from;
-		NEW.valid_to = _nr.valid_to;
-		NEW.x509_revocation_date = _nr.x509_revocation_date;
-		NEW.x509_revocation_reason = _nr.x509_revocation_reason;
-		NEW.passphrase = _nr.passphrase;
-		NEW.encryption_key_id = _nr.encryption_key_id;
-		NEW.ocsp_uri = _nr.ocsp_uri;
-		NEW.crl_uri = _nr.crl_uri;
-		NEW.data_ins_user = _nr.data_ins_user;
-		NEW.data_ins_date = _nr.data_ins_date;
-		NEW.data_upd_user = _nr.data_upd_user;
-		NEW.data_upd_date = _nr.data_upd_date;
+		NEW.x509_cert_id = _crt.x509_signed_certificate_id;
+		NEW.friendly_name = crt.friendly_name;
+		NEW.is_active = CASE WHEN crt.is_active = true THEN 'Y' WHEN crt.is_active = false THEN 'N' ELSE NULL END;
+		NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority = true THEN 'Y' WHEN crt.is_certificate_authority = false THEN 'N' ELSE NULL END;
+		NEW.signing_cert_id = crt.signing_cert_id;
+		NEW.x509_ca_cert_serial_number = crt.x509_ca_cert_serial_number;
+		NEW.public_key = crt.public_key;
+		NEW.subject = crt.subject;
+		NEW.subject_key_identifier = crt.subject_key_identifier;
+		NEW.valid_from = crt.valid_from;
+		NEW.valid_to = crt.valid_to;
+		NEW.x509_revocation_date = crt.x509_revocation_date;
+		NEW.x509_revocation_reason = crt.x509_revocation_reason;
+		NEW.ocsp_uri = crt.ocsp_uri;
+		NEW.crl_uri = crt.crl_uri;
+		NEW.data_ins_user = crt.data_ins_user;
+		NEW.data_ins_date = crt.data_ins_date;
+		NEW.data_upd_user = crt.data_upd_user;
+		NEW.data_upd_date = crt.data_upd_date;
 	END IF;
+
+	IF OLD.certificate_sign_req IS NOT NULL AND NEW.certificate_sign_req IS NULL THEN
+		DELETE FROM jazzhands.certificate_signing_request
+		WHERE certificate_signing_request_id = crt.certificate_signing_request_id;
+	END IF;
+
+	IF OLD.private_key IS NOT NULL AND NEW.private_key IS NULL THEN
+		DELETE FROM jazzhands.private_key
+		WHERE private_key_id = crt.private_key_id;
+	END IF;
+
 	RETURN NEW;
 END;
 $$
@@ -17358,34 +17794,49 @@ CREATE OR REPLACE FUNCTION jazzhands_legacy.x509_certificate_del()
 RETURNS TRIGGER AS
 $$
 DECLARE
-	_or	jazzhands.x509_certificate%rowtype;
+	crt     jazzhands.x509_signed_certificate%ROWTYPE;
+	key     jazzhands.private_key%ROWTYPE;
+	csr     jazzhands.certificate_signing_request%ROWTYPE;
 BEGIN
-	DELETE FROM jazzhands.x509_certificate
-	WHERE  x509_cert_id = OLD.x509_cert_id  RETURNING *
-	INTO _or;
-	OLD.x509_cert_id = _or.x509_cert_id;
-	OLD.friendly_name = _or.friendly_name;
-	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
-	OLD.is_certificate_authority = CASE WHEN _or.is_certificate_authority = true THEN 'Y' WHEN _or.is_certificate_authority = false THEN 'N' ELSE NULL END;
-	OLD.signing_cert_id = _or.signing_cert_id;
-	OLD.x509_ca_cert_serial_number = _or.x509_ca_cert_serial_number;
-	OLD.public_key = _or.public_key;
-	OLD.private_key = _or.private_key;
-	OLD.certificate_sign_req = _or.certificate_sign_req;
-	OLD.subject = _or.subject;
-	OLD.subject_key_identifier = _or.subject_key_identifier;
-	OLD.valid_from = _or.valid_from;
-	OLD.valid_to = _or.valid_to;
-	OLD.x509_revocation_date = _or.x509_revocation_date;
-	OLD.x509_revocation_reason = _or.x509_revocation_reason;
-	OLD.passphrase = _or.passphrase;
-	OLD.encryption_key_id = _or.encryption_key_id;
-	OLD.ocsp_uri = _or.ocsp_uri;
-	OLD.crl_uri = _or.crl_uri;
-	OLD.data_ins_user = _or.data_ins_user;
-	OLD.data_ins_date = _or.data_ins_date;
-	OLD.data_upd_user = _or.data_upd_user;
-	OLD.data_upd_date = _or.data_upd_date;
+	SELECT * INTO crt FROM jazzhands.x509_signed_certificate
+		WHERE x509_signed_certificate_id = OLD.x509_cert_id;
+
+	IF crt.private_key_id IS NOT NULL THEN
+		DELETE FROM jazzhands.private_key
+		WHERE private_key_id = crt.private_key_id
+		RETURNING * INTO key;
+	END IF;
+
+	IF crt.private_key_id IS NOT NULL THEN
+		DELETE FROM jazzhands.certificate_signing_request
+		WHERE certificate_signing_request_id =
+		crt.certificate_signing_request_id
+		RETURNING * INTO crt;
+	END IF;
+
+	OLD.x509_cert_id = crt.x509_signed_certiciate_id;
+	OLD.friendly_name = crt.friendly_name;
+	OLD.is_active = CASE WHEN crt.is_active = true THEN 'Y' WHEN crt.is_active = false THEN 'N' ELSE NULL END;
+	OLD.is_certificate_authority = CASE WHEN crt.is_certificate_authority = true THEN 'Y' WHEN crt.is_certificate_authority = false THEN 'N' ELSE NULL END;
+	OLD.signing_cert_id = crt.signing_cert_id;
+	OLD.x509_ca_cert_serial_number = crt.x509_ca_cert_serial_number;
+	OLD.public_key = crt.public_key;
+	OLD.private_key = key.private_key;
+	OLD.certificate_sign_req = crt.certificate_signing_request;
+	OLD.subject = crt.subject;
+	OLD.subject_key_identifier = crt.subject_key_identifier;
+	OLD.valid_from = crt.valid_from;
+	OLD.valid_to = crt.valid_to;
+	OLD.x509_revocation_date = crt.x509_revocation_date;
+	OLD.x509_revocation_reason = crt.x509_revocation_reason;
+	OLD.passphrase = key.passphrase;
+	OLD.encryption_key_id = key.encryption_key_id;
+	OLD.ocsp_uri = crt.ocsp_uri;
+	OLD.crl_uri = crt.crl_uri;
+	OLD.data_ins_user = crt.data_ins_user;
+	OLD.data_ins_date = crt.data_ins_date;
+	OLD.data_upd_user = crt.data_upd_user;
+	OLD.data_upd_date = crt.data_upd_date;
 	RETURN OLD;
 END;
 $$
@@ -17724,5 +18175,444 @@ CREATE TRIGGER trigger_x509_signed_certificate_del
 	EXECUTE PROCEDURE jazzhands_legacy.x509_signed_certificate_del();
 
 
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
 
 
+CREATE OR REPLACE FUNCTION jazzhands_legacy.dns_domain_ins()
+RETURNS TRIGGER AS
+$$
+DECLARE
+	_d	jazzhands.dns_domain%ROWTYPE;
+BEGIN
+	IF NEW.dns_domain_name IS NOT NULL and NEW.soa_name IS NOT NULL THEN
+		RAISE EXCEPTION 'Must only set dns_domain_name, not soa_name'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.dns_domain_id IS NULL THEN
+		INSERT INTO jazzhands.dns_domain (
+			dns_domain_name,
+			dns_domain_type,
+			parent_dns_domain_id,
+			description,
+			external_id,
+			data_ins_user,
+			data_ins_date,
+			data_upd_user,
+			data_upd_date
+		) VALUES (
+			coalesce(NEW.dns_domain_name, NEW.soa_name),
+			NEW.dns_domain_type,
+			NEW.parent_dns_domain_id,
+			NEW.description,
+			NEW.external_id,
+			NEW.data_ins_user,
+			NEW.data_ins_date,
+			NEW.data_upd_user,
+			NEW.data_upd_date
+		) RETURNING * INTO _d;
+	ELSE
+		INSERT INTO jazzhands.dns_domain (
+			dns_domain_id,
+			dns_domain_name,
+			dns_domain_type,
+			parent_dns_domain_id,
+			description,
+			external_id,
+			data_ins_user,
+			data_ins_date,
+			data_upd_user,
+			data_upd_date
+		) VALUES (
+			NEW.dns_domain_id,
+			coalesce(NEW.dns_domain_name, NEW.soa_name),
+			NEW.dns_domain_type,
+			NEW.parent_dns_domain_id,
+			NEW.description,
+			NEW.external_id,
+			NEW.data_ins_user,
+			NEW.data_ins_date,
+			NEW.data_upd_user,
+			NEW.data_upd_date
+		) RETURNING * INTO _d;
+	END IF;
+
+	NEW.dns_domain_id			= _d.dns_domain_id;
+	NEW.soa_name				= _d.dns_domain_name;
+	NEW.dns_domain_name			= _d.dns_domain_name;
+	NEW.dns_domain_type			= _d.dns_domain_type;
+	NEW.parent_dns_domain_id	= _d.parent_dns_domain_id;
+	NEW.description				= _d.description;
+	NEW.external_id				= _d.external_id;
+	NEW.data_ins_user			= _d.data_ins_user;
+	NEW.data_ins_date			= _d.data_ins_date;
+	NEW.data_upd_user			= _d.data_upd_user;
+	NEW.data_upd_date			= _d.data_upd_date;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_ins
+	ON jazzhands_legacy.dns_domain;
+CREATE TRIGGER trigger_dns_domain_ins
+	INSTEAD OF INSERT ON jazzhands_legacy.dns_domain
+	FOR EACH ROW
+	EXECUTE PROCEDURE jazzhands_legacy.dns_domain_ins();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_legacy.dns_domain_upd()
+RETURNS TRIGGER AS
+$$
+DECLARE
+	_d	jazzhands.dns_domain%ROWTYPE;
+	_uq	TEXT[];
+BEGIN
+	IF OLD.dns_domain_name IS DISTINCT FROM NEW.dns_domain_name
+		AND OLD.soa_name IS DISTINCT FROM NEW.soa_name
+	 THEN
+		RAISE EXCEPTION 'Must only change dns_domain_name OR soa_name'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF OLD.dns_domain_id IS DISTINCT FROM NEW.dns_domain_id THEN
+		_uq := array_append(_uq, 'dns_domain_id = ' || quote_nullable(NEW.dns_domain_id));
+	END IF;
+
+	IF OLD.dns_domain_name IS DISTINCT FROM NEW.dns_domain_name THEN
+		_uq := array_append(_uq, 'dns_domain_name = ' || quote_nullable(NEW.dns_domain_name));
+	END IF;
+
+	IF OLD.soa_name IS DISTINCT FROM NEW.soa_name THEN
+		_uq := array_append(_uq, 'dns_domain_name = ' || quote_nullable(NEW.soa_name));
+	END IF;
+
+	IF OLD.dns_domain_type IS DISTINCT FROM NEW.dns_domain_type THEN
+		_uq := array_append(_uq, 'dns_domain_type = ' || quote_nullable(NEW.dns_domain_type));
+	END IF;
+
+	IF OLD.parent_dns_domain_id IS DISTINCT FROM NEW.parent_dns_domain_id THEN
+		_uq := array_append(_uq, 'parent_dns_domain_id = ' || quote_nullable(NEW.parent_dns_domain_id));
+	END IF;
+
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+		_uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
+	END IF;
+
+	IF OLD.external_id IS DISTINCT FROM NEW.external_id THEN
+		_uq := array_append(_uq, 'dns_domain_type = ' || quote_nullable(NEW.dns_domain_type));
+	END IF;
+
+	IF _uq IS NOT NULL THEN
+		EXECUTE 'UPDATE jazzhands.dns_domain SET ' ||
+			array_to_string(_uq, ', ') ||
+			' WHERE  dns_domain_id = $1 RETURNING *'
+			USING OLD.dns_domain_id
+			INTO _d;
+
+		NEW.dns_domain_id			= _d.dns_domain_id;
+		NEW.soa_name				= _d.dns_domain_name;
+		NEW.dns_domain_name			= _d.dns_domain_name;
+		NEW.dns_domain_type			= _d.dns_domain_type;
+		NEW.parent_dns_domain_id	= _d.parent_dns_domain_id;
+		NEW.description				= _d.description;
+		NEW.external_id				= _d.external_id;
+		NEW.data_ins_user			= _d.data_ins_user;
+		NEW.data_ins_date			= _d.data_ins_date;
+		NEW.data_upd_user			= _d.data_upd_user;
+		NEW.data_upd_date			= _d.data_upd_date;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_upd
+	ON jazzhands_legacy.dns_domain;
+CREATE TRIGGER trigger_dns_domain_upd
+	INSTEAD OF UPDATE ON jazzhands_legacy.dns_domain
+	FOR EACH ROW
+	EXECUTE PROCEDURE jazzhands_legacy.dns_domain_upd();
+
+-- There is no delete trigger because that should just work since it's
+-- bascially column renames.  These triggers exist so that
+-- soa_name/dns_domain_name aren't both updated.
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+
+
+--
+-- Copyright (c) 2015-2020 Matthew Ragan
+-- Copyright (c) 2015-2020 Todd Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+CREATE OR REPLACE FUNCTION jazzhands_legacy.do_layer1_connection_trigger()
+RETURNS TRIGGER
+AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		INSERT INTO inter_component_connection (
+			slot1_id,
+			slot2_id,
+			circuit_id
+		) VALUES (
+			NEW.physical_port1_id,
+			NEW.physical_port2_id,
+			NEW.circuit_id
+		) RETURNING inter_component_connection_id INTO NEW.layer1_connection_id;
+		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF (NEW.layer1_connection_id IS DISTINCT FROM
+				OLD.layer1_connection_id) OR
+			(NEW.physical_port1_id IS DISTINCT FROM OLD.physical_port1_id) OR
+			(NEW.physical_port2_id IS DISTINCT FROM OLD.physical_port2_id) OR
+			(NEW.circuit_id IS DISTINCT FROM OLD.circuit_id)
+		THEN
+			UPDATE inter_component_connection
+			SET
+				inter_component_connection_id = NEW.layer1_connection_id,
+				slot1_id = NEW.physical_port1_id,
+				slot2_id = NEW.physical_port2_id,
+				circuit_id = NEW.circuit_id
+			WHERE
+				inter_component_connection_id = OLD.layer1_connection_id;
+		END IF;
+		RETURN NEW;
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM inter_component_connection WHERE
+			inter_component_connection_id = OLD.layer1_connection_id;
+		RETURN OLD;
+	END IF;
+END; $$
+SET search_path=jazzhands
+LANGUAGE plpgsql
+SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_layer1_connection_insteadof ON layer1_connection;
+CREATE TRIGGER trigger_layer1_connection_insteadof
+	INSTEAD OF INSERT OR UPDATE OR DELETE
+	ON jazzhands_legacy.layer1_connection
+	FOR EACH ROW EXECUTE PROCEDURE
+		jazzhands_legacy.do_layer1_connection_trigger();
+
+
+CREATE OR REPLACE FUNCTION jazzhands_legacy.do_physical_port_trigger()
+RETURNS TRIGGER
+AS $$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		RAISE EXCEPTION 'Physical ports must be inserted as component slots';
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF (NEW.physical_port_id IS DISTINCT FROM OLD.physical_port_id) OR
+			(NEW.device_id IS DISTINCT FROM OLD.device_id) OR
+			(NEW.port_type IS DISTINCT FROM OLD.port_type) OR
+			(NEW.port_plug_style IS DISTINCT FROM OLD.port_plug_style) OR
+			(NEW.port_medium IS DISTINCT FROM OLD.port_medium) OR
+			(NEW.port_protocol IS DISTINCT FROM OLD.port_protocol) OR
+			(NEW.port_speed IS DISTINCT FROM OLD.port_speed) OR
+			(NEW.port_purpose IS DISTINCT FROM OLD.port_purpose) OR
+			(NEW.logical_port_id IS DISTINCT FROM OLD.logical_port_id) OR
+			(NEW.tcp_port IS DISTINCT FROM OLD.tcp_port) OR
+			(NEW.is_hardwired IS DISTINCT FROM OLD.is_hardwired)
+		THEN
+			RAISE EXCEPTION 'Attempted to update a deprecated physical_port attribute that must be changed on the slot now';
+		END IF;
+		IF (NEW.port_name IS DISTINCT FROM OLD.port_name) OR
+			(NEW.description IS DISTINCT FROM OLD.description) OR
+			(NEW.physical_label IS DISTINCT FROM OLD.physical_label)
+		THEN
+			UPDATE slot
+			SET
+				slot_name = NEW.port_name,
+				description = NEW.description,
+				physical_label = NEW.physical_label
+			WHERE
+				slot_id = NEW.physical_port_id;
+		END IF;
+		RETURN NEW;
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM slot WHERE
+			slot_id = OLD.physical_port_id;
+		RETURN OLD;
+	END IF;
+END; $$
+SET search_path=jazzhands
+LANGUAGE plpgsql
+SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_physical_port_insteadof ON physical_port;
+CREATE TRIGGER trigger_physical_port_insteadof
+	INSTEAD OF INSERT OR UPDATE OR DELETE
+	ON jazzhands_legacy.physical_port
+	FOR EACH ROW EXECUTE PROCEDURE
+		jazzhands_legacy.do_physical_port_trigger();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION service_environment_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	_se	service_environment%ROWTYPE;
+BEGIN
+	IF NEW.service_environment_id IS NOT NULL THEN
+		INSERT INTO service_environment (
+				service_environment_id,
+        		service_environment_name,
+        		service_environment_type,
+        		production_state,
+        		description,
+        		external_id
+		) VALUES (
+				NEW.service_environment_id,
+        		NEW.service_environment_name,
+        		'default',
+        		NEW.production_state,
+        		NEW.description,
+        		NEW.external_id
+		) RETURNING * INTO _se;
+	ELSE
+		INSERT INTO service_environment (
+        		service_environment_name,
+        		service_environment_type,
+        		production_state,
+        		description,
+        		external_id
+		) VALUES (
+        		NEW.service_environment_name,
+        		'default',
+        		NEW.production_state,
+        		NEW.description,
+        		NEW.external_id
+		) RETURNING * INTO _se;
+
+	END IF;
+
+	NEW.service_environment_id		:= _se.service_environment_id;
+	NEW.service_environment_name	:= _se.service_environment_name;
+	NEW.production_state			:= _se.production_state;
+	NEW.description					:= _se.description;
+	NEW.external_id					:= _se.external_id;
+	NEW.data_ins_user 				:= _se.data_ins_user;
+	NEW.data_ins_date 				:= _se.data_ins_date;
+	NEW.data_upd_user 				:= _se.data_upd_user;
+	NEW.data_upd_date 				:= _se.data_upd_date;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_service_environment_ins ON
+	service_environment;
+
+CREATE TRIGGER trigger_service_environment_ins
+	INSTEAD OF INSERT ON jazzhands_legacy.service_environment
+	FOR EACH ROW
+	EXECUTE PROCEDURE service_environment_ins();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION service_environment_del()
+RETURNS TRIGGER AS $$
+DECLARE
+	_se		service_environment%ROWTYPE;
+BEGIN
+	DELETE FROM service_environment_id
+	WHERE service_environment_id = OLD.service_environment_id;
+	RETURN OLD;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_service_environment_del ON
+	service_environment;
+
+CREATE TRIGGER trigger_service_environment_del
+	INSTEAD OF DELETE ON jazzhands_legacy.service_environment
+	FOR EACH ROW
+	EXECUTE PROCEDURE service_environment_del();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION service_environment_upd()
+RETURNS TRIGGER AS $$
+DECLARE
+	upd_query		TEXT[];
+	_se			service_environment%ROWTYPE;
+BEGIN
+	IF OLD.service_environment_id IS DISTINCT FROM NEW.service_environment_id THEN
+		RAISE EXCEPTION 'May not update service_environment_id'
+		USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	upd_query := NULL;
+	IF NEW.service_environment_name IS DISTINCT FROM OLD.service_environment_name THEN
+		upd_query := array_append(upd_query,
+			'service_environment_name = ' || quote_nullable(NEW.service_environment_name));
+	END IF;
+	IF NEW.production_state IS DISTINCT FROM OLD.production_state THEN
+		upd_query := array_append(upd_query,
+			'production_state = ' || quote_nullable(NEW.production_state));
+	END IF;
+	IF NEW.description IS DISTINCT FROM OLD.description THEN
+		upd_query := array_append(upd_query,
+			'description = ' || quote_nullable(NEW.description));
+	END IF;
+	IF NEW.external_id IS DISTINCT FROM OLD.external_id THEN
+		upd_query := array_append(upd_query,
+			'external_id = ' || quote_nullable(NEW.external_id));
+	END IF;
+
+	IF upd_query IS NOT NULL THEN
+		EXECUTE 'UPDATE service_environment SET ' ||
+			array_to_string(upd_query, ', ') ||
+			' WHERE service_environment_id = $1 RETURNING *'
+		USING OLD.service_environment_id
+		INTO _se;
+
+		NEW.service_environment_id		:= _se.service_environment_id;
+		NEW.service_environment_name	:= _se.service_environment_name;
+		NEW.production_state			:= _se.production_state;
+		NEW.description					:= _se.description;
+		NEW.external_id					:= _se.external_id;
+		NEW.data_ins_user 				:= _se.data_ins_user;
+		NEW.data_ins_date 				:= _se.data_ins_date;
+		NEW.data_upd_user 				:= _se.data_upd_user;
+		NEW.data_upd_date 				:= _se.data_upd_date;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_service_environment_upd ON
+	service_environment;
+
+CREATE TRIGGER trigger_service_environment_upd
+	INSTEAD OF UPDATE ON jazzhands_legacy.service_environment
+	FOR EACH ROW
+	EXECUTE PROCEDURE service_environment_upd();
+
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------

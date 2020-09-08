@@ -35,9 +35,9 @@ BEGIN
 	RAISE NOTICE 'devices_regression...';
 
 	INSERT INTO service_environment (
-		service_environment_name, production_state
+		service_environment_name, service_environment_type, production_state
 	) VALUES (
-		'JHTEST', 'development'
+		'JHTEST', 'default', 'development'
 	) RETURNING * INTO _se;
 
 	INSERT INTO device_type ( device_type_name ) VALUES ('JHTESTMODEL')

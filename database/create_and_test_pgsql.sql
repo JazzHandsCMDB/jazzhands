@@ -94,7 +94,6 @@ begin;
 \ir tests/init/test_netblock_collection.sql
 \ir tests/pgsql/location_regression_test.sql
 \ir tests/pgsql/netblock_regression_test.sql
--- \ir tests/pgsql/netblock_regression_test-RETIRE.sql
 \ir tests/pgsql/dns_record_regression_test.sql
 \ir tests/pgsql/ip_universe_validation_regression.sql
 \ir tests/pgsql/netblock_defaults_regression.sql
@@ -108,7 +107,6 @@ begin;
 \ir tests/pgsql/company_coll_hier_regression.sql
 \ir tests/pgsql/device_coll_hier_regression.sql
 \ir tests/pgsql/dns_domain_coll_hier_regression.sql
-\ir tests/pgsql/dns_domain_name_tests-RETIRE.sql
 \ir tests/pgsql/layer2_network_coll_hier_regression.sql
 \ir tests/pgsql/layer3_network_coll_hier_regression.sql
 \ir tests/pgsql/netblock_coll_hier_regression.sql
@@ -118,7 +116,6 @@ begin;
 \ir tests/pgsql/account_coll_realm_regression.sql
 \ir tests/pgsql/network_range_tests.sql
 \ir tests/pgsql/x509_tests.sql
-\ir tests/pgsql/v_person_company_regression.sql
 \ir tests/pgsql/devices_regression.sql
 
 \ir tests/pgsql/ct_netblock_tests.sql

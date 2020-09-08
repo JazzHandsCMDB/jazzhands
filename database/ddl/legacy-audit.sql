@@ -785,7 +785,7 @@ FROM jazzhands_audit.dns_change_record;
 
 
 CREATE OR REPLACE VIEW audit.dns_domain AS
-SELECT "dns_domain_id","soa_name","dns_domain_name","dns_domain_type","parent_dns_domain_id","description","external_id","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+SELECT "dns_domain_id",dns_domain_name AS soa_name,"dns_domain_name","dns_domain_type","parent_dns_domain_id","description","external_id","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.dns_domain;
 
 
@@ -1240,7 +1240,7 @@ SELECT
 	"netblock_id",
 	"layer3_interface_id" AS network_interface_id,
 	"device_id",
-	"network_interface_rank",
+	"layer3_interface_rank",
 	"data_ins_user",
 	"data_ins_date",
 	"data_upd_user",
@@ -1259,7 +1259,7 @@ FROM jazzhands_audit.layer3_interface_netblock;
 CREATE OR REPLACE VIEW audit.network_interface_purpose AS
 SELECT
 	"device_id",
-	"network_interface_purpose",
+	"layer3_interface_purpose",
 	"layer3_interface_id" AS network_interface_id,
 	"description",
 	"data_ins_user",
@@ -1295,7 +1295,7 @@ SELECT
 		ELSE NULL
 	END AS is_monitored,
 	"device_id",
-	"network_interface_id",
+	"layer3_interface_id",
 	"dns_record_id",
 	"service_environment_id",
 	"data_ins_user",
@@ -1623,7 +1623,6 @@ SELECT
 	"network_range_id",
 	"operating_system_id",
 	"operating_system_snapshot_id",
-	"person_id",
 	"property_name_collection_id" AS property_collection_id,
 	"service_environment_collection_id" AS service_env_collection_id,
 	"site_code",
@@ -1637,7 +1636,6 @@ SELECT
 	"property_value_json",
 	"property_value_netblock_collection_id" AS property_value_nblk_coll_id,
 	"property_value_password_type",
-	"property_value_person_id",
 	"property_value_sw_package_id",
 	"property_value_token_collection_id" AS property_value_token_col_id,
 	"property_rank",
@@ -1929,7 +1927,7 @@ CREATE OR REPLACE VIEW audit.static_route AS
 SELECT
 	"static_route_id",
 	"device_source_id" AS device_src_id,
-	"network_interface_destination_id" AS network_interface_dst_id,
+	"layer3_interface_destination_id" AS network_interface_dst_id,
 	"netblock_id",
 	"data_ins_user",
 	"data_ins_date",
@@ -1950,7 +1948,7 @@ CREATE OR REPLACE VIEW audit.static_route_template AS
 SELECT
 	"static_route_template_id",
 	"netblock_source_id" AS netblock_src_id,
-	"network_interface_destination_id" AS network_interface_dst_id,
+	"layer3_interface_destination_id" AS network_interface_dst_id,
 	"netblock_id",
 	"description",
 	"data_ins_user",
@@ -2737,14 +2735,31 @@ FROM jazzhands_audit.val_netblock_type;
 
 
 CREATE OR REPLACE VIEW audit.val_network_interface_purpose AS
-SELECT "network_interface_purpose","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_network_interface_purpose;
+SELECT layer3_interface_purpose AS network_interface_purpose,
+	"description",
+	"data_ins_user",
+	"data_ins_date",
+	"data_upd_user",
+	"data_upd_date",
+	"aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+FROM jazzhands_audit.val_layer3_interface_purpose;
 
 
 
 CREATE OR REPLACE VIEW audit.val_network_interface_type AS
-SELECT "network_interface_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_network_interface_type;
+SELECT layer3_interface_type AS network_interface_type,
+	"description",
+	"data_ins_user",
+	"data_ins_date",
+	"data_upd_user",
+	"data_upd_date"
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM jazzhands_audit.val_layer3_interface_type;
 
 
 
@@ -3026,7 +3041,6 @@ SELECT
 	"permit_network_range_id",
 	"permit_operating_system_id",
 	"permit_operating_system_snapshot_id" AS permit_os_snapshot_id,
-	"permit_person_id",
 	"permit_property_name_collection_id" AS permit_property_collection_id,
 	"permit_service_environment_collection" AS permit_service_env_collection,
 	"permit_site_code",

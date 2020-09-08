@@ -33,7 +33,7 @@ SELECT
 	stop.ip_universe_id as stop_ip_universe_id,
 	nr.dns_prefix,
 	nr.dns_domain_id,
-	dd.soa_name
+	dd.dns_domain_name
 FROM
 	jazzhands.network_range nr JOIN
 	jazzhands.netblock p ON (nr.parent_netblock_id = p.netblock_id) JOIN

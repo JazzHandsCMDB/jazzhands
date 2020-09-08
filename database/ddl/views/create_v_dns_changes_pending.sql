@@ -48,15 +48,15 @@ WITH chg AS (
 FROM (
 	SELECT	chg.dns_change_record_id, n.dns_domain_id, du.ip_universe_id,
 		du.should_generate, du.last_generated,
-		n.soa_name, chg.ip_address
+		n.dns_domain_name, chg.ip_address
 	FROM   chg
-		INNER JOIN dns_domain n on chg.cidrdns = n.soa_name
+		INNER JOIN dns_domain n on chg.cidrdns = n.dns_domain_name
 		INNER JOIN dns_domain_ip_universe du ON
 			du.dns_domain_id = n.dns_domain_id
 UNION ALL
 	SELECT  chg.dns_change_record_id, d.dns_domain_id, du.ip_universe_id,
 		du.should_generate, du.last_generated,
-		d.soa_name, NULL
+		d.dns_domain_name, NULL
 	FROM	dns_change_record chg
 		INNER JOIN dns_domain d USING (dns_domain_id)
 		INNER JOIN dns_domain_ip_universe du USING (dns_domain_id)
@@ -65,7 +65,7 @@ UNION ALL
 UNION ALL
 	SELECT  chg.dns_change_record_id, d.dns_domain_id, ip_universe_id,
 		du.should_generate, du.last_generated,
-		d.soa_name, NULL
+		d.dns_domain_name, NULL
 	FROM	dns_change_record chg
 		INNER JOIN dns_domain d USING (dns_domain_id)
 		INNER JOIN dns_domain_ip_universe du USING (dns_domain_id,ip_universe_id)
@@ -75,7 +75,7 @@ UNION ALL
 	SELECT  chg.dns_change_record_id, d.dns_domain_id, 
 		iv.visible_ip_universe_id,
 		du.should_generate, du.last_generated,
-		d.soa_name, NULL
+		d.dns_domain_name, NULL
 	FROM	dns_change_record chg
 		INNER JOIN ip_universe_visibility iv USING (ip_universe_id)
 		INNER JOIN dns_domain d USING (dns_domain_id)

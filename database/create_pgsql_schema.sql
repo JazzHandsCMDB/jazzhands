@@ -74,16 +74,13 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_device_type_triggers.sql
 \ir ddl/schema/pgsql/create_dns_domain_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_dns_triggers.sql
-\ir ddl/schema/pgsql/create_dns_triggers-RETIRE.sql
 \ir ddl/schema/pgsql/create_layer3_network_triggers.sql
 \ir ddl/schema/pgsql/create_layer2_network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_layer2_network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_layer3_network_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_layer3_network_coll_hier_triggers.sql
-\ir ddl/schema/pgsql/create_legacy_port_triggers_RETIRE.sql
 \ir ddl/schema/pgsql/create_netblock_coll_hier_triggers.sql
 \ir ddl/schema/pgsql/create_netblock_triggers.sql
--- \ir ddl/schema/pgsql/create_netblock_triggers-RETIRE.sql
 \ir ddl/schema/pgsql/create_layer3_interface_triggers.sql
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
 \ir ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
@@ -101,7 +98,6 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_property_name_collection_hook_triggers.sql
 \ir ddl/schema/pgsql/create_x509_triggers.sql
 \ir ddl/schema/pgsql/create_account_coll_relation_triggers.sql
-\ir ddl/schema/pgsql/create_x509_triggers-RETIRE.sql
 \ir ddl/schema/pgsql/create_ip_universe_valid_triggers.sql
 -- goes with the jazzhands_legacy schema
 \ir ddl/schema/pgsql/create_jazzhands_legacy_triggers-RETIRE.sql
@@ -113,7 +109,6 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_account_pgnotify_trigger.sql
 
 \ir ddl/schema/pgsql/create_hotpants_view_triggers.sql
-\ir ddl/schema/pgsql/create_v_person_company_triggers.sql
 
 -- This could be done for backwards compatibility but is not.
 -- \ir compat/pgsql/create_location_compatibility_view.sql
@@ -124,6 +119,8 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 -- temporary comment out. This needs to be reconciled.
 \ir ddl/legacy.sql
 \ir ddl/legacy-audit.sql
+
+\ir pkg/pgsql/create_all_legacy_packages.sql
 
 \ir ddl/schema/pgsql/create_account_hook_triggers.sql
 \ir ddl/schema/pgsql/create_person_company_attr_with_legacy.sql

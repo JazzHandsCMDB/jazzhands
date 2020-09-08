@@ -84,8 +84,8 @@ $$ LANGUAGE plpgsql;
 --
 --
 CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect (
-	physportid1	physical_port.physical_port_id%type,
-	physportid2	physical_port.physical_port_id%type,
+	physportid1	jazzhands_legacy.physical_port.physical_port_id%type,
+	physportid2	jazzhands_legacy.physical_port.physical_port_id%type,
 	baud		integer			DEFAULT -99,
 	data_bits	integer	DEFAULT -99,
 	stop_bits	integer	DEFAULT -99,
@@ -95,21 +95,21 @@ CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect (
 ) RETURNS INTEGER AS $$
 DECLARE
 	tally		integer;
-	l1_con_id	layer1_connection.layer1_connection_id%TYPE;
-	l1con		layer1_connection%ROWTYPE;
-	p1_l1_con	layer1_connection%ROWTYPE;
-	p2_l1_con	layer1_connection%ROWTYPE;
-	p1_port		physical_port%ROWTYPE;
-	p2_port		physical_port%ROWTYPE;
+	l1_con_id	jazzhands_legacy.layer1_connection.layer1_connection_id%TYPE;
+	l1con		jazzhands_legacy.layer1_connection%ROWTYPE;
+	p1_l1_con	jazzhands_legacy.layer1_connection%ROWTYPE;
+	p2_l1_con	jazzhands_legacy.layer1_connection%ROWTYPE;
+	p1_port		jazzhands_legacy.physical_port%ROWTYPE;
+	p2_port		jazzhands_legacy.physical_port%ROWTYPE;
 	col_nams	varchar(100) [];
 	col_vals	varchar(100) [];
 	updateitr	integer;
-	i_baud		layer1_connection.baud%type;
-	i_data_bits	layer1_connection.data_bits%type;
-	i_stop_bits	layer1_connection.stop_bits%type;
-	i_parity     	layer1_connection.parity%type;
-	i_flw_cntrl	layer1_connection.flow_control%type;
-	i_circuit_id layer1_connection.circuit_id%type;
+	i_baud		jazzhands_legacy.layer1_connection.baud%type;
+	i_data_bits	jazzhands_legacy.layer1_connection.data_bits%type;
+	i_stop_bits	jazzhands_legacy.layer1_connection.stop_bits%type;
+	i_parity     	jazzhands_legacy.layer1_connection.parity%type;
+	i_flw_cntrl	jazzhands_legacy.layer1_connection.flow_control%type;
+	i_circuit_id 	jazzhands_legacy.layer1_connection.circuit_id%type;
 BEGIN
 	RAISE DEBUG 'looking up % and %', physportid1, physportid2;
 
@@ -152,7 +152,7 @@ BEGIN
 		  from	layer1_connection
 		 where	physical_port1_id = physportid2
 		    or  physical_port2_id = physportid2;
-	
+
 	EXCEPTION WHEN no_data_found THEN
 		NULL;
 	END;
@@ -193,7 +193,7 @@ BEGIN
 					--
 					if(p2_l1_con.layer1_connection_id is not NULL) then
 						RAISE DEBUG 'physport2 is connected to something, just not this';
-						RAISE DEBUG '>>>> removing %', 
+						RAISE DEBUG '>>>> removing %',
 							p2_l1_con.layer1_connection_id;
 						delete from layer1_connection
 							where layer1_connection_id =
@@ -235,7 +235,7 @@ BEGIN
 		end if;
 	elsif(p2_l1_con.layer1_connection_id is NULL) then
 		-- both are null in this case
-			
+
 		IF (circuit_id = -99) THEN
 			i_circuit_id := NULL;
 		ELSE
@@ -269,7 +269,7 @@ BEGIN
 		IF p1_port.port_type = 'serial' THEN
 		        insert into layer1_connection (
 			        PHYSICAL_PORT1_ID, PHYSICAL_PORT2_ID,
-			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL, 
+			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL,
 			        CIRCUIT_ID, IS_TCPSRV_ENABLED
 		        ) values (
 			        physportid1, physportid2,
@@ -279,7 +279,7 @@ BEGIN
 		ELSE
 		        insert into layer1_connection (
 			        PHYSICAL_PORT1_ID, PHYSICAL_PORT2_ID,
-			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL, 
+			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL,
 			        CIRCUIT_ID
 		        ) values (
 			        physportid1, physportid2,
@@ -386,7 +386,7 @@ BEGIN
 	RAISE DEBUG 'returning %', updateitr;
 	return updateitr;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands_legacy;
 
 -------------------------------------------------------------------
 -- connect two power devices
@@ -394,16 +394,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ** THIS IS BEING DEPRECATED **
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION port_utils.configure_power_connect (
-	in_dev1_id	device_power_connection.device_id%type,
-	in_port1_id	device_power_connection.power_interface_port%type,
-	in_dev2_id	device_power_connection.rpc_device_id%type,
-	in_port2_id	device_power_connection.rpc_power_interface_port%type
+	in_dev1_id	jazzhands_legacy.device_power_connection.device_id%type,
+	in_port1_id	jazzhands_legacy.device_power_connection.power_interface_port%type,
+	in_dev2_id	jazzhands_legacy.device_power_connection.rpc_device_id%type,
+	in_port2_id	jazzhands_legacy.device_power_connection.rpc_power_interface_port%type
 ) RETURNS void AS $$
-DECLARE
-	v_p1_pc		device_power_connection%ROWTYPE;
-	v_p2_pc		device_power_connection%ROWTYPE;
-	v_pc		device_power_connection%ROWTYPE;
-	v_pc_id		device_power_connection.device_power_connection_id%type;
+	DECLARE
+	v_p1_pc		jazzhands_legacy.device_power_connection%ROWTYPE;
+	v_p2_pc		jazzhands_legacy.device_power_connection%ROWTYPE;
+	v_pc		jazzhands_legacy.device_power_connection%ROWTYPE;
+	v_pc_id		jazzhands_legacy.device_power_connection.device_power_connection_id%type;
 BEGIN
 	RAISE DEBUG 'consider %:% %:%',
 		in_dev1_id, in_port1_id, in_dev2_id, in_port2_id;
@@ -412,7 +412,7 @@ BEGIN
 		select	*
 		  into	v_p1_pc
 		  from	device_power_connection
-		 where	(device_Id = in_dev1_id 
+		 where	(device_Id = in_dev1_id
 					and power_interface_port = in_port1_id) OR
 				(rpc_device_id = in_dev1_id
 					and rpc_power_interface_port = in_port1_id);
@@ -424,7 +424,7 @@ BEGIN
 		select	*
 		  into	v_p2_pc
 		  from	device_power_connection
-		 where	(device_Id = in_dev2_id 
+		 where	(device_Id = in_dev2_id
 					and power_interface_port = in_port2_id) OR
 				(rpc_device_id = in_dev2_id
 					and rpc_power_interface_port = in_port2_id);
@@ -440,7 +440,7 @@ BEGIN
 	-- Also falling out of this will be the port needs to be updated,
 	-- assuming a port needs to be updated
 	--
-	RAISE DEBUG 'one is %, the other is %', 
+	RAISE DEBUG 'one is %, the other is %',
 		v_p1_pc.device_power_connection_id, v_p2_pc.device_power_connection_id;
 	IF (v_p1_pc.device_power_connection_id is not NULL) then
 		IF (v_p2_pc.device_power_connection_id is not NULL) then
@@ -448,7 +448,7 @@ BEGIN
 				--
 				-- if this is not true, then the connection already
 				-- exists between these two.
-				-- If they are already connected, this gets 
+				-- If they are already connected, this gets
 				-- discovered here
 				--
 				RAISE DEBUG '>> one side matches: %:% %:%',
@@ -493,7 +493,7 @@ BEGIN
 							-- v_p1_pc.device_id must be port1
 							v_pc_id := v_p1_pc.device_power_connection_id;
 						END IF;
-						RAISE DEBUG '>>>> removing(2) %', 
+						RAISE DEBUG '>>>> removing(2) %',
 							v_p2_pc.device_power_connection_id;
 						delete from device_power_connection
 							where device_power_connection_id =
@@ -527,7 +527,7 @@ BEGIN
 			in_dev2_id,
 			in_port2_id,
 			in_port1_id,
-			in_dev1_id 
+			in_dev1_id
 		);
 		RAISE DEBUG 'record is totally inserted';
 		return;
@@ -570,4 +570,4 @@ BEGIN
 		  where	device_power_connection_id = v_pc_id;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands_legacy;

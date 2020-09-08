@@ -24,7 +24,6 @@ CREATE OR REPLACE VIEW v_account_collection_property_expanded AS
 		property_value_account_collection_id,
 		property_value_netblock_collection_id,
 		property_value_password_type,
-		property_value_person_id,
 		property_value_token_collection_id,
 		property_rank,
 		CASE is_multivalue WHEN 'N' THEN false WHEN 'Y' THEN true END 

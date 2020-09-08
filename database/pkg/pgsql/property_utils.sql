@@ -1,4 +1,4 @@
--- Copyright (c) 2018-2019 Todd M. Kover
+-- Copyright (c) 2018-2020 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -126,7 +126,6 @@ BEGIN
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
-			person_id IS NOT DISTINCT FROM NEW.person_id AND
 			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
 			service_environment_collection_id IS NOT DISTINCT FROM
 				NEW.service_environment_collection_id AND
@@ -164,7 +163,6 @@ BEGIN
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
-			person_id IS NOT DISTINCT FROM NEW.person_id AND
 			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
 			service_environment_collection_id IS NOT DISTINCT FROM
 				NEW.service_environment_collection_id AND
@@ -184,12 +182,14 @@ BEGIN
 				NEW.property_value_netblock_collection_id AND
 			property_value_password_type IS NOT DISTINCT FROM
 				NEW.property_value_password_type AND
-			property_value_person_id IS NOT DISTINCT FROM
-				NEW.property_value_person_id AND
 			property_value_sw_package_id IS NOT DISTINCT FROM
 				NEW.property_value_sw_package_id AND
 			property_value_token_collection_id IS NOT DISTINCT FROM
 				NEW.property_value_token_collection_id AND
+			property_value_encryption_key_id IS NOT DISTINCT FROM
+				NEW.property_value_encryption_key_id AND
+			property_value_private_key_id IS NOT DISTINCT FROM
+				NEW.property_value_private_key_id AND
 			start_date IS NOT DISTINCT FROM NEW.start_date AND
 			finish_date IS NOT DISTINCT FROM NEW.finish_date
 		;
@@ -230,7 +230,6 @@ BEGIN
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
-			person_id IS NOT DISTINCT FROM NEW.person_id AND
 			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
 			service_environment_collection_id IS NOT DISTINCT FROM
 				NEW.service_environment_collection_id AND
@@ -311,14 +310,6 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_Person_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'person_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Person_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
 	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'device_collection_id' THEN
 			tally := tally + 1;
@@ -333,6 +324,24 @@ BEGIN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be boolean' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_encryption_key_id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'encryption_key_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be encryption_key_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_private_key_id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'private_key_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be private_key_id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -863,18 +872,6 @@ BEGIN
 	ELSIF v_prop.Permit_property_name_collection_Id = 'PROHIBITED' THEN
 			IF NEW.property_name_collection_Id IS NOT NULL THEN
 				RAISE 'property_name_collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Person_Id = 'REQUIRED' THEN
-			IF NEW.Person_Id IS NULL THEN
-				RAISE 'Person_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Person_Id = 'PROHIBITED' THEN
-			IF NEW.Person_Id IS NOT NULL THEN
-				RAISE 'Person_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;

@@ -29,7 +29,7 @@ WITH RECURSIVE phier (
 			manager_person_id,
 			ARRAY[person_id] as array_path,
 			false as cycle
-		FROM	v_person_company
+		FROM	person_company
 	UNION
 		SELECT	x.level + 1 as level,
 			x.person_id, 
@@ -38,7 +38,7 @@ WITH RECURSIVE phier (
 			m.manager_person_id,
 			x.array_path || m.manager_person_id as array_path,
 			m.manager_person_id = ANY(array_path) as cycle
-		FROM	v_person_company m
+		FROM	person_company m
 			JOIN phier x ON x.intermediate_manager_person_id = m.person_id
 		WHERE	not cycle
 		AND m.manager_person_id is not NULL

@@ -57,13 +57,6 @@
 
 \ir pgsql/create_v_device_slot_connections.sql
 
-\ir create_physical_port.sql
-\ir create_layer1_connection.sql
-\ir create_v_l1_all_physical_ports.sql
-
-\ir create_device_power_connection.sql
-\ir create_device_power_interface.sql
-
 \ir pgsql/create_v_device_collection_device_expanded.sql
 \ir pgsql/create_v_device_collection_hier_detail.sql
 \ir pgsql/create_v_account_collection_account.sql
@@ -96,7 +89,6 @@
 \ir pgsql/create_v_person_company_hier.sql
 \ir create_v_person.sql
 \ir create_v_account_name.sql
-\ir create_v_person_company.sql
 
 -- possibly to replace v_device_col_acct_col_expanded
 \ir create_v_device_collection_account_collection_unix_login.sql
@@ -143,7 +135,3 @@
 \ir create_v_dns_rvs.sql
 \ir create_v_dns.sql
 \ir create_v_dns_sorted.sql
-
--- to be retired
-\ir create_x509_certificate.sql
-\ir create_v_dns_domain_nouniverse.sql

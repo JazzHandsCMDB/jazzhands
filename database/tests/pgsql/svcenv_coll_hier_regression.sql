@@ -103,10 +103,21 @@ BEGIN
 	------ Beginning of Collection specific stuff
 	RAISE NOTICE 'Inserting collection specific records'; 
 
-	insert into service_environment (service_environment_name,production_state) 
-		values('JHTEST01', 'production') RETURNING * into _svcenv1;
-	insert into service_environment (service_environment_name,production_state) 
-		values('JHTEST02', 'production') RETURNING * into _svcenv2;
+	INSERT INTO val_service_environment_type (
+		service_environment_type
+	) VALUES (
+		'JHTEST'
+	);
+
+	INSERT INTO service_environment (
+		service_environment_name,service_environment_type, production_state
+	) VALUES (
+		'JHTEST01', 'JHTEST', 'production') RETURNING * into _svcenv1;
+
+	INSERT INTO service_environment (
+		service_environment_name, service_environment_type, production_state
+	) VALUES(
+		'JHTEST02', 'JHTEST', 'production') RETURNING * into _svcenv2;
 	RAISE NOTICE 'Starting tests...';
 
 	RAISE NOTICE 'Making sure a by-coll-type works...';

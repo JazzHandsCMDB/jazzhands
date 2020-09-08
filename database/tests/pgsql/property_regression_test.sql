@@ -1,4 +1,4 @@
--- Copyright (c) 2014-2019 Todd Kover
+-- Copyright (c) 2014-2020 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,6 +70,8 @@ DECLARE
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
 	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
 	v_token_collection_id	Property.Property_Value_Token_collection_ID%TYPE;
+	v_private_key_id		property.property_value_private_key_id%TYPE;
+	v_encryption_key_id		property.property_value_private_key_id%TYPE;
 
 BEGIN
 
@@ -787,6 +789,70 @@ BEGIN
 		'PROHIBITED'
 	);
 
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		property_value_account_collection_Type_restriction,
+		Property_Data_Type,
+		permit_company_collection_id,
+		Permit_Device_Collection_Id,
+		Permit_Operating_System_Id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
+		Permit_Site_Code,
+		Permit_Account_Id,
+		permit_account_realm_id,
+		Permit_Account_Collection_id
+	) VALUES (
+		'encryption_key_id',
+		'test',
+		false,
+		NULL,
+		'encryption_key_id',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED'
+	);
+
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		property_value_account_collection_Type_restriction,
+		Property_Data_Type,
+		permit_company_collection_id,
+		Permit_Device_Collection_Id,
+		Permit_Operating_System_Id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
+		Permit_Site_Code,
+		Permit_Account_Id,
+		permit_account_realm_id,
+		Permit_Account_Collection_id
+	) VALUES (
+		'private_key_id',
+		'test',
+		false,
+		NULL,
+		'private_key_id',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED'
+	);
+
 	INSERT INTO VAL_Property_Value (
 		Property_Name,
 		Property_Type,
@@ -850,6 +916,58 @@ BEGIN
 		RETURNING *
 	) SELECT token_collection_id INTO v_token_collection_id FROM tc LIMIT 1;
 
+	INSERT INTO private_key (
+		private_key_encryption_type, private_key
+	) VALUES (
+		'rsa',
+'-----BEGIN RSA PRIVATE KEY-----
+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
+-----END RSA PRIVATE KEY-----'
+	) RETURNING private_key_id INTO v_private_key_id;
+
+	INSERT INTO val_encryption_method (encryption_method) VALUES ('JHTEST');
+	INSERT INTO val_encryption_key_purpose (encryption_key_purpose, encryption_key_purpose_version) VALUES ('JHTEST', 1);
+
+	INSERT INTO encryption_key (
+		encryption_key_db_value,
+		encryption_key_purpose, encryption_key_purpose_version,
+		encryption_method
+	) VALUES (
+		'',
+		'JHTEST', 1,
+		'JHTEST'
+	) RETURNING encryption_key_id INTO v_encryption_key_id;
+
 	RAISE NOTICE 'v_company_collection_id is %', v_company_collection_id;
 	RAISE NOTICE 'v_device_collection_id is %', v_device_collection_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
@@ -863,6 +981,8 @@ BEGIN
 	RAISE NOTICE 'v_net_collection_Id is %', v_net_collection_Id;
 	RAISE NOTICE 'v_password_type is %', v_password_type;
 	RAISE NOTICE 'v_token_collection_id is %', v_token_collection_id;
+	RAISE NOTICE 'v_private_key_id is %', v_private_key_id;
+	RAISE NOTICE 'v_encryption_key_id is %', v_encryption_key_id;
 
 	INSERT INTO VAL_Property (
 		Property_Name,
@@ -2488,6 +2608,36 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting encryption_key_id value into none property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_encryption_key_id
+			) VALUES (
+			'none', 'test',
+			v_encryption_key_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting private_key_id value into none property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value
+			) VALUES (
+			'none', 'test',
+			v_private_key_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting timestamp value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2643,6 +2793,44 @@ BEGIN
 	EXCEPTION
 		WHEN invalid_parameter_value THEN
 			RAISE NOTICE '... Failed correctly';
+	END;
+	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+	--
+	-- encryption_key_id
+	--
+	RAISE NOTICE 'Inserting encryption_key_id INTO property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_encryption_key_id
+			) VALUES (
+			'encryption_key_id', 'test',
+			v_encryption_key_id
+			) RETURNING Property_ID INTO v_property_id;
+		RAISE NOTICE '... Success';
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed';
+			raise error_in_assignment;
+	END;
+	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+	--
+	-- private_key_id
+	--
+	RAISE NOTICE 'Inserting private_key_id INTO property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_private_key_id
+			) VALUES (
+			'private_key_id', 'test',
+			v_private_key_id
+			) RETURNING Property_ID INTO v_property_id;
+		RAISE NOTICE '... Success';
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed';
+			raise error_in_assignment;
 	END;
 	DELETE FROM Property WHERE Property_ID = v_property_id;
 

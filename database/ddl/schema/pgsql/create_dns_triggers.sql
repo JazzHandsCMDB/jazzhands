@@ -567,7 +567,7 @@ BEGIN
 	END IF;
 
 	IF _tally > 0 THEN
-		SELECT soa_name INTO _dom FROM dns_domain
+		SELECT dns_domain_name INTO _dom FROM dns_domain
 		WHERE dns_domain_id = NEW.dns_domain_id ;
 
 		if NEW.dns_name IS NULL THEN
@@ -658,7 +658,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change
-	AFTER INSERT OR UPDATE OF soa_name
+	AFTER INSERT OR UPDATE OF dns_domain_name
 	ON dns_domain
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_trigger_change();

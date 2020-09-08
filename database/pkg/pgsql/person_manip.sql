@@ -571,20 +571,20 @@ CREATE OR REPLACE FUNCTION person_manip.merge_accounts(
 	merge_to_account_id	account.account_Id%TYPE
 ) RETURNS INTEGER AS $$
 DECLARE
-	fpc		v_person_company%ROWTYPE;
-	tpc		v_person_company%ROWTYPE;
+	fpc		person_company%ROWTYPE;
+	tpc		person_company%ROWTYPE;
 	_account_realm_id INTEGER;
 BEGIN
 	select	*
 	  into	fpc
-	  from	v_person_company
+	  from	person_company
 	 where	(person_id, company_id) in
 		(select person_id, company_id
 		   from account where account_id = merge_from_account_id);
 
 	select	*
 	  into	tpc
-	  from	v_person_company
+	  from	person_company
 	 where	(person_id, company_id) in
 		(select person_id, company_id
 		   from account where account_id = merge_to_account_id);

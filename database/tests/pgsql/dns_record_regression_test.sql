@@ -82,7 +82,7 @@ BEGIN
 	) select count(*) into _tally FROM x;
 
 	INSERT INTO DNS_DOMAIN (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest.example.com', 'service'
 	) RETURNING dns_domain_id INTO _dnsdomid;

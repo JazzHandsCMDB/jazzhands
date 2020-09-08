@@ -14,9 +14,9 @@ VALUES
 	('_dnsrname', 'Defaults', 'hostmaster.omniscient.com'),
 	('_dnsmname', 'Defaults', 'auth00.omniscient.com');
 
-SELECT dns_utils.add_dns_domain(soa_name := 'omniscient.com', dns_domain_type := 'service');
-SELECT dns_utils.add_dns_domain(soa_name := 'kover.com', dns_domain_type := 'service');
-SELECT dns_utils.add_dns_domain(soa_name := 'jazzhands.net', dns_domain_type := 'service');
+SELECT dns_utils.add_dns_domain(dns_domain_name := 'omniscient.com', dns_domain_type := 'service');
+SELECT dns_utils.add_dns_domain(dns_domain_name := 'kover.com', dns_domain_type := 'service');
+SELECT dns_utils.add_dns_domain(dns_domain_name := 'jazzhands.net', dns_domain_type := 'service');
 
 insert into netblock
 	(ip_address, is_single_address,
@@ -48,7 +48,7 @@ insert into dns_record
 	(dns_name, dns_domain_id, dns_class, dns_type, netblock_id)
 values ('guinness',
 	 (select dns_domain_id from dns_domain
-		where soa_name='omniscient.com'),
+		where dns_domain_name='omniscient.com'),
 	 'IN',
 	 'A',
 	(select netblock_id from netblock

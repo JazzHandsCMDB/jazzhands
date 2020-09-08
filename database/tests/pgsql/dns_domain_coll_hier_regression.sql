@@ -48,7 +48,7 @@ BEGIN
 	delete from val_dns_domain_collection_type where 
 		dns_domain_collection_type like
 		'JHTEST%';
-	delete from dns_domain where soa_name like 'jhtest%example.com';
+	delete from dns_domain where dns_domain_name like 'jhtest%example.com';
 
 	RAISE NOTICE '++ Inserting testing data';
 	INSERT INTO val_dns_domain_collection_Type (
@@ -100,13 +100,13 @@ BEGIN
 	RAISE NOTICE 'Inserting collection specific records'; 
 
 	INSERT INTO dns_domain (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest1.example.com', 'service'
 	) RETURNING * into _c1;
 
 	INSERT INTO dns_domain (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest2.example.com', 'service'
 	) RETURNING * into _c2;
@@ -250,7 +250,7 @@ BEGIN
 	delete from val_dns_domain_collection_type where 
 		dns_domain_collection_type like
 		'JHTEST%';
-	delete from dns_domain where soa_name like 'jhtest%example.com';
+	delete from dns_domain where dns_domain_name like 'jhtest%example.com';
 	RAISE NOTICE 'Netblock CollHier: DONE';
 	RETURN true;
 END;
