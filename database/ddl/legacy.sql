@@ -12352,7 +12352,7 @@ BEGIN
 	IF _uq IS NOT NULL THEN
 		EXECUTE 'UPDATE jazzhands.dns_domain_ip_universe SET ' ||
 			array_to_string(_uq, ', ') ||
-			' WHERE  dns_domain_id = $1 AND ip_universe = 0 RETURNING *'
+			' WHERE  dns_domain_id = $1 AND ip_universe_id = 0 RETURNING *'
 			USING OLD.dns_domain_id
 			INTO _du;
 
