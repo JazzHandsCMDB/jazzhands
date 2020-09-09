@@ -17381,16 +17381,18 @@ BEGIN
 			encryption_key_id
 		) VALUES (
 			'rsa',
-			NEW.is_active,
+			CASE WHEN NEW.is_active = 'Y' THEN true
+				WHEN NEW.is_active = 'N' THEN false
+				ELSE NULL END,
 			NEW.subject_key_identifier,
 			NEW.private_key,
 			NEW.passphrase,
 			NEW.encryption_key_id
 		) RETURNING * INTO key;
-		NEW.x509_cert_id := key;
+		NEW.x509_cert_id := key.private_key_id;
 	ELSE
 		IF NEW.subject_key_identifier IS NOT NULL THEN
-			SELECT jazzhands.private_key_id
+			SELECT *
 			INTO key
 			FROM private_key
 			WHERE subject_key_identifier = NEW.subject_key_identifier;
@@ -17398,7 +17400,7 @@ BEGIN
 			SELECT private_key
 			INTO NEW.private_key
 			FROM private_key
-			WHERE private_key_id = key;
+			WHERE private_key_id = key.private_key_id;
 		END IF;
 	END IF;
 
@@ -17415,7 +17417,7 @@ BEGIN
 			key
 		) RETURNING * INTO csr;
 		IF NEW.x509_cert_id IS NULL THEN
-			NEW.x509_cert_id := csr;
+			NEW.x509_cert_id := csr.certificate_signing_request_id;
 		END IF;
 	ELSE
 		IF NEW.subject_key_identifier IS NOT NULL THEN
@@ -17430,7 +17432,7 @@ BEGIN
 			SELECT certificate_signing_request
 			INTO NEW.certificate_sign_req
 			FROM certificate_signing_request
-			WHERE certificate_signing_request_id  = csr;
+			WHERE certificate_signing_request_id  = csr.certificate_signing_request_id;
 		END IF;
 	END IF;
 
@@ -17471,8 +17473,8 @@ BEGIN
 			NEW.x509_revocation_reason,
 			NEW.ocsp_uri,
 			NEW.crl_uri,
-			key,
-			csr
+			key.private_key_id,
+			csr.certificate_signing_request_id
 		) RETURNING * INTO crt;
 	END IF;
 
