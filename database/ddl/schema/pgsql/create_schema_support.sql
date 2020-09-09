@@ -1675,7 +1675,7 @@ BEGIN
 		IF _r.condeferred THEN
 			_def := _def || ' INITIALLY DEFERRED';
 		ELSE
-			_def := _def || ' INITIALLY DEFERRED';
+			_def := _def || ' INITIALLY IMMEDIATE';
 		END IF;
 
 		_ddl := 'ALTER TABLE ' || _r.nspname || '.' || _r.relname ||
