@@ -657,16 +657,16 @@ BEGIN
 	-- If the RHS contains a device_collection_id, check to see if it must be a
 	-- specific type and verify that if so
 	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
-		IF v_prop.prop_val_dev_collection_type_rstrct IS NOT NULL THEN
+		IF v_prop.property_value_device_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_device_collection
 					FROM device_collection WHERE
 					device_collection_id = NEW.Property_Value_Device_collection_Id;
 				IF v_device_collection.device_collection_type !=
-					v_prop.prop_val_dev_collection_type_rstrct
+					v_prop.property_value_device_collection_type_restriction
 				THEN
 					RAISE 'Property_Value_Device_collection_Id must be of type %',
-					v_prop.prop_val_dev_collection_type_rstrct
+					v_prop.property_value_device_collection_type_restriction
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
