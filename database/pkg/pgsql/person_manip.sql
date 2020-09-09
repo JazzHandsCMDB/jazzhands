@@ -659,9 +659,9 @@ DECLARE
 	_arid			account_realm.account_realm_id%TYPE;
 BEGIN
 	IF change_company.account_realm_id IS NULL THEN
-		SELECT	account_realm_id
+		SELECT	p.account_realm_id
 		INTO	_arid
-		FROM	property
+		FROM	property p
 		WHERE	property_type = 'Defaults'
 		AND	property_name = '_root_account_realm_id';
 	ELSE
