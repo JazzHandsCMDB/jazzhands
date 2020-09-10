@@ -36,7 +36,11 @@ FROM (
 			SELECT  dcd.device_collection_id, 
 					p.property_name, 
 					coalesce(p.property_value, 
-						p.property_value_password_type) as property_value,
+						p.property_value_password_type,
+						CASE WHEN p.property_value_boolean = true THEN 'Y'
+							WHEN p.property_value_boolean = false THEN 'N'
+							ELSE NULL END
+					) as property_value,
 					row_number() OVER (partition by 
 							dcd.device_collection_id,
 							p.property_name
