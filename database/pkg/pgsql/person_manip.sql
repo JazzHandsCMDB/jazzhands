@@ -555,7 +555,7 @@ BEGIN
 		WHERE pca.person_id = purge_person.person_id;
 	DELETE FROM person_contact pc WHERE pc.person_id = purge_person.person_id;
 	DELETE FROM person_location pl WHERE pl.person_id = purge_person.person_id;
-	DELETE FROM v_person_company pc WHERE pc.person_id = purge_person.person_id;
+	DELETE FROM person_company pc WHERE pc.person_id = purge_person.person_id;
 	DELETE FROM person_account_realm_company pcrc
 		WHERE pcrc.person_id = purge_person.person_id;
 	DELETE FROM person p WHERE p.person_id = purge_person.person_id;
