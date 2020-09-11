@@ -17414,7 +17414,7 @@ BEGIN
 			NEW.friendly_name,
 			NEW.subject,
 			NEW.certificate_sign_req,
-			key
+			key.private_key_id
 		) RETURNING * INTO csr;
 		IF NEW.x509_cert_id IS NULL THEN
 			NEW.x509_cert_id := csr.certificate_signing_request_id;
@@ -17476,38 +17476,38 @@ BEGIN
 			key.private_key_id,
 			csr.certificate_signing_request_id
 		) RETURNING * INTO crt;
+
+		NEW.x509_cert_id 		= crt.x509_signed_certificate_id;
+		NEW.friendly_name 		= crt.friendly_name;
+		NEW.is_active 			= CASE WHEN crt.is_active = true THEN 'Y'
+									WHEN crt.is_active = false THEN 'N'
+									ELSE NULL END;
+		NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority =
+										true THEN 'Y'
+									WHEN crt.is_certificate_authority = false
+										THEN 'N'
+									ELSE NULL END;
+
+		NEW.signing_cert_id 			= crt.signing_cert_id;
+		NEW.x509_ca_cert_serial_number	= crt.x509_ca_cert_serial_number;
+		NEW.public_key 					= crt.public_key;
+		NEW.private_key 				= key.private_key;
+		NEW.certificate_sign_req 		= csr.certificate_signing_request;
+		NEW.subject 					= crt.subject;
+		NEW.subject_key_identifier 		= crt.subject_key_identifier;
+		NEW.valid_from 					= crt.valid_from;
+		NEW.valid_to 					= crt.valid_to;
+		NEW.x509_revocation_date 		= crt.x509_revocation_date;
+		NEW.x509_revocation_reason 		= crt.x509_revocation_reason;
+		NEW.passphrase 					= key.passphrase;
+		NEW.encryption_key_id 			= key.encryption_key_id;
+		NEW.ocsp_uri 					= crt.ocsp_uri;
+		NEW.crl_uri 					= crt.crl_uri;
+		NEW.data_ins_user 				= crt.data_ins_user;
+		NEW.data_ins_date 				= crt.data_ins_date;
+		NEW.data_upd_user 				= crt.data_upd_user;
+		NEW.data_upd_date 				= crt.data_upd_date;
 	END IF;
-
-	NEW.x509_cert_id 		= crt.x509_signed_certificate_id;
-	NEW.friendly_name 		= crt.friendly_name;
-	NEW.is_active 			= CASE WHEN crt.is_active = true THEN 'Y'
-								WHEN crt.is_active = false THEN 'N'
-								ELSE NULL END;
-	NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority =
-									true THEN 'Y'
-								WHEN crt.is_certificate_authority = false
-									THEN 'N'
-								ELSE NULL END;
-
-	NEW.signing_cert_id 			= crt.signing_cert_id;
-	NEW.x509_ca_cert_serial_number	= crt.x509_ca_cert_serial_number;
-	NEW.public_key 					= crt.public_key;
-	NEW.private_key 				= key.private_key;
-	NEW.certificate_sign_req 		= csr.certificate_signing_request;
-	NEW.subject 					= crt.subject;
-	NEW.subject_key_identifier 		= crt.subject_key_identifier;
-	NEW.valid_from 					= crt.valid_from;
-	NEW.valid_to 					= crt.valid_to;
-	NEW.x509_revocation_date 		= crt.x509_revocation_date;
-	NEW.x509_revocation_reason 		= crt.x509_revocation_reason;
-	NEW.passphrase 					= key.passphrase;
-	NEW.encryption_key_id 			= key.encryption_key_id;
-	NEW.ocsp_uri 					= crt.ocsp_uri;
-	NEW.crl_uri 					= crt.crl_uri;
-	NEW.data_ins_user 				= crt.data_ins_user;
-	NEW.data_ins_date 				= crt.data_ins_date;
-	NEW.data_upd_user 				= crt.data_upd_user;
-	NEW.data_upd_date 				= crt.data_upd_date;
 	RETURN NEW;
 END;
 $$
@@ -17562,9 +17562,13 @@ BEGIN
 				);
 			END IF;
 			IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
-				_uq := array_append(_uq,
-					'is_active = ' || quote_literal(NEW.is_active)
-				);
+				IF NEW.is_active = 'Y' THEN
+					_uq := array_append(_uq, 'is_active = true');
+				ELSIF NEW.is_active = 'N' THEN
+					_uq := array_append(_uq, 'is_active = false');
+				ELSE
+					_uq := array_append(_uq, 'is_active = NULL');
+				END IF;
 			END IF;
 			IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
 				_uq := array_append(_uq,
@@ -17589,10 +17593,10 @@ BEGIN
 			END IF;
 		END IF;
 
-		NEW.private_key 	= key.private_key;
-		NEW.is_active 		= key.private_key;
-		NEW.passphrase 		= key.passphrase;
-		NEW.encryption_key 	= key.passphrase;
+		NEW.private_key 		= key.private_key;
+		NEW.is_active 			= CASE WHEN key.is_active THEN 'Y' ELSE 'N' END;
+		NEW.passphrase 			= key.passphrase;
+		NEW.encryption_key_id	= key.encryption_key_id;
 	END IF;
 
 	-- private_key pieces are now what it is supposed to be.
@@ -17610,7 +17614,7 @@ BEGIN
 			NEW.certificate_sign_req,
 			key.private_key_id
 		) RETURNING * INTO csr;
-	ELSIF crt.certificate_sign_req IS NOT NULL THEN
+	ELSIF crt.certificate_signing_request_id IS NOT NULL THEN
 		SELECT * INTO csr FROM jazzhands.certificate_signing_request c
 			WHERE c.certificate_sign_req =  crt.certificate_signing_request_id;
 
@@ -17736,18 +17740,18 @@ BEGIN
 
 	IF array_length(_uq, 1) > 0 THEN
 		EXECUTE 'UPDATE x509_signed_certificate SET '
-			|| array_to_string(upq, ', ')
+			|| array_to_string(_uq, ', ')
 			|| ' WHERE x509_signed_certificate_id = '
 			|| NEW.x509_cert_id;
 	END IF;
 
 	IF _uq IS NOT NULL THEN
-		EXECUTE 'UPDATE jazzhands.x509_certificate SET ' ||
+		EXECUTE 'UPDATE jazzhands.x509_signed_certificate SET ' ||
 			array_to_string(_uq, ', ') ||
-			' WHERE  x509_cert_id = $1 RETURNING *'  USING OLD.x509_cert_id
+			' WHERE  x509_signed_certificate_id = $1 RETURNING *'  USING OLD.x509_cert_id
 			INTO crt;
 
-		NEW.x509_cert_id = _crt.x509_signed_certificate_id;
+		NEW.x509_cert_id = crt.x509_signed_certificate_id;
 		NEW.friendly_name = crt.friendly_name;
 		NEW.is_active = CASE WHEN crt.is_active = true THEN 'Y' WHEN crt.is_active = false THEN 'N' ELSE NULL END;
 		NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority = true THEN 'Y' WHEN crt.is_certificate_authority = false THEN 'N' ELSE NULL END;
@@ -17783,6 +17787,7 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
 
 DROP TRIGGER IF EXISTS trigger_x509_certificate_upd
 	ON jazzhands_legacy.x509_certificate;
