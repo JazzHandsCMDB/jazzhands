@@ -23,7 +23,12 @@ SELECT	property_id,
 	login,
 	property_name,
 	property_type,
-	property_value,
+	coalesce(property_value,
+		CASE WHEN property_value_boolean IS NULL THEN NULL
+			WHEN property_value_boolean = 'true' THEN 'Y'
+			WHEN property_value_boolean = 'faluse' THEN 'N'
+		ELSE NULL END
+	) as property_value,
 	property_rank,
 	is_boolean
 FROM	v_device_collection_account_property_expanded 

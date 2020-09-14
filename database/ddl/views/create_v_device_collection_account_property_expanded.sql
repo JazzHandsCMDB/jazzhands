@@ -52,7 +52,13 @@ SELECT
 	upo.property_type property_type,
 	upo.property_name property_name, 
 	upo.property_rank property_rank, 
-	coalesce(Property_Value_Password_Type, Property_Value) AS property_value,
+	coalesce(Property_Value_Password_Type, Property_Value,
+		CASE WHEN property_value_boolean IS NULL THEN NULL
+			WHEN property_value_boolean = 'true' THEN 'Y'
+			WHEN property_value_boolean = 'false' THEN 'N'
+			ELSE NULL
+		END
+	) AS property_value,
 	CASE WHEN upn.is_multivalue = 'N' THEN 0
 		ELSE 1 END is_multivalue,
 	CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
