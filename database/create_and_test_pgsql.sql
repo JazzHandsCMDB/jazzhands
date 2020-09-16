@@ -18,8 +18,9 @@
 --
 -- This runs through and creates records, runs test and what not.  
 --
--- It assumes the user 'jazzhands' owns the schema, and the database is named
--- jazzhands_new .
+-- It assumes the user 'jazzhands' owns the schema, and the database is the
+-- one to which you initially connect (it will switch to template1 before
+-- making it happen.
 --
 -- This resembles what one may do for creating a fresh install for production
 -- use except in would probably be in the jazzhands database and not have the
@@ -34,53 +35,11 @@
 
 select timeofday(), now();
 
-select set_config('jazzhands.appuser', 'createtester', false);
-SET client_encoding = 'UTF8';
+\ir create_pgsql_from_scratch.sql
 
-alter user jazzhands set search_path = public,pg_catalog;
-
-drop database IF EXISTS jazzhands_new;
-create database jazzhands_new;
-grant create on database jazzhands_new to jazzhands;
-
--- drop database feedlogs;
--- create database feedlogs;
-grant create on database jazzhands_new to jazzhands;
-
-\c jazzhands_new
-
--- arguably should revoke public access to pgcrypto here but it
--- may already exist.  Tricky if it's not in a pgcrypto schema.
-DO $$
-BEGIN
-	CREATE SCHEMA pgcrypto;
-	CREATE EXTENSION IF NOT EXISTS pgcrypto WITH schema pgcrypto;
-EXCEPTION WHEN duplicate_schema THEN
-	NULL;
-END;
-$$;
-
-
-\c jazzhands_new jazzhands;
-
-\ir create_pgsql_schema.sql
-
-\ir init/initialize_currencies.sql
-\ir init/initialize_country_codes.sql
-\ir init/initialize_jazzhands.sql
-\ir init/initialize_component.sql
-
--- goes away wtih jazzhands_legacy
-\ir init/initialize_legacy.sql
-
-\ir init/initialize_jazzhands_optional.sql
--- \ir init/insert_blacklist.sql
--- \ir init/oracle/submit_scheduler.sql
-
--- Things that are only done in migrations
--- \ir compat/pgsql/create_location_compatibility_view.sql
-
--- Example Data is used by the tests
+--
+-- Everything aftrer this is a test
+--
 
 begin;
 
