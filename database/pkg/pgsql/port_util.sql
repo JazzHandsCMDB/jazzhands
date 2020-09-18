@@ -83,6 +83,43 @@ $$ LANGUAGE plpgsql;
 -------------------------------------------------------------------
 --
 --
+-------------------------------------------------------------------
+-- update a table dynamically
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION port_utils.do_l1_connection_update(
+	p_cnames in varchar(100) [],
+	p_values in varchar(100) [],
+	p_l1_id in jazzhands_legacy.layer1_connection.layer1_connection_id%type
+) RETURNS VOID AS $$
+DECLARE
+	l_stmt  varchar(4096);
+	l_rc    integer;
+	i       integer;
+BEGIN
+	l_stmt := 'update layer1_connection set ';
+	for i in array_lower(p_cnames, 1) .. array_upper(p_cnames, 1)
+	LOOP
+		if (i > array_lower(p_cnames, 1) ) then
+			l_stmt := l_stmt || ',';
+		end if;
+		l_stmt := l_stmt || p_cnames[i] || '=' || p_values[i];
+	END LOOP;
+	l_stmt := l_stmt || ' where layer1_connection_id = ' || p_l1_id;
+	RAISE DEBUG '%', l_stmt;
+	-- note: bind variables, sadly, are not used here, but the only
+	-- thing that is supposed to call it,
+	-- port_utils.configure_layer1_connect is expected to use
+	-- quote_literal to make sure things are properly quoted to avoid
+	-- sql injection type attacks.  I would rather use bind variables,
+	-- but this does not appear to work for dynamically built queries
+	-- in pl/pgsql.  alas.
+	EXECUTE l_stmt;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET SEARCH_PATH=jazzhands_legacy;
+
+--end of procedure do_l1_connection_update
+-------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect (
 	physportid1	jazzhands_legacy.physical_port.physical_port_id%type,
 	physportid2	jazzhands_legacy.physical_port.physical_port_id%type,
@@ -380,13 +417,15 @@ BEGIN
 
 	if(updateitr > 0) then
 		RAISE DEBUG 'running do_l1_connection_update';
-		PERFORM port_support.do_l1_connection_update(col_nams, col_vals, l1_con_id);
+		PERFORM port_utils.do_l1_connection_update(col_nams, col_vals, l1_con_id);
 	end if;
 
 	RAISE DEBUG 'returning %', updateitr;
 	return updateitr;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands_legacy;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=jazzhands_legacy;
 
 -------------------------------------------------------------------
 -- connect two power devices
