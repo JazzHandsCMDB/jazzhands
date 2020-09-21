@@ -607,6 +607,7 @@ $$ LANGUAGE plpgsql
 SET search_path = jazzhands
 SECURITY DEFINER;
 
+
 CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 	network_interface_id
 						jazzhands.layer3_interface.
@@ -615,6 +616,35 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 	network_interface_name
 						text DEFAULT NULL,
 	network_interface_type
+						text DEFAULT 'broadcast',
+	ip_address_hash		jsonb DEFAULT NULL,
+	create_layer3_networks
+						boolean DEFAULT false,
+	move_addresses		text DEFAULT 'if_same_device',
+	address_errors		text DEFAULT 'error'
+) RETURNS boolean AS $$
+BEGIN
+	RETURN netblock_manip.set_layer3_interface_addresses(
+		layer3_network_id := network_interface_id,
+		device_id := device_id,
+		layer3_interface_name := network_interface_name,
+		layer3_interface_type := network_interface_type,
+		ip_address_hash := ip_address_hash,
+		create_layer3_networks := create_layer3_networks,
+		move_addresses := move_addresses,
+		address_errors := address_errors
+	);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+CREATE OR REPLACE FUNCTION netblock_manip.set_layer3_interface_addresses(
+	layer3_interface_id
+						jazzhands.layer3_interface.
+							layer3_interface_id%TYPE DEFAULT NULL,
+	device_id			jazzhands.device.device_id%TYPE DEFAULT NULL,
+	layer3_interface_name
+						text DEFAULT NULL,
+	layer3_interface_type
 						text DEFAULT 'broadcast',
 	ip_address_hash		jsonb DEFAULT NULL,
 	create_layer3_networks
@@ -645,13 +675,10 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 -- table
 --
 DECLARE
-    layer3_interface_id ALIAS FOR network_interface_id;
-    layer3_interface_name ALIAS FOR network_interface_name;
-    layer3_interface_type ALIAS FOR network_interface_type;
-	ni_id			ALIAS FOR network_interface_id;
+	l3i_id			ALIAS FOR layer3_interface_id;
 	dev_id			ALIAS FOR device_id;
-	ni_name			ALIAS FOR network_interface_name;
-	ni_type			ALIAS FOR network_interface_type;
+	l3i_name		ALIAS FOR layer3_interface_name;
+	l3i_type		ALIAS FOR layer3_interface_type;
 
 	addrs_ary		jsonb;
 	ipaddr			inet;
@@ -667,11 +694,11 @@ DECLARE
 	pnb_rec			RECORD;
 	layer3_rec		RECORD;
 	sn_rec			RECORD;
-	ni_rec			RECORD;
-	nin_rec			RECORD;
+	l3i_rec			RECORD;
+	l3in_rec		RECORD;
 	nb_id			jazzhands.netblock.netblock_id%TYPE;
 	nb_id_ary		integer[];
-	ni_id_ary		integer[];
+	l3i_id_ary		integer[];
 	del_list		integer[];
 BEGIN
 	--
@@ -691,12 +718,12 @@ BEGIN
 		END IF;
 
 		SELECT
-			ni.layer3_interface_id INTO ni_id
+			l3i.layer3_interface_id INTO l3i_id
 		FROM
-			layer3_interface ni
+			layer3_interface l3i
 		WHERE
-			ni.device_id = dev_id AND
-			ni.layer3_interface_name = ni_name;
+			l3i.device_id = dev_id AND
+			l3i.layer3_interface_name = l3i_name;
 
 		IF NOT FOUND THEN
 			INSERT INTO layer3_interface(
@@ -706,15 +733,15 @@ BEGIN
 				should_monitor
 			) VALUES (
 				dev_id,
-				ni_name,
-				ni_type,
+				l3i_name,
+				l3i_type,
 				false
-			) RETURNING layer3_interface.layer3_interface_id INTO ni_id;
+			) RETURNING layer3_interface.layer3_interface_id INTO l3i_id;
 		END IF;
 	END IF;
 
-	SELECT * INTO ni_rec FROM layer3_interface ni WHERE 
-		ni.layer3_interface_id = ni_id;
+	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE 
+		l3i.layer3_interface_id = l3i_id;
 
 	--
 	-- First, loop through ip_addresses passed and process those
@@ -998,10 +1025,10 @@ BEGIN
 			-- if this netblock is already assigned to this layer3_interface
 			--
 			PERFORM * FROM
-				layer3_interface_netblock nin
+				layer3_interface_netblock l3in
 			WHERE
-				nin.netblock_id = nb_rec.netblock_id AND
-				nin.layer3_interface_id = ni_id;
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id = l3i_id;
 
 			IF FOUND THEN
 				RAISE DEBUG 'Netblock % already found on layer3_interface',
@@ -1014,24 +1041,24 @@ BEGIN
 			-- if move_addresses is set, otherwise skip it
 			--
 			SELECT 
-				ni.layer3_interface_id,
-				ni.layer3_interface_name,
-				nin.netblock_id,
+				l3i.layer3_interface_id,
+				l3i.layer3_interface_name,
+				l3in.netblock_id,
 				d.device_id,
 				COALESCE(d.device_name, d.physical_label) AS device_name
-			INTO nin_rec
+			INTO l3in_rec
 			FROM
-				layer3_interface_netblock nin JOIN
-				layer3_interface ni USING (layer3_interface_id) JOIN
-				device d ON (nin.device_id = d.device_id)
+				layer3_interface_netblock l3in JOIN
+				layer3_interface l3i USING (layer3_interface_id) JOIN
+				device d ON (l3in.device_id = d.device_id)
 			WHERE
-				nin.netblock_id = nb_rec.netblock_id AND
-				nin.layer3_interface_id != ni_id;
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id != l3i_id;
 
 			IF FOUND THEN
 				IF move_addresses = 'always' OR (
 					move_addresses = 'if_same_device' AND
-					nin_rec.device_id = ni_rec.device_id
+					l3in_rec.device_id = l3i_rec.device_id
 				)
 				THEN
 					DELETE FROM
@@ -1041,27 +1068,27 @@ BEGIN
 				ELSE
 					IF address_errors = 'ignore' THEN
 						RAISE DEBUG 'Netblock % is assigned to layer3_interface %',
-							nb_rec.netblock_id, nin_rec.layer3_interface_id;
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
 
 						CONTINUE;
 					ELSIF address_errors = 'warn' THEN
 						RAISE NOTICE 'Netblock % (%) is assigned to layer3_interface % (%) on device % (%)',
 							nb_rec.netblock_id,
 							nb_rec.ip_address,
-							nin_rec.layer3_interface_id,
-							nin_rec.layer3_interface_name,
-							nin_rec.device_id,
-							nin_rec.device_name;
+							l3in_rec.layer3_interface_id,
+							l3in_rec.layer3_interface_name,
+							l3in_rec.device_id,
+							l3in_rec.device_name;
 
 						CONTINUE;
 					ELSE
 						RAISE 'Netblock % (%) is assigned to layer3_interface %(%) on device % (%)',
 							nb_rec.netblock_id,
 							nb_rec.ip_address,
-							nin_rec.layer3_interface_id,
-							nin_rec.layer3_interface_name,
-							nin_rec.device_id,
-							nin_rec.device_name;
+							l3in_rec.layer3_interface_id,
+							l3in_rec.layer3_interface_name,
+							l3in_rec.device_id,
+							l3in_rec.device_name;
 					END IF;
 				END IF;
 			END IF;
@@ -1096,9 +1123,9 @@ BEGIN
 				END IF;
 
 				DELETE FROM
-					shared_netblock_layer3_interface snni
+					shared_netblock_layer3_interface snl3i
 				WHERE
-					snni.shared_netblock_id = sn_rec.shared_netblock_id;
+					snl3i.shared_netblock_id = sn_rec.shared_netblock_id;
 
 				DELETE FROM
 					shared_network sn
@@ -1113,39 +1140,39 @@ BEGIN
 			INSERT INTO layer3_interface_netblock (
 				layer3_interface_id,
 				netblock_id,
-				network_interface_rank
+				layer3_interface_rank
 			) SELECT
-				ni_id,
+				l3i_id,
 				nb_rec.netblock_id,
-				COALESCE(MAX(network_interface_rank) + 1, 0)
+				COALESCE(MAX(layer3_interface_rank) + 1, 0)
 			FROM
-				layer3_interface_netblock nin
+				layer3_interface_netblock l3in
 			WHERE
-				nin.layer3_interface_id = ni_id
-			RETURNING * INTO nin_rec;
+				l3in.layer3_interface_id = l3i_id
+			RETURNING * INTO l3in_rec;
 
 			RAISE DEBUG E'Inserted into:\n%',
-				jsonb_pretty(to_jsonb(nin_rec));
+				jsonb_pretty(to_jsonb(l3in_rec));
 		END LOOP;
 		--
 		-- Remove any netblocks that are on the interface that are not
 		-- supposed to be (and that aren't ignored).
 		--
 
-		FOR nin_rec IN
+		FOR l3in_rec IN
 			DELETE FROM
-				layer3_interface_netblock nin
+				layer3_interface_netblock l3in
 			WHERE
-				(nin.layer3_interface_id, nin.netblock_id) IN (
+				(l3in.layer3_interface_id, l3in.netblock_id) IN (
 				SELECT
-					nin2.layer3_interface_id,
-					nin2.netblock_id
+					l3in2.layer3_interface_id,
+					l3in2.netblock_id
 				FROM
-					layer3_interface_netblock nin2 JOIN
+					layer3_interface_netblock l3in2 JOIN
 					netblock n USING (netblock_id)
 				WHERE
-					nin2.layer3_interface_id = ni_id AND NOT (
-						nin.netblock_id = ANY(nb_id_ary) OR
+					l3in2.layer3_interface_id = l3i_id AND NOT (
+						l3in.netblock_id = ANY(nb_id_ary) OR
 						n.ip_address <<= ANY ( ARRAY (
 							SELECT
 								n2.ip_address
@@ -1167,17 +1194,17 @@ BEGIN
 			RETURNING *
 		LOOP
 			RAISE DEBUG 'Removed netblock % from layer3_interface %',
-				nin_rec.netblock_id,
-				nin_rec.layer3_interface_id;
+				l3in_rec.netblock_id,
+				l3in_rec.layer3_interface_id;
 			--
 			-- Remove any DNS records and/or netblocks that aren't used
 			--
 			BEGIN
-				DELETE FROM dns_record WHERE netblock_id = nin_rec.netblock_id;
+				DELETE FROM dns_record WHERE netblock_id = l3in_rec.netblock_id;
 				DELETE FROM netblock_collection_netblock WHERE
-					netblock_id = nin_rec.netblock_id;
+					netblock_id = l3in_rec.netblock_id;
 				DELETE FROM netblock WHERE netblock_id =
-					nin_rec.netblock_id;
+					l3in_rec.netblock_id;
 			EXCEPTION
 				WHEN foreign_key_violation THEN NULL;
 			END;
@@ -1446,23 +1473,23 @@ BEGIN
 			-- See if this netblock is directly on any layer3_interface, and
 			-- delete it if force is set, otherwise skip it
 			--
-			ni_id_ary := ARRAY[]::integer[];
+			l3i_id_ary := ARRAY[]::integer[];
 
 			SELECT
-				nin.netblock_id,
-				ni.device_id
-			INTO nin_rec
+				l3in.netblock_id,
+				l3i.device_id
+			INTO l3in_rec
 			FROM
-				layer3_interface_netblock nin JOIN
-				layer3_interface ni USING (layer3_interface_id)
+				layer3_interface_netblock l3in JOIN
+				layer3_interface l3i USING (layer3_interface_id)
 			WHERE
-				nin.netblock_id = nb_rec.netblock_id AND
-				nin.layer3_interface_id != ni_id;
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id != l3i_id;
 
 			IF FOUND THEN
 				IF move_addresses = 'always' OR (
 					move_addresses = 'if_same_device' AND
-					nin_rec.device_id = ni_rec.device_id
+					l3in_rec.device_id = l3i_rec.device_id
 				)
 				THEN
 					--
@@ -1483,28 +1510,28 @@ BEGIN
 					)
 					SELECT array_agg(layer3_interface_id) FROM
 						(SELECT layer3_interface_id FROM z) v
-					INTO ni_id_ary;
+					INTO l3i_id_ary;
 				ELSE
 					IF address_errors = 'ignore' THEN
 						RAISE DEBUG 'Netblock % is assigned to layer3_interface %',
-							nb_rec.netblock_id, nin_rec.layer3_interface_id;
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
 
 						CONTINUE;
 					ELSIF address_errors = 'warn' THEN
 						RAISE NOTICE 'Netblock % is assigned to layer3_interface %',
-							nb_rec.netblock_id, nin_rec.layer3_interface_id;
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
 
 						CONTINUE;
 					ELSE
 						RAISE 'Netblock % is assigned to layer3_interface %',
-							nb_rec.netblock_id, nin_rec.layer3_interface_id;
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
 					END IF;
 				END IF;
 
 			END IF;
 
-			IF NOT(ni_id = ANY(ni_id_ary)) THEN
-				ni_id_ary := array_append(ni_id_ary, ni_id);
+			IF NOT(l3i_id = ANY(l3i_id_ary)) THEN
+				l3i_id_ary := array_append(l3i_id_ary, l3i_id);
 			END IF;
 
 			--
@@ -1549,31 +1576,31 @@ BEGIN
 				x.layer3_interface_id,
 				0
 			FROM
-				unnest(ni_id_ary) x(layer3_interface_id)
+				unnest(l3i_id_ary) x(layer3_interface_id)
 			ON CONFLICT ON CONSTRAINT pk_ip_group_network_interface DO NOTHING;
 
 			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
-				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(ni_id_ary));
+				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(l3i_id_ary));
 		END LOOP;
 		--
 		-- Remove any shared_netblocks that are on the interface that are not
 		-- supposed to be (and that aren't ignored).
 		--
 
-		FOR nin_rec IN
+		FOR l3in_rec IN
 			DELETE FROM
-				shared_netblock_layer3_interface snni
+				shared_netblock_layer3_interface snl3i
 			WHERE
-				(snni.layer3_interface_id, snni.shared_netblock_id) IN (
+				(snl3i.layer3_interface_id, snl3i.shared_netblock_id) IN (
 				SELECT
-					snni2.layer3_interface_id,
-					snni2.shared_netblock_id
+					snl3i2.layer3_interface_id,
+					snl3i2.shared_netblock_id
 				FROM
-					shared_netblock_layer3_interface snni2 JOIN
+					shared_netblock_layer3_interface snl3i2 JOIN
 					shared_netblock sn USING (shared_netblock_id) JOIN
 					netblock n USING (netblock_id)
 				WHERE
-					snni2.layer3_interface_id = ni_id AND NOT (
+					snl3i2.layer3_interface_id = l3i_id AND NOT (
 						sn.netblock_id = ANY(nb_id_ary) OR
 						n.ip_address <<= ANY ( ARRAY (
 							SELECT
@@ -1596,15 +1623,15 @@ BEGIN
 			RETURNING *
 		LOOP
 			RAISE DEBUG 'Removed shared_netblock % from layer3_interface %',
-				nin_rec.shared_netblock_id,
-				nin_rec.layer3_interface_id;
+				l3in_rec.shared_netblock_id,
+				l3in_rec.layer3_interface_id;
 
 			--
 			-- Remove any DNS records, netblocks and shared_netblocks
 			-- that aren't used
 			--
 			SELECT netblock_id INTO nb_id FROM shared_netblock sn WHERE
-				sn.shared_netblock_id = nin_rec.shared_netblock_id;
+				sn.shared_netblock_id = l3in_rec.shared_netblock_id;
 			BEGIN
 				DELETE FROM dns_record WHERE netblock_id = nb_id;
 				DELETE FROM netblock_collection_netblock ncn WHERE
