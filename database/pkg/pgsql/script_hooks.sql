@@ -31,6 +31,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS script_hooks;
 		CREATE SCHEMA script_hooks AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA script_hooks FROM public;
 		COMMENT ON SCHEMA script_hooks IS 'part of jazzhands';
 
 	END IF;
@@ -120,9 +121,8 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 --end of script_hooks.zonegen_post
 -------------------------------------------------------------------
 
-grant select on all tables in schema script_hooks to iud_role;
-grant usage on schema script_hooks to iud_role;
-revoke all on schema script_hooks from public;
-revoke all on  all functions in schema script_hooks from public;
-grant execute on all functions in schema script_hooks to iud_role;
+REVOKE ALL ON SCHEMA script_hooks FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA script_hooks FROM public;
 
+GRANT USAGE ON SCHEMA script_hooks TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA script_hooks TO iud_role;

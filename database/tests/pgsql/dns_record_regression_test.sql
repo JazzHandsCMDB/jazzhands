@@ -41,7 +41,8 @@ DECLARE
 	_dnsrec1		dns_record%ROWTYPE;
 	_dnsrec2		dns_record%ROWTYPE;
 	_dnsrec			dns_record%ROWTYPE;
-	_nb				netblock%ROWTYPE;
+	_nb			netblock%ROWTYPE;
+	_r			RECORD;
 BEGIN
 	RAISE NOTICE '++ Beginning tests of dns_record_update_nontime...';
 
@@ -578,6 +579,10 @@ BEGIN
 	) VALUES (
 		'jhtestme', _dnsdomid, 'A', _ip1id
 	) RETURNING * INTO _dnsrec1;
+	select * INTO _r FROM dns_record WHERE dns_record_id = _dnsrec1.dns_record_id;
+	IF _r != _dnsrec1 THEN
+		RAISE EXCEPTION  '>> A insert failed: %', to_jsonb(_r);
+	END IF;
 	BEGIN
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, dns_value

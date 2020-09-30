@@ -24,6 +24,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS component_connection_utils;
                 CREATE SCHEMA component_connection_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA component_connection_utils FROM public;
                 COMMENT ON SCHEMA component_connection_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -266,6 +267,9 @@ BEGIN
 	RETURN;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON SCHEMA component_connection_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_connection_utils FROM public;
 
 GRANT USAGE ON SCHEMA component_connection_utils TO iud_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_connection_utils TO iud_role;

@@ -15,6 +15,15 @@ JazzHands.
 
 ---------------------------------------------------------------------------
 
+JH000	-	No error
+
+Usable instaed of successful_completion or 00000 which doesn't work in some
+(all?) versions of postgres.  Should not be exposed externally, but may be
+used in stored procedures to end a code path rather than ugly nested ifs.
+
+
+---------------------------------------------------------------------------
+
 JH001	-	Multiple values specified when it is not permitted
 
 The schema allows one and only one value to be set in a given table.

@@ -893,3 +893,9 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON SCHEMA property_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA property_utils FROM public;
+
+GRANT ALL ON SCHEMA property_utils TO ro_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA property_utils TO ro_role;

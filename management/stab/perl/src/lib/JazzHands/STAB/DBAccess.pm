@@ -22,7 +22,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# Copyright (c) 2013-2019 Todd Kover, Matthew Ragan
+# Copyright (c) 2013-2020 Todd Kover, Matthew Ragan
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,9 +124,9 @@ sub guess_parent_netblock_id {
 		  from  netblock
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
-				in_IpAddress := :ip, 
+				in_IpAddress := :ip,
 				in_ip_universe_id := 0,
-				in_netblock_type := 'default', 
+				in_netblock_type := 'default',
 				in_is_single_address := :sing)
 			)
 	};
@@ -138,9 +138,9 @@ sub guess_parent_netblock_id {
 		  from  netblock
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
-				in_IpAddress := :ip, 
+				in_IpAddress := :ip,
 				in_ip_universe_id := 0,
-				in_netblock_type := 'default', 
+				in_netblock_type := 'default',
 				in_is_single_address := :sing,
 				in_fuzzy_can_subnet := true )
 			)
@@ -153,9 +153,9 @@ sub guess_parent_netblock_id {
 		  from  netblock
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
-				in_IpAddress := :ip, 
+				in_IpAddress := :ip,
 				in_ip_universe_id := 0,
-				in_netblock_type := 'default', 
+				in_netblock_type := 'default',
 				in_is_single_address := :sing,
 				in_fuzzy_can_subnet := true,
 				can_fix_can_subnet := true)
@@ -169,18 +169,18 @@ sub guess_parent_netblock_id {
 	# the network to not be subnetable.  note I'm using the > literally
 	# not in terms of "bigger" or "smaller" block.  ugh.
 
-	my $sth = $self->prepare($q1) || $self->return_db_err($self);
-	$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
-	$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
-	$sth->execute || $self->return_db_err($sth);
+	my $sth = $self->prepare($q1)      || $self->return_db_err($self);
+	$sth->bind_param( ':ip', $in_ip )  || die $sth->errstr;
+	$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
+	$sth->execute                      || $self->return_db_err($sth);
 	my $rv = $sth->fetchrow_hashref;
 	$sth->finish;
 
 	if ( !$rv ) {
-		$sth = $self->prepare($q2) || $self->return_db_err($self);
-		$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
-		$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
-		$sth->execute || $self->return_db_err($sth);
+		$sth = $self->prepare($q2)         || $self->return_db_err($self);
+		$sth->bind_param( ':ip', $in_ip )  || die $sth->errstr;
+		$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
+		$sth->execute                      || $self->return_db_err($sth);
 		$rv = $sth->fetchrow_hashref;
 		$sth->finish;
 		my $bits = $rv->{ _dbx('netmask_bits') };
@@ -195,10 +195,10 @@ sub guess_parent_netblock_id {
 			}
 		}
 		if ($rv) {
-			$sth = $self->prepare($q3) || $self->return_db_err($self);
-			$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
-			$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
-			$sth->execute || $self->return_db_err($sth);
+			$sth = $self->prepare($q3)         || $self->return_db_err($self);
+			$sth->bind_param( ':ip', $in_ip )  || die $sth->errstr;
+			$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
+			$sth->execute                      || $self->return_db_err($sth);
 			$rv = $sth->fetchrow_hashref;
 			$sth->finish;
 		}
@@ -276,7 +276,7 @@ sub check_ip_on_local_nets {
 		where
 			ni.device_id = ?
 		 and
-			net_manip.inet_base(net_manip.inet_ptodb(?), 
+			net_manip.inet_base(net_manip.inet_ptodb(?),
 					family(nb.ip_address)) =
 				net_manip.inet_base(nb.ip_address, family(nb.ip_address))
 	}
@@ -424,7 +424,7 @@ sub get_rack_from_rackid {
 		$q =~ s/\s+as\s+[^,\s]+(,?\s*\n)/$1/gim;
 	}
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($rackid) || $self->return_db_err($sth);
+	$sth->execute($rackid)       || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -452,7 +452,7 @@ sub get_location_from_devid {
 		$q =~ s/\s+as\s+[^,\s]+(,?\s*\n)/$1/gim;
 	}
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->execute($devid)        || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -494,7 +494,7 @@ sub get_dns_record_from_id {
 		where   dns_record_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
+	$sth->execute($id)           || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -510,7 +510,7 @@ sub get_dns_record_from_name {
 		 and	dns_domain_id = ?
 
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)        || $self->return_db_err($self);
 	$sth->execute( $shortname, $domid ) || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -538,7 +538,7 @@ sub get_dns_domain_from_id {
 		where   dns_domain_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
+	$sth->execute($id)           || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -565,7 +565,7 @@ sub get_dns_domain_from_name {
 		where   soa_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($name) || $self->return_db_err($sth);
+	$sth->execute($name)         || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -628,9 +628,9 @@ sub get_dev_from_devid {
 		  from  device d
 		 where  d.device_id = :devid
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)         || $self->return_db_err($self);
 	$sth->bind_param( ':devid', $devid ) || $self->return_db_err($sth);
-	$sth->execute || $self->return_db_err($sth);
+	$sth->execute                        || $self->return_db_err($sth);
 
 	# when putting this in, make sure that updates to devices don't touch these
 	# fields.  I think it's smart, but make sure. -kovert [XXX]
@@ -650,9 +650,9 @@ sub get_asset_from_component_id {
 		  from  asset
 		 where  component_id = :compid
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)           || $self->return_db_err($self);
 	$sth->bind_param( ':compid', $compid ) || $self->return_db_err($sth);
-	$sth->execute || $self->return_db_err($sth);
+	$sth->execute                          || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -730,7 +730,7 @@ sub get_dev_from_name {
 		 where  d.device_name = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($name) || $self->return_db_err($sth);
+	$sth->execute($name)         || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -749,9 +749,9 @@ sub get_dev_from_serial {
 		LIMIT 1
 	};
 
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)         || $self->return_db_err($self);
 	$sth->bind_param( ':serno', $serno ) || $self->return_db_err();
-	$sth->execute || $self->return_db_err($sth);
+	$sth->execute                        || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -767,7 +767,7 @@ sub get_snmpcommstr_from_id {
 		 where  snmp_commstr_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($snmpid) || $self->return_db_err($sth);
+	$sth->execute($snmpid)       || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -782,9 +782,9 @@ sub get_snmpstr_count {
 		 where  device_id = :devid
 	};
 
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)            || $self->return_db_err($self);
 	$sth->bind_param( ':devid', $deviceid ) || $self->return_db_err($sth);
-	$sth->execute() || $self->return_db_err($sth);
+	$sth->execute()                         || $self->return_db_err($sth);
 	my $rv = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$rv;
@@ -800,7 +800,7 @@ sub ptr_exists {
 		   and	should_generate_ptr = 'Y'
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
+	$sth->execute($id)           || $self->return_db_err($sth);
 	my $tally = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$tally;
@@ -948,7 +948,7 @@ sub get_operating_system_from_id {
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
+	$sth->execute($id)           || $self->return_db_err($sth);
 	my $os = $sth->fetchrow_hashref;
 	$sth->finish;
 	$os;
@@ -966,7 +966,7 @@ sub get_device_from_id {
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
+	$sth->execute($id)           || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -993,7 +993,7 @@ sub get_device_type_from_id {
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id) || $self->return_db_err($sth);
+	$sth->execute($id)           || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -1019,7 +1019,7 @@ sub get_device_type_from_name {
 		 AND	dt.model = ?
 	};
 
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)        || $self->return_db_err($self);
 	$sth->execute( $companyid, $model ) || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
@@ -1088,9 +1088,9 @@ sub get_layer1_connection_from_port {
 		 where	physical_port1_id = :pportid or
 			physical_port2_id = :pportid
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)          || $self->return_db_err($self);
 	$sth->bind_param( ':pportid', $port ) || $self->return_db_err;
-	$sth->execute || $self->return_db_err($sth);
+	$sth->execute                         || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -1113,7 +1113,7 @@ sub get_layer1_connection {
 		 where	layer1_connection_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($l1cid) || $self->return_db_err($sth);
+	$sth->execute($l1cid)        || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -1135,7 +1135,7 @@ sub get_physical_port {
 		 where	physical_port_id = ?
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($pportid) || $self->return_db_err($sth);
+	$sth->execute($pportid)      || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -1158,7 +1158,7 @@ sub get_physical_port_byport {
 		   and	port_name = ?
 		   and	port_type = ?
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)          || $self->return_db_err($self);
 	$sth->execute( $devid, $port, $type ) || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
@@ -1209,7 +1209,7 @@ sub get_physical_ports_for_dev {
 			 where	device_id = ?
 			   and	port_type = ?
 		};
-		$sth = $self->prepare($q) || $self->return_db_err($self);
+		$sth = $self->prepare($q)      || $self->return_db_err($self);
 		$sth->execute( $devid, $type ) || $self->return_db_err($sth);
 	} else {
 		my $q = qq{
@@ -1218,7 +1218,7 @@ sub get_physical_ports_for_dev {
 			 where	device_id = ?
 		};
 		$sth = $self->prepare($q) || $self->return_db_err($self);
-		$sth->execute($devid) || $self->return_db_err($sth);
+		$sth->execute($devid)     || $self->return_db_err($sth);
 	}
 	while ( my ($id) = $sth->fetchrow_array ) {
 		push( @rv, $id );
@@ -1235,9 +1235,9 @@ sub get_num_dev_notes {
 		  from	device_note
 		 where	device_id = :devid
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	my $sth = $self->prepare($q)         || $self->return_db_err($self);
 	$sth->bind_param( ':devid', $devid ) || $self->return_db_err($sth);
-	$sth->execute() || $self->return_db_err($sth);
+	$sth->execute()                      || $self->return_db_err($sth);
 
 	my $tally = ( $sth->fetchrow_array )[0];
 	$sth->finish;
@@ -1276,7 +1276,7 @@ sub remove_from_device_collection {
 
 	if ($type) {
 		$q .= qq{and device_collection_id in
-			(select device_collection_id 
+			(select device_collection_id
 			   from device_collection
 			  where	device_collection_type = :type
 			)
@@ -1329,8 +1329,8 @@ sub get_device_collections_for_device {
 	};
 	if ($type) {
 		$q .= qq{and device_collection_id in
-			(select device_collection_id 
-			  from device_collection 
+			(select device_collection_id
+			  from device_collection
 			  where device_collection_type = :type
 			)
 		};
@@ -1520,7 +1520,7 @@ sub validate_route_entry {
 			$nb = $self->add_netblock(
 				ip_address         => $srcip,
 				parent_netblock_id => $parnb->{ _dbx('PARENT_NETBLOCK_ID') },
-				netblock_type => 'default',    # XXX -- need to reconsider!
+				netblock_type      => 'default',    # XXX -- need to reconsider!
 			);
 		}
 
@@ -1548,10 +1548,10 @@ sub resync_device_power {
 		select	:devid, power_interface_port
 		  from	DEVICE_TYPE_POWER_PORT_TEMPLT
 		 where	device_type_id = :dtid
-		   and	power_interface_port not in 
+		   and	power_interface_port not in
 			(select power_interface_port from device_power_interface
 				where device_id = :devid
-			)   
+			)
 	}
 	);
 	$sth->bind_param( ':devid', $dev->{ _dbx('DEVICE_ID') } )
@@ -1623,7 +1623,7 @@ sub get_physical_port_count {
 			select	count(*)
 			  from	physical_port
 			 where	device_id = ?
-			   and	port_type = ? 
+			   and	port_type = ?
 		}
 	) || die $self->return_db_err;
 
@@ -1987,7 +1987,7 @@ sub delete_netblock {
 			DO $$
 			BEGIN
 		} . $q . q{
-			EXCEPTION WHEN foreign_key_violation THEN 
+			EXCEPTION WHEN foreign_key_violation THEN
 				NULL;
 			END
 			$$

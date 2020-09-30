@@ -12235,10 +12235,11 @@ BEGIN
 	NEW.should_generate = CASE WHEN _du.should_generate = true THEN 'Y' WHEN _du.should_generate = false THEN 'N' ELSE NULL END;
 	NEW.last_generated = _du.last_generated;
 	NEW.dns_domain_type = _d.dns_domain_type;
-	NEW.data_ins_user = _d.data_ins_user;
-	NEW.data_ins_date = _d.data_ins_date;
-	NEW.data_upd_user = _d.data_upd_user;
-	NEW.data_upd_date = _d.data_upd_date;
+
+	NEW.data_ins_user = coalesce(_d.data_ins_user, _du.data_ins_user);
+	NEW.data_ins_date = coalesce(_d.data_ins_date, _du.data_ins_date);
+	NEW.data_upd_user = coalesce(_du.data_upd_user, _d.data_upd_user);
+	NEW.data_upd_date = coalesce(_du.data_upd_date, _d.data_upd_date);
 	RETURN NEW;
 END;
 $$
@@ -12343,10 +12344,9 @@ BEGIN
 		NEW.soa_name = _d.soa_name;
 		NEW.dns_domain_type = _d.dns_domain_type;
 		NEW.parent_dns_domain_id = _d.parent_dns_domain_id;
-		NEW.data_ins_user = _d.data_ins_user;
-		NEW.data_ins_date = _d.data_ins_date;
-		NEW.data_upd_user = _d.data_upd_user;
-		NEW.data_upd_date = _d.data_upd_date;
+	ELSE
+		SELECT * INTO _d  FROM jazzhands.dns_domain
+		WHERE dns_domain_id = NEW.dns_domain_id;
 	END IF;
 
 	IF _uq IS NOT NULL THEN
@@ -12367,11 +12367,16 @@ BEGIN
 		NEW.soa_rname = _du.soa_rname;
 		NEW.should_generate = CASE WHEN _du.should_generate = true THEN 'Y' WHEN _du.should_generate = false THEN 'N' ELSE NULL END;
 		NEW.last_generated = _du.last_generated;
-		NEW.data_ins_user = _du.data_ins_user;
-		NEW.data_ins_date = _du.data_ins_date;
-		NEW.data_upd_user = _du.data_upd_user;
-		NEW.data_upd_date = _du.data_upd_date;
+	ELSE
+		SELECT * INTO _du FROM jazzhands.dns_domain_ip_universe
+			WHERE dns_domain_id = NEW.dns_domain_id
+			AND ip_universe_id = 0;
 	END IF;
+
+	NEW.data_ins_user = coalesce(_d.data_ins_user, _du.data_ins_user);
+	NEW.data_ins_date = coalesce(_d.data_ins_date, _du.data_ins_date);
+	NEW.data_upd_user = coalesce(_du.data_upd_user, _d.data_upd_user);
+	NEW.data_upd_date = coalesce(_du.data_upd_date, _d.data_upd_date);
 
 	RETURN NEW;
 END;
@@ -12394,11 +12399,10 @@ DECLARE
 	_d		jazzhands.dns_domain%rowtype;
 	_du		jazzhands.dns_domain_ip_universe%rowtype;
 BEGIN
-	DELETE FROM jazzhands.v_dns_domain_ip_universe
+	DELETE FROM jazzhands.dns_domain_ip_universe
 	WHERE  dns_domain_id = OLD.dns_domain_id
-	AND ip_universe = 0
+	AND ip_universe_id = 0
 	RETURNING * INTO _du;
-
 
 	DELETE FROM jazzhands.dns_domain
 	WHERE  dns_domain_id = OLD.dns_domain_id
@@ -12420,10 +12424,11 @@ BEGIN
 	OLD.soa_rname = _du.soa_rname;
 	OLD.should_generate = CASE WHEN _du.should_generate = true THEN 'Y' WHEN _du.should_generate = false THEN 'N' ELSE NULL END;
 	OLD.last_generated = _du.last_generated;
-	OLD.data_ins_user = _du.data_ins_user;
-	OLD.data_ins_date = _du.data_ins_date;
-	OLD.data_upd_user = _du.data_upd_user;
-	OLD.data_upd_date = _du.data_upd_date;
+
+	OLD.data_ins_user = coalesce(_d.data_ins_user, _du.data_ins_user);
+	OLD.data_ins_date = coalesce(_d.data_ins_date, _du.data_ins_date);
+	OLD.data_upd_user = coalesce(_du.data_upd_user, _d.data_upd_user);
+	OLD.data_upd_date = coalesce(_du.data_upd_date, _d.data_upd_date);
 	RETURN OLD;
 END;
 $$

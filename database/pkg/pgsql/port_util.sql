@@ -59,6 +59,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS port_utils;
                 CREATE SCHEMA port_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA port_utils FROM public;
                 COMMENT ON SCHEMA port_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -610,3 +611,6 @@ BEGIN
 	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands_legacy;
+
+REVOKE ALL ON SCHEMA port_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA port_utils FROM public;

@@ -26,6 +26,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS logical_port_manip;
                 CREATE SCHEMA logical_port_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA logical_port_manip FROM public;
 		COMMENT ON SCHEMA logical_port_manip IS 'part of jazzhands';
         END IF;
 END;
@@ -128,5 +129,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-GRANT USAGE ON SCHEMA logical_port_manip TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA logical_port_manip TO iud_role;
+REVOKE ALL ON SCHEMA logical_port_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA logical_port_manip FROM public;
+
+GRANT ALL ON SCHEMA logical_port_manip TO iud_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA logical_port_manip TO iud_role;

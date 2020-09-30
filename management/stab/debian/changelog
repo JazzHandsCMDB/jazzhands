@@ -1,3 +1,9 @@
+jazzhands-stab (0.90) focal; urgency=medium
+
+  * add ability to delegate attestation to another
+
+ -- Todd Kover <kovert@omnicient.com>  Thu, 24 Sep 2020 15:36:00 -0500
+
 jazzhands-stab (0.87.3) focal; urgency=medium
 
   * remove calls no no longer defined functions (bug in 0.87.1)

@@ -28,6 +28,7 @@ BEGIN
 		DROP SCHEMA IF EXISTS snapshot_manip CASCADE;
 		-- CREATE SCHEMA snapshot_manip AUTHORIZATION jazzhands;
 		CREATE SCHEMA snapshot_manip;
+		REVOKE ALL ON SCHEMA snapshot_manip FROM public;
 		COMMENT ON SCHEMA snapshot_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -447,6 +448,9 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON SCHEMA snapshot_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA snapshot_manip FROM public;
 
 GRANT USAGE ON SCHEMA snapshot_manip TO iud_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA snapshot_manip TO iud_role;

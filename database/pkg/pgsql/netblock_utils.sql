@@ -54,6 +54,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS netblock_utils;
                 CREATE SCHEMA netblock_utils AUTHORIZATION jazzhands;
+		REVOKE USAGE ON SCHEMA netblock_utils FROM public;
 		COMMENT ON SCHEMA netblock_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -953,4 +954,8 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = jazzhands;
 
--- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO ro_role;
+REVOKE USAGE ON SCHEMA netblock_utils FROM public;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils FROM public;
+
+GRANT USAGE ON SCHEMA netblock_utils TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_utils TO ro_role;

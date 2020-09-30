@@ -3071,6 +3071,7 @@ CREATE TABLE logical_port
 	logical_port_type    character varying(50)  NOT NULL ,
 	device_id            integer  NULL ,
 	mlag_peering_id      integer  NULL ,
+	mlag_id              integer  NULL ,
 	parent_logical_port_id integer  NULL ,
 	mac_address          macaddr  NULL ,
 	data_ins_user        varchar(255)  NULL ,
@@ -3090,6 +3091,9 @@ ALTER TABLE logical_port
 
 ALTER TABLE logical_port
 	ADD CONSTRAINT "uq_lg_port_name_type_mlag" UNIQUE (logical_port_name,logical_port_type,mlag_peering_id);
+
+ALTER TABLE logical_port
+	ADD CONSTRAINT "uq_lport_mlag_peer_id" UNIQUE (mlag_id,mlag_peering_id);
 
 CREATE INDEX xif3logical_port ON logical_port
 ( 

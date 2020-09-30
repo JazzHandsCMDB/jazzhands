@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2015, Todd M. Kover
+# Copyright (c) 2015-2020, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,7 @@ my $service = "approval-notify";
 
 =head1 NAME
 
-approve-email - 
+approve-email -
 =head1 SYNOPSIS
 
 approval-email [ --debug ][ --dry-run | -n ]  [ --updatedb ] [ --stabroot=url ] [ --mailsender=email ] [ --signatory=text ] [ --login=person ] [--escalation-gap=#days ]  --escalation-level=# [ --random-sleep=# ] [ --reminder-gap=# ]
@@ -75,7 +75,7 @@ command line, it will just not be included
 --escalation-gap can be set to a number of days to begin copying the next
 layer of management on overdue reminders.  That is, if its set to 2, every 2
 days, the next layer of management will be copied until there are no more
-managers to add.  The default is zero, which turns of esclations.
+managers to add.  The default is zero, which turns off esclations.
 
 --escalation-level can be set to a number of tiers above the manager to be
 escalated to.  That is, if it set to zero, the escalation-gap option is useless.
@@ -87,6 +87,13 @@ step that a reminder email is sent.  Only one reminder will be sent.
 
 The --random-sleep option tells the script to sleep for a random time up to the
 argument number.  The default is not to sleep
+
+There is support in the database for setting up delegates for individuals
+to receive the email intead of the person.  This is handled as part of the
+script.  At any point if a task becomes overdue, it will begin copying the
+original owner although it will continue to be directed at the delegate.
+Note that it is not possible to delegate escalations.  That always follows
+the management change.
 
 =head1 BUILDING THE EMAIL
 
@@ -100,11 +107,15 @@ set in the database.
 
 An optional signer signs the email.
 
+=head1 BUGS
+
+The wording and way the delegate stuff was shimmed in is awkward.
+
 =head1 AUTHORS
 
 Todd M. Kover <kovert@omniscient.com>
 
-=cut 
+=cut
 
 exit do_work();
 
@@ -238,7 +249,7 @@ sub do_work {
 	    			WHERE not a.cycle
 		), all_email as (
 			SELECT	person_id, person_contact_account_name as email_address,
-					rank() OVER (partition by person_id 
+					rank() OVER (partition by person_id
 							ORDER BY person_contact_order) as tier
 			FROM	person_contact
 			WHERE	person_contact_technology = 'email'
@@ -247,10 +258,10 @@ sub do_work {
 			select * from all_email where tier = 1
 		), defaultdomain AS (
 			select property_value as default_domain
-			from property 
+			from property
 			where property_name = '_defaultdomain'
-			and property_type = 'Defaults' 
-			order by property_id LIMIT 1 
+			and property_type = 'Defaults'
+			order by property_id LIMIT 1
 		), hier_email AS (
 			SELECT	r.root_account_id as account_id,
 					coalesce(p.preferred_last_name, p.last_name) as last_name,
@@ -268,31 +279,35 @@ sub do_work {
 					LEFT JOIN email e USING (person_id),
 					defaultdomain
 		), agg_email AS (
-			SELECT account_id, array_agg(name ORDER BY account_id,apath) 
-						AS hier_name_tier, 
-					array_agg(email ORDER BY account_id,apath) 
+			SELECT account_id, array_agg(name ORDER BY account_id,apath)
+						AS hier_name_tier,
+					array_agg(email ORDER BY account_id,apath)
 						AS hier_email_tier
 			FROM	hier_email
 			GROUP BY account_id
 		), notifications AS (
 			SELECT approval_instance_step_id, approval_notify_type,
 					approval_notify_whence,
-					rank() OVER (partition by approval_instance_step_id 
+					rank() OVER (partition by approval_instance_step_id
 							ORDER BY approval_notify_whence desc) as tier
 			FROM approval_instance_step_notify
 			WHERE approval_notify_type  = 'email'
 		), lastnotify AS (
 			SELECT * from notifications where tier = 1
-		) SELECT	account_id, login, 
+		) SELECT	account_id, login,
 				approval_instance_step_id,
 				coalesce(p.preferred_last_name, p.last_name) as last_name,
 				coalesce(p.preferred_first_name, p.first_name) as first_name,
 				coalesce(email_address, concat(login, '\@', default_domain))
-					as email_address,
+					AS email_address,
+				delegate_email_address,
 				approval_utils.message_replace(
-						coalesce(apc.email_message, apc.message), 
+						coalesce(apc.email_message, apc.message),
 						approval_instance_step_start::timestamp,
-						approval_instance_step_due::timestamp) as message,
+						approval_instance_step_due::timestamp,
+						full_stab_url := CONCAT(
+							'%{stab_root}/approve?actas=', login)
+				) as message,
 				ap.approval_expiration_action,
 				ais.approval_instance_step_name,
 				ai.approval_instance_name,
@@ -304,7 +319,7 @@ sub do_work {
 				approval_notify_type,
 				extract(epoch from approval_notify_whence) as approval_notify_whence,
 				extract(epoch from ($dbnow - approval_notify_whence) )
-					as since_last_pester, 
+					as since_last_pester,
 				apc.email_subject_prefix,
 				apc.email_subject_suffix,
 				ae.hier_name_tier,
@@ -322,9 +337,25 @@ sub do_work {
 				LEFT JOIN email USING (person_id)
 				LEFT JOIN lastnotify USING (approval_instance_step_id)
 				LEFT JOIN agg_email ae USING (account_id)
+				LEFT JOIN (
+					SELECT lhs.account_id as account_id,
+						email_address AS delegate_email_address
+					FROM property p
+						JOIN account_collection_account lhs
+							USING (account_collection_id)
+						JOIN (
+							SELECT account_collection_id
+								AS property_value_account_coll_id,
+								account_Id, person_id
+							FROM account_collection_account
+							JOIN account USING (account_Id)
+						) rhs USING (property_value_account_coll_id)
+						INNER JOIN person USING (person_id)
+						INNER JOIN email USING (person_id)
+				) deleg USING (account_id)
 			,defaultdomain
 		WHERE   approval_type = 'account'
-		AND  ais.is_completed = 'N' 
+		AND  ais.is_completed = 'N'
 		ORDER BY email_address
 		;
 	}
@@ -344,6 +375,7 @@ sub do_work {
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $email     = $hr->{email_address};
+		my $deleg     = $hr->{delegate_email_address};
 		my $action    = $hr->{approval_expiration_action};
 		my $due       = $hr->{due_seconds};
 		my $due_epoch = $hr->{due_epoch};
@@ -364,9 +396,9 @@ sub do_work {
 		if ( $remindergap && $hr->{due_seconds} > 0 ) {
 			my $reminderdays = 86400 * $remindergap;
 
-			
-			if ( $hr->{approval_notify_whence} &&
-					$hr->{approval_notify_whence} + $reminderdays > $now ) {
+			if (   $hr->{approval_notify_whence}
+				&& $hr->{approval_notify_whence} + $reminderdays > $now )
+			{
 				next;
 			}
 
@@ -386,11 +418,15 @@ sub do_work {
 		# if its overdue, and some pestering was not done in the past day
 		# pester again.
 		#
-		my $overdue = ceil (
-		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0
+		my $overdue = ceil(
+			( $hr->{due_seconds} < 0 )
+			? abs( $hr->{due_seconds} / 86400 )
+			: 0
 		);
-		my $overdueprint = floor (
-		  ( $hr->{due_seconds} < 0 ) ? abs( $hr->{due_seconds} / 86400 ) : 0
+		my $overdueprint = floor(
+			( $hr->{due_seconds} < 0 )
+			? abs( $hr->{due_seconds} / 86400 )
+			: 0
 		);
 		if ( $overdue
 			&& ( $hr->{since_last_pester} && $hr->{since_last_pester} < 86400 )
@@ -409,23 +445,29 @@ sub do_work {
 			$subj = "$subj $suffix";
 		}
 
-		my $rcpt = $email;
+		#
+		# If a delegate is set, use that, otherwise use the user's email
+		# address.  This could be extended to allow the delegate _and_ the
+		# person to get it, but that's more than needed.
+		#
+		my $rcpt = ($deleg) ? $deleg : $email;
 
 		my ( $copy, $threat );
 		$threat = "";
+		my $klaxonsounded = 0;
 		if ( $overdue && $escalationgap ) {
 			my $daysover = abs( int( $hr->{due_seconds} / 86400 ) );
 
-			my $numdudes = int( $daysover / $escalationgap ) -1;
+			my $numdudes = int( $daysover / $escalationgap ) - 1;
 			my $nextdude = int( $daysover / $escalationgap );
-
 
 			#
 			# If escalationlevel is set, then cap how high it goes.
 			#
 			my $included = $numdudes;
-			if ( defined($escalationlevel) && 
-					$included > $escalationlevel - 1) {
+			if ( defined($escalationlevel)
+				&& $included > $escalationlevel - 1 )
+			{
 				$included = $escalationlevel - 1;
 			}
 
@@ -436,6 +478,7 @@ sub do_work {
 			my @escalate;
 			for ( my $i = 0 ; $i <= $#{$escemail} && $i <= $included ; $i++ ) {
 				push( @escalate, $escemail->[$i] );
+				$klaxonsounded++;
 			}
 			my $next;
 
@@ -449,15 +492,21 @@ sub do_work {
 			if ( !defined($escalationlevel) ) {
 				$moreescalate = 1;
 			} else {
+
 				# we only go up $escalationlevel number of people
 				if ( $nextdude < $escalationlevel ) {
 					$moreescalate = 1;
 				}
 			}
 
-			$copy = join( ", ", @escalate );
-			$rcpt .= " " . join( " ", @escalate );
+			# if escalation is happening and the person delegated to is not
+			# responding, also include the original owner.
+			if ( $overdue || ( $deleg && scalar @escalate ) ) {
+				unshift( @escalate, $email );
+			}
 
+			$copy = join( ", ", @escalate );          # cc:
+			$rcpt .= " " . join( " ", @escalate );    # envelope receipt
 
 			if ($moreescalate) {
 				if ( $#{$escname} >= $nextdude ) {
@@ -478,13 +527,20 @@ sub do_work {
 			}
 		}
 
-		my $duewords;
+		#
+		# The stab url is put there automatically in the db so that stab and
+		# email have the same content. This all needs to be tweaked so that
+		# it's possible to include the ?actas=login part. This all needs to be
+		# rethunk.
+		#
+
+		my $duewords = "";
 		if ($overdue) {
 			$duewords = sprintf(
 				"PLEASE COMPLETE AS SOON AS POSSIBLE.  It was due on %s and is now %d %s overdue. $threat",
 				$hr->{approval_instance_step_due},
 				$overdueprint + 1,
-				(( $overdueprint == 0 ) ? "day" : "days")
+				( ( $overdueprint == 0 ) ? "day" : "days" )
 			);
 		} else {
 			my $threat = "";
@@ -501,7 +557,25 @@ sub do_work {
 		}
 
 		my $msg = $hr->{message};
+
+		if ($klaxonsounded) {
+			$duewords .=
+			  sprintf
+			  "\n\nIn order to complete this on behalf of %s %s, please visit %s\n",
+			  $hr->{first_name},
+			  $hr->{last_name},
+			  $stabroot . "/approve?actas=" . $hr->{login};
+		}
+
 		$msg =~ s/%\{due_threat}/$duewords/;
+		if ($deleg) {
+			$msg = sprintf
+			  "You are being sent this as the delegate for %s %s.  In order to complete this on their behalf, please visit %s.\n\n%s",
+			  $hr->{first_name},
+			  $hr->{last_name},
+			  $stabroot . "/approve?actas=" . $hr->{login},
+			  $msg;
+		}
 
 		my $nr = 0;
 		if ($updatedb) {
@@ -510,11 +584,11 @@ sub do_work {
 		}
 		my $sm;
 		if ($dryrun) {
-			$sm = IO::Handle->new() || die "IO::Handle->new: $!";
+			$sm = IO::Handle->new()            || die "IO::Handle->new: $!";
 			$sm->fdopen( fileno(STDOUT), "w" ) || die "dup stdout: $!";
 		} else {
 			my $f = "";
-			$f = "-f$mailfrom" if ($mailfrom);
+			$f  = "-f$mailfrom" if ($mailfrom);
 			$sm = new FileHandle("| /usr/sbin/sendmail $f $rcpt")
 			  || die "$!";
 		}
@@ -523,13 +597,21 @@ sub do_work {
 			$sm->print("+RCPT: $rcpt\n");
 		}
 
-		$sm->print("To: $email\n")      if ($email);
+		if ($deleg) {
+			$sm->print("To: $deleg\n");
+		} else {
+			$sm->print("To: $email\n") if ($email);
+		}
 		$sm->print("Cc: $copy\n")       if ($copy);
 		$sm->print("Subject: $subj\n")  if ($subj);
 		$sm->print("From: $mailfrom\n") if ($mailfrom);
 		$sm->print( "Date: " . email_date() . "\n" );
 
-		$sm->print( "\nDear ", $hr->{first_name}, ",\n" );
+		if ($deleg) {
+			$sm->print( "\nDear ", $hr->{first_name}, "'s delegate,\n" );
+		} else {
+			$sm->print( "\nDear ", $hr->{first_name}, ",\n" );
+		}
 
 		$sm->print( "\n", $msg, "\n\n" );
 

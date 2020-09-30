@@ -27,6 +27,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS net_manip;
                 CREATE SCHEMA net_manip AUTHORIZATION jazzhands;
+		REVOKE USAGE ON SCHEMA net_manip FROM public;
 		COMMENT ON SCHEMA net_manip IS 'part of jazzhands';
         END IF;
 END;
@@ -295,3 +296,9 @@ BEGIN
 END;
 $$
 LANGUAGE plpgsql;
+
+REVOKE USAGE ON SCHEMA net_manip FROM public;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA net_manip FROM public;
+
+GRANT USAGE ON SCHEMA net_manip TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA net_manip TO ro_role;

@@ -178,6 +178,12 @@ BEGIN
 	$TQ$ LANGUAGE plpgsql SECURITY DEFINER
     $ZZ$;
 
+    EXECUTE format(
+	'REVOKE ALL ON FUNCTION %s.%s() FROM public',
+		quote_ident(tbl_schema),
+		quote_ident('perform_audit_' || table_name)
+	);
+
     EXECUTE 'DROP TRIGGER IF EXISTS ' || quote_ident('trigger_audit_'
 	|| table_name) || ' ON ' || quote_ident(tbl_schema) || '.'
 	|| quote_ident(table_name);
@@ -766,7 +772,7 @@ BEGIN
 	-- Stash counts of things that may relate to this maintenance for
 	-- alter verification and statistics
 	--
-	-- similar code is in end_maintenance (the INSERT uqery is the same
+	-- similar code is in end_maintenance (the INSERT query is the same
 	--
 	CREATE TEMPORARY TABLE __owner_before_stats (
 		username					TEXT,
@@ -833,7 +839,7 @@ BEGIN
 	IF FOUND THEN
 		SELECT current_role INTO _myrole;
 		SET role=dba;
-		EXECUTE 'REVOKE dba FROM ' || current_user;
+		EXECUTE 'REVOKE dba FROM ' || _myrole;
 		EXECUTE 'SET role =' || _myrole;
 	END IF;
 
@@ -841,7 +847,7 @@ BEGIN
 	-- Stash counts of things that may relate to this maintenance for
 	-- alter verification and statistics
 	--
-	-- similar code is in end_maintenance (the INSERT uqery is the same
+	-- similar code is in begin_maintenance (the INSERT query is the same
 	--
 
 	CREATE TEMPORARY TABLE __owner_after_stats (
@@ -1161,11 +1167,17 @@ BEGIN
 			ELSE
 				_role := pg_get_userbyid(_perm.grantee);
 			END IF;
-			_fullgrant := 'GRANT ' ||
-				_perm.privilege_type || ' on FUNCTION ' ||
-				_schema || '.' ||
-				newname || '(' || _procs.args || ')  to ' ||
-				_role || _grant;
+			_fullgrant := format(
+				'GRANT %s on FUNCTION %s.%s TO %s%s',
+				_perm.privilege_type, _schema,
+				newname || '(' || _procs.args || ')',
+				_role, _grant);
+			-- RAISE DEBUG 'inserting % for %', _fullgrant, _perm;
+			INSERT INTO __regrants (schema, object, newname, regrant, tags) values (schema,object, newname, _fullgrant, tags );
+
+			-- revoke stuff from public, too
+			_fullgrant := format('REVOKE ALL ON FUNCTION %s.%s FROM public',
+				_schema, newname || '(' || _procs.args || ')');
 			-- RAISE DEBUG 'inserting % for %', _fullgrant, _perm;
 			INSERT INTO __regrants (schema, object, newname, regrant, tags) values (schema,object, newname, _fullgrant, tags );
 		END LOOP;
@@ -2799,7 +2811,8 @@ $$
 SET search_path=schema_support
 LANGUAGE plpgsql SECURITY INVOKER;
 
-
+REVOKE USAGE ON SCHEMA schema_support FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA schema_support FROM public;
 
 ----------------------------------------------------------------------------
 -- END materialized view support

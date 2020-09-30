@@ -11,6 +11,7 @@ mysql out at last investigation.  (These camme into existnace in 9.4).
 The TL;DR way to create this from a fresh install of postgresql is:
 
 	psql -U postgres -c 'create role schema_owners';
+	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
 	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
 	psql -U postgres -c 'create database jazzhands'
 	psql -U postgres -d test -f create_pgsql_from_scratch.sql
@@ -18,6 +19,7 @@ The TL;DR way to create this from a fresh install of postgresql is:
 To also run all the unit tests, do this instead:
 
 	psql -U postgres -c 'create role schema_owners';
+	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
 	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
 	psql -U postgres -c 'create database jazzhands'
 	psql -U postgres -d test -f create_and_test_pgsql.sql
@@ -29,6 +31,12 @@ the whole thing to be created in any database and is used in making test
 images.  The script will just abort if those databases start with template,
 public or postgres.  Likely that was a mistake, and if it wasn't, then
 you understand enough of what you're diong to not use the TL;DR method.
+
+The dba view exists to give people or app users the ability to "su"
+to superuser by setting a role.  This can also be granted to the jazzhands
+user such that maintenances are capable of dropping dependant objects but
+otherwise not needing superuser to prevent surprises.  (it raises
+permissions only when needed).
 
 For Oracle:
 

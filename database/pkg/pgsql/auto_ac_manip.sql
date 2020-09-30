@@ -48,6 +48,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS auto_ac_manip;
 		CREATE SCHEMA auto_ac_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON schema auto_ac_manip FROM public;
 		COMMENT ON SCHEMA auto_ac_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -836,8 +837,8 @@ END;
 $_$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 
+REVOKE ALL ON schema auto_ac_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA auto_ac_manip FROM public;
 
-grant usage on schema auto_ac_manip to iud_role;
-revoke all on schema auto_ac_manip from public;
-revoke all on  all functions in schema auto_ac_manip from public;
-grant execute on all functions in schema auto_ac_manip to iud_role;
+GRANT USAGE ON SCHEMA auto_ac_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA auto_ac_manip TO iud_role;

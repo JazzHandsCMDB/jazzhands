@@ -26,6 +26,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS dns_utils;
                 CREATE SCHEMA dns_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA dns_utils FROM public;
 		COMMENT ON SCHEMA dns_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -644,3 +645,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY INVOKER;
 
+REVOKE ALL ON SCHEMA dns_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA dns_utils FROM public;
+
+GRANT ALL ON SCHEMA dns_utils TO iud_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA dns_utils TO iud_role;

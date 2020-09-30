@@ -32,6 +32,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS device_manip;
 		CREATE SCHEMA device_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA device_manip FROM public;
 		COMMENT ON SCHEMA device_manip IS 'part of jazzhands';
 
 	END IF;
@@ -765,3 +766,9 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
 --end device_manip.monitoring_off_in_rack
 -------------------------------------------------------------------
+
+REVOKE ALL ON SCHEMA device_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA device_manip FROM public;
+
+GRANT ALL ON SCHEMA device_manip TO iud_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA device_manip TO iud_role;

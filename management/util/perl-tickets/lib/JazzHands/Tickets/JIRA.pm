@@ -122,7 +122,7 @@ sub _jira_req($$$) {
 		if ( $res->content && length( $res->content ) ) {
 			return decode_json( $res->content );
 		} else {
-			return 1;
+			return {};
 		}
 	}
 	$self->errstr( "Jira Error($url): " . $res->status_line );
@@ -207,12 +207,25 @@ sub get($$) {
 	}
 
 	if ( $r->{fields}->{status} ) {
+		#
+		# WithPrejudice: This should probably be configurable.  Basically
+		# indicate if the reason code was a hard resolution or soft.  The
+		# hard/soft logic is used by the approval subsystem to indicate if it
+		# should be kicked back to the requestor for further consideration or
+		# just end there.
+		#
 		my $stat = $r->{fields}->{status};
-		if ( $stat->{name} =~ /^(Closed|Resolved|Done)/ ) {
+		if ( $stat->{name} =~ /^(Declined)$/ ) {
+			$rv->{status} = 'Rejected';
+			$rv->{WithPrejudice} = 'Yes';
+		} elsif ( $stat->{name} =~ /^(Closed|Resolved|Done|Fixed)/ ) {
 			$rv->{status} = 'Resolved';
+			$rv->{WithPrejudice} = 'No';
 		} else {
-			$rv->{status} = $stat->{name};
+			$rv->{status} = 'Rejected';
+			$rv->{WithPrejudice} = 'No';
 		}
+
 	}
 	if ( $r->{fields} && $r->{fields}->{assignee} ) {
 		$rv->{owner} = $r->{fields}->{assignee}->{name};

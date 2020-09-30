@@ -50,6 +50,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS token_utils;
                 CREATE SCHEMA token_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA token_utils FROM public;
                 COMMENT ON SCHEMA token_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -469,9 +470,8 @@ END;    --end of package body Token_Util
 
 */
 
-grant select on all tables in schema token_utils to iud_role;
-grant usage on schema token_utils to iud_role;
-revoke all on schema token_utils from public;
-revoke all on  all functions in schema token_utils from public;
-grant execute on all functions in schema token_utils to iud_role;
+REVOKE ALL ON SCHEMA token_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA token_utils FROM public;
 
+GRANT USAGE ON SCHEMA token_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA token_utils TO iud_role;

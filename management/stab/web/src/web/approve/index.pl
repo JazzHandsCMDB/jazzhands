@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2015, Todd M. Kover
+# Copyright (c) 2015-2020, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -490,7 +490,11 @@ sub do_my_attest {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $acctid = $stab->get_account_id($actas);
-	if ( !$stab->check_management_chain($acctid) && !$stab->check_admin() ) {
+	if (   !$stab->check_management_chain($acctid)
+		&& !$stab->check_approval_delegation( $acctid )
+		&& !$stab->check_approval_god_mode()
+		&& !$stab->check_admin() )
+	{
 		$stab->error_return(
 			"You are not permitted to approve on behalf of this person");
 	}

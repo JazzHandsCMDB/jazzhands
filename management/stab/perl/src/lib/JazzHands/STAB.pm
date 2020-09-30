@@ -259,6 +259,79 @@ sub check_role {
 	( $#r >= 0 ) ? 1 : 0;
 }
 
+sub check_approval_god_mode {
+	my $self = shift @_ || die "Could not get STAB";
+
+	my $myacctid = $self->get_account_id()
+	  || die $self->error_return(
+		"I was not able to determine who you are. This should not happen.");
+
+	my $sth = $self->prepare(
+		qq{
+		SELECT count(*)
+		FROM	v_acct_coll_acct_expanded
+				JOIN account a USING (account_id)
+				JOIN property USING (account_collection_id)
+		WHERE	property_type = 'Defaults'
+		AND		property_name = '_can_approve_all'
+		AND		a. account_id = ?
+	}
+	) || return $self->return_db_err;
+
+	$sth->execute($myacctid)
+	  || return $self->error_return("Error determining delegation");
+
+	my ($tally) = $sth->fetchrow_array();
+	$sth->finish;
+	$tally;
+}
+
+sub check_approval_delegation {
+	my $self   = shift @_ || die "Could not get STAB";
+	my $acctid = shift @_ || die "Could not find account id";
+
+	#
+	my $sth = $self->prepare(
+		qq{
+		SELECT	count(*)
+		FROM	property
+			INNER JOIN ( SELECT DISTINCT
+					account_collection_id,
+					unnest(ARRAY[h.account_id, h.manager_account_id])
+						AS account_Id
+				FROM v_account_manager_hier h
+					INNER JOIN v_acct_coll_acct_expanded e
+						ON h.manager_account_id = e.account_id
+			) lhse USING (account_collection_id)
+			INNER JOIN (
+				SELECT account_collection_id
+						AS property_value_account_coll_id,
+					account_id
+				FROM v_acct_coll_acct_expanded
+			) rhse USING (property_value_account_coll_id)
+		WHERE
+			property_type = 'attestation'
+			AND property_name IN ('Delegate', 'AlternateApprovers')
+			AND lhse.account_id = ?
+			AND rhse.account_id = ?
+
+	}
+	) || return $self->return_db_err;
+
+	my $myacctid = $self->get_account_id()
+	  || die $self->error_return(
+		"I was not able to determine who you are. This should not happen.");
+
+	$sth->execute( $acctid, $myacctid )
+	  || $self->error_return("Error determining delegation");
+
+	my ($tally) = $sth->fetchrow_array;
+	$sth->finish;
+
+	$tally;
+}
+
+
 #
 # returns 1 if a user is an admin
 #

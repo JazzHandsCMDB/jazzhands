@@ -267,14 +267,18 @@ sub open_new_issues($$) {
 				summary   => $summary
 			);
 
-			# XXX error checking!
-			$wsth->bind_param( ':name', $tid )  || die $sth->errstr;
-			$wsth->bind_param( ':id',   $step ) || die $sth->errstr;
-			$wsth->execute || die $sth->errstr;
-			$wsth->finish;
-			$dbh->commit if $commit_now;
+			if(!$tid) {
+				$self->log( 'verbose', "Did not get a ticket id" );
+			} else {
+				# XXX error checking!
+				$wsth->bind_param( ':name', $tid )  || die $sth->errstr;
+				$wsth->bind_param( ':id',   $step ) || die $sth->errstr;
+				$wsth->execute || die $sth->errstr;
+				$wsth->finish;
+				$dbh->commit if $commit_now;
 
-			$self->log( 'verbose', "Opened $tid for $step" );
+				$self->log( 'verbose', "Opened $tid for $step" );
+			}
 		} else {
 			warn "would send ", Dumper( $login, $msg, $summary, $step );
 		}
@@ -315,7 +319,8 @@ sub check_pending_issues($$) {
 		SELECT approval_utils.approve(
 			approval_instance_item_id := ?,
 			approved := ?,
-			approving_account_id := ?
+			approving_account_id := ?,
+			terminate_chain := ?
 		);
 	}
 	) || die $dbh->errstr;
@@ -333,13 +338,36 @@ sub check_pending_issues($$) {
 				$cache->{$key}->{status}		 	= 'resolved';
 				$cache->{$key}->{resolutiondate}	= $r->{resolutiondate};
 				$cache->{$key}->{resolutionepoch}	= $r->{resolutionepoch};
-				$cache->{$key}->{approved}			= 'Y';
+				
+				if($r->{status} eq 'Resolved') {
+					$cache->{$key}->{approved}			= 'Y';
+				} elsif($r->{status} eq 'Rejected') {
+					$cache->{$key}->{approved}			= 'N';
+				} else {
+					# historical.
+					$cache->{$key}->{approved}			= 'Y';
+				}
 			}
 
 			if ( $r->{owner} ) {
 				$cache->{$key}->{assignee} 	= $r->{owner};
 				$cache->{$key}->{acctid} 	=
 				  $self->get_account_id( $r->{owner} );
+			}
+
+			#
+			# This allows the calling module to decide if it's a hard or
+			# soft decline, which triggers a short circuit.  This is lame
+			# but comes kk
+			#
+			if ( exists($r->{'WithPrejudice'}) && defined($->{'WithPrejudice'}) ) {
+				if($r->{'WithPrejudice'} =~ /^no$/i) {
+					$r->{shortcircuit} = 1;
+				} else {
+					$r->{shortcircuit} = 0;
+				}
+			} else {
+				$r->{shortcircuit} = 0;
 			}
 		}
 		if ( defined( $cache->{$key}->{approved} ) ) {
@@ -359,7 +387,8 @@ sub check_pending_issues($$) {
 				$wsth->execute(
 					$aii_id,
 					$cache->{$key}->{approved},
-					$cache->{$key}->{acctid}
+					$cache->{$key}->{acctid},
+					$cache->{$key}->{shortcircuit},
 				) || die $wsth->errstr;
 				$self->log( 'debug', "updated db" );
 			}

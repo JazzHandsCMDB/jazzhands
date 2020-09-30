@@ -84,6 +84,7 @@ begin;
 \ir tests/pgsql/ct_device_collection_tests_ancestor.sql
 
 \ir tests/pgsql/account_enabled_test.sql
+\ir tests/pgsql/approval_process_regression.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
 rollback;
@@ -111,6 +112,7 @@ set search_path=jazzhands_legacy;
 \ir tests/pgsql/jhlegacy/device_coll_hier_regression.sql
 \ir tests/pgsql/jhlegacy/dns_domain_coll_hier_regression.sql
 \ir tests/pgsql/jhlegacy/dns_domain_name_tests-RETIRE.sql
+\ir tests/pgsql/jhlegacy/v_dns_domain_nouniverse_regression.sql
 \ir tests/pgsql/jhlegacy/layer2_network_coll_hier_regression.sql
 \ir tests/pgsql/jhlegacy/layer3_network_coll_hier_regression.sql
 \ir tests/pgsql/jhlegacy/netblock_coll_hier_regression.sql

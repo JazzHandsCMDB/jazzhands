@@ -31,6 +31,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS person_manip;
 		CREATE SCHEMA person_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA person_manip  FROM public;
 		COMMENT ON SCHEMA person_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -898,3 +899,9 @@ $$
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = jazzhands, pg_temp;
+
+REVOKE ALL ON SCHEMA person_manip  FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA person_manip  FROM public;
+
+GRANT USAGE ON SCHEMA person_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA person_manip TO iud_role;

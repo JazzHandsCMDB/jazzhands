@@ -34,6 +34,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS account_collection_manip;
 		CREATE SCHEMA account_collection_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA account_collection_manip FROM public;
 		COMMENT ON SCHEMA account_collection_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -594,9 +595,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-grant select on all tables in schema account_collection_manip to iud_role;
-grant usage on schema account_collection_manip to iud_role;
-revoke all on schema account_collection_manip from public;
-revoke all on  all functions in schema account_collection_manip from public;
-grant execute on all functions in schema account_collection_manip to iud_role;
+REVOKE ALL ON SCHEMA account_collection_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA account_collection_manip FROM public;
+
+GRANT USAGE ON schema account_collection_manip TO iud_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA account_collection_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA account_collection_manip TO iud_role;
 

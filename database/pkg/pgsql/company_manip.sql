@@ -33,6 +33,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS company_manip;
 		CREATE SCHEMA company_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON schema company_manip from public;
 		COMMENT ON SCHEMA company_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -553,10 +554,10 @@ LANGUAGE plpgsql SECURITY INVOKER;
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 
+REVOKE ALL ON schema company_manip from public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA company_manip from public;
 
-grant select on all tables in schema company_manip to iud_role;
-grant usage on schema company_manip to iud_role;
-revoke all on schema company_manip from public;
-revoke all on  all functions in schema company_manip from public;
-grant execute on all functions in schema company_manip to iud_role;
+GRANT USAGE ON SCHEMA company_manip to iud_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA company_manip to iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA company_manip to iud_role;
 

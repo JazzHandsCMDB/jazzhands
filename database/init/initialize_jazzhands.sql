@@ -2029,7 +2029,7 @@ VALUES
 -------------------------------------------------------------------------
 -- BEGIN logical ports
 
-insert into val_logical_port_type (logical_port_type, description) values 
+insert into val_logical_port_type (logical_port_type, description) values
 	('LACP', 'LACP aggregate'),
 	('MLAG', 'Multi-chassis aggregate');
 
@@ -2042,3 +2042,126 @@ INSERT INTO val_encryption_key_purpose (
 ) VALUES (
         'external', 1, 'Key is stored  outside the database'
 );
+
+-------------------------------------------------------------------------
+--
+-- Begin automated account collections
+--
+-------------------------------------------------------------------------
+
+INSERT INTO val_property_type (property_type) VALUES ('auto_acct_coll');
+
+ALTER TABLE val_property DISABLE TRIGGER trigger_validate_val_property;
+INSERT INTO val_property (
+	property_type, 		property_name, 		property_data_type, 		permit_account_collection_id, permit_account_id, permit_account_realm_id, permit_company_id, permit_company_collection_id, permit_site_code
+) VALUES
+	('auto_acct_coll', 'exempt',			'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'site',				'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'ALLOWED',		'PROHIBITED',	'PROHIBITED'),
+	('auto_acct_coll', 'AutomatedDirectsAC','account_collection_id',	'PROHIBITED',	'REQUIRED',		'REQUIRED', 'PROHIBITED',	'PROHIBITED',	'PROHIBITED'),
+	('auto_acct_coll', 'AutomatedRollupsAC','account_collection_id',	'PROHIBITED',	'REQUIRED',		'REQUIRED', 'PROHIBITED',	'PROHIBITED',	'PROHIBITED'),
+	('auto_acct_coll', 'non_exempt',		'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'male',				'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'female',			'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'unspecified_gender','none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'management',		'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'non_management',	'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'full_time',			'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'non_full_time',		'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'account_type',		'list',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED')
+;
+ALTER TABLE val_property ENABLE TRIGGER trigger_validate_val_property;
+
+-- end automated account collections
+
+-------------------------------------------------------------------------
+--
+-- This is required to make the attestation subsystem work.
+--
+-------------------------------------------------------------------------
+INSERT INTO val_approval_type (approval_type)
+	VALUES (unnest(ARRAY['account','jira-hr']));
+INSERT INTO val_property_type ( property_type, description )
+	VALUES ('attestation', 'define elements of regular attestation process');
+
+INSERT INTO val_property (
+	property_name,
+	property_type,
+	property_data_type
+) VALUES (
+	unnest(ARRAY['ReportAttest', 'FieldAttest',
+	'account_collection_membership']),
+	'attestation', 'string'
+);
+
+INSERT INTO val_property (
+	property_name, property_type,
+	permit_account_collection_id, property_data_type,
+	description
+) VALUES (
+	'AlternateApprovers', 'attestation',
+	'REQUIRED', 'account_collection_id',
+	'indicates additional users permitted to approve attestation assigned to accounts'
+);
+
+INSERT INTO val_property (
+	property_name, property_type,
+	account_collection_type,
+	property_value_account_collection_type_restriction,
+	permit_account_collection_id, property_data_type,
+	description
+) VALUES (
+	'Delegate', 'attestation',
+	'per-account',
+	'per-account',
+	'REQUIRED', 'account_collection_id',
+	'Indicates an alternate account who acts on behalf.'
+);
+
+INSERT INTO val_approval_process_type ( approval_process_type )
+	VALUES ('attestation');
+INSERT INTO val_approval_expiration_action ( approval_expiration_action )
+	VALUES ('pester');
+INSERT INTO val_attestation_frequency ( attestation_frequency )
+	VALUES ('quarterly');
+INSERT INTO val_approval_chain_response_period (
+	approval_chain_response_period
+) VALUES (
+	'1 week'
+);
+
+INSERT INTO property (
+	property_name, property_type, property_value
+) VALUES
+	('ReportAttest', 'attestation', 'auto_acct_colll:AutomateddDirectsAC'),
+	('FieldAttest', 'attestation', 'person_company:position_title'),
+	('account_collection_membership', 'attestation', 'department')
+;
+
+INSERT INTO val_property_name_collection_type (
+	property_name_collection_type, description
+) VALUES (
+	'attestation', 'properties that make up attestation chains'
+);
+
+WITH x AS (
+	INSERT INTO property_name_collection (
+		property_name_collection_name, property_name_collection_type
+	) VALUES (
+		'ReportingAttestation', 'attestation'
+	) RETURNING *
+) INSERT INTO property_name_collection_property_name (
+	property_name_collection_id,
+	property_name,
+	property_type
+) SELECT property_name_collection_id,
+	unnest(ARRAY['ReportAttest', 'FieldAttest', 'account_collection_membership']),
+	'attestation'
+FROM x;
+
+
+-------------------------------------------------------------------------
+--
+-- End requirements for attestation subsystem
+--
+--
+-------------------------------------------------------------------------

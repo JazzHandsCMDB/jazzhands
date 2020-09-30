@@ -25,6 +25,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS netblock_manip;
                 CREATE SCHEMA netblock_manip AUTHORIZATION jazzhands;
+		REVOKE USAGE ON SCHEMA netblock_manip FROM public;
 		COMMENT ON SCHEMA netblock_manip IS 'part of jazzhands';
         END IF;
 END;
@@ -1649,5 +1650,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 SELECT schema_support.replay_saved_grants();
 
-GRANT USAGE ON SCHEMA netblock_manip TO PUBLIC;
+REVOKE USAGE ON SCHEMA netblock_manip FROM public;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_manip FROM public;
+
+GRANT USAGE ON SCHEMA netblock_manip TO iud_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_manip TO iud_role;

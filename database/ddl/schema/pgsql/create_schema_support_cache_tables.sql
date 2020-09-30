@@ -295,3 +295,6 @@ SECURITY INVOKER ;
 ----------------------------------------------------------------------------
 -- END cache table support
 ----------------------------------------------------------------------------
+
+REVOKE USAGE ON SCHEMA schema_support FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA schema_support FROM public;

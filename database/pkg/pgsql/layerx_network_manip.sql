@@ -25,6 +25,7 @@ BEGIN
                 DROP SCHEMA IF EXISTS layerx_network_manip;
                 CREATE SCHEMA layerx_network_manip AUTHORIZATION jazzhands;
 		COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
+		REVOKE USAGE ON SCHEMA layerx_network_manip FROM PUBLIC;
         END IF;
 END;
 $$;
@@ -296,5 +297,8 @@ BEGIN
 	RETURN;
 END $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-GRANT USAGE ON SCHEMA layerx_network_manip TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA layerx_network_manip TO iud_role;
+REVOKE ALL ON SCHEMA layerx_network_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA layerx_network_manip FROM public;
+
+GRANT ALL ON SCHEMA layerx_network_manip TO iud_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA layerx_network_manip TO iud_role;
