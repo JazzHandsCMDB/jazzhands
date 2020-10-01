@@ -1,5 +1,5 @@
 
--- Copyright (c) 2018, Todd Kover
+-- Copyright (c) 2018-2020, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,3 +22,4 @@
 \ir pgsql/create_ct_account_collection_hier_from_ancestor.sql
 \ir pgsql/create_ct_device_collection_hier_from_ancestor.sql
 \ir pgsql/create_ct_netblock_collection_hier_from_ancestor.sql
+\ir pgsql/create_ct_jazzhands_legacy_device.sql

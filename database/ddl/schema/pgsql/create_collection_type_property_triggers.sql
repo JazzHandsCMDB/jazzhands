@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Todd Kover
+ * Copyright (c) 2015-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -259,22 +259,22 @@ CREATE TRIGGER trigger_validate_netblock_collection_type_change
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_property_collection_type_change()
+CREATE OR REPLACE FUNCTION validate_property_name_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
 BEGIN
-	IF OLD.property_collection_type != NEW.property_collection_type THEN
+	IF OLD.property_name_collection_type != NEW.property_name_collection_type THEN
 		SELECT	COUNT(*)
 		INTO	_tally
 		FROM	property p
 			join val_property vp USING (property_name,property_type)
-		WHERE	vp.property_collection_type = OLD.property_collection_type
-		AND	p.property_collection_id = NEW.property_collection_id;
+		WHERE	vp.property_name_collection_type = OLD.property_name_collection_type
+		AND	p.property_name_collection_id = NEW.property_name_collection_id;
 
 		IF _tally > 0 THEN
-			RAISE EXCEPTION 'property_collection % of type % is used by % restricted properties.',
-				NEW.property_collection_id, NEW.property_collection_type, _tally
+			RAISE EXCEPTION 'property_name_collection % of type % is used by % restricted properties.',
+				NEW.property_name_collection_id, NEW.property_name_collection_type, _tally
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
@@ -284,32 +284,32 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_property_collection_type_change
-	ON property_collection;
-CREATE TRIGGER trigger_validate_property_collection_type_change
-	BEFORE UPDATE OF property_collection_type
-	ON property_collection
+DROP TRIGGER IF EXISTS trigger_validate_property_name_collection_type_change
+	ON property_name_collection;
+CREATE TRIGGER trigger_validate_property_name_collection_type_change
+	BEFORE UPDATE OF property_name_collection_type
+	ON property_name_collection
 	FOR EACH ROW
-	EXECUTE PROCEDURE validate_property_collection_type_change();
+	EXECUTE PROCEDURE validate_property_name_collection_type_change();
 
 
 -------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION validate_service_env_collection_type_change()
+CREATE OR REPLACE FUNCTION validate_service_environment_collection_type_change()
 RETURNS TRIGGER AS $$
 DECLARE
 	_tally	integer;
 BEGIN
-	IF OLD.service_env_collection_type != NEW.service_env_collection_type THEN
+	IF OLD.service_environment_collection_type != NEW.service_environment_collection_type THEN
 		SELECT	COUNT(*)
 		INTO	_tally
 		FROM	property p
 			join val_property vp USING (property_name,property_type)
-		WHERE	vp.service_env_collection_type = OLD.service_env_collection_type
-		AND	p.service_env_collection_id = NEW.service_env_collection_id;
+		WHERE	vp.service_environment_collection_type = OLD.service_environment_collection_type
+		AND	p.service_environment_collection_id = NEW.service_environment_collection_id;
 
 		IF _tally > 0 THEN
-			RAISE EXCEPTION 'service_env_collection % of type % is used by % restricted properties.',
-				NEW.service_env_collection_id, NEW.service_env_collection_type, _tally
+			RAISE EXCEPTION 'service_environment_collection % of type % is used by % restricted properties.',
+				NEW.service_environment_collection_id, NEW.service_environment_collection_type, _tally
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
 	END IF;
@@ -319,11 +319,11 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_service_env_collection_type_change
+DROP TRIGGER IF EXISTS trigger_validate_service_environment_collection_type_change
 	ON service_environment_collection;
-CREATE TRIGGER trigger_validate_service_env_collection_type_change
-	BEFORE UPDATE OF service_env_collection_type
+CREATE TRIGGER trigger_validate_service_environment_collection_type_change
+	BEFORE UPDATE OF service_environment_collection_type
 	ON service_environment_collection
 	FOR EACH ROW
-	EXECUTE PROCEDURE validate_service_env_collection_type_change();
+	EXECUTE PROCEDURE validate_service_environment_collection_type_change();
 

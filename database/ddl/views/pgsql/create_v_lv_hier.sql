@@ -44,7 +44,7 @@ WITH RECURSIVE lv_hier (
 		ARRAY[lv.logical_volume_id]::integer[]
 	FROM
 		physicalish_volume pv LEFT JOIN
-		volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
+		volume_group_physicalish_volume USING (physicalish_volume_id) FULL JOIN
 		volume_group vg USING (volume_group_id) LEFT JOIN
 		logical_volume lv USING (volume_group_id)
 	WHERE
@@ -65,7 +65,7 @@ WITH RECURSIVE lv_hier (
 		array_prepend(lv.logical_volume_id, lh.lv_path)
 	FROM
 		physicalish_volume pv LEFT JOIN
-		volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
+		volume_group_physicalish_volume USING (physicalish_volume_id) FULL JOIN
 		volume_group vg USING (volume_group_id) LEFT JOIN
 		logical_volume lv USING (volume_group_id) JOIN
 		lv_hier lh ON (lv.logical_volume_id = lh.pv_logical_volume_id)

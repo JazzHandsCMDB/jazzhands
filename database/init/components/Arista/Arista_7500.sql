@@ -53,13 +53,13 @@ BEGIN
 				 description, remote_slot_permitted)
 			VALUES
 				('Arista 75XX Supervisor', 'Arista 75XX Supervisor',
-				 'chassis_slot', 'Arista 75XX Supervisor', 'N'),
+				 'chassis_slot', 'Arista 75XX Supervisor', false),
 				('Arista 75XX Linecard', 'Arista 75XX Linecard',
-				 'chassis_slot', 'Arista 75XX Linecard', 'N')
+				 'chassis_slot', 'Arista 75XX Linecard', false)
 			RETURNING slot_type_id 
 		) SELECT array_agg(slot_type_id) FROM z INTO stid;
 
-		INSERT INTO slot_type_prmt_comp_slot_type (
+		INSERT INTO slot_type_permitted_component_slot_type (
 			slot_type_id,
 			component_slot_type_id
 		) SELECT
@@ -85,8 +85,8 @@ BEGIN
 				NULL,
 				'DCS-' || d[1],
 				cid,
-				'Y',
-				'Y',
+				true,
+				true,
 				3 + d[2]::integer
 			) RETURNING component_type_id INTO ctid;
 
@@ -94,7 +94,7 @@ BEGIN
 			-- Supervisor slots
 			--
 
-			INSERT INTO component_type_slot_tmplt (
+			INSERT INTO component_type_slot_template (
 				component_type_id,
 				slot_type_id,
 				slot_name_template,
@@ -117,7 +117,7 @@ BEGIN
 			-- Linecard slots
 			--
 
-			INSERT INTO component_type_slot_tmplt (
+			INSERT INTO component_type_slot_template (
 				component_type_id,
 				slot_type_id,
 				slot_name_template,
@@ -153,15 +153,15 @@ BEGIN
 			NULL,
 			'DCS-7500E-SUP',
 			cid,
-			'Y',
-			'N'
+			true,
+			false
 		) RETURNING component_type_id INTO ctid;
 
 		--
 		-- Console ports
 		--
 
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -185,7 +185,7 @@ BEGIN
 		--
 		-- Management ports
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -230,11 +230,11 @@ BEGIN
 			NULL,
 			'7500E-48S-LC',
 			cid,
-			'Y',
-			'N'
+			true,
+			false
 		) RETURNING component_type_id INTO ctid;
 
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -274,11 +274,11 @@ BEGIN
 			NULL,
 			'7500E-36Q-LC',
 			cid,
-			'Y',
-			'N'
+			true,
+			false
 		) RETURNING component_type_id INTO ctid;
 
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,

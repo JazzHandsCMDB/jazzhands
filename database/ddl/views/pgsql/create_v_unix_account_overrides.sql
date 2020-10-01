@@ -44,22 +44,26 @@ FROM (
 					acae.account_id,
 					p.property_name,
 					coalesce(p.property_value,
-						p.property_value_password_type) as property_value,
+						p.property_value_password_type,
+						CASE WHEN p.property_value_boolean = true THEN 'Y'
+							WHEN p.property_value_boolean = false THEN 'N'
+							ELSE NULL END
+					 ) as property_value,
 					row_number() OVER (partition by
 							dchd.device_collection_id,
 							acae.account_id,
 							acpe.property_name
-							ORDER BY dchd.device_collection_level, assign_rank,
+							ORDER BY dchd.device_collection_level, assignment_rank,
 								property_id
 					) AS ord
-			FROM    v_acct_coll_prop_expanded acpe
-				INNER JOIN v_acct_coll_acct_expanded acae
+			FROM    v_account_collection_property_expanded acpe
+				INNER JOIN v_account_collection_account_expanded acae
 						USING (account_collection_id)
 				INNER JOIN v_property p USING (property_id)
 				INNER JOIN (
 					SELECT device_collection_id, parent_device_collection_id,
 						device_collection_level
-						FROM v_device_coll_hier_detail
+						FROM v_device_collection_hier_detail
 					UNION ALL
 					SELECT  p.host_device_collection_id as device_collection_id,
 							d.parent_device_collection_id,
@@ -78,7 +82,7 @@ FROM (
 						AND     mdc.device_collection_type = 'mclass'
 
 						) p
-						INNER JOIN v_device_coll_hier_detail d ON
+						INNER JOIN v_device_collection_hier_detail d ON
 							d.device_collection_id = p.mclass_device_collection_id
 				) dchd
 					ON dchd.parent_device_collection_id = p.device_collection_id

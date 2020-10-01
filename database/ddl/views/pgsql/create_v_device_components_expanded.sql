@@ -20,7 +20,7 @@ WITH ctf AS (
 		array_agg(ctcf.component_function ORDER BY ctcf.component_function) 
 			AS functions
 	FROM
-		jazzhands.component_type_component_func ctcf
+		jazzhands.component_type_component_function ctcf
 	GROUP BY
 		ctcf.component_type_id
 ), disksize AS (

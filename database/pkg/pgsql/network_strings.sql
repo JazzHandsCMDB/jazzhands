@@ -34,6 +34,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS network_strings;
                 CREATE SCHEMA network_strings AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA network_strings FROM public;
 		COMMENT ON SCHEMA network_strings IS 'part of jazzhands';
         END IF;
 END;
@@ -84,3 +85,9 @@ END;
 $$ LANGUAGE plpgsql;
 -- end of function numeric_interface
 -------------------------------------------------------------------
+
+REVOKE ALL ON SCHEMA network_strings FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA network_strings FROM public;
+
+GRANT USAGE ON SCHEMA network_strings TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA network_strings TO ro_role;

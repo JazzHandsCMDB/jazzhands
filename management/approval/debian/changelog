@@ -1,3 +1,17 @@
+jazzhands-approval (0.90) bionic; urgency=medium
+
+  * add ability to delegate attestation to another account
+  * add ability to short circuit attestation steps (because of stalemate)
+  * make it so people who terminate mid-approval are handled correctly
+
+ -- Todd Kover <kovert@omniscient.com>  Mon,  3 Aug 2020 13:35:00 -0500
+
+jazzhands-approval (0.87.4) bionic; urgency=medium
+
+  * make debian packaging work
+
+ -- Todd Kover <kovert@omniscient.com>  Mon,  3 Aug 2020 13:35:00 -0500
+
 jazzhands-approval (0.83.9) bionic; urgency=medium
 
   * switch FOR UPDATE in approval query to only lock table to update

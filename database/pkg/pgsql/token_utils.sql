@@ -50,6 +50,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS token_utils;
                 CREATE SCHEMA token_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA token_utils FROM public;
                 COMMENT ON SCHEMA token_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -108,10 +109,40 @@ BEGIN
 		END IF;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands;
+
 
 --
--- set_lock_status changes the lock status of the token.  
+-- set_lock_status changes the lock status of the token.
+--
+CREATE OR REPLACE FUNCTION token_utils.set_lock_status(
+	p_token_id		token.token_id % TYPE,
+	p_lock_status	TEXT,
+	p_unlock_time	token.token_unlock_time % TYPE,
+	p_bad_logins	token.bad_logins % TYPE,
+	p_last_updated	token.last_updated % TYPE
+) RETURNS void AS $$
+DECLARE
+	_ls boolean;
+BEGIN
+	IF p_lock_status = 'Y' THEN
+		_ls := true;
+	ELSE
+		_ls := false;
+	END IF;
+
+	PERFORM token_utils.set_lock_status(
+		p_token_id		:= p_token_id,
+		p_lock_status	:= _ls,
+		p_unlock_time	:= p_unlock_time,
+		p_bad_logins	:= p_bad_logins,
+		p_last_updated	:= p_last_updated
+	);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands;
+
+--
+-- set_lock_status changes the lock status of the token.
 --
 CREATE OR REPLACE FUNCTION token_utils.set_lock_status(
 	p_token_id	token.token_id % TYPE,
@@ -151,7 +182,7 @@ BEGIN
 			Token_ID = p_token_id;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands;
 
 
 /************************************************************************
@@ -241,7 +272,7 @@ END copy_pin;
 --
 -- replace_token updates all token assignments from one token to another
 -- for replacement.  Note that this does not copy the pin, nor does it
--- update the Token_Status of either token. 
+-- update the Token_Status of either token.
 --
 PROCEDURE replace_token
 (
@@ -263,7 +294,7 @@ BEGIN
 	SET
 		Token_ID = p_dest_token_id,
 		Issued_Date = SYSDATE,
-		Is_User_Token_Locked = 'N',
+		Is_User_Token_Locked = false,
 		Token_Unlock_Time = NULL,
 		Bad_Logins = 0,
 		Last_Updated = SYSDATE
@@ -341,7 +372,7 @@ BEGIN
 		) VALUES (
 			p_user_id,
 			p_token_id,
-			'N',
+			false,
 			SYSDATE,
 			SYSDATE
 		);
@@ -439,9 +470,8 @@ END;    --end of package body Token_Util
 
 */
 
-grant select on all tables in schema token_utils to iud_role;
-grant usage on schema token_utils to iud_role;
-revoke all on schema token_utils from public;
-revoke all on  all functions in schema token_utils from public;
-grant execute on all functions in schema token_utils to iud_role;
+REVOKE ALL ON SCHEMA token_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA token_utils FROM public;
 
+GRANT USAGE ON SCHEMA token_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA token_utils TO iud_role;

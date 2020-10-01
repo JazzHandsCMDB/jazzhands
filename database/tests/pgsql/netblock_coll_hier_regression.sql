@@ -71,7 +71,7 @@ BEGIN
 	INSERT INTO val_netblock_collection_Type (
 		netblock_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into netblock_collection (
@@ -104,13 +104,13 @@ BEGIN
 	insert into netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 		) values (
-			'172.31.26.0/26', 'default', 'N',
-			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb1;
+			'172.31.26.0/26', 'default', false,
+			true, 'Allocated', 'JHTEST1') RETURNING * into _nb1;
 	insert into netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 		) values (
-			'ff00:dead:f00d::/64', 'default', 'N',
-			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb2;
+			'ff00:dead:f00d::/64', 'default', false,
+			true, 'Allocated', 'JHTEST1') RETURNING * into _nb2;
 
 	RAISE NOTICE 'Starting tests...';
 

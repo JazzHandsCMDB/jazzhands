@@ -33,6 +33,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS backend_utils;
 		CREATE SCHEMA backend_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON schema backend_utils FROM public;
 		COMMENT ON SCHEMA backend_utils IS 'part of jazzhands';
 	END IF;
 END;
@@ -74,7 +75,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 --
 CREATE OR REPLACE FUNCTION backend_utils.relation_last_changed(
 	view TEXT,
-	schema TEXT DEFAULT 'jazzhands'
+	schema TEXT DEFAULT 'jazzhands_legacy'
 ) RETURNS timestamp AS
 $$
 BEGIN
@@ -145,9 +146,9 @@ SET search_path=pg_catalog
 LANGUAGE plpgsql SECURITY DEFINER;
 
 ------------------------------------------------------------------------------
-grant select on all tables in schema backend_utils to iud_role;
-grant usage on schema backend_utils to iud_role;
-revoke all on schema backend_utils from public;
-revoke all on  all functions in schema backend_utils from public;
-grant execute on all functions in schema backend_utils to iud_role;
+REVOKE ALL ON schema backend_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA backend_utils FROM public;
 
+GRANT USAGE ON SCHEMA backend_utils TO iud_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA backend_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA backend_utils TO iud_role;

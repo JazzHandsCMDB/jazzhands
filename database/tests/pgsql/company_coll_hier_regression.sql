@@ -72,7 +72,7 @@ BEGIN
 	INSERT INTO val_company_collection_Type (
 		company_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into company_collection (

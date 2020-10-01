@@ -54,7 +54,7 @@ WITH cs AS (
 		jazzhands.v_device_components dc
 		JOIN jazzhands.component c USING (component_id)
 		JOIN jazzhands.component_type ct USING (component_type_id)
-		JOIN jazzhands.component_type_component_func ctcf USING (component_type_id)
+		JOIN jazzhands.component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		ctcf.component_function::text = 'CPU'::text
 )

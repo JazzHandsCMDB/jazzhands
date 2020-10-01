@@ -18,21 +18,60 @@
 CREATE OR REPLACE FUNCTION ins_v_corp_family_account()
 RETURNS TRIGGER AS $$
 DECLARE
-	acct_realm_id	account_realm.account_realm_id%TYPE;
+		acct_realm_id		account_realm.account_realm_id%TYPE;
+		_nr				account%ROWTYPE;
 BEGIN
-	SELECT	account_realm_id
-	INTO	acct_realm_id
-	FROM	property
-	WHERE	property_name = '_root_account_realm_id'
-	AND	property_type = 'Defaults';
+		SELECT		account_realm_id
+		INTO		acct_realm_id
+		FROM		property
+		WHERE		property_name = '_root_account_realm_id'
+		AND		property_type = 'Defaults';
 
-	IF acct_realm_id != NEW.account_realm_id THEN
-		RAISE EXCEPTION 'Invalid account_realm_id'
-		USING ERRCODE = 'foreign_key_violation';
-	END IF;
+		IF acct_realm_id != NEW.account_realm_id THEN
+				RAISE EXCEPTION 'Invalid account_realm_id'
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
 
-	INSERT INTO account VALUES (NEW.*);
+		INSERT INTO account (
+			login,
+			person_id,
+			company_id,
+			is_enabled,
+			account_realm_id,
+			account_status,
+			account_role,
+			account_type,
+			description,
+			external_id
+		) VALUES (
+			NEW.login,
+			NEW.person_id,
+			NEW.company_id,
+			NEW.is_enabled,
+			NEW.account_realm_id,
+			NEW.account_status,
+			NEW.account_role,
+			NEW.account_type,
+			NEW.description,
+			NEW.external_id
+		) RETURNING * INTO _nr;
 
+		NEW.account_id			= _nr.account_id;
+		NEW.login				= _nr.login;
+		NEW.person_id			= _nr.person_id;
+		NEW.company_id			= _nr.company_id;
+		NEW.is_enabled			= _nr.is_enabled;
+		NEW.account_realm_id	= _nr.account_realm_id;
+		NEW.account_status		= _nr.account_status;
+		NEW.account_role		= _nr.account_role;
+		NEW.account_type		= _nr.account_type;
+		NEW.description			= _nr.description;
+		NEW.external_id		= 	_nr.external_id;
+		NEW.data_ins_user		= _nr.data_ins_user;
+		NEW.data_ins_date		= _nr.data_ins_date;
+		NEW.data_upd_user		= _nr.data_upd_user;
+		NEW.data_upd_date		= _nr.data_upd_date;
+		RETURN NEW;
 END;
 $$ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
@@ -48,20 +87,21 @@ FOR EACH ROW EXECUTE PROCEDURE ins_v_corp_family_account();
 CREATE OR REPLACE FUNCTION del_v_corp_family_account()
 RETURNS TRIGGER AS $$
 DECLARE
-	acct_realm_id	account_realm.account_realm_id%TYPE;
+		acct_realm_id		account_realm.account_realm_id%TYPE;
 BEGIN
-	SELECT	account_realm_id
-	INTO	acct_realm_id
-	FROM	property
-	WHERE	property_name = '_root_account_realm_id'
-	AND	property_type = 'Defaults';
+		SELECT		account_realm_id
+		INTO		acct_realm_id
+		FROM		property
+		WHERE		property_name = '_root_account_realm_id'
+		AND		property_type = 'Defaults';
 
-	IF acct_realm_id != OLD.account_realm_id THEN
-		RAISE EXCEPTION 'Invalid account_realm_id'
-		USING ERRCODE = 'foreign_key_violation';
-	END IF;
+		IF acct_realm_id != OLD.account_realm_id THEN
+				RAISE EXCEPTION 'Invalid account_realm_id'
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
 
-	DELETE FROM account where account_id = OLD.account_id;
+		DELETE FROM account where account_id = OLD.account_id;
+		RETURN OLD;
 END;
 $$ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
@@ -77,57 +117,74 @@ FOR EACH ROW EXECUTE PROCEDURE del_v_corp_family_account();
 CREATE OR REPLACE FUNCTION upd_v_corp_family_account()
 RETURNS TRIGGER AS $$
 DECLARE
-	acct_realm_id	account_realm.account_realm_id%TYPE;
-	setstr		TEXT;
-	_r		RECORD;
-	val		TEXT;
+		acct_realm_id		account_realm.account_realm_id%TYPE;
+		_nr				account%ROWTYPE;
+		setstr				TEXT;
+		_r				RECORD;
+		val				TEXT;
 BEGIN
-	SELECT	account_realm_id
-	INTO	acct_realm_id
-	FROM	property
-	WHERE	property_name = '_root_account_realm_id'
-	AND	property_type = 'Defaults';
+		SELECT		account_realm_id
+		INTO		acct_realm_id
+		FROM		property
+		WHERE		property_name = '_root_account_realm_id'
+		AND		property_type = 'Defaults';
 
-	IF acct_realm_id != OLD.account_realm_id OR
-			acct_realm_id != NEW.account_realm_id THEN
-		RAISE EXCEPTION 'Invalid account_realm_id'
-		USING ERRCODE = 'foreign_key_violation';
-	END IF;
-
-	setstr = '';
-	FOR _r IN SELECT * FROM json_each_text( row_to_json(NEW) )
-	LOOP
-		IF _r.key NOT SIMILAR TO 'data_(ins|upd)_(user|date)' THEN
-			EXECUTE 'SELECT ' || _r.key ||' FROM account
-				WHERE account_id = ' || OLD.account_id
-				INTO val;
-			IF ( _r.value IS NULL  AND val IS NOT NULL) OR
-				( _r.value IS NOT NULL AND val IS NULL) OR
-				(_r.value::text NOT SIMILAR TO val::text) THEN
-				-- RAISE NOTICE 'Changing %: "%" to "%"', _r.key, val, _r.value;
-				IF char_length(setstr) > 0 THEN
-					setstr = setstr || ',
-					';
-				END IF;
-				IF _r.value IS NOT  NULL THEN
-					setstr = setstr || _r.key || ' = ' ||
-						quote_nullable(_r.value) || ' ' ;
-				ELSE
-					setstr = setstr || _r.key || ' = ' ||
-						' NULL ' ;
-				END IF;
-			END IF;
+		IF acct_realm_id != OLD.account_realm_id OR
+						acct_realm_id != NEW.account_realm_id THEN
+				RAISE EXCEPTION 'Invalid account_realm_id'
+				USING ERRCODE = 'foreign_key_violation';
 		END IF;
-	END LOOP;
 
+		setstr = '';
+		FOR _r IN SELECT * FROM json_each_text( row_to_json(NEW) )
+		LOOP
+				IF _r.key NOT SIMILAR TO 'data_(ins|upd)_(user|date)' THEN
+						EXECUTE 'SELECT ' || _r.key ||' FROM account
+								WHERE account_id = ' || OLD.account_id
+								INTO val;
+						IF ( _r.value IS NULL  AND val IS NOT NULL) OR
+								( _r.value IS NOT NULL AND val IS NULL) OR
+								(_r.value::text NOT SIMILAR TO val::text) THEN
+								-- RAISE NOTICE 'Changing %: "%" to "%"', _r.key, val, _r.value;
+								IF char_length(setstr) > 0 THEN
+										setstr = setstr || ',
+										';
+								END IF;
+								IF _r.value IS NOT  NULL THEN
+										setstr = setstr || _r.key || ' = ' ||
+												quote_nullable(_r.value) || ' ' ;
+								ELSE
+										setstr = setstr || _r.key || ' = ' ||
+												' NULL ' ;
+								END IF;
+						END IF;
+				END IF;
+		END LOOP;
 
-	IF char_length(setstr) > 0 THEN
-		setstr = 'UPDATE account SET ' || setstr || '
-			WHERE	account_id = ' || OLD.account_id;
-		-- RAISE NOTICE 'executing %', setstr;
-		EXECUTE setstr;
-	END IF;
-	RETURN NEW;
+		IF char_length(setstr) > 0 THEN
+				setstr = 'UPDATE account SET ' || setstr || '
+						WHERE		account_id = ' || OLD.account_id ||
+						' RETURNING * ';
+				-- RAISE NOTICE 'executing %', setstr;
+				EXECUTE setstr INTO _nr;
+
+				NEW.account_id			= _nr.account_id;
+				NEW.login				= _nr.login;
+				NEW.person_id			= _nr.person_id;
+				NEW.company_id			= _nr.company_id;
+				NEW.is_enabled			= _nr.is_enabled;
+				NEW.account_realm_id	= _nr.account_realm_id;
+				NEW.account_status		= _nr.account_status;
+				NEW.account_role		= _nr.account_role;
+				NEW.account_type		= _nr.account_type;
+				NEW.description			= _nr.description;
+				NEW.external_id			= _nr.external_id;
+				NEW.data_ins_user		= _nr.data_ins_user;
+				NEW.data_ins_date		= _nr.data_ins_date;
+				NEW.data_upd_user		= _nr.data_upd_user;
+				NEW.data_upd_date		= _nr.data_upd_date;
+		END IF;
+		RETURN NEW;
 
 END;
 $$ SET search_path=jazzhands

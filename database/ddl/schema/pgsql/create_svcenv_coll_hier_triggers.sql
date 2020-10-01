@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Todd Kover
+ * Copyright (c) 2014-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,23 +21,23 @@
 -- $Id$
 --
 
-CREATE OR REPLACE FUNCTION service_environment_coll_hier_enforce()
+CREATE OR REPLACE FUNCTION service_environment_collection_hier_enforce()
 RETURNS TRIGGER AS $$
 DECLARE
-	svcenvt	val_service_env_coll_type%ROWTYPE;
+	serviceenvt	val_service_environment_collection_type%ROWTYPE;
 BEGIN
 	SELECT *
-	INTO	svcenvt
-	FROM	val_service_env_coll_type
-	WHERE	service_env_collection_type =
-		(select service_env_collection_type
+	INTO	serviceenvt
+	FROM	val_service_environment_collection_type
+	WHERE	service_environment_collection_type =
+		(select service_environment_collection_type
 			from service_environment_collection
-			where service_env_collection_id =
-				NEW.service_env_collection_id);
+			where service_environment_collection_id =
+				NEW.service_environment_collection_id);
 
-	IF svcenvt.can_have_hierarchy = 'N' THEN
+	IF serviceenvt.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'Service Environment Collections of type % may not be hierarcical',
-			svcenvt.service_env_collection_type
+			serviceenvt.service_environment_collection_type
 			USING ERRCODE= 'unique_violation';
 	END IF;
 	RETURN NEW;
@@ -46,14 +46,14 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_service_environment_coll_hier_enforce
-	 ON service_environment_coll_hier;
-CREATE CONSTRAINT TRIGGER trigger_service_environment_coll_hier_enforce
+DROP TRIGGER IF EXISTS trigger_service_environment_collection_hier_enforce
+	 ON service_environment_collection_hier;
+CREATE CONSTRAINT TRIGGER trigger_service_environment_collection_hier_enforce
         AFTER INSERT OR UPDATE
-        ON service_environment_coll_hier
+        ON service_environment_collection_hier
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
-        EXECUTE PROCEDURE service_environment_coll_hier_enforce();
+        EXECUTE PROCEDURE service_environment_collection_hier_enforce();
 
 
 -- ---------------------------------------------------------------------------
@@ -61,41 +61,41 @@ CREATE CONSTRAINT TRIGGER trigger_service_environment_coll_hier_enforce
 CREATE OR REPLACE FUNCTION service_environment_collection_member_enforce()
 RETURNS TRIGGER AS $$
 DECLARE
-	svcenvt	val_service_env_coll_type%ROWTYPE;
+	serviceenvt	val_service_environment_collection_type%ROWTYPE;
 	tally integer;
 BEGIN
 	SELECT *
-	INTO	svcenvt
-	FROM	val_service_env_coll_type
-	WHERE	service_env_collection_type =
-		(select service_env_collection_type
+	INTO	serviceenvt
+	FROM	val_service_environment_collection_type
+	WHERE	service_environment_collection_type =
+		(select service_environment_collection_type
 			from service_environment_collection
-			where service_env_collection_id =
-				NEW.service_env_collection_id);
+			where service_environment_collection_id =
+				NEW.service_environment_collection_id);
 
-	IF svcenvt.MAX_NUM_MEMBERS IS NOT NULL THEN
+	IF serviceenvt.MAX_NUM_MEMBERS IS NOT NULL THEN
 		select count(*)
 		  into tally
-		  from svc_environment_coll_svc_env
-		  where service_env_collection_id = NEW.service_env_collection_id;
-		IF tally > svcenvt.MAX_NUM_MEMBERS THEN
+		  from service_environment_collection_service_environment
+		  where service_environment_collection_id = NEW.service_environment_collection_id;
+		IF tally > serviceenvt.MAX_NUM_MEMBERS THEN
 			RAISE EXCEPTION 'Too many members'
 				USING ERRCODE = 'unique_violation';
 		END IF;
 	END IF;
 
-	IF svcenvt.MAX_NUM_COLLECTIONS IS NOT NULL THEN
+	IF serviceenvt.MAX_NUM_COLLECTIONS IS NOT NULL THEN
 		select count(*)
 		  into tally
-		  from svc_environment_coll_svc_env
+		  from service_environment_collection_service_environment
 		  		inner join service_environment_collection
-					USING (service_env_collection_id)
+					USING (service_environment_collection_id)
 		  where service_environment_id = NEW.service_environment_id
-		  and	service_env_collection_type =
-					svcenvt.service_env_collection_type;
-		IF tally > svcenvt.MAX_NUM_COLLECTIONS THEN
+		  and	service_environment_collection_type =
+					serviceenvt.service_environment_collection_type;
+		IF tally > serviceenvt.MAX_NUM_COLLECTIONS THEN
 			RAISE EXCEPTION 'Service Environment may not be a member of more than % collections of type %',
-				svcenvt.MAX_NUM_COLLECTIONS, svcenvt.service_env_collection_type
+				serviceenvt.MAX_NUM_COLLECTIONS, serviceenvt.service_environment_collection_type
 				USING ERRCODE = 'unique_violation';
 		END IF;
 	END IF;
@@ -107,10 +107,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_collection_member_enforce
-	 ON svc_environment_coll_svc_env;
+	 ON service_environment_collection_service_environment;
 CREATE CONSTRAINT TRIGGER trigger_service_environment_collection_member_enforce
         AFTER INSERT OR UPDATE
-        ON svc_environment_coll_svc_env
+        ON service_environment_collection_service_environment
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
         EXECUTE PROCEDURE service_environment_collection_member_enforce();

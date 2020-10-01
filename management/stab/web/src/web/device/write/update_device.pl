@@ -165,13 +165,13 @@ sub clear_same_physical_port_params {
 			if ( $l1c->{ _dbx('PHYSICAL_PORT1_ID') } == $pportid ) {
 				next
 				  if ( !$p2portid
-					&& defined( $l1c->{ _dbx( 'PHYSICAL_PORT2_ID' ) } )
+					&& defined( $l1c->{ _dbx('PHYSICAL_PORT2_ID') } )
 					|| $l1c->{ _dbx('PHYSICAL_PORT2_ID') } != $p2portid );
 			}
 			if ( $l1c->{ _dbx('PHYSICAL_PORT2_ID') } == $pportid ) {
 				next
 				  if ( !$p2portid
-					&& defined( $l1c->{ _dxb( 'PHYSICAL_PORT1_ID' ) } )
+					&& defined( $l1c->{ _dxb('PHYSICAL_PORT1_ID') } )
 					|| $l1c->{ _dbx('PHYSICAL_PORT1_ID') } != $p2portid );
 			}
 		}
@@ -332,7 +332,7 @@ sub do_update_device {
 
 	if ( $serial_reset && $retire_device ) {
 		$stab->error_return(
-			"You may not both reset serial ports and retire the box." );
+			"You may not both reset serial ports and retire the box.");
 	}
 
 	if ($retire_device) {
@@ -403,6 +403,31 @@ sub do_update_device {
 			return $stab->return_db_err;
 		}
 
+		# If the asset doesn't exist, let's create it
+	} else {
+		my @errs;
+		my $newasset = {
+			COMPONENT_ID          => $dbdevice->{ _dbx('COMPONENT_ID') },
+			SERIAL_NUMBER         => $serialno,
+			PART_NUMBER           => $partno,
+			ASSET_TAG             => $assettag,
+			OWNERSHIP_STATUS      => $owner || 'unknown',
+			LEASE_EXPIRATION_DATE => $leasexp,
+		};
+
+		if (
+			!(
+				$numchanges += $stab->DBInsert(
+					table  => 'asset',
+					hash   => $newasset,
+					errors => \@errs
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
+		}
+		my $assetid = $newasset->{ _dbx('ASSET_ID') };
 	}
 
 	my $newdevice = {
@@ -423,7 +448,8 @@ sub do_update_device {
 		IS_VIRTUAL_DEVICE   => $virtdev,
 		AUTO_MGMT_PROTOCOL  => $mgmtprot,
 
-		SITE_CODE => $site,
+		SITE_CODE              => $site,
+		SERVICE_ENVIRONMENT_ID => $svcenv,
 	};
 
 	#
@@ -601,7 +627,7 @@ sub update_location {
 	my $locid = $stab->cgi_get_ids('RACK_LOCATION_ID');
 
 	my $numchanges = 0;
-	my $rackid = $stab->cgi_parse_param( 'LOCATION_RACK_ID', $locid );
+	my $rackid     = $stab->cgi_parse_param( 'LOCATION_RACK_ID', $locid );
 	if ( !$rackid ) {
 		return $numchanges;
 	}
@@ -624,6 +650,19 @@ sub update_location {
 			$stab->error_return('Location does not match Value set on Device');
 		}
 		$curloc = undef;
+	}
+
+	# No location previously existed and no new value provided, the user is not trying to update the location
+	return
+	  if ( !defined($curloc)
+		&& $rackid eq ''
+		&& $locid eq ''
+		&& $ru eq ''
+		&& $side eq '' );
+
+	if ( !defined($rackid) || !defined($side) || !defined($ru) ) {
+		$stab->error_return(
+			'Rack, U Offset and Rack Side are mandatory parameters.');
 	}
 
 	if ( !defined($ru) || $ru !~ /^-?\d+$/ ) {
@@ -1099,7 +1138,7 @@ sub update_power_port {
 	};
 
 	my $tally = 0;
-	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
+	my $sth   = $stab->prepare($q) || $stab->return_db_err($stab);
 
 	$sth->bind_param( ':dev1',  $devid )     || $stab->return_db_err($stab);
 	$sth->bind_param( ':port1', $piport )    || $stab->return_db_err($stab);
@@ -1197,7 +1236,7 @@ sub update_physical_port {
 	if ( !$p2portid ) {
 		my $cgi = $stab->cgi;
 		$stab->error_return(
-			"You must specify the port on the other end's serial device." );
+			"You must specify the port on the other end's serial device.");
 	}
 
 	#
@@ -1406,7 +1445,7 @@ sub update_physical_connection {
 
 		if ( !$cable ) {
 			$stab->error_return(
-				"Must specify a cable type on Patch Panel Connections" );
+				"Must specify a cable type on Patch Panel Connections");
 		}
 
 		# the last one does not have a port end, just a cable...
@@ -1514,7 +1553,7 @@ sub update_physical_connection {
 	# reused).
 	#
 	for ( my $i = 0 ; $i <= $#newpath ; $i++ ) {
-		my $pid = $newpath[$i]->{'port'};
+		my $pid      = $newpath[$i]->{'port'};
 		my $endpoint = find_phys_con_endpoint_from_port( $stab, $pid );
 
 		# lookup physical connections that include said things,
@@ -1895,7 +1934,7 @@ sub update_interface {
 sub manipulate_network_interface_purpose {
 	my ( $stab, $netintid, $devid ) = @_;
 
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi     = $stab->cgi || die "Could not create cgi";
 	my @newpurp = $cgi->multi_param( 'NETWORK_INTERFACE_PURPOSE_' . $netintid );
 
 	my $oldpurp = $stab->get_network_int_purpose($netintid);
@@ -2052,7 +2091,7 @@ sub process_interfaces {
 		my $destip  = $stab->cgi_parse_param( 'ROUTE_DEST_IP',     $id );
 
 		if ( $srcip && $srcip =~ /^default$/i ) {
-			$srcip = '0.0.0.0';
+			$srcip   = '0.0.0.0';
 			$srcbits = 0 if ( !$srcbits );
 		}
 
@@ -2131,7 +2170,7 @@ sub process_interfaces {
 	my $destip  = $stab->cgi_parse_param('ROUTE_DEST_IP');
 
 	if ( $srcip && $srcip =~ /^default$/i ) {
-		$srcip = '0.0.0.0';
+		$srcip   = '0.0.0.0';
 		$srcbits = 0 if ( !$srcbits );
 	}
 
@@ -2154,7 +2193,7 @@ sub process_interfaces {
 		  )
 		{
 			$stab->error_return(
-				"Static Route $srcip/$srcbits->$destip is already on device" );
+				"Static Route $srcip/$srcbits->$destip is already on device");
 		}
 
 		my $sth = $stab->prepare(
@@ -2390,7 +2429,6 @@ sub reset_serial_to_default {
 
 	delete_device_connections( $stab, $devid, 'serial' );
 	delete_device_phys_ports( $stab, $devid, 'serial' );
-	$stab->setup_device_physical_ports($devid);
 }
 
 sub find_phys_con_endpoint_from_port {

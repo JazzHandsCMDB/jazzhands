@@ -26,6 +26,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS lv_manip;
                 CREATE SCHEMA lv_manip AUTHORIZATION jazzhands;
+		REVOKE USAGE ON SCHEMA lv_manip FROM public;
 		COMMENT ON SCHEMA lv_manip IS 'part of jazzhands';
         END IF;
 END;
@@ -118,6 +119,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_lv_hier(
@@ -198,8 +200,8 @@ BEGIN
 	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
-	DELETE FROM volume_group_physicalish_vol WHERE physicalish_volume_id = ANY(pv_list);
-	DELETE FROM volume_group_physicalish_vol WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM volume_group_physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
+	DELETE FROM volume_group_physicalish_volume WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
 
@@ -209,6 +211,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -233,6 +236,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -251,7 +255,7 @@ BEGIN
 
 	FOREACH pvid IN ARRAY physicalish_volume_list LOOP
 		DELETE FROM 
-			volume_group_physicalish_vol vgpv
+			volume_group_physicalish_volume vgpv
 		WHERE
 			vgpv.physicalish_volume_id = pvid
 		RETURNING
@@ -259,7 +263,7 @@ BEGIN
 		
 		IF FOUND AND purge_orphans THEN
 			PERFORM * FROM
-				volume_group_physicalish_vol vgpv
+				volume_group_physicalish_volume vgpv
 			WHERE
 				volume_group_id = vgid;
 
@@ -275,6 +279,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_vg(
@@ -291,6 +296,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_vg(
@@ -324,7 +330,7 @@ BEGIN
 	);
 
 	DELETE FROM
-		volume_group_physicalish_vol vgpv
+		volume_group_physicalish_volume vgpv
 	WHERE
 		vgpv.volume_group_id = ANY(volume_group_list);
 	
@@ -355,6 +361,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION lv_manip.delete_lv(
@@ -369,6 +376,7 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -408,7 +416,11 @@ BEGIN
 END;
 $$
 SET search_path = jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
-GRANT USAGE ON SCHEMA lv_manip TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA lv_manip TO ro_role;
+REVOKE USAGE ON SCHEMA lv_manip FROM public;
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA lv_manip FROM public;
+
+GRANT USAGE ON SCHEMA lv_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA lv_manip TO iud_role;

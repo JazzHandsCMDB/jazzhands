@@ -56,7 +56,7 @@ values (
 );
 
 select	nc.netblock_collection_name, nc.netblock_collection_type, n.ip_address
- from	v_nblk_coll_netblock_expanded v
+ from	v_netblock_collection_netblock_expanded v
 	inner join netblock_collection nc
 		using (netblock_collection_id)
 	inner join netblock n

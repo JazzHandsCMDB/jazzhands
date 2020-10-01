@@ -80,9 +80,9 @@ BEGIN
 	IF TG_OP = 'DELETE' OR
 		( TG_OP = 'UPDATE' and OLD.device_collection_type = 'per-device')
 	THEN
-		DELETE FROM v_device_collection_hier_trans
-		WHERE device_collection_id = OLD.device_collection_id
-		AND parent_device_collection_id IN (
+		DELETE FROM device_collection_hier
+		WHERE child_device_collection_id = OLD.device_collection_id
+		AND device_collection_id IN (
 			SELECT device_collection_id
 			FROM device_collection
 			WHERE device_collection_type = 'by-coll-type'
@@ -102,24 +102,24 @@ BEGIN
 
 
 	IF TG_OP = 'UPDATE' THEN
-		UPDATE v_device_collection_hier_trans
-		SET parent_device_collection_id = (
+		UPDATE device_collection_hier
+		SET device_collection_id = (
 			SELECT device_collection_id
 			FROM device_collection
 			WHERE device_collection_type = 'by-coll-type'
 			AND device_collection_name = NEW.device_collection_type
 		),
-			device_collection_id = NEW.device_collection_id
-		WHERE parent_device_collection_id = (
+			child_device_collection_id = NEW.device_collection_id
+		WHERE device_collection_id = (
 			SELECT device_collection_id
 			FROM device_collection
 			WHERE device_collection_type = 'by-coll-type'
 			AND device_collection_name = OLD.device_collection_type
 		)
-		AND device_collection_id = OLD.device_collection_id;
+		AND child_device_collection_id = OLD.device_collection_id;
 	ELSIF TG_OP = 'INSERT' THEN
-		INSERT INTO v_device_collection_hier_trans (
-			parent_device_collection_id, device_collection_id
+		INSERT INTO device_collection_hier (
+			device_collection_id, child_device_collection_id
 		) SELECT device_collection_id, NEW.device_collection_id
 			FROM device_collection
 			WHERE device_collection_type = 'by-coll-type'
@@ -284,34 +284,34 @@ AFTER INSERT OR UPDATE OF dns_domain_collection_type
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION manip_service_env_collection_type_bytype()
+CREATE OR REPLACE FUNCTION manip_service_environment_collection_type_bytype()
 	RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'DELETE' THEN
-		IF OLD.service_env_collection_type NOT IN ('by-coll-type', 'per-service_environment') THEN
+		IF OLD.service_environment_collection_type NOT IN ('by-coll-type', 'per-service_environment') THEN
 			DELETE FROM service_environment_collection
-			WHERE service_env_collection_name = OLD.service_env_collection_type
-			AND service_env_collection_type = 'by-coll-type';
+			WHERE service_environment_collection_name = OLD.service_environment_collection_type
+			AND service_environment_collection_type = 'by-coll-type';
 		END IF;
 		RETURN OLD;
 	ELSIF TG_OP = 'UPDATE' THEN
-		IF NEW.service_env_collection_type IN ('by-coll-type', 'per-service_environment') AND
-			OLD.service_env_collection_type NOT IN ('by-coll-type', 'per-service_environment')
+		IF NEW.service_environment_collection_type IN ('by-coll-type', 'per-service_environment') AND
+			OLD.service_environment_collection_type NOT IN ('by-coll-type', 'per-service_environment')
 		THEN
 			DELETE FROM service_environment_collection
-			WHERE service_env_collection_id = OLD.service_env_collection_id;
+			WHERE service_environment_collection_id = OLD.service_environment_collection_id;
 		ELSE
 			UPDATE service_environment_collection
-			SET service_env_collection_name = NEW.service_env_collection_name
-			WHERE service_env_collection_name = OLD.service_env_collection_type
-			AND service_env_collection_type = 'by-coll-type';
+			SET service_environment_collection_name = NEW.service_environment_collection_name
+			WHERE service_environment_collection_name = OLD.service_environment_collection_type
+			AND service_environment_collection_type = 'by-coll-type';
 		END IF;
 	ELSIF TG_OP = 'INSERT' THEN
-		IF NEW.service_env_collection_type NOT IN ('by-coll-type', 'per-service_environment') THEN
+		IF NEW.service_environment_collection_type NOT IN ('by-coll-type', 'per-service_environment') THEN
 			INSERT INTO service_environment_collection (
-				service_env_collection_name, service_env_collection_type
+				service_environment_collection_name, service_environment_collection_type
 			) VALUES (
-				NEW.service_env_collection_type, 'by-coll-type'
+				NEW.service_environment_collection_type, 'by-coll-type'
 			);
 		END IF;
 	END IF;
@@ -321,37 +321,37 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_del
-	ON val_service_env_coll_type;
-CREATE TRIGGER trigger_manip_service_env_collection_type_bytype_del
+DROP TRIGGER IF EXISTS trigger_manip_service_environment_collection_type_bytype_del
+	ON val_service_environment_collection_type;
+CREATE TRIGGER trigger_manip_service_environment_collection_type_bytype_del
 BEFORE DELETE
-	ON val_service_env_coll_type
+	ON val_service_environment_collection_type
 	FOR EACH ROW
-	EXECUTE PROCEDURE manip_service_env_collection_type_bytype();
+	EXECUTE PROCEDURE manip_service_environment_collection_type_bytype();
 
-DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_type_bytype_insup
-	ON val_service_env_coll_type;
-CREATE TRIGGER trigger_manip_service_env_collection_type_bytype_insup
-AFTER INSERT OR UPDATE OF service_env_collection_type
-	ON val_service_env_coll_type
+DROP TRIGGER IF EXISTS trigger_manip_service_environment_collection_type_bytype_insup
+	ON val_service_environment_collection_type;
+CREATE TRIGGER trigger_manip_service_environment_collection_type_bytype_insup
+AFTER INSERT OR UPDATE OF service_environment_collection_type
+	ON val_service_environment_collection_type
 	FOR EACH ROW
-	EXECUTE PROCEDURE manip_service_env_collection_type_bytype();
+	EXECUTE PROCEDURE manip_service_environment_collection_type_bytype();
 
 ------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION manip_service_env_collection_bytype()
+CREATE OR REPLACE FUNCTION manip_service_environment_collection_bytype()
 	RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'DELETE' OR
-		( TG_OP = 'UPDATE' and OLD.service_env_collection_type = 'per-service_environment')
+		( TG_OP = 'UPDATE' and OLD.service_environment_collection_type = 'per-service_environment')
 	THEN
-		DELETE FROM service_environment_coll_hier
-		WHERE child_service_env_coll_id = OLD.service_env_collection_id
-		AND service_env_collection_id IN (
-			SELECT service_env_collection_id
+		DELETE FROM service_environment_collection_hier
+		WHERE child_service_environment_collection_id = OLD.service_environment_collection_id
+		AND service_environment_collection_id IN (
+			SELECT service_environment_collection_id
 			FROM service_environment_collection
-			WHERE service_env_collection_type = 'by-coll-type'
-			AND service_env_collection_name = OLD.service_env_collection_type
+			WHERE service_environment_collection_type = 'by-coll-type'
+			AND service_environment_collection_name = OLD.service_environment_collection_type
 		);
 
 		IF TG_OP = 'DELETE' THEN
@@ -361,34 +361,34 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF NEW.service_env_collection_type IN ('per-service_environment','by-coll-type') THEN
+	IF NEW.service_environment_collection_type IN ('per-service_environment','by-coll-type') THEN
 		RETURN NEW;
 	END IF;
 
 
 	IF TG_OP = 'UPDATE' THEN
-		UPDATE service_environment_coll_hier
-		SET service_env_collection_id = (
-			SELECT service_env_collection_id
+		UPDATE service_environment_collection_hier
+		SET service_environment_collection_id = (
+			SELECT service_environment_collection_id
 			FROM service_environment_collection
-			WHERE service_env_collection_type = 'by-coll-type'
-			AND service_env_collection_name = NEW.service_env_collection_type
+			WHERE service_environment_collection_type = 'by-coll-type'
+			AND service_environment_collection_name = NEW.service_environment_collection_type
 		),
-			child_service_env_coll_id = NEW.service_env_collection_id
-		WHERE service_env_collection_id = (
-			SELECT service_env_collection_id
+			child_service_environment_collection_id = NEW.service_environment_collection_id
+		WHERE service_environment_collection_id = (
+			SELECT service_environment_collection_id
 			FROM service_environment_collection
-			WHERE service_env_collection_type = 'by-coll-type'
-			AND service_env_collection_name = OLD.service_env_collection_type
+			WHERE service_environment_collection_type = 'by-coll-type'
+			AND service_environment_collection_name = OLD.service_environment_collection_type
 		)
-		AND child_service_env_coll_id = OLD.service_env_collection_id;
+		AND child_service_environment_collection_id = OLD.service_environment_collection_id;
 	ELSIF TG_OP = 'INSERT' THEN
-		INSERT INTO service_environment_coll_hier (
-			service_env_collection_id, child_service_env_coll_id
-		) SELECT service_env_collection_id, NEW.service_env_collection_id
+		INSERT INTO service_environment_collection_hier (
+			service_environment_collection_id, child_service_environment_collection_id
+		) SELECT service_environment_collection_id, NEW.service_environment_collection_id
 			FROM service_environment_collection
-			WHERE service_env_collection_type = 'by-coll-type'
-			AND service_env_collection_name = NEW.service_env_collection_type;
+			WHERE service_environment_collection_type = 'by-coll-type'
+			AND service_environment_collection_name = NEW.service_environment_collection_type;
 	END IF;
 
 	RETURN NEW;
@@ -397,21 +397,21 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_del
+DROP TRIGGER IF EXISTS trigger_manip_service_environment_collection_bytype_del
 	ON service_environment_collection;
-CREATE TRIGGER trigger_manip_service_env_collection_bytype_del
+CREATE TRIGGER trigger_manip_service_environment_collection_bytype_del
 BEFORE DELETE
 	ON service_environment_collection
 	FOR EACH ROW
-	EXECUTE PROCEDURE manip_service_env_collection_bytype();
+	EXECUTE PROCEDURE manip_service_environment_collection_bytype();
 
-DROP TRIGGER IF EXISTS trigger_manip_service_env_collection_bytype_insup
+DROP TRIGGER IF EXISTS trigger_manip_service_environment_collection_bytype_insup
 	ON service_environment_collection;
-CREATE TRIGGER trigger_manip_service_env_collection_bytype_insup
-AFTER INSERT OR UPDATE OF service_env_collection_type
+CREATE TRIGGER trigger_manip_service_environment_collection_bytype_insup
+AFTER INSERT OR UPDATE OF service_environment_collection_type
 	ON service_environment_collection
 	FOR EACH ROW
-	EXECUTE PROCEDURE manip_service_env_collection_bytype();
+	EXECUTE PROCEDURE manip_service_environment_collection_bytype();
 
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
@@ -457,18 +457,18 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_del
-	ON val_layer2_network_coll_type;
+	ON val_layer2_network_collection_type;
 CREATE TRIGGER trigger_manip_layer2_network_collection_type_bytype_del
 BEFORE DELETE
-	ON val_layer2_network_coll_type
+	ON val_layer2_network_collection_type
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer2_network_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_type_bytype_insup
-	ON val_layer2_network_coll_type;
+	ON val_layer2_network_collection_type;
 CREATE TRIGGER trigger_manip_layer2_network_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF layer2_network_collection_type
-	ON val_layer2_network_coll_type
+	ON val_layer2_network_collection_type
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer2_network_collection_type_bytype();
 
@@ -481,7 +481,7 @@ BEGIN
 		( TG_OP = 'UPDATE' and OLD.layer2_network_collection_type = 'per-layer2_network')
 	THEN
 		DELETE FROM layer2_network_collection_hier
-		WHERE child_l2_network_coll_id = OLD.layer2_network_collection_id
+		WHERE child_layer2_network_collection_id = OLD.layer2_network_collection_id
 		AND layer2_network_collection_id IN (
 			SELECT layer2_network_collection_id
 			FROM layer2_network_collection
@@ -509,17 +509,17 @@ BEGIN
 			WHERE layer2_network_collection_type = 'by-coll-type'
 			AND layer2_network_collection_name = NEW.layer2_network_collection_type
 		),
-			child_l2_network_coll_id = NEW.layer2_network_collection_id
+			child_layer2_network_collection_id = NEW.layer2_network_collection_id
 		WHERE layer2_network_collection_id = (
 			SELECT layer2_network_collection_id
 			FROM layer2_network_collection
 			WHERE layer2_network_collection_type = 'by-coll-type'
 			AND layer2_network_collection_name = OLD.layer2_network_collection_type
 		)
-		AND child_l2_network_coll_id = OLD.layer2_network_collection_id;
+		AND child_layer2_network_collection_id = OLD.layer2_network_collection_id;
 	ELSIF TG_OP = 'INSERT' THEN
 		INSERT INTO layer2_network_collection_hier (
-			layer2_network_collection_id, child_l2_network_coll_id
+			layer2_network_collection_id, child_layer2_network_collection_id
 		) SELECT layer2_network_collection_id, NEW.layer2_network_collection_id
 			FROM layer2_network_collection
 			WHERE layer2_network_collection_type = 'by-coll-type'
@@ -590,18 +590,18 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_del
-	ON val_layer3_network_coll_type;
+	ON val_layer3_network_collection_type;
 CREATE TRIGGER trigger_manip_layer3_network_collection_type_bytype_del
 BEFORE DELETE
-	ON val_layer3_network_coll_type
+	ON val_layer3_network_collection_type
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer3_network_collection_type_bytype();
 
 DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_type_bytype_insup
-	ON val_layer3_network_coll_type;
+	ON val_layer3_network_collection_type;
 CREATE TRIGGER trigger_manip_layer3_network_collection_type_bytype_insup
 AFTER INSERT OR UPDATE OF layer3_network_collection_type
-	ON val_layer3_network_coll_type
+	ON val_layer3_network_collection_type
 	FOR EACH ROW
 	EXECUTE PROCEDURE manip_layer3_network_collection_type_bytype();
 
@@ -614,7 +614,7 @@ BEGIN
 		( TG_OP = 'UPDATE' and OLD.layer3_network_collection_type = 'per-layer3_network')
 	THEN
 		DELETE FROM layer3_network_collection_hier
-		WHERE child_l3_network_coll_id = OLD.layer3_network_collection_id
+		WHERE child_layer3_network_collection_id = OLD.layer3_network_collection_id
 		AND layer3_network_collection_id IN (
 			SELECT layer3_network_collection_id
 			FROM layer3_network_collection
@@ -642,17 +642,17 @@ BEGIN
 			WHERE layer3_network_collection_type = 'by-coll-type'
 			AND layer3_network_collection_name = NEW.layer3_network_collection_type
 		),
-			child_l3_network_coll_id = NEW.layer3_network_collection_id
+			child_layer3_network_collection_id = NEW.layer3_network_collection_id
 		WHERE layer3_network_collection_id = (
 			SELECT layer3_network_collection_id
 			FROM layer3_network_collection
 			WHERE layer3_network_collection_type = 'by-coll-type'
 			AND layer3_network_collection_name = OLD.layer3_network_collection_type
 		)
-		AND child_l3_network_coll_id = OLD.layer3_network_collection_id;
+		AND child_layer3_network_collection_id = OLD.layer3_network_collection_id;
 	ELSIF TG_OP = 'INSERT' THEN
 		INSERT INTO layer3_network_collection_hier (
-			layer3_network_collection_id, child_l3_network_coll_id
+			layer3_network_collection_id, child_layer3_network_collection_id
 		) SELECT layer3_network_collection_id, NEW.layer3_network_collection_id
 			FROM layer3_network_collection
 			WHERE layer3_network_collection_type = 'by-coll-type'

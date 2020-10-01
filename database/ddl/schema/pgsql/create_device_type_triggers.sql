@@ -70,7 +70,7 @@ CREATE TRIGGER trigger_device_type_module_sanity_set
 	EXECUTE PROCEDURE device_type_module_sanity_set();
 
 --
--- device types marked with is_chassis = 'Y' need to keep that if there
+-- device types marked with is_chassis = true need to keep that if there
 -- are device_type_modules associated.
 --
 CREATE OR REPLACE FUNCTION device_type_chassis_check()
@@ -81,8 +81,8 @@ BEGIN
 	IF TG_OP != 'UPDATE' THEN
 		RAISE EXCEPTION 'This should not happen %!', TG_OP;
 	END IF;
-	IF OLD.is_chassis = 'Y' THEN
-		IF NEW.is_chassis = 'N' THEN
+	IF OLD.is_chassis = true THEN
+		IF NEW.is_chassis = false THEN
 			SELECT 	count(*)
 			  INTO	_tally
 			  FROM	device_type_module
@@ -122,7 +122,7 @@ BEGIN
 	  FROM	device_type
 	 WHERE	device_type_id = NEW.device_type_id;
 
-	IF _ischass = 'N' THEN
+	IF _ischass = false THEN
 		RAISE EXCEPTION 'Is_chassis must be Y for chassis device_types'
 			USING ERRCODE = 'foreign_key_violation';
 	END IF;

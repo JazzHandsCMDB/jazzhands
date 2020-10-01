@@ -45,7 +45,7 @@ BEGIN
 	RAISE NOTICE 'ip_universe_valid_regression: Startup';
 
 	INSERT INTO DNS_DOMAIN (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest.example.com', 'service'
 	) RETURNING dns_domain_id INTO _dnsdomid;
@@ -55,7 +55,7 @@ BEGIN
 		soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
 		soa_expire, soa_minimum, soa_mname, soa_rname
 	) values (
-		_dnsdomid, 0, 'Y',
+		_dnsdomid, 0, true,
 		'IN', 3600, 1, 600, 1800,
 		604800, 300, 'ns.example.com', 'hostmaster.example.com'
 	);
@@ -67,25 +67,25 @@ BEGIN
 
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest0', 'jhtest0', 'Y')
+		VALUES ('jhtest0', 'jhtest0', true)
 		RETURNING ip_universe_id INTO _u0;
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest1', 'jhtest1', 'Y')
+		VALUES ('jhtest1', 'jhtest1', true)
 		RETURNING ip_universe_id INTO _u1;
 
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest0a', 'jhtest0', 'Y')
+		VALUES ('jhtest0a', 'jhtest0', true)
 		RETURNING ip_universe_id INTO _u0a;
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest1a', 'jhtest1', 'Y')
+		VALUES ('jhtest1a', 'jhtest1', true)
 		RETURNING ip_universe_id INTO _u1a;
 
 	INSERT INTO ip_universe
 		(ip_universe_name, ip_namespace, should_generate_dns)
-		VALUES ('jhtest2', 'jhtest2', 'Y')
+		VALUES ('jhtest2', 'jhtest2', true)
 		RETURNING ip_universe_id INTO _u2;
 
 	INSERT INTO NETBLOCK (ip_address, netblock_type,
@@ -93,7 +93,7 @@ BEGIN
 			description, ip_universe_id
 	) VALUES (
 		'172.31.30.0/24', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _blk0id_u0', _u0
 	) RETURNING netblock_id INTO _blk0id;
 
@@ -102,7 +102,7 @@ BEGIN
 			description, ip_universe_id
 	) VALUES (
 		'172.31.30.0/24', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _blk0id_u1', _u1
 	) RETURNING netblock_id INTO _blk1id;
 
@@ -113,7 +113,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.1/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip0id', _u0
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -122,7 +122,7 @@ BEGIN
 				dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 				should_generate_ptr, ip_universe_id
 			) VALUES (
-				'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, 'Y', _u1
+				'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, true, _u1
 			) RETURNING dns_record_id INTO _dns;
 			RAISE NOTICE 'It did NOT (bad)!';
 		EXCEPTION WHEN foreign_key_violation THEN
@@ -141,7 +141,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.1/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip0id', _u0
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -149,7 +149,7 @@ BEGIN
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 			should_generate_ptr, ip_universe_id
 		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, 'Y', _u0
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, true, _u0
 		) RETURNING dns_record_id INTO _dns;
 
 		BEGIN
@@ -173,7 +173,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.1/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip0id', _u0
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -181,7 +181,7 @@ BEGIN
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 			should_generate_ptr, ip_universe_id
 		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, 'Y', _u0
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, true, _u0
 		) RETURNING dns_record_id INTO _dns;
 
 		BEGIN
@@ -205,7 +205,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.1/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip0id', _u0
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -213,7 +213,7 @@ BEGIN
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 			should_generate_ptr, ip_universe_id
 		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, 'Y', _u0
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip0id, true, _u0
 		) RETURNING dns_record_id INTO _dns;
 
 		SET CONSTRAINTS trigger_check_ip_universe_dns_record DEFERRED;
@@ -245,7 +245,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.1/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip0id', _u0
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -270,7 +270,7 @@ BEGIN
 	END;
 
 	--
-	-- Check if can_subnet = 'N' networks can't overlap in namespaces
+	-- Check if can_subnet = false networks can't overlap in namespaces
 	--
 	RAISE NOTICE 'Check if can_subnet=N nets ip_namespace overlap I...';
 	BEGIN
@@ -279,7 +279,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.128/26', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u0a
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -295,7 +295,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.16.0/20', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u0a
 		) RETURNING netblock_id INTO _ip0id;
 		RAISE EXCEPTION '... It did!  (bad)';
@@ -304,7 +304,7 @@ BEGIN
 	END;
 
 	--
-	-- Check if can_subnet = 'N' networks can't overlap in visibility
+	-- Check if can_subnet = false networks can't overlap in visibility
 	--
 	RAISE NOTICE 'Check if can_subnet=N nets ip_visibility overlap I...';
 	BEGIN
@@ -319,7 +319,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.192/26', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u2
 		) RETURNING netblock_id INTO _ip0id;
 		RAISE EXCEPTION '... It did!  (bad)';
@@ -328,7 +328,7 @@ BEGIN
 	END;
 
 	--
-	-- Check if can_subnet = 'N' networks can't overlap in visibility
+	-- Check if can_subnet = false networks can't overlap in visibility
 	--
 	RAISE NOTICE 'Check if can_subnet=N nets ip_visibility overlap II...';
 	BEGIN
@@ -343,7 +343,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.28.0/22', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u2
 		) RETURNING netblock_id INTO _ip0id;
 		RAISE EXCEPTION '... It did!  (bad)';
@@ -352,7 +352,7 @@ BEGIN
 	END;
 
 	--
-	-- Check if can_subnet = 'N' networks can't overlap in visibility
+	-- Check if can_subnet = false networks can't overlap in visibility
 	--
 	RAISE NOTICE 'Check if can_subnet=N nets ip_visibility backwards I...';
 	BEGIN
@@ -367,7 +367,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.30.192/26', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u2
 		) RETURNING netblock_id INTO _ip0id;
 		RAISE EXCEPTION '... It did!  (bad)';
@@ -376,7 +376,7 @@ BEGIN
 	END;
 
 	--
-	-- Check if can_subnet = 'N' networks can't overlap in visibility
+	-- Check if can_subnet = false networks can't overlap in visibility
 	--
 	RAISE NOTICE 'Check if can_subnet=N nets ip_visibility backwards II...';
 	BEGIN
@@ -391,7 +391,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.31.28.0/22', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u2
 		) RETURNING netblock_id INTO _ip0id;
 		RAISE EXCEPTION '... It did!  (bad)';
@@ -412,7 +412,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.16.0.0/26', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u2
 		) RETURNING netblock_id INTO _ip0id;
 
@@ -434,7 +434,7 @@ BEGIN
 			description, ip_universe_id
 		) VALUES (
 			'172.16.0.0/26', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip0id', _u2
 		) RETURNING netblock_id INTO _ip0id;
 

@@ -20,7 +20,7 @@
 
 \t on
 
-SAVEPOINT servie_environment_coll_hier_regression_test;
+SAVEPOINT servie_environment_collection_hier_regression_test;
 
 \ir ../../ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
 \ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
@@ -29,7 +29,7 @@ SAVEPOINT servie_environment_coll_hier_regression_test;
 -- 
 -- Trigger tests
 --
-CREATE OR REPLACE FUNCTION service_env_coll_hier_regression() RETURNS BOOLEAN AS $$
+CREATE OR REPLACE FUNCTION service_environment_collection_hier_regression() RETURNS BOOLEAN AS $$
 DECLARE
 	_tally			integer;
 	_sc_onecol1		service_environment_collection%ROWTYPE;
@@ -39,63 +39,63 @@ DECLARE
 	_svcenv1		service_environment%ROWTYPE;
 	_svcenv2		service_environment%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'service_env_coll_hier_regression: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'service_environment_collection_hier_regression: Cleanup Records from Previous Tests';
 
-	delete from svc_environment_coll_svc_env where service_env_collection_id
-		IN (select service_env_collection_id FROM
-		service_environment_collection where service_env_collection_name like
+	delete from service_environment_collection_service_environment where service_environment_collection_id
+		IN (select service_environment_collection_id FROM
+		service_environment_collection where service_environment_collection_name like
 		'JHTEST%');
 
-	delete from service_environment_collection where service_env_collection_type like
+	delete from service_environment_collection where service_environment_collection_type like
 		'JHTEST%';
-	delete from val_service_env_coll_type where 
-		service_env_collection_type like
+	delete from val_service_environment_collection_type where 
+		service_environment_collection_type like
 		'JHTEST%';
 	delete from service_environment 
 	where service_environment_name like 'JHTEST%';
 
 	RAISE NOTICE '++ Inserting testing data';
-	INSERT INTO val_service_env_coll_type (
-		service_env_collection_type, max_num_members
+	INSERT INTO val_service_environment_collection_type (
+		service_environment_collection_type, max_num_members
 	) VALUES (
 		'JHTEST-MEMS', 1
 	);
-	INSERT INTO val_service_env_coll_type (
-		service_env_collection_type, max_num_collections
+	INSERT INTO val_service_environment_collection_type (
+		service_environment_collection_type, max_num_collections
 	) VALUES (
 		'JHTEST-COLS', 1
 	);
-	INSERT INTO val_service_env_coll_type (
-		service_env_collection_type, max_num_collections
+	INSERT INTO val_service_environment_collection_type (
+		service_environment_collection_type, max_num_collections
 	) VALUES (
 		'JHTEST-COLS2', 1
 	);
-	INSERT INTO val_service_env_coll_type (
-		service_env_collection_type, can_have_hierarchy
+	INSERT INTO val_service_environment_collection_type (
+		service_environment_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into service_environment_collection (
-		service_env_collection_name, service_env_collection_type
+		service_environment_collection_name, service_environment_collection_type
 	) values (
 		'JHTEST-cols-tc', 'JHTEST-COLS'
 	) RETURNING * into _sc_onecol1;
 
 	INSERT into service_environment_collection (
-		service_env_collection_name, service_env_collection_type
+		service_environment_collection_name, service_environment_collection_type
 	) values (
 		'JHTEST-cols-tc-2', 'JHTEST-COLS'
 	) RETURNING * into _sc_onecol2;
 
 	INSERT into service_environment_collection (
-		service_env_collection_name, service_env_collection_type
+		service_environment_collection_name, service_environment_collection_type
 	) values (
 		'JHTEST-mems-tc', 'JHTEST-MEMS'
 	) RETURNING * into _sc_onemem;
 
 	INSERT into service_environment_collection (
-		service_env_collection_name, service_env_collection_type
+		service_environment_collection_name, service_environment_collection_type
 	) values (
 		'JHTEST-nohier', 'JHTEST-HIER'
 	) RETURNING * into _hsc;
@@ -103,10 +103,21 @@ BEGIN
 	------ Beginning of Collection specific stuff
 	RAISE NOTICE 'Inserting collection specific records'; 
 
-	insert into service_environment (service_environment_name,production_state) 
-		values('JHTEST01', 'production') RETURNING * into _svcenv1;
-	insert into service_environment (service_environment_name,production_state) 
-		values('JHTEST02', 'production') RETURNING * into _svcenv2;
+	INSERT INTO val_service_environment_type (
+		service_environment_type
+	) VALUES (
+		'JHTEST'
+	);
+
+	INSERT INTO service_environment (
+		service_environment_name,service_environment_type, production_state
+	) VALUES (
+		'JHTEST01', 'JHTEST', 'production') RETURNING * into _svcenv1;
+
+	INSERT INTO service_environment (
+		service_environment_name, service_environment_type, production_state
+	) VALUES(
+		'JHTEST02', 'JHTEST', 'production') RETURNING * into _svcenv2;
 	RAISE NOTICE 'Starting tests...';
 
 	RAISE NOTICE 'Making sure a by-coll-type works...';
@@ -114,13 +125,13 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM service_environment_collection sc
-			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
-				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-coll-type'
-		AND sc.service_env_collection_NAME = 'JHTEST-COLS'
-		AND h.child_service_env_coll_id IN (
-			_sc_onecol1.service_env_collection_id,
-			_sc_onecol2.service_env_collection_id
+			JOIN service_environment_collection_hier h ON sc.service_environment_collection_id =
+				h.service_environment_collection_id
+		WHERE sc.service_environment_collection_type = 'by-coll-type'
+		AND sc.service_environment_collection_NAME = 'JHTEST-COLS'
+		AND h.child_service_environment_collection_id IN (
+			_sc_onecol1.service_environment_collection_id,
+			_sc_onecol2.service_environment_collection_id
 		);
 		IF _tally != 2 THEN
 			RAISE '... failed with % != 2 rows!', _tally;
@@ -129,32 +140,32 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM service_environment_collection sc
-			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
-				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-coll-type'
-		AND sc.service_env_collection_NAME = 'JHTEST-COLS2'
-		AND h.child_service_env_coll_id IN (
-			_sc_onecol1.service_env_collection_id,
-			_sc_onecol2.service_env_collection_id
+			JOIN service_environment_collection_hier h ON sc.service_environment_collection_id =
+				h.service_environment_collection_id
+		WHERE sc.service_environment_collection_type = 'by-coll-type'
+		AND sc.service_environment_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_service_environment_collection_id IN (
+			_sc_onecol1.service_environment_collection_id,
+			_sc_onecol2.service_environment_collection_id
 		);
 		IF _tally != 0 THEN
 			RAISE 'old type is not initialized right 0 != %', _tally;
 		END IF;
 
 		UPDATE service_environment_collection
-		SET service_env_collection_type = 'JHTEST-COLS2'
-		WHERE service_env_collection_id = _sc_onecol1.service_env_collection_id;
+		SET service_environment_collection_type = 'JHTEST-COLS2'
+		WHERE service_environment_collection_id = _sc_onecol1.service_environment_collection_id;
 
 		SELECT count(*)
 		INTO _tally
 		FROM service_environment_collection sc
-			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
-				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-coll-type'
-		AND sc.service_env_collection_NAME = 'JHTEST-COLS'
-		AND h.child_service_env_coll_id IN (
-			_sc_onecol1.service_env_collection_id,
-			_sc_onecol2.service_env_collection_id
+			JOIN service_environment_collection_hier h ON sc.service_environment_collection_id =
+				h.service_environment_collection_id
+		WHERE sc.service_environment_collection_type = 'by-coll-type'
+		AND sc.service_environment_collection_NAME = 'JHTEST-COLS'
+		AND h.child_service_environment_collection_id IN (
+			_sc_onecol1.service_environment_collection_id,
+			_sc_onecol2.service_environment_collection_id
 		);
 		IF _tally != 1 THEN
 			RAISE 'old type failed with % != 1 rows!', _tally;
@@ -163,13 +174,13 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM service_environment_collection sc
-			JOIN service_environment_coll_hier h ON sc.service_env_collection_id =
-				h.service_env_collection_id
-		WHERE sc.service_env_collection_type = 'by-coll-type'
-		AND sc.service_env_collection_NAME = 'JHTEST-COLS2'
-		AND h.child_service_env_coll_id IN (
-			_sc_onecol1.service_env_collection_id,
-			_sc_onecol2.service_env_collection_id
+			JOIN service_environment_collection_hier h ON sc.service_environment_collection_id =
+				h.service_environment_collection_id
+		WHERE sc.service_environment_collection_type = 'by-coll-type'
+		AND sc.service_environment_collection_NAME = 'JHTEST-COLS2'
+		AND h.child_service_environment_collection_id IN (
+			_sc_onecol1.service_environment_collection_id,
+			_sc_onecol2.service_environment_collection_id
 		);
 		IF _tally != 1 THEN
 			RAISE 'new type failed with % != 2 rows!', _tally;
@@ -183,52 +194,52 @@ BEGIN
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
-		INSERT INTO service_environment_coll_hier (
-			service_env_collection_id, child_service_env_coll_id
+		INSERT INTO service_environment_collection_hier (
+			service_environment_collection_id, child_service_environment_collection_id
 		) VALUES (
-			_hsc.service_env_collection_id, _sc_onemem.service_env_collection_id
+			_hsc.service_environment_collection_id, _sc_onemem.service_environment_collection_id
 		);
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
 		RAISE NOTICE '... It did';
 	END;
 
-	INSERT INTO svc_environment_coll_svc_env (
-		service_env_collection_id, service_environment_id
+	INSERT INTO service_environment_collection_service_environment (
+		service_environment_collection_id, service_environment_id
 	) VALUES (
-		_sc_onemem.service_env_collection_id, _svcenv1.service_environment_id
+		_sc_onemem.service_environment_collection_id, _svcenv1.service_environment_id
 	);
 
-	INSERT INTO svc_environment_coll_svc_env (
-		service_env_collection_id, service_environment_id
+	INSERT INTO service_environment_collection_service_environment (
+		service_environment_collection_id, service_environment_id
 	) VALUES (
-		_hsc.service_env_collection_id, _svcenv2.service_environment_id
+		_hsc.service_environment_collection_id, _svcenv2.service_environment_id
 	);
 
 	RAISE NOTICE 'Testing to see if max_num_members works... ';
 	BEGIN
-		INSERT INTO svc_environment_coll_svc_env (
-			service_env_collection_id, service_environment_id
+		INSERT INTO service_environment_collection_service_environment (
+			service_environment_collection_id, service_environment_id
 		) VALUES (
-			_sc_onemem.service_env_collection_id, _svcenv1.service_environment_id
+			_sc_onemem.service_environment_collection_id, _svcenv1.service_environment_id
 		);
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
 		RAISE NOTICE '... It did';
 	END;
 
-	INSERT INTO svc_environment_coll_svc_env (
-		service_env_collection_id, service_environment_id
+	INSERT INTO service_environment_collection_service_environment (
+		service_environment_collection_id, service_environment_id
 	) VALUES (
-		_sc_onecol1.service_env_collection_id, _svcenv1.service_environment_id
+		_sc_onecol1.service_environment_collection_id, _svcenv1.service_environment_id
 	);
 
 	RAISE NOTICE 'Testing to see if max_num_collections works... ';
 	BEGIN
-		INSERT INTO svc_environment_coll_svc_env (
-			service_env_collection_id, service_environment_id
+		INSERT INTO service_environment_collection_service_environment (
+			service_environment_collection_id, service_environment_id
 		) VALUES (
-			_sc_onecol2.service_env_collection_id, _svcenv1.service_environment_id
+			_sc_onecol2.service_environment_collection_id, _svcenv1.service_environment_id
 		);
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
@@ -237,16 +248,16 @@ BEGIN
 
 	RAISE NOTICE 'Cleaning up...';
 
-	RAISE NOTICE 'service_env_coll_hier_regression: DONE';
+	RAISE NOTICE 'service_environment_collection_hier_regression: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;
 
 -- set search_path=public;
-SELECT service_env_coll_hier_regression();
+SELECT service_environment_collection_hier_regression();
 -- set search_path=jazzhands;
-DROP FUNCTION service_env_coll_hier_regression();
+DROP FUNCTION service_environment_collection_hier_regression();
 
-ROLLBACK TO servie_environment_coll_hier_regression_test;
+ROLLBACK TO servie_environment_collection_hier_regression_test;
 
 \t off

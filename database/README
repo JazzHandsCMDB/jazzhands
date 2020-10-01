@@ -1,17 +1,49 @@
 $Id$
 $HeadURL$
 
-This works udner oracle and postgresql >= 8.4  Most development is now against
-postgresql 9.1 (or greater).
+This works udner oracle and postgresql >= 9.6  Most development is now against
+postgresql 12 (or greater).
 
 The database must support hierarhical (recursive) queries in views and
 natively for raw sql queries, we rely heavily on those.  This rules
-mysql out at last investigation.
+mysql out at last investigation.  (These camme into existnace in 9.4).
+
+The TL;DR way to create this from a fresh install of postgresql is:
+
+	psql -U postgres -c 'create role schema_owners';
+	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
+	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
+	psql -U postgres -c 'create database jazzhands'
+	psql -U postgres -d test -f create_pgsql_from_scratch.sql
+
+To also run all the unit tests, do this instead:
+
+	psql -U postgres -c 'create role schema_owners';
+	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
+	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
+	psql -U postgres -c 'create database jazzhands'
+	psql -U postgres -d test -f create_and_test_pgsql.sql
+
+In both cases, the jazzhands database will be dropped and recreated (without
+cascade) after connecting to the template1 database and connecting back
+and forth between postgres and jazzhands as needed.  This is to allow
+the whole thing to be created in any database and is used in making test
+images.  The script will just abort if those databases start with template,
+public or postgres.  Likely that was a mistake, and if it wasn't, then
+you understand enough of what you're diong to not use the TL;DR method.
+
+The dba view exists to give people or app users the ability to "su"
+to superuser by setting a role.  This can also be granted to the jazzhands
+user such that maintenances are capable of dropping dependant objects but
+otherwise not needing superuser to prevent surprises.  (it raises
+permissions only when needed).
 
 For Oracle:
 
+Oracle probably does not work anymore.
+
 Under oracle, everthing must me loaded into the same schema.  The schema
-owner is generally not used for anything else. 
+owner is generally not used for anything else.
 
 In the oracle variant, ip addresses are stored as numbers (in pgsql, they'll
 be native), and that necessitates converting them to/from text.  This is
@@ -46,10 +78,7 @@ To initialize the database:
 	createdb jazzhands
 	psql -d jazzhands -f create_pgsql_schema.sql
 
-custom variable classes are used throughout for auditing.  For before 
-postgresql 9.2, you need to  put: 
-		custom_variable_classes='jazzhands' in postgresql.conf 
-	(generally towards the end)
+custom variable classes are used throughout for auditing.
 
 Initializing Data:
 

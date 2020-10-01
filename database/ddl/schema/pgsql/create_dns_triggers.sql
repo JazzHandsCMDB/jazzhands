@@ -70,7 +70,7 @@ BEGIN
 		IF OLD.dns_name IS DISTINCT FROM NEW.dns_name THEN
 			_mknew := true;
 			IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
-				IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+				IF NEW.SHOULD_GENERATE_PTR = true THEN
 					_mkip := true;
 				END IF;
 			END IF;
@@ -163,6 +163,7 @@ DECLARE
 	_ip		netblock.ip_address%type;
 	_sing	netblock.is_single_address%type;
 BEGIN
+
 	--
 	-- arguably, this belongs elsewhere in a non-"validation" trigger,
 	-- but that only matters if this wants to be a constraint trigger.
@@ -181,6 +182,23 @@ BEGIN
 			NEW.ip_universe_id = 0;
 		END IF;
 	END IF;
+
+/*
+	IF NEW.dns_type NOT IN ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') THEN
+		IF NEW.netblock_id IS NOT NULL THEN
+			RAISE EXCEPTION 'Attempt to set % record with netblock',
+				NEW.dns_type
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+		IF TG_OP = 'INSERT' THEN
+			RETURN NEW;
+		ELSIF TG_OP = 'UPDATE' AND
+			OLD.dns_type IS NOT DISTINCT FROM NEW.dns_type
+		THEN
+			RETURN NEW;
+		END IF;
+	END IF;
+ */
 
 	IF NEW.dns_type in ('A', 'AAAA') THEN
 		IF ( NEW.netblock_id IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
@@ -201,7 +219,7 @@ BEGIN
 			END IF;
 		END IF;
 
-		IF ( NEW.should_generate_ptr = 'Y' AND NEW.dns_value_record_id IS NOT NULL ) THEN
+		IF ( NEW.should_generate_ptr = true AND NEW.dns_value_record_id IS NOT NULL ) THEN
 			RAISE EXCEPTION 'It is not permitted to set should_generate_ptr and use a dns_value_record_id'
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
@@ -235,7 +253,7 @@ BEGIN
 				USING ERRCODE = 'JH200';
 		END IF;
 
-		IF _sing = 'N' AND NEW.dns_type IN ('A','AAAA') THEN
+		IF _sing = false AND NEW.dns_type IN ('A','AAAA') THEN
 			RAISE EXCEPTION 'Non-single addresses may not have % records', NEW.dns_type
 				USING ERRCODE = 'foreign_key_violation';
 		END IF;
@@ -313,7 +331,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF NEW.is_single_address = 'N' THEN
+	IF NEW.is_single_address = false THEN
 			SELECT count(*)
 			INTO	_tal
 			FROM	dns_record
@@ -373,48 +391,50 @@ DECLARE
 	_tally	INTEGER;
 BEGIN
 	-- should not be able to insert the same record(s) twice
-	WITH newref AS (
-		SELECT * FROM dns_record
-			WHERE NEW.reference_dns_record_id IS NOT NULL
-			AND NEW.reference_dns_record_id = dns_record_id
-			ORDER BY dns_record_id LIMIT 1
-	), dns AS ( SELECT
-			db.dns_record_id,
-			coalesce(ref.dns_name, db.dns_name) as dns_name,
-			db.dns_domain_id, db.dns_ttl,
-			db.dns_class, db.dns_type,
-			coalesce(val.dns_value, db.dns_value) AS dns_value,
-			db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
-			db.dns_srv_weight, db.dns_srv_port, db.ip_universe_id,
-			coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
-			db.reference_dns_record_id, db.dns_value_record_id,
-			db.should_generate_ptr, db.is_enabled
-		FROM dns_record db
-			LEFT JOIN dns_record ref
-				ON ( db.reference_dns_record_id = ref.dns_record_id)
-			LEFT JOIN dns_record val
-				ON ( db.dns_value_record_id = val.dns_record_id )
-			LEFT JOIN newref
-				ON newref.dns_record_id = NEW.reference_dns_record_id
-		WHERE db.dns_record_id != NEW.dns_record_id
-		AND (lower(coalesce(ref.dns_name, db.dns_name))
-					IS NOT DISTINCT FROM
-				lower(coalesce(newref.dns_name, NEW.dns_name)) )
-		AND ( db.dns_domain_id = NEW.dns_domain_id )
-		AND ( db.dns_class = NEW.dns_class )
-		AND ( db.dns_type = NEW.dns_type )
-    	AND db.dns_record_id != NEW.dns_record_id
-		AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
-		AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
-		AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
-		AND db.ip_universe_id IS NOT DISTINCT FROM NEW.ip_universe_id
-		AND db.is_enabled = 'Y'
-	) SELECT	count(*)
+	SELECT	count(*)
 		INTO	_tally
-		FROM dns
+		FROM (
+			SELECT
+					db.dns_record_id,
+					coalesce(ref.dns_name, db.dns_name) as dns_name,
+					db.dns_domain_id, db.dns_ttl,
+					db.dns_class, db.dns_type,
+					coalesce(val.dns_value, db.dns_value) AS dns_value,
+					db.dns_priority, db.dns_srv_service, db.dns_srv_protocol,
+					db.dns_srv_weight, db.dns_srv_port, db.ip_universe_id,
+					coalesce(val.netblock_id, db.netblock_id) AS netblock_id,
+					db.reference_dns_record_id, db.dns_value_record_id,
+					db.should_generate_ptr, db.is_enabled
+				FROM dns_record db
+					LEFT JOIN (
+							SELECT dns_record_id AS reference_dns_record_id,
+									dns_name
+							FROM dns_record
+							WHERE dns_domain_id = NEW.dns_domain_id
+						) ref USING (reference_dns_record_id)
+					LEFT JOIN (
+							SELECT dns_record_id AS dns_value_record_id,
+									dns_value, netblock_id
+							FROM dns_record
+						) val USING (dns_value_record_id)
+				WHERE db.dns_record_id != NEW.dns_record_id
+				AND (lower(coalesce(ref.dns_name, db.dns_name))
+							IS NOT DISTINCT FROM lower(NEW.dns_name))
+				AND ( db.dns_domain_id = NEW.dns_domain_id )
+				AND ( db.dns_class = NEW.dns_class )
+				AND ( db.dns_type = NEW.dns_type )
+				AND db.dns_record_id != NEW.dns_record_id
+				AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
+				AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
+				AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port
+				AND db.ip_universe_id IS NOT DISTINCT FROM NEW.ip_universe_id
+				AND db.is_enabled = true
+			) dns
 			LEFT JOIN dns_record val
 				ON ( NEW.dns_value_record_id = val.dns_record_id )
 		WHERE
+			dns.dns_domain_id = NEW.dns_domain_id
+		AND
 			dns.dns_value IS NOT DISTINCT FROM
 				coalesce(val.dns_value, NEW.dns_value)
 		AND
@@ -428,14 +448,14 @@ BEGIN
 	END IF;
 
 	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
-		IF NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+		IF NEW.SHOULD_GENERATE_PTR = true THEN
 			SELECT	count(*)
 			 INTO	_tally
 			 FROM	dns_record
 			WHERE dns_class = 'IN'
 			AND dns_type = 'A'
-			AND should_generate_ptr = 'Y'
-			AND is_enabled = 'Y'
+			AND should_generate_ptr = true
+			AND is_enabled = true
 			AND netblock_id = NEW.NETBLOCK_ID
 			AND dns_record_id != NEW.DNS_RECORD_ID;
 
@@ -453,8 +473,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_rec_prevent_dups ON dns_record;
-CREATE TRIGGER trigger_dns_rec_prevent_dups
-	BEFORE INSERT OR UPDATE
+CREATE CONSTRAINT TRIGGER trigger_dns_rec_prevent_dups
+	AFTEr INSERT OR UPDATE
 	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_rec_prevent_dups();
@@ -473,7 +493,7 @@ BEGIN
 		END IF;
 
 		-- PTRs on wildcard records break thing and make no sense.
-		IF NEW.DNS_NAME ~ '\*' AND NEW.SHOULD_GENERATE_PTR = 'Y' THEN
+		IF NEW.DNS_NAME ~ '\*' AND NEW.SHOULD_GENERATE_PTR = true THEN
 			RAISE EXCEPTION 'Wildcard DNS Record % can not have auto-set PTR',
 				NEW.DNS_NAME
 				USING ERRCODE = 'integrity_constraint_violation';
@@ -493,90 +513,56 @@ CREATE TRIGGER trigger_dns_record_check_name
 	EXECUTE PROCEDURE dns_record_check_name();
 
 ---------------------------------------------------------------------------
+--
+--
+-- Checks for CNAMEs and other records
+--
+---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_record_cname_checker()
 RETURNS TRIGGER AS $$
 DECLARE
-	_tally	INTEGER;
+	_r		RECORD;
+	_d		RECORD;
 	_dom	TEXT;
 BEGIN
 	--- XXX - need to seriously think about ip_universes here.
-	_tally := 0;
-	IF TG_OP = 'INSERT' OR NEW.DNS_TYPE != OLD.DNS_TYPE THEN
-		IF NEW.DNS_TYPE = 'CNAME' THEN
-			IF TG_OP = 'UPDATE' THEN
-			SELECT	COUNT(*)
-				  INTO	_tally
-				  FROM	v_dns x
-				 WHERE
-						NEW.dns_domain_id = x.dns_domain_id
-				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
-				 AND	OLD.dns_record_id != x.dns_record_id
-				 AND	(
-							NEW.dns_name IS NULL and x.dns_name is NULL
-							or
-							lower(NEW.dns_name) = lower(x.dns_name)
-						)
-				;
-			ELSE
-				-- only difference between above and this is the use of OLD
-				SELECT	COUNT(*)
-				  INTO	_tally
-				  FROM	v_dns x
-				 WHERE
-						NEW.dns_domain_id = x.dns_domain_id
-				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
-				 AND	(
-							NEW.dns_name IS NULL and x.dns_name is NULL
-							or
-							lower(NEW.dns_name) = lower(x.dns_name)
-						)
-				;
-			END IF;
-		-- this clause is basically the same as above except = 'CNAME'
-		ELSIF NEW.DNS_TYPE != 'CNAME' THEN
-			IF TG_OP = 'UPDATE' THEN
-				SELECT	COUNT(*)
-				  INTO	_tally
-				  FROM	v_dns x
-				 WHERE	x.dns_type = 'CNAME'
-				 AND	NEW.dns_domain_id = x.dns_domain_id
-				 AND	OLD.dns_record_id != x.dns_record_id
-				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
-				 AND	(
-							NEW.dns_name IS NULL and x.dns_name is NULL
-							or
-							lower(NEW.dns_name) = lower(x.dns_name)
-						)
-				;
-			ELSE
-				-- only difference between above and this is the use of OLD
-				SELECT	COUNT(*)
-				  INTO	_tally
-				  FROM	v_dns x
-				 WHERE	x.dns_type = 'CNAME'
-				 AND	NEW.dns_domain_id = x.dns_domain_id
-				 AND	NEW.ip_universe_id IS NOT DISTINCT FROM x.ip_universe_id
-				 AND	(
-							NEW.dns_name IS NULL and x.dns_name is NULL
-							or
-							lower(NEW.dns_name) = lower(x.dns_name)
-						)
-				;
-			END IF;
-		END IF;
-	END IF;
+	-- These should also move to the v_dns view once it's cached.  They were
+	-- there before, but it was too slow here.
 
-	IF _tally > 0 THEN
-		SELECT soa_name INTO _dom FROM dns_domain
+	SELECT dns_name, dns_domain_id, dns_class,
+		COUNT(*) FILTER (WHERE dns_type = 'CNAME') AS num_cnames,
+		COUNT(*) FILTER (WHERE dns_type != 'CNAME') AS num_not_cnames
+	INTO _r
+	FROM	(
+		SELECT dns_name, dns_domain_id, dns_type, dns_class, ip_universe_id
+			FROM dns_record
+			WHERE reference_dns_record_id IS NULL
+			AND is_enabled = 'Y'
+		UNION ALL
+		SELECT ref.dns_name, d.dns_domain_id, d.dns_type, d.dns_class,
+				d.ip_universe_id
+			FROM dns_record d
+			JOIN dns_record ref
+				ON ref.dns_record_id = d.reference_dns_record_id
+			WHERE d.is_enabled = 'Y'
+	) smash
+	WHERE lower(dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+	AND dns_domain_id = NEW.dns_domain_id
+	-- AND ip_universe_id = NEW.ip_universe_id
+	-- AND dns_class = NEW.dns_class
+	GROUP BY 1, 2, 3;
+
+	IF ( _r.num_cnames > 0 AND _r.num_not_cnames > 0 ) OR _r.num_cnames > 1 THEN
+		SELECT dns_domain_name INTO _dom FROM dns_domain
 		WHERE dns_domain_id = NEW.dns_domain_id ;
 
 		if NEW.dns_name IS NULL THEN
-			RAISE EXCEPTION '% may not have CNAME and other records (%)',
-				_dom, _tally
+			RAISE EXCEPTION '% may not have CNAME and other records (%/%)',
+				_dom, _r.num_cnames, _r.num_not_cnames
 				USING ERRCODE = 'unique_violation';
 		ELSE
-			RAISE EXCEPTION '%.% may not have CNAME and other records (%)',
-				NEW.dns_name, _dom, _tally
+			RAISE EXCEPTION '%.% may not have CNAME and other records (%/%)',
+				NEW.dns_name, _dom, _r.num_cnames, _r.num_not_cnames
 				USING ERRCODE = 'unique_violation';
 		END IF;
 	END IF;
@@ -587,8 +573,9 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_record_cname_checker ON dns_record;
-CREATE TRIGGER trigger_dns_record_cname_checker
-	BEFORE INSERT OR UPDATE OF dns_type
+CREATE CONSTRAINT TRIGGER trigger_dns_record_cname_checker
+	AFTER INSERT OR
+		UPDATE OF dns_class, dns_type, dns_name, dns_domain_id, is_enabled
 	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_record_cname_checker();
@@ -597,7 +584,7 @@ CREATE TRIGGER trigger_dns_record_cname_checker
 CREATE OR REPLACE FUNCTION dns_record_enabled_check()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF new.IS_ENABLED = 'N' THEN
+	IF new.IS_ENABLED = false THEN
 		PERFORM *
 		FROM dns_record
 		WHERE dns_value_record_id = NEW.dns_record_id
@@ -609,12 +596,12 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF new.IS_ENABLED = 'Y' THEN
+	IF new.IS_ENABLED = true THEN
 		PERFORM *
 		FROM dns_record
 		WHERE ( NEW.dns_value_record_id = dns_record_id
 				OR NEW.reference_dns_record_id = dns_record_id
-		) AND is_enabled = 'N';
+		) AND is_enabled = false;
 
 		IF FOUND THEN
 			RAISE EXCEPTION 'Can not enable records referencing disabled records.'
@@ -645,7 +632,7 @@ BEGIN
 	PERFORM *
 	FROM dns_domain_ip_universe
 	WHERE dns_domain_id = NEW.dns_domain_id
-	AND SHOULD_GENERATE = 'Y';
+	AND SHOULD_GENERATE = true;
 	IF FOUND THEN
 		INSERT INTO dns_change_record
 			(dns_domain_id) VALUES (NEW.dns_domain_id);
@@ -658,7 +645,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change
-	AFTER INSERT OR UPDATE OF soa_name
+	AFTER INSERT OR UPDATE OF dns_domain_name
 	ON dns_domain
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_trigger_change();
@@ -667,16 +654,16 @@ CREATE TRIGGER trigger_dns_domain_trigger_change
 CREATE OR REPLACE FUNCTION dns_domain_ip_universe_can_generate()
 RETURNS TRIGGER AS $$
 DECLARE
-	_c	char(1);
+	_c	boolean;
 BEGIN
-	IF NEW.should_generate = 'Y' THEN
+	IF NEW.should_generate = true THEN
 		SELECT CAN_GENERATE
 		INTO _c
 		FROM val_dns_domain_type
 		JOIN dns_domain USING (dns_domain_type)
 		WHERE dns_domain_id = NEW.dns_domain_id;
 
-		IF _c != 'Y' THEN
+		IF _c != true THEN
 			RAISE EXCEPTION 'This dns_domain_type may not be autogenerated.'
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
@@ -701,14 +688,14 @@ RETURNS TRIGGER AS $$
 DECLARE
 	_c	INTEGER;
 BEGIN
-	IF NEW.can_generate = 'N' THEN
+	IF NEW.can_generate = false THEN
 		SELECT count(*)
 		INTO _c
 		FROM dns_domain
 		WHERE dns_domain_type = NEW.dns_domain_type
-		AND should_generate = 'Y';
+		AND should_generate = true;
 
-		IF _c != 'Y' THEN
+		IF _c != true THEN
 			RAISE EXCEPTION 'May not change can_generate with existing autogenerated zones.'
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;
@@ -731,7 +718,7 @@ CREATE TRIGGER trigger_dns_domain_type_should_generate
 CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_change()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.should_generate = 'Y' THEN
+	IF NEW.should_generate = true THEN
 		--
 		-- kind of a weird case, but if last_generated matches
 		-- the last change date of the zone, then its part of actually
@@ -767,6 +754,39 @@ CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_ip_universe_trigger_change();
 
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_del()
+RETURNS TRIGGER AS $$
+DECLARE  _r RECORD;
+BEGIN
+	-- this all needs to be rethunk in light of when this can be NULL
+	IF OLD.should_generate THEN
+		DELETE FROM dns_change_record
+		WHERE dns_domain_id = OLD.dns_domain_id
+		AND (
+			ip_universe_id = OLD.ip_universe_id
+			OR ip_universe_id IS NULL
+		);
+	END IF;
+
+	FOR _r IN SELECT * FROM dns_change_record
+	LOOP
+	END LOOP;
+
+	RETURN OLD;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=jazzhands;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_ip_universe_trigger_del
+	ON dns_domain_ip_universe;
+CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_del
+	BEFORE DELETE
+	ON dns_domain_ip_universe
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_domain_ip_universe_trigger_del();
+
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_change_record_pgnotify()
@@ -776,7 +796,8 @@ BEGIN
 	RETURN NEW;
 END;
 $$
-LANGUAGE plpgsql SECURITY DEFINER;
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path=jazzhands;
 
 DROP TRIGGER IF EXISTS trigger_dns_change_record_pgnotify ON dns_change_record;
 CREATE TRIGGER trigger_dns_change_record_pgnotify

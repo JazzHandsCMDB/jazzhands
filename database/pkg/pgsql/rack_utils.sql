@@ -25,6 +25,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS rack_utils;
 		CREATE SCHEMA rack_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA rack_utils FROM public;
 		COMMENT ON SCHEMA rack_utils IS 'part of jazzhands';
 
 	END IF;
@@ -119,6 +120,8 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 --end rack_utils.set_rack_location
 -------------------------------------------------------------------
 
+REVOKE ALL ON SCHEMA rack_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA rack_utils FROM public;
+
 GRANT USAGE ON SCHEMA rack_utils TO iud_role;
-GRANT USAGE ON SCHEMA rack_utils TO ro_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA rack_utils TO iud_role;

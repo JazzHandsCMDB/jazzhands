@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 CREATE OR REPLACE VIEW approval_utils.v_approval_matrix AS
-SELECT	ap.approval_process_id, ap.first_apprvl_process_chain_id,
+SELECT	ap.approval_process_id, ap.first_approval_process_chain_id,
 		ap.approval_process_name,
 		c.approval_chain_response_period as approval_response_period,
 		ap.approval_expiration_action,
@@ -49,11 +49,11 @@ SELECT	ap.approval_process_id, ap.first_apprvl_process_chain_id,
 		ap.description as approval_process_description,
 		c.description as approval_chain_description
 from	approval_process ap
-		INNER JOIN property_collection pc USING (property_collection_id)
-		INNER JOIN property_collection_property pcp USING (property_collection_id)
+		INNER JOIN property_name_collection pc USING (property_name_collection_id)
+		INNER JOIN property_name_collection_property_name pcp USING (property_name_collection_id)
 		INNER JOIN property p USING (property_name, property_type)
 		LEFT JOIN approval_process_chain c
-			ON c.approval_process_chain_id = ap.first_apprvl_process_chain_id
+			ON c.approval_process_chain_id = ap.first_approval_process_chain_id
 where	ap.approval_process_name = 'ReportingAttest'
 and		ap.approval_process_type = 'attestation'
 ;

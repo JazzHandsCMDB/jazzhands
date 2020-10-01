@@ -20,7 +20,7 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
--- Copyright (c) 2010-2017, Todd M. Kover
+-- Copyright (c) 2010-2019, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,7 +49,7 @@
 -- for now, there is no account_collection by-coll-type; need to sort out how
 -- the account_realm_id restrictions fit into those.
 --
-insert into val_account_collection_relatio
+insert into val_account_collection_relation
 	(account_collection_relation, description)
 values
 	('direct', 'Direct Assignment');
@@ -78,7 +78,7 @@ INSERT INTO val_device_collection_type (
 	max_num_collections, can_have_hierarchy
 ) VALUES (
 	'by-coll-type', 'automated collection for devices of this type',
-	1, 'Y'
+	1, true
 );
 INSERT INTO val_dns_domain_collection_type (
 	dns_domain_collection_type, description,
@@ -87,22 +87,22 @@ INSERT INTO val_dns_domain_collection_type (
 	'by-coll-type', 'automated collection for dns_domains of this type',
 	1, 0
 );
-INSERT INTO val_layer2_network_coll_type (
+INSERT INTO val_layer2_network_collection_type (
 	layer2_network_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
 	'by-coll-type', 'automated collection for layer2_networks of this type',
 	1, 0
 );
-INSERT INTO val_layer3_network_coll_type (
+INSERT INTO val_layer3_network_collection_type (
 	layer3_network_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
 	'by-coll-type', 'automated collection for layer3_networks of this type',
 	1, 0
 );
-INSERT INTO val_service_env_coll_type (
-	service_env_collection_type, description,
+INSERT INTO val_service_environment_collection_type (
+	service_environment_collection_type, description,
 	max_num_collections, max_num_members
 ) VALUES (
 	'by-coll-type', 'automated collection for service_environments of this type',
@@ -113,38 +113,50 @@ INSERT INTO val_service_env_coll_type (
 
 INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced,
 		Description)
-	VALUES ('person', 'Y', 'Y', 'person_id is meaningful');
+	VALUES ('person', true, true, 'person_id is meaningful');
 INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced,
 		Description)
-	VALUES ('pseudouser', 'N', 'N', 'person_id is not useful');
+	VALUES ('pseudouser', false, false, 'person_id is not useful');
 INSERT INTO VAL_Account_Type(Account_Type, Is_Person, Uid_Gid_Forced,
 	Description)
-	VALUES ('blacklist', 'N', 'N', 'login name blacklist');
+	VALUES ('blacklist', false, false, 'login name blacklist');
 
 INSERT INTO VAL_Person_Status(Person_Status, Description,
 		is_enabled, propagate_from_person)
 	VALUES ('enabled', 'Enabled',
-		'Y', 'Y');
+		true, true);
 INSERT INTO VAL_Person_Status(Person_Status, Description,
 		is_enabled, propagate_from_person)
 	VALUES ('disabled', 'Disabled',
-		'N', 'N');
+		false, false);
 INSERT INTO VAL_Person_Status(Person_Status, Description,
 		is_enabled, propagate_from_person)
 	VALUES ('forcedisabled', 'User Forced to Disabled status',
-		'N', 'N');
+		false, false);
 INSERT INTO VAL_Person_Status(Person_Status, Description,
 		is_enabled, propagate_from_person)
 	VALUES ('terminated', 'User has been terminated',
-		'N', 'N');
+		false, false);
 INSERT INTO VAL_Person_Status(Person_Status, Description,
 		is_enabled, propagate_from_person)
 	VALUES ('autoterminated', 'User has been terminated by auto process',
-		'N', 'Y');
+		false, true);
 INSERT INTO VAL_Person_Status(Person_Status, Description,
 		is_enabled, propagate_from_person)
 	VALUES ('onleave', 'User is disabled due to being on leave',
-		'N', 'Y');
+		false, true);
+
+--
+-- This needs attention; it ties to automated account collections so that all
+-- also needs to be overhauled before this val table is meaningful.
+--
+INSERT INTO val_gender (
+	gender, description
+) VALUES
+	('male', 'Identifies as male'),
+	('female', 'Identifies as female'),
+	('unspecified', 'Unspecified')
+;
 
 INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
 	VALUES ('employee', 'Employee');
@@ -156,13 +168,13 @@ INSERT INTO Val_Person_Company_Relation(Person_Company_Relation, Description)
 	VALUES ('n/a', 'Not a person');
 
 INSERT INTO VAL_ACCOUNT_ROLE (Account_Role, Uid_Gid_Forced, Description)
-	VALUES ('primary', 'N',
+	VALUES ('primary', false,
 		'Primary account for user in this Account Realm');
 INSERT INTO VAL_ACCOUNT_ROLE (Account_Role, Uid_Gid_Forced, Description)
-	VALUES ('administrator', 'N',
+	VALUES ('administrator', false,
 	'Administrative account for user in this Account Realm');
 INSERT INTO VAL_ACCOUNT_ROLE (Account_Role, Uid_Gid_Forced, Description)
-	VALUES ('test', 'N', 'Test Account for User');
+	VALUES ('test', false, 'Test Account for User');
 
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('jpeg');
 INSERT INTO VAL_Image_Type(Image_Type) VALUES ('png');
@@ -177,7 +189,7 @@ insert into val_account_collection_type
 values
 	('per-account',
 	 'Account_Collection that contain a single account for assigning individual accounts to objects that only accept Account_Collection assignments',
-	1, 'N'
+	1, false
 	);
 
 
@@ -216,39 +228,38 @@ insert into val_production_state (production_state)
 insert into val_production_state (production_state)
 	values ('unallocated');
 
-insert into val_service_env_coll_type
-	( service_env_collection_type ) values ('per-environment');
+insert into val_service_environment_collection_type
+	( service_environment_collection_type ) values ('per-environment');
 
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('unspecified', 'unspecified');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('unallocated', 'unallocated');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('production', 'production');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('development', 'development');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('qa', 'test');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('staging', 'test');
-INSERT INTO service_environment (service_environment_name, production_state)
-	VALUES ('test', 'test');
+INSERT INTO val_service_environment_type (
+	service_environment_type, description
+) VALUES (
+	'default', 'universalish concepts'
+);
+
+INSERT INTO service_environment (
+	service_environment_name, service_environment_type, production_state
+) VALUES
+	('unspecified', 'default', 'unspecified'),
+	('unallocated', 'default', 'unallocated'),
+	('production', 'default', 'production'),
+	('development', 'default', 'development'),
+	('qa', 'default', 'test'),
+	('staging', 'default', 'test'),
+	('test', 'default', 'test');
 
 INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('owned');
-INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('leased');
-INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('onloan');
-INSERT INTO VAL_Ownership_Status (Ownership_Status)
-	VALUES ('unknown');
+VALUES
+	('owned'),
+	('leased'),
+	('onloan'),
+	('unknown');
 
 insert into Val_Person_Contact_Type(person_contact_type)
-	values ('chat');
-insert into Val_Person_Contact_Type(person_contact_type)
-	values ('email');
-insert into Val_Person_Contact_Type(person_contact_type)
-	values ('phone');
+VALUES
+	('chat'),
+	('email'),
+	('phone');
 
 INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
 	Person_Contact_Type)
@@ -266,11 +277,11 @@ INSERT INTO val_person_contact_Technology (Person_Contact_Technology,
 	Person_Contact_Type)
 	VALUES ('conference', 'phone');
 
-INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
+INSERT INTO val_person_contact_location_type (Person_Contact_Location_Type)
 	VALUES ('home');
-INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
+INSERT INTO val_person_contact_location_type (Person_Contact_Location_Type)
 	VALUES ('personal');
-INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
+INSERT INTO val_person_contact_location_type (Person_Contact_Location_Type)
 	VALUES ('office');
 
 --INSERT INTO VAL_User_Location_Type (System_User_Location_Type)
@@ -283,30 +294,30 @@ INSERT INTO val_person_contact_loc_type (Person_Contact_Location_Type)
 INSERT INTO val_appaal_group_name (appaal_group_name, description) VALUES
 	('database', 'keys related to database connections');
 
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('DBType', 'database', 'Database Type');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Method', 'database', 'Method for Authentication');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Password', 'database', 'Password or equivalent');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('ServiceName',  'database',
 	'Service Name used for certain methods (DB methods, notably)');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Username', 'database', 'Username or equivalent');
 
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+INSERT INTO VAL_application_KEY_VALUES (application_KEY, appaal_group_name, application_VALUE)
 	VALUES ('Method', 'database', 'password');
 
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+INSERT INTO VAL_application_KEY_VALUES (application_KEY, appaal_group_name, application_VALUE)
 	VALUES ('DBType', 'database', 'mysql');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+INSERT INTO VAL_application_KEY_VALUES (application_KEY, appaal_group_name, application_VALUE)
 	VALUES ('DBType', 'database', 'oracle');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+INSERT INTO VAL_application_KEY_VALUES (application_KEY, appaal_group_name, application_VALUE)
 	VALUES ('DBType', 'database', 'postgres');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+INSERT INTO VAL_application_KEY_VALUES (application_KEY, appaal_group_name, application_VALUE)
 	VALUES ('DBType', 'database', 'sqlrelay');
-INSERT INTO VAL_APP_KEY_VALUES (APP_KEY, appaal_group_name, APP_VALUE)
+INSERT INTO VAL_application_KEY_VALUES (application_KEY, appaal_group_name, application_VALUE)
 	VALUES ('DBType', 'database', 'tds');
 
 INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
@@ -325,14 +336,14 @@ INSERT INTO VAL_Device_Collection_Type (Device_Collection_Type)
 INSERT INTO val_appaal_group_name (appaal_group_name, description) VALUES
 	('ldap', 'keys related to ldap connections');
 
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('ServerName', 'ldap', 'Server to Connect to');
 
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Username', 'ldap', 'Username to connect as');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Password', 'ldap', 'Password to connect with');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Domain', 'ldap', 'Domain to connect as');
 
 -- LDAP AppAuthAL
@@ -340,11 +351,11 @@ insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
 INSERT INTO val_appaal_group_name (appaal_group_name, description) VALUES
 	('web', 'keys related to http(s) connections');
 
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('URL', 'web', 'URL to connect to');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Username', 'web', 'Username to connect as');
-insert into VAL_APP_KEY (APP_KEY, appaal_group_name, DESCRIPTION) values
+insert into VAL_application_KEY (application_KEY, appaal_group_name, DESCRIPTION) values
 	('Password', 'web', 'Password to connect with');
 
 --- password types
@@ -361,13 +372,13 @@ INSERT INTO val_password_type (password_type, description)
 
 -- XXX VAL_MClass_Unix_Home_Type
 
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('point-to-point');
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('broadcast');
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('loopback');
-INSERT INTO VAL_Network_Interface_Type (Network_Interface_Type)
+INSERT INTO val_layer3_interface_Type (layer3_interface_Type)
 	VALUES ('virtual');
 
 insert into val_netblock_status (NETBLOCK_STATUS) values ('Allocated');
@@ -385,37 +396,37 @@ INSERT INTO ip_universe (
 	ip_universe_id, ip_universe_name, ip_namespace, should_generate_dns,
 	description
 ) VALUES
-	( 0, 'default', 'default', 'Y',
+	( 0, 'default', 'default', true,
 	'default IP universe'    );
 
 -- some sites may not want this to be unique, but this is the default.
 INSERT INTO ip_universe (
 	ip_universe_name, ip_namespace, should_generate_dns, description
 ) VALUES
-	('private', 'default', 'N', 'RFC 1918 Space'    );
+	('private', 'default', false, 'RFC 1918 Space'    );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
 ) VALUES (
-	'default', 'standard hierarchical netblock type', 'Y', 'Y'
+	'default', 'standard hierarchical netblock type', true, true
 );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
 ) VALUES (
-	'adhoc', 'standard non-hierarchical netblock type', 'N', 'Y'
+	'adhoc', 'standard non-hierarchical netblock type', false, true
 );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
 ) VALUES (
-	'dns', 'organizational groupings used for assigning DNS', 'N', 'N'
+	'dns', 'organizational groupings used for assigning DNS', false, false
 );
 
 INSERT INTO val_netblock_type(
 	netblock_type, description, db_forced_hierarchy, is_validated_hierarchy
 ) VALUES (
-	'network_range', 'stop/start network range', 'N', 'N'
+	'network_range', 'stop/start network range', false, false
 );
 
 insert into val_processor_architecture (PROCESSOR_ARCHITECTURE, KERNEL_BITS)
@@ -459,49 +470,39 @@ insert into val_power_plug_style (power_plug_style) values ('NEMA L6-20P');
 insert into val_power_plug_style (power_plug_style) values ('NEMA L6-30P');
  */
 
-insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
-	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
-values
-	('ssh', 22, 'standard ssh');
-
-insert into VAL_DEVICE_AUTO_MGMT_PROTOCOL
-	(AUTO_MGMT_PROTOCOL, CONNECTION_PORT, DESCRIPTION)
-values
-	('telnet', 23, 'standard telnet');
-
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('straight');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('rollover');
 insert into val_CABLE_TYPE (CABLE_TYPE) values ('crossover');
 
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+insert into val_layer3_interface_purpose
+	(layer3_interface_PURPOSE,DESCRIPTION)
 	values ('api', 'Interface used to manage device via API');
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE,DESCRIPTION)
+insert into val_layer3_interface_purpose
+	(layer3_interface_PURPOSE,DESCRIPTION)
 	values ('radius', 'Interface used for radius');
-insert into val_network_interface_purpose
-	(NETWORK_INTERFACE_PURPOSE)
+insert into val_layer3_interface_purpose
+	(layer3_interface_PURPOSE)
 	values ('login');
 
 insert into val_property_data_type (PROPERTY_DATA_TYPE, DESCRIPTION)
 	values ('none', 'No value should be set');
 insert into val_property_data_type (PROPERTY_DATA_TYPE) values
-	('boolean'),
+	('list'),
 	('number'),
 	('string'),
-	('list'),
-	('json'),
-	('timestamp'),
-	('dns_domain_id'),
+	('account_collection_id'),
+	('boolean'),
 	('device_collection_id'),
+	('encryption_key_id'),
+	('json'),
 	('netblock_collection_id'),
 	('password_type'),
-	('person_id'),
-	('token_collection_id'),
-	('account_collection_id'),
-	('sw_package_id');
+	('private_key_id'),
+	('sw_package_id'),
+	('timestamp'),
+	('token_collection_id');
 
-insert into val_person_company_attr_dtype (person_company_attr_data_type) values
+insert into val_person_company_attribute_data_type (person_company_attribute_data_type) values
 	('boolean'),
 	('number'),
 	('string'),
@@ -519,11 +520,11 @@ INSERT INTO val_property
 	(property_type, property_name, property_data_type, is_multivalue,
 	 description)
 VALUES
-	('Defaults', '_dnsrname', 'string', 'N',
+	('Defaults', '_dnsrname', 'string', false,
 		'Default Role Name (contact) for zone'),
-	('Defaults', '_dnsmname', 'string', 'N',
+	('Defaults', '_dnsmname', 'string', false,
 		'Default contact for zone'),
-	('Defaults', '_authdns', 'string', 'Y',
+	('Defaults', '_authdns', 'string', true,
 		'Default Nameserver for zone');
 
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
@@ -581,25 +582,25 @@ insert into val_dns_type (dns_type,id_type,description)
 
 insert into val_property_type (property_type, description,is_multivalue)
 	VALUES
-	('TokenMgmt', 'Allow administrators to manage OTP tokens', 'Y'),
-	('UserMgmt', 'Allow administrators to manage users', 'Y'),
-	('feed-attributes','configurable attributes on user feeds', 'Y'),
-	('HOTPants','define HOTPants behavior', 'Y'),
-	('RADIUS','RADIUS properties', 'Y'),
-	('ConsoleACL','console access control properties', 'Y'),
-	('UnixPasswdFileValue','override value set in the Unix passwd file','Y'),
-	('SystemInstallation','Properties associated with the system loading process','Y'),
-	('wwwgroup','WWW Group properties','Y');
+	('TokenMgmt', 'Allow administrators to manage OTP tokens', true),
+	('UserMgmt', 'Allow administrators to manage users', true),
+	('feed-attributes','configurable attributes on user feeds', true),
+	('HOTPants','define HOTPants behavior', true),
+	('RADIUS','RADIUS properties', true),
+	('ConsoleACL','console access control properties', true),
+	('UnixPasswdFileValue','override value set in the Unix passwd file',true),
+	('SystemInstallation','Properties associated with the system loading process',true),
+	('wwwgroup','WWW Group properties',true);
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID) VALUES
-('AllMclasses', 'ConsoleACL', 'console access control for all mclasses', 'N', 'string', 'REQUIRED');
+('AllMclasses', 'ConsoleACL', 'console access control for all mclasses', false, 'string', 'REQUIRED');
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID) VALUES
-('PerMclass', 'ConsoleACL', 'per mclass console access control', 'N', 'string', 'REQUIRED', 'REQUIRED');
+('PerMclass', 'ConsoleACL', 'per mclass console access control', false, 'string', 'REQUIRED', 'REQUIRED');
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID) VALUES
-('SudoGrantsConsole', 'ConsoleACL', 'sudo grants console Account_Collection attribute', 'N', 'string', 'REQUIRED');
+('SudoGrantsConsole', 'ConsoleACL', 'sudo grants console Account_Collection attribute', false, 'string', 'REQUIRED');
 
 -- HOTPants related properties
 
@@ -649,56 +650,56 @@ INSERT INTO val_property (
 INSERT INTO val_property  (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Class', 'RADIUS', 'Radius Class from RFC2138', 'Y', 'string', 'ALLOWED', 'REQUIRED'
+	'Class', 'RADIUS', 'Radius Class from RFC2138', true, 'string', 'ALLOWED', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Foundry-Privilege-Level', 'RADIUS', 'Privilege level on a Foundry device', 'N', 'string', 'ALLOWED', 'REQUIRED');
+	'Foundry-Privilege-Level', 'RADIUS', 'Privilege level on a Foundry device', false, 'string', 'ALLOWED', 'REQUIRED');
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Juniper-Allow-Commands', 'RADIUS', 'Extended regex of additional operational commands to allow to be run', 'Y', 'string', 'REQUIRED'
+	'Juniper-Allow-Commands', 'RADIUS', 'Extended regex of additional operational commands to allow to be run', true, 'string', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	 'Juniper-Allow-Configuration', 'RADIUS', 'Extended regex of portions of the configuration to allow the user to modify', 'Y', 'string', 'REQUIRED'
+	 'Juniper-Allow-Configuration', 'RADIUS', 'Extended regex of portions of the configuration to allow the user to modify', true, 'string', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Juniper-Deny-Commands', 'RADIUS', 'Extended regex of operational commands to deny', 'Y', 'string', 'REQUIRED'
+	'Juniper-Deny-Commands', 'RADIUS', 'Extended regex of operational commands to deny', true, 'string', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Juniper-Deny-Configuration', 'RADIUS', 'Extended regex of portions of the configuration to deny the user to modify', 'Y', 'string', 'REQUIRED'
+	'Juniper-Deny-Configuration', 'RADIUS', 'Extended regex of portions of the configuration to deny the user to modify', true, 'string', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Juniper-Local-User-Name', 'RADIUS', 'Name of Juniper user template', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'Juniper-Local-User-Name', 'RADIUS', 'Name of Juniper user template', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'NS-Admin-Privilege', 'RADIUS', 'Netscreen Admin Level', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'NS-Admin-Privilege', 'RADIUS', 'Netscreen Admin Level', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'NS-User-Group', 'RADIUS', 'Netscreen User Group Name', 'Y', 'string', 'REQUIRED'
+	'NS-User-Group', 'RADIUS', 'Netscreen User Group Name', true, 'string', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'Service-Type', 'RADIUS', 'RADIUS Service-Type from RFC2138', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'Service-Type', 'RADIUS', 'RADIUS Service-Type from RFC2138', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 INSERT INTO val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'cisco-avpair=shell:priv-lvl', 'RADIUS', 'Enable level of user on a Cisco device', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'cisco-avpair=shell:priv-lvl', 'RADIUS', 'Enable level of user on a Cisco device', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 
 INSERT INTO val_property (
@@ -714,70 +715,70 @@ INSERT INTO val_property (
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'GlobalAdmin', 'TokenMgmt', 'User can manage any token', 'N', 'boolean', 'REQUIRED'
+	'GlobalAdmin', 'TokenMgmt', 'User can manage any token', false, 'boolean', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ManageTokenCollection', 'TokenMgmt', 'User can manage any token in the token collection', 'N', 'token_collection_id', 'REQUIRED'
+	'ManageTokenCollection', 'TokenMgmt', 'User can manage any token in the token collection', false, 'token_collection_id', 'REQUIRED'
 );
 
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ForceCrypt', 'UnixPasswdFileValue', 'Sets the users Crypt to something other than the default (OS dependent)', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'ForceCrypt', 'UnixPasswdFileValue', 'Sets the users Crypt to something other than the default (OS dependent)', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ForceHome', 'UnixPasswdFileValue', 'Sets the users Home directory to something other than the default', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'ForceHome', 'UnixPasswdFileValue', 'Sets the users Home directory to something other than the default', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ForceShell', 'UnixPasswdFileValue', 'Sets the users Shell to something other than the default', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'ForceShell', 'UnixPasswdFileValue', 'Sets the users Shell to something other than the default', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ForceStdShell', 'UnixPasswdFileValue', 'Prevents the users shell from being set to anything but the default', 'N', 'boolean', 'ALLOWED', 'REQUIRED'
+	'ForceStdShell', 'UnixPasswdFileValue', 'Prevents the users shell from being set to anything but the default', false, 'boolean', 'ALLOWED', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ForceUserGroup', 'UnixPasswdFileValue', 'Sets the users GID to something other than the default', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'ForceUserGroup', 'UnixPasswdFileValue', 'Sets the users GID to something other than the default', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) VALUES (
-	'ForceUserUID', 'UnixPasswdFileValue', 'Sets the users UID to something other than the default', 'N', 'string', 'ALLOWED', 'REQUIRED'
+	'ForceUserUID', 'UnixPasswdFileValue', 'Sets the users UID to something other than the default', false, 'string', 'ALLOWED', 'REQUIRED'
 );
 
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'GlobalPasswordAdmin', 'UserMgmt', 'User can reset passwords for any user', 'N', 'boolean', 'REQUIRED'
+	'GlobalPasswordAdmin', 'UserMgmt', 'User can reset passwords for any user', false, 'boolean', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'GlobalTokenAdmin', 'UserMgmt', 'User can manage token assignments for any user', 'N', 'boolean', 'REQUIRED'
+	'GlobalTokenAdmin', 'UserMgmt', 'User can manage token assignments for any user', false, 'boolean', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'MasterPasswordAdmin', 'UserMgmt', 'Admin can reset passwords without answering challenge questions', 'N', 'boolean', 'REQUIRED'
+	'MasterPasswordAdmin', 'UserMgmt', 'Admin can reset passwords without answering challenge questions', false, 'boolean', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'PasswordAdminForAccount_Collection', 'UserMgmt', 'User can reset passwords for the Account_Collection', 'N', 'boolean', 'REQUIRED'
+	'PasswordAdminForAccount_Collection', 'UserMgmt', 'User can reset passwords for the Account_Collection', false, 'boolean', 'REQUIRED'
 );
 
 insert into val_property
 	(PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES (
-	'TokenAdminForAccount_Collection', 'UserMgmt', 'User can manage token assignments for any user in the Account_Collection', 'N', 'token_collection_id', 'REQUIRED'
+	'TokenAdminForAccount_Collection', 'UserMgmt', 'User can manage token assignments for any user in the Account_Collection', false, 'token_collection_id', 'REQUIRED'
 );
 
 INSERT into val_property (
@@ -789,54 +790,54 @@ INSERT into val_property (
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_Account_Collection_ID
 ) VALUES
-	('prohibit-feed', 'feed-attributes', 'prevent feeding a user for a given feed', 'Y', 'string', 'REQUIRED'),
-	('WWWGroupName', 'wwwgroup', 'WWW Group name overrides', 'N', 'string', 'REQUIRED')
+	('prohibit-feed', 'feed-attributes', 'prevent feeding a user for a given feed', true, 'string', 'REQUIRED'),
+	('WWWGroupName', 'wwwgroup', 'WWW Group name overrides', false, 'string', 'REQUIRED')
 ;
 
 -- properties to replace old columns
 insert into val_property_type (
 	property_type, description, is_multivalue
 ) values (
-	'sudoers', 'customize sudoer behavior', 'Y');
+	'sudoers', 'customize sudoer behavior', true);
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID) values
-('sudo-default','sudoers', 'sudo default values', 'N', 'number', 'REQUIRED');
+('sudo-default','sudoers', 'sudo default values', false, 'number', 'REQUIRED');
 
 insert into val_property
 (PROPERTY_NAME, PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE, PROPERTY_DATA_TYPE, PERMIT_DEVICE_COLLECTION_ID) values
-('generate-sudoers','sudoers', 'indicates that sudoers should be generated for this collection', 'N', 'boolean', 'REQUIRED');
+('generate-sudoers','sudoers', 'indicates that sudoers should be generated for this collection', false, 'boolean', 'REQUIRED');
 
 
 insert into val_property_type (
 	PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE
 ) values (
-	'MclassUnixProp', 'unix specific device collection types', 'Y'
+	'MclassUnixProp', 'unix specific device collection types', true
 );
 
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	PERMIT_DEVICE_COLLECTION_ID
 ) values (
-	'UnixHomeType', 'MclassUnixProp', 'N', 'list', 'REQUIRED'
+	'UnixHomeType', 'MclassUnixProp', false, 'list', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	PERMIT_DEVICE_COLLECTION_ID
 ) values (
-	'UnixPwType', 'MclassUnixProp', 'N', 'password_type', 'REQUIRED'
+	'UnixPwType', 'MclassUnixProp', false, 'password_type', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	PERMIT_DEVICE_COLLECTION_ID
 ) values (
-	'HomePlace', 'MclassUnixProp', 'N', 'string', 'REQUIRED'
+	'HomePlace', 'MclassUnixProp', false, 'string', 'REQUIRED'
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) values (
-	'UnixLogin', 'MclassUnixProp', 'N', 'none',
+	'UnixLogin', 'MclassUnixProp', false, 'none',
 	'REQUIRED', 'REQUIRED'
 );
 
@@ -846,7 +847,7 @@ insert into val_property
 	permit_account_collection_id, permit_device_collection_id,
 	property_data_type
 ) values (
-	'UnixGroup', 'MclassUnixProp', 'N',
+	'UnixGroup', 'MclassUnixProp', false,
 	'REQUIRED', 'REQUIRED',
 	'none'
 );
@@ -860,7 +861,7 @@ insert into val_property
 	permit_account_collection_id, permit_device_collection_id,
 	property_data_type
 ) values (
-	'UnixGroupMemberOverride', 'MclassUnixProp', 'Y',
+	'UnixGroupMemberOverride', 'MclassUnixProp', true,
 	'REQUIRED', 'REQUIRED',
 	'account_collection_id'
 );
@@ -881,7 +882,7 @@ insert into val_property (
 	DESCRIPTION,
 	PERMIT_DEVICE_COLLECTION_ID
 ) values (
-	'ShouldDeploy', 'MclassUnixProp', 'N', 'boolean',
+	'ShouldDeploy', 'MclassUnixProp', false, 'boolean',
 	'If credentials managmeent should deploy files or not',
 	'REQUIRED'
 );
@@ -891,7 +892,7 @@ insert into val_property (
 	DESCRIPTION,
 	PERMIT_DEVICE_COLLECTION_ID
 ) values (
-	'PermitUIDOverride', 'MclassUnixProp', 'N', 'boolean',
+	'PermitUIDOverride', 'MclassUnixProp', false, 'boolean',
 	'Allow Credentials Mangement to override uids locally',
 	'REQUIRED'
 );
@@ -901,7 +902,7 @@ insert into val_property (
 	DESCRIPTION,
 	PERMIT_DEVICE_COLLECTION_ID
 ) values (
-	'PermitGIDOverride', 'MclassUnixProp', 'N', 'boolean',
+	'PermitGIDOverride', 'MclassUnixProp', false, 'boolean',
 	'Allow Credentials Mangement to override uids locally',
 	'REQUIRED'
 );
@@ -911,7 +912,7 @@ insert into val_property (
 	DESCRIPTION,
 	PERMIT_DEVICE_COLLECTION_ID, PERMIT_ACCOUNT_COLLECTION_ID
 ) values (
-	'PreferLocal', 'MclassUnixProp', 'N', 'boolean',
+	'PreferLocal', 'MclassUnixProp', false, 'boolean',
 	'If credentials management client should prefer local uid,gid,shell',
 	'REQUIRED', 'REQUIRED'
 );
@@ -920,13 +921,13 @@ insert into val_property (
 insert into val_property_type (
 	PROPERTY_TYPE, DESCRIPTION, IS_MULTIVALUE
 ) values (
-	'UnixGroupFileProperty', 'properties on unix group files', 'Y'
+	'UnixGroupFileProperty', 'properties on unix group files', true
 );
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	PERMIT_DEVICE_COLLECTION_ID, PERMIT_Account_Collection_ID
 ) values (
-	'ForceGroupGID', 'UnixGroupFileProperty', 'N', 'none',
+	'ForceGroupGID', 'UnixGroupFileProperty', false, 'none',
 	'REQUIRED', 'REQUIRED'
 );
 
@@ -947,7 +948,7 @@ INSERT INTO val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description
 ) VALUES (
-	'_max_default_login_length', 'Defaults', 'N', 'number',
+	'_max_default_login_length', 'Defaults', false, 'number',
 	'Maximum length of generated login names, defaults to 15'
 );
 
@@ -959,7 +960,7 @@ VALUES (
 	'RecurseMembership',
 	'feed-attributes',
 	'Expand account collection membership through children for this feed',
-	'N',
+	false,
 	'boolean',
 	'REQUIRED',
 	'REQUIRED'
@@ -973,7 +974,7 @@ VALUES (
 	'FeedEmptyGroups',
 	'feed-attributes',
 	'Feed account collections even if empty',
-	'N',
+	false,
 	'boolean',
 	'REQUIRED',
 	'REQUIRED'
@@ -987,7 +988,7 @@ VALUES (
 	'LDAPParentDN',
 	'feed-attributes',
 	'DN of LDAP parent (where to place group in LDAP structure)',
-	'N',
+	false,
 	'string',
 	'REQUIRED',
 	'REQUIRED'
@@ -1001,7 +1002,7 @@ VALUES (
 	'FeedAccountCollection',
 	'feed-attributes',
 	'Synchronize this account collection to this feed',
-	'N',
+	false,
 	'boolean',
 	'REQUIRED',
 	'REQUIRED'
@@ -1013,8 +1014,8 @@ INSERT INTO val_property(
 	property_name, property_type, description, is_multivalue,
 	property_data_type,
 	permit_device_collection_id,
-	permit_layer2_network_coll_id,
-	permit_layer3_network_coll_id,
+	permit_layer2_network_collection_id,
+	permit_layer3_network_collection_id,
 	permit_netblock_collection_id,
 	permit_network_range_id,
 	permit_site_code
@@ -1023,7 +1024,7 @@ VALUES (
 	'InstallationProfile',
 	'SystemInstallation',
 	'Specify the name of the system installation profile to use',
-	'N',
+	false,
 	'string',
 	'ALLOWED',
 	'ALLOWED',
@@ -1039,7 +1040,7 @@ insert into val_company_collection_type
 	)
 values
 	('per-company',
-	1, 'N'
+	1, false
 	);
 
 -- XXX need to auto-create a Account_Collection all_company_XX
@@ -1068,7 +1069,7 @@ INSERT INTO Account_Realm(Account_Realm_Id, Account_Realm_Name)
 INSERT INTO PERSON_COMPANY (company_id, person_id, person_company_status,
 	person_company_relation, is_exempt)
 values (0, 0, 'enabled',
-	'n/a', 'N');
+	'n/a', false);
 
 INSERT INTO Account_Realm_Company(Account_Realm_Id, Company_Id)
 	VALUES (0, 0);
@@ -1113,7 +1114,7 @@ VALUES (
 	);
 
 
-insert into val_auth_resource (auth_resource) values ('radius');
+insert into val_authentication_resource (authentication_resource) values ('radius');
 
 insert into val_diet (diet) values ( 'Carnivore');
 insert into val_diet (diet) values ( 'Omnivore');
@@ -1162,7 +1163,7 @@ UPDATE Operating_System SET Operating_System_ID = 0 where Company_ID = 0;
 insert into val_person_image_usage (
 	person_image_usage, is_multivalue
 ) values (
-	'corpdirectory', 'N'
+	'corpdirectory', false
 );
 
 insert into val_shared_netblock_protocol
@@ -1195,20 +1196,20 @@ insert into val_device_collection_type
 	)
 values
 	('per-device',
-	1, 'N'
+	1, false
 	);
 
 --- stab stuff
 insert into val_property_type (property_type, description, is_multivalue)
 values
-	('StabRole', 'roles for users in stab', 'Y');
+	('StabRole', 'roles for users in stab', true);
 
 insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	permit_account_collection_id
 ) values
-	('StabAccess', 'StabRole', 'N', 'boolean', 'REQUIRED'),
-	('PermitStabSection', 'StabRole', 'Y', 'list', 'REQUIRED')
+	('StabAccess', 'StabRole', false, 'boolean', 'REQUIRED'),
+	('PermitStabSection', 'StabRole', true, 'list', 'REQUIRED')
 ;
 
 insert into val_property_value (
@@ -1231,7 +1232,7 @@ insert into val_property (
 	PROPERTY_NAME, PROPERTY_TYPE, IS_MULTIVALUE, PROPERTY_DATA_TYPE,
 	permit_account_collection_id
 ) values
-	('AccountCollectionAdmin', 'StabRole', 'Y', 'none', 'REQUIRED')
+	('AccountCollectionAdmin', 'StabRole', true, 'none', 'REQUIRED')
 ;
 
 INSERT INTO val_property (
@@ -1249,7 +1250,7 @@ insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description
 ) values (
-	'_stab_root', 'Defaults', 'N', 'string',
+	'_stab_root', 'Defaults', false, 'string',
 	'root of url for stab, if apps need to direct people'
 );
 
@@ -1258,7 +1259,7 @@ insert into val_property (
 	description,
 	permit_account_realm_id
 ) values (
-	'login_restriction', 'Defaults', 'N', 'string',
+	'login_restriction', 'Defaults', false, 'string',
 	'per-account realm validation of login names',
 	'REQUIRED'
 );
@@ -1266,7 +1267,7 @@ insert into val_property (
 
 -- DNS zone generation
 insert into val_property_type (property_type, description, is_multivalue)
-values ('DNSZonegen', 'properties for defining dns zone generation', 'Y');
+values ('DNSZonegen', 'properties for defining dns zone generation', true);
 
 insert into val_property
 	(property_name, property_type,
@@ -1274,7 +1275,7 @@ insert into val_property
 	 property_data_type, permit_device_collection_id, permit_site_code)
 values (
 	'DNSDistHosts', 'DNSZonegen',
-	'indicates hosts that should get dns zones', 'Y',
+	'indicates hosts that should get dns zones', true,
 	'none', 'REQUIRED', 'ALLOWED');
 
 insert into val_property
@@ -1283,7 +1284,7 @@ insert into val_property
 	 property_data_type,permit_netblock_collection_id)
 values (
 	'DNSACLs', 'DNSZonegen',
-	'indicates netblocks that should be in a named acl', 'Y',
+	'indicates netblocks that should be in a named acl', true,
 	'string', 'REQUIRED');
 
 --- approval stuff
@@ -1292,7 +1293,7 @@ insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description
 ) values (
-	'_approval_email_sender', 'Defaults', 'N', 'string',
+	'_approval_email_sender', 'Defaults', false, 'string',
 	'Email address to send approvals from '
 );
 
@@ -1300,7 +1301,7 @@ insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description
 ) values (
-	'_approval_email_signer', 'Defaults', 'N', 'string',
+	'_approval_email_signer', 'Defaults', false, 'string',
 	'Email address to sign aproval emails from (in body)'
 );
 
@@ -1308,7 +1309,7 @@ insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description, permit_account_collection_id
 ) values (
-	'_can_approve_all', 'Defaults', 'Y', 'string',
+	'_can_approve_all', 'Defaults', true, 'string',
 	'Stored Procedures will allow these people to execute any approval.  Assign sparingly, if at all.',
 	'REQUIRED'
 );
@@ -1317,7 +1318,7 @@ insert into val_property (
 	property_name, property_type, is_multivalue, property_data_type,
 	description
 ) values (
-	'_approval_faq_site', 'Defaults', 'N', 'string',
+	'_approval_faq_site', 'Defaults', false, 'string',
 	'URL to include in emails that tell people where to find more info'
 );
 
@@ -1337,9 +1338,9 @@ values ('serial-connection', 'characteristics of serial connections');
 
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id
+	property_data_type, permit_inter_component_connection_id
 ) values (
-	'baud', 'serial-connection', 'N',
+	'baud', 'serial-connection', false,
 	'list', 'REQUIRED');
 insert into val_component_property_value (
 	component_property_name, component_property_type, valid_property_value
@@ -1348,9 +1349,9 @@ insert into val_component_property_value (
 
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id
+	property_data_type, permit_inter_component_connection_id
 ) values (
-	'flow-control', 'serial-connection', 'N',
+	'flow-control', 'serial-connection', false,
 	'list', 'REQUIRED');
 insert into val_component_property_value (
 	component_property_name, component_property_type,
@@ -1363,9 +1364,9 @@ insert into val_component_property_value (
 
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id
+	property_data_type, permit_inter_component_connection_id
 ) values (
-	'stop-bits', 'serial-connection', 'N',
+	'stop-bits', 'serial-connection', false,
 	'list', 'REQUIRED');
 insert into val_component_property_value (
 	component_property_name, component_property_type, valid_property_value
@@ -1375,9 +1376,9 @@ insert into val_component_property_value (
 
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id
+	property_data_type, permit_inter_component_connection_id
 ) values (
-	'data-bits', 'serial-connection', 'N',
+	'data-bits', 'serial-connection', false,
 	'list', 'REQUIRED');
 insert into val_component_property_value (
 	component_property_name, component_property_type, valid_property_value
@@ -1387,9 +1388,9 @@ insert into val_component_property_value (
 
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id
+	property_data_type, permit_inter_component_connection_id
 ) values (
-	'parity', 'serial-connection', 'N',
+	'parity', 'serial-connection', false,
 	'list', 'REQUIRED');
 insert into val_component_property_value (
 	component_property_name, component_property_type, valid_property_value
@@ -1405,17 +1406,17 @@ values ('tcpsrv-connections', 'rtty tcpsrv connection properties');
 -- to be hard
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id, permit_component_id
+	property_data_type, permit_inter_component_connection_id, permit_component_id
 ) values (
-	'tcpsrv_device_id', 'tcpsrv-connections', 'N',
+	'tcpsrv_device_id', 'tcpsrv-connections', false,
 	'none', 'REQUIRED', 'REQUIRED')
 ;
 
 insert into val_component_property (
 	component_property_name, component_property_type, is_multivalue,
-	property_data_type, permit_intcomp_conn_id
+	property_data_type, permit_inter_component_connection_id
 ) values (
-	'tcpsrv_enabled', 'tcpsrv-connections', 'N',
+	'tcpsrv_enabled', 'tcpsrv-connections', false,
 	'boolean', 'REQUIRED')
 ;
 
@@ -1491,7 +1492,7 @@ insert into val_property_type (
 	property_type, is_multivalue,
 	description
 ) values (
-	'auto_acct_coll', 'Y',
+	'auto_account_coll', true,
 	'properties that define how people are added to account collections automatically based on column changes'
 );
 
@@ -1504,13 +1505,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'exempt', 'auto_acct_coll',
+	'exempt', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1522,13 +1523,34 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'non_exempt', 'auto_acct_coll',
+	'non_exempt', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
+);
+
+--
+-- XXX - this needs to be overhauled.
+--
+insert into val_property (
+	property_name, property_type,
+	permit_account_collection_id,
+	permit_account_realm_id,
+	permit_company_collection_id,
+	permit_site_code,
+	property_data_type,
+	is_multivalue
+) values (
+	'male', 'auto_account_coll',
+	'REQUIRED',
+	'REQUIRED',
+	'ALLOWED',
+	'PROHIBITED',
+	'none',
+	false
 );
 
 insert into val_property (
@@ -1540,13 +1562,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'male', 'auto_acct_coll',
+	'female', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1558,13 +1580,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'female', 'auto_acct_coll',
+	'unspecified_gender', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1576,13 +1598,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'unspecified_gender', 'auto_acct_coll',
+	'management', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1594,13 +1616,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'management', 'auto_acct_coll',
+	'non_management', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1612,13 +1634,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'non_management', 'auto_acct_coll',
+	'full_time', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1630,13 +1652,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'full_time', 'auto_acct_coll',
+	'non_full_time', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1648,43 +1670,25 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'non_full_time', 'auto_acct_coll',
-	'REQUIRED',
-	'REQUIRED',
-	'ALLOWED',
-	'PROHIBITED',
-	'none',
-	'N'
-);
-
-insert into val_property (
-	property_name, property_type,
-	permit_account_collection_id,
-	permit_account_realm_id,
-	permit_company_collection_id,
-	permit_site_code,
-	property_data_type,
-	is_multivalue
-) values (
-	'account_type', 'auto_acct_coll',
+	'account_type', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'PROHIBITED',
 	'list',
-	'N'
+	false
 );
 
 insert into val_property_value (
 	property_name, property_type, valid_property_value
 ) values (
-	'account_type', 'auto_acct_coll', 'person'
+	'account_type', 'auto_account_coll', 'person'
 );
 
 insert into val_property_value (
 	property_name, property_type, valid_property_value
 ) values (
-	'account_type', 'auto_acct_coll', 'pseudouser'
+	'account_type', 'auto_account_coll', 'pseudouser'
 );
 
 insert into val_property (
@@ -1696,13 +1700,13 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'site', 'auto_acct_coll',
+	'site', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'ALLOWED',
 	'REQUIRED',
 	'none',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1712,11 +1716,11 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'AutomatedDirectsAC', 'auto_acct_coll',
+	'AutomatedDirectsAC', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'account_collection_id',
-	'N'
+	false
 );
 
 insert into val_property (
@@ -1726,15 +1730,15 @@ insert into val_property (
 	property_data_type,
 	is_multivalue
 ) values (
-	'AutomatedRollupsAC', 'auto_acct_coll',
+	'AutomatedRollupsAC', 'auto_account_coll',
 	'REQUIRED',
 	'REQUIRED',
 	'account_collection_id',
-	'N'
+	false
 );
 
-INSERT INTO val_property_collection_type (
-	property_collection_type, description
+INSERT INTO val_property_name_collection_type (
+	property_name_collection_type, description
 ) VALUES
 	('auto_ac_assignment',
 		'defines which properties to setup for a company by default'),
@@ -1742,16 +1746,16 @@ INSERT INTO val_property_collection_type (
 		'internal jazzhands automations, in triggers/functions');
 
 WITH i AS (
-	INSERT INTO property_collection (
-		property_collection_name, property_collection_type
+	INSERT INTO property_name_collection (
+		property_name_collection_name, property_name_collection_type
 	) VALUES (
 		'corporate family', 'auto_ac_assignment'
 	) RETURNING *
-)  INSERT INTO property_collection_property
-	(property_collection_id, property_name, property_type)
-SELECT i.property_collection_id, p.property_name, p.property_type
+)  INSERT INTO property_name_collection_property_name
+	(property_name_collection_id, property_name, property_type)
+SELECT i.property_name_collection_id, p.property_name, p.property_type
 FROM i, val_property p
-WHERE p.property_type = 'auto_acct_coll'
+WHERE p.property_type = 'auto_account_coll'
 AND p.property_data_type = 'none';
 ;
 
@@ -1765,7 +1769,7 @@ AND p.property_data_type = 'none';
 INSERT INTO val_netblock_collection_type (
 	netblock_collection_type, description, can_have_hierarchy
 ) VALUES (
-	'per-site', 'automated collection named after sites', 'N'
+	'per-site', 'automated collection named after sites', false
 );
 
 INSERT INTO val_property_type (
@@ -1789,8 +1793,8 @@ INSERT INTO val_property (
 -------------------------------------------------------------------------
 -- BEGIN certificate
 
-insert into val_x509_certificate_file_fmt
-	(x509_file_format, description)
+insert into val_x509_certificate_file_format
+	(x509_certificate_file_format, description)
 values
 	('pem', 'human readable rsa certificate'),
 	('der', 'binary representation'),
@@ -1799,27 +1803,27 @@ values
 ;
 
 insert into val_x509_key_usage
-	(x509_key_usg, description, is_extended)
+	(x509_key_usage, description, is_extended)
 values
-	('digitalSignature',	'verifying digital signatures other than other certs/CRLs,  such as those used in an entity authentication service, a data origin authentication service, and/or an integrity service', 'N'),
-	('nonRepudiation',	'verifying digital signatures other than other certs/CRLs, to provide a non-repudiation service that protects against the signing entity falsely denying some action.  Also known as contentCommitment', 'N'),
-	('keyEncipherment',	'key is used for enciphering private or secret keys', 'N'),
-	('dataEncipherment',	'key is used for directly enciphering raw user data without the use of an intermediate symmetric cipher', 'N'),
-	('keyAgreement',	NULL, 'N'),
-	('keyCertSign',		'key signs other certificates; must be set with ca bit', 'N'),
-	('cRLSign',		'key is for verifying signatures on certificate revocation lists', 'N'),
-	('encipherOnly',	'with keyAgreement bit, key used for enciphering data while performing key agreement', 'N'),
-	('decipherOnly',	'with keyAgreement bit, key used for deciphering data while performing key agreement', 'N'),
-	('serverAuth',		'SSL/TLS Web Server Authentication', 'Y'),
-	('clientAuth',		'SSL/TLS Web Client Authentication', 'Y'),
-	('codeSigning',		'Code signing', 'Y'),
-	('emailProtection',	'E-mail Protection (S/MIME)', 'Y'),
-	('timeStamping',	'Trusted Timestamping', 'Y'),
-	('OCSPSigning',		'Signing OCSP Responses', 'Y')
+	('digitalSignature',	'verifying digital signatures other than other certs/CRLs,  such as those used in an entity authentication service, a data origin authentication service, and/or an integrity service', false),
+	('nonRepudiation',	'verifying digital signatures other than other certs/CRLs, to provide a non-repudiation service that protects against the signing entity falsely denying some action.  Also known as contentCommitment', false),
+	('keyEncipherment',	'key is used for enciphering private or secret keys', false),
+	('dataEncipherment',	'key is used for directly enciphering raw user data without the use of an intermediate symmetric cipher', false),
+	('keyAgreement',	NULL, false),
+	('keyCertSign',		'key signs other certificates; must be set with ca bit', false),
+	('cRLSign',		'key is for verifying signatures on certificate revocation lists', false),
+	('encipherOnly',	'with keyAgreement bit, key used for enciphering data while performing key agreement', false),
+	('decipherOnly',	'with keyAgreement bit, key used for deciphering data while performing key agreement', false),
+	('serverAuth',		'SSL/TLS Web Server Authentication', true),
+	('clientAuth',		'SSL/TLS Web Client Authentication', true),
+	('codeSigning',		'Code signing', true),
+	('emailProtection',	'E-mail Protection (S/MIME)', true),
+	('timeStamping',	'Trusted Timestamping', true),
+	('OCSPSigning',		'Signing OCSP Responses', true)
 ;
 
 insert into val_x509_key_usage_category
-	(x509_key_usg_cat, description)
+	(x509_key_usage_category, description)
 values
 	('ca', 'used to identify a certificate authority'),
 	('revocation', 'Used to identify entity that signs crl/ocsp responses'),
@@ -1830,7 +1834,7 @@ values
 ;
 
 insert into x509_key_usage_categorization
-	(x509_key_usg_cat, x509_key_usg)
+	(x509_key_usage_category, x509_key_usage)
 values
 	('ca',  'keyCertSign'),
 	('revocation',  'cRLSign'),
@@ -1864,7 +1868,7 @@ values
 	('default')
 ;
 
-INSERT INTO val_pvt_key_encryption_type
+INSERT INTO val_private_key_encryption_type
 	(private_key_encryption_type)
 values
 	('rsa'),
@@ -2021,4 +2025,143 @@ VALUES
 ;
 
 -- END Account Name Overrides
+-------------------------------------------------------------------------
+-------------------------------------------------------------------------
+-- BEGIN logical ports
+
+insert into val_logical_port_type (logical_port_type, description) values
+	('LACP', 'LACP aggregate'),
+	('MLAG', 'Multi-chassis aggregate');
+
+-- END logical ports
+-------------------------------------------------------------------------
+
+
+INSERT INTO val_encryption_key_purpose (
+        encryption_key_purpose, encryption_key_purpose_version, description
+) VALUES (
+        'external', 1, 'Key is stored  outside the database'
+);
+
+-------------------------------------------------------------------------
+--
+-- Begin automated account collections
+--
+-------------------------------------------------------------------------
+
+INSERT INTO val_property_type (property_type) VALUES ('auto_acct_coll');
+
+ALTER TABLE val_property DISABLE TRIGGER trigger_validate_val_property;
+INSERT INTO val_property (
+	property_type, 		property_name, 		property_data_type, 		permit_account_collection_id, permit_account_id, permit_account_realm_id, permit_company_id, permit_company_collection_id, permit_site_code
+) VALUES
+	('auto_acct_coll', 'exempt',			'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'site',				'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'ALLOWED',		'PROHIBITED',	'PROHIBITED'),
+	('auto_acct_coll', 'AutomatedDirectsAC','account_collection_id',	'PROHIBITED',	'REQUIRED',		'REQUIRED', 'PROHIBITED',	'PROHIBITED',	'PROHIBITED'),
+	('auto_acct_coll', 'AutomatedRollupsAC','account_collection_id',	'PROHIBITED',	'REQUIRED',		'REQUIRED', 'PROHIBITED',	'PROHIBITED',	'PROHIBITED'),
+	('auto_acct_coll', 'non_exempt',		'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'male',				'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'female',			'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'unspecified_gender','none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'management',		'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'non_management',	'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'full_time',			'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'non_full_time',		'none',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED'),
+	('auto_acct_coll', 'account_type',		'list',						'REQUIRED',		'PROHIBITED',	'REQUIRED', 'PROHIBITED',	'REQUIRED',		'PROHIBITED')
+;
+ALTER TABLE val_property ENABLE TRIGGER trigger_validate_val_property;
+
+-- end automated account collections
+
+-------------------------------------------------------------------------
+--
+-- This is required to make the attestation subsystem work.
+--
+-------------------------------------------------------------------------
+INSERT INTO val_approval_type (approval_type)
+	VALUES (unnest(ARRAY['account','jira-hr']));
+INSERT INTO val_property_type ( property_type, description )
+	VALUES ('attestation', 'define elements of regular attestation process');
+
+INSERT INTO val_property (
+	property_name,
+	property_type,
+	property_data_type
+) VALUES (
+	unnest(ARRAY['ReportAttest', 'FieldAttest',
+	'account_collection_membership']),
+	'attestation', 'string'
+);
+
+INSERT INTO val_property (
+	property_name, property_type,
+	permit_account_collection_id, property_data_type,
+	description
+) VALUES (
+	'AlternateApprovers', 'attestation',
+	'REQUIRED', 'account_collection_id',
+	'indicates additional users permitted to approve attestation assigned to accounts'
+);
+
+INSERT INTO val_property (
+	property_name, property_type,
+	account_collection_type,
+	property_value_account_collection_type_restriction,
+	permit_account_collection_id, property_data_type,
+	description
+) VALUES (
+	'Delegate', 'attestation',
+	'per-account',
+	'per-account',
+	'REQUIRED', 'account_collection_id',
+	'Indicates an alternate account who acts on behalf.'
+);
+
+INSERT INTO val_approval_process_type ( approval_process_type )
+	VALUES ('attestation');
+INSERT INTO val_approval_expiration_action ( approval_expiration_action )
+	VALUES ('pester');
+INSERT INTO val_attestation_frequency ( attestation_frequency )
+	VALUES ('quarterly');
+INSERT INTO val_approval_chain_response_period (
+	approval_chain_response_period
+) VALUES (
+	'1 week'
+);
+
+INSERT INTO property (
+	property_name, property_type, property_value
+) VALUES
+	('ReportAttest', 'attestation', 'auto_acct_colll:AutomateddDirectsAC'),
+	('FieldAttest', 'attestation', 'person_company:position_title'),
+	('account_collection_membership', 'attestation', 'department')
+;
+
+INSERT INTO val_property_name_collection_type (
+	property_name_collection_type, description
+) VALUES (
+	'attestation', 'properties that make up attestation chains'
+);
+
+WITH x AS (
+	INSERT INTO property_name_collection (
+		property_name_collection_name, property_name_collection_type
+	) VALUES (
+		'ReportingAttestation', 'attestation'
+	) RETURNING *
+) INSERT INTO property_name_collection_property_name (
+	property_name_collection_id,
+	property_name,
+	property_type
+) SELECT property_name_collection_id,
+	unnest(ARRAY['ReportAttest', 'FieldAttest', 'account_collection_membership']),
+	'attestation'
+FROM x;
+
+
+-------------------------------------------------------------------------
+--
+-- End requirements for attestation subsystem
+--
+--
 -------------------------------------------------------------------------

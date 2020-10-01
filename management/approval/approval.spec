@@ -28,10 +28,13 @@ System Tools for Administrative Baselining
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands BUILDPERL=%{__perl}
+make -f Makefile.jazzhands BUILDPERL=%{__perl} configure
+
+%build
+make -f Makefile.jazzhands BUILDPERL=%{__perl} all
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} PREFIX=%{prefix} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
 make -f Makefile.jazzhands clean

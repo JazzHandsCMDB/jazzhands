@@ -33,7 +33,7 @@ BEGIN
 		(select account_collection_type from account_collection
 			where account_collection_id = NEW.account_collection_id);
 
-	IF act.can_have_hierarchy = 'N' THEN
+	IF act.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'Account Collections of type % may not be hierarcical',
 			act.account_collection_type
 			USING ERRCODE= 'unique_violation';

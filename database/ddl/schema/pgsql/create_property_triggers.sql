@@ -24,9 +24,9 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_validate_property ON Property;
+DROP TRIGGER IF EXISTS trigger_validate_property ON property;
 CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE
-	ON Property FOR EACH ROW EXECUTE PROCEDURE validate_property();
+	ON property FOR EACH ROW EXECUTE PROCEDURE validate_property();
 
 
 ------------------------------------------------------------------------------
@@ -143,7 +143,8 @@ LANGUAGE plpgsql SECURITY DEFINER;
 --
 -- CONSTRAINT makes this an after trigger.
 --
-DROP TRIGGER IF EXISTS trigger_val_property_value_del_check ON val_property;
+DROP TRIGGER IF EXISTS trigger_val_property_value_del_check
+	ON val_property_value;
 CREATE CONSTRAINT TRIGGER trigger_val_property_value_del_check
 	AFTER DELETE
 	ON val_property_value

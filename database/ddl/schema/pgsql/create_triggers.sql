@@ -102,7 +102,7 @@ BEGIN
 	  and	person_image_usage = NEW.person_image_usage
 	group by vpiu.is_multivalue;
 
-	IF ismv = 'N' THEN
+	IF ismv = false THEN
 		IF tally > 1 THEN
 			RAISE EXCEPTION
 				'Person may only be assigned %s for one image',

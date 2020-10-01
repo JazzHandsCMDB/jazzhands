@@ -24,13 +24,13 @@ SELECT 	NULL::integer	as dns_record_id,
 		CASE WHEN family(ip)= 4
 			THEN regexp_replace(host(ip)::text, '^.*[.](\d+)$', '\1', 'i') 
 			ELSE regexp_replace(dns_utils.v6_inaddr(ip),
-				'.' || replace(dd.soa_name, '.ip6.arpa', '') || '$', '', 'i')
+				'.' || replace(dd.dns_domain_name, '.ip6.arpa', '') || '$', '', 'i')
 			END as dns_name,
 		combo.dns_ttl as dns_ttl,
 		'IN'::text	as dns_class,
 		'PTR'::text	as dns_type,
-		CASE WHEN combo.dns_NAME IS NULL THEN concat(combo.soa_name, '.')
-			ELSE concat(combo.dns_name, '.', combo.soa_name, '.') END
+		CASE WHEN combo.dns_NAME IS NULL THEN concat(combo.dns_domain_name, '.')
+			ELSE concat(combo.dns_name, '.', combo.dns_domain_name, '.') END
 			AS dns_value,
 		NULL::integer as dns_priority,
 		combo.ip,
@@ -42,18 +42,18 @@ SELECT 	NULL::integer	as dns_record_id,
 		NULL::integer as dns_srv_weight,
 		NULL::integer as dns_srv_srv_port,
 		combo.is_enabled,
-		'N'::character AS should_generate_ptr,
+		false AS should_generate_ptr,
 		NULL::integer AS dns_value_record_id
 FROM (
 	SELECT  host(nb.ip_address)::inet as ip,
 		NULL::integer as network_range_id,
 	    coalesce(rdns.dns_name,dns.dns_name) as dns_name,
-	    dom.soa_name,
+	    dom.dns_domain_name,
 	    dns.dns_ttl,
 	    network(nb.ip_address) as ip_base,
 	    nb.ip_universe_id,
 	    dns.is_enabled,
-	    'N'::character AS should_generate_ptr,
+	    false AS should_generate_ptr,
 	    nb.netblock_id as netblock_id
 	  FROM  netblock nb
 		inner join dns_record dns
@@ -63,19 +63,19 @@ FROM (
 			dom.dns_domain_id
 		left join dns_record rdns
 			on rdns.dns_record_id = dns.reference_dns_record_id
-	 where dns.should_generate_ptr = 'Y'
+	 where dns.should_generate_ptr 
 	   and  dns.dns_class = 'IN'
 	   and ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
-	   and nb.is_single_address = 'Y'
+	   and nb.is_single_address 
 UNION ALL
 	select host(ip)::inet as ip, 
 			network_range_id,
 			concat(coalesce(dns_prefix, 'pool'), '-', 
 				replace(host(ip)::text, '.', '-')) as dns_name,
-			soa_name, NULL as dns_ttl, network(ip) as ip_base,
+			dns_domain_name, NULL as dns_ttl, network(ip) as ip_base,
 			ip_universe_id,
-			'Y' as is_enabled,
-	    	'N'::character AS should_generate_ptr,
+			true as is_enabled,
+	    	false AS should_generate_ptr,
 			NULL as netblock_id
 	from (
        	select  
@@ -91,6 +91,7 @@ UNION ALL
 		    	on dr.start_netblock_id = nbstart.netblock_id
 			inner join netblock nbstop
 		    	on dr.stop_netblock_id = nbstop.netblock_id
+		where	dns_domain_id is NOT NULL
 	) range
 		inner join dns_domain dom
 		    on range.dns_domain_id =

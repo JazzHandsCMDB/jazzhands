@@ -31,7 +31,7 @@ BEGIN
 		INSERT INTO val_component_property_type (
 			component_property_type, description, is_multivalue
 		) VALUES 
-			('network_adapter', 'network adapter properties', 'Y');
+			('network_adapter', 'network adapter properties', true);
 
 		--
 		-- Slot functions are also somewhat arbitrary, and exist for associating
@@ -46,7 +46,7 @@ BEGIN
 		-- a slot, a specific linkage must exist in either
 		-- slot_type_permitted_component_type for internal connections (i.e. the
 		-- component becomes a logical sub-component of the parent) or in
-		-- slot_type_prmt_rem_slot_type for an external connection (i.e.
+		-- slot_type_permitted_remote_slot_type for an external connection (i.e.
 		-- a connection to a separate component entirely, such as a network or
 		-- power connection)
 		--
@@ -63,6 +63,8 @@ BEGIN
 				'QSFP+',
 				'SFP28',
 				'QSFP28',
+				'OSFP',
+				'QSFP-DD',
 				'GBIC',
 				'XENPAK',
 				'RJ45',
@@ -80,22 +82,24 @@ BEGIN
 			 description, remote_slot_permitted)
 		VALUES
 			-- Direct attach types
-			('100BaseTEthernet', 'RJ45', 'network', '100BaseT Ethernet', 'Y'),
-			('1000BaseTEthernet', 'RJ45', 'network', '1000BaseT Ethernet', 'Y'),
-			('10GBaseTEthernet', 'RJ45', 'network', '10GBaseT Ethernet', 'Y'),
-			('1GLCEthernet', 'LC', 'network', '1Gbps LC Fiber Ethernet', 'Y'),
-			('10GLCEthernet', 'LC', 'network', '10Gbps LC Ethernet', 'Y'),
-			('10GMPOEthernet', 'MPO', 'network', '10Gbps split-MPO Ethernet', 'Y'),
-			('10GSFPCuEthernet', '10GSFP+Cu', 'network', '10Gbps SFP+Cu (TwinAx) Ethernet', 'Y'),
-			('40GMPOEthernet', 'MPO', 'network', '40Gbps MPO/MTP Ethernet', 'Y'),
+			('100BaseTEthernet', 'RJ45', 'network', '100BaseT Ethernet', true),
+			('1000BaseTEthernet', 'RJ45', 'network', '1000BaseT Ethernet', true),
+			('10GBaseTEthernet', 'RJ45', 'network', '10GBaseT Ethernet', true),
+			('1GLCEthernet', 'LC', 'network', '1Gbps LC Fiber Ethernet', true),
+			('10GLCEthernet', 'LC', 'network', '10Gbps LC Ethernet', true),
+			('10GMPOEthernet', 'MPO', 'network', '10Gbps split-MPO Ethernet', true),
+			('10GSFPCuEthernet', '10GSFP+Cu', 'network', '10Gbps SFP+Cu (TwinAx) Ethernet', true),
+			('40GMPOEthernet', 'MPO', 'network', '40Gbps MPO/MTP Ethernet', true),
 			-- Module-requiring types
-			('1GSFPEthernet', 'SFP', 'network', '1Gbps SFP Ethernet', 'N'),
-			('10GSFP+Ethernet', 'SFP+', 'network', '10Gbps SFP+ Ethernet', 'N'),
-			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', 'N'),
-			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', 'N'),
-			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', 'N'),
-			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', 'N'),
-			('25GSFP28Ethernet', 'QSFP28', 'network', '25Gbps SFP28 Ethernet', 'N');
+			('1GSFPEthernet', 'SFP', 'network', '1Gbps SFP Ethernet', false),
+			('10GSFP+Ethernet', 'SFP+', 'network', '10Gbps SFP+ Ethernet', false),
+			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', false),
+			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', false),
+			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', false),
+			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', false),
+			('400GQSFP-DDEthernet', 'QSFP-DD', 'network', '400Gbps QSFP-DD Ethernet', false),
+			('400GOSFPEthernet', 'OSFP', 'network', '400Gbps OSFP Ethernet', false),
+			('25GSFP28Ethernet', 'QSFP28', 'network', '25Gbps SFP28 Ethernet', false);
 
 
 		--
@@ -103,7 +107,7 @@ BEGIN
 		-- themselves.  SFP+ can take SFP or SFP+.
 		-- 
 
-		INSERT INTO slot_type_prmt_comp_slot_type (
+		INSERT INTO slot_type_permitted_component_slot_type (
 			slot_type_id,
 			component_slot_type_id
 		) SELECT
@@ -136,7 +140,7 @@ BEGIN
 		-- connect to itself, the RJ45 types all interconnect, and the
 		-- 10GSFP+Cu only connects to itself
 		-- 
-		INSERT INTO slot_type_prmt_rem_slot_type (
+		INSERT INTO slot_type_permitted_remote_slot_type (
 			slot_type_id,
 			remote_slot_type_id
 		) SELECT

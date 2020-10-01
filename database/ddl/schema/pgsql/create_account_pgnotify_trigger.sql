@@ -87,14 +87,14 @@ RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'UPDATE' OR TG_OP = 'DELETE' THEN
 		PERFORM	*
-		FROM	property_collection
-				JOIN property_collection_property pcp
-					USING (property_collection_id)
+		FROM	property_name_collection
+				JOIN property_name_collection_property_name pcp
+					USING (property_name_collection_id)
 				JOIN property p
 					USING (property_name, property_type)
 		WHERE	p.account_collection_id = OLD.account_collection_id
-		AND		property_collection_type = 'jazzhands-internal'
-		AND		property_collection_name = 'notify-account_collection_account'
+		AND		property_name_collection_type = 'jazzhands-internal'
+		AND		property_name_collection_name = 'notify-account_collection_account'
 		;
 
 		IF FOUND THEN
@@ -103,14 +103,14 @@ BEGIN
 	END IF;
 	IF TG_OP = 'UPDATE' OR TG_OP = 'INSERT' THEN
 		PERFORM	*
-		FROM	property_collection
-				JOIN property_collection_property pcp
-					USING (property_collection_id)
+		FROM	property_name_collection
+				JOIN property_name_collection_property_name pcp
+					USING (property_name_collection_id)
 				JOIN property p
 					USING (property_name, property_type)
 		WHERE	p.account_collection_id = NEW.account_collection_id
-		AND		property_collection_type = 'jazzhands-internal'
-		AND		property_collection_name = 'notify-account_collection_account'
+		AND		property_name_collection_type = 'jazzhands-internal'
+		AND		property_name_collection_name = 'notify-account_collection_account'
 		;
 
 		IF FOUND THEN

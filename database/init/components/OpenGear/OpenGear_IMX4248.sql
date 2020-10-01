@@ -45,12 +45,12 @@ BEGIN
 		NULL,
 		'IMX4248',
 		cid,
-		'Y',
-		'Y',
+		true,
+		true,
 		1
 	) RETURNING component_type_id INTO ctid;
 
-	INSERT INTO component_type_component_func (
+	INSERT INTO component_type_component_function (
 		component_type_id,
 		component_function
 	) VALUES (
@@ -62,7 +62,7 @@ BEGIN
 	-- Console port
 	--
 
-	INSERT INTO component_type_slot_tmplt (
+	INSERT INTO component_type_slot_template (
 		component_type_id,
 		slot_type_id,
 		slot_name_template,
@@ -84,7 +84,7 @@ BEGIN
 	--
 	-- Serial ports
 	--
-	INSERT INTO component_type_slot_tmplt (
+	INSERT INTO component_type_slot_template (
 		component_type_id,
 		slot_type_id,
 		slot_name_template,
@@ -111,7 +111,7 @@ BEGIN
 		--
 		-- Network ports
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -138,7 +138,7 @@ BEGIN
 	--
 	-- Management ports
 	--
-	INSERT INTO component_type_slot_tmplt (
+	INSERT INTO component_type_slot_template (
 		component_type_id,
 		slot_type_id,
 		slot_name_template,
@@ -157,7 +157,7 @@ BEGIN
 	WHERE
 		slot_type = '100BaseTEthernet' and slot_function = 'network';
 
-	INSERT INTO component_type_slot_tmplt (
+	INSERT INTO component_type_slot_template (
 		component_type_id,
 		slot_type_id,
 		slot_name_template,

@@ -49,10 +49,10 @@ BEGIN
 	 * These are trigger enforced later and are basically what anyone
 	 * using this means.
 	 */
-	IF NEW.can_subnet = 'Y' and NEW.is_single_address iS NULL THEN
-		NEW.is_single_address = 'N';
-	ELSIF NEW.can_subnet IS NULL and NEW.is_single_address = 'Y' THEN
-		NEW.can_subnet = 'N';
+	IF NEW.can_subnet = true and NEW.is_single_address iS NULL THEN
+		NEW.is_single_address = false;
+	ELSIF NEW.can_subnet IS NULL and NEW.is_single_address = true THEN
+		NEW.can_subnet = false;
 	END IF;
 
 	/*
@@ -73,17 +73,16 @@ BEGIN
 	SELECT * INTO nbtype FROM val_netblock_type WHERE
 		netblock_type = NEW.netblock_type;
 
-	IF NEW.is_single_address = 'Y' THEN
-		IF nbtype.db_forced_hierarchy = 'Y' THEN
+	IF NEW.is_single_address = true THEN
+		IF nbtype.db_forced_hierarchy = true THEN
 			RAISE DEBUG 'Calculating netmask for new netblock';
 
-			v_netblock_id := netblock_utils.find_best_parent_id(
-				NEW.ip_address,
-				NULL,
-				NEW.netblock_type,
-				NEW.ip_universe_id,
-				NEW.is_single_address,
-				NEW.netblock_id
+			v_netblock_id := netblock_utils.find_best_parent_netblock_id(
+				ip_address				:= NEW.ip_address,
+				netblock_type			:= NEW.netblock_type,
+				ip_universe_id			:= NEW.ip_universe_id,
+				is_single_address		:= NEW.is_single_address,
+				netblock_id				:= NEW.netblock_id
 				);
 
 			IF v_netblock_id IS NULL THEN
@@ -100,12 +99,12 @@ BEGIN
 
 	/* Done with handling of netmasks */
 
-	IF NEW.can_subnet = 'Y' AND NEW.is_single_address = 'Y' THEN
+	IF NEW.can_subnet = true AND NEW.is_single_address = 'Y' THEN
 		RAISE EXCEPTION 'Single addresses may not be subnettable'
 			USING ERRCODE = 'JH106';
 	END IF;
 
-	IF NEW.is_single_address = 'N' AND (NEW.ip_address != cidr(NEW.ip_address))
+	IF NEW.is_single_address = false AND (NEW.ip_address != cidr(NEW.ip_address))
 			THEN
 		RAISE EXCEPTION
 			'Non-network bits must be zero if is_single_address is N for %',
@@ -141,7 +140,7 @@ BEGIN
 	/*
 	 * for networks, check for uniqueness across ip universe and ip visibility
 	 */
-	IF NEW.is_single_address = 'N' THEN
+	IF NEW.is_single_address = false THEN
 		WITH x AS (
 				SELECT	ip_universe_id
 				FROM	ip_universe
@@ -165,7 +164,7 @@ BEGIN
 		WHERE ip_address = NEW.ip_address AND
 			netblock_type = NEW.netblock_type AND
 			ip_universe_id IN (select ip_universe_id FROM x) AND
-			is_single_address = 'N' AND
+			is_single_address = false AND
 			netblock_id != NEW.netblock_id
 		;
 
@@ -176,7 +175,7 @@ BEGIN
 				USING ERRCODE= 'unique_violation';
 		END IF;
 
-		IF NEW.can_subnet = 'N' THEN
+		IF NEW.can_subnet = false THEN
 			WITH x AS (
 				SELECT	ip_universe_id
 				FROM	ip_universe
@@ -204,8 +203,8 @@ BEGIN
 					ip_address >>= NEW.ip_address
 				) AND
 				netblock_type = NEW.netblock_type AND
-				is_single_address = 'N' AND
-				can_subnet = 'N' AND
+				is_single_address = false AND
+				can_subnet = false AND
 				netblock_id != NEW.netblock_id
 			;
 
@@ -256,7 +255,7 @@ BEGIN
 	SELECT * INTO nbtype FROM val_netblock_type WHERE
 		netblock_type = NEW.netblock_type;
 
-	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != true THEN
 		RETURN NEW;
 	END IF;
 
@@ -265,13 +264,12 @@ BEGIN
 	 */
 
 	RAISE DEBUG 'Setting forced hierarchical netblock %', NEW.netblock_id;
-	NEW.parent_netblock_id := netblock_utils.find_best_parent_id(
-		NEW.ip_address,
-		NULL,
-		NEW.netblock_type,
-		NEW.ip_universe_id,
-		NEW.is_single_address,
-		NEW.netblock_id
+	NEW.parent_netblock_id := netblock_utils.find_best_parent_netblock_id(
+		ip_address			:= NEW.ip_address,
+		netblock_type		:= NEW.netblock_type,
+		ip_universe_id		:= NEW.ip_universe_id,
+		is_single_address	:= NEW.is_single_address,
+		netblock_id			:= NEW.netblock_id
 		);
 
 	RAISE DEBUG 'Setting parent for netblock % (%, type %, universe %, single-address %) to %',
@@ -283,7 +281,7 @@ BEGIN
 	 * If we are an end-node, then we're done
 	 */
 
-	IF NEW.is_single_address = 'Y' THEN
+	IF NEW.is_single_address = true THEN
 		RETURN NEW;
 	END IF;
 
@@ -370,7 +368,7 @@ BEGIN
 	SELECT * INTO nbtype FROM val_netblock_type WHERE
 		netblock_type = v_trigger.netblock_type;
 
-	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != 'Y' THEN
+	IF (NOT FOUND) OR nbtype.db_forced_hierarchy != true THEN
 		RETURN NULL;
 	END IF;
 
@@ -399,7 +397,7 @@ BEGIN
 		RETURN NULL;
 	END IF;
 
-	IF NEW.is_single_address = 'Y' THEN
+	IF NEW.is_single_address = true THEN
 		RETURN NULL;
 	END IF;
 
@@ -521,13 +519,13 @@ BEGIN
 	 * validate that this netblock is attached to its correct parent
 	 */
 	IF realnew.parent_netblock_id IS NULL THEN
-		IF nbtype.is_validated_hierarchy='N' THEN
+		IF nbtype.is_validated_hierarchy=false THEN
 			RETURN NULL;
 		END IF;
 		RAISE DEBUG 'Checking hierarchical netblock_id % with NULL parent',
 			NEW.netblock_id;
 
-		IF realnew.is_single_address = 'Y' THEN
+		IF realnew.is_single_address = true THEN
 			RAISE 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N',
 				realnew.ip_address
 				USING ERRCODE = 'JH105';
@@ -537,13 +535,12 @@ BEGIN
 		 * Validate that a netblock has a parent, unless
 		 * it is the root of a hierarchy
 		 */
-		parent_nbid := netblock_utils.find_best_parent_id(
-			realnew.ip_address,
-			NULL,
-			realnew.netblock_type,
-			realnew.ip_universe_id,
-			realnew.is_single_address,
-			realnew.netblock_id
+		parent_nbid := netblock_utils.find_best_parent_netblock_id(
+			ip_address			:= realnew.ip_address,
+			netblock_type		:= realnew.netblock_type,
+			ip_universe_id		:= realnew.ip_universe_id,
+			is_single_address	:= realnew.is_single_address,
+			netblock_id			:= realnew.netblock_id
 		);
 
 		IF parent_nbid IS NOT NULL THEN
@@ -590,7 +587,7 @@ BEGIN
 			USING ERRCODE = 'foreign_key_violation';
 		END IF;
 
-		IF nbrec.is_single_address = 'Y' THEN
+		IF nbrec.is_single_address = true THEN
 			RAISE EXCEPTION 'A parent netblock (% for %) may not be a single address',
 			nbrec.netblock_id, realnew.ip_address
 			USING ERRCODE = 'JH10A';
@@ -602,25 +599,24 @@ BEGIN
 			USING ERRCODE = 'JH109';
 		END IF;
 
-		IF nbtype.is_validated_hierarchy='N' THEN
+		IF nbtype.is_validated_hierarchy=false THEN
 			RETURN NULL;
 		ELSE
-			parent_nbid := netblock_utils.find_best_parent_id(
-				realnew.ip_address,
-				NULL,
-				realnew.netblock_type,
-				realnew.ip_universe_id,
-				realnew.is_single_address,
-				realnew.netblock_id
+			parent_nbid := netblock_utils.find_best_parent_netblock_id(
+				ip_address			:= realnew.ip_address,
+				netblock_type		:= realnew.netblock_type,
+				ip_universe_id		:= realnew.ip_universe_id,
+				is_single_address	:= realnew.is_single_address,
+				netblock_id			:= realnew.netblock_id
 				);
 
 			SELECT * FROM netblock INTO parent_rec WHERE netblock_id =
 				parent_nbid;
 
-			IF realnew.can_subnet = 'N' THEN
+			IF realnew.can_subnet = false THEN
 				SELECT array_agg(netblock_id) INTO nblist FROM netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
-					is_single_address = 'N';
+					is_single_address = false;
 				IF nblist IS NOT NULL THEN
 					RAISE EXCEPTION E'A non-subnettable netblock may not have child network netblocks\nParent: %\nChild(ren): %\n',
 						row_to_json(realnew, true),
@@ -628,10 +624,10 @@ BEGIN
 					USING ERRCODE = 'JH10B';
 				END IF;
 			END IF;
-			IF realnew.is_single_address = 'Y' THEN
+			IF realnew.is_single_address = true THEN
 				SELECT * INTO nbrec FROM netblock
 					WHERE netblock_id = realnew.parent_netblock_id;
-				IF (nbrec.can_subnet = 'Y') THEN
+				IF (nbrec.can_subnet = true) THEN
 					RAISE 'Parent netblock % for single-address % must have can_subnet=N',
 						nbrec.netblock_id,
 						realnew.ip_address
@@ -661,14 +657,14 @@ BEGIN
 					USING ERRCODE = 'JH102';
 			END IF;
 			/*
-			 * Validate that all children are is_single_address='Y' or
-			 * all children are is_single_address='N'
+			 * Validate that all children are is_single_address=true or
+			 * all children are is_single_address=false
 			 */
 			SELECT count(*) INTO single_count FROM netblock WHERE
-				is_single_address='Y' and parent_netblock_id =
+				is_single_address=true and parent_netblock_id =
 				realnew.parent_netblock_id;
 			SELECT count(*) INTO nonsingle_count FROM netblock WHERE
-				is_single_address='N' and parent_netblock_id =
+				is_single_address=false and parent_netblock_id =
 				realnew.parent_netblock_id;
 
 			IF (single_count > 0 and nonsingle_count > 0) THEN
@@ -686,10 +682,10 @@ BEGIN
 			 IF (TG_OP = 'UPDATE' AND NEW.ip_address != OLD.ip_address) THEN
 				PERFORM netblock_id FROM netblock WHERE
 					parent_netblock_id = realnew.netblock_id AND
-					((is_single_address = 'Y' AND NEW.ip_address !=
+					((is_single_address = true AND NEW.ip_address !=
 						ip_address::cidr) OR
-					(is_single_address = 'N' AND realnew.netblock_id !=
-						netblock_utils.find_best_parent_id(netblock_id)));
+					(is_single_address = false AND realnew.netblock_id !=
+						netblock_utils.find_best_parent_netblock_id(netblock_id := netblock_id)));
 				IF FOUND THEN
 					RAISE EXCEPTION 'Update for netblock % (%) causes parent to have children that do not belong to it',
 						realnew.netblock_id, realnew.ip_address
@@ -702,7 +698,7 @@ BEGIN
 			 * children of this netblock (e.g. if inserting into the middle
 			 * of the hierarchy)
 			 */
-			IF (realnew.is_single_address = 'N') THEN
+			IF (realnew.is_single_address = false) THEN
 				PERFORM netblock_id FROM netblock WHERE
 					parent_netblock_id = realnew.parent_netblock_id AND
 					netblock_id != realnew.netblock_id AND
@@ -745,12 +741,12 @@ RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
 BEGIN
-	IF (NEW.is_single_address = 'N' AND OLD.is_single_address = 'Y') OR
+	IF (NEW.is_single_address = false AND OLD.is_single_address = true) OR
 		(NEW.netblock_type != 'default' AND OLD.netblock_type = 'default')
 			THEN
 		select count(*)
 		INTO _tally
-		FROM network_interface_netblock
+		FROM layer3_interface_netblock
 		WHERE netblock_id = NEW.netblock_id;
 
 		IF _tally > 0 THEN

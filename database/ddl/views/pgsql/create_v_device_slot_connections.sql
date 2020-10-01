@@ -36,12 +36,12 @@ WITH ds AS (
 			SELECT
 				slot_type_id
 			FROM
-				jazzhands.slot_type_prmt_rem_slot_type
+				jazzhands.slot_type_permitted_remote_slot_type
 			UNION
 			SELECT
 				remote_slot_type_id
 			FROM
-				jazzhands.slot_type_prmt_rem_slot_type
+				jazzhands.slot_type_permitted_remote_slot_type
 		)
 )
 SELECT

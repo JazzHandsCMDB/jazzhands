@@ -1,3 +1,11 @@
+jazzhands-netdev-mgmt-utils (0.86.8) trusty; urgency=medium
+
+  * Remove fully-qualified schema things from utilities
+  * Rearrange authentication bits for config loaders to require
+    auth app if used.
+
+ -- Matthew Ragan <mdr@sucksless.net>  Wed, 20 May 2020 00:34:57 +0000
+
 jazzhands-netdev-mgmt-utils (0.81.5) trusty; urgency=medium
 
   * Populate LLDP chassis ID as device.host_id

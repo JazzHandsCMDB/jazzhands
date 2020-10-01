@@ -75,7 +75,7 @@ BEGIN
 	INSERT INTO val_device_collection_Type (
 		device_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into device_collection (
@@ -101,11 +101,11 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
-				h.parent_device_collection_id
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS'
-		AND h.device_collection_id IN (
+		AND h.child_device_collection_id IN (
 			_dc_onecol.device_collection_id,
 			_dc_onecol2.device_collection_id
 		);
@@ -116,11 +116,11 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
-				h.parent_device_collection_id
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS2'
-		AND h.device_collection_id IN (
+		AND h.child_device_collection_id IN (
 			_dc_onecol.device_collection_id,
 			_dc_onecol2.device_collection_id
 		);
@@ -135,11 +135,11 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
-				h.parent_device_collection_id
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS'
-		AND h.device_collection_id IN (
+		AND h.child_device_collection_id IN (
 			_dc_onecol.device_collection_id,
 			_dc_onecol2.device_collection_id
 		);
@@ -150,11 +150,11 @@ BEGIN
 		SELECT count(*)
 		INTO _tally
 		FROM device_collection dc
-			JOIN v_device_collection_hier_trans h ON dc.device_collection_id =
-				h.parent_device_collection_id
+			JOIN device_collection_hier h ON dc.device_collection_id =
+				h.device_collection_id
 		WHERE dc.device_collection_type = 'by-coll-type'
 		AND dc.device_collection_NAME = 'JHTEST-COLS2'
-		AND h.device_collection_id IN (
+		AND h.child_device_collection_id IN (
 			_dc_onecol.device_collection_id,
 			_dc_onecol2.device_collection_id
 		);
@@ -177,28 +177,28 @@ BEGIN
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment_id, operating_system_id, is_monitored
+		service_environment_id, operating_system_id
 	) values (
 		1, 'JHTEST one', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		where service_environment_name = 'production'),
-		0, 'Y'
+		0
 	) RETURNING * into _dev1;
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment_id, operating_system_id, is_monitored
+		service_environment_id, operating_system_id
 	) values (
 		1, 'JHTEST two', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		where service_environment_name = 'production'),
-		0, 'Y'
+		0
 	) RETURNING * into _dev2;
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
-		INSERT INTO v_device_collection_hier_trans (
-			parent_device_collection_id, device_collection_id
+		INSERT INTO device_collection_hier (
+			device_collection_id, child_device_collection_id
 		) VALUES (
 			_hdc.device_collection_id, __dc_onemem.device_collection_id
 		);

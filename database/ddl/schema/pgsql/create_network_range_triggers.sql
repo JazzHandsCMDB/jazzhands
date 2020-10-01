@@ -114,13 +114,13 @@ BEGIN
 	END IF;
 
 	--
-	-- Check to ensure both stop and start have is_single_address = 'Y'
+	-- Check to ensure both stop and start have is_single_address = true
 	--
 	PERFORM
 	FROM	netblock
 	WHERE	( netblock_id = NEW.start_netblock_id
 				OR netblock_id = NEW.stop_netblock_id
-			) AND is_single_address = 'N';
+			) AND is_single_address = false;
 
 	IF FOUND THEN
 		RAISE EXCEPTION 'Start and stop types must be single addresses'
@@ -130,7 +130,7 @@ BEGIN
 	PERFORM
 	FROM	netblock
 	WHERE	netblock_id = NEW.parent_netblock_id
-	AND can_subnet = 'Y';
+	AND can_subnet = true;
 
 	IF FOUND THEN
 		RAISE EXCEPTION 'Can not set ranges on subnetable netblocks'
@@ -152,7 +152,7 @@ BEGIN
 			USING ERRCODE = 'integrity_constraint_violation';
 	END IF;
 
-	IF v_nrt.can_overlap = 'N' THEN
+	IF v_nrt.can_overlap = false THEN
 		SELECT host(ip_address) INTO startip
 			FROM netblock where netblock_id = NEW.start_netblock_id;
 		SELECT host(ip_address) INTO stopip
@@ -181,7 +181,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF v_nrt.require_cidr_boundary = 'Y' THEN
+	IF v_nrt.require_cidr_boundary = true THEN
 		SELECT host(ip_address) INTO startip
 			FROM netblock where netblock_id = NEW.start_netblock_id;
 		SELECT host(ip_address) INTO stopip
@@ -244,7 +244,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_network_range_ips
 
 ----------------------------------------------------------------------------
 --
--- if a type is switching to 'Y', make sure that this does not create
+-- if a type is switching to true, make sure that this does not create
 -- invalid data.
 --
 CREATE OR REPLACE FUNCTION validate_val_network_range_type()
@@ -318,7 +318,7 @@ AS $$
 DECLARE
 	_tally INTEGER;
 BEGIN
-	IF NEW.can_overlap = 'N' THEN
+	IF NEW.can_overlap = false THEN
 		SELECT COUNT(*)
 		INTO _tally
 		FROM (
@@ -349,7 +349,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF NEW.require_cidr_boundary = 'Y' THEN
+	IF NEW.require_cidr_boundary = true THEN
 		SELECT COUNT(*)
 		INTO _tally
 		FROM (
@@ -393,7 +393,7 @@ CREATE CONSTRAINT TRIGGER trigger_validate_net_range_toggle_nonoverlap
 
 ----------------------------------------------------------------------------
 --
--- if a type is switching to 'Y', make sure that this does not create
+-- if a type is switching to true, make sure that this does not create
 -- invalid data.
 --
 CREATE OR REPLACE FUNCTION validate_val_network_range_type()
@@ -491,9 +491,9 @@ BEGIN
 				OR stop.netblock_id = NEW.netblock_id
 			) AND (
 				-- If so, check to make usre that its the right type.
-					p.can_subnet = 'Y'
-				OR 	start.is_single_address = 'N'
-				OR 	stop.is_single_address = 'N'
+					p.can_subnet = true
+				OR 	start.is_single_address = false
+				OR 	stop.is_single_address = false
 				-- and the start/stop is in the parent
 				OR NOT (
 					host(start.ip_address)::inet <<= p.ip_address
@@ -508,14 +508,14 @@ BEGIN
 						vnrt.netblock_type
 					)
 				) -- and if a cidr boundary is required and its not on AS such
-				OR ( vnrt.require_cidr_boundary = 'Y'
+				OR ( vnrt.require_cidr_boundary = true
 					AND NOT (
 						start.ip_address = network(start.ip_address)
 						AND
 						stop.ip_address = broadcast(stop.ip_address)
 					)
 				)
-				OR ( vnrt.require_cidr_boundary = 'Y'
+				OR ( vnrt.require_cidr_boundary = true
 					AND NOT (
 						masklen(start.ip_address) !=
 							masklen(stop.ip_address)
@@ -557,7 +557,7 @@ BEGIN
 					WHERE parent_netblock_id = NEW.netblock_id
 					OR start_netblock_id = NEW.netblock_id
 					OR stop_netblock_id = NEW.netblock_id
-				) AND can_overlap = 'N'
+				) AND can_overlap = false
 		LOOP
 			SELECT count(*)
 			INTO _tally
@@ -584,7 +584,7 @@ BEGIN
 			JOIN netblock start ON start.netblock_id = nr.start_netblock_id
 			JOIN netblock stop ON stop.netblock_id = nr.stop_netblock_id
 			JOIN val_network_range_type USING (network_range_type)
-		WHERE require_cidr_boundary = 'Y'
+		WHERE require_cidr_boundary = true
 		AND (
 			nr.parent_netblock_id = NEW.netblock_id
 			OR start_netblock_id = NEW.netblock_id

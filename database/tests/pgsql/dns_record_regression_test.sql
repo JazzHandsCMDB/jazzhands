@@ -41,7 +41,8 @@ DECLARE
 	_dnsrec1		dns_record%ROWTYPE;
 	_dnsrec2		dns_record%ROWTYPE;
 	_dnsrec			dns_record%ROWTYPE;
-	_nb				netblock%ROWTYPE;
+	_nb			netblock%ROWTYPE;
+	_r			RECORD;
 BEGIN
 	RAISE NOTICE '++ Beginning tests of dns_record_update_nontime...';
 
@@ -64,7 +65,7 @@ BEGIN
 	WITH x as (
 		INSERT INTO ip_universe_visibility
 			(ip_universe_id, visible_ip_universe_id, propagate_dns)
-		SELECT i.ip_universe_id, v.ip_universe_id, 'Y'
+		SELECT i.ip_universe_id, v.ip_universe_id, true
 		FROM ip_universe i, ip_universe v
 		WHERE i.ip_universe_name = 'default'
 		AND v.ip_universe_name = 'private'
@@ -74,7 +75,7 @@ BEGIN
 	WITH x as (
 		INSERT INTO ip_universe_visibility
 			(ip_universe_id, visible_ip_universe_id, propagate_dns)
-		SELECT i.ip_universe_id, v.ip_universe_id, 'Y'
+		SELECT i.ip_universe_id, v.ip_universe_id, true
 		FROM ip_universe i, ip_universe v
 		WHERE v.ip_universe_name = 'default'
 		AND i.ip_universe_name = 'private'
@@ -82,7 +83,7 @@ BEGIN
 	) select count(*) into _tally FROM x;
 
 	INSERT INTO DNS_DOMAIN (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest.example.com', 'service'
 	) RETURNING dns_domain_id INTO _dnsdomid;
@@ -92,7 +93,7 @@ BEGIN
 		soa_class, soa_ttl, soa_serial, soa_refresh, soa_retry,
 		soa_expire, soa_minimum, soa_mname, soa_rname
 	) values (
-		_dnsdomid, 0, 'Y',
+		_dnsdomid, 0, true,
 		'IN', 3600, 1, 600, 1800,
 		604800, 300, 'ns.example.com', 'hostmaster.example.com'
 	);
@@ -183,7 +184,7 @@ BEGIN
 			description
 	) VALUES (
 		'172.31.30.0/24', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _blkid'
 	) RETURNING netblock_id INTO _blkid;
 
@@ -192,7 +193,7 @@ BEGIN
 			description
 	) VALUES (
 		'172.31.30.1/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip1id'
 	) RETURNING netblock_id INTO _ip1id;
 
@@ -201,7 +202,7 @@ BEGIN
 			description
 	) VALUES (
 		'172.31.30.2/24', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip2id'
 	) RETURNING netblock_id INTO _ip2id;
 
@@ -211,7 +212,7 @@ BEGIN
 			description
 	) VALUES (
 		'fc00::/64', 'default',
-			'N', 'N', 'Allocated',
+			false, false, 'Allocated',
 			'JHTEST _ip6id1'
 	) RETURNING netblock_id INTO _ip6id1;
 
@@ -221,7 +222,7 @@ BEGIN
 			description
 	) VALUES (
 		'fc00::/64', 'default',
-			'Y', 'N', 'Allocated',
+			true, false, 'Allocated',
 			'JHTEST _ip6id1'
 	) RETURNING netblock_id INTO _ip6id1;
 
@@ -258,7 +259,7 @@ BEGIN
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 			should_generate_ptr
 		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip2id, 'Y'
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip2id, true
 		) RETURNING dns_record_id INTO _dnsrec1;
 		RAISE NOTICE '.. It does (BAD!)';
 	EXCEPTION WHEN unique_violation THEN
@@ -366,13 +367,13 @@ BEGIN
 		dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 		should_generate_ptr
 	) VALUES (
-		'JHTEST-A2alt', _dnsdomid, 'IN', 'A', _ip1id, 'N'
+		'JHTEST-A2alt', _dnsdomid, 'IN', 'A', _ip1id, false
 	) RETURNING dns_record_id INTO _dnsrec2;
 
 	RAISE NOTICE 'Checking if multi-PTR update fails..';
 	BEGIN
 		UPDATE dns_record
-		SET should_generate_ptr = 'Y'
+		SET should_generate_ptr = true
 		WHERE dns_record_id = _dnsrec2.dns_record_id;
 		RAISE EXCEPTION 'Updating to get two PTR enabled records succeeded';
 	EXCEPTION WHEN SQLSTATE 'JH201' THEN
@@ -396,7 +397,7 @@ BEGIN
 			dns_name, dns_domain_id, dns_class, dns_type, netblock_id,
 			should_generate_ptr
 		) VALUES (
-			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, 'N'
+			'JHTEST-A1', _dnsdomid, 'IN', 'A', _ip1id, false
 		) RETURNING dns_record_id INTO _dnsrec1;
 		RAISE EXCEPTION 'Inserting the same A record did not fail';
 	EXCEPTION WHEN unique_violation THEN
@@ -578,6 +579,10 @@ BEGIN
 	) VALUES (
 		'jhtestme', _dnsdomid, 'A', _ip1id
 	) RETURNING * INTO _dnsrec1;
+	select * INTO _r FROM dns_record WHERE dns_record_id = _dnsrec1.dns_record_id;
+	IF _r != _dnsrec1 THEN
+		RAISE EXCEPTION  '>> A insert failed: %', to_jsonb(_r);
+	END IF;
 	BEGIN
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, dns_value
@@ -680,13 +685,13 @@ BEGIN
 		should_generate_ptr
 	) VALUES (
 		'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-		'N'
+		false
 	) RETURNING * INTO _dnsrec2;
 
 	RAISE NOTICE 'Checking to see if should_generate_ptr can not be Y in UPDATE...';
 	BEGIN
 		UPDATE dns_record
-		SET should_generate_ptr = 'Y'
+		SET should_generate_ptr = true
 		WHERE dns_record_id = _dnsrec2.dns_record_id;
 		RAISE EXCEPTION '... It CAN!';
 	EXCEPTION  WHEN foreign_key_violation THEN
@@ -700,7 +705,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-a', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-			'Y'
+			true
 		) RETURNING * INTO _dnsrec2;
 		RAISE EXCEPTION '... It CAN!';
 	EXCEPTION  WHEN foreign_key_violation THEN
@@ -722,7 +727,7 @@ BEGIN
 		INSERT INTO netblock (
 			ip_address, can_subnet, is_single_address, netblock_status,
 			ip_universe_id)
-		SELECT '2001:DB8:f00d::/64', 'N', 'N', 'Allocated', ip_universe_id
+		SELECT '2001:DB8:f00d::/64', false, false, 'Allocated', ip_universe_id
 			FROM ip_universe where ip_universe_name = 'private'
 			LIMIT 1
 			RETURNING * INTO _nb;
@@ -737,7 +742,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 
 		BEGIN
@@ -801,7 +806,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'AAAA', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 	RAISE EXCEPTION '.... it did not!';
 	EXCEPTION WHEN not_null_violation THEN
@@ -820,7 +825,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 	RAISE EXCEPTION '.... it did not!';
 	EXCEPTION WHEN not_null_violation THEN
@@ -839,7 +844,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 
 		UPDATE dns_record set dns_type = 'AAAA'
@@ -861,7 +866,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'AAAA', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 
 		UPDATE dns_record set dns_type = 'A'
@@ -883,7 +888,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-a', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 
 		RAISE EXCEPTION '.... it did not!';
@@ -904,7 +909,7 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'A', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 
 		INSERT INTO dns_record (
@@ -931,10 +936,10 @@ BEGIN
 			should_generate_ptr
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'CNAME', _dnsrec1.dns_record_id,
-			'N'
+			false
 		) RETURNING * INTO _dnsrec2;
 
-		UPDATE dns_record set is_enabled = 'N'
+		UPDATE dns_record set is_enabled = false
 			WHERE dns_record_id = _dnsrec1.dns_record_id;
 
 		RAISE EXCEPTION '.... it did not!';
@@ -947,7 +952,7 @@ BEGIN
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, netblock_id, is_enabled
 		) VALUES (
-			'jhtestme-a', _dnsdomid, 'A', _ip1id, 'N'
+			'jhtestme-a', _dnsdomid, 'A', _ip1id, false
 		) RETURNING * INTO _dnsrec1;
 
 		INSERT INTO dns_record (
@@ -955,11 +960,11 @@ BEGIN
 			should_generate_ptr, is_enabled
 		) VALUES (
 			'jhtestme-b', _dnsdomid, 'CNAME', _dnsrec1.dns_record_id,
-			'N', 'N'
+			false, false
 		) RETURNING * INTO _dnsrec2;
 
 		BEGIN
-			UPDATE dns_record set is_enabled = 'Y'
+			UPDATE dns_record set is_enabled = true
 				WHERE dns_record_id = _dnsrec2.dns_record_id;
 
 		EXCEPTION WHEN SQLSTATE 'JH001' THEN
@@ -975,7 +980,7 @@ BEGIN
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, netblock_id, is_enabled
 		) VALUES (
-			'jhtestme-a', _dnsdomid, 'A', _ip1id, 'N'
+			'jhtestme-a', _dnsdomid, 'A', _ip1id, false
 		) RETURNING * INTO _dnsrec1;
 
 		BEGIN
@@ -984,7 +989,7 @@ BEGIN
 				should_generate_ptr, is_enabled
 			) VALUES (
 				'jhtestme-b', _dnsdomid, 'CNAME', _dnsrec1.dns_record_id,
-				'N', 'Y'
+				false, true
 			) RETURNING * INTO _dnsrec2;
 		EXCEPTION WHEN SQLSTATE 'JH001' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
@@ -999,7 +1004,7 @@ BEGIN
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, netblock_id, is_enabled
 		) VALUES (
-			'jhtestme-a', _dnsdomid, 'A', _ip1id, 'N'
+			'jhtestme-a', _dnsdomid, 'A', _ip1id, false
 		) RETURNING * INTO _dnsrec1;
 
 		BEGIN
@@ -1008,7 +1013,7 @@ BEGIN
 				should_generate_ptr, is_enabled
 			) VALUES (
 				_dnsrec1.dns_record_id, _dnsdomid, 'A', _ip2id,
-				'N', 'Y'
+				false, true
 			) RETURNING * INTO _dnsrec2;
 		EXCEPTION WHEN SQLSTATE 'JH001' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
@@ -1024,7 +1029,7 @@ BEGIN
 			INSERT INTO dns_record (
 				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
 			) VALUES (
-				'*', _dnsdomid, 'A', _ip1id, 'Y'
+				'*', _dnsdomid, 'A', _ip1id, true
 			) RETURNING * INTO _dnsrec1;
 
 		EXCEPTION WHEN integrity_constraint_violation THEN
@@ -1042,7 +1047,7 @@ BEGIN
 			INSERT INTO dns_record (
 				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
 			) VALUES (
-				'$', _dnsdomid, 'A', _ip1id, 'N'
+				'$', _dnsdomid, 'A', _ip1id, false
 			) RETURNING * INTO _dnsrec1;
 
 		EXCEPTION WHEN integrity_constraint_violation THEN
@@ -1060,7 +1065,7 @@ BEGIN
 			INSERT INTO dns_record (
 				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
 			) VALUES (
-				'*', _dnsdomid, 'A', _ip1id, 'N'
+				'*', _dnsdomid, 'A', _ip1id, false
 			) RETURNING * INTO _dnsrec1;
 
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';

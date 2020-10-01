@@ -49,6 +49,7 @@ my $purge_int = 1;
 my $password;
 my $bgpstate = 'up';
 my $hostname = [];
+my $timeout = undef;
 my $authapp = 'net_dev_probe';
 
 sub loggit {
@@ -58,6 +59,7 @@ sub loggit {
 
 GetOptions(
 	'username=s', \$user,
+	'timeout=i', \$timeout,
 	'commit!', \$commit,
 	'hostname=s', $hostname,
 	'verbose+', \$verbose,
@@ -135,10 +137,10 @@ $q = q {
 		d.device_name,
 		dt.config_fetch_type
 	FROM
-		jazzhands.device d JOIN
-		jazzhands.device_type dt USING (device_type_id)
+		device d JOIN
+		device_type dt USING (device_type_id)
 	WHERE
-		device_name = ?
+		lower(device_name) = lower(?)
 };
 
 my $dev_search_sth;
@@ -152,20 +154,20 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 #	WITH parms AS (
 #		SELECT ?::integer AS device_id
 #	) SELECT
-#		ni.network_interface_id,
-#		ni.network_interface_name
+#		ni.layer3_interface_id,
+#		ni.layer3_interface_name
 #	FROM
-#		jazzhands.network_interface ni JOIN
-#		jazzhands.network_interface_netblock USING (network_interface_id),
+#		layer3_interface ni JOIN
+#		layer3_interface_netblock USING (layer3_interface_id),
 #		parms
 #	WHERE
 #		ni.device_id = parms.device_id
 #	UNION SELECT
-#		ni.network_interface_id,
-#		ni.network_interface_name
+#		ni.layer3_interface_id,
+#		ni.layer3_interface_name
 #	FROM
-#		jazzhands.network_interface ni JOIN
-#		jazzhands.shared_netblock_network_int snni USING (network_interface_id),
+#		layer3_interface ni JOIN
+#		shared_netblock_network_int snni USING (layer3_interface_id),
 #		parms
 #	WHERE
 #		ni.device_id = parms.device_id
@@ -173,10 +175,10 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	SELECT
-		ni.network_interface_id,
-		ni.network_interface_name
+		ni.layer3_interface_id,
+		ni.layer3_interface_name
 	FROM
-		jazzhands.network_interface ni
+		layer3_interface ni
 	WHERE
 		ni.device_id = ?
 };
@@ -188,8 +190,8 @@ if (!($ni_list_sth = $dbh->prepare_cached($q))) {
 }
 
 $q = q {
-	SELECT * FROM device_utils.remove_network_interfaces(
-		network_interface_id_list := ?
+	SELECT * FROM device_manip.remove_layer3_interfaces(
+		layer3_interface_id_list := ?
 	);
 };
 
@@ -201,9 +203,9 @@ if (!($ni_del_sth = $dbh->prepare_cached($q))) {
 }
 
 $q = q {
-	SELECT * FROM netblock_manip.set_interface_addresses(
+	SELECT * FROM netblock_manip.set_layer3_interface_addresses(
 		device_id := ?,
-		network_interface_name := ?,
+		layer3_interface_name := ?,
 		ip_address_hash := ?,
 		create_layer3_networks := true,
 		move_addresses := ?,
@@ -289,7 +291,7 @@ foreach my $host (@$hostname) {
 	my $info;
 	if ($probe_ip) {
 		if (!$ni_list_sth->execute($db_dev->{device_id})) {
-			printf STDERR "Error fetching network_interfaces from database: %s\n",
+			printf STDERR "Error fetching layer3_interfaces from database: %s\n",
 				$ni_list_sth->errstr;
 			exit 1;
 		}
@@ -298,17 +300,18 @@ foreach my $host (@$hostname) {
 		my $unnamed_int = [];
 		my $rec;
 		while ($rec = $ni_list_sth->fetchrow_hashref) {
-			if (defined($rec->{network_interface_name})) {
-				$dev_int->{$rec->{network_interface_name}} =
-					$rec->{network_interface_id};
+			if (defined($rec->{layer3_interface_name})) {
+				$dev_int->{$rec->{layer3_interface_name}} =
+					$rec->{layer3_interface_id};
 			} else {
-				push @$unnamed_int, $rec->{network_interface_id};
+				push @$unnamed_int, $rec->{layer3_interface_id};
 			}
 		}
 
 		if (!($info = $device->GetIPAddressInformation(
 			debug			=> $debug,
-			errors 			=> \@errors
+			errors 			=> \@errors,
+			timeout			=> $timeout,
 		))) {
 			printf STDERR "Error getting address information on switch %s: %s\n",
 				$host,
@@ -324,7 +327,7 @@ foreach my $host (@$hostname) {
 			#
 			# Don't process anything for lo0, because
 			#
-			next if $iname =~ '^lo0';
+			#next if $iname =~ '^lo0';
 
 			if ($verbose) {
 				printf "    %s:\n", $iname;
@@ -412,12 +415,12 @@ foreach my $host (@$hostname) {
 		if (%$dev_int || @$unnamed_int) {
 			if ($purge_int) {
 				if ($verbose) {
-					printf "    Removing network interfaces: %s\n",
+					printf "    Removing layer3 interfaces: %s\n",
 						(join ", ", keys %$dev_int);
 				}
 				if (!$notreally) {
 					if (!$ni_del_sth->execute( [ values %$dev_int, @$unnamed_int ] )) {
-						printf STDERR "Error deleting network_interfaces from database: %s\n",
+						printf STDERR "Error deleting layer3_interfaces from database: %s\n",
 							$ni_del_sth->errstr;
 						exit 1;
 					}
@@ -429,7 +432,8 @@ foreach my $host (@$hostname) {
 	if ($probe_lldp) {
 		if (!($info = $device->GetLLDPInformation(
 			debug			=> $debug,
-			errors 			=> \@errors
+			errors 			=> \@errors,
+			timeout			=> $timeout,
 		))) {
 			printf STDERR "Error getting LLDP information on switch %s: %s\n",
 				$host,

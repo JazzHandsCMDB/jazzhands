@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2015 Matthew Ragan
+-- Copyright (c) 2015, 2016, 2018, 2019 Matthew Ragan
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS component_utils;
                 CREATE SCHEMA component_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA component_utils FROM public;
 		COMMENT ON SCHEMA component_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -46,7 +47,7 @@ BEGIN
 			slot_name,
 			slot_type_id,
 			slot_index,
-			component_type_slot_tmplt_id,
+			component_type_slot_template_id,
 			physical_label,
 			slot_x_offset,
 			slot_y_offset,
@@ -57,32 +58,33 @@ BEGIN
 			ctst.slot_name_template,
 			ctst.slot_type_id,
 			ctst.slot_index,
-			ctst.component_type_slot_tmplt_id,
+			ctst.component_type_slot_template_id,
 			ctst.physical_label,
 			ctst.slot_x_offset,
 			ctst.slot_y_offset,
 			ctst.slot_z_offset,
 			ctst.slot_side
 		FROM
-			component_type_slot_tmplt ctst JOIN
+			component_type_slot_template ctst JOIN
 			component c USING (component_type_id) LEFT JOIN
 			slot ON (slot.component_id = cid AND
-				slot.component_type_slot_tmplt_id =
-				ctst.component_type_slot_tmplt_id
+				slot.component_type_slot_template_id =
+				ctst.component_type_slot_template_id
 			)
 		WHERE
 			c.component_id = cid AND
-			slot.component_type_slot_tmplt_id IS NULL
-		ORDER BY ctst.component_type_slot_tmplt_id
+			slot.component_type_slot_template_id IS NULL
+		ORDER BY ctst.component_type_slot_template_id
 		RETURNING *
 	LOOP
 		RAISE DEBUG 'Creating slot for component % from template %',
-			cid, s.component_type_slot_tmplt_id;
+			cid, s.component_type_slot_template_id;
 		RETURN NEXT s;
 	END LOOP;
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.migrate_component_template_slots(
@@ -110,12 +112,12 @@ BEGIN
 			s.slot_name,
 			s.slot_type_id,
 			st.slot_function,
-			ctst.component_type_slot_tmplt_id
+			ctst.component_type_slot_template_id
 		FROM
 			slot s JOIN 
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
-			component_type_slot_tmplt ctst USING (component_type_slot_tmplt_id)
+			component_type_slot_template ctst USING (component_type_slot_template_id)
 		WHERE
 			s.component_id = cid AND
 			ctst.component_type_id IS DISTINCT FROM c.component_type_id
@@ -129,7 +131,7 @@ BEGIN
 			slot s JOIN 
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
-			component_type_slot_tmplt ctst USING (component_type_slot_tmplt_id)
+			component_type_slot_template ctst USING (component_type_slot_template_id)
 		WHERE
 			s.component_id = cid AND
 			ctst.component_type_id IS NOT DISTINCT FROM c.component_type_id
@@ -218,7 +220,7 @@ BEGIN
 					c.component_id IS NULL AND
 					ni.network_interface_id IS NULL AND
 					cp.component_property_id IS NULL AND
-					os.component_type_slot_tmplt_id IS NOT NULL
+					os.component_type_slot_template_id IS NOT NULL
 			)
 	) SELECT s.* FROM slot s JOIN slot_map sm ON s.slot_id = sm.new_slot_id;
 
@@ -226,6 +228,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.set_slot_names(
@@ -248,12 +251,12 @@ BEGIN
 			pst.child_slot_offset as child_slot_offset
 		FROM
 			slot s JOIN
-			component_type_slot_tmplt st ON (s.component_type_slot_tmplt_id =
-				st.component_type_slot_tmplt_id) JOIN
+			component_type_slot_template st ON (s.component_type_slot_template_id =
+				st.component_type_slot_template_id) JOIN
 			component c ON (s.component_id = c.component_id) LEFT JOIN
 			slot ps ON (c.parent_slot_id = ps.slot_id) LEFT JOIN
-			component_type_slot_tmplt pst ON (ps.component_type_slot_tmplt_id =
-				pst.component_type_slot_tmplt_id)
+			component_type_slot_template pst ON (ps.component_type_slot_template_id =
+				pst.component_type_slot_template_id)
 		WHERE
 			s.slot_id = ANY(slot_id_list) AND
 			(
@@ -287,6 +290,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.remove_component_hier(
@@ -382,6 +386,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -593,7 +598,7 @@ BEGIN
 				pci_sub_device_name
 			END,
 			stid,
-			'Y',
+			true,
 			model_name
 		) RETURNING component_type_id INTO ctid;
 		--
@@ -622,7 +627,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -674,6 +679,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
@@ -719,7 +725,7 @@ BEGIN
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		component_type_component_func ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		component_function = 'disk' AND
 		ct.model = m AND
@@ -776,7 +782,7 @@ BEGIN
 			cid,
 			model,
 			stid,
-			'Y',
+			true,
 			concat_ws(' ', vendor_name, model, media_type, 'disk')
 		) RETURNING component_type_id INTO ctid;
 
@@ -797,7 +803,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -849,6 +855,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.insert_memory_component(
@@ -889,7 +896,7 @@ BEGIN
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		component_type_component_func ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		component_function = 'memory' AND
 		ct.model = m AND
@@ -946,7 +953,7 @@ BEGIN
 			cid,
 			model,
 			stid,
-			'Y',
+			true,
 			concat_ws(' ', vendor_name, model, (memory_size || 'MB'), 'memory')
 		) RETURNING component_type_id INTO ctid;
 
@@ -966,7 +973,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -1017,6 +1024,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -1058,7 +1066,7 @@ BEGIN
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		component_type_component_func ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id)
 	WHERE
 		component_function = 'CPU' AND
 		ct.model = m AND
@@ -1116,7 +1124,7 @@ BEGIN
 			cid,
 			model,
 			stid,
-			'Y',
+			true,
 			model
 		) RETURNING component_type_id INTO ctid;
 
@@ -1136,7 +1144,7 @@ BEGIN
 		-- Insert the component functions
 		--
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
@@ -1187,6 +1195,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_utils.insert_component_into_parent_slot(
@@ -1270,7 +1279,8 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
+SECURITY DEFINER
+LANGUAGE plpgsql;
 
 --
 -- Replace a given simple component with another one.  This isn't very smart,
@@ -1329,6 +1339,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
@@ -1336,12 +1347,14 @@ CREATE OR REPLACE FUNCTION component_utils.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
 	no_create			boolean DEFAULT false,
-	ownership_status	text DEFAULT 'unknown'
+	ownership_status	text DEFAULT 'unknown',
+	parent_slot_id		jazzhands.slot.slot_id%TYPE DEFAULT NULL
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
 	ctid		ALIAS FOR component_type_id;
 	sn			ALIAS FOR serial_number;
+	psid		ALIAS FOR parent_slot_id;
 	os			ALIAS FOR ownership_status;
 	c			RECORD;
 	cid			integer;
@@ -1359,7 +1372,18 @@ BEGIN
 			a.serial_number = sn;
 
 		IF FOUND THEN
-			return c;
+			--
+			-- Only update the parent slot if it isn't set already
+			--
+			IF c.parent_slot_id IS NULL THEN
+				UPDATE
+					component comp
+				SET
+					parent_slot_id = psid
+				WHERE
+					comp.component_id = c.component_id;
+			END IF;
+			RETURN c;
 		END IF;
 	END IF;
 
@@ -1368,9 +1392,11 @@ BEGIN
 	END IF;
 
 	INSERT INTO jazzhands.component (
-		component_type_id
+		component_type_id,
+		parent_slot_id
 	) VALUES (
-		ctid
+		ctid,
+		parent_slot_id
 	) RETURNING * INTO c;
 
 	IF serial_number IS NOT NULL THEN
@@ -1389,7 +1415,11 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
+SECURITY DEFINER
 LANGUAGE plpgsql;
 
-GRANT USAGE ON SCHEMA component_utils TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO ro_role;
+REVOKE ALL ON SCHEMA component_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_utils FROM public;
+
+GRANT USAGE ON SCHEMA component_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO iud_role;

@@ -21,7 +21,7 @@
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
- * Copyright (c) 2013-2014 Todd Kover
+ * Copyright (c) 2013-2020 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,6 +38,11 @@
  */
 
 
+/****************************************************************************
+ *
+ * THIS ENTIRE SCHEMA WILL BE DROPPED SOON
+ *
+ ****************************************************************************/
 
 /*
  * $Id$
@@ -54,6 +59,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS port_utils;
                 CREATE SCHEMA port_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA port_utils FROM public;
                 COMMENT ON SCHEMA port_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -72,55 +78,52 @@ $$ LANGUAGE plpgsql;
 -------------------------------------------------------------------
 
 -------------------------------------------------------------------
--- sets up power ports for a device if they are not there.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_power (
-	in_Device_id device.device_id%type
-) RETURNS VOID AS $$
-DECLARE
-	dt_id	device.device_type_id%type;
-BEGIN
-	return;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- sets up serial ports for a device if they are not there.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_serial (
-	in_Device_id device.device_id%type
-) RETURNS INTEGER AS $$
-DECLARE
-	dt_id	device.device_type_id%type;
-BEGIN
-	return setup_device_physical_ports(in_device_id, 'serial');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- sets up physical ports for a device if they are not there.  This
--- will eitehr use in_port_type or in the case where its not set,
--- will iterate over each type of physical port and run it for that.
--- This is to facilitate new types that show up over time.
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_device_physical_ports (
-	in_Device_id device.device_id%type,
-	in_port_type val_slot_function.slot_function%type DEFAULT NULL
-) RETURNS VOID AS $$
-BEGIN
-	-- this has been replaced by the slot/component stuff
-	RETURN;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
 -- connect to layer1 devices
+--
+-- ** THIS IS BEING DEPRECATED **
 -------------------------------------------------------------------
 --
 --
+-------------------------------------------------------------------
+-- update a table dynamically
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION port_utils.do_l1_connection_update(
+	p_cnames in varchar(100) [],
+	p_values in varchar(100) [],
+	p_l1_id in jazzhands_legacy.layer1_connection.layer1_connection_id%type
+) RETURNS VOID AS $$
+DECLARE
+	l_stmt  varchar(4096);
+	l_rc    integer;
+	i       integer;
+BEGIN
+	l_stmt := 'update layer1_connection set ';
+	for i in array_lower(p_cnames, 1) .. array_upper(p_cnames, 1)
+	LOOP
+		if (i > array_lower(p_cnames, 1) ) then
+			l_stmt := l_stmt || ',';
+		end if;
+		l_stmt := l_stmt || p_cnames[i] || '=' || p_values[i];
+	END LOOP;
+	l_stmt := l_stmt || ' where layer1_connection_id = ' || p_l1_id;
+	RAISE DEBUG '%', l_stmt;
+	-- note: bind variables, sadly, are not used here, but the only
+	-- thing that is supposed to call it,
+	-- port_utils.configure_layer1_connect is expected to use
+	-- quote_literal to make sure things are properly quoted to avoid
+	-- sql injection type attacks.  I would rather use bind variables,
+	-- but this does not appear to work for dynamically built queries
+	-- in pl/pgsql.  alas.
+	EXECUTE l_stmt;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET SEARCH_PATH=jazzhands_legacy;
+
+--end of procedure do_l1_connection_update
+-------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect (
-	physportid1	physical_port.physical_port_id%type,
-	physportid2	physical_port.physical_port_id%type,
+	physportid1	jazzhands_legacy.physical_port.physical_port_id%type,
+	physportid2	jazzhands_legacy.physical_port.physical_port_id%type,
 	baud		integer			DEFAULT -99,
 	data_bits	integer	DEFAULT -99,
 	stop_bits	integer	DEFAULT -99,
@@ -130,21 +133,21 @@ CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect (
 ) RETURNS INTEGER AS $$
 DECLARE
 	tally		integer;
-	l1_con_id	layer1_connection.layer1_connection_id%TYPE;
-	l1con		layer1_connection%ROWTYPE;
-	p1_l1_con	layer1_connection%ROWTYPE;
-	p2_l1_con	layer1_connection%ROWTYPE;
-	p1_port		physical_port%ROWTYPE;
-	p2_port		physical_port%ROWTYPE;
+	l1_con_id	jazzhands_legacy.layer1_connection.layer1_connection_id%TYPE;
+	l1con		jazzhands_legacy.layer1_connection%ROWTYPE;
+	p1_l1_con	jazzhands_legacy.layer1_connection%ROWTYPE;
+	p2_l1_con	jazzhands_legacy.layer1_connection%ROWTYPE;
+	p1_port		jazzhands_legacy.physical_port%ROWTYPE;
+	p2_port		jazzhands_legacy.physical_port%ROWTYPE;
 	col_nams	varchar(100) [];
 	col_vals	varchar(100) [];
 	updateitr	integer;
-	i_baud		layer1_connection.baud%type;
-	i_data_bits	layer1_connection.data_bits%type;
-	i_stop_bits	layer1_connection.stop_bits%type;
-	i_parity     	layer1_connection.parity%type;
-	i_flw_cntrl	layer1_connection.flow_control%type;
-	i_circuit_id layer1_connection.circuit_id%type;
+	i_baud		jazzhands_legacy.layer1_connection.baud%type;
+	i_data_bits	jazzhands_legacy.layer1_connection.data_bits%type;
+	i_stop_bits	jazzhands_legacy.layer1_connection.stop_bits%type;
+	i_parity     	jazzhands_legacy.layer1_connection.parity%type;
+	i_flw_cntrl	jazzhands_legacy.layer1_connection.flow_control%type;
+	i_circuit_id 	jazzhands_legacy.layer1_connection.circuit_id%type;
 BEGIN
 	RAISE DEBUG 'looking up % and %', physportid1, physportid2;
 
@@ -187,7 +190,7 @@ BEGIN
 		  from	layer1_connection
 		 where	physical_port1_id = physportid2
 		    or  physical_port2_id = physportid2;
-	
+
 	EXCEPTION WHEN no_data_found THEN
 		NULL;
 	END;
@@ -228,7 +231,7 @@ BEGIN
 					--
 					if(p2_l1_con.layer1_connection_id is not NULL) then
 						RAISE DEBUG 'physport2 is connected to something, just not this';
-						RAISE DEBUG '>>>> removing %', 
+						RAISE DEBUG '>>>> removing %',
 							p2_l1_con.layer1_connection_id;
 						delete from layer1_connection
 							where layer1_connection_id =
@@ -270,7 +273,7 @@ BEGIN
 		end if;
 	elsif(p2_l1_con.layer1_connection_id is NULL) then
 		-- both are null in this case
-			
+
 		IF (circuit_id = -99) THEN
 			i_circuit_id := NULL;
 		ELSE
@@ -304,17 +307,17 @@ BEGIN
 		IF p1_port.port_type = 'serial' THEN
 		        insert into layer1_connection (
 			        PHYSICAL_PORT1_ID, PHYSICAL_PORT2_ID,
-			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL, 
+			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL,
 			        CIRCUIT_ID, IS_TCPSRV_ENABLED
 		        ) values (
 			        physportid1, physportid2,
 			        i_baud, i_data_bits, i_stop_bits, i_parity, i_flw_cntrl,
-			        i_circuit_id, 'Y'
+			        i_circuit_id, true
 		        ) RETURNING layer1_connection_id into l1_con_id;
 		ELSE
 		        insert into layer1_connection (
 			        PHYSICAL_PORT1_ID, PHYSICAL_PORT2_ID,
-			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL, 
+			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL,
 			        CIRCUIT_ID
 		        ) values (
 			        physportid1, physportid2,
@@ -415,28 +418,32 @@ BEGIN
 
 	if(updateitr > 0) then
 		RAISE DEBUG 'running do_l1_connection_update';
-		PERFORM port_support.do_l1_connection_update(col_nams, col_vals, l1_con_id);
+		PERFORM port_utils.do_l1_connection_update(col_nams, col_vals, l1_con_id);
 	end if;
 
 	RAISE DEBUG 'returning %', updateitr;
 	return updateitr;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path=jazzhands_legacy;
 
 -------------------------------------------------------------------
 -- connect two power devices
+--
+-- ** THIS IS BEING DEPRECATED **
 -------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION port_utils.configure_power_connect (
-	in_dev1_id	device_power_connection.device_id%type,
-	in_port1_id	device_power_connection.power_interface_port%type,
-	in_dev2_id	device_power_connection.rpc_device_id%type,
-	in_port2_id	device_power_connection.rpc_power_interface_port%type
+	in_dev1_id	jazzhands_legacy.device_power_connection.device_id%type,
+	in_port1_id	jazzhands_legacy.device_power_connection.power_interface_port%type,
+	in_dev2_id	jazzhands_legacy.device_power_connection.rpc_device_id%type,
+	in_port2_id	jazzhands_legacy.device_power_connection.rpc_power_interface_port%type
 ) RETURNS void AS $$
-DECLARE
-	v_p1_pc		device_power_connection%ROWTYPE;
-	v_p2_pc		device_power_connection%ROWTYPE;
-	v_pc		device_power_connection%ROWTYPE;
-	v_pc_id		device_power_connection.device_power_connection_id%type;
+	DECLARE
+	v_p1_pc		jazzhands_legacy.device_power_connection%ROWTYPE;
+	v_p2_pc		jazzhands_legacy.device_power_connection%ROWTYPE;
+	v_pc		jazzhands_legacy.device_power_connection%ROWTYPE;
+	v_pc_id		jazzhands_legacy.device_power_connection.device_power_connection_id%type;
 BEGIN
 	RAISE DEBUG 'consider %:% %:%',
 		in_dev1_id, in_port1_id, in_dev2_id, in_port2_id;
@@ -445,7 +452,7 @@ BEGIN
 		select	*
 		  into	v_p1_pc
 		  from	device_power_connection
-		 where	(device_Id = in_dev1_id 
+		 where	(device_Id = in_dev1_id
 					and power_interface_port = in_port1_id) OR
 				(rpc_device_id = in_dev1_id
 					and rpc_power_interface_port = in_port1_id);
@@ -457,7 +464,7 @@ BEGIN
 		select	*
 		  into	v_p2_pc
 		  from	device_power_connection
-		 where	(device_Id = in_dev2_id 
+		 where	(device_Id = in_dev2_id
 					and power_interface_port = in_port2_id) OR
 				(rpc_device_id = in_dev2_id
 					and rpc_power_interface_port = in_port2_id);
@@ -473,7 +480,7 @@ BEGIN
 	-- Also falling out of this will be the port needs to be updated,
 	-- assuming a port needs to be updated
 	--
-	RAISE DEBUG 'one is %, the other is %', 
+	RAISE DEBUG 'one is %, the other is %',
 		v_p1_pc.device_power_connection_id, v_p2_pc.device_power_connection_id;
 	IF (v_p1_pc.device_power_connection_id is not NULL) then
 		IF (v_p2_pc.device_power_connection_id is not NULL) then
@@ -481,7 +488,7 @@ BEGIN
 				--
 				-- if this is not true, then the connection already
 				-- exists between these two.
-				-- If they are already connected, this gets 
+				-- If they are already connected, this gets
 				-- discovered here
 				--
 				RAISE DEBUG '>> one side matches: %:% %:%',
@@ -526,7 +533,7 @@ BEGIN
 							-- v_p1_pc.device_id must be port1
 							v_pc_id := v_p1_pc.device_power_connection_id;
 						END IF;
-						RAISE DEBUG '>>>> removing(2) %', 
+						RAISE DEBUG '>>>> removing(2) %',
 							v_p2_pc.device_power_connection_id;
 						delete from device_power_connection
 							where device_power_connection_id =
@@ -560,7 +567,7 @@ BEGIN
 			in_dev2_id,
 			in_port2_id,
 			in_port1_id,
-			in_dev1_id 
+			in_dev1_id
 		);
 		RAISE DEBUG 'record is totally inserted';
 		return;
@@ -603,87 +610,7 @@ BEGIN
 		  where	device_power_connection_id = v_pc_id;
 	END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=jazzhands_legacy;
 
--------------------------------------------------------------------
--- setup console information (dns and whatnot)
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.setup_conscfg_record (
-	in_physportid   physical_port.physical_port_id%type,
-	in_name	 	device.device_name%type,
-	in_dstsvr       device.device_name%type
-) RETURNS void AS $$
-DECLARE
-	v_zoneid	dns_domain.dns_domain_id%type;
-	v_recid		dns_record.dns_record_id%type;
-	v_val		dns_record.dns_value%type;
-	v_isthere	boolean;
-	v_dstsvr	varchar(1024);
-BEGIN
-	return;
-
-	-- if we end up adopting the conscfg zone, then GC_conscfg_zone
-	-- is set to a constant that should probably be grabbed from the
-	-- property table.
-
-	select	dns_domain_id
-	  into	v_zoneid
-	  from	dns_domain
-	 where	soa_name = 'conscfg.example.com'; -- GC_conscfg_zone;
-
-	-- to ensure cname is properly terminated
-	v_val := substr(in_dstsvr, -1, 1);
-	IF ( v_val != '.' )  THEN
-		v_dstsvr := in_dstsvr || '.';
-	ELSE
-		v_dstsvr := in_dstsvr;
-	END IF;
-
-	v_isthere := true;
-	BEGIN
-		select	dns_record_id, dns_value
-		  into	v_recid, v_val
-		  from	dns_record
-		 where	dns_domain_id = v_zoneid
-		  and	dns_name = in_name;
-	EXCEPTION WHEN no_data_found THEN
-		v_isthere := false;
-	END;
-
-	if (v_isthere = true) THEN
-		if( v_val != v_dstsvr) THEN
-			update 	dns_record
-			  set	dns_value = v_dstsvr
-			 where	dns_record_id = v_recid;
-		END IF;
-	ELSE
-		insert into dns_record (
-			dns_name, dns_domain_id, dns_class, dns_type,
-			dns_value
-		) values (
-			in_name, v_zoneid, 'IN', 'CNAME',
-			v_dstsvr
-		);
-	END IF;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--------------------------------------------------------------------
--- cleanup a console connection
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION port_utils.delete_conscfg_record (
-	in_name	 	device.device_name%type
-) RETURNS VOID AS $$
-DECLARE
-	v_zoneid	dns_domain.dns_domain_id%type;
-BEGIN
-	select	dns_domain_id
-	  into	v_zoneid
-	  from	dns_domain
-	 where	soa_name = GC_conscfg_zone;
-
-	delete from dns_record
-	 where	dns_name = in_name
-	   and	dns_domain_id = v_zoneid;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+REVOKE ALL ON SCHEMA port_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA port_utils FROM public;

@@ -38,12 +38,12 @@ BEGIN
 			'iX2224-BACR920LPB/2.5',
 			'085915D9',
 			(SELECT company_id FROM jazzhands.company WHERE company_name = 'iXsystems'),
-			'Y',
-			'Y',
+			true,
+			true,
 			2
 		) RETURNING component_type_id INTO ctid;
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) VALUES (
@@ -54,7 +54,7 @@ BEGIN
 		--
 		-- CPU sockets
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -73,7 +73,7 @@ BEGIN
 		--
 		-- memory slots
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
