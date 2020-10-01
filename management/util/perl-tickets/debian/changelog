@@ -1,3 +1,9 @@
+jazzhands-perl-tickets (0.90.0) trusty; urgency=medium
+
+  * add support to rejecting jira issues with prejudice
+
+ -- Todd M. Kover <kovert@omniscient.com>  Thu,  1 Oct 2020 09:54:00 -0400
+
 jazzhands-perl-tickets (0.86.3) trusty; urgency=medium
 
   * fix bug in debian packaging
@@ -10,13 +16,11 @@ jazzhands-perl-tickets (0.83.5) trusty; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue,  4 Dec 2018 15:06:22 -0400
 
-
 jazzhands-perl-tickets (0.83.5) trusty; urgency=medium
 
   * fix bug with setting issuetype on JIRA issues
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue,  4 Dec 2018 15:06:22 -0400
-
 
 jazzhands-perl-tickets (0.81.4) trusty; urgency=medium
 
@@ -24,20 +28,17 @@ jazzhands-perl-tickets (0.81.4) trusty; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu,  2 Nov 2017 09:41:00 -0400
 
-
 jazzhands-perl-tickets (0.80.7) trusty; urgency=medium
 
   * Make it possible to open JIRA issues without a designated opener.
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 28 Aug 2017 17:21:58 -0400
 
-
 jazzhands-perl-tickets (0.70.5) trusty; urgency=medium
 
   * added KACE ticket handling module
 
  -- Ryan D Williams <xrxdxwx@gmail.com>  Wed, 20 Apr 2016 22:25:00 +0000
-
 
 jazzhands-perl-tickets (0.66.1) trusty; urgency=medium
 
