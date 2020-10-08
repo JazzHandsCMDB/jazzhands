@@ -73,6 +73,8 @@
 -- \ir appgroup_util.sql
 -- \ir property_verify.sql
 \ir physical_address_utils.sql
+\ir component_manip.sql
+-- component_utils should be deprecated
 \ir component_utils.sql
 \ir snapshot_manip.sql
 \ir lv_manip.sql
