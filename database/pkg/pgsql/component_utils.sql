@@ -183,18 +183,17 @@ BEGIN
 		WHERE
 			parent_slot_id = slot_map.old_slot_id
 		RETURNING *
-	), ni_upd AS (
+	), l3i_upd AS (
 		UPDATE
-			network_interface ni
+			layer3_interface l3i
 		SET
 			slot_id = slot_map.new_slot_id
 		FROM
 			slot_map
 		WHERE
-			physical_port_id = slot_map.old_slot_id OR
-			slot_id = slot_map.new_slot_id
+			l3i.slot_id = slot_map.old_slot_id
 		RETURNING *
-	), delete_migraged_slots AS (
+	), delete_migrated_slots AS (
 		DELETE FROM
 			slot
 		WHERE
@@ -208,9 +207,9 @@ BEGIN
 				SELECT os.slot_id FROM
 					old_slot os LEFT JOIN
 					component_property cp ON (os.slot_id = cp.slot_id) LEFT JOIN
-					network_interface ni ON (
-						ni.slot_id = os.slot_id OR
-						ni.physical_port_id = os.slot_id) LEFT JOIN
+					layer3_interface l3i ON (
+						l3i.slot_id = os.slot_id OR
+						l3i.slot_id = os.slot_id) LEFT JOIN
 					inter_component_connection ic ON (
 						slot1_id = os.slot_id OR
 						slot2_id = os.slot_id) LEFT JOIN
@@ -218,7 +217,7 @@ BEGIN
 				WHERE
 					ic.inter_component_connection_id IS NULL AND
 					c.component_id IS NULL AND
-					ni.network_interface_id IS NULL AND
+					l3i.layer3_interface_id IS NULL AND
 					cp.component_property_id IS NULL AND
 					os.component_type_slot_template_id IS NOT NULL
 			)
