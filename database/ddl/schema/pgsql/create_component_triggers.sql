@@ -745,12 +745,12 @@ BEGIN
 
 	IF (TG_OP = 'INSERT' OR OLD.component_type_id != NEW.component_type_id)
 	THEN
-		PERFORM component_utils.create_component_template_slots(
+		PERFORM component_manip.create_component_template_slots(
 			component_id := NEW.component_id);
 	END IF;
 	IF (TG_OP = 'UPDATE' AND OLD.component_type_id != NEW.component_type_id)
 	THEN
-		PERFORM component_utils.migrate_component_template_slots(
+		PERFORM component_manip.migrate_component_template_slots(
 			component_id := NEW.component_id
 		);
 	END IF;
@@ -772,7 +772,7 @@ CREATE OR REPLACE FUNCTION jazzhands.set_slot_names_by_trigger()
 RETURNS TRIGGER
 AS $$
 BEGIN
-	PERFORM component_utils.set_slot_names(
+	PERFORM component_manip.set_slot_names(
 		slot_id_list := ARRAY(
 				SELECT slot_id FROM slot WHERE component_id = NEW.component_id
 			)
