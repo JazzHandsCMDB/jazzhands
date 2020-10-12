@@ -17621,7 +17621,7 @@ BEGIN
 		) RETURNING * INTO csr;
 	ELSIF crt.certificate_signing_request_id IS NOT NULL THEN
 		SELECT * INTO csr FROM jazzhands.certificate_signing_request c
-			WHERE c.certificate_sign_req =  crt.certificate_signing_request_id;
+			WHERE c.certificate_signing_request_id =  crt.certificate_signing_request_id;
 
 		-- delete happens at the end, after update
 		IF NEW.certificate_sign_req IS NOT NULL THEN
@@ -17640,9 +17640,9 @@ BEGIN
 					'friendly_name = ' || quote_nullable(NEW.friendly_name)
 				);
 			END IF;
-			IF OLD.private_key_id IS DISTINCT FROM key.private_key_id THEN
+			IF OLD.private_key IS DISTINCT FROM key.private_key THEN
 				_uq := array_append(_uq,
-					'private_key_id = ' || quote_nullable(NEW.private_key_id)
+					'private_key = ' || quote_nullable(NEW.private_key)
 				);
 			END IF;
 
