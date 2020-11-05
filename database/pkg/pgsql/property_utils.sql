@@ -374,6 +374,9 @@ BEGIN
 					RAISE 'Property_Value must be a valid value' USING
 						ERRCODE = 'invalid_parameter_value';
 			END;
+		ELSIF v_prop.Property_Data_Type = 'boolean' THEN
+			RAISE 'Boolean values are set in Property_Value_Boolean' USING
+				ERRCODE = 'invalid_parameter_value';
 		ELSIF v_prop.Property_Data_Type != 'string' THEN
 			RAISE 'Property_Value may not be set for this Property_Data_Type' USING
 				ERRCODE = 'invalid_parameter_value';
