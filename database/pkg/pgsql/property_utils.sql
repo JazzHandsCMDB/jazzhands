@@ -375,7 +375,7 @@ BEGIN
 						ERRCODE = 'invalid_parameter_value';
 			END;
 		ELSIF v_prop.Property_Data_Type != 'string' THEN
-			RAISE 'Property_Data_Type is not a known type' USING
+			RAISE 'Property_Value may not be set for this Property_Data_Type' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
