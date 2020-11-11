@@ -10597,7 +10597,6 @@ _uq := array_append(_uq, 'property_type = ' || quote_nullable(NEW.property_type)
 			_uq := array_append(_uq, 'property_value = ' || quote_nullable(NEW.property_value));
 			_uq := array_append(_uq, 'property_value_boolean = NULL');
 		END IF;
-		RAISE NOTICE '_uq is %', to_json(_uq);
 	END IF;
 
 	IF OLD.property_value_timestamp IS DISTINCT FROM NEW.property_value_timestamp THEN
