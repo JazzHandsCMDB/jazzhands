@@ -10499,7 +10499,6 @@ DECLARE
 	_uq	text[];
 	_dt	TEXT;
 BEGIN
-
 	IF OLD.property_id IS DISTINCT FROM NEW.property_id THEN
 _uq := array_append(_uq, 'property_id = ' || quote_nullable(NEW.property_id));
 	END IF;
@@ -10587,12 +10586,18 @@ _uq := array_append(_uq, 'property_type = ' || quote_nullable(NEW.property_type)
 		AND property_type = NEW.property_type;
 
 		IF _dt = 'boolean' THEN
-			_uq := array_append(_uq, 'property_value_boolean = ' || quote_nullable(CASE WHEN NEW.is_enabled = 'Y' THEN true WHEN NEW.is_enabled = 'N' THEN false ELSE NULL END));
-			_uq := array_append(_uq, 'property_value = NULL');
+			IF NEW.property_value = 'Y' THEN
+				_uq := array_append(_uq, 'property_value_boolean = true');
+			ELSIF NEW.property_value = 'N' THEN
+				_uq := array_append(_uq, 'property_value_boolean = false');
+			ELSE
+				_uq := array_append(_uq, 'property_value = NULL');
+			END IF;
 		ELSE
 			_uq := array_append(_uq, 'property_value = ' || quote_nullable(NEW.property_value));
 			_uq := array_append(_uq, 'property_value_boolean = NULL');
 		END IF;
+		RAISE NOTICE '_uq is %', to_json(_uq);
 	END IF;
 
 	IF OLD.property_value_timestamp IS DISTINCT FROM NEW.property_value_timestamp THEN
