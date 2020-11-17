@@ -2676,10 +2676,13 @@ INSERT INTO VAL_Property (
 			'boolean', 'test',
 			'Y'
 			) RETURNING * INTO _p1;
-			SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
-			IF _p1 != _p2 THEN
+		SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
+		IF _p1 != _p2 THEN
 			-- RAISE EXCEPTION 'after insert, properties do not match - % %', to_json(_p1), to_json(_p2);
-			END IF;
+		END IF;
+		IF _p1.property_value IS DISTINCT FROM 'Y' THEN
+			RAISE EXCEPTION 'property value was not set to N';
+		END IF;
 		RAISE NOTICE '... Success';
 	EXCEPTION
 		WHEN invalid_parameter_value THEN
@@ -2687,6 +2690,7 @@ INSERT INTO VAL_Property (
 			raise error_in_assignment;
 	END;
 	DELETE FROM Property where Property_ID = _p1.property_id;
+
 
 	RAISE NOTICE 'Inserting N value into boolean property';
 	BEGIN
@@ -2699,6 +2703,10 @@ INSERT INTO VAL_Property (
 		SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
 		IF _p1 != _p2 THEN
 			RAISE EXCEPTION 'after insert, properties do not match - % %', to_json(_p1), to_json(_p2);
+		END IF;
+
+		IF _p1.property_value IS DISTINCT FROM 'N' THEN
+			RAISE EXCEPTION 'property value was not set to N (%)', to_json(_p1);
 		END IF;
 		RAISE NOTICE '... Success';
 	EXCEPTION
@@ -2721,22 +2729,64 @@ INSERT INTO VAL_Property (
 			RAISE EXCEPTION 'after insert, properties do not match - % %', to_json(_p1), to_json(_p2);
 		END IF;
 
-		UPDATE property
-		SET property_value = 'N'
-		WHERE property_id = _p1.property_id
-		RETURNING * INTO _p1;
-		SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
-		IF _p1 != _p2 THEN
-			RAISE EXCEPTION 'after update, properties do not match - % %', to_json(_p1), to_json(_p2);
+		_p1 := NULL;
+		UPDATE property SET property_value = 'N'
+		WHERE property_id = _p2.property_id
+		RETURNING *  INTO _p1;
+
+		IF _p1.property_id IS NULL THEN
+			RAISE EXCEPTION 'Update did not work, got NULL back (%)', _p1;
 		END IF;
 
-		RAISE NOTICE '... Success';
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed';
-			raise error_in_assignment;
+		SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
+		IF _p1 != _p2 THEN
+			RAISE EXCEPTION 'after insert, properties do not match - % %', to_json(_p1), to_json(_p2);
+		END IF;
+
+		IF _p1.property_value IS DISTINCT FROM 'N' THEN
+			RAISE EXCEPTION 'Update did not take: %', to_json(_p1);
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
 	END;
-	DELETE FROM Property where Property_ID = _p1.property_id;
+
+	RAISE NOTICE 'Changing new boolean property from N to Y';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value
+			) VALUES (
+			'boolean', 'test',
+			'N'
+			) RETURNING * INTO _p1;
+		SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
+		IF _p1 != _p2 THEN
+			RAISE EXCEPTION 'after insert, properties do not match - % %', to_json(_p1), to_json(_p2);
+		END IF;
+
+		_p1 := NULL;
+		UPDATE property SET property_value = 'Y'
+		WHERE property_id = _p2.property_id
+		RETURNING *  INTO _p1;
+
+		IF _p1.property_id IS NULL THEN
+			RAISE EXCEPTION 'Update did not work, got NULL back';
+		END IF;
+
+		SELECT * INTO _p2 FROM property WHERE property_id = _p1.property_id;
+		IF _p1 != _p2 THEN
+			RAISE EXCEPTION 'after insert, properties do not match - % %', to_json(_p1), to_json(_p2);
+		END IF;
+
+		IF _p2.property_value != 'Y' THEN
+			RAISE EXCEPTION 'Update did not take: %', to_json(_p1);
+		END IF;
+
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
 
 	RAISE NOTICE 'Changing new boolean property from N to Y';
 	BEGIN
