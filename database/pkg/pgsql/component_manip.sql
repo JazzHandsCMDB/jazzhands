@@ -1033,7 +1033,8 @@ CREATE OR REPLACE FUNCTION component_manip.insert_cpu_component(
 	processor_cores		bigint,
 	socket_type			text,
 	vendor_name			text DEFAULT NULL,
-	serial_number		text DEFAULT NULL
+	serial_number		text DEFAULT NULL,
+	virtual_component	boolean DEFAULT false
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
@@ -1048,10 +1049,12 @@ BEGIN
 
 	IF vendor_name IS NOT NULL THEN	
 		SELECT 
-			company_id INTO cid
+			company.company_id INTO cid
 		FROM
-			company c LEFT JOIN
-			property p USING (company_id)
+			company JOIN
+			company_collection_company ccc using (company_id) JOIN
+			company_collection cc using (company_collection_id) JOIN
+			property p USING (company_collection_id)
 		WHERE
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'VendorCPUProbeString' AND
@@ -1062,13 +1065,20 @@ BEGIN
 	-- See if we have this component type in the database already.
 	--
 	SELECT DISTINCT
-		component_type_id INTO ctid
+		ct.component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		component_type_component_function ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id) JOIN
+		component_property cp ON (
+			ct.component_type_id = cp.component_type_id AND
+			cp.component_property_type = 'CPU' AND
+			cp.component_property_name = 'ProcessorCores' AND
+			cp.property_value::integer = processor_cores
+		)
 	WHERE
-		component_function = 'CPU' AND
+		ctcf.component_function = 'CPU' AND
 		ct.model = m AND
+		ct.is_virtual_component = virtual_component AND
 		CASE WHEN cid IS NOT NULL THEN
 			(company_id = cid)
 		ELSE
@@ -1118,13 +1128,15 @@ BEGIN
 			model,
 			slot_type_id,
 			asset_permitted,
-			description
+			description,
+			is_virtual_component
 		) VALUES (
 			cid,
 			model,
 			stid,
 			true,
-			model
+			model,
+			virtual_component
 		) RETURNING component_type_id INTO ctid;
 
 		--
