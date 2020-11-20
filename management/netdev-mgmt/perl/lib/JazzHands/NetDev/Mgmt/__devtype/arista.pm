@@ -958,11 +958,11 @@ sub GetBGPGroupIPFamily {
 	}
 
 	# Now, let's get info about the group
-	my $commands = [
+	$commands = [
 		'show ip bgp peer-group ' . $opt->{bgp_peer_group}
 	];
 
-	my $result = $self->SendCommand(
+	$result = $self->SendCommand(
 		commands => $commands,
 		format => 'text',
 		timeout => $opt->{timeout},
@@ -976,7 +976,6 @@ sub GetBGPGroupIPFamily {
 	# The show ip bgp peer-group <GROUP> does not return anything
 	# if the group has no peer. So there is no way to distinct between
 	# group is not existing or group has no peer.
-	my $output;
 	if (!($output = $result->[0]->{output})) {
 		SetError($err, "Either BGP group " . $device->{hostname} . " does not exist" .
 			" on " . $device->{hostname} . " or there is no peer yet"
