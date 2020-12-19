@@ -10499,7 +10499,6 @@ DECLARE
 	_uq	text[];
 	_dt	TEXT;
 BEGIN
-
 	IF OLD.property_id IS DISTINCT FROM NEW.property_id THEN
 _uq := array_append(_uq, 'property_id = ' || quote_nullable(NEW.property_id));
 	END IF;
@@ -10587,8 +10586,13 @@ _uq := array_append(_uq, 'property_type = ' || quote_nullable(NEW.property_type)
 		AND property_type = NEW.property_type;
 
 		IF _dt = 'boolean' THEN
-			_uq := array_append(_uq, 'property_value_boolean = ' || quote_nullable(CASE WHEN NEW.is_enabled = 'Y' THEN true WHEN NEW.is_enabled = 'N' THEN false ELSE NULL END));
-			_uq := array_append(_uq, 'property_value = NULL');
+			IF NEW.property_value = 'Y' THEN
+				_uq := array_append(_uq, 'property_value_boolean = true');
+			ELSIF NEW.property_value = 'N' THEN
+				_uq := array_append(_uq, 'property_value_boolean = false');
+			ELSE
+				_uq := array_append(_uq, 'property_value = NULL');
+			END IF;
 		ELSE
 			_uq := array_append(_uq, 'property_value = ' || quote_nullable(NEW.property_value));
 			_uq := array_append(_uq, 'property_value_boolean = NULL');
@@ -17621,7 +17625,7 @@ BEGIN
 		) RETURNING * INTO csr;
 	ELSIF crt.certificate_signing_request_id IS NOT NULL THEN
 		SELECT * INTO csr FROM jazzhands.certificate_signing_request c
-			WHERE c.certificate_sign_req =  crt.certificate_signing_request_id;
+			WHERE c.certificate_signing_request_id =  crt.certificate_signing_request_id;
 
 		-- delete happens at the end, after update
 		IF NEW.certificate_sign_req IS NOT NULL THEN
@@ -17640,9 +17644,9 @@ BEGIN
 					'friendly_name = ' || quote_nullable(NEW.friendly_name)
 				);
 			END IF;
-			IF OLD.private_key_id IS DISTINCT FROM key.private_key_id THEN
+			IF OLD.private_key IS DISTINCT FROM key.private_key THEN
 				_uq := array_append(_uq,
-					'private_key_id = ' || quote_nullable(NEW.private_key_id)
+					'private_key = ' || quote_nullable(NEW.private_key)
 				);
 			END IF;
 

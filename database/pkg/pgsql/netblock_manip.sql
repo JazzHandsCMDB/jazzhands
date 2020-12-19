@@ -626,7 +626,7 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 ) RETURNS boolean AS $$
 BEGIN
 	RETURN netblock_manip.set_layer3_interface_addresses(
-		layer3_network_id := network_interface_id,
+		layer3_interface_id := network_interface_id,
 		device_id := device_id,
 		layer3_interface_name := network_interface_name,
 		layer3_interface_type := network_interface_type,

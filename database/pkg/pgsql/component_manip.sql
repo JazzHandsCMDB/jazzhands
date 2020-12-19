@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2015, 2016, 2018, 2019 Matthew Ragan
+-- Copyright (c) 2015-2020 Matthew Ragan
 -- All rights reserved.
 -- 
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,17 +22,17 @@ BEGIN
         select count(*)
         from pg_catalog.pg_namespace
         into _tal
-        where nspname = 'component_utils';
+        where nspname = 'component_manip';
         IF _tal = 0 THEN
-                DROP SCHEMA IF EXISTS component_utils;
-                CREATE SCHEMA component_utils AUTHORIZATION jazzhands;
-		REVOKE ALL ON SCHEMA component_utils FROM public;
-		COMMENT ON SCHEMA component_utils IS 'part of jazzhands';
+                DROP SCHEMA IF EXISTS component_manip;
+                CREATE SCHEMA component_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA component_manip FROM public;
+		COMMENT ON SCHEMA component_manip IS 'part of jazzhands';
         END IF;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION component_utils.create_component_template_slots(
+CREATE OR REPLACE FUNCTION component_manip.create_component_template_slots(
 	component_id	jazzhands.component.component_id%TYPE
 ) RETURNS SETOF jazzhands.slot
 AS $$
@@ -87,7 +87,7 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_utils.migrate_component_template_slots(
+CREATE OR REPLACE FUNCTION component_manip.migrate_component_template_slots(
 	component_id			jazzhands.component.component_id%TYPE
 ) RETURNS SETOF jazzhands.slot
 AS $$
@@ -96,7 +96,7 @@ DECLARE
 BEGIN
 	-- Ensure all of the new slots have appropriate names
 
-	PERFORM component_utils.set_slot_names(
+	PERFORM component_manip.set_slot_names(
 		slot_id_list := ARRAY(
 				SELECT s.slot_id FROM slot s WHERE s.component_id = cid
 			)
@@ -230,7 +230,7 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_utils.set_slot_names(
+CREATE OR REPLACE FUNCTION component_manip.set_slot_names(
 	slot_id_list	integer[] DEFAULT NULL
 ) RETURNS VOID
 AS $$
@@ -292,7 +292,7 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_utils.remove_component_hier(
+CREATE OR REPLACE FUNCTION component_manip.remove_component_hier(
 	component_id	jazzhands.component.component_id%TYPE,
 	really_delete	boolean DEFAULT FALSE
 ) RETURNS BOOLEAN
@@ -393,7 +393,7 @@ LANGUAGE plpgsql;
 -- function, rather than all of the specific types, but that's thinking
 --
 
-CREATE OR REPLACE FUNCTION component_utils.insert_pci_component(
+CREATE OR REPLACE FUNCTION component_manip.insert_pci_component(
 	pci_vendor_id	integer,
 	pci_device_id	integer,
 	pci_sub_vendor_id	integer DEFAULT NULL,
@@ -686,7 +686,7 @@ LANGUAGE plpgsql;
 -- function, rather than all of the specific types, but that's thinking
 --
 
-CREATE OR REPLACE FUNCTION component_utils.insert_disk_component(
+CREATE OR REPLACE FUNCTION component_manip.insert_disk_component(
 	model				text,
 	bytes				bigint,
 	vendor_name			text DEFAULT NULL,
@@ -857,7 +857,7 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_utils.insert_memory_component(
+CREATE OR REPLACE FUNCTION component_manip.insert_memory_component(
 	model				text,
 	memory_size			bigint,
 	memory_speed		bigint,
@@ -1027,13 +1027,14 @@ SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION component_utils.insert_cpu_component(
+CREATE OR REPLACE FUNCTION component_manip.insert_cpu_component(
 	model				text,
 	processor_speed		bigint,
 	processor_cores		bigint,
 	socket_type			text,
 	vendor_name			text DEFAULT NULL,
-	serial_number		text DEFAULT NULL
+	serial_number		text DEFAULT NULL,
+	virtual_component	boolean DEFAULT false
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
@@ -1048,10 +1049,12 @@ BEGIN
 
 	IF vendor_name IS NOT NULL THEN	
 		SELECT 
-			company_id INTO cid
+			company.company_id INTO cid
 		FROM
-			company c LEFT JOIN
-			property p USING (company_id)
+			company JOIN
+			company_collection_company ccc using (company_id) JOIN
+			company_collection cc using (company_collection_id) JOIN
+			property p USING (company_collection_id)
 		WHERE
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'VendorCPUProbeString' AND
@@ -1062,13 +1065,20 @@ BEGIN
 	-- See if we have this component type in the database already.
 	--
 	SELECT DISTINCT
-		component_type_id INTO ctid
+		ct.component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
-		component_type_component_function ctcf USING (component_type_id)
+		component_type_component_function ctcf USING (component_type_id) JOIN
+		component_property cp ON (
+			ct.component_type_id = cp.component_type_id AND
+			cp.component_property_type = 'CPU' AND
+			cp.component_property_name = 'ProcessorCores' AND
+			cp.property_value::integer = processor_cores
+		)
 	WHERE
-		component_function = 'CPU' AND
+		ctcf.component_function = 'CPU' AND
 		ct.model = m AND
+		ct.is_virtual_component = virtual_component AND
 		CASE WHEN cid IS NOT NULL THEN
 			(company_id = cid)
 		ELSE
@@ -1118,13 +1128,15 @@ BEGIN
 			model,
 			slot_type_id,
 			asset_permitted,
-			description
+			description,
+			is_virtual_component
 		) VALUES (
 			cid,
 			model,
 			stid,
 			true,
-			model
+			model,
+			virtual_component
 		) RETURNING component_type_id INTO ctid;
 
 		--
@@ -1197,7 +1209,7 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_utils.insert_component_into_parent_slot(
+CREATE OR REPLACE FUNCTION component_manip.insert_component_into_parent_slot(
 	parent_component_id	integer,
 	component_id	integer,
 	slot_name		text,
@@ -1291,7 +1303,7 @@ LANGUAGE plpgsql;
 -- Note: this does not move any sub-components that are attached to slots,
 -- either
 --
-CREATE OR REPLACE FUNCTION component_utils.replace_component(
+CREATE OR REPLACE FUNCTION component_manip.replace_component(
 	old_component_id	integer,
 	new_component_id	integer
 ) RETURNS VOID
@@ -1342,7 +1354,7 @@ SECURITY DEFINER
 LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION component_utils.fetch_component(
+CREATE OR REPLACE FUNCTION component_manip.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
 	no_create			boolean DEFAULT false,
@@ -1417,8 +1429,8 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-REVOKE ALL ON SCHEMA component_utils FROM public;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_utils FROM public;
+REVOKE ALL ON SCHEMA component_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_manip FROM public;
 
-GRANT USAGE ON SCHEMA component_utils TO iud_role;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_utils TO iud_role;
+GRANT USAGE ON SCHEMA component_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA component_manip TO iud_role;

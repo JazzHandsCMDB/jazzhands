@@ -110,7 +110,7 @@ if (!($dbh = JazzHands::DBI->new->connect(
 			cached => 1,
 			dbiflags => {
 				AutoCommit => 0,
-				PrintError => 0,
+				PrintError => 1,
 			}
 		))) {
 	printf STDERR "WTF?: %s\n", $JazzHands::DBI::errstr;
@@ -190,20 +190,14 @@ $q = q {
 		physical_label,
 		device_status,
 		service_environment_id,
-		is_locally_managed,
-		is_monitored,
-		is_virtual_device,
-		should_fetch_config
+		is_virtual_device
 	) SELECT
 		device_type_id,
 		parms.device_name,
 		parms.device_name,
 		'up',
 		service_environment_id,
-		'Y',
-		'Y',
-		'N',
-		'Y'
+		false
 	FROM
 		service_environment se,
 		device_type dt,
@@ -227,7 +221,7 @@ $q = q {
 	WITH parms AS (
 		SELECT
 			?::integer AS device_id,
-			?::text AS network_interface_name,
+			?::text AS layer3_interface_name,
 			?::text AS ip_addr
 	), upd_nb AS (
 		UPDATE
@@ -241,32 +235,41 @@ $q = q {
 			parms
 		WHERE
 			host(n.ip_address) = parms.ip_addr AND
-			is_single_address = 'Y' AND
+			is_single_address = true AND
 			netblock_type = 'dns'
+	), l3i AS (
+		INSERT INTO layer3_interface (
+			device_id,
+			layer3_interface_name,
+			layer3_interface_type,
+			should_monitor
+		) SELECT
+			parms.device_id,
+			parms.layer3_interface_name,
+			'broadcast',
+			true
+		FROM
+			parms
+		RETURNING *
 	)
-	INSERT INTO network_interface (
-		device_id,
-		network_interface_name,
+	INSERT INTO layer3_interface_netblock (
 		netblock_id,
-		network_interface_type,
-		should_monitor
+		layer3_interface_id
 	) SELECT
-		parms.device_id,
-		parms.network_interface_name,
 		n.netblock_id,
-		'broadcast',
-		'Y'
+		l3i.layer3_interface_id
 	FROM
+		l3i,
 		parms,
 		netblock n
 	WHERE
 		host(n.ip_address) = parms.ip_addr AND
-		is_single_address = 'Y'
+		is_single_address = true
 };
 
-my $ins_ni_sth;
+my $ins_l3i_sth;
 
-if (!($ins_ni_sth = $dbh->prepare_cached($q))) {
+if (!($ins_l3i_sth = $dbh->prepare_cached($q))) {
 	print STDERR $dbh->errstr;
 	exit 1;
 }
@@ -291,16 +294,16 @@ if (!($upd_nb_sth = $dbh->prepare_cached($q))) {
 
 $q = q {
 	UPDATE
-		network_interface
+		layer3_interface
 	SET
-		network_interface_name = ?
+		layer3_interface_name = ?
 	WHERE
-		network_interface_id = ?
+		layer3_interface_id = ?
 };
 
-my $upd_ni_sth;
+my $upd_l3i_sth;
 
-if (!($upd_ni_sth = $dbh->prepare_cached($q))) {
+if (!($upd_l3i_sth = $dbh->prepare_cached($q))) {
 	print STDERR $dbh->errstr;
 	exit 1;
 }
@@ -893,7 +896,7 @@ foreach my $host (@$hostname) {
 #			print "Fetching chassis information...\n";
 #		}
 #
-#		if (!$db_dev->{network_interface_id}) {
+#		if (!$db_dev->{layer3_interface_id}) {
 #			printf "Inserting network interface %s\n", $iface_name;
 #
 #			if (!($upd_nb_sth->execute(
@@ -903,26 +906,26 @@ foreach my $host (@$hostname) {
 #					$upd_nb_sth->errstr;
 #				exit 1;
 #			}
-#			if (!($ins_ni_sth->execute(
+#			if (!($ins_l3i_sth->execute(
 #				$db_dev->{device_id},
 #				$iface_name,
 #				$ip_address
 #			))) {
 #				printf STDERR "Unable to insert network interface: %s\n",
-#					$ins_ni_sth->errstr;
+#					$ins_l3i_sth->errstr;
 #				exit 1;
 #			}
-#		} elsif ($db_dev->{network_interface_name} ne $iface_name) {
+#		} elsif ($db_dev->{layer3_interface_name} ne $iface_name) {
 #			printf "Changing network interface name from '%s' to '%s'\n",
-#				$db_dev->{network_interface_name},
+#				$db_dev->{layer3_interface_name},
 #				$iface_name;
 #
-#			if (!($upd_ni_sth->execute(
+#			if (!($upd_l3i_sth->execute(
 #				$iface_name,
-#				$db_dev->{network_interface_id}
+#				$db_dev->{layer3_interface_id}
 #			))) {
 #				printf STDERR "Unable to update network interface: %s\n",
-#					$upd_ni_sth->errstr;
+#					$upd_l3i_sth->errstr;
 #				exit 1;
 #			}
 #		}
@@ -948,8 +951,8 @@ $upd_dev_sth->finish;
 $dev_components_sth->finish;
 $dev_asset_sth->finish;
 $ins_dev_sth->finish;
-$ins_ni_sth->finish;
-$upd_ni_sth->finish;
+$ins_l3i_sth->finish;
+$upd_l3i_sth->finish;
 $upd_nb_sth->finish;
 $upd_ct_sth->finish;
 $ins_asset_sth->finish;
