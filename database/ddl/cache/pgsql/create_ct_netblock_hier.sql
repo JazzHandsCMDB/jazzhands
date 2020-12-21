@@ -167,6 +167,13 @@ BEGIN
 			SELECT netblock_id, netblock_id, netblock_id, ARRAY[netblock_id]
 			FROM netblock WHERE netblock_id = NEW.netblock_id
 		) SELECT * FROM combo
+			WHERE path NOT IN (
+				--
+				-- This is really to exclude things that existed because of
+				-- an update, such as adding a new parent to something that
+				-- previously did not have one.
+				SELECT path FROM jazzhands_cache.ct_netblock_hier
+			)
 		LOOP
 			RAISE DEBUG 'nb/ins up %', to_json(_r);
 			INSERT INTO jazzhands_cache.ct_netblock_hier (
