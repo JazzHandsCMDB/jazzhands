@@ -603,7 +603,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION dns_utils.v6_inaddr(
 	ip_address inet
