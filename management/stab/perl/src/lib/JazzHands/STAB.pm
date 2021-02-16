@@ -75,6 +75,59 @@ our $VERSION = '1.0.0';
 # Preloaded methods go here.
 
 #
+# This is called when thigns fail to initialize and it prints a human
+# readable error message using raw html (in case modules don't work).
+#
+sub stab_panic {
+	my $error = shift @_;
+
+	print qq{
+		Header: text/html;
+
+		<html>
+		<body>
+		<head>
+			<title> Panic:  STAB failed to initialize! </title>
+			<style>
+				div {
+					text-align: center;
+				}
+				div.error {
+					color: red;
+				}
+				div.big {
+					border: 2px double-solid;
+					border-color: black;
+					width: 70%;
+					display: inline;
+				}
+				div.panic {
+					font-size: +50;
+					text-align: center
+				}
+			</style>
+		</head>
+		<body>
+		<div class="big">
+			<div class="panic">
+				PANIC!<br>STAB failed to initialize with error:
+			</div>
+			<div class="error">
+					$error
+			</div>
+			<div class="panic"> Seek help. </div>
+			</div>
+		</div>
+		</body>
+		</html>
+
+	};
+
+	warn "stab_panic: ", $error;
+	exit 1;
+}
+
+#
 # functions that should be considered private.  May want to go through a
 # little more effort to make them inaccessable.  Or not.
 #
@@ -128,6 +181,15 @@ sub new {
 
 	bless $self, $class;
 	$self->textfield_sizing(1);
+
+	#
+	# This is kind of an icky way to find the error but the generic error
+	# stuff needs to be revisted as part of decoupling this from
+	# the now deprecated JazzHands::Mgmt...
+	#
+	if(!$self->dbh) {
+		stab_panic("Unable to initialize database: ". $JazzHands::DBI::errstr );
+	}
 
 	#
 	# These are used for permissions.
