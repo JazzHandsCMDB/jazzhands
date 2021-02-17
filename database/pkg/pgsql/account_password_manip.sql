@@ -49,7 +49,7 @@ $$;
 CREATE OR REPLACE FUNCTION account_password_manip.authenticate_account (
 	account_id			INTEGER,
 	password			TEXT,
-	encode_method		TEXT DEFAULT 'pgp+base64',
+	encode_method		TEXT DEFAULT 'aes-cbc/pad:pkcs',
 	label				TEXT DEFAULT 'default',
 	raiseexception		BOOLEAN default false
 ) RETURNS BOOLEAN AS $$
