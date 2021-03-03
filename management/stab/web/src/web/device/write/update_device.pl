@@ -2429,7 +2429,6 @@ sub reset_serial_to_default {
 
 	delete_device_connections( $stab, $devid, 'serial' );
 	delete_device_phys_ports( $stab, $devid, 'serial' );
-	$stab->setup_device_physical_ports($devid);
 }
 
 sub find_phys_con_endpoint_from_port {

@@ -1,3 +1,9 @@
+python-jazzhands-appauthal (0.90.2) bionic; urgency=medium
+
+  * add support for both python2 and python3
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue,  8 Dec 2020 12:45:00 -0500
+
 python-jazzhands-appauthal (0.84.4) bionic; urgency=medium
 
   * initial release

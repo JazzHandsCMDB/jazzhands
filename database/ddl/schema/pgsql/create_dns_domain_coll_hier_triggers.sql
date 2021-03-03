@@ -33,7 +33,7 @@ BEGIN
 		(select dns_domain_collection_type from dns_domain_collection
 			where dns_domain_collection_id = NEW.dns_domain_collection_id);
 
-	IF dct.can_have_hierarchy = 'N' THEN
+	IF dct.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'DNS Domain Collections of type % may not be hierarcical',
 			dct.dns_domain_collection_type
 			USING ERRCODE= 'unique_violation';
@@ -72,7 +72,7 @@ BEGIN
 	IF dct.MAX_NUM_MEMBERS IS NOT NULL THEN
 		select count(*)
 		  into tally
-		  from dns_domain_collection_dns_dom
+		  from dns_domain_collection_dns_domain
 		  where dns_domain_collection_id = NEW.dns_domain_collection_id;
 		IF tally > dct.MAX_NUM_MEMBERS THEN
 			RAISE EXCEPTION 'Too many members'
@@ -83,7 +83,7 @@ BEGIN
 	IF dct.MAX_NUM_COLLECTIONS IS NOT NULL THEN
 		select count(*)
 		  into tally
-		  from dns_domain_collection_dns_dom
+		  from dns_domain_collection_dns_domain
 		  		inner join dns_domain_collection using (dns_domain_collection_id)
 		  where dns_domain_id = NEW.dns_domain_id
 		  and	dns_domain_collection_type = dct.dns_domain_collection_type;
@@ -101,10 +101,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_domain_collection_member_enforce
-	 ON dns_domain_collection_dns_dom;
+	 ON dns_domain_collection_dns_domain;
 CREATE CONSTRAINT TRIGGER trigger_dns_domain_collection_member_enforce
         AFTER INSERT OR UPDATE
-        ON dns_domain_collection_dns_dom
+        ON dns_domain_collection_dns_domain
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
         EXECUTE PROCEDURE dns_domain_collection_member_enforce();

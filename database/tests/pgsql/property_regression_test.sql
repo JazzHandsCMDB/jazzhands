@@ -1,4 +1,4 @@
--- Copyright (c) 2014-2019 Todd Kover
+-- Copyright (c) 2014-2020 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -48,29 +48,30 @@
 -- tests this, but does not work just yet because it assumes global test
 -- data is there; need to do that before rewritten to use proper savepoints.
 
--- \ir ../../pkg/pgsql/property_utils.sql
--- \ir ../../ddl/schema/pgsql/create_property_triggers.sql
-
--- SAVEPOINT property_trigger_test;
+SAVEPOINT property_trigger_test;
+\ir ../../pkg/pgsql/property_utils.sql
+\ir ../../ddl/schema/pgsql/create_property_triggers.sql
 
 CREATE FUNCTION validate_property_triggers() RETURNS BOOLEAN AS $$
 DECLARE
 	v_property_id			Property.property_id%TYPE;
-	v_company_coll_id		Property.company_collection_id%TYPE;
+	v_company_collection_id		Property.company_collection_id%TYPE;
 	v_device_collection_id	Property.device_collection_id%TYPE;
 	v_operating_system_id	Property.operating_system_id%TYPE;
-	v_svc_env_id			Property.service_env_collection_id%TYPE;
-	v_prop_coll_id			Property.property_collection_id%TYPE;
+	v_svc_environment_id			Property.service_environment_collection_id%TYPE;
+	v_prop_collection_id			Property.property_name_collection_id%TYPE;
 	v_site_code				Property.site_code%TYPE;
 	v_account_id			Property.account_id%TYPE;
 	v_account_realm_id		account_realm.account_realm_id%TYPE;
 	v_account_collection_id				Property.account_collection_id%TYPE;
 	v_account_collection_id2			Property.account_collection_id%TYPE;
-	v_net_coll_Id			Property.property_value_nblk_coll_id%TYPE;
-	v_dev_coll_Id			Property.property_value_nblk_coll_id%TYPE;
+	v_net_collection_Id			Property.property_value_netblock_collection_id%TYPE;
+	v_dev_collection_Id			Property.property_value_netblock_collection_id%TYPE;
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
 	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
-	v_token_collection_id	Property.Property_Value_Token_Col_ID%TYPE;
+	v_token_collection_id	Property.Property_Value_Token_collection_ID%TYPE;
+	v_private_key_id		property.property_value_private_key_id%TYPE;
+	v_encryption_key_id		property.property_value_private_key_id%TYPE;
 
 BEGIN
 
@@ -87,19 +88,19 @@ BEGIN
 	DELETE FROM VAL_Property_Type WHERE Property_Type IN
 		('test', 'multivaluetest');
 
-	DELETE FROM property_collection where
-		property_collection_type like 'JHTEST%';
-	DELETE FROM val_property_collection_type where
-		property_collection_type like 'JHTEST%';
+	DELETE FROM property_name_collection where
+		property_name_collection_type like 'JHTEST%';
+	DELETE FROM val_property_name_collection_type where
+		property_name_collection_type like 'JHTEST%';
 
 --
 -- Set up VAL_Property_Data_Type for test data
 --
 
 	INSERT INTO VAL_Property_Type ( Property_Type, Is_Multivalue ) VALUES
-		('test', 'Y');
+		('test', true);
 	INSERT INTO VAL_Property_Type ( Property_Type, Is_Multivalue ) VALUES
-		('multivaluetest', 'N');
+		('multivaluetest', false);
 
 --
 -- Set up VAL_Property_Data_Type for test data
@@ -109,21 +110,21 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Company_Collection_Id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		Permit_service_env_collection,
-		Permit_property_collection_id,
+		Permit_service_environment_collection,
+		Permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		Permit_Account_Collection_Id
 	) VALUES (
 		'Prohibited',
 		'test',
-		'N',
+		false,
 		NULL,
 		'string',
 		'PROHIBITED',
@@ -141,13 +142,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		Permit_service_env_collection,
-		Permit_property_collection_id,
+		Permit_service_environment_collection,
+		Permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -155,7 +156,7 @@ BEGIN
 	) VALUES (
 		'Multivalue',
 		'test',
-		'Y',
+		true,
 		NULL,
 		'string',
 		'ALLOWED',
@@ -173,13 +174,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -187,7 +188,7 @@ BEGIN
 	) VALUES (
 		'Singlevalue',
 		'test',
-		'N',
+		false,
 		NULL,
 		'string',
 		'ALLOWED',
@@ -205,13 +206,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -219,7 +220,7 @@ BEGIN
 	) VALUES (
 		'Multivalue',
 		'multivaluetest',
-		'N',
+		false,
 		NULL,
 		'string',
 		'ALLOWED',
@@ -237,13 +238,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -251,7 +252,7 @@ BEGIN
 	) VALUES (
 		'AnotherProperty',
 		'multivaluetest',
-		'N',
+		false,
 		NULL,
 		'string',
 		'ALLOWED',
@@ -269,13 +270,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -283,7 +284,7 @@ BEGIN
 	) VALUES (
 		'Allowed',
 		'test',
-		'N',
+		false,
 		NULL,
 		'string',
 		'ALLOWED',
@@ -301,13 +302,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -315,7 +316,7 @@ BEGIN
 	) VALUES (
 		'Required',
 		'test',
-		'N',
+		false,
 		NULL,
 		'string',
 		'REQUIRED',
@@ -333,13 +334,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -347,7 +348,7 @@ BEGIN
 	) VALUES (
 		'RestrictAccount_Collection',
 		'test',
-		'N',
+		false,
 		'per-account',
 		'string',
 		'PROHIBITED',
@@ -366,13 +367,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -380,7 +381,7 @@ BEGIN
 	) VALUES (
 		'boolean',
 		'test',
-		'N',
+		false,
 		NULL,
 		'boolean',
 		'PROHIBITED',
@@ -399,13 +400,13 @@ BEGIN
 	     Property_Name,
 	     Property_Type,
 	     Is_Multivalue,
-	     Prop_Val_Acct_Coll_Type_Rstrct,
+	     property_value_account_collection_Type_restriction,
 	     Property_Data_Type,
 	     Permit_Company_Collection_id,
 	     Permit_Device_Collection_Id,
 	     Permit_Operating_System_Id,
-	     permit_service_env_collection,
-	     permit_property_collection_id,
+	     permit_service_environment_collection,
+	     permit_property_name_collection_id,
 	     Permit_Site_Code,
 	     Permit_Account_Id,
 	     permit_account_realm_id,
@@ -413,7 +414,7 @@ BEGIN
      ) VALUES (
 	     'company_collection_id',
 	     'test',
-	     'N',
+	     false,
 	     NULL,
 	     'none',
 	     'PROHIBITED',
@@ -432,13 +433,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -446,7 +447,7 @@ BEGIN
 	) VALUES (
 		'netblock_collection_id',
 		'test',
-		'N',
+		false,
 		NULL,
 		'netblock_collection_id',
 		'PROHIBITED',
@@ -464,13 +465,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -478,7 +479,7 @@ BEGIN
 	) VALUES (
 		'device_collection_id',
 		'test',
-		'N',
+		false,
 		NULL,
 		'device_collection_id',
 		'PROHIBITED',
@@ -496,13 +497,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -510,7 +511,7 @@ BEGIN
 	) VALUES (
 		'sw_package_id',
 		'test',
-		'N',
+		false,
 		NULL,
 		'sw_package_id',
 		'PROHIBITED',
@@ -529,13 +530,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -543,7 +544,7 @@ BEGIN
 	) VALUES (
 		'none',
 		'test',
-		'N',
+		false,
 		NULL,
 		'none',
 		'PROHIBITED',
@@ -562,13 +563,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -576,7 +577,7 @@ BEGIN
 	) VALUES (
 		'number',
 		'test',
-		'N',
+		false,
 		NULL,
 		'string',
 		'PROHIBITED',
@@ -595,13 +596,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -609,7 +610,7 @@ BEGIN
 	) VALUES (
 		'password_type',
 		'test',
-		'N',
+		false,
 		NULL,
 		'password_type',
 		'PROHIBITED',
@@ -628,13 +629,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -642,7 +643,7 @@ BEGIN
 	) VALUES (
 		'string',
 		'test',
-		'N',
+		false,
 		NULL,
 		'string',
 		'PROHIBITED',
@@ -661,13 +662,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -675,7 +676,7 @@ BEGIN
 	) VALUES (
 		'timestamp',
 		'test',
-		'N',
+		false,
 		NULL,
 		'timestamp',
 		'PROHIBITED',
@@ -694,13 +695,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -708,7 +709,7 @@ BEGIN
 	) VALUES (
 		'token_collection_id',
 		'test',
-		'N',
+		false,
 		NULL,
 		'token_collection_id',
 		'PROHIBITED',
@@ -727,13 +728,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -741,7 +742,7 @@ BEGIN
 	) VALUES (
 		'account_collection_id',
 		'test',
-		'N',
+		false,
 		NULL,
 		'account_collection_id',
 		'PROHIBITED',
@@ -760,13 +761,13 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		Prop_Val_Acct_Coll_Type_Rstrct,
+		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_env_collection,
-		permit_property_collection_id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
 		permit_account_realm_id,
@@ -774,9 +775,73 @@ BEGIN
 	) VALUES (
 		'list',
 		'test',
-		'N',
+		false,
 		NULL,
 		'list',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED'
+	);
+
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		property_value_account_collection_Type_restriction,
+		Property_Data_Type,
+		permit_company_collection_id,
+		Permit_Device_Collection_Id,
+		Permit_Operating_System_Id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
+		Permit_Site_Code,
+		Permit_Account_Id,
+		permit_account_realm_id,
+		Permit_Account_Collection_id
+	) VALUES (
+		'encryption_key_id',
+		'test',
+		false,
+		NULL,
+		'encryption_key_id',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED',
+		'PROHIBITED'
+	);
+
+	INSERT INTO VAL_Property (
+		Property_Name,
+		Property_Type,
+		Is_Multivalue,
+		property_value_account_collection_Type_restriction,
+		Property_Data_Type,
+		permit_company_collection_id,
+		Permit_Device_Collection_Id,
+		Permit_Operating_System_Id,
+		permit_service_environment_collection,
+		permit_property_name_collection_id,
+		Permit_Site_Code,
+		Permit_Account_Id,
+		permit_account_realm_id,
+		Permit_Account_Collection_id
+	) VALUES (
+		'private_key_id',
+		'test',
+		false,
+		NULL,
+		'private_key_id',
 		'PROHIBITED',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -798,30 +863,35 @@ BEGIN
 		'value'
 	);
 
-	INSERT INTO val_property_collection_type (
-		property_collection_type ) values ( 'JHTEST-PCT');
-	INSERT INTO property_collection (
-		property_collection_name, property_collection_type )
+	INSERT INTO val_property_name_collection_type (
+		property_name_collection_type ) values ( 'JHTEST-PCT');
+	INSERT INTO property_name_collection (
+		property_name_collection_name, property_name_collection_type )
 		values ('JHTEST', 'JHTEST-PCT');
 
 	--
-	-- Get some valid data to work with
+	-- Get some valid data to work with.  Some of these are inserted, some are
+	-- picked from what's already in the db.  They should all be inserted here
+	-- but, time.
 	--
 
-	SELECT company_collection_id INTO v_company_coll_id FROM company_collection
-		WHERE company_collection_type = 'per-company'
-		LIMIT 1;
+	PERFORM company_manip.add_company(_company_name := 'JHTEST');
+	SELECT company_collection_id INTO v_company_collection_id
+	FROM company_collection LIMIT 1;
+
 	SELECT Device_Collection_ID INTO v_device_collection_id FROM
 		Device_Collection LIMIT 1;
 	SELECT Operating_System_ID INTO v_operating_system_id FROM Operating_System
 		LIMIT 1;
-	SELECT service_env_collection_id INTO v_svc_env_id FROM service_environment_collection
+	SELECT service_environment_collection_id INTO v_svc_environment_id FROM service_environment_collection
 		LIMIT 1;
-	SELECT property_collection_id INTO v_prop_coll_id
-		FROM property_collection
+	SELECT property_name_collection_id INTO v_prop_collection_id
+		FROM property_name_collection
 		LIMIT 1;
-	SELECT Site_Code INTO v_site_code FROM Site
-		LIMIT 1;
+
+	INSERT INTO site (site_code,site_status) VALUES ('MOON0', 'ACTIVE')
+		RETURNING site_code INTO v_site_code;
+
 	SELECT Account_Id INTO v_account_Id FROM account
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id FROM Account_Collection
@@ -830,28 +900,89 @@ BEGIN
 		LIMIT 1;
 	SELECT Account_Collection_Id INTO v_account_collection_id2 FROM Account_Collection
 		WHERE Account_Collection_Type <> 'per-account' LIMIT 1;
-	SELECT Netblock_Collection_id INTO v_net_coll_Id FROM Netblock_Collection
+	SELECT Netblock_Collection_id INTO v_net_collection_Id FROM Netblock_Collection
 		LIMIT 1;
 	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type
 		LIMIT 1;
 --	SELECT SW_Package_ID INTO v_sw_package_id FROM SW_Package
 --		LIMIT 1;
-	SELECT Token_Collection_ID INTO v_token_collection_id FROM Token_Collection
-		LIMIT 1;
 
-	RAISE NOTICE 'v_company_coll_id is %', v_company_coll_id;
+	WITH t AS (
+		INSERT INTO val_token_collection_type (token_collection_type)
+			VALUES ('JHTEST') RETURNING *
+	), tc AS ( INSERT INTO token_collection (
+		token_collection_name, token_collection_type
+		) SELECT token_collection_type, token_collection_type FROM t
+		RETURNING *
+	) SELECT token_collection_id INTO v_token_collection_id FROM tc LIMIT 1;
+
+	INSERT INTO private_key (
+		private_key_encryption_type, private_key
+	) VALUES (
+		'rsa',
+'-----BEGIN RSA PRIVATE KEY-----
+MIIFvwIBAAKCAUALSbsxTO0wLSXjSVAhEqnj1ujImqbXeFw6xEkWm6ssBv8se1VD
+fMBIW4i12t5TbRiXBf1F47LCzmemqDJw870gJGprVRWwczjHltNoRc6rmv5LcQ/g
+85zFQrw3UqIFzL6Lm1Rnuam/j0cxgQM8IkmVqEPx6kNVcvBVZmYe1mfgDurcQZ1T
+kGwG6Rwiy+oHAvtrDlrdHdmfKFj4OjKZtl2rPEtR1chg4T6iHHu3vFn2SkpIogh6
+9cSQJH8PmnPh/vqphSjCug4yeaR/kWiIlzhqy/wjJ7UwVyckBKsYy3e/RRLClFJt
+DqYtRpPpYhPIrP5rJetkXE0BL0k2TqYfvKHb44r7EmjMFEDfnC8FZrBrWFhUxBbu
+eFGdBSgboW+KMUtpT77pA4vO+Tq7+y0XEVAENL+YV8ulljI4CCUFaQdaKQIDAQAB
+AoIBQAiwdEHqNrecOYsx91XOOStjVwR9UCuTwmOWj7Cwml6k8C88rZDq6lWI6L8c
+wYI0+/XdrW7sbcJaAx4eYd3jMtYYUjdXYv/WYoH5z7l36zTcdh565T9EKI0M5zgr
+CwAt8QwkwR+ro0kLsUEhT+0tc7mZstv5emW/udPzpG7em022DgMJG2OlTBMxxO/g
+SsGlAQcTIM0P2mMTOxGyMxtyb747LhCkC+SQGslynuHUp+SgGjBE5xoRgn05sWj1
+M1Oxlz4CoNBRwiiN70y5HzSt7xBMMWoprKK0vZ5HK1CZ4+dbzMf6PI+4/cs4RGCs
+LLJ+XoVWKTbdnU8JDxvR/+6eORyLjDaSL6e0N/jNEd68PbHtJRF0ilvj8wHEf7Tb
+XTCgtJcO2nO/wCe0ZAZ6iLmHZoTuYBuU5AVhZGBsWKheqzIVAoGgODzb4mZ8ap57
+dd/09Xix+5bv9chaTmlydKFpk3BUcZsP21KTUfR+etOlK7KJmejcMeRIQoSkSML2
+TTuTlyrPmm24PXdzbtoxBntxF2tIF7kYRSmafB02iP9vvLzKt6p502TXnm5/OyNf
+Cz/wkEqO5H+Zo7MZeWX4YPLZpUfj3bARf+owyPPHOV6IhT7yDLjnPYY8y3pwtrWu
+cdVGGztorwKBoDNiW3OTNns/IpwIGk2SbdTelruRfbseNXrlSttoaGXNqBNR3Afk
+TvAGTHvOK/F0ABxPRBurdUKMvQjoXnw/ku7PDsyzhDrAipuw7SnDjPl5u+UaXNZT
+gI0ETBKYYGaLQM/jOfddIBO4tB9F/LKmwyRe8laceHt1K/vusiuPWx0oNJKe3JTB
+wUh6/vFJ5SPuAtfUDpRCvjconhBbM6N+8KcCgaAFTulKY3YW8kKhC7Spfuz93G9l
++bVcdWOSUrIOcqnl10cV4qN5NuTBXzzV9RI77tjp9KxFaxO+snhhLeBugmH6J6Ue
+WCoTKpE6FWjFVyEE7Dm4PYcRdAhzwfigDgnscDDznS8lCzUDNgGApFZmqEL4mnq8
+EumypcdeD04v5atCf54HPum/7hK9/YhRW3GpdcKN8h/G7RW6iUegAwuNAnyNAoGg
+Cwyyl8bnZ1drTNxdM6MyZR08krc1r2BOpc/a6hWopYO1CfqHc1cANpNULSdnwbNt
+NqlA/yY+wAHdwKWfc96D7UCvcQuFetDevZ4tUdbQYPFxm1Gw9xHbyfdLmJAV4tc9
+J7c4Rt5KwJLugO8e6Rf9TLvyJvfc3MeUnsd0nvNj54A21fS9gGut8bUpT5/RW4ma
+KOlb/TvhBaGBZAkIsLbibwKBoBTgSKTdeHayQttvSOJbB0+pgofENI/smQG+wHeF
+ZT/ZUzw5bdiV1p1UfU0bY0wHBwVIIajv19zavoLFwy9MtWNEL5y4vPD9uSNcLrfO
+lnkQSN5uP0nexuZ6XVvVb+8vrixvnRTZw3QBvQgqVlOHPO5y2MO8/hBcyC+c1VIM
+Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
+-----END RSA PRIVATE KEY-----'
+	) RETURNING private_key_id INTO v_private_key_id;
+
+	INSERT INTO val_encryption_method (encryption_method) VALUES ('JHTEST');
+	INSERT INTO val_encryption_key_purpose (encryption_key_purpose, encryption_key_purpose_version) VALUES ('JHTEST', 1);
+
+	INSERT INTO encryption_key (
+		encryption_key_db_value,
+		encryption_key_purpose, encryption_key_purpose_version,
+		encryption_method
+	) VALUES (
+		'',
+		'JHTEST', 1,
+		'JHTEST'
+	) RETURNING encryption_key_id INTO v_encryption_key_id;
+
+	RAISE NOTICE 'v_company_collection_id is %', v_company_collection_id;
 	RAISE NOTICE 'v_device_collection_id is %', v_device_collection_id;
 	RAISE NOTICE 'v_operating_system_id is %', v_operating_system_id;
-	RAISE NOTICE 'v_svc_env_id is %', v_svc_env_id;
-	RAISE NOTICE 'v_prop_coll_id is %', v_prop_coll_id;
+	RAISE NOTICE 'v_svc_environment_id is %', v_svc_environment_id;
+	RAISE NOTICE 'v_prop_collection_id is %', v_prop_collection_id;
 	RAISE NOTICE 'v_site_code is %', v_site_code;
 	RAISE NOTICE 'v_account_Id is %', v_account_Id;
 	RAISE NOTICE 'v_account_realm_id is %', v_account_realm_id;
 	RAISE NOTICE 'v_account_collection_id is %', v_account_collection_id;
 	RAISE NOTICE 'v_account_collection_id2 is %', v_account_collection_id2;
-	RAISE NOTICE 'v_net_coll_Id is %', v_net_coll_Id;
+	RAISE NOTICE 'v_net_collection_Id is %', v_net_collection_Id;
 	RAISE NOTICE 'v_password_type is %', v_password_type;
 	RAISE NOTICE 'v_token_collection_id is %', v_token_collection_id;
+	RAISE NOTICE 'v_private_key_id is %', v_private_key_id;
+	RAISE NOTICE 'v_encryption_key_id is %', v_encryption_key_id;
 
 	INSERT INTO VAL_Property (
 		Property_Name,
@@ -863,7 +994,7 @@ BEGIN
 	) VALUES (
 		'actype',
 		'test',
-		'Y',
+		true,
 		(select account_collection_type from account_collection
 			where account_collection_id = v_account_collection_id),
 		'string',
@@ -882,7 +1013,7 @@ BEGIN
 	INSERT INTO Property (Property_Name, Property_Type,
 		company_collection_id, Account_Collection_Id, Property_Value
 		) VALUES (
-		'Singlevalue', 'test', v_company_coll_id, v_account_collection_id, 'test'
+		'Singlevalue', 'test', v_company_collection_id, v_account_collection_id, 'test'
 		);
 
 	RAISE NOTICE 'Inserting duplicate non-multivalue property';
@@ -890,7 +1021,7 @@ BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			company_collection_id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Singlevalue', 'test', v_company_coll_id, v_account_collection_id, 'test2'
+			'Singlevalue', 'test', v_company_collection_id, v_account_collection_id, 'test2'
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -908,7 +1039,7 @@ BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			company_collection_id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Singlevalue', 'test', v_company_coll_id, v_account_collection_id2, 'test'
+			'Singlevalue', 'test', v_company_collection_id, v_account_collection_id2, 'test'
 			);
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
@@ -925,7 +1056,7 @@ BEGIN
 	INSERT INTO Property (Property_Name, Property_Type,
 		company_collection_id, Account_Collection_Id, Property_Value
 		) VALUES (
-		'Multivalue', 'test', v_company_coll_id, v_account_collection_id, 'test'
+		'Multivalue', 'test', v_company_collection_id, v_account_collection_id, 'test'
 		);
 
 	RAISE NOTICE 'Inserting into the same multi-valued property';
@@ -933,7 +1064,7 @@ BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			company_collection_id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Multivalue', 'test', v_company_coll_id, v_account_collection_id, 'test2'
+			'Multivalue', 'test', v_company_collection_id, v_account_collection_id, 'test2'
 			);
 		RAISE NOTICE '... Succeeded';
 	EXCEPTION
@@ -947,7 +1078,7 @@ BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			company_collection_id, Account_Collection_Id, Property_Value
 			) VALUES (
-			'Multivalue', 'test', v_company_coll_id, v_account_collection_id, 'test'
+			'Multivalue', 'test', v_company_collection_id, v_account_collection_id, 'test'
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -965,7 +1096,7 @@ BEGIN
 	INSERT INTO Property (Property_Name, Property_Type,
 		company_collection_id, Account_Collection_Id, Property_Value
 		) VALUES (
-		'Multivalue', 'multivaluetest', v_company_coll_id, v_account_collection_id, 'test'
+		'Multivalue', 'multivaluetest', v_company_collection_id, v_account_collection_id, 'test'
 		);
 
 	RAISE NOTICE 'Inserting a different non-multivalue-type property';
@@ -973,7 +1104,7 @@ BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			company_collection_id, Account_Collection_id, Property_Value
 			) VALUES (
-			'AnotherProperty', 'multivaluetest', v_company_coll_id, v_account_collection_id,
+			'AnotherProperty', 'multivaluetest', v_company_collection_id, v_account_collection_id,
 				'test2'
 			);
 		RAISE NOTICE '... Succeeded.  THIS IS A PROBLEM';
@@ -1009,19 +1140,19 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			Account_Id,
 			Account_Realm_Id,
 			Account_Collection_id
 			) VALUES (
 			'Allowed', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			v_account_realm_id,
@@ -1041,19 +1172,19 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			Account_Id,
 			account_realm_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			v_account_realm_id,
@@ -1073,8 +1204,8 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1083,8 +1214,8 @@ BEGIN
 			NULL,
 			v_device_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1103,18 +1234,18 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			NULL,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1133,18 +1264,18 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			NULL,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			v_account_collection_id
@@ -1156,20 +1287,20 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Omitting service_env_collection_id from property with REQUIRED service_env_collection_id lhs field';
+	RAISE NOTICE 'Omitting service_environment_collection_id from property with REQUIRED service_environment_collection_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_operating_system_id,
 			NULL,
@@ -1191,18 +1322,18 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			NULL,
 			v_account_id,
 			v_account_collection_id
@@ -1221,18 +1352,18 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			NULL,
 			v_account_collection_id
@@ -1251,18 +1382,18 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			NULL
@@ -1282,19 +1413,19 @@ BEGIN
 			Device_Collection_ID,
 			Account_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Realm_Id
 			) VALUES (
 			'Required', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			v_device_collection_id,
 			v_account_collection_id,
 			v_operating_system_id,
-			v_svc_env_id,
-			v_prop_coll_id,
+			v_svc_environment_id,
+			v_prop_collection_id,
 			v_site_code,
 			v_account_id,
 			NULL
@@ -1313,7 +1444,7 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1341,13 +1472,13 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
 			) VALUES (
 			'Prohibited', 'test', 'test',
-			v_company_coll_id,
+			v_company_collection_id,
 			NULL,
 			NULL,
 			NULL,
@@ -1369,7 +1500,7 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1397,7 +1528,7 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1418,15 +1549,15 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Adding service_env_collection_id to property with PROHIBITED service_env_collection_id lhs field';
+	RAISE NOTICE 'Adding service_environment_collection_id to property with PROHIBITED service_environment_collection_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1435,7 +1566,7 @@ BEGIN
 			NULL,
 			NULL,
 			NULL,
-			v_svc_env_id,
+			v_svc_environment_id,
 			NULL,
 			NULL,
 			NULL,
@@ -1448,15 +1579,15 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Adding property_collection_id to property with PROHIBITED property_collection_id lhs field';
+	RAISE NOTICE 'Adding property_name_collection_id to property with PROHIBITED property_name_collection_id lhs field';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
 			Property_Value,
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1466,7 +1597,7 @@ BEGIN
 			NULL,
 			NULL,
 			NULL,
-			v_prop_coll_id,
+			v_prop_collection_id,
 			NULL,
 			NULL,
 			NULL
@@ -1485,8 +1616,8 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
-			property_collection_id,
+			service_environment_collection_id,
+			property_name_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1515,7 +1646,7 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1543,7 +1674,7 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			Account_Collection_id
@@ -1571,7 +1702,7 @@ BEGIN
 			company_collection_id,
 			Device_Collection_ID,
 			Operating_System_ID,
-			service_env_collection_id,
+			service_environment_collection_id,
 			Site_Code,
 			account_id,
 			account_realm_id
@@ -1620,10 +1751,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_collection_Id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'string', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1635,7 +1766,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_collection_Id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'string', 'test',
 			v_device_collection_id
@@ -1680,7 +1811,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'string', 'test',
 			v_token_collection_id
@@ -1695,7 +1826,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'string', 'test',
 			v_account_collection_id
@@ -1745,10 +1876,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'timestamp', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -1760,7 +1891,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'timestamp', 'test',
 			v_device_collection_id
@@ -1805,7 +1936,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'timestamp', 'test',
 			v_token_collection_id
@@ -1820,7 +1951,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into timestamp property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'timestamp', 'test',
 			v_account_collection_id
@@ -1869,10 +2000,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'netblock_collection_id', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			) RETURNING Property_ID INTO v_property_id;
 		RAISE NOTICE '... Success';
 	EXCEPTION
@@ -1885,7 +2016,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_Id value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_device_coll_id
+			Property_Value_device_collection_id
 			) VALUES (
 			'netblock_collection_id', 'test',
 			v_device_collection_id
@@ -1930,7 +2061,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'netblock_collection_id', 'test',
 			v_token_collection_id
@@ -1945,7 +2076,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'netblock_collection_id', 'test',
 			v_account_collection_id
@@ -1994,10 +2125,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'password_type', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2009,7 +2140,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_Id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'password_type', 'test',
 			v_device_collection_id
@@ -2055,7 +2186,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'password_type', 'test',
 			v_token_collection_id
@@ -2070,7 +2201,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'password_type', 'test',
 			v_account_collection_id
@@ -2119,10 +2250,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'sw_package_id', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2134,7 +2265,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_Id value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'sw_package_id', 'test',
 			v_device_collection_id
@@ -2181,7 +2312,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'sw_package_id', 'test',
 			v_token_collection_id
@@ -2196,7 +2327,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into sw_package_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'sw_package_id', 'test',
 			v_account_collection_id
@@ -2245,10 +2376,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'token_collection_id', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2260,7 +2391,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_Id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'token_collection_id', 'test',
 			v_device_collection_id
@@ -2305,7 +2436,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'token_collection_id', 'test',
 			v_token_collection_id
@@ -2321,7 +2452,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into token_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'token_collection_id', 'test',
 			v_account_collection_id
@@ -2370,10 +2501,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'account_collection_id', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2385,7 +2516,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_Id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'account_collection_id', 'test',
 			v_device_collection_id
@@ -2430,7 +2561,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'account_collection_id', 'test',
 			v_token_collection_id
@@ -2445,7 +2576,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Account_Collection_id value into account_collection_id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'account_collection_id', 'test',
 			v_account_collection_id
@@ -2477,6 +2608,36 @@ BEGIN
 			RAISE NOTICE '... Failed correctly';
 	END;
 
+	RAISE NOTICE 'Inserting encryption_key_id value into none property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_encryption_key_id
+			) VALUES (
+			'none', 'test',
+			v_encryption_key_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
+	RAISE NOTICE 'Inserting private_key_id value into none property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value
+			) VALUES (
+			'none', 'test',
+			v_private_key_id
+			);
+		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
+		raise error_in_assignment;
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed correctly';
+	END;
+
 	RAISE NOTICE 'Inserting timestamp value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2495,10 +2656,10 @@ BEGIN
 	RAISE NOTICE 'Inserting Netblock_Collection_Id value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_nblk_coll_id
+			property_value_netblock_collection_id
 			) VALUES (
 			'none', 'test',
-			v_net_coll_Id
+			v_net_collection_Id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2510,7 +2671,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Device_Collection_Id value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_coll_id
+			property_value_device_collection_id
 			) VALUES (
 			'none', 'test',
 			v_device_collection_id
@@ -2556,7 +2717,7 @@ BEGIN
 	RAISE NOTICE 'Inserting Token_Collection_ID value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_Col_ID
+			Property_Value_Token_collection_ID
 			) VALUES (
 			'none', 'test',
 			v_token_collection_id
@@ -2571,7 +2732,7 @@ BEGIN
 	RAISE NOTICE 'Inserting account_collection_id value into none property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_coll_id
+			property_value_account_collection_id
 			) VALUES (
 			'none', 'test',
 			v_account_collection_id
@@ -2587,13 +2748,13 @@ BEGIN
 	-- Boolean
 	--
 
-	RAISE NOTICE 'Inserting Y value into boolean property';
+	RAISE NOTICE 'Inserting true value into boolean property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value
+			Property_Value_boolean
 			) VALUES (
 			'boolean', 'test',
-			'Y'
+			true
 			) RETURNING Property_ID INTO v_property_id;
 		RAISE NOTICE '... Success';
 	EXCEPTION
@@ -2603,13 +2764,13 @@ BEGIN
 	END;
 	DELETE FROM Property WHERE Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting N value into boolean property';
+	RAISE NOTICE 'Inserting false value into boolean property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value
+			Property_Value_boolean
 			) VALUES (
 			'boolean', 'test',
-			'N'
+			false
 			) RETURNING Property_ID INTO v_property_id;
 		RAISE NOTICE '... Success';
 	EXCEPTION
@@ -2632,6 +2793,44 @@ BEGIN
 	EXCEPTION
 		WHEN invalid_parameter_value THEN
 			RAISE NOTICE '... Failed correctly';
+	END;
+	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+	--
+	-- encryption_key_id
+	--
+	RAISE NOTICE 'Inserting encryption_key_id INTO property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_encryption_key_id
+			) VALUES (
+			'encryption_key_id', 'test',
+			v_encryption_key_id
+			) RETURNING Property_ID INTO v_property_id;
+		RAISE NOTICE '... Success';
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed';
+			raise error_in_assignment;
+	END;
+	DELETE FROM Property WHERE Property_ID = v_property_id;
+
+	--
+	-- private_key_id
+	--
+	RAISE NOTICE 'Inserting private_key_id INTO property';
+	BEGIN
+		INSERT INTO Property (Property_Name, Property_Type,
+			Property_Value_private_key_id
+			) VALUES (
+			'private_key_id', 'test',
+			v_private_key_id
+			) RETURNING Property_ID INTO v_property_id;
+		RAISE NOTICE '... Success';
+	EXCEPTION
+		WHEN invalid_parameter_value THEN
+			RAISE NOTICE '... Failed';
+			raise error_in_assignment;
 	END;
 	DELETE FROM Property WHERE Property_ID = v_property_id;
 
@@ -2909,10 +3108,10 @@ BEGIN
 	DELETE FROM VAL_Property_Type WHERE Property_Type IN
 		('test', 'multivaluetest');
 
-	DELETE FROM property_collection where
-		property_collection_type like 'JHTEST%';
-	DELETE FROM val_property_collection_type where
-		property_collection_type like 'JHTEST%';
+	DELETE FROM property_name_collection where
+		property_name_collection_type like 'JHTEST%';
+	DELETE FROM val_property_name_collection_type where
+		property_name_collection_type like 'JHTEST%';
 
 
 	RETURN true;
@@ -2922,6 +3121,6 @@ $$ LANGUAGE plpgsql;
 SELECT validate_property_triggers();
 DROP FUNCTION validate_property_triggers();
 
--- ROLLBACK TO property_trigger_test;
+ROLLBACK TO property_trigger_test;
 
 \t off

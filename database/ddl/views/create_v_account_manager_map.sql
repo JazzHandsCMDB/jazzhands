@@ -20,9 +20,9 @@ WITH dude_base AS (
 	    coalesce(p.preferred_first_name, p.first_name) as first_name,
 	    coalesce(p.preferred_last_name, p.last_name) as last_name,
 	    p.middle_name,
-	    pc.manager_person_id, pc.employee_id
+	    pc.manager_person_id
 	FROM    account a
-		INNER JOIN v_person_company pc USING (company_id,person_id)
+		INNER JOIN person_company pc USING (company_id,person_id)
 		INNER JOIN person p USING (person_id)
 	WHERE   a.is_enabled = 'Y'
 	AND		pc.person_company_relation = 'employee'
@@ -36,7 +36,6 @@ WITH dude_base AS (
 	mp.last_name as manager_last_name,
 	mp.middle_name as manager_middle_name,
 	mp.first_name as manger_first_name,
-	mp.employee_id as manager_employee_id,
 	mp.company_id as manager_company_id
 FROM dude a
 	INNER JOIN dude mp ON mp.person_id = a.manager_person_id

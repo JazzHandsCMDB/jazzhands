@@ -25,6 +25,7 @@ BEGIN
                 DROP SCHEMA IF EXISTS layerx_network_manip;
                 CREATE SCHEMA layerx_network_manip AUTHORIZATION jazzhands;
 		COMMENT ON SCHEMA layerx_network_manip IS 'part of jazzhands';
+		REVOKE USAGE ON SCHEMA layerx_network_manip FROM PUBLIC;
         END IF;
 END;
 $$;
@@ -71,12 +72,12 @@ BEGIN
 				FROM layer3_network l3n
 				WHERE layer2_network_id = ANY(layer2_network_id_list)
 			),
-		purge_network_interfaces := 
+		purge_network_interfaces :=
 			delete_layer2_networks.purge_network_interfaces
 	);
 
 	DELETE FROM
-		l2_network_coll_l2_network l2nc
+		layer2_network_collection_layer2_network l2nc
 	WHERE
 		l2nc.layer2_network_id = ANY(layer2_network_id_list);
 
@@ -140,67 +141,67 @@ BEGIN
 			SELECT
 				n.netblock_id AS netblock_id
 			FROM
-				jazzhands.layer3_network l3 JOIN
-				jazzhands.netblock p USING (netblock_id) JOIN
-				jazzhands.netblock n ON (p.netblock_id = n.parent_netblock_id)
+				layer3_network l3 JOIN
+				netblock p USING (netblock_id) JOIN
+				netblock n ON (p.netblock_id = n.parent_netblock_id)
 			WHERE
 				l3.layer3_network_id = ANY(layer3_network_id_list)
 		) INTO netblock_id_list;
 
 		WITH nin_del AS (
 			DELETE FROM
-				jazzhands.network_interface_netblock 
+				layer3_interface_netblock
 			WHERE
 				netblock_id = ANY(netblock_id_list)
-			RETURNING network_interface_id
+			RETURNING layer3_interface_id
 		), snni_del AS (
 			DELETE FROM
-				jazzhands.shared_netblock_network_int
+				shared_netblock_layer3_interface
 			WHERE
 				shared_netblock_id IN (
-					SELECT shared_netblock_id FROM jazzhands.shared_netblock
+					SELECT shared_netblock_id FROM shared_netblock
 					WHERE netblock_id = ANY(netblock_id_list)
 				)
-			RETURNING network_interface_id
+			RETURNING layer3_interface_id
 		)
 		SELECT ARRAY(
-			SELECT network_interface_id FROM nin_del
+			SELECT layer3_interface_id FROM nin_del
 			UNION
-			SELECT network_interface_id FROM snni_del
+			SELECT layer3_interface_id FROM snni_del
 		) INTO network_interface_id_list;
 
 		DELETE FROM
-			network_interface_purpose nip
+			layer3_interface_purpose nip
 		WHERE
-			nip.network_interface_id IN (
+			nip.layer3_interface_id IN (
 				SELECT
-					network_interface_id
+					layer3_interface_id
 				FROM
-					network_interface ni
+					layer3_interface ni
 				WHERE
-					ni.network_interface_id = ANY(network_interface_id_list)
+					ni.layer3_interface_id = ANY(network_interface_id_list)
 						AND
-					ni.network_interface_id NOT IN (
+					ni.layer3_interface_id NOT IN (
 						SELECT
-							network_interface_id
+							layer3_interface_id
 						FROM
-							network_interface_netblock
+							layer3_interface_netblock
 						UNION
-						SELECT 
-							network_interface_id
+						SELECT
+							layer3_interface_id
 						FROM
-							shared_netblock_network_int
+							shared_netblock_layer3_interface
 					)
 			);
-			
+
 		DELETE FROM
-			network_interface ni
+			layer3_interface ni
 		WHERE
-			ni.network_interface_id = ANY(network_interface_id_list) AND
-			ni.network_interface_id NOT IN (
-				SELECT network_interface_id FROM network_interface_netblock
+			ni.layer3_interface_id = ANY(network_interface_id_list) AND
+			ni.layer3_interface_id NOT IN (
+				SELECT layer3_interface_id FROM layer3_interface_netblock
 				UNION
-				SELECT network_interface_id FROM shared_netblock_network_int
+				SELECT layer3_interface_id FROM shared_netblock_layer3_interface
 			);
 	END IF;
 
@@ -209,18 +210,18 @@ BEGIN
 			p.netblock_id AS netblock_id,
 			l3.layer3_network_id AS layer3_network_id
 		FROM
-			jazzhands.layer3_network l3 JOIN
-			jazzhands.netblock p USING (netblock_id)
+			layer3_network l3 JOIN
+			netblock p USING (netblock_id)
 		WHERE
 			l3.layer3_network_id = ANY(layer3_network_id_list)
 	), l3_coll_del AS (
 		DELETE FROM
-			jazzhands.l3_network_coll_l3_network
+			layer3_network_collection_layer3_network
 		WHERE
 			layer3_network_id IN (SELECT layer3_network_id FROM x)
 	), l3_del AS (
 		DELETE FROM
-			jazzhands.layer3_network
+			layer3_network
 		WHERE
 			layer3_network_id in (SELECT layer3_network_id FROM x)
 		RETURNING *
@@ -228,27 +229,27 @@ BEGIN
 		SELECT
 			n.netblock_id
 		FROM
-			jazzhands.netblock n JOIN
+			netblock n JOIN
 			x ON (n.parent_netblock_id = x.netblock_id)
 	), dns_del AS (
 		DELETE FROM
-			jazzhands.dns_record
+			dns_record
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM nb_sel)
 	), nbc_del as (
 		DELETE FROM
-			jazzhands.netblock_collection_netblock
+			netblock_collection_netblock
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM x
 				UNION SELECT netblock_id FROM nb_sel)
 	), nb_del as (
 		DELETE FROM
-			jazzhands.netblock
+			netblock
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM nb_sel)
 	), sn_del as (
 		DELETE FROM
-			jazzhands.shared_netblock
+			shared_netblock
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM nb_sel)
 	), nrp_del as (
@@ -264,14 +265,14 @@ BEGIN
 			)
 	), nr_del as (
 		DELETE FROM
-			jazzhands.network_range
+			network_range
 		WHERE
 			parent_netblock_id IN (SELECT netblock_id FROM x)
 		RETURNING
 			start_netblock_id, stop_netblock_id
 	), nrnb_del AS (
 		DELETE FROM
-			jazzhands.netblock
+			netblock
 		WHERE
 			netblock_id IN (
 				SELECT start_netblock_id FROM nr_del
@@ -280,7 +281,7 @@ BEGIN
 		)
 	), nbd AS (
 		DELETE FROM
-			jazzhands.netblock
+			netblock
 		WHERE
 			netblock_id IN (SELECT netblock_id FROM x)
 	)
@@ -294,7 +295,10 @@ BEGIN
 		NULL;
 	END;
 	RETURN;
-END $$ LANGUAGE plpgsql SECURITY DEFINER;
+END $$ LANGUAGE plpgsql SET search_path=jazzhands SECURITY DEFINER;
 
-GRANT USAGE ON SCHEMA layerx_network_manip TO PUBLIC;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA layerx_network_manip TO iud_role;
+REVOKE ALL ON SCHEMA layerx_network_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA layerx_network_manip FROM public;
+
+GRANT ALL ON SCHEMA layerx_network_manip TO iud_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA layerx_network_manip TO iud_role;

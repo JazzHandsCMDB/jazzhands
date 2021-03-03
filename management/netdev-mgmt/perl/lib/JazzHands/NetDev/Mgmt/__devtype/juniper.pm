@@ -2947,7 +2947,7 @@ sub RemoveVLAN {
 	$conf .= sprintf(q {
 			<vlans>
 				<vlan delete="delete">
-					<vlan-id>%s</vlan-id>
+					<name>%s</name>
 				</vlan>
 			</vlans>
 		},
@@ -2970,7 +2970,7 @@ sub RemoveVLAN {
 					</interface>
 				</interfaces>
 				},
-					$vlan->{l3_interface}
+					$vlan->{l3_interface} =~ s/.*\.(\d+)$/$1/r
 			);
 			if (%{$iface->{filter}}) {
 				$conf .= q{

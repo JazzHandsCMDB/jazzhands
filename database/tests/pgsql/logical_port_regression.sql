@@ -84,7 +84,7 @@ BEGIN
 		devtype.device_type_id,
 		'up',
 		1,
-		'N'
+		false
 	) RETURNING * INTO device1;
 
 	INSERT INTO slot (
@@ -148,7 +148,7 @@ BEGIN
 		devtype.device_type_id,
 		'up',
 		1,
-		'N'
+		false
 	) RETURNING * INTO device2;
 
 	INSERT INTO slot (
@@ -212,7 +212,7 @@ BEGIN
 		devtype.device_type_id,
 		'up',
 		1,
-		'N'
+		false
 	) RETURNING * INTO device1;
 
 	INSERT INTO slot (

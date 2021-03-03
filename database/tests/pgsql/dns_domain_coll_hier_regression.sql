@@ -39,7 +39,7 @@ DECLARE
 BEGIN
 	RAISE NOTICE 'dns_domain_coll_hier_regression: Cleanup Records from Previous Tests';
 
-	delete from dns_domain_collection_dns_dom where dns_domain_collection_id
+	delete from dns_domain_collection_dns_domain where dns_domain_collection_id
 		IN (select dns_domain_collection_id FROM
 		dns_domain_collection where dns_domain_collection_type like
 		'JHTEST%');
@@ -48,7 +48,7 @@ BEGIN
 	delete from val_dns_domain_collection_type where 
 		dns_domain_collection_type like
 		'JHTEST%';
-	delete from dns_domain where soa_name like 'jhtest%example.com';
+	delete from dns_domain where dns_domain_name like 'jhtest%example.com';
 
 	RAISE NOTICE '++ Inserting testing data';
 	INSERT INTO val_dns_domain_collection_Type (
@@ -69,7 +69,7 @@ BEGIN
 	INSERT INTO val_dns_domain_collection_Type (
 		dns_domain_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into dns_domain_collection (
@@ -100,13 +100,13 @@ BEGIN
 	RAISE NOTICE 'Inserting collection specific records'; 
 
 	INSERT INTO dns_domain (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest1.example.com', 'service'
 	) RETURNING * into _c1;
 
 	INSERT INTO dns_domain (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest2.example.com', 'service'
 	) RETURNING * into _c2;
@@ -197,13 +197,13 @@ BEGIN
 		RAISE NOTICE '... It did';
 	END;
 
-	INSERT INTO dns_domain_collection_dns_dom (
+	INSERT INTO dns_domain_collection_dns_domain (
 		dns_domain_collection_id, dns_domain_Id
 	) VALUES (
 		_nc_onemem.dns_domain_collection_id, _c1.dns_domain_id
 	);
 
-	INSERT INTO dns_domain_collection_dns_dom (
+	INSERT INTO dns_domain_collection_dns_domain (
 		dns_domain_collection_id, dns_domain_Id
 	) VALUES (
 		_hnc.dns_domain_collection_id, _c2.dns_domain_id
@@ -211,7 +211,7 @@ BEGIN
 
 	RAISE NOTICE 'Testing to see if max_num_members works... ';
 	BEGIN
-		INSERT INTO dns_domain_collection_dns_dom (
+		INSERT INTO dns_domain_collection_dns_domain (
 			dns_domain_collection_id, dns_domain_Id
 		) VALUES (
 			_nc_onemem.dns_domain_collection_id, _c1.dns_domain_id
@@ -221,7 +221,7 @@ BEGIN
 		RAISE NOTICE '... It did';
 	END;
 
-	INSERT INTO dns_domain_collection_dns_dom (
+	INSERT INTO dns_domain_collection_dns_domain (
 		dns_domain_collection_id, dns_domain_Id
 	) VALUES (
 		_nc_onecol1.dns_domain_collection_id, _c1.dns_domain_id
@@ -229,7 +229,7 @@ BEGIN
 
 	RAISE NOTICE 'Testing to see if max_num_collections works... ';
 	BEGIN
-		INSERT INTO dns_domain_collection_dns_dom (
+		INSERT INTO dns_domain_collection_dns_domain (
 			dns_domain_collection_id, dns_domain_Id
 		) VALUES (
 			_nc_onecol2.dns_domain_collection_id, _c1.dns_domain_id
@@ -241,7 +241,7 @@ BEGIN
 
 	RAISE NOTICE 'Cleaning up...';
 
-	delete from dns_domain_collection_dns_dom where dns_domain_collection_id
+	delete from dns_domain_collection_dns_domain where dns_domain_collection_id
 		IN (select dns_domain_collection_id FROM
 		dns_domain_collection where dns_domain_collection_type like
 		'JHTEST%');
@@ -250,7 +250,7 @@ BEGIN
 	delete from val_dns_domain_collection_type where 
 		dns_domain_collection_type like
 		'JHTEST%';
-	delete from dns_domain where soa_name like 'jhtest%example.com';
+	delete from dns_domain where dns_domain_name like 'jhtest%example.com';
 	RAISE NOTICE 'Netblock CollHier: DONE';
 	RETURN true;
 END;

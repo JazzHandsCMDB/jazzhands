@@ -48,20 +48,20 @@ BEGIN
 	RAISE NOTICE '++ Inserting testing data';
 
 	INSERT INTO DNS_DOMAIN (
-		soa_name, dns_domain_type
+		dns_domain_name, dns_domain_type
 	) values (
 		'jhtest.example.com', 'service'
 	) RETURNING dns_domain_id INTO _dom;
 
 	INSERT INTO val_netblock_type (
 		netblock_type, db_forced_hierarchy, is_validated_hierarchy
-	) values ('netrange', 'N', 'N');
+	) values ('netrange', false, false);
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.0/24', 'default', 'N',
-		'Y', 'Allocated', 'JHTEST0'
+		'172.31.26.0/24', 'default', false,
+		true, 'Allocated', 'JHTEST0'
 	) RETURNING * into _nb1;
 
 	--
@@ -69,22 +69,22 @@ BEGIN
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.0/26', 'default', 'N',
-		'N', 'Allocated', 'JHTEST1'
+		'172.31.26.0/26', 'default', false,
+		false, 'Allocated', 'JHTEST1'
 	) RETURNING * into _nb1;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.3/32', 'netrange', 'Y',
-		'N', 'Allocated', 'JHTEST_start'
+		'172.31.26.3/32', 'netrange', true,
+		false, 'Allocated', 'JHTEST_start'
 	) RETURNING * into _nb_start;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.10/32', 'netrange', 'Y',
-		'N', 'Allocated', 'JHTEST_stop'
+		'172.31.26.10/32', 'netrange', true,
+		false, 'Allocated', 'JHTEST_stop'
 	) RETURNING * into _nb_stop;
 
 	--
@@ -92,15 +92,15 @@ BEGIN
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.16/28', 'netrange', 'Y',
-		'N', 'Allocated', 'JHTEST_start'
+		'172.31.26.16/28', 'netrange', true,
+		false, 'Allocated', 'JHTEST_start'
 	) RETURNING * into _nb1a_start;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.31/28', 'netrange', 'Y',
-		'N', 'Allocated', 'JHTEST_stop'
+		'172.31.26.31/28', 'netrange', true,
+		false, 'Allocated', 'JHTEST_stop'
 	) RETURNING * into _nb1a_stop;
 
 	--
@@ -108,22 +108,22 @@ BEGIN
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.192.0/26', 'default', 'N',
-		'N', 'Allocated', 'JHTEST2'
+		'172.31.192.0/26', 'default', false,
+		false, 'Allocated', 'JHTEST2'
 	) RETURNING * into _nb2;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.192.3/32', 'default', 'Y',
-		'N', 'Allocated', 'JHTEST_start'
+		'172.31.192.3/32', 'default', true,
+		false, 'Allocated', 'JHTEST_start'
 	) RETURNING * into _nb2_start;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.192.10/32', 'default', 'Y',
-		'N', 'Allocated', 'JHTEST_stop'
+		'172.31.192.10/32', 'default', true,
+		false, 'Allocated', 'JHTEST_stop'
 	) RETURNING * into _nb2_stop;
 
 	--
@@ -131,8 +131,8 @@ BEGIN
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 	) VALUES (
-		'172.31.26.5/32', 'default', 'Y',
-		'N', 'Allocated', 'nb6'
+		'172.31.26.5/32', 'default', true,
+		false, 'Allocated', 'nb6'
 	) RETURNING * into _nb6;
 
 
@@ -375,7 +375,7 @@ BEGIN
 	RAISE NOTICE 'Checking if changing start.is_single_address fails...';
 	BEGIN
 		UPDATE	netblock
-		SET	is_single_address = 'N'
+		SET	is_single_address = false
 		WHERE	netblock_id = _nr1.start_netblock_id;
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN integrity_constraint_violation THEN
@@ -385,7 +385,7 @@ BEGIN
 	RAISE NOTICE 'Checking if changing stop.is_single_address fails...';
 	BEGIN
 		UPDATE	netblock
-		SET	is_single_address = 'N'
+		SET	is_single_address = false
 		WHERE	netblock_id = _nr1.stop_netblock_id;
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN integrity_constraint_violation THEN
@@ -422,7 +422,7 @@ BEGIN
 				_nb1a_stop.netblock_id)
 		;
 
-		UPDATE val_network_range_type SET can_overlap = 'N'
+		UPDATE val_network_range_type SET can_overlap = false
 		WHERE network_range_type = 'fnetrange';
 
 		BEGIN
@@ -439,7 +439,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking if turning on disallowing overlapping updates works correctly for starts ... ';
 	BEGIN
-		UPDATE val_network_range_type SET can_overlap = 'Y'
+		UPDATE val_network_range_type SET can_overlap = true
 			WHERE network_range_type = 'fnetrange';
 		INSERT INTO network_range (
 			network_range_type, parent_netblock_id, start_netblock_id,
@@ -453,7 +453,7 @@ BEGIN
 		WHERE netblock_id = _nb1a_start.netblock_id;
 
 		BEGIN
-			UPDATE val_network_range_type SET can_overlap = 'N'
+			UPDATE val_network_range_type SET can_overlap = false
 				WHERE network_range_type = 'fnetrange';
 
 			RAISE EXCEPTION 'It did not';
@@ -475,7 +475,7 @@ BEGIN
 				_nb1a_stop.netblock_id)
 		;
 
-		UPDATE val_network_range_type SET can_overlap = 'N'
+		UPDATE val_network_range_type SET can_overlap = false
 		WHERE network_range_type = 'fnetrange';
 
 		BEGIN
@@ -492,7 +492,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking if turning on disallowing overlapping updates works correctly for stops ... ';
 	BEGIN
-		UPDATE val_network_range_type SET can_overlap = 'Y'
+		UPDATE val_network_range_type SET can_overlap = true
 			WHERE network_range_type = 'fnetrange';
 		INSERT INTO network_range (
 			network_range_type, parent_netblock_id, start_netblock_id,
@@ -506,7 +506,7 @@ BEGIN
 			WHERE netblock_id = _nb_stop.netblock_id;
 
 		BEGIN
-			UPDATE val_network_range_type SET can_overlap = 'N'
+			UPDATE val_network_range_type SET can_overlap = false
 				WHERE network_range_type = 'fnetrange';
 
 			RAISE EXCEPTION 'It did not';
@@ -561,7 +561,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking is mismatched updated masklens fails..';
 	BEGIN
-		UPDATE val_network_range_type SET require_cidr_boundary = 'Y'
+		UPDATE val_network_range_type SET require_cidr_boundary = true
 			WHERE network_range_type = 'fnetrange';
 		BEGIN
 			INSERT INTO network_range (
@@ -588,7 +588,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking is inserted mismatched masklens fail..';
 	BEGIN
-		UPDATE val_network_range_type SET require_cidr_boundary = 'Y'
+		UPDATE val_network_range_type SET require_cidr_boundary = true
 			WHERE network_range_type = 'fnetrange';
 		BEGIN
 			UPDATE netblock
@@ -614,7 +614,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking is unaligned start cidr addresses fail..';
 	BEGIN
-		UPDATE val_network_range_type SET require_cidr_boundary = 'Y'
+		UPDATE val_network_range_type SET require_cidr_boundary = true
 			WHERE network_range_type = 'fnetrange';
 		BEGIN
 			UPDATE netblock
@@ -639,7 +639,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking is unaligned start cidr addresses fail..';
 	BEGIN
-		UPDATE val_network_range_type SET require_cidr_boundary = 'Y'
+		UPDATE val_network_range_type SET require_cidr_boundary = true
 			WHERE network_range_type = 'fnetrange';
 		BEGIN
 			UPDATE netblock

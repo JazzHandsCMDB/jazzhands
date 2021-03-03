@@ -142,7 +142,7 @@ BEGIN
 		  into should_propagate
 		 from	val_person_status
 		 where	person_status = NEW.person_company_status;
-		IF should_propagate = 'Y' THEN
+		IF should_propagate = true THEN
 			update account
 			  set	account_status = NEW.person_company_status
 			 where	person_id = NEW.person_id
@@ -214,7 +214,7 @@ BEGIN
 	WHERE (account_collection_id, account_id)
 	IN (
 		SELECT	a.account_collection_id, a.account_id
-		FROM	v_acct_coll_acct_expanded a
+		FROM	v_account_collection_account_expanded a
 				JOIN account_collection ac USING (account_collection_id)
 				JOIN property p USING (account_collection_id)
 		WHERE	p.property_type = 'UserMgmt'
@@ -245,7 +245,7 @@ BEFORE INSERT OR UPDATE of PASSWORD
 CREATE OR REPLACE FUNCTION account_enforce_is_enabled()
 	RETURNS TRIGGER AS $$
 DECLARE
-	correctval	char(1);
+	correctval	boolean;
 BEGIN
 	SELECT is_enabled INTO correctval
 	FROM val_person_status
@@ -293,7 +293,7 @@ CREATE OR REPLACE FUNCTION account_validate_login()
 	RETURNS TRIGGER AS $$
 DECLARE
 	regexp		text;
-	correctval	char(1);
+	correctval	boolean;
 BEGIN
 	SELECT property_value
 	INTO   regexp

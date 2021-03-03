@@ -20,7 +20,7 @@ WITH ctf AS (
 		array_agg(ctcf.component_function ORDER BY ctcf.component_function) 
 			AS functions
 	FROM
-		jazzhands.component_type_component_func ctcf
+		jazzhands.component_type_component_function ctcf
 	GROUP BY
 		ctcf.component_type_id
 ), cpu_info AS (
@@ -38,7 +38,7 @@ WITH ctf AS (
 	FROM
 		component c
 		JOIN component_type ct USING (component_type_id)
-		JOIN component_type_component_func ctcf USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
 		JOIN component_property pc ON (
 			ct.component_type_id = pc.component_type_id
 			AND (pc.component_property_name, pc.component_property_type) = 
@@ -71,7 +71,7 @@ WITH ctf AS (
 	FROM
 		component c
 		JOIN component_type ct USING (component_type_id)
-		JOIN component_type_component_func ctcf USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
 		LEFT JOIN asset a USING (component_id)
 		JOIN component_property ds ON (
 			ct.component_type_id = ds.component_type_id
@@ -107,7 +107,7 @@ WITH ctf AS (
 	FROM
 		component c
 		JOIN component_type ct USING (component_type_id)
-		JOIN component_type_component_func ctcf USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
 		LEFT JOIN asset a USING (component_id)
 		JOIN component_property msize ON (
 			ct.component_type_id = msize.component_type_id

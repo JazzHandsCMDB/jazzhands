@@ -61,7 +61,7 @@ BEGIN
 	INSERT INTO val_token_collection_Type (
 		token_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into token_collection (
@@ -94,9 +94,9 @@ BEGIN
 	insert into val_token_type (token_type, TOKEN_DIGIT_COUNT) values ('JHTEST', 6);
 
 	insert into token (token_serial,token_type,is_token_locked,last_updated) 
-		values('JHTEST01', 'JHTEST', 'Y', now()) RETURNING * into _tok1;
+		values('JHTEST01', 'JHTEST', true, now()) RETURNING * into _tok1;
 	insert into token (token_serial,token_type,is_token_locked,last_updated) 
-		values('JHTEST01', 'JHTEST', 'Y', now()) RETURNING * into _tok2;
+		values('JHTEST01', 'JHTEST', true, now()) RETURNING * into _tok2;
 	RAISE NOTICE 'Starting tests...';
 
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';

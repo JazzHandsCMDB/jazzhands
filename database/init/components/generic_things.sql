@@ -56,7 +56,7 @@ INSERT INTO val_slot_function (slot_function, description) VALUES
 -- slot, a specific linkage must exist in either
 -- slot_type_permitted_component_type for internal connections (i.e. the
 -- component becomes a logical sub-component of the parent) or in
--- slot_type_prmt_rem_slot_type for an external connection (i.e.
+-- slot_type_permitted_remote_slot_type for an external connection (i.e.
 -- a connection to a separate component entirely, such as a network or
 -- power connection)
 --

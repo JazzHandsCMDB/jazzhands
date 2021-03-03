@@ -20,20 +20,20 @@
 
 \t on
 
-SAVEPOINT l3_network_coll_hier_regression_test;
+SAVEPOINT layer3_network_collection_hier_regression_test;
 
-\ir ../../ddl/schema/pgsql/create_l3network_coll_hier_triggers.sql
+\ir ../../ddl/schema/pgsql/create_layer3_network_coll_hier_triggers.sql
 \ir ../../ddl/schema/pgsql/create_collection_bytype_triggers.sql
 
 
 -- 
 -- Trigger tests
 --
-CREATE OR REPLACE FUNCTION layer3_network_coll_hier_regression() RETURNS BOOLEAN AS $$
+CREATE OR REPLACE FUNCTION layer3_network_collection_hier_regression() RETURNS BOOLEAN AS $$
 DECLARE
 	_tally			integer;
 	_nc_onecol1		layer3_network_collection%ROWTYPE;
-	_nc_onecol3		layer3_network_collection%ROWTYPE;
+	_nc_onecolayer3		layer3_network_collection%ROWTYPE;
 	_nc_onemem		layer3_network_collection%ROWTYPE;
 	_hnc			layer3_network_collection%ROWTYPE;
 	_c1			layer3_network%ROWTYPE;
@@ -42,15 +42,15 @@ DECLARE
 	_nb2			netblock%ROWTYPE;
 	_nb6			netblock%ROWTYPE;
 BEGIN
-	RAISE NOTICE 'layer3_network_coll_hier_regression: Cleanup Records from Previous Tests';
+	RAISE NOTICE 'layer3_network_collection_hier_regression: Cleanup Records from Previous Tests';
 
-	delete from l3_network_coll_l3_network where layer3_network_collection_id
+	delete from layer3_network_collection_layer3_network where layer3_network_collection_id
 		IN (select layer3_network_collection_id FROM
 		layer3_network_collection where layer3_network_collection_type like
 		'JHTEST%');
 	delete from layer3_network_collection where layer3_network_collection_type like
 		'JHTEST%';
-	delete from val_layer3_network_coll_type where 
+	delete from val_layer3_network_collection_type where 
 		layer3_network_collection_type like
 		'JHTEST%';
 	delete from layer3_network where description like 'JHTEST%';
@@ -61,41 +61,41 @@ BEGIN
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 		) VALUES (
-			'172.31.26.0/26', 'default', 'N',
-			'N', 'Allocated', 'JHTEST1') RETURNING * into _nb1;
+			'172.31.26.0/26', 'default', false,
+			false, 'Allocated', 'JHTEST1') RETURNING * into _nb1;
 
 	INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 		) VALUES (
-			'172.31.192.0/26', 'default', 'N',
-			'N', 'Allocated', 'JHTEST2') RETURNING * into _nb2;
+			'172.31.192.0/26', 'default', false,
+			false, 'Allocated', 'JHTEST2') RETURNING * into _nb2;
 
        INSERT INTO netblock (ip_address, netblock_type, is_single_address,
 		can_subnet, netblock_status, description
 		) VALUES (
-			'ff00:dead:f00d::/64', 'default', 'N',
-			'Y', 'Allocated', 'JHTEST1') RETURNING * into _nb6;
+			'ff00:dead:f00d::/64', 'default', false,
+			true, 'Allocated', 'JHTEST1') RETURNING * into _nb6;
 
 
-	INSERT INTO val_layer3_network_coll_type (
+	INSERT INTO val_layer3_network_collection_type (
 		layer3_network_collection_type, max_num_members
 	) VALUES (
 		'JHTEST-MEMS', 1
 	);
-	INSERT INTO val_layer3_network_coll_type (
+	INSERT INTO val_layer3_network_collection_type (
 		layer3_network_collection_type, max_num_collections
 	) VALUES (
 		'JHTEST-COLS', 1
 	);
-	INSERT INTO val_layer3_network_coll_type (
+	INSERT INTO val_layer3_network_collection_type (
 		layer3_network_collection_type, max_num_collections
 	) VALUES (
 		'JHTEST-COLS2', 1
 	);
-	INSERT INTO val_layer3_network_coll_type (
+	INSERT INTO val_layer3_network_collection_type (
 		layer3_network_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT INTO layer3_network_collection (
@@ -108,7 +108,7 @@ BEGIN
 		layer3_network_collection_name, layer3_network_collection_type
 	) VALUES (
 		'JHTEST-cols-nc-2', 'JHTEST-COLS'
-	) RETURNING * into _nc_onecol3;
+	) RETURNING * into _nc_onecolayer3;
 
 	INSERT INTO layer3_network_collection (
 		layer3_network_collection_name, layer3_network_collection_type
@@ -148,9 +148,9 @@ BEGIN
 				h.layer3_network_collection_id
 		WHERE nc.layer3_network_collection_type = 'by-coll-type'
 		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS'
-		AND child_l3_network_coll_id IN (
+		AND child_layer3_network_collection_id IN (
 			_nc_onecol1.layer3_network_collection_id,
-			_nc_onecol3.layer3_network_collection_id
+			_nc_onecolayer3.layer3_network_collection_id
 		);
 		IF _tally != 2 THEN
 			RAISE '... failed with % != 2 rows!', _tally;
@@ -163,9 +163,9 @@ BEGIN
 				h.layer3_network_collection_id
 		WHERE nc.layer3_network_collection_type = 'by-coll-type'
 		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS2'
-		AND child_l3_network_coll_id IN (
+		AND child_layer3_network_collection_id IN (
 			_nc_onecol1.layer3_network_collection_id,
-			_nc_onecol3.layer3_network_collection_id
+			_nc_onecolayer3.layer3_network_collection_id
 		);
 		IF _tally != 0 THEN
 			RAISE 'old type is not initialized right 0 != %', _tally;
@@ -182,9 +182,9 @@ BEGIN
 				h.layer3_network_collection_id
 		WHERE nc.layer3_network_collection_type = 'by-coll-type'
 		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS'
-		AND child_l3_network_coll_id IN (
+		AND child_layer3_network_collection_id IN (
 			_nc_onecol1.layer3_network_collection_id,
-			_nc_onecol3.layer3_network_collection_id
+			_nc_onecolayer3.layer3_network_collection_id
 		);
 		IF _tally != 1 THEN
 			RAISE 'old type failed with % != 1 rows!', _tally;
@@ -197,9 +197,9 @@ BEGIN
 				h.layer3_network_collection_id
 		WHERE nc.layer3_network_collection_type = 'by-coll-type'
 		AND nc.layer3_network_collection_NAME = 'JHTEST-COLS2'
-		AND child_l3_network_coll_id IN (
+		AND child_layer3_network_collection_id IN (
 			_nc_onecol1.layer3_network_collection_id,
-			_nc_onecol3.layer3_network_collection_id
+			_nc_onecolayer3.layer3_network_collection_id
 		);
 		IF _tally != 1 THEN
 			RAISE 'new type failed with % != 2 rows!', _tally;
@@ -214,7 +214,7 @@ BEGIN
 	RAISE NOTICE 'Testing to see if can_have_hierarachy works... ';
 	BEGIN
 		INSERT INTO layer3_network_collection_hier (
-			layer3_network_collection_id, child_l3_network_coll_id
+			layer3_network_collection_id, child_layer3_network_collection_id
 		) VALUES (
 			_hnc.layer3_network_collection_id, _nc_onemem.layer3_network_collection_id
 		);
@@ -223,13 +223,13 @@ BEGIN
 		RAISE NOTICE '... It did';
 	END;
 
-	INSERT INTO l3_network_coll_l3_network (
+	INSERT INTO layer3_network_collection_layer3_network (
 		layer3_network_collection_id, layer3_network_Id
 	) VALUES (
 		_nc_onemem.layer3_network_collection_id, _c1.layer3_network_id
 	);
 
-	INSERT INTO l3_network_coll_l3_network (
+	INSERT INTO layer3_network_collection_layer3_network (
 		layer3_network_collection_id, layer3_network_Id
 	) VALUES (
 		_hnc.layer3_network_collection_id, _c2.layer3_network_id
@@ -237,7 +237,7 @@ BEGIN
 
 	RAISE NOTICE 'Testing to see if max_num_members works... ';
 	BEGIN
-		INSERT INTO l3_network_coll_l3_network (
+		INSERT INTO layer3_network_collection_layer3_network (
 			layer3_network_collection_id, layer3_network_Id
 		) VALUES (
 			_nc_onemem.layer3_network_collection_id, _c1.layer3_network_id
@@ -247,7 +247,7 @@ BEGIN
 		RAISE NOTICE '... It did';
 	END;
 
-	INSERT INTO l3_network_coll_l3_network (
+	INSERT INTO layer3_network_collection_layer3_network (
 		layer3_network_collection_id, layer3_network_Id
 	) VALUES (
 		_nc_onecol1.layer3_network_collection_id, _c1.layer3_network_id
@@ -255,10 +255,10 @@ BEGIN
 
 	RAISE NOTICE 'Testing to see if max_num_collections works... ';
 	BEGIN
-		INSERT INTO l3_network_coll_l3_network (
+		INSERT INTO layer3_network_collection_layer3_network (
 			layer3_network_collection_id, layer3_network_Id
 		) VALUES (
-			_nc_onecol3.layer3_network_collection_id, _c1.layer3_network_id
+			_nc_onecolayer3.layer3_network_collection_id, _c1.layer3_network_id
 		);
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
@@ -267,26 +267,26 @@ BEGIN
 
 	RAISE NOTICE 'Cleaning up...';
 
-	delete from l3_network_coll_l3_network where layer3_network_collection_id
+	delete from layer3_network_collection_layer3_network where layer3_network_collection_id
 		IN (select layer3_network_collection_id FROM
 		layer3_network_collection where layer3_network_collection_type like
 		'JHTEST%');
 	delete from layer3_network_collection where layer3_network_collection_type like
 		'JHTEST%';
-	delete from val_layer3_network_coll_type where 
+	delete from val_layer3_network_collection_type where 
 		layer3_network_collection_type like
 		'JHTEST%';
 	delete from layer3_network where description like 'JHTEST%';
-	RAISE NOTICE 'layer3_network_coll_hier_regression CollHier: DONE';
+	RAISE NOTICE 'layer3_network_collection_hier_regression CollHier: DONE';
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql;
 
 -- set search_path=public;
-SELECT layer3_network_coll_hier_regression();
+SELECT layer3_network_collection_hier_regression();
 -- set search_path=jazzhands;
-DROP FUNCTION layer3_network_coll_hier_regression();
+DROP FUNCTION layer3_network_collection_hier_regression();
 
-ROLLBACK TO l3_network_coll_hier_regression_test;
+ROLLBACK TO layer3_network_collection_hier_regression_test;
 
 \t off

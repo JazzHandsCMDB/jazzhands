@@ -42,12 +42,12 @@ BEGIN
 			d[1],
 			d[2],
 			(SELECT company_id FROM jazzhands.company WHERE company_name = 'Dell'),
-			'Y',
-			'Y',
+			true,
+			true,
 			2
 		) RETURNING component_type_id INTO ctid;
 
-		INSERT INTO component_type_component_func (
+		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
 		) VALUES (
@@ -58,7 +58,7 @@ BEGIN
 		--
 		-- CPU sockets
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -77,7 +77,7 @@ BEGIN
 		--
 		-- memory slots
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -121,7 +121,7 @@ BEGIN
 		--
 		-- PCI slots
 		--
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -137,7 +137,7 @@ BEGIN
 		WHERE
 			slot_type = 'PCIEx8half' and slot_function = 'PCI';
 
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -152,7 +152,7 @@ BEGIN
 		WHERE
 			slot_type = 'PCIEx16' and slot_function = 'PCI';
 
-		INSERT INTO component_type_slot_tmplt (
+		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
@@ -168,7 +168,7 @@ BEGIN
 			slot_type = 'PCIEx8' and slot_function = 'PCI';
 
 		IF (d[1] = 'PowerEdge R720') THEN
-			INSERT INTO component_type_slot_tmplt (
+			INSERT INTO component_type_slot_template (
 				component_type_id,
 				slot_type_id,
 				slot_name_template,
@@ -206,14 +206,14 @@ $$ LANGUAGE plpgsql;
 -- 			remote_slot_permitted)
 -- 	VALUES
 -- 		('R720NetworkDaughterConnector', 'R720NetworkDaughterConnector',
--- 		 'PCI', 'R720 network daughter card connector', 'N')
+-- 		 'PCI', 'R720 network daughter card connector', false)
 -- 	RETURNING
 -- 		slot_type_id INTO stid;
 -- 
 -- 	PERFORM *
 -- 	FROM
 -- 		component_type ct JOIN
--- 		component_type_component_func cf USING (component_type_id) JOIN
+-- 		component_type_component_function cf USING (component_type_id) JOIN
 -- 		component_property vid USING (component_type_id) JOIN
 -- 		component_property sid USING (component_type_id)
 -- 	WHERE
@@ -236,11 +236,11 @@ $$ LANGUAGE plpgsql;
 -- 			'Ethernet 10G 4P X540/I350 rNDC',
 -- 			stid,
 -- 			(SELECT company_id FROM jazzhands.company WHERE company_name = 'Dell'),
--- 			'N',
--- 			'N'
+-- 			false,
+-- 			false
 -- 		) RETURNING component_type_id INTO ctid;
 -- 
--- 		INSERT INTO component_type_component_func (
+-- 		INSERT INTO component_type_component_function (
 -- 			component_type_id,
 -- 			component_function
 -- 		) SELECT
@@ -265,7 +265,7 @@ $$ LANGUAGE plpgsql;
 -- 		--
 -- 		-- Network ports
 -- 		--
--- 		INSERT INTO component_type_slot_tmplt (
+-- 		INSERT INTO component_type_slot_template (
 -- 			component_type_id,
 -- 			slot_type_id,
 -- 			slot_name_template,
@@ -298,11 +298,11 @@ $$ LANGUAGE plpgsql;
 -- --			'Ethernet 10G 4P X540/I350 rNDC (I350)',
 -- --			stid,
 -- --			(SELECT company_id FROM jazzhands.company WHERE company_name = 'Dell'),
--- --			'N',
--- --			'N'
+-- --			false,
+-- --			false
 -- --		) RETURNING component_type_id INTO ctid;
 -- --
--- --		INSERT INTO component_type_component_func (
+-- --		INSERT INTO component_type_component_function (
 -- --			component_type_id,
 -- --			component_function
 -- --		) SELECT
@@ -327,7 +327,7 @@ $$ LANGUAGE plpgsql;
 -- 		--
 -- 		-- Network ports
 -- 		--
--- 		INSERT INTO component_type_slot_tmplt (
+-- 		INSERT INTO component_type_slot_template (
 -- 			component_type_id,
 -- 			slot_type_id,
 -- 			slot_name_template,

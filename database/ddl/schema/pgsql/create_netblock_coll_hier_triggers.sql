@@ -33,7 +33,7 @@ BEGIN
 		(select netblock_collection_type from netblock_collection
 			where netblock_collection_id = NEW.netblock_collection_id);
 
-	IF nct.can_have_hierarchy = 'N' THEN
+	IF nct.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'Netblock Collections of type % may not be hierarcical',
 			nct.netblock_collection_type
 			USING ERRCODE= 'unique_violation';

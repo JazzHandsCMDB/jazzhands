@@ -34,6 +34,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS time_util;
                 CREATE SCHEMA time_util AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA time_util FROM public;
 		COMMENT ON SCHEMA time_util IS 'part of jazzhands';
         END IF;
 END;
@@ -60,3 +61,6 @@ BEGIN
 	return rv;
 END;
 $$ LANGUAGE plpgsql;
+
+REVOKE ALL ON SCHEMA time_util FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA time_util FROM public;

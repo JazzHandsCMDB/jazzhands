@@ -15,32 +15,36 @@
 # limitations under the License.
 #
 
+configure:
+	echo Building perl modules
+	cd lib && perl Makefile.PL INSTALLDIRS=vendor --default
+
 all:
 	echo Building perl modules
-	cd lib && $(BUILDPERL) Makefile.PL INSTALLDIRS=vendor --default
+	cd lib && $(MAKE)
 
 install:
-	rm -rf $(INSTALLROOT)
-	mkdir -p $(INSTALLROOT)/etc/init.d/
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/etc/init.d/
 
-	install process-jira-issue-approvals.init.d $(INSTALLROOT)/etc/init.d/process-jira-issue-approvals
-	install process-rt-queue-approvals.init.d $(INSTALLROOT)/etc/init.d/process-rt-queue-approvals
-	install process-kace-queue-approvals.init.d $(INSTALLROOT)/etc/init.d/process-kace-queue-approvals
+	install process-jira-issue-approvals.init.d $(DESTDIR)/etc/init.d/process-jira-issue-approvals
+	install process-rt-queue-approvals.init.d $(DESTDIR)/etc/init.d/process-rt-queue-approvals
+	install process-kace-queue-approvals.init.d $(DESTDIR)/etc/init.d/process-kace-queue-approvals
 
-	install -d $(INSTALLROOT)/$(PREFIX)
+	install -d $(DESTDIR)/$(PREFIX)
 
-	install approval-email.pl $(INSTALLROOT)/$(PREFIX)/approval-email
-	install build-approvals.pl $(INSTALLROOT)/$(PREFIX)/build-approvals
-	install process-rt-queue-approvals.pl $(INSTALLROOT)/$(PREFIX)/process-rt-queue-approvals
-	install process-jira-issue-approvals.pl $(INSTALLROOT)/$(PREFIX)/process-jira-issue-approvals
-	install process-kace-queue-approvals.pl $(INSTALLROOT)/$(PREFIX)/process-kace-queue-approvals
+	install approval-email.pl $(DESTDIR)/$(PREFIX)/approval-email
+	install build-approvals.pl $(DESTDIR)/$(PREFIX)/build-approvals
+	install process-rt-queue-approvals.pl $(DESTDIR)/$(PREFIX)/process-rt-queue-approvals
+	install process-jira-issue-approvals.pl $(DESTDIR)/$(PREFIX)/process-jira-issue-approvals
+	install process-kace-queue-approvals.pl $(DESTDIR)/$(PREFIX)/process-kace-queue-approvals
 
 	# module stuff
-	cd lib && make pure_install PERL_INSTALL_ROOT=$(INSTALLROOT)
-	find $(INSTALLROOT) -type f -name .packlist -exec rm -f {} \;
-	find $(INSTALLROOT) -depth -type d -exec rmdir {} 2>/dev/null \;
+	cd lib && make pure_install DESTDIR=${DESTDIR}
+	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
+	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;
 
 clean:
-	cd lib && make distclean
+	cd lib && [ -f Makefile ]  && make distclean || true
 
 distclean: clean

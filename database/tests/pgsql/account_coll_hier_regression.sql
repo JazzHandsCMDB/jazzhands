@@ -76,7 +76,7 @@ BEGIN
 	INSERT INTO val_account_collection_Type (
 		account_collection_type, can_have_hierarchy
 	) VALUES (
-		'JHTEST-HIER', 'N'
+		'JHTEST-HIER', false
 	);
 
 	INSERT into account_collection (
@@ -237,7 +237,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking if relation member restictions fail as expected... ';
 	BEGIN
-		INSERT INTO val_account_collection_relatio (
+		INSERT INTO val_account_collection_relation (
 			account_collection_relation
 		) VALUES (
 			'indirect'
@@ -249,12 +249,12 @@ BEGIN
 			) VALUES (
 				'jhtesty'
 			) RETURNING *
-		) INSERT INTO account_coll_type_relation (
+		) INSERT INTO account_collection_type_relation (
 				account_collection_type, account_collection_relation
 			) SELECT account_collection_type, 'indirect'
 		FROM type;
 
-		UPDATE account_coll_type_relation
+		UPDATE account_collection_type_relation
 		SET max_num_members = 1
 		WHERE account_collection_relation = 'direct';
 
@@ -309,7 +309,7 @@ BEGIN
 
 	RAISE NOTICE 'Checking if relation collection restictions fail as expected... ';
 	BEGIN
-		INSERT INTO val_account_collection_relatio (
+		INSERT INTO val_account_collection_relation (
 			account_collection_relation
 		) VALUES (
 			'indirect'
@@ -321,12 +321,12 @@ BEGIN
 			) VALUES (
 				'jhtesty'
 			) RETURNING *
-		) INSERT INTO account_coll_type_relation (
+		) INSERT INTO account_collection_type_relation (
 				account_collection_type, account_collection_relation
 			) SELECT account_collection_type, 'indirect'
 		FROM type;
 
-		UPDATE account_coll_type_relation
+		UPDATE account_collection_type_relation
 		SET max_num_collections = 1
 		WHERE account_collection_relation = 'indirect';
 

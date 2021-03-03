@@ -41,7 +41,7 @@ FROM	device_collection dc
 		JOIN ( 
 			SELECT dch.device_collection_id, vace.account_collection_id
 				FROM v_property  p
-					JOIN v_device_coll_hier_detail dch ON
+					JOIN v_device_collection_hier_detail dch ON
 						p.device_collection_id = dch.parent_device_collection_id
 					join v_account_collection_expanded vace 
 						ON vace.root_account_collection_id =
@@ -51,10 +51,10 @@ FROM	device_collection dc
 			UNION ALL
 			select dch.device_collection_id, uag.account_collection_id
 			from   v_property p
-					JOIN v_device_coll_hier_detail dch ON
+					JOIN v_device_collection_hier_detail dch ON
 							p.device_collection_id = 
 								dch.parent_device_collection_id
-					join v_acct_coll_acct_expanded vace 
+					join v_account_collection_account_expanded vace 
 						using (account_collection_id)
 					join (
 						SELECT a.* 
@@ -64,7 +64,7 @@ FROM	device_collection dc
 						) a on vace.account_id = a.account_id
 					join account_unix_info aui on a.account_id = aui.account_id
 					join unix_group ug
-						on ug.account_collection_id = aui.unix_group_acct_collection_id
+						on ug.account_collection_id = aui.unix_group_account_collection_id
 					join account_collection uag
 				on ug.account_collection_id = uag.account_collection_id
 			WHERE property_name = 'UnixLogin'
@@ -72,14 +72,14 @@ FROM	device_collection dc
 			) ugmap USING (device_collection_id)
 		JOIN account_collection ac USING (account_collection_id)
 		JOIN unix_group USING (account_collection_id)
-		LEFT JOIN v_device_col_account_col_cart o
+		LEFT JOIN v_device_collection_account_collection_cart o
 			USING (device_collection_id,account_collection_id)
 		LEFT JOIN (
 			SELECT	g.* 
 			FROM	(
 				SELECT * FROM (
 					SELECT device_collection_id, account_collection_id,account_id
-		 			FROM	device_collection dc, v_acct_coll_acct_expanded ae
+		 			FROM	device_collection dc, v_account_collection_account_expanded ae
 								INNER JOIN unix_group USING (account_collection_id)
 		 						INNER JOIN account_collection inac using
 									(account_collection_id)
@@ -90,10 +90,10 @@ FROM	device_collection dc
 									p.account_collection_id, aca.account_id
 							FROM    v_property p
 									INNER JOIN unix_group ug USING (account_collection_id)
-									JOIN v_device_coll_hier_detail dch ON
+									JOIN v_device_collection_hier_detail dch ON
 										p.device_collection_id = dch.parent_device_collection_id
-									INNER JOIN v_acct_coll_acct_expanded  aca
-										ON p.property_value_account_coll_id = aca.account_collection_id
+									INNER JOIN v_account_collection_account_expanded  aca
+										ON p.property_value_account_collection_id = aca.account_collection_id
 							WHERE   p.property_name = 'UnixGroupMemberOverride'
 							AND     p.property_type = 'MclassUnixProp'
 						) dcugm

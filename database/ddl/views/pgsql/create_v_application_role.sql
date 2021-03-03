@@ -45,30 +45,30 @@ WITH RECURSIVE var_recurse(
 	WHERE
 		device_collection_type = 'appgroup'
 	AND	device_collection_id not in
-		(select device_collection_id from v_device_collection_hier_trans)
+		(select child_device_collection_id from device_collection_hier)
 UNION ALL
 	SELECT	x.role_level + 1				as role_level,
 		dch.device_collection_id 			as role_id,
-		dch.parent_device_collection_id 		as parent_role_id,
+		dch.device_collection_id 		as parent_role_id,
 		x.root_role_id 					as root_role_id,
 		x.root_role_name 				as root_role_name,
 		dc.device_collection_name			as role_name,
 		cast(x.role_path || '/' || dc.device_collection_name 
 					as varchar(255))	as role_path,
-		case WHEN lchk.parent_device_collection_id IS NULL
+		case WHEN lchk.device_collection_id IS NULL
 			THEN 'Y'
 			ELSE 'N'
 			END 					as role_is_leaf,
-		dch.parent_device_collection_id || x.array_path	as array_path,
-		dch.parent_device_collection_id = ANY(x.array_path)	as cycle
+		dch.device_collection_id || x.array_path	as array_path,
+		dch.device_collection_id = ANY(x.array_path)	as cycle
 	FROM	var_recurse x
-		inner join v_device_collection_hier_trans dch
-			on x.role_id = dch.parent_device_collection_id
+		inner join device_collection_hier dch
+			on x.role_id = dch.device_collection_id
 		inner join device_collection dc
 			on dch.device_collection_id = dc.device_collection_id
-		left join v_device_collection_hier_trans lchk
+		left join device_collection_hier lchk
 			on dch.device_collection_id 
-				= lchk.parent_device_collection_id
+				= lchk.device_collection_id
 	WHERE NOT x.cycle
 ) SELECT distinct * FROM var_recurse;
 

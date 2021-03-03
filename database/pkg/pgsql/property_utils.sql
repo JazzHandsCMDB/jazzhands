@@ -1,4 +1,4 @@
--- Copyright (c) 2018 Todd M. Kover
+-- Copyright (c) 2018-2020 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,8 +78,8 @@ DECLARE
 	v_layer3_network_collection	layer3_network_collection%ROWTYPE;
 	v_netblock_collection		netblock_collection%ROWTYPE;
 	v_network_range				network_range%ROWTYPE;
-	v_property_collection		property_collection%ROWTYPE;
-	v_service_env_collection	service_environment_collection%ROWTYPE;
+	v_property_name_collection		property_name_collection%ROWTYPE;
+	v_service_environment_collection	service_environment_collection%ROWTYPE;
 	v_num				integer;
 	v_listvalue			Property.Property_Value%TYPE;
 BEGIN
@@ -103,7 +103,7 @@ BEGIN
 
 	-- Check to see if the property itself is multivalue.  That is, if only
 	-- one value can be set for this property for a specific property LHS
-	IF (v_prop.is_multivalue = 'N') THEN
+	IF (v_prop.is_multivalue = false) THEN
 		PERFORM 1 FROM Property WHERE
 			Property_Id != NEW.Property_Id AND
 			Property_Name = NEW.Property_Name AND
@@ -126,10 +126,9 @@ BEGIN
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
-			person_id IS NOT DISTINCT FROM NEW.person_id AND
-			property_collection_id IS NOT DISTINCT FROM NEW.property_collection_id AND
-			service_env_collection_id IS NOT DISTINCT FROM
-				NEW.service_env_collection_id AND
+			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
+			service_environment_collection_id IS NOT DISTINCT FROM
+				NEW.service_environment_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code
 		;
 
@@ -164,30 +163,33 @@ BEGIN
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
-			person_id IS NOT DISTINCT FROM NEW.person_id AND
-			property_collection_id IS NOT DISTINCT FROM NEW.property_collection_id AND
-			service_env_collection_id IS NOT DISTINCT FROM
-				NEW.service_env_collection_id AND
+			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
+			service_environment_collection_id IS NOT DISTINCT FROM
+				NEW.service_environment_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code AND
 			property_value IS NOT DISTINCT FROM NEW.property_value AND
 			property_value_json IS NOT DISTINCT FROM
 				NEW.property_value_json AND
+			property_value_boolean IS NOT DISTINCT FROM
+				NEW.property_value_boolean AND
 			property_value_timestamp IS NOT DISTINCT FROM
 				NEW.property_value_timestamp AND
-			property_value_account_coll_id IS NOT DISTINCT FROM
-				NEW.property_value_account_coll_id AND
-			property_value_device_coll_id IS NOT DISTINCT FROM
-				NEW.property_value_device_coll_id AND
-			property_value_nblk_coll_id IS NOT DISTINCT FROM
-				NEW.property_value_nblk_coll_id AND
+			property_value_account_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_account_collection_id AND
+			property_value_device_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_device_collection_id AND
+			property_value_netblock_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_netblock_collection_id AND
 			property_value_password_type IS NOT DISTINCT FROM
 				NEW.property_value_password_type AND
-			property_value_person_id IS NOT DISTINCT FROM
-				NEW.property_value_person_id AND
 			property_value_sw_package_id IS NOT DISTINCT FROM
 				NEW.property_value_sw_package_id AND
-			property_value_token_col_id IS NOT DISTINCT FROM
-				NEW.property_value_token_col_id AND
+			property_value_token_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_token_collection_id AND
+			property_value_encryption_key_id IS NOT DISTINCT FROM
+				NEW.property_value_encryption_key_id AND
+			property_value_private_key_id IS NOT DISTINCT FROM
+				NEW.property_value_private_key_id AND
 			start_date IS NOT DISTINCT FROM NEW.start_date AND
 			finish_date IS NOT DISTINCT FROM NEW.finish_date
 		;
@@ -206,7 +208,7 @@ BEGIN
 	-- one property and value can be set for any properties with this type
 	-- for a specific property LHS
 
-	IF (v_proptype.is_multivalue = 'N') THEN
+	IF (v_proptype.is_multivalue = false) THEN
 		PERFORM 1 FROM Property WHERE
 			Property_Id != NEW.Property_Id AND
 			Property_Type = NEW.Property_Type AND
@@ -228,10 +230,9 @@ BEGIN
 			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
 			operating_system_snapshot_id IS NOT DISTINCT FROM
 				NEW.operating_system_snapshot_id AND
-			person_id IS NOT DISTINCT FROM NEW.person_id AND
-			property_collection_id IS NOT DISTINCT FROM NEW.property_collection_id AND
-			service_env_collection_id IS NOT DISTINCT FROM
-				NEW.service_env_collection_id AND
+			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
+			service_environment_collection_id IS NOT DISTINCT FROM
+				NEW.service_environment_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code
 		;
 
@@ -269,7 +270,7 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_Token_Col_Id IS NOT NULL THEN
+	IF NEW.Property_Value_Token_collection_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'token_collection_id' THEN
 			tally := tally + 1;
 		ELSE
@@ -285,7 +286,7 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
+	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'account_collection_id' THEN
 			tally := tally + 1;
 		ELSE
@@ -293,11 +294,11 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_nblk_Coll_Id IS NOT NULL THEN
+	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'netblock_collection_id' THEN
 			tally := tally + 1;
 		ELSE
-			RAISE 'Property value may not be nblk_collection_id' USING
+			RAISE 'Property value may not be netblock_collection_id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -309,19 +310,38 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_Person_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'person_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Person_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Device_Coll_Id IS NOT NULL THEN
+	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'device_collection_id' THEN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be Device_Collection_Id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_boolean IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'boolean' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be boolean' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_encryption_key_id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'encryption_key_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be encryption_key_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_private_key_id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'private_key_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be private_key_id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -332,15 +352,9 @@ BEGIN
 	-- trigger needs to be updated or it will be considered invalid.  If a
 	-- new PROPERTY_VALUE_* column is added, then it will pass through without
 	-- trigger modification.  This should be considered bad.
-
 	IF NEW.Property_Value IS NOT NULL THEN
 		tally := tally + 1;
-		IF v_prop.Property_Data_Type = 'boolean' THEN
-			IF NEW.Property_Value != 'Y' AND NEW.Property_Value != 'N' THEN
-				RAISE 'Boolean Property_Value must be Y or N' USING
-					ERRCODE = 'invalid_parameter_value';
-			END IF;
-		ELSIF v_prop.Property_Data_Type = 'number' THEN
+		IF v_prop.Property_Data_Type = 'number' THEN
 			BEGIN
 				v_num := to_number(NEW.property_value, '9');
 			EXCEPTION
@@ -360,8 +374,11 @@ BEGIN
 					RAISE 'Property_Value must be a valid value' USING
 						ERRCODE = 'invalid_parameter_value';
 			END;
+		ELSIF v_prop.Property_Data_Type = 'boolean' THEN
+			RAISE 'Boolean values are set in Property_Value_Boolean' USING
+				ERRCODE = 'invalid_parameter_value';
 		ELSIF v_prop.Property_Data_Type != 'string' THEN
-			RAISE 'Property_Data_Type is not a known type' USING
+			RAISE 'Property_Value may not be set for this Property_Data_Type' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -552,18 +569,18 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- If the LHS contains a property_collection_ID, check to see if it must be a
+	-- If the LHS contains a property_name_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-property), and verify that if so
-	IF NEW.property_collection_id IS NOT NULL THEN
-		IF v_prop.property_collection_type IS NOT NULL THEN
+	IF NEW.property_name_collection_id IS NOT NULL THEN
+		IF v_prop.property_name_collection_type IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_property_collection
-					FROM property_collection WHERE
-					property_collection_Id = NEW.property_collection_id;
-				IF v_property_collection.property_collection_Type != v_prop.property_collection_type
+				SELECT * INTO STRICT v_property_name_collection
+					FROM property_name_collection WHERE
+					property_name_collection_Id = NEW.property_name_collection_id;
+				IF v_property_name_collection.property_name_collection_Type != v_prop.property_name_collection_type
 				THEN
-					RAISE 'property_collection_id must be of type %',
-					v_prop.property_collection_type
+					RAISE 'property_name_collection_id must be of type %',
+					v_prop.property_name_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -574,18 +591,18 @@ BEGIN
 		END IF;
 	END IF;
 
-	-- If the LHS contains a service_env_collection_ID, check to see if it must be a
+	-- If the LHS contains a service_environment_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-service_env), and verify that if so
-	IF NEW.service_env_collection_id IS NOT NULL THEN
-		IF v_prop.service_env_collection_type IS NOT NULL THEN
+	IF NEW.service_environment_collection_id IS NOT NULL THEN
+		IF v_prop.service_environment_collection_type IS NOT NULL THEN
 			BEGIN
-				SELECT * INTO STRICT v_service_env_collection
-					FROM service_env_collection WHERE
-					service_env_collection_Id = NEW.service_env_collection_id;
-				IF v_service_env_collection.service_env_collection_Type != v_prop.service_env_collection_type
+				SELECT * INTO STRICT v_service_environment_collection
+					FROM service_environment_collection WHERE
+					service_environment_collection_Id = NEW.service_environment_collection_id;
+				IF v_service_environment_collection.service_environment_collection_Type != v_prop.service_environment_collection_type
 				THEN
-					RAISE 'service_env_collection_id must be of type %',
-					v_prop.service_env_collection_type
+					RAISE 'service_environment_collection_id must be of type %',
+					v_prop.service_environment_collection_type
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -598,16 +615,16 @@ BEGIN
 
 	-- If the RHS contains a account_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-account), and verify that if so
-	IF NEW.Property_Value_Account_Coll_Id IS NOT NULL THEN
-		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
+	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
+		IF v_prop.property_value_account_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_account_collection
 					FROM account_collection WHERE
-					account_collection_Id = NEW.Property_Value_Account_Coll_Id;
-				IF v_account_collection.account_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
+					account_collection_Id = NEW.Property_Value_Account_collection_Id;
+				IF v_account_collection.account_collection_Type != v_prop.property_value_account_collection_type_restriction
 				THEN
-					RAISE 'Property_Value_Account_Coll_Id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					RAISE 'Property_Value_Account_collection_Id must be of type %',
+					v_prop.property_value_account_collection_type_restriction
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -620,16 +637,16 @@ BEGIN
 
 	-- If the RHS contains a netblock_collection_ID, check to see if it must be a
 	-- specific type and verify that if so
-	IF NEW.Property_Value_nblk_Coll_Id IS NOT NULL THEN
-		IF v_prop.prop_val_acct_coll_type_rstrct IS NOT NULL THEN
+	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
+		IF v_prop.property_value_account_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_netblock_collection
 					FROM netblock_collection WHERE
-					netblock_collection_Id = NEW.Property_Value_nblk_Coll_Id;
-				IF v_netblock_collection.netblock_collection_Type != v_prop.prop_val_acct_coll_type_rstrct
+					netblock_collection_Id = NEW.Property_Value_netblock_collection_Id;
+				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_account_collection_type_restriction
 				THEN
-					RAISE 'Property_Value_nblk_Coll_Id must be of type %',
-					v_prop.prop_val_acct_coll_type_rstrct
+					RAISE 'Property_Value_netblock_collection_Id must be of type %',
+					v_prop.property_value_account_collection_type_restriction
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -642,17 +659,17 @@ BEGIN
 
 	-- If the RHS contains a device_collection_id, check to see if it must be a
 	-- specific type and verify that if so
-	IF NEW.Property_Value_Device_Coll_Id IS NOT NULL THEN
-		IF v_prop.prop_val_dev_coll_type_rstrct IS NOT NULL THEN
+	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
+		IF v_prop.property_value_device_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_device_collection
 					FROM device_collection WHERE
-					device_collection_id = NEW.Property_Value_Device_Coll_Id;
+					device_collection_id = NEW.Property_Value_Device_collection_Id;
 				IF v_device_collection.device_collection_type !=
-					v_prop.prop_val_dev_coll_type_rstrct
+					v_prop.property_value_device_collection_type_restriction
 				THEN
-					RAISE 'Property_Value_Device_Coll_Id must be of type %',
-					v_prop.prop_val_dev_coll_type_rstrct
+					RAISE 'Property_Value_Device_collection_Id must be of type %',
+					v_prop.property_value_device_collection_type_restriction
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -718,13 +735,13 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.permit_service_env_collection = 'REQUIRED' THEN
-			IF NEW.service_env_collection_id IS NULL THEN
-				RAISE 'service_env_collection_id is required.'
+	IF v_prop.permit_service_environment_collection = 'REQUIRED' THEN
+			IF NEW.service_environment_collection_id IS NULL THEN
+				RAISE 'service_environment_collection_id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.permit_service_env_collection = 'PROHIBITED' THEN
-			IF NEW.service_env_collection_id IS NOT NULL THEN
+	ELSIF v_prop.permit_service_environment_collection = 'PROHIBITED' THEN
+			IF NEW.service_environment_collection_id IS NOT NULL THEN
 				RAISE 'service_environment is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
@@ -742,12 +759,12 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.permit_os_snapshot_id = 'REQUIRED' THEN
+	IF v_prop.permit_operating_system_snapshot_id = 'REQUIRED' THEN
 			IF NEW.operating_system_snapshot_id IS NULL THEN
 				RAISE 'operating_system_snapshot_id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.permit_os_snapshot_id = 'PROHIBITED' THEN
+	ELSIF v_prop.permit_operating_system_snapshot_id = 'PROHIBITED' THEN
 			IF NEW.operating_system_snapshot_id IS NOT NULL THEN
 				RAISE 'operating_system_snapshot_id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
@@ -802,24 +819,24 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.permit_layer2_network_coll_id = 'REQUIRED' THEN
+	IF v_prop.permit_layer2_network_collection_id = 'REQUIRED' THEN
 			IF NEW.layer2_network_collection_id IS NULL THEN
 				RAISE 'layer2_network_collection_id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.permit_layer2_network_coll_id = 'PROHIBITED' THEN
+	ELSIF v_prop.permit_layer2_network_collection_id = 'PROHIBITED' THEN
 			IF NEW.layer2_network_collection_id IS NOT NULL THEN
 				RAISE 'layer2_network_collection_id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
 
-	IF v_prop.permit_layer3_network_coll_id = 'REQUIRED' THEN
+	IF v_prop.permit_layer3_network_collection_id = 'REQUIRED' THEN
 			IF NEW.layer3_network_collection_id IS NULL THEN
 				RAISE 'layer3_network_collection_id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.permit_layer3_network_coll_id = 'PROHIBITED' THEN
+	ELSIF v_prop.permit_layer3_network_collection_id = 'PROHIBITED' THEN
 			IF NEW.layer3_network_collection_id IS NOT NULL THEN
 				RAISE 'layer3_network_collection_id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
@@ -850,26 +867,14 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.Permit_property_collection_Id = 'REQUIRED' THEN
-			IF NEW.property_collection_Id IS NULL THEN
-				RAISE 'property_collection_Id is required.'
+	IF v_prop.Permit_property_name_collection_Id = 'REQUIRED' THEN
+			IF NEW.property_name_collection_Id IS NULL THEN
+				RAISE 'property_name_collection_Id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.Permit_property_collection_Id = 'PROHIBITED' THEN
-			IF NEW.property_collection_Id IS NOT NULL THEN
-				RAISE 'property_collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Person_Id = 'REQUIRED' THEN
-			IF NEW.Person_Id IS NULL THEN
-				RAISE 'Person_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Person_Id = 'PROHIBITED' THEN
-			IF NEW.Person_Id IS NOT NULL THEN
-				RAISE 'Person_Id is prohibited.'
+	ELSIF v_prop.Permit_property_name_collection_Id = 'PROHIBITED' THEN
+			IF NEW.property_name_collection_Id IS NOT NULL THEN
+				RAISE 'property_name_collection_Id is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
 	END IF;
@@ -891,4 +896,9 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
-END;
+
+REVOKE ALL ON SCHEMA property_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA property_utils FROM public;
+
+GRANT ALL ON SCHEMA property_utils TO ro_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA property_utils TO ro_role;

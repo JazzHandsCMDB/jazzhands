@@ -1,4 +1,5 @@
 -- Copyright (c) 2015, Kurt Adam
+-- Copyright (c) 2020, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,6 +28,7 @@ BEGIN
 		DROP SCHEMA IF EXISTS snapshot_manip CASCADE;
 		-- CREATE SCHEMA snapshot_manip AUTHORIZATION jazzhands;
 		CREATE SCHEMA snapshot_manip;
+		REVOKE ALL ON SCHEMA snapshot_manip FROM public;
 		COMMENT ON SCHEMA snapshot_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -81,12 +83,12 @@ BEGIN
 			property_type,
 			property_name,
 			operating_system_id,
-			property_value
+			property_value_boolean
 		) VALUES (
 			'OperatingSystem',
 			'AllowOSDeploy',
 			osid,
-			'N'
+			false
 		);
 	END IF;
 
@@ -115,7 +117,7 @@ BEGIN
 		property_name,
 		device_collection_id,
 		operating_system_snapshot_id,
-		property_value
+		property_value_boolean
 	) VALUES (
 		'OperatingSystem',
 		'DeviceCollection',
@@ -127,7 +129,7 @@ BEGIN
 		'AllowSnapDeploy',
 		NULL,
 		snapid,
-		'N'
+		false
 	);
 
 	RETURN snapid;
@@ -446,6 +448,9 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON SCHEMA snapshot_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA snapshot_manip FROM public;
 
 GRANT USAGE ON SCHEMA snapshot_manip TO iud_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA snapshot_manip TO iud_role;

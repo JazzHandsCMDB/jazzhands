@@ -33,7 +33,7 @@ BEGIN
 		(select company_collection_type from company_collection
 			where company_collection_id = NEW.company_collection_id);
 
-	IF dct.can_have_hierarchy = 'N' THEN
+	IF dct.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'Company Collections of type % may not be hierarcical',
 			dct.company_collection_type
 			USING ERRCODE= 'unique_violation';

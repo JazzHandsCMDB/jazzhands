@@ -22,7 +22,7 @@ FROM  (
 		(partition BY account_collection_id,account_id ORDER BY
 		"aud#seq" desc) as rownum
 	FROM    account_collection_account aca
-		JOIN audit.account_collection_account acaa
+		JOIN jazzhands_audit.account_collection_account acaa
 			USING (account_collection_id, account_id)
 	WHERE "aud#action" in ('UPD', 'INS')
 ) all_audrecs
@@ -36,7 +36,7 @@ FROM  (
 		(partition BY person_id,company_id ORDER BY
 		"aud#seq" desc) as rownum
 	FROM    person_company pc
-		JOIN audit.person_company pca
+		JOIN jazzhands_audit.person_company pca
 			USING (person_id, company_id)
 	WHERE "aud#action" in ('UPD', 'INS')
 	) all_audrecs

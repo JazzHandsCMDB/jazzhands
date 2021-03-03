@@ -34,6 +34,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS account_collection_manip;
 		CREATE SCHEMA account_collection_manip AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA account_collection_manip FROM public;
 		COMMENT ON SCHEMA account_collection_manip IS 'part of jazzhands';
 	END IF;
 END;
@@ -148,7 +149,7 @@ $$
 DECLARE
 	forced boolean;
 BEGIN
-	IF is_member IS NULL OR is_member = 'N' THEN
+	IF is_member = 'N' THEN
 		forced = false;
 	ELSE
 		forced = true;
@@ -211,10 +212,11 @@ BEGIN
 			WHERE   pc.termination_date IS NOT NULL
 			AND     pc.termination_date < now() - $1::interval
 			AND	coalesce(aca.data_upd_date, aca.data_ins_date) < pc.termination_date
+			AND		not a.is_enabled
 			AND     account_collection_type != $2
 			AND
 				(account_collection_id, account_id)  NOT IN
-					( SELECT unix_group_acct_collection_id, account_id from
+					( SELECT unix_group_account_collection_id, account_id from
 						account_unix_info)
 			AND account_collection_id NOT IN (
 				SELECT account_collection_id
@@ -280,7 +282,7 @@ BEGIN
 			FROM	account_collection ac
 				JOIN department d USING (account_collection_id)
 				JOIN property p USING (account_collection_id)
-			WHERE 	d.is_active = 'N'
+			WHERE 	d.is_active = false
 			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
 			AND	account_collection_id NOT IN (
@@ -300,13 +302,13 @@ BEGIN
 							ac.account_collection_id as child_account_collection_id,
 							account_collection_name as name,
 							account_collection_type as type
-						FROM	v_acct_coll_expanded 	 v
+						FROM	v_account_collection_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
-						WHERE	is_active = 'Y'
+						WHERE	is_active = true
 					) kid USING (account_collection_id)
 				WHERE
-					is_active = 'N'
+					is_active = false
 			)
 	LOOP
 		BEGIN
@@ -327,22 +329,22 @@ BEGIN
 	FOR _r IN SELECT	p.property_id
 			FROM	account_collection ac
 				JOIN department d USING (account_collection_id)
-				JOIN property p ON p.property_value_account_coll_id =
+				JOIN property p ON p.property_value_account_collection_id =
 					ac.account_collection_id
-			WHERE 	d.is_active = 'N'
+			WHERE 	d.is_active = false
 			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
-			AND	p.property_value_account_coll_id NOT IN (
+			AND	p.property_value_account_collection_id NOT IN (
 					SELECT child_account_collection_id
 					FROM account_collection_hier
 				)
-			AND	p.property_value_account_coll_id NOT IN (
+			AND	p.property_value_account_collection_id NOT IN (
 					SELECT account_collection_id
 					FROM account_collection_account
 						JOIN account a USING (account_id)
-					WHERE a.is_enabled = 'Y'
+					WHERE a.is_enabled = true
 				)
-			AND p.property_value_account_coll_id NOT IN (
+			AND p.property_value_account_collection_id NOT IN (
 				SELECT account_collection_id
 				FROM	account_collection ac
 					JOIN department d USING (account_collection_id)
@@ -351,13 +353,13 @@ BEGIN
 							ac.account_collection_id as child_account_collection_id,
 							account_collection_name as name,
 							account_collection_type as type
-						FROM	v_acct_coll_expanded 	 v
+						FROM	v_account_collection_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
-						WHERE	is_active = 'Y'
+						WHERE	is_active = true
 					) kid USING (account_collection_id)
 				WHERE
-					is_active = 'N'
+					is_active = false
 			)
 	LOOP
 		BEGIN
@@ -457,7 +459,7 @@ BEGIN
 	FOR _r IN SELECT	ac.*
 			FROM	account_collection ac
 				JOIN department d USING (account_collection_id)
-			WHERE	d.is_active = 'N'
+			WHERE	d.is_active = false
 			AND	account_collection_id IN (
 				SELECT child_account_collection_id FROM account_collection_hier
 			)
@@ -470,13 +472,13 @@ BEGIN
 							ac.account_collection_id as child_account_collection_id,
 							account_collection_name as name,
 							account_collection_type as type
-						FROM	v_acct_coll_expanded 	 v
+						FROM	v_account_collection_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
-						WHERE	is_active = 'Y'
+						WHERE	is_active = true
 					) kid USING (account_collection_id)
 				WHERE
-					is_active = 'N'
+					is_active = false
 			)
 
 	LOOP
@@ -542,7 +544,7 @@ BEGIN
 			JOIN val_account_collection_type act USING (account_collection_type)
 		WHERE	now() -
 			coalesce(ac.data_upd_date,ac.data_ins_date) > lifespan::interval
-		AND	act.is_infrastructure_type = 'N'
+		AND	act.is_infrastructure_type = false
 		AND	account_collection_id NOT IN
 			(SELECT child_account_collection_id FROM account_collection_hier)
 		AND	account_collection_id NOT IN
@@ -553,8 +555,8 @@ BEGIN
 			(SELECT account_collection_id FROM property
 				WHERE account_collection_id IS NOT NULL)
 		AND	account_collection_id NOT IN
-			(SELECT property_value_account_coll_id FROM property
-				WHERE property_value_account_coll_id IS NOT NULL)
+			(SELECT property_value_account_collection_id FROM property
+				WHERE property_value_account_collection_id IS NOT NULL)
 	LOOP
 		BEGIN
 			DELETE FROM account_collection
@@ -594,9 +596,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-grant select on all tables in schema account_collection_manip to iud_role;
-grant usage on schema account_collection_manip to iud_role;
-revoke all on schema account_collection_manip from public;
-revoke all on  all functions in schema account_collection_manip from public;
-grant execute on all functions in schema account_collection_manip to iud_role;
+REVOKE ALL ON SCHEMA account_collection_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA account_collection_manip FROM public;
+
+GRANT USAGE ON schema account_collection_manip TO iud_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA account_collection_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA account_collection_manip TO iud_role;
 

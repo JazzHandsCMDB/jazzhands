@@ -1,4 +1,4 @@
--- Copyright (c) 2015, Todd M. Kover
+-- Copyright (c) 2015-2020, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,7 @@ BEGIN
 	IF _tal = 0 THEN
 		DROP SCHEMA IF EXISTS approval_utils;
 		CREATE SCHEMA approval_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON schema approval_utils FROM public;
 		COMMENT ON SCHEMA approval_utils IS 'part of jazzhands';
 	END IF;
 END;
@@ -37,22 +38,22 @@ CREATE OR REPLACE FUNCTION approval_utils.calculate_due_date(
 ) RETURNS timestamp AS $$
 DECLARE
 BEGIN
-	RETURN date_trunc('day', (CASE 
+	RETURN date_trunc('day', (CASE
 		WHEN to_char(from_when + response_period::interval, 'D') = '1'
 			THEN from_when + response_period::interval + '1 day'::interval
 		WHEN to_char(from_when + response_period::interval, 'D') = '7'
 			THEN from_when + response_period::interval + '2 days'::interval
-		ELSE from_when + response_period::interval END)::timestamp) + 
+		ELSE from_when + response_period::interval END)::timestamp) +
 			'1 day'::interval - '1 second'::interval
 	;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
-CREATE OR REPLACE FUNCTION 
+CREATE OR REPLACE FUNCTION
 		approval_utils.get_or_create_correct_approval_instance_link(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
-	approval_instance_link_id	
+	approval_instance_link_id
 					approval_instance_link.approval_instance_link_id%TYPE
 ) RETURNS approval_instance_link.approval_instance_link_id%TYPE AS $$
 DECLARE
@@ -68,7 +69,7 @@ BEGIN
 	_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
 
 	IF _v.audit_table = 'account_collection_account' THEN
-		IF _v.audit_seq_id IS NOT 
+		IF _v.audit_seq_id IS NOT
 					DISTINCT FROM  _l.acct_collection_acct_seq_id THEN
 			_acaid := _v.audit_seq_id;
 			_pcid := NULL;
@@ -105,9 +106,10 @@ CREATE OR REPLACE FUNCTION approval_utils.refresh_approval_instance_item(
 DECLARE
 	_i	approval_instance_item.approval_instance_item_id%TYPE;
 	_r	approval_utils.v_account_collection_approval_process%ROWTYPE;
+	enabled	BOOLEAN;
 BEGIN
 	--
-	-- XXX p comes out of one of the three clauses in 
+	-- XXX p comes out of one of the three clauses in
 	-- v_account_collection_approval_process .  It is likely that that view
 	-- needs to be broken into 2 or 3 views joined together so there is no
 	-- code redundancy.  This is almost certainly true because it is a pain
@@ -172,7 +174,7 @@ BEGIN
 			 inner join p
 				on i.approved_label = p.approval_label
 				and res.person_id = p.person_id
-		) SELECT 
+		) SELECT
 			login,
 			account_id,
 			person_id,
@@ -199,9 +201,43 @@ BEGIN
 					approval_rhs
 				FROM x where	approval_instance_item_id = $1
 			' INTO _r USING approval_instance_item_id;
-			RETURN _r;
-		END;
-		$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
+
+	IF _r IS NULL THEN
+		--
+		-- This may be because the person referred to has been terminated,
+		-- in which case, raise an exception up to cause the path to just
+		-- terminate, since this does not handle ex-employees at this time.
+		--
+		-- XXX - it is possible for terminated people who still have an
+		-- active account in a different accout realm to trigger a false
+		-- positive on this, which is sad, but all this needs to be rewritten
+		-- anyway.
+		--
+		SELECT	is_enabled
+		INTO	enabled
+		FROM (
+			SELECT is_enabled, approval_instance_item_id
+			FROM	account a
+					JOIN jazzhands_audit.account_collection_account aca USING (account_id)
+					JOIN approval_instance_link al ON aca."aud#seq" = al.acct_collection_acct_seq_id
+			WHERE	account_role = 'primary'
+			UNION
+			SELECT is_enabled, approval_instance_item_id
+			FROM	account a
+					JOIN jazzhands_audit.person_company pc USING (company_id,person_id)
+					JOIN approval_instance_link al ON pc."aud#seq" = al.person_company_seq_id
+			WHERE	account_role = 'primary'
+		) i WHERE i.approval_instance_item_id = refresh_approval_instance_item.approval_instance_item_id
+		LIMIT 1;
+
+		IF enabled IS NOT NULL AND enabled = false THEN
+			RAISE EXCEPTION 'Account is no longer active'
+				USING ERRCODE = 'invalid_name';
+		END IF;
+	END IF;
+	RETURN _r;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 CREATE OR REPLACE FUNCTION approval_utils.build_attest(
 	nowish		timestamp DEFAULT now()
@@ -219,10 +255,10 @@ BEGIN
 	tally := 0;
 
 	-- XXX need to add magic for entering after the right day of the period.
-	FOR _r IN SELECT * 
+	FOR _r IN SELECT *
 				FROM v_account_collection_approval_process
 				WHERE (approval_process_id, current_attestation_name) NOT IN
-					(SELECT approval_process_id, approval_instance_name 
+					(SELECT approval_process_id, approval_instance_name
 					 FROM approval_instance
 					)
 				AND current_attestation_begins < nowish
@@ -235,10 +271,10 @@ BEGIN
 		IF (ai.approval_process_id IS NULL OR
 				ai.approval_process_id != _r.approval_process_id) THEN
 
-			INSERT INTO approval_instance ( 
+			INSERT INTO approval_instance (
 				approval_process_id, description, approval_instance_name
-			) VALUES ( 
-				_r.approval_process_id, 
+			) VALUES (
+				_r.approval_process_id,
 				_r.approval_process_description, _r.current_attestation_name
 			) RETURNING * INTO ai;
 		END IF;
@@ -247,10 +283,10 @@ BEGIN
 				ais.approver_account_id != _r.manager_account_id THEN
 
 			INSERT INTO approval_instance_step (
-				approval_process_chain_id, approver_account_id, 
-				approval_instance_id, approval_type,  
+				approval_process_chain_id, approver_account_id,
+				approval_instance_id, approval_type,
 				approval_instance_step_name,
-				approval_instance_step_due, 
+				approval_instance_step_due,
 				description
 			) VALUES (
 				_r.approval_process_chain_id, _r.manager_account_id,
@@ -269,9 +305,9 @@ BEGIN
 			_pcid := _r.audit_seq_id;
 		END IF;
 
-		INSERT INTO approval_instance_link ( 
+		INSERT INTO approval_instance_link (
 			acct_collection_acct_seq_id, person_company_seq_id
-		) VALUES ( 
+		) VALUES (
 			_acaid, _pcid
 		) RETURNING * INTO ail;
 
@@ -284,12 +320,12 @@ BEGIN
 		INSERT INTO approval_instance_item (
 			approval_instance_link_id, approval_instance_step_id,
 			approved_category, approved_label, approved_lhs, approved_rhs
-		) VALUES ( 
+		) VALUES (
 			ail.approval_instance_link_id, ais.approval_instance_step_id,
 			_r.approval_category, _r.approval_label, _r.approval_lhs, _r.approval_rhs
 		) RETURNING * INTO aii;
 
-		UPDATE approval_instance_step 
+		UPDATE approval_instance_step
 		SET approval_instance_id = ai.approval_instance_id
 		WHERE approval_instance_step_id = ais.approval_instance_step_id;
 		tally := tally + 1;
@@ -308,18 +344,18 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 CREATE OR REPLACE FUNCTION approval_utils.build_next_approval_item(
 	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
-	approval_process_chain_id		
+	approval_process_chain_id
 						approval_process_chain.approval_process_chain_id%TYPE,
 	approval_instance_id
 				approval_instance.approval_instance_id%TYPE,
-	approved				char(1),
+	approved				boolean,
 	approving_account_id	account.account_id%TYPE,
 	new_value				text DEFAULT NULL
 ) RETURNS approval_instance_item.approval_instance_item_id%TYPE AS $$
 DECLARE
 	_r		RECORD;
-	_apc	approval_process_chain%ROWTYPE;	
-	_new	approval_instance_item%ROWTYPE;	
+	_apc	approval_process_chain%ROWTYPE;
+	_new	approval_instance_item%ROWTYPE;
 	_acid	account.account_id%TYPE;
 	_step	approval_instance_step.approval_instance_step_id%TYPE;
 	_l		approval_instance_link.approval_instance_link_id%TYPE;
@@ -396,7 +432,7 @@ BEGIN
 		WHERE	approval_process_chain_id = $1
 		AND		approval_instance_id = $2
 		AND		approver_account_id = $3
-		AND		is_completed = ''N''
+		AND		is_completed = false
 	' INTO _step USING approval_process_chain_id,
 		approval_instance_id, _acid;
 
@@ -410,22 +446,22 @@ BEGIN
 			INSERT INTO approval_instance_step (
 				approval_instance_id, approval_process_chain_id,
 				approval_instance_step_name,
-				approver_account_id, approval_type, 
+				approver_account_id, approval_type,
 				approval_instance_step_due,
 				description
 			) VALUES (
 				$1, $2, $3, $4, $5, approval_utils.calculate_due_date($6), $7
 			) RETURNING approval_instance_step_id
-		' INTO _step USING 
+		' INTO _step USING
 			approval_instance_id, approval_process_chain_id,
 			_apc.approval_process_chain_name,
-			_acid, apptype, 
+			_acid, apptype,
 			_apc.approval_chain_response_period::interval,
 			concat(_apc.description, ' for ', _r.approver_account_id, ' by ',
 			approving_account_id);
 	END IF;
 
-	IF _apc.refresh_all_data = 'Y' THEN
+	IF _apc.refresh_all_data = true THEN
 		-- this is called twice, should rethink how to not
 		_v := approval_utils.refresh_approval_instance_item(approval_instance_item_id);
 		_l := approval_utils.get_or_create_correct_approval_instance_link(
@@ -461,7 +497,7 @@ BEGIN
 			FROM approval_instance_item
 			WHERE approval_instance_item_id = $1
 			RETURNING *
-	' INTO _new USING approval_instance_item_id, 
+	' INTO _new USING approval_instance_item_id,
 		_new.approval_instance_link_id, _new.approved_label, _new.approved_category,
 		_new.approved_lhs, _new.approved_rhs,
 		_step;
@@ -472,18 +508,48 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
 CREATE OR REPLACE FUNCTION approval_utils.approve(
-	approval_instance_item_id	
+	approval_instance_item_id
 					approval_instance_item.approval_instance_item_id%TYPE,
-	approved				char(1),
+	approved				TEXT,
 	approving_account_id	account.account_id%TYPE,
-	new_value				text DEFAULT NULL
+	new_value				text DEFAULT NULL,
+	terminate_chain			boolean DEFAULT false
+) RETURNS boolean AS $$
+DECLARE
+	_tf	BOOLEAN;
+BEGIN
+	IF approved = 'Y' THEN
+		_tf = true;
+	ELSIF approved = 'N' THEN
+		_tf = false;
+	ELSE
+		RAISE NOTICE 'approved must by y/n or true/false';
+	END IF;
+	RETURN approval_utils.approve(
+		approval_instance_item_id := approval_instance_item_id,
+		approved := _tf,
+		approving_account_id := approving_account_id,
+		new_value := new_value
+	);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
+
+CREATE OR REPLACE FUNCTION approval_utils.approve(
+	approval_instance_item_id
+					approval_instance_item.approval_instance_item_id%TYPE,
+	approved				boolean,
+	approving_account_id	account.account_id%TYPE,
+	new_value				text DEFAULT NULL,
+	terminate_chain			boolean DEFAULT false
 ) RETURNS boolean AS $$
 DECLARE
 	_r		RECORD;
-	_aii	approval_instance_item%ROWTYPE;	
-	_new	approval_instance_item.approval_instance_item_id%TYPE;	
+	_aii	approval_instance_item%ROWTYPE;
+	_new	approval_instance_item.approval_instance_item_id%TYPE;
 	_chid	approval_process_chain.approval_process_chain_id%TYPE;
 	_tally	INTEGER;
+	_mid	account.account_id%TYPE;
+	_d		RECORD;
 BEGIN
 	EXECUTE '
 		SELECT 	aii.approval_instance_item_id,
@@ -493,8 +559,9 @@ BEGIN
 			ais.approval_type,
 			aii.is_approved,
 			ais.is_completed,
-			aic.accept_app_process_chain_id,
-			aic.reject_app_process_chain_id
+			apc.accept_approval_process_chain_id,
+			apc.reject_approval_process_chain_id,
+			apc.permit_immediate_resolution
    	     FROM    approval_instance ai
    		     INNER JOIN approval_instance_step ais
    			 USING (approval_instance_id)
@@ -502,38 +569,84 @@ BEGIN
    			 USING (approval_instance_step_id)
    		     INNER JOIN approval_instance_link ail
    			 USING (approval_instance_link_id)
-			INNER JOIN approval_process_chain aic
+			INNER JOIN approval_process_chain apc
 				USING (approval_process_chain_id)
 		WHERE approval_instance_item_id = $1
 	' USING approval_instance_item_id INTO 	_r;
 
 	--
 	-- Ensure that only the person or their management chain can approve
-	-- others; this may want to be a property on val_approval_type rather
-	-- than hard coded on account...
+	-- others (or their alternates.
+	--
+	-- or god mode.
 	IF (_r.approval_type = 'account' AND _r.approver_account_id != approving_account_id ) THEN
-		EXECUTE '
-			SELECT count(*)
-			FROM	v_account_manager_hier
-			WHERE account_id = $1
-			AND manager_account_id = $2
-		' INTO _tally USING _r.approver_account_id, approving_account_id;
+		BEGIN
+			EXECUTE '
+				SELECT manager_account_id
+				FROM	v_account_manager_hier
+				WHERE account_id = $1
+				AND manager_account_id = $2
+			' INTO _tally USING _r.approver_account_id, approving_account_id;
 
-		IF _tally = 0 THEN
+			--
+			-- management chain approval
+			--
+			IF _tally > 0 THEN
+				RAISE EXCEPTION 'permitted by management' USING ERRCODE = 'JH000';
+			END IF;
+			--------------
+
 			EXECUTE '
 				SELECT	count(*)
 				FROM	property
-						INNER JOIN v_acct_coll_acct_expanded e
+						INNER JOIN v_account_collection_account_expanded e
 						USING (account_collection_id)
 				WHERE	property_type = ''Defaults''
 				AND		property_name = ''_can_approve_all''
 				AND		e.account_id = $1
 			' INTO _tally USING approving_account_id;
 
-			IF _tally = 0 THEN
-				RAISE EXCEPTION 'Only a person and their management chain may approve others';
+			--
+			-- god mode approval
+			--
+			IF _tally > 0 THEN
+				RAISE EXCEPTION 'permitted by hierrchy' USING ERRCODE = 'JH000';
 			END IF;
-		END IF;
+			--------------
+
+			--
+			-- alternate approval, lhs is people who are permitted to approve
+			-- rhs is (all) their alternates.
+			--
+			EXECUTE '
+				SELECT	count(*)
+				FROM	property
+						INNER JOIN (
+							SELECT DISTINCT account_collection_id, unnest(ARRAY[h.account_id, h.manager_account_id]) AS account_Id
+							FROM v_account_manager_hier h
+								INNER JOIN v_account_collection_account_expanded e
+									ON h.manager_account_id = e.account_id
+						) lhse USING (account_collection_id)
+						INNER JOIN (
+							SELECT account_collection_id AS property_value_account_collection_id, account_id
+							FROM v_account_collection_account_expanded
+						) rhse
+							USING (property_value_account_collection_id)
+				WHERE	property_type = ''attestation''
+				AND		property_name IN ( ''AlternateApprovers'', ''Delegate'')
+				AND		lhse.account_id = $1
+				AND		rhse.account_id = $2
+			' INTO _tally USING _r.approver_account_id, approving_account_id;
+
+			IF _tally > 0 THEN
+				RAISE EXCEPTION 'permitted by alternate' USING ERRCODE = 'JH000';
+			END IF;
+
+			RAISE EXCEPTION 'Only a person and their management chain may approve others' USING ERRCODE = 'error_in_assignment';
+		EXCEPTION WHEN SQLSTATE 'JH000' THEN
+			-- inner exceptions are just passed through.
+			NULL;
+		END;
 
 	END IF;
 
@@ -546,35 +659,51 @@ BEGIN
 		RAISE EXCEPTION 'Approval is already completed.';
 	END IF;
 
-	IF approved = 'N' THEN
-		IF _r.reject_app_process_chain_id IS NOT NULL THEN
-			_chid := _r.reject_app_process_chain_id;	
+	IF approved = false THEN
+		IF _r.reject_approval_process_chain_id IS NOT NULL THEN
+			_chid := _r.reject_approval_process_chain_id;
 		END IF;
-	ELSIF approved = 'Y' THEN
-		IF _r.accept_app_process_chain_id IS NOT NULL THEN
-			_chid := _r.accept_app_process_chain_id;
+	ELSIF approved = true THEN
+		IF _r.accept_approval_process_chain_id IS NOT NULL THEN
+			_chid := _r.accept_approval_process_chain_id;
 		END IF;
 	ELSE
 		RAISE EXCEPTION 'Approved must be Y or N';
 	END IF;
 
-	IF _chid IS NOT NULL THEN
-		_new := approval_utils.build_next_approval_item(
-			approval_instance_item_id, _chid,
-			_r.approval_instance_id, approved,
-			approving_account_id, new_value);
+	--
+	-- In some cases, there's no point in going through the approval
+	-- process.  If this is permitted, then do it, otherwise raise an
+	-- exception if asked.
+	--
+	IF terminate_chain AND NOT _r.permit_immediate_resolution THEN
+		RAISE EXCEPTION 'May not terminate the chain prematurely for this result.'
+		USING ERRCODE = 'error_in_assignment';
+	ELSE
+		BEGIN
+			IF _chid IS NOT NULL THEN
+				_new := approval_utils.build_next_approval_item(
+					approval_instance_item_id, _chid,
+					_r.approval_instance_id, approved,
+					approving_account_id, new_value);
 
-		EXECUTE '
-			UPDATE approval_instance_item
-			SET next_approval_instance_item_id = $2
-			WHERE approval_instance_item_id = $1
-		' USING approval_instance_item_id, _new;
+				EXECUTE '
+					UPDATE approval_instance_item
+					SET next_approval_instance_item_id = $2
+					WHERE approval_instance_item_id = $1
+				' USING approval_instance_item_id, _new;
+			END IF;
+		EXCEPTION WHEN invalid_name THEN
+			-- This means the user was terminated, so just terminate the
+			-- chain
+			NULL;
+		END;
 	END IF;
 
 	--
 	-- This needs to happen after the next steps are created
 	-- or the entire process gets marked as done on the second to last
-	-- update instead of the list.
+	-- update instead of the last.
 
 	EXECUTE '
 		UPDATE approval_instance_item
@@ -587,10 +716,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
+--
+-- stab_root and full_stab_url are new since the original.
+--
+-- stab_root is replaced after stab_url, so it is possible to include the
+-- stab_root macro in stab_url (and not pass in the root), and it will get replaced
+-- by the default from the database.  Unfortuantely, this does require some inside
+-- knowledge of stab.  This should all be rethunk.
+--
+-- %{stab_url} used to be what %{stab_root} has become so both are currently supported
+-- for backwards compatability reasons.
+--
 CREATE OR REPLACE FUNCTION approval_utils.message_replace(
-	message 	text,
+	message 	TEXT,
 	start_time	timestamp DEFAULT NULL,
-	due_time	timestamp DEFAULT NULL
+	due_time	timestamp DEFAULT NULL,
+	full_stab_url	TEXT DEFAULT NULL,
+	stab_root	TEXT DEFAULT NULL
 ) RETURNS text AS
 $$
 DECLARE
@@ -598,13 +740,17 @@ DECLARE
 	stabroot	text;
 	faqurl	text;
 BEGIN
-	SELECT property_value
-	INTO stabroot
-	FROM property
-	WHERE property_name = '_stab_root'
-	AND property_type = 'Defaults'
-	ORDER BY property_id
-	LIMIT 1;
+	IF stab_root IS NULL THEN
+		SELECT property_value
+		INTO stabroot
+		FROM property
+		WHERE property_name = '_stab_root'
+		AND property_type = 'Defaults'
+		ORDER BY property_id
+		LIMIT 1;
+	ELSE
+		stabroot := stab_root;
+	END IF;
 
 	SELECT property_value
 	INTO faqurl
@@ -615,9 +761,14 @@ BEGIN
 	LIMIT 1;
 
 	rv := message;
+	IF full_stab_url IS NOT NULL THEN
+		rv := regexp_replace(rv, '%\{full_stab_url\}', full_stab_url, 'g');
+	END IF;
+	-- this is going away.
+	rv := regexp_replace(rv, '%\{stab_url\}', stabroot, 'g');
 	rv := regexp_replace(rv, '%\{effective_date\}', start_time::date::text, 'g');
 	rv := regexp_replace(rv, '%\{due_date\}', due_time::date::text, 'g');
-	rv := regexp_replace(rv, '%\{stab_url\}', stabroot, 'g');
+	rv := regexp_replace(rv, '%\{stab_root\}', stabroot, 'g');
 	rv := regexp_replace(rv, '%\{faq_url\}', faqurl, 'g');
 
 	-- There is also due_threat, which is processed in approval-email.pl
@@ -626,8 +777,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = approval_utils,jazzhands;
 
-grant select on all tables in schema approval_utils to iud_role;
-grant usage on schema approval_utils to iud_role;
-revoke all on schema approval_utils from public;
-revoke all on  all functions in schema approval_utils from public;
-grant execute on all functions in schema approval_utils to iud_role;
+REVOKE ALL ON schema approval_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN schema approval_utils FROM public;
+
+GRANT USAGE ON SCHEMA approval_utils TO iud_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA approval_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA approval_utils TO iud_role;

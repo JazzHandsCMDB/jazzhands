@@ -59,20 +59,20 @@ BEGIN
 		model, rack_units, has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST Chassis', 2, 'N', 'N', 'N', 'Y'
+		'JHTEST Chassis', 2, false, false, false, true
 	) RETURNING * INTO _chassis_dt;
 
 	INSERT INTO rack (
 		site_code, rack_name, rack_style, rack_height_in_u, display_from_bottom
 	) values (
-		'JHTEST01', 'JHTEST-01', 'CABINET', 42, 'Y'
+		'JHTEST01', 'JHTEST-01', 'CABINET', 42, true
 	) RETURNING * into _rack;
 
 	INSERT INTO device_type (
 		model, rack_units, has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST Sled', 0, 'N', 'N', 'N', 'N'
+		'JHTEST Sled', 0, false, false, false, false
 	) RETURNING * INTO _sled_dt;
 
 	INSERT INTO rack_location (
@@ -90,13 +90,13 @@ BEGIN
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
 		service_environment_id, 
-		operating_system_id, is_monitored,
+		operating_system_id,
 		rack_location_id
 	) values (
 		_chassis_dt.device_type_id, 'JHTEST chassis', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		 where service_environment_name = 'production'),
-		0, 'Y',
+		0,
 		_chassisloc.rack_location_id
 	) RETURNING * into _chassis;
 	RAISE NOTICE '++ Done inserting Test Data';
@@ -147,7 +147,7 @@ BEGIN
 	RAISE NOTICE 'Testing to see if a chassis device_type can have is_chassis set to N';
 	BEGIN
 		UPDATE device_type
-		  SET  is_chassis = 'N'
+		  SET  is_chassis = false
 		WHERE device_type_id = _chassis_dt.device_type_id;
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN foreign_key_violation THEN
@@ -203,13 +203,13 @@ BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
 			service_environment_id, 
-			operating_system_id, is_monitored,
+			operating_system_id,
 			chassis_location_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
 			(select service_environment_id from service_environment
 		 	where service_environment_name = 'production'),
-			0, 'Y',
+			0,
 			_sledloc.chassis_location_id
 		) RETURNING * into _sled;
 		RAISE EXCEPTION '... IT DID NOT.';
@@ -222,14 +222,14 @@ BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
 			service_environment_id, operating_system_id,
-			is_monitored, parent_device_id,
+			parent_device_id,
 			rack_location_id, chassis_location_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
 			(select service_environment_id from service_environment
 		 	where service_environment_name = 'production'),
 			0,
-			'Y', _chassis.device_Id,
+			_chassis.device_Id,
 			_chassisloc.rack_location_id, _sledloc.chassis_location_id
 		) RETURNING * into _sled;
 		RAISE EXCEPTION '... IT DID NOT.';
@@ -241,14 +241,14 @@ BEGIN
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
 		service_environment_id, operating_system_id,
-		is_monitored, parent_device_id,
+		parent_device_id,
 		chassis_location_id
 	) values (
 		_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 			where service_environment_name = 'production'),
 		0,
-		'Y', _chassis.device_id,
+		_chassis.device_id,
 		_sledloc.chassis_location_id
 	) RETURNING * into _sled;
 

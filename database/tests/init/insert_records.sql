@@ -2,37 +2,37 @@ insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('198.18.9.0/25', 'N',
-	'Allocated', 'default', 'Omniscient Technologies VA Routable Block', 'Y');
+	('198.18.9.0/25', false,
+	'Allocated', 'default', 'Omniscient Technologies VA Routable Block', true);
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, 
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('198.18.9.0/26', 'N',
+	('198.18.9.0/26', false,
 	'Allocated', 'default', 'Omniscient Technologies Server Block', 
 	(select netblock_id from netblock where
-		ip_address = '198.18.9.0/25'), 'N'
+		ip_address = '198.18.9.0/25'), false
 );
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('172.25.64.0/20', 'N',
-	'Allocated', 'default', 'Czech Public Network', 'Y');
+	('172.25.64.0/20', false,
+	'Allocated', 'default', 'Czech Public Network', true);
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.25.64.0/24', 'N',
+	('172.25.64.0/24', false,
 	'Allocated', 'default', 'Omniscient Čerčany CZ',
 	(select netblock_id from netblock where
 		ip_address = net_manip.inet_ptodb('172.25.64.0', 20)),
-	'Y'
+	true
 );
 
 insert into netblock
@@ -40,10 +40,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.25.64.0/26', 'N',
+	('172.25.64.0/26', false,
 	'Allocated', 'default', 'Server Network',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'N'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), false
 );
 
 insert into netblock
@@ -51,10 +51,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.25.64.64/26', 'N',
+	('172.25.64.64/26', false,
 	'Allocated', 'default', 'Desktop Network',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'N'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), false
 );
 
 insert into netblock
@@ -62,10 +62,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.25.64.128/27', 'N',
+	('172.25.64.128/27', false,
 	'Allocated', 'default', 'Wireless Network',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'Y'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), true
 );
 
 insert into netblock
@@ -73,10 +73,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.25.64.224/27', 'N',
+	('172.25.64.224/27', false,
 	'Allocated', 'default', 'Infrastructure',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), 'Y'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 24)), true
 );
 
 insert into netblock
@@ -84,10 +84,10 @@ insert into netblock
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION,
 	 PARENT_NETBLOCK_ID, CAN_SUBNET)
 values
-	('172.25.65.0/24', 'N',
+	('172.25.65.0/24', false,
 	'Allocated', 'default', 'Omniscient Purcellville, VA',
 	(select netblock_id from netblock where
-		ip_address = net_manip.inet_ptodb('172.25.64.0', 20)), 'Y'
+		ip_address = net_manip.inet_ptodb('172.25.64.0', 20)), true
 );
 
 INSERT INTO Kerberos_Realm (Realm_Name) VALUES ('OMNISCIENT.COM');
@@ -116,51 +116,51 @@ insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('192.18.244.128/25', 'N',
-	'Allocated', 'default', 'Old VA Public Block', 'Y');
+	('192.18.244.128/25', false,
+	'Allocated', 'default', 'Old VA Public Block', true);
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('192.19.49.16/30', 'N',
-	'Allocated', 'default', 'Omniscient VA Level 3 /30', 'Y');
+	('192.19.49.16/30', false,
+	'Allocated', 'default', 'Omniscient VA Level 3 /30', true);
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('192.19.49.20/30', 'N',
-	'Allocated', 'default', 'Omniscient VA Level 3 LAN /30', 'Y');
+	('192.19.49.20/30', false,
+	'Allocated', 'default', 'Omniscient VA Level 3 LAN /30', true);
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('198.18.165.0/24', 'N',
-	'Allocated', 'default', '', 'Y');
+	('198.18.165.0/24', false,
+	'Allocated', 'default', '', true);
 
 -- rfc3849
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('2001:db8:2100::25C/126', 'N',
-	'Allocated', 'default', 'IPv6 WAN Omniscient VA', 'N');
+	('2001:db8:2100::25C/126', false,
+	'Allocated', 'default', 'IPv6 WAN Omniscient VA', false);
 
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('2001:db8:2209::/48', 'N',
-	'Allocated', 'default', 'IPv6 LAN Omniscient VA', 'Y');
+	('2001:db8:2209::/48', false,
+	'Allocated', 'default', 'IPv6 LAN Omniscient VA', true);
 
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS,
 	 NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
 values
-	('2001:db8:2012::/48', 'N',
-	'Allocated', 'default', 'IPv6 Legacy LAN Omniscient VA', 'Y');
+	('2001:db8:2012::/48', false,
+	'Allocated', 'default', 'IPv6 Legacy LAN Omniscient VA', true);
 

@@ -152,4 +152,8 @@ END;
 $$ LANGUAGE plpgsql
 SECURITY DEFINER;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA obfuscation_utils FROM public;
+REVOKE ALL ON SCHEMA obfuscation_utils  FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA obfuscation_utils  FROM public;
+
+GRANT USAGE ON SCHEMA obfuscation_utils TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA obfuscation_utils TO ro_role;

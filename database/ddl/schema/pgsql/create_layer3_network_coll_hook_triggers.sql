@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Todd Kover
+ * Copyright (c) 2016-2019 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,8 +43,8 @@ CREATE TRIGGER trigger_hier_layer3_network_collection_after_hooks
 	EXECUTE PROCEDURE layer3_network_collection_after_hooks();
 
 DROP TRIGGER IF EXISTS trigger_member_layer3_network_collection_after_hooks
-	 ON l2_network_coll_l2_network;
+	 ON layer3_network_collection_layer3_network;
 CREATE TRIGGER trigger_member_layer3_network_collection_after_hooks
 	AFTER INSERT OR UPDATE OR DELETE
-	ON l2_network_coll_l2_network
+	ON layer3_network_collection_layer3_network
 	EXECUTE PROCEDURE layer3_network_collection_after_hooks();

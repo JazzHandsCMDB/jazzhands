@@ -49,7 +49,7 @@ $$;
 CREATE OR REPLACE FUNCTION account_password_manip.authenticate_account (
 	account_id			INTEGER,
 	password			TEXT,
-	encode_method		TEXT DEFAULT 'pgp+base64',
+	encode_method		TEXT DEFAULT 'aes-cbc/pad:pkcs',
 	label				TEXT DEFAULT 'default',
 	raiseexception		BOOLEAN default false
 ) RETURNS BOOLEAN AS $$
@@ -326,5 +326,8 @@ LANGUAGE plpgsql
 SET search_path=jazzhands
 SECURITY DEFINER;
 
-REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA account_password_manip FROM public;
+REVOKE ALL ON SCHEMA account_password_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA account_password_manip FROM public;
 
+GRANT USAGE ON SCHEMA account_password_manip TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA account_password_manip TO iud_role;

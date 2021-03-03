@@ -36,10 +36,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_acct_coll_preserve_direct
-	 ON val_account_collection_relatio;
+	 ON val_account_collection_relation;
 CREATE CONSTRAINT TRIGGER trigger_acct_coll_preserve_direct
         AFTER DELETE OR UPDATE
-        ON val_account_collection_relatio
+        ON val_account_collection_relation
 		DEFERRABLE INITIALLY IMMEDIATE
         FOR EACH ROW
         EXECUTE PROCEDURE acct_coll_preserve_direct();
@@ -49,7 +49,7 @@ CREATE CONSTRAINT TRIGGER trigger_acct_coll_preserve_direct
 CREATE OR REPLACE FUNCTION acct_coll_insert_direct()
 RETURNS TRIGGER AS $$
 BEGIN
-	INSERT INTO account_coll_type_relation (
+	INSERT INTO account_collection_type_relation (
 		account_collection_relation, account_collection_type
 	) VALUES (
 		'direct', NEW.account_collection_type
@@ -73,7 +73,7 @@ CREATE TRIGGER trigger_acct_coll_insert_direct
 CREATE OR REPLACE FUNCTION acct_coll_remove_direct()
 RETURNS TRIGGER AS $$
 BEGIN
-	DELETE FROM account_coll_type_relation 
+	DELETE FROM account_collection_type_relation 
 		WHERE account_collection_type = OLD.account_collection_type
 		AND account_collection_relation = 'direct'
 	;
@@ -118,7 +118,7 @@ CREATE TRIGGER trigger_acct_coll_update_direct_before
 CREATE OR REPLACE FUNCTION acct_coll_update_direct_before()
 RETURNS TRIGGER AS $$
 BEGIN
-	UPDATE account_coll_type_relation
+	UPDATE account_collection_type_relation
 	SET account_collection_type = NEW.account_collection_type
 	WHERE account_collection_type = OLD.account_collection_type;
 
@@ -144,12 +144,12 @@ CREATE TRIGGER trigger_acct_coll_update_direct_before
 CREATE OR REPLACE FUNCTION account_coll_member_relation_enforce()
 RETURNS TRIGGER AS $$
 DECLARE
-	act	account_coll_type_relation%ROWTYPE;
+	act	account_collection_type_relation%ROWTYPE;
 	tally integer;
 BEGIN
 	SELECT *
 	INTO	act
-	FROM	account_coll_type_relation
+	FROM	account_collection_type_relation
 	WHERE	account_collection_type =
 		(select account_collection_type from account_collection
 			where account_collection_id = NEW.account_collection_id)

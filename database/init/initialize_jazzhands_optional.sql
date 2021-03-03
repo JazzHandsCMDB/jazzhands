@@ -25,11 +25,6 @@
 --
 -- Items that are accurate but are not strictly required
 
-insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
-	values ('Legacy', 'Used by Legacy Apps'); 
-insert into  val_snmp_commstr_type (SNMP_COMMSTR_TYPE, DESCRIPTION)
-	values ('Cricket', 'Used by the Cricket Application'); 
-
 SELECT company_manip.add_company(
 	_company_name := 'Sun Microsystems',
 	_company_types := ARRAY['hardware provider']

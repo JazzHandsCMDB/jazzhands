@@ -52,7 +52,7 @@ CREATE OR REPLACE VIEW slow AS
     parent_netblock.netblock_id
    FROM parent_netblock
 	JOIN netblock USING (netblock_id)
-WHERE is_single_address = 'N'
+WHERE is_single_address = false
 ;
 
 --
@@ -82,7 +82,7 @@ LEFT JOIN (
 	AND p.property_type = 'automated'
 	) miniq WHERE tier = 1
 ) bizness USING (netblock_id)
-WHERE is_single_address = 'N'
+WHERE is_single_address = false
 ;
 
 SELECT schema_support.relation_diff(
@@ -101,11 +101,11 @@ UNION ALL
 SELECT site_code, n.netblock_id from fast f
 	JOIN netblock n ON f.netblock_id = n.parent_netblock_id
 	WHERE n.parent_netblock_id IS NOT NULL
-	AND is_single_address = 'Y'
+	AND is_single_address = true
 UNION ALL
 SELECT NULL, netblock_id
 	FROM netblock
-	WHERE is_single_address = 'Y' and parent_netblock_id IS NULL
+	WHERE is_single_address = true and parent_netblock_id IS NULL
 ;
 
 
@@ -141,31 +141,31 @@ BEGIN
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.0.0/16', 'Allocated', 'Y', 'N'
+		'172.30.0.0/16', 'Allocated', true, false
 	) RETURNING * INTO _nb1;
 
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.0.0/20', 'Allocated', 'Y', 'N'
+		'172.30.0.0/20', 'Allocated', true, false
 	) RETURNING * INTO _nb2;
 
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.40.0/22', 'Allocated', 'Y', 'N'
+		'172.30.40.0/22', 'Allocated', true, false
 	) RETURNING * INTO _nb3;
 
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.42.0/24', 'Allocated', 'N', 'N'
+		'172.30.42.0/24', 'Allocated', false, false
 	) RETURNING * INTO _nb4;
 
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.42.5/24', 'Allocated', 'N',  'Y'
+		'172.30.42.5/24', 'Allocated', false,  true
 	) RETURNING * INTO _nb5;
 
 	RAISE NOTICE 'rows: % % % % %',

@@ -62,22 +62,22 @@ BEGIN
 	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
-		('JHTEST-auto', 'Y', 'Y');
+		('JHTEST-auto', true, true);
 
 	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
-		('JHTEST-auto2', 'Y', 'Y');
+		('JHTEST-auto2', true, true);
 
 	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
-		('JHTEST-manual', 'N', 'Y');
+		('JHTEST-manual', false, true);
 
 	INSERT INTO val_netblock_type
 		( netblock_type, db_forced_hierarchy, is_validated_hierarchy )
 	VALUES
-		('JHTEST-freeforall', 'N', 'N');
+		('JHTEST-freeforall', false, false);
 
 --
 -- Set up a couple of test universes
@@ -87,11 +87,11 @@ BEGIN
 		('JH-universe1'),
 		('JH-universe2');
 	INSERT INTO ip_universe (ip_universe_name,ip_namespace,should_generate_dns)
-	VALUES ('JHTEST-testuniverse', 'JH-universe1', 'Y')
+	VALUES ('JHTEST-testuniverse', 'JH-universe1', true)
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[0] = v_ip_universe_id;
 	INSERT INTO ip_universe (ip_universe_name, ip_namespace,should_generate_dns)
-	VALUES ('JHTEST-testuniverse2', 'JH-universe2', 'Y')
+	VALUES ('JHTEST-testuniverse2', 'JH-universe2', true)
 		RETURNING ip_universe_id INTO v_ip_universe_id;
 	a_ip_universe[1] = v_ip_universe_id;
 
@@ -116,7 +116,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.1/16', 'JHTEST-freeforall', 'Y', 'Y', NULL,
+			('172.31.0.1/16', 'JHTEST-freeforall', true, true, NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
@@ -132,7 +132,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.1/16', 'JHTEST-freeforall', 'N', 'N', NULL,
+			('172.31.0.1/16', 'JHTEST-freeforall', false, false, NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
 			ERRCODE = 'error_in_assignment';
@@ -153,7 +153,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 'JHTEST-auto', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-auto', false, true, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[0] = v_netblock_id;
@@ -165,7 +165,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.0/16', 'JHTEST-auto', 'N', 'Y', NULL,
+			('172.31.0.0/16', 'JHTEST-auto', false, true, NULL,
 				'Allocated', a_ip_universe[0]);
 	EXCEPTION
 		WHEN unique_violation THEN
@@ -178,7 +178,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 'JHTEST-auto2', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-auto2', false, true, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[6] = v_netblock_id;
@@ -190,7 +190,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 'JHTEST-auto2', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-auto2', false, true, NULL,
 			'Allocated', a_ip_universe[1])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[7] = v_netblock_id;
@@ -201,7 +201,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 'JHTEST-manual', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-manual', false, true, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[1] = v_netblock_id;
@@ -212,7 +212,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 'JHTEST-manual', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-manual', false, true, NULL,
 			'Allocated', a_ip_universe[1])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[8] = v_netblock_id;
@@ -223,7 +223,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/16', 'JHTEST-freeforall', 'N', 'Y', NULL,
+		('172.31.0.0/16', 'JHTEST-freeforall', false, true, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
 	a_netblock_list[2] = v_netblock_id;
@@ -243,7 +243,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.128.0/17', 'JHTEST-manual', 'N', 'Y',
+		('172.31.128.0/17', 'JHTEST-manual', false, true,
 			a_netblock_list[1],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -254,7 +254,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.128.0/24', 'JHTEST-manual', 'N', 'Y',
+		('172.31.128.0/24', 'JHTEST-manual', false, true,
 			a_netblock_list[10],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -265,7 +265,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-	('172.31.129.0/24', 'JHTEST-manual', 'N', 'N',
+	('172.31.129.0/24', 'JHTEST-manual', false, false,
 			a_netblock_list[10],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -276,7 +276,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.129.1/24', 'JHTEST-manual', 'Y', 'N',
+		('172.31.129.1/24', 'JHTEST-manual', true, false,
 			a_netblock_list[12],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -287,7 +287,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/17', 'JHTEST-manual', 'N', 'Y',
+		('172.31.0.0/17', 'JHTEST-manual', false, true,
 			a_netblock_list[1],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -298,7 +298,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/24', 'JHTEST-manual', 'N', 'N',
+		('172.31.0.0/24', 'JHTEST-manual', false, false,
 			a_netblock_list[14],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -309,7 +309,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.0/24', 'JHTEST-manual', 'N', 'N',
+		('172.31.1.0/24', 'JHTEST-manual', false, false,
 			a_netblock_list[14],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -320,7 +320,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.128/24', 'JHTEST-manual', 'Y', 'N',
+		('172.31.0.128/24', 'JHTEST-manual', true, false,
 			a_netblock_list[15],
 			'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -342,7 +342,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.8.0/24', 'JHTEST-manual', 'N', 'Y',
+			('172.31.8.0/24', 'JHTEST-manual', false, true,
 				a_netblock_list[2],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -359,7 +359,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.8.0/24', 'JHTEST-manual', 'N', 'Y',
+			('172.31.8.0/24', 'JHTEST-manual', false, true,
 				a_netblock_list[2],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -376,7 +376,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.4.129/24', 'JHTEST-manual', 'Y', 'N',
+			('172.31.4.129/24', 'JHTEST-manual', true, false,
 				NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -393,7 +393,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.4.0/24', 'JHTEST-manual', 'N', 'Y',
+			('172.31.4.0/24', 'JHTEST-manual', false, true,
 				NULL,
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -411,7 +411,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.30.0.0/24', 'JHTEST-manual', 'N', 'Y',
+			('172.30.0.0/24', 'JHTEST-manual', false, true,
 				NULL,
 				'Allocated', a_ip_universe[0])
 		RETURNING netblock_id INTO v_netblock_id;
@@ -432,7 +432,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.2.0/24', 'JHTEST-manual', 'N', 'Y',
+			('172.31.2.0/24', 'JHTEST-manual', false, true,
 				a_netblock_list[1],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -449,7 +449,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.1.128/28', 'JHTEST-manual', 'N', 'Y',
+			('172.31.1.128/28', 'JHTEST-manual', false, true,
 				a_netblock_list[14],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -467,7 +467,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.2.0/24', 'JHTEST-manual', 'N', 'Y',
+			('172.31.2.0/24', 'JHTEST-manual', false, true,
 				a_netblock_list[1],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -485,7 +485,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.1.1/28', 'JHTEST-manual', 'Y', 'N',
+			('172.31.1.1/28', 'JHTEST-manual', true, false,
 				a_netblock_list[16],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -502,7 +502,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.64/28', 'JHTEST-manual', 'N', 'Y',
+			('172.31.0.64/28', 'JHTEST-manual', false, true,
 				a_netblock_list[15],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -520,7 +520,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.0.0/20', 'JHTEST-manual', 'N', 'Y',
+			('172.31.0.0/20', 'JHTEST-manual', false, true,
 				a_netblock_list[14],
 				'Allocated', a_ip_universe[0]);
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -636,7 +636,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.0/24', 'JHTEST-auto', 'N', 'N', NULL,
+		('172.31.1.0/24', 'JHTEST-auto', false, false, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -653,7 +653,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.18.0/25', 'JHTEST-auto', 'N', 'Y', NULL,
+		('172.31.18.0/25', 'JHTEST-auto', false, true, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -671,7 +671,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.0.0/22', 'JHTEST-auto', 'N', 'Y', NULL,
+		('172.31.0.0/22', 'JHTEST-auto', false, true, NULL,
 			'Allocated', a_ip_universe[0])
 		RETURNING * INTO netblock_rec;
 	IF netblock_rec.parent_netblock_id = a_netblock_list[0] THEN
@@ -724,7 +724,7 @@ BEGIN
 			 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 			 ip_universe_id)
 		VALUES
-			('172.31.16.1/24', 'JHTEST-auto', 'Y', 'N', NULL,
+			('172.31.16.1/24', 'JHTEST-auto', true, false, NULL,
 				'Allocated', a_ip_universe[0]);
 		SET CONSTRAINTS trigger_validate_netblock_parentage IMMEDIATE;
 		SET CONSTRAINTS trigger_validate_netblock_parentage DEFERRED;
@@ -746,7 +746,7 @@ BEGIN
 		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 		 ip_universe_id)
 	VALUES
-		('172.31.1.1/24', 'JHTEST-auto', 'Y', 'N', NULL,
+		('172.31.1.1/24', 'JHTEST-auto', true, false, NULL,
 			'Allocated', a_ip_universe[0])
 	RETURNING * INTO netblock_rec;
 	a_netblock_list[18] = netblock_rec.netblock_id;
@@ -914,7 +914,7 @@ BEGIN
 --		 is_single_address, can_subnet, parent_netblock_id, netblock_status,
 --		 ip_universe_id)
 --	VALUES
---		('172.31.1.16/24', 'JHTEST-auto', 'Y', 'N', NULL,
+--		('172.31.1.16/24', 'JHTEST-auto', true, false, NULL,
 --			'Allocated', a_ip_universe[0])
 --	RETURNING * INTO netblock_rec;
 --	a_netblock_list[19] = netblock_rec.netblock_id;
@@ -1029,7 +1029,7 @@ BEGIN
 	
 	RAISE NOTICE '    Updating a netblock belonging to a layer3_network to can_subnet=Y';
 	BEGIN
-		UPDATE netblock SET can_subnet = 'Y'
+		UPDATE netblock SET can_subnet = true
 		WHERE netblock_id = a_netblock_list[16];
 
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING
@@ -1041,7 +1041,7 @@ BEGIN
 
 	RAISE NOTICE '    Updating a netblock belonging to a layer3_network to is_single_address=Y';
 	BEGIN
-		UPDATE netblock SET is_single_address = 'Y'
+		UPDATE netblock SET is_single_address = true
 		WHERE netblock_id = a_netblock_list[16];
 
 		RAISE '       SUCCEEDED -- THIS IS A PROBLEM' USING

@@ -936,11 +936,33 @@ sub GetBGPGroupIPFamily {
 		$debug = 1;
 	}
 
+	# First, let's check if BGP is configured
 	my $commands = [
-		'show ip bgp peer-group ' . $opt->{bgp_peer_group}
+		'show ip bgp summary'
 	];
 
 	my $result = $self->SendCommand(
+		commands => $commands,
+		format => 'text',
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+	my $output;
+	if (!($output = $result->[0]->{output})) {
+		SetError($err, "BGP does not appear to be configured on " .
+			$device->{hostname});
+		return undef;
+	}
+
+	# Now, let's get info about the group
+	$commands = [
+		'show ip bgp peer-group ' . $opt->{bgp_peer_group}
+	];
+
+	$result = $self->SendCommand(
 		commands => $commands,
 		format => 'text',
 		timeout => $opt->{timeout},
@@ -951,12 +973,14 @@ sub GetBGPGroupIPFamily {
 		return undef;
 	}
 
-	my $output;
+	# The show ip bgp peer-group <GROUP> does not return anything
+	# if the group has no peer. So there is no way to distinct between
+	# group is not existing or group has no peer.
 	if (!($output = $result->[0]->{output})) {
-		SetError($err, "BGP does not appear to be configured on " .
-			$device->{hostname} . " or there is no BGP group " .
-			$opt->{bgp_peer_group});
-		return undef;
+		SetError($err, "Either BGP group " . $device->{hostname} . " does not exist" .
+			" on " . $device->{hostname} . " or there is no peer yet"
+		);
+		return 1;
 	}
 
 	my @output = split /\n/, $output;
@@ -964,7 +988,7 @@ sub GetBGPGroupIPFamily {
 	if( !$first_peer_ipaddr_str) {
 		SetError($err, "Could not find any peer for BGP group " . $opt->{bgp_peer_group} .
 			" on device " . $device->{hostname});
-		return undef;
+		return 1;
 	}
 
 	my $first_peer_ipaddr = NetAddr::IP->new($first_peer_ipaddr_str);

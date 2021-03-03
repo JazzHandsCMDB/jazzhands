@@ -39,7 +39,7 @@ SELECT schema_support.relation_diff(
 
 savepoint bar;
 
-CREATE VIEW new_v_acct_coll_acct_expanded AS
+CREATE VIEW new_v_account_collection_account_expanded AS
 SELECT DISTINCT root_account_collection_id AS account_collection_id,
 	account_id
 FROM jazzhands_cache.ct_account_collection_hier_from_ancestor
@@ -48,22 +48,22 @@ FROM jazzhands_cache.ct_account_collection_hier_from_ancestor
 
 SELECT schema_support.relation_diff(
 	schema := 'jazzhands',
-	old_rel := 'v_acct_coll_acct_expanded',
-	new_rel := 'new_v_acct_coll_acct_expanded',
+	old_rel := 'v_account_collection_account_expanded',
+	new_rel := 'new_v_account_collection_account_expanded',
 	prikeys := ARRAY['account_collection_id', 'account_id']
 );
 
 
 SELECT COUNT(*) FROM v_account_collection_expanded;
 SELECT COUNT(*) FROM same;
-SELECT COUNT(*) FROM v_acct_coll_acct_expanded;
-SELECT COUNT(*) FROM new_v_acct_coll_acct_expanded;
+SELECT COUNT(*) FROM v_account_collection_account_expanded;
+SELECT COUNT(*) FROM new_v_account_collection_account_expanded;
 
-SELECT count(*) FROM v_acct_coll_acct_expanded
+SELECT count(*) FROM v_account_collection_account_expanded
 	join account using (account_id)
 	where account_realm_id = 1 and login = 'kovert';
 
-SELECT count(*) FROM new_v_acct_coll_acct_expanded
+SELECT count(*) FROM new_v_account_collection_account_expanded
 	join account using (account_id)
 	where account_realm_id = 1 and login = 'kovert';
 

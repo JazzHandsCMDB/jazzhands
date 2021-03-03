@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2015, Todd M. Kover
+-- Copyright (c) 2013-2020, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS dns_utils;
                 CREATE SCHEMA dns_utils AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA dns_utils FROM public;
 		COMMENT ON SCHEMA dns_utils IS 'part of jazzhands';
         END IF;
 END;
@@ -76,7 +77,7 @@ BEGIN
 		)
 	' USING dns_domain_id, 'IN', 'NS', '_authdns', 'Defaults';
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
@@ -100,8 +101,8 @@ BEGIN
 		IF (masklen(block) >= 24) THEN
 			rv = rv || dns_utils.get_domain_from_cidr(set_masklen(block, 24));
 		ELSE
-			FOR cur IN SELECT set_masklen((block + o), 24) 
-						FROM generate_series(0, (256 * (2 ^ (24 - 
+			FOR cur IN SELECT set_masklen((block + o), 24)
+						FROM generate_series(0, (256 * (2 ^ (24 -
 							masklen(block))) - 1)::integer, 256) as x(o)
 			LOOP
 				rv = rv || dns_utils.get_domain_from_cidr(cur);
@@ -130,7 +131,7 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION dns_utils.get_all_domain_rows_for_cidr(
 	block		netblock.ip_address%TYPE
 ) returns TABLE (
-	soa_name	text
+	dns_domain_name	text
 )
 AS
 $$
@@ -139,27 +140,27 @@ DECLARE
 BEGIN
 	IF family(block) = 4 THEN
 		IF (masklen(block) >= 24) THEN
-			soa_name := dns_utils.get_domain_from_cidr(set_masklen(block, 24));
+			dns_domain_name := dns_utils.get_domain_from_cidr(set_masklen(block, 24));
 			RETURN NEXT;
 		ELSE
-			FOR cur IN 
-				SELECT 
-					set_masklen((block + o), 24) 
+			FOR cur IN
+				SELECT
+					set_masklen((block + o), 24)
 				FROM
 					generate_series(
-						0, 
+						0,
 						(256 * (2 ^ (24 - masklen(block))) - 1)::integer,
 						256)
 					AS x(o)
 			LOOP
-				soa_name := dns_utils.get_domain_from_cidr(cur);
+				dns_domain_name := dns_utils.get_domain_from_cidr(cur);
 				RETURN NEXT;
 			END LOOP;
 		END IF;
 	ELSIF family(block) = 6 THEN
 			-- note sure if we should do this or not, but we are..
 			cur := set_masklen(block, 64);
-			soa_name := dns_utils.get_domain_from_cidr(cur);
+			dns_domain_name := dns_utils.get_domain_from_cidr(cur);
 			RETURN NEXT;
 	ELSE
 		RAISE EXCEPTION 'Not IPv% aware.', family(block);
@@ -217,7 +218,7 @@ BEGIN
 		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
 			|| '.in-addr.arpa';
 	ELSE
-		domain := array_to_string(ipnodes, '.') 
+		domain := array_to_string(ipnodes, '.')
 			|| '.ip6.arpa';
 	END IF;
 
@@ -234,8 +235,8 @@ LANGUAGE plpgsql;
 -- for it.  This just works on one zone
 --
 ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION dns_utils.get_or_create_rvs_netblock_link(
-	soa_name		dns_domain.soa_name%type,
+CREATE OR REPLACE FUNCTION dns_utils.get_or_create_inaddr_domain_netblock_link(
+	dns_domain_name	dns_domain.dns_domain_name%type,
 	dns_domain_id	dns_domain.dns_domain_id%type
 ) RETURNS netblock.netblock_id%type AS $$
 DECLARE
@@ -247,7 +248,7 @@ DECLARE
 	ip	inet;
 	j text;
 BEGIN
-	brk := regexp_matches(soa_name, '^(.+)\.(in-addr|ip6)\.arpa$');
+	brk := regexp_matches(dns_domain_name, '^(.+)\.(in-addr|ip6)\.arpa$');
 	IF brk[2] = 'in-addr' THEN
 		j := '.';
 	ELSE
@@ -286,8 +287,8 @@ BEGIN
 		INTO	nblk_id
 		FROM	netblock
 		WHERE	netblock_type = 'dns'
-		AND		is_single_address = 'N'
-		AND		can_subnet = 'N'
+		AND		is_single_address = false
+		AND		can_subnet = false
 		AND		netblock_status = 'Allocated'
 		AND		ip_universe_id = 0
 		AND		ip_address = ip;
@@ -297,8 +298,8 @@ BEGIN
 			ip_address, netblock_type, is_single_address,
 			can_subnet, netblock_status, ip_universe_id
 		) VALUES (
-			ip, 'dns', 'N',
-			'N', 'Allocated', 0
+			ip, 'dns', false,
+			false, 'Allocated', 0
 		) RETURNING netblock_id INTO nblk_id;
 	END IF;
 
@@ -312,7 +313,7 @@ BEGIN
 
 	RETURN nblk_id;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
@@ -327,7 +328,7 @@ LANGUAGE plpgsql;
 --
 ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.add_dns_domain(
-	soa_name			dns_domain.soa_name%type,
+	dns_domain_name		dns_domain.dns_domain_name%type,
 	dns_domain_type		dns_domain.dns_domain_type%type DEFAULT NULL,
 	ip_universes		integer[] DEFAULT NULL,
 	add_nameservers		boolean DEFAULT true
@@ -342,10 +343,10 @@ DECLARE
 	rvs_nblk_id		netblock.netblock_id%type;
 	univ			ip_universe.ip_universe_id%type;
 BEGIN
-	IF soa_name IS NULL THEN
+	IF dns_domain_name IS NULL THEN
 		RETURN NULL;
 	END IF;
-	elements := regexp_split_to_array(soa_name, '\.');
+	elements := regexp_split_to_array(dns_domain_name, '\.');
 	sofar := '';
 	FOREACH elem in ARRAY elements
 	LOOP
@@ -353,43 +354,43 @@ BEGIN
 			sofar := sofar || '.';
 		END IF;
 		sofar := sofar || elem;
-		parent_zone := regexp_replace(soa_name, '^'||sofar||'.', '');
-		EXECUTE 'SELECT dns_domain_id FROM dns_domain 
-			WHERE soa_name = $1' INTO parent_id USING parent_zone;
+		parent_zone := regexp_replace(dns_domain_name, '^'||sofar||'.', '');
+		EXECUTE 'SELECT dns_domain_id FROM dns_domain
+			WHERE dns_domain_name = $1' INTO parent_id USING parent_zone;
 		IF parent_id IS NOT NULL THEN
 			EXIT;
 		END IF;
 	END LOOP;
 
 	IF ip_universes IS NULL THEN
-		SELECT array_agg(ip_universe_id) 
+		SELECT array_agg(ip_universe_id)
 		INTO	ip_universes
 		FROM	ip_universe
 		WHERE	ip_universe_name = 'default';
 	END IF;
 
 	IF dns_domain_type IS NULL THEN
-		IF soa_name ~ '^.*(in-addr|ip6)\.arpa$' THEN
+		IF dns_domain_name ~ '^.*(in-addr|ip6)\.arpa$' THEN
 			dns_domain_type := 'reverse';
 		END IF;
 	END IF;
 
 	IF dns_domain_type IS NULL THEN
 		RAISE EXCEPTION 'Unable to guess dns_domain_type for %',
-			soa_name USING ERRCODE = 'not_null_violation'; 
+			dns_domain_name USING ERRCODE = 'not_null_violation';
 	END IF;
 
 	EXECUTE '
 		INSERT INTO dns_domain (
-			soa_name,
+			dns_domain_name,
 			parent_dns_domain_id,
 			dns_domain_type
 		) VALUES (
 			$1,
 			$2,
 			$3
-		) RETURNING dns_domain_id' INTO domain_id 
-		USING soa_name, 
+		) RETURNING dns_domain_id' INTO domain_id
+		USING dns_domain_name,
 			parent_id,
 			dns_domain_type
 	;
@@ -414,19 +415,19 @@ BEGIN
 			);'
 			USING domain_id, univ,
 				'IN',
-				(select property_value from property 
+				(select property_value from property
 					where property_type = 'Defaults'
 					and property_name = '_dnsmname' ORDER BY property_id LIMIT 1),
-				(select property_value from property 
+				(select property_value from property
 					where property_type = 'Defaults'
 					and property_name = '_dnsrname' ORDER BY property_id LIMIT 1),
-				'Y'
+				true
 		;
 	END LOOP;
 
 	IF dns_domain_type = 'reverse' THEN
-		rvs_nblk_id := dns_utils.get_or_create_rvs_netblock_link(
-			soa_name, domain_id);
+		rvs_nblk_id := dns_utils.get_or_create_inaddr_domain_netblock_link(
+			dns_domain_name, domain_id);
 	END IF;
 
 	IF add_nameservers THEN
@@ -444,13 +445,13 @@ BEGIN
 		AND dns_domain_id IN (
 			SELECT dns_domain_id
 			FROM dns_domain_ip_universe
-			WHERE should_generate = 'Y'
+			WHERE should_generate = true
 		);
 	END IF;
 
 	RETURN domain_id;
 END;
-$$ 
+$$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
@@ -501,11 +502,11 @@ BEGIN
 		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
 			|| '.in-addr.arpa';
 	ELSE
-		domain := array_to_string(ipnodes, '.') 
+		domain := array_to_string(ipnodes, '.')
 			|| '.ip6.arpa';
 	END IF;
 
-	SELECT dns_domain_id INTO domain_id FROM dns_domain where soa_name = domain;
+	SELECT dns_domain_id INTO domain_id FROM dns_domain where dns_domain_name = domain;
 	IF NOT FOUND THEN
 		-- domain_id := dns_utils.add_dns_domain(domain);
 	END IF;
@@ -532,7 +533,7 @@ CREATE OR REPLACE FUNCTION dns_utils.add_domains_from_netblock(
 	netblock_id		netblock.netblock_id%TYPE
 ) returns TABLE(
 	dns_domain_id	jazzhands.dns_domain.dns_domain_id%TYPE,
-	soa_name		text
+	dns_domain_name		text
 )
 AS
 $$
@@ -542,19 +543,19 @@ DECLARE
 	domain_id	dns_domain.dns_domain_id%TYPE;
 	nid			ALIAS FOR netblock_id;
 BEGIN
-	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid; 
+	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid;
 
 	RAISE DEBUG 'Creating inverse DNS zones for %s', block;
 
 	RETURN QUERY SELECT
 		dns_utils.add_dns_domain(
-			soa_name := x.soa_name,
+			dns_domain_name := x.dns_domain_name,
 			dns_domain_type := 'reverse'
 			),
-		x.soa_name::text
+		x.dns_domain_name::text
 	FROM
 		dns_utils.get_all_domain_rows_for_cidr(block) x LEFT JOIN
-		dns_domain d USING (soa_name)
+		dns_domain d USING (dns_domain_name)
 	WHERE
 		d.dns_domain_id IS NULL;
 
@@ -576,7 +577,7 @@ CREATE OR REPLACE FUNCTION dns_utils.find_dns_domain(
 	fqdn	text
 ) returns TABLE(
 	dns_name		text,
-	soa_name		text,
+	dns_domain_name		text,
 	dns_domain_id	jazzhands.dns_domain.dns_domain_id%TYPE
 )
 AS
@@ -586,23 +587,23 @@ BEGIN
 		RAISE EXCEPTION '% is not a valid DNS name', fqdn;
 	END IF;
 
-	RETURN QUERY SELECT 
-		regexp_replace(fqdn, '.' || dd.soa_name || '$', '')::text,
-		dd.soa_name::text,
+	RETURN QUERY SELECT
+		regexp_replace(fqdn, '.' || dd.dns_domain_name || '$', '')::text,
+		dd.dns_domain_name::text,
 		dd.dns_domain_id
 	FROM
 		dns_domain dd
 	WHERE
-		fqdn LIKE ('%.' || dd.soa_name)
+		fqdn LIKE ('%.' || dd.dns_domain_name)
 	ORDER BY
-		length(dd.soa_name) DESC
+		length(dd.dns_domain_name) DESC
 	LIMIT 1;
 
 	RETURN;
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION dns_utils.v6_inaddr(
 	ip_address inet
@@ -612,7 +613,7 @@ $$
 BEGIN
 	return trim(trailing '.' from
 		regexp_replace(reverse(regexp_replace(
-			dns_utils.expand_v6(ip_address), ':', '', 
+			dns_utils.expand_v6(ip_address), ':', '',
 			'g')), '(.)', '\1.', 'g'));
 END;
 $$
@@ -625,14 +626,14 @@ CREATE OR REPLACE FUNCTION dns_utils.expand_v6(
 AS
 $$
 BEGIN
-	RETURN array_to_string(array_agg(lpad(n, 4, '0')), ':') from 
+	RETURN array_to_string(array_agg(lpad(n, 4, '0')), ':') from
 	unnest(regexp_split_to_array(
 	regexp_replace(
 	regexp_replace(host(ip_address)::text,
 		'::',
 		concat(':', repeat('0:',
 			6 -
-			(length(regexp_replace(host(ip_address)::text, '::', '')) - 
+			(length(regexp_replace(host(ip_address)::text, '::', '')) -
 				length(regexp_replace(
 					regexp_replace(host(ip_address)::text, '::', ''),
 					':',  '', 'g')))::integer
@@ -644,3 +645,8 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY INVOKER;
 
+REVOKE ALL ON SCHEMA dns_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA dns_utils FROM public;
+
+GRANT ALL ON SCHEMA dns_utils TO iud_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA dns_utils TO iud_role;

@@ -32,7 +32,7 @@ SELECT * FROM  (
 				AND d.dns_value_record_id IS NOT NULL THEN NULL
 			WHEN d.dns_value_record_id IS NULL THEN d.dns_value
 			WHEN dv.dns_domain_id = d.dns_domain_id THEN dv.dns_name
-			ELSE concat(dv.dns_name, '.', dv.soa_name, '.') END AS dns_value,
+			ELSE concat(dv.dns_name, '.', dv.dns_domain_name, '.') END AS dns_value,
 	    d.dns_priority,
 		CASE WHEN d.dns_value_record_id IS NOT NULL
 			AND dns_type IN ('A','AAAA') THEN	dv.ip_address
@@ -59,7 +59,7 @@ SELECT * FROM  (
 		) rdns USING (reference_dns_record_id)
 	    LEFT JOIN (
 			SELECT  dr.dns_record_id, dr.dns_name,
-				dom.dns_domain_id, dom.soa_name,
+				dom.dns_domain_id, dom.dns_domain_name,
 				dr.dns_value,
 				dnb.ip_address AS ip,
 				dnb.ip_address, dnb.netblock_id
@@ -86,8 +86,8 @@ SELECT * FROM  (
 		NULL AS dns_srv_protocol,
 		NULL AS dns_srv_weight,
 		NULL AS dns_srv_port,
-		'Y' AS is_enabled,
-		'N'::character AS should_generate_ptr,
+		true AS is_enabled,
+		false AS should_generate_ptr,
 		NULL AS dns_value_record_id
 	FROM (
        SELECT
@@ -112,12 +112,12 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		NULL::integer AS dns_record_id,	 -- not editable.
 		NULL::integer AS network_range_id,
 		parent_dns_domain_id AS dns_domain_id,
-		regexp_replace(soa_name, '\.' || pdom.parent_soa_name || '$', '') AS dns_name,
+		regexp_replace(dns_domain_name, '\.' || pdom.parent_dns_domain_name || '$', '') AS dns_name,
 		dns_ttl,
 		dns_class,
 		dns_type,
 		CASE WHEN dns_value ~ '\.$' THEN dns_value
-			ELSE concat(dns_value, '.', soa_name, '.') END as
+			ELSE concat(dns_value, '.', dns_domain_name, '.') END as
 				dns_value,
 		dns_priority,
 		NULL::inet AS ip,
@@ -129,11 +129,11 @@ WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
 		NULL::integer AS dns_srv_weight,
 		NULL::integer AS dns_srv_port,
 		is_enabled AS is_enabled,
-		'N'::character AS should_generate_ptr,
+		false AS should_generate_ptr,
 		NULL AS dns_value_record_id
 	FROM	dns_record join dns_domain USING (dns_domain_id)
 		join (SELECT dns_domain_id AS parent_dns_domain_id,
-			soa_name AS parent_soa_name from dns_domain)  pdom
+			dns_domain_name AS parent_dns_domain_name from dns_domain)  pdom
 			USING(parent_dns_domain_id)
 	WHERE	dns_class = 'IN' AND dns_type = 'NS'
 	AND dns_name IS NULL

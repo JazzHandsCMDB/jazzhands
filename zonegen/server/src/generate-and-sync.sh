@@ -125,9 +125,10 @@ export KRB5CCNAME
 if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 	echo 1>&3  "Generating Zones (This may take a while)..."
 	/usr/libexec/jazzhands/zonegen/generate-zones "$@" >&3
-	if [ $? != 0 ] ; then
+	ec=$?
+	if [ $ec != 0 ] ; then
 		rm -f $LOCKFILE
-		exit $?
+		exit $ec
 	fi
 
 	#

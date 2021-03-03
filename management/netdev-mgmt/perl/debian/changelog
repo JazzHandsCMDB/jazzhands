@@ -1,3 +1,15 @@
+jazzhands-perl-netdev-mgmt (0.90.1) unstable; urgency=low
+
+  * fix issue with perl warnings
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 20 Nov 2020 14:46:22 -0400
+
+jazzhands-perl-netdev-mgmt (0.88.1) unstable; urgency=low
+
+  * Fix issue with Arista and empty BGP groups
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 03 Sep 2020 12:56:43 -0500
+
 jazzhands-perl-netdev-mgmt (0.87.2) unstable; urgency=low
 
   * Fix issue with Arista config sessions not being reused correctly

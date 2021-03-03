@@ -26,7 +26,7 @@ BEGIN
 		INSERT INTO val_component_property_type (
 			component_property_type, description, is_multivalue
 		) VALUES 
-			('memory', 'memory properties', 'Y');
+			('memory', 'memory properties', true);
 
 		--
 		-- Insert a sampling of component function properties
@@ -40,9 +40,9 @@ BEGIN
 			required_component_function,
 			permit_component_type_id
 		) VALUES 
-			('MemorySize', 'memory', 'Memory Size (MB)', 'N', 'number',
+			('MemorySize', 'memory', 'Memory Size (MB)', false, 'number',
 				'memory', 'REQUIRED'),
-			('MemorySpeed', 'memory', 'Memory Speed (MHz)', 'N', 'number',
+			('MemorySpeed', 'memory', 'Memory Speed (MHz)', false, 'number',
 				'memory', 'REQUIRED');
 
 		--
@@ -58,7 +58,7 @@ BEGIN
 		-- slot, a specific linkage must exist in either
 		-- slot_type_permitted_component_type for internal connections (i.e. the
 		-- component becomes a logical sub-component of the parent) or in
-		-- slot_type_prmt_rem_slot_type for an external connection (i.e.
+		-- slot_type_permitted_remote_slot_type for an external connection (i.e.
 		-- a connection to a separate component entirely, such as a network or
 		-- power connection)
 		--
@@ -82,15 +82,15 @@ BEGIN
 			(slot_type, slot_physical_interface_type, slot_function,
 			 description, remote_slot_permitted)
 		VALUES
-			('DDR3 RDIMM', 'DDR3 RDIMM', 'memory', 'DDR3 RDIMM', 'N'),
-			('DDR4 DIMM', 'DDR4 DIMM', 'memory', 'DDR4 DIMM', 'N');
+			('DDR3 RDIMM', 'DDR3 RDIMM', 'memory', 'DDR3 RDIMM', false),
+			('DDR4 DIMM', 'DDR4 DIMM', 'memory', 'DDR4 DIMM', false);
 
 		--
 		-- Insert the permitted memory connections.  Memory can only go into a
 		-- slot of the same type
 		-- 
 
-		INSERT INTO slot_type_prmt_comp_slot_type (
+		INSERT INTO slot_type_permitted_component_slot_type (
 			slot_type_id,
 			component_slot_type_id
 		) SELECT

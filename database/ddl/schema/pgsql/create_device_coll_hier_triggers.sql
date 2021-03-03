@@ -33,7 +33,7 @@ BEGIN
 		(select device_collection_type from device_collection
 			where device_collection_id = NEW.device_collection_id);
 
-	IF dct.can_have_hierarchy = 'N' THEN
+	IF dct.can_have_hierarchy = false THEN
 		RAISE EXCEPTION 'Device Collections of type % may not be hierarcical',
 			dct.device_collection_type
 			USING ERRCODE= 'unique_violation';

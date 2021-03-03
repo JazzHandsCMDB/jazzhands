@@ -34,6 +34,7 @@ BEGIN
         IF _tal = 0 THEN
                 DROP SCHEMA IF EXISTS netblock_verify;
                 CREATE SCHEMA netblock_verify AUTHORIZATION jazzhands;
+		REVOKE ALL ON SCHEMA netblock_verify  FROM public;
 		COMMENT ON SCHEMA netblock_verify IS 'part of jazzhands';
         END IF;
 END;
@@ -105,3 +106,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- check_parent_child is not necessary due to the lack of the mutating
 -- tables problem under postgresql.  So checks are directly in the triggers
 -- instead of using packages.
+
+REVOKE ALL ON SCHEMA netblock_verify  FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA netblock_verify  FROM public;
+
+GRANT USAGE ON SCHEMA netblock_verify TO ro_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA netblock_verify TO ro_role;
