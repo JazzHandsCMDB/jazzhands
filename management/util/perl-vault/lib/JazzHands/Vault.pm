@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019 Todd M. Kover
+# Copyright (c) 2019-2021 Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -44,7 +44,7 @@ it is written and designed with that in mind.
 It only implements approle style auth where it uses that to get a
 limited life token, but will likely be extended to also allow for
 token-based login assuming something external to it manages the token
-retrival.
+retrieval.
 
 To that end, it generally works by taking an appauth entry pulled from
 libraries with C<Method: Vault> and uses that to construct an entry that
@@ -79,7 +79,7 @@ appropriately.
 
 =head1 CONFIGURATION FILE
 
-The vault configuration files are slightly differnet than others because
+The vault configuration files are slightly different than others because
 they end up being the union of values from vault and from the entry.
 
 A minimal example is:
@@ -114,15 +114,15 @@ L<Method:Vault> entry and do not need to be pulled out into options, it
 is just setup there to make setting up multiple credentials easier to
 read.
 
-THe CAPath is used to override the system one that perl uses.
+The CAPath is used to override the system one that perl uses.
 
-In this case, the library will retrive L<kv/data/myfirstapp/db> after
-loging in with the specified RoleId and a secret id pulled from
+In this case, the library will retrieve L<kv/data/myfirstapp/db> after
+logging in with the specified RoleId and a secret id pulled from
 the first line of F</var/lib/vault/stab/secret-id> .  It then takes all
 the keys in the import stanza and imports them into a synthesized appauth
 entry, and then takes the values returned from the vault server and imports
 them into the synthesized appauth entry mapping the value to the given
-key.  Again, it is ideal to use usename and password in kv pairs to make
+key.  Again, it is ideal to use username and password in kv pairs to make
 future dynamic credentials easier.
 
 Also note that there may be caching happening, as described in the
@@ -211,13 +211,16 @@ sub new {
 			}
 			$fh->close;
 		} else {
-			$errstr = sprintf "Unable to read secretid from %s: %s",
-			  $appauth->{VaultSecretId},
+			$errstr = sprintf "Unable to read Vault Secret Id from %s: %s",
+			  $appauth->{VaultSecretIdPath},
 			  $!;
 			return undef;
 		}
-	} else {
+	} elsif ( exists( $appauth->{VaultSecretId} ) ) {
 		$self->{VaultSecretId} = $appauth->{VaultSecretId};
+	} else {
+		$errstr = "Neither VaultSecretIdPath nor VaultSecretId are set.";
+		return undef;
 	}
 
 	# extra check in case the above failed.
@@ -365,7 +368,7 @@ sub fetch_and_merge_dbauth {
 	my $self = shift @_;
 	my $auth = shift @_;
 
-	$self->approle_login || return undef;
+	$self->approle_login                || return undef;
 	my $vault = $self->get_vault_path() || return undef;
 
 	my $rv = {};

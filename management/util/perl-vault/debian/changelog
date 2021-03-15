@@ -1,3 +1,9 @@
+jazzhands-perl-vault (0.90.3) bionic; urgency=medium
+
+  * fixes with error reporting with vault secret id
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 16 Feb 2021 10:38:32 -0500
+
 jazzhands-perl-vault (0.86.0) bionic; urgency=medium
 
   * initial release
