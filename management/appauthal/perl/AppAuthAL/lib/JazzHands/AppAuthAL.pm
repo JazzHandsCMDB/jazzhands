@@ -457,32 +457,23 @@ sub do_cached_login($$$$) {
 	# conn to return
 	my $conn;
 
+	if ( !defined($auth) ) {
+		$errstr = "Unable to find auth entry";
+		SetError( $errors, $errstr );
+		return undef;
+	}
+
 	if ( $auth->{'Method'} eq 'password' ) {
 		$conn = &$callback( $args, $auth );
 		return $conn;
 	} elsif ( $auth->{'Method'} ne 'vault' ) {
 		$errstr = "Only password and vault methods supported";
 		SetError( $errors, $errstr );
-		next;
-	}
-
-	my $vaultbase = $options->{vault};
-	if ( !defined($JazzHands::Vault::VERSION) ) {
-		$errstr = "Vault module not loaded.";
-		SetError( $errors, $errstr );
 		return undef;
 	}
 
-	if ($vaultbase) {
-		foreach my $key ( keys %{$vaultbase} ) {
-			if ( !exists( $auth->{$key} ) ) {
-				$auth->{$key} = $vaultbase->{$key};
-			}
-		}
-	}
-
-	if ( !defined($auth) ) {
-		$errstr = "Unable to find auth entry";
+	if ( !defined($JazzHands::Vault::VERSION) ) {
+		$errstr = "Vault module not loaded.";
 		SetError( $errors, $errstr );
 		return undef;
 	}
@@ -491,7 +482,9 @@ sub do_cached_login($$$$) {
 	# fill in all the bits that may be missing from the array of entries
 	# to try.
 	#
-	if ($vaultbase) {
+	if ( defined($options) && exists($options->{vault} ) ) {
+		my $vaultbase = $options->{vault};
+
 		foreach my $key ( keys %{$vaultbase} ) {
 			if ( !exists( $auth->{$key} ) ) {
 				$auth->{$key} = $vaultbase->{$key};
