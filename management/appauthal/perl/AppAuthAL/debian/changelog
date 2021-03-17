@@ -1,3 +1,9 @@
+perl-jazzhands-appauthal (0.90.3) trusty; urgency=medium
+
+  * assorted fixes to the do_cached_login() funciton
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Wed, 17 Mar 2021 18:15:00 -0500
+
 perl-jazzhands-appauthal (0.86.0) trusty; urgency=medium
 
   * add support for using vault to get credentials
