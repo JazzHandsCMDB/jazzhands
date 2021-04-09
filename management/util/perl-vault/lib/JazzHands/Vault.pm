@@ -38,8 +38,8 @@ to HashiCorp Vault.
 =head1 DESCRIPTION
 
 This library primarily exists as a mechanism to extend dbauth support to
-support HashiCorp vault.  There's nothing to absolutely require this, but
-it is written and designed with that in mind.
+support HashiCorp Vault.  (vaultproject.io).  There is nothing to
+absolutely require this, but it is written and designed with that in mind.
 
 It only implements approle style auth where it uses that to get a
 limited life token, but will likely be extended to also allow for
@@ -53,12 +53,14 @@ does not have any vault.
 The library can also be used to invoke the caching library documented
 in JazzHands::AppAuthAL
 
-The L<Vault: Method> requires the VaultServer, VaultPath, VaultRoleId and
-one of VaultSecretIdPath or VaultSecretId to be set.  It is HIGHLY
-recommended that VaultSecretIdPath be used and include a process of regular
-rotation of the secret id.  VaultSecretId is mostly implemented to deal with
-unusual/emergency type situations where one might need to use it.  If both
-VaultSecretIdPath and VaultSecretId are specified, VaultSecretIdPath wins.
+The L<Vault: Method> requires the VaultServer, VaultPath, one of
+VaultRoleId or VaultRoleIdPath, and one of VaultSecretIdPath or
+VaultSecretId to be set.  It is HIGHLY recommended that VaultSecretIdPath
+be used and include a process of regular rotation of the secret id.
+VaultSecretId is mostly implemented to deal with unusual/emergency
+type situations where one might need to use it.  If both VaultSecretIdPath
+and VaultSecretId are specified, VaultSecretIdPath wins.  If both
+VaultRoleId and VaultRoleIdPath are set, it will fail.
 
 VaultSecretIdPath is the path to a file containing just the secret id to
 be used.
@@ -66,6 +68,9 @@ be used.
 The secret id and role ids are guid-type values that are understood by vault.
 The VaultPath should not have a leading slash or include a vault restful
 api version number.
+
+The retrieved token is revoked after it is used so it will not be valid
+outside the lifetime of the object created by new.
 
 CAPath can be specified optionally, which is the path to a file or
 directory of OpenSSL-friendly CAs to validate the connection to vault
@@ -150,6 +155,7 @@ use IO::Socket::SSL;
 use FileHandle;
 use JSON::PP;
 use JazzHands::Common qw(_options SetError $errstr );
+use Data::Dumper;
 
 use parent 'JazzHands::Common';
 
@@ -174,13 +180,18 @@ sub new {
 
 	# VaultRoleName - can be path in /var/lib/vault/stab ?  maybe?
 	# VaultSecretIdPath - path to file containing secret
-	foreach my $thing (qw(VaultServer VaultPath VaultRoleId)) {
+	foreach my $thing (qw(VaultServer VaultPath )) {
 		if ( ( !exists( $appauth->{$thing} ) )
 			|| !defined( $appauth->{$thing} ) )
 		{
 			$errstr = "Mandatory Vault Parameter $thing not specified";
 			return undef;
 		}
+	}
+
+	# remove trailing slash if it's there.
+	if ( exists( $appauth->{VaultServer} ) ) {
+		$appauth->{VaultServer} =~ s,/$,,;
 	}
 
 	if (   !exists( $appauth->{VaultSecretId} )
@@ -192,6 +203,15 @@ sub new {
 		return undef;
 	}
 
+	if (   !exists( $appauth->{VaultRoleId} )
+		&& !exists( $appauth->{VaultRoleIdPath} )
+		&& !$appauth->{VaultRoleId}
+		&& !$appauth->{VaultRoleIdPath} )
+	{
+		$errstr = "Mandatory Vault Parameter VaultRoleIdPath not specified";
+		return undef;
+	}
+
 	#
 	# VaultSecretIdPath is the right way to do this, but one can also include
 	# both the VaultSecretId rather than pulling it from a file.  Generally
@@ -199,6 +219,8 @@ sub new {
 	# is, thus having both is basically like having credentials.  That said,
 	# sometimes this is something that needs to happen with debugging, so it's
 	# in there. If both are defined, the path wins.
+	#
+	# The Secret Id is also expected to rotate often.
 	#
 	if ( exists( $appauth->{VaultSecretIdPath} ) ) {
 		if ( ( my $fh = new FileHandle( $appauth->{VaultSecretIdPath} ) ) ) {
@@ -223,9 +245,48 @@ sub new {
 		return undef;
 	}
 
+	#
+	# Either VaultRoleIdPath or VaultRoleId need to be set.  Both can not be
+	# set.  In the path case, the file is assumed to contain just the role
+	# id similar to VaultSecretIdPath
+	#
+	if (   exists( $appauth->{VaultRoleId} )
+		&& exists( $appauth->{VaultRoleIdPath} ) )
+	{
+		$errstr = "Both VaultRoleIdPath and VaultRoleId are set.";
+		return undef;
+	} elsif ( exists( $appauth->{VaultRoleIdPath} ) ) {
+		if ( ( my $fh = new FileHandle( $appauth->{VaultRoleIdPath} ) ) ) {
+			while ( my $l = $fh->getline() ) {
+				chomp($l);
+				$l =~ s/#.*$//;
+				next if ( $l =~ /^\s*$/ );
+				$self->{VaultRoleId} = $l;
+				last;
+			}
+			$fh->close;
+		} else {
+			$errstr = sprintf "Unable to read Vault Role Id from %s: %s",
+			  $appauth->{VaultRoleIdPath},
+			  $!;
+			return undef;
+		}
+	} elsif ( exists( $appauth->{VaultRoleId} ) ) {
+		$self->{VaultRoleId} = $appauth->{VaultRoleId};
+	} else {
+		$errstr = "Neither VaultRoleIdPath nor VaultRoleId are set.";
+		return undef;
+	}
+
 	# extra check in case the above failed.
 	if ( !( defined( $self->{VaultSecretId} ) ) ) {
 		$errstr = "VaultSecretId could not be determined.";
+		return undef;
+	}
+
+	# extra check in case the above failed.
+	if ( !( defined( $self->{VaultRoleId} ) ) ) {
+		$errstr = "VaultRoleId could not be determined.";
 		return undef;
 	}
 
@@ -272,7 +333,6 @@ sub fetchurl {
 	my $json = JSON::PP->new();
 	if ($data) {
 		my $body = $json->encode($data);
-
 		$req->content_type('application/json');
 		$req->content($body);
 	}
@@ -281,10 +341,25 @@ sub fetchurl {
 
 	if ( !$res->is_success ) {
 		$errstr = sprintf "%s: %s", $url, $res->status_line;
+		if ( $res->content ) {
+			my $vaulterr;
+			eval {
+				$vaulterr = $json->decode( $res->content );
+				if ( exists( $vaulterr->{errors} ) ) {
+					$errstr = sprintf "%s: (%s): %s",
+					  $url, $res->code, join( ",", @{ $vaulterr->{errors} } );
+				}
+			};
+		}
+
 		return undef;
 	}
 
-	$json->decode( $res->content ) || die $!;
+	if ( $res->content ) {
+		$json->decode( $res->content );
+	} else {
+		return {};
+	}
 }
 
 sub approle_login {
@@ -297,7 +372,7 @@ sub approle_login {
 		method => 'POST',
 		url    => $url,
 		data   => {
-			'role_id'   => $self->{_appauthal}->{VaultRoleId},
+			'role_id'   => $self->{VaultRoleId},
 			'secret_id' => $self->{VaultSecretId},
 		},
 	);
@@ -311,6 +386,10 @@ sub approle_login {
 	if ( !$resp->{auth} && !$resp->{auth}->{client_token} ) {
 		$errstr = "did not receive client token from vault server";
 		return undef;
+	}
+
+	if($resp->{auth}->{lease_duration}) {
+		$self->{token_lease_duration} = $resp->{auth}->{lease_duration};
 	}
 
 	$self->{token} = $resp->{auth}->{client_token};
@@ -389,6 +468,23 @@ sub fetch_and_merge_dbauth {
 	}
 
 	$rv;
+}
+
+sub DESTROY {
+	my $self = shift @_ || return;
+
+	if ( $self->{token} ) {
+		my $url = sprintf "%s/v1/auth/token/revoke-self",
+		  $self->{_appauthal}->{VaultServer};
+
+		my $resp = $self->fetchurl(
+			method => 'POST',
+			url    => $url,
+			token  => $self->{token},
+		);
+		delete( $self->{token} );
+	}
+
 }
 
 1;
