@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Todd Kover
+ * Copyright (c) 2016-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -218,11 +218,6 @@ BEGIN
 				(account_collection_id, account_id)  NOT IN
 					( SELECT unix_group_account_collection_id, account_id from
 						account_unix_info)
-			AND account_collection_id NOT IN (
-				SELECT account_collection_id
-				FROM account_collection
-				WHERE account_collection_type = ''department''
-			)
 			) DELETE FROM account_collection_account aca
 			WHERE (account_collection_id, account_id) IN
 				(SELECT account_collection_id, account_id FROM x)
