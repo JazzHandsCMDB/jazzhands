@@ -341,7 +341,7 @@ sub cleanup_unchanged_routes {
 		 from   static_route_template srt
 			inner join netblock snb
 			    on srt.netblock_src_id = snb.netblock_id
-			inner join v_network_interface_trans ni
+			inner join network_interface_netblock ni
 			    on srt.network_interface_dst_id = ni.network_interface_id
 			inner join netblock dnb
 			    on dnb.netblock_id = ni.netblock_id

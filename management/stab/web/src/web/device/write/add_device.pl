@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-#!/usr/bin/env perl
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #

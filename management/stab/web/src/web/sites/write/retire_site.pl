@@ -49,8 +49,7 @@ sub retire_site {
 
 	if ( ( my $status = check_site_validity( $stab, $site ) ) ) {
 		if ( $status eq 'INACTIVE' ) {
-			$stab->error_return(
-				"$site is already marked as inactive.");
+			$stab->error_return("$site is already marked as inactive.");
 		}
 	} else {
 		$stab->error_return("$site is not a valid site.");
@@ -69,8 +68,7 @@ sub retire_site {
 
 	if ($numchanges) {
 		$stab->commit;
-		$stab->msg_return( "Changed $site state to INACTIVE", undef,
-			1 );
+		$stab->msg_return( "Changed $site state to INACTIVE", undef, 1 );
 	} else {
 		$stab->rollback;
 		$stab->msg_return("Nothing to change");
@@ -103,13 +101,13 @@ sub check_for_devices {
 		  from	device d
 				left join rack_location l
 					using (rack_location_id)
-		 where	
+		 where
 			(l.site_code = :1
 		   	or regexp_like(lower(d.device_name), :2)
 			)
 		  or	d.device_id in (
-				select distinct device_Id 
-				  from v_network_interface_trans 
+				select distinct device_Id
+				  from network_interface_netblock
 				 where netblock_id in
 					(
 					select netblock_id from
@@ -122,7 +120,7 @@ sub check_for_devices {
 					)
 				   )
 				)
-		   
+		  
 	}
 	);
 
@@ -186,8 +184,8 @@ sub purge_netblocks_from_site {
 			  from	netblock
 			connect by prior netblock_Id = parent_netblock_Id
 			start with netblock_id in (
-				select netblock_id from site_netblock where site_code = :1) 
-			order by level desc 
+				select netblock_id from site_netblock where site_code = :1)
+			order by level desc
 			)
 		);
 
@@ -197,8 +195,8 @@ sub purge_netblocks_from_site {
 			  from	netblock
 			connect by prior netblock_Id = parent_netblock_Id
 			start with netblock_id in (
-				select netblock_id from site_netblock where site_code = :1) 
-			order by level desc 
+				select netblock_id from site_netblock where site_code = :1)
+			order by level desc
 			)
 		);
 		end;
