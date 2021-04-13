@@ -211,8 +211,7 @@ BEGIN
 				JOIN person_company pc USING (person_id, company_id)
 			WHERE   pc.termination_date IS NOT NULL
 			AND     pc.termination_date < now() - $1::interval
-			AND	coalesce(aca.data_upd_date, aca.data_ins_date) < pc.termination_date
-			AND		not a.is_enabled
+			AND	NOT a.is_enabled
 			AND     account_collection_type != $2
 			AND
 				(account_collection_id, account_id)  NOT IN
