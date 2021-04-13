@@ -22,7 +22,8 @@
 // adds a row before the row that contains 'button' based on the domain list
 // in resp.  The rest of resp can be ignored.
 //
-function add_dns_ref_record_row(button, dnsrecid, resp) 
+
+function add_dns_ref_record_row(button, dnsrecid, resp)
 {
 	var offset = 0;
 	while ( $("input#dnsref_DNS_NAME_dnsref_"+dnsrecid+"_new_"+offset).length ) {
@@ -72,7 +73,7 @@ function add_dns_ref_record_row(button, dnsrecid, resp)
 // dynamically builds a table for dns records that refer to a given record.
 // There's perl code in the interface section that probably wants to do this
 // too, possibly with an edit button, possibly not. XXX
-// 
+//
 //
 function build_dns_ref_table(cell, dnsrecid, resp)
 {
@@ -82,8 +83,8 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 
 		var suffix = "_dnsref_" + dnsrecid + "_" + rec['dns_record_id'];
 
-		var s = $('<select/>', { 
-			class: 'off', 
+		var s = $('<select/>', {
+			class: 'off',
 			name: 'dnsref_DNS_TYPE' + suffix
 		} );
 		for(var j in resp['types']) {
@@ -95,14 +96,14 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 			$(s).append(o);
 		}
 
-		var r = $('<tr/>', { class: 'dnsroot'} ).append( 
+		var r = $('<tr/>', { class: 'dnsroot'} ).append(
 			$("<td>").append(
 				$("<a/>", { class: 'rmrow'}).
 					append( $("<img/>", {
 						class: 'rmdnsrow button',
 						src: '../stabcons/redx.jpg',
 					})),
-				$("<input/>", { 
+				$("<input/>", {
 					type: 'checkbox',
 					class: 'irrelevant rmrow',
 					name: 'Del_' + rec['dns_record_id'],
@@ -111,7 +112,7 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 			$("<td/>").append(
 				$(s)
 			),
-			$("<td/>").append( 
+			$("<td/>").append(
 				$('<input/>', {
 					type: 'text',
 					class: 'irrelevant dnsname',
@@ -209,7 +210,6 @@ function build_dnsref_table (obj) {
 	if (blt.length) {
 		$(blt).toggleClass('irrelevant');
 	} else {
-		$(obj).removeClass('dnsref');
 		$.getJSON('../dns/dns-ajax.pl', url, function (resp) {
 			var div = $("<div/>", {
 					class: 'dnsvalueref',
@@ -246,6 +246,47 @@ function make_dnslink_editable(event) {
 	return(0);
 }
 
+// This function preloads the dns domains from the database
+// It's called at the document ready event and on mouse down events on the dns domain select elements
+var jDnsDomains;
+function get_dns_domains() {
+	if( jDnsDomains ) return;
+	$.getJSON('../dns/dns-ajax.pl', 'json=yes;what=dnsref', function (resp) {
+		jDnsDomains = resp;
+	});
+}
+
+// This function is called when the dns domain dropdown is activated
+function popuplate_dns_domain_dropdown( event ) {
+	// If the dropdown is already populated, nothing to do
+	if( event.currentTarget.hasAttribute('populated') ) return;
+	// Make sure the dns domains have been populated
+	// This function is already called at the document ready event
+	get_dns_domains();
+
+	//console.log( event.currentTarget.options );
+	// Get prepopulated options
+	// That's needed because dropdowns are pre-populated with just the defined domain
+	var aExistingValues = [];
+	for( let existingOption of event.currentTarget.options ) {
+		aExistingValues.push( existingOption.value );
+	}
+	var url = 'json=yes;what=dnsref';
+	//url += ';DNS_DOMAIN_ID='+id;
+	for(var field in jDnsDomains['domains']['options']) {
+		var option = document.createElement("option");
+		option.text = jDnsDomains['domains']['options'][field]['text'];
+		option.value = jDnsDomains['domains']['options'][field]['value'];
+		// Don't add this option if it's been populated already
+		// That's needed because dropdowns are pre-populated with just the defined domain
+		if( aExistingValues.includes( option.value ) ) continue;
+		aExistingValues.push( option.value );
+		event.currentTarget.options.add(option);
+	}
+	// Mark the dropdown as populated
+	event.currentTarget.setAttribute( 'populated', true );
+}
+
 function add_dns_references(obj) {
 	var dr = $(obj).find("input.dnsrecordid").attr('value');
 
@@ -258,6 +299,7 @@ function add_dns_references(obj) {
 	$.getJSON('../dns/dns-ajax.pl', url, function (resp) {
 		add_dns_ref_record_row(obj, dr, resp);
 	});
+
 	return(0);
 }
 
@@ -275,6 +317,12 @@ function create_dns_reference_jquery(baseobj) {
 	//
 	$(baseobj).on('click', 'img.intdnsedit', function(event) {
 		return make_dnslink_editable(event);
+	});
+	$(baseobj).on('mousedown', 'select.dnsdomain', function(event) {
+		return popuplate_dns_domain_dropdown(event);
+	});
+	$(baseobj).on('focus', 'select.dnsdomain', function(event) {
+		return popuplate_dns_domain_dropdown(event);
 	});
 
 	// implements the add button on the dns value cell.

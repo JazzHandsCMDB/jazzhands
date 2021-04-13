@@ -1,3 +1,9 @@
+jazzhands-stab (0.90.5) focal; urgency=medium
+
+  * Adding support for multiple ip addresses per network interface
+
+ -- Stephane Messerli <stephanae.messerli@xandr.com>  Tue, 13 Apr 2021 14:03:00 +0200
+
 jazzhands-stab (0.90) focal; urgency=medium
 
   * add ability to delegate attestation to another

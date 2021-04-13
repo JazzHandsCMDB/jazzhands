@@ -132,7 +132,7 @@ sub dump_toplevel {
 		SELECT
 			nb.ip_address,
 			nb.netblock_id,
-			nb.netblock_status, 
+			nb.netblock_status,
 			nb.description,
 			snb.site_code
 		  from  netblock nb
@@ -214,7 +214,7 @@ sub dump_nodes {
 	print $cgi->th( [ 'IP', 'Status', 'DNS', 'Description', ] );
 
 	my $q = qq{
-		select	nb.netblock_id, 
+		select	nb.netblock_id,
 			ni.device_id,
 			dns.dns_record_id,
 			dns.dns_name,
@@ -229,7 +229,7 @@ sub dump_nodes {
 				and dns.dns_type in ('AAAA', 'A', 'A6')
 			left join dns_domain dom
 				on dns.dns_domain_id = dom.dns_domain_id
-			left join v_network_interface_trans ni
+			left join network_interface_netblock ni
 				on ni.netblock_id = nb.netblock_id
 		 where	nb.parent_netblock_id = ?
 		order by nb.ip_address
@@ -320,7 +320,7 @@ sub dump_nodes {
 		# check the block to see how many nodes are left at the end and
 		# print as much
 		#
-		my $l = $nb->last_ip();
+		my $l         = $nb->last_ip();
 		my $endoblock = new Net::IP($l) || die Net::IP::Error();
 		if ( $endoblock->ip() ne $lastip->ip() ) {
 			my $thegap = $endoblock->intip() - $lastip->intip();
@@ -353,7 +353,7 @@ sub get_netblock_link_header {
 	my $cgi = $stab->cgi;
 	my $dbh = $stab->dbh;
 
-	my $showsite = $stab->cgi_parse_param('showsite');
+	my $showsite      = $stab->cgi_parse_param('showsite');
 	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
 
 	my $displaysite = "";
@@ -491,7 +491,7 @@ sub do_dump_netblock {
 	my $nb;
 	if ( !defined($start_id) ) {
 		if ( defined($block) ) {
-			$nb = new Net::IP($block);
+			$nb       = new Net::IP($block);
 			$start_id = get_netblock_id( $stab, $nb );
 
 			if ( !defined($start_id) ) {
@@ -587,10 +587,10 @@ sub do_dump_netblock {
 		you do this by changing the description field to be whatever the
 		address is being allocated to.  In that case, the device will be
 		marked as 'Reserved'.  Devices marked as 'Legacy' may or may not
-		be in use (they're allocation was imported from legacy IP 
+		be in use (they're allocation was imported from legacy IP
 		tracking systems that used to be authoritative for this data).
-		Devices marked as 'Allocated' have been assigned to devices 
-		and can not be changed from within this part of STAB.  
+		Devices marked as 'Allocated' have been assigned to devices
+		and can not be changed from within this part of STAB. 
 		(They should be changed from within the
 	}, $cgi->a( { -href => "../device/" }, "device manager" ), ")."
 	);
@@ -792,7 +792,7 @@ sub print_netblock_allocation {
 	my $q = qq{
 		select	netblock_status, count(*) as tally
 		  from	netblock
-		 where	parent_netblock_id = ? 
+		 where	parent_netblock_id = ?
 		group by netblock_status
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
@@ -817,13 +817,13 @@ sub print_netblock_allocation {
 	my $x = "";
 	foreach my $what ( sort( keys(%breakdown) ) ) {
 		my $tally = $breakdown{$what};
-		my $pct = sprintf( "%2.2f%%", ( $tally / $size ) * 100 );
+		my $pct   = sprintf( "%2.2f%%", ( $tally / $size ) * 100 );
 		$x .= $cgi->div("$what: $tally ($pct)");
 	}
 
 	{
 		my $free = $size - $total;
-		my $pct = sprintf( "%2.2f%%", ( $free / $size ) * 100 );
+		my $pct  = sprintf( "%2.2f%%", ( $free / $size ) * 100 );
 		$x .= $cgi->div("Unallocated: $free ($pct)");
 	}
 
@@ -853,8 +853,8 @@ sub dump_netblock_routes {
 		 from	static_route_template srt
 				inner join netblock snb
 					on srt.netblock_src_id = snb.netblock_id
-				inner join v_network_interface_trans ni
-					on srt.network_interface_dst_id = ni.network_interface_id 
+				inner join network_interface_netblock ni
+					on srt.network_interface_dst_id = ni.network_interface_id
 				inner join netblock dnb
 					on dnb.netblock_id = ni.netblock_id
 				inner join device d

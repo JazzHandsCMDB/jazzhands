@@ -52,7 +52,7 @@ sub circuit_search {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } ),      "\n";
 	print $stab->start_html( { -title => "Circuit Search" } ), "\n";
 
 	print "totally not implemented";
@@ -112,8 +112,7 @@ sub dump_circuit {
 			"TRUNK_TCIC_START", 'CIRCUIT_ID'
 		),
 		$stab->build_tr(
-			undef,            $c,
-			'b_textfield',    "TCIC End",
+			undef,            $c, 'b_textfield', "TCIC End",
 			"TRUNK_TCIC_END", 'CIRCUIT_ID'
 		),
 	);
@@ -128,8 +127,7 @@ sub dump_circuit {
 
 	## [XXX] need to incoprorate physical connections
 
-	my $cstr =
-	  ($c) ? "Circuit " . $c->{'VENDOR_CIRCUIT_ID_STR'} : "Circuit";
+	my $cstr = ($c) ? "Circuit " . $c->{'VENDOR_CIRCUIT_ID_STR'} : "Circuit";
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html( { -title => $cstr } ), "\n";
@@ -160,19 +158,16 @@ sub build_circuit_aloc {
 		$label .= " (Site)";
 	}
 
-       #
-       # maybe have the site/market options available via drop down?
-       # site option gets pulled from the device where it ultimately terminates.
-       # A location should have a market pull down
-       # Z location should have a site code pull down
-       #
+	#
+	# maybe have the site/market options available via drop down?
+	# site option gets pulled from the device where it ultimately terminates.
+	# A location should have a market pull down
+	# Z location should have a site code pull down
+	#
 
 	$cgi->table(
 		$cgi->Tr(
-			$cgi->td(
-				{ -colspan => 2, -align => 'center', },
-				$cgi->b($label)
-			)
+			$cgi->td( { -colspan => 2, -align => 'center', }, $cgi->b($label) )
 		),
 		$stab->build_tr(
 			undef,                       $c,
@@ -185,8 +180,7 @@ sub build_circuit_aloc {
 			"${side}LOC_LEC_CIRCUIT_ID_STR", 'CIRCUIT_ID'
 		),
 		$stab->build_tr(
-			undef,       $c, 'b_dropdown', "Site Code",
-			"SITE_CODE", 'SITE_CODE'
+			undef, $c, 'b_dropdown', "Site Code", "SITE_CODE", 'SITE_CODE'
 		),
 	);
 }
@@ -198,7 +192,7 @@ sub dump_circuit_l1table {
 	my $sth = $stab->prepare(
 		qq{
 		select  ni.network_interface_id,
-			ni.name as network_interface_name,
+			ni.network_interface_name,
 			d.device_id,
 			d.device_name,
 			p.physical_port_id,
@@ -213,7 +207,7 @@ sub dump_circuit_l1table {
 			c.trunk_tcic_start,
 			c.trunk_tcic_end
 		  from  physical_port p
-			inner join v_network_interface_trans ni on
+			inner join network_interface ni on
 				ni.physical_port_id = p.physical_port_id
 			inner join device d on
 				d.device_id = ni.device_id
@@ -228,7 +222,7 @@ sub dump_circuit_l1table {
 				on tg.trunk_group_id = c.trunk_group_id
 		 where  c.circuit_id = :1
 		  and	d.is_locally_managed = 'Y'
-		order by d.device_id, NETWORK_STRINGS.NUMERIC_INTERFACE(ni.name)
+		order by d.device_id, NETWORK_STRINGS.NUMERIC_INTERFACE(ni.network_interface_name)
 	}
 	);
 
@@ -242,11 +236,9 @@ sub dump_circuit_l1table {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $link = $cgi->a(
 			{
-				-href => "../device/device.pl?devid="
-				  . $hr->{'DEVICE_ID'}
+				-href => "../device/device.pl?devid=" . $hr->{'DEVICE_ID'}
 			},
-			$hr->{'DEVICE_NAME'} . ":"
-			  . $hr->{'NETWORK_INTERFACE_NAME'}
+			$hr->{'DEVICE_NAME'} . ":" . $hr->{'NETWORK_INTERFACE_NAME'}
 		);
 		$tt .= $cgi->Tr( { -align => 'center' }, $cgi->td($link), );
 
