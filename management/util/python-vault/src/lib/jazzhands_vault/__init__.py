@@ -1,5 +1,5 @@
 """
-Python library to simplify Hashicorp Vault usage at Xandr
+Python library to simplify interaction with Hashicorp Vault
 
 """
 
