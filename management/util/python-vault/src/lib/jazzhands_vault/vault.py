@@ -11,9 +11,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class Vault(object):
     """JazzHands front-end for Hashicorp Vault."""
-
     def __init__(
         self,
         uri=None,
