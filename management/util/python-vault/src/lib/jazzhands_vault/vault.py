@@ -11,9 +11,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-
 class Vault(object):
     """JazzHands front-end for Hashicorp Vault."""
+
     def __init__(
         self,
         uri=None,
@@ -138,7 +138,10 @@ class Vault(object):
         except IOError as e:
             raise VaultIOError(e)
         if 'errors' in parsed:
-            raise VaultResponseError(', '.join(parsed['errors']))
+            if parsed['errors']:
+                raise VaultResponseError(', '.join(parsed['errors']))
+            else:
+                raise VaultResponseError('Unspecified error')
         return parsed
 
     def _list(self, path, timeout=None):
@@ -156,7 +159,10 @@ class Vault(object):
         except IOError as e:
             raise VaultIOError(e)
         if 'errors' in parsed:
-            raise VaultResponseError(', '.join(parsed['errors']))
+            if parsed['errors']:
+                raise VaultResponseError(', '.join(parsed['errors']))
+            else:
+                raise VaultResponseError('Unspecified error')
         return parsed
 
     def _post(self, path, data, timeout=None):
@@ -174,20 +180,23 @@ class Vault(object):
         except IOError as e:
             raise VaultIOError(e)
         if 'errors' in parsed:
-            raise VaultResponseError(', '.join(parsed['errors']))
+            if parsed['errors']:
+                raise VaultResponseError(', '.join(parsed['errors']))
+            else:
+                raise VaultResponseError('Unspecified error')
         return parsed
 
     def get_token(self, ttl_refresh_seconds=300, timeout=None):
         """Ensure we have a token valid for the specified TTL
 
-		If we already have a token, the function verifies whether
-		the token is still valid and whether the token TTL is at least
-		ttl_refresh_seconds. In case the token is unavailable, invalid,
-		or the TTL is too short, the function uses the role_id and secret_id
-		to authenticate and obtain a new token. If token_file is defined,
-		the function attempts to write the token to token_file but failure
-		to write to the file is only logged as a warning.
-		"""
+        If we already have a token, the function verifies whether
+        the token is still valid and whether the token TTL is at least
+        ttl_refresh_seconds. In case the token is unavailable, invalid,
+        or the TTL is too short, the function uses the role_id and secret_id
+        to authenticate and obtain a new token. If token_file is defined,
+        the function attempts to write the token to token_file but failure
+        to write to the file is only logged as a warning.
+        """
 
         try:
             data = self._get('auth/token/lookup-self', timeout=timeout)
