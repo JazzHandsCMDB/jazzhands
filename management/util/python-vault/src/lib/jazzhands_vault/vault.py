@@ -258,7 +258,7 @@ class Vault(object):
         data = self._get(path, timeout=timeout)
         try:
             return data['data']['data']
-        except KeyError:
+        except (KeyError, TypeError):
             raise VaultValueError(
                 "Vault server response does not contain 'data'")
 
@@ -266,7 +266,6 @@ class Vault(object):
         """Writes the KV secrets to the specified location."""
 
         data = self._post(path, data, timeout=timeout)
-        return True
 
 
 class VaultError(Exception):
