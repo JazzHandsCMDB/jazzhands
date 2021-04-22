@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """
 JazzHands front-end for Hasicorp Vault
 """
@@ -12,9 +11,9 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 class Vault(object):
     """ JazzHands front-end for Hashicorp Vault """
-
     def __init__(
         self,
         uri=None,
@@ -187,23 +186,26 @@ class Vault(object):
             if ttl > ttl_refresh_seconds:
                 return
         except (VaultError, KeyError, ValueError):
-            logger.debug(
-                'Token in %s not available or insufficient TTL',
-				self._token_file
-            )
+            logger.debug('Token in %s not available or insufficient TTL',
+                         self._token_file)
         if not self.role_id:
-            raise VaultParameterError('Neither role_id nor role_id_file defined')
+            raise VaultParameterError(
+                'Neither role_id nor role_id_file defined')
         if not self.secret_id:
-            raise VaultParameterError('Neither secret_id nor secret_id_file defined')
+            raise VaultParameterError(
+                'Neither secret_id nor secret_id_file defined')
         post = {
             'role_id': self.role_id,
             'secret_id': self.secret_id,
         }
-        data = self._post('auth/approle/login', data=json.dumps(post), timeout=timeout)
+        data = self._post('auth/approle/login',
+                          data=json.dumps(post),
+                          timeout=timeout)
         try:
             token = data['auth']['client_token']
         except (KeyError, TypeError):
-            raise VaultValueError("Vault server response does not contain 'client_token'")
+            raise VaultValueError(
+                "Vault server response does not contain 'client_token'")
         self._token = token
         if self._token_file:
             try:
@@ -216,11 +218,13 @@ class Vault(object):
     def list(self, path, timeout=None):
         """Returns a listing of the kv at path."""
 
-        data = self._list(path.replace('/data/', '/metadata/', 1), timeout=timeout)
+        data = self._list(path.replace('/data/', '/metadata/', 1),
+                          timeout=timeout)
         try:
             return data['data']['keys']
         except (KeyError, TypeError):
-            raise VaultValueError("Vault server response does not contain 'keys'")
+            raise VaultValueError(
+                "Vault server response does not contain 'keys'")
 
     def read(self, path, timeout=None):
         """Returns the kv at path."""
@@ -229,7 +233,8 @@ class Vault(object):
         try:
             return data['data']['data']
         except KeyError:
-            raise VaultValueError("Vault server response does not contain 'data'")
+            raise VaultValueError(
+                "Vault server response does not contain 'data'")
 
     def write(self, path, data, timeout=None):
         """Write the kv at path."""
