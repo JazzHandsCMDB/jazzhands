@@ -286,5 +286,5 @@ class VaultResponseError(VaultError):
     pass
 
 
-class VaultVauleError(VaultError):
+class VaultValueError(VaultError):
     pass
