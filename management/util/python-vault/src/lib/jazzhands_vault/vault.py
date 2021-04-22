@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Vault(object):
-    """ JazzHands front-end for Hashicorp Vault """
+    """JazzHands front-end for Hashicorp Vault."""
     def __init__(
         self,
         uri=None,
@@ -37,7 +37,7 @@ class Vault(object):
 
     @property
     def role_id(self):
-        """ Get the role_id from _role_id or the _role_id_file """
+        """Get the role_id from _role_id or _role_id_file."""
 
         if self._role_id:
             return self._role_id
@@ -65,7 +65,7 @@ class Vault(object):
 
     @property
     def secret_id(self):
-        """ Get the secret_id from _secret_id or _secret_id_file """
+        """Get the secret_id from _secret_id or _secret_id_file."""
 
         if self._secret_id:
             return self._secret_id
@@ -93,7 +93,7 @@ class Vault(object):
 
     @property
     def token(self):
-        """ Get the token from _token or from _token_file """
+        """Get the token from _token or from _token_file."""
 
         if self._token:
             return self._token
@@ -120,12 +120,12 @@ class Vault(object):
         self._token_file = token_file
 
     def _token_header(self):
-        """ Return the headers with the token """
+        """Return the HTTP headers with the Vault token included."""
 
         return {'X-Vault-Token': self.token} if self.token else {}
 
     def _get(self, path, timeout=None):
-        """ Issue a GET request for path """
+        """Issue a GET request for path."""
 
         try:
             response = self._api.get(
@@ -142,7 +142,7 @@ class Vault(object):
         return parsed
 
     def _list(self, path, timeout=None):
-        """ Issue a LIST request for path """
+        """Issue a LIST request for path."""
 
         try:
             response = self._api.request(
@@ -160,7 +160,7 @@ class Vault(object):
         return parsed
 
     def _post(self, path, data, timeout=None):
-        """ Issue a POST request for path """
+        """Issue a POST request for path."""
 
         try:
             response = self._api.post(
@@ -178,7 +178,16 @@ class Vault(object):
         return parsed
 
     def get_token(self, ttl_refresh_seconds=300, timeout=None):
-        """Ensure we have a token valid for the specified TTL"""
+        """Ensure we have a token valid for the specified TTL
+
+		If we already have a token, the function verifies whether
+		the token is still valid and whether the token TTL is at least
+		ttl_refresh_seconds. In case the token is unavailable, invalid,
+		or the TTL is too short, the function uses the role_id and secret_id
+		to authenticate and obtain a new token. If token_file is defined,
+		the function attempts to write the token to token_file but failure
+		to write to the file is only logged as a warning.
+		"""
 
         try:
             data = self._get('auth/token/lookup-self', timeout=timeout)
@@ -186,8 +195,7 @@ class Vault(object):
             if ttl > ttl_refresh_seconds:
                 return
         except (VaultError, KeyError, ValueError):
-            logger.debug('Token in %s not available or insufficient TTL',
-                         self._token_file)
+            logger.debug('Token not available or insufficient TTL')
         if not self.role_id:
             raise VaultParameterError(
                 'Neither role_id nor role_id_file defined')
@@ -216,7 +224,7 @@ class Vault(object):
                 logger.warning('Unable to write %s: %s', self._token_file, e)
 
     def list(self, path, timeout=None):
-        """Returns a listing of the kv at path."""
+        """Returns a list of KV secrets at the specified location."""
 
         data = self._list(path.replace('/data/', '/metadata/', 1),
                           timeout=timeout)
@@ -227,7 +235,7 @@ class Vault(object):
                 "Vault server response does not contain 'keys'")
 
     def read(self, path, timeout=None):
-        """Returns the kv at path."""
+        """Returns the KV secrets at the specified location."""
 
         data = self._get(path, timeout=timeout)
         try:
@@ -237,14 +245,14 @@ class Vault(object):
                 "Vault server response does not contain 'data'")
 
     def write(self, path, data, timeout=None):
-        """Write the kv at path."""
+        """Writes the KV secrets to the specified location."""
 
         data = self._post(path, data, timeout=timeout)
         return True
 
 
 class VaultError(Exception):
-    """ Base class for Vault exceptions"""
+    """Base class for Vault exceptions."""
 
     pass
 
