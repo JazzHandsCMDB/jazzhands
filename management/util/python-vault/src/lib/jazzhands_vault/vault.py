@@ -175,8 +175,11 @@ class Vault(object):
                 data=data,
                 timeout=timeout if timeout is not None else self.timeout,
             )
-            parsed = response.json()
-            logger.debug('POST %s: %s', path, pprint.pformat(parsed))
+            if response.status_code == 204:
+                return None
+            else:
+                parsed = response.json()
+                logger.debug('POST %s: %s', path, pprint.pformat(parsed))
         except IOError as e:
             raise VaultIOError(e)
         if 'errors' in parsed:
@@ -231,6 +234,12 @@ class Vault(object):
                 logger.debug('Wrote new token to %s', self._token_file)
             except IOError as e:
                 logger.warning('Unable to write %s: %s', self._token_file, e)
+
+    def revoke_token(self, timeout=None):
+        """Revoke the current token"""
+
+        if self.token:
+            self._post('auth/token/revoke-self', data='', timeout=timeout)
 
     def list(self, path, timeout=None):
         """Returns a list of KV secrets at the specified location."""
