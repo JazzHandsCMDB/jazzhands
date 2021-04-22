@@ -133,10 +133,10 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-            parsed = response.json()
-            logger.debug('GET %s: %s', path, pprint.pformat(parsed))
         except IOError as e:
             raise VaultIOError(e)
+        parsed = response.json()
+        logger.debug('GET %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
             if parsed['errors']:
                 raise VaultResponseError(', '.join(parsed['errors']))
@@ -154,10 +154,10 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-            parsed = response.json()
-            logger.debug('LIST %s: %s', path, pprint.pformat(parsed))
         except IOError as e:
             raise VaultIOError(e)
+        parsed = response.json()
+        logger.debug('LIST %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
             if parsed['errors']:
                 raise VaultResponseError(', '.join(parsed['errors']))
@@ -175,13 +175,13 @@ class Vault(object):
                 data=data,
                 timeout=timeout if timeout is not None else self.timeout,
             )
-            if response.status_code == 204:
-                return None
-            else:
-                parsed = response.json()
-                logger.debug('POST %s: %s', path, pprint.pformat(parsed))
         except IOError as e:
             raise VaultIOError(e)
+        if response.status_code == 204:
+            return None
+        else:
+            parsed = response.json()
+            logger.debug('POST %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
             if parsed['errors']:
                 raise VaultResponseError(', '.join(parsed['errors']))
