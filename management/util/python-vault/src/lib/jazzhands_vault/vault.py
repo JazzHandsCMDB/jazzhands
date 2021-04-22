@@ -41,15 +41,14 @@ class Vault(object):
 
         if self._role_id:
             return self._role_id
-        elif self._role_id_file:
+        if self._role_id_file:
             try:
                 with open(self._role_id_file, 'r') as filep:
                     self._role_id = filep.read().strip()
-            except IOError as e:
-                raise VaultIOError('Cannot read role_id file: {}'.format(e))
+            except IOError as err:
+                raise VaultIOError('Cannot read role_id file: {}'.format(err))
             return self._role_id
-        else:
-            return None
+        return None
 
     @role_id.setter
     def role_id(self, role_id):
@@ -69,15 +68,14 @@ class Vault(object):
 
         if self._secret_id:
             return self._secret_id
-        elif self._secret_id_file:
+        if self._secret_id_file:
             try:
                 with open(self._secret_id_file, 'r') as filep:
                     self._secret_id = filep.read().strip()
-            except IOError as e:
-                raise VaultIOError('Cannot read secret_id file: {}'.format(e))
+            except IOError as err:
+                raise VaultIOError('Cannot read secret_id file: {}'.format(err))
             return self._secret_id
-        else:
-            return None
+        return None
 
     @secret_id.setter
     def secret_id(self, secret_id):
@@ -97,15 +95,14 @@ class Vault(object):
 
         if self._token:
             return self._token
-        elif self._token_file:
+        if self._token_file:
             try:
                 with open(self._token_file, 'r') as filep:
                     self._token = filep.read().strip()
                 return self._token
             except IOError:
                 return None
-        else:
-            return None
+        return None
 
     @token.setter
     def token(self, token):
@@ -133,15 +130,14 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as e:
-            raise VaultIOError(e)
+        except IOError as err:
+            raise VaultIOError(err)
         parsed = response.json()
         logger.debug('GET %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
             if parsed['errors']:
                 raise VaultResponseError(', '.join(parsed['errors']))
-            else:
-                raise VaultResponseError('Unspecified error')
+            raise VaultResponseError('Unspecified error')
         return parsed
 
     def _list(self, path, timeout=None):
@@ -154,15 +150,14 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as e:
-            raise VaultIOError(e)
+        except IOError as err:
+            raise VaultIOError(err)
         parsed = response.json()
         logger.debug('LIST %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
             if parsed['errors']:
                 raise VaultResponseError(', '.join(parsed['errors']))
-            else:
-                raise VaultResponseError('Unspecified error')
+            raise VaultResponseError('Unspecified error')
         return parsed
 
     def _post(self, path, data, timeout=None):
@@ -175,18 +170,16 @@ class Vault(object):
                 data=data,
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as e:
-            raise VaultIOError(e)
+        except IOError as err:
+            raise VaultIOError(err)
         if response.status_code == 204:
             return None
-        else:
-            parsed = response.json()
-            logger.debug('POST %s: %s', path, pprint.pformat(parsed))
+        parsed = response.json()
+        logger.debug('POST %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
             if parsed['errors']:
                 raise VaultResponseError(', '.join(parsed['errors']))
-            else:
-                raise VaultResponseError('Unspecified error')
+            raise VaultResponseError('Unspecified error')
         return parsed
 
     def get_token(self, ttl_refresh_seconds=300, timeout=None):
@@ -232,8 +225,8 @@ class Vault(object):
                 with open(self._token_file, 'w') as filep:
                     filep.write(self._token)
                 logger.debug('Wrote new token to %s', self._token_file)
-            except IOError as e:
-                logger.warning('Unable to write %s: %s', self._token_file, e)
+            except IOError as err:
+                logger.warning('Unable to write %s: %s', self._token_file, err)
 
     def revoke_token(self, timeout=None):
         """Revoke the current token"""
@@ -270,8 +263,6 @@ class Vault(object):
 
 class VaultError(Exception):
     """Base class for Vault exceptions."""
-
-    pass
 
 
 class VaultParameterError(VaultError):
