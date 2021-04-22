@@ -17,7 +17,7 @@ import subprocess
 from distutils.core import setup
 
 # this should be pulled in automatically
-version = '0.84.4'
+version = '0.90.6'
 
 classifiers = [
     "Topic :: Utilities",
