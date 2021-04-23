@@ -11,7 +11,6 @@ XS-Python3-Version: >= 3.4
 Homepage: http://www.jazzhands.net/
 
 Package: python-jazzhands-vault
-Provides: python2-jazzhands-vault
 Architecture: any
 Depends: python-requests
 Description: Python Vault interface
@@ -19,4 +18,4 @@ Description: Python Vault interface
 Package: python3-jazzhands-vault
 Architecture: any
 Depends: python3-requests
-Description: Python Vault interface
+Description: Python3 Vault interface

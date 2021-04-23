@@ -1,3 +1,15 @@
+python-jazzhands-vault (0.90.7) bionic; urgency=medium
+
+  * propagate package fixes upstream
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Fri, 23 Apr 2021 17:50:22 +0100
+
+python-jazzhands-vault (0.90.6.1) bionic; urgency=medium
+
+  * minor version to account for broken packaging
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Fri, 23 Apr 2021 17:18:22 +0100
+
 python-jazzhands-vault (0.90.6) bionic; urgency=medium
 
   * initial release
