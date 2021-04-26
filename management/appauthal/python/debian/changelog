@@ -1,3 +1,15 @@
+python-jazzhands-appauthal (0.90.8) bionic; urgency=medium
+
+  * propagate package fixes upstream
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 26 Apr 2021 11:49:00 +0100
+
+python-jazzhands-appauthal (0.90.2.1) bionic; urgency=medium
+
+  * minor version to account for broken packaging
+
+ -- Benjamin Henry <ben.henry@xandr.com>  Wed,  20 Jan 2021 10:10:00 -0500
+
 python-jazzhands-appauthal (0.90.2) bionic; urgency=medium
 
   * add support for both python2 and python3
