@@ -124,6 +124,8 @@ class Vault(object):
     def _get(self, path, timeout=None):
         """Issue a GET request for path."""
 
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
         try:
             response = self._api.get(
                 os.path.join(self.uri, 'v1', path),
@@ -143,6 +145,8 @@ class Vault(object):
     def _list(self, path, timeout=None):
         """Issue a LIST request for path."""
 
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
         try:
             response = self._api.request(
                 'LIST',
@@ -163,6 +167,8 @@ class Vault(object):
     def _post(self, path, data, timeout=None):
         """Issue a POST request for path."""
 
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
         try:
             response = self._api.post(
                 os.path.join(self.uri, 'v1', path),
