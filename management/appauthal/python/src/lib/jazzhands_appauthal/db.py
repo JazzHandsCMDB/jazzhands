@@ -190,17 +190,21 @@ class PostgreSQL(DriverBase):
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise DatabaseConnectionException('password Method requires Username and Password')
             con_conf = self.build_connect_dict(self._con_conf)
+            try:
+                dbh = self._driver.connect(**con_conf)
+            except self._driver.OperationalError as exc:
+                raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'krb5':
             # clear Username and Password fields if provided. Force psycopg2 to use krb5
             self._con_conf.pop('Username', None)
             self._con_conf.pop('Password', None)
             con_conf = self.build_connect_dict(self._con_conf)
+            try:
+                dbh = self._driver.connect(**con_conf)
+            except self._driver.OperationalError as exc:
+                raise DatabaseConnectionOperationalError(exc)
         else:
             raise DatabaseConnectionException('Only password or krb5 method supported')
-        try:
-            dbh = self._driver.connect(**con_conf)
-        except self._driver.OperationalError as exc:
-            raise DatabaseConnectionOperationalError(exc)
         if str(self._options.get('use_session_variables', 'no')).lower() != 'no':
             self._set_username(dbh)
         if str(self._options.get('use_unicode_strings', 'no')).lower() != 'no':
