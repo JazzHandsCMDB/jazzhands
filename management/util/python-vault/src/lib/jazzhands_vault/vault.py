@@ -251,12 +251,12 @@ class Vault(object):
             raise VaultValueError(
                 "Vault server response does not contain 'keys'")
 
-    def read(self, path, timeout=None):
+    def read(self, path, timeout=None, metadata=False):
         """Returns the KV secrets at the specified location."""
 
         data = self._get(path, timeout=timeout)
         try:
-            return data['data']['data']
+            return data['data'] if metadata else data['data']['data']
         except (KeyError, TypeError):
             raise VaultValueError(
                 "Vault server response does not contain 'data'")
