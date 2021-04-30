@@ -132,8 +132,8 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as err:
-            raise VaultIOError(err)
+        except requests.exceptions.RequestException as err:
+            raise VaultRequestError(err)
         parsed = response.json()
         logger.debug('GET %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
@@ -154,8 +154,8 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as err:
-            raise VaultIOError(err)
+        except requests.exceptions.RequestException as err:
+            raise VaultRequestError(err)
         parsed = response.json()
         logger.debug('LIST %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
@@ -176,8 +176,8 @@ class Vault(object):
                 data=data,
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as err:
-            raise VaultIOError(err)
+        except requests.exceptions.RequestException as err:
+            raise VaultRequestError(err)
         if response.status_code == 204:
             return None
         parsed = response.json()
@@ -280,6 +280,10 @@ class VaultIOError(VaultError):
 
 
 class VaultResponseError(VaultError):
+    pass
+
+
+class VaultRequestError(VaultError):
     pass
 
 
