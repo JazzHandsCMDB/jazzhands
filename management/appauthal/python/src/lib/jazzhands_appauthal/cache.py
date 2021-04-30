@@ -23,13 +23,16 @@ Exceptions:
 """
 
 
-import logging, os, time, stat, json, psycopg2
+import logging, os, tempfile, time, stat, json, psycopg2
 from jazzhands_vault.vault import Vault, VaultError
 from .db import DatabaseConnectionException, DatabaseConnectionOperationalError
 
 
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
+
+def _is_cache_expired(cache):
+    return int(cache['expired_whence']) < time.time()
 
 
 class VaultCache(object):
@@ -44,7 +47,6 @@ class VaultCache(object):
                                    of the AppAuthAL file
         """
         self._options = options
-        self._db_authn = db_authn
         self._opt_merged = options['vault'].copy()
         self._opt_merged.update(db_authn)
 
@@ -82,52 +84,46 @@ class VaultCache(object):
             return key.replace('/', '_').replace(':', '_')
         return None
 
-    def _get_cache_pathname(self):
-        """Returns the pathname for caching DB credentials."""
-        
-        cache_dir = self._get_cache_dir()
-        cache_filename = self._get_cache_filename()
-        if not cache_dir or not cache_filename:
-            return None
-        return os.path.join(cache_dir, cache_filename)
+    def _assemble_cache(self, metadata, authn):
+        """Returns cache dictionary to be written to cache file."""
 
-    def _write_cache(self, metadata, authn):
-        """Saves DB authn credentials to cache."""
-
-        cache_pathname = self._get_cache_pathname()
-        if not cache_pathname:
-            return
-        if os.path.exists(cache_pathname):
-            try:
-                os.remove(cache_pathname)
-            except IOError:
-                pass
         expire = int(time.time() + self._options.get('DefaultCacheExpiration', 86400))
         if 'lease_duration' in metadata:
             divisor = self._options.get('DefaultCacheDivisor', 2)
             expire = int(time.time() + metadata['lease_duration'] / divisor)
-        cache = { 'expired_whence': expire, 'auth': authn }
+        return { 'expired_whence': expire, 'auth': authn }
+
+    def _write_cache(self, cache):
+        """Saves cache dictionary to cache file."""
+
+        cache_dir = self._get_cache_dir()
+        cache_filename = self._get_cache_filename()
+        if not cache_dir or not cache_filename:
+            return
+        cache_pathname = os.path.join(cache_dir, cache_filename)
         try:
-            with open(cache_pathname, 'w') as f:
-                json.dump(cache, f)
-                os.chmod(cache_pathname, 0o500)
+            tmp = tempfile.NamedTemporaryFile(mode='w', dir=cache_dir, delete=False)
+            json.dump(cache, tmp)
+            tmp.close()
+            os.rename(tmp.name, cache_pathname)
+            os.chmod(cache_pathname, 0o500)
         except IOError:
             pass
 
     def _read_cache(self):
         """Reads cached DB credentials."""
 
-        cache_pathname = self._get_cache_pathname()
-        if not cache_pathname:
+        cache_dir = self._get_cache_dir()
+        cache_filename = self._get_cache_filename()
+        if not cache_dir or not cache_filename:
             return None
+        cache_pathname = os.path.join(cache_dir, cache_filename)
         try:
             with open(cache_pathname, 'r') as f:
                 cache = json.load(f)
-            expire = int(cache['expired_whence'])
         except (IOError, KeyError, ValueError, json.JSONDecodeError):
             return None
-        cache['auth']['expired'] = expire > time.time()
-        return cache['auth']
+        return cache
 
     def _is_caching_enabled(self):
         caching = self._options.get('Caching', 'yes')
@@ -175,6 +171,8 @@ class VaultCache(object):
             params['uri'] = self._opt_merged['VaultServer']
         else:
             raise DatabaseConnectionException('VaultServer not defined')
+        if 'VaultPath' not in self._opt_merged:
+            raise DatabaseConnectionException('VaultPath not defined')
         return params
 
     def _merge_vault_secrets(self, secrets):
@@ -189,49 +187,29 @@ class VaultCache(object):
             return None
  
     def connect(self):
-        """Returns a connected psycopg2 database handle using cached credentials 'Vault'.
-
-        The logic of this function is taken from the Perl module JazzHands::AppAuthAL:
-
-            1. fetch catched creds
-            2. if success unexpired, try those
-            3. if sucesssful conn, return
-            4. if no cached creds, or expired, get new ones
-            5. if new ones, try them
-            6. if cached ones success, save in cache, return
-            7. if new ones fail and cached exist, try
-            8. if cached ones suceeded, return
-            9. if cached ones failed, return failure            
-
-        Returns:
-            obj: database connection object
-
-        Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
-            DatabaseConnectionOperationalError: if any database errors occur during connection
-        """
+        """Returns a connected psycopg2 database handle using Vault/cached credentials."""
 
         ## [XXX] Add CA path to the Vault module
 
         cache = None
         if self._is_caching_enabled():
             cache = self._read_cache()
-            if cache and not cache['expired']:
-                t_cache = self._translate_authn(cache)
-                try:
-                    return psycopg2.connect(t_cache)
-                except psycopg2.Error:
-                    pass
-        if not cache or cache['expired']:
-            vault_params = self._get_vault_params()
-            vault = Vault(**vault_params)
-            try:
-                vault.get_token()
-                secrets = vault.read(self._opt_merged['VaultPath'], metadata=True)
-                vault.revoke_token()
-            except VaultError as err:
-                raise DatabaseConnectionException(err)
-            new_db_authn = self._merge_vault_secrets(secrets)
+            if cache:
+                t_cache = self._translate_authn(cache['auth'])
+                if not _is_cache_expired(cache):
+                    try:
+                        return psycopg2.connect(**t_cache)
+                    except psycopg2.Error:
+                        pass
+        vault_params = self._get_vault_params()
+        vault = Vault(**vault_params)
+        try:
+            vault.get_token()
+            secrets = vault.read(self._opt_merged['VaultPath'], metadata=True)
+            vault.revoke_token()
+        except VaultError as err:
+            raise DatabaseConnectionException('{}: {}'.format(type(err).__name__, err))
+        new_db_authn = self._merge_vault_secrets(secrets)
         if new_db_authn:
             t_new_db_authn = self._translate_authn(new_db_authn)
             try:
@@ -239,13 +217,13 @@ class VaultCache(object):
             except psycopg2.Error:
                 dbh = None
             if dbh:
-                if not cache or cache['expired']:
-                    if self._is_caching_enabled():
-                        self._write_cache(secrets['metadata'], new_db_authn)
+                new_cache = self._assemble_cache(secrets['metadata'], new_db_authn)
+                if not cache or cache != new_cache:
+                    self._write_cache(new_cache)
                 return dbh
         if cache:
             try:
-                dbh = psycopg2.connect(t_cache)
+                return psycopg2.connect(**t_cache)
             except psycopg2.Error:
                 raise DatabaseConnectionOperationalError(
                     'Cannot connect to the database using Vault/cached credentials') 
