@@ -1,17 +1,16 @@
 # Copyright 2021 Bernard Jech
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Implements cached DB authentication with credentials obtained from Vault
 
 Classes:
@@ -22,14 +21,13 @@ Exceptions:
     DatabaseConnectionOperationalError: Database operational exceptions
 """
 
-
 import logging, os, tempfile, time, stat, json, psycopg2
 from jazzhands_vault.vault import Vault, VaultError
 from .db import DatabaseConnectionException, DatabaseConnectionOperationalError
 
-
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
+
 
 def _is_cache_expired(cache):
     return int(cache['expired_whence']) < time.time()
@@ -37,7 +35,6 @@ def _is_cache_expired(cache):
 
 class VaultCache(object):
     """Caches DB credentials retreived from Vault and connects to the DB"""
-
     def __init__(self, options, db_authn):
         """Initializes the VaultCache object.
 
@@ -52,12 +49,13 @@ class VaultCache(object):
 
     def _get_cache_dir(self):
         """Returns cache directory for caching DB credentials."""
-        
+
         cachedir = '/run/user/{}'.format(os.getuid())
         if os.path.exists(cachedir) and os.path.isdir(cachedir):
             cachedir = os.path.join(cachedir, 'jazzhands-dbi-cache')
         else:
-            cachedir = '/tmp/__jazzhands-appauthal-cache__-{}'.format(os.getuid())
+            cachedir = '/tmp/__jazzhands-appauthal-cache__-{}'.format(
+                os.getuid())
         if not os.path.exists(cachedir):
             try:
                 os.mkdir(cachedir, mode=0o700)
@@ -80,18 +78,20 @@ class VaultCache(object):
 
         mrg = self._opt_merged
         if all(k in mrg for k in ('VaultRoleId', 'VaultServer', 'VaultPath')):
-            key = "%s@%s/%s" % (mrg['VaultServer'], mrg['VaultRoleId'], mrg['VaultPath'])
+            key = "%s@%s/%s" % (mrg['VaultServer'], mrg['VaultRoleId'],
+                                mrg['VaultPath'])
             return key.replace('/', '_').replace(':', '_')
         return None
 
     def _assemble_cache(self, metadata, authn):
         """Returns cache dictionary to be written to cache file."""
 
-        expire = int(time.time() + self._options.get('DefaultCacheExpiration', 86400))
+        expire = int(time.time() +
+                     self._options.get('DefaultCacheExpiration', 86400))
         if 'lease_duration' in metadata:
             divisor = self._options.get('DefaultCacheDivisor', 2)
             expire = int(time.time() + metadata['lease_duration'] / divisor)
-        return { 'expired_whence': expire, 'auth': authn }
+        return {'expired_whence': expire, 'auth': authn}
 
     def _write_cache(self, cache):
         """Saves cache dictionary to cache file."""
@@ -102,7 +102,9 @@ class VaultCache(object):
             return
         cache_pathname = os.path.join(cache_dir, cache_filename)
         try:
-            tmp = tempfile.NamedTemporaryFile(mode='w', dir=cache_dir, delete=False)
+            tmp = tempfile.NamedTemporaryFile(mode='w',
+                                              dir=cache_dir,
+                                              delete=False)
             json.dump(cache, tmp)
             tmp.close()
             os.rename(tmp.name, cache_pathname)
@@ -137,36 +139,42 @@ class VaultCache(object):
         par_map = {
             'Username': 'user',
             'Password': 'password',
-            'DBName':   'dbname',
-            'DBHost':   'host',
-            'DBPort':   'port',
-            'Options':  'options',
-            'Service':  'service',
-            'SSLMode':  'sslmode'
+            'DBName': 'dbname',
+            'DBHost': 'host',
+            'DBPort': 'port',
+            'Options': 'options',
+            'Service': 'service',
+            'SSLMode': 'sslmode'
         }
         common_keys = list(set(par_map.keys()) & set(authn.keys()))
-        return { par_map[x]: authn[x] for x in common_keys }
+        return {par_map[x]: authn[x] for x in common_keys}
 
     def _get_vault_params(self):
         """Parse Vault parameters from _opt_merged and return them."""
 
         params = {}
-        if all(x in self._opt_merged for x in ('VaultSecretIdPath', 'VaultSecretId')):
-            raise DatabaseConnectionException('Both VaultSecretIdPath and VaultSecretId are defined')
+        if all(x in self._opt_merged
+               for x in ('VaultSecretIdPath', 'VaultSecretId')):
+            raise DatabaseConnectionException(
+                'Both VaultSecretIdPath and VaultSecretId are defined')
         if 'VaultSecretIdPath' in self._opt_merged:
             params['secret_id_file'] = self._opt_merged['VaultSecretIdPath']
         elif 'VaultSecretId' in self._opt_merged:
             params['secret_id'] = self._opt_merged['VaultSecretId']
         else:
-            raise DatabaseConnectionException('Neither VaultSecretIdPath nor VaultSecretId defined')
-        if all(x in self._opt_merged for x in ('VaultRoleIdPath', 'VaultRoleId')):
-            raise DatabaseConnectionException('Both VaultRoleIdPath and VaultRoleId are defined')
+            raise DatabaseConnectionException(
+                'Neither VaultSecretIdPath nor VaultSecretId defined')
+        if all(x in self._opt_merged
+               for x in ('VaultRoleIdPath', 'VaultRoleId')):
+            raise DatabaseConnectionException(
+                'Both VaultRoleIdPath and VaultRoleId are defined')
         if 'VaultRoleIdPath' in self._opt_merged:
             params['role_id_file'] = self._opt_merged['VaultRoleIdPath']
         elif 'VaultRoleId' in self._opt_merged:
             params['role_id'] = self._opt_merged['VaultRoleId']
         else:
-            raise DatabaseConnectionException('Neither VaultRoleIdPath nor VaultRoleId defined')
+            raise DatabaseConnectionException(
+                'Neither VaultRoleIdPath nor VaultRoleId defined')
         if 'VaultServer' in self._opt_merged:
             params['uri'] = self._opt_merged['VaultServer']
         else:
@@ -181,11 +189,13 @@ class VaultCache(object):
         par_map = self._opt_merged['map']
         authn = self._opt_merged['import'].copy()
         try:
-            authn.update({x: secrets['data'][par_map[x]] for x in par_map.keys()})
+            authn.update(
+                {x: secrets['data'][par_map[x]]
+                 for x in par_map.keys()})
             return authn
         except KeyError as err:
             return None
- 
+
     def connect(self):
         """Returns a connected psycopg2 database handle using Vault/cached credentials."""
 
@@ -208,7 +218,8 @@ class VaultCache(object):
             secrets = vault.read(self._opt_merged['VaultPath'], metadata=True)
             vault.revoke_token()
         except VaultError as err:
-            raise DatabaseConnectionException('{}: {}'.format(type(err).__name__, err))
+            raise DatabaseConnectionException('{}: {}'.format(
+                type(err).__name__, err))
         new_db_authn = self._merge_vault_secrets(secrets)
         if new_db_authn:
             t_new_db_authn = self._translate_authn(new_db_authn)
@@ -217,7 +228,8 @@ class VaultCache(object):
             except psycopg2.Error:
                 dbh = None
             if dbh:
-                new_cache = self._assemble_cache(secrets['metadata'], new_db_authn)
+                new_cache = self._assemble_cache(secrets['metadata'],
+                                                 new_db_authn)
                 if not cache or cache != new_cache:
                     self._write_cache(new_cache)
                 return dbh
@@ -226,4 +238,5 @@ class VaultCache(object):
                 return psycopg2.connect(**t_cache)
             except psycopg2.Error:
                 raise DatabaseConnectionOperationalError(
-                    'Cannot connect to the database using Vault/cached credentials') 
+                    'Cannot connect to the database using Vault/cached credentials'
+                )
