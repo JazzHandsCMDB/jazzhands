@@ -23,7 +23,6 @@ Exceptions:
 import logging, os, tempfile, time, stat, json
 from jazzhands_vault.vault import Vault, VaultError
 
-
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
@@ -205,8 +204,7 @@ class VaultCache(object):
             secrets = vault.read(self._opt_merged['VaultPath'], metadata=True)
             vault.revoke_token()
         except VaultError as err:
-            raise VaultCacheError('{}: {}'.format(
-                type(err).__name__, err))
+            raise VaultCacheError('{}: {}'.format(type(err).__name__, err))
         new_db_authn = self._merge_vault_secrets(secrets)
         if new_db_authn:
             try:
@@ -226,6 +224,7 @@ class VaultCache(object):
                 raise VaultCacheError(
                     'Cannot connect to the database using Vault/cached credentials'
                 )
+
 
 class VaultCacheError(Exception):
     """General VaultCache exception"""
