@@ -122,7 +122,7 @@ class VaultCache(object):
         try:
             with open(cache_pathname, 'r') as f:
                 cache = json.load(f)
-        except (IOError, KeyError, ValueError, json.JSONDecodeError):
+        except (IOError, KeyError, ValueError):
             return None
         return cache
 
