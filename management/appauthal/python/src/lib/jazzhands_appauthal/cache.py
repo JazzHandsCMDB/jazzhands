@@ -185,9 +185,6 @@ class VaultCache(object):
     def connect(self, connect_callback):
         """Returns a connected psycopg2 database handle using Vault/cached credentials."""
 
-        ## [XXX] Add CA path to the Vault module
-
-        #import pdb; pdb.set_trace()
         cache = None
         if self._is_caching_enabled():
             cache = self._read_cache()
