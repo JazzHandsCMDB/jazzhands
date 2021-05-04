@@ -20,7 +20,7 @@ Exceptions:
     VaultCacheError: General module exception
 """
 
-import logging, os, tempfile, time, stat, json, psycopg2
+import logging, os, tempfile, time, stat, json
 from jazzhands_vault.vault import Vault, VaultError
 
 
@@ -130,7 +130,7 @@ class VaultCache(object):
         caching = self._options.get('Caching', 'yes')
         if caching.lower() in ('no', 'n', '0'):
             return False
-        elif caching.lower() in ('yes', 'y', '1'):
+        if caching.lower() in ('yes', 'y', '1'):
             return True
         return True
 
@@ -179,9 +179,9 @@ class VaultCache(object):
             authn.update(
                 {x: secrets['data'][par_map[x]]
                  for x in par_map.keys()})
-            return authn
-        except KeyError as err:
+        except KeyError:
             return None
+        return authn
 
     def connect(self, connect_callback):
         """Returns a connected psycopg2 database handle using Vault/cached credentials."""
@@ -229,4 +229,3 @@ class VaultCache(object):
 
 class VaultCacheError(Exception):
     """General VaultCache exception"""
-    pass
