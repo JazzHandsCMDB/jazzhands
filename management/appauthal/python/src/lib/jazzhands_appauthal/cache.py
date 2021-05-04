@@ -164,6 +164,8 @@ class VaultCache(object):
             params['uri'] = self._opt_merged['VaultServer']
         else:
             raise VaultCacheError('VaultServer not defined')
+        if 'CAPath' in self._opt_merged:
+            params['ca_path'] = self._opt_merged['CAPath']
         if 'VaultPath' not in self._opt_merged:
             raise VaultCacheError('VaultPath not defined')
         return params

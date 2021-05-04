@@ -24,6 +24,7 @@ class Vault(object):
         secret_id_file=None,
         token=None,
         token_file=None,
+        ca_path=None,
         timeout=None,
     ):
         self.uri = uri or os.getenv('VAULT_ADDR')
@@ -35,6 +36,9 @@ class Vault(object):
         self._token_file = token_file
         self.timeout = timeout
         self._api = requests.Session()
+        if ca_path is not None:
+            self._api.verify = ca_path
+            self._ca_path = ca_path
 
     @property
     def role_id(self):
@@ -116,6 +120,15 @@ class Vault(object):
     @token_file.setter
     def token_file(self, token_file):
         self._token_file = token_file
+
+    @property
+    def ca_path(self):
+        return self._ca_path
+
+    @ca_path.setter
+    def ca_path(self, ca_path):
+        self._api.verify = ca_path
+        self._ca_path = ca_path
 
     def _token_header(self):
         """Return the HTTP headers with the Vault token included."""
