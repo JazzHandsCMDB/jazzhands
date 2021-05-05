@@ -45,7 +45,7 @@ class VaultCache(object):
         self._opt_merged = options['vault'].copy()
         self._opt_merged.update(db_authn)
 
-    def _get_cache_dir(self):
+    def _get_cache_dir(self, create_dir=False):
         """Returns cache directory for caching DB credentials."""
 
         cachedir = '/run/user/{}'.format(os.getuid())
@@ -54,9 +54,9 @@ class VaultCache(object):
         else:
             cachedir = '/tmp/__jazzhands-appauthal-cache__-{}'.format(
                 os.getuid())
-        if not os.path.exists(cachedir):
+        if create_dir and not os.path.exists(cachedir):
             try:
-                os.mkdir(cachedir, mode=0o700)
+                os.mkdir(cachedir, 0o700)
             except IOError:
                 return None
         if os.path.islink(cachedir):
@@ -94,7 +94,7 @@ class VaultCache(object):
     def _write_cache(self, cache):
         """Saves cache dictionary to cache file."""
 
-        cache_dir = self._get_cache_dir()
+        cache_dir = self._get_cache_dir(create_dir=True)
         cache_filename = self._get_cache_filename()
         if not cache_dir or not cache_filename:
             return
@@ -183,7 +183,7 @@ class VaultCache(object):
         return authn
 
     def connect(self, connect_callback):
-        """Returns a connected psycopg2 database handle using Vault/cached credentials."""
+        """Returns a connected database handle using Vault/cached credentials."""
 
         cache = None
         if self._is_caching_enabled():
@@ -218,9 +218,8 @@ class VaultCache(object):
             try:
                 return connect_callback(cache['auth'])
             except ConnectionError:
-                raise VaultCacheError(
-                    'Cannot connect to the database using Vault/cached credentials'
-                )
+                pass
+        raise VaultCacheError('Cannot connect to the database using Vault/cached credentials')
 
 
 class VaultCacheError(Exception):
