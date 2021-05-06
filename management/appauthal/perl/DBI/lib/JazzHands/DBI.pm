@@ -395,10 +395,10 @@ sub build_and_connect($$) {
 	my $dbstr = "dbi:${dbd}:" . join( ";", sort @vals );
 	my $dbh;
 
-        my $print_error = $dbiflags && exists($dbiflags->{PrintError}) && $dbiflags->{PrintError};
+	my $print_error = $dbiflags && exists($dbiflags->{PrintError}) && $dbiflags->{PrintError};
 
-        $dbiflags ||= {};
-        $dbiflags->{PrintError} = 0;
+	$dbiflags ||= {};
+	$dbiflags->{PrintError} = 0;
 
 	if ( $opt->{cached} ) {
 		$dbh = DBI->connect_cached( $dbstr, $user, $pass, $dbiflags );
@@ -406,7 +406,7 @@ sub build_and_connect($$) {
 		$dbh = DBI->connect( $dbstr, $user, $pass, $dbiflags );
 	}
 
-        $dbh->{PrintError} = $print_error if $dbh;
+	$dbh->{PrintError} = $print_error if $dbh;
 
 	return $dbh;
 }
