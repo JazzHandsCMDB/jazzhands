@@ -23,8 +23,8 @@ Exceptions:
 import logging, os, tempfile, time, stat, json
 from jazzhands_vault.vault import Vault, VaultError
 
-LOG = logging.getLogger(__name__)
-LOG.addHandler(logging.NullHandler())
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 def _is_cache_expired(cache):
@@ -54,20 +54,30 @@ class VaultCache(object):
         else:
             cachedir = '/tmp/__jazzhands-appauthal-cache__-{}'.format(
                 os.getuid())
-        if create_dir and not os.path.exists(cachedir):
-            try:
-                os.mkdir(cachedir, 0o700)
-            except IOError:
+        if not os.path.exists(cachedir):
+            if create_dir:
+                try:
+                    logger.info('creating cache directory %s', cachedir)
+                    os.mkdir(cachedir, 0o700)
+                except IOError:
+                    logger.warning('cannot create directory %s', cachedir, exc_info=True)
+                    return None
+            else:
+                logger.info('cache directory %s does not exist', cachedir)
                 return None
         if os.path.islink(cachedir):
+            logger.warning('cache directory %s is a symlink', cachedir)
             return None
         try:
             info = os.lstat(cachedir)
         except IOError:
+            logger.warning('cannot lstat directory %s', cachedir, exc_info=True)
             return None
         if info.st_uid != os.getuid():
+            logger.warning('cache directory %s not owned by userid %s', cachedir, os.getuid())
             return None
         if info.st_mode & stat.S_IRWXO:
+            logger.warning('cache directory %s has incorrect permissions', cachedir)
             return None
         return cachedir
 
@@ -79,6 +89,7 @@ class VaultCache(object):
             key = "%s@%s/%s" % (mrg['VaultServer'], mrg['VaultRoleId'],
                                 mrg['VaultPath'])
             return key.replace('/', '_').replace(':', '_')
+        logger.warning('cannot construct cache filename because required keys are missing')
         return None
 
     def _assemble_cache(self, metadata, authn):
@@ -97,6 +108,7 @@ class VaultCache(object):
         cache_dir = self._get_cache_dir(create_dir=True)
         cache_filename = self._get_cache_filename()
         if not cache_dir or not cache_filename:
+            logger.debug('cannot write credentials to cache')
             return
         cache_pathname = os.path.join(cache_dir, cache_filename)
         try:
@@ -108,7 +120,9 @@ class VaultCache(object):
             os.rename(tmp.name, cache_pathname)
             os.chmod(cache_pathname, 0o500)
         except IOError:
+            logger.warning('error writing credentials to cache', exc_info=True)
             pass
+        logger.info('credentials successfully written to %s', cache_pathname)
 
     def _read_cache(self):
         """Reads cached DB credentials."""
@@ -116,12 +130,14 @@ class VaultCache(object):
         cache_dir = self._get_cache_dir()
         cache_filename = self._get_cache_filename()
         if not cache_dir or not cache_filename:
+            logger.debug('cannot read credentials from cache')
             return None
         cache_pathname = os.path.join(cache_dir, cache_filename)
         try:
             with open(cache_pathname, 'r') as f:
                 cache = json.load(f)
         except (IOError, KeyError, ValueError):
+            logger.warning('error reading credentials from cache', exc_info=True)
             return None
         return cache
 
@@ -179,6 +195,7 @@ class VaultCache(object):
                 {x: secrets['data'][par_map[x]]
                  for x in par_map.keys()})
         except KeyError:
+            logger.warning('cannot merge Vault secrets', exc_info=True)
             return None
         return authn
 
@@ -189,11 +206,16 @@ class VaultCache(object):
         if self._is_caching_enabled():
             cache = self._read_cache()
             if cache:
-                if not _is_cache_expired(cache):
+                if _is_cache_expired(cache):
+                    logger.debug('cache is expired')
+                else:
                     try:
+                        logger.debug('attempting to connect with cached credentials')
                         return connect_callback(cache['auth'])
                     except ConnectionError:
+                        logger.debug('connecting with cached credentials failed')
                         pass
+        logger.debug('retrieving credentials from Vault')
         vault_params = self._get_vault_params()
         vault = Vault(**vault_params)
         try:
@@ -205,10 +227,13 @@ class VaultCache(object):
         new_db_authn = self._merge_vault_secrets(secrets)
         if new_db_authn:
             try:
+                logger.debug('attempting to connect with credentials retrieved from Vault')
                 dbh = connect_callback(new_db_authn)
             except ConnectionError:
+                logger.debug('connecting with Vault credentials failed')
                 dbh = None
             if dbh:
+                logger.debug('connecting with Vault credentials succeeded')
                 new_cache = self._assemble_cache(secrets['metadata'],
                                                  new_db_authn)
                 if not cache or cache != new_cache:
@@ -216,6 +241,7 @@ class VaultCache(object):
                 return dbh
         if cache:
             try:
+                logger.debug('attempting to connect with expired cached credentials')
                 return connect_callback(cache['auth'])
             except ConnectionError:
                 pass
