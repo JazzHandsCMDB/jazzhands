@@ -385,8 +385,6 @@ sub save_cached($$$) {
 		( $fh, $tmpfname ) = tempfile('tmpXXXXXX', DIR => $cachedir );
 	};
 
-	$DB::single = 1;
-
 	if ($@) {
 		$errstr = "WriteCache: " . $@;
 		return undef;
