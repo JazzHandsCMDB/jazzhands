@@ -133,6 +133,9 @@ class VaultCache(object):
             logger.debug('cannot read credentials from cache')
             return None
         cache_pathname = os.path.join(cache_dir, cache_filename)
+        if not os.path.isfile(cache_pathname):
+            logger.info('cache file does not exist')
+            return None
         try:
             with open(cache_pathname, 'r') as f:
                 cache = json.load(f)
