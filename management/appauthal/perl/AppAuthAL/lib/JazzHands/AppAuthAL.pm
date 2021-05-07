@@ -144,6 +144,7 @@ use strict;
 use warnings;
 
 use FileHandle;
+use File::Temp qw(tempfile);
 use JSON::PP;
 use JazzHands::Common qw(:internal);
 use Data::Dumper;
@@ -374,30 +375,36 @@ sub _assemble_cache($$) {
 sub save_cached($$$) {
 	my ( $options, $auth, $tocache ) = @_;
 
-	my $key = build_key($auth) || return undef;
-	return undef if ( !$key );
+	my $key	      = build_key($auth) || return undef;
+	my $cachedir  = get_cachedir()	 || return undef;
+	my $cachepath = "$cachedir/$key";
 
-	my $cachedir = get_cachedir() || return undef;
+	my ( $fh, $tmpfname );
 
-	my $fn = "$cachedir/$key";
-	if ( -r $fn ) {
-		unlink($fn);
+	eval {
+		( $fh, $tmpfname ) = tempfile('tmpXXXXXX', DIR => $cachedir );
+	};
+
+	$DB::single = 1;
+
+	if ($@) {
+		$errstr = "WriteCache: " . $@;
+		return undef;
 	}
 
-	my $fh;
-	if ( !( $fh = new FileHandle(">$fn") ) ) {
+	my $cache = _assemble_cache($options, $tocache);
+	my $json  = new JSON::PP;
+	my $o	  = $json->encode($cache);
+
+	$fh->print( $o, "\n" );
+	$fh->close;
+
+	unless ( rename($tmpfname, $cachepath) ) {
 		$errstr = "WriteCache: " . $!;
 		return undef;
 	}
 
-	chmod( 0500, $fn );
-
-	my $cache = _assemble_cache($options, $tocache);
-	my $json  = new JSON::PP;
-	my $o     = $json->encode($cache);
-
-	$fh->print( $o, "\n" );
-	$fh->close;
+	chmod( 0500, $cachepath );
 
 	return $auth;
 }
