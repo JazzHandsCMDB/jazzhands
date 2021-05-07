@@ -26,11 +26,18 @@ Todo:
 """
 
 
-import getpass
-import logging
-
+import sys, getpass, logging, psycopg2
+try:
+    import psycopg2
+except ImportError:
+    pass
+try:
+    import mysql.connector
+except ImportError:
+    pass
 
 from .appauthal import AppAuthAL
+from .cache import VaultCache, VaultCacheError
 
 
 LOG = logging.getLogger(__name__)
@@ -108,51 +115,22 @@ class DatabaseConnection(object):
             #adding in user specified options
             db_config['options'].update({key: val for key, val in kwargs.items()})
             try:
-                if config['DBType'] == 'postgresql':
+                if (config.get('DBType', '') == 'postgresql'
+                or ('import' in config and config['import'].get('DBType', '') == 'postgresql')):
                     driver = PostgreSQL(db_config)
                     return driver.connect_db()
-                else:
-                    raise DatabaseConnectionException('Requested DBType not currently supported')
+                if (config.get('DBType', '') == 'mysql'
+                or ('import' in config and config['import'].get('DBType', '') == 'mysql')):
+                    driver = MySQL(db_config)
+                    return driver.connect_db()
+                raise DatabaseConnectionException('Requested DBType not currently supported')
             except DatabaseConnectionOperationalError as exc:
                 LOG.exception(exc)
         raise DatabaseConnectionException('Could not connect to any specified database')
 
 
-class DriverBase(object):
-    """AppAuthAL DatabaseConnection Driver base class"""
-
-    APPAUTHAL_DRIVER_MAP = {}
-
-    def build_connect_dict(self, db_config):
-        """builds a connection dictionary from the AppAuthAL config and the APPAUTHAL_DRIVE_MAP
-
-        Args:
-            db_config (dict): AppAuthAL database configuration dictionary
-
-        Returns:
-            dict: containing key/val pairs for passing to DB driver connector
-        """
-        return {
-            self.APPAUTHAL_DRIVER_MAP[key]: db_config[key]
-            for key in self.APPAUTHAL_DRIVER_MAP if key in db_config}
-
-    def connect_db(self):
-        """IMPLEMENT ME"""
-        raise NotImplementedError
-
-
-class PostgreSQL(DriverBase):
+class PostgreSQL(object):
     """PostgreSQL driver abstraction layer"""
-
-    APPAUTHAL_DRIVER_MAP = {
-        'DBName': 'dbname',
-        'DBHost': 'host',
-        'DBPort': 'port',
-        'Username': 'user',
-        'Password': 'password',
-        'Options': 'options',
-        'Service': 'service',
-        'SSLMode': 'sslmode'}
 
     def __init__(self, db_config):
         """Initializes the PostgreSQL driver abstraction object.
@@ -163,9 +141,10 @@ class PostgreSQL(DriverBase):
         Raises:
             DatabaseConnectionException: if any of the supplied configuration params are bogus
         """
+        if 'psycopg2' not in sys.modules:
+            raise DatabaseConnectionException('psycopg2 module not imported')
         if not db_config:
             raise DatabaseConnectionException('A db_config dictionary is required')
-        self._driver = __import__('psycopg2')
         self._db_config = db_config
         self._con_conf = db_config['connection']
         self._session_user = db_config.get('session_user')
@@ -175,6 +154,23 @@ class PostgreSQL(DriverBase):
 
     def _set_username(self, dbh):
         dbh.cursor().execute('set jazzhands.appuser to %s', (self._session_user,))
+
+    def _translate_connect(authn):
+        par_map = {
+            'Username': 'user',
+            'Password': 'password',
+            'DBName': 'dbname',
+            'DBHost': 'host',
+            'DBPort': 'port',
+            'Options': 'options',
+            'Service': 'service',
+            'SSLMode': 'sslmode'
+        }
+        common_keys = list(set(par_map.keys()) & set(authn.keys()))
+        try:
+            return psycopg2.connect(**{par_map[x]: authn[x] for x in common_keys})
+        except psycopg2.Error as exc:
+            raise ConnectionError(exc)
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
@@ -189,23 +185,32 @@ class PostgreSQL(DriverBase):
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise DatabaseConnectionException('password Method requires Username and Password')
-            con_conf = self.build_connect_dict(self._con_conf)
+            try:
+                dbh = PostgreSQL._translate_connect(self._con_conf)
+            except ConnectionError as exc:
+                raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'krb5':
             # clear Username and Password fields if provided. Force psycopg2 to use krb5
             self._con_conf.pop('Username', None)
             self._con_conf.pop('Password', None)
-            con_conf = self.build_connect_dict(self._con_conf)
+            try:
+                dbh = PostgreSQL._translate_connect(self._con_conf)
+            except ConnectionError as exc:
+                raise DatabaseConnectionOperationalError(exc)
+        elif self._con_conf.get('Method', '').lower() == 'vault':
+            vc = VaultCache(self._options, self._con_conf)
+            try:
+                dbh = vc.connect(PostgreSQL._translate_connect)
+            except VaultCacheError as exc:
+                raise DatabaseConnectionOperationalError(exc)
         else:
             raise DatabaseConnectionException('Only password or krb5 method supported')
-        try:
-            dbh = self._driver.connect(**con_conf)
-        except self._driver.OperationalError as exc:
-            raise DatabaseConnectionOperationalError(exc)
         if str(self._options.get('use_session_variables', 'no')).lower() != 'no':
             self._set_username(dbh)
         if str(self._options.get('use_unicode_strings', 'no')).lower() != 'no':
-            self._driver.extensions.register_type(self._driver.extensions.UNICODE)
-            self._driver.extensions.register_type(self._driver.extensions.UNICODEARRAY)
+            import psycopg2.extensions
+            psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+            psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
         custom_cursor = self._options.get('psycopg2_cursor_factory')
         if custom_cursor:
             import psycopg2.extras
@@ -216,6 +221,71 @@ class PostgreSQL(DriverBase):
                     'psycopg2 doesnt have the requested cursor factory: {}'.format(custom_cursor))
         return dbh
 
+class MySQL(object):
+    """MySQL driver abstraction layer"""
+
+    def __init__(self, db_config):
+        """Initializes the Mysql driver abstraction object.
+
+        Args:
+            db_config (dict): AppAuthAL database configuration dictionary
+
+        Raises:
+            DatabaseConnectionException: if any of the supplied configuration params are bogus
+        """
+        if 'mysql.connector' not in sys.modules:
+            raise DatabaseConnectionException('mysql.connector module not imported')
+        if not db_config:
+            raise DatabaseConnectionException('A db_config dictionary is required')
+        self._db_config = db_config
+        self._con_conf = db_config['connection']
+        self._options = db_config.get('options', dict())
+        if not isinstance(self._options, dict):
+            raise DatabaseConnectionException('options arg must be dictionary')
+
+    def _translate_connect(authn):
+        par_map = {
+            'Username': 'user',
+            'Password': 'password',
+            'DBName': 'database',
+            'DBHost': 'host',
+            'DBPort': 'port',
+            'Compress': 'mysql_compression',
+            'ConnectTimeout': 'mysql_connect_timeout',
+            'SSLMode': 'mysql_ssl'
+        }
+        common_keys = list(set(par_map.keys()) & set(authn.keys()))
+        try:
+            return mysql.connector.connect(**{par_map[x]: authn[x] for x in common_keys})
+        except mysql.connector.Error as exc:
+            raise ConnectionError(exc)
+
+    def connect_db(self):
+        """Returns a database connection based on the config provided at __init__
+
+        Returns:
+            obj: database connection object
+
+        Raises:
+            DatabaseConnectionException: if any of the supplied configuration params are bogus
+            DatabaseConnectionOperationalError: if any database errors occur during connection
+        """
+        if self._con_conf.get('Method', '').lower() == 'password':
+            if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
+                raise DatabaseConnectionException('password Method requires Username and Password')
+            try:
+                dbh = MySQL._translate_connect(self._con_conf)
+            except ConnectionError as exc:
+                raise DatabaseConnectionOperationalError(exc)
+        elif self._con_conf.get('Method', '').lower() == 'vault':
+            vc = VaultCache(self._options, self._con_conf)
+            try:
+                dbh = vc.connect(MySQL._translate_connect)
+            except VaultCacheError as exc:
+                raise DatabaseConnectionOperationalError(exc)
+        else:
+            raise DatabaseConnectionException('Only password or krb5 method supported')
+        return dbh
 
 class DatabaseConnectionException(Exception):
     """General DatabaseConnection exceptions"""

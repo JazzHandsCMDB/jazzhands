@@ -144,10 +144,12 @@ use strict;
 use warnings;
 
 use FileHandle;
+use File::Temp qw(tempfile);
 use JSON::PP;
 use JazzHands::Common qw(:internal);
 use Data::Dumper;
 use Fcntl "S_IRWXO";
+use Storable qw(dclone);
 
 use parent 'JazzHands::Common';
 
@@ -338,18 +340,8 @@ sub get_cachedir() {
 	$cachedir;
 }
 
-sub save_cached($$$) {
-	my ( $options, $auth, $tocache ) = @_;
-
-	my $key = build_key($auth) || return undef;
-	return undef if ( !$key );
-
-	my $cachedir = get_cachedir() || return undef;
-
-	my $fn = "$cachedir/$key";
-	if ( -r $fn ) {
-		unlink($fn);
-	}
+sub _assemble_cache($$) {
+	my ($options, $tocache) = @_;
 
 	my $defexpire = 86400;
 	if (   $options
@@ -372,24 +364,47 @@ sub save_cached($$$) {
 		delete( $tocache->{'__Expiration'} );
 	}
 
-	my $json  = new JSON::PP;
 	my $cache = {
 		expired_whence => $expire,
 		auth           => $tocache
 	};
 
-	my $fh;
-	if ( !( $fh = new FileHandle(">$fn") ) ) {
+	return $cache;
+}
+
+sub save_cached($$$) {
+	my ( $options, $auth, $tocache ) = @_;
+
+	my $key	      = build_key($auth) || return undef;
+	my $cachedir  = get_cachedir()	 || return undef;
+	my $cachepath = "$cachedir/$key";
+
+	my ( $fh, $tmpfname );
+
+	eval {
+		( $fh, $tmpfname ) = tempfile('tmpXXXXXX', DIR => $cachedir );
+	};
+
+	if ($@) {
+		$errstr = "WriteCache: " . $@;
+		return undef;
+	}
+
+	my $cache = _assemble_cache($options, $tocache);
+	my $json  = new JSON::PP;
+	my $o	  = $json->encode($cache);
+
+	$fh->print( $o, "\n" );
+	$fh->close;
+
+	unless ( rename($tmpfname, $cachepath) ) {
 		$errstr = "WriteCache: " . $!;
 		return undef;
 	}
 
-	chmod( 0500, $fn );
+	chmod( 0500, $cachepath );
 
-	my $o = $json->encode($cache);
-	$fh->print( $o, "\n" );
-	$fh->close;
-	$auth;
+	return $auth;
 }
 
 sub get_cached_auth($) {
@@ -424,6 +439,42 @@ sub get_cached_auth($) {
 	}
 
 	$cachedauth;
+}
+
+sub _is_caching_enabled($) {
+	my $options = shift;
+
+	if ( exists $options->{Caching} ) {
+		my $c = $options->{Caching};
+
+		return 0 if ( grep { lc($c) eq $_ } qw(no n 0) );
+		return 1 if ( grep { lc($c) eq $_ } qw(yes y 1) );
+	}
+
+	return 1;
+}
+
+sub _diff_cache($$) {
+	my ( $old, $new_cache ) = @_;
+
+	return 1 unless ($old);
+
+	my $old_cache = dclone($old);
+	
+	return 1 if ( delete $old_cache->{expired} );
+	return 1 if ( keys(%$old_cache) != keys(%$new_cache) );
+
+	my %cmp = map { $_ => 1 } keys %$old_cache;
+
+	for my $key (keys %$new_cache) {
+		last unless exists $cmp{$key};
+		last unless $old_cache->{$key} eq $new_cache->{$key};
+		delete $cmp{$key};
+	}
+
+	return 1 if (%cmp);
+
+	return 0;
 }
 
 #
@@ -500,9 +551,9 @@ sub do_cached_login($$$$) {
 	# 1 fetch catched creds
 	# 2 if success unexpired, try those
 	# 3 if sucesssful conn, return
-	# 4 if no cached creds, or expired, get new ones
+	# 4 get new credentials from Vault
 	# 5 if new ones, try them
-	# 6 if cached ones success, save in cache, return
+	# 6 if cached ones success, and caches diff, save in cache, return
 	# 7 if new ones fail and cached exist, try
 	# 8 if cached ones suceeded, return
 	# 9 if cached ones failed, return failure
@@ -515,7 +566,8 @@ sub do_cached_login($$$$) {
 	#
 	# step 1
 	my $cached;
-	if ( !exists( $options->{Caching} ) || $options->{Caching} ) {
+
+	if ( _is_caching_enabled($options) ) {
 		$cached = get_cached_auth( $auth );
 
 		# step 2, 3
@@ -528,23 +580,21 @@ sub do_cached_login($$$$) {
 
 	# step 4
 	my $newauth;
-	if ( !$cached || $cached->{expired} ) {
-		my $v = new JazzHands::Vault( appauthal => $auth );
-		if ( !$v ) {
-			SetError( $errors, $JazzHands::Vault::errstr );
-			return undef;
-		}
-		$newauth = $v->fetch_and_merge_dbauth($auth);
+	my $v = new JazzHands::Vault( appauthal => $auth );
+	if ( !$v ) {
+		SetError( $errors, $JazzHands::Vault::errstr );
+		return undef;
 	}
+	$newauth = $v->fetch_and_merge_dbauth($auth);
 
 	# 5 if new ones, try them
-	# 6 if new ones success, save in cache, return
+	# 6 if cached ones success, and caches diff, save in cache, return
 	if ($newauth) {
 		if ( $conn = &$callback( $args, $newauth ) ) {
-			if ( !$cached || $cached->{expired} ) {
-				if ( !exists( $options->{Caching} ) || $options->{Caching} ) {
-					save_cached( $options, $auth, $newauth );
-				}
+			my $new_cache = _assemble_cache( $options, $newauth );
+			
+			if ( _diff_cache( $cached, $new_cache->{'auth'} ) ) {
+				save_cached( $options, $auth, $newauth );
 			}
 			return $conn;
 		}

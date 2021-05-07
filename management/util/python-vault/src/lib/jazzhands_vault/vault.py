@@ -10,6 +10,7 @@ import pprint
 import requests
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class Vault(object):
@@ -23,6 +24,7 @@ class Vault(object):
         secret_id_file=None,
         token=None,
         token_file=None,
+        ca_path=None,
         timeout=None,
     ):
         self.uri = uri or os.getenv('VAULT_ADDR')
@@ -34,6 +36,9 @@ class Vault(object):
         self._token_file = token_file
         self.timeout = timeout
         self._api = requests.Session()
+        if ca_path is not None:
+            self._api.verify = ca_path
+            self._ca_path = ca_path
 
     @property
     def role_id(self):
@@ -116,6 +121,15 @@ class Vault(object):
     def token_file(self, token_file):
         self._token_file = token_file
 
+    @property
+    def ca_path(self):
+        return self._ca_path
+
+    @ca_path.setter
+    def ca_path(self, ca_path):
+        self._api.verify = ca_path
+        self._ca_path = ca_path
+
     def _token_header(self):
         """Return the HTTP headers with the Vault token included."""
 
@@ -124,14 +138,16 @@ class Vault(object):
     def _get(self, path, timeout=None):
         """Issue a GET request for path."""
 
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
         try:
             response = self._api.get(
                 os.path.join(self.uri, 'v1', path),
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as err:
-            raise VaultIOError(err)
+        except (OSError, IOError) as err:
+            raise VaultRequestError(err)
         parsed = response.json()
         logger.debug('GET %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
@@ -143,6 +159,8 @@ class Vault(object):
     def _list(self, path, timeout=None):
         """Issue a LIST request for path."""
 
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
         try:
             response = self._api.request(
                 'LIST',
@@ -150,8 +168,8 @@ class Vault(object):
                 headers=self._token_header(),
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as err:
-            raise VaultIOError(err)
+        except (OSError, IOError) as err:
+            raise VaultRequestError(err)
         parsed = response.json()
         logger.debug('LIST %s: %s', path, pprint.pformat(parsed))
         if 'errors' in parsed:
@@ -163,6 +181,8 @@ class Vault(object):
     def _post(self, path, data, timeout=None):
         """Issue a POST request for path."""
 
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
         try:
             response = self._api.post(
                 os.path.join(self.uri, 'v1', path),
@@ -170,8 +190,8 @@ class Vault(object):
                 data=data,
                 timeout=timeout if timeout is not None else self.timeout,
             )
-        except IOError as err:
-            raise VaultIOError(err)
+        except (OSError, IOError) as err:
+            raise VaultRequestError(err)
         if response.status_code == 204:
             return None
         parsed = response.json()
@@ -245,12 +265,12 @@ class Vault(object):
             raise VaultValueError(
                 "Vault server response does not contain 'keys'")
 
-    def read(self, path, timeout=None):
+    def read(self, path, timeout=None, metadata=False):
         """Returns the KV secrets at the specified location."""
 
         data = self._get(path, timeout=timeout)
         try:
-            return data['data']['data']
+            return data['data'] if metadata else data['data']['data']
         except (KeyError, TypeError):
             raise VaultValueError(
                 "Vault server response does not contain 'data'")
@@ -274,6 +294,10 @@ class VaultIOError(VaultError):
 
 
 class VaultResponseError(VaultError):
+    pass
+
+
+class VaultRequestError(VaultError):
     pass
 
 
