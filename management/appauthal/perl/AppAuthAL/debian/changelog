@@ -1,3 +1,11 @@
+perl-jazzhands-appauthal (0.90.10) trusty; urgency=medium
+
+  * improved credential caching algorithm
+  * "Caching" option in the AppAuthAL file now accepts "n" and "no", case insensitive
+  * credentials are cached to a tempfile which is then renamed / moved
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 10 May 2021 13:17:00 -0500
+
 perl-jazzhands-appauthal (0.90.3) trusty; urgency=medium
 
   * assorted fixes to the do_cached_login() funciton

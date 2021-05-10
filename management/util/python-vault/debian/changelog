@@ -1,3 +1,11 @@
+python-jazzhands-vault (0.90.10) bionic; urgency=medium
+
+  * added ca_path parameter to Vault class
+  * improved logging and error handling
+  * added metadata parameter to the read() method
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 10 May 2021 13:10:22 +0100
+
 python-jazzhands-vault (0.90.7) bionic; urgency=medium
 
   * propagate package fixes upstream

@@ -1,3 +1,9 @@
+perl-jazzhands-dbi (0.90.10) unstable; urgency=medium
+
+  * perl DBI PrintError is temporarily disabled during DBI->connect()
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 10 May 2021 13:19:00 +0100
+
 perl-jazzhands-dbi (0.86.0) unstable; urgency=medium
 
   * add support for using vault to get credentials
