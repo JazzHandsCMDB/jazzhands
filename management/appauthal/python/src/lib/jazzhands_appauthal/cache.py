@@ -20,7 +20,7 @@ Exceptions:
     VaultCacheError: General module exception
 """
 
-import logging, os, tempfile, time, stat, json
+import sys, logging, os, tempfile, time, stat, json
 try:
     from jazzhands_vault.vault import Vault, VaultError
 except ImportError:
