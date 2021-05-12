@@ -21,7 +21,11 @@ Exceptions:
 """
 
 import logging, os, tempfile, time, stat, json
-from jazzhands_vault.vault import Vault, VaultError
+try:
+    from jazzhands_vault.vault import Vault, VaultError
+except ImportError:
+    pass
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -219,6 +223,8 @@ class VaultCache(object):
                         logger.debug('connecting with cached credentials failed')
                         pass
         logger.debug('retrieving credentials from Vault')
+        if 'jazzhands_vault.vault' not in sys.modules:
+            raise VaultCacheError('module jazzhands_vault.vault not loaded')
         vault_params = self._get_vault_params()
         vault = Vault(**vault_params)
         try:
