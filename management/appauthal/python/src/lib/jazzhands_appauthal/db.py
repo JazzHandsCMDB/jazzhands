@@ -43,6 +43,44 @@ from .cache import VaultCache, VaultCacheError
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
+## Connection callback functions. In Python 3 they can be class methods,
+## but in Python 2 class methods still require "self" to be passed in.
+## I am sure there is a better solution but I am no Python expert.
+
+def _translate_connect_postgresql(authn):
+    par_map = {
+        'Username': 'user',
+        'Password': 'password',
+        'DBName': 'dbname',
+        'DBHost': 'host',
+        'DBPort': 'port',
+        'Options': 'options',
+        'Service': 'service',
+        'SSLMode': 'sslmode'
+    }
+    common_keys = list(set(par_map.keys()) & set(authn.keys()))
+    try:
+        return psycopg2.connect(**{par_map[x]: authn[x] for x in common_keys})
+    except psycopg2.Error as exc:
+        raise IOError(exc)
+
+def _translate_connect_mysql(authn):
+    par_map = {
+        'Username': 'user',
+        'Password': 'password',
+        'DBName': 'database',
+        'DBHost': 'host',
+        'DBPort': 'port',
+        'Compress': 'mysql_compression',
+        'ConnectTimeout': 'mysql_connect_timeout',
+        'SSLMode': 'mysql_ssl'
+    }
+    common_keys = list(set(par_map.keys()) & set(authn.keys()))
+    try:
+        return mysql.connector.connect(**{par_map[x]: authn[x] for x in common_keys})
+    except mysql.connector.Error as exc:
+        raise IOError(exc)
+
 
 class DatabaseConnection(object):
     """DatabaseConnection provides database handles for requested applications"""
@@ -155,23 +193,6 @@ class PostgreSQL(object):
     def _set_username(self, dbh):
         dbh.cursor().execute('set jazzhands.appuser to %s', (self._session_user,))
 
-    def _translate_connect(authn):
-        par_map = {
-            'Username': 'user',
-            'Password': 'password',
-            'DBName': 'dbname',
-            'DBHost': 'host',
-            'DBPort': 'port',
-            'Options': 'options',
-            'Service': 'service',
-            'SSLMode': 'sslmode'
-        }
-        common_keys = list(set(par_map.keys()) & set(authn.keys()))
-        try:
-            return psycopg2.connect(**{par_map[x]: authn[x] for x in common_keys})
-        except psycopg2.Error as exc:
-            raise ConnectionError(exc)
-
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
 
@@ -186,21 +207,21 @@ class PostgreSQL(object):
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise DatabaseConnectionException('password Method requires Username and Password')
             try:
-                dbh = PostgreSQL._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+                dbh = _translate_connect_postgresql(self._con_conf)
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'krb5':
             # clear Username and Password fields if provided. Force psycopg2 to use krb5
             self._con_conf.pop('Username', None)
             self._con_conf.pop('Password', None)
             try:
-                dbh = PostgreSQL._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+                dbh = _translate_connect_postgresql(self._con_conf)
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
-                dbh = vc.connect(PostgreSQL._translate_connect)
+                dbh = vc.connect(_translate_connect_postgresql)
             except VaultCacheError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         else:
@@ -243,23 +264,6 @@ class MySQL(object):
         if not isinstance(self._options, dict):
             raise DatabaseConnectionException('options arg must be dictionary')
 
-    def _translate_connect(authn):
-        par_map = {
-            'Username': 'user',
-            'Password': 'password',
-            'DBName': 'database',
-            'DBHost': 'host',
-            'DBPort': 'port',
-            'Compress': 'mysql_compression',
-            'ConnectTimeout': 'mysql_connect_timeout',
-            'SSLMode': 'mysql_ssl'
-        }
-        common_keys = list(set(par_map.keys()) & set(authn.keys()))
-        try:
-            return mysql.connector.connect(**{par_map[x]: authn[x] for x in common_keys})
-        except mysql.connector.Error as exc:
-            raise ConnectionError(exc)
-
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
 
@@ -274,13 +278,13 @@ class MySQL(object):
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise DatabaseConnectionException('password Method requires Username and Password')
             try:
-                dbh = MySQL._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+                dbh = _translate_connect_mysql(self._con_conf)
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
-                dbh = vc.connect(MySQL._translate_connect)
+                dbh = vc.connect(_translate_connect_mysql)
             except VaultCacheError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         else:

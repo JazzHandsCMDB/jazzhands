@@ -20,8 +20,12 @@ Exceptions:
     VaultCacheError: General module exception
 """
 
-import logging, os, tempfile, time, stat, json
-from jazzhands_vault.vault import Vault, VaultError
+import sys, logging, os, tempfile, time, stat, json
+try:
+    from jazzhands_vault.vault import Vault, VaultError
+except ImportError:
+    pass
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -215,10 +219,12 @@ class VaultCache(object):
                     try:
                         logger.debug('attempting to connect with cached credentials')
                         return connect_callback(cache['auth'])
-                    except ConnectionError:
+                    except IOError:
                         logger.debug('connecting with cached credentials failed')
                         pass
         logger.debug('retrieving credentials from Vault')
+        if 'jazzhands_vault.vault' not in sys.modules:
+            raise VaultCacheError('module jazzhands_vault.vault not loaded')
         vault_params = self._get_vault_params()
         vault = Vault(**vault_params)
         try:
@@ -232,7 +238,7 @@ class VaultCache(object):
             try:
                 logger.debug('attempting to connect with credentials retrieved from Vault')
                 dbh = connect_callback(new_db_authn)
-            except ConnectionError:
+            except IOError:
                 logger.debug('connecting with Vault credentials failed')
                 dbh = None
             if dbh:
@@ -246,7 +252,7 @@ class VaultCache(object):
             try:
                 logger.debug('attempting to connect with expired cached credentials')
                 return connect_callback(cache['auth'])
-            except ConnectionError:
+            except IOError:
                 pass
         raise VaultCacheError('Cannot connect to the database using Vault/cached credentials')
 
