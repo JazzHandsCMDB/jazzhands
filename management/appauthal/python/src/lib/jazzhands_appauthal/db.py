@@ -170,7 +170,7 @@ class PostgreSQL(object):
         try:
             return psycopg2.connect(**{par_map[x]: authn[x] for x in common_keys})
         except psycopg2.Error as exc:
-            raise ConnectionError(exc)
+            raise IOError(exc)
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
@@ -187,7 +187,7 @@ class PostgreSQL(object):
                 raise DatabaseConnectionException('password Method requires Username and Password')
             try:
                 dbh = PostgreSQL._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'krb5':
             # clear Username and Password fields if provided. Force psycopg2 to use krb5
@@ -195,7 +195,7 @@ class PostgreSQL(object):
             self._con_conf.pop('Password', None)
             try:
                 dbh = PostgreSQL._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
@@ -258,7 +258,7 @@ class MySQL(object):
         try:
             return mysql.connector.connect(**{par_map[x]: authn[x] for x in common_keys})
         except mysql.connector.Error as exc:
-            raise ConnectionError(exc)
+            raise IOError(exc)
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
@@ -275,7 +275,7 @@ class MySQL(object):
                 raise DatabaseConnectionException('password Method requires Username and Password')
             try:
                 dbh = MySQL._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)

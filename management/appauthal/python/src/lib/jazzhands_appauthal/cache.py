@@ -219,7 +219,7 @@ class VaultCache(object):
                     try:
                         logger.debug('attempting to connect with cached credentials')
                         return connect_callback(cache['auth'])
-                    except ConnectionError:
+                    except IOError:
                         logger.debug('connecting with cached credentials failed')
                         pass
         logger.debug('retrieving credentials from Vault')
@@ -238,7 +238,7 @@ class VaultCache(object):
             try:
                 logger.debug('attempting to connect with credentials retrieved from Vault')
                 dbh = connect_callback(new_db_authn)
-            except ConnectionError:
+            except IOError:
                 logger.debug('connecting with Vault credentials failed')
                 dbh = None
             if dbh:
@@ -252,7 +252,7 @@ class VaultCache(object):
             try:
                 logger.debug('attempting to connect with expired cached credentials')
                 return connect_callback(cache['auth'])
-            except ConnectionError:
+            except IOError:
                 pass
         raise VaultCacheError('Cannot connect to the database using Vault/cached credentials')
 
