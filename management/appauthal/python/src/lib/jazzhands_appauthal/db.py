@@ -35,6 +35,10 @@ try:
     import mysql.connector
 except ImportError:
     pass
+try:
+    import pyodbc
+except ImportError:
+    pass
 
 from .appauthal import AppAuthAL
 from .cache import VaultCache, VaultCacheError
@@ -122,6 +126,10 @@ class DatabaseConnection(object):
                 if (config.get('DBType', '') == 'mysql'
                 or ('import' in config and config['import'].get('DBType', '') == 'mysql')):
                     driver = MySQL(db_config)
+                    return driver.connect_db()
+                if (config.get('DBType', '') == 'odbc'
+                or ('import' in config and config['import'].get('DBType', '') == 'odbc')):
+                    driver = ODBC(db_config)
                     return driver.connect_db()
                 raise DatabaseConnectionException('Requested DBType not currently supported')
             except DatabaseConnectionOperationalError as exc:
@@ -281,6 +289,72 @@ class MySQL(object):
             vc = VaultCache(self._options, self._con_conf)
             try:
                 dbh = vc.connect(MySQL._translate_connect)
+            except VaultCacheError as exc:
+                raise DatabaseConnectionOperationalError(exc)
+        else:
+            raise DatabaseConnectionException('Only password or krb5 method supported')
+        return dbh
+
+class ODBC(object):
+    """ODBC driver abstraction layer"""
+
+    def __init__(self, db_config):
+        """Initializes the Odbc driver abstraction object.
+
+        Args:
+            db_config (dict): AppAuthAL database configuration dictionary
+
+        Raises:
+            DatabaseConnectionException: if any of the supplied configuration params are bogus
+        """
+        if 'pyodbc' not in sys.modules:
+            raise DatabaseConnectionException('pyodbc module not imported')
+        if not db_config:
+            raise DatabaseConnectionException('A db_config dictionary is required')
+        if 'DBDriver' not in db_config['connection']:
+            raise DatabaseConnectionException('Parameter DBDriver required for ODBC connections')
+        self._db_config = db_config
+        self._con_conf = db_config['connection']
+        self._options = db_config.get('options', dict())
+        if not isinstance(self._options, dict):
+            raise DatabaseConnectionException('options arg must be dictionary')
+
+    def _translate_connect(authn):
+        par_map = {
+            'Username': 'user',
+            'Password': 'password',
+            'DBDriver': 'driver',
+            'DBName': 'database',
+            'DBHost': 'host',
+            'DBPort': 'port'
+        }
+        common_keys = list(set(par_map.keys()) & set(authn.keys()))
+        try:
+            return pyodbc.connect(**{par_map[x]: authn[x] for x in common_keys})
+        except DatabaseError as exc:
+            raise ConnectionError(exc)
+
+    def connect_db(self):
+        """Returns a database connection based on the config provided at __init__
+
+        Returns:
+            obj: database connection object
+
+        Raises:
+            DatabaseConnectionException: if any of the supplied configuration params are bogus
+            DatabaseConnectionOperationalError: if any database errors occur during connection
+        """
+        if self._con_conf.get('Method', '').lower() == 'password':
+            if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
+                raise DatabaseConnectionException('password Method requires Username and Password')
+            try:
+                dbh = ODBC._translate_connect(self._con_conf)
+            except ConnectionError as exc:
+                raise DatabaseConnectionOperationalError(exc)
+        elif self._con_conf.get('Method', '').lower() == 'vault':
+            vc = VaultCache(self._options, self._con_conf)
+            try:
+                dbh = vc.connect(ODBC._translate_connect)
             except VaultCacheError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         else:
