@@ -1,3 +1,10 @@
+python-jazzhands-appauthal (0.90.12) bionic; urgency=medium
+
+  * corrected issues with Python 2
+  * jazzhands_vault module is ignored when not needed
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Wed, 12 May 2021 18:49:00 +0100
+
 python-jazzhands-appauthal (0.90.10) bionic; urgency=medium
 
   * added Vault and MySQL support
