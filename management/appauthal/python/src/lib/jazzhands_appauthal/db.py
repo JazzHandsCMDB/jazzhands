@@ -18,11 +18,7 @@ Classes:
     DatabaseConnection: the meat. Generates DB handles to requested applications
 
 Exceptions:
-    DatabaseConnectionException: General module exceptions
-    DatabaseConnectionOperationalError: Database operational exceptions
-
-Todo:
-    Support additional drivers. MySQL and OBDC
+    AppAuthALDBConnectionError: AppAuthAL database connection error
 """
 
 
@@ -40,7 +36,7 @@ try:
 except ImportError:
     pass
 
-from .appauthal import AppAuthAL
+from .appauthal import AppAuthAL, AppAuthALException
 from .cache import VaultCache, VaultCacheError
 
 
@@ -121,7 +117,10 @@ class DatabaseConnection(object):
 
     def _get_app_config(self, app, instance=None):
         if app:
-            return self._appauthal.find_and_parse_auth(app, instance)
+            try:
+                return self._appauthal.find_and_parse_auth(app, instance)
+            except AppAuthALException as err:
+                raise AppAuthALDBConnectionError(err)
 
     def connect(self, app=None, instance=None, session_user=None, **kwargs):
         """Returns a database connection the requested application.
@@ -148,7 +147,7 @@ class DatabaseConnection(object):
             obj: database connection handle
 
         Raises:
-            DatabaseConnectionException: if required arguments aren't supplied or unsupported
+            AppAuthALDBConnectionError: if required arguments aren't supplied or unsupported
                 config params are provided.
         """
         if app:
@@ -156,15 +155,13 @@ class DatabaseConnection(object):
         elif self._app_config:
             config = self._app_config
         else:
-            raise DatabaseConnectionException('You must supply an app name at init or on connect')
+            raise AppAuthALDBConnectionError('You must supply an app name at init or on connect')
         if not session_user:
             session_user = getpass.getuser()
         try:
             db_configs = self._app_config['database']
         except KeyError:
-            raise DatabaseConnectionException(
-                'AppAuthAL file does not have database section: {}'.format(
-                    self._appauthal.find_auth_file(app, instance)))
+            raise AppAuthALDBConnectionError('AppAuthAL file does not have database section')
         for config in db_configs:
             db_config = {
                 'connection': config, 'options': self._app_config.get('options', dict()),
@@ -184,10 +181,10 @@ class DatabaseConnection(object):
                 or ('import' in config and config['import'].get('DBType', '') == 'odbc')):
                     driver = ODBC(db_config)
                     return driver.connect_db()
-                raise DatabaseConnectionException('Requested DBType not currently supported')
-            except DatabaseConnectionOperationalError as exc:
+                raise AppAuthALDBConnectionError('Requested DBType not currently supported')
+            except AppAuthALDBConnectionError as exc:
                 LOG.exception(exc)
-        raise DatabaseConnectionException('Could not connect to any specified database')
+        raise AppAuthALDBConnectionError('Could not connect to any specified database')
 
 
 class PostgreSQL(object):
@@ -200,18 +197,18 @@ class PostgreSQL(object):
             db_config (dict): AppAuthAL database configuration dictionary
 
         Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
+            AppAuthALDBConnectionError: if any of the supplied configuration params are bogus
         """
         if 'psycopg2' not in sys.modules:
-            raise DatabaseConnectionException('psycopg2 module not imported')
+            raise AppAuthALDBConnectionError('psycopg2 module not imported')
         if not db_config:
-            raise DatabaseConnectionException('A db_config dictionary is required')
+            raise AppAuthALDBConnectionError('A db_config dictionary is required')
         self._db_config = db_config
         self._con_conf = db_config['connection']
         self._session_user = db_config.get('session_user')
         self._options = db_config.get('options', dict())
         if not isinstance(self._options, dict):
-            raise DatabaseConnectionException('options arg must be dictionary')
+            raise AppAuthALDBConnectionError('options arg must be dictionary')
 
     def _set_username(self, dbh):
         dbh.cursor().execute('set jazzhands.appuser to %s', (self._session_user,))
@@ -223,16 +220,15 @@ class PostgreSQL(object):
             obj: database connection object
 
         Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
-            DatabaseConnectionOperationalError: if any database errors occur during connection
+            AppAuthALDBConnectionError
         """
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
-                raise DatabaseConnectionException('password Method requires Username and Password')
+                raise AppAuthALDBConnectionError('password Method requires Username and Password')
             try:
                 dbh = _translate_connect_postgresql(self._con_conf)
             except IOError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         elif self._con_conf.get('Method', '').lower() == 'krb5':
             # clear Username and Password fields if provided. Force psycopg2 to use krb5
             self._con_conf.pop('Username', None)
@@ -240,15 +236,15 @@ class PostgreSQL(object):
             try:
                 dbh = _translate_connect_postgresql(self._con_conf)
             except IOError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
                 dbh = vc.connect(_translate_connect_postgresql)
             except VaultCacheError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         else:
-            raise DatabaseConnectionException('Only password or krb5 method supported')
+            raise AppAuthALDBConnectionError('Only password or krb5 method supported')
         if str(self._options.get('use_session_variables', 'no')).lower() != 'no':
             self._set_username(dbh)
         if str(self._options.get('use_unicode_strings', 'no')).lower() != 'no':
@@ -261,8 +257,8 @@ class PostgreSQL(object):
             try:
                 dbh.cursor_factory = getattr(psycopg2.extras, custom_cursor)
             except AttributeError as exc:
-                raise DatabaseConnectionException(
-                    'psycopg2 doesnt have the requested cursor factory: {}'.format(custom_cursor))
+                raise AppAuthALDBConnectionError(
+                    'psycopg2 does not have the requested cursor factory: {}'.format(custom_cursor))
         return dbh
 
 class MySQL(object):
@@ -275,17 +271,17 @@ class MySQL(object):
             db_config (dict): AppAuthAL database configuration dictionary
 
         Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
+            AppAuthALDBConnectionError: if any of the supplied configuration params are bogus
         """
         if 'mysql.connector' not in sys.modules:
-            raise DatabaseConnectionException('mysql.connector module not imported')
+            raise AppAuthALDBConnectionError('mysql.connector module not imported')
         if not db_config:
-            raise DatabaseConnectionException('A db_config dictionary is required')
+            raise AppAuthALDBConnectionError('A db_config dictionary is required')
         self._db_config = db_config
         self._con_conf = db_config['connection']
         self._options = db_config.get('options', dict())
         if not isinstance(self._options, dict):
-            raise DatabaseConnectionException('options arg must be dictionary')
+            raise AppAuthALDBConnectionError('options arg must be dictionary')
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
@@ -294,24 +290,23 @@ class MySQL(object):
             obj: database connection object
 
         Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
-            DatabaseConnectionOperationalError: if any database errors occur during connection
+            AppAuthALDBConnectionError
         """
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
-                raise DatabaseConnectionException('password Method requires Username and Password')
+                raise AppAuthALDBConnectionError('password Method requires Username and Password')
             try:
                 dbh = _translate_connect_mysql(self._con_conf)
             except IOError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
                 dbh = vc.connect(_translate_connect_mysql)
             except VaultCacheError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         else:
-            raise DatabaseConnectionException('Only password or krb5 method supported')
+            raise AppAuthALDBConnectionError('Only password or krb5 method supported')
         return dbh
 
 class ODBC(object):
@@ -324,19 +319,19 @@ class ODBC(object):
             db_config (dict): AppAuthAL database configuration dictionary
 
         Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
+            AppAuthALDBConnectionError: if any of the supplied configuration params are bogus
         """
         if 'pyodbc' not in sys.modules:
-            raise DatabaseConnectionException('pyodbc module not imported')
+            raise AppAuthALDBConnectionError('pyodbc module not imported')
         if not db_config:
-            raise DatabaseConnectionException('A db_config dictionary is required')
+            raise AppAuthALDBConnectionError('A db_config dictionary is required')
         if 'DBDriver' not in db_config['connection']:
-            raise DatabaseConnectionException('Parameter DBDriver required for ODBC connections')
+            raise AppAuthALDBConnectionError('Parameter DBDriver required for ODBC connections')
         self._db_config = db_config
         self._con_conf = db_config['connection']
         self._options = db_config.get('options', dict())
         if not isinstance(self._options, dict):
-            raise DatabaseConnectionException('options arg must be dictionary')
+            raise AppAuthALDBConnectionError('options arg must be dictionary')
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
@@ -345,31 +340,24 @@ class ODBC(object):
             obj: database connection object
 
         Raises:
-            DatabaseConnectionException: if any of the supplied configuration params are bogus
-            DatabaseConnectionOperationalError: if any database errors occur during connection
+            AppAuthALDBConnectionError
         """
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
-                raise DatabaseConnectionException('password Method requires Username and Password')
+                raise AppAuthALDBConnectionError('password Method requires Username and Password')
             try:
                 dbh = _translate_connect_odbc(self._con_conf)
             except IOError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
                 dbh = vc.connect(_translate_connect_odbc)
             except VaultCacheError as exc:
-                raise DatabaseConnectionOperationalError(exc)
+                raise AppAuthALDBConnectionError(exc)
         else:
-            raise DatabaseConnectionException('Only password or krb5 method supported')
+            raise AppAuthALDBConnectionError('Only password or krb5 method supported')
         return dbh
 
-class DatabaseConnectionException(Exception):
-    """General DatabaseConnection exceptions"""
-    pass
-
-
-class DatabaseConnectionOperationalError(Exception):
-    """Database operation exceptions"""
-    pass
+class AppAuthALDBConnectionError(AppAuthALException):
+    """General AppAuthAL database connection exception"""
