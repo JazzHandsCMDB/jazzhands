@@ -244,7 +244,7 @@ class PostgreSQL(object):
             except VaultCacheError as exc:
                 raise AppAuthALDBConnectionError(exc)
         else:
-            raise AppAuthALDBConnectionError('Only password or krb5 method supported')
+            raise AppAuthALDBConnectionError('Only password, vault or krb5 method supported')
         if str(self._options.get('use_session_variables', 'no')).lower() != 'no':
             self._set_username(dbh)
         if str(self._options.get('use_unicode_strings', 'no')).lower() != 'no':
@@ -306,7 +306,7 @@ class MySQL(object):
             except VaultCacheError as exc:
                 raise AppAuthALDBConnectionError(exc)
         else:
-            raise AppAuthALDBConnectionError('Only password or krb5 method supported')
+            raise AppAuthALDBConnectionError('Only password or vault method supported')
         return dbh
 
 class ODBC(object):
@@ -356,7 +356,7 @@ class ODBC(object):
             except VaultCacheError as exc:
                 raise AppAuthALDBConnectionError(exc)
         else:
-            raise AppAuthALDBConnectionError('Only password or krb5 method supported')
+            raise AppAuthALDBConnectionError('Only password or vault method supported')
         return dbh
 
 class AppAuthALDBConnectionError(AppAuthALException):
