@@ -85,6 +85,21 @@ def _translate_connect_mysql(authn):
     except mysql.connector.Error as exc:
         raise IOError(exc)
 
+def _translate_connect_odbc(authn):
+    par_map = {
+        'Username': 'user',
+        'Password': 'password',
+        'DBDriver': 'driver',
+        'DBName': 'database',
+        'DBHost': 'host',
+        'DBPort': 'port'
+    }
+    common_keys = list(set(par_map.keys()) & set(authn.keys()))
+    try:
+        return pyodbc.connect(**{par_map[x]: authn[x] for x in common_keys})
+    except pyodbc.Error as exc:
+        raise IOError(exc)
+
 
 class DatabaseConnection(object):
     """DatabaseConnection provides database handles for requested applications"""
@@ -323,21 +338,6 @@ class ODBC(object):
         if not isinstance(self._options, dict):
             raise DatabaseConnectionException('options arg must be dictionary')
 
-    def _translate_connect(authn):
-        par_map = {
-            'Username': 'user',
-            'Password': 'password',
-            'DBDriver': 'driver',
-            'DBName': 'database',
-            'DBHost': 'host',
-            'DBPort': 'port'
-        }
-        common_keys = list(set(par_map.keys()) & set(authn.keys()))
-        try:
-            return pyodbc.connect(**{par_map[x]: authn[x] for x in common_keys})
-        except DatabaseError as exc:
-            raise ConnectionError(exc)
-
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
 
@@ -352,13 +352,13 @@ class ODBC(object):
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise DatabaseConnectionException('password Method requires Username and Password')
             try:
-                dbh = ODBC._translate_connect(self._con_conf)
-            except ConnectionError as exc:
+                dbh = _translate_connect_odbc(self._con_conf)
+            except IOError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
-                dbh = vc.connect(ODBC._translate_connect)
+                dbh = vc.connect(_translate_connect_odbc)
             except VaultCacheError as exc:
                 raise DatabaseConnectionOperationalError(exc)
         else:
