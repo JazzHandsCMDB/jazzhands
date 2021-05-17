@@ -395,6 +395,8 @@ sub build_and_connect($$) {
 	my $dbstr = "dbi:${dbd}:" . join( ";", sort @vals );
 	my $dbh;
 
+        $ENV{ODBCINI} = '/etc/odbc.ini' if ($dbd eq 'ODBC'); ## Required by the Vertica ODBC driver
+
 	my $print_error = $dbiflags && exists($dbiflags->{PrintError}) && $dbiflags->{PrintError};
 
 	$dbiflags ||= {};
