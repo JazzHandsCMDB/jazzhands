@@ -197,15 +197,12 @@ BEGIN {
 		my $json = join( "", $fh->getlines );
 		$fh->close;
 		$appauth_config = decode_json($json)
-		  || die "Unable to parse config file";
+                    || die "Unable to parse config file";
 		if ( exists( $appauth_config->{'onload'} ) ) {
 			if ( defined( $appauth_config->{'onload'}->{'environment'} ) ) {
-				foreach
-				  my $e ( @{ $appauth_config->{'onload'}->{'environment'} } )
-				{
-					foreach my $k ( keys %$e ) {
-						$ENV{'$k'} = $e->{$k};
-					}
+				my $e = $appauth_config->{'onload'}->{'environment'};
+				foreach my $k ( %$e ) {
+					$ENV{$k} = $e->{$k};
 				}
 			}
 		}

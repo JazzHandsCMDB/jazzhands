@@ -1,5 +1,6 @@
 perl-jazzhands-appauthal (0.90.13) trusty; urgency=medium
 
+  * fixed processing of the onload/environment section of the config file
   * added ODBC support
 
  -- Bernard Jech <bernardjech@yahoo.com>  Mon, 17 May 2021 17:10:00 -0500
