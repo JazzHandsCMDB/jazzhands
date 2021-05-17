@@ -27,10 +27,10 @@ Configuration:
             'search_dirs': ['/var/lib/jazzhands/appauth-info'],
             'conf_file_format': 'json'
             'onload': {
-                'environment': [
-                    { 'ODBCINI':     '/etc/odbc.ini' },
-                    { 'ORACLE_HOME': '/opt/oracle12' }
-                ]
+                'environment': {
+                    'ODBCINI':     '/etc/odbc.ini',
+                    'ORACLE_HOME': '/opt/oracle12'
+                }
             }
         }
 

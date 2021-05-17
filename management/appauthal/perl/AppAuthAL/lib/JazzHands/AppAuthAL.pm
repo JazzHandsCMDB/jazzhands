@@ -83,11 +83,9 @@ The config file format is JSON.  Here is an example:
 
    {
 	"onload": {
-		"environment": [
-			{
-				"ORACLE_HOME": "/usr/local/oracle/libs"
-			}
-		]
+		"environment": {
+			"ORACLE_HOME": "/usr/local/oracle/libs"
+		}
 	},
 	"search_dirs": [
 		".",
