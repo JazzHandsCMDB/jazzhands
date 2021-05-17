@@ -321,6 +321,9 @@ class ODBC(Driver):
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
 
+        Some ODBC drivers, such as Vertica, require the environment variable
+        ODBCINI to be set. You can use the AppAuthAL config file to set it.
+
         Returns:
             obj: database connection object
 
