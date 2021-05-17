@@ -26,6 +26,12 @@ Configuration:
         {
             'search_dirs': ['/var/lib/jazzhands/appauth-info'],
             'conf_file_format': 'json'
+            'onload': {
+                'environment': [
+                    { 'ODBCINI':     '/etc/odbc.ini' },
+                    { 'ORACLE_HOME': '/opt/oracle12' }
+                ]
+            }
         }
 
 Todo:
@@ -62,9 +68,8 @@ class AppAuthAL(object):
         else:
             config = self._load_json_conf(main_config_fname)
         if 'onload' in config:
-            for enlist in config['onload'].get('environment', list()):
-                for envar, enval in enlist.items():
-                    os.environ[envar] = enval
+            for envar, enval in config['onload'].get('environment', dict()).items():
+                os.environ[envar] = enval
         return config
 
     @staticmethod
