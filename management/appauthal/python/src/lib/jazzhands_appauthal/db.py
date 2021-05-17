@@ -22,7 +22,7 @@ Exceptions:
 """
 
 
-import sys, getpass, logging, psycopg2
+import os, sys, getpass, logging, psycopg2
 try:
     import psycopg2
 except ImportError:
@@ -93,6 +93,7 @@ def _translate_connect_odbc(authn):
         'SSLMode': 'sslmode'
     }
     common_keys = list(set(par_map.keys()) & set(authn.keys()))
+    os.environ['ODBCINI'] = '/etc/odbc.ini' ## Required by the Vertica ODBC driver
     try:
         return pyodbc.connect(**{par_map[x]: authn[x] for x in common_keys})
     except pyodbc.Error as exc:
@@ -189,11 +190,11 @@ class DatabaseConnection(object):
         raise AppAuthALDBConnectionError('Could not connect to any specified database')
 
 
-class PostgreSQL(object):
-    """PostgreSQL driver abstraction layer"""
+class Driver(object):
+    """Base database driver abstraction layer"""
 
     def __init__(self, db_config):
-        """Initializes the PostgreSQL driver abstraction object.
+        """Initializes the driver abstraction object.
 
         Args:
             db_config (dict): AppAuthAL database configuration dictionary
@@ -201,16 +202,25 @@ class PostgreSQL(object):
         Raises:
             AppAuthALDBConnectionError: if any of the supplied configuration params are bogus
         """
-        if 'psycopg2' not in sys.modules:
-            raise AppAuthALDBConnectionError('psycopg2 module not imported')
         if not db_config:
             raise AppAuthALDBConnectionError('A db_config dictionary is required')
         self._db_config = db_config
         self._con_conf = db_config['connection']
-        self._session_user = db_config.get('session_user')
         self._options = db_config.get('options', dict())
         if not isinstance(self._options, dict):
             raise AppAuthALDBConnectionError('options arg must be dictionary')
+
+
+class PostgreSQL(Driver):
+    """PostgreSQL driver abstraction layer"""
+
+    def __init__(self, db_config):
+        """Initializes the PostgreSQL driver abstraction object."""
+
+        if 'psycopg2' not in sys.modules:
+            raise AppAuthALDBConnectionError('psycopg2 module not imported')
+        super(PostgreSQL, self).__init__(db_config)
+        self._session_user = db_config.get('session_user')
 
     def _set_username(self, dbh):
         dbh.cursor().execute('set jazzhands.appuser to %s', (self._session_user,))
@@ -263,27 +273,15 @@ class PostgreSQL(object):
                     'psycopg2 does not have the requested cursor factory: {}'.format(custom_cursor))
         return dbh
 
-class MySQL(object):
+class MySQL(Driver):
     """MySQL driver abstraction layer"""
 
     def __init__(self, db_config):
-        """Initializes the Mysql driver abstraction object.
+        """Initializes the MySQL driver abstraction object."""
 
-        Args:
-            db_config (dict): AppAuthAL database configuration dictionary
-
-        Raises:
-            AppAuthALDBConnectionError: if any of the supplied configuration params are bogus
-        """
         if 'mysql.connector' not in sys.modules:
             raise AppAuthALDBConnectionError('mysql.connector module not imported')
-        if not db_config:
-            raise AppAuthALDBConnectionError('A db_config dictionary is required')
-        self._db_config = db_config
-        self._con_conf = db_config['connection']
-        self._options = db_config.get('options', dict())
-        if not isinstance(self._options, dict):
-            raise AppAuthALDBConnectionError('options arg must be dictionary')
+        super(MySQL, self).__init__(db_config)
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
@@ -311,27 +309,15 @@ class MySQL(object):
             raise AppAuthALDBConnectionError('Only password or vault method supported')
         return dbh
 
-class ODBC(object):
+class ODBC(Driver):
     """ODBC driver abstraction layer"""
 
     def __init__(self, db_config):
-        """Initializes the Odbc driver abstraction object.
+        """Initializes the ODBC driver abstraction object."""
 
-        Args:
-            db_config (dict): AppAuthAL database configuration dictionary
-
-        Raises:
-            AppAuthALDBConnectionError: if any of the supplied configuration params are bogus
-        """
         if 'pyodbc' not in sys.modules:
             raise AppAuthALDBConnectionError('pyodbc module not imported')
-        if not db_config:
-            raise AppAuthALDBConnectionError('A db_config dictionary is required')
-        self._db_config = db_config
-        self._con_conf = db_config['connection']
-        self._options = db_config.get('options', dict())
-        if not isinstance(self._options, dict):
-            raise AppAuthALDBConnectionError('options arg must be dictionary')
+        super(ODBC, self).__init__(db_config)
 
     def connect_db(self):
         """Returns a database connection based on the config provided at __init__
