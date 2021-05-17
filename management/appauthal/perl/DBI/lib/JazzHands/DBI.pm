@@ -454,8 +454,8 @@ sub do_database_connect {
 			'SSLMode'        => 'mysql_ssl',
 		},
 		'odbc' => {
-                        '_DBD'     => 'ODBC',
-                        'DSN'      => 'dsn',
+			'_DBD'	   => 'ODBC',
+			'DSN'	   => 'dsn',
 			'DBName'   => 'database',
 			'DBDriver' => 'driver',
 			'DBHost'   => 'server',
