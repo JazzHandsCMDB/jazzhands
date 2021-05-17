@@ -517,6 +517,9 @@ sub do_cached_login($$$$) {
 	if ( $auth->{'Method'} eq 'password' ) {
 		$conn = &$callback( $args, $auth );
 		return $conn;
+	} elsif ( $auth->{'Method'} eq 'odbc' ) {
+		$conn = &$callback( $args, $auth );
+		return $conn;
 	} elsif ( $auth->{'Method'} ne 'vault' ) {
 		$errstr = "Only password and vault methods supported";
 		SetError( $errors, $errstr );
