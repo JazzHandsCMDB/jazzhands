@@ -231,13 +231,6 @@ class PostgreSQL(object):
                 dbh = _translate_connect_postgresql(self._con_conf)
             except IOError as exc:
                 raise AppAuthALDBConnectionError(exc)
-        elif self._con_conf.get('Method', '').lower() == 'odbc':
-            if 'DSN' not in self._con_conf:
-                raise AppAuthALDBConnectionError('Method "odbc" requires DSN')
-            try:
-                dbh = _translate_connect_postgresql(self._con_conf)
-            except IOError as exc:
-                raise AppAuthALDBConnectionError(exc)
         elif self._con_conf.get('Method', '').lower() == 'krb5':
             # clear Username and Password fields if provided. Force psycopg2 to use krb5
             self._con_conf.pop('Username', None)
@@ -304,13 +297,6 @@ class MySQL(object):
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise AppAuthALDBConnectionError('password Method requires Username and Password')
-            try:
-                dbh = _translate_connect_mysql(self._con_conf)
-            except IOError as exc:
-                raise AppAuthALDBConnectionError(exc)
-        elif self._con_conf.get('Method', '').lower() == 'odbc':
-            if 'DSN' not in self._con_conf:
-                raise AppAuthALDBConnectionError('Method "odbc" requires DSN')
             try:
                 dbh = _translate_connect_mysql(self._con_conf)
             except IOError as exc:
