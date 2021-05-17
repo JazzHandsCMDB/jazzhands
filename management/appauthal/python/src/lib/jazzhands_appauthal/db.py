@@ -93,7 +93,6 @@ def _translate_connect_odbc(authn):
         'SSLMode': 'sslmode'
     }
     common_keys = list(set(par_map.keys()) & set(authn.keys()))
-    os.environ['ODBCINI'] = '/etc/odbc.ini' ## Required by the Vertica ODBC driver
     try:
         return pyodbc.connect(**{par_map[x]: authn[x] for x in common_keys})
     except pyodbc.Error as exc:
