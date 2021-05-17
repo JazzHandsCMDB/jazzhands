@@ -86,9 +86,11 @@ def _translate_connect_odbc(authn):
         'Username': 'user',
         'Password': 'password',
         'DBDriver': 'driver',
+        'DSN': 'dsn',
         'DBName': 'database',
         'DBHost': 'host',
-        'DBPort': 'port'
+        'DBPort': 'port',
+        'SSLMode': 'sslmode'
     }
     common_keys = list(set(par_map.keys()) & set(authn.keys()))
     try:
@@ -224,7 +226,14 @@ class PostgreSQL(object):
         """
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
-                raise AppAuthALDBConnectionError('password Method requires Username and Password')
+                raise AppAuthALDBConnectionError('Method "password" requires Username and Password')
+            try:
+                dbh = _translate_connect_postgresql(self._con_conf)
+            except IOError as exc:
+                raise AppAuthALDBConnectionError(exc)
+        elif self._con_conf.get('Method', '').lower() == 'odbc':
+            if 'DSN' not in self._con_conf:
+                raise AppAuthALDBConnectionError('Method "odbc" requires DSN')
             try:
                 dbh = _translate_connect_postgresql(self._con_conf)
             except IOError as exc:
@@ -299,6 +308,13 @@ class MySQL(object):
                 dbh = _translate_connect_mysql(self._con_conf)
             except IOError as exc:
                 raise AppAuthALDBConnectionError(exc)
+        elif self._con_conf.get('Method', '').lower() == 'odbc':
+            if 'DSN' not in self._con_conf:
+                raise AppAuthALDBConnectionError('Method "odbc" requires DSN')
+            try:
+                dbh = _translate_connect_mysql(self._con_conf)
+            except IOError as exc:
+                raise AppAuthALDBConnectionError(exc)
         elif self._con_conf.get('Method', '').lower() == 'vault':
             vc = VaultCache(self._options, self._con_conf)
             try:
@@ -325,8 +341,6 @@ class ODBC(object):
             raise AppAuthALDBConnectionError('pyodbc module not imported')
         if not db_config:
             raise AppAuthALDBConnectionError('A db_config dictionary is required')
-        if 'DBDriver' not in db_config['connection']:
-            raise AppAuthALDBConnectionError('Parameter DBDriver required for ODBC connections')
         self._db_config = db_config
         self._con_conf = db_config['connection']
         self._options = db_config.get('options', dict())
@@ -345,6 +359,13 @@ class ODBC(object):
         if self._con_conf.get('Method', '').lower() == 'password':
             if 'Username' not in self._con_conf or 'Password' not in self._con_conf:
                 raise AppAuthALDBConnectionError('password Method requires Username and Password')
+            try:
+                dbh = _translate_connect_odbc(self._con_conf)
+            except IOError as exc:
+                raise AppAuthALDBConnectionError(exc)
+        elif self._con_conf.get('Method', '').lower() == 'odbc':
+            if 'DSN' not in self._con_conf:
+                raise AppAuthALDBConnectionError('Method "odbc" requires DSN')
             try:
                 dbh = _translate_connect_odbc(self._con_conf)
             except IOError as exc:
