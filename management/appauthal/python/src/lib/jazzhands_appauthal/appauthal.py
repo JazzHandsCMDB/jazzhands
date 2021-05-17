@@ -61,6 +61,10 @@ class AppAuthAL(object):
             config = {'search_dirs' : [DEFAULT_APPAUTHAL_FILE_DIR]}
         else:
             config = self._load_json_conf(main_config_fname)
+        if 'onload' in config:
+            for enlist in config['onload'].get('environment', list()):
+                for envar, enval in enlist.items():
+                    os.environ[envar] = enval
         return config
 
     @staticmethod
