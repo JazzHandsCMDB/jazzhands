@@ -453,6 +453,15 @@ sub do_database_connect {
 			'ConnectTimeout' => 'mysql_connect_timeout',
 			'SSLMode'        => 'mysql_ssl',
 		},
+		'odbc' => {
+                        '_DBD'     => 'ODBC',
+                        'DSN'      => 'dsn',
+			'DBName'   => 'database',
+			'DBDriver' => 'driver',
+			'DBHost'   => 'server',
+			'DBPort'   => 'port',
+			'SSLMode'  => 'sslmode',
+		},
 		'tds' => {
 			'_DBD' => 'Sybase'
 		},
