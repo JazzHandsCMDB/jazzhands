@@ -193,11 +193,10 @@ BEGIN {
 		$fn = "/etc/jazzhands/appauth-config.json";
 	}
 	if ( -r $fn ) {
-		my $fh   = new FileHandle($fn) || die "$fn: $!\n";
+		my $fh	 = new FileHandle($fn) || die "$fn: $!\n";
 		my $json = join( "", $fh->getlines );
 		$fh->close;
-		$appauth_config = decode_json($json)
-                    || die "Unable to parse config file";
+		$appauth_config = decode_json($json) || die "Unable to parse config file";
 		if ( exists( $appauth_config->{'onload'} ) ) {
 			if ( defined( $appauth_config->{'onload'}->{'environment'} ) ) {
 				my $e = $appauth_config->{'onload'}->{'environment'};
