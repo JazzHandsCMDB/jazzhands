@@ -113,6 +113,10 @@ The APPAUTHAL_CONFIG config can be set to a pathname to a json configuration
 file that will be used instead of the optional global config file.  If this
 variable is set, the config file becomes required.
 
+=head1 BUGS
+
+Some ODBC drivers, such as Vertica, require the ODBCINI environment variable
+to be set. You can use the "onload" section of the configuration file to set it.
 
 =head1 AUTHORS
 
