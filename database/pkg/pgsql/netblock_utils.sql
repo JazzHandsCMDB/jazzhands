@@ -193,7 +193,7 @@ BEGIN
 		) subq LIMIT 1;
 
 		IF can_fix_can_subnet AND par_nbid IS NOT NULL THEN
-			UPDATE netblock n SET n.can_subnet = false
+			UPDATE netblock n SET can_subnet = false
 			WHERE  n.netblock_id = par_nbid;
 		END IF;
 	END IF;
