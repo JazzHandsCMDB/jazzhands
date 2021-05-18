@@ -83,11 +83,9 @@ The config file format is JSON.  Here is an example:
 
    {
 	"onload": {
-		"environment": [
-			{
-				"ORACLE_HOME": "/usr/local/oracle/libs"
-			}
-		]
+		"environment": {
+			"ORACLE_HOME": "/usr/local/oracle/libs"
+		}
 	},
 	"search_dirs": [
 		".",
@@ -193,19 +191,15 @@ BEGIN {
 		$fn = "/etc/jazzhands/appauth-config.json";
 	}
 	if ( -r $fn ) {
-		my $fh   = new FileHandle($fn) || die "$fn: $!\n";
+		my $fh	 = new FileHandle($fn) || die "$fn: $!\n";
 		my $json = join( "", $fh->getlines );
 		$fh->close;
-		$appauth_config = decode_json($json)
-		  || die "Unable to parse config file";
+		$appauth_config = decode_json($json) || die "Unable to parse config file";
 		if ( exists( $appauth_config->{'onload'} ) ) {
 			if ( defined( $appauth_config->{'onload'}->{'environment'} ) ) {
-				foreach
-				  my $e ( @{ $appauth_config->{'onload'}->{'environment'} } )
-				{
-					foreach my $k ( keys %$e ) {
-						$ENV{'$k'} = $e->{$k};
-					}
+				my $e = $appauth_config->{'onload'}->{'environment'};
+				foreach my $k ( %$e ) {
+					$ENV{$k} = $e->{$k};
 				}
 			}
 		}
@@ -515,6 +509,9 @@ sub do_cached_login($$$$) {
 	}
 
 	if ( $auth->{'Method'} eq 'password' ) {
+		$conn = &$callback( $args, $auth );
+		return $conn;
+	} elsif ( $auth->{'Method'} eq 'odbc' ) {
 		$conn = &$callback( $args, $auth );
 		return $conn;
 	} elsif ( $auth->{'Method'} ne 'vault' ) {

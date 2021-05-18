@@ -1,3 +1,10 @@
+python-jazzhands-appauthal (0.90.13) bionic; urgency=medium
+
+  * consolidated exceptions
+  * added ODBC support
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 17 May 2021 17:10:00 +0100
+
 python-jazzhands-appauthal (0.90.12) bionic; urgency=medium
 
   * corrected issues with Python 2
