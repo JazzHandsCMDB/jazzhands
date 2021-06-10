@@ -555,9 +555,9 @@ sub do_database_connect {
 	$errstr = $DBI::errstr if ( !$errstr );
 	SetError( $errors, $errstr );
 
-        if ( ref($opt->{dbiflags}) eq 'HASH' && $opt->{dbiflags}->{RaiseError} ) {
-                die $errstr;
-        }
+	if ( ref($opt->{dbiflags}) eq 'HASH' && $opt->{dbiflags}->{RaiseError} ) {
+		die $errstr;
+	}
 
 	return undef;
 }
