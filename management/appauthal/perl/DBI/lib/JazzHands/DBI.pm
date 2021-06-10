@@ -400,9 +400,11 @@ sub build_and_connect($$) {
 	my $dbh;
 
 	my $print_error = $dbiflags && exists($dbiflags->{PrintError}) && $dbiflags->{PrintError};
+	my $raise_error = $dbiflags && exists($dbiflags->{RaiseError}) && $dbiflags->{RaiseError};
 
 	$dbiflags ||= {};
 	$dbiflags->{PrintError} = 0;
+	$dbiflags->{RaiseError} = 0;
 
 	if ( $opt->{cached} ) {
 		$dbh = DBI->connect_cached( $dbstr, $user, $pass, $dbiflags );
@@ -411,6 +413,7 @@ sub build_and_connect($$) {
 	}
 
 	$dbh->{PrintError} = $print_error if $dbh;
+	$dbh->{RaiseError} = $raise_error if $dbh;
 
 	return $dbh;
 }
