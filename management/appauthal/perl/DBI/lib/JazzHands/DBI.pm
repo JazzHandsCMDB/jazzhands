@@ -135,7 +135,7 @@ use JazzHands::Common qw(:all);
 use DBI;
 use FileHandle;
 use Data::Dumper;
-
+use Storable qw(dclone);
 use parent 'JazzHands::Common';
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
@@ -348,7 +348,7 @@ sub connect_cached {
 sub build_and_connect($$) {
 	my ( $opt, $auth ) = @_;
 
-	my $errors   = $opt->{dbiflags};
+	my $errors   = $opt->{errors};
 	my $dbiflags = $opt->{dbiflags};
 	my $override = $opt->{override};
 	my $app      = $opt->{application};
@@ -399,18 +399,21 @@ sub build_and_connect($$) {
 	my $dbstr = "dbi:${dbd}:" . join( ";", sort @vals );
 	my $dbh;
 
+	my $temp_flags	= $dbiflags ? dclone($dbiflags) : {};
 	my $print_error = $dbiflags && exists($dbiflags->{PrintError}) && $dbiflags->{PrintError};
+	my $raise_error = $dbiflags && exists($dbiflags->{RaiseError}) && $dbiflags->{RaiseError};
 
-	$dbiflags ||= {};
-	$dbiflags->{PrintError} = 0;
+	$temp_flags->{PrintError} = 0;
+	$temp_flags->{RaiseError} = 0;
 
 	if ( $opt->{cached} ) {
-		$dbh = DBI->connect_cached( $dbstr, $user, $pass, $dbiflags );
+		$dbh = DBI->connect_cached( $dbstr, $user, $pass, $temp_flags );
 	} else {
-		$dbh = DBI->connect( $dbstr, $user, $pass, $dbiflags );
+		$dbh = DBI->connect( $dbstr, $user, $pass, $temp_flags );
 	}
 
 	$dbh->{PrintError} = $print_error if $dbh;
+	$dbh->{RaiseError} = $raise_error if $dbh;
 
 	return $dbh;
 }
@@ -535,7 +538,6 @@ sub do_database_connect {
 		my $cached_args = {
 			options  => $record->{options},
 			errors   => $errors,
-			errors   => $errors,
 		};
 
 		$dbh =
@@ -551,6 +553,11 @@ sub do_database_connect {
 
 	$errstr = $DBI::errstr if ( !$errstr );
 	SetError( $errors, $errstr );
+
+	if ( ref($opt->{dbiflags}) eq 'HASH' && $opt->{dbiflags}->{RaiseError} ) {
+		die $errstr;
+	}
+
 	return undef;
 }
 

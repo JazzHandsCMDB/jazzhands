@@ -1,3 +1,9 @@
+perl-jazzhands-dbi (0.90.14) trusty; urgency=medium
+
+  * Fixed issues with RaiseError in connect()
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Thu, 10 Jun 2021 16:34:00 -0500
+
 perl-jazzhands-dbi (0.90.13) trusty; urgency=medium
 
   * added ODBC support
