@@ -349,7 +349,7 @@ sub build_and_connect($$) {
 	my ( $opt, $auth ) = @_;
 
 	my $errors   = $opt->{errors};
-	my $dbiflags = dclone($opt->{dbiflags});
+	my $dbiflags = $opt->{dbiflags};
 	my $override = $opt->{override};
 	my $app      = $opt->{application};
 	my $dbdmap   = $opt->{_dbdmap};
@@ -399,17 +399,17 @@ sub build_and_connect($$) {
 	my $dbstr = "dbi:${dbd}:" . join( ";", sort @vals );
 	my $dbh;
 
+	my $temp_flags	= $dbiflags ? dclone($dbiflags) : {};
 	my $print_error = $dbiflags && exists($dbiflags->{PrintError}) && $dbiflags->{PrintError};
 	my $raise_error = $dbiflags && exists($dbiflags->{RaiseError}) && $dbiflags->{RaiseError};
 
-	$dbiflags ||= {};
-	$dbiflags->{PrintError} = 0;
-	$dbiflags->{RaiseError} = 0;
+	$temp_flags->{PrintError} = 0;
+	$temp_flags->{RaiseError} = 0;
 
 	if ( $opt->{cached} ) {
-		$dbh = DBI->connect_cached( $dbstr, $user, $pass, $dbiflags );
+		$dbh = DBI->connect_cached( $dbstr, $user, $pass, $temp_flags );
 	} else {
-		$dbh = DBI->connect( $dbstr, $user, $pass, $dbiflags );
+		$dbh = DBI->connect( $dbstr, $user, $pass, $temp_flags );
 	}
 
 	$dbh->{PrintError} = $print_error if $dbh;
