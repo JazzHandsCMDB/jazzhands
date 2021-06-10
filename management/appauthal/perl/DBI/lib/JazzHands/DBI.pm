@@ -135,7 +135,7 @@ use JazzHands::Common qw(:all);
 use DBI;
 use FileHandle;
 use Data::Dumper;
-
+use Storable qw(dclone);
 use parent 'JazzHands::Common';
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
@@ -349,7 +349,7 @@ sub build_and_connect($$) {
 	my ( $opt, $auth ) = @_;
 
 	my $errors   = $opt->{errors};
-	my $dbiflags = $opt->{dbiflags};
+	my $dbiflags = dclone($opt->{dbiflags});
 	my $override = $opt->{override};
 	my $app      = $opt->{application};
 	my $dbdmap   = $opt->{_dbdmap};
