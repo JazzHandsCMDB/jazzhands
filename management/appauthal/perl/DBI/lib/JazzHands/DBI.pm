@@ -348,7 +348,7 @@ sub connect_cached {
 sub build_and_connect($$) {
 	my ( $opt, $auth ) = @_;
 
-	my $errors   = $opt->{dbiflags};
+	my $errors   = $opt->{errors};
 	my $dbiflags = $opt->{dbiflags};
 	my $override = $opt->{override};
 	my $app      = $opt->{application};
@@ -537,7 +537,6 @@ sub do_database_connect {
 
 		my $cached_args = {
 			options  => $record->{options},
-			errors   => $errors,
 			errors   => $errors,
 		};
 
