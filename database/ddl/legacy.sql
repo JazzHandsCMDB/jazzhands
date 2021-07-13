@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Todd Kover
+ * Copyright (c) 2019-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1610,7 +1610,7 @@ SELECT
 	property_value_json,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_sw_package_id,
+	NULL::integer AS property_value_sw_package_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
 	start_date,
@@ -1920,8 +1920,12 @@ FROM jazzhands.service_environment_collection_service_environment;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.sw_package AS
-SELECT sw_package_id,sw_package_name,sw_package_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.sw_package;
+SELECT software_artifact_name_id AS sw_package_id,
+	software_artifact_name sw_package_name,
+	software_artifact_type sw_package_type,
+	description,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.software_artifact_name;
 
 
 
@@ -2905,7 +2909,7 @@ SELECT
 	property_value_json,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_sw_package_id,
+	NULL::integer AS property_value_sw_package_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
 	start_date,
@@ -3299,10 +3303,13 @@ SELECT
 FROM jazzhands.val_device_collection_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_device_mgmt_ctrl_type AS
-SELECT device_mgmt_control_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT device_management_controller_type AS device_mgmt_control_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.val_device_management_controller_type;
-
-
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_device_status AS
 SELECT device_status,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
@@ -3819,7 +3826,7 @@ SELECT
 	permit_operating_system_id,
 	permit_operating_system_snapshot_id AS permit_os_snapshot_id,
 	permit_property_name_collection_id AS permit_property_collection_id,
-	permit_service_environment_collection AS permit_service_env_collection,
+	permit_service_environment_collection_id AS permit_service_env_collection,
 	permit_site_code,
 	permit_x509_signed_certificate_id AS permit_x509_signed_cert_id,
 	permit_property_rank,
@@ -3967,8 +3974,10 @@ FROM jazzhands.val_ssh_key_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_sw_package_type AS
-SELECT sw_package_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_sw_package_type;
+SELECT software_artifact_type AS sw_package_type,
+	description,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.val_software_artifact_type;
 
 
 
@@ -10397,8 +10406,9 @@ BEGIN
 	END IF;
 
 	IF NEW.property_value_sw_package_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('property_value_sw_package_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.property_value_sw_package_id));
+		RAISE EXCEPTION 'property_value_sw_package_id can not be set'
+			USING ERRCODE = invalid_parameter_value,
+			HINT = 'sw_package become software_artifacts and were dropped from property in 0.91';
 	END IF;
 
 	IF NEW.property_value_token_col_id IS NOT NULL THEN
@@ -10466,7 +10476,7 @@ BEGIN
 	NEW.property_value_json = _nr.property_value_json;
 	NEW.property_value_nblk_coll_id = _nr.property_value_netblock_collection_id;
 	NEW.property_value_password_type = _nr.property_value_password_type;
-	NEW.property_value_sw_package_id = _nr.property_value_sw_package_id;
+	NEW.property_value_sw_package_id = NULL;
 	NEW.property_value_token_col_id = _nr.property_value_token_collection_id;
 	NEW.property_rank = _nr.property_rank;
 	NEW.start_date = _nr.start_date;
@@ -10624,7 +10634,9 @@ _uq := array_append(_uq, 'property_value_password_type = ' || quote_nullable(NEW
 	END IF;
 
 	IF OLD.property_value_sw_package_id IS DISTINCT FROM NEW.property_value_sw_package_id THEN
-_uq := array_append(_uq, 'property_value_sw_package_id = ' || quote_nullable(NEW.property_value_sw_package_id));
+		RAISE EXCEPTION 'property_value_sw_package_id can not be set'
+			USING ERRCODE = invalid_parameter_value,
+			HINT = 'sw_package become software_artifacts and were dropped from property in 0.91';
 	END IF;
 
 	IF OLD.property_value_token_col_id IS DISTINCT FROM NEW.property_value_token_col_id THEN
@@ -10695,7 +10707,7 @@ END IF;
 		NEW.property_value_json = _nr.property_value_json;
 		NEW.property_value_nblk_coll_id = _nr.property_value_netblock_collection_id;
 		NEW.property_value_password_type = _nr.property_value_password_type;
-		NEW.property_value_sw_package_id = _nr.property_value_sw_package_id;
+		NEW.property_value_sw_package_id = NULL;
 		NEW.property_value_token_col_id = _nr.property_value_token_collection_id;
 		NEW.property_rank = _nr.property_rank;
 		NEW.start_date = _nr.start_date;
@@ -10770,7 +10782,7 @@ BEGIN
 	OLD.property_value_json = _or.property_value_json;
 	OLD.property_value_nblk_coll_id = _or.property_value_netblock_collection_id;
 	OLD.property_value_password_type = _or.property_value_password_type;
-	OLD.property_value_sw_package_id = _or.property_value_sw_package_id;
+	OLD.property_value_sw_package_id = NULL;
 	OLD.property_value_token_col_id = _or.property_value_token_collection_id;
 	OLD.property_rank = _or.property_rank;
 	OLD.start_date = _or.start_date;
@@ -16089,7 +16101,7 @@ BEGIN
 	END IF;
 
 	IF NEW.permit_service_env_collection IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('permit_service_environment_collection'));
+		_cq := array_append(_cq, quote_ident('permit_service_environment_collection_id'));
 		_vq := array_append(_vq, quote_nullable(NEW.permit_service_env_collection));
 	END IF;
 
@@ -16147,7 +16159,7 @@ BEGIN
 	NEW.permit_operating_system_id = _nr.permit_operating_system_id;
 	NEW.permit_os_snapshot_id = _nr.permit_operating_system_snapshot_id;
 	NEW.permit_property_collection_id = _nr.permit_property_name_collection_id;
-	NEW.permit_service_env_collection = _nr.permit_service_environment_collection;
+	NEW.permit_service_env_collection = _nr.permit_service_environment_collection_id;
 	NEW.permit_site_code = _nr.permit_site_code;
 	NEW.permit_x509_signed_cert_id = _nr.permit_x509_signed_certificate_id;
 	NEW.permit_property_rank = _nr.permit_property_rank;
@@ -16253,7 +16265,7 @@ _uq := array_append(_uq, 'property_value_netblock_collection_type_restriction = 
 	END IF;
 
 	IF OLD.property_data_type IS DISTINCT FROM NEW.property_data_type THEN
-_uq := array_append(_uq, 'property_data_type = ' || quote_nullable(NEW.property_data_type));
+		_uq := array_append(_uq, 'property_data_type = ' || quote_nullable(NEW.property_data_type));
 	END IF;
 
 	IF OLD.property_value_json_schema IS DISTINCT FROM NEW.property_value_json_schema THEN
@@ -16317,7 +16329,7 @@ _uq := array_append(_uq, 'permit_property_name_collection_id = ' || quote_nullab
 	END IF;
 
 	IF OLD.permit_service_env_collection IS DISTINCT FROM NEW.permit_service_env_collection THEN
-_uq := array_append(_uq, 'permit_service_environment_collection = ' || quote_nullable(NEW.permit_service_env_collection));
+_uq := array_append(_uq, 'permit_service_environment_collection_id = ' || quote_nullable(NEW.permit_service_env_collection));
 	END IF;
 
 	IF OLD.permit_site_code IS DISTINCT FROM NEW.permit_site_code THEN
@@ -16371,7 +16383,7 @@ _uq := array_append(_uq, 'permit_property_rank = ' || quote_nullable(NEW.permit_
 		NEW.permit_operating_system_id = _nr.permit_operating_system_id;
 		NEW.permit_os_snapshot_id = _nr.permit_operating_system_snapshot_id;
 		NEW.permit_property_collection_id = _nr.permit_property_name_collection_id;
-		NEW.permit_service_env_collection = _nr.permit_service_environment_collection;
+		NEW.permit_service_env_collection = _nr.permit_service_environment_collection_id;
 		NEW.permit_site_code = _nr.permit_site_code;
 		NEW.permit_x509_signed_cert_id = _nr.permit_x509_signed_certificate_id;
 		NEW.permit_property_rank = _nr.permit_property_rank;
@@ -16436,7 +16448,7 @@ BEGIN
 	OLD.permit_operating_system_id = _or.permit_operating_system_id;
 	OLD.permit_os_snapshot_id = _or.permit_operating_system_snapshot_id;
 	OLD.permit_property_collection_id = _or.permit_property_name_collection_id;
-	OLD.permit_service_env_collection = _or.permit_service_environment_collection;
+	OLD.permit_service_env_collection = _or.permit_service_environment_collection_id;
 	OLD.permit_site_code = _or.permit_site_code;
 	OLD.permit_x509_signed_cert_id = _or.permit_x509_signed_certificate_id;
 	OLD.permit_property_rank = _or.permit_property_rank;

@@ -20,7 +20,7 @@
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
--- Copyright (c) 2010-2019, Todd M. Kover
+-- Copyright (c) 2010-2021, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -498,7 +498,7 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values
 	('netblock_collection_id'),
 	('password_type'),
 	('private_key_id'),
-	('sw_package_id'),
+	('software_version_collection_id'),
 	('timestamp'),
 	('token_collection_id');
 
@@ -2163,5 +2163,187 @@ FROM x;
 --
 -- End requirements for attestation subsystem
 --
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+--
+-- BEGIN Services
+--
+-------------------------------------------------------------------------
+
+INSERT INTO val_service_type (service_type)
+VALUES
+	('network'),
+	('socket');
+
+
+INSERT INTO service_sla (
+	service_sla_name, service_availability
+) VALUES (
+	'always', 100
+);
+
+
+INSERT INTO  val_service_affinity
+(service_affinity, service_affinity_rank)
+VALUES
+	('device', 100),
+	('parent_device', 200),
+	('rack', 300),
+	('rack_row', 400),
+	('site', 500)
+;
+
+INSERT INTO service_sla (
+	service_sla_name, minimum_service_affinity, maximum_service_affinity
+) VALUES
+	('same-site', 'site', 'site'),
+	('same-parent', 'parent_device', 'parent_device'),
+	('same-device', 'device', 'device')
+;
+
+-- XXX - these need to be rethunk for health checks
+INSERT INTO protocol (
+	protocol, protocol_number
+) VALUES
+	('none', 0),
+	('tcpconnect', 0),
+	('ssl', 0),
+	('tcp', 6),
+	('udp', 17)
+;
+
+INSERT INTO val_port_range_type (
+	port_range_type, protocol, range_permitted
+) VALUES
+	('services', 'tcp', false),
+	('services', 'udp', false),
+	('localservices', 'tcp', false),
+	('localservices', 'udp', false)
+;
+
+INSERT INTO port_range (
+	port_range_name, protocol, port_range_type,
+	port_start, port_end, is_singleton
+) VALUES
+	('postgresql', 'tcp', 'services', 5432, 5432, true),
+	('http', 'tcp', 'services', 80, 80, true),
+	('https', 'tcp', 'services', 443, 443, true),
+	('domain', 'tcp', 'services', 53, 53, true),
+	('domain', 'udp', 'services', 53, 53, true)
+;
+
+
+INSERT INTO val_service_feature (
+	service_feature
+) values
+	('read'),
+	('write')
+;
+
+INSERT INTO  val_source_repository_method
+(source_repository_method)
+VALUES
+	('git'),
+	('svn'),
+	('cvs'),
+	('mercurial')
+;
+
+INSERT INTO  val_source_repository_url_purpose
+	(source_repository_url_purpose)
+VALUES
+	('checkout'),
+	('browse')
+;
+
+
+INSERT INTO val_property_type ( property_type)
+VALUES
+	('launch'),
+	('documentation');
+
+INSERT INTO val_property (
+	property_type, property_name,
+	permit_service_version_collection_id, property_data_type, is_multivalue
+) VALUES
+	('launch', 'location', 'REQUIRED', 'list', true),
+	('launch', 'dedicated', 'REQUIRED', 'boolean', false),
+	('launch', 'minimum_cpu', 'REQUIRED', 'number', false),
+	('launch', 'minimum_memory', 'REQUIRED', 'number', false),
+	('launch', 'minimum_disk', 'REQUIRED', 'number', false),
+	('documentation', 'manual', 'REQUIRED', 'string', false)
+;
+
+INSERT INTO val_property_value (
+	property_type, property_name, valid_property_value
+) VALUES
+	('launch', 'location', 'baremetal'),
+	('launch', 'location', 'virtual-machine')
+;
+
+INSERT INTO val_property (
+	property_type, property_name,
+	permit_service_version_collection_id, permit_netblock_collection_id, property_data_type
+) VALUES
+	('launch', 'launch-netblocks', 'REQUIRED', 'REQUIRED', 'none')
+;
+
+
+INSERT INTO val_property_type ( property_type)
+VALUES
+	('role');
+
+--
+-- this should probably trigger automated account collections
+-- somehow
+--
+INSERT INTO val_property (
+	property_type, property_name,
+	permit_service_version_collection_id, property_data_type
+) VALUES
+	('role', 'owner', 'REQUIRED', 'account_collection_id'),
+	('role', 'admin', 'REQUIRED', 'account_collection_id'),
+	('role', 'iud_role', 'REQUIRED', 'account_collection_id'),
+	('role', 'ro_role', 'REQUIRED', 'account_collection_id'),
+	('role', 'log_watcher', 'REQUIRED', 'account_collection_id')
+;
+
+INSERT INTO  val_service_endpoint_provider_type
+(service_endpoint_provider_type, proxies_connections, translates_addresses)
+VALUES
+	('direct', false, false),
+	('loadbalancer', true, false),
+	('ecmp', false, false)
+;
+
+INSERT INTO  val_service_endpoint_provider_collection_type
+(service_endpoint_provider_collection_type, max_num_members, can_have_hierarchy)
+VALUES
+	('per-service-endpoint-provider', 1, false)
+;
+
+INSERT INTO  val_service_version_collection_type
+(service_version_collection_type, max_num_members, can_have_hierarchy)
+VALUES
+	('current-services', NULL, false),
+	('all-services', NULL, false)
+;
+
+INSERT INTO val_checksum_algorithm (
+	checksum_algorithm
+) VALUES (
+	'none'
+);
+
+INSERT INTO val_software_artifact_relationship (
+	software_artifact_relationship
+) VALUES (
+	'depend'
+);
+
+-------------------------------------------------------------------------
+--
+-- END Services
 --
 -------------------------------------------------------------------------

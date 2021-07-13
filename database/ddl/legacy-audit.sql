@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2019-2021 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 \set ON_ERROR_STOP
 CREATE SCHEMA audit;
 
@@ -1636,7 +1653,7 @@ SELECT
 	"property_value_json",
 	"property_value_netblock_collection_id" AS property_value_nblk_coll_id,
 	"property_value_password_type",
-	"property_value_sw_package_id",
+	NULL::integer AS property_value_sw_package_id,
 	"property_value_token_collection_id" AS property_value_token_col_id,
 	"property_rank",
 	"start_date",
@@ -2021,9 +2038,15 @@ FROM jazzhands_audit.service_environment_collection_service_environment;
 
 
 
+
 CREATE OR REPLACE VIEW audit.sw_package AS
-SELECT "sw_package_id","sw_package_name","sw_package_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.sw_package;
+SELECT software_artifact_name_id AS sw_package_id,
+       software_artifact_name sw_package_name,
+       software_artifact_type sw_package_type,
+       description,
+       data_ins_user,data_ins_date,data_upd_user,data_upd_date,
+	"aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+FROM jazzhands_audit.software_artifact_name;
 
 
 
@@ -2443,7 +2466,11 @@ FROM jazzhands_audit.val_device_collection_type;
 
 
 CREATE OR REPLACE VIEW audit.val_device_mgmt_ctrl_type AS
-SELECT "device_mgmt_control_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+SELECT device_management_controller_type AS device_mgmt_control_type,
+	"description",
+	"data_ins_user","data_ins_date","data_upd_user","data_upd_date",
+	"aud#action","aud#timestamp","aud#realtime","aud#txid",
+	"aud#user","aud#seq"
 FROM jazzhands_audit.val_device_management_controller_type;
 
 
@@ -3042,7 +3069,7 @@ SELECT
 	"permit_operating_system_id",
 	"permit_operating_system_snapshot_id" AS permit_os_snapshot_id,
 	"permit_property_name_collection_id" AS permit_property_collection_id,
-	"permit_service_environment_collection" AS permit_service_env_collection,
+	"permit_service_environment_collection_id" AS permit_service_env_collection,
 	"permit_site_code",
 	"permit_x509_signed_certificate_id" AS permit_x509_signed_cert_id,
 	"permit_property_rank",
@@ -3206,8 +3233,11 @@ FROM jazzhands_audit.val_ssh_key_type;
 
 
 CREATE OR REPLACE VIEW audit.val_sw_package_type AS
-SELECT "sw_package_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_sw_package_type;
+SELECT software_artifact_type AS sw_package_type,
+	description,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date,
+	"aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+FROM jazzhands_audit.val_software_artifact_type;
 
 
 

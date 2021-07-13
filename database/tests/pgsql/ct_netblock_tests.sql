@@ -29,6 +29,9 @@ set client_min_messages to 'debug';
 --
 -- Trigger tests
 --
+-- Use of former class e aka 240/4 because they should not be in use anywhere
+-- and rfc1918 space is in ip universe zero already
+--
 CREATE OR REPLACE FUNCTION ct_netblock_hier_cache_tests() RETURNS BOOLEAN AS $$
 DECLARE
 	_nb1	netblock%ROWTYPE;
@@ -61,7 +64,7 @@ BEGIN
 		INSERT INTO netblock (
 			ip_address, netblock_status, can_subnet, is_single_address
 		) VALUES (
-			'172.30.0.0/24', 'Allocated', false, false
+			'240.30.0.0/24', 'Allocated', false, false
 		);
 		-- RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
 		RAISE EXCEPTIOn 'ok.' USING ERRCODE = 'JH999';
@@ -69,11 +72,11 @@ BEGIN
 		RAISE NOTICE '.... it did! (%)', SQLERRM;
 	END;
 
-	RAISE NOTICE '++ Inserting testing data - 172.30.0.0/16';
+	RAISE NOTICE '++ Inserting testing data - 240.30.0.0/16';
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.0.0/16', 'Allocated', true, false
+		'240.30.0.0/16', 'Allocated', true, false
 	) RETURNING * INTO _nb1;
 
 	PERFORM schema_support.relation_diff(
@@ -83,11 +86,11 @@ BEGIN
 		prikeys := ARRAY['path']
 	);
 
-	RAISE NOTICE '++ Inserting testing data - 172.30.0.0/15';
+	RAISE NOTICE '++ Inserting testing data - 240.30.0.0/15';
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.0.0/15', 'Allocated', true, false
+		'240.30.0.0/15', 'Allocated', true, false
 	) RETURNING * INTO _nb2;
 
 	PERFORM schema_support.relation_diff(
@@ -100,7 +103,7 @@ BEGIN
 			-- these two were part of a failure scenario but
 			-- stopped
 			-- '172.31.0.0/16',
-			-- '172.30.43.0/24'
+			-- '240.30.43.0/24'
 
 	RAISE NOTICE '++ Inserting random siblings...';
 	INSERT INTO netblock (
@@ -131,11 +134,11 @@ BEGIN
 	);
 
 
-	RAISE NOTICE '++ Inserting testing data - 172.30.42.0/24';
+	RAISE NOTICE '++ Inserting testing data - 240.30.42.0/24';
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.42.0/24', 'Allocated', false, false
+		'240.30.42.0/24', 'Allocated', false, false
 	) RETURNING * INTO _nb3;
 
 	PERFORM schema_support.relation_diff(
@@ -162,11 +165,11 @@ BEGIN
 		RAISE NOTICE '.... it did! (%)', SQLERRM;
 	END;
 
-	RAISE NOTICE '++ Inserting testing data - 172.30.42.5/24 addr';
+	RAISE NOTICE '++ Inserting testing data - 240.30.42.5/24 addr';
 	INSERT INTO netblock (
 		ip_address, netblock_status, can_subnet, is_single_address
 	) VALUES (
-		'172.30.42.5/24', 'Allocated', false,  true
+		'240.30.42.5/24', 'Allocated', false,  true
 	) RETURNING * INTO _nb4;
 	PERFORM schema_support.relation_diff(
 		schema := 'jazzhands_cache',

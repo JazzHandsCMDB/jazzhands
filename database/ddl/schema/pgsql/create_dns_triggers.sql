@@ -423,7 +423,6 @@ BEGIN
 				AND ( db.dns_domain_id = NEW.dns_domain_id )
 				AND ( db.dns_class = NEW.dns_class )
 				AND ( db.dns_type = NEW.dns_type )
-				AND db.dns_record_id != NEW.dns_record_id
 				AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
 				AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
 				AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port

@@ -50,6 +50,8 @@
 -- \ir global_types.sql
 -- \ir global_util.sql
 
+\ir versioning_utils.sql
+
 -- \ir system_user_util.sql
 \ir obfuscation_utils.sql
 \ir person_manip.sql
