@@ -305,7 +305,7 @@ if (@{$devlist->{fail}}) {
 	}
 }
 
-foreach my $devrec (@$devlist->{success}) {
+foreach my $devrec (@{$devlist->{success}}) {
 	my $device = $devrec->{device_handle};
 	if ($notreally) {
 		printf "Rolling back change to %s\n", $devrec->{device_name};
