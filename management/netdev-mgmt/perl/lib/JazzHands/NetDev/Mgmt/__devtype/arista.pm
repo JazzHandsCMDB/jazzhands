@@ -754,6 +754,7 @@ sub SetBGPPeerStatus {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+	my @errors;
 
 	if (!$opt->{bgp_peer}) {
 		SetError($err,
@@ -799,6 +800,21 @@ sub SetBGPPeerStatus {
 	if ($opt->{debug}) {
 		$debug = 1;
 	}
+
+	my $chassisinfo;
+	if (!($chassisinfo = $self->GetChassisInfo (
+			errors => \@errors,
+			))) {
+		SetError($err,
+			sprintf("Error retrieving chassis info for %s: %s\n",
+				$device->{hostname},
+				(join("\n", @errors))
+			)
+		);
+		return undef;
+	}
+
+	my ($major, $minor, $patch) = split /\./, $chassisinfo->{software_version}, 3;
 
 	#
 	# Validate that this is a valid BGP peer for the device
@@ -897,8 +913,13 @@ sub SetBGPPeerStatus {
 					$device->{hostname}));
 				return undef;
 			}
-			push @{$commands}, 'neighbor ' . $bgp_peer .
-				' peer-group ' . $opt->{bgp_peer_group};
+			if ($major >= 4 && $minor >= 23) {
+				push @{$commands}, 'neighbor ' . $bgp_peer .
+					' peer group ' . $opt->{bgp_peer_group};
+			} else {
+				push @{$commands}, 'neighbor ' . $bgp_peer .
+					' peer-group ' . $opt->{bgp_peer_group};
+			}
 		}
 		push @{$commands},
 			'no neighbor ' . $bgp_peer . ' shutdown';
