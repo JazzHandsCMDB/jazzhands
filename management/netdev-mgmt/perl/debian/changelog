@@ -1,3 +1,10 @@
+jazzhands-perl-netdev-mgmt (0.91.1) unstable; urgency=low
+
+  * Support for SetBGPPeer for Arista EOS versions >= 4.23 
+	(patch from dmitry-112)
+
+ -- Matthew Ragan <mdr@sucksless.net>  Fri, 30 Jul 2021 19:29:51 +0000
+
 jazzhands-perl-netdev-mgmt (0.90.1) unstable; urgency=low
 
   * fix issue with perl warnings
