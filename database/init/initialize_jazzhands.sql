@@ -1793,6 +1793,11 @@ INSERT INTO val_property (
 -------------------------------------------------------------------------
 -- BEGIN certificate
 
+insert into val_encryption_key_purpose
+	(encryption_key_purpose, encryption_key_purpose_version, description)
+values
+	('certpassphrase', 1, 'SSL Crtificates Key Passphrase');
+
 insert into val_x509_certificate_file_format
 	(x509_certificate_file_format, description)
 values
