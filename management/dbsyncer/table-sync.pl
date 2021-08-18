@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2016-2017, Todd M. Kover
+# Copyright (c) 2016-2021, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,6 +86,9 @@ sub new {
 	$self->{_dryrun}        = $dryrun;
 	$self->{_force}         = $force;
 
+	# default
+	$self->{_schemasync} = 1;
+
 	$self->{_dbh} = $dbh;
 	$self;
 }
@@ -98,6 +101,11 @@ sub dryrun {
 sub force {
 	my $self = shift @_;
 	$self->{_force} = shift;
+}
+
+sub schemasync {
+	my $self = shift @_;
+	$self->{_schemasync} = shift;
 }
 
 sub finish {
@@ -188,7 +196,7 @@ sub check_if_refresh_needed {
 	$self->_Debug(
 		6, "+ %s: Compare up:%s v local:%s [%d]",
 		$object,
-		($whence)   ? $whence   : "-",
+		($whence) ? $whence : "-",
 		($lcwhence) ? $lcwhence : "-", $refresh
 	);
 	if ($refresh) {
@@ -367,7 +375,7 @@ sub get_search_path($) {
 	my @search;
 	if ( $dbh->{Driver}->{Name} eq 'Pg' ) {
 		my $sth = $dbh->prepare("show search_path") || die $dbh->errstr;
-		$sth->execute || die $sth->errstr;
+		$sth->execute                               || die $sth->errstr;
 		while ( my ($e) = $sth->fetchrow_array ) {
 			foreach my $s ( split( /,/, $e ) ) {
 				$s =~ s/^\s*//;
@@ -511,15 +519,17 @@ sub copy_table($$$;$) {
 	# Arguably, this can all be smarter about transactions, since the
 	# current approach blocks the db for the entire sync cycle on
 	# impacted rows.
-	if ( !$self->table_identical( $fromh, $table ) ) {
-		if ( $self->table_exists($table) ) {
-			$self->drop_table($table);
-			$self->_Debug( 3, "Table structure mismatch, dropping %s", $table );
+	if ( $self->{_schemasync} ) {
+		if ( !$self->table_identical( $fromh, $table ) ) {
+			if ( $self->table_exists($table) ) {
+				$self->drop_table($table);
+				$self->_Debug( 3, "Table structure mismatch, dropping %s",
+					$table );
+			}
+			$self->_Debug( 2, "Creating table %s", $table );
+			$self->mktable( $fromh, $table, $pk );
 		}
-		$self->_Debug( 2, "Creating table %s", $table );
-		$self->mktable( $fromh, $table, $pk );
 	}
-
 	if ( !$pk ) {
 		my @pk;
 		@pk = $fromh->get_primary_key($table);
@@ -777,7 +787,7 @@ sub sync_dbs {
 						"WARNING: %s changed, but should not %s %s",
 						$table,
 						$mylastchange || '-',
-						$saveupts || '-'
+						$saveupts     || '-'
 					);
 				}
 			}
@@ -813,7 +823,7 @@ table-sync - Keeps a local database in sync with a remote one
 
 =head1 SYNOPSIS
 
-	table-sync [ --no-daemonize ] [ --dry-run ] [ --force ][ --loop ] [ --debug ... ] --config /path/to/config [ object ... ]
+	table-sync [ --no-daemonize ] [ --dry-run ] [ --sync-schema ] [ --force ] [ --loop ] [ --debug ... ] --config /path/to/config [ object ... ]
  
 =head1 DESCRIPTION
 
@@ -823,6 +833,11 @@ based on a JSON config file.
 
 Primary keys are determined if possible, it is also possible to set them,
 which is usually necessary for views.
+
+Each attempt at syncronization will check the database structure on both sides
+and reset the destination to match if it does not.   The --no-sync-schema
+option can be used to skip this step if needed.   This may cause unexpected
+behavior if they fall out of sync.
 
 It is also possible to set the sync to run sql on the upstream database
 if they are different and re-comparing.  This allows having a locally
@@ -958,18 +973,21 @@ if ( my $bn = ( File::Spec->splitpath($0) )[2] ) {
 	openlog( $bn, 'pid', LOG_DAEMON );
 }
 
-my ( $daemonize, $loop, $cfgname, $debug, @listen, $dryrun, $force );
+my ( $daemonize, $loop, $cfgname, $debug, @listen, $dryrun, $force,
+	$schemasync );
 
 # default to not loop
-$loop = 0;
+$loop       = 0;
+$schemasync = 1;
 
 GetOptions(
-	"config=s"   => \$cfgname,
-	"daemonize!" => \$daemonize,
-	"force!"     => \$force,
-	"dry-run|n!" => \$dryrun,
-	"loop=i"     => \$loop,
-	"debug+"     => \$debug,
+	"config=s"     => \$cfgname,
+	"sync-schema!" => \$schemasync,
+	"daemonize!"   => \$daemonize,
+	"force!"       => \$force,
+	"dry-run|n!"   => \$dryrun,
+	"loop=i"       => \$loop,
+	"debug+"       => \$debug,
 ) || die pod2usage();
 
 #
@@ -1006,6 +1024,9 @@ my $down = new DBThing( service => $config->{to} )   || die $DBThing::errstr;
 
 $up->dryrun($dryrun)   if ($dryrun);
 $down->dryrun($dryrun) if ($dryrun);
+
+$up->schemasync($schemasync);
+$down->schemasync($schemasync);
 
 $down->force($force) if ($force);
 
