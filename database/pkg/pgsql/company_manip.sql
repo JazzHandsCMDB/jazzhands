@@ -182,14 +182,14 @@ DECLARE
 BEGIN
 	PERFORM *
 	FROM	account_realm_company arc
-	WHERE	company_id = _company_id
+	WHERE	arc.company_id = add_auto_collections_site.company_id
 	AND		arc.account_realm_id = add_auto_collections_site.account_realm_id;
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Company and Account Realm are not associated together'
 			USING ERRCODE = 'not_null_violation';
 	END IF;
 
-	acname := concat(_ar, '_', _site_code);
+	acname := concat(_ar, '_', site_code);
 
 	INSERT INTO account_collection (
 		account_collection_name, account_collection_type
