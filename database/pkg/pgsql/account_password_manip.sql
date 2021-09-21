@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Todd Kover
+ * Copyright (c) 2020-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,25 @@ BEGIN
 	END IF;
 END;
 $$;
+
+--------------------------------------------------------------------------------
+--
+-- lock an account for future processing.
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_password_manip.lock_account_passwords (
+	account_id			INTEGER
+) RETURNS void AS $$
+BEGIN
+	PERFORM *
+	FROM account_password ap
+	WHERE ap.account_Id = lock_account_passwords.account_id
+	FOR UPDATE;
+END;
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER;
 
 --------------------------------------------------------------------------------
 --
