@@ -717,7 +717,7 @@ FROM jazzhands_audit.device_management_controller;
 
 
 CREATE OR REPLACE VIEW audit.device_note AS
-SELECT "note_id","device_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+SELECT device_note_id AS note_id,"device_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.device_note;
 
 
@@ -1546,7 +1546,7 @@ FROM jazzhands_audit.person_location;
 
 
 CREATE OR REPLACE VIEW audit.person_note AS
-SELECT "note_id","person_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+SELECT person_note_id AS note_id,"person_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.person_note;
 
 
@@ -2842,14 +2842,6 @@ FROM jazzhands_audit.val_operating_system_snapshot_type;
 CREATE OR REPLACE VIEW audit.val_ownership_status AS
 SELECT "ownership_status","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.val_ownership_status;
-
-
-
-CREATE OR REPLACE VIEW audit.val_package_relation_type AS
-SELECT "package_relation_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_package_relation_type;
-
-
 
 CREATE OR REPLACE VIEW audit.val_password_type AS
 SELECT "password_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"

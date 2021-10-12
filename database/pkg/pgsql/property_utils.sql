@@ -665,15 +665,15 @@ BEGIN
 	-- If the RHS contains a netblock_collection_ID, check to see if it must be a
 	-- specific type and verify that if so
 	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
-		IF v_prop.property_value_account_collection_type_restriction IS NOT NULL THEN
+		IF v_prop.property_value_netblock_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_netblock_collection
 					FROM netblock_collection WHERE
 					netblock_collection_Id = NEW.Property_Value_netblock_collection_Id;
-				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_account_collection_type_restriction
+				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_netblock_collection_type_restriction
 				THEN
 					RAISE 'Property_Value_netblock_collection_Id must be of type %',
-					v_prop.property_value_account_collection_type_restriction
+					v_prop.property_value_netbloc_collection_type_restriction
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION

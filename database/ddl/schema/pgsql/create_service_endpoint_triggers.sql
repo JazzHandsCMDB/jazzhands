@@ -15,27 +15,37 @@
  * limitations under the License.
  */
 
-CREATE OR REPLACE FUNCTION propagate_service_type_to_version()
+--
+-- service_endpoint_uri_fragment can be a the path to a file.
+-- This may be problematic since it requires URI escaping but I was not sure
+-- if that belonged in a new column or not.
+--
+CREATE OR REPLACE FUNCTION validate_service_endpoint_fksets()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.service_type IS NULL THEN
-		SELECT service_type
-		INTO NEW.service_type
-		FROM service
-		WHERE service_id = NEW.service_id;
+	IF NEW.dns_record_id IS NOT NULL
+		OR NEW.port_range_id IS NOT NULL
+	THEN
+		IF NEW.dns_record_id IS NULL
+			OR NEW.port_range_id IS NULL
+		THEN
+			RAISE EXCEPTION 'both dns_record_id and port_range_id must be set'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
 	END IF;
+
 	RETURN NEW;
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_propagate_service_type_to_version
-	ON service_version;
-CREATE TRIGGER trigger_propagate_service_type_to_version
-	BEFORE INSERT
-	ON service_version
+DROP TRIGGER IF EXISTS trigger_validate_service_endpoint_fksets
+	ON service_endpoint;
+CREATE CONSTRAINT TRIGGER trigger_validate_service_endpoint_fksets
+	AFTER INSERT OR UPDATE OF dns_record_id, port_range_id
+	ON service_endpoint
 	FOR EACH ROW
-	EXECUTE PROCEDURE propagate_service_type_to_version();
+	EXECUTE PROCEDURE validate_service_endpoint_fksets();
 
 -----------------------------------------------------------------------------

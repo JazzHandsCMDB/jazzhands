@@ -21,7 +21,7 @@
 \t on
 SAVEPOINT source_repository_regression;
 
-\ir ../../ddl/schema/pgsql/create_base_service_triggers.sql
+\ir ../../ddl/schema/pgsql/create_service_base_triggers.sql
 \ir ../../ddl/schema/pgsql/create_service_source_repository_triggers.sql
 
 SAVEPOINT pretest;
@@ -35,10 +35,11 @@ DECLARE
 	_r		RECORD;
 	_d		RECORD;
 	_s		service%ROWTYPE;
-	_sr		source_repository%ROWTYPE;
+	_srp	source_repository_provider%ROWTYPE;
+	_srprj	source_repository_project%ROWTYPE;
 	_se		service_endpoint%ROWTYPE;
-	_srl1	source_repository_location%ROWTYPE;
-	_srl2	source_repository_location%ROWTYPE;
+	_sr1	source_repository%ROWTYPE;
+	_sr2	source_repository%ROWTYPE;
 BEGIN
 	RAISE NOTICE 'source_repository_regression: Begin';
 
@@ -48,47 +49,61 @@ BEGIN
 
 	INSERT INTO service (service_name, service_type) VALUES ('jhtest', 'jhtest') RETURNING * INTO _s;
 
-	INSERT INTO service_endpoint ( service_id, service_endpoint_uri )
-		VALUES (_s.service_id, 'https://example.org/api/v1/')
+	INSERT INTO service_endpoint ( service_id )
+		VALUES (_s.service_id )
 		RETURNING * INTO _se;
 
 	INSERT INTO val_service_source_control_purpose
-		( service_source_control_purpose ) VALUES ('jhtest');
+		( service_source_control_purpose ) VALUES ('jhtest-checkout');
 
-	INSERT INTO val_source_repository_url_purpose
-		( source_repository_url_purpose ) VALUES ('jhtest');
+	INSERT INTO val_source_repository_uri_purpose
+		( source_repository_uri_purpose ) VALUES ('build-jhtest');
 
 	INSERT INTO val_source_repository_method
-		( source_repository_method ) VALUES ('jhtest');
+		( source_repository_method ) VALUES ('git-jhtest');
 
-	INSERT INTO source_repository
-		( source_repository_name, source_repository_method )
+	INSERT INTO source_repository_provider
+		( source_repository_provider_name, source_repository_method )
 		VALUES
-		( 'jhtest', 'jhtest') RETURNING * INTO _sr;
+		( 'jhtest', 'git-jhtest') RETURNING * INTO _srp;
 
-	INSERT INTO  source_repository_location (
-		source_repository_id, service_source_control_purpose,
-		service_source_repository_path
+	INSERT INTO source_repository_project (
+		source_repository_project_name, source_repository_provider_id
 	) VALUES (
-		_sr.source_repository_id, 'jhtest',
-		'foo/bar/barz.git'
-	) RETURNING * INTO _srl1;
+		'JHPROJ', _srp.source_repository_provider_id
+	) RETURNING * INTO _srprj;
 
-	INSERT INTO  source_repository_location (
-		source_repository_id, service_source_control_purpose,
-		service_source_repository_path
+	INSERT INTO  source_repository (
+		source_repository_provider_id, source_repository_project_id,
+		source_repository_name
 	) VALUES (
-		_sr.source_repository_id, 'jhtest',
-		'foo/bar/ack.git'
-	) RETURNING * INTO _srl2;
+		_srp.source_repository_provider_id, _srprj.source_repository_project_id,
+		'barz'
+	) RETURNING * INTO _sr1;
 
-	RAISE NOTICE 'Checking if not setting endpoint or url fails... ';
+	INSERT INTO  source_repository (
+		source_repository_provider_id, source_repository_project_id,
+		source_repository_name
+	) VALUES (
+		_srp.source_repository_provider_id, _srprj.source_repository_project_id,
+		'ack'
+	) RETURNING * INTO _sr2;
+
+	INSERT INTO val_source_repository_protocol (
+		source_repository_protocol
+	) VALUES (
+		'jhtest-ssh'
+	);
+
+	RAISE NOTICE 'Checking if not setting endpoint or uri fails... ';
 	BEGIN
 		BEGIN
-			INSERT INTO source_repository_url(
-				source_repository_id, source_repository_url_purpose
+			INSERT INTO source_repository_provider_uri_template (
+				source_repository_provider_id, source_repository_uri_purpose,
+				source_repository_protocol, source_repository_template_path_fragment
 			) VALUES (
-				_sr.source_repository_id, 'jhtest'
+				_srp.source_repository_provider_id, 'build-jhtest',
+				'jhtest-ssh', 'ssh://git.thing.com/%{uc_project}/%{repository/'
 			);
 		EXCEPTION WHEN null_value_not_allowed THEN
 			RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
@@ -98,33 +113,17 @@ BEGIN
 		RAISE NOTICE '... It did (%)', SQLERRM;
 	END;
 
-	RAISE NOTICE 'Checking if not setting endpoint and url fails... ';
+	RAISE NOTICE 'Checking if setting both endpoint and uri fails... ';
 	BEGIN
 		BEGIN
-			INSERT INTO source_repository_url(
-				source_repository_id, source_repository_url_purpose,
-				source_repository_url, service_endpoint_id
+			INSERT INTO source_repository_provider_uri_template(
+				source_repository_provider_id, source_repository_uri_purpose,
+				source_repository_template_path_fragment,
+				source_repository_protocol, source_repository_uri, service_endpoint_id
 			) VALUES (
-				_sr.source_repository_id, 'jhtest',
-				'https://example.com/', _se.service_endpoint_id
-			);
-		EXCEPTION WHEN invalid_parameter_value THEN
-			RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
-		END;
-		RAISE EXCEPTION 'Ugh, It worked!';
-	EXCEPTION WHEN SQLSTATE 'JH999' THEN
-		RAISE NOTICE '... It did (%)', SQLERRM;
-	END;
-
-	RAISE NOTICE 'Checking if not setting endpoint and url fails... ';
-	BEGIN
-		BEGIN
-			INSERT INTO source_repository_url(
-				source_repository_id, source_repository_url_purpose,
-				source_repository_url, service_endpoint_id
-			) VALUES (
-				_sr.source_repository_id, 'jhtest',
-				'https://example.com/', _se.service_endpoint_id
+				_srp.source_repository_provider_id, 'build-jhtest',
+				'ssh://git.thing.com/%{uc_project}/%{repository/',
+				'jhtest-ssh', 'https://example.com/', _se.service_endpoint_id
 			);
 		EXCEPTION WHEN invalid_parameter_value THEN
 			RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
@@ -137,15 +136,15 @@ BEGIN
 	RAISE NOTICE 'Checking if multiple primaries fail on INSERT... ';
 	BEGIN
 		INSERT INTO service_source_repository (
-			service_id, source_repository_location_id, is_primary
+			service_id, source_repository_id, service_source_control_purpose, is_primary
 		) VALUES (
-			_s.service_id, _srl1.source_repository_location_id, true
+			_s.service_id, _sr1.source_repository_id, 'jhtest-checkout', true
 		);
 		BEGIN
 			INSERT INTO service_source_repository (
-				service_id, source_repository_location_id, is_primary
+				service_id, source_repository_id, service_source_control_purpose, is_primary
 			) VALUES (
-				_s.service_id, _srl2.source_repository_location_id, true
+				_s.service_id, _sr2.source_repository_id, 'jhtest-checkout', true
 			);
 		EXCEPTION WHEN unique_violation THEN
 			RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
@@ -158,14 +157,14 @@ BEGIN
 	RAISE NOTICE 'Checking if multiple primaries fail on UPDATE... ';
 	BEGIN
 		INSERT INTO service_source_repository (
-			service_id, source_repository_location_id, is_primary
+			service_id, source_repository_id, service_source_control_purpose, is_primary
 		) VALUES (
-			_s.service_id, _srl1.source_repository_location_id, true
+			_s.service_id, _sr1.source_repository_id, 'jhtest-checkout', true
 		);
 		INSERT INTO service_source_repository (
-			service_id, source_repository_location_id, is_primary
+			service_id, source_repository_id, service_source_control_purpose, is_primary
 		) VALUES (
-			_s.service_id, _srl2.source_repository_location_id, false
+			_s.service_id, _sr2.source_repository_id, 'jhtest-checkout', false
 		) RETURNING * INTO _r;
 		BEGIN
 			UPDATE service_source_repository

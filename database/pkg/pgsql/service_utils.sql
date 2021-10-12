@@ -1,5 +1,4 @@
---
--- Copyright (c) 2011-2021 Todd M. Kover
+-- Copyright (c) 2021 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +12,8 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
+-- Copyright (c) 2012-2014 Matthew Ragan
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -34,45 +35,54 @@
 -- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
---
---
--- This will create all packages in the proper order
---
--- $Id$
---
+/*
+ * $Id$
+ */
 
---
--- NOTE:  make sure that ../ddl/dropJazzHandsdev.sql has any packages you
--- add here!
---
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'service_utils';
+        IF _tal = 0 THEN
+			DROP SCHEMA IF EXISTS service_utils;
+			CREATE SCHEMA service_utils AUTHORIZATION jazzhands;
+			COMMENT ON SCHEMA service_utils IS 'part of jazzhands';
 
+			REVOKE ALL on ALL FUNCTIONS IN SCHEMA service_utils FROM public;
+			REVOKE ALL on SCHEMA service_utils FROM public;
+			GRANT USAGE ON SCHEMA service_utils TO ro_role;
+			GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA service_utils TO ro_role;
+        END IF;
+END;
+$$;
 
--- its not clear that any of the types need to survive and the oracle
--- types should be rethought, so this is nonexistant until needed.
---
--- \ir global_types.sql
---
--- This includes all the error types, however it looks like pgsql does not
--- support defining constants in a similar fashion (did not research
--- extensively) so they are just being hardcoded where used.  Note that
--- unlike the oracle errors, these are positive (can't be negative under
--- pgsql).  This also contains error stack traces which we didn't really
--- use under oracle, so they haven't been ported to postgresql.  That should
--- be reconciled.
---
--- \ir global_errors.sql
---
--- This has some handy utilities that were never really used in oracle
--- space, so not porting them to postgresql.  Like the global_errors
--- package, this may need to be rethought.
--- 
--- \ir global_util.sql
--- 
+CREATE OR REPLACE FUNCTION service_utils.build_software_repository_uri(
+	template	TEXT,
+	project_name	TEXT,
+	repository_name	TEXT
+) RETURNS TEXT AS $$
+DECLARE
+	_rv	TEXT;
+BEGIN
+	_rv := template;
+	_rv := regexp_replace(_rv, '%{lc_project}', lower(project_name));
+	_rv := regexp_replace(_rv, '%{uc_project}', upper(project_name));
+	_rv := regexp_replace(_rv, '%{project}', project_name);
+	_rv := regexp_replace(_rv, '%{lc_repository}', lower(repository_name));
+	_rv := regexp_replace(_rv, '%{uc_repository}', upper(repository_name));
+	_rv := regexp_replace(_rv, '%{repository}', repository_name);
+	RETURN _rv;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
 
-\ir net_manip.sql
-\ir network_strings.sql
-\ir time_util.sql
--- One or both of these may no longer need to be here.
-\ir dns_utils.sql
-\ir dns_manip.sql
-\ir service_utils.sql
+REVOKE ALL ON SCHEMA service_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA service_utils FROM public;
+
+GRANT USAGE ON SCHEMA service_utils TO ro_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA service_utils TO ro_role;

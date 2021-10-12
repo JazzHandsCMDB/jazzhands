@@ -15,14 +15,14 @@
  * limitations under the License.
  */
 
-CREATE OR REPLACE FUNCTION source_repository_url_endpoint_enforcement()
+CREATE OR REPLACE FUNCTION source_repository_provider_uri_template_endpoint_enforce()
 RETURNS TRIGGER AS $$
 BEGIN
-	IF NEW.source_repository_url IS NULL AND NEW.service_endpoint_id IS NULL THEN
-		RAISE EXCEPTION 'Must set either source_repository_url or service_endpoint_id'
+	IF NEW.source_repository_uri IS NULL AND NEW.service_endpoint_id IS NULL THEN
+		RAISE EXCEPTION 'Must set either source_repository_uri or service_endpoint_id'
 			USING ERRCODE = 'null_value_not_allowed';
-	ELSIF NEW.source_repository_url IS NOT NULL AND NEW.service_endpoint_id IS NOT NULL THEN
-		RAISE EXCEPTION 'Must set only one of source_repository_url or service_endpoint_id'
+	ELSIF NEW.source_repository_uri IS NOT NULL AND NEW.service_endpoint_id IS NOT NULL THEN
+		RAISE EXCEPTION 'Must set only one of source_repository_uri or service_endpoint_id'
 			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 	RETURN NEW;
@@ -31,13 +31,13 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_source_repository_url_endpoint_enforcement
-	ON source_repository_url;
-CREATE CONSTRAINT TRIGGER trigger_source_repository_url_endpoint_enforcement
-	AFTER INSERT OR UPDATE OF source_repository_url, service_endpoint_id
-	ON source_repository_url
+DROP TRIGGER IF EXISTS trigger_source_repository_provider_uri_template_endpoint_enforce
+	ON source_repository_provider_uri_template;
+CREATE CONSTRAINT TRIGGER trigger_source_repository_provider_uri_template_endpoint_enforce
+	AFTER INSERT OR UPDATE OF source_repository_uri, service_endpoint_id
+	ON source_repository_provider_uri_template
 	FOR EACH ROW
-	EXECUTE PROCEDURE source_repository_url_endpoint_enforcement();
+	EXECUTE PROCEDURE source_repository_provider_uri_template_endpoint_enforce();
 
 -----------------------------------------------------------------------------
 
@@ -52,8 +52,10 @@ BEGIN
 	IF NEW.is_primary THEN
 		SELECT count(*) INTO _tally
 		FROM service_source_repository
-		WHERE service_id = NEW.service_id
-		AND service_source_repository_id != NEW.service_source_repository_id
+		WHERE service_source_repository_id != NEW.service_source_repository_id
+		AND service_id = NEW.service_id
+		AND service_source_control_purpose = NEW.service_source_control_purpose
+		AND service_source_repository_path_fragment IS NOT DISTINCT FROM NEW.service_source_repository_path_fragment
 		AND is_primary;
 
 		IF _tally > 0 THEN

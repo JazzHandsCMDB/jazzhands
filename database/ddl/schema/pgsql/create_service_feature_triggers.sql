@@ -22,7 +22,7 @@
 --		them.
 --
 -- 3) all this probably needs someone to go through and makes sure there's not
--- 		checks that need to be added.  This is a good first start, but...
+--		checks that need to be added.  This is a good first start, but...
 
 -- XXX These really should traverse hierarchies.
 CREATE OR REPLACE FUNCTION service_instance_feature_check()
@@ -41,8 +41,8 @@ BEGIN
 
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Feature not permitted for this service'
-       		USING ERRCODE = 'foreign_key_violation',
-       		HINT = 'An entry in service_version_collection_permitted_feature may be required';
+		USING ERRCODE = 'foreign_key_violation',
+		HINT = 'An entry in service_version_collection_permitted_feature may be required';
 	END IF;
 
 	RETURN NEW;
@@ -69,8 +69,8 @@ RETURNS TRIGGER AS $$
 BEGIN
 	IF OLD.serice_feature != NEW.service_feature THEN
 		RAISE EXCEPTION 'Features may not be renaemd due to possible constraint issues'
-       		USING ERRCODE = 'invalid_paramater',
-       		HINT = 'This feature is not implemented';
+			USING ERRCODE = 'invalid_paramater',
+			HINT = 'This feature is not implemented';
 	END IF;
 
 	RETURN NEW;
@@ -94,8 +94,8 @@ RETURNS TRIGGER AS $$
 BEGIN
 	IF OLD.serice_feature != NEW.service_feature THEN
 		RAISE EXCEPTION 'Features may not be renaemd due to possible constraint issues'
-       		USING ERRCODE = 'invalid_paramater',
-       		HINT = 'This feature is not implemented';
+			USING ERRCODE = 'invalid_paramater',
+			HINT = 'This feature is not implemented';
 	END IF;
 
 	RETURN NEW;
@@ -119,17 +119,17 @@ CREATE CONSTRAINT TRIGGER trigger_service_version_feature_permitted_rename
 -- check to see if there are some services between minimum and maimum that
 -- satisfy it, but second check is more coarse.
 --
-CREATE OR REPLACE FUNCTION service_depend_feature_check()
+CREATE OR REPLACE FUNCTION service_relationship_feature_check()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'UPDATE' AND OLD.serice_feature != NEW.service_feature THEN
 		RAISE EXCEPTION 'Features may not be renaemd due to possible constraint issues'
-       		USING ERRCODE = 'invalid_paramater',
-       		HINT = 'This feature is not implemented';
+			USING ERRCODE = 'invalid_paramater',
+			HINT = 'This feature is not implemented';
 	END IF;
 
 	PERFORM *
-	FROM (select service_depend_id, service_id from service_version) sd
+	FROM (select service_relationship_id, service_id from service_version) sd
 		JOIN service_version USING (service_id)
 		JOIN service_instance si USING (service_version_id)
 		JOIN service_version_collection_service_version svscsv
@@ -139,12 +139,12 @@ BEGIN
 		JOIN service_version_collection_permitted_feature svcpf
 			USING (service_version_collection_id)
 	WHERE	svcpf.service_feature = NEW.service_feature
-	AND	sd.service_depend = NEW.service_depend_id;
+	AND	sd.service_relationship = NEW.service_relationship_id;
 
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'service_feature is not offered by any versions of service'
-       		USING ERRCODE = 'foreign_key_violation',
-       		HINT = 'An entry in service_version_collection_permitted_feature may be required';
+			USING ERRCODE = 'foreign_key_violation',
+			HINT = 'An entry in service_version_collection_permitted_feature may be required';
 	END IF;
 
 	RETURN NEW;
@@ -153,13 +153,13 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_service_depend_feature_check
-	ON service_depend_service_feature;
-CREATE CONSTRAINT TRIGGER trigger_service_depend_feature_check
+DROP TRIGGER IF EXISTS trigger_service_relationship_feature_check
+	ON service_relationship_service_feature;
+CREATE CONSTRAINT TRIGGER trigger_service_relationship_feature_check
 	AFTER INSERT OR UPDATE OF service_feature
-	ON service_depend_service_feature
+	ON service_relationship_service_feature
 	FOR EACH ROW
-	EXECUTE PROCEDURE service_depend_feature_check();
+	EXECUTE PROCEDURE service_relationship_feature_check();
 
 ------------------------------------------------------------------------------
 

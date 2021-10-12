@@ -498,6 +498,7 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values
 	('netblock_collection_id'),
 	('password_type'),
 	('private_key_id'),
+	('service_endpoint_id'),
 	('software_version_collection_id'),
 	('timestamp'),
 	('token_collection_id');
@@ -2176,6 +2177,10 @@ FROM x;
 --
 -------------------------------------------------------------------------
 
+INSERT INTO val_service_namespace (service_namespace)
+VALUES
+	('default');
+
 INSERT INTO val_service_type (service_type)
 VALUES
 	('network'),
@@ -2255,8 +2260,8 @@ VALUES
 	('mercurial')
 ;
 
-INSERT INTO  val_source_repository_url_purpose
-	(source_repository_url_purpose)
+INSERT INTO  val_source_repository_uri_purpose
+	(source_repository_uri_purpose)
 VALUES
 	('checkout'),
 	('browse')
@@ -2346,6 +2351,17 @@ INSERT INTO val_software_artifact_relationship (
 ) VALUES (
 	'depend'
 );
+
+INSERT INTO val_service_relationship_type (
+	service_relationship_type
+) VALUES
+	('depend');
+
+INSERT INTO val_source_repository_protocol (
+	source_repository_protocol
+) VALUES
+	('https'),
+	('ssh');
 
 -------------------------------------------------------------------------
 --

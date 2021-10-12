@@ -80,27 +80,42 @@ DECLARE
 	m	BIGINT;
 BEGIN
 	FOR _r IN
-		WITH s AS (
-			SELECT	pg_get_serial_sequence(nspname||'.'||relname,
-				a.attname) as seq, a.attname as column
-			FROM	pg_attribute a
+		SELECT attname AS column, seq_namespace, seq_name,
+			nextval(concat_ws('.', quote_ident(seq_namespace), quote_ident(seq_name))) AS nv
+		FROM
+			pg_attribute a
 			JOIN pg_class c ON c.oid = a.attrelid
 			JOIN pg_namespace n ON n.oid = c.relnamespace
-			WHERE	c.relname = table_name
-			AND	n.nspname = schema
-				AND	a.attnum > 0
-				AND	NOT a.attisdropped
-		) SELECT s.*, nextval(s.seq) as nv FROM s WHERE seq IS NOT NULL
+			INNER JOIN (
+				SELECT
+					refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+			) seq USING (attrelid, attnum)
+		WHERE nspname = reset_table_sequence.schema
+		AND relname = reset_table_sequence.table_name
+		AND NOT a.attisdropped
 	LOOP
-		EXECUTE 'SELECT max('||quote_ident(_r.column)||')+1 FROM  '
-			|| quote_ident(schema)||'.'||quote_ident(table_name)
-			INTO m;
+		EXECUTE  format('SELECT max(%s)+1 FROM %s.%s',
+			quote_ident(_r.column),
+			quote_ident(schema),
+			quote_ident(table_name)
+		) INTO m;
 		IF m IS NOT NULL THEN
 			IF _r.nv > m THEN
 				m := _r.nv;
 			END IF;
-			EXECUTE 'ALTER SEQUENCE ' || _r.seq || ' RESTART WITH '
-				|| m;
+			EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+				quote_ident(_r.seq_namespace),
+				quote_ident(_r.seq_name),
+				m
+			);
 		END IF;
 	END LOOP;
 END;
@@ -316,6 +331,9 @@ DECLARE
 	keys		text[];
 	i		text;
 	seq		integer;
+	_seq_ns		TEXT;
+	_seq_name	TEXT;
+	tmpsn	TEXT;
 BEGIN
 	-- rename all the old indexes and constraints on the old audit table
 	SELECT	array_agg(c2.relname)
@@ -377,6 +395,42 @@ BEGIN
 		END LOOP;
 	END IF;
 
+
+	--
+	-- get sequence name before renaming table
+	--
+	-- this is the same as pg_get_serial_sequence but that
+	-- can be weird with special charaters, and also makes
+	-- the returnvalue ns.table so they're harder to quote.
+	SELECT seq_namespace, seq_name INTO _seq_ns, _seq_name
+	FROM
+		pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		INNER JOIN (
+			SELECT
+				refobjid AS attrelid, refobjsubid AS attnum,
+				c.oid AS seq_id, c.relname AS seq_name,
+				n.oid AS seq_nspid, n.nspname AS seq_namespace,
+				deptype
+			FROM
+				pg_depend d
+				JOIN pg_class c ON c.oid = d.objid
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE c.relkind = 'S'
+		) seq USING (attrelid, attnum)
+	WHERE attname = 'aud#seq'
+		AND nspname = aud_schema
+		AND relname = table_name
+		AND NOT a.attisdropped
+	ORDER BY a.attnum;
+
+	--
+	-- capture sequence number before renaming table
+	--
+	EXECUTE format('SELECT max("aud#seq") + 1 FROM %s.%s',
+		quote_ident(aud_schema), quote_ident(table_name)) INTO seq;
+
 	--
 	-- rename table
 	--
@@ -386,15 +440,12 @@ BEGIN
 		|| ' RENAME TO '
 		|| quote_ident('__old__t' || table_name);
 
-
 	--
 	-- RENAME sequence
 	--
-	EXECUTE 'ALTER SEQUENCE '
-		|| quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq')
-		|| ' RENAME TO '
-		|| quote_ident('_old_s' || table_name || '_seq');
+	tmpsn := '_old_s' || table_name || '_seq';
+	EXECUTE FORMAT('ALTER SEQUENCE %s.%s RENAME TO %s',
+		quote_ident(_seq_ns), quote_ident(_seq_name), tmpsn);
 
 	--
 	-- create a new audit table
@@ -402,16 +453,45 @@ BEGIN
 	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
 
 	--
+	-- figure out the new sequence name.  This may be some namel length adjusted
+	-- name.  Also, it's possible the old sequence was not an identity column and
+	-- this one is.
+	--
+
+	--
 	-- fix sequence primary key to have the correct next value
 	--
-	EXECUTE 'SELECT max("aud#seq") + 1 FROM	 '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident('__old__t' || table_name) INTO seq;
+
+	-- this is the same as pg_get_serial_sequence but that
+	-- can be weird with special charaters, and also makes
+	-- the returnvalue ns.table so they're harder to quote.
+	SELECT seq_namespace, seq_name INTO _seq_ns, _seq_name
+	FROM pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		INNER JOIN (
+			SELECT
+				refobjid AS attrelid,
+				refobjsubid AS attnum,
+				c.oid AS seq_id,
+				c.relname AS seq_name,
+				n.oid AS seq_nspid,
+				n.nspname AS seq_namespace,
+				deptype
+			FROM pg_depend d
+				JOIN pg_class c ON c.oid = d.objid
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE c.relkind = 'S'
+		) seq USING (attrelid, attnum)
+	WHERE attname = 'aud#seq'
+		AND nspname = aud_schema
+		AND relname = table_name
+		AND NOT a.attisdropped
+	ORDER BY a.attnum;
+
 	IF seq IS NOT NULL THEN
-		EXECUTE 'ALTER SEQUENCE '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name || '_seq')
-			|| ' RESTART WITH ' || seq;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_seq_ns), quote_ident(_seq_name), seq);
 	END IF;
 
 	IF finish_rebuild THEN
@@ -614,15 +694,9 @@ CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
 )
 RETURNS VOID AS $FUNC$
 DECLARE
-	name_base	TEXT;
+	seqns	TEXT;
+	seqname	TEXT;
 BEGIN
-	BEGIN
-	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq');
-	EXCEPTION WHEN duplicate_table THEN
-		NULL;
-	END;
-
 	EXECUTE 'CREATE TABLE ' || quote_ident(aud_schema) || '.'
 		|| quote_ident(table_name) || ' AS '
 		|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
@@ -632,22 +706,30 @@ BEGIN
 		|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name)
 		|| ' LIMIT 0';
 
-	EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name)
-		|| $$ ALTER COLUMN "aud#seq" SET NOT NULL, $$
-		|| $$ ALTER COLUMN "aud#seq" SET DEFAULT nextval('$$
-		|| quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
-		|| $$')$$;
+	EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN "aud#seq" SET NOT NULL',
+		quote_ident(aud_schema),
+		quote_ident(table_name)
+	);
 
-	EXECUTE 'ALTER SEQUENCE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq') || ' OWNED BY '
-		|| quote_ident(aud_schema) || '.' || quote_ident(table_name)
-		|| '.' || quote_ident('aud#seq');
+	EXECUTE format('ALTER TABLE %s.%s ADD PRIMARY KEY("aud#seq")',
+		quote_ident(aud_schema),
+		quote_ident(table_name)
+	);
 
+	--
+	-- If the table name is too long, then the sequence name will
+	-- definitely be too long, so need to rename to a unique name.
+	--
+	IF char_length(table_name) >= 60 THEN
+		seqname := lpad(table_name, 46) || lpad(md5(table_name), 10) || '_seq';
+	ELSE
+		seqname := table_name || '_seq';
+	END IF;
 
-	EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident( table_name )
-		|| ' ADD PRIMARY KEY ("aud#seq")';
+	EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN "aud#seq" ADD GENERATED BY DEFAULT AS IDENTITY ( SEQUENCE NAME %s.%s )',
+		quote_ident(aud_schema), quote_ident(table_name), quote_ident(aud_schema), quote_ident(seqname)
+	);
+
 
 	PERFORM schema_support.rebuild_audit_indexes(
 		aud_schema, tbl_schema, table_name);
@@ -766,7 +848,7 @@ BEGIN
     RETURN NEW;
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 -------------------------------------------------------------------------------
 
@@ -2590,6 +2672,108 @@ BEGIN
 	return _rv;
 END;
 $$ LANGUAGE plpgsql;
+
+----------------------------------------------------------------------------
+-- BEGIN IDENTITY column migration spuport
+----------------------------------------------------------------------------
+--
+-- These functions are used to convert all the default "next serial"
+-- functions to generated by default identity columns.
+--
+--
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_legacy_serial_to_identity (
+	schema TEXT,
+	relation TEXT
+) RETURNS integer AS $$
+DECLARE
+	_r	RECORD;
+	_d	RECORD;
+	_s	RECORD;
+	_t	INTEGER;
+BEGIN
+	_t := 0;
+	FOR _r IN SELECT attrelid, attname, seq_id, seq_name, deptype
+		FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE	c.relkind = 'S'
+					AND deptype = 'a'
+			) seq USING (attrelid, attnum)
+		WHERE	NOT a.attisdropped
+			AND nspname = SCHEMA
+			AND relname = relation
+		ORDER BY
+			a.attnum
+	LOOP
+		EXECUTE format('SELECT s.*, coalesce(pg_sequence_last_value(''%s.%s''), nextval(''%s.%s''))  as lastval  FROM pg_sequence s WHERE seqrelid = %s',
+			quote_ident(schema), quote_ident(_r.seq_name),
+			quote_ident(schema), quote_ident(_r.seq_name),
+			_r.seq_id
+		) INTO _s;
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s DROP DEFAULT',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname));
+
+		EXECUTE format('ALTER SEQUENCE %s.%s OWNED BY NONE',
+			quote_ident(schema),
+			quote_ident(_r.seq_name));
+
+		EXECUTE format('DROP SEQUENCE %s.%s;',
+			quote_ident(schema),
+			quote_ident(_r.seq_name));
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s ADD GENERATED BY DEFAULT AS IDENTITY ( SEQUENCE NAME %s INCREMENT BY %s RESTART WITH %s )',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			quote_ident(_r.seq_name),
+			_s.seqincrement, _s.lastval + 1
+		);
+		_t := _t + 1;
+	END LOOP;
+	RETURN _t;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_legacy_serials_to_identities (
+	tbl_schema TEXT
+) RETURNS INTEGER AS $$
+DECLARE
+	_r		INTEGER;
+	_tally	INTEGER;
+	table_list	TEXT;
+BEGIN
+
+	_tally := 0;
+    FOR table_list IN
+		SELECT table_name::text FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+		ORDER BY table_name
+    LOOP
+		SELECT schema_support.migrate_legacy_serial_to_identity(tbl_schema, table_list) INTO _r;
+		_tally := _tally + _r;
+    END LOOP;
+	RETURN _tally;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+----------------------------------------------------------------------------
+-- END IDENTITY column migration spuport
+----------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- BEGIN materialized view refresh automation support

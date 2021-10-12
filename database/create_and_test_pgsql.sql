@@ -90,7 +90,9 @@ begin;
 \ir tests/pgsql/account_enabled_test.sql
 \ir tests/pgsql/approval_process_regression.sql
 \ir tests/pgsql/port_range_checks.sql
+\ir tests/pgsql/service_base_regression.sql
 \ir tests/pgsql/source_repository_triggers.sql
+\ir tests/pgsql/service_relationship_triggers.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
 rollback;

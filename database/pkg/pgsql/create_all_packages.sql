@@ -88,3 +88,5 @@
 \ir layerx_network_manip.sql
 \ir component_connection_utils.sql
 \ir logical_port_manip.sql
+
+\ir service_manip.sql

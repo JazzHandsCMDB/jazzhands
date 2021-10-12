@@ -647,7 +647,7 @@ FROM jazzhands.device_management_controller;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.device_note AS
-SELECT note_id,device_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT device_note_id AS note_id,device_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.device_note;
 
 create or replace view jazzhands_legacy.device_power_connection AS
@@ -1485,7 +1485,7 @@ FROM jazzhands.person_location;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.person_note AS
-SELECT note_id,person_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT person_note_id AS note_id,person_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.person_note;
 
 
@@ -3625,13 +3625,6 @@ FROM jazzhands.val_operating_system_snapshot_type;
 CREATE OR REPLACE VIEW jazzhands_legacy.val_ownership_status AS
 SELECT ownership_status,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_ownership_status;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.val_package_relation_type AS
-SELECT package_relation_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_package_relation_type;
-
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_password_type AS
