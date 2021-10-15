@@ -3462,6 +3462,8 @@ SELECT
 	"subject",
 	"friendly_name",
 	"subject_key_identifier",
+	"public_key_hash_id",
+	"description",
 	CASE WHEN is_active IS NULL THEN NULL
 		WHEN is_active = true THEN 'Y'
 		WHEN is_active = false THEN 'N'
