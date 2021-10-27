@@ -307,6 +307,21 @@ sub new {
 	return bless $self, $class;
 }
 
+sub build_cache_key($$) {
+	my ( $self, $auth ) = @_;
+
+	# This happens when the role id is pulled from a file.
+	my $roleid = $auth->{VaultRoleId} || $self->{VaultRoleId};
+	my $server = $auth->{VaultServer};
+	my $path   = $auth->{VaultPath};
+
+	return undef if ( !$roleid || !$server || !$path );
+
+	my $key = sprintf "%s@%s/%s", $server, $roleid, $path;
+	$key =~ s,[/:],_,g;
+	return $key;
+}
+
 sub fetchurl {
 	my $self = shift @_;
 
@@ -388,7 +403,7 @@ sub approle_login {
 		return undef;
 	}
 
-	if($resp->{auth}->{lease_duration}) {
+	if ( $resp->{auth}->{lease_duration} ) {
 		$self->{token_lease_duration} = $resp->{auth}->{lease_duration};
 	}
 
