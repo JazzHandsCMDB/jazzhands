@@ -81,6 +81,93 @@ RETURN _pkhid;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
 
+-------------------------------------------------------------------------------
+--
+-- Make sure the specified hashes are present in public_key_hash_hash
+-- Add a row to public_key_hash if necessary. Update public_key_hash_id
+-- of the specified private key if it needs to be updated.
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_hash_manip.set_private_key_hashes (
+	private_key_id private_key.private_key_id%TYPE,
+	hashes x509_hash_manip.algorithm_hash_tuple[]
+) RETURNS INTEGER AS $$
+DECLARE
+	_pkhid jazzhands.public_key_hash_hash.public_key_hash_id%TYPE;
+	_cnt INTEGER;
+BEGIN
+	_pkhid := x509_hash_manip.get_public_key_hash_id(hashes);
+
+	UPDATE private_key p SET public_key_hash_id = _pkhid
+	WHERE p.private_key_id = set_private_key_hash.private_key_id
+	AND public_key_hash_id IS DISTINCT FROM _pkhid;
+
+	GET DIAGNOSTICS _cnt = ROW_COUNT;
+
+	RETURN _cnt;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
+
+-------------------------------------------------------------------------------
+--
+-- Make sure the specified hashes are present in public_key_hash_hash
+-- Add a row to public_key_hash if necessary. Update public_key_hash_id
+-- of the specified x509_signed_certificate if it needs to be updated.
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_hash_manip.set_x509_signed_certificate_hashes (
+	x509_cert_id jazzhands.x509_signed_certificate.x509_signed_certificate_id%TYPE,
+	hashes x509_hash_manip.algorithm_hash_tuple[]
+) RETURNS INTEGER AS $$
+DECLARE
+	_pkhid jazzhands.public_key_hash_hash.public_key_hash_id%TYPE;
+	_cnt INTEGER;
+BEGIN
+	_pkhid := x509_hash_manip.get_public_key_hash_id(hashes);
+
+	UPDATE x509_signed_certificate SET public_key_hash_id = _pkhid
+	WHERE x509_signed_certificate_id = x509_cert_id
+	AND public_key_hash_id IS DISTINCT FROM _pkhid;
+
+	GET DIAGNOSTICS _cnt = ROW_COUNT;
+
+	RETURN _cnt;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
+
+-------------------------------------------------------------------------------
+--
+-- UPSERT the specified fingerprints into x509_signed_certificate_fingerprint
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_hash_manip.set_x509_signed_certificate_fingerprints (
+	x509_cert_id jazzhands.x509_signed_certificate.x509_signed_certificate_id%TYPE,
+	fingerprints x509_hash_manip.algorithm_hash_tuple[]
+) RETURNS INTEGER AS $$
+DECLARE _cnt INTEGER;
+BEGIN
+	WITH x AS ( SELECT unnest(fingerprints) AS hav )
+	INSERT INTO x509_signed_certificate_fingerprint AS fp (
+		x509_signed_certificate_id,
+		x509_fingerprint_hash_algorighm, fingerprint
+	) SELECT x509_cert_id,
+		(x.hav::x509_hash_manip.algorithm_hash_tuple).algorithm,
+		(x.hav::x509_hash_manip.algorithm_hash_tuple).hash_value
+	FROM x
+	ON CONFLICT (
+	    x509_signed_certificate_id, x509_fingerprint_hash_algorighm
+	) DO UPDATE SET fingerprint = EXCLUDED.fingerprint
+	WHERE fp.fingerprint IS DISTINCT FROM EXCLUDED.fingerprint;
+
+	GET DIAGNOSTICS _cnt = ROW_COUNT;
+
+	RETURN _cnt;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
+
 REVOKE ALL ON SCHEMA x509_hash_manip  FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_hash_manip FROM public;
 
