@@ -50,11 +50,11 @@ DECLARE
 BEGIN
 	WITH x AS ( SELECT unnest(hashes) AS hav )
 	SELECT count(DISTINCT pkhh.public_key_hash_id),
-        	min(pkhh.public_key_hash_id)
+		min(pkhh.public_key_hash_id)
 	INTO _cnt, _pkhid
 	FROM jazzhands.public_key_hash_hash pkhh JOIN x
 	ON  (x.hav::x509_hash_manip.algorithm_hash_tuple).hash_value
-        	= pkhh.calculated_hash
+		= pkhh.calculated_hash
 	AND (x.hav::x509_hash_manip.algorithm_hash_tuple).algorithm
 		= pkhh.x509_fingerprint_hash_algorighm;
 
@@ -63,15 +63,15 @@ BEGIN
 		RETURNING public_key_hash_id INTO _pkhid;
 	ELSIF _cnt > 1 THEN
 		RAISE EXCEPTION 'multiple public_key_hash_id values found'
-                USING ERRCODE = 'data_exception';
+		USING ERRCODE = 'data_exception';
 	END IF;
 
 	WITH x AS ( SELECT unnest(hashes) AS hav )
 	INSERT INTO jazzhands.public_key_hash_hash(
 		public_key_hash_id,
-                x509_fingerprint_hash_algorighm, calculated_hash
+		x509_fingerprint_hash_algorighm, calculated_hash
 	) SELECT _pkhid,
-        	(x.hav::x509_hash_manip.algorithm_hash_tuple).algorithm,
+		(x.hav::x509_hash_manip.algorithm_hash_tuple).algorithm,
 		(x.hav::x509_hash_manip.algorithm_hash_tuple).hash_value
 	FROM x
 	ON CONFLICT(public_key_hash_id, x509_fingerprint_hash_algorighm)
