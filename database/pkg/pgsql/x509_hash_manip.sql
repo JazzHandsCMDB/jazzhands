@@ -145,9 +145,11 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
 
 CREATE OR REPLACE FUNCTION x509_hash_manip.set_x509_signed_certificate_hashes (
 	x509_cert_id jazzhands.x509_signed_certificate.x509_signed_certificate_id%TYPE,
-	hashes jsonb
+	hashes jsonb,
+	update_private_key_hashes BOOLEAN DEFAULT false
 ) RETURNS INTEGER AS $$
 DECLARE
+	_pkid jazzhands.x509_signed_certificate.private_key_id%TYPE;
 	_pkhid jazzhands.public_key_hash_hash.public_key_hash_id%TYPE;
 	_cnt INTEGER;
 BEGIN
@@ -155,11 +157,16 @@ BEGIN
 
 	UPDATE x509_signed_certificate SET public_key_hash_id = _pkhid
 	WHERE x509_signed_certificate_id = x509_cert_id
-	AND public_key_hash_id IS DISTINCT FROM _pkhid;
+	AND public_key_hash_id IS DISTINCT FROM _pkhid
+	RETURNING private_key_id INTO _pkid;
 
 	GET DIAGNOSTICS _cnt = ROW_COUNT;
 
-	RETURN _cnt;
+	IF update_private_key_hashes THEN
+		RETURN _cnt + x509_hash_manip.set_private_key_hashes(_pkid, hashes);
+	ELSE
+		RETURN _cnt;
+	END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
 
