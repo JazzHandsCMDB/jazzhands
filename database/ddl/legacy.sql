@@ -4127,6 +4127,8 @@ CREATE OR REPLACE VIEW jazzhands_legacy.x509_certificate AS
 	csr.certificate_signing_request AS certificate_sign_req,
 	crt.subject,
 	crt.subject_key_identifier,
+	crt.public_key_hash_id,
+	crt.description,
 	crt.valid_from::timestamp,
 	crt.valid_to::timestamp,
 	crt.x509_revocation_date,
@@ -4189,6 +4191,30 @@ FROM jazzhands.x509_key_usage_default;
 
 
 
+CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash AS
+SELECT public_key_hash_id, description,	data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.public_key_hash;
+
+
+
+CREATE OR REPLACE VIEW jazzhands_legacy.val_x509_fingerprint_hash_algorithm AS
+SELECT x509_fingerprint_hash_algorighm, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.val_x509_fingerprint_hash_algorithm;
+
+
+
+CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate_fingerprint AS
+SELECT x509_signed_certificate_id, x509_fingerprint_hash_algorighm, fingerprint, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.x509_signed_certificate_fingerprint;
+
+
+
+CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash_hash AS
+SELECT public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.public_key_hash_hash;
+
+
+
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate AS
 SELECT
@@ -4197,6 +4223,8 @@ SELECT
 	subject,
 	friendly_name,
 	subject_key_identifier,
+	public_key_hash_id,
+	description,
 	CASE WHEN is_active IS NULL THEN NULL
 		WHEN is_active = true THEN 'Y'
 		WHEN is_active = false THEN 'N'
@@ -17460,6 +17488,8 @@ BEGIN
 			public_key,
 			subject,
 			subject_key_identifier,
+			public_key_hash_id,
+			description,
 			valid_from,
 			valid_to,
 			x509_revocation_date,
@@ -17481,6 +17511,8 @@ BEGIN
 			NEW.public_key,
 			NEW.subject,
 			NEW.subject_key_identifier,
+			NEW.public_key_hash_id,
+			NEW.description,
 			NEW.valid_from,
 			NEW.valid_to,
 			NEW.x509_revocation_date,
@@ -17509,6 +17541,8 @@ BEGIN
 		NEW.certificate_sign_req 		= csr.certificate_signing_request;
 		NEW.subject 					= crt.subject;
 		NEW.subject_key_identifier 		= crt.subject_key_identifier;
+		NEW.public_key_hash_id 			= crt.public_key_hash_id;
+		NEW.description 			= crt.description;
 		NEW.valid_from 					= crt.valid_from;
 		NEW.valid_to 					= crt.valid_to;
 		NEW.x509_revocation_date 		= crt.x509_revocation_date;
@@ -17695,6 +17729,16 @@ BEGIN
 			'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier)
 		);
 	END IF;
+	IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+		_uq := array_append(_uq,
+			'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
+		);
+	END IF;
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+		_uq := array_append(_uq,
+			'description = ' || quote_nullable(NEW.description)
+		);
+	END IF;
 
 	IF OLD.is_certificate_authority IS DISTINCT FROM NEW.is_certificate_authority THEN
 		IF NEW.is_certificate_authority = 'Y' THEN
@@ -17774,6 +17818,8 @@ BEGIN
 		NEW.public_key = crt.public_key;
 		NEW.subject = crt.subject;
 		NEW.subject_key_identifier = crt.subject_key_identifier;
+		NEW.public_key_hash_id = crt.public_key_hash_id;
+		NEW.description = crt.description;
 		NEW.valid_from = crt.valid_from;
 		NEW.valid_to = crt.valid_to;
 		NEW.x509_revocation_date = crt.x509_revocation_date;
@@ -17846,6 +17892,8 @@ BEGIN
 	OLD.certificate_sign_req = crt.certificate_signing_request;
 	OLD.subject = crt.subject;
 	OLD.subject_key_identifier = crt.subject_key_identifier;
+	OLD.public_key_hash_id = crt.public_key_hash_id;
+	OLD.description = crt.description;
 	OLD.valid_from = crt.valid_from;
 	OLD.valid_to = crt.valid_to;
 	OLD.x509_revocation_date = crt.x509_revocation_date;
@@ -17906,6 +17954,16 @@ BEGIN
 	IF NEW.subject_key_identifier IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('subject_key_identifier'));
 		_vq := array_append(_vq, quote_nullable(NEW.subject_key_identifier));
+	END IF;
+
+	IF NEW.public_key_hash_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('public_key_hash_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF NEW.description IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('description'));
+		_vq := array_append(_vq, quote_nullable(NEW.description));
 	END IF;
 
 	IF NEW.is_active IS NOT NULL THEN
@@ -17984,6 +18042,8 @@ BEGIN
 	NEW.subject = _nr.subject;
 	NEW.friendly_name = _nr.friendly_name;
 	NEW.subject_key_identifier = _nr.subject_key_identifier;
+	NEW.public_key_hash_id = _nr.public_key_hash_id;
+	NEW.description = _nr.description;
 	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
 	NEW.is_certificate_authority = CASE WHEN _nr.is_certificate_authority = true THEN 'Y' WHEN _nr.is_certificate_authority = false THEN 'N' ELSE NULL END;
 	NEW.signing_cert_id = _nr.signing_cert_id;
@@ -18042,6 +18102,14 @@ _uq := array_append(_uq, 'friendly_name = ' || quote_nullable(NEW.friendly_name)
 
 	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
 _uq := array_append(_uq, 'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier));
+	END IF;
+
+	IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+_uq := array_append(_uq, 'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+_uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
 	END IF;
 
 	IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
@@ -18119,6 +18187,8 @@ _uq := array_append(_uq, 'crl_uri = ' || quote_nullable(NEW.crl_uri));
 		NEW.subject = _nr.subject;
 		NEW.friendly_name = _nr.friendly_name;
 		NEW.subject_key_identifier = _nr.subject_key_identifier;
+		NEW.public_key_hash_id = _nr.public_key_hash_id;
+		NEW.description = _nr.description;
 		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
 		NEW.is_certificate_authority = CASE WHEN _nr.is_certificate_authority = true THEN 'Y' WHEN _nr.is_certificate_authority = false THEN 'N' ELSE NULL END;
 		NEW.signing_cert_id = _nr.signing_cert_id;
@@ -18165,6 +18235,8 @@ BEGIN
 	OLD.subject = _or.subject;
 	OLD.friendly_name = _or.friendly_name;
 	OLD.subject_key_identifier = _or.subject_key_identifier;
+	OLD.public_key_hash_id = _or.public_key_hash_id;
+	OLD.description = _or.description;
 	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
 	OLD.is_certificate_authority = CASE WHEN _or.is_certificate_authority = true THEN 'Y' WHEN _or.is_certificate_authority = false THEN 'N' ELSE NULL END;
 	OLD.signing_cert_id = _or.signing_cert_id;
