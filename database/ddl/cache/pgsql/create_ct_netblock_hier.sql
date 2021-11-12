@@ -137,8 +137,14 @@ BEGIN
 			TG_OP, NEW.netblock_id, NEW.parent_netblock_id, NEW.ip_address;
 
 		--
-		-- This runs even if parent_netblock_id is NULL in order to get the
+		-- XXX: This is no longer true.  Not sure why it wasn't deleted: "This
+		-- runs even if parent_netblock_id is NULL in order to get the
 		-- row that includes the netblock into itself.
+		--
+		-- revisited later:  This takes care of everthing "above the netblock"
+		-- This actually does not seem to delete things if the parent changes
+		-- which would only happen on ip universe change or some such, which
+		-- may be disallowed elsewhere?
 		--
 		FOR _r IN
 		WITH RECURSIVE tier (
@@ -176,13 +182,21 @@ BEGIN
 			)
 		LOOP
 			RAISE DEBUG 'nb/ins up %', to_json(_r);
-			INSERT INTO jazzhands_cache.ct_netblock_hier (
-				root_netblock_id, intermediate_netblock_id,
-				netblock_id, path
-			) VALUES (
-				_r.root_netblock_id, _r.intermediate_netblock_id,
-				_r.netblock_id, _r.path
-			);
+			BEGIN
+				--
+				-- It is not clear if the unique violation check is needed here
+				-- or not.  It was inserted when the one in the next block was
+				-- so possibly makes sense to remove to not hide a bug.
+				INSERT INTO jazzhands_cache.ct_netblock_hier (
+					root_netblock_id, intermediate_netblock_id,
+					netblock_id, path
+				) VALUES (
+					_r.root_netblock_id, _r.intermediate_netblock_id,
+					_r.netblock_id, _r.path
+				);
+			EXCEPTION WHEN unique_violation THEN
+				RAISE DEBUG '... failed due to unique violation';
+			END;
 		END LOOP;
 
 		FOR _r IN
@@ -204,13 +218,26 @@ BEGIN
 			_r.path := array_append(_r.path, NEW.netblock_id);
 
 			RAISE DEBUG '... %', to_json(_r);
-			INSERT INTO jazzhands_cache.ct_netblock_hier (
-				root_netblock_id, intermediate_netblock_id,
-				netblock_id, path
-			) VALUES (
-				_r.root_netblock_id, _r.intermediate_netblock_id,
-				_r.netblock_id, _r.path
-			);
+			BEGIN
+				--
+				-- unique violations can happen if it's the edge case.  The
+				-- array_length() that's commented out was proabbly meant to
+				-- deal with this but I'm not doing that just now.
+				--
+				-- This is specifically to deal with the
+				-- condition in tests where there a new
+				-- grandparent isinserted.
+				--
+				INSERT INTO jazzhands_cache.ct_netblock_hier (
+					root_netblock_id, intermediate_netblock_id,
+					netblock_id, path
+				) VALUES (
+					_r.root_netblock_id, _r.intermediate_netblock_id,
+					_r.netblock_id, _r.path
+				);
+			EXCEPTION WHEN unique_violation THEN
+				RAISE DEBUG '... failed due to unique violation';
+			END;
 		END LOOP;
 
 		--
