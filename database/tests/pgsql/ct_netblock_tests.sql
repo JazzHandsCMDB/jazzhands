@@ -212,8 +212,38 @@ BEGIN
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE '.... it did! (%)', SQLERRM;
 	END;
+	PERFORM schema_support.relation_diff(
+		schema := 'jazzhands_cache',
+		old_rel := 'v_netblock_hier',
+		new_rel := 'ct_netblock_hier',
+		prikeys := ARRAY['path']
+	);
 
+	RAISE NOTICE '++ Checking if adding a parent of a parent works ...';
+	BEGIN
+		INSERT INTO netblock (
+			IP_ADDRESS, IS_SINGLE_ADDRESS, CAN_SUBNET, NETBLOCK_STATUS
+		) VALUES ( '192.0.2.80/29', false, false, 'Allocated');
 
+		INSERT INTO netblock (
+			IP_ADDRESS, IS_SINGLE_ADDRESS, CAN_SUBNET, NETBLOCK_STATUS
+		) VALUES ( '192.0.2.80/28', false, true, 'Allocated' );
+
+		INSERT INTO netblock (
+			IP_ADDRESS, IS_SINGLE_ADDRESS, CAN_SUBNET, NETBLOCK_STATUS
+		) VALUES ( '192.0.2.0/25', false, true, 'Allocated' );
+
+		PERFORM schema_support.relation_diff(
+			schema := 'jazzhands_cache',
+			old_rel := 'v_netblock_hier',
+			new_rel := 'ct_netblock_hier',
+			prikeys := ARRAY['path']
+		);
+
+		RAISE EXCEPTION '%', 'ok' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did! (%)', SQLERRM;
+	END;
 
 	RAISE NOTICE 'Cleaning up...';
 	RETURN true;
