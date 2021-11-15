@@ -1568,7 +1568,7 @@ SELECT
 		WHEN is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	subject_key_identifier,
+	NULL::text AS subject_key_identifier,
 	private_key,
 	passphrase,
 	encryption_key_id,
@@ -10110,8 +10110,8 @@ BEGIN
 	END IF;
 
 	IF NEW.subject_key_identifier IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('subject_key_identifier'));
-		_vq := array_append(_vq, quote_nullable(NEW.subject_key_identifier));
+		RAISE EXCEPTION 'subject_key_identifier has been deprecated and can not be set'
+			USING ERRCODE = invalid_parameter_value;
 	END IF;
 
 	IF NEW.private_key IS NOT NULL THEN
@@ -10138,7 +10138,7 @@ BEGIN
 	NEW.private_key_id = _nr.private_key_id;
 	NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-	NEW.subject_key_identifier = _nr.subject_key_identifier;
+	NEW.subject_key_identifier = NULL;
 	NEW.private_key = _nr.private_key;
 	NEW.passphrase = _nr.passphrase;
 	NEW.encryption_key_id = _nr.encryption_key_id;
@@ -10188,7 +10188,10 @@ END IF;
 	END IF;
 
 	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
-_uq := array_append(_uq, 'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier));
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			RAISE EXCEPTION 'subject_key_identifier has been deprecated and can not be set'
+				USING ERRCODE = invalid_parameter_value;
+		END IF;
 	END IF;
 
 	IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
@@ -10212,7 +10215,7 @@ _uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption
 		NEW.private_key_id = _nr.private_key_id;
 		NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-		NEW.subject_key_identifier = _nr.subject_key_identifier;
+		NEW.subject_key_identifier = NULL;
 		NEW.private_key = _nr.private_key;
 		NEW.passphrase = _nr.passphrase;
 		NEW.encryption_key_id = _nr.encryption_key_id;
@@ -10247,7 +10250,7 @@ BEGIN
 	OLD.private_key_id = _or.private_key_id;
 	OLD.private_key_encryption_type = _or.private_key_encryption_type;
 	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
-	OLD.subject_key_identifier = _or.subject_key_identifier;
+	OLD.subject_key_identifier = NULL;
 	OLD.private_key = _or.private_key;
 	OLD.passphrase = _or.passphrase;
 	OLD.encryption_key_id = _or.encryption_key_id;

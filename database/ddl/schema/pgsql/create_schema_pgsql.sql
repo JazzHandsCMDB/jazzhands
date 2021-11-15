@@ -4846,10 +4846,9 @@ CREATE TABLE private_key
 	private_key_id       integer  NOT NULL ,
 	private_key_encryption_type varchar(50)  NOT NULL ,
 	is_active            boolean  NOT NULL ,
-	subject_key_identifier varchar(255)  NULL ,
 	public_key_hash_id   integer  NULL ,
 	description          varchar(4096)  NULL ,
-	private_key          text  NOT NULL ,
+	private_key          text  NULL ,
 	passphrase           varchar(255)  NULL ,
 	encryption_key_id    integer  NULL ,
 	external_id          varchar(255)  NULL 
@@ -4857,9 +4856,6 @@ CREATE TABLE private_key
 
 ALTER TABLE private_key
 	ADD CONSTRAINT pk_private_key PRIMARY KEY (private_key_id);
-
-ALTER TABLE private_key
-	ADD CONSTRAINT ak_private_key UNIQUE (subject_key_identifier);
 
 CREATE INDEX xif2private_key ON private_key
 ( 
@@ -8351,6 +8347,7 @@ CREATE TABLE val_encryption_key_purpose
 ( 
 	encryption_key_purpose varchar(50)  NOT NULL ,
 	encryption_key_purpose_version integer  NOT NULL ,
+	external_id          varchar(255)  NULL ,
 	description          varchar(255)  NULL 
 );
 
@@ -12525,6 +12522,10 @@ ALTER TABLE port_range
 		ON DELETE NO ACTION
 		DEFERRABLE  ;
 
+
+ALTER TABLE private_key
+	ADD CONSTRAINT ckc_external_id_mutually_exclusive_203372048 CHECK  ( (private_key IS NOT NULL AND external_id IS NULL) OR (private_key IS NULL AND external_id IS NOT NULL) ) ;
+
 ALTER TABLE private_key
 	ALTER COLUMN is_active
 		SET DEFAULT true;
@@ -14614,8 +14615,6 @@ COMMENT ON COLUMN private_key.encryption_key_id IS 'if set, encryption key infor
 
 COMMENT ON COLUMN private_key.is_active IS 'indicates certificate is in active use.  This is used by tools to decide how to show it; does not indicate revocation';
 
-COMMENT ON COLUMN private_key.subject_key_identifier IS 'This column wil be dropped and should not be used by new code.';
-
 COMMENT ON COLUMN private_key.private_key_encryption_type IS 'encryption tyof private key (rsa, dsa, ec, etc).  
 ';
 
@@ -14906,6 +14905,8 @@ COMMENT ON COLUMN val_dns_domain_collection_type.max_num_collections IS 'Maximum
 COMMENT ON COLUMN val_dns_domain_collection_type.can_have_hierarchy IS 'Indicates if the collections can have other collections to make it hierarchical.';
 
 COMMENT ON TABLE val_encryption_key_purpose IS 'Valid purpose of encryption used by the key_crypto package; Used to identify which functional application knows the app provided portion of the encryption key';
+
+COMMENT ON COLUMN val_encryption_key_purpose.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 
 COMMENT ON TABLE val_encryption_method IS 'List of text representations of methods of encryption.  Format is the same as Kerberos uses such as in rfc3962';
 

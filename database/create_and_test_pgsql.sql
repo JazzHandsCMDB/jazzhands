@@ -130,7 +130,8 @@ set search_path=jazzhands_legacy;
 \ir tests/pgsql/jhlegacy/token_coll_hier_regression.sql
 \ir tests/pgsql/jhlegacy/account_coll_realm_regression.sql
 \ir tests/pgsql/jhlegacy/network_range_tests.sql
-\ir tests/pgsql/jhlegacy/x509_tests.sql
+-- the bits in here are in the process of being retired
+-- \ir tests/pgsql/jhlegacy/x509_tests.sql
 \ir tests/pgsql/jhlegacy/v_person_company_regression.sql
 \ir tests/pgsql/jhlegacy/account_enabled_test.sql
 \ir tests/pgsql/jhlegacy/devices_regression.sql

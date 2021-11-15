@@ -17,22 +17,18 @@
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION pvtkey_ski_signed_validate()
+CREATE OR REPLACE FUNCTION pvtkey_pkh_signed_validate()
 RETURNS TRIGGER AS $$
 DECLARE
-	ski	TEXT;
+	pkhid	INTEGER;
 	id	INTEGER;
 BEGIN
-	SELECT	subject_key_identifier, id
-	INTO	ski, id
+	SELECT	public_key_hash_id, id
+	INTO	pkhid, id
 	FROM	x509_signed_certificate x
 	WHERE	x.private_key_id = NEW.private_key_id;
 
-	IF FOUND AND ski != NEW.subject_key_identifier THEN
-		RAISE EXCEPTION 'subject key identifier must match private key in x509_signing_certificate' USING ERRCODE = 'foreign_key_violation';
-	END IF;
-
-	IF FOUND AND id != NEW.public_key_hash_id THEN
+	IF FOUND AND pkhid != NEW.public_key_hash_id THEN
 		RAISE EXCEPTION 'public_key_hash_id must match in x509_signed_certificate_id and private_key' USING ERRCODE = 'foreign_key_violation';
 	END IF;
 
@@ -42,19 +38,19 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_pvtkey_ski_signed_validate ON private_key;
-CREATE CONSTRAINT TRIGGER trigger_pvtkey_ski_signed_validate
-	AFTER UPDATE OF subject_key_identifier, public_key_hash_id
+DROP TRIGGER IF EXISTS trigger_pvtkey_pkh_signed_validate ON private_key;
+CREATE CONSTRAINT TRIGGER trigger_pvtkey_pkh_signed_validate
+	AFTER UPDATE OF public_key_hash_id
 	ON private_key
 	FOR EACH ROW
-	EXECUTE PROCEDURE pvtkey_ski_signed_validate();
+	EXECUTE PROCEDURE pvtkey_pkh_signed_validate();
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION x509_signed_ski_pvtkey_validate()
+CREATE OR REPLACE FUNCTION x509_signed_pkh_pvtkey_validate()
 RETURNS TRIGGER AS $$
 DECLARE
-	ski	TEXT;
+	pkhid	INTEGER;
 	id	INTEGER;
 BEGIN
 	--
@@ -64,16 +60,12 @@ BEGIN
 		RETURN NEW;
 	END IF;
 
-	SELECT	subject_key_identifier, id
-	INTO	ski, id
+	SELECT	public_key_hash_id, id
+	INTO	pkhid, id
 	FROM	private_key p
 	WHERE	p.private_key_id = NEW.private_key_id;
 
-	IF FOUND AND ski != NEW.subject_key_identifier THEN
-		RAISE EXCEPTION 'subject key identifier must match private key in x509_signing_certificate' USING ERRCODE = 'foreign_key_violation';
-	END IF;
-
-	IF FOUND AND id != NEW.public_key_hash_id THEN
+	IF FOUND AND pkhid != NEW.public_key_hash_id THEN
 		RAISE EXCEPTION 'public_key_hash_id must match in x509_signed_certificate_id and private_key' USING ERRCODE = 'foreign_key_violation';
 	END IF;
 	RETURN NEW;
@@ -82,11 +74,11 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_x509_signed_ski_pvtkey_validate ON x509_signed_certificate;
-CREATE CONSTRAINT TRIGGER trigger_x509_signed_ski_pvtkey_validate
-	AFTER INSERT OR UPDATE OF subject_key_identifier, public_key_hash_id, private_key_id
+DROP TRIGGER IF EXISTS trigger_x509_signed_pkh_pvtkey_validate ON x509_signed_certificate;
+CREATE CONSTRAINT TRIGGER trigger_x509_signed_pkh_pvtkey_validate
+	AFTER INSERT OR UPDATE OF public_key_hash_id, private_key_id
 	ON x509_signed_certificate
 	FOR EACH ROW
-	EXECUTE PROCEDURE x509_signed_ski_pvtkey_validate();
+	EXECUTE PROCEDURE x509_signed_pkh_pvtkey_validate();
 
 ---------------------------------------------------------------------------

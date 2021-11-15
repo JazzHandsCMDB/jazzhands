@@ -1606,7 +1606,7 @@ SELECT
 		WHEN is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	"subject_key_identifier",
+	NULL::text AS "subject_key_identifier",
 	"private_key",
 	"passphrase",
 	"encryption_key_id",
