@@ -141,7 +141,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 -- having to hand maintain this sucks.
 SELECT schema_support.set_schema_version(
-	version := '0.92',
+	version := '0.93',
 	schema := 'jazzhands'
 );
 
