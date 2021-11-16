@@ -357,7 +357,7 @@ FROM jazzhands.badge_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.certificate_signing_request AS
-SELECT certificate_signing_request_id,friendly_name,subject,certificate_signing_request,private_key_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT certificate_signing_request_id,friendly_name,subject,certificate_signing_request,private_key_id,public_key_hash_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.certificate_signing_request;
 
 
@@ -1568,7 +1568,7 @@ SELECT
 		WHEN is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	subject_key_identifier,
+	NULL::text AS subject_key_identifier,
 	private_key,
 	passphrase,
 	encryption_key_id,
@@ -4404,7 +4404,7 @@ SET search_path=jazzhands_legacy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_ins ON
-	v_network_interface_trans;
+	jazzhands_legacy.v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_ins
 	INSTEAD OF INSERT ON jazzhands_legacy.v_network_interface_trans
@@ -4433,7 +4433,7 @@ SET search_path=jazzhands_legacy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_del ON
-	v_network_interface_trans;
+	jazzhands_legacy.v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_del
 	INSTEAD OF DELETE ON jazzhands_legacy.v_network_interface_trans
@@ -4569,7 +4569,7 @@ SET search_path=jazzhands_legacy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_upd ON
-	v_network_interface_trans;
+	jazzhands_legacy.v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_upd
 	INSTEAD OF UPDATE ON jazzhands_legacy.v_network_interface_trans
@@ -10110,8 +10110,8 @@ BEGIN
 	END IF;
 
 	IF NEW.subject_key_identifier IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('subject_key_identifier'));
-		_vq := array_append(_vq, quote_nullable(NEW.subject_key_identifier));
+		RAISE EXCEPTION 'subject_key_identifier has been deprecated and can not be set'
+			USING ERRCODE = invalid_parameter_value;
 	END IF;
 
 	IF NEW.private_key IS NOT NULL THEN
@@ -10138,7 +10138,7 @@ BEGIN
 	NEW.private_key_id = _nr.private_key_id;
 	NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-	NEW.subject_key_identifier = _nr.subject_key_identifier;
+	NEW.subject_key_identifier = NULL;
 	NEW.private_key = _nr.private_key;
 	NEW.passphrase = _nr.passphrase;
 	NEW.encryption_key_id = _nr.encryption_key_id;
@@ -10188,7 +10188,10 @@ END IF;
 	END IF;
 
 	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
-_uq := array_append(_uq, 'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier));
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			RAISE EXCEPTION 'subject_key_identifier has been deprecated and can not be set'
+				USING ERRCODE = invalid_parameter_value;
+		END IF;
 	END IF;
 
 	IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
@@ -10212,7 +10215,7 @@ _uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption
 		NEW.private_key_id = _nr.private_key_id;
 		NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-		NEW.subject_key_identifier = _nr.subject_key_identifier;
+		NEW.subject_key_identifier = NULL;
 		NEW.private_key = _nr.private_key;
 		NEW.passphrase = _nr.passphrase;
 		NEW.encryption_key_id = _nr.encryption_key_id;
@@ -10247,7 +10250,7 @@ BEGIN
 	OLD.private_key_id = _or.private_key_id;
 	OLD.private_key_encryption_type = _or.private_key_encryption_type;
 	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
-	OLD.subject_key_identifier = _or.subject_key_identifier;
+	OLD.subject_key_identifier = NULL;
 	OLD.private_key = _or.private_key;
 	OLD.passphrase = _or.passphrase;
 	OLD.encryption_key_id = _or.encryption_key_id;
@@ -17417,7 +17420,7 @@ BEGIN
 		INSERT INTO jazzhands.private_key (
 			private_key_encryption_type,
 			is_active,
-			subject_key_identifier,
+			public_key_hash_id,
 			private_key,
 			passphrase,
 			encryption_key_id
@@ -17426,23 +17429,25 @@ BEGIN
 			CASE WHEN NEW.is_active = 'Y' THEN true
 				WHEN NEW.is_active = 'N' THEN false
 				ELSE NULL END,
-			NEW.subject_key_identifier,
+			NEW.public_key_hash_id,
 			NEW.private_key,
 			NEW.passphrase,
 			NEW.encryption_key_id
 		) RETURNING * INTO key;
 		NEW.x509_cert_id := key.private_key_id;
 	ELSE
-		IF NEW.subject_key_identifier IS NOT NULL THEN
+		IF NEW.public_key_hash_id IS NOT NULL THEN
 			SELECT *
 			INTO key
 			FROM private_key
-			WHERE subject_key_identifier = NEW.subject_key_identifier;
+			WHERE public_key_hash_id = NEW.public_key_hash_id;
 
-			SELECT private_key
-			INTO NEW.private_key
-			FROM private_key
-			WHERE private_key_id = key.private_key_id;
+			IF key IS NOT NULL THEN
+				SELECT private_key
+				INTO NEW.private_key
+				FROM private_key
+				WHERE private_key_id = key.private_key_id;
+			END IF;
 		END IF;
 	END IF;
 
@@ -17451,23 +17456,24 @@ BEGIN
 			friendly_name,
 			subject,
 			certificate_signing_request,
-			private_key_id
+			private_key_id,
+			public_key_hash_id
 		) VALUES (
 			NEW.friendly_name,
 			NEW.subject,
 			NEW.certificate_sign_req,
-			key.private_key_id
+			key.private_key_id,
+			NEW.public_key_hash_id
 		) RETURNING * INTO csr;
 		IF NEW.x509_cert_id IS NULL THEN
 			NEW.x509_cert_id := csr.certificate_signing_request_id;
 		END IF;
 	ELSE
 		IF NEW.subject_key_identifier IS NOT NULL THEN
-			SELECT certificate_signing_request_id
+			SELECT c.*
 			INTO csr
-			FROM certificate_signing_request
-				JOIN private_key USING (private_key_id)
-			WHERE subject_key_identifier = NEW.subject_key_identifier
+			FROM certificate_signing_request c
+			WHERE c.public_key_hash_id = NEW.public_key_hash_id
 			ORDER BY certificate_signing_request_id
 			LIMIT 1;
 
@@ -17542,7 +17548,7 @@ BEGIN
 		NEW.subject 					= crt.subject;
 		NEW.subject_key_identifier 		= crt.subject_key_identifier;
 		NEW.public_key_hash_id 			= crt.public_key_hash_id;
-		NEW.description 			= crt.description;
+		NEW.description 				= crt.description;
 		NEW.valid_from 					= crt.valid_from;
 		NEW.valid_to 					= crt.valid_to;
 		NEW.x509_revocation_date 		= crt.x509_revocation_date;
@@ -17633,6 +17639,12 @@ BEGIN
 					'encryption_key_id = ' || quote_nullable(NEW.encryption_key_id)
 				);
 			END IF;
+			IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+				_uq := array_append(_uq,
+					'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
+				);
+			END IF;
+
 			IF array_length(_uq, 1) > 0 THEN
 				EXECUTE format('UPDATE private_key SET %s WHERE private_key_id = $1 RETURNING *',
 					array_to_string(_uq, ', '))
@@ -17655,12 +17667,14 @@ BEGIN
 			friendly_name,
 			subject,
 			certificate_signing_request,
-			private_key_id
+			private_key_id,
+			public_key_hash_id
 		) VALUES (
 			NEW.friendly_name,
 			NEW.subject,
 			NEW.certificate_sign_req,
-			key.private_key_id
+			key.private_key_id,
+			NEW.public_key_hash_id
 		) RETURNING * INTO csr;
 	ELSIF crt.certificate_signing_request_id IS NOT NULL THEN
 		SELECT * INTO csr FROM jazzhands.certificate_signing_request c
@@ -17683,17 +17697,22 @@ BEGIN
 					'friendly_name = ' || quote_nullable(NEW.friendly_name)
 				);
 			END IF;
-			IF OLD.private_key IS DISTINCT FROM key.private_key THEN
+			IF OLD.certificate_signing_request IS DISTINCT FROM key.certificate_signing_request THEN
 				_uq := array_append(_uq,
-					'private_key = ' || quote_nullable(NEW.private_key)
+					'certificate_signing_request = ' || quote_nullable(NEW.certificate_signing_request)
+				);
+			END IF;
+			IF OLD.public_key_hash_id IS DISTINCT FROM key.public_key_hash_id THEN
+				_uq := array_append(_uq,
+					'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
 				);
 			END IF;
 
 			IF array_length(_uq, 1) > 0 THEN
-				EXECUTE format('UPDATE private_key SET %s WHERE private_key_id = $1 RETURNING *',
+				EXECUTE format('UPDATE certificate_signing_request SET %s WHERE certificate_signing_request_id = $1 RETURNING *',
 					array_to_string(_uq, ', '))
-					USING crt.private_key_id
-					INTO key;
+					USING crt.certificate_signing_request_id
+					INTO csr;
 			END IF;
 		END IF;
 
@@ -18500,7 +18519,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql
 SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_layer1_connection_insteadof ON layer1_connection;
+DROP TRIGGER IF EXISTS trigger_layer1_connection_insteadof ON
+	jazzhands_legacy.layer1_connection;
 CREATE TRIGGER trigger_layer1_connection_insteadof
 	INSTEAD OF INSERT OR UPDATE OR DELETE
 	ON jazzhands_legacy.layer1_connection
@@ -18552,7 +18572,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql
 SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_physical_port_insteadof ON physical_port;
+DROP TRIGGER IF EXISTS trigger_physical_port_insteadof
+	ON jazzhands_legacy.physical_port;
 CREATE TRIGGER trigger_physical_port_insteadof
 	INSTEAD OF INSERT OR UPDATE OR DELETE
 	ON jazzhands_legacy.physical_port
@@ -18615,7 +18636,7 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_ins ON
-	service_environment;
+	jazzhands_legacy.service_environment;
 
 CREATE TRIGGER trigger_service_environment_ins
 	INSTEAD OF INSERT ON jazzhands_legacy.service_environment
@@ -18637,7 +18658,7 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_del ON
-	service_environment;
+	jazzhands_legacy.service_environment;
 
 CREATE TRIGGER trigger_service_environment_del
 	INSTEAD OF DELETE ON jazzhands_legacy.service_environment
@@ -18699,7 +18720,7 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_upd ON
-	service_environment;
+	jazzhands_legacy.service_environment;
 
 CREATE TRIGGER trigger_service_environment_upd
 	INSTEAD OF UPDATE ON jazzhands_legacy.service_environment
