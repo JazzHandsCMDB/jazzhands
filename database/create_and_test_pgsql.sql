@@ -93,6 +93,7 @@ begin;
 \ir tests/pgsql/service_base_regression.sql
 \ir tests/pgsql/source_repository_triggers.sql
 \ir tests/pgsql/service_relationship_triggers.sql
+\ir tests/pgsql/service_manip_tests.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
 rollback;
