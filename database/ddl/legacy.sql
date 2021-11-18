@@ -17420,7 +17420,7 @@ BEGIN
 		INSERT INTO jazzhands.private_key (
 			private_key_encryption_type,
 			is_active,
-			subject_key_identifier,
+			public_key_hash_id,
 			private_key,
 			passphrase,
 			encryption_key_id
@@ -17429,7 +17429,7 @@ BEGIN
 			CASE WHEN NEW.is_active = 'Y' THEN true
 				WHEN NEW.is_active = 'N' THEN false
 				ELSE NULL END,
-			NEW.subject_key_identifier,
+			NEW.public_key_hash_id,
 			NEW.private_key,
 			NEW.passphrase,
 			NEW.encryption_key_id
