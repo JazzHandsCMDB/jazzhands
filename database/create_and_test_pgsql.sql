@@ -132,6 +132,7 @@ set search_path=jazzhands_legacy;
 \ir tests/pgsql/jhlegacy/network_range_tests.sql
 -- the bits in here are in the process of being retired
 -- \ir tests/pgsql/jhlegacy/x509_tests.sql
+\ir tests/pgsql/jhlegacy/x509_certificate.sql
 \ir tests/pgsql/jhlegacy/v_person_company_regression.sql
 \ir tests/pgsql/jhlegacy/account_enabled_test.sql
 \ir tests/pgsql/jhlegacy/devices_regression.sql
