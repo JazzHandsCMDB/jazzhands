@@ -21,8 +21,6 @@ Invoked:
 
 	--suffix=v93
 	--scan
-	--post
-	post
 */
 
 \set ON_ERROR_STOP
@@ -1296,16 +1294,6 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Recreate the saved views in the base schema
 --
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', type := 'view');
-
-
--- BEGIN Misc that does not apply to above
-SELECT schema_support.set_schema_version(
-        version := '0.93',
-        schema := 'jazzhands'
-);
-
-
--- END Misc that does not apply to above
 --
 -- BEGIN: process_ancillary_schema(jazzhands_legacy)
 --
@@ -1721,7 +1709,7 @@ BEGIN
 		INSERT INTO jazzhands.private_key (
 			private_key_encryption_type,
 			is_active,
-			subject_key_identifier,
+			public_key_hash_id,
 			private_key,
 			passphrase,
 			encryption_key_id
@@ -1730,7 +1718,7 @@ BEGIN
 			CASE WHEN NEW.is_active = 'Y' THEN true
 				WHEN NEW.is_active = 'N' THEN false
 				ELSE NULL END,
-			NEW.subject_key_identifier,
+			NEW.public_key_hash_id,
 			NEW.private_key,
 			NEW.passphrase,
 			NEW.encryption_key_id
