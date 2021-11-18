@@ -1725,11 +1725,11 @@ BEGIN
 		) RETURNING * INTO key;
 		NEW.x509_cert_id := key.private_key_id;
 	ELSE
-		IF NEW.subject_key_identifier IS NOT NULL THEN
+		IF NEW.public_key_hash_id IS NOT NULL THEN
 			SELECT *
 			INTO key
 			FROM private_key
-			WHERE subject_key_identifier = NEW.subject_key_identifier;
+			WHERE public_key_hash_id = NEW.public_key_hash_id;
 
 			SELECT private_key
 			INTO NEW.private_key
@@ -1759,7 +1759,7 @@ BEGIN
 			INTO csr
 			FROM certificate_signing_request
 				JOIN private_key USING (private_key_id)
-			WHERE subject_key_identifier = NEW.subject_key_identifier
+			WHERE public_key_hash_id = NEW.public_key_hash_id
 			ORDER BY certificate_signing_request_id
 			LIMIT 1;
 
