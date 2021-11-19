@@ -21,6 +21,8 @@ Invoked:
 
 	--suffix=v93
 	--scan
+	--post
+	post
 */
 
 \set ON_ERROR_STOP
@@ -1294,6 +1296,16 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Recreate the saved views in the base schema
 --
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', type := 'view');
+
+
+-- BEGIN Misc that does not apply to above
+SELECT schema_support.set_schema_version(
+        version := '0.93',
+        schema := 'jazzhands'
+);
+
+
+-- END Misc that does not apply to above
 --
 -- BEGIN: process_ancillary_schema(jazzhands_legacy)
 --
