@@ -1569,9 +1569,12 @@ SELECT
 		ELSE NULL
 	END AS is_active,
 	NULL::text AS subject_key_identifier,
+	public_key_hash_id,
+	description,
 	private_key,
 	passphrase,
 	encryption_key_id,
+	external_id,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -3394,7 +3397,7 @@ FROM jazzhands.val_encapsulation_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_encryption_key_purpose AS
-SELECT encryption_key_purpose,encryption_key_purpose_version,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT encryption_key_purpose,encryption_key_purpose_version,external_id,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_encryption_key_purpose;
 
 
@@ -10114,6 +10117,16 @@ BEGIN
 			USING ERRCODE = invalid_parameter_value;
 	END IF;
 
+	IF NEW.public_key_hash_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('public_key_hash_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF NEW.description IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('description'));
+		_vq := array_append(_vq, quote_nullable(NEW.description));
+	END IF;
+
 	IF NEW.private_key IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('private_key'));
 		_vq := array_append(_vq, quote_nullable(NEW.private_key));
@@ -10129,6 +10142,11 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.encryption_key_id));
 	END IF;
 
+	IF NEW.external_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('external_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.external_id));
+	END IF;
+
 	EXECUTE 'INSERT INTO jazzhands.private_key (' ||
 		array_to_string(_cq, ', ') ||
 		') VALUES ( ' ||
@@ -10139,9 +10157,12 @@ BEGIN
 	NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
 	NEW.subject_key_identifier = NULL;
+	NEW.public_key_hash_id = _nr.public_key_hash_id;
+	NEW.description = _nr.description;
 	NEW.private_key = _nr.private_key;
 	NEW.passphrase = _nr.passphrase;
 	NEW.encryption_key_id = _nr.encryption_key_id;
+	NEW.external_id = _nr.external_id;
 	NEW.data_ins_user = _nr.data_ins_user;
 	NEW.data_ins_date = _nr.data_ins_date;
 	NEW.data_upd_user = _nr.data_upd_user;
@@ -10194,6 +10215,14 @@ END IF;
 		END IF;
 	END IF;
 
+	IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+_uq := array_append(_uq, 'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+_uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
+	END IF;
+
 	IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
 _uq := array_append(_uq, 'private_key = ' || quote_nullable(NEW.private_key));
 	END IF;
@@ -10206,6 +10235,10 @@ _uq := array_append(_uq, 'passphrase = ' || quote_nullable(NEW.passphrase));
 _uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption_key_id));
 	END IF;
 
+	IF OLD.external_id IS DISTINCT FROM NEW.external_id THEN
+_uq := array_append(_uq, 'external_id = ' || quote_nullable(NEW.external_id));
+	END IF;
+
 	IF _uq IS NOT NULL THEN
 		EXECUTE 'UPDATE jazzhands.private_key SET ' ||
 			array_to_string(_uq, ', ') ||
@@ -10216,9 +10249,12 @@ _uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption
 		NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
 		NEW.subject_key_identifier = NULL;
+		NEW.public_key_hash_id = _nr.public_key_hash_id;
+		NEW.description = _nr.description;
 		NEW.private_key = _nr.private_key;
 		NEW.passphrase = _nr.passphrase;
 		NEW.encryption_key_id = _nr.encryption_key_id;
+		NEW.external_id = _nr.external_id;
 		NEW.data_ins_user = _nr.data_ins_user;
 		NEW.data_ins_date = _nr.data_ins_date;
 		NEW.data_upd_user = _nr.data_upd_user;
@@ -10251,9 +10287,12 @@ BEGIN
 	OLD.private_key_encryption_type = _or.private_key_encryption_type;
 	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
 	OLD.subject_key_identifier = NULL;
+	OLD.public_key_hash_id = _or.public_key_hash_id;
+	OLD.description = _or.description;
 	OLD.private_key = _or.private_key;
 	OLD.passphrase = _or.passphrase;
 	OLD.encryption_key_id = _or.encryption_key_id;
+	OLD.external_id = _or.external_id;
 	OLD.data_ins_user = _or.data_ins_user;
 	OLD.data_ins_date = _or.data_ins_date;
 	OLD.data_upd_user = _or.data_upd_user;
