@@ -306,7 +306,12 @@ class Vault(object):
     def delete(self, path, timeout=None):
         """Deletes the KV secrets at the specified location."""
 
-        data = self._delete(path, data, timeout=timeout)
+        self._delete(path, timeout=timeout)
+
+    def delete_metadata(self, path, timeout=None):
+        """Deletes metadata for the KV secrets at the specified location."""
+
+        self._delete(path.replace('/data/', '/metadata/', 1), timeout=timeout)
 
 
 class VaultError(Exception):
