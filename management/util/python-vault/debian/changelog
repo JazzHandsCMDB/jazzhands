@@ -1,3 +1,9 @@
+python-jazzhands-vault (0.93.0) bionic; urgency=medium
+
+  * added Vault object methods delete() and delete_metadata()
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Wed,  1 Dec 2021 10:34:22 +0100
+
 python-jazzhands-vault (0.90.10) bionic; urgency=medium
 
   * added ca_path parameter to Vault class
