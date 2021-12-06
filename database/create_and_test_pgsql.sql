@@ -51,6 +51,10 @@ begin;
 -- deprecated
 -- \ir tests/init/insert_records_later.sql
 \ir tests/init/test_netblock_collection.sql
+
+-- rudimentary
+\ir tests/pgsql/schema_support.sql
+
 \ir tests/pgsql/location_regression_test.sql
 \ir tests/pgsql/netblock_regression_test.sql
 \ir tests/pgsql/dns_record_regression_test.sql
@@ -85,6 +89,10 @@ begin;
 
 \ir tests/pgsql/account_enabled_test.sql
 \ir tests/pgsql/approval_process_regression.sql
+\ir tests/pgsql/port_range_checks.sql
+\ir tests/pgsql/service_base_regression.sql
+\ir tests/pgsql/source_repository_triggers.sql
+\ir tests/pgsql/service_relationship_triggers.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
 rollback;

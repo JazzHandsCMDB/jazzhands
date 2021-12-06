@@ -22,7 +22,7 @@
 --
 
 -- Copyright (c) 2018, Matthew Ragan
--- Copyright (c) 2010-2019 Toed M. Kover
+-- Copyright (c) 2010-2021 Toed M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -130,6 +130,11 @@
 \ir pgsql/create_v_layer3_network_collection_expanded.sql
 \ir pgsql/create_v_layerx_network_expanded.sql
 \ir pgsql/create_v_network_range_expanded.sql
+
+\ir pgsql/create_v_source_repository_uri.sql
+\ir pgsql/create_v_service_source_repository_uri.sql
+\ir create_v_service_endpoint_service_instance.sql
+\ir create_v_service_endpoint_expanded.sql
 
 \ir create_v_dns_fwd.sql
 \ir create_v_dns_rvs.sql

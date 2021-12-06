@@ -75,6 +75,59 @@ our $VERSION = '1.0.0';
 # Preloaded methods go here.
 
 #
+# This is called when thigns fail to initialize and it prints a human
+# readable error message using raw html (in case modules don't work).
+#
+sub stab_panic {
+	my $error = shift @_;
+
+	print qq{
+		Header: text/html;
+
+		<html>
+		<body>
+		<head>
+			<title> Panic:  STAB failed to initialize! </title>
+			<style>
+				div {
+					text-align: center;
+				}
+				div.error {
+					color: red;
+				}
+				div.big {
+					border: 2px double-solid;
+					border-color: black;
+					width: 70%;
+					display: inline;
+				}
+				div.panic {
+					font-size: +50;
+					text-align: center
+				}
+			</style>
+		</head>
+		<body>
+		<div class="big">
+			<div class="panic">
+				PANIC!<br>STAB failed to initialize with error:
+			</div>
+			<div class="error">
+					$error
+			</div>
+			<div class="panic"> Seek help. </div>
+			</div>
+		</div>
+		</body>
+		</html>
+
+	};
+
+	warn "stab_panic: ", $error;
+	exit 1;
+}
+
+#
 # functions that should be considered private.  May want to go through a
 # little more effort to make them inaccessable.  Or not.
 #
@@ -128,6 +181,16 @@ sub new {
 
 	bless $self, $class;
 	$self->textfield_sizing(1);
+
+	#
+	# This is kind of an icky way to find the error but the generic error
+	# stuff needs to be revisted as part of decoupling this from
+	# the now deprecated JazzHands::Mgmt...
+	#
+	if ( !$self->dbh ) {
+		stab_panic(
+			"Unable to initialize database: " . $JazzHands::DBI::errstr );
+	}
 
 	#
 	# These are used for permissions.
@@ -330,7 +393,6 @@ sub check_approval_delegation {
 
 	$tally;
 }
-
 
 #
 # returns 1 if a user is an admin
@@ -691,7 +753,7 @@ sub start_html {
 	# development.  XXX Probably need to put in a is_dev_instance
 	# function that can be used to discern this throughout the code,
 	# although this is only used in the css for the background and here.
-	if ( $stabroot !~ m,://stab.[^/]+/?$, && $stabroot !~ /dev/ ) {
+	if ( $stabroot !~ m,://stab.[^/]+/?$, && $stabroot !~ /dev[^e]/ ) {
 		$args{'-title'} =~ s/STAB:/STAB(D):/;
 	}
 
@@ -1385,6 +1447,7 @@ sub b_dropdown {
 	my $preidfix = $params->{'-preidfix'} || "";
 	my $suffix   = $params->{'-suffix'} || "";
 	my $callback = $params->{'-callback'};
+	my $original = $params->{'-original'};
 
 	# [XXX] need to consider making id/name always the same?
 	my $id = $params->{'-id'};
@@ -1446,16 +1509,16 @@ sub b_dropdown {
 					inner join company c
 						on c.company_id = dt.company_id
 			) xx
-			order by 
+			order by
 				CASE WHEN name = ' ' THEN lower(model) ELSE lower(name) END,
 				lower(model)
 		};
 	} elsif ( $selectfield eq 'COMPONENT_TYPE_ID' ) {
 		$q = qq{
 			SELECT * FROM (
-			SELECT	component_type_id, 
+			SELECT	component_type_id,
 					CASE WHEN company_name = 'unknown' THEN ' '
-						ELSE company_name 
+						ELSE company_name
 					END AS company_name,
 					model
 			FROM component_type ct
@@ -1526,7 +1589,7 @@ sub b_dropdown {
 		$q = qq{
 			select	network_interface_type, description
 			  from	val_network_interface_type
-			order by description, network_interface_type 
+			order by description, network_interface_type
 		};
 	} elsif ( $selectfield eq 'NETWORK_INTERFACE_PURPOSE' ) {
 		$q = qq{
@@ -1627,9 +1690,9 @@ sub b_dropdown {
 		# was distinct, maybe needs to be?
 		# probably want to sort by network_strings...
 		$q = qq{
-			select  
-				CASE 
-     			     WHEN l1.layer1_connection_id is not NULL THEN 1       
+			select
+				CASE
+     			     WHEN l1.layer1_connection_id is not NULL THEN 1     
 			  	 WHEN pc.physical_connection_id is not NULL THEN 1
 			  	 ELSE NULL
 				END as connection_id,
@@ -1645,8 +1708,8 @@ sub b_dropdown {
 						)
 			 where	p.device_id = :devid
 			   $portrestrict
-			 order by 
-			 	regexp_replace(p.port_name, 
+			 order by
+			 	regexp_replace(p.port_name,
 					'^[^0-9]*([0-9]*)[^0-9]*\$',E'\\\\1'),
 				p.port_name
 		};
@@ -1783,7 +1846,7 @@ sub b_dropdown {
 		$default = 'service' if ( !defined($default) );
 	} elsif ( $selectfield eq 'DEVICE_COLLECTION_ID' ) {
 		$q = qq{
-			select	DEVICE_COLLECTION_ID, 
+			select	DEVICE_COLLECTION_ID,
 				DEVICE_COLLECTION_NAME
 			  from	DEVICE_COLLECTION
 		};
@@ -2003,6 +2066,7 @@ sub b_dropdown {
 	$popupargs->{-values}     = \@list if ( $#list >= 0 );
 	$popupargs->{-labels}     = \%list if ( $#list >= 0 );
 	$popupargs->{-default}    = $default;
+	$popupargs->{-original}   = $original if ( defined($original) );
 	$popupargs->{-onChange}   = $onchange if ( defined($onchange) );
 	$popupargs->{-class}      = $class if ( defined($class) );
 	$popupargs->{-attributes} = \%attr;
@@ -2090,13 +2154,20 @@ sub b_textfield {
 	$field     = _dbx($field)     if ( defined($field) );
 	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
-	my $default  = $params->{'-default'};
-	my $ip0      = $params->{'-allow_ip0'};
-	my $class    = $params->{'-class'};
-	my $editoff  = $params->{'-noEdit'} || 'never';
-	my $prefix   = $params->{'-prefix'} || "";
-	my $preidfix = $params->{'-preidfix'} || "";
-	my $suffix   = $params->{'-suffix'} || "";
+	my $default      = $params->{'-default'};
+	my $ip0          = $params->{'-allow_ip0'};
+	my $class        = $params->{'-class'};
+	my $alt          = $params->{'-alt'};
+	my $onchange     = $params->{'-onChange'};
+	my $onkeyup      = $params->{'-onKeyUp'};
+	my $placeholder  = $params->{'-placeholder'};
+	my $pattern      = $params->{'-pattern'};
+	my $defaultValue = $params->{'-defaultValue'};
+	my $original     = $params->{'-original'};
+	my $editoff      = $params->{'-noEdit'} || 'never';
+	my $prefix       = $params->{'-prefix'} || "";
+	my $preidfix     = $params->{'-preidfix'} || "";
+	my $suffix       = $params->{'-suffix'} || "";
 
 	my $cgi = $self->cgi;
 
@@ -2234,11 +2305,18 @@ sub b_textfield {
 	$disabled = 1 if ( $params->{-disabled} );
 
 	my $args = {};
-	$args->{'-name'}    = $webname;
-	$args->{'-id'}      = $webname;
-	$args->{'-class'}   = $class if ( defined($class) );
-	$args->{'-default'} = $allf if ( defined($allf) );
-	$args->{'-size'}    = $size if ($size);
+	$args->{'-name'}         = $webname;
+	$args->{'-id'}           = $webname;
+	$args->{'-class'}        = $class if ( defined($class) );
+	$args->{'-alt'}          = $alt if ( defined($alt) );
+	$args->{'-onChange'}     = $onchange if ($onchange);
+	$args->{'-onKeyUp'}      = $onkeyup if ($onkeyup);
+	$args->{'-placeholder'}  = $placeholder if ( defined($placeholder) );
+	$args->{'-pattern'}      = $pattern if ( defined($pattern) );
+	$args->{'-defaultValue'} = $$defaultValue if ( defined($defaultValue) );
+	$args->{'-default'}      = $allf if ( defined($allf) );
+	$args->{'-original'}     = $original if ( defined($original) );
+	$args->{'-size'}         = $size if ($size);
 	$args->{'-maxlength'} = 2048;    ## [XXX] probably need to rethink!
 
 	if ($disabled) {
@@ -2387,6 +2465,10 @@ sub build_checkbox {
 		$args->{-class} = $params->{-class};
 	}
 
+	if ( defined( $params->{-original} ) ) {
+		$args->{-original} = $params->{-original};
+	}
+
 	my $cb = $cgi->checkbox( $args, );
 
 	if ( !$params->{-nodiv} ) {
@@ -2486,7 +2568,7 @@ sub check_if_sure {
 		my $ref = $orig_referer || $cgi->referer;
 		$n->param( 'orig_referer', $ref );
 
-		print $cgi->header( { -type => 'text/html' } ), "\n";
+		print $cgi->header(      { -type  => 'text/html' } ),    "\n";
 		print $self->start_html( { -title => 'Verification' } ), "\n";
 		print $cgi->h2(
 			$cgi->a(

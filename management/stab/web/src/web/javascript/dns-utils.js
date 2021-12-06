@@ -171,7 +171,7 @@ function wtf_build_dns_drop(sel, detail, queryparams) {
 }
 
 //
-// changes editable field to a text field. 
+// changes editable field to a text field.
 //
 function make_outref_editable(obj) {
 	if (!$(obj).length) {
@@ -206,11 +206,11 @@ function change_dns_record(obj, old) {
 	var nametd = $(obj).closest('tr').find('td.DNS_NAME');
 
 
-	// this will just do nothing if it is not a dns reference. 
+	// this will just do nothing if it is not a dns reference.
 	$(obj).closest('tr').find('a.dnsrefouteditbutton').each(
 		function(idx, elem) {
 			make_outref_editable(elem);
-			
+		
 	});
 
 	if(obj.value == 'CNAME' || obj.value == 'A' || obj.value == 'AAAA') {
@@ -536,7 +536,5 @@ $(document).ready(function(){
 
 	configure_autocomplete();
 
-
 	create_dns_reference_jquery("table.dnstable");
-
 });

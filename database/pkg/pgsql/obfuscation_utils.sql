@@ -145,7 +145,7 @@ BEGIN
 		RETURN encode(_de, 'escape');
 	ELSE
 		RAISE EXCEPTION 'unknown decryption type %', type
-			USING ERRCODE = invalid_paramter;
+			USING ERRCODE = invalid_parameter;
 	END IF;
 	RETURN NULL;
 END;

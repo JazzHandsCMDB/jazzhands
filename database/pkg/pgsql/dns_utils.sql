@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2020, Todd M. Kover
+-- Copyright (c) 2013-2021, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,8 +34,7 @@ $$;
 
 ------------------------------------------------------------------------------
 --
--- Add default NS records to a domain, idempotently, optionally removing the
--- ones that do not match the default.
+-- This is migrating to dns_manip
 --
 ------------------------------------------------------------------------------
 
@@ -45,42 +44,11 @@ CREATE OR REPLACE FUNCTION dns_utils.add_ns_records(
 ) RETURNS void AS
 $$
 BEGIN
-	IF purge THEN
-		EXECUTE '
-			DELETE FROM dns_record
-			WHERE dns_domain_id = $1
-			AND dns_name IS NULL
-			AND dns_class = $2
-			AND dns_type = $3
-			AND dns_value NOT IN (
-				SELECT property_value
-				FROM property
-				WHERE property_name = $4
-				AND property_type = $5
-			)
-		' USING dns_domain_id, 'IN', 'NS', '_authdns', 'Defaults';
-	END IF;
-	EXECUTE '
-		INSERT INTO dns_record (
-			dns_domain_id, dns_class, dns_type, dns_value
-		) select $1, $2, $3, property_value
-		FROM property
-		WHERE property_name = $4
-		AND property_type = $5
-		AND property_value NOT IN (
-			SELECT dns_value
-			FROM dns_record
-			WHERE dns_domain_id = $1
-			AND dns_class = $2
-			AND dns_type = $3
-			AND dns_name IS NULL
-		)
-	' USING dns_domain_id, 'IN', 'NS', '_authdns', 'Defaults';
+	PERFORM dns_manip.add_ns_records(dns_domain_id, purge);
 END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
-
 
 ------------------------------------------------------------------------------
 --
@@ -171,8 +139,6 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
 
-
-
 ------------------------------------------------------------------------------
 --
 -- Given a cidr block, return its dns domain
@@ -227,7 +193,6 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
-
 
 ------------------------------------------------------------------------------
 --
@@ -316,7 +281,6 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql;
-
 
 ------------------------------------------------------------------------------
 --
@@ -456,6 +420,7 @@ SET search_path=jazzhands
 LANGUAGE plpgsql;
 
 
+
 ------------------------------------------------------------------------------
 --
 -- Given a cidr block, add a dns domain for it, which will take care of linkage
@@ -475,43 +440,7 @@ DECLARE
 	domain_id	dns_domain.dns_domain_id%TYPE;
 	j			text;
 BEGIN
-	-- silently fail for ipv6
-	IF family(block) != 4 THEN
-		RETURN NULL;
-	END IF;
-	IF family(block) != 4 THEN
-		j := '';
-		-- this needs to be tweaked to expand ::, which postgresql does
-		-- not easily do.  This requires more thinking than I was up for today.
-		ipaddr := regexp_replace(host(block)::text, ':', '', 'g');
-	ELSE
-		j := '\.';
-		ipaddr := host(block);
-	END IF;
-
-	EXECUTE 'select array_agg(member order by rn desc)
-		from (
-        select
-			row_number() over () as rn, *
-			from
-			unnest(regexp_split_to_array($1, $2)) as member
-		) x
-	' INTO ipnodes USING ipaddr, j;
-
-	IF family(block) = 4 THEN
-		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
-			|| '.in-addr.arpa';
-	ELSE
-		domain := array_to_string(ipnodes, '.')
-			|| '.ip6.arpa';
-	END IF;
-
-	SELECT dns_domain_id INTO domain_id FROM dns_domain where dns_domain_name = domain;
-	IF NOT FOUND THEN
-		-- domain_id := dns_utils.add_dns_domain(domain);
-	END IF;
-
-	RETURN domain_id;
+	RETURN dns_manip.add_domain_from_cidr(block);
 END;
 $$
 SET search_path=jazzhands
@@ -537,28 +466,13 @@ CREATE OR REPLACE FUNCTION dns_utils.add_domains_from_netblock(
 )
 AS
 $$
-DECLARE
-	block		inet;
-	domain		text;
-	domain_id	dns_domain.dns_domain_id%TYPE;
-	nid			ALIAS FOR netblock_id;
 BEGIN
-	SELECT ip_address INTO block FROM netblock n WHERE n.netblock_id = nid;
 
-	RAISE DEBUG 'Creating inverse DNS zones for %s', block;
-
-	RETURN QUERY SELECT
-		dns_utils.add_dns_domain(
-			dns_domain_name := x.dns_domain_name,
-			dns_domain_type := 'reverse'
-			),
-		x.dns_domain_name::text
-	FROM
-		dns_utils.get_all_domain_rows_for_cidr(block) x LEFT JOIN
-		dns_domain d USING (dns_domain_name)
-	WHERE
-		d.dns_domain_id IS NULL;
-
+	RETURN QUERY select *
+	FROM jsonb_to_recordset(
+                        dns_manip.add_domains_from_netblock ( netblock_id )
+                ) AS x(dns_domain_id int, dns_domain_name text)
+	;
 END;
 $$
 SET search_path=jazzhands
@@ -570,6 +484,8 @@ LANGUAGE plpgsql SECURITY definer;
 -- dns_domain_id if it exists
 --
 -- If no domain is found that matches, then no rows are returned
+--
+-- if it matches the apex zone, it returns null
 --
 ------------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS dns_utils.find_dns_domain ( text );
@@ -603,8 +519,55 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
+------------------------------------------------------------------------------
+--
+-- similar to above but return json.
+--
+--  returns apex zone record if it matches a zone
+--
+-- The above should go away in favor of this.
+--
+------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS dns_utils.find_dns_domain_from_fqdn ( text );
+CREATE OR REPLACE FUNCTION dns_utils.find_dns_domain_from_fqdn(
+	fqdn	text
+) returns jsonb
+AS
+$$
+DECLARE
+	_r	RECORD;
+BEGIN
+	IF fqdn !~ '^[^.][a-zA-Z0-9_.-]+[^.]$' THEN
+		RAISE EXCEPTION '% is not a valid DNS name', fqdn;
+	END IF;
+
+	SELECT
+		regexp_replace(fqdn, '\.?' || dd.dns_domain_name || '$', '')::text
+			as dns_name,
+		dd.dns_domain_name::text,
+		dd.dns_domain_id
+	INTO _r
+	FROM
+		dns_domain dd
+	WHERE fqdn LIKE ('%.' || dd.dns_domain_name)
+	OR fqdn = dd.dns_domain_name
+	ORDER BY
+		length(dd.dns_domain_name) DESC
+	LIMIT 1;
+
+	IF _r IS NULL THEN
+		RETURN NULL;
+	END IF;
+
+	RETURN to_jsonb(_r);
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_utils.v6_inaddr(
 	ip_address inet
 ) RETURNS TEXT

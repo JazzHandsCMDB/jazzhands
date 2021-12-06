@@ -128,13 +128,13 @@ $q = q{
 		d.device_id,
 		COALESCE(d.device_name, d.physical_label) AS
 			device_name,
-		ni.network_interface_name,
+		ni.layer3_interface_name,
 		host(n.ip_address) AS ip_address
 	FROM
 		device d
-		JOIN network_interface ni using (device_id)
-		JOIN network_interface_netblock nin USING
-			(network_interface_id)
+		JOIN layer3_interface ni using (device_id)
+		JOIN layer3_interface_netblock nin USING
+			(layer3_interface_id)
 		JOIN netblock n USING (netblock_id)
 		JOIN v_layerx_network_expanded lxe ON
 			(n.parent_netblock_id = lxe.netblock_id)
@@ -189,14 +189,14 @@ $q = q{
 		d.device_id,
 		COALESCE(d.device_name, d.physical_label)
 			AS device_name,
-		ni.network_interface_name,
+		ni.layer3_interface_name,
 		dt.config_fetch_type
 	FROM
 		device d
 		JOIN device_type dt USING (device_type_id)
-		JOIN network_interface ni using (device_id)
-		JOIN network_interface_netblock nin USING
-			(network_interface_id)
+		JOIN layer3_interface ni using (device_id)
+		JOIN layer3_interface_netblock nin USING
+			(layer3_interface_id)
 		JOIN netblock n USING (netblock_id)
 		JOIN v_layerx_network_expanded lxe ON
 			(n.parent_netblock_id = lxe.netblock_id)
@@ -239,7 +239,7 @@ if (!@$devices) {
 		map {
 			sprintf("    %s: %s",
 				$_->{device_name},
-				$_->{network_interface_name}
+				$_->{layer3_interface_name}
 			)
 		} @${devices}
 	);
@@ -254,6 +254,11 @@ if ($prompt) {
     }
 }
 
+my $devlist = {
+	success => [],
+	fail => []
+};
+
 foreach my $devrec (@$devices) {
 	my $mgmt = JazzHands::NetDev::Mgmt->new;
 	my $device;
@@ -267,6 +272,7 @@ foreach my $devrec (@$devices) {
 			credentials => $netdev_creds,
 			errors => \@errors))) {
 		printf "Error connecting to device: %s\n", (join "\n", @errors);
+		push @{$devlist->{fail}}, $devrec->{device_name};
 		next;
 	}
 
@@ -278,9 +284,31 @@ foreach my $devrec (@$devices) {
 		printf "%s: %s\n", $devrec->{device_name}, (join("\n", @errors));
 		$device->rollback;
 		$device->disconnect;
+		push @{$devlist->{fail}}, $devrec->{device_name};
 		next;
 	}
+	$devrec->{device_handle} = $device;
+	push @{$devlist->{success}}, $devrec;
+}
+
+if (@{$devlist->{fail}}) {
+	printf "Failed to update the following devices: %s\n",
+		join (', ', @{$devlist->{fail}});
+
+	if ($prompt && !$notreally) {
+		print STDERR "Apply or rollback? ";
+		my $crap = <STDIN>;
+		chomp $crap;
+		if ($crap !~ /^[aAyY]/) {
+			$notreally = 1;
+		}
+	}
+}
+
+foreach my $devrec (@{$devlist->{success}}) {
+	my $device = $devrec->{device_handle};
 	if ($notreally) {
+		printf "Rolling back change to %s\n", $devrec->{device_name};
 		$device->rollback;
 	} else {
 		$device->commit;
@@ -310,6 +338,11 @@ if (!$sth->execute($l2id)) {
 	exit 1;
 }
 
-print "done\n";
-$jh->commit;
+if ($notreally) {
+	printf "Rolling back database change\n";
+	$jh->rollback;
+} else {
+	$jh->commit;
+}
 
+print "done\n";

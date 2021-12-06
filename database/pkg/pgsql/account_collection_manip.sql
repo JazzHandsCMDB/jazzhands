@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Todd Kover
+ * Copyright (c) 2016-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -211,17 +211,12 @@ BEGIN
 				JOIN person_company pc USING (person_id, company_id)
 			WHERE   pc.termination_date IS NOT NULL
 			AND     pc.termination_date < now() - $1::interval
-			AND	coalesce(aca.data_upd_date, aca.data_ins_date) < pc.termination_date
+			AND	NOT a.is_enabled
 			AND     account_collection_type != $2
 			AND
 				(account_collection_id, account_id)  NOT IN
-					( SELECT unix_group_acct_collection_id, account_id from
+					( SELECT unix_group_account_collection_id, account_id from
 						account_unix_info)
-			AND account_collection_id NOT IN (
-				SELECT account_collection_id
-				FROM account_collection
-				WHERE account_collection_type = ''department''
-			)
 			) DELETE FROM account_collection_account aca
 			WHERE (account_collection_id, account_id) IN
 				(SELECT account_collection_id, account_id FROM x)
@@ -301,7 +296,7 @@ BEGIN
 							ac.account_collection_id as child_account_collection_id,
 							account_collection_name as name,
 							account_collection_type as type
-						FROM	v_acct_coll_expanded 	 v
+						FROM	v_account_collection_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
 						WHERE	is_active = true
@@ -328,22 +323,22 @@ BEGIN
 	FOR _r IN SELECT	p.property_id
 			FROM	account_collection ac
 				JOIN department d USING (account_collection_id)
-				JOIN property p ON p.property_value_account_coll_id =
+				JOIN property p ON p.property_value_account_collection_id =
 					ac.account_collection_id
 			WHERE 	d.is_active = false
 			AND ((_pn IS NOT NULL AND _pn = p.property_name) OR _pn IS NULL )
 			AND	p.property_type = _pt
-			AND	p.property_value_account_coll_id NOT IN (
+			AND	p.property_value_account_collection_id NOT IN (
 					SELECT child_account_collection_id
 					FROM account_collection_hier
 				)
-			AND	p.property_value_account_coll_id NOT IN (
+			AND	p.property_value_account_collection_id NOT IN (
 					SELECT account_collection_id
 					FROM account_collection_account
 						JOIN account a USING (account_id)
 					WHERE a.is_enabled = true
 				)
-			AND p.property_value_account_coll_id NOT IN (
+			AND p.property_value_account_collection_id NOT IN (
 				SELECT account_collection_id
 				FROM	account_collection ac
 					JOIN department d USING (account_collection_id)
@@ -352,7 +347,7 @@ BEGIN
 							ac.account_collection_id as child_account_collection_id,
 							account_collection_name as name,
 							account_collection_type as type
-						FROM	v_acct_coll_expanded 	 v
+						FROM	v_account_collection_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
 						WHERE	is_active = true
@@ -471,7 +466,7 @@ BEGIN
 							ac.account_collection_id as child_account_collection_id,
 							account_collection_name as name,
 							account_collection_type as type
-						FROM	v_acct_coll_expanded 	 v
+						FROM	v_account_collection_expanded 	 v
 							JOIN account_collection ac ON v.root_account_collection_id = ac.account_collection_id
 							JOIN department d ON ac.account_collection_id = d.account_collection_id
 						WHERE	is_active = true
@@ -554,8 +549,8 @@ BEGIN
 			(SELECT account_collection_id FROM property
 				WHERE account_collection_id IS NOT NULL)
 		AND	account_collection_id NOT IN
-			(SELECT property_value_account_coll_id FROM property
-				WHERE property_value_account_coll_id IS NOT NULL)
+			(SELECT property_value_account_collection_id FROM property
+				WHERE property_value_account_collection_id IS NOT NULL)
 	LOOP
 		BEGIN
 			DELETE FROM account_collection

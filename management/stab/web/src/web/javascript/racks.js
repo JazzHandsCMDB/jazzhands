@@ -55,7 +55,7 @@ function verify_rack_submission(form) {
 		}
 	}
 
-	$("input.scaryrm:checked").each(function() { 
+	$("input.scaryrm:checked").each(function() {
 		if( $(this).hasClass('rmrack') ) {
 			nogo.push("You have selected to retire the rack.  This will remove all devices in the rack and the rack from the database.  This should only be done if the rack and devices are behing physically removed.");
 		}
@@ -75,7 +75,7 @@ function verify_rack_submission(form) {
 	verifybox = $('#verifybox');
 	$(verifybox).css('visibility', 'visible');
 	$(verifybox).show();
-	
+
 	for(var i =0; i < nogo.length; i++) {
 		var li = $("<li/>");
 		$(li).append( nogo[i]);
@@ -95,9 +95,9 @@ function verify_rack_submission(form) {
 		type: 'button',
 		value: 'No',
 	}).click(
-		function() { 
-			$(verifybox).hide(); 
-			$(verifybox).empty(); 
+		function() {
+			$(verifybox).hide();
+			$(verifybox).empty();
 		}
 	);
 	$(span).append(no);
@@ -128,6 +128,7 @@ function site_to_rack(siteid, rackdivid, where, locid) {
 	if(locid != null) {
 		url += ";RACK_LOCATION_ID=" + locid;
 	}
+	console.log( url );
 	ajaxrequest = createRequest();
 	ajaxrequest.open("GET", url, true);
 	ajaxrequest.onreadystatechange = function () {

@@ -148,6 +148,12 @@ function ShowDevTab(what,devid) {
 				obj.style.padding = '';
 				obj.innerHTML = htmlgoo;
 			}
+			// Update the change tracking status of elements once the document is loaded
+			$('.tracked').each( function() { updateChangeTrackingStatus( $(this)[0] ); } );
+			// Update colors based on toggle swtich statuses
+			$('.button_switch').each( function() {
+				updateNetworkInterfaceUI( $(this)[0], $(this)[0].getAttribute('state'), false );
+			} );
 		}
 		ajaxrequest.send(null);
 	}
@@ -545,6 +551,15 @@ function verify_device_submission(form) {
 		return false;
 	}
 
+	// Add IP/Netowrk tab toggle switches to form
+	// Needed because buttons that aren't clicked aren't submitted
+	for( const oToggle of document.querySelectorAll( '.button_switch' ) ) {
+		var oHidden = document.createElement( 'input' );
+		oHidden.type = 'hidden';
+		oHidden.name = oToggle.name;
+		oHidden.value = oToggle.getAttribute( 'state' );
+		form.appendChild( oHidden );
+	}
 
 	verifybox = document.getElementById("verifybox");
 	verifybox.innerHTML = null;
@@ -1038,6 +1053,275 @@ function replace_int_dns_drop (obj, resp)
 	$(name).focus();
 }
 
+/* Function to show / hide elements when a control element is clicked
+   The control and content element ids must match these formats:
+    - control element: xxx_control_nnn
+    - content element: xxx_content_nnn
+   Where xxx is the group identifier and nnn the control/content pair identifier.
+   There can be multiple pairs in a group.
+*/
+function showhide( element ) {
+	// Find the associated (hidden) element with matchging id
+	var strContentName = element.id.replace( 'control', 'content' );
+	//targetContentElement = $( '#' + strContentName );
+	var targetContentElements = document.getElementsByName( strContentName );
+	// Exit if the related content can't be found
+	if( targetContentElements.length == 0 ) return;
+
+	// Build the group id for control and content elements
+	var strGroupControlId = element.id.replace( /_[^_]*$/, '' );
+	var strGroupContentName = strContentName.replace( /_[^_]*$/, '' );
+
+	// Find all control elements belonging to the group, except the targeted one
+	var eOtherControlsInGroup = $( '[id^="' + strGroupControlId + '"]' ).not( '[id="' + element.id + '"]' );
+	// Find all content elements belonging to the group, except the targeted one
+	var eOtherContentsInGroup = $( '[name^="' + strGroupContentName + '"]' ).not( '[name="' + strContentName + '"]' );
+
+	// Loop on target elements
+	for( let i = 0; i < targetContentElements.length; i++ ) {
+
+		var targetContentElement = targetContentElements[i];
+
+		// Is the targeted content element hidden?
+		if( targetContentElement.classList.contains( 'irrelevant' ) ) {
+			// Update the show/hide icon
+			element.classList.add( 'toggled' );
+			//element.classList.remove( 'control_collapsed' );
+			//element.classList.add( 'control_expanded' );
+			// Update the show/hide icon for those other elements
+			if( eOtherControlsInGroup ) {
+				eOtherControlsInGroup.removeClass( 'toggled' );
+				//eOtherControlsInGroup.removeClass( 'control_expanded' );
+				//eOtherControlsInGroup.addClass( 'control_collapsed' );
+			}
+			// Show it
+			targetContentElement.classList.remove('irrelevant');
+			// And hide all content elements of the group, except the targeted one
+			if( eOtherContentsInGroup ) { eOtherContentsInGroup.addClass( 'irrelevant' ); }
+		// The targetet element is visible
+		} else {
+			// Update the show/hide icon
+			element.classList.remove( 'toggled' );
+			//element.classList.remove( 'control_expanded' );
+			//element.classList.add( 'control_collapsed' );
+			// Hide it
+			targetContentElement.classList.add( 'irrelevant' );
+		}
+	}
+}
+
+
+
+// This function is used to update the device IP Network tab when toggle buttons are clicked
+// It's also called by parent toggles to propagate their state to their child toggles (if applicable)
+// Finally, it's called when the web page is loaded to set the previous states (with propagate set to false in this case)
+function updateNetworkInterfaceUI( element, stateOverride = '', propagate = true ) {
+	// Define the various possible states
+	const states = {
+		'level_network_interface' : {
+			'update': 'delete',
+			'delete': 'update',
+		},
+		'level_netblock' : {
+			'update': 'unlink',
+			'unlink': 'delete',
+			'delete': 'update',
+		},
+  		'level_dns_record' : {
+			'update': 'lock',
+			'lock':   'delete',
+			'delete': 'update',
+		}
+	};
+
+	// Get the parent level
+	const strParentLevelClass = [ ...element.classList].filter( strClass => strClass.match( /^parent_level_/) )[0];
+	// Get the level
+	const strLevelClass = [ ...element.classList].filter( strClass => strClass.match( /^level_/) )[0];
+    // Get the network interface, netblock and dns record classes - if defined -  as an array
+    const aIdClasses = [ ...element.classList].filter( strClass => strClass.match( /^id_/) );
+	// Get the parent toggle state
+	var aParentElements;
+	var strParentState;
+	// Do we have a parent toggle?
+	if( strParentLevelClass !== 'parent_level_none' ) {
+		// The parent id classes are the same, except for the current id class
+		const strExcludeClass = '^id_' + strLevelClass.replace( /^level_/, '' );
+		aParentIdClasses = aIdClasses.filter( strClass => ! strClass.match( strExcludeClass ) );
+		var oParentToggle = document.getElementsByClassName( aParentIdClasses.concat( [ strParentLevelClass.replace( /^parent_/, '' ) ] ).concat( 'button_switch' ).join(' ') )[0];
+		aParentElements = document.getElementsByClassName( aParentIdClasses.concat( [ strParentLevelClass.replace( /^parent_/, '' ) ] ).concat( 'tracked' ).join(' ') );
+		strParentState = oParentToggle.getAttribute( 'state' );
+	}
+	// Get the current state of the toggle button
+	const strCurrentState = element.getAttribute( 'state' );
+	// Get the new state, either from the override or from the states json object
+	var newState;
+	// Do we have a state override and not a simple toggle click?
+	if( stateOverride ) {
+		for( const state of Object.keys( states[strLevelClass] ) ) {
+			if( states[strLevelClass][state] == stateOverride ) {
+				newState = states[strLevelClass][state];
+				break;
+			}
+		}
+	} else {
+		newState = states[strLevelClass][strCurrentState];
+	}
+
+	// Let's check if the new state is compatible with the parent state
+	var bOk = false;
+	while( ! bOk ) {
+		bOk = true;
+		// Check for invalid states
+		if(      strParentState === 'delete' && newState === 'update' ) bOk = false;
+		else if( strParentState === 'delete' && newState === 'lock'   ) bOk = false;
+		else if( strParentState === 'unlink' && newState === 'lock'   ) bOk = false;
+		// A lock state is not allowed without at least one parent element updated
+		if( newState === 'lock' ) {
+			var bParentElementChanged = false;
+		  	for( const oParentElement of aParentElements ) {
+				if( oParentElement.classList.contains( 'changed' ) ) {
+					bParentElementChanged = true;
+					break;
+				}
+			}
+			if( ! bParentElementChanged ) {
+				bOk = false;
+			}
+		}
+		// Did we find an invalid state? If yes, try the next possible state
+		if( ! bOk ) newState = states[strLevelClass][newState];
+	}
+
+	// Get same level and child level elements
+	const aLevelElements = document.getElementsByClassName( aIdClasses.concat( [strLevelClass] ).join(' ') );
+	const aChildToggles = document.getElementsByClassName( aIdClasses.concat( [ 'parent_' + strLevelClass ] ).concat( 'button_switch' ).join(' ') );
+
+	// Change the button value (displayed text) to the new state except for 'new' toggles
+	if( element.value !== 'new' ) element.value = newState;
+	// And change it's state (custom) attribute to the new value as well
+	element.setAttribute( 'state', newState );
+
+	// Loop on elements on the same level as the current toggle button being processed
+	for( const oLevelElement of aLevelElements ) {
+		// Update their class
+		oLevelElement.classList.remove( 'marked_for_' + strCurrentState );
+		oLevelElement.classList.add( 'marked_for_' + newState );
+		// Is that the button that was clicked?
+		if( oLevelElement.classList.contains( 'button_switch' ) ) {
+			// Actually... nothing to do
+		// That's an input/select field of some sort
+		} else {
+			// If the requested state is 'delete', the related input fields must be disabled
+			if( newState === 'delete' ) {
+				oLevelElement.setAttribute( 'disabled', 'disabled' );
+			} else {
+				oLevelElement.removeAttribute( 'disabled' );
+			}
+		}
+	}
+
+	// If we don't have to propagate the change to the child element, stop here
+	// This is required to correctly set the states when the browser loads the page
+	if( ! propagate ) return;
+
+	// Loop on child toggles to notify the change
+	for( const oChildElement of aChildToggles ) {
+		// Get the toggle level class
+		var strChildState = oChildElement.getAttribute( 'state' );
+		// State is propagated to child toggles, unless the state is unlink
+		// If the state we wan't to pass is unlink and the child is not (lock or delete) state, we enforce update instead
+		if( newState === 'unlink' ) {
+			updateNetworkInterfaceUI( oChildElement, 'update' );
+		// In all other cases, we just pass the new state
+		} else {
+			updateNetworkInterfaceUI( oChildElement, newState );
+		}
+	}
+}
+
+
+
+// Update chnage tracking status of specified element
+function updateChangeTrackingStatus( element ) {
+
+	// Do we have the 'original' custom attribute - which is needed to track original values from DB
+	if( element.hasAttribute( 'original' ) ) {
+		// Does the element have an options parameter (it's a select)?
+		if( element.options ) {
+			// Are the currently selected values identical to the original ones?
+			// Lopp on options
+			let bDefaultSelected = true;
+			// Let's consider the original string as a comma separated listed
+			var originalSelectedValues = element.getAttribute( 'original' ).split( ',' );
+			for( let option of element.options ) {
+				// Is the option selected now but not in the original setup?
+				// Or the other way round?
+				if( ( originalSelectedValues.includes( option.value ) && ! option.selected ) || ( ! originalSelectedValues.includes( option.value ) && option.selected ) ) {
+					bDefaultSelected = false;
+					break;
+				}
+			}
+			// Do we have default values selected?
+			if( bDefaultSelected ) {
+				element.classList.remove( 'changed' );
+			} else {
+				element.classList.add( 'changed' );
+			}
+		// Is it a radio control?
+		} else if( element.type === 'radio' ) {
+			// We need to update all radio buttons of the group, because the onchange event only targets the clicked one
+			$( 'input[type="radio"][name="' + element.name + '"]' ).each( function() {
+				// The 'original' custom attribute is the id of the selected radio group member selected by default
+				( this.checked && this.getAttribute( 'original' ) === 'checked' ) || ( ! this.checked && this.getAttribute( 'original' ) === '' ) ? this.classList.remove( 'changed' ):this.classList.add( 'changed' );
+			});
+		// Is it a checkbox?
+		} else if( element.type === 'checkbox' ) {
+			( element.getAttribute( 'original' ) === 'checked' && element.checked ) || ( element.getAttribute( 'original' ) === '' && ! element.checked ) ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
+		// It's not a select, not a radio and not a checkbox
+		} else {
+			element.getAttribute( 'original' ) === element.value ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
+		}
+		// We stop the processing here
+		return;
+	}
+
+	// At this point, the element has no 'original' custom attribute
+	// Let's use what html has to offer as a fallback
+	// That won't work after failed updates with modified fields, but it will work for display before the first submit
+
+	// Does the element have an options parameter (it's a select)?
+	if( element.options ) {
+		// Lopp on options
+		let bDefaultSelected = true;
+		for( let option of element.options ) {
+			if( option.defaultSelected !== option.selected ) {
+				bDefaultSelected = false;
+				break;
+			}
+		}
+		// Do we have default values selected?
+		if( bDefaultSelected ) {
+			element.classList.remove( 'changed' );
+		} else {
+			element.classList.add( 'changed' );
+		}
+	// Is it a radio control?
+	} else if( element.type === 'radio' ) {
+		// We need to update all radio buttons of the group, because the onchange event only targets the clicked one
+		$( 'input[type="radio"][name="' + element.name + '"]' ).each( function() {
+			this.defaultChecked === this.checked ? this.classList.remove( 'changed' ):this.classList.add( 'changed' );
+		});
+		//element.defaultChecked === element.checked ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
+	} else if( element.type === 'checkbox' ) {
+		element.defaultChecked === element.checked ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
+	// No, it's another input field
+	} else {
+		element.defaultValue === element.value ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
+	}
+}
+
+
 // jQuery magic!
 $(document).ready(function(){
 	// this causes the EDIT button to show up where needed
@@ -1069,9 +1353,18 @@ $(document).ready(function(){
 			$(this).closest('table').find('.componentfields').addClass('off');
 		} else {
 			$(this).closest('table').find('.componentfields').removeClass('off');
-		} 
+		}
 	});
 
-	create_dns_reference_jquery("div.maindiv");
+	// Add change tracking to relevant elements (those having the 'tracked' class)
+	$('div.maindiv').on( 'change keyup', '.tracked', function( event ) {
+		// Get the element that triggered the event
+		let element = $(this)[0];
+		updateChangeTrackingStatus( element );
+	});
 
+	// Get dns domains from the database and populate a json object
+	get_dns_domains();
+
+	create_dns_reference_jquery("div.maindiv");
 });

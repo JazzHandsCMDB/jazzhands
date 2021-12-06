@@ -1,4 +1,4 @@
--- Copyright (c) 2014-2020 Todd Kover
+-- Copyright (c) 2014-2021 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,7 +68,6 @@ DECLARE
 	v_net_collection_Id			Property.property_value_netblock_collection_id%TYPE;
 	v_dev_collection_Id			Property.property_value_netblock_collection_id%TYPE;
 	v_password_type			Property.Property_Value_Password_Type%TYPE;
-	v_sw_package_id			Property.Property_Value_SW_Package_ID%TYPE;
 	v_token_collection_id	Property.Property_Value_Token_collection_ID%TYPE;
 	v_private_key_id		property.property_value_private_key_id%TYPE;
 	v_encryption_key_id		property.property_value_private_key_id%TYPE;
@@ -116,7 +115,7 @@ BEGIN
 		Permit_Company_Collection_Id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		Permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -147,7 +146,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		Permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		Permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -179,7 +178,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -211,7 +210,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -243,7 +242,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -275,7 +274,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -307,7 +306,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -339,7 +338,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -372,7 +371,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -405,7 +404,7 @@ BEGIN
 	     Permit_Company_Collection_id,
 	     Permit_Device_Collection_Id,
 	     Permit_Operating_System_Id,
-	     permit_service_environment_collection,
+	     permit_service_environment_collection_id,
 	     permit_property_name_collection_id,
 	     Permit_Site_Code,
 	     Permit_Account_Id,
@@ -438,7 +437,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -470,7 +469,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -493,38 +492,6 @@ BEGIN
 		'PROHIBITED'
 	);
 
-	INSERT INTO VAL_Property (
-		Property_Name,
-		Property_Type,
-		Is_Multivalue,
-		property_value_account_collection_Type_restriction,
-		Property_Data_Type,
-		permit_company_collection_id,
-		Permit_Device_Collection_Id,
-		Permit_Operating_System_Id,
-		permit_service_environment_collection,
-		permit_property_name_collection_id,
-		Permit_Site_Code,
-		Permit_Account_Id,
-		permit_account_realm_id,
-		Permit_Account_Collection_Id
-	) VALUES (
-		'sw_package_id',
-		'test',
-		false,
-		NULL,
-		'sw_package_id',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED',
-		'PROHIBITED'
-	);
-
 
 	INSERT INTO VAL_Property (
 		Property_Name,
@@ -535,7 +502,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -568,7 +535,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -601,7 +568,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -634,7 +601,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -667,7 +634,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -700,7 +667,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -733,7 +700,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -766,7 +733,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -798,7 +765,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -830,7 +797,7 @@ BEGIN
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
 		Permit_Operating_System_Id,
-		permit_service_environment_collection,
+		permit_service_environment_collection_id,
 		permit_property_name_collection_id,
 		Permit_Site_Code,
 		Permit_Account_Id,
@@ -904,8 +871,6 @@ BEGIN
 		LIMIT 1;
 	SELECT Password_Type INTO v_password_type FROM VAL_Password_Type
 		LIMIT 1;
---	SELECT SW_Package_ID INTO v_sw_package_id FROM SW_Package
---		LIMIT 1;
 
 	WITH t AS (
 		INSERT INTO val_token_collection_type (token_collection_type)
@@ -1793,21 +1758,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting SW_Package_ID value into string property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'string', 'test',
-			v_sw_package_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Token_Collection_ID value into string property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -1910,21 +1860,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 			) VALUES (
 			'timestamp', 'test',
 			v_password_type
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting SW_Package_ID value into timestamp property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'timestamp', 'test',
-			v_sw_package_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2043,21 +1978,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 			RAISE NOTICE '... Failed correctly';
 	END;
 
-	RAISE NOTICE 'Inserting SW_Package_ID value into Netblock_Collection_Id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'netblock_collection_id', 'test',
-			v_sw_package_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Token_Collection_ID value into Netblock_Collection_Id property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2168,21 +2088,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 	END;
 	DELETE FROM Property where Property_ID = v_property_id;
 
-	RAISE NOTICE 'Inserting SW_Package_ID value into password_type property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'password_type', 'test',
-			v_sw_package_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
 	RAISE NOTICE 'Inserting Token_Collection_ID value into password_type property';
 	BEGIN
 		INSERT INTO Property (Property_Name, Property_Type,
@@ -2204,132 +2109,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 			property_value_account_collection_id
 			) VALUES (
 			'password_type', 'test',
-			v_account_collection_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	--
-	-- SW_Package_ID
-	--
-
-	RAISE NOTICE 'Inserting string value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value
-			) VALUES (
-			'sw_package_id', 'test',
-			'test'
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting timestamp value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Timestamp
-			) VALUES (
-			'sw_package_id', 'test',
-			now()
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Netblock_Collection_Id value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_netblock_collection_id
-			) VALUES (
-			'sw_package_id', 'test',
-			v_net_collection_Id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Device_Collection_Id value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_device_collection_id
-			) VALUES (
-			'sw_package_id', 'test',
-			v_device_collection_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Password_Type value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Password_Type
-			) VALUES (
-			'sw_package_id', 'test',
-			v_password_type
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Skipping test for inserting SW_Package_ID value into sw_package_id property';
---	RAISE NOTICE 'Inserting SW_Package_ID value into sw_package_id property';
---	BEGIN
---		INSERT INTO Property (Property_Name, Property_Type,
---			Property_Value_SW_Package_ID
---			) VALUES (
---			'sw_package_id', 'test',
---			v_sw_package_id
---			) RETURNING Property_ID INTO v_property_id;
---		RAISE NOTICE '... Success';
---	EXCEPTION
---		WHEN invalid_parameter_value THEN
---			RAISE NOTICE '... Failed';
---			raise error_in_assignment;
---	END;
---	DELETE FROM Property where Property_ID = v_property_id;
-
-	RAISE NOTICE 'Inserting Token_Collection_ID value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_Token_collection_ID
-			) VALUES (
-			'sw_package_id', 'test',
-			v_token_collection_id
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting Account_Collection_id value into sw_package_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			property_value_account_collection_id
-			) VALUES (
-			'sw_package_id', 'test',
 			v_account_collection_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
@@ -2410,21 +2189,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 			) VALUES (
 			'token_collection_id', 'test',
 			v_password_type
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting SW_Package_ID value into token_collection_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'token_collection_id', 'test',
-			v_sw_package_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2535,21 +2299,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 			) VALUES (
 			'account_collection_id', 'test',
 			v_password_type
-			);
-		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
-		raise error_in_assignment;
-	EXCEPTION
-		WHEN invalid_parameter_value THEN
-			RAISE NOTICE '... Failed correctly';
-	END;
-
-	RAISE NOTICE 'Inserting SW_Package_ID value into account_collection_id property';
-	BEGIN
-		INSERT INTO Property (Property_Name, Property_Type,
-			Property_Value_SW_Package_ID
-			) VALUES (
-			'account_collection_id', 'test',
-			v_sw_package_id
 			);
 		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
 		raise error_in_assignment;
@@ -2697,22 +2446,6 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 		WHEN invalid_parameter_value THEN
 			RAISE NOTICE '... Failed correctly';
 	END;
-
-	RAISE NOTICE 'Skipping test inserting SW_Package_ID value into none property';
---	RAISE NOTICE 'Inserting SW_Package_ID value into none property';
---	BEGIN
---		INSERT INTO Property (Property_Name, Property_Type,
---			Property_Value_SW_Package_ID
---			) VALUES (
---			'none', 'test',
---			v_sw_package_id
---			);
---		RAISE NOTICE '... Insert successful.  THIS IS A PROBLEM';
---		raise error_in_assignment;
---	EXCEPTION
---		WHEN invalid_parameter_value THEN
---			RAISE NOTICE '... Failed correctly';
---	END;
 
 	RAISE NOTICE 'Inserting Token_Collection_ID value into none property';
 	BEGIN

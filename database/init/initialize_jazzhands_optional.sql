@@ -1,4 +1,4 @@
--- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- Copyright (c) 2005-2021, Vonage Holdings Corp.
 -- All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
@@ -172,7 +172,7 @@ INSERT INTO Operating_System (
 	(SELECT Company_ID FROM Company WHERE Company_Name = 'Sun Microsystems')
 );
 
------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 
 insert into netblock
 	(IP_ADDRESS, IS_SINGLE_ADDRESS, NETBLOCK_STATUS, NETBLOCK_TYPE, DESCRIPTION, CAN_SUBNET)
@@ -197,3 +197,18 @@ values
 	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '10.0.0.0/8', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y'),
 	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '192.168.0.0/16', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y'),
 	((select ip_universe_id from ip_universe where ip_universe_name = 'private'), '172.16.0.0/12', 'N', 'Allocated', 'default', 'RFC1918 Space', 'Y');
+
+-----------------------------------------------------------------------------
+--
+-- BEGIN services
+
+insert into val_software_artifact_type (software_artifact_type)
+VALUES
+	('rpm'),
+	('deb'),
+	('oci-container'),
+
+-- END services
+--
+-----------------------------------------------------------------------------
+	('docker22-container');

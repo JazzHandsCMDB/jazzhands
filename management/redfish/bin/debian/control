@@ -1,0 +1,11 @@
+Source: jazzhands-redfish-utils
+Section: System/Management
+Priority: optional
+Maintainer: Matthew Ragan <mdr@sucksless.net>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.4
+
+Package: jazzhands-redfish-utils
+Architecture: all
+Depends: jazzhands-perl-redfish ( >= 0.81.5)
+Description: JazzHands redfish management utilities

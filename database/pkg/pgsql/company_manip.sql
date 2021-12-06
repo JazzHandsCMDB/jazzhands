@@ -182,14 +182,14 @@ DECLARE
 BEGIN
 	PERFORM *
 	FROM	account_realm_company arc
-	WHERE	company_id = _company_id
+	WHERE	arc.company_id = add_auto_collections_site.company_id
 	AND		arc.account_realm_id = add_auto_collections_site.account_realm_id;
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Company and Account Realm are not associated together'
 			USING ERRCODE = 'not_null_violation';
 	END IF;
 
-	acname := concat(_ar, '_', _site_code);
+	acname := concat(_ar, '_', site_code);
 
 	INSERT INTO account_collection (
 		account_collection_name, account_collection_type
@@ -387,28 +387,30 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- NOTE: There is no remove_location.
 --
 CREATE OR REPLACE FUNCTION company_manip.add_location(
-	_company_id		company.company_id%type,
-	_site_code		site.site_code%type,
-	_physical_address_id	physical_address.physical_address_id%type,
-	_account_realm_id	account_realm.account_realm_id%type DEFAULT NULL,
-	_site_status		site.site_status%type DEFAULT 'ACTIVE',
-	_description		text DEFAULT NULL
+	company_id		company.company_id%type,
+	site_code		site.site_code%type,
+	physical_address_id	physical_address.physical_address_id%type,
+	account_realm_id	account_realm.account_realm_id%type DEFAULT NULL,
+	site_status		site.site_status%type DEFAULT 'ACTIVE',
+	description		text DEFAULT NULL
 ) RETURNS void AS
 $$
 DECLARE
 BEGIN
 	INSERT INTO site (site_code, colo_company_id,
-		physical_address_id, site_status, description
+		physical_address_id, site_status,
+		description
 	) VALUES (
-		_site_code, _company_id,
-		_physical_address_id, _site_status, _description
+		add_location.site_code, add_location.company_id,
+		add_location.physical_address_id, add_location.site_status,
+		add_location.description
 	);
 
-	if _account_realm_id IS NOT NULL THEN
+	IF add_location.account_realm_id IS NOT NULL THEN
 		PERFORM company_manip.add_auto_collections_site(
-			_company_id,
-			_account_realm_id,
-			_site_code
+			company_id 	:= add_location.company_id,
+			account_realm_id := add_location.account_realm_id,
+			site_code := add_location.site_code
 		);
 	END IF;
 END;
@@ -448,7 +450,7 @@ CREATE OR REPLACE FUNCTION company_manip.add_auto_collections_site(
         _company_id             company.company_id%type,
         _account_realm_id       account_realm.account_realm_id%type,
         _site_code              site.site_code%type,
-		will_soon_be_dropped	boolean DEFAULT true
+	will_soon_be_dropped	boolean DEFAULT true
 ) RETURNS void AS
 $$
 BEGIN
@@ -523,13 +525,17 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY INVOKER;
 
+--
+-- backwards compatible version that needs to be dropped
+--
 CREATE OR REPLACE FUNCTION company_manip.add_location(
         _company_id             company.company_id%type,
         _site_code              site.site_code%type,
         _physical_address_id    physical_address.physical_address_id%type,
         _account_realm_id       account_realm.account_realm_id%type DEFAULT NULL,
         _site_status            site.site_status%type DEFAULT 'ACTIVE',
-        _description            text DEFAULT NULL
+        _description            text DEFAULT NULL,
+	will_soon_be_dropped	boolean DEFAULT true
 ) RETURNS void AS
 $$
 BEGIN
@@ -538,7 +544,7 @@ BEGIN
 		site_code := _site_code,
 		physical_address_id := _physical_address_id,
 		account_realm_id := _account_realm_id,
-		site_stauts := _site_status,
+		site_status := _site_status,
 		description := _description
 	);
 END;

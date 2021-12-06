@@ -1,3 +1,24 @@
+perl-jazzhands-appauthal (0.90.13) trusty; urgency=medium
+
+  * fixed processing of the onload/environment section of the config file
+  * added ODBC support
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 17 May 2021 17:10:00 -0500
+
+perl-jazzhands-appauthal (0.90.10) trusty; urgency=medium
+
+  * improved credential caching algorithm
+  * "Caching" option in the AppAuthAL file now accepts "n" and "no", case insensitive
+  * credentials are cached to a tempfile which is then renamed / moved
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 10 May 2021 13:17:00 -0500
+
+perl-jazzhands-appauthal (0.90.3) trusty; urgency=medium
+
+  * assorted fixes to the do_cached_login() funciton
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Wed, 17 Mar 2021 18:15:00 -0500
+
 perl-jazzhands-appauthal (0.86.0) trusty; urgency=medium
 
   * add support for using vault to get credentials

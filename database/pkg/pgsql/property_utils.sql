@@ -1,4 +1,4 @@
--- Copyright (c) 2018-2020 Todd M. Kover
+-- Copyright (c) 2018-2021 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,6 +80,7 @@ DECLARE
 	v_network_range				network_range%ROWTYPE;
 	v_property_name_collection		property_name_collection%ROWTYPE;
 	v_service_environment_collection	service_environment_collection%ROWTYPE;
+	v_service_version_collection	service_version_collection%ROWTYPE;
 	v_num				integer;
 	v_listvalue			Property.Property_Value%TYPE;
 BEGIN
@@ -96,7 +97,8 @@ BEGIN
 	EXCEPTION
 		WHEN NO_DATA_FOUND THEN
 			RAISE EXCEPTION
-				'Property name or type does not exist'
+				'Property name (%) or type (%) does not exist',
+				NEW.property_name, NEW.property_type
 				USING ERRCODE = 'foreign_key_violation';
 			RETURN NULL;
 	END;
@@ -129,6 +131,8 @@ BEGIN
 			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
 			service_environment_collection_id IS NOT DISTINCT FROM
 				NEW.service_environment_collection_id AND
+			service_version_collection_id IS NOT DISTINCT FROM
+				NEW.service_version_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code
 		;
 
@@ -166,6 +170,8 @@ BEGIN
 			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
 			service_environment_collection_id IS NOT DISTINCT FROM
 				NEW.service_environment_collection_id AND
+			service_version_collection_id IS NOT DISTINCT FROM
+				NEW.service_version_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code AND
 			property_value IS NOT DISTINCT FROM NEW.property_value AND
 			property_value_json IS NOT DISTINCT FROM
@@ -180,10 +186,10 @@ BEGIN
 				NEW.property_value_device_collection_id AND
 			property_value_netblock_collection_id IS NOT DISTINCT FROM
 				NEW.property_value_netblock_collection_id AND
+			property_value_service_version_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_service_version_collection_id AND
 			property_value_password_type IS NOT DISTINCT FROM
 				NEW.property_value_password_type AND
-			property_value_sw_package_id IS NOT DISTINCT FROM
-				NEW.property_value_sw_package_id AND
 			property_value_token_collection_id IS NOT DISTINCT FROM
 				NEW.property_value_token_collection_id AND
 			property_value_encryption_key_id IS NOT DISTINCT FROM
@@ -233,6 +239,8 @@ BEGIN
 			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
 			service_environment_collection_id IS NOT DISTINCT FROM
 				NEW.service_environment_collection_id AND
+			service_version_collection_id IS NOT DISTINCT FROM
+				NEW.service_version_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code
 		;
 
@@ -278,14 +286,6 @@ BEGIN
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
-	IF NEW.Property_Value_SW_Package_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'sw_package_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be SW_Package_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
 	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
 		IF v_prop.Property_Data_Type = 'account_collection_id' THEN
 			tally := tally + 1;
@@ -299,6 +299,14 @@ BEGIN
 			tally := tally + 1;
 		ELSE
 			RAISE 'Property value may not be netblock_collection_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_service_version_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'service_version_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be service_version_collection_id' USING
 				ERRCODE = 'invalid_parameter_value';
 		END IF;
 	END IF;
@@ -612,6 +620,25 @@ BEGIN
 			END;
 		END IF;
 	END IF;
+	IF NEW.service_version_collection_id IS NOT NULL THEN
+		IF v_prop.service_version_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_service_version_collection
+					FROM service_version_collection WHERE
+					service_version_collection_Id = NEW.service_version_collection_id;
+				IF v_service_version_collection.service_version_collection_Type != v_prop.service_version_collection_type
+				THEN
+					RAISE 'service_version_collection_id must be of type %',
+					v_prop.service_version_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
 
 	-- If the RHS contains a account_collection_ID, check to see if it must be a
 	-- specific type (e.g. per-account), and verify that if so
@@ -638,15 +665,37 @@ BEGIN
 	-- If the RHS contains a netblock_collection_ID, check to see if it must be a
 	-- specific type and verify that if so
 	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
-		IF v_prop.property_value_account_collection_type_restriction IS NOT NULL THEN
+		IF v_prop.property_value_netblock_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_netblock_collection
 					FROM netblock_collection WHERE
 					netblock_collection_Id = NEW.Property_Value_netblock_collection_Id;
-				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_account_collection_type_restriction
+				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_netblock_collection_type_restriction
 				THEN
 					RAISE 'Property_Value_netblock_collection_Id must be of type %',
-					v_prop.property_value_account_collection_type_restriction
+					v_prop.property_value_netbloc_collection_type_restriction
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a service_version_collection_id, check to see if it must be a
+	-- specific type and verify that if so
+	IF NEW.property_value_service_version_collection_id IS NOT NULL THEN
+		IF v_prop.property_value_service_version_collection_id IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_service_version_collection
+					FROM service_version_collection WHERE
+					service_version_collection_Id = NEW.property_value_service_version_collection_id;
+				IF v_service_version_collection.service_version_collection_Type != v_prop.property_value_service_version_collection_type_restriction
+				THEN
+					RAISE 'Property_Value_service_version_collection_Id must be of type %',
+					v_prop.property_value_service_version_collection_type_restriction
 					USING ERRCODE = 'invalid_parameter_value';
 				END IF;
 			EXCEPTION
@@ -735,15 +784,26 @@ BEGIN
 			END IF;
 	END IF;
 
-	IF v_prop.permit_service_environment_collection = 'REQUIRED' THEN
+	IF v_prop.permit_service_environment_collection_id = 'REQUIRED' THEN
 			IF NEW.service_environment_collection_id IS NULL THEN
 				RAISE 'service_environment_collection_id is required.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
-	ELSIF v_prop.permit_service_environment_collection = 'PROHIBITED' THEN
+	ELSIF v_prop.permit_service_environment_collection_id = 'PROHIBITED' THEN
 			IF NEW.service_environment_collection_id IS NOT NULL THEN
 				RAISE 'service_environment is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.permit_service_version_collection_id = 'REQUIRED' THEN
+			IF NEW.service_version_collection_id IS NULL THEN
+				RAISE 'service_version_collection_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.permit_service_version_collection_id = 'PROHIBITED' THEN
+			IF NEW.service_version_collection_id IS NOT NULL THEN
+				RAISE 'service_version_parameter_value';
 			END IF;
 	END IF;
 
