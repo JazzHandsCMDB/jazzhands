@@ -1606,7 +1606,7 @@ SELECT
 		WHEN is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	"subject_key_identifier",
+	NULL::text AS "subject_key_identifier",
 	"private_key",
 	"passphrase",
 	"encryption_key_id",
@@ -3462,6 +3462,8 @@ SELECT
 	"subject",
 	"friendly_name",
 	"subject_key_identifier",
+	"public_key_hash_id",
+	"description",
 	CASE WHEN is_active IS NULL THEN NULL
 		WHEN is_active = true THEN 'Y'
 		WHEN is_active = false THEN 'N'
