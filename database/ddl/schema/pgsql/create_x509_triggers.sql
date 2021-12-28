@@ -102,6 +102,7 @@ BEGIN
 		_cnt := x509_hash_manip.set_x509_signed_certificate_fingerprints(NEW.x509_signed_certificate_id, _fingerprints);
 	EXCEPTION
 		WHEN undefined_function THEN NULL;
+	END;
 	RETURN NEW;
 END;
 $$
