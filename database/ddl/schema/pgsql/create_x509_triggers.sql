@@ -90,3 +90,27 @@ CREATE CONSTRAINT TRIGGER trigger_x509_signed_ski_pvtkey_validate
 	EXECUTE PROCEDURE x509_signed_ski_pvtkey_validate();
 
 ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_signed_certificate_ins_upd()
+RETURNS TRIGGER AS $$
+DECLARE
+	_fingerprints JSONB;
+	_cnt INTEGER;
+BEGIN
+	BEGIN
+		_fingerprints := x509_cert_utils.get_public_key_fingerprints(NEW.public_key);
+		_cnt := x509_hash_manip.set_x509_signed_certificate_fingerprints(NEW.x509_signed_certificate_id, _fingerprints);
+	EXCEPTION
+		WHEN undefined_function THEN NULL;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_x509_signed_certificate_ins_upd ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_signed_certificate_ins_upd
+	AFTER INSERT OR UPDATE OF public_key
+	ON x509_signed_certificate
+	FOR EACH ROW
+	EXECUTE PROCEDURE x509_signed_certificate_ins_upd();
