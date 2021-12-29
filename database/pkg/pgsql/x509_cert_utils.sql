@@ -15,14 +15,21 @@
 
 \set ON_ERROR_STOP
 
-DO $$
+DO $_$
 BEGIN
+	DROP FUNCTION IF EXISTS pg_temp.test_pl_perl();
+	CREATE FUNCTION pg_temp.test_pl_perl() RETURNS void
+		AS $$ use Crypt::OpenSSL::X509; $$ LANGUAGE plperl;
 	CREATE SCHEMA x509_cert_utils AUTHORIZATION jazzhands;
 	REVOKE ALL ON SCHEMA x509_cert_utils FROM public;
 	COMMENT ON SCHEMA x509_cert_utils IS 'part of jazzhands';
 EXCEPTION
+	WHEN undefined_object THEN
+		RAISE WARNING 'Language PL/Perl not enabled';
+	WHEN syntax_error THEN
+      		RAISE WARNING 'Perl module Crypt::OpenSSL::X509 not found';
 	WHEN duplicate_schema THEN NULL;
-END $$;
+END $_$;
 
 -------------------------------------------------------------------------------
 --
@@ -46,8 +53,7 @@ CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_fingerprints(
 	my $json256 = sprintf('{"algorithm":"sha256","hash":"%s"}', $sha256);
 	return sprintf('[%s,%s]', $json1, $json256);
 $$ LANGUAGE plperl;
-EXCEPTION WHEN undefined_object THEN RAISE NOTICE
-	'PL/Perl absent: Function get_public_key_fingerprints() not created';
+EXCEPTION WHEN invalid_schema_name THEN NULL;
 END $_$;
 
 REVOKE ALL ON SCHEMA x509_cert_utils  FROM public;

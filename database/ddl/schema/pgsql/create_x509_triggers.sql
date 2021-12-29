@@ -101,7 +101,7 @@ BEGIN
 		_fingerprints := x509_cert_utils.get_public_key_fingerprints(NEW.public_key);
 		_cnt := x509_hash_manip.set_x509_signed_certificate_fingerprints(NEW.x509_signed_certificate_id, _fingerprints);
 	EXCEPTION
-		WHEN undefined_function THEN NULL;
+		WHEN undefined_function OR invalid_schema_name THEN NULL;
 	END;
 	RETURN NEW;
 END;
