@@ -56,8 +56,13 @@ $$ LANGUAGE plperl;
 EXCEPTION WHEN invalid_schema_name THEN NULL;
 END $_$;
 
-REVOKE ALL ON SCHEMA x509_cert_utils  FROM public;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_cert_utils FROM public;
+-------------------------------------------------------------------------------
 
-GRANT USAGE ON SCHEMA x509_cert_utils TO iud_role;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA x509_cert_utils TO ro_role;
+DO $_$ BEGIN
+	REVOKE ALL ON SCHEMA x509_cert_utils  FROM public;
+	REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_cert_utils FROM public;
+
+	GRANT USAGE ON SCHEMA x509_cert_utils TO iud_role;
+	GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA x509_cert_utils TO ro_role;
+EXCEPTION WHEN invalid_schema_name THEN NULL;
+END $_$;
