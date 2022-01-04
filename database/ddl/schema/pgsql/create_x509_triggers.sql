@@ -95,11 +95,14 @@ CREATE OR REPLACE FUNCTION x509_signed_certificate_ins_upd()
 RETURNS TRIGGER AS $$
 DECLARE
 	_fingerprints JSONB;
+	_hashes JSONB;
 	_cnt INTEGER;
 BEGIN
 	BEGIN
 		_fingerprints := x509_cert_utils.get_public_key_fingerprints(NEW.public_key);
+		_hashes := x509_cert_utils.get_public_key_hashes(NEW.public_key);
 		_cnt := x509_hash_manip.set_x509_signed_certificate_fingerprints(NEW.x509_signed_certificate_id, _fingerprints);
+		_cnt := x509_hash_manip.set_x509_signed_certificate_hashes(NEW.x509_signed_certificate_id, _hashes);
 	EXCEPTION
 		WHEN undefined_function OR invalid_schema_name THEN NULL;
 	END;
