@@ -15,11 +15,24 @@
 
 \set ON_ERROR_STOP
 
+-------------------------------------------------------------------------------
+--
+-- The following DO block tests whether the PL/Perl language is enabled
+-- and whether all requisite Perl modules are avilable. If so, the
+-- DO block creates the x509_cert_utils schema, and the function
+-- pg_temp.test_pl_perl() returns false, otherwise a warning is emitted
+-- and the function pg_temp.test_pl_perl() returns true.
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+	AS $$ return 1; $$ LANGUAGE plperl;
+
 DO $_$
 BEGIN
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS void
-			AS $$ use Crypt::OpenSSL::X509; $$ LANGUAGE plperl;
+		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+			AS $$ use Crypt::OpenSSL::X509; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN undefined_object THEN
 			RAISE WARNING 'Language PL/Perl not enabled';
@@ -29,24 +42,24 @@ BEGIN
 			RAISE;
 	END;
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS void
-			AS $$ use Crypt::OpenSSL::RSA; $$ LANGUAGE plperl;
+		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+			AS $$ use Crypt::OpenSSL::RSA; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
 			RAISE WARNING 'Perl module Crypt::OpenSSL::RSA not found';
 			RAISE;
 	END;
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS void
-			AS $$ use MIME::Base64; $$ LANGUAGE plperl;
+		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+			AS $$ use MIME::Base64; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
 			RAISE WARNING 'Perl module MIME::Base64 not found';
 			RAISE;
 	END;
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS void
-			AS $$ use Digest::SHA; $$ LANGUAGE plperl;
+		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+			AS $$ use Digest::SHA; return 0; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
 			RAISE WARNING 'Perl module Digest::SHA not found';
@@ -59,6 +72,15 @@ EXCEPTION
 	WHEN undefined_object OR syntax_error OR duplicate_schema THEN NULL;
 END $_$;
 
+
+-- Conditionally terminate the script if pg_temp.test_pl_perl() returns true
+
+SELECT pg_temp.test_pl_perl() AS pl_perl_failed
+\gset
+\if :pl_perl_failed
+\q
+\endif
+
 -------------------------------------------------------------------------------
 --
 -- Return certificate fingerprints as a JSONB object suitable to be passed
@@ -66,7 +88,6 @@ END $_$;
 --
 -------------------------------------------------------------------------------
 
-DO $_$ BEGIN
 CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_fingerprints(
 	jazzhands.x509_signed_certificate.public_key%TYPE
 ) RETURNS jsonb AS $$
@@ -81,8 +102,6 @@ CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_fingerprints(
 	my $json256 = sprintf('{"algorithm":"sha256","hash":"%s"}', $sha256);
 	return sprintf('[%s,%s]', $json1, $json256);
 $$ LANGUAGE plperl;
-EXCEPTION WHEN invalid_schema_name THEN NULL;
-END $_$;
 
 -------------------------------------------------------------------------------
 --
@@ -91,7 +110,6 @@ END $_$;
 --
 -------------------------------------------------------------------------------
 
-DO $_$ BEGIN
 CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_hashes(
 	jazzhands.x509_signed_certificate.public_key%TYPE
 ) RETURNS jsonb AS $$
@@ -113,16 +131,11 @@ CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_hashes(
 	my $json256 = sprintf('{"algorithm":"sha256","hash":"%s"}', $sha256);
 	return sprintf('[%s,%s]', $json1, $json256);
 $$ LANGUAGE plperl;
-EXCEPTION WHEN invalid_schema_name THEN NULL;
-END $_$;
 
 -------------------------------------------------------------------------------
 
-DO $_$ BEGIN
-	REVOKE ALL ON SCHEMA x509_cert_utils  FROM public;
-	REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_cert_utils FROM public;
+REVOKE ALL ON SCHEMA x509_cert_utils  FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_cert_utils FROM public;
 
-	GRANT USAGE ON SCHEMA x509_cert_utils TO iud_role;
-	GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA x509_cert_utils TO ro_role;
-EXCEPTION WHEN invalid_schema_name THEN NULL;
-END $_$;
+GRANT USAGE ON SCHEMA x509_cert_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA x509_cert_utils TO ro_role;
