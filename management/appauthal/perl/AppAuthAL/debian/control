@@ -10,5 +10,7 @@ Package: perl-jazzhands-appauthal
 Section: unknown
 Architecture: any
 Depends: libjson-perl, jazzhands-perl-common (>= 0.86.0)
-Description: 
+Suggests: jazzhands-perl-vault (>= 0.92.0)
+Breaks: jazzhands-perl-vault (<= 0.91.0)
+Description:
  JazzHands-AppAuthAL - generic auth abstraction layer routines

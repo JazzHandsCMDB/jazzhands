@@ -1,3 +1,9 @@
+jazzhands-perl-vault (0.93.0) trusty; urgency=medium
+
+  * make caching more generic in conjuction with changes in AppAuthAL.
+
+ -- Todd Kover <kovert@omniscient.com>  Tue,  4 Jan 2022 19:31:22 -0500
+
 jazzhands-perl-vault (0.90.4) focal; urgency=medium
 
   * revoke tokens after credentials with object destruction
