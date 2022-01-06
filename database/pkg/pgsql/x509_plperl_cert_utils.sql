@@ -26,7 +26,7 @@
 -------------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
-	AS $$ return 1; $$ LANGUAGE plperl;
+	AS $$ BEGIN RETURN true; END; $$ LANGUAGE plpgsql;
 
 DO $_$
 BEGIN
