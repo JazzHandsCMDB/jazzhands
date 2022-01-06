@@ -77,13 +77,13 @@ SELECT pg_temp.pl_perl_failed() AS pl_perl_failed
 \q
 \endif
 
--- Create the schema x509_cert_utils
+-- Create the schema x509_plperl_cert_utils
 
 DO $_$
 BEGIN
-	CREATE SCHEMA x509_cert_utils AUTHORIZATION jazzhands;
-	REVOKE ALL ON SCHEMA x509_cert_utils FROM public;
-	COMMENT ON SCHEMA x509_cert_utils IS 'part of jazzhands';
+	CREATE SCHEMA x509_plperl_cert_utils AUTHORIZATION jazzhands;
+	REVOKE ALL ON SCHEMA x509_plperl_cert_utils FROM public;
+	COMMENT ON SCHEMA x509_plperl_cert_utils IS 'part of jazzhands';
 EXCEPTION
 	WHEN duplicate_schema THEN NULL;
 END $_$;
@@ -95,7 +95,7 @@ END $_$;
 --
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_fingerprints(
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_public_key_fingerprints(
 	jazzhands.x509_signed_certificate.public_key%TYPE
 ) RETURNS jsonb AS $$
 	my $x509   = Crypt::OpenSSL::X509->new_from_string(shift);
@@ -117,7 +117,7 @@ $$ LANGUAGE plperl;
 --
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION x509_cert_utils.get_public_key_hashes(
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_public_key_hashes(
 	jazzhands.x509_signed_certificate.public_key%TYPE
 ) RETURNS jsonb AS $$
 	my $x509   = Crypt::OpenSSL::X509->new_from_string(shift);
@@ -141,8 +141,8 @@ $$ LANGUAGE plperl;
 
 -------------------------------------------------------------------------------
 
-REVOKE ALL ON SCHEMA x509_cert_utils  FROM public;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_cert_utils FROM public;
+REVOKE ALL ON SCHEMA x509_plperl_cert_utils  FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_plperl_cert_utils FROM public;
 
-GRANT USAGE ON SCHEMA x509_cert_utils TO iud_role;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA x509_cert_utils TO ro_role;
+GRANT USAGE ON SCHEMA x509_plperl_cert_utils TO iud_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA x509_plperl_cert_utils TO ro_role;

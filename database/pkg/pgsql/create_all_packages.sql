@@ -91,4 +91,4 @@
 
 \ir service_manip.sql
 \ir x509_hash_manip.sql
-\ir x509_cert_utils.sql
+\ir x509_plperl_cert_utils.sql
