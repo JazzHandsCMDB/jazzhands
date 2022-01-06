@@ -17,21 +17,21 @@
 
 -------------------------------------------------------------------------------
 --
--- The following DO block tests whether the PL/Perl language is enabled
--- and whether all requisite Perl modules are avilable. If so, the
--- DO block creates the x509_cert_utils schema, and the function
--- pg_temp.test_pl_perl() returns false, otherwise a warning is emitted
--- and the function pg_temp.test_pl_perl() returns true.
+-- The following block tests whether the PL/Perl language is enabled
+-- and whether all requisite Perl modules are avilable. If not, a warning
+-- is emitted and the function pg_temp.pl_perl_failed() returns true.
+-- If PL/Perl is enabled and all Perl modules present, the function
+-- pg_temp.pl_perl_failed() returns false.
 --
 -------------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 	AS $$ return 1; $$ LANGUAGE plperl;
 
 DO $_$
 BEGIN
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 			AS $$ use Crypt::OpenSSL::X509; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN undefined_object THEN
@@ -42,7 +42,7 @@ BEGIN
 			RAISE;
 	END;
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 			AS $$ use Crypt::OpenSSL::RSA; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
@@ -50,7 +50,7 @@ BEGIN
 			RAISE;
 	END;
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 			AS $$ use MIME::Base64; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
@@ -58,28 +58,35 @@ BEGIN
 			RAISE;
 	END;
 	BEGIN
-		CREATE OR REPLACE FUNCTION pg_temp.test_pl_perl() RETURNS boolean
+		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 			AS $$ use Digest::SHA; return 0; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
 			RAISE WARNING 'Perl module Digest::SHA not found';
 			RAISE;
 	END;
-	CREATE SCHEMA x509_cert_utils AUTHORIZATION jazzhands;
-	REVOKE ALL ON SCHEMA x509_cert_utils FROM public;
-	COMMENT ON SCHEMA x509_cert_utils IS 'part of jazzhands';
 EXCEPTION
-	WHEN undefined_object OR syntax_error OR duplicate_schema THEN NULL;
+	WHEN undefined_object OR syntax_error THEN NULL;
 END $_$;
 
+-- Conditionally terminate the script if pg_temp.pl_perl_failed() returns true
 
--- Conditionally terminate the script if pg_temp.test_pl_perl() returns true
-
-SELECT pg_temp.test_pl_perl() AS pl_perl_failed
+SELECT pg_temp.pl_perl_failed() AS pl_perl_failed
 \gset
 \if :pl_perl_failed
 \q
 \endif
+
+-- Create the schema x509_cert_utils
+
+DO $_$
+BEGIN
+	CREATE SCHEMA x509_cert_utils AUTHORIZATION jazzhands;
+	REVOKE ALL ON SCHEMA x509_cert_utils FROM public;
+	COMMENT ON SCHEMA x509_cert_utils IS 'part of jazzhands';
+EXCEPTION
+	WHEN duplicate_schema THEN NULL;
+END $_$;
 
 -------------------------------------------------------------------------------
 --
