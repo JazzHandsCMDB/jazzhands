@@ -202,3 +202,50 @@ CREATE TRIGGER trigger_x509_signed_certificate_ins_upd
 	ON x509_signed_certificate
 	FOR EACH ROW
 	EXECUTE PROCEDURE x509_signed_certificate_ins_upd();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_cert_private_key_upd_del()
+RETURNS TRIGGER AS $$
+BEGIN
+	DELETE FROM public_key_hash_hash
+	WHERE public_key_hash_id NOT IN (
+		SELECT public_key_hash_id
+		FROM x509_signed_certificate
+		WHERE public_key_hash_id IS NOT NULL
+	) AND public_key_hash_id NOT IN (
+		SELECT public_key_hash_id
+		FROM private_key
+		WHERE public_key_hash_id IS NOT NULL
+	);
+
+	DELETE FROM public_key_hash
+	WHERE public_key_hash_id NOT IN (
+		SELECT public_key_hash_id
+		FROM x509_signed_certificate
+		WHERE public_key_hash_id IS NOT NULL
+	) AND public_key_hash_id NOT IN (
+		SELECT public_key_hash_id
+		FROM private_key
+		WHERE public_key_hash_id IS NOT NULL
+	);
+
+	RETURN NULL;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_x509_cert_private_key_upd_del ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_cert_private_key_upd_del
+	AFTER DELETE OR UPDATE OF public_key_hash_id
+	ON x509_signed_certificate
+	FOR EACH STATEMENT
+	EXECUTE PROCEDURE x509_cert_private_key_upd_del();
+
+DROP TRIGGER IF EXISTS trigger_x509_cert_private_key_upd_del ON private_key;
+CREATE TRIGGER trigger_x509_cert_private_key_upd_del
+	AFTER DELETE OR UPDATE OF public_key_hash_id
+	ON private_key
+	FOR EACH STATEMENT
+	EXECUTE PROCEDURE x509_cert_private_key_upd_del();
