@@ -17736,11 +17736,6 @@ BEGIN
 					'friendly_name = ' || quote_nullable(NEW.friendly_name)
 				);
 			END IF;
-			IF OLD.certificate_signing_request IS DISTINCT FROM key.certificate_signing_request THEN
-				_uq := array_append(_uq,
-					'certificate_signing_request = ' || quote_nullable(NEW.certificate_signing_request)
-				);
-			END IF;
 			IF OLD.public_key_hash_id IS DISTINCT FROM key.public_key_hash_id THEN
 				_uq := array_append(_uq,
 					'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
