@@ -175,7 +175,7 @@ CREATE CONSTRAINT TRIGGER trigger_x509_signed_pkh_csr_validate
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION x509_signed_certificate_ins_upd()
+CREATE OR REPLACE FUNCTION set_x509_certificate_hashes_and_fingerprints()
 RETURNS TRIGGER AS $$
 DECLARE
 	_fingerprints JSONB;
@@ -196,16 +196,16 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_x509_signed_certificate_ins_upd ON x509_signed_certificate;
-CREATE TRIGGER trigger_x509_signed_certificate_ins_upd
+DROP TRIGGER IF EXISTS trigger_x509_signed_set_hashes_and_fps ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_signed_set_hashes_and_fps
 	AFTER INSERT OR UPDATE OF public_key
 	ON x509_signed_certificate
 	FOR EACH ROW
-	EXECUTE PROCEDURE x509_signed_certificate_ins_upd();
+	EXECUTE PROCEDURE set_x509_certificate_hashes_and_fingerprints();
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION x509_cert_private_key_upd_del()
+CREATE OR REPLACE FUNCTION delete_dangling_public_key_hashes()
 RETURNS TRIGGER AS $$
 BEGIN
 	DELETE FROM public_key_hash_hash
@@ -236,16 +236,16 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_x509_cert_private_key_upd_del ON x509_signed_certificate;
-CREATE TRIGGER trigger_x509_cert_private_key_upd_del
+DROP TRIGGER IF EXISTS trigger_x509_signed_delete_dangling_hashes ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_signed_delete_dangling_hashes
 	AFTER DELETE OR UPDATE OF public_key_hash_id
 	ON x509_signed_certificate
 	FOR EACH STATEMENT
-	EXECUTE PROCEDURE x509_cert_private_key_upd_del();
+	EXECUTE PROCEDURE delete_dangling_public_key_hashes();
 
-DROP TRIGGER IF EXISTS trigger_x509_cert_private_key_upd_del ON private_key;
-CREATE TRIGGER trigger_x509_cert_private_key_upd_del
+DROP TRIGGER IF EXISTS trigger_private_key_delete_dangling_hashes ON private_key;
+CREATE TRIGGER trigger_private_key_delete_dangling_hashes
 	AFTER DELETE OR UPDATE OF public_key_hash_id
 	ON private_key
 	FOR EACH STATEMENT
-	EXECUTE PROCEDURE x509_cert_private_key_upd_del();
+	EXECUTE PROCEDURE delete_dangling_public_key_hashes();
