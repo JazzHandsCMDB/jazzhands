@@ -27,7 +27,6 @@
 
 CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 	AS $$ BEGIN RETURN true; END; $$ LANGUAGE plpgsql;
-
 DO $_$
 BEGIN
 	BEGIN
@@ -90,7 +89,11 @@ END $_$;
 SELECT pg_temp.pl_perl_failed() AS pl_perl_failed
 \gset
 \if :pl_perl_failed
-\q
+	\if :global_failonnoplperl
+		DO $_$ BEGIN RAISE 'No pl/perl and it is  declared necessary'; END; $_$;
+	\else
+		\q
+	\endif
 \endif
 
 -- Create the schema x509_plperl_cert_utils

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020 Todd Kover
+ * Copyright (c) 2013-2022 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
  */
 
 --
--- This runs through and creates records, runs test and what not.  
+-- This runs through and creates records, runs test and what not.
 --
 -- It assumes the user 'jazzhands' owns the schema, and the database is the
 -- one to which you initially connect (it will switch to template1 before
@@ -35,11 +35,27 @@
 
 select timeofday(), now();
 
+--
+-- The relevant places will succeed regardless of if pl/perl is available,
+-- only using if it if's there.  This being set to true will cause the
+-- process to die if the pl/perl bits are not configured right, any other
+-- setting will cause it to silently not do pl/perl things.
+-- 
+-- It is set here so that all the tests run with and without pl/perl.
+--
+\set global_failonnoplperl true
+
+--
+-- make everything
+--
+
 \ir create_pgsql_from_scratch.sql
 
 --
 -- Everything aftrer this is a test
 --
+
+-- end pl/perlmagic
 
 begin;
 
@@ -96,6 +112,12 @@ begin;
 \ir tests/pgsql/service_manip_tests.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
+savepoint preplperl;
+DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;
+\ir tests/pgsql/x509_tests.sql
+rollback to preplperl;
+
+
 rollback;
 
 -- now run all the tests from the last version against jazhands_legacy
@@ -142,6 +164,15 @@ set search_path=jazzhands_legacy;
 \ir tests/pgsql/jhlegacy/jazzhands_legacy_device.sql
 
 set search_path=jazzhands;
+
+savepoint preplperl;
+DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;
+set search_path=jazzhands_legacy;
+\ir tests/pgsql/jhlegacy/x509_certificate.sql
+\ir tests/pgsql/jhlegacy/deprecated_x509_tests.sql
+set search_path=jazzhands;
+rollback to preplperl;
+
 rollback;
 
 select timeofday(), now();

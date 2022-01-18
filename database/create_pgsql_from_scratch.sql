@@ -68,6 +68,15 @@ EXCEPTION WHEN duplicate_schema THEN
 END;
 $$;
 
+DO $$
+BEGIN
+	CREATE EXTENSION IF NOT EXISTS plperl;
+EXCEPTION WHEN undefined_file THEN
+	RAISE NOTICE 'Failed to create EXTENSION for pl/perl, proceeding because this is optional (%)', SQLERRM;
+WHEN duplicate_schema THEN
+	NULL;
+END;
+$$;
 
 \c :new_db_name jazzhands;
 

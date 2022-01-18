@@ -1,14 +1,34 @@
 $Id$
 $HeadURL$
 
-This works udner oracle and postgresql >= 9.6  Most development is now against
-postgresql 12 (or greater).
+This works under PostgreSQL >= 12.  Most development is now against
+PostgreSQL 14 (or greater) but is backwards compatible to 12.    See below
+if you are brave enough to contemplate oracle.
 
-The database must support hierarhical (recursive) queries in views and
-natively for raw sql queries, we rely heavily on those.  This rules
-mysql out at last investigation.  (These camme into existnace in 9.4).
+The underlying database must support hierarchical (recursive) queries in
+views and natively for raw sql queries, we rely heavily on those.  This
+rules MySQL out at last investigation.  (These came into existence in
+PostgreSQL 9.4).
 
-The TL;DR way to create this from a fresh install of postgresql is:
+The pgcrypto extension is highly desired.  A few things may not work without
+it.
+
+The plperl extension is helpful with x509 certificates.  There are
+triggers that will be called to autopopulate hashes/fingerprints that
+are or will be required and check that they match, where possible.  If
+not there, some utilities that muck with RSA/ECC/X509 certificates
+may not work right or may require some external-to-db intervention.
+However, it is optional and implemented minimally.  Perl was the least
+offensive way to do this.  If plperl is in use, the following modules
+that are not part of base perl are required:  Crypt::OpenSSL::X509,
+Crypt::OpenSSL::RSA and Crypt::OpenSSL::PKCS10
+
+Something like the following needs to be added to postgresql.conf:
+	plperl.on_init = 'use MIME::Base64; use Crypt::OpenSSL::X509; use Crypt::OpenSSL::RSA; use Digest::SHA qw(sha1_hex sha256_hex); use Crypt::OpenSSL::PKCS10; use File::Temp;'
+
+Alternately, include a file that does that.
+
+The TL;DR way to create this from a fresh install of PostgreSQL is:
 
 	psql -U postgres -c 'create role schema_owners';
 	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
@@ -30,41 +50,13 @@ and forth between postgres and jazzhands as needed.  This is to allow
 the whole thing to be created in any database and is used in making test
 images.  The script will just abort if those databases start with template,
 public or postgres.  Likely that was a mistake, and if it wasn't, then
-you understand enough of what you're diong to not use the TL;DR method.
+you understand enough of what you're doing to not use the TL;DR method.
 
 The dba view exists to give people or app users the ability to "su"
 to superuser by setting a role.  This can also be granted to the jazzhands
-user such that maintenances are capable of dropping dependant objects but
+user such that maintenances are capable of dropping dependent objects but
 otherwise not needing superuser to prevent surprises.  (it raises
 permissions only when needed).
-
-For Oracle:
-
-Oracle probably does not work anymore.
-
-Under oracle, everthing must me loaded into the same schema.  The schema
-owner is generally not used for anything else.
-
-In the oracle variant, ip addresses are stored as numbers (in pgsql, they'll
-be native), and that necessitates converting them to/from text.  This is
-done through an oracle package that is a wrapper around  java bits.  The
-network strings module is just used for sorting queries so cisco
-interfaces Gi1/0 will be sorted by slot/port rather than by name.
-Sometimes this doesn't work as well as it should.
-
-see ddl/schema/create_database_JAZZHANDS.sql for an example of how to
-create everything from a virgin install.  It assumes some things about
-how the local system is laid out, and is setup for oracle 10.2.0
-
-To load java bits, you need a java compiler and build the class files
-under java/*manip.   (Makefile is there; you may need to adjust your path to
-javac).  To put them in oracle, as the user that owns the schema:
-
-loadjava -user user@DB -oci8 -resolve IPv4Manip.class
-loadjava -user user@DB -oci8 -resolve NetworkStrings.class
-
-create_oracle_schema.sql can be run from this directory to build out a
-complete oracle schema without and data.
 
 For PostgreSQL:
 
@@ -92,3 +84,37 @@ you need to create these as a superuser:
 	create role picture_image_rw;
 	create role picture_image_rm;
 
+
+For Oracle:
+
+Oracle probably does not work anymore.  Although there are oracle
+droppings everywhere, it is less and less likely that that works as
+that has not been maintained.  It was all originally developed against
+oracle10ish.
+
+Oracle's lack of native inet and boolean types would also
+be a thing, but it's likely surmountable.
+
+Under oracle, everything must me loaded into the same schema.  The schema
+owner is generally not used for anything else.
+
+In the oracle variant, ip addresses are stored as numbers (in pgsql, they'll
+be native), and that necessitates converting them to/from text.  This is
+done through an oracle package that is a wrapper around  java bits.  The
+network strings module is just used for sorting queries so cisco
+interfaces Gi1/0 will be sorted by slot/port rather than by name.
+Sometimes this doesn't work as well as it should.
+
+see ddl/schema/create_database_JAZZHANDS.sql for an example of how to
+create everything from a virgin install.  It assumes some things about
+how the local system is laid out, and is setup for oracle 10.2.0
+
+To load java bits, you need a java compiler and build the class files
+under java/*manip.   (Makefile is there; you may need to adjust your path to
+javac).  To put them in oracle, as the user that owns the schema:
+
+loadjava -user user@DB -oci8 -resolve IPv4Manip.class
+loadjava -user user@DB -oci8 -resolve NetworkStrings.class
+
+create_oracle_schema.sql can be run from this directory to build out a
+complete oracle schema without and data.

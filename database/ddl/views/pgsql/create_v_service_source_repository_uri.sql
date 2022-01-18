@@ -1,4 +1,4 @@
--- Copyright (c) 2021, Todd M. Kover
+-- Copyright (c) 2021-2022, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,9 @@
 --
 CREATE OR REPLACE VIEW v_service_source_repository_uri AS
 SELECT	service_id,
+	is_enabled,
+	is_primary,
+	service_source_repository_id,
 	source_repository_provider_id,
 	source_repository_project_id,
 	source_repository_project_name,
