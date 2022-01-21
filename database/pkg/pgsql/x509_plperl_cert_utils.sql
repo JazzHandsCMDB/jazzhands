@@ -51,10 +51,26 @@ BEGIN
 	END;
 	BEGIN
 		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
+			AS $$ use Crypt::OpenSSL::PKCS10; return 1; $$ LANGUAGE plperl;
+	EXCEPTION
+		WHEN syntax_error THEN
+			RAISE WARNING 'Perl module Crypt::OpenSSL::PKCS10 not found';
+			RAISE;
+	END;
+	BEGIN
+		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
 			AS $$ use MIME::Base64; return 1; $$ LANGUAGE plperl;
 	EXCEPTION
 		WHEN syntax_error THEN
 			RAISE WARNING 'Perl module MIME::Base64 not found';
+			RAISE;
+	END;
+	BEGIN
+		CREATE OR REPLACE FUNCTION pg_temp.pl_perl_failed() RETURNS boolean
+			AS $$ use File::Temp; return 1; $$ LANGUAGE plperl;
+	EXCEPTION
+		WHEN syntax_error THEN
+			RAISE WARNING 'Perl module File::Temp not found';
 			RAISE;
 	END;
 	BEGIN
@@ -91,7 +107,7 @@ END $_$;
 -------------------------------------------------------------------------------
 --
 -- Return certificate fingerprints as a JSONB object suitable to be passed
--- to the function x509_hash_manip.set_x509_signed_certificate_fingerprints
+-- to the function x509_hash_manip.get_or_create_public_key_hash_id
 --
 -------------------------------------------------------------------------------
 
@@ -102,7 +118,7 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_public_key_fingerprints(
 	my $sha1   = lc($x509->fingerprint_sha1());
 	my $sha256 = lc($x509->fingerprint_sha256());
 
-	$sha1   =~ s/://g;
+	$sha1	=~ s/://g;
 	$sha256 =~ s/://g;
 
 	my $json1   = sprintf('{"algorithm":"sha1",  "hash":"%s"}', $sha1);
@@ -113,7 +129,7 @@ $$ LANGUAGE plperl;
 -------------------------------------------------------------------------------
 --
 -- Return certificate hashes as a JSONB object suitable to be passed
--- to the function x509_hash_manip.set_x509_signed_certificate_hashes
+-- to the function x509_hash_manip.get_or_create_public_key_hash_id
 --
 -------------------------------------------------------------------------------
 
@@ -127,6 +143,36 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_public_key_hashes(
 		my $rsapub = Crypt::OpenSSL::RSA->new_public_key($pubstr);
 		$pubstr = $rsapub->get_public_key_x509_string;
 	}
+
+	$pubstr =~ s/-----(BEGIN|END) PUBLIC KEY-----//g;
+
+	my $der	   = decode_base64($pubstr);
+	my $sha1   = sha1_hex($der);
+	my $sha256 = sha256_hex($der);
+
+	my $json1   = sprintf('{"algorithm":"sha1",  "hash":"%s"}', $sha1);
+	my $json256 = sprintf('{"algorithm":"sha256","hash":"%s"}', $sha256);
+	return sprintf('[%s,%s]', $json1, $json256);
+$$ LANGUAGE plperl;
+
+-------------------------------------------------------------------------------
+--
+-- Return CSR hashes as a JSONB object suitable to be passed
+-- to the function x509_hash_manip.get_or_create_public_key_hash_id
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_csr_hashes(
+	jazzhands.certificate_signing_request.certificate_signing_request%TYPE
+) RETURNS jsonb AS $$
+	my $csr_pem = shift;
+	my $tmp	    = File::Temp->new();
+
+	print $tmp $csr_pem;
+	$tmp->close;
+
+	my $csr	   = Crypt::OpenSSL::PKCS10->new_from_file($tmp->filename);
+	my $pubstr = $csr->get_pem_pubkey();
 
 	$pubstr =~ s/-----(BEGIN|END) PUBLIC KEY-----//g;
 
