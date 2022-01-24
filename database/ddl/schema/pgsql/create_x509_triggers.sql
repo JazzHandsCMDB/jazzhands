@@ -175,18 +175,25 @@ CREATE CONSTRAINT TRIGGER trigger_x509_signed_pkh_csr_validate
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION set_x509_certificate_hashes_and_fingerprints()
+CREATE OR REPLACE FUNCTION set_x509_certificate_hashes()
 RETURNS TRIGGER AS $$
 DECLARE
-	_fingerprints JSONB;
 	_hashes JSONB;
-	_cnt INTEGER;
+	_pkhid jazzhands.public_key_hash.public_key_hash_id%TYPE;
 BEGIN
 	BEGIN
-		_fingerprints := x509_plperl_cert_utils.get_public_key_fingerprints(NEW.public_key);
-		_hashes := x509_plperl_cert_utils.get_public_key_hashes(NEW.public_key);
-		_cnt := x509_hash_manip.set_x509_signed_certificate_fingerprints(NEW.x509_signed_certificate_id, _fingerprints);
-		_cnt := x509_hash_manip.set_x509_signed_certificate_hashes(NEW.x509_signed_certificate_id, _hashes);
+		IF NEW.public_key IS NOT NULL THEN
+			_hashes := x509_plperl_cert_utils.get_public_key_hashes(NEW.public_key);
+			_pkhid := x509_hash_manip.get_or_create_public_key_hash_id(_hashes);
+			IF NEW.public_key_hash_id IS NOT NULL THEN
+				IF NEW.public_key_hash_id IS DISTINCT FROM _pkhid THEN
+					RAISE EXCEPTION 'public_key_hash_id does not match public_key'
+					USING ERRCODE = 'data_exception';
+				END IF;
+			ELSE
+				NEW.public_key_hash_id := _pkhid;
+			END IF;
+		END IF;
 	EXCEPTION
 		WHEN undefined_function OR invalid_schema_name THEN NULL;
 	END;
@@ -196,12 +203,76 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_x509_signed_set_hashes_and_fps ON x509_signed_certificate;
-CREATE TRIGGER trigger_x509_signed_set_hashes_and_fps
+DROP TRIGGER IF EXISTS trigger_x509_signed_set_hashes ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_signed_set_hashes
+	BEFORE INSERT OR UPDATE OF public_key
+	ON x509_signed_certificate
+	FOR EACH ROW
+	EXECUTE PROCEDURE set_x509_certificate_hashes();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION set_csr_hashes()
+RETURNS TRIGGER AS $$
+DECLARE
+	_hashes JSONB;
+	_pkhid jazzhands.certificate_signing_request.public_key_hash_id%TYPE;
+BEGIN
+	BEGIN
+		_hashes := x509_plperl_cert_utils.get_csr_hashes(NEW.certificate_signing_request);
+		_pkhid := x509_hash_manip.get_or_create_public_key_hash_id(_hashes);
+		IF NEW.public_key_hash_id IS NOT NULL THEN
+			IF NEW.public_key_hash_id IS DISTINCT FROM _pkhid THEN
+				RAISE EXCEPTION 'public_key_hash_id does not match certificate_signing_request'
+				USING ERRCODE = 'data_exception';
+			END IF;
+		ELSE
+			NEW.public_key_hash_id := _pkhid;
+		END IF;
+	EXCEPTION
+		WHEN undefined_function OR invalid_schema_name THEN NULL;
+	END;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_csr_set_hashes ON certificate_signing_request;
+CREATE TRIGGER trigger_csr_set_hashes
+	BEFORE INSERT OR UPDATE OF certificate_signing_request
+	ON certificate_signing_request
+	FOR EACH ROW
+	EXECUTE PROCEDURE set_csr_hashes();
+
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION set_x509_certificate_fingerprints()
+RETURNS TRIGGER AS $$
+DECLARE
+	_fingerprints JSONB;
+	_cnt INTEGER;
+BEGIN
+	BEGIN
+		IF NEW.public_key IS NOT NULL THEN
+			_fingerprints := x509_plperl_cert_utils.get_public_key_fingerprints(NEW.public_key);
+			_cnt := x509_hash_manip.set_x509_signed_certificate_fingerprints(NEW.x509_signed_certificate_id, _fingerprints);
+		END IF;
+	EXCEPTION
+		WHEN undefined_function OR invalid_schema_name THEN NULL;
+	END;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_x509_signed_set_fingerprints ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_signed_set_fingerprints
 	AFTER INSERT OR UPDATE OF public_key
 	ON x509_signed_certificate
 	FOR EACH ROW
-	EXECUTE PROCEDURE set_x509_certificate_hashes_and_fingerprints();
+	EXECUTE PROCEDURE set_x509_certificate_fingerprints();
 
 ---------------------------------------------------------------------------
 
