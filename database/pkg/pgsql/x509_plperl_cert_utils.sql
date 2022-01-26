@@ -157,6 +157,37 @@ $$ LANGUAGE plperl;
 
 -------------------------------------------------------------------------------
 --
+-- Return certificate subject key identifier
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_public_key_ski(
+	jazzhands.x509_signed_certificate.public_key%TYPE
+) RETURNS
+	jazzhands.x509_signed_certificate.subject_key_identifier%TYPE
+AS $_$
+	my $x509 = Crypt::OpenSSL::X509->new_from_string(shift);
+
+	if ( $x509->num_extensions > 0 ) {
+		my $exts    = $x509->extensions_by_name();
+		my $ski_ext = $$exts{subjectKeyIdentifier};
+
+		if ( defined $ski_ext ) {
+			my $ski_ext_value = $ski_ext->value();
+
+			if ( $ski_ext_value =~ /#0414([0-9A-F]{40})/ ) {
+				my $ski = $1;
+				$ski =~ s/..\K(?=.)/:/sg;
+				return $ski;
+			}
+		}
+	}
+
+	return;
+$_$ LANGUAGE plperl;
+
+-------------------------------------------------------------------------------
+--
 -- Return CSR hashes as a JSONB object suitable to be passed
 -- to the function x509_hash_manip.get_or_create_public_key_hash_id
 --
