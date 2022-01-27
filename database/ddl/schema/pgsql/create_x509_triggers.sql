@@ -300,6 +300,10 @@ BEGIN
 		SELECT public_key_hash_id
 		FROM private_key
 		WHERE public_key_hash_id IS NOT NULL
+	) AND public_key_hash_id NOT IN (
+		SELECT public_key_hash_id
+		FROM certificate_signing_request
+		WHERE public_key_hash_id IS NOT NULL
 	);
 
 	DELETE FROM public_key_hash
@@ -310,6 +314,10 @@ BEGIN
 	) AND public_key_hash_id NOT IN (
 		SELECT public_key_hash_id
 		FROM private_key
+		WHERE public_key_hash_id IS NOT NULL
+	) AND public_key_hash_id NOT IN (
+		SELECT public_key_hash_id
+		FROM certificate_signing_request
 		WHERE public_key_hash_id IS NOT NULL
 	);
 
