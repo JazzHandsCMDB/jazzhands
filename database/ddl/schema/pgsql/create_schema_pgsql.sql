@@ -1078,6 +1078,9 @@ CREATE TABLE certificate_signing_request
 ALTER TABLE certificate_signing_request
 	ADD CONSTRAINT pk_certificate_signing_request PRIMARY KEY (certificate_signing_request_id);
 
+ALTER TABLE certificate_signing_request
+	ADD CONSTRAINT ak_csr_pub_hash UNIQUE (certificate_signing_request_id, public_key_hash_id);
+
 CREATE INDEX fk_csr_pvtkeyid ON certificate_signing_request
 ( 
 	private_key_id
@@ -4862,6 +4865,9 @@ CREATE TABLE private_key
 
 ALTER TABLE private_key
 	ADD CONSTRAINT pk_private_key PRIMARY KEY (private_key_id);
+
+ALTER TABLE private_key
+	ADD CONSTRAINT ak_priv_key_pub_hash UNIQUE (private_key_id, public_key_hash_id);
 
 CREATE INDEX xif2private_key ON private_key
 ( 
@@ -10967,9 +10973,10 @@ ALTER TABLE badge
 
 
 ALTER TABLE certificate_signing_request
-	ADD CONSTRAINT fk_pvtkey_csr FOREIGN KEY (private_key_id) REFERENCES private_key(private_key_id)
+	ADD CONSTRAINT fk_pvtkey_csr FOREIGN KEY (private_key_id, public_key_hash_id) REFERENCES private_key(private_key_id, public_key_hash_id)
 		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
+		ON DELETE NO ACTION
+		DEFERRABLE  ;
 
 ALTER TABLE certificate_signing_request
 	ADD CONSTRAINT fk_x509_csr_public_key_hash FOREIGN KEY (public_key_hash_id) REFERENCES public_key_hash(public_key_hash_id)
@@ -14345,14 +14352,16 @@ ALTER TABLE x509_signed_certificate
 		ON DELETE NO ACTION;
 
 ALTER TABLE x509_signed_certificate
-	ADD CONSTRAINT fk_pvtkey_x509crt FOREIGN KEY (private_key_id) REFERENCES private_key(private_key_id)
+	ADD CONSTRAINT fk_pvtkey_x509crt FOREIGN KEY (private_key_id, public_key_hash_id) REFERENCES private_key(private_key_id, public_key_hash_id)
 		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
+		ON DELETE NO ACTION
+		DEFERRABLE  ;
 
 ALTER TABLE x509_signed_certificate
-	ADD CONSTRAINT fk_csr_pvtkeyid FOREIGN KEY (certificate_signing_request_id) REFERENCES certificate_signing_request(certificate_signing_request_id)
+	ADD CONSTRAINT fk_csr_pvtkeyid FOREIGN KEY (certificate_signing_request_id, public_key_hash_id) REFERENCES certificate_signing_request(certificate_signing_request_id, public_key_hash_id)
 		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
+		ON DELETE NO ACTION
+		DEFERRABLE  ;
 
 ALTER TABLE x509_signed_certificate
 	ADD CONSTRAINT fk_x509crtid_crttype FOREIGN KEY (x509_certificate_type) REFERENCES val_x509_certificate_type(x509_certificate_type)
