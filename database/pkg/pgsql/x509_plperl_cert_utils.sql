@@ -89,8 +89,13 @@ END $_$;
 SELECT pg_temp.pl_perl_failed() AS pl_perl_failed
 \gset
 \if :pl_perl_failed
-	\if :global_failonnoplperl
-		DO $_$ BEGIN RAISE 'No pl/perl and it is  declared necessary'; END; $_$;
+
+	\if :{?global_failonnoplperl}
+		\if :global_failonnoplperl
+			DO $_$ BEGIN RAISE 'No pl/perl and it is  declared necessary'; END; $_$;
+		\else
+			\q
+		\endif
 	\else
 		\q
 	\endif
