@@ -202,6 +202,29 @@ class Vault(object):
             raise VaultResponseError('Unspecified error')
         return parsed
 
+    def _delete(self, path, timeout=None):
+        """Issue a DELETE request for path."""
+
+        if not self.uri:
+            raise VaultParameterError('uri not defined')
+        try:
+            response = self._api.delete(
+                os.path.join(self.uri, 'v1', path),
+                headers=self._token_header(),
+                timeout=timeout if timeout is not None else self.timeout,
+            )
+        except (OSError, IOError) as err:
+            raise VaultRequestError(err)
+        if response.status_code == 204:
+            return None
+        parsed = response.json()
+        logger.debug('DELETE %s: %s', path, pprint.pformat(parsed))
+        if 'errors' in parsed:
+            if parsed['errors']:
+                raise VaultResponseError(', '.join(parsed['errors']))
+            raise VaultResponseError('Unspecified error')
+        return parsed
+
     def get_token(self, ttl_refresh_seconds=300, timeout=None):
         """Ensure we have a token valid for the specified TTL
 
@@ -279,6 +302,16 @@ class Vault(object):
         """Writes the KV secrets to the specified location."""
 
         data = self._post(path, data, timeout=timeout)
+
+    def delete(self, path, timeout=None):
+        """Deletes the KV secrets at the specified location."""
+
+        self._delete(path, timeout=timeout)
+
+    def delete_metadata(self, path, timeout=None):
+        """Deletes metadata for the KV secrets at the specified location."""
+
+        self._delete(path.replace('/data/', '/metadata/', 1), timeout=timeout)
 
 
 class VaultError(Exception):
