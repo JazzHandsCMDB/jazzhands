@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021 Todd Kover
+ * Copyright (c) 2019-2022 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -630,19 +630,24 @@ SELECT device_id,layer2_network_id,data_ins_user,data_ins_date,data_upd_user,dat
 FROM jazzhands.device_layer2_network;
 
 
-
--- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.device_management_controller AS
 SELECT
 	manager_device_id,
 	device_id,
-	device_management_control_type AS device_mgmt_control_type,
+	component_management_controller_type AS device_mgmt_control_type,
 	description,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.device_management_controller;
+FROM jazzhands.component_management_controller c
+	JOIN (SELECT device_id, component_id FROM jazzhands.device) d
+		USING (component_id)
+	JOIN (SELECT device_id AS manager_device_id, 
+			component_id AS manager_component_id 
+			FROM jazzhands.device) md
+		USING (manager_component_id)
+;
 
 
 
@@ -1045,7 +1050,7 @@ FROM jazzhands.inter_component_connection icc
 		flow.component_property_name = 'flow-control'
  WHERE  st1.slot_function in ('network', 'serial', 'patchpanel')
 	OR
- 	st1.slot_function in ('network', 'serial', 'patchpanel')
+	st1.slot_function in ('network', 'serial', 'patchpanel')
 ;
 
 
@@ -3306,13 +3311,13 @@ SELECT
 FROM jazzhands.val_device_collection_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_device_mgmt_ctrl_type AS
-SELECT device_management_controller_type AS device_mgmt_control_type,
+SELECT component_management_controller_type AS device_mgmt_control_type,
 	description,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.val_device_management_controller_type;
+FROM jazzhands.val_component_management_controller_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_device_status AS
 SELECT device_status,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
@@ -17568,9 +17573,9 @@ BEGIN
 			csr.certificate_signing_request_id
 		) RETURNING * INTO crt;
 
-		NEW.x509_cert_id 		= crt.x509_signed_certificate_id;
-		NEW.friendly_name 		= crt.friendly_name;
-		NEW.is_active 			= CASE WHEN crt.is_active = true THEN 'Y'
+		NEW.x509_cert_id		= crt.x509_signed_certificate_id;
+		NEW.friendly_name		= crt.friendly_name;
+		NEW.is_active			= CASE WHEN crt.is_active = true THEN 'Y'
 									WHEN crt.is_active = false THEN 'N'
 									ELSE NULL END;
 		NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority =
@@ -17579,27 +17584,27 @@ BEGIN
 										THEN 'N'
 									ELSE NULL END;
 
-		NEW.signing_cert_id 			= crt.signing_cert_id;
+		NEW.signing_cert_id			= crt.signing_cert_id;
 		NEW.x509_ca_cert_serial_number	= crt.x509_ca_cert_serial_number;
-		NEW.public_key 					= crt.public_key;
-		NEW.private_key 				= key.private_key;
-		NEW.certificate_sign_req 		= csr.certificate_signing_request;
-		NEW.subject 					= crt.subject;
-		NEW.subject_key_identifier 		= crt.subject_key_identifier;
-		NEW.public_key_hash_id 			= crt.public_key_hash_id;
-		NEW.description 				= crt.description;
-		NEW.valid_from 					= crt.valid_from;
-		NEW.valid_to 					= crt.valid_to;
-		NEW.x509_revocation_date 		= crt.x509_revocation_date;
-		NEW.x509_revocation_reason 		= crt.x509_revocation_reason;
-		NEW.passphrase 					= key.passphrase;
-		NEW.encryption_key_id 			= key.encryption_key_id;
-		NEW.ocsp_uri 					= crt.ocsp_uri;
-		NEW.crl_uri 					= crt.crl_uri;
-		NEW.data_ins_user 				= crt.data_ins_user;
-		NEW.data_ins_date 				= crt.data_ins_date;
-		NEW.data_upd_user 				= crt.data_upd_user;
-		NEW.data_upd_date 				= crt.data_upd_date;
+		NEW.public_key					= crt.public_key;
+		NEW.private_key				= key.private_key;
+		NEW.certificate_sign_req		= csr.certificate_signing_request;
+		NEW.subject					= crt.subject;
+		NEW.subject_key_identifier		= crt.subject_key_identifier;
+		NEW.public_key_hash_id			= crt.public_key_hash_id;
+		NEW.description				= crt.description;
+		NEW.valid_from					= crt.valid_from;
+		NEW.valid_to					= crt.valid_to;
+		NEW.x509_revocation_date		= crt.x509_revocation_date;
+		NEW.x509_revocation_reason		= crt.x509_revocation_reason;
+		NEW.passphrase					= key.passphrase;
+		NEW.encryption_key_id			= key.encryption_key_id;
+		NEW.ocsp_uri					= crt.ocsp_uri;
+		NEW.crl_uri					= crt.crl_uri;
+		NEW.data_ins_user				= crt.data_ins_user;
+		NEW.data_ins_date				= crt.data_ins_date;
+		NEW.data_upd_user				= crt.data_upd_user;
+		NEW.data_upd_date				= crt.data_upd_date;
 	END IF;
 	RETURN NEW;
 END;
@@ -17692,9 +17697,9 @@ BEGIN
 			END IF;
 		END IF;
 
-		NEW.private_key 		= key.private_key;
-		NEW.is_active 			= CASE WHEN key.is_active THEN 'Y' ELSE 'N' END;
-		NEW.passphrase 			= key.passphrase;
+		NEW.private_key		= key.private_key;
+		NEW.is_active			= CASE WHEN key.is_active THEN 'Y' ELSE 'N' END;
+		NEW.passphrase			= key.passphrase;
 		NEW.encryption_key_id	= key.encryption_key_id;
 	END IF;
 
@@ -17750,7 +17755,7 @@ BEGIN
 			END IF;
 		END IF;
 
-		NEW.certificate_sign_req 	= csr.certificate_signing_request;
+		NEW.certificate_sign_req	= csr.certificate_signing_request;
 	END IF;
 
 	-- csr and private_key pieces are now what it is supposed to be.
@@ -18623,32 +18628,32 @@ BEGIN
 	IF NEW.service_environment_id IS NOT NULL THEN
 		INSERT INTO service_environment (
 				service_environment_id,
-        		service_environment_name,
-        		service_environment_type,
-        		production_state,
-        		description,
-        		external_id
+       		service_environment_name,
+       		service_environment_type,
+       		production_state,
+       		description,
+       		external_id
 		) VALUES (
 				NEW.service_environment_id,
-        		NEW.service_environment_name,
-        		'default',
-        		NEW.production_state,
-        		NEW.description,
-        		NEW.external_id
+       		NEW.service_environment_name,
+       		'default',
+       		NEW.production_state,
+       		NEW.description,
+       		NEW.external_id
 		) RETURNING * INTO _se;
 	ELSE
 		INSERT INTO service_environment (
-        		service_environment_name,
-        		service_environment_type,
-        		production_state,
-        		description,
-        		external_id
+       		service_environment_name,
+       		service_environment_type,
+       		production_state,
+       		description,
+       		external_id
 		) VALUES (
-        		NEW.service_environment_name,
-        		'default',
-        		NEW.production_state,
-        		NEW.description,
-        		NEW.external_id
+       		NEW.service_environment_name,
+       		'default',
+       		NEW.production_state,
+       		NEW.description,
+       		NEW.external_id
 		) RETURNING * INTO _se;
 
 	END IF;
@@ -18658,10 +18663,10 @@ BEGIN
 	NEW.production_state			:= _se.production_state;
 	NEW.description					:= _se.description;
 	NEW.external_id					:= _se.external_id;
-	NEW.data_ins_user 				:= _se.data_ins_user;
-	NEW.data_ins_date 				:= _se.data_ins_date;
-	NEW.data_upd_user 				:= _se.data_upd_user;
-	NEW.data_upd_date 				:= _se.data_upd_date;
+	NEW.data_ins_user				:= _se.data_ins_user;
+	NEW.data_ins_date				:= _se.data_ins_date;
+	NEW.data_upd_user				:= _se.data_upd_user;
+	NEW.data_upd_date				:= _se.data_upd_date;
 
 	RETURN NEW;
 END;
@@ -18741,10 +18746,10 @@ BEGIN
 		NEW.production_state			:= _se.production_state;
 		NEW.description					:= _se.description;
 		NEW.external_id					:= _se.external_id;
-		NEW.data_ins_user 				:= _se.data_ins_user;
-		NEW.data_ins_date 				:= _se.data_ins_date;
-		NEW.data_upd_user 				:= _se.data_upd_user;
-		NEW.data_upd_date 				:= _se.data_upd_date;
+		NEW.data_ins_user				:= _se.data_ins_user;
+		NEW.data_ins_date				:= _se.data_ins_date;
+		NEW.data_upd_user				:= _se.data_upd_user;
+		NEW.data_upd_date				:= _se.data_upd_date;
 	END IF;
 
 	RETURN NEW;
@@ -18761,6 +18766,197 @@ CREATE TRIGGER trigger_service_environment_upd
 	FOR EACH ROW
 	EXECUTE PROCEDURE service_environment_upd();
 
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION device_management_controller_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	_c		jazzhands.component_management_controller.component_id%TYPE;
+	_mc		jazzhands.component_management_controller.component_id%TYPE;
+	_cmc	jazzhands.component_management_controller%ROWTYPE;
+BEGIN
+	SELECT	component_id
+	INTO	_c
+	FROM	device
+	WHERE	device_id IS NOT DISTINCT FROM NEW.device_id;
+
+	IF _c IS NULL THEN
+			RAISE EXCEPTION 'device_id may not be NULL or there is no component associated with the device.'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT	component_id
+	INTO	_mc
+	FROM	device
+	WHERE	device_id IS NOT DISTINCT FROM NEW.manager_device_id;
+
+	IF _mc IS NULL THEN
+			RAISE EXCEPTION 'manager_device_id may not be NULL or there is no component associated with the device.'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	INSERT INTO component_management_controller (
+		manager_component_id, component_id,
+		component_management_controller_type, description
+	) VALUES (
+		_mc, _c,
+		NEW.device_mgmt_control_type, NEW.description
+	) RETURNING * INTO _cmc;
+
+	NEW.data_ins_user := _cmc.data_ins_user;
+	NEW.data_ins_date := _cmc.data_ins_date;
+	NEW.data_upd_user := _cmc.data_upd_user;
+	NEW.data_upd_date := _cmc.data_upd_date;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_management_controller_ins ON
+	jazzhands_legacy.device_management_controller;
+
+CREATE TRIGGER trigger_device_management_controller_ins
+	INSTEAD OF INSERT ON jazzhands_legacy.device_management_controller
+	FOR EACH ROW
+	EXECUTE PROCEDURE device_management_controller_ins();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION device_management_controller_upd()
+RETURNS TRIGGER AS $$
+DECLARE
+	upd_query	TEXT[];
+	_c			jazzhands.component_management_controller.component_id%TYPE;
+	_oc			jazzhands.component_management_controller.component_id%TYPE;
+	_omc		jazzhands.component_management_controller.component_id%TYPE;
+	_cmc		jazzhands.component_management_controller%ROWTYPE;
+BEGIN
+	upd_query := NULL;
+	IF OLD.device_id IS DISTINCT FROM NEW.device_id THEN
+		SELECT	component_id
+		INTO	_c
+		FROM	device
+		WHERE	device_id IS NOT DISTINCT FROM NEW.device_id;
+
+		IF _c IS NULL THEN
+				RAISE EXCEPTION 'device_id may not be NULL or there is no component associated with the device.'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+
+		upd_query := array_append(upd_query,
+			'component_id = ' || quote_nullable(_c));
+	END IF;
+
+	IF OLD.manager_device_id IS DISTINCT FROM NEW.manager_device_id THEN
+		SELECT	component_id
+		INTO	_c
+		FROM	device
+		WHERE	device_id IS NOT DISTINCT FROM NEW.manager_device_id;
+
+		IF _c IS NULL THEN
+				RAISE EXCEPTION 'manager_device_id may not be NULL or there is no component associated with the device.'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+
+		upd_query := array_append(upd_query,
+			'manager_component_id = ' || quote_nullable(_c));
+	END IF;
+
+	IF NEW.description IS DISTINCT FROM OLD.description THEN
+		upd_query := array_append(upd_query,
+		'description = ' || quote_nullable(NEW.description));
+	END IF;
+
+	IF NEW.device_mgmt_control_type IS DISTINCT FROM OLD.device_mgmt_control_type THEN
+		upd_query := array_append(upd_query,
+		'component_management_controller_type = ' || quote_nullable(NEW.device_mgmt_control_type));
+	END IF;
+
+	IF upd_query IS NOT NULL THEN
+		SELECT component_id INTO _cmc.component_id
+		FROM device WHERE device_id = OLD.device_id;
+
+		SELECT component_id INTO _cmc.manager_component_id
+		FROM device WHERE device_id = OLD.manager_device_id;
+
+		EXECUTE 'UPDATE component_management_controller SET ' ||
+			array_to_string(upd_query, ', ') ||
+			' WHERE component_id = $1 AND manager_component_id = $2 RETURNING *'
+			USING _cmc.component_id, _cmc.manager_component_id
+			INTO _cmc;
+
+		NEW.device_mgmt_control_type	= _cmc.component_management_controller_type;
+	  	NEW.description					= _cmc.description;
+
+		NEW.data_ins_user := _cmc.data_ins_user;
+		NEW.data_ins_date := _cmc.data_ins_date;
+		NEW.data_upd_user := _cmc.data_upd_user;
+		NEW.data_upd_date := _cmc.data_upd_date;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_management_controller_upd ON
+	jazzhands_legacy.device_management_controller;
+
+CREATE TRIGGER trigger_device_management_controller_upd
+	INSTEAD OF UPDATE ON jazzhands_legacy.device_management_controller
+	FOR EACH ROW
+	EXECUTE PROCEDURE device_management_controller_upd();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION device_management_controller_del()
+RETURNS TRIGGER AS $$
+DECLARE
+	_c			jazzhands.component_management_controller.component_id%TYPE;
+	_mc			jazzhands.component_management_controller.component_id%TYPE;
+	_cmc		jazzhands.component_management_controller%ROWTYPE;
+BEGIN
+	SELECT	component_id
+	INTO	_c
+	FROM	device
+	WHERE	device_id = OLD.device_id;
+
+	SELECT	component_id
+	INTO	_mc
+	FROM	device
+	WHERE	device_id = OLD.manager_device_id;
+
+	DELETE FROM component_management_controller
+	WHERE component_id IS NOT DISTINCT FROM  _c
+	AND manager_component_id IS NOT DISTINCT FROM _mc
+	RETURNING * INTO _cmc;
+
+	OLD.device_mgmt_control_type	= _cmc.component_management_controller_type;
+	OLD.description					= _cmc.description;
+
+	OLD.data_ins_user := _cmc.data_ins_user;
+	OLD.data_ins_date := _cmc.data_ins_date;
+	OLD.data_upd_user := _cmc.data_upd_user;
+	OLD.data_upd_date := _cmc.data_upd_date;
+
+	RETURN OLD;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_management_controller_del ON
+	jazzhands_legacy.device_management_controller;
+
+CREATE TRIGGER trigger_device_management_controller_del
+	INSTEAD OF DELETE ON jazzhands_legacy.device_management_controller
+	FOR EACH ROW
+	EXECUTE PROCEDURE device_management_controller_del();
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------

@@ -112,6 +112,8 @@ begin;
 \ir tests/pgsql/service_manip_tests.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
+\ir tests/pgsql/device_management_controller_regression.sql
+
 savepoint preplperl;
 DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;
 \ir tests/pgsql/x509_tests.sql
@@ -160,6 +162,8 @@ set search_path=jazzhands_legacy;
 \ir tests/pgsql/jhlegacy/devices_regression.sql
 \ir tests/pgsql/jhlegacy/x509_tests.sql
 \ir tests/pgsql/jhlegacy/deprecated_x509_tests.sql
+
+\ir tests/pgsql/jhlegacy/device_management_controller_regression.sql
 
 \ir tests/pgsql/jhlegacy/jazzhands_legacy_device.sql
 
