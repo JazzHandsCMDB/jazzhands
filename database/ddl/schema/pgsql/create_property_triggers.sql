@@ -40,14 +40,8 @@ CREATE OR REPLACE FUNCTION validate_val_property() RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
 BEGIN
-	IF NEW.property_data_type = 'json' AND NEW.property_value_json_schema IS NULL THEN
-		RAISE 'property_data_type json requires a schema to be set'
-			USING ERRCODE = 'invalid_parameter_value';
-	ELSIF NEW.property_data_type != 'json' AND NEW.property_value_json_schema IS NOT NULL THEN
-		RAISE 'property_data_type % may not have a json schema set',
-			NEW.property_data_type
-			USING ERRCODE = 'invalid_parameter_value';
-	END IF;
+
+	PERFORM property_utils.validate_val_property(NEW);
 
 	IF TG_OP = 'UPDATE' AND OLD.property_data_type != NEW.property_data_type THEN
 		SELECT	count(*)
@@ -57,7 +51,7 @@ BEGIN
 		AND		property_type = NEW.property_type;
 
 		IF _tally > 0  THEN
-			RAISE 'May not change property type if there are existing proeprties'
+			RAISE 'May not change property type if there are existing properties'
 				USING ERRCODE = 'foreign_key_violation';
 
 		END IF;
