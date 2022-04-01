@@ -1,3 +1,9 @@
+perl-jazzhands-appauthal (0.94.0) trusty; urgency=medium
+
+  * fix bug in caching system
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Apr 2022 14:51:00 -0500
+
 perl-jazzhands-appauthal (0.93.0) trusty; urgency=medium
 
   * fix issue with vault role-ids that come via VaultRoleIdPath

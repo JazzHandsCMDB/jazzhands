@@ -73,8 +73,8 @@ foreach my $name ( keys %JazzHands::Common::Error::EXPORT_TAGS ) {
 
 sub import {
 	if ( grep( $_ =~ /^\:(db|all)$/, @_ ) ) {
-		use JazzHands::Common::GenericDB qw(:all);
-		push( @ISA, 'JazzHands::Common::GenericDB' );
+		require JazzHands::Common::GenericDB;
+		JazzHands::Common::GenericDB->import( qw(:all) );
 
 		# pull up all the stuff from JazzHands::Common::GenericDB
 		push( @EXPORT,    @JazzHands::Common::GenericDB::EXPORT );
