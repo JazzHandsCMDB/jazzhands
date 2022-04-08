@@ -1,0 +1,69 @@
+---
+version: "3.8"
+
+services:
+  test:
+    container_name: tests
+    image: tests
+    links:
+      - "vault"
+    # required to make vault client work
+    cap_add:
+      - IPC_LOCK
+    build:
+      context: .
+      dockerfile: ./Dockerfile-test
+    volumes:
+    - type: volume
+      source: scratch
+      target: /scratch
+    networks:
+      - testnet
+
+  dev:
+    container_name: dev
+    image: tests
+    build:
+      context: .
+      dockerfile: ./Dockerfile-test
+    links:
+      - "vault"
+      - "test"
+    # required to make vault client work
+    cap_add:
+      - IPC_LOCK
+    volumes:
+    - .:/code
+    - type: volume
+      source: scratch
+      target: /scratch
+    networks:
+      - testnet
+    entrypoint: [ 'sleep', '86400' ]
+
+  vault:
+    container_name: vault
+    image: vault:latest
+    # read only does not work beause of capabilities, possible not run as root
+    # https://github.com/hashicorp/docker-vault/issues/137
+    # read_only: true
+    cap_add:
+      - IPC_LOCK
+    expose:
+      - "127.0.0.1:8200"
+    volumes:
+    - .:/code
+    - type: volume
+      source: scratch
+      target: /scratch
+    networks:
+      - testnet
+    environment:
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    entrypoint: [ "/bin/sh", "-c", "vault server -dev | tee /scratch/vault-output"  ]
+    
+networks:
+  testnet:
+
+volumes:
+  scratch:

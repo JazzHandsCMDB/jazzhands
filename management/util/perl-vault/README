@@ -1,0 +1,23 @@
+it should be possible to setup a github action for this when the monorepo is
+gone and master commits are setup and PRs submitted.
+
+For now:
+
+docker compose -f docker-compose.yml up --build   --force-recreate  --renew-anon-volumes --abort-on-container-exit --exit-code-from=test
+
+will run tests
+
+If you leave off the last two options, there's a container that hangs around
+that sleeps for a day that normally does not do anyting with:
+
+docker-compose -f docker-compose.yml exec -ti dev /bin/bash
+
+The local directory is mounted as /code and tests can be checked out there.
+This is the same container as the test container, just without running any
+tests.
+
+/scratch is shared amongst all the containers and contains the output of
+vault startup and also where all the various files are stored for the tests.
+This should arguably not be shared.
+
+The test container takes care of initializing approle
