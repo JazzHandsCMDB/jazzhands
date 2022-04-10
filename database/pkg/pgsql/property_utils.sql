@@ -133,7 +133,9 @@ BEGIN
 				NEW.service_environment_collection_id AND
 			service_version_collection_id IS NOT DISTINCT FROM
 				NEW.service_version_collection_id AND
-			site_code IS NOT DISTINCT FROM NEW.site_code
+			site_code IS NOT DISTINCT FROM NEW.site_code AND
+			x509_signed_certificate_id IS NOT DISTINCT FROM
+				NEW.x509_signed_certificate_id
 		;
 
 		IF FOUND THEN
@@ -173,6 +175,8 @@ BEGIN
 			service_version_collection_id IS NOT DISTINCT FROM
 				NEW.service_version_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code AND
+			x509_signed_certificate_id IS NOT DISTINCT FROM
+				NEW.x509_signed_certificate_id
 			property_value IS NOT DISTINCT FROM NEW.property_value AND
 			property_value_json IS NOT DISTINCT FROM
 				NEW.property_value_json AND
@@ -241,7 +245,9 @@ BEGIN
 				NEW.service_environment_collection_id AND
 			service_version_collection_id IS NOT DISTINCT FROM
 				NEW.service_version_collection_id AND
-			site_code IS NOT DISTINCT FROM NEW.site_code
+			site_code IS NOT DISTINCT FROM NEW.site_code AND
+			x509_signed_certificate_id IS NOT DISTINCT FROM
+				NEW.x509_signed_certificate_id
 		;
 
 		IF FOUND THEN
