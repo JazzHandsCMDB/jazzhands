@@ -176,7 +176,7 @@ BEGIN
 				NEW.service_version_collection_id AND
 			site_code IS NOT DISTINCT FROM NEW.site_code AND
 			x509_signed_certificate_id IS NOT DISTINCT FROM
-				NEW.x509_signed_certificate_id
+				NEW.x509_signed_certificate_id AND
 			property_value IS NOT DISTINCT FROM NEW.property_value AND
 			property_value_json IS NOT DISTINCT FROM
 				NEW.property_value_json AND
