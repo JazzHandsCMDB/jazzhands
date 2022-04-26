@@ -125,6 +125,10 @@ if (!($dbh = JazzHands::DBI->new->connect(
 
 my $mgmt = new JazzHands::NetDev::Mgmt;
 
+if ($debug > 1) {
+	$dbh->do('set client_min_messages=debug');
+}
+
 ##
 ## Prepare all of the database queries we're going to need
 ##
@@ -325,9 +329,17 @@ foreach my $host (@$hostname) {
 			#
 			delete $dev_int->{$iname};
 			#
-			# Don't process anything for lo0, because
+			# Don't process anything for lo0 or the fabric interfaces,
+			# because Juniper just sucks.
 			#
-			#next if $iname =~ '^lo0';
+			my ($parentint, $subint) = ($iname =~ /([^.]+)\.(\d+)$/);
+			if (
+				$parentint &&
+				($parentint eq 'lo0' && $subint && $subint >= 16384) ||
+				$parentint =~ /^fab\d+/
+			) {
+				next;
+			}
 
 			if ($verbose) {
 				printf "    %s:\n", $iname;
