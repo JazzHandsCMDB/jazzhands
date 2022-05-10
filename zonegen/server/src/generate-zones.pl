@@ -13,7 +13,7 @@
 # - what to do about new links to bum zones in perserver dir (currently die)
 # - makesure to regen hard links on *every* regen
 
-# Copyright (c) 2013-2017, Todd M. Kover
+# Copyright (c) 2013-2022, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,6 +64,7 @@ use JazzHands::Common::Util qw(_dbx);
 use Pod::Usage;
 use Data::Dumper;
 use Carp;
+use Data::Dumper;
 
 ### XXX: SIGALRM that kills after one zone hasn't been processed for 20 mins?
 
@@ -89,6 +90,7 @@ use JazzHands::Common qw(:all);
 use Data::Dumper;
 use POSIX;
 use Carp;
+use JSON;
 use utf8;
 use parent 'JazzHands::Common';
 
@@ -126,8 +128,33 @@ sub new {
 		return undef;
 	}
 
+	$self->{_stats}             = {};
+	$self->{_stats}->{gentimes} = {};
+	$self->{_stats}->{events}   = [];
+
+	$self->record_event('start');
+
 	$self->DBHandle($dbh);
 	$self;
+}
+
+sub record_event($$) {
+	my $self  = shift @_;
+	my $event = shift @_;
+
+	push( @{ $self->{_stats}->{events} }, { $event => time } );
+}
+
+sub generation_time($$$) {
+	my $self  = shift @_;
+	my $zone  = shift @_;
+	my $event = shift @_ || return;
+
+	if ( !exists( $self->{_stats}->{gentimes}->{$zone} ) ) {
+		$self->{_stats}->{gentimes}->{$zone} = {};
+	}
+
+	$self->{_stats}->{gentimes}->{$zone}->{$event} = time;
 }
 
 sub make_directories() {
@@ -380,7 +407,7 @@ sub print_comments {
 	my $where  = `hostname`;
 	my $whence = ctime(time);
 
-	$where =~ s/\s*$//s;
+	$where  =~ s/\s*$//s;
 	$whence =~ s/\s*$//s;
 
 	my $idtag = '$Id$';
@@ -453,7 +480,7 @@ sub generate_named_acl_file($$$) {
 	}
 
 	my $tmpfn = "$fn.$$.zonetmp";
-	my $out = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
+	my $out   = new FileHandle(">$tmpfn") || die "$tmpfn: $!";
 
 	# XXX probably not the best choice...
 	$out->binmode('encoding(utf8)');
@@ -653,7 +680,7 @@ sub process_all_dns_records {
 		= $sth->fetchrow_array
 	  )
 	{
-		my $com = ( $enable eq 'N' ) ? ";" : "";
+		my $com   = ( $enable eq 'N' ) ? ";" : "";
 		my $value = $val;
 
 		$name = "" if ( !defined($name) );
@@ -824,7 +851,7 @@ sub process_domain {
 			my $whence = mktime( $s, $min, $h, $d, $m - 1, $y - 1900 );
 			utime( $whence, $whence, $tmpfn );    # If it does not work, then Vv
 		} else {
-			warn "difficulting breaking apart $last";
+			warn "difficulty breaking apart $last";
 		}
 	}
 
@@ -939,7 +966,7 @@ sub generate_complete_files {
 }
 
 #
-# zoneroot is passwd in so hardlinks work.  Not fully qualified hardlinks
+# zoneroot is passed in so hardlinks work.  Not fully qualified hardlinks
 # for debugging purposes (since much of that is done in `pwd`).  This is
 # probably worth rethinking.
 #
@@ -1058,32 +1085,33 @@ sub process_perserver {
 
 			foreach my $zone ( sort @$$zones ) {
 				my $fqn = "$zonedir";
-				my $zr  = "$zoneroot/$u";
+				my $zr  = $zoneroot;
 
 				if ( $zone =~ /in-addr.arpa$/ ) {
-					$fqn = "$zonedir/inaddr/$zone";
-					$zr .= "/inaddr/$zone";
+					$zr  .= "/inaddr/$zone";
+					$fqn .= "/inaddr/$zone";
 				} elsif ( $zone =~ /ip6.arpa$/ ) {
-					$fqn = "$zonedir/ip6/$zone";
-					$zr .= "/ip6/$zone";
+					$zr  .= "/ip6/$zone";
+					$fqn .= "/ip6/$zone";
 
 				} else {
-					$fqn .= "/$zone";
 					$zr  .= "/$zone";
+					$fqn .= "/$zone";
 				}
 
-				if(! -r $zr ) {
+				if ( !-r $zr ) {
+
 					# XXX probably just want to silently do this since this is
 					# ok when should_generate_dns is 'N'.
-					warn "Skipping $zone ($u) because the original does not exist.\n";
+					warn
+					  "Skipping $zone ($u) because the original does not exist.\n";
 					next;
 				}
 
 				forcehardlinker( $zr, $fqn );
 
 				if ( !-r $fqn ) {
-					warn
-					  "$zone does not exist for $server (see $fqn)\n";
+					warn "$zone does not exist for $server (see $fqn)\n";
 				}
 
 				if ( $zone =~ /in-addr.arpa$/ ) {
@@ -1180,7 +1208,7 @@ sub forcehardlinker {
 }
 
 #
-# mv's a file in place if it has changed.
+#  a file in place if it has changed.
 #
 sub safe_mv_if_changed($$;$) {
 	my ( $self, $new, $final, $allowzero ) = @_;
@@ -1210,6 +1238,52 @@ sub safe_mv_if_changed($$;$) {
 		}
 	} else {
 		die "$final: $! (can not open for compare)\n";
+	}
+}
+
+sub process_stats {
+	my $self = shift @_;
+
+	# $self->{_stats} = {};
+	# $self->{_stats}->{gentimes} = [];
+	# $self->{_stats}->{events} = [];
+
+	my $startrec = shift @{ $self->{_stats}->{events} };
+	my $start    = $startrec->{'start'};
+
+	my $h = {};
+	$h->{start_time} = $start;
+
+	foreach my $event ( @{ $self->{_stats}->{events} } ) {
+		my @k   = keys %{$event};
+		my $rec = shift @k;
+		my $len = $event->{$rec} - $start;
+		push( @{ $h->{events} }, { $rec => $len } );
+
+	}
+
+	$h->{generation_time} = {};
+	foreach my $zone ( keys %{ $self->{_stats}->{gentimes} } ) {
+		my $r = $self->{_stats}->{gentimes}->{$zone};
+		$h->{generation_time}->{$zone} = $r->{end} - $r->{start};
+	}
+
+	my $j = new JSON;
+	$j->pretty->encode($h);
+}
+
+sub process_and_print {
+	my $self = shift @_;
+
+	return if ( !scalar @_ );
+
+	my $printablestats = $self->process_stats();
+
+	foreach my $fn (@_) {
+		if ( my $fh = new FileHandle(">$fn") ) {
+			$fh->print($printablestats);
+			$fh->close();
+		}
 	}
 }
 
@@ -1246,29 +1320,31 @@ my $nogen       = 0;
 my $sleep       = 0;
 my $wait        = 1;
 my $agg         = 0;
+my @statsfn;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'aggressive-lock' => \$agg,            # aggressively lock db
-	'debug'           => \$debug,          # even more verbosity.
-	'dumpzone'        => \$dumpzone,       # dump a zone to stdout
-	'forcegen|f'      => \$forcegen,       # force generation of zones
-	'forcesoa|s'      => \$forcesoa,       # force bump of SOA record
-	'force|f'         => \$forceall,       # force everything
-	'genall|a'        => \$genall,         # generate all, not just new
-	'hostanddate!'    => \$hostanddate,    # include in comments
-	'help'            => \$help,           # duh.
-	'no-rsync-list'   => \$norsynclist,    # generate rsync list
-	'nogen'           => \$nogen,          # do not generate any zones
-	'nosoa'           => \$nosoa,          # never bump soa record
-	'outdir|o=s'      => \$output_root,    # output directory
-	'random-sleep=i'  => \$sleep,          # how long to sleep up unto;
-	'site=s'          => \$mysite,         # indicate what local machines site
-	'verbose|v'       => \$verbose,        # duh.
-	'wait!'           => \$wait            # wait on lock in db
+	'aggressive-lock'  => \$agg,            # aggressively lock db
+	'debug'            => \$debug,          # even more verbosity.
+	'dumpzone'         => \$dumpzone,       # dump a zone to stdout
+	'forcegen|f'       => \$forcegen,       # force generation of zones
+	'forcesoa|s'       => \$forcesoa,       # force bump of SOA record
+	'force|f'          => \$forceall,       # force everything
+	'genall|a'         => \$genall,         # generate all, not just new
+	'help'             => \$help,           # duh.
+	'hostanddate!'     => \$hostanddate,    # include in comments
+	'no-rsync-list'    => \$norsynclist,    # generate rsync list
+	'nogen'            => \$nogen,          # do not generate any zones
+	'nosoa'            => \$nosoa,          # never bump soa record
+	'outdir|o=s'       => \$output_root,    # output directory
+	'random-sleep=i'   => \$sleep,          # how long to sleep up unto;
+	'site=s'           => \$mysite,         # indicate what local machines site
+	'stats-filename=s' => \@statsfn,        # file to optionally save statistics
+	'verbose|v'        => \$verbose,        # duh.
+	'wait!'            => \$wait            # wait on lock in db
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1386,7 +1462,7 @@ if ( scalar @changeids ) {
 	$sth->execute || die $sth->errstr;
 
 	#
-	# build up generate to be a ahsh of zones to regenerate with a hash of the
+	# build up generate to be a hash of zones to regenerate with a hash of the
 	# change ids that need to later be zapped.
 	#
 	while ( my $hr = $sth->fetchrow_hashref ) {
@@ -1404,7 +1480,7 @@ if ( scalar @changeids ) {
 				}
 			} else {
 				warn
-				  "Odd but not a crisis -- this code shuld not be reached for ",
+				  "Odd but not a crisis -- this code should not be reached for ",
 				  Dumper($hr);
 			}
 		}
@@ -1426,6 +1502,8 @@ if ( scalar @changeids ) {
 		push( @{ $generate->{$dom}->{$uname}->{rec} }, $hr );
 	}
 }
+
+$zg->record_event('changerecs');
 
 #
 # at this point, generate has a list of all zones that should be generated
@@ -1548,6 +1626,7 @@ foreach my $dom (@ARGV) {
 	}
 }
 
+$zg->record_event('startgen');
 #
 # NOTE, the setting of $generate->{$dom}->{bumpsoa} is set here and the db
 # update to set the zone checks it later.
@@ -1585,8 +1664,17 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 			print "$dom $univ\n";
 		}
 	}
-
+	my $domid = $generate->{$dom}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
+	print "$dom\n";
+	my $last = $generate->{$dom}->{rec}->[0]->{last_generated};
+	if ($bumpsoa) {
+		$last = $zg->get_now();
+	}
+	$zg->generation_time( $dom, 'start' );
+	$zg->process_domain( $domid, $dom, undef, $last, $bumpsoa );
+	$zg->generation_time( $dom, 'end' );
 }
+$zg->record_event('donezones');
 warn "Done Generating Zones\n" if ($verbose);
 
 my $docommit = 0;
@@ -1611,6 +1699,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 	}
 }
 warn "Done bumping SOAs\n" if ($debug);
+$zg->record_event('donesoa');
 
 warn "Purging processed DNS_CHANGE_RECORD records\n" if ($verbose);
 #
@@ -1679,7 +1768,6 @@ $zg->process_perserver($generate);
 $zg->generate_complete_files($generate);
 
 $zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
-
 warn "Done file generation, about to commit\n" if ($verbose);
 if ($docommit) {
 	$zg->commit;
@@ -1688,6 +1776,10 @@ if ($docommit) {
 	# no changes should have been made
 	$zg->rollback;
 }
+
+$zg->record_event('done');
+
+$zg->process_and_print(@statsfn);
 
 exit 0;
 
@@ -1729,6 +1821,8 @@ generate-zones [ options ] [ zone1 zone2 zone3 ... ]
 
 =item B<--random-sleep #> on startup, sleep random seconds up to #
 
+=item B<--stats-filename> on completion save json stats to a file  (There can be multiple).
+
 =back
 
 =head1 DESCRIPTION
@@ -1758,7 +1852,7 @@ generated with a hierarchy of links for distribution to name servers.
 These are used by a wrapper script to copy to machines.
 
 Anytime the SOA record changes, change records are removed from the
-dns_change_record changes so subsequent runs will not retrigger generation
+dns_change_record changes so subsequent runs will not re-trigger generation
 of the zone.  The --nosoa option will ensure this does not happen.
 
 If invoked from the generate-and-sync wrapper script that also
@@ -1820,7 +1914,7 @@ SOA serial number to be bumped.  This basically is a shorthand for the
 B<--forcegen> and B<--forcesoa> options.
 
 The B<--nosoa> prevents the serial number from ever being updated on a
-Zone.  This option cannot be combined with the --forcesoa optoin.
+Zone.  This option cannot be combined with the --forcesoa option.
 
 The B<--dumpzone> takes one zone as an argument and will dump the zone
 to stdout.  Note that it does NOT change the serial number if it's due
@@ -1831,7 +1925,8 @@ generate-zones uses the rows of the network_range, dns_domain,
 dns_record, netblock, and network_interface tables in JazzHands to create
 zone files.
 
-The dns_domain table contains the typical information about a zone, from
+The v_dns_domain_nouniverse table contains the typical information about
+a zone, from
 the SOA data, including serial number, to hierarchical relationships
 among zones.  It also contains a Y/N flag column, SHOULD_GENERATE and a
 value, LAST_GENERATED, to indicate if a zone should be auto-generated by
@@ -1862,10 +1957,11 @@ in which case, it will use that.  If a name is set
 elsewhere in the db for an IP, that name will be favored over the
 generated name in a network range entry.
 
-When a zone is generated, the mtime of the zone file will be changed to
-match the last_generated value of the dns_domain row for that zone.  In the
-event that the zone is updated by a run (that is, some operation bumped the
-SOA), the date, and dns_domain.last_updated are both set to the start time of
+When a zone is generated, the mtime of the zone file will be changed
+to match the last_generated value of the v_dns_domain_nouniverse
+row for that zone.  In the event that the zone is updated by
+a run (that is, some operation bumped the SOA), the date, and
+v_dns_domain_nouniverse.last_updated are both set to the start time of
 the transaction.
 
 The script will also create sitecodeacl.conf in the main etc directory with
@@ -1875,7 +1971,7 @@ based on the site_netblock and netblock tables
 The script also creates a rsynclist.txt file in the zone root.  generate-zones
 can be prevented from creating this file with the B<--no-rsync-list> option.
 If the file exists, it will not be removed.  If the site of the host
-running zonegen can be discerned from the device table or overriden via
+running zonegen can be discerned from the device table or overridden via
 the B<--site> option, generate-zones will look for devices that are
 recursively members of device collections with the DNSZonegen:DNSDistHosts
 property set that are also in the datacenter (either via the site_code on the
@@ -1893,6 +1989,35 @@ generation hangs and zones needs to be pushed out anyway.
 The B<--nowait> option is used to cause the script to immediately return if
 another zonegen instance is running and has the dns_change_record table locked.
 This will cause the script to exit non-zero.
+
+=head1 STATISTICS FILES
+
+The B<--stats-filename> argument can be used to specify a file (or multiple)
+files that will be deposited a json file that contains run time statistics
+of the form:
+
+	{
+		"events": [
+			{ "changerecs": 0 },
+			{ "startgen": 1 },
+			{ "donezones": 26 },
+			{ "donesoa": 26 },
+			{ "done": 28 }
+		],
+		"generation_time": {
+			"example.org": 0, "example.com": 25
+		},
+		"start_time": 1652209470
+	}
+
+The start time is in epoch time and indicates when the various scripts
+started.  The events are when various events started relative to the life
+of the script.  (so they're always increasing).  The generation_time hash
+has keys with generated zone names and the number of seconds used to generate
+the zone.   The number may be rounded down.  THe events re in hte order they
+happen.
+
+If the file can not be written, generate-zones will just ignore that failure.
 
 =head1 ENVIRONMENT
 
