@@ -13,7 +13,7 @@ BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
-Requires:   jazzhands-perl-common >= 0.73.2, perl-JazzHands-DBI, perl-Net-IP, bind
+[Requires:   jazzhands-perl-common >= 0.73.2, perl-JazzHands-DBI, perl-Net-IP, bind, jq, perl-JSON
 # bind is there for named-checkzone
 
 
@@ -38,7 +38,7 @@ make -f Makefile.jazzhands DESTDIR=%{buildroot} clean
 
 %post
 
-if [ ! -d /var/lib/zonegen ] ; then 
+if [ ! -d /var/lib/zonegen ] ; then
 	mkdir  -p /var/lib/zonegen/run
 	mkdir  -p /var/lib/zonegen/auto-gen/perserver
 	mkdir  -p /var/lib/zonegen/auto-gen/zones
