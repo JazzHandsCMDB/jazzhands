@@ -1,8 +1,15 @@
+jazzhands-account-directory (0.94.2) bionic; urgency=medium
+
+  * adjust join on events to limit to primary account
+
+ -- Todd Kover <kovert@omniscient.com>  Wed, 11 May 2022 17:29:00 -0500
+
 jazzhands-account-directory (0.83.2.1) bionic; urgency=medium
 
   * update debian deps for account-directory to include CGI.pm
 
  -- Todd Kover <kovert@omniscient.com>  Thu,  6 Sep 2018 10:57:22 -0400
+
 
 jazzhands-account-directory (0.83.2) bionic; urgency=medium
 
