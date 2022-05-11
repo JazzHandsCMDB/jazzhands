@@ -93,6 +93,7 @@ $query ="
 		LEFT JOIN officemap USING (person_id)
 	WHERE   
 	pc.person_company_relation = 'employee'
+	AND vcfa.account_role = 'primary'
 	AND vcfa.is_enabled = 'Y'
     $addrsubq
 	ORDER BY date_part('month', whence_human),
