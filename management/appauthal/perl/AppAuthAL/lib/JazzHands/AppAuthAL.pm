@@ -353,7 +353,7 @@ sub _assemble_cache($$) {
 sub save_cached($$$$) {
 	my ( $options, $auth, $tocache, $keyfunc ) = @_;
 
-	my $key       = ($keyfunc) ? $keyfunc->($auth) : undef || return undef;
+	my $key       = (($keyfunc) ? $keyfunc->($auth) : undef) || return undef;
 	my $cachedir  = get_cachedir()                         || return undef;
 	my $cachepath = "$cachedir/$key";
 

@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1.3-labs
+# this does not get you mod_auth_kerb just apache
+# built by someone else.
+# FROM httpd:2.4-alpine
+
+FROM ubuntu:20.04
+
+CMD [ "/usr/bin/run-all-the-tests" ]
+
+WORKDIR /build
+
+RUN apt-get update
+RUN apt-get -y install ca-certificates  gnupg2 apt-transport-https liblwp-protocol-https-perl jq
+# for debugging, can be removed
+RUN apt-get install -y lsof iputils-ping netcat  traceroute
+
+#
+# umm, yeah...  This is just to slow to git checkout for now.
+# This is slow but necessary...
+#
+RUN apt-get install -y curl git make 
+RUN git clone --depth 1 --branch perlvault https://github.com/JazzHandsCMDB/jazzhands.git fuckme
+
+#
+# put vault there for running setup and the like
+#
+RUN sh -c 'curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -'
+RUN echo 'deb https://apt.releases.hashicorp.com focal main' > /etc/apt/sources.list.d/vault.list 
+RUN apt-get update
+RUN apt-get install vault
+RUN /usr/sbin/setcap cap_ipc_lock=+ep /bin/vault
+
+#
+RUN cd fuckme/management/util/perl && perl Makefile.PL && make && make install
+RUN cd fuckme/management/appauthal/perl/AppAuthAL && perl Makefile.PL && make && make install
+RUN rm -rf fuckme
+COPY . .
+RUN perl Makefile.PL && make && make install
+RUN apt-get purge -y git 
+
+# need for make tests
+RUN apt-get install -y libtest-differences-perl libtest-deep-perl
+
+#
+# various support scripts that operate on the root token used by the tests
+#
+COPY test-support/cleanup-vault-app.sh		/usr/bin/cleanup-vault-app
+COPY test-support/delete-vault-secret.sh	/usr/bin/delete-vault-secret
+COPY test-support/get-token.sh			/usr/bin/get-token
+COPY test-support/put-vault-secret.sh		/usr/bin/put-vault-secret
+COPY test-support/revoke-token.sh		/usr/bin/revoke-token
+COPY test-support/run-all-the-tests.sh		/usr/bin/run-all-the-tests
+COPY test-support/setup-vault-app.sh		/usr/bin/setup-vault-app
+COPY test-support/check-token.sh		/usr/bin/check-token
+COPY test-support/swap-out-token.sh		/usr/bin/swap-out-token
+
+RUN apt-get autoremove -y

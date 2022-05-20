@@ -1,3 +1,10 @@
+jazzhands-perl-vault (0.94.0) trusty; urgency=medium
+
+  * add generic vault access functions
+  * add support for dealing with token files
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Apr 2022 14:51:00 -0500
+
 jazzhands-perl-vault (0.93.0) trusty; urgency=medium
 
   * make caching more generic in conjuction with changes in AppAuthAL.

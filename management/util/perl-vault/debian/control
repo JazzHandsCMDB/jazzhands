@@ -2,15 +2,15 @@ Source: jazzhands-perl-vault
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules
+Build-Depends: debhelper (>= 8.0.0), perl-modules, libtest-differences-perl, libtest-deep-perl
 Standards-Version: 3.9.4
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-vault
 Architecture: any
 Pre-Depends: jazzhands-perl-common
-Depends: jazzhands-perl-common (>=0.86.0)
-Enhances: perl-jazzhands-appauthal (>= 0.92.0)
+Depends: jazzhands-perl-common (>=0.94.0)
+Enhances: perl-jazzhands-appauthal (>= 0.94.0)
 Breaks: perl-jazzhands-appauthal (<= 0.91.0)
 Description:
  Very basic routines to allow jazzhands tools to interact with Hashicorp Vault
