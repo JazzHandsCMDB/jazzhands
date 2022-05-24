@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2016 Todd Kover
+# Copyright (c) 2013-2022 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,8 +57,7 @@ push( @EXPORT_OK, @JazzHands::Common::Util::EXPORT_OK );
 foreach my $name ( keys %JazzHands::Common::Util::EXPORT_TAGS ) {
 	push(
 		@{ $EXPORT_TAGS{$name} },
-		@{ $JazzHands::Common::Util::EXPORT_TAGS{$name} }
-	);
+		@{ $JazzHands::Common::Util::EXPORT_TAGS{$name} } );
 }
 
 # pull up all the stuff from JazzHands::Common::Error
@@ -67,14 +66,13 @@ push( @EXPORT_OK, @JazzHands::Common::Error::EXPORT_OK );
 foreach my $name ( keys %JazzHands::Common::Error::EXPORT_TAGS ) {
 	push(
 		@{ $EXPORT_TAGS{$name} },
-		@{ $JazzHands::Common::Error::EXPORT_TAGS{$name} }
-	);
+		@{ $JazzHands::Common::Error::EXPORT_TAGS{$name} } );
 }
 
 sub import {
 	if ( grep( $_ =~ /^\:(db|all)$/, @_ ) ) {
 		require JazzHands::Common::GenericDB;
-		JazzHands::Common::GenericDB->import( qw(:all) );
+		JazzHands::Common::GenericDB->import(qw(:all));
 
 		# pull up all the stuff from JazzHands::Common::GenericDB
 		push( @EXPORT,    @JazzHands::Common::GenericDB::EXPORT );
@@ -82,13 +80,11 @@ sub import {
 		foreach my $name ( keys %JazzHands::Common::GenericDB::EXPORT_TAGS ) {
 			push(
 				@{ $EXPORT_TAGS{$name} },
-				@{ $JazzHands::Common::GenericDB::EXPORT_TAGS{$name} }
-			);
+				@{ $JazzHands::Common::GenericDB::EXPORT_TAGS{$name} } );
 		}
 		push(
 			@{ $EXPORT_TAGS{'db'} },
-			@{ $JazzHands::Common::GenericDB::EXPORT_TAGS{'all'} }
-		);
+			@{ $JazzHands::Common::GenericDB::EXPORT_TAGS{'all'} } );
 	}
 
 	my $save = $Exporter::ExportLevel;
