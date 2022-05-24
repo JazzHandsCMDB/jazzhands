@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2012-2013 Matthew Ragan
-# Copyright (c) 2012-2019 Todd Kover
+# Copyright (c) 2012-2022 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,8 @@ use strict;
 use warnings;
 use Data::Dumper;
 
-our $errstr = "";
+our $errstr  = "";
+our $errcode = "";
 
 use Exporter 'import';
 
@@ -31,12 +32,11 @@ our @ISA = qw(Exporter );
 
 # note:  exporting variables is bad, but this allows for a common errstr
 # throughout all the JazzHands::Common family.
-our @EXPORT_OK = qw(SetError Error $errstr );
+our @EXPORT_OK = qw(SetError Error $errstr $errcode err errstr );
 
 our %EXPORT_TAGS = (
-	'all'      => [qw(SetError Error $errstr)],
-	'internal' => [qw(SetError Error $errstr)]
-);
+	'all'      => [qw(SetError Error errstr err $errstr $errcode)],
+	'internal' => [qw(SetError Error errstr err $errstr $errcode)] );
 
 #
 # This is used external to JazzHands and thus can't really change
@@ -56,10 +56,33 @@ sub SetError {
 		return;
 	}
 }
+#
+# return the best error string
+#
+sub errstr {
+	my $self = shift @_;
+
+	if(defined($errstr)) {
+		return $errstr;
+	} elsif ( ref $self && exists( $self->{_errors} ) ) {
+		return join( "\n", @{ $self->{_errors} } );
+	}
+
+	return ($errstr);
+}
 
 #
-# everything after this is not exported but part of the module
-#
+# return the best error code
+
+sub err {
+	my $self = shift @_;
+
+	if ( ref $self && exists( $self->{_errcode} ) ) {
+		return $self->{_errcode};
+	}
+
+	return ($errcode);
+}
 
 #
 # tacks all arguments on to the end of the internal error array
@@ -83,6 +106,10 @@ sub Error {
 		return $errstr;
 	}
 }
+
+#
+# everything after this is not exported but part of the module
+#
 
 #
 # passes arguments through sprintf, and tacks them onto the end of the internal
