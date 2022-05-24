@@ -1,8 +1,15 @@
+jazzhands-perl-common (0.95.0) jammy; urgency=medium
+
+  * make errstr stuff less variable-y
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 31 May 2022 17:21:00 -0400
+
 jazzhands-perl-common (0.94.0) focal; urgency=medium
 
   * make GenericDB truly optional
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri,  1 Apr 2022 14:17:00 -0500
+
 
 jazzhands-perl-common (0.86.0) bionic; urgency=medium
 

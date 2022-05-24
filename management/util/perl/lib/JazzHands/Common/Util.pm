@@ -1,6 +1,6 @@
 #
 # Copyright (c) 2012 Matthew Ragan
-# Copyright (c) 2011-2016 Todd Kover
+# Copyright (c) 2011-2022 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@ package JazzHands::Common::Util;
 
 use strict;
 use warnings;
-use POSIX;	# setsid()
+use POSIX;    # setsid()
 use JazzHands::Common::Error qw(:internal);
 
 use Exporter 'import';
@@ -33,8 +33,10 @@ our @ISA = qw(
 );
 our @EXPORT_OK = qw(_options _dbx hash_table_diff member_hash_diff );
 
-%EXPORT_TAGS =
-  ( 'all' => [qw(_options _dbx hash_table_diff member_hash_diff )], );
+%EXPORT_TAGS = (
+	'all'      => [qw(_options _dbx hash_table_diff member_hash_diff )],
+	'internal' => [qw(_options _dbx hash_table_diff member_hash_diff )],
+);
 
 our $direction = 'lower';
 
@@ -191,7 +193,7 @@ sub daemonize {
 	#
 	# This uses intimate knowledge of JazzHands::Common; should probably
 	# inspect to see if DBHandle() is there, and use it.
-	if($self->{_dbh}) {
+	if ( $self->{_dbh} ) {
 		$self->{_dbh} = $self->{_dbh}->clone();
 	}
 

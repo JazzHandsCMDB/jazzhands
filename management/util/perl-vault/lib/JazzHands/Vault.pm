@@ -201,7 +201,7 @@ use LWP::UserAgent;
 use IO::Socket::SSL;
 use FileHandle;
 use JSON::PP;
-use JazzHands::Common qw(_options SetError $errstr );
+use JazzHands::Common qw(_options SetError $errstr $errcode );
 use Data::Dumper;
 use File::Basename;
 use Digest::SHA qw(sha1_hex);
@@ -512,7 +512,8 @@ sub _fetchurl {
 	my $res = $ua->request($req);
 
 	if ( !$res->is_success ) {
-		$errstr = sprintf "%s: %s", $url, $res->status_line;
+		$errcode = $res->code;
+		$errstr  = sprintf "%s: %s", $url, $res->status_line;
 		if ( $res->content ) {
 			my $vaulterr;
 			eval {
@@ -528,9 +529,11 @@ sub _fetchurl {
 		return undef;
 	}
 
+	$errcode = undef;
 	if ( $res->content ) {
 		return $json->decode( $res->content );
 	} else {
+
 		# some methods (like DELETE) allow for an empty payload.
 		return {};
 	}
@@ -753,7 +756,6 @@ sub fetch_and_merge_dbauth {
 
 	my $vaultpath = $self->{_appauthal}->{VaultPath};
 	if ( !$vaultpath ) {
-
 		$errstr = "Class was not instantiated for appauthal usage";
 		return undef;
 	}
@@ -793,8 +795,8 @@ sub revoke_my_token {
 			url    => $url,
 		);
 		delete( $self->{_token} );
+		$resp;
 	}
-
 }
 
 sub write {
@@ -811,7 +813,8 @@ sub write {
 	);
 
 	if ( !$resp ) {
-		$errstr = sprintf "write(%s): %s", $path, $errstr;
+
+		# pass back $errstr
 		return undef;
 	}
 	return 1;
@@ -829,7 +832,8 @@ sub read {
 	);
 
 	if ( !$resp ) {
-		$errstr = sprintf "Error while trying to read %s\n", $path;
+
+		# pass back $errstr
 		return undef;
 	}
 	return $resp->{data};
@@ -857,7 +861,8 @@ sub delete {
 	);
 
 	if ( !$resp ) {
-		$errstr = sprintf "Error, cannot delete at %s\n", $path;
+
+		# pass back $errstr
 		return undef;
 	} elsif ( $resp->{data} ) {
 		return $resp->{data};
@@ -881,7 +886,8 @@ sub delete_metadata {
 	);
 
 	if ( !$resp ) {
-		$errstr = sprintf "Error, cannot delete metadata for %s\n", $path;
+
+		# pass back $errstr
 		return undef;
 	} elsif ( $resp->{data} ) {
 		return $resp->{data};
@@ -906,7 +912,8 @@ sub list {
 	);
 
 	if ( !$resp ) {
-		$errstr = sprintf "Error, cannot list at %s\n", $path;
+
+		# pass back $errstr
 		return undef;
 	}
 	return $resp->{data}->{keys};
