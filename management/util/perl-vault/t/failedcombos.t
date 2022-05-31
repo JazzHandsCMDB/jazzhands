@@ -26,7 +26,7 @@ my $vaultfspath   = "$root/$app";
 cleanup_vault( $app, $rovaultfspath, $vaultfspath );
 setup_vault( $app, $rovaultfspath, $vaultfspath );
 
-my $testname = "Various Role and Secret Id Methods";
+my $testname = "Various Combinations that _should_ fail";
 
 my $roleidpath   = "$vaultfspath/roleid";
 my $secretidpath = "$vaultfspath/secretid";
@@ -52,91 +52,87 @@ if ( my $fh = new FileHandle($secretidpath) ) {
 
 my @tests = ( {
 		setup => {
-			'VaultRoleIdPath' => "$roleidpath",
-			'VaultSecretId'   => "$secretid",
-			'VaultServer'     => 'http://vault:8200'
-		},
-		path  => "secret/data/$app/my-second-key",
-		stuff => {
-			user     => 'username',
-			password => 'password',
-			other    => $testname,
-		},
-		comment => "role id path and secret id",
-	},
-	{
-		setup => {
+			'VaultRoleIdPath'   => "$roleidpath",
 			'VaultRoleId'       => "$roleid",
+			'VaultSecretId'     => "$secretid",
 			'VaultSecretIdPath' => "$secretidpath",
 			'VaultServer'       => 'http://vault:8200'
 		},
-		path  => "secret/data/$app/my-third-key",
-		stuff => {
-			user     => 'username',
-			password => 'password',
-			other    => $testname,
+		comment => "Both roles and secrets",
+	},
+	{
+		setup => {
+			'VaultRoleIdPath' => "$roleidpath",
+			'VaultRoleId'     => "$roleid",
+			'VaultSecretId'   => "$secretid",
+			'VaultServer'     => 'http://vault:8200'
 		},
-		comment => "role id and secret id path",
+		comment => "Both roles and secret",
 	},
 	{
 		setup => {
 			'VaultRoleIdPath'   => "$roleidpath",
+			'VaultRoleId'       => "$roleid",
 			'VaultSecretIdPath' => "$secretidpath",
 			'VaultServer'       => 'http://vault:8200'
 		},
-		path  => "secret/data/$app/my-fourth-key",
-		stuff => {
-			user     => 'username',
-			password => 'password',
-			other    => $testname,
-		},
-		comment => "role id path and secret id path",
+		comment => "Both roles and secret path",
 	},
 	{
 		setup => {
-			'VaultRoleId'   => "$roleid",
+			'VaultRoleIdPath'   => "$roleidpath",
+			'VaultSecretId'     => "$secretid",
+			'VaultSecretIdPath' => "$secretidpath",
+			'VaultServer'       => 'http://vault:8200'
+		},
+		comment => "Role path and both secrets",
+	},
+	{
+		setup => {
+			'VaultRoleId'       => "$roleid",
+			'VaultSecretId'     => "$secretid",
+			'VaultSecretIdPath' => "$secretidpath",
+			'VaultServer'       => 'http://vault:8200'
+		},
+		comment => "Role id and both secrets",
+	},
+	{
+		setup => {
+			'VaultRoleId' => "$roleid",
+			'VaultServer' => 'http://vault:8200'
+		},
+		comment => "Role Id and no secret",
+	},
+	{
+		setup => {
+			'VaultRoleIdPath' => "$roleidpath",
+			'VaultServer'     => 'http://vault:8200'
+		},
+		comment => "Role Id path and no secret",
+	},
+	{
+		setup => {
 			'VaultSecretId' => "$secretid",
 			'VaultServer'   => 'http://vault:8200'
 		},
-		path  => "secret/data/$app/my-first-key",
-		stuff => {
-			user     => 'username',
-			password => 'password',
-			other    => $testname,
+		comment => "No role and secret id",
+	},
+	{
+		setup => {
+			'VaultSecretIdPath' => "$secretidpath",
+			'VaultServer'       => 'http://vault:8200'
 		},
-		comment => "role id and secret id",
-	} );
-plan tests => ( $#tests + 1 ) * 2;
+		comment => "No role and secret id",
+	},
+);
+
+plan tests => $#tests + 1;
 
 foreach my $test (@tests) {
-	my ( $setup, $path, $stuff, $comment ) =
-	  @$test{qw/setup path stuff comment/};
+	my ( $setup, $comment ) = @$test{qw/setup comment/};
 	my $v = new JazzHands::Vault(%$setup);
-	if ( !$v ) {
-		diag(JazzHands::Vault::errstr);
+	if ($v) {
 		fail( $comment || $testname );
-	}
-
-	if ( !$v->write( $path, { data => $stuff } ) ) {
-		diag( "write($roleid,$secretid): " . $v->errstr );
-		fail( $comment || $testname );
-		next;
-	}
-
-	my $r = $v->read($path);
-	if ( !$r ) {
-		diag( "read: " . $v->errstr );
-		fail( $comment || $testname );
-		next;
-	} else {
-		cmp_deeply( $stuff, $r, $testname );
-	}
-
-	my $d = $v->delete($path);
-	if ( !$d ) {
-		diag( "delete: " . $v->errstr );
-		fail( $comment || $testname );
-		next;
 	} else {
 		ok( $comment || $testname );
 	}

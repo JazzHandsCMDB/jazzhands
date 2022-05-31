@@ -46,19 +46,19 @@ plan tests => ( $#tests + 1 ) * 2;
 foreach my $test (@tests) {
 	my $v = new JazzHands::Vault( %{ $test->{setup} } );
 	if ( !$v ) {
-		diag($JazzHands::Vault::errstr);
+		diag(JazzHands::Vault::errstr);
 		fail($testname);
 	}
 
 	if ( !$v->write( $test->{path}, $test->{stuff} ) ) {
-		diag( "write: " . $JazzHands::Vault::errstr );
+		diag( "write: " . $v->errstr );
 		fail($testname);
 		next;
 	}
 
 	my $r = $v->list( $test->{list} );
 	if ( !$r ) {
-		diag( "list: " . $JazzHands::Vault::errstr );
+		diag( "list: " . $v->errstr );
 		fail($testname);
 		next;
 	} else {
@@ -67,7 +67,7 @@ foreach my $test (@tests) {
 
 	my $d = $v->delete( $test->{path} );
 	if ( !$d ) {
-		diag( "delete: " . $JazzHands::Vault::errstr );
+		diag( "delete: " . $v->errstr );
 		fail($testname);
 		next;
 	} else {

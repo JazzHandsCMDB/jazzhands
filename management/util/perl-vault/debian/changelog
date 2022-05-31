@@ -1,3 +1,11 @@
+jazzhands-perl-vault (0.95.0) jammy; urgency=medium
+
+  * rearrange how read works
+  * return errcode
+  * use new Jazzhands::Common interface to errors
+
+ -- Todd Kover <kovert@omniscient.com>  Thu,  2 Jun 2022 14:59:00 -0400
+
 jazzhands-perl-vault (0.94.0) trusty; urgency=medium
 
   * add generic vault access functions

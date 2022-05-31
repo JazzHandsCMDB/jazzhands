@@ -1,5 +1,5 @@
 #
-# Direct - write/read/delete tokens using the direct method
+# Direct - write a token but read a different one
 #
 
 use strict;
@@ -25,15 +25,16 @@ my $vaultfspath   = "$root/$app";
 cleanup_vault( $app, $rovaultfspath, $vaultfspath );
 setup_vault( $app, $rovaultfspath, $vaultfspath );
 
-my $testname = "Write/Read/Delete Test with No Token";
+my $testname = "Write a token and read a different one (and fail)";
 my @tests    = ( {
 	setup => {
 		'VaultRoleIdPath'   => "/$vaultfspath/roleid",
 		'VaultSecretIdPath' => "$vaultfspath/secretid",
 		'VaultServer'       => 'http://vault:8200'
 	},
-	path  => "secret/data/$app/my-first-key",
-	stuff => {
+	path    => "secret/data/$app/my-first-key",
+	badpath => "secret/data/$app/my-non-existant-key",
+	stuff   => {
 		user     => 'username',
 		password => 'password',
 		other    => $testname,
@@ -48,23 +49,28 @@ foreach my $test (@tests) {
 	}
 
 	if ( !$v->write( $test->{path}, { data => $test->{stuff} } ) ) {
-		diag( "write: " . v->errstr );
+		diag( "write: " . $v->errstr );
 		fail($testname);
 		next;
 	}
 
-	my $r = $v->read( $test->{path} );
+	my $r = $v->read( $test->{badpath} );
 	if ( !$r ) {
-		diag( "read: " . v->errstr );
-		fail($testname);
-		next;
+		if ( $v->err == 404 ) {
+			ok($testname);
+		} else {
+			diag( "read: " . $v->errstr );
+			fail($testname);
+			next;
+		}
 	} else {
-		cmp_deeply( $test->{stuff}, $r, $testname );
+		diag("read successfully.");
+		fail($testname);
 	}
 
 	my $d = $v->delete( $test->{path} );
 	if ( !$d ) {
-		diag( "delete: " . v->errstr );
+		diag( "delete: " . $v->errstr );
 		fail($testname);
 		next;
 	} else {

@@ -2,41 +2,45 @@
 # this does not get you mod_auth_kerb just apache
 # built by someone else.
 # FROM httpd:2.4-alpine
-
-FROM ubuntu:20.04
+FROM ubuntu:22.04
+ARG PERLCOMMON_BRANCH=master
 
 CMD [ "/usr/bin/run-all-the-tests" ]
 
 WORKDIR /build
 
 RUN apt-get update
-RUN apt-get -y install ca-certificates  gnupg2 apt-transport-https liblwp-protocol-https-perl jq
+RUN apt-get -y install ca-certificates  gnupg2 apt-transport-https libcap2-bin
+RUN apt-get -y install liblwp-protocol-https-perl jq
 # for debugging, can be removed
-RUN apt-get install -y lsof iputils-ping netcat  traceroute
+#- RUN apt-get install -y lsof iputils-ping netcat  traceroute
 
 #
 # umm, yeah...  This is just to slow to git checkout for now.
 # This is slow but necessary...
 #
-RUN apt-get install -y curl git make 
-RUN git clone --depth 1 --branch perlvault https://github.com/JazzHandsCMDB/jazzhands.git fuckme
+
+
+RUN apt-get install -y curl git make
+# this is gross but here we are
+RUN git clone --depth 1 --no-tags --single-branch --branch ${PERLCOMMON_BRANCH} https://github.com/JazzHandsCMDB/jazzhands.git origin
 
 #
 # put vault there for running setup and the like
 #
 RUN sh -c 'curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -'
-RUN echo 'deb https://apt.releases.hashicorp.com focal main' > /etc/apt/sources.list.d/vault.list 
+RUN echo 'deb https://apt.releases.hashicorp.com jammy main' > /etc/apt/sources.list.d/vault.list
 RUN apt-get update
 RUN apt-get install vault
 RUN /usr/sbin/setcap cap_ipc_lock=+ep /bin/vault
 
 #
-RUN cd fuckme/management/util/perl && perl Makefile.PL && make && make install
-RUN cd fuckme/management/appauthal/perl/AppAuthAL && perl Makefile.PL && make && make install
-RUN rm -rf fuckme
+RUN cd origin/management/util/perl && perl Makefile.PL && make && make install
+RUN cd origin/management/appauthal/perl/AppAuthAL && perl Makefile.PL && make && make install
+RUN rm -rf origin
 COPY . .
 RUN perl Makefile.PL && make && make install
-RUN apt-get purge -y git 
+RUN apt-get purge -y git
 
 # need for make tests
 RUN apt-get install -y libtest-differences-perl libtest-deep-perl

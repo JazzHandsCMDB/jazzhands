@@ -2,9 +2,9 @@
 version: "3.8"
 
 services:
-  test:
-    container_name: tests
-    image: tests
+  vaulttest:
+    container_name: vaulttests
+    image: vaulttests:latest
     links:
       - "vault"
     # required to make vault client work
@@ -22,13 +22,13 @@ services:
 
   dev:
     container_name: dev
-    image: tests
+    image: vaulttests:latest
     build:
       context: .
       dockerfile: ./Dockerfile-test
     links:
       - "vault"
-      - "test"
+      - "vaulttest"
     # required to make vault client work
     cap_add:
       - IPC_LOCK
