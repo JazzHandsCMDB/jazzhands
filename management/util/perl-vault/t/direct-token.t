@@ -65,7 +65,7 @@ for my $test (@tests) {
 	if ($v) {
 		ok($comment);
 	} else {
-		diag($JazzHands::Vault::errstr);
+		diag(JazzHands::Vault::errstr);
 		fail($comment);
 	}
 }

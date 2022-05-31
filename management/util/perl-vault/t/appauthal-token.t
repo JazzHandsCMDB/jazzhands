@@ -63,12 +63,12 @@ for my $test (@tests) {
 	my ( $input, $output, $comment ) = @$test{qw/input output comment/};
 	my $v = new JazzHands::Vault( appauthal => $input );
 	if ( !$v ) {
-		diag($JazzHands::Vault::errstr);
+		diag(JazzHands::Vault::errstr);
 		fail($comment);
 	}
 	my $newauth = $v->fetch_and_merge_dbauth($input);
 	if ( !$newauth ) {
-		diag($JazzHands::Vault::errstr);
+		diag( $v->errstr );
 		fail($comment);
 	} else {
 		cmp_deeply( $output, $newauth, $comment );

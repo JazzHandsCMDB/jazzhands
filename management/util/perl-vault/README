@@ -3,7 +3,7 @@ gone and master commits are setup and PRs submitted.
 
 For now:
 
-docker compose -f docker-compose.yml up --build   --force-recreate  --renew-anon-volumes --abort-on-container-exit --exit-code-from=test
+docker compose -f docker-compose.yml up --build   --force-recreate  --renew-anon-volumes --abort-on-container-exit --exit-code-from=vaulttest
 
 will run tests
 

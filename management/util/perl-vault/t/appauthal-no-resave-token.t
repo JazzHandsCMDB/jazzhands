@@ -77,7 +77,7 @@ for ( my $i = 0 ; $i < 1 ; $i++ ) {
 		}
 		my $newauth = $v->fetch_and_merge_dbauth($input);
 		if ( !$newauth ) {
-			diag("Error: ", $JazzHands::Vault::errstr);
+			diag( "Error: ", $v->errstr );
 			fail($comment);
 		}
 	}

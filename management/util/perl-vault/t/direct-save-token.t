@@ -46,7 +46,7 @@ for my $test (@tests) {
 	my ( $input, $output, $comment ) = @$test{qw/input output comment/};
 	my $v = new JazzHands::Vault(%$input);
 	if ( !$v ) {
-		diag($JazzHands::Vault::errstr);
+		diag(JazzHands::Vault::errstr);
 		fail($comment);
 	} else {
 		ok($comment) if $v;

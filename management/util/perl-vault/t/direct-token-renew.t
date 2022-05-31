@@ -28,9 +28,9 @@ setup_vault( $app, $vaultfspath );
 
 put_secret( $app, "secret", "username=myuser", "password=mypass" );
 
-get_token( $vaultfspath );
+get_token($vaultfspath);
 
-if(!-r "$vaultfspath/token") {
+if ( !-r "$vaultfspath/token" ) {
 	diag("OLD: $vaultfspath/token does not exist");
 	fail($testname);
 }
@@ -39,7 +39,7 @@ my $oldtoken = `cat $vaultfspath/token`;
 
 swap_out_token( "$vaultfspath/token", "-ttl=20s" );
 
-my @tests    = ( {
+my @tests = ( {
 	input => {
 		'map' => {
 			'Password' => 'password',
@@ -76,12 +76,12 @@ for my $test (@tests) {
 	if ($v) {
 		ok($comment);
 	} else {
-		diag($JazzHands::Vault::errstr);
+		diag(JazzHands::Vault::errstr);
 		fail($comment);
 	}
 }
 
-if(!-r "$vaultfspath/token") {
+if ( !-r "$vaultfspath/token" ) {
 	diag("NEW: $vaultfspath/token does not exist");
 	fail($testname);
 }
