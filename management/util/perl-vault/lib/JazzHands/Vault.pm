@@ -27,7 +27,7 @@ JazzHands::Vault - Connecting to Hashicorp Vault by JazzHands tools
 
 Method 1:
 
-	$v = new JazzHands::Vault ( appauthal => jsonblob )
+	$v = new JazzHands::Vault ( appauthal => jsonblob ) || die JazzHands::Vault::errstr;
 	$newauth = $v->fetch_and_merge_dbauth($auth);
 
 Method 2:
@@ -40,13 +40,14 @@ Method 2:
 		VaultSecretIdPath => '/path/to/file/with/secret-id'
 		VaultRoleId      => 'role-id', # _OR_
 		VaultRoleIdPath => '/path/to/file/with/role-id',
-	);
+	) || die JazzHands::Vault::errstr;
 
-	my $hash = $v->read("kv/data/thing/secret");
+	my $hash = $v->read("kv/data/thing/secret", $metadata);
 	my $hash = $v->write("kv/data/thing/secret", $hashofkvs);
 	my $array = $v->list("kv/data/thing");
 	$v->delete("kv/data/thing/secret");
 	$v->delete_metadata("kv/data/thing");
+
 
 This has two methods of use.   The first method get included if it's available
 to JazzHands::AppAuthAL and is meant primarily for internal use by that module.
@@ -58,7 +59,13 @@ Vault.   The arguments to new are the same as the keys in a hash passed to
 the appauthal creation method.
 
 The second method returns something on success in all operations, usually some
-data from vault about the request.
+data from vault about the request.  The read operation can be passed an
+extra parameter, if true, will return the metadata of the secret, instead of
+just the secret data.
+
+If any of the second methods fail, then the $v->errstr method can be used to
+get a human readable message and $v->err will get the numeric http code
+tied to the failure.  The code is not set on success.
 
 =head1 DESCRIPTION
 
@@ -201,7 +208,7 @@ use LWP::UserAgent;
 use IO::Socket::SSL;
 use FileHandle;
 use JSON::PP;
-use JazzHands::Common qw(_options SetError $errstr $errcode );
+use JazzHands::Common qw(:internal);
 use Data::Dumper;
 use File::Basename;
 use Digest::SHA qw(sha1_hex);
@@ -434,7 +441,7 @@ sub new {
 		}
 
 		# now go make sure we are ready to do vault ops
-		$self->approle_login();
+		$self->approle_login() || return undef;
 	}
 
 	return bless $self, $class;
@@ -479,6 +486,9 @@ sub _fetchurl {
 	my $self = shift @_;
 
 	my $opt = &_options(@_);
+
+	undef $errcode;
+	undef $errstr;
 
 	my $url    = $opt->{url};
 	my $method = $opt->{method} || 'GET';
@@ -529,7 +539,6 @@ sub _fetchurl {
 		return undef;
 	}
 
-	$errcode = undef;
 	if ( $res->content ) {
 		return $json->decode( $res->content );
 	} else {
@@ -813,16 +822,16 @@ sub write {
 	);
 
 	if ( !$resp ) {
-
-		# pass back $errstr
+		# pass back $errstr from _fetchurl
 		return undef;
 	}
 	return 1;
 }
 
 sub read {
-	my $self = shift @_;
-	my $path = shift @_;
+	my $self     = shift @_;
+	my $path     = shift @_;
+	my $metadata = shift @_;
 
 	my $url = sprintf "%s/v1/%s", $self->{_appauthal}->{VaultServer}, $path;
 
@@ -836,7 +845,10 @@ sub read {
 		# pass back $errstr
 		return undef;
 	}
-	return $resp->{data};
+	if ($metadata) {
+		return $resp->{data};
+	}
+	return $resp->{data}->{data};
 }
 
 ##############################################################################
