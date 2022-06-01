@@ -18,7 +18,7 @@
 
 \set ON_ERROR_STOP
 
-\ir ../../ddl/schema/pgsql/create_device_management_controller_triggers.sql
+-- \ir ../../ddl/schema/pgsql/create_device_management_controller_triggers.sql
 
 \t on
 SAVEPOINT dmc_test;
