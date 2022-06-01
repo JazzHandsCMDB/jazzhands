@@ -18770,7 +18770,7 @@ CREATE TRIGGER trigger_service_environment_upd
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION device_management_controller_ins()
+CREATE OR REPLACE FUNCTION jazzhands_legacy.device_management_controller_ins()
 RETURNS TRIGGER AS $$
 DECLARE
 	_c		jazzhands.component_management_controller.component_id%TYPE;
@@ -18822,11 +18822,11 @@ DROP TRIGGER IF EXISTS trigger_device_management_controller_ins ON
 CREATE TRIGGER trigger_device_management_controller_ins
 	INSTEAD OF INSERT ON jazzhands_legacy.device_management_controller
 	FOR EACH ROW
-	EXECUTE PROCEDURE device_management_controller_ins();
+	EXECUTE PROCEDURE jazzhands_legacy.device_management_controller_ins();
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION device_management_controller_upd()
+CREATE OR REPLACE FUNCTION jazzhands_legacy.device_management_controller_upd()
 RETURNS TRIGGER AS $$
 DECLARE
 	upd_query	TEXT[];
@@ -18910,11 +18910,11 @@ DROP TRIGGER IF EXISTS trigger_device_management_controller_upd ON
 CREATE TRIGGER trigger_device_management_controller_upd
 	INSTEAD OF UPDATE ON jazzhands_legacy.device_management_controller
 	FOR EACH ROW
-	EXECUTE PROCEDURE device_management_controller_upd();
+	EXECUTE PROCEDURE jazzhands_legacy.device_management_controller_upd();
 
 ---------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION device_management_controller_del()
+CREATE OR REPLACE FUNCTION jazzhands_legacy.device_management_controller_del()
 RETURNS TRIGGER AS $$
 DECLARE
 	_c			jazzhands.component_management_controller.component_id%TYPE;
@@ -18956,7 +18956,7 @@ DROP TRIGGER IF EXISTS trigger_device_management_controller_del ON
 CREATE TRIGGER trigger_device_management_controller_del
 	INSTEAD OF DELETE ON jazzhands_legacy.device_management_controller
 	FOR EACH ROW
-	EXECUTE PROCEDURE device_management_controller_del();
+	EXECUTE PROCEDURE jazzhands_legacy.device_management_controller_del();
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
