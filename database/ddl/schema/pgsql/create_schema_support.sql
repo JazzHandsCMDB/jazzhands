@@ -2487,7 +2487,7 @@ BEGIN
 			IF _t1 = 1 THEN
 				_oldschema:= _tmpschema;
 			ELSE
-				RAISE EXCEPTION 'table %.% does not seem to exist', _schema, old_rel;
+				RAISE EXCEPTION 'table %.% does not seem to exist', _oldschema, old_rel;
 			END IF;
 		END IF;
 	END IF;
@@ -2509,7 +2509,7 @@ BEGIN
 			IF _t1 = 1 THEN
 				_newschema:= _tmpschema;
 			ELSE
-				RAISE EXCEPTION 'table %.% does not seem to exist', _schema, new_rel;
+				RAISE EXCEPTION 'table %.% does not seem to exist', _newschema, new_rel;
 			END IF;
 		END IF;
 	END IF;
@@ -3040,16 +3040,25 @@ LANGUAGE plpgsql SECURITY INVOKER;
 -- It also ignores sequences because those really need to move to IDENTITY
 -- columns anyway. and sequences are really part of the shadow schema stuff.
 --
+-- name_map may contain a jsonb hash that maps old name to new name.  When
+-- there's no key, they are assumed to be the same.  If the value is null, then
+-- it will either raise a NOTICE about it not existing (if
+-- name_map_exception is false) or raise an exception, if name_map_exception
+-- is true (the default).
+--
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants (
-	username	TEXT,
-	direction	TEXT,
-	old_schema	TEXT DEFAULT 'jazzhands_legacy',
-	new_schema	TEXT DEFAULT 'jazzhands'
+	username			TEXT,
+	direction			TEXT,
+	old_schema			TEXT,
+	new_schema			TEXT,
+	name_map			JSONB DEFAULT NULL,
+	name_map_exception	BOOLEAN DEFAULT true
 ) RETURNS TEXT[] AS $$
 DECLARE
-	_rv	TEXT[];
-	_r	RECORD;
-	_q	TEXT;
+	_rv			TEXT[];
+	_r			RECORD;
+	_q			TEXT;
+	_newname	TEXT;
 BEGIN
 	IF lower(direction) NOT IN ('grant','revoke') THEN
 		RAISE EXCEPTION 'direction must be grant or revoke';
@@ -3116,12 +3125,28 @@ BEGIN
 		ELSE
 			_q := NULL;
 		END IF;
-		IF lower(direction) = 'grant' THEN
-			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _r.name, ' TO ', _r.grantee);
-		ELSIF lower(direction) = 'revoke' THEN
-			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _r.name, ' FROM ', _r.grantee);
+
+		_newname := NULL;
+		IF name_map IS NOT NULL AND name_map ? _r.name THEN
+			IF name_map->>_r.name IS NULL THEN
+				If name_map_exception THEN
+					RAISE EXCEPTION '% is not available in the new schema', _r.name;
+				ELSE
+					RAISE NOTICE '% is not available in the new schema', _r.name;
+					CONTINUE;
+				END IF;
+			ELSE
+				_newname := name_map->>_r.name;
+			END IF;
+		ELSE
+			_newname := _r.name;
 		END IF;
 
+		IF lower(direction) = 'grant' THEN
+			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _newname, ' TO ', _r.grantee);
+		ELSIF lower(direction) = 'revoke' THEN
+			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _newname, ' FROM ', _r.grantee);
+		END IF;
 
 		_rv := array_append(_rv, _q);
 		EXECUTE _q;
