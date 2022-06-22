@@ -35,6 +35,7 @@ our @ISA	   = qw(Exporter );
 our %EXPORT_TAGS = 
 (
         'all' => [qw(
+			Connect
 			DBUpdate
 			DBInsert
 			DBDelete
@@ -104,7 +105,7 @@ sub Connect {
 	{
 		undef $dbh;
 		$errstr = $JazzHands::DBI::errstr;
-		return "Unable to create environment";
+		return undef;
 	}
 	$self->DBHandle($dbh);
 }
