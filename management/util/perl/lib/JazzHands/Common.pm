@@ -73,6 +73,7 @@ sub import {
 	if ( grep( $_ =~ /^\:(db|all)$/, @_ ) ) {
 		require JazzHands::Common::GenericDB;
 		JazzHands::Common::GenericDB->import(qw(:all));
+		JazzHands::Common::GenericDB->import(qw(:legacy));
 
 		# pull up all the stuff from JazzHands::Common::GenericDB
 		push( @EXPORT,    @JazzHands::Common::GenericDB::EXPORT );
