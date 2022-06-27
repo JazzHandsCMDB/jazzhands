@@ -66,6 +66,28 @@ CREATE TRIGGER trigger_x509_signed_set_ski_and_hashes
 
 ---------------------------------------------------------------------------
 
+CREATE OR REPLACE FUNCTION set_x509_certificate_private_key_id()
+RETURNS TRIGGER AS $$
+BEGIN
+	UPDATE x509_signed_certificate x SET private_key_id = pk.private_key_id
+	FROM private_key pk WHERE x.public_key_hash_id = pk.public_key_hash_id
+	AND x.private_key_id IS NULL AND x.x509_signed_certificate_id = NEW.x509_signed_certificate_id;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_x509_signed_set_private_key_id ON x509_signed_certificate;
+CREATE TRIGGER trigger_x509_signed_set_private_key_id
+	AFTER INSERT OR UPDATE OF public_key, public_key_hash_id
+	ON x509_signed_certificate
+	FOR EACH ROW
+	EXECUTE PROCEDURE set_x509_certificate_private_key_id();
+
+---------------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION set_csr_hashes()
 RETURNS TRIGGER AS $$
 DECLARE
