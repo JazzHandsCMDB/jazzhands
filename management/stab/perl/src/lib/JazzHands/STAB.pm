@@ -1570,17 +1570,12 @@ sub b_dropdown {
 		};
 		$pickone = "Please Select Domain";
 	} elsif ( $selectfield eq 'PRODUCTION_STATE' ) {
-		my $v = "";
-		if ( defined( $params->{'-service_environment_type'} ) ) {
-			$v = "where SERVICE_ENVIRONMENT_TYPE = :service_environment_type";
-		}
 		$q = qq{
 			select	production_state, description
-			  from	val_production_state $v
+			  from	val_production_state
 			order by description, production_state
 		};
 	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT_ID' ) {
-		my $limit;
 		$q = qq{
 			select	service_environment_id,
 				coalesce(description,
@@ -1935,10 +1930,6 @@ sub b_dropdown {
 
 	if ( defined( $params->{'-company_type'} ) ) {
 		$sth->bind_param( ':company_type', $params->{'-company_type'} );
-	}
-
-	if ( defined( $params->{'-service_environment_type'} ) ) {
-		$sth->bind_param( ':service_environment_type', $params->{'-service_environment_type'} );
 	}
 
 	$sth->execute || $self->return_db_err($sth);
