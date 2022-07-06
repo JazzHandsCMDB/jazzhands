@@ -3263,36 +3263,23 @@ CREATE TABLE layer3_interface
 );
 
 ALTER TABLE layer3_interface
-	ADD CONSTRAINT pk_network_interface_id PRIMARY KEY (layer3_interface_id);
+	ADD CONSTRAINT pk_layer3_interface_id PRIMARY KEY (layer3_interface_id);
 
 ALTER TABLE layer3_interface
-	ADD CONSTRAINT ak_net_int_devid_netintid UNIQUE (layer3_interface_id,device_id);
+	ADD CONSTRAINT ak_l3int_devid_netintid UNIQUE (layer3_interface_id,device_id);
 
 ALTER TABLE layer3_interface
-	ADD CONSTRAINT uq_netint_device_id_logical_port_id UNIQUE (device_id,logical_port_id);
+	ADD CONSTRAINT uq_l3int_device_id_logical_port_id UNIQUE (device_id,logical_port_id);
 
 ALTER TABLE layer3_interface
-	ADD CONSTRAINT fk_netint_devid_name UNIQUE (device_id,layer3_interface_name);
+	ADD CONSTRAINT uq_l3int_devid_name UNIQUE (device_id,layer3_interface_name)
+	DEFERRABLE  
+	INITIALLY IMMEDIATE ;
 
 CREATE INDEX xif12layer3_interface ON layer3_interface
 ( 
 	logical_port_id,
 	device_id
-);
-
-CREATE INDEX idx_netint_isifaceup ON layer3_interface
-( 
-	is_interface_up
-);
-
-CREATE INDEX idx_netint_shouldmange ON layer3_interface
-( 
-	should_manage
-);
-
-CREATE INDEX idx_netint_shouldmonitor ON layer3_interface
-( 
-	should_monitor
 );
 
 CREATE INDEX xif_netint_netdev_id ON layer3_interface
@@ -3313,6 +3300,21 @@ CREATE INDEX xif_netint_slot_id ON layer3_interface
 CREATE INDEX xif_netint_typeid ON layer3_interface
 ( 
 	layer3_interface_type
+);
+
+CREATE INDEX idx_l3int_isifaceup ON layer3_interface
+( 
+	is_interface_up
+);
+
+CREATE INDEX idx_l3int_shouldmange ON layer3_interface
+( 
+	should_manage
+);
+
+CREATE INDEX idx_l3int_shouldmonitor ON layer3_interface
+( 
+	should_monitor
 );
 
 ALTER TABLE layer3_interface ADD COLUMN data_ins_user varchar(255);
