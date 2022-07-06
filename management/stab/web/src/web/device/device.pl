@@ -240,7 +240,8 @@ sub build_device_box {
 	my ( $left_table, $right_table ) = ( "", "" );
 
 	$right_table .=
-	  $stab->build_tr( $values, "b_dropdown", "Service Environment",
+	  $stab->build_tr( { -service_environment_type => 'default' },
+		$values, "b_dropdown", "Service Environment",
 		"SERVICE_ENVIRONMENT_ID", 'DEVICE_ID' );
 
 	if ($values) {
