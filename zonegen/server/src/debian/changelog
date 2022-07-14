@@ -1,3 +1,9 @@
+jazzhands-zonegen-server (0.95.4) trusty; urgency=medium
+
+  * rsync zones in parallel
+
+ -- Nenad Buncic <nenad@buncic.net>  Thu, 14 Jul 2022 09:35:00 +0200
+
 jazzhands-zonegen-server (0.94.1) trusty; urgency=medium
 
   * Implement emitting optional statistics and using them always
