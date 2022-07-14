@@ -119,8 +119,16 @@ dorsync() {
 	host=$1
 	zoneroot=$2
 
-	rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
-	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
+	{
+	  rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
+	} & # submitting this job into background
+}
+
+doingest() {
+	host=$1
+	zoneroot=$2
+
+	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/bin/timeout 120 /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
 }
 
 trap cleanup HUP INT TERM
@@ -187,29 +195,32 @@ if [ -x  "$GENERATE_ZONES" ] ; then
 		kinit -k -t /etc/krb5.keytab.zonegen zonegen
 	fi
 	beforesync=`date +%s`
-	for hostfile in $DSTFILES ; do
-		if [ -r "$hostfile" ] ; then
-			echo 1>&3 Processing file $hostfile
-			sed -e 's/#.*//' $hostfile |
-			while read ns servers ; do
-				if [ "$servers" = "" ] ; then
-					servers="$ns"
-					ns=""
-				fi
-				servers=`echo $servers | sed 's/,/ /'`
-				for host in $servers ; do
-					if [ x"$host" != "x" ] ;then
-						if [ "$ns" = "" ] ; then
-							echo 1>&3  "Rsyncing to $host ..."
-							dorsync $host "$SRC_ROOT"
-						else
-							echo 1>&3  "Rsyncing to $host (in $ns) ..."
-							dorsync $host "$SRC_ROOT/perserver/$ns"
-						fi
+	for sync in "dorsync" "doingest"; do
+		for hostfile in $DSTFILES ; do
+			if [ -r "$hostfile" ] ; then
+				echo 1>&3 "($sync) Processing file $hostfile"
+				sed -e 's/#.*//' $hostfile |
+				while read ns servers ; do
+					if [ "$servers" = "" ] ; then
+						servers="$ns"
+						ns=""
 					fi
+					servers=`echo $servers | sed 's/,/ /'`
+					for host in $servers ; do
+						if [ x"$host" != "x" ] ;then
+							if [ "$ns" = "" ] ; then
+								echo 1>&3 "($sync) Rsyncing to $host ..."
+								$sync $host "$SRC_ROOT"
+							else
+								echo 1>&3 "($sync) Rsyncing to $host (in $ns) ..."
+								$sync $host "$SRC_ROOT/perserver/$ns"
+							fi
+						fi
+					done
 				done
-			done
-		fi
+			fi
+		done
+		wait # wait for all background jobs to finish
 	done
 	aftersync=`date +%s`
 fi
