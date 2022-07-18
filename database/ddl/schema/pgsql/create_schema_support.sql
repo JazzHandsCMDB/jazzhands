@@ -990,6 +990,7 @@ DECLARE
 	_r		RECORD;
 	doh	boolean DEFAULT false;
 	_myrole	TEXT;
+	msg TEXT;
 BEGIN
 	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
 	IF issuper THEN
@@ -1081,43 +1082,44 @@ BEGIN
 			IF _r.viewdelta  > minnumdiff OR
 				(_r.viewdelta / _r.before_views_count )*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! view changes not within tolerence';
+				msg := '!!! view changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... View changes within tolerence (%/% %%), I will allow it: %/% %%',
+				msg := '... View changes within tolerence;  I will allow it';
+			END IF;
+			RAISE NOTICE '%: (%/% %%) %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.viewdelta,
 						((_r.viewdelta::float / _r.before_views_count ))*100;
-			END IF;
 		END IF;
 		IF _r.funcdelta > 0 THEN
 			IF _r.funcdelta  > minnumdiff OR
 				(_r.funcdelta / _r.before_func_count )*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! function changes not within tolerence';
+				msg := '!!! function changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... Function changes within tolerence (%/% %%), I will allow it: %/% %%',
+				msg := '... Function changes within tolerence; I will allow it';
+			END IF;
+
+			RAISE NOTICE '%:  (%/% %%); %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.funcdelta,
 						((_r.funcdelta::float / _r.before_func_count ))*100;
-			END IF;
 		END IF;
 		IF _r.keydelta > 0 THEN
 			IF _r.keydelta  > minnumdiff OR
-				(_r.keydelta / _r.before_key_count )*100 > 100 - minpercent
+				((_r.keydelta::float / _r.before_key_count ))*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! fk constraint changes not within tolerence';
+				msg := '!!! fk constraint changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... Function changes within tolerence (%/% %%), I will allow it, %/% %%',
+				msg := '... Function changes within tolerence; I will allow it';
+			END IF;
+			RAISE NOTICE '%: (%/% %%) %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.keydelta,
-						((_r.keydelta::float / _r.before_keys_count ))*100;
-			END IF;
+						((_r.keydelta::float / _r.before_key_count ))*100;
 		END IF;
 	END LOOP;
 
