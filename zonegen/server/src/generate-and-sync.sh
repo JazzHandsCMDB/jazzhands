@@ -120,7 +120,7 @@ dorsync() {
 	zoneroot=$2
 
 	{
-		rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
+	  rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
 	} & # submitting this job into background
 }
 
@@ -195,17 +195,17 @@ if [ -x  "$GENERATE_ZONES" ] ; then
 		kinit -k -t /etc/krb5.keytab.zonegen zonegen
 	fi
 	beforesync=`date +%s`
-	for hostfile in $DSTFILES ; do
-		if [ -r "$hostfile" ] ; then
-			echo 1>&3 Processing file $hostfile
-			sed -e 's/#.*//' $hostfile |
-			while read ns servers ; do
-				if [ "$servers" = "" ] ; then
-					servers="$ns"
-					ns=""
-				fi
-				servers=`echo $servers | sed 's/,/ /'`
-				for sync in "dorsync" "doingest"; do
+	for sync in "dorsync" "doingest"; do
+		for hostfile in $DSTFILES ; do
+			if [ -r "$hostfile" ] ; then
+				echo 1>&3 "($sync) Processing file $hostfile"
+				sed -e 's/#.*//' $hostfile |
+				while read ns servers ; do
+					if [ "$servers" = "" ] ; then
+						servers="$ns"
+						ns=""
+					fi
+					servers=`echo $servers | sed 's/,/ /'`
 					for host in $servers ; do
 						if [ x"$host" != "x" ] ;then
 							if [ "$ns" = "" ] ; then
@@ -217,10 +217,10 @@ if [ -x  "$GENERATE_ZONES" ] ; then
 							fi
 						fi
 					done
-					wait # wait for background jobs to finish
 				done
-			done
-		fi
+			fi
+		done
+		wait # wait for all background jobs to finish
 	done
 	aftersync=`date +%s`
 fi
