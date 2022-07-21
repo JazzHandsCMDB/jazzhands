@@ -1,3 +1,9 @@
+jazzhands-stab (0.95.3.1) focal; urgency=medium
+
+  * undo last change, due to jazzhands_legacy limitations
+
+ -- Todd Kover <kovert@omniscient.com>  Wed,  6 Jul 2022 09:00:00 +0200
+
 jazzhands-stab (0.95.3) focal; urgency=medium
 
   * limit service environments to type 'default' on device page
