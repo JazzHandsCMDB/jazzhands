@@ -2773,6 +2773,108 @@ END;
 $$ LANGUAGE plpgsql
 SECURITY INVOKER;
 
+--
+-- to facilitate rollback of identity to serial.  Undoes the above.
+--
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serial (
+	schema TEXT,
+	relation TEXT
+) RETURNS integer AS $$
+DECLARE
+	_r	RECORD;
+	_d	RECORD;
+	_s	RECORD;
+	_t	INTEGER;
+BEGIN
+	_t := 0;
+	FOR _r IN SELECT attrelid, attname, seq_id, seq_name, deptype
+		FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE	c.relkind = 'S'
+					AND deptype = 'i'
+			) seq USING (attrelid, attnum)
+		WHERE	NOT a.attisdropped
+			AND nspname = SCHEMA
+			AND relname = relation
+		ORDER BY
+			a.attnum
+	LOOP
+		EXECUTE format('SELECT s.*, coalesce(pg_sequence_last_value(''%s.%s''), nextval(''%s.%s''))  as lastval  FROM pg_sequence s WHERE seqrelid = %s',
+			quote_ident(schema), quote_ident(_r.seq_name),
+			quote_ident(schema), quote_ident(_r.seq_name),
+			_r.seq_id
+		) INTO _s;
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s DROP IDENTITY',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname));
+
+		EXECUTE format('CREATE SEQUENCE %s.%s OWNED BY %s.%s.%s INCREMENT BY %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			_s.seqincrement
+		);
+
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			_s.lastval + 1
+		);
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT nextval(%s)',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			quote_literal(concat_ws('.',
+				quote_ident(schema),
+				quote_ident(_r.seq_name)
+			))
+		);
+
+		_t := _t + 1;
+	END LOOP;
+	RETURN _t;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serials (
+	tbl_schema TEXT
+) RETURNS INTEGER AS $$
+DECLARE
+	_r		INTEGER;
+	_tally	INTEGER;
+	table_list	TEXT;
+BEGIN
+
+	_tally := 0;
+    FOR table_list IN
+		SELECT table_name::text FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+		ORDER BY table_name
+    LOOP
+		SELECT schema_support.migrate_identity_to_legacy_serial(tbl_schema, table_list) INTO _r;
+		_tally := _tally + _r;
+    END LOOP;
+	RETURN _tally;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
 ----------------------------------------------------------------------------
 -- END IDENTITY column migration spuport
 ----------------------------------------------------------------------------
