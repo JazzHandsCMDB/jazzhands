@@ -579,7 +579,7 @@ sub do_cached_login($$$$) {
 			my $new_cache = _assemble_cache( $options, $newauth );
 
 			if ( _diff_cache( $cached, $new_cache->{'auth'} ) ) {
-				save_cached( $options, $a, $newauth,
+				save_cached( $options, $auth, $newauth,
 					sub { $v->build_cache_key(@_) } );
 			}
 			return $conn;
