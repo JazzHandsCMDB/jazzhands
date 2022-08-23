@@ -50,6 +50,8 @@
 
 -- components
 
+\ir pgsql/create_device_management_controller.sql
+
 \ir pgsql/create_v_device_slots.sql
 \ir pgsql/create_v_device_components_expanded.sql
 \ir pgsql/create_v_device_components_json.sql

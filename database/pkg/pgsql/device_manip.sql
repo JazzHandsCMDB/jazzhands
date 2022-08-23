@@ -95,6 +95,7 @@ DECLARE
 	dev_id		jazzhands.device.device_id%TYPE;
 	se_id		jazzhands.service_environment.service_environment_id%TYPE;
 	nb_id		jazzhands.netblock.netblock_id%TYPE;
+	cp_list		integer[];
 BEGIN
 	BEGIN
 		PERFORM local_hooks.retire_devices_early(device_id_list);
@@ -110,12 +111,26 @@ BEGIN
 		(SELECT
 			array_agg(manager_device_id)
 		FROM
-			device_management_controller dmc
+			component_management_controller dmc
+			JOIN (SELECT i.device_id, i.component_id 
+				FROM jazzhands.device i) d
+				USING (component_id)
+			JOIN (SELECT i.device_id AS manager_device_id,
+					i.component_id AS manager_component_id
+					FROM jazzhands.device i) md
+				USING (manager_component_id)
 		WHERE
-			dmc.device_id = ANY(device_id_list) AND
-			device_management_control_type = 'bmc'
+			d.device_id = ANY(device_id_list) AND
+			component_management_controller_type = 'bmc'
 		)
 	);
+
+	SELECT array_agg(component_id)
+		INTO cp_list
+		FROM device d
+		WHERE d.device_id = ANY(device_id_list)
+		AND d.component_id IS NOT NULL
+	;
 
 	--
 	-- Delete layer3_interfaces
@@ -139,7 +154,7 @@ BEGIN
 	FOREACH dev_id IN ARRAY device_id_list LOOP
 		PERFORM logical_port_manip.remove_mlag_peer(device_id := dev_id);
 	END LOOP;
-	
+
 	--
 	-- Delete all layer2_connections involving these devices
 	--
@@ -323,11 +338,11 @@ BEGIN
 				rack_location_id IS NOT NULL
 		);
 
-	RAISE LOG 'Removing device_management_controller links...';
+	RAISE LOG 'Removing component_management_controller links...';
 
-	DELETE FROM device_management_controller dmc WHERE
-		dmc.device_id = ANY (device_id_list) OR
-		manager_device_id = ANY (device_id_list);
+	DELETE FROM component_management_controller cmc WHERE
+		cmc.component_id = ANY (cp_list) OR
+		manager_component_id = ANY (cp_list);
 
 	RAISE LOG 'Removing device_encapsulation_domain entries...';
 
@@ -553,7 +568,7 @@ BEGIN
 	DELETE FROM layer3_interface ni WHERE ni.layer3_interface_id =
 		ANY(layer3_interface_id_list);
 
-	RAISE LOG 'Removing netblocks (%) ... ', nb_list; 
+	RAISE LOG 'Removing netblocks (%) ... ', nb_list;
 	IF nb_list IS NOT NULL THEN
 		FOREACH nb_id IN ARRAY nb_list LOOP
 			BEGIN

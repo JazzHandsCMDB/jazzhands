@@ -140,7 +140,7 @@ use parent 'JazzHands::Common';
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
 
-$VERSION = '0.55';
+$VERSION = '0.95.1';
 
 @ISA       = qw(DBI Exporter);
 @EXPORT_OK = qw(set_session_user set_transaction_type errstr);
@@ -159,10 +159,6 @@ sub new {
 	my $opt   = _options(@_);
 
 	return bless $self, $class;
-}
-
-sub errstr {
-	return $errstr;
 }
 
 sub optional_set_session_user {

@@ -1,8 +1,21 @@
+jazzhands-zonegen-server (0.95.4) trusty; urgency=medium
+
+  * rsync zones in parallel
+
+ -- Nenad Buncic <nenad@buncic.net>  Thu, 14 Jul 2022 09:35:00 +0200
+
+jazzhands-zonegen-server (0.94.1) trusty; urgency=medium
+
+  * Implement emitting optional statistics and using them always
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 10 May 2022 15:56:00 -0500
+
 jazzhands-zonegen-server (0.87.3) trusty; urgency=medium
 
   * generate-and-push exit code sholud match generate-zones on failure
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jul 2020 16:06:32 -0500
+
 
 jazzhands-zonegen-server (0.83.4) trusty; urgency=medium
 

@@ -5,7 +5,7 @@
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
 --
---       http://www.apache.org/licenses/LICENSE-2.0
+--    http://www.apache.org/licenses/LICENSE-2.0
 --
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,11 +19,11 @@
 --
 -- Redistribution and use in source and binary forms, with or without
 -- modification, are permitted provided that the following conditions are met:
---     * Redistributions of source code must retain the above copyright
---       notice, this list of conditions and the following disclaimer.
---     * Redistributions in binary form must reproduce the above copyright
---       notice, this list of conditions and the following disclaimer in the
---       documentation and/or other materials provided with the distribution.
+--   * Redistributions of source code must retain the above copyright
+--    notice, this list of conditions and the following disclaimer.
+--   * Redistributions in binary form must reproduce the above copyright
+--    notice, this list of conditions and the following disclaimer in the
+--    documentation and/or other materials provided with the distribution.
 --
 -- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
 -- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -41,13 +41,13 @@
 
 DO $$
 DECLARE
-        _tal INTEGER;
+    _tal INTEGER;
 BEGIN
-        select count(*)
-        from pg_catalog.pg_namespace
-        into _tal
-        where nspname = 'property_utils';
-        IF _tal = 0 THEN
+    select count(*)
+    from pg_catalog.pg_namespace
+    into _tal
+    where nspname = 'property_utils';
+    IF _tal = 0 THEN
 			DROP SCHEMA IF EXISTS property_utils;
 			CREATE SCHEMA property_utils AUTHORIZATION jazzhands;
 			COMMENT ON SCHEMA property_utils IS 'part of jazzhands';
@@ -56,7 +56,7 @@ BEGIN
 			REVOKE ALL on SCHEMA property_utils FROM public;
 			GRANT USAGE ON SCHEMA property_utils TO ro_role;
 			GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA property_utils TO ro_role;
-        END IF;
+    END IF;
 END;
 $$;
 
@@ -103,7 +103,7 @@ BEGIN
 			RETURN NULL;
 	END;
 
-	-- Check to see if the property itself is multivalue.  That is, if only
+	-- Check to see if the property itself is multivalue. That is, if only
 	-- one value can be set for this property for a specific property LHS
 	IF (v_prop.is_multivalue = false) THEN
 		PERFORM 1 FROM Property WHERE
@@ -214,7 +214,7 @@ BEGIN
 
 	END IF;
 
-	-- Check to see if the property type is multivalue.  That is, if only
+	-- Check to see if the property type is multivalue. That is, if only
 	-- one property and value can be set for any properties with this type
 	-- for a specific property LHS
 
@@ -361,11 +361,11 @@ BEGIN
 	END IF;
 
 	-- at this point, tally will be set to 1 if one of the other property
-	-- values is set to something valid.  Now, check the various options for
-	-- PROPERTY_VALUE itself.  If a new type is added to the val table, this
-	-- trigger needs to be updated or it will be considered invalid.  If a
+	-- values is set to something valid. Now, check the various options for
+	-- PROPERTY_VALUE itself. If a new type is added to the val table, this
+	-- trigger needs to be updated or it will be considered invalid. If a
 	-- new PROPERTY_VALUE_* column is added, then it will pass through without
-	-- trigger modification.  This should be considered bad.
+	-- trigger modification. This should be considered bad.
 	IF NEW.Property_Value IS NOT NULL THEN
 		tally := tally + 1;
 		IF v_prop.Property_Data_Type = 'number' THEN
@@ -738,7 +738,7 @@ BEGIN
 	--
 	--
 	IF v_prop.property_data_type = 'json' THEN
-		IF  NOT validate_json_schema(
+		IF NOT validate_json_schema(
 				v_prop.property_value_json_schema,
 				NEW.property_value_json) THEN
 			RAISE EXCEPTION 'JSON provided must match the json schema'
@@ -749,9 +749,9 @@ BEGIN
 	-- At this point, the RHS has been checked, so now we verify data
 	-- set on the LHS
 
-	-- There needs to be a stanza here for every "lhs".  If a new column is
+	-- There needs to be a stanza here for every "lhs". If a new column is
 	-- added to the property table, a new stanza needs to be added here,
-	-- otherwise it will not be validated.  This should be considered bad.
+	-- otherwise it will not be validated. This should be considered bad.
 
 	IF v_prop.Permit_Company_Id = 'REQUIRED' THEN
 			IF NEW.Company_Id IS NULL THEN
@@ -955,6 +955,136 @@ BEGIN
 				RAISE 'property_rank is prohibited.'
 					USING ERRCODE = 'invalid_parameter_value';
 			END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+--
+-- This used to be a val_property trigger.
+--
+CREATE OR REPLACE FUNCTION property_utils.validate_val_property(
+	NEW val_property
+) RETURNS val_property AS $$
+DECLARE
+BEGIN
+	IF NEW.property_data_type = 'json' AND NEW.property_value_json_schema IS NULL THEN
+		RAISE 'property_data_type json requires a schema to be set'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF NEW.property_data_type != 'json' AND NEW.property_value_json_schema IS NOT NULL THEN
+		RAISE 'property_data_type % may not have a json schema set',
+			NEW.property_data_type
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.account_collection_type IS NOT NULL AND
+		NEW.permit_account_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set account_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.company_collection_type IS NOT NULL AND
+		NEW.permit_company_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set company_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.device_collection_type IS NOT NULL AND
+		NEW.permit_device_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set device_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.dns_domain_collection_type IS NOT NULL AND
+		NEW.permit_dns_domain_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set dns_domain_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.layer2_network_collection_type IS NOT NULL AND
+		NEW.permit_layer2_network_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set layer2_network_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.layer3_network_collection_type IS NOT NULL AND
+		NEW.permit_layer3_network_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set layer3_network_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.netblock_collection_type IS NOT NULL AND
+		NEW.permit_netblock_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set netblock_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.network_range_type IS NOT NULL AND
+		NEW.permit_network_range_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set network_range_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.property_name_collection_type IS NOT NULL AND
+		NEW.permit_property_name_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set property_name_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.service_environment_collection_type IS NOT NULL AND
+		NEW.permit_service_environment_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set service_environment_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.service_version_collection_type IS NOT NULL AND
+		NEW.permit_service_version_collection_id = 'PROHIBITED'
+	THEN
+		RAISE EXCEPTION 'May not set service_version_collection_type when PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	--
+
+	IF NEW.property_value_account_collection_type_restriction IS NOT NULL AND
+		NEW.property_data_type != 'account_collection_id'
+	THEN
+		RAISE EXCEPTION 'May not set property_value_account_collection_type_restriction when property_data_type is not account_collection_id'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.property_value_device_collection_type_restriction IS NOT NULL AND
+		NEW.property_data_type != 'device_collection_id'
+	THEN
+		RAISE EXCEPTION 'May not set property_value_device_collection_type_restriction when property_data_type is not device_collection_id'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.property_value_netblock_collection_type_restriction IS NOT NULL AND
+		NEW.property_data_type != 'netblock_collection_id'
+	THEN
+		RAISE EXCEPTION 'May not set property_value_netblock_collection_type_restriction when property_data_type is not netblock_collection_id'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NEW.property_value_service_version_collection_type_restriction IS NOT NULL AND
+		NEW.property_data_type != 'service_version_collection_id'
+	THEN
+		RAISE EXCEPTION 'May not set property_value_service_version_collection_type_restriction when property_data_type is not service_version_collection_id'
+			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
 	RETURN NEW;

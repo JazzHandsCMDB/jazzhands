@@ -113,6 +113,8 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_software_artifact_repository_triggers.sql
 \ir ddl/schema/pgsql/create_port_range_triggers.sql
 
+\ir ddl/schema/pgsql/create_device_management_controller_triggers.sql
+
 -- goes with the jazzhands_legacy schema
 \ir ddl/schema/pgsql/create_jazzhands_legacy_triggers-RETIRE.sql
 
@@ -141,7 +143,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 -- having to hand maintain this sucks.
 SELECT schema_support.set_schema_version(
-	version := '0.94',
+	version := '0.95',
 	schema := 'jazzhands'
 );
 

@@ -1,8 +1,29 @@
+jazzhands-perl-common (0.95.2) jammy; urgency=medium
+
+  * properly export the Connect db function (broke in 0.95.0)
+
+ -- Todd M. Kover <kovert@omniscient.com>  Wed, 22 Jun 2022 13:21:00 -0400
+
+jazzhands-perl-common (0.95.0) jammy; urgency=medium
+
+  * make errstr stuff less variable-y
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 31 May 2022 17:21:00 -0400
+
+
+jazzhands-perl-common (0.94.0) focal; urgency=medium
+
+  * make GenericDB truly optional
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri,  1 Apr 2022 14:17:00 -0500
+
+
 jazzhands-perl-common (0.86.0) bionic; urgency=medium
 
   * Update error handling to be smarter
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
+
 
 jazzhands-perl-common (0.73.2) trusty; urgency=medium
 

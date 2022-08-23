@@ -913,7 +913,7 @@ sub SetBGPPeerStatus {
 					$device->{hostname}));
 				return undef;
 			}
-			if ($major >= 4 && $minor >= 23) {
+			if ($major > 4 || ($major == 4 && $minor >= 23)) {
 				push @{$commands}, 'neighbor ' . $bgp_peer .
 					' peer group ' . $opt->{bgp_peer_group};
 			} else {

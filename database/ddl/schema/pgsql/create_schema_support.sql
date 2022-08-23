@@ -990,6 +990,7 @@ DECLARE
 	_r		RECORD;
 	doh	boolean DEFAULT false;
 	_myrole	TEXT;
+	msg TEXT;
 BEGIN
 	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
 	IF issuper THEN
@@ -1081,43 +1082,44 @@ BEGIN
 			IF _r.viewdelta  > minnumdiff OR
 				(_r.viewdelta / _r.before_views_count )*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! view changes not within tolerence';
+				msg := '!!! view changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... View changes within tolerence (%/% %%), I will allow it: %/% %%',
+				msg := '... View changes within tolerence;  I will allow it';
+			END IF;
+			RAISE NOTICE '%: (%/% %%) %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.viewdelta,
 						((_r.viewdelta::float / _r.before_views_count ))*100;
-			END IF;
 		END IF;
 		IF _r.funcdelta > 0 THEN
 			IF _r.funcdelta  > minnumdiff OR
 				(_r.funcdelta / _r.before_func_count )*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! function changes not within tolerence';
+				msg := '!!! function changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... Function changes within tolerence (%/% %%), I will allow it: %/% %%',
+				msg := '... Function changes within tolerence; I will allow it';
+			END IF;
+
+			RAISE NOTICE '%:  (%/% %%); %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.funcdelta,
 						((_r.funcdelta::float / _r.before_func_count ))*100;
-			END IF;
 		END IF;
 		IF _r.keydelta > 0 THEN
 			IF _r.keydelta  > minnumdiff OR
-				(_r.keydelta / _r.before_key_count )*100 > 100 - minpercent
+				((_r.keydelta::float / _r.before_key_count ))*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! fk constraint changes not within tolerence';
+				msg := '!!! fk constraint changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... Function changes within tolerence (%/% %%), I will allow it, %/% %%',
+				msg := '... Function changes within tolerence; I will allow it';
+			END IF;
+			RAISE NOTICE '%: (%/% %%) %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.keydelta,
-						((_r.keydelta::float / _r.before_keys_count ))*100;
-			END IF;
+						((_r.keydelta::float / _r.before_key_count ))*100;
 		END IF;
 	END LOOP;
 
@@ -2487,7 +2489,7 @@ BEGIN
 			IF _t1 = 1 THEN
 				_oldschema:= _tmpschema;
 			ELSE
-				RAISE EXCEPTION 'table %.% does not seem to exist', _schema, old_rel;
+				RAISE EXCEPTION 'table %.% does not seem to exist', _oldschema, old_rel;
 			END IF;
 		END IF;
 	END IF;
@@ -2509,7 +2511,7 @@ BEGIN
 			IF _t1 = 1 THEN
 				_newschema:= _tmpschema;
 			ELSE
-				RAISE EXCEPTION 'table %.% does not seem to exist', _schema, new_rel;
+				RAISE EXCEPTION 'table %.% does not seem to exist', _newschema, new_rel;
 			END IF;
 		END IF;
 	END IF;
@@ -2764,6 +2766,108 @@ BEGIN
 		ORDER BY table_name
     LOOP
 		SELECT schema_support.migrate_legacy_serial_to_identity(tbl_schema, table_list) INTO _r;
+		_tally := _tally + _r;
+    END LOOP;
+	RETURN _tally;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+--
+-- to facilitate rollback of identity to serial.  Undoes the above.
+--
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serial (
+	schema TEXT,
+	relation TEXT
+) RETURNS integer AS $$
+DECLARE
+	_r	RECORD;
+	_d	RECORD;
+	_s	RECORD;
+	_t	INTEGER;
+BEGIN
+	_t := 0;
+	FOR _r IN SELECT attrelid, attname, seq_id, seq_name, deptype
+		FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE	c.relkind = 'S'
+					AND deptype = 'i'
+			) seq USING (attrelid, attnum)
+		WHERE	NOT a.attisdropped
+			AND nspname = SCHEMA
+			AND relname = relation
+		ORDER BY
+			a.attnum
+	LOOP
+		EXECUTE format('SELECT s.*, coalesce(pg_sequence_last_value(''%s.%s''), nextval(''%s.%s''))  as lastval  FROM pg_sequence s WHERE seqrelid = %s',
+			quote_ident(schema), quote_ident(_r.seq_name),
+			quote_ident(schema), quote_ident(_r.seq_name),
+			_r.seq_id
+		) INTO _s;
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s DROP IDENTITY',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname));
+
+		EXECUTE format('CREATE SEQUENCE %s.%s OWNED BY %s.%s.%s INCREMENT BY %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			_s.seqincrement
+		);
+
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			_s.lastval + 1
+		);
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT nextval(%s)',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			quote_literal(concat_ws('.',
+				quote_ident(schema),
+				quote_ident(_r.seq_name)
+			))
+		);
+
+		_t := _t + 1;
+	END LOOP;
+	RETURN _t;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serials (
+	tbl_schema TEXT
+) RETURNS INTEGER AS $$
+DECLARE
+	_r		INTEGER;
+	_tally	INTEGER;
+	table_list	TEXT;
+BEGIN
+
+	_tally := 0;
+    FOR table_list IN
+		SELECT table_name::text FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+		ORDER BY table_name
+    LOOP
+		SELECT schema_support.migrate_identity_to_legacy_serial(tbl_schema, table_list) INTO _r;
 		_tally := _tally + _r;
     END LOOP;
 	RETURN _tally;
@@ -3040,16 +3144,25 @@ LANGUAGE plpgsql SECURITY INVOKER;
 -- It also ignores sequences because those really need to move to IDENTITY
 -- columns anyway. and sequences are really part of the shadow schema stuff.
 --
+-- name_map may contain a jsonb hash that maps old name to new name.  When
+-- there's no key, they are assumed to be the same.  If the value is null, then
+-- it will either raise a NOTICE about it not existing (if
+-- name_map_exception is false) or raise an exception, if name_map_exception
+-- is true (the default).
+--
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants (
-	username	TEXT,
-	direction	TEXT,
-	old_schema	TEXT DEFAULT 'jazzhands_legacy',
-	new_schema	TEXT DEFAULT 'jazzhands'
+	username			TEXT,
+	direction			TEXT,
+	old_schema			TEXT,
+	new_schema			TEXT,
+	name_map			JSONB DEFAULT NULL,
+	name_map_exception	BOOLEAN DEFAULT true
 ) RETURNS TEXT[] AS $$
 DECLARE
-	_rv	TEXT[];
-	_r	RECORD;
-	_q	TEXT;
+	_rv			TEXT[];
+	_r			RECORD;
+	_q			TEXT;
+	_newname	TEXT;
 BEGIN
 	IF lower(direction) NOT IN ('grant','revoke') THEN
 		RAISE EXCEPTION 'direction must be grant or revoke';
@@ -3116,12 +3229,28 @@ BEGIN
 		ELSE
 			_q := NULL;
 		END IF;
-		IF lower(direction) = 'grant' THEN
-			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _r.name, ' TO ', _r.grantee);
-		ELSIF lower(direction) = 'revoke' THEN
-			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _r.name, ' FROM ', _r.grantee);
+
+		_newname := NULL;
+		IF name_map IS NOT NULL AND name_map ? _r.name THEN
+			IF name_map->>_r.name IS NULL THEN
+				If name_map_exception THEN
+					RAISE EXCEPTION '% is not available in the new schema', _r.name;
+				ELSE
+					RAISE NOTICE '% is not available in the new schema', _r.name;
+					CONTINUE;
+				END IF;
+			ELSE
+				_newname := name_map->>_r.name;
+			END IF;
+		ELSE
+			_newname := _r.name;
 		END IF;
 
+		IF lower(direction) = 'grant' THEN
+			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _newname, ' TO ', _r.grantee);
+		ELSIF lower(direction) = 'revoke' THEN
+			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _newname, ' FROM ', _r.grantee);
+		END IF;
 
 		_rv := array_append(_rv, _q);
 		EXECUTE _q;

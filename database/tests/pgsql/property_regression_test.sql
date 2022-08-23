@@ -71,7 +71,7 @@ DECLARE
 	v_token_collection_id	Property.Property_Value_Token_collection_ID%TYPE;
 	v_private_key_id		property.property_value_private_key_id%TYPE;
 	v_encryption_key_id		property.property_value_private_key_id%TYPE;
-
+	_r	RECORD;
 BEGIN
 
 --
@@ -109,7 +109,6 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		Permit_Company_Id,
 		Permit_Company_Collection_Id,
@@ -124,7 +123,6 @@ BEGIN
 		'Prohibited',
 		'test',
 		false,
-		NULL,
 		'string',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -141,7 +139,6 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
@@ -156,7 +153,6 @@ BEGIN
 		'Multivalue',
 		'test',
 		true,
-		NULL,
 		'string',
 		'ALLOWED',
 		'ALLOWED',
@@ -333,7 +329,6 @@ BEGIN
 		Property_Name,
 		Property_Type,
 		Is_Multivalue,
-		property_value_account_collection_Type_restriction,
 		Property_Data_Type,
 		permit_company_collection_id,
 		Permit_Device_Collection_Id,
@@ -348,7 +343,6 @@ BEGIN
 		'RestrictAccount_Collection',
 		'test',
 		false,
-		'per-account',
 		'string',
 		'PROHIBITED',
 		'PROHIBITED',
@@ -881,10 +875,20 @@ BEGIN
 		RETURNING *
 	) SELECT token_collection_id INTO v_token_collection_id FROM tc LIMIT 1;
 
-	INSERT INTO private_key (
-		private_key_encryption_type, private_key
-	) VALUES (
-		'rsa',
+	WITH pkh AS (
+		INSERT INTO public_key_hash (description) values (null)
+		RETURNING *
+	), pkhh AS (
+		INSERT INTO public_key_hash_hash (
+			public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash
+		) VALUES
+			((SELECT public_key_hash_id FROM pkh), 'sha1', '907a7748e7952124e38b68a0f65e92fcb05e2155'),
+			((SELECT public_key_hash_id FROM pkh), 'sha256', '95b1668634903fb069e4da54bb16de17b81b09572a4bc599d72fa845540f619f')
+		RETURNING *
+	) INSERT INTO private_key (
+		private_key_encryption_type, public_key_hash_id, private_key
+	) SELECT DISTINCT
+		'rsa', public_key_hash_id,
 '-----BEGIN RSA PRIVATE KEY-----
 MIIFvwIBAAKCAUALSbsxTO0wLSXjSVAhEqnj1ujImqbXeFw6xEkWm6ssBv8se1VD
 fMBIW4i12t5TbRiXBf1F47LCzmemqDJw870gJGprVRWwczjHltNoRc6rmv5LcQ/g
@@ -918,7 +922,8 @@ ZT/ZUzw5bdiV1p1UfU0bY0wHBwVIIajv19zavoLFwy9MtWNEL5y4vPD9uSNcLrfO
 lnkQSN5uP0nexuZ6XVvVb+8vrixvnRTZw3QBvQgqVlOHPO5y2MO8/hBcyC+c1VIM
 Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 -----END RSA PRIVATE KEY-----'
-	) RETURNING private_key_id INTO v_private_key_id;
+	FROM pkh
+	RETURNING private_key_id INTO v_private_key_id;
 
 	INSERT INTO val_encryption_method (encryption_method) VALUES ('JHTEST');
 	INSERT INTO val_encryption_key_purpose (encryption_key_purpose, encryption_key_purpose_version) VALUES ('JHTEST', 1);

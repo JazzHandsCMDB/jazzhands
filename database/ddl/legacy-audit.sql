@@ -695,12 +695,20 @@ FROM jazzhands_audit.device_layer2_network;
 
 
 
--- Simple column rename
 CREATE OR REPLACE VIEW audit.device_management_controller AS
-SELECT
+WITH p AS NOT MATERIALIZED (
+	SELECT device_id, component_id
+	FROM (
+		SELECT	device_id, component_id,
+			rank() OVER 
+			(PARTITION BY device_id ORDER BY "aud#timestamp" DESC) as rnk
+		FROM	jazzhands_audit.device
+		WHERE	component_id IS NOT NULL
+	) q WHERE rnk = 1
+) SELECT
 	"manager_device_id",
-	"device_id",
-	"device_management_control_type" AS device_mgmt_control_type,
+	device_id,
+	component_management_controller_type AS device_mgmt_control_type,
 	"description",
 	"data_ins_user",
 	"data_ins_date",
@@ -712,7 +720,14 @@ SELECT
 	"aud#txid",
 	"aud#user",
 	"aud#seq"
-FROM jazzhands_audit.device_management_controller;
+FROM jazzhands_audit.component_management_controller c
+	JOIN (SELECT device_id, component_id FROM p) d
+		USING (component_id)
+	JOIN (SELECT device_id AS manager_device_id, 
+			component_id AS manager_component_id 
+			FROM p) md
+		USING (manager_component_id)
+;
 
 
 
@@ -2466,14 +2481,12 @@ FROM jazzhands_audit.val_device_collection_type;
 
 
 CREATE OR REPLACE VIEW audit.val_device_mgmt_ctrl_type AS
-SELECT device_management_controller_type AS device_mgmt_control_type,
+SELECT component_management_controller_type AS device_mgmt_control_type,
 	"description",
 	"data_ins_user","data_ins_date","data_upd_user","data_upd_date",
 	"aud#action","aud#timestamp","aud#realtime","aud#txid",
 	"aud#user","aud#seq"
-FROM jazzhands_audit.val_device_management_controller_type;
-
-
+FROM jazzhands_audit.val_component_management_controller_type;
 
 CREATE OR REPLACE VIEW audit.val_device_status AS
 SELECT "device_status","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"

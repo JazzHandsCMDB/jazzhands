@@ -143,7 +143,7 @@ INSERT INTO val_property (
 	description,
 	property_data_type,
 	permit_device_collection_id,
-	property_value_device_collection_type_restriction,
+	device_collection_type,
 	is_multivalue
 ) VALUES (
 	'AutoMgmtProtocol',
