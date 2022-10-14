@@ -790,6 +790,19 @@ BEGIN
 			END IF;
 	END IF;
 
+	IF v_prop.Permit_DNS_Domain_Collection_Id = 'REQUIRED' THEN
+			IF NEW.DNS_Domain_Collection_Id IS NULL THEN
+				RAISE 'DNS_Domain_Collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+
+	ELSIF v_prop.Permit_DNS_Domain_Collection_Id = 'PROHIBITED' THEN
+			IF NEW.DNS_Domain_Collection_Id IS NOT NULL THEN
+				RAISE 'DNS_Domain_Collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
 	IF v_prop.permit_service_environment_collection_id = 'REQUIRED' THEN
 			IF NEW.service_environment_collection_id IS NULL THEN
 				RAISE 'service_environment_collection_id is required.'
