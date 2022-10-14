@@ -110,6 +110,8 @@ begin;
 \ir tests/pgsql/source_repository_triggers.sql
 \ir tests/pgsql/service_relationship_triggers.sql
 \ir tests/pgsql/service_manip_tests.sql
+
+\ir tests/pgsql/dns_domain_regression_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
 
 \ir tests/pgsql/device_management_controller_regression.sql
