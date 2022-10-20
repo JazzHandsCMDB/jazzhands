@@ -93,8 +93,8 @@ BEGIN
 		INSERT INTO property (
 			property_type, property_name, property_value
 		) VALUES
-			('Defaults', '_authns', concat_ws('.', 'auth00', base1)),
-			('Defaults', '_authns', concat_ws('.', 'auth01', base1));
+			('Defaults', '_authdns', concat_ws('.', 'auth00', base1)),
+			('Defaults', '_authdns', concat_ws('.', 'auth01', base1));
 
 		SELECT count(*) INTO _numns FROM property
 		WHERE property_name = '_authdns' AND property_type = 'Defaults';
