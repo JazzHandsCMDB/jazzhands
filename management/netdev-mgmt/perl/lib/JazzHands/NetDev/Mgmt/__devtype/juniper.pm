@@ -3662,6 +3662,11 @@ my $iface_map = {
 		media_type => '100GMXPEthernet',
 		slot_prefix => 'et-',
 	},
+	'SFP+-10G-CU2M' => {
+		module_type => '10GSFP+Ethernet',
+		media_type => '10GLCEthernet',
+		slot_prefix => 'ge-',
+	},
 };
 
 sub GetChassisInfo {

@@ -94,11 +94,12 @@ SELECT * FROM  (
 		network_range_id,
 	    	dns_domain_id,
 		nbstart.ip_universe_id,
-	    	dns_prefix,
+		coalesce(dns_prefix, default_dns_prefix) as dns_prefix,
 		nbstart.ip_address +
 			generate_series(0, nbstop.ip_address - nbstart.ip_address)
 			as ip
 	  from  network_range dr
+		INNER JOIN val_network_range_type USING (network_range_type)
 		INNER JOIN netblock nbstart
 		    ON dr.start_netblock_id = nbstart.netblock_id
 		INNER JOIN netblock nbstop
