@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2013-2018, Todd M. Kover
+# Copyright (c) 2013-2022, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@
 #
 
 # does an axfr of a zone and the zone into jazzhands
+
+# TODO: reevaluate how $numchanges is set with DB*, particularly update.
 
 use warnings;
 use strict;
@@ -118,7 +120,8 @@ sub find_universe {
 			},
 			result_set_size => 'first',
 			errors          => \@errs
-		) )
+		)
+	  )
 	{
 		return $dbrec->{ip_universe_id};
 	}
@@ -127,6 +130,57 @@ sub find_universe {
 	die "Unable to find universe $u\n";
 
 	return undef;
+}
+
+#
+# takes mismatched ip universes and adjusts the new record to point across
+# universes and returns a new record to insert.
+#
+# This requires the record to exist in the other domain, otherwise just returns
+# the old record, which will fail to insert.  This probably means that the
+# command line argument to define how this works needs more granularity.
+#
+sub bleed_universes($$$) {
+	my $self = shift @_;
+	my $new = shift @_;
+	my $nb = shift @_;
+
+	my $dbh = $self->DBHandle();
+
+	my $sth = $dbh->prepare_cached(qq {
+		SELECT *
+		FROM dns_record
+		WHERE dns_name IS NOT DISTINCT FROM :name
+		AND dns_type = :type
+		AND ip_universe_id = :ipu
+		AND dns_domain_id = :domain
+		ORDER BY dns_record_id, dns_domain_id
+		LIMIT 1;
+	}) || die $dbh->errstr;
+
+	$sth->bind_param(':name',	$new->{dns_name}) || die $sth->errstr;
+	$sth->bind_param(':type',	$new->{dns_type}) || die $sth->errstr;
+	$sth->bind_param(':ipu',	$nb->{ip_universe_id}) || die $sth->errstr;
+	$sth->bind_param(':domain',	$new->{dns_domain_id}) || die $sth->errstr;
+
+	$sth->execute() || die $sth->errstr;
+
+	my $hr = $sth->fetchrow_hashref();
+
+	$sth->finish;
+
+	if(!$hr) {
+		warn "nothing for bleeding given ", ,Dumper($new, $nb);
+		return $new;
+	}
+
+	$new->{dns_value} = undef;
+	$new->{netblock_id} = undef;
+	$new->{reference_dns_record_id} = $hr->{dns_record_id};
+	$new->{dns_value_record_id} = $hr->{dns_record_id};
+	$new->{should_generate_ptr} = 'N';
+
+	$new;
 }
 
 #
@@ -143,7 +197,8 @@ sub pull_universes($) {
 
 	my $dbh = $self->DBHandle();
 
-	my $sth = $dbh->prepare_cached( qq{
+	my $sth = $dbh->prepare_cached(
+		qq{
 		SELECT	ip_address, masklen(ip_address), ip_universe_id
 		FROM	netblock
 		WHERE	ip_universe_id IS NOT NULL
@@ -191,7 +246,8 @@ sub get_universe($$) {
 	my $dbh = $self->DBHandle();
 
 	foreach my $nsp ( @{ $self->{allowed_namespaces} } ) {
-		my $sth = $dbh->prepare_cached( qq{
+		my $sth = $dbh->prepare_cached(
+			qq{
 			select netblock_utils.find_best_ip_universe(
 				in_ipaddress := ?,
 				ip_namespace := ?,
@@ -210,7 +266,8 @@ sub get_universe($$) {
 	}
 
 	{
-		my $sth = $dbh->prepare_cached( qq{
+		my $sth = $dbh->prepare_cached(
+			qq{
 			select netblock_utils.find_best_parent_id(
 				in_ipaddress := ?,
 				in_ip_universe_id := 0,
@@ -234,7 +291,8 @@ sub get_universe($$) {
 		sort {
 			$self->{_universemap}->{$b}->{cidr}
 			  <=> $self->{_universemap}->{$a}->{cidr}
-		} keys %{ $self->{_universemap} } )
+		} keys %{ $self->{_universemap} }
+	  )
 	{
 		$self->_Debug( 10, "get_universe:  look in %s for %s", $blk, $ip );
 		my $n = $self->{_universemap}->{$blk}->{naddr};
@@ -264,7 +322,8 @@ sub check_and_add_service {
 			},
 			result_set_size => 'first',
 			errors          => \@errs
-		) )
+		)
+	  )
 	{
 		return 0;
 	}
@@ -306,7 +365,8 @@ sub link_inaddr {
 			match           => $match,
 			result_set_size => 'first',
 			errors          => \@errs
-		) )
+		)
+	  )
 	{
 		return 0;
 	}
@@ -582,7 +642,9 @@ sub freshen_zone {
 					matchtype => 'like',
 				} ],
 				errors => \@errs,
-			) } )
+			)
+		}
+	  )
 	{
 		if ( !defined( $z->{parent_dns_domain_id} )
 			|| $z->{parent_dns_domain_id} != $$dom->{dns_domain_id} )
@@ -740,7 +802,9 @@ sub freshen_soa {
 						dns_name      => $shortname,
 					},
 					errors => \@errs
-				) } )
+				)
+			}
+		  )
 		{
 			my $ret = 0;
 			if ( $self->{nodelete} ) {
@@ -802,6 +866,7 @@ sub refresh_dns_record {
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
+
 		# print sprintf("type: %s, universe: %s\n", $opt->{dns_type}, $self->{v6_universe});
 		if ( $opt->{dns_type} eq 'AAAA' && defined( $self->{v6_universe} ) ) {
 			$universe = $self->{v6_universe};
@@ -820,7 +885,7 @@ sub refresh_dns_record {
 			match           => $match,
 			errors          => \@errs,
 			result_set_size => 'first',
-			ip_universe		=> $universe,
+			ip_universe     => $universe,
 		);
 		$self->dbh->err && die join( " ", @errs );
 
@@ -905,8 +970,9 @@ sub refresh_dns_record {
 					{
 						my $e = ( scalar @errs ) ? join( " ", @errs ) : $errmsg;
 						$e =~ s/\n/ /mg;
-						$self->_Debug( 1, "Skipping %s creation due to failure.", $address );
-						$self->_Debug( 1, "... db said: %s",      $e );
+						$self->_Debug( 1,
+							"Skipping %s creation due to failure.", $address );
+						$self->_Debug( 1, "... db said: %s", $e );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
@@ -978,21 +1044,30 @@ sub refresh_dns_record {
 
 		# if the reference and value come from the same record, it's bleedover
 		# from another universe and should just ignored.
-		if($dnsrec->{ref_record_id} && $dnsrec->{dns_value_record_id} && $dnsrec->{ref_record_id} == $dnsrec->{dns_value_record_id}) {
-			warn "Skipping universe bleedover record for ", $dnsrec->{dns_name}, "\n";
+		if (   $dnsrec->{ref_record_id}
+			&& $dnsrec->{dns_value_record_id}
+			&& $dnsrec->{ref_record_id} == $dnsrec->{dns_value_record_id} )
+		{
+			warn "Skipping universe bleedover record for ",
+			  $dnsrec->{dns_name}, "\n";
 		} else {
+
 			# Find if there is a dns record associated with this record
 			$dnsrecid = $dnsrec->{dns_record_id};
 			my $diff = $self->hash_table_diff( $dnsrec, $new );
 			if ( scalar %$diff ) {
-				$numchanges += $self->DBUpdate(
+				my $rv = $self->DBUpdate(
 					table  => 'dns_record',
 					dbkey  => 'dns_record_id',
 					keyval => $dnsrec->{dns_record_id},
+					hash   => $diff,
 					errs   => \@errs,
-				) || die "failed to update DNS Record: ", Dumper($dnsrec, $diff), join( " ", @errs );
+				  )
+				  || die "failed to update DNS Record: ",
+				  Dumper( $dnsrec, $diff ), " :-- ", join( " ", @errs );
+				$numchanges += $rv;
 				warn " ++ refresh dns record ", $dnsrec->{dns_record_id}, "\n"
-			  	if ( $self->{verbose} );
+				  if ( $self->{verbose} );
 			}
 		}
 	} else {
@@ -1001,11 +1076,24 @@ sub refresh_dns_record {
 
 			# next;
 		}
+		if($nb && $nb->{ip_universe_id} != $new->{ip_universe_id}) {
+			if(!$self->{universebleed}) {
+				die sprintf("Not inserting ID record for %s (%s) due to univers mismatch (%d vs %d)\n",
+					$name, $opt->{dns_type}, $nb->{ip_universe_id}, $new->{ip_universe_id});
+				next;
+			} else {
+				$new = $self->bleed_universes($new, $nb);
+			}
+		}
 		$numchanges += $self->DBInsert(
 			table  => 'dns_record',
 			hash   => $new,
 			errors => \@errs,
-		) || die "failed to insert: ", join( " ", Dumper($new), "failed to match", Dumper($match), ":", @errs );
+		  )
+		  || die "failed to insert: ",
+		  join( " ",
+			Dumper($new),   "failed to match",
+			Dumper($match), ":", @errs );
 		$dnsrecid = $new->{dns_record_id};
 		$self->_Debug( 8, "Inserted new record: %d", $new->{dns_record_id} );
 	}
@@ -1054,7 +1142,8 @@ sub process_zone($$$;$) {
 			{
 				ORIGIN    => $xferzone,
 				CREATE_RR => 1
-			} );
+			}
+		);
 		if ( !defined($rv) ) {
 			die "$file: $! /$rv";
 		}
@@ -1216,8 +1305,8 @@ sub process_zone($$$;$) {
 		} elsif ( $rr->type =~ /^AFSDB$/ ) {
 			$new->{value} = $rr->subtype;
 		} elsif ( $rr->type eq 'SSHFP' ) {
-			warn "record type ", $rr->type, " unsupported\n";
-			next;
+			$new->{value} =
+			  join( " ", $rr->algorithm, $rr->fptype, $rr->fingerprint, );
 		} elsif ( $rr->type eq 'TLSA' ) {
 			warn "record type ", $rr->type, " unsupported\n";
 			next;
@@ -1234,7 +1323,7 @@ sub process_zone($$$;$) {
 		} elsif ( $rr->type eq 'SOA' ) {
 			next;
 		} else {
-			warn "Unable to process record for ", $rr->name, " -- ",
+			die "Unable to process record for ", $rr->name, " -- ",
 			  $rr->type, "\n";
 			next;
 		}
@@ -1287,8 +1376,8 @@ sub do_zone_load {
 		$nodelete,       $debug,            $dryrun,
 		$universe,       $guessuniverse,    $v6universe,
 		$shouldgenerate, @alloweduniverses, $file,
-		$soauniverse,    @ignoreprefix,     @namespaces,
-		@forceinaddr,    @loopback,
+		$universebleed,  $soauniverse,      @ignoreprefix,
+		@namespaces,     @forceinaddr,      @loopback,
 	);
 
 	#
@@ -1310,6 +1399,7 @@ sub do_zone_load {
 		"ip-universe=s"          => \$universe,
 		"soa-universe=s"         => \$soauniverse,
 		"guess-universe"         => \$guessuniverse,
+		"universebleed"          => \$universebleed,
 		"ignore-prefix=s"        => \@ignoreprefix,
 		"unknown-netblocks=s"    => \$nbrule,
 		"should-generate"        => \$shouldgenerate,
@@ -1361,8 +1451,10 @@ sub do_zone_load {
 	$ziw->{verbose}            = $verbose;
 	$ziw->{addservice}         = $addsvr;
 	$ziw->{nodelete}           = $nodelete;
+	$ziw->{universebleed}      = $universebleed;
 	$ziw->{allowed_namespaces} = \@namespaces;
 	$ziw->{force_inaddr}       = \@forceinaddr;
+
 	if ( scalar @alloweduniverses ) {
 		foreach my $u (@alloweduniverses) {
 			my $id = $ziw->find_universe($u);

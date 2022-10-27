@@ -12,6 +12,7 @@
 # - figure out how to manage view config files combined (probably) with acls.
 # - what to do about new links to bum zones in perserver dir (currently die)
 # - makesure to regen hard links on *every* regen
+# - zone statistics need to factor in universes somehow
 
 # Copyright (c) 2013-2022, Todd M. Kover
 # All rights reserved.
@@ -650,7 +651,9 @@ sub process_all_dns_records {
 		FROM dns
 		order by
 			dns_domain_id,
-			CASE WHEN dns_name IS NULL THEN 0 ELSE 1 END,
+			CASE WHEN dns_name IS NULL AND dns_srv_service IS NULL THEN 0 
+				WHEN dns_srv_service IS NOT NULL THEN 1
+				ELSE 2 END,
 			CASE WHEN DNS_TYPE IN ('A','AAAA') THEN NULL
 			     WHEN DNS_TYPE = 'PTR' THEN lpad(dns_name, 10, '0')
 				ELSE  dns_name
@@ -873,7 +876,7 @@ sub process_domain {
 			$errmsg = "[WARNING: PUSHING OUT!]";
 		}
 		$output = "" if ( !$output );
-		warn "$domain ($uname) was generated with errors $errmsg ($output)\n";
+		die "$domain ($uname) was generated with errors $errmsg ($output)\n";
 		if ( !$errcheck ) {
 			return 0;
 		}
@@ -1646,6 +1649,7 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 				$bumpsoa = $generate->{$dom}->{$univ}->{bumpsoa} || 0;
 			}
 		}
+		# XXX This all needs to be revisited. (for stats)
 		my $domid =
 		  $generate->{$dom}->{$univ}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
 		my $last = $generate->{$dom}->{$univ}->{rec}->[0]->{last_generated};
@@ -1653,6 +1657,8 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 			$last = $zg->get_now();
 		}
 		my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
+
+		$zg->generation_time( $dom, 'start' );
 		my $rv =
 		  $zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
 			$bumpsoa );
@@ -1663,16 +1669,9 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		} else {
 			print "$dom $univ\n";
 		}
+
+		$zg->generation_time( $dom, 'end' );
 	}
-	my $domid = $generate->{$dom}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
-	print "$dom\n";
-	my $last = $generate->{$dom}->{rec}->[0]->{last_generated};
-	if ($bumpsoa) {
-		$last = $zg->get_now();
-	}
-	$zg->generation_time( $dom, 'start' );
-	$zg->process_domain( $domid, $dom, undef, $last, $bumpsoa );
-	$zg->generation_time( $dom, 'end' );
 }
 $zg->record_event('donezones');
 warn "Done Generating Zones\n" if ($verbose);

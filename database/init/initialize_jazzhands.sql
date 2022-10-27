@@ -565,6 +565,7 @@ insert into val_dns_type (dns_type,id_type) values ('PX', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('RP', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('RT', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SIG', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('SSHFP', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SOA', 'LINK');
 insert into val_dns_type (dns_type,id_type) values ('SPF', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SRV', 'NON-ID');
