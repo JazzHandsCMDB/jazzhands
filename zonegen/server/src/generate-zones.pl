@@ -1637,6 +1637,7 @@ $zg->record_event('startgen');
 #
 foreach my $dom ( sort keys( %{$generate} ) ) {
 	next if $dom eq '__unknown__';
+	$zg->generation_time( $dom, 'start' );
 	foreach my $univ ( sort keys( %{ $generate->{$dom} } ) ) {
 		my $bumpsoa = 0;
 		if ($nosoa) {
@@ -1658,7 +1659,6 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 		}
 		my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
 
-		$zg->generation_time( $dom, 'start' );
 		my $rv =
 		  $zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
 			$bumpsoa );
@@ -1670,9 +1670,10 @@ foreach my $dom ( sort keys( %{$generate} ) ) {
 			print "$dom $univ\n";
 		}
 
-		$zg->generation_time( $dom, 'end' );
 	}
+	$zg->generation_time( $dom, 'end' );
 }
+
 $zg->record_event('donezones');
 warn "Done Generating Zones\n" if ($verbose);
 
