@@ -142,12 +142,12 @@ sub find_universe {
 #
 sub bleed_universes($$$) {
 	my $self = shift @_;
-	my $new = shift @_;
-	my $nb = shift @_;
+	my $new  = shift @_;
+	my $nb   = shift @_;
 
 	my $dbh = $self->DBHandle();
 
-	my $sth = $dbh->prepare_cached(qq {
+	my $sth = $dbh->prepare_cached( qq {
 		SELECT *
 		FROM dns_record
 		WHERE dns_name IS NOT DISTINCT FROM :name
@@ -156,12 +156,12 @@ sub bleed_universes($$$) {
 		AND dns_domain_id = :domain
 		ORDER BY dns_record_id, dns_domain_id
 		LIMIT 1;
-	}) || die $dbh->errstr;
+	} ) || die $dbh->errstr;
 
-	$sth->bind_param(':name',	$new->{dns_name}) || die $sth->errstr;
-	$sth->bind_param(':type',	$new->{dns_type}) || die $sth->errstr;
-	$sth->bind_param(':ipu',	$nb->{ip_universe_id}) || die $sth->errstr;
-	$sth->bind_param(':domain',	$new->{dns_domain_id}) || die $sth->errstr;
+	$sth->bind_param( ':name',   $new->{dns_name} )      || die $sth->errstr;
+	$sth->bind_param( ':type',   $new->{dns_type} )      || die $sth->errstr;
+	$sth->bind_param( ':ipu',    $nb->{ip_universe_id} ) || die $sth->errstr;
+	$sth->bind_param( ':domain', $new->{dns_domain_id} ) || die $sth->errstr;
 
 	$sth->execute() || die $sth->errstr;
 
@@ -169,16 +169,16 @@ sub bleed_universes($$$) {
 
 	$sth->finish;
 
-	if(!$hr) {
-		warn "nothing for bleeding given ", ,Dumper($new, $nb);
+	if ( !$hr ) {
+		warn "nothing for bleeding given ",, Dumper( $new, $nb );
 		return $new;
 	}
 
-	$new->{dns_value} = undef;
-	$new->{netblock_id} = undef;
+	$new->{dns_value}               = undef;
+	$new->{netblock_id}             = undef;
 	$new->{reference_dns_record_id} = $hr->{dns_record_id};
-	$new->{dns_value_record_id} = $hr->{dns_record_id};
-	$new->{should_generate_ptr} = 'N';
+	$new->{dns_value_record_id}     = $hr->{dns_record_id};
+	$new->{should_generate_ptr}     = 'N';
 
 	$new;
 }
@@ -620,7 +620,7 @@ sub freshen_zone {
 			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
 		}
 
-		if($zone =~ /\.in-addr.arpa$/) {
+		if ( $zone =~ /\.in-addr.arpa$/ ) {
 			$new->{dns_domain_type} = 'reverse';
 		}
 
@@ -759,9 +759,11 @@ sub freshen_soa {
 	# If this is an in-addr zone, then do reverse linkage
 	# XXX -- this needs to properly handle ip universe!
 	if ( $zone =~ /in-addr.arpa$/ ) {
-		if($self->{linknetwork}) {
-			$numchanges += $self->link_inaddr( $dom->{dns_domain_id}, $self->{linknetwork} );
+		if ( $self->{linknetwork} ) {
+			$numchanges +=
+			  $self->link_inaddr( $dom->{dns_domain_id}, $self->{linknetwork} );
 		} else {
+
 			# XXX needs to be combined with routine in gen_ptr
 			$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
 			if ($1) {
@@ -779,7 +781,8 @@ sub freshen_soa {
 					die "need to sort out ipv6\n";
 				}
 				die "Unable to discern block for $zone", if ( !$block );
-				$numchanges += $self->link_inaddr( $dom->{dns_domain_id}, $block );
+				$numchanges +=
+				  $self->link_inaddr( $dom->{dns_domain_id}, $block );
 			} else {
 				warn "Unable to make in-addr dns linkage\n";
 			}
@@ -1083,8 +1086,8 @@ sub refresh_dns_record {
 
 			# next;
 		}
-		if($nb && $nb->{ip_universe_id} != $new->{ip_universe_id}) {
-			if(!$self->{universebleed}) {
+		if ( $nb && $nb->{ip_universe_id} != $new->{ip_universe_id} ) {
+			if ( !$self->{universebleed} ) {
 				#
 				# check to see if the netblock netblock is an allowed netblock
 				# in which case put the record in _that_ ip universe and then
@@ -1092,17 +1095,25 @@ sub refresh_dns_record {
 				# check on visibility here or have a flag that says it is ok
 				# to check that.
 				#
-				if(grep($_ eq $nb->{ip_universe_id}, @{$self->{alloweduniverses}})) {
-					warn "... forcing to new universe, ", $nb->{ip_universe_id}, "\n";
+				if (
+					grep( $_ eq $nb->{ip_universe_id},
+						@{ $self->{alloweduniverses} } )
+				  )
+				{
+					warn "... forcing to new universe, ",
+					  $nb->{ip_universe_id}, "\n";
 					$new->{ip_universe_id} = $nb->{ip_universe_id};
 				} else {
+
 					# handled later.
-					die sprintf("Not inserting ID record for %s (%s) due to univers mismatch (%d vs %d)\n",
-						$name, $opt->{dns_type}, $nb->{ip_universe_id}, $new->{ip_universe_id});
+					die sprintf(
+						"Not inserting ID record for %s (%s) due to univers mismatch (%d vs %d)\n",
+						$name, $opt->{dns_type}, $nb->{ip_universe_id},
+						$new->{ip_universe_id} );
 					next;
 				}
 			} else {
-				$new = $self->bleed_universes($new, $nb);
+				$new = $self->bleed_universes( $new, $nb );
 			}
 		}
 		$numchanges += $self->DBInsert(
@@ -1397,8 +1408,8 @@ sub do_zone_load {
 		$universe,       $guessuniverse,    $v6universe,
 		$shouldgenerate, @alloweduniverses, $file,
 		$universebleed,  $soauniverse,      @ignoreprefix,
-		$linknetwork,
-		@namespaces,     @forceinaddr,      @loopback,
+		$linknetwork,    @namespaces,       @forceinaddr,
+		@loopback,
 	);
 
 	#
@@ -1423,7 +1434,7 @@ sub do_zone_load {
 		"universebleed"          => \$universebleed,
 		"ignore-prefix=s"        => \@ignoreprefix,
 		"unknown-netblocks=s"    => \$nbrule,
-		"linknetwork=s"        => \$linknetwork,
+		"linknetwork=s"          => \$linknetwork,
 		"should-generate"        => \$shouldgenerate,
 		"allowed-universe=s"     => \@alloweduniverses,
 		"allowed-ip-namespace=s" => \@namespaces,
@@ -1473,7 +1484,7 @@ sub do_zone_load {
 	$ziw->{verbose}            = $verbose;
 	$ziw->{addservice}         = $addsvr;
 	$ziw->{nodelete}           = $nodelete;
-	$ziw->{linknetwork}       = $linknetwork;
+	$ziw->{linknetwork}        = $linknetwork;
 	$ziw->{universebleed}      = $universebleed;
 	$ziw->{allowed_namespaces} = \@namespaces;
 	$ziw->{force_inaddr}       = \@forceinaddr;
