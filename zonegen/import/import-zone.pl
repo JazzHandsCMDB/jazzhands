@@ -620,6 +620,10 @@ sub freshen_zone {
 			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
 		}
 
+		if($zone =~ /\.in-addr.arpa$/) {
+			$new->{dns_domain_type} = 'reverse';
+		}
+
 		$numchanges += $self->DBInsert(
 			table  => 'dns_domain',
 			hash   => $new,
@@ -755,27 +759,30 @@ sub freshen_soa {
 	# If this is an in-addr zone, then do reverse linkage
 	# XXX -- this needs to properly handle ip universe!
 	if ( $zone =~ /in-addr.arpa$/ ) {
-
-		# XXX needs to be combined with routine in gen_ptr
-		$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
-		if ($1) {
-			my $block;
-			my @digits = reverse split( /\./, $1 );
-			my ( $ip, $bit );
-			if ( $#digits <= 3 ) {
-				$ip = join( ".", @digits );
-
-				# ipv4, most likely...
-				if ( $#digits == 2 ) {
-					$block = "$ip.0/24";
-				}
-			} else {
-				die "need to sort out ipv6\n";
-			}
-			die "Unable to discern block for $zone", if ( !$block );
-			$numchanges += link_inaddr( $self, $dom->{dns_domain_id}, $block );
+		if($self->{linknetwork}) {
+			$numchanges += $self->link_inaddr( $dom->{dns_domain_id}, $self->{linknetwork} );
 		} else {
-			warn "Unable to make in-addr dns linkage\n";
+			# XXX needs to be combined with routine in gen_ptr
+			$zone =~ /^([a-f\d\.]+)\.in-addr.arpa$/i;
+			if ($1) {
+				my $block;
+				my @digits = reverse split( /\./, $1 );
+				my ( $ip, $bit );
+				if ( $#digits <= 3 ) {
+					$ip = join( ".", @digits );
+
+					# ipv4, most likely...
+					if ( $#digits == 2 ) {
+						$block = "$ip.0/24";
+					}
+				} else {
+					die "need to sort out ipv6\n";
+				}
+				die "Unable to discern block for $zone", if ( !$block );
+				$numchanges += $self->link_inaddr( $dom->{dns_domain_id}, $block );
+			} else {
+				warn "Unable to make in-addr dns linkage\n";
+			}
 		}
 	}
 
@@ -1078,9 +1085,22 @@ sub refresh_dns_record {
 		}
 		if($nb && $nb->{ip_universe_id} != $new->{ip_universe_id}) {
 			if(!$self->{universebleed}) {
-				die sprintf("Not inserting ID record for %s (%s) due to univers mismatch (%d vs %d)\n",
-					$name, $opt->{dns_type}, $nb->{ip_universe_id}, $new->{ip_universe_id});
-				next;
+				#
+				# check to see if the netblock netblock is an allowed netblock
+				# in which case put the record in _that_ ip universe and then
+				# rely on the visibly magic to expose them.   May want to
+				# check on visibility here or have a flag that says it is ok
+				# to check that.
+				#
+				if(grep($_ eq $nb->{ip_universe_id}, @{$self->{alloweduniverses}})) {
+					warn "... forcing to new universe, ", $nb->{ip_universe_id}, "\n";
+					$new->{ip_universe_id} = $nb->{ip_universe_id};
+				} else {
+					# handled later.
+					die sprintf("Not inserting ID record for %s (%s) due to univers mismatch (%d vs %d)\n",
+						$name, $opt->{dns_type}, $nb->{ip_universe_id}, $new->{ip_universe_id});
+					next;
+				}
 			} else {
 				$new = $self->bleed_universes($new, $nb);
 			}
@@ -1377,6 +1397,7 @@ sub do_zone_load {
 		$universe,       $guessuniverse,    $v6universe,
 		$shouldgenerate, @alloweduniverses, $file,
 		$universebleed,  $soauniverse,      @ignoreprefix,
+		$linknetwork,
 		@namespaces,     @forceinaddr,      @loopback,
 	);
 
@@ -1402,6 +1423,7 @@ sub do_zone_load {
 		"universebleed"          => \$universebleed,
 		"ignore-prefix=s"        => \@ignoreprefix,
 		"unknown-netblocks=s"    => \$nbrule,
+		"linknetwork=s"        => \$linknetwork,
 		"should-generate"        => \$shouldgenerate,
 		"allowed-universe=s"     => \@alloweduniverses,
 		"allowed-ip-namespace=s" => \@namespaces,
@@ -1451,6 +1473,7 @@ sub do_zone_load {
 	$ziw->{verbose}            = $verbose;
 	$ziw->{addservice}         = $addsvr;
 	$ziw->{nodelete}           = $nodelete;
+	$ziw->{linknetwork}       = $linknetwork;
 	$ziw->{universebleed}      = $universebleed;
 	$ziw->{allowed_namespaces} = \@namespaces;
 	$ziw->{force_inaddr}       = \@forceinaddr;

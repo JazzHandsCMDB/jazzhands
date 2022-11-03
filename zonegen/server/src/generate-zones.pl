@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 # TODO:
-# - deal with ordering, TXT records on zone were coming later sometimes
+# X deal with ordering, TXT records on zone were coming later sometimes
 # - pulling up child zones with ip universe bits properly
 # - trigger enforcement of various data across ip universes keeping in mind
 #	ip_universe_visibility
@@ -13,6 +13,14 @@
 # - what to do about new links to bum zones in perserver dir (currently die)
 # - makesure to regen hard links on *every* regen
 # - zone statistics need to factor in universes somehow
+# - netblock trigger: when updating iP_universe_id and 204.141.173.248/29
+#	it doesn't adjust correctly if they're different universe namespaces
+# - how to do 204.141.173.248/29 DNS cross ip universe bullshit
+# - zone import and PTR record when no PTR is set, if anything.
+# - document how to do the 204.141.173.248/29 and /23 overlap in a readme.
+# - generate dns for switchports
+# - zone imports when universe beatings have taken place, (204.141.173 stuff)
+
 
 # Copyright (c) 2013-2022, Todd M. Kover
 # All rights reserved.

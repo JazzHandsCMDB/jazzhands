@@ -528,9 +528,13 @@ VALUES
 	('Defaults', '_authdns', 'string', true,
 		'Default Nameserver for zone');
 
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('retired');
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('vanity');
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE)
+VALUES
+	 ('service'),
+	 ('reverse'),
+	 ('retired'),
+	 ('vanity')
+;
 
 insert into val_dns_class (dns_class) values ('IN');
 insert into val_dns_class (dns_class) values ('HESOID');
