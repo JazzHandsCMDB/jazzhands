@@ -43,20 +43,6 @@ BEGIN
 
 	PERFORM property_utils.validate_val_property(NEW);
 
-	IF TG_OP = 'UPDATE' AND OLD.property_data_type != NEW.property_data_type THEN
-		SELECT	count(*)
-		INTO	_tally
-		FROM	property
-		WHERE	property_name = NEW.property_name
-		AND		property_type = NEW.property_type;
-
-		IF _tally > 0  THEN
-			RAISE 'May not change property type if there are existing properties'
-				USING ERRCODE = 'foreign_key_violation';
-
-		END IF;
-	END IF;
-
 	IF TG_OP = 'INSERT' AND NEW.permit_company_id != 'PROHIBITED' OR
 		( TG_OP = 'UPDATE' AND NEW.permit_company_id != 'PROHIBITED' AND
 			OLD.permit_company_id IS DISTINCT FROM NEW.permit_company_id )
