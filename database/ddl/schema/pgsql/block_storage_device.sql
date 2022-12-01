@@ -40,7 +40,6 @@ CREATE TABLE encrypted_block_storage_device (
 	encrypted_block_storage_device_id	bigint NOT NULL,
 	block_storage_device_id		bigint NOT NULL,
 	encryption_system			varchar(50) NOT NULL,
-	encryption_mode				varchar(50) NOT NULL,
 	encryption_key_id			integer NOT NULL,
 	key_size					integer NOT NULL,		-- probably moves to encryption_key
 	cipher						text NOT NULL,			-- probably moves to encryption_key
@@ -65,20 +64,6 @@ ALTER TABLE val_encryption_system ADD COLUMN data_upd_date TIMESTAMP WITH TIME Z
 
 ALTER TABLE val_encryption_system
 	ADD CONSTRAINT pk_val_encryption_system_encryption_system PRIMARY KEY (encryption_system);
-
-CREATE TABLE val_encryption_mode (
-	encryption_system	varchar(255),
-	encryption_mode		varchar(255),
-	description			varchar(512)
-);
-
-ALTER TABLE val_encryption_mode ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE val_encryption_mode ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE val_encryption_mode ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE val_encryption_mode ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
-ALTER TABLE val_encryption_mode
-	ADD CONSTRAINT pk_val_encryption_mode_encryption_system_encryption_mode PRIMARY KEY (encryption_system, encryption_mode);
 
 -- broken out from logical_volume
 
@@ -142,10 +127,6 @@ ALTER TABLE encrypted_block_storage_device
 ALTER TABLE encrypted_block_storage_device
 	ADD CONSTRAINT fk_encrypted_block_storage_device_encryption_system FOREIGN KEY (encryption_system)
 		REFERENCES val_encryption_system(encryption_system);
-
-ALTER TABLE encrypted_block_storage_device
-	ADD CONSTRAINT fk_encrypted_block_storage_device_encryption_mode FOREIGN KEY (encryption_mode)
-		REFERENCES val_encryption_mode(encryption_mode);
 
 ALTER TABLE filesystem
 	ADD CONSTRAINT fk_filesystem_block_storage_device_id_device_id FOREIGN KEY (block_storage_device_id, device_id)
