@@ -7,6 +7,6 @@ Standards-Version: 3.9.4
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-common
-Architecture: any
+Architecture: all
 Description: 
  Common perl modules used throughout jazzhands
