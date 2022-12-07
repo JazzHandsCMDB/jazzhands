@@ -72,9 +72,8 @@ BEGIN
 
 	IF FOUND THEN
 		RAISE EXCEPTION
-			'IP Universes for dns_records must match dns records and netblocks '
-			USING ERRCODE = 'foreign_key_violation',
-			HINT = format('%s: %s', NEW.ip_universe_id, nb);
+			'IP Universes for dns_records must match dns records and netblocks'
+			USING ERRCODE = 'foreign_key_violation';
 	END IF;
 	RETURN NEW;
 END;
