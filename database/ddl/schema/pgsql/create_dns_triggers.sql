@@ -546,7 +546,13 @@ BEGIN
 	) smash
 	WHERE lower(dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
 	AND dns_domain_id = NEW.dns_domain_id
-	AND ip_universe_id IN (SELECT NEW.ip_universe_id UNION SELECT visible_ip_universe_id FROM ip_universe_visibility WHERE ip_universe_id = NEW.ip_universe_id)
+	AND ip_universe_id IN (
+			SELECT NEW.ip_universe_id
+		UNION
+			SELECT visible_ip_universe_id
+			FROM ip_universe_visibility
+			WHERE ip_universe_id = NEW.ip_universe_id
+	)
 	AND dns_class = NEW.dns_class
 	GROUP BY 1, 2, 3;
 
