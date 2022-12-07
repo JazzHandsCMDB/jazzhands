@@ -20,6 +20,7 @@ use strict;
 use warnings;
 use JazzHands::Common::Util qw(:all);
 use JazzHands::Common::Error qw(:internal);
+use JazzHands::Common::Logging qw(:all);
 use Data::Dumper;
 
 use vars qw(@ISA %EXPORT_TAGS @EXPORT);
@@ -69,6 +70,15 @@ foreach my $name ( keys %JazzHands::Common::Error::EXPORT_TAGS ) {
 		@{ $JazzHands::Common::Error::EXPORT_TAGS{$name} } );
 }
 
+# pull up all the stuff from JazzHands::Common::Logging
+push( @EXPORT,    @JazzHands::Common::Logging::EXPORT );
+push( @EXPORT_OK, @JazzHands::Common::Logging::EXPORT_OK );
+foreach my $name ( keys %JazzHands::Common::Logging::EXPORT_TAGS ) {
+	push(
+		@{ $EXPORT_TAGS{$name} },
+		@{ $JazzHands::Common::Logging::EXPORT_TAGS{$name} } );
+}
+
 sub import {
 	if ( grep( $_ =~ /^\:(db|all)$/, @_ ) ) {
 		require JazzHands::Common::GenericDB;
@@ -109,6 +119,10 @@ sub new {
 
 	if ( $opt->{debug_callback} ) {
 		$self->{_debug_callback} = $opt->{debug_callback};
+	}
+
+	if ( $opt->{logging} ) {
+		$self->initialize_logging(%{$opt->{logging}});
 	}
 
 	$self->{_debug}  = 0 if ( !$self->{_debug} );
