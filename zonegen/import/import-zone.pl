@@ -29,14 +29,14 @@ use Carp;
 
 package ZoneImportWorker;
 
-use Net::DNS::Zone::Parser;
 use Net::DNS;
+use Net::DNS::Zone::Parser;
 use JazzHands::DBI;
 use Net::IP;    # Just for reverse DNS-type operations
 use NetAddr::IP qw(:lower);
 use Data::Dumper;
 use JazzHands::Common qw(:all);
-use Carp;
+use Carp qw(cluck);
 use parent 'JazzHands::Common';
 
 #local $SIG{__WARN__} = \&Carp::cluck;
@@ -62,6 +62,8 @@ sub new {
 	$self->{_dbuser} = $opt->{dbuser} || 'zoneimport';
 
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
+
+	$self->SetDebug( $opt->{debug} ) if ( $opt->{debug} );
 
 	$self->make_loopbacks( $opt->{loopback} ) if ( $opt->{loopback} );
 
@@ -125,7 +127,7 @@ sub find_universe {
 	{
 		return $dbrec->{ip_universe_id};
 	}
-	$self->dbh->err && die join( " ", @errs );
+	$self->dbh->err && die "Find_universe: ", join( " ", @errs );
 
 	die "Unable to find universe $u\n";
 
@@ -235,13 +237,19 @@ sub pull_universes($) {
 sub get_universe($$) {
 	my ( $self, $ip ) = @_;
 
-	if ( !$self->{_universemap} ) {
+#
+# This probably need to be rethunk and in the context of a recommended
+# universe (and traverse visibility).
+# XXX  Likely the entire universemap can go away but need to rummage through
+# code
 
-		# XXX - should probably return our universe under some circumstances
-		return undef;
-
-		# return $self->{ip_universe} || undef;
-	}
+#	if ( !$self->{_universemap} ) {
+#
+#		# XXX - should probably return our universe under some circumstances
+#		# return undef;
+#
+#		return $self->{ip_universe} || undef;
+#	}
 
 	my $dbh = $self->DBHandle();
 
@@ -249,13 +257,13 @@ sub get_universe($$) {
 		my $sth = $dbh->prepare_cached(
 			qq{
 			select netblock_utils.find_best_ip_universe(
-				in_ipaddress := ?,
-				ip_namespace := ?,
+				ip_address := ?,
+				ip_namespace := ?
 			), family(?);
 		}
 		) || die $dbh->errstr;
 
-		$sth->execute( $ip, $nsp ) || die $sth->errstr;
+		$sth->execute( $ip, $nsp, $ip ) || die $sth->errstr;
 
 		my ($id) = $sth->fetchrow_array;
 		$sth->finish;
@@ -268,10 +276,10 @@ sub get_universe($$) {
 	{
 		my $sth = $dbh->prepare_cached(
 			qq{
-			select netblock_utils.find_best_parent_id(
-				in_ipaddress := ?,
-				in_ip_universe_id := 0,
-				in_is_single_address := 'Y'
+			select netblock_utils.find_best_parent_netblock_id(
+				ip_address := ?,
+				ip_universe_id := 0,
+				is_single_address := true
 			), family(?);
 		}
 		) || die $dbh->errstr;
@@ -405,8 +413,7 @@ sub link_inaddr {
 	$self->DBInsert(
 		table => 'dns_record',
 		hash  => $dns,
-		,,,
-		errs => \@errs,
+		errs  => \@errs,
 	) || die join( " ", @errs );
 	1;
 }
@@ -418,13 +425,13 @@ sub link_inaddr {
 sub get_ptr {
 	my ( $self, $ip ) = @_;
 
-	$self->_Debug( 2, "looking for PTR for $ip" );
+	$self->_Debug( 4, "looking for PTR for $ip" );
 
 	my $universe = $self->get_universe($ip);
 	if ( !defined($universe) ) {
 		$universe = $self->{ip_universe};
 	}
-	$self->_Debug( 3, "Guessed Universe %d", $universe );
+	$self->_Debug( 5, "Guessed Universe %d", $universe );
 
 	my (@errs);
 	my $match = {
@@ -496,7 +503,7 @@ sub get_inaddr {
 	my $self = shift(@_);
 	my $ip   = shift(@_);
 
-	$self->_Debug( 3, "get_inaddr($ip)..." );
+	$self->_Debug( 7, "get_inaddr($ip)..." );
 
 	my $ii     = new Net::IP($ip) || die "Parse($ip): " . Net::IP::Error();
 	my $inaddr = $ii->reverse_ip();
@@ -883,7 +890,7 @@ sub refresh_dns_record {
 		} elsif ( defined( my $x = $self->get_universe($address) ) ) {
 			$universe = $x;
 		}
-		$self->_Debug( 2, "Attempting to find %s (universe %s)...",
+		$self->_Debug( 3, "Attempting to find IP %s (universe %s)...",
 			$address, $universe );
 		my $match = {
 			'is_single_address'      => 'Y',
@@ -936,7 +943,12 @@ sub refresh_dns_record {
 				netblock_status   => 'Allocated',
 			};
 
-			$nb->{ip_universe_id} = $universe if ( defined($universe) );
+			# XXX - need to rethink how guessing and explicit play nice
+			# together and how visibility folds into all of this.
+			# $nb->{ip_universe_id} = $universe if ( defined($universe) );
+
+			$nb->{ip_universe_id} = $self->get_universe($address);
+
 			$self->dbh->do("SAVEPOINT biteme");
 			if ( $self->check_loopbacks($address) ) {
 
@@ -981,8 +993,8 @@ sub refresh_dns_record {
 						my $e = ( scalar @errs ) ? join( " ", @errs ) : $errmsg;
 						$e =~ s/\n/ /mg;
 						$self->_Debug( 1,
-							"Skipping %s creation due to failure.", $address );
-						$self->_Debug( 1, "... db said: %s", $e );
+							"Skipping IP %s creation due to failure: %s",
+							$address, $e );
 						return;
 					} else {
 						$nb->{netblock_type} = 'dns';
@@ -1000,10 +1012,10 @@ sub refresh_dns_record {
 					die "$address: [", $self->dbh->err, "] ",
 					  join( " ", @errs );
 				}
-				$self->dbh->do("RELEASE SAVEPOINT biteme");
 			} else {
 				$numchanges += $x;
 			}
+			$self->dbh->do("RELEASE SAVEPOINT biteme");
 		}
 
 	}
@@ -1076,13 +1088,13 @@ sub refresh_dns_record {
 				  || die "failed to update DNS Record: ",
 				  Dumper( $dnsrec, $diff ), " :-- ", join( " ", @errs );
 				$numchanges += $rv;
-				warn " ++ refresh dns record ", $dnsrec->{dns_record_id}, "\n"
+				$self->_Debug(15, " ++ refresh dns record %d\n", $dnsrec->{dns_record_id})
 				  if ( $self->{verbose} );
 			}
 		}
 	} else {
 		if ( $name && $name =~ /dhcp205-129-9/ && $opt->{dns_type} eq 'A' ) {
-			warn Dumper( $new, $match );
+			warn Dumper( $new, $match ), "\n";
 
 			# next;
 		}
@@ -1195,10 +1207,11 @@ sub process_zone($$$;$) {
 
 		#- next if($x !~ /auth01/);
 		$x =~ s/\s+/ /mg;
-		$self->_Debug( 1, ">> Processing record %s...", $x );
+		$self->_Debug( 3, ">> Processing record '%s'...", $x );
+
 		foreach my $pre ( @{ $self->{ignoreprefix} } ) {
 			if ( $x =~ /^$pre/ ) {
-				$self->_Debug( 2, " Skipping, matches $pre" );
+				$self->_Debug( 2, "... Skipping, matches $pre" );
 				next RR;
 			}
 		}
@@ -1233,53 +1246,69 @@ sub process_zone($$$;$) {
 			# If this is a legitimate PTR record, check the
 			# forward record and see if it is there and genptr is
 			# set, and if so, skip, otherwise print a warning and
-			# insert as expected.
-			$rr->name =~ /^([a-f\d\.]+)\.(in-addr|ip6).arpa$/i;
-
-			#
-			# figure out what kind of record this is for by breaking up
-			# rr->name and figuring out if its v6, a normal class a, b or c
-			# or redirect off to something (either in-addr or otherwise,
-			# such as the btp colo stuff).
-			#
-
+			# insert as expected.  This  can be tricking if it's a ipv4
+			# in-addr zone for a block that is not class aligned.
 			my $isip;
-			my ( $z, $t ) = ( $1, $2 );
-			$isip = 1;
-			if ($t) {
-				my $ip;
-				$self->_Debug( 10, "Record Type: %s - %s", $t, $z );
-				if ( $z =~ /\./ ) {
-					my @digits = reverse split( /\./, $z );
-					if ( $#digits == 3 ) {
-						$ip = join( ".", @digits );
-					} else {
+			if ( $rr->name =~ /^(.+)\.(in-addr|ip6)\.arpa$/i ) {
+				my ( $z, $t ) = ( $1, $2 );
+
+				# figure out what kind of record this is for by breaking up
+				# rr->name and figuring out if its v6, a normal class a, b or c
+				# or redirect off to something (either in-addr or otherwise,
+				# such as the btp colo stuff).
+				#
+
+				if ($t) {
+					$isip = 1;
+					my $ip;
+					$self->_Debug( 10, "Record Type: %s - %s", $t, $z );
+					if ( $t eq 'in-addr' ) {
+
+						# ipv4
+						my @digits = reverse split( /\./, $z );
+						if ( $#digits == 3 ) {
+
+							# "class c" zone, easy match
+							$ip = join( ".", @digits );
+							if ( my $net = $self->{linknetwork} ) {
+								my $ni = new NetAddr::IP($net)
+								  || die "$net: $!";
+								my $h = $ni->network->addr;
+								$h =~ s/\.(\d+)$/.$digits[$#digits]/;
+								$ip = $h;
+							} else {
+								warn "-- Unable to figure out in-addr mapping";
+							}
+						}
+					} elsif ( $t =~ /ip6/ ) {
+
+						# There's no hoop jumping here because of how things
+						# block, so just assume it's all correct.
+						my @digits = reverse split( /./, $z );
 						$ip = join( "", @digits );
 						$ip =~ s/(....)/$1:/g;
 						$ip =~ s/:$//;
+					} else {
+						die "This name should not happen.  Regexp Bug";
 					}
 
-				} elsif ( $z =~ /:/ ) {
-					my @digits = reverse split( /:/, $z );
-					$ip = join( ":", @digits );
-					$ip =~ s/:$//;
-				}
-
-				if ( my $dbrec = $self->get_ptr($ip) ) {
-					if ( $dbrec ne $rr->ptrdname ) {
-						warn
-						  "PTR: $ip has a PTR record that does not match DB (",
-						  $rr->ptrdname, "), skipping\n";
+					if ( $ip && ( my $dbrec = $self->get_ptr($ip) ) ) {
+						if ( $dbrec ne $rr->ptrdname ) {
+							warn
+							  "PTR: $ip has a PTR record that does not match DB (",
+							  $rr->ptrdname, "), skipping\n";
+						}
+						next;
+					} else {
+						$self->_Debug( 2,
+							"PTR: DB has no FWD record for %s (%s), adding",
+							$ip, $rr->ptrdname );
 					}
-					next;
-				} else {
-					$self->_Debug( 2,
-						"PTR: DB has no FWD record for %s (%s), adding",
-						$ip, $rr->ptrdname );
 				}
 			}
 			$new->{value} = $rr->ptrdname;
-			$new->{value} .= "." if ($isip);
+			# if the PTR is for an IP looking thing, then tack on a .
+			$new->{value} .= "." ; # XXX - ugh if ( $isip );
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
 			my $ptr = $self->get_inaddr( $rr->address );
 
@@ -1535,9 +1564,9 @@ sub do_zone_load {
 	}
 
 	if ($dryrun) {
-		$ziw->rollback;
+		$ziw->rollback || die "Unable to rollback ", $ziw->dbh->errstr;
 	} else {
-		$ziw->commit;
+		$ziw->commit || die "Unable to commit ", $ziw->dbh->errstr;
 	}
 	0;
 }
