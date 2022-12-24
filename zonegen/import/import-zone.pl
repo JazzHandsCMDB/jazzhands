@@ -21,6 +21,7 @@
 # does an axfr of a zone and the zone into jazzhands
 
 # TODO: reevaluate how $numchanges is set with DB*, particularly update.
+#	Look at all the exception harcodings around pools and whatnot. (next/r if..
 
 use warnings;
 use strict;
@@ -237,19 +238,20 @@ sub pull_universes($) {
 sub get_universe($$) {
 	my ( $self, $ip ) = @_;
 
-#
-# This probably need to be rethunk and in the context of a recommended
-# universe (and traverse visibility).
-# XXX  Likely the entire universemap can go away but need to rummage through
-# code
+	#
+	# This probably need to be rethunk and in the context of a recommended
+	# universe (and traverse visibility).
+	# THIS IS ALL VERY TRUE
+	# XXX  Likely the entire universemap can go away but need to rummage through
+	# code
 
-#	if ( !$self->{_universemap} ) {
-#
-#		# XXX - should probably return our universe under some circumstances
-#		# return undef;
-#
-#		return $self->{ip_universe} || undef;
-#	}
+	#	if ( !$self->{_universemap} ) {
+	#
+	#		# XXX - should probably return our universe under some circumstances
+	#		# return undef;
+	#
+	#		return $self->{ip_universe} || undef;
+	#	}
 
 	my $dbh = $self->DBHandle();
 
@@ -580,6 +582,9 @@ sub get_inaddr {
 	undef;
 }
 
+#
+# sort SOA, other, PTR
+#
 sub favor_soa_by_name {
 	if ( $a->type eq 'SOA' ) {
 		if ( $b->type eq 'SOA' ) {
@@ -589,6 +594,12 @@ sub favor_soa_by_name {
 		}
 	} elsif ( $b->type eq 'SOA' ) {
 		return 1;
+	} elsif ( $a->type eq 'PTR' ) {
+		if($b->type eq 'PTR') {
+			return ( $a->name <=> $b->name );
+		} else {
+			return 1;
+		}
 	} elsif ( $a->name =~ /^\d+$/ && $b->name =~ /^\d+$/ ) {
 		return ( $a->name <=> $b->name );
 	} else {
@@ -879,15 +890,19 @@ sub refresh_dns_record {
 	my $genptr       = $opt->{genptr};
 
 	my $universe = $self->{ip_universe};
-
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
-
-		# print sprintf("type: %s, universe: %s\n", $opt->{dns_type}, $self->{v6_universe});
 		if ( $opt->{dns_type} eq 'AAAA' && defined( $self->{v6_universe} ) ) {
 			$universe = $self->{v6_universe};
 		} elsif ( defined( my $x = $self->get_universe($address) ) ) {
+
+			# XXX get_universe needs to be smarter about allowed and visible
+			# universes.  This specifically is needed when a record in one
+			# universe shows up in another, such as a tunnel between two
+			# universes that is the source of why they are visible to each
+			# other
+			warn "... Redefining Universe to $x" if($x ne $universe);
 			$universe = $x;
 		}
 		$self->_Debug( 3, "Attempting to find IP %s (universe %s)...",
@@ -1088,8 +1103,11 @@ sub refresh_dns_record {
 				  || die "failed to update DNS Record: ",
 				  Dumper( $dnsrec, $diff ), " :-- ", join( " ", @errs );
 				$numchanges += $rv;
-				$self->_Debug(15, " ++ refresh dns record %d\n", $dnsrec->{dns_record_id})
-				  if ( $self->{verbose} );
+				$self->_Debug(
+					15,
+					" ++ refresh dns record %d\n",
+					$dnsrec->{dns_record_id}
+				) if ( $self->{verbose} );
 			}
 		}
 	} else {
@@ -1307,8 +1325,9 @@ sub process_zone($$$;$) {
 				}
 			}
 			$new->{value} = $rr->ptrdname;
+
 			# if the PTR is for an IP looking thing, then tack on a .
-			$new->{value} .= "." ; # XXX - ugh if ( $isip );
+			$new->{value} .= ".";    # XXX - ugh if ( $isip );
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
 			my $ptr = $self->get_inaddr( $rr->address );
 
