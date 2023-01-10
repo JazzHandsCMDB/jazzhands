@@ -1,5 +1,5 @@
 
--- Copyright (c) 2016-2017, Todd M. Kover
+-- Copyright (c) 2016-2023, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -106,7 +106,7 @@ SELECT * FROM  (
 		WHERE dns_domain_id IS NOT NULL
 		) range
 ) u
-WHERE  dns_type != 'REVERSE_ZONE_BLOCK_PTR'
+WHERE  dns_type NOT IN ('REVERSE_ZONE_BLOCK_PTR', 'DEFAULT_DNS_DOMAIN')
 	UNION ALL
 	SELECT
 		NULL::integer AS dns_record_id,	 -- not editable.

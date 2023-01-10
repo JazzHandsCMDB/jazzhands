@@ -1,3 +1,20 @@
+--
+-- Copyright (c) 2010-2023, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+--
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -19,21 +36,6 @@
 -- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
--- Copyright (c) 2010-2021, Todd M. Kover
--- All rights reserved.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---       http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
 
 
 --
@@ -578,6 +580,12 @@ insert into val_dns_type (dns_type,id_type) values ('X25', 'NON-ID');
 insert into val_dns_type (dns_type,id_type,description)
 	values ('REVERSE_ZONE_BLOCK_PTR', 'LINK',
 	'not really a type; in-addr backend link');
+
+INSERT INTO val_dns_type (
+        dns_type, description, id_type
+) VALUES (
+        'DEFAULT_DNS_DOMAIN', 'used by integrations to determine associated dns domain', 'LINK'
+);
 
 ----------------------- Misc Property Types
 
