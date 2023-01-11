@@ -446,25 +446,6 @@ BEGIN
 			NEW USING ERRCODE = 'unique_violation';
 	END IF;
 
-	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
-		IF NEW.SHOULD_GENERATE_PTR = true THEN
-			SELECT	count(*)
-			 INTO	_tally
-			 FROM	dns_record
-			WHERE dns_class = 'IN'
-			AND dns_type = 'A'
-			AND should_generate_ptr = true
-			AND is_enabled = true
-			AND netblock_id = NEW.NETBLOCK_ID
-			AND dns_record_id != NEW.DNS_RECORD_ID;
-
-			IF _tally != 0 THEN
-				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same IP on netblock_id %', NEW.netblock_id
-					USING ERRCODE = 'JH201';
-			END IF;
-		END IF;
-	END IF;
-
 	RETURN NEW;
 END;
 $$

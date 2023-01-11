@@ -358,8 +358,8 @@ BEGIN
 			'JHTEST-A1alt', _dnsdomid, 'IN', 'A', _ip1id
 		) RETURNING dns_record_id INTO _dnsrec1;
 		RAISE EXCEPTION 'Inserting two PTR enabled records succeeded';
-	EXCEPTION WHEN SQLSTATE 'JH201' THEN
-		RAISE NOTICE 'Inserting two PTR enabled A records fails as expeceted';
+	EXCEPTION WHEN unique_violation OR SQLSTATE 'JH201' THEN
+		RAISE NOTICE 'Inserting two PTR enabled A records fails as expeceted, % %', SQLSTATE, SQLERRM;
 	END;
 
 	RAISE NOTICE 'Testing if switching a PTR record on fails';
@@ -376,7 +376,7 @@ BEGIN
 		SET should_generate_ptr = true
 		WHERE dns_record_id = _dnsrec2.dns_record_id;
 		RAISE EXCEPTION 'Updating to get two PTR enabled records succeeded';
-	EXCEPTION WHEN SQLSTATE 'JH201' THEN
+	EXCEPTION WHEN unique_violation OR SQLSTATE 'JH201' THEN
 		RAISE NOTICE 'Updating to get two PTR enabled A records fails as expeceted';
 	END;
 
