@@ -1,3 +1,9 @@
+jazzhands-perl-netdev-mgmt (0.95.5) unstable; urgency=low
+
+  * fix parenthetical issue with subinterface in address polling
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 20 Mar 2023 17:12:20 -0400
+
 jazzhands-perl-netdev-mgmt (0.91.2) unstable; urgency=low
 
   * Fix version checking logic for SetBGPPeer
