@@ -138,6 +138,7 @@ sub ErrorF {
 
 sub SetDebug {
 	my $self = shift;
+	$self->{_loghandle} || $self->initialize_logging;
 	$self->{_loghandle}->SetDebug(@_);
 }
 

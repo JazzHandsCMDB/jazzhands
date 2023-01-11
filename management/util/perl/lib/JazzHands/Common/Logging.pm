@@ -200,7 +200,7 @@ use Exporter;
 use JazzHands::Common::Util qw(:all);
 use JazzHands::Common::Error qw(:internal);
 use Data::Dumper;
-use Carp qw(cluck);
+use Carp qw(cluck confess);
 use Sys::Syslog;
 
 #
@@ -259,8 +259,10 @@ sub log {
 		$lp->log( $mapping->{$facility}, sprintf $fmt, @_ );
 
 	}
+	# XXX - need to deal with messages
 	if ( my $h = $self->{_errors} ) {
-		printf $h @_;
+		$fmt =~ s/\n*$/\n/ if($fmt);
+		$h->print(sprintf($fmt, @_));
 	}
 
 }
