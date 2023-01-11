@@ -175,7 +175,6 @@ sub bleed_universes($$$) {
 	$sth->finish;
 
 	if ( !$hr ) {
-		warn "nothing for bleeding given ",, Dumper( $new, $nb );
 		return $new;
 	}
 
@@ -1081,9 +1080,7 @@ sub refresh_dns_record {
 		# This means the network was not found above given existing rules so
 		# this is a last ditch effort to try universe bleeding.
 		if ( !$nb->{netblock_id} && $self->{universebleed}) {
-				my $x = $self->bleed_universes( $new, $nb );
-				warn "... Universe bleeding....", Dumper($new, $x, $nb);
-				$new = $x;
+			$new = $self->bleed_universes( $new, $nb );
 		}
 		$numchanges += $self->DBInsert(
 			table  => 'dns_record',
