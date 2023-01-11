@@ -22,7 +22,7 @@
 # - zone imports when universe beatings have taken place, (204.141.173 stuff)
 
 
-# Copyright (c) 2013-2022, Todd M. Kover
+# Copyright (c) 2013-2023, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -1096,7 +1096,7 @@ sub process_perserver {
 
 			foreach my $zone ( sort @$$zones ) {
 				my $fqn = "$zonedir";
-				my $zr  = $zoneroot;
+				my $zr  = $zoneroot."/$u";
 
 				if ( $zone =~ /in-addr.arpa$/ ) {
 					$zr  .= "/inaddr/$zone";
@@ -1115,7 +1115,7 @@ sub process_perserver {
 					# XXX probably just want to silently do this since this is
 					# ok when should_generate_dns is 'N'.
 					warn
-					  "Skipping $zone ($u) because the original does not exist.\n";
+					  "($zr) Skipping $zone ($u) because the original does not exist.\n";
 					next;
 				}
 
