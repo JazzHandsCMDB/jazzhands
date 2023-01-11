@@ -948,7 +948,44 @@ BEGIN
 		RETURN u_id;
 	END IF;
 	RETURN 0;
+END;
+$$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = jazzhands;
 
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_visible_ip_universe(
+	ip_address	jazzhands.netblock.ip_address%type,
+	ip_universe_id	jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
+	permitted_ip_universe_ids	INTEGER[] DEFAULT NULL
+) RETURNS jazzhands.ip_universe.ip_universe_id%type AS $$
+DECLARE
+	ip	ALIAS FOR ip_address;
+	myu	ALIAS FOR ip_universe_id;
+	u_id	ip_universe.ip_universe_id%TYPE;
+BEGIN
+	SELECT	nb.ip_universe_id
+	INTO	u_id
+	FROM	netblock nb
+	WHERE	(
+			nb.ip_universe_id IN (
+				SELECT v.visible_ip_universe_id FROM ip_universe_visibility  v
+					WHERE v.ip_universe_id = myu
+			) OR nb.ip_universe_id = myu
+	) AND (
+		permitted_ip_universe_ids IS NULL
+		OR
+		nb.ip_universe_id = ANY(permitted_ip_universe_ids)
+	)
+	AND is_single_address = false
+	AND	nb.ip_address >>= find_best_visible_ip_universe.ip_address
+	ORDER BY masklen(nb.ip_address) desc
+	LIMIT 1;
+
+	IF u_id IS NOT NULL THEN
+		RETURN u_id;
+	END IF;
+	RETURN NULL;
 END;
 $$
 LANGUAGE plpgsql
