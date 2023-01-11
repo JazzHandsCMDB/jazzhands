@@ -332,11 +332,13 @@ foreach my $host (@$hostname) {
 			# Don't process anything for lo0 or the fabric interfaces,
 			# because Juniper just sucks.
 			#
+
 			my ($parentint, $subint) = ($iname =~ /([^.]+)\.(\d+)$/);
+
 			if (
 				$parentint &&
-				($parentint eq 'lo0' && $subint && $subint >= 16384) ||
-				$parentint =~ /^fab\d+/
+				(($parentint eq 'lo0' && $subint && $subint >= 16384) ||
+				$parentint =~ /^fab\d+/)
 			) {
 				next;
 			}
