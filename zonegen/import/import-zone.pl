@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2013-2022, Todd M. Kover
+# Copyright (c) 2013-2023, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,6 +39,7 @@ use Data::Dumper;
 use JazzHands::Common qw(:all);
 use Carp qw(cluck);
 use parent 'JazzHands::Common';
+use DBD::Pg qw(:pg_types);
 
 #local $SIG{__WARN__} = \&Carp::cluck;
 #local $SIG{__DIE__} = \&Carp::cluck;
@@ -153,17 +154,18 @@ sub bleed_universes($$$) {
 	my $sth = $dbh->prepare_cached( qq {
 		SELECT *
 		FROM dns_record
+			JOIN netblock USING (netblock_id)
 		WHERE dns_name IS NOT DISTINCT FROM :name
-		AND dns_type = :type
-		AND ip_universe_id = :ipu
 		AND dns_domain_id = :domain
-		ORDER BY dns_record_id, dns_domain_id
+		AND dns_type = :type
+		AND host(ip_address) = :ip
+		ORDER BY dns_record_id, dns_domain_id, ip_address
 		LIMIT 1;
 	} ) || die $dbh->errstr;
 
 	$sth->bind_param( ':name',   $new->{dns_name} )      || die $sth->errstr;
 	$sth->bind_param( ':type',   $new->{dns_type} )      || die $sth->errstr;
-	$sth->bind_param( ':ipu',    $nb->{ip_universe_id} ) || die $sth->errstr;
+	$sth->bind_param( ':ip',    $nb->{ip_address} ) || die $sth->errstr;
 	$sth->bind_param( ':domain', $new->{dns_domain_id} ) || die $sth->errstr;
 
 	$sth->execute() || die $sth->errstr;
@@ -186,137 +188,67 @@ sub bleed_universes($$$) {
 	$new;
 }
 
+# picks the best universe for the IP.  If its in the internet universe (0),
+# then favor that, otherwise rifle through the list fetched on creation and
+# find the right one.
 #
-# should probably by looked into how to do DBFetch with >=
+# return undef if there is no good choice.
 #
-# NOTE: If multiple ip universes are specified, need to try really hard to
-# not mess it up.  If one is specified in the class (essentially via the command
-# line, and there's a dup, the one from the universe on the command line wins,
-# otherwise its not well defined; generally assumes the invoker knows WTF they
-# are doing.
-#
-sub pull_universes($) {
-	my ($self) = @_;
+sub get_universe($$) {
+	my ( $self, $ip ) = @_;
+
+	my $u = $self->{ip_universe};
 
 	my $dbh = $self->DBHandle();
 
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	ip_address, masklen(ip_address), ip_universe_id
-		FROM	netblock
-		WHERE	ip_universe_id IS NOT NULL
-		AND		netblock_type = 'default'
-		AND		parent_netblock_id is NULL
-	}
+			select netblock_utils.find_best_visible_ip_universe(
+				ip_address := :ip,
+				ip_universe_id := :myuniverse,
+				permitted_ip_universe_ids := :allowedus
+			);
+		}
 	) || die $dbh->errstr;
 
+	$sth->bind_param( ':ip',         $ip ) || die $sth->errstr;
+	$sth->bind_param( ':myuniverse', $u )  || die $sth->errstr;
+	$sth->bind_param( ':allowedus',  $self->{alloweduniverses} )
+	  || die $sth->errstr;
+
 	$sth->execute || die $sth->errstr;
+	my ($id) = $sth->fetchrow_array;
+	$sth->finish;
 
-	$self->{_universemap} = {};
-	while ( my ( $ip, $cidr, $u ) = $sth->fetchrow_array ) {
-		if ( exists( $self->{alloweduniverses} ) ) {
-
-			# skip unallowed universes
-			next if !( grep { $u == $_ } @{ $self->{alloweduniverses} } );
-		}
-		if ( exists( $self->{_universemap}->{$ip} ) && $self->{ip_universe} ) {
-			if ( $u != $self->{ip_universe} ) {
-				next;
-			}
-		}
-		$self->{_universemap}->{$ip}->{universeid} = $u;
-		$self->{_universemap}->{$ip}->{cidr}       = $cidr;
-	}
-	$self->{_universemap};
+	$id;
 }
 
 #
-# picks the best universe for the IP.  If its in the internet universe (0),
-# then favor that, otherwise rifle through the list fetched on creation and
-# find the right one.
+# look through everything in the current namespace to find the best choice
+# regardless of visibility or other considerations.
 #
-sub get_universe($$) {
+sub guess_universe($$) {
 	my ( $self, $ip ) = @_;
-
-	#
-	# This probably need to be rethunk and in the context of a recommended
-	# universe (and traverse visibility).
-	# THIS IS ALL VERY TRUE
-	# XXX  Likely the entire universemap can go away but need to rummage through
-	# code
-
-	#	if ( !$self->{_universemap} ) {
-	#
-	#		# XXX - should probably return our universe under some circumstances
-	#		# return undef;
-	#
-	#		return $self->{ip_universe} || undef;
-	#	}
 
 	my $dbh = $self->DBHandle();
 
-	foreach my $nsp ( @{ $self->{allowed_namespaces} } ) {
-		my $sth = $dbh->prepare_cached(
-			qq{
+	my $sth = $dbh->prepare_cached(
+		qq{
 			select netblock_utils.find_best_ip_universe(
-				ip_address := ?,
-				ip_namespace := ?
-			), family(?);
+				ip_address := :ip,
+				ip_namespace := :namespace
+			);
 		}
-		) || die $dbh->errstr;
+	) || die $dbh->errstr;
 
-		$sth->execute( $ip, $nsp, $ip ) || die $sth->errstr;
+	$sth->bind_param( ':ip',        $ip )                 || die $sth->errstr;
+	$sth->bind_param( ':namespace', $self->{_namespace} ) || die $sth->errstr;
 
-		my ($id) = $sth->fetchrow_array;
-		$sth->finish;
+	$sth->execute || die $sth->errstr;
+	my ($id) = $sth->fetchrow_array;
+	$sth->finish;
 
-		if ($id) {
-			return $id;
-		}
-	}
-
-	{
-		my $sth = $dbh->prepare_cached(
-			qq{
-			select netblock_utils.find_best_parent_netblock_id(
-				ip_address := ?,
-				ip_universe_id := 0,
-				is_single_address := true
-			), family(?);
-		}
-		) || die $dbh->errstr;
-
-		$sth->execute( $ip, $ip ) || die $sth->errstr;
-
-		my ( $id, $fam ) = $sth->fetchrow_array;
-		$sth->finish;
-
-		if ( $fam == 6 && defined( $self->{v6_universe} ) ) {
-			return $self->{v6_universe};
-		}
-		return 0 if ($id);
-	}
-
-	foreach my $blk (
-		sort {
-			$self->{_universemap}->{$b}->{cidr}
-			  <=> $self->{_universemap}->{$a}->{cidr}
-		} keys %{ $self->{_universemap} }
-	  )
-	{
-		$self->_Debug( 10, "get_universe:  look in %s for %s", $blk, $ip );
-		my $n = $self->{_universemap}->{$blk}->{naddr};
-		if ( !$n ) {
-			$n = $self->{_universemap}->{$blk}->{naddr} = new NetAddr::IP($blk)
-			  || die;
-		}
-		my $nip = new NetAddr::IP($ip) || die;
-		if ( $n->contains($nip) ) {
-			return $self->{_universemap}->{$blk}->{universeid};
-		}
-	}
-
-	$self->{ip_universe};
+	$id;
 }
 
 sub check_and_add_service {
@@ -595,8 +527,17 @@ sub favor_soa_by_name {
 	} elsif ( $b->type eq 'SOA' ) {
 		return 1;
 	} elsif ( $a->type eq 'PTR' ) {
-		if($b->type eq 'PTR') {
-			return ( $a->name <=> $b->name );
+		if ( $b->type eq 'PTR' ) {
+			my $lhs = $a->name;
+			my $rhs = $b->name;
+			$lhs =~ s/^(\d*)\D.*$/$1/;
+			$rhs =~ s/^(\d*)\D.*$/$1/;
+			my $x = $lhs <=> $rhs;
+			if ( $x == 0 ) {
+				return ( $a->name cmp $b->name );
+			} else {
+				return $x;
+			}
 		} else {
 			return 1;
 		}
@@ -893,31 +834,57 @@ sub refresh_dns_record {
 	my $nb;
 	my @errs;
 	if ( defined($address) ) {
+		#
+		# Figure out the IP universe.  The netblock and the dns record need
+		# to share the same universe (trigger enforced), so $universe is
+		# set and that used for both.
+		#
+		# Things that can impact this:
+		#
+		# 1. For AAAA records and a set v6 namespace set. just use that for the
+		# universe for both records, hands down.  This is generally for places
+		# that use universes for v4 but v6 does not.
+		#
+		# 2. If a default namespace is set, then look in that universe for
+		# the best choice, ignoring anything else.  If that fails, keep
+		# going
+		#
+		# 3. Use the specified universe and any visible universe that are
+		# allowed.  If there's no allowed list, use anything that's visible.
+		#
+		# 4. If universebleeding is specified and the sane name/network exists
+		# in another universe then this the record will bleed over.  This is
+		# meant for records exposed for convenience.  This check also happens
+		# later on.
+		#
+		# 5. Follow the "insert netblock" guidelines for inserting, which may
+		# result in an error.
 		if ( $opt->{dns_type} eq 'AAAA' && defined( $self->{v6_universe} ) ) {
 			$universe = $self->{v6_universe};
-		} elsif ( defined( my $x = $self->get_universe($address) ) ) {
-
-			# XXX get_universe needs to be smarter about allowed and visible
-			# universes.  This specifically is needed when a record in one
-			# universe shows up in another, such as a tunnel between two
-			# universes that is the source of why they are visible to each
-			# other
-			warn "... Redefining Universe to $x" if($x ne $universe);
+		} elsif ( $self->{_namespace}
+			&& ( defined( my $x = $self->guess_universe($address) ) ) )
+		{
+			# XXX move to high debugging
+			warn "... Redefining Universe to $x" if ( $x ne $universe );
 			$universe = $x;
+		} else {
+			if(defined(my $x = $self->get_universe($address))) {
+				$universe = $x;
+			}
 		}
 		$self->_Debug( 3, "Attempting to find IP %s (universe %s)...",
 			$address, $universe );
 		my $match = {
 			'is_single_address'      => 'Y',
 			'netblock_type'          => 'default',
-			'host(ip_address)::inet' => $address
+			'host(ip_address)::inet' => $address,
+			ip_universe_id  => $universe,
 		};
 		$nb = $self->DBFetch(
 			table           => 'netblock',
 			match           => $match,
 			errors          => \@errs,
 			result_set_size => 'first',
-			ip_universe     => $universe,
 		);
 		$self->dbh->err && die join( " ", @errs );
 
@@ -956,13 +923,8 @@ sub refresh_dns_record {
 				is_single_address => 'Y',
 				can_subnet        => 'N',
 				netblock_status   => 'Allocated',
+				ip_universe_id		=> $universe,
 			};
-
-			# XXX - need to rethink how guessing and explicit play nice
-			# together and how visibility folds into all of this.
-			# $nb->{ip_universe_id} = $universe if ( defined($universe) );
-
-			$nb->{ip_universe_id} = $self->get_universe($address);
 
 			$self->dbh->do("SAVEPOINT biteme");
 			if ( $self->check_loopbacks($address) ) {
@@ -975,6 +937,7 @@ sub refresh_dns_record {
 					is_single_address => 'N',
 					can_subnet        => 'N',
 					netblock_status   => 'Allocated',
+					ip_universe_id		=> $universe,
 				};
 				$pnb->{ip_universe_id} = $universe if ( defined($universe) );
 				my $x = $self->DBInsert(
@@ -1010,7 +973,10 @@ sub refresh_dns_record {
 						$self->_Debug( 1,
 							"Skipping IP %s creation due to failure: %s",
 							$address, $e );
-						return;
+						# not returning to give universe bleeding a chance
+						# in the next section.  If that does not work, then
+						# it will result in an error.
+						# return;
 					} else {
 						$nb->{netblock_type} = 'dns';
 						my $x = $self->DBInsert(
@@ -1111,40 +1077,13 @@ sub refresh_dns_record {
 			}
 		}
 	} else {
-		if ( $name && $name =~ /dhcp205-129-9/ && $opt->{dns_type} eq 'A' ) {
-			warn Dumper( $new, $match ), "\n";
-
-			# next;
-		}
-		if ( $nb && $nb->{ip_universe_id} != $new->{ip_universe_id} ) {
-			if ( !$self->{universebleed} ) {
-				#
-				# check to see if the netblock netblock is an allowed netblock
-				# in which case put the record in _that_ ip universe and then
-				# rely on the visibly magic to expose them.   May want to
-				# check on visibility here or have a flag that says it is ok
-				# to check that.
-				#
-				if (
-					grep( $_ eq $nb->{ip_universe_id},
-						@{ $self->{alloweduniverses} } )
-				  )
-				{
-					warn "... forcing to new universe, ",
-					  $nb->{ip_universe_id}, "\n";
-					$new->{ip_universe_id} = $nb->{ip_universe_id};
-				} else {
-
-					# handled later.
-					die sprintf(
-						"Not inserting ID record for %s (%s) due to univers mismatch (%d vs %d)\n",
-						$name, $opt->{dns_type}, $nb->{ip_universe_id},
-						$new->{ip_universe_id} );
-					next;
-				}
-			} else {
-				$new = $self->bleed_universes( $new, $nb );
-			}
+		#
+		# This means the network was not found above given existing rules so
+		# this is a last ditch effort to try universe bleeding.
+		if ( !$nb->{netblock_id} && $self->{universebleed}) {
+				my $x = $self->bleed_universes( $new, $nb );
+				warn "... Universe bleeding....", Dumper($new, $x, $nb);
+				$new = $x;
 		}
 		$numchanges += $self->DBInsert(
 			table  => 'dns_record',
@@ -1451,41 +1390,35 @@ sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
 	my (
-		$ns,             $verbose,          $addsvr,
-		$nodelete,       $debug,            $dryrun,
-		$universe,       $guessuniverse,    $v6universe,
-		$shouldgenerate, @alloweduniverses, $file,
-		$universebleed,  $soauniverse,      @ignoreprefix,
-		$linknetwork,    @namespaces,       @forceinaddr,
-		@loopback,
+		$ns,               $verbose,      $addsvr,
+		$nodelete,         $debug,        $dryrun,
+		$universe,         $v6universe,   $shouldgenerate,
+		@alloweduniverses, $file,         $universebleed,
+		$soauniverse,      @ignoreprefix, $linknetwork,
+		$namespace,        @forceinaddr,  @loopback,
 	);
 
-	#
-	# XXXX - now that there is better ip universe guessing, need to rethink how guessing fits into this, if at all.
-	#
-
 	my $r = GetOptions(
-		"dry-run|n"              => \$dryrun,
-		"debug+"                 => \$debug,
-		"verbose"                => \$verbose,
-		"dbapp=s"                => \$app,
-		"nameserver=s"           => \$ns,
-		"forceinaddr=s"          => \@forceinaddr,
-		"add-services"           => \$addsvr,
-		"no-delete"              => \$nodelete,
-		"file=s"                 => \$file,
-		"loopback=s"             => \@loopback,
-		"v6-universe=s"          => \$v6universe,
-		"ip-universe=s"          => \$universe,
-		"soa-universe=s"         => \$soauniverse,
-		"guess-universe"         => \$guessuniverse,
-		"universebleed"          => \$universebleed,
-		"ignore-prefix=s"        => \@ignoreprefix,
-		"unknown-netblocks=s"    => \$nbrule,
-		"linknetwork=s"          => \$linknetwork,
-		"should-generate"        => \$shouldgenerate,
-		"allowed-universe=s"     => \@alloweduniverses,
-		"allowed-ip-namespace=s" => \@namespaces,
+		"dry-run|n"           => \$dryrun,
+		"debug+"              => \$debug,
+		"verbose"             => \$verbose,
+		"dbapp=s"             => \$app,
+		"nameserver=s"        => \$ns,
+		"forceinaddr=s"       => \@forceinaddr,
+		"add-services"        => \$addsvr,
+		"no-delete"           => \$nodelete,
+		"file=s"              => \$file,
+		"loopback=s"          => \@loopback,
+		"v6-universe=s"       => \$v6universe,
+		"ip-universe=s"       => \$universe,
+		"soa-universe=s"      => \$soauniverse,
+		"universebleed"       => \$universebleed,
+		"ignore-prefix=s"     => \@ignoreprefix,
+		"unknown-netblocks=s" => \$nbrule,
+		"linknetwork=s"       => \$linknetwork,
+		"should-generate"     => \$shouldgenerate,
+		"allowed-universe=s"  => \@alloweduniverses,
+		"ip-namespace=s"      => \$namespace,
 	) || die "Issues";
 
 	$verbose = 1 if ($debug);
@@ -1498,14 +1431,11 @@ sub do_zone_load {
 	}
 
 	my $ziw = new ZoneImportWorker(
-		dbuser   => 'zoneimport',
-		debug    => $debug,
-		loopback => \@loopback,
+		dbuser    => 'zoneimport',
+		debug     => $debug,
+		loopback  => \@loopback,
+		namespace => $namespace,
 	) || die $ZoneImportWorker::errstr;
-
-	if ($guessuniverse) {
-		$ziw->pull_universes();
-	}
 
 	if ($ns) {
 		my $res  = new Net::DNS::Resolver;
@@ -1527,15 +1457,15 @@ sub do_zone_load {
 		die "When specifying a filename, only one zone can be processed.\n";
 	}
 
-	$ziw->{ignoreprefix}       = \@ignoreprefix;
-	$ziw->{nbrule}             = $nbrule;
-	$ziw->{verbose}            = $verbose;
-	$ziw->{addservice}         = $addsvr;
-	$ziw->{nodelete}           = $nodelete;
-	$ziw->{linknetwork}        = $linknetwork;
-	$ziw->{universebleed}      = $universebleed;
-	$ziw->{allowed_namespaces} = \@namespaces;
-	$ziw->{force_inaddr}       = \@forceinaddr;
+	$ziw->{ignoreprefix}  = \@ignoreprefix;
+	$ziw->{nbrule}        = $nbrule;
+	$ziw->{verbose}       = $verbose;
+	$ziw->{addservice}    = $addsvr;
+	$ziw->{nodelete}      = $nodelete;
+	$ziw->{linknetwork}   = $linknetwork;
+	$ziw->{universebleed} = $universebleed;
+	$ziw->{_namespace}    = $namespace;
+	$ziw->{force_inaddr}  = \@forceinaddr;
 
 	if ( scalar @alloweduniverses ) {
 		foreach my $u (@alloweduniverses) {
