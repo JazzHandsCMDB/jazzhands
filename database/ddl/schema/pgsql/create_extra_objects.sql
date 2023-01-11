@@ -23,6 +23,11 @@ WHEN (family(ip_address) = 4) THEN (ip_address - '0.0.0.0'::inet)
 	ELSE NULL::bigint
 END));
 
+CREATE UNIQUE INDEX ak_dns_record_generate_ptr
+        ON dns_record ( netblock_id, should_generate_ptr )
+WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+	AND netblock_id IS NOT NULL;
+
 create index idx_netblock_host_ip_address  ON netblock
 USING btree (host(ip_address));
 
