@@ -80,7 +80,7 @@ BEGIN
 		min(pkhh.public_key_hash_id)
 	INTO _cnt, _pkhid
 	FROM jazzhands.public_key_hash_hash pkhh JOIN x
-	ON  x.algorithm = pkhh.x509_fingerprint_hash_algorighm
+	ON  x.algorithm = pkhh.x509_fingerprint_hash_algorithm
 	AND x.hash = pkhh.calculated_hash;
 
 	IF _cnt = 0 THEN
@@ -97,9 +97,9 @@ BEGIN
 		AS jr(algorithm text, hash text)
 	) INSERT INTO jazzhands.public_key_hash_hash AS pkhh (
 		public_key_hash_id,
-		x509_fingerprint_hash_algorighm, calculated_hash
+		x509_fingerprint_hash_algorithm, calculated_hash
 	) SELECT _pkhid, x.algorithm, x.hash FROM x
-	ON CONFLICT(public_key_hash_id, x509_fingerprint_hash_algorighm)
+	ON CONFLICT ON CONSTRAINT pk_public_key_hash_hash
 	DO UPDATE SET calculated_hash = EXCLUDED.calculated_hash
 	WHERE pkhh.calculated_hash IS DISTINCT FROM EXCLUDED.calculated_hash;
 
@@ -195,9 +195,8 @@ BEGIN
 		x509_signed_certificate_id,
 		x509_fingerprint_hash_algorighm, fingerprint
 	) SELECT x509_cert_id, x.algorithm, x.hash FROM x
-	ON CONFLICT (
-	    x509_signed_certificate_id, x509_fingerprint_hash_algorighm
-	) DO UPDATE SET fingerprint = EXCLUDED.fingerprint
+	ON CONFLICT ON CONSTRAINT pk_x509_signed_certificate_fingerprint
+	DO UPDATE SET fingerprint = EXCLUDED.fingerprint
 	WHERE fp.fingerprint IS DISTINCT FROM EXCLUDED.fingerprint;
 
 	GET DIAGNOSTICS _cnt = ROW_COUNT;
