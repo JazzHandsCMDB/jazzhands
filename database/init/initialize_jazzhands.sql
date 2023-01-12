@@ -1808,7 +1808,7 @@ values
 	('certpassphrase', 1, 'SSL Crtificates Key Passphrase');
 
 insert into val_x509_fingerprint_hash_algorithm
-	(x509_fingerprint_hash_algorighm, description)
+	(x509_fingerprint_hash_algorithm, description)
 values
 	('sha1', 'SHA1 hash'),
 	('sha256', 'SHA256 hash');
