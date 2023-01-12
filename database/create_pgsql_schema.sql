@@ -114,6 +114,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_port_range_triggers.sql
 
 \ir ddl/schema/pgsql/create_device_management_controller_triggers.sql
+\ir ddl/schema/pgsql/create_fingerprint_hash_algorithm_misspelling_trigger.sql
 
 -- goes with the jazzhands_legacy schema
 \ir ddl/schema/pgsql/create_jazzhands_legacy_triggers-RETIRE.sql
