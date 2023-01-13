@@ -2,14 +2,14 @@
 
 CREATE TABLE block_storage_device (
 	block_storage_device_id				bigint NOT NULL,
+	block_storage_device_name			varchar(255) NOT NULL,
 	block_storage_device_type			varchar(255) NOT NULL,
 	device_id							integer	NOT NULL,
-	block_storage_device_name			varchar(255) NOT NULL,
-	uuid								uuid NULL,
 	component_id						integer NULL,
 	logical_volume_id					integer NULL,
 	encrypted_block_storage_device_id	bigint NULL,
-	mpath_disk_id						bigint NULL
+	uuid								uuid NULL,
+	block_device_size_in_bytes			bigint NULL,
 );
 
 ALTER TABLE block_storage_device
@@ -18,28 +18,33 @@ ALTER TABLE block_storage_device
 ALTER TABLE block_storage_device
 	ADD CONSTRAINT ak_block_storage_device UNIQUE (device_id, uuid);
 
-ALTER TABLE block_storage_device ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE block_storage_device ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE block_storage_device ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE block_storage_device ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
 CREATE TABLE val_block_storage_device_type (
 	block_storage_device_type	varchar(255),
 	description			varchar(512)
 );
 
-ALTER TABLE val_block_storage_device_type ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE val_block_storage_device_type ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE val_block_storage_device_type ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE val_block_storage_device_type ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
 ALTER TABLE val_block_storage_device_type
 	ADD CONSTRAINT pk_block_storage_device_type_block_storage_device_type PRIMARY KEY (block_storage_device_type);
 
+/*
+
+Those two columns do move out and over to encryption_method which is gotten
+to via encryption_key.
+
+encryption_method will get something like:
+
+passphrase_hash         (sha256, sha128, md5, etc)
+cipher                  (des, des3, IDEA< Blowfish, CAST5, AES, Camelia, RSA)
+keysize                 256, 128, etc
+chain_mode              (none, cbc, pcbc, cfb, ofb, ctr)
+padding?                (none, standard, space, oneandzeros, link to cipher?)
+
+AES is AKA Rijndael
+*/
 CREATE TABLE encrypted_block_storage_device (
 	encrypted_block_storage_device_id	bigint NOT NULL,
 	block_storage_device_id		bigint NOT NULL,
-	encryption_system			varchar(50) NOT NULL,
+	block_storage_device_encryption_system			varchar(50) NOT NULL,
 	encryption_key_id			integer NOT NULL,
 	key_size					integer NOT NULL,		-- probably moves to encryption_key
 	cipher						text NOT NULL,			-- probably moves to encryption_key
@@ -47,26 +52,16 @@ CREATE TABLE encrypted_block_storage_device (
 	sector_size					integer
 );
 
-ALTER TABLE encrypted_block_storage_device ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE encrypted_block_storage_device ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE encrypted_block_storage_device ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE encrypted_block_storage_device ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
-CREATE TABLE val_encryption_system (
-	encryption_system	varchar(255),
+-- examples would be LUKS2, VeraCrypt, ZFS
+CREATE TABLE val_block_storage_device_encryption_system (
+	block_storage_device_encryption_system	varchar(255),
 	description			varchar(512)
 );
 
-ALTER TABLE val_encryption_system ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE val_encryption_system ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE val_encryption_system ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE val_encryption_system ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
-ALTER TABLE val_encryption_system
+ALTER TABLE val_block_storage_device_encryption_system
 	ADD CONSTRAINT pk_val_encryption_system_encryption_system PRIMARY KEY (encryption_system);
 
 -- broken out from logical_volume
-
 CREATE TABLE filesystem (
 	block_storage_device_id		bigint NOT NULL,
 	device_id			integer NOT NULL,
@@ -74,17 +69,9 @@ CREATE TABLE filesystem (
 	mountpoint			varchar(4096) NULL
 );
 
-ALTER TABLE val_filesystem ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE val_filesystem ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE val_filesystem ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE val_filesystem ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
 ALTER TABLE filesystem
 	ADD CONSTRAINT ak_filesystem_block_storage_device_id UNIQUE (block_storage_device_id);
 
-ALTER TABLE physicalish_volume ADD COLUMN block_storage_device_id bigint NULL;
-ALTER TABLE physicalish_volume ADD COLUMN physicalish_volume_size_in_bytes bigint NULL;
-ALTER TABLE physicalish_volume ADD COLUMN uuid uuid NULL;
 ALTER TABLE volume_group ADD COLUMN uuid uuid NULL;
 ALTER TABLE logical_volume ADD COLUMN uuid uuid NULL;
 
@@ -115,10 +102,6 @@ ALTER TABLE block_storage_device
 ALTER TABLE block_storage_device
 	ADD CONSTRAINT fk_block_storage_device_encrypted_block_storage_device_id FOREIGN KEY (encrypted_block_storage_device_id)
 		REFERENCES encrypted_block_storage_device(encrypted_block_storage_device_id);
-
-ALTER TABLE block_storage_device
-	ADD CONSTRAINT fk_block_storage_device_mpath_disk_id FOREIGN KEY (mpath_disk_id)
-		REFERENCES mpath_disk(mpath_disk_id);
 
 ALTER TABLE encrypted_block_storage_device
 	ADD CONSTRAINT fk_encrypted_block_storage_device_block_storage_device_id FOREIGN KEY (block_storage_device_id)
