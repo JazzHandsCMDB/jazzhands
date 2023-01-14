@@ -24,14 +24,14 @@ SAVEPOINT ct_account_tests;
 
 \ir ../../ddl/cache/pgsql/create_ct_account_collection_hier_from_ancestor.sql
 
-CREATE VIEW same AS
+CREATE VIEW jazzhands_legacy.same AS
 SELECT array_length(path, 1) - 1 as level,
 	root_account_collection_id,
 	account_collection_id
 FROM jazzhands_cache.ct_account_collection_hier_from_ancestor;
 
 SELECT schema_support.relation_diff(
-	schema := 'jazzhands',
+	schema := 'jazzhands_legacy',
 	old_rel := 'v_account_collection_expanded',
 	new_rel := 'same',
 	prikeys := ARRAY['root_account_collection_id', 'account_collection_id']
@@ -39,33 +39,21 @@ SELECT schema_support.relation_diff(
 
 savepoint bar;
 
-CREATE VIEW new_v_account_collection_account_expanded AS
+CREATE VIEW jazzhands_legacy.new_v_account_collection_account_expanded AS
 SELECT DISTINCT root_account_collection_id AS account_collection_id,
 	account_id
 FROM jazzhands_cache.ct_account_collection_hier_from_ancestor
 	JOIN account_collection_account USING (account_collection_id)
 ;
 
+
 SELECT schema_support.relation_diff(
-	schema := 'jazzhands',
-	old_rel := 'v_account_collection_account_expanded',
+	schema := 'jazzhands_legacy',
+	old_rel := 'v_acct_coll_acct_expanded',
 	new_rel := 'new_v_account_collection_account_expanded',
 	prikeys := ARRAY['account_collection_id', 'account_id']
 );
 
-
-SELECT COUNT(*) FROM v_account_collection_expanded;
-SELECT COUNT(*) FROM same;
-SELECT COUNT(*) FROM v_account_collection_account_expanded;
-SELECT COUNT(*) FROM new_v_account_collection_account_expanded;
-
-SELECT count(*) FROM v_account_collection_account_expanded
-	join account using (account_id)
-	where account_realm_id = 1 and login = 'kovert';
-
-SELECT count(*) FROM new_v_account_collection_account_expanded
-	join account using (account_id)
-	where account_realm_id = 1 and login = 'kovert';
 
 SAVEPOINT readytest;
 
