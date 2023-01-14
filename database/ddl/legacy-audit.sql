@@ -59,33 +59,6 @@ SELECT "account_id",
 FROM jazzhands_audit.account_assigned_certificate;
 
 
-
--- XXX - Type change
-CREATE OR REPLACE VIEW audit.account_auth_log AS
-SELECT
-	"account_id",
-	account_authentication_timestamp AS "account_auth_ts",
-	authentication_resource AS "auth_resource",
-	account_authentication_seq AS "account_auth_seq",
-	CASE WHEN was_authentication_successful IS NULL THEN NULL
-		WHEN was_authentication_successful = true THEN 'Y'
-		WHEN was_authentication_successful = false THEN 'N'
-		ELSE NULL
-	END AS was_auth_success,
-	"authentication_resource_instance" AS auth_resource_instance,
-	"authentication_origin" AS auth_origin,
-	"data_ins_date",
-	"data_ins_user",
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	"aud#seq"
-FROM jazzhands_audit.account_authentication_log;
-
-
-
 CREATE OR REPLACE VIEW audit.account_coll_type_relation AS
 SELECT "account_collection_relation","account_collection_type","max_num_members","max_num_collections","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.account_collection_type_relation;
