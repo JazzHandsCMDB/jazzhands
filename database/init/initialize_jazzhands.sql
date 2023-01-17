@@ -1798,6 +1798,86 @@ INSERT INTO val_property (
 --
 -- End automated properties/colletions
 -------------------------------------------------------------------------
+--
+-- BEGIN encryption information
+
+INSERT into val_cryptographic_hash_algorithm
+	(cryptographic_hash_algorithm, description)
+VALUES
+	('none', 'not hashed'),
+	('sha1', 'SHA1 hash'),
+	('md5', 'MD5 hash'),
+	('sha128', 'SHA128 hash'),
+	('sha256', 'SHA256 hash');
+
+INSERT into val_cipher
+	(cipher, description)
+VALUES
+	('none', NULL),
+	('des', NULL),
+	('des3', NULL),
+	('IDEA', NULL),
+	('Blowfish', NULL),
+	('CAST5', NULL),
+	('AES', 'aka Rijndael'),
+	('Camelia', NULL),
+	('RSA', NULL),
+	('ECC', NULL)
+;
+
+INSERT into val_cipher_padding
+	(cipher_padding, description)
+VALUES
+	('none', NULL),
+	('null', 'pad with zeros'),
+	('Space', 'pad with 0x20'),
+	('PKCS5', 'pads with number of bytes that should be truncated'),
+	('Rijndael_Compat', 'Similar to ones and zeros, no padding on last full block'),
+	('OneAndZeros', 'Pads with 0x80 followed by 0x00s to fill'),
+	('X9.23', 'Zero followed by number of bytes of padding'),
+	('W3C', 'arbitrary byte values ending with number of bytes padded')
+;
+
+INSERT into val_cipher_chain_mode
+	(cipher_chain_mode, description)
+VALUES
+	('none', NULL),
+	('CBC', 'cipher-bock chaining'),
+	('PCBC', 'plaintext cipher-block chaining'),
+	('CFB', 'Cipher Feedback'),
+	('OFB', 'Output Feedbacl'),
+	('CTR', 'Counter')
+;
+
+INSERT INTO val_cipher_permitted_cipher_padding (
+	cipher, cipher_padding
+)
+VALUES
+	('none', 'none'),
+	('AES', 'PKCS5')
+;
+
+INSERT INTO val_cipher_permitted_cipher_chain_mode (
+	cipher, cipher_chain_mode
+)
+VALUES
+	('none', 'none'),
+	('AES', 'CBC')
+;
+
+INSERT INTO val_cipher_permitted_key_size (
+	cipher, key_size
+)
+VALUES
+	('none', 0),
+	('AES', 128),
+	('AES', 192),
+	('AES', 256),
+	('RSA', '1024'),
+	('RSA', '2048'),
+	('RSA', '4096')
+;
+
 
 -------------------------------------------------------------------------
 -- BEGIN certificate
@@ -1808,7 +1888,7 @@ values
 	('certpassphrase', 1, 'SSL Crtificates Key Passphrase');
 
 insert into val_x509_fingerprint_hash_algorithm
-	(x509_fingerprint_hash_algorithm, description)
+	(cryptographic_hash_algorithm, description)
 values
 	('sha1', 'SHA1 hash'),
 	('sha256', 'SHA256 hash');

@@ -80,7 +80,7 @@ BEGIN
 		min(pkhh.public_key_hash_id)
 	INTO _cnt, _pkhid
 	FROM jazzhands.public_key_hash_hash pkhh JOIN x
-	ON  x.algorithm = pkhh.x509_fingerprint_hash_algorithm
+	ON  x.algorithm = pkhh.cryptographic_hash_algorithm
 	AND x.hash = pkhh.calculated_hash;
 
 	IF _cnt = 0 THEN
@@ -97,7 +97,7 @@ BEGIN
 		AS jr(algorithm text, hash text)
 	) INSERT INTO jazzhands.public_key_hash_hash AS pkhh (
 		public_key_hash_id,
-		x509_fingerprint_hash_algorithm, calculated_hash
+		cryptographic_hash_algorithm, calculated_hash
 	) SELECT _pkhid, x.algorithm, x.hash FROM x
 	ON CONFLICT ON CONSTRAINT pk_public_key_hash_hash
 	DO UPDATE SET calculated_hash = EXCLUDED.calculated_hash

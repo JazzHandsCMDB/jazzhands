@@ -5561,19 +5561,19 @@ FROM jazzhands.public_key_hash;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_x509_fingerprint_hash_algorithm AS
-SELECT x509_fingerprint_hash_algorighm, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
 FROM jazzhands.val_x509_fingerprint_hash_algorithm;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate_fingerprint AS
-SELECT x509_signed_certificate_id, x509_fingerprint_hash_algorighm, fingerprint, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT x509_signed_certificate_id, x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm, fingerprint, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
 FROM jazzhands.x509_signed_certificate_fingerprint;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash_hash AS
-SELECT public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT public_key_hash_id, x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm, calculated_hash, data_ins_user, data_ins_date, data_upd_user, data_upd_date
 FROM jazzhands.public_key_hash_hash;
 
 

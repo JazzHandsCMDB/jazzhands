@@ -925,7 +925,7 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 	FROM pkh
 	RETURNING private_key_id INTO v_private_key_id;
 
-	INSERT INTO val_encryption_method (encryption_method) VALUES ('JHTEST');
+	INSERT INTO val_encryption_method (encryption_method, cipher, key_size, cipher_chain_mode, cipher_padding, passphrase_cryptographic_hash_algorithm ) VALUES ('JHTEST', 'none', 0, 'none', 'none', 'none');
 	INSERT INTO val_encryption_key_purpose (encryption_key_purpose, encryption_key_purpose_version) VALUES ('JHTEST', 1);
 
 	INSERT INTO encryption_key (
