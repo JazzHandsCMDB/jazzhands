@@ -148,35 +148,6 @@ ALTER TABLE account_assigned_certificate ADD COLUMN data_upd_date TIMESTAMP WITH
 
 
 /***********************************************
- * Table: account_authentication_log
- ***********************************************/
-
-CREATE TABLE account_authentication_log
-( 
-	account_id           integer  NOT NULL ,
-	account_authentication_timestamp timestamp without time zone  NOT NULL ,
-	authentication_resource character varying(50)  NOT NULL ,
-	account_authentication_seq integer  NOT NULL ,
-	was_authentication_successful boolean  NOT NULL ,
-	authentication_resource_instance varchar(50)  NOT NULL ,
-	authentication_origin varchar(50)  NOT NULL 
-);
-
-ALTER TABLE account_authentication_log
-	ADD CONSTRAINT pk_account_auth_log PRIMARY KEY (account_id,account_authentication_timestamp,authentication_resource,account_authentication_seq);
-
-CREATE INDEX xieacctauthlog_ts_arsrc ON account_authentication_log
-( 
-	account_authentication_timestamp,
-	authentication_resource
-);
-
-ALTER TABLE account_authentication_log ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE account_authentication_log ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-
-
-
-/***********************************************
  * Table: account_collection
  ***********************************************/
 
@@ -5270,20 +5241,20 @@ CREATE TABLE public_key_hash_hash
 ( 
 	public_key_hash_id   integer  NOT NULL ,
 	x509_fingerprint_hash_algorighm varchar(255)  NOT NULL ,
-	x509_fingerprint_hash_algorithm varchar(255)  NOT NULL ,
+	cryptographic_hash_algorithm varchar(255)  NOT NULL ,
 	calculated_hash      varchar(255)  NOT NULL 
 );
 
 ALTER TABLE public_key_hash_hash
-	ADD CONSTRAINT pk_public_key_hash_hash PRIMARY KEY (public_key_hash_id,x509_fingerprint_hash_algorighm,x509_fingerprint_hash_algorithm);
+	ADD CONSTRAINT pk_public_key_hash_hash PRIMARY KEY (public_key_hash_id,x509_fingerprint_hash_algorighm,cryptographic_hash_algorithm);
 
 ALTER TABLE public_key_hash_hash
-	ADD CONSTRAINT ak_public_key_hash_method_hash UNIQUE (calculated_hash,x509_fingerprint_hash_algorithm);
+	ADD CONSTRAINT ak_public_key_hash_method_hash UNIQUE (calculated_hash);
 
 CREATE INDEX xifpublic_key_hash_hash_algorithm ON public_key_hash_hash
 ( 
 	x509_fingerprint_hash_algorighm ASC,
-	x509_fingerprint_hash_algorithm ASC
+	cryptographic_hash_algorithm ASC
 );
 
 CREATE INDEX xifpublic_key_hash_hash_hash ON public_key_hash_hash
@@ -7874,6 +7845,151 @@ ALTER TABLE val_checksum_algorithm ADD COLUMN data_upd_date TIMESTAMP WITH TIME 
 
 
 /***********************************************
+ * Table: val_cipher
+ ***********************************************/
+
+CREATE TABLE val_cipher
+( 
+	cipher               varchar(255)  NOT NULL ,
+	description          varchar(4096)  NULL 
+);
+
+ALTER TABLE val_cipher
+	ADD CONSTRAINT pk_val_cipher PRIMARY KEY (cipher);
+
+ALTER TABLE val_cipher ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cipher ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cipher ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cipher ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
+ * Table: val_cipher_chain_mode
+ ***********************************************/
+
+CREATE TABLE val_cipher_chain_mode
+( 
+	cipher_chain_mode    varchar(255)  NOT NULL ,
+	description          varchar(4096)  NULL 
+);
+
+ALTER TABLE val_cipher_chain_mode
+	ADD CONSTRAINT pk_val_cipher_chain_mode PRIMARY KEY (cipher_chain_mode);
+
+ALTER TABLE val_cipher_chain_mode ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cipher_chain_mode ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cipher_chain_mode ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cipher_chain_mode ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
+ * Table: val_cipher_padding
+ ***********************************************/
+
+CREATE TABLE val_cipher_padding
+( 
+	cipher_padding       varchar(255)  NOT NULL ,
+	description          varchar(4096)  NULL 
+);
+
+ALTER TABLE val_cipher_padding
+	ADD CONSTRAINT pk_val_cipher_padding PRIMARY KEY (cipher_padding);
+
+ALTER TABLE val_cipher_padding ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cipher_padding ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cipher_padding ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cipher_padding ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
+ * Table: val_cipher_permitted_cipher_chain_mode
+ ***********************************************/
+
+CREATE TABLE val_cipher_permitted_cipher_chain_mode
+( 
+	cipher               varchar(255)  NOT NULL ,
+	cipher_chain_mode    varchar(255)  NOT NULL 
+);
+
+ALTER TABLE val_cipher_permitted_cipher_chain_mode
+	ADD CONSTRAINT pk_val_cipher_permitted_cipher_chain_mode PRIMARY KEY (cipher,cipher_chain_mode);
+
+CREATE INDEX xifcipher_permitted_cipher_chain_cipher ON val_cipher_permitted_cipher_chain_mode
+( 
+	cipher   ASC
+);
+
+CREATE INDEX xifv_permitted_cipher_chain_cipher_chain_mode ON val_cipher_permitted_cipher_chain_mode
+( 
+	cipher_chain_mode ASC
+);
+
+ALTER TABLE val_cipher_permitted_cipher_chain_mode ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cipher_permitted_cipher_chain_mode ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cipher_permitted_cipher_chain_mode ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cipher_permitted_cipher_chain_mode ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
+ * Table: val_cipher_permitted_cipher_padding
+ ***********************************************/
+
+CREATE TABLE val_cipher_permitted_cipher_padding
+( 
+	cipher               varchar(255)  NOT NULL ,
+	cipher_padding       varchar(255)  NOT NULL 
+);
+
+ALTER TABLE val_cipher_permitted_cipher_padding
+	ADD CONSTRAINT pk_val_cipher_permitted_cipher_padding PRIMARY KEY (cipher,cipher_padding);
+
+CREATE INDEX xifv_permitted_cipher_padding_cipher_padding ON val_cipher_permitted_cipher_padding
+( 
+	cipher_padding ASC
+);
+
+CREATE INDEX xifval_cipher_permitted_cipher_padding_cipher_padding ON val_cipher_permitted_cipher_padding
+( 
+	cipher   ASC
+);
+
+ALTER TABLE val_cipher_permitted_cipher_padding ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cipher_permitted_cipher_padding ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cipher_permitted_cipher_padding ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cipher_permitted_cipher_padding ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
+ * Table: val_cipher_permitted_key_size
+ ***********************************************/
+
+CREATE TABLE val_cipher_permitted_key_size
+( 
+	cipher               varchar(255)  NOT NULL ,
+	key_size             integer  NOT NULL 
+);
+
+ALTER TABLE val_cipher_permitted_key_size
+	ADD CONSTRAINT pk_val_cipher_permitted_key_size PRIMARY KEY (cipher,key_size);
+
+CREATE INDEX xifval_cipher_permitted_key_size_cipher ON val_cipher_permitted_key_size
+( 
+	cipher   ASC
+);
+
+ALTER TABLE val_cipher_permitted_key_size ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cipher_permitted_key_size ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cipher_permitted_key_size ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cipher_permitted_key_size ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
  * Table: val_company_collection_type
  ***********************************************/
 
@@ -8140,6 +8256,26 @@ ALTER TABLE val_country_code ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
 
 
 /***********************************************
+ * Table: val_cryptographic_hash_algorithm
+ ***********************************************/
+
+CREATE TABLE val_cryptographic_hash_algorithm
+( 
+	cryptographic_hash_algorithm varchar(255)  NOT NULL ,
+	description          varchar(4096)  NULL 
+);
+
+ALTER TABLE val_cryptographic_hash_algorithm
+	ADD CONSTRAINT pk_val_cryptographic_hash_algorithm PRIMARY KEY (cryptographic_hash_algorithm);
+
+ALTER TABLE val_cryptographic_hash_algorithm ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_cryptographic_hash_algorithm ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_cryptographic_hash_algorithm ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_cryptographic_hash_algorithm ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
  * Table: val_device_collection_type
  ***********************************************/
 
@@ -8398,11 +8534,43 @@ ALTER TABLE val_encryption_key_purpose ALTER COLUMN encryption_key_purpose_versi
 CREATE TABLE val_encryption_method
 ( 
 	encryption_method    varchar(50)  NOT NULL ,
+	cipher               varchar(255)  NULL ,
+	key_size             integer  NULL ,
+	cipher_chain_mode    varchar(255)  NULL ,
+	cipher_padding       varchar(255)  NOT NULL ,
+	passphrase_cryptographic_hash_algorithm varchar(255)  NULL ,
 	description          varchar(255)  NULL 
 );
 
 ALTER TABLE val_encryption_method
 	ADD CONSTRAINT pk_val_encryption_method PRIMARY KEY (encryption_method);
+
+CREATE INDEX xifenc_method_cipher_chain_mode ON val_encryption_method
+( 
+	cipher   ASC,
+	cipher_chain_mode ASC
+);
+
+CREATE INDEX xifenc_method_cipher_key_size ON val_encryption_method
+( 
+	key_size ASC,
+	cipher   ASC
+);
+
+CREATE INDEX xifenc_method_cipher_padding ON val_encryption_method
+( 
+	cipher_padding ASC
+);
+
+CREATE INDEX xifenc_method_crypto_hash_algo ON val_encryption_method
+( 
+	passphrase_cryptographic_hash_algorithm ASC
+);
+
+CREATE INDEX xifenc_mthod_cipher ON val_encryption_method
+( 
+	cipher   ASC
+);
 
 ALTER TABLE val_encryption_method ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE val_encryption_method ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
@@ -10169,13 +10337,18 @@ ALTER TABLE val_x509_certificate_type ADD COLUMN data_upd_date TIMESTAMP WITH TI
 
 CREATE TABLE val_x509_fingerprint_hash_algorithm
 ( 
-	x509_fingerprint_hash_algorithm varchar(255)  NOT NULL ,
+	cryptographic_hash_algorithm varchar(255)  NOT NULL ,
 	x509_fingerprint_hash_algorighm varchar(255)  NOT NULL ,
 	description          varchar(4096)  NULL 
 );
 
 ALTER TABLE val_x509_fingerprint_hash_algorithm
-	ADD CONSTRAINT pk_val_x509_fingerprint_hash_algorithm PRIMARY KEY (x509_fingerprint_hash_algorithm,x509_fingerprint_hash_algorighm);
+	ADD CONSTRAINT pk_val_x509_fingerprint_hash_algorithm PRIMARY KEY (cryptographic_hash_algorithm,x509_fingerprint_hash_algorighm);
+
+CREATE INDEX xifx509_fprint_hash_algo_crypto_hash_algo ON val_x509_fingerprint_hash_algorithm
+( 
+	cryptographic_hash_algorithm ASC
+);
 
 ALTER TABLE val_x509_fingerprint_hash_algorithm ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE val_x509_fingerprint_hash_algorithm ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
@@ -10547,13 +10720,13 @@ CREATE TABLE x509_signed_certificate_fingerprint
 ( 
 	x509_signed_certificate_id integer  NOT NULL ,
 	x509_fingerprint_hash_algorighm varchar(255)  NOT NULL ,
-	x509_fingerprint_hash_algorithm varchar(255)  NOT NULL ,
+	cryptographic_hash_algorithm varchar(255)  NOT NULL ,
 	fingerprint          varchar(255)  NOT NULL ,
 	description          varchar(4096)  NULL 
 );
 
 ALTER TABLE x509_signed_certificate_fingerprint
-	ADD CONSTRAINT pk_x509_signed_certificate_fingerprint PRIMARY KEY (x509_signed_certificate_id,x509_fingerprint_hash_algorighm,x509_fingerprint_hash_algorithm);
+	ADD CONSTRAINT pk_x509_signed_certificate_fingerprint PRIMARY KEY (x509_signed_certificate_id,x509_fingerprint_hash_algorighm,cryptographic_hash_algorithm);
 
 CREATE INDEX xifsigned_cert_print_signed_cert ON x509_signed_certificate_fingerprint
 ( 
@@ -10563,7 +10736,7 @@ CREATE INDEX xifsigned_cert_print_signed_cert ON x509_signed_certificate_fingerp
 CREATE INDEX xifx509_signed_cert_fprint_algorithm ON x509_signed_certificate_fingerprint
 ( 
 	x509_fingerprint_hash_algorighm ASC,
-	x509_fingerprint_hash_algorithm ASC
+	cryptographic_hash_algorithm ASC
 );
 
 ALTER TABLE x509_signed_certificate_fingerprint ADD COLUMN data_ins_user varchar(255);
@@ -10619,17 +10792,6 @@ ALTER TABLE account_assigned_certificate
 
 ALTER TABLE account_assigned_certificate
 	ADD CONSTRAINT fk_acct_asdcrt_acctid FOREIGN KEY (account_id) REFERENCES account(account_id)
-		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
-
-
-ALTER TABLE account_authentication_log
-	ADD CONSTRAINT fk_acctauthlog_accid FOREIGN KEY (account_id) REFERENCES account(account_id)
-		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
-
-ALTER TABLE account_authentication_log
-	ADD CONSTRAINT fk_auth_resource FOREIGN KEY (authentication_resource) REFERENCES val_authentication_resource(authentication_resource)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
@@ -12785,7 +12947,7 @@ ALTER TABLE pseudo_klogin
 
 
 ALTER TABLE public_key_hash_hash
-	ADD CONSTRAINT fk_public_key_hash_hash_algorithm FOREIGN KEY (x509_fingerprint_hash_algorithm,x509_fingerprint_hash_algorighm) REFERENCES val_x509_fingerprint_hash_algorithm(x509_fingerprint_hash_algorithm,x509_fingerprint_hash_algorighm)
+	ADD CONSTRAINT fk_public_key_hash_hash_algorithm FOREIGN KEY (cryptographic_hash_algorithm,x509_fingerprint_hash_algorighm) REFERENCES val_x509_fingerprint_hash_algorithm(cryptographic_hash_algorithm,x509_fingerprint_hash_algorighm)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
@@ -13757,6 +13919,34 @@ ALTER TABLE val_application_key_values
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+
+ALTER TABLE val_cipher_permitted_cipher_chain_mode
+	ADD CONSTRAINT fk_cipher_permitted_cipher_chain_cipher FOREIGN KEY (cipher) REFERENCES val_cipher(cipher)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE val_cipher_permitted_cipher_chain_mode
+	ADD CONSTRAINT fk_v_permitted_cipher_chain_cipher_chain_mode FOREIGN KEY (cipher_chain_mode) REFERENCES val_cipher_chain_mode(cipher_chain_mode)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+
+ALTER TABLE val_cipher_permitted_cipher_padding
+	ADD CONSTRAINT fk_v_permitted_cipher_padding_cipher_padding FOREIGN KEY (cipher_padding) REFERENCES val_cipher_padding(cipher_padding)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE val_cipher_permitted_cipher_padding
+	ADD CONSTRAINT fk_val_cipher_permitted_cipher_padding_cipher_padding FOREIGN KEY (cipher) REFERENCES val_cipher(cipher)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+
+ALTER TABLE val_cipher_permitted_key_size
+	ADD CONSTRAINT fk_val_cipher_permitted_key_size_cipher FOREIGN KEY (cipher) REFERENCES val_cipher(cipher)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
 ALTER TABLE val_company_collection_type
 	ALTER COLUMN is_infrastructure_type
 		SET DEFAULT false;
@@ -13887,6 +14077,32 @@ ALTER TABLE val_dns_type
 
 ALTER TABLE val_encapsulation_mode
 	ADD CONSTRAINT fk_val_encap_mode_type FOREIGN KEY (encapsulation_type) REFERENCES val_encapsulation_type(encapsulation_type)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+
+ALTER TABLE val_encryption_method
+	ADD CONSTRAINT fk_enc_method_cipher_chain_mode FOREIGN KEY (cipher,cipher_chain_mode) REFERENCES val_cipher_permitted_cipher_chain_mode(cipher,cipher_chain_mode)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE val_encryption_method
+	ADD CONSTRAINT fk_enc_method_cipher_key_size FOREIGN KEY (cipher,key_size) REFERENCES val_cipher_permitted_key_size(cipher,key_size)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE val_encryption_method
+	ADD CONSTRAINT fk_enc_method_cipher_padding FOREIGN KEY (cipher_padding) REFERENCES val_cipher_padding(cipher_padding)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE val_encryption_method
+	ADD CONSTRAINT fk_enc_method_crypto_hash_algo FOREIGN KEY (passphrase_cryptographic_hash_algorithm) REFERENCES val_cryptographic_hash_algorithm(cryptographic_hash_algorithm)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE val_encryption_method
+	ADD CONSTRAINT fk_enc_mthod_cipher FOREIGN KEY (cipher) REFERENCES val_cipher(cipher)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
@@ -14276,7 +14492,9 @@ ALTER TABLE val_token_collection_type
 
 
 ALTER TABLE val_x509_fingerprint_hash_algorithm
-	ADD CONSTRAINT ckc_algorithm_misspell_225516534 CHECK  ( x509_fingerprint_hash_algorithm = x509_fingerprint_hash_algorithm ) ;
+	ADD CONSTRAINT fk_x509_fprint_hash_algo_crypto_hash_algo FOREIGN KEY (cryptographic_hash_algorithm) REFERENCES val_cryptographic_hash_algorithm(cryptographic_hash_algorithm)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
 
 
 ALTER TABLE volume_group
@@ -14441,7 +14659,7 @@ ALTER TABLE x509_signed_certificate_fingerprint
 		ON DELETE NO ACTION;
 
 ALTER TABLE x509_signed_certificate_fingerprint
-	ADD CONSTRAINT fk_x509_signed_cert_fprint_algorithm FOREIGN KEY (x509_fingerprint_hash_algorithm,x509_fingerprint_hash_algorighm) REFERENCES val_x509_fingerprint_hash_algorithm(x509_fingerprint_hash_algorithm,x509_fingerprint_hash_algorighm)
+	ADD CONSTRAINT fk_x509_signed_cert_fprint_algorithm FOREIGN KEY (cryptographic_hash_algorithm,x509_fingerprint_hash_algorighm) REFERENCES val_x509_fingerprint_hash_algorithm(cryptographic_hash_algorithm,x509_fingerprint_hash_algorighm)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
@@ -14456,14 +14674,6 @@ COMMENT ON COLUMN account_assigned_certificate.x509_key_usage IS 'Name of the Ce
 COMMENT ON COLUMN account_assigned_certificate.x509_signed_certificate_id IS 'Uniquely identifies Certificate';
 
 COMMENT ON COLUMN account_assigned_certificate.key_usage_reason_for_assignment IS 'Uniquely identifies and indicates reason for assignment.';
-
-COMMENT ON TABLE account_authentication_log IS 'Captures all system user authorizations for access to Vonage resources.';
-
-COMMENT ON COLUMN account_authentication_log.account_authentication_seq IS 'This sequence is to support table PK with timestamps recived rounded to the secend and generating duplicates.';
-
-COMMENT ON COLUMN account_authentication_log.authentication_resource_instance IS 'Keeps track of the server where a user was authenticating for a given resource';
-
-COMMENT ON COLUMN account_authentication_log.authentication_origin IS 'Keeps track of where the request for authentication originated from.';
 
 COMMENT ON COLUMN account_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 
@@ -14991,6 +15201,8 @@ COMMENT ON TABLE val_encryption_key_purpose IS 'Valid purpose of encryption used
 COMMENT ON COLUMN val_encryption_key_purpose.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 
 COMMENT ON TABLE val_encryption_method IS 'List of text representations of methods of encryption.  Format is the same as Kerberos uses such as in rfc3962';
+
+COMMENT ON COLUMN val_encryption_method.encryption_method IS 'hashing algorithm used to encrypt the passphrase for use as the key to the underlying algorithm';
 
 COMMENT ON TABLE val_key_usage_reason_for_assignment IS 'Identifies a reason why certificate has been assigned a given key usage attribute.';
 
