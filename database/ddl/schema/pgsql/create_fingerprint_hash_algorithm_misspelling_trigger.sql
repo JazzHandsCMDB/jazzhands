@@ -30,25 +30,25 @@ BEGIN
 	-- Give a release to deal with misspelling
 	--
 	IF TG_OP = 'INSERT' THEN
-		IF NEW.x509_fingerprint_hash_algorighm IS NOT NULL AND NEW.x509_fingerprint_hash_algorithm IS NOT NULL
+		IF NEW.x509_fingerprint_hash_algorighm IS NOT NULL AND NEW.cryptographic_hash_algorithm IS NOT NULL
 		THEN
-			RAISE EXCEPTION 'Should only set x509_fingerprint_hash_algorithm'
+			RAISE EXCEPTION 'Should only set cryptographic_hash_algorithm'
 				USING ERRCODE = 'invalid_parameter_value';
 		ELSIF NEW.x509_fingerprint_hash_algorighm IS NULL THEN
-			NEW.x509_fingerprint_hash_algorighm := NEW.x509_fingerprint_hash_algorithm;
+			NEW.x509_fingerprint_hash_algorighm := NEW.cryptographic_hash_algorithm;
 		ELSE
-			NEW.x509_fingerprint_hash_algorithm := NEW.x509_fingerprint_hash_algorighm;
+			NEW.cryptographic_hash_algorithm := NEW.x509_fingerprint_hash_algorighm;
 		END IF;
 	ELSIF TG_OP = 'UPDATE' THEN
 		IF OLD.x509_fingerprint_hash_algorighm IS DISTINCT FROM NEW.x509_fingerprint_hash_algorighm AND
-			OLD.x509_fingerprint_hash_algorithm IS DISTINCT FROM NEW.x509_fingerprint_hash_algorithm
+			OLD.x509_fingerprint_hash_algorighm IS DISTINCT FROM NEW.cryptographic_hash_algorithm
 		THEN
-			RAISE EXCEPTION 'Should only set x509_fingerprint_hash_algorithm'
+			RAISE EXCEPTION 'Should only set cryptographic_hash_algorithm'
 				USING ERRCODE = 'invalid_parameter_value';
-		ELSIF OLD.x509_fingerprint_hash_algorithm IS DISTINCT FROM NEW.x509_fingerprint_hash_algorithm THEN
-			NEW.x509_fingerprint_hash_algorighm := NEW.x509_fingerprint_hash_algorithm;
+		ELSIF OLD.x509_fingerprint_hash_algorighm IS DISTINCT FROM NEW.cryptographic_hash_algorithm THEN
+			NEW.x509_fingerprint_hash_algorighm := NEW.cryptographic_hash_algorithm;
 		ELSE
-			NEW.x509_fingerprint_hash_algorithm := NEW.x509_fingerprint_hash_algorighm;
+			NEW.cryptographic_hash_algorithm := NEW.x509_fingerprint_hash_algorighm;
 		END IF;
 	END IF;
 
@@ -61,7 +61,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_fingerprint_hash_algorithm
 	ON val_x509_fingerprint_hash_algorithm;
 CREATE TRIGGER trigger_fingerprint_hash_algorithm
-	BEFORE INSERT OR UPDATE OF x509_fingerprint_hash_algorighm, x509_fingerprint_hash_algorithm
+	BEFORE INSERT OR UPDATE OF x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm
 	ON val_x509_fingerprint_hash_algorithm
 	FOR EACH ROW
 	EXECUTE PROCEDURE check_fingerprint_hash_algorithm();
@@ -69,7 +69,7 @@ CREATE TRIGGER trigger_fingerprint_hash_algorithm
 DROP TRIGGER IF EXISTS trigger_fingerprint_hash_algorithm
 	ON public_key_hash_hash;
 CREATE TRIGGER trigger_fingerprint_hash_algorithm
-	BEFORE INSERT OR UPDATE OF x509_fingerprint_hash_algorighm, x509_fingerprint_hash_algorithm
+	BEFORE INSERT OR UPDATE OF x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm
 	ON public_key_hash_hash
 	FOR EACH ROW
 	EXECUTE PROCEDURE check_fingerprint_hash_algorithm();
@@ -77,7 +77,7 @@ CREATE TRIGGER trigger_fingerprint_hash_algorithm
 DROP TRIGGER IF EXISTS trigger_fingerprint_hash_algorithm
 	ON x509_signed_certificate_fingerprint;
 CREATE TRIGGER trigger_fingerprint_hash_algorithm
-	BEFORE INSERT OR UPDATE OF x509_fingerprint_hash_algorighm, x509_fingerprint_hash_algorithm
+	BEFORE INSERT OR UPDATE OF x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm
 	ON x509_signed_certificate_fingerprint
 	FOR EACH ROW
 	EXECUTE PROCEDURE check_fingerprint_hash_algorithm();
