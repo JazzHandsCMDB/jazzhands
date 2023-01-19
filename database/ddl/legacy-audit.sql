@@ -1580,8 +1580,23 @@ FROM jazzhands_audit.physical_connection;
 
 
 CREATE OR REPLACE VIEW audit.physicalish_volume AS
-SELECT "physicalish_volume_id","physicalish_volume_name","physicalish_volume_type","device_id","logical_volume_id","component_id","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.physicalish_volume;
+SELECT	block_storage_device_id		AS physicalish_volume_id,
+	block_storage_device_name	AS physicalish_volume_name,
+	block_storage_device_type	AS physicalish_volume_type,
+	device_id,
+	logical_volume_id,
+	component_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM jazzhands_audit.block_storage_device;
 
 
 
@@ -2991,8 +3006,19 @@ FROM jazzhands_audit.val_physical_address_type;
 
 
 CREATE OR REPLACE VIEW audit.val_physicalish_volume_type AS
-SELECT "physicalish_volume_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_physicalish_volume_type;
+SELECT	block_storage_device_type AS physicalish_volume_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM jazzhands_audit.val_block_storage_device_type;
 
 
 
@@ -3356,23 +3382,23 @@ FROM jazzhands_audit.volume_group;
 -- Simple column rename
 CREATE OR REPLACE VIEW audit.volume_group_physicalish_vol AS
 SELECT
-	"physicalish_volume_id",
-	"volume_group_id",
-	"device_id",
-	"volume_group_primary_position" AS volume_group_primary_pos,
-	"volume_group_secondary_position" AS volume_group_secondary_pos,
-	"volume_group_relation",
-	"data_ins_user",
-	"data_ins_date",
-	"data_upd_user",
-	"data_upd_date",
+	block_storage_device_id AS physicalish_volume_id,
+	volume_group_id,
+	device_id,
+	volume_group_primary_position AS volume_group_primary_pos,
+	volume_group_secondary_position AS volume_group_secondary_pos,
+	volume_group_relation,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
 	"aud#action",
 	"aud#timestamp",
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
 	"aud#seq"
-FROM jazzhands_audit.volume_group_physicalish_volume;
+FROM jazzhands_audit.volume_group_block_storage_device;
 
 
 
