@@ -26,11 +26,28 @@ CREATE TABLE val_block_storage_device_type (
 ALTER TABLE val_block_storage_device_type
 	ADD CONSTRAINT pk_block_storage_device_type_block_storage_device_type PRIMARY KEY (block_storage_device_type);
 
+/*
+
+Those two columns do move out and over to encryption_method which is gotten
+to via encryption_key.
+
+encryption_method will get something like:
+
+passphrase_hash         (sha256, sha128, md5, etc)
+cipher                  (des, des3, IDEA< Blowfish, CAST5, AES, Camelia, RSA)
+keysize                 256, 128, etc
+chain_mode              (none, cbc, pcbc, cfb, ofb, ctr)
+padding?                (none, standard, space, oneandzeros, link to cipher?)
+
+AES is AKA Rijndael
+*/
 CREATE TABLE encrypted_block_storage_device (
 	encrypted_block_storage_device_id	bigint NOT NULL,
 	block_storage_device_id		bigint NOT NULL,
 	block_storage_device_encryption_system			varchar(50) NOT NULL,
 	encryption_key_id			integer NOT NULL,
+	key_size					integer NOT NULL,		-- probably moves to encryption_key
+	cipher						text NOT NULL,			-- probably moves to encryption_key
 	offset_sector				integer,
 	sector_size					integer
 );
