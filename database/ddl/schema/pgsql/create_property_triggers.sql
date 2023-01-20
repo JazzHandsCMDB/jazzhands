@@ -25,8 +25,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_property ON property;
-CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE
-	ON property FOR EACH ROW EXECUTE PROCEDURE validate_property();
+CREATE CONSTRAINT TRIGGER trigger_validate_property
+	AFTER INSERT OR UPDATE
+	ON property FOR EACH ROW
+	EXECUTE PROCEDURE validate_property();
 
 
 ------------------------------------------------------------------------------
