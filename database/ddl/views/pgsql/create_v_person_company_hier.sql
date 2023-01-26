@@ -32,7 +32,7 @@ WITH RECURSIVE pc_recurse (
 			person_company_relation		as person_company_relation,
 			ARRAY[manager_person_id] 	as array_path,
 			ARRAY[manager_person_id] 	as rvs_array_path,
-			false
+			false AS cycle
 		FROM
 			person_company pc
 			JOIN val_person_status vps  on

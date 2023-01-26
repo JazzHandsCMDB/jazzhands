@@ -30,7 +30,7 @@ WITH RECURSIVE netblock_coll_recurse (
             nc.netblock_collection_id as netblock_collection_id,
             ARRAY[nc.netblock_collection_id] as array_path,
             ARRAY[nc.netblock_collection_id] as rvs_array_path,
-            false
+            false AS cycle
         FROM
             netblock_collection nc
     UNION ALL

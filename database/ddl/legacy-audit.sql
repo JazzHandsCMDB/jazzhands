@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021 Todd Kover
+ * Copyright (c) 2019-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -3516,5 +3516,4 @@ FROM jazzhands_audit.x509_signed_certificate;
 --- v_network_interface_trans
 --- val_device_auto_mgmt_protocol
 --- val_snmp_commstr_type
-
 
