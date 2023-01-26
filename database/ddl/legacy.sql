@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022 Todd Kover
+ * Copyright (c) 2019-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -1563,12 +1563,18 @@ SELECT
 ;
 
 
-
 CREATE OR REPLACE VIEW jazzhands_legacy.physicalish_volume AS
-SELECT physicalish_volume_id,physicalish_volume_name,physicalish_volume_type,device_id,logical_volume_id,component_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.physicalish_volume;
-
-
+SELECT	block_storage_device_id	AS physicalish_volume_id,
+	block_storage_device_name AS physicalish_volume_name,
+	block_storage_device_type AS physicalish_volume_type,
+	device_id,
+	logical_volume_id,
+	component_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.block_storage_device;
 
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.private_key AS
@@ -2283,7 +2289,7 @@ WITH RECURSIVE var_recurse (
 
 
 
-CREATE OR REPLACE VIEW v_application_role_member AS
+CREATE OR REPLACE VIEW jazzhands_legacy.v_application_role_member AS
 	select	device_id,
 		device_collection_id as role_id,
 		DATA_INS_USER,
@@ -2375,7 +2381,7 @@ SELECT
 FROM jazzhands.v_corp_family_account;
 
 -- Copyright (c) 2011-2014, Todd M. Kover
-CREATE OR REPLACE VIEW v_department_company_expanded AS
+CREATE OR REPLACE VIEW jazzhands_legacy.v_department_company_expanded AS
 WITH RECURSIVE var_recurse (
 	level,
 	root_company_id,
@@ -2490,7 +2496,7 @@ UNION  ALL
 FROM	var_recurse;
 
 -- Copyright (c) 2016, Kurt Adam
-CREATE OR REPLACE VIEW v_device_collection_root AS
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_root AS
 WITH x AS (
 	SELECT
 		c.device_collection_id AS leaf_id,
@@ -3639,6 +3645,41 @@ SELECT
 	data_upd_date
 FROM jazzhands.val_property;
 
+-- Copyright (c) 2016, Kurt Adam
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_root AS
+WITH x AS (
+	SELECT
+		c.device_collection_id AS leaf_id,
+		c.device_collection_name AS leaf_name,
+		c.device_collection_type AS leaf_type,
+		p.device_collection_id AS root_id,
+		p.device_collection_name AS root_name,
+		p.device_collection_type AS root_type,
+		dch.device_collection_level
+	FROM jazzhands_legacy.device_collection c
+	JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON dch.device_collection_id = c.device_collection_id
+	JOIN jazzhands_legacy.device_collection p ON dch.parent_device_collection_id = p.device_collection_id
+		AND p.device_collection_type = c.device_collection_type
+)
+SELECT
+	xx.root_id,
+	xx.root_name,
+	xx.root_type,
+	xx.leaf_id,
+	xx.leaf_name,
+	xx.leaf_type
+FROM (	SELECT
+		x.root_id,
+		x.root_name,
+		x.root_type,
+		x.leaf_id,
+		x.leaf_name,
+		x.leaf_type,
+		x.device_collection_level,
+		row_number() OVER (PARTITION BY x.leaf_id ORDER BY x.device_collection_level DESC) AS rn
+	FROM x) xx
+WHERE xx.rn = 1;
+
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_user_prop_expanded AS
 SELECT
@@ -3705,7 +3746,7 @@ and dcu.property_type = 'MclassUnixProp';
 
 
 -- Copyright (c) 2011-2014, Todd M. Kover
-CREATE OR REPLACE VIEW v_application_role AS
+CREATE OR REPLACE VIEW jazzhands_legacy.v_application_role AS
 WITH RECURSIVE var_recurse(
 	role_level,
 	role_id,
@@ -5149,11 +5190,14 @@ CREATE OR REPLACE VIEW jazzhands_legacy.val_physical_address_type AS
 SELECT physical_address_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_physical_address_type;
 
-
-
 CREATE OR REPLACE VIEW jazzhands_legacy.val_physicalish_volume_type AS
-SELECT physicalish_volume_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_physicalish_volume_type;
+SELECT	block_storage_device_type AS physicalish_volume_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_block_storage_device_type;
 
 
 
@@ -5379,19 +5423,18 @@ FROM jazzhands.volume_group;
 
 
 -- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.volume_group_physicalish_volume AS
-SELECT
-	physicalish_volume_id,
-	volume_group_id,
+CREATE OR REPLACE VIEW jazzhands_legacy.volume_group_physicalish_vol AS
+SELECT	volume_group_id,
+	block_storage_device_id AS physicalish_volume_id,
 	device_id,
-	volume_group_primary_position AS volume_group_primary_pos,
-	volume_group_secondary_position AS volume_group_secondary_pos,
+	volume_group_primary_position,
+	volume_group_secondary_position,
 	volume_group_relation,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.volume_group_physicalish_volume;
+FROM jazzhands.volume_group_block_storage_device;
 
 -- Copyright (c) 2015 Matthew Ragan
 CREATE OR REPLACE VIEW jazzhands_legacy.v_lv_hier (
@@ -5424,7 +5467,7 @@ WITH RECURSIVE lv_hier (
 		ARRAY[lv.logical_volume_id]::integer[]
 	FROM
 		jazzhands_legacy.physicalish_volume pv LEFT JOIN
-		jazzhands_legacy.volume_group_physicalish_volume USING (physicalish_volume_id) FULL JOIN
+		jazzhands_legacy.volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
 		jazzhands_legacy.volume_group vg USING (volume_group_id) LEFT JOIN
 		jazzhands_legacy.logical_volume lv USING (volume_group_id)
 	WHERE
@@ -5445,7 +5488,7 @@ WITH RECURSIVE lv_hier (
 		array_prepend(lv.logical_volume_id, lh.lv_path)
 	FROM
 		jazzhands_legacy.physicalish_volume pv LEFT JOIN
-		jazzhands_legacy.volume_group_physicalish_volume USING (physicalish_volume_id) FULL JOIN
+		jazzhands_legacy.volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
 		jazzhands_legacy.volume_group vg USING (volume_group_id) LEFT JOIN
 		jazzhands_legacy.logical_volume lv USING (volume_group_id) JOIN
 		lv_hier lh ON (lv.logical_volume_id = lh.pv_logical_volume_id)

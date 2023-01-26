@@ -35,7 +35,7 @@ WITH RECURSIVE acct_coll_recurse (
 			ac.account_collection_id as account_collection_id,
 			ARRAY[ac.account_collection_id] as array_path,
 			ARRAY[ac.account_collection_id] as rvs_array_path,
-			false
+			false AS cycle
 		FROM
 			account_collection ac
 	UNION ALL
