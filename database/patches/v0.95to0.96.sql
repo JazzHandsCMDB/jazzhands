@@ -3717,6 +3717,8 @@ ALTER TABLE jazzhands.volume_group_block_storage_device ADD CONSTRAINT pk_volume
 ALTER TABLE jazzhands.volume_group_block_storage_device ADD CONSTRAINT uq_volgrp_blk_stor_dev_position UNIQUE (volume_group_id, volume_group_primary_position) DEFERRABLE;
 
 -- Table/Column Comments
+COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_primary_position IS 'position within the primary raid, sometimes called span by at least one raid vendor.';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_secondary_position IS 'position within the secondary raid, sometimes called arm by at least one raid vendor.';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_relation IS 'purpose of volume in raid (member, hotspare, etc, based on val table)
@@ -4156,6 +4158,17 @@ ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ak_block_storage_devic
 ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT pk_block_storage_device PRIMARY KEY (block_storage_device_id);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.block_storage_device IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in between.
+';
+COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
+COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_name IS 'Unique (on the device) name of the block storage device.  This will vary based on ussage.';
+COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_type IS 'Type of block device.   There may be other tables with more information based on the type. ';
+COMMENT ON COLUMN jazzhands.block_storage_device.device_id IS 'Device that has the block device on it.';
+COMMENT ON COLUMN jazzhands.block_storage_device.component_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+COMMENT ON COLUMN jazzhands.block_storage_device.logical_volume_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+COMMENT ON COLUMN jazzhands.block_storage_device.encrypted_block_storage_device_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+COMMENT ON COLUMN jazzhands.block_storage_device.uuid IS 'device wide uuid that is an alternate name for the device.';
 -- INDEXES
 CREATE INDEX xifblock_storage_device_blk_stg_dev_typ ON jazzhands.block_storage_device USING btree (block_storage_device_type);
 CREATE INDEX xifblock_storage_device_component_component_id ON jazzhands.block_storage_device USING btree (component_id);
@@ -4364,6 +4377,8 @@ cipher,description
 ALTER TABLE jazzhands.val_cipher ADD CONSTRAINT pk_val_cipher PRIMARY KEY (cipher);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cipher IS 'Cipher algorithms used to encrypt data.  This is a liberal use of the word cipher and arguably this should be caled _encryption algorithm_ but that term is overloaded, too.
+';
 -- INDEXES
 
 -- CHECK CONSTRAINTS
@@ -4461,6 +4476,7 @@ cipher_chain_mode,description
 ALTER TABLE jazzhands.val_cipher_chain_mode ADD CONSTRAINT pk_val_cipher_chain_mode PRIMARY KEY (cipher_chain_mode);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cipher_chain_mode IS 'possible chain modes with a given cipher algorithm.';
 -- INDEXES
 
 -- CHECK CONSTRAINTS
@@ -4542,6 +4558,7 @@ cipher_padding,description
 ALTER TABLE jazzhands.val_cipher_padding ADD CONSTRAINT pk_val_cipher_padding PRIMARY KEY (cipher_padding);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cipher_padding IS 'types of padding that can be used with ciphers.  Mapping to ciphers is handled elsewhere';
 -- INDEXES
 
 -- CHECK CONSTRAINTS
@@ -4623,6 +4640,7 @@ cipher,cipher_chain_mode
 ALTER TABLE jazzhands.val_cipher_permitted_cipher_chain_mode ADD CONSTRAINT pk_val_cipher_permitted_cipher_chain_mode PRIMARY KEY (cipher, cipher_chain_mode);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cipher_permitted_cipher_chain_mode IS 'permitted chain modes for a given cipher.   valid cipher modes are specified elsewhere';
 -- INDEXES
 CREATE INDEX xifcipher_permitted_cipher_chain_cipher ON jazzhands.val_cipher_permitted_cipher_chain_mode USING btree (cipher);
 CREATE INDEX xifv_permitted_cipher_chain_cipher_chain_mode ON jazzhands.val_cipher_permitted_cipher_chain_mode USING btree (cipher_chain_mode);
@@ -4708,6 +4726,8 @@ cipher,cipher_padding
 ALTER TABLE jazzhands.val_cipher_permitted_cipher_padding ADD CONSTRAINT pk_val_cipher_permitted_cipher_padding PRIMARY KEY (cipher, cipher_padding);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cipher_permitted_cipher_padding IS 'Permitted padding algorithms for a given cipher/enryption algorithm
+';
 -- INDEXES
 CREATE INDEX xifv_permitted_cipher_padding_cipher_padding ON jazzhands.val_cipher_permitted_cipher_padding USING btree (cipher_padding);
 CREATE INDEX xifval_cipher_permitted_cipher_padding_cipher_padding ON jazzhands.val_cipher_permitted_cipher_padding USING btree (cipher);
@@ -4792,6 +4812,8 @@ cipher,key_size
 ALTER TABLE jazzhands.val_cipher_permitted_key_size ADD CONSTRAINT pk_val_cipher_permitted_key_size PRIMARY KEY (cipher, key_size);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cipher_permitted_key_size IS 'Permitted key sizes for a given cipher/encryption algorithm
+';
 -- INDEXES
 CREATE INDEX xifval_cipher_permitted_key_size_cipher ON jazzhands.val_cipher_permitted_key_size USING btree (cipher);
 
@@ -4875,6 +4897,7 @@ cryptographic_hash_algorithm,description
 ALTER TABLE jazzhands.val_cryptographic_hash_algorithm ADD CONSTRAINT pk_val_cryptographic_hash_algorithm PRIMARY KEY (cryptographic_hash_algorithm);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_cryptographic_hash_algorithm IS 'Algorithms used to create a cryptographic hash of text';
 -- INDEXES
 
 -- CHECK CONSTRAINTS
@@ -4985,11 +5008,11 @@ ALTER TABLE jazzhands_audit.val_encryption_method RENAME TO val_encryption_metho
 CREATE TABLE jazzhands.val_encryption_method
 (
 	encryption_method	varchar(50) NOT NULL,
-	cipher	varchar(255)  NULL,
-	key_size	integer  NULL,
-	cipher_chain_mode	varchar(255)  NULL,
+	cipher	varchar(255) NOT NULL,
+	key_size	integer NOT NULL,
+	cipher_chain_mode	varchar(255) NOT NULL,
 	cipher_padding	varchar(255) NOT NULL,
-	passphrase_cryptographic_hash_algorithm	varchar(255)  NULL,
+	passphrase_cryptographic_hash_algorithm	varchar(255) NOT NULL,
 	description	varchar(255)  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -5073,8 +5096,14 @@ FROM jazzhands_audit.val_encryption_method_v96;
 ALTER TABLE jazzhands.val_encryption_method ADD CONSTRAINT pk_val_encryption_method PRIMARY KEY (encryption_method);
 
 -- Table/Column Comments
-COMMENT ON TABLE jazzhands.val_encryption_method IS 'List of text representations of methods of encryption.  Format is the same as Kerberos uses such as in rfc3962';
+COMMENT ON TABLE jazzhands.val_encryption_method IS 'Describes the method of encryption.  Intended to use the format is the same as Kerberos uses such as in rfc3962 but it is possible to use different ones and it is possible two rows could describe the same algorithn used by different underlying algorithms.
+';
 COMMENT ON COLUMN jazzhands.val_encryption_method.encryption_method IS 'hashing algorithm used to encrypt the passphrase for use as the key to the underlying algorithm';
+COMMENT ON COLUMN jazzhands.val_encryption_method.cipher IS 'cipher method (generous definition of cipher) for how data is encrypted';
+COMMENT ON COLUMN jazzhands.val_encryption_method.key_size IS 'key size in bits; relates to cipher';
+COMMENT ON COLUMN jazzhands.val_encryption_method.cipher_chain_mode IS 'if applicable, cipher chain mode used';
+COMMENT ON COLUMN jazzhands.val_encryption_method.cipher_padding IS 'if applicable, padding used to fill out (or augent) blocks based on the undelying cipher.';
+COMMENT ON COLUMN jazzhands.val_encryption_method.passphrase_cryptographic_hash_algorithm IS 'The known passphrase is hashed using this algorithm and that is used as the encrpytion key. ';
 -- INDEXES
 CREATE INDEX xifenc_method_cipher_chain_mode ON jazzhands.val_encryption_method USING btree (cipher, cipher_chain_mode);
 CREATE INDEX xifenc_method_cipher_key_size ON jazzhands.val_encryption_method USING btree (key_size, cipher);
@@ -5277,6 +5306,7 @@ FROM jazzhands_audit.val_x509_fingerprint_hash_algorithm_v96;
 ALTER TABLE jazzhands.val_x509_fingerprint_hash_algorithm ADD CONSTRAINT pk_val_x509_fingerprint_hash_algorithm PRIMARY KEY (cryptographic_hash_algorithm, x509_fingerprint_hash_algorighm);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_x509_fingerprint_hash_algorithm IS 'Algorithms that can be used to generate fingerprints for x509 certificate hash.  Also usable for other hashes in PKI in the schema.';
 COMMENT ON COLUMN jazzhands.val_x509_fingerprint_hash_algorithm.x509_fingerprint_hash_algorighm IS 'This misspelled column is going away in a future version.';
 -- INDEXES
 CREATE INDEX xifx509_fprint_hash_algo_crypto_hash_algo ON jazzhands.val_x509_fingerprint_hash_algorithm USING btree (cryptographic_hash_algorithm);
@@ -5479,6 +5509,8 @@ ALTER TABLE encrypted_block_storage_device
 ALTER TABLE jazzhands.encrypted_block_storage_device ADD CONSTRAINT pk_encrypted_block_storage_device PRIMARY KEY (encrypted_block_storage_device_id);
 
 -- Table/Column Comments
+COMMENT ON COLUMN jazzhands.encrypted_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
 -- INDEXES
 CREATE INDEX xifenc_block_storage_device_block_storage_device ON jazzhands.encrypted_block_storage_device USING btree (block_storage_device_id);
 CREATE INDEX xifenc_block_storage_device_encryption_key_id ON jazzhands.encrypted_block_storage_device USING btree (encryption_key_id);
@@ -5560,6 +5592,9 @@ ALTER TABLE jazzhands.filesystem ADD CONSTRAINT ak_filesystem_block_storage_devi
 ALTER TABLE jazzhands.filesystem ADD CONSTRAINT pk_filesystem PRIMARY KEY (block_storage_device_id, device_id);
 
 -- Table/Column Comments
+COMMENT ON COLUMN jazzhands.filesystem.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
+COMMENT ON COLUMN jazzhands.filesystem.device_id IS 'Device that has the block device on it.';
 -- INDEXES
 CREATE UNIQUE INDEX xiffilesystem_block_storage_device_id ON jazzhands.filesystem USING btree (block_storage_device_id, device_id);
 CREATE INDEX xiffilesystem_val_filesystem_type ON jazzhands.filesystem USING btree (filesystem_type);
@@ -5745,6 +5780,8 @@ ALTER TABLE jazzhands.public_key_hash_hash ADD CONSTRAINT ak_public_key_hash_met
 ALTER TABLE jazzhands.public_key_hash_hash ADD CONSTRAINT pk_public_key_hash_hash PRIMARY KEY (public_key_hash_id, x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm);
 
 -- Table/Column Comments
+COMMENT ON TABLE jazzhands.public_key_hash_hash IS 'Cryptographic hash of the public key portain of a PKI certificate.  This can be used to tie together signed certificates, private keys, and certificaate signing requests.
+';
 COMMENT ON COLUMN jazzhands.public_key_hash_hash.public_key_hash_id IS 'Used as a unique id that identifies hashes on the same public key.  This is primarily used to correlate private keys and x509 certicates.';
 COMMENT ON COLUMN jazzhands.public_key_hash_hash.calculated_hash IS 'hashing algorithm run over the der form of the public key components, which are algorithm independent.';
 -- INDEXES
