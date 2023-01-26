@@ -30,7 +30,7 @@ WITH RECURSIVE layer3_network_collection_recurse (
             layer3.layer3_network_collection_id as layer3_network_collection_id,
             ARRAY[layer3.layer3_network_collection_id] as array_path,
             ARRAY[layer3.layer3_network_collection_id] as rvs_array_path,
-            false
+            false AS cycle
         FROM
             layer3_network_collection layer3
     UNION ALL
