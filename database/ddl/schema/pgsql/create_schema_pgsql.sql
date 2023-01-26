@@ -8662,11 +8662,11 @@ ALTER TABLE val_encryption_key_purpose ALTER COLUMN encryption_key_purpose_versi
 CREATE TABLE val_encryption_method
 ( 
 	encryption_method    varchar(50)  NOT NULL ,
-	cipher               varchar(255)  NULL ,
-	key_size             integer  NULL ,
-	cipher_chain_mode    varchar(255)  NULL ,
+	cipher               varchar(255)  NOT NULL ,
+	key_size             integer  NOT NULL ,
+	cipher_chain_mode    varchar(255)  NOT NULL ,
 	cipher_padding       varchar(255)  NOT NULL ,
-	passphrase_cryptographic_hash_algorithm varchar(255)  NULL ,
+	passphrase_cryptographic_hash_algorithm varchar(255)  NOT NULL ,
 	description          varchar(255)  NULL 
 );
 
@@ -14852,6 +14852,26 @@ COMMENT ON COLUMN appaal_instance_property.encryption_key_id IS 'encryption info
 
 COMMENT ON COLUMN approval_process_chain.permit_immediate_resolution IS 'Approval functions are permitted toshort circuit to completed regardless of the existnace of an accept or reject.  Used for situations where the approval/request chagne process are in a stalemate.';
 
+COMMENT ON TABLE block_storage_device IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in between.
+';
+
+COMMENT ON COLUMN block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
+
+COMMENT ON COLUMN block_storage_device.logical_volume_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+
+COMMENT ON COLUMN block_storage_device.component_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+
+COMMENT ON COLUMN block_storage_device.block_storage_device_type IS 'Type of block device.   There may be other tables with more information based on the type. ';
+
+COMMENT ON COLUMN block_storage_device.device_id IS 'Device that has the block device on it.';
+
+COMMENT ON COLUMN block_storage_device.block_storage_device_name IS 'Unique (on the device) name of the block storage device.  This will vary based on ussage.';
+
+COMMENT ON COLUMN block_storage_device.uuid IS 'device wide uuid that is an alternate name for the device.';
+
+COMMENT ON COLUMN block_storage_device.encrypted_block_storage_device_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+
 COMMENT ON TABLE certificate_signing_request IS 'Certificiate Signing Requests generated from public key.  This is mostly kept for posterity since its possible to generate these at-wil from the private key.';
 
 COMMENT ON COLUMN certificate_signing_request.certificate_signing_request_id IS 'Uniquely identifies Certificate';
@@ -14958,6 +14978,9 @@ COMMENT ON COLUMN dns_record.external_id IS 'unique identifer in external system
 
 COMMENT ON TABLE encapsulation_range IS 'Captures how tables are assigned administratively.  This is not use for enforcement but primarily for presentation';
 
+COMMENT ON COLUMN encrypted_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
+
 COMMENT ON TABLE encryption_key IS 'Keep information on keys used to encrypt sensitive data in the schema';
 
 COMMENT ON COLUMN encryption_key.encryption_key_db_value IS 'part of 3-tuple that is the key used to encrypt.  The other portions are provided by a user and stored in the key_crypto package';
@@ -14969,6 +14992,11 @@ COMMENT ON COLUMN encryption_key.encryption_key_purpose_version IS 'indicates th
 COMMENT ON COLUMN encryption_key.encryption_method IS 'Text representation of the method of encryption.  Format is the same as Kerberos uses such as in rfc3962';
 
 COMMENT ON COLUMN encryption_key.external_id IS 'pointer to where to find the encrypted material in an external system.';
+
+COMMENT ON COLUMN filesystem.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
+
+COMMENT ON COLUMN filesystem.device_id IS 'Device that has the block device on it.';
 
 COMMENT ON COLUMN ip_universe.ip_namespace IS 'defines the namespace for a given ip universe -- all universes in this namespace are considered unique for netblock validations';
 
@@ -15136,6 +15164,9 @@ COMMENT ON COLUMN property_name_collection_property_name.property_name IS 'prope
 COMMENT ON COLUMN property_name_collection_property_name.property_type IS 'property type for validation purposes';
 
 COMMENT ON COLUMN public_key_hash.public_key_hash_id IS 'Used as a unique id that identifies hashes on the same public key.  This is primarily used to correlate private keys and x509 certicates.';
+
+COMMENT ON TABLE public_key_hash_hash IS 'Cryptographic hash of the public key portain of a PKI certificate.  This can be used to tie together signed certificates, private keys, and certificaate signing requests.
+';
 
 COMMENT ON COLUMN public_key_hash_hash.calculated_hash IS 'hashing algorithm run over the der form of the public key components, which are algorithm independent.';
 
@@ -15325,6 +15356,21 @@ COMMENT ON TABLE val_account_role IS 'Defines the role for the account, such as 
 
 COMMENT ON TABLE val_account_type IS 'Defines the type of the account (pseudouser or person).  is_person is probably unnecessary and will be dropped in the future.';
 
+COMMENT ON TABLE val_cipher IS 'Cipher algorithms used to encrypt data.  This is a liberal use of the word cipher and arguably this should be caled _encryption algorithm_ but that term is overloaded, too.
+';
+
+COMMENT ON TABLE val_cipher_chain_mode IS 'possible chain modes with a given cipher algorithm.';
+
+COMMENT ON TABLE val_cipher_padding IS 'types of padding that can be used with ciphers.  Mapping to ciphers is handled elsewhere';
+
+COMMENT ON TABLE val_cipher_permitted_cipher_chain_mode IS 'permitted chain modes for a given cipher.   valid cipher modes are specified elsewhere';
+
+COMMENT ON TABLE val_cipher_permitted_cipher_padding IS 'Permitted padding algorithms for a given cipher/enryption algorithm
+';
+
+COMMENT ON TABLE val_cipher_permitted_key_size IS 'Permitted key sizes for a given cipher/encryption algorithm
+';
+
 COMMENT ON COLUMN val_company_collection_type.max_num_members IS 'Maximum number of members in a given collection of this type
 ';
 
@@ -15338,6 +15384,8 @@ COMMENT ON TABLE val_company_type_purpose IS 'Mechanism to group company types t
 COMMENT ON TABLE val_component_property IS 'Contains a list of all valid properties for component tables (component, component_type, component_function, slot, slot_type, slot_function)';
 
 COMMENT ON TABLE val_component_property_type IS 'Contains list of valid component_property_types';
+
+COMMENT ON TABLE val_cryptographic_hash_algorithm IS 'Algorithms used to create a cryptographic hash of text';
 
 COMMENT ON COLUMN val_device_collection_type.max_num_members IS 'Maximum number of members in a given collection of this type
 ';
@@ -15357,9 +15405,20 @@ COMMENT ON TABLE val_encryption_key_purpose IS 'Valid purpose of encryption used
 
 COMMENT ON COLUMN val_encryption_key_purpose.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 
-COMMENT ON TABLE val_encryption_method IS 'List of text representations of methods of encryption.  Format is the same as Kerberos uses such as in rfc3962';
+COMMENT ON TABLE val_encryption_method IS 'Describes the method of encryption.  Intended to use the format is the same as Kerberos uses such as in rfc3962 but it is possible to use different ones and it is possible two rows could describe the same algorithn used by different underlying algorithms.
+';
 
 COMMENT ON COLUMN val_encryption_method.encryption_method IS 'hashing algorithm used to encrypt the passphrase for use as the key to the underlying algorithm';
+
+COMMENT ON COLUMN val_encryption_method.passphrase_cryptographic_hash_algorithm IS 'The known passphrase is hashed using this algorithm and that is used as the encrpytion key. ';
+
+COMMENT ON COLUMN val_encryption_method.cipher IS 'cipher method (generous definition of cipher) for how data is encrypted';
+
+COMMENT ON COLUMN val_encryption_method.cipher_chain_mode IS 'if applicable, cipher chain mode used';
+
+COMMENT ON COLUMN val_encryption_method.cipher_padding IS 'if applicable, padding used to fill out (or augent) blocks based on the undelying cipher.';
+
+COMMENT ON COLUMN val_encryption_method.key_size IS 'key size in bits; relates to cipher';
 
 COMMENT ON TABLE val_key_usage_reason_for_assignment IS 'Identifies a reason why certificate has been assigned a given key usage attribute.';
 
@@ -15542,6 +15601,8 @@ COMMENT ON TABLE val_x509_certificate_type IS 'Type of signed certificate; this 
 COMMENT ON COLUMN val_x509_certificate_type.x509_certificate_type IS 'encryption tyof private key (rsa, dsa, ec, etc).  
 ';
 
+COMMENT ON TABLE val_x509_fingerprint_hash_algorithm IS 'Algorithms that can be used to generate fingerprints for x509 certificate hash.  Also usable for other hashes in PKI in the schema.';
+
 COMMENT ON COLUMN val_x509_fingerprint_hash_algorithm.x509_fingerprint_hash_algorighm IS 'This misspelled column is going away in a future version.';
 
 COMMENT ON TABLE val_x509_key_usage IS 'Captures possible usage of the certificate key. Example: Client, Server, CA.';
@@ -15563,6 +15624,9 @@ COMMENT ON TABLE val_x509_revocation_reason IS 'Reasons, based on RFC, that a ce
 COMMENT ON COLUMN val_x509_revocation_reason.x509_revocation_reason IS 'valid reason for revoking certificates';
 
 COMMENT ON COLUMN volume_group.component_id IS 'if applicable, the component that hosts this volume group.  This is primarily used to indicate the hardware raid controller component that hosts the volume group.';
+
+COMMENT ON COLUMN volume_group_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
+';
 
 COMMENT ON COLUMN volume_group_block_storage_device.volume_group_relation IS 'purpose of volume in raid (member, hotspare, etc, based on val table)
 ';
