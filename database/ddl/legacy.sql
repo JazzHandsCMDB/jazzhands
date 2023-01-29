@@ -2348,7 +2348,7 @@ UNION ALL
 			on c.parent_company_id = x.company_id
 	WHERE	NOT x.cycle
 ) SELECT	distinct root_company_id as root_company_id, company_id
-  from 		var_recurse;
+	from	var_recurse;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_component_hier AS
@@ -2415,7 +2415,7 @@ UNION ALL
 	WHERE
 		NOT x.cycle
 ) SELECT	distinct root_company_id as company_id, account_collection_id
-  from 		var_recurse;
+  from	var_recurse;
 
 
 
@@ -2496,7 +2496,7 @@ UNION  ALL
 FROM	var_recurse;
 
 -- Copyright (c) 2016, Kurt Adam
-CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_root AS
+CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_root AS
 WITH x AS (
 	SELECT
 		c.device_collection_id AS leaf_id,
@@ -2591,15 +2591,15 @@ FROM (
 		FROM    jazzhands_legacy.device_collection_ssh_key dcssh
 			INNER JOIN jazzhands_legacy.ssh_key USING (ssh_key_id)
 			INNER JOIN jazzhands_legacy.v_acct_coll_acct_expanded ac
-		    		USING (account_collection_id)
+				USING (account_collection_id)
 			INNER JOIN jazzhands_legacy.account a USING (account_id)
 			INNER JOIN jazzhands_legacy.v_device_coll_hier_detail dchd ON
-		    		dchd.parent_device_collection_id =
-		    			dcssh.device_collection_id
-    	UNION
+				dchd.parent_device_collection_id =
+					dcssh.device_collection_id
+	UNION
 	   SELECT  NULL as device_collection_id,
-	    		account_id,
-	    		ssh_public_key
+			account_id,
+			ssh_public_key
 	    FROM    jazzhands.account_ssh_key ask
 	    INNER JOIN jazzhands.ssh_key skey using (ssh_key_id)
     ) keylist
@@ -2799,9 +2799,9 @@ SELECT * FROM  (
 				dr.dns_value,
 				dnb.ip_address AS ip,
 				dnb.ip_address, dnb.netblock_id
-		  	from  jazzhands.dns_record dr
-		    	INNER JOIN jazzhands.dns_domain dom USING (dns_domain_id)
-		    	LEFT JOIN jazzhands.netblock dnb USING (netblock_id)
+			FROM  jazzhands.dns_record dr
+			INNER JOIN jazzhands.dns_domain dom USING (dns_domain_id)
+			LEFT JOIN jazzhands.netblock dnb USING (netblock_id)
 	    ) dv ON d.dns_value_record_id = dv.dns_record_id
 	UNION ALL
        SELECT
@@ -2828,13 +2828,14 @@ SELECT * FROM  (
 	FROM (
        SELECT
 		network_range_id,
-	    	dns_domain_id,
+		dns_domain_id,
 		nbstart.ip_universe_id,
-	    	dns_prefix,
+		coalesce(dns_prefix, default_dns_prefix) as dns_prefix,
 		nbstart.ip_address +
 			generate_series(0, nbstop.ip_address - nbstart.ip_address)
 			as ip
 	  from  jazzhands.network_range dr
+		INNER JOIN val_network_range_type USING (network_range_type)
 		INNER JOIN jazzhands.netblock nbstart
 		    ON dr.start_netblock_id = nbstart.netblock_id
 		INNER JOIN jazzhands.netblock nbstop
@@ -2902,7 +2903,7 @@ FROM x;
 -- Copyright (c) 2016, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_rvs AS
 WITH x AS NOT MATERIALIZED (
-SELECT 	NULL::integer	as dns_record_id,
+SELECT	NULL::integer	as dns_record_id,
 		network_range_id,
 		dns_domain_id,
 		CASE WHEN family(ip)= 4
@@ -2959,22 +2960,23 @@ UNION ALL
 			dns_domain_name, NULL as dns_ttl, network(ip) as ip_base,
 			ip_universe_id,
 			'Y' as is_enabled,
-	    	'N' AS should_generate_ptr,
+		'N' AS should_generate_ptr,
 			NULL as netblock_id
 	from (
-       	select
+	select
 		network_range_id,
-			nbstart.ip_universe_id,
-	    	dns_domain_id,
-	    	dns_prefix,
+		nbstart.ip_universe_id,
+		dns_domain_id,
+		coalesce(dns_prefix, default_dns_prefix) as dns_prefix,
 		nbstart.ip_address +
 			generate_series(0, nbstop.ip_address - nbstart.ip_address)
 			as ip
-	  	from  jazzhands.network_range dr
+		from  jazzhands.network_range dr
+			INNER JOIN val_network_range_type USING (network_range_type)
 			inner join jazzhands.netblock nbstart
-		    	on dr.start_netblock_id = nbstart.netblock_id
+				on dr.start_netblock_id = nbstart.netblock_id
 			inner join jazzhands.netblock nbstop
-		    	on dr.stop_netblock_id = nbstop.netblock_id
+				on dr.stop_netblock_id = nbstop.netblock_id
 		where	dns_domain_id is NOT NULL
 	) range
 		inner join jazzhands.dns_domain dom
@@ -3297,7 +3299,7 @@ UNION ALL
 	WHERE	NOT x.cycle
 ) SELECT	distinct root_collection_id as netblock_collection_id,
 		netblock_id as netblock_id
-  from 		var_recurse
+  from	var_recurse
 	join jazzhands.netblock_collection_netblock using (netblock_collection_id);
 
 
@@ -3712,7 +3714,7 @@ FROM	jazzhands_legacy.v_acct_coll_acct_expanded_detail uued
 	INNER JOIN jazzhands_legacy.account a ON uued.account_id = a.account_id
 	INNER JOIN jazzhands_legacy.account_realm ar ON a.account_realm_id = ar.account_realm_id
 	LEFT JOIN jazzhands_legacy.v_device_coll_hier_detail dchd
-  		ON (dchd.parent_device_collection_id = upo.device_collection_id)
+		ON (dchd.parent_device_collection_id = upo.device_collection_id)
 ORDER BY device_collection_level,
    CASE WHEN u.Account_Collection_type = 'per-account' THEN 0
 	WHEN u.Account_Collection_type = 'property' THEN 1
@@ -3778,7 +3780,7 @@ WITH RECURSIVE var_recurse(
 		(select child_device_collection_id from device_collection_hier)
 UNION ALL
 	SELECT	x.role_level + 1				as role_level,
-		dch.device_collection_id 			as role_id,
+			dch.device_collection_id		as role_id,
 		dch.device_collection_id 		as parent_role_id,
 		x.root_role_id 					as root_role_id,
 		x.root_role_name 				as root_role_name,
@@ -3857,7 +3859,7 @@ CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
 		property_value_password_type,
 		property_value_token_col_id,
 		property_rank,
-		is_multivalue,
+		CASE WHEN is_multivalue = 'Y' THEN true ELSE false END AS is_multivalue,
 		CASE ac.account_collection_type
 			WHEN 'per-account' THEN 0
 			ELSE CASE assign_method
@@ -3866,7 +3868,7 @@ CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
 				WHEN 'DepartmentAssignedToAccountCollection' THEN 300
 						+ dept_level + acct_coll_level
 				WHEN 'AccountAssignedToChildDepartment' THEN 400
-						+ dept_level 
+						+ dept_level
 				WHEN 'AccountAssignedToChildAccountCollection' THEN 500
 						+ acct_coll_level
 				WHEN 'DepartmentAssignedToChildAccountCollection' THEN 600
@@ -3965,19 +3967,19 @@ GROUP BY device_collection_id, account_collection_id
 -- for credentials management
 --
 CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_mclass_settings AS
-SELECT device_collection_id, 
+SELECT device_collection_id,
 	array_agg(setting ORDER BY rn) AS mclass_setting
 FROM (
 	SELECT *, row_number() over () AS rn FROM (
-		SELECT device_collection_id, 
+		SELECT device_collection_id,
 				unnest(ARRAY[property_name, property_value]) AS setting
 		FROM (
-			SELECT  dcd.device_collection_id, 
-					p.property_name, 
-					coalesce(p.property_value, 
+			SELECT  dcd.device_collection_id,
+					p.property_name,
+					coalesce(p.property_value,
 						p.property_value_password_type
 					) as property_value,
-					row_number() OVER (partition by 
+					row_number() OVER (partition by
 							dcd.device_collection_id,
 							p.property_name
 							ORDER BY dcd.device_collection_level, property_id
@@ -4025,11 +4027,11 @@ AND dcu.property_type = 'MclassUnixProp';
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_unixgroup AS
 SELECT DISTINCT dchd.device_collection_id, ace.account_collection_id
 FROM jazzhands_legacy.v_device_coll_hier_detail dchd
-	JOIN jazzhands_legacy.v_property dcu 
+	JOIN jazzhands_legacy.v_property dcu
 		ON dcu.device_collection_id = dchd.parent_device_collection_id
-	JOIN jazzhands_legacy.v_acct_coll_expanded ace 
+	JOIN jazzhands_legacy.v_acct_coll_expanded ace
 		ON dcu.account_collection_id = ace.root_account_collection_id
-WHERE dcu.property_name = 'UnixGroup' 
+WHERE dcu.property_name = 'UnixGroup'
 AND dcu.property_type = 'MclassUnixProp';
 
 -- Copyright (c) 2014-2017, Todd M. Kover
@@ -5604,19 +5606,37 @@ FROM jazzhands.public_key_hash;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_x509_fingerprint_hash_algorithm AS
-SELECT x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.val_x509_fingerprint_hash_algorithm;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate_fingerprint AS
-SELECT x509_signed_certificate_id, x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm, fingerprint, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT x509_signed_certificate_id,
+	cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
+	fingerprint,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.x509_signed_certificate_fingerprint;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash_hash AS
-SELECT public_key_hash_id, x509_fingerprint_hash_algorighm, cryptographic_hash_algorithm, calculated_hash, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT public_key_hash_id,
+	cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
+	calculated_hash,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.public_key_hash_hash;
 
 
