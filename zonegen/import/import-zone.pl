@@ -22,6 +22,7 @@
 
 # TODO: reevaluate how $numchanges is set with DB*, particularly update.
 #	Look at all the exception harcodings around pools and whatnot. (next/r if..
+# 	standardize and document debugging
 
 use warnings;
 use strict;
@@ -165,7 +166,7 @@ sub bleed_universes($$$) {
 
 	$sth->bind_param( ':name',   $new->{dns_name} )      || die $sth->errstr;
 	$sth->bind_param( ':type',   $new->{dns_type} )      || die $sth->errstr;
-	$sth->bind_param( ':ip',    $nb->{ip_address} ) || die $sth->errstr;
+	$sth->bind_param( ':ip',     $nb->{ip_address} )     || die $sth->errstr;
 	$sth->bind_param( ':domain', $new->{dns_domain_id} ) || die $sth->errstr;
 
 	$sth->execute() || die $sth->errstr;
@@ -863,11 +864,10 @@ sub refresh_dns_record {
 		} elsif ( $self->{_namespace}
 			&& ( defined( my $x = $self->guess_universe($address) ) ) )
 		{
-			# XXX move to high debugging
-			warn "... Redefining Universe to $x" if ( $x ne $universe );
+			$self->_Debug( 9, "Redefining Universe to $x") if ( $x ne $universe );
 			$universe = $x;
 		} else {
-			if(defined(my $x = $self->get_universe($address))) {
+			if ( defined( my $x = $self->get_universe($address) ) ) {
 				$universe = $x;
 			}
 		}
@@ -877,7 +877,7 @@ sub refresh_dns_record {
 			'is_single_address'      => 'Y',
 			'netblock_type'          => 'default',
 			'host(ip_address)::inet' => $address,
-			ip_universe_id  => $universe,
+			ip_universe_id           => $universe,
 		};
 		$nb = $self->DBFetch(
 			table           => 'netblock',
@@ -922,7 +922,7 @@ sub refresh_dns_record {
 				is_single_address => 'Y',
 				can_subnet        => 'N',
 				netblock_status   => 'Allocated',
-				ip_universe_id		=> $universe,
+				ip_universe_id    => $universe,
 			};
 
 			$self->dbh->do("SAVEPOINT biteme");
@@ -936,7 +936,7 @@ sub refresh_dns_record {
 					is_single_address => 'N',
 					can_subnet        => 'N',
 					netblock_status   => 'Allocated',
-					ip_universe_id		=> $universe,
+					ip_universe_id    => $universe,
 				};
 				$pnb->{ip_universe_id} = $universe if ( defined($universe) );
 				my $x = $self->DBInsert(
@@ -972,6 +972,7 @@ sub refresh_dns_record {
 						$self->_Debug( 1,
 							"Skipping IP %s creation due to failure: %s",
 							$address, $e );
+
 						# not returning to give universe bleeding a chance
 						# in the next section.  If that does not work, then
 						# it will result in an error.
@@ -1079,7 +1080,7 @@ sub refresh_dns_record {
 		#
 		# This means the network was not found above given existing rules so
 		# this is a last ditch effort to try universe bleeding.
-		if ( !$nb->{netblock_id} && $self->{universebleed}) {
+		if ( !$nb->{netblock_id} && $self->{universebleed} ) {
 			$new = $self->bleed_universes( $new, $nb );
 		}
 		$numchanges += $self->DBInsert(
@@ -1261,9 +1262,9 @@ sub process_zone($$$;$) {
 				}
 			}
 			$new->{value} = $rr->ptrdname;
-
-			# if the PTR is for an IP looking thing, then tack on a .
-			$new->{value} .= ".";    # XXX - ugh if ( $isip );
+			if($new->{value} !~ s/\.$zone$//) {
+				$new->{value} .= ".";
+			}
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
 			my $ptr = $self->get_inaddr( $rr->address );
 
@@ -1301,7 +1302,9 @@ sub process_zone($$$;$) {
 			$new->{value} = $rr->txtdata;
 		} elsif ( $rr->type eq 'NS' ) {
 
-			# XXX may want to consider this check to be optional.
+			# XXX Want to make all this smarter (if importing a subzone,
+			# clear from the parent, if the subzone is there, ignore, possibly
+			# flag that it's different if it is.
 			if ( defined($name) && length($name) ) {
 				my @errs;
 				my $count = $self->DBFetch(
@@ -1387,13 +1390,15 @@ sub do_zone_load {
 	my $app    = 'zoneimport';
 	my $nbrule = 'skip';
 	my (
-		$ns,               $verbose,      $addsvr,
-		$nodelete,         $debug,        $dryrun,
-		$universe,         $v6universe,   $shouldgenerate,
-		@alloweduniverses, $file,         $universebleed,
-		$soauniverse,      @ignoreprefix, $linknetwork,
-		$namespace,        @forceinaddr,  @loopback,
+		$ns,           $verbose,        $addsvr,
+		$nodelete,     $debug,          $dryrun,
+		$v6universe,   $shouldgenerate, @alloweduniverses,
+		$file,         $universebleed,  $soauniverse,
+		@ignoreprefix, $linknetwork,    $namespace,
+		@forceinaddr,  @loopback,
 	);
+
+	my $universe = 'default';
 
 	my $r = GetOptions(
 		"dry-run|n"           => \$dryrun,
@@ -1420,6 +1425,10 @@ sub do_zone_load {
 
 	$verbose = 1 if ($debug);
 
+	if ( !scalar @ARGV ) {
+		die "Must specify at least one zone\n";
+	}
+
 	if ( defined($nbrule) ) {
 		die "--unknown-netblocks can be skip, insert, iponly\n"
 		  if ( $nbrule ne 'skip'
@@ -1443,11 +1452,8 @@ sub do_zone_load {
 				last;
 			}
 		} else {
-			die "no nameserver $ns\n";
+			die "Nameserver $ns does not have an address\n";
 		}
-	} else {
-		die
-		  "Must specify a nameserver for now to axfr from, at least to deal with files.  This probably needs some attention XXX";
 	}
 
 	if ( $file && scalar(@ARGV) != 1 ) {
@@ -1474,11 +1480,27 @@ sub do_zone_load {
 	$ziw->{shouldgenerate} = ($shouldgenerate) ? 'Y' : 'N';
 	$ziw->{nameserver}     = $ns if ($ns);
 
-	# XXX need to error check
-	$ziw->{ip_universe} = $ziw->find_universe($universe);
-	$ziw->{v6_universe} = $ziw->find_universe($v6universe) if ($v6universe);
+	if ( !defined( $ziw->{ip_universe} = $ziw->find_universe($universe) ) ) {
+		die "Unknown universe $universe\n";
+	}
+	if ($v6universe) {
+		if (
+			!defined( $ziw->{v6_universe} = $ziw->find_universe($v6universe) ) )
+		{
+			die "Unkonwn (v6) universe $v6universe\n";
+		}
+	}
 
-	$ziw->{soa_universe} = $ziw->find_universe($soauniverse) if ($soauniverse);
+	if ($soauniverse) {
+		if (
+			!defined(
+				$ziw->{soa_universe} = $ziw->find_universe($soauniverse)
+			)
+		  )
+		{
+			die "Unknown (soa) universe $soauniverse\n";
+		}
+	}
 
 	foreach my $zone (@ARGV) {
 		$ziw->_Debug( 1, "Processing zone %s (%s)", $zone, $universe );
