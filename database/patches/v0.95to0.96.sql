@@ -43,6 +43,8 @@ Invoked:
 	--last
 	jazzhands_legacy.v_device_coll_hier_detail
 	--last
+	jazzhands_legacy.v_dev_col_root
+	--last
 	jazzhands_legacy.v_device_col_acct_col_expanded
 	--last
 	jazzhands_legacy.v_acct_coll_expanded
@@ -8723,8 +8725,7 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 DROP VIEW IF EXISTS jazzhands_legacy.public_key_hash_hash;
 CREATE VIEW jazzhands_legacy.public_key_hash_hash AS
  SELECT public_key_hash_hash.public_key_hash_id,
-    public_key_hash_hash.x509_fingerprint_hash_algorighm,
-    public_key_hash_hash.cryptographic_hash_algorithm,
+    public_key_hash_hash.cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
     public_key_hash_hash.calculated_hash,
     public_key_hash_hash.data_ins_user,
     public_key_hash_hash.data_ins_date,
@@ -9045,7 +9046,10 @@ CREATE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
     v_property.property_value_password_type,
     v_property.property_value_token_col_id,
     v_property.property_rank,
-    val_property.is_multivalue,
+        CASE
+            WHEN val_property.is_multivalue = 'Y'::text THEN true
+            ELSE false
+        END AS is_multivalue,
         CASE ac.account_collection_type
             WHEN 'per-account'::text THEN 0
             ELSE
@@ -9466,31 +9470,6 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_department_company_expanded');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new v_department_company_expanded failed but that is ok';
-	NULL;
-END;
-$$;
-
---- processing view v_dev_col_root in ancilary schema
---------------------------------------------------------------------
--- BEGIN: DEALING WITH TABLE v_dev_col_root
-SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_dev_col_root', tags := ARRAY['view_v_dev_col_root']);
-DROP VIEW IF EXISTS jazzhands_legacy.v_dev_col_root;
--- DONE DEALING WITH OLD TABLE v_dev_col_root (jazzhands_legacy)
---------------------------------------------------------------------
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_dev_col_root');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of old v_dev_col_root failed but that is ok';
-	NULL;
-END;
-$$;
-
-DO $$
-BEGIN
-	DELETE FROM __regrants WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_dev_col_root');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of grants on dropped v_dev_col_root failed but that is ok';
 	NULL;
 END;
 $$;
@@ -10033,8 +10012,7 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 DROP VIEW IF EXISTS jazzhands_legacy.val_x509_fingerprint_hash_algorithm;
 CREATE VIEW jazzhands_legacy.val_x509_fingerprint_hash_algorithm AS
- SELECT val_x509_fingerprint_hash_algorithm.x509_fingerprint_hash_algorighm,
-    val_x509_fingerprint_hash_algorithm.cryptographic_hash_algorithm,
+ SELECT val_x509_fingerprint_hash_algorithm.cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
     val_x509_fingerprint_hash_algorithm.description,
     val_x509_fingerprint_hash_algorithm.data_ins_user,
     val_x509_fingerprint_hash_algorithm.data_ins_date,
@@ -10179,8 +10157,7 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 DROP VIEW IF EXISTS jazzhands_legacy.x509_signed_certificate_fingerprint;
 CREATE VIEW jazzhands_legacy.x509_signed_certificate_fingerprint AS
  SELECT x509_signed_certificate_fingerprint.x509_signed_certificate_id,
-    x509_signed_certificate_fingerprint.x509_fingerprint_hash_algorighm,
-    x509_signed_certificate_fingerprint.cryptographic_hash_algorithm,
+    x509_signed_certificate_fingerprint.cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
     x509_signed_certificate_fingerprint.fingerprint,
     x509_signed_certificate_fingerprint.description,
     x509_signed_certificate_fingerprint.data_ins_user,
@@ -10693,6 +10670,101 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_device_coll_hier_detail');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new v_device_coll_hier_detail failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- processing view v_dev_col_root in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE v_dev_col_root
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_dev_col_root', 'v_dev_col_root');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_dev_col_root', tags := ARRAY['view_v_dev_col_root']);
+-- restore any missing random views that may be cached that this one needs.
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+DROP VIEW IF EXISTS jazzhands_legacy.v_dev_col_root;
+CREATE VIEW jazzhands_legacy.v_dev_col_root AS
+ WITH x AS (
+         SELECT c.device_collection_id AS leaf_id,
+            c.device_collection_name AS leaf_name,
+            c.device_collection_type AS leaf_type,
+            p.device_collection_id AS root_id,
+            p.device_collection_name AS root_name,
+            p.device_collection_type AS root_type,
+            dch.device_collection_level
+           FROM jazzhands_legacy.device_collection c
+             JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON dch.device_collection_id = c.device_collection_id
+             JOIN jazzhands_legacy.device_collection p ON dch.parent_device_collection_id = p.device_collection_id AND p.device_collection_type::text = c.device_collection_type::text
+        )
+ SELECT xx.root_id,
+    xx.root_name,
+    xx.root_type,
+    xx.leaf_id,
+    xx.leaf_name,
+    xx.leaf_type
+   FROM ( SELECT x.root_id,
+            x.root_name,
+            x.root_type,
+            x.leaf_id,
+            x.leaf_name,
+            x.leaf_type,
+            x.device_collection_level,
+            row_number() OVER (PARTITION BY x.leaf_id ORDER BY x.device_collection_level DESC) AS rn
+           FROM x) xx
+  WHERE xx.rn = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('v_dev_col_root','v_dev_col_root');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_dev_col_root failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('v_dev_col_root');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_dev_col_root  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_dev_col_root (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_dev_col_root');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_dev_col_root failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_dev_col_root');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_dev_col_root failed but that is ok';
 	NULL;
 END;
 $$;
@@ -13094,9 +13166,10 @@ CREATE VIEW jazzhands_legacy.v_dns_fwd AS
                    FROM ( SELECT dr.network_range_id,
                             dr.dns_domain_id,
                             nbstart.ip_universe_id,
-                            dr.dns_prefix,
+                            COALESCE(dr.dns_prefix, val_network_range_type.default_dns_prefix) AS dns_prefix,
                             nbstart.ip_address + generate_series(0::bigint, nbstop.ip_address - nbstart.ip_address) AS ip
                            FROM jazzhands.network_range dr
+                             JOIN jazzhands.val_network_range_type USING (network_range_type)
                              JOIN jazzhands.netblock nbstart ON dr.start_netblock_id = nbstart.netblock_id
                              JOIN jazzhands.netblock nbstop ON dr.stop_netblock_id = nbstop.netblock_id
                           WHERE dr.dns_domain_id IS NOT NULL) range) u
@@ -13278,9 +13351,10 @@ CREATE VIEW jazzhands_legacy.v_dns_rvs AS
                    FROM ( SELECT dr.network_range_id,
                             nbstart.ip_universe_id,
                             dr.dns_domain_id,
-                            dr.dns_prefix,
+                            COALESCE(dr.dns_prefix, val_network_range_type.default_dns_prefix) AS dns_prefix,
                             nbstart.ip_address + generate_series(0::bigint, nbstop.ip_address - nbstart.ip_address) AS ip
                            FROM jazzhands.network_range dr
+                             JOIN jazzhands.val_network_range_type USING (network_range_type)
                              JOIN jazzhands.netblock nbstart ON dr.start_netblock_id = nbstart.netblock_id
                              JOIN jazzhands.netblock nbstop ON dr.stop_netblock_id = nbstop.netblock_id
                           WHERE dr.dns_domain_id IS NOT NULL) range
