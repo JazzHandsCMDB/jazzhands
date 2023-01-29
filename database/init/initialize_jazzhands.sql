@@ -530,9 +530,13 @@ VALUES
 	('Defaults', '_authdns', 'string', true,
 		'Default Nameserver for zone');
 
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('retired');
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('vanity');
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE)
+VALUES
+	('service'),
+	('reverse'),
+	('retired'),
+	('vanity')
+;
 
 insert into val_dns_class (dns_class) values ('IN');
 insert into val_dns_class (dns_class) values ('HESOID');
@@ -567,6 +571,7 @@ insert into val_dns_type (dns_type,id_type) values ('PX', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('RP', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('RT', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SIG', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('SSHFP', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SOA', 'LINK');
 insert into val_dns_type (dns_type,id_type) values ('SPF', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SRV', 'NON-ID');
