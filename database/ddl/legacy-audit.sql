@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021 Todd Kover
+ * Copyright (c) 2019-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,33 +57,6 @@ SELECT "account_id",
 	key_usage_reason_for_assignment AS key_usage_reason_for_assign,
 	"data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.account_assigned_certificate;
-
-
-
--- XXX - Type change
-CREATE OR REPLACE VIEW audit.account_auth_log AS
-SELECT
-	"account_id",
-	account_authentication_timestamp AS "account_auth_ts",
-	authentication_resource AS "auth_resource",
-	account_authentication_seq AS "account_auth_seq",
-	CASE WHEN was_authentication_successful IS NULL THEN NULL
-		WHEN was_authentication_successful = true THEN 'Y'
-		WHEN was_authentication_successful = false THEN 'N'
-		ELSE NULL
-	END AS was_auth_success,
-	"authentication_resource_instance" AS auth_resource_instance,
-	"authentication_origin" AS auth_origin,
-	"data_ins_date",
-	"data_ins_user",
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	"aud#seq"
-FROM jazzhands_audit.account_authentication_log;
-
 
 
 CREATE OR REPLACE VIEW audit.account_coll_type_relation AS
@@ -1607,8 +1580,23 @@ FROM jazzhands_audit.physical_connection;
 
 
 CREATE OR REPLACE VIEW audit.physicalish_volume AS
-SELECT "physicalish_volume_id","physicalish_volume_name","physicalish_volume_type","device_id","logical_volume_id","component_id","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.physicalish_volume;
+SELECT	block_storage_device_id		AS physicalish_volume_id,
+	block_storage_device_name	AS physicalish_volume_name,
+	block_storage_device_type	AS physicalish_volume_type,
+	device_id,
+	logical_volume_id,
+	component_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM jazzhands_audit.block_storage_device;
 
 
 
@@ -3018,8 +3006,19 @@ FROM jazzhands_audit.val_physical_address_type;
 
 
 CREATE OR REPLACE VIEW audit.val_physicalish_volume_type AS
-SELECT "physicalish_volume_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_physicalish_volume_type;
+SELECT	block_storage_device_type AS physicalish_volume_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#seq"
+FROM jazzhands_audit.val_block_storage_device_type;
 
 
 
@@ -3383,23 +3382,23 @@ FROM jazzhands_audit.volume_group;
 -- Simple column rename
 CREATE OR REPLACE VIEW audit.volume_group_physicalish_vol AS
 SELECT
-	"physicalish_volume_id",
-	"volume_group_id",
-	"device_id",
-	"volume_group_primary_position" AS volume_group_primary_pos,
-	"volume_group_secondary_position" AS volume_group_secondary_pos,
-	"volume_group_relation",
-	"data_ins_user",
-	"data_ins_date",
-	"data_upd_user",
-	"data_upd_date",
+	block_storage_device_id AS physicalish_volume_id,
+	volume_group_id,
+	device_id,
+	volume_group_primary_position AS volume_group_primary_pos,
+	volume_group_secondary_position AS volume_group_secondary_pos,
+	volume_group_relation,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
 	"aud#action",
 	"aud#timestamp",
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
 	"aud#seq"
-FROM jazzhands_audit.volume_group_physicalish_volume;
+FROM jazzhands_audit.volume_group_block_storage_device;
 
 
 
@@ -3517,5 +3516,4 @@ FROM jazzhands_audit.x509_signed_certificate;
 --- v_network_interface_trans
 --- val_device_auto_mgmt_protocol
 --- val_snmp_commstr_type
-
 

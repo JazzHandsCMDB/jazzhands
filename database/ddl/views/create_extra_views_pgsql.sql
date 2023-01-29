@@ -22,7 +22,7 @@
 --
 
 -- Copyright (c) 2018, Matthew Ragan
--- Copyright (c) 2010-2021 Toed M. Kover
+-- Copyright (c) 2010-2023 Toed M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,7 +40,6 @@
 \ir pgsql/create_v_property.sql
 \ir pgsql/create_v_netblock_collection_netblock_expanded.sql
 \ir pgsql/create_v_person_company_expanded.sql
-\ir pgsql/create_v_department_company_expanded.sql
 -- \ir pgsql/create_v_acct_collection_user_expanded_detail.sql
 
 \ir create_token_views.sql
@@ -57,23 +56,16 @@
 \ir pgsql/create_v_device_components_json.sql
 \ir pgsql/create_v_device_component_summary.sql
 
+\ir pgsql/create_v_account_collection_account.sql
+\ir pgsql/create_v_account_collection_expanded.sql
+\ir pgsql/create_v_account_collection_account_expanded.sql
+
 \ir pgsql/create_v_device_slot_connections.sql
 
 \ir pgsql/create_v_device_collection_device_expanded.sql
-\ir pgsql/create_v_device_collection_hier_detail.sql
 \ir pgsql/create_v_account_collection_account.sql
-\ir pgsql/create_v_account_collection_expanded.sql
-\ir pgsql/create_v_account_collection_expanded_detail.sql
-\ir pgsql/create_v_account_collection_account_expanded.sql
-\ir pgsql/create_v_account_collection_account_expanded_detail.sql
-\ir create_v_device_collection_account_property_expanded.sql
-\ir pgsql/create_v_account_collection_property_expanded.sql
 
-\ir pgsql/create_v_device_collection_device_expanded.sql
 \ir pgsql/create_v_netblock_collection_expanded.sql
-
-\ir create_v_device_collection_root.sql
-\ir create_v_device_collection_device_root.sql
 
 \ir pgsql/create_v_application_role.sql
 
@@ -85,48 +77,17 @@
 \ir pgsql/create_v_netblock_hier_expanded.sql
 \ir pgsql/create_v_physical_connection.sql
 
-\ir create_v_device_collection_account_collection_expanded.sql
 \ir create_v_corp_family_account.sql
 
 \ir pgsql/create_v_person_company_hier.sql
 \ir create_v_person.sql
 \ir create_v_account_name.sql
 
--- possibly to replace v_device_col_acct_col_expanded
-\ir create_v_device_collection_account_collection_unix_login.sql
-\ir create_v_device_collection_account_collection_unix_group.sql
-
--- passwd file generation
-\ir pgsql/create_v_device_collection_account_ssh_key.sql
-\ir pgsql/create_v_unix_mclass_settings.sql
-
-\ir pgsql/create_v_unix_account_overrides.sql
-\ir pgsql/create_v_device_collection_account_cart.sql
-\ir pgsql/create_v_unix_passwd_mappings.sql
-
--- group file generation
-\ir pgsql/create_v_unix_group_overrides.sql
-\ir pgsql/create_v_device_collection_account_collection_cart.sql
-\ir pgsql/create_v_unix_group_mappings.sql
-
--- dns
-\ir create_v_dns_changes_pending.sql
-
--- logical volumes
-\ir pgsql/create_v_lv_hier.sql
-
 \ir create_v_account_manager_map.sql
 \ir pgsql/create_v_account_manager_hier.sql
 \ir approval/create_approval_views.sql
 -- not clear if this belongs in the approval views or not.  probably?
 \ir pgsql/create_v_approval_instance_step_expanded.sql
-
--- hotpants
-\ir create_v_hotpants_device_collection.sql
-\ir create_v_hotpants_token.sql
-\ir create_v_hotpants_client.sql
-\ir create_v_hotpants_account_attribute.sql
-\ir create_v_hotpants_device_collection_attribute.sql
 
 \ir pgsql/create_v_layer2_network_collection_expanded.sql
 \ir pgsql/create_v_layer3_network_collection_expanded.sql
@@ -138,7 +99,5 @@
 \ir create_v_service_endpoint_service_instance.sql
 \ir create_v_service_endpoint_expanded.sql
 
-\ir create_v_dns_fwd.sql
-\ir create_v_dns_rvs.sql
-\ir create_v_dns.sql
-\ir create_v_dns_sorted.sql
+-- deprecated >= 0.07.
+\ir create_physicalish_volume_compat.sql

@@ -46,13 +46,48 @@ BEGIN
 	INSERT INTO public_key_hash ( description ) VALUES ('JHTESTKEY1')
 		RETURNING public_key_hash_id INTO pkhid;
 
+	---- begin thing that will get deleted after column drop
+	BEGIN
+		INSERT INTO public_key_hash_hash (
+			public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash)
+		VALUES
+			(pkhid, 'sha1', '3d11fabecb351b2acf5e770a74d982f60aabd722'),
+			(pkhid, 'sha256', 'fdda3d3506725d80cbdafe4eace4ec7e1b17be8e3c1cf2f5551af3b41d6053c1');
+
+		RAISE NOTICE '... private key1';
+		INSERT INTO private_key (
+			private_key_encryption_type, public_key_hash_id, private_key
+		) VALUES (
+			'rsa', pkhid, '-----BEGIN RSA PRIVATE KEY-----
+MIICXQIBAAKBgQDMDwODyQHABd51w6oiCOGL7+Y5xOFl1Ag0vkCgjxtCypxQJKJw
+ob6f7ozzvjdZqMwuvMLq1JflY/T2C/6JN5a1Bc99A7k3kdNfiqgQLnmYHoEHYeRt
+++4aPrWouC8dasILGyC8Qxu66wc7Z7nlx2vRgnwK+2vGSF73WDN6ciFoEwIDAQAB
+AoGBAKtHOtsGABsOkhBlAMv6il6sKaF5uPuAwraKrrJWDDq+1/+JEHPbv6Z8VAFP
+OyRdw6zDMhRsB2c6xGU14huI9kxRv5hN8/G/ei2DJBFaYAK/ov+gWqDwrh2dTnmv
+CXT1WtMcCcs35hT0/Ol0p/pRIGmqMqJqDEP7bL29gTEe7FuhAkEA7Hc1Whq1DSX2
+K/nj1b41fe0KndQ/V+Bg4/5Y1iYo4DKBc+xCm7UkbFrnVRgRripSAcqcaVrh3VyB
+YI1LE5bJowJBANzqda5pUrjRmEYbDjYXmEJUsKWd8cNkVZDivI5EJsGnN/moEcFF
+DHj6P9JPZ8zKcPdSQSkRnQtbZgSJKnC+rtECQHseuoW2wCwfZuSQ0QL6bYmqgUua
+Nnz/1BMB3Klr5v6M7YA5NJk0IMnWLvrMdHA1ksth/jyQ2GdUgfyOtNd3PHcCQQDJ
+iI7hFK5lcrfyxL3bNP0vDem0vPkQIlk4+s+/DYc5xR34gI3p/d7aApn0d4IfPlN+
+HKjbGXlmIfRYkPWJszrxAkAO/L2Bxa37jiJhQIvzyP0YSPQP8TkJVd5ZAuZYdNoW
+XnIepxee5+AQOE9jbVhgZZ5zkso+hG4Ov9pMX/O1xbvy
+-----END RSA PRIVATE KEY-----'
+		) RETURNING * INTO key;
+		RAISE EXCEPTION 'a-ok' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE 'backwards compatability passed';
+	END;
+	---- end thing that will get deleted after column drop
+	--- below does the same key as above that was rolled back and does
+	--- it "correctly"
+
 	INSERT INTO public_key_hash_hash (
 		public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash)
 	VALUES
 		(pkhid, 'sha1', '3d11fabecb351b2acf5e770a74d982f60aabd722'),
 		(pkhid, 'sha256', 'fdda3d3506725d80cbdafe4eace4ec7e1b17be8e3c1cf2f5551af3b41d6053c1');
 
-	RAISE NOTICE '... private key1';
 	INSERT INTO private_key (
 		private_key_encryption_type, public_key_hash_id, private_key
 	) VALUES (
@@ -71,7 +106,7 @@ iI7hFK5lcrfyxL3bNP0vDem0vPkQIlk4+s+/DYc5xR34gI3p/d7aApn0d4IfPlN+
 HKjbGXlmIfRYkPWJszrxAkAO/L2Bxa37jiJhQIvzyP0YSPQP8TkJVd5ZAuZYdNoW
 XnIepxee5+AQOE9jbVhgZZ5zkso+hG4Ov9pMX/O1xbvy
 -----END RSA PRIVATE KEY-----'
-	) RETURNING * INTO key;
+		) RETURNING * INTO key;
 
 	RAISE NOTICE '... certificate signing request 1';
 	INSERT INTO certificate_signing_request (

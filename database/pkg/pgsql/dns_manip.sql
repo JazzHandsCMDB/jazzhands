@@ -1,4 +1,4 @@
--- Copyright (c) 2021, Todd M. Kover
+-- Copyright (c) 2021-2023, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -245,20 +245,23 @@ BEGIN
 	FROM val_dns_domain_type dt
 	WHERE dt.dns_domain_type = add_dns_domain.dns_domain_type;
 
-	EXECUTE '
+	BEGIN
 		INSERT INTO dns_domain (
 			dns_domain_name,
 			parent_dns_domain_id,
 			dns_domain_type
 		) VALUES (
-			$1,
-			$2,
-			$3
-		) RETURNING dns_domain_id' INTO domain_id
-		USING dns_domain_name,
+			add_dns_domain.dns_domain_name,
 			parent_id,
-			dns_domain_type
-	;
+			add_dns_domain.dns_domain_type
+		) RETURNING dns_domain_id INTO domain_id;
+	EXCEPTION WHEN unique_violation THEN
+		SELECT dns_domain_id
+		INTO domain_id
+		FROM dns_domain d
+		WHERE d.dns_domain_name = add_dns_domain.dns_domain_name;
+		RETURN domain_id;
+	END;
 
 	FOREACH univ IN ARRAY ip_universes
 	LOOP
