@@ -8355,6 +8355,152 @@ EXCEPTION WHEN undefined_table THEN
 END;
 $$;
 
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'dns_record_cname_checker');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'dns_record_cname_checker');
+CREATE OR REPLACE FUNCTION jazzhands.dns_record_cname_checker()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_dom	TEXT;
+BEGIN
+	--- XXX - need to seriously think about ip_universes here.
+	-- These should also move to the v_dns view once it's cached.  They were
+	-- there before, but it was too slow here.
+
+	SELECT dns_name, dns_domain_id, dns_class,
+		COUNT(*) FILTER (WHERE dns_type = 'CNAME') AS num_cnames,
+		COUNT(*) FILTER (WHERE dns_type != 'CNAME') AS num_not_cnames
+	INTO _r
+	FROM	(
+		SELECT dns_name, dns_domain_id, dns_type, dns_class, ip_universe_id
+			FROM dns_record
+			WHERE reference_dns_record_id IS NULL
+			AND is_enabled = 'Y'
+		UNION ALL
+		SELECT ref.dns_name, d.dns_domain_id, d.dns_type, d.dns_class,
+				d.ip_universe_id
+			FROM dns_record d
+			JOIN dns_record ref
+				ON ref.dns_record_id = d.reference_dns_record_id
+			WHERE d.is_enabled = 'Y'
+	) smash
+	WHERE lower(dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
+	AND dns_domain_id = NEW.dns_domain_id
+	AND ip_universe_id IN (
+			SELECT NEW.ip_universe_id
+		UNION
+			SELECT visible_ip_universe_id
+			FROM ip_universe_visibility
+			WHERE ip_universe_id = NEW.ip_universe_id
+	)
+	AND dns_class = NEW.dns_class
+	GROUP BY 1, 2, 3;
+
+	IF ( _r.num_cnames > 0 AND _r.num_not_cnames > 0 ) OR _r.num_cnames > 1 THEN
+		SELECT dns_domain_name INTO _dom FROM dns_domain
+		WHERE dns_domain_id = NEW.dns_domain_id ;
+
+		if NEW.dns_name IS NULL THEN
+			RAISE EXCEPTION '% may not have CNAME and other records (%/%)',
+				_dom, _r.num_cnames, _r.num_not_cnames
+				USING ERRCODE = 'unique_violation';
+		ELSE
+			RAISE EXCEPTION '%.% may not have CNAME and other records (%/%)',
+				NEW.dns_name, _dom, _r.num_cnames, _r.num_not_cnames
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('dns_record_cname_checker');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc dns_record_cname_checker failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'service_environment_ins');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_environment_ins');
+CREATE OR REPLACE FUNCTION jazzhands.service_environment_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_se	service_environment%ROWTYPE;
+BEGIN
+	IF NEW.service_environment_id IS NOT NULL THEN
+		INSERT INTO service_environment (
+			service_environment_id,
+			service_environment_name,
+			service_environment_type,
+			production_state,
+			description,
+			external_id
+		) VALUES (
+			NEW.service_environment_id,
+			NEW.service_environment_name,
+			'default',
+			NEW.production_state,
+			NEW.description,
+			NEW.external_id
+		) RETURNING * INTO _se;
+	ELSE
+		INSERT INTO service_environment (
+			service_environment_name,
+			service_environment_type,
+			production_state,
+			description,
+			external_id
+		) VALUES (
+			NEW.service_environment_name,
+			'default',
+			NEW.production_state,
+			NEW.description,
+			NEW.external_id
+		) RETURNING * INTO _se;
+
+	END IF;
+
+	NEW.service_environment_id		:= _se.service_environment_id;
+	NEW.service_environment_name	:= _se.service_environment_name;
+	NEW.production_state			:= _se.production_state;
+	NEW.description					:= _se.description;
+	NEW.external_id					:= _se.external_id;
+	NEW.data_ins_user				:= _se.data_ins_user;
+	NEW.data_ins_date				:= _se.data_ins_date;
+	NEW.data_upd_user				:= _se.data_upd_user;
+	NEW.data_upd_date				:= _se.data_upd_date;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('service_environment_ins');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc service_environment_ins failed but that is ok';
+	NULL;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS trigger_upd_v_hotpants_token ON jazzhands.v_hotpants_token;
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands'::text, object := 'upd_v_hotpants_token (  )'::text, tags := ARRAY['process_all_procs_in_schema_jazzhands'::text]);
 DROP FUNCTION IF EXISTS jazzhands.upd_v_hotpants_token (  );
@@ -9046,10 +9192,7 @@ CREATE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
     v_property.property_value_password_type,
     v_property.property_value_token_col_id,
     v_property.property_rank,
-        CASE
-            WHEN val_property.is_multivalue = 'Y'::text THEN true
-            ELSE false
-        END AS is_multivalue,
+    val_property.is_multivalue,
         CASE ac.account_collection_type
             WHEN 'per-account'::text THEN 0
             ELSE
@@ -10082,8 +10225,8 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 DROP VIEW IF EXISTS jazzhands_legacy.volume_group_physicalish_vol;
 CREATE VIEW jazzhands_legacy.volume_group_physicalish_vol AS
- SELECT volume_group_block_storage_device.volume_group_id,
-    volume_group_block_storage_device.block_storage_device_id AS physicalish_volume_id,
+ SELECT volume_group_block_storage_device.block_storage_device_id AS physicalish_volume_id,
+    volume_group_block_storage_device.volume_group_id,
     volume_group_block_storage_device.device_id,
     volume_group_block_storage_device.volume_group_primary_position,
     volume_group_block_storage_device.volume_group_secondary_position,
@@ -10431,7 +10574,7 @@ BEGIN
 			INTO _cmc;
 
 		NEW.device_mgmt_control_type	= _cmc.component_management_controller_type;
-	  	NEW.description					= _cmc.description;
+		NEW.description					= _cmc.description;
 
 		NEW.data_ins_user := _cmc.data_ins_user;
 		NEW.data_ins_date := _cmc.data_ins_date;
@@ -11224,7 +11367,7 @@ CREATE VIEW jazzhands_legacy.v_dev_col_user_prop_expanded AS
     a.account_status,
     ar.account_realm_id,
     ar.account_realm_name,
-    upo.is_enabled,
+    a.is_enabled,
     upo.property_type,
     upo.property_name,
     upo.property_rank,
