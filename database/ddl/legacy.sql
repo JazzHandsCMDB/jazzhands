@@ -3687,7 +3687,7 @@ SELECT
 	dchd.device_collection_id,
 	a.account_id, a.login, a.account_status,
 	ar.account_realm_id, ar.account_realm_name,
-	upo.is_enabled,
+	a.is_enabled,
 	upo.property_type property_type,
 	upo.property_name property_name,
 	upo.property_rank property_rank,
@@ -3857,7 +3857,7 @@ CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
 		property_value_password_type,
 		property_value_token_col_id,
 		property_rank,
-		CASE WHEN is_multivalue = 'Y' THEN true ELSE false END AS is_multivalue,
+		is_multivalue,
 		CASE ac.account_collection_type
 			WHEN 'per-account' THEN 0
 			ELSE CASE assign_method
@@ -5424,8 +5424,9 @@ FROM jazzhands.volume_group;
 
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.volume_group_physicalish_vol AS
-SELECT	volume_group_id,
+SELECT	
 	block_storage_device_id AS physicalish_volume_id,
+	volume_group_id,
 	device_id,
 	volume_group_primary_position,
 	volume_group_secondary_position,
