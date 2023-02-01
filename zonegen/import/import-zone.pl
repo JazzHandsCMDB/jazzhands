@@ -864,7 +864,8 @@ sub refresh_dns_record {
 		} elsif ( $self->{_namespace}
 			&& ( defined( my $x = $self->guess_universe($address) ) ) )
 		{
-			$self->_Debug( 9, "Redefining Universe to $x") if ( $x ne $universe );
+			$self->_Debug( 9, "Redefining Universe to $x" )
+			  if ( $x ne $universe );
 			$universe = $x;
 		} else {
 			if ( defined( my $x = $self->get_universe($address) ) ) {
@@ -1262,7 +1263,7 @@ sub process_zone($$$;$) {
 				}
 			}
 			$new->{value} = $rr->ptrdname;
-			if($new->{value} !~ s/\.$zone$//) {
+			if ( $new->{value} !~ s/\.$zone$// ) {
 				$new->{value} .= ".";
 			}
 		} elsif ( $rr->type eq 'A' || $rr->type eq 'AAAA' ) {
@@ -1470,16 +1471,6 @@ sub do_zone_load {
 	$ziw->{_namespace}    = $namespace;
 	$ziw->{force_inaddr}  = \@forceinaddr;
 
-	if ( scalar @alloweduniverses ) {
-		foreach my $u (@alloweduniverses) {
-			my $id = $ziw->find_universe($u);
-			die "Unknown universe $u\n" if ( !defined($id) );
-			push( @{ $ziw->{alloweduniverses} }, $id );
-		}
-	}
-	$ziw->{shouldgenerate} = ($shouldgenerate) ? 'Y' : 'N';
-	$ziw->{nameserver}     = $ns if ($ns);
-
 	if ( !defined( $ziw->{ip_universe} = $ziw->find_universe($universe) ) ) {
 		die "Unknown universe $universe\n";
 	}
@@ -1490,6 +1481,17 @@ sub do_zone_load {
 			die "Unkonwn (v6) universe $v6universe\n";
 		}
 	}
+
+	if ( scalar @alloweduniverses ) {
+		push( @{ $ziw->{alloweduniverses} }, $ziw->{ip_universe} );
+		foreach my $u (@alloweduniverses) {
+			my $id = $ziw->find_universe($u);
+			die "Unknown universe $u\n" if ( !defined($id) );
+			push( @{ $ziw->{alloweduniverses} }, $id );
+		}
+	}
+	$ziw->{shouldgenerate} = ($shouldgenerate) ? 'Y' : 'N';
+	$ziw->{nameserver}     = $ns if ($ns);
 
 	if ($soauniverse) {
 		if (
