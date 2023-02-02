@@ -2752,7 +2752,28 @@ WHERE ip_universe_id = 0
 -- Copyright (c) 2016, Todd M. Kover
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_fwd AS
-WITH x AS NOT MATERIALIZED (
+SELECT
+	dns_record_id,
+	network_range_id,
+	dns_domain_id,
+	dns_name,
+	dns_ttl,
+	dns_class,
+	dns_type,
+	dns_value,
+	dns_priority,
+	ip,
+	netblock_id,
+	ip_universe_id,
+	ref_record_id,
+	dns_srv_service,
+	dns_srv_protocol,
+	dns_srv_weight,
+	dns_srv_port,
+	is_enabled,
+	should_generate_ptr,
+	dns_value_record_id
+FROM (
 SELECT * FROM  (
 	SELECT
 		d.dns_record_id,
@@ -2874,7 +2895,12 @@ WHERE  dns_type NOT IN ('REVERSE_ZONE_BLOCK_PTR', 'DEFAULT_DNS_DOMAIN')
 	WHERE	dns_class = 'IN' AND dns_type = 'NS'
 	AND dns_name IS NULL
 	AND	parent_dns_domain_id is not NULL
-) SELECT
+)  x;
+
+-- Simple column rename
+-- Copyright (c) 2016, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_rvs AS
+SELECT
 	dns_record_id,
 	network_range_id,
 	dns_domain_id,
@@ -2887,20 +2913,15 @@ WHERE  dns_type NOT IN ('REVERSE_ZONE_BLOCK_PTR', 'DEFAULT_DNS_DOMAIN')
 	ip,
 	netblock_id,
 	ip_universe_id,
-	ref_record_id,
+	rdns_record_id,
 	dns_srv_service,
 	dns_srv_protocol,
 	dns_srv_weight,
-	dns_srv_port,
+	dns_srv_srv_port,
 	is_enabled,
 	should_generate_ptr,
 	dns_value_record_id
-FROM x;
-
--- Simple column rename
--- Copyright (c) 2016, Todd M. Kover
-CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_rvs AS
-WITH x AS NOT MATERIALIZED (
+FROM (
 SELECT	NULL::integer	as dns_record_id,
 		network_range_id,
 		dns_domain_id,
@@ -2991,33 +3012,11 @@ WHERE
 	AND ( set_masklen(ip, masklen(root.ip_address))
 			    <<= root.ip_address
 		)
-) SELECT
-	dns_record_id,
-	network_range_id,
-	dns_domain_id,
-	dns_name,
-	dns_ttl,
-	dns_class,
-	dns_type,
-	dns_value,
-	dns_priority,
-	ip,
-	netblock_id,
-	ip_universe_id,
-	rdns_record_id,
-	dns_srv_service,
-	dns_srv_protocol,
-	dns_srv_weight,
-	dns_srv_srv_port,
-	is_enabled,
-	should_generate_ptr,
-	dns_value_record_id
-FROM x;
+) x;
 
 -- Simple column rename
 -- Copyright (c) 2016-2017, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns AS
-WITH x AS NOT MATERIALIZED (
 SELECT d.dns_record_id,
 	d.network_range_id,
 	d.dns_domain_id,
@@ -3056,37 +3055,12 @@ FROM (
 	FROM jazzhands_legacy.ip_universe_visibility x, jazzhands_legacy.v_dns_rvs f
 	WHERE x.visible_ip_universe_id = f.ip_universe_id
 	OR    f.ip_universe_id IS NULL
-) d
-) SELECT
-	dns_record_id,
-	network_range_id,
-	dns_domain_id,
-	dns_name,
-	dns_ttl,
-	dns_class,
-	dns_type,
-	dns_value,
-	dns_priority,
-	ip,
-	netblock_id,
-	ip_universe_id,
-	ref_record_id,
-	dns_srv_service,
-	dns_srv_protocol,
-	dns_srv_weight,
-	dns_srv_port,
-	is_enabled,
-	should_generate_ptr,
-	dns_value_record_id
-FROM x;
+) d;
 
 -- Simple column rename
 -- Copyright (c) 2016, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_sorted AS
-WITH x AS NOT MATERIALIZED (
-SELECT *
-FROM (
-select  dns_record_id,
+SELECT  dns_record_id,
 	network_range_id,
 	dns_value_record_id,
 	dns_name,
@@ -3111,8 +3085,7 @@ select  dns_record_id,
 		ELSE 1
 	END as anchor_rank
   FROM	jazzhands_legacy.v_dns
-) dns
-order by
+ORDER BY
 	dns_domain_id,
 	CASE WHEN dns_name IS NULL THEN 0 ELSE 1 END,
 	CASE WHEN dns_type = 'NS' THEN 0
@@ -3125,29 +3098,7 @@ order by
 	anchor_record_id, anchor_rank,
 	dns_type,
 	ip, dns_value
-) SELECT
-	dns_record_id,
-	network_range_id,
-	dns_value_record_id,
-	dns_name,
-	dns_ttl,
-	dns_class,
-	dns_type,
-	dns_value,
-	dns_priority,
-	ip,
-	netblock_id,
-	ref_record_id,
-	dns_srv_service,
-	dns_srv_protocol,
-	dns_srv_weight,
-	dns_srv_port,
-	should_generate_ptr,
-	is_enabled,
-	dns_domain_id,
-	anchor_record_id,
-	anchor_rank
-FROM x;
+;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_l1_all_physical_ports AS
 WITH pp AS (
@@ -5424,7 +5375,7 @@ FROM jazzhands.volume_group;
 
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.volume_group_physicalish_vol AS
-SELECT	
+SELECT
 	block_storage_device_id AS physicalish_volume_id,
 	volume_group_id,
 	device_id,
@@ -5754,29 +5705,7 @@ OR
 -- Copyright (c) 2015, Todd M. Kover
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_token AS
-WITH x AS NOT MATERIALIZED (
 SELECT
-	token_id,
-	token_type,
-	token_status,
-	token_serial,
-	token_key,
-	zero_time,
-	time_modulo,
-	token_password,
-	is_token_locked,
-	token_unlock_time,
-	bad_logins,
-	token_sequence,
-	ts.last_updated as last_updated,
-	en.encryption_key_db_value,
-	en.encryption_key_purpose,
-	en.encryption_key_purpose_version,
-	en.encryption_method
-FROM	jazzhands.token t
-	INNER JOIN jazzhands.token_sequence ts USING (token_id)
-	LEFT JOIN jazzhands.encryption_key en USING (encryption_key_id)
-) SELECT
 	token_id,
 	token_type,
 	token_status,
@@ -5793,12 +5722,15 @@ FROM	jazzhands.token t
 	token_unlock_time,
 	bad_logins,
 	token_sequence,
-	last_updated,
-	encryption_key_db_value,
-	encryption_key_purpose,
-	encryption_key_purpose_version,
-	encryption_method
-FROM x;
+	ts.last_updated as last_updated,
+	en.encryption_key_db_value,
+	en.encryption_key_purpose,
+	en.encryption_key_purpose_version,
+	en.encryption_method
+FROM	jazzhands.token t
+	INNER JOIN jazzhands.token_sequence ts USING (token_id)
+	LEFT JOIN jazzhands.encryption_key en USING (encryption_key_id)
+;
 
 -- Copyright (c) 2016, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_account_attribute AS
