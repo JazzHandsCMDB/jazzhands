@@ -3066,7 +3066,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_name","logical_volume_type","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["filesystem_type","logical_volume_id"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_type","logical_volume_name","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -3324,7 +3324,7 @@ ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_rd_type;
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS ak_volume_group_devid_vgid;
@@ -9857,51 +9857,31 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 DROP VIEW IF EXISTS jazzhands_legacy.v_hotpants_token;
 CREATE VIEW jazzhands_legacy.v_hotpants_token AS
- WITH x AS NOT MATERIALIZED (
-         SELECT t.token_id,
-            t.token_type,
-            t.token_status,
-            t.token_serial,
-            t.token_key,
-            t.zero_time,
-            t.time_modulo,
-            t.token_password,
-            t.is_token_locked,
-            t.token_unlock_time,
-            t.bad_logins,
-            ts.token_sequence,
-            ts.last_updated,
-            en.encryption_key_db_value,
-            en.encryption_key_purpose,
-            en.encryption_key_purpose_version,
-            en.encryption_method
-           FROM jazzhands.token t
-             JOIN jazzhands.token_sequence ts USING (token_id)
-             LEFT JOIN jazzhands.encryption_key en USING (encryption_key_id)
-        )
- SELECT x.token_id,
-    x.token_type,
-    x.token_status,
-    x.token_serial,
-    x.token_key,
-    x.zero_time,
-    x.time_modulo,
-    x.token_password,
+ SELECT t.token_id,
+    t.token_type,
+    t.token_status,
+    t.token_serial,
+    t.token_key,
+    t.zero_time,
+    t.time_modulo,
+    t.token_password,
         CASE
-            WHEN x.is_token_locked IS NULL THEN NULL::text
-            WHEN x.is_token_locked = true THEN 'Y'::text
-            WHEN x.is_token_locked = false THEN 'N'::text
+            WHEN t.is_token_locked IS NULL THEN NULL::text
+            WHEN t.is_token_locked = true THEN 'Y'::text
+            WHEN t.is_token_locked = false THEN 'N'::text
             ELSE NULL::text
         END AS is_token_locked,
-    x.token_unlock_time,
-    x.bad_logins,
-    x.token_sequence,
-    x.last_updated,
-    x.encryption_key_db_value,
-    x.encryption_key_purpose,
-    x.encryption_key_purpose_version,
-    x.encryption_method
-   FROM x;
+    t.token_unlock_time,
+    t.bad_logins,
+    ts.token_sequence,
+    ts.last_updated,
+    en.encryption_key_db_value,
+    en.encryption_key_purpose,
+    en.encryption_key_purpose_version,
+    en.encryption_method
+   FROM jazzhands.token t
+     JOIN jazzhands.token_sequence ts USING (token_id)
+     LEFT JOIN jazzhands.encryption_key en USING (encryption_key_id);
 
 DO $$
 BEGIN
@@ -13204,8 +13184,27 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 DROP VIEW IF EXISTS jazzhands_legacy.v_dns_fwd;
 CREATE VIEW jazzhands_legacy.v_dns_fwd AS
- WITH x AS NOT MATERIALIZED (
-         SELECT u.dns_record_id,
+ SELECT x.dns_record_id,
+    x.network_range_id,
+    x.dns_domain_id,
+    x.dns_name,
+    x.dns_ttl,
+    x.dns_class,
+    x.dns_type,
+    x.dns_value,
+    x.dns_priority,
+    x.ip,
+    x.netblock_id,
+    x.ip_universe_id,
+    x.ref_record_id,
+    x.dns_srv_service,
+    x.dns_srv_protocol,
+    x.dns_srv_weight,
+    x.dns_srv_port,
+    x.is_enabled,
+    x.should_generate_ptr,
+    x.dns_value_record_id
+   FROM ( SELECT u.dns_record_id,
             u.network_range_id,
             u.dns_domain_id,
             u.dns_name,
@@ -13349,29 +13348,7 @@ CREATE VIEW jazzhands_legacy.v_dns_fwd AS
              JOIN ( SELECT dns_domain_1.dns_domain_id AS parent_dns_domain_id,
                     dns_domain_1.dns_domain_name AS parent_dns_domain_name
                    FROM jazzhands.dns_domain dns_domain_1) pdom USING (parent_dns_domain_id)
-          WHERE dns_record.dns_class::text = 'IN'::text AND dns_record.dns_type::text = 'NS'::text AND dns_record.dns_name IS NULL AND dns_domain.parent_dns_domain_id IS NOT NULL
-        )
- SELECT x.dns_record_id,
-    x.network_range_id,
-    x.dns_domain_id,
-    x.dns_name,
-    x.dns_ttl,
-    x.dns_class,
-    x.dns_type,
-    x.dns_value,
-    x.dns_priority,
-    x.ip,
-    x.netblock_id,
-    x.ip_universe_id,
-    x.ref_record_id,
-    x.dns_srv_service,
-    x.dns_srv_protocol,
-    x.dns_srv_weight,
-    x.dns_srv_port,
-    x.is_enabled,
-    x.should_generate_ptr,
-    x.dns_value_record_id
-   FROM x;
+          WHERE dns_record.dns_class::text = 'IN'::text AND dns_record.dns_type::text = 'NS'::text AND dns_record.dns_name IS NULL AND dns_domain.parent_dns_domain_id IS NOT NULL) x;
 
 DO $$
 BEGIN
@@ -13435,8 +13412,27 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 DROP VIEW IF EXISTS jazzhands_legacy.v_dns_rvs;
 CREATE VIEW jazzhands_legacy.v_dns_rvs AS
- WITH x AS NOT MATERIALIZED (
-         SELECT NULL::integer AS dns_record_id,
+ SELECT x.dns_record_id,
+    x.network_range_id,
+    x.dns_domain_id,
+    x.dns_name,
+    x.dns_ttl,
+    x.dns_class,
+    x.dns_type,
+    x.dns_value,
+    x.dns_priority,
+    x.ip,
+    x.netblock_id,
+    x.ip_universe_id,
+    x.rdns_record_id,
+    x.dns_srv_service,
+    x.dns_srv_protocol,
+    x.dns_srv_weight,
+    x.dns_srv_srv_port,
+    x.is_enabled,
+    x.should_generate_ptr,
+    x.dns_value_record_id
+   FROM ( SELECT NULL::integer AS dns_record_id,
             combo.network_range_id,
             rootd.dns_domain_id,
                 CASE
@@ -13505,29 +13501,7 @@ CREATE VIEW jazzhands_legacy.v_dns_rvs AS
             jazzhands.netblock root
              JOIN jazzhands.dns_record rootd ON rootd.netblock_id = root.netblock_id AND rootd.dns_type::text = 'REVERSE_ZONE_BLOCK_PTR'::text
              JOIN jazzhands.dns_domain dd USING (dns_domain_id)
-          WHERE family(root.ip_address) = family(combo.ip) AND set_masklen(combo.ip, masklen(root.ip_address)) <<= root.ip_address
-        )
- SELECT x.dns_record_id,
-    x.network_range_id,
-    x.dns_domain_id,
-    x.dns_name,
-    x.dns_ttl,
-    x.dns_class,
-    x.dns_type,
-    x.dns_value,
-    x.dns_priority,
-    x.ip,
-    x.netblock_id,
-    x.ip_universe_id,
-    x.rdns_record_id,
-    x.dns_srv_service,
-    x.dns_srv_protocol,
-    x.dns_srv_weight,
-    x.dns_srv_srv_port,
-    x.is_enabled,
-    x.should_generate_ptr,
-    x.dns_value_record_id
-   FROM x;
+          WHERE family(root.ip_address) = family(combo.ip) AND set_masklen(combo.ip, masklen(root.ip_address)) <<= root.ip_address) x;
 
 DO $$
 BEGIN
@@ -13594,144 +13568,121 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dns_rvs', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_dns;
 CREATE VIEW jazzhands_legacy.v_dns AS
- WITH x AS NOT MATERIALIZED (
-         SELECT d.dns_record_id,
-            d.network_range_id,
-            d.dns_domain_id,
-            d.dns_name,
-            d.dns_ttl,
-            d.dns_class,
-            d.dns_type,
-            d.dns_value,
-            d.dns_priority,
-            d.ip,
-            d.netblock_id,
-            d.real_ip_universe_id AS ip_universe_id,
-            d.ref_record_id,
-            d.dns_srv_service,
-            d.dns_srv_protocol,
-            d.dns_srv_weight,
-            d.dns_srv_port,
-            d.is_enabled,
-            d.should_generate_ptr,
-            d.dns_value_record_id
-           FROM ( SELECT f.ip_universe_id AS real_ip_universe_id,
-                    f.dns_record_id,
-                    f.network_range_id,
-                    f.dns_domain_id,
-                    f.dns_name,
-                    f.dns_ttl,
-                    f.dns_class,
-                    f.dns_type,
-                    f.dns_value,
-                    f.dns_priority,
-                    f.ip,
-                    f.netblock_id,
-                    f.ip_universe_id,
-                    f.ref_record_id,
-                    f.dns_srv_service,
-                    f.dns_srv_protocol,
-                    f.dns_srv_weight,
-                    f.dns_srv_port,
-                    f.is_enabled,
-                    f.should_generate_ptr,
-                    f.dns_value_record_id
-                   FROM jazzhands_legacy.v_dns_fwd f
-                UNION
-                 SELECT x_1.ip_universe_id AS real_ip_universe_id,
-                    f.dns_record_id,
-                    f.network_range_id,
-                    f.dns_domain_id,
-                    f.dns_name,
-                    f.dns_ttl,
-                    f.dns_class,
-                    f.dns_type,
-                    f.dns_value,
-                    f.dns_priority,
-                    f.ip,
-                    f.netblock_id,
-                    f.ip_universe_id,
-                    f.ref_record_id,
-                    f.dns_srv_service,
-                    f.dns_srv_protocol,
-                    f.dns_srv_weight,
-                    f.dns_srv_port,
-                    f.is_enabled,
-                    f.should_generate_ptr,
-                    f.dns_value_record_id
-                   FROM jazzhands_legacy.ip_universe_visibility x_1,
-                    jazzhands_legacy.v_dns_fwd f
-                  WHERE x_1.visible_ip_universe_id = f.ip_universe_id OR f.ip_universe_id IS NULL
-                UNION
-                 SELECT f.ip_universe_id AS real_ip_universe_id,
-                    f.dns_record_id,
-                    f.network_range_id,
-                    f.dns_domain_id,
-                    f.dns_name,
-                    f.dns_ttl,
-                    f.dns_class,
-                    f.dns_type,
-                    f.dns_value,
-                    f.dns_priority,
-                    f.ip,
-                    f.netblock_id,
-                    f.ip_universe_id,
-                    f.rdns_record_id,
-                    f.dns_srv_service,
-                    f.dns_srv_protocol,
-                    f.dns_srv_weight,
-                    f.dns_srv_srv_port,
-                    f.is_enabled,
-                    f.should_generate_ptr,
-                    f.dns_value_record_id
-                   FROM jazzhands_legacy.v_dns_rvs f
-                UNION
-                 SELECT x_1.ip_universe_id AS real_ip_universe_id,
-                    f.dns_record_id,
-                    f.network_range_id,
-                    f.dns_domain_id,
-                    f.dns_name,
-                    f.dns_ttl,
-                    f.dns_class,
-                    f.dns_type,
-                    f.dns_value,
-                    f.dns_priority,
-                    f.ip,
-                    f.netblock_id,
-                    f.ip_universe_id,
-                    f.rdns_record_id,
-                    f.dns_srv_service,
-                    f.dns_srv_protocol,
-                    f.dns_srv_weight,
-                    f.dns_srv_srv_port,
-                    f.is_enabled,
-                    f.should_generate_ptr,
-                    f.dns_value_record_id
-                   FROM jazzhands_legacy.ip_universe_visibility x_1,
-                    jazzhands_legacy.v_dns_rvs f
-                  WHERE x_1.visible_ip_universe_id = f.ip_universe_id OR f.ip_universe_id IS NULL) d
-        )
- SELECT x.dns_record_id,
-    x.network_range_id,
-    x.dns_domain_id,
-    x.dns_name,
-    x.dns_ttl,
-    x.dns_class,
-    x.dns_type,
-    x.dns_value,
-    x.dns_priority,
-    x.ip,
-    x.netblock_id,
-    x.ip_universe_id,
-    x.ref_record_id,
-    x.dns_srv_service,
-    x.dns_srv_protocol,
-    x.dns_srv_weight,
-    x.dns_srv_port,
-    x.is_enabled,
-    x.should_generate_ptr,
-    x.dns_value_record_id
-   FROM x;
+ SELECT d.dns_record_id,
+    d.network_range_id,
+    d.dns_domain_id,
+    d.dns_name,
+    d.dns_ttl,
+    d.dns_class,
+    d.dns_type,
+    d.dns_value,
+    d.dns_priority,
+    d.ip,
+    d.netblock_id,
+    d.real_ip_universe_id AS ip_universe_id,
+    d.ref_record_id,
+    d.dns_srv_service,
+    d.dns_srv_protocol,
+    d.dns_srv_weight,
+    d.dns_srv_port,
+    d.is_enabled,
+    d.should_generate_ptr,
+    d.dns_value_record_id
+   FROM ( SELECT f.ip_universe_id AS real_ip_universe_id,
+            f.dns_record_id,
+            f.network_range_id,
+            f.dns_domain_id,
+            f.dns_name,
+            f.dns_ttl,
+            f.dns_class,
+            f.dns_type,
+            f.dns_value,
+            f.dns_priority,
+            f.ip,
+            f.netblock_id,
+            f.ip_universe_id,
+            f.ref_record_id,
+            f.dns_srv_service,
+            f.dns_srv_protocol,
+            f.dns_srv_weight,
+            f.dns_srv_port,
+            f.is_enabled,
+            f.should_generate_ptr,
+            f.dns_value_record_id
+           FROM jazzhands_legacy.v_dns_fwd f
+        UNION
+         SELECT x.ip_universe_id AS real_ip_universe_id,
+            f.dns_record_id,
+            f.network_range_id,
+            f.dns_domain_id,
+            f.dns_name,
+            f.dns_ttl,
+            f.dns_class,
+            f.dns_type,
+            f.dns_value,
+            f.dns_priority,
+            f.ip,
+            f.netblock_id,
+            f.ip_universe_id,
+            f.ref_record_id,
+            f.dns_srv_service,
+            f.dns_srv_protocol,
+            f.dns_srv_weight,
+            f.dns_srv_port,
+            f.is_enabled,
+            f.should_generate_ptr,
+            f.dns_value_record_id
+           FROM jazzhands_legacy.ip_universe_visibility x,
+            jazzhands_legacy.v_dns_fwd f
+          WHERE x.visible_ip_universe_id = f.ip_universe_id OR f.ip_universe_id IS NULL
+        UNION
+         SELECT f.ip_universe_id AS real_ip_universe_id,
+            f.dns_record_id,
+            f.network_range_id,
+            f.dns_domain_id,
+            f.dns_name,
+            f.dns_ttl,
+            f.dns_class,
+            f.dns_type,
+            f.dns_value,
+            f.dns_priority,
+            f.ip,
+            f.netblock_id,
+            f.ip_universe_id,
+            f.rdns_record_id,
+            f.dns_srv_service,
+            f.dns_srv_protocol,
+            f.dns_srv_weight,
+            f.dns_srv_srv_port,
+            f.is_enabled,
+            f.should_generate_ptr,
+            f.dns_value_record_id
+           FROM jazzhands_legacy.v_dns_rvs f
+        UNION
+         SELECT x.ip_universe_id AS real_ip_universe_id,
+            f.dns_record_id,
+            f.network_range_id,
+            f.dns_domain_id,
+            f.dns_name,
+            f.dns_ttl,
+            f.dns_class,
+            f.dns_type,
+            f.dns_value,
+            f.dns_priority,
+            f.ip,
+            f.netblock_id,
+            f.ip_universe_id,
+            f.rdns_record_id,
+            f.dns_srv_service,
+            f.dns_srv_protocol,
+            f.dns_srv_weight,
+            f.dns_srv_srv_port,
+            f.is_enabled,
+            f.should_generate_ptr,
+            f.dns_value_record_id
+           FROM jazzhands_legacy.ip_universe_visibility x,
+            jazzhands_legacy.v_dns_rvs f
+          WHERE x.visible_ip_universe_id = f.ip_universe_id OR f.ip_universe_id IS NULL) d;
 
 DO $$
 BEGIN
@@ -13799,93 +13750,53 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dns', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_dns_sorted;
 CREATE VIEW jazzhands_legacy.v_dns_sorted AS
- WITH x AS NOT MATERIALIZED (
-         SELECT dns.dns_record_id,
-            dns.network_range_id,
-            dns.dns_value_record_id,
-            dns.dns_name,
-            dns.dns_ttl,
-            dns.dns_class,
-            dns.dns_type,
-            dns.dns_value,
-            dns.dns_priority,
-            dns.ip,
-            dns.netblock_id,
-            dns.ref_record_id,
-            dns.dns_srv_service,
-            dns.dns_srv_protocol,
-            dns.dns_srv_weight,
-            dns.dns_srv_port,
-            dns.should_generate_ptr,
-            dns.is_enabled,
-            dns.dns_domain_id,
-            dns.anchor_record_id,
-            dns.anchor_rank
-           FROM ( SELECT v_dns.dns_record_id,
-                    v_dns.network_range_id,
-                    v_dns.dns_value_record_id,
-                    v_dns.dns_name,
-                    v_dns.dns_ttl,
-                    v_dns.dns_class,
-                    v_dns.dns_type,
-                    v_dns.dns_value,
-                    v_dns.dns_priority,
-                    host(v_dns.ip) AS ip,
-                    v_dns.netblock_id,
-                    v_dns.ref_record_id,
-                    v_dns.dns_srv_service,
-                    v_dns.dns_srv_protocol,
-                    v_dns.dns_srv_weight,
-                    v_dns.dns_srv_port,
-                    v_dns.should_generate_ptr,
-                    v_dns.is_enabled,
-                    v_dns.dns_domain_id,
-                    COALESCE(v_dns.ref_record_id, v_dns.dns_value_record_id, v_dns.dns_record_id) AS anchor_record_id,
-                        CASE
-                            WHEN v_dns.ref_record_id IS NOT NULL THEN 2
-                            WHEN v_dns.dns_value_record_id IS NOT NULL THEN 3
-                            ELSE 1
-                        END AS anchor_rank
-                   FROM jazzhands_legacy.v_dns) dns
-          ORDER BY dns.dns_domain_id, (
-                CASE
-                    WHEN dns.dns_name IS NULL THEN 0
-                    ELSE 1
-                END), (
-                CASE
-                    WHEN dns.dns_type::text = 'NS'::text THEN 0
-                    WHEN dns.dns_type::text = 'PTR'::text THEN 1
-                    WHEN dns.dns_type::text = 'A'::text THEN 2
-                    WHEN dns.dns_type::text = 'AAAA'::text THEN 3
-                    ELSE 4
-                END), (
-                CASE
-                    WHEN dns.dns_type::text = 'PTR'::text THEN lpad(dns.dns_name::text, 10, '0'::text)
-                    ELSE NULL::text
-                END), dns.anchor_record_id, dns.anchor_rank, dns.dns_type, dns.ip, dns.dns_value
-        )
- SELECT x.dns_record_id,
-    x.network_range_id,
-    x.dns_value_record_id,
-    x.dns_name,
-    x.dns_ttl,
-    x.dns_class,
-    x.dns_type,
-    x.dns_value,
-    x.dns_priority,
-    x.ip,
-    x.netblock_id,
-    x.ref_record_id,
-    x.dns_srv_service,
-    x.dns_srv_protocol,
-    x.dns_srv_weight,
-    x.dns_srv_port,
-    x.should_generate_ptr,
-    x.is_enabled,
-    x.dns_domain_id,
-    x.anchor_record_id,
-    x.anchor_rank
-   FROM x;
+ SELECT v_dns.dns_record_id,
+    v_dns.network_range_id,
+    v_dns.dns_value_record_id,
+    v_dns.dns_name,
+    v_dns.dns_ttl,
+    v_dns.dns_class,
+    v_dns.dns_type,
+    v_dns.dns_value,
+    v_dns.dns_priority,
+    host(v_dns.ip) AS ip,
+    v_dns.netblock_id,
+    v_dns.ref_record_id,
+    v_dns.dns_srv_service,
+    v_dns.dns_srv_protocol,
+    v_dns.dns_srv_weight,
+    v_dns.dns_srv_port,
+    v_dns.should_generate_ptr,
+    v_dns.is_enabled,
+    v_dns.dns_domain_id,
+    COALESCE(v_dns.ref_record_id, v_dns.dns_value_record_id, v_dns.dns_record_id) AS anchor_record_id,
+        CASE
+            WHEN v_dns.ref_record_id IS NOT NULL THEN 2
+            WHEN v_dns.dns_value_record_id IS NOT NULL THEN 3
+            ELSE 1
+        END AS anchor_rank
+   FROM jazzhands_legacy.v_dns
+  ORDER BY v_dns.dns_domain_id, (
+        CASE
+            WHEN v_dns.dns_name IS NULL THEN 0
+            ELSE 1
+        END), (
+        CASE
+            WHEN v_dns.dns_type::text = 'NS'::text THEN 0
+            WHEN v_dns.dns_type::text = 'PTR'::text THEN 1
+            WHEN v_dns.dns_type::text = 'A'::text THEN 2
+            WHEN v_dns.dns_type::text = 'AAAA'::text THEN 3
+            ELSE 4
+        END), (
+        CASE
+            WHEN v_dns.dns_type::text = 'PTR'::text THEN lpad(v_dns.dns_name::text, 10, '0'::text)
+            ELSE NULL::text
+        END), (COALESCE(v_dns.ref_record_id, v_dns.dns_value_record_id, v_dns.dns_record_id)), (
+        CASE
+            WHEN v_dns.ref_record_id IS NOT NULL THEN 2
+            WHEN v_dns.dns_value_record_id IS NOT NULL THEN 3
+            ELSE 1
+        END), v_dns.dns_type, (host(v_dns.ip)), v_dns.dns_value;
 
 DO $$
 BEGIN
