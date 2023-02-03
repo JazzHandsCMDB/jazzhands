@@ -266,7 +266,7 @@ function setDevLinkRedir(dropfield, redirlink, root) {
 // more clear and eliminate much of the hacking.  No time now, though.  *sigh*
 //
 function showPhysical_ports(devidfld, devnamfld, physportid, portboxname, type, side) {
-	var url, devlink, tabtype;
+	var url, devlink;
 
 	if(portboxname == null) {
 		return;
@@ -286,9 +286,12 @@ function showPhysical_ports(devidfld, devnamfld, physportid, portboxname, type, 
 	devlink = document.getElementById(type+"_devlink_" + physportid);
 	if(devlink) {
 		if(devidfld && devidfld.value) {
-			devlink.href = "device.pl?devid=" + devidfld.value +";__default_tab__=" + tabtype;
+			devlink.href = "device.pl?devid=" + devidfld.value +";__default_tab__=Switchport";
+			devlink.onclick = '';
 		} else {
-			devlink.href = "javascript:void(null);";
+			//devlink.href = "javascript:void(null);";
+			devlink.href = "#";
+			devlink.onclick = function() { alert( "Can't open Other End device page as it's not set." ); return( false ); };
 		}
 	}
 
@@ -297,20 +300,31 @@ function showPhysical_ports(devidfld, devnamfld, physportid, portboxname, type, 
 	if(type != null && type.length > 0) {
 		url += ";type=" + type;
 	}
-	if(side != null) {
+	if( side !== 'undefined' ) {
 		url += ";side=" + side;
 	}
-	if(devidfld != null) {
+	if( devidfld != null ) {
 		url += ";DEVICE_ID=" + devidfld.value;
 	}
 	url += ";PHYSICAL_PORT_ID=" + physportid;
+
+	// Replace the Port dropdown by an ajax loaded while it's being updated
+	let obj = document.getElementById( portboxname );
+	let elementSpan = document.createElement( 'span' );
+	elementSpan.innerHTML = '<img src=\'../../stabcons/progress.gif\'/> Updating...';
+	elementSpan.style.display = 'inline-flex';
+	obj.parentElement.appendChild( elementSpan );
+	obj.style.display= 'none';
+
+	// Update the Port field
 	request.open("GET", url, true);
 	request.onreadystatechange = function () {
 		if(request.readyState == 4) {
 			var htmlgoo = request.responseText;
-			var obj = document.getElementById(portboxname);
 			var n = portboxname;
 			obj.innerHTML = htmlgoo;
+			obj.style.display = '';
+			obj.parentElement.removeChild( elementSpan );
 			portboxname = null;
 		}
 	}
@@ -1357,7 +1371,7 @@ $(document).ready(function(){
 	});
 
 	// Add change tracking to relevant elements (those having the 'tracked' class)
-	$('div.maindiv').on( 'change keyup', '.tracked', function( event ) {
+	$('div.maindiv').on( 'change keyup input', '.tracked', function( event ) {
 		// Get the element that triggered the event
 		let element = $(this)[0];
 		updateChangeTrackingStatus( element );

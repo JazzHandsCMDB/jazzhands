@@ -581,9 +581,15 @@ sub get_netblock_from_ip {
 	my @errors;
 	my $args = { netblock_type => 'default', };
 
+	# The ip address has no netmask
 	if ( $opts->{ip_address} !~ m,/, ) {
 		$args->{'host(ip_address)'} = $opts->{ip_address};
 
+	# Remove the implicit /32 netmask suffix if present
+	} elsif ( $opts->{ip_address} =~ m,/32 *$, ) {
+		$args->{'host(ip_address)'} = $opts->{'ip_address'} =~ s,/32 *$,,r;;
+
+	# The ip address has a netmask suffix, but not a /32
 	} else {
 		$args->{ip_address} = $opts->{ip_address};
 	}
