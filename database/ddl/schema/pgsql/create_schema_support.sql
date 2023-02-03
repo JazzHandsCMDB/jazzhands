@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2021 Todd Kover, Matthew Ragan
+ * Copyright (c) 2010-2023 Todd Kover, Matthew Ragan
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -156,36 +156,78 @@ BEGIN
 	|| '.' || quote_ident('perform_audit_' || table_name)
 	|| $ZZ$() RETURNS TRIGGER AS $TQ$
 	    DECLARE
-		appuser VARCHAR;
+			sub TEXT;
+			act TEXT;
+			appuser TEXT;
+			structuser JSONB;
+			c JSONB;
 	    BEGIN
-		appuser := concat_ws('/', session_user,
-			coalesce(
+
+		c := current_setting('request.jwt.claims', true);
+
+		-- this gets reset later to a more elaborate user. note that the
+		-- session user is no longer there.
+		appuser := coalesce(
 				current_setting('jazzhands.appuser', true),
 				current_setting('request.header.x-remote-user', true)
-			)
-		);
+			);
+		structuser := coalesce(current_setting('jazzhands.auditaugment', 
+			true)::jsonb, '{}'::jsonb) ||
+			jsonb_build_object('user', current_user);
+		IF current_user != session_user THEN
+			structuser := structuser || jsonb_build_object('session', session_user);
+		ELSE
+			structuser := structuser - 'session';
+		END IF;
 
-		appuser = substr(appuser, 1, 255);
+		IF c IS NOT NULL AND c ? 'sub' THEN
+			sub := c->'sub';
+			structuser := structuser || jsonb_build_object('sub', sub);
+		ELSE
+			structuser := structuser - 'sub';
+		END IF;
+
+		IF c IS NOT NULL AND c ? 'act' AND c->'act' ? 'sub' THEN
+			act := c->'act'->'sub';
+			structuser := structuser || jsonb_build_object('act', act);
+		ELSE
+			structuser := structuser - 'act';
+		END IF;
+
+		IF appuser IS NOT NULL THEN
+			structuser := structuser || jsonb_build_object('appuser', appuser);
+		ELSE
+			structuser := structuser - 'appuser';
+		END IF;
+
+		appuser := concat_ws('/',
+			session_user,
+			CASE WHEN session_user != current_user THEN current_user ELSE NULL END,
+			act,
+			CASE WHEN sub IS DISTINCT FROM current_user THEN sub ELSE NULL END,
+			appuser
+		);
+		appuser := substr(appuser, 1, 255);
 
 		IF TG_OP = 'DELETE' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( OLD.*, 'DEL', now(),
-			clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser, structuser );
 		    RETURN OLD;
 		ELSIF TG_OP = 'UPDATE' THEN
 			IF OLD != NEW THEN
 				INSERT INTO $ZZ$ || quote_ident(aud_schema)
 				|| '.' || quote_ident(table_name) || $ZZ$
 				VALUES ( NEW.*, 'UPD', now(),
-				clock_timestamp(), txid_current(), appuser );
+				clock_timestamp(), txid_current(), appuser, structuser );
 			END IF;
 			RETURN NEW;
 		ELSIF TG_OP = 'INSERT' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( NEW.*, 'INS', now(),
-			clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser, structuser );
 		    RETURN NEW;
 		END IF;
 		RETURN NULL;
@@ -244,6 +286,7 @@ CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table_finish(
 RETURNS VOID AS $FUNC$
 DECLARE
 	cols	text[];
+	vals	text[];
 	i	text;
 	_t	text;
 BEGIN
@@ -252,8 +295,9 @@ BEGIN
 	-- get columns - XXX NOTE:  Need to remove columns not in the new
 	-- table...
 	--
-	SELECT	array_agg(quote_ident(a.attname) ORDER BY a.attnum)
-	INTO	cols
+	SELECT	array_agg(quote_ident(a.attname) ORDER BY a.attnum),
+		array_agg(quote_ident(a.attname) ORDER BY a.attnum)
+	INTO	cols, vals
 	FROM	pg_catalog.pg_attribute a
 	INNER JOIN pg_catalog.pg_class c on a.attrelid = c.oid
 	INNER JOIN pg_catalog.pg_namespace n on n.oid = c.relnamespace
@@ -266,6 +310,15 @@ BEGIN
 	  AND	NOT a.attisdropped
 	;
 
+	-- initial population of aud#actor.  This is digusting.
+	IF NOT 'aud#actor' = ANY(cols) THEN
+		cols := array_append(cols, '"aud#actor"');
+		vals := array_append(vals,
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+		);
+	END IF;
+
+
 	IF cols IS NULL THEN
 		RAISE EXCEPTION 'Unable to get columns from "%.%"',
 			quote_ident(aud_schema), _t;
@@ -275,7 +328,7 @@ BEGIN
 		|| quote_ident(aud_schema) || '.'
 		|| quote_ident(table_name) || ' ( '
 		|| array_to_string(cols, ',') || ' ) SELECT '
-		|| array_to_string(cols, ',') || ' FROM '
+		|| array_to_string(vals, ',') || ' FROM '
 		|| quote_ident(aud_schema) || '.'
 		|| quote_ident('__old__t' || table_name)
 		|| ' ORDER BY '
@@ -702,7 +755,9 @@ BEGIN
 		|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
 		|| 'clock_timestamp() as "aud#realtime", '
 		|| 'txid_current() as "aud#txid", '
-		|| 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
+		|| 'NULL::varchar(255) AS "aud#user", '
+		|| 'NULL::jsonb AS "aud#actor", '
+		|| 'NULL::integer AS "aud#seq" '
 		|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name)
 		|| ' LIMIT 0';
 
@@ -815,35 +870,50 @@ $FUNC$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION schema_support.trigger_ins_upd_generic_func()
 RETURNS TRIGGER AS $$
 DECLARE
-    appuser VARCHAR;
+    appuser TEXT;
+	c JSONB;
+	act TEXT;
+	sub TEXT;
 BEGIN
-	appuser := concat_ws('/', session_user,
+	c := current_setting('request.jwt.claims', true);
+
+	IF c IS NOT NULL AND c ? 'sub' THEN
+		sub := c->'sub';
+	END IF;
+
+	IF c IS NOT NULL AND c ? 'act' AND c->'act' ? 'sub' THEN
+		act := c->'act'->'sub';
+	END IF;
+
+	appuser := concat_ws('/',
+		session_user,
+		act,
+		CASE WHEN session_user != current_user THEN current_user ELSE NULL END,
+		CASE WHEN sub IS DISTINCT FROM current_user THEN sub ELSE NULL END,
 		coalesce(
 			current_setting('jazzhands.appuser', true),
 			current_setting('request.header.x-remote-user', true)
 		)
 	);
-    appuser = substr(appuser, 1, 255);
+	appuser := substr(appuser, 1, 255);
 
     IF TG_OP = 'INSERT' THEN
-	NEW.data_ins_user = appuser;
-	NEW.data_ins_date = 'now';
-    END IF;
+		NEW.data_ins_user = appuser;
+		NEW.data_ins_date = 'now';
+    ELSIF TG_OP = 'UPDATE' AND OLD != NEW THEN
+		NEW.data_upd_user = appuser;
+		NEW.data_upd_date = 'now';
 
-    IF TG_OP = 'UPDATE' AND OLD != NEW THEN
-	NEW.data_upd_user = appuser;
-	NEW.data_upd_date = 'now';
+		IF OLD.data_ins_user != NEW.data_ins_user THEN
+	    	RAISE EXCEPTION
+			'Non modifiable column "DATA_INS_USER" cannot be modified.';
+		END IF;
 
-	IF OLD.data_ins_user != NEW.data_ins_user THEN
-	    RAISE EXCEPTION
-		'Non modifiable column "DATA_INS_USER" cannot be modified.';
+		IF OLD.data_ins_date != NEW.data_ins_date THEN
+	    	RAISE EXCEPTION
+			'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+    	END IF;
 	END IF;
-
-	IF OLD.data_ins_date != NEW.data_ins_date THEN
-	    RAISE EXCEPTION
-		'Non modifiable column "DATA_INS_DATE" cannot be modified.';
-	END IF;
-    END IF;
 
     RETURN NEW;
 
