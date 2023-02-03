@@ -25,60 +25,42 @@
 # $Id$
 #
 
-use strict;
+# This scripts gets a list of devices matching the specified pattern
+# It is used by the Other End fields of the STAb Device page, Switch Port tab
+# It returns a json array of [device_id,device_name] pairs
+
 use warnings;
 use FileHandle;
+use JSON;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
 
-do_show_serial();
+do_search_devices();
 
-sub do_show_serial {
+sub do_search_devices {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $devid   = $cgi->param('DEVICE_ID') || undef;
-	my $lookfor = $cgi->param('lookfor')   || undef;
+	my $pattern = $cgi->param('pattern')   || undef;
 
-	print $cgi->header("text/html");
+	print $cgi->header("application/json");
 
 	my $q = qq{
 		select	device_id, device_name
-		  from	device
-		 where	device_name like ?
-		  and	device_name not like '%--otherside%'
-		 order by device_name
+		from	device
+		where	device_name like ?
+		and	device_name not like '%--otherside%'
+		order by device_name
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_error($dbh);
-	$lookfor .= "%";
-	$sth->execute($lookfor) || $stab->return_db_error($sth);
+	$pattern = "%".$pattern."%";
+	$sth->execute($pattern) || $stab->return_db_error($sth);
 
-	my $max = 10;
-	my (@ids);
-	my (%label);
-	my $i;
-	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
-		push( @ids, $id );
-		$label{$id} = $name;
-		last if ( ++$i == $max );
-	}
-
-	my $name = 'ScrollingList';
-	if ( $#ids >= 0 ) {
-		print $cgi->scrolling_list(
-			-name   => $name,
-			-class  => 'select',
-			-id     => $name,
-			-values => \@ids,
-			-labels => \%label,
-			-size   => $max,
-			-onKeydown =>
-			  "checkSelectKeypress_Search(this, event);",
-			-onDblClick =>
-			  "closeAndFillIn_Search(this, this.parentNode);"
-		);
-	}
+	my $result = $sth->fetchall_arrayref( [] );
+	# Just get the first 10 results
+	splice @$result, 10;
+	print to_json( $result ); 
 	$sth->finish;
 	undef $stab;
 }

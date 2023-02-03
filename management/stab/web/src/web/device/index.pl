@@ -137,7 +137,7 @@ print $cgi->Tr(
 	$cgi->td(
 		{ -colspan => 2, align => 'center' },
 		$stab->build_checkbox(
-			undef, "Include Removed devices",
+			undef, "Include removed devices",
 			'INCLUDE_REMOVED', undef, 0
 		),
 	),

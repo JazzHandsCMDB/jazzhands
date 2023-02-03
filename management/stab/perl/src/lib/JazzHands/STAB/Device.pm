@@ -418,6 +418,8 @@ sub build_switch_drop_tr {
 		$cgi->td(
 			$self->b_dropdown(
 				{
+					-class => 'tracked',
+					-original => defined( $hr->{ 'p2_physical_port_id' } ) ? $hr->{ _dbx('p2_physical_port_id') } : '__unknown__',
 					-portLimit => 'network',
 					-divWrap   => $divwrapid,
 					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') }
@@ -1304,13 +1306,15 @@ sub physicalport_otherend_device_magic {
 			-name => $pdnam,
 			-id   => $pdnam,
 			-size => 40,
-			-onInput =>
-			  "inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){showPhysical_ports($pdid, $pdnam, \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff)});",
-			-onKeydown =>
-			  "keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){showPhysical_ports($pdid, $pdnam, \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff)});",
-			-onChange =>
-			  "showPhysical_ports($pdid, $pdnam, \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff);",
-			-onBlur  => "hidePopup_Search($pdnam)",
+			-class => 'tracked',
+			-original => $pname,
+			-readonly => 1,
+			-title => 'Click to select another device',
+			-onClick =>
+			  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff );",
+			# Show the popup if a key is pressed, except Tab
+			-onKeyDown =>
+			  "if( event.keyCode !== 9 ) { showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); }",
 			-default => $pname,
 		}
 	);

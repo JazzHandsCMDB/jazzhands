@@ -140,7 +140,7 @@ use parent 'JazzHands::Common';
 
 use vars qw(@EXPORT_OK @ISA $VERSION);
 
-$VERSION = '0.95.1';
+$VERSION = '0.95.6';
 
 @ISA       = qw(DBI Exporter);
 @EXPORT_OK = qw(set_session_user set_transaction_type errstr);

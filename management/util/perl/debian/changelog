@@ -1,3 +1,13 @@
+jazzhands-perl-common (0.95.6) jammy; urgency=medium
+
+  * Improving device Switch Port / Other End fields functionality
+  * Fixing unchecked checkboxes reverting to checked state
+  * Fixing removed devices checkbox in device search page
+  * Fixing certificates lifetime sorting
+  * Fixing handling of /32 netmask in prefix-list page
+
+ -- Stephane Messerli <stephane.messerli@polypode.org>  Tue, 30 Mar 2023 16:05:00 +0200
+
 jazzhands-perl-common (0.95.5) jammy; urgency=medium
 
   * Add JazzHands::Common::Logging and restructure
