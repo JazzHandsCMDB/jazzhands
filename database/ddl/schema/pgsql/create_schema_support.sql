@@ -314,7 +314,7 @@ BEGIN
 	IF NOT 'aud#actor' = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
-			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appsuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
 		);
 	END IF;
 
