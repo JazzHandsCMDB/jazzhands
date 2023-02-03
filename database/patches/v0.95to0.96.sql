@@ -4294,6 +4294,7 @@ INSERT INTO jazzhands_audit.volume_group_block_storage_device (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	volume_group_id,
@@ -4311,6 +4312,7 @@ INSERT INTO jazzhands_audit.volume_group_block_storage_device (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.volume_group_physicalish_volume_v96;
 
@@ -4504,6 +4506,7 @@ INSERT INTO jazzhands_audit.val_block_storage_device_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	physicalish_volume_type,		-- new column (block_storage_device_type)
@@ -4517,6 +4520,7 @@ INSERT INTO jazzhands_audit.val_block_storage_device_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.val_physicalish_volume_type_v96;
 
@@ -4726,6 +4730,7 @@ INSERT INTO jazzhands_audit.block_storage_device (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	physicalish_volume_id,		-- new column (block_storage_device_id)
@@ -4746,6 +4751,7 @@ INSERT INTO jazzhands_audit.block_storage_device (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.physicalish_volume_v96;
 
@@ -4884,17 +4890,6 @@ CREATE TABLE jazzhands.val_block_storage_device_encryption_system
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_block_storage_device_encryption_system', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_block_storage_device_encryption_system (
-block_storage_device_encryption_system,description
-) VALUES
-	('LUKS',NULL),
-	('VeraCrypt',NULL),
-	('ZFS',NULL)
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_block_storage_device_encryption_system ADD CONSTRAINT pk_val_block_storage_device_encryption_system PRIMARY KEY (block_storage_device_encryption_system);
@@ -4927,6 +4922,17 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_block_storage_device_encryption_system');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_block_storage_device_encryption_system');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_block_storage_device_encryption_system');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_block_storage_device_encryption_system (
+block_storage_device_encryption_system,description
+) VALUES
+	('LUKS',NULL),
+	('VeraCrypt',NULL),
+	('ZFS',NULL)
+;
 -- DONE DEALING WITH TABLE val_block_storage_device_encryption_system (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -4960,24 +4966,6 @@ CREATE TABLE jazzhands.val_cipher
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cipher', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cipher (
-cipher,description
-) VALUES
-	('none',NULL),
-	('des',NULL),
-	('des3',NULL),
-	('IDEA',NULL),
-	('Blowfish',NULL),
-	('CAST5',NULL),
-	('AES','aka Rijndael'),
-	('Camelia',NULL),
-	('RSA',NULL),
-	('ECC',NULL)
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cipher ADD CONSTRAINT pk_val_cipher PRIMARY KEY (cipher);
@@ -5030,6 +5018,24 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cipher');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cipher');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cipher');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cipher (
+cipher,description
+) VALUES
+	('none',NULL),
+	('des',NULL),
+	('des3',NULL),
+	('IDEA',NULL),
+	('Blowfish',NULL),
+	('CAST5',NULL),
+	('AES','aka Rijndael'),
+	('Camelia',NULL),
+	('RSA',NULL),
+	('ECC',NULL)
+;
 -- DONE DEALING WITH TABLE val_cipher (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5063,20 +5069,6 @@ CREATE TABLE jazzhands.val_cipher_chain_mode
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cipher_chain_mode', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cipher_chain_mode (
-cipher_chain_mode,description
-) VALUES
-	('none',NULL),
-	('CBC','cipher-bock chaining'),
-	('PCBC','plaintext cipher-block chaining'),
-	('CFB','Cipher Feedback'),
-	('OFB','Output Feedbacl'),
-	('CTR','Counter')
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cipher_chain_mode ADD CONSTRAINT pk_val_cipher_chain_mode PRIMARY KEY (cipher_chain_mode);
@@ -5110,6 +5102,20 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cipher_chain_mode');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cipher_chain_mode');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cipher_chain_mode');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cipher_chain_mode (
+cipher_chain_mode,description
+) VALUES
+	('none',NULL),
+	('CBC','cipher-bock chaining'),
+	('PCBC','plaintext cipher-block chaining'),
+	('CFB','Cipher Feedback'),
+	('OFB','Output Feedbacl'),
+	('CTR','Counter')
+;
 -- DONE DEALING WITH TABLE val_cipher_chain_mode (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5143,22 +5149,6 @@ CREATE TABLE jazzhands.val_cipher_padding
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cipher_padding', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cipher_padding (
-cipher_padding,description
-) VALUES
-	('none',NULL),
-	('null','pad with zeros'),
-	('Space','pad with 0x20'),
-	('PKCS5','pads with number of bytes that should be truncated'),
-	('Rijndael_Compat','Similar to ones and zeros, no padding on last full block'),
-	('OneAndZeros','Pads with 0x80 followed by 0x00s to fill'),
-	('X9.23','Zero followed by number of bytes of padding'),
-	('W3C','arbitrary byte values ending with number of bytes padded')
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cipher_padding ADD CONSTRAINT pk_val_cipher_padding PRIMARY KEY (cipher_padding);
@@ -5198,6 +5188,22 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cipher_padding');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cipher_padding');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cipher_padding');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cipher_padding (
+cipher_padding,description
+) VALUES
+	('none',NULL),
+	('null','pad with zeros'),
+	('Space','pad with 0x20'),
+	('PKCS5','pads with number of bytes that should be truncated'),
+	('Rijndael_Compat','Similar to ones and zeros, no padding on last full block'),
+	('OneAndZeros','Pads with 0x80 followed by 0x00s to fill'),
+	('X9.23','Zero followed by number of bytes of padding'),
+	('W3C','arbitrary byte values ending with number of bytes padded')
+;
 -- DONE DEALING WITH TABLE val_cipher_padding (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5231,16 +5237,6 @@ CREATE TABLE jazzhands.val_cipher_permitted_cipher_chain_mode
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_cipher_chain_mode', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cipher_permitted_cipher_chain_mode (
-cipher,cipher_chain_mode
-) VALUES
-	('none','none'),
-	('AES','CBC')
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cipher_permitted_cipher_chain_mode ADD CONSTRAINT pk_val_cipher_permitted_cipher_chain_mode PRIMARY KEY (cipher, cipher_chain_mode);
@@ -5284,6 +5280,16 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cipher_permitted_cipher_chain_mode');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_cipher_chain_mode');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_cipher_chain_mode');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cipher_permitted_cipher_chain_mode (
+cipher,cipher_chain_mode
+) VALUES
+	('none','none'),
+	('AES','CBC')
+;
 -- DONE DEALING WITH TABLE val_cipher_permitted_cipher_chain_mode (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5317,16 +5323,6 @@ CREATE TABLE jazzhands.val_cipher_permitted_cipher_padding
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_cipher_padding', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cipher_permitted_cipher_padding (
-cipher,cipher_padding
-) VALUES
-	('none','none'),
-	('AES','PKCS5')
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cipher_permitted_cipher_padding ADD CONSTRAINT pk_val_cipher_permitted_cipher_padding PRIMARY KEY (cipher, cipher_padding);
@@ -5365,6 +5361,16 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cipher_permitted_cipher_padding');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_cipher_padding');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_cipher_padding');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cipher_permitted_cipher_padding (
+cipher,cipher_padding
+) VALUES
+	('none','none'),
+	('AES','PKCS5')
+;
 -- DONE DEALING WITH TABLE val_cipher_permitted_cipher_padding (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5398,21 +5404,6 @@ CREATE TABLE jazzhands.val_cipher_permitted_key_size
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_key_size', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cipher_permitted_key_size (
-cipher,key_size
-) VALUES
-	('none','0'),
-	('AES','128'),
-	('AES','192'),
-	('AES','256'),
-	('RSA','1024'),
-	('RSA','2048'),
-	('RSA','4096')
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cipher_permitted_key_size ADD CONSTRAINT pk_val_cipher_permitted_key_size PRIMARY KEY (cipher, key_size);
@@ -5452,6 +5443,21 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cipher_permitted_key_size');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_key_size');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cipher_permitted_key_size');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cipher_permitted_key_size (
+cipher,key_size
+) VALUES
+	('none','0'),
+	('AES','128'),
+	('AES','192'),
+	('AES','256'),
+	('RSA','1024'),
+	('RSA','2048'),
+	('RSA','4096')
+;
 -- DONE DEALING WITH TABLE val_cipher_permitted_key_size (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5485,19 +5491,6 @@ CREATE TABLE jazzhands.val_cryptographic_hash_algorithm
 	data_upd_date	timestamp with time zone  NULL
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_cryptographic_hash_algorithm', true);
---
--- Copying initialization data
---
-
-INSERT INTO val_cryptographic_hash_algorithm (
-cryptographic_hash_algorithm,description
-) VALUES
-	('none','not hashed'),
-	('sha1','SHA1 hash'),
-	('md5','MD5 hash'),
-	('sha128','SHA128 hash'),
-	('sha256','SHA256 hash')
-;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_cryptographic_hash_algorithm ADD CONSTRAINT pk_val_cryptographic_hash_algorithm PRIMARY KEY (cryptographic_hash_algorithm);
@@ -5537,6 +5530,19 @@ $$;
 SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_cryptographic_hash_algorithm');
 SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_cryptographic_hash_algorithm');
 SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_cryptographic_hash_algorithm');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_cryptographic_hash_algorithm (
+cryptographic_hash_algorithm,description
+) VALUES
+	('none','not hashed'),
+	('sha1','SHA1 hash'),
+	('md5','MD5 hash'),
+	('sha128','SHA128 hash'),
+	('sha256','SHA256 hash')
+;
 -- DONE DEALING WITH TABLE val_cryptographic_hash_algorithm (jazzhands)
 --------------------------------------------------------------------
 DO $$
@@ -5673,6 +5679,7 @@ INSERT INTO jazzhands_audit.val_encryption_method (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	encryption_method,
@@ -5691,6 +5698,7 @@ INSERT INTO jazzhands_audit.val_encryption_method (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.val_encryption_method_v96;
 
@@ -5887,6 +5895,7 @@ INSERT INTO jazzhands_audit.val_x509_fingerprint_hash_algorithm (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	x509_fingerprint_hash_algorighm,		-- new column (cryptographic_hash_algorithm)
@@ -5901,6 +5910,7 @@ INSERT INTO jazzhands_audit.val_x509_fingerprint_hash_algorithm (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.val_x509_fingerprint_hash_algorithm_v96;
 
@@ -6359,6 +6369,7 @@ INSERT INTO jazzhands_audit.public_key_hash_hash (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	public_key_hash_id,
@@ -6374,6 +6385,7 @@ INSERT INTO jazzhands_audit.public_key_hash_hash (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.public_key_hash_hash_v96;
 
@@ -6596,6 +6608,7 @@ INSERT INTO jazzhands_audit.x509_signed_certificate_fingerprint (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	"aud#actor",
 	"aud#seq"
 ) SELECT
 	x509_signed_certificate_id,
@@ -6612,6 +6625,7 @@ INSERT INTO jazzhands_audit.x509_signed_certificate_fingerprint (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
 FROM jazzhands_audit.x509_signed_certificate_fingerprint_v96;
 
