@@ -32,6 +32,8 @@ DECLARE
 	_sled_module		device_type_module%ROWTYPE;
 	_rack			rack%ROWTYPE;
 	_r			RECORD;
+	_ctid		component_type.component_type_id%TYPE;
+	_compid		component.component_id%TYPE;
 BEGIN
 	-- delete some stuff
 	RAISE NOTICE '++ Cleaning up records';
@@ -55,11 +57,14 @@ BEGIN
 		'JHTEST01', 'ACTIVE'
 	);
 
+	INSERT INTO component_type ( is_virtual_component ) VALUES ('N')
+		RETURNING component_type_id INTO _ctid;
+
 	INSERT INTO device_type (
-		model, rack_units, has_802_3_interface,
-		has_802_11_interface, snmp_capable, is_chassis
+		model, rack_units, component_type_id,
+		has_802_3_interface, has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST Chassis', 2, 'N', 'N', 'N', 'Y'
+		'JHTEST Chassis', 2, _ctid, 'N', 'N', 'N', 'Y'
 	) RETURNING * INTO _chassis_dt;
 
 	INSERT INTO rack (
@@ -69,10 +74,11 @@ BEGIN
 	) RETURNING * into _rack;
 
 	INSERT INTO device_type (
-		model, rack_units, has_802_3_interface,
+		model, rack_units, component_type_id,
+		has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST Sled', 0, 'N', 'N', 'N', 'N'
+		'JHTEST Sled', 0, _ctid, 'N', 'N', 'N', 'N'
 	) RETURNING * INTO _sled_dt;
 
 	INSERT INTO rack_location (
@@ -87,17 +93,20 @@ BEGIN
 		_rack.rack_id, 10, 'FRONT'
 	) RETURNING * INTO _chassisloc2;
 
+	INSERT INTO component ( component_type_id ) VALUES ( _ctid )
+		RETURNING component_id INTO _compid;
+
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment_id, 
+		service_environment_id,
 		operating_system_id, is_monitored,
-		rack_location_id
+		rack_location_id, component_id
 	) values (
 		_chassis_dt.device_type_id, 'JHTEST chassis', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		 where service_environment_name = 'production'),
 		0, 'Y',
-		_chassisloc.rack_location_id
+		_chassisloc.rack_location_id, _compid
 	) RETURNING * into _chassis;
 	RAISE NOTICE '++ Done inserting Test Data';
 
@@ -202,15 +211,15 @@ BEGIN
 	BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
-			service_environment_id, 
+			service_environment_id,
 			operating_system_id, is_monitored,
-			chassis_location_id
+			chassis_location_id, component_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
 			(select service_environment_id from service_environment
 		 	where service_environment_name = 'production'),
 			0, 'Y',
-			_sledloc.chassis_location_id
+			_sledloc.chassis_location_id, _compid
 		) RETURNING * into _sled;
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN foreign_key_violation THEN
@@ -223,14 +232,14 @@ BEGIN
 			device_type_id, device_name, device_status, site_code,
 			service_environment_id, operating_system_id,
 			is_monitored, parent_device_id,
-			rack_location_id, chassis_location_id
+			rack_location_id, chassis_location_id, component_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
 			(select service_environment_id from service_environment
 		 	where service_environment_name = 'production'),
 			0,
 			'Y', _chassis.device_Id,
-			_chassisloc.rack_location_id, _sledloc.chassis_location_id
+			_chassisloc.rack_location_id, _sledloc.chassis_location_id, _compid
 		) RETURNING * into _sled;
 		RAISE EXCEPTION '... IT DID NOT.';
 	EXCEPTION WHEN unique_violation THEN
