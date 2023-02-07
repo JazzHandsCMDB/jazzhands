@@ -109,6 +109,34 @@ select clock_timestamp(), now(), clock_timestamp() - now() AS len;
 DROP VIEW IF EXISTS jazzhands_legacy.account_auth_log;
 DROP VIEW IF EXISTS audit.account_auth_log;
 
+DO
+$$
+BEGIN
+	PERFORM FROM device
+	WHERE component_id IS NULL AND rack_location_id IS NOT NULL;
+	IF FOUND THEN
+		RAISE EXCEPTION 'May not have devices with rack_location_id set and component_id is not.';
+	END IF;
+
+	PERFORM FROM device
+	JOIN component USING (component_id)
+	JOIN component_type USING (component_type_id)
+	WHERE is_virtual_component != is_virtual_device;
+	IF FOUND THEN
+		RAISE EXCEPTION 'device.is_virtual_device does not match component_type.is_virtual_component on some rows';
+	END IF;
+
+	PERFORM FROM  component_type
+	WHERE is_virtual_component = true AND is_rack_mountable = true;
+	IF FOUND THEN
+		RAISE EXCEPTION 'some virtual components are marked as rack mountable';
+	END IF;
+
+END;
+
+$$;
+
+
 -- fix duplicates that got in because of weird trigger race conditions
 DELETE FROM dns_record WHERE dns_record_id IN (
 	SELECT dns_record_id FROM (
@@ -131,6 +159,10 @@ WHERE dns_record_id IN (
 		AND netblock_id IS NOT NULL
 	) i WHERE rnk > 1
 );
+
+-- new constraint to enforce this.
+UPDATE device SET is_virtual_device = false
+WHERE is_virtual_device = true AND rack_location_id IS NOT NULL;
 
 
 -- END Misc that does not apply to above
@@ -416,7 +448,7 @@ BEGIN
 	IF NOT 'aud#actor' = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
-			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appsuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
 		);
 	END IF;
 
@@ -2661,7 +2693,7 @@ BEGIN
 	IF NOT 'aud#actor' = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
-			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appsuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
 		);
 	END IF;
 
@@ -9346,6 +9378,54 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands'::t
 DROP FUNCTION IF EXISTS jazzhands.verify_physicalish_volume (  );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_jazzhands']);
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.check_component_type_device_virtual_match()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM *
+	FROM device
+	JOIN component USING (component_id)
+	WHERE is_virtual_device != NEW.is_virtual_component;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'There are devices with a component of this type that do not match is_virtual_component'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.check_device_component_type_virtual_match()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF NEW.component_id IS NOT NULL THEN
+		PERFORM *
+		FROM component c
+		JOIN component_type ct USING (component_type_id)
+		WHERE c.component_id = NEW.component_id
+		AND NEW.is_virtual_device != ct.is_virtual_component;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'There are devices with a component of this type that do not match is_virtual_component'
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.check_fingerprint_hash_algorithm()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -9396,6 +9476,83 @@ BEGIN
 	UPDATE x509_signed_certificate x SET private_key_id = pk.private_key_id
 	FROM private_key pk WHERE x.public_key_hash_id = pk.public_key_hash_id
 	AND x.private_key_id IS NULL AND x.x509_signed_certificate_id = NEW.x509_signed_certificate_id;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.sync_component_rack_location_id()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF pg_trigger_depth() >= 2 THEN
+		RETURN NEW;
+	END IF;
+	IF OLD.component_id != NEW.component_id THEN
+		UPDATE device d
+		SET rack_location_id = NULL
+		WHERE d.component_id = OLD.component_id
+		AND d.rack_location_id IS NOT NULL;
+	END IF;
+
+	UPDATE device d
+	SET rack_location_id = NEW.rack_location_id
+	WHERE d.rack_location_id IS DISTINCT FROM NEW.rack_location_id
+	AND d.component_id = NEW.component_id;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.sync_device_rack_location_id()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_id	INTEGER;
+BEGIN
+	IF pg_trigger_depth() >= 2 THEN
+		RETURN NEW;
+	END IF;
+	IF TG_OP = 'INSERT' THEN
+		IF NEW.component_id IS NOT NULL AND NEW.rack_location_id IS NOT NULL THEN
+			UPDATE component c
+			SET rack_location_id = NEW.rack_location_id
+			WHERE c.rack_location_id IS DISTINCT FROM NEW.rack_location_id
+			AND c.component_id = NEW.component_id;
+		ELSIF NEW.rack_location_id IS NULL THEN
+			SELECT rack_location_id
+			INTO _id
+			FROM component c
+			WHERE c.component_id = NEW.component_id;
+			NEW.rack_location_id := _id;
+		END IF;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.component_id IS NULL THEN
+			IF OLD.component_id IS NOT NULL THEN
+				UPDATE component c
+				SET rack_location_id = NULL
+				WHERE c.rack_location_id  IS NOT NULL
+				AND c.component_id = OLD.component_id;
+			END IF;
+
+			NEW.rack_location_id = NULL;
+		ELSE
+			UPDATE component
+			SET rack_location_id = NEW.rack_location_id
+			WHERE component_id = NEW.component_id
+			AND rack_location_id IS DISTINCT FROM NEW.rack_location_id;
+		END IF;
+	END IF;
 
 	RETURN NEW;
 END;
@@ -15057,6 +15214,18 @@ ALTER TABLE layer3_interface
 	ADD CONSTRAINT uq_l3int_devid_name
 	UNIQUE (device_id, layer3_interface_name) DEFERRABLE;
 
+ALTER TABLE component_type
+	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
+ALTER TABLE component_type
+ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
+	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
+
 -- index
 DROP INDEX IF EXISTS "jazzhands"."ak_dns_record_generate_ptr";
 CREATE UNIQUE INDEX ak_dns_record_generate_ptr ON jazzhands.dns_record USING btree (netblock_id, should_generate_ptr) WHERE should_generate_ptr AND (dns_type::text = ANY (ARRAY['A'::character varying, 'AAAA'::character varying]::text[])) AND netblock_id IS NOT NULL;
@@ -15308,6 +15477,8 @@ DROP TRIGGER IF EXISTS trigger_audit_component ON component;
 CREATE TRIGGER trigger_audit_component AFTER INSERT OR DELETE OR UPDATE ON jazzhands.component FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_component();
 DROP TRIGGER IF EXISTS trigger_create_component_template_slots ON component;
 CREATE TRIGGER trigger_create_component_template_slots AFTER INSERT OR UPDATE OF component_type_id ON jazzhands.component FOR EACH ROW EXECUTE FUNCTION jazzhands.create_component_slots_by_trigger();
+DROP TRIGGER IF EXISTS trigger_sync_component_rack_location_id ON component;
+CREATE TRIGGER trigger_sync_component_rack_location_id AFTER UPDATE OF rack_location_id ON jazzhands.component FOR EACH ROW EXECUTE FUNCTION jazzhands.sync_component_rack_location_id();
 DROP TRIGGER IF EXISTS trigger_validate_component_parent_slot_id ON component;
 CREATE CONSTRAINT TRIGGER trigger_validate_component_parent_slot_id AFTER INSERT OR UPDATE OF parent_slot_id, component_type_id ON jazzhands.component DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_component_parent_slot_id();
 DROP TRIGGER IF EXISTS trigger_validate_component_rack_location ON component;
@@ -15328,6 +15499,8 @@ DROP TRIGGER IF EXISTS trig_userlog_component_type ON component_type;
 CREATE TRIGGER trig_userlog_component_type BEFORE INSERT OR UPDATE ON jazzhands.component_type FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_component_type ON component_type;
 CREATE TRIGGER trigger_audit_component_type AFTER INSERT OR DELETE OR UPDATE ON jazzhands.component_type FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_component_type();
+DROP TRIGGER IF EXISTS trigger_check_component_type_device_virtual_match ON component_type;
+CREATE CONSTRAINT TRIGGER trigger_check_component_type_device_virtual_match AFTER UPDATE OF is_virtual_component ON jazzhands.component_type NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.check_component_type_device_virtual_match();
 DROP TRIGGER IF EXISTS trig_userlog_component_type_component_function ON component_type_component_function;
 CREATE TRIGGER trig_userlog_component_type_component_function BEFORE INSERT OR UPDATE ON jazzhands.component_type_component_function FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_component_type_component_function ON component_type_component_function;
@@ -15354,6 +15527,8 @@ DROP TRIGGER IF EXISTS trig_userlog_device ON device;
 CREATE TRIGGER trig_userlog_device BEFORE INSERT OR UPDATE ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_device ON device;
 CREATE TRIGGER trigger_audit_device AFTER INSERT OR DELETE OR UPDATE ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_device();
+DROP TRIGGER IF EXISTS trigger_check_device_component_type_virtual_match ON device;
+CREATE CONSTRAINT TRIGGER trigger_check_device_component_type_virtual_match AFTER INSERT OR UPDATE OF is_virtual_device ON jazzhands.device NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.check_device_component_type_virtual_match();
 DROP TRIGGER IF EXISTS trigger_create_device_component ON device;
 CREATE TRIGGER trigger_create_device_component BEFORE INSERT OR UPDATE OF device_type_id ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands.create_device_component_by_trigger();
 DROP TRIGGER IF EXISTS trigger_del_jazzhands_legacy_support ON device;
@@ -15368,6 +15543,8 @@ DROP TRIGGER IF EXISTS trigger_jazzhands_legacy_device_columns_device_ins ON dev
 CREATE TRIGGER trigger_jazzhands_legacy_device_columns_device_ins AFTER INSERT ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.jazzhands_legacy_device_columns_device_ins();
 DROP TRIGGER IF EXISTS trigger_jazzhands_legacy_device_columns_device_upd ON device;
 CREATE TRIGGER trigger_jazzhands_legacy_device_columns_device_upd AFTER UPDATE ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.jazzhands_legacy_device_columns_device_upd();
+DROP TRIGGER IF EXISTS trigger_sync_device_rack_location_id ON device;
+CREATE TRIGGER trigger_sync_device_rack_location_id BEFORE INSERT OR UPDATE OF rack_location_id, component_id ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands.sync_device_rack_location_id();
 DROP TRIGGER IF EXISTS trigger_update_per_device_device_collection ON device;
 CREATE TRIGGER trigger_update_per_device_device_collection AFTER INSERT OR UPDATE ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands.update_per_device_device_collection();
 DROP TRIGGER IF EXISTS trigger_validate_device_component_assignment ON device;
