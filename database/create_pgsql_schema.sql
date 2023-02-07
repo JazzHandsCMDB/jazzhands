@@ -112,6 +112,8 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_schema_relationship_triggers.sql
 \ir ddl/schema/pgsql/create_software_artifact_repository_triggers.sql
 \ir ddl/schema/pgsql/create_port_range_triggers.sql
+\ir ddl/schema/pgsql/create_rack_compat_trigger.sql
+\ir ddl/schema/pgsql/create_device_component_virtual_sync.sql
 
 \ir ddl/schema/pgsql/create_device_management_controller_triggers.sql
 \ir ddl/schema/pgsql/create_fingerprint_hash_algorithm_misspelling_trigger.sql
