@@ -19,19 +19,22 @@
 
 \t on
 
+savepoint pretest;
 DROP FUNCTION IF EXISTS validate_device_location_triggers();
 CREATE FUNCTION validate_device_location_triggers() RETURNS BOOLEAN AS $$
 DECLARE
 	_chassis		device%ROWTYPE;
 	_sled			device%ROWTYPE;
 	_chassisloc		rack_location%ROWTYPE;
-	_chassisloc2		rack_location%ROWTYPE;
+	_chassisloc2	rack_location%ROWTYPE;
 	_sledloc		chassis_location%ROWTYPE;
 	_chassis_dt		device_type%ROWTYPE;
 	_sled_dt		device_type%ROWTYPE;
-	_sled_module		device_type_module%ROWTYPE;
+	_sled_module	device_type_module%ROWTYPE;
 	_rack			rack%ROWTYPE;
-	_r			RECORD;
+	_compid			component.component_id%TYPE;
+	_ctid			component.component_id%TYPE;
+	_r				RECORD;
 BEGIN
 	-- delete some stuff
 	RAISE NOTICE '++ Cleaning up records';
@@ -55,25 +58,38 @@ BEGIN
 		'JHTEST01', 'ACTIVE'
 	);
 
+
+	INSERT INTO component_type (
+		model, is_virtual_component, is_rack_mountable
+	) VALUES (
+		'JHTESTtype', false, true
+	) RETURNING component_type_id INTO _ctid;
+
+	INSERT INTO component (component_type_id) VALUES (_ctid)
+	RETURNING component_type_id INTO _ctid;
+
 	INSERT INTO device_type (
-		model, rack_units, has_802_3_interface,
+		model, rack_units, component_type_id,
+		has_802_3_interface, has_802_11_interface,
+		snmp_capable, is_chassis
+	) values (
+		'JHTEST Chassis', 2, _ctid,
+		false, false, false, true
+	) RETURNING * INTO _chassis_dt;
+
+	INSERT INTO device_type (
+		model, rack_units, component_type_id,
+		has_802_3_interface,
 		has_802_11_interface, snmp_capable, is_chassis
 	) values (
-		'JHTEST Chassis', 2, false, false, false, true
-	) RETURNING * INTO _chassis_dt;
+		'JHTEST Sled', 0, _ctid, false, false, false, false
+	) RETURNING * INTO _sled_dt;
 
 	INSERT INTO rack (
 		site_code, rack_name, rack_style, rack_height_in_u, display_from_bottom
 	) values (
 		'JHTEST01', 'JHTEST-01', 'CABINET', 42, true
 	) RETURNING * into _rack;
-
-	INSERT INTO device_type (
-		model, rack_units, has_802_3_interface,
-		has_802_11_interface, snmp_capable, is_chassis
-	) values (
-		'JHTEST Sled', 0, false, false, false, false
-	) RETURNING * INTO _sled_dt;
 
 	INSERT INTO rack_location (
 		rack_id, rack_u_offset_of_device_top
@@ -89,15 +105,15 @@ BEGIN
 
 	INSERT INTO device (
 		device_type_id, device_name, device_status, site_code,
-		service_environment_id, 
+		service_environment_id,
 		operating_system_id,
-		rack_location_id
+		rack_location_id, component_id
 	) values (
 		_chassis_dt.device_type_id, 'JHTEST chassis', 'up', 'JHTEST01',
 		(select service_environment_id from service_environment
 		 where service_environment_name = 'production'),
 		0,
-		_chassisloc.rack_location_id
+		_chassisloc.rack_location_id, _compid
 	) RETURNING * into _chassis;
 	RAISE NOTICE '++ Done inserting Test Data';
 
@@ -202,7 +218,7 @@ BEGIN
 	BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
-			service_environment_id, 
+			service_environment_id,
 			operating_system_id,
 			chassis_location_id
 		) values (
@@ -222,13 +238,13 @@ BEGIN
 		INSERT INTO device (
 			device_type_id, device_name, device_status, site_code,
 			service_environment_id, operating_system_id,
-			parent_device_id,
+			parent_device_id, component_id,
 			rack_location_id, chassis_location_id
 		) values (
 			_sled_dt.device_type_id, 'JHTEST sled', 'up', 'JHTEST01',
 			(select service_environment_id from service_environment
 		 	where service_environment_name = 'production'),
-			0,
+			0, _compid,
 			_chassis.device_Id,
 			_chassisloc.rack_location_id, _sledloc.chassis_location_id
 		) RETURNING * into _sled;
@@ -270,7 +286,11 @@ BEGIN
 		select device_id from device where device_name like 'JHTEST%');
 	delete from device_type_module_device_type where description
 		like 'JHTEST%';
-	delete from device where device_name like 'JHTEST%';
+	WITH d AS (
+		delete from device where device_name like 'JHTEST%'
+		RETURNING *
+	) DELETE FROM component WHERE component_id IN (
+		SELECT component_Id FROM d WHERE component_id IS NOT NULL);
 	delete from rack_location where rack_id in
 		(select rack_id from rack where rack_name like 'JHTEST%');
 	delete from device_type_module where description like 'JHTEST%';
@@ -286,4 +306,6 @@ $$ LANGUAGE plpgsql;
 
 SELECT validate_device_location_triggers();
 DROP FUNCTION validate_device_location_triggers();
+
+ROLLBACK TO pretest;
 \t off
