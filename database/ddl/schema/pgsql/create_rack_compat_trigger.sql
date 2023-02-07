@@ -67,10 +67,6 @@ BEFORE INSERT OR UPDATE OF rack_location_id, component_id
 ON device
 FOR EACH ROW EXECUTE PROCEDURE sync_device_rack_location_id();
 
---
--- XXX - need to finish TESTING this trigger
--- XXX - need to write a trigger to validate device.is_virtual_device v component_type.is_virtual_component.
-
 CREATE OR REPLACE FUNCTION sync_component_rack_location_id()
 RETURNS TRIGGER AS $$
 BEGIN
