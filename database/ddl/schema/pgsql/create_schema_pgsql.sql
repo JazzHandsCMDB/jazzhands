@@ -11514,6 +11514,10 @@ ALTER TABLE component_property
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+
+ALTER TABLE component_type
+	ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208 CHECK  ( (is_virtual_component = true and is_rack_mountable = false) OR (is_virtual_component = false) ) ;
+
 ALTER TABLE component_type
 	ALTER COLUMN is_removable
 		SET DEFAULT false;
@@ -11612,6 +11616,10 @@ ALTER TABLE department
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION
 		DEFERRABLE  ;
+
+
+ALTER TABLE device
+	ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417 CHECK  ( (rack_location_id IS NOT NULL AND component_id IS NOT NULL AND NOT is_virtual_device) OR  (rack_location_id IS NULL) ) ;
 
 ALTER TABLE device
 	ALTER COLUMN operating_system_id
