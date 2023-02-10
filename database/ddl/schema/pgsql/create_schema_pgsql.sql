@@ -6686,6 +6686,38 @@ ALTER TABLE site ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
 
 
 /***********************************************
+ * Table: site_encapsulation_domain
+ ***********************************************/
+
+CREATE TABLE site_encapsulation_domain
+( 
+	site_code            varchar(50)  NOT NULL ,
+	encapsulation_domain varchar(50)  NOT NULL ,
+	encapsulation_type   character varying(50)  NOT NULL 
+);
+
+ALTER TABLE site_encapsulation_domain
+	ADD CONSTRAINT pk_site_encapsulation_domain PRIMARY KEY (site_code,encapsulation_domain,encapsulation_type);
+
+CREATE INDEX xif_site_code_encap_domain_encap_domain ON site_encapsulation_domain
+( 
+	encapsulation_domain ASC,
+	encapsulation_type ASC
+);
+
+CREATE INDEX xif_site_code_encapsulation_domain_site_code ON site_encapsulation_domain
+( 
+	site_code ASC
+);
+
+ALTER TABLE site_encapsulation_domain ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE site_encapsulation_domain ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE site_encapsulation_domain ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE site_encapsulation_domain ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
  * Table: slot
  ***********************************************/
 
@@ -13737,6 +13769,17 @@ ALTER TABLE site
 
 ALTER TABLE site
 	ADD CONSTRAINT fk_site_physaddr_id FOREIGN KEY (physical_address_id) REFERENCES physical_address(physical_address_id)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+
+ALTER TABLE site_encapsulation_domain
+	ADD CONSTRAINT fk_site_code_encap_domain_encap_domain FOREIGN KEY (encapsulation_domain,encapsulation_type) REFERENCES encapsulation_domain(encapsulation_domain,encapsulation_type)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE site_encapsulation_domain
+	ADD CONSTRAINT fk_site_code_encapsulation_domain_site_code FOREIGN KEY (site_code) REFERENCES site(site_code)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
