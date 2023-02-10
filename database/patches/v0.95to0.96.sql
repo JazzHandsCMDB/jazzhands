@@ -6531,6 +6531,76 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- DEALING WITH NEW TABLE site_encapsulation_domain (jazzhands)
+CREATE TABLE jazzhands.site_encapsulation_domain
+(
+	site_code	varchar(50) NOT NULL,
+	encapsulation_domain	varchar(50) NOT NULL,
+	encapsulation_type	varchar(50) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'site_encapsulation_domain', true);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.site_encapsulation_domain ADD CONSTRAINT pk_site_encapsulation_domain PRIMARY KEY (site_code, encapsulation_domain, encapsulation_type);
+
+-- Table/Column Comments
+-- INDEXES
+CREATE INDEX xif_site_code_encap_domain_encap_domain ON jazzhands.site_encapsulation_domain USING btree (encapsulation_domain, encapsulation_type);
+CREATE INDEX xif_site_code_encapsulation_domain_site_code ON jazzhands.site_encapsulation_domain USING btree (site_code);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK site_encapsulation_domain and encapsulation_domain
+ALTER TABLE jazzhands.site_encapsulation_domain
+	ADD CONSTRAINT fk_site_code_encap_domain_encap_domain
+	FOREIGN KEY (encapsulation_domain, encapsulation_type) REFERENCES jazzhands.encapsulation_domain(encapsulation_domain, encapsulation_type);
+-- consider FK site_encapsulation_domain and site
+ALTER TABLE jazzhands.site_encapsulation_domain
+	ADD CONSTRAINT fk_site_code_encapsulation_domain_site_code
+	FOREIGN KEY (site_code) REFERENCES jazzhands.site(site_code);
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('site_encapsulation_domain');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for site_encapsulation_domain  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'site_encapsulation_domain');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'site_encapsulation_domain');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'site_encapsulation_domain');
+-- DONE DEALING WITH TABLE site_encapsulation_domain (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('site_encapsulation_domain');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old site_encapsulation_domain failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('site_encapsulation_domain');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new site_encapsulation_domain failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE x509_signed_certificate_fingerprint
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'x509_signed_certificate_fingerprint', 'x509_signed_certificate_fingerprint');
