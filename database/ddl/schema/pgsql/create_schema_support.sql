@@ -72,8 +72,16 @@ $$ LANGUAGE plpgsql;
 -- end of procedure id_tag
 -------------------------------------------------------------------
 
+-------------------------------------------------------------------
+--
+-- Reset sequence to the greater of one more than the maximum value or
+-- the current nextval of the sequence.  Sets to 1 if the table
+-- is empty.  Set lowerseq to false to cause the sequence to be left
+-- alone if it would decrement it.
+--
+-------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence
-    ( schema VARCHAR, table_name VARCHAR )
+    ( schema VARCHAR, table_name VARCHAR, lowerseq BOOLEAN DEFAULT true )
 RETURNS VOID AS $$
 DECLARE
 	_r	RECORD;
@@ -102,21 +110,21 @@ BEGIN
 		AND relname = reset_table_sequence.table_name
 		AND NOT a.attisdropped
 	LOOP
-		EXECUTE  format('SELECT max(%s)+1 FROM %s.%s',
+		EXECUTE  format('SELECT coalesce(max(%s), 0)+1 FROM %s.%s',
 			quote_ident(_r.column),
 			quote_ident(schema),
 			quote_ident(table_name)
 		) INTO m;
-		IF m IS NOT NULL THEN
-			IF _r.nv > m THEN
-				m := _r.nv;
-			END IF;
-			EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
-				quote_ident(_r.seq_namespace),
-				quote_ident(_r.seq_name),
-				m
-			);
+
+		IF NOT lowerseq AND m < _r.nv  THEN
+			m := _r.nv;
 		END IF;
+		RAISE DEBUG 'resetting to %', m;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_r.seq_namespace),
+			quote_ident(_r.seq_name),
+			m
+		);
 	END LOOP;
 END;
 $$
@@ -171,7 +179,7 @@ BEGIN
 				current_setting('jazzhands.appuser', true),
 				current_setting('request.header.x-remote-user', true)
 			);
-		structuser := coalesce(current_setting('jazzhands.auditaugment', 
+		structuser := coalesce(current_setting('jazzhands.auditaugment',
 			true)::jsonb, '{}'::jsonb) ||
 			jsonb_build_object('user', current_user);
 		IF current_user != session_user THEN
