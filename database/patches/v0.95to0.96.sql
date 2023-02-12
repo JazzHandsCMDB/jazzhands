@@ -546,7 +546,7 @@ BEGIN
 				current_setting('jazzhands.appuser', true),
 				current_setting('request.header.x-remote-user', true)
 			);
-		structuser := coalesce(current_setting('jazzhands.auditaugment', 
+		structuser := coalesce(current_setting('jazzhands.auditaugment',
 			true)::jsonb, '{}'::jsonb) ||
 			jsonb_build_object('user', current_user);
 		IF current_user != session_user THEN
@@ -891,6 +891,8 @@ EXCEPTION WHEN undefined_table THEN
 END;
 $$;
 
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'reset_table_sequence ( character varying,character varying )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
+DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 -- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants(username text, direction text, old_schema text, new_schema text, name_map jsonb DEFAULT NULL::jsonb, name_map_exception boolean DEFAULT true)
@@ -1098,6 +1100,59 @@ BEGIN
 		_tally := _tally + _r;
     END LOOP;
 	RETURN _tally;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence(schema character varying, table_name character varying, lowerseq boolean DEFAULT true)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'schema_support'
+AS $function$
+DECLARE
+	_r	RECORD;
+	m	BIGINT;
+BEGIN
+	FOR _r IN
+		SELECT attname AS column, seq_namespace, seq_name,
+			nextval(concat_ws('.', quote_ident(seq_namespace), quote_ident(seq_name))) AS nv
+		FROM
+			pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT
+					refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+			) seq USING (attrelid, attnum)
+		WHERE nspname = reset_table_sequence.schema
+		AND relname = reset_table_sequence.table_name
+		AND NOT a.attisdropped
+	LOOP
+		EXECUTE  format('SELECT coalesce(max(%s), 0)+1 FROM %s.%s',
+			quote_ident(_r.column),
+			quote_ident(schema),
+			quote_ident(table_name)
+		) INTO m;
+
+		IF NOT lowerseq AND m < _r.nv  THEN
+			m := _r.nv;
+		END IF;
+		RAISE DEBUG 'resetting to %', m;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_r.seq_namespace),
+			quote_ident(_r.seq_name),
+			m
+		);
+	END LOOP;
 END;
 $function$
 ;
@@ -2791,7 +2846,7 @@ BEGIN
 				current_setting('jazzhands.appuser', true),
 				current_setting('request.header.x-remote-user', true)
 			);
-		structuser := coalesce(current_setting('jazzhands.auditaugment', 
+		structuser := coalesce(current_setting('jazzhands.auditaugment',
 			true)::jsonb, '{}'::jsonb) ||
 			jsonb_build_object('user', current_user);
 		IF current_user != session_user THEN
@@ -3136,6 +3191,8 @@ EXCEPTION WHEN undefined_table THEN
 END;
 $$;
 
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'reset_table_sequence ( character varying,character varying )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
+DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 -- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants(username text, direction text, old_schema text, new_schema text, name_map jsonb DEFAULT NULL::jsonb, name_map_exception boolean DEFAULT true)
@@ -3343,6 +3400,59 @@ BEGIN
 		_tally := _tally + _r;
     END LOOP;
 	RETURN _tally;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence(schema character varying, table_name character varying, lowerseq boolean DEFAULT true)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'schema_support'
+AS $function$
+DECLARE
+	_r	RECORD;
+	m	BIGINT;
+BEGIN
+	FOR _r IN
+		SELECT attname AS column, seq_namespace, seq_name,
+			nextval(concat_ws('.', quote_ident(seq_namespace), quote_ident(seq_name))) AS nv
+		FROM
+			pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT
+					refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+			) seq USING (attrelid, attnum)
+		WHERE nspname = reset_table_sequence.schema
+		AND relname = reset_table_sequence.table_name
+		AND NOT a.attisdropped
+	LOOP
+		EXECUTE  format('SELECT coalesce(max(%s), 0)+1 FROM %s.%s',
+			quote_ident(_r.column),
+			quote_ident(schema),
+			quote_ident(table_name)
+		) INTO m;
+
+		IF NOT lowerseq AND m < _r.nv  THEN
+			m := _r.nv;
+		END IF;
+		RAISE DEBUG 'resetting to %', m;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_r.seq_namespace),
+			quote_ident(_r.seq_name),
+			m
+		);
+	END LOOP;
 END;
 $function$
 ;
@@ -9710,6 +9820,8 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 select clock_timestamp(), clock_timestamp() - now() AS len;
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'migrate_grants ( text,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
 DROP FUNCTION IF EXISTS schema_support.migrate_grants ( text,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'reset_table_sequence ( character varying,character varying )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
+DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying );
 -- Changed function
 SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'trigger_ins_upd_generic_func');
 SELECT schema_support.save_grants_for_replay('schema_support', 'trigger_ins_upd_generic_func');
@@ -10270,9 +10382,9 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_acct_coll_prop_expanded', 'v_acct_coll_prop_expanded');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', tags := ARRAY['view_v_acct_coll_prop_expanded']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_acct_coll_prop_expanded;
@@ -11901,8 +12013,8 @@ SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_dev_col_root
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_dev_col_root', tags := ARRAY['view_v_dev_col_root']);
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_dev_col_root;
 CREATE VIEW jazzhands_legacy.v_dev_col_root AS
@@ -11995,13 +12107,13 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_col_acct_col_expanded', 'v_device_col_acct_col_expanded');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_expanded', tags := ARRAY['view_v_device_col_acct_col_expanded']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_col_acct_col_expanded;
 CREATE VIEW jazzhands_legacy.v_device_col_acct_col_expanded AS
@@ -12231,8 +12343,8 @@ SELECT schema_support.save_dependent_objects_for_replay('jazzhands_legacy', 'v_d
 SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_device_collection_root');
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_collection_root;
 CREATE VIEW jazzhands_legacy.v_device_collection_root AS
@@ -12324,9 +12436,9 @@ SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_dev_col_devi
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_dev_col_device_root', tags := ARRAY['view_v_dev_col_device_root']);
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_dev_col_device_root;
 CREATE VIEW jazzhands_legacy.v_dev_col_device_root AS
@@ -12422,18 +12534,18 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_dev_col_user_prop_expanded', 'v_dev_col_user_prop_expanded');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_dev_col_user_prop_expanded', tags := ARRAY['view_v_dev_col_user_prop_expanded']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_realm', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property_data_type', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_realm', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property_data_type', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_dev_col_user_prop_expanded;
 CREATE VIEW jazzhands_legacy.v_dev_col_user_prop_expanded AS
  SELECT upo.property_id,
@@ -12541,22 +12653,22 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_unix_account_overrides', 'v_unix_account_overrides');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', tags := ARRAY['view_v_unix_account_overrides']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_account_overrides;
 CREATE VIEW jazzhands_legacy.v_unix_account_overrides AS
  SELECT property_list.device_collection_id,
@@ -12658,11 +12770,11 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_col_acct_col_unixgroup', 'v_device_col_acct_col_unixgroup');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', tags := ARRAY['view_v_device_col_acct_col_unixgroup']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_col_acct_col_unixgroup;
 CREATE VIEW jazzhands_legacy.v_device_col_acct_col_unixgroup AS
@@ -12733,13 +12845,13 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_col_acct_col_unixlogin', 'v_device_col_acct_col_unixlogin');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', tags := ARRAY['view_v_device_col_acct_col_unixlogin']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_col_acct_col_unixlogin;
 CREATE VIEW jazzhands_legacy.v_device_col_acct_col_unixlogin AS
@@ -12811,15 +12923,15 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_collection_account_ssh_key', 'v_device_collection_account_ssh_key');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_collection_account_ssh_key', tags := ARRAY['view_v_device_collection_account_ssh_key']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_ssh_key', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'ssh_key', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_collection_account_ssh_key;
 CREATE VIEW jazzhands_legacy.v_device_collection_account_ssh_key AS
  SELECT allkeys.device_collection_id,
@@ -12905,18 +13017,18 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_unix_group_overrides', 'v_unix_group_overrides');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', tags := ARRAY['view_v_unix_group_overrides']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_group_overrides;
 CREATE VIEW jazzhands_legacy.v_unix_group_overrides AS
  WITH perdevtomclass AS (
@@ -13023,26 +13135,26 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_col_account_cart', 'v_device_col_account_cart');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_col_account_cart', tags := ARRAY['view_v_device_col_account_cart']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_col_account_cart;
 CREATE VIEW jazzhands_legacy.v_device_col_account_cart AS
  SELECT xx.device_collection_id,
@@ -13128,23 +13240,23 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_col_account_col_cart', 'v_device_col_account_col_cart');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_col_account_col_cart', tags := ARRAY['view_v_device_col_account_col_cart']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_device_col_account_col_cart;
 CREATE VIEW jazzhands_legacy.v_device_col_account_col_cart AS
  SELECT xx.device_collection_id,
@@ -13227,10 +13339,10 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_unix_mclass_settings', 'v_unix_mclass_settings');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', tags := ARRAY['view_v_unix_mclass_settings']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_mclass_settings;
 CREATE VIEW jazzhands_legacy.v_unix_mclass_settings AS
@@ -13311,54 +13423,54 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_unix_passwd_mappings', 'v_unix_passwd_mappings');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_unix_passwd_mappings', tags := ARRAY['view_v_unix_passwd_mappings']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_password', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_ssh_key', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'ssh_key', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_account_cart', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_collection_account_ssh_key', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'person', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_password', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'ssh_key', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_account_cart', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_collection_account_ssh_key', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_passwd_mappings;
 CREATE VIEW jazzhands_legacy.v_unix_passwd_mappings AS
  WITH passtype AS (
@@ -13547,77 +13659,77 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_unix_group_mappings', 'v_unix_group_mappings');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_unix_group_mappings', tags := ARRAY['view_v_unix_group_mappings']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'ssh_key', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_ssh_key', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_password', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_ssh_key', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'person', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'ssh_key', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_account_cart', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_account_col_cart', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_collection_account_ssh_key', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_account_cart', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_passwd_mappings', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_account_col_cart', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_expanded', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'unix_group', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_unix_info', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_passwd_mappings', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_group_mappings;
 CREATE VIEW jazzhands_legacy.v_unix_group_mappings AS
  SELECT dc.device_collection_id,
@@ -13840,20 +13952,20 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_hotpants_account_attribute', 'v_hotpants_account_attribute');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_hotpants_account_attribute', tags := ARRAY['view_v_hotpants_account_attribute']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'account_realm', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property_data_type', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_account_collection_account', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_acct_expanded_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dev_col_user_prop_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property_data_type', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_hotpants_account_attribute;
 CREATE VIEW jazzhands_legacy.v_hotpants_account_attribute AS
  SELECT v_dev_col_user_prop_expanded.property_id,
@@ -13932,8 +14044,8 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_device_expanded', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_hotpants_client;
 CREATE VIEW jazzhands_legacy.v_hotpants_client AS
  SELECT dc.device_id,
@@ -14079,13 +14191,13 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_hotpants_device_collection', 'v_hotpants_device_collection');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_hotpants_device_collection', tags := ARRAY['view_v_hotpants_device_collection']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'netblock', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_device', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'device_collection_hier', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'netblock', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_hotpants_device_collection;
 CREATE VIEW jazzhands_legacy.v_hotpants_device_collection AS
  SELECT rankbyhier.device_id,
@@ -14171,8 +14283,8 @@ $$;
 SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_lv_hier', 'v_lv_hier');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_lv_hier', tags := ARRAY['view_v_lv_hier']);
 -- restore any missing random views that may be cached that this one needs.
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'logical_volume', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group_physicalish_vol', type := 'view');
@@ -14841,9 +14953,9 @@ SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_dns_sorted',
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_dns_sorted', tags := ARRAY['view_v_dns_sorted']);
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'ip_universe_visibility', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dns', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dns_fwd', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dns_rvs', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_dns', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_dns_sorted;
 CREATE VIEW jazzhands_legacy.v_dns_sorted AS
  SELECT v_dns.dns_record_id,
