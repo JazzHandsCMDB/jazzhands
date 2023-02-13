@@ -385,15 +385,14 @@ sub _process_arguments($$) {
 		}
 	}
 
-	$self->{sslargs} = {};
-	if ( $appauth->{CAPath} ) {
-		my $ca = $appauth->{CAPath};
-		if ( -f $ca ) {
-			$self->{sslargs}->{SSL_ca_file} = $ca;
-		} elsif ( -d $ca ) {
-			$self->{sslargs}->{SSL_ca_path} = $ca;
+	my $capath = $ENV{'VAULT_CAPATH'} || $appauth->{CAPath};
+	if ( $capath) {
+		if ( -f $capath ) {
+			$self->{sslargs}->{SSL_ca_file} = $capath;
+		} elsif ( -d $capath ) {
+			$self->{sslargs}->{SSL_ca_path} = $capath;
 		} else {
-			$errstr = sprintf "Invalid CAPath %s", $ca;
+			$errstr = sprintf "Invalid CAPath %s", $capath;
 			return undef;
 		}
 	}

@@ -7,7 +7,7 @@ Standards-Version: 3.9.4
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-vault
-Architecture: any
+Architecture: all
 Pre-Depends: jazzhands-perl-common
 Depends: jazzhands-perl-common (>=0.95.0)
 Enhances: perl-jazzhands-appauthal (>= 0.94.0)
