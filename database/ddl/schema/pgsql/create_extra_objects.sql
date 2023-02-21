@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019 Todd Kover
+ * Copyright (c) 2013-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +16,6 @@
  */
 
 create sequence x509_ca_cert_serial_number_seq;
-
-create sequence note_id_seq;
-
-alter table device_note alter column note_id set default nextval('note_id_seq');
-alter table person_note alter column note_id set default nextval('note_id_seq');
 
 CREATE INDEX netblock_case_idx ON netblock USING btree ((
 CASE
@@ -44,5 +39,3 @@ drop trigger IF EXISTS trigger_audit_token_sequence on token_sequence;
 -- CREATE INDEX ON mv_dev_col_root (leaf_type);
 -- CREATE INDEX ON mv_dev_col_root (root_id);
 -- CREATE INDEX ON mv_dev_col_root (root_type);
-
-

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2019 Todd Kover
+ * Copyright (c) 2010-2021 Todd Kover, Matthew Ragan
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,7 @@
 \set ON_ERROR_STOP
 
 /*
- * Copyright (c) 2010-2019 Matthew Ragan
+ * Copyright (c) 2010-2021 Matthew Ragan
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,27 +80,42 @@ DECLARE
 	m	BIGINT;
 BEGIN
 	FOR _r IN
-		WITH s AS (
-			SELECT	pg_get_serial_sequence(schema||'.'||table_name,
-				a.attname) as seq, a.attname as column
-			FROM	pg_attribute a
+		SELECT attname AS column, seq_namespace, seq_name,
+			nextval(concat_ws('.', quote_ident(seq_namespace), quote_ident(seq_name))) AS nv
+		FROM
+			pg_attribute a
 			JOIN pg_class c ON c.oid = a.attrelid
 			JOIN pg_namespace n ON n.oid = c.relnamespace
-			WHERE	c.relname = table_name
-			AND	n.nspname = schema
-				AND	a.attnum > 0
-				AND	NOT a.attisdropped
-		) SELECT s.*, nextval(s.seq) as nv FROM s WHERE seq IS NOT NULL
+			INNER JOIN (
+				SELECT
+					refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+			) seq USING (attrelid, attnum)
+		WHERE nspname = reset_table_sequence.schema
+		AND relname = reset_table_sequence.table_name
+		AND NOT a.attisdropped
 	LOOP
-		EXECUTE 'SELECT max('||quote_ident(_r.column)||')+1 FROM  '
-			|| quote_ident(schema)||'.'||quote_ident(table_name)
-			INTO m;
+		EXECUTE  format('SELECT max(%s)+1 FROM %s.%s',
+			quote_ident(_r.column),
+			quote_ident(schema),
+			quote_ident(table_name)
+		) INTO m;
 		IF m IS NOT NULL THEN
 			IF _r.nv > m THEN
 				m := _r.nv;
 			END IF;
-			EXECUTE 'ALTER SEQUENCE ' || _r.seq || ' RESTART WITH '
-				|| m;
+			EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+				quote_ident(_r.seq_namespace),
+				quote_ident(_r.seq_name),
+				m
+			);
 		END IF;
 	END LOOP;
 END;
@@ -230,7 +245,9 @@ RETURNS VOID AS $FUNC$
 DECLARE
 	cols	text[];
 	i	text;
+	_t	text;
 BEGIN
+	_t := regexp_replace(rpad(quote_ident('__old__t' || table_name), 63), ' *$', '');
 	--
 	-- get columns - XXX NOTE:  Need to remove columns not in the new
 	-- table...
@@ -244,10 +261,15 @@ BEGIN
 			on d.objoid = a.attrelid
 			and d.objsubid = a.attnum
 	WHERE   n.nspname = quote_ident(aud_schema)
-	  AND	c.relname = quote_ident('__old__' || table_name)
+	  AND	c.relname = _t
 	  AND	a.attnum > 0
 	  AND	NOT a.attisdropped
 	;
+
+	IF cols IS NULL THEN
+		RAISE EXCEPTION 'Unable to get columns from "%.%"',
+			quote_ident(aud_schema), _t;
+	END IF;
 
 	EXECUTE 'INSERT INTO '
 		|| quote_ident(aud_schema) || '.'
@@ -255,21 +277,21 @@ BEGIN
 		|| array_to_string(cols, ',') || ' ) SELECT '
 		|| array_to_string(cols, ',') || ' FROM '
 		|| quote_ident(aud_schema) || '.'
-		|| quote_ident('__old__' || table_name)
+		|| quote_ident('__old__t' || table_name)
 		|| ' ORDER BY '
 		|| quote_ident('aud#seq');
 
 
 	EXECUTE 'DROP TABLE '
 		|| quote_ident(aud_schema) || '.'
-		|| quote_ident('__old__' || table_name);
+		|| quote_ident('__old__t' || table_name);
 
 	--
 	-- drop audit sequence, in case it was not dropped with table.
 	--
 	EXECUTE 'DROP SEQUENCE IF EXISTS '
 		|| quote_ident(aud_schema) || '.'
-		|| quote_ident('_old_' || table_name || '_seq');
+		|| quote_ident('_old_s' || table_name || '_seq');
 
 	--
 	-- drop indexes found before that did not get dropped.
@@ -309,6 +331,9 @@ DECLARE
 	keys		text[];
 	i		text;
 	seq		integer;
+	_seq_ns		TEXT;
+	_seq_name	TEXT;
+	tmpsn	TEXT;
 BEGIN
 	-- rename all the old indexes and constraints on the old audit table
 	SELECT	array_agg(c2.relname)
@@ -370,6 +395,42 @@ BEGIN
 		END LOOP;
 	END IF;
 
+
+	--
+	-- get sequence name before renaming table
+	--
+	-- this is the same as pg_get_serial_sequence but that
+	-- can be weird with special charaters, and also makes
+	-- the returnvalue ns.table so they're harder to quote.
+	SELECT seq_namespace, seq_name INTO _seq_ns, _seq_name
+	FROM
+		pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		INNER JOIN (
+			SELECT
+				refobjid AS attrelid, refobjsubid AS attnum,
+				c.oid AS seq_id, c.relname AS seq_name,
+				n.oid AS seq_nspid, n.nspname AS seq_namespace,
+				deptype
+			FROM
+				pg_depend d
+				JOIN pg_class c ON c.oid = d.objid
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE c.relkind = 'S'
+		) seq USING (attrelid, attnum)
+	WHERE attname = 'aud#seq'
+		AND nspname = aud_schema
+		AND relname = table_name
+		AND NOT a.attisdropped
+	ORDER BY a.attnum;
+
+	--
+	-- capture sequence number before renaming table
+	--
+	EXECUTE format('SELECT max("aud#seq") + 1 FROM %s.%s',
+		quote_ident(aud_schema), quote_ident(table_name)) INTO seq;
+
 	--
 	-- rename table
 	--
@@ -377,17 +438,14 @@ BEGIN
 		|| quote_ident(aud_schema) || '.'
 		|| quote_ident(table_name)
 		|| ' RENAME TO '
-		|| quote_ident('__old__' || table_name);
-
+		|| quote_ident('__old__t' || table_name);
 
 	--
 	-- RENAME sequence
 	--
-	EXECUTE 'ALTER SEQUENCE '
-		|| quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq')
-		|| ' RENAME TO '
-		|| quote_ident('_old_' || table_name || '_seq');
+	tmpsn := '_old_s' || table_name || '_seq';
+	EXECUTE FORMAT('ALTER SEQUENCE %s.%s RENAME TO %s',
+		quote_ident(_seq_ns), quote_ident(_seq_name), tmpsn);
 
 	--
 	-- create a new audit table
@@ -395,16 +453,45 @@ BEGIN
 	PERFORM schema_support.build_audit_table(aud_schema,tbl_schema,table_name);
 
 	--
+	-- figure out the new sequence name.  This may be some namel length adjusted
+	-- name.  Also, it's possible the old sequence was not an identity column and
+	-- this one is.
+	--
+
+	--
 	-- fix sequence primary key to have the correct next value
 	--
-	EXECUTE 'SELECT max("aud#seq") + 1 FROM	 '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident('__old__' || table_name) INTO seq;
+
+	-- this is the same as pg_get_serial_sequence but that
+	-- can be weird with special charaters, and also makes
+	-- the returnvalue ns.table so they're harder to quote.
+	SELECT seq_namespace, seq_name INTO _seq_ns, _seq_name
+	FROM pg_attribute a
+		JOIN pg_class c ON c.oid = a.attrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		INNER JOIN (
+			SELECT
+				refobjid AS attrelid,
+				refobjsubid AS attnum,
+				c.oid AS seq_id,
+				c.relname AS seq_name,
+				n.oid AS seq_nspid,
+				n.nspname AS seq_namespace,
+				deptype
+			FROM pg_depend d
+				JOIN pg_class c ON c.oid = d.objid
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE c.relkind = 'S'
+		) seq USING (attrelid, attnum)
+	WHERE attname = 'aud#seq'
+		AND nspname = aud_schema
+		AND relname = table_name
+		AND NOT a.attisdropped
+	ORDER BY a.attnum;
+
 	IF seq IS NOT NULL THEN
-		EXECUTE 'ALTER SEQUENCE '
-			|| quote_ident(aud_schema) || '.'
-			|| quote_ident(table_name || '_seq')
-			|| ' RESTART WITH ' || seq;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_seq_ns), quote_ident(_seq_name), seq);
 	END IF;
 
 	IF finish_rebuild THEN
@@ -506,6 +593,99 @@ BEGIN
 END;
 $FUNC$ LANGUAGE plpgsql;
 
+-------------------------------------------------------------------------------
+--
+-- delete and recreate all but primary key and unique key indexes on audit
+-- tables.   This is because foreign keys are not properly handled, but if
+-- that support was added, it could be a thing.
+--
+CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_indexes(
+	aud_schema VARCHAR, tbl_schema VARCHAR, table_name VARCHAR
+)
+RETURNS VOID AS $$
+DECLARE
+	_r	RECORD;
+	sch	TEXT;
+	name_base	TEXT;
+BEGIN
+	FOR _r IN
+		SELECT c2.relname, pg_get_indexdef(i.indexrelid) as def, con.contype
+			FROM pg_catalog.pg_class c
+				INNER JOIN pg_namespace n ON relnamespace = n.oid
+				INNER JOIN pg_catalog.pg_index i ON c.oid = i.indrelid
+				INNER JOIN pg_catalog.pg_class c2 ON i.indexrelid = c2.oid
+			LEFT JOIN pg_catalog.pg_constraint con ON
+				(con.conrelid = i.indrelid AND con.conindid = i.indexrelid )
+			WHERE c.relname =  table_name
+			AND	  n.nspname = aud_schema
+			AND	(contype IS NULL OR contype NOT IN ('p','u'))
+	LOOP
+		EXECUTE format('DROP INDEX %s.%s',
+		quote_ident(aud_schema), quote_ident(_r.relname));
+	END LOOP;
+
+	name_base := quote_ident( table_name );
+	-- 17 is length of _aud#timestmp_idx
+	-- md5 is just to make the name unique
+	IF char_length(name_base) > 64 - 17 THEN
+		-- using lpad as a truncate
+		name_base := 'aud_' || lpad(md5(table_name), 10) || lpad(table_name, 64 - 19 - 10 );
+	END IF;
+
+	EXECUTE 'CREATE INDEX '
+		|| quote_ident( name_base || '_aud#timestamp_idx')
+		|| ' ON ' || quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name) || '("aud#timestamp")';
+
+	EXECUTE 'CREATE INDEX '
+		|| quote_ident( name_base || '_aud#realtime_idx')
+		|| ' ON ' || quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name) || '("aud#realtime")';
+
+	EXECUTE 'CREATE INDEX '
+		|| quote_ident( name_base || '_aud#txid_idx')
+		|| ' ON ' || quote_ident(aud_schema) || '.'
+		|| quote_ident(table_name) || '("aud#txid")';
+
+
+	PERFORM schema_support.build_audit_table_pkak_indexes(
+		aud_schema := aud_schema,
+		tbl_schema := tbl_schema,
+		table_name := table_name
+	);
+END;
+$$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.rebuild_all_audit_indexes
+	( aud_schema varchar, tbl_schema varchar, beverbose boolean DEFAULT false )
+RETURNS VOID AS $FUNC$
+DECLARE
+	table_list RECORD;
+	_tags		text[];
+BEGIN
+	FOR table_list IN
+		SELECT b.table_name::text
+		FROM information_schema.tables b
+			INNER JOIN information_schema.tables a
+				USING (table_name,table_type)
+		WHERE table_type = 'BASE TABLE'
+		AND a.table_schema = aud_schema
+		AND b.table_schema = tbl_schema
+		ORDER BY table_name
+	LOOP
+		IF beverbose THEN
+			RAISE NOTICE '>> Processing ancillary indexes on %.%', aud_schema, table_list.table_name;
+		END IF;
+		PERFORM schema_support.rebuild_audit_indexes(
+			aud_schema := aud_schema,
+			tbl_schema := tbl_schema,
+			table_name := table_list.table_name
+		);
+	END LOOP;
+END;
+$FUNC$ LANGUAGE plpgsql;
+
 
 -------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
@@ -513,14 +693,10 @@ CREATE OR REPLACE FUNCTION schema_support.build_audit_table(
 	first_time boolean DEFAULT true
 )
 RETURNS VOID AS $FUNC$
+DECLARE
+	seqns	TEXT;
+	seqname	TEXT;
 BEGIN
-	BEGIN
-	EXECUTE 'CREATE SEQUENCE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq');
-	EXCEPTION WHEN duplicate_table THEN
-		NULL;
-	END;
-
 	EXECUTE 'CREATE TABLE ' || quote_ident(aud_schema) || '.'
 		|| quote_ident(table_name) || ' AS '
 		|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
@@ -530,39 +706,32 @@ BEGIN
 		|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name)
 		|| ' LIMIT 0';
 
-	EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name)
-		|| $$ ALTER COLUMN "aud#seq" SET NOT NULL, $$
-		|| $$ ALTER COLUMN "aud#seq" SET DEFAULT nextval('$$
-		|| quote_ident(aud_schema) || '.' || quote_ident(table_name || '_seq')
-		|| $$')$$;
+	EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN "aud#seq" SET NOT NULL',
+		quote_ident(aud_schema),
+		quote_ident(table_name)
+	);
 
-	EXECUTE 'ALTER SEQUENCE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name || '_seq') || ' OWNED BY '
-		|| quote_ident(aud_schema) || '.' || quote_ident(table_name)
-		|| '.' || quote_ident('aud#seq');
+	EXECUTE format('ALTER TABLE %s.%s ADD PRIMARY KEY("aud#seq")',
+		quote_ident(aud_schema),
+		quote_ident(table_name)
+	);
+
+	--
+	-- If the table name is too long, then the sequence name will
+	-- definitely be too long, so need to rename to a unique name.
+	--
+	IF char_length(table_name) >= 60 THEN
+		seqname := lpad(table_name, 46) || lpad(md5(table_name), 10) || '_seq';
+	ELSE
+		seqname := table_name || '_seq';
+	END IF;
+
+	EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN "aud#seq" ADD GENERATED BY DEFAULT AS IDENTITY ( SEQUENCE NAME %s.%s )',
+		quote_ident(aud_schema), quote_ident(table_name), quote_ident(aud_schema), quote_ident(seqname)
+	);
 
 
-	EXECUTE 'CREATE INDEX '
-		|| quote_ident( table_name || '_aud#timestamp_idx')
-		|| ' ON ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name) || '("aud#timestamp")';
-
-	EXECUTE 'CREATE INDEX '
-		|| quote_ident( table_name || '_aud#realtime_idx')
-		|| ' ON ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name) || '("aud#realtime")';
-
-	EXECUTE 'CREATE INDEX '
-		|| quote_ident( table_name || '_aud#txid_idx')
-		|| ' ON ' || quote_ident(aud_schema) || '.'
-		|| quote_ident(table_name) || '("aud#txid")';
-
-	EXECUTE 'ALTER TABLE ' || quote_ident(aud_schema) || '.'
-		|| quote_ident( table_name )
-		|| ' ADD PRIMARY KEY ("aud#seq")';
-
-	PERFORM schema_support.build_audit_table_pkak_indexes(
+	PERFORM schema_support.rebuild_audit_indexes(
 		aud_schema, tbl_schema, table_name);
 
 	IF first_time THEN
@@ -609,7 +778,8 @@ CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_tables
 	( aud_schema varchar, tbl_schema varchar )
 RETURNS VOID AS $FUNC$
 DECLARE
-	 table_list RECORD;
+	table_list RECORD;
+	_tags		text[];
 BEGIN
 	FOR table_list IN
 		SELECT b.table_name::text
@@ -621,23 +791,21 @@ BEGIN
 		AND b.table_schema = tbl_schema
 		ORDER BY table_name
 	LOOP
+		_tags := ARRAY[concat('rebuild_audit_tables_', aud_schema, '_', table_list.table_name)];
 		PERFORM schema_support.save_dependent_objects_for_replay(
 			schema := aud_schema::varchar,
 			object := table_list.table_name::varchar,
-			tags:= ARRAY['rebuild_audit_tables']);
+			tags:= _tags);
 		PERFORM schema_support.save_grants_for_replay(schema := aud_schema,
 			object := table_list.table_name,
-			tags := ARRAY['rebuild_audit_tables']);
+			tags := _tags);
 		PERFORM schema_support.rebuild_audit_table
 			( aud_schema, tbl_schema, table_list.table_name );
-		PERFORM schema_support.replay_object_recreates();
-		PERFORM schema_support.replay_saved_grants();
+		PERFORM schema_support.replay_object_recreates(tags := _tags);
+		PERFORM schema_support.replay_saved_grants(tags := _tags);
 		END LOOP;
 
 	PERFORM schema_support.rebuild_audit_triggers(aud_schema, tbl_schema);
-	PERFORM schema_support.replay_object_recreates(tags := ARRAY['rebuild_audit_tables
-']);
-	PERFORM schema_support.replay_saved_grants(tags := ARRAY['rebuild_audit_tables']);
 END;
 $FUNC$ LANGUAGE plpgsql;
 
@@ -680,7 +848,7 @@ BEGIN
     RETURN NEW;
 
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY INVOKER;
 
 -------------------------------------------------------------------------------
 
@@ -822,6 +990,7 @@ DECLARE
 	_r		RECORD;
 	doh	boolean DEFAULT false;
 	_myrole	TEXT;
+	msg TEXT;
 BEGIN
 	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
 	IF issuper THEN
@@ -913,49 +1082,53 @@ BEGIN
 			IF _r.viewdelta  > minnumdiff OR
 				(_r.viewdelta / _r.before_views_count )*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! view changes not within tolerence';
+				msg := '!!! view changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... View changes within tolerence (%/% %%), I will allow it: %/% %%',
+				msg := '... View changes within tolerence;  I will allow it';
+			END IF;
+			RAISE NOTICE '%: (%/% %%) %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.viewdelta,
 						((_r.viewdelta::float / _r.before_views_count ))*100;
-			END IF;
 		END IF;
 		IF _r.funcdelta > 0 THEN
 			IF _r.funcdelta  > minnumdiff OR
 				(_r.funcdelta / _r.before_func_count )*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! function changes not within tolerence';
+				msg := '!!! function changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... Function changes within tolerence (%/% %%), I will allow it: %/% %%',
+				msg := '... Function changes within tolerence; I will allow it';
+			END IF;
+
+			RAISE NOTICE '%:  (%/% %%); %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.funcdelta,
 						((_r.funcdelta::float / _r.before_func_count ))*100;
-			END IF;
 		END IF;
 		IF _r.keydelta > 0 THEN
 			IF _r.keydelta  > minnumdiff OR
-				(_r.keydelta / _r.before_key_count )*100 > 100 - minpercent
+				((_r.keydelta::float / _r.before_key_count ))*100 > minpercent
 			THEN
-				RAISE NOTICE '!!! fk constraint changes not within tolerence';
+				msg := '!!! fk constraint changes not within tolerence';
 				doh := 1;
 			ELSE
-				RAISE NOTICE
-					'... Function changes within tolerence (%/% %%), I will allow it, %/% %%',
+				msg := '... Function changes within tolerence; I will allow it';
+			END IF;
+			RAISE NOTICE '%: (%/% %%) %/% %%', msg,
 						minnumdiff, minpercent,
 						_r.keydelta,
-						((_r.keydelta::float / _r.before_keys_count ))*100;
-			END IF;
+						((_r.keydelta::float / _r.before_key_count ))*100;
 		END IF;
 	END LOOP;
 
 	IF doh THEN
 		RAISE EXCEPTION 'Too many changes, abort!';
 	END IF;
+
+	DROP TABLE IF EXISTS __owner_before_stats;
+	DROP TABLE IF EXISTS __owner_after_stats;
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY INVOKER;
@@ -1206,7 +1379,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 CREATE OR REPLACE FUNCTION schema_support.replay_saved_grants(
 	beverbose	boolean DEFAULT false,
 	schema		text DEFAULT NULL,
-	tags		text DEFAULT NULL
+	tags		text[] DEFAULT NULL
 )
 RETURNS VOID AS $$
 DECLARE
@@ -1376,7 +1549,8 @@ BEGIN
 			END IF;
 			IF _c.comment IS NOT NULL THEN
 				_ddl := 'COMMENT ON COLUMN ' ||
-					quote_ident(schema) || '.' || quote_ident(object)
+					quote_ident(schema) || '.' || quote_ident(object) ||
+					'.' || quote_ident(_c.colname) ||
 					' IS ''' || _c.comment || '''';
 				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
 					VALUES (
@@ -1548,6 +1722,7 @@ BEGIN
 			INNER JOIN pg_class c on trg.tgrelid =  c.oid
 			INNER JOIN pg_namespace n on n.oid = c.relnamespace
 		WHERE n.nspname = schema and c.relname = object
+		AND NOT tgisinternal
 	LOOP
 		INSERT INTO __recreate (schema, object, type, ddl, tags , path)
 			VALUES (
@@ -1604,48 +1779,49 @@ BEGIN
 	--
 	FOR _r in
 		SELECT otherside.nspname, otherside.relname, otherside.conname,
-		    pg_get_constraintdef(otherside.oid, true) AS def,
-		    otherside.conname, otherside.condeferrable, otherside.condeferred,
+			pg_get_constraintdef(otherside.oid, true) AS def,
+			otherside.conname, otherside.condeferrable, otherside.condeferred,
 			otherside.cols as cols,
-		    myside.nspname as mynspname, myside.relname as myrelname,
-		    myside.cols as mycols, myside.conname as myconname
+			myside.nspname as mynspname, myside.relname as myrelname,
+			myside.cols as mycols, myside.conname as myconname
 		FROM
-		    (
+			(
 			SELECT me.oid, n.oid as namespaceid, nspname, relname,
 				conrelid, conindid, confrelid, conname, connamespace,
 				condeferrable, condeferred,
-				array_agg(attname ORDER BY attnum) as cols
+				array_agg(attname ORDER BY confkey) as cols
 			FROM (
-			    SELECT con.*, a.attname, a.attnum
-			    FROM
-				    ( SELECT oid, conrelid, conindid, confrelid,
+				SELECT con.*, a.attname, a.attnum
+				FROM
+					( SELECT oid, conrelid, conindid, confrelid,
 					contype, connamespace,
 					condeferrable, condeferred, conname,
-					unnest(conkey) as conkey
+					unnest(conkey) as conkey,
+					unnest(confkey) as confkey
 					FROM pg_constraint
-				    ) con
+					) con
 				JOIN pg_attribute a ON a.attrelid = con.conrelid
 					AND a.attnum = con.conkey
-				WHERE contype IN ('f')
+				WHERE contype IN ('f','p')
 			) me
 				JOIN pg_class c ON c.oid = me.conrelid
 				JOIN pg_namespace n ON c.relnamespace = n.oid
 			GROUP BY 1,2,3,4,5,6,7,8,9,10,11
-		    ) otherside JOIN
-		    (
+			) otherside JOIN
+			(
 			SELECT me.oid, n.oid as namespaceid, nspname, relname,
 				conrelid, conindid, confrelid, conname, connamespace,
 				condeferrable, condeferred,
 				array_agg(attname ORDER BY attnum) as cols
 			FROM (
-			    SELECT con.*, a.attname, a.attnum
-			    FROM
-				    ( SELECT oid, conrelid, conindid, confrelid,
+				SELECT con.*, a.attname, a.attnum
+				FROM
+					( SELECT oid, conrelid, conindid, confrelid,
 					contype, connamespace,
 					condeferrable, condeferred, conname,
 					unnest(conkey) as conkey
 					FROM pg_constraint
-				    ) con
+					) con
 				JOIN pg_attribute a ON a.attrelid = con.conrelid
 					AND a.attnum = con.conkey
 				WHERE contype IN ('u','p')
@@ -1653,8 +1829,8 @@ BEGIN
 				JOIN pg_class c ON c.oid = me.conrelid
 				JOIN pg_namespace n ON c.relnamespace = n.oid
 			GROUP BY 1,2,3,4,5,6,7,8,9,10,11
-		    ) myside ON myside.conrelid = otherside.confrelid
-			    AND myside.conindid = otherside.conindid
+			) myside ON myside.conrelid = otherside.confrelid
+				AND myside.conindid = otherside.conindid
 		WHERE myside.namespaceid != otherside.namespaceid
 		AND myside.nspname = schema
 		AND myside.relname = object
@@ -2258,7 +2434,7 @@ $$ LANGUAGE plpgsql SECURITY INVOKER;
 --	raise_exception		- raise an exception on mismatch
 
 
-create or replace function schema_support.relation_diff(
+CREATE OR REPLACE FUNCTION schema_support.relation_diff(
 	schema			text,
 	old_rel			text,
 	new_rel		text,
@@ -2284,26 +2460,71 @@ DECLARE
 	_nj		jsonb;
 	_oldschema	TEXT;
 	_newschema	TEXT;
+    _tmpschema	TEXT;
 BEGIN
+	SELECT nspname
+		INTO _tmpschema
+		FROM pg_namespace
+		WHERE oid = pg_my_temp_schema();
+
+	--
+	-- validate that both old and new tables exist.  This has support for
+	-- temporary tabels on either end, which kind of ignore schema.
+	--
 	IF old_rel ~ '\.' THEN
 		_oldschema := regexp_replace(old_rel, '\..*$', '');
 		old_rel := regexp_replace(old_rel, '^[^\.]*\.', '');
 	ELSE
-		_oldschema:= schema;
+		EXECUTE 'SELECT count(*)
+			FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE nspname = $1 AND relname = $2'
+			INTO _t1 USING schema, old_rel;
+		IF _t1 = 1 THEN
+			_oldschema:= schema;
+		ELSE
+			EXECUTE 'SELECT count(*)
+				FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE nspname = $1 AND relname = $2'
+				INTO _t1 USING _tmpschema, old_rel;
+			IF _t1 = 1 THEN
+				_oldschema:= _tmpschema;
+			ELSE
+				RAISE EXCEPTION 'table %.% does not seem to exist', _oldschema, old_rel;
+			END IF;
+		END IF;
 	END IF;
-
 	IF new_rel ~ '\.' THEN
 		_newschema := regexp_replace(new_rel, '\..*$', '');
 		new_rel := regexp_replace(new_rel, '^[^\.]*\.', '');
 	ELSE
-		_newschema:= schema;
+		EXECUTE 'SELECT count(*)
+			FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE nspname = $1 AND relname = $2'
+			INTO _t1 USING schema, new_rel;
+		IF _t1 = 1 THEN
+			_newschema:= schema;
+		ELSE
+			EXECUTE 'SELECT count(*)
+				FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE nspname = $1 AND relname = $2'
+				INTO _t1 USING _tmpschema, new_rel;
+			IF _t1 = 1 THEN
+				_newschema:= _tmpschema;
+			ELSE
+				RAISE EXCEPTION 'table %.% does not seem to exist', _newschema, new_rel;
+			END IF;
+		END IF;
 	END IF;
+
+	--
+	-- at this point, the proper schemas have been figured out.
+	--
 
 	RAISE NOTICE '% % % %', _oldschema, old_rel, _newschema, new_rel;
 
 	-- do a simple row count
-	EXECUTE 'SELECT count(*) FROM ' || _oldschema || '."' || old_rel || '"' INTO _t1;
-	EXECUTE 'SELECT count(*) FROM ' || _newschema || '."' || new_rel || '"' INTO _t2;
+	EXECUTE format('SELECT count(*) FROM %s.%s', _oldschema, old_rel) INTO _t1;
+	EXECUTE format('SELECT count(*) FROM %s.%s', _newschema, new_rel) INTO _t2;
 
 	_rv := true;
 
@@ -2453,6 +2674,210 @@ BEGIN
 	return _rv;
 END;
 $$ LANGUAGE plpgsql;
+
+----------------------------------------------------------------------------
+-- BEGIN IDENTITY column migration spuport
+----------------------------------------------------------------------------
+--
+-- These functions are used to convert all the default "next serial"
+-- functions to generated by default identity columns.
+--
+--
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_legacy_serial_to_identity (
+	schema TEXT,
+	relation TEXT
+) RETURNS integer AS $$
+DECLARE
+	_r	RECORD;
+	_d	RECORD;
+	_s	RECORD;
+	_t	INTEGER;
+BEGIN
+	_t := 0;
+	FOR _r IN SELECT attrelid, attname, seq_id, seq_name, deptype
+		FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE	c.relkind = 'S'
+					AND deptype = 'a'
+			) seq USING (attrelid, attnum)
+		WHERE	NOT a.attisdropped
+			AND nspname = SCHEMA
+			AND relname = relation
+		ORDER BY
+			a.attnum
+	LOOP
+		EXECUTE format('SELECT s.*, coalesce(pg_sequence_last_value(''%s.%s''), nextval(''%s.%s''))  as lastval  FROM pg_sequence s WHERE seqrelid = %s',
+			quote_ident(schema), quote_ident(_r.seq_name),
+			quote_ident(schema), quote_ident(_r.seq_name),
+			_r.seq_id
+		) INTO _s;
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s DROP DEFAULT',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname));
+
+		EXECUTE format('ALTER SEQUENCE %s.%s OWNED BY NONE',
+			quote_ident(schema),
+			quote_ident(_r.seq_name));
+
+		EXECUTE format('DROP SEQUENCE %s.%s;',
+			quote_ident(schema),
+			quote_ident(_r.seq_name));
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s ADD GENERATED BY DEFAULT AS IDENTITY ( SEQUENCE NAME %s INCREMENT BY %s RESTART WITH %s )',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			quote_ident(_r.seq_name),
+			_s.seqincrement, _s.lastval + 1
+		);
+		_t := _t + 1;
+	END LOOP;
+	RETURN _t;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_legacy_serials_to_identities (
+	tbl_schema TEXT
+) RETURNS INTEGER AS $$
+DECLARE
+	_r		INTEGER;
+	_tally	INTEGER;
+	table_list	TEXT;
+BEGIN
+
+	_tally := 0;
+    FOR table_list IN
+		SELECT table_name::text FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+		ORDER BY table_name
+    LOOP
+		SELECT schema_support.migrate_legacy_serial_to_identity(tbl_schema, table_list) INTO _r;
+		_tally := _tally + _r;
+    END LOOP;
+	RETURN _tally;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+--
+-- to facilitate rollback of identity to serial.  Undoes the above.
+--
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serial (
+	schema TEXT,
+	relation TEXT
+) RETURNS integer AS $$
+DECLARE
+	_r	RECORD;
+	_d	RECORD;
+	_s	RECORD;
+	_t	INTEGER;
+BEGIN
+	_t := 0;
+	FOR _r IN SELECT attrelid, attname, seq_id, seq_name, deptype
+		FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE	c.relkind = 'S'
+					AND deptype = 'i'
+			) seq USING (attrelid, attnum)
+		WHERE	NOT a.attisdropped
+			AND nspname = SCHEMA
+			AND relname = relation
+		ORDER BY
+			a.attnum
+	LOOP
+		EXECUTE format('SELECT s.*, coalesce(pg_sequence_last_value(''%s.%s''), nextval(''%s.%s''))  as lastval  FROM pg_sequence s WHERE seqrelid = %s',
+			quote_ident(schema), quote_ident(_r.seq_name),
+			quote_ident(schema), quote_ident(_r.seq_name),
+			_r.seq_id
+		) INTO _s;
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s DROP IDENTITY',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname));
+
+		EXECUTE format('CREATE SEQUENCE %s.%s OWNED BY %s.%s.%s INCREMENT BY %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			_s.seqincrement
+		);
+
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			_s.lastval + 1
+		);
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT nextval(%s)',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			quote_literal(concat_ws('.',
+				quote_ident(schema),
+				quote_ident(_r.seq_name)
+			))
+		);
+
+		_t := _t + 1;
+	END LOOP;
+	RETURN _t;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serials (
+	tbl_schema TEXT
+) RETURNS INTEGER AS $$
+DECLARE
+	_r		INTEGER;
+	_tally	INTEGER;
+	table_list	TEXT;
+BEGIN
+
+	_tally := 0;
+    FOR table_list IN
+		SELECT table_name::text FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+		ORDER BY table_name
+    LOOP
+		SELECT schema_support.migrate_identity_to_legacy_serial(tbl_schema, table_list) INTO _r;
+		_tally := _tally + _r;
+    END LOOP;
+	RETURN _tally;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+----------------------------------------------------------------------------
+-- END IDENTITY column migration spuport
+----------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- BEGIN materialized view refresh automation support
@@ -2719,16 +3144,25 @@ LANGUAGE plpgsql SECURITY INVOKER;
 -- It also ignores sequences because those really need to move to IDENTITY
 -- columns anyway. and sequences are really part of the shadow schema stuff.
 --
+-- name_map may contain a jsonb hash that maps old name to new name.  When
+-- there's no key, they are assumed to be the same.  If the value is null, then
+-- it will either raise a NOTICE about it not existing (if
+-- name_map_exception is false) or raise an exception, if name_map_exception
+-- is true (the default).
+--
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants (
-	username	TEXT,
-	direction	TEXT,
-	old_schema	TEXT DEFAULT 'jazzhands_legacy',
-	new_schema	TEXT DEFAULT 'jazzhands'
+	username			TEXT,
+	direction			TEXT,
+	old_schema			TEXT,
+	new_schema			TEXT,
+	name_map			JSONB DEFAULT NULL,
+	name_map_exception	BOOLEAN DEFAULT true
 ) RETURNS TEXT[] AS $$
 DECLARE
-	_rv	TEXT[];
-	_r	RECORD;
-	_q	TEXT;
+	_rv			TEXT[];
+	_r			RECORD;
+	_q			TEXT;
+	_newname	TEXT;
 BEGIN
 	IF lower(direction) NOT IN ('grant','revoke') THEN
 		RAISE EXCEPTION 'direction must be grant or revoke';
@@ -2795,12 +3229,28 @@ BEGIN
 		ELSE
 			_q := NULL;
 		END IF;
-		IF lower(direction) = 'grant' THEN
-			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _r.name, ' TO ', _r.grantee);
-		ELSIF lower(direction) = 'revoke' THEN
-			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _r.name, ' FROM ', _r.grantee);
+
+		_newname := NULL;
+		IF name_map IS NOT NULL AND name_map ? _r.name THEN
+			IF name_map->>_r.name IS NULL THEN
+				If name_map_exception THEN
+					RAISE EXCEPTION '% is not available in the new schema', _r.name;
+				ELSE
+					RAISE NOTICE '% is not available in the new schema', _r.name;
+					CONTINUE;
+				END IF;
+			ELSE
+				_newname := name_map->>_r.name;
+			END IF;
+		ELSE
+			_newname := _r.name;
 		END IF;
 
+		IF lower(direction) = 'grant' THEN
+			_q := concat('GRANT ', _r.privilege_type, _q, ' ON ', new_schema, '.', _newname, ' TO ', _r.grantee);
+		ELSIF lower(direction) = 'revoke' THEN
+			_q := concat('REVOKE ', _r.privilege_type, _q, ' ON ', old_schema, '.', _newname, ' FROM ', _r.grantee);
+		END IF;
 
 		_rv := array_append(_rv, _q);
 		EXECUTE _q;
@@ -2810,6 +3260,153 @@ END;
 $$
 SET search_path=schema_support
 LANGUAGE plpgsql SECURITY INVOKER;
+
+----------------------------------------------------------------------------
+--
+-- schema versioning
+--
+----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.set_schema_version (
+	version		TEXT,
+	schema		TEXT
+) RETURNS void AS $$
+DECLARE
+	in_version	ALIAS FOR version;
+	in_schema	ALIAS FOR schema;
+	_sp			TEXT;
+BEGIN
+	-- Make sure that the tracking table exists
+	BEGIN
+		PERFORM count(*)
+		FROM schema_support.schema_version v
+		WHERE v.schema = in_schema;
+	EXCEPTION WHEN undefined_table THEN
+		CREATE TABLE schema_support.schema_version (
+			schema	TEXT,
+			version	TEXT,
+			CONSTRAINT schema_version_pkey PRIMARY KEY (schema)
+		);
+	END;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Unknown schema %', in_schema
+			USING ERRCODE = 'invalid_schema_name';
+	END IF;
+
+	INSERT INTO schema_support.schema_version (
+		schema, version
+	) VALUES (
+		in_schema, in_version
+	) ON CONFLICT ON CONSTRAINT schema_version_pkey DO UPDATE
+		SET version = in_version
+		WHERE schema_version.schema = in_schema
+	;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION schema_support.get_schema_version (
+	schema			TEXT DEFAULT NULL,
+	raise_exception	boolean DEFAULT true
+) RETURNS TEXT AS $$
+DECLARE
+	in_schema	ALIAS FOR schema;
+	chk_schema	TEXT;
+	_sp			TEXT;
+	s_version	TEXT;
+BEGIN
+	IF in_schema IS NOT NULL THEN
+		chk_schema := in_schema;
+	ELSE
+		SHOW search_path INTO _sp;
+		_sp := regexp_replace(_sp, ',.*$', '');
+		PERFORM *
+		FROM	pg_namespace
+		WHERE	nspname = _sp;
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Unable to discern schema to check'
+				USING ERRCODE = 'invalid_schema_name';
+		END IF;
+		chk_schema := _sp;
+	END IF;
+
+	BEGIN
+		SELECT version
+		INTO s_version
+		FROM schema_support.schema_version
+		WHERE schema_version.schema = chk_schema;
+	EXCEPTION WHEN undefined_table THEN
+		IF raise_exception THEN
+			RAISE EXCEPTION '%', SQLERRM
+				USING ERRCODE = SQLSTATE,
+				HINT = 'Version has likely not been set';
+		END IF;
+	END;
+
+	RETURN s_version;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION schema_support.check_schema_version (
+	version			TEXT,
+	schema			TEXT DEFAULT NULL,
+	raise_exception	boolean DEFAULT true
+) RETURNS boolean AS $$
+DECLARE
+	in_schema	ALIAS FOR schema;
+	in_version	ALIAS FOR version;
+	chk_schema	TEXT;
+	s_version	TEXT;
+	exist		INTEGER[];
+	want		INTEGER[];
+	i			INTEGER;
+BEGIN
+	s_version := schema_support.get_schema_version(
+		schema := in_schema,
+		raise_exception := raise_exception
+	);
+
+	IF s_version IS NULL  THEN
+		IF raise_exception THEN
+			RAISE EXCEPTION 'Could not find version'
+				USING ERRCODE = 'invalid_parameter_value',
+				HINT = 'This should not happen';
+		END IF;
+		RETURN false;
+	END IF;
+
+	-- thx http://sqlfiddle.com/#!15/0d32c/2/0 via stackoverflow
+	-- doesn't handle text labels super well, but patches welcome
+	exist := regexp_split_to_array(regexp_replace(s_version, '[^0-9.]+',
+		'', 'g'), '[-:\.]')::int[];
+	want := regexp_split_to_array(regexp_replace(in_version, '[^0-9.]+',
+		'', 'g'), '[-:\.]')::int[];
+
+	--
+	-- NOTE:  this does not (yet) handle software versions well, since it
+	-- cosniders :, ., - to all be the same demiter, so they need the
+	-- same number of elements.  Don't let the perfect be the enemy of the
+	-- good, although I'm sure that sentiment will come back to bite me.
+	--
+
+	RETURN exist >= want;
+END;
+$$
+LANGUAGE plpgsql
+-- setting a search_path messes with the function, so do not.
+SECURITY DEFINER;
+
+
+--
+-- This migrates grants from one schema to another for setting up a shadow
+-- schema for dealing with migrations.  It still needs to handle functions.
+--
+-- It also ignores sequences because those really need to move to IDENTITY
+-- columns anyway. and sequences are really part of the shadow schema stuff.
+--
 
 REVOKE USAGE ON SCHEMA schema_support FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA schema_support FROM public;
@@ -2917,7 +3514,7 @@ schema_support.build_audit_there is generally no reason to call that.
 schema_support.build_audit_table_other_indexes() mirrors all the indexes on
 the base table on the audit table and names them the same.  Note that the
 rebuild commands DO NOT mirror these (yet).  This should arguably be
-considered a bug...
+considered a bug...  It does not handle unique indexes well.
 
 Rebuilding audit tables:
 

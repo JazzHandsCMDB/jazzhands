@@ -121,7 +121,7 @@ sub find_devices {
 	my $q = qq{
 		select	distinct d.device_id, d.device_name
 		  from	device d
-			left join v_network_interface_trans ni
+			left join network_interface_netblock ni
 				on ni.device_id = d.device_id
 			left join netblock nb
 				on nb.netblock_id = ni.netblock_id
@@ -129,7 +129,7 @@ sub find_devices {
 				on dns.netblock_id = nb.netblock_id
 			left join component c USING (component_id)
 			left join asset a USING (component_id)
-		 where	
+		 where
 			$criteria
 		 order by d.device_name
 	};
@@ -223,11 +223,10 @@ sub do_device_search {
 	} elsif ( $#searchresults > 0 ) {
 		if ( $#searchresults > 500 ) {
 			$stab->error_return(
-				"Too many matches ($#searchresults).  Please limit your query"
-			);
+				"Too many matches ($#searchresults).  Please limit your query");
 		}
 		my $devlist = join( ",", @searchresults );
-		my $url = $stab->build_passback_url( devlist => $devlist );
+		my $url     = $stab->build_passback_url( devlist => $devlist );
 		$cgi->redirect($url);
 		exit 0;
 	}

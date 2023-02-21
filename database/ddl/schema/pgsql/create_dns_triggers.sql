@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014 Todd Kover
+ * Copyright (c) 2012-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -363,7 +363,7 @@ CREATE OR REPLACE FUNCTION dns_non_a_rec_validation() RETURNS TRIGGER AS $$
 DECLARE
 	_ip		netblock.ip_address%type;
 BEGIN
-	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR') AND
+	IF NEW.dns_type NOT in ('A', 'AAAA', 'REVERSE_ZONE_BLOCK_PTR','DEFAULT_DNS_DOMAIN') AND
 			( NEW.dns_value IS NULL AND NEW.dns_value_record_id IS NULL ) THEN
 		RAISE EXCEPTION 'Attempt to set % record without a value',
 			NEW.dns_type
@@ -423,7 +423,6 @@ BEGIN
 				AND ( db.dns_domain_id = NEW.dns_domain_id )
 				AND ( db.dns_class = NEW.dns_class )
 				AND ( db.dns_type = NEW.dns_type )
-				AND db.dns_record_id != NEW.dns_record_id
 				AND db.dns_srv_service IS NOT DISTINCT FROM NEW.dns_srv_service
 				AND db.dns_srv_protocol IS NOT DISTINCT FROM NEW.dns_srv_protocol
 				AND db.dns_srv_port IS NOT DISTINCT FROM NEW.dns_srv_port

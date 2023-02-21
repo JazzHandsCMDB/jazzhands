@@ -1,3 +1,38 @@
+jazzhands-perl-vault (0.95.0) jammy; urgency=medium
+
+  * rearrange how read works
+  * return errcode
+  * use new Jazzhands::Common interface to errors
+
+ -- Todd Kover <kovert@omniscient.com>  Thu,  2 Jun 2022 14:59:00 -0400
+
+jazzhands-perl-vault (0.94.0) trusty; urgency=medium
+
+  * add generic vault access functions
+  * add support for dealing with token files
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Apr 2022 14:51:00 -0500
+
+jazzhands-perl-vault (0.93.0) trusty; urgency=medium
+
+  * make caching more generic in conjuction with changes in AppAuthAL.
+
+ -- Todd Kover <kovert@omniscient.com>  Tue,  4 Jan 2022 19:31:22 -0500
+
+jazzhands-perl-vault (0.90.4) focal; urgency=medium
+
+  * revoke tokens after credentials with object destruction
+  * add support for VaultRoleIdPath
+  * deal with a trailing tlash on the vault server path
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri,  9 Apr 2021 19:15:01 -0500
+
+jazzhands-perl-vault (0.90.3) bionic; urgency=medium
+
+  * fixes with error reporting with vault secret id
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 16 Feb 2021 10:38:32 -0500
+
 jazzhands-perl-vault (0.86.0) bionic; urgency=medium
 
   * initial release

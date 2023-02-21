@@ -1,3 +1,36 @@
+perl-jazzhands-appauthal (0.94.0) trusty; urgency=medium
+
+  * fix bug in caching system
+
+ -- Todd Kover <kovert@omniscient.com>  Fri, 29 Apr 2022 14:51:00 -0500
+
+perl-jazzhands-appauthal (0.93.0) trusty; urgency=medium
+
+  * fix issue with vault role-ids that come via VaultRoleIdPath
+
+ -- Todd Kover <kovert@omniscient.com>  Tue,  4 Jan 2022 19:31:22 -0500
+
+perl-jazzhands-appauthal (0.90.13) trusty; urgency=medium
+
+  * fixed processing of the onload/environment section of the config file
+  * added ODBC support
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 17 May 2021 17:10:00 -0500
+
+perl-jazzhands-appauthal (0.90.10) trusty; urgency=medium
+
+  * improved credential caching algorithm
+  * "Caching" option in the AppAuthAL file now accepts "n" and "no", case insensitive
+  * credentials are cached to a tempfile which is then renamed / moved
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 10 May 2021 13:17:00 -0500
+
+perl-jazzhands-appauthal (0.90.3) trusty; urgency=medium
+
+  * assorted fixes to the do_cached_login() funciton
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Wed, 17 Mar 2021 18:15:00 -0500
+
 perl-jazzhands-appauthal (0.86.0) trusty; urgency=medium
 
   * add support for using vault to get credentials
@@ -16,10 +49,8 @@ perl-jazzhands-appauthal (0.66.1) trusty; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:06 +0000
 
-
 perl-jazzhands-appauthal (0.56.3) unstable; urgency=low
 
   * Initial build.
 
  -- Todd Kover <kovert@omniscient.com>  Thu, 23 Aug 2012 00:00:00 +0000
-

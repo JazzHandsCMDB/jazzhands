@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020 Todd Kover
+ * Copyright (c) 2019-2022 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -357,7 +357,7 @@ FROM jazzhands.badge_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.certificate_signing_request AS
-SELECT certificate_signing_request_id,friendly_name,subject,certificate_signing_request,private_key_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT certificate_signing_request_id,friendly_name,subject,certificate_signing_request,private_key_id,public_key_hash_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.certificate_signing_request;
 
 
@@ -630,24 +630,29 @@ SELECT device_id,layer2_network_id,data_ins_user,data_ins_date,data_upd_user,dat
 FROM jazzhands.device_layer2_network;
 
 
-
--- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.device_management_controller AS
 SELECT
 	manager_device_id,
 	device_id,
-	device_management_control_type AS device_mgmt_control_type,
+	component_management_controller_type AS device_mgmt_control_type,
 	description,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.device_management_controller;
+FROM jazzhands.component_management_controller c
+	JOIN (SELECT device_id, component_id FROM jazzhands.device) d
+		USING (component_id)
+	JOIN (SELECT device_id AS manager_device_id, 
+			component_id AS manager_component_id 
+			FROM jazzhands.device) md
+		USING (manager_component_id)
+;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.device_note AS
-SELECT note_id,device_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT device_note_id AS note_id,device_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.device_note;
 
 create or replace view jazzhands_legacy.device_power_connection AS
@@ -1045,7 +1050,7 @@ FROM jazzhands.inter_component_connection icc
 		flow.component_property_name = 'flow-control'
  WHERE  st1.slot_function in ('network', 'serial', 'patchpanel')
 	OR
- 	st1.slot_function in ('network', 'serial', 'patchpanel')
+	st1.slot_function in ('network', 'serial', 'patchpanel')
 ;
 
 
@@ -1485,7 +1490,7 @@ FROM jazzhands.person_location;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.person_note AS
-SELECT note_id,person_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT person_note_id AS note_id,person_id,note_text,note_date,note_user,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.person_note;
 
 
@@ -1568,10 +1573,13 @@ SELECT
 		WHEN is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	subject_key_identifier,
+	NULL::text AS subject_key_identifier,
+	public_key_hash_id,
+	description,
 	private_key,
 	passphrase,
 	encryption_key_id,
+	external_id,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -1610,7 +1618,7 @@ SELECT
 	property_value_json,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_sw_package_id,
+	NULL::integer AS property_value_sw_package_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
 	start_date,
@@ -1920,8 +1928,12 @@ FROM jazzhands.service_environment_collection_service_environment;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.sw_package AS
-SELECT sw_package_id,sw_package_name,sw_package_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.sw_package;
+SELECT software_artifact_name_id AS sw_package_id,
+	software_artifact_name sw_package_name,
+	software_artifact_type sw_package_type,
+	description,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.software_artifact_name;
 
 
 
@@ -2905,7 +2917,7 @@ SELECT
 	property_value_json,
 	property_value_netblock_collection_id AS property_value_nblk_coll_id,
 	property_value_password_type,
-	property_value_sw_package_id,
+	NULL::integer AS property_value_sw_package_id,
 	property_value_token_collection_id AS property_value_token_col_id,
 	property_rank,
 	start_date,
@@ -3299,10 +3311,13 @@ SELECT
 FROM jazzhands.val_device_collection_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_device_mgmt_ctrl_type AS
-SELECT device_mgmt_control_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_device_management_controller_type;
-
-
+SELECT component_management_controller_type AS device_mgmt_control_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_component_management_controller_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_device_status AS
 SELECT device_status,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
@@ -3387,7 +3402,7 @@ FROM jazzhands.val_encapsulation_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_encryption_key_purpose AS
-SELECT encryption_key_purpose,encryption_key_purpose_version,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT encryption_key_purpose,encryption_key_purpose_version,external_id,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_encryption_key_purpose;
 
 
@@ -3620,13 +3635,6 @@ SELECT ownership_status,description,data_ins_user,data_ins_date,data_upd_user,da
 FROM jazzhands.val_ownership_status;
 
 
-
-CREATE OR REPLACE VIEW jazzhands_legacy.val_package_relation_type AS
-SELECT package_relation_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_package_relation_type;
-
-
-
 CREATE OR REPLACE VIEW jazzhands_legacy.val_password_type AS
 SELECT password_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_password_type;
@@ -3819,7 +3827,7 @@ SELECT
 	permit_operating_system_id,
 	permit_operating_system_snapshot_id AS permit_os_snapshot_id,
 	permit_property_name_collection_id AS permit_property_collection_id,
-	permit_service_environment_collection AS permit_service_env_collection,
+	permit_service_environment_collection_id AS permit_service_env_collection,
 	permit_site_code,
 	permit_x509_signed_certificate_id AS permit_x509_signed_cert_id,
 	permit_property_rank,
@@ -3967,8 +3975,10 @@ FROM jazzhands.val_ssh_key_type;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_sw_package_type AS
-SELECT sw_package_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_sw_package_type;
+SELECT software_artifact_type AS sw_package_type,
+	description,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.val_software_artifact_type;
 
 
 
@@ -4125,6 +4135,8 @@ CREATE OR REPLACE VIEW jazzhands_legacy.x509_certificate AS
 	csr.certificate_signing_request AS certificate_sign_req,
 	crt.subject,
 	crt.subject_key_identifier,
+	crt.public_key_hash_id,
+	crt.description,
 	crt.valid_from::timestamp,
 	crt.valid_to::timestamp,
 	crt.x509_revocation_date,
@@ -4187,6 +4199,30 @@ FROM jazzhands.x509_key_usage_default;
 
 
 
+CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash AS
+SELECT public_key_hash_id, description,	data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.public_key_hash;
+
+
+
+CREATE OR REPLACE VIEW jazzhands_legacy.val_x509_fingerprint_hash_algorithm AS
+SELECT x509_fingerprint_hash_algorighm, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.val_x509_fingerprint_hash_algorithm;
+
+
+
+CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate_fingerprint AS
+SELECT x509_signed_certificate_id, x509_fingerprint_hash_algorighm, fingerprint, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.x509_signed_certificate_fingerprint;
+
+
+
+CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash_hash AS
+SELECT public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+FROM jazzhands.public_key_hash_hash;
+
+
+
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate AS
 SELECT
@@ -4195,6 +4231,8 @@ SELECT
 	subject,
 	friendly_name,
 	subject_key_identifier,
+	public_key_hash_id,
+	description,
 	CASE WHEN is_active IS NULL THEN NULL
 		WHEN is_active = true THEN 'Y'
 		WHEN is_active = false THEN 'N'
@@ -4374,7 +4412,7 @@ SET search_path=jazzhands_legacy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_ins ON
-	v_network_interface_trans;
+	jazzhands_legacy.v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_ins
 	INSTEAD OF INSERT ON jazzhands_legacy.v_network_interface_trans
@@ -4403,7 +4441,7 @@ SET search_path=jazzhands_legacy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_del ON
-	v_network_interface_trans;
+	jazzhands_legacy.v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_del
 	INSTEAD OF DELETE ON jazzhands_legacy.v_network_interface_trans
@@ -4539,7 +4577,7 @@ SET search_path=jazzhands_legacy
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_v_network_interface_trans_upd ON
-	v_network_interface_trans;
+	jazzhands_legacy.v_network_interface_trans;
 
 CREATE TRIGGER trigger_v_network_interface_trans_upd
 	INSTEAD OF UPDATE ON jazzhands_legacy.v_network_interface_trans
@@ -10080,8 +10118,18 @@ BEGIN
 	END IF;
 
 	IF NEW.subject_key_identifier IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('subject_key_identifier'));
-		_vq := array_append(_vq, quote_nullable(NEW.subject_key_identifier));
+		RAISE EXCEPTION 'subject_key_identifier has been deprecated and can not be set'
+			USING ERRCODE = invalid_parameter_value;
+	END IF;
+
+	IF NEW.public_key_hash_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('public_key_hash_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF NEW.description IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('description'));
+		_vq := array_append(_vq, quote_nullable(NEW.description));
 	END IF;
 
 	IF NEW.private_key IS NOT NULL THEN
@@ -10099,6 +10147,11 @@ BEGIN
 		_vq := array_append(_vq, quote_nullable(NEW.encryption_key_id));
 	END IF;
 
+	IF NEW.external_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('external_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.external_id));
+	END IF;
+
 	EXECUTE 'INSERT INTO jazzhands.private_key (' ||
 		array_to_string(_cq, ', ') ||
 		') VALUES ( ' ||
@@ -10108,10 +10161,13 @@ BEGIN
 	NEW.private_key_id = _nr.private_key_id;
 	NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-	NEW.subject_key_identifier = _nr.subject_key_identifier;
+	NEW.subject_key_identifier = NULL;
+	NEW.public_key_hash_id = _nr.public_key_hash_id;
+	NEW.description = _nr.description;
 	NEW.private_key = _nr.private_key;
 	NEW.passphrase = _nr.passphrase;
 	NEW.encryption_key_id = _nr.encryption_key_id;
+	NEW.external_id = _nr.external_id;
 	NEW.data_ins_user = _nr.data_ins_user;
 	NEW.data_ins_date = _nr.data_ins_date;
 	NEW.data_upd_user = _nr.data_upd_user;
@@ -10158,7 +10214,18 @@ END IF;
 	END IF;
 
 	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
-_uq := array_append(_uq, 'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier));
+		IF NEW.subject_key_identifier IS NOT NULL THEN
+			RAISE EXCEPTION 'subject_key_identifier has been deprecated and can not be set'
+				USING ERRCODE = invalid_parameter_value;
+		END IF;
+	END IF;
+
+	IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+_uq := array_append(_uq, 'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+_uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
 	END IF;
 
 	IF OLD.private_key IS DISTINCT FROM NEW.private_key THEN
@@ -10173,6 +10240,10 @@ _uq := array_append(_uq, 'passphrase = ' || quote_nullable(NEW.passphrase));
 _uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption_key_id));
 	END IF;
 
+	IF OLD.external_id IS DISTINCT FROM NEW.external_id THEN
+_uq := array_append(_uq, 'external_id = ' || quote_nullable(NEW.external_id));
+	END IF;
+
 	IF _uq IS NOT NULL THEN
 		EXECUTE 'UPDATE jazzhands.private_key SET ' ||
 			array_to_string(_uq, ', ') ||
@@ -10182,10 +10253,13 @@ _uq := array_append(_uq, 'encryption_key_id = ' || quote_nullable(NEW.encryption
 		NEW.private_key_id = _nr.private_key_id;
 		NEW.private_key_encryption_type = _nr.private_key_encryption_type;
 		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
-		NEW.subject_key_identifier = _nr.subject_key_identifier;
+		NEW.subject_key_identifier = NULL;
+		NEW.public_key_hash_id = _nr.public_key_hash_id;
+		NEW.description = _nr.description;
 		NEW.private_key = _nr.private_key;
 		NEW.passphrase = _nr.passphrase;
 		NEW.encryption_key_id = _nr.encryption_key_id;
+		NEW.external_id = _nr.external_id;
 		NEW.data_ins_user = _nr.data_ins_user;
 		NEW.data_ins_date = _nr.data_ins_date;
 		NEW.data_upd_user = _nr.data_upd_user;
@@ -10217,10 +10291,13 @@ BEGIN
 	OLD.private_key_id = _or.private_key_id;
 	OLD.private_key_encryption_type = _or.private_key_encryption_type;
 	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
-	OLD.subject_key_identifier = _or.subject_key_identifier;
+	OLD.subject_key_identifier = NULL;
+	OLD.public_key_hash_id = _or.public_key_hash_id;
+	OLD.description = _or.description;
 	OLD.private_key = _or.private_key;
 	OLD.passphrase = _or.passphrase;
 	OLD.encryption_key_id = _or.encryption_key_id;
+	OLD.external_id = _or.external_id;
 	OLD.data_ins_user = _or.data_ins_user;
 	OLD.data_ins_date = _or.data_ins_date;
 	OLD.data_upd_user = _or.data_upd_user;
@@ -10397,8 +10474,9 @@ BEGIN
 	END IF;
 
 	IF NEW.property_value_sw_package_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('property_value_sw_package_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.property_value_sw_package_id));
+		RAISE EXCEPTION 'property_value_sw_package_id can not be set'
+			USING ERRCODE = invalid_parameter_value,
+			HINT = 'sw_package become software_artifacts and were dropped from property in 0.91';
 	END IF;
 
 	IF NEW.property_value_token_col_id IS NOT NULL THEN
@@ -10466,7 +10544,7 @@ BEGIN
 	NEW.property_value_json = _nr.property_value_json;
 	NEW.property_value_nblk_coll_id = _nr.property_value_netblock_collection_id;
 	NEW.property_value_password_type = _nr.property_value_password_type;
-	NEW.property_value_sw_package_id = _nr.property_value_sw_package_id;
+	NEW.property_value_sw_package_id = NULL;
 	NEW.property_value_token_col_id = _nr.property_value_token_collection_id;
 	NEW.property_rank = _nr.property_rank;
 	NEW.start_date = _nr.start_date;
@@ -10624,7 +10702,9 @@ _uq := array_append(_uq, 'property_value_password_type = ' || quote_nullable(NEW
 	END IF;
 
 	IF OLD.property_value_sw_package_id IS DISTINCT FROM NEW.property_value_sw_package_id THEN
-_uq := array_append(_uq, 'property_value_sw_package_id = ' || quote_nullable(NEW.property_value_sw_package_id));
+		RAISE EXCEPTION 'property_value_sw_package_id can not be set'
+			USING ERRCODE = invalid_parameter_value,
+			HINT = 'sw_package become software_artifacts and were dropped from property in 0.91';
 	END IF;
 
 	IF OLD.property_value_token_col_id IS DISTINCT FROM NEW.property_value_token_col_id THEN
@@ -10695,7 +10775,7 @@ END IF;
 		NEW.property_value_json = _nr.property_value_json;
 		NEW.property_value_nblk_coll_id = _nr.property_value_netblock_collection_id;
 		NEW.property_value_password_type = _nr.property_value_password_type;
-		NEW.property_value_sw_package_id = _nr.property_value_sw_package_id;
+		NEW.property_value_sw_package_id = NULL;
 		NEW.property_value_token_col_id = _nr.property_value_token_collection_id;
 		NEW.property_rank = _nr.property_rank;
 		NEW.start_date = _nr.start_date;
@@ -10770,7 +10850,7 @@ BEGIN
 	OLD.property_value_json = _or.property_value_json;
 	OLD.property_value_nblk_coll_id = _or.property_value_netblock_collection_id;
 	OLD.property_value_password_type = _or.property_value_password_type;
-	OLD.property_value_sw_package_id = _or.property_value_sw_package_id;
+	OLD.property_value_sw_package_id = NULL;
 	OLD.property_value_token_col_id = _or.property_value_token_collection_id;
 	OLD.property_rank = _or.property_rank;
 	OLD.start_date = _or.start_date;
@@ -16089,7 +16169,7 @@ BEGIN
 	END IF;
 
 	IF NEW.permit_service_env_collection IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('permit_service_environment_collection'));
+		_cq := array_append(_cq, quote_ident('permit_service_environment_collection_id'));
 		_vq := array_append(_vq, quote_nullable(NEW.permit_service_env_collection));
 	END IF;
 
@@ -16147,7 +16227,7 @@ BEGIN
 	NEW.permit_operating_system_id = _nr.permit_operating_system_id;
 	NEW.permit_os_snapshot_id = _nr.permit_operating_system_snapshot_id;
 	NEW.permit_property_collection_id = _nr.permit_property_name_collection_id;
-	NEW.permit_service_env_collection = _nr.permit_service_environment_collection;
+	NEW.permit_service_env_collection = _nr.permit_service_environment_collection_id;
 	NEW.permit_site_code = _nr.permit_site_code;
 	NEW.permit_x509_signed_cert_id = _nr.permit_x509_signed_certificate_id;
 	NEW.permit_property_rank = _nr.permit_property_rank;
@@ -16253,7 +16333,7 @@ _uq := array_append(_uq, 'property_value_netblock_collection_type_restriction = 
 	END IF;
 
 	IF OLD.property_data_type IS DISTINCT FROM NEW.property_data_type THEN
-_uq := array_append(_uq, 'property_data_type = ' || quote_nullable(NEW.property_data_type));
+		_uq := array_append(_uq, 'property_data_type = ' || quote_nullable(NEW.property_data_type));
 	END IF;
 
 	IF OLD.property_value_json_schema IS DISTINCT FROM NEW.property_value_json_schema THEN
@@ -16317,7 +16397,7 @@ _uq := array_append(_uq, 'permit_property_name_collection_id = ' || quote_nullab
 	END IF;
 
 	IF OLD.permit_service_env_collection IS DISTINCT FROM NEW.permit_service_env_collection THEN
-_uq := array_append(_uq, 'permit_service_environment_collection = ' || quote_nullable(NEW.permit_service_env_collection));
+_uq := array_append(_uq, 'permit_service_environment_collection_id = ' || quote_nullable(NEW.permit_service_env_collection));
 	END IF;
 
 	IF OLD.permit_site_code IS DISTINCT FROM NEW.permit_site_code THEN
@@ -16371,7 +16451,7 @@ _uq := array_append(_uq, 'permit_property_rank = ' || quote_nullable(NEW.permit_
 		NEW.permit_operating_system_id = _nr.permit_operating_system_id;
 		NEW.permit_os_snapshot_id = _nr.permit_operating_system_snapshot_id;
 		NEW.permit_property_collection_id = _nr.permit_property_name_collection_id;
-		NEW.permit_service_env_collection = _nr.permit_service_environment_collection;
+		NEW.permit_service_env_collection = _nr.permit_service_environment_collection_id;
 		NEW.permit_site_code = _nr.permit_site_code;
 		NEW.permit_x509_signed_cert_id = _nr.permit_x509_signed_certificate_id;
 		NEW.permit_property_rank = _nr.permit_property_rank;
@@ -16436,7 +16516,7 @@ BEGIN
 	OLD.permit_operating_system_id = _or.permit_operating_system_id;
 	OLD.permit_os_snapshot_id = _or.permit_operating_system_snapshot_id;
 	OLD.permit_property_collection_id = _or.permit_property_name_collection_id;
-	OLD.permit_service_env_collection = _or.permit_service_environment_collection;
+	OLD.permit_service_env_collection = _or.permit_service_environment_collection_id;
 	OLD.permit_site_code = _or.permit_site_code;
 	OLD.permit_x509_signed_cert_id = _or.permit_x509_signed_certificate_id;
 	OLD.permit_property_rank = _or.permit_property_rank;
@@ -17384,7 +17464,7 @@ BEGIN
 		INSERT INTO jazzhands.private_key (
 			private_key_encryption_type,
 			is_active,
-			subject_key_identifier,
+			public_key_hash_id,
 			private_key,
 			passphrase,
 			encryption_key_id
@@ -17393,23 +17473,25 @@ BEGIN
 			CASE WHEN NEW.is_active = 'Y' THEN true
 				WHEN NEW.is_active = 'N' THEN false
 				ELSE NULL END,
-			NEW.subject_key_identifier,
+			NEW.public_key_hash_id,
 			NEW.private_key,
 			NEW.passphrase,
 			NEW.encryption_key_id
 		) RETURNING * INTO key;
 		NEW.x509_cert_id := key.private_key_id;
 	ELSE
-		IF NEW.subject_key_identifier IS NOT NULL THEN
+		IF NEW.public_key_hash_id IS NOT NULL THEN
 			SELECT *
 			INTO key
 			FROM private_key
-			WHERE subject_key_identifier = NEW.subject_key_identifier;
+			WHERE public_key_hash_id = NEW.public_key_hash_id;
 
-			SELECT private_key
-			INTO NEW.private_key
-			FROM private_key
-			WHERE private_key_id = key.private_key_id;
+			IF key IS NOT NULL THEN
+				SELECT private_key
+				INTO NEW.private_key
+				FROM private_key
+				WHERE private_key_id = key.private_key_id;
+			END IF;
 		END IF;
 	END IF;
 
@@ -17418,23 +17500,24 @@ BEGIN
 			friendly_name,
 			subject,
 			certificate_signing_request,
-			private_key_id
+			private_key_id,
+			public_key_hash_id
 		) VALUES (
 			NEW.friendly_name,
 			NEW.subject,
 			NEW.certificate_sign_req,
-			key.private_key_id
+			key.private_key_id,
+			NEW.public_key_hash_id
 		) RETURNING * INTO csr;
 		IF NEW.x509_cert_id IS NULL THEN
 			NEW.x509_cert_id := csr.certificate_signing_request_id;
 		END IF;
 	ELSE
 		IF NEW.subject_key_identifier IS NOT NULL THEN
-			SELECT certificate_signing_request_id
+			SELECT c.*
 			INTO csr
-			FROM certificate_signing_request
-				JOIN private_key USING (private_key_id)
-			WHERE subject_key_identifier = NEW.subject_key_identifier
+			FROM certificate_signing_request c
+			WHERE c.public_key_hash_id = NEW.public_key_hash_id
 			ORDER BY certificate_signing_request_id
 			LIMIT 1;
 
@@ -17455,6 +17538,8 @@ BEGIN
 			public_key,
 			subject,
 			subject_key_identifier,
+			public_key_hash_id,
+			description,
 			valid_from,
 			valid_to,
 			x509_revocation_date,
@@ -17476,6 +17561,8 @@ BEGIN
 			NEW.public_key,
 			NEW.subject,
 			NEW.subject_key_identifier,
+			NEW.public_key_hash_id,
+			NEW.description,
 			NEW.valid_from,
 			NEW.valid_to,
 			NEW.x509_revocation_date,
@@ -17486,9 +17573,9 @@ BEGIN
 			csr.certificate_signing_request_id
 		) RETURNING * INTO crt;
 
-		NEW.x509_cert_id 		= crt.x509_signed_certificate_id;
-		NEW.friendly_name 		= crt.friendly_name;
-		NEW.is_active 			= CASE WHEN crt.is_active = true THEN 'Y'
+		NEW.x509_cert_id		= crt.x509_signed_certificate_id;
+		NEW.friendly_name		= crt.friendly_name;
+		NEW.is_active			= CASE WHEN crt.is_active = true THEN 'Y'
 									WHEN crt.is_active = false THEN 'N'
 									ELSE NULL END;
 		NEW.is_certificate_authority = CASE WHEN crt.is_certificate_authority =
@@ -17497,25 +17584,27 @@ BEGIN
 										THEN 'N'
 									ELSE NULL END;
 
-		NEW.signing_cert_id 			= crt.signing_cert_id;
+		NEW.signing_cert_id			= crt.signing_cert_id;
 		NEW.x509_ca_cert_serial_number	= crt.x509_ca_cert_serial_number;
-		NEW.public_key 					= crt.public_key;
-		NEW.private_key 				= key.private_key;
-		NEW.certificate_sign_req 		= csr.certificate_signing_request;
-		NEW.subject 					= crt.subject;
-		NEW.subject_key_identifier 		= crt.subject_key_identifier;
-		NEW.valid_from 					= crt.valid_from;
-		NEW.valid_to 					= crt.valid_to;
-		NEW.x509_revocation_date 		= crt.x509_revocation_date;
-		NEW.x509_revocation_reason 		= crt.x509_revocation_reason;
-		NEW.passphrase 					= key.passphrase;
-		NEW.encryption_key_id 			= key.encryption_key_id;
-		NEW.ocsp_uri 					= crt.ocsp_uri;
-		NEW.crl_uri 					= crt.crl_uri;
-		NEW.data_ins_user 				= crt.data_ins_user;
-		NEW.data_ins_date 				= crt.data_ins_date;
-		NEW.data_upd_user 				= crt.data_upd_user;
-		NEW.data_upd_date 				= crt.data_upd_date;
+		NEW.public_key					= crt.public_key;
+		NEW.private_key				= key.private_key;
+		NEW.certificate_sign_req		= csr.certificate_signing_request;
+		NEW.subject					= crt.subject;
+		NEW.subject_key_identifier		= crt.subject_key_identifier;
+		NEW.public_key_hash_id			= crt.public_key_hash_id;
+		NEW.description				= crt.description;
+		NEW.valid_from					= crt.valid_from;
+		NEW.valid_to					= crt.valid_to;
+		NEW.x509_revocation_date		= crt.x509_revocation_date;
+		NEW.x509_revocation_reason		= crt.x509_revocation_reason;
+		NEW.passphrase					= key.passphrase;
+		NEW.encryption_key_id			= key.encryption_key_id;
+		NEW.ocsp_uri					= crt.ocsp_uri;
+		NEW.crl_uri					= crt.crl_uri;
+		NEW.data_ins_user				= crt.data_ins_user;
+		NEW.data_ins_date				= crt.data_ins_date;
+		NEW.data_upd_user				= crt.data_upd_user;
+		NEW.data_upd_date				= crt.data_upd_date;
 	END IF;
 	RETURN NEW;
 END;
@@ -17594,6 +17683,12 @@ BEGIN
 					'encryption_key_id = ' || quote_nullable(NEW.encryption_key_id)
 				);
 			END IF;
+			IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+				_uq := array_append(_uq,
+					'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
+				);
+			END IF;
+
 			IF array_length(_uq, 1) > 0 THEN
 				EXECUTE format('UPDATE private_key SET %s WHERE private_key_id = $1 RETURNING *',
 					array_to_string(_uq, ', '))
@@ -17602,9 +17697,9 @@ BEGIN
 			END IF;
 		END IF;
 
-		NEW.private_key 		= key.private_key;
-		NEW.is_active 			= CASE WHEN key.is_active THEN 'Y' ELSE 'N' END;
-		NEW.passphrase 			= key.passphrase;
+		NEW.private_key		= key.private_key;
+		NEW.is_active			= CASE WHEN key.is_active THEN 'Y' ELSE 'N' END;
+		NEW.passphrase			= key.passphrase;
 		NEW.encryption_key_id	= key.encryption_key_id;
 	END IF;
 
@@ -17616,12 +17711,14 @@ BEGIN
 			friendly_name,
 			subject,
 			certificate_signing_request,
-			private_key_id
+			private_key_id,
+			public_key_hash_id
 		) VALUES (
 			NEW.friendly_name,
 			NEW.subject,
 			NEW.certificate_sign_req,
-			key.private_key_id
+			key.private_key_id,
+			NEW.public_key_hash_id
 		) RETURNING * INTO csr;
 	ELSIF crt.certificate_signing_request_id IS NOT NULL THEN
 		SELECT * INTO csr FROM jazzhands.certificate_signing_request c
@@ -17644,21 +17741,21 @@ BEGIN
 					'friendly_name = ' || quote_nullable(NEW.friendly_name)
 				);
 			END IF;
-			IF OLD.private_key IS DISTINCT FROM key.private_key THEN
+			IF OLD.public_key_hash_id IS DISTINCT FROM key.public_key_hash_id THEN
 				_uq := array_append(_uq,
-					'private_key = ' || quote_nullable(NEW.private_key)
+					'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
 				);
 			END IF;
 
 			IF array_length(_uq, 1) > 0 THEN
-				EXECUTE format('UPDATE private_key SET %s WHERE private_key_id = $1 RETURNING *',
+				EXECUTE format('UPDATE certificate_signing_request SET %s WHERE certificate_signing_request_id = $1 RETURNING *',
 					array_to_string(_uq, ', '))
-					USING crt.private_key_id
-					INTO key;
+					USING crt.certificate_signing_request_id
+					INTO csr;
 			END IF;
 		END IF;
 
-		NEW.certificate_sign_req 	= csr.certificate_signing_request;
+		NEW.certificate_sign_req	= csr.certificate_signing_request;
 	END IF;
 
 	-- csr and private_key pieces are now what it is supposed to be.
@@ -17688,6 +17785,16 @@ BEGIN
 	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
 		_uq := array_append(_uq,
 			'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier)
+		);
+	END IF;
+	IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+		_uq := array_append(_uq,
+			'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id)
+		);
+	END IF;
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+		_uq := array_append(_uq,
+			'description = ' || quote_nullable(NEW.description)
 		);
 	END IF;
 
@@ -17769,6 +17876,8 @@ BEGIN
 		NEW.public_key = crt.public_key;
 		NEW.subject = crt.subject;
 		NEW.subject_key_identifier = crt.subject_key_identifier;
+		NEW.public_key_hash_id = crt.public_key_hash_id;
+		NEW.description = crt.description;
 		NEW.valid_from = crt.valid_from;
 		NEW.valid_to = crt.valid_to;
 		NEW.x509_revocation_date = crt.x509_revocation_date;
@@ -17841,6 +17950,8 @@ BEGIN
 	OLD.certificate_sign_req = crt.certificate_signing_request;
 	OLD.subject = crt.subject;
 	OLD.subject_key_identifier = crt.subject_key_identifier;
+	OLD.public_key_hash_id = crt.public_key_hash_id;
+	OLD.description = crt.description;
 	OLD.valid_from = crt.valid_from;
 	OLD.valid_to = crt.valid_to;
 	OLD.x509_revocation_date = crt.x509_revocation_date;
@@ -17901,6 +18012,16 @@ BEGIN
 	IF NEW.subject_key_identifier IS NOT NULL THEN
 		_cq := array_append(_cq, quote_ident('subject_key_identifier'));
 		_vq := array_append(_vq, quote_nullable(NEW.subject_key_identifier));
+	END IF;
+
+	IF NEW.public_key_hash_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('public_key_hash_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF NEW.description IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('description'));
+		_vq := array_append(_vq, quote_nullable(NEW.description));
 	END IF;
 
 	IF NEW.is_active IS NOT NULL THEN
@@ -17979,6 +18100,8 @@ BEGIN
 	NEW.subject = _nr.subject;
 	NEW.friendly_name = _nr.friendly_name;
 	NEW.subject_key_identifier = _nr.subject_key_identifier;
+	NEW.public_key_hash_id = _nr.public_key_hash_id;
+	NEW.description = _nr.description;
 	NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
 	NEW.is_certificate_authority = CASE WHEN _nr.is_certificate_authority = true THEN 'Y' WHEN _nr.is_certificate_authority = false THEN 'N' ELSE NULL END;
 	NEW.signing_cert_id = _nr.signing_cert_id;
@@ -18037,6 +18160,14 @@ _uq := array_append(_uq, 'friendly_name = ' || quote_nullable(NEW.friendly_name)
 
 	IF OLD.subject_key_identifier IS DISTINCT FROM NEW.subject_key_identifier THEN
 _uq := array_append(_uq, 'subject_key_identifier = ' || quote_nullable(NEW.subject_key_identifier));
+	END IF;
+
+	IF OLD.public_key_hash_id IS DISTINCT FROM NEW.public_key_hash_id THEN
+_uq := array_append(_uq, 'public_key_hash_id = ' || quote_nullable(NEW.public_key_hash_id));
+	END IF;
+
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+_uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
 	END IF;
 
 	IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
@@ -18114,6 +18245,8 @@ _uq := array_append(_uq, 'crl_uri = ' || quote_nullable(NEW.crl_uri));
 		NEW.subject = _nr.subject;
 		NEW.friendly_name = _nr.friendly_name;
 		NEW.subject_key_identifier = _nr.subject_key_identifier;
+		NEW.public_key_hash_id = _nr.public_key_hash_id;
+		NEW.description = _nr.description;
 		NEW.is_active = CASE WHEN _nr.is_active = true THEN 'Y' WHEN _nr.is_active = false THEN 'N' ELSE NULL END;
 		NEW.is_certificate_authority = CASE WHEN _nr.is_certificate_authority = true THEN 'Y' WHEN _nr.is_certificate_authority = false THEN 'N' ELSE NULL END;
 		NEW.signing_cert_id = _nr.signing_cert_id;
@@ -18160,6 +18293,8 @@ BEGIN
 	OLD.subject = _or.subject;
 	OLD.friendly_name = _or.friendly_name;
 	OLD.subject_key_identifier = _or.subject_key_identifier;
+	OLD.public_key_hash_id = _or.public_key_hash_id;
+	OLD.description = _or.description;
 	OLD.is_active = CASE WHEN _or.is_active = true THEN 'Y' WHEN _or.is_active = false THEN 'N' ELSE NULL END;
 	OLD.is_certificate_authority = CASE WHEN _or.is_certificate_authority = true THEN 'Y' WHEN _or.is_certificate_authority = false THEN 'N' ELSE NULL END;
 	OLD.signing_cert_id = _or.signing_cert_id;
@@ -18423,7 +18558,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql
 SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_layer1_connection_insteadof ON layer1_connection;
+DROP TRIGGER IF EXISTS trigger_layer1_connection_insteadof ON
+	jazzhands_legacy.layer1_connection;
 CREATE TRIGGER trigger_layer1_connection_insteadof
 	INSTEAD OF INSERT OR UPDATE OR DELETE
 	ON jazzhands_legacy.layer1_connection
@@ -18475,7 +18611,8 @@ SET search_path=jazzhands
 LANGUAGE plpgsql
 SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_physical_port_insteadof ON physical_port;
+DROP TRIGGER IF EXISTS trigger_physical_port_insteadof
+	ON jazzhands_legacy.physical_port;
 CREATE TRIGGER trigger_physical_port_insteadof
 	INSTEAD OF INSERT OR UPDATE OR DELETE
 	ON jazzhands_legacy.physical_port
@@ -18491,32 +18628,32 @@ BEGIN
 	IF NEW.service_environment_id IS NOT NULL THEN
 		INSERT INTO service_environment (
 				service_environment_id,
-        		service_environment_name,
-        		service_environment_type,
-        		production_state,
-        		description,
-        		external_id
+       		service_environment_name,
+       		service_environment_type,
+       		production_state,
+       		description,
+       		external_id
 		) VALUES (
 				NEW.service_environment_id,
-        		NEW.service_environment_name,
-        		'default',
-        		NEW.production_state,
-        		NEW.description,
-        		NEW.external_id
+       		NEW.service_environment_name,
+       		'default',
+       		NEW.production_state,
+       		NEW.description,
+       		NEW.external_id
 		) RETURNING * INTO _se;
 	ELSE
 		INSERT INTO service_environment (
-        		service_environment_name,
-        		service_environment_type,
-        		production_state,
-        		description,
-        		external_id
+       		service_environment_name,
+       		service_environment_type,
+       		production_state,
+       		description,
+       		external_id
 		) VALUES (
-        		NEW.service_environment_name,
-        		'default',
-        		NEW.production_state,
-        		NEW.description,
-        		NEW.external_id
+       		NEW.service_environment_name,
+       		'default',
+       		NEW.production_state,
+       		NEW.description,
+       		NEW.external_id
 		) RETURNING * INTO _se;
 
 	END IF;
@@ -18526,10 +18663,10 @@ BEGIN
 	NEW.production_state			:= _se.production_state;
 	NEW.description					:= _se.description;
 	NEW.external_id					:= _se.external_id;
-	NEW.data_ins_user 				:= _se.data_ins_user;
-	NEW.data_ins_date 				:= _se.data_ins_date;
-	NEW.data_upd_user 				:= _se.data_upd_user;
-	NEW.data_upd_date 				:= _se.data_upd_date;
+	NEW.data_ins_user				:= _se.data_ins_user;
+	NEW.data_ins_date				:= _se.data_ins_date;
+	NEW.data_upd_user				:= _se.data_upd_user;
+	NEW.data_upd_date				:= _se.data_upd_date;
 
 	RETURN NEW;
 END;
@@ -18538,7 +18675,7 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_ins ON
-	service_environment;
+	jazzhands_legacy.service_environment;
 
 CREATE TRIGGER trigger_service_environment_ins
 	INSTEAD OF INSERT ON jazzhands_legacy.service_environment
@@ -18560,7 +18697,7 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_del ON
-	service_environment;
+	jazzhands_legacy.service_environment;
 
 CREATE TRIGGER trigger_service_environment_del
 	INSTEAD OF DELETE ON jazzhands_legacy.service_environment
@@ -18609,10 +18746,10 @@ BEGIN
 		NEW.production_state			:= _se.production_state;
 		NEW.description					:= _se.description;
 		NEW.external_id					:= _se.external_id;
-		NEW.data_ins_user 				:= _se.data_ins_user;
-		NEW.data_ins_date 				:= _se.data_ins_date;
-		NEW.data_upd_user 				:= _se.data_upd_user;
-		NEW.data_upd_date 				:= _se.data_upd_date;
+		NEW.data_ins_user				:= _se.data_ins_user;
+		NEW.data_ins_date				:= _se.data_ins_date;
+		NEW.data_upd_user				:= _se.data_upd_user;
+		NEW.data_upd_date				:= _se.data_upd_date;
 	END IF;
 
 	RETURN NEW;
@@ -18622,13 +18759,204 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_service_environment_upd ON
-	service_environment;
+	jazzhands_legacy.service_environment;
 
 CREATE TRIGGER trigger_service_environment_upd
 	INSTEAD OF UPDATE ON jazzhands_legacy.service_environment
 	FOR EACH ROW
 	EXECUTE PROCEDURE service_environment_upd();
 
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_legacy.device_management_controller_ins()
+RETURNS TRIGGER AS $$
+DECLARE
+	_c		jazzhands.component_management_controller.component_id%TYPE;
+	_mc		jazzhands.component_management_controller.component_id%TYPE;
+	_cmc	jazzhands.component_management_controller%ROWTYPE;
+BEGIN
+	SELECT	component_id
+	INTO	_c
+	FROM	device
+	WHERE	device_id IS NOT DISTINCT FROM NEW.device_id;
+
+	IF _c IS NULL THEN
+			RAISE EXCEPTION 'device_id may not be NULL or there is no component associated with the device.'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT	component_id
+	INTO	_mc
+	FROM	device
+	WHERE	device_id IS NOT DISTINCT FROM NEW.manager_device_id;
+
+	IF _mc IS NULL THEN
+			RAISE EXCEPTION 'manager_device_id may not be NULL or there is no component associated with the device.'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	INSERT INTO component_management_controller (
+		manager_component_id, component_id,
+		component_management_controller_type, description
+	) VALUES (
+		_mc, _c,
+		NEW.device_mgmt_control_type, NEW.description
+	) RETURNING * INTO _cmc;
+
+	NEW.data_ins_user := _cmc.data_ins_user;
+	NEW.data_ins_date := _cmc.data_ins_date;
+	NEW.data_upd_user := _cmc.data_upd_user;
+	NEW.data_upd_date := _cmc.data_upd_date;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_management_controller_ins ON
+	jazzhands_legacy.device_management_controller;
+
+CREATE TRIGGER trigger_device_management_controller_ins
+	INSTEAD OF INSERT ON jazzhands_legacy.device_management_controller
+	FOR EACH ROW
+	EXECUTE PROCEDURE jazzhands_legacy.device_management_controller_ins();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_legacy.device_management_controller_upd()
+RETURNS TRIGGER AS $$
+DECLARE
+	upd_query	TEXT[];
+	_c			jazzhands.component_management_controller.component_id%TYPE;
+	_oc			jazzhands.component_management_controller.component_id%TYPE;
+	_omc		jazzhands.component_management_controller.component_id%TYPE;
+	_cmc		jazzhands.component_management_controller%ROWTYPE;
+BEGIN
+	upd_query := NULL;
+	IF OLD.device_id IS DISTINCT FROM NEW.device_id THEN
+		SELECT	component_id
+		INTO	_c
+		FROM	device
+		WHERE	device_id IS NOT DISTINCT FROM NEW.device_id;
+
+		IF _c IS NULL THEN
+				RAISE EXCEPTION 'device_id may not be NULL or there is no component associated with the device.'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+
+		upd_query := array_append(upd_query,
+			'component_id = ' || quote_nullable(_c));
+	END IF;
+
+	IF OLD.manager_device_id IS DISTINCT FROM NEW.manager_device_id THEN
+		SELECT	component_id
+		INTO	_c
+		FROM	device
+		WHERE	device_id IS NOT DISTINCT FROM NEW.manager_device_id;
+
+		IF _c IS NULL THEN
+				RAISE EXCEPTION 'manager_device_id may not be NULL or there is no component associated with the device.'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+
+		upd_query := array_append(upd_query,
+			'manager_component_id = ' || quote_nullable(_c));
+	END IF;
+
+	IF NEW.description IS DISTINCT FROM OLD.description THEN
+		upd_query := array_append(upd_query,
+		'description = ' || quote_nullable(NEW.description));
+	END IF;
+
+	IF NEW.device_mgmt_control_type IS DISTINCT FROM OLD.device_mgmt_control_type THEN
+		upd_query := array_append(upd_query,
+		'component_management_controller_type = ' || quote_nullable(NEW.device_mgmt_control_type));
+	END IF;
+
+	IF upd_query IS NOT NULL THEN
+		SELECT component_id INTO _cmc.component_id
+		FROM device WHERE device_id = OLD.device_id;
+
+		SELECT component_id INTO _cmc.manager_component_id
+		FROM device WHERE device_id = OLD.manager_device_id;
+
+		EXECUTE 'UPDATE component_management_controller SET ' ||
+			array_to_string(upd_query, ', ') ||
+			' WHERE component_id = $1 AND manager_component_id = $2 RETURNING *'
+			USING _cmc.component_id, _cmc.manager_component_id
+			INTO _cmc;
+
+		NEW.device_mgmt_control_type	= _cmc.component_management_controller_type;
+	  	NEW.description					= _cmc.description;
+
+		NEW.data_ins_user := _cmc.data_ins_user;
+		NEW.data_ins_date := _cmc.data_ins_date;
+		NEW.data_upd_user := _cmc.data_upd_user;
+		NEW.data_upd_date := _cmc.data_upd_date;
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_management_controller_upd ON
+	jazzhands_legacy.device_management_controller;
+
+CREATE TRIGGER trigger_device_management_controller_upd
+	INSTEAD OF UPDATE ON jazzhands_legacy.device_management_controller
+	FOR EACH ROW
+	EXECUTE PROCEDURE jazzhands_legacy.device_management_controller_upd();
+
+---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_legacy.device_management_controller_del()
+RETURNS TRIGGER AS $$
+DECLARE
+	_c			jazzhands.component_management_controller.component_id%TYPE;
+	_mc			jazzhands.component_management_controller.component_id%TYPE;
+	_cmc		jazzhands.component_management_controller%ROWTYPE;
+BEGIN
+	SELECT	component_id
+	INTO	_c
+	FROM	device
+	WHERE	device_id = OLD.device_id;
+
+	SELECT	component_id
+	INTO	_mc
+	FROM	device
+	WHERE	device_id = OLD.manager_device_id;
+
+	DELETE FROM component_management_controller
+	WHERE component_id IS NOT DISTINCT FROM  _c
+	AND manager_component_id IS NOT DISTINCT FROM _mc
+	RETURNING * INTO _cmc;
+
+	OLD.device_mgmt_control_type	= _cmc.component_management_controller_type;
+	OLD.description					= _cmc.description;
+
+	OLD.data_ins_user := _cmc.data_ins_user;
+	OLD.data_ins_date := _cmc.data_ins_date;
+	OLD.data_upd_user := _cmc.data_upd_user;
+	OLD.data_upd_date := _cmc.data_upd_date;
+
+	RETURN OLD;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_device_management_controller_del ON
+	jazzhands_legacy.device_management_controller;
+
+CREATE TRIGGER trigger_device_management_controller_del
+	INSTEAD OF DELETE ON jazzhands_legacy.device_management_controller
+	FOR EACH ROW
+	EXECUTE PROCEDURE jazzhands_legacy.device_management_controller_del();
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------

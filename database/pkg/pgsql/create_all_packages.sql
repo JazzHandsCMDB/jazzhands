@@ -50,6 +50,8 @@
 -- \ir global_types.sql
 -- \ir global_util.sql
 
+\ir versioning_utils.sql
+
 -- \ir system_user_util.sql
 \ir obfuscation_utils.sql
 \ir person_manip.sql
@@ -86,3 +88,9 @@
 \ir layerx_network_manip.sql
 \ir component_connection_utils.sql
 \ir logical_port_manip.sql
+
+\ir service_manip.sql
+\ir x509_hash_manip.sql
+\ir x509_plperl_cert_utils.sql
+
+\ir jazzhands_legacy_manip.sql

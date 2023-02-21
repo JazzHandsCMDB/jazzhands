@@ -254,6 +254,11 @@ if ($prompt) {
     }
 }
 
+my $devlist = {
+	success => [],
+	fail => []
+};
+
 foreach my $devrec (@$devices) {
 	my $mgmt = JazzHands::NetDev::Mgmt->new;
 	my $device;
@@ -267,6 +272,7 @@ foreach my $devrec (@$devices) {
 			credentials => $netdev_creds,
 			errors => \@errors))) {
 		printf "Error connecting to device: %s\n", (join "\n", @errors);
+		push @{$devlist->{fail}}, $devrec->{device_name};
 		next;
 	}
 
@@ -278,8 +284,29 @@ foreach my $devrec (@$devices) {
 		printf "%s: %s\n", $devrec->{device_name}, (join("\n", @errors));
 		$device->rollback;
 		$device->disconnect;
+		push @{$devlist->{fail}}, $devrec->{device_name};
 		next;
 	}
+	$devrec->{device_handle} = $device;
+	push @{$devlist->{success}}, $devrec;
+}
+
+if (@{$devlist->{fail}}) {
+	printf "Failed to update the following devices: %s\n",
+		join (', ', @{$devlist->{fail}});
+
+	if ($prompt && !$notreally) {
+		print STDERR "Apply or rollback? ";
+		my $crap = <STDIN>;
+		chomp $crap;
+		if ($crap !~ /^[aAyY]/) {
+			$notreally = 1;
+		}
+	}
+}
+
+foreach my $devrec (@{$devlist->{success}}) {
+	my $device = $devrec->{device_handle};
 	if ($notreally) {
 		printf "Rolling back change to %s\n", $devrec->{device_name};
 		$device->rollback;

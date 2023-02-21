@@ -90,7 +90,7 @@ DEVLOOP: while ($host = shift) {
 		hostname => $host
 	};
 
-	if ($verbose) {
+	if ($verbose && !$json) {
 		printf "%s...\n", $host;
 	}
 
@@ -106,18 +106,21 @@ DEVLOOP: while ($host = shift) {
 		debug => $debug
 	);
 
+	my $device = {
+		host			=> $host,
+	};
+	$device_hash->{$host} = $device;
+
 	if (!$result) {
+		$device->{errors} = \@errors;
 		if ($verbose) {
 			printf "%s: %s\n", $host, join("\n", @errors);
 		}
 		next DEVLOOP;
 	}
+
 	my $device_serial = $result->{Oem}->{Dell}->{ServiceTag};
-	my $device = {
-		host			=> $host,
-		serial			=> $device_serial,
-	};
-	$device_hash->{$host} = $device;
+	$device->{serial} = $device_serial;
 
 	# Retrieving power cycle values
 
@@ -130,7 +133,7 @@ DEVLOOP: while ($host = shift) {
 	);
 
 	if (!$result) {
-		$device->{errors} = $@errors;
+		$device->{errors} = \@errors;
 		printf "%s: %s\n", $host, join("\n", @errors);
 		next DEVLOOP;
 	}
@@ -160,9 +163,14 @@ DEVLOOP: while ($host = shift) {
 	}
 
 	if (! grep { $_ eq $action } @$power_options) {
-		printf STDERR "%s is not a valid power status.  Use one of: %s\n",
+		my $error = sprintf
+			"%s is not a valid power status.  Use one of: %s",
 			$action,
 			(join ', ', @$power_options);
+		$device->{errors} = [ $error ];
+		if (!$json) {
+			print $error . "\n";
+		}
 		next;
 	}
 
@@ -180,11 +188,13 @@ DEVLOOP: while ($host = shift) {
 	);
 
 	if (!$result) {
-		printf "%s: %s\n", $host, join("\n", @errors);
-		$device->{errors} = $@errors;
+		if (!$json) {
+			printf "%s: %s\n", $host, join("\n", @errors);
+		}
+		$device->{errors} = \@errors;
 		next DEVLOOP;
 	}
-	if ($verbose) {
+	if (!$json) {
 		printf "%s: %s: Power state: %s, changed to %s\n",
 			$device->{host},
 			$device->{serial} || '',

@@ -1,3 +1,27 @@
+perl-jazzhands-dbi (0.95.1) jammy; urgency=medium
+
+  * Update to use new JazzHands::Common errstr sub
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 20 Jun 2022 17:02:32 -0400
+
+perl-jazzhands-dbi (0.90.14) trusty; urgency=medium
+
+  * Fixed issues with RaiseError in connect()
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Thu, 10 Jun 2021 16:34:00 -0500
+
+perl-jazzhands-dbi (0.90.13) trusty; urgency=medium
+
+  * added ODBC support
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 17 May 2021 17:10:00 -0500
+
+perl-jazzhands-dbi (0.90.10) unstable; urgency=medium
+
+  * perl DBI PrintError is temporarily disabled during DBI->connect()
+
+ -- Bernard Jech <bernardjech@yahoo.com>  Mon, 10 May 2021 13:19:00 +0100
+
 perl-jazzhands-dbi (0.86.0) unstable; urgency=medium
 
   * add support for using vault to get credentials

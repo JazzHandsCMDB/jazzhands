@@ -1,3 +1,20 @@
+--
+-- Copyright (c) 2010-2023, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+--
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -19,21 +36,6 @@
 -- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
--- Copyright (c) 2010-2019, Todd M. Kover
--- All rights reserved.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---       http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
 
 
 --
@@ -498,7 +500,8 @@ insert into val_property_data_type (PROPERTY_DATA_TYPE) values
 	('netblock_collection_id'),
 	('password_type'),
 	('private_key_id'),
-	('sw_package_id'),
+	('service_endpoint_id'),
+	('software_version_collection_id'),
 	('timestamp'),
 	('token_collection_id');
 
@@ -577,6 +580,12 @@ insert into val_dns_type (dns_type,id_type) values ('X25', 'NON-ID');
 insert into val_dns_type (dns_type,id_type,description)
 	values ('REVERSE_ZONE_BLOCK_PTR', 'LINK',
 	'not really a type; in-addr backend link');
+
+INSERT INTO val_dns_type (
+        dns_type, description, id_type
+) VALUES (
+        'DEFAULT_DNS_DOMAIN', 'used by integrations to determine associated dns domain', 'LINK'
+);
 
 ----------------------- Misc Property Types
 
@@ -1793,6 +1802,17 @@ INSERT INTO val_property (
 -------------------------------------------------------------------------
 -- BEGIN certificate
 
+insert into val_encryption_key_purpose
+	(encryption_key_purpose, encryption_key_purpose_version, description)
+values
+	('certpassphrase', 1, 'SSL Crtificates Key Passphrase');
+
+insert into val_x509_fingerprint_hash_algorithm
+	(x509_fingerprint_hash_algorighm, description)
+values
+	('sha1', 'SHA1 hash'),
+	('sha256', 'SHA256 hash');
+
 insert into val_x509_certificate_file_format
 	(x509_certificate_file_format, description)
 values
@@ -2163,5 +2183,202 @@ FROM x;
 --
 -- End requirements for attestation subsystem
 --
+-------------------------------------------------------------------------
+
+-------------------------------------------------------------------------
+--
+-- BEGIN Services
+--
+-------------------------------------------------------------------------
+
+INSERT INTO val_service_namespace (service_namespace)
+VALUES
+	('default');
+
+INSERT INTO val_service_type (service_type)
+VALUES
+	('network'),
+	('socket');
+
+
+INSERT INTO service_sla (
+	service_sla_name, service_availability
+) VALUES (
+	'always', 100
+);
+
+
+INSERT INTO  val_service_affinity
+(service_affinity, service_affinity_rank)
+VALUES
+	('device', 100),
+	('parent_device', 200),
+	('rack', 300),
+	('rack_row', 400),
+	('site', 500)
+;
+
+INSERT INTO service_sla (
+	service_sla_name, minimum_service_affinity, maximum_service_affinity
+) VALUES
+	('same-site', 'site', 'site'),
+	('same-parent', 'parent_device', 'parent_device'),
+	('same-device', 'device', 'device')
+;
+
+-- XXX - these need to be rethunk for health checks
+INSERT INTO protocol (
+	protocol, protocol_number
+) VALUES
+	('none', 0),
+	('tcpconnect', 0),
+	('ssl', 0),
+	('tcp', 6),
+	('udp', 17)
+;
+
+INSERT INTO val_port_range_type (
+	port_range_type, protocol, range_permitted
+) VALUES
+	('services', 'tcp', false),
+	('services', 'udp', false),
+	('localservices', 'tcp', false),
+	('localservices', 'udp', false)
+;
+
+INSERT INTO port_range (
+	port_range_name, protocol, port_range_type,
+	port_start, port_end, is_singleton
+) VALUES
+	('postgresql', 'tcp', 'services', 5432, 5432, true),
+	('http', 'tcp', 'services', 80, 80, true),
+	('https', 'tcp', 'services', 443, 443, true),
+	('domain', 'tcp', 'services', 53, 53, true),
+	('domain', 'udp', 'services', 53, 53, true)
+;
+
+
+INSERT INTO val_service_feature (
+	service_feature
+) values
+	('read'),
+	('write')
+;
+
+INSERT INTO  val_source_repository_method
+(source_repository_method)
+VALUES
+	('git'),
+	('svn'),
+	('cvs'),
+	('mercurial')
+;
+
+INSERT INTO  val_source_repository_uri_purpose
+	(source_repository_uri_purpose)
+VALUES
+	('checkout'),
+	('browse')
+;
+
+
+INSERT INTO val_property_type ( property_type)
+VALUES
+	('launch'),
+	('documentation');
+
+INSERT INTO val_property (
+	property_type, property_name,
+	permit_service_version_collection_id, property_data_type, is_multivalue
+) VALUES
+	('launch', 'location', 'REQUIRED', 'list', true),
+	('launch', 'dedicated', 'REQUIRED', 'boolean', false),
+	('launch', 'minimum_cpu', 'REQUIRED', 'number', false),
+	('launch', 'minimum_memory', 'REQUIRED', 'number', false),
+	('launch', 'minimum_disk', 'REQUIRED', 'number', false),
+	('documentation', 'manual', 'REQUIRED', 'string', false)
+;
+
+INSERT INTO val_property_value (
+	property_type, property_name, valid_property_value
+) VALUES
+	('launch', 'location', 'baremetal'),
+	('launch', 'location', 'virtual-machine')
+;
+
+INSERT INTO val_property (
+	property_type, property_name,
+	permit_service_version_collection_id, permit_netblock_collection_id, property_data_type
+) VALUES
+	('launch', 'launch-netblocks', 'REQUIRED', 'REQUIRED', 'none')
+;
+
+
+INSERT INTO val_property_type ( property_type)
+VALUES
+	('role');
+
+--
+-- this should probably trigger automated account collections
+-- somehow
+--
+INSERT INTO val_property (
+	property_type, property_name,
+	permit_service_version_collection_id, property_data_type
+) VALUES
+	('role', 'owner', 'REQUIRED', 'account_collection_id'),
+	('role', 'admin', 'REQUIRED', 'account_collection_id'),
+	('role', 'iud_role', 'REQUIRED', 'account_collection_id'),
+	('role', 'ro_role', 'REQUIRED', 'account_collection_id'),
+	('role', 'log_watcher', 'REQUIRED', 'account_collection_id')
+;
+
+INSERT INTO  val_service_endpoint_provider_type
+(service_endpoint_provider_type, proxies_connections, translates_addresses)
+VALUES
+	('direct', false, false),
+	('loadbalancer', true, false),
+	('ecmp', false, false)
+;
+
+INSERT INTO  val_service_endpoint_provider_collection_type
+(service_endpoint_provider_collection_type, max_num_members, can_have_hierarchy)
+VALUES
+	('per-service-endpoint-provider', 1, false)
+;
+
+INSERT INTO  val_service_version_collection_type
+(service_version_collection_type, max_num_members, can_have_hierarchy)
+VALUES
+	('current-services', NULL, false),
+	('all-services', NULL, false)
+;
+
+INSERT INTO val_checksum_algorithm (
+	checksum_algorithm
+) VALUES (
+	'none'
+);
+
+INSERT INTO val_software_artifact_relationship (
+	software_artifact_relationship
+) VALUES (
+	'depend'
+);
+
+INSERT INTO val_service_relationship_type (
+	service_relationship_type
+) VALUES
+	('depend');
+
+INSERT INTO val_source_repository_protocol (
+	source_repository_protocol
+) VALUES
+	('https'),
+	('ssh');
+
+-------------------------------------------------------------------------
+--
+-- END Services
 --
 -------------------------------------------------------------------------

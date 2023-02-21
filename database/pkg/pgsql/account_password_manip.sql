@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Todd Kover
+ * Copyright (c) 2020-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,25 @@ BEGIN
 	END IF;
 END;
 $$;
+
+--------------------------------------------------------------------------------
+--
+-- lock an account for future processing.
+--
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION account_password_manip.lock_account_passwords (
+	account_id			INTEGER
+) RETURNS void AS $$
+BEGIN
+	PERFORM *
+	FROM account_password ap
+	WHERE ap.account_Id = lock_account_passwords.account_id
+	FOR UPDATE;
+END;
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER;
 
 --------------------------------------------------------------------------------
 --
@@ -184,6 +203,7 @@ DECLARE
 	curcrypt	TEXT[];
 	_tally		INTEGER;
 	_r			RECORD;
+	foundac		BOOLEAN;
 BEGIN
 	--
 	-- lock all the passwords for UPDATE.  Also keep track of all the recent
@@ -295,16 +315,20 @@ BEGIN
 		WHERE account_password.account_id = set_account_passwords.account_id
 			AND NOT password_type = ANY (done);
 	END IF;
+
 	--
-	-- This is probably a hack that needs revisiting
+	-- This is probably a hack that needs revisiting, ideally with the
+	-- addition of a policy concept.  The logic is that an account is only
+	-- in one of these.
 	--
+	foundac := false;
 	FOR acid, proplen IN SELECT account_collection_id, property_value
 		FROM property
 		WHERE property_type = 'account-override'
-		AND property_name = 'password_expiry_days'
+		AND property_name = 'password_length'
 		ORDER BY property_value::integer desc
 	LOOP
-		IF len >= proplen THEN
+		IF NOT foundac AND len >= proplen THEN
 			--
 			-- conflict means that they are already a part of this.
 			--
@@ -313,6 +337,7 @@ BEGIN
 			) VALUES (
 				acid, set_account_passwords.account_id
 			) ON CONFLICT ON CONSTRAINT pk_account_collection_user DO NOTHING;
+			foundac := true;
 		ELSE
 			DELETE FROM account_collection_account ac 
 				WHERE ac.account_collection_id = acid 

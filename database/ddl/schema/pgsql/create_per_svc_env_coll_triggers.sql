@@ -73,12 +73,14 @@ CREATE OR REPLACE FUNCTION update_per_service_environment_service_environment_co
 RETURNS TRIGGER AS $$
 DECLARE
 	secid		service_environment_collection.service_environment_collection_id%TYPE;
+	_newname		TEXT;
 BEGIN
+	_newname = concat(NEW.service_environment_name, '_', NEW.service_environment_id);
 	IF TG_OP = 'INSERT' THEN
 		insert into service_environment_collection
 			(service_environment_collection_name, service_environment_collection_type)
 		values
-			(NEW.service_environment_name, 'per-environment')
+			(_newname, 'per-environment')
 		RETURNING service_environment_collection_id INTO secid;
 		insert into service_environment_collection_service_environment
 			(service_environment_collection_id, service_environment_id)
@@ -86,8 +88,8 @@ BEGIN
 			(secid, NEW.service_environment_id);
 	ELSIF TG_OP = 'UPDATE'  AND OLD.service_environment_id != NEW.service_environment_id THEN
 		UPDATE	service_environment_collection
-		   SET	service_environment_collection_name = NEW.service_environment_name
-		 WHERE	service_environment_collection_name != NEW.service_environment_name
+		   SET	service_environment_collection_name = _newname
+		 WHERE	service_environment_collection_name != _newname
 		   AND	service_environment_collection_type = 'per-environment'
 		   AND	service_environment_collection_id in (
 			SELECT	service_environment_collection_id

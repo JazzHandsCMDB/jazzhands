@@ -1,0 +1,88 @@
+-- Copyright (c) 2021 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- Copyright (c) 2012-2014 Matthew Ragan
+-- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--     * Redistributions of source code must retain the above copyright
+--       notice, this list of conditions and the following disclaimer.
+--     * Redistributions in binary form must reproduce the above copyright
+--       notice, this list of conditions and the following disclaimer in the
+--       documentation and/or other materials provided with the distribution.
+--
+-- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+-- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+-- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+-- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+-- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+-- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+-- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+-- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+-- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/*
+ * $Id$
+ */
+
+DO $$
+DECLARE
+        _tal INTEGER;
+BEGIN
+        select count(*)
+        from pg_catalog.pg_namespace
+        into _tal
+        where nspname = 'service_utils';
+        IF _tal = 0 THEN
+			DROP SCHEMA IF EXISTS service_utils;
+			CREATE SCHEMA service_utils AUTHORIZATION jazzhands;
+			COMMENT ON SCHEMA service_utils IS 'part of jazzhands';
+
+			REVOKE ALL on ALL FUNCTIONS IN SCHEMA service_utils FROM public;
+			REVOKE ALL on SCHEMA service_utils FROM public;
+			GRANT USAGE ON SCHEMA service_utils TO ro_role;
+			GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA service_utils TO ro_role;
+        END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION service_utils.build_software_repository_uri(
+	template	TEXT,
+	project_name	TEXT,
+	repository_name	TEXT
+) RETURNS TEXT AS $$
+DECLARE
+	_rv	TEXT;
+BEGIN
+	_rv := template;
+	_rv := regexp_replace(_rv, '%{lc_project}', lower(project_name));
+	_rv := regexp_replace(_rv, '%{uc_project}', upper(project_name));
+	_rv := regexp_replace(_rv, '%{project}', project_name);
+	_rv := regexp_replace(_rv, '%{lc_repository}', lower(repository_name));
+	_rv := regexp_replace(_rv, '%{uc_repository}', upper(repository_name));
+	_rv := regexp_replace(_rv, '%{repository}', repository_name);
+	RETURN _rv;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON SCHEMA service_utils FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA service_utils FROM public;
+
+GRANT USAGE ON SCHEMA service_utils TO ro_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA service_utils TO ro_role;

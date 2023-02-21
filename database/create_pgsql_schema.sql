@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019 Todd Kover
+ * Copyright (c) 2013-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -99,6 +99,22 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_x509_triggers.sql
 \ir ddl/schema/pgsql/create_account_coll_relation_triggers.sql
 \ir ddl/schema/pgsql/create_ip_universe_valid_triggers.sql
+;
+\ir ddl/schema/pgsql/create_service_automated_collection_triggers.sql
+\ir ddl/schema/pgsql/create_service_version_automated_membership_triggers.sql
+;
+\ir ddl/schema/pgsql/create_service_base_triggers.sql
+\ir ddl/schema/pgsql/create_service_endpoint_triggers.sql
+\ir ddl/schema/pgsql/create_service_endpoint_provider_triggers.sql
+\ir ddl/schema/pgsql/create_service_source_repository_triggers.sql
+\ir ddl/schema/pgsql/create_service_direct_triggers.sql
+\ir ddl/schema/pgsql/create_service_feature_triggers.sql
+\ir ddl/schema/pgsql/create_schema_relationship_triggers.sql
+\ir ddl/schema/pgsql/create_software_artifact_repository_triggers.sql
+\ir ddl/schema/pgsql/create_port_range_triggers.sql
+
+\ir ddl/schema/pgsql/create_device_management_controller_triggers.sql
+
 -- goes with the jazzhands_legacy schema
 \ir ddl/schema/pgsql/create_jazzhands_legacy_triggers-RETIRE.sql
 
@@ -124,5 +140,11 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 \ir ddl/schema/pgsql/create_account_hook_triggers.sql
 \ir ddl/schema/pgsql/create_person_company_attr_with_legacy.sql
+
+-- having to hand maintain this sucks.
+SELECT schema_support.set_schema_version(
+	version := '0.95',
+	schema := 'jazzhands'
+);
 
 select now();

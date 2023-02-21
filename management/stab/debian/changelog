@@ -1,3 +1,21 @@
+jazzhands-stab (0.95.3.1) focal; urgency=medium
+
+  * undo last change, due to jazzhands_legacy limitations
+
+ -- Todd Kover <kovert@omniscient.com>  Wed,  6 Jul 2022 09:00:00 +0200
+
+jazzhands-stab (0.95.3) focal; urgency=medium
+
+  * limit service environments to type 'default' on device page
+
+ -- Todd Kover <kovert@omniscient.com>  Wed,  6 Jul 2022 07:19:00 +0200
+
+jazzhands-stab (0.90.5) focal; urgency=medium
+
+  * Adding support for multiple ip addresses per network interface
+
+ -- Stephane Messerli <stephanae.messerli@xandr.com>  Tue, 13 Apr 2021 14:03:00 +0200
+
 jazzhands-stab (0.90) focal; urgency=medium
 
   * add ability to delegate attestation to another

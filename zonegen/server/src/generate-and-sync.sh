@@ -1,4 +1,20 @@
 #!/bin/sh
+#
+# Copyright (c) 2013-2022, Todd M. Kover
+# All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#	http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
 # All rights reserved.
 #
@@ -21,31 +37,63 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Copyright (c) 2013-1016, Todd M. Kover
-# All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#	http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 
 #
 # $Id$
 #
 
+#
+#}The arguments passed to this are passed directly to generate-zones and not
+# parsed, which can lead to some assmptions and confusions.  Yes, this is
+# lame.
+#
+
 PATH=usr/local/bin:/usr/local/sbin:/usr/vendor/bin:/usr/kerberos/bin:/usr/bin:/bin
 export PATH
 
+#
+# This entire script wants to be folded into generate-zones.pl, probably with
+# all the meat of zone regeneration in its own module or something.
+#
+
+#
+# Defaults
+#
+
+# zonegen is hardcoded to write to $ZG_ROOT/auto-gen, and the -o/outdir
+# flag can be used in conjunction with overriding this but "auto-gen" needs
+# to be at the end of the path.
+
 ZG_ROOT=/var/lib/zonegen
+PERSERVER_HOSTFILE=/etc/jazzhands/zonegen-perserver.conf
+LISTGEN=/usr/libxec/jazzhands/zonegen/generate-list
+DST_ROOT=/var/named/chroot/auto-gen
+RSYNC_RSH=/usr/libexec/jazzhands/zonegen/ssh-wrap
+STATS_SCRIPT=/usr/libexec/jazzhands/zonegen/process-stats
+
+GENERATE_ZONES=/usr/libexec/jazzhands/zonegen/generate-zones
+
+# Development overrides
+#-	ZG_ROOT=/tmp/zg
+#-	GENERATE_ZONES=`pwd`/generate-zones.pl
+#-	STATS_SCRIPT=/tmp/stats-script
+#-	PATH=/opt/pkg/bin:/opt/pkg/sbin:$PATH
+
+LOGGER_TAG="dns-zonegen"
+LOGGER_PRIORITY="daemon.info"
+
 LOCKFILE=${ZG_ROOT}/run/zonegen.lock
+STATSFILEN=${ZG_ROOT}/run/zonegen.stats.$$
+
+export RSYNC_RSH
+if [ ! -x ${RSYNC_RSH} ] ; then
+	RSYNC_RSH="ssh"
+fi
+
+#
+# override defaults
+#
+[ -r /etc/jazzhands/zonegen.conf ] && . /etc/jazzhands/zonegen.conf
 
 if [ ! -r ${ZG_ROOT} ] ; then
 	mkdir -p ${ZG_ROOT}
@@ -71,8 +119,16 @@ dorsync() {
 	host=$1
 	zoneroot=$2
 
-	rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
-	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
+	{
+	  rsync </dev/null -l -rpt --delete-after $zoneroot/zones $zoneroot/etc ${host}:$DST_ROOT
+	} & # submitting this job into background
+}
+
+doingest() {
+	host=$1
+	zoneroot=$2
+
+	cat $zoneroot/etc/zones-changed | $RSYNC_RSH >/dev/null $host /usr/bin/timeout 120 /usr/libexec/jazzhands/zonegen/ingest-zonegen-changes
 }
 
 trap cleanup HUP INT TERM
@@ -105,26 +161,15 @@ if [ -z "$*" ] ; then
 	touch $LOCKFILE
 fi
 
-PERSERVER_HOSTFILE=/etc/jazzhands/zonegen-perserver.conf
-
-LISTGEN=/usr/libxec/jazzhands/zonegen/generate-list
-
+# depends on what generate-zones does, so this can not be changed.
 SRC_ROOT=${ZG_ROOT}/auto-gen
-DST_ROOT=/var/named/chroot/auto-gen
-RSYNC_RSH=/usr/libexec/jazzhands/zonegen/ssh-wrap
-
-export RSYNC_RSH
-
-if [ ! -x ${RSYNC_RSH} ] ; then
-	RSYNC_RSH=ssh
-fi
 
 KRB5CCNAME=/tmp/krb5cc_zonegen_$$_do_zonegen
 export KRB5CCNAME
 
-if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
+if [ -x  "$GENERATE_ZONES" ] ; then
 	echo 1>&3  "Generating Zones (This may take a while)..."
-	/usr/libexec/jazzhands/zonegen/generate-zones "$@" >&3
+	"$GENERATE_ZONES" --stats-filename="$STATSFILEN" "$@" >&3
 	ec=$?
 	if [ $ec != 0 ] ; then
 		rm -f $LOCKFILE
@@ -149,31 +194,67 @@ if [ -x  /usr/libexec/jazzhands/zonegen/generate-zones ] ; then
 	if [ -f /etc/krb5.keytab.zonegen ] ; then
 		kinit -k -t /etc/krb5.keytab.zonegen zonegen
 	fi
-	for hostfile in $DSTFILES ; do
-		if [ -r "$hostfile" ] ; then
-			echo 1>&3 Processing file $hostfile
-			sed -e 's/#.*//' $hostfile |
-			while read ns servers ; do
-				if [ "$servers" = "" ] ; then
-					servers="$ns"
-					ns=""
-				fi
-				servers=`echo $servers | sed 's/,/ /'`
-				for host in $servers ; do
-					if [ x"$host" != "x" ] ;then
-						if [ "$ns" = "" ] ; then
-							echo 1>&3  "Rsyncing to $host ..."
-							dorsync $host "$SRC_ROOT"
-						else
-							echo 1>&3  "Rsyncing to $host (in $ns) ..."
-							dorsync $host "$SRC_ROOT/perserver/$ns"
-						fi
+	beforesync=`date +%s`
+	for sync in "dorsync" "doingest"; do
+		for hostfile in $DSTFILES ; do
+			if [ -r "$hostfile" ] ; then
+				echo 1>&3 "($sync) Processing file $hostfile"
+				sed -e 's/#.*//' $hostfile |
+				while read ns servers ; do
+					if [ "$servers" = "" ] ; then
+						servers="$ns"
+						ns=""
 					fi
+					servers=`echo $servers | sed 's/,/ /'`
+					for host in $servers ; do
+						if [ x"$host" != "x" ] ;then
+							if [ "$ns" = "" ] ; then
+								echo 1>&3 "($sync) Rsyncing to $host ..."
+								$sync $host "$SRC_ROOT"
+							else
+								echo 1>&3 "($sync) Rsyncing to $host (in $ns) ..."
+								$sync $host "$SRC_ROOT/perserver/$ns"
+							fi
+						fi
+					done
 				done
-			done
-		fi
+			fi
+		done
+		wait # wait for all background jobs to finish
 	done
+	aftersync=`date +%s`
 fi
+
+#
+# the rsynctime is calculated based on the above.  This is slightly fragile
+# when things do not run/are not set, but that is for another day.
+#
+
+if [ -r "$STATSFILEN" ] ; then
+	start=`jq -r < $STATSFILEN .start_time`
+	if [ x"$start" != "x" ] ; then
+		# add rsync time to the end fo the stats
+		rsynctime=`expr $aftersync - $beforesync`
+		fields=`jq < $STATSFILEN '.events |= . + [{"rsync": '$rsynctime'}]' | jq -j -r '.events[] | to_entries | .[] | "\(.key):\(.value); "'`
+		logger -i -t "$LOGGER_TAG" -p "$LOGGER_PRIORITY" "Start: $start, Stats: $fields"
+		jq -r < $STATSFILEN \
+		'.generation_time  | to_entries | .[] | "\(.key): \(.value)"' \
+			| while read line; do
+				logger -i -t "$LOGGER_TAG" -p "$LOGGER_PRIORITY" "generation time: $line"
+			done
+	fi
+
+	# XXX - need to capture stats about how long it took to rsync
+	# maybe also break rsync up into parallel and rndcs become serial
+
+fi
+
+if [ -x "$STATS_SCRIPT" ] ; then
+	jq < $STATSFILEN '.events |= . + [{"rsync": '$rsynctime'}]' |
+		jq -j -r '.events[] | to_entries | .[] | "\(.key):\(.value); "' |
+		$STATS_SCRIPT
+fi
+rm -f "$STATSFILEN"
 
 if [ "$lockingon" = "yes" ] ; then
 	echo 1>&3 Unlocking

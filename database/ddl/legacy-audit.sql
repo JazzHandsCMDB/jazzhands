@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2019-2021 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 \set ON_ERROR_STOP
 CREATE SCHEMA audit;
 
@@ -678,12 +695,20 @@ FROM jazzhands_audit.device_layer2_network;
 
 
 
--- Simple column rename
 CREATE OR REPLACE VIEW audit.device_management_controller AS
-SELECT
+WITH p AS NOT MATERIALIZED (
+	SELECT device_id, component_id
+	FROM (
+		SELECT	device_id, component_id,
+			rank() OVER 
+			(PARTITION BY device_id ORDER BY "aud#timestamp" DESC) as rnk
+		FROM	jazzhands_audit.device
+		WHERE	component_id IS NOT NULL
+	) q WHERE rnk = 1
+) SELECT
 	"manager_device_id",
-	"device_id",
-	"device_management_control_type" AS device_mgmt_control_type,
+	device_id,
+	component_management_controller_type AS device_mgmt_control_type,
 	"description",
 	"data_ins_user",
 	"data_ins_date",
@@ -695,12 +720,19 @@ SELECT
 	"aud#txid",
 	"aud#user",
 	"aud#seq"
-FROM jazzhands_audit.device_management_controller;
+FROM jazzhands_audit.component_management_controller c
+	JOIN (SELECT device_id, component_id FROM p) d
+		USING (component_id)
+	JOIN (SELECT device_id AS manager_device_id, 
+			component_id AS manager_component_id 
+			FROM p) md
+		USING (manager_component_id)
+;
 
 
 
 CREATE OR REPLACE VIEW audit.device_note AS
-SELECT "note_id","device_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+SELECT device_note_id AS note_id,"device_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.device_note;
 
 
@@ -1529,7 +1561,7 @@ FROM jazzhands_audit.person_location;
 
 
 CREATE OR REPLACE VIEW audit.person_note AS
-SELECT "note_id","person_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+SELECT person_note_id AS note_id,"person_id","note_text","note_date","note_user","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.person_note;
 
 
@@ -1589,7 +1621,7 @@ SELECT
 		WHEN is_active = false THEN 'N'
 		ELSE NULL
 	END AS is_active,
-	"subject_key_identifier",
+	NULL::text AS "subject_key_identifier",
 	"private_key",
 	"passphrase",
 	"encryption_key_id",
@@ -1636,7 +1668,7 @@ SELECT
 	"property_value_json",
 	"property_value_netblock_collection_id" AS property_value_nblk_coll_id,
 	"property_value_password_type",
-	"property_value_sw_package_id",
+	NULL::integer AS property_value_sw_package_id,
 	"property_value_token_collection_id" AS property_value_token_col_id,
 	"property_rank",
 	"start_date",
@@ -2021,9 +2053,15 @@ FROM jazzhands_audit.service_environment_collection_service_environment;
 
 
 
+
 CREATE OR REPLACE VIEW audit.sw_package AS
-SELECT "sw_package_id","sw_package_name","sw_package_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.sw_package;
+SELECT software_artifact_name_id AS sw_package_id,
+       software_artifact_name sw_package_name,
+       software_artifact_type sw_package_type,
+       description,
+       data_ins_user,data_ins_date,data_upd_user,data_upd_date,
+	"aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+FROM jazzhands_audit.software_artifact_name;
 
 
 
@@ -2443,10 +2481,12 @@ FROM jazzhands_audit.val_device_collection_type;
 
 
 CREATE OR REPLACE VIEW audit.val_device_mgmt_ctrl_type AS
-SELECT "device_mgmt_control_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_device_management_controller_type;
-
-
+SELECT component_management_controller_type AS device_mgmt_control_type,
+	"description",
+	"data_ins_user","data_ins_date","data_upd_user","data_upd_date",
+	"aud#action","aud#timestamp","aud#realtime","aud#txid",
+	"aud#user","aud#seq"
+FROM jazzhands_audit.val_component_management_controller_type;
 
 CREATE OR REPLACE VIEW audit.val_device_status AS
 SELECT "device_status","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
@@ -2816,14 +2856,6 @@ CREATE OR REPLACE VIEW audit.val_ownership_status AS
 SELECT "ownership_status","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.val_ownership_status;
 
-
-
-CREATE OR REPLACE VIEW audit.val_package_relation_type AS
-SELECT "package_relation_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_package_relation_type;
-
-
-
 CREATE OR REPLACE VIEW audit.val_password_type AS
 SELECT "password_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
 FROM jazzhands_audit.val_password_type;
@@ -3042,7 +3074,7 @@ SELECT
 	"permit_operating_system_id",
 	"permit_operating_system_snapshot_id" AS permit_os_snapshot_id,
 	"permit_property_name_collection_id" AS permit_property_collection_id,
-	"permit_service_environment_collection" AS permit_service_env_collection,
+	"permit_service_environment_collection_id" AS permit_service_env_collection,
 	"permit_site_code",
 	"permit_x509_signed_certificate_id" AS permit_x509_signed_cert_id,
 	"permit_property_rank",
@@ -3206,8 +3238,11 @@ FROM jazzhands_audit.val_ssh_key_type;
 
 
 CREATE OR REPLACE VIEW audit.val_sw_package_type AS
-SELECT "sw_package_type","description","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.val_sw_package_type;
+SELECT software_artifact_type AS sw_package_type,
+	description,
+	data_ins_user,data_ins_date,data_upd_user,data_upd_date,
+	"aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
+FROM jazzhands_audit.val_software_artifact_type;
 
 
 
@@ -3440,6 +3475,8 @@ SELECT
 	"subject",
 	"friendly_name",
 	"subject_key_identifier",
+	"public_key_hash_id",
+	"description",
 	CASE WHEN is_active IS NULL THEN NULL
 		WHEN is_active = true THEN 'Y'
 		WHEN is_active = false THEN 'N'

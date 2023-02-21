@@ -52,7 +52,7 @@ sub tg_search {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } ),          "\n";
 	print $stab->start_html( { -title => "Trunk Group Search" } ), "\n";
 
 	print "totally not implemented";
@@ -89,7 +89,7 @@ sub dump_tg {
 			$stab->msg_return("Unknown Trunk Group");
 		}
 
-		print $cgi->header( { -type => 'text/html' } ), "\n";
+		print $cgi->header(      { -type  => 'text/html' } ),   "\n";
 		print $stab->start_html( { -title => "Trunk Group" } ), "\n";
 
 		my $opc = sprintf( "%09d", $hr->{'SRC_POINT_CODE'} );
@@ -100,21 +100,9 @@ sub dump_tg {
 
 		print $cgi->table(
 			{ -align => 'center', -border => 1 },
+			$cgi->Tr( $cgi->td( [ $cgi->b('Vendor'), $hr->{'COMPANY_ID'} ] ) ),
 			$cgi->Tr(
-				$cgi->td(
-					[
-						$cgi->b('Vendor'),
-						$hr->{'COMPANY_ID'}
-					]
-				)
-			),
-			$cgi->Tr(
-				$cgi->td(
-					[
-						$cgi->b('Trunk'),
-						$hr->{'TRUNK_GROUP_NAME'}
-					]
-				)
+				$cgi->td( [ $cgi->b('Trunk'), $hr->{'TRUNK_GROUP_NAME'} ] )
 			),
 			$cgi->Tr( $cgi->td( [ $cgi->b('OPC'), $opc ] ) ),
 			$cgi->Tr( $cgi->td( [ $cgi->b('DPC'), $dpc ] ) ),
@@ -124,7 +112,7 @@ sub dump_tg {
 	my $sth = $stab->prepare(
 		qq{
 		select  ni.network_interface_id,
-			ni.name as network_interface_name,
+			ni.network_interface_name,
 			d.device_name,
 			p.physical_port_id,
 			p.port_name,
@@ -138,7 +126,7 @@ sub dump_tg {
 			c.trunk_tcic_start,
 			c.trunk_tcic_end
 		  from  physical_port p
-			inner join v_network_interface_trans ni on
+			inner join network_interface ni on
 				ni.physical_port_id = p.physical_port_id
 			inner join device d on
 				d.device_id = ni.device_id

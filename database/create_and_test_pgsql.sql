@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2020 Todd Kover
+ * Copyright (c) 2013-2022 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@
  */
 
 --
--- This runs through and creates records, runs test and what not.  
+-- This runs through and creates records, runs test and what not.
 --
 -- It assumes the user 'jazzhands' owns the schema, and the database is the
 -- one to which you initially connect (it will switch to template1 before
@@ -35,11 +35,27 @@
 
 select timeofday(), now();
 
+--
+-- The relevant places will succeed regardless of if pl/perl is available,
+-- only using if it if's there.  This being set to true will cause the
+-- process to die if the pl/perl bits are not configured right, any other
+-- setting will cause it to silently not do pl/perl things.
+-- 
+-- It is set here so that all the tests run with and without pl/perl.
+--
+\set global_failonnoplperl true
+
+--
+-- make everything
+--
+
 \ir create_pgsql_from_scratch.sql
 
 --
 -- Everything aftrer this is a test
 --
+
+-- end pl/perlmagic
 
 begin;
 
@@ -51,6 +67,10 @@ begin;
 -- deprecated
 -- \ir tests/init/insert_records_later.sql
 \ir tests/init/test_netblock_collection.sql
+
+-- rudimentary
+\ir tests/pgsql/schema_support.sql
+
 \ir tests/pgsql/location_regression_test.sql
 \ir tests/pgsql/netblock_regression_test.sql
 \ir tests/pgsql/dns_record_regression_test.sql
@@ -85,7 +105,22 @@ begin;
 
 \ir tests/pgsql/account_enabled_test.sql
 \ir tests/pgsql/approval_process_regression.sql
+\ir tests/pgsql/port_range_checks.sql
+\ir tests/pgsql/service_base_regression.sql
+\ir tests/pgsql/source_repository_triggers.sql
+\ir tests/pgsql/service_relationship_triggers.sql
+\ir tests/pgsql/service_manip_tests.sql
+
+\ir tests/pgsql/dns_domain_regression_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
+
+\ir tests/pgsql/device_management_controller_regression.sql
+
+savepoint preplperl;
+DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;
+\ir tests/pgsql/x509_tests.sql
+rollback to preplperl;
+
 
 rollback;
 
@@ -121,14 +156,29 @@ set search_path=jazzhands_legacy;
 \ir tests/pgsql/jhlegacy/token_coll_hier_regression.sql
 \ir tests/pgsql/jhlegacy/account_coll_realm_regression.sql
 \ir tests/pgsql/jhlegacy/network_range_tests.sql
-\ir tests/pgsql/jhlegacy/x509_tests.sql
+-- the bits in here are in the process of being retired
+-- \ir tests/pgsql/jhlegacy/x509_tests.sql
+\ir tests/pgsql/jhlegacy/x509_certificate.sql
 \ir tests/pgsql/jhlegacy/v_person_company_regression.sql
 \ir tests/pgsql/jhlegacy/account_enabled_test.sql
 \ir tests/pgsql/jhlegacy/devices_regression.sql
+\ir tests/pgsql/jhlegacy/x509_tests.sql
+\ir tests/pgsql/jhlegacy/deprecated_x509_tests.sql
+
+\ir tests/pgsql/jhlegacy/device_management_controller_regression.sql
 
 \ir tests/pgsql/jhlegacy/jazzhands_legacy_device.sql
 
 set search_path=jazzhands;
+
+savepoint preplperl;
+DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;
+set search_path=jazzhands_legacy;
+\ir tests/pgsql/jhlegacy/x509_certificate.sql
+\ir tests/pgsql/jhlegacy/deprecated_x509_tests.sql
+set search_path=jazzhands;
+rollback to preplperl;
+
 rollback;
 
 select timeofday(), now();

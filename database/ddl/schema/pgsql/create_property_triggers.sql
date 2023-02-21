@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2015 Matthew Ragan
- * Copyright (c) 2012-2019 Todd Kover
+ * Copyright (c) 2012-2021 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,27 +40,8 @@ CREATE OR REPLACE FUNCTION validate_val_property() RETURNS TRIGGER AS $$
 DECLARE
 	_tally	INTEGER;
 BEGIN
-	IF NEW.property_data_type = 'json' AND NEW.property_value_json_schema IS NULL THEN
-		RAISE 'property_data_type json requires a schema to be set'
-			USING ERRCODE = 'invalid_parameter_value';
-	ELSIF NEW.property_data_type != 'json' AND NEW.property_value_json_schema IS NOT NULL THEN
-		RAISE 'property_data_type % may not have a json schema set',
-			NEW.property_data_type
-			USING ERRCODE = 'invalid_parameter_value';
-	END IF;
 
-	IF TG_OP = 'UPDATE' AND OLD.property_data_type != NEW.property_data_type THEN
-		SELECT	count(*)
-		INTO	_tally
-		WHERE	property_name = NEW.property_name
-		AND		property_type = NEW.property_type;
-
-		IF _tally > 0  THEN
-			RAISE 'May not change property type if there are existing proeprties'
-				USING ERRCODE = 'foreign_key_violation';
-
-		END IF;
-	END IF;
+	PERFORM property_utils.validate_val_property(NEW);
 
 	IF TG_OP = 'INSERT' AND NEW.permit_company_id != 'PROHIBITED' OR
 		( TG_OP = 'UPDATE' AND NEW.permit_company_id != 'PROHIBITED' AND

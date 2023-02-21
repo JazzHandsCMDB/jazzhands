@@ -48,5 +48,6 @@ management/util/perl	# jazzhands-perl-common
 management/util/perl-Krb5
 management/util/perl-tickets
 management/util/perl-vault
+management/util/python-vault
 zonegen/client
 zonegen/server/src

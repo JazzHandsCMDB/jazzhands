@@ -65,9 +65,6 @@ SELECT * FROM schema_support.create_cache_table(
 );
 
 
-CREATE INDEX ix_jazzhands_legacy_device_device_id ON
-	jazzhands_cache.ct_jazzhands_legacy_device_support(device_id);
-
 ALTER TABLE jazzhands_cache.ct_jazzhands_legacy_device_support
 ADD
 PRIMARY KEY (device_id);

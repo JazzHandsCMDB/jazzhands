@@ -24,6 +24,8 @@ my $user;
 my $password;
 my $debug = 0;
 my $verbose = 0;
+my $probe_nvme = 0;
+my $timeout = undef;
 my $authapp = 'dev_redfish';
 my ($readfile, $writefile);
 
@@ -34,7 +36,9 @@ GetOptions(
 	'write=s'		=> \$writefile,
 	'read=s'		=> \$readfile,
 	'debug+'		=> \$debug,
-	'verbose+'		=> \$verbose
+	'timeout=i'		=> \$timeout,
+	'nvme!'			=> \$probe_nvme,
+	'verbose+'		=> \$verbose,
 );
 
 if ($readfile && $writefile) {
@@ -80,7 +84,7 @@ DEVLOOP: while ($host = shift) {
 		hostname => $host
 	};
 
-	if ($verbose) {
+	if ($debug) {
 		printf "%s...\n", $host;
 	}
 
@@ -93,6 +97,7 @@ DEVLOOP: while ($host = shift) {
 		credentials => $credentials,
 		url => '/redfish/v1',
 		errors => \@errors,
+		timeout => $timeout,
 		debug => $debug
 	);
 
@@ -104,6 +109,10 @@ DEVLOOP: while ($host = shift) {
 	}
 
 	my $device_serial = $result->{Oem}->{Dell}->{ServiceTag};
+
+	if (!$device_serial) {
+		next;
+	}
 
 	if (!exists($device_hash->{$device_serial})) {
 		$device_hash->{$device_serial} = {
@@ -120,6 +129,7 @@ DEVLOOP: while ($host = shift) {
 		credentials => $credentials,
 		url => '/redfish/v1/Systems/System.Embedded.1',
 		errors => \@errors,
+		timeout => $timeout,
 		debug => $debug
 	);
 
@@ -130,7 +140,7 @@ DEVLOOP: while ($host = shift) {
 	$device->{model} = $result->{Model};
 	$device->{part_number} = $result->{PartNumber};
 
-	if ($verbose) {
+	if ($debug) {
 		printf "Found %s with serial %s\n",
 			$device->{model},
 			$device->{serial};
@@ -160,36 +170,14 @@ DEVLOOP: while ($host = shift) {
 #			"NVMe backplane present" :
 #			"NVMe backplane NOT present";
 
-
-	#
-	# Pull controllers
-	#
-	$result = $redfish->SendCommand(
-		device => $conninfo,
-		credentials => $credentials,
-		url => $nexturl,
-		errors => \@errors,
-		debug => $debug
-	);
-
-	if (!$result) {
-		printf "%s: %s\n", $host, join("\n", @errors);
-		next DEVLOOP;
-	}
-
-	my @controllers;
-	if (@controllers = grep { $_->{'@odata.id'} =~ m%/CPU\.\d+$% } @{$result->{Members}} ) {
-		$device->{NVMe} = [];
-	} else {
-		$device->{NVMe} = undef;
-		goto PRINTIT;
-	}
-
-	foreach my $controller (@controllers) {
+	if ($probe_nvme) {
+		#
+		# Pull controllers
+		#
 		$result = $redfish->SendCommand(
 			device => $conninfo,
 			credentials => $credentials,
-			url => $controller->{'@odata.id'},
+			url => $nexturl,
 			errors => \@errors,
 			debug => $debug
 		);
@@ -199,28 +187,63 @@ DEVLOOP: while ($host = shift) {
 			next DEVLOOP;
 		}
 
-		next if (!$result->{Devices});
-		foreach my $nvme (@{$result->{Devices}}) {
-			next if !$nvme->{CapacityBytes};
-			$nvme->{Manufacturer} =~ s/ +$//;
-			$nvme->{Model} =~ s/ +$//;
-			push @{$device->{NVMe}}, $nvme;
+		my @controllers;
+		if (@controllers = grep { $_->{'@odata.id'} =~ m%/CPU\.\d+$% } @{$result->{Members}} ) {
+			$device->{NVMe} = [];
+		} else {
+			$device->{NVMe} = undef;
+			goto PRINTIT;
+		}
+
+		foreach my $controller (@controllers) {
+			$result = $redfish->SendCommand(
+				device => $conninfo,
+				credentials => $credentials,
+				url => $controller->{'@odata.id'},
+				errors => \@errors,
+				debug => $debug
+			);
+
+			if (!$result) {
+				printf "%s: %s\n", $host, join("\n", @errors);
+				next DEVLOOP;
+			}
+
+			next if (!$result->{Devices});
+			foreach my $nvme (@{$result->{Devices}}) {
+				next if !$nvme->{CapacityBytes};
+				$nvme->{Manufacturer} =~ s/ +$//;
+				$nvme->{Model} =~ s/ +$//;
+				push @{$device->{NVMe}}, $nvme;
+			}
 		}
 	}
 	
 	PRINTIT:
 
 	printf "%s: %s: %s", $device->{host}, $device_serial, $device->{model};
-	if (defined($device->{NVMe})) {
-		printf " - NVMe backplane present: %s",
-			join ("; ",
-				map {
-					sprintf q{Size: %s, Manufacturer: %s, Model: "%s"},
-						$_->{CapacityBytes},
-						$_->{Manufacturer},
-						$_->{Model}
-				} @{$device->{NVMe}}
-			);
+	if ($probe_nvme) {
+		if (defined($device->{NVMe})) {
+			print " - NVMe backplane present: ";
+			if (!@{$device->{NVMe}}) {
+				print "No NVMe devices found\n";
+			} else {
+				if ($verbose < 2) {
+					printf "%d NVME devices found\n", $#{$device->{NVMe}};
+				} else {
+					printf "\n    " . join ("\n    ",
+						map {
+							sprintf q{Size: %s, Manufacturer: %s, Model: "%s"},
+								$_->{CapacityBytes},
+								$_->{Manufacturer},
+								$_->{Model}
+						} @{$device->{NVMe}}
+					);
+				}
+			}
+		} else {
+			printf " - NVMe backplane not present",
+		}
 	}
 	print "\n";
 }
