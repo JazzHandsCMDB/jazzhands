@@ -130,6 +130,7 @@ DEVLOOP: while ($host = shift) {
 	);
 
 	if (!$result) {
+		$device->{errors} = $@errors;
 		printf "%s: %s\n", $host, join("\n", @errors);
 		next DEVLOOP;
 	}
@@ -144,12 +145,13 @@ DEVLOOP: while ($host = shift) {
 		if (!$json) {
 			printf "%s: %s: %s\n",
 				$device->{host},
-				$device->{serial},
+				$device->{serial} || '',
 				$device->{power_state}
 			;
-		} else {
-			print JSON::XS->new->pretty(1)->encode($device);
 		}
+	#	else {
+	#		print JSON::XS->new->pretty(1)->encode($device);
+	#	}
 		next;
 	}
 
@@ -164,6 +166,8 @@ DEVLOOP: while ($host = shift) {
 		next;
 	}
 
+	$device->{reset_type} = $action;
+
 	$result = $redfish->SendCommand(
 		device => $conninfo,
 		credentials => $credentials,
@@ -177,8 +181,19 @@ DEVLOOP: while ($host = shift) {
 
 	if (!$result) {
 		printf "%s: %s\n", $host, join("\n", @errors);
+		$device->{errors} = $@errors;
 		next DEVLOOP;
 	}
-
+	if ($verbose) {
+		printf "%s: %s: Power state: %s, changed to %s\n",
+			$device->{host},
+			$device->{serial} || '',
+			$device->{power_state},
+			$action
+		;
+	}
 }
 
+if ($json) {
+	print JSON::XS->new->pretty(1)->encode($device_hash);
+}
