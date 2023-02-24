@@ -49,8 +49,9 @@
 -- data is there; need to do that before rewritten to use proper savepoints.
 
 SAVEPOINT property_trigger_test;
-\ir ../../pkg/pgsql/property_utils.sql
-\ir ../../ddl/schema/pgsql/create_property_triggers.sql
+-- Tests things in here
+-- \ir ../../pkg/pgsql/property_utils.sql
+-- \ir ../../ddl/schema/pgsql/create_property_triggers.sql
 
 CREATE FUNCTION validate_property_triggers() RETURNS BOOLEAN AS $$
 DECLARE
