@@ -39,6 +39,8 @@
  * $Id$
  */
 
+\set ON_ERROR_STO
+
 DO $$
 DECLARE
     _tal INTEGER;
@@ -1098,6 +1100,48 @@ BEGIN
 	THEN
 		RAISE EXCEPTION 'May not set property_value_service_version_collection_type_restriction when property_data_type is not service_version_collection_id'
 			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION property_utils.validate_filesystem(
+	NEW	filesystem
+) RETURNS filesystem AS $$
+DECLARE
+	_vft	val_filesystem_type%ROWTYPE;
+BEGIN
+	SELECT * INTO _vft FROM val_filesystem_type
+		WHERE filesystem_type = NEW.filesystem_type;
+
+	IF NEW.mountpoint IS NOT NULL AND _vft.permit_mountpoint = 'PROHIBITED' THEN
+		RAISE EXCEPTION 'mountpoint is not permitted'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	IF NEW.mountpoint IS NULL AND _vft.permit_mountpoint = 'REQURIED' THEN
+		RAISE EXCEPTION 'mountpoint is required'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	IF NEW.filesystem_label IS NOT NULL AND _vft.permit_filesystem_label = 'PROHIBITED' THEN
+		RAISE EXCEPTION 'filesystem_label is not permitted'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	IF NEW.filesystem_label IS NULL AND _vft.permit_mountpoint = 'REQURIED' THEN
+		RAISE EXCEPTION 'mountpoint is required'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	IF NEW.filesystem_serial IS NOT NULL AND _vft.permit_filesystem_serial = 'PROHIBITED' THEN
+		RAISE EXCEPTION 'filesystem_serial is not permitted'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	IF NEW.filesystem_serial IS NULL AND _vft.permit_mountpoint = 'REQURIED' THEN
+		RAISE EXCEPTION 'mountpoint is required'
+			USING ERRCODE = 'not_null_violation';
 	END IF;
 
 	RETURN NEW;
