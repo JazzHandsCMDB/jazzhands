@@ -28,6 +28,9 @@ Invoked:
 	--post
 	post
 	--reinsert-dir=i
+	layer3_interface
+	component_type
+	dns_record
 	logical_volume
 	volume_group
 	volume_group_physicalish_volume:volume_group_block_storage_device
@@ -56,6 +59,8 @@ Invoked:
 	jazzhands_legacy.v_dev_col_device_root
 	--last
 	jazzhands_legacy.v_dev_col_user_prop_expanded
+	--postschema
+	property_utils
 	--last
 	jazzhands_legacy.v_unix_account_overrides
 	--last
@@ -1529,940 +1534,6 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_port_utils']);
 --
--- Process middle (non-trigger) schema property_utils
---
--- Changed function
-SELECT schema_support.save_dependent_objects_for_replay('property_utils', 'validate_property');
-SELECT schema_support.save_grants_for_replay('property_utils', 'validate_property');
--- Dropped in case type changes.
-DROP FUNCTION IF EXISTS property_utils.validate_property ( new jazzhands.property );
-CREATE OR REPLACE FUNCTION property_utils.validate_property(new jazzhands.property)
- RETURNS jazzhands.property
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'jazzhands'
-AS $function$
-DECLARE
-	tally				integer;
-	v_prop				VAL_Property%ROWTYPE;
-	v_proptype			VAL_Property_Type%ROWTYPE;
-	v_account_collection		account_collection%ROWTYPE;
-	v_company_collection		company_collection%ROWTYPE;
-	v_device_collection		device_collection%ROWTYPE;
-	v_dns_domain_collection		dns_domain_collection%ROWTYPE;
-	v_layer2_network_collection	layer2_network_collection%ROWTYPE;
-	v_layer3_network_collection	layer3_network_collection%ROWTYPE;
-	v_netblock_collection		netblock_collection%ROWTYPE;
-	v_network_range				network_range%ROWTYPE;
-	v_property_name_collection		property_name_collection%ROWTYPE;
-	v_service_environment_collection	service_environment_collection%ROWTYPE;
-	v_service_version_collection	service_version_collection%ROWTYPE;
-	v_num				integer;
-	v_listvalue			Property.Property_Value%TYPE;
-BEGIN
-	-- Pull in the data from the property and property_type so we can
-	-- figure out what is and is not valid
-
-	BEGIN
-		SELECT * INTO STRICT v_prop FROM VAL_Property WHERE
-			Property_Name = NEW.Property_Name AND
-			Property_Type = NEW.Property_Type;
-
-		SELECT * INTO STRICT v_proptype FROM VAL_Property_Type WHERE
-			Property_Type = NEW.Property_Type;
-	EXCEPTION
-		WHEN NO_DATA_FOUND THEN
-			RAISE EXCEPTION
-				'Property name (%) or type (%) does not exist',
-				NEW.property_name, NEW.property_type
-				USING ERRCODE = 'foreign_key_violation';
-			RETURN NULL;
-	END;
-
-	-- Check to see if the property itself is multivalue. That is, if only
-	-- one value can be set for this property for a specific property LHS
-	IF (v_prop.is_multivalue = false) THEN
-		PERFORM 1 FROM Property WHERE
-			Property_Id != NEW.Property_Id AND
-			Property_Name = NEW.Property_Name AND
-			Property_Type = NEW.Property_Type AND
-			account_collection_id IS NOT DISTINCT FROM NEW.account_collection_id
-				AND
-			account_id IS NOT DISTINCT FROM NEW.account_id AND
-			account_realm_id IS NOT DISTINCT FROM NEW.account_realm_id AND
-			company_collection_id IS NOT DISTINCT FROM NEW.company_collection_id AND
-			company_id IS NOT DISTINCT FROM NEW.company_id AND
-			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
-			dns_domain_collection_id IS NOT DISTINCT FROM
-				NEW.dns_domain_collection_id AND
-			layer2_network_collection_id IS NOT DISTINCT FROM
-				NEW.layer2_network_collection_id AND
-			layer3_network_collection_id IS NOT DISTINCT FROM
-				NEW.layer3_network_collection_id AND
-			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
-			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
-			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
-			operating_system_snapshot_id IS NOT DISTINCT FROM
-				NEW.operating_system_snapshot_id AND
-			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
-			service_environment_collection_id IS NOT DISTINCT FROM
-				NEW.service_environment_collection_id AND
-			service_version_collection_id IS NOT DISTINCT FROM
-				NEW.service_version_collection_id AND
-			site_code IS NOT DISTINCT FROM NEW.site_code AND
-			x509_signed_certificate_id IS NOT DISTINCT FROM
-				NEW.x509_signed_certificate_id
-		;
-
-		IF FOUND THEN
-			RAISE EXCEPTION
-				'Property of type (%,%) already exists for given LHS and property is not multivalue',
-				NEW.Property_Name, NEW.Property_Type
-				USING ERRCODE = 'unique_violation';
-			RETURN NULL;
-		END IF;
-	ELSE
-		-- check for the same lhs+rhs existing, which is basically a dup row
-		PERFORM 1 FROM Property WHERE
-			Property_Id != NEW.Property_Id AND
-			Property_Name = NEW.Property_Name AND
-			Property_Type = NEW.Property_Type AND
-			account_collection_id IS NOT DISTINCT FROM NEW.account_collection_id
-				AND
-			account_id IS NOT DISTINCT FROM NEW.account_id AND
-			account_realm_id IS NOT DISTINCT FROM NEW.account_realm_id AND
-			company_collection_id IS NOT DISTINCT FROM NEW.company_collection_id AND
-			company_id IS NOT DISTINCT FROM NEW.company_id AND
-			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
-			dns_domain_collection_id IS NOT DISTINCT FROM
-				NEW.dns_domain_collection_id AND
-			layer2_network_collection_id IS NOT DISTINCT FROM
-				NEW.layer2_network_collection_id AND
-			layer3_network_collection_id IS NOT DISTINCT FROM
-				NEW.layer3_network_collection_id AND
-			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
-			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
-			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
-			operating_system_snapshot_id IS NOT DISTINCT FROM
-				NEW.operating_system_snapshot_id AND
-			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
-			service_environment_collection_id IS NOT DISTINCT FROM
-				NEW.service_environment_collection_id AND
-			service_version_collection_id IS NOT DISTINCT FROM
-				NEW.service_version_collection_id AND
-			site_code IS NOT DISTINCT FROM NEW.site_code AND
-			x509_signed_certificate_id IS NOT DISTINCT FROM
-				NEW.x509_signed_certificate_id AND
-			property_value IS NOT DISTINCT FROM NEW.property_value AND
-			property_value_json IS NOT DISTINCT FROM
-				NEW.property_value_json AND
-			property_value_boolean IS NOT DISTINCT FROM
-				NEW.property_value_boolean AND
-			property_value_timestamp IS NOT DISTINCT FROM
-				NEW.property_value_timestamp AND
-			property_value_account_collection_id IS NOT DISTINCT FROM
-				NEW.property_value_account_collection_id AND
-			property_value_device_collection_id IS NOT DISTINCT FROM
-				NEW.property_value_device_collection_id AND
-			property_value_netblock_collection_id IS NOT DISTINCT FROM
-				NEW.property_value_netblock_collection_id AND
-			property_value_service_version_collection_id IS NOT DISTINCT FROM
-				NEW.property_value_service_version_collection_id AND
-			property_value_password_type IS NOT DISTINCT FROM
-				NEW.property_value_password_type AND
-			property_value_token_collection_id IS NOT DISTINCT FROM
-				NEW.property_value_token_collection_id AND
-			property_value_encryption_key_id IS NOT DISTINCT FROM
-				NEW.property_value_encryption_key_id AND
-			property_value_private_key_id IS NOT DISTINCT FROM
-				NEW.property_value_private_key_id AND
-			start_date IS NOT DISTINCT FROM NEW.start_date AND
-			finish_date IS NOT DISTINCT FROM NEW.finish_date
-		;
-
-		IF FOUND THEN
-			RAISE EXCEPTION
-				'Property of (n,t) (%,%) already exists for given property',
-				NEW.Property_Name, NEW.Property_Type
-				USING ERRCODE = 'unique_violation';
-			RETURN NULL;
-		END IF;
-
-	END IF;
-
-	-- Check to see if the property type is multivalue. That is, if only
-	-- one property and value can be set for any properties with this type
-	-- for a specific property LHS
-
-	IF (v_proptype.is_multivalue = false) THEN
-		PERFORM 1 FROM Property WHERE
-			Property_Id != NEW.Property_Id AND
-			Property_Type = NEW.Property_Type AND
-			account_collection_id IS NOT DISTINCT FROM NEW.account_collection_id
-				AND
-			account_id IS NOT DISTINCT FROM NEW.account_id AND
-			account_realm_id IS NOT DISTINCT FROM NEW.account_realm_id AND
-			company_collection_id IS NOT DISTINCT FROM NEW.company_collection_id AND
-			company_id IS NOT DISTINCT FROM NEW.company_id AND
-			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
-			dns_domain_collection_id IS NOT DISTINCT FROM
-				NEW.dns_domain_collection_id AND
-			layer2_network_collection_id IS NOT DISTINCT FROM
-				NEW.layer2_network_collection_id AND
-			layer3_network_collection_id IS NOT DISTINCT FROM
-				NEW.layer3_network_collection_id AND
-			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
-			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
-			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
-			operating_system_snapshot_id IS NOT DISTINCT FROM
-				NEW.operating_system_snapshot_id AND
-			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
-			service_environment_collection_id IS NOT DISTINCT FROM
-				NEW.service_environment_collection_id AND
-			service_version_collection_id IS NOT DISTINCT FROM
-				NEW.service_version_collection_id AND
-			site_code IS NOT DISTINCT FROM NEW.site_code AND
-			x509_signed_certificate_id IS NOT DISTINCT FROM
-				NEW.x509_signed_certificate_id
-		;
-
-		IF FOUND THEN
-			RAISE EXCEPTION
-				'Property % of type % already exists for given LHS and property type is not multivalue',
-				NEW.Property_Name, NEW.Property_Type
-				USING ERRCODE = 'unique_violation';
-			RETURN NULL;
-		END IF;
-	END IF;
-
-	-- now validate the property_value columns.
-	tally := 0;
-
-	--
-	-- first determine if the property_value is set properly.
-	--
-
-	-- iterate over each of fk PROPERTY_VALUE columns and if a valid
-	-- value is set, increment tally, otherwise raise an exception.
-	IF NEW.Property_Value_JSON IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'json' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be JSON' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Password_Type IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'password_type' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Password_Type' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Token_collection_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'token_collection_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Token_Collection_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'account_collection_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be account_collection_id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'netblock_collection_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be netblock_collection_id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_service_version_collection_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'service_version_collection_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be service_version_collection_id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Timestamp IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'timestamp' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Timestamp' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'device_collection_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be Device_Collection_Id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-
-	IF NEW.property_value_boolean IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'boolean' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be boolean' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-
-	IF NEW.property_value_encryption_key_id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'encryption_key_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be encryption_key_id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-
-	IF NEW.property_value_private_key_id IS NOT NULL THEN
-		IF v_prop.Property_Data_Type = 'private_key_id' THEN
-			tally := tally + 1;
-		ELSE
-			RAISE 'Property value may not be private_key_id' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-
-	-- at this point, tally will be set to 1 if one of the other property
-	-- values is set to something valid. Now, check the various options for
-	-- PROPERTY_VALUE itself. If a new type is added to the val table, this
-	-- trigger needs to be updated or it will be considered invalid. If a
-	-- new PROPERTY_VALUE_* column is added, then it will pass through without
-	-- trigger modification. This should be considered bad.
-	IF NEW.Property_Value IS NOT NULL THEN
-		tally := tally + 1;
-		IF v_prop.Property_Data_Type = 'number' THEN
-			BEGIN
-				v_num := to_number(NEW.property_value, '9');
-			EXCEPTION
-				WHEN OTHERS THEN
-					RAISE 'Property_Value must be numeric' USING
-						ERRCODE = 'invalid_parameter_value';
-			END;
-		ELSIF v_prop.Property_Data_Type = 'list' THEN
-			BEGIN
-				SELECT Valid_Property_Value INTO STRICT v_listvalue FROM
-					VAL_Property_Value WHERE
-						Property_Name = NEW.Property_Name AND
-						Property_Type = NEW.Property_Type AND
-						Valid_Property_Value = NEW.Property_Value;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					RAISE 'Property_Value must be a valid value' USING
-						ERRCODE = 'invalid_parameter_value';
-			END;
-		ELSIF v_prop.Property_Data_Type = 'boolean' THEN
-			RAISE 'Boolean values are set in Property_Value_Boolean' USING
-				ERRCODE = 'invalid_parameter_value';
-		ELSIF v_prop.Property_Data_Type != 'string' THEN
-			RAISE 'Property_Value may not be set for this Property_Data_Type' USING
-				ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-
-	IF v_prop.Property_Data_Type != 'none' AND tally = 0 THEN
-		RAISE 'One of the PROPERTY_VALUE fields must be set.' USING
-			ERRCODE = 'invalid_parameter_value';
-	END IF;
-
-	IF tally > 1 THEN
-		RAISE 'Only one of the PROPERTY_VALUE fields may be set.' USING
-			ERRCODE = 'invalid_parameter_value';
-	END IF;
-
-	-- If the LHS contains a account_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-account), and verify that if so
-	IF NEW.account_collection_id IS NOT NULL THEN
-		IF v_prop.account_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_account_collection
-					FROM account_collection WHERE
-					account_collection_Id = NEW.account_collection_id;
-				IF v_account_collection.account_collection_Type != v_prop.account_collection_type
-				THEN
-					RAISE 'account_collection_id must be of type %',
-					v_prop.account_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a company_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-company), and verify that if so
-	IF NEW.company_collection_id IS NOT NULL THEN
-		IF v_prop.company_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_company_collection
-					FROM company_collection WHERE
-					company_collection_Id = NEW.company_collection_id;
-				IF v_company_collection.company_collection_Type != v_prop.company_collection_type
-				THEN
-					RAISE 'company_collection_id must be of type %',
-					v_prop.company_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a device_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-device), and verify that if so
-	IF NEW.device_collection_id IS NOT NULL THEN
-		IF v_prop.device_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_device_collection
-					FROM device_collection WHERE
-					device_collection_Id = NEW.device_collection_id;
-				IF v_device_collection.device_collection_Type != v_prop.device_collection_type
-				THEN
-					RAISE 'device_collection_id must be of type %',
-					v_prop.device_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a dns_domain_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-dns_domain), and verify that if so
-	IF NEW.dns_domain_collection_id IS NOT NULL THEN
-		IF v_prop.dns_domain_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_dns_domain_collection
-					FROM dns_domain_collection WHERE
-					dns_domain_collection_Id = NEW.dns_domain_collection_id;
-				IF v_dns_domain_collection.dns_domain_collection_Type != v_prop.dns_domain_collection_type
-				THEN
-					RAISE 'dns_domain_collection_id must be of type %',
-					v_prop.dns_domain_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a layer2_network_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-layer2_network), and verify that if so
-	IF NEW.layer2_network_collection_id IS NOT NULL THEN
-		IF v_prop.layer2_network_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_layer2_network_collection
-					FROM layer2_network_collection WHERE
-					layer2_network_collection_Id = NEW.layer2_network_collection_id;
-				IF v_layer2_network_collection.layer2_network_collection_Type != v_prop.layer2_network_collection_type
-				THEN
-					RAISE 'layer2_network_collection_id must be of type %',
-					v_prop.layer2_network_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a layer3_network_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-layer3_network), and verify that if so
-	IF NEW.layer3_network_collection_id IS NOT NULL THEN
-		IF v_prop.layer3_network_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_layer3_network_collection
-					FROM layer3_network_collection WHERE
-					layer3_network_collection_Id = NEW.layer3_network_collection_id;
-				IF v_layer3_network_collection.layer3_network_collection_Type != v_prop.layer3_network_collection_type
-				THEN
-					RAISE 'layer3_network_collection_id must be of type %',
-					v_prop.layer3_network_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a netblock_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-netblock), and verify that if so
-	IF NEW.netblock_collection_id IS NOT NULL THEN
-		IF v_prop.netblock_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_netblock_collection
-					FROM netblock_collection WHERE
-					netblock_collection_Id = NEW.netblock_collection_id;
-				IF v_netblock_collection.netblock_collection_Type != v_prop.netblock_collection_type
-				THEN
-					RAISE 'netblock_collection_id must be of type %',
-					v_prop.netblock_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a network_range_id, check to see if it must
-	-- be a specific type and verify that if so
-	IF NEW.netblock_collection_id IS NOT NULL THEN
-		IF v_prop.network_range_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_network_range
-					FROM network_range WHERE
-					network_range_id = NEW.network_range_id;
-				IF v_network_range.network_range_type != v_prop.network_range_type
-				THEN
-					RAISE 'network_range_id must be of type %',
-					v_prop.network_range_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a property_name_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-property), and verify that if so
-	IF NEW.property_name_collection_id IS NOT NULL THEN
-		IF v_prop.property_name_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_property_name_collection
-					FROM property_name_collection WHERE
-					property_name_collection_Id = NEW.property_name_collection_id;
-				IF v_property_name_collection.property_name_collection_Type != v_prop.property_name_collection_type
-				THEN
-					RAISE 'property_name_collection_id must be of type %',
-					v_prop.property_name_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the LHS contains a service_environment_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-service_env), and verify that if so
-	IF NEW.service_environment_collection_id IS NOT NULL THEN
-		IF v_prop.service_environment_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_service_environment_collection
-					FROM service_environment_collection WHERE
-					service_environment_collection_Id = NEW.service_environment_collection_id;
-				IF v_service_environment_collection.service_environment_collection_Type != v_prop.service_environment_collection_type
-				THEN
-					RAISE 'service_environment_collection_id must be of type %',
-					v_prop.service_environment_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-	IF NEW.service_version_collection_id IS NOT NULL THEN
-		IF v_prop.service_version_collection_type IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_service_version_collection
-					FROM service_version_collection WHERE
-					service_version_collection_Id = NEW.service_version_collection_id;
-				IF v_service_version_collection.service_version_collection_Type != v_prop.service_version_collection_type
-				THEN
-					RAISE 'service_version_collection_id must be of type %',
-					v_prop.service_version_collection_type
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the RHS contains a account_collection_ID, check to see if it must be a
-	-- specific type (e.g. per-account), and verify that if so
-	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
-		IF v_prop.property_value_account_collection_type_restriction IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_account_collection
-					FROM account_collection WHERE
-					account_collection_Id = NEW.Property_Value_Account_collection_Id;
-				IF v_account_collection.account_collection_Type != v_prop.property_value_account_collection_type_restriction
-				THEN
-					RAISE 'Property_Value_Account_collection_Id must be of type %',
-					v_prop.property_value_account_collection_type_restriction
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the RHS contains a netblock_collection_ID, check to see if it must be a
-	-- specific type and verify that if so
-	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
-		IF v_prop.property_value_netblock_collection_type_restriction IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_netblock_collection
-					FROM netblock_collection WHERE
-					netblock_collection_Id = NEW.Property_Value_netblock_collection_Id;
-				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_netblock_collection_type_restriction
-				THEN
-					RAISE 'Property_Value_netblock_collection_Id must be of type %',
-					v_prop.property_value_netbloc_collection_type_restriction
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the RHS contains a service_version_collection_id, check to see if it must be a
-	-- specific type and verify that if so
-	IF NEW.property_value_service_version_collection_id IS NOT NULL THEN
-		IF v_prop.property_value_service_version_collection_id IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_service_version_collection
-					FROM service_version_collection WHERE
-					service_version_collection_Id = NEW.property_value_service_version_collection_id;
-				IF v_service_version_collection.service_version_collection_Type != v_prop.property_value_service_version_collection_type_restriction
-				THEN
-					RAISE 'Property_Value_service_version_collection_Id must be of type %',
-					v_prop.property_value_service_version_collection_type_restriction
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	-- If the RHS contains a device_collection_id, check to see if it must be a
-	-- specific type and verify that if so
-	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
-		IF v_prop.property_value_device_collection_type_restriction IS NOT NULL THEN
-			BEGIN
-				SELECT * INTO STRICT v_device_collection
-					FROM device_collection WHERE
-					device_collection_id = NEW.Property_Value_Device_collection_Id;
-				IF v_device_collection.device_collection_type !=
-					v_prop.property_value_device_collection_type_restriction
-				THEN
-					RAISE 'Property_Value_Device_collection_Id must be of type %',
-					v_prop.property_value_device_collection_type_restriction
-					USING ERRCODE = 'invalid_parameter_value';
-				END IF;
-			EXCEPTION
-				WHEN NO_DATA_FOUND THEN
-					-- let the database deal with the fk exception later
-					NULL;
-			END;
-		END IF;
-	END IF;
-
-	--
-	--
-	IF v_prop.property_data_type = 'json' THEN
-		IF NOT validate_json_schema(
-				v_prop.property_value_json_schema,
-				NEW.property_value_json) THEN
-			RAISE EXCEPTION 'JSON provided must match the json schema'
-				USING ERRCODE = 'invalid_parameter_value';
-		END IF;
-	END IF;
-
-	-- At this point, the RHS has been checked, so now we verify data
-	-- set on the LHS
-
-	-- There needs to be a stanza here for every "lhs". If a new column is
-	-- added to the property table, a new stanza needs to be added here,
-	-- otherwise it will not be validated. This should be considered bad.
-
-	IF v_prop.Permit_Company_Id = 'REQUIRED' THEN
-			IF NEW.Company_Id IS NULL THEN
-				RAISE 'Company_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Company_Id = 'PROHIBITED' THEN
-			IF NEW.Company_Id IS NOT NULL THEN
-				RAISE 'Company_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Company_Collection_Id = 'REQUIRED' THEN
-			IF NEW.Company_Collection_Id IS NULL THEN
-				RAISE 'Company_Collection_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Company_Collection_Id = 'PROHIBITED' THEN
-			IF NEW.Company_Collection_Id IS NOT NULL THEN
-				RAISE 'Company_Collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Device_Collection_Id = 'REQUIRED' THEN
-			IF NEW.Device_Collection_Id IS NULL THEN
-				RAISE 'Device_Collection_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-
-	ELSIF v_prop.Permit_Device_Collection_Id = 'PROHIBITED' THEN
-			IF NEW.Device_Collection_Id IS NOT NULL THEN
-				RAISE 'Device_Collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_DNS_Domain_Collection_Id = 'REQUIRED' THEN
-			IF NEW.DNS_Domain_Collection_Id IS NULL THEN
-				RAISE 'DNS_Domain_Collection_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-
-	ELSIF v_prop.Permit_DNS_Domain_Collection_Id = 'PROHIBITED' THEN
-			IF NEW.DNS_Domain_Collection_Id IS NOT NULL THEN
-				RAISE 'DNS_Domain_Collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.permit_service_environment_collection_id = 'REQUIRED' THEN
-			IF NEW.service_environment_collection_id IS NULL THEN
-				RAISE 'service_environment_collection_id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.permit_service_environment_collection_id = 'PROHIBITED' THEN
-			IF NEW.service_environment_collection_id IS NOT NULL THEN
-				RAISE 'service_environment is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.permit_service_version_collection_id = 'REQUIRED' THEN
-			IF NEW.service_version_collection_id IS NULL THEN
-				RAISE 'service_version_collection_id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.permit_service_version_collection_id = 'PROHIBITED' THEN
-			IF NEW.service_version_collection_id IS NOT NULL THEN
-				RAISE 'service_version_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Operating_System_Id = 'REQUIRED' THEN
-			IF NEW.Operating_System_Id IS NULL THEN
-				RAISE 'Operating_System_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Operating_System_Id = 'PROHIBITED' THEN
-			IF NEW.Operating_System_Id IS NOT NULL THEN
-				RAISE 'Operating_System_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.permit_operating_system_snapshot_id = 'REQUIRED' THEN
-			IF NEW.operating_system_snapshot_id IS NULL THEN
-				RAISE 'operating_system_snapshot_id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.permit_operating_system_snapshot_id = 'PROHIBITED' THEN
-			IF NEW.operating_system_snapshot_id IS NOT NULL THEN
-				RAISE 'operating_system_snapshot_id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Site_Code = 'REQUIRED' THEN
-			IF NEW.Site_Code IS NULL THEN
-				RAISE 'Site_Code is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Site_Code = 'PROHIBITED' THEN
-			IF NEW.Site_Code IS NOT NULL THEN
-				RAISE 'Site_Code is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Account_Id = 'REQUIRED' THEN
-			IF NEW.Account_Id IS NULL THEN
-				RAISE 'Account_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Account_Id = 'PROHIBITED' THEN
-			IF NEW.Account_Id IS NOT NULL THEN
-				RAISE 'Account_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Account_Realm_Id = 'REQUIRED' THEN
-			IF NEW.Account_Realm_Id IS NULL THEN
-				RAISE 'Account_Realm_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Account_Realm_Id = 'PROHIBITED' THEN
-			IF NEW.Account_Realm_Id IS NOT NULL THEN
-				RAISE 'Account_Realm_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_account_collection_Id = 'REQUIRED' THEN
-			IF NEW.account_collection_Id IS NULL THEN
-				RAISE 'account_collection_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_account_collection_Id = 'PROHIBITED' THEN
-			IF NEW.account_collection_Id IS NOT NULL THEN
-				RAISE 'account_collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.permit_layer2_network_collection_id = 'REQUIRED' THEN
-			IF NEW.layer2_network_collection_id IS NULL THEN
-				RAISE 'layer2_network_collection_id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.permit_layer2_network_collection_id = 'PROHIBITED' THEN
-			IF NEW.layer2_network_collection_id IS NOT NULL THEN
-				RAISE 'layer2_network_collection_id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.permit_layer3_network_collection_id = 'REQUIRED' THEN
-			IF NEW.layer3_network_collection_id IS NULL THEN
-				RAISE 'layer3_network_collection_id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.permit_layer3_network_collection_id = 'PROHIBITED' THEN
-			IF NEW.layer3_network_collection_id IS NOT NULL THEN
-				RAISE 'layer3_network_collection_id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_netblock_collection_Id = 'REQUIRED' THEN
-			IF NEW.netblock_collection_Id IS NULL THEN
-				RAISE 'netblock_collection_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_netblock_collection_Id = 'PROHIBITED' THEN
-			IF NEW.netblock_collection_Id IS NOT NULL THEN
-				RAISE 'netblock_collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_network_range_id = 'REQUIRED' THEN
-			IF NEW.network_range_id IS NULL THEN
-				RAISE 'network_range_id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_network_range_id = 'PROHIBITED' THEN
-			IF NEW.network_range_id IS NOT NULL THEN
-				RAISE 'network_range_id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_property_name_collection_Id = 'REQUIRED' THEN
-			IF NEW.property_name_collection_Id IS NULL THEN
-				RAISE 'property_name_collection_Id is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_property_name_collection_Id = 'PROHIBITED' THEN
-			IF NEW.property_name_collection_Id IS NOT NULL THEN
-				RAISE 'property_name_collection_Id is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	IF v_prop.Permit_Property_Rank = 'REQUIRED' THEN
-			IF NEW.property_rank IS NULL THEN
-				RAISE 'property_rank is required.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	ELSIF v_prop.Permit_Property_Rank = 'PROHIBITED' THEN
-			IF NEW.property_rank IS NOT NULL THEN
-				RAISE 'property_rank is prohibited.'
-					USING ERRCODE = 'invalid_parameter_value';
-			END IF;
-	END IF;
-
-	RETURN NEW;
-END;
-$function$
-;
-
-DO $$
--- not dropping regrants here.
-BEGIN
-	DELETE FROM __recreate WHERE schema = 'property_utils' AND type = 'function' AND object IN ('validate_property');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Drop of proc validate_property failed but that is ok';
-	NULL;
-END;
-$$;
-
-SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_property_utils']);
---
 -- Process middle (non-trigger) schema rack_utils
 --
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_rack_utils']);
@@ -3791,6 +2862,87 @@ $function$
 
 -- Processing tables in main schema...
 select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to layer3_interface
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'layer3_interface');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'layer3_interface');
+DROP INDEX IF EXISTS "jazzhands"."idx_netint_isifaceup";
+DROP INDEX IF EXISTS "jazzhands"."idx_netint_shouldmange";
+DROP INDEX IF EXISTS "jazzhands"."idx_netint_shouldmonitor";
+DROP INDEX IF EXISTS "jazzhands"."idx_l3int_isifaceup";
+CREATE INDEX idx_l3int_isifaceup ON jazzhands.layer3_interface USING btree (is_interface_up);
+DROP INDEX IF EXISTS "jazzhands"."idx_l3int_shouldmange";
+CREATE INDEX idx_l3int_shouldmange ON jazzhands.layer3_interface USING btree (should_manage);
+DROP INDEX IF EXISTS "jazzhands"."idx_l3int_shouldmonitor";
+CREATE INDEX idx_l3int_shouldmonitor ON jazzhands.layer3_interface USING btree (should_monitor);
+ALTER TABLE layer3_interface
+	RENAME CONSTRAINT ak_net_int_devid_netintid TO ak_l3int_devid_netintid;
+
+ALTER TABLE layer3_interface DROP CONSTRAINT IF EXISTS fk_netint_devid_name;
+ALTER TABLE layer3_interface
+	RENAME CONSTRAINT pk_network_interface_id TO pk_layer3_interface_id;
+
+ALTER TABLE layer3_interface
+	RENAME CONSTRAINT uq_netint_device_id_logical_port_id TO uq_l3int_device_id_logical_port_id;
+
+ALTER TABLE layer3_interface DROP CONSTRAINT IF EXISTS uq_l3int_devid_name;
+ALTER TABLE layer3_interface
+	ADD CONSTRAINT uq_l3int_devid_name
+	UNIQUE (device_id, layer3_interface_name) DEFERRABLE;
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
+
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_ak_net_int_devid_netintid";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_fk_netint_devid_name";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_pk_network_interface_id";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_uq_netint_device_id_logical_port_id";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_ak_l3int_devid_netintid";
+CREATE INDEX aud_layer3_interface_ak_l3int_devid_netintid ON jazzhands_audit.layer3_interface USING btree (layer3_interface_id, device_id);
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_pk_layer3_interface_id";
+CREATE INDEX aud_layer3_interface_pk_layer3_interface_id ON jazzhands_audit.layer3_interface USING btree (layer3_interface_id);
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_uq_l3int_device_id_logical_port_id";
+CREATE INDEX aud_layer3_interface_uq_l3int_device_id_logical_port_id ON jazzhands_audit.layer3_interface USING btree (device_id, logical_port_id);
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_layer3_interface_uq_l3int_devid_name";
+CREATE INDEX aud_layer3_interface_uq_l3int_devid_name ON jazzhands_audit.layer3_interface USING btree (device_id, layer3_interface_name);
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to component_type
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'component_type');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'component_type');
+ALTER TABLE component_type DROP CONSTRAINT IF EXISTS ak_component_type_virtual;
+ALTER TABLE component_type
+	ADD CONSTRAINT ak_component_type_virtual
+	UNIQUE (component_type_id, is_virtual_component);
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
+
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_component_type_ak_component_type_virtual";
+CREATE INDEX aud_component_type_ak_component_type_virtual ON jazzhands_audit.component_type USING btree (component_type_id, is_virtual_component);
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to dns_record
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'dns_record');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'dns_record');
+DROP INDEX IF EXISTS "jazzhands"."ak_dns_record_generate_ptr";
+CREATE UNIQUE INDEX ak_dns_record_generate_ptr ON jazzhands.dns_record USING btree (netblock_id, should_generate_ptr) WHERE should_generate_ptr AND (dns_type::text = ANY (ARRAY['A'::character varying, 'AAAA'::character varying]::text[])) AND netblock_id IS NOT NULL;
+ALTER TABLE component_type
+	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
+ALTER TABLE component_type
+ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
+	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE logical_volume
 -- Save grants for later reapplication
@@ -4467,8 +3619,6 @@ ALTER TABLE jazzhands.volume_group_block_storage_device ADD CONSTRAINT pk_volume
 ALTER TABLE jazzhands.volume_group_block_storage_device ADD CONSTRAINT uq_volgrp_blk_stor_dev_position UNIQUE (volume_group_id, volume_group_primary_position) DEFERRABLE;
 
 -- Table/Column Comments
-COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_primary_position IS 'position within the primary raid, sometimes called span by at least one raid vendor.';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_secondary_position IS 'position within the secondary raid, sometimes called arm by at least one raid vendor.';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_relation IS 'purpose of volume in raid (member, hotspare, etc, based on val table)
@@ -4914,8 +4064,6 @@ ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT pk_block_storage_devic
 -- Table/Column Comments
 COMMENT ON TABLE jazzhands.block_storage_device IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in between.
 ';
-COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
 COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_name IS 'Unique (on the device) name of the block storage device.  This will vary based on ussage.';
 COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_type IS 'Type of block device.   There may be other tables with more information based on the type. ';
 COMMENT ON COLUMN jazzhands.block_storage_device.device_id IS 'Device that has the block device on it.';
@@ -4943,6 +4091,12 @@ ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_dev
 ALTER TABLE jazzhands.volume_group_block_storage_device
 	ADD CONSTRAINT fk_bg_blk_stg_dev_blk_stg_dev_id
 	FOREIGN KEY (block_storage_device_id, device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id, device_id);
+-- consider FK between block_storage_device and jazzhands.block_storage_device_virtual_component
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.block_storage_device_virtual_component
+--	ADD CONSTRAINT fk_block_storage_device_virtual_component_block_storage_device_
+--	FOREIGN KEY (block_storage_device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id);
+
 -- consider FK between block_storage_device and jazzhands.encrypted_block_storage_device
 -- Skipping this FK since column does not exist yet
 --ALTER TABLE jazzhands.jazzhands.encrypted_block_storage_device
@@ -5934,6 +5088,232 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE val_filesystem_type
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_filesystem_type', 'val_filesystem_type');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
+ALTER TABLE val_logical_volume_property DROP CONSTRAINT IF EXISTS fk_val_lvol_prop_fstype;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'val_filesystem_type', newobject := 'val_filesystem_type', newmap := '{"pk_val_filesytem_type":{"columns":["filesystem_type"],"def":"PRIMARY KEY (filesystem_type)","deferrable":false,"deferred":false,"name":"pk_val_filesytem_type","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_filesystem_type DROP CONSTRAINT IF EXISTS pk_val_filesytem_type;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_filesystem_type ON jazzhands.val_filesystem_type;
+DROP TRIGGER IF EXISTS trigger_audit_val_filesystem_type ON jazzhands.val_filesystem_type;
+DROP FUNCTION IF EXISTS perform_audit_val_filesystem_type();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_filesystem_type', tags := ARRAY['table_val_filesystem_type']);
+---- BEGIN jazzhands_audit.val_filesystem_type TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_filesystem_type', tags := ARRAY['table_val_filesystem_type']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'val_filesystem_type', 'val_filesystem_type');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'val_filesystem_type');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.val_filesystem_type DROP CONSTRAINT IF EXISTS val_filesystem_type_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_val_filesystem_type_pk_val_filesytem_type";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.val_filesystem_type ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.val_filesystem_type TEARDOWN
+
+
+ALTER TABLE val_filesystem_type RENAME TO val_filesystem_type_v96;
+ALTER TABLE jazzhands_audit.val_filesystem_type RENAME TO val_filesystem_type_v96;
+
+CREATE TABLE jazzhands.val_filesystem_type
+(
+	filesystem_type	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	permit_mountpoint	character(10) NOT NULL,
+	permit_filesystem_label	character(10) NOT NULL,
+	permit_filesystem_serial	character(10) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_filesystem_type', false);
+ALTER TABLE val_filesystem_type
+	ALTER permit_mountpoint
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE val_filesystem_type
+	ALTER permit_filesystem_label
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE val_filesystem_type
+	ALTER permit_filesystem_serial
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+INSERT INTO val_filesystem_type (
+	filesystem_type,
+	description,
+	permit_mountpoint,		-- new column (permit_mountpoint)
+	permit_filesystem_label,		-- new column (permit_filesystem_label)
+	permit_filesystem_serial,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	filesystem_type,
+	description,
+	'PROHIBITED'::bpchar,		-- new column (permit_mountpoint)
+	'PROHIBITED'::bpchar,		-- new column (permit_filesystem_label)
+	'PROHIBITED'::bpchar,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_filesystem_type_v96;
+
+
+INSERT INTO jazzhands_audit.val_filesystem_type (
+	filesystem_type,
+	description,
+	permit_mountpoint,		-- new column (permit_mountpoint)
+	permit_filesystem_label,		-- new column (permit_filesystem_label)
+	permit_filesystem_serial,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	filesystem_type,
+	description,
+	NULL,		-- new column (permit_mountpoint)
+	NULL,		-- new column (permit_filesystem_label)
+	NULL,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	NULL,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.val_filesystem_type_v96;
+
+ALTER TABLE jazzhands.val_filesystem_type
+	ALTER permit_mountpoint
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands.val_filesystem_type
+	ALTER permit_filesystem_label
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands.val_filesystem_type
+	ALTER permit_filesystem_serial
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_filesystem_type ADD CONSTRAINT pk_val_filesytem_type PRIMARY KEY (filesystem_type);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_filesystem_type and jazzhands.filesystem
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.filesystem
+--	ADD CONSTRAINT fk_filesystem_val_filesystem_type
+--	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
+
+-- consider FK between val_filesystem_type and jazzhands.logical_volume
+ALTER TABLE jazzhands.logical_volume
+	ADD CONSTRAINT fk_logvol_fstype
+	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type) DEFERRABLE;
+-- consider FK between val_filesystem_type and jazzhands.val_logical_volume_property
+ALTER TABLE jazzhands.val_logical_volume_property
+	ADD CONSTRAINT fk_val_lvol_prop_fstype
+	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- considering NEW jazzhands.validate_filesystem_type
+CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem_type()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM	property_utils.validate_filesystem(f)
+	FROM filesystem f
+	WHERE f.filesystem_type = NEW.filesystem_type;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.validate_filesystem_type() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_validate_filesystem_type AFTER INSERT OR UPDATE OF filesystem_type, permit_mountpoint, permit_filesystem_label, permit_filesystem_serial ON jazzhands.val_filesystem_type NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_filesystem_type();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_filesystem_type');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_filesystem_type  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_filesystem_type');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_filesystem_type');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_filesystem_type');
+DROP TABLE IF EXISTS val_filesystem_type_v96;
+DROP TABLE IF EXISTS jazzhands_audit.val_filesystem_type_v96;
+-- DONE DEALING WITH TABLE val_filesystem_type (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_filesystem_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_filesystem_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_filesystem_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_filesystem_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE val_x509_fingerprint_hash_algorithm
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_x509_fingerprint_hash_algorithm', 'val_x509_fingerprint_hash_algorithm');
@@ -6244,6 +5624,92 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- DEALING WITH NEW TABLE block_storage_device_virtual_component (jazzhands)
+CREATE TABLE jazzhands.block_storage_device_virtual_component
+(
+	block_storage_device_id	integer NOT NULL,
+	component_id	integer NOT NULL,
+	component_type_id	integer NOT NULL,
+	is_virtual_component	boolean  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'block_storage_device_virtual_component', true);
+ALTER TABLE block_storage_device_virtual_component
+	ALTER is_virtual_component
+	SET DEFAULT true;
+ALTER TABLE jazzhands.block_storage_device_virtual_component
+	ALTER is_virtual_component
+	SET DEFAULT true;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.block_storage_device_virtual_component ADD CONSTRAINT ak_block_storage_device_virtual_component_component_id UNIQUE (component_id);
+ALTER TABLE jazzhands.block_storage_device_virtual_component ADD CONSTRAINT xpkblock_storage_device_virtual_component PRIMARY KEY (block_storage_device_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.block_storage_device_virtual_component IS 'Map a block storage device in a parent to the virtual component of a child, such as for virtual disks';
+-- INDEXES
+CREATE UNIQUE INDEX xifblock_storage_device_virtual_component_block_storage_device_ ON jazzhands.block_storage_device_virtual_component USING btree (block_storage_device_id);
+CREATE INDEX xifblock_storage_device_virtual_component_component ON jazzhands.block_storage_device_virtual_component USING btree (component_id, component_type_id);
+CREATE INDEX xifblock_storage_device_virtual_component_component_type ON jazzhands.block_storage_device_virtual_component USING btree (component_type_id, is_virtual_component);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE jazzhands.block_storage_device_virtual_component ADD CONSTRAINT ckc_force_true_2019398784
+	CHECK ((is_virtual_component = true));
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK block_storage_device_virtual_component and block_storage_device
+ALTER TABLE jazzhands.block_storage_device_virtual_component
+	ADD CONSTRAINT fk_block_storage_device_virtual_component_block_storage_device_
+	FOREIGN KEY (block_storage_device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id);
+-- consider FK block_storage_device_virtual_component and component
+ALTER TABLE jazzhands.block_storage_device_virtual_component
+	ADD CONSTRAINT fk_block_storage_device_virtual_component_component
+	FOREIGN KEY (component_id, component_type_id) REFERENCES jazzhands.component(component_id, component_type_id);
+-- consider FK block_storage_device_virtual_component and component_type
+ALTER TABLE jazzhands.block_storage_device_virtual_component
+	ADD CONSTRAINT fk_block_storage_device_virtual_component_component_type
+	FOREIGN KEY (component_type_id, is_virtual_component) REFERENCES jazzhands.component_type(component_type_id, is_virtual_component);
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('block_storage_device_virtual_component');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for block_storage_device_virtual_component  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'block_storage_device_virtual_component');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'block_storage_device_virtual_component');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'block_storage_device_virtual_component');
+-- DONE DEALING WITH TABLE block_storage_device_virtual_component (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('block_storage_device_virtual_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old block_storage_device_virtual_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('block_storage_device_virtual_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new block_storage_device_virtual_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- DEALING WITH NEW TABLE encrypted_block_storage_device (jazzhands)
 CREATE TABLE jazzhands.encrypted_block_storage_device
 (
@@ -6267,8 +5733,6 @@ ALTER TABLE encrypted_block_storage_device
 ALTER TABLE jazzhands.encrypted_block_storage_device ADD CONSTRAINT pk_encrypted_block_storage_device PRIMARY KEY (encrypted_block_storage_device_id);
 
 -- Table/Column Comments
-COMMENT ON COLUMN jazzhands.encrypted_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
 -- INDEXES
 CREATE INDEX xifenc_block_storage_device_block_storage_device ON jazzhands.encrypted_block_storage_device USING btree (block_storage_device_id);
 CREATE INDEX xifenc_block_storage_device_encryption_key_id ON jazzhands.encrypted_block_storage_device USING btree (encryption_key_id);
@@ -6338,6 +5802,8 @@ CREATE TABLE jazzhands.filesystem
 	device_id	integer NOT NULL,
 	filesystem_type	varchar(50)  NULL,
 	mountpoint	varchar(50)  NULL,
+	filesystem_label	varchar(255)  NULL,
+	filesystem_serial	varchar(255)  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
 	data_upd_user	varchar(255)  NULL,
@@ -6350,8 +5816,6 @@ ALTER TABLE jazzhands.filesystem ADD CONSTRAINT ak_filesystem_block_storage_devi
 ALTER TABLE jazzhands.filesystem ADD CONSTRAINT pk_filesystem PRIMARY KEY (block_storage_device_id, device_id);
 
 -- Table/Column Comments
-COMMENT ON COLUMN jazzhands.filesystem.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
 COMMENT ON COLUMN jazzhands.filesystem.device_id IS 'Device that has the block device on it.';
 -- INDEXES
 CREATE UNIQUE INDEX xiffilesystem_block_storage_device_id ON jazzhands.filesystem USING btree (block_storage_device_id, device_id);
@@ -6372,6 +5836,22 @@ ALTER TABLE jazzhands.filesystem
 	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
 
 -- TRIGGERS
+-- considering NEW jazzhands.validate_filesystem
+CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM property_utils.validate_filesystem(NEW);
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.validate_filesystem() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_validate_filesystem AFTER INSERT OR UPDATE OF filesystem_type, mountpoint, filesystem_label, filesystem_serial ON jazzhands.filesystem NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_filesystem();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('filesystem');
@@ -6659,8 +6139,8 @@ ALTER TABLE jazzhands.site_encapsulation_domain ADD CONSTRAINT pk_site_encapsula
 
 -- Table/Column Comments
 -- INDEXES
-CREATE INDEX xif_site_code_encap_domain_encap_domain ON jazzhands.site_encapsulation_domain USING btree (encapsulation_domain, encapsulation_type);
-CREATE INDEX xif_site_code_encapsulation_domain_site_code ON jazzhands.site_encapsulation_domain USING btree (site_code);
+CREATE INDEX xifsite_code_encap_domain_encap_domain ON jazzhands.site_encapsulation_domain USING btree (encapsulation_domain, encapsulation_type);
+CREATE INDEX xifsite_code_encapsulation_domain_site_code ON jazzhands.site_encapsulation_domain USING btree (site_code);
 
 -- CHECK CONSTRAINTS
 
@@ -8681,8 +8161,6 @@ select clock_timestamp(), clock_timestamp() - now() AS len;
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in port_utils
 select clock_timestamp(), clock_timestamp() - now() AS len;
--- Main loop processing views in property_utils
-select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in rack_utils
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in schema_support
@@ -9739,6 +9217,36 @@ END;
 $function$
 ;
 
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM property_utils.validate_filesystem(NEW);
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem_type()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM	property_utils.validate_filesystem(f)
+	FROM filesystem f
+	WHERE f.filesystem_type = NEW.filesystem_type;
+	RETURN NEW;
+END;
+$function$
+;
+
 --
 -- Process all procs in jazzhands_legacy_manip
 --
@@ -9804,11 +9312,6 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 select clock_timestamp(), clock_timestamp() - now() AS len;
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_port_utils']);
---
--- Process all procs in property_utils
---
-select clock_timestamp(), clock_timestamp() - now() AS len;
-SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_property_utils']);
 --
 -- Process all procs in rack_utils
 --
@@ -15367,6 +14870,989 @@ INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, definin
 
 
 -- Clean Up
+--
+-- Process post-schema property_utils
+--
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('property_utils', 'validate_property');
+SELECT schema_support.save_grants_for_replay('property_utils', 'validate_property');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS property_utils.validate_property ( new jazzhands.property );
+CREATE OR REPLACE FUNCTION property_utils.validate_property(new jazzhands.property)
+ RETURNS jazzhands.property
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	tally				integer;
+	v_prop				VAL_Property%ROWTYPE;
+	v_proptype			VAL_Property_Type%ROWTYPE;
+	v_account_collection		account_collection%ROWTYPE;
+	v_company_collection		company_collection%ROWTYPE;
+	v_device_collection		device_collection%ROWTYPE;
+	v_dns_domain_collection		dns_domain_collection%ROWTYPE;
+	v_layer2_network_collection	layer2_network_collection%ROWTYPE;
+	v_layer3_network_collection	layer3_network_collection%ROWTYPE;
+	v_netblock_collection		netblock_collection%ROWTYPE;
+	v_network_range				network_range%ROWTYPE;
+	v_property_name_collection		property_name_collection%ROWTYPE;
+	v_service_environment_collection	service_environment_collection%ROWTYPE;
+	v_service_version_collection	service_version_collection%ROWTYPE;
+	v_num				integer;
+	v_listvalue			Property.Property_Value%TYPE;
+BEGIN
+	-- Pull in the data from the property and property_type so we can
+	-- figure out what is and is not valid
+
+	BEGIN
+		SELECT * INTO STRICT v_prop FROM VAL_Property WHERE
+			Property_Name = NEW.Property_Name AND
+			Property_Type = NEW.Property_Type;
+
+		SELECT * INTO STRICT v_proptype FROM VAL_Property_Type WHERE
+			Property_Type = NEW.Property_Type;
+	EXCEPTION
+		WHEN NO_DATA_FOUND THEN
+			RAISE EXCEPTION
+				'Property name (%) or type (%) does not exist',
+				NEW.property_name, NEW.property_type
+				USING ERRCODE = 'foreign_key_violation';
+			RETURN NULL;
+	END;
+
+	-- Check to see if the property itself is multivalue. That is, if only
+	-- one value can be set for this property for a specific property LHS
+	IF (v_prop.is_multivalue = false) THEN
+		PERFORM 1 FROM Property WHERE
+			Property_Id != NEW.Property_Id AND
+			Property_Name = NEW.Property_Name AND
+			Property_Type = NEW.Property_Type AND
+			account_collection_id IS NOT DISTINCT FROM NEW.account_collection_id
+				AND
+			account_id IS NOT DISTINCT FROM NEW.account_id AND
+			account_realm_id IS NOT DISTINCT FROM NEW.account_realm_id AND
+			company_collection_id IS NOT DISTINCT FROM NEW.company_collection_id AND
+			company_id IS NOT DISTINCT FROM NEW.company_id AND
+			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
+			dns_domain_collection_id IS NOT DISTINCT FROM
+				NEW.dns_domain_collection_id AND
+			layer2_network_collection_id IS NOT DISTINCT FROM
+				NEW.layer2_network_collection_id AND
+			layer3_network_collection_id IS NOT DISTINCT FROM
+				NEW.layer3_network_collection_id AND
+			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
+			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
+			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
+			operating_system_snapshot_id IS NOT DISTINCT FROM
+				NEW.operating_system_snapshot_id AND
+			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
+			service_environment_collection_id IS NOT DISTINCT FROM
+				NEW.service_environment_collection_id AND
+			service_version_collection_id IS NOT DISTINCT FROM
+				NEW.service_version_collection_id AND
+			site_code IS NOT DISTINCT FROM NEW.site_code AND
+			x509_signed_certificate_id IS NOT DISTINCT FROM
+				NEW.x509_signed_certificate_id
+		;
+
+		IF FOUND THEN
+			RAISE EXCEPTION
+				'Property of type (%,%) already exists for given LHS and property is not multivalue',
+				NEW.Property_Name, NEW.Property_Type
+				USING ERRCODE = 'unique_violation';
+			RETURN NULL;
+		END IF;
+	ELSE
+		-- check for the same lhs+rhs existing, which is basically a dup row
+		PERFORM 1 FROM Property WHERE
+			Property_Id != NEW.Property_Id AND
+			Property_Name = NEW.Property_Name AND
+			Property_Type = NEW.Property_Type AND
+			account_collection_id IS NOT DISTINCT FROM NEW.account_collection_id
+				AND
+			account_id IS NOT DISTINCT FROM NEW.account_id AND
+			account_realm_id IS NOT DISTINCT FROM NEW.account_realm_id AND
+			company_collection_id IS NOT DISTINCT FROM NEW.company_collection_id AND
+			company_id IS NOT DISTINCT FROM NEW.company_id AND
+			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
+			dns_domain_collection_id IS NOT DISTINCT FROM
+				NEW.dns_domain_collection_id AND
+			layer2_network_collection_id IS NOT DISTINCT FROM
+				NEW.layer2_network_collection_id AND
+			layer3_network_collection_id IS NOT DISTINCT FROM
+				NEW.layer3_network_collection_id AND
+			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
+			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
+			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
+			operating_system_snapshot_id IS NOT DISTINCT FROM
+				NEW.operating_system_snapshot_id AND
+			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
+			service_environment_collection_id IS NOT DISTINCT FROM
+				NEW.service_environment_collection_id AND
+			service_version_collection_id IS NOT DISTINCT FROM
+				NEW.service_version_collection_id AND
+			site_code IS NOT DISTINCT FROM NEW.site_code AND
+			x509_signed_certificate_id IS NOT DISTINCT FROM
+				NEW.x509_signed_certificate_id AND
+			property_value IS NOT DISTINCT FROM NEW.property_value AND
+			property_value_json IS NOT DISTINCT FROM
+				NEW.property_value_json AND
+			property_value_boolean IS NOT DISTINCT FROM
+				NEW.property_value_boolean AND
+			property_value_timestamp IS NOT DISTINCT FROM
+				NEW.property_value_timestamp AND
+			property_value_account_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_account_collection_id AND
+			property_value_device_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_device_collection_id AND
+			property_value_netblock_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_netblock_collection_id AND
+			property_value_service_version_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_service_version_collection_id AND
+			property_value_password_type IS NOT DISTINCT FROM
+				NEW.property_value_password_type AND
+			property_value_token_collection_id IS NOT DISTINCT FROM
+				NEW.property_value_token_collection_id AND
+			property_value_encryption_key_id IS NOT DISTINCT FROM
+				NEW.property_value_encryption_key_id AND
+			property_value_private_key_id IS NOT DISTINCT FROM
+				NEW.property_value_private_key_id AND
+			start_date IS NOT DISTINCT FROM NEW.start_date AND
+			finish_date IS NOT DISTINCT FROM NEW.finish_date
+		;
+
+		IF FOUND THEN
+			RAISE EXCEPTION
+				'Property of (n,t) (%,%) already exists for given property',
+				NEW.Property_Name, NEW.Property_Type
+				USING ERRCODE = 'unique_violation';
+			RETURN NULL;
+		END IF;
+
+	END IF;
+
+	-- Check to see if the property type is multivalue. That is, if only
+	-- one property and value can be set for any properties with this type
+	-- for a specific property LHS
+
+	IF (v_proptype.is_multivalue = false) THEN
+		PERFORM 1 FROM Property WHERE
+			Property_Id != NEW.Property_Id AND
+			Property_Type = NEW.Property_Type AND
+			account_collection_id IS NOT DISTINCT FROM NEW.account_collection_id
+				AND
+			account_id IS NOT DISTINCT FROM NEW.account_id AND
+			account_realm_id IS NOT DISTINCT FROM NEW.account_realm_id AND
+			company_collection_id IS NOT DISTINCT FROM NEW.company_collection_id AND
+			company_id IS NOT DISTINCT FROM NEW.company_id AND
+			device_collection_id IS NOT DISTINCT FROM NEW.device_collection_id AND
+			dns_domain_collection_id IS NOT DISTINCT FROM
+				NEW.dns_domain_collection_id AND
+			layer2_network_collection_id IS NOT DISTINCT FROM
+				NEW.layer2_network_collection_id AND
+			layer3_network_collection_id IS NOT DISTINCT FROM
+				NEW.layer3_network_collection_id AND
+			netblock_collection_id IS NOT DISTINCT FROM NEW.netblock_collection_id AND
+			network_range_id IS NOT DISTINCT FROM NEW.network_range_id AND
+			operating_system_id IS NOT DISTINCT FROM NEW.operating_system_id AND
+			operating_system_snapshot_id IS NOT DISTINCT FROM
+				NEW.operating_system_snapshot_id AND
+			property_name_collection_id IS NOT DISTINCT FROM NEW.property_name_collection_id AND
+			service_environment_collection_id IS NOT DISTINCT FROM
+				NEW.service_environment_collection_id AND
+			service_version_collection_id IS NOT DISTINCT FROM
+				NEW.service_version_collection_id AND
+			site_code IS NOT DISTINCT FROM NEW.site_code AND
+			x509_signed_certificate_id IS NOT DISTINCT FROM
+				NEW.x509_signed_certificate_id
+		;
+
+		IF FOUND THEN
+			RAISE EXCEPTION
+				'Property % of type % already exists for given LHS and property type is not multivalue',
+				NEW.Property_Name, NEW.Property_Type
+				USING ERRCODE = 'unique_violation';
+			RETURN NULL;
+		END IF;
+	END IF;
+
+	-- now validate the property_value columns.
+	tally := 0;
+
+	--
+	-- first determine if the property_value is set properly.
+	--
+
+	-- iterate over each of fk PROPERTY_VALUE columns and if a valid
+	-- value is set, increment tally, otherwise raise an exception.
+	IF NEW.Property_Value_JSON IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'json' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be JSON' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Password_Type IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'password_type' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be Password_Type' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Token_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'token_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be Token_Collection_Id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'account_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be account_collection_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'netblock_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be netblock_collection_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_service_version_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'service_version_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be service_version_collection_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Timestamp IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'timestamp' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be Timestamp' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'device_collection_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be Device_Collection_Id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_boolean IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'boolean' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be boolean' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_encryption_key_id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'encryption_key_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be encryption_key_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF NEW.property_value_private_key_id IS NOT NULL THEN
+		IF v_prop.Property_Data_Type = 'private_key_id' THEN
+			tally := tally + 1;
+		ELSE
+			RAISE 'Property value may not be private_key_id' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	-- at this point, tally will be set to 1 if one of the other property
+	-- values is set to something valid. Now, check the various options for
+	-- PROPERTY_VALUE itself. If a new type is added to the val table, this
+	-- trigger needs to be updated or it will be considered invalid. If a
+	-- new PROPERTY_VALUE_* column is added, then it will pass through without
+	-- trigger modification. This should be considered bad.
+	IF NEW.Property_Value IS NOT NULL THEN
+		tally := tally + 1;
+		IF v_prop.Property_Data_Type = 'number' THEN
+			BEGIN
+				v_num := to_number(NEW.property_value, '9');
+			EXCEPTION
+				WHEN OTHERS THEN
+					RAISE 'Property_Value must be numeric' USING
+						ERRCODE = 'invalid_parameter_value';
+			END;
+		ELSIF v_prop.Property_Data_Type = 'list' THEN
+			BEGIN
+				SELECT Valid_Property_Value INTO STRICT v_listvalue FROM
+					VAL_Property_Value WHERE
+						Property_Name = NEW.Property_Name AND
+						Property_Type = NEW.Property_Type AND
+						Valid_Property_Value = NEW.Property_Value;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					RAISE 'Property_Value must be a valid value' USING
+						ERRCODE = 'invalid_parameter_value';
+			END;
+		ELSIF v_prop.Property_Data_Type = 'boolean' THEN
+			RAISE 'Boolean values are set in Property_Value_Boolean' USING
+				ERRCODE = 'invalid_parameter_value';
+		ELSIF v_prop.Property_Data_Type != 'string' THEN
+			RAISE 'Property_Value may not be set for this Property_Data_Type' USING
+				ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	IF v_prop.Property_Data_Type != 'none' AND tally = 0 THEN
+		RAISE 'One of the PROPERTY_VALUE fields must be set.' USING
+			ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF tally > 1 THEN
+		RAISE 'Only one of the PROPERTY_VALUE fields may be set.' USING
+			ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	-- If the LHS contains a account_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-account), and verify that if so
+	IF NEW.account_collection_id IS NOT NULL THEN
+		IF v_prop.account_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_account_collection
+					FROM account_collection WHERE
+					account_collection_Id = NEW.account_collection_id;
+				IF v_account_collection.account_collection_Type != v_prop.account_collection_type
+				THEN
+					RAISE 'account_collection_id must be of type %',
+					v_prop.account_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a company_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-company), and verify that if so
+	IF NEW.company_collection_id IS NOT NULL THEN
+		IF v_prop.company_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_company_collection
+					FROM company_collection WHERE
+					company_collection_Id = NEW.company_collection_id;
+				IF v_company_collection.company_collection_Type != v_prop.company_collection_type
+				THEN
+					RAISE 'company_collection_id must be of type %',
+					v_prop.company_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a device_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-device), and verify that if so
+	IF NEW.device_collection_id IS NOT NULL THEN
+		IF v_prop.device_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_device_collection
+					FROM device_collection WHERE
+					device_collection_Id = NEW.device_collection_id;
+				IF v_device_collection.device_collection_Type != v_prop.device_collection_type
+				THEN
+					RAISE 'device_collection_id must be of type %',
+					v_prop.device_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a dns_domain_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-dns_domain), and verify that if so
+	IF NEW.dns_domain_collection_id IS NOT NULL THEN
+		IF v_prop.dns_domain_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_dns_domain_collection
+					FROM dns_domain_collection WHERE
+					dns_domain_collection_Id = NEW.dns_domain_collection_id;
+				IF v_dns_domain_collection.dns_domain_collection_Type != v_prop.dns_domain_collection_type
+				THEN
+					RAISE 'dns_domain_collection_id must be of type %',
+					v_prop.dns_domain_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a layer2_network_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-layer2_network), and verify that if so
+	IF NEW.layer2_network_collection_id IS NOT NULL THEN
+		IF v_prop.layer2_network_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_layer2_network_collection
+					FROM layer2_network_collection WHERE
+					layer2_network_collection_Id = NEW.layer2_network_collection_id;
+				IF v_layer2_network_collection.layer2_network_collection_Type != v_prop.layer2_network_collection_type
+				THEN
+					RAISE 'layer2_network_collection_id must be of type %',
+					v_prop.layer2_network_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a layer3_network_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-layer3_network), and verify that if so
+	IF NEW.layer3_network_collection_id IS NOT NULL THEN
+		IF v_prop.layer3_network_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_layer3_network_collection
+					FROM layer3_network_collection WHERE
+					layer3_network_collection_Id = NEW.layer3_network_collection_id;
+				IF v_layer3_network_collection.layer3_network_collection_Type != v_prop.layer3_network_collection_type
+				THEN
+					RAISE 'layer3_network_collection_id must be of type %',
+					v_prop.layer3_network_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a netblock_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-netblock), and verify that if so
+	IF NEW.netblock_collection_id IS NOT NULL THEN
+		IF v_prop.netblock_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_netblock_collection
+					FROM netblock_collection WHERE
+					netblock_collection_Id = NEW.netblock_collection_id;
+				IF v_netblock_collection.netblock_collection_Type != v_prop.netblock_collection_type
+				THEN
+					RAISE 'netblock_collection_id must be of type %',
+					v_prop.netblock_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a network_range_id, check to see if it must
+	-- be a specific type and verify that if so
+	IF NEW.netblock_collection_id IS NOT NULL THEN
+		IF v_prop.network_range_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_network_range
+					FROM network_range WHERE
+					network_range_id = NEW.network_range_id;
+				IF v_network_range.network_range_type != v_prop.network_range_type
+				THEN
+					RAISE 'network_range_id must be of type %',
+					v_prop.network_range_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a property_name_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-property), and verify that if so
+	IF NEW.property_name_collection_id IS NOT NULL THEN
+		IF v_prop.property_name_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_property_name_collection
+					FROM property_name_collection WHERE
+					property_name_collection_Id = NEW.property_name_collection_id;
+				IF v_property_name_collection.property_name_collection_Type != v_prop.property_name_collection_type
+				THEN
+					RAISE 'property_name_collection_id must be of type %',
+					v_prop.property_name_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the LHS contains a service_environment_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-service_env), and verify that if so
+	IF NEW.service_environment_collection_id IS NOT NULL THEN
+		IF v_prop.service_environment_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_service_environment_collection
+					FROM service_environment_collection WHERE
+					service_environment_collection_Id = NEW.service_environment_collection_id;
+				IF v_service_environment_collection.service_environment_collection_Type != v_prop.service_environment_collection_type
+				THEN
+					RAISE 'service_environment_collection_id must be of type %',
+					v_prop.service_environment_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+	IF NEW.service_version_collection_id IS NOT NULL THEN
+		IF v_prop.service_version_collection_type IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_service_version_collection
+					FROM service_version_collection WHERE
+					service_version_collection_Id = NEW.service_version_collection_id;
+				IF v_service_version_collection.service_version_collection_Type != v_prop.service_version_collection_type
+				THEN
+					RAISE 'service_version_collection_id must be of type %',
+					v_prop.service_version_collection_type
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a account_collection_ID, check to see if it must be a
+	-- specific type (e.g. per-account), and verify that if so
+	IF NEW.Property_Value_Account_collection_Id IS NOT NULL THEN
+		IF v_prop.property_value_account_collection_type_restriction IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_account_collection
+					FROM account_collection WHERE
+					account_collection_Id = NEW.Property_Value_Account_collection_Id;
+				IF v_account_collection.account_collection_Type != v_prop.property_value_account_collection_type_restriction
+				THEN
+					RAISE 'Property_Value_Account_collection_Id must be of type %',
+					v_prop.property_value_account_collection_type_restriction
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a netblock_collection_ID, check to see if it must be a
+	-- specific type and verify that if so
+	IF NEW.Property_Value_netblock_collection_Id IS NOT NULL THEN
+		IF v_prop.property_value_netblock_collection_type_restriction IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_netblock_collection
+					FROM netblock_collection WHERE
+					netblock_collection_Id = NEW.Property_Value_netblock_collection_Id;
+				IF v_netblock_collection.netblock_collection_Type != v_prop.property_value_netblock_collection_type_restriction
+				THEN
+					RAISE 'Property_Value_netblock_collection_Id must be of type %',
+					v_prop.property_value_netbloc_collection_type_restriction
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a service_version_collection_id, check to see if it must be a
+	-- specific type and verify that if so
+	IF NEW.property_value_service_version_collection_id IS NOT NULL THEN
+		IF v_prop.property_value_service_version_collection_id IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_service_version_collection
+					FROM service_version_collection WHERE
+					service_version_collection_Id = NEW.property_value_service_version_collection_id;
+				IF v_service_version_collection.service_version_collection_Type != v_prop.property_value_service_version_collection_type_restriction
+				THEN
+					RAISE 'Property_Value_service_version_collection_Id must be of type %',
+					v_prop.property_value_service_version_collection_type_restriction
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	-- If the RHS contains a device_collection_id, check to see if it must be a
+	-- specific type and verify that if so
+	IF NEW.Property_Value_Device_collection_Id IS NOT NULL THEN
+		IF v_prop.property_value_device_collection_type_restriction IS NOT NULL THEN
+			BEGIN
+				SELECT * INTO STRICT v_device_collection
+					FROM device_collection WHERE
+					device_collection_id = NEW.Property_Value_Device_collection_Id;
+				IF v_device_collection.device_collection_type !=
+					v_prop.property_value_device_collection_type_restriction
+				THEN
+					RAISE 'Property_Value_Device_collection_Id must be of type %',
+					v_prop.property_value_device_collection_type_restriction
+					USING ERRCODE = 'invalid_parameter_value';
+				END IF;
+			EXCEPTION
+				WHEN NO_DATA_FOUND THEN
+					-- let the database deal with the fk exception later
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	--
+	--
+	IF v_prop.property_data_type = 'json' THEN
+		IF NOT validate_json_schema(
+				v_prop.property_value_json_schema,
+				NEW.property_value_json) THEN
+			RAISE EXCEPTION 'JSON provided must match the json schema'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	-- At this point, the RHS has been checked, so now we verify data
+	-- set on the LHS
+
+	-- There needs to be a stanza here for every "lhs". If a new column is
+	-- added to the property table, a new stanza needs to be added here,
+	-- otherwise it will not be validated. This should be considered bad.
+
+	IF v_prop.Permit_Company_Id = 'REQUIRED' THEN
+			IF NEW.Company_Id IS NULL THEN
+				RAISE 'Company_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Company_Id = 'PROHIBITED' THEN
+			IF NEW.Company_Id IS NOT NULL THEN
+				RAISE 'Company_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Company_Collection_Id = 'REQUIRED' THEN
+			IF NEW.Company_Collection_Id IS NULL THEN
+				RAISE 'Company_Collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Company_Collection_Id = 'PROHIBITED' THEN
+			IF NEW.Company_Collection_Id IS NOT NULL THEN
+				RAISE 'Company_Collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Device_Collection_Id = 'REQUIRED' THEN
+			IF NEW.Device_Collection_Id IS NULL THEN
+				RAISE 'Device_Collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+
+	ELSIF v_prop.Permit_Device_Collection_Id = 'PROHIBITED' THEN
+			IF NEW.Device_Collection_Id IS NOT NULL THEN
+				RAISE 'Device_Collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_DNS_Domain_Collection_Id = 'REQUIRED' THEN
+			IF NEW.DNS_Domain_Collection_Id IS NULL THEN
+				RAISE 'DNS_Domain_Collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+
+	ELSIF v_prop.Permit_DNS_Domain_Collection_Id = 'PROHIBITED' THEN
+			IF NEW.DNS_Domain_Collection_Id IS NOT NULL THEN
+				RAISE 'DNS_Domain_Collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.permit_service_environment_collection_id = 'REQUIRED' THEN
+			IF NEW.service_environment_collection_id IS NULL THEN
+				RAISE 'service_environment_collection_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.permit_service_environment_collection_id = 'PROHIBITED' THEN
+			IF NEW.service_environment_collection_id IS NOT NULL THEN
+				RAISE 'service_environment is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.permit_service_version_collection_id = 'REQUIRED' THEN
+			IF NEW.service_version_collection_id IS NULL THEN
+				RAISE 'service_version_collection_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.permit_service_version_collection_id = 'PROHIBITED' THEN
+			IF NEW.service_version_collection_id IS NOT NULL THEN
+				RAISE 'service_version_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Operating_System_Id = 'REQUIRED' THEN
+			IF NEW.Operating_System_Id IS NULL THEN
+				RAISE 'Operating_System_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Operating_System_Id = 'PROHIBITED' THEN
+			IF NEW.Operating_System_Id IS NOT NULL THEN
+				RAISE 'Operating_System_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.permit_operating_system_snapshot_id = 'REQUIRED' THEN
+			IF NEW.operating_system_snapshot_id IS NULL THEN
+				RAISE 'operating_system_snapshot_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.permit_operating_system_snapshot_id = 'PROHIBITED' THEN
+			IF NEW.operating_system_snapshot_id IS NOT NULL THEN
+				RAISE 'operating_system_snapshot_id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Site_Code = 'REQUIRED' THEN
+			IF NEW.Site_Code IS NULL THEN
+				RAISE 'Site_Code is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Site_Code = 'PROHIBITED' THEN
+			IF NEW.Site_Code IS NOT NULL THEN
+				RAISE 'Site_Code is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Account_Id = 'REQUIRED' THEN
+			IF NEW.Account_Id IS NULL THEN
+				RAISE 'Account_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Account_Id = 'PROHIBITED' THEN
+			IF NEW.Account_Id IS NOT NULL THEN
+				RAISE 'Account_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Account_Realm_Id = 'REQUIRED' THEN
+			IF NEW.Account_Realm_Id IS NULL THEN
+				RAISE 'Account_Realm_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Account_Realm_Id = 'PROHIBITED' THEN
+			IF NEW.Account_Realm_Id IS NOT NULL THEN
+				RAISE 'Account_Realm_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_account_collection_Id = 'REQUIRED' THEN
+			IF NEW.account_collection_Id IS NULL THEN
+				RAISE 'account_collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_account_collection_Id = 'PROHIBITED' THEN
+			IF NEW.account_collection_Id IS NOT NULL THEN
+				RAISE 'account_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.permit_layer2_network_collection_id = 'REQUIRED' THEN
+			IF NEW.layer2_network_collection_id IS NULL THEN
+				RAISE 'layer2_network_collection_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.permit_layer2_network_collection_id = 'PROHIBITED' THEN
+			IF NEW.layer2_network_collection_id IS NOT NULL THEN
+				RAISE 'layer2_network_collection_id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.permit_layer3_network_collection_id = 'REQUIRED' THEN
+			IF NEW.layer3_network_collection_id IS NULL THEN
+				RAISE 'layer3_network_collection_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.permit_layer3_network_collection_id = 'PROHIBITED' THEN
+			IF NEW.layer3_network_collection_id IS NOT NULL THEN
+				RAISE 'layer3_network_collection_id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_netblock_collection_Id = 'REQUIRED' THEN
+			IF NEW.netblock_collection_Id IS NULL THEN
+				RAISE 'netblock_collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_netblock_collection_Id = 'PROHIBITED' THEN
+			IF NEW.netblock_collection_Id IS NOT NULL THEN
+				RAISE 'netblock_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_network_range_id = 'REQUIRED' THEN
+			IF NEW.network_range_id IS NULL THEN
+				RAISE 'network_range_id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_network_range_id = 'PROHIBITED' THEN
+			IF NEW.network_range_id IS NOT NULL THEN
+				RAISE 'network_range_id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_property_name_collection_Id = 'REQUIRED' THEN
+			IF NEW.property_name_collection_Id IS NULL THEN
+				RAISE 'property_name_collection_Id is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_property_name_collection_Id = 'PROHIBITED' THEN
+			IF NEW.property_name_collection_Id IS NOT NULL THEN
+				RAISE 'property_name_collection_Id is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	IF v_prop.Permit_Property_Rank = 'REQUIRED' THEN
+			IF NEW.property_rank IS NULL THEN
+				RAISE 'property_rank is required.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	ELSIF v_prop.Permit_Property_Rank = 'PROHIBITED' THEN
+			IF NEW.property_rank IS NOT NULL THEN
+				RAISE 'property_rank is prohibited.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'property_utils' AND type = 'function' AND object IN ('validate_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc validate_property failed but that is ok';
+	NULL;
+END;
+$$;
+
+SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_property_utils']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('property_utils', 'validate_filesystem');
+DROP FUNCTION IF EXISTS property_utils.validate_filesystem ( new jazzhands.filesystem );
+CREATE OR REPLACE FUNCTION property_utils.validate_filesystem(new jazzhands.filesystem)
+ RETURNS jazzhands.filesystem
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_vft	val_filesystem_type%ROWTYPE;
+BEGIN
+	SELECT * INTO _vft FROM val_filesystem_type
+		WHERE filesystem_type = NEW.filesystem_type;
+
+	IF NEW.mountpoint IS NOT NULL AND _vft.permit_mountpoint = 'PROHIBITED' THEN
+		RAISE EXCEPTION 'mountpoint is not permitted'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	IF NEW.mountpoint IS NULL AND _vft.permit_mountpoint = 'REQURIED' THEN
+		RAISE EXCEPTION 'mountpoint is required'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	IF NEW.filesystem_label IS NOT NULL AND _vft.permit_filesystem_label = 'PROHIBITED' THEN
+		RAISE EXCEPTION 'filesystem_label is not permitted'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	IF NEW.filesystem_label IS NULL AND _vft.permit_mountpoint = 'REQURIED' THEN
+		RAISE EXCEPTION 'mountpoint is required'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	IF NEW.filesystem_serial IS NOT NULL AND _vft.permit_filesystem_serial = 'PROHIBITED' THEN
+		RAISE EXCEPTION 'filesystem_serial is not permitted'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	IF NEW.filesystem_serial IS NULL AND _vft.permit_mountpoint = 'REQURIED' THEN
+		RAISE EXCEPTION 'mountpoint is required'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_property_utils']);
 -- Dropping obsoleted sequences....
 DROP SEQUENCE IF EXISTS physicalish_volume_physicalish_volume_id_seq;
 
@@ -15380,46 +15866,6 @@ DROP SEQUENCE IF EXISTS jazzhands_audit.volume_group_physicalish_volume_seq;
 
 -- Processing tables with no structural changes
 -- Some of these may be redundant
--- fk constraints
-ALTER TABLE layer3_interface
-	RENAME CONSTRAINT ak_net_int_devid_netintid TO ak_l3int_devid_netintid;
-
-ALTER TABLE layer3_interface DROP CONSTRAINT IF EXISTS fk_netint_devid_name;
-ALTER TABLE layer3_interface
-	RENAME CONSTRAINT pk_network_interface_id TO pk_layer3_interface_id;
-
-ALTER TABLE layer3_interface
-	RENAME CONSTRAINT uq_netint_device_id_logical_port_id TO uq_l3int_device_id_logical_port_id;
-
-ALTER TABLE layer3_interface DROP CONSTRAINT IF EXISTS uq_l3int_devid_name;
-ALTER TABLE layer3_interface
-	ADD CONSTRAINT uq_l3int_devid_name
-	UNIQUE (device_id, layer3_interface_name) DEFERRABLE;
-
-ALTER TABLE component_type
-	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
-ALTER TABLE component_type
-ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
-	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
-
-ALTER TABLE device
-	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
-ALTER TABLE device
-ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
-	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
-
--- index
-DROP INDEX IF EXISTS "jazzhands"."ak_dns_record_generate_ptr";
-CREATE UNIQUE INDEX ak_dns_record_generate_ptr ON jazzhands.dns_record USING btree (netblock_id, should_generate_ptr) WHERE should_generate_ptr AND (dns_type::text = ANY (ARRAY['A'::character varying, 'AAAA'::character varying]::text[])) AND netblock_id IS NOT NULL;
-DROP INDEX "jazzhands"."idx_netint_isifaceup";
-DROP INDEX "jazzhands"."idx_netint_shouldmange";
-DROP INDEX "jazzhands"."idx_netint_shouldmonitor";
-DROP INDEX IF EXISTS "jazzhands"."idx_l3int_isifaceup";
-CREATE INDEX idx_l3int_isifaceup ON jazzhands.layer3_interface USING btree (is_interface_up);
-DROP INDEX IF EXISTS "jazzhands"."idx_l3int_shouldmange";
-CREATE INDEX idx_l3int_shouldmange ON jazzhands.layer3_interface USING btree (should_manage);
-DROP INDEX IF EXISTS "jazzhands"."idx_l3int_shouldmonitor";
-CREATE INDEX idx_l3int_shouldmonitor ON jazzhands.layer3_interface USING btree (should_monitor);
 -- triggers
 DROP TRIGGER IF EXISTS trig_account_change_realm_aca_realm ON account;
 CREATE TRIGGER trig_account_change_realm_aca_realm BEFORE UPDATE OF account_realm_id ON jazzhands.account FOR EACH ROW EXECUTE FUNCTION jazzhands.account_change_realm_aca_realm();
@@ -16769,10 +17215,6 @@ DROP TRIGGER IF EXISTS trig_userlog_val_encryption_key_purpose ON val_encryption
 CREATE TRIGGER trig_userlog_val_encryption_key_purpose BEFORE INSERT OR UPDATE ON jazzhands.val_encryption_key_purpose FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_encryption_key_purpose ON val_encryption_key_purpose;
 CREATE TRIGGER trigger_audit_val_encryption_key_purpose AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_encryption_key_purpose FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_encryption_key_purpose();
-DROP TRIGGER IF EXISTS trig_userlog_val_filesystem_type ON val_filesystem_type;
-CREATE TRIGGER trig_userlog_val_filesystem_type BEFORE INSERT OR UPDATE ON jazzhands.val_filesystem_type FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_val_filesystem_type ON val_filesystem_type;
-CREATE TRIGGER trigger_audit_val_filesystem_type AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_filesystem_type FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_filesystem_type();
 DROP TRIGGER IF EXISTS trig_userlog_val_gender ON val_gender;
 CREATE TRIGGER trig_userlog_val_gender BEFORE INSERT OR UPDATE ON jazzhands.val_gender FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_gender ON val_gender;
