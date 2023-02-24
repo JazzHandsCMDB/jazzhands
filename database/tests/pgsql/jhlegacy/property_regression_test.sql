@@ -50,8 +50,8 @@ SAVEPOINT property_trigger_test;
 -- tests this, but does not work just yet because it assumes global test
 -- data is there; need to do that before rewritten to use proper savepoints.
 
-\ir ../../../pkg/pgsql/property_utils.sql
-\ir ../../../ddl/legacy.sql
+-- \ir ../../../pkg/pgsql/property_utils.sql
+-- \ir ../../../ddl/legacy.sql
 -- \ir ../../../ddl/schema/pgsql/create_property_triggers.sql
 
 CREATE OR REPLACE FUNCTION validate_property_triggers() RETURNS BOOLEAN AS $$
