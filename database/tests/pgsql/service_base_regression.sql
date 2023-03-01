@@ -1,4 +1,4 @@
--- Copyright (c) 2021 Todd Kover
+-- Copyright (c) 2021-2023 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@
 SAVEPOINT service_base_regression;
 
 \ir ../../ddl/schema/pgsql/create_service_base_triggers.sql
+\ir ../../ddl/schema/pgsql/create_service_version_automated_membership_triggers.sql
 
 SAVEPOINT pretest;
 
@@ -109,8 +110,27 @@ BEGIN
 		RAISE NOTICE '... It did (%)', SQLERRM;
 	END;
 
+	RAISE NOTICE 'Checking if setting up and deleting a service works';
+	BEGIN
+		INSERT INTO service_version (service_id, service_version_name)
+			SELECT service_id, '0.99'
+			FROM service
+			WHERE service_name = 'unique1' and service_type = 'jhtype1';
+
+		DELETE FROM service_version WHERE service_id in (
+			SELECT service_id FROM service
+			WHERE service_name = 'unique1' and service_type = 'jhtype1'
+		);
+
+		DELETE FROM service 
+			WHERE service_name = 'unique1' and service_type = 'jhtype1';
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... It did (%)', SQLERRM;
+	END;
 
 	RAISE NOTICE 'Cleaning up...';
+
 	RAISE NOTICE 'END service_base_regression...';
 	RETURN true;
 
