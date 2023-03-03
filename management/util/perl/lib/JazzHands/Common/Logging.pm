@@ -359,21 +359,21 @@ sub log {
 		syslog( $mapping->{$facility}, sprintf $fmt, @_ );
 	}
 	if ( my $lp = $self->{_log4perl} ) {
-		use Log::Log4perl::Level;
+		require Log::Log4perl::Level;
 
 		my $mapping = {
-			'trace'    => $TRACE,
-			'debug'    => $DEBUG,
-			'info'     => $INFO,
-			'notice'   => $INFO,
-			'warn'     => $WARN,
-			'warning'  => $WARN,
-			'crit'     => $ERROR,
-			'critical' => $ERROR,
-			'error'    => $ERROR,
-			'alert'    => $FATAL,
-			'emerg'    => $FATAL,
-			'fatal'    => $FATAL,
+			'trace'    => $Log::Log4perl::Level::TRACE,
+			'debug'    => $Log::Log4perl::Level::DEBUG,
+			'info'     => $Log::Log4perl::Level::INFO,
+			'notice'   => $Log::Log4perl::Level::INFO,
+			'warn'     => $Log::Log4perl::Level::WARN,
+			'warning'  => $Log::Log4perl::Level::WARN,
+			'crit'     => $Log::Log4perl::Level::ERROR,
+			'critical' => $Log::Log4perl::Level::ERROR,
+			'error'    => $Log::Log4perl::Level::ERROR,
+			'alert'    => $Log::Log4perl::Level::FATAL,
+			'emerg'    => $Log::Log4perl::Level::FATAL,
+			'fatal'    => $Log::Log4perl::Level::FATAL,
 
 		};
 
