@@ -5885,6 +5885,23 @@ END;
 $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to netblock
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'netblock');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'netblock');
+ALTER TABLE "jazzhands"."netblock" ALTER COLUMN "netblock_status" SET DEFAULT 'Alloocated'::character varying;
+ALTER TABLE component_type
+	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
+ALTER TABLE component_type
+ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
+	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE public_key_hash_hash
 -- Save grants for later reapplication
@@ -8917,6 +8934,67 @@ BEGIN
 	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('dns_record_cname_checker');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Drop of proc dns_record_cname_checker failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'manip_all_svc_collection_members');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'manip_all_svc_collection_members');
+CREATE OR REPLACE FUNCTION jazzhands.manip_all_svc_collection_members()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'INSERT' THEN
+		INSERT INTO service_version_collection_service_version (
+			service_version_collection_id, service_version_id
+		) SELECT service_version_collection_id, NEW.service_version_id
+		FROM service_version_collection
+		WHERE service_version_collection_type = 'all-services'
+		AND service_version_collection_name IN (SELECT service_name
+			FROM service
+			WHERE service_id = NEW.service_id
+		);
+		INSERT INTO service_version_collection_service_version (
+			service_version_collection_id, service_version_id
+		) SELECT service_version_collection_id, NEW.service_version_id
+		FROM service_version_collection
+		WHERE service_version_collection_type = 'current-services'
+		AND service_version_collection_name IN (SELECT service_name
+			FROM service
+			WHERE service_id = NEW.service_id
+		);
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM service_version_collection_service_version
+		WHERE service_version_id = OLD.service_version_id
+		AND service_version_collection_id IN (
+			SELECT service_version_collection_id
+			FROM service_version_collection
+			WHERE service_version_collection_name IN (
+				SELECT service_name
+				FROM service
+				WHERE service_id = OLD.service_id
+			)
+			AND service_version_collection_type IN (
+				'all-services', 'current-services'
+			)
+		);
+		RETURN OLD;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('manip_all_svc_collection_members');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc manip_all_svc_collection_members failed but that is ok';
 	NULL;
 END;
 $$;
