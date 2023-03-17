@@ -12639,6 +12639,10 @@ ALTER TABLE mlag_peering
 		ON DELETE NO ACTION;
 
 ALTER TABLE netblock
+	ALTER COLUMN netblock_status
+		SET DEFAULT 'Alloocated';
+
+ALTER TABLE netblock
 	ALTER COLUMN netblock_type
 		SET DEFAULT 'default';
 
