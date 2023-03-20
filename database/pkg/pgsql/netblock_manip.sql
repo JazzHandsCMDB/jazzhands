@@ -1097,6 +1097,12 @@ BEGIN
 				END IF;
 			END IF;
 
+			PERFORM dns_manip.set_dns_for_interface(
+				netblock_id := nb_rec.netblock_id,
+				layer3_interface_name := l3in_rec.layer3_interface_name,
+				device_id := l3in_rec.device_id
+			);
+
 			--
 			-- See if this netblock is on a shared_address somewhere, and
 			-- move it only if move_addresses is 'always'
@@ -1154,12 +1160,6 @@ BEGIN
 			WHERE
 				l3in.layer3_interface_id = l3i_id
 			RETURNING * INTO l3in_rec;
-
-			PERFORM dns_manip.set_dns_for_interface(
-				netblock_id := nb_rec.netblock_id,
-				layer3_interface_name := l3in_rec.layer3_interface_name,
-				device_id := l3in_rec.device_id
-			);
 
 			RAISE DEBUG E'Inserted into:\n%',
 				jsonb_pretty(to_jsonb(l3in_rec));
