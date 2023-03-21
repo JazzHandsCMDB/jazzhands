@@ -597,6 +597,8 @@ insert into val_property_type (property_type, description,is_multivalue)
 	('HOTPants','define HOTPants behavior', true),
 	('RADIUS','RADIUS properties', true),
 	('ConsoleACL','console access control properties', true),
+	('DeviceProvisioning','properties related to automatic device provisioning', true),
+	('DeviceInventory','properties for device inventory functions', true),
 	('UnixPasswdFileValue','override value set in the Unix passwd file',true),
 	('SystemInstallation','Properties associated with the system loading process',true),
 	('wwwgroup','WWW Group properties',true);
@@ -1015,6 +1017,76 @@ VALUES (
 	'boolean',
 	'REQUIRED',
 	'REQUIRED'
+);
+--
+-- Device provisioning properties
+--
+--   These need to move to various component_property tables, but we need
+--   company_collection_id and friends in there first
+--
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'DeviceVendorProbeString',
+	'DeviceProvisioning',
+	'Vendor string that may be found during a device probe',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'CPUVendorProbeString',
+	'DeviceProvisioning',
+	'Vendor string that may be found during a CPU probe',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'PCIVendorID',
+	'DeviceProvisioning',
+	'numeric PCI Vendor ID',
+	true,
+	'number',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'DeviceComponentManagementInterface',
+	'DeviceProvisioning',
+	'Default name of the management interface for a given device component vendor',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
 );
 
 -- System installation properties
