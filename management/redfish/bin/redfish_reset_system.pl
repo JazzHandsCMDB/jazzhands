@@ -152,6 +152,9 @@ DEVLOOP: while ($host = shift) {
 				$device->{power_state}
 			;
 		}
+	#	else {
+	#		print JSON::XS->new->pretty(1)->encode($device);
+	#	}
 		next;
 	}
 

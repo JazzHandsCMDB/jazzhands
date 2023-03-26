@@ -1096,6 +1096,48 @@ ALTER TABLE block_storage_device ALTER COLUMN block_storage_device_id ADD GENERA
 
 
 /***********************************************
+ * Table: block_storage_device_virtual_component
+ ***********************************************/
+
+CREATE TABLE block_storage_device_virtual_component
+( 
+	block_storage_device_id integer  NOT NULL ,
+	component_id         integer  NOT NULL ,
+	component_type_id    integer  NOT NULL ,
+	is_virtual_component boolean  NULL 
+);
+
+ALTER TABLE block_storage_device_virtual_component
+	ADD CONSTRAINT xpkblock_storage_device_virtual_component PRIMARY KEY (block_storage_device_id);
+
+ALTER TABLE block_storage_device_virtual_component
+	ADD CONSTRAINT ak_block_storage_device_virtual_component_component_id UNIQUE (component_id);
+
+CREATE UNIQUE INDEX xifblock_storage_device_virtual_component_block_storage_device_ ON block_storage_device_virtual_component
+( 
+	block_storage_device_id ASC
+);
+
+CREATE INDEX xifblock_storage_device_virtual_component_component ON block_storage_device_virtual_component
+( 
+	component_id ASC,
+	component_type_id ASC
+);
+
+CREATE INDEX xifblock_storage_device_virtual_component_component_type ON block_storage_device_virtual_component
+( 
+	component_type_id ASC,
+	is_virtual_component ASC
+);
+
+ALTER TABLE block_storage_device_virtual_component ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE block_storage_device_virtual_component ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE block_storage_device_virtual_component ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE block_storage_device_virtual_component ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
  * Table: certificate_signing_request
  ***********************************************/
 
@@ -1573,6 +1615,9 @@ CREATE TABLE component_type
 
 ALTER TABLE component_type
 	ADD CONSTRAINT pk_component_type PRIMARY KEY (component_type_id);
+
+ALTER TABLE component_type
+	ADD CONSTRAINT ak_component_type_virtual UNIQUE (component_type_id,is_virtual_component);
 
 CREATE INDEX xif_component_type_company_id ON component_type
 ( 
@@ -2756,7 +2801,9 @@ CREATE TABLE filesystem
 	block_storage_device_id integer  NOT NULL ,
 	device_id            integer  NOT NULL ,
 	filesystem_type      varchar(50)  NULL ,
-	mountpoint           varchar(50)  NULL 
+	mountpoint           varchar(50)  NULL ,
+	filesystem_label     varchar(255)  NULL ,
+	filesystem_serial    varchar(255)  NULL 
 );
 
 ALTER TABLE filesystem
@@ -6699,13 +6746,13 @@ CREATE TABLE site_encapsulation_domain
 ALTER TABLE site_encapsulation_domain
 	ADD CONSTRAINT pk_site_encapsulation_domain PRIMARY KEY (site_code,encapsulation_domain,encapsulation_type);
 
-CREATE INDEX xif_site_code_encap_domain_encap_domain ON site_encapsulation_domain
+CREATE INDEX xifsite_code_encap_domain_encap_domain ON site_encapsulation_domain
 ( 
 	encapsulation_domain ASC,
 	encapsulation_type ASC
 );
 
-CREATE INDEX xif_site_code_encapsulation_domain_site_code ON site_encapsulation_domain
+CREATE INDEX xifsite_code_encapsulation_domain_site_code ON site_encapsulation_domain
 ( 
 	site_code ASC
 );
@@ -8746,7 +8793,10 @@ ALTER TABLE val_encryption_method ADD COLUMN data_upd_date TIMESTAMP WITH TIME Z
 CREATE TABLE val_filesystem_type
 ( 
 	filesystem_type      varchar(50)  NOT NULL ,
-	description          varchar(4000)  NULL 
+	description          varchar(4000)  NULL ,
+	permit_mountpoint    char(10)  NOT NULL ,
+	permit_filesystem_label char(10)  NOT NULL ,
+	permit_filesystem_serial char(10)  NOT NULL 
 );
 
 ALTER TABLE val_filesystem_type
@@ -11352,6 +11402,30 @@ ALTER TABLE block_storage_device
 		ON DELETE NO ACTION;
 
 
+ALTER TABLE block_storage_device_virtual_component
+	ADD CONSTRAINT ckc_force_true_2019398784 CHECK  ( is_virtual_component = true ) ;
+
+ALTER TABLE block_storage_device_virtual_component
+	ALTER COLUMN is_virtual_component
+		SET DEFAULT true;
+
+
+ALTER TABLE block_storage_device_virtual_component
+	ADD CONSTRAINT fk_block_storage_device_virtual_component_block_storage_device_ FOREIGN KEY (block_storage_device_id) REFERENCES block_storage_device(block_storage_device_id)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE block_storage_device_virtual_component
+	ADD CONSTRAINT fk_block_storage_device_virtual_component_component FOREIGN KEY (component_id,component_type_id) REFERENCES component(component_id,component_type_id)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE block_storage_device_virtual_component
+	ADD CONSTRAINT fk_block_storage_device_virtual_component_component_type FOREIGN KEY (component_type_id,is_virtual_component) REFERENCES component_type(component_type_id,is_virtual_component)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+
 ALTER TABLE certificate_signing_request
 	ADD CONSTRAINT fk_csr_pvtkeyid_pkhid FOREIGN KEY (private_key_id,public_key_hash_id) REFERENCES private_key(private_key_id,public_key_hash_id)
 		ON UPDATE NO ACTION
@@ -12563,6 +12637,10 @@ ALTER TABLE mlag_peering
 	ADD CONSTRAINT fk_mlag_peering_devid2 FOREIGN KEY (device2_id) REFERENCES device(device_id)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
+
+ALTER TABLE netblock
+	ALTER COLUMN netblock_status
+		SET DEFAULT 'Alloocated';
 
 ALTER TABLE netblock
 	ALTER COLUMN netblock_type
@@ -14319,6 +14397,18 @@ ALTER TABLE val_encryption_method
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+ALTER TABLE val_filesystem_type
+	ALTER COLUMN permit_mountpoint
+		SET DEFAULT 'PROHIBITED';
+
+ALTER TABLE val_filesystem_type
+	ALTER COLUMN permit_filesystem_label
+		SET DEFAULT 'PROHIBITED';
+
+ALTER TABLE val_filesystem_type
+	ALTER COLUMN permit_filesystem_serial
+		SET DEFAULT 'PROHIBITED';
+
 ALTER TABLE val_layer2_network_collection_type
 	ALTER COLUMN can_have_hierarchy
 		SET DEFAULT true;
@@ -14906,9 +14996,6 @@ COMMENT ON COLUMN approval_process_chain.permit_immediate_resolution IS 'Approva
 COMMENT ON TABLE block_storage_device IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in between.
 ';
 
-COMMENT ON COLUMN block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
-
 COMMENT ON COLUMN block_storage_device.logical_volume_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
 
 COMMENT ON COLUMN block_storage_device.component_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
@@ -14922,6 +15009,8 @@ COMMENT ON COLUMN block_storage_device.block_storage_device_name IS 'Unique (on 
 COMMENT ON COLUMN block_storage_device.uuid IS 'device wide uuid that is an alternate name for the device.';
 
 COMMENT ON COLUMN block_storage_device.encrypted_block_storage_device_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
+
+COMMENT ON TABLE block_storage_device_virtual_component IS 'Map a block storage device in a parent to the virtual component of a child, such as for virtual disks';
 
 COMMENT ON TABLE certificate_signing_request IS 'Certificiate Signing Requests generated from public key.  This is mostly kept for posterity since its possible to generate these at-wil from the private key.';
 
@@ -15029,9 +15118,6 @@ COMMENT ON COLUMN dns_record.external_id IS 'unique identifer in external system
 
 COMMENT ON TABLE encapsulation_range IS 'Captures how tables are assigned administratively.  This is not use for enforcement but primarily for presentation';
 
-COMMENT ON COLUMN encrypted_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
-
 COMMENT ON TABLE encryption_key IS 'Keep information on keys used to encrypt sensitive data in the schema';
 
 COMMENT ON COLUMN encryption_key.encryption_key_db_value IS 'part of 3-tuple that is the key used to encrypt.  The other portions are provided by a user and stored in the key_crypto package';
@@ -15043,9 +15129,6 @@ COMMENT ON COLUMN encryption_key.encryption_key_purpose_version IS 'indicates th
 COMMENT ON COLUMN encryption_key.encryption_method IS 'Text representation of the method of encryption.  Format is the same as Kerberos uses such as in rfc3962';
 
 COMMENT ON COLUMN encryption_key.external_id IS 'pointer to where to find the encrypted material in an external system.';
-
-COMMENT ON COLUMN filesystem.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
 
 COMMENT ON COLUMN filesystem.device_id IS 'Device that has the block device on it.';
 
@@ -15675,9 +15758,6 @@ COMMENT ON TABLE val_x509_revocation_reason IS 'Reasons, based on RFC, that a ce
 COMMENT ON COLUMN val_x509_revocation_reason.x509_revocation_reason IS 'valid reason for revoking certificates';
 
 COMMENT ON COLUMN volume_group.component_id IS 'if applicable, the component that hosts this volume group.  This is primarily used to indicate the hardware raid controller component that hosts the volume group.';
-
-COMMENT ON COLUMN volume_group_block_storage_device.block_storage_device_id IS 'Device that can be accessed as a block device from an operating sytem.  This could range from physical disks to encrypted logical volumes and everything in betwee.
-';
 
 COMMENT ON COLUMN volume_group_block_storage_device.volume_group_relation IS 'purpose of volume in raid (member, hotspare, etc, based on val table)
 ';

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2022 Todd Kover
+# Copyright (c) 2013-2023 Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,7 +41,7 @@ our %EXPORT_TAGS = (
 	'all' => [],
 
 	# note that :db is special, see my import function
-	'inernal' => [],
+	'internal' => [],
 );
 
 #foreach my $c (@ISA) {
@@ -138,16 +138,34 @@ JazzHands::Common - Perl extensions that are used throughout JazzHands
 
 =head1 SYNOPSIS
 
-use JazzHands::Common;
+use parent 'JazzHands::Common';
 
-This class imports (and makes available for export) things in other
+use JazzHands::Common;
+use JazzHands::Common qw(:internal :log :all :db :error);
+
+The :internal tag includes functions from JazzHands::Common::Util.
+
+The :db tag imports routines for interating with the db in a perlish interface.
+
+The :log behaves as described in JazzHands::Common::Logging
+
+The :all does everything, as well as JazzHands::Common::Error
+
+This class imports (and makes available for export) things in other 
 subclasses.  
 
 =head1 DESCRIPTION
+
+This is really just a placeholder  for other subclasses and is meant to be
+a parent class to provide a bunch of baseline functionality out of the box.
+
+Various JazzHands utilities and modules use these to make their lives easier
+although there are also standalone modules that are not part of this.
+
 head1 SEE ALSO
 
 JazzHands::Common::Util, JazzHands::Common::GenericDB, 
-	JazzHands::Common::Error
+	JazzHands::Common::Error, JazzHands::Common::Logging
 
 =head1 AUTHOR
 

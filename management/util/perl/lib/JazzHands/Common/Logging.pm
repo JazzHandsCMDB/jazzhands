@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2022 Todd M .Kover
+# Copyright (c) 2022-2023 Todd M .Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,112 @@ use JazzHands::Common::Error qw(:internal);
 use Data::Dumper;
 use Carp qw(cluck);
 use Sys::Syslog;
+
+=head1 NAME
+
+JazzHands::Common::Logging - common loging routines
+
+=head1 SYNOPSIS
+
+use JazzHands::Common qw(:log);
+use JazzHands::Common qw(:all);
+
+$self->initialize_logging(%hash);
+
+$logh = $self->loghandle;
+
+$logh->log(facilty, sprintf style);
+
+$logh->{trace,debug,info,notice,warn,warning,crit,critical,error,alert,emerg,fatal}(sprintf style)
+
+$logh_>SetDebugCallback(func);
+$logh->SetDebug(#);
+$logh->_Debug();
+
+logging routines that are used mostly by child classes that inherit from
+JazzHands::Common to make logging "just work".
+
+It is not meant to be called directly but via JazzHands::Common.
+
+=head1 DESCRIPTION
+
+This module is meant to abstract away logging so that various utilities can
+just call routines for logging and "it just works."  It is meant to require
+minimal other perl modules in order to get logging, but using those is
+possible.  It's possible to configure logging to stderr/stdout, syslog or
+to pass on to Log4perl.   It also provides interfaces very similar to
+Log::Log4perl and Sys::Syslog, so it can be a near drop in replacement.
+
+This module has evolved over time from other error, debugging and other
+logging routines in various support libraries.
+
+There are three routines that get pulled into the class that inherits from
+JazzHands::Common (based on :all or :log .  Not specifying anything imports
+nothing log related).  THose routines are initalize_logging, loghandle
+and log.
+
+The initialize_logging routine will take an optional hash to define how to
+log.   It is possible to configure multiple endpoints and they will all get
+logged to.   Not passing or not expicitly calling it will cause it to log
+everything to STDERR.
+
+The hash can look like:
+
+{
+	syslog => {
+		ident => 'ident',
+		logopt => 'logopt',
+		facility => 'facility',
+		logmask => 'logmask',
+	}, log4perl => {
+		log4perl config hash with at  lest config and loggername
+	}, debug_callback => function_to_call_back,
+	messagehandle => $filehandle_for_messages,
+	errorhandle => $path_for_errors,
+	messagefilename => $path_for_messages,
+	errorfilename => $path_for_errors,
+}
+
+Setting both a handle and filename for errors and messages will cause the
+handle to win.
+
+The loghandle function will return a JazzHands::Common::Logging::Core object
+that is how more complex interactions happen.
+
+The log function is simliar to Sys::Syslog's syslog() call.
+
+=head2 JazzHands::Common::Logging::Core
+
+The loghandle routine returns a type of this object.  It's meant to be the
+primary interface for logging and has a bunch of subroutines.  It also
+provides interfaces simlar to Sys::Syslog and Log::Log4perl
+
+The routine get_logger passes through to if log4perl is cofigured, otherwise
+returns undef.
+
+There are a bunch of facilities that can be called (see the synopsis) to
+log to _that_ facility based on the underlying log technology.  If the
+underlying log technology does not define something, a reasonable
+approximation is made.
+
+=head2 Debug logging
+
+Debug logging gets ignored unless a level is set with SetDebug.  This allows
+things to call debugging which can be off by default.
+
+The _Debug internal call honors SetDebugging.  The debug function does not. 
+
+=head1 SEE ALSO
+
+Sys::Syslog, Log::Log4perl
+
+
+=head1 AUTHORS
+
+Todd Kover (kovert@omniscient.com)
+Matthew Ragan (mdr@sucksless.net)
+
+=cut
 
 our $VERSION = '1.0';
 
@@ -104,7 +210,7 @@ sub initialize_logging {
 		}
 
 		$logh->{_syslog} = 1;
-		my $something = 1;
+		$something = 1;
 		delete $opt->{syslog};
 	}
 	if ( $opt->{log4perl} ) {
@@ -131,7 +237,7 @@ sub initialize_logging {
 		# possibly be wrapped to allow it to return undef
 		Log::Log4perl::init($logconfig);
 		$logh->{_log4perl} = Log::Log4perl::get_logger($loggername);
-		my $something = 1;
+		$something = 1;
 		delete $opt->{log4perl};
 	}
 	if ( my $h = $opt->{debug_callback} ) {
@@ -141,20 +247,35 @@ sub initialize_logging {
 
 	if ( my $h = $opt->{errorhandle} ) {
 		$logh->{_errors} = $h;
-		my $something = 1;
+		$something = 1;
 		delete $opt->{errorhandle};
+	} elsif(my $fn = $opt->{errorfilename} ) {
+		my $f = $logh->{_errors} = new FileHandle(">>$fn");
+		if(!$f) {
+			$errstr = "errorfilename($fn): $!";
+			return undef;
+		}
+		$logh->{_errors} = $f;
+		$something = 1;
 	}
 
 	if ( my $h = $opt->{messagehandle} ) {
 		$logh->{_messages} = $h;
-		my $something = 1;
+		$something = 1;
 		delete $opt->{messagehandle};
+	} elsif(my $fn = $opt->{messagefilename} ) {
+		my $f = $logh->{_messages} = new FileHandle(">>$fn");
+		if(!$f) {
+			$errstr = "messagefilename($fn): $!";
+			return undef;
+		}
+		$logh->{_messages} = $f;
 	} elsif ( my $h = $logh->{_errors} ) {
 		$logh->{_messages} = $h;
 	}
 
 	if ( !$something ) {
-		$logh->{_messages} = \*STDOUT;
+		$logh->{_messages} = \*STDERR;
 		$logh->{_errors}   = \*STDERR;
 	}
 
@@ -175,7 +296,7 @@ sub loghandle {
 sub log {
 	my $self = shift @_;
 
-	$self->{loghandle} || $self->initialize_logging;
+	$self->{_loghandle} || $self->initialize_logging;
 	$self->{_loghandle}->log(@_);
 }
 
@@ -225,7 +346,7 @@ sub log {
 			'debug'    => 'debug',
 			'info'     => 'info',
 			'notice'   => 'notice',
-			'warn'     => 'warnign',
+			'warn'     => 'warning',
 			'warning'  => 'warning',
 			'crit'     => 'crit',
 			'critical' => 'crit',
@@ -238,31 +359,48 @@ sub log {
 		syslog( $mapping->{$facility}, sprintf $fmt, @_ );
 	}
 	if ( my $lp = $self->{_log4perl} ) {
-		use Log::Log4perl::Level;
+		require Log::Log4perl::Level;
 
 		my $mapping = {
-			'trace'    => $TRACE,
-			'debug'    => $DEBUG,
-			'info'     => $INFO,
-			'notice'   => $INFO,
-			'warn'     => $WARN,
-			'warning'  => $WARN,
-			'crit'     => $ERROR,
-			'critical' => $ERROR,
-			'error'    => $ERROR,
-			'alert'    => $FATAL,
-			'emerg'    => $FATAL,
-			'fatal'    => $FATAL,
+			'trace'    => $Log::Log4perl::Level::TRACE,
+			'debug'    => $Log::Log4perl::Level::DEBUG,
+			'info'     => $Log::Log4perl::Level::INFO,
+			'notice'   => $Log::Log4perl::Level::INFO,
+			'warn'     => $Log::Log4perl::Level::WARN,
+			'warning'  => $Log::Log4perl::Level::WARN,
+			'crit'     => $Log::Log4perl::Level::ERROR,
+			'critical' => $Log::Log4perl::Level::ERROR,
+			'error'    => $Log::Log4perl::Level::ERROR,
+			'alert'    => $Log::Log4perl::Level::FATAL,
+			'emerg'    => $Log::Log4perl::Level::FATAL,
+			'fatal'    => $Log::Log4perl::Level::FATAL,
 
 		};
 
 		$lp->log( $mapping->{$facility}, sprintf $fmt, @_ );
 
 	}
-	# XXX - need to deal with messages
-	if ( my $h = $self->{_errors} ) {
-		$fmt =~ s/\n*$/\n/ if($fmt);
-		$h->print(sprintf($fmt, @_));
+
+	# messages/errors.  The line is kind of arbitrary
+	if ( 1 ) {
+		my $mapping = {
+			'trace'    => '_messages',
+			'debug'    => '_messages',
+			'info'     => '_messages',
+			'notice'   => '_messages',
+			'warn'     => '_messages',
+			'warning'  => '_messages',
+			'crit'     => '_errors',
+			'critical' => '_errors',
+			'error'    => '_errors',
+			'alert'    => '_errors',
+			'emerg'    => '_errors',
+			'fatal'    => '_errors',
+		};
+		if ( my $h = $self->{ $mapping->{$facility} } ) {
+			$fmt =~ s/\n*$/\n/ if($fmt);
+			$h->print(sprintf($fmt, @_));
+		}
 	}
 
 }
@@ -325,19 +463,3 @@ DESTROY {
 1;
 
 __END__
-
-
-=head1 NAME
-
-
-=head1 SYNOPSIS
-
-=head1 DESCRIPTION
-
-=head1 FILES
-
-
-=head1 AUTHORS
-
-=cut
-
