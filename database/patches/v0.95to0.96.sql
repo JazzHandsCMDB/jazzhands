@@ -107,6 +107,7 @@ select clock_timestamp(), now(), clock_timestamp() - now() AS len;
 
 
 -- BEGIN Misc that does not apply to above
+SET jazzhands.appuser = 'release-0.96';
 
 --
 -- script should dig this stuff out, but it doesn't, so here we are.
@@ -174,6 +175,98 @@ WHERE is_virtual_device = true AND rack_location_id IS NOT NULL;
 --
 -- BEGIN: process_ancillary_schema(schema_support)
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'begin_maintenance');
+SELECT schema_support.save_grants_for_replay('schema_support', 'begin_maintenance');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.begin_maintenance ( boolean );
+CREATE OR REPLACE FUNCTION schema_support.begin_maintenance(shouldbesuper boolean DEFAULT true)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	issuper	boolean;
+	_tally	integer;
+BEGIN
+	IF shouldbesuper THEN
+		SELECT rolsuper INTO issuper FROM pg_role where rolname = current_user;
+		IF issuper IS false THEN
+			PERFORM groname, rolname
+			FROM (
+				SELECT groname, unnest(grolist) AS oid
+				FROM pg_group ) g
+			JOIN pg_roles u USING (oid)
+			WHERE groname = 'dba'
+			AND rolname = current_user;
+
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'User must be a super user or have the dba role';
+			END IF;
+		END IF;
+	END IF;
+	-- Not sure how reliable this is.
+	-- http://www.postgresql.org/docs/9.3/static/monitoring-stats.html
+	SELECT count(*)
+	  INTO _tally
+	  FROM	pg_stat_activity
+	 WHERE	pid = pg_backend_pid()
+	   AND	query_start = xact_start;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION 'Must run maintenance in a transaction.';
+	END IF;
+
+	--
+	-- Stash counts of things that may relate to this maintenance for
+	-- alter verification and statistics
+	--
+	-- similar code is in end_maintenance (the INSERT query is the same
+	--
+	CREATE TEMPORARY TABLE __owner_before_stats (
+		username					TEXT,
+		before_views_count			INTEGER,
+		before_func_count		INTEGER,
+		before_key_count	INTEGER,
+		PRIMARY KEY (username)
+	);
+	INSERT INTO __owner_before_stats
+		SELECT rolname, coalesce(numrels, 0) AS numrels,
+		coalesce(numprocs, 0) AS numprocs,
+		coalesce(numfks, 0) AS numfks
+		FROM pg_roles u
+			LEFT JOIN (
+		SELECT relowner, count(*) AS numrels
+				FROM pg_class
+				WHERE relkind IN ('r','v')
+				GROUP BY 1
+				) c ON r.oid = c.relowner
+			LEFT JOIN (SELECT proowner, count(*) AS numprocs
+				FROM pg_proc
+				GROUP BY 1
+				) p ON r.oid = p.proowner
+			LEFT JOIN (
+				SELECT relowner, count(*) AS numfks
+				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
+				WHERE contype = 'f'
+				GROUP BY 1
+			) fk ON r.oid = fk.relowner
+		WHERE r.oid > 16384
+	AND (numrels IS NOT NULL OR numprocs IS NOT NULL OR numfks IS NOT NULL);
+
+	RETURN true;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('begin_maintenance');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc begin_maintenance failed but that is ok';
+	NULL;
+END;
+$$;
+
 -- Changed function
 SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'build_audit_table');
 SELECT schema_support.save_grants_for_replay('schema_support', 'build_audit_table');
@@ -260,7 +353,7 @@ DECLARE
 	_myrole	TEXT;
 	msg TEXT;
 BEGIN
-	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+	SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 	IF issuper THEN
 		EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
 	END IF;
@@ -898,6 +991,475 @@ $$;
 
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'reset_table_sequence ( character varying,character varying )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
 DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying );
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'retrieve_functions');
+SELECT schema_support.save_grants_for_replay('schema_support', 'retrieve_functions');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.retrieve_functions ( character varying,character varying,boolean );
+CREATE OR REPLACE FUNCTION schema_support.retrieve_functions(schema character varying, object character varying, dropit boolean DEFAULT false)
+ RETURNS text[]
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	_r		RECORD;
+	_fn		TEXT;
+	_cmd	TEXT;
+	_rv		TEXT[];
+	_myrole TEXT;
+BEGIN
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
+	END;
+	FOR _r IN SELECT n.nspname, p.proname,
+				coalesce(u.usename, 'public') as owner,
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		_fn = _r.nspname || '.' || _r.proname || '(' || _r.idargs || ')';
+		_rv = _rv || _fn;
+
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _fn || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+	RETURN _rv;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('retrieve_functions');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc retrieve_functions failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'save_function_for_replay');
+SELECT schema_support.save_grants_for_replay('schema_support', 'save_function_for_replay');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.save_function_for_replay ( character varying,character varying,boolean,text[],text[] );
+CREATE OR REPLACE FUNCTION schema_support.save_function_for_replay(schema character varying, object character varying, dropit boolean DEFAULT true, tags text[] DEFAULT NULL::text[], path text[] DEFAULT NULL::text[])
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+	_myrole TEXT;
+BEGIN
+	path = path || concat(schema, '.', object);
+	PERFORM schema_support.prepare_for_object_replay();
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
+	END;
+
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
+	FOR _r IN SELECT n.nspname, p.proname,
+				coalesce(u.rolname, 'public') as owner,
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		INSERT INTO __recreate (schema, object, type, owner,
+			ddl, idargs, tags, path
+		) VALUES (
+			_r.nspname, _r.proname, 'function', _r.owner,
+			_r.funcdef, _r.idargs, tags, path
+		);
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
+				_r.proname || '(' || _r.idargs || ');';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('save_function_for_replay');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc save_function_for_replay failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'save_view_for_replay');
+SELECT schema_support.save_grants_for_replay('schema_support', 'save_view_for_replay');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.save_view_for_replay ( character varying,character varying,boolean,text[],text[] );
+CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(schema character varying, object character varying, dropit boolean DEFAULT true, tags text[] DEFAULT NULL::text[], path text[] DEFAULT NULL::text[])
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	_r		RECORD;
+	_c		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
+	_mat	TEXT;
+	_typ	TEXT;
+	_myrole	TEXT;
+BEGIN
+	path = path || concat(schema, '.', object);
+	PERFORM schema_support.prepare_for_object_replay();
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
+
+	-- save any triggers on the view
+	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit, tags, path);
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
+	END;
+
+	-- now save the view
+	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
+				coalesce(u.rolname, 'public') as owner,
+				pg_get_viewdef(c.oid, true) as viewdef, relkind
+		FROM pg_class c
+		INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		LEFT JOIN pg_roles u on u.oid = c.relowner
+		WHERE c.relname = object
+		AND n.nspname = schema
+	LOOP
+		--
+		-- iterate through all the columns on this view with comments or
+		-- defaults and reserve them
+		--
+		FOR _c IN SELECT * FROM ( SELECT a.attname AS colname,
+					pg_catalog.format_type(a.atttypid, a.atttypmod) AS coltype,
+					(
+						SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid)
+								FOR 128)
+						FROM pg_catalog.pg_attrdef d
+						WHERE
+							d.adrelid = a.attrelid
+							AND d.adnum = a.attnum
+							AND a.atthasdef) AS def, a.attnotnull, a.attnum, (
+							SELECT c.collname
+							FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+							WHERE
+								c.oid = a.attcollation
+								AND t.oid = a.atttypid
+								AND a.attcollation <> t.typcollation) AS attcollation, d.description AS COMMENT
+						FROM pg_catalog.pg_attribute a
+						LEFT JOIN pg_catalog.pg_description d ON d.objoid = a.attrelid
+							AND d.objsubid = a.attnum
+					WHERE
+						a.attrelid = _r.oid
+						AND a.attnum > 0
+						AND NOT a.attisdropped
+					ORDER BY a.attnum
+			) x WHERE def IS NOT NULL OR COMMENT IS NOT NULL
+		LOOP
+			IF _c.def IS NOT NULL THEN
+				_ddl := 'ALTER VIEW ' || quote_ident(schema) || '.' ||
+					quote_ident(object) || ' ALTER COLUMN ' ||
+					quote_ident(_c.colname) || ' SET DEFAULT ' || _c.def;
+				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
+					VALUES (
+						_r.nspname, _r.relname, 'default', _ddl, tags, path
+					);
+			END IF;
+			IF _c.comment IS NOT NULL THEN
+				_ddl := 'COMMENT ON COLUMN ' ||
+					quote_ident(schema) || '.' || quote_ident(object) ||
+					'.' || quote_ident(_c.colname) ||
+					' IS ''' || _c.comment || '''';
+				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
+					VALUES (
+						_r.nspname, _r.relname, 'colcomment', _ddl, tags, path
+					);
+			END IF;
+
+		END LOOP;
+
+		_mat = ' VIEW ';
+		_typ = 'view';
+		IF _r.relkind = 'm' THEN
+			_mat = ' MATERIALIZED VIEW ';
+			_typ = 'materialized view';
+		END IF;
+		_ddl := 'CREATE ' || _mat || _r.nspname || '.' || _r.relname ||
+			' AS ' || _r.viewdef;
+		IF _ddl is NULL THEN
+			RAISE EXCEPTION 'Unable to define view for %', _r;
+		END IF;
+		INSERT INTO __recreate (schema, object, owner, type, ddl, tags, path )
+			VALUES (
+				_r.nspname, _r.relname, _r.owner, _typ, _ddl, tags, path
+			);
+		IF dropit  THEN
+			_cmd = 'DROP ' || _mat || _r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
+	END LOOP;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('save_view_for_replay');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc save_view_for_replay failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'undo_audit_row');
+SELECT schema_support.save_grants_for_replay('schema_support', 'undo_audit_row');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.undo_audit_row ( text,text,text,timestamp without time zone,timestamp without time zone,text,integer[],bigint[] );
+CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(in_table text, in_audit_schema text DEFAULT 'audit'::text, in_schema text DEFAULT 'jazzhands'::text, in_start_time timestamp without time zone DEFAULT NULL::timestamp without time zone, in_end_time timestamp without time zone DEFAULT NULL::timestamp without time zone, in_aud_user text DEFAULT NULL::text, in_audit_ids integer[] DEFAULT NULL::integer[], in_txids bigint[] DEFAULT NULL::bigint[])
+ RETURNS integer
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	tally				integer;
+	pks					text[];
+	cols				text[];
+	q					text;
+	val					text;
+	x					text;
+	_whcl				text;
+	_eq					text;
+	setstr				text;
+	_r					record;
+	_c					record;
+	_br					record;
+	_vals				text[];
+	txt_in_audit_ids	text;
+	txt_in_txids		text;
+	i					integer;
+BEGIN
+	IF in_txids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_txids LOOP
+			IF txt_in_txids IS NULL THEN
+				txt_in_txids := i;
+			ELSE
+				txt_in_txids := txt_in_txids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
+	IF in_audit_ids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_audit_ids LOOP
+			IF txt_in_audit_ids IS NULL THEN
+				txt_in_audit_ids := i;
+			ELSE
+				txt_in_audit_ids := txt_in_audit_ids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
+	tally := 0;
+	pks := schema_support.get_pk_columns(in_schema, in_table);
+	cols := schema_support.get_columns(in_schema, in_table);
+	q = '';
+	IF in_start_time is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#timestamp') || ' >= ' || quote_literal(in_start_time);
+	END IF;
+	IF in_end_time is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#timestamp') || ' <= ' || quote_literal(in_end_time);
+	END IF;
+	IF in_aud_user is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#user') || ' = ' || quote_literal(in_aud_user);
+	END IF;
+	IF in_audit_ids is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		RAISE NOTICE 'xx -> %', txt_in_audit_ids;
+		q := q || quote_ident('aud#seq') || ' = ANY (ARRAY[' || txt_in_audit_ids || '])';
+	END IF;
+	IF in_txids is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		RAISE NOTICE 'xx -> %', txt_in_txids;
+		q := q || quote_ident('aud#txid') || ' = ANY (ARRAY[' || txt_in_txids || '])';
+	END IF;
+
+	RAISE NOTICE 'q-> %', q;
+
+	-- Iterate over all the rows that need to be replayed
+	q := 'SELECT * FROM ' || quote_ident(in_audit_schema) || '.' ||
+			quote_ident(in_table) || ' ' || q || ' ORDER BY "aud#seq" desc';
+	FOR _r IN EXECUTE q
+	LOOP
+		IF _r."aud#action" = 'DEL' THEN
+			-- Build up a list of rows that need to be inserted
+			_vals = NULL;
+			FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+			LOOP
+				IF _c.key !~ 'data|aud' THEN
+					IF _c.value IS NULL THEN
+						SELECT array_append(_vals, 'NULL') INTO _vals;
+					ELSE
+						SELECT array_append(_vals, quote_literal(_c.value)) INTO _vals;
+					END IF;
+				END IF;
+			END LOOP;
+			_eq := 'INSERT INTO ' || quote_ident(in_schema) || '.' ||
+				quote_ident(in_table) || ' ( ' ||
+				array_to_string(
+					schema_support.quote_ident_array(cols), ',') ||
+					') VALUES (' ||  array_to_string(_vals, ',', NULL) || ')';
+		ELSIF _r."aud#action" in ('INS', 'UPD') THEN
+			-- Build up a where clause for this table to get a unique row
+			-- based on the primary key
+			FOREACH x IN ARRAY pks
+			LOOP
+				_whcl := '';
+				FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+				LOOP
+					IF _c.key = x THEN
+						IF _whcl != '' THEN
+							_whcl := _whcl || ', ';
+						END IF;
+						IF _c.value IS NULL THEN
+							_whcl = _whcl || quote_ident(_c.key) || ' = NULL ';
+						ELSE
+							_whcl = _whcl || quote_ident(_c.key) || ' =  ' ||
+								quote_nullable(_c.value);
+						END IF;
+					END IF;
+				END LOOP;
+			END LOOP;
+
+			IF _r."aud#action" = 'INS' THEN
+				_eq := 'DELETE FROM ' || quote_ident(in_schema) || '.' ||
+					quote_ident(in_table) || ' WHERE ' || _whcl;
+			ELSIF _r."aud#action" = 'UPD' THEN
+				-- figure out what rows have changed and do an update if
+				-- they have.  NOTE:  This may result in no change being
+				-- replayed if a row did not actually change
+				setstr = '';
+				FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+				LOOP
+					--
+					-- Iterate over all the columns and if they have changed,
+					-- then build an update statement
+					--
+					IF _c.key !~ 'aud#|data_(ins|upd)_(user|date)' THEN
+						EXECUTE 'SELECT ' || _c.key || ' FROM ' ||
+							quote_ident(in_schema) || '.' ||
+								quote_ident(in_table)  ||
+							' WHERE ' || _whcl
+							INTO val;
+						IF ( _c.value IS NULL  AND val IS NOT NULL) OR
+							( _c.value IS NOT NULL AND val IS NULL) OR
+							(_c.value::text NOT SIMILAR TO val::text) THEN
+							IF char_length(setstr) > 0 THEN
+								setstr = setstr || ',
+								';
+							END IF;
+							IF _c.value IS NOT  NULL THEN
+								setstr = setstr || _c.key || ' = ' ||
+									quote_nullable(_c.value) || ' ' ;
+							ELSE
+								setstr = setstr || _c.key || ' = ' ||
+									' NULL ' ;
+							END IF;
+						END IF;
+					END IF;
+				END LOOP;
+				IF char_length(setstr) > 0 THEN
+					_eq := 'UPDATE ' || quote_ident(in_schema) || '.' ||
+						quote_ident(in_table) ||
+						' SET ' || setstr || ' WHERE ' || _whcl;
+				END IF;
+			END IF;
+		END IF;
+		IF _eq IS NOT NULL THEN
+			tally := tally + 1;
+			RAISE NOTICE '%', _eq;
+			EXECUTE _eq;
+		END IF;
+	END LOOP;
+	RETURN tally;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('undo_audit_row');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc undo_audit_row failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 -- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants(username text, direction text, old_schema text, new_schema text, name_map jsonb DEFAULT NULL::jsonb, name_map_exception boolean DEFAULT true)
@@ -923,7 +1485,7 @@ BEGIN
 			p->>'privilege_type' as privilege_type,
 			col,
 			r.usename as grantor, e.usename as grantee,
-			r.usesysid as rid,  e.usesysid as eid,
+			r.oid as rid,  e.oid as eid,
 			e.useconfig
 		FROM (
 			SELECT  c.oid, n.nspname as schema,
@@ -961,8 +1523,8 @@ BEGIN
 			WHERE c.relkind IN ('r', 'v', 'S', 'f')
 			AND a.attacl IS NOT NULL
 		) x
-		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
-		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		LEFT JOIN pg_roles r ON r.oid = (p->>'grantor')::oid
+		LEFT JOIN pg_roles e ON e.oid = (p->>'grantee')::oid
 		) i
 		) select *
 		FROM x
@@ -1532,14 +2094,513 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema port_utils
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('port_utils', 'configure_layer1_connect');
+SELECT schema_support.save_grants_for_replay('port_utils', 'configure_layer1_connect');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS port_utils.configure_layer1_connect ( integer,integer,integer,integer,integer,text,text,integer );
+CREATE OR REPLACE FUNCTION port_utils.configure_layer1_connect(physportid1 integer, physportid2 integer, baud integer DEFAULT '-99'::integer, data_bits integer DEFAULT '-99'::integer, stop_bits integer DEFAULT '-99'::integer, parity text DEFAULT '__unknown__'::text, flw_cntrl text DEFAULT '__unknown__'::text, circuit_id integer DEFAULT '-99'::integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands_legacy'
+AS $function$
+DECLARE
+	tally		integer;
+	l1_con_id	jazzhands_legacy.layer1_connection.layer1_connection_id%TYPE;
+	l1con		jazzhands_legacy.layer1_connection%ROWTYPE;
+	p1_l1_con	jazzhands_legacy.layer1_connection%ROWTYPE;
+	p2_l1_con	jazzhands_legacy.layer1_connection%ROWTYPE;
+	p1_port		jazzhands_legacy.physical_port%ROWTYPE;
+	p2_port		jazzhands_legacy.physical_port%ROWTYPE;
+	col_nams	varchar(100) [];
+	col_vals	varchar(100) [];
+	updateitr	integer;
+	i_baud		jazzhands_legacy.layer1_connection.baud%type;
+	i_data_bits	jazzhands_legacy.layer1_connection.data_bits%type;
+	i_stop_bits	jazzhands_legacy.layer1_connection.stop_bits%type;
+	i_parity     	jazzhands_legacy.layer1_connection.parity%type;
+	i_flw_cntrl	jazzhands_legacy.layer1_connection.flow_control%type;
+	i_circuit_id 	jazzhands_legacy.layer1_connection.circuit_id%type;
+BEGIN
+	RAISE DEBUG 'looking up % and %', physportid1, physportid2;
+
+	RAISE DEBUG 'min args %:%:% <--', physportid1, physportid2, circuit_id;
+
+	-- First make sure the physical ports exist
+	BEGIN
+		select	*
+		  into	p1_port
+		  from	physical_port
+		 where	physical_port_id = physportid1;
+
+		select	*
+		  into	p2_port
+		  from	physical_port
+		 where	physical_port_id = physportid2;
+	EXCEPTION WHEN no_data_found THEN
+		RAISE EXCEPTION 'Two physical ports must be specified'
+			USING ERRCODE = -20100;
+	END;
+
+	if p1_port.port_type <> p2_port.port_type then
+		RAISE EXCEPTION 'Port Types Must match' USING ERRCODE = -20101;
+	end if;
+
+	-- see if existing layer1_connection exists
+	-- [XXX] probably want to pull out into a cursor
+	BEGIN
+		select	*
+		  into	p1_l1_con
+		  from	layer1_connection
+		 where	physical_port1_id = physportid1
+		    or  physical_port2_id = physportid1;
+	EXCEPTION WHEN no_data_found THEN
+		NULL;
+	END;
+	BEGIN
+		select	*
+		  into	p2_l1_con
+		  from	layer1_connection
+		 where	physical_port1_id = physportid2
+		    or  physical_port2_id = physportid2;
+
+	EXCEPTION WHEN no_data_found THEN
+		NULL;
+	END;
+
+	updateitr := 0;
+
+	--		need to figure out which ports to reset in some cases
+	--		need to check as many combinations as possible.
+	--		need to deal with new ids.
+
+	--
+	-- If a connection already exists, figure out the right one
+	-- If there are two, then remove one.  Favor ones where the left
+	-- is this port.
+	--
+	-- Also falling out of this will be the port needs to be updated,
+	-- assuming a port needs to be updated
+	--
+	RAISE DEBUG 'one is %, the other is %', p1_l1_con.layer1_connection_id,
+		p2_l1_con.layer1_connection_id;
+	if (p1_l1_con.layer1_connection_id is not NULL) then
+		if (p2_l1_con.layer1_connection_id is not NULL) then
+			if (p1_l1_con.physical_port1_id = physportid1) then
+				--
+				-- if this is not true, then the connection already
+				-- exists between these two, and layer1_params need to
+				-- be set later.  If they are already connected,
+				-- this gets discovered here
+				--
+				if(p1_l1_con.physical_port2_id != physportid2) then
+					--
+					-- physport1 is connected to something, just not this
+					--
+					RAISE DEBUG 'physport1 is connected to something, just not this';
+					l1_con_id := p1_l1_con.layer1_connection_id;
+					--
+					-- physport2 is connected to something, which needs to go away, so make it go away
+					--
+					if(p2_l1_con.layer1_connection_id is not NULL) then
+						RAISE DEBUG 'physport2 is connected to something, just not this';
+						RAISE DEBUG '>>>> removing %',
+							p2_l1_con.layer1_connection_id;
+						delete from layer1_connection
+							where layer1_connection_id =
+								p2_l1_con.layer1_connection_id;
+					end if;
+				else
+					l1_con_id := p1_l1_con.layer1_connection_id;
+					RAISE DEBUG 'they''re already connected';
+				end if;
+			elsif (p1_l1_con.physical_port2_id = physportid1) then
+				RAISE DEBUG '>>> connection is backwards!';
+				if (p1_l1_con.physical_port1_id != physportid2) then
+					if (p2_l1_con.physical_port1_id = physportid1) then
+						l1_con_id := p2_l1_con.layer1_connection_id;
+						RAISE DEBUG '>>>>+ removing %', p1_l1_con.layer1_connection_id;
+						delete from layer1_connection
+							where layer1_connection_id =
+								p1_l1_con.layer1_connection_id;
+					else
+						if (p1_l1_con.physical_port1_id = physportid1) then
+							l1_con_id := p1_l1_con.layer1_connection_id;
+						else
+							-- p1_l1_con.physical_port2_id must be physportid1
+							l1_con_id := p1_l1_con.layer1_connection_id;
+						end if;
+						RAISE DEBUG '>>>>- removing %', p2_l1_con.layer1_connection_id;
+						delete from layer1_connection
+							where layer1_connection_id =
+								p2_l1_con.layer1_connection_id;
+					end if;
+				else
+					RAISE DEBUG 'they''re already connected, but backwards';
+					l1_con_id := p1_l1_con.layer1_connection_id;
+				end if;
+			end if;
+		else
+			RAISE DEBUG 'p1 is connected, bt p2 is not';
+			l1_con_id := p1_l1_con.layer1_connection_id;
+		end if;
+	elsif(p2_l1_con.layer1_connection_id is NULL) then
+		-- both are null in this case
+
+		IF (circuit_id = -99) THEN
+			i_circuit_id := NULL;
+		ELSE
+			i_circuit_id := circuit_id;
+		END IF;
+		IF (baud = -99) THEN
+			i_baud := NULL;
+		ELSE
+			i_baud := baud;
+		END IF;
+		IF data_bits = -99 THEN
+			i_data_bits := NULL;
+		ELSE
+			i_data_bits := data_bits;
+		END IF;
+		IF stop_bits = -99 THEN
+			i_stop_bits := NULL;
+		ELSE
+			i_stop_bits := stop_bits;
+		END IF;
+		IF parity = '__unknown__' THEN
+			i_parity := NULL;
+		ELSE
+			i_parity := parity;
+		END IF;
+		IF flw_cntrl = '__unknown__' THEN
+			i_flw_cntrl := NULL;
+		ELSE
+			i_flw_cntrl := flw_cntrl;
+		END IF;
+		IF p1_port.port_type = 'serial' THEN
+		        insert into layer1_connection (
+			        PHYSICAL_PORT1_ID, PHYSICAL_PORT2_ID,
+			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL,
+			        CIRCUIT_ID, IS_TCPSRV_ENABLED
+		        ) values (
+			        physportid1, physportid2,
+			        i_baud, i_data_bits, i_stop_bits, i_parity, i_flw_cntrl,
+			        i_circuit_id, 'Y'
+		        ) RETURNING layer1_connection_id into l1_con_id;
+		ELSE
+		        insert into layer1_connection (
+			        PHYSICAL_PORT1_ID, PHYSICAL_PORT2_ID,
+			        BAUD, DATA_BITS, STOP_BITS, PARITY, FLOW_CONTROL,
+			        CIRCUIT_ID
+		        ) values (
+			        physportid1, physportid2,
+			        i_baud, i_data_bits, i_stop_bits, i_parity, i_flw_cntrl,
+			        i_circuit_id
+		        ) RETURNING layer1_connection_id into l1_con_id;
+		END IF;
+		RAISE DEBUG 'added, l1_con_id is %', l1_con_id;
+		return 1;
+	else
+		RAISE DEBUG 'p2 is connected but p1 is not';
+		l1_con_id := p2_l1_con.layer1_connection_id;
+	end if;
+
+	RAISE DEBUG 'l1_con_id is %', l1_con_id;
+
+	-- check to see if both ends are the same type
+	-- see if they're already connected.  If not, zap the connection
+	--	that doesn't match this port1/port2 config (favor first port)
+	-- update various variables
+	select	*
+	  into	l1con
+	  from	layer1_connection
+	 where	layer1_connection_id = l1_con_id;
+
+	if (l1con.PHYSICAL_PORT1_ID != physportid1 OR
+			l1con.PHYSICAL_PORT2_ID != physportid2) AND
+			(l1con.PHYSICAL_PORT1_ID != physportid2 OR
+			l1con.PHYSICAL_PORT2_ID != physportid1)  THEN
+		-- this means that one end is wrong, now we need to figure out
+		-- which end.
+		if(l1con.PHYSICAL_PORT1_ID = physportid1) THEN
+			RAISE DEBUG 'update port2 to second port';
+			updateitr := updateitr + 1;
+			col_nams[updateitr] := 'PHYSICAL_PORT2_ID';
+			col_vals[updateitr] := physportid2;
+		elsif(l1con.PHYSICAL_PORT2_ID = physportid1) THEN
+			RAISE DEBUG 'update port1 to second port';
+			updateitr := updateitr + 1;
+			col_nams[updateitr] := 'PHYSICAL_PORT1_ID';
+			col_vals[updateitr] := physportid2;
+		elsif(l1con.PHYSICAL_PORT1_ID = physportid2) THEN
+			RAISE DEBUG 'update port2 to first port';
+			updateitr := updateitr + 1;
+			col_nams[updateitr] := 'PHYSICAL_PORT2_ID';
+			col_vals[updateitr] := physportid1;
+		elsif(l1con.PHYSICAL_PORT2_ID = physportid2) THEN
+			RAISE DEBUG 'update port1 to first port';
+			updateitr := updateitr + 1;
+			col_nams[updateitr] := 'PHYSICAL_PORT1_ID';
+			col_vals[updateitr] := physportid1;
+		end if;
+	end if;
+
+	RAISE DEBUG 'circuit_id -- % v %', circuit_id, l1con.circuit_id;
+	if(circuit_id <> -99 and (l1con.circuit_id is NULL or l1con.circuit_id <> circuit_id)) THEN
+		RAISE DEBUG 'updating circuit_id';
+		updateitr := updateitr + 1;
+		col_nams[updateitr] := 'CIRCUIT_ID';
+		col_vals[updateitr] := circuit_id;
+	end if;
+
+	RAISE DEBUG  'baud: % v %', baud, l1con.baud;
+	if(baud <> -99 and (l1con.baud is NULL or l1con.baud <> baud)) THEN
+		RAISE DEBUG 'updating baud';
+		updateitr := updateitr + 1;
+		col_nams[updateitr] := 'BAUD';
+		col_vals[updateitr] := baud;
+	end if;
+
+	if(data_bits <> -99 and (l1con.data_bits is NULL or l1con.data_bits <> data_bits)) THEN
+		RAISE DEBUG 'updating data_bits';
+		updateitr := updateitr + 1;
+		col_nams[updateitr] := 'DATA_BITS';
+		col_vals[updateitr] := data_bits;
+	end if;
+
+	if(stop_bits <> -99 and (l1con.stop_bits is NULL or l1con.stop_bits <> stop_bits)) THEN
+		RAISE DEBUG 'updating stop bits';
+		updateitr := updateitr + 1;
+		col_nams[updateitr] := 'STOP_BITS';
+		col_vals[updateitr] := stop_bits;
+	end if;
+
+	if(parity <> '__unknown__' and (l1con.parity is NULL or l1con.parity <> parity)) THEN
+		RAISE DEBUG 'updating parity';
+		updateitr := updateitr + 1;
+		col_nams[updateitr] := 'PARITY';
+		col_vals[updateitr] := quote_literal(parity);
+	end if;
+
+	if(flw_cntrl <> '__unknown__' and (l1con.parity is NULL or l1con.parity <> flw_cntrl)) THEN
+		RAISE DEBUG 'updating flow control';
+		updateitr := updateitr + 1;
+		col_nams[updateitr] := 'FLOW_CONTROL';
+		col_vals[updateitr] := quote_literal(flw_cntrl);
+	end if;
+
+	if(updateitr > 0) then
+		RAISE DEBUG 'running do_l1_connection_update';
+		PERFORM port_utils.do_l1_connection_update(col_nams, col_vals, l1_con_id);
+	end if;
+
+	RAISE DEBUG 'returning %', updateitr;
+	return updateitr;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'port_utils' AND type = 'function' AND object IN ('configure_layer1_connect');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc configure_layer1_connect failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_port_utils']);
 --
 -- Process middle (non-trigger) schema rack_utils
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('rack_utils', 'set_rack_location');
+SELECT schema_support.save_grants_for_replay('rack_utils', 'set_rack_location');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS rack_utils.set_rack_location ( integer,integer,integer,integer,character varying,boolean );
+CREATE OR REPLACE FUNCTION rack_utils.set_rack_location(rack_id integer, device_id integer DEFAULT NULL::integer, component_id integer DEFAULT NULL::integer, rack_u_offset_of_device_top integer DEFAULT NULL::integer, rack_side character varying DEFAULT 'FRONT'::character varying, allow_duplicates boolean DEFAULT true)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	rid		ALIAS FOR	rack_id;
+	devid	ALIAS FOR	device_id;
+	cid		ALIAS FOR	component_id;
+	rack_u	ALIAS FOR	rack_u_offset_of_device_top;
+	side	ALIAS FOR	rack_side;
+	rlid	jazzhands.rack_location.rack_location_id%TYPE;
+	rec		RECORD;
+	tally	integer;
+BEGIN
+	IF rack_id IS NULL THEN
+		RAISE 'rack_id must be specified to rack_utils.set_rack_location()';
+	END IF;
+
+	SELECT
+		rl.rack_location_id INTO rlid
+	FROM
+		rack_location rl
+	WHERE
+		rl.rack_id = rid AND
+		rl.rack_u_offset_of_device_top IS NOT DISTINCT FROM rack_u AND
+		rl.rack_side = side;
+	
+	IF NOT FOUND THEN
+		INSERT INTO rack_location (
+			rack_id,
+			rack_u_offset_of_device_top,
+			rack_side
+		) VALUES (
+			rid,
+			rack_u,
+			side
+		) RETURNING rack_location_id INTO rlid;
+	END IF;
+	
+	IF device_id IS NOT NULL THEN
+		SELECT * INTO rec FROM device d WHERE d.device_id = devid;
+		IF rec.rack_location_id IS DISTINCT FROM rlid THEN
+			UPDATE device d SET rack_location_id = rlid WHERE
+				d.device_id = devid;
+			BEGIN
+				DELETE FROM rack_location rl WHERE rl.rack_location_id = 
+					rec.rack_location_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN
+					NULL;
+			END;
+		END IF;
+	END IF;
+
+	IF component_id IS NOT NULL THEN
+		SELECT * INTO rec FROM component c WHERE c.component_id = cid;
+		IF rec.rack_location_id IS DISTINCT FROM rlid THEN
+			UPDATE component c SET rack_location_id = rlid WHERE
+				c.component_id = cid;
+			BEGIN
+				DELETE FROM rack_location rl WHERE rl.rack_location_id = 
+					rec.rack_location_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN
+					NULL;
+			END;
+		END IF;
+	END IF;
+	RETURN rlid;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'rack_utils' AND type = 'function' AND object IN ('set_rack_location');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc set_rack_location failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_rack_utils']);
 --
 -- Process middle (non-trigger) schema schema_support
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'begin_maintenance');
+SELECT schema_support.save_grants_for_replay('schema_support', 'begin_maintenance');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.begin_maintenance ( boolean );
+CREATE OR REPLACE FUNCTION schema_support.begin_maintenance(shouldbesuper boolean DEFAULT true)
+ RETURNS boolean
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	issuper	boolean;
+	_tally	integer;
+BEGIN
+	IF shouldbesuper THEN
+		SELECT rolsuper INTO issuper FROM pg_role where rolname = current_user;
+		IF issuper IS false THEN
+			PERFORM groname, rolname
+			FROM (
+				SELECT groname, unnest(grolist) AS oid
+				FROM pg_group ) g
+			JOIN pg_roles u USING (oid)
+			WHERE groname = 'dba'
+			AND rolname = current_user;
+
+			IF NOT FOUND THEN
+				RAISE EXCEPTION 'User must be a super user or have the dba role';
+			END IF;
+		END IF;
+	END IF;
+	-- Not sure how reliable this is.
+	-- http://www.postgresql.org/docs/9.3/static/monitoring-stats.html
+	SELECT count(*)
+	  INTO _tally
+	  FROM	pg_stat_activity
+	 WHERE	pid = pg_backend_pid()
+	   AND	query_start = xact_start;
+	IF _tally > 0 THEN
+		RAISE EXCEPTION 'Must run maintenance in a transaction.';
+	END IF;
+
+	--
+	-- Stash counts of things that may relate to this maintenance for
+	-- alter verification and statistics
+	--
+	-- similar code is in end_maintenance (the INSERT query is the same
+	--
+	CREATE TEMPORARY TABLE __owner_before_stats (
+		username					TEXT,
+		before_views_count			INTEGER,
+		before_func_count		INTEGER,
+		before_key_count	INTEGER,
+		PRIMARY KEY (username)
+	);
+	INSERT INTO __owner_before_stats
+		SELECT rolname, coalesce(numrels, 0) AS numrels,
+		coalesce(numprocs, 0) AS numprocs,
+		coalesce(numfks, 0) AS numfks
+		FROM pg_roles u
+			LEFT JOIN (
+		SELECT relowner, count(*) AS numrels
+				FROM pg_class
+				WHERE relkind IN ('r','v')
+				GROUP BY 1
+				) c ON r.oid = c.relowner
+			LEFT JOIN (SELECT proowner, count(*) AS numprocs
+				FROM pg_proc
+				GROUP BY 1
+				) p ON r.oid = p.proowner
+			LEFT JOIN (
+				SELECT relowner, count(*) AS numfks
+				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
+				WHERE contype = 'f'
+				GROUP BY 1
+			) fk ON r.oid = fk.relowner
+		WHERE r.oid > 16384
+	AND (numrels IS NOT NULL OR numprocs IS NOT NULL OR numfks IS NOT NULL);
+
+	RETURN true;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('begin_maintenance');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc begin_maintenance failed but that is ok';
+	NULL;
+END;
+$$;
+
 -- Changed function
 SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'build_audit_table');
 SELECT schema_support.save_grants_for_replay('schema_support', 'build_audit_table');
@@ -1626,7 +2687,7 @@ DECLARE
 	_myrole	TEXT;
 	msg TEXT;
 BEGIN
-	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+	SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 	IF issuper THEN
 		EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
 	END IF;
@@ -2264,6 +3325,475 @@ $$;
 
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'reset_table_sequence ( character varying,character varying )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
 DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying );
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'retrieve_functions');
+SELECT schema_support.save_grants_for_replay('schema_support', 'retrieve_functions');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.retrieve_functions ( character varying,character varying,boolean );
+CREATE OR REPLACE FUNCTION schema_support.retrieve_functions(schema character varying, object character varying, dropit boolean DEFAULT false)
+ RETURNS text[]
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	_r		RECORD;
+	_fn		TEXT;
+	_cmd	TEXT;
+	_rv		TEXT[];
+	_myrole TEXT;
+BEGIN
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
+	END;
+	FOR _r IN SELECT n.nspname, p.proname,
+				coalesce(u.usename, 'public') as owner,
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		_fn = _r.nspname || '.' || _r.proname || '(' || _r.idargs || ')';
+		_rv = _rv || _fn;
+
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _fn || ';';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+	RETURN _rv;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('retrieve_functions');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc retrieve_functions failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'save_function_for_replay');
+SELECT schema_support.save_grants_for_replay('schema_support', 'save_function_for_replay');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.save_function_for_replay ( character varying,character varying,boolean,text[],text[] );
+CREATE OR REPLACE FUNCTION schema_support.save_function_for_replay(schema character varying, object character varying, dropit boolean DEFAULT true, tags text[] DEFAULT NULL::text[], path text[] DEFAULT NULL::text[])
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	_r		RECORD;
+	_cmd	TEXT;
+	_myrole TEXT;
+BEGIN
+	path = path || concat(schema, '.', object);
+	PERFORM schema_support.prepare_for_object_replay();
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
+	END;
+
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
+	FOR _r IN SELECT n.nspname, p.proname,
+				coalesce(u.rolname, 'public') as owner,
+				pg_get_functiondef(p.oid) as funcdef,
+				pg_get_function_identity_arguments(p.oid) as idargs
+		FROM    pg_catalog.pg_proc  p
+				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
+				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
+		WHERE   n.nspname = schema
+		  AND	p.proname = object
+	LOOP
+		INSERT INTO __recreate (schema, object, type, owner,
+			ddl, idargs, tags, path
+		) VALUES (
+			_r.nspname, _r.proname, 'function', _r.owner,
+			_r.funcdef, _r.idargs, tags, path
+		);
+		IF dropit  THEN
+			_cmd = 'DROP FUNCTION ' || _r.nspname || '.' ||
+				_r.proname || '(' || _r.idargs || ');';
+			EXECUTE _cmd;
+		END IF;
+	END LOOP;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('save_function_for_replay');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc save_function_for_replay failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'save_view_for_replay');
+SELECT schema_support.save_grants_for_replay('schema_support', 'save_view_for_replay');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.save_view_for_replay ( character varying,character varying,boolean,text[],text[] );
+CREATE OR REPLACE FUNCTION schema_support.save_view_for_replay(schema character varying, object character varying, dropit boolean DEFAULT true, tags text[] DEFAULT NULL::text[], path text[] DEFAULT NULL::text[])
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	_r		RECORD;
+	_c		RECORD;
+	_cmd	TEXT;
+	_ddl	TEXT;
+	_mat	TEXT;
+	_typ	TEXT;
+	_myrole	TEXT;
+BEGIN
+	path = path || concat(schema, '.', object);
+	PERFORM schema_support.prepare_for_object_replay();
+
+	-- implicitly save regrants
+	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
+
+	-- save any triggers on the view
+	PERFORM schema_support.save_trigger_for_replay(schema, object, dropit, tags, path);
+
+	BEGIN
+		SELECT current_role INTO _myrole;
+		SET ROLE = dba;
+	EXCEPTION WHEN insufficient_privilege OR invalid_parameter_value THEN
+		RAISE NOTICE 'Failed to raise privilege: % (%), crossing fingers', SQLERRM, SQLSTATE;
+	END;
+
+	-- now save the view
+	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
+				coalesce(u.rolname, 'public') as owner,
+				pg_get_viewdef(c.oid, true) as viewdef, relkind
+		FROM pg_class c
+		INNER JOIN pg_namespace n on n.oid = c.relnamespace
+		LEFT JOIN pg_roles u on u.oid = c.relowner
+		WHERE c.relname = object
+		AND n.nspname = schema
+	LOOP
+		--
+		-- iterate through all the columns on this view with comments or
+		-- defaults and reserve them
+		--
+		FOR _c IN SELECT * FROM ( SELECT a.attname AS colname,
+					pg_catalog.format_type(a.atttypid, a.atttypmod) AS coltype,
+					(
+						SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid)
+								FOR 128)
+						FROM pg_catalog.pg_attrdef d
+						WHERE
+							d.adrelid = a.attrelid
+							AND d.adnum = a.attnum
+							AND a.atthasdef) AS def, a.attnotnull, a.attnum, (
+							SELECT c.collname
+							FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+							WHERE
+								c.oid = a.attcollation
+								AND t.oid = a.atttypid
+								AND a.attcollation <> t.typcollation) AS attcollation, d.description AS COMMENT
+						FROM pg_catalog.pg_attribute a
+						LEFT JOIN pg_catalog.pg_description d ON d.objoid = a.attrelid
+							AND d.objsubid = a.attnum
+					WHERE
+						a.attrelid = _r.oid
+						AND a.attnum > 0
+						AND NOT a.attisdropped
+					ORDER BY a.attnum
+			) x WHERE def IS NOT NULL OR COMMENT IS NOT NULL
+		LOOP
+			IF _c.def IS NOT NULL THEN
+				_ddl := 'ALTER VIEW ' || quote_ident(schema) || '.' ||
+					quote_ident(object) || ' ALTER COLUMN ' ||
+					quote_ident(_c.colname) || ' SET DEFAULT ' || _c.def;
+				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
+					VALUES (
+						_r.nspname, _r.relname, 'default', _ddl, tags, path
+					);
+			END IF;
+			IF _c.comment IS NOT NULL THEN
+				_ddl := 'COMMENT ON COLUMN ' ||
+					quote_ident(schema) || '.' || quote_ident(object) ||
+					'.' || quote_ident(_c.colname) ||
+					' IS ''' || _c.comment || '''';
+				INSERT INTO __recreate (schema, object, type, ddl, tags, path )
+					VALUES (
+						_r.nspname, _r.relname, 'colcomment', _ddl, tags, path
+					);
+			END IF;
+
+		END LOOP;
+
+		_mat = ' VIEW ';
+		_typ = 'view';
+		IF _r.relkind = 'm' THEN
+			_mat = ' MATERIALIZED VIEW ';
+			_typ = 'materialized view';
+		END IF;
+		_ddl := 'CREATE ' || _mat || _r.nspname || '.' || _r.relname ||
+			' AS ' || _r.viewdef;
+		IF _ddl is NULL THEN
+			RAISE EXCEPTION 'Unable to define view for %', _r;
+		END IF;
+		INSERT INTO __recreate (schema, object, owner, type, ddl, tags, path )
+			VALUES (
+				_r.nspname, _r.relname, _r.owner, _typ, _ddl, tags, path
+			);
+		IF dropit  THEN
+			_cmd = 'DROP ' || _mat || _r.nspname || '.' || _r.relname || ';';
+			EXECUTE _cmd;
+		END IF;
+
+	IF _myrole IS NOT NULL THEN
+		EXECUTE 'SET role = ' || _myrole;
+	END IF;
+
+	END LOOP;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('save_view_for_replay');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc save_view_for_replay failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'undo_audit_row');
+SELECT schema_support.save_grants_for_replay('schema_support', 'undo_audit_row');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.undo_audit_row ( text,text,text,timestamp without time zone,timestamp without time zone,text,integer[],bigint[] );
+CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(in_table text, in_audit_schema text DEFAULT 'audit'::text, in_schema text DEFAULT 'jazzhands'::text, in_start_time timestamp without time zone DEFAULT NULL::timestamp without time zone, in_end_time timestamp without time zone DEFAULT NULL::timestamp without time zone, in_aud_user text DEFAULT NULL::text, in_audit_ids integer[] DEFAULT NULL::integer[], in_txids bigint[] DEFAULT NULL::bigint[])
+ RETURNS integer
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	tally				integer;
+	pks					text[];
+	cols				text[];
+	q					text;
+	val					text;
+	x					text;
+	_whcl				text;
+	_eq					text;
+	setstr				text;
+	_r					record;
+	_c					record;
+	_br					record;
+	_vals				text[];
+	txt_in_audit_ids	text;
+	txt_in_txids		text;
+	i					integer;
+BEGIN
+	IF in_txids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_txids LOOP
+			IF txt_in_txids IS NULL THEN
+				txt_in_txids := i;
+			ELSE
+				txt_in_txids := txt_in_txids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
+	IF in_audit_ids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_audit_ids LOOP
+			IF txt_in_audit_ids IS NULL THEN
+				txt_in_audit_ids := i;
+			ELSE
+				txt_in_audit_ids := txt_in_audit_ids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
+	tally := 0;
+	pks := schema_support.get_pk_columns(in_schema, in_table);
+	cols := schema_support.get_columns(in_schema, in_table);
+	q = '';
+	IF in_start_time is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#timestamp') || ' >= ' || quote_literal(in_start_time);
+	END IF;
+	IF in_end_time is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#timestamp') || ' <= ' || quote_literal(in_end_time);
+	END IF;
+	IF in_aud_user is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		q := q || quote_ident('aud#user') || ' = ' || quote_literal(in_aud_user);
+	END IF;
+	IF in_audit_ids is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		RAISE NOTICE 'xx -> %', txt_in_audit_ids;
+		q := q || quote_ident('aud#seq') || ' = ANY (ARRAY[' || txt_in_audit_ids || '])';
+	END IF;
+	IF in_txids is not NULL THEN
+		IF q = '' THEN
+			q := q || 'WHERE ';
+		ELSE
+			q := q || 'AND ';
+		END IF;
+		RAISE NOTICE 'xx -> %', txt_in_txids;
+		q := q || quote_ident('aud#txid') || ' = ANY (ARRAY[' || txt_in_txids || '])';
+	END IF;
+
+	RAISE NOTICE 'q-> %', q;
+
+	-- Iterate over all the rows that need to be replayed
+	q := 'SELECT * FROM ' || quote_ident(in_audit_schema) || '.' ||
+			quote_ident(in_table) || ' ' || q || ' ORDER BY "aud#seq" desc';
+	FOR _r IN EXECUTE q
+	LOOP
+		IF _r."aud#action" = 'DEL' THEN
+			-- Build up a list of rows that need to be inserted
+			_vals = NULL;
+			FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+			LOOP
+				IF _c.key !~ 'data|aud' THEN
+					IF _c.value IS NULL THEN
+						SELECT array_append(_vals, 'NULL') INTO _vals;
+					ELSE
+						SELECT array_append(_vals, quote_literal(_c.value)) INTO _vals;
+					END IF;
+				END IF;
+			END LOOP;
+			_eq := 'INSERT INTO ' || quote_ident(in_schema) || '.' ||
+				quote_ident(in_table) || ' ( ' ||
+				array_to_string(
+					schema_support.quote_ident_array(cols), ',') ||
+					') VALUES (' ||  array_to_string(_vals, ',', NULL) || ')';
+		ELSIF _r."aud#action" in ('INS', 'UPD') THEN
+			-- Build up a where clause for this table to get a unique row
+			-- based on the primary key
+			FOREACH x IN ARRAY pks
+			LOOP
+				_whcl := '';
+				FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+				LOOP
+					IF _c.key = x THEN
+						IF _whcl != '' THEN
+							_whcl := _whcl || ', ';
+						END IF;
+						IF _c.value IS NULL THEN
+							_whcl = _whcl || quote_ident(_c.key) || ' = NULL ';
+						ELSE
+							_whcl = _whcl || quote_ident(_c.key) || ' =  ' ||
+								quote_nullable(_c.value);
+						END IF;
+					END IF;
+				END LOOP;
+			END LOOP;
+
+			IF _r."aud#action" = 'INS' THEN
+				_eq := 'DELETE FROM ' || quote_ident(in_schema) || '.' ||
+					quote_ident(in_table) || ' WHERE ' || _whcl;
+			ELSIF _r."aud#action" = 'UPD' THEN
+				-- figure out what rows have changed and do an update if
+				-- they have.  NOTE:  This may result in no change being
+				-- replayed if a row did not actually change
+				setstr = '';
+				FOR _c IN SELECT * FROM json_each_text( row_to_json(_r) )
+				LOOP
+					--
+					-- Iterate over all the columns and if they have changed,
+					-- then build an update statement
+					--
+					IF _c.key !~ 'aud#|data_(ins|upd)_(user|date)' THEN
+						EXECUTE 'SELECT ' || _c.key || ' FROM ' ||
+							quote_ident(in_schema) || '.' ||
+								quote_ident(in_table)  ||
+							' WHERE ' || _whcl
+							INTO val;
+						IF ( _c.value IS NULL  AND val IS NOT NULL) OR
+							( _c.value IS NOT NULL AND val IS NULL) OR
+							(_c.value::text NOT SIMILAR TO val::text) THEN
+							IF char_length(setstr) > 0 THEN
+								setstr = setstr || ',
+								';
+							END IF;
+							IF _c.value IS NOT  NULL THEN
+								setstr = setstr || _c.key || ' = ' ||
+									quote_nullable(_c.value) || ' ' ;
+							ELSE
+								setstr = setstr || _c.key || ' = ' ||
+									' NULL ' ;
+							END IF;
+						END IF;
+					END IF;
+				END LOOP;
+				IF char_length(setstr) > 0 THEN
+					_eq := 'UPDATE ' || quote_ident(in_schema) || '.' ||
+						quote_ident(in_table) ||
+						' SET ' || setstr || ' WHERE ' || _whcl;
+				END IF;
+			END IF;
+		END IF;
+		IF _eq IS NOT NULL THEN
+			tally := tally + 1;
+			RAISE NOTICE '%', _eq;
+			EXECUTE _eq;
+		END IF;
+	END LOOP;
+	RETURN tally;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('undo_audit_row');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc undo_audit_row failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 -- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants(username text, direction text, old_schema text, new_schema text, name_map jsonb DEFAULT NULL::jsonb, name_map_exception boolean DEFAULT true)
@@ -2289,7 +3819,7 @@ BEGIN
 			p->>'privilege_type' as privilege_type,
 			col,
 			r.usename as grantor, e.usename as grantee,
-			r.usesysid as rid,  e.usesysid as eid,
+			r.oid as rid,  e.oid as eid,
 			e.useconfig
 		FROM (
 			SELECT  c.oid, n.nspname as schema,
@@ -2327,8 +3857,8 @@ BEGIN
 			WHERE c.relkind IN ('r', 'v', 'S', 'f')
 			AND a.attacl IS NOT NULL
 		) x
-		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
-		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		LEFT JOIN pg_roles r ON r.oid = (p->>'grantor')::oid
+		LEFT JOIN pg_roles e ON e.oid = (p->>'grantee')::oid
 		) i
 		) select *
 		FROM x
@@ -9000,6 +10530,121 @@ END;
 $$;
 
 -- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'service_endpoint_direct_check');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_endpoint_direct_check');
+CREATE OR REPLACE FUNCTION jazzhands.service_endpoint_direct_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+BEGIN
+	IF NEW.dns_record_id IS NOT NULL OR NEW.port_range_id IS NOT NULL THEN
+		SELECT	sep.*
+		INTO	_r
+		FROM	service_endpoint_service_endpoint_provider_collection
+				JOIN service_endpoint_provider_collection
+					USING (service_endpoint_provider_collection_id)
+				JOIN service_endpoint_provider_collection_service_endpoint_provider
+					USING (service_endpoint_provider_collection_id)
+				JOIN service_endpoint_provider sep
+					USING (service_endpoint_provider_id)
+		WHERE	service_endpoint_id = NEW.service_endpoint_id;
+
+		IF FOUND THEN
+			--
+			-- It is possible that these don't need to match, but that use
+			-- case needs to be thought through, so it is disallowed for now.
+			--
+			IF _r.service_endpoint_provider_type = 'direct' THEN
+				IF _r.dns_record_id IS DISTINCT FROM NEW.dns_record_id THEN
+					RAISE EXCEPTION 'dns_record_id of service_endpoint_provider and service_endpoint must match'
+					USING ERRCODE = 'foreign_key_violation',
+					HINT = 'This check may be overly agressive but applies only to direct connections';
+				END IF;
+			END IF;
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('service_endpoint_direct_check');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc service_endpoint_direct_check failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'service_endpoint_provider_direct_check');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_endpoint_provider_direct_check');
+CREATE OR REPLACE FUNCTION jazzhands.service_endpoint_provider_direct_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+BEGIN
+	IF NEW.service_endpoint_provider_type = 'direct' THEN
+		IF NEW.dns_record_id IS NOT NULL THEN
+			SELECT	se.*
+			INTO	_r
+			FROM	service_endpoint se
+					JOIN service_endpoint_service_endpoint_provider_collection
+						USING (service_endpoint_id)
+					JOIN service_endpoint_provider_collection
+						USING (service_endpoint_provider_collection_id)
+					JOIN service_endpoint_provider_collection_service_endpoint_provider
+						USING (service_endpoint_provider_collection_id)
+			WHERE	service_endpoint_provider_id =
+				NEW.service_endpoint_provider_id;
+
+			IF FOUND THEN
+				--
+				-- It is possible that these don't need to match, but that use
+				-- case needs to be thought through, so it is disallowed for now.
+				--
+				IF _r.dns_record_id IS DISTINCT FROM NEW.dns_record_id THEN
+					RAISE EXCEPTION 'dns_record_id of service_endpoint_provider and service_endpoint must match (% %', _r.dns_record_id, NEW.dns_record_id
+					USING ERRCODE = 'foreign_key_violation',
+					HINT = 'This check may be overly agressive but applies only to direct connections';
+				END IF;
+			END IF;
+		END IF;
+	-- This doesn't work right with cname failver in gtm, so commenting out,
+	-- but it's possible it needs to be rethought.
+	-- ELSIF NEW.dns_record_id IS NOT NULL THEN
+	--	RAISE EXCEPTION 'direct providers must have their dns record in sync with their endpoint'
+	--	USING ERRCODE = 'foreign_key_violation',
+	--	HINT = 'This check may be overly agressive';
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('service_endpoint_provider_direct_check');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc service_endpoint_provider_direct_check failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
 SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'service_environment_ins');
 SELECT schema_support.save_grants_for_replay('jazzhands', 'service_environment_ins');
 CREATE OR REPLACE FUNCTION jazzhands.service_environment_ins()
@@ -9534,7 +11179,7 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands', type := 'vi
 -- There's probably a bug; these will get refreshed.
 DELETE from jazzhands_cache.ct_jazzhands_legacy_device_support
 WHERE device_id IN (
-	SELECT device_id 
+	SELECT device_id
 	FROM jazzhands_cache.v_jazzhands_legacy_device_support z
 	WHERE (z) IN
 	(
@@ -9545,6 +11190,45 @@ WHERE device_id IN (
 		) x
 	)
 );
+
+ALTER TABLE device DROP CONSTRAINT IF EXISTS ak_device_id_site;
+ALTER TABLE device
+    ADD CONSTRAINT ak_device_id_site UNIQUE (device_id, site_code) DEFERRABLE;
+
+ALTER TABLE device DROP CONSTRAINT IF EXISTS ak_device_id_site_virtual_name;
+ALTER TABLE device
+    ADD CONSTRAINT ak_device_id_site_virtual_name
+UNIQUE (device_id, device_name, site_code, is_virtual_device) DEFERRABLE;
+
+ALTER TABLE service DROP CONSTRAINT IF EXISTS ak_service_id_active;
+ALTER TABLE service
+    ADD CONSTRAINT ak_service_id_active
+	UNIQUE (service_id, is_active) DEFERRABLE;
+
+ALTER TABLE service DROP CONSTRAINT IF EXISTS ak_service_name_type;
+ALTER TABLE ONLY service
+	ADD CONSTRAINT ak_service_name_type
+	UNIQUE (service_id, service_type) DEFERRABLE;
+
+ALTER TABLE service_instance
+	DROP CONSTRAINT IF EXISTS ak_service_instance_device_id;
+ALTER TABLE ONLY service_instance
+    ADD CONSTRAINT ak_service_instance_device_id
+	UNIQUE (service_instance_id, device_id);
+
+ALTER TABLE service_version
+	DROP CONSTRAINT IF EXISTS ak_service_version_service_name_enabled;
+ALTER TABLE ONLY service_version
+    ADD CONSTRAINT ak_service_version_service_name_enabled
+	UNIQUE (service_id, service_version_id, service_version_name, is_enabled) DEFERRABLE;
+
+DROP INDEX IF EXISTS jazzhands_audit.aud_device_ak_device_id_site;
+CREATE INDEX aud_device_ak_device_id_site
+	ON jazzhands_audit.device USING btree (device_id, site_code);
+
+DROP INDEX IF EXISTS jazzhands_audit.aud_device_ak_device_id_site;
+CREATE INDEX aud_device_ak_device_id_site_virtual_name
+	ON jazzhands_audit.device USING btree (device_id, device_name, site_code, is_virtual_device);
 
 
 -- END Misc that does not apply to above
@@ -16808,7 +18492,7 @@ CREATE TRIGGER trig_userlog_service_endpoint BEFORE INSERT OR UPDATE ON jazzhand
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint ON service_endpoint;
 CREATE TRIGGER trigger_audit_service_endpoint AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint();
 DROP TRIGGER IF EXISTS trigger_service_endpoint_direct_check ON service_endpoint;
-CREATE CONSTRAINT TRIGGER trigger_service_endpoint_direct_check AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_direct_check();
+CREATE CONSTRAINT TRIGGER trigger_service_endpoint_direct_check AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_direct_check();
 DROP TRIGGER IF EXISTS trigger_validate_service_endpoint_fksets ON service_endpoint;
 CREATE CONSTRAINT TRIGGER trigger_validate_service_endpoint_fksets AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_service_endpoint_fksets();
 DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_health_check ON service_endpoint_health_check;
@@ -16820,7 +18504,7 @@ CREATE TRIGGER trig_userlog_service_endpoint_provider BEFORE INSERT OR UPDATE ON
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_provider ON service_endpoint_provider;
 CREATE TRIGGER trigger_audit_service_endpoint_provider AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint_provider FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint_provider();
 DROP TRIGGER IF EXISTS trigger_service_endpoint_provider_direct_check ON service_endpoint_provider;
-CREATE CONSTRAINT TRIGGER trigger_service_endpoint_provider_direct_check AFTER INSERT OR UPDATE OF service_endpoint_provider_type, dns_record_id ON jazzhands.service_endpoint_provider NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_provider_direct_check();
+CREATE CONSTRAINT TRIGGER trigger_service_endpoint_provider_direct_check AFTER INSERT OR UPDATE OF service_endpoint_provider_type, dns_record_id ON jazzhands.service_endpoint_provider DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_provider_direct_check();
 DROP TRIGGER IF EXISTS trigger_service_endpoint_provider_dns_netblock_check ON service_endpoint_provider;
 CREATE CONSTRAINT TRIGGER trigger_service_endpoint_provider_dns_netblock_check AFTER INSERT OR UPDATE OF dns_record_id, netblock_id ON jazzhands.service_endpoint_provider NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_provider_dns_netblock_check();
 DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_provider_collection ON service_endpoint_provider_collection;
@@ -16832,7 +18516,7 @@ CREATE TRIGGER trig_userlog_service_endpoint_provider_collection_service_endpo B
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_provider_collection_service_endp ON service_endpoint_provider_collection_service_endpoint_provider;
 CREATE TRIGGER trigger_audit_service_endpoint_provider_collection_service_endp AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint_provider_collection_service_endpoint_provider FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint_provider_collection_service_endp();
 DROP TRIGGER IF EXISTS trigger_svc_ep_coll_sep_direct_check ON service_endpoint_provider_collection_service_endpoint_provider;
-CREATE CONSTRAINT TRIGGER trigger_svc_ep_coll_sep_direct_check AFTER INSERT OR UPDATE OF service_endpoint_provider_collection_id, service_endpoint_provider_id ON jazzhands.service_endpoint_provider_collection_service_endpoint_provider NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.svc_ep_coll_sep_direct_check();
+CREATE CONSTRAINT TRIGGER trigger_svc_ep_coll_sep_direct_check AFTER INSERT OR UPDATE OF service_endpoint_provider_collection_id, service_endpoint_provider_id ON jazzhands.service_endpoint_provider_collection_service_endpoint_provider DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.svc_ep_coll_sep_direct_check();
 DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_provider_service_instance ON service_endpoint_provider_service_instance;
 CREATE TRIGGER trig_userlog_service_endpoint_provider_service_instance BEFORE INSERT OR UPDATE ON jazzhands.service_endpoint_provider_service_instance FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_provider_service_instance ON service_endpoint_provider_service_instance;
@@ -16846,9 +18530,9 @@ CREATE TRIGGER trig_userlog_service_endpoint_service_endpoint_provider_collect B
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_service_endpoint_provider_collec ON service_endpoint_service_endpoint_provider_collection;
 CREATE TRIGGER trigger_audit_service_endpoint_service_endpoint_provider_collec AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint_service_endpoint_provider_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint_service_endpoint_provider_collec();
 DROP TRIGGER IF EXISTS trigger_svc_end_prov_svc_end_col_direct_check ON service_endpoint_service_endpoint_provider_collection;
-CREATE CONSTRAINT TRIGGER trigger_svc_end_prov_svc_end_col_direct_check AFTER INSERT OR UPDATE OF service_endpoint_provider_collection_id, service_endpoint_relation_type, service_endpoint_relation_key ON jazzhands.service_endpoint_service_endpoint_provider_collection NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.svc_end_prov_svc_end_col_direct_check();
+CREATE CONSTRAINT TRIGGER trigger_svc_end_prov_svc_end_col_direct_check AFTER INSERT OR UPDATE OF service_endpoint_provider_collection_id, service_endpoint_relation_type, service_endpoint_relation_key ON jazzhands.service_endpoint_service_endpoint_provider_collection DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.svc_end_prov_svc_end_col_direct_check();
 DROP TRIGGER IF EXISTS trigger_svc_ep_svc_epp_coll_direct ON service_endpoint_service_endpoint_provider_collection;
-CREATE CONSTRAINT TRIGGER trigger_svc_ep_svc_epp_coll_direct AFTER INSERT OR UPDATE OF service_endpoint_relation_type, service_endpoint_relation_key ON jazzhands.service_endpoint_service_endpoint_provider_collection NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.svc_ep_svc_epp_coll_direct();
+CREATE CONSTRAINT TRIGGER trigger_svc_ep_svc_epp_coll_direct AFTER INSERT OR UPDATE OF service_endpoint_relation_type, service_endpoint_relation_key ON jazzhands.service_endpoint_service_endpoint_provider_collection DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.svc_ep_svc_epp_coll_direct();
 DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_service_sla ON service_endpoint_service_sla;
 CREATE TRIGGER trig_userlog_service_endpoint_service_sla BEFORE INSERT OR UPDATE ON jazzhands.service_endpoint_service_sla FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_service_sla ON service_endpoint_service_sla;
