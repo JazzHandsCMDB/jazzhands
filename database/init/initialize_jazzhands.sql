@@ -1023,12 +1023,21 @@ VALUES (
 	'REQUIRED',
 	'REQUIRED'
 );
+
 --
 -- Device provisioning properties
 --
 --   These need to move to various component_property tables, but we need
 --   company_collection_id and friends in there first
 --
+
+insert into val_company_collection_type
+	(company_collection_type,
+	max_num_members, can_have_hierarchy
+) values (
+	'per-company',
+	1, false
+);
 
 INSERT INTO val_property(
 	property_name, property_type, description, is_multivalue,
@@ -1119,15 +1128,6 @@ VALUES (
 	'ALLOWED',
 	'ALLOWED'
 );
-
-insert into val_company_collection_type
-	(company_collection_type,
-	max_num_members, can_have_hierarchy
-	)
-values
-	('per-company',
-	1, false
-	);
 
 -- XXX need to auto-create a Account_Collection all_company_XX
 
@@ -2158,12 +2158,6 @@ insert into val_property (
 
 -------------------------------------------------------------------------
 -- BEGIN Device Inventory
-
-INSERT INTO val_property_type (
-	property_type, description
-) VALUES
-	('DeviceInventory', 'properties for device inventory functions')
-;
 
 INSERT INTO val_property (
 	property_type, property_name, property_data_type,
