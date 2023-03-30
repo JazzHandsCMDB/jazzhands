@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Todd Kover
+ * Copyright (c) 2021-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,12 +73,7 @@ BEGIN
 				IF _r.dns_record_id IS DISTINCT FROM NEW.dns_record_id THEN
 					RAISE EXCEPTION 'dns_record_id of service_endpoint_provider and service_endpoint must match'
 					USING ERRCODE = 'foreign_key_violation',
-					HINT = 'This check may be overly agressive but applies only to diret connects';
-				END IF;
-				IF _r.port_range_id IS DISTINCT FROM NEW.port_range_id THEN
-					RAISE EXCEPTION 'port_range_id of service_endpoint_provider and service_endpoint must match'
-					USING ERRCODE = 'foreign_key_violation',
-					HINT = 'This check may be overly agressive but applies only to diret connects';
+					HINT = 'This check may be overly agressive but applies only to direct connections';
 				END IF;
 			END IF;
 		END IF;
@@ -95,7 +90,7 @@ DROP TRIGGER IF EXISTS trigger_service_endpoint_direct_check
 CREATE CONSTRAINT TRIGGER trigger_service_endpoint_direct_check
 	AFTER INSERT OR UPDATE OF dns_record_id, port_range_id
 	ON service_endpoint
-	FOR EACH ROW
+	DEFERRABLE FOR EACH ROW
 	EXECUTE PROCEDURE service_endpoint_direct_check();
 
 -----------------------------------------------------------------------------
@@ -142,7 +137,7 @@ CREATE CONSTRAINT TRIGGER trigger_svc_end_prov_svc_end_col_direct_check
 		service_endpoint_relation_type,
 		service_endpoint_relation_key
 	ON service_endpoint_service_endpoint_provider_collection
-	FOR EACH ROW
+	DEFERRABLE FOR EACH ROW
 	EXECUTE PROCEDURE svc_end_prov_svc_end_col_direct_check();
 
 -----------------------------------------------------------------------------
@@ -170,7 +165,7 @@ CREATE CONSTRAINT TRIGGER trigger_svc_ep_svc_epp_coll_direct
 	AFTER INSERT OR UPDATE OF service_endpoint_relation_type,
 		service_endpoint_relation_key
 	ON service_endpoint_service_endpoint_provider_collection
-	FOR EACH ROW
+	DEFERRABLE FOR EACH ROW
 	EXECUTE PROCEDURE svc_ep_svc_epp_coll_direct();
 
 -----------------------------------------------------------------------------
@@ -213,7 +208,7 @@ CREATE CONSTRAINT TRIGGER trigger_svc_ep_coll_sep_direct_check
 			service_endpoint_provider_collection_id,
 			service_endpoint_provider_id
 	ON service_endpoint_provider_collection_service_endpoint_provider
-	FOR EACH ROW
+	DEFERRABLE FOR EACH ROW
 	EXECUTE PROCEDURE svc_ep_coll_sep_direct_check();
 
 -----------------------------------------------------------------------------
@@ -245,12 +240,7 @@ BEGIN
 				IF _r.dns_record_id IS DISTINCT FROM NEW.dns_record_id THEN
 					RAISE EXCEPTION 'dns_record_id of service_endpoint_provider and service_endpoint must match (% %', _r.dns_record_id, NEW.dns_record_id
 					USING ERRCODE = 'foreign_key_violation',
-					HINT = 'This check may be overly agressive but applies only to direct connects';
-				END IF;
-				IF _r.port_range_id IS DISTINCT FROM NEW.port_range_id THEN
-					RAISE EXCEPTION 'port_range of service_endpoint_provider and service_endpoint must match'
-					USING ERRCODE = 'foreign_key_violation',
-					HINT = 'This check may be overly agressive but applies only to diret connects';
+					HINT = 'This check may be overly agressive but applies only to direct connections';
 				END IF;
 			END IF;
 		END IF;
@@ -273,7 +263,7 @@ DROP TRIGGER IF EXISTS trigger_service_endpoint_provider_direct_check
 CREATE CONSTRAINT TRIGGER trigger_service_endpoint_provider_direct_check
 	AFTER INSERT OR UPDATE OF service_endpoint_provider_type, dns_record_id
 	ON service_endpoint_provider
-	FOR EACH ROW
+	DEFERRABLE FOR EACH ROW
 	EXECUTE PROCEDURE service_endpoint_provider_direct_check();
 
 -----------------------------------------------------------------------------
