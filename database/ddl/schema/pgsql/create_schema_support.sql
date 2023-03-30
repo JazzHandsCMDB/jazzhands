@@ -988,13 +988,13 @@ DECLARE
 	_tally	integer;
 BEGIN
 	IF shouldbesuper THEN
-		SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+		SELECT rolsuper INTO issuper FROM pg_role where rolname = current_user;
 		IF issuper IS false THEN
 			PERFORM groname, rolname
 			FROM (
 				SELECT groname, unnest(grolist) AS oid
 				FROM pg_group ) g
-			JOIN pg_roles r USING (oid)
+			JOIN pg_roles u USING (oid)
 			WHERE groname = 'dba'
 			AND rolname = current_user;
 
@@ -1031,7 +1031,7 @@ BEGIN
 		SELECT rolname, coalesce(numrels, 0) AS numrels,
 		coalesce(numprocs, 0) AS numprocs,
 		coalesce(numfks, 0) AS numfks
-		FROM pg_roles r
+		FROM pg_roles u
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
@@ -1070,7 +1070,7 @@ DECLARE
 	_myrole	TEXT;
 	msg TEXT;
 BEGIN
-	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+	SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 	IF issuper THEN
 		EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
 	END IF;
@@ -1578,11 +1578,11 @@ BEGIN
 
 	-- now save the view
 	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
-				coalesce(u.usename, 'public') as owner,
+				coalesce(u.rolname, 'public') as owner,
 				pg_get_viewdef(c.oid, true) as viewdef, relkind
 		FROM pg_class c
 		INNER JOIN pg_namespace n on n.oid = c.relnamespace
-		LEFT JOIN pg_user u on u.usesysid = c.relowner
+		LEFT JOIN pg_roles u on u.oid = c.relowner
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
@@ -1999,13 +1999,13 @@ BEGIN
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
 	FOR _r IN SELECT n.nspname, p.proname,
-				coalesce(u.usename, 'public') as owner,
+				coalesce(u.rolname, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
 				pg_get_function_identity_arguments(p.oid) as idargs
 		FROM    pg_catalog.pg_proc  p
 				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
 				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
-				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
@@ -2273,20 +2273,43 @@ CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(
 	in_txids		bigint[] DEFAULT NULL
 ) RETURNS INTEGER AS $$
 DECLARE
-	tally	integer;
-	pks		text[];
-	cols	text[];
-	q		text;
-	val		text;
-	x		text;
-	_whcl	text;
-	_eq		text;
-	setstr	text;
-	_r		record;
-	_c		record;
-	_br		record;
-	_vals	text[];
+	tally				integer;
+	pks					text[];
+	cols				text[];
+	q					text;
+	val					text;
+	x					text;
+	_whcl				text;
+	_eq					text;
+	setstr				text;
+	_r					record;
+	_c					record;
+	_br					record;
+	_vals				text[];
+	txt_in_audit_ids	text;
+	txt_in_txids		text;
+	i					integer;
 BEGIN
+	IF in_txids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_txids LOOP
+			IF txt_in_txids IS NULL THEN
+				txt_in_txids := i;
+			ELSE
+				txt_in_txids := txt_in_txids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
+	IF in_audit_ids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_audit_ids LOOP
+			IF txt_in_audit_ids IS NULL THEN
+				txt_in_audit_ids := i;
+			ELSE
+				txt_in_audit_ids := txt_in_audit_ids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
 	tally := 0;
 	pks := schema_support.get_pk_columns(in_schema, in_table);
 	cols := schema_support.get_columns(in_schema, in_table);
@@ -2321,19 +2344,23 @@ BEGIN
 		ELSE
 			q := q || 'AND ';
 		END IF;
-		q := q || quote_ident('aud#seq') || ' = ANY (in_audit_ids)';
+		RAISE NOTICE 'xx -> %', txt_in_audit_ids;
+		q := q || quote_ident('aud#seq') || ' = ANY (ARRAY[' || txt_in_audit_ids || '])';
 	END IF;
-	IF in_audit_ids is not NULL THEN
+	IF in_txids is not NULL THEN
 		IF q = '' THEN
 			q := q || 'WHERE ';
 		ELSE
 			q := q || 'AND ';
 		END IF;
-		q := q || quote_ident('aud#txid') || ' = ANY (in_txids)';
+		RAISE NOTICE 'xx -> %', txt_in_txids;
+		q := q || quote_ident('aud#txid') || ' = ANY (ARRAY[' || txt_in_txids || '])';
 	END IF;
 
+	RAISE NOTICE 'q-> %', q;
+
 	-- Iterate over all the rows that need to be replayed
-	q := 'SELECT * from ' || quote_ident(in_audit_schema) || '.' ||
+	q := 'SELECT * FROM ' || quote_ident(in_audit_schema) || '.' ||
 			quote_ident(in_table) || ' ' || q || ' ORDER BY "aud#seq" desc';
 	FOR _r IN EXECUTE q
 	LOOP
@@ -2467,7 +2494,7 @@ BEGIN
 		FROM    pg_catalog.pg_proc  p
 				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
 				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
-				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
@@ -3254,7 +3281,7 @@ BEGIN
 			p->>'privilege_type' as privilege_type,
 			col,
 			r.usename as grantor, e.usename as grantee,
-			r.usesysid as rid,  e.usesysid as eid,
+			r.oid as rid,  e.oid as eid,
 			e.useconfig
 		FROM (
 			SELECT  c.oid, n.nspname as schema,
@@ -3292,8 +3319,8 @@ BEGIN
 			WHERE c.relkind IN ('r', 'v', 'S', 'f')
 			AND a.attacl IS NOT NULL
 		) x
-		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
-		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		LEFT JOIN pg_roles r ON r.oid = (p->>'grantor')::oid
+		LEFT JOIN pg_roles e ON e.oid = (p->>'grantee')::oid
 		) i
 		) select *
 		FROM x
