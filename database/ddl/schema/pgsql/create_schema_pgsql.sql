@@ -1855,6 +1855,14 @@ ALTER TABLE device
 ALTER TABLE device
 	ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
 
+ALTER TABLE device
+	ADD CONSTRAINT ak_device_id_site UNIQUE (device_id,site_code)
+	DEFERRABLE  ;
+
+ALTER TABLE device
+	ADD CONSTRAINT ak_device_id_site_virtual_name UNIQUE (device_id,device_name,site_code,is_virtual_device)
+	DEFERRABLE  ;
+
 CREATE INDEX idx_device_type_location ON device
 ( 
 	device_type_id
@@ -5486,7 +5494,12 @@ ALTER TABLE service
 	ADD CONSTRAINT pk_service PRIMARY KEY (service_id);
 
 ALTER TABLE service
-	ADD CONSTRAINT ak_service_name_type UNIQUE (service_id,service_type);
+	ADD CONSTRAINT ak_service_id_active UNIQUE (service_id,is_active)
+	DEFERRABLE  ;
+
+ALTER TABLE service
+	ADD CONSTRAINT ak_service_name_type UNIQUE (service_id,service_type)
+	DEFERRABLE  ;
 
 CREATE INDEX xifservice_service_type ON service
 ( 
@@ -6071,6 +6084,9 @@ ALTER TABLE service_instance
 	ADD CONSTRAINT pk_service_instance PRIMARY KEY (service_instance_id);
 
 ALTER TABLE service_instance
+	ADD CONSTRAINT ak_service_instance_device_id UNIQUE (service_instance_id,device_id);
+
+ALTER TABLE service_instance
 	ADD CONSTRAINT ak_svc_instance_device_id_version UNIQUE (device_id,service_version_id);
 
 CREATE INDEX xifservice_instance_dev_nblk ON service_instance
@@ -6378,6 +6394,10 @@ ALTER TABLE service_version
 
 ALTER TABLE service_version
 	ADD CONSTRAINT ak_service_version_service_id_version_name UNIQUE (service_id,service_version_name);
+
+ALTER TABLE service_version
+	ADD CONSTRAINT ak_service_version_service_name_enabled UNIQUE (service_id,service_version_id,service_version_name,is_enabled)
+	DEFERRABLE  ;
 
 CREATE INDEX xifservice_version_service_id ON service_version
 ( 
